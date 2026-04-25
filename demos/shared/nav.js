@@ -9,6 +9,7 @@
     { href: '../live-builder/', label: 'Builder' },
     { href: '../invariants/', label: 'Invariants' },
     { href: '../fifteen-lines/', label: '15 Lines' },
+    { href: '../style-derivation/', label: 'Styles' },
   ]
 
   const current = window.location.pathname
