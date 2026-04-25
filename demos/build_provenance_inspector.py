@@ -187,21 +187,19 @@ def build_page(fragment: str, data: dict[str, Any], bundle: IntentBundle) -> str
   <main class="content-shell mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
     <header class="mb-8 border-b border-white/10 pb-8">
       <p class="mb-3 font-mono text-sm font-semibold uppercase tracking-[0.18em] text-teal-300">ViewSpec Demo</p>
-      <div class="grid gap-5 lg:grid-cols-[1fr_auto] lg:items-end">
-        <div>
-          <h1 class="sr-only">Provenance Inspector</h1>
-          <div class="pretext-canvas-wrap max-w-3xl">
-            <canvas data-pretext-canvas data-text="Provenance Inspector" data-size="50" data-weight="900" data-line-height="54" class="text-white" role="img" aria-label="Provenance Inspector">Provenance Inspector</canvas>
-          </div>
-          <p class="sr-only">Hover any rendered element to trace it from DOM node to IR, binding, canonical address, semantic node, and raw value.</p>
-          <div class="pretext-canvas-wrap mt-4 max-w-3xl">
-            <canvas data-pretext-canvas data-text="Hover any rendered element to trace it from DOM node to IR, binding, canonical address, semantic node, and raw value." data-size="18" data-weight="400" data-line-height="29" class="text-slate-300" role="img" aria-label="Hover any rendered element to trace it from DOM node to IR, binding, canonical address, semantic node, and raw value.">Hover any rendered element to trace it from DOM node to IR, binding, canonical address, semantic node, and raw value.</canvas>
-          </div>
+      <div>
+        <h1 class="sr-only">Provenance Inspector</h1>
+        <div class="pretext-canvas-wrap max-w-3xl">
+          <canvas data-pretext-canvas data-text="Provenance Inspector" data-size="50" data-weight="900" data-line-height="54" class="text-white" role="img" aria-label="Provenance Inspector">Provenance Inspector</canvas>
         </div>
-        <div class="grid gap-1 rounded-lg border border-white/10 bg-white/[0.04] p-4 font-mono text-sm text-slate-300">
-          <div><span class="text-teal-300">bindings</span> = {binding_count}</div>
-          <div><span class="text-teal-300">semantic nodes</span> = {semantic_count}</div>
-          <div><span class="text-teal-300">manifest nodes</span> = {manifest_count}</div>
+        <p class="sr-only">Hover any rendered element to trace it from DOM node to IR, binding, canonical address, semantic node, and raw value.</p>
+        <div class="pretext-canvas-wrap mt-4 max-w-3xl">
+          <canvas data-pretext-canvas data-text="Hover any rendered element to trace it from DOM node to IR, binding, canonical address, semantic node, and raw value." data-size="18" data-weight="400" data-line-height="29" class="text-slate-300" role="img" aria-label="Hover any rendered element to trace it from DOM node to IR, binding, canonical address, semantic node, and raw value.">Hover any rendered element to trace it from DOM node to IR, binding, canonical address, semantic node, and raw value.</canvas>
+        </div>
+        <div class="mt-4 flex flex-wrap gap-4 font-mono text-sm text-slate-300">
+          <span><span class="text-teal-300">bindings</span> = {binding_count}</span>
+          <span><span class="text-teal-300">semantic nodes</span> = {semantic_count}</span>
+          <span><span class="text-teal-300">manifest nodes</span> = {manifest_count}</span>
         </div>
       </div>
     </header>

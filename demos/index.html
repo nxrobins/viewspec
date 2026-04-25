@@ -11,131 +11,171 @@
     :root { color-scheme: dark; }
 
     body {
-      background: #0a0c0f;
+      background: #06080b;
       color: #f8fafc;
       min-height: 100vh;
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
     }
 
-    .hero-pretext {
-      margin-left: auto;
-      margin-right: auto;
+    /* -- Ambient glow behind hero -- */
+    .hero-glow {
+      position: absolute;
+      top: -160px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 800px;
+      height: 600px;
+      background: radial-gradient(ellipse at center, rgba(45, 212, 191, 0.08) 0%, rgba(45, 212, 191, 0.03) 40%, transparent 70%);
+      pointer-events: none;
+      z-index: 0;
     }
 
-    /* -- ViewSpec compiled content (light theme embedded in dark page) -- */
+    .hero-pretext { margin-left: auto; margin-right: auto; position: relative; z-index: 1; }
+
+    /* -- Grid background -- */
+    .grid-bg {
+      position: fixed;
+      inset: 0;
+      background-image:
+        linear-gradient(rgba(45, 212, 191, 0.03) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(45, 212, 191, 0.03) 1px, transparent 1px);
+      background-size: 64px 64px;
+      pointer-events: none;
+      z-index: 0;
+      mask-image: radial-gradient(ellipse at 50% 30%, black 20%, transparent 70%);
+      -webkit-mask-image: radial-gradient(ellipse at 50% 30%, black 20%, transparent 70%);
+    }
+
+    /* -- Compiled sections -- */
     .compiled-section {
-      background: #f8fafc;
-      border: 1px solid rgba(148, 163, 184, 0.2);
+      background: rgba(15, 23, 42, 0.6);
+      border: 1px solid rgba(45, 212, 191, 0.12);
       border-radius: 1rem;
       padding: 1.5rem;
-      color: #0f172a;
+      color: #e2e8f0;
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
     }
 
     .compiled-section .section-label {
-      font-size: 0.65rem;
+      font-size: 0.6rem;
       font-weight: 700;
-      color: #0f766e;
-      letter-spacing: 0.12em;
+      color: rgba(45, 212, 191, 0.7);
+      letter-spacing: 0.14em;
       text-transform: uppercase;
       margin-bottom: 0.75rem;
       font-family: 'SF Mono', 'Cascadia Code', monospace;
     }
 
-    /* Demo row → clickable link */
-    .demo-row {
+    /* Feature cards */
+    .feature-card {
+      background: rgba(15, 23, 42, 0.5);
+      border: 1px solid rgba(45, 212, 191, 0.1);
+      border-radius: 0.75rem;
+      padding: 1.5rem;
+      transition: border-color 300ms ease, box-shadow 300ms ease;
+    }
+    .feature-card:hover {
+      border-color: rgba(45, 212, 191, 0.3);
+      box-shadow: 0 0 30px rgba(45, 212, 191, 0.06);
+    }
+    .feature-card .feat-label {
+      font-size: 0.65rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      color: #2dd4bf;
+      margin-bottom: 0.5rem;
+    }
+    .feature-card .feat-value {
+      font-size: 0.9rem;
+      color: #cbd5e1;
+      line-height: 1.6;
+    }
+
+    /* Demo cards */
+    .demo-card {
       display: block;
       text-decoration: none;
       color: inherit;
-      padding: 0.75rem 1rem;
+      background: rgba(15, 23, 42, 0.4);
+      border: 1px solid rgba(148, 163, 184, 0.08);
       border-radius: 0.75rem;
-      transition: background 160ms ease;
+      padding: 1.25rem 1.5rem;
+      transition: border-color 250ms ease, background 250ms ease, transform 250ms ease;
     }
-    .demo-row:hover { background: rgba(15, 118, 110, 0.06); }
-    .demo-row .demo-label {
-      font-size: 0.7rem;
+    .demo-card:hover {
+      border-color: rgba(45, 212, 191, 0.25);
+      background: rgba(15, 23, 42, 0.6);
+      transform: translateY(-1px);
+    }
+    .demo-card .demo-num {
+      font-size: 0.6rem;
       font-weight: 700;
       text-transform: uppercase;
-      letter-spacing: 0.08em;
-      color: #64748b;
-      margin-bottom: 0.25rem;
-    }
-    .demo-row .demo-value {
-      font-size: 0.95rem;
-      font-weight: 600;
-      color: #0f172a;
-    }
-    .demo-row .demo-desc {
-      font-size: 0.8rem;
-      color: #64748b;
-      margin-top: 0.15rem;
-    }
-
-    /* Feature card override */
-    .feature-card {
-      background: white;
-      border: 1px solid #e2e8f0;
-      border-radius: 0.75rem;
-      padding: 1.25rem;
-    }
-    .feature-card .feat-label {
-      font-size: 0.7rem;
-      font-weight: 700;
-      text-transform: uppercase;
-      letter-spacing: 0.1em;
-      color: #0f766e;
+      letter-spacing: 0.12em;
+      color: rgba(45, 212, 191, 0.6);
       margin-bottom: 0.35rem;
+      font-family: 'SF Mono', 'Cascadia Code', monospace;
     }
-    .feature-card .feat-value {
-      font-size: 0.95rem;
-      color: #334155;
+    .demo-card .demo-title {
+      font-size: 1.05rem;
+      font-weight: 700;
+      color: #f1f5f9;
+      margin-bottom: 0.3rem;
+    }
+    .demo-card .demo-desc {
+      font-size: 0.8rem;
+      color: #94a3b8;
       line-height: 1.5;
     }
 
-    /* Pipeline step */
-    .pipeline-step {
-      text-align: center;
-      padding: 1rem;
-    }
+    /* Pipeline */
+    .pipeline-step { text-align: center; padding: 1.25rem; }
     .pipeline-step .step-label {
-      font-size: 0.75rem;
+      font-size: 0.7rem;
       font-weight: 700;
-      color: #0f766e;
+      color: #2dd4bf;
       text-transform: uppercase;
       letter-spacing: 0.1em;
-      margin-bottom: 0.35rem;
+      margin-bottom: 0.5rem;
     }
     .pipeline-step .step-value {
       font-size: 0.85rem;
-      color: #475569;
-      line-height: 1.5;
+      color: #94a3b8;
+      line-height: 1.6;
+    }
+    .pipeline-arrow {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: rgba(45, 212, 191, 0.3);
+      font-size: 1.5rem;
     }
 
-    .pip {
-      display: inline-block;
-      background: rgba(45, 212, 191, 0.1);
-      border: 1px solid rgba(45, 212, 191, 0.3);
-      border-radius: 999px;
-      padding: 0.5rem 1.25rem;
-      font-family: 'SF Mono', 'Cascadia Code', 'Fira Code', monospace;
-      font-size: 0.875rem;
-      color: #2dd4bf;
-      letter-spacing: 0.02em;
-      user-select: all;
-      cursor: pointer;
-      transition: background 200ms ease;
-    }
-    .pip:hover { background: rgba(45, 212, 191, 0.18); }
-
+    /* Code block */
     .hero-code {
-      background: rgba(255,255,255,0.04);
-      border: 1px solid rgba(148, 163, 184, 0.15);
+      background: rgba(15, 23, 42, 0.7);
+      border: 1px solid rgba(45, 212, 191, 0.1);
       border-radius: 0.75rem;
-      padding: 1.5rem;
+      padding: 1.75rem 2rem;
       font-family: 'SF Mono', 'Cascadia Code', 'Fira Code', monospace;
-      font-size: 0.8rem;
-      line-height: 1.7;
+      font-size: 0.78rem;
+      line-height: 1.75;
       overflow-x: auto;
-      max-width: 520px;
+      max-width: 560px;
+      position: relative;
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+    }
+    .hero-code::before {
+      content: '';
+      position: absolute;
+      top: -1px;
+      left: 2rem;
+      right: 2rem;
+      height: 1px;
+      background: linear-gradient(to right, transparent, rgba(45, 212, 191, 0.3), transparent);
     }
     .hero-code .kw { color: #7dd3fc; }
     .hero-code .fn { color: #2dd4bf; }
@@ -143,41 +183,64 @@
     .hero-code .comment { color: #475569; }
     .hero-code .var { color: #f8fafc; }
 
+    /* Pip install */
+    .pip {
+      display: inline-block;
+      background: rgba(45, 212, 191, 0.08);
+      border: 1px solid rgba(45, 212, 191, 0.2);
+      border-radius: 999px;
+      padding: 0.6rem 1.5rem;
+      font-family: 'SF Mono', 'Cascadia Code', monospace;
+      font-size: 0.875rem;
+      color: #2dd4bf;
+      letter-spacing: 0.02em;
+      user-select: all;
+      cursor: pointer;
+      transition: all 250ms ease;
+    }
+    .pip:hover {
+      background: rgba(45, 212, 191, 0.15);
+      box-shadow: 0 0 20px rgba(45, 212, 191, 0.1);
+    }
+
+    /* Invariant badges */
     .invariant-badge {
       display: inline-flex;
       align-items: center;
       gap: 0.4rem;
-      font-size: 0.8rem;
+      font-size: 0.75rem;
       font-weight: 600;
       color: #2dd4bf;
-      background: rgba(45, 212, 191, 0.08);
-      border: 1px solid rgba(45, 212, 191, 0.2);
+      background: rgba(45, 212, 191, 0.06);
+      border: 1px solid rgba(45, 212, 191, 0.15);
       border-radius: 999px;
       padding: 0.35rem 0.85rem;
     }
 
     .separator {
       height: 1px;
-      background: linear-gradient(to right, transparent, rgba(148, 163, 184, 0.15), transparent);
-      margin: 3.5rem 0;
+      background: linear-gradient(to right, transparent, rgba(45, 212, 191, 0.1), transparent);
+      margin: 4rem 0;
     }
-
-    .pretext-badge {
-      font-size: 0.65rem;
-      color: #475569;
-      margin-top: 0.75rem;
-      text-align: center;
-    }
-    .pretext-badge a { color: #64748b; text-decoration: none; }
-    .pretext-badge a:hover { color: #94a3b8; }
 
     .dogfood-badge {
-      font-size: 0.65rem;
+      font-size: 0.6rem;
       color: #475569;
       font-family: 'SF Mono', 'Cascadia Code', monospace;
       text-align: center;
-      margin-top: 0.5rem;
+      margin-top: 0.75rem;
     }
+    .dogfood-badge a { color: #64748b; text-decoration: none; }
+    .dogfood-badge a:hover { color: #94a3b8; }
+
+    .pretext-badge {
+      font-size: 0.6rem;
+      color: #334155;
+      margin-top: 0.75rem;
+      text-align: center;
+    }
+    .pretext-badge a { color: #475569; text-decoration: none; }
+    .pretext-badge a:hover { color: #94a3b8; }
 
     footer a { color: #2dd4bf; text-decoration: none; }
     footer a:hover { text-decoration: underline; }
@@ -185,57 +248,32 @@
 </head>
 <body>
 
+  <div class="grid-bg"></div>
+
   <!-- ============================================================ -->
-  <!-- HERO — Pretext canvas + branding                             -->
+  <!-- HERO                                                         -->
   <!-- ============================================================ -->
-  <div class="max-w-4xl mx-auto px-6 pt-20 pb-4">
-    <div class="text-center mb-8">
+  <div class="relative max-w-4xl mx-auto px-6 pt-24 pb-6">
+    <div class="hero-glow"></div>
+    <div class="text-center mb-10">
       <h1 class="sr-only">ViewSpec</h1>
       <div class="pretext-canvas-wrap hero-pretext">
-        <canvas data-pretext-canvas data-text="ViewSpec" data-size="64" data-weight="900" data-line-height="72" data-align="center" class="text-slate-50" role="img" aria-label="ViewSpec">ViewSpec</canvas>
+        <canvas data-pretext-canvas data-text="ViewSpec" data-size="72" data-weight="900" data-line-height="80" data-align="center" class="text-white" role="img" aria-label="ViewSpec">ViewSpec</canvas>
       </div>
-      <p class="sr-only">Universal UI from semantic data. Describe what your data means. The compiler figures out how it looks. Every pixel has a birth certificate.</p>
-      <div class="pretext-canvas-wrap hero-pretext mt-4 max-w-2xl">
-        <canvas data-pretext-canvas data-text="Universal UI from semantic data." data-size="22" data-weight="400" data-line-height="32" data-align="center" class="text-slate-400" role="img" aria-label="Universal UI from semantic data.">Universal UI from semantic data.</canvas>
+      <div class="pretext-canvas-wrap hero-pretext mt-5 max-w-2xl">
+        <canvas data-pretext-canvas data-text="Universal UI from semantic data." data-size="20" data-weight="400" data-line-height="30" data-align="center" class="text-slate-400" role="img" aria-label="Universal UI from semantic data.">Universal UI from semantic data.</canvas>
       </div>
-      <div class="pretext-canvas-wrap hero-pretext mt-5 max-w-xl">
-        <canvas data-pretext-canvas data-text="Describe what your data means. The compiler figures out how it looks. Every pixel has a birth certificate." data-size="16" data-weight="400" data-line-height="26" data-align="center" class="text-slate-500" role="img" aria-label="Describe what your data means. The compiler figures out how it looks. Every pixel has a birth certificate.">Describe what your data means. The compiler figures out how it looks. Every pixel has a birth certificate.</canvas>
+      <div class="pretext-canvas-wrap hero-pretext mt-4 max-w-lg">
+        <canvas data-pretext-canvas data-text="Describe what your data means. The compiler figures out how it looks. Every pixel has a birth certificate." data-size="15" data-weight="400" data-line-height="24" data-align="center" class="text-slate-500" role="img" aria-label="Describe what your data means. The compiler figures out how it looks. Every pixel has a birth certificate.">Describe what your data means. The compiler figures out how it looks. Every pixel has a birth certificate.</canvas>
       </div>
-      <p class="pretext-badge">Text rendered with the shared <a href="https://github.com/chenglou/pretext" target="_blank">Pretext</a> canvas runtime</p>
+      <p class="pretext-badge">Text rendered with <a href="https://github.com/chenglou/pretext" target="_blank">Pretext</a> canvas surfaces</p>
     </div>
-    <div class="text-center mb-10">
+
+    <div class="text-center mb-12">
       <span class="pip" title="Click to copy" onclick="navigator.clipboard.writeText('pip install viewspec')">pip install viewspec</span>
     </div>
-  </div>
 
-  <!-- ============================================================ -->
-  <!-- FEATURES — compiled by ViewSpec (dashboard motif)            -->
-  <!-- ============================================================ -->
-  <div class="max-w-4xl mx-auto px-6 pb-4">
-    <div class="compiled-section">
-      <p class="section-label">⬡ Compiled by ViewSpec — dashboard motif</p>
-      <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div class="feature-card" data-ir-id="motif_hero_features_hero_features_card_1" data-content-refs="[]" data-intent-refs='["viewspec:motif:hero_features"]'>
-          <div class="feat-label">Compilation</div>
-          <div class="feat-value">3ms deterministic — no LLM, no GPU</div>
-        </div>
-        <div class="feature-card" data-ir-id="motif_hero_features_hero_features_card_2" data-content-refs="[]" data-intent-refs='["viewspec:motif:hero_features"]'>
-          <div class="feat-label">Provenance</div>
-          <div class="feat-value">Every pixel traces to its source data</div>
-        </div>
-        <div class="feature-card" data-ir-id="motif_hero_features_hero_features_card_3" data-content-refs="[]" data-intent-refs='["viewspec:motif:hero_features"]'>
-          <div class="feat-label">Invariants</div>
-          <div class="feat-value">Exactly-once · Semantic grouping · Strict order</div>
-        </div>
-      </div>
-      <p class="dogfood-badge">This section is ViewSpec compiler output. <a href="./landing-compiled/" style="color:#64748b">View raw →</a></p>
-    </div>
-  </div>
-
-  <!-- ============================================================ -->
-  <!-- CODE EXAMPLE                                                 -->
-  <!-- ============================================================ -->
-  <div class="max-w-4xl mx-auto px-6 py-6">
+    <!-- Code example -->
     <div class="flex justify-center mb-8">
       <div class="hero-code text-left">
         <span class="kw">from</span> <span class="var">viewspec</span> <span class="kw">import</span> <span class="fn">ViewSpecBuilder</span>, <span class="fn">compile</span><br>
@@ -253,7 +291,8 @@
         <span class="comment"># That's it. Full UI. Full provenance. No CSS.</span>
       </div>
     </div>
-    <div class="flex flex-wrap justify-center gap-3">
+
+    <div class="flex flex-wrap justify-center gap-3 mb-4">
       <span class="invariant-badge">✓ Exactly-once provenance</span>
       <span class="invariant-badge">✓ Semantic grouping</span>
       <span class="invariant-badge">✓ Strict ordering</span>
@@ -263,64 +302,94 @@
   <div class="separator"></div>
 
   <!-- ============================================================ -->
-  <!-- DEMOS — compiled by ViewSpec (table motif) + linked          -->
+  <!-- FEATURES — compiled by ViewSpec (dashboard motif)            -->
   <!-- ============================================================ -->
-  <div class="max-w-4xl mx-auto px-6 py-4">
+  <div class="max-w-4xl mx-auto px-6 pb-4">
     <div class="compiled-section">
-      <p class="section-label">⬡ Compiled by ViewSpec — table motif</p>
-      <div class="space-y-1">
-        <a href="./motif-switcher/" class="demo-row" data-ir-id="motif_demo_index_demo_index_row_1">
-          <div class="demo-label">Demo 01</div>
-          <div class="demo-value">Same Data, Three Motifs</div>
-          <div class="demo-desc">One dataset, three visual structures. Change one parameter.</div>
-        </a>
-        <a href="./provenance-inspector/" class="demo-row" data-ir-id="motif_demo_index_demo_index_row_2">
-          <div class="demo-label">Demo 02</div>
-          <div class="demo-value">Provenance Inspector</div>
-          <div class="demo-desc">Hover any element. Trace DOM → IR → binding → address → raw data.</div>
-        </a>
-        <a href="./live-builder/" class="demo-row" data-ir-id="motif_demo_index_demo_index_row_3">
-          <div class="demo-label">Demo 03</div>
-          <div class="demo-value">Live Builder</div>
-          <div class="demo-desc">Browse ViewSpec JSON, IR tree, and rendered output. Always in sync.</div>
-        </a>
-        <a href="./invariants/" class="demo-row" data-ir-id="motif_demo_index_demo_index_row_4">
-          <div class="demo-label">Demo 04</div>
-          <div class="demo-value">The Invariants</div>
-          <div class="demo-desc">Watch the compiler enforce — and refuse — each guarantee.</div>
-        </a>
-        <a href="./fifteen-lines/" class="demo-row" data-ir-id="motif_demo_index_demo_index_row_5">
-          <div class="demo-label">Demo 05</div>
-          <div class="demo-value">15 Lines → Full UI</div>
-          <div class="demo-desc">An invoice table builds itself from 15 lines of Python.</div>
-        </a>
+      <p class="section-label">⬡ Compiled by ViewSpec — dashboard motif</p>
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div class="feature-card" data-ir-id="motif_hero_features_hero_features_card_1">
+          <div class="feat-label">Compilation</div>
+          <div class="feat-value">3ms deterministic — no LLM, no GPU</div>
+        </div>
+        <div class="feature-card" data-ir-id="motif_hero_features_hero_features_card_2">
+          <div class="feat-label">Provenance</div>
+          <div class="feat-value">Every pixel traces to its source data</div>
+        </div>
+        <div class="feature-card" data-ir-id="motif_hero_features_hero_features_card_3">
+          <div class="feat-label">Invariants</div>
+          <div class="feat-value">Exactly-once · Semantic grouping · Strict order</div>
+        </div>
       </div>
-      <p class="dogfood-badge">Demo index compiled from semantic data. <a href="./landing-compiled/intent_bundle.json" style="color:#64748b">View source ViewSpec →</a></p>
+      <p class="dogfood-badge">This section is ViewSpec compiler output. <a href="./landing-compiled/">View raw →</a></p>
     </div>
   </div>
 
   <div class="separator"></div>
 
   <!-- ============================================================ -->
-  <!-- HOW IT WORKS — compiled by ViewSpec (comparison motif)       -->
+  <!-- DEMOS                                                        -->
   <!-- ============================================================ -->
-  <div class="max-w-3xl mx-auto px-6 py-4">
+  <div class="max-w-4xl mx-auto px-6 py-4">
+    <div class="text-center mb-8">
+      <div class="pretext-canvas-wrap hero-pretext max-w-md">
+        <canvas data-pretext-canvas data-text="See it work." data-size="28" data-weight="700" data-line-height="34" data-align="center" class="text-white" role="img" aria-label="See it work.">See it work.</canvas>
+      </div>
+    </div>
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+      <a href="./motif-switcher/" class="demo-card">
+        <div class="demo-num">01</div>
+        <div class="demo-title">Same Data, Three Motifs</div>
+        <div class="demo-desc">One dataset, three visual structures. Change one parameter.</div>
+      </a>
+      <a href="./provenance-inspector/" class="demo-card">
+        <div class="demo-num">02</div>
+        <div class="demo-title">Provenance Inspector</div>
+        <div class="demo-desc">Hover any element. Trace DOM → IR → binding → address → raw data.</div>
+      </a>
+      <a href="./live-builder/" class="demo-card">
+        <div class="demo-num">03</div>
+        <div class="demo-title">Live Builder</div>
+        <div class="demo-desc">Browse ViewSpec JSON, IR tree, and rendered output. Always in sync.</div>
+      </a>
+      <a href="./invariants/" class="demo-card">
+        <div class="demo-num">04</div>
+        <div class="demo-title">The Invariants</div>
+        <div class="demo-desc">Watch the compiler enforce — and refuse — each guarantee.</div>
+      </a>
+      <a href="./fifteen-lines/" class="demo-card">
+        <div class="demo-num">05</div>
+        <div class="demo-title">15 Lines → Full UI</div>
+        <div class="demo-desc">An invoice table builds itself from 15 lines of Python.</div>
+      </a>
+    </div>
+  </div>
+
+  <div class="separator"></div>
+
+  <!-- ============================================================ -->
+  <!-- PIPELINE — compiled by ViewSpec (comparison motif)           -->
+  <!-- ============================================================ -->
+  <div class="max-w-4xl mx-auto px-6 py-4">
     <div class="compiled-section">
       <p class="section-label">⬡ Compiled by ViewSpec — comparison motif</p>
-      <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div class="pipeline-step" data-ir-id="motif_pipeline_pipeline_item_1">
+      <div class="grid grid-cols-1 md:grid-cols-5 gap-2 items-center">
+        <div class="pipeline-step">
           <div class="step-label">Describe</div>
           <div class="step-value">Semantic substrate + ViewSpec. What the data means, not how it looks.</div>
         </div>
-        <div class="pipeline-step" data-ir-id="motif_pipeline_pipeline_item_2">
+        <div class="pipeline-arrow hidden md:flex">→</div>
+        <div class="pipeline-step">
           <div class="step-label">Compile</div>
           <div class="step-value">Deterministic routing with provenance guarantees. 3ms. No LLM.</div>
         </div>
-        <div class="pipeline-step" data-ir-id="motif_pipeline_pipeline_item_3">
+        <div class="pipeline-arrow hidden md:flex">→</div>
+        <div class="pipeline-step">
           <div class="step-label">Render</div>
           <div class="step-value">Pluggable emitters. HTML today. Canvas tomorrow. Your renderer next.</div>
         </div>
       </div>
+      <p class="dogfood-badge">Pipeline compiled from semantic data.</p>
     </div>
   </div>
 
@@ -329,8 +398,8 @@
   <!-- Footer -->
   <footer class="max-w-4xl mx-auto px-6 py-12 text-center text-sm text-slate-600">
     <p class="mb-2">ViewSpec is open source. <a href="https://github.com/nxrobins/viewspec">MIT License</a>.</p>
-    <p class="mb-2">The compiler is a hosted service. The SDK is free. The invariants are mathematical.</p>
-    <p class="text-xs text-slate-700 mt-4">This page was compiled by ViewSpec. <a href="./landing-compiled/" style="color:#475569">View the raw compiler output →</a></p>
+    <p class="mb-4 text-slate-500">The compiler is a hosted service. The SDK is free. The invariants are mathematical.</p>
+    <p class="text-xs text-slate-700">This page was compiled by ViewSpec. <a href="./landing-compiled/" style="color:#475569">View the raw compiler output →</a></p>
     <p class="text-slate-700 mt-2">© 2026</p>
   </footer>
 </body>
