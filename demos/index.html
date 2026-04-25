@@ -224,14 +224,25 @@
     }
 
     .dogfood-badge {
-      font-size: 0.6rem;
-      color: #475569;
+      font-size: 0.75rem;
+      color: #2dd4bf;
       font-family: 'SF Mono', 'Cascadia Code', monospace;
       text-align: center;
-      margin-top: 0.75rem;
+      margin-top: 1rem;
+      text-shadow: 0 0 12px rgba(45, 212, 191, 0.4), 0 0 30px rgba(45, 212, 191, 0.15);
     }
-    .dogfood-badge a { color: #64748b; text-decoration: none; }
-    .dogfood-badge a:hover { color: #94a3b8; }
+    .dogfood-badge a {
+      color: #5eead4;
+      text-decoration: none;
+      border-bottom: 1px solid rgba(94, 234, 212, 0.3);
+      padding-bottom: 1px;
+      transition: all 200ms ease;
+    }
+    .dogfood-badge a:hover {
+      color: #99f6e4;
+      border-bottom-color: rgba(153, 246, 228, 0.6);
+      text-shadow: 0 0 8px rgba(45, 212, 191, 0.5);
+    }
 
     .pretext-badge {
       font-size: 0.6rem;
