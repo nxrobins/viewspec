@@ -312,8 +312,14 @@ def build_section(section: dict[str, str], index: int) -> str:
     <section class="invariant-section" data-invariant-section="{key}">
       <div class="section-copy">
         <p class="section-kicker">Invariant {index}</p>
-        <h2>{title}</h2>
-        <p>{description}</p>
+        <h2 class="sr-only">{title}</h2>
+        <div class="pretext-canvas-wrap max-w-3xl">
+          <canvas data-pretext-canvas data-text="{title}" data-size="34" data-weight="900" data-line-height="39" class="text-white" role="img" aria-label="{title}">{title}</canvas>
+        </div>
+        <p class="sr-only">{description}</p>
+        <div class="pretext-canvas-wrap mt-3 max-w-3xl">
+          <canvas data-pretext-canvas data-text="{description}" data-size="16" data-weight="400" data-line-height="25" class="text-slate-300" role="img" aria-label="{description}">{description}</canvas>
+        </div>
       </div>
       <div class="toggle-row" aria-label="{title} state">
         <button type="button" class="state-toggle active" data-state="valid" aria-pressed="true">Valid</button>
@@ -321,13 +327,17 @@ def build_section(section: dict[str, str], index: int) -> str:
       </div>
       <div class="state-shell">
         <article class="state-view active" data-state-view="valid">
-          <div class="state-bar valid-state">VALID: {valid_label}</div>
+          <div class="state-bar valid-state">
+            <canvas data-pretext-canvas data-text="VALID: {valid_label}" data-size="13" data-weight="800" data-line-height="19" class="text-green-100" role="img" aria-label="VALID: {valid_label}">VALID: {valid_label}</canvas>
+          </div>
           <div class="artifact-frame">
             {section["valid_fragment"]}
           </div>
         </article>
         <article class="state-view" data-state-view="violation">
-          <div class="state-bar violation-state">VIOLATION: {violation_label}</div>
+          <div class="state-bar violation-state">
+            <canvas data-pretext-canvas data-text="VIOLATION: {violation_label}" data-size="13" data-weight="800" data-line-height="19" class="text-red-100" role="img" aria-label="VIOLATION: {violation_label}">VIOLATION: {violation_label}</canvas>
+          </div>
           <div class="artifact-frame">
             {section["violation_fragment"]}
           </div>
@@ -344,7 +354,9 @@ def build_page(sections: list[dict[str, str]]) -> str:
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>ViewSpec Demo - The Invariants</title>
+  <link rel="icon" href="data:,">
   <script src="https://cdn.tailwindcss.com"></script>
+  <script type="module" src="../shared/pretext-canvas-surfaces.js"></script>
   <style>
     :root {{
       color-scheme: dark;
@@ -574,10 +586,14 @@ def build_page(sections: list[dict[str, str]]) -> str:
     <header class="hero">
       <div>
         <p class="section-kicker">ViewSpec Demo</p>
-        <h1>The Invariants</h1>
-        <p>
-          Three compiler guarantees rendered side by side: exactly-once provenance, semantic grouping, and strict ordering.
-        </p>
+        <h1 class="sr-only">The Invariants</h1>
+        <div class="pretext-canvas-wrap max-w-3xl">
+          <canvas data-pretext-canvas data-text="The Invariants" data-size="64" data-weight="900" data-line-height="68" class="text-white" role="img" aria-label="The Invariants">The Invariants</canvas>
+        </div>
+        <p class="sr-only">Three compiler guarantees rendered side by side: exactly-once provenance, semantic grouping, and strict ordering.</p>
+        <div class="pretext-canvas-wrap mt-4 max-w-3xl">
+          <canvas data-pretext-canvas data-text="Three compiler guarantees rendered side by side: exactly-once provenance, semantic grouping, and strict ordering." data-size="17" data-weight="400" data-line-height="27" class="text-slate-300" role="img" aria-label="Three compiler guarantees rendered side by side: exactly-once provenance, semantic grouping, and strict ordering.">Three compiler guarantees rendered side by side: exactly-once provenance, semantic grouping, and strict ordering.</canvas>
+        </div>
       </div>
       <div class="hero-meta">
         <div><span>compiler</span> = reference</div>
@@ -606,6 +622,7 @@ def build_page(sections: list[dict[str, str]]) -> str:
       section.querySelectorAll('[data-state-view]').forEach((view) => {{
         view.classList.toggle('active', view.dataset.stateView === state);
       }});
+      window.ViewSpecPretext?.refresh(section);
     }});
   </script>
   {ACTION_EVENT_SCRIPT}

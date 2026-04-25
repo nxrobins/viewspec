@@ -1,0 +1,14 @@
+{
+  "name": "@chenglou/pretext",
+  "version": "0.0.6",
+  "description": "Fast, accurate & comprehensive text measurement & layout",
+  "license": "MIT",
+  "type": "module",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/chenglou/pretext.git"
+  },
+  "exports": {
+    ".": "./pretext.esm.js"
+  }
+}

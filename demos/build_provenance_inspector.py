@@ -97,7 +97,9 @@ def build_page(fragment: str, data: dict[str, Any], bundle: IntentBundle) -> str
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>ViewSpec Demo - Provenance Inspector</title>
+  <link rel="icon" href="data:,">
   <script src="https://cdn.tailwindcss.com"></script>
+  <script type="module" src="../shared/pretext-canvas-surfaces.js"></script>
   <style>
     :root {{
       color-scheme: dark;
@@ -187,10 +189,14 @@ def build_page(fragment: str, data: dict[str, Any], bundle: IntentBundle) -> str
       <p class="mb-3 font-mono text-sm font-semibold uppercase tracking-[0.18em] text-teal-300">ViewSpec Demo</p>
       <div class="grid gap-5 lg:grid-cols-[1fr_auto] lg:items-end">
         <div>
-          <h1 class="text-4xl font-black leading-tight text-white sm:text-5xl">Provenance Inspector</h1>
-          <p class="mt-4 max-w-3xl text-base leading-7 text-slate-300 sm:text-lg">
-            Hover any rendered element to trace it from DOM node to IR, binding, canonical address, semantic node, and raw value.
-          </p>
+          <h1 class="sr-only">Provenance Inspector</h1>
+          <div class="pretext-canvas-wrap max-w-3xl">
+            <canvas data-pretext-canvas data-text="Provenance Inspector" data-size="50" data-weight="900" data-line-height="54" class="text-white" role="img" aria-label="Provenance Inspector">Provenance Inspector</canvas>
+          </div>
+          <p class="sr-only">Hover any rendered element to trace it from DOM node to IR, binding, canonical address, semantic node, and raw value.</p>
+          <div class="pretext-canvas-wrap mt-4 max-w-3xl">
+            <canvas data-pretext-canvas data-text="Hover any rendered element to trace it from DOM node to IR, binding, canonical address, semantic node, and raw value." data-size="18" data-weight="400" data-line-height="29" class="text-slate-300" role="img" aria-label="Hover any rendered element to trace it from DOM node to IR, binding, canonical address, semantic node, and raw value.">Hover any rendered element to trace it from DOM node to IR, binding, canonical address, semantic node, and raw value.</canvas>
+          </div>
         </div>
         <div class="grid gap-1 rounded-lg border border-white/10 bg-white/[0.04] p-4 font-mono text-sm text-slate-300">
           <div><span class="text-teal-300">bindings</span> = {binding_count}</div>
@@ -207,10 +213,16 @@ def build_page(fragment: str, data: dict[str, Any], bundle: IntentBundle) -> str
     <aside id="inspector-panel" class="inspector-panel mt-5 flex flex-col rounded-lg p-4 lg:mt-0" aria-live="polite">
       <div class="mb-4 flex items-start justify-between gap-3 border-b border-white/10 pb-4">
         <div>
-          <p class="font-mono text-xs font-bold uppercase tracking-[0.18em] text-teal-300">Provenance Chain</p>
-          <h2 id="inspector-title" class="mt-2 text-lg font-black text-white">Ready</h2>
+          <div class="pretext-canvas-wrap w-48">
+            <canvas data-pretext-canvas data-text="Provenance Chain" data-size="12" data-weight="800" data-line-height="16" class="text-teal-300" role="img" aria-label="Provenance Chain">Provenance Chain</canvas>
+          </div>
+          <div class="pretext-canvas-wrap mt-2 w-56">
+            <canvas id="inspector-title" data-pretext-canvas data-text="Ready" data-size="18" data-weight="900" data-line-height="23" class="text-white" role="img" aria-label="Ready">Ready</canvas>
+          </div>
         </div>
-        <span id="lock-state" class="rounded-full border border-slate-600 px-2 py-1 font-mono text-[0.68rem] uppercase tracking-wide text-slate-400">Hover</span>
+        <span id="lock-state" class="pretext-canvas-wrap w-16 rounded-full border border-slate-600 px-2 py-1 text-slate-400">
+          <canvas id="lock-state-text" data-pretext-canvas data-text="Hover" data-size="11" data-weight="800" data-line-height="14" class="text-slate-400" role="img" aria-label="Hover">Hover</canvas>
+        </span>
       </div>
       <div id="inspector-body" class="min-h-0 flex-1 overflow-y-auto pr-1">
         <div class="rounded-lg border border-dashed border-slate-600 p-4 text-sm leading-6 text-slate-400">
@@ -231,6 +243,7 @@ def build_page(fragment: str, data: dict[str, Any], bundle: IntentBundle) -> str
     const panelBody = document.getElementById('inspector-body');
     const panelTitle = document.getElementById('inspector-title');
     const lockState = document.getElementById('lock-state');
+    const lockStateText = document.getElementById('lock-state-text');
     let locked = false;
     let activeElement = null;
 
@@ -241,6 +254,12 @@ def build_page(fragment: str, data: dict[str, Any], bundle: IntentBundle) -> str
         .replaceAll('>', '&gt;')
         .replaceAll('"', '&quot;')
         .replaceAll("'", '&#039;');
+    }}
+
+    function setCanvasText(canvas, text) {{
+      canvas.dataset.text = text;
+      canvas.setAttribute('aria-label', text);
+      canvas.textContent = text;
     }}
 
     function formatValue(value) {{
@@ -297,14 +316,16 @@ def build_page(fragment: str, data: dict[str, Any], bundle: IntentBundle) -> str
       if (activeElement) activeElement.classList.remove('provenance-highlight');
       activeElement = null;
       locked = false;
-      panelTitle.textContent = 'Ready';
-      lockState.textContent = 'Hover';
-      lockState.className = 'rounded-full border border-slate-600 px-2 py-1 font-mono text-[0.68rem] uppercase tracking-wide text-slate-400';
+      setCanvasText(panelTitle, 'Ready');
+      setCanvasText(lockStateText, 'Hover');
+      lockState.className = 'pretext-canvas-wrap w-16 rounded-full border border-slate-600 px-2 py-1 text-slate-400';
+      lockStateText.className = 'text-slate-400';
       panelBody.innerHTML = `
         <div class="rounded-lg border border-dashed border-slate-600 p-4 text-sm leading-6 text-slate-400">
           Hover over any element to inspect its provenance...
         </div>
       `;
+      window.ViewSpecPretext?.refresh(panel);
     }}
 
     function inspectElement(element, shouldLock) {{
@@ -322,11 +343,12 @@ def build_page(fragment: str, data: dict[str, Any], bundle: IntentBundle) -> str
 
       setActiveElement(element);
       locked = shouldLock;
-      panelTitle.textContent = shouldLock ? `Locked: ${{entry.primitive}}` : `Inspecting: ${{entry.primitive}}`;
-      lockState.textContent = shouldLock ? 'Locked' : 'Hover';
+      setCanvasText(panelTitle, shouldLock ? `Locked: ${{entry.primitive}}` : `Inspecting: ${{entry.primitive}}`);
+      setCanvasText(lockStateText, shouldLock ? 'Locked' : 'Hover');
       lockState.className = shouldLock
-        ? 'rounded-full border border-teal-400 bg-teal-500/10 px-2 py-1 font-mono text-[0.68rem] uppercase tracking-wide text-teal-200'
-        : 'rounded-full border border-slate-600 px-2 py-1 font-mono text-[0.68rem] uppercase tracking-wide text-slate-400';
+        ? 'pretext-canvas-wrap w-16 rounded-full border border-teal-400 bg-teal-500/10 px-2 py-1 text-teal-200'
+        : 'pretext-canvas-wrap w-16 rounded-full border border-slate-600 px-2 py-1 text-slate-400';
+      lockStateText.className = shouldLock ? 'text-teal-200' : 'text-slate-400';
 
       const bindingSummary = binding
         ? `${{binding.id}}\\npresent_as: ${{binding.present_as}}\\nregion: ${{binding.target_region}}`
@@ -347,6 +369,7 @@ def build_page(fragment: str, data: dict[str, Any], bundle: IntentBundle) -> str
           Provenance verified: ${{(entry.content_refs || []).length}} content refs, ${{(entry.intent_refs || []).length}} intent refs
         </div>`,
       ].join('');
+      window.ViewSpecPretext?.refresh(panel);
     }}
 
     artifact.addEventListener('pointerover', (event) => {{

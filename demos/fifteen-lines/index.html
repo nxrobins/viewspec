@@ -4,7 +4,9 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>ViewSpec Demo - 15 Lines to Full UI</title>
+  <link rel="icon" href="data:,">
   <script src="https://cdn.tailwindcss.com"></script>
+  <script type="module" src="../shared/pretext-canvas-surfaces.js"></script>
   <style>
     :root {
       color-scheme: dark;
@@ -250,8 +252,12 @@
     <section class="panel code-panel" aria-label="Python source">
       <header class="panel-header">
         <div>
-          <div class="text-sm font-black text-white">invoice.py</div>
-          <div class="mt-1 text-xs font-semibold text-slate-400">15 lines of semantic intent</div>
+          <div class="pretext-canvas-wrap w-40">
+            <canvas data-pretext-canvas data-text="invoice.py" data-size="14" data-weight="900" data-line-height="18" class="text-white" role="img" aria-label="invoice.py">invoice.py</canvas>
+          </div>
+          <div class="pretext-canvas-wrap mt-1 w-56">
+            <canvas data-pretext-canvas data-text="15 lines of semantic intent" data-size="12" data-weight="600" data-line-height="16" class="text-slate-400" role="img" aria-label="15 lines of semantic intent">15 lines of semantic intent</canvas>
+          </div>
         </div>
         <div class="flex items-center gap-2">
           <span class="pill">Python</span>
@@ -266,16 +272,24 @@
     <section class="panel output-panel" aria-label="Rendered output">
       <header class="panel-header bg-white">
         <div>
-          <div class="text-sm font-black text-slate-950">Rendered Output</div>
-          <div class="mt-1 text-xs font-semibold text-slate-500">Reference compiler artifact</div>
+          <div class="pretext-canvas-wrap w-44">
+            <canvas data-pretext-canvas data-text="Rendered Output" data-size="14" data-weight="900" data-line-height="18" class="text-slate-950" role="img" aria-label="Rendered Output">Rendered Output</canvas>
+          </div>
+          <div class="pretext-canvas-wrap mt-1 w-56">
+            <canvas data-pretext-canvas data-text="Reference compiler artifact" data-size="12" data-weight="600" data-line-height="16" class="text-slate-500" role="img" aria-label="Reference compiler artifact">Reference compiler artifact</canvas>
+          </div>
         </div>
         <div class="step-meter">step <span id="step-count">1</span>/9</div>
       </header>
       <div class="output-body">
         <div id="output-display" class="output-stage"></div>
         <div id="ready-badge" class="ready-badge">
-          <span>Bundle Ready</span>
-          <span id="ready-stats"></span>
+          <span class="pretext-canvas-wrap w-24">
+            <canvas data-pretext-canvas data-text="Bundle Ready" data-size="12" data-weight="900" data-line-height="16" class="text-emerald-50" role="img" aria-label="Bundle Ready">Bundle Ready</canvas>
+          </span>
+          <span class="pretext-canvas-wrap w-72 max-w-full">
+            <canvas id="ready-stats" data-pretext-canvas data-text="" data-size="12" data-weight="800" data-line-height="16" class="text-emerald-50" role="img" aria-label=""></canvas>
+          </span>
         </div>
       </div>
     </section>
@@ -414,6 +428,7 @@
     function setOutput(step) {
       outputDisplay.innerHTML = FRAGMENTS[step] || '';
       stepCount.textContent = String(step + 1);
+      window.ViewSpecPretext?.refresh(outputDisplay);
     }
 
     function clearTimer() {
@@ -438,9 +453,16 @@
       lineNodes = Array.from(codeDisplay.querySelectorAll('.code-text'));
     }
 
+    function setCanvasText(canvas, text) {
+      canvas.dataset.text = text;
+      canvas.setAttribute('aria-label', text);
+      canvas.textContent = text;
+    }
+
     function showReadyBadge() {
-      readyStats.textContent = `${FINAL_STATS.bindingCount} bindings | ${FINAL_STATS.semanticNodeCount} nodes | full provenance`;
+      setCanvasText(readyStats, `${FINAL_STATS.bindingCount} bindings | ${FINAL_STATS.semanticNodeCount} nodes | full provenance`);
       readyBadge.classList.add('visible');
+      window.ViewSpecPretext?.refresh(readyBadge);
     }
 
     function typeNext() {
@@ -485,7 +507,8 @@
       renderCodeRows();
       setOutput(0);
       readyBadge.classList.remove('visible');
-      readyStats.textContent = '';
+      setCanvasText(readyStats, '');
+      window.ViewSpecPretext?.refresh(document.body);
       schedule(typeNext, 250);
     }
 

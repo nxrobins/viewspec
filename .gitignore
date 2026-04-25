@@ -3,6 +3,8 @@ __pycache__/
 *.pyo
 *.egg-info/
 dist/
+!demos/vendor/pretext/dist/
+!demos/vendor/pretext/dist/*.mjs
 build/
 .eggs/
 *.egg
@@ -11,3 +13,4 @@ build/
 output/
 viewspec_output/
 .venv/
+demos/server.*.log

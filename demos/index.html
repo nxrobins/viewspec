@@ -4,97 +4,9 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>ViewSpec — Universal UI from semantic data</title>
+  <link rel="icon" href="data:,">
   <script src="https://cdn.tailwindcss.com"></script>
-  <script type="module">
-    // ---------------------------------------------------------------
-    // Pretext-powered hero: title + subtitle render to <canvas>,
-    // reflow on resize, animate on load. No DOM reflow.
-    // ---------------------------------------------------------------
-    import { prepare, layout } from './vendor/pretext.esm.js'
-
-    const TITLE = 'ViewSpec'
-    const SUBTITLE = 'Universal UI from semantic data.'
-    const TAGLINE = 'Describe what your data means. The compiler figures out how it looks. Every pixel has a birth certificate.'
-
-    const canvas = document.getElementById('hero-canvas')
-    const ctx = canvas.getContext('2d')
-    const dpr = window.devicePixelRatio || 1
-    const FONT = '-apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif'
-
-    function render() {
-      const containerWidth = canvas.parentElement.clientWidth
-      const maxW = Math.min(containerWidth - 48, 720)
-
-      const titlePrep = prepare(TITLE, `800 64px ${FONT}`, { letterSpacing: -2 })
-      const subtitlePrep = prepare(SUBTITLE, `400 22px ${FONT}`)
-      const taglinePrep = prepare(TAGLINE, `400 16px ${FONT}`)
-
-      const tL = layout(titlePrep, maxW, 72)
-      const sL = layout(subtitlePrep, maxW, 32)
-      const gL = layout(taglinePrep, Math.min(maxW, 480), 26)
-
-      const totalH = tL.height + 16 + sL.height + 24 + gL.height + 24
-
-      canvas.width = containerWidth * dpr
-      canvas.height = totalH * dpr
-      canvas.style.width = containerWidth + 'px'
-      canvas.style.height = totalH + 'px'
-      ctx.scale(dpr, dpr)
-      ctx.clearRect(0, 0, containerWidth, totalH)
-      ctx.textBaseline = 'top'
-
-      const cx = containerWidth / 2
-
-      // Title
-      ctx.font = `800 64px ${FONT}`
-      ctx.letterSpacing = '-2px'
-      ctx.fillStyle = '#f8fafc'
-      const tw = ctx.measureText(TITLE).width
-      ctx.fillText(TITLE, cx - tw / 2, 0)
-      ctx.letterSpacing = '0px'
-
-      // Subtitle
-      let y = tL.height + 16
-      ctx.font = `400 22px ${FONT}`
-      ctx.fillStyle = '#94a3b8'
-      const sw = ctx.measureText(SUBTITLE).width
-      ctx.fillText(SUBTITLE, cx - sw / 2, y)
-
-      // Tagline — word-wrap centered
-      y += sL.height + 24
-      ctx.font = `400 16px ${FONT}`
-      ctx.fillStyle = '#64748b'
-      const tagW = Math.min(maxW, 480)
-      const words = TAGLINE.split(' ')
-      let lines = [], cur = ''
-      for (const w of words) {
-        const test = cur ? cur + ' ' + w : w
-        if (ctx.measureText(test).width > tagW && cur) { lines.push(cur); cur = w }
-        else cur = test
-      }
-      if (cur) lines.push(cur)
-      for (const l of lines) {
-        const lw = ctx.measureText(l).width
-        ctx.fillText(l, cx - lw / 2, y)
-        y += 26
-      }
-    }
-
-    canvas.style.opacity = '0'
-    canvas.style.transform = 'translateY(12px)'
-    canvas.style.transition = 'opacity 600ms ease, transform 600ms ease'
-
-    document.fonts.ready.then(() => {
-      render()
-      requestAnimationFrame(() => {
-        canvas.style.opacity = '1'
-        canvas.style.transform = 'translateY(0)'
-      })
-    })
-
-    let rt
-    window.addEventListener('resize', () => { clearTimeout(rt); rt = setTimeout(render, 60) })
-  </script>
+  <script type="module" src="./shared/pretext-canvas-surfaces.js"></script>
   <style>
     :root { color-scheme: dark; }
 
@@ -105,7 +17,10 @@
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
     }
 
-    #hero-canvas { display: block; margin: 0 auto; }
+    .hero-pretext {
+      margin-left: auto;
+      margin-right: auto;
+    }
 
     /* -- ViewSpec compiled content (light theme embedded in dark page) -- */
     .compiled-section {
@@ -275,8 +190,18 @@
   <!-- ============================================================ -->
   <div class="max-w-4xl mx-auto px-6 pt-20 pb-4">
     <div class="text-center mb-8">
-      <canvas id="hero-canvas"></canvas>
-      <p class="pretext-badge">Text rendered with <a href="https://github.com/chenglou/pretext" target="_blank">Pretext</a> — no DOM reflow</p>
+      <h1 class="sr-only">ViewSpec</h1>
+      <div class="pretext-canvas-wrap hero-pretext">
+        <canvas data-pretext-canvas data-text="ViewSpec" data-size="64" data-weight="900" data-line-height="72" data-align="center" class="text-slate-50" role="img" aria-label="ViewSpec">ViewSpec</canvas>
+      </div>
+      <p class="sr-only">Universal UI from semantic data. Describe what your data means. The compiler figures out how it looks. Every pixel has a birth certificate.</p>
+      <div class="pretext-canvas-wrap hero-pretext mt-4 max-w-2xl">
+        <canvas data-pretext-canvas data-text="Universal UI from semantic data." data-size="22" data-weight="400" data-line-height="32" data-align="center" class="text-slate-400" role="img" aria-label="Universal UI from semantic data.">Universal UI from semantic data.</canvas>
+      </div>
+      <div class="pretext-canvas-wrap hero-pretext mt-5 max-w-xl">
+        <canvas data-pretext-canvas data-text="Describe what your data means. The compiler figures out how it looks. Every pixel has a birth certificate." data-size="16" data-weight="400" data-line-height="26" data-align="center" class="text-slate-500" role="img" aria-label="Describe what your data means. The compiler figures out how it looks. Every pixel has a birth certificate.">Describe what your data means. The compiler figures out how it looks. Every pixel has a birth certificate.</canvas>
+      </div>
+      <p class="pretext-badge">Text rendered with the shared <a href="https://github.com/chenglou/pretext" target="_blank">Pretext</a> canvas runtime</p>
     </div>
     <div class="text-center mb-10">
       <span class="pip" title="Click to copy" onclick="navigator.clipboard.writeText('pip install viewspec')">pip install viewspec</span>
