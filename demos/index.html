@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ViewSpec — Universal UI from semantic data</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    :root { color-scheme: dark; }
+
+    body {
+      background: #0a0c0f;
+      color: #f8fafc;
+      min-height: 100vh;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+    }
+
+    .card {
+      background: rgba(255,255,255,0.03);
+      border: 1px solid rgba(148, 163, 184, 0.12);
+      border-radius: 1rem;
+      padding: 2rem;
+      transition: transform 200ms ease, border-color 200ms ease, box-shadow 200ms ease;
+      text-decoration: none;
+      color: inherit;
+      display: block;
+    }
+
+    .card:hover {
+      transform: translateY(-3px);
+      border-color: rgba(45, 212, 191, 0.5);
+      box-shadow: 0 8px 32px rgba(45, 212, 191, 0.08);
+    }
+
+    .card:hover .card-title {
+      color: #2dd4bf;
+    }
+
+    .card-number {
+      font-size: 0.75rem;
+      font-weight: 700;
+      color: #2dd4bf;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      margin-bottom: 0.75rem;
+    }
+
+    .card-title {
+      font-size: 1.25rem;
+      font-weight: 700;
+      margin-bottom: 0.5rem;
+      transition: color 200ms ease;
+    }
+
+    .card-description {
+      font-size: 0.9rem;
+      color: #94a3b8;
+      line-height: 1.6;
+    }
+
+    .pip {
+      display: inline-block;
+      background: rgba(45, 212, 191, 0.1);
+      border: 1px solid rgba(45, 212, 191, 0.3);
+      border-radius: 999px;
+      padding: 0.5rem 1.25rem;
+      font-family: 'SF Mono', 'Cascadia Code', 'Fira Code', monospace;
+      font-size: 0.875rem;
+      color: #2dd4bf;
+      letter-spacing: 0.02em;
+      user-select: all;
+      cursor: pointer;
+      transition: background 200ms ease;
+    }
+
+    .pip:hover {
+      background: rgba(45, 212, 191, 0.18);
+    }
+
+    .hero-code {
+      background: rgba(255,255,255,0.04);
+      border: 1px solid rgba(148, 163, 184, 0.15);
+      border-radius: 0.75rem;
+      padding: 1.5rem;
+      font-family: 'SF Mono', 'Cascadia Code', 'Fira Code', monospace;
+      font-size: 0.8rem;
+      line-height: 1.7;
+      overflow-x: auto;
+      max-width: 520px;
+    }
+
+    .hero-code .kw { color: #7dd3fc; }
+    .hero-code .fn { color: #2dd4bf; }
+    .hero-code .str { color: #86efac; }
+    .hero-code .comment { color: #475569; }
+    .hero-code .var { color: #f8fafc; }
+
+    .invariant-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      font-size: 0.8rem;
+      font-weight: 600;
+      color: #2dd4bf;
+      background: rgba(45, 212, 191, 0.08);
+      border: 1px solid rgba(45, 212, 191, 0.2);
+      border-radius: 999px;
+      padding: 0.35rem 0.85rem;
+    }
+
+    .separator {
+      height: 1px;
+      background: linear-gradient(to right, transparent, rgba(148, 163, 184, 0.15), transparent);
+      margin: 4rem 0;
+    }
+
+    footer a {
+      color: #2dd4bf;
+      text-decoration: none;
+    }
+    footer a:hover {
+      text-decoration: underline;
+    }
+  </style>
+</head>
+<body>
+  <!-- Hero -->
+  <div class="max-w-4xl mx-auto px-6 pt-20 pb-8">
+    <div class="text-center mb-16">
+      <h1 class="text-5xl font-black tracking-tight mb-4">ViewSpec</h1>
+      <p class="text-xl text-slate-400 mb-8">Universal UI from semantic data.</p>
+
+      <div class="flex flex-col items-center gap-6 mb-12">
+        <p class="text-base text-slate-500 max-w-lg">
+          Describe what your data means. The compiler figures out how it looks.
+          Every pixel has a birth certificate.
+        </p>
+        <span class="pip" title="Click to copy" onclick="navigator.clipboard.writeText('pip install viewspec')">pip install viewspec</span>
+      </div>
+
+      <!-- Inline code example -->
+      <div class="flex justify-center mb-12">
+        <div class="hero-code text-left">
+          <span class="kw">from</span> <span class="var">viewspec</span> <span class="kw">import</span> <span class="fn">ViewSpecBuilder</span>, <span class="fn">compile</span><br>
+          <span class="kw">from</span> <span class="var">viewspec.emitters.html_tailwind</span> <span class="kw">import</span> <span class="fn">HtmlTailwindEmitter</span><br>
+          <br>
+          <span class="var">builder</span> = <span class="fn">ViewSpecBuilder</span>(<span class="str">"invoice"</span>)<br>
+          <span class="var">table</span> = <span class="var">builder</span>.<span class="fn">add_table</span>(<span class="str">"items"</span>, <span class="var">region</span>=<span class="str">"main"</span>)<br>
+          <span class="var">table</span>.<span class="fn">add_row</span>(<span class="var">label</span>=<span class="str">"Design System Audit"</span>, <span class="var">value</span>=<span class="str">"$4,200"</span>)<br>
+          <span class="var">table</span>.<span class="fn">add_row</span>(<span class="var">label</span>=<span class="str">"Component Library"</span>, <span class="var">value</span>=<span class="str">"$8,500"</span>)<br>
+          <span class="var">table</span>.<span class="fn">add_row</span>(<span class="var">label</span>=<span class="str">"API Integration"</span>, <span class="var">value</span>=<span class="str">"$3,100"</span>)<br>
+          <br>
+          <span class="var">ast</span> = <span class="fn">compile</span>(<span class="var">builder</span>.<span class="fn">build_bundle</span>())<br>
+          <span class="fn">HtmlTailwindEmitter</span>().<span class="fn">emit</span>(<span class="var">ast</span>, <span class="str">"output/"</span>)<br>
+          <br>
+          <span class="comment"># That's it. Full UI. Full provenance. No CSS.</span>
+        </div>
+      </div>
+
+      <!-- Invariants -->
+      <div class="flex flex-wrap justify-center gap-3">
+        <span class="invariant-badge">✓ Exactly-once provenance</span>
+        <span class="invariant-badge">✓ Semantic grouping</span>
+        <span class="invariant-badge">✓ Strict ordering</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="separator"></div>
+
+  <!-- Demos -->
+  <div class="max-w-4xl mx-auto px-6 py-8">
+    <p class="text-center text-sm font-bold text-slate-500 tracking-widest uppercase mb-10">See it in action</p>
+
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5 mb-8">
+      <a href="./motif-switcher/" class="card">
+        <div class="card-number">Demo 01</div>
+        <div class="card-title">Same Data, Three Motifs</div>
+        <div class="card-description">One dataset renders as table, dashboard, or comparison. Change one parameter. The visual structure transforms.</div>
+      </a>
+
+      <a href="./provenance-inspector/" class="card">
+        <div class="card-number">Demo 02</div>
+        <div class="card-title">Provenance Inspector</div>
+        <div class="card-description">Hover any element. See the full chain: DOM → IR → binding → address → raw data. Every pixel has a birth certificate.</div>
+      </a>
+
+      <a href="./live-builder/" class="card">
+        <div class="card-number">Demo 03</div>
+        <div class="card-title">Live Builder</div>
+        <div class="card-description">Browse ViewSpec JSON, see the IR tree, watch the rendered output. Three panels, always in sync.</div>
+      </a>
+
+      <a href="./invariants/" class="card">
+        <div class="card-number">Demo 04</div>
+        <div class="card-title">The Invariants</div>
+        <div class="card-description">Exactly-once provenance. Semantic grouping. Strict ordering. Watch the compiler enforce — and refuse — each one.</div>
+      </a>
+
+      <a href="./fifteen-lines/" class="card">
+        <div class="card-number">Demo 05</div>
+        <div class="card-title">15 Lines → Full UI</div>
+        <div class="card-description">Watch an invoice table build itself from 15 lines of Python. No components. No CSS. No layout code.</div>
+      </a>
+
+      <a href="https://github.com/nxrobins/viewspec" class="card" target="_blank" rel="noopener">
+        <div class="card-number">Source</div>
+        <div class="card-title">GitHub ↗</div>
+        <div class="card-description">MIT License. The SDK is free. The invariants are mathematical. Star it, fork it, build with it.</div>
+      </a>
+    </div>
+  </div>
+
+  <div class="separator"></div>
+
+  <!-- How it works -->
+  <div class="max-w-3xl mx-auto px-6 py-8">
+    <p class="text-center text-sm font-bold text-slate-500 tracking-widest uppercase mb-8">How it works</p>
+
+    <div class="text-center text-slate-400 space-y-2 mb-12" style="font-family: 'SF Mono', 'Cascadia Code', monospace; font-size: 0.85rem;">
+      <p class="text-slate-300">Data → <span class="text-teal-400 font-bold">ViewSpec</span> → Compiler → CompositionIR → Renderer</p>
+      <p class="text-xs text-slate-600 mt-2">HTML/Tailwind · WebGPU · PDF · Native · Your custom emitter</p>
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-6 text-center mb-8">
+      <div>
+        <p class="text-sm font-bold text-teal-400 mb-2">Describe</p>
+        <p class="text-sm text-slate-500">Semantic substrate + ViewSpec. What the data means, not how it looks.</p>
+      </div>
+      <div>
+        <p class="text-sm font-bold text-teal-400 mb-2">Compile</p>
+        <p class="text-sm text-slate-500">Deterministic routing with provenance guarantees. 3ms. No LLM.</p>
+      </div>
+      <div>
+        <p class="text-sm font-bold text-teal-400 mb-2">Render</p>
+        <p class="text-sm text-slate-500">Pluggable emitters. Ship HTML today. Swap to native tomorrow.</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="separator"></div>
+
+  <!-- Footer -->
+  <footer class="max-w-4xl mx-auto px-6 py-12 text-center text-sm text-slate-600">
+    <p class="mb-2">ViewSpec is open source. <a href="https://github.com/nxrobins/viewspec">MIT License</a>.</p>
+    <p class="mb-4">The compiler is a hosted service. The SDK is free. The invariants are mathematical.</p>
+    <p class="text-slate-700">© 2026</p>
+  </footer>
+</body>
+</html>
