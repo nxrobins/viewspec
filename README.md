@@ -134,16 +134,37 @@ See the [`examples/`](examples/) directory:
 - **`comparison_view.py`** — Side-by-side comparison
 - **`emit_html.py`** — Load a compiled AST and emit HTML + Tailwind
 
-## The Compiler
+## Compilation
 
-The ViewSpec SDK is open source. The compiler — which routes ViewSpecs into CompositionIR trees with mathematically guaranteed provenance — is a hosted service.
+ViewSpec ships with a **reference compiler** that handles the four standard motif types offline:
 
-The compiler was evolved (not hand-written) using a reinforcement learning loop that achieved:
+```python
+from viewspec import ViewSpecBuilder, compile
+from viewspec.emitters.html_tailwind import HtmlTailwindEmitter
+
+builder = ViewSpecBuilder("invoice")
+table = builder.add_table("items", region="main", group_id="rows")
+table.add_row(label="Design System Audit", value="$4,200")
+table.add_row(label="Component Library", value="$8,500")
+table.add_row(label="API Integration", value="$3,100")
+
+# Compile locally — no API, no network
+ast = compile(builder.build_bundle())
+
+# Emit HTML
+HtmlTailwindEmitter().emit(ast, "output/")
+```
+
+The reference compiler supports `table`, `dashboard`, `outline`, and `comparison` motifs with full provenance tracking.
+
+### Hosted Compiler
+
+For complex layouts, novel data shapes, and production use, the **hosted compiler** at `api.viewspec.dev` handles any valid ViewSpec — including data shapes it has never seen before.
+
+The hosted compiler was evolved (not hand-written) using a reinforcement learning loop that achieved:
 - **13/13** on a static validation suite
 - **50/50** on novel, randomized out-of-distribution layouts (one-shot)
 - **Zero LLM cost at runtime** — the compiler is deterministic Python
-
-The compiler handles any valid ViewSpec, including data shapes it has never seen before.
 
 ## License
 
