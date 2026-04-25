@@ -6,12 +6,11 @@
   <title>ViewSpec — Universal UI from semantic data</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <script type="module">
+    // ---------------------------------------------------------------
+    // Pretext-powered hero: title + subtitle render to <canvas>,
+    // reflow on resize, animate on load. No DOM reflow.
+    // ---------------------------------------------------------------
     import { prepare, layout } from 'https://esm.sh/@chenglou/pretext@0.6.0'
-
-    // ---------------------------------------------------------------
-    // Pretext-powered hero: the title + subtitle render to <canvas>,
-    // reflow on resize, and animate in on load.
-    // ---------------------------------------------------------------
 
     const TITLE = 'ViewSpec'
     const SUBTITLE = 'Universal UI from semantic data.'
@@ -20,86 +19,71 @@
     const canvas = document.getElementById('hero-canvas')
     const ctx = canvas.getContext('2d')
     const dpr = window.devicePixelRatio || 1
+    const FONT = '-apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif'
 
     function render() {
       const containerWidth = canvas.parentElement.clientWidth
-      const maxTextWidth = Math.min(containerWidth - 48, 720)
+      const maxW = Math.min(containerWidth - 48, 720)
 
-      // Measure with Pretext
-      const titlePrep = prepare(TITLE, '800 64px -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif', { letterSpacing: -2 })
-      const subtitlePrep = prepare(SUBTITLE, '400 22px -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif')
-      const taglinePrep = prepare(TAGLINE, '400 16px -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif')
+      const titlePrep = prepare(TITLE, `800 64px ${FONT}`, { letterSpacing: -2 })
+      const subtitlePrep = prepare(SUBTITLE, `400 22px ${FONT}`)
+      const taglinePrep = prepare(TAGLINE, `400 16px ${FONT}`)
 
-      const titleLayout = layout(titlePrep, maxTextWidth, 72)
-      const subtitleLayout = layout(subtitlePrep, maxTextWidth, 32)
-      const taglineLayout = layout(taglinePrep, Math.min(maxTextWidth, 480), 26)
+      const tL = layout(titlePrep, maxW, 72)
+      const sL = layout(subtitlePrep, maxW, 32)
+      const gL = layout(taglinePrep, Math.min(maxW, 480), 26)
 
-      const gap1 = 16
-      const gap2 = 24
-      const totalHeight = titleLayout.height + gap1 + subtitleLayout.height + gap2 + taglineLayout.height + 24
+      const totalH = tL.height + 16 + sL.height + 24 + gL.height + 24
 
-      // Size canvas
       canvas.width = containerWidth * dpr
-      canvas.height = totalHeight * dpr
+      canvas.height = totalH * dpr
       canvas.style.width = containerWidth + 'px'
-      canvas.style.height = totalHeight + 'px'
+      canvas.style.height = totalH + 'px'
       ctx.scale(dpr, dpr)
-
-      ctx.clearRect(0, 0, containerWidth, totalHeight)
+      ctx.clearRect(0, 0, containerWidth, totalH)
       ctx.textBaseline = 'top'
 
-      // Center offset
       const cx = containerWidth / 2
 
       // Title
-      ctx.font = '800 64px -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif'
+      ctx.font = `800 64px ${FONT}`
       ctx.letterSpacing = '-2px'
       ctx.fillStyle = '#f8fafc'
-      const titleW = ctx.measureText(TITLE).width
-      ctx.fillText(TITLE, cx - titleW / 2, 0)
+      const tw = ctx.measureText(TITLE).width
+      ctx.fillText(TITLE, cx - tw / 2, 0)
       ctx.letterSpacing = '0px'
 
       // Subtitle
-      let y = titleLayout.height + gap1
-      ctx.font = '400 22px -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif'
+      let y = tL.height + 16
+      ctx.font = `400 22px ${FONT}`
       ctx.fillStyle = '#94a3b8'
-      const subW = ctx.measureText(SUBTITLE).width
-      ctx.fillText(SUBTITLE, cx - subW / 2, y)
+      const sw = ctx.measureText(SUBTITLE).width
+      ctx.fillText(SUBTITLE, cx - sw / 2, y)
 
-      // Tagline — multi-line, centered per line
-      y += subtitleLayout.height + gap2
-      ctx.font = '400 16px -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif'
+      // Tagline — word-wrap centered
+      y += sL.height + 24
+      ctx.font = `400 16px ${FONT}`
       ctx.fillStyle = '#64748b'
-      const tagMaxW = Math.min(maxTextWidth, 480)
-
-      // Use Pretext layout to know line count, then manually wrap for canvas rendering
+      const tagW = Math.min(maxW, 480)
       const words = TAGLINE.split(' ')
-      let lines = []
-      let currentLine = ''
-      for (const word of words) {
-        const test = currentLine ? currentLine + ' ' + word : word
-        if (ctx.measureText(test).width > tagMaxW && currentLine) {
-          lines.push(currentLine)
-          currentLine = word
-        } else {
-          currentLine = test
-        }
+      let lines = [], cur = ''
+      for (const w of words) {
+        const test = cur ? cur + ' ' + w : w
+        if (ctx.measureText(test).width > tagW && cur) { lines.push(cur); cur = w }
+        else cur = test
       }
-      if (currentLine) lines.push(currentLine)
-
-      for (const line of lines) {
-        const lw = ctx.measureText(line).width
-        ctx.fillText(line, cx - lw / 2, y)
+      if (cur) lines.push(cur)
+      for (const l of lines) {
+        const lw = ctx.measureText(l).width
+        ctx.fillText(l, cx - lw / 2, y)
         y += 26
       }
     }
 
-    // Animate in: fade + slight rise
     canvas.style.opacity = '0'
     canvas.style.transform = 'translateY(12px)'
     canvas.style.transition = 'opacity 600ms ease, transform 600ms ease'
 
-    // Wait for fonts to be ready
     document.fonts.ready.then(() => {
       render()
       requestAnimationFrame(() => {
@@ -108,12 +92,8 @@
       })
     })
 
-    // Reflow on resize — Pretext's layout() is pure arithmetic, no DOM reflow
-    let resizeTimer
-    window.addEventListener('resize', () => {
-      clearTimeout(resizeTimer)
-      resizeTimer = setTimeout(render, 60)
-    })
+    let rt
+    window.addEventListener('resize', () => { clearTimeout(rt); rt = setTimeout(render, 60) })
   </script>
   <style>
     :root { color-scheme: dark; }
@@ -125,52 +105,94 @@
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
     }
 
-    #hero-canvas {
-      display: block;
-      margin: 0 auto;
-    }
+    #hero-canvas { display: block; margin: 0 auto; }
 
-    .card {
-      background: rgba(255,255,255,0.03);
-      border: 1px solid rgba(148, 163, 184, 0.12);
+    /* -- ViewSpec compiled content (light theme embedded in dark page) -- */
+    .compiled-section {
+      background: #f8fafc;
+      border: 1px solid rgba(148, 163, 184, 0.2);
       border-radius: 1rem;
-      padding: 2rem;
-      transition: transform 200ms ease, border-color 200ms ease, box-shadow 200ms ease;
-      text-decoration: none;
-      color: inherit;
-      display: block;
+      padding: 1.5rem;
+      color: #0f172a;
     }
 
-    .card:hover {
-      transform: translateY(-3px);
-      border-color: rgba(45, 212, 191, 0.5);
-      box-shadow: 0 8px 32px rgba(45, 212, 191, 0.08);
-    }
-
-    .card:hover .card-title {
-      color: #2dd4bf;
-    }
-
-    .card-number {
-      font-size: 0.75rem;
+    .compiled-section .section-label {
+      font-size: 0.65rem;
       font-weight: 700;
-      color: #2dd4bf;
-      letter-spacing: 0.1em;
+      color: #0f766e;
+      letter-spacing: 0.12em;
       text-transform: uppercase;
       margin-bottom: 0.75rem;
+      font-family: 'SF Mono', 'Cascadia Code', monospace;
     }
 
-    .card-title {
-      font-size: 1.25rem;
+    /* Demo row → clickable link */
+    .demo-row {
+      display: block;
+      text-decoration: none;
+      color: inherit;
+      padding: 0.75rem 1rem;
+      border-radius: 0.75rem;
+      transition: background 160ms ease;
+    }
+    .demo-row:hover { background: rgba(15, 118, 110, 0.06); }
+    .demo-row .demo-label {
+      font-size: 0.7rem;
       font-weight: 700;
-      margin-bottom: 0.5rem;
-      transition: color 200ms ease;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: #64748b;
+      margin-bottom: 0.25rem;
+    }
+    .demo-row .demo-value {
+      font-size: 0.95rem;
+      font-weight: 600;
+      color: #0f172a;
+    }
+    .demo-row .demo-desc {
+      font-size: 0.8rem;
+      color: #64748b;
+      margin-top: 0.15rem;
     }
 
-    .card-description {
-      font-size: 0.9rem;
-      color: #94a3b8;
-      line-height: 1.6;
+    /* Feature card override */
+    .feature-card {
+      background: white;
+      border: 1px solid #e2e8f0;
+      border-radius: 0.75rem;
+      padding: 1.25rem;
+    }
+    .feature-card .feat-label {
+      font-size: 0.7rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: #0f766e;
+      margin-bottom: 0.35rem;
+    }
+    .feature-card .feat-value {
+      font-size: 0.95rem;
+      color: #334155;
+      line-height: 1.5;
+    }
+
+    /* Pipeline step */
+    .pipeline-step {
+      text-align: center;
+      padding: 1rem;
+    }
+    .pipeline-step .step-label {
+      font-size: 0.75rem;
+      font-weight: 700;
+      color: #0f766e;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      margin-bottom: 0.35rem;
+    }
+    .pipeline-step .step-value {
+      font-size: 0.85rem;
+      color: #475569;
+      line-height: 1.5;
     }
 
     .pip {
@@ -187,10 +209,7 @@
       cursor: pointer;
       transition: background 200ms ease;
     }
-
-    .pip:hover {
-      background: rgba(45, 212, 191, 0.18);
-    }
+    .pip:hover { background: rgba(45, 212, 191, 0.18); }
 
     .hero-code {
       background: rgba(255,255,255,0.04);
@@ -203,7 +222,6 @@
       overflow-x: auto;
       max-width: 520px;
     }
-
     .hero-code .kw { color: #7dd3fc; }
     .hero-code .fn { color: #2dd4bf; }
     .hero-code .str { color: #86efac; }
@@ -226,49 +244,74 @@
     .separator {
       height: 1px;
       background: linear-gradient(to right, transparent, rgba(148, 163, 184, 0.15), transparent);
-      margin: 4rem 0;
+      margin: 3.5rem 0;
     }
 
     .pretext-badge {
-      display: inline-flex;
-      align-items: center;
-      gap: 0.35rem;
-      font-size: 0.7rem;
+      font-size: 0.65rem;
       color: #475569;
       margin-top: 0.75rem;
+      text-align: center;
+    }
+    .pretext-badge a { color: #64748b; text-decoration: none; }
+    .pretext-badge a:hover { color: #94a3b8; }
+
+    .dogfood-badge {
+      font-size: 0.65rem;
+      color: #475569;
+      font-family: 'SF Mono', 'Cascadia Code', monospace;
+      text-align: center;
+      margin-top: 0.5rem;
     }
 
-    .pretext-badge a {
-      color: #64748b;
-      text-decoration: none;
-    }
-    .pretext-badge a:hover {
-      color: #94a3b8;
-    }
-
-    footer a {
-      color: #2dd4bf;
-      text-decoration: none;
-    }
-    footer a:hover {
-      text-decoration: underline;
-    }
+    footer a { color: #2dd4bf; text-decoration: none; }
+    footer a:hover { text-decoration: underline; }
   </style>
 </head>
 <body>
-  <!-- Hero — Pretext-rendered canvas -->
-  <div class="max-w-4xl mx-auto px-6 pt-20 pb-8">
-    <div class="text-center mb-12">
-      <div class="mb-8">
-        <canvas id="hero-canvas"></canvas>
-        <p class="pretext-badge justify-center">Text measured & laid out with <a href="https://github.com/chenglou/pretext" target="_blank" rel="noopener">Pretext</a> — no DOM reflow</p>
-      </div>
 
+  <!-- ============================================================ -->
+  <!-- HERO — Pretext canvas + branding                             -->
+  <!-- ============================================================ -->
+  <div class="max-w-4xl mx-auto px-6 pt-20 pb-4">
+    <div class="text-center mb-8">
+      <canvas id="hero-canvas"></canvas>
+      <p class="pretext-badge">Text rendered with <a href="https://github.com/chenglou/pretext" target="_blank">Pretext</a> — no DOM reflow</p>
+    </div>
+    <div class="text-center mb-10">
       <span class="pip" title="Click to copy" onclick="navigator.clipboard.writeText('pip install viewspec')">pip install viewspec</span>
     </div>
+  </div>
 
-    <!-- Code example -->
-    <div class="flex justify-center mb-12">
+  <!-- ============================================================ -->
+  <!-- FEATURES — compiled by ViewSpec (dashboard motif)            -->
+  <!-- ============================================================ -->
+  <div class="max-w-4xl mx-auto px-6 pb-4">
+    <div class="compiled-section">
+      <p class="section-label">⬡ Compiled by ViewSpec — dashboard motif</p>
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div class="feature-card" data-ir-id="motif_hero_features_hero_features_card_1" data-content-refs="[]" data-intent-refs='["viewspec:motif:hero_features"]'>
+          <div class="feat-label">Compilation</div>
+          <div class="feat-value">3ms deterministic — no LLM, no GPU</div>
+        </div>
+        <div class="feature-card" data-ir-id="motif_hero_features_hero_features_card_2" data-content-refs="[]" data-intent-refs='["viewspec:motif:hero_features"]'>
+          <div class="feat-label">Provenance</div>
+          <div class="feat-value">Every pixel traces to its source data</div>
+        </div>
+        <div class="feature-card" data-ir-id="motif_hero_features_hero_features_card_3" data-content-refs="[]" data-intent-refs='["viewspec:motif:hero_features"]'>
+          <div class="feat-label">Invariants</div>
+          <div class="feat-value">Exactly-once · Semantic grouping · Strict order</div>
+        </div>
+      </div>
+      <p class="dogfood-badge">This section is ViewSpec compiler output. <a href="./landing-compiled/" style="color:#64748b">View raw →</a></p>
+    </div>
+  </div>
+
+  <!-- ============================================================ -->
+  <!-- CODE EXAMPLE                                                 -->
+  <!-- ============================================================ -->
+  <div class="max-w-4xl mx-auto px-6 py-6">
+    <div class="flex justify-center mb-8">
       <div class="hero-code text-left">
         <span class="kw">from</span> <span class="var">viewspec</span> <span class="kw">import</span> <span class="fn">ViewSpecBuilder</span>, <span class="fn">compile</span><br>
         <span class="kw">from</span> <span class="var">viewspec.emitters.html_tailwind</span> <span class="kw">import</span> <span class="fn">HtmlTailwindEmitter</span><br>
@@ -285,8 +328,6 @@
         <span class="comment"># That's it. Full UI. Full provenance. No CSS.</span>
       </div>
     </div>
-
-    <!-- Invariants -->
     <div class="flex flex-wrap justify-center gap-3">
       <span class="invariant-badge">✓ Exactly-once provenance</span>
       <span class="invariant-badge">✓ Semantic grouping</span>
@@ -296,72 +337,64 @@
 
   <div class="separator"></div>
 
-  <!-- Demos -->
-  <div class="max-w-4xl mx-auto px-6 py-8">
-    <p class="text-center text-sm font-bold text-slate-500 tracking-widest uppercase mb-10">See it in action</p>
-
-    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5 mb-8">
-      <a href="./motif-switcher/" class="card">
-        <div class="card-number">Demo 01</div>
-        <div class="card-title">Same Data, Three Motifs</div>
-        <div class="card-description">One dataset renders as table, dashboard, or comparison. Change one parameter. The visual structure transforms.</div>
-      </a>
-
-      <a href="./provenance-inspector/" class="card">
-        <div class="card-number">Demo 02</div>
-        <div class="card-title">Provenance Inspector</div>
-        <div class="card-description">Hover any element. See the full chain: DOM → IR → binding → address → raw data. Every pixel has a birth certificate.</div>
-      </a>
-
-      <a href="./live-builder/" class="card">
-        <div class="card-number">Demo 03</div>
-        <div class="card-title">Live Builder</div>
-        <div class="card-description">Browse ViewSpec JSON, see the IR tree, watch the rendered output. Three panels, always in sync.</div>
-      </a>
-
-      <a href="./invariants/" class="card">
-        <div class="card-number">Demo 04</div>
-        <div class="card-title">The Invariants</div>
-        <div class="card-description">Exactly-once provenance. Semantic grouping. Strict ordering. Watch the compiler enforce — and refuse — each one.</div>
-      </a>
-
-      <a href="./fifteen-lines/" class="card">
-        <div class="card-number">Demo 05</div>
-        <div class="card-title">15 Lines → Full UI</div>
-        <div class="card-description">Watch an invoice table build itself from 15 lines of Python. No components. No CSS. No layout code.</div>
-      </a>
-
-      <a href="https://github.com/nxrobins/viewspec" class="card" target="_blank" rel="noopener">
-        <div class="card-number">Source</div>
-        <div class="card-title">GitHub ↗</div>
-        <div class="card-description">MIT License. The SDK is free. The invariants are mathematical. Star it, fork it, build with it.</div>
-      </a>
+  <!-- ============================================================ -->
+  <!-- DEMOS — compiled by ViewSpec (table motif) + linked          -->
+  <!-- ============================================================ -->
+  <div class="max-w-4xl mx-auto px-6 py-4">
+    <div class="compiled-section">
+      <p class="section-label">⬡ Compiled by ViewSpec — table motif</p>
+      <div class="space-y-1">
+        <a href="./motif-switcher/" class="demo-row" data-ir-id="motif_demo_index_demo_index_row_1">
+          <div class="demo-label">Demo 01</div>
+          <div class="demo-value">Same Data, Three Motifs</div>
+          <div class="demo-desc">One dataset, three visual structures. Change one parameter.</div>
+        </a>
+        <a href="./provenance-inspector/" class="demo-row" data-ir-id="motif_demo_index_demo_index_row_2">
+          <div class="demo-label">Demo 02</div>
+          <div class="demo-value">Provenance Inspector</div>
+          <div class="demo-desc">Hover any element. Trace DOM → IR → binding → address → raw data.</div>
+        </a>
+        <a href="./live-builder/" class="demo-row" data-ir-id="motif_demo_index_demo_index_row_3">
+          <div class="demo-label">Demo 03</div>
+          <div class="demo-value">Live Builder</div>
+          <div class="demo-desc">Browse ViewSpec JSON, IR tree, and rendered output. Always in sync.</div>
+        </a>
+        <a href="./invariants/" class="demo-row" data-ir-id="motif_demo_index_demo_index_row_4">
+          <div class="demo-label">Demo 04</div>
+          <div class="demo-value">The Invariants</div>
+          <div class="demo-desc">Watch the compiler enforce — and refuse — each guarantee.</div>
+        </a>
+        <a href="./fifteen-lines/" class="demo-row" data-ir-id="motif_demo_index_demo_index_row_5">
+          <div class="demo-label">Demo 05</div>
+          <div class="demo-value">15 Lines → Full UI</div>
+          <div class="demo-desc">An invoice table builds itself from 15 lines of Python.</div>
+        </a>
+      </div>
+      <p class="dogfood-badge">Demo index compiled from semantic data. <a href="./landing-compiled/intent_bundle.json" style="color:#64748b">View source ViewSpec →</a></p>
     </div>
   </div>
 
   <div class="separator"></div>
 
-  <!-- How it works -->
-  <div class="max-w-3xl mx-auto px-6 py-8">
-    <p class="text-center text-sm font-bold text-slate-500 tracking-widest uppercase mb-8">How it works</p>
-
-    <div class="text-center text-slate-400 space-y-2 mb-12" style="font-family: 'SF Mono', 'Cascadia Code', monospace; font-size: 0.85rem;">
-      <p class="text-slate-300">Data → <span class="text-teal-400 font-bold">ViewSpec</span> → Compiler → CompositionIR → Renderer</p>
-      <p class="text-xs text-slate-600 mt-2">HTML/Tailwind · Canvas/Pretext · WebGPU · PDF · Native · Your custom emitter</p>
-    </div>
-
-    <div class="grid grid-cols-1 md:grid-cols-3 gap-6 text-center mb-8">
-      <div>
-        <p class="text-sm font-bold text-teal-400 mb-2">Describe</p>
-        <p class="text-sm text-slate-500">Semantic substrate + ViewSpec. What the data means, not how it looks.</p>
-      </div>
-      <div>
-        <p class="text-sm font-bold text-teal-400 mb-2">Compile</p>
-        <p class="text-sm text-slate-500">Deterministic routing with provenance guarantees. 3ms. No LLM.</p>
-      </div>
-      <div>
-        <p class="text-sm font-bold text-teal-400 mb-2">Render</p>
-        <p class="text-sm text-slate-500">Pluggable emitters. Ship HTML today. Canvas tomorrow. Your renderer next.</p>
+  <!-- ============================================================ -->
+  <!-- HOW IT WORKS — compiled by ViewSpec (comparison motif)       -->
+  <!-- ============================================================ -->
+  <div class="max-w-3xl mx-auto px-6 py-4">
+    <div class="compiled-section">
+      <p class="section-label">⬡ Compiled by ViewSpec — comparison motif</p>
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div class="pipeline-step" data-ir-id="motif_pipeline_pipeline_item_1">
+          <div class="step-label">Describe</div>
+          <div class="step-value">Semantic substrate + ViewSpec. What the data means, not how it looks.</div>
+        </div>
+        <div class="pipeline-step" data-ir-id="motif_pipeline_pipeline_item_2">
+          <div class="step-label">Compile</div>
+          <div class="step-value">Deterministic routing with provenance guarantees. 3ms. No LLM.</div>
+        </div>
+        <div class="pipeline-step" data-ir-id="motif_pipeline_pipeline_item_3">
+          <div class="step-label">Render</div>
+          <div class="step-value">Pluggable emitters. HTML today. Canvas tomorrow. Your renderer next.</div>
+        </div>
       </div>
     </div>
   </div>
@@ -371,8 +404,9 @@
   <!-- Footer -->
   <footer class="max-w-4xl mx-auto px-6 py-12 text-center text-sm text-slate-600">
     <p class="mb-2">ViewSpec is open source. <a href="https://github.com/nxrobins/viewspec">MIT License</a>.</p>
-    <p class="mb-4">The compiler is a hosted service. The SDK is free. The invariants are mathematical.</p>
-    <p class="text-slate-700">© 2026</p>
+    <p class="mb-2">The compiler is a hosted service. The SDK is free. The invariants are mathematical.</p>
+    <p class="text-xs text-slate-700 mt-4">This page was compiled by ViewSpec. <a href="./landing-compiled/" style="color:#475569">View the raw compiler output →</a></p>
+    <p class="text-slate-700 mt-2">© 2026</p>
   </footer>
 </body>
 </html>

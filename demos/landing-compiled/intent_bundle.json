@@ -1,0 +1,408 @@
+{
+  "substrate": {
+    "id": "viewspec_landing_substrate",
+    "root_id": "viewspec_landing",
+    "nodes": {
+      "pipeline_item_1": {
+        "id": "pipeline_item_1",
+        "kind": "comparison_item",
+        "attrs": {
+          "label": "Describe",
+          "value": "Semantic substrate + ViewSpec. What the data means, not how it looks."
+        },
+        "slots": {},
+        "edges": {}
+      },
+      "hero_features_card_1": {
+        "id": "hero_features_card_1",
+        "kind": "dashboard_card",
+        "attrs": {
+          "label": "Compilation",
+          "value": "3ms deterministic \u2014 no LLM, no GPU"
+        },
+        "slots": {},
+        "edges": {}
+      },
+      "hero_features_card_2": {
+        "id": "hero_features_card_2",
+        "kind": "dashboard_card",
+        "attrs": {
+          "label": "Provenance",
+          "value": "Every pixel traces to its source data"
+        },
+        "slots": {},
+        "edges": {}
+      },
+      "pipeline_item_3": {
+        "id": "pipeline_item_3",
+        "kind": "comparison_item",
+        "attrs": {
+          "label": "Render",
+          "value": "Pluggable emitters. HTML today. Canvas tomorrow. Your renderer next."
+        },
+        "slots": {},
+        "edges": {}
+      },
+      "demo_index_row_3": {
+        "id": "demo_index_row_3",
+        "kind": "table_row",
+        "attrs": {
+          "label": "Live Builder",
+          "value": "Browse ViewSpec JSON, IR tree, and rendered output. Always in sync."
+        },
+        "slots": {},
+        "edges": {}
+      },
+      "hero_features_card_3": {
+        "id": "hero_features_card_3",
+        "kind": "dashboard_card",
+        "attrs": {
+          "label": "Invariants",
+          "value": "Exactly-once \u00b7 Semantic grouping \u00b7 Strict order"
+        },
+        "slots": {},
+        "edges": {}
+      },
+      "demo_index_row_5": {
+        "id": "demo_index_row_5",
+        "kind": "table_row",
+        "attrs": {
+          "label": "15 Lines \u2192 Full UI",
+          "value": "An invoice table builds itself from 15 lines of Python."
+        },
+        "slots": {},
+        "edges": {}
+      },
+      "pipeline_item_2": {
+        "id": "pipeline_item_2",
+        "kind": "comparison_item",
+        "attrs": {
+          "label": "Compile",
+          "value": "Deterministic routing with provenance guarantees. 3ms. No LLM."
+        },
+        "slots": {},
+        "edges": {}
+      },
+      "demo_index_row_2": {
+        "id": "demo_index_row_2",
+        "kind": "table_row",
+        "attrs": {
+          "label": "Provenance Inspector",
+          "value": "Hover any element. Trace DOM \u2192 IR \u2192 binding \u2192 address \u2192 raw data."
+        },
+        "slots": {},
+        "edges": {}
+      },
+      "demo_index_row_1": {
+        "id": "demo_index_row_1",
+        "kind": "table_row",
+        "attrs": {
+          "label": "Same Data, Three Motifs",
+          "value": "One dataset, three visual structures. Change one parameter."
+        },
+        "slots": {},
+        "edges": {}
+      },
+      "demo_index_row_4": {
+        "id": "demo_index_row_4",
+        "kind": "table_row",
+        "attrs": {
+          "label": "The Invariants",
+          "value": "Watch the compiler enforce \u2014 and refuse \u2014 each guarantee."
+        },
+        "slots": {},
+        "edges": {}
+      },
+      "viewspec_landing": {
+        "id": "viewspec_landing",
+        "kind": "app",
+        "attrs": {},
+        "slots": {},
+        "edges": {}
+      }
+    }
+  },
+  "view_spec": {
+    "id": "viewspec_landing",
+    "substrate_id": "viewspec_landing_substrate",
+    "complexity_tier": 1,
+    "root_region": "root",
+    "regions": [
+      {
+        "id": "root",
+        "role": "root",
+        "layout": "stack",
+        "min_children": 1,
+        "max_children": null,
+        "parent_region": ""
+      },
+      {
+        "id": "main",
+        "parent_region": "root",
+        "role": "main",
+        "layout": "stack",
+        "min_children": 1,
+        "max_children": null
+      }
+    ],
+    "bindings": [
+      {
+        "id": "hero_features_card_1_label",
+        "address": "node:hero_features_card_1#attr:label",
+        "target_region": "main",
+        "present_as": "label",
+        "cardinality": "exactly_once"
+      },
+      {
+        "id": "hero_features_card_1_value",
+        "address": "node:hero_features_card_1#attr:value",
+        "target_region": "main",
+        "present_as": "value",
+        "cardinality": "exactly_once"
+      },
+      {
+        "id": "hero_features_card_2_label",
+        "address": "node:hero_features_card_2#attr:label",
+        "target_region": "main",
+        "present_as": "label",
+        "cardinality": "exactly_once"
+      },
+      {
+        "id": "hero_features_card_2_value",
+        "address": "node:hero_features_card_2#attr:value",
+        "target_region": "main",
+        "present_as": "value",
+        "cardinality": "exactly_once"
+      },
+      {
+        "id": "hero_features_card_3_label",
+        "address": "node:hero_features_card_3#attr:label",
+        "target_region": "main",
+        "present_as": "label",
+        "cardinality": "exactly_once"
+      },
+      {
+        "id": "hero_features_card_3_value",
+        "address": "node:hero_features_card_3#attr:value",
+        "target_region": "main",
+        "present_as": "value",
+        "cardinality": "exactly_once"
+      },
+      {
+        "id": "demo_index_row_1_label",
+        "address": "node:demo_index_row_1#attr:label",
+        "target_region": "main",
+        "present_as": "label",
+        "cardinality": "exactly_once"
+      },
+      {
+        "id": "demo_index_row_1_value",
+        "address": "node:demo_index_row_1#attr:value",
+        "target_region": "main",
+        "present_as": "value",
+        "cardinality": "exactly_once"
+      },
+      {
+        "id": "demo_index_row_2_label",
+        "address": "node:demo_index_row_2#attr:label",
+        "target_region": "main",
+        "present_as": "label",
+        "cardinality": "exactly_once"
+      },
+      {
+        "id": "demo_index_row_2_value",
+        "address": "node:demo_index_row_2#attr:value",
+        "target_region": "main",
+        "present_as": "value",
+        "cardinality": "exactly_once"
+      },
+      {
+        "id": "demo_index_row_3_label",
+        "address": "node:demo_index_row_3#attr:label",
+        "target_region": "main",
+        "present_as": "label",
+        "cardinality": "exactly_once"
+      },
+      {
+        "id": "demo_index_row_3_value",
+        "address": "node:demo_index_row_3#attr:value",
+        "target_region": "main",
+        "present_as": "value",
+        "cardinality": "exactly_once"
+      },
+      {
+        "id": "demo_index_row_4_label",
+        "address": "node:demo_index_row_4#attr:label",
+        "target_region": "main",
+        "present_as": "label",
+        "cardinality": "exactly_once"
+      },
+      {
+        "id": "demo_index_row_4_value",
+        "address": "node:demo_index_row_4#attr:value",
+        "target_region": "main",
+        "present_as": "value",
+        "cardinality": "exactly_once"
+      },
+      {
+        "id": "demo_index_row_5_label",
+        "address": "node:demo_index_row_5#attr:label",
+        "target_region": "main",
+        "present_as": "label",
+        "cardinality": "exactly_once"
+      },
+      {
+        "id": "demo_index_row_5_value",
+        "address": "node:demo_index_row_5#attr:value",
+        "target_region": "main",
+        "present_as": "value",
+        "cardinality": "exactly_once"
+      },
+      {
+        "id": "pipeline_item_1_label",
+        "address": "node:pipeline_item_1#attr:label",
+        "target_region": "main",
+        "present_as": "label",
+        "cardinality": "exactly_once"
+      },
+      {
+        "id": "pipeline_item_1_value",
+        "address": "node:pipeline_item_1#attr:value",
+        "target_region": "main",
+        "present_as": "text",
+        "cardinality": "exactly_once"
+      },
+      {
+        "id": "pipeline_item_2_label",
+        "address": "node:pipeline_item_2#attr:label",
+        "target_region": "main",
+        "present_as": "label",
+        "cardinality": "exactly_once"
+      },
+      {
+        "id": "pipeline_item_2_value",
+        "address": "node:pipeline_item_2#attr:value",
+        "target_region": "main",
+        "present_as": "text",
+        "cardinality": "exactly_once"
+      },
+      {
+        "id": "pipeline_item_3_label",
+        "address": "node:pipeline_item_3#attr:label",
+        "target_region": "main",
+        "present_as": "label",
+        "cardinality": "exactly_once"
+      },
+      {
+        "id": "pipeline_item_3_value",
+        "address": "node:pipeline_item_3#attr:value",
+        "target_region": "main",
+        "present_as": "text",
+        "cardinality": "exactly_once"
+      }
+    ],
+    "groups": [
+      {
+        "id": "features",
+        "kind": "ordered",
+        "members": [
+          "hero_features_card_1_label",
+          "hero_features_card_1_value",
+          "hero_features_card_2_label",
+          "hero_features_card_2_value",
+          "hero_features_card_3_label",
+          "hero_features_card_3_value"
+        ],
+        "target_region": "main"
+      },
+      {
+        "id": "demos",
+        "kind": "ordered",
+        "members": [
+          "demo_index_row_1_label",
+          "demo_index_row_1_value",
+          "demo_index_row_2_label",
+          "demo_index_row_2_value",
+          "demo_index_row_3_label",
+          "demo_index_row_3_value",
+          "demo_index_row_4_label",
+          "demo_index_row_4_value",
+          "demo_index_row_5_label",
+          "demo_index_row_5_value"
+        ],
+        "target_region": "main"
+      },
+      {
+        "id": "steps",
+        "kind": "ordered",
+        "members": [
+          "pipeline_item_1_label",
+          "pipeline_item_1_value",
+          "pipeline_item_2_label",
+          "pipeline_item_2_value",
+          "pipeline_item_3_label",
+          "pipeline_item_3_value"
+        ],
+        "target_region": "main"
+      }
+    ],
+    "motifs": [
+      {
+        "id": "hero_features",
+        "kind": "dashboard",
+        "region": "main",
+        "members": [
+          "hero_features_card_1_label",
+          "hero_features_card_1_value",
+          "hero_features_card_2_label",
+          "hero_features_card_2_value",
+          "hero_features_card_3_label",
+          "hero_features_card_3_value"
+        ]
+      },
+      {
+        "id": "demo_index",
+        "kind": "table",
+        "region": "main",
+        "members": [
+          "demo_index_row_1_label",
+          "demo_index_row_1_value",
+          "demo_index_row_2_label",
+          "demo_index_row_2_value",
+          "demo_index_row_3_label",
+          "demo_index_row_3_value",
+          "demo_index_row_4_label",
+          "demo_index_row_4_value",
+          "demo_index_row_5_label",
+          "demo_index_row_5_value"
+        ]
+      },
+      {
+        "id": "pipeline",
+        "kind": "comparison",
+        "region": "main",
+        "members": [
+          "pipeline_item_1_label",
+          "pipeline_item_1_value",
+          "pipeline_item_2_label",
+          "pipeline_item_2_value",
+          "pipeline_item_3_label",
+          "pipeline_item_3_value"
+        ]
+      }
+    ],
+    "styles": [
+      {
+        "id": "s_hero_emphasis",
+        "target": "hero_features",
+        "token": "emphasis.high"
+      },
+      {
+        "id": "s_pipeline_subtle",
+        "target": "pipeline",
+        "token": "surface.subtle"
+      }
+    ],
+    "actions": []
+  }
+}

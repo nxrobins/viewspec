@@ -1,0 +1,523 @@
+{
+  "dom-binding_demo_index_row_1_label": {
+    "content_refs": [
+      "node:demo_index_row_1#attr:label"
+    ],
+    "intent_refs": [
+      "viewspec:binding:demo_index_row_1_label"
+    ],
+    "ir_id": "binding_demo_index_row_1_label",
+    "primitive": "label",
+    "props": {
+      "text": "Same Data, Three Motifs"
+    },
+    "style_tokens": []
+  },
+  "dom-binding_demo_index_row_1_value": {
+    "content_refs": [
+      "node:demo_index_row_1#attr:value"
+    ],
+    "intent_refs": [
+      "viewspec:binding:demo_index_row_1_value"
+    ],
+    "ir_id": "binding_demo_index_row_1_value",
+    "primitive": "value",
+    "props": {
+      "text": "One dataset, three visual structures. Change one parameter."
+    },
+    "style_tokens": []
+  },
+  "dom-binding_demo_index_row_2_label": {
+    "content_refs": [
+      "node:demo_index_row_2#attr:label"
+    ],
+    "intent_refs": [
+      "viewspec:binding:demo_index_row_2_label"
+    ],
+    "ir_id": "binding_demo_index_row_2_label",
+    "primitive": "label",
+    "props": {
+      "text": "Provenance Inspector"
+    },
+    "style_tokens": []
+  },
+  "dom-binding_demo_index_row_2_value": {
+    "content_refs": [
+      "node:demo_index_row_2#attr:value"
+    ],
+    "intent_refs": [
+      "viewspec:binding:demo_index_row_2_value"
+    ],
+    "ir_id": "binding_demo_index_row_2_value",
+    "primitive": "value",
+    "props": {
+      "text": "Hover any element. Trace DOM \u2192 IR \u2192 binding \u2192 address \u2192 raw data."
+    },
+    "style_tokens": []
+  },
+  "dom-binding_demo_index_row_3_label": {
+    "content_refs": [
+      "node:demo_index_row_3#attr:label"
+    ],
+    "intent_refs": [
+      "viewspec:binding:demo_index_row_3_label"
+    ],
+    "ir_id": "binding_demo_index_row_3_label",
+    "primitive": "label",
+    "props": {
+      "text": "Live Builder"
+    },
+    "style_tokens": []
+  },
+  "dom-binding_demo_index_row_3_value": {
+    "content_refs": [
+      "node:demo_index_row_3#attr:value"
+    ],
+    "intent_refs": [
+      "viewspec:binding:demo_index_row_3_value"
+    ],
+    "ir_id": "binding_demo_index_row_3_value",
+    "primitive": "value",
+    "props": {
+      "text": "Browse ViewSpec JSON, IR tree, and rendered output. Always in sync."
+    },
+    "style_tokens": []
+  },
+  "dom-binding_demo_index_row_4_label": {
+    "content_refs": [
+      "node:demo_index_row_4#attr:label"
+    ],
+    "intent_refs": [
+      "viewspec:binding:demo_index_row_4_label"
+    ],
+    "ir_id": "binding_demo_index_row_4_label",
+    "primitive": "label",
+    "props": {
+      "text": "The Invariants"
+    },
+    "style_tokens": []
+  },
+  "dom-binding_demo_index_row_4_value": {
+    "content_refs": [
+      "node:demo_index_row_4#attr:value"
+    ],
+    "intent_refs": [
+      "viewspec:binding:demo_index_row_4_value"
+    ],
+    "ir_id": "binding_demo_index_row_4_value",
+    "primitive": "value",
+    "props": {
+      "text": "Watch the compiler enforce \u2014 and refuse \u2014 each guarantee."
+    },
+    "style_tokens": []
+  },
+  "dom-binding_demo_index_row_5_label": {
+    "content_refs": [
+      "node:demo_index_row_5#attr:label"
+    ],
+    "intent_refs": [
+      "viewspec:binding:demo_index_row_5_label"
+    ],
+    "ir_id": "binding_demo_index_row_5_label",
+    "primitive": "label",
+    "props": {
+      "text": "15 Lines \u2192 Full UI"
+    },
+    "style_tokens": []
+  },
+  "dom-binding_demo_index_row_5_value": {
+    "content_refs": [
+      "node:demo_index_row_5#attr:value"
+    ],
+    "intent_refs": [
+      "viewspec:binding:demo_index_row_5_value"
+    ],
+    "ir_id": "binding_demo_index_row_5_value",
+    "primitive": "value",
+    "props": {
+      "text": "An invoice table builds itself from 15 lines of Python."
+    },
+    "style_tokens": []
+  },
+  "dom-binding_hero_features_card_1_label": {
+    "content_refs": [
+      "node:hero_features_card_1#attr:label"
+    ],
+    "intent_refs": [
+      "viewspec:binding:hero_features_card_1_label"
+    ],
+    "ir_id": "binding_hero_features_card_1_label",
+    "primitive": "label",
+    "props": {
+      "text": "Compilation"
+    },
+    "style_tokens": []
+  },
+  "dom-binding_hero_features_card_1_value": {
+    "content_refs": [
+      "node:hero_features_card_1#attr:value"
+    ],
+    "intent_refs": [
+      "viewspec:binding:hero_features_card_1_value"
+    ],
+    "ir_id": "binding_hero_features_card_1_value",
+    "primitive": "value",
+    "props": {
+      "text": "3ms deterministic \u2014 no LLM, no GPU"
+    },
+    "style_tokens": []
+  },
+  "dom-binding_hero_features_card_2_label": {
+    "content_refs": [
+      "node:hero_features_card_2#attr:label"
+    ],
+    "intent_refs": [
+      "viewspec:binding:hero_features_card_2_label"
+    ],
+    "ir_id": "binding_hero_features_card_2_label",
+    "primitive": "label",
+    "props": {
+      "text": "Provenance"
+    },
+    "style_tokens": []
+  },
+  "dom-binding_hero_features_card_2_value": {
+    "content_refs": [
+      "node:hero_features_card_2#attr:value"
+    ],
+    "intent_refs": [
+      "viewspec:binding:hero_features_card_2_value"
+    ],
+    "ir_id": "binding_hero_features_card_2_value",
+    "primitive": "value",
+    "props": {
+      "text": "Every pixel traces to its source data"
+    },
+    "style_tokens": []
+  },
+  "dom-binding_hero_features_card_3_label": {
+    "content_refs": [
+      "node:hero_features_card_3#attr:label"
+    ],
+    "intent_refs": [
+      "viewspec:binding:hero_features_card_3_label"
+    ],
+    "ir_id": "binding_hero_features_card_3_label",
+    "primitive": "label",
+    "props": {
+      "text": "Invariants"
+    },
+    "style_tokens": []
+  },
+  "dom-binding_hero_features_card_3_value": {
+    "content_refs": [
+      "node:hero_features_card_3#attr:value"
+    ],
+    "intent_refs": [
+      "viewspec:binding:hero_features_card_3_value"
+    ],
+    "ir_id": "binding_hero_features_card_3_value",
+    "primitive": "value",
+    "props": {
+      "text": "Exactly-once \u00b7 Semantic grouping \u00b7 Strict order"
+    },
+    "style_tokens": []
+  },
+  "dom-binding_pipeline_item_1_label": {
+    "content_refs": [
+      "node:pipeline_item_1#attr:label"
+    ],
+    "intent_refs": [
+      "viewspec:binding:pipeline_item_1_label"
+    ],
+    "ir_id": "binding_pipeline_item_1_label",
+    "primitive": "label",
+    "props": {
+      "text": "Describe"
+    },
+    "style_tokens": []
+  },
+  "dom-binding_pipeline_item_1_value": {
+    "content_refs": [
+      "node:pipeline_item_1#attr:value"
+    ],
+    "intent_refs": [
+      "viewspec:binding:pipeline_item_1_value"
+    ],
+    "ir_id": "binding_pipeline_item_1_value",
+    "primitive": "text",
+    "props": {
+      "text": "Semantic substrate + ViewSpec. What the data means, not how it looks."
+    },
+    "style_tokens": []
+  },
+  "dom-binding_pipeline_item_2_label": {
+    "content_refs": [
+      "node:pipeline_item_2#attr:label"
+    ],
+    "intent_refs": [
+      "viewspec:binding:pipeline_item_2_label"
+    ],
+    "ir_id": "binding_pipeline_item_2_label",
+    "primitive": "label",
+    "props": {
+      "text": "Compile"
+    },
+    "style_tokens": []
+  },
+  "dom-binding_pipeline_item_2_value": {
+    "content_refs": [
+      "node:pipeline_item_2#attr:value"
+    ],
+    "intent_refs": [
+      "viewspec:binding:pipeline_item_2_value"
+    ],
+    "ir_id": "binding_pipeline_item_2_value",
+    "primitive": "text",
+    "props": {
+      "text": "Deterministic routing with provenance guarantees. 3ms. No LLM."
+    },
+    "style_tokens": []
+  },
+  "dom-binding_pipeline_item_3_label": {
+    "content_refs": [
+      "node:pipeline_item_3#attr:label"
+    ],
+    "intent_refs": [
+      "viewspec:binding:pipeline_item_3_label"
+    ],
+    "ir_id": "binding_pipeline_item_3_label",
+    "primitive": "label",
+    "props": {
+      "text": "Render"
+    },
+    "style_tokens": []
+  },
+  "dom-binding_pipeline_item_3_value": {
+    "content_refs": [
+      "node:pipeline_item_3#attr:value"
+    ],
+    "intent_refs": [
+      "viewspec:binding:pipeline_item_3_value"
+    ],
+    "ir_id": "binding_pipeline_item_3_value",
+    "primitive": "text",
+    "props": {
+      "text": "Pluggable emitters. HTML today. Canvas tomorrow. Your renderer next."
+    },
+    "style_tokens": []
+  },
+  "dom-motif_demo_index": {
+    "content_refs": [],
+    "intent_refs": [
+      "viewspec:motif:demo_index"
+    ],
+    "ir_id": "motif_demo_index",
+    "primitive": "stack",
+    "props": {
+      "layout_role": "stack",
+      "motif_kind": "table"
+    },
+    "style_tokens": []
+  },
+  "dom-motif_demo_index_demo_index_row_1": {
+    "content_refs": [],
+    "intent_refs": [
+      "viewspec:motif:demo_index"
+    ],
+    "ir_id": "motif_demo_index_demo_index_row_1",
+    "primitive": "cluster",
+    "props": {
+      "layout_role": "cluster",
+      "motif_kind": "table"
+    },
+    "style_tokens": []
+  },
+  "dom-motif_demo_index_demo_index_row_2": {
+    "content_refs": [],
+    "intent_refs": [
+      "viewspec:motif:demo_index"
+    ],
+    "ir_id": "motif_demo_index_demo_index_row_2",
+    "primitive": "cluster",
+    "props": {
+      "layout_role": "cluster",
+      "motif_kind": "table"
+    },
+    "style_tokens": []
+  },
+  "dom-motif_demo_index_demo_index_row_3": {
+    "content_refs": [],
+    "intent_refs": [
+      "viewspec:motif:demo_index"
+    ],
+    "ir_id": "motif_demo_index_demo_index_row_3",
+    "primitive": "cluster",
+    "props": {
+      "layout_role": "cluster",
+      "motif_kind": "table"
+    },
+    "style_tokens": []
+  },
+  "dom-motif_demo_index_demo_index_row_4": {
+    "content_refs": [],
+    "intent_refs": [
+      "viewspec:motif:demo_index"
+    ],
+    "ir_id": "motif_demo_index_demo_index_row_4",
+    "primitive": "cluster",
+    "props": {
+      "layout_role": "cluster",
+      "motif_kind": "table"
+    },
+    "style_tokens": []
+  },
+  "dom-motif_demo_index_demo_index_row_5": {
+    "content_refs": [],
+    "intent_refs": [
+      "viewspec:motif:demo_index"
+    ],
+    "ir_id": "motif_demo_index_demo_index_row_5",
+    "primitive": "cluster",
+    "props": {
+      "layout_role": "cluster",
+      "motif_kind": "table"
+    },
+    "style_tokens": []
+  },
+  "dom-motif_hero_features": {
+    "content_refs": [],
+    "intent_refs": [
+      "viewspec:motif:hero_features",
+      "viewspec:style:s_hero_emphasis"
+    ],
+    "ir_id": "motif_hero_features",
+    "primitive": "stack",
+    "props": {
+      "layout_role": "stack",
+      "motif_kind": "dashboard"
+    },
+    "style_tokens": [
+      "emphasis.high"
+    ]
+  },
+  "dom-motif_hero_features_hero_features_card_1": {
+    "content_refs": [],
+    "intent_refs": [
+      "viewspec:motif:hero_features"
+    ],
+    "ir_id": "motif_hero_features_hero_features_card_1",
+    "primitive": "surface",
+    "props": {
+      "layout_role": "surface",
+      "motif_kind": "dashboard"
+    },
+    "style_tokens": []
+  },
+  "dom-motif_hero_features_hero_features_card_2": {
+    "content_refs": [],
+    "intent_refs": [
+      "viewspec:motif:hero_features"
+    ],
+    "ir_id": "motif_hero_features_hero_features_card_2",
+    "primitive": "surface",
+    "props": {
+      "layout_role": "surface",
+      "motif_kind": "dashboard"
+    },
+    "style_tokens": []
+  },
+  "dom-motif_hero_features_hero_features_card_3": {
+    "content_refs": [],
+    "intent_refs": [
+      "viewspec:motif:hero_features"
+    ],
+    "ir_id": "motif_hero_features_hero_features_card_3",
+    "primitive": "surface",
+    "props": {
+      "layout_role": "surface",
+      "motif_kind": "dashboard"
+    },
+    "style_tokens": []
+  },
+  "dom-motif_pipeline": {
+    "content_refs": [],
+    "intent_refs": [
+      "viewspec:motif:pipeline",
+      "viewspec:style:s_pipeline_subtle"
+    ],
+    "ir_id": "motif_pipeline",
+    "primitive": "cluster",
+    "props": {
+      "layout_role": "cluster",
+      "motif_kind": "comparison"
+    },
+    "style_tokens": [
+      "surface.subtle"
+    ]
+  },
+  "dom-motif_pipeline_pipeline_item_1": {
+    "content_refs": [],
+    "intent_refs": [
+      "viewspec:motif:pipeline"
+    ],
+    "ir_id": "motif_pipeline_pipeline_item_1",
+    "primitive": "stack",
+    "props": {
+      "layout_role": "stack",
+      "motif_kind": "comparison"
+    },
+    "style_tokens": []
+  },
+  "dom-motif_pipeline_pipeline_item_2": {
+    "content_refs": [],
+    "intent_refs": [
+      "viewspec:motif:pipeline"
+    ],
+    "ir_id": "motif_pipeline_pipeline_item_2",
+    "primitive": "stack",
+    "props": {
+      "layout_role": "stack",
+      "motif_kind": "comparison"
+    },
+    "style_tokens": []
+  },
+  "dom-motif_pipeline_pipeline_item_3": {
+    "content_refs": [],
+    "intent_refs": [
+      "viewspec:motif:pipeline"
+    ],
+    "ir_id": "motif_pipeline_pipeline_item_3",
+    "primitive": "stack",
+    "props": {
+      "layout_role": "stack",
+      "motif_kind": "comparison"
+    },
+    "style_tokens": []
+  },
+  "dom-region_main": {
+    "content_refs": [],
+    "intent_refs": [
+      "viewspec:region:main"
+    ],
+    "ir_id": "region_main",
+    "primitive": "stack",
+    "props": {
+      "layout_role": "stack"
+    },
+    "style_tokens": []
+  },
+  "dom-region_root": {
+    "content_refs": [],
+    "intent_refs": [
+      "viewspec:view:viewspec_landing",
+      "viewspec:region:root"
+    ],
+    "ir_id": "region_root",
+    "primitive": "root",
+    "props": {
+      "layout_role": "root"
+    },
+    "style_tokens": []
+  }
+}
