@@ -33,6 +33,7 @@
       background: rgba(15, 23, 42, 0.96);
       border: 1px solid rgba(45, 212, 191, 0.24);
       box-shadow: 0 24px 80px rgba(0, 0, 0, 0.35);
+      overflow: hidden;
     }
 
     .provenance-highlight {
@@ -47,6 +48,8 @@
       border-left: 2px solid rgba(45, 212, 191, 0.45);
       margin-left: 0.35rem;
       padding: 0.1rem 0 0.85rem 0.9rem;
+      overflow: hidden;
+      word-break: break-all;
     }
 
     .chain-label {
@@ -69,7 +72,7 @@
 
     @media (min-width: 1024px) {
       .content-shell {
-        padding-right: 25rem;
+        padding-right: 24rem;
       }
 
       .inspector-panel {
@@ -77,7 +80,10 @@
         position: fixed;
         right: 1rem;
         top: 1rem;
-        width: 23rem;
+        width: 22rem;
+        max-width: 22rem;
+        overflow-y: auto;
+        overflow-x: hidden;
       }
     }
 
