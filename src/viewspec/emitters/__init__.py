@@ -1,0 +1,1 @@
+"""ViewSpec emitter plugins."""
