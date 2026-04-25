@@ -29,7 +29,13 @@ from viewspec.sdk import (
     TableBuilder,
     ViewSpecBuilder,
 )
-from viewspec.compiler import compile, UnsupportedMotifError
+from viewspec.compiler import (
+    compile,
+    compile_auto,
+    compile_remote,
+    CompilerAPIError,
+    UnsupportedMotifError,
+)
 
 __version__ = "0.1.0"
 
@@ -59,6 +65,9 @@ __all__ = [
     "ViewSpecBuilder",
     # Compiler
     "compile",
+    "compile_auto",
+    "compile_remote",
+    "CompilerAPIError",
     "UnsupportedMotifError",
     # Utilities
     "build_address_index",

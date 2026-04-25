@@ -712,3 +712,103 @@ def _derive_style_tokens(substrate: SemanticSubstrate, view_spec: ViewSpec) -> d
         "density.compact": f"gap: {compact_gap}; padding: {compact_padding};",
         "density.regular": f"gap: {regular_gap}; padding: {regular_padding};",
     }
+
+
+# ---------------------------------------------------------------------------
+# Hosted compiler client
+# ---------------------------------------------------------------------------
+
+VIEWSPEC_API_URL = "https://api.viewspec.dev"
+
+
+class CompilerAPIError(Exception):
+    """Raised when the hosted compiler API returns an error."""
+    pass
+
+
+def compile_remote(
+    bundle: IntentBundle,
+    *,
+    api_url: str = VIEWSPEC_API_URL,
+    api_key: str | None = None,
+) -> ASTBundle:
+    """
+    Compile an IntentBundle using the hosted ViewSpec compiler API.
+
+    Requires the `httpx` package (pip install httpx).
+
+    Args:
+        bundle: The IntentBundle to compile.
+        api_url: Base URL of the ViewSpec API (default: https://api.viewspec.dev).
+        api_key: Optional API key for authenticated access (higher rate limits).
+
+    Returns:
+        ASTBundle with the compiled result.
+
+    Raises:
+        CompilerAPIError: If the API returns an error.
+        ImportError: If httpx is not installed.
+    """
+    try:
+        import httpx
+    except ImportError:
+        raise ImportError(
+            "httpx is required for remote compilation. Install it: pip install httpx"
+        )
+
+    headers: dict[str, str] = {}
+    if api_key:
+        headers["Authorization"] = f"Bearer {api_key}"
+
+    response = httpx.post(
+        f"{api_url.rstrip('/')}/v1/compile",
+        json=bundle.to_json(),
+        headers=headers,
+        timeout=30.0,
+    )
+
+    if response.status_code == 429:
+        data = response.json()
+        raise CompilerAPIError(
+            f"Rate limit exceeded: {data.get('message', 'Upgrade at viewspec.dev')}"
+        )
+    if response.status_code == 401:
+        raise CompilerAPIError("Invalid API key")
+    if response.status_code != 200:
+        raise CompilerAPIError(
+            f"Compilation failed (HTTP {response.status_code}): {response.text}"
+        )
+
+    data = response.json()
+    return ASTBundle.from_json(data["ast"])
+
+
+def compile_auto(
+    bundle: IntentBundle,
+    *,
+    api_url: str = VIEWSPEC_API_URL,
+    api_key: str | None = None,
+    prefer_local: bool = True,
+) -> ASTBundle:
+    """
+    Compile with automatic local→remote fallback.
+
+    Tries the local reference compiler first. If the ViewSpec contains
+    unsupported motif types, falls back to the hosted API (if api_key
+    is provided or the free tier is available).
+
+    Args:
+        bundle: The IntentBundle to compile.
+        api_url: Base URL of the ViewSpec API.
+        api_key: Optional API key for higher rate limits.
+        prefer_local: If True (default), try local compilation first.
+
+    Returns:
+        ASTBundle with the compiled result.
+    """
+    if prefer_local:
+        try:
+            return compile(bundle)
+        except UnsupportedMotifError:
+            return compile_remote(bundle, api_url=api_url, api_key=api_key)
+    return compile_remote(bundle, api_url=api_url, api_key=api_key)

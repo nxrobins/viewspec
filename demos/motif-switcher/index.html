@@ -1,0 +1,1356 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ViewSpec Demo - Same Data, Three Motifs</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    :root {
+      color-scheme: dark;
+    }
+
+    body {
+      background: #101214;
+      color: #f8fafc;
+      min-height: 100vh;
+    }
+
+    .motif-toggle {
+      border-radius: 999px;
+      border: 1px solid rgba(148, 163, 184, 0.35);
+      color: #cbd5e1;
+      font-weight: 700;
+      padding: 0.65rem 1rem;
+      transition: background 160ms ease, color 160ms ease, border-color 160ms ease, transform 160ms ease;
+      white-space: nowrap;
+    }
+
+    .motif-toggle:hover {
+      border-color: rgba(45, 212, 191, 0.75);
+      color: #f8fafc;
+      transform: translateY(-1px);
+    }
+
+    .motif-toggle.active {
+      background: #0f766e;
+      border-color: #2dd4bf;
+      color: #ffffff;
+    }
+
+    .motif-view {
+      display: none;
+      opacity: 0;
+      transform: translateY(6px);
+    }
+
+    .motif-view.active {
+      animation: motifFade 220ms ease forwards;
+      display: block;
+    }
+
+    .motif-view > main {
+      border-radius: 8px;
+      min-height: 26rem;
+      overflow: hidden;
+    }
+
+    @keyframes motifFade {
+      from {
+        opacity: 0;
+        transform: translateY(6px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="mx-auto flex min-h-screen max-w-6xl flex-col px-4 py-8 sm:px-6 lg:px-8">
+    <header class="mb-8 grid gap-6 border-b border-white/10 pb-8 lg:grid-cols-[1fr_auto] lg:items-end">
+      <div class="max-w-3xl">
+        <p class="mb-3 font-mono text-sm font-semibold uppercase tracking-[0.18em] text-teal-300">ViewSpec Demo</p>
+        <h1 class="text-4xl font-black leading-tight text-white sm:text-5xl">Same Data, Three Motifs</h1>
+        <p class="mt-4 max-w-2xl text-base leading-7 text-slate-300 sm:text-lg">
+          One semantic team roster compiles into three visual structures. The substrate and bindings stay fixed; only the motif hint changes.
+        </p>
+      </div>
+      <div class="rounded-lg border border-white/10 bg-white/[0.04] p-4 font-mono text-sm text-slate-300">
+        <div><span class="text-teal-300">bindings</span> = 20</div>
+        <div><span class="text-teal-300">nodes</span> = 6</div>
+        <div><span class="text-teal-300">compiler</span> = reference</div>
+      </div>
+    </header>
+
+    <section class="mb-6 grid gap-4 lg:grid-cols-[1fr_auto] lg:items-center">
+      <div>
+        <h2 id="motif-title" class="text-xl font-bold text-white">Table</h2>
+        <p id="motif-description" class="mt-1 text-sm leading-6 text-slate-400">Dense rows for scanning operational data.</p>
+      </div>
+      <div class="flex flex-wrap gap-2" aria-label="Choose motif">
+          <button type="button" data-motif="table" class="motif-toggle active">Table</button>
+          <button type="button" data-motif="dashboard" class="motif-toggle">Dashboard</button>
+          <button type="button" data-motif="comparison" class="motif-toggle">Comparison</button>
+      </div>
+    </section>
+
+    <section class="rounded-lg border border-white/10 bg-white/[0.05] p-3 shadow-2xl shadow-black/30 sm:p-4">
+        <section id="view-table" class="motif-view active" data-view="table" aria-label="Table view">
+          <main id="table-dom-region_root" class="min-h-screen bg-slate-50 text-slate-950 p-6 space-y-6" data-ir-id="region_root" data-content-refs="[]" data-intent-refs="[&quot;viewspec:view:team_roster&quot;, &quot;viewspec:region:root&quot;]"><div id="table-dom-region_main" class="flex flex-col gap-3" data-ir-id="region_main" data-content-refs="[]" data-intent-refs="[&quot;viewspec:region:main&quot;]"><div id="table-dom-motif_team" class="flex flex-col gap-3" data-ir-id="motif_team" data-content-refs="[]" data-intent-refs="[&quot;viewspec:motif:team&quot;]"><div id="table-dom-motif_team_alice_chen" class="flex flex-row flex-wrap gap-3" data-ir-id="motif_team_alice_chen" data-content-refs="[]" data-intent-refs="[&quot;viewspec:motif:team&quot;]"><div id="table-dom-binding_alice_chen_name" class="text-xs font-bold uppercase tracking-widest text-slate-500" data-ir-id="binding_alice_chen_name" data-content-refs="[&quot;node:alice_chen#attr:name&quot;]" data-intent-refs="[&quot;viewspec:binding:alice_chen_name&quot;, &quot;viewspec:style:style_name_muted&quot;]" style="color: #6b7280;">Alice Chen</div><div id="table-dom-binding_alice_chen_role" class="text-2xl font-black tracking-tight text-slate-950" data-ir-id="binding_alice_chen_role" data-content-refs="[&quot;node:alice_chen#attr:role&quot;]" data-intent-refs="[&quot;viewspec:binding:alice_chen_role&quot;]">Principal Engineer</div><div id="table-dom-binding_alice_chen_location" class="text-base leading-7 text-slate-800" data-ir-id="binding_alice_chen_location" data-content-refs="[&quot;node:alice_chen#attr:location&quot;]" data-intent-refs="[&quot;viewspec:binding:alice_chen_location&quot;]">SF</div><div id="table-dom-binding_alice_chen_status" class="inline-flex w-fit rounded-full bg-teal-50 px-3 py-1 text-sm font-semibold text-teal-800 ring-1 ring-teal-200" data-ir-id="binding_alice_chen_status" data-content-refs="[&quot;node:alice_chen#attr:status&quot;]" data-intent-refs="[&quot;viewspec:binding:alice_chen_status&quot;]">Active</div></div><div id="table-dom-motif_team_bob_kowalski" class="flex flex-row flex-wrap gap-3" data-ir-id="motif_team_bob_kowalski" data-content-refs="[]" data-intent-refs="[&quot;viewspec:motif:team&quot;]"><div id="table-dom-binding_bob_kowalski_name" class="text-xs font-bold uppercase tracking-widest text-slate-500" data-ir-id="binding_bob_kowalski_name" data-content-refs="[&quot;node:bob_kowalski#attr:name&quot;]" data-intent-refs="[&quot;viewspec:binding:bob_kowalski_name&quot;]">Bob Kowalski</div><div id="table-dom-binding_bob_kowalski_role" class="text-2xl font-black tracking-tight text-slate-950" data-ir-id="binding_bob_kowalski_role" data-content-refs="[&quot;node:bob_kowalski#attr:role&quot;]" data-intent-refs="[&quot;viewspec:binding:bob_kowalski_role&quot;]">Design Lead</div><div id="table-dom-binding_bob_kowalski_location" class="text-base leading-7 text-slate-800" data-ir-id="binding_bob_kowalski_location" data-content-refs="[&quot;node:bob_kowalski#attr:location&quot;]" data-intent-refs="[&quot;viewspec:binding:bob_kowalski_location&quot;]">NYC</div><div id="table-dom-binding_bob_kowalski_status" class="inline-flex w-fit rounded-full bg-teal-50 px-3 py-1 text-sm font-semibold text-teal-800 ring-1 ring-teal-200" data-ir-id="binding_bob_kowalski_status" data-content-refs="[&quot;node:bob_kowalski#attr:status&quot;]" data-intent-refs="[&quot;viewspec:binding:bob_kowalski_status&quot;]">Active</div></div><div id="table-dom-motif_team_cara_oduya" class="flex flex-row flex-wrap gap-3" data-ir-id="motif_team_cara_oduya" data-content-refs="[]" data-intent-refs="[&quot;viewspec:motif:team&quot;]"><div id="table-dom-binding_cara_oduya_name" class="text-xs font-bold uppercase tracking-widest text-slate-500" data-ir-id="binding_cara_oduya_name" data-content-refs="[&quot;node:cara_oduya#attr:name&quot;]" data-intent-refs="[&quot;viewspec:binding:cara_oduya_name&quot;]">Cara Oduya</div><div id="table-dom-binding_cara_oduya_role" class="text-2xl font-black tracking-tight text-slate-950" data-ir-id="binding_cara_oduya_role" data-content-refs="[&quot;node:cara_oduya#attr:role&quot;]" data-intent-refs="[&quot;viewspec:binding:cara_oduya_role&quot;]">ML Researcher</div><div id="table-dom-binding_cara_oduya_location" class="text-base leading-7 text-slate-800" data-ir-id="binding_cara_oduya_location" data-content-refs="[&quot;node:cara_oduya#attr:location&quot;]" data-intent-refs="[&quot;viewspec:binding:cara_oduya_location&quot;]">London</div><div id="table-dom-binding_cara_oduya_status" class="inline-flex w-fit rounded-full bg-teal-50 px-3 py-1 text-sm font-semibold text-teal-800 ring-1 ring-teal-200" data-ir-id="binding_cara_oduya_status" data-content-refs="[&quot;node:cara_oduya#attr:status&quot;]" data-intent-refs="[&quot;viewspec:binding:cara_oduya_status&quot;]">On Leave</div></div><div id="table-dom-motif_team_david_park" class="flex flex-row flex-wrap gap-3" data-ir-id="motif_team_david_park" data-content-refs="[]" data-intent-refs="[&quot;viewspec:motif:team&quot;]"><div id="table-dom-binding_david_park_name" class="text-xs font-bold uppercase tracking-widest text-slate-500" data-ir-id="binding_david_park_name" data-content-refs="[&quot;node:david_park#attr:name&quot;]" data-intent-refs="[&quot;viewspec:binding:david_park_name&quot;]">David Park</div><div id="table-dom-binding_david_park_role" class="text-2xl font-black tracking-tight text-slate-950" data-ir-id="binding_david_park_role" data-content-refs="[&quot;node:david_park#attr:role&quot;]" data-intent-refs="[&quot;viewspec:binding:david_park_role&quot;]">Product Manager</div><div id="table-dom-binding_david_park_location" class="text-base leading-7 text-slate-800" data-ir-id="binding_david_park_location" data-content-refs="[&quot;node:david_park#attr:location&quot;]" data-intent-refs="[&quot;viewspec:binding:david_park_location&quot;]">Seoul</div><div id="table-dom-binding_david_park_status" class="inline-flex w-fit rounded-full bg-teal-50 px-3 py-1 text-sm font-semibold text-teal-800 ring-1 ring-teal-200" data-ir-id="binding_david_park_status" data-content-refs="[&quot;node:david_park#attr:status&quot;]" data-intent-refs="[&quot;viewspec:binding:david_park_status&quot;]">Active</div></div><div id="table-dom-motif_team_elena_vasquez" class="flex flex-row flex-wrap gap-3" data-ir-id="motif_team_elena_vasquez" data-content-refs="[]" data-intent-refs="[&quot;viewspec:motif:team&quot;]"><div id="table-dom-binding_elena_vasquez_name" class="text-xs font-bold uppercase tracking-widest text-slate-500" data-ir-id="binding_elena_vasquez_name" data-content-refs="[&quot;node:elena_vasquez#attr:name&quot;]" data-intent-refs="[&quot;viewspec:binding:elena_vasquez_name&quot;]">Elena Vasquez</div><div id="table-dom-binding_elena_vasquez_role" class="text-2xl font-black tracking-tight text-slate-950" data-ir-id="binding_elena_vasquez_role" data-content-refs="[&quot;node:elena_vasquez#attr:role&quot;]" data-intent-refs="[&quot;viewspec:binding:elena_vasquez_role&quot;]">DevRel</div><div id="table-dom-binding_elena_vasquez_location" class="text-base leading-7 text-slate-800" data-ir-id="binding_elena_vasquez_location" data-content-refs="[&quot;node:elena_vasquez#attr:location&quot;]" data-intent-refs="[&quot;viewspec:binding:elena_vasquez_location&quot;]">Austin</div><div id="table-dom-binding_elena_vasquez_status" class="inline-flex w-fit rounded-full bg-teal-50 px-3 py-1 text-sm font-semibold text-teal-800 ring-1 ring-teal-200" data-ir-id="binding_elena_vasquez_status" data-content-refs="[&quot;node:elena_vasquez#attr:status&quot;]" data-intent-refs="[&quot;viewspec:binding:elena_vasquez_status&quot;, &quot;viewspec:style:style_status_accent&quot;]" style="color: #0f766e;">Active</div></div></div></div></main>
+        </section>
+        <section id="view-dashboard" class="motif-view" data-view="dashboard" aria-label="Dashboard view">
+          <main id="dashboard-dom-region_root" class="min-h-screen bg-slate-50 text-slate-950 p-6 space-y-6" data-ir-id="region_root" data-content-refs="[]" data-intent-refs="[&quot;viewspec:view:team_roster&quot;, &quot;viewspec:region:root&quot;]"><div id="dashboard-dom-region_main" class="flex flex-col gap-3" data-ir-id="region_main" data-content-refs="[]" data-intent-refs="[&quot;viewspec:region:main&quot;]"><div id="dashboard-dom-motif_team" class="flex flex-col gap-3" data-ir-id="motif_team" data-content-refs="[]" data-intent-refs="[&quot;viewspec:motif:team&quot;]"><div id="dashboard-dom-motif_team_alice_chen" class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm space-y-3" data-ir-id="motif_team_alice_chen" data-content-refs="[]" data-intent-refs="[&quot;viewspec:motif:team&quot;]"><div id="dashboard-dom-binding_alice_chen_name" class="text-xs font-bold uppercase tracking-widest text-slate-500" data-ir-id="binding_alice_chen_name" data-content-refs="[&quot;node:alice_chen#attr:name&quot;]" data-intent-refs="[&quot;viewspec:binding:alice_chen_name&quot;, &quot;viewspec:style:style_name_muted&quot;]" style="color: #6b7280;">Alice Chen</div><div id="dashboard-dom-binding_alice_chen_role" class="text-2xl font-black tracking-tight text-slate-950" data-ir-id="binding_alice_chen_role" data-content-refs="[&quot;node:alice_chen#attr:role&quot;]" data-intent-refs="[&quot;viewspec:binding:alice_chen_role&quot;]">Principal Engineer</div><div id="dashboard-dom-binding_alice_chen_location" class="text-base leading-7 text-slate-800" data-ir-id="binding_alice_chen_location" data-content-refs="[&quot;node:alice_chen#attr:location&quot;]" data-intent-refs="[&quot;viewspec:binding:alice_chen_location&quot;]">SF</div><div id="dashboard-dom-binding_alice_chen_status" class="inline-flex w-fit rounded-full bg-teal-50 px-3 py-1 text-sm font-semibold text-teal-800 ring-1 ring-teal-200" data-ir-id="binding_alice_chen_status" data-content-refs="[&quot;node:alice_chen#attr:status&quot;]" data-intent-refs="[&quot;viewspec:binding:alice_chen_status&quot;]">Active</div></div><div id="dashboard-dom-motif_team_bob_kowalski" class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm space-y-3" data-ir-id="motif_team_bob_kowalski" data-content-refs="[]" data-intent-refs="[&quot;viewspec:motif:team&quot;]"><div id="dashboard-dom-binding_bob_kowalski_name" class="text-xs font-bold uppercase tracking-widest text-slate-500" data-ir-id="binding_bob_kowalski_name" data-content-refs="[&quot;node:bob_kowalski#attr:name&quot;]" data-intent-refs="[&quot;viewspec:binding:bob_kowalski_name&quot;]">Bob Kowalski</div><div id="dashboard-dom-binding_bob_kowalski_role" class="text-2xl font-black tracking-tight text-slate-950" data-ir-id="binding_bob_kowalski_role" data-content-refs="[&quot;node:bob_kowalski#attr:role&quot;]" data-intent-refs="[&quot;viewspec:binding:bob_kowalski_role&quot;]">Design Lead</div><div id="dashboard-dom-binding_bob_kowalski_location" class="text-base leading-7 text-slate-800" data-ir-id="binding_bob_kowalski_location" data-content-refs="[&quot;node:bob_kowalski#attr:location&quot;]" data-intent-refs="[&quot;viewspec:binding:bob_kowalski_location&quot;]">NYC</div><div id="dashboard-dom-binding_bob_kowalski_status" class="inline-flex w-fit rounded-full bg-teal-50 px-3 py-1 text-sm font-semibold text-teal-800 ring-1 ring-teal-200" data-ir-id="binding_bob_kowalski_status" data-content-refs="[&quot;node:bob_kowalski#attr:status&quot;]" data-intent-refs="[&quot;viewspec:binding:bob_kowalski_status&quot;]">Active</div></div><div id="dashboard-dom-motif_team_cara_oduya" class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm space-y-3" data-ir-id="motif_team_cara_oduya" data-content-refs="[]" data-intent-refs="[&quot;viewspec:motif:team&quot;]"><div id="dashboard-dom-binding_cara_oduya_name" class="text-xs font-bold uppercase tracking-widest text-slate-500" data-ir-id="binding_cara_oduya_name" data-content-refs="[&quot;node:cara_oduya#attr:name&quot;]" data-intent-refs="[&quot;viewspec:binding:cara_oduya_name&quot;]">Cara Oduya</div><div id="dashboard-dom-binding_cara_oduya_role" class="text-2xl font-black tracking-tight text-slate-950" data-ir-id="binding_cara_oduya_role" data-content-refs="[&quot;node:cara_oduya#attr:role&quot;]" data-intent-refs="[&quot;viewspec:binding:cara_oduya_role&quot;]">ML Researcher</div><div id="dashboard-dom-binding_cara_oduya_location" class="text-base leading-7 text-slate-800" data-ir-id="binding_cara_oduya_location" data-content-refs="[&quot;node:cara_oduya#attr:location&quot;]" data-intent-refs="[&quot;viewspec:binding:cara_oduya_location&quot;]">London</div><div id="dashboard-dom-binding_cara_oduya_status" class="inline-flex w-fit rounded-full bg-teal-50 px-3 py-1 text-sm font-semibold text-teal-800 ring-1 ring-teal-200" data-ir-id="binding_cara_oduya_status" data-content-refs="[&quot;node:cara_oduya#attr:status&quot;]" data-intent-refs="[&quot;viewspec:binding:cara_oduya_status&quot;]">On Leave</div></div><div id="dashboard-dom-motif_team_david_park" class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm space-y-3" data-ir-id="motif_team_david_park" data-content-refs="[]" data-intent-refs="[&quot;viewspec:motif:team&quot;]"><div id="dashboard-dom-binding_david_park_name" class="text-xs font-bold uppercase tracking-widest text-slate-500" data-ir-id="binding_david_park_name" data-content-refs="[&quot;node:david_park#attr:name&quot;]" data-intent-refs="[&quot;viewspec:binding:david_park_name&quot;]">David Park</div><div id="dashboard-dom-binding_david_park_role" class="text-2xl font-black tracking-tight text-slate-950" data-ir-id="binding_david_park_role" data-content-refs="[&quot;node:david_park#attr:role&quot;]" data-intent-refs="[&quot;viewspec:binding:david_park_role&quot;]">Product Manager</div><div id="dashboard-dom-binding_david_park_location" class="text-base leading-7 text-slate-800" data-ir-id="binding_david_park_location" data-content-refs="[&quot;node:david_park#attr:location&quot;]" data-intent-refs="[&quot;viewspec:binding:david_park_location&quot;]">Seoul</div><div id="dashboard-dom-binding_david_park_status" class="inline-flex w-fit rounded-full bg-teal-50 px-3 py-1 text-sm font-semibold text-teal-800 ring-1 ring-teal-200" data-ir-id="binding_david_park_status" data-content-refs="[&quot;node:david_park#attr:status&quot;]" data-intent-refs="[&quot;viewspec:binding:david_park_status&quot;]">Active</div></div><div id="dashboard-dom-motif_team_elena_vasquez" class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm space-y-3" data-ir-id="motif_team_elena_vasquez" data-content-refs="[]" data-intent-refs="[&quot;viewspec:motif:team&quot;]"><div id="dashboard-dom-binding_elena_vasquez_name" class="text-xs font-bold uppercase tracking-widest text-slate-500" data-ir-id="binding_elena_vasquez_name" data-content-refs="[&quot;node:elena_vasquez#attr:name&quot;]" data-intent-refs="[&quot;viewspec:binding:elena_vasquez_name&quot;]">Elena Vasquez</div><div id="dashboard-dom-binding_elena_vasquez_role" class="text-2xl font-black tracking-tight text-slate-950" data-ir-id="binding_elena_vasquez_role" data-content-refs="[&quot;node:elena_vasquez#attr:role&quot;]" data-intent-refs="[&quot;viewspec:binding:elena_vasquez_role&quot;]">DevRel</div><div id="dashboard-dom-binding_elena_vasquez_location" class="text-base leading-7 text-slate-800" data-ir-id="binding_elena_vasquez_location" data-content-refs="[&quot;node:elena_vasquez#attr:location&quot;]" data-intent-refs="[&quot;viewspec:binding:elena_vasquez_location&quot;]">Austin</div><div id="dashboard-dom-binding_elena_vasquez_status" class="inline-flex w-fit rounded-full bg-teal-50 px-3 py-1 text-sm font-semibold text-teal-800 ring-1 ring-teal-200" data-ir-id="binding_elena_vasquez_status" data-content-refs="[&quot;node:elena_vasquez#attr:status&quot;]" data-intent-refs="[&quot;viewspec:binding:elena_vasquez_status&quot;, &quot;viewspec:style:style_status_accent&quot;]" style="color: #0f766e;">Active</div></div></div></div></main>
+        </section>
+        <section id="view-comparison" class="motif-view" data-view="comparison" aria-label="Comparison view">
+          <main id="comparison-dom-region_root" class="min-h-screen bg-slate-50 text-slate-950 p-6 space-y-6" data-ir-id="region_root" data-content-refs="[]" data-intent-refs="[&quot;viewspec:view:team_roster&quot;, &quot;viewspec:region:root&quot;]"><div id="comparison-dom-region_main" class="flex flex-col gap-3" data-ir-id="region_main" data-content-refs="[]" data-intent-refs="[&quot;viewspec:region:main&quot;]"><div id="comparison-dom-motif_team" class="flex flex-row flex-wrap gap-3" data-ir-id="motif_team" data-content-refs="[]" data-intent-refs="[&quot;viewspec:motif:team&quot;]"><div id="comparison-dom-motif_team_alice_chen" class="flex flex-col gap-3" data-ir-id="motif_team_alice_chen" data-content-refs="[]" data-intent-refs="[&quot;viewspec:motif:team&quot;]"><div id="comparison-dom-binding_alice_chen_name" class="text-xs font-bold uppercase tracking-widest text-slate-500" data-ir-id="binding_alice_chen_name" data-content-refs="[&quot;node:alice_chen#attr:name&quot;]" data-intent-refs="[&quot;viewspec:binding:alice_chen_name&quot;, &quot;viewspec:style:style_name_muted&quot;]" style="color: #6b7280;">Alice Chen</div><div id="comparison-dom-binding_alice_chen_role" class="text-2xl font-black tracking-tight text-slate-950" data-ir-id="binding_alice_chen_role" data-content-refs="[&quot;node:alice_chen#attr:role&quot;]" data-intent-refs="[&quot;viewspec:binding:alice_chen_role&quot;]">Principal Engineer</div><div id="comparison-dom-binding_alice_chen_location" class="text-base leading-7 text-slate-800" data-ir-id="binding_alice_chen_location" data-content-refs="[&quot;node:alice_chen#attr:location&quot;]" data-intent-refs="[&quot;viewspec:binding:alice_chen_location&quot;]">SF</div><div id="comparison-dom-binding_alice_chen_status" class="inline-flex w-fit rounded-full bg-teal-50 px-3 py-1 text-sm font-semibold text-teal-800 ring-1 ring-teal-200" data-ir-id="binding_alice_chen_status" data-content-refs="[&quot;node:alice_chen#attr:status&quot;]" data-intent-refs="[&quot;viewspec:binding:alice_chen_status&quot;]">Active</div></div><div id="comparison-dom-motif_team_bob_kowalski" class="flex flex-col gap-3" data-ir-id="motif_team_bob_kowalski" data-content-refs="[]" data-intent-refs="[&quot;viewspec:motif:team&quot;]"><div id="comparison-dom-binding_bob_kowalski_name" class="text-xs font-bold uppercase tracking-widest text-slate-500" data-ir-id="binding_bob_kowalski_name" data-content-refs="[&quot;node:bob_kowalski#attr:name&quot;]" data-intent-refs="[&quot;viewspec:binding:bob_kowalski_name&quot;]">Bob Kowalski</div><div id="comparison-dom-binding_bob_kowalski_role" class="text-2xl font-black tracking-tight text-slate-950" data-ir-id="binding_bob_kowalski_role" data-content-refs="[&quot;node:bob_kowalski#attr:role&quot;]" data-intent-refs="[&quot;viewspec:binding:bob_kowalski_role&quot;]">Design Lead</div><div id="comparison-dom-binding_bob_kowalski_location" class="text-base leading-7 text-slate-800" data-ir-id="binding_bob_kowalski_location" data-content-refs="[&quot;node:bob_kowalski#attr:location&quot;]" data-intent-refs="[&quot;viewspec:binding:bob_kowalski_location&quot;]">NYC</div><div id="comparison-dom-binding_bob_kowalski_status" class="inline-flex w-fit rounded-full bg-teal-50 px-3 py-1 text-sm font-semibold text-teal-800 ring-1 ring-teal-200" data-ir-id="binding_bob_kowalski_status" data-content-refs="[&quot;node:bob_kowalski#attr:status&quot;]" data-intent-refs="[&quot;viewspec:binding:bob_kowalski_status&quot;]">Active</div></div><div id="comparison-dom-motif_team_cara_oduya" class="flex flex-col gap-3" data-ir-id="motif_team_cara_oduya" data-content-refs="[]" data-intent-refs="[&quot;viewspec:motif:team&quot;]"><div id="comparison-dom-binding_cara_oduya_name" class="text-xs font-bold uppercase tracking-widest text-slate-500" data-ir-id="binding_cara_oduya_name" data-content-refs="[&quot;node:cara_oduya#attr:name&quot;]" data-intent-refs="[&quot;viewspec:binding:cara_oduya_name&quot;]">Cara Oduya</div><div id="comparison-dom-binding_cara_oduya_role" class="text-2xl font-black tracking-tight text-slate-950" data-ir-id="binding_cara_oduya_role" data-content-refs="[&quot;node:cara_oduya#attr:role&quot;]" data-intent-refs="[&quot;viewspec:binding:cara_oduya_role&quot;]">ML Researcher</div><div id="comparison-dom-binding_cara_oduya_location" class="text-base leading-7 text-slate-800" data-ir-id="binding_cara_oduya_location" data-content-refs="[&quot;node:cara_oduya#attr:location&quot;]" data-intent-refs="[&quot;viewspec:binding:cara_oduya_location&quot;]">London</div><div id="comparison-dom-binding_cara_oduya_status" class="inline-flex w-fit rounded-full bg-teal-50 px-3 py-1 text-sm font-semibold text-teal-800 ring-1 ring-teal-200" data-ir-id="binding_cara_oduya_status" data-content-refs="[&quot;node:cara_oduya#attr:status&quot;]" data-intent-refs="[&quot;viewspec:binding:cara_oduya_status&quot;]">On Leave</div></div><div id="comparison-dom-motif_team_david_park" class="flex flex-col gap-3" data-ir-id="motif_team_david_park" data-content-refs="[]" data-intent-refs="[&quot;viewspec:motif:team&quot;]"><div id="comparison-dom-binding_david_park_name" class="text-xs font-bold uppercase tracking-widest text-slate-500" data-ir-id="binding_david_park_name" data-content-refs="[&quot;node:david_park#attr:name&quot;]" data-intent-refs="[&quot;viewspec:binding:david_park_name&quot;]">David Park</div><div id="comparison-dom-binding_david_park_role" class="text-2xl font-black tracking-tight text-slate-950" data-ir-id="binding_david_park_role" data-content-refs="[&quot;node:david_park#attr:role&quot;]" data-intent-refs="[&quot;viewspec:binding:david_park_role&quot;]">Product Manager</div><div id="comparison-dom-binding_david_park_location" class="text-base leading-7 text-slate-800" data-ir-id="binding_david_park_location" data-content-refs="[&quot;node:david_park#attr:location&quot;]" data-intent-refs="[&quot;viewspec:binding:david_park_location&quot;]">Seoul</div><div id="comparison-dom-binding_david_park_status" class="inline-flex w-fit rounded-full bg-teal-50 px-3 py-1 text-sm font-semibold text-teal-800 ring-1 ring-teal-200" data-ir-id="binding_david_park_status" data-content-refs="[&quot;node:david_park#attr:status&quot;]" data-intent-refs="[&quot;viewspec:binding:david_park_status&quot;]">Active</div></div><div id="comparison-dom-motif_team_elena_vasquez" class="flex flex-col gap-3" data-ir-id="motif_team_elena_vasquez" data-content-refs="[]" data-intent-refs="[&quot;viewspec:motif:team&quot;]"><div id="comparison-dom-binding_elena_vasquez_name" class="text-xs font-bold uppercase tracking-widest text-slate-500" data-ir-id="binding_elena_vasquez_name" data-content-refs="[&quot;node:elena_vasquez#attr:name&quot;]" data-intent-refs="[&quot;viewspec:binding:elena_vasquez_name&quot;]">Elena Vasquez</div><div id="comparison-dom-binding_elena_vasquez_role" class="text-2xl font-black tracking-tight text-slate-950" data-ir-id="binding_elena_vasquez_role" data-content-refs="[&quot;node:elena_vasquez#attr:role&quot;]" data-intent-refs="[&quot;viewspec:binding:elena_vasquez_role&quot;]">DevRel</div><div id="comparison-dom-binding_elena_vasquez_location" class="text-base leading-7 text-slate-800" data-ir-id="binding_elena_vasquez_location" data-content-refs="[&quot;node:elena_vasquez#attr:location&quot;]" data-intent-refs="[&quot;viewspec:binding:elena_vasquez_location&quot;]">Austin</div><div id="comparison-dom-binding_elena_vasquez_status" class="inline-flex w-fit rounded-full bg-teal-50 px-3 py-1 text-sm font-semibold text-teal-800 ring-1 ring-teal-200" data-ir-id="binding_elena_vasquez_status" data-content-refs="[&quot;node:elena_vasquez#attr:status&quot;]" data-intent-refs="[&quot;viewspec:binding:elena_vasquez_status&quot;, &quot;viewspec:style:style_status_accent&quot;]" style="color: #0f766e;">Active</div></div></div></div></main>
+        </section>
+    </section>
+
+    <footer class="mt-6 grid gap-4 text-sm text-slate-400 lg:grid-cols-[1fr_auto] lg:items-center">
+      <p>The emitted DOM keeps provenance attributes intact: <code class="text-teal-300">data-ir-id</code>, <code class="text-teal-300">data-content-refs</code>, and <code class="text-teal-300">data-intent-refs</code>.</p>
+      <code class="rounded border border-white/10 bg-black/25 px-3 py-2 text-slate-300">motif.kind: table -> dashboard -> comparison</code>
+    </footer>
+  </main>
+
+  <script id="motif-data" type="application/json">
+{
+  "comparison": {
+    "bindingCount": 20,
+    "description": "Side-by-side panels for evaluating roles.",
+    "label": "Comparison",
+    "manifest": {
+      "comparison-dom-binding_alice_chen_location": {
+        "content_refs": [
+          "node:alice_chen#attr:location"
+        ],
+        "intent_refs": [
+          "viewspec:binding:alice_chen_location"
+        ],
+        "ir_id": "binding_alice_chen_location",
+        "primitive": "text",
+        "props": {
+          "text": "SF"
+        },
+        "style_tokens": []
+      },
+      "comparison-dom-binding_alice_chen_name": {
+        "content_refs": [
+          "node:alice_chen#attr:name"
+        ],
+        "intent_refs": [
+          "viewspec:binding:alice_chen_name",
+          "viewspec:style:style_name_muted"
+        ],
+        "ir_id": "binding_alice_chen_name",
+        "primitive": "label",
+        "props": {
+          "text": "Alice Chen"
+        },
+        "style_tokens": [
+          "tone.muted"
+        ]
+      },
+      "comparison-dom-binding_alice_chen_role": {
+        "content_refs": [
+          "node:alice_chen#attr:role"
+        ],
+        "intent_refs": [
+          "viewspec:binding:alice_chen_role"
+        ],
+        "ir_id": "binding_alice_chen_role",
+        "primitive": "value",
+        "props": {
+          "text": "Principal Engineer"
+        },
+        "style_tokens": []
+      },
+      "comparison-dom-binding_alice_chen_status": {
+        "content_refs": [
+          "node:alice_chen#attr:status"
+        ],
+        "intent_refs": [
+          "viewspec:binding:alice_chen_status"
+        ],
+        "ir_id": "binding_alice_chen_status",
+        "primitive": "badge",
+        "props": {
+          "text": "Active"
+        },
+        "style_tokens": []
+      },
+      "comparison-dom-binding_bob_kowalski_location": {
+        "content_refs": [
+          "node:bob_kowalski#attr:location"
+        ],
+        "intent_refs": [
+          "viewspec:binding:bob_kowalski_location"
+        ],
+        "ir_id": "binding_bob_kowalski_location",
+        "primitive": "text",
+        "props": {
+          "text": "NYC"
+        },
+        "style_tokens": []
+      },
+      "comparison-dom-binding_bob_kowalski_name": {
+        "content_refs": [
+          "node:bob_kowalski#attr:name"
+        ],
+        "intent_refs": [
+          "viewspec:binding:bob_kowalski_name"
+        ],
+        "ir_id": "binding_bob_kowalski_name",
+        "primitive": "label",
+        "props": {
+          "text": "Bob Kowalski"
+        },
+        "style_tokens": []
+      },
+      "comparison-dom-binding_bob_kowalski_role": {
+        "content_refs": [
+          "node:bob_kowalski#attr:role"
+        ],
+        "intent_refs": [
+          "viewspec:binding:bob_kowalski_role"
+        ],
+        "ir_id": "binding_bob_kowalski_role",
+        "primitive": "value",
+        "props": {
+          "text": "Design Lead"
+        },
+        "style_tokens": []
+      },
+      "comparison-dom-binding_bob_kowalski_status": {
+        "content_refs": [
+          "node:bob_kowalski#attr:status"
+        ],
+        "intent_refs": [
+          "viewspec:binding:bob_kowalski_status"
+        ],
+        "ir_id": "binding_bob_kowalski_status",
+        "primitive": "badge",
+        "props": {
+          "text": "Active"
+        },
+        "style_tokens": []
+      },
+      "comparison-dom-binding_cara_oduya_location": {
+        "content_refs": [
+          "node:cara_oduya#attr:location"
+        ],
+        "intent_refs": [
+          "viewspec:binding:cara_oduya_location"
+        ],
+        "ir_id": "binding_cara_oduya_location",
+        "primitive": "text",
+        "props": {
+          "text": "London"
+        },
+        "style_tokens": []
+      },
+      "comparison-dom-binding_cara_oduya_name": {
+        "content_refs": [
+          "node:cara_oduya#attr:name"
+        ],
+        "intent_refs": [
+          "viewspec:binding:cara_oduya_name"
+        ],
+        "ir_id": "binding_cara_oduya_name",
+        "primitive": "label",
+        "props": {
+          "text": "Cara Oduya"
+        },
+        "style_tokens": []
+      },
+      "comparison-dom-binding_cara_oduya_role": {
+        "content_refs": [
+          "node:cara_oduya#attr:role"
+        ],
+        "intent_refs": [
+          "viewspec:binding:cara_oduya_role"
+        ],
+        "ir_id": "binding_cara_oduya_role",
+        "primitive": "value",
+        "props": {
+          "text": "ML Researcher"
+        },
+        "style_tokens": []
+      },
+      "comparison-dom-binding_cara_oduya_status": {
+        "content_refs": [
+          "node:cara_oduya#attr:status"
+        ],
+        "intent_refs": [
+          "viewspec:binding:cara_oduya_status"
+        ],
+        "ir_id": "binding_cara_oduya_status",
+        "primitive": "badge",
+        "props": {
+          "text": "On Leave"
+        },
+        "style_tokens": []
+      },
+      "comparison-dom-binding_david_park_location": {
+        "content_refs": [
+          "node:david_park#attr:location"
+        ],
+        "intent_refs": [
+          "viewspec:binding:david_park_location"
+        ],
+        "ir_id": "binding_david_park_location",
+        "primitive": "text",
+        "props": {
+          "text": "Seoul"
+        },
+        "style_tokens": []
+      },
+      "comparison-dom-binding_david_park_name": {
+        "content_refs": [
+          "node:david_park#attr:name"
+        ],
+        "intent_refs": [
+          "viewspec:binding:david_park_name"
+        ],
+        "ir_id": "binding_david_park_name",
+        "primitive": "label",
+        "props": {
+          "text": "David Park"
+        },
+        "style_tokens": []
+      },
+      "comparison-dom-binding_david_park_role": {
+        "content_refs": [
+          "node:david_park#attr:role"
+        ],
+        "intent_refs": [
+          "viewspec:binding:david_park_role"
+        ],
+        "ir_id": "binding_david_park_role",
+        "primitive": "value",
+        "props": {
+          "text": "Product Manager"
+        },
+        "style_tokens": []
+      },
+      "comparison-dom-binding_david_park_status": {
+        "content_refs": [
+          "node:david_park#attr:status"
+        ],
+        "intent_refs": [
+          "viewspec:binding:david_park_status"
+        ],
+        "ir_id": "binding_david_park_status",
+        "primitive": "badge",
+        "props": {
+          "text": "Active"
+        },
+        "style_tokens": []
+      },
+      "comparison-dom-binding_elena_vasquez_location": {
+        "content_refs": [
+          "node:elena_vasquez#attr:location"
+        ],
+        "intent_refs": [
+          "viewspec:binding:elena_vasquez_location"
+        ],
+        "ir_id": "binding_elena_vasquez_location",
+        "primitive": "text",
+        "props": {
+          "text": "Austin"
+        },
+        "style_tokens": []
+      },
+      "comparison-dom-binding_elena_vasquez_name": {
+        "content_refs": [
+          "node:elena_vasquez#attr:name"
+        ],
+        "intent_refs": [
+          "viewspec:binding:elena_vasquez_name"
+        ],
+        "ir_id": "binding_elena_vasquez_name",
+        "primitive": "label",
+        "props": {
+          "text": "Elena Vasquez"
+        },
+        "style_tokens": []
+      },
+      "comparison-dom-binding_elena_vasquez_role": {
+        "content_refs": [
+          "node:elena_vasquez#attr:role"
+        ],
+        "intent_refs": [
+          "viewspec:binding:elena_vasquez_role"
+        ],
+        "ir_id": "binding_elena_vasquez_role",
+        "primitive": "value",
+        "props": {
+          "text": "DevRel"
+        },
+        "style_tokens": []
+      },
+      "comparison-dom-binding_elena_vasquez_status": {
+        "content_refs": [
+          "node:elena_vasquez#attr:status"
+        ],
+        "intent_refs": [
+          "viewspec:binding:elena_vasquez_status",
+          "viewspec:style:style_status_accent"
+        ],
+        "ir_id": "binding_elena_vasquez_status",
+        "primitive": "badge",
+        "props": {
+          "text": "Active"
+        },
+        "style_tokens": [
+          "tone.accent"
+        ]
+      },
+      "comparison-dom-motif_team": {
+        "content_refs": [],
+        "intent_refs": [
+          "viewspec:motif:team"
+        ],
+        "ir_id": "motif_team",
+        "primitive": "cluster",
+        "props": {
+          "layout_role": "cluster",
+          "motif_kind": "comparison"
+        },
+        "style_tokens": []
+      },
+      "comparison-dom-motif_team_alice_chen": {
+        "content_refs": [],
+        "intent_refs": [
+          "viewspec:motif:team"
+        ],
+        "ir_id": "motif_team_alice_chen",
+        "primitive": "stack",
+        "props": {
+          "layout_role": "stack",
+          "motif_kind": "comparison"
+        },
+        "style_tokens": []
+      },
+      "comparison-dom-motif_team_bob_kowalski": {
+        "content_refs": [],
+        "intent_refs": [
+          "viewspec:motif:team"
+        ],
+        "ir_id": "motif_team_bob_kowalski",
+        "primitive": "stack",
+        "props": {
+          "layout_role": "stack",
+          "motif_kind": "comparison"
+        },
+        "style_tokens": []
+      },
+      "comparison-dom-motif_team_cara_oduya": {
+        "content_refs": [],
+        "intent_refs": [
+          "viewspec:motif:team"
+        ],
+        "ir_id": "motif_team_cara_oduya",
+        "primitive": "stack",
+        "props": {
+          "layout_role": "stack",
+          "motif_kind": "comparison"
+        },
+        "style_tokens": []
+      },
+      "comparison-dom-motif_team_david_park": {
+        "content_refs": [],
+        "intent_refs": [
+          "viewspec:motif:team"
+        ],
+        "ir_id": "motif_team_david_park",
+        "primitive": "stack",
+        "props": {
+          "layout_role": "stack",
+          "motif_kind": "comparison"
+        },
+        "style_tokens": []
+      },
+      "comparison-dom-motif_team_elena_vasquez": {
+        "content_refs": [],
+        "intent_refs": [
+          "viewspec:motif:team"
+        ],
+        "ir_id": "motif_team_elena_vasquez",
+        "primitive": "stack",
+        "props": {
+          "layout_role": "stack",
+          "motif_kind": "comparison"
+        },
+        "style_tokens": []
+      },
+      "comparison-dom-region_main": {
+        "content_refs": [],
+        "intent_refs": [
+          "viewspec:region:main"
+        ],
+        "ir_id": "region_main",
+        "primitive": "stack",
+        "props": {
+          "layout_role": "stack"
+        },
+        "style_tokens": []
+      },
+      "comparison-dom-region_root": {
+        "content_refs": [],
+        "intent_refs": [
+          "viewspec:view:team_roster",
+          "viewspec:region:root"
+        ],
+        "ir_id": "region_root",
+        "primitive": "root",
+        "props": {
+          "layout_role": "root"
+        },
+        "style_tokens": []
+      }
+    },
+    "motifKind": "comparison",
+    "nodeCount": 28
+  },
+  "dashboard": {
+    "bindingCount": 20,
+    "description": "Cards that make each person glanceable.",
+    "label": "Dashboard",
+    "manifest": {
+      "dashboard-dom-binding_alice_chen_location": {
+        "content_refs": [
+          "node:alice_chen#attr:location"
+        ],
+        "intent_refs": [
+          "viewspec:binding:alice_chen_location"
+        ],
+        "ir_id": "binding_alice_chen_location",
+        "primitive": "text",
+        "props": {
+          "text": "SF"
+        },
+        "style_tokens": []
+      },
+      "dashboard-dom-binding_alice_chen_name": {
+        "content_refs": [
+          "node:alice_chen#attr:name"
+        ],
+        "intent_refs": [
+          "viewspec:binding:alice_chen_name",
+          "viewspec:style:style_name_muted"
+        ],
+        "ir_id": "binding_alice_chen_name",
+        "primitive": "label",
+        "props": {
+          "text": "Alice Chen"
+        },
+        "style_tokens": [
+          "tone.muted"
+        ]
+      },
+      "dashboard-dom-binding_alice_chen_role": {
+        "content_refs": [
+          "node:alice_chen#attr:role"
+        ],
+        "intent_refs": [
+          "viewspec:binding:alice_chen_role"
+        ],
+        "ir_id": "binding_alice_chen_role",
+        "primitive": "value",
+        "props": {
+          "text": "Principal Engineer"
+        },
+        "style_tokens": []
+      },
+      "dashboard-dom-binding_alice_chen_status": {
+        "content_refs": [
+          "node:alice_chen#attr:status"
+        ],
+        "intent_refs": [
+          "viewspec:binding:alice_chen_status"
+        ],
+        "ir_id": "binding_alice_chen_status",
+        "primitive": "badge",
+        "props": {
+          "text": "Active"
+        },
+        "style_tokens": []
+      },
+      "dashboard-dom-binding_bob_kowalski_location": {
+        "content_refs": [
+          "node:bob_kowalski#attr:location"
+        ],
+        "intent_refs": [
+          "viewspec:binding:bob_kowalski_location"
+        ],
+        "ir_id": "binding_bob_kowalski_location",
+        "primitive": "text",
+        "props": {
+          "text": "NYC"
+        },
+        "style_tokens": []
+      },
+      "dashboard-dom-binding_bob_kowalski_name": {
+        "content_refs": [
+          "node:bob_kowalski#attr:name"
+        ],
+        "intent_refs": [
+          "viewspec:binding:bob_kowalski_name"
+        ],
+        "ir_id": "binding_bob_kowalski_name",
+        "primitive": "label",
+        "props": {
+          "text": "Bob Kowalski"
+        },
+        "style_tokens": []
+      },
+      "dashboard-dom-binding_bob_kowalski_role": {
+        "content_refs": [
+          "node:bob_kowalski#attr:role"
+        ],
+        "intent_refs": [
+          "viewspec:binding:bob_kowalski_role"
+        ],
+        "ir_id": "binding_bob_kowalski_role",
+        "primitive": "value",
+        "props": {
+          "text": "Design Lead"
+        },
+        "style_tokens": []
+      },
+      "dashboard-dom-binding_bob_kowalski_status": {
+        "content_refs": [
+          "node:bob_kowalski#attr:status"
+        ],
+        "intent_refs": [
+          "viewspec:binding:bob_kowalski_status"
+        ],
+        "ir_id": "binding_bob_kowalski_status",
+        "primitive": "badge",
+        "props": {
+          "text": "Active"
+        },
+        "style_tokens": []
+      },
+      "dashboard-dom-binding_cara_oduya_location": {
+        "content_refs": [
+          "node:cara_oduya#attr:location"
+        ],
+        "intent_refs": [
+          "viewspec:binding:cara_oduya_location"
+        ],
+        "ir_id": "binding_cara_oduya_location",
+        "primitive": "text",
+        "props": {
+          "text": "London"
+        },
+        "style_tokens": []
+      },
+      "dashboard-dom-binding_cara_oduya_name": {
+        "content_refs": [
+          "node:cara_oduya#attr:name"
+        ],
+        "intent_refs": [
+          "viewspec:binding:cara_oduya_name"
+        ],
+        "ir_id": "binding_cara_oduya_name",
+        "primitive": "label",
+        "props": {
+          "text": "Cara Oduya"
+        },
+        "style_tokens": []
+      },
+      "dashboard-dom-binding_cara_oduya_role": {
+        "content_refs": [
+          "node:cara_oduya#attr:role"
+        ],
+        "intent_refs": [
+          "viewspec:binding:cara_oduya_role"
+        ],
+        "ir_id": "binding_cara_oduya_role",
+        "primitive": "value",
+        "props": {
+          "text": "ML Researcher"
+        },
+        "style_tokens": []
+      },
+      "dashboard-dom-binding_cara_oduya_status": {
+        "content_refs": [
+          "node:cara_oduya#attr:status"
+        ],
+        "intent_refs": [
+          "viewspec:binding:cara_oduya_status"
+        ],
+        "ir_id": "binding_cara_oduya_status",
+        "primitive": "badge",
+        "props": {
+          "text": "On Leave"
+        },
+        "style_tokens": []
+      },
+      "dashboard-dom-binding_david_park_location": {
+        "content_refs": [
+          "node:david_park#attr:location"
+        ],
+        "intent_refs": [
+          "viewspec:binding:david_park_location"
+        ],
+        "ir_id": "binding_david_park_location",
+        "primitive": "text",
+        "props": {
+          "text": "Seoul"
+        },
+        "style_tokens": []
+      },
+      "dashboard-dom-binding_david_park_name": {
+        "content_refs": [
+          "node:david_park#attr:name"
+        ],
+        "intent_refs": [
+          "viewspec:binding:david_park_name"
+        ],
+        "ir_id": "binding_david_park_name",
+        "primitive": "label",
+        "props": {
+          "text": "David Park"
+        },
+        "style_tokens": []
+      },
+      "dashboard-dom-binding_david_park_role": {
+        "content_refs": [
+          "node:david_park#attr:role"
+        ],
+        "intent_refs": [
+          "viewspec:binding:david_park_role"
+        ],
+        "ir_id": "binding_david_park_role",
+        "primitive": "value",
+        "props": {
+          "text": "Product Manager"
+        },
+        "style_tokens": []
+      },
+      "dashboard-dom-binding_david_park_status": {
+        "content_refs": [
+          "node:david_park#attr:status"
+        ],
+        "intent_refs": [
+          "viewspec:binding:david_park_status"
+        ],
+        "ir_id": "binding_david_park_status",
+        "primitive": "badge",
+        "props": {
+          "text": "Active"
+        },
+        "style_tokens": []
+      },
+      "dashboard-dom-binding_elena_vasquez_location": {
+        "content_refs": [
+          "node:elena_vasquez#attr:location"
+        ],
+        "intent_refs": [
+          "viewspec:binding:elena_vasquez_location"
+        ],
+        "ir_id": "binding_elena_vasquez_location",
+        "primitive": "text",
+        "props": {
+          "text": "Austin"
+        },
+        "style_tokens": []
+      },
+      "dashboard-dom-binding_elena_vasquez_name": {
+        "content_refs": [
+          "node:elena_vasquez#attr:name"
+        ],
+        "intent_refs": [
+          "viewspec:binding:elena_vasquez_name"
+        ],
+        "ir_id": "binding_elena_vasquez_name",
+        "primitive": "label",
+        "props": {
+          "text": "Elena Vasquez"
+        },
+        "style_tokens": []
+      },
+      "dashboard-dom-binding_elena_vasquez_role": {
+        "content_refs": [
+          "node:elena_vasquez#attr:role"
+        ],
+        "intent_refs": [
+          "viewspec:binding:elena_vasquez_role"
+        ],
+        "ir_id": "binding_elena_vasquez_role",
+        "primitive": "value",
+        "props": {
+          "text": "DevRel"
+        },
+        "style_tokens": []
+      },
+      "dashboard-dom-binding_elena_vasquez_status": {
+        "content_refs": [
+          "node:elena_vasquez#attr:status"
+        ],
+        "intent_refs": [
+          "viewspec:binding:elena_vasquez_status",
+          "viewspec:style:style_status_accent"
+        ],
+        "ir_id": "binding_elena_vasquez_status",
+        "primitive": "badge",
+        "props": {
+          "text": "Active"
+        },
+        "style_tokens": [
+          "tone.accent"
+        ]
+      },
+      "dashboard-dom-motif_team": {
+        "content_refs": [],
+        "intent_refs": [
+          "viewspec:motif:team"
+        ],
+        "ir_id": "motif_team",
+        "primitive": "stack",
+        "props": {
+          "layout_role": "stack",
+          "motif_kind": "dashboard"
+        },
+        "style_tokens": []
+      },
+      "dashboard-dom-motif_team_alice_chen": {
+        "content_refs": [],
+        "intent_refs": [
+          "viewspec:motif:team"
+        ],
+        "ir_id": "motif_team_alice_chen",
+        "primitive": "surface",
+        "props": {
+          "layout_role": "surface",
+          "motif_kind": "dashboard"
+        },
+        "style_tokens": []
+      },
+      "dashboard-dom-motif_team_bob_kowalski": {
+        "content_refs": [],
+        "intent_refs": [
+          "viewspec:motif:team"
+        ],
+        "ir_id": "motif_team_bob_kowalski",
+        "primitive": "surface",
+        "props": {
+          "layout_role": "surface",
+          "motif_kind": "dashboard"
+        },
+        "style_tokens": []
+      },
+      "dashboard-dom-motif_team_cara_oduya": {
+        "content_refs": [],
+        "intent_refs": [
+          "viewspec:motif:team"
+        ],
+        "ir_id": "motif_team_cara_oduya",
+        "primitive": "surface",
+        "props": {
+          "layout_role": "surface",
+          "motif_kind": "dashboard"
+        },
+        "style_tokens": []
+      },
+      "dashboard-dom-motif_team_david_park": {
+        "content_refs": [],
+        "intent_refs": [
+          "viewspec:motif:team"
+        ],
+        "ir_id": "motif_team_david_park",
+        "primitive": "surface",
+        "props": {
+          "layout_role": "surface",
+          "motif_kind": "dashboard"
+        },
+        "style_tokens": []
+      },
+      "dashboard-dom-motif_team_elena_vasquez": {
+        "content_refs": [],
+        "intent_refs": [
+          "viewspec:motif:team"
+        ],
+        "ir_id": "motif_team_elena_vasquez",
+        "primitive": "surface",
+        "props": {
+          "layout_role": "surface",
+          "motif_kind": "dashboard"
+        },
+        "style_tokens": []
+      },
+      "dashboard-dom-region_main": {
+        "content_refs": [],
+        "intent_refs": [
+          "viewspec:region:main"
+        ],
+        "ir_id": "region_main",
+        "primitive": "stack",
+        "props": {
+          "layout_role": "stack"
+        },
+        "style_tokens": []
+      },
+      "dashboard-dom-region_root": {
+        "content_refs": [],
+        "intent_refs": [
+          "viewspec:view:team_roster",
+          "viewspec:region:root"
+        ],
+        "ir_id": "region_root",
+        "primitive": "root",
+        "props": {
+          "layout_role": "root"
+        },
+        "style_tokens": []
+      }
+    },
+    "motifKind": "dashboard",
+    "nodeCount": 28
+  },
+  "table": {
+    "bindingCount": 20,
+    "description": "Dense rows for scanning operational data.",
+    "label": "Table",
+    "manifest": {
+      "table-dom-binding_alice_chen_location": {
+        "content_refs": [
+          "node:alice_chen#attr:location"
+        ],
+        "intent_refs": [
+          "viewspec:binding:alice_chen_location"
+        ],
+        "ir_id": "binding_alice_chen_location",
+        "primitive": "text",
+        "props": {
+          "text": "SF"
+        },
+        "style_tokens": []
+      },
+      "table-dom-binding_alice_chen_name": {
+        "content_refs": [
+          "node:alice_chen#attr:name"
+        ],
+        "intent_refs": [
+          "viewspec:binding:alice_chen_name",
+          "viewspec:style:style_name_muted"
+        ],
+        "ir_id": "binding_alice_chen_name",
+        "primitive": "label",
+        "props": {
+          "text": "Alice Chen"
+        },
+        "style_tokens": [
+          "tone.muted"
+        ]
+      },
+      "table-dom-binding_alice_chen_role": {
+        "content_refs": [
+          "node:alice_chen#attr:role"
+        ],
+        "intent_refs": [
+          "viewspec:binding:alice_chen_role"
+        ],
+        "ir_id": "binding_alice_chen_role",
+        "primitive": "value",
+        "props": {
+          "text": "Principal Engineer"
+        },
+        "style_tokens": []
+      },
+      "table-dom-binding_alice_chen_status": {
+        "content_refs": [
+          "node:alice_chen#attr:status"
+        ],
+        "intent_refs": [
+          "viewspec:binding:alice_chen_status"
+        ],
+        "ir_id": "binding_alice_chen_status",
+        "primitive": "badge",
+        "props": {
+          "text": "Active"
+        },
+        "style_tokens": []
+      },
+      "table-dom-binding_bob_kowalski_location": {
+        "content_refs": [
+          "node:bob_kowalski#attr:location"
+        ],
+        "intent_refs": [
+          "viewspec:binding:bob_kowalski_location"
+        ],
+        "ir_id": "binding_bob_kowalski_location",
+        "primitive": "text",
+        "props": {
+          "text": "NYC"
+        },
+        "style_tokens": []
+      },
+      "table-dom-binding_bob_kowalski_name": {
+        "content_refs": [
+          "node:bob_kowalski#attr:name"
+        ],
+        "intent_refs": [
+          "viewspec:binding:bob_kowalski_name"
+        ],
+        "ir_id": "binding_bob_kowalski_name",
+        "primitive": "label",
+        "props": {
+          "text": "Bob Kowalski"
+        },
+        "style_tokens": []
+      },
+      "table-dom-binding_bob_kowalski_role": {
+        "content_refs": [
+          "node:bob_kowalski#attr:role"
+        ],
+        "intent_refs": [
+          "viewspec:binding:bob_kowalski_role"
+        ],
+        "ir_id": "binding_bob_kowalski_role",
+        "primitive": "value",
+        "props": {
+          "text": "Design Lead"
+        },
+        "style_tokens": []
+      },
+      "table-dom-binding_bob_kowalski_status": {
+        "content_refs": [
+          "node:bob_kowalski#attr:status"
+        ],
+        "intent_refs": [
+          "viewspec:binding:bob_kowalski_status"
+        ],
+        "ir_id": "binding_bob_kowalski_status",
+        "primitive": "badge",
+        "props": {
+          "text": "Active"
+        },
+        "style_tokens": []
+      },
+      "table-dom-binding_cara_oduya_location": {
+        "content_refs": [
+          "node:cara_oduya#attr:location"
+        ],
+        "intent_refs": [
+          "viewspec:binding:cara_oduya_location"
+        ],
+        "ir_id": "binding_cara_oduya_location",
+        "primitive": "text",
+        "props": {
+          "text": "London"
+        },
+        "style_tokens": []
+      },
+      "table-dom-binding_cara_oduya_name": {
+        "content_refs": [
+          "node:cara_oduya#attr:name"
+        ],
+        "intent_refs": [
+          "viewspec:binding:cara_oduya_name"
+        ],
+        "ir_id": "binding_cara_oduya_name",
+        "primitive": "label",
+        "props": {
+          "text": "Cara Oduya"
+        },
+        "style_tokens": []
+      },
+      "table-dom-binding_cara_oduya_role": {
+        "content_refs": [
+          "node:cara_oduya#attr:role"
+        ],
+        "intent_refs": [
+          "viewspec:binding:cara_oduya_role"
+        ],
+        "ir_id": "binding_cara_oduya_role",
+        "primitive": "value",
+        "props": {
+          "text": "ML Researcher"
+        },
+        "style_tokens": []
+      },
+      "table-dom-binding_cara_oduya_status": {
+        "content_refs": [
+          "node:cara_oduya#attr:status"
+        ],
+        "intent_refs": [
+          "viewspec:binding:cara_oduya_status"
+        ],
+        "ir_id": "binding_cara_oduya_status",
+        "primitive": "badge",
+        "props": {
+          "text": "On Leave"
+        },
+        "style_tokens": []
+      },
+      "table-dom-binding_david_park_location": {
+        "content_refs": [
+          "node:david_park#attr:location"
+        ],
+        "intent_refs": [
+          "viewspec:binding:david_park_location"
+        ],
+        "ir_id": "binding_david_park_location",
+        "primitive": "text",
+        "props": {
+          "text": "Seoul"
+        },
+        "style_tokens": []
+      },
+      "table-dom-binding_david_park_name": {
+        "content_refs": [
+          "node:david_park#attr:name"
+        ],
+        "intent_refs": [
+          "viewspec:binding:david_park_name"
+        ],
+        "ir_id": "binding_david_park_name",
+        "primitive": "label",
+        "props": {
+          "text": "David Park"
+        },
+        "style_tokens": []
+      },
+      "table-dom-binding_david_park_role": {
+        "content_refs": [
+          "node:david_park#attr:role"
+        ],
+        "intent_refs": [
+          "viewspec:binding:david_park_role"
+        ],
+        "ir_id": "binding_david_park_role",
+        "primitive": "value",
+        "props": {
+          "text": "Product Manager"
+        },
+        "style_tokens": []
+      },
+      "table-dom-binding_david_park_status": {
+        "content_refs": [
+          "node:david_park#attr:status"
+        ],
+        "intent_refs": [
+          "viewspec:binding:david_park_status"
+        ],
+        "ir_id": "binding_david_park_status",
+        "primitive": "badge",
+        "props": {
+          "text": "Active"
+        },
+        "style_tokens": []
+      },
+      "table-dom-binding_elena_vasquez_location": {
+        "content_refs": [
+          "node:elena_vasquez#attr:location"
+        ],
+        "intent_refs": [
+          "viewspec:binding:elena_vasquez_location"
+        ],
+        "ir_id": "binding_elena_vasquez_location",
+        "primitive": "text",
+        "props": {
+          "text": "Austin"
+        },
+        "style_tokens": []
+      },
+      "table-dom-binding_elena_vasquez_name": {
+        "content_refs": [
+          "node:elena_vasquez#attr:name"
+        ],
+        "intent_refs": [
+          "viewspec:binding:elena_vasquez_name"
+        ],
+        "ir_id": "binding_elena_vasquez_name",
+        "primitive": "label",
+        "props": {
+          "text": "Elena Vasquez"
+        },
+        "style_tokens": []
+      },
+      "table-dom-binding_elena_vasquez_role": {
+        "content_refs": [
+          "node:elena_vasquez#attr:role"
+        ],
+        "intent_refs": [
+          "viewspec:binding:elena_vasquez_role"
+        ],
+        "ir_id": "binding_elena_vasquez_role",
+        "primitive": "value",
+        "props": {
+          "text": "DevRel"
+        },
+        "style_tokens": []
+      },
+      "table-dom-binding_elena_vasquez_status": {
+        "content_refs": [
+          "node:elena_vasquez#attr:status"
+        ],
+        "intent_refs": [
+          "viewspec:binding:elena_vasquez_status",
+          "viewspec:style:style_status_accent"
+        ],
+        "ir_id": "binding_elena_vasquez_status",
+        "primitive": "badge",
+        "props": {
+          "text": "Active"
+        },
+        "style_tokens": [
+          "tone.accent"
+        ]
+      },
+      "table-dom-motif_team": {
+        "content_refs": [],
+        "intent_refs": [
+          "viewspec:motif:team"
+        ],
+        "ir_id": "motif_team",
+        "primitive": "stack",
+        "props": {
+          "layout_role": "stack",
+          "motif_kind": "table"
+        },
+        "style_tokens": []
+      },
+      "table-dom-motif_team_alice_chen": {
+        "content_refs": [],
+        "intent_refs": [
+          "viewspec:motif:team"
+        ],
+        "ir_id": "motif_team_alice_chen",
+        "primitive": "cluster",
+        "props": {
+          "layout_role": "cluster",
+          "motif_kind": "table"
+        },
+        "style_tokens": []
+      },
+      "table-dom-motif_team_bob_kowalski": {
+        "content_refs": [],
+        "intent_refs": [
+          "viewspec:motif:team"
+        ],
+        "ir_id": "motif_team_bob_kowalski",
+        "primitive": "cluster",
+        "props": {
+          "layout_role": "cluster",
+          "motif_kind": "table"
+        },
+        "style_tokens": []
+      },
+      "table-dom-motif_team_cara_oduya": {
+        "content_refs": [],
+        "intent_refs": [
+          "viewspec:motif:team"
+        ],
+        "ir_id": "motif_team_cara_oduya",
+        "primitive": "cluster",
+        "props": {
+          "layout_role": "cluster",
+          "motif_kind": "table"
+        },
+        "style_tokens": []
+      },
+      "table-dom-motif_team_david_park": {
+        "content_refs": [],
+        "intent_refs": [
+          "viewspec:motif:team"
+        ],
+        "ir_id": "motif_team_david_park",
+        "primitive": "cluster",
+        "props": {
+          "layout_role": "cluster",
+          "motif_kind": "table"
+        },
+        "style_tokens": []
+      },
+      "table-dom-motif_team_elena_vasquez": {
+        "content_refs": [],
+        "intent_refs": [
+          "viewspec:motif:team"
+        ],
+        "ir_id": "motif_team_elena_vasquez",
+        "primitive": "cluster",
+        "props": {
+          "layout_role": "cluster",
+          "motif_kind": "table"
+        },
+        "style_tokens": []
+      },
+      "table-dom-region_main": {
+        "content_refs": [],
+        "intent_refs": [
+          "viewspec:region:main"
+        ],
+        "ir_id": "region_main",
+        "primitive": "stack",
+        "props": {
+          "layout_role": "stack"
+        },
+        "style_tokens": []
+      },
+      "table-dom-region_root": {
+        "content_refs": [],
+        "intent_refs": [
+          "viewspec:view:team_roster",
+          "viewspec:region:root"
+        ],
+        "ir_id": "region_root",
+        "primitive": "root",
+        "props": {
+          "layout_role": "root"
+        },
+        "style_tokens": []
+      }
+    },
+    "motifKind": "table",
+    "nodeCount": 28
+  }
+}
+  </script>
+  <script>
+    const motifData = JSON.parse(document.getElementById('motif-data').textContent);
+    const title = document.getElementById('motif-title');
+    const description = document.getElementById('motif-description');
+    const toggles = Array.from(document.querySelectorAll('[data-motif]'));
+    const views = Array.from(document.querySelectorAll('.motif-view'));
+
+    function activateMotif(kind) {
+      toggles.forEach((button) => {
+        const active = button.dataset.motif === kind;
+        button.classList.toggle('active', active);
+        button.setAttribute('aria-pressed', String(active));
+      });
+      views.forEach((view) => {
+        view.classList.toggle('active', view.dataset.view === kind);
+      });
+      title.textContent = motifData[kind].label;
+      description.textContent = motifData[kind].description;
+    }
+
+    toggles.forEach((button) => {
+      button.addEventListener('click', () => activateMotif(button.dataset.motif));
+    });
+
+    activateMotif('table');
+    window.__viewspecMotifDemo = motifData;
+  </script>
+  <script>
+document.addEventListener('click', (e) => {
+  const btn = e.target.closest('[data-action-id]');
+  if (!btn) return;
+  const detail = {
+    id: btn.dataset.actionId,
+    kind: btn.dataset.actionKind,
+    payloadBindings: JSON.parse(btn.dataset.payloadBindings || '[]')
+  };
+  document.dispatchEvent(new CustomEvent('viewspec-action', { detail }));
+  console.log('Action Dispatched:', detail);
+});
+</script>
+</body>
+</html>

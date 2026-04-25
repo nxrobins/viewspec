@@ -1,0 +1,1567 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ViewSpec Demo - Provenance Inspector</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    :root {
+      color-scheme: dark;
+    }
+
+    body {
+      min-height: 100vh;
+      background: #0f1115;
+      color: #f8fafc;
+    }
+
+    .content-shell {
+      min-height: 100vh;
+    }
+
+    .artifact-frame {
+      border-radius: 8px;
+      overflow: hidden;
+    }
+
+    .artifact-frame > main {
+      min-height: 34rem;
+    }
+
+    .inspector-panel {
+      background: rgba(15, 23, 42, 0.96);
+      border: 1px solid rgba(45, 212, 191, 0.24);
+      box-shadow: 0 24px 80px rgba(0, 0, 0, 0.35);
+    }
+
+    .provenance-highlight {
+      box-shadow: 0 0 0 2px rgba(45, 212, 191, 0.9), 0 0 26px rgba(45, 212, 191, 0.42) !important;
+      outline: 1px solid rgba(153, 246, 228, 0.7);
+      outline-offset: 2px;
+      position: relative;
+      z-index: 5;
+    }
+
+    .chain-card {
+      border-left: 2px solid rgba(45, 212, 191, 0.45);
+      margin-left: 0.35rem;
+      padding: 0.1rem 0 0.85rem 0.9rem;
+    }
+
+    .chain-label {
+      color: #5eead4;
+      font-size: 0.68rem;
+      font-weight: 800;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+    }
+
+    .chain-value {
+      color: #e2e8f0;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+      font-size: 0.78rem;
+      line-height: 1.45;
+      margin-top: 0.28rem;
+      overflow-wrap: anywhere;
+      white-space: pre-wrap;
+    }
+
+    @media (min-width: 1024px) {
+      .content-shell {
+        padding-right: 25rem;
+      }
+
+      .inspector-panel {
+        bottom: 1rem;
+        position: fixed;
+        right: 1rem;
+        top: 1rem;
+        width: 23rem;
+      }
+    }
+
+    @media (max-width: 1023px) {
+      .inspector-panel {
+        position: static;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="content-shell mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
+    <header class="mb-8 border-b border-white/10 pb-8">
+      <p class="mb-3 font-mono text-sm font-semibold uppercase tracking-[0.18em] text-teal-300">ViewSpec Demo</p>
+      <div class="grid gap-5 lg:grid-cols-[1fr_auto] lg:items-end">
+        <div>
+          <h1 class="text-4xl font-black leading-tight text-white sm:text-5xl">Provenance Inspector</h1>
+          <p class="mt-4 max-w-3xl text-base leading-7 text-slate-300 sm:text-lg">
+            Hover any rendered element to trace it from DOM node to IR, binding, canonical address, semantic node, and raw value.
+          </p>
+        </div>
+        <div class="grid gap-1 rounded-lg border border-white/10 bg-white/[0.04] p-4 font-mono text-sm text-slate-300">
+          <div><span class="text-teal-300">bindings</span> = 23</div>
+          <div><span class="text-teal-300">semantic nodes</span> = 10</div>
+          <div><span class="text-teal-300">manifest nodes</span> = 36</div>
+        </div>
+      </div>
+    </header>
+
+    <section id="artifact" class="artifact-frame rounded-lg border border-white/10 bg-white/[0.05] p-3 shadow-2xl shadow-black/30 sm:p-4" aria-label="Rendered ViewSpec artifact">
+      <main id="dom-region_root" class="min-h-screen bg-slate-50 text-slate-950 p-6 space-y-6" data-ir-id="region_root" data-content-refs="[]" data-intent-refs="[&quot;viewspec:view:provenance_inspector&quot;, &quot;viewspec:region:root&quot;]"><div id="dom-region_main" class="flex flex-col gap-3" data-ir-id="region_main" data-content-refs="[]" data-intent-refs="[&quot;viewspec:region:main&quot;]"><div id="dom-motif_kpis" class="flex flex-col gap-3" data-ir-id="motif_kpis" data-content-refs="[]" data-intent-refs="[&quot;viewspec:motif:kpis&quot;]"><div id="dom-motif_kpis_kpi_revenue" class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm space-y-3" data-ir-id="motif_kpis_kpi_revenue" data-content-refs="[]" data-intent-refs="[&quot;viewspec:motif:kpis&quot;]"><div id="dom-binding_kpi_revenue_label" class="text-xs font-bold uppercase tracking-widest text-slate-500" data-ir-id="binding_kpi_revenue_label" data-content-refs="[&quot;node:kpi_revenue#attr:label&quot;]" data-intent-refs="[&quot;viewspec:binding:kpi_revenue_label&quot;]">Revenue</div><div id="dom-binding_kpi_revenue_value" class="text-2xl font-black tracking-tight text-slate-950" data-ir-id="binding_kpi_revenue_value" data-content-refs="[&quot;node:kpi_revenue#attr:value&quot;]" data-intent-refs="[&quot;viewspec:binding:kpi_revenue_value&quot;, &quot;viewspec:style:style_revenue_value&quot;]" style="font-weight: 800; letter-spacing: -0.025em;">$2.4M</div></div><div id="dom-motif_kpis_kpi_users" class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm space-y-3" data-ir-id="motif_kpis_kpi_users" data-content-refs="[]" data-intent-refs="[&quot;viewspec:motif:kpis&quot;]"><div id="dom-binding_kpi_users_label" class="text-xs font-bold uppercase tracking-widest text-slate-500" data-ir-id="binding_kpi_users_label" data-content-refs="[&quot;node:kpi_users#attr:label&quot;]" data-intent-refs="[&quot;viewspec:binding:kpi_users_label&quot;]">Active Users</div><div id="dom-binding_kpi_users_value" class="text-2xl font-black tracking-tight text-slate-950" data-ir-id="binding_kpi_users_value" data-content-refs="[&quot;node:kpi_users#attr:value&quot;]" data-intent-refs="[&quot;viewspec:binding:kpi_users_value&quot;]">18,472</div></div><div id="dom-motif_kpis_kpi_conversion" class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm space-y-3" data-ir-id="motif_kpis_kpi_conversion" data-content-refs="[]" data-intent-refs="[&quot;viewspec:motif:kpis&quot;]"><div id="dom-binding_kpi_conversion_label" class="text-xs font-bold uppercase tracking-widest text-slate-500" data-ir-id="binding_kpi_conversion_label" data-content-refs="[&quot;node:kpi_conversion#attr:label&quot;]" data-intent-refs="[&quot;viewspec:binding:kpi_conversion_label&quot;]">Conversion</div><div id="dom-binding_kpi_conversion_value" class="text-2xl font-black tracking-tight text-slate-950" data-ir-id="binding_kpi_conversion_value" data-content-refs="[&quot;node:kpi_conversion#attr:value&quot;]" data-intent-refs="[&quot;viewspec:binding:kpi_conversion_value&quot;]">3.8%</div></div><div id="dom-motif_kpis_kpi_churn" class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm space-y-3" data-ir-id="motif_kpis_kpi_churn" data-content-refs="[]" data-intent-refs="[&quot;viewspec:motif:kpis&quot;]"><div id="dom-binding_kpi_churn_label" class="text-xs font-bold uppercase tracking-widest text-slate-500" data-ir-id="binding_kpi_churn_label" data-content-refs="[&quot;node:kpi_churn#attr:label&quot;]" data-intent-refs="[&quot;viewspec:binding:kpi_churn_label&quot;]">Churn</div><div id="dom-binding_kpi_churn_value" class="text-2xl font-black tracking-tight text-slate-950" data-ir-id="binding_kpi_churn_value" data-content-refs="[&quot;node:kpi_churn#attr:value&quot;]" data-intent-refs="[&quot;viewspec:binding:kpi_churn_value&quot;]">1.2%</div></div></div><div id="dom-motif_segments" class="flex flex-col gap-3" data-ir-id="motif_segments" data-content-refs="[]" data-intent-refs="[&quot;viewspec:motif:segments&quot;]"><div id="dom-motif_segments_segment_enterprise" class="flex flex-row flex-wrap gap-3" data-ir-id="motif_segments_segment_enterprise" data-content-refs="[]" data-intent-refs="[&quot;viewspec:motif:segments&quot;]"><div id="dom-binding_segment_enterprise_label" class="text-xs font-bold uppercase tracking-widest text-slate-500" data-ir-id="binding_segment_enterprise_label" data-content-refs="[&quot;node:segment_enterprise#attr:label&quot;]" data-intent-refs="[&quot;viewspec:binding:segment_enterprise_label&quot;]">Enterprise</div><div id="dom-binding_segment_enterprise_value" class="text-2xl font-black tracking-tight text-slate-950" data-ir-id="binding_segment_enterprise_value" data-content-refs="[&quot;node:segment_enterprise#attr:value&quot;]" data-intent-refs="[&quot;viewspec:binding:segment_enterprise_value&quot;]">$1.8M</div><div id="dom-binding_segment_enterprise_growth" class="text-2xl font-black tracking-tight text-slate-950" data-ir-id="binding_segment_enterprise_growth" data-content-refs="[&quot;node:segment_enterprise#attr:growth&quot;]" data-intent-refs="[&quot;viewspec:binding:segment_enterprise_growth&quot;]">+22%</div></div><div id="dom-motif_segments_segment_mid_market" class="flex flex-row flex-wrap gap-3" data-ir-id="motif_segments_segment_mid_market" data-content-refs="[]" data-intent-refs="[&quot;viewspec:motif:segments&quot;]"><div id="dom-binding_segment_mid_market_label" class="text-xs font-bold uppercase tracking-widest text-slate-500" data-ir-id="binding_segment_mid_market_label" data-content-refs="[&quot;node:segment_mid_market#attr:label&quot;]" data-intent-refs="[&quot;viewspec:binding:segment_mid_market_label&quot;]">Mid-Market</div><div id="dom-binding_segment_mid_market_value" class="text-2xl font-black tracking-tight text-slate-950" data-ir-id="binding_segment_mid_market_value" data-content-refs="[&quot;node:segment_mid_market#attr:value&quot;]" data-intent-refs="[&quot;viewspec:binding:segment_mid_market_value&quot;]">$420K</div><div id="dom-binding_segment_mid_market_growth" class="text-2xl font-black tracking-tight text-slate-950" data-ir-id="binding_segment_mid_market_growth" data-content-refs="[&quot;node:segment_mid_market#attr:growth&quot;]" data-intent-refs="[&quot;viewspec:binding:segment_mid_market_growth&quot;]">+15%</div></div><div id="dom-motif_segments_segment_smb" class="flex flex-row flex-wrap gap-3" data-ir-id="motif_segments_segment_smb" data-content-refs="[]" data-intent-refs="[&quot;viewspec:motif:segments&quot;]"><div id="dom-binding_segment_smb_label" class="text-xs font-bold uppercase tracking-widest text-slate-500" data-ir-id="binding_segment_smb_label" data-content-refs="[&quot;node:segment_smb#attr:label&quot;]" data-intent-refs="[&quot;viewspec:binding:segment_smb_label&quot;]">SMB</div><div id="dom-binding_segment_smb_value" class="text-2xl font-black tracking-tight text-slate-950" data-ir-id="binding_segment_smb_value" data-content-refs="[&quot;node:segment_smb#attr:value&quot;]" data-intent-refs="[&quot;viewspec:binding:segment_smb_value&quot;]">$180K</div><div id="dom-binding_segment_smb_growth" class="text-2xl font-black tracking-tight text-slate-950" data-ir-id="binding_segment_smb_growth" data-content-refs="[&quot;node:segment_smb#attr:growth&quot;]" data-intent-refs="[&quot;viewspec:binding:segment_smb_growth&quot;]">+8%</div></div><div id="dom-motif_segments_segment_self_serve" class="flex flex-row flex-wrap gap-3" data-ir-id="motif_segments_segment_self_serve" data-content-refs="[]" data-intent-refs="[&quot;viewspec:motif:segments&quot;]"><div id="dom-binding_segment_self_serve_label" class="text-xs font-bold uppercase tracking-widest text-slate-500" data-ir-id="binding_segment_self_serve_label" data-content-refs="[&quot;node:segment_self_serve#attr:label&quot;]" data-intent-refs="[&quot;viewspec:binding:segment_self_serve_label&quot;]">Self-Serve</div><div id="dom-binding_segment_self_serve_value" class="text-2xl font-black tracking-tight text-slate-950" data-ir-id="binding_segment_self_serve_value" data-content-refs="[&quot;node:segment_self_serve#attr:value&quot;]" data-intent-refs="[&quot;viewspec:binding:segment_self_serve_value&quot;]">$45K</div><div id="dom-binding_segment_self_serve_growth" class="text-2xl font-black tracking-tight text-slate-950" data-ir-id="binding_segment_self_serve_growth" data-content-refs="[&quot;node:segment_self_serve#attr:growth&quot;]" data-intent-refs="[&quot;viewspec:binding:segment_self_serve_growth&quot;]">+31%</div></div><div id="dom-motif_segments_segment_partner" class="flex flex-row flex-wrap gap-3" data-ir-id="motif_segments_segment_partner" data-content-refs="[]" data-intent-refs="[&quot;viewspec:motif:segments&quot;]"><div id="dom-binding_segment_partner_label" class="text-xs font-bold uppercase tracking-widest text-slate-500" data-ir-id="binding_segment_partner_label" data-content-refs="[&quot;node:segment_partner#attr:label&quot;]" data-intent-refs="[&quot;viewspec:binding:segment_partner_label&quot;]">Partner</div><div id="dom-binding_segment_partner_value" class="text-2xl font-black tracking-tight text-slate-950" data-ir-id="binding_segment_partner_value" data-content-refs="[&quot;node:segment_partner#attr:value&quot;]" data-intent-refs="[&quot;viewspec:binding:segment_partner_value&quot;]">$12K</div><div id="dom-binding_segment_partner_growth" class="text-2xl font-black tracking-tight text-slate-950" data-ir-id="binding_segment_partner_growth" data-content-refs="[&quot;node:segment_partner#attr:growth&quot;]" data-intent-refs="[&quot;viewspec:binding:segment_partner_growth&quot;, &quot;viewspec:style:style_partner_growth&quot;]" style="color: #6b7280;">-3%</div></div></div></div></main>
+    </section>
+
+    <aside id="inspector-panel" class="inspector-panel mt-5 flex flex-col rounded-lg p-4 lg:mt-0" aria-live="polite">
+      <div class="mb-4 flex items-start justify-between gap-3 border-b border-white/10 pb-4">
+        <div>
+          <p class="font-mono text-xs font-bold uppercase tracking-[0.18em] text-teal-300">Provenance Chain</p>
+          <h2 id="inspector-title" class="mt-2 text-lg font-black text-white">Ready</h2>
+        </div>
+        <span id="lock-state" class="rounded-full border border-slate-600 px-2 py-1 font-mono text-[0.68rem] uppercase tracking-wide text-slate-400">Hover</span>
+      </div>
+      <div id="inspector-body" class="min-h-0 flex-1 overflow-y-auto pr-1">
+        <div class="rounded-lg border border-dashed border-slate-600 p-4 text-sm leading-6 text-slate-400">
+          Hover over any element to inspect its provenance...
+        </div>
+      </div>
+    </aside>
+  </main>
+
+  <script>
+    const PROVENANCE_MANIFEST = {
+  "dom-binding_kpi_churn_label": {
+    "content_refs": [
+      "node:kpi_churn#attr:label"
+    ],
+    "intent_refs": [
+      "viewspec:binding:kpi_churn_label"
+    ],
+    "ir_id": "binding_kpi_churn_label",
+    "primitive": "label",
+    "props": {
+      "text": "Churn"
+    },
+    "style_tokens": []
+  },
+  "dom-binding_kpi_churn_value": {
+    "content_refs": [
+      "node:kpi_churn#attr:value"
+    ],
+    "intent_refs": [
+      "viewspec:binding:kpi_churn_value"
+    ],
+    "ir_id": "binding_kpi_churn_value",
+    "primitive": "value",
+    "props": {
+      "text": "1.2%"
+    },
+    "style_tokens": []
+  },
+  "dom-binding_kpi_conversion_label": {
+    "content_refs": [
+      "node:kpi_conversion#attr:label"
+    ],
+    "intent_refs": [
+      "viewspec:binding:kpi_conversion_label"
+    ],
+    "ir_id": "binding_kpi_conversion_label",
+    "primitive": "label",
+    "props": {
+      "text": "Conversion"
+    },
+    "style_tokens": []
+  },
+  "dom-binding_kpi_conversion_value": {
+    "content_refs": [
+      "node:kpi_conversion#attr:value"
+    ],
+    "intent_refs": [
+      "viewspec:binding:kpi_conversion_value"
+    ],
+    "ir_id": "binding_kpi_conversion_value",
+    "primitive": "value",
+    "props": {
+      "text": "3.8%"
+    },
+    "style_tokens": []
+  },
+  "dom-binding_kpi_revenue_label": {
+    "content_refs": [
+      "node:kpi_revenue#attr:label"
+    ],
+    "intent_refs": [
+      "viewspec:binding:kpi_revenue_label"
+    ],
+    "ir_id": "binding_kpi_revenue_label",
+    "primitive": "label",
+    "props": {
+      "text": "Revenue"
+    },
+    "style_tokens": []
+  },
+  "dom-binding_kpi_revenue_value": {
+    "content_refs": [
+      "node:kpi_revenue#attr:value"
+    ],
+    "intent_refs": [
+      "viewspec:binding:kpi_revenue_value",
+      "viewspec:style:style_revenue_value"
+    ],
+    "ir_id": "binding_kpi_revenue_value",
+    "primitive": "value",
+    "props": {
+      "text": "$2.4M"
+    },
+    "style_tokens": [
+      "emphasis.high"
+    ]
+  },
+  "dom-binding_kpi_users_label": {
+    "content_refs": [
+      "node:kpi_users#attr:label"
+    ],
+    "intent_refs": [
+      "viewspec:binding:kpi_users_label"
+    ],
+    "ir_id": "binding_kpi_users_label",
+    "primitive": "label",
+    "props": {
+      "text": "Active Users"
+    },
+    "style_tokens": []
+  },
+  "dom-binding_kpi_users_value": {
+    "content_refs": [
+      "node:kpi_users#attr:value"
+    ],
+    "intent_refs": [
+      "viewspec:binding:kpi_users_value"
+    ],
+    "ir_id": "binding_kpi_users_value",
+    "primitive": "value",
+    "props": {
+      "text": "18,472"
+    },
+    "style_tokens": []
+  },
+  "dom-binding_segment_enterprise_growth": {
+    "content_refs": [
+      "node:segment_enterprise#attr:growth"
+    ],
+    "intent_refs": [
+      "viewspec:binding:segment_enterprise_growth"
+    ],
+    "ir_id": "binding_segment_enterprise_growth",
+    "primitive": "value",
+    "props": {
+      "text": "+22%"
+    },
+    "style_tokens": []
+  },
+  "dom-binding_segment_enterprise_label": {
+    "content_refs": [
+      "node:segment_enterprise#attr:label"
+    ],
+    "intent_refs": [
+      "viewspec:binding:segment_enterprise_label"
+    ],
+    "ir_id": "binding_segment_enterprise_label",
+    "primitive": "label",
+    "props": {
+      "text": "Enterprise"
+    },
+    "style_tokens": []
+  },
+  "dom-binding_segment_enterprise_value": {
+    "content_refs": [
+      "node:segment_enterprise#attr:value"
+    ],
+    "intent_refs": [
+      "viewspec:binding:segment_enterprise_value"
+    ],
+    "ir_id": "binding_segment_enterprise_value",
+    "primitive": "value",
+    "props": {
+      "text": "$1.8M"
+    },
+    "style_tokens": []
+  },
+  "dom-binding_segment_mid_market_growth": {
+    "content_refs": [
+      "node:segment_mid_market#attr:growth"
+    ],
+    "intent_refs": [
+      "viewspec:binding:segment_mid_market_growth"
+    ],
+    "ir_id": "binding_segment_mid_market_growth",
+    "primitive": "value",
+    "props": {
+      "text": "+15%"
+    },
+    "style_tokens": []
+  },
+  "dom-binding_segment_mid_market_label": {
+    "content_refs": [
+      "node:segment_mid_market#attr:label"
+    ],
+    "intent_refs": [
+      "viewspec:binding:segment_mid_market_label"
+    ],
+    "ir_id": "binding_segment_mid_market_label",
+    "primitive": "label",
+    "props": {
+      "text": "Mid-Market"
+    },
+    "style_tokens": []
+  },
+  "dom-binding_segment_mid_market_value": {
+    "content_refs": [
+      "node:segment_mid_market#attr:value"
+    ],
+    "intent_refs": [
+      "viewspec:binding:segment_mid_market_value"
+    ],
+    "ir_id": "binding_segment_mid_market_value",
+    "primitive": "value",
+    "props": {
+      "text": "$420K"
+    },
+    "style_tokens": []
+  },
+  "dom-binding_segment_partner_growth": {
+    "content_refs": [
+      "node:segment_partner#attr:growth"
+    ],
+    "intent_refs": [
+      "viewspec:binding:segment_partner_growth",
+      "viewspec:style:style_partner_growth"
+    ],
+    "ir_id": "binding_segment_partner_growth",
+    "primitive": "value",
+    "props": {
+      "text": "-3%"
+    },
+    "style_tokens": [
+      "tone.muted"
+    ]
+  },
+  "dom-binding_segment_partner_label": {
+    "content_refs": [
+      "node:segment_partner#attr:label"
+    ],
+    "intent_refs": [
+      "viewspec:binding:segment_partner_label"
+    ],
+    "ir_id": "binding_segment_partner_label",
+    "primitive": "label",
+    "props": {
+      "text": "Partner"
+    },
+    "style_tokens": []
+  },
+  "dom-binding_segment_partner_value": {
+    "content_refs": [
+      "node:segment_partner#attr:value"
+    ],
+    "intent_refs": [
+      "viewspec:binding:segment_partner_value"
+    ],
+    "ir_id": "binding_segment_partner_value",
+    "primitive": "value",
+    "props": {
+      "text": "$12K"
+    },
+    "style_tokens": []
+  },
+  "dom-binding_segment_self_serve_growth": {
+    "content_refs": [
+      "node:segment_self_serve#attr:growth"
+    ],
+    "intent_refs": [
+      "viewspec:binding:segment_self_serve_growth"
+    ],
+    "ir_id": "binding_segment_self_serve_growth",
+    "primitive": "value",
+    "props": {
+      "text": "+31%"
+    },
+    "style_tokens": []
+  },
+  "dom-binding_segment_self_serve_label": {
+    "content_refs": [
+      "node:segment_self_serve#attr:label"
+    ],
+    "intent_refs": [
+      "viewspec:binding:segment_self_serve_label"
+    ],
+    "ir_id": "binding_segment_self_serve_label",
+    "primitive": "label",
+    "props": {
+      "text": "Self-Serve"
+    },
+    "style_tokens": []
+  },
+  "dom-binding_segment_self_serve_value": {
+    "content_refs": [
+      "node:segment_self_serve#attr:value"
+    ],
+    "intent_refs": [
+      "viewspec:binding:segment_self_serve_value"
+    ],
+    "ir_id": "binding_segment_self_serve_value",
+    "primitive": "value",
+    "props": {
+      "text": "$45K"
+    },
+    "style_tokens": []
+  },
+  "dom-binding_segment_smb_growth": {
+    "content_refs": [
+      "node:segment_smb#attr:growth"
+    ],
+    "intent_refs": [
+      "viewspec:binding:segment_smb_growth"
+    ],
+    "ir_id": "binding_segment_smb_growth",
+    "primitive": "value",
+    "props": {
+      "text": "+8%"
+    },
+    "style_tokens": []
+  },
+  "dom-binding_segment_smb_label": {
+    "content_refs": [
+      "node:segment_smb#attr:label"
+    ],
+    "intent_refs": [
+      "viewspec:binding:segment_smb_label"
+    ],
+    "ir_id": "binding_segment_smb_label",
+    "primitive": "label",
+    "props": {
+      "text": "SMB"
+    },
+    "style_tokens": []
+  },
+  "dom-binding_segment_smb_value": {
+    "content_refs": [
+      "node:segment_smb#attr:value"
+    ],
+    "intent_refs": [
+      "viewspec:binding:segment_smb_value"
+    ],
+    "ir_id": "binding_segment_smb_value",
+    "primitive": "value",
+    "props": {
+      "text": "$180K"
+    },
+    "style_tokens": []
+  },
+  "dom-motif_kpis": {
+    "content_refs": [],
+    "intent_refs": [
+      "viewspec:motif:kpis"
+    ],
+    "ir_id": "motif_kpis",
+    "primitive": "stack",
+    "props": {
+      "layout_role": "stack",
+      "motif_kind": "dashboard"
+    },
+    "style_tokens": []
+  },
+  "dom-motif_kpis_kpi_churn": {
+    "content_refs": [],
+    "intent_refs": [
+      "viewspec:motif:kpis"
+    ],
+    "ir_id": "motif_kpis_kpi_churn",
+    "primitive": "surface",
+    "props": {
+      "layout_role": "surface",
+      "motif_kind": "dashboard"
+    },
+    "style_tokens": []
+  },
+  "dom-motif_kpis_kpi_conversion": {
+    "content_refs": [],
+    "intent_refs": [
+      "viewspec:motif:kpis"
+    ],
+    "ir_id": "motif_kpis_kpi_conversion",
+    "primitive": "surface",
+    "props": {
+      "layout_role": "surface",
+      "motif_kind": "dashboard"
+    },
+    "style_tokens": []
+  },
+  "dom-motif_kpis_kpi_revenue": {
+    "content_refs": [],
+    "intent_refs": [
+      "viewspec:motif:kpis"
+    ],
+    "ir_id": "motif_kpis_kpi_revenue",
+    "primitive": "surface",
+    "props": {
+      "layout_role": "surface",
+      "motif_kind": "dashboard"
+    },
+    "style_tokens": []
+  },
+  "dom-motif_kpis_kpi_users": {
+    "content_refs": [],
+    "intent_refs": [
+      "viewspec:motif:kpis"
+    ],
+    "ir_id": "motif_kpis_kpi_users",
+    "primitive": "surface",
+    "props": {
+      "layout_role": "surface",
+      "motif_kind": "dashboard"
+    },
+    "style_tokens": []
+  },
+  "dom-motif_segments": {
+    "content_refs": [],
+    "intent_refs": [
+      "viewspec:motif:segments"
+    ],
+    "ir_id": "motif_segments",
+    "primitive": "stack",
+    "props": {
+      "layout_role": "stack",
+      "motif_kind": "table"
+    },
+    "style_tokens": []
+  },
+  "dom-motif_segments_segment_enterprise": {
+    "content_refs": [],
+    "intent_refs": [
+      "viewspec:motif:segments"
+    ],
+    "ir_id": "motif_segments_segment_enterprise",
+    "primitive": "cluster",
+    "props": {
+      "layout_role": "cluster",
+      "motif_kind": "table"
+    },
+    "style_tokens": []
+  },
+  "dom-motif_segments_segment_mid_market": {
+    "content_refs": [],
+    "intent_refs": [
+      "viewspec:motif:segments"
+    ],
+    "ir_id": "motif_segments_segment_mid_market",
+    "primitive": "cluster",
+    "props": {
+      "layout_role": "cluster",
+      "motif_kind": "table"
+    },
+    "style_tokens": []
+  },
+  "dom-motif_segments_segment_partner": {
+    "content_refs": [],
+    "intent_refs": [
+      "viewspec:motif:segments"
+    ],
+    "ir_id": "motif_segments_segment_partner",
+    "primitive": "cluster",
+    "props": {
+      "layout_role": "cluster",
+      "motif_kind": "table"
+    },
+    "style_tokens": []
+  },
+  "dom-motif_segments_segment_self_serve": {
+    "content_refs": [],
+    "intent_refs": [
+      "viewspec:motif:segments"
+    ],
+    "ir_id": "motif_segments_segment_self_serve",
+    "primitive": "cluster",
+    "props": {
+      "layout_role": "cluster",
+      "motif_kind": "table"
+    },
+    "style_tokens": []
+  },
+  "dom-motif_segments_segment_smb": {
+    "content_refs": [],
+    "intent_refs": [
+      "viewspec:motif:segments"
+    ],
+    "ir_id": "motif_segments_segment_smb",
+    "primitive": "cluster",
+    "props": {
+      "layout_role": "cluster",
+      "motif_kind": "table"
+    },
+    "style_tokens": []
+  },
+  "dom-region_main": {
+    "content_refs": [],
+    "intent_refs": [
+      "viewspec:region:main"
+    ],
+    "ir_id": "region_main",
+    "primitive": "stack",
+    "props": {
+      "layout_role": "stack"
+    },
+    "style_tokens": []
+  },
+  "dom-region_root": {
+    "content_refs": [],
+    "intent_refs": [
+      "viewspec:view:provenance_inspector",
+      "viewspec:region:root"
+    ],
+    "ir_id": "region_root",
+    "primitive": "root",
+    "props": {
+      "layout_role": "root"
+    },
+    "style_tokens": []
+  }
+};
+    const PROVENANCE_BY_IR_ID = {
+  "binding_kpi_churn_label": {
+    "content_refs": [
+      "node:kpi_churn#attr:label"
+    ],
+    "intent_refs": [
+      "viewspec:binding:kpi_churn_label"
+    ],
+    "ir_id": "binding_kpi_churn_label",
+    "primitive": "label",
+    "props": {
+      "text": "Churn"
+    },
+    "style_tokens": []
+  },
+  "binding_kpi_churn_value": {
+    "content_refs": [
+      "node:kpi_churn#attr:value"
+    ],
+    "intent_refs": [
+      "viewspec:binding:kpi_churn_value"
+    ],
+    "ir_id": "binding_kpi_churn_value",
+    "primitive": "value",
+    "props": {
+      "text": "1.2%"
+    },
+    "style_tokens": []
+  },
+  "binding_kpi_conversion_label": {
+    "content_refs": [
+      "node:kpi_conversion#attr:label"
+    ],
+    "intent_refs": [
+      "viewspec:binding:kpi_conversion_label"
+    ],
+    "ir_id": "binding_kpi_conversion_label",
+    "primitive": "label",
+    "props": {
+      "text": "Conversion"
+    },
+    "style_tokens": []
+  },
+  "binding_kpi_conversion_value": {
+    "content_refs": [
+      "node:kpi_conversion#attr:value"
+    ],
+    "intent_refs": [
+      "viewspec:binding:kpi_conversion_value"
+    ],
+    "ir_id": "binding_kpi_conversion_value",
+    "primitive": "value",
+    "props": {
+      "text": "3.8%"
+    },
+    "style_tokens": []
+  },
+  "binding_kpi_revenue_label": {
+    "content_refs": [
+      "node:kpi_revenue#attr:label"
+    ],
+    "intent_refs": [
+      "viewspec:binding:kpi_revenue_label"
+    ],
+    "ir_id": "binding_kpi_revenue_label",
+    "primitive": "label",
+    "props": {
+      "text": "Revenue"
+    },
+    "style_tokens": []
+  },
+  "binding_kpi_revenue_value": {
+    "content_refs": [
+      "node:kpi_revenue#attr:value"
+    ],
+    "intent_refs": [
+      "viewspec:binding:kpi_revenue_value",
+      "viewspec:style:style_revenue_value"
+    ],
+    "ir_id": "binding_kpi_revenue_value",
+    "primitive": "value",
+    "props": {
+      "text": "$2.4M"
+    },
+    "style_tokens": [
+      "emphasis.high"
+    ]
+  },
+  "binding_kpi_users_label": {
+    "content_refs": [
+      "node:kpi_users#attr:label"
+    ],
+    "intent_refs": [
+      "viewspec:binding:kpi_users_label"
+    ],
+    "ir_id": "binding_kpi_users_label",
+    "primitive": "label",
+    "props": {
+      "text": "Active Users"
+    },
+    "style_tokens": []
+  },
+  "binding_kpi_users_value": {
+    "content_refs": [
+      "node:kpi_users#attr:value"
+    ],
+    "intent_refs": [
+      "viewspec:binding:kpi_users_value"
+    ],
+    "ir_id": "binding_kpi_users_value",
+    "primitive": "value",
+    "props": {
+      "text": "18,472"
+    },
+    "style_tokens": []
+  },
+  "binding_segment_enterprise_growth": {
+    "content_refs": [
+      "node:segment_enterprise#attr:growth"
+    ],
+    "intent_refs": [
+      "viewspec:binding:segment_enterprise_growth"
+    ],
+    "ir_id": "binding_segment_enterprise_growth",
+    "primitive": "value",
+    "props": {
+      "text": "+22%"
+    },
+    "style_tokens": []
+  },
+  "binding_segment_enterprise_label": {
+    "content_refs": [
+      "node:segment_enterprise#attr:label"
+    ],
+    "intent_refs": [
+      "viewspec:binding:segment_enterprise_label"
+    ],
+    "ir_id": "binding_segment_enterprise_label",
+    "primitive": "label",
+    "props": {
+      "text": "Enterprise"
+    },
+    "style_tokens": []
+  },
+  "binding_segment_enterprise_value": {
+    "content_refs": [
+      "node:segment_enterprise#attr:value"
+    ],
+    "intent_refs": [
+      "viewspec:binding:segment_enterprise_value"
+    ],
+    "ir_id": "binding_segment_enterprise_value",
+    "primitive": "value",
+    "props": {
+      "text": "$1.8M"
+    },
+    "style_tokens": []
+  },
+  "binding_segment_mid_market_growth": {
+    "content_refs": [
+      "node:segment_mid_market#attr:growth"
+    ],
+    "intent_refs": [
+      "viewspec:binding:segment_mid_market_growth"
+    ],
+    "ir_id": "binding_segment_mid_market_growth",
+    "primitive": "value",
+    "props": {
+      "text": "+15%"
+    },
+    "style_tokens": []
+  },
+  "binding_segment_mid_market_label": {
+    "content_refs": [
+      "node:segment_mid_market#attr:label"
+    ],
+    "intent_refs": [
+      "viewspec:binding:segment_mid_market_label"
+    ],
+    "ir_id": "binding_segment_mid_market_label",
+    "primitive": "label",
+    "props": {
+      "text": "Mid-Market"
+    },
+    "style_tokens": []
+  },
+  "binding_segment_mid_market_value": {
+    "content_refs": [
+      "node:segment_mid_market#attr:value"
+    ],
+    "intent_refs": [
+      "viewspec:binding:segment_mid_market_value"
+    ],
+    "ir_id": "binding_segment_mid_market_value",
+    "primitive": "value",
+    "props": {
+      "text": "$420K"
+    },
+    "style_tokens": []
+  },
+  "binding_segment_partner_growth": {
+    "content_refs": [
+      "node:segment_partner#attr:growth"
+    ],
+    "intent_refs": [
+      "viewspec:binding:segment_partner_growth",
+      "viewspec:style:style_partner_growth"
+    ],
+    "ir_id": "binding_segment_partner_growth",
+    "primitive": "value",
+    "props": {
+      "text": "-3%"
+    },
+    "style_tokens": [
+      "tone.muted"
+    ]
+  },
+  "binding_segment_partner_label": {
+    "content_refs": [
+      "node:segment_partner#attr:label"
+    ],
+    "intent_refs": [
+      "viewspec:binding:segment_partner_label"
+    ],
+    "ir_id": "binding_segment_partner_label",
+    "primitive": "label",
+    "props": {
+      "text": "Partner"
+    },
+    "style_tokens": []
+  },
+  "binding_segment_partner_value": {
+    "content_refs": [
+      "node:segment_partner#attr:value"
+    ],
+    "intent_refs": [
+      "viewspec:binding:segment_partner_value"
+    ],
+    "ir_id": "binding_segment_partner_value",
+    "primitive": "value",
+    "props": {
+      "text": "$12K"
+    },
+    "style_tokens": []
+  },
+  "binding_segment_self_serve_growth": {
+    "content_refs": [
+      "node:segment_self_serve#attr:growth"
+    ],
+    "intent_refs": [
+      "viewspec:binding:segment_self_serve_growth"
+    ],
+    "ir_id": "binding_segment_self_serve_growth",
+    "primitive": "value",
+    "props": {
+      "text": "+31%"
+    },
+    "style_tokens": []
+  },
+  "binding_segment_self_serve_label": {
+    "content_refs": [
+      "node:segment_self_serve#attr:label"
+    ],
+    "intent_refs": [
+      "viewspec:binding:segment_self_serve_label"
+    ],
+    "ir_id": "binding_segment_self_serve_label",
+    "primitive": "label",
+    "props": {
+      "text": "Self-Serve"
+    },
+    "style_tokens": []
+  },
+  "binding_segment_self_serve_value": {
+    "content_refs": [
+      "node:segment_self_serve#attr:value"
+    ],
+    "intent_refs": [
+      "viewspec:binding:segment_self_serve_value"
+    ],
+    "ir_id": "binding_segment_self_serve_value",
+    "primitive": "value",
+    "props": {
+      "text": "$45K"
+    },
+    "style_tokens": []
+  },
+  "binding_segment_smb_growth": {
+    "content_refs": [
+      "node:segment_smb#attr:growth"
+    ],
+    "intent_refs": [
+      "viewspec:binding:segment_smb_growth"
+    ],
+    "ir_id": "binding_segment_smb_growth",
+    "primitive": "value",
+    "props": {
+      "text": "+8%"
+    },
+    "style_tokens": []
+  },
+  "binding_segment_smb_label": {
+    "content_refs": [
+      "node:segment_smb#attr:label"
+    ],
+    "intent_refs": [
+      "viewspec:binding:segment_smb_label"
+    ],
+    "ir_id": "binding_segment_smb_label",
+    "primitive": "label",
+    "props": {
+      "text": "SMB"
+    },
+    "style_tokens": []
+  },
+  "binding_segment_smb_value": {
+    "content_refs": [
+      "node:segment_smb#attr:value"
+    ],
+    "intent_refs": [
+      "viewspec:binding:segment_smb_value"
+    ],
+    "ir_id": "binding_segment_smb_value",
+    "primitive": "value",
+    "props": {
+      "text": "$180K"
+    },
+    "style_tokens": []
+  },
+  "motif_kpis": {
+    "content_refs": [],
+    "intent_refs": [
+      "viewspec:motif:kpis"
+    ],
+    "ir_id": "motif_kpis",
+    "primitive": "stack",
+    "props": {
+      "layout_role": "stack",
+      "motif_kind": "dashboard"
+    },
+    "style_tokens": []
+  },
+  "motif_kpis_kpi_churn": {
+    "content_refs": [],
+    "intent_refs": [
+      "viewspec:motif:kpis"
+    ],
+    "ir_id": "motif_kpis_kpi_churn",
+    "primitive": "surface",
+    "props": {
+      "layout_role": "surface",
+      "motif_kind": "dashboard"
+    },
+    "style_tokens": []
+  },
+  "motif_kpis_kpi_conversion": {
+    "content_refs": [],
+    "intent_refs": [
+      "viewspec:motif:kpis"
+    ],
+    "ir_id": "motif_kpis_kpi_conversion",
+    "primitive": "surface",
+    "props": {
+      "layout_role": "surface",
+      "motif_kind": "dashboard"
+    },
+    "style_tokens": []
+  },
+  "motif_kpis_kpi_revenue": {
+    "content_refs": [],
+    "intent_refs": [
+      "viewspec:motif:kpis"
+    ],
+    "ir_id": "motif_kpis_kpi_revenue",
+    "primitive": "surface",
+    "props": {
+      "layout_role": "surface",
+      "motif_kind": "dashboard"
+    },
+    "style_tokens": []
+  },
+  "motif_kpis_kpi_users": {
+    "content_refs": [],
+    "intent_refs": [
+      "viewspec:motif:kpis"
+    ],
+    "ir_id": "motif_kpis_kpi_users",
+    "primitive": "surface",
+    "props": {
+      "layout_role": "surface",
+      "motif_kind": "dashboard"
+    },
+    "style_tokens": []
+  },
+  "motif_segments": {
+    "content_refs": [],
+    "intent_refs": [
+      "viewspec:motif:segments"
+    ],
+    "ir_id": "motif_segments",
+    "primitive": "stack",
+    "props": {
+      "layout_role": "stack",
+      "motif_kind": "table"
+    },
+    "style_tokens": []
+  },
+  "motif_segments_segment_enterprise": {
+    "content_refs": [],
+    "intent_refs": [
+      "viewspec:motif:segments"
+    ],
+    "ir_id": "motif_segments_segment_enterprise",
+    "primitive": "cluster",
+    "props": {
+      "layout_role": "cluster",
+      "motif_kind": "table"
+    },
+    "style_tokens": []
+  },
+  "motif_segments_segment_mid_market": {
+    "content_refs": [],
+    "intent_refs": [
+      "viewspec:motif:segments"
+    ],
+    "ir_id": "motif_segments_segment_mid_market",
+    "primitive": "cluster",
+    "props": {
+      "layout_role": "cluster",
+      "motif_kind": "table"
+    },
+    "style_tokens": []
+  },
+  "motif_segments_segment_partner": {
+    "content_refs": [],
+    "intent_refs": [
+      "viewspec:motif:segments"
+    ],
+    "ir_id": "motif_segments_segment_partner",
+    "primitive": "cluster",
+    "props": {
+      "layout_role": "cluster",
+      "motif_kind": "table"
+    },
+    "style_tokens": []
+  },
+  "motif_segments_segment_self_serve": {
+    "content_refs": [],
+    "intent_refs": [
+      "viewspec:motif:segments"
+    ],
+    "ir_id": "motif_segments_segment_self_serve",
+    "primitive": "cluster",
+    "props": {
+      "layout_role": "cluster",
+      "motif_kind": "table"
+    },
+    "style_tokens": []
+  },
+  "motif_segments_segment_smb": {
+    "content_refs": [],
+    "intent_refs": [
+      "viewspec:motif:segments"
+    ],
+    "ir_id": "motif_segments_segment_smb",
+    "primitive": "cluster",
+    "props": {
+      "layout_role": "cluster",
+      "motif_kind": "table"
+    },
+    "style_tokens": []
+  },
+  "region_main": {
+    "content_refs": [],
+    "intent_refs": [
+      "viewspec:region:main"
+    ],
+    "ir_id": "region_main",
+    "primitive": "stack",
+    "props": {
+      "layout_role": "stack"
+    },
+    "style_tokens": []
+  },
+  "region_root": {
+    "content_refs": [],
+    "intent_refs": [
+      "viewspec:view:provenance_inspector",
+      "viewspec:region:root"
+    ],
+    "ir_id": "region_root",
+    "primitive": "root",
+    "props": {
+      "layout_role": "root"
+    },
+    "style_tokens": []
+  }
+};
+    const BINDING_INDEX = {
+  "kpi_churn_label": {
+    "address": "node:kpi_churn#attr:label",
+    "cardinality": "exactly_once",
+    "id": "kpi_churn_label",
+    "present_as": "label",
+    "target_region": "main"
+  },
+  "kpi_churn_value": {
+    "address": "node:kpi_churn#attr:value",
+    "cardinality": "exactly_once",
+    "id": "kpi_churn_value",
+    "present_as": "value",
+    "target_region": "main"
+  },
+  "kpi_conversion_label": {
+    "address": "node:kpi_conversion#attr:label",
+    "cardinality": "exactly_once",
+    "id": "kpi_conversion_label",
+    "present_as": "label",
+    "target_region": "main"
+  },
+  "kpi_conversion_value": {
+    "address": "node:kpi_conversion#attr:value",
+    "cardinality": "exactly_once",
+    "id": "kpi_conversion_value",
+    "present_as": "value",
+    "target_region": "main"
+  },
+  "kpi_revenue_label": {
+    "address": "node:kpi_revenue#attr:label",
+    "cardinality": "exactly_once",
+    "id": "kpi_revenue_label",
+    "present_as": "label",
+    "target_region": "main"
+  },
+  "kpi_revenue_value": {
+    "address": "node:kpi_revenue#attr:value",
+    "cardinality": "exactly_once",
+    "id": "kpi_revenue_value",
+    "present_as": "value",
+    "target_region": "main"
+  },
+  "kpi_users_label": {
+    "address": "node:kpi_users#attr:label",
+    "cardinality": "exactly_once",
+    "id": "kpi_users_label",
+    "present_as": "label",
+    "target_region": "main"
+  },
+  "kpi_users_value": {
+    "address": "node:kpi_users#attr:value",
+    "cardinality": "exactly_once",
+    "id": "kpi_users_value",
+    "present_as": "value",
+    "target_region": "main"
+  },
+  "segment_enterprise_growth": {
+    "address": "node:segment_enterprise#attr:growth",
+    "cardinality": "exactly_once",
+    "id": "segment_enterprise_growth",
+    "present_as": "value",
+    "target_region": "main"
+  },
+  "segment_enterprise_label": {
+    "address": "node:segment_enterprise#attr:label",
+    "cardinality": "exactly_once",
+    "id": "segment_enterprise_label",
+    "present_as": "label",
+    "target_region": "main"
+  },
+  "segment_enterprise_value": {
+    "address": "node:segment_enterprise#attr:value",
+    "cardinality": "exactly_once",
+    "id": "segment_enterprise_value",
+    "present_as": "value",
+    "target_region": "main"
+  },
+  "segment_mid_market_growth": {
+    "address": "node:segment_mid_market#attr:growth",
+    "cardinality": "exactly_once",
+    "id": "segment_mid_market_growth",
+    "present_as": "value",
+    "target_region": "main"
+  },
+  "segment_mid_market_label": {
+    "address": "node:segment_mid_market#attr:label",
+    "cardinality": "exactly_once",
+    "id": "segment_mid_market_label",
+    "present_as": "label",
+    "target_region": "main"
+  },
+  "segment_mid_market_value": {
+    "address": "node:segment_mid_market#attr:value",
+    "cardinality": "exactly_once",
+    "id": "segment_mid_market_value",
+    "present_as": "value",
+    "target_region": "main"
+  },
+  "segment_partner_growth": {
+    "address": "node:segment_partner#attr:growth",
+    "cardinality": "exactly_once",
+    "id": "segment_partner_growth",
+    "present_as": "value",
+    "target_region": "main"
+  },
+  "segment_partner_label": {
+    "address": "node:segment_partner#attr:label",
+    "cardinality": "exactly_once",
+    "id": "segment_partner_label",
+    "present_as": "label",
+    "target_region": "main"
+  },
+  "segment_partner_value": {
+    "address": "node:segment_partner#attr:value",
+    "cardinality": "exactly_once",
+    "id": "segment_partner_value",
+    "present_as": "value",
+    "target_region": "main"
+  },
+  "segment_self_serve_growth": {
+    "address": "node:segment_self_serve#attr:growth",
+    "cardinality": "exactly_once",
+    "id": "segment_self_serve_growth",
+    "present_as": "value",
+    "target_region": "main"
+  },
+  "segment_self_serve_label": {
+    "address": "node:segment_self_serve#attr:label",
+    "cardinality": "exactly_once",
+    "id": "segment_self_serve_label",
+    "present_as": "label",
+    "target_region": "main"
+  },
+  "segment_self_serve_value": {
+    "address": "node:segment_self_serve#attr:value",
+    "cardinality": "exactly_once",
+    "id": "segment_self_serve_value",
+    "present_as": "value",
+    "target_region": "main"
+  },
+  "segment_smb_growth": {
+    "address": "node:segment_smb#attr:growth",
+    "cardinality": "exactly_once",
+    "id": "segment_smb_growth",
+    "present_as": "value",
+    "target_region": "main"
+  },
+  "segment_smb_label": {
+    "address": "node:segment_smb#attr:label",
+    "cardinality": "exactly_once",
+    "id": "segment_smb_label",
+    "present_as": "label",
+    "target_region": "main"
+  },
+  "segment_smb_value": {
+    "address": "node:segment_smb#attr:value",
+    "cardinality": "exactly_once",
+    "id": "segment_smb_value",
+    "present_as": "value",
+    "target_region": "main"
+  }
+};
+    const SEMANTIC_INDEX = {
+  "kpi_churn": {
+    "attrs": {
+      "label": "Churn",
+      "value": "1.2%"
+    },
+    "edges": {},
+    "id": "kpi_churn",
+    "kind": "dashboard_card",
+    "slots": {}
+  },
+  "kpi_conversion": {
+    "attrs": {
+      "label": "Conversion",
+      "value": "3.8%"
+    },
+    "edges": {},
+    "id": "kpi_conversion",
+    "kind": "dashboard_card",
+    "slots": {}
+  },
+  "kpi_revenue": {
+    "attrs": {
+      "label": "Revenue",
+      "value": "$2.4M"
+    },
+    "edges": {},
+    "id": "kpi_revenue",
+    "kind": "dashboard_card",
+    "slots": {}
+  },
+  "kpi_users": {
+    "attrs": {
+      "label": "Active Users",
+      "value": "18,472"
+    },
+    "edges": {},
+    "id": "kpi_users",
+    "kind": "dashboard_card",
+    "slots": {}
+  },
+  "provenance_inspector": {
+    "attrs": {},
+    "edges": {},
+    "id": "provenance_inspector",
+    "kind": "app",
+    "slots": {}
+  },
+  "segment_enterprise": {
+    "attrs": {
+      "growth": "+22%",
+      "label": "Enterprise",
+      "value": "$1.8M"
+    },
+    "edges": {},
+    "id": "segment_enterprise",
+    "kind": "revenue_segment",
+    "slots": {}
+  },
+  "segment_mid_market": {
+    "attrs": {
+      "growth": "+15%",
+      "label": "Mid-Market",
+      "value": "$420K"
+    },
+    "edges": {},
+    "id": "segment_mid_market",
+    "kind": "revenue_segment",
+    "slots": {}
+  },
+  "segment_partner": {
+    "attrs": {
+      "growth": "-3%",
+      "label": "Partner",
+      "value": "$12K"
+    },
+    "edges": {},
+    "id": "segment_partner",
+    "kind": "revenue_segment",
+    "slots": {}
+  },
+  "segment_self_serve": {
+    "attrs": {
+      "growth": "+31%",
+      "label": "Self-Serve",
+      "value": "$45K"
+    },
+    "edges": {},
+    "id": "segment_self_serve",
+    "kind": "revenue_segment",
+    "slots": {}
+  },
+  "segment_smb": {
+    "attrs": {
+      "growth": "+8%",
+      "label": "SMB",
+      "value": "$180K"
+    },
+    "edges": {},
+    "id": "segment_smb",
+    "kind": "revenue_segment",
+    "slots": {}
+  }
+};
+
+    const artifact = document.getElementById('artifact');
+    const panel = document.getElementById('inspector-panel');
+    const panelBody = document.getElementById('inspector-body');
+    const panelTitle = document.getElementById('inspector-title');
+    const lockState = document.getElementById('lock-state');
+    let locked = false;
+    let activeElement = null;
+
+    function escapeHtml(value) {
+      return String(value)
+        .replaceAll('&', '&amp;')
+        .replaceAll('<', '&lt;')
+        .replaceAll('>', '&gt;')
+        .replaceAll('"', '&quot;')
+        .replaceAll("'", '&#039;');
+    }
+
+    function formatValue(value) {
+      if (value === null || value === undefined) return 'none';
+      if (typeof value === 'string') return value;
+      return JSON.stringify(value, null, 2);
+    }
+
+    function parseBindingId(intentRefs) {
+      const bindingRef = (intentRefs || []).find((ref) => ref.startsWith('viewspec:binding:'));
+      return bindingRef ? bindingRef.replace('viewspec:binding:', '') : null;
+    }
+
+    function parseAddress(contentRef) {
+      if (!contentRef) return {};
+      const nodeIdMatch = contentRef.match(/^node:([^#]+)/);
+      const attrMatch = contentRef.match(/#attr:([^#]+)/);
+      const slotMatch = contentRef.match(/#slot:([^#\[]+)/);
+      return {
+        nodeId: nodeIdMatch ? nodeIdMatch[1] : null,
+        attr: attrMatch ? attrMatch[1] : null,
+        slot: slotMatch ? slotMatch[1] : null,
+      };
+    }
+
+    function rawValueFor(address, semanticNode) {
+      const parsed = parseAddress(address);
+      if (!semanticNode) return null;
+      if (parsed.attr && semanticNode.attrs) return semanticNode.attrs[parsed.attr];
+      if (parsed.slot && semanticNode.slots) return semanticNode.slots[parsed.slot];
+      return null;
+    }
+
+    function chainCard(label, value) {
+      return `
+        <section class="chain-card">
+          <div class="chain-label">${escapeHtml(label)}</div>
+          <div class="chain-value">${escapeHtml(formatValue(value))}</div>
+        </section>
+      `;
+    }
+
+    function setActiveElement(element) {
+      if (activeElement && activeElement !== element) {
+        activeElement.classList.remove('provenance-highlight');
+      }
+      activeElement = element;
+      if (activeElement) {
+        activeElement.classList.add('provenance-highlight');
+      }
+    }
+
+    function clearInspection() {
+      if (activeElement) activeElement.classList.remove('provenance-highlight');
+      activeElement = null;
+      locked = false;
+      panelTitle.textContent = 'Ready';
+      lockState.textContent = 'Hover';
+      lockState.className = 'rounded-full border border-slate-600 px-2 py-1 font-mono text-[0.68rem] uppercase tracking-wide text-slate-400';
+      panelBody.innerHTML = `
+        <div class="rounded-lg border border-dashed border-slate-600 p-4 text-sm leading-6 text-slate-400">
+          Hover over any element to inspect its provenance...
+        </div>
+      `;
+    }
+
+    function inspectElement(element, shouldLock) {
+      const irId = element.dataset.irId;
+      const domId = element.id || `dom-${irId}`;
+      const entry = PROVENANCE_BY_IR_ID[irId] || PROVENANCE_MANIFEST[domId] || PROVENANCE_MANIFEST[`dom-${irId}`];
+      if (!entry) return;
+
+      const bindingId = parseBindingId(entry.intent_refs);
+      const binding = bindingId ? BINDING_INDEX[bindingId] : null;
+      const contentRef = (entry.content_refs || [])[0] || (binding ? binding.address : null);
+      const parsedAddress = parseAddress(contentRef);
+      const semanticNode = parsedAddress.nodeId ? SEMANTIC_INDEX[parsedAddress.nodeId] : null;
+      const rawValue = rawValueFor(contentRef, semanticNode);
+
+      setActiveElement(element);
+      locked = shouldLock;
+      panelTitle.textContent = shouldLock ? `Locked: ${entry.primitive}` : `Inspecting: ${entry.primitive}`;
+      lockState.textContent = shouldLock ? 'Locked' : 'Hover';
+      lockState.className = shouldLock
+        ? 'rounded-full border border-teal-400 bg-teal-500/10 px-2 py-1 font-mono text-[0.68rem] uppercase tracking-wide text-teal-200'
+        : 'rounded-full border border-slate-600 px-2 py-1 font-mono text-[0.68rem] uppercase tracking-wide text-slate-400';
+
+      const bindingSummary = binding
+        ? `${binding.id}\npresent_as: ${binding.present_as}\nregion: ${binding.target_region}`
+        : 'container-generated; no binding ref';
+      const addressSummary = contentRef || 'container-generated; no content ref';
+      const semanticSummary = semanticNode
+        ? `${semanticNode.id}\nkind: ${semanticNode.kind}\nattrs: ${JSON.stringify(semanticNode.attrs, null, 2)}`
+        : 'container-generated; no semantic node';
+
+      panelBody.innerHTML = [
+        chainCard('DOM Element', `#${domId}\ndata-ir-id: ${irId}`),
+        chainCard('IR Node', `${entry.ir_id}\nprimitive: ${entry.primitive}\nprops: ${JSON.stringify(entry.props, null, 2)}`),
+        chainCard('Binding', bindingSummary),
+        chainCard('Address', addressSummary),
+        chainCard('Semantic Node', semanticSummary),
+        chainCard('Raw Value', rawValue),
+        `<div class="mt-2 rounded-lg border border-teal-400/30 bg-teal-400/10 p-3 text-xs font-semibold uppercase tracking-wide text-teal-200">
+          Provenance verified: ${(entry.content_refs || []).length} content refs, ${(entry.intent_refs || []).length} intent refs
+        </div>`,
+      ].join('');
+    }
+
+    artifact.addEventListener('pointerover', (event) => {
+      if (locked) return;
+      const target = event.target.closest('[data-ir-id]');
+      if (!target || !artifact.contains(target)) return;
+      inspectElement(target, false);
+    });
+
+    artifact.addEventListener('pointerout', (event) => {
+      if (locked) return;
+      if (!artifact.contains(event.relatedTarget)) {
+        clearInspection();
+      }
+    });
+
+    artifact.addEventListener('click', (event) => {
+      const target = event.target.closest('[data-ir-id]');
+      if (!target || !artifact.contains(target)) return;
+      event.stopPropagation();
+      inspectElement(target, true);
+    });
+
+    document.addEventListener('click', (event) => {
+      if (!locked) return;
+      if (!artifact.contains(event.target) && !panel.contains(event.target)) {
+        clearInspection();
+      }
+    });
+
+    window.__viewspecProvenanceInspector = {
+      PROVENANCE_MANIFEST,
+      PROVENANCE_BY_IR_ID,
+      BINDING_INDEX,
+      SEMANTIC_INDEX,
+    };
+  </script>
+  <script>
+document.addEventListener('click', (e) => {
+  const btn = e.target.closest('[data-action-id]');
+  if (!btn) return;
+  const detail = {
+    id: btn.dataset.actionId,
+    kind: btn.dataset.actionKind,
+    payloadBindings: JSON.parse(btn.dataset.payloadBindings || '[]')
+  };
+  document.dispatchEvent(new CustomEvent('viewspec-action', { detail }));
+  console.log('Action Dispatched:', detail);
+});
+</script>
+</body>
+</html>
