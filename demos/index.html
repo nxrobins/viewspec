@@ -22,7 +22,6 @@
     }
   </script>
   <script src="https://cdn.tailwindcss.com"></script>
-  <script type="module" src="./shared/pretext-canvas-surfaces.js"></script>
   <script type="module" src="./shared/landing-playground.js"></script>
   <style>
     :root {
@@ -169,21 +168,6 @@
       margin: 0;
     }
 
-    .canvas-title {
-      max-width: 36rem;
-    }
-
-    .pretext-canvas-wrap {
-      max-width: 100%;
-      overflow: hidden;
-    }
-
-    .pretext-canvas-wrap canvas {
-      display: block;
-      height: auto;
-      max-width: 100%;
-    }
-
     .hero-subtitle {
       color: #dbeafe;
       font-size: clamp(1.15rem, 2.5vw, 1.58rem);
@@ -311,10 +295,6 @@
       letter-spacing: 0;
       line-height: 1;
       margin: 0;
-    }
-
-    .section-title-canvas {
-      max-width: 48rem;
     }
 
     .section-copy,
@@ -499,11 +479,15 @@
     .preview-shell {
       display: grid;
       grid-template-rows: auto 1fr;
-      min-height: 38rem;
     }
 
     .playground .preview-shell {
       grid-area: preview;
+      min-height: 38rem;
+    }
+
+    .hero .preview-shell {
+      min-height: 0;
     }
 
     .playground > aside.panel:first-child {
@@ -523,8 +507,11 @@
     }
 
     .preview-frame[data-preview-mode="hero"] {
-      min-height: 26rem;
-      padding: var(--space-3);
+      align-items: center;
+      display: grid;
+      min-height: 16rem;
+      overflow: hidden;
+      padding: var(--space-4);
     }
 
     .viewport-shell {
@@ -563,13 +550,45 @@
 
     :is([data-compiled-output], .compare-output) [data-ir-id^="binding_kpi_"][data-ir-id$="_value"] {
       min-width: 0;
-      overflow: hidden;
-      text-overflow: ellipsis;
       white-space: nowrap;
     }
 
     :is([data-compiled-output], .compare-output) [data-ir-id^="binding_kpi_"][data-ir-id$="_trend_label"] {
       min-width: 0;
+    }
+
+    .preview-frame[data-preview-mode="hero"] .viewport-shell {
+      padding: 0;
+      width: 100%;
+    }
+
+    .preview-frame[data-preview-mode="hero"] [data-ir-id="region_root"] {
+      margin-inline: auto;
+      max-width: 100%;
+    }
+
+    .preview-frame[data-preview-mode="hero"] [data-ir-id="motif_kpis"] {
+      gap: clamp(10px, 1.8vw, 16px) !important;
+    }
+
+    .preview-frame[data-preview-mode="hero"] [data-ir-id^="motif_kpis_kpi"] {
+      min-height: 126px !important;
+      padding: 16px !important;
+    }
+
+    .preview-frame[data-preview-mode="hero"] [data-ir-id^="binding_kpi_"][data-ir-id$="_label"] {
+      font-size: 0.72rem !important;
+      line-height: 1.12 !important;
+    }
+
+    .preview-frame[data-preview-mode="hero"] [data-ir-id^="binding_kpi_"][data-ir-id$="_value"] {
+      font-size: clamp(1.5rem, 3.1vw, 1.9rem) !important;
+    }
+
+    .preview-frame[data-preview-mode="hero"] [data-ir-id^="binding_kpi_"][data-ir-id$="_trend_label"] {
+      font-size: 0.68rem !important;
+      padding: 6px 9px !important;
+      white-space: nowrap;
     }
 
     .provenance-active {
@@ -924,7 +943,25 @@
       }
 
       .preview-frame[data-preview-mode="hero"] {
-        min-height: 22rem;
+        min-height: 23rem;
+      }
+
+      .preview-frame[data-preview-mode="hero"] [data-ir-id="region_root"] {
+        padding: 14px !important;
+      }
+
+      .preview-frame[data-preview-mode="hero"] [data-ir-id="motif_kpis"] {
+        gap: 10px !important;
+        grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+      }
+
+      .preview-frame[data-preview-mode="hero"] [data-ir-id^="motif_kpis_kpi"] {
+        padding: 14px !important;
+      }
+
+      .preview-frame[data-preview-mode="hero"] [data-ir-id^="binding_kpi_"][data-ir-id$="_trend_label"] {
+        font-size: 0.62rem !important;
+        padding: 5px 6px !important;
       }
     }
   </style>
@@ -946,10 +983,7 @@
     <section class="page-shell hero" id="top">
       <div class="hero-copy">
         <p class="eyebrow">Hosted compiler preview</p>
-        <h1 class="sr-only">ViewSpec</h1>
-        <div class="pretext-canvas-wrap canvas-title">
-          <canvas data-pretext-canvas data-text="ViewSpec" data-size="76" data-weight="950" data-line-height="82" class="text-white" role="img" aria-label="ViewSpec">ViewSpec</canvas>
-        </div>
+        <h1>ViewSpec</h1>
         <p class="hero-subtitle">Universal UI from semantic data. Every pixel has a birth certificate.</p>
         <p class="hero-body">The reference compiler builds correct interfaces. The hosted compiler makes the data legible: Level 2 tokens derive emphasis, risk, palette energy, density, and reading path from the data itself.</p>
         <div class="hero-actions">
@@ -991,10 +1025,7 @@
         <div class="section-head">
           <div>
             <p class="section-kicker">Live compilation playground</p>
-            <h2 class="sr-only">Toggle a hint. Compile the view.</h2>
-            <div class="pretext-canvas-wrap section-title-canvas">
-              <canvas data-pretext-canvas data-text="Toggle a hint. Compile the view." data-size="42" data-weight="930" data-line-height="46" class="text-white" role="img" aria-label="Toggle a hint. Compile the view.">Toggle a hint. Compile the view.</canvas>
-            </div>
+            <h2 class="section-title">Toggle a hint. Compile the view.</h2>
           </div>
           <p class="section-copy">Every control builds a new ViewSpec payload. The hosted compiler returns IR, style values, derivation reasons, diagnostics, and timing metadata.</p>
         </div>
@@ -1110,10 +1141,7 @@
         <div class="section-head">
           <div>
             <p class="section-kicker">Same data, different compiler</p>
-            <h2 class="sr-only">Reference output versus hosted derivation.</h2>
-            <div class="pretext-canvas-wrap section-title-canvas">
-              <canvas data-pretext-canvas data-text="Reference output versus hosted derivation." data-size="42" data-weight="930" data-line-height="46" class="text-white" role="img" aria-label="Reference output versus hosted derivation.">Reference output versus hosted derivation.</canvas>
-            </div>
+            <h2 class="section-title">Reference output versus hosted derivation.</h2>
           </div>
           <p class="section-copy">The free compiler preserves structure and provenance. The hosted compiler adds data-aware emphasis, warning, palette, density, and narrative flow.</p>
         </div>
@@ -1141,10 +1169,7 @@
         <div class="section-head">
           <div>
             <p class="section-kicker">Level 2 token gallery</p>
-            <h2 class="sr-only">Data physics made visible.</h2>
-            <div class="pretext-canvas-wrap section-title-canvas">
-              <canvas data-pretext-canvas data-text="Data physics made visible." data-size="42" data-weight="930" data-line-height="46" class="text-white" role="img" aria-label="Data physics made visible.">Data physics made visible.</canvas>
-            </div>
+            <h2 class="section-title">Data physics made visible.</h2>
           </div>
           <p class="section-copy">Each token has a trigger, a target, and a visual effect. Active cards match the current playground compile.</p>
         </div>
@@ -1218,10 +1243,7 @@
         <div class="section-head">
           <div>
             <p class="section-kicker">Existing demos</p>
-            <h2 class="sr-only">The reference compiler still ships free.</h2>
-            <div class="pretext-canvas-wrap section-title-canvas">
-              <canvas data-pretext-canvas data-text="The reference compiler still ships free." data-size="42" data-weight="930" data-line-height="46" class="text-white" role="img" aria-label="The reference compiler still ships free.">The reference compiler still ships free.</canvas>
-            </div>
+            <h2 class="section-title">The reference compiler still ships free.</h2>
           </div>
           <p class="section-copy">These demos remain unchanged and show the local deterministic compiler, provenance inspector, builder, invariants, and style derivation paths.</p>
         </div>
@@ -1265,10 +1287,7 @@
         <div class="section-head">
           <div>
             <p class="section-kicker">Pricing</p>
-            <h2 class="sr-only">Free reference compiler. Hosted compiler when legibility matters.</h2>
-            <div class="pretext-canvas-wrap section-title-canvas">
-              <canvas data-pretext-canvas data-text="Free reference compiler. Hosted compiler when legibility matters." data-size="40" data-weight="930" data-line-height="45" class="text-white" role="img" aria-label="Free reference compiler. Hosted compiler when legibility matters.">Free reference compiler. Hosted compiler when legibility matters.</canvas>
-            </div>
+            <h2 class="section-title">Free reference compiler. Hosted compiler when legibility matters.</h2>
           </div>
           <p class="section-copy">The SDK is free. The hosted compiler adds Level 2 derivation, higher limits, and production API access.</p>
         </div>

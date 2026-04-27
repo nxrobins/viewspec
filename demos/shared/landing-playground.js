@@ -333,15 +333,15 @@ function applyViewportFrame() {
   const profile = computeDashboardProfile(currentHints)
   const heroWidths = {
     mobile: '340px',
-    tablet: '460px',
-    desktop: '560px',
+    tablet: '520px',
+    desktop: '680px',
   }
   document.querySelectorAll('[data-preview-frame]').forEach((frame) => {
     frame.dataset.viewport = currentHints.viewport
     const shell = frame.querySelector('[data-viewport-shell]')
     if (!shell) return
     const compactHero = frame.dataset.previewMode === 'hero'
-    const width = compactHero ? heroWidths[currentHints.viewport] : profile.layout.targetWidth
+    const width = compactHero ? `min(${heroWidths[currentHints.viewport]}, 100%)` : profile.layout.targetWidth
     shell.dataset.viewport = currentHints.viewport
     shell.style.width = width
     shell.style.minWidth = width
