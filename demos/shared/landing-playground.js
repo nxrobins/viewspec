@@ -341,7 +341,8 @@ function applyViewportFrame() {
     const shell = frame.querySelector('[data-viewport-shell]')
     if (!shell) return
     const compactHero = frame.dataset.previewMode === 'hero'
-    const width = compactHero ? `min(${heroWidths[currentHints.viewport]}, 100%)` : profile.layout.targetWidth
+    const targetWidth = compactHero ? heroWidths[currentHints.viewport] : profile.layout.targetWidth
+    const width = `min(${targetWidth}, 100%)`
     shell.dataset.viewport = currentHints.viewport
     shell.style.width = width
     shell.style.minWidth = width
