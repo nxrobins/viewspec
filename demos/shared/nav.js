@@ -10,6 +10,7 @@
     { href: '../invariants/', label: 'Invariants' },
     { href: '../fifteen-lines/', label: '15 Lines' },
     { href: '../style-derivation/', label: 'Styles' },
+    { href: '../#pricing', label: 'Pricing' },
   ]
 
   const current = window.location.pathname

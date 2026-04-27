@@ -3,420 +3,1328 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>ViewSpec — Universal UI from semantic data</title>
+  <title>ViewSpec - Hosted compiler for semantic UI</title>
+  <meta name="description" content="ViewSpec turns semantic data into deterministic UI. Try the hosted compiler live.">
   <link rel="icon" href="data:,">
+  <script>
+    window.tailwind = window.tailwind || {}
+    window.tailwind.config = {
+      theme: {
+        extend: {
+          spacing: {
+            panel: 'var(--space-panel)',
+            card: 'var(--space-card)',
+            control: 'var(--space-control)',
+            section: 'var(--section-y)',
+          },
+        },
+      },
+    }
+  </script>
   <script src="https://cdn.tailwindcss.com"></script>
   <script type="module" src="./shared/pretext-canvas-surfaces.js"></script>
+  <script type="module" src="./shared/landing-playground.js"></script>
   <style>
-    :root { color-scheme: dark; }
+    :root {
+      color-scheme: dark;
+      --bg: #06080b;
+      --panel: #10151d;
+      --panel-2: #151b24;
+      --line: rgba(148, 163, 184, 0.18);
+      --line-strong: rgba(45, 212, 191, 0.36);
+      --text: #f8fafc;
+      --muted: #94a3b8;
+      --teal: #2dd4bf;
+      --amber: #f59e0b;
+      --rose: #fb7185;
+      --blue: #60a5fa;
+      --green: #34d399;
+      --shell: 1360px;
+      --gutter: 24px;
+      --space-1: 4px;
+      --space-2: 8px;
+      --space-3: 12px;
+      --space-4: 16px;
+      --space-5: 24px;
+      --space-6: 32px;
+      --space-7: 48px;
+      --space-8: 64px;
+      --space-panel: var(--space-4);
+      --space-card: var(--space-5);
+      --space-control: var(--space-3);
+      --section-y: clamp(56px, 7vw, 88px);
+      --radius-sm: 6px;
+      --radius-md: 8px;
+      --radius-lg: 12px;
+      --preview-pad: var(--space-5);
+    }
+
+    html {
+      scroll-behavior: smooth;
+    }
 
     body {
-      background: #06080b;
-      color: #f8fafc;
+      background:
+        linear-gradient(90deg, rgba(148, 163, 184, 0.035) 1px, transparent 1px),
+        linear-gradient(0deg, rgba(148, 163, 184, 0.026) 1px, transparent 1px),
+        var(--bg);
+      background-size: 72px 72px;
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
       min-height: 100vh;
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
     }
 
-    /* -- Ambient glow behind hero -- */
-    .hero-glow {
-      position: absolute;
-      top: -160px;
-      left: 50%;
-      transform: translateX(-50%);
-      width: 800px;
-      height: 600px;
-      background: radial-gradient(ellipse at center, rgba(45, 212, 191, 0.08) 0%, rgba(45, 212, 191, 0.03) 40%, transparent 70%);
-      pointer-events: none;
-      z-index: 0;
-    }
-
-    .hero-pretext { margin-left: auto; margin-right: auto; position: relative; z-index: 1; }
-
-    /* -- Grid background -- */
-    .grid-bg {
-      position: fixed;
-      inset: 0;
-      background-image:
-        linear-gradient(rgba(45, 212, 191, 0.03) 1px, transparent 1px),
-        linear-gradient(90deg, rgba(45, 212, 191, 0.03) 1px, transparent 1px);
-      background-size: 64px 64px;
-      pointer-events: none;
-      z-index: 0;
-      mask-image: radial-gradient(ellipse at 50% 30%, black 20%, transparent 70%);
-      -webkit-mask-image: radial-gradient(ellipse at 50% 30%, black 20%, transparent 70%);
-    }
-
-    /* -- Compiled sections -- */
-    .compiled-section {
-      background: rgba(15, 23, 42, 0.6);
-      border: 1px solid rgba(45, 212, 191, 0.12);
-      border-radius: 1rem;
-      padding: 1.5rem;
-      color: #e2e8f0;
-      backdrop-filter: blur(12px);
-      -webkit-backdrop-filter: blur(12px);
-    }
-
-    .compiled-section .section-label {
-      font-size: 0.6rem;
-      font-weight: 700;
-      color: rgba(45, 212, 191, 0.7);
-      letter-spacing: 0.14em;
-      text-transform: uppercase;
-      margin-bottom: 0.75rem;
-      font-family: 'SF Mono', 'Cascadia Code', monospace;
-    }
-
-    /* Feature cards */
-    .feature-card {
-      background: rgba(15, 23, 42, 0.5);
-      border: 1px solid rgba(45, 212, 191, 0.1);
-      border-radius: 0.75rem;
-      padding: 1.5rem;
-      transition: border-color 300ms ease, box-shadow 300ms ease;
-    }
-    .feature-card:hover {
-      border-color: rgba(45, 212, 191, 0.3);
-      box-shadow: 0 0 30px rgba(45, 212, 191, 0.06);
-    }
-    .feature-card .feat-label {
-      font-size: 0.65rem;
-      font-weight: 700;
-      text-transform: uppercase;
-      letter-spacing: 0.12em;
-      color: #2dd4bf;
-      margin-bottom: 0.5rem;
-    }
-    .feature-card .feat-value {
-      font-size: 0.9rem;
-      color: #cbd5e1;
-      line-height: 1.6;
-    }
-
-    /* Demo cards */
-    .demo-card {
-      display: block;
-      text-decoration: none;
+    a {
       color: inherit;
-      background: rgba(15, 23, 42, 0.4);
-      border: 1px solid rgba(148, 163, 184, 0.08);
-      border-radius: 0.75rem;
-      padding: 1.25rem 1.5rem;
-      transition: border-color 250ms ease, background 250ms ease, transform 250ms ease;
     }
-    .demo-card:hover {
-      border-color: rgba(45, 212, 191, 0.25);
-      background: rgba(15, 23, 42, 0.6);
+
+    .page-shell {
+      width: min(var(--shell), calc(100% - (var(--gutter) * 2)));
+      margin: 0 auto;
+    }
+
+    .top-nav {
+      align-items: center;
+      background: rgba(6, 8, 11, 0.86);
+      border-bottom: 1px solid rgba(148, 163, 184, 0.14);
+      backdrop-filter: blur(14px);
+      -webkit-backdrop-filter: blur(14px);
+      display: flex;
+      gap: var(--space-4);
+      justify-content: space-between;
+      left: 0;
+      padding: var(--space-3) max(var(--gutter), calc((100vw - var(--shell)) / 2));
+      position: fixed;
+      right: 0;
+      top: 0;
+      z-index: 50;
+    }
+
+    .brand-link {
+      color: var(--teal);
+      font-size: 0.95rem;
+      font-weight: 900;
+      letter-spacing: 0;
+      text-decoration: none;
+    }
+
+    .nav-links {
+      align-items: center;
+      display: flex;
+      flex-wrap: wrap;
+      gap: var(--space-1);
+      justify-content: flex-end;
+    }
+
+    .nav-links a,
+    .nav-install {
+      border: 1px solid transparent;
+      border-radius: var(--radius-sm);
+      color: #cbd5e1;
+      font-size: 0.78rem;
+      font-weight: 700;
+      padding: var(--space-2) var(--space-3);
+      text-decoration: none;
+    }
+
+    .nav-links a:hover {
+      background: rgba(148, 163, 184, 0.08);
+      color: #fff;
+    }
+
+    .nav-install {
+      border-color: rgba(45, 212, 191, 0.24);
+      color: var(--teal);
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    }
+
+    .hero {
+      display: grid;
+      gap: var(--space-7);
+      grid-template-columns: minmax(0, 0.86fr) minmax(420px, 1.14fr);
+      min-height: calc(100vh - 4rem);
+      padding: calc(72px + var(--space-7)) 0 var(--space-7);
+      align-items: center;
+    }
+
+    .eyebrow {
+      color: var(--teal);
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 0.74rem;
+      font-weight: 800;
+      letter-spacing: 0.12em;
+      margin-bottom: var(--space-4);
+      text-transform: uppercase;
+    }
+
+    .hero-copy {
+      max-width: 36rem;
+    }
+
+    .hero-copy h1 {
+      font-size: clamp(3rem, 8vw, 5.6rem);
+      font-weight: 950;
+      letter-spacing: 0;
+      line-height: 0.96;
+      margin: 0;
+    }
+
+    .canvas-title {
+      max-width: 36rem;
+    }
+
+    .pretext-canvas-wrap {
+      max-width: 100%;
+      overflow: hidden;
+    }
+
+    .pretext-canvas-wrap canvas {
+      display: block;
+      height: auto;
+      max-width: 100%;
+    }
+
+    .hero-subtitle {
+      color: #dbeafe;
+      font-size: clamp(1.15rem, 2.5vw, 1.58rem);
+      font-weight: 760;
+      line-height: 1.24;
+      margin-top: var(--space-4);
+    }
+
+    .hero-body {
+      color: var(--muted);
+      font-size: 1rem;
+      line-height: 1.75;
+      margin-top: var(--space-4);
+      max-width: 34rem;
+    }
+
+    .hero-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: var(--space-3);
+      margin-top: var(--space-5);
+    }
+
+    .button-primary,
+    .button-secondary {
+      align-items: center;
+      border-radius: var(--radius-sm);
+      display: inline-flex;
+      font-weight: 850;
+      justify-content: center;
+      min-height: 2.8rem;
+      padding: var(--space-3) var(--space-4);
+      text-decoration: none;
+    }
+
+    .button-primary {
+      background: #f8fafc;
+      color: #020617;
+    }
+
+    .button-primary:hover {
+      background: #dffdf8;
+    }
+
+    .button-secondary {
+      border: 1px solid rgba(148, 163, 184, 0.24);
+      color: #e2e8f0;
+    }
+
+    .button-secondary:hover {
+      border-color: rgba(45, 212, 191, 0.42);
+      color: #fff;
+    }
+
+    .pip-pill {
+      align-items: center;
+      background: rgba(45, 212, 191, 0.08);
+      border: 1px solid rgba(45, 212, 191, 0.24);
+      border-radius: var(--radius-sm);
+      color: var(--teal);
+      display: inline-flex;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 0.9rem;
+      min-height: 2.8rem;
+      padding: var(--space-3) var(--space-4);
+      user-select: all;
+    }
+
+    .hero-proof {
+      display: grid;
+      gap: var(--space-3);
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      margin-top: var(--space-5);
+    }
+
+    .proof-item {
+      background: rgba(16, 21, 29, 0.84);
+      border: 1px solid rgba(148, 163, 184, 0.16);
+      border-radius: var(--radius-sm);
+      padding: var(--space-3);
+    }
+
+    .proof-label {
+      color: var(--muted);
+      display: block;
+      font-size: 0.7rem;
+      font-weight: 800;
+      text-transform: uppercase;
+    }
+
+    .proof-value {
+      color: #fff;
+      display: block;
+      font-size: 1.1rem;
+      font-weight: 920;
+      margin-top: var(--space-1);
+    }
+
+    .section {
+      border-top: 1px solid rgba(148, 163, 184, 0.14);
+      padding: var(--section-y) 0;
+    }
+
+    .section-head {
+      align-items: end;
+      display: grid;
+      gap: var(--space-5);
+      grid-template-columns: minmax(0, 1fr) minmax(18rem, 0.55fr);
+      margin-bottom: var(--space-5);
+    }
+
+    .section-kicker {
+      color: var(--teal);
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 0.72rem;
+      font-weight: 850;
+      letter-spacing: 0.12em;
+      margin-bottom: var(--space-3);
+      text-transform: uppercase;
+    }
+
+    .section-title {
+      font-size: clamp(2rem, 5vw, 3.25rem);
+      font-weight: 930;
+      letter-spacing: 0;
+      line-height: 1;
+      margin: 0;
+    }
+
+    .section-title-canvas {
+      max-width: 48rem;
+    }
+
+    .section-copy,
+    .muted-copy {
+      color: var(--muted);
+      font-size: 0.95rem;
+      line-height: 1.65;
+    }
+
+    .panel {
+      background: rgba(16, 21, 29, 0.92);
+      border: 1px solid rgba(148, 163, 184, 0.18);
+      border-radius: var(--radius-md);
+      overflow: hidden;
+    }
+
+    .panel-header {
+      align-items: center;
+      border-bottom: 1px solid rgba(148, 163, 184, 0.14);
+      display: flex;
+      justify-content: space-between;
+      gap: var(--space-3);
+      padding: var(--space-3) var(--space-4);
+    }
+
+    .panel-title {
+      color: #e2e8f0;
+      font-size: 0.82rem;
+      font-weight: 850;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+    }
+
+    .panel-body {
+      padding: var(--space-panel);
+    }
+
+    .status-pill {
+      border: 1px solid rgba(148, 163, 184, 0.22);
+      border-radius: 999px;
+      color: #cbd5e1;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 0.7rem;
+      font-weight: 800;
+      padding: var(--space-1) var(--space-2);
+      white-space: nowrap;
+    }
+
+    .status-pill[data-state="live"] {
+      border-color: rgba(52, 211, 153, 0.42);
+      color: var(--green);
+    }
+
+    .status-pill[data-state="static"] {
+      border-color: rgba(245, 158, 11, 0.42);
+      color: var(--amber);
+    }
+
+    .status-pill[data-state="loading"] {
+      border-color: rgba(96, 165, 250, 0.42);
+      color: var(--blue);
+    }
+
+    .playground {
+      display: grid;
+      gap: var(--space-4);
+      grid-template-areas:
+        "controls"
+        "preview"
+        "inspectors";
+      grid-template-columns: 1fr;
+      align-items: start;
+    }
+
+    .controls {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: var(--space-control);
+    }
+
+    .control-group {
+      display: grid;
+      gap: var(--space-2);
+    }
+
+    .control-label {
+      color: #cbd5e1;
+      font-size: 0.78rem;
+      font-weight: 850;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+    }
+
+    .segmented {
+      background: rgba(6, 8, 11, 0.66);
+      border: 1px solid rgba(148, 163, 184, 0.16);
+      border-radius: var(--radius-md);
+      display: grid;
+      gap: var(--space-1);
+      padding: var(--space-1);
+    }
+
+    .segmented.two {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .segmented.three {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+
+    .segmented button {
+      border: 1px solid transparent;
+      border-radius: var(--radius-sm);
+      color: #94a3b8;
+      cursor: pointer;
+      font-size: 0.78rem;
+      font-weight: 800;
+      min-height: 2.25rem;
+      padding: var(--space-2) var(--space-2);
+      transition: background 160ms ease, border-color 160ms ease, color 160ms ease;
+    }
+
+    .segmented button[data-active="true"] {
+      background: #e2e8f0;
+      border-color: rgba(45, 212, 191, 0.36);
+      color: #020617;
+    }
+
+    .segmented button:hover {
+      border-color: rgba(148, 163, 184, 0.34);
+      color: #f8fafc;
+    }
+
+    .segmented button[data-active="true"]:hover {
+      color: #020617;
+    }
+
+    .hint-summary {
+      background: rgba(45, 212, 191, 0.08);
+      border: 1px solid rgba(45, 212, 191, 0.18);
+      border-radius: var(--radius-sm);
+      color: #bff7ef;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 0.72rem;
+      font-weight: 760;
+      line-height: 1.45;
+      padding: var(--space-3);
+      grid-column: span 2;
+    }
+
+    .compile-stats {
+      display: grid;
+      gap: var(--space-2);
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      margin-top: var(--space-1);
+      grid-column: span 2;
+    }
+
+    .stat-cell {
+      background: rgba(6, 8, 11, 0.48);
+      border: 1px solid rgba(148, 163, 184, 0.14);
+      border-radius: var(--radius-sm);
+      padding: var(--space-2);
+    }
+
+    .stat-cell span {
+      color: var(--muted);
+      display: block;
+      font-size: 0.68rem;
+      font-weight: 800;
+      text-transform: uppercase;
+    }
+
+    .stat-cell strong {
+      color: #fff;
+      display: block;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 0.9rem;
+      margin-top: 0.2rem;
+    }
+
+    .preview-shell {
+      display: grid;
+      grid-template-rows: auto 1fr;
+      min-height: 38rem;
+    }
+
+    .playground .preview-shell {
+      grid-area: preview;
+    }
+
+    .playground > aside.panel:first-child {
+      grid-area: controls;
+    }
+
+    .preview-frame {
+      background: #0b1118;
+      border: 1px solid rgba(148, 163, 184, 0.18);
+      border-radius: var(--radius-md);
+      min-height: 34rem;
+      overflow-x: auto;
+      overflow-y: auto;
+      padding: var(--preview-pad);
+      scroll-padding: var(--preview-pad);
+      transition: all 240ms ease;
+    }
+
+    .preview-frame[data-preview-mode="hero"] {
+      min-height: 26rem;
+      padding: var(--space-3);
+    }
+
+    .viewport-shell {
+      box-sizing: border-box;
+      margin-inline: auto;
+      padding: var(--space-3);
+      transition: width 240ms ease, min-width 240ms ease;
+    }
+
+    .preview-inner {
+      width: 100%;
+      transition: width 240ms ease;
+    }
+
+    :is([data-compiled-output], .compare-output) [data-ir-id="region_root"] {
+      box-sizing: border-box;
+    }
+
+    :is([data-compiled-output], .compare-output) [data-ir-id="region_main"] {
+      gap: 0;
+    }
+
+    :is([data-compiled-output], .compare-output) [data-ir-id="motif_kpis"] {
+      align-items: stretch;
+      gap: var(--kpi-grid-gap, 16px);
+    }
+
+    :is([data-compiled-output], .compare-output) [data-ir-id^="motif_kpis_kpi"] {
+      box-sizing: border-box;
+      min-width: 0;
+    }
+
+    :is([data-compiled-output], .compare-output) [data-ir-id^="binding_kpi_"][data-ir-id$="_label"] {
+      min-width: 0;
+    }
+
+    :is([data-compiled-output], .compare-output) [data-ir-id^="binding_kpi_"][data-ir-id$="_value"] {
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    :is([data-compiled-output], .compare-output) [data-ir-id^="binding_kpi_"][data-ir-id$="_trend_label"] {
+      min-width: 0;
+    }
+
+    .provenance-active {
+      outline: 3px solid rgba(96, 165, 250, 0.82);
+      outline-offset: 3px;
+    }
+
+    .inspector-column {
+      display: grid;
+      gap: var(--space-4);
+      grid-area: inspectors;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      grid-template-rows: auto auto;
+    }
+
+    .token-list {
+      display: grid;
+      gap: var(--space-2);
+      max-height: 21rem;
+      overflow: auto;
+      padding-right: var(--space-1);
+    }
+
+    .token-row {
+      background: rgba(6, 8, 11, 0.5);
+      border: 1px solid rgba(148, 163, 184, 0.16);
+      border-radius: var(--radius-sm);
+      color: inherit;
+      display: grid;
+      gap: var(--space-1);
+      padding: var(--space-3);
+      text-align: left;
+      width: 100%;
+    }
+
+    .token-row:hover {
+      border-color: rgba(96, 165, 250, 0.46);
+    }
+
+    .token-row-title {
+      color: #fff;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 0.75rem;
+      font-weight: 850;
+    }
+
+    .token-row-trigger {
+      color: var(--teal);
+      font-size: 0.72rem;
+      font-weight: 760;
+    }
+
+    .token-row-reason {
+      color: var(--muted);
+      font-size: 0.72rem;
+      line-height: 1.45;
+    }
+
+    .api-grid {
+      display: grid;
+      gap: var(--space-4);
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      margin-top: var(--space-4);
+    }
+
+    .code-block {
+      background: #06080b;
+      border: 1px solid rgba(148, 163, 184, 0.14);
+      border-radius: var(--radius-sm);
+      color: #dbeafe;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 0.72rem;
+      line-height: 1.52;
+      max-height: 22rem;
+      overflow: auto;
+      padding: var(--space-3);
+      white-space: pre;
+    }
+
+    .before-after-grid {
+      display: grid;
+      gap: var(--space-4);
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .compare-label {
+      align-items: center;
+      display: flex;
+      gap: var(--space-2);
+    }
+
+    .compare-badge {
+      border-radius: 999px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 0.68rem;
+      font-weight: 850;
+      padding: var(--space-1) var(--space-2);
+    }
+
+    .compare-badge.free {
+      background: rgba(148, 163, 184, 0.12);
+      color: #cbd5e1;
+    }
+
+    .compare-badge.pro {
+      background: rgba(45, 212, 191, 0.14);
+      color: var(--teal);
+    }
+
+    .compare-output {
+      background: #0b1118;
+      border-radius: 0 0 var(--radius-md) var(--radius-md);
+      overflow-x: auto;
+      padding: var(--space-4);
+    }
+
+    .token-gallery {
+      display: grid;
+      gap: var(--space-3);
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+    }
+
+    .token-card {
+      background: rgba(16, 21, 29, 0.92);
+      border: 1px solid rgba(148, 163, 184, 0.16);
+      border-radius: var(--radius-md);
+      color: inherit;
+      cursor: pointer;
+      min-height: 10rem;
+      padding: var(--space-4);
+      text-align: left;
+      transition: border-color 180ms ease, transform 180ms ease;
+    }
+
+    .token-card[data-active="true"] {
+      border-color: rgba(45, 212, 191, 0.56);
+      box-shadow: inset 0 0 0 1px rgba(45, 212, 191, 0.22);
+    }
+
+    .token-card:hover {
+      border-color: rgba(96, 165, 250, 0.5);
       transform: translateY(-1px);
     }
-    .demo-card .demo-num {
-      font-size: 0.6rem;
-      font-weight: 700;
-      text-transform: uppercase;
-      letter-spacing: 0.12em;
-      color: rgba(45, 212, 191, 0.6);
-      margin-bottom: 0.35rem;
-      font-family: 'SF Mono', 'Cascadia Code', monospace;
-    }
-    .demo-card .demo-title {
-      font-size: 1.05rem;
-      font-weight: 700;
-      color: #f1f5f9;
-      margin-bottom: 0.3rem;
-    }
-    .demo-card .demo-desc {
+
+    .token-name {
+      color: #fff;
+      display: block;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
       font-size: 0.8rem;
-      color: #94a3b8;
-      line-height: 1.5;
+      font-weight: 900;
+      margin-bottom: var(--space-2);
     }
 
-    /* Pipeline */
-    .pipeline-step { text-align: center; padding: 1.25rem; }
-    .pipeline-step .step-label {
-      font-size: 0.7rem;
-      font-weight: 700;
-      color: #2dd4bf;
-      text-transform: uppercase;
-      letter-spacing: 0.1em;
-      margin-bottom: 0.5rem;
-    }
-    .pipeline-step .step-value {
-      font-size: 0.85rem;
-      color: #94a3b8;
-      line-height: 1.6;
-    }
-    .pipeline-arrow {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      color: rgba(45, 212, 191, 0.3);
-      font-size: 1.5rem;
+    .token-card span:not(.token-name) {
+      color: var(--muted);
+      display: block;
+      font-size: 0.76rem;
+      line-height: 1.45;
+      margin-top: var(--space-2);
     }
 
-    /* Code block */
-    .hero-code {
-      background: rgba(15, 23, 42, 0.7);
-      border: 1px solid rgba(45, 212, 191, 0.1);
-      border-radius: 0.75rem;
-      padding: 1.75rem 2rem;
-      font-family: 'SF Mono', 'Cascadia Code', 'Fira Code', monospace;
-      font-size: 0.78rem;
-      line-height: 1.75;
-      overflow-x: auto;
-      max-width: 560px;
-      position: relative;
-      backdrop-filter: blur(8px);
-      -webkit-backdrop-filter: blur(8px);
-    }
-    .hero-code::before {
-      content: '';
-      position: absolute;
-      top: -1px;
-      left: 2rem;
-      right: 2rem;
-      height: 1px;
-      background: linear-gradient(to right, transparent, rgba(45, 212, 191, 0.3), transparent);
-    }
-    .hero-code .kw { color: #7dd3fc; }
-    .hero-code .fn { color: #2dd4bf; }
-    .hero-code .str { color: #86efac; }
-    .hero-code .comment { color: #475569; }
-    .hero-code .var { color: #f8fafc; }
-
-    /* Pip install */
-    .pip {
-      display: inline-block;
-      background: rgba(45, 212, 191, 0.08);
-      border: 1px solid rgba(45, 212, 191, 0.2);
-      border-radius: 999px;
-      padding: 0.6rem 1.5rem;
-      font-family: 'SF Mono', 'Cascadia Code', monospace;
-      font-size: 0.875rem;
-      color: #2dd4bf;
-      letter-spacing: 0.02em;
-      user-select: all;
-      cursor: pointer;
-      transition: all 250ms ease;
-    }
-    .pip:hover {
-      background: rgba(45, 212, 191, 0.15);
-      box-shadow: 0 0 20px rgba(45, 212, 191, 0.1);
+    .demo-grid,
+    .pricing-grid {
+      display: grid;
+      gap: var(--space-4);
+      grid-template-columns: repeat(3, minmax(0, 1fr));
     }
 
-    /* Invariant badges */
-    .invariant-badge {
-      display: inline-flex;
-      align-items: center;
-      gap: 0.4rem;
-      font-size: 0.75rem;
-      font-weight: 600;
-      color: #2dd4bf;
-      background: rgba(45, 212, 191, 0.06);
-      border: 1px solid rgba(45, 212, 191, 0.15);
-      border-radius: 999px;
-      padding: 0.35rem 0.85rem;
-    }
-
-    .separator {
-      height: 1px;
-      background: linear-gradient(to right, transparent, rgba(45, 212, 191, 0.1), transparent);
-      margin: 4rem 0;
-    }
-
-    .dogfood-badge {
-      font-size: 0.75rem;
-      color: #2dd4bf;
-      font-family: 'SF Mono', 'Cascadia Code', monospace;
-      text-align: center;
-      margin-top: 1rem;
-      text-shadow: 0 0 12px rgba(45, 212, 191, 0.4), 0 0 30px rgba(45, 212, 191, 0.15);
-    }
-    .dogfood-badge a {
-      color: #5eead4;
+    .demo-card,
+    .pricing-card {
+      background: rgba(16, 21, 29, 0.9);
+      border: 1px solid rgba(148, 163, 184, 0.16);
+      border-radius: var(--radius-md);
+      display: grid;
+      gap: var(--space-3);
+      padding: var(--space-card);
       text-decoration: none;
-      border-bottom: 1px solid rgba(94, 234, 212, 0.3);
-      padding-bottom: 1px;
-      transition: all 200ms ease;
-    }
-    .dogfood-badge a:hover {
-      color: #99f6e4;
-      border-bottom-color: rgba(153, 246, 228, 0.6);
-      text-shadow: 0 0 8px rgba(45, 212, 191, 0.5);
     }
 
-    .pretext-badge {
-      font-size: 0.6rem;
-      color: #334155;
-      margin-top: 0.75rem;
-      text-align: center;
+    .demo-card:hover,
+    .pricing-card.featured {
+      border-color: rgba(45, 212, 191, 0.44);
     }
-    .pretext-badge a { color: #475569; text-decoration: none; }
-    .pretext-badge a:hover { color: #94a3b8; }
 
-    footer a { color: #2dd4bf; text-decoration: none; }
-    footer a:hover { text-decoration: underline; }
+    .demo-num {
+      color: var(--teal);
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 0.7rem;
+      font-weight: 850;
+    }
+
+    .demo-title,
+    .pricing-name {
+      color: #fff;
+      font-size: 1rem;
+      font-weight: 900;
+    }
+
+    .demo-desc,
+    .pricing-detail {
+      color: var(--muted);
+      font-size: 0.84rem;
+      line-height: 1.55;
+    }
+
+    .price {
+      color: #fff;
+      font-size: 2rem;
+      font-weight: 950;
+      letter-spacing: 0;
+    }
+
+    .pricing-list {
+      color: #cbd5e1;
+      display: grid;
+      font-size: 0.85rem;
+      gap: var(--space-2);
+      line-height: 1.4;
+      list-style: none;
+      margin: 0;
+      padding: 0;
+    }
+
+    .pricing-list li::before {
+      color: var(--teal);
+      content: "+";
+      font-weight: 900;
+      margin-right: var(--space-2);
+    }
+
+    .pricing-card .button-primary,
+    .pricing-card .button-secondary {
+      margin-top: var(--space-2);
+      width: 100%;
+    }
+
+    #provenance-details pre {
+      color: #dbeafe;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 0.7rem;
+      line-height: 1.5;
+      max-height: 12rem;
+      overflow: auto;
+      white-space: pre-wrap;
+    }
+
+    footer {
+      border-top: 1px solid rgba(148, 163, 184, 0.14);
+      color: var(--muted);
+      font-size: 0.84rem;
+      padding: var(--space-6) 0 var(--space-7);
+    }
+
+    footer .page-shell {
+      align-items: center;
+      display: flex;
+      flex-wrap: wrap;
+      gap: var(--space-3);
+      justify-content: space-between;
+    }
+
+    footer a {
+      color: #cbd5e1;
+      text-decoration: none;
+    }
+
+    footer a:hover {
+      color: #fff;
+    }
+
+    @media (max-width: 1080px) {
+      :root {
+        --gutter: 20px;
+        --preview-pad: var(--space-4);
+      }
+
+      .hero,
+      .section-head,
+      .before-after-grid,
+      .api-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .playground {
+        grid-template-columns: 1fr;
+      }
+
+      .controls {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      .inspector-column {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        grid-template-rows: auto;
+      }
+
+      .token-gallery,
+      .demo-grid,
+      .pricing-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+    }
+
+    @media (max-width: 700px) {
+      :root {
+        --gutter: 16px;
+        --space-panel: var(--space-3);
+        --space-card: var(--space-4);
+        --preview-pad: var(--space-3);
+        --section-y: 48px;
+      }
+
+      .top-nav {
+        align-items: flex-start;
+        flex-direction: column;
+        padding: var(--space-3) var(--gutter);
+      }
+
+      .nav-links {
+        justify-content: flex-start;
+      }
+
+      .hero {
+        padding-top: calc(72px + var(--space-8));
+        grid-template-columns: 1fr;
+      }
+
+      .hero-proof,
+      .compile-stats,
+      .inspector-column,
+      .token-gallery,
+      .demo-grid,
+      .pricing-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .controls {
+        grid-template-columns: 1fr;
+      }
+
+      .hint-summary,
+      .compile-stats {
+        grid-column: auto;
+      }
+
+      .segmented.three {
+        grid-template-columns: 1fr;
+      }
+
+      .preview-frame {
+        min-height: 24rem;
+      }
+
+      .preview-frame[data-preview-mode="hero"] {
+        min-height: 22rem;
+      }
+    }
   </style>
 </head>
 <body>
-
-  <div class="grid-bg"></div>
-
-  <!-- ============================================================ -->
-  <!-- HERO                                                         -->
-  <!-- ============================================================ -->
-  <div class="relative max-w-4xl mx-auto px-6 pt-24 pb-6">
-    <div class="hero-glow"></div>
-    <div class="text-center mb-10">
-      <h1 class="sr-only">ViewSpec</h1>
-      <div class="pretext-canvas-wrap hero-pretext">
-        <canvas data-pretext-canvas data-text="ViewSpec" data-size="72" data-weight="900" data-line-height="80" data-align="center" class="text-white" role="img" aria-label="ViewSpec">ViewSpec</canvas>
-      </div>
-      <div class="pretext-canvas-wrap hero-pretext mt-5 max-w-2xl">
-        <canvas data-pretext-canvas data-text="Universal UI from semantic data." data-size="20" data-weight="400" data-line-height="30" data-align="center" class="text-slate-400" role="img" aria-label="Universal UI from semantic data.">Universal UI from semantic data.</canvas>
-      </div>
-      <div class="pretext-canvas-wrap hero-pretext mt-4 max-w-lg">
-        <canvas data-pretext-canvas data-text="Describe what your data means. The compiler figures out how it looks. Every pixel has a birth certificate." data-size="15" data-weight="400" data-line-height="24" data-align="center" class="text-slate-500" role="img" aria-label="Describe what your data means. The compiler figures out how it looks. Every pixel has a birth certificate.">Describe what your data means. The compiler figures out how it looks. Every pixel has a birth certificate.</canvas>
-      </div>
-      <p class="pretext-badge">Text rendered with <a href="https://github.com/chenglou/pretext" target="_blank">Pretext</a> canvas surfaces</p>
+  <nav class="top-nav" aria-label="Main navigation">
+    <a class="brand-link" href="./">ViewSpec</a>
+    <div class="nav-links">
+      <a href="#playground">Playground</a>
+      <a href="#tokens">Tokens</a>
+      <a href="#demos">Demos</a>
+      <a href="#pricing">Pricing</a>
+      <a href="https://github.com/nxrobins/viewspec">GitHub</a>
+      <span class="nav-install">pip install viewspec</span>
     </div>
+  </nav>
 
-    <div class="text-center mb-12">
-      <span class="pip" title="Click to copy" onclick="navigator.clipboard.writeText('pip install viewspec')">pip install viewspec</span>
-    </div>
-
-    <!-- Code example -->
-    <div class="flex justify-center mb-8">
-      <div class="hero-code text-left">
-        <span class="kw">from</span> <span class="var">viewspec</span> <span class="kw">import</span> <span class="fn">ViewSpecBuilder</span>, <span class="fn">compile</span><br>
-        <span class="kw">from</span> <span class="var">viewspec.emitters.html_tailwind</span> <span class="kw">import</span> <span class="fn">HtmlTailwindEmitter</span><br>
-        <br>
-        <span class="var">builder</span> = <span class="fn">ViewSpecBuilder</span>(<span class="str">"invoice"</span>)<br>
-        <span class="var">table</span> = <span class="var">builder</span>.<span class="fn">add_table</span>(<span class="str">"items"</span>, <span class="var">region</span>=<span class="str">"main"</span>)<br>
-        <span class="var">table</span>.<span class="fn">add_row</span>(<span class="var">label</span>=<span class="str">"Design System Audit"</span>, <span class="var">value</span>=<span class="str">"$4,200"</span>)<br>
-        <span class="var">table</span>.<span class="fn">add_row</span>(<span class="var">label</span>=<span class="str">"Component Library"</span>, <span class="var">value</span>=<span class="str">"$8,500"</span>)<br>
-        <span class="var">table</span>.<span class="fn">add_row</span>(<span class="var">label</span>=<span class="str">"API Integration"</span>, <span class="var">value</span>=<span class="str">"$3,100"</span>)<br>
-        <br>
-        <span class="var">ast</span> = <span class="fn">compile</span>(<span class="var">builder</span>.<span class="fn">build_bundle</span>())<br>
-        <span class="fn">HtmlTailwindEmitter</span>().<span class="fn">emit</span>(<span class="var">ast</span>, <span class="str">"output/"</span>)<br>
-        <br>
-        <span class="comment"># That's it. Full UI. Full provenance. No CSS.</span>
-      </div>
-    </div>
-
-    <div class="flex flex-wrap justify-center gap-3 mb-4">
-      <span class="invariant-badge">✓ Exactly-once provenance</span>
-      <span class="invariant-badge">✓ Semantic grouping</span>
-      <span class="invariant-badge">✓ Strict ordering</span>
-    </div>
-  </div>
-
-  <div class="separator"></div>
-
-  <!-- ============================================================ -->
-  <!-- FEATURES — compiled by ViewSpec (dashboard motif)            -->
-  <!-- ============================================================ -->
-  <div class="max-w-4xl mx-auto px-6 pb-4">
-    <div class="compiled-section">
-      <p class="section-label">⬡ Compiled by ViewSpec — dashboard motif</p>
-      <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div class="feature-card" data-ir-id="motif_hero_features_hero_features_card_1">
-          <div class="feat-label">Compilation</div>
-          <div class="feat-value">3ms deterministic — no LLM, no GPU</div>
+  <main>
+    <section class="page-shell hero" id="top">
+      <div class="hero-copy">
+        <p class="eyebrow">Hosted compiler preview</p>
+        <h1 class="sr-only">ViewSpec</h1>
+        <div class="pretext-canvas-wrap canvas-title">
+          <canvas data-pretext-canvas data-text="ViewSpec" data-size="76" data-weight="950" data-line-height="82" class="text-white" role="img" aria-label="ViewSpec">ViewSpec</canvas>
         </div>
-        <div class="feature-card" data-ir-id="motif_hero_features_hero_features_card_2">
-          <div class="feat-label">Provenance</div>
-          <div class="feat-value">Every pixel traces to its source data</div>
+        <p class="hero-subtitle">Universal UI from semantic data. Every pixel has a birth certificate.</p>
+        <p class="hero-body">The reference compiler builds correct interfaces. The hosted compiler makes the data legible: Level 2 tokens derive emphasis, risk, palette energy, density, and reading path from the data itself.</p>
+        <div class="hero-actions">
+          <a class="button-primary" href="#playground">Try the compiler</a>
+          <a class="button-secondary" data-config-link="signup" href="#pricing">Get API Key</a>
+          <span class="pip-pill">pip install viewspec</span>
         </div>
-        <div class="feature-card" data-ir-id="motif_hero_features_hero_features_card_3">
-          <div class="feat-label">Invariants</div>
-          <div class="feat-value">Exactly-once · Semantic grouping · Strict order</div>
+        <div class="hero-proof" aria-label="Compiler guarantees">
+          <div class="proof-item">
+            <span class="proof-label">Runtime</span>
+            <strong class="proof-value">3ms</strong>
+          </div>
+          <div class="proof-item">
+            <span class="proof-label">Runtime LLM</span>
+            <strong class="proof-value">zero</strong>
+          </div>
+          <div class="proof-item">
+            <span class="proof-label">Provenance</span>
+            <strong class="proof-value">exact</strong>
+          </div>
         </div>
       </div>
-      <p class="dogfood-badge">This section is ViewSpec compiler output. <a href="./landing-compiled/">View raw →</a></p>
-    </div>
-  </div>
 
-  <div class="separator"></div>
-
-  <!-- ============================================================ -->
-  <!-- DEMOS                                                        -->
-  <!-- ============================================================ -->
-  <div class="max-w-4xl mx-auto px-6 py-4">
-    <div class="text-center mb-8">
-      <div class="pretext-canvas-wrap hero-pretext max-w-md">
-        <canvas data-pretext-canvas data-text="See it work." data-size="28" data-weight="700" data-line-height="34" data-align="center" class="text-white" role="img" aria-label="See it work.">See it work.</canvas>
-      </div>
-    </div>
-    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-      <a href="./motif-switcher/" class="demo-card">
-        <div class="demo-num">01</div>
-        <div class="demo-title">Same Data, Three Motifs</div>
-        <div class="demo-desc">One dataset, three visual structures. Change one parameter.</div>
-      </a>
-      <a href="./provenance-inspector/" class="demo-card">
-        <div class="demo-num">02</div>
-        <div class="demo-title">Provenance Inspector</div>
-        <div class="demo-desc">Hover any element. Trace DOM → IR → binding → address → raw data.</div>
-      </a>
-      <a href="./live-builder/" class="demo-card">
-        <div class="demo-num">03</div>
-        <div class="demo-title">Live Builder</div>
-        <div class="demo-desc">Browse ViewSpec JSON, IR tree, and rendered output. Always in sync.</div>
-      </a>
-      <a href="./invariants/" class="demo-card">
-        <div class="demo-num">04</div>
-        <div class="demo-title">The Invariants</div>
-        <div class="demo-desc">Watch the compiler enforce — and refuse — each guarantee.</div>
-      </a>
-      <a href="./fifteen-lines/" class="demo-card">
-        <div class="demo-num">05</div>
-        <div class="demo-title">15 Lines → Full UI</div>
-        <div class="demo-desc">An invoice table builds itself from 15 lines of Python.</div>
-      </a>
-      <a href="./style-derivation/" class="demo-card">
-        <div class="demo-num">06</div>
-        <div class="demo-title">Style Derivation</div>
-        <div class="demo-desc">Same structure, different feel. Toggle presets — the compiler separates routing from style.</div>
-      </a>
-    </div>
-  </div>
-
-  <div class="separator"></div>
-
-  <!-- ============================================================ -->
-  <!-- PIPELINE — compiled by ViewSpec (comparison motif)           -->
-  <!-- ============================================================ -->
-  <div class="max-w-4xl mx-auto px-6 py-4">
-    <div class="compiled-section">
-      <p class="section-label">⬡ Compiled by ViewSpec — comparison motif</p>
-      <div class="grid grid-cols-1 md:grid-cols-5 gap-2 items-center">
-        <div class="pipeline-step">
-          <div class="step-label">Describe</div>
-          <div class="step-value">Semantic substrate + ViewSpec. What the data means, not how it looks.</div>
+      <div class="panel preview-shell" aria-label="Live compiler preview">
+        <div class="panel-header">
+          <span class="panel-title">This page compiles a dashboard</span>
+          <span id="compile-status" class="status-pill" data-state="idle">initializing</span>
         </div>
-        <div class="pipeline-arrow hidden md:flex">→</div>
-        <div class="pipeline-step">
-          <div class="step-label">Compile</div>
-          <div class="step-value">Deterministic routing with provenance guarantees. 3ms. No LLM.</div>
-        </div>
-        <div class="pipeline-arrow hidden md:flex">→</div>
-        <div class="pipeline-step">
-          <div class="step-label">Render</div>
-          <div class="step-value">Pluggable emitters. HTML today. Canvas tomorrow. Your renderer next.</div>
+        <div id="hero-preview-frame" class="preview-frame" data-preview-frame data-preview-mode="hero" data-viewport="desktop">
+          <div class="viewport-shell" data-viewport-shell data-viewport="desktop">
+            <div id="hero-playground-output" class="preview-inner" data-compiled-output></div>
+          </div>
         </div>
       </div>
-      <p class="dogfood-badge">Pipeline compiled from semantic data.</p>
+    </section>
+
+    <section class="section" id="playground">
+      <div class="page-shell">
+        <div class="section-head">
+          <div>
+            <p class="section-kicker">Live compilation playground</p>
+            <h2 class="sr-only">Toggle a hint. Compile the view.</h2>
+            <div class="pretext-canvas-wrap section-title-canvas">
+              <canvas data-pretext-canvas data-text="Toggle a hint. Compile the view." data-size="42" data-weight="930" data-line-height="46" class="text-white" role="img" aria-label="Toggle a hint. Compile the view.">Toggle a hint. Compile the view.</canvas>
+            </div>
+          </div>
+          <p class="section-copy">Every control builds a new ViewSpec payload. The hosted compiler returns IR, style values, derivation reasons, diagnostics, and timing metadata.</p>
+        </div>
+
+        <div class="playground">
+          <aside class="panel">
+            <div class="panel-header">
+              <span class="panel-title">Hint controls</span>
+            </div>
+            <div class="panel-body controls">
+              <div class="control-group">
+                <span class="control-label">Audience</span>
+                <div class="segmented two">
+                  <button type="button" data-hint-group="audience" data-hint-value="executive" aria-pressed="true">Executive</button>
+                  <button type="button" data-hint-group="audience" data-hint-value="engineer" aria-pressed="false">Engineer</button>
+                </div>
+              </div>
+              <div class="control-group">
+                <span class="control-label">Mood</span>
+                <div class="segmented two">
+                  <button type="button" data-hint-group="mood" data-hint-value="calm" aria-pressed="false">Calm</button>
+                  <button type="button" data-hint-group="mood" data-hint-value="urgent" aria-pressed="true">Urgent</button>
+                </div>
+              </div>
+              <div class="control-group">
+                <span class="control-label">Density</span>
+                <div class="segmented two">
+                  <button type="button" data-hint-group="density" data-hint-value="breathe" aria-pressed="true">Breathe</button>
+                  <button type="button" data-hint-group="density" data-hint-value="compact" aria-pressed="false">Compact</button>
+                </div>
+              </div>
+              <div class="control-group">
+                <span class="control-label">Viewport</span>
+                <div class="segmented three">
+                  <button type="button" data-hint-group="viewport" data-hint-value="mobile" aria-pressed="false">Mobile</button>
+                  <button type="button" data-hint-group="viewport" data-hint-value="tablet" aria-pressed="false">Tablet</button>
+                  <button type="button" data-hint-group="viewport" data-hint-value="desktop" aria-pressed="true">Desktop</button>
+                </div>
+              </div>
+              <div class="hint-summary" id="hint-summary">Executive / Urgent / Breathe / Desktop</div>
+              <div class="compile-stats">
+                <div class="stat-cell">
+                  <span>Compile</span>
+                  <strong id="live-compile-time">0.0ms</strong>
+                </div>
+                <div class="stat-cell">
+                  <span>Tokens</span>
+                  <strong id="live-token-count">0</strong>
+                </div>
+                <div class="stat-cell">
+                  <span>IR nodes</span>
+                  <strong id="live-ir-count">0</strong>
+                </div>
+              </div>
+            </div>
+          </aside>
+
+          <section class="panel preview-shell" aria-label="Compiled dashboard">
+            <div class="panel-header">
+              <span class="panel-title">Rendered CompositionIR</span>
+              <span class="status-pill">hover for provenance</span>
+            </div>
+            <div id="preview-frame" class="preview-frame" data-preview-frame data-preview-mode="workbench" data-viewport="desktop">
+              <div class="viewport-shell" data-viewport-shell data-viewport="desktop">
+                <div id="playground-output" class="preview-inner" data-compiled-output></div>
+              </div>
+            </div>
+          </section>
+
+          <aside class="inspector-column">
+            <section class="panel">
+              <div class="panel-header">
+                <span class="panel-title">Active Level 2 tokens</span>
+              </div>
+              <div class="panel-body">
+                <div id="token-inspector-list" class="token-list"></div>
+              </div>
+            </section>
+            <section class="panel">
+              <div class="panel-header">
+                <span class="panel-title">Provenance chain</span>
+              </div>
+              <div id="provenance-details" class="panel-body"></div>
+            </section>
+          </aside>
+        </div>
+
+        <div class="api-grid">
+          <section class="panel">
+            <div class="panel-header">
+              <span class="panel-title">Request inspector</span>
+              <span class="status-pill">key redacted</span>
+            </div>
+            <div class="panel-body">
+              <pre id="api-request-code" class="code-block"></pre>
+            </div>
+          </section>
+          <section class="panel">
+            <div class="panel-header">
+              <span class="panel-title">Response inspector</span>
+              <span class="status-pill">AST + derivations</span>
+            </div>
+            <div class="panel-body">
+              <pre id="api-response-code" class="code-block"></pre>
+            </div>
+          </section>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" id="before-after">
+      <div class="page-shell">
+        <div class="section-head">
+          <div>
+            <p class="section-kicker">Same data, different compiler</p>
+            <h2 class="sr-only">Reference output versus hosted derivation.</h2>
+            <div class="pretext-canvas-wrap section-title-canvas">
+              <canvas data-pretext-canvas data-text="Reference output versus hosted derivation." data-size="42" data-weight="930" data-line-height="46" class="text-white" role="img" aria-label="Reference output versus hosted derivation.">Reference output versus hosted derivation.</canvas>
+            </div>
+          </div>
+          <p class="section-copy">The free compiler preserves structure and provenance. The hosted compiler adds data-aware emphasis, warning, palette, density, and narrative flow.</p>
+        </div>
+        <div class="before-after-grid">
+          <section class="panel">
+            <div class="panel-header">
+              <span class="compare-label"><span class="compare-badge free">Free</span><span class="panel-title">Reference compiler</span></span>
+              <span class="status-pill">8 tokens</span>
+            </div>
+            <div id="reference-output" class="compare-output"></div>
+          </section>
+          <section class="panel">
+            <div class="panel-header">
+              <span class="compare-label"><span class="compare-badge pro">Pro</span><span class="panel-title">Hosted compiler</span></span>
+              <span class="status-pill">Level 2</span>
+            </div>
+            <div id="hosted-output" class="compare-output"></div>
+          </section>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" id="tokens">
+      <div class="page-shell">
+        <div class="section-head">
+          <div>
+            <p class="section-kicker">Level 2 token gallery</p>
+            <h2 class="sr-only">Data physics made visible.</h2>
+            <div class="pretext-canvas-wrap section-title-canvas">
+              <canvas data-pretext-canvas data-text="Data physics made visible." data-size="42" data-weight="930" data-line-height="46" class="text-white" role="img" aria-label="Data physics made visible.">Data physics made visible.</canvas>
+            </div>
+          </div>
+          <p class="section-copy">Each token has a trigger, a target, and a visual effect. Active cards match the current playground compile.</p>
+        </div>
+        <div class="token-gallery">
+          <button type="button" class="token-card" data-token-card="tone.warning" aria-pressed="false">
+            <span class="token-name">tone.warning</span>
+            <span data-token-trigger></span>
+            <span data-token-effect></span>
+          </button>
+          <button type="button" class="token-card" data-token-card="tone.positive" aria-pressed="false">
+            <span class="token-name">tone.positive</span>
+            <span data-token-trigger></span>
+            <span data-token-effect></span>
+          </button>
+          <button type="button" class="token-card" data-token-card="emphasis.focal" aria-pressed="false">
+            <span class="token-name">emphasis.focal</span>
+            <span data-token-trigger></span>
+            <span data-token-effect></span>
+          </button>
+          <button type="button" class="token-card" data-token-card="emphasis.diminished" aria-pressed="false">
+            <span class="token-name">emphasis.diminished</span>
+            <span data-token-trigger></span>
+            <span data-token-effect></span>
+          </button>
+          <button type="button" class="token-card" data-token-card="contrast.separation" aria-pressed="false">
+            <span class="token-name">contrast.separation</span>
+            <span data-token-trigger></span>
+            <span data-token-effect></span>
+          </button>
+          <button type="button" class="token-card" data-token-card="contrast.similarity" aria-pressed="false">
+            <span class="token-name">contrast.similarity</span>
+            <span data-token-trigger></span>
+            <span data-token-effect></span>
+          </button>
+          <button type="button" class="token-card" data-token-card="palette.temperature" aria-pressed="false">
+            <span class="token-name">palette.temperature</span>
+            <span data-token-trigger></span>
+            <span data-token-effect></span>
+          </button>
+          <button type="button" class="token-card" data-token-card="palette.energy" aria-pressed="false">
+            <span class="token-name">palette.energy</span>
+            <span data-token-trigger></span>
+            <span data-token-effect></span>
+          </button>
+          <button type="button" class="token-card" data-token-card="rhythm.hierarchy" aria-pressed="false">
+            <span class="token-name">rhythm.hierarchy</span>
+            <span data-token-trigger></span>
+            <span data-token-effect></span>
+          </button>
+          <button type="button" class="token-card" data-token-card="rhythm.density" aria-pressed="false">
+            <span class="token-name">rhythm.density</span>
+            <span data-token-trigger></span>
+            <span data-token-effect></span>
+          </button>
+          <button type="button" class="token-card" data-token-card="narrative.entry" aria-pressed="false">
+            <span class="token-name">narrative.entry</span>
+            <span data-token-trigger></span>
+            <span data-token-effect></span>
+          </button>
+          <button type="button" class="token-card" data-token-card="narrative.flow" aria-pressed="false">
+            <span class="token-name">narrative.flow</span>
+            <span data-token-trigger></span>
+            <span data-token-effect></span>
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" id="demos">
+      <div class="page-shell">
+        <div class="section-head">
+          <div>
+            <p class="section-kicker">Existing demos</p>
+            <h2 class="sr-only">The reference compiler still ships free.</h2>
+            <div class="pretext-canvas-wrap section-title-canvas">
+              <canvas data-pretext-canvas data-text="The reference compiler still ships free." data-size="42" data-weight="930" data-line-height="46" class="text-white" role="img" aria-label="The reference compiler still ships free.">The reference compiler still ships free.</canvas>
+            </div>
+          </div>
+          <p class="section-copy">These demos remain unchanged and show the local deterministic compiler, provenance inspector, builder, invariants, and style derivation paths.</p>
+        </div>
+        <div class="demo-grid">
+          <a href="./motif-switcher/" class="demo-card">
+            <span class="demo-num">01</span>
+            <span class="demo-title">Same Data, Three Motifs</span>
+            <span class="demo-desc">One dataset renders as table, dashboard, or comparison.</span>
+          </a>
+          <a href="./provenance-inspector/" class="demo-card">
+            <span class="demo-num">02</span>
+            <span class="demo-title">Provenance Inspector</span>
+            <span class="demo-desc">Trace DOM to IR, binding, address, and raw data.</span>
+          </a>
+          <a href="./live-builder/" class="demo-card">
+            <span class="demo-num">03</span>
+            <span class="demo-title">Live Builder</span>
+            <span class="demo-desc">Intent JSON, IR tree, and rendered output stay in sync.</span>
+          </a>
+          <a href="./invariants/" class="demo-card">
+            <span class="demo-num">04</span>
+            <span class="demo-title">The Invariants</span>
+            <span class="demo-desc">Watch the compiler enforce exactly-once routing.</span>
+          </a>
+          <a href="./fifteen-lines/" class="demo-card">
+            <span class="demo-num">05</span>
+            <span class="demo-title">15 Lines to Full UI</span>
+            <span class="demo-desc">An invoice table builds itself from Python intent.</span>
+          </a>
+          <a href="./style-derivation/" class="demo-card">
+            <span class="demo-num">06</span>
+            <span class="demo-title">Style Derivation</span>
+            <span class="demo-desc">Same structure, different feel, with style tokens.</span>
+          </a>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" id="pricing">
+      <div class="page-shell">
+        <div class="section-head">
+          <div>
+            <p class="section-kicker">Pricing</p>
+            <h2 class="sr-only">Free reference compiler. Hosted compiler when legibility matters.</h2>
+            <div class="pretext-canvas-wrap section-title-canvas">
+              <canvas data-pretext-canvas data-text="Free reference compiler. Hosted compiler when legibility matters." data-size="40" data-weight="930" data-line-height="45" class="text-white" role="img" aria-label="Free reference compiler. Hosted compiler when legibility matters.">Free reference compiler. Hosted compiler when legibility matters.</canvas>
+            </div>
+          </div>
+          <p class="section-copy">The SDK is free. The hosted compiler adds Level 2 derivation, higher limits, and production API access.</p>
+        </div>
+        <div class="pricing-grid">
+          <article class="pricing-card">
+            <span class="pricing-name">Free</span>
+            <span class="price">$0/mo</span>
+            <p class="pricing-detail">Local reference compiler and demo-scale hosted calls.</p>
+            <ul class="pricing-list">
+              <li>500 hosted calls/day</li>
+              <li>Level 1 tokens</li>
+              <li>4 reference motifs</li>
+              <li>Offline SDK</li>
+            </ul>
+            <a class="button-secondary" href="https://pypi.org/project/viewspec/">Install SDK</a>
+          </article>
+          <article class="pricing-card featured">
+            <span class="pricing-name">Pro</span>
+            <span class="price">$39/mo</span>
+            <p class="pricing-detail">For product teams shipping dynamic semantic interfaces.</p>
+            <ul class="pricing-list">
+              <li>25,000 hosted calls/day</li>
+              <li>Level 1-3 tokens</li>
+              <li>Any motif</li>
+              <li>Hosted API key</li>
+            </ul>
+            <a class="button-primary" data-config-link="pro" href="#pricing">Get API Key</a>
+          </article>
+          <article class="pricing-card">
+            <span class="pricing-name">Scale</span>
+            <span class="price">$99/mo</span>
+            <p class="pricing-detail">For production systems with higher traffic and support needs.</p>
+            <ul class="pricing-list">
+              <li>250,000 hosted calls/day</li>
+              <li>Level 1-3 tokens</li>
+              <li>Any motif</li>
+              <li>Hosted API and SLA</li>
+            </ul>
+            <a class="button-secondary" data-config-link="scale" href="#pricing">Get API Key</a>
+          </article>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <div class="page-shell">
+      <span>ViewSpec is open source. MIT License. &copy; 2026</span>
+      <span>
+        <a href="https://github.com/nxrobins/viewspec">GitHub</a>
+        &nbsp;/&nbsp;
+        <a href="https://pypi.org/project/viewspec/">PyPI</a>
+        &nbsp;/&nbsp;
+        <a href="https://github.com/chenglou/pretext">Pretext credit</a>
+      </span>
     </div>
-  </div>
-
-  <div class="separator"></div>
-
-  <!-- Footer -->
-  <footer class="max-w-4xl mx-auto px-6 py-12 text-center text-sm text-slate-600">
-    <p class="mb-2">ViewSpec is open source. <a href="https://github.com/nxrobins/viewspec">MIT License</a>.</p>
-    <p class="mb-4 text-slate-500">The compiler is a hosted service. The SDK is free. The invariants are mathematical.</p>
-    <p class="text-xs text-slate-700">This page was compiled by ViewSpec. <a href="./landing-compiled/" style="color:#475569">View the raw compiler output →</a></p>
-    <p class="text-slate-700 mt-2">© 2026</p>
   </footer>
 </body>
 </html>
