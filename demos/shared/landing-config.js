@@ -3,8 +3,8 @@ const runtimeConfig = window.VIEWSPEC_LANDING_CONFIG || {}
 export const LANDING_CONFIG = {
   apiUrl: runtimeConfig.apiUrl || 'https://api.viewspec.dev/v1/compile',
   publicApiKey: runtimeConfig.publicApiKey || window.PUBLIC_LANDING_API_KEY || 'pk_live_REPLACE_WITH_PUBLIC_LANDING_KEY',
-  proStripeUrl: runtimeConfig.proStripeUrl || 'https://buy.stripe.com/REPLACE_WITH_PRO_LINK',
-  scaleStripeUrl: runtimeConfig.scaleStripeUrl || 'https://buy.stripe.com/REPLACE_WITH_SCALE_LINK',
+  proStripeUrl: runtimeConfig.proStripeUrl || 'https://buy.stripe.com/7sY00i9v67cJebDd1K1oI00',
+  scaleStripeUrl: runtimeConfig.scaleStripeUrl || 'https://buy.stripe.com/4gM6oGcHi68FgjLd1K1oI01',
   signupUrl: runtimeConfig.signupUrl || 'https://viewspec.dev/#pricing',
   requestTimeoutMs: Number(runtimeConfig.requestTimeoutMs || 6000),
 }
@@ -26,4 +26,3 @@ export function hasProductionCommerceConfig() {
 export function redactedAuthorizationHeader() {
   return 'Bearer pk_live_***REDACTED***'
 }
-
