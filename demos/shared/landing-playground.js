@@ -105,7 +105,6 @@ async function fetchCompiledDashboard(hints) {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${LANDING_CONFIG.publicApiKey}`,
       },
       body: JSON.stringify(payload),
       signal: currentAbortController.signal,
