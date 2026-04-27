@@ -154,7 +154,9 @@ export function buildIntentBundle(hints = {}) {
         viewport: normalized.viewport,
       },
       slots: {
-        metrics: METRICS.map((metric) => metric.id),
+        metrics: {
+          values: METRICS.map((metric) => metric.id),
+        },
       },
       edges: {},
     },
