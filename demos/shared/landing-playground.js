@@ -23,9 +23,12 @@ let renderSequence = 0
 let debounceTimer = 0
 let activeHighlight = null
 let latestDerivations = []
-let preferredApiUrl = null
 
 const responseCache = new Map()
+const ENDPOINT_STATE_KEY = 'viewspec.landing.endpointState.v1'
+
+let endpointState = readEndpointState()
+let preferredApiUrl = endpointState.preferredApiUrl || null
 
 function byId(id) {
   return document.getElementById(id)
@@ -62,12 +65,12 @@ function validateCompileResponse(data) {
   return data
 }
 
-function staticResult(reason, payload) {
-  const data = buildStaticCompileResult(currentHints)
+function staticResult(reason, payload, hints = currentHints) {
+  const data = buildStaticCompileResult(hints)
   data.__fallbackReason = reason
   return {
     data,
-    payload: payload || buildIntentBundle(currentHints),
+    payload: payload || buildIntentBundle(hints),
     status: 'static',
     roundTripMs: 0,
     fromCache: false,
@@ -80,10 +83,79 @@ function abortError() {
   return error
 }
 
+function readEndpointState() {
+  try {
+    const raw = window.sessionStorage?.getItem(ENDPOINT_STATE_KEY)
+    if (!raw) return { failures: {} }
+    const parsed = JSON.parse(raw)
+    const failures = parsed?.failures && typeof parsed.failures === 'object' ? parsed.failures : {}
+    return {
+      preferredApiUrl: typeof parsed?.preferredApiUrl === 'string' ? parsed.preferredApiUrl : null,
+      failures,
+    }
+  } catch {
+    return { failures: {} }
+  }
+}
+
+function writeEndpointState() {
+  try {
+    window.sessionStorage?.setItem(ENDPOINT_STATE_KEY, JSON.stringify(endpointState))
+  } catch {
+    // Session storage can be disabled; the in-memory preferred endpoint still applies.
+  }
+}
+
+function pruneEndpointFailures() {
+  const cutoff = Date.now()
+  const configuredUrls = LANDING_CONFIG.apiUrls || []
+  const failures = { ...(endpointState.failures || {}) }
+  let changed = false
+  Object.entries(failures).forEach(([apiUrl, expiresAt]) => {
+    if (Number(expiresAt) <= cutoff || !configuredUrls.includes(apiUrl)) {
+      delete failures[apiUrl]
+      changed = true
+    }
+  })
+  if (changed) {
+    endpointState = { ...endpointState, failures }
+    writeEndpointState()
+  }
+}
+
+function endpointIsCoolingDown(apiUrl) {
+  return Number(endpointState.failures?.[apiUrl] || 0) > Date.now()
+}
+
+function markEndpointFailure(apiUrl) {
+  if (!apiUrl) return
+  const failures = { ...(endpointState.failures || {}) }
+  failures[apiUrl] = Date.now() + LANDING_CONFIG.endpointFailureTtlMs
+  endpointState = { ...endpointState, failures }
+  writeEndpointState()
+}
+
+function markEndpointSuccess(apiUrl) {
+  if (!apiUrl) return
+  const failures = { ...(endpointState.failures || {}) }
+  delete failures[apiUrl]
+  preferredApiUrl = apiUrl
+  endpointState = {
+    ...endpointState,
+    preferredApiUrl: apiUrl,
+    failures,
+  }
+  writeEndpointState()
+}
+
 function orderedApiUrls() {
   const urls = LANDING_CONFIG.apiUrls || []
-  if (!preferredApiUrl || !urls.includes(preferredApiUrl)) return urls
-  return [preferredApiUrl, ...urls.filter((url) => url !== preferredApiUrl)]
+  pruneEndpointFailures()
+  const preferredFirst = preferredApiUrl && urls.includes(preferredApiUrl)
+    ? [preferredApiUrl, ...urls.filter((url) => url !== preferredApiUrl)]
+    : urls
+  const available = preferredFirst.filter((apiUrl) => !endpointIsCoolingDown(apiUrl))
+  return available.length ? available : preferredFirst
 }
 
 function cloneJson(value) {
@@ -183,7 +255,7 @@ async function fetchCompiledDashboard(hints) {
   }
 
   if (!hasLiveApiConfig()) {
-    return staticResult('Production landing API key is not configured.', payload)
+    return staticResult('Production landing API key is not configured.', payload, normalized)
   }
 
   if (currentAbortController) currentAbortController.abort()
@@ -230,6 +302,7 @@ async function fetchCompiledDashboard(hints) {
       }
     } catch (error) {
       if (masterController.signal.aborted) throw abortError()
+      markEndpointFailure(apiUrl)
       if (error.name === 'AbortError' && timedOut) throw new Error(`Compiler request timed out for ${apiUrl}.`)
       throw error
     } finally {
@@ -261,21 +334,37 @@ async function fetchCompiledDashboard(hints) {
 
   try {
     const result = await Promise.any(endpoints.map((apiUrl, index) => compileAfterStagger(apiUrl, index)))
-    preferredApiUrl = result.apiUrl
+    endpoints.slice(0, endpoints.indexOf(result.apiUrl)).forEach(markEndpointFailure)
+    markEndpointSuccess(result.apiUrl)
     responseCache.set(cacheKey, result.data)
     masterController.abort()
     return result
   } catch (error) {
     if (masterController.signal.aborted) return null
     const lastError = error?.errors?.find((candidate) => candidate?.name !== 'AbortError') || error
-    return staticResult(lastError?.message || 'Compiler API unavailable.', payload)
+    return staticResult(lastError?.message || 'Compiler API unavailable.', payload, normalized)
+  }
+}
+
+function optimisticPreviewResult() {
+  const normalized = normalizeHints(currentHints)
+  return {
+    data: buildStaticCompileResult(normalized),
+    payload: buildIntentBundle(normalized),
+    status: 'preview',
+    roundTripMs: 0,
+    fromCache: false,
+    optimistic: true,
   }
 }
 
 function renderStatus(result) {
   const meta = result.data.meta || {}
   const compileMs = `${Number(meta.compile_ms || 0).toFixed(1)}ms`
-  if (result.data.__static) {
+  if (result.optimistic) {
+    setStatus('refreshing live compile', 'loading')
+    setText('hero-compile-time', 'live ms')
+  } else if (result.data.__static) {
     setStatus('static sample', 'static')
     setText('hero-compile-time', 'sample')
   } else if (result.fromCache) {
@@ -285,7 +374,7 @@ function renderStatus(result) {
     setStatus(`${compileMs} compile`, 'live')
     setText('hero-compile-time', compileMs)
   }
-  setText('live-compile-time', compileMs)
+  setText('live-compile-time', result.optimistic ? 'pending' : compileMs)
   setText('live-token-count', String(meta.style_token_count || Object.keys(result.data.ast?.style_values || {}).length))
   setText('live-ir-count', String(meta.ir_node_count || countIrNodes(getAstRoot(result.data.ast))))
 }
@@ -376,6 +465,7 @@ function renderApiInspector(result) {
       headers: redactedCompileRequestHeaders(),
       auth: hasPublicApiKey() ? 'public landing key' : 'anonymous free tier',
       payload_bytes: summary.bytes,
+      endpoint_candidates: orderedApiUrls(),
       hints: summary.hints,
       body: result.payload,
     },
@@ -387,7 +477,7 @@ function renderApiInspector(result) {
   responseCode.textContent = JSON.stringify(
     {
       status: result.status,
-      source: result.data.__static ? 'static fixture' : result.fromCache ? 'cache' : 'hosted api',
+      source: result.optimistic ? 'local preview while hosted compile refreshes' : result.data.__static ? 'static fixture' : result.fromCache ? 'cache' : 'hosted api',
       endpoint: result.apiUrl || result.data.meta?.api_url || null,
       fallback_reason: result.data.__fallbackReason || null,
       visual_adapter: result.data.__visualAdapter || null,
@@ -514,6 +604,11 @@ async function compileLatest(sequence) {
   renderResult(result)
 }
 
+function renderOptimisticPreview() {
+  if (currentAbortController) currentAbortController.abort()
+  renderResult(optimisticPreviewResult())
+}
+
 function scheduleCompile() {
   renderSequence += 1
   const sequence = renderSequence
@@ -526,8 +621,8 @@ function setHint(group, value) {
   currentHints = normalizeHints({ ...currentHints, [group]: value })
   syncHintButtons()
   updateHintSummary()
-  applyViewportFrame()
   scheduleCompile()
+  renderOptimisticPreview()
 }
 
 function syncHintButtons() {
@@ -549,6 +644,7 @@ function installHintControls() {
       setHint(button.getAttribute('data-hint-group'), button.getAttribute('data-hint-value'))
     })
   })
+  renderOptimisticPreview()
   scheduleCompile()
 }
 

@@ -24,6 +24,7 @@ export const LANDING_CONFIG = {
   signupUrl: runtimeConfig.signupUrl || 'https://viewspec.dev/#pricing',
   requestTimeoutMs: Number(runtimeConfig.requestTimeoutMs || 6000),
   endpointStaggerMs: Number(runtimeConfig.endpointStaggerMs || 120),
+  endpointFailureTtlMs: Number(runtimeConfig.endpointFailureTtlMs || 300000),
 }
 
 export function hasLiveApiConfig() {
