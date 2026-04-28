@@ -23,6 +23,7 @@ let renderSequence = 0
 let debounceTimer = 0
 let activeHighlight = null
 let latestDerivations = []
+let preferredApiUrl = null
 
 const responseCache = new Map()
 
@@ -71,6 +72,18 @@ function staticResult(reason, payload) {
     roundTripMs: 0,
     fromCache: false,
   }
+}
+
+function abortError() {
+  const error = new Error('Compiler request cancelled.')
+  error.name = 'AbortError'
+  return error
+}
+
+function orderedApiUrls() {
+  const urls = LANDING_CONFIG.apiUrls || []
+  if (!preferredApiUrl || !urls.includes(preferredApiUrl)) return urls
+  return [preferredApiUrl, ...urls.filter((url) => url !== preferredApiUrl)]
 }
 
 function cloneJson(value) {
@@ -174,17 +187,20 @@ async function fetchCompiledDashboard(hints) {
   }
 
   if (currentAbortController) currentAbortController.abort()
-  const endpoints = LANDING_CONFIG.apiUrls
-  const perEndpointTimeoutMs = endpoints.length > 1 ? Math.min(LANDING_CONFIG.requestTimeoutMs, 2500) : LANDING_CONFIG.requestTimeoutMs
-  let lastError = null
+  const masterController = new AbortController()
+  currentAbortController = masterController
+  const endpoints = orderedApiUrls()
 
-  for (const apiUrl of endpoints) {
-    currentAbortController = new AbortController()
+  async function compileFromEndpoint(apiUrl) {
+    if (masterController.signal.aborted) throw abortError()
+    const endpointController = new AbortController()
+    const abortEndpoint = () => endpointController.abort()
+    masterController.signal.addEventListener('abort', abortEndpoint, { once: true })
     let timedOut = false
     const timeout = window.setTimeout(() => {
       timedOut = true
-      currentAbortController.abort()
-    }, perEndpointTimeoutMs)
+      endpointController.abort()
+    }, LANDING_CONFIG.requestTimeoutMs)
     const startedAt = performance.now()
 
     try {
@@ -192,7 +208,7 @@ async function fetchCompiledDashboard(hints) {
         method: 'POST',
         headers: compileRequestHeaders(),
         body: JSON.stringify(payload),
-        signal: currentAbortController.signal,
+        signal: endpointController.signal,
       })
 
       if (!response.ok) throw new Error(`HTTP ${response.status}`)
@@ -204,7 +220,6 @@ async function fetchCompiledDashboard(hints) {
         endpoint_fallback: apiUrl !== LANDING_CONFIG.apiUrl,
         round_trip_ms: Number(roundTripMs.toFixed(1)),
       }
-      responseCache.set(cacheKey, data)
       return {
         apiUrl,
         data,
@@ -214,14 +229,47 @@ async function fetchCompiledDashboard(hints) {
         fromCache: false,
       }
     } catch (error) {
-      if (error.name === 'AbortError' && !timedOut) return null
-      lastError = error.name === 'AbortError' && timedOut ? new Error(`Compiler request timed out for ${apiUrl}.`) : error
+      if (masterController.signal.aborted) throw abortError()
+      if (error.name === 'AbortError' && timedOut) throw new Error(`Compiler request timed out for ${apiUrl}.`)
+      throw error
     } finally {
+      masterController.signal.removeEventListener('abort', abortEndpoint)
       window.clearTimeout(timeout)
     }
   }
 
-  return staticResult(lastError?.message || 'Compiler API unavailable.', payload)
+  function compileAfterStagger(apiUrl, index) {
+    const delay = index === 0 ? 0 : LANDING_CONFIG.endpointStaggerMs
+    return new Promise((resolve, reject) => {
+      if (masterController.signal.aborted) {
+        reject(abortError())
+        return
+      }
+      const timer = window.setTimeout(() => {
+        compileFromEndpoint(apiUrl).then(resolve, reject)
+      }, delay)
+      masterController.signal.addEventListener(
+        'abort',
+        () => {
+          window.clearTimeout(timer)
+          reject(abortError())
+        },
+        { once: true }
+      )
+    })
+  }
+
+  try {
+    const result = await Promise.any(endpoints.map((apiUrl, index) => compileAfterStagger(apiUrl, index)))
+    preferredApiUrl = result.apiUrl
+    responseCache.set(cacheKey, result.data)
+    masterController.abort()
+    return result
+  } catch (error) {
+    if (masterController.signal.aborted) return null
+    const lastError = error?.errors?.find((candidate) => candidate?.name !== 'AbortError') || error
+    return staticResult(lastError?.message || 'Compiler API unavailable.', payload)
+  }
 }
 
 function renderStatus(result) {
@@ -470,7 +518,7 @@ function scheduleCompile() {
   renderSequence += 1
   const sequence = renderSequence
   window.clearTimeout(debounceTimer)
-  debounceTimer = window.setTimeout(() => compileLatest(sequence), 140)
+  debounceTimer = window.setTimeout(() => compileLatest(sequence), 60)
 }
 
 function setHint(group, value) {

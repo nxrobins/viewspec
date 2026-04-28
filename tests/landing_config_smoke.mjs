@@ -22,6 +22,7 @@ const { LANDING_CONFIG, hasLiveApiConfig } = await loadConfig()
 assert.equal(LANDING_CONFIG.apiUrl, 'https://api.viewspec.dev/v1/compile')
 assert(LANDING_CONFIG.apiUrls.includes('https://api.viewspec.dev/v1/compile'))
 assert(LANDING_CONFIG.apiUrls.includes('https://viewspec-api.fly.dev/v1/compile'))
+assert.equal(LANDING_CONFIG.endpointStaggerMs, 120)
 assert.equal(new Set(LANDING_CONFIG.apiUrls).size, LANDING_CONFIG.apiUrls.length)
 assert.equal(hasLiveApiConfig(), true)
 

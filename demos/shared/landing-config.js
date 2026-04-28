@@ -23,6 +23,7 @@ export const LANDING_CONFIG = {
   scaleStripeUrl: runtimeConfig.scaleStripeUrl || 'https://buy.stripe.com/4gM6oGcHi68FgjLd1K1oI01',
   signupUrl: runtimeConfig.signupUrl || 'https://viewspec.dev/#pricing',
   requestTimeoutMs: Number(runtimeConfig.requestTimeoutMs || 6000),
+  endpointStaggerMs: Number(runtimeConfig.endpointStaggerMs || 120),
 }
 
 export function hasLiveApiConfig() {
