@@ -4,7 +4,7 @@
 
 ViewSpec is a declarative language for describing what data means. The compiler figures out how it looks. Every pixel has a birth certificate.
 
-🌐 **[viewspec.dev](https://viewspec.dev)** — Live demos and interactive playground
+🌐 **[viewspec.dev](https://viewspec.dev)** — Live hosted compiler playground, demos, and pricing
 
 ```python
 from viewspec import ViewSpecBuilder, compile
@@ -55,9 +55,26 @@ pip install viewspec
 
 Requires Python 3.11+.
 
+## Hosted Playground
+
+The home page at [viewspec.dev](https://viewspec.dev) runs a live hosted compile against `https://viewspec-api.fly.dev/v1/compile`. It uses anonymous free-tier requests by default and shows the request, response, measured `compile_ms`, active derivation tokens, and provenance chain.
+
+Runtime landing-page config is read from `window.VIEWSPEC_LANDING_CONFIG`:
+
+| Key | Purpose |
+|-----|---------|
+| `apiUrl` | Hosted compiler endpoint. Defaults to `https://viewspec-api.fly.dev/v1/compile`. |
+| `publicApiKey` | Optional browser-safe public/demo key. `window.PUBLIC_LANDING_API_KEY` is also accepted. Omit it to use anonymous free-tier demo traffic. |
+| `proStripeUrl` | Pro checkout link. Defaults to the live Stripe payment link. |
+| `scaleStripeUrl` | Scale checkout link. Defaults to the live Stripe payment link. |
+| `signupUrl` | Free CTA or pricing URL. Defaults to `https://viewspec.dev/#pricing`. |
+| `requestTimeoutMs` | Hosted compile timeout. Defaults to `6000`. |
+
+Keep secret API keys server-side; only browser-safe public/demo keys belong in static landing-page config.
+
 ## Demos
 
-Six interactive demos at [viewspec.dev](https://viewspec.dev):
+The hosted playground plus six reference demos are available at [viewspec.dev](https://viewspec.dev):
 
 | Demo | What it shows |
 |------|--------------|
@@ -132,14 +149,14 @@ Handles the four standard motifs locally. No API, no network, no LLM. Determinis
 ast = compile(builder.build_bundle())
 ```
 
-### Hosted Compiler (api.viewspec.dev)
+### Hosted Compiler (viewspec-api.fly.dev)
 
 For complex layouts, novel data shapes, and advanced derivation. The hosted compiler was **evolved** (not hand-written) using reinforcement learning:
 
 - **13/13** on a static validation suite
 - **50/50** on novel, randomized out-of-distribution layouts (one-shot)
 - **Level 2 derivation tokens** — data-aware emphasis, narrative routing, palette energy
-- **Zero LLM cost at runtime** — deterministic Python, ~3ms per compile
+- **Zero LLM calls at runtime** — deterministic Python compile path; the live playground reports measured `compile_ms` for each request
 
 ```python
 from viewspec import compile_auto
@@ -153,7 +170,6 @@ ast = compile_auto(builder.build_bundle())
 | Free | $0 | 500 |
 | Pro | $39/mo | 25,000 |
 | Scale | $99/mo | 250,000 |
-| Enterprise | Contact | Custom |
 
 ## Wire Format
 
