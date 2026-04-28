@@ -79,3 +79,33 @@ def test_empty_viewspec():
     restored = IntentBundle.from_json(json_data)
     assert restored.view_spec.id == "empty"
     assert len(restored.view_spec.bindings) == 0
+
+
+def test_slots_edges_actions_roundtrip_json_and_proto():
+    """Map-shaped nodes, slots, edges, styles, and actions preserve wire shape."""
+    builder = ViewSpecBuilder(
+        "graph_view",
+        root_slots={"children": ["child"]},
+        root_edges={"next": ["child"]},
+    )
+    builder.add_node("child", "document", attrs={"title": "Graph"})
+    builder.bind_slot("root_children", "graph_view", "children", region="main")
+    builder.bind_attr("child_title", "child", "title", region="main", present_as="label")
+    builder.add_style("title_style", "binding:child_title", "emphasis.high")
+    builder.add_action(
+        "open_child",
+        "open",
+        "Open",
+        target_region="main",
+        target_ref="binding:child_title",
+        payload_bindings=["child_title"],
+    )
+
+    bundle = builder.build_bundle()
+    json_restored = IntentBundle.from_json(bundle.to_json())
+    proto_restored = IntentBundle.from_proto(bundle.to_proto())
+
+    assert json_restored.substrate.nodes["graph_view"].slots["children"] == ["child"]
+    assert json_restored.substrate.nodes["graph_view"].edges["next"] == ["child"]
+    assert json_restored.view_spec.actions[0].target_ref == "binding:child_title"
+    assert proto_restored.to_json() == json_restored.to_json()

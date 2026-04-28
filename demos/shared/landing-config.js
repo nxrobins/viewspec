@@ -2,7 +2,7 @@ const runtimeConfig = window.VIEWSPEC_LANDING_CONFIG || {}
 const configuredApiKey = runtimeConfig.publicApiKey || window.PUBLIC_LANDING_API_KEY || ''
 
 export const LANDING_CONFIG = {
-  apiUrl: runtimeConfig.apiUrl || 'https://viewspec-api.fly.dev/v1/compile',
+  apiUrl: runtimeConfig.apiUrl || 'https://api.viewspec.dev/v1/compile',
   publicApiKey: configuredApiKey,
   proStripeUrl: runtimeConfig.proStripeUrl || 'https://buy.stripe.com/7sY00i9v67cJebDd1K1oI00',
   scaleStripeUrl: runtimeConfig.scaleStripeUrl || 'https://buy.stripe.com/4gM6oGcHi68FgjLd1K1oI01',

@@ -34,6 +34,7 @@ from viewspec.compiler import (
     compile_auto,
     compile_remote,
     CompilerAPIError,
+    CompilerInputError,
     UnsupportedMotifError,
 )
 
@@ -68,6 +69,7 @@ __all__ = [
     "compile_auto",
     "compile_remote",
     "CompilerAPIError",
+    "CompilerInputError",
     "UnsupportedMotifError",
     # Utilities
     "build_address_index",

@@ -57,13 +57,13 @@ Requires Python 3.11+.
 
 ## Hosted Playground
 
-The home page at [viewspec.dev](https://viewspec.dev) runs a live hosted compile against `https://viewspec-api.fly.dev/v1/compile`. It uses anonymous free-tier requests by default and shows the request, response, measured `compile_ms`, active derivation tokens, and provenance chain.
+The home page at [viewspec.dev](https://viewspec.dev) runs a live hosted compile against `https://api.viewspec.dev/v1/compile`. It uses anonymous free-tier requests by default and shows the request, response, measured `compile_ms`, active derivation tokens, and provenance chain.
 
 Runtime landing-page config is read from `window.VIEWSPEC_LANDING_CONFIG`:
 
 | Key | Purpose |
 |-----|---------|
-| `apiUrl` | Hosted compiler endpoint. Defaults to `https://viewspec-api.fly.dev/v1/compile`. |
+| `apiUrl` | Hosted compiler endpoint. Defaults to `https://api.viewspec.dev/v1/compile`. |
 | `publicApiKey` | Optional browser-safe public/demo key. `window.PUBLIC_LANDING_API_KEY` is also accepted. Omit it to use anonymous free-tier demo traffic. |
 | `proStripeUrl` | Pro checkout link. Defaults to the live Stripe payment link. |
 | `scaleStripeUrl` | Scale checkout link. Defaults to the live Stripe payment link. |
@@ -149,7 +149,7 @@ Handles the four standard motifs locally. No API, no network, no LLM. Determinis
 ast = compile(builder.build_bundle())
 ```
 
-### Hosted Compiler (viewspec-api.fly.dev)
+### Hosted Compiler (api.viewspec.dev)
 
 For complex layouts, novel data shapes, and advanced derivation. The hosted compiler was **evolved** (not hand-written) using reinforcement learning:
 

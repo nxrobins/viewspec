@@ -10,6 +10,7 @@ build/
 *.egg
 .ruff_cache/
 .pytest_cache/
+.test-tmp*/
 output/
 viewspec_output/
 .venv/

@@ -105,7 +105,8 @@ def test_style_tokens_generated():
 
 def test_full_pipeline_emit():
     """End-to-end: build → compile → emit HTML."""
-    import tempfile, os
+    import os
+    import tempfile
 
     builder = ViewSpecBuilder("e2e_test")
     table = builder.add_table("items", region="main", group_id="rows")

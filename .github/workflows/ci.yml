@@ -1,0 +1,49 @@
+name: SDK Reliability
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11", "3.12", "3.13", "3.14"]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Install package
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install ".[dev,remote]"
+
+      - name: Ruff
+        run: ruff check .
+
+      - name: Compile Python sources
+        run: python -m compileall src tests examples
+
+      - name: Pytest
+        run: python -m pytest -q
+
+      - name: Landing payload smoke test
+        run: node tests/landing_payload_smoke.mjs
+
+      - name: Build wheel
+        run: python -m pip wheel . --no-deps

@@ -20,7 +20,6 @@ from viewspec.types import (
     CompilerDiagnostic,
     CompilerResult,
     CompositionIR,
-    GroupSpec,
     IntentBundle,
     IRNode,
     MotifSpec,
@@ -471,6 +470,22 @@ class UnsupportedMotifError(Exception):
     pass
 
 
+class CompilerInputError(Exception):
+    """Raised when a bundle cannot produce a root CompositionIR."""
+    pass
+
+
+def _validate_roots(substrate: SemanticSubstrate, view_spec: ViewSpec) -> None:
+    if not substrate.root_id:
+        raise CompilerInputError("SemanticSubstrate.root_id is required.")
+    if substrate.root_id not in substrate.nodes:
+        raise CompilerInputError(
+            f"SemanticSubstrate.root_id '{substrate.root_id}' is not present in substrate.nodes."
+        )
+    if not view_spec.root_region:
+        raise CompilerInputError("ViewSpec.root_region is required.")
+
+
 def compile(bundle: IntentBundle) -> ASTBundle:
     """
     Compile an IntentBundle into an ASTBundle using the reference compiler.
@@ -484,6 +499,7 @@ def compile(bundle: IntentBundle) -> ASTBundle:
     substrate = bundle.substrate
     view_spec = bundle.view_spec
     diagnostics: list[CompilerDiagnostic] = []
+    _validate_roots(substrate, view_spec)
     address_index = _build_address_index(substrate)
     ordered_positions = _ordered_binding_positions(view_spec)
 
@@ -498,7 +514,19 @@ def compile(bundle: IntentBundle) -> ASTBundle:
 
     # Build region nodes
     region_nodes: dict[str, IRNode] = {}
+    valid_regions = []
+    seen_region_ids: set[str] = set()
     for region in view_spec.regions:
+        if region.id in seen_region_ids:
+            _add_diagnostic(
+                diagnostics, "DUPLICATE_REGION_ID",
+                f"Region id {region.id} appears more than once. The first occurrence was used.",
+                intent_ref=_region_ref(region.id),
+                region_id=region.id,
+            )
+            continue
+        seen_region_ids.add(region.id)
+        valid_regions.append(region)
         primitive = "root" if region.id == view_spec.root_region else _layout_primitive(region.layout)
         props: dict[str, object] = {"layout_role": primitive}
         if primitive == "grid":
@@ -513,15 +541,40 @@ def compile(bundle: IntentBundle) -> ASTBundle:
             node.provenance.intent_refs.insert(0, _view_ref(view_spec.id))
         region_nodes[region.id] = node
 
+    if view_spec.root_region not in region_nodes:
+        raise CompilerInputError(f"ViewSpec.root_region '{view_spec.root_region}' is not present in view_spec.regions.")
+
     # Wire region hierarchy
-    for region in view_spec.regions:
-        if region.parent_region is not None and region.parent_region in region_nodes:
+    for region in valid_regions:
+        if region.parent_region and region.parent_region in region_nodes:
             region_nodes[region.parent_region].children.append(region_nodes[region.id])
+        elif region.parent_region:
+            _add_diagnostic(
+                diagnostics, "UNKNOWN_REGION",
+                f"Region {region.id} declares unknown parent region {region.parent_region}.",
+                intent_ref=_region_ref(region.id),
+                region_id=region.parent_region,
+            )
+
+    all_binding_ids: set[str] = set()
+    seen_binding_ids: set[str] = set()
+    seen_exactly_once_addresses: dict[str, str] = {}
 
     # Validate bindings
     valid_bindings: list[BindingSpec] = []
     valid_binding_ids: set[str] = set()
     for binding in view_spec.bindings:
+        if binding.id in seen_binding_ids:
+            _add_diagnostic(
+                diagnostics, "DUPLICATE_BINDING_ID",
+                f"Binding id {binding.id} appears more than once. The first occurrence was used.",
+                intent_ref=_binding_ref(binding.id),
+                content_ref=binding.address,
+                region_id=binding.target_region,
+            )
+            continue
+        seen_binding_ids.add(binding.id)
+        all_binding_ids.add(binding.id)
         if binding.target_region not in region_nodes:
             _add_diagnostic(
                 diagnostics, "UNKNOWN_REGION",
@@ -535,6 +588,16 @@ def compile(bundle: IntentBundle) -> ASTBundle:
             _add_diagnostic(
                 diagnostics, "UNKNOWN_PRESENT_AS",
                 f"Binding {binding.id} uses unknown present_as {binding.present_as}.",
+                intent_ref=_binding_ref(binding.id),
+                content_ref=binding.address,
+                region_id=binding.target_region,
+            )
+            continue
+        if binding.cardinality == "exactly_once" and binding.address in seen_exactly_once_addresses:
+            _add_diagnostic(
+                diagnostics, "DUPLICATE_EXACTLY_ONCE_ADDRESS",
+                f"Binding {binding.id} duplicates exactly_once address {binding.address} "
+                f"already used by {seen_exactly_once_addresses[binding.address]}.",
                 intent_ref=_binding_ref(binding.id),
                 content_ref=binding.address,
                 region_id=binding.target_region,
@@ -554,15 +617,17 @@ def compile(bundle: IntentBundle) -> ASTBundle:
             continue
         valid_bindings.append(binding)
         valid_binding_ids.add(binding.id)
+        if binding.cardinality == "exactly_once":
+            seen_exactly_once_addresses[binding.address] = binding.id
 
     # Build binding IR nodes
-    bindings_by_id = {b.id: b for b in view_spec.bindings}
+    bindings_by_id = {b.id: b for b in valid_bindings}
     binding_nodes: dict[str, IRNode] = {
         b.id: _build_binding_node(b, address_index) for b in valid_bindings
     }
 
     # Sort bindings by region
-    bindings_by_region: dict[str, list[BindingSpec]] = {r.id: [] for r in view_spec.regions}
+    bindings_by_region: dict[str, list[BindingSpec]] = {r.id: [] for r in valid_regions}
     for b in valid_bindings:
         if b.target_region in bindings_by_region:
             bindings_by_region[b.target_region].append(b)
@@ -572,9 +637,41 @@ def compile(bundle: IntentBundle) -> ASTBundle:
     # Process motifs
     placed_binding_ids: set[str] = set()
     motif_wrappers: dict[str, IRNode] = {}
-    motif_by_id = {m.id: m for m in view_spec.motifs}
-
+    motif_by_id: dict[str, MotifSpec] = {}
+    valid_motifs: list[MotifSpec] = []
     for motif in view_spec.motifs:
+        if motif.id in motif_by_id:
+            _add_diagnostic(
+                diagnostics, "DUPLICATE_MOTIF_ID",
+                f"Motif id {motif.id} appears more than once. The first occurrence was used.",
+                intent_ref=_motif_ref(motif.id),
+                region_id=motif.region,
+            )
+            continue
+        motif_by_id[motif.id] = motif
+        valid_motifs.append(motif)
+
+    seen_group_ids: set[str] = set()
+    for group in view_spec.groups:
+        if group.id in seen_group_ids:
+            _add_diagnostic(
+                diagnostics, "DUPLICATE_GROUP_ID",
+                f"Group id {group.id} appears more than once. The first occurrence was used.",
+                intent_ref=f"viewspec:group:{group.id}",
+                region_id=group.target_region,
+            )
+            continue
+        seen_group_ids.add(group.id)
+        for member_id in group.members:
+            if member_id not in all_binding_ids:
+                _add_diagnostic(
+                    diagnostics, "MISSING_GROUP_MEMBER",
+                    f"Group {group.id} references missing binding {member_id}.",
+                    intent_ref=f"viewspec:group:{group.id}",
+                    region_id=group.target_region,
+                )
+
+    for motif in valid_motifs:
         if motif.region not in region_nodes:
             _add_diagnostic(
                 diagnostics, "UNKNOWN_REGION",
@@ -583,6 +680,15 @@ def compile(bundle: IntentBundle) -> ASTBundle:
                 region_id=motif.region,
             )
             continue
+
+        for member_id in motif.members:
+            if member_id not in all_binding_ids:
+                _add_diagnostic(
+                    diagnostics, "MISSING_MOTIF_MEMBER",
+                    f"Motif {motif.id} references missing binding {member_id}.",
+                    intent_ref=_motif_ref(motif.id),
+                    region_id=motif.region,
+                )
 
         carrier = region_nodes[motif.region]
         motif_bindings = sorted(
@@ -631,7 +737,16 @@ def compile(bundle: IntentBundle) -> ASTBundle:
                 region_node.children.append(binding_nodes[b.id])
 
     # Apply styles
+    seen_style_ids: set[str] = set()
     for style in view_spec.styles:
+        if style.id in seen_style_ids:
+            _add_diagnostic(
+                diagnostics, "DUPLICATE_STYLE_ID",
+                f"Style id {style.id} appears more than once. The first occurrence was used.",
+                intent_ref=_style_ref(style.id),
+            )
+            continue
+        seen_style_ids.add(style.id)
         target = style.target
         if ":" in target:
             target_kind, target_id = target.split(":", 1)
@@ -654,10 +769,69 @@ def compile(bundle: IntentBundle) -> ASTBundle:
         elif target_kind == "motif" and target_id in motif_by_id:
             if target_id in motif_wrappers:
                 _attach_style(motif_wrappers[target_id], style)
-            else:
+            elif motif_by_id[target_id].region in region_nodes:
                 _attach_style(region_nodes[motif_by_id[target_id].region], style)
-        elif target_kind == "view":
+            else:
+                _add_diagnostic(
+                    diagnostics, "UNKNOWN_STYLE_TARGET",
+                    f"Style {style.id} targets motif {target_id}, but its region is not available.",
+                    intent_ref=_style_ref(style.id),
+                )
+        elif target_kind == "view" and target_id == view_spec.id:
             _attach_style(region_nodes[view_spec.root_region], style)
+        else:
+            _add_diagnostic(
+                diagnostics, "UNKNOWN_STYLE_TARGET",
+                f"Style {style.id} targets unknown {target_kind}:{target_id}.",
+                intent_ref=_style_ref(style.id),
+            )
+
+    seen_action_ids: set[str] = set()
+    for action in view_spec.actions:
+        if action.id in seen_action_ids:
+            _add_diagnostic(
+                diagnostics, "DUPLICATE_ACTION_ID",
+                f"Action id {action.id} appears more than once. The first occurrence was used.",
+                intent_ref=_action_ref(action.id),
+                region_id=action.target_region,
+            )
+            continue
+        seen_action_ids.add(action.id)
+        if action.target_region not in region_nodes:
+            _add_diagnostic(
+                diagnostics, "UNKNOWN_ACTION_TARGET",
+                f"Action {action.id} targets unknown region {action.target_region}.",
+                intent_ref=_action_ref(action.id),
+                region_id=action.target_region,
+            )
+        if action.target_ref:
+            if ":" not in action.target_ref:
+                _add_diagnostic(
+                    diagnostics, "INVALID_ACTION_TARGET_REF",
+                    f"Action {action.id} target_ref must use kind:id form.",
+                    intent_ref=_action_ref(action.id),
+                )
+            else:
+                target_kind, target_id = action.target_ref.split(":", 1)
+                target_exists = (
+                    (target_kind == "region" and target_id in region_nodes)
+                    or (target_kind == "binding" and target_id in all_binding_ids)
+                    or (target_kind == "motif" and target_id in motif_by_id)
+                    or (target_kind == "view" and target_id == view_spec.id)
+                )
+                if not target_exists:
+                    _add_diagnostic(
+                        diagnostics, "UNKNOWN_ACTION_TARGET",
+                        f"Action {action.id} targets unknown {target_kind}:{target_id}.",
+                        intent_ref=_action_ref(action.id),
+                    )
+        for binding_id in action.payload_bindings:
+            if binding_id not in all_binding_ids:
+                _add_diagnostic(
+                    diagnostics, "UNKNOWN_ACTION_PAYLOAD_BINDING",
+                    f"Action {action.id} references missing payload binding {binding_id}.",
+                    intent_ref=_action_ref(action.id),
+                )
 
     result = CompilerResult(
         root=CompositionIR(root=region_nodes[view_spec.root_region]),
@@ -735,7 +909,7 @@ def compile_remote(
     """
     Compile an IntentBundle using the hosted ViewSpec compiler API.
 
-    Requires the `httpx` package (pip install httpx).
+    Requires the `httpx` package (`pip install viewspec[remote]`).
 
     Args:
         bundle: The IntentBundle to compile.
@@ -753,22 +927,34 @@ def compile_remote(
         import httpx
     except ImportError:
         raise ImportError(
-            "httpx is required for remote compilation. Install it: pip install httpx"
-        )
+            "httpx is required for remote compilation. Install it: pip install viewspec[remote]"
+        ) from None
 
     headers: dict[str, str] = {}
     if api_key:
         headers["Authorization"] = f"Bearer {api_key}"
 
-    response = httpx.post(
-        f"{api_url.rstrip('/')}/v1/compile",
-        json=bundle.to_json(),
-        headers=headers,
-        timeout=30.0,
-    )
+    try:
+        response = httpx.post(
+            f"{api_url.rstrip('/')}/v1/compile",
+            json=bundle.to_json(),
+            headers=headers,
+            timeout=30.0,
+        )
+    except httpx.HTTPError as exc:
+        raise CompilerAPIError(f"Remote compilation request failed: {exc}") from exc
+
+    def _response_json() -> dict[str, Any]:
+        try:
+            data = response.json()
+        except ValueError as exc:
+            raise CompilerAPIError("Compilation failed: response was not valid JSON") from exc
+        if not isinstance(data, dict):
+            raise CompilerAPIError("Compilation failed: response JSON was not an object")
+        return data
 
     if response.status_code == 429:
-        data = response.json()
+        data = _response_json()
         raise CompilerAPIError(
             f"Rate limit exceeded: {data.get('message', 'Upgrade at viewspec.dev')}"
         )
@@ -779,8 +965,13 @@ def compile_remote(
             f"Compilation failed (HTTP {response.status_code}): {response.text}"
         )
 
-    data = response.json()
-    return ASTBundle.from_json(data["ast"])
+    data = _response_json()
+    if "ast" not in data:
+        raise CompilerAPIError("Compilation failed: response missing ast")
+    try:
+        return ASTBundle.from_json(data["ast"])
+    except Exception as exc:
+        raise CompilerAPIError("Compilation failed: response ast was invalid") from exc
 
 
 def compile_auto(

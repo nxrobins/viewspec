@@ -26,4 +26,4 @@ for kind, path in paths.items():
     print(f"  {kind}: {path}")
 print()
 print("Every DOM element carries data-ir-id, data-content-refs, and data-intent-refs.")
-print("Click any element → trace it back to the exact semantic address that produced it.")
+print("Click any element -> trace it back to the exact semantic address that produced it.")
