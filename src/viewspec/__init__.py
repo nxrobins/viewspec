@@ -37,6 +37,15 @@ from viewspec.compiler import (
     CompilerInputError,
     UnsupportedMotifError,
 )
+from viewspec.agent import (
+    AGENT_INTENT_BUNDLE_SCHEMA,
+    AGENT_SYSTEM_PROMPT,
+    SUPPORTED_AGENT_MOTIFS,
+    AgentValidationIssue,
+    AgentValidationResult,
+    agent_correction_prompt,
+    validate_agent_intent_bundle,
+)
 
 __version__ = "0.1.0"
 
@@ -71,6 +80,14 @@ __all__ = [
     "CompilerAPIError",
     "CompilerInputError",
     "UnsupportedMotifError",
+    # Agent integration
+    "AGENT_INTENT_BUNDLE_SCHEMA",
+    "AGENT_SYSTEM_PROMPT",
+    "SUPPORTED_AGENT_MOTIFS",
+    "AgentValidationIssue",
+    "AgentValidationResult",
+    "agent_correction_prompt",
+    "validate_agent_intent_bundle",
     # Utilities
     "build_address_index",
     "normalize_compiler_result",

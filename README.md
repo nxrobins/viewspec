@@ -63,6 +63,8 @@ Agent and crawler entrypoints are published with the static site:
 
 - `https://viewspec.dev/llms.txt` — concise LLM-facing product map
 - `https://viewspec.dev/llms-full.txt` — expanded AI context and canonical facts
+- `https://viewspec.dev/agent-system-prompt.txt` — system prompt for agents that emit `IntentBundle` JSON
+- `https://viewspec.dev/agent-intent-bundle.schema.json` — JSON schema for agent-authored compiler input
 - `https://viewspec.dev/openapi.json` — hosted compiler OpenAPI description
 - `https://viewspec.dev/sitemap.xml` — canonical page sitemap
 

@@ -55,5 +55,14 @@ const openapi = JSON.parse(await readFile('demos/openapi.json', 'utf8'))
 assert.equal(openapi.openapi, '3.1.0')
 assert.equal(openapi.servers[0].url, 'https://api.viewspec.dev')
 assert(openapi.paths['/v1/compile']?.post, 'OpenAPI needs POST /v1/compile')
+assert.equal(openapi['x-viewspec-agent-artifacts'].systemPrompt, 'https://viewspec.dev/agent-system-prompt.txt')
+
+const agentPrompt = await readFile('demos/agent-system-prompt.txt', 'utf8')
+assert.match(agentPrompt, /IntentBundle/)
+assert.match(agentPrompt, /CompositionIR is compiler output only/)
+assert.doesNotMatch(agentPrompt, /You output ViewSpec IR/)
+
+const agentSchema = JSON.parse(await readFile('demos/agent-intent-bundle.schema.json', 'utf8'))
+assert.deepEqual(agentSchema.$defs.motif.properties.kind.enum, ['table', 'dashboard', 'outline', 'comparison'])
 
 console.log(`Validated SEO and agent metadata for ${pages.length} pages.`)

@@ -1,0 +1,156 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://viewspec.dev/agent-intent-bundle.schema.json",
+  "title": "ViewSpec Agent IntentBundle",
+  "description": "Agent-authored ViewSpec compiler input. Agents output IntentBundle JSON, never CompositionIR.",
+  "type": "object",
+  "required": ["substrate", "view_spec"],
+  "additionalProperties": false,
+  "properties": {
+    "substrate": { "$ref": "#/$defs/substrate" },
+    "view_spec": { "$ref": "#/$defs/view_spec" }
+  },
+  "$defs": {
+    "values": {
+      "type": "object",
+      "required": ["values"],
+      "additionalProperties": false,
+      "properties": {
+        "values": { "type": "array" }
+      }
+    },
+    "substrate_node": {
+      "type": "object",
+      "required": ["id", "kind", "attrs", "slots", "edges"],
+      "additionalProperties": true,
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "kind": { "type": "string", "minLength": 1 },
+        "attrs": { "type": "object" },
+        "slots": {
+          "type": "object",
+          "additionalProperties": { "$ref": "#/$defs/values" }
+        },
+        "edges": {
+          "type": "object",
+          "additionalProperties": { "$ref": "#/$defs/values" }
+        }
+      }
+    },
+    "substrate": {
+      "type": "object",
+      "required": ["id", "root_id", "nodes"],
+      "additionalProperties": true,
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "root_id": { "type": "string", "minLength": 1 },
+        "nodes": {
+          "type": "object",
+          "additionalProperties": { "$ref": "#/$defs/substrate_node" }
+        }
+      }
+    },
+    "region": {
+      "type": "object",
+      "required": ["id", "parent_region", "role", "layout", "min_children", "max_children"],
+      "additionalProperties": true,
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "parent_region": { "type": ["string", "null"] },
+        "role": { "type": "string" },
+        "layout": { "type": "string" },
+        "min_children": { "type": "integer" },
+        "max_children": { "type": ["integer", "null"] }
+      }
+    },
+    "binding": {
+      "type": "object",
+      "required": ["id", "address", "target_region", "present_as", "cardinality"],
+      "additionalProperties": true,
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "address": { "type": "string", "pattern": "^node:" },
+        "target_region": { "type": "string", "minLength": 1 },
+        "present_as": {
+          "enum": ["badge", "image_slot", "label", "rich_text", "rule", "text", "value"]
+        },
+        "cardinality": { "type": "string" }
+      }
+    },
+    "group": {
+      "type": "object",
+      "required": ["id", "kind", "members", "target_region"],
+      "additionalProperties": true,
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "kind": { "type": "string" },
+        "members": { "type": "array", "items": { "type": "string" } },
+        "target_region": { "type": ["string", "null"] }
+      }
+    },
+    "motif": {
+      "type": "object",
+      "required": ["id", "kind", "region", "members"],
+      "additionalProperties": true,
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "kind": {
+          "enum": ["table", "dashboard", "outline", "comparison"]
+        },
+        "region": { "type": "string", "minLength": 1 },
+        "members": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "style": {
+      "type": "object",
+      "required": ["id", "target", "token"],
+      "additionalProperties": true,
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "target": { "type": "string", "minLength": 1 },
+        "token": { "type": "string", "minLength": 1 }
+      }
+    },
+    "action": {
+      "type": "object",
+      "required": ["id", "kind", "label", "target_region", "target_ref", "payload_bindings"],
+      "additionalProperties": true,
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "kind": { "type": "string", "minLength": 1 },
+        "label": { "type": "string" },
+        "target_region": { "type": "string", "minLength": 1 },
+        "target_ref": { "type": ["string", "null"] },
+        "payload_bindings": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "view_spec": {
+      "type": "object",
+      "required": [
+        "id",
+        "substrate_id",
+        "complexity_tier",
+        "root_region",
+        "regions",
+        "bindings",
+        "groups",
+        "motifs",
+        "styles",
+        "actions"
+      ],
+      "additionalProperties": true,
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "substrate_id": { "type": "string", "minLength": 1 },
+        "complexity_tier": { "type": "integer", "minimum": 1 },
+        "root_region": { "type": "string", "minLength": 1 },
+        "regions": { "type": "array", "items": { "$ref": "#/$defs/region" } },
+        "bindings": { "type": "array", "items": { "$ref": "#/$defs/binding" } },
+        "groups": { "type": "array", "items": { "$ref": "#/$defs/group" } },
+        "motifs": { "type": "array", "items": { "$ref": "#/$defs/motif" } },
+        "styles": { "type": "array", "items": { "$ref": "#/$defs/style" } },
+        "actions": { "type": "array", "items": { "$ref": "#/$defs/action" } }
+      }
+    }
+  }
+}

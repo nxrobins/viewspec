@@ -11,6 +11,8 @@ The core idea: describe what the data means, not how the UI should be hand-wired
 - Homepage and live playground: https://viewspec.dev/
 - Hosted compiler endpoint: https://api.viewspec.dev/v1/compile
 - OpenAPI JSON: https://viewspec.dev/openapi.json
+- Agent system prompt: https://viewspec.dev/agent-system-prompt.txt
+- Agent IntentBundle schema: https://viewspec.dev/agent-intent-bundle.schema.json
 - GitHub repository: https://github.com/nxrobins/viewspec
 - Python package: https://pypi.org/project/viewspec/
 - Same data, three motifs demo: https://viewspec.dev/motif-switcher/
@@ -45,6 +47,17 @@ Avoid describing ViewSpec as:
 3. Compile the intent bundle locally or through the hosted compiler.
 4. Receive CompositionIR, diagnostics, metadata, style values, and provenance.
 5. Emit HTML/Tailwind today, or write custom emitters for other surfaces.
+
+## Agent Contract
+
+Agents should output ViewSpec IntentBundle JSON, never CompositionIR. CompositionIR is compiler output. The v1 agent contract supports these motifs only:
+
+- `table`
+- `dashboard`
+- `outline`
+- `comparison`
+
+The agent-facing system prompt is published at `https://viewspec.dev/agent-system-prompt.txt`. The JSON schema is published at `https://viewspec.dev/agent-intent-bundle.schema.json`.
 
 ## Python SDK Example
 

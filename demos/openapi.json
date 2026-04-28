@@ -20,6 +20,11 @@
     "description": "ViewSpec playground and demos",
     "url": "https://viewspec.dev/"
   },
+  "x-viewspec-agent-artifacts": {
+    "systemPrompt": "https://viewspec.dev/agent-system-prompt.txt",
+    "intentBundleSchema": "https://viewspec.dev/agent-intent-bundle.schema.json",
+    "agentDocs": "https://github.com/nxrobins/viewspec/blob/main/docs/agent-integration.md"
+  },
   "paths": {
     "/v1/compile": {
       "post": {
