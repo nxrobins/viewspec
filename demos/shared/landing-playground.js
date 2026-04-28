@@ -1,8 +1,10 @@
 import {
   LANDING_CONFIG,
+  compileRequestHeaders,
   hasLiveApiConfig,
   hasProductionCommerceConfig,
-  redactedAuthorizationHeader,
+  hasPublicApiKey,
+  redactedCompileRequestHeaders,
 } from './landing-config.js'
 import {
   DEFAULT_HINTS,
@@ -71,6 +73,86 @@ function staticResult(reason, payload) {
   }
 }
 
+function cloneJson(value) {
+  return JSON.parse(JSON.stringify(value))
+}
+
+function walkIr(node, visit) {
+  if (!node) return
+  visit(node)
+  ;(node.children || []).forEach((child) => walkIr(child, visit))
+}
+
+function findIrNode(node, id) {
+  let match = null
+  walkIr(node, (candidate) => {
+    if (!match && candidate.id === id) match = candidate
+  })
+  return match
+}
+
+function collectLiveBindingNodes(root) {
+  const bindings = new Map()
+  walkIr(root, (node) => {
+    if (node?.id?.startsWith('binding_kpi_')) bindings.set(node.id, node)
+  })
+  return bindings
+}
+
+function needsDashboardPresentationAdapter(root) {
+  const motif = findIrNode(root, 'motif_kpis')
+  if (!motif) return true
+  return motif.primitive !== 'grid' || !(motif.children || []).every((child) => child.primitive === 'surface')
+}
+
+function applyLiveBindingsToTemplate(templateAst, liveBindings) {
+  const templateRoot = getAstRoot(templateAst)
+  walkIr(templateRoot, (node) => {
+    const liveNode = liveBindings.get(node.id)
+    if (!liveNode) return
+    node.props = cloneJson(liveNode.props || node.props || {})
+    node.provenance = cloneJson(liveNode.provenance || node.provenance || {})
+    node.children = cloneJson(liveNode.children || [])
+  })
+}
+
+function normalizeCompileResponse(data, hints) {
+  const root = getAstRoot(data.ast)
+  if (!root || !needsDashboardPresentationAdapter(root)) return data
+
+  const liveBindings = collectLiveBindingNodes(root)
+  if (!liveBindings.size) return data
+
+  const presentation = buildStaticCompileResult(hints)
+  const adaptedAst = cloneJson(presentation.ast)
+  applyLiveBindingsToTemplate(adaptedAst, liveBindings)
+
+  const adapted = {
+    ...data,
+    ast: {
+      ...adaptedAst,
+      result: {
+        ...adaptedAst.result,
+        diagnostics: data.ast?.result?.diagnostics || [],
+      },
+      style_values: {
+        ...(data.ast?.style_values || {}),
+        ...(adaptedAst.style_values || {}),
+      },
+    },
+    derivations: Array.isArray(data.derivations) && data.derivations.length ? data.derivations : presentation.derivations,
+    __visualAdapter: 'dashboard_motif_from_live_bindings',
+  }
+
+  adapted.meta = {
+    ...(data.meta || {}),
+    ir_node_count: countIrNodes(getAstRoot(adapted.ast)),
+    style_token_count: Object.keys(adapted.ast.style_values || {}).length,
+  }
+
+  return adapted
+}
+
 async function fetchCompiledDashboard(hints) {
   const normalized = normalizeHints(hints)
   const cacheKey = stableHintKey(normalized)
@@ -103,15 +185,13 @@ async function fetchCompiledDashboard(hints) {
   try {
     const response = await fetch(LANDING_CONFIG.apiUrl, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
+      headers: compileRequestHeaders(),
       body: JSON.stringify(payload),
       signal: currentAbortController.signal,
     })
 
     if (!response.ok) throw new Error(`HTTP ${response.status}`)
-    const data = validateCompileResponse(await response.json())
+    const data = normalizeCompileResponse(validateCompileResponse(await response.json()), normalized)
     const roundTripMs = performance.now() - startedAt
     data.meta = { ...data.meta, round_trip_ms: Number(roundTripMs.toFixed(1)) }
     responseCache.set(cacheKey, data)
@@ -228,10 +308,8 @@ function renderApiInspector(result) {
     {
       method: 'POST',
       url: LANDING_CONFIG.apiUrl,
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: redactedAuthorizationHeader(),
-      },
+      headers: redactedCompileRequestHeaders(),
+      auth: hasPublicApiKey() ? 'public landing key' : 'anonymous free tier',
       payload_bytes: summary.bytes,
       hints: summary.hints,
       body: result.payload,
@@ -246,6 +324,7 @@ function renderApiInspector(result) {
       status: result.status,
       source: result.data.__static ? 'static fixture' : result.fromCache ? 'cache' : 'hosted api',
       fallback_reason: result.data.__fallbackReason || null,
+      visual_adapter: result.data.__visualAdapter || null,
       meta: result.data.meta || {},
       derivations: (result.data.derivations || []).length,
       diagnostics: diagnostics.length,

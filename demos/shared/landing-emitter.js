@@ -99,12 +99,7 @@ export function renderIRNode(node, styleValues = {}) {
 export function renderAst(ast, container) {
   const root = getAstRoot(ast)
   if (!root) throw new Error('Compiler response did not include ast.result.root.root')
-  const mainChild = root.children?.[0]
-  const motif = mainChild?.children?.[0]
-  console.log('[renderAst]', container.id, 'root:', root.id, 'main children:', mainChild?.children?.length, 'has motif:', motif?.id, 'motif children:', motif?.children?.length)
   const rendered = renderIRNode(root, ast.style_values || {})
-  const motifEl = rendered.querySelector?.('[data-ir-id="motif_kpis"]')
-  console.log('[renderAst] DOM result:', rendered.querySelectorAll?.('[data-ir-id]')?.length, 'nodes, has motif_kpis:', !!motifEl)
   container.replaceChildren(rendered)
   return rendered
 }
