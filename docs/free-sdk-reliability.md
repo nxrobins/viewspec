@@ -13,6 +13,8 @@ The free SDK is the local Python package under `src/viewspec`. Its supported rel
 
 The canonical hosted compiler domain is `https://api.viewspec.dev`. Fly deployment URLs are internal implementation details and should not be used in SDK defaults or public docs.
 
+The static landing page keeps a deployment fallback endpoint so the live demo does not collapse to a static sample while the custom API domain is being cut over. The canonical SDK contract remains `https://api.viewspec.dev`.
+
 ## Reliability Guarantees
 
 - Local compilation performs no network calls and no LLM calls.

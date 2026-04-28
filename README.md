@@ -64,6 +64,7 @@ Runtime landing-page config is read from `window.VIEWSPEC_LANDING_CONFIG`:
 | Key | Purpose |
 |-----|---------|
 | `apiUrl` | Hosted compiler endpoint. Defaults to `https://api.viewspec.dev/v1/compile`. |
+| `fallbackApiUrls` | Optional fallback compiler endpoints for landing-page availability during custom-domain cutovers. |
 | `publicApiKey` | Optional browser-safe public/demo key. `window.PUBLIC_LANDING_API_KEY` is also accepted. Omit it to use anonymous free-tier demo traffic. |
 | `proStripeUrl` | Pro checkout link. Defaults to the live Stripe payment link. |
 | `scaleStripeUrl` | Scale checkout link. Defaults to the live Stripe payment link. |

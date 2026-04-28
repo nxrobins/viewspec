@@ -1,8 +1,23 @@
 const runtimeConfig = window.VIEWSPEC_LANDING_CONFIG || {}
 const configuredApiKey = runtimeConfig.publicApiKey || window.PUBLIC_LANDING_API_KEY || ''
+const primaryApiUrl = runtimeConfig.apiUrl || 'https://api.viewspec.dev/v1/compile'
+
+function urlList(value) {
+  if (!value) return []
+  return Array.isArray(value) ? value : [value]
+}
+
+const fallbackApiUrls = runtimeConfig.fallbackApiUrls
+  ? urlList(runtimeConfig.fallbackApiUrls)
+  : ['https://viewspec-api.fly.dev/v1/compile']
+
+function uniqueUrls(urls) {
+  return [...new Set(urls.filter((value) => value && !value.includes('REPLACE_WITH')))]
+}
 
 export const LANDING_CONFIG = {
-  apiUrl: runtimeConfig.apiUrl || 'https://api.viewspec.dev/v1/compile',
+  apiUrl: primaryApiUrl,
+  apiUrls: uniqueUrls([primaryApiUrl, ...fallbackApiUrls]),
   publicApiKey: configuredApiKey,
   proStripeUrl: runtimeConfig.proStripeUrl || 'https://buy.stripe.com/7sY00i9v67cJebDd1K1oI00',
   scaleStripeUrl: runtimeConfig.scaleStripeUrl || 'https://buy.stripe.com/4gM6oGcHi68FgjLd1K1oI01',
@@ -11,7 +26,7 @@ export const LANDING_CONFIG = {
 }
 
 export function hasLiveApiConfig() {
-  return Boolean(LANDING_CONFIG.apiUrl && !LANDING_CONFIG.apiUrl.includes('REPLACE_WITH'))
+  return LANDING_CONFIG.apiUrls.length > 0
 }
 
 export function hasPublicApiKey() {

@@ -43,7 +43,9 @@ jobs:
         run: python -m pytest -q
 
       - name: Landing payload smoke test
-        run: node tests/landing_payload_smoke.mjs
+        run: |
+          node tests/landing_payload_smoke.mjs
+          node tests/landing_config_smoke.mjs
 
       - name: Build wheel
         run: python -m pip wheel . --no-deps

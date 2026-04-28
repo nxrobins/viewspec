@@ -174,41 +174,54 @@ async function fetchCompiledDashboard(hints) {
   }
 
   if (currentAbortController) currentAbortController.abort()
-  currentAbortController = new AbortController()
-  let timedOut = false
-  const timeout = window.setTimeout(() => {
-    timedOut = true
-    currentAbortController.abort()
-  }, LANDING_CONFIG.requestTimeoutMs)
-  const startedAt = performance.now()
+  const endpoints = LANDING_CONFIG.apiUrls
+  const perEndpointTimeoutMs = endpoints.length > 1 ? Math.min(LANDING_CONFIG.requestTimeoutMs, 2500) : LANDING_CONFIG.requestTimeoutMs
+  let lastError = null
 
-  try {
-    const response = await fetch(LANDING_CONFIG.apiUrl, {
-      method: 'POST',
-      headers: compileRequestHeaders(),
-      body: JSON.stringify(payload),
-      signal: currentAbortController.signal,
-    })
+  for (const apiUrl of endpoints) {
+    currentAbortController = new AbortController()
+    let timedOut = false
+    const timeout = window.setTimeout(() => {
+      timedOut = true
+      currentAbortController.abort()
+    }, perEndpointTimeoutMs)
+    const startedAt = performance.now()
 
-    if (!response.ok) throw new Error(`HTTP ${response.status}`)
-    const data = normalizeCompileResponse(validateCompileResponse(await response.json()), normalized)
-    const roundTripMs = performance.now() - startedAt
-    data.meta = { ...data.meta, round_trip_ms: Number(roundTripMs.toFixed(1)) }
-    responseCache.set(cacheKey, data)
-    return {
-      data,
-      payload,
-      status: response.status,
-      roundTripMs,
-      fromCache: false,
+    try {
+      const response = await fetch(apiUrl, {
+        method: 'POST',
+        headers: compileRequestHeaders(),
+        body: JSON.stringify(payload),
+        signal: currentAbortController.signal,
+      })
+
+      if (!response.ok) throw new Error(`HTTP ${response.status}`)
+      const data = normalizeCompileResponse(validateCompileResponse(await response.json()), normalized)
+      const roundTripMs = performance.now() - startedAt
+      data.meta = {
+        ...data.meta,
+        api_url: apiUrl,
+        endpoint_fallback: apiUrl !== LANDING_CONFIG.apiUrl,
+        round_trip_ms: Number(roundTripMs.toFixed(1)),
+      }
+      responseCache.set(cacheKey, data)
+      return {
+        apiUrl,
+        data,
+        payload,
+        status: response.status,
+        roundTripMs,
+        fromCache: false,
+      }
+    } catch (error) {
+      if (error.name === 'AbortError' && !timedOut) return null
+      lastError = error.name === 'AbortError' && timedOut ? new Error(`Compiler request timed out for ${apiUrl}.`) : error
+    } finally {
+      window.clearTimeout(timeout)
     }
-  } catch (error) {
-    if (error.name === 'AbortError' && !timedOut) return null
-    if (error.name === 'AbortError' && timedOut) return staticResult('Compiler request timed out.', payload)
-    return staticResult(error.message || 'Compiler API unavailable.', payload)
-  } finally {
-    window.clearTimeout(timeout)
   }
+
+  return staticResult(lastError?.message || 'Compiler API unavailable.', payload)
 }
 
 function renderStatus(result) {
@@ -311,7 +324,7 @@ function renderApiInspector(result) {
   requestCode.textContent = JSON.stringify(
     {
       method: 'POST',
-      url: LANDING_CONFIG.apiUrl,
+      url: result.apiUrl || LANDING_CONFIG.apiUrl,
       headers: redactedCompileRequestHeaders(),
       auth: hasPublicApiKey() ? 'public landing key' : 'anonymous free tier',
       payload_bytes: summary.bytes,
@@ -327,6 +340,7 @@ function renderApiInspector(result) {
     {
       status: result.status,
       source: result.data.__static ? 'static fixture' : result.fromCache ? 'cache' : 'hosted api',
+      endpoint: result.apiUrl || result.data.meta?.api_url || null,
       fallback_reason: result.data.__fallbackReason || null,
       visual_adapter: result.data.__visualAdapter || null,
       meta: result.data.meta || {},
