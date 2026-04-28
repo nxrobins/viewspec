@@ -213,14 +213,18 @@ async function fetchCompiledDashboard(hints) {
 
 function renderStatus(result) {
   const meta = result.data.meta || {}
+  const compileMs = `${Number(meta.compile_ms || 0).toFixed(1)}ms`
   if (result.data.__static) {
     setStatus('static sample', 'static')
+    setText('hero-compile-time', 'sample')
   } else if (result.fromCache) {
     setStatus('cached response', 'cached')
+    setText('hero-compile-time', compileMs)
   } else {
-    setStatus(`${Number(meta.compile_ms || 0).toFixed(1)}ms compile`, 'live')
+    setStatus(`${compileMs} compile`, 'live')
+    setText('hero-compile-time', compileMs)
   }
-  setText('live-compile-time', `${Number(meta.compile_ms || 0).toFixed(1)}ms`)
+  setText('live-compile-time', compileMs)
   setText('live-token-count', String(meta.style_token_count || Object.keys(result.data.ast?.style_values || {}).length))
   setText('live-ir-count', String(meta.ir_node_count || countIrNodes(getAstRoot(result.data.ast))))
 }
