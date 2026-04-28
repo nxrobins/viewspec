@@ -59,6 +59,13 @@ Requires Python 3.11+.
 
 The home page at [viewspec.dev](https://viewspec.dev) runs a live hosted compile against `https://api.viewspec.dev/v1/compile`. It uses anonymous free-tier requests by default and shows the request, response, measured `compile_ms`, active derivation tokens, and provenance chain.
 
+Agent and crawler entrypoints are published with the static site:
+
+- `https://viewspec.dev/llms.txt` — concise LLM-facing product map
+- `https://viewspec.dev/llms-full.txt` — expanded AI context and canonical facts
+- `https://viewspec.dev/openapi.json` — hosted compiler OpenAPI description
+- `https://viewspec.dev/sitemap.xml` — canonical page sitemap
+
 Runtime landing-page config is read from `window.VIEWSPEC_LANDING_CONFIG`:
 
 | Key | Purpose |

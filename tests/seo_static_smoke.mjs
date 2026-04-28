@@ -1,0 +1,59 @@
+import assert from 'node:assert/strict'
+import { readFile } from 'node:fs/promises'
+
+const pages = [
+  ['demos/index.html', 'https://viewspec.dev/'],
+  ['demos/motif-switcher/index.html', 'https://viewspec.dev/motif-switcher/'],
+  ['demos/provenance-inspector/index.html', 'https://viewspec.dev/provenance-inspector/'],
+  ['demos/live-builder/index.html', 'https://viewspec.dev/live-builder/'],
+  ['demos/invariants/index.html', 'https://viewspec.dev/invariants/'],
+  ['demos/fifteen-lines/index.html', 'https://viewspec.dev/fifteen-lines/'],
+  ['demos/style-derivation/index.html', 'https://viewspec.dev/style-derivation/'],
+]
+
+function extractJsonLd(html) {
+  return [...html.matchAll(/<script type="application\/ld\+json">\s*([\s\S]*?)\s*<\/script>/g)].map((match) =>
+    JSON.parse(match[1])
+  )
+}
+
+for (const [file, canonical] of pages) {
+  const html = await readFile(file, 'utf8')
+  assert.match(html, /<title>ViewSpec/, `${file} needs a ViewSpec title`)
+  assert.match(html, /<meta name="description" content="[^"]{80,220}">/, `${file} needs a useful meta description`)
+  assert.match(html, new RegExp(`<link rel="canonical" href="${canonical.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}">`))
+  assert.match(html, /<meta name="robots" content="index,follow,max-snippet:-1,max-image-preview:large">/)
+  assert.match(html, /href="https:\/\/viewspec\.dev\/llms\.txt"/)
+  assert.match(html, /href="https:\/\/viewspec\.dev\/openapi\.json"/)
+
+  const jsonLd = extractJsonLd(html)
+  assert(jsonLd.length > 0, `${file} needs JSON-LD`)
+}
+
+const home = await readFile('demos/index.html', 'utf8')
+const homeJsonLd = extractJsonLd(home)
+const graph = homeJsonLd.find((entry) => Array.isArray(entry['@graph']))?.['@graph'] || []
+assert(graph.some((entry) => entry['@type'] === 'SoftwareApplication'), 'home JSON-LD needs SoftwareApplication')
+assert(graph.some((entry) => entry['@type'] === 'WebAPI'), 'home JSON-LD needs WebAPI')
+assert(graph.some((entry) => entry['@type'] === 'FAQPage'), 'home JSON-LD needs FAQPage')
+
+const robots = await readFile('demos/robots.txt', 'utf8')
+assert.match(robots, /User-agent: \*/)
+assert.match(robots, /Sitemap: https:\/\/viewspec\.dev\/sitemap\.xml/)
+
+const sitemap = await readFile('demos/sitemap.xml', 'utf8')
+for (const [, canonical] of pages) {
+  assert.match(sitemap, new RegExp(`<loc>${canonical.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}</loc>`))
+}
+
+const llms = await readFile('demos/llms.txt', 'utf8')
+assert.match(llms, /semantic UI compiler/i)
+assert.match(llms, /agentic engineering/i)
+assert.match(llms, /https:\/\/api\.viewspec\.dev\/v1\/compile/)
+
+const openapi = JSON.parse(await readFile('demos/openapi.json', 'utf8'))
+assert.equal(openapi.openapi, '3.1.0')
+assert.equal(openapi.servers[0].url, 'https://api.viewspec.dev')
+assert(openapi.paths['/v1/compile']?.post, 'OpenAPI needs POST /v1/compile')
+
+console.log(`Validated SEO and agent metadata for ${pages.length} pages.`)

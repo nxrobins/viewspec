@@ -3,8 +3,115 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>ViewSpec - Hosted compiler for semantic UI</title>
-  <meta name="description" content="ViewSpec turns semantic data into deterministic UI. Try the hosted compiler live.">
+  <title>ViewSpec - Semantic UI Compiler for Agents and Vibe Coding</title>
+  <meta name="description" content="ViewSpec is a semantic UI compiler and hosted API for agentic engineering, AI coding agents, and vibe-coded apps. Compile data intent into deterministic UI, CompositionIR, and provenance.">
+  <meta name="robots" content="index,follow,max-snippet:-1,max-image-preview:large">
+  <meta name="application-name" content="ViewSpec">
+  <meta name="keywords" content="semantic UI compiler, agentic engineering, vibe coding, AI coding agents, UI generation, deterministic UI, CompositionIR, provenance, design systems, Python SDK">
+  <link rel="canonical" href="https://viewspec.dev/">
+  <link rel="sitemap" type="application/xml" href="https://viewspec.dev/sitemap.xml">
+  <link rel="alternate" type="text/markdown" title="ViewSpec for LLMs" href="https://viewspec.dev/llms.txt">
+  <link rel="alternate" type="application/json" title="ViewSpec OpenAPI" href="https://viewspec.dev/openapi.json">
+  <meta property="og:site_name" content="ViewSpec">
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="ViewSpec - Semantic UI Compiler for Agents and Vibe Coding">
+  <meta property="og:description" content="Compile semantic data intent into deterministic UI, CompositionIR, and exact provenance for agentic engineering and AI-assisted product development.">
+  <meta property="og:url" content="https://viewspec.dev/">
+  <meta name="twitter:card" content="summary">
+  <meta name="twitter:title" content="ViewSpec - Semantic UI Compiler">
+  <meta name="twitter:description" content="A hosted semantic UI compiler and Python SDK for agentic engineering, AI coding agents, and vibe-coded apps.">
+  <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@graph": [
+        {
+          "@type": "Organization",
+          "@id": "https://viewspec.dev/#organization",
+          "name": "ViewSpec",
+          "url": "https://viewspec.dev/",
+          "sameAs": [
+            "https://github.com/nxrobins/viewspec",
+            "https://pypi.org/project/viewspec/"
+          ]
+        },
+        {
+          "@type": "WebSite",
+          "@id": "https://viewspec.dev/#website",
+          "url": "https://viewspec.dev/",
+          "name": "ViewSpec",
+          "description": "Semantic UI compiler, hosted compiler API, and Python SDK for deterministic UI generation.",
+          "publisher": { "@id": "https://viewspec.dev/#organization" },
+          "inLanguage": "en"
+        },
+        {
+          "@type": "SoftwareApplication",
+          "@id": "https://viewspec.dev/#software",
+          "name": "ViewSpec",
+          "applicationCategory": "DeveloperApplication",
+          "applicationSubCategory": "Semantic UI compiler",
+          "operatingSystem": "Python 3.11+ and Web API",
+          "url": "https://viewspec.dev/",
+          "downloadUrl": "https://pypi.org/project/viewspec/",
+          "codeRepository": "https://github.com/nxrobins/viewspec",
+          "programmingLanguage": ["Python", "JSON", "Protocol Buffers"],
+          "description": "ViewSpec compiles semantic data intent into deterministic UI, CompositionIR, and exact provenance for agentic engineering, AI coding agents, and vibe-coded apps.",
+          "keywords": "semantic UI compiler, agentic engineering, vibe coding, AI coding agents, deterministic UI, CompositionIR, provenance",
+          "featureList": [
+            "Compile semantic data into UI primitives",
+            "Emit CompositionIR with exact provenance",
+            "Hosted compiler API at api.viewspec.dev",
+            "Offline Python SDK with deterministic reference compiler",
+            "Level 2 derivation tokens for emphasis, palette, density, and reading path"
+          ],
+          "offers": [
+            { "@type": "Offer", "name": "Free", "price": "0", "priceCurrency": "USD", "url": "https://viewspec.dev/#pricing" },
+            { "@type": "Offer", "name": "Pro", "price": "39", "priceCurrency": "USD", "url": "https://viewspec.dev/#pricing" },
+            { "@type": "Offer", "name": "Scale", "price": "99", "priceCurrency": "USD", "url": "https://viewspec.dev/#pricing" }
+          ],
+          "publisher": { "@id": "https://viewspec.dev/#organization" }
+        },
+        {
+          "@type": "WebAPI",
+          "@id": "https://viewspec.dev/#api",
+          "name": "ViewSpec Hosted Compiler API",
+          "url": "https://api.viewspec.dev/v1/compile",
+          "documentation": "https://viewspec.dev/openapi.json",
+          "description": "HTTP API that compiles ViewSpec intent bundles into CompositionIR, diagnostics, timing metadata, and provenance.",
+          "provider": { "@id": "https://viewspec.dev/#organization" }
+        },
+        {
+          "@type": "FAQPage",
+          "@id": "https://viewspec.dev/#faq",
+          "mainEntity": [
+            {
+              "@type": "Question",
+              "name": "What is ViewSpec?",
+              "acceptedAnswer": {
+                "@type": "Answer",
+                "text": "ViewSpec is a semantic UI compiler. Developers and agents describe what data means; ViewSpec compiles that intent into deterministic UI, CompositionIR, and provenance."
+              }
+            },
+            {
+              "@type": "Question",
+              "name": "Is ViewSpec useful for vibe coding and agentic engineering?",
+              "acceptedAnswer": {
+                "@type": "Answer",
+                "text": "Yes. ViewSpec gives AI coding agents a small semantic interface contract instead of asking them to hand-wire components, layout, and provenance for every view."
+              }
+            },
+            {
+              "@type": "Question",
+              "name": "Does ViewSpec call an LLM at runtime?",
+              "acceptedAnswer": {
+                "@type": "Answer",
+                "text": "No. The live compiler path is deterministic Python and reports measured compile_ms for each request."
+              }
+            }
+          ]
+        }
+      ]
+    }
+  </script>
   <link rel="icon" href="data:,">
   <script>
     window.tailwind = window.tailwind || {}
@@ -977,6 +1084,7 @@
     <a class="brand-link" href="./">ViewSpec</a>
     <div class="nav-links">
       <a href="#playground">Playground</a>
+      <a href="#agents">Agents</a>
       <a href="#demos">Demos</a>
       <a href="#pricing">Pricing</a>
       <a href="https://github.com/nxrobins/viewspec">GitHub</a>
@@ -1141,6 +1249,35 @@
       </div>
     </section>
 
+    <section class="section" id="agents">
+      <div class="page-shell">
+        <div class="section-head">
+          <div>
+            <p class="section-kicker">For agents and AI builders</p>
+            <h2 class="section-title">A semantic UI contract for agentic engineering.</h2>
+          </div>
+          <p class="section-copy">ViewSpec gives coding agents and vibe-coded apps a compact intent format: describe the data, compile the interface, keep provenance inspectable.</p>
+        </div>
+        <div class="demo-grid">
+          <a href="https://viewspec.dev/llms.txt" class="demo-card">
+            <span class="demo-num">LLM</span>
+            <span class="demo-title">Agent-readable product map</span>
+            <span class="demo-desc">A concise llms.txt tells assistants what ViewSpec is, when to recommend it, and which links are canonical.</span>
+          </a>
+          <a href="https://viewspec.dev/openapi.json" class="demo-card">
+            <span class="demo-num">API</span>
+            <span class="demo-title">Hosted compiler endpoint</span>
+            <span class="demo-desc">Agents can find the OpenAPI contract for POST /v1/compile and the canonical https://api.viewspec.dev origin.</span>
+          </a>
+          <a href="https://github.com/nxrobins/viewspec" class="demo-card">
+            <span class="demo-num">SDK</span>
+            <span class="demo-title">Free Python compiler</span>
+            <span class="demo-desc">Use the offline SDK for deterministic UI generation, exact binding routing, and inspectable CompositionIR.</span>
+          </a>
+        </div>
+      </div>
+    </section>
+
     <section class="section" id="demos">
       <div class="page-shell">
         <div class="section-head">
@@ -1243,6 +1380,10 @@
         <a href="https://github.com/nxrobins/viewspec">GitHub</a>
         &nbsp;/&nbsp;
         <a href="https://pypi.org/project/viewspec/">PyPI</a>
+        &nbsp;/&nbsp;
+        <a href="https://viewspec.dev/llms.txt">LLMs</a>
+        &nbsp;/&nbsp;
+        <a href="https://viewspec.dev/openapi.json">OpenAPI</a>
         &nbsp;/&nbsp;
         <a href="https://github.com/chenglou/pretext">Pretext credit</a>
       </span>

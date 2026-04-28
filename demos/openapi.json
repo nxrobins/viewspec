@@ -1,0 +1,162 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "ViewSpec Hosted Compiler API",
+    "summary": "Compile ViewSpec semantic intent bundles into CompositionIR and provenance.",
+    "description": "ViewSpec is a semantic UI compiler API for agentic engineering, AI coding agents, and deterministic UI generation.",
+    "version": "1.0.0",
+    "license": {
+      "name": "MIT",
+      "url": "https://github.com/nxrobins/viewspec/blob/main/LICENSE"
+    }
+  },
+  "servers": [
+    {
+      "url": "https://api.viewspec.dev",
+      "description": "Canonical hosted compiler"
+    }
+  ],
+  "externalDocs": {
+    "description": "ViewSpec playground and demos",
+    "url": "https://viewspec.dev/"
+  },
+  "paths": {
+    "/v1/compile": {
+      "post": {
+        "operationId": "compileViewSpecIntentBundle",
+        "summary": "Compile a ViewSpec intent bundle",
+        "description": "Compiles semantic substrate and view_spec JSON into CompositionIR, style values, diagnostics, timing metadata, quota metadata, and provenance-aware UI artifacts.",
+        "tags": ["compiler"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/IntentBundle"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Compiled UI artifact",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CompileResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Malformed intent bundle"
+          },
+          "401": {
+            "description": "Invalid or missing API key for a protected tier"
+          },
+          "429": {
+            "description": "Quota exceeded"
+          }
+        }
+      },
+      "options": {
+        "operationId": "compileViewSpecCorsPreflight",
+        "summary": "CORS preflight for compile endpoint",
+        "responses": {
+          "200": {
+            "description": "CORS headers accepted"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "IntentBundle": {
+        "type": "object",
+        "required": ["substrate", "view_spec"],
+        "properties": {
+          "substrate": {
+            "$ref": "#/components/schemas/Substrate"
+          },
+          "view_spec": {
+            "$ref": "#/components/schemas/ViewSpec"
+          }
+        },
+        "additionalProperties": true
+      },
+      "Substrate": {
+        "type": "object",
+        "required": ["id", "root_id", "nodes"],
+        "properties": {
+          "id": { "type": "string" },
+          "root_id": { "type": "string" },
+          "nodes": {
+            "type": "object",
+            "description": "Dictionary of substrate nodes keyed by node ID.",
+            "additionalProperties": {
+              "$ref": "#/components/schemas/SubstrateNode"
+            }
+          }
+        },
+        "additionalProperties": true
+      },
+      "SubstrateNode": {
+        "type": "object",
+        "required": ["id", "kind", "attrs", "slots", "edges"],
+        "properties": {
+          "id": { "type": "string" },
+          "kind": { "type": "string" },
+          "attrs": { "type": "object", "additionalProperties": true },
+          "slots": { "type": "object", "additionalProperties": true },
+          "edges": { "type": "object", "additionalProperties": true }
+        },
+        "additionalProperties": true
+      },
+      "ViewSpec": {
+        "type": "object",
+        "required": ["id", "substrate_id", "complexity_tier", "root_region", "regions", "bindings", "groups", "motifs"],
+        "properties": {
+          "id": { "type": "string" },
+          "substrate_id": { "type": "string" },
+          "complexity_tier": { "type": "integer", "minimum": 1 },
+          "root_region": { "type": "string" },
+          "regions": { "type": "array", "items": { "type": "object", "additionalProperties": true } },
+          "bindings": { "type": "array", "items": { "type": "object", "additionalProperties": true } },
+          "groups": { "type": "array", "items": { "type": "object", "additionalProperties": true } },
+          "motifs": { "type": "array", "items": { "type": "object", "additionalProperties": true } },
+          "styles": { "type": "array", "items": { "type": "object", "additionalProperties": true } },
+          "actions": { "type": "array", "items": { "type": "object", "additionalProperties": true } }
+        },
+        "additionalProperties": true
+      },
+      "CompileResponse": {
+        "type": "object",
+        "required": ["ast"],
+        "properties": {
+          "ast": {
+            "type": "object",
+            "description": "Compiled CompositionIR bundle and style values.",
+            "additionalProperties": true
+          },
+          "meta": {
+            "type": "object",
+            "description": "Compiler timing, tier, usage, and diagnostic metadata.",
+            "additionalProperties": true
+          },
+          "derivations": {
+            "type": "array",
+            "description": "Hosted compiler derivation token explanations when available.",
+            "items": { "type": "object", "additionalProperties": true }
+          },
+          "quota": {
+            "type": "object",
+            "description": "Quota information when returned by the hosted API.",
+            "additionalProperties": true
+          }
+        },
+        "additionalProperties": true
+      }
+    }
+  }
+}
