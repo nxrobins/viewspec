@@ -67,4 +67,9 @@ assert.doesNotMatch(agentPrompt, /You output ViewSpec IR/)
 const agentSchema = JSON.parse(await readFile('demos/agent-intent-bundle.schema.json', 'utf8'))
 assert.deepEqual(agentSchema.$defs.motif.properties.kind.enum, ['table', 'dashboard', 'outline', 'comparison'])
 
+const landingPlayground = await readFile('demos/shared/landing-playground.js', 'utf8')
+assert.match(landingPlayground, /navigator\.clipboard\.writeText/)
+assert.match(landingPlayground, /document\.execCommand\('copy'\)/)
+assert.match(landingPlayground, /textarea\.focus\(\)/)
+
 console.log(`Validated SEO and agent metadata for ${pages.length} pages.`)

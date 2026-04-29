@@ -665,18 +665,30 @@ function installCommerceLinks() {
 
 async function copyText(text) {
   if (navigator.clipboard && window.isSecureContext) {
-    await navigator.clipboard.writeText(text)
-    return
+    try {
+      await navigator.clipboard.writeText(text)
+      return
+    } catch {
+      // Fall through. Some browsers expose Clipboard API but reject writes.
+    }
   }
   const textarea = document.createElement('textarea')
   textarea.value = text
   textarea.setAttribute('readonly', '')
   textarea.style.position = 'fixed'
-  textarea.style.top = '-9999px'
+  textarea.style.left = '0'
+  textarea.style.opacity = '0'
+  textarea.style.pointerEvents = 'none'
+  textarea.style.top = '0'
   document.body.appendChild(textarea)
+  textarea.focus()
   textarea.select()
-  document.execCommand('copy')
+  textarea.setSelectionRange(0, text.length)
+  const copied = document.execCommand('copy')
   textarea.remove()
+  if (!copied) {
+    throw new Error('Copy command was rejected.')
+  }
 }
 
 function installCopyTextControls() {
