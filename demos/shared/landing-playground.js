@@ -663,6 +663,44 @@ function installCommerceLinks() {
   })
 }
 
+async function copyText(text) {
+  if (navigator.clipboard && window.isSecureContext) {
+    await navigator.clipboard.writeText(text)
+    return
+  }
+  const textarea = document.createElement('textarea')
+  textarea.value = text
+  textarea.setAttribute('readonly', '')
+  textarea.style.position = 'fixed'
+  textarea.style.top = '-9999px'
+  document.body.appendChild(textarea)
+  textarea.select()
+  document.execCommand('copy')
+  textarea.remove()
+}
+
+function installCopyTextControls() {
+  document.querySelectorAll('[data-copy-text]').forEach((button) => {
+    const text = button.getAttribute('data-copy-text')
+    const defaultLabel = button.textContent
+    button.addEventListener('click', async () => {
+      if (!text) return
+      try {
+        await copyText(text)
+        button.textContent = 'copied'
+        button.dataset.copyState = 'copied'
+        window.setTimeout(() => {
+          button.textContent = defaultLabel
+          delete button.dataset.copyState
+        }, 1400)
+      } catch {
+        button.textContent = text
+        button.dataset.copyState = 'failed'
+      }
+    })
+  })
+}
+
 function renderTokenGalleryDefinitions() {
   document.querySelectorAll('[data-token-card]').forEach((card) => {
     const token = card.getAttribute('data-token-card')
@@ -677,6 +715,7 @@ function renderTokenGalleryDefinitions() {
 
 export function initLandingPlayground() {
   installCommerceLinks()
+  installCopyTextControls()
   renderTokenGalleryDefinitions()
   renderBeforeAfter()
   installHoverInspector()

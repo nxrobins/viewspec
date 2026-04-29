@@ -229,19 +229,28 @@
       color: #cbd5e1;
       font-size: 0.78rem;
       font-weight: 700;
+      line-height: 1;
       padding: var(--space-2) var(--space-3);
       text-decoration: none;
     }
 
-    .nav-links a:hover {
+    .nav-links a:hover,
+    .nav-install:hover {
       background: rgba(148, 163, 184, 0.08);
       color: #fff;
     }
 
     .nav-install {
+      align-items: center;
+      appearance: none;
+      background: transparent;
       border-color: rgba(45, 212, 191, 0.24);
       color: var(--teal);
+      cursor: pointer;
+      display: inline-flex;
       font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      justify-content: center;
+      min-width: 10.2rem;
     }
 
     .hero {
@@ -338,9 +347,30 @@
       display: inline-flex;
       font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
       font-size: 0.9rem;
+      justify-content: center;
+      line-height: 1;
       min-height: 2.8rem;
+      min-width: 12rem;
       padding: var(--space-3) var(--space-4);
-      user-select: all;
+      cursor: pointer;
+      user-select: none;
+    }
+
+    .pip-pill {
+      appearance: none;
+    }
+
+    .nav-install[data-copy-state="copied"],
+    .pip-pill[data-copy-state="copied"] {
+      background: rgba(45, 212, 191, 0.16);
+      border-color: rgba(45, 212, 191, 0.54);
+      color: #ccfbf1;
+    }
+
+    .nav-install:focus-visible,
+    .pip-pill:focus-visible {
+      outline: 2px solid rgba(45, 212, 191, 0.72);
+      outline-offset: 3px;
     }
 
     .hero-proof {
@@ -1088,7 +1118,7 @@
       <a href="#demos">Demos</a>
       <a href="#pricing">Pricing</a>
       <a href="https://github.com/nxrobins/viewspec">GitHub</a>
-      <span class="nav-install">pip install viewspec</span>
+      <button type="button" class="nav-install" data-copy-text="pip install viewspec" aria-label="Copy pip install viewspec command">pip install viewspec</button>
     </div>
   </nav>
 
@@ -1102,7 +1132,7 @@
         <div class="hero-actions">
           <a class="button-primary" href="#playground">Try the compiler</a>
           <a class="button-secondary" data-config-link="signup" href="#pricing">Get API Key</a>
-          <span class="pip-pill">pip install viewspec</span>
+          <button type="button" class="pip-pill" data-copy-text="pip install viewspec" aria-label="Copy pip install viewspec command">pip install viewspec</button>
         </div>
         <div class="hero-proof" aria-label="Compiler guarantees">
           <div class="proof-item">

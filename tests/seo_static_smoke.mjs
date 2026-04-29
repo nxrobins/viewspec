@@ -31,6 +31,8 @@ for (const [file, canonical] of pages) {
 }
 
 const home = await readFile('demos/index.html', 'utf8')
+assert.equal((home.match(/data-copy-text="pip install viewspec"/g) || []).length, 2)
+assert.match(home, /aria-label="Copy pip install viewspec command"/)
 const homeJsonLd = extractJsonLd(home)
 const graph = homeJsonLd.find((entry) => Array.isArray(entry['@graph']))?.['@graph'] || []
 assert(graph.some((entry) => entry['@type'] === 'SoftwareApplication'), 'home JSON-LD needs SoftwareApplication')
