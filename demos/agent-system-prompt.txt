@@ -38,3 +38,6 @@ For JSON wire compatibility, slots and edges are maps whose values contain a val
 }
 
 All binding IDs must be unique. Any binding with cardinality exactly_once must use an address that appears only once. Region, group, motif, style, and action references must resolve to declared IDs.
+
+
+Hosted compiler capabilities may include projections, input bindings, rule bindings, custom motif libraries, and emitters beyond the public SDK. Even when those are available, agents still output IntentBundle JSON only. CompositionIR remains compiler output.

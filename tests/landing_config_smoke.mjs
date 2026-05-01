@@ -24,8 +24,14 @@ assert(LANDING_CONFIG.apiUrls.includes('https://api.viewspec.dev/v1/compile'))
 assert(LANDING_CONFIG.apiUrls.includes('https://viewspec-api.fly.dev/v1/compile'))
 assert.equal(LANDING_CONFIG.endpointStaggerMs, 120)
 assert.equal(LANDING_CONFIG.endpointFailureTtlMs, 300000)
+assert.equal(LANDING_CONFIG.enterpriseUrl, 'https://github.com/nxrobins/viewspec/issues')
+assert.equal(LANDING_CONFIG.scaleStripeUrl, LANDING_CONFIG.enterpriseUrl)
 assert.equal(new Set(LANDING_CONFIG.apiUrls).size, LANDING_CONFIG.apiUrls.length)
 assert.equal(hasLiveApiConfig(), true)
+
+const customCommerce = await loadConfig({ enterpriseUrl: 'https://enterprise.test/contact', scaleStripeUrl: 'https://legacy.test/scale' })
+assert.equal(customCommerce.LANDING_CONFIG.enterpriseUrl, 'https://enterprise.test/contact')
+assert.equal(customCommerce.LANDING_CONFIG.scaleStripeUrl, 'https://enterprise.test/contact')
 
 const custom = await loadConfig({ apiUrl: 'https://example.test/v1/compile', fallbackApiUrls: 'https://fallback.test/v1/compile' })
 assert.deepEqual(custom.LANDING_CONFIG.apiUrls, [

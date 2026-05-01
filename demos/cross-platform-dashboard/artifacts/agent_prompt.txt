@@ -1,0 +1,6 @@
+Create a launch operations dashboard for ViewSpec.
+
+Audience: founders and launch reviewers.
+Data: four launch KPIs, a status table, a phase filter, and a submit form.
+Requirement: emit one ViewSpec IntentBundle that can compile to HTML/Tailwind,
+React TSX, SwiftUI, and Flutter without changing the underlying spec.

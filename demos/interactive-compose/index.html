@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ViewSpec - Interactive Compose Demo</title>
+  <meta name="description" content="ViewSpec interactive compose compiles inputs, visibility rules, and submit payloads into deterministic UI events.">
+  <meta name="robots" content="index,follow,max-snippet:-1,max-image-preview:large">
+  <link rel="canonical" href="https://viewspec.dev/interactive-compose/">
+  <link rel="alternate" type="text/markdown" title="ViewSpec for LLMs" href="https://viewspec.dev/llms.txt">
+  <link rel="alternate" type="application/json" title="ViewSpec OpenAPI" href="https://viewspec.dev/openapi.json">
+  <script type="application/ld+json">{
+  "@context": "https://schema.org",
+  "@type": "WebPage",
+  "name": "ViewSpec - Interactive Compose Demo",
+  "description": "ViewSpec interactive compose compiles inputs, visibility rules, and submit payloads into deterministic UI events.",
+  "url": "https://viewspec.dev/interactive-compose/",
+  "isPartOf": {
+    "@type": "WebSite",
+    "name": "ViewSpec",
+    "url": "https://viewspec.dev/"
+  }
+}</script>
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="../shared/launch-pages.css">
+</head>
+<body>
+  <div class="shell">
+    <nav class="nav">
+      <a class="brand" href="../">ViewSpec</a>
+      <div class="links">
+        <a href="../cross-platform-dashboard/">Cross-platform</a>
+        <a href="../custom-motifs/">Custom motifs</a>
+        <a href="../interactive-compose/">Interactive compose</a>
+        <a href="../#pricing">Pricing</a>
+        <a href="https://github.com/nxrobins/viewspec">GitHub</a>
+      </div>
+    </nav>
+  </div>
+  <main>
+  <section class="shell hero">
+    <p class="eyebrow">Interactive compose runtime</p>
+    <h1>State, Rules, And Submit Payloads</h1>
+    <p class="lead">Inputs, visibility rules, and submit actions compile into deterministic event surfaces instead of hand-written glue code.</p>
+  </section>
+  <section class="section">
+    <div class="shell grid two">
+      <form class="card" id="compose-demo">
+        <h2>Launch Review Form</h2>
+        <label>Phase filter<select name="phase_filter"><option>Demos</option><option>Docs</option><option>Mobile</option><option>Launch</option></select></label>
+        <label>Owner email<input name="owner_email" value="launch@viewspec.dev"></label>
+        <label><span>Include mobile handoff</span><input name="include_mobile" type="checkbox" checked></label>
+        <p id="mobile-note" style="display:none;color:var(--amber)">Mobile recording is handed off to simulator/emulator machines.</p>
+        <button class="button" type="submit">Save launch review</button>
+      </form>
+      <div class="card">
+        <h2>Compiled Event Payload</h2>
+        <pre id="payload-preview">{}</pre>
+        <p>The same rule and payload metadata is emitted by HTML, React TSX, SwiftUI, and Flutter.</p>
+      </div>
+    </div>
+  </section>
+  <script>
+    const form = document.getElementById('compose-demo')
+    const preview = document.getElementById('payload-preview')
+    const note = document.getElementById('mobile-note')
+    function renderPayload() {
+      const data = Object.fromEntries(new FormData(form).entries())
+      data.include_mobile = form.elements.include_mobile.checked
+      data.launch_status = 'On track'
+      data.kpi_blockers_value = '1'
+      note.style.display = data.phase_filter === 'Mobile' ? 'block' : 'none'
+      preview.textContent = JSON.stringify({ id: 'save_launch_review', kind: 'submit', payload: data }, null, 2)
+    }
+    form.addEventListener('input', renderPayload)
+    form.addEventListener('change', renderPayload)
+    form.addEventListener('submit', (event) => { event.preventDefault(); renderPayload() })
+    renderPayload()
+  </script>
+</main>
+</body>
+</html>

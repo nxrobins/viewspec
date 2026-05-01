@@ -20,7 +20,8 @@ export const LANDING_CONFIG = {
   apiUrls: uniqueUrls([primaryApiUrl, ...fallbackApiUrls]),
   publicApiKey: configuredApiKey,
   proStripeUrl: runtimeConfig.proStripeUrl || 'https://buy.stripe.com/7sY00i9v67cJebDd1K1oI00',
-  scaleStripeUrl: runtimeConfig.scaleStripeUrl || 'https://buy.stripe.com/4gM6oGcHi68FgjLd1K1oI01',
+  enterpriseUrl: runtimeConfig.enterpriseUrl || runtimeConfig.scaleStripeUrl || 'https://github.com/nxrobins/viewspec/issues',
+  scaleStripeUrl: runtimeConfig.enterpriseUrl || runtimeConfig.scaleStripeUrl || 'https://github.com/nxrobins/viewspec/issues',
   signupUrl: runtimeConfig.signupUrl || 'https://viewspec.dev/#pricing',
   requestTimeoutMs: Number(runtimeConfig.requestTimeoutMs || 6000),
   endpointStaggerMs: Number(runtimeConfig.endpointStaggerMs || 120),
@@ -48,7 +49,7 @@ export function compileRequestHeaders() {
 }
 
 export function hasProductionCommerceConfig() {
-  return [LANDING_CONFIG.proStripeUrl, LANDING_CONFIG.scaleStripeUrl, LANDING_CONFIG.signupUrl].every((value) => {
+  return [LANDING_CONFIG.proStripeUrl, LANDING_CONFIG.enterpriseUrl, LANDING_CONFIG.signupUrl].every((value) => {
     return value && !value.includes('REPLACE_WITH') && !value.includes('YOUR_')
   })
 }

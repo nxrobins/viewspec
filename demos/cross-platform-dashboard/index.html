@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ViewSpec - Cross-Platform Dashboard Demo</title>
+  <meta name="description" content="One ViewSpec IntentBundle compiles to HTML, React TSX, SwiftUI, and Flutter from a single agent-native UI IR.">
+  <meta name="robots" content="index,follow,max-snippet:-1,max-image-preview:large">
+  <link rel="canonical" href="https://viewspec.dev/cross-platform-dashboard/">
+  <link rel="alternate" type="text/markdown" title="ViewSpec for LLMs" href="https://viewspec.dev/llms.txt">
+  <link rel="alternate" type="application/json" title="ViewSpec OpenAPI" href="https://viewspec.dev/openapi.json">
+  <script type="application/ld+json">{
+  "@context": "https://schema.org",
+  "@type": "WebPage",
+  "name": "ViewSpec - Cross-Platform Dashboard Demo",
+  "description": "One ViewSpec IntentBundle compiles to HTML, React TSX, SwiftUI, and Flutter from a single agent-native UI IR.",
+  "url": "https://viewspec.dev/cross-platform-dashboard/",
+  "isPartOf": {
+    "@type": "WebSite",
+    "name": "ViewSpec",
+    "url": "https://viewspec.dev/"
+  }
+}</script>
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="../shared/launch-pages.css">
+</head>
+<body>
+  <div class="shell">
+    <nav class="nav">
+      <a class="brand" href="../">ViewSpec</a>
+      <div class="links">
+        <a href="../cross-platform-dashboard/">Cross-platform</a>
+        <a href="../custom-motifs/">Custom motifs</a>
+        <a href="../interactive-compose/">Interactive compose</a>
+        <a href="../#pricing">Pricing</a>
+        <a href="https://github.com/nxrobins/viewspec">GitHub</a>
+      </div>
+    </nav>
+  </div>
+  <main>
+  <section class="shell hero">
+    <div>
+      <p class="eyebrow">One spec to four surfaces</p>
+      <h1>Launch Operations Dashboard</h1>
+      <p class="lead">The same agent-authored IntentBundle compiles to standalone HTML, React TSX, SwiftUI, and Flutter from one CompositionIR tree.</p>
+    </div>
+    <div class="grid">
+      <div class="card metric"><span>Emitter targets</span><strong>4</strong><p>HTML/Tailwind, React TSX, SwiftUI, Flutter.</p></div>
+      <div class="card metric"><span>Input spec</span><strong>1</strong><p>One canonical launch dashboard bundle and AST.</p></div>
+      <div class="card metric"><span>Diagnostics</span><strong>0</strong><p>The generated artifact set compiles without diagnostics.</p></div>
+    </div>
+  </section>
+  <section class="section">
+    <div class="shell grid two">
+      <div class="card">
+        <h2>Live HTML Output</h2>
+        <p>The HTML/Tailwind output is a standalone generated artifact. It preserves provenance data attributes and native input/action wiring.</p>
+        <p><a class="button" href="./artifacts/html/index.html">Open generated HTML</a></p>
+      </div>
+      <div class="card">
+        <h2>Generated Sources And Manifests</h2>
+        <ul class="artifact-list">
+          <li><a href="./artifacts/agent_prompt.txt">Agent prompt</a></li>
+          <li><a href="./artifacts/intent_bundle.json">IntentBundle JSON</a></li>
+          <li><a href="./artifacts/ast_bundle.json">ASTBundle JSON</a></li>
+          <li><a href="./artifacts/artifact_index.json">Artifact index</a></li>
+          <li><a href="./artifacts/html/diagnostics.json">HTML diagnostics</a> / <a href="./artifacts/html/provenance_manifest.json">provenance</a></li>
+          <li><a href="./artifacts/react-tsx/ViewSpecView.tsx">React TSX component</a></li>
+          <li><a href="./artifacts/react-tsx/diagnostics.json">React diagnostics</a> / <a href="./artifacts/react-tsx/provenance_manifest.json">provenance</a></li>
+          <li><a href="./artifacts/swiftui/ViewSpecView.swift">SwiftUI view</a></li>
+          <li><a href="./artifacts/swiftui/diagnostics.json">SwiftUI diagnostics</a> / <a href="./artifacts/swiftui/provenance_manifest.json">provenance</a></li>
+          <li><a href="./artifacts/flutter/viewspec_view.dart">Flutter widget</a></li>
+          <li><a href="./artifacts/flutter/diagnostics.json">Flutter diagnostics</a> / <a href="./artifacts/flutter/provenance_manifest.json">provenance</a></li>
+        </ul>
+      </div>
+    </div>
+  </section>
+  <section class="section">
+    <div class="shell grid two">
+      <div>
+        <h2>Agent Prompt</h2>
+        <pre>Create a launch operations dashboard for ViewSpec.
+
+Audience: founders and launch reviewers.
+Data: four launch KPIs, a status table, a phase filter, and a submit form.
+Requirement: emit one ViewSpec IntentBundle that can compile to HTML/Tailwind,
+React TSX, SwiftUI, and Flutter without changing the underlying spec.</pre>
+      </div>
+      <div>
+        <h2>Recording Handoff</h2>
+        <p>SwiftUI and Flutter source are generated here. Runtime simulator and emulator recordings are handled on external mobile-capable machines for the launch video.</p>
+        <p><a class="button secondary" href="../#demos">Back to demos</a></p>
+      </div>
+    </div>
+  </section>
+</main>
+</body>
+</html>

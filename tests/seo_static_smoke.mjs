@@ -3,6 +3,9 @@ import { readFile } from 'node:fs/promises'
 
 const pages = [
   ['demos/index.html', 'https://viewspec.dev/'],
+  ['demos/cross-platform-dashboard/index.html', 'https://viewspec.dev/cross-platform-dashboard/'],
+  ['demos/custom-motifs/index.html', 'https://viewspec.dev/custom-motifs/'],
+  ['demos/interactive-compose/index.html', 'https://viewspec.dev/interactive-compose/'],
   ['demos/motif-switcher/index.html', 'https://viewspec.dev/motif-switcher/'],
   ['demos/provenance-inspector/index.html', 'https://viewspec.dev/provenance-inspector/'],
   ['demos/live-builder/index.html', 'https://viewspec.dev/live-builder/'],
@@ -49,9 +52,15 @@ for (const [, canonical] of pages) {
 }
 
 const llms = await readFile('demos/llms.txt', 'utf8')
-assert.match(llms, /semantic UI compiler/i)
+assert.match(llms, /agent-native UI IR/i)
 assert.match(llms, /agentic engineering/i)
 assert.match(llms, /https:\/\/api\.viewspec\.dev\/v1\/compile/)
+assert.match(llms, /\$699\/month/)
+
+const landing = await readFile('demos/index.html', 'utf8')
+assert.doesNotMatch(landing, /agent-native UI IR, agent-native UI IR/)
+assert.doesNotMatch(landing, /\"price\": \"2500\"/)
+assert.match(landing, /data-config-link=\"enterprise\"/)
 
 const openapi = JSON.parse(await readFile('demos/openapi.json', 'utf8'))
 assert.equal(openapi.openapi, '3.1.0')
@@ -66,6 +75,15 @@ assert.doesNotMatch(agentPrompt, /You output ViewSpec IR/)
 
 const agentSchema = JSON.parse(await readFile('demos/agent-intent-bundle.schema.json', 'utf8'))
 assert.deepEqual(agentSchema.$defs.motif.properties.kind.enum, ['table', 'dashboard', 'outline', 'comparison'])
+
+const artifactIndex = JSON.parse(await readFile('demos/cross-platform-dashboard/artifacts/artifact_index.json', 'utf8'))
+assert.equal(artifactIndex.prompt, 'agent_prompt.txt')
+assert.doesNotMatch(JSON.stringify(artifactIndex), /\.test-tmp/)
+
+const launchHtml = await readFile('demos/cross-platform-dashboard/artifacts/html/index.html', 'utf8')
+const launchTsx = await readFile('demos/cross-platform-dashboard/artifacts/react-tsx/ViewSpecView.tsx', 'utf8')
+assert.doesNotMatch(launchHtml, /style="[^"]*\bscale:\s*[^;]+;[^"]*\bscale:/)
+assert.doesNotMatch(launchTsx, /\bscale:\s*"[^"]+",[^}]*\bscale:/)
 
 const landingPlayground = await readFile('demos/shared/landing-playground.js', 'utf8')
 assert.match(landingPlayground, /navigator\.clipboard\.writeText/)

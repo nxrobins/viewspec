@@ -127,3 +127,10 @@ When validation fails:
 4. Compile only after `result.valid` is true.
 
 The correction prompt intentionally contains compact structured issues. It should not ask the agent to patch fragments or emit prose.
+
+
+## Hosted Launch Capabilities
+
+The public SDK agent schema remains V1 and reference-focused. The hosted compiler can accept additional launch fields documented in hosted examples: `projections`, `inputs`, `rules`, and optional `motif_library`.
+
+Agents still generate IntentBundle JSON. They should not generate CompositionIR, React, SwiftUI, Flutter, or HTML directly unless the user explicitly asks for emitter source rather than ViewSpec intent.

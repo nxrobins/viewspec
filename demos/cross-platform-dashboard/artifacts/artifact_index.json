@@ -1,0 +1,25 @@
+{
+  "ast_bundle": "ast_bundle.json",
+  "flutter": {
+    "dart": "flutter/viewspec_view.dart",
+    "diagnostics": "flutter/diagnostics.json",
+    "manifest": "flutter/provenance_manifest.json"
+  },
+  "html": {
+    "diagnostics": "html/diagnostics.json",
+    "html": "html/index.html",
+    "manifest": "html/provenance_manifest.json"
+  },
+  "intent_bundle": "intent_bundle.json",
+  "prompt": "agent_prompt.txt",
+  "react_tsx": {
+    "diagnostics": "react-tsx/diagnostics.json",
+    "manifest": "react-tsx/provenance_manifest.json",
+    "tsx": "react-tsx/ViewSpecView.tsx"
+  },
+  "swiftui": {
+    "diagnostics": "swiftui/diagnostics.json",
+    "manifest": "swiftui/provenance_manifest.json",
+    "swift": "swiftui/ViewSpecView.swift"
+  }
+}

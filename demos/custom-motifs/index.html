@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ViewSpec - Custom Motif Authoring</title>
+  <meta name="description" content="Define custom motif contracts for the hosted ViewSpec compiler and lower them into portable CompositionIR primitives.">
+  <meta name="robots" content="index,follow,max-snippet:-1,max-image-preview:large">
+  <link rel="canonical" href="https://viewspec.dev/custom-motifs/">
+  <link rel="alternate" type="text/markdown" title="ViewSpec for LLMs" href="https://viewspec.dev/llms.txt">
+  <link rel="alternate" type="application/json" title="ViewSpec OpenAPI" href="https://viewspec.dev/openapi.json">
+  <script type="application/ld+json">{
+  "@context": "https://schema.org",
+  "@type": "WebPage",
+  "name": "ViewSpec - Custom Motif Authoring",
+  "description": "Define custom motif contracts for the hosted ViewSpec compiler and lower them into portable CompositionIR primitives.",
+  "url": "https://viewspec.dev/custom-motifs/",
+  "isPartOf": {
+    "@type": "WebSite",
+    "name": "ViewSpec",
+    "url": "https://viewspec.dev/"
+  }
+}</script>
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="../shared/launch-pages.css">
+</head>
+<body>
+  <div class="shell">
+    <nav class="nav">
+      <a class="brand" href="../">ViewSpec</a>
+      <div class="links">
+        <a href="../cross-platform-dashboard/">Cross-platform</a>
+        <a href="../custom-motifs/">Custom motifs</a>
+        <a href="../interactive-compose/">Interactive compose</a>
+        <a href="../#pricing">Pricing</a>
+        <a href="https://github.com/nxrobins/viewspec">GitHub</a>
+      </div>
+    </nav>
+  </div>
+  <main>
+  <section class="shell hero">
+    <p class="eyebrow">Hosted compiler feature demo</p>
+    <h1>Custom Motif Authoring</h1>
+    <p class="lead">Teams can define a motif contract once, give it slot rules and prompt guidance, then let agents use that motif by ID.</p>
+  </section>
+  <section class="section">
+    <div class="shell grid two">
+      <div class="card">
+        <h2>MDL Definition</h2>
+        <pre>{
+  "id": "acme.risk_panel.v1",
+  "layout": "surface_cards",
+  "style_tokens": ["surface.strong", "density.compact"],
+  "slots": [
+    {"name": "metric", "accepted_sources": ["binding", "projection"], "present_as": ["value", "badge"], "min_count": 1},
+    {"name": "acknowledgement", "accepted_sources": ["input"], "input_kinds": ["input:toggle"], "min_count": 1}
+  ]
+}</pre>
+      </div>
+      <div class="card">
+        <h2>Launch Tiering</h2>
+        <p>Free has no custom motifs. Pro allows five custom motif instances per compile. Existing Scale accounts use the same cap. Enterprise is unlimited and adds org-wide sharing and prompt injection tooling.</p>
+        <p>The hosted compiler lowers custom motifs to standard CompositionIR primitives, so emitters do not need custom rendering paths.</p>
+      </div>
+    </div>
+  </section>
+</main>
+</body>
+</html>

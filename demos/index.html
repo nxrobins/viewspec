@@ -3,18 +3,18 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>ViewSpec - Semantic UI Compiler for Agents and Vibe Coding</title>
-  <meta name="description" content="ViewSpec is a semantic UI compiler and hosted API for agentic engineering, AI coding agents, and vibe-coded apps. Compile data intent into deterministic UI, CompositionIR, and provenance.">
+  <title>ViewSpec - Agent-Native UI IR</title>
+  <meta name="description" content="ViewSpec is an agent-native UI IR and hosted compiler API for AI coding agents. Compile one semantic spec into deterministic UI, CompositionIR, provenance, and cross-platform emitter artifacts.">
   <meta name="robots" content="index,follow,max-snippet:-1,max-image-preview:large">
   <meta name="application-name" content="ViewSpec">
-  <meta name="keywords" content="semantic UI compiler, agentic engineering, vibe coding, AI coding agents, UI generation, deterministic UI, CompositionIR, provenance, design systems, Python SDK">
+  <meta name="keywords" content="agent-native UI IR, semantic UI compiler, agentic engineering, vibe coding, AI coding agents, UI generation, deterministic UI, CompositionIR, provenance, design systems, Python SDK">
   <link rel="canonical" href="https://viewspec.dev/">
   <link rel="sitemap" type="application/xml" href="https://viewspec.dev/sitemap.xml">
   <link rel="alternate" type="text/markdown" title="ViewSpec for LLMs" href="https://viewspec.dev/llms.txt">
   <link rel="alternate" type="application/json" title="ViewSpec OpenAPI" href="https://viewspec.dev/openapi.json">
   <meta property="og:site_name" content="ViewSpec">
   <meta property="og:type" content="website">
-  <meta property="og:title" content="ViewSpec - Semantic UI Compiler for Agents and Vibe Coding">
+  <meta property="og:title" content="ViewSpec - Agent-Native UI IR">
   <meta property="og:description" content="Compile semantic data intent into deterministic UI, CompositionIR, and exact provenance for agentic engineering and AI-assisted product development.">
   <meta property="og:url" content="https://viewspec.dev/">
   <meta name="twitter:card" content="summary">
@@ -55,7 +55,7 @@
           "codeRepository": "https://github.com/nxrobins/viewspec",
           "programmingLanguage": ["Python", "JSON", "Protocol Buffers"],
           "description": "ViewSpec compiles semantic data intent into deterministic UI, CompositionIR, and exact provenance for agentic engineering, AI coding agents, and vibe-coded apps.",
-          "keywords": "semantic UI compiler, agentic engineering, vibe coding, AI coding agents, deterministic UI, CompositionIR, provenance",
+          "keywords": "agent-native UI IR, semantic UI compiler, agentic engineering, vibe coding, AI coding agents, deterministic UI, CompositionIR, provenance",
           "featureList": [
             "Compile semantic data into UI primitives",
             "Emit CompositionIR with exact provenance",
@@ -65,8 +65,8 @@
           ],
           "offers": [
             { "@type": "Offer", "name": "Free", "price": "0", "priceCurrency": "USD", "url": "https://viewspec.dev/#pricing" },
-            { "@type": "Offer", "name": "Pro", "price": "39", "priceCurrency": "USD", "url": "https://viewspec.dev/#pricing" },
-            { "@type": "Offer", "name": "Scale", "price": "99", "priceCurrency": "USD", "url": "https://viewspec.dev/#pricing" }
+            { "@type": "Offer", "name": "Pro", "price": "699", "priceCurrency": "USD", "url": "https://viewspec.dev/#pricing" },
+            { "@type": "Offer", "name": "Enterprise", "price": "Custom", "priceCurrency": "USD", "url": "https://viewspec.dev/#pricing" }
           ],
           "publisher": { "@id": "https://viewspec.dev/#organization" }
         },
@@ -1125,10 +1125,10 @@
   <main>
     <section class="page-shell hero" id="top">
       <div class="hero-copy">
-        <p class="eyebrow">Hosted compiler preview</p>
+        <p class="eyebrow">Agent-native UI IR</p>
         <h1>ViewSpec</h1>
-        <p class="hero-subtitle">Universal UI from semantic data. Every pixel has a birth certificate.</p>
-        <p class="hero-body">The reference compiler builds correct interfaces. The hosted compiler makes the data legible: Level 2 tokens derive emphasis, risk, palette energy, density, and reading path from the data itself.</p>
+        <p class="hero-subtitle">One semantic spec. Four compiled surfaces. Every pixel has a birth certificate.</p>
+        <p class="hero-body">The hosted compiler turns agent-authored IntentBundle JSON into portable CompositionIR, then emits HTML/Tailwind, React TSX, SwiftUI, and Flutter from the same source.</p>
         <div class="hero-actions">
           <a class="button-primary" href="#playground">Try the compiler</a>
           <a class="button-secondary" data-config-link="signup" href="#pricing">Get API Key</a>
@@ -1289,6 +1289,21 @@
           <p class="section-copy">ViewSpec gives coding agents and vibe-coded apps a compact intent format: describe the data, compile the interface, keep provenance inspectable.</p>
         </div>
         <div class="demo-grid">
+          <a href="./cross-platform-dashboard/" class="demo-card">
+            <span class="demo-num">P0</span>
+            <span class="demo-title">One Spec, Four Surfaces</span>
+            <span class="demo-desc">Launch dashboard compiled to HTML, React TSX, SwiftUI, and Flutter.</span>
+          </a>
+          <a href="./custom-motifs/" class="demo-card">
+            <span class="demo-num">P0</span>
+            <span class="demo-title">Custom Motif Authoring</span>
+            <span class="demo-desc">Define an MDL motif contract and lower it into portable CompositionIR.</span>
+          </a>
+          <a href="./interactive-compose/" class="demo-card">
+            <span class="demo-num">P0</span>
+            <span class="demo-title">Interactive Compose</span>
+            <span class="demo-desc">Inputs, rules, and submit payloads without hand-written UI glue.</span>
+          </a>
           <a href="https://viewspec.dev/llms.txt" class="demo-card">
             <span class="demo-num">LLM</span>
             <span class="demo-title">Agent-readable product map</span>
@@ -1312,10 +1327,10 @@
       <div class="page-shell">
         <div class="section-head">
           <div>
-            <p class="section-kicker">Existing demos</p>
+            <p class="section-kicker">Launch demos</p>
             <h2 class="section-title">The reference compiler still ships free.</h2>
           </div>
-          <p class="section-copy">These demos remain unchanged and show the local deterministic compiler, provenance inspector, builder, invariants, and style derivation paths.</p>
+          <p class="section-copy">The launch demos prove the new hosted compiler surface: one spec to four emitters, custom motif authoring, and interactive compose.</p>
         </div>
         <div class="demo-grid">
           <a href="./motif-switcher/" class="demo-card">
@@ -1357,46 +1372,48 @@
         <div class="section-head">
           <div>
             <p class="section-kicker">Pricing</p>
-            <h2 class="section-title">Free reference compiler. Hosted compiler when legibility matters.</h2>
+            <h2 class="section-title">Free SDK. Pro cross-platform compiler. Enterprise governance.</h2>
           </div>
-          <p class="section-copy">The SDK is free. The hosted compiler adds Level 2 derivation, higher limits, and production API access.</p>
+          <p class="section-copy">The SDK stays free. Pro unlocks the hosted agent-native UI IR surface: React TSX, SwiftUI, Flutter, custom motifs, and hosted rendering entitlement.</p>
         </div>
         <div class="pricing-grid">
           <article class="pricing-card">
             <span class="pricing-name">Free</span>
             <span class="price">$0/mo</span>
-            <p class="pricing-detail">Local reference compiler and demo-scale hosted calls.</p>
+            <p class="pricing-detail">For local proofs and open-source SDK workflows.</p>
             <ul class="pricing-list">
-              <li>500 hosted calls/day</li>
-              <li>Level 1 tokens</li>
+              <li>500 hosted compile calls/day</li>
+              <li>Offline Python SDK</li>
+              <li>HTML/Tailwind reference emitter</li>
               <li>4 reference motifs</li>
-              <li>Offline SDK</li>
             </ul>
             <a class="button-secondary" href="https://pypi.org/project/viewspec/">Install SDK</a>
           </article>
           <article class="pricing-card featured">
             <span class="pricing-name">Pro</span>
-            <span class="price">$39/mo</span>
-            <p class="pricing-detail">For product teams shipping dynamic semantic interfaces.</p>
+            <span class="price">$699/mo</span>
+            <p class="pricing-detail">For teams shipping agent-authored UI across web and mobile.</p>
             <ul class="pricing-list">
-              <li>25,000 hosted calls/day</li>
-              <li>Level 1-3 tokens</li>
-              <li>Any motif</li>
-              <li>Hosted API key</li>
+              <li>25,000 hosted compile calls/day</li>
+              <li>10,000 hosted renders/month entitlement</li>
+              <li>HTML/Tailwind, React TSX, SwiftUI, Flutter</li>
+              <li>5 custom motif instances per compile</li>
+              <li>Interactive compose: inputs, rules, actions</li>
             </ul>
-            <a class="button-primary" data-config-link="pro" href="#pricing">Get API Key</a>
+            <a class="button-primary" data-config-link="pro" href="#pricing">Get Pro</a>
           </article>
           <article class="pricing-card">
-            <span class="pricing-name">Scale</span>
-            <span class="price">$99/mo</span>
-            <p class="pricing-detail">For production systems with higher traffic and support needs.</p>
+            <span class="pricing-name">Enterprise</span>
+            <span class="price">Custom</span>
+            <p class="pricing-detail">For organizations standardizing agent UI contracts.</p>
             <ul class="pricing-list">
-              <li>250,000 hosted calls/day</li>
-              <li>Level 1-3 tokens</li>
-              <li>Any motif</li>
-              <li>Hosted API and SLA</li>
+              <li>Custom compile and render volume</li>
+              <li>Unlimited custom motifs</li>
+              <li>Org-wide motif sharing</li>
+              <li>Agent prompt injection tooling</li>
+              <li>Support and roadmap alignment</li>
             </ul>
-            <a class="button-secondary" data-config-link="scale" href="#pricing">Get API Key</a>
+            <a class="button-secondary" data-config-link="enterprise" href="#pricing">Talk to us</a>
           </article>
         </div>
       </div>

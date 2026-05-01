@@ -651,7 +651,8 @@ function installHintControls() {
 function installCommerceLinks() {
   const links = {
     pro: LANDING_CONFIG.proStripeUrl,
-    scale: LANDING_CONFIG.scaleStripeUrl,
+    enterprise: LANDING_CONFIG.enterpriseUrl,
+    scale: LANDING_CONFIG.enterpriseUrl,
     signup: LANDING_CONFIG.signupUrl,
   }
   document.querySelectorAll('[data-config-link]').forEach((link) => {

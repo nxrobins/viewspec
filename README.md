@@ -1,8 +1,8 @@
 # ViewSpec
 
-**Universal UI from semantic data.**
+**Agent-native UI IR from semantic data.**
 
-ViewSpec is a declarative language for describing what data means. The compiler figures out how it looks. Every pixel has a birth certificate.
+ViewSpec is an agent-native UI IR for describing what data means. The compiler produces CompositionIR, provenance, and emitter artifacts. Every pixel has a birth certificate.
 
 🌐 **[viewspec.dev](https://viewspec.dev)** — Live hosted compiler playground, demos, and pricing
 
@@ -31,9 +31,9 @@ HtmlTailwindEmitter().emit(ast, "output/")
 ```
 Data → ViewSpec (semantic intent) → Compiler → CompositionIR → Emitter
                                                                 ├── HTML/Tailwind (shipped)
-                                                                ├── Canvas/Pretext
-                                                                ├── PDF
-                                                                ├── Native mobile
+                                                                ├── React TSX (hosted compiler)
+                                                                ├── SwiftUI (hosted compiler)
+                                                                ├── Flutter (hosted compiler)
                                                                 └── Your custom emitter
 ```
 
@@ -78,7 +78,7 @@ Runtime landing-page config is read from `window.VIEWSPEC_LANDING_CONFIG`:
 | `endpointFailureTtlMs` | How long the browser session keeps a failed endpoint out of the hot path. Defaults to `300000`. |
 | `publicApiKey` | Optional browser-safe public/demo key. `window.PUBLIC_LANDING_API_KEY` is also accepted. Omit it to use anonymous free-tier demo traffic. |
 | `proStripeUrl` | Pro checkout link. Defaults to the live Stripe payment link. |
-| `scaleStripeUrl` | Scale checkout link. Defaults to the live Stripe payment link. |
+| `enterpriseUrl` | Enterprise contact URL. `scaleStripeUrl` is still accepted as a legacy alias. |
 | `signupUrl` | Free CTA or pricing URL. Defaults to `https://viewspec.dev/#pricing`. |
 | `requestTimeoutMs` | Hosted compile timeout. Defaults to `6000`. |
 
@@ -86,7 +86,7 @@ Keep secret API keys server-side; only browser-safe public/demo keys belong in s
 
 ## Demos
 
-The hosted playground plus six reference demos are available at [viewspec.dev](https://viewspec.dev):
+The hosted playground, reference demos, and launch demos are available at [viewspec.dev](https://viewspec.dev):
 
 | Demo | What it shows |
 |------|--------------|
@@ -96,6 +96,9 @@ The hosted playground plus six reference demos are available at [viewspec.dev](h
 | [The Invariants](https://viewspec.dev/invariants/) | Watch the compiler enforce — and refuse — each guarantee. |
 | [15 Lines → Full UI](https://viewspec.dev/fifteen-lines/) | An invoice table builds itself from 15 lines of Python. |
 | [Style Derivation](https://viewspec.dev/style-derivation/) | Same structure, different feel. Toggle four visual presets. |
+| [One Spec, Four Surfaces](https://viewspec.dev/cross-platform-dashboard/) | One launch dashboard compiles to HTML, React TSX, SwiftUI, and Flutter. |
+| [Custom Motif Authoring](https://viewspec.dev/custom-motifs/) | Define an MDL motif contract and lower it into portable CompositionIR. |
+| [Interactive Compose](https://viewspec.dev/interactive-compose/) | Inputs, rules, and submit payloads compiled into event surfaces. |
 
 Text rendering powered by [Pretext](https://github.com/chenglou/pretext) canvas surfaces.
 
@@ -180,8 +183,14 @@ ast = compile_auto(builder.build_bundle())
 | Tier | Price | Hosted Calls/Day |
 |------|-------|-----------------|
 | Free | $0 | 500 |
-| Pro | $39/mo | 25,000 |
-| Scale | $99/mo | 250,000 |
+| Pro | $699/mo | 25,000 compile calls/day + 10,000 hosted renders/month |
+| Enterprise | Custom | Custom volume, unlimited custom motifs |
+
+## Launch Compiler Surface
+
+The hosted compiler now exposes the May 6 launch surface: React TSX, SwiftUI, and Flutter emitters; projections; input bindings; rule bindings; submit/navigate actions; and custom motifs. The public SDK remains the stable offline/reference path.
+
+Pro includes mobile emitters, 5 custom motif instances per compile, 25,000 hosted compile calls/day, and a 10,000 hosted renders/month entitlement.
 
 ## Wire Format
 

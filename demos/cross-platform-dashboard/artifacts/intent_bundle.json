@@ -1,0 +1,494 @@
+{
+  "substrate": {
+    "id": "launch_operations_dashboard_substrate",
+    "nodes": {
+      "kpi_assets": {
+        "attrs": {
+          "label": "Demo assets",
+          "value": "7"
+        },
+        "edges": {},
+        "id": "kpi_assets",
+        "kind": "dashboard_card",
+        "slots": {}
+      },
+      "kpi_blockers": {
+        "attrs": {
+          "label": "Blockers",
+          "value": "1"
+        },
+        "edges": {},
+        "id": "kpi_blockers",
+        "kind": "dashboard_card",
+        "slots": {}
+      },
+      "kpi_docs": {
+        "attrs": {
+          "label": "Docs pages",
+          "value": "8"
+        },
+        "edges": {},
+        "id": "kpi_docs",
+        "kind": "dashboard_card",
+        "slots": {}
+      },
+      "kpi_emitters": {
+        "attrs": {
+          "label": "Emitter targets",
+          "value": "4"
+        },
+        "edges": {},
+        "id": "kpi_emitters",
+        "kind": "dashboard_card",
+        "slots": {}
+      },
+      "launch_ops": {
+        "attrs": {
+          "status": "On track",
+          "summary": "One ViewSpec source proves web, React, iOS, and Android compilation.",
+          "title": "Launch Operations Dashboard"
+        },
+        "edges": {},
+        "id": "launch_ops",
+        "kind": "launch_dashboard",
+        "slots": {}
+      },
+      "mobile_note": {
+        "attrs": {
+          "text": "Mobile runtime recording is handed off because this Windows workspace has no simulator tooling."
+        },
+        "edges": {},
+        "id": "mobile_note",
+        "kind": "launch_note",
+        "slots": {}
+      },
+      "row_flutter": {
+        "attrs": {
+          "label": "Flutter",
+          "owner": "mobile",
+          "state": "External emulator recording"
+        },
+        "edges": {},
+        "id": "row_flutter",
+        "kind": "table_row",
+        "slots": {}
+      },
+      "row_html": {
+        "attrs": {
+          "label": "HTML/Tailwind",
+          "owner": "web",
+          "state": "Live link ready"
+        },
+        "edges": {},
+        "id": "row_html",
+        "kind": "table_row",
+        "slots": {}
+      },
+      "row_react": {
+        "attrs": {
+          "label": "React TSX",
+          "owner": "web",
+          "state": "Runtime page ready"
+        },
+        "edges": {},
+        "id": "row_react",
+        "kind": "table_row",
+        "slots": {}
+      },
+      "row_swiftui": {
+        "attrs": {
+          "label": "SwiftUI",
+          "owner": "mobile",
+          "state": "External simulator recording"
+        },
+        "edges": {},
+        "id": "row_swiftui",
+        "kind": "table_row",
+        "slots": {}
+      }
+    },
+    "root_id": "launch_ops"
+  },
+  "view_spec": {
+    "actions": [
+      {
+        "id": "save_launch_review",
+        "kind": "submit",
+        "label": "Save launch review",
+        "payload_bindings": [
+          "phase_filter",
+          "owner_email",
+          "include_mobile",
+          "launch_status",
+          "kpi_blockers_value"
+        ],
+        "target_ref": "/launch-review",
+        "target_region": "form"
+      }
+    ],
+    "bindings": [
+      {
+        "address": "node:launch_ops#attr:title",
+        "cardinality": "exactly_once",
+        "id": "launch_title",
+        "present_as": "text",
+        "target_region": "header"
+      },
+      {
+        "address": "node:launch_ops#attr:status",
+        "cardinality": "exactly_once",
+        "id": "launch_status",
+        "present_as": "badge",
+        "target_region": "header"
+      },
+      {
+        "address": "node:launch_ops#attr:summary",
+        "cardinality": "exactly_once",
+        "id": "launch_summary",
+        "present_as": "text",
+        "target_region": "header"
+      },
+      {
+        "address": "node:kpi_emitters#attr:label",
+        "cardinality": "exactly_once",
+        "id": "kpi_emitters_label",
+        "present_as": "label",
+        "target_region": "kpis"
+      },
+      {
+        "address": "node:kpi_emitters#attr:value",
+        "cardinality": "exactly_once",
+        "id": "kpi_emitters_value",
+        "present_as": "value",
+        "target_region": "kpis"
+      },
+      {
+        "address": "node:kpi_docs#attr:label",
+        "cardinality": "exactly_once",
+        "id": "kpi_docs_label",
+        "present_as": "label",
+        "target_region": "kpis"
+      },
+      {
+        "address": "node:kpi_docs#attr:value",
+        "cardinality": "exactly_once",
+        "id": "kpi_docs_value",
+        "present_as": "value",
+        "target_region": "kpis"
+      },
+      {
+        "address": "node:kpi_assets#attr:label",
+        "cardinality": "exactly_once",
+        "id": "kpi_assets_label",
+        "present_as": "label",
+        "target_region": "kpis"
+      },
+      {
+        "address": "node:kpi_assets#attr:value",
+        "cardinality": "exactly_once",
+        "id": "kpi_assets_value",
+        "present_as": "value",
+        "target_region": "kpis"
+      },
+      {
+        "address": "node:kpi_blockers#attr:label",
+        "cardinality": "exactly_once",
+        "id": "kpi_blockers_label",
+        "present_as": "label",
+        "target_region": "kpis"
+      },
+      {
+        "address": "node:kpi_blockers#attr:value",
+        "cardinality": "exactly_once",
+        "id": "kpi_blockers_value",
+        "present_as": "badge",
+        "target_region": "kpis"
+      },
+      {
+        "address": "node:row_html#attr:label",
+        "cardinality": "exactly_once",
+        "id": "row_html_label",
+        "present_as": "label",
+        "target_region": "status"
+      },
+      {
+        "address": "node:row_html#attr:state",
+        "cardinality": "exactly_once",
+        "id": "row_html_state",
+        "present_as": "value",
+        "target_region": "status"
+      },
+      {
+        "address": "node:row_html#attr:owner",
+        "cardinality": "exactly_once",
+        "id": "row_html_owner",
+        "present_as": "value",
+        "target_region": "status"
+      },
+      {
+        "address": "node:row_react#attr:label",
+        "cardinality": "exactly_once",
+        "id": "row_react_label",
+        "present_as": "label",
+        "target_region": "status"
+      },
+      {
+        "address": "node:row_react#attr:state",
+        "cardinality": "exactly_once",
+        "id": "row_react_state",
+        "present_as": "value",
+        "target_region": "status"
+      },
+      {
+        "address": "node:row_react#attr:owner",
+        "cardinality": "exactly_once",
+        "id": "row_react_owner",
+        "present_as": "value",
+        "target_region": "status"
+      },
+      {
+        "address": "node:row_swiftui#attr:label",
+        "cardinality": "exactly_once",
+        "id": "row_swiftui_label",
+        "present_as": "label",
+        "target_region": "status"
+      },
+      {
+        "address": "node:row_swiftui#attr:state",
+        "cardinality": "exactly_once",
+        "id": "row_swiftui_state",
+        "present_as": "value",
+        "target_region": "status"
+      },
+      {
+        "address": "node:row_swiftui#attr:owner",
+        "cardinality": "exactly_once",
+        "id": "row_swiftui_owner",
+        "present_as": "value",
+        "target_region": "status"
+      },
+      {
+        "address": "node:row_flutter#attr:label",
+        "cardinality": "exactly_once",
+        "id": "row_flutter_label",
+        "present_as": "label",
+        "target_region": "status"
+      },
+      {
+        "address": "node:row_flutter#attr:state",
+        "cardinality": "exactly_once",
+        "id": "row_flutter_state",
+        "present_as": "value",
+        "target_region": "status"
+      },
+      {
+        "address": "node:row_flutter#attr:owner",
+        "cardinality": "exactly_once",
+        "id": "row_flutter_owner",
+        "present_as": "value",
+        "target_region": "status"
+      },
+      {
+        "address": "node:mobile_note#attr:text",
+        "cardinality": "exactly_once",
+        "id": "mobile_recording_note",
+        "present_as": "text",
+        "target_region": "form"
+      }
+    ],
+    "complexity_tier": 8,
+    "groups": [
+      {
+        "id": "kpi_order",
+        "kind": "ordered",
+        "members": [
+          "kpi_emitters_label",
+          "kpi_emitters_value",
+          "kpi_docs_label",
+          "kpi_docs_value",
+          "kpi_assets_label",
+          "kpi_assets_value",
+          "kpi_blockers_label",
+          "kpi_blockers_value"
+        ],
+        "target_region": "kpis"
+      },
+      {
+        "id": "status_order",
+        "kind": "ordered",
+        "members": [
+          "row_html_label",
+          "row_html_state",
+          "row_html_owner",
+          "row_react_label",
+          "row_react_state",
+          "row_react_owner",
+          "row_swiftui_label",
+          "row_swiftui_state",
+          "row_swiftui_owner",
+          "row_flutter_label",
+          "row_flutter_state",
+          "row_flutter_owner"
+        ],
+        "target_region": "status"
+      }
+    ],
+    "id": "launch_operations_dashboard",
+    "inputs": [
+      {
+        "cardinality": "exactly_once",
+        "default_value": "Demos",
+        "id": "phase_filter",
+        "kind": "input:select",
+        "label": "Phase filter",
+        "options": [
+          "Demos",
+          "Docs",
+          "Mobile",
+          "Launch"
+        ],
+        "target_region": "form"
+      },
+      {
+        "cardinality": "exactly_once",
+        "default_value": "launch@viewspec.dev",
+        "id": "owner_email",
+        "kind": "input:text",
+        "label": "Owner email",
+        "options": [],
+        "target_region": "form"
+      },
+      {
+        "cardinality": "exactly_once",
+        "default_value": true,
+        "id": "include_mobile",
+        "kind": "input:toggle",
+        "label": "Include mobile handoff",
+        "options": [],
+        "target_region": "form"
+      }
+    ],
+    "motifs": [
+      {
+        "id": "launch_kpis",
+        "kind": "dashboard",
+        "members": [
+          "kpi_emitters_label",
+          "kpi_emitters_value",
+          "kpi_docs_label",
+          "kpi_docs_value",
+          "kpi_assets_label",
+          "kpi_assets_value",
+          "kpi_blockers_label",
+          "kpi_blockers_value"
+        ],
+        "region": "kpis"
+      },
+      {
+        "id": "launch_status_table",
+        "kind": "table",
+        "members": [
+          "row_html_label",
+          "row_html_state",
+          "row_html_owner",
+          "row_react_label",
+          "row_react_state",
+          "row_react_owner",
+          "row_swiftui_label",
+          "row_swiftui_state",
+          "row_swiftui_owner",
+          "row_flutter_label",
+          "row_flutter_state",
+          "row_flutter_owner"
+        ],
+        "region": "status"
+      }
+    ],
+    "projections": [],
+    "regions": [
+      {
+        "id": "root",
+        "layout": "stack",
+        "max_children": null,
+        "min_children": 4,
+        "parent_region": "",
+        "role": "root"
+      },
+      {
+        "id": "header",
+        "layout": "cluster",
+        "max_children": null,
+        "min_children": 3,
+        "parent_region": "root",
+        "role": "header"
+      },
+      {
+        "id": "kpis",
+        "layout": "grid",
+        "max_children": null,
+        "min_children": 4,
+        "parent_region": "root",
+        "role": "main"
+      },
+      {
+        "id": "status",
+        "layout": "stack",
+        "max_children": null,
+        "min_children": 1,
+        "parent_region": "root",
+        "role": "main"
+      },
+      {
+        "id": "form",
+        "layout": "stack",
+        "max_children": null,
+        "min_children": 4,
+        "parent_region": "root",
+        "role": "form"
+      }
+    ],
+    "root_region": "root",
+    "rules": [
+      {
+        "compare_value": "Mobile",
+        "id": "show_mobile_note",
+        "operator": "EQUALS",
+        "source_ref": "phase_filter",
+        "target_ref": "binding:mobile_recording_note"
+      }
+    ],
+    "styles": [
+      {
+        "id": "title_emphasis",
+        "target": "binding:launch_title",
+        "token": "emphasis.high"
+      },
+      {
+        "id": "status_positive",
+        "target": "binding:launch_status",
+        "token": "tone.positive"
+      },
+      {
+        "id": "kpi_surface",
+        "target": "motif:launch_kpis",
+        "token": "surface.subtle"
+      },
+      {
+        "id": "table_surface",
+        "target": "motif:launch_status_table",
+        "token": "surface.strong"
+      },
+      {
+        "id": "form_density",
+        "target": "region:form",
+        "token": "density.regular"
+      },
+      {
+        "id": "mobile_note_warning",
+        "target": "binding:mobile_recording_note",
+        "token": "tone.warning"
+      }
+    ],
+    "substrate_id": "launch_operations_dashboard_substrate"
+  }
+}

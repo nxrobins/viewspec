@@ -4,6 +4,9 @@
  */
 (function () {
   const demos = [
+    { href: '../cross-platform-dashboard/', label: 'Cross-platform' },
+    { href: '../custom-motifs/', label: 'Custom motifs' },
+    { href: '../interactive-compose/', label: 'Compose' },
     { href: '../motif-switcher/', label: 'Motifs' },
     { href: '../provenance-inspector/', label: 'Provenance' },
     { href: '../live-builder/', label: 'Builder' },

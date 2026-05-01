@@ -2,8 +2,8 @@
   "openapi": "3.1.0",
   "info": {
     "title": "ViewSpec Hosted Compiler API",
-    "summary": "Compile ViewSpec semantic intent bundles into CompositionIR and provenance.",
-    "description": "ViewSpec is a semantic UI compiler API for agentic engineering, AI coding agents, and deterministic UI generation.",
+    "summary": "Compile agent-native ViewSpec IntentBundles into portable CompositionIR and provenance.",
+    "description": "ViewSpec is an agent-native UI IR and semantic UI compiler API for deterministic cross-platform UI generation.",
     "version": "1.0.0",
     "license": {
       "name": "MIT",
@@ -86,6 +86,11 @@
           },
           "view_spec": {
             "$ref": "#/components/schemas/ViewSpec"
+          },
+          "motif_library": {
+            "type": "object",
+            "description": "Optional hosted compiler custom motif library.",
+            "additionalProperties": true
           }
         },
         "additionalProperties": true
@@ -131,7 +136,10 @@
           "groups": { "type": "array", "items": { "type": "object", "additionalProperties": true } },
           "motifs": { "type": "array", "items": { "type": "object", "additionalProperties": true } },
           "styles": { "type": "array", "items": { "type": "object", "additionalProperties": true } },
-          "actions": { "type": "array", "items": { "type": "object", "additionalProperties": true } }
+          "actions": { "type": "array", "items": { "type": "object", "additionalProperties": true } },
+          "projections": { "type": "array", "items": { "type": "object", "additionalProperties": true } },
+          "inputs": { "type": "array", "items": { "type": "object", "additionalProperties": true } },
+          "rules": { "type": "array", "items": { "type": "object", "additionalProperties": true } }
         },
         "additionalProperties": true
       },

@@ -1,0 +1,701 @@
+{
+  "dom-action_save_launch_review": {
+    "content_refs": [],
+    "intent_refs": [
+      "viewspec:action:save_launch_review"
+    ],
+    "ir_id": "action_save_launch_review",
+    "primitive": "button",
+    "props": {
+      "action_id": "save_launch_review",
+      "action_kind": "submit",
+      "action_target_ref": "/launch-review",
+      "button_type": "button",
+      "payload_bindings": [
+        "phase_filter",
+        "owner_email",
+        "include_mobile",
+        "launch_status",
+        "kpi_blockers_value"
+      ],
+      "payload_values": {
+        "kpi_blockers_value": "1",
+        "launch_status": "On track"
+      },
+      "text": "Save launch review"
+    },
+    "style_tokens": []
+  },
+  "dom-binding_kpi_assets_label": {
+    "content_refs": [
+      "node:kpi_assets#attr:label"
+    ],
+    "intent_refs": [
+      "viewspec:binding:kpi_assets_label"
+    ],
+    "ir_id": "binding_kpi_assets_label",
+    "primitive": "label",
+    "props": {
+      "text": "Demo assets"
+    },
+    "style_tokens": [
+      "narrative.flow"
+    ]
+  },
+  "dom-binding_kpi_assets_value": {
+    "content_refs": [
+      "node:kpi_assets#attr:value"
+    ],
+    "intent_refs": [
+      "viewspec:binding:kpi_assets_value"
+    ],
+    "ir_id": "binding_kpi_assets_value",
+    "primitive": "value",
+    "props": {
+      "text": "7"
+    },
+    "style_tokens": [
+      "narrative.flow"
+    ]
+  },
+  "dom-binding_kpi_blockers_label": {
+    "content_refs": [
+      "node:kpi_blockers#attr:label"
+    ],
+    "intent_refs": [
+      "viewspec:binding:kpi_blockers_label"
+    ],
+    "ir_id": "binding_kpi_blockers_label",
+    "primitive": "label",
+    "props": {
+      "text": "Blockers"
+    },
+    "style_tokens": [
+      "narrative.flow"
+    ]
+  },
+  "dom-binding_kpi_blockers_value": {
+    "content_refs": [
+      "node:kpi_blockers#attr:value"
+    ],
+    "intent_refs": [
+      "viewspec:binding:kpi_blockers_value"
+    ],
+    "ir_id": "binding_kpi_blockers_value",
+    "primitive": "value",
+    "props": {
+      "text": "1"
+    },
+    "style_tokens": [
+      "narrative.flow"
+    ]
+  },
+  "dom-binding_kpi_docs_label": {
+    "content_refs": [
+      "node:kpi_docs#attr:label"
+    ],
+    "intent_refs": [
+      "viewspec:binding:kpi_docs_label"
+    ],
+    "ir_id": "binding_kpi_docs_label",
+    "primitive": "label",
+    "props": {
+      "text": "Docs pages"
+    },
+    "style_tokens": [
+      "narrative.flow"
+    ]
+  },
+  "dom-binding_kpi_docs_value": {
+    "content_refs": [
+      "node:kpi_docs#attr:value"
+    ],
+    "intent_refs": [
+      "viewspec:binding:kpi_docs_value"
+    ],
+    "ir_id": "binding_kpi_docs_value",
+    "primitive": "value",
+    "props": {
+      "text": "8"
+    },
+    "style_tokens": [
+      "narrative.flow"
+    ]
+  },
+  "dom-binding_kpi_emitters_label": {
+    "content_refs": [
+      "node:kpi_emitters#attr:label"
+    ],
+    "intent_refs": [
+      "viewspec:binding:kpi_emitters_label"
+    ],
+    "ir_id": "binding_kpi_emitters_label",
+    "primitive": "label",
+    "props": {
+      "text": "Emitter targets"
+    },
+    "style_tokens": [
+      "narrative.entry",
+      "emphasis.focal"
+    ]
+  },
+  "dom-binding_kpi_emitters_value": {
+    "content_refs": [
+      "node:kpi_emitters#attr:value"
+    ],
+    "intent_refs": [
+      "viewspec:binding:kpi_emitters_value"
+    ],
+    "ir_id": "binding_kpi_emitters_value",
+    "primitive": "value",
+    "props": {
+      "text": "4"
+    },
+    "style_tokens": [
+      "narrative.flow"
+    ]
+  },
+  "dom-binding_launch_status": {
+    "content_refs": [
+      "node:launch_ops#attr:status"
+    ],
+    "intent_refs": [
+      "viewspec:binding:launch_status",
+      "viewspec:style:status_positive"
+    ],
+    "ir_id": "binding_launch_status",
+    "primitive": "badge",
+    "props": {
+      "text": "On track"
+    },
+    "style_tokens": [
+      "narrative.flow",
+      "tone.positive"
+    ]
+  },
+  "dom-binding_launch_summary": {
+    "content_refs": [
+      "node:launch_ops#attr:summary"
+    ],
+    "intent_refs": [
+      "viewspec:binding:launch_summary"
+    ],
+    "ir_id": "binding_launch_summary",
+    "primitive": "text",
+    "props": {
+      "text": "One ViewSpec source proves web, React, iOS, and Android compilation."
+    },
+    "style_tokens": [
+      "narrative.flow"
+    ]
+  },
+  "dom-binding_launch_title": {
+    "content_refs": [
+      "node:launch_ops#attr:title"
+    ],
+    "intent_refs": [
+      "viewspec:binding:launch_title",
+      "viewspec:style:title_emphasis"
+    ],
+    "ir_id": "binding_launch_title",
+    "primitive": "text",
+    "props": {
+      "text": "Launch Operations Dashboard"
+    },
+    "style_tokens": [
+      "narrative.flow",
+      "emphasis.high"
+    ]
+  },
+  "dom-binding_mobile_recording_note": {
+    "content_refs": [
+      "node:mobile_note#attr:text"
+    ],
+    "intent_refs": [
+      "viewspec:binding:mobile_recording_note",
+      "viewspec:rule:show_mobile_note",
+      "viewspec:style:mobile_note_warning"
+    ],
+    "ir_id": "binding_mobile_recording_note",
+    "primitive": "text",
+    "props": {
+      "text": "Mobile runtime recording is handed off because this Windows workspace has no simulator tooling.",
+      "visibility_rule_id": "show_mobile_note"
+    },
+    "style_tokens": [
+      "narrative.flow",
+      "tone.warning"
+    ]
+  },
+  "dom-binding_row_flutter_label": {
+    "content_refs": [
+      "node:row_flutter#attr:label"
+    ],
+    "intent_refs": [
+      "viewspec:binding:row_flutter_label"
+    ],
+    "ir_id": "binding_row_flutter_label",
+    "primitive": "label",
+    "props": {
+      "text": "Flutter"
+    },
+    "style_tokens": [
+      "narrative.flow"
+    ]
+  },
+  "dom-binding_row_flutter_owner": {
+    "content_refs": [
+      "node:row_flutter#attr:owner"
+    ],
+    "intent_refs": [
+      "viewspec:binding:row_flutter_owner"
+    ],
+    "ir_id": "binding_row_flutter_owner",
+    "primitive": "value",
+    "props": {
+      "text": "mobile"
+    },
+    "style_tokens": [
+      "narrative.flow"
+    ]
+  },
+  "dom-binding_row_flutter_state": {
+    "content_refs": [
+      "node:row_flutter#attr:state"
+    ],
+    "intent_refs": [
+      "viewspec:binding:row_flutter_state"
+    ],
+    "ir_id": "binding_row_flutter_state",
+    "primitive": "value",
+    "props": {
+      "text": "External emulator recording"
+    },
+    "style_tokens": [
+      "narrative.flow"
+    ]
+  },
+  "dom-binding_row_html_label": {
+    "content_refs": [
+      "node:row_html#attr:label"
+    ],
+    "intent_refs": [
+      "viewspec:binding:row_html_label"
+    ],
+    "ir_id": "binding_row_html_label",
+    "primitive": "label",
+    "props": {
+      "text": "HTML/Tailwind"
+    },
+    "style_tokens": [
+      "tone.positive",
+      "narrative.flow"
+    ]
+  },
+  "dom-binding_row_html_owner": {
+    "content_refs": [
+      "node:row_html#attr:owner"
+    ],
+    "intent_refs": [
+      "viewspec:binding:row_html_owner"
+    ],
+    "ir_id": "binding_row_html_owner",
+    "primitive": "value",
+    "props": {
+      "text": "web"
+    },
+    "style_tokens": [
+      "tone.positive",
+      "narrative.flow"
+    ]
+  },
+  "dom-binding_row_html_state": {
+    "content_refs": [
+      "node:row_html#attr:state"
+    ],
+    "intent_refs": [
+      "viewspec:binding:row_html_state"
+    ],
+    "ir_id": "binding_row_html_state",
+    "primitive": "value",
+    "props": {
+      "text": "Live link ready"
+    },
+    "style_tokens": [
+      "tone.positive",
+      "narrative.flow"
+    ]
+  },
+  "dom-binding_row_react_label": {
+    "content_refs": [
+      "node:row_react#attr:label"
+    ],
+    "intent_refs": [
+      "viewspec:binding:row_react_label"
+    ],
+    "ir_id": "binding_row_react_label",
+    "primitive": "label",
+    "props": {
+      "text": "React TSX"
+    },
+    "style_tokens": [
+      "tone.positive",
+      "narrative.flow"
+    ]
+  },
+  "dom-binding_row_react_owner": {
+    "content_refs": [
+      "node:row_react#attr:owner"
+    ],
+    "intent_refs": [
+      "viewspec:binding:row_react_owner"
+    ],
+    "ir_id": "binding_row_react_owner",
+    "primitive": "value",
+    "props": {
+      "text": "web"
+    },
+    "style_tokens": [
+      "tone.positive",
+      "narrative.flow"
+    ]
+  },
+  "dom-binding_row_react_state": {
+    "content_refs": [
+      "node:row_react#attr:state"
+    ],
+    "intent_refs": [
+      "viewspec:binding:row_react_state"
+    ],
+    "ir_id": "binding_row_react_state",
+    "primitive": "value",
+    "props": {
+      "text": "Runtime page ready"
+    },
+    "style_tokens": [
+      "tone.positive",
+      "narrative.flow"
+    ]
+  },
+  "dom-binding_row_swiftui_label": {
+    "content_refs": [
+      "node:row_swiftui#attr:label"
+    ],
+    "intent_refs": [
+      "viewspec:binding:row_swiftui_label"
+    ],
+    "ir_id": "binding_row_swiftui_label",
+    "primitive": "label",
+    "props": {
+      "text": "SwiftUI"
+    },
+    "style_tokens": [
+      "narrative.flow"
+    ]
+  },
+  "dom-binding_row_swiftui_owner": {
+    "content_refs": [
+      "node:row_swiftui#attr:owner"
+    ],
+    "intent_refs": [
+      "viewspec:binding:row_swiftui_owner"
+    ],
+    "ir_id": "binding_row_swiftui_owner",
+    "primitive": "value",
+    "props": {
+      "text": "mobile"
+    },
+    "style_tokens": [
+      "narrative.flow"
+    ]
+  },
+  "dom-binding_row_swiftui_state": {
+    "content_refs": [
+      "node:row_swiftui#attr:state"
+    ],
+    "intent_refs": [
+      "viewspec:binding:row_swiftui_state"
+    ],
+    "ir_id": "binding_row_swiftui_state",
+    "primitive": "value",
+    "props": {
+      "text": "External simulator recording"
+    },
+    "style_tokens": [
+      "narrative.flow"
+    ]
+  },
+  "dom-input_include_mobile": {
+    "content_refs": [],
+    "intent_refs": [
+      "viewspec:input:include_mobile"
+    ],
+    "ir_id": "input_include_mobile",
+    "primitive": "input_toggle",
+    "props": {
+      "default_value": true,
+      "input_id": "include_mobile",
+      "input_kind": "input:toggle",
+      "label": "Include mobile handoff",
+      "options": []
+    },
+    "style_tokens": []
+  },
+  "dom-input_owner_email": {
+    "content_refs": [],
+    "intent_refs": [
+      "viewspec:input:owner_email"
+    ],
+    "ir_id": "input_owner_email",
+    "primitive": "input_text",
+    "props": {
+      "default_value": "launch@viewspec.dev",
+      "input_id": "owner_email",
+      "input_kind": "input:text",
+      "label": "Owner email",
+      "options": []
+    },
+    "style_tokens": []
+  },
+  "dom-input_phase_filter": {
+    "content_refs": [],
+    "intent_refs": [
+      "viewspec:input:phase_filter"
+    ],
+    "ir_id": "input_phase_filter",
+    "primitive": "input_select",
+    "props": {
+      "default_value": "Demos",
+      "input_id": "phase_filter",
+      "input_kind": "input:select",
+      "label": "Phase filter",
+      "options": [
+        "Demos",
+        "Docs",
+        "Mobile",
+        "Launch"
+      ]
+    },
+    "style_tokens": []
+  },
+  "dom-motif_launch_kpis": {
+    "content_refs": [],
+    "intent_refs": [
+      "viewspec:motif:launch_kpis",
+      "viewspec:style:kpi_surface"
+    ],
+    "ir_id": "motif_launch_kpis",
+    "primitive": "stack",
+    "props": {
+      "layout_role": "stack",
+      "motif_kind": "dashboard"
+    },
+    "style_tokens": [
+      "palette.energy",
+      "surface.subtle"
+    ]
+  },
+  "dom-motif_launch_kpis_kpi_assets": {
+    "content_refs": [],
+    "intent_refs": [
+      "viewspec:motif:launch_kpis"
+    ],
+    "ir_id": "motif_launch_kpis_kpi_assets",
+    "primitive": "surface",
+    "props": {
+      "layout_role": "surface",
+      "motif_kind": "dashboard"
+    },
+    "style_tokens": []
+  },
+  "dom-motif_launch_kpis_kpi_blockers": {
+    "content_refs": [],
+    "intent_refs": [
+      "viewspec:motif:launch_kpis"
+    ],
+    "ir_id": "motif_launch_kpis_kpi_blockers",
+    "primitive": "surface",
+    "props": {
+      "layout_role": "surface",
+      "motif_kind": "dashboard"
+    },
+    "style_tokens": []
+  },
+  "dom-motif_launch_kpis_kpi_docs": {
+    "content_refs": [],
+    "intent_refs": [
+      "viewspec:motif:launch_kpis"
+    ],
+    "ir_id": "motif_launch_kpis_kpi_docs",
+    "primitive": "surface",
+    "props": {
+      "layout_role": "surface",
+      "motif_kind": "dashboard"
+    },
+    "style_tokens": []
+  },
+  "dom-motif_launch_kpis_kpi_emitters": {
+    "content_refs": [],
+    "intent_refs": [
+      "viewspec:motif:launch_kpis"
+    ],
+    "ir_id": "motif_launch_kpis_kpi_emitters",
+    "primitive": "surface",
+    "props": {
+      "layout_role": "surface",
+      "motif_kind": "dashboard"
+    },
+    "style_tokens": []
+  },
+  "dom-motif_launch_status_table": {
+    "content_refs": [],
+    "intent_refs": [
+      "viewspec:motif:launch_status_table",
+      "viewspec:style:table_surface"
+    ],
+    "ir_id": "motif_launch_status_table",
+    "primitive": "stack",
+    "props": {
+      "layout_role": "stack",
+      "motif_kind": "table"
+    },
+    "style_tokens": [
+      "surface.strong"
+    ]
+  },
+  "dom-motif_launch_status_table_row_flutter": {
+    "content_refs": [],
+    "intent_refs": [
+      "viewspec:motif:launch_status_table"
+    ],
+    "ir_id": "motif_launch_status_table_row_flutter",
+    "primitive": "cluster",
+    "props": {
+      "layout_role": "cluster",
+      "motif_kind": "table"
+    },
+    "style_tokens": []
+  },
+  "dom-motif_launch_status_table_row_html": {
+    "content_refs": [],
+    "intent_refs": [
+      "viewspec:motif:launch_status_table"
+    ],
+    "ir_id": "motif_launch_status_table_row_html",
+    "primitive": "cluster",
+    "props": {
+      "layout_role": "cluster",
+      "motif_kind": "table"
+    },
+    "style_tokens": []
+  },
+  "dom-motif_launch_status_table_row_react": {
+    "content_refs": [],
+    "intent_refs": [
+      "viewspec:motif:launch_status_table"
+    ],
+    "ir_id": "motif_launch_status_table_row_react",
+    "primitive": "cluster",
+    "props": {
+      "layout_role": "cluster",
+      "motif_kind": "table"
+    },
+    "style_tokens": []
+  },
+  "dom-motif_launch_status_table_row_swiftui": {
+    "content_refs": [],
+    "intent_refs": [
+      "viewspec:motif:launch_status_table"
+    ],
+    "ir_id": "motif_launch_status_table_row_swiftui",
+    "primitive": "cluster",
+    "props": {
+      "layout_role": "cluster",
+      "motif_kind": "table"
+    },
+    "style_tokens": []
+  },
+  "dom-region_form": {
+    "content_refs": [],
+    "intent_refs": [
+      "viewspec:region:form",
+      "viewspec:style:form_density"
+    ],
+    "ir_id": "region_form",
+    "primitive": "stack",
+    "props": {
+      "layout_role": "stack"
+    },
+    "style_tokens": [
+      "density.regular"
+    ]
+  },
+  "dom-region_header": {
+    "content_refs": [],
+    "intent_refs": [
+      "viewspec:region:header"
+    ],
+    "ir_id": "region_header",
+    "primitive": "cluster",
+    "props": {
+      "layout_role": "cluster"
+    },
+    "style_tokens": []
+  },
+  "dom-region_kpis": {
+    "content_refs": [],
+    "intent_refs": [
+      "viewspec:region:kpis"
+    ],
+    "ir_id": "region_kpis",
+    "primitive": "grid",
+    "props": {
+      "columns": 2,
+      "layout_role": "grid"
+    },
+    "style_tokens": []
+  },
+  "dom-region_root": {
+    "content_refs": [],
+    "intent_refs": [
+      "viewspec:view:launch_operations_dashboard",
+      "viewspec:region:root"
+    ],
+    "ir_id": "region_root",
+    "primitive": "root",
+    "props": {
+      "layout_role": "root",
+      "visibility_rules": {
+        "show_mobile_note": {
+          "compareValue": "Mobile",
+          "compareValueType": "string",
+          "fallbackValue": "Demos",
+          "fallbackValueType": "string",
+          "id": "show_mobile_note",
+          "operator": "EQUALS",
+          "sourceKind": "input",
+          "sourceRef": "phase_filter",
+          "targetRef": "binding:mobile_recording_note"
+        }
+      }
+    },
+    "style_tokens": [
+      "palette.temperature",
+      "palette.energy",
+      "rhythm.hierarchy",
+      "rhythm.density"
+    ]
+  },
+  "dom-region_status": {
+    "content_refs": [],
+    "intent_refs": [
+      "viewspec:region:status"
+    ],
+    "ir_id": "region_status",
+    "primitive": "stack",
+    "props": {
+      "layout_role": "stack"
+    },
+    "style_tokens": []
+  }
+}
