@@ -1164,8 +1164,14 @@
       border: 1px solid rgba(148, 163, 184, 0.14);
       border-radius: var(--radius-sm);
       min-height: 12rem;
-      overflow: auto;
+      overflow: hidden;
       padding: var(--space-3);
+    }
+
+    .capability-stage [data-compiled-output] {
+      transform: scale(0.72);
+      transform-origin: top left;
+      width: 139%;
     }
 
     .capability-hint {
@@ -1536,6 +1542,16 @@
       }
 
       .design-toggle {
+        grid-template-columns: 1fr;
+      }
+
+      .capability-stage [data-compiled-output] {
+        transform: scale(0.55);
+        transform-origin: top left;
+        width: 182%;
+      }
+
+      .design-split {
         grid-template-columns: 1fr;
       }
 
