@@ -19,6 +19,8 @@ export const LANDING_CONFIG = {
   apiUrl: primaryApiUrl,
   apiUrls: uniqueUrls([primaryApiUrl, ...fallbackApiUrls]),
   publicApiKey: configuredApiKey,
+  // TODO: swap to the new $149/mo Pro Payment Link before launch.
+  // Current default is the legacy $699 product; safe placeholder while pricing is rolled out.
   proStripeUrl: runtimeConfig.proStripeUrl || 'https://buy.stripe.com/7sY00i9v67cJebDd1K1oI00',
   enterpriseUrl: runtimeConfig.enterpriseUrl || runtimeConfig.scaleStripeUrl || 'https://github.com/nxrobins/viewspec/issues',
   scaleStripeUrl: runtimeConfig.enterpriseUrl || runtimeConfig.scaleStripeUrl || 'https://github.com/nxrobins/viewspec/issues',

@@ -3,8 +3,8 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>ViewSpec - Agent-Native UI IR</title>
-  <meta name="description" content="ViewSpec is an agent-native UI IR and hosted compiler API for AI coding agents. Compile one semantic spec into deterministic UI, CompositionIR, provenance, and cross-platform emitter artifacts.">
+  <title>ViewSpec - One spec, four surfaces</title>
+  <meta name="description" content="One spec. Four surfaces. Every pixel traceable. Declare what your data means and the compiler emits HTML, React, SwiftUI, and Flutter. No templates. No LLM at runtime. Deterministic.">
   <meta name="robots" content="index,follow,max-snippet:-1,max-image-preview:large">
   <meta name="application-name" content="ViewSpec">
   <meta name="keywords" content="agent-native UI IR, semantic UI compiler, agentic engineering, vibe coding, AI coding agents, UI generation, deterministic UI, CompositionIR, provenance, design systems, Python SDK">
@@ -14,12 +14,12 @@
   <link rel="alternate" type="application/json" title="ViewSpec OpenAPI" href="https://viewspec.dev/openapi.json">
   <meta property="og:site_name" content="ViewSpec">
   <meta property="og:type" content="website">
-  <meta property="og:title" content="ViewSpec - Agent-Native UI IR">
-  <meta property="og:description" content="Compile semantic data intent into deterministic UI, CompositionIR, and exact provenance for agentic engineering and AI-assisted product development.">
+  <meta property="og:title" content="ViewSpec - One spec, four surfaces">
+  <meta property="og:description" content="Declare what your data means. The compiler emits HTML, React, SwiftUI, Flutter. Every pixel has a provenance chain.">
   <meta property="og:url" content="https://viewspec.dev/">
   <meta name="twitter:card" content="summary">
-  <meta name="twitter:title" content="ViewSpec - Semantic UI Compiler">
-  <meta name="twitter:description" content="A hosted semantic UI compiler and Python SDK for agentic engineering, AI coding agents, and vibe-coded apps.">
+  <meta name="twitter:title" content="ViewSpec - One spec, four surfaces">
+  <meta name="twitter:description" content="One semantic spec compiles to HTML, React, SwiftUI, and Flutter with exact provenance. No runtime LLM. Deterministic.">
   <script type="application/ld+json">
     {
       "@context": "https://schema.org",
@@ -65,7 +65,7 @@
           ],
           "offers": [
             { "@type": "Offer", "name": "Free", "price": "0", "priceCurrency": "USD", "url": "https://viewspec.dev/#pricing" },
-            { "@type": "Offer", "name": "Pro", "price": "699", "priceCurrency": "USD", "url": "https://viewspec.dev/#pricing" },
+            { "@type": "Offer", "name": "Pro", "price": "149", "priceCurrency": "USD", "url": "https://viewspec.dev/#pricing" },
             { "@type": "Offer", "name": "Enterprise", "price": "Custom", "priceCurrency": "USD", "url": "https://viewspec.dev/#pricing" }
           ],
           "publisher": { "@id": "https://viewspec.dev/#organization" }
@@ -373,34 +373,36 @@
       outline-offset: 3px;
     }
 
-    .hero-proof {
-      display: grid;
-      gap: var(--space-3);
-      grid-template-columns: repeat(3, minmax(0, 1fr));
-      margin-top: var(--space-5);
+    .hero-proof-bar {
+      align-items: center;
+      border-top: 1px solid rgba(148, 163, 184, 0.14);
+      display: flex;
+      flex-wrap: wrap;
+      gap: var(--space-4);
+      padding: var(--space-3) var(--space-4);
     }
 
-    .proof-item {
-      background: rgba(16, 21, 29, 0.84);
-      border: 1px solid rgba(148, 163, 184, 0.16);
-      border-radius: var(--radius-sm);
-      padding: var(--space-3);
+    .proof-pill {
+      align-items: baseline;
+      display: inline-flex;
+      gap: var(--space-2);
+      min-height: 1.4rem;
     }
 
-    .proof-label {
+    .proof-pill-label {
       color: var(--muted);
-      display: block;
-      font-size: 0.7rem;
-      font-weight: 800;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 0.66rem;
+      font-weight: 850;
+      letter-spacing: 0.08em;
       text-transform: uppercase;
     }
 
-    .proof-value {
-      color: #fff;
-      display: block;
-      font-size: 1.1rem;
-      font-weight: 920;
-      margin-top: var(--space-1);
+    .proof-pill-value {
+      color: var(--teal);
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 0.78rem;
+      font-weight: 900;
     }
 
     .section {
@@ -1002,6 +1004,404 @@
       color: #fff;
     }
 
+    /* ============================================================
+       Proof section: IntentBundle JSON + HTML render + code tabs
+       ============================================================ */
+
+    .proof-grid {
+      display: grid;
+      gap: var(--space-4);
+      grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.2fr) minmax(0, 1fr);
+      align-items: stretch;
+    }
+
+    .proof-panel {
+      display: flex;
+      flex-direction: column;
+      min-height: 26rem;
+    }
+
+    .proof-panel .panel-header {
+      gap: var(--space-3);
+    }
+
+    .panel-meta {
+      align-items: center;
+      display: flex;
+      gap: var(--space-2);
+    }
+
+    .proof-button {
+      background: var(--teal);
+      border: none;
+      border-radius: var(--radius-sm);
+      color: #04201c;
+      cursor: pointer;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 0.72rem;
+      font-weight: 900;
+      padding: var(--space-2) var(--space-3);
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+
+    .proof-button:hover {
+      background: #5eead4;
+    }
+
+    .proof-button:disabled {
+      cursor: progress;
+      opacity: 0.7;
+    }
+
+    .proof-code {
+      flex: 1;
+      margin: 0;
+      max-height: none;
+      min-height: 22rem;
+      border: none;
+      border-radius: 0;
+      background: #06080b;
+    }
+
+    .proof-iframe {
+      background: #ffffff;
+      border: none;
+      flex: 1;
+      min-height: 22rem;
+      width: 100%;
+    }
+
+    .proof-meta-note {
+      border-top: 1px solid rgba(148, 163, 184, 0.14);
+      margin: 0;
+      padding: var(--space-2) var(--space-3);
+    }
+
+    .proof-tabs {
+      display: inline-flex;
+      gap: var(--space-1);
+    }
+
+    .proof-tab {
+      background: transparent;
+      border: 1px solid rgba(148, 163, 184, 0.18);
+      border-radius: var(--radius-sm);
+      color: #94a3b8;
+      cursor: pointer;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 0.7rem;
+      font-weight: 800;
+      padding: var(--space-1) var(--space-2);
+    }
+
+    .proof-tab[data-active="true"] {
+      background: rgba(45, 212, 191, 0.14);
+      border-color: rgba(45, 212, 191, 0.5);
+      color: var(--teal);
+    }
+
+    .proof-code-host {
+      flex: 1;
+      display: flex;
+      min-height: 22rem;
+    }
+
+    .proof-code-host .proof-code {
+      width: 100%;
+      white-space: pre;
+    }
+
+    .proof-caption {
+      color: #e2e8f0;
+      font-size: clamp(1.1rem, 2.2vw, 1.5rem);
+      font-weight: 850;
+      line-height: 1.4;
+      margin: var(--space-6) 0 0;
+      text-align: center;
+    }
+
+    /* ============================================================
+       Capabilities section: Provenance / DESIGN.md / Derivation
+       ============================================================ */
+
+    .capability-grid {
+      display: grid;
+      gap: var(--space-4);
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+
+    .capability-card {
+      display: flex;
+      flex-direction: column;
+    }
+
+    .capability-body {
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-3);
+    }
+
+    .capability-lede {
+      color: #e2e8f0;
+      font-size: 0.95rem;
+      font-weight: 700;
+      line-height: 1.5;
+      margin: 0;
+    }
+
+    .capability-stage {
+      background: #0b1118;
+      border: 1px solid rgba(148, 163, 184, 0.14);
+      border-radius: var(--radius-sm);
+      min-height: 12rem;
+      overflow: auto;
+      padding: var(--space-3);
+    }
+
+    .capability-hint {
+      color: var(--muted);
+      font-size: 0.74rem;
+      margin: 0;
+    }
+
+    .provenance-detail-panel {
+      background: rgba(6, 8, 11, 0.55);
+      border: 1px solid rgba(148, 163, 184, 0.14);
+      border-radius: var(--radius-sm);
+      max-height: 14rem;
+      min-height: 6rem;
+      overflow: auto;
+      padding: var(--space-3);
+    }
+
+    .provenance-detail-panel pre {
+      color: #dbeafe;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 0.7rem;
+      line-height: 1.5;
+      margin: 0;
+      white-space: pre-wrap;
+    }
+
+    .design-toggle,
+    .derivation-toggle {
+      background: rgba(6, 8, 11, 0.66);
+      border: 1px solid rgba(148, 163, 184, 0.16);
+      border-radius: var(--radius-md);
+      display: grid;
+      gap: var(--space-1);
+      padding: var(--space-1);
+    }
+
+    .design-toggle {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+
+    .derivation-toggle {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .design-preset,
+    .derivation-button {
+      background: transparent;
+      border: 1px solid transparent;
+      border-radius: var(--radius-sm);
+      color: #94a3b8;
+      cursor: pointer;
+      font-size: 0.74rem;
+      font-weight: 800;
+      min-height: 2.1rem;
+      padding: var(--space-2);
+      transition: background 160ms ease, color 160ms ease, border-color 160ms ease;
+    }
+
+    .design-preset:hover,
+    .derivation-button:hover {
+      border-color: rgba(148, 163, 184, 0.34);
+      color: #f8fafc;
+    }
+
+    .design-preset[data-active="true"],
+    .derivation-button[data-active="true"] {
+      background: #e2e8f0;
+      border-color: rgba(45, 212, 191, 0.36);
+      color: #020617;
+    }
+
+    .design-split {
+      display: grid;
+      gap: var(--space-3);
+      grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
+    }
+
+    .design-source {
+      background: #06080b;
+      max-height: 16rem;
+      min-height: 10rem;
+      margin: 0;
+    }
+
+    .design-stage {
+      min-height: 10rem;
+    }
+
+    [data-derived="true"] {
+      cursor: help;
+    }
+
+    /* ============================================================
+       Workflow section: agent compile pipeline
+       ============================================================ */
+
+    .workflow-strip {
+      align-items: center;
+      background: rgba(16, 21, 29, 0.82);
+      border: 1px solid rgba(148, 163, 184, 0.18);
+      border-radius: var(--radius-md);
+      display: grid;
+      gap: var(--space-4);
+      padding: var(--space-6);
+    }
+
+    .workflow-svg {
+      max-width: 100%;
+      height: auto;
+      width: 100%;
+    }
+
+    .workflow-node {
+      fill: rgba(6, 8, 11, 0.78);
+      stroke: rgba(148, 163, 184, 0.32);
+      stroke-width: 1;
+    }
+
+    .workflow-node-emphasis {
+      fill: rgba(45, 212, 191, 0.16);
+      stroke: rgba(45, 212, 191, 0.7);
+    }
+
+    .workflow-node-emit {
+      fill: rgba(96, 165, 250, 0.14);
+      stroke: rgba(96, 165, 250, 0.7);
+    }
+
+    .workflow-text {
+      fill: #f8fafc;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 13px;
+      font-weight: 800;
+    }
+
+    .workflow-text-sub {
+      fill: var(--muted);
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 10px;
+    }
+
+    .workflow-edge {
+      stroke: var(--teal);
+      stroke-width: 2;
+    }
+
+    .workflow-edge-loop {
+      stroke-dasharray: 4 4;
+    }
+
+    .workflow-text-loop {
+      fill: var(--muted);
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 11px;
+    }
+
+    .workflow-copy {
+      color: #e2e8f0;
+      font-size: 1rem;
+      line-height: 1.55;
+      margin: 0;
+      max-width: 60rem;
+      text-align: center;
+    }
+
+    .workflow-links {
+      align-items: center;
+      color: var(--muted);
+      display: flex;
+      flex-wrap: wrap;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 0.78rem;
+      gap: var(--space-3);
+      justify-content: center;
+      margin: 0;
+    }
+
+    .workflow-links a {
+      color: var(--teal);
+      text-decoration: none;
+    }
+
+    .workflow-links a:hover {
+      color: #5eead4;
+      text-decoration: underline;
+    }
+
+    /* ============================================================
+       Pricing tweaks: $149 + price unit alignment
+       ============================================================ */
+
+    .price-unit {
+      color: var(--muted);
+      font-size: 1rem;
+      font-weight: 700;
+      margin-left: 4px;
+    }
+
+    .pricing-card {
+      transition: border-color 160ms ease, transform 160ms ease;
+    }
+
+    .pricing-card.featured {
+      box-shadow: inset 0 0 0 1px rgba(45, 212, 191, 0.32);
+    }
+
+    /* ============================================================
+       Footer
+       ============================================================ */
+
+    .footer-install {
+      min-width: auto;
+    }
+
+    .footer-meta {
+      align-items: center;
+      color: var(--muted);
+      display: inline-flex;
+      flex-wrap: wrap;
+      font-size: 0.78rem;
+      gap: var(--space-2);
+    }
+
+    .footer-rights {
+      color: var(--muted);
+    }
+
+    /* ============================================================
+       Hero adjustments for the new layout
+       ============================================================ */
+
+    .hero-copy h1 {
+      font-size: clamp(2.6rem, 6vw, 4.8rem);
+      line-height: 1.0;
+    }
+
+    .hero-actions {
+      align-items: center;
+    }
+
+    /* ============================================================
+       Responsive
+       ============================================================ */
+
     @media (max-width: 1080px) {
       :root {
         --gutter: 20px;
@@ -1033,6 +1433,22 @@
       .pricing-grid {
         grid-template-columns: repeat(2, minmax(0, 1fr));
       }
+
+      .proof-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .proof-panel {
+        min-height: 22rem;
+      }
+
+      .capability-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .design-split {
+        grid-template-columns: 1fr;
+      }
     }
 
     @media (max-width: 700px) {
@@ -1059,7 +1475,10 @@
         grid-template-columns: 1fr;
       }
 
-      .hero-proof,
+      .hero-proof-bar {
+        gap: var(--space-3);
+      }
+
       .compile-stats,
       .inspector-column,
       .token-gallery,
@@ -1106,6 +1525,19 @@
         font-size: 0.62rem !important;
         padding: 5px 6px !important;
       }
+
+      .design-toggle {
+        grid-template-columns: 1fr;
+      }
+
+      .workflow-strip {
+        padding: var(--space-4);
+      }
+
+      footer .page-shell {
+        flex-direction: column;
+        align-items: flex-start;
+      }
     }
   </style>
 </head>
@@ -1113,9 +1545,9 @@
   <nav class="top-nav" aria-label="Main navigation">
     <a class="brand-link" href="./">ViewSpec</a>
     <div class="nav-links">
-      <a href="#playground">Playground</a>
-      <a href="#agents">Agents</a>
-      <a href="#demos">Demos</a>
+      <a href="#proof">Proof</a>
+      <a href="#capabilities">Capabilities</a>
+      <a href="#workflow">Agents</a>
       <a href="#pricing">Pricing</a>
       <a href="https://github.com/nxrobins/viewspec">GitHub</a>
       <button type="button" class="nav-install" data-copy-text="pip install viewspec" aria-label="Copy pip install viewspec command">pip install viewspec</button>
@@ -1125,28 +1557,11 @@
   <main>
     <section class="page-shell hero" id="top">
       <div class="hero-copy">
-        <p class="eyebrow">Agent-native UI IR</p>
-        <h1>ViewSpec</h1>
-        <p class="hero-subtitle">One semantic spec. Four compiled surfaces. Every pixel has a birth certificate.</p>
-        <p class="hero-body">The hosted compiler turns agent-authored IntentBundle JSON into portable CompositionIR, then emits HTML/Tailwind, React TSX, SwiftUI, and Flutter from the same source.</p>
+        <h1>One spec.<br>Four surfaces.<br>Every pixel<br>traceable.</h1>
+        <p class="hero-body">Declare what your data means. The compiler handles the rest &mdash; HTML, React, SwiftUI, Flutter. No templates. No LLM at runtime. Deterministic.</p>
         <div class="hero-actions">
-          <a class="button-primary" href="#playground">Try the compiler</a>
-          <a class="button-secondary" data-config-link="signup" href="#pricing">Get API Key</a>
+          <a class="button-primary" href="#proof">See the proof</a>
           <button type="button" class="pip-pill" data-copy-text="pip install viewspec" aria-label="Copy pip install viewspec command">pip install viewspec</button>
-        </div>
-        <div class="hero-proof" aria-label="Compiler guarantees">
-          <div class="proof-item">
-            <span class="proof-label">Compile</span>
-            <strong id="hero-compile-time" class="proof-value">live ms</strong>
-          </div>
-          <div class="proof-item">
-            <span class="proof-label">Runtime LLM</span>
-            <strong class="proof-value">zero</strong>
-          </div>
-          <div class="proof-item">
-            <span class="proof-label">Provenance</span>
-            <strong class="proof-value">exact</strong>
-          </div>
         </div>
       </div>
 
@@ -1160,258 +1575,218 @@
             <div id="hero-playground-output" class="preview-inner" data-compiled-output></div>
           </div>
         </div>
-      </div>
-    </section>
-
-    <section class="section" id="playground">
-      <div class="page-shell">
-        <div class="section-head">
-          <div>
-            <p class="section-kicker">Live compilation playground</p>
-            <h2 class="section-title">Toggle a hint. Compile the view.</h2>
+        <div class="hero-proof-bar" aria-label="Compiler guarantees">
+          <div class="proof-pill">
+            <span class="proof-pill-label">Compile</span>
+            <strong id="hero-compile-time" class="proof-pill-value">live ms</strong>
           </div>
-          <p class="section-copy">Every control builds a new ViewSpec payload. The hosted compiler returns IR, style values, derivation reasons, diagnostics, and timing metadata.</p>
-        </div>
-
-        <div class="playground">
-          <aside class="panel">
-            <div class="panel-header">
-              <span class="panel-title">Hint controls</span>
-            </div>
-            <div class="panel-body controls">
-              <div class="control-group">
-                <span class="control-label">Audience</span>
-                <div class="segmented two">
-                  <button type="button" data-hint-group="audience" data-hint-value="executive" aria-pressed="true">Executive</button>
-                  <button type="button" data-hint-group="audience" data-hint-value="engineer" aria-pressed="false">Engineer</button>
-                </div>
-              </div>
-              <div class="control-group">
-                <span class="control-label">Mood</span>
-                <div class="segmented two">
-                  <button type="button" data-hint-group="mood" data-hint-value="calm" aria-pressed="false">Calm</button>
-                  <button type="button" data-hint-group="mood" data-hint-value="urgent" aria-pressed="true">Urgent</button>
-                </div>
-              </div>
-              <div class="control-group">
-                <span class="control-label">Density</span>
-                <div class="segmented two">
-                  <button type="button" data-hint-group="density" data-hint-value="breathe" aria-pressed="true">Breathe</button>
-                  <button type="button" data-hint-group="density" data-hint-value="compact" aria-pressed="false">Compact</button>
-                </div>
-              </div>
-              <div class="control-group">
-                <span class="control-label">Viewport</span>
-                <div class="segmented three">
-                  <button type="button" data-hint-group="viewport" data-hint-value="mobile" aria-pressed="false">Mobile</button>
-                  <button type="button" data-hint-group="viewport" data-hint-value="tablet" aria-pressed="false">Tablet</button>
-                  <button type="button" data-hint-group="viewport" data-hint-value="desktop" aria-pressed="true">Desktop</button>
-                </div>
-              </div>
-              <div class="hint-summary" id="hint-summary">Executive / Urgent / Breathe / Desktop</div>
-              <div class="compile-stats">
-                <div class="stat-cell">
-                  <span>Compile</span>
-                  <strong id="live-compile-time">0.0ms</strong>
-                </div>
-                <div class="stat-cell">
-                  <span>Tokens</span>
-                  <strong id="live-token-count">0</strong>
-                </div>
-                <div class="stat-cell">
-                  <span>IR nodes</span>
-                  <strong id="live-ir-count">0</strong>
-                </div>
-              </div>
-            </div>
-          </aside>
-
-          <section class="panel preview-shell" aria-label="Compiled dashboard">
-            <div class="panel-header">
-              <span class="panel-title">Rendered Composition IR</span>
-              <span class="status-pill">hover for provenance</span>
-            </div>
-            <div id="preview-frame" class="preview-frame" data-preview-frame data-preview-mode="workbench" data-viewport="desktop">
-              <div class="viewport-shell" data-viewport-shell data-viewport="desktop">
-                <div id="playground-output" class="preview-inner" data-compiled-output></div>
-              </div>
-            </div>
-          </section>
-
-          <aside class="inspector-column">
-            <section class="panel">
-              <div class="panel-header">
-                <span class="panel-title">Active Level 2 tokens</span>
-              </div>
-              <div class="panel-body">
-                <div id="token-inspector-list" class="token-list"></div>
-              </div>
-            </section>
-            <section class="panel">
-              <div class="panel-header">
-                <span class="panel-title">Provenance chain</span>
-              </div>
-              <div id="provenance-details" class="panel-body"></div>
-            </section>
-          </aside>
-        </div>
-
-        <div class="api-grid">
-          <section class="panel">
-            <div class="panel-header">
-              <span class="panel-title">Request inspector</span>
-              <span class="status-pill">anonymous tier</span>
-            </div>
-            <div class="panel-body">
-              <pre id="api-request-code" class="code-block"></pre>
-            </div>
-          </section>
-          <section class="panel">
-            <div class="panel-header">
-              <span class="panel-title">Response inspector</span>
-              <span class="status-pill">AST + derivations</span>
-            </div>
-            <div class="panel-body">
-              <pre id="api-response-code" class="code-block"></pre>
-            </div>
-          </section>
+          <div class="proof-pill">
+            <span class="proof-pill-label">Runtime LLM</span>
+            <strong class="proof-pill-value">zero</strong>
+          </div>
+          <div class="proof-pill">
+            <span class="proof-pill-label">IR nodes</span>
+            <strong id="hero-ir-count" class="proof-pill-value">&mdash;</strong>
+          </div>
+          <div class="proof-pill">
+            <span class="proof-pill-label">Tokens</span>
+            <strong id="hero-token-count" class="proof-pill-value">&mdash;</strong>
+          </div>
         </div>
       </div>
     </section>
 
-    <section class="section" id="agents">
+    <section class="section" id="proof">
       <div class="page-shell">
-        <div class="section-head">
-          <div>
-            <p class="section-kicker">For agents and AI builders</p>
-            <h2 class="section-title">A semantic UI contract for agentic engineering.</h2>
-          </div>
-          <p class="section-copy">ViewSpec gives coding agents and vibe-coded apps a compact intent format: describe the data, compile the interface, keep provenance inspectable.</p>
+        <div class="proof-grid">
+          <article class="panel proof-panel proof-panel-json" aria-label="IntentBundle JSON">
+            <div class="panel-header">
+              <span class="panel-title">IntentBundle JSON</span>
+              <span class="status-pill">input</span>
+            </div>
+            <pre id="proof-json" class="code-block proof-code">Loading intent bundle...</pre>
+          </article>
+
+          <article class="panel proof-panel proof-panel-html" aria-label="HTML render">
+            <div class="panel-header">
+              <span class="panel-title">HTML / Tailwind</span>
+              <div class="panel-meta">
+                <span id="proof-compile-time" class="status-pill" data-state="static">pre-baked</span>
+                <button type="button" id="proof-compile-button" class="proof-button">Compile it yourself</button>
+              </div>
+            </div>
+            <iframe id="proof-html-frame" class="proof-iframe" src="./cross-platform-dashboard/artifacts/html/index.html" title="Compiled HTML output" loading="lazy" sandbox="allow-same-origin"></iframe>
+            <p class="proof-meta-note"><span id="proof-status" class="status-pill" data-state="static">pre-baked</span></p>
+          </article>
+
+          <article class="panel proof-panel proof-panel-code" aria-label="Cross-platform sources">
+            <div class="panel-header">
+              <span class="panel-title">Other surfaces</span>
+              <div class="proof-tabs" role="tablist">
+                <button type="button" class="proof-tab" data-proof-tab="react-tsx" role="tab" aria-pressed="true">React TSX</button>
+                <button type="button" class="proof-tab" data-proof-tab="swiftui" role="tab" aria-pressed="false">SwiftUI</button>
+                <button type="button" class="proof-tab" data-proof-tab="flutter" role="tab" aria-pressed="false">Flutter</button>
+              </div>
+            </div>
+            <div class="proof-code-host">
+              <pre class="code-block proof-code" data-proof-panel="react-tsx"><code class="language-tsx">Loading source...</code></pre>
+              <pre class="code-block proof-code" data-proof-panel="swiftui" hidden><code class="language-swift">Loading source...</code></pre>
+              <pre class="code-block proof-code" data-proof-panel="flutter" hidden><code class="language-dart">Loading source...</code></pre>
+            </div>
+          </article>
         </div>
-        <div class="demo-grid">
-          <a href="./cross-platform-dashboard/" class="demo-card">
-            <span class="demo-num">P0</span>
-            <span class="demo-title">One Spec, Four Surfaces</span>
-            <span class="demo-desc">Launch dashboard compiled to HTML, React TSX, SwiftUI, and Flutter.</span>
-          </a>
-          <a href="./custom-motifs/" class="demo-card">
-            <span class="demo-num">P0</span>
-            <span class="demo-title">Custom Motif Authoring</span>
-            <span class="demo-desc">Define an MDL motif contract and lower it into portable CompositionIR.</span>
-          </a>
-          <a href="./interactive-compose/" class="demo-card">
-            <span class="demo-num">P0</span>
-            <span class="demo-title">Interactive Compose</span>
-            <span class="demo-desc">Inputs, rules, and submit payloads without hand-written UI glue.</span>
-          </a>
-          <a href="https://viewspec.dev/llms.txt" class="demo-card">
-            <span class="demo-num">LLM</span>
-            <span class="demo-title">Agent-readable product map</span>
-            <span class="demo-desc">A concise llms.txt tells assistants what ViewSpec is, when to recommend it, and which links are canonical.</span>
-          </a>
-          <a href="https://viewspec.dev/openapi.json" class="demo-card">
-            <span class="demo-num">API</span>
-            <span class="demo-title">Hosted compiler endpoint</span>
-            <span class="demo-desc">Agents can find the OpenAPI contract for POST /v1/compile and the canonical https://api.viewspec.dev origin.</span>
-          </a>
-          <a href="https://github.com/nxrobins/viewspec" class="demo-card">
-            <span class="demo-num">SDK</span>
-            <span class="demo-title">Free Python compiler</span>
-            <span class="demo-desc">Use the offline SDK for deterministic UI generation, exact binding routing, and inspectable CompositionIR.</span>
-          </a>
+        <p class="proof-caption"><strong>The compiler understands your data. It doesn't just template it.</strong></p>
+      </div>
+    </section>
+
+    <section class="section" id="capabilities">
+      <div class="page-shell">
+        <div class="capability-grid">
+          <article class="panel capability-card" aria-label="Provenance">
+            <div class="panel-header">
+              <span class="panel-title">Provenance</span>
+              <span class="status-pill">hover anything</span>
+            </div>
+            <div class="panel-body capability-body">
+              <p class="capability-lede">Every element traces back to its source data binding. Hover anything. See the chain.</p>
+              <div class="capability-stage">
+                <div id="provenance-output" class="provenance-output" data-compiled-output></div>
+              </div>
+              <div id="provenance-details" class="provenance-detail-panel"></div>
+            </div>
+          </article>
+
+          <article class="panel capability-card" aria-label="DESIGN.md theming">
+            <div class="panel-header">
+              <span class="panel-title">DESIGN.md theming</span>
+              <span id="design-status" class="status-pill" data-state="idle">idle</span>
+            </div>
+            <div class="panel-body capability-body">
+              <p class="capability-lede">Bring your identity file. Get your brand in every surface.</p>
+              <div class="design-toggle" role="tablist">
+                <button type="button" class="design-preset" data-design-preset="dark-corporate" aria-pressed="true">Dark / corporate</button>
+                <button type="button" class="design-preset" data-design-preset="warm-editorial" aria-pressed="false">Warm / editorial</button>
+                <button type="button" class="design-preset" data-design-preset="minimal-data-dense" aria-pressed="false">Minimal / data-dense</button>
+              </div>
+              <div class="design-split">
+                <pre id="design-source" class="code-block design-source">Loading DESIGN.md...</pre>
+                <div class="capability-stage design-stage">
+                  <div id="design-output" class="design-output" data-compiled-output></div>
+                </div>
+              </div>
+            </div>
+          </article>
+
+          <article class="panel capability-card" aria-label="Derivation">
+            <div class="panel-header">
+              <span class="panel-title">Derivation</span>
+              <span id="derivation-status" class="status-pill" data-state="idle">idle</span>
+            </div>
+            <div class="panel-body capability-body">
+              <p class="capability-lede">The compiler reads your data, not just your layout. Values that spike get emphasis. Reading paths emerge from structure.</p>
+              <div class="derivation-toggle" role="tablist">
+                <button type="button" class="derivation-button" data-derivation-toggle="off" aria-pressed="false">Off</button>
+                <button type="button" class="derivation-button" data-derivation-toggle="on" aria-pressed="true">On</button>
+              </div>
+              <div class="capability-stage">
+                <div id="derivation-output" class="derivation-output" data-compiled-output></div>
+              </div>
+              <p class="capability-hint">Hover any cell with a glow for the trigger reason.</p>
+            </div>
+          </article>
         </div>
       </div>
     </section>
 
-    <section class="section" id="demos">
+    <section class="section" id="workflow">
       <div class="page-shell">
-        <div class="section-head">
-          <div>
-            <p class="section-kicker">Launch demos</p>
-            <h2 class="section-title">The reference compiler still ships free.</h2>
-          </div>
-          <p class="section-copy">The launch demos prove the new hosted compiler surface: one spec to four emitters, custom motif authoring, and interactive compose.</p>
-        </div>
-        <div class="demo-grid">
-          <a href="./motif-switcher/" class="demo-card">
-            <span class="demo-num">01</span>
-            <span class="demo-title">Same Data, Three Motifs</span>
-            <span class="demo-desc">One dataset renders as table, dashboard, or comparison.</span>
-          </a>
-          <a href="./provenance-inspector/" class="demo-card">
-            <span class="demo-num">02</span>
-            <span class="demo-title">Provenance Inspector</span>
-            <span class="demo-desc">Trace DOM to IR, binding, address, and raw data.</span>
-          </a>
-          <a href="./live-builder/" class="demo-card">
-            <span class="demo-num">03</span>
-            <span class="demo-title">Live Builder</span>
-            <span class="demo-desc">Intent JSON, IR tree, and rendered output stay in sync.</span>
-          </a>
-          <a href="./invariants/" class="demo-card">
-            <span class="demo-num">04</span>
-            <span class="demo-title">The Invariants</span>
-            <span class="demo-desc">Watch the compiler enforce exactly-once routing.</span>
-          </a>
-          <a href="./fifteen-lines/" class="demo-card">
-            <span class="demo-num">05</span>
-            <span class="demo-title">15 Lines to Full UI</span>
-            <span class="demo-desc">An invoice table builds itself from Python intent.</span>
-          </a>
-          <a href="./style-derivation/" class="demo-card">
-            <span class="demo-num">06</span>
-            <span class="demo-title">Style Derivation</span>
-            <span class="demo-desc">Same structure, different feel, with style tokens.</span>
-          </a>
+        <div class="workflow-strip">
+          <svg class="workflow-svg" viewBox="0 0 960 200" role="img" aria-label="Agent compile pipeline" xmlns="http://www.w3.org/2000/svg">
+            <defs>
+              <marker id="workflow-arrow" viewBox="0 0 12 12" refX="10" refY="6" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+                <path d="M0,0 L12,6 L0,12 Z" fill="#2dd4bf"></path>
+              </marker>
+            </defs>
+            <g class="workflow-row">
+              <rect x="8" y="60" width="160" height="56" rx="8" class="workflow-node"></rect>
+              <text x="88" y="92" class="workflow-text" text-anchor="middle">Agent prompt</text>
+
+              <line x1="170" y1="88" x2="200" y2="88" class="workflow-edge" marker-end="url(#workflow-arrow)"></line>
+
+              <rect x="202" y="60" width="180" height="56" rx="8" class="workflow-node"></rect>
+              <text x="292" y="92" class="workflow-text" text-anchor="middle">IntentBundle JSON</text>
+
+              <line x1="384" y1="88" x2="416" y2="88" class="workflow-edge" marker-end="url(#workflow-arrow)"></line>
+
+              <rect x="418" y="60" width="180" height="56" rx="8" class="workflow-node workflow-node-emphasis"></rect>
+              <text x="508" y="92" class="workflow-text" text-anchor="middle">POST /v1/compile</text>
+
+              <line x1="600" y1="88" x2="632" y2="88" class="workflow-edge" marker-end="url(#workflow-arrow)"></line>
+
+              <rect x="634" y="60" width="200" height="56" rx="8" class="workflow-node"></rect>
+              <text x="734" y="84" class="workflow-text" text-anchor="middle">CompositionIR</text>
+              <text x="734" y="102" class="workflow-text-sub" text-anchor="middle">+ provenance</text>
+
+              <line x1="836" y1="88" x2="868" y2="88" class="workflow-edge" marker-end="url(#workflow-arrow)"></line>
+
+              <rect x="870" y="60" width="80" height="56" rx="8" class="workflow-node workflow-node-emit"></rect>
+              <text x="910" y="84" class="workflow-text" text-anchor="middle">Emit</text>
+              <text x="910" y="102" class="workflow-text-sub" text-anchor="middle">any surface</text>
+            </g>
+            <g class="workflow-loop">
+              <path d="M508 116 Q 508 162 292 162 Q 202 162 202 116" fill="none" class="workflow-edge workflow-edge-loop" marker-end="url(#workflow-arrow)"></path>
+              <text x="355" y="180" class="workflow-text-loop" text-anchor="middle">Validation errors &rarr; correction prompt &rarr; agent repairs and resubmits</text>
+            </g>
+          </svg>
+          <p class="workflow-copy"><strong>Agents describe intent. The compiler guarantees structure, provenance, and correctness. If the agent gets it wrong, the SDK generates a repair prompt automatically.</strong></p>
+          <p class="workflow-links">
+            <a href="./agent-system-prompt.txt">Agent system prompt</a>
+            <span aria-hidden="true">&middot;</span>
+            <a href="./agent-intent-bundle.schema.json">IntentBundle schema</a>
+            <span aria-hidden="true">&middot;</span>
+            <a href="./openapi.json">OpenAPI</a>
+          </p>
         </div>
       </div>
     </section>
 
     <section class="section" id="pricing">
       <div class="page-shell">
-        <div class="section-head">
-          <div>
-            <p class="section-kicker">Pricing</p>
-            <h2 class="section-title">Free SDK. Pro cross-platform compiler. Enterprise governance.</h2>
-          </div>
-          <p class="section-copy">The SDK stays free. Pro unlocks the hosted agent-native UI IR surface: React TSX, SwiftUI, Flutter, custom motifs, and hosted rendering entitlement.</p>
-        </div>
         <div class="pricing-grid">
           <article class="pricing-card">
             <span class="pricing-name">Free</span>
-            <span class="price">$0/mo</span>
-            <p class="pricing-detail">For local proofs and open-source SDK workflows.</p>
+            <span class="price">$0<span class="price-unit">/mo</span></span>
+            <p class="pricing-detail"><strong>Build on it before you pay for it.</strong></p>
             <ul class="pricing-list">
+              <li>Offline Python SDK, all 4 reference motifs</li>
+              <li>HTML/Tailwind + React TSX emitters</li>
               <li>500 hosted compile calls/day</li>
-              <li>Offline Python SDK</li>
-              <li>HTML/Tailwind reference emitter</li>
-              <li>4 reference motifs</li>
+              <li>No signup required</li>
             </ul>
             <a class="button-secondary" href="https://pypi.org/project/viewspec/">Install SDK</a>
           </article>
           <article class="pricing-card featured">
             <span class="pricing-name">Pro</span>
-            <span class="price">$699/mo</span>
-            <p class="pricing-detail">For teams shipping agent-authored UI across web and mobile.</p>
+            <span class="price">$149<span class="price-unit">/mo</span></span>
+            <p class="pricing-detail"><strong>Your brand. Four surfaces. Ship cross-platform.</strong></p>
             <ul class="pricing-list">
-              <li>25,000 hosted compile calls/day</li>
-              <li>10,000 hosted renders/month entitlement</li>
-              <li>HTML/Tailwind, React TSX, SwiftUI, Flutter</li>
+              <li>All four surfaces (+ SwiftUI, Flutter)</li>
+              <li>DESIGN.md theming (bring your brand)</li>
               <li>5 custom motif instances per compile</li>
-              <li>Interactive compose: inputs, rules, actions</li>
+              <li>10,000 hosted compile calls/day</li>
+              <li>Interactive compose (inputs, rules, actions)</li>
             </ul>
             <a class="button-primary" data-config-link="pro" href="#pricing">Get Pro</a>
           </article>
           <article class="pricing-card">
             <span class="pricing-name">Enterprise</span>
             <span class="price">Custom</span>
-            <p class="pricing-detail">For organizations standardizing agent UI contracts.</p>
+            <p class="pricing-detail"><strong>Your motif library. Your governance.</strong></p>
             <ul class="pricing-list">
-              <li>Custom compile and render volume</li>
               <li>Unlimited custom motifs</li>
               <li>Org-wide motif sharing</li>
-              <li>Agent prompt injection tooling</li>
-              <li>Support and roadmap alignment</li>
+              <li>Volume pricing</li>
+              <li>Support + roadmap alignment</li>
             </ul>
             <a class="button-secondary" data-config-link="enterprise" href="#pricing">Talk to us</a>
           </article>
@@ -1422,17 +1797,13 @@
 
   <footer>
     <div class="page-shell">
-      <span>ViewSpec is open source. MIT License. &copy; 2026</span>
-      <span>
+      <button type="button" class="pip-pill footer-install" data-copy-text="pip install viewspec" aria-label="Copy pip install viewspec command">pip install viewspec</button>
+      <span class="footer-meta">
         <a href="https://github.com/nxrobins/viewspec">GitHub</a>
-        &nbsp;/&nbsp;
-        <a href="https://pypi.org/project/viewspec/">PyPI</a>
-        &nbsp;/&nbsp;
-        <a href="https://viewspec.dev/llms.txt">LLMs</a>
-        &nbsp;/&nbsp;
-        <a href="https://viewspec.dev/openapi.json">OpenAPI</a>
-        &nbsp;/&nbsp;
-        <a href="https://github.com/chenglou/pretext">Pretext credit</a>
+        <span aria-hidden="true">&middot;</span>
+        <a href="https://viewspec.dev/llms.txt">Docs</a>
+        <span aria-hidden="true">&middot;</span>
+        <span class="footer-rights">MIT &copy; 2026</span>
       </span>
     </div>
   </footer>
