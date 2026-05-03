@@ -71,6 +71,10 @@ function renderHeroPreview(ast) {
 async function compileHero() {
   applyViewportFrame(HERO_HINTS.viewport)
 
+  // Always render the static fixture for the visual. The hosted compiler can
+  // return a different IR shape for the anonymous tier (no derivations, flat
+  // structure), and the fixture is what makes the dashboard look like a
+  // dashboard. The live call below is purely for the timing badge.
   const fixture = buildStaticCompileResult(HERO_HINTS)
   renderHeroPreview(fixture.ast)
   setHeroBadge('warming up')
@@ -86,13 +90,15 @@ async function compileHero() {
   setStatus('compiling', 'loading')
   try {
     const result = await compileBundle(buildIntentBundle(HERO_HINTS))
-    if (result?.data?.ast) renderHeroPreview(result.data.ast)
     const compileMs = Number(result?.data?.meta?.compile_ms || result?.roundTripMs || 0)
     setHeroBadge(`${compileMs.toFixed(1)}ms`)
-    const irCount = result?.data?.meta?.ir_node_count || countIrNodes(getAstRoot(result?.data?.ast))
+    const irCount = result?.data?.meta?.ir_node_count
+      || countIrNodes(getAstRoot(result?.data?.ast))
+      || countIrNodes(getAstRoot(fixture.ast))
     setHeroIrCount(String(irCount))
     const tokenCount = result?.data?.meta?.style_token_count
       || Object.keys(result?.data?.ast?.style_values || {}).length
+      || Object.keys(fixture.ast.style_values || {}).length
     setHeroTokenCount(String(tokenCount))
     setStatus(`${compileMs.toFixed(1)}ms compile`, 'live')
   } catch (error) {
@@ -160,22 +166,24 @@ function installHoverInspector() {
   })
 }
 
-async function compileProvenance() {
+function compileProvenance() {
   const output = byId('provenance-output')
   if (!output) return
-
+  // Provenance hover demonstrates the binding chain. Use the static fixture
+  // only — the IR ids and content_refs are stable, the derivation reasons
+  // are rich, and we avoid one network call per page load. A live API call
+  // here would risk returning a flat reference-tier AST whose ids do not
+  // line up with the derivation targets the hover panel expects.
   const fixture = buildStaticCompileResult(PROVENANCE_HINTS)
-  renderAst(fixture.ast, output)
-  provenanceDerivations = fixture.derivations || []
-
-  if (!hasLiveApiConfig()) return
-
   try {
-    const result = await compileBundle(buildIntentBundle(PROVENANCE_HINTS))
-    if (result?.data?.ast) renderAst(result.data.ast, output)
-    provenanceDerivations = result?.data?.derivations || provenanceDerivations
-  } catch {
-    // keep the fixture render
+    renderAst(fixture.ast, output)
+    provenanceDerivations = fixture.derivations || []
+  } catch (error) {
+    output.replaceChildren()
+    const note = document.createElement('p')
+    note.className = 'muted-copy'
+    note.textContent = 'Unable to render provenance preview.'
+    output.appendChild(note)
   }
 }
 

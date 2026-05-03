@@ -714,6 +714,7 @@
 
     .preview-frame[data-preview-mode="hero"] [data-ir-id="motif_kpis"] {
       gap: clamp(10px, 1.8vw, 16px) !important;
+      grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
     }
 
     .preview-frame[data-preview-mode="hero"] [data-ir-id^="motif_kpis_kpi"] {
@@ -1557,7 +1558,7 @@
   <main>
     <section class="page-shell hero" id="top">
       <div class="hero-copy">
-        <h1>One spec.<br>Four surfaces.<br>Every pixel<br>traceable.</h1>
+        <h1>One spec. Four surfaces. Every pixel traceable.</h1>
         <p class="hero-body">Declare what your data means. The compiler handles the rest &mdash; HTML, React, SwiftUI, Flutter. No templates. No LLM at runtime. Deterministic.</p>
         <div class="hero-actions">
           <a class="button-primary" href="#proof">See the proof</a>
@@ -1615,23 +1616,23 @@
                 <button type="button" id="proof-compile-button" class="proof-button">Compile it yourself</button>
               </div>
             </div>
-            <iframe id="proof-html-frame" class="proof-iframe" src="./cross-platform-dashboard/artifacts/html/index.html" title="Compiled HTML output" loading="lazy" sandbox="allow-same-origin"></iframe>
+            <iframe id="proof-html-frame" class="proof-iframe" src="./cross-platform-dashboard/artifacts/html/index.html" title="Compiled HTML output" loading="lazy" sandbox="allow-scripts"></iframe>
             <p class="proof-meta-note"><span id="proof-status" class="status-pill" data-state="static">pre-baked</span></p>
           </article>
 
           <article class="panel proof-panel proof-panel-code" aria-label="Cross-platform sources">
             <div class="panel-header">
               <span class="panel-title">Other surfaces</span>
-              <div class="proof-tabs" role="tablist">
-                <button type="button" class="proof-tab" data-proof-tab="react-tsx" role="tab" aria-pressed="true">React TSX</button>
-                <button type="button" class="proof-tab" data-proof-tab="swiftui" role="tab" aria-pressed="false">SwiftUI</button>
-                <button type="button" class="proof-tab" data-proof-tab="flutter" role="tab" aria-pressed="false">Flutter</button>
+              <div class="proof-tabs" role="tablist" aria-label="Cross-platform source">
+                <button type="button" class="proof-tab" data-proof-tab="react-tsx" role="tab" aria-selected="true" aria-controls="proof-panel-react-tsx" id="proof-tab-react-tsx" tabindex="0">React TSX</button>
+                <button type="button" class="proof-tab" data-proof-tab="swiftui" role="tab" aria-selected="false" aria-controls="proof-panel-swiftui" id="proof-tab-swiftui" tabindex="-1">SwiftUI</button>
+                <button type="button" class="proof-tab" data-proof-tab="flutter" role="tab" aria-selected="false" aria-controls="proof-panel-flutter" id="proof-tab-flutter" tabindex="-1">Flutter</button>
               </div>
             </div>
             <div class="proof-code-host">
-              <pre class="code-block proof-code" data-proof-panel="react-tsx"><code class="language-tsx">Loading source...</code></pre>
-              <pre class="code-block proof-code" data-proof-panel="swiftui" hidden><code class="language-swift">Loading source...</code></pre>
-              <pre class="code-block proof-code" data-proof-panel="flutter" hidden><code class="language-dart">Loading source...</code></pre>
+              <pre class="code-block proof-code" data-proof-panel="react-tsx" id="proof-panel-react-tsx" role="tabpanel" aria-labelledby="proof-tab-react-tsx"><code class="language-tsx">Loading source...</code></pre>
+              <pre class="code-block proof-code" data-proof-panel="swiftui" id="proof-panel-swiftui" role="tabpanel" aria-labelledby="proof-tab-swiftui" hidden><code class="language-swift">Loading source...</code></pre>
+              <pre class="code-block proof-code" data-proof-panel="flutter" id="proof-panel-flutter" role="tabpanel" aria-labelledby="proof-tab-flutter" hidden><code class="language-dart">Loading source...</code></pre>
             </div>
           </article>
         </div>

@@ -1,7 +1,17 @@
 import { compileBundle } from './landing-compile.js'
-import { buildIntentBundle, normalizeHints, DEFAULT_HINTS } from './landing-payload.js'
+import { LANDING_CONFIG, hasLiveApiConfig } from './landing-config.js'
+import {
+  buildIntentBundle,
+  buildStaticCompileResult,
+  normalizeHints,
+  DEFAULT_HINTS,
+} from './landing-payload.js'
 import { renderAst } from './landing-emitter.js'
 
+// DESIGN.md presets follow the strict ingestion rules in
+// docs/hosted-agent-integration.md: colors must be exact 6-char #RRGGBB hex,
+// density must be a documented value (comfortable | dense | compact), and
+// rgba()-style shadows are silently ignored by the API so we omit them.
 const PRESETS = {
   'dark-corporate': {
     label: 'Dark / corporate',
@@ -23,7 +33,6 @@ const PRESETS = {
       'radius.sm: 4px',
       'radius.md: 6px',
       'radius.lg: 10px',
-      'shadow.card: 0 18px 32px rgba(2, 6, 23, 0.45)',
       'density: comfortable',
     ].join('\n'),
   },
@@ -47,8 +56,7 @@ const PRESETS = {
       'radius.sm: 2px',
       'radius.md: 3px',
       'radius.lg: 4px',
-      'shadow.card: 0 1px 0 rgba(42, 27, 16, 0.08), 0 12px 28px rgba(42, 27, 16, 0.07)',
-      'density: editorial',
+      'density: comfortable',
     ].join('\n'),
   },
   'minimal-data-dense': {
@@ -71,7 +79,6 @@ const PRESETS = {
       'radius.sm: 0px',
       'radius.md: 0px',
       'radius.lg: 0px',
-      'shadow.card: 0 0 0 1px #E5E5E5',
       'density: dense',
     ].join('\n'),
   },
@@ -107,6 +114,23 @@ function syncButtons(name) {
   })
 }
 
+function safeRenderAst(ast, output) {
+  try {
+    renderAst(ast, output)
+    return true
+  } catch (error) {
+    return false
+  }
+}
+
+function renderFixturePlaceholder(output) {
+  // Render the baseline KPI dashboard so the user has something visible
+  // while the live compile is in flight. The DESIGN.md tokens override
+  // colors when the live response replaces this.
+  const fixture = buildStaticCompileResult(DESIGN_HINTS)
+  safeRenderAst(fixture.ast, output)
+}
+
 async function applyPreset(name) {
   if (!PRESETS[name]) return
   activePreset = name
@@ -118,6 +142,12 @@ async function applyPreset(name) {
 
   if (abortController) abortController.abort()
   abortController = new AbortController()
+
+  if (!hasLiveApiConfig()) {
+    renderFixturePlaceholder(output)
+    setStatus('static fixture (no API configured)', 'static')
+    return
+  }
 
   setStatus(`compiling with ${PRESETS[name].label}`, 'loading')
 
@@ -132,17 +162,18 @@ async function applyPreset(name) {
     }
     const result = await compileBundle(payload, { signal: abortController.signal })
     if (abortController.signal.aborted) return
-    renderAst(result.data.ast, output)
+    const rendered = safeRenderAst(result.data.ast, output)
+    if (!rendered) {
+      renderFixturePlaceholder(output)
+      setStatus('unexpected response shape; showing fixture', 'static')
+      return
+    }
     const compileMs = Number(result.data?.meta?.compile_ms || result.roundTripMs || 0)
-    setStatus(`compiled in ${compileMs.toFixed(1)}ms`, 'live')
+    setStatus(`compiled in ${compileMs.toFixed(1)}ms via ${LANDING_CONFIG.apiUrl}`, 'live')
   } catch (error) {
     if (error?.name === 'AbortError') return
-    output.textContent = ''
-    const fallback = document.createElement('p')
-    fallback.className = 'muted-copy'
-    fallback.textContent = `Live compile unavailable: ${error.message}. Source DESIGN.md still shown.`
-    output.appendChild(fallback)
-    setStatus('compile failed', 'static')
+    renderFixturePlaceholder(output)
+    setStatus(`offline fixture (${error.message})`, 'static')
   }
 }
 
@@ -159,5 +190,11 @@ function installPresetButtons() {
 export function initLandingDesign() {
   if (!byId('capabilities')) return
   installPresetButtons()
+  // Render a placeholder immediately so the panel is never empty during the
+  // initial compile.
+  const output = byId('design-output')
+  if (output) renderFixturePlaceholder(output)
+  renderSource(activePreset)
+  syncButtons(activePreset)
   applyPreset(activePreset)
 }

@@ -183,7 +183,11 @@ export async function compileBundle(payload, options = {}) {
 
   try {
     const result = await Promise.any(endpoints.map((apiUrl, index) => compileAfterStagger(apiUrl, index)))
-    endpoints.slice(0, endpoints.indexOf(result.apiUrl)).forEach(markEndpointFailure)
+    // Only the per-endpoint catch should mark failures (on a real fetch error).
+    // The earlier-in-list endpoints may have been racing successfully and been
+    // aborted by the master controller when the winner resolved — we must not
+    // penalize them just for being slower this round. markEndpointSuccess
+    // updates preferredApiUrl, so adaptive ordering still happens.
     markEndpointSuccess(result.apiUrl)
     masterController.abort()
     return result

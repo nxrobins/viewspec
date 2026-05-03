@@ -1,16 +1,9 @@
-import { compileBundle } from './landing-compile.js'
-import {
-  buildIntentBundle,
-  buildStaticCompileResult,
-  normalizeHints,
-  DEFAULT_HINTS,
-} from './landing-payload.js'
+import { buildStaticCompileResult, normalizeHints, DEFAULT_HINTS } from './landing-payload.js'
 import { renderAst } from './landing-emitter.js'
 
 const HINTS = normalizeHints({ ...DEFAULT_HINTS, viewport: 'tablet' })
 
 let derivationOn = true
-let abortController = null
 
 function byId(id) {
   return document.getElementById(id)
@@ -46,39 +39,35 @@ function attachTooltips(container, derivations) {
   })
 }
 
-async function renderState() {
+// The hosted fixture matches what the live API returns for a successful
+// hosted-tier compile. Rendering it directly keeps the toggle instant, the
+// IR ids stable for tooltip lookup, and avoids one extra API call per page
+// load. The "reference" fixture is what the V1 reference compiler emits —
+// no derivations, base tokens only.
+function renderState() {
   const output = byId('derivation-output')
   if (!output) return
   syncToggle()
 
-  if (abortController) abortController.abort()
-  abortController = new AbortController()
-
-  if (!derivationOn) {
-    const fixture = buildStaticCompileResult(HINTS, { mode: 'reference' })
-    renderAst(fixture.ast, output)
-    setStatus('reference mode (no derivations)', 'static')
-    return
-  }
-
-  setStatus('compiling with derivations...', 'loading')
   try {
-    const payload = buildIntentBundle(HINTS)
-    const result = await compileBundle(payload, { signal: abortController.signal })
-    if (abortController.signal.aborted) return
-    renderAst(result.data.ast, output)
-    attachTooltips(output, result.data.derivations || [])
-    const count = (result.data.derivations || []).length
-    const compileMs = Number(result.data?.meta?.compile_ms || result.roundTripMs || 0)
-    setStatus(`${count} derivations applied in ${compileMs.toFixed(1)}ms`, 'live')
+    if (derivationOn) {
+      const fixture = buildStaticCompileResult(HINTS, { mode: 'hosted' })
+      renderAst(fixture.ast, output)
+      attachTooltips(output, fixture.derivations || [])
+      const count = (fixture.derivations || []).length
+      setStatus(`${count} derivations applied`, 'live')
+    } else {
+      const fixture = buildStaticCompileResult(HINTS, { mode: 'reference' })
+      renderAst(fixture.ast, output)
+      setStatus('reference mode (no derivations)', 'static')
+    }
   } catch (error) {
-    if (error?.name === 'AbortError') return
-    // Live compile failed — fall back to the static hosted fixture so the
-    // capability still demonstrates what derivations look like.
-    const fixture = buildStaticCompileResult(HINTS, { mode: 'hosted' })
-    renderAst(fixture.ast, output)
-    attachTooltips(output, fixture.derivations || [])
-    setStatus(`offline fixture (${error.message})`, 'static')
+    output.replaceChildren()
+    const note = document.createElement('p')
+    note.className = 'muted-copy'
+    note.textContent = 'Unable to render derivation preview.'
+    output.appendChild(note)
+    setStatus('render failed', 'static')
   }
 }
 

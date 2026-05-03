@@ -67,7 +67,8 @@ async function renderJsonPanel() {
 function activateCodeTab(name) {
   document.querySelectorAll('[data-proof-tab]').forEach((button) => {
     const active = button.getAttribute('data-proof-tab') === name
-    button.setAttribute('aria-pressed', active ? 'true' : 'false')
+    button.setAttribute('aria-selected', active ? 'true' : 'false')
+    button.setAttribute('tabindex', active ? '0' : '-1')
     button.dataset.active = active ? 'true' : 'false'
   })
   document.querySelectorAll('[data-proof-panel]').forEach((panel) => {
