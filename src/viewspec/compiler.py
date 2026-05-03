@@ -17,6 +17,8 @@ from typing import Any
 from viewspec.types import (
     ASTBundle,
     BindingSpec,
+    CompileRequestPayload,
+    CompileResponse,
     CompilerDiagnostic,
     CompilerResult,
     CompositionIR,
@@ -900,24 +902,32 @@ class CompilerAPIError(Exception):
     pass
 
 
-def compile_remote(
-    bundle: IntentBundle,
+def _compile_request_payload(request: IntentBundle | CompileRequestPayload) -> CompileRequestPayload:
+    if isinstance(request, CompileRequestPayload):
+        return request
+    if isinstance(request, IntentBundle):
+        return CompileRequestPayload(bundle=request)
+    raise TypeError("Expected IntentBundle or CompileRequestPayload")
+
+
+def compile_remote_response(
+    request: IntentBundle | CompileRequestPayload,
     *,
     api_url: str = VIEWSPEC_API_URL,
     api_key: str | None = None,
-) -> ASTBundle:
+) -> CompileResponse:
     """
-    Compile an IntentBundle using the hosted ViewSpec compiler API.
+    Compile an IntentBundle or CompileRequestPayload using the hosted ViewSpec compiler API.
 
     Requires the `httpx` package (`pip install viewspec[remote]`).
 
     Args:
-        bundle: The IntentBundle to compile.
+        request: The IntentBundle or hosted compiler request to compile.
         api_url: Base URL of the ViewSpec API (default: https://api.viewspec.dev).
         api_key: Optional API key for authenticated access (higher rate limits).
 
     Returns:
-        ASTBundle with the compiled result.
+        CompileResponse with the compiled AST and response metadata.
 
     Raises:
         CompilerAPIError: If the API returns an error.
@@ -934,10 +944,12 @@ def compile_remote(
     if api_key:
         headers["Authorization"] = f"Bearer {api_key}"
 
+    payload = _compile_request_payload(request)
+
     try:
         response = httpx.post(
             f"{api_url.rstrip('/')}/v1/compile",
-            json=bundle.to_json(),
+            json=payload.to_json(),
             headers=headers,
             timeout=30.0,
         )
@@ -969,13 +981,28 @@ def compile_remote(
     if "ast" not in data:
         raise CompilerAPIError("Compilation failed: response missing ast")
     try:
-        return ASTBundle.from_json(data["ast"])
+        return CompileResponse.from_json(data)
     except Exception as exc:
         raise CompilerAPIError("Compilation failed: response ast was invalid") from exc
 
 
+def compile_remote(
+    request: IntentBundle | CompileRequestPayload,
+    *,
+    api_url: str = VIEWSPEC_API_URL,
+    api_key: str | None = None,
+) -> ASTBundle:
+    """
+    Compile an IntentBundle or CompileRequestPayload using the hosted compiler API.
+
+    Returns only the ASTBundle for backward compatibility. Use
+    compile_remote_response() to access response metadata such as meta.design.
+    """
+    return compile_remote_response(request, api_url=api_url, api_key=api_key).ast
+
+
 def compile_auto(
-    bundle: IntentBundle,
+    request: IntentBundle | CompileRequestPayload,
     *,
     api_url: str = VIEWSPEC_API_URL,
     api_key: str | None = None,
@@ -989,7 +1016,7 @@ def compile_auto(
     is provided or the free tier is available).
 
     Args:
-        bundle: The IntentBundle to compile.
+        request: The IntentBundle or hosted compiler request to compile.
         api_url: Base URL of the ViewSpec API.
         api_key: Optional API key for higher rate limits.
         prefer_local: If True (default), try local compilation first.
@@ -997,9 +1024,10 @@ def compile_auto(
     Returns:
         ASTBundle with the compiled result.
     """
-    if prefer_local:
+    payload = _compile_request_payload(request)
+    if prefer_local and payload.design is None:
         try:
-            return compile(bundle)
+            return compile(payload.bundle)
         except UnsupportedMotifError:
-            return compile_remote(bundle, api_url=api_url, api_key=api_key)
-    return compile_remote(bundle, api_url=api_url, api_key=api_key)
+            return compile_remote(payload, api_url=api_url, api_key=api_key)
+    return compile_remote(payload, api_url=api_url, api_key=api_key)

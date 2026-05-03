@@ -9,6 +9,8 @@ from typing import Any
 from viewspec.types import (
     ActionIntent,
     BindingSpec,
+    CompileRequestPayload,
+    DesignRequest,
     GroupSpec,
     IntentBundle,
     MotifSpec,
@@ -51,6 +53,7 @@ class ViewSpecBuilder:
         self._motifs: list[MotifSpec] = []
         self._styles: list[StyleSpec] = []
         self._actions: list[ActionIntent] = []
+        self._design_request: DesignRequest | None = None
         self.add_node(
             self.root_node_id,
             root_kind,
@@ -91,6 +94,22 @@ class ViewSpecBuilder:
     def build_bundle(self) -> IntentBundle:
         """Build the complete IntentBundle ready for compilation."""
         return IntentBundle(substrate=self.substrate, view_spec=self.view_spec)
+
+    def attach_design(
+        self,
+        path_or_content: str | Path,
+        is_path: bool = True,
+        *,
+        lint: bool = True,
+    ) -> ViewSpecBuilder:
+        """Attach DESIGN.md content for hosted compilation."""
+        content = Path(path_or_content).read_text(encoding="utf-8") if is_path else str(path_or_content)
+        self._design_request = DesignRequest(content=content, lint=lint)
+        return self
+
+    def build_compile_request(self) -> CompileRequestPayload:
+        """Build a hosted compiler request with optional DESIGN.md context."""
+        return CompileRequestPayload(bundle=self.build_bundle(), design=self._design_request)
 
     def export_json(self, filepath: str | Path) -> Path:
         """Export the intent bundle as JSON."""

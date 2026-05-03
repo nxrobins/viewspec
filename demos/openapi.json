@@ -91,9 +91,31 @@
             "type": "object",
             "description": "Optional hosted compiler custom motif library.",
             "additionalProperties": true
+          },
+          "design": {
+            "$ref": "#/components/schemas/DesignRequest"
           }
         },
         "additionalProperties": true
+      },
+      "DesignRequest": {
+        "type": "object",
+        "required": ["format", "content"],
+        "properties": {
+          "format": {
+            "type": "string",
+            "const": "design.md"
+          },
+          "content": {
+            "type": "string",
+            "description": "Opaque DESIGN.md content. Parsing, linting, cycle detection, and token mapping are owned by the API."
+          },
+          "lint": {
+            "type": "boolean",
+            "default": true
+          }
+        },
+        "additionalProperties": false
       },
       "Substrate": {
         "type": "object",
@@ -153,9 +175,7 @@
             "additionalProperties": true
           },
           "meta": {
-            "type": "object",
-            "description": "Compiler timing, tier, usage, and diagnostic metadata.",
-            "additionalProperties": true
+            "$ref": "#/components/schemas/CompileResponseMeta"
           },
           "derivations": {
             "type": "array",
@@ -169,6 +189,72 @@
           }
         },
         "additionalProperties": true
+      },
+      "CompileResponseMeta": {
+        "type": "object",
+        "description": "Compiler timing, tier, usage, diagnostic metadata, and optional DESIGN.md validation results.",
+        "properties": {
+          "design": {
+            "$ref": "#/components/schemas/DesignMetadata"
+          }
+        },
+        "additionalProperties": true
+      },
+      "DesignMetadata": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "lint_summary": {
+            "type": "object",
+            "required": ["errors", "warnings", "info"],
+            "properties": {
+              "errors": { "type": "integer", "minimum": 0 },
+              "warnings": { "type": "integer", "minimum": 0 },
+              "info": { "type": "integer", "minimum": 0 }
+            },
+            "additionalProperties": false
+          },
+          "findings": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DesignFinding"
+            }
+          },
+          "applied_tokens": {
+            "type": "object",
+            "additionalProperties": { "type": "string" }
+          },
+          "inferred_hints": {
+            "type": "object",
+            "additionalProperties": { "type": "string" }
+          },
+          "ignored_tokens": {
+            "type": "array",
+            "items": { "type": "string" }
+          },
+          "dropped_tokens": {
+            "type": "array",
+            "description": "Tokens dropped by API cycle detection.",
+            "items": { "type": "string" }
+          }
+        },
+        "additionalProperties": true
+      },
+      "DesignFinding": {
+        "type": "object",
+        "required": ["severity", "code", "path", "message"],
+        "properties": {
+          "severity": {
+            "type": "string",
+            "enum": ["error", "warning", "info"]
+          },
+          "code": { "type": "string" },
+          "path": { "type": "string" },
+          "message": { "type": "string" }
+        },
+        "additionalProperties": false
       }
     }
   }

@@ -5,7 +5,15 @@ from types import SimpleNamespace
 
 import pytest
 
-from viewspec import CompilerAPIError, ViewSpecBuilder, compile, compile_remote
+from viewspec import (
+    ASTBundle,
+    CompilerAPIError,
+    ViewSpecBuilder,
+    compile,
+    compile_auto,
+    compile_remote,
+    compile_remote_response,
+)
 
 
 class FakeResponse:
@@ -51,10 +59,85 @@ def test_compile_remote_posts_to_canonical_origin(monkeypatch):
 
     restored = compile_remote(bundle, api_key="secret")
 
+    assert isinstance(restored, ASTBundle)
     assert restored.title == ast.title
     assert calls[0]["args"][0] == "https://api.viewspec.dev/v1/compile"
     assert calls[0]["kwargs"]["headers"]["Authorization"] == "Bearer secret"
     assert calls[0]["kwargs"]["json"] == bundle.to_json()
+
+
+def test_compile_remote_posts_design_payload_at_root(monkeypatch, tmp_path):
+    builder = ViewSpecBuilder("remote_design")
+    table = builder.add_table("items", region="main", group_id="rows")
+    table.add_row(label="Alpha", value="1")
+    design_path = tmp_path / "DESIGN.md"
+    design_path.write_text("name: Acme\ncolor.primary: #FFFFFF\n", encoding="utf-8")
+    request = builder.attach_design(design_path).build_compile_request()
+    ast = compile(request.bundle)
+    calls, _ = _install_fake_httpx(monkeypatch, FakeResponse(200, {"ast": ast.to_json()}))
+
+    restored = compile_remote(request)
+
+    assert restored.title == ast.title
+    posted = calls[0]["kwargs"]["json"]
+    assert posted["substrate"] == request.bundle.to_json()["substrate"]
+    assert posted["view_spec"] == request.bundle.to_json()["view_spec"]
+    assert posted["design"] == {
+        "format": "design.md",
+        "content": "name: Acme\ncolor.primary: #FFFFFF\n",
+        "lint": True,
+    }
+
+
+def test_compile_remote_response_exposes_design_metadata(monkeypatch):
+    bundle = _bundle()
+    ast = compile(bundle)
+    payload = {
+        "ast": ast.to_json(),
+        "meta": {
+            "compile_ms": 2.5,
+            "design": {
+                "name": "Acme",
+                "lint_summary": {"errors": 1, "warnings": 2, "info": 3},
+                "findings": [
+                    {
+                        "severity": "warning",
+                        "code": "IGNORED_COLOR",
+                        "path": "tokens.color.bad",
+                        "message": "Only exact sRGB hex colors are accepted.",
+                    }
+                ],
+                "applied_tokens": {"color.primary": "#FFFFFF"},
+                "inferred_hints": {"tone": "neutral"},
+                "ignored_tokens": ["color.bad"],
+                "dropped_tokens": ["color.loop"],
+            },
+        },
+    }
+    _install_fake_httpx(monkeypatch, FakeResponse(200, payload))
+
+    response = compile_remote_response(bundle)
+
+    assert response.ast.title == ast.title
+    assert response.meta.raw["compile_ms"] == 2.5
+    assert response.meta.design is not None
+    assert response.meta.design.name == "Acme"
+    assert response.meta.design.lint_summary == {"errors": 1, "warnings": 2, "info": 3}
+    assert response.meta.design.findings[0].code == "IGNORED_COLOR"
+    assert response.meta.design.dropped_tokens == ["color.loop"]
+
+
+def test_compile_auto_skips_local_when_design_is_attached(monkeypatch):
+    bundle = _bundle()
+    ast = compile(bundle)
+    request = ViewSpecBuilder("auto_design").attach_design("name: Acme\n", is_path=False).build_compile_request()
+    calls, _ = _install_fake_httpx(monkeypatch, FakeResponse(200, {"ast": ast.to_json()}))
+
+    restored = compile_auto(request)
+
+    assert restored.title == ast.title
+    assert len(calls) == 1
+    assert calls[0]["kwargs"]["json"]["design"]["content"] == "name: Acme\n"
 
 
 def test_compile_remote_import_error_guides_remote_extra(monkeypatch):

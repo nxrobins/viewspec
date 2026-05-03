@@ -180,6 +180,40 @@ from viewspec import compile_auto
 ast = compile_auto(builder.build_bundle())
 ```
 
+### Theming with DESIGN.md
+
+The hosted compiler can ingest a `DESIGN.md` identity file as an opaque SDK payload. The SDK does not parse Markdown, YAML, colors, fonts, cycles, or tokens; it only reads text and sends it to `viewspec-api`.
+
+```python
+from viewspec import ViewSpecBuilder, compile_remote_response
+
+builder = ViewSpecBuilder("invoice")
+builder.attach_design("DESIGN.md")
+request = builder.build_compile_request()
+
+response = compile_remote_response(request)
+ast = response.ast
+design_meta = response.meta.design
+```
+
+Raw strings are also supported:
+
+```python
+request = builder.attach_design("name: Acme\ncolor.primary: #FFFFFF\n", is_path=False).build_compile_request()
+```
+
+The TypeScript/Node SDK contract will mirror this shape:
+
+```ts
+const result = await compiler.withDesign("DESIGN.md").compile(bundle)
+const inline = await compiler.withDesign("name: Acme\n", false).compile(bundle)
+```
+
+`DESIGN.md` ingestion is intentionally strict in the API:
+
+- Colors must be exact sRGB hex values such as `#FFFFFF`. `rgba()`, `#FFF`, and named CSS colors are ignored and fall back to defaults.
+- `fontFamily` tokens map to React/HTML CSS. Flutter and SwiftUI emitters coerce custom font families to native system defaults while preserving size, weight, and tracking.
+
 | Tier | Price | Hosted Calls/Day |
 |------|-------|-----------------|
 | Free | $0 | 500 |

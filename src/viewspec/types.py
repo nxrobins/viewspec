@@ -16,7 +16,7 @@ from __future__ import annotations
 import json
 import re
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, Literal
 
 from google.protobuf import json_format, struct_pb2
 
@@ -655,6 +655,168 @@ class IntentBundle:
 
 
 @dataclass(frozen=True)
+class DesignRequest:
+    """Opaque DESIGN.md payload for the hosted compiler."""
+
+    content: str
+    format: str = "design.md"
+    lint: bool = True
+
+    def to_json(self) -> JsonDict:
+        return {
+            "format": self.format,
+            "content": self.content,
+            "lint": self.lint,
+        }
+
+    @classmethod
+    def from_json(cls, payload: Any) -> DesignRequest:
+        data = _coerce_json_mapping(payload, cls.__name__)
+        return cls(
+            content=str(data.get("content", "")),
+            format=str(data.get("format", "design.md")),
+            lint=bool(data.get("lint", True)),
+        )
+
+
+@dataclass(frozen=True)
+class CompileRequestPayload:
+    """Hosted compiler request payload with optional DESIGN.md context."""
+
+    bundle: IntentBundle
+    design: DesignRequest | None = None
+
+    def to_json(self) -> JsonDict:
+        data = self.bundle.to_json()
+        if self.design is not None:
+            data["design"] = self.design.to_json()
+        return data
+
+
+DesignFindingSeverity = Literal["error", "warning", "info"]
+
+
+@dataclass(frozen=True)
+class DesignFinding:
+    """One DESIGN.md lint or ingestion finding returned by the hosted API."""
+
+    severity: DesignFindingSeverity
+    code: str
+    path: str
+    message: str
+
+    def to_json(self) -> JsonDict:
+        return {
+            "severity": self.severity,
+            "code": self.code,
+            "path": self.path,
+            "message": self.message,
+        }
+
+    @classmethod
+    def from_json(cls, payload: Any) -> DesignFinding:
+        data = _coerce_json_mapping(payload, cls.__name__)
+        return cls(
+            severity=data.get("severity", "info"),
+            code=str(data.get("code", "")),
+            path=str(data.get("path", "")),
+            message=str(data.get("message", "")),
+        )
+
+
+def _int_summary(value: Any) -> dict[str, int]:
+    summary = {"errors": 0, "warnings": 0, "info": 0}
+    if not isinstance(value, dict):
+        return summary
+    for key in summary:
+        try:
+            summary[key] = int(value.get(key, 0) or 0)
+        except (TypeError, ValueError):
+            summary[key] = 0
+    return summary
+
+
+def _string_dict(value: Any) -> dict[str, str]:
+    if not isinstance(value, dict):
+        return {}
+    return {str(key): str(item) for key, item in value.items()}
+
+
+def _string_list(value: Any) -> list[str]:
+    if not isinstance(value, list):
+        return []
+    return [str(item) for item in value]
+
+
+@dataclass(frozen=True)
+class DesignMetadata:
+    """DESIGN.md validation and token-application metadata returned by the hosted API."""
+
+    name: str | None = None
+    lint_summary: dict[str, int] = field(default_factory=lambda: {"errors": 0, "warnings": 0, "info": 0})
+    findings: list[DesignFinding] = field(default_factory=list)
+    applied_tokens: dict[str, str] = field(default_factory=dict)
+    inferred_hints: dict[str, str] = field(default_factory=dict)
+    ignored_tokens: list[str] = field(default_factory=list)
+    dropped_tokens: list[str] = field(default_factory=list)
+
+    def to_json(self) -> JsonDict:
+        data: JsonDict = {
+            "lint_summary": dict(self.lint_summary),
+            "findings": [finding.to_json() for finding in self.findings],
+            "applied_tokens": dict(self.applied_tokens),
+            "inferred_hints": dict(self.inferred_hints),
+            "ignored_tokens": list(self.ignored_tokens),
+            "dropped_tokens": list(self.dropped_tokens),
+        }
+        if self.name is not None:
+            data["name"] = self.name
+        return data
+
+    @classmethod
+    def from_json(cls, payload: Any) -> DesignMetadata:
+        data = _coerce_json_mapping(payload, cls.__name__)
+        findings = [
+            DesignFinding.from_json(finding)
+            for finding in data.get("findings", [])
+            if isinstance(finding, dict)
+        ]
+        name = data.get("name")
+        return cls(
+            name=str(name) if name is not None else None,
+            lint_summary=_int_summary(data.get("lint_summary")),
+            findings=findings,
+            applied_tokens=_string_dict(data.get("applied_tokens")),
+            inferred_hints=_string_dict(data.get("inferred_hints")),
+            ignored_tokens=_string_list(data.get("ignored_tokens")),
+            dropped_tokens=_string_list(data.get("dropped_tokens")),
+        )
+
+
+@dataclass(frozen=True)
+class CompileResponseMeta:
+    """Hosted compiler metadata with typed DESIGN.md details and raw passthrough data."""
+
+    design: DesignMetadata | None = None
+    raw: dict[str, Any] = field(default_factory=dict)
+
+    def to_json(self) -> JsonDict:
+        data = dict(self.raw)
+        if self.design is not None:
+            data["design"] = self.design.to_json()
+        return data
+
+    @classmethod
+    def from_json(cls, payload: Any) -> CompileResponseMeta:
+        if payload is None:
+            payload = {}
+        data = _coerce_json_mapping(payload, cls.__name__)
+        design_data = data.get("design")
+        design = DesignMetadata.from_json(design_data) if isinstance(design_data, dict) else None
+        return cls(design=design, raw=dict(data))
+
+
+@dataclass(frozen=True)
 class ASTBundle:
     """The compiled output bundle — compiler result + style values + title."""
 
@@ -690,6 +852,40 @@ class ASTBundle:
                 "title": data.get("title", "ViewSpec Artifact"),
             }
         return cls.from_proto(_json_to_proto(data, pb2.ASTBundle(), cls.__name__))
+
+
+@dataclass(frozen=True)
+class CompileResponse:
+    """Full hosted compiler response with AST, metadata, derivations, quota, and raw data."""
+
+    ast: ASTBundle
+    meta: CompileResponseMeta = field(default_factory=CompileResponseMeta)
+    derivations: list[dict[str, Any]] = field(default_factory=list)
+    quota: dict[str, Any] = field(default_factory=dict)
+    raw: dict[str, Any] = field(default_factory=dict)
+
+    def to_json(self) -> JsonDict:
+        data = dict(self.raw)
+        data["ast"] = self.ast.to_json()
+        data["meta"] = self.meta.to_json()
+        if self.derivations:
+            data["derivations"] = [dict(item) for item in self.derivations]
+        if self.quota:
+            data["quota"] = dict(self.quota)
+        return data
+
+    @classmethod
+    def from_json(cls, payload: Any) -> CompileResponse:
+        data = _coerce_json_mapping(payload, cls.__name__)
+        derivations = data.get("derivations", [])
+        quota = data.get("quota", {})
+        return cls(
+            ast=ASTBundle.from_json(data["ast"]),
+            meta=CompileResponseMeta.from_json(data.get("meta", {})),
+            derivations=[dict(item) for item in derivations if isinstance(item, dict)] if isinstance(derivations, list) else [],
+            quota=dict(quota) if isinstance(quota, dict) else {},
+            raw=dict(data),
+        )
 
 
 # ---------------------------------------------------------------------------
