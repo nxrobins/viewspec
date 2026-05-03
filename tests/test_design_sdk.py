@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import pytest
+
 from viewspec import CompileRequestPayload, DesignRequest, ViewSpecBuilder
 
 
@@ -48,3 +50,8 @@ def test_attach_design_last_call_wins(tmp_path):
     )
 
     assert request.design == DesignRequest(content="name: Inline Theme\n")
+
+
+def test_design_request_rejects_non_boolean_lint():
+    with pytest.raises(TypeError, match="lint must be a boolean"):
+        DesignRequest.from_json({"format": "design.md", "content": "name: Acme\n", "lint": "false"})

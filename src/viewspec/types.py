@@ -672,10 +672,13 @@ class DesignRequest:
     @classmethod
     def from_json(cls, payload: Any) -> DesignRequest:
         data = _coerce_json_mapping(payload, cls.__name__)
+        lint = data.get("lint", True)
+        if not isinstance(lint, bool):
+            raise TypeError("DesignRequest.lint must be a boolean")
         return cls(
             content=str(data.get("content", "")),
             format=str(data.get("format", "design.md")),
-            lint=bool(data.get("lint", True)),
+            lint=lint,
         )
 
 
