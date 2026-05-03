@@ -1,0 +1,30 @@
+{
+  "title": "Prompt to one IntentBundle to four outputs",
+  "source_artifacts": {
+    "prompt": "demos/cross-platform-dashboard/artifacts/agent_prompt.txt",
+    "intent_bundle": "demos/cross-platform-dashboard/artifacts/intent_bundle.json",
+    "ast_bundle": "demos/cross-platform-dashboard/artifacts/ast_bundle.json",
+    "html": "demos/cross-platform-dashboard/artifacts/html/index.html",
+    "react_tsx": "demos/cross-platform-dashboard/artifacts/react-tsx/ViewSpecView.tsx",
+    "swiftui": "demos/cross-platform-dashboard/artifacts/swiftui/ViewSpecView.swift",
+    "flutter": "demos/cross-platform-dashboard/artifacts/flutter/viewspec_view.dart"
+  },
+  "outputs": {
+    "poster": "demos/launch-assets/headliner-prompt-four-outputs.png",
+    "gif": "demos/launch-assets/headliner-prompt-four-outputs.gif",
+    "mp4": "demos/launch-assets/headliner-prompt-four-outputs.mp4"
+  },
+  "fps": 12,
+  "duration_seconds": 6.0,
+  "dimensions": {
+    "mp4": [
+      1280,
+      720
+    ],
+    "gif": [
+      960,
+      540
+    ]
+  },
+  "mobile_recording_note": "SwiftUI and Flutter runtime simulator recordings are external handoff items."
+}

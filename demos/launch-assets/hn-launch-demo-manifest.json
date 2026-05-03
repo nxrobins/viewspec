@@ -1,0 +1,108 @@
+{
+  "title": "ViewSpec HN launch demo",
+  "audience": "Hacker News",
+  "format": "silent captions",
+  "duration_seconds": 55,
+  "mp4_fps": 15,
+  "gif_fps": 12,
+  "dimensions": {
+    "mp4": [
+      1920,
+      1080
+    ],
+    "gif": [
+      640,
+      360
+    ]
+  },
+  "gif_target_max_bytes": 8388608,
+  "code_capture_zoom_minimum": 1.5,
+  "outputs": {
+    "mp4": "demos/launch-assets/hn-launch-demo.mp4",
+    "gif": "demos/launch-assets/hn-launch-demo.gif",
+    "poster": "demos/launch-assets/hn-launch-demo-poster.png"
+  },
+  "output_sizes": {
+    "mp4": 983560,
+    "gif": 434622,
+    "poster": 233184
+  },
+  "gif_attempted_scales": [
+    640
+  ],
+  "mobile_runtime_note": "SwiftUI and Flutter segments show generated source ready for external simulator/emulator recording handoff.",
+  "storyboard": [
+    {
+      "start_seconds": 0,
+      "end_seconds": 6,
+      "slug": "headliner",
+      "caption": "One agent prompt. One IntentBundle. Four emitter artifacts.",
+      "source_url": "local headliner asset",
+      "zoom": 1
+    },
+    {
+      "start_seconds": 6,
+      "end_seconds": 14,
+      "slug": "proof-artifacts",
+      "caption": "Intent, AST, diagnostics, and provenance are inspectable.",
+      "source_url": "local generated code viewer from launch artifacts",
+      "zoom": 1.5
+    },
+    {
+      "start_seconds": 14,
+      "end_seconds": 18,
+      "slug": "cross-platform-dashboard",
+      "caption": "The public demo links every generated source and manifest.",
+      "source_url": "https://viewspec.dev/cross-platform-dashboard/",
+      "zoom": 1
+    },
+    {
+      "start_seconds": 18,
+      "end_seconds": 27,
+      "slug": "generated-html",
+      "caption": "HTML/Tailwind is generated from the same ASTBundle.",
+      "source_url": "https://viewspec.dev/cross-platform-dashboard/artifacts/html/index.html",
+      "zoom": 1
+    },
+    {
+      "start_seconds": 27,
+      "end_seconds": 31,
+      "slug": "react-tsx",
+      "caption": "React TSX is a source artifact, not a hand-written rewrite.",
+      "source_url": "https://viewspec.dev/cross-platform-dashboard/artifacts/react-tsx/ViewSpecView.tsx",
+      "zoom": 1.5
+    },
+    {
+      "start_seconds": 31,
+      "end_seconds": 35,
+      "slug": "swiftui",
+      "caption": "SwiftUI generated source is ready for recorder handoff.",
+      "source_url": "https://viewspec.dev/cross-platform-dashboard/artifacts/swiftui/ViewSpecView.swift",
+      "zoom": 1.5
+    },
+    {
+      "start_seconds": 35,
+      "end_seconds": 39,
+      "slug": "flutter",
+      "caption": "Flutter generated source is ready for recorder handoff.",
+      "source_url": "https://viewspec.dev/cross-platform-dashboard/artifacts/flutter/viewspec_view.dart",
+      "zoom": 1.5
+    },
+    {
+      "start_seconds": 39,
+      "end_seconds": 47,
+      "slug": "interactive-mobile",
+      "caption": "Inputs, rules, and submit payloads compile into deterministic events.",
+      "source_url": "https://viewspec.dev/interactive-compose/",
+      "zoom": 1
+    },
+    {
+      "start_seconds": 47,
+      "end_seconds": 55,
+      "slug": "landing-playground",
+      "caption": "Try the compiler: viewspec.dev",
+      "source_url": "https://viewspec.dev/#playground",
+      "zoom": 1
+    }
+  ]
+}

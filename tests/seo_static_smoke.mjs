@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { readFile } from 'node:fs/promises'
+import { readFile, stat } from 'node:fs/promises'
 
 const pages = [
   ['demos/index.html', 'https://viewspec.dev/'],
@@ -84,6 +84,31 @@ const launchHtml = await readFile('demos/cross-platform-dashboard/artifacts/html
 const launchTsx = await readFile('demos/cross-platform-dashboard/artifacts/react-tsx/ViewSpecView.tsx', 'utf8')
 assert.doesNotMatch(launchHtml, /style="[^"]*\bscale:\s*[^;]+;[^"]*\bscale:/)
 assert.doesNotMatch(launchTsx, /\bscale:\s*"[^"]+",[^}]*\bscale:/)
+
+const headlinerManifest = JSON.parse(await readFile('demos/launch-assets/headliner-manifest.json', 'utf8'))
+assert.equal(headlinerManifest.outputs.mp4, 'demos/launch-assets/headliner-prompt-four-outputs.mp4')
+for (const assetPath of Object.values(headlinerManifest.outputs)) {
+  const info = await stat(assetPath)
+  assert(info.size > 0, `${assetPath} should not be empty`)
+}
+
+const hnDemoManifest = JSON.parse(await readFile('demos/launch-assets/hn-launch-demo-manifest.json', 'utf8'))
+assert.equal(hnDemoManifest.outputs.mp4, 'demos/launch-assets/hn-launch-demo.mp4')
+assert.equal(hnDemoManifest.outputs.gif, 'demos/launch-assets/hn-launch-demo.gif')
+assert.equal(hnDemoManifest.outputs.poster, 'demos/launch-assets/hn-launch-demo-poster.png')
+assert.equal(hnDemoManifest.format, 'silent captions')
+assert(hnDemoManifest.duration_seconds >= 45 && hnDemoManifest.duration_seconds <= 60)
+assert(hnDemoManifest.code_capture_zoom_minimum >= 1.5)
+assert(hnDemoManifest.output_sizes.gif <= hnDemoManifest.gif_target_max_bytes)
+for (const slug of ['proof-artifacts', 'react-tsx', 'swiftui', 'flutter']) {
+  const storyboardEntry = hnDemoManifest.storyboard.find((entry) => entry.slug === slug)
+  assert(storyboardEntry, `HN demo storyboard needs ${slug}`)
+  assert(storyboardEntry.zoom >= 1.5, `${slug} capture should use 150% zoom or larger`)
+}
+for (const assetPath of Object.values(hnDemoManifest.outputs)) {
+  const info = await stat(assetPath)
+  assert(info.size > 0, `${assetPath} should not be empty`)
+}
 
 const landingPlayground = await readFile('demos/shared/landing-playground.js', 'utf8')
 assert.match(landingPlayground, /navigator\.clipboard\.writeText/)
