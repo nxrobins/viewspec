@@ -1074,11 +1074,12 @@
       flex: 1;
       min-height: 22rem;
       max-height: 30rem;
-      width: 100%;
-      transform: scale(0.65);
-      transform-origin: top left;
+      /* Width 154% pairs with scale(0.65) so the artifact fills the panel
+         after scale-down (154% × 0.65 ≈ 100% visual width). */
       width: 154%;
       height: 46rem;
+      transform: scale(0.65);
+      transform-origin: top left;
     }
 
     .proof-meta-note {
@@ -1699,6 +1700,7 @@
                   <div id="design-output" class="design-output" data-compiled-output></div>
                 </div>
               </div>
+              <p id="design-meta" class="capability-hint" hidden></p>
             </div>
           </article>
 

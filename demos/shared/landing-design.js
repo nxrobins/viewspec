@@ -138,6 +138,22 @@ function setStatus(message, state = 'idle') {
   el.dataset.state = state
 }
 
+function setMeta(modeDefaults) {
+  // Surfaces meta.design.mode_defaults from a Phase 2+ live compile so the
+  // user can see the compiler synthesizing colors that the brand left unset.
+  // Hidden when there are no defaults (light-mode preset, or every slot
+  // explicitly authored).
+  const el = byId('design-meta')
+  if (!el) return
+  if (!Array.isArray(modeDefaults) || modeDefaults.length === 0) {
+    el.hidden = true
+    el.textContent = ''
+    return
+  }
+  el.hidden = false
+  el.textContent = `Mode-aware defaults filled: ${modeDefaults.join(', ')}`
+}
+
 function renderSource(name) {
   const target = byId('design-source')
   if (!target) return
@@ -184,6 +200,7 @@ async function applyPreset(name) {
   if (!hasLiveApiConfig()) {
     renderFixturePlaceholder(output)
     setStatus('static fixture (no API configured)', 'static')
+    setMeta(null)
     return
   }
 
@@ -204,14 +221,17 @@ async function applyPreset(name) {
     if (!rendered) {
       renderFixturePlaceholder(output)
       setStatus('unexpected response shape; showing fixture', 'static')
+      setMeta(null)
       return
     }
     const compileMs = Number(result.data?.meta?.compile_ms || result.roundTripMs || 0)
     setStatus(`compiled in ${compileMs.toFixed(1)}ms via ${LANDING_CONFIG.apiUrl}`, 'live')
+    setMeta(result.data?.meta?.design?.mode_defaults)
   } catch (error) {
     if (error?.name === 'AbortError') return
     renderFixturePlaceholder(output)
     setStatus(`offline fixture (${error.message})`, 'static')
+    setMeta(null)
   }
 }
 

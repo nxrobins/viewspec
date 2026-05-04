@@ -20,11 +20,15 @@ export const LANDING_CONFIG = {
   apiUrls: uniqueUrls([primaryApiUrl, ...fallbackApiUrls]),
   publicApiKey: configuredApiKey,
   // TODO: swap to the new $149/mo Pro Payment Link before launch.
-  // Current default is the legacy $699 product; safe placeholder while pricing is rolled out.
+  // Current default is the legacy $699 product; the pricing card already
+  // shows $149, so clicking "Get Pro" today reaches a wrong-priced checkout.
+  // Update this URL the moment the new Stripe Payment Link is live.
   proStripeUrl: runtimeConfig.proStripeUrl || 'https://buy.stripe.com/7sY00i9v67cJebDd1K1oI00',
-  enterpriseUrl: runtimeConfig.enterpriseUrl || runtimeConfig.scaleStripeUrl || 'https://github.com/nxrobins/viewspec/issues',
-  scaleStripeUrl: runtimeConfig.enterpriseUrl || runtimeConfig.scaleStripeUrl || 'https://github.com/nxrobins/viewspec/issues',
-  signupUrl: runtimeConfig.signupUrl || 'https://viewspec.dev/#pricing',
+  // Enterprise CTA: real Stripe link if/when one exists, otherwise contact via
+  // GitHub issues. `scaleStripeUrl` was a legacy alias with no consumers and
+  // has been removed; `signupUrl` was unused (no [data-config-link="signup"]
+  // exists in the HTML) and has been removed too.
+  enterpriseUrl: runtimeConfig.enterpriseUrl || 'https://github.com/nxrobins/viewspec/issues',
   requestTimeoutMs: Number(runtimeConfig.requestTimeoutMs || 6000),
   endpointStaggerMs: Number(runtimeConfig.endpointStaggerMs || 120),
   endpointFailureTtlMs: Number(runtimeConfig.endpointFailureTtlMs || 300000),
@@ -51,7 +55,7 @@ export function compileRequestHeaders() {
 }
 
 export function hasProductionCommerceConfig() {
-  return [LANDING_CONFIG.proStripeUrl, LANDING_CONFIG.enterpriseUrl, LANDING_CONFIG.signupUrl].every((value) => {
+  return [LANDING_CONFIG.proStripeUrl, LANDING_CONFIG.enterpriseUrl].every((value) => {
     return value && !value.includes('REPLACE_WITH') && !value.includes('YOUR_')
   })
 }

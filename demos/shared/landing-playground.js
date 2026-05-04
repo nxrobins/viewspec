@@ -160,7 +160,12 @@ function installHoverInspector() {
     }
     renderProvenanceDetails(target)
   })
-  preview.addEventListener('mouseleave', () => {
+  // Use `mouseout` (not `mouseleave`) so we can inspect `relatedTarget` and
+  // avoid resetting the hover details on every cell-to-cell pointer movement.
+  // Only clear when the cursor actually leaves the preview container.
+  preview.addEventListener('mouseout', (event) => {
+    const next = event.relatedTarget
+    if (next && preview.contains(next)) return
     clearHighlight()
     renderProvenanceDetails(null)
   })
@@ -191,8 +196,6 @@ function installCommerceLinks() {
   const links = {
     pro: LANDING_CONFIG.proStripeUrl,
     enterprise: LANDING_CONFIG.enterpriseUrl,
-    scale: LANDING_CONFIG.enterpriseUrl,
-    signup: LANDING_CONFIG.signupUrl,
   }
   document.querySelectorAll('[data-config-link]').forEach((link) => {
     const key = link.getAttribute('data-config-link')
