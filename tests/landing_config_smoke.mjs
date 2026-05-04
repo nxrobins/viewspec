@@ -25,13 +25,17 @@ assert(LANDING_CONFIG.apiUrls.includes('https://viewspec-api.fly.dev/v1/compile'
 assert.equal(LANDING_CONFIG.endpointStaggerMs, 120)
 assert.equal(LANDING_CONFIG.endpointFailureTtlMs, 300000)
 assert.equal(LANDING_CONFIG.enterpriseUrl, 'https://github.com/nxrobins/viewspec/issues')
-assert.equal(LANDING_CONFIG.scaleStripeUrl, LANDING_CONFIG.enterpriseUrl)
+// `scaleStripeUrl` and `signupUrl` were dropped in the site bug sweep
+// (b7d5b96) because nothing in the HTML referenced them. Re-asserting them
+// here is what kept SDK Reliability red on every commit since that merge;
+// the test now matches the surface that actually exists on LANDING_CONFIG.
+assert.equal(LANDING_CONFIG.scaleStripeUrl, undefined)
+assert.equal(LANDING_CONFIG.signupUrl, undefined)
 assert.equal(new Set(LANDING_CONFIG.apiUrls).size, LANDING_CONFIG.apiUrls.length)
 assert.equal(hasLiveApiConfig(), true)
 
-const customCommerce = await loadConfig({ enterpriseUrl: 'https://enterprise.test/contact', scaleStripeUrl: 'https://legacy.test/scale' })
+const customCommerce = await loadConfig({ enterpriseUrl: 'https://enterprise.test/contact' })
 assert.equal(customCommerce.LANDING_CONFIG.enterpriseUrl, 'https://enterprise.test/contact')
-assert.equal(customCommerce.LANDING_CONFIG.scaleStripeUrl, 'https://enterprise.test/contact')
 
 const custom = await loadConfig({ apiUrl: 'https://example.test/v1/compile', fallbackApiUrls: 'https://fallback.test/v1/compile' })
 assert.deepEqual(custom.LANDING_CONFIG.apiUrls, [
