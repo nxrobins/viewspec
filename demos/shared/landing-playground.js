@@ -12,8 +12,8 @@ import {
 import { countIrNodes, getAstRoot, renderAst } from './landing-emitter.js'
 import { compileBundle } from './landing-compile.js'
 import { initLandingProof } from './landing-proof.js'
-import { initLandingDesign } from './landing-design.js'
-import { initLandingDerivation } from './landing-derivation.js'
+import { initLandingStyleDerivation } from './landing-style-derivation.js'
+import { initLandingMotifs } from './landing-motifs.js'
 
 const HERO_HINTS = normalizeHints({ ...DEFAULT_HINTS, viewport: 'desktop' })
 const PROVENANCE_HINTS = normalizeHints({ ...DEFAULT_HINTS, viewport: 'tablet' })
@@ -262,8 +262,8 @@ export function initLandingPlayground() {
   compileHero()
   compileProvenance()
   initLandingProof()
-  initLandingDesign()
-  initLandingDerivation()
+  initLandingStyleDerivation()
+  initLandingMotifs()
 }
 
 initLandingPlayground()

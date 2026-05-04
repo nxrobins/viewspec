@@ -1,13 +1,17 @@
 export const TAILWIND_BY_PRIMITIVE = {
   root: 'w-full transition-all duration-300',
-  stack: 'flex flex-col',
-  grid: 'grid',
-  cluster: 'flex flex-row flex-wrap',
-  surface: 'transition-all duration-300',
+  stack: 'flex flex-col gap-2',
+  grid: 'grid gap-3',
+  cluster: 'flex flex-row flex-wrap gap-2',
+  // Surface is a card. Always lays out children top-to-bottom with gap +
+  // padding. The compiler may also assign density.* tokens that re-emit gap +
+  // padding via inline styles; cssText assignment runs last so those win when
+  // present. When absent (today), these Tailwind classes are the floor.
+  surface: 'flex flex-col gap-2 p-4 transition-all duration-300',
   text: 'block transition-colors duration-300',
   label: 'block transition-all duration-300',
-  value: 'block transition-all duration-300',
-  badge: 'inline-flex w-fit',
+  value: 'block transition-all duration-300 leading-tight',
+  badge: 'inline-flex w-fit items-center px-2 py-0.5',
   image_slot: 'grid place-items-center',
   rule: 'my-2 border-slate-200',
   svg: 'grid place-items-center',
