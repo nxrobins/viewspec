@@ -1200,18 +1200,25 @@
       white-space: pre-wrap;
     }
 
-    .design-toggle,
+    .style-derivation-toggle,
     .motifs-toggle {
       background: rgba(6, 8, 11, 0.66);
       border: 1px solid rgba(148, 163, 184, 0.16);
       border-radius: var(--radius-md);
       display: grid;
       gap: var(--space-1);
-      grid-template-columns: repeat(3, minmax(0, 1fr));
       padding: var(--space-1);
     }
 
-    .design-preset,
+    .style-derivation-toggle {
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+    }
+
+    .motifs-toggle {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+
+    .style-derivation-button,
     .motifs-button {
       background: transparent;
       border: 1px solid transparent;
@@ -1225,13 +1232,13 @@
       transition: background 160ms ease, color 160ms ease, border-color 160ms ease;
     }
 
-    .design-preset:hover,
+    .style-derivation-button:hover,
     .motifs-button:hover {
       border-color: rgba(148, 163, 184, 0.34);
       color: #f8fafc;
     }
 
-    .design-preset[data-active="true"],
+    .style-derivation-button[data-active="true"],
     .motifs-button[data-active="true"] {
       background: #e2e8f0;
       border-color: rgba(45, 212, 191, 0.36);
@@ -1242,67 +1249,200 @@
       min-height: 16rem;
     }
 
-    .design-split {
+    /* Style-derivation card: pure CSS-variable swap. The IR is rendered once;
+       flipping `data-style-preset` on the wrapper redefines the variables the
+       cards read. Same DOM, four completely different visual feels.
+       Mirrors the per-page demo at /style-derivation/. */
+    .style-derivation-stage {
+      min-height: 16rem;
+    }
+
+    #style-derivation-stage {
+      border-radius: var(--radius-md);
+      overflow: hidden;
+      transition: background-color 300ms ease;
+    }
+
+    #style-derivation-stage[data-style-preset="default"] {
+      --bg: #f8fafc;
+      --card-bg: #ffffff;
+      --text-primary: #0f172a;
+      --text-secondary: #64748b;
+      --border-color: #e2e8f0;
+      --border-radius: 1rem;
+      --card-padding: 1rem;
+      --card-gap: 1rem;
+      --font-heading: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+      --font-body: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+      --label-size: 0.74rem;
+      --value-size: 2.15rem;
+      --label-weight: 800;
+      --value-weight: 900;
+      --label-tracking: 0.11em;
+      --label-transform: uppercase;
+      --shadow: 0 18px 40px rgba(15, 23, 42, 0.08);
+    }
+
+    #style-derivation-stage[data-style-preset="editorial"] {
+      --bg: #11100d;
+      --card-bg: #171510;
+      --text-primary: #f7efe0;
+      --text-secondary: #b9ad98;
+      --border-color: rgba(247, 239, 224, 0.24);
+      --border-radius: 0.15rem;
+      --card-padding: 0.82rem;
+      --card-gap: 0.65rem;
+      --font-heading: Georgia, 'Times New Roman', serif;
+      --font-body: Georgia, 'Times New Roman', serif;
+      --label-size: 0.72rem;
+      --value-size: 2.4rem;
+      --label-weight: 700;
+      --value-weight: 900;
+      --label-tracking: 0.04em;
+      --label-transform: none;
+      --shadow: 0 1px 0 rgba(247, 239, 224, 0.18);
+    }
+
+    #style-derivation-stage[data-style-preset="data-dense"] {
+      --bg: #050a07;
+      --card-bg: #07120c;
+      --text-primary: #d1fae5;
+      --text-secondary: #86efac;
+      --border-color: rgba(34, 197, 94, 0.42);
+      --border-radius: 0.25rem;
+      --card-padding: 0.6rem;
+      --card-gap: 0.5rem;
+      --font-heading: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      --font-body: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      --label-size: 0.68rem;
+      --value-size: 1.85rem;
+      --label-weight: 800;
+      --value-weight: 900;
+      --label-tracking: 0.08em;
+      --label-transform: uppercase;
+      --shadow: inset 0 0 0 1px rgba(34, 197, 94, 0.2);
+    }
+
+    #style-derivation-stage[data-style-preset="soft"] {
+      --bg: #fff7ed;
+      --card-bg: #fffbf3;
+      --text-primary: #3b2f2f;
+      --text-secondary: #9a7361;
+      --border-color: #fed7aa;
+      --border-radius: 1.5rem;
+      --card-padding: 1.35rem;
+      --card-gap: 1.1rem;
+      --font-heading: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+      --font-body: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+      --label-size: 0.78rem;
+      --value-size: 2.35rem;
+      --label-weight: 750;
+      --value-weight: 850;
+      --label-tracking: 0.02em;
+      --label-transform: none;
+      --shadow: 0 24px 70px rgba(244, 114, 182, 0.18);
+    }
+
+    #style-derivation-stage > main {
+      background: var(--bg);
+      border-radius: calc(var(--border-radius) + 0.35rem);
+      color: var(--text-primary);
+      font-family: var(--font-body);
+      padding: clamp(1rem, 3vw, 1.6rem);
+      transition: background-color 300ms ease, color 300ms ease, border-radius 300ms ease;
+    }
+
+    #style-derivation-stage [data-ir-id="motif_kpis"] {
       display: grid;
-      gap: var(--space-3);
-      grid-template-columns: minmax(0, 0.4fr) minmax(0, 1fr);
+      gap: var(--card-gap);
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      transition: gap 300ms ease;
+    }
+    @media (max-width: 760px) {
+      #style-derivation-stage [data-ir-id="motif_kpis"] {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+    }
+    @media (max-width: 480px) {
+      #style-derivation-stage [data-ir-id="motif_kpis"] {
+        grid-template-columns: 1fr;
+      }
     }
 
-    .design-source {
-      background: #06080b;
-      max-height: 16rem;
-      min-height: 10rem;
-      margin: 0;
+    #style-derivation-stage [data-ir-id^="motif_kpis_kpi_"] {
+      background-color: var(--card-bg);
+      border: 1px solid var(--border-color);
+      border-radius: var(--border-radius);
+      box-shadow: var(--shadow);
+      color: var(--text-primary);
+      display: flex;
+      flex-direction: column;
+      gap: 0.35rem;
+      padding: var(--card-padding);
+      transition: background-color 300ms ease, border-color 300ms ease, border-radius 300ms ease, box-shadow 300ms ease, color 300ms ease, padding 300ms ease;
     }
 
-    .design-stage {
-      min-height: 10rem;
+    #style-derivation-stage [data-ir-id$="_label"] {
+      color: var(--text-secondary);
+      font-family: var(--font-heading);
+      font-size: var(--label-size);
+      font-weight: var(--label-weight);
+      letter-spacing: var(--label-tracking);
+      line-height: 1.2;
+      text-transform: var(--label-transform);
+      transition: color 300ms ease, font-size 300ms ease, letter-spacing 300ms ease;
     }
 
-    /* `region_main` is a multi-column grid by default, but the dashboard
-       has just 1 child (the motif wrapper). Force the wrapper to span the
-       full row so the dashboard grid uses the entire stage width — without
-       this, cards crush into half the available canvas. */
-    .design-stage [data-ir-id="motif_kpis"],
+    #style-derivation-stage [data-ir-id$="_value"] {
+      color: var(--text-primary);
+      font-family: var(--font-body);
+      font-size: var(--value-size);
+      font-weight: var(--value-weight);
+      letter-spacing: -0.035em;
+      line-height: 1;
+      transition: color 300ms ease, font-size 300ms ease;
+    }
+
+    #style-derivation-stage[data-style-preset="data-dense"] [data-ir-id^="motif_kpis_kpi_"] {
+      background-image:
+        linear-gradient(rgba(34, 197, 94, 0.08) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(34, 197, 94, 0.08) 1px, transparent 1px);
+      background-size: 12px 12px;
+    }
+
+    #style-derivation-stage[data-style-preset="editorial"] [data-ir-id^="motif_kpis_kpi_"] {
+      border-width: 1px 0 0;
+    }
+
+    #style-derivation-stage[data-style-preset="soft"] [data-ir-id^="motif_kpis_kpi_"] {
+      border-width: 2px;
+    }
+
+    /* Motif-kind switcher (live API): same dashboard responsive logic the
+       removed DESIGN.md card used. region_main is a multi-col grid; force
+       the motif wrapper to span the full row so the dashboard grid uses the
+       entire stage width. */
     .motifs-stage [data-ir-id="motif_kpis"] {
       grid-column: 1 / -1;
-    }
-
-    /* The dashboard motif at tier 6 emits `props.columns: min(card_count, 4)`
-       which the renderer turns into an inline `grid-template-columns:
-       repeat(N, minmax(0, 1fr))`. Desktop honors that — 4-card dashboards
-       render 4 across with no orphaned card. Below 760px we drop to 2x2
-       (so tablet-sized stages get the canonical KPI grid look), and
-       below 480px we collapse to a single column. Scoped to dashboard-
-       motif elements so other motifs keep their server-derived columns. */
-    .design-stage [data-ir-id="motif_kpis"],
-    .motifs-stage [data-ir-id="motif_kpis"] {
       gap: var(--space-3) !important;
     }
     @media (max-width: 760px) {
-      .design-stage [data-ir-id="motif_kpis"],
       .motifs-stage [data-ir-id="motif_kpis"] {
         grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
       }
     }
     @media (max-width: 480px) {
-      .design-stage [data-ir-id="motif_kpis"],
       .motifs-stage [data-ir-id="motif_kpis"] {
         grid-template-columns: 1fr !important;
       }
     }
 
-    /* Dashboard cards: give them presence. Padding bump, min-height so
-       cards feel weighted, and a chip-style baseline for the trend badge
-       so it reads as a pill instead of plain text inheriting the card bg. */
-    .design-stage [data-ir-id^="motif_kpis_"],
     .motifs-stage [data-ir-id^="motif_kpis_"] {
       padding: 1.5rem !important;
       min-height: 130px;
       gap: 0.5rem !important;
       justify-content: space-between;
     }
-    .design-stage [data-ir-id$="_trend_label"],
     .motifs-stage [data-ir-id$="_trend_label"] {
       align-self: flex-start;
       background: rgba(255, 255, 255, 0.08);
@@ -1510,10 +1650,6 @@
       .capability-grid {
         grid-template-columns: 1fr;
       }
-
-      .design-split {
-        grid-template-columns: 1fr;
-      }
     }
 
     @media (max-width: 700px) {
@@ -1591,7 +1727,11 @@
         padding: 5px 6px !important;
       }
 
-      .design-toggle {
+      .style-derivation-toggle {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      .motifs-toggle {
         grid-template-columns: 1fr;
       }
 
@@ -1599,10 +1739,6 @@
         transform: scale(0.55);
         transform-origin: top left;
         width: 182%;
-      }
-
-      .design-split {
-        grid-template-columns: 1fr;
       }
 
       .workflow-strip {
@@ -1731,25 +1867,23 @@
             </div>
           </article>
 
-          <article class="panel capability-card" aria-label="DESIGN.md theming">
+          <article class="panel capability-card" aria-label="Style derivation">
             <div class="panel-header">
-              <span class="panel-title">DESIGN.md theming</span>
-              <span id="design-status" class="status-pill" data-state="idle">idle</span>
+              <span class="panel-title">Style derivation</span>
+              <span id="style-derivation-status" class="status-pill" data-state="idle">idle</span>
             </div>
             <div class="panel-body capability-body">
-              <p class="capability-lede">Bring your identity file. Get your brand in every surface.</p>
-              <div class="design-toggle" role="tablist">
-                <button type="button" class="design-preset" data-design-preset="dark-corporate" aria-pressed="true">Dark / corporate</button>
-                <button type="button" class="design-preset" data-design-preset="warm-editorial" aria-pressed="false">Warm / editorial</button>
-                <button type="button" class="design-preset" data-design-preset="minimal-data-dense" aria-pressed="false">Minimal / data-dense</button>
+              <p class="capability-lede">Same structure. Different feel. The compiler treats visual style as a function of intent — toggle a preset, the IR doesn't change.</p>
+              <div class="style-derivation-toggle" role="tablist">
+                <button type="button" class="style-derivation-button" data-style-preset="default" aria-pressed="true">Default</button>
+                <button type="button" class="style-derivation-button" data-style-preset="editorial" aria-pressed="false">Editorial</button>
+                <button type="button" class="style-derivation-button" data-style-preset="data-dense" aria-pressed="false">Data-dense</button>
+                <button type="button" class="style-derivation-button" data-style-preset="soft" aria-pressed="false">Soft</button>
               </div>
-              <div class="design-split">
-                <pre id="design-source" class="code-block design-source">Loading DESIGN.md...</pre>
-                <div class="capability-stage design-stage">
-                  <div id="design-output" class="design-output" data-compiled-output></div>
-                </div>
+              <div class="capability-stage style-derivation-stage">
+                <div id="style-derivation-stage" class="style-derivation-output" data-style-preset="default"></div>
               </div>
-              <p id="design-meta" class="capability-hint" hidden></p>
+              <p id="style-derivation-hint" class="capability-hint">Clean, neutral, the reference compiler baseline.</p>
             </div>
           </article>
 
