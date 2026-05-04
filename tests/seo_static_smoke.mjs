@@ -34,7 +34,10 @@ for (const [file, canonical] of pages) {
 }
 
 const home = await readFile('demos/index.html', 'utf8')
-assert.equal((home.match(/data-copy-text="pip install viewspec"/g) || []).length, 2)
+// Three install pills: nav + hero + footer. The footer pill was added in
+// the site bug sweep (b7d5b96); the test was previously asserting on the
+// pre-bug-sweep count of 2.
+assert.equal((home.match(/data-copy-text="pip install viewspec"/g) || []).length, 3)
 assert.match(home, /aria-label="Copy pip install viewspec command"/)
 const homeJsonLd = extractJsonLd(home)
 const graph = homeJsonLd.find((entry) => Array.isArray(entry['@graph']))?.['@graph'] || []
@@ -55,12 +58,18 @@ const llms = await readFile('demos/llms.txt', 'utf8')
 assert.match(llms, /agent-native UI IR/i)
 assert.match(llms, /agentic engineering/i)
 assert.match(llms, /https:\/\/api\.viewspec\.dev\/v1\/compile/)
-assert.match(llms, /\$699\/month/)
+// Pricing was removed from llms.txt during the pricing rewrite ($699 → $149).
+// Asserting on a specific dollar amount in an LLM-targeted product overview
+// couples too tightly to the pricing surface; drop the assertion.
 
 const landing = await readFile('demos/index.html', 'utf8')
 assert.doesNotMatch(landing, /agent-native UI IR, agent-native UI IR/)
 assert.doesNotMatch(landing, /\"price\": \"2500\"/)
-assert.match(landing, /data-config-link=\"enterprise\"/)
+// Both Pro and Enterprise CTAs were rewired in commit 1a62a55 from
+// data-config-link to direct hrefs (Stripe link + mailto). Assert on the
+// actual destinations rather than the deprecated config-link attribute.
+assert.match(landing, /href=\"https:\/\/buy\.stripe\.com\//)
+assert.match(landing, /href=\"mailto:hello@viewspec\.dev\?subject=ViewSpec%20Enterprise\"/)
 
 const openapi = JSON.parse(await readFile('demos/openapi.json', 'utf8'))
 assert.equal(openapi.openapi, '3.1.0')

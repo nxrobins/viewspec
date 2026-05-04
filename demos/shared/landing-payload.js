@@ -223,7 +223,12 @@ export function buildIntentBundle(hints = {}) {
     view_spec: {
       id: 'premium_kpi_dashboard',
       substrate_id: 'premium_dashboard_substrate',
-      complexity_tier: 2,
+      // tier 6 unlocks the dashboard-motif card-grouping in viewspec-api's
+      // _build_dashboard_motif (frontier_kinds gate at compose/engine.py:456).
+      // Below tier 6, the motif is skipped and bindings render as a flat grid
+      // of 12 misaligned label/value rows. Anonymous tier serves tier 6
+      // requests without auth (verified post-Phase-1 deploy).
+      complexity_tier: 6,
       root_region: 'root',
       regions: [
         {
