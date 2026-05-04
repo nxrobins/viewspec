@@ -1262,6 +1262,18 @@
       min-height: 10rem;
     }
 
+    /* The dashboard motif at tier 6 emits `props.columns: min(card_count, 4)`
+       which the renderer turns into an inline `grid-template-columns:
+       repeat(N, minmax(0, 1fr))`. On a 375px phone, 4 fixed columns make
+       each card ~80px wide — unreadable. This override forces auto-fit
+       with a 180px minimum so the same IR renders 4-col on desktop, 2-col
+       on tablet, and 1-col on mobile via CSS only (no server-side viewport
+       awareness needed). Scoped to dashboard-motif elements inside the
+       design card so other motifs keep their server-derived columns. */
+    .design-stage [data-ir-id^="motif_kpis"] {
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)) !important;
+    }
+
     [data-derived="true"] {
       cursor: help;
     }
