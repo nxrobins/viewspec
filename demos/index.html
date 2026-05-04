@@ -1259,17 +1259,56 @@
       min-height: 10rem;
     }
 
+    /* `region_main` is a multi-column grid by default, but the dashboard
+       has just 1 child (the motif wrapper). Force the wrapper to span the
+       full row so the dashboard grid uses the entire stage width — without
+       this, cards crush into half the available canvas. */
+    .design-stage [data-ir-id="motif_kpis"],
+    .motifs-stage [data-ir-id="motif_kpis"] {
+      grid-column: 1 / -1;
+    }
+
     /* The dashboard motif at tier 6 emits `props.columns: min(card_count, 4)`
        which the renderer turns into an inline `grid-template-columns:
-       repeat(N, minmax(0, 1fr))`. On a 375px phone, 4 fixed columns make
-       each card ~80px wide — unreadable. This override forces auto-fit
-       with a 180px minimum so the same IR renders 4-col on desktop, 2-col
-       on tablet, and 1-col on mobile via CSS only (no server-side viewport
-       awareness needed). Scoped to dashboard-motif elements inside the
-       design card so other motifs keep their server-derived columns. */
-    .design-stage [data-ir-id^="motif_kpis"],
-    .motifs-stage [data-ir-id^="motif_kpis"] {
-      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)) !important;
+       repeat(N, minmax(0, 1fr))`. Desktop honors that — 4-card dashboards
+       render 4 across with no orphaned card. Below 760px we drop to 2x2
+       (so tablet-sized stages get the canonical KPI grid look), and
+       below 480px we collapse to a single column. Scoped to dashboard-
+       motif elements so other motifs keep their server-derived columns. */
+    .design-stage [data-ir-id="motif_kpis"],
+    .motifs-stage [data-ir-id="motif_kpis"] {
+      gap: var(--space-3) !important;
+    }
+    @media (max-width: 760px) {
+      .design-stage [data-ir-id="motif_kpis"],
+      .motifs-stage [data-ir-id="motif_kpis"] {
+        grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+      }
+    }
+    @media (max-width: 480px) {
+      .design-stage [data-ir-id="motif_kpis"],
+      .motifs-stage [data-ir-id="motif_kpis"] {
+        grid-template-columns: 1fr !important;
+      }
+    }
+
+    /* Dashboard cards: give them presence. Padding bump, min-height so
+       cards feel weighted, and a chip-style baseline for the trend badge
+       so it reads as a pill instead of plain text inheriting the card bg. */
+    .design-stage [data-ir-id^="motif_kpis_"],
+    .motifs-stage [data-ir-id^="motif_kpis_"] {
+      padding: 1.5rem !important;
+      min-height: 130px;
+      gap: 0.5rem !important;
+      justify-content: space-between;
+    }
+    .design-stage [data-ir-id$="_trend_label"],
+    .motifs-stage [data-ir-id$="_trend_label"] {
+      align-self: flex-start;
+      background: rgba(255, 255, 255, 0.08);
+      border: 1px solid rgba(148, 163, 184, 0.22);
+      padding: 0.2rem 0.55rem !important;
+      font-weight: 700;
     }
 
     [data-derived="true"] {
