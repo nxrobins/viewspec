@@ -63,9 +63,20 @@ function safeRenderAst(ast, output) {
   }
 }
 
+// The compiler emits a single `motif_kpis` wrapper for all three kinds, but
+// the wrapper's primitive (grid / stack / cluster) is the only structural
+// difference. Tag the wrapper with the kind so the page CSS can apply
+// motif-kind-specific styling (cards for dashboard/comparison, rows for
+// table) without inferring kind from primitive class names.
+function tagMotifKind(output, kind) {
+  const wrapper = output.querySelector('[data-ir-id="motif_kpis"]')
+  if (wrapper) wrapper.dataset.motifKind = kind
+}
+
 function renderFixturePlaceholder(output) {
   const fixture = buildStaticCompileResult(MOTIF_HINTS)
   safeRenderAst(fixture.ast, output)
+  tagMotifKind(output, 'dashboard')
 }
 
 async function applyKind(kind) {
@@ -98,6 +109,7 @@ async function applyKind(kind) {
       setStatus('unexpected response shape; showing fixture', 'static')
       return
     }
+    tagMotifKind(output, kind)
     const compileMs = Number(result.data?.meta?.compile_ms || result.roundTripMs || 0)
     setStatus(`${KIND_COPY[kind].label} compiled in ${compileMs.toFixed(1)}ms via ${LANDING_CONFIG.apiUrl}`, 'live')
   } catch (error) {

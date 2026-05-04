@@ -1,19 +1,23 @@
+// Browser caches the playground.js script-tag URL; the v= query suffix on
+// each import here propagates the same cache-bust to every transitive
+// dependency, so returning visitors get a fresh module graph instead of a
+// stale half-update. Bump the suffix on coordinated multi-module changes.
 import {
   LANDING_CONFIG,
   hasLiveApiConfig,
   hasProductionCommerceConfig,
-} from './landing-config.js'
+} from './landing-config.js?v=20260504-motif-kind-styling'
 import {
   DEFAULT_HINTS,
   buildIntentBundle,
   buildStaticCompileResult,
   normalizeHints,
-} from './landing-payload.js'
-import { countIrNodes, getAstRoot, renderAst } from './landing-emitter.js'
-import { compileBundle } from './landing-compile.js'
-import { initLandingProof } from './landing-proof.js'
-import { initLandingStyleDerivation } from './landing-style-derivation.js'
-import { initLandingMotifs } from './landing-motifs.js'
+} from './landing-payload.js?v=20260504-motif-kind-styling'
+import { countIrNodes, getAstRoot, renderAst } from './landing-emitter.js?v=20260504-motif-kind-styling'
+import { compileBundle } from './landing-compile.js?v=20260504-motif-kind-styling'
+import { initLandingProof } from './landing-proof.js?v=20260504-motif-kind-styling'
+import { initLandingStyleDerivation } from './landing-style-derivation.js?v=20260504-motif-kind-styling'
+import { initLandingMotifs } from './landing-motifs.js?v=20260504-motif-kind-styling'
 
 const HERO_HINTS = normalizeHints({ ...DEFAULT_HINTS, viewport: 'desktop' })
 const PROVENANCE_HINTS = normalizeHints({ ...DEFAULT_HINTS, viewport: 'tablet' })

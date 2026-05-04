@@ -129,7 +129,7 @@
     }
   </script>
   <script src="https://cdn.tailwindcss.com"></script>
-  <script type="module" src="./shared/landing-playground.js?v=20260504-style-derivation"></script>
+  <script type="module" src="./shared/landing-playground.js?v=20260504-motif-kind-styling"></script>
   <style>
     :root {
       color-scheme: dark;
@@ -1418,37 +1418,140 @@
       border-width: 2px;
     }
 
-    /* Motif-kind switcher (live API): same dashboard responsive logic the
-       removed DESIGN.md card used. region_main is a multi-col grid; force
-       the motif wrapper to span the full row so the dashboard grid uses the
-       entire stage width. */
+    /* Motif-kind switcher (live API): three different visual structures
+       come out of the same KPI bindings. Style each motif kind separately
+       — the wrapper is tagged with `data-motif-kind` by landing-motifs.js
+       after each compile.
+
+       region_main is a multi-col grid; force the motif wrapper to span the
+       full row so the visual uses the entire stage width. */
     .motifs-stage [data-ir-id="motif_kpis"] {
       grid-column: 1 / -1;
+    }
+
+    /* DASHBOARD: 4 surface cards in a grid. */
+    .motifs-stage [data-motif-kind="dashboard"] {
       gap: var(--space-3) !important;
     }
     @media (max-width: 760px) {
-      .motifs-stage [data-ir-id="motif_kpis"] {
+      .motifs-stage [data-motif-kind="dashboard"] {
         grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
       }
     }
     @media (max-width: 480px) {
-      .motifs-stage [data-ir-id="motif_kpis"] {
+      .motifs-stage [data-motif-kind="dashboard"] {
         grid-template-columns: 1fr !important;
       }
     }
-
-    .motifs-stage [data-ir-id^="motif_kpis_"] {
+    .motifs-stage [data-motif-kind="dashboard"] > [data-ir-id^="motif_kpis_"] {
+      display: flex !important;
+      flex-direction: column !important;
       padding: 1.5rem !important;
       min-height: 130px;
       gap: 0.5rem !important;
       justify-content: space-between;
     }
-    .motifs-stage [data-ir-id$="_trend_label"] {
+    .motifs-stage [data-motif-kind="dashboard"] [data-ir-id$="_trend_label"] {
       align-self: flex-start;
       background: rgba(255, 255, 255, 0.08);
       border: 1px solid rgba(148, 163, 184, 0.22);
       padding: 0.2rem 0.55rem !important;
       font-weight: 700;
+      border-radius: 9999px;
+    }
+
+    /* TABLE: vertical stack of cluster rows. Each row is a horizontal
+       grid of label / value / badge with a divider underneath. Aligns
+       columns across all rows so the values stack visually. */
+    .motifs-stage [data-motif-kind="table"] {
+      background: rgba(15, 21, 29, 0.5);
+      border: 1px solid rgba(148, 163, 184, 0.18);
+      border-radius: var(--radius-md);
+      overflow: hidden;
+    }
+    .motifs-stage [data-motif-kind="table"] > [data-ir-id^="motif_kpis_"] {
+      align-items: baseline !important;
+      border-bottom: 1px solid rgba(148, 163, 184, 0.14);
+      display: grid !important;
+      flex-wrap: nowrap !important;
+      gap: var(--space-3);
+      grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr) minmax(0, 1.2fr);
+      padding: 0.95rem 1.25rem;
+    }
+    .motifs-stage [data-motif-kind="table"] > [data-ir-id^="motif_kpis_"]:last-child {
+      border-bottom: none;
+    }
+    .motifs-stage [data-motif-kind="table"] [data-ir-id$="_label"] {
+      color: #cbd5e1 !important;
+      font-size: 0.78rem !important;
+      font-weight: 700 !important;
+      letter-spacing: 0.07em !important;
+      text-transform: uppercase !important;
+    }
+    .motifs-stage [data-motif-kind="table"] [data-ir-id$="_value"] {
+      font-size: 1.4rem !important;
+      font-weight: 800 !important;
+      text-align: right;
+    }
+    .motifs-stage [data-motif-kind="table"] [data-ir-id$="_trend_label"] {
+      align-self: center;
+      justify-self: end;
+      background: rgba(255, 255, 255, 0.08);
+      border: 1px solid rgba(148, 163, 184, 0.22);
+      padding: 0.2rem 0.55rem !important;
+      font-weight: 700;
+      border-radius: 9999px;
+      font-size: 0.8rem;
+    }
+
+    /* COMPARISON: horizontal cluster of stack columns. Each stack column
+       is a card. Reuse the dashboard card look (background, border,
+       padding) so the comparison reads as side-by-side panels. */
+    .motifs-stage [data-motif-kind="comparison"] {
+      display: grid !important;
+      grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+      gap: var(--space-3) !important;
+    }
+    @media (max-width: 760px) {
+      .motifs-stage [data-motif-kind="comparison"] {
+        grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+      }
+    }
+    @media (max-width: 480px) {
+      .motifs-stage [data-motif-kind="comparison"] {
+        grid-template-columns: 1fr !important;
+      }
+    }
+    .motifs-stage [data-motif-kind="comparison"] > [data-ir-id^="motif_kpis_"] {
+      background: rgba(15, 21, 29, 0.7);
+      border: 1px solid rgba(148, 163, 184, 0.18);
+      border-radius: var(--radius-md);
+      display: flex !important;
+      flex-direction: column !important;
+      gap: 0.5rem !important;
+      justify-content: space-between;
+      min-height: 130px;
+      padding: 1.5rem !important;
+    }
+    .motifs-stage [data-motif-kind="comparison"] [data-ir-id$="_label"] {
+      color: #94a3b8 !important;
+      font-size: 0.72rem !important;
+      font-weight: 700 !important;
+      letter-spacing: 0.07em !important;
+      text-transform: uppercase !important;
+    }
+    .motifs-stage [data-motif-kind="comparison"] [data-ir-id$="_value"] {
+      font-size: 1.6rem !important;
+      font-weight: 800 !important;
+    }
+    .motifs-stage [data-motif-kind="comparison"] [data-ir-id$="_trend_label"] {
+      align-self: flex-start;
+      background: rgba(255, 255, 255, 0.08);
+      border: 1px solid rgba(148, 163, 184, 0.22);
+      padding: 0.2rem 0.55rem !important;
+      font-weight: 700;
+      border-radius: 9999px;
+      font-size: 0.78rem;
     }
 
     [data-derived="true"] {
