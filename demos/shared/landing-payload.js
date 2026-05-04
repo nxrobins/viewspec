@@ -140,8 +140,11 @@ export function stableHintKey(hints = {}) {
   })
 }
 
-export function buildIntentBundle(hints = {}) {
+export const MOTIF_KINDS = Object.freeze(['dashboard', 'table', 'comparison'])
+
+export function buildIntentBundle(hints = {}, options = {}) {
   const normalized = normalizeHints(hints)
+  const motifKind = MOTIF_KINDS.includes(options.motifKind) ? options.motifKind : 'dashboard'
   const nodes = {
     premium_dashboard: {
       id: 'premium_dashboard',
@@ -260,7 +263,7 @@ export function buildIntentBundle(hints = {}) {
       motifs: [
         {
           id: 'kpis',
-          kind: 'dashboard',
+          kind: motifKind,
           region: 'main',
           members,
         },
