@@ -6,18 +6,18 @@ import {
   LANDING_CONFIG,
   hasLiveApiConfig,
   hasProductionCommerceConfig,
-} from './landing-config.js?v=20260504-quality-pass'
+} from './landing-config.js?v=20260504-proof-polish'
 import {
   DEFAULT_HINTS,
   buildIntentBundle,
   buildStaticCompileResult,
   normalizeHints,
-} from './landing-payload.js?v=20260504-quality-pass'
-import { countIrNodes, getAstRoot, renderAst } from './landing-emitter.js?v=20260504-quality-pass'
-import { compileBundle } from './landing-compile.js?v=20260504-quality-pass'
-import { initLandingProof } from './landing-proof.js?v=20260504-quality-pass'
-import { initLandingStyleDerivation } from './landing-style-derivation.js?v=20260504-quality-pass'
-import { initLandingMotifs } from './landing-motifs.js?v=20260504-quality-pass'
+} from './landing-payload.js?v=20260504-proof-polish'
+import { countIrNodes, getAstRoot, renderAst } from './landing-emitter.js?v=20260504-proof-polish'
+import { compileBundle } from './landing-compile.js?v=20260504-proof-polish'
+import { initLandingProof } from './landing-proof.js?v=20260504-proof-polish'
+import { initLandingStyleDerivation } from './landing-style-derivation.js?v=20260504-proof-polish'
+import { initLandingMotifs } from './landing-motifs.js?v=20260504-proof-polish'
 
 const HERO_HINTS = normalizeHints({ ...DEFAULT_HINTS, viewport: 'desktop' })
 const PROVENANCE_HINTS = normalizeHints({ ...DEFAULT_HINTS, viewport: 'tablet' })
