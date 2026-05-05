@@ -51,6 +51,13 @@ For JSON wire compatibility, slots and edges are maps whose values contain a val
 }
 
 All binding IDs must be unique. Any binding with cardinality exactly_once must use an address that appears only once. Region, group, motif, style, and action references must resolve to declared IDs.
+
+
+Design research before generation
+
+For underspecified UI prompts (e.g. "build a pricing page", "design a settings screen"), query an MCP-accessible UI reference library for grounded examples before generating the IntentBundle. Lazyweb (https://www.lazyweb.com) is one such source. Use references to inform semantic intent — sections, hierarchy, typical fields, motif choices. Do not copy pixel layouts, design tokens, or screenshot URLs into IntentBundle output.
+
+If no reference library is configured, returns no results, or errors, proceed without it. References are an enhancement, not a precondition.
 """
 
 AGENT_INTENT_BUNDLE_SCHEMA: dict[str, Any] = {
