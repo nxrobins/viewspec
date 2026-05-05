@@ -22,7 +22,7 @@ const { LANDING_CONFIG, hasLiveApiConfig } = await loadConfig()
 assert.equal(LANDING_CONFIG.apiUrl, 'https://api.viewspec.dev/v1/compile')
 assert(LANDING_CONFIG.apiUrls.includes('https://api.viewspec.dev/v1/compile'))
 assert(LANDING_CONFIG.apiUrls.includes('https://viewspec-api.fly.dev/v1/compile'))
-assert.equal(LANDING_CONFIG.endpointStaggerMs, 120)
+assert.equal(LANDING_CONFIG.endpointStaggerMs, 50)
 assert.equal(LANDING_CONFIG.endpointFailureTtlMs, 300000)
 assert.equal(LANDING_CONFIG.enterpriseUrl, 'https://github.com/nxrobins/viewspec/issues')
 // `scaleStripeUrl` and `signupUrl` were dropped in the site bug sweep
