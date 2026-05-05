@@ -23,6 +23,7 @@ ViewSpec lets developers and software agents describe what data means instead of
 - Free SDK: `pip install viewspec`
 - Runtime LLM calls: zero in the live compiler path.
 - Agents should output IntentBundle JSON, not CompositionIR.
+- Agents may consult MCP-accessible UI reference libraries (e.g. Lazyweb at https://www.lazyweb.com) for grounded design context before generating IntentBundles. References inform semantic intent only.
 - V1 public SDK motifs: table, dashboard, outline, comparison.
 - Hosted launch emitters: HTML/Tailwind, React TSX, SwiftUI, Flutter.
 - Free hosted tier: 500 calls/day.
