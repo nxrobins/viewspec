@@ -6,18 +6,18 @@ import {
   LANDING_CONFIG,
   hasLiveApiConfig,
   hasProductionCommerceConfig,
-} from './landing-config.js?v=20260504-motif-kind-styling'
+} from './landing-config.js?v=20260504-card-shadow-fix'
 import {
   DEFAULT_HINTS,
   buildIntentBundle,
   buildStaticCompileResult,
   normalizeHints,
-} from './landing-payload.js?v=20260504-motif-kind-styling'
-import { countIrNodes, getAstRoot, renderAst } from './landing-emitter.js?v=20260504-motif-kind-styling'
-import { compileBundle } from './landing-compile.js?v=20260504-motif-kind-styling'
-import { initLandingProof } from './landing-proof.js?v=20260504-motif-kind-styling'
-import { initLandingStyleDerivation } from './landing-style-derivation.js?v=20260504-motif-kind-styling'
-import { initLandingMotifs } from './landing-motifs.js?v=20260504-motif-kind-styling'
+} from './landing-payload.js?v=20260504-card-shadow-fix'
+import { countIrNodes, getAstRoot, renderAst } from './landing-emitter.js?v=20260504-card-shadow-fix'
+import { compileBundle } from './landing-compile.js?v=20260504-card-shadow-fix'
+import { initLandingProof } from './landing-proof.js?v=20260504-card-shadow-fix'
+import { initLandingStyleDerivation } from './landing-style-derivation.js?v=20260504-card-shadow-fix'
+import { initLandingMotifs } from './landing-motifs.js?v=20260504-card-shadow-fix'
 
 const HERO_HINTS = normalizeHints({ ...DEFAULT_HINTS, viewport: 'desktop' })
 const PROVENANCE_HINTS = normalizeHints({ ...DEFAULT_HINTS, viewport: 'tablet' })

@@ -129,7 +129,7 @@
     }
   </script>
   <script src="https://cdn.tailwindcss.com"></script>
-  <script type="module" src="./shared/landing-playground.js?v=20260504-motif-kind-styling"></script>
+  <script type="module" src="./shared/landing-playground.js?v=20260504-card-shadow-fix"></script>
   <style>
     :root {
       color-scheme: dark;
@@ -1447,9 +1447,25 @@
       display: flex !important;
       flex-direction: column !important;
       padding: 1.5rem !important;
-      min-height: 130px;
-      gap: 0.5rem !important;
+      min-height: 150px;
+      gap: 0.65rem !important;
       justify-content: space-between;
+    }
+    /* The compiler emits narrative.entry's box-shadow + text-shadow on the
+       focal value. The shadow looks like a halo on a block-level text
+       element inside an already-elevated card — kills the clean look.
+       Suppress on the dashboard cards; the value's color, weight, and
+       slight scale boost are enough emphasis. */
+    .motifs-stage [data-motif-kind="dashboard"] [data-ir-id$="_value"] {
+      box-shadow: none !important;
+      text-shadow: none !important;
+      font-size: 2rem !important;
+      line-height: 1.1 !important;
+      letter-spacing: -0.02em !important;
+    }
+    .motifs-stage [data-motif-kind="dashboard"] [data-ir-id$="_label"] {
+      text-shadow: none !important;
+      box-shadow: none !important;
     }
     .motifs-stage [data-motif-kind="dashboard"] [data-ir-id$="_trend_label"] {
       align-self: flex-start;
