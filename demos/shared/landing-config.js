@@ -30,7 +30,7 @@ export const LANDING_CONFIG = {
   // exists in the HTML) and has been removed too.
   enterpriseUrl: runtimeConfig.enterpriseUrl || 'https://github.com/nxrobins/viewspec/issues',
   requestTimeoutMs: Number(runtimeConfig.requestTimeoutMs || 6000),
-  endpointStaggerMs: Number(runtimeConfig.endpointStaggerMs || 120),
+  endpointStaggerMs: Number(runtimeConfig.endpointStaggerMs || 50),
   endpointFailureTtlMs: Number(runtimeConfig.endpointFailureTtlMs || 300000),
 }
 
