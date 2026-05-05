@@ -105,9 +105,11 @@ function installTabHandlers() {
 async function recompileHtml(button) {
   const frame = byId('proof-html-frame')
   if (!frame) return
-  const originalLabel = button.textContent
-  button.disabled = true
-  button.textContent = 'compiling...'
+  const originalLabel = button?.textContent || 'Recompile'
+  if (button) {
+    button.disabled = true
+    button.textContent = 'compiling...'
+  }
   setStatus('compiling', 'loading')
 
   try {
@@ -130,8 +132,10 @@ async function recompileHtml(button) {
   } catch (error) {
     setStatus(error?.message || 'compile failed', 'static')
   } finally {
-    button.disabled = false
-    button.textContent = originalLabel
+    if (button) {
+      button.disabled = false
+      button.textContent = originalLabel
+    }
   }
 }
 
@@ -150,6 +154,12 @@ export function initLandingProof() {
   loadCodePanel('react-tsx')
   installTabHandlers()
   installCompileButton()
+  // Auto-compile on init so the badge starts as live timing instead of
+  // "pre-baked" — the whole point of this section is showing real-time
+  // cross-platform fan-out from the JSON input. The button stays for
+  // recompiles. Falls back to the pre-baked artifact gracefully if the
+  // API is unreachable.
   setTimingBadge(null)
-  setStatus(`pre-baked from ${LANDING_CONFIG.apiUrl}`, 'static')
+  setStatus(`compiling from ${LANDING_CONFIG.apiUrl}`, 'loading')
+  recompileHtml(byId('proof-compile-button'))
 }
