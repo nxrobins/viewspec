@@ -129,7 +129,7 @@
     }
   </script>
   <script src="https://cdn.tailwindcss.com"></script>
-  <script type="module" src="./shared/landing-playground.js?v=20260504-style-derivation"></script>
+  <script type="module" src="./shared/landing-playground.js?v=20260504-quality-pass"></script>
   <style>
     :root {
       color-scheme: dark;
@@ -1418,37 +1418,230 @@
       border-width: 2px;
     }
 
-    /* Motif-kind switcher (live API): same dashboard responsive logic the
-       removed DESIGN.md card used. region_main is a multi-col grid; force
-       the motif wrapper to span the full row so the dashboard grid uses the
-       entire stage width. */
+    /* Motif-kind switcher (live API): three different visual structures
+       come out of the same KPI bindings. Style each motif kind separately
+       — the wrapper is tagged with `data-motif-kind` by landing-motifs.js
+       after each compile.
+
+       region_main is a multi-col grid; force the motif wrapper to span the
+       full row so the visual uses the entire stage width. */
     .motifs-stage [data-ir-id="motif_kpis"] {
       grid-column: 1 / -1;
+    }
+
+    /* DASHBOARD: 4 white KPI cards in a grid. The live compiler pours
+       tone.positive / narrative.entry / emphasis.focal onto the bindings,
+       which paints labels + values teal and adds a halo box-shadow. Reads
+       worse than the static hero / style-derivation cards — those use
+       clean dark text on white with a deep elevation shadow. Match that
+       quality bar by overriding the compiler's color tokens here. */
+    .motifs-stage [data-motif-kind="dashboard"] {
       gap: var(--space-3) !important;
     }
     @media (max-width: 760px) {
-      .motifs-stage [data-ir-id="motif_kpis"] {
+      .motifs-stage [data-motif-kind="dashboard"] {
         grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
       }
     }
     @media (max-width: 480px) {
-      .motifs-stage [data-ir-id="motif_kpis"] {
+      .motifs-stage [data-motif-kind="dashboard"] {
         grid-template-columns: 1fr !important;
       }
     }
-
-    .motifs-stage [data-ir-id^="motif_kpis_"] {
+    .motifs-stage [data-motif-kind="dashboard"] > [data-ir-id^="motif_kpis_"] {
+      background: #ffffff !important;
+      border: none !important;
+      border-radius: 14px !important;
+      box-shadow: 0 18px 34px rgba(15, 23, 42, 0.18), 0 1px 2px rgba(15, 23, 42, 0.08) !important;
+      display: flex !important;
+      flex-direction: column !important;
       padding: 1.5rem !important;
-      min-height: 130px;
-      gap: 0.5rem !important;
+      min-height: 150px;
+      gap: 0.65rem !important;
       justify-content: space-between;
     }
-    .motifs-stage [data-ir-id$="_trend_label"] {
+    .motifs-stage [data-motif-kind="dashboard"] [data-ir-id$="_label"] {
+      box-shadow: none !important;
+      color: #64748b !important;
+      font-size: 0.74rem !important;
+      font-weight: 800 !important;
+      letter-spacing: 0.11em !important;
+      text-shadow: none !important;
+      text-transform: uppercase !important;
+      opacity: 1 !important;
+    }
+    .motifs-stage [data-motif-kind="dashboard"] [data-ir-id$="_value"] {
+      box-shadow: none !important;
+      color: #0f172a !important;
+      font-size: 2rem !important;
+      font-weight: 900 !important;
+      letter-spacing: -0.025em !important;
+      line-height: 1.1 !important;
+      text-shadow: none !important;
+      opacity: 1 !important;
+      scale: 1 !important;
+    }
+    /* Polarity hint: only color red when the value has tone.warning AND
+       NOT tone.positive. The compiler emits tone.warning on any binding
+       with high KL surprise — including Revenue at +30% off baseline,
+       which is GOOD news. Pairing with tone.positive means "anomalous but
+       positive" (red would mislead). Pairing without tone.positive means
+       "anomalous and concerning" (e.g. Churn at +31%) — red is correct. */
+    .motifs-stage [data-motif-kind="dashboard"] [data-style-tokens*="tone.warning"][data-ir-id$="_value"]:not([data-style-tokens*="tone.positive"]) {
+      color: #b91c1c !important;
+    }
+    .motifs-stage [data-motif-kind="dashboard"] [data-ir-id$="_trend_label"] {
       align-self: flex-start;
-      background: rgba(255, 255, 255, 0.08);
-      border: 1px solid rgba(148, 163, 184, 0.22);
-      padding: 0.2rem 0.55rem !important;
-      font-weight: 700;
+      background: rgba(15, 23, 42, 0.06);
+      border: 1px solid rgba(15, 23, 42, 0.08);
+      border-radius: 9999px;
+      color: #475569 !important;
+      padding: 0.25rem 0.65rem !important;
+      font-size: 0.72rem !important;
+      font-weight: 700 !important;
+      opacity: 1 !important;
+    }
+    .motifs-stage [data-motif-kind="dashboard"] [data-style-tokens*="tone.warning"][data-ir-id$="_trend_label"]:not([data-style-tokens*="tone.positive"]) {
+      background: rgba(185, 28, 28, 0.08) !important;
+      border-color: rgba(185, 28, 28, 0.22) !important;
+      color: #b91c1c !important;
+    }
+
+    /* TABLE: white container with cluster rows inside. Each row is a
+       horizontal grid of label / value / trend with a hairline divider
+       underneath. Reads like a financial-report table. */
+    .motifs-stage [data-motif-kind="table"] {
+      background: #ffffff !important;
+      border: none !important;
+      border-radius: 14px !important;
+      box-shadow: 0 18px 34px rgba(15, 23, 42, 0.18), 0 1px 2px rgba(15, 23, 42, 0.08) !important;
+      overflow: hidden;
+    }
+    .motifs-stage [data-motif-kind="table"] > [data-ir-id^="motif_kpis_"] {
+      align-items: baseline !important;
+      border-bottom: 1px solid rgba(15, 23, 42, 0.08);
+      display: grid !important;
+      flex-wrap: nowrap !important;
+      gap: var(--space-3);
+      grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr) minmax(0, 1.2fr);
+      padding: 1.05rem 1.5rem;
+    }
+    .motifs-stage [data-motif-kind="table"] > [data-ir-id^="motif_kpis_"]:last-child {
+      border-bottom: none;
+    }
+    .motifs-stage [data-motif-kind="table"] [data-ir-id$="_label"] {
+      box-shadow: none !important;
+      color: #64748b !important;
+      font-size: 0.74rem !important;
+      font-weight: 800 !important;
+      letter-spacing: 0.1em !important;
+      opacity: 1 !important;
+      text-shadow: none !important;
+      text-transform: uppercase !important;
+    }
+    .motifs-stage [data-motif-kind="table"] [data-ir-id$="_value"] {
+      box-shadow: none !important;
+      color: #0f172a !important;
+      font-size: 1.5rem !important;
+      font-weight: 900 !important;
+      letter-spacing: -0.02em !important;
+      opacity: 1 !important;
+      scale: 1 !important;
+      text-align: right;
+      text-shadow: none !important;
+    }
+    .motifs-stage [data-motif-kind="table"] [data-style-tokens*="tone.warning"][data-ir-id$="_value"]:not([data-style-tokens*="tone.positive"]) {
+      color: #b91c1c !important;
+    }
+    .motifs-stage [data-motif-kind="table"] [data-ir-id$="_trend_label"] {
+      align-self: center;
+      background: rgba(15, 23, 42, 0.06);
+      border: 1px solid rgba(15, 23, 42, 0.08);
+      border-radius: 9999px;
+      color: #475569 !important;
+      font-size: 0.72rem !important;
+      font-weight: 700 !important;
+      justify-self: end;
+      opacity: 1 !important;
+      padding: 0.25rem 0.65rem !important;
+    }
+    .motifs-stage [data-motif-kind="table"] [data-style-tokens*="tone.warning"][data-ir-id$="_trend_label"]:not([data-style-tokens*="tone.positive"]) {
+      background: rgba(185, 28, 28, 0.08) !important;
+      border-color: rgba(185, 28, 28, 0.22) !important;
+      color: #b91c1c !important;
+    }
+
+    /* COMPARISON: 4 white cards in a grid, structurally identical to the
+       dashboard variant but emphasizing side-by-side comparison. The
+       compiler tags the wrapper with contrast.separation when numeric
+       spread is wide; we preserve that semantics by using the same card
+       look as dashboard. */
+    .motifs-stage [data-motif-kind="comparison"] {
+      display: grid !important;
+      grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+      gap: var(--space-3) !important;
+    }
+    @media (max-width: 760px) {
+      .motifs-stage [data-motif-kind="comparison"] {
+        grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+      }
+    }
+    @media (max-width: 480px) {
+      .motifs-stage [data-motif-kind="comparison"] {
+        grid-template-columns: 1fr !important;
+      }
+    }
+    .motifs-stage [data-motif-kind="comparison"] > [data-ir-id^="motif_kpis_"] {
+      background: #ffffff !important;
+      border: none !important;
+      border-radius: 14px !important;
+      box-shadow: 0 18px 34px rgba(15, 23, 42, 0.18), 0 1px 2px rgba(15, 23, 42, 0.08) !important;
+      display: flex !important;
+      flex-direction: column !important;
+      gap: 0.65rem !important;
+      justify-content: space-between;
+      min-height: 150px;
+      padding: 1.5rem !important;
+    }
+    .motifs-stage [data-motif-kind="comparison"] [data-ir-id$="_label"] {
+      box-shadow: none !important;
+      color: #64748b !important;
+      font-size: 0.74rem !important;
+      font-weight: 800 !important;
+      letter-spacing: 0.11em !important;
+      opacity: 1 !important;
+      text-shadow: none !important;
+      text-transform: uppercase !important;
+    }
+    .motifs-stage [data-motif-kind="comparison"] [data-ir-id$="_value"] {
+      box-shadow: none !important;
+      color: #0f172a !important;
+      font-size: 1.85rem !important;
+      font-weight: 900 !important;
+      letter-spacing: -0.02em !important;
+      line-height: 1.1 !important;
+      opacity: 1 !important;
+      scale: 1 !important;
+      text-shadow: none !important;
+    }
+    .motifs-stage [data-motif-kind="comparison"] [data-style-tokens*="tone.warning"][data-ir-id$="_value"]:not([data-style-tokens*="tone.positive"]) {
+      color: #b91c1c !important;
+    }
+    .motifs-stage [data-motif-kind="comparison"] [data-ir-id$="_trend_label"] {
+      align-self: flex-start;
+      background: rgba(15, 23, 42, 0.06);
+      border: 1px solid rgba(15, 23, 42, 0.08);
+      border-radius: 9999px;
+      color: #475569 !important;
+      font-size: 0.72rem !important;
+      font-weight: 700 !important;
+      opacity: 1 !important;
+      padding: 0.25rem 0.65rem !important;
+    }
+    .motifs-stage [data-motif-kind="comparison"] [data-style-tokens*="tone.warning"][data-ir-id$="_trend_label"]:not([data-style-tokens*="tone.positive"]) {
+      background: rgba(185, 28, 28, 0.08) !important;
+      border-color: rgba(185, 28, 28, 0.22) !important;
+      color: #b91c1c !important;
     }
 
     [data-derived="true"] {
