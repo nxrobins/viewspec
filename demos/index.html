@@ -129,7 +129,10 @@
     }
   </script>
   <script src="https://cdn.tailwindcss.com"></script>
-  <script type="module" src="./shared/landing-playground.js?v=20260504-proof-polish"></script>
+  <!-- Runtime config (admin/landing API key). Must load BEFORE landing-playground
+       so window.VIEWSPEC_LANDING_CONFIG is set when landing-config.js reads it. -->
+  <script src="./shared/landing-runtime-config.js?v=20260505-launch"></script>
+  <script type="module" src="./shared/landing-playground.js?v=20260505-launch"></script>
   <style>
     :root {
       color-scheme: dark;

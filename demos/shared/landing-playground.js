@@ -6,18 +6,18 @@ import {
   LANDING_CONFIG,
   hasLiveApiConfig,
   hasProductionCommerceConfig,
-} from './landing-config.js?v=20260504-proof-polish'
+} from './landing-config.js?v=20260505-launch'
 import {
   DEFAULT_HINTS,
   buildIntentBundle,
   buildStaticCompileResult,
   normalizeHints,
-} from './landing-payload.js?v=20260504-proof-polish'
-import { countIrNodes, getAstRoot, renderAst } from './landing-emitter.js?v=20260504-proof-polish'
-import { compileBundle } from './landing-compile.js?v=20260504-proof-polish'
-import { initLandingProof } from './landing-proof.js?v=20260504-proof-polish'
-import { initLandingStyleDerivation } from './landing-style-derivation.js?v=20260504-proof-polish'
-import { initLandingMotifs } from './landing-motifs.js?v=20260504-proof-polish'
+} from './landing-payload.js?v=20260505-launch'
+import { countIrNodes, getAstRoot, renderAst } from './landing-emitter.js?v=20260505-launch'
+import { compileBundle } from './landing-compile.js?v=20260505-launch'
+import { initLandingProof } from './landing-proof.js?v=20260505-launch'
+import { initLandingStyleDerivation } from './landing-style-derivation.js?v=20260505-launch'
+import { initLandingMotifs } from './landing-motifs.js?v=20260505-launch'
 
 const HERO_HINTS = normalizeHints({ ...DEFAULT_HINTS, viewport: 'desktop' })
 const PROVENANCE_HINTS = normalizeHints({ ...DEFAULT_HINTS, viewport: 'tablet' })
@@ -258,16 +258,31 @@ function installCopyTextControls() {
   })
 }
 
-export function initLandingPlayground() {
+// Init order matters for first-paint perf. Without staging:
+//   compileHero (API), compileProvenance (fixture), initLandingProof (API),
+//   initLandingStyleDerivation (fixture/CSS), initLandingMotifs (API)
+// would all fire on init — three API calls competing for the same network
+// on first paint. Hero is the visual headliner; let it land first, then
+// defer the other two API-bound inits to an idle window so they don't
+// compete with the hero's compile_ms badge. Fixture/sync inits run first
+// because they have zero network cost and complete before hero does.
+export async function initLandingPlayground() {
   installCommerceLinks()
   installCopyTextControls()
   installHoverInspector()
   renderProvenanceDetails(null)
-  compileHero()
+  // Cheap sync renders first.
   compileProvenance()
-  initLandingProof()
   initLandingStyleDerivation()
-  initLandingMotifs()
+  // Hero: critical path. Await so the API-heavy follow-ups don't race it.
+  // compileHero swallows its own errors (try/catch inside) so this resolves
+  // even when the API is unreachable.
+  await compileHero()
+  // Defer remaining API-bound inits to the next idle frame (or 200ms
+  // setTimeout fallback) so the browser can paint hero results first.
+  const idle = window.requestIdleCallback || ((fn) => setTimeout(fn, 200))
+  idle(() => initLandingProof())
+  idle(() => initLandingMotifs())
 }
 
 initLandingPlayground()
