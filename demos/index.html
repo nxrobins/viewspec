@@ -129,7 +129,7 @@
     }
   </script>
   <script src="https://cdn.tailwindcss.com"></script>
-  <script type="module" src="./shared/landing-playground.js?v=20260504-quality-pass"></script>
+  <script type="module" src="./shared/landing-playground.js?v=20260504-proof-polish"></script>
   <style>
     :root {
       color-scheme: dark;
@@ -1020,7 +1020,7 @@
       display: flex;
       flex-direction: column;
       min-height: 26rem;
-      max-height: 36rem;
+      max-height: 38rem;
       overflow: hidden;
     }
 
@@ -1068,18 +1068,27 @@
       background: #06080b;
     }
 
-    .proof-iframe {
+    /* The Launch Operations Dashboard artifact is a complete page
+       (header + KPIs + status table + form + button — ~64rem tall).
+       Wrap the iframe and use scale-down to show the WHOLE dashboard
+       at half size. The wrapper clips and bounds; the iframe inside
+       is double-size and scaled by 0.5 to fill the wrapper exactly. */
+    .proof-iframe-wrap {
       background: #ffffff;
-      border: none;
       flex: 1;
-      min-height: 22rem;
-      max-height: 30rem;
-      /* Width 154% pairs with scale(0.65) so the artifact fills the panel
-         after scale-down (154% × 0.65 ≈ 100% visual width). */
-      width: 154%;
-      height: 46rem;
-      transform: scale(0.65);
+      min-height: 28rem;
+      max-height: 32rem;
+      overflow: hidden;
+      position: relative;
+    }
+    .proof-iframe {
+      border: none;
+      display: block;
+      height: 64rem;
+      pointer-events: none;
+      transform: scale(0.5);
       transform-origin: top left;
+      width: 200%;
     }
 
     .proof-meta-note {
@@ -2016,10 +2025,10 @@
               <span class="panel-title">HTML / Tailwind</span>
               <div class="panel-meta">
                 <span id="proof-compile-time" class="status-pill" data-state="static">pre-baked</span>
-                <button type="button" id="proof-compile-button" class="proof-button">Compile it yourself</button>
+                <button type="button" id="proof-compile-button" class="proof-button">Recompile</button>
               </div>
             </div>
-            <iframe id="proof-html-frame" class="proof-iframe" src="./cross-platform-dashboard/artifacts/html/index.html" title="Compiled HTML output" loading="lazy" sandbox="allow-scripts"></iframe>
+            <div class="proof-iframe-wrap"><iframe id="proof-html-frame" class="proof-iframe" src="./cross-platform-dashboard/artifacts/html/index.html" title="Compiled HTML output" loading="lazy" sandbox="allow-scripts"></iframe></div>
             <p class="proof-meta-note"><span id="proof-status" class="status-pill" data-state="static">pre-baked</span></p>
           </article>
 
