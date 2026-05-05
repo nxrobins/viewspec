@@ -981,6 +981,61 @@
       white-space: pre-wrap;
     }
 
+    /* Colophon: the three influences ViewSpec acknowledges by name.
+       Functional, role-named framing — each entry says what role it plays
+       in the system (input convention / design research / typography). */
+    .colophon {
+      border-top: 1px solid rgba(148, 163, 184, 0.14);
+      color: var(--muted);
+      padding: var(--space-7) 0 var(--space-6);
+    }
+
+    .colophon-title {
+      color: #cbd5e1;
+      font-size: 0.78rem;
+      font-weight: 800;
+      letter-spacing: 0.18em;
+      margin: 0 0 var(--space-3);
+      text-transform: uppercase;
+    }
+
+    .colophon-list {
+      display: grid;
+      gap: var(--space-2);
+      list-style: none;
+      margin: 0 0 var(--space-3);
+      padding: 0;
+    }
+
+    .colophon-list li {
+      color: #cbd5e1;
+      font-size: 0.92rem;
+      line-height: 1.55;
+    }
+
+    .colophon-list strong {
+      color: #f8fafc;
+      font-weight: 800;
+    }
+
+    .colophon-list a {
+      color: #f8fafc;
+      text-decoration: none;
+    }
+
+    .colophon-list a:hover {
+      color: var(--teal);
+      text-decoration: underline;
+    }
+
+    .colophon-note {
+      color: var(--muted);
+      font-size: 0.78rem;
+      font-style: italic;
+      margin: 0;
+      max-width: 60rem;
+    }
+
     footer {
       border-top: 1px solid rgba(148, 163, 184, 0.14);
       color: var(--muted);
@@ -1724,6 +1779,7 @@
     .workflow-copy {
       color: #e2e8f0;
       font-size: 1rem;
+      justify-self: center;
       line-height: 1.55;
       margin: 0;
       max-width: 60rem;
@@ -1739,6 +1795,7 @@
       font-size: 0.78rem;
       gap: var(--space-3);
       justify-content: center;
+      justify-self: center;
       margin: 0;
     }
 
@@ -2204,6 +2261,18 @@
             <a class="button-secondary" href="mailto:hello@viewspec.dev?subject=ViewSpec%20Enterprise" target="_blank" rel="noopener">Talk to us</a>
           </article>
         </div>
+      </div>
+    </section>
+
+    <section class="colophon" aria-labelledby="colophon-heading">
+      <div class="page-shell">
+        <h2 id="colophon-heading" class="colophon-title">Builds with</h2>
+        <ul class="colophon-list">
+          <li><strong>DESIGN.md</strong> &mdash; Google's open-source design-markdown convention. ViewSpec parses it as the brand input format.</li>
+          <li><strong><a href="https://www.lazyweb.com">Lazyweb</a></strong> &mdash; MCP-accessible UI reference library agents query for grounded design context before generating IntentBundles.</li>
+          <li><strong><a href="https://github.com/chenglou/pretext">Pretext</a></strong> &mdash; Chenglou's text-layout engine. Renders the headline typography you're reading.</li>
+        </ul>
+        <p class="colophon-note">Three different roles. Three different relationships. Each acknowledged where it actually plays.</p>
       </div>
     </section>
   </main>
