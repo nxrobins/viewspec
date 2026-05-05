@@ -46,6 +46,14 @@ The May 6 launch proof is one agent-authored IntentBundle compiled to HTML/Tailw
 - Custom motif libraries.
 - Emitters for HTML/Tailwind, React TSX, SwiftUI, and Flutter.
 
+## Design Research Before Compilation
+
+Agents that generate IntentBundles from underspecified prompts produce generic output — design choices regress to whatever the model's training data averaged for "pricing page" or "onboarding flow."
+
+MCP-accessible UI reference libraries (e.g. Lazyweb at https://www.lazyweb.com) give agents concrete real-product references before they write the spec. The agent uses references as design context — section ordering, typical fields, hierarchy patterns, motif choices — and writes a semantically richer IntentBundle. ViewSpec still owns compilation, primitive resolution, and provenance.
+
+No code dependency: ViewSpec's SDK and compiler don't import any reference library, work identically with or without one configured.
+
 ## Pricing Facts
 
 - Free: local SDK and 500 hosted calls/day.
