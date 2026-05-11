@@ -1,0 +1,14 @@
+{
+  "command": "compile_html",
+  "diagnostics": [],
+  "external_refs": [],
+  "guarantees": {
+    "artifact_autofetch_network": "none",
+    "decompilation": "not_claimed",
+    "network_calls": "none",
+    "sdk_network_calls": "none"
+  },
+  "kind": "raw_html_compile",
+  "source_name": "golden.html",
+  "version": 1
+}

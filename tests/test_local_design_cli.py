@@ -1,0 +1,145 @@
+from __future__ import annotations
+
+import json
+import sys
+from io import StringIO
+
+import pytest
+
+from viewspec import DesignSystemError, ViewSpecBuilder, compile, load_design_system
+from viewspec.cli import main as cli_main
+
+
+def _design(color: str = "#112233") -> str:
+    return f"""---
+name: Local
+colors:
+  primary: "{color}"
+  secondary: "#445566"
+typography:
+  body:
+    fontFamily: Inter
+spacing:
+  md: 10px
+---
+"""
+
+
+def test_local_design_maps_shared_tokens_into_reference_compile():
+    context = load_design_system(content=_design())
+    builder = ViewSpecBuilder("local_design")
+    dashboard = builder.add_dashboard("cards", region="main", group_id="cards")
+    dashboard.add_card(label="Revenue", value="$12", id="revenue")
+
+    ast = compile(builder.build_bundle(), design=context)
+
+    assert "#112233" in ast.style_values["tone.neutral"]
+    assert "#445566" in ast.style_values["tone.muted"]
+    root = ast.result.root.root
+    assert "tone.neutral" in root.style_tokens
+
+
+def test_local_design_rejects_broken_refs_and_cycles_but_warns_on_bad_colors():
+    bad_color = load_design_system(content=_design("red"))
+    assert any(finding.code == "DESIGN_COLOR_FORMAT_WARNING" for finding in bad_color.lint_report.findings)
+
+    with pytest.raises(DesignSystemError):
+        load_design_system(content='---\nname: Broken\ncolors:\n  primary: "{colors.missing}"\n---\n')
+
+    with pytest.raises(DesignSystemError):
+        load_design_system(
+            content='---\nname: Cycle\ncolors:\n  primary: "{colors.accent}"\n  accent: "{colors.primary}"\n---\n'
+        )
+
+    with pytest.raises(DesignSystemError, match="strict"):
+        load_design_system(content=_design("red"), strict=True)
+
+
+def test_cli_compile_lift_and_diff_stay_local(tmp_path, capsys):
+    design_path = tmp_path / "DESIGN.md"
+    design_path.write_text(_design(), encoding="utf-8")
+    html_path = tmp_path / "report.html"
+    html_path.write_text("<h1>Report</h1><p>$1</p><button onclick='x()'>Open</button>", encoding="utf-8")
+    out_dir = tmp_path / "dist"
+
+    assert cli_main(["compile", str(html_path), "--design", str(design_path), "--out", str(out_dir), "--lift-json"]) == 0
+    assert html_path.read_text(encoding="utf-8").startswith("<h1>Report</h1>")
+    assert out_dir.joinpath("index.html").exists()
+    manifest = json.loads(out_dir.joinpath("provenance_manifest.json").read_text(encoding="utf-8"))
+    assert manifest["version"] == 1
+    assert manifest["guarantees"]["network_calls"] == "none"
+
+    lift_path = tmp_path / "lift.json"
+    assert cli_main(["lift", str(html_path), "--out", str(lift_path)]) == 0
+    assert json.loads(lift_path.read_text(encoding="utf-8"))["source_name"] == str(html_path)
+
+    right_path = tmp_path / "report-new.html"
+    right_path.write_text("<h1>Report Updated</h1><p>$2</p><button>Open</button>", encoding="utf-8")
+    assert cli_main(["diff", str(html_path), str(right_path), "--json"]) == 0
+    stdout = capsys.readouterr().out
+    assert "Report Updated" in stdout
+
+
+def test_cli_compile_json_wraps_stable_manifest(tmp_path):
+    builder = ViewSpecBuilder("json_cli")
+    table = builder.add_table("items", region="main", group_id="rows")
+    table.add_row(label="Alpha", value="1", id="alpha")
+    bundle_path = tmp_path / "bundle.json"
+    bundle_path.write_text(json.dumps(builder.build_bundle().to_json()), encoding="utf-8")
+    out_dir = tmp_path / "json-dist"
+
+    assert cli_main(["compile", str(bundle_path), "--out", str(out_dir)]) == 0
+    manifest = json.loads(out_dir.joinpath("provenance_manifest.json").read_text(encoding="utf-8"))
+
+    assert manifest["version"] == 1
+    assert manifest["kind"] == "intent_bundle_compile"
+    assert manifest["guarantees"]["network_calls"] == "none"
+    assert manifest["guarantees"]["sdk_network_calls"] == "none"
+    assert manifest["guarantees"]["artifact_autofetch_network"] == "none"
+    assert manifest["external_refs"] == []
+    assert manifest["diagnostics"] == []
+    assert "nodes" in manifest
+
+
+def test_cli_version_and_design_lint_errors_are_stable(tmp_path, capsys):
+    with pytest.raises(SystemExit) as version_exit:
+        cli_main(["--version"])
+    assert version_exit.value.code == 0
+    assert "viewspec 0.3.0b1" in capsys.readouterr().out
+
+    bad_design = tmp_path / "DESIGN.md"
+    bad_design.write_text(_design("red"), encoding="utf-8")
+    html_path = tmp_path / "input.html"
+    html_path.write_text("<h1>Report</h1>", encoding="utf-8")
+
+    exit_code = cli_main(["compile", str(html_path), "--design", str(bad_design), "--strict-design", "--out", str(tmp_path / "dist")])
+
+    assert exit_code == 2
+    stderr = capsys.readouterr().err
+    assert "DESIGN.md lint" in stderr
+    assert "DESIGN_COLOR_FORMAT_WARNING" in stderr
+
+
+def test_cli_refuses_input_overwrite(tmp_path, capsys):
+    html_path = tmp_path / "index.html"
+    html_path.write_text("<h1>Report</h1>", encoding="utf-8")
+
+    exit_code = cli_main(["compile", str(html_path), "--out", str(tmp_path)])
+
+    assert exit_code == 2
+    assert "Refusing to overwrite input file" in capsys.readouterr().err
+
+
+def test_cli_accepts_explicit_stdin_formats(tmp_path, monkeypatch):
+    html_out = tmp_path / "html-out"
+    monkeypatch.setattr(sys, "stdin", StringIO("<h1>From stdin</h1>"))
+    assert cli_main(["compile", "-", "--stdin-format", "html", "--out", str(html_out)]) == 0
+    assert "From stdin" in html_out.joinpath("index.html").read_text(encoding="utf-8")
+
+    builder = ViewSpecBuilder("stdin_json")
+    table = builder.add_table("items", region="main", group_id="rows")
+    table.add_row(label="Alpha", value="1", id="alpha")
+    json_out = tmp_path / "json-out"
+    monkeypatch.setattr(sys, "stdin", StringIO(json.dumps(builder.build_bundle().to_json())))
+    assert cli_main(["compile", "-", "--stdin-format", "json", "--out", str(json_out)]) == 0
+    assert json.loads(json_out.joinpath("provenance_manifest.json").read_text(encoding="utf-8"))["source_name"] == "<stdin>"

@@ -22,6 +22,7 @@ from viewspec.types import (
     CompilerDiagnostic,
     CompilerResult,
     CompositionIR,
+    DesignRequest,
     IntentBundle,
     IRNode,
     MotifSpec,
@@ -30,6 +31,7 @@ from viewspec.types import (
     StyleSpec,
     ViewSpec,
 )
+from viewspec.design_md import DesignSystemContext, load_design_system, merge_style_values
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -488,7 +490,12 @@ def _validate_roots(substrate: SemanticSubstrate, view_spec: ViewSpec) -> None:
         raise CompilerInputError("ViewSpec.root_region is required.")
 
 
-def compile(bundle: IntentBundle) -> ASTBundle:
+def compile(
+    bundle: IntentBundle,
+    design: DesignSystemContext | DesignRequest | str | None = None,
+    *,
+    strict_design: bool = False,
+) -> ASTBundle:
     """
     Compile an IntentBundle into an ASTBundle using the reference compiler.
 
@@ -835,16 +842,62 @@ def compile(bundle: IntentBundle) -> ASTBundle:
                     intent_ref=_action_ref(action.id),
                 )
 
+    root_node = region_nodes[view_spec.root_region]
+    _assign_default_style_tokens(root_node)
+
     result = CompilerResult(
-        root=CompositionIR(root=region_nodes[view_spec.root_region]),
+        root=CompositionIR(root=root_node),
         diagnostics=diagnostics,
     )
+    style_values = _derive_style_tokens(substrate, view_spec)
+    design_context = _coerce_design_context(design, strict_design=strict_design)
+    if design_context is not None:
+        style_values = merge_style_values(style_values, design_context.style_values)
 
     return ASTBundle(
         result=result,
-        style_values=_derive_style_tokens(substrate, view_spec),
+        style_values=style_values,
         title=view_spec.id,
     )
+
+
+def _coerce_design_context(
+    design: DesignSystemContext | DesignRequest | str | None,
+    *,
+    strict_design: bool = False,
+) -> DesignSystemContext | None:
+    if design is None:
+        return None
+    if isinstance(design, DesignSystemContext):
+        return design
+    if isinstance(design, DesignRequest):
+        return load_design_system(content=design.content, lint=design.lint, strict=strict_design)
+    if isinstance(design, str):
+        return load_design_system(content=design, strict=strict_design)
+    raise TypeError("design must be a DesignSystemContext, DesignRequest, DESIGN.md string, or None")
+
+
+PRIMITIVE_DEFAULT_TOKENS: dict[str, list[str]] = {
+    "root": ["palette.temperature", "tone.neutral"],
+    "surface": ["surface.subtle"],
+    "stack": ["density.regular"],
+    "grid": ["density.regular"],
+    "cluster": ["density.compact"],
+    "text": ["tone.neutral"],
+    "label": ["tone.muted"],
+    "value": ["emphasis.high", "tone.neutral"],
+    "badge": ["tone.accent"],
+    "button": ["tone.accent"],
+}
+
+
+def _assign_default_style_tokens(node: IRNode) -> None:
+    defaults = PRIMITIVE_DEFAULT_TOKENS.get(node.primitive, [])
+    for token in defaults:
+        if token not in node.style_tokens:
+            node.style_tokens.insert(0, token)
+    for child in node.children:
+        _assign_default_style_tokens(child)
 
 
 def _derive_style_tokens(substrate: SemanticSubstrate, view_spec: ViewSpec) -> dict[str, str]:
@@ -1025,9 +1078,9 @@ def compile_auto(
         ASTBundle with the compiled result.
     """
     payload = _compile_request_payload(request)
-    if prefer_local and payload.design is None:
+    if prefer_local:
         try:
-            return compile(payload.bundle)
+            return compile(payload.bundle, design=payload.design)
         except UnsupportedMotifError:
             return compile_remote(payload, api_url=api_url, api_key=api_key)
     return compile_remote(payload, api_url=api_url, api_key=api_key)

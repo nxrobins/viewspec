@@ -65,6 +65,7 @@ def test_emitter_escapes_html_and_writes_contract_artifacts(tmp_path):
 
     assert paths["html"].endswith("index.html")
     assert "&lt;Title &quot;&amp;&quot;&gt;" in html
+    assert "https://cdn.tailwindcss.com" not in html
     assert "<script>alert" not in html
     assert "&lt;script&gt;alert(&quot;&amp;&quot;)&lt;/script&gt;" in html
     assert 'data-action-id="open"' in html

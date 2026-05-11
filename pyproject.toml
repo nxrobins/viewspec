@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "viewspec"
-version = "0.2.0"
+version = "0.3.0b1"
 description = "Universal UI from semantic data. Describe what your data means — the compiler figures out how it looks."
 readme = "README.md"
 license = "MIT"
@@ -28,7 +28,11 @@ classifiers = [
 ]
 dependencies = [
     "protobuf>=5.0",
+    "PyYAML>=6.0",
 ]
+
+[project.scripts]
+viewspec = "viewspec.cli:main"
 
 [project.optional-dependencies]
 dev = [

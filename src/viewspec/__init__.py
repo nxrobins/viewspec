@@ -1,5 +1,6 @@
 """ViewSpec — Universal UI from semantic data."""
 
+from viewspec._version import __version__
 from viewspec.types import (
     ActionIntent,
     ASTBundle,
@@ -44,6 +45,25 @@ from viewspec.compiler import (
     CompilerInputError,
     UnsupportedMotifError,
 )
+from viewspec.design_md import (
+    DesignLintFinding,
+    DesignLintReport,
+    DesignSystemContext,
+    DesignSystemError,
+    load_design_system,
+)
+from viewspec.raw_html import (
+    HtmlCompileResult,
+    HtmlInputError,
+    HtmlLiftResult,
+    HtmlRole,
+    HtmlSemanticDiff,
+    HtmlTopologyFingerprint,
+    SANITIZER_POLICY,
+    compile_html,
+    diff_html,
+    lift_html,
+)
 from viewspec.agent import (
     AGENT_INTENT_BUNDLE_SCHEMA,
     AGENT_SYSTEM_PROMPT,
@@ -54,9 +74,8 @@ from viewspec.agent import (
     validate_agent_intent_bundle,
 )
 
-__version__ = "0.2.0"
-
 __all__ = [
+    "__version__",
     # Types
     "ActionIntent",
     "ASTBundle",
@@ -94,6 +113,23 @@ __all__ = [
     "CompilerAPIError",
     "CompilerInputError",
     "UnsupportedMotifError",
+    # Local DESIGN.md
+    "DesignLintFinding",
+    "DesignLintReport",
+    "DesignSystemContext",
+    "DesignSystemError",
+    "load_design_system",
+    # Raw HTML pipeline
+    "HtmlCompileResult",
+    "HtmlInputError",
+    "HtmlLiftResult",
+    "HtmlRole",
+    "HtmlSemanticDiff",
+    "HtmlTopologyFingerprint",
+    "SANITIZER_POLICY",
+    "compile_html",
+    "diff_html",
+    "lift_html",
     # Agent integration
     "AGENT_INTENT_BUNDLE_SCHEMA",
     "AGENT_SYSTEM_PROMPT",

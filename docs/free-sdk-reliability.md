@@ -7,7 +7,9 @@ The free SDK is the local Python package under `src/viewspec`. Its supported rel
 - fluent bundle construction through `ViewSpecBuilder`
 - JSON and protobuf round trips for `IntentBundle` and `ASTBundle`
 - deterministic local compilation for `table`, `dashboard`, `outline`, and `comparison`
-- HTML/Tailwind emission with provenance and diagnostics artifacts
+- HTML emission with offline CSS, provenance, and diagnostics artifacts
+- raw HTML `compile`, `lift`, and `diff` CLI/Python APIs for the local wedge
+- local `DESIGN.md` parsing for shared offline tokens
 - mocked hosted fallback client behavior through `compile_remote()` and `compile_auto()`
 - landing-page payload compatibility with `IntentBundle.from_json()`
 
@@ -18,6 +20,8 @@ The static landing page keeps a deployment fallback endpoint so the live demo do
 ## Reliability Guarantees
 
 - Local compilation performs no network calls and no LLM calls.
+- Local raw HTML `compile`, `lift`, and `diff` perform no network calls and no LLM calls.
+- Raw HTML artifacts do not auto-fetch remote resources when opened; remote image sources are made inert and recorded in `external_refs`.
 - Unsupported motif kinds raise `UnsupportedMotifError` so `compile_auto()` can fall back to the hosted compiler.
 - Fatal root-shape failures raise `CompilerInputError`.
 - Recoverable malformed input returns compiler diagnostics while preserving all valid output.
@@ -35,6 +39,8 @@ ruff check .
 python -m compileall src tests examples
 python -m pytest -q
 node tests/landing_payload_smoke.mjs
+node tests/landing_config_smoke.mjs
+node tests/seo_static_smoke.mjs
 python -m pip wheel . --no-deps
 ```
 

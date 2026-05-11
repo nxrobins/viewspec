@@ -1,0 +1,62 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://viewspec.dev/schemas/local-artifact-manifest-v1.json",
+  "title": "ViewSpec Local Artifact Manifest v1",
+  "type": "object",
+  "required": [
+    "version",
+    "kind",
+    "source_name",
+    "source_hash",
+    "command",
+    "guarantees",
+    "nodes",
+    "diagnostics",
+    "external_refs"
+  ],
+  "properties": {
+    "version": { "const": 1 },
+    "kind": { "type": "string" },
+    "source_name": { "type": ["string", "null"] },
+    "source_hash": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "command": { "type": "string" },
+    "guarantees": {
+      "type": "object",
+      "required": ["sdk_network_calls", "artifact_autofetch_network", "decompilation"],
+      "properties": {
+        "sdk_network_calls": { "const": "none" },
+        "artifact_autofetch_network": { "const": "none" },
+        "network_calls": { "const": "none" },
+        "decompilation": { "type": "string" }
+      }
+    },
+    "nodes": { "type": "object" },
+    "diagnostics": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["severity", "code", "message"],
+        "properties": {
+          "severity": { "enum": ["info", "warning", "error"] },
+          "code": { "type": "string" },
+          "message": { "type": "string" },
+          "node_id": { "type": "string" },
+          "path": { "type": "string" }
+        }
+      }
+    },
+    "external_refs": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["kind", "attr", "url", "behavior"],
+        "properties": {
+          "kind": { "type": "string" },
+          "attr": { "type": "string" },
+          "url": { "type": "string" },
+          "behavior": { "type": "string" }
+        }
+      }
+    }
+  }
+}
