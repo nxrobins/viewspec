@@ -8,6 +8,7 @@ standalone HTML, a provenance manifest, and a diagnostics JSON file.
 from __future__ import annotations
 
 import json
+import tempfile
 from html import escape
 from pathlib import Path
 from typing import Any
@@ -22,21 +23,48 @@ from viewspec.emitters.base import EmitterPlugin
 
 
 TAILWIND_BY_PRIMITIVE = {
-    "root": "min-h-screen bg-slate-50 text-slate-950 p-6 space-y-6",
-    "stack": "flex flex-col gap-3",
-    "grid": "grid gap-4",
-    "cluster": "flex flex-row flex-wrap gap-3",
-    "surface": "rounded-2xl border border-slate-200 bg-white p-4 shadow-sm space-y-3",
-    "text": "text-base leading-7 text-slate-800",
-    "label": "text-xs font-bold uppercase tracking-widest text-slate-500",
-    "value": "text-2xl font-black tracking-tight text-slate-950",
-    "badge": "inline-flex w-fit rounded-full bg-teal-50 px-3 py-1 text-sm font-semibold text-teal-800 ring-1 ring-teal-200",
-    "image_slot": "min-h-24 rounded-xl bg-slate-200 text-slate-500 grid place-items-center",
-    "rule": "my-2 border-slate-200",
-    "svg": "rounded-xl border border-slate-200 bg-slate-50 p-3 text-slate-600",
-    "button": "inline-flex w-fit items-center rounded-xl bg-teal-700 px-4 py-2 text-sm font-bold text-white shadow-sm hover:bg-teal-800",
-    "error_boundary": "rounded-xl border-2 border-dashed border-red-500 bg-red-50 p-4 font-mono text-sm text-red-800",
+    "root": "vs-root",
+    "stack": "vs-stack",
+    "grid": "vs-grid",
+    "cluster": "vs-cluster",
+    "surface": "vs-surface",
+    "text": "vs-text",
+    "label": "vs-label",
+    "value": "vs-value",
+    "badge": "vs-badge",
+    "image_slot": "vs-image-slot",
+    "rule": "vs-rule",
+    "svg": "vs-svg",
+    "button": "vs-button",
+    "error_boundary": "vs-error-boundary",
 }
+
+
+OFFLINE_EMITTER_CSS = """
+:root {
+  color-scheme: light;
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  background: #f8fafc;
+  color: #020617;
+}
+* { box-sizing: border-box; }
+body { margin: 0; min-height: 100vh; background: #f8fafc; }
+.vs-root { min-height: 100vh; padding: 24px; display: flex; flex-direction: column; gap: 24px; color: #020617; }
+.vs-stack { display: flex; flex-direction: column; gap: 12px; }
+.vs-grid { display: grid; gap: 16px; }
+.vs-cluster { display: flex; flex-flow: row wrap; gap: 12px; }
+.vs-surface { border: 1px solid #e2e8f0; border-radius: 16px; background: #ffffff; padding: 16px; box-shadow: 0 1px 2px rgb(15 23 42 / 0.08); display: flex; flex-direction: column; gap: 12px; }
+.vs-text { color: #1f2937; font-size: 1rem; line-height: 1.75; }
+.vs-label { color: #64748b; font-size: 0.75rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; }
+.vs-value { color: #020617; font-size: 1.5rem; font-weight: 900; line-height: 1.15; }
+.vs-badge { display: inline-flex; width: fit-content; border-radius: 999px; background: #ccfbf1; color: #115e59; padding: 4px 12px; font-size: 0.875rem; font-weight: 700; box-shadow: inset 0 0 0 1px #99f6e4; }
+.vs-image-slot { min-height: 96px; border-radius: 12px; background: #e2e8f0; color: #64748b; display: grid; place-items: center; }
+.vs-rule { margin: 8px 0; border: 0; border-top: 1px solid #e2e8f0; }
+.vs-svg { border: 1px solid #e2e8f0; border-radius: 12px; background: #f8fafc; color: #475569; padding: 12px; }
+.vs-button { display: inline-flex; width: fit-content; align-items: center; border: 0; border-radius: 12px; background: #0f766e; color: #ffffff; padding: 8px 16px; font-size: 0.875rem; font-weight: 800; cursor: pointer; box-shadow: 0 1px 2px rgb(15 23 42 / 0.16); }
+.vs-button:hover { background: #115e59; }
+.vs-error-boundary { border: 2px dashed #ef4444; border-radius: 12px; background: #fef2f2; color: #991b1b; padding: 16px; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 0.875rem; }
+""".strip()
 
 
 ACTION_EVENT_SCRIPT = """
@@ -63,6 +91,27 @@ def _json_attr(value: Any) -> str:
 def _style_attr(node: IRNode, style_values: dict[str, str]) -> str:
     css = " ".join(style_values.get(token, "") for token in node.style_tokens if style_values.get(token))
     return f' style="{escape(css, quote=True)}"' if css else ""
+
+
+def _write_text_atomic(path: Path, text: str) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temp_name: str | None = None
+    try:
+        with tempfile.NamedTemporaryFile(
+            "w",
+            encoding="utf-8",
+            dir=path.parent,
+            prefix=f".{path.name}.",
+            suffix=".tmp",
+            delete=False,
+        ) as handle:
+            temp_name = handle.name
+            handle.write(text)
+        Path(temp_name).replace(path)
+    except Exception:
+        if temp_name:
+            Path(temp_name).unlink(missing_ok=True)
+        raise
 
 
 def _manifest_entry(node: IRNode) -> dict[str, Any]:
@@ -154,7 +203,9 @@ def emit_compiler_result(
             '<meta charset="utf-8">',
             '<meta name="viewport" content="width=device-width, initial-scale=1">',
             f"<title>{escape(title)}</title>",
-            '<script src="https://cdn.tailwindcss.com"></script>',
+            "<style>",
+            OFFLINE_EMITTER_CSS,
+            "</style>",
             "</head>",
             "<body>",
             body,
@@ -166,12 +217,28 @@ def emit_compiler_result(
     html_path = output_path / "index.html"
     manifest_path = output_path / "provenance_manifest.json"
     diagnostics_path = output_path / "diagnostics.json"
-    html_path.write_text(html, encoding="utf-8")
-    manifest_path.write_text(json.dumps(manifest, indent=2, sort_keys=True), encoding="utf-8")
-    diagnostics_path.write_text(
-        json.dumps([d.to_json() for d in result.diagnostics], indent=2, sort_keys=True),
-        encoding="utf-8",
-    )
+    try:
+        _write_text_atomic(html_path, html)
+        _write_text_atomic(manifest_path, json.dumps(manifest, indent=2, sort_keys=True))
+        _write_text_atomic(diagnostics_path, json.dumps([d.to_json() for d in result.diagnostics], indent=2, sort_keys=True))
+    except Exception as exc:
+        try:
+            _write_text_atomic(
+                output_path / ".viewspec_write_failed.json",
+                json.dumps(
+                    {
+                        "version": 1,
+                        "severity": "error",
+                        "code": "ARTIFACT_WRITE_FAILED",
+                        "message": str(exc),
+                    },
+                    indent=2,
+                    sort_keys=True,
+                ),
+            )
+        except Exception:
+            pass
+        raise
     return {
         "html": str(html_path),
         "manifest": str(manifest_path),

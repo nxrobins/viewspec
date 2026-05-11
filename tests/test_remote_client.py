@@ -127,17 +127,20 @@ def test_compile_remote_response_exposes_design_metadata(monkeypatch):
     assert response.meta.design.dropped_tokens == ["color.loop"]
 
 
-def test_compile_auto_skips_local_when_design_is_attached(monkeypatch):
+def test_compile_auto_uses_local_when_design_is_attached(monkeypatch):
     bundle = _bundle()
     ast = compile(bundle)
-    request = ViewSpecBuilder("auto_design").attach_design("name: Acme\n", is_path=False).build_compile_request()
+    request = ViewSpecBuilder("auto_design").attach_design(
+        "---\nname: Acme\ncolors:\n  primary: \"#112233\"\n---\n",
+        is_path=False,
+    ).build_compile_request()
     calls, _ = _install_fake_httpx(monkeypatch, FakeResponse(200, {"ast": ast.to_json()}))
 
     restored = compile_auto(request)
 
-    assert restored.title == ast.title
-    assert len(calls) == 1
-    assert calls[0]["kwargs"]["json"]["design"]["content"] == "name: Acme\n"
+    assert restored.title == "auto_design"
+    assert len(calls) == 0
+    assert "#112233" in restored.style_values["tone.neutral"]
 
 
 def test_compile_remote_import_error_guides_remote_extra(monkeypatch):

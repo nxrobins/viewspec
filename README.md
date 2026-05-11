@@ -55,6 +55,27 @@ pip install viewspec
 
 Requires Python 3.11+.
 
+## Local HTML Wedge (0.3.0b1 beta)
+
+The beta SDK can govern existing HTML entirely offline. Raw HTML compilation is intentionally narrow: it sanitizes active content, applies local `DESIGN.md` tokens, writes deterministic provenance, and can report semantic diffs. It does not claim full ViewSpec IR recovery or pixel review.
+
+```bash
+viewspec compile input.html --design DESIGN.md --out dist/
+viewspec lift input.html --out lift.json
+viewspec diff old.html new.html --json
+```
+
+Example inputs live at `examples/raw_html_report.html` and `examples/raw_html_DESIGN.md`.
+
+Raw HTML output files are:
+
+- `index.html`
+- `provenance_manifest.json`
+- `diagnostics.json`
+- optional `lift.json` with `--lift-json`
+
+The local commands `compile`, `lift`, and `diff` make no SDK-process network calls. Generated raw-HTML artifacts also avoid automatic network fetches: remote image sources are replaced with inert links and disclosed in `external_refs`; user-clicked external anchors remain clickable with `rel="noopener noreferrer"`.
+
 ## Hosted Playground
 
 The home page at [viewspec.dev](https://viewspec.dev) runs a live hosted compile against `https://api.viewspec.dev/v1/compile`. It uses anonymous free-tier requests by default and shows the request, response, measured `compile_ms`, active derivation tokens, and provenance chain.
@@ -182,7 +203,24 @@ ast = compile_auto(builder.build_bundle())
 
 ### Theming with DESIGN.md
 
-The hosted compiler can ingest a `DESIGN.md` identity file as an opaque SDK payload. The SDK does not parse Markdown, YAML, colors, fonts, cycles, or tokens; it only reads text and sends it to `viewspec-api`.
+The local SDK can parse a strict YAML-front-matter `DESIGN.md` subset for offline HTML and IntentBundle compilation. Parse errors, broken token references, and cycles are fatal. Malformed ignorable tokens become diagnostics and fall back to defaults; `--strict-design` escalates warnings to failure.
+
+```bash
+viewspec compile input.html --design DESIGN.md --out dist/
+viewspec compile bundle.json --design DESIGN.md --out dist/
+```
+
+Python callers can use the same local parser:
+
+```python
+from viewspec import compile, compile_html, load_design_system
+
+design = load_design_system(path="DESIGN.md")
+html_result = compile_html("<h1>Report</h1>", design=design)
+ast = compile(bundle, design=design)
+```
+
+The hosted compiler can still ingest a `DESIGN.md` identity file as an opaque payload for hosted-only surfaces:
 
 ```python
 from viewspec import ViewSpecBuilder, compile_remote_response
@@ -209,7 +247,7 @@ const result = await compiler.withDesign("DESIGN.md").compile(bundle)
 const inline = await compiler.withDesign("name: Acme\n", false).compile(bundle)
 ```
 
-`DESIGN.md` ingestion is intentionally strict in the API:
+`DESIGN.md` ingestion is intentionally strict locally and in the API:
 
 - Colors must be exact sRGB hex values such as `#FFFFFF`. `rgba()`, `#FFF`, and named CSS colors are ignored and fall back to defaults.
 - `fontFamily` tokens map to React/HTML CSS. Flutter and SwiftUI emitters coerce custom font families to native system defaults while preserving size, weight, and tracking.
