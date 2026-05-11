@@ -1,12 +1,15 @@
 # ViewSpec
 
-> ViewSpec is an agent-native UI IR and semantic UI compiler for agentic engineering, AI coding agents, and deterministic cross-platform UI generation.
+> ViewSpec is local agent HTML governance first, with an agent-native UI IR and hosted semantic compiler available for advanced agentic engineering workflows.
 
-ViewSpec lets developers and software agents describe what data means instead of hand-wiring components, layout, and provenance. It compiles semantic intent bundles into CompositionIR, style values, diagnostics, exact provenance, and emitter artifacts for web, React, SwiftUI, and Flutter.
+ViewSpec lets agents emit ordinary HTML, then runs a deterministic local SDK pipeline: `viewspec compile`, `viewspec lift`, `viewspec diff`, and `viewspec check`. The local compiler sanitizes hostile HTML, applies `DESIGN.md`, writes `provenance_manifest.json`, and reports semantic changes without SDK network calls.
+
+The older IntentBundle and CompositionIR model is still the advanced compiler contract for hosted API and cross-platform emitters.
 
 ## Canonical Links
 
 - Product and playground: https://viewspec.dev/
+- Local HTML governance docs: https://github.com/nxrobins/viewspec/blob/main/docs/local-html-wedge.md
 - Cross-platform launch demo: https://viewspec.dev/cross-platform-dashboard/
 - Custom motif demo: https://viewspec.dev/custom-motifs/
 - Interactive compose demo: https://viewspec.dev/interactive-compose/
@@ -21,15 +24,18 @@ ViewSpec lets developers and software agents describe what data means instead of
 ## Current Product Facts
 
 - Free SDK: `pip install viewspec`
-- Runtime LLM calls: zero in the live compiler path.
-- Agents should output IntentBundle JSON, not CompositionIR.
-- Agents may consult MCP-accessible UI reference libraries (e.g. Lazyweb at https://www.lazyweb.com) for grounded design context before generating IntentBundles. References inform semantic intent only.
+- Runtime LLM calls: zero in local compile/lift/diff/check and zero in the live compiler path.
+- Agents should emit HTML for the local governance path, then run `viewspec compile`, `viewspec diff`, and `viewspec check`.
+- Native agent setup: `viewspec init-agent --target codex|claude-code|cursor|copilot|all`.
+- Optional MCP server: install `viewspec[agents]`, then run `viewspec mcp`.
+- Agents should output IntentBundle JSON, not CompositionIR, only when using the advanced hosted/API compiler contract.
+- Agents may consult MCP-accessible UI reference libraries (e.g. Lazyweb at https://www.lazyweb.com) for grounded design context before generating advanced IntentBundles. References inform semantic intent only.
 - V1 public SDK motifs: table, dashboard, outline, comparison.
 - Hosted launch emitters: HTML/Tailwind, React TSX, SwiftUI, Flutter.
 - Free hosted tier: 500 calls/day.
-- Pro tier: $699/month, 25,000 hosted compile calls/day, 10,000 hosted renders/month, mobile emitters, and 5 custom motif instances per compile.
+- Pro tier: $149/month, hosted compile calls, mobile emitters, and 5 custom motif instances per compile.
 - Enterprise tier: custom volume, unlimited custom motifs, org sharing, and launch support.
 
 ## Short Description
 
-ViewSpec is an agent-native UI IR for AI-era software development: one semantic spec compiles into deterministic interfaces across multiple render targets with exact provenance.
+ViewSpec is local governance for agent-generated HTML: it turns AI-written pages into sanitized, themed, auditable artifacts, with agent-native UI IR and hosted cross-platform compilation available when teams need deeper compiler contracts.

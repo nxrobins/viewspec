@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import json
 import re
+import hashlib
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -86,6 +87,7 @@ class DesignSystemContext:
     tokens: dict[str, Any]
     style_values: dict[str, str]
     lint_report: DesignLintReport
+    design_hash: str
     applied_tokens: dict[str, list[str]] = field(default_factory=dict)
     ignored_tokens: list[str] = field(default_factory=list)
     dropped_tokens: list[str] = field(default_factory=list)
@@ -94,6 +96,7 @@ class DesignSystemContext:
     def to_meta(self) -> dict[str, Any]:
         return {
             "name": self.name,
+            "design_hash": self.design_hash,
             "lint_summary": self.lint_report.summary(),
             "findings": [finding.to_json() for finding in self.lint_report.findings],
             "applied_tokens": {key: list(value) for key, value in sorted(self.applied_tokens.items())},
@@ -154,6 +157,7 @@ def load_design_system(
         tokens=tokens,
         style_values=style_values,
         lint_report=report,
+        design_hash=hashlib.sha256(text.encode("utf-8")).hexdigest(),
         applied_tokens=applied_tokens,
         ignored_tokens=sorted(set(ignored_tokens)),
         dropped_tokens=sorted(dropped_tokens),

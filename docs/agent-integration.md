@@ -1,6 +1,8 @@
 # ViewSpec Agent Integration V1
 
-Agents generate `IntentBundle` JSON. The ViewSpec compiler generates `CompositionIR`.
+This page describes the advanced IntentBundle workflow. For the local-first agent HTML workflow, start with `viewspec compile`, `viewspec lift`, `viewspec diff`, and `viewspec check` in [Local HTML Wedge](local-html-wedge.md).
+
+In the advanced workflow, agents generate `IntentBundle` JSON. The ViewSpec compiler generates `CompositionIR`.
 
 Do not prompt agents to output `CompositionIR`, primitives, nested `children`, or rendered layout. That bypasses the compiler and undermines the provenance and validation model. Agents should describe the semantic substrate and declarative view intent; ViewSpec remains responsible for layout, style resolution, diagnostics, and exact provenance.
 
@@ -133,7 +135,7 @@ The correction prompt intentionally contains compact structured issues. It shoul
 
 The public SDK agent schema remains V1 and reference-focused. The hosted compiler can accept additional launch fields documented in hosted examples: `projections`, `inputs`, `rules`, and optional `motif_library`.
 
-Agents still generate IntentBundle JSON. They should not generate CompositionIR, React, SwiftUI, Flutter, or HTML directly unless the user explicitly asks for emitter source rather than ViewSpec intent.
+In this hosted IntentBundle workflow, agents still generate IntentBundle JSON. They should not generate CompositionIR, React, SwiftUI, Flutter, or HTML directly unless the user explicitly chooses the local HTML governance path or asks for emitter source rather than ViewSpec intent.
 
 
 ## Design Research Before Compilation

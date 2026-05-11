@@ -5,10 +5,17 @@
   "type": "object",
   "required": [
     "version",
+    "manifest_schema_version",
     "kind",
+    "sdk_version",
     "source_name",
+    "raw_source_hash",
     "source_hash",
+    "design_hash",
+    "artifact_hash",
     "command",
+    "command_args",
+    "policy_version",
     "guarantees",
     "nodes",
     "diagnostics",
@@ -16,10 +23,20 @@
   ],
   "properties": {
     "version": { "const": 1 },
+    "manifest_schema_version": { "const": 1 },
     "kind": { "type": "string" },
+    "sdk_version": { "type": "string" },
     "source_name": { "type": ["string", "null"] },
+    "raw_source_hash": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
     "source_hash": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "design_hash": { "type": ["string", "null"], "pattern": "^[0-9a-f]{64}$" },
+    "artifact_hash": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
     "command": { "type": "string" },
+    "command_args": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "policy_version": { "type": "string" },
     "guarantees": {
       "type": "object",
       "required": ["sdk_network_calls", "artifact_autofetch_network", "decompilation"],

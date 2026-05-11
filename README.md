@@ -1,40 +1,31 @@
 # ViewSpec
 
-**Agent-native UI IR from semantic data.**
+**Your agent writes HTML. ViewSpec makes it beautiful, consistent, and yours.**
 
-ViewSpec is an agent-native UI IR for describing what data means. The compiler produces CompositionIR, provenance, and emitter artifacts. Every pixel has a birth certificate.
+ViewSpec is a local compiler for agent-generated HTML. It sanitizes hostile output, applies your `DESIGN.md`, writes auditable provenance, and gives you semantic diffs about structure and meaning rather than tag noise.
 
 🌐 **[viewspec.dev](https://viewspec.dev)** — Live hosted compiler playground, demos, and pricing
 
-```python
-from viewspec import ViewSpecBuilder, compile
-from viewspec.emitters.html_tailwind import HtmlTailwindEmitter
-
-builder = ViewSpecBuilder("invoice")
-table = builder.add_table("items", region="main", group_id="rows")
-table.add_row(label="Design System Audit", value="$4,200")
-table.add_row(label="Component Library", value="$8,500")
-table.add_row(label="API Integration", value="$3,100")
-
-ast = compile(builder.build_bundle())
-HtmlTailwindEmitter().emit(ast, "output/")
-
-# That's it. Full UI. Full provenance. No CSS.
+```bash
+viewspec compile report.html --design DESIGN.md --out dist/
+viewspec diff report-v1.html report-v2.html --json
+viewspec check dist/
 ```
 
 ## What ViewSpec Does
 
-**Before ViewSpec:** You manually bridge the gap between data and UI. Every component, every prop, every layout decision — hand-wired by a developer.
+The primary local workflow is agent output governance: agent HTML goes in, governed HTML plus a manifest comes out. The older IntentBundle and CompositionIR APIs remain available for programmatic compiler use.
 
-**After ViewSpec:** You declare what the data means. The compiler determines the visual structure. Rendering is a pluggable backend.
+**Before ViewSpec:** Agents emit throwaway HTML. It may look fine once, but it is inconsistent, hard to diff, risky to open, and difficult to govern.
+
+**After ViewSpec:** Agent HTML enters a deterministic local compiler. The compiler strips unsafe surfaces, applies design tokens, records provenance, and emits a stable artifact you can inspect, diff, and share later.
 
 ```
-Data → ViewSpec (semantic intent) → Compiler → CompositionIR → Emitter
-                                                                ├── HTML/Tailwind (shipped)
-                                                                ├── React TSX (hosted compiler)
-                                                                ├── SwiftUI (hosted compiler)
-                                                                ├── Flutter (hosted compiler)
-                                                                └── Your custom emitter
+Agent HTML → ViewSpec local compiler → governed HTML artifact
+       ├── sanitize active content
+       ├── apply DESIGN.md
+       ├── write provenance_manifest.json
+       └── semantic diff via lift_v1 signals
 ```
 
 ## Three Invariants
@@ -63,6 +54,9 @@ The beta SDK can govern existing HTML entirely offline. Raw HTML compilation is 
 viewspec compile input.html --design DESIGN.md --out dist/
 viewspec lift input.html --out lift.json
 viewspec diff old.html new.html --json
+viewspec check dist/
+viewspec init-design --out DESIGN.md
+viewspec doctor
 ```
 
 Example inputs live at `examples/raw_html_report.html` and `examples/raw_html_DESIGN.md`.
@@ -75,6 +69,35 @@ Raw HTML output files are:
 - optional `lift.json` with `--lift-json`
 
 The local commands `compile`, `lift`, and `diff` make no SDK-process network calls. Generated raw-HTML artifacts also avoid automatic network fetches: remote image sources are replaced with inert links and disclosed in `external_refs`; user-clicked external anchors remain clickable with `rel="noopener noreferrer"`.
+
+`provenance_manifest.json` is the trust boundary. It records SDK version, raw source hash, lifted source hash, design hash, artifact hash, command arguments, sanitizer policy, diagnostics, and external references.
+
+## Native Agent Use
+
+Install managed instructions so coding agents discover ViewSpec as the local post-processor for human-facing HTML:
+
+```bash
+viewspec init-agent --target codex
+viewspec init-agent --target claude-code
+viewspec init-agent --target cursor
+viewspec init-agent --target copilot
+```
+
+Use `--target all` to write every supported instruction file. The command only manages the block between:
+
+```html
+<!-- BEGIN VIEWSPEC AGENT INSTRUCTIONS v1 -->
+<!-- END VIEWSPEC AGENT INSTRUCTIONS v1 -->
+```
+
+Optional MCP tooling is available behind the agent extra:
+
+```bash
+python -m pip install "viewspec[agents]"
+viewspec mcp
+```
+
+The MCP server exposes local `compile_html_file`, `check_artifact`, `diff_html_files`, `lift_html_file`, and `init_design` tools. By default, all tool paths must resolve under the MCP working directory and the tools make no SDK network calls.
 
 ## Hosted Playground
 

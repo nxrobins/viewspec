@@ -1,6 +1,6 @@
 # Getting Started: First ViewSpec In 5 Minutes
 
-ViewSpec is an agent-native UI IR. Humans or agents describe semantic data and view intent; the compiler produces CompositionIR, diagnostics, provenance, and emitter-ready artifacts.
+ViewSpec's primary local workflow is agent HTML governance. Your agent writes ordinary HTML; the SDK sanitizes it, applies `DESIGN.md`, writes provenance, and exposes semantic diff signals. IntentBundle and hosted API workflows remain available for advanced compiler use.
 
 ## Install
 
@@ -8,7 +8,48 @@ ViewSpec is an agent-native UI IR. Humans or agents describe semantic data and v
 pip install viewspec
 ```
 
-## Local Reference Compile
+## Agent HTML First
+
+Use the CLI when you already have raw HTML and need a governed, offline artifact:
+
+```bash
+viewspec compile input.html --design DESIGN.md --out dist/
+viewspec lift input.html --out lift.json
+viewspec diff old.html new.html --json
+viewspec check dist/
+```
+
+Raw HTML compile writes `index.html`, `provenance_manifest.json`, and `diagnostics.json`. With `--lift-json`, it also writes `lift.json`.
+
+This path is sanitize + theme + manifest + diff. It is not full ViewSpec decompilation, and it does not perform pixel review.
+
+Use `viewspec init-design --out DESIGN.md` for a starter design file and `viewspec doctor` to check local SDK readiness.
+
+## Native Agent Use
+
+Add managed ViewSpec instructions to a repo so agents run the local governance workflow after they create or edit HTML:
+
+```bash
+viewspec init-agent --target codex
+viewspec init-agent --target claude-code
+viewspec init-agent --target cursor
+viewspec init-agent --target copilot
+viewspec init-agent --target all --dry-run
+```
+
+The command preserves user content outside `<!-- BEGIN VIEWSPEC AGENT INSTRUCTIONS v1 -->` and `<!-- END VIEWSPEC AGENT INSTRUCTIONS v1 -->`.
+
+For MCP-capable agents:
+
+```bash
+python -m pip install "viewspec[agents]"
+viewspec mcp
+viewspec doctor --agents
+```
+
+The MCP tools are local-only by default and reject paths outside the configured working directory.
+
+## Programmatic IntentBundle Compile
 
 ```python
 from viewspec import ViewSpecBuilder, compile
@@ -24,20 +65,6 @@ HtmlTailwindEmitter().emit(ast, "output/")
 ```
 
 Use the hosted compiler for projections, inputs, declarative rules, custom motifs, Level 2+ derivation, and mobile emitters.
-
-## Local HTML Wedge
-
-Use the CLI when you already have raw HTML and need a governed, offline artifact:
-
-```bash
-viewspec compile input.html --design DESIGN.md --out dist/
-viewspec lift input.html --out lift.json
-viewspec diff old.html new.html --json
-```
-
-Raw HTML compile writes `index.html`, `provenance_manifest.json`, and `diagnostics.json`. With `--lift-json`, it also writes `lift.json`.
-
-This path is sanitize + theme + manifest + diff. It is not full ViewSpec decompilation, and it does not perform pixel review.
 
 ## Theming with DESIGN.md
 

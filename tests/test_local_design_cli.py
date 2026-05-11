@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import sys
 from io import StringIO
+from pathlib import Path
 
 import pytest
 
@@ -67,11 +68,16 @@ def test_cli_compile_lift_and_diff_stay_local(tmp_path, capsys):
     assert out_dir.joinpath("index.html").exists()
     manifest = json.loads(out_dir.joinpath("provenance_manifest.json").read_text(encoding="utf-8"))
     assert manifest["version"] == 1
+    assert manifest["manifest_schema_version"] == 1
+    assert manifest["design_hash"]
+    assert manifest["artifact_hash"]
+    assert manifest["command_args"] == ["viewspec", "compile", "report.html", "--design", "DESIGN.md", "--out", "<out>", "--lift-json"]
     assert manifest["guarantees"]["network_calls"] == "none"
+    assert cli_main(["check", str(out_dir)]) == 0
 
     lift_path = tmp_path / "lift.json"
     assert cli_main(["lift", str(html_path), "--out", str(lift_path)]) == 0
-    assert json.loads(lift_path.read_text(encoding="utf-8"))["source_name"] == str(html_path)
+    assert json.loads(lift_path.read_text(encoding="utf-8"))["source_name"] == "report.html"
 
     right_path = tmp_path / "report-new.html"
     right_path.write_text("<h1>Report Updated</h1><p>$2</p><button>Open</button>", encoding="utf-8")
@@ -92,13 +98,49 @@ def test_cli_compile_json_wraps_stable_manifest(tmp_path):
     manifest = json.loads(out_dir.joinpath("provenance_manifest.json").read_text(encoding="utf-8"))
 
     assert manifest["version"] == 1
+    assert manifest["manifest_schema_version"] == 1
     assert manifest["kind"] == "intent_bundle_compile"
+    assert manifest["artifact_hash"]
+    assert manifest["command_args"] == ["viewspec", "compile", "bundle.json", "--out", "<out>"]
     assert manifest["guarantees"]["network_calls"] == "none"
     assert manifest["guarantees"]["sdk_network_calls"] == "none"
     assert manifest["guarantees"]["artifact_autofetch_network"] == "none"
     assert manifest["external_refs"] == []
     assert manifest["diagnostics"] == []
     assert "nodes" in manifest
+
+
+def test_cli_init_design_doctor_and_check_tamper(tmp_path, capsys):
+    design_path = tmp_path / "DESIGN.md"
+    assert cli_main(["init-design", "--out", str(design_path)]) == 0
+    assert "colors:" in design_path.read_text(encoding="utf-8")
+    assert cli_main(["doctor"]) == 0
+    assert '"pyyaml": true' in capsys.readouterr().out.lower()
+
+    html_path = tmp_path / "report.html"
+    html_path.write_text("<h1>Report</h1>", encoding="utf-8")
+    out_dir = tmp_path / "dist"
+    assert cli_main(["compile", str(html_path), "--design", str(design_path), "--out", str(out_dir)]) == 0
+    assert cli_main(["check", str(out_dir), "--json"]) == 0
+
+    out_dir.joinpath("index.html").write_text("<h1>Tampered</h1>", encoding="utf-8")
+    assert cli_main(["check", str(out_dir)]) == 2
+    assert "artifact_hash does not match" in capsys.readouterr().out
+
+
+def test_cli_check_rejects_machine_local_command_args(tmp_path, capsys):
+    html_path = tmp_path / "report.html"
+    html_path.write_text("<h1>Report</h1>", encoding="utf-8")
+    out_dir = tmp_path / "dist"
+    assert cli_main(["compile", str(html_path), "--out", str(out_dir)]) == 0
+
+    manifest_path = out_dir / "provenance_manifest.json"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest["command_args"] = ["viewspec", "compile", str(html_path)]
+    manifest_path.write_text(json.dumps(manifest, indent=2, sort_keys=True), encoding="utf-8")
+
+    assert cli_main(["check", str(out_dir)]) == 2
+    assert "command_args must not contain absolute paths" in capsys.readouterr().out
 
 
 def test_cli_version_and_design_lint_errors_are_stable(tmp_path, capsys):
@@ -143,3 +185,14 @@ def test_cli_accepts_explicit_stdin_formats(tmp_path, monkeypatch):
     monkeypatch.setattr(sys, "stdin", StringIO(json.dumps(builder.build_bundle().to_json())))
     assert cli_main(["compile", "-", "--stdin-format", "json", "--out", str(json_out)]) == 0
     assert json.loads(json_out.joinpath("provenance_manifest.json").read_text(encoding="utf-8"))["source_name"] == "<stdin>"
+
+
+def test_claude_code_integration_mentions_only_local_commands():
+    root = Path(__file__).resolve().parents[1]
+    text = root.joinpath("integrations/claude-code/SKILL.md").read_text(encoding="utf-8")
+
+    assert "viewspec compile" in text
+    assert "viewspec diff" in text
+    assert "viewspec check" in text
+    assert "viewspec share" not in text
+    assert "api.viewspec.dev" not in text

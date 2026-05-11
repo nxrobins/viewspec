@@ -14,10 +14,15 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
 
+from viewspec._version import __version__
 from viewspec.design_md import DesignSystemContext
 
 
 MAX_HTML_INPUT_BYTES = 5_000_000
+MANIFEST_SCHEMA_VERSION = 1
+RAW_HTML_POLICY_VERSION = "viewspec-raw-html-allowlist@1"
+DIFF_VERSION = 1
+DIFF_BASIS = "lift_v1"
 VOID_TAGS = {"area", "br", "col", "hr", "img", "input", "link", "meta", "source", "track", "wbr"}
 TRANSPARENT_TAGS = {"html", "body"}
 ALLOWED_TAGS = {
@@ -244,6 +249,8 @@ class HtmlSemanticDiff:
 
     def to_json(self) -> dict[str, Any]:
         return {
+            "diff_version": DIFF_VERSION,
+            "basis": DIFF_BASIS,
             "left_source_hash": self.left_source_hash,
             "right_source_hash": self.right_source_hash,
             "topology_similarity": self.topology_similarity,
@@ -355,10 +362,12 @@ def compile_html(
     title: str | None = None,
     *,
     source_name: str | None = None,
+    command_args: list[str] | tuple[str, ...] | None = None,
 ) -> HtmlCompileResult:
     """Compile raw HTML into a governed standalone HTML artifact."""
 
     _check_html_size(html)
+    raw_source_hash = _sha256_text(html)
     parser = _SanitizingHTMLParser()
     parser.feed(html)
     parser.close()
@@ -387,10 +396,17 @@ def compile_html(
     diagnostics = _dedupe_diagnostics([*parser.diagnostics, *lift.diagnostics])
     manifest = {
         "version": 1,
+        "manifest_schema_version": MANIFEST_SCHEMA_VERSION,
         "kind": "raw_html_compile",
+        "sdk_version": __version__,
         "source_name": source_name,
+        "raw_source_hash": raw_source_hash,
         "source_hash": lift.source_hash,
+        "design_hash": design.design_hash if design else None,
+        "artifact_hash": _sha256_text(output_html),
         "command": "compile_html",
+        "command_args": list(command_args or ("compile_html",)),
+        "policy_version": RAW_HTML_POLICY_VERSION,
         "guarantees": {
             "sdk_network_calls": "none",
             "artifact_autofetch_network": "none",
@@ -402,8 +418,10 @@ def compile_html(
         "sanitizer_policy": {
             "version": 1,
             "name": "viewspec-raw-html-allowlist",
+            "policy_version": RAW_HTML_POLICY_VERSION,
         },
         "lift": {
+            "basis": DIFF_BASIS,
             "role_count": len(lift.roles),
             "region_count": len(lift.region_node_ids),
             "group_count": len(lift.group_candidates),
@@ -442,6 +460,10 @@ def _check_html_size(html: str) -> None:
     size = len(html.encode("utf-8"))
     if size > MAX_HTML_INPUT_BYTES:
         raise HtmlInputError("HTML_INPUT_TOO_LARGE", f"Raw HTML exceeds {MAX_HTML_INPUT_BYTES} byte local limit")
+
+
+def _sha256_text(text: str) -> str:
+    return hashlib.sha256(text.encode("utf-8")).hexdigest()
 
 
 def _sanitize_attrs(
