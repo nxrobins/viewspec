@@ -37,6 +37,7 @@ Raw HTML tools remain available only for importing existing HTML: `viewspec comp
 - Optional MCP server: install `viewspec[agents]`, then run `viewspec mcp`.
 - MCP intent tools: `init_intent`, `validate_intent_bundle_file`, `diff_intent_bundle_files`, `compile_intent_bundle_file`, `agent_correction_prompt_file`, `check_artifact`, `init_design`, and `export_agent_assets`.
 - Raw HTML tools are import/fallback only for existing HTML.
+- Generated outputs such as `dist/index.html` and `react-output/ViewSpecView.tsx` are artifacts; edit `viewspec.intent.json` or `DESIGN.md` instead.
 - Agents should output IntentBundle JSON, not CompositionIR, HTML, CSS, React, SwiftUI, or Flutter source for new UI.
 - Agents must not call remote reference libraries by default. If the user explicitly asks for research or repo instructions configure an approved source, references may inform semantic intent only.
 - V1 public SDK motifs: table, dashboard, outline, comparison, list, form, detail, empty_state, hero.

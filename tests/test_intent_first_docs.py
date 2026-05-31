@@ -36,6 +36,23 @@ def test_local_html_wedge_is_explicitly_import_fallback():
     assert "For new UI, agents should emit `viewspec.intent.json`" in text
 
 
+def test_primary_docs_treat_compiled_outputs_as_artifacts():
+    root = Path(__file__).resolve().parents[1]
+    docs = [
+        root / "README.md",
+        root / "docs/getting-started.md",
+        root / "docs/agent-integration.md",
+        root / "demos/llms.txt",
+        root / "demos/llms-full.txt",
+    ]
+
+    for path in docs:
+        text = path.read_text(encoding="utf-8")
+        assert "dist/index.html" in text, path
+        assert "react-output/ViewSpecView.tsx" in text, path
+        assert "viewspec.intent.json" in text, path
+
+
 def test_reference_grounding_is_explicit_opt_in():
     root = Path(__file__).resolve().parents[1]
     docs = [

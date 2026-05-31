@@ -221,7 +221,7 @@ The public SDK agent schema remains V1 and reference-focused. The hosted compile
 
 Hosted extended artifacts must identify that boundary instead of pretending to be local V1 bundles. Public demo artifact indexes use `contract_profile: "hosted_extended_v1"` when the IntentBundle includes hosted-only fields or cross-platform emitters. Do not use local `viewspec validate-intent` as proof for those hosted-extended files; validate local V1 bundles locally and validate hosted-extended bundles through the hosted compiler contract.
 
-In hosted and local workflows, agents still generate IntentBundle JSON for new UI. They should not generate CompositionIR, React, SwiftUI, Flutter, or HTML directly unless the user explicitly asks for emitter source. Raw HTML tools are only for importing existing HTML.
+In hosted and local workflows, agents still generate IntentBundle JSON for new UI. They should not generate CompositionIR, React, SwiftUI, Flutter, or HTML directly unless the user explicitly asks for emitter source. Compiled output directories are generated artifacts, including `dist/index.html` and `react-output/ViewSpecView.tsx`; edit the IntentBundle or DESIGN.md source instead. Raw HTML tools are only for importing existing HTML.
 
 For local V1 React source output, keep the same IntentBundle-first workflow and change only the compile target:
 
