@@ -202,9 +202,14 @@ def test_react_tsx_emitter_writes_component_manifest_and_action_contract(tmp_pat
     assert 'source: "viewspec-react-tsx"' in tsx
     assert "payloadValues: collectPayloadValues" in tsx
     assert "payload: collectPayload" not in tsx
+    assert "export type ViewSpecData = Record<string, unknown>;" in tsx
+    assert "function renderValue(value: unknown, fallback: React.ReactNode): React.ReactNode" in tsx
+    assert 'if (typeof value === "boolean") return value ? "true" : "false";' in tsx
+    assert "return JSON.stringify(value);" in tsx
     assert "React.useState<Record<string, unknown>>" in tsx
     assert "Object.prototype.hasOwnProperty.call(data, bindingId)" in tsx
     assert 'data-binding-id={"message"}' in tsx
+    assert '{renderValue(data["title"], "\\u003cscript\\u003ealert' in tsx
     assert "onAction?.({" in tsx
     assert "<script>alert" not in tsx
     assert "\\u003cscript\\u003ealert" in tsx

@@ -241,7 +241,7 @@ def _text_expression(node: IRNode) -> str:
     fallback = _tsx_string(_node_fallback_text(node))
     binding_id = node.props.get("binding_id")
     if isinstance(binding_id, str) and binding_id:
-        return f"{{data[{_tsx_string(binding_id)}] ?? {fallback}}}"
+        return f"{{renderValue(data[{_tsx_string(binding_id)}], {fallback})}}"
     return f"{{{fallback}}}"
 
 
@@ -393,7 +393,7 @@ def _emit_source(result: CompilerResult, style_values: dict[str, str], title: st
         "  payloadValues: Record<string, unknown>;",
         "};",
         "",
-        "export type ViewSpecData = Record<string, React.ReactNode>;",
+        "export type ViewSpecData = Record<string, unknown>;",
         "",
         "export type ViewSpecViewProps = {",
         "  data?: ViewSpecData;",
@@ -402,6 +402,18 @@ def _emit_source(result: CompilerResult, style_values: dict[str, str], title: st
         "};",
         "",
         f"export const viewspecTitle = {_tsx_string(title)};",
+        "",
+        "function renderValue(value: unknown, fallback: React.ReactNode): React.ReactNode {",
+        "  if (value == null) return fallback;",
+        "  if (React.isValidElement(value)) return value;",
+        "  if (typeof value === \"string\" || typeof value === \"number\") return value;",
+        "  if (typeof value === \"boolean\") return value ? \"true\" : \"false\";",
+        "  try {",
+        "    return JSON.stringify(value);",
+        "  } catch {",
+        "    return fallback;",
+        "  }",
+        "}",
         "",
         "export function ViewSpecView({ data = {}, onAction, className }: ViewSpecViewProps) {",
         f"  const [inputValues, setInputValues] = React.useState<Record<string, unknown>>({input_values});",
