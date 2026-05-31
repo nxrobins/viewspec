@@ -6,6 +6,7 @@ The local HTML wedge is the beta SDK path for existing HTML:
 viewspec compile input.html --design DESIGN.md --out dist/
 viewspec lift input.html --out lift.json
 viewspec diff old.html new.html --json
+viewspec check dist/
 ```
 
 It is intentionally not ViewSpec decompilation. The guarantee is sanitize + theme + manifest + semantic diff.
@@ -24,15 +25,26 @@ It is intentionally not ViewSpec decompilation. The guarantee is sanitize + them
 Required fields:
 
 - `version`
+- `manifest_schema_version`
 - `kind`
+- `sdk_version`
 - `source_name`
+- `raw_source_hash`
 - `source_hash`
+- `design_hash`
+- `artifact_hash`
 - `command`
+- `command_args`
+- `policy_version`
 - `guarantees`
 - `nodes`
 - `diagnostics`
 - `external_refs`
 
 For raw HTML, `source_hash` is SHA-256 of the canonical lifted DOM token stream. It is not a raw file hash.
+`raw_source_hash` is SHA-256 of the original input bytes interpreted as UTF-8 text. `artifact_hash` is SHA-256 of `index.html`.
+`command_args` are normalized to avoid absolute paths, temp paths, and machine-local output directories.
 
 Diagnostics have stable `severity`, `code`, and `message` fields. `node_id` and `path` may appear when the pipeline can locate the finding precisely.
+
+`viewspec check <artifact_dir>` validates the manifest, artifact hash, diagnostics shape, and the no-autofetch policy.

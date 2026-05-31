@@ -1,6 +1,8 @@
 # Hosted Agent Integration
 
-Agents should emit IntentBundle JSON and never CompositionIR. CompositionIR is compiler output.
+This page is for hosted/API integration. The local-first path is agent HTML governance via `viewspec compile`, `viewspec lift`, `viewspec diff`, and `viewspec check`.
+
+For hosted/API integration, agents should emit IntentBundle JSON and never CompositionIR. CompositionIR is compiler output.
 
 For launch, the public SDK remains V1/reference-focused. Hosted compiler capabilities include projections, input bindings, rule bindings, custom motif libraries, React TSX, SwiftUI, and Flutter emitters.
 

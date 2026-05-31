@@ -3,9 +3,9 @@
 from __future__ import annotations
 
 import argparse
+import importlib.util
 import json
 import sys
-import tempfile
 from pathlib import Path
 from typing import Any
 
@@ -13,8 +13,27 @@ from viewspec._version import __version__
 from viewspec.compiler import compile
 from viewspec.design_md import DesignSystemContext, DesignSystemError, load_design_system
 from viewspec.emitters.html_tailwind import HtmlTailwindEmitter
-from viewspec.raw_html import HtmlInputError, compile_html, diff_html, lift_html, write_html_compile_result
+from viewspec.local_tools import (
+    atomic_write,
+    check_artifact_dir,
+    ensure_no_input_overwrite,
+    init_design_file,
+    source_hash,
+)
+from viewspec.mcp_server import MCP_INSTALL_HINT, MissingMCPDependency, mcp_dependency_available, run_mcp_server
+from viewspec.native_agents import VALID_TARGETS, init_agent_instructions
+from viewspec.raw_html import (
+    MANIFEST_SCHEMA_VERSION,
+    HtmlInputError,
+    compile_html,
+    diff_html,
+    lift_html,
+    write_html_compile_result,
+)
 from viewspec.types import IntentBundle
+
+
+BUNDLE_POLICY_VERSION = "viewspec-intent-bundle@1"
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -66,6 +85,31 @@ def _build_parser() -> argparse.ArgumentParser:
     diff_parser.add_argument("--json", action="store_true", help="Print machine-readable JSON.")
     diff_parser.set_defaults(func=_diff_command)
 
+    init_parser = subparsers.add_parser("init-design", help="Write a starter strict DESIGN.md file.")
+    init_parser.add_argument("--out", default="DESIGN.md", help="Output DESIGN.md path.")
+    init_parser.add_argument("--force", action="store_true", help="Overwrite an existing file.")
+    init_parser.set_defaults(func=_init_design_command)
+
+    doctor_parser = subparsers.add_parser("doctor", help="Check local ViewSpec SDK readiness.")
+    doctor_parser.add_argument("--agents", action="store_true", help="Also check native agent integration readiness.")
+    doctor_parser.set_defaults(func=_doctor_command)
+
+    check_parser = subparsers.add_parser("check", help="Validate a local ViewSpec artifact directory.")
+    check_parser.add_argument("artifact_dir", help="Directory containing index.html and provenance_manifest.json.")
+    check_parser.add_argument("--json", action="store_true", help="Print machine-readable JSON.")
+    check_parser.set_defaults(func=_check_command)
+
+    init_agent_parser = subparsers.add_parser("init-agent", help="Install managed ViewSpec instructions for coding agents.")
+    init_agent_parser.add_argument("--target", required=True, choices=VALID_TARGETS, help="Agent instruction target to update.")
+    init_agent_parser.add_argument("--root", default=".", help="Repository root for instruction files.")
+    init_agent_parser.add_argument("--dry-run", action="store_true", help="Report changes without writing files.")
+    init_agent_parser.set_defaults(func=_init_agent_command)
+
+    mcp_parser = subparsers.add_parser("mcp", help="Start the optional ViewSpec stdio MCP server.")
+    mcp_parser.add_argument("--cwd", default=".", help="MCP path sandbox root.")
+    mcp_parser.add_argument("--allow-outside-cwd", action="store_true", help="Allow MCP tools to read/write outside --cwd.")
+    mcp_parser.set_defaults(func=_mcp_command)
+
     return parser
 
 
@@ -76,8 +120,14 @@ def _compile_command(args: argparse.Namespace) -> int:
     design = _load_design(args.design, strict=args.strict_design)
 
     if input_format == "html":
-        _ensure_no_input_overwrite(input_path, out_dir, ("index.html", "provenance_manifest.json", "diagnostics.json", "lift.json"))
-        result = compile_html(data, design=design, title=args.title, source_name=source_name)
+        ensure_no_input_overwrite(input_path, out_dir, ("index.html", "provenance_manifest.json", "diagnostics.json", "lift.json"))
+        result = compile_html(
+            data,
+            design=design,
+            title=args.title,
+            source_name=source_name,
+            command_args=_compile_command_args(args, source_name),
+        )
         paths = write_html_compile_result(result, out_dir, include_lift=bool(args.lift_json))
         print(json.dumps(paths, indent=2, sort_keys=True))
         return 0
@@ -85,13 +135,14 @@ def _compile_command(args: argparse.Namespace) -> int:
     payload = json.loads(data)
     bundle = IntentBundle.from_json(payload)
     ast = compile(bundle, design=design, strict_design=args.strict_design)
-    _ensure_no_input_overwrite(input_path, out_dir, ("index.html", "provenance_manifest.json", "diagnostics.json"))
+    ensure_no_input_overwrite(input_path, out_dir, ("index.html", "provenance_manifest.json", "diagnostics.json"))
     paths = HtmlTailwindEmitter().emit(ast, out_dir)
     _wrap_bundle_manifest(
         Path(paths["manifest"]),
         source_name=source_name,
-        source_hash=_source_hash(data),
+        raw_source_hash=source_hash(data),
         design=design,
+        command_args=_compile_command_args(args, source_name),
     )
     print(json.dumps(paths, indent=2, sort_keys=True))
     return 0
@@ -104,7 +155,7 @@ def _lift_command(args: argparse.Namespace) -> int:
         raise ValueError("Refusing to overwrite input file")
     result = lift_html(data, source_name=source_name)
     output_path.parent.mkdir(parents=True, exist_ok=True)
-    _atomic_write(output_path, json.dumps(result.to_json(), indent=2, sort_keys=True))
+    atomic_write(output_path, json.dumps(result.to_json(), indent=2, sort_keys=True))
     print(str(output_path))
     return 0
 
@@ -130,6 +181,62 @@ def _diff_command(args: argparse.Namespace) -> int:
     return 0
 
 
+def _init_design_command(args: argparse.Namespace) -> int:
+    path = init_design_file(args.out, force=args.force)
+    print(str(path))
+    return 0
+
+
+def _doctor_command(args: argparse.Namespace) -> int:
+    checks = {
+        "viewspec": True,
+        "version": __version__,
+        "pyyaml": importlib.util.find_spec("yaml") is not None,
+        "cli": callable(main),
+        "local_network_policy": "no network calls for compile/lift/diff",
+    }
+    if args.agents:
+        checks.update(
+            {
+                "agent_instruction_templates": True,
+                "mcp_dependency": mcp_dependency_available(),
+                "mcp_install_hint": MCP_INSTALL_HINT,
+                "path_policy": "cwd containment by default",
+            }
+        )
+    ok = all(value is not False for value in checks.values())
+    print(json.dumps({"ok": ok, "checks": checks}, indent=2, sort_keys=True))
+    return 0 if ok else 2
+
+
+def _check_command(args: argparse.Namespace) -> int:
+    result = check_artifact_dir(Path(args.artifact_dir))
+    if args.json:
+        print(json.dumps(result, indent=2, sort_keys=True))
+    else:
+        print("ok" if result["ok"] else "failed")
+        for error in result["errors"]:
+            print(f"error: {error}")
+        for warning in result["warnings"]:
+            print(f"warning: {warning}")
+    return 0 if result["ok"] else 2
+
+
+def _init_agent_command(args: argparse.Namespace) -> int:
+    result = init_agent_instructions(args.root, args.target, dry_run=args.dry_run)
+    print(json.dumps(result, indent=2, sort_keys=True))
+    return 0
+
+
+def _mcp_command(args: argparse.Namespace) -> int:
+    try:
+        run_mcp_server(cwd=args.cwd, allow_outside_cwd=args.allow_outside_cwd)
+    except MissingMCPDependency:
+        print(MCP_INSTALL_HINT, file=sys.stderr)
+        return 2
+    return 0
+
+
 def _load_design(path: str | None, *, strict: bool) -> DesignSystemContext | None:
     if not path:
         return None
@@ -142,7 +249,7 @@ def _read_input(path_arg: str, *, stdin_format: str | None) -> tuple[str, str | 
             raise ValueError("--stdin-format is required when input is '-'")
         return sys.stdin.read(), "<stdin>", None
     path = Path(path_arg)
-    return path.read_text(encoding="utf-8"), str(path), path
+    return path.read_text(encoding="utf-8"), path.name, path
 
 
 def _input_format(path_arg: str, stdin_format: str | None) -> str:
@@ -158,30 +265,30 @@ def _input_format(path_arg: str, stdin_format: str | None) -> str:
     raise ValueError("Input must be .html, .htm, .json, or '-' with --stdin-format")
 
 
-def _ensure_no_input_overwrite(input_path: Path | None, out_dir: Path, output_names: tuple[str, ...]) -> None:
-    if input_path is None:
-        return
-    input_resolved = input_path.resolve()
-    out_resolved = out_dir.resolve()
-    for name in output_names:
-        if input_resolved == (out_resolved / name).resolve():
-            raise ValueError(f"Refusing to overwrite input file with output {name}")
-
-
 def _wrap_bundle_manifest(
     manifest_path: Path,
     *,
     source_name: str | None,
-    source_hash: str,
+    raw_source_hash: str,
     design: DesignSystemContext | None,
+    command_args: list[str],
 ) -> None:
     existing = json.loads(manifest_path.read_text(encoding="utf-8"))
+    html_path = manifest_path.with_name("index.html")
+    artifact_hash = source_hash(html_path.read_text(encoding="utf-8")) if html_path.exists() else None
     wrapped: dict[str, Any] = {
         "version": 1,
+        "manifest_schema_version": MANIFEST_SCHEMA_VERSION,
         "kind": "intent_bundle_compile",
+        "sdk_version": __version__,
         "source_name": source_name,
-        "source_hash": source_hash,
+        "raw_source_hash": raw_source_hash,
+        "source_hash": raw_source_hash,
+        "design_hash": design.design_hash if design else None,
+        "artifact_hash": artifact_hash,
         "command": "compile",
+        "command_args": command_args,
+        "policy_version": BUNDLE_POLICY_VERSION,
         "guarantees": {
             "sdk_network_calls": "none",
             "artifact_autofetch_network": "none",
@@ -194,34 +301,23 @@ def _wrap_bundle_manifest(
     }
     if design is not None:
         wrapped["design"] = design.to_meta()
-    _atomic_write(manifest_path, json.dumps(wrapped, indent=2, sort_keys=True))
+    atomic_write(manifest_path, json.dumps(wrapped, indent=2, sort_keys=True))
 
 
-def _source_hash(text: str) -> str:
-    import hashlib
-
-    return hashlib.sha256(text.encode("utf-8")).hexdigest()
-
-
-def _atomic_write(path: Path, text: str) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    temp_name: str | None = None
-    try:
-        with tempfile.NamedTemporaryFile(
-            "w",
-            encoding="utf-8",
-            dir=path.parent,
-            prefix=f".{path.name}.",
-            suffix=".tmp",
-            delete=False,
-        ) as handle:
-            temp_name = handle.name
-            handle.write(text)
-        Path(temp_name).replace(path)
-    except Exception:
-        if temp_name:
-            Path(temp_name).unlink(missing_ok=True)
-        raise
+def _compile_command_args(args: argparse.Namespace, source_name: str | None) -> list[str]:
+    command = ["viewspec", "compile", source_name or "<stdin>"]
+    if args.design:
+        command.extend(["--design", Path(args.design).name])
+    if args.strict_design:
+        command.append("--strict-design")
+    command.extend(["--out", "<out>"])
+    if args.stdin_format:
+        command.extend(["--stdin-format", args.stdin_format])
+    if args.title:
+        command.extend(["--title", args.title])
+    if args.lift_json:
+        command.append("--lift-json")
+    return command
 
 
 def _print_design_error(exc: DesignSystemError) -> None:

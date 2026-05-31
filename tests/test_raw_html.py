@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import re
 import socket
@@ -98,6 +99,8 @@ def test_diff_html_reports_narrow_semantic_changes():
     payload = result.to_json()
 
     assert payload["changed_headings"] == {"removed": ["Old"], "added": ["New"]}
+    assert payload["diff_version"] == 1
+    assert payload["basis"] == "lift_v1"
     assert payload["changed_values"] == {"removed": ["$1"], "added": ["$2"]}
     assert payload["changed_lists"]["added"] == [["B"]]
     assert payload["changed_tables"]["removed"] == [["$1"]]
@@ -152,16 +155,29 @@ def test_manifest_contract_is_stable_and_diagnostics_are_deduped():
 
     assert {
         "version",
+        "manifest_schema_version",
         "kind",
+        "sdk_version",
         "source_name",
+        "raw_source_hash",
         "source_hash",
+        "design_hash",
+        "artifact_hash",
         "command",
+        "command_args",
+        "policy_version",
         "guarantees",
         "nodes",
         "diagnostics",
         "external_refs",
     }.issubset(manifest)
     assert all({"severity", "code", "message"}.issubset(item) for item in manifest["diagnostics"])
+    assert manifest["manifest_schema_version"] == 1
+    assert manifest["artifact_hash"] == hashlib.sha256(result.html.encode("utf-8")).hexdigest()
+    assert manifest["raw_source_hash"] == hashlib.sha256(
+        '<p onclick="x()" onmouseover="y()">Hello</p><a href="javascript:bad()">Open</a>'.encode("utf-8")
+    ).hexdigest()
+    assert manifest["command_args"] == ["compile_html"]
     keys = {(item["code"], item.get("node_id", ""), item.get("path", ""), item["message"]) for item in result.diagnostics}
     assert len(keys) == len(result.diagnostics)
     assert result.lift.source_hash == lift_html('<p onclick="other()">Hello</p><a>Open</a>').source_hash
@@ -177,7 +193,17 @@ def test_manifest_v1_schema_and_golden_fixture_match_generated_shape():
     for field, value in golden.items():
         assert manifest[field] == value
     assert re.fullmatch(schema["properties"]["source_hash"]["pattern"], manifest["source_hash"])
+    assert re.fullmatch(schema["properties"]["artifact_hash"]["pattern"], manifest["artifact_hash"])
     assert isinstance(manifest["nodes"], dict)
+
+
+def test_design_hash_changes_with_design_content():
+    first = compile_html("<h1>Report</h1>", design=load_design_system(content=DESIGN))
+    second_design = DESIGN.replace("#123456", "#654321")
+    second = compile_html("<h1>Report</h1>", design=load_design_system(content=second_design))
+
+    assert first.manifest["design_hash"] != second.manifest["design_hash"]
+    assert first.manifest["source_hash"] == second.manifest["source_hash"]
 
 
 def test_raw_html_artifact_has_no_autofetch_vectors():
