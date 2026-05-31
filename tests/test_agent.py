@@ -170,6 +170,12 @@ def test_published_agent_schema_matches_runtime_contract():
     assert published == AGENT_INTENT_BUNDLE_SCHEMA
 
 
+def test_published_agent_prompt_matches_runtime_contract():
+    published = ROOT.joinpath("demos/agent-system-prompt.txt").read_text(encoding="utf-8")
+
+    assert published == AGENT_SYSTEM_PROMPT
+
+
 def test_rejects_substrate_nodes_array():
     payload = _bundle_for_motif("dashboard")
     payload["substrate"]["nodes"] = list(payload["substrate"]["nodes"].values())
