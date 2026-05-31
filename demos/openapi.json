@@ -2,8 +2,8 @@
   "openapi": "3.1.0",
   "info": {
     "title": "ViewSpec Hosted Compiler API",
-    "summary": "Compile agent-native ViewSpec IntentBundles into portable CompositionIR and provenance.",
-    "description": "ViewSpec is an agent-native UI IR and semantic UI compiler API for deterministic cross-platform UI generation.",
+    "summary": "Compile agent-native ViewSpec IntentBundles into portable UI artifacts and provenance.",
+    "description": "ViewSpec is an agent-native UI compiler API for deterministic cross-platform UI generation.",
     "version": "1.0.0",
     "license": {
       "name": "MIT",

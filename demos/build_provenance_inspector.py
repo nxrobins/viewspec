@@ -9,6 +9,7 @@ from typing import Any
 from viewspec import IntentBundle, ViewSpecBuilder, compile
 from viewspec.emitters.html_tailwind import ACTION_EVENT_SCRIPT, _render_node
 from viewspec.types import ASTBundle, DEFAULT_STYLE_TOKEN_VALUES
+from seo_metadata import demo_head_metadata
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -90,6 +91,11 @@ def build_page(fragment: str, data: dict[str, Any], bundle: IntentBundle) -> str
     binding_count = len(bundle.view_spec.bindings)
     semantic_count = len(bundle.substrate.nodes)
     manifest_count = len(data["manifest"])
+    head_meta = demo_head_metadata(
+        title="ViewSpec Demo - Provenance Inspector",
+        description="Inspect a compiled ViewSpec artifact from DOM element to CompositionIR node, binding, canonical address, semantic node, and raw source value.",
+        canonical_path="provenance-inspector",
+    )
 
     return f"""<!DOCTYPE html>
 <html lang="en">
@@ -97,6 +103,7 @@ def build_page(fragment: str, data: dict[str, Any], bundle: IntentBundle) -> str
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>ViewSpec Demo - Provenance Inspector</title>
+{head_meta}
   <link rel="icon" href="data:,">
   <script src="https://cdn.tailwindcss.com"></script>
   <script type="module" src="../shared/pretext-canvas-surfaces.js"></script>

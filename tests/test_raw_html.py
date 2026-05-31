@@ -56,6 +56,8 @@ def test_compile_html_sanitizes_active_content_and_writes_manifest(tmp_path):
     assert result.manifest["guarantees"]["sdk_network_calls"] == "none"
     assert result.manifest["guarantees"]["artifact_autofetch_network"] == "none"
     assert result.manifest["guarantees"]["decompilation"] == "not_claimed"
+    assert result.manifest["design"]["design_hash"] == result.manifest["design_hash"]
+    assert result.manifest["design"]["lint_summary"] == {"errors": 0, "warnings": 0, "info": 0}
     assert result.manifest["external_refs"] == [
         {"attr": "src", "behavior": "inert_placeholder", "kind": "image", "url": "https://example.com/chart.png"},
     ]
@@ -66,7 +68,46 @@ def test_compile_html_sanitizes_active_content_and_writes_manifest(tmp_path):
     assert set(paths) == {"html", "manifest", "diagnostics", "lift"}
     manifest = json.loads(tmp_path.joinpath("provenance_manifest.json").read_text(encoding="utf-8"))
     assert manifest["source_hash"] == result.lift.source_hash
+    assert manifest["design"]["name"] == "Acme"
     assert tmp_path.joinpath("lift.json").exists()
+
+
+def test_design_tokens_cannot_inject_css_or_autofetch_into_raw_html():
+    design = load_design_system(
+        content="""---
+name: Unsafe Theme
+typography:
+  body:
+    fontFamily: "Inter; background:url(https://evil.example/font)"
+    fontWeight: true
+    fontSize: true
+    lineHeight: -1
+  heading:
+    fontFamily: "Heading; color:red"
+spacing:
+  md: "1rem; background:url(https://evil.example/space)"
+  card: true
+rounded:
+  md: "10px; background:url(https://evil.example/radius)"
+---
+"""
+    )
+
+    result = compile_html("<h1>Report</h1><p>Body</p>", design=design)
+
+    assert "typography.body.fontFamily" in design.ignored_tokens
+    assert "typography.body.fontWeight" in design.ignored_tokens
+    assert "typography.body.fontSize" in design.ignored_tokens
+    assert "typography.body.lineHeight" in design.ignored_tokens
+    assert "typography.heading.fontFamily" in design.ignored_tokens
+    assert "spacing.md" in design.ignored_tokens
+    assert "spacing.card" in design.ignored_tokens
+    assert "rounded.md" in design.ignored_tokens
+    assert "evil.example" not in result.html
+    assert "background:url" not in result.html
+    assert "font-family:ui-sans-serif, system-ui, sans-serif" in result.html
+    assert "--vs-gap:1rem;" in result.html
+    assert "--vs-radius:10px;" in result.html
 
 
 def test_lift_html_reports_roles_groups_and_stable_topology():
@@ -195,6 +236,82 @@ def test_manifest_v1_schema_and_golden_fixture_match_generated_shape():
     assert re.fullmatch(schema["properties"]["source_hash"]["pattern"], manifest["source_hash"])
     assert re.fullmatch(schema["properties"]["artifact_hash"]["pattern"], manifest["artifact_hash"])
     assert isinstance(manifest["nodes"], dict)
+    assert schema["properties"]["design"]["$ref"] == "#/$defs/designMetadata"
+    assert schema["properties"]["guarantees"]["required"] == [
+        "sdk_network_calls",
+        "artifact_autofetch_network",
+        "network_calls",
+        "decompilation",
+    ]
+    raw_clause = next(item for item in schema["allOf"] if item["if"]["properties"]["kind"]["const"] == "raw_html_compile")
+    intent_clause = next(item for item in schema["allOf"] if item["if"]["properties"]["kind"]["const"] == "intent_bundle_compile")
+    assert raw_clause["then"]["properties"]["command"]["const"] == "compile_html"
+    assert raw_clause["then"]["properties"]["policy_version"]["const"] == "viewspec-raw-html-allowlist@1"
+    assert raw_clause["then"]["properties"]["nodes"]["additionalProperties"]["$ref"] == "#/$defs/rawHtmlNode"
+    assert raw_clause["then"]["properties"]["guarantees"]["properties"]["decompilation"]["const"] == "not_claimed"
+    assert intent_clause["then"]["properties"]["command"]["const"] == "compile"
+    assert intent_clause["then"]["properties"]["policy_version"]["const"] == "viewspec-intent-bundle@1"
+    assert intent_clause["then"]["properties"]["nodes"]["additionalProperties"]["$ref"] == "#/$defs/intentBundleNode"
+    assert intent_clause["then"]["properties"]["guarantees"]["properties"]["decompilation"]["const"] == "not_applicable"
+    assert schema["$defs"]["intentBundleNode"]["required"] == [
+        "ir_id",
+        "primitive",
+        "content_refs",
+        "intent_refs",
+        "style_tokens",
+        "props",
+    ]
+    assert schema["$defs"]["designMetadata"]["required"] == [
+        "name",
+        "design_hash",
+        "lint_summary",
+        "findings",
+        "applied_tokens",
+        "ignored_tokens",
+        "dropped_tokens",
+        "mode_defaults",
+    ]
+
+
+def test_manifest_v1_schema_documents_intent_trust_boundary(tmp_path):
+    schema = json.loads(ROOT.joinpath("docs/manifest-v1.schema.json").read_text(encoding="utf-8"))
+    intent_node_schema = schema["$defs"]["intentBundleNode"]
+
+    assert schema["$defs"]["safeId"]["pattern"] == "^[A-Za-z0-9_.-]+$"
+    assert schema["$defs"]["viewspecIntentRef"]["pattern"] == "^viewspec:(view|region|binding|group|motif|style|action):[A-Za-z0-9_.-]+$"
+    assert intent_node_schema["properties"]["ir_id"]["$ref"] == "#/$defs/safeId"
+    assert intent_node_schema["properties"]["intent_refs"]["minItems"] == 1
+    assert intent_node_schema["properties"]["props"]["properties"]["binding_id"]["$ref"] == "#/$defs/safeId"
+    assert intent_node_schema["properties"]["props"]["properties"]["action_id"]["$ref"] == "#/$defs/safeId"
+    assert intent_node_schema["properties"]["props"]["properties"]["target_ref"]["pattern"] == "^(region|binding|motif|view):[A-Za-z0-9_.-]+$"
+    assert intent_node_schema["properties"]["props"]["properties"]["detail_role"]["enum"] == ["term", "description"]
+    assert intent_node_schema["properties"]["props"]["properties"]["empty_state_role"]["enum"] == ["title", "description", "detail"]
+    assert intent_node_schema["allOf"][0]["then"]["properties"]["content_refs"]["$ref"] == "#/$defs/nonEmptyStringList"
+    assert intent_node_schema["allOf"][1]["then"]["properties"]["props"]["required"] == [
+        "action_id",
+        "action_kind",
+        "payload_bindings",
+    ]
+
+    builder = ViewSpecBuilder("schema_intent")
+    table = builder.add_table("items", region="main", group_id="rows")
+    table.add_row(label="Alpha", value="1", id="alpha")
+    builder.add_action("open_alpha", "select", "Open Alpha", target_region="main", target_ref="binding:alpha_label")
+    bundle_path = tmp_path / "viewspec.intent.json"
+    bundle_path.write_text(json.dumps(builder.build_bundle().to_json()), encoding="utf-8")
+    out_dir = tmp_path / "dist"
+
+    assert cli_main(["compile", str(bundle_path), "--out", str(out_dir)]) == 0
+    manifest = json.loads(out_dir.joinpath("provenance_manifest.json").read_text(encoding="utf-8"))
+    binding_entry = manifest["nodes"]["dom-binding_alpha_label"]
+    action_entry = manifest["nodes"]["dom-action_open_alpha"]
+
+    assert re.fullmatch(schema["$defs"]["safeId"]["pattern"], binding_entry["ir_id"])
+    assert binding_entry["content_refs"] == ["node:alpha#attr:label"]
+    assert binding_entry["intent_refs"] == ["viewspec:binding:alpha_label"]
+    assert action_entry["props"]["target_ref"] == "binding:alpha_label"
+    assert action_entry["props"]["action_kind"] == "select"
+    assert action_entry["props"]["payload_bindings"] == []
 
 
 def test_design_hash_changes_with_design_content():

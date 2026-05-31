@@ -1,33 +1,48 @@
-# ViewSpec Local HTML Governance
+# ViewSpec Agent-Native UI Intent
 
-Use this skill when an agent creates or edits an HTML report, explainer, architecture note, dashboard, or other human-readable artifact.
+Use this skill when an agent creates a new human-facing UI artifact, report, dashboard, explainer, or product surface.
 
 ## Rules
 
-- Emit plain HTML first. Do not emit framework code unless the user asks for it.
-- Keep the source HTML local. Do not upload, fetch, or call remote services.
-- If a `DESIGN.md` file exists, compile with it.
-- Treat compiled output as a governed artifact, not as the source file.
-- Use `viewspec diff` before summarizing changes between two HTML versions.
+- Emit `viewspec.intent.json` as ViewSpec IntentBundle JSON for new UI.
+- Use `viewspec init-intent --out viewspec.intent.json` only as a scaffold; replace sample content with the user's actual intent before compiling.
+- Do not write HTML, CSS, React, SwiftUI, Flutter, or CompositionIR as source unless the user explicitly asks for emitter code.
+- If validation fails, regenerate the full IntentBundle using the correction prompt.
+- If `DESIGN.md` is missing, run `viewspec init-design --out DESIGN.md` once before compiling.
+- If a `DESIGN.md` file exists, compile with it through ViewSpec.
+- Treat compiled output as an artifact, not as the editable source.
+- Use raw HTML commands only when importing existing HTML.
 
 ## Commands
 
-Compile an HTML artifact locally:
+Create a starter IntentBundle scaffold:
 
 ```bash
-viewspec compile report.html --design DESIGN.md --out dist/
+viewspec init-intent --out viewspec.intent.json
 ```
 
-Compile without a design file:
+Create a starter local design file if the repo does not already have one:
 
 ```bash
-viewspec compile report.html --out dist/
+viewspec init-design --out DESIGN.md
 ```
 
-Diff two HTML versions using local lift signals:
+Validate the IntentBundle:
 
 ```bash
-viewspec diff report-v1.html report-v2.html --json
+viewspec validate-intent viewspec.intent.json --json
+```
+
+Diff two IntentBundle revisions:
+
+```bash
+viewspec diff-intent old.intent.json new.intent.json --json
+```
+
+Compile the IntentBundle locally:
+
+```bash
+viewspec compile viewspec.intent.json --design DESIGN.md --out dist/
 ```
 
 Validate a compiled artifact directory:
@@ -36,10 +51,10 @@ Validate a compiled artifact directory:
 viewspec check dist/
 ```
 
-Create a starter local design file:
+Diff two imported HTML versions using local lift signals:
 
 ```bash
-viewspec init-design --out DESIGN.md
+viewspec diff report-v1.html report-v2.html --json
 ```
 
 Check local SDK readiness:
@@ -55,6 +70,5 @@ Compiled output is written to the selected output directory:
 - `index.html`
 - `provenance_manifest.json`
 - `diagnostics.json`
-- optional `lift.json` when `--lift-json` is used
 
-The manifest is the trust boundary. It records SDK version, source hashes, design hash, artifact hash, sanitizer policy, command arguments, diagnostics, and external references.
+The manifest is the trust boundary. It records SDK version, source hashes, design hash, artifact hash, compiler policy, command arguments, diagnostics, and external references.

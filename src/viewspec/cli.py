@@ -7,12 +7,23 @@ import importlib.util
 import json
 import sys
 from pathlib import Path
-from typing import Any
 
 from viewspec._version import __version__
 from viewspec.compiler import compile
 from viewspec.design_md import DesignSystemContext, DesignSystemError, load_design_system
 from viewspec.emitters.html_tailwind import HtmlTailwindEmitter
+from viewspec.intent_tools import (
+    STARTER_INTENT_KINDS,
+    diff_intent_files,
+    diff_intent_text,
+    init_intent_file,
+    intent_diff_error_payload,
+    intent_error_payload,
+    starter_intent_bundle,
+    validate_intent_file,
+    validate_intent_text,
+    wrap_intent_bundle_manifest,
+)
 from viewspec.local_tools import (
     atomic_write,
     check_artifact_dir,
@@ -21,19 +32,9 @@ from viewspec.local_tools import (
     source_hash,
 )
 from viewspec.mcp_server import MCP_INSTALL_HINT, MissingMCPDependency, mcp_dependency_available, run_mcp_server
-from viewspec.native_agents import VALID_TARGETS, init_agent_instructions
-from viewspec.raw_html import (
-    MANIFEST_SCHEMA_VERSION,
-    HtmlInputError,
-    compile_html,
-    diff_html,
-    lift_html,
-    write_html_compile_result,
-)
+from viewspec.native_agents import NativeAgentError, VALID_TARGETS, init_agent_instructions
+from viewspec.raw_html import HtmlInputError, compile_html, diff_html, lift_html, write_html_compile_result
 from viewspec.types import IntentBundle
-
-
-BUNDLE_POLICY_VERSION = "viewspec-intent-bundle@1"
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -45,6 +46,9 @@ def main(argv: list[str] | None = None) -> int:
         _print_design_error(exc)
         return 2
     except HtmlInputError as exc:
+        print(f"error: {exc.code}: {exc}", file=sys.stderr)
+        return 2
+    except NativeAgentError as exc:
         print(f"error: {exc.code}: {exc}", file=sys.stderr)
         return 2
     except (FileNotFoundError, ValueError, TypeError, json.JSONDecodeError) as exc:
@@ -63,8 +67,18 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--version", action="version", version=f"viewspec {__version__}")
     subparsers = parser.add_subparsers(dest="command", required=True)
 
-    compile_parser = subparsers.add_parser("compile", help="Compile raw HTML or an IntentBundle JSON file locally.")
-    compile_parser.add_argument("input", help="Input .html/.htm/.json file, or '-' for stdin.")
+    validate_parser = subparsers.add_parser("validate-intent", help="Validate a ViewSpec IntentBundle JSON file.")
+    validate_parser.add_argument("input", help="Input strict IntentBundle .json file.")
+    validate_parser.add_argument("--json", action="store_true", help="Print machine-readable JSON.")
+    validate_parser.add_argument(
+        "--no-compile-check",
+        action="store_true",
+        help="Skip local compiler support validation and only validate the agent contract.",
+    )
+    validate_parser.set_defaults(func=_validate_intent_command)
+
+    compile_parser = subparsers.add_parser("compile", help="Compile an IntentBundle JSON or imported raw HTML locally.")
+    compile_parser.add_argument("input", help="Input .json IntentBundle, imported .html/.htm file, or '-' for stdin.")
     compile_parser.add_argument("--design", help="Optional DESIGN.md file to apply locally.")
     compile_parser.add_argument("--strict-design", action="store_true", help="Fail on DESIGN.md warnings as well as errors.")
     compile_parser.add_argument("--out", required=True, help="Output directory.")
@@ -85,10 +99,27 @@ def _build_parser() -> argparse.ArgumentParser:
     diff_parser.add_argument("--json", action="store_true", help="Print machine-readable JSON.")
     diff_parser.set_defaults(func=_diff_command)
 
+    diff_intent_parser = subparsers.add_parser("diff-intent", help="Diff two ViewSpec IntentBundle JSON files semantically.")
+    diff_intent_parser.add_argument("left", help="Old/left IntentBundle .json file.")
+    diff_intent_parser.add_argument("right", help="New/right IntentBundle .json file.")
+    diff_intent_parser.add_argument("--json", action="store_true", help="Print machine-readable JSON.")
+    diff_intent_parser.add_argument(
+        "--no-compile-check",
+        action="store_true",
+        help="Skip local compiler support validation and only validate the agent contract before diffing.",
+    )
+    diff_intent_parser.set_defaults(func=_diff_intent_command)
+
     init_parser = subparsers.add_parser("init-design", help="Write a starter strict DESIGN.md file.")
     init_parser.add_argument("--out", default="DESIGN.md", help="Output DESIGN.md path.")
     init_parser.add_argument("--force", action="store_true", help="Overwrite an existing file.")
     init_parser.set_defaults(func=_init_design_command)
+
+    init_intent_parser = subparsers.add_parser("init-intent", help="Write a starter ViewSpec IntentBundle JSON file.")
+    init_intent_parser.add_argument("--out", default="viewspec.intent.json", help="Output IntentBundle JSON path.")
+    init_intent_parser.add_argument("--kind", default="dashboard", choices=STARTER_INTENT_KINDS, help="Starter motif kind.")
+    init_intent_parser.add_argument("--force", action="store_true", help="Overwrite an existing file.")
+    init_intent_parser.set_defaults(func=_init_intent_command)
 
     doctor_parser = subparsers.add_parser("doctor", help="Check local ViewSpec SDK readiness.")
     doctor_parser.add_argument("--agents", action="store_true", help="Also check native agent integration readiness.")
@@ -117,9 +148,9 @@ def _compile_command(args: argparse.Namespace) -> int:
     data, source_name, input_path = _read_input(args.input, stdin_format=args.stdin_format)
     input_format = _input_format(args.input, args.stdin_format)
     out_dir = Path(args.out)
-    design = _load_design(args.design, strict=args.strict_design)
 
     if input_format == "html":
+        design = _load_design(args.design, strict=args.strict_design)
         ensure_no_input_overwrite(input_path, out_dir, ("index.html", "provenance_manifest.json", "diagnostics.json", "lift.json"))
         result = compile_html(
             data,
@@ -132,12 +163,17 @@ def _compile_command(args: argparse.Namespace) -> int:
         print(json.dumps(paths, indent=2, sort_keys=True))
         return 0
 
+    validation = validate_intent_text(data, compile_check=True)
+    if not validation["ok"]:
+        _print_intent_validation_failure(validation)
+        return 2
+    ensure_no_input_overwrite(input_path, out_dir, ("index.html", "provenance_manifest.json", "diagnostics.json"))
+    design = _load_design(args.design, strict=args.strict_design)
     payload = json.loads(data)
     bundle = IntentBundle.from_json(payload)
     ast = compile(bundle, design=design, strict_design=args.strict_design)
-    ensure_no_input_overwrite(input_path, out_dir, ("index.html", "provenance_manifest.json", "diagnostics.json"))
     paths = HtmlTailwindEmitter().emit(ast, out_dir)
-    _wrap_bundle_manifest(
+    wrap_intent_bundle_manifest(
         Path(paths["manifest"]),
         source_name=source_name,
         raw_source_hash=source_hash(data),
@@ -146,6 +182,43 @@ def _compile_command(args: argparse.Namespace) -> int:
     )
     print(json.dumps(paths, indent=2, sort_keys=True))
     return 0
+
+
+def _validate_intent_command(args: argparse.Namespace) -> int:
+    compile_check = not args.no_compile_check
+    try:
+        payload = validate_intent_file(args.input, compile_check=compile_check)
+    except FileNotFoundError:
+        payload = intent_error_payload(
+            "INTENT_FILE_NOT_FOUND",
+            f"Intent file not found: {args.input}",
+            "Create viewspec.intent.json or pass the correct intent file path.",
+            compile_check=compile_check,
+        )
+    except OSError as exc:
+        payload = intent_error_payload(
+            "INTENT_FILE_READ_ERROR",
+            f"Could not read intent file {args.input}: {exc}",
+            "Use a readable local IntentBundle JSON file.",
+            compile_check=compile_check,
+        )
+    if args.json:
+        print(json.dumps(payload, indent=2, sort_keys=True))
+    elif payload["ok"]:
+        print(f"ok: compile_check={payload['compile_check']}")
+    else:
+        print(f"failed: compile_check={payload['compile_check']}")
+        for issue in payload["issues"]:
+            print(f"{issue['severity']}: {issue['code']} at {issue['path']}: {issue['message']}")
+        if payload["correction_prompt"]:
+            print("correction_prompt:")
+            print(payload["correction_prompt"])
+    return 0 if payload["ok"] else 2
+
+
+def _print_intent_validation_failure(payload: dict[str, object]) -> None:
+    print("error: IntentBundle validation failed", file=sys.stderr)
+    print(json.dumps(payload, indent=2, sort_keys=True), file=sys.stderr)
 
 
 def _lift_command(args: argparse.Namespace) -> int:
@@ -163,12 +236,32 @@ def _lift_command(args: argparse.Namespace) -> int:
 def _diff_command(args: argparse.Namespace) -> int:
     left = Path(args.left)
     right = Path(args.right)
-    result = diff_html(
-        left.read_text(encoding="utf-8"),
-        right.read_text(encoding="utf-8"),
-        left_name=str(left),
-        right_name=str(right),
-    )
+    try:
+        left_html = left.read_text(encoding="utf-8")
+        right_html = right.read_text(encoding="utf-8")
+    except OSError as exc:
+        if args.json:
+            print(
+                json.dumps(
+                    {
+                        "diff_version": 1,
+                        "basis": "lift_v1",
+                        "ok": False,
+                        "errors": [
+                            {
+                                "code": "DIFF_INPUT_READ_ERROR",
+                                "message": str(exc),
+                                "fix": "Pass two readable local HTML files.",
+                            }
+                        ],
+                    },
+                    indent=2,
+                    sort_keys=True,
+                )
+            )
+            return 2
+        raise
+    result = diff_html(left_html, right_html, left_name=str(left), right_name=str(right))
     payload = result.to_json()
     if args.json:
         print(json.dumps(payload, indent=2, sort_keys=True))
@@ -181,19 +274,62 @@ def _diff_command(args: argparse.Namespace) -> int:
     return 0
 
 
+def _diff_intent_command(args: argparse.Namespace) -> int:
+    compile_check = not args.no_compile_check
+    try:
+        payload = diff_intent_files(args.left, args.right, compile_check=compile_check)
+    except OSError as exc:
+        payload = intent_diff_error_payload(
+            "DIFF_INPUT_READ_ERROR",
+            str(exc),
+            "Pass two readable local IntentBundle JSON files.",
+        )
+    if args.json:
+        print(json.dumps(payload, indent=2, sort_keys=True))
+    elif payload["ok"]:
+        print(f"topology_similarity: {payload['topology_similarity']}")
+        for section, changes in payload["changes"].items():
+            if changes["added"] or changes["removed"] or changes["changed"]:
+                print(
+                    f"{section}: +{changes['added']} -{changes['removed']} changed={changes['changed']}"
+                )
+    else:
+        print("failed: IntentBundle diff could not be computed")
+        for error in payload["errors"]:
+            side = f"{error['side']}: " if "side" in error else ""
+            print(f"{side}{error['code']}: {error['message']}")
+    return 0 if payload["ok"] else 2
+
+
 def _init_design_command(args: argparse.Namespace) -> int:
     path = init_design_file(args.out, force=args.force)
     print(str(path))
     return 0
 
 
+def _init_intent_command(args: argparse.Namespace) -> int:
+    path = init_intent_file(args.out, kind=args.kind, force=args.force)
+    print(str(path))
+    return 0
+
+
 def _doctor_command(args: argparse.Namespace) -> int:
+    intent_pipeline = _doctor_intent_pipeline()
     checks = {
         "viewspec": True,
         "version": __version__,
         "pyyaml": importlib.util.find_spec("yaml") is not None,
         "cli": callable(main),
-        "local_network_policy": "no network calls for compile/lift/diff",
+        "intent_first_commands": {
+            "init_intent": True,
+            "validate_intent": True,
+            "diff_intent": True,
+            "compile": True,
+            "check": True,
+            "init_design": True,
+        },
+        "intent_pipeline": intent_pipeline,
+        "local_network_policy": "no network calls for validate-intent/compile/lift/diff/diff-intent/check/init-intent/init-design",
     }
     if args.agents:
         checks.update(
@@ -204,9 +340,52 @@ def _doctor_command(args: argparse.Namespace) -> int:
                 "path_policy": "cwd containment by default",
             }
         )
-    ok = all(value is not False for value in checks.values())
+    ok = _doctor_checks_ok(checks)
     print(json.dumps({"ok": ok, "checks": checks}, indent=2, sort_keys=True))
     return 0 if ok else 2
+
+
+def _doctor_intent_pipeline() -> dict[str, object]:
+    try:
+        bundle = starter_intent_bundle("dashboard")
+        text = json.dumps(bundle.to_json(), sort_keys=True)
+        validation = validate_intent_text(text, compile_check=True)
+        if not validation["ok"]:
+            return {
+                "ok": False,
+                "validate_intent": False,
+                "compile_check": validation["compile_check"],
+                "diff_intent": False,
+                "message": "starter IntentBundle failed validation",
+            }
+        diff = diff_intent_text(text, text, compile_check=False)
+        ast = compile(bundle)
+        return {
+            "ok": bool(diff["ok"] and ast.result.root.root.id),
+            "validate_intent": True,
+            "compile_check": validation["compile_check"],
+            "diff_intent": bool(diff["ok"]),
+            "reference_compile": bool(ast.result.root.root.id),
+        }
+    except Exception as exc:
+        return {
+            "ok": False,
+            "validate_intent": False,
+            "compile_check": "failed",
+            "diff_intent": False,
+            "reference_compile": False,
+            "message": str(exc),
+        }
+
+
+def _doctor_checks_ok(value: object) -> bool:
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, dict):
+        return all(_doctor_checks_ok(item) for item in value.values())
+    if isinstance(value, list):
+        return all(_doctor_checks_ok(item) for item in value)
+    return True
 
 
 def _check_command(args: argparse.Namespace) -> int:
@@ -263,45 +442,6 @@ def _input_format(path_arg: str, stdin_format: str | None) -> str:
     if suffix == ".json":
         return "json"
     raise ValueError("Input must be .html, .htm, .json, or '-' with --stdin-format")
-
-
-def _wrap_bundle_manifest(
-    manifest_path: Path,
-    *,
-    source_name: str | None,
-    raw_source_hash: str,
-    design: DesignSystemContext | None,
-    command_args: list[str],
-) -> None:
-    existing = json.loads(manifest_path.read_text(encoding="utf-8"))
-    html_path = manifest_path.with_name("index.html")
-    artifact_hash = source_hash(html_path.read_text(encoding="utf-8")) if html_path.exists() else None
-    wrapped: dict[str, Any] = {
-        "version": 1,
-        "manifest_schema_version": MANIFEST_SCHEMA_VERSION,
-        "kind": "intent_bundle_compile",
-        "sdk_version": __version__,
-        "source_name": source_name,
-        "raw_source_hash": raw_source_hash,
-        "source_hash": raw_source_hash,
-        "design_hash": design.design_hash if design else None,
-        "artifact_hash": artifact_hash,
-        "command": "compile",
-        "command_args": command_args,
-        "policy_version": BUNDLE_POLICY_VERSION,
-        "guarantees": {
-            "sdk_network_calls": "none",
-            "artifact_autofetch_network": "none",
-            "network_calls": "none",
-            "decompilation": "not_applicable",
-        },
-        "nodes": existing,
-        "diagnostics": json.loads(manifest_path.with_name("diagnostics.json").read_text(encoding="utf-8")),
-        "external_refs": [],
-    }
-    if design is not None:
-        wrapped["design"] = design.to_meta()
-    atomic_write(manifest_path, json.dumps(wrapped, indent=2, sort_keys=True))
 
 
 def _compile_command_args(args: argparse.Namespace, source_name: str | None) -> list[str]:

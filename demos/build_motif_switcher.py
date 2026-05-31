@@ -9,6 +9,7 @@ from pathlib import Path
 from viewspec import IntentBundle, ViewSpecBuilder, compile
 from viewspec.emitters.html_tailwind import ACTION_EVENT_SCRIPT, _render_node
 from viewspec.types import ASTBundle, DEFAULT_STYLE_TOKEN_VALUES
+from seo_metadata import demo_head_metadata
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -170,6 +171,11 @@ def build_page(variants: dict[str, dict[str, object]]) -> str:
         </section>'''
         for kind, data in variants.items()
     )
+    head_meta = demo_head_metadata(
+        title="ViewSpec Demo - Same Data, Three Motifs",
+        description="Compare one semantic team roster compiled into table, dashboard, and comparison motifs while provenance and bindings remain stable across every rendered view.",
+        canonical_path="motif-switcher",
+    )
 
     return f"""<!DOCTYPE html>
 <html lang="en">
@@ -177,6 +183,7 @@ def build_page(variants: dict[str, dict[str, object]]) -> str:
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>ViewSpec Demo - Same Data, Three Motifs</title>
+{head_meta}
   <link rel="icon" href="data:,">
   <script src="https://cdn.tailwindcss.com"></script>
   <script type="module" src="../shared/pretext-canvas-surfaces.js"></script>

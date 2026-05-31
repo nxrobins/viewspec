@@ -1,0 +1,54 @@
+from __future__ import annotations
+
+from pathlib import Path
+
+
+def test_primary_docs_are_intent_first():
+    root = Path(__file__).resolve().parents[1]
+    docs = [
+        root / "README.md",
+        root / "docs/getting-started.md",
+        root / "docs/agent-integration.md",
+        root / "demos/llms.txt",
+        root / "demos/llms-full.txt",
+        root / "demos/agent-system-prompt.txt",
+    ]
+
+    for path in docs:
+        text = path.read_text(encoding="utf-8")
+        assert "IntentBundle" in text, path
+        assert "viewspec.intent.json" in text or path.name == "agent-system-prompt.txt", path
+        if path.name != "agent-system-prompt.txt":
+            assert "diff-intent" in text, path
+            assert "viewspec init-design --out DESIGN.md" in text, path
+        assert "Your agent writes HTML" not in text, path
+        assert "agent HTML governance first" not in text, path
+        assert "agent output governance" not in text, path
+        assert "agent-native UI IR" not in text, path
+        assert "semantic UI IR" not in text, path
+
+
+def test_local_html_wedge_is_explicitly_import_fallback():
+    root = Path(__file__).resolve().parents[1]
+    text = root.joinpath("docs/local-html-wedge.md").read_text(encoding="utf-8")
+
+    assert "import/fallback" in text
+    assert "For new UI, agents should emit `viewspec.intent.json`" in text
+
+
+def test_reference_grounding_is_explicit_opt_in():
+    root = Path(__file__).resolve().parents[1]
+    docs = [
+        root / "docs/agent-integration.md",
+        root / "demos/llms.txt",
+        root / "demos/llms-full.txt",
+        root / "demos/agent-system-prompt.txt",
+        root / "demos/index.html",
+    ]
+
+    for path in docs:
+        text = path.read_text(encoding="utf-8")
+        assert "Lazyweb" not in text, path
+        assert "query an MCP-accessible UI reference library" not in text, path
+        assert "Agents should query a reference library" not in text, path
+        assert "remote reference libraries" in text, path

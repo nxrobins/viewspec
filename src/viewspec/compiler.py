@@ -1,7 +1,7 @@
 """
 ViewSpec Reference Compiler — local compilation for standard motif types.
 
-Handles: table, dashboard, outline, comparison.
+Handles: table, dashboard, outline, comparison, list, form, detail, empty_state, hero.
 For complex or novel layouts, use the hosted compiler at api.viewspec.dev.
 
 This is a deterministic, offline compiler that produces correct CompositionIR
@@ -15,6 +15,7 @@ import re
 from typing import Any
 
 from viewspec.types import (
+    ActionIntent,
     ASTBundle,
     BindingSpec,
     CompileRequestPayload,
@@ -22,16 +23,20 @@ from viewspec.types import (
     CompilerDiagnostic,
     CompilerResult,
     CompositionIR,
+    DEFAULT_STYLE_TOKEN_VALUES,
     DesignRequest,
+    GroupSpec,
     IntentBundle,
     IRNode,
     MotifSpec,
     Provenance,
+    RegionSpec,
+    SemanticNode,
     SemanticSubstrate,
     StyleSpec,
     ViewSpec,
 )
-from viewspec.design_md import DesignSystemContext, load_design_system, merge_style_values
+from viewspec.design_md import DesignSystemContext, DesignSystemError, load_design_system, merge_style_values
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -42,29 +47,24 @@ PRESENT_AS_TO_PRIMITIVE: dict[str, str] = {
     "label": "label",
     "value": "value",
     "badge": "badge",
+    "input": "input",
     "rich_text": "text",
     "image_slot": "image_slot",
     "rule": "rule",
 }
 
-DEFAULT_STYLE_TOKEN_VALUES: dict[str, str] = {
-    "emphasis.low": "font-weight: 500;",
-    "emphasis.medium": "font-weight: 600;",
-    "emphasis.high": "font-weight: 700; letter-spacing: -0.02em;",
-    "density.compact": "gap: 0.4rem; padding: 0.4rem 0.55rem;",
-    "density.regular": "gap: 0.7rem; padding: 0.6rem 0.8rem;",
-    "tone.muted": "color: #6b7280;",
-    "tone.accent": "color: #0f766e;",
-    "surface.subtle": "background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 14px;",
-    "surface.strong": "background: #e2e8f0; border: 1px solid #94a3b8; border-radius: 14px;",
-}
+SUPPORTED_ACTION_KINDS = ("select", "submit", "navigate")
+SUPPORTED_BINDING_CARDINALITIES = {"exactly_once"}
+SUPPORTED_GROUP_KINDS = {"ordered"}
+SUPPORTED_REGION_LAYOUTS = {"cluster", "grid", "stack"}
 
 CANONICAL_ADDRESS_RE = re.compile(
-    r"^node:(?P<node_id>[^#]+)"
-    r"(?:#attr:(?P<attr>[^#]+))?"
-    r"(?:#slot:(?P<slot>[^#\[]+)(?:\[(?P<slot_index>\d+)\])?)?"
-    r"(?:#edge:(?P<edge>[^#]+))?$"
+    r"^node:(?P<node_id>[A-Za-z0-9_.-]+)"
+    r"(?:#attr:(?P<attr>[A-Za-z0-9_.-]+))?"
+    r"(?:#slot:(?P<slot>[A-Za-z0-9_.-]+)(?:\[(?P<slot_index>\d+)\])?)?"
+    r"(?:#edge:(?P<edge>[A-Za-z0-9_.-]+))?$"
 )
+SAFE_COMPILER_ID_RE = re.compile(r"^[A-Za-z0-9_.-]+$")
 
 
 # ---------------------------------------------------------------------------
@@ -220,15 +220,34 @@ def _semantic_parent_by_id(substrate: SemanticSubstrate) -> dict[str, str]:
     return parents
 
 
-def _binding_text(binding: BindingSpec, resolved_value: object) -> dict[str, object]:
+def _input_label(binding: BindingSpec, address_index: dict[str, object]) -> str:
+    try:
+        parts = _parse_canonical_address(binding.address)
+    except ValueError:
+        return binding.id
+    label_value = address_index.get(f"node:{parts['node_id']}#attr:label")
+    if label_value is None:
+        return binding.id
+    label = _text_from_value(label_value).strip()
+    return label or binding.id
+
+
+def _binding_text(binding: BindingSpec, resolved_value: object, address_index: dict[str, object]) -> dict[str, object]:
     primitive = PRESENT_AS_TO_PRIMITIVE.get(binding.present_as, binding.present_as)
     if primitive == "image_slot":
         return {"alt": _text_from_value(resolved_value)}
     if primitive == "svg":
         return {"label": _text_from_value(resolved_value)}
+    if primitive == "input":
+        return {
+            "value": _text_from_value(resolved_value),
+            "input_type": "text",
+            "binding_id": binding.id,
+            "aria_label": _input_label(binding, address_index),
+        }
     if primitive == "rule":
         return {}
-    return {"text": _text_from_value(resolved_value)}
+    return {"text": _text_from_value(resolved_value), "binding_id": binding.id}
 
 
 def _build_binding_node(binding: BindingSpec, address_index: dict[str, object]) -> IRNode:
@@ -236,12 +255,53 @@ def _build_binding_node(binding: BindingSpec, address_index: dict[str, object]) 
     return IRNode(
         id=f"binding_{binding.id}",
         primitive=PRESENT_AS_TO_PRIMITIVE.get(binding.present_as, binding.present_as),
-        props=_binding_text(binding, resolved_value),
+        props=_binding_text(binding, resolved_value, address_index),
         provenance=Provenance(
             content_refs=[binding.address],
             intent_refs=[_binding_ref(binding.id)],
         ),
     )
+
+
+def _build_action_node(action: ActionIntent, bindings_by_id: dict[str, BindingSpec]) -> IRNode:
+    content_refs = [bindings_by_id[binding_id].address for binding_id in action.payload_bindings if binding_id in bindings_by_id]
+    props: dict[str, object] = {
+        "text": action.label,
+        "action_id": action.id,
+        "action_kind": action.kind,
+        "payload_bindings": list(action.payload_bindings),
+    }
+    if action.target_ref:
+        props["target_ref"] = action.target_ref
+    return IRNode(
+        id=f"action_{action.id}",
+        primitive="button",
+        props=props,
+        provenance=Provenance(
+            content_refs=content_refs,
+            intent_refs=[_action_ref(action.id)],
+        ),
+    )
+
+
+def _bare_style_target_matches(
+    target_id: str,
+    *,
+    view_spec: ViewSpec,
+    region_nodes: dict[str, IRNode],
+    binding_nodes: dict[str, IRNode],
+    motif_by_id: dict[str, MotifSpec],
+) -> list[str]:
+    matches: list[str] = []
+    if target_id in binding_nodes:
+        matches.append("binding")
+    if target_id in region_nodes:
+        matches.append("region")
+    if target_id in motif_by_id:
+        matches.append("motif")
+    if target_id == view_spec.id:
+        matches.append("view")
+    return matches
 
 
 def _attach_style(node: IRNode, style: StyleSpec) -> None:
@@ -294,6 +354,7 @@ def _build_table_motif(
     )
     placed: set[str] = set()
     for node_id, grouped in _bindings_by_semantic_node(motif_bindings, ordered_positions):
+        row_header_assigned = False
         row = IRNode(
             id=f"motif_{motif.id}_{node_id}",
             primitive="cluster",
@@ -301,7 +362,13 @@ def _build_table_motif(
             provenance=Provenance(intent_refs=[motif_r]),
         )
         for binding in grouped:
-            row.children.append(binding_nodes[binding.id])
+            node = binding_nodes[binding.id]
+            if node.primitive == "label" and not row_header_assigned:
+                node.props["table_cell_role"] = "row_header"
+                row_header_assigned = True
+            else:
+                node.props["table_cell_role"] = "cell"
+            row.children.append(node)
             placed.add(binding.id)
         wrapper.children.append(row)
     return wrapper, placed
@@ -342,6 +409,172 @@ def _build_dashboard_motif(
     return wrapper, placed
 
 
+def _build_list_motif(
+    motif: MotifSpec,
+    motif_bindings: list[BindingSpec],
+    *,
+    ordered_positions: dict[str, int],
+    binding_nodes: dict[str, IRNode],
+) -> tuple[IRNode, set[str]]:
+    motif_r = _motif_ref(motif.id)
+    wrapper = IRNode(
+        id=f"motif_{motif.id}",
+        primitive="stack",
+        props={"layout_role": "stack", "motif_kind": motif.kind},
+        provenance=Provenance(intent_refs=[motif_r]),
+    )
+    placed: set[str] = set()
+    for node_id, grouped in _bindings_by_semantic_node(motif_bindings, ordered_positions):
+        item = IRNode(
+            id=f"motif_{motif.id}_{node_id}",
+            primitive="surface",
+            props={"layout_role": "surface", "motif_kind": motif.kind},
+            provenance=Provenance(intent_refs=[motif_r]),
+        )
+        for binding in grouped:
+            item.children.append(binding_nodes[binding.id])
+            placed.add(binding.id)
+        wrapper.children.append(item)
+    return wrapper, placed
+
+
+def _build_form_motif(
+    motif: MotifSpec,
+    motif_bindings: list[BindingSpec],
+    *,
+    ordered_positions: dict[str, int],
+    binding_nodes: dict[str, IRNode],
+) -> tuple[IRNode, set[str]]:
+    motif_r = _motif_ref(motif.id)
+    wrapper = IRNode(
+        id=f"motif_{motif.id}",
+        primitive="stack",
+        props={"layout_role": "stack", "motif_kind": motif.kind},
+        provenance=Provenance(intent_refs=[motif_r]),
+    )
+    placed: set[str] = set()
+    for node_id, grouped in _bindings_by_semantic_node(motif_bindings, ordered_positions):
+        field = IRNode(
+            id=f"motif_{motif.id}_{node_id}",
+            primitive="surface",
+            props={"layout_role": "surface", "motif_kind": motif.kind, "field_id": node_id},
+            provenance=Provenance(intent_refs=[motif_r]),
+        )
+        for binding in grouped:
+            field.children.append(binding_nodes[binding.id])
+            placed.add(binding.id)
+        wrapper.children.append(field)
+    return wrapper, placed
+
+
+def _build_detail_motif(
+    motif: MotifSpec,
+    motif_bindings: list[BindingSpec],
+    *,
+    ordered_positions: dict[str, int],
+    binding_nodes: dict[str, IRNode],
+) -> tuple[IRNode, set[str]]:
+    motif_r = _motif_ref(motif.id)
+    wrapper = IRNode(
+        id=f"motif_{motif.id}",
+        primitive="stack",
+        props={"layout_role": "stack", "motif_kind": motif.kind},
+        provenance=Provenance(intent_refs=[motif_r]),
+    )
+    placed: set[str] = set()
+    for node_id, grouped in _bindings_by_semantic_node(motif_bindings, ordered_positions):
+        row = IRNode(
+            id=f"motif_{motif.id}_{node_id}",
+            primitive="cluster",
+            props={"layout_role": "cluster", "motif_kind": motif.kind},
+            provenance=Provenance(intent_refs=[motif_r]),
+        )
+        term_assigned = False
+        for binding in grouped:
+            node = binding_nodes[binding.id]
+            if node.primitive == "label" and not term_assigned:
+                node.props["detail_role"] = "term"
+                term_assigned = True
+            else:
+                node.props["detail_role"] = "description"
+            row.children.append(node)
+            placed.add(binding.id)
+        wrapper.children.append(row)
+    return wrapper, placed
+
+
+def _binding_attr_or_slot(binding: BindingSpec) -> str:
+    try:
+        parts = _parse_canonical_address(binding.address)
+    except ValueError:
+        return ""
+    return str(parts.get("attr") or parts.get("slot") or "")
+
+
+def _build_empty_state_motif(
+    motif: MotifSpec,
+    motif_bindings: list[BindingSpec],
+    *,
+    ordered_positions: dict[str, int],
+    binding_nodes: dict[str, IRNode],
+) -> tuple[IRNode, set[str]]:
+    motif_r = _motif_ref(motif.id)
+    wrapper = IRNode(
+        id=f"motif_{motif.id}",
+        primitive="surface",
+        props={"layout_role": "surface", "motif_kind": motif.kind, "aria_label": "Empty state"},
+        provenance=Provenance(intent_refs=[motif_r]),
+    )
+    placed: set[str] = set()
+    title_assigned = False
+    for binding in sorted(motif_bindings, key=lambda b: ordered_positions[b.id]):
+        node = binding_nodes[binding.id]
+        attr = _binding_attr_or_slot(binding)
+        if attr in {"title", "heading", "label"} and not title_assigned:
+            node.props["empty_state_role"] = "title"
+            title_assigned = True
+        elif attr in {"description", "body", "message"}:
+            node.props["empty_state_role"] = "description"
+        else:
+            node.props["empty_state_role"] = "detail"
+        wrapper.children.append(node)
+        placed.add(binding.id)
+    return wrapper, placed
+
+
+def _build_hero_motif(
+    motif: MotifSpec,
+    motif_bindings: list[BindingSpec],
+    *,
+    ordered_positions: dict[str, int],
+    binding_nodes: dict[str, IRNode],
+) -> tuple[IRNode, set[str]]:
+    motif_r = _motif_ref(motif.id)
+    wrapper = IRNode(
+        id=f"motif_{motif.id}",
+        primitive="surface",
+        props={"layout_role": "surface", "motif_kind": motif.kind, "aria_label": "Hero"},
+        provenance=Provenance(intent_refs=[motif_r]),
+    )
+    placed: set[str] = set()
+    title_assigned = False
+    for binding in sorted(motif_bindings, key=lambda b: ordered_positions[b.id]):
+        node = binding_nodes[binding.id]
+        attr = _binding_attr_or_slot(binding)
+        if attr in {"eyebrow", "kicker", "label"}:
+            node.props["hero_role"] = "eyebrow"
+        elif attr in {"title", "heading", "headline"} and not title_assigned:
+            node.props["hero_role"] = "title"
+            title_assigned = True
+        elif attr in {"description", "subtitle", "body", "summary"}:
+            node.props["hero_role"] = "description"
+        else:
+            node.props["hero_role"] = "detail"
+        wrapper.children.append(node)
+        placed.add(binding.id)
+    return wrapper, placed
+
+
 def _build_outline_branch(
     node_id: str,
     *,
@@ -351,7 +584,34 @@ def _build_outline_branch(
     bindings_by_node_id: dict[str, list[BindingSpec]],
     motif_node_ids: set[str],
     binding_nodes: dict[str, IRNode],
-) -> IRNode:
+    diagnostics: list[CompilerDiagnostic],
+    active_path: tuple[str, ...],
+    emitted_node_ids: set[str],
+) -> IRNode | None:
+    if node_id in active_path:
+        cycle_path = " -> ".join((*active_path, node_id))
+        _add_diagnostic(
+            diagnostics,
+            "SEMANTIC_GRAPH_CYCLE",
+            f"Outline motif {motif.id} skipped cyclic semantic edge at {node_id}: {cycle_path}.",
+            intent_ref=_motif_ref(motif.id),
+            content_ref=f"node:{node_id}",
+            region_id=motif.region,
+        )
+        return None
+    if node_id in emitted_node_ids:
+        _add_diagnostic(
+            diagnostics,
+            "SEMANTIC_GRAPH_SHARED_NODE",
+            f"Outline motif {motif.id} skipped repeated semantic node {node_id} to keep IR node ids unique.",
+            intent_ref=_motif_ref(motif.id),
+            content_ref=f"node:{node_id}",
+            region_id=motif.region,
+        )
+        return None
+
+    emitted_node_ids.add(node_id)
+    child_path = (*active_path, node_id)
     motif_r = _motif_ref(motif.id)
     branch = IRNode(
         id=f"motif_{motif.id}_branch_{node_id}",
@@ -366,17 +626,20 @@ def _build_outline_branch(
         branch.children.append(binding_nodes[binding.id])
     for child_id in _semantic_children(substrate, node_id):
         if child_id in motif_node_ids:
-            branch.children.append(
-                _build_outline_branch(
-                    child_id,
-                    motif=motif,
-                    substrate=substrate,
-                    ordered_positions=ordered_positions,
-                    bindings_by_node_id=bindings_by_node_id,
-                    motif_node_ids=motif_node_ids,
-                    binding_nodes=binding_nodes,
-                )
+            child = _build_outline_branch(
+                child_id,
+                motif=motif,
+                substrate=substrate,
+                ordered_positions=ordered_positions,
+                bindings_by_node_id=bindings_by_node_id,
+                motif_node_ids=motif_node_ids,
+                binding_nodes=binding_nodes,
+                diagnostics=diagnostics,
+                active_path=child_path,
+                emitted_node_ids=emitted_node_ids,
             )
+            if child is not None:
+                branch.children.append(child)
     return branch
 
 
@@ -388,6 +651,7 @@ def _build_outline_motif(
     ordered_positions: dict[str, int],
     bindings_by_region: dict[str, list[BindingSpec]],
     binding_nodes: dict[str, IRNode],
+    diagnostics: list[CompilerDiagnostic],
 ) -> tuple[IRNode, set[str]]:
     motif_r = _motif_ref(motif.id)
     wrapper = IRNode(
@@ -419,19 +683,32 @@ def _build_outline_motif(
         return 10**9
 
     top_level.sort(key=_min_pos)
-
-    for nid in top_level:
-        wrapper.children.append(
-            _build_outline_branch(
-                nid,
-                motif=motif,
-                substrate=substrate,
-                ordered_positions=ordered_positions,
-                bindings_by_node_id=bindings_by_node_id,
-                motif_node_ids=motif_node_ids,
-                binding_nodes=binding_nodes,
-            )
+    if motif_node_ids and not top_level:
+        _add_diagnostic(
+            diagnostics,
+            "SEMANTIC_GRAPH_CYCLE",
+            f"Outline motif {motif.id} has no acyclic top-level semantic node; using declaration order and skipping cyclic repeats.",
+            intent_ref=_motif_ref(motif.id),
+            region_id=motif.region,
         )
+        top_level = sorted(motif_node_ids, key=_min_pos)
+
+    emitted_outline_nodes: set[str] = set()
+    for nid in top_level:
+        branch = _build_outline_branch(
+            nid,
+            motif=motif,
+            substrate=substrate,
+            ordered_positions=ordered_positions,
+            bindings_by_node_id=bindings_by_node_id,
+            motif_node_ids=motif_node_ids,
+            binding_nodes=binding_nodes,
+            diagnostics=diagnostics,
+            active_path=(),
+            emitted_node_ids=emitted_outline_nodes,
+        )
+        if branch is not None:
+            wrapper.children.append(branch)
     return wrapper, placed
 
 
@@ -479,6 +756,42 @@ class CompilerInputError(Exception):
     pass
 
 
+def _validate_bundle_shape(bundle: Any) -> tuple[SemanticSubstrate, ViewSpec]:
+    if not isinstance(bundle, IntentBundle):
+        raise CompilerInputError("compile() expects an IntentBundle.")
+    if not isinstance(bundle.substrate, SemanticSubstrate):
+        raise CompilerInputError("IntentBundle.substrate must be a SemanticSubstrate.")
+    if not isinstance(bundle.view_spec, ViewSpec):
+        raise CompilerInputError("IntentBundle.view_spec must be a ViewSpec.")
+    if not isinstance(bundle.substrate.nodes, dict):
+        raise CompilerInputError("SemanticSubstrate.nodes must be a dictionary.")
+    for node_key, node in bundle.substrate.nodes.items():
+        if not isinstance(node, SemanticNode):
+            raise CompilerInputError(
+                f"SemanticSubstrate.nodes['{node_key}'] must be a SemanticNode."
+            )
+
+    list_fields: tuple[tuple[str, type[Any]], ...] = (
+        ("regions", RegionSpec),
+        ("bindings", BindingSpec),
+        ("groups", GroupSpec),
+        ("motifs", MotifSpec),
+        ("styles", StyleSpec),
+        ("actions", ActionIntent),
+    )
+    for field_name, expected_type in list_fields:
+        values = getattr(bundle.view_spec, field_name)
+        if not isinstance(values, list):
+            raise CompilerInputError(f"ViewSpec.{field_name} must be a list.")
+        for index, value in enumerate(values):
+            if not isinstance(value, expected_type):
+                raise CompilerInputError(
+                    f"ViewSpec.{field_name}[{index}] must be a {expected_type.__name__}."
+                )
+
+    return bundle.substrate, bundle.view_spec
+
+
 def _validate_roots(substrate: SemanticSubstrate, view_spec: ViewSpec) -> None:
     if not substrate.root_id:
         raise CompilerInputError("SemanticSubstrate.root_id is required.")
@@ -490,6 +803,170 @@ def _validate_roots(substrate: SemanticSubstrate, view_spec: ViewSpec) -> None:
         raise CompilerInputError("ViewSpec.root_region is required.")
 
 
+def _validate_safe_id(value: str, label: str) -> None:
+    if not isinstance(value, str) or not value or not SAFE_COMPILER_ID_RE.match(value):
+        raise CompilerInputError(
+            f"{label} '{value}' must use only letters, digits, underscore, dot, and dash."
+        )
+
+
+def _validate_semantic_node_maps(node_key: str, node: Any, node_ids: set[str]) -> None:
+    if not isinstance(node.attrs, dict):
+        raise CompilerInputError(f"SemanticNode '{node_key}'.attrs must be a dictionary.")
+    for attr_key in node.attrs:
+        _validate_safe_id(attr_key, f"SemanticNode '{node_key}'.attrs key")
+
+    if not isinstance(node.slots, dict):
+        raise CompilerInputError(f"SemanticNode '{node_key}'.slots must be a dictionary.")
+    for slot_key, values in node.slots.items():
+        _validate_safe_id(slot_key, f"SemanticNode '{node_key}'.slots key")
+        if not isinstance(values, list):
+            raise CompilerInputError(
+                f"SemanticNode '{node_key}'.slots['{slot_key}'] must be a list."
+            )
+
+    if not isinstance(node.edges, dict):
+        raise CompilerInputError(f"SemanticNode '{node_key}'.edges must be a dictionary.")
+    for edge_key, target_ids in node.edges.items():
+        _validate_safe_id(edge_key, f"SemanticNode '{node_key}'.edges key")
+        if not isinstance(target_ids, list):
+            raise CompilerInputError(
+                f"SemanticNode '{node_key}'.edges['{edge_key}'] must be a list."
+            )
+        for target_id in target_ids:
+            _validate_safe_id(target_id, f"SemanticNode '{node_key}'.edges['{edge_key}'] target id")
+            if target_id not in node_ids:
+                raise CompilerInputError(
+                    f"SemanticNode '{node_key}'.edges['{edge_key}'] target id '{target_id}' "
+                    "must reference a declared substrate node."
+                )
+
+
+def _validate_non_negative_int(value: Any, label: str) -> None:
+    if not isinstance(value, int) or isinstance(value, bool) or value < 0:
+        raise CompilerInputError(f"{label} must be a non-negative integer.")
+
+
+def _validate_id_list(value: Any, label: str) -> None:
+    if not isinstance(value, list):
+        raise CompilerInputError(f"{label} must be a list.")
+    for item in value:
+        _validate_safe_id(item, label)
+
+
+def _validate_view_spec_constraints(view_spec: ViewSpec) -> None:
+    if not isinstance(view_spec.complexity_tier, int) or isinstance(view_spec.complexity_tier, bool) or view_spec.complexity_tier < 1:
+        raise CompilerInputError("ViewSpec.complexity_tier must be a positive integer.")
+    for region in view_spec.regions:
+        if region.layout not in SUPPORTED_REGION_LAYOUTS:
+            supported = ", ".join(sorted(SUPPORTED_REGION_LAYOUTS))
+            raise CompilerInputError(f"Region '{region.id}' layout must be one of: {supported}.")
+        _validate_non_negative_int(region.min_children, f"Region '{region.id}'.min_children")
+        if region.max_children is not None:
+            _validate_non_negative_int(region.max_children, f"Region '{region.id}'.max_children")
+            if region.max_children < region.min_children:
+                raise CompilerInputError(
+                    f"Region '{region.id}'.max_children must be null or greater than or equal to min_children."
+                )
+    for binding in view_spec.bindings:
+        if binding.cardinality not in SUPPORTED_BINDING_CARDINALITIES:
+            supported = ", ".join(sorted(SUPPORTED_BINDING_CARDINALITIES))
+            raise CompilerInputError(f"Binding '{binding.id}'.cardinality must be one of: {supported}.")
+    for group in view_spec.groups:
+        if group.kind not in SUPPORTED_GROUP_KINDS:
+            supported = ", ".join(sorted(SUPPORTED_GROUP_KINDS))
+            raise CompilerInputError(f"Group '{group.id}'.kind must be one of: {supported}.")
+        _validate_id_list(group.members, f"Group '{group.id}'.members")
+    for motif in view_spec.motifs:
+        _validate_id_list(motif.members, f"Motif '{motif.id}'.members")
+    for style in view_spec.styles:
+        if not isinstance(style.target, str) or not style.target:
+            raise CompilerInputError(f"Style '{style.id}'.target must be a non-empty string.")
+        if not isinstance(style.token, str) or not style.token:
+            raise CompilerInputError(f"Style '{style.id}'.token must be a non-empty string.")
+    for action in view_spec.actions:
+        if not isinstance(action.kind, str) or not action.kind:
+            raise CompilerInputError(f"Action '{action.id}'.kind must be a non-empty string.")
+        if not isinstance(action.label, str):
+            raise CompilerInputError(f"Action '{action.id}'.label must be a string.")
+        if action.target_ref is not None and not isinstance(action.target_ref, str):
+            raise CompilerInputError(f"Action '{action.id}'.target_ref must be a string or None.")
+        _validate_id_list(action.payload_bindings, f"Action '{action.id}'.payload_bindings")
+
+
+def _validate_identifier_contract(substrate: SemanticSubstrate, view_spec: ViewSpec) -> None:
+    _validate_safe_id(substrate.id, "SemanticSubstrate.id")
+    _validate_safe_id(substrate.root_id, "SemanticSubstrate.root_id")
+    node_ids = set(substrate.nodes)
+    for node_key, node in substrate.nodes.items():
+        _validate_safe_id(node_key, "SemanticSubstrate.nodes key")
+        _validate_safe_id(node.id, "SemanticNode.id")
+        _validate_semantic_node_maps(node_key, node, node_ids)
+        if node_key != node.id:
+            raise CompilerInputError(
+                f"SemanticSubstrate.nodes key '{node_key}' must match SemanticNode.id '{node.id}'."
+            )
+
+    _validate_safe_id(view_spec.id, "ViewSpec.id")
+    _validate_safe_id(view_spec.substrate_id, "ViewSpec.substrate_id")
+    _validate_view_spec_constraints(view_spec)
+    if view_spec.substrate_id != substrate.id:
+        raise CompilerInputError(
+            f"ViewSpec.substrate_id '{view_spec.substrate_id}' must match "
+            f"SemanticSubstrate.id '{substrate.id}'."
+        )
+    _validate_safe_id(view_spec.root_region, "ViewSpec.root_region")
+    for region in view_spec.regions:
+        _validate_safe_id(region.id, "Region.id")
+        if region.parent_region:
+            _validate_safe_id(region.parent_region, "Region.parent_region")
+    for binding in view_spec.bindings:
+        _validate_safe_id(binding.id, "Binding.id")
+        _validate_safe_id(binding.target_region, "Binding.target_region")
+    for group in view_spec.groups:
+        _validate_safe_id(group.id, "Group.id")
+        if group.target_region:
+            _validate_safe_id(group.target_region, "Group.target_region")
+    for motif in view_spec.motifs:
+        _validate_safe_id(motif.id, "Motif.id")
+        _validate_safe_id(motif.region, "Motif.region")
+    for style in view_spec.styles:
+        _validate_safe_id(style.id, "Style.id")
+    for action in view_spec.actions:
+        _validate_safe_id(action.id, "Action.id")
+        _validate_safe_id(action.target_region, "Action.target_region")
+
+
+def _validate_region_tree(valid_regions: list[Any], root_region: str) -> None:
+    parent_by_region = {region.id: region.parent_region or None for region in valid_regions}
+    root_parent = parent_by_region.get(root_region)
+    if root_parent is not None:
+        raise CompilerInputError(
+            f"ViewSpec.root_region '{root_region}' must not declare parent_region '{root_parent}'."
+        )
+
+    for region in valid_regions:
+        if region.id == root_region:
+            continue
+        if not region.parent_region:
+            raise CompilerInputError(
+                f"Region '{region.id}' is not the root and must declare parent_region."
+            )
+        seen: set[str] = set()
+        cursor: str | None = region.id
+        while cursor is not None and cursor != root_region:
+            if cursor in seen:
+                raise CompilerInputError(
+                    f"Region parent_region cycle detected while walking from '{region.id}'."
+                )
+            seen.add(cursor)
+            cursor = parent_by_region.get(cursor)
+        if cursor is None:
+            raise CompilerInputError(
+                f"Region '{region.id}' does not reach root_region '{root_region}'."
+            )
+
+
 def compile(
     bundle: IntentBundle,
     design: DesignSystemContext | DesignRequest | str | None = None,
@@ -499,20 +976,20 @@ def compile(
     """
     Compile an IntentBundle into an ASTBundle using the reference compiler.
 
-    Supports motif kinds: table, dashboard, outline, comparison.
+    Supports motif kinds: table, dashboard, outline, comparison, list, form, detail, empty_state, hero.
     Raises UnsupportedMotifError for motif kinds not in the reference set.
 
     For full compilation (arbitrary data shapes, OOD generalization),
     use the hosted compiler at api.viewspec.dev.
     """
-    substrate = bundle.substrate
-    view_spec = bundle.view_spec
+    substrate, view_spec = _validate_bundle_shape(bundle)
     diagnostics: list[CompilerDiagnostic] = []
     _validate_roots(substrate, view_spec)
+    _validate_identifier_contract(substrate, view_spec)
     address_index = _build_address_index(substrate)
     ordered_positions = _ordered_binding_positions(view_spec)
 
-    supported_kinds = {"table", "dashboard", "outline", "comparison"}
+    supported_kinds = {"table", "dashboard", "outline", "comparison", "list", "form", "detail", "empty_state", "hero"}
     for motif in view_spec.motifs:
         if motif.kind not in supported_kinds:
             raise UnsupportedMotifError(
@@ -552,6 +1029,7 @@ def compile(
 
     if view_spec.root_region not in region_nodes:
         raise CompilerInputError(f"ViewSpec.root_region '{view_spec.root_region}' is not present in view_spec.regions.")
+    _validate_region_tree(valid_regions, view_spec.root_region)
 
     # Wire region hierarchy
     for region in valid_regions:
@@ -724,10 +1202,46 @@ def compile(
                 ordered_positions=ordered_positions,
                 bindings_by_region=bindings_by_region,
                 binding_nodes=binding_nodes,
+                diagnostics=diagnostics,
             )
         elif motif.kind == "comparison":
             wrapper, motif_placed = _build_comparison_motif(
                 motif, motif_bindings,
+                ordered_positions=ordered_positions,
+                binding_nodes=binding_nodes,
+            )
+        elif motif.kind == "list":
+            wrapper, motif_placed = _build_list_motif(
+                motif,
+                motif_bindings,
+                ordered_positions=ordered_positions,
+                binding_nodes=binding_nodes,
+            )
+        elif motif.kind == "form":
+            wrapper, motif_placed = _build_form_motif(
+                motif,
+                motif_bindings,
+                ordered_positions=ordered_positions,
+                binding_nodes=binding_nodes,
+            )
+        elif motif.kind == "detail":
+            wrapper, motif_placed = _build_detail_motif(
+                motif,
+                motif_bindings,
+                ordered_positions=ordered_positions,
+                binding_nodes=binding_nodes,
+            )
+        elif motif.kind == "empty_state":
+            wrapper, motif_placed = _build_empty_state_motif(
+                motif,
+                motif_bindings,
+                ordered_positions=ordered_positions,
+                binding_nodes=binding_nodes,
+            )
+        elif motif.kind == "hero":
+            wrapper, motif_placed = _build_hero_motif(
+                motif,
+                motif_bindings,
                 ordered_positions=ordered_positions,
                 binding_nodes=binding_nodes,
             )
@@ -745,6 +1259,11 @@ def compile(
             if b.id not in placed_binding_ids:
                 region_node.children.append(binding_nodes[b.id])
 
+    style_values = _derive_style_tokens(substrate, view_spec)
+    design_context = _coerce_design_context(design, strict_design=strict_design)
+    if design_context is not None:
+        style_values = merge_style_values(style_values, design_context.style_values)
+
     # Apply styles
     seen_style_ids: set[str] = set()
     for style in view_spec.styles:
@@ -756,27 +1275,46 @@ def compile(
             )
             continue
         seen_style_ids.add(style.id)
+        style_token_known = style.token in style_values
+        if not style_token_known:
+            _add_diagnostic(
+                diagnostics,
+                "UNKNOWN_STYLE_TOKEN",
+                f"Style {style.id} uses unknown token {style.token}.",
+                intent_ref=_style_ref(style.id),
+            )
         target = style.target
         if ":" in target:
             target_kind, target_id = target.split(":", 1)
         else:
-            # Bare ID — infer kind from known lookups
             target_id = target
-            if target_id in binding_nodes:
-                target_kind = "binding"
-            elif target_id in region_nodes:
-                target_kind = "region"
-            elif target_id in motif_by_id:
-                target_kind = "motif"
-            else:
-                target_kind = "binding"  # default assumption
+            matches = _bare_style_target_matches(
+                target_id,
+                view_spec=view_spec,
+                region_nodes=region_nodes,
+                binding_nodes=binding_nodes,
+                motif_by_id=motif_by_id,
+            )
+            if len(matches) > 1:
+                _add_diagnostic(
+                    diagnostics,
+                    "AMBIGUOUS_STYLE_TARGET",
+                    f"Style {style.id} bare target {target_id} matches multiple namespaces: {', '.join(matches)}.",
+                    intent_ref=_style_ref(style.id),
+                )
+                continue
+            target_kind = matches[0] if matches else "binding"
 
         if target_kind == "region" and target_id in region_nodes:
-            _attach_style(region_nodes[target_id], style)
+            if style_token_known:
+                _attach_style(region_nodes[target_id], style)
         elif target_kind == "binding" and target_id in binding_nodes:
-            _attach_style(binding_nodes[target_id], style)
+            if style_token_known:
+                _attach_style(binding_nodes[target_id], style)
         elif target_kind == "motif" and target_id in motif_by_id:
-            if target_id in motif_wrappers:
+            if not style_token_known:
+                pass
+            elif target_id in motif_wrappers:
                 _attach_style(motif_wrappers[target_id], style)
             elif motif_by_id[target_id].region in region_nodes:
                 _attach_style(region_nodes[motif_by_id[target_id].region], style)
@@ -787,7 +1325,8 @@ def compile(
                     intent_ref=_style_ref(style.id),
                 )
         elif target_kind == "view" and target_id == view_spec.id:
-            _attach_style(region_nodes[view_spec.root_region], style)
+            if style_token_known:
+                _attach_style(region_nodes[view_spec.root_region], style)
         else:
             _add_diagnostic(
                 diagnostics, "UNKNOWN_STYLE_TARGET",
@@ -795,8 +1334,10 @@ def compile(
                 intent_ref=_style_ref(style.id),
             )
 
+    valid_actions: list[ActionIntent] = []
     seen_action_ids: set[str] = set()
     for action in view_spec.actions:
+        action_valid = True
         if action.id in seen_action_ids:
             _add_diagnostic(
                 diagnostics, "DUPLICATE_ACTION_ID",
@@ -806,7 +1347,17 @@ def compile(
             )
             continue
         seen_action_ids.add(action.id)
+        if action.kind not in SUPPORTED_ACTION_KINDS:
+            action_valid = False
+            _add_diagnostic(
+                diagnostics,
+                "UNSUPPORTED_ACTION_KIND",
+                f"Action {action.id} uses unsupported kind {action.kind}.",
+                intent_ref=_action_ref(action.id),
+                region_id=action.target_region,
+            )
         if action.target_region not in region_nodes:
+            action_valid = False
             _add_diagnostic(
                 diagnostics, "UNKNOWN_ACTION_TARGET",
                 f"Action {action.id} targets unknown region {action.target_region}.",
@@ -815,6 +1366,7 @@ def compile(
             )
         if action.target_ref:
             if ":" not in action.target_ref:
+                action_valid = False
                 _add_diagnostic(
                     diagnostics, "INVALID_ACTION_TARGET_REF",
                     f"Action {action.id} target_ref must use kind:id form.",
@@ -824,23 +1376,30 @@ def compile(
                 target_kind, target_id = action.target_ref.split(":", 1)
                 target_exists = (
                     (target_kind == "region" and target_id in region_nodes)
-                    or (target_kind == "binding" and target_id in all_binding_ids)
-                    or (target_kind == "motif" and target_id in motif_by_id)
+                    or (target_kind == "binding" and target_id in valid_binding_ids)
+                    or (target_kind == "motif" and target_id in motif_wrappers)
                     or (target_kind == "view" and target_id == view_spec.id)
                 )
                 if not target_exists:
+                    action_valid = False
                     _add_diagnostic(
                         diagnostics, "UNKNOWN_ACTION_TARGET",
                         f"Action {action.id} targets unknown {target_kind}:{target_id}.",
                         intent_ref=_action_ref(action.id),
                     )
         for binding_id in action.payload_bindings:
-            if binding_id not in all_binding_ids:
+            if binding_id not in valid_binding_ids:
+                action_valid = False
                 _add_diagnostic(
                     diagnostics, "UNKNOWN_ACTION_PAYLOAD_BINDING",
                     f"Action {action.id} references missing payload binding {binding_id}.",
                     intent_ref=_action_ref(action.id),
                 )
+        if action_valid:
+            valid_actions.append(action)
+
+    for action in valid_actions:
+        region_nodes[action.target_region].children.append(_build_action_node(action, bindings_by_id))
 
     root_node = region_nodes[view_spec.root_region]
     _assign_default_style_tokens(root_node)
@@ -849,10 +1408,6 @@ def compile(
         root=CompositionIR(root=root_node),
         diagnostics=diagnostics,
     )
-    style_values = _derive_style_tokens(substrate, view_spec)
-    design_context = _coerce_design_context(design, strict_design=strict_design)
-    if design_context is not None:
-        style_values = merge_style_values(style_values, design_context.style_values)
 
     return ASTBundle(
         result=result,
@@ -887,7 +1442,8 @@ PRIMITIVE_DEFAULT_TOKENS: dict[str, list[str]] = {
     "label": ["tone.muted"],
     "value": ["emphasis.high", "tone.neutral"],
     "badge": ["tone.accent"],
-    "button": ["tone.accent"],
+    "input": ["surface.subtle", "tone.neutral"],
+    "button": ["action.accent"],
 }
 
 
@@ -931,16 +1487,19 @@ def _derive_style_tokens(substrate: SemanticSubstrate, view_spec: ViewSpec) -> d
         compact_gap, compact_padding = "0.48rem", "0.46rem 0.62rem"
         regular_gap, regular_padding = "0.85rem", "0.74rem 0.9rem"
 
-    return {
+    style_values = dict(DEFAULT_STYLE_TOKEN_VALUES)
+    style_values.update({
         "emphasis.high": f"font-weight: {emphasis_weight}; letter-spacing: -0.025em;",
         "emphasis.medium": f"font-weight: {medium_weight};",
         "tone.accent": "color: #0f766e;",
+        "action.accent": "background-color: #0f766e; color: #ffffff;",
         "tone.muted": "color: #6b7280;",
         "surface.subtle": "background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 14px;",
         "surface.strong": "background: #e2e8f0; border: 1px solid #94a3b8; border-radius: 14px;",
         "density.compact": f"gap: {compact_gap}; padding: {compact_padding};",
         "density.regular": f"gap: {regular_gap}; padding: {regular_padding};",
-    }
+    })
+    return style_values
 
 
 # ---------------------------------------------------------------------------
@@ -1081,6 +1640,6 @@ def compile_auto(
     if prefer_local:
         try:
             return compile(payload.bundle, design=payload.design)
-        except UnsupportedMotifError:
+        except (UnsupportedMotifError, DesignSystemError):
             return compile_remote(payload, api_url=api_url, api_key=api_key)
     return compile_remote(payload, api_url=api_url, api_key=api_key)

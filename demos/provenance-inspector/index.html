@@ -3,42 +3,13 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>ViewSpec Demo - UI Provenance Inspector</title>
-  <meta name="description" content="Inspect exact UI provenance from DOM element to CompositionIR node, binding, address, semantic node, and raw data value.">
+  <title>ViewSpec Demo - Provenance Inspector</title>
+  <meta name="description" content="Inspect a compiled ViewSpec artifact from DOM element to CompositionIR node, binding, canonical address, semantic node, and raw source value.">
   <meta name="robots" content="index,follow,max-snippet:-1,max-image-preview:large">
   <link rel="canonical" href="https://viewspec.dev/provenance-inspector/">
   <link rel="alternate" type="text/markdown" title="ViewSpec for LLMs" href="https://viewspec.dev/llms.txt">
-  <link rel="alternate" type="application/json" title="ViewSpec OpenAPI" href="https://viewspec.dev/openapi.json">
-  <meta property="og:site_name" content="ViewSpec">
-  <meta property="og:type" content="article">
-  <meta property="og:title" content="ViewSpec Demo - UI Provenance Inspector">
-  <meta property="og:description" content="Inspect exact UI provenance from DOM element to CompositionIR node, binding, address, semantic node, and raw data value.">
-  <meta property="og:url" content="https://viewspec.dev/provenance-inspector/">
-  <meta name="twitter:card" content="summary">
-  <meta name="twitter:title" content="ViewSpec Demo - UI Provenance Inspector">
-  <meta name="twitter:description" content="Inspect exact UI provenance from DOM element to CompositionIR node, binding, address, semantic node, and raw data value.">
-  <script type="application/ld+json">
-    {
-        "@context": "https://schema.org",
-        "@type": "TechArticle",
-        "headline": "UI Provenance Inspector",
-        "description": "Inspect exact UI provenance from DOM element to CompositionIR node, binding, address, semantic node, and raw data value.",
-        "url": "https://viewspec.dev/provenance-inspector/",
-        "isPartOf": {
-            "@id": "https://viewspec.dev/#website"
-        },
-        "about": [
-            "UI provenance",
-            "CompositionIR",
-            "semantic data",
-            "agentic engineering"
-        ],
-        "publisher": {
-            "@id": "https://viewspec.dev/#organization"
-        },
-        "inLanguage": "en"
-    }
-  </script>
+  <link rel="service" type="application/json" title="ViewSpec OpenAPI" href="https://viewspec.dev/openapi.json">
+  <script type="application/ld+json">{"@context":"https://schema.org","@type":"WebPage","description":"Inspect a compiled ViewSpec artifact from DOM element to CompositionIR node, binding, canonical address, semantic node, and raw source value.","name":"ViewSpec Demo - Provenance Inspector","url":"https://viewspec.dev/provenance-inspector/"}</script>
   <link rel="icon" href="data:,">
   <script src="https://cdn.tailwindcss.com"></script>
   <script type="module" src="../shared/pretext-canvas-surfaces.js"></script>
@@ -124,7 +95,6 @@
       }
     }
   </style>
-  <script src="../shared/nav.js" defer></script>
 </head>
 <body>
   <main class="content-shell mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
@@ -148,7 +118,7 @@
     </header>
 
     <section id="artifact" class="artifact-frame rounded-lg border border-white/10 bg-white/[0.05] p-3 shadow-2xl shadow-black/30 sm:p-4" aria-label="Rendered ViewSpec artifact">
-      <main id="dom-region_root" class="min-h-screen bg-slate-50 text-slate-950 p-6 space-y-6" data-ir-id="region_root" data-content-refs="[]" data-intent-refs="[&quot;viewspec:view:provenance_inspector&quot;, &quot;viewspec:region:root&quot;]"><div id="dom-region_main" class="flex flex-col gap-3" data-ir-id="region_main" data-content-refs="[]" data-intent-refs="[&quot;viewspec:region:main&quot;]"><div id="dom-motif_kpis" class="flex flex-col gap-3" data-ir-id="motif_kpis" data-content-refs="[]" data-intent-refs="[&quot;viewspec:motif:kpis&quot;]"><div id="dom-motif_kpis_kpi_revenue" class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm space-y-3" data-ir-id="motif_kpis_kpi_revenue" data-content-refs="[]" data-intent-refs="[&quot;viewspec:motif:kpis&quot;]"><div id="dom-binding_kpi_revenue_label" class="text-xs font-bold uppercase tracking-widest text-slate-500" data-ir-id="binding_kpi_revenue_label" data-content-refs="[&quot;node:kpi_revenue#attr:label&quot;]" data-intent-refs="[&quot;viewspec:binding:kpi_revenue_label&quot;]">Revenue</div><div id="dom-binding_kpi_revenue_value" class="text-2xl font-black tracking-tight text-slate-950" data-ir-id="binding_kpi_revenue_value" data-content-refs="[&quot;node:kpi_revenue#attr:value&quot;]" data-intent-refs="[&quot;viewspec:binding:kpi_revenue_value&quot;, &quot;viewspec:style:style_revenue_value&quot;]" style="font-weight: 800; letter-spacing: -0.025em;">$2.4M</div></div><div id="dom-motif_kpis_kpi_users" class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm space-y-3" data-ir-id="motif_kpis_kpi_users" data-content-refs="[]" data-intent-refs="[&quot;viewspec:motif:kpis&quot;]"><div id="dom-binding_kpi_users_label" class="text-xs font-bold uppercase tracking-widest text-slate-500" data-ir-id="binding_kpi_users_label" data-content-refs="[&quot;node:kpi_users#attr:label&quot;]" data-intent-refs="[&quot;viewspec:binding:kpi_users_label&quot;]">Active Users</div><div id="dom-binding_kpi_users_value" class="text-2xl font-black tracking-tight text-slate-950" data-ir-id="binding_kpi_users_value" data-content-refs="[&quot;node:kpi_users#attr:value&quot;]" data-intent-refs="[&quot;viewspec:binding:kpi_users_value&quot;]">18,472</div></div><div id="dom-motif_kpis_kpi_conversion" class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm space-y-3" data-ir-id="motif_kpis_kpi_conversion" data-content-refs="[]" data-intent-refs="[&quot;viewspec:motif:kpis&quot;]"><div id="dom-binding_kpi_conversion_label" class="text-xs font-bold uppercase tracking-widest text-slate-500" data-ir-id="binding_kpi_conversion_label" data-content-refs="[&quot;node:kpi_conversion#attr:label&quot;]" data-intent-refs="[&quot;viewspec:binding:kpi_conversion_label&quot;]">Conversion</div><div id="dom-binding_kpi_conversion_value" class="text-2xl font-black tracking-tight text-slate-950" data-ir-id="binding_kpi_conversion_value" data-content-refs="[&quot;node:kpi_conversion#attr:value&quot;]" data-intent-refs="[&quot;viewspec:binding:kpi_conversion_value&quot;]">3.8%</div></div><div id="dom-motif_kpis_kpi_churn" class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm space-y-3" data-ir-id="motif_kpis_kpi_churn" data-content-refs="[]" data-intent-refs="[&quot;viewspec:motif:kpis&quot;]"><div id="dom-binding_kpi_churn_label" class="text-xs font-bold uppercase tracking-widest text-slate-500" data-ir-id="binding_kpi_churn_label" data-content-refs="[&quot;node:kpi_churn#attr:label&quot;]" data-intent-refs="[&quot;viewspec:binding:kpi_churn_label&quot;]">Churn</div><div id="dom-binding_kpi_churn_value" class="text-2xl font-black tracking-tight text-slate-950" data-ir-id="binding_kpi_churn_value" data-content-refs="[&quot;node:kpi_churn#attr:value&quot;]" data-intent-refs="[&quot;viewspec:binding:kpi_churn_value&quot;]">1.2%</div></div></div><div id="dom-motif_segments" class="flex flex-col gap-3" data-ir-id="motif_segments" data-content-refs="[]" data-intent-refs="[&quot;viewspec:motif:segments&quot;]"><div id="dom-motif_segments_segment_enterprise" class="flex flex-row flex-wrap gap-3" data-ir-id="motif_segments_segment_enterprise" data-content-refs="[]" data-intent-refs="[&quot;viewspec:motif:segments&quot;]"><div id="dom-binding_segment_enterprise_label" class="text-xs font-bold uppercase tracking-widest text-slate-500" data-ir-id="binding_segment_enterprise_label" data-content-refs="[&quot;node:segment_enterprise#attr:label&quot;]" data-intent-refs="[&quot;viewspec:binding:segment_enterprise_label&quot;]">Enterprise</div><div id="dom-binding_segment_enterprise_value" class="text-2xl font-black tracking-tight text-slate-950" data-ir-id="binding_segment_enterprise_value" data-content-refs="[&quot;node:segment_enterprise#attr:value&quot;]" data-intent-refs="[&quot;viewspec:binding:segment_enterprise_value&quot;]">$1.8M</div><div id="dom-binding_segment_enterprise_growth" class="text-2xl font-black tracking-tight text-slate-950" data-ir-id="binding_segment_enterprise_growth" data-content-refs="[&quot;node:segment_enterprise#attr:growth&quot;]" data-intent-refs="[&quot;viewspec:binding:segment_enterprise_growth&quot;]">+22%</div></div><div id="dom-motif_segments_segment_mid_market" class="flex flex-row flex-wrap gap-3" data-ir-id="motif_segments_segment_mid_market" data-content-refs="[]" data-intent-refs="[&quot;viewspec:motif:segments&quot;]"><div id="dom-binding_segment_mid_market_label" class="text-xs font-bold uppercase tracking-widest text-slate-500" data-ir-id="binding_segment_mid_market_label" data-content-refs="[&quot;node:segment_mid_market#attr:label&quot;]" data-intent-refs="[&quot;viewspec:binding:segment_mid_market_label&quot;]">Mid-Market</div><div id="dom-binding_segment_mid_market_value" class="text-2xl font-black tracking-tight text-slate-950" data-ir-id="binding_segment_mid_market_value" data-content-refs="[&quot;node:segment_mid_market#attr:value&quot;]" data-intent-refs="[&quot;viewspec:binding:segment_mid_market_value&quot;]">$420K</div><div id="dom-binding_segment_mid_market_growth" class="text-2xl font-black tracking-tight text-slate-950" data-ir-id="binding_segment_mid_market_growth" data-content-refs="[&quot;node:segment_mid_market#attr:growth&quot;]" data-intent-refs="[&quot;viewspec:binding:segment_mid_market_growth&quot;]">+15%</div></div><div id="dom-motif_segments_segment_smb" class="flex flex-row flex-wrap gap-3" data-ir-id="motif_segments_segment_smb" data-content-refs="[]" data-intent-refs="[&quot;viewspec:motif:segments&quot;]"><div id="dom-binding_segment_smb_label" class="text-xs font-bold uppercase tracking-widest text-slate-500" data-ir-id="binding_segment_smb_label" data-content-refs="[&quot;node:segment_smb#attr:label&quot;]" data-intent-refs="[&quot;viewspec:binding:segment_smb_label&quot;]">SMB</div><div id="dom-binding_segment_smb_value" class="text-2xl font-black tracking-tight text-slate-950" data-ir-id="binding_segment_smb_value" data-content-refs="[&quot;node:segment_smb#attr:value&quot;]" data-intent-refs="[&quot;viewspec:binding:segment_smb_value&quot;]">$180K</div><div id="dom-binding_segment_smb_growth" class="text-2xl font-black tracking-tight text-slate-950" data-ir-id="binding_segment_smb_growth" data-content-refs="[&quot;node:segment_smb#attr:growth&quot;]" data-intent-refs="[&quot;viewspec:binding:segment_smb_growth&quot;]">+8%</div></div><div id="dom-motif_segments_segment_self_serve" class="flex flex-row flex-wrap gap-3" data-ir-id="motif_segments_segment_self_serve" data-content-refs="[]" data-intent-refs="[&quot;viewspec:motif:segments&quot;]"><div id="dom-binding_segment_self_serve_label" class="text-xs font-bold uppercase tracking-widest text-slate-500" data-ir-id="binding_segment_self_serve_label" data-content-refs="[&quot;node:segment_self_serve#attr:label&quot;]" data-intent-refs="[&quot;viewspec:binding:segment_self_serve_label&quot;]">Self-Serve</div><div id="dom-binding_segment_self_serve_value" class="text-2xl font-black tracking-tight text-slate-950" data-ir-id="binding_segment_self_serve_value" data-content-refs="[&quot;node:segment_self_serve#attr:value&quot;]" data-intent-refs="[&quot;viewspec:binding:segment_self_serve_value&quot;]">$45K</div><div id="dom-binding_segment_self_serve_growth" class="text-2xl font-black tracking-tight text-slate-950" data-ir-id="binding_segment_self_serve_growth" data-content-refs="[&quot;node:segment_self_serve#attr:growth&quot;]" data-intent-refs="[&quot;viewspec:binding:segment_self_serve_growth&quot;]">+31%</div></div><div id="dom-motif_segments_segment_partner" class="flex flex-row flex-wrap gap-3" data-ir-id="motif_segments_segment_partner" data-content-refs="[]" data-intent-refs="[&quot;viewspec:motif:segments&quot;]"><div id="dom-binding_segment_partner_label" class="text-xs font-bold uppercase tracking-widest text-slate-500" data-ir-id="binding_segment_partner_label" data-content-refs="[&quot;node:segment_partner#attr:label&quot;]" data-intent-refs="[&quot;viewspec:binding:segment_partner_label&quot;]">Partner</div><div id="dom-binding_segment_partner_value" class="text-2xl font-black tracking-tight text-slate-950" data-ir-id="binding_segment_partner_value" data-content-refs="[&quot;node:segment_partner#attr:value&quot;]" data-intent-refs="[&quot;viewspec:binding:segment_partner_value&quot;]">$12K</div><div id="dom-binding_segment_partner_growth" class="text-2xl font-black tracking-tight text-slate-950" data-ir-id="binding_segment_partner_growth" data-content-refs="[&quot;node:segment_partner#attr:growth&quot;]" data-intent-refs="[&quot;viewspec:binding:segment_partner_growth&quot;, &quot;viewspec:style:style_partner_growth&quot;]" style="color: #6b7280;">-3%</div></div></div></div></main>
+      <main id="dom-region_root" class="vs-root" data-ir-id="region_root" data-content-refs="[]" data-intent-refs="[&quot;viewspec:view:provenance_inspector&quot;, &quot;viewspec:region:root&quot;]" data-style-tokens="[&quot;tone.neutral&quot;, &quot;palette.temperature&quot;]" style="color: #1f2937; background-color: #ffffff;"><div id="dom-region_main" class="vs-stack" data-ir-id="region_main" data-content-refs="[]" data-intent-refs="[&quot;viewspec:region:main&quot;]" data-style-tokens="[&quot;density.regular&quot;]" style="gap: 0.68rem; padding: 0.58rem 0.74rem;"><div id="dom-motif_kpis" class="vs-stack" data-ir-id="motif_kpis" data-content-refs="[]" data-intent-refs="[&quot;viewspec:motif:kpis&quot;]" data-style-tokens="[&quot;density.regular&quot;]" style="gap: 0.68rem; padding: 0.58rem 0.74rem;"><div id="dom-motif_kpis_kpi_revenue" class="vs-surface" data-ir-id="motif_kpis_kpi_revenue" data-content-refs="[]" data-intent-refs="[&quot;viewspec:motif:kpis&quot;]" data-style-tokens="[&quot;surface.subtle&quot;]" style="background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 14px;"><div id="dom-binding_kpi_revenue_label" class="vs-label" data-ir-id="binding_kpi_revenue_label" data-content-refs="[&quot;node:kpi_revenue#attr:label&quot;]" data-intent-refs="[&quot;viewspec:binding:kpi_revenue_label&quot;]" data-style-tokens="[&quot;tone.muted&quot;]" style="color: #6b7280;" data-binding-id="kpi_revenue_label">Revenue</div><div id="dom-binding_kpi_revenue_value" class="vs-value" data-ir-id="binding_kpi_revenue_value" data-content-refs="[&quot;node:kpi_revenue#attr:value&quot;]" data-intent-refs="[&quot;viewspec:binding:kpi_revenue_value&quot;, &quot;viewspec:style:style_revenue_value&quot;]" data-style-tokens="[&quot;tone.neutral&quot;, &quot;emphasis.high&quot;]" style="color: #1f2937; font-weight: 800; letter-spacing: -0.025em;" data-binding-id="kpi_revenue_value">$2.4M</div></div><div id="dom-motif_kpis_kpi_users" class="vs-surface" data-ir-id="motif_kpis_kpi_users" data-content-refs="[]" data-intent-refs="[&quot;viewspec:motif:kpis&quot;]" data-style-tokens="[&quot;surface.subtle&quot;]" style="background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 14px;"><div id="dom-binding_kpi_users_label" class="vs-label" data-ir-id="binding_kpi_users_label" data-content-refs="[&quot;node:kpi_users#attr:label&quot;]" data-intent-refs="[&quot;viewspec:binding:kpi_users_label&quot;]" data-style-tokens="[&quot;tone.muted&quot;]" style="color: #6b7280;" data-binding-id="kpi_users_label">Active Users</div><div id="dom-binding_kpi_users_value" class="vs-value" data-ir-id="binding_kpi_users_value" data-content-refs="[&quot;node:kpi_users#attr:value&quot;]" data-intent-refs="[&quot;viewspec:binding:kpi_users_value&quot;]" data-style-tokens="[&quot;tone.neutral&quot;, &quot;emphasis.high&quot;]" style="color: #1f2937; font-weight: 800; letter-spacing: -0.025em;" data-binding-id="kpi_users_value">18,472</div></div><div id="dom-motif_kpis_kpi_conversion" class="vs-surface" data-ir-id="motif_kpis_kpi_conversion" data-content-refs="[]" data-intent-refs="[&quot;viewspec:motif:kpis&quot;]" data-style-tokens="[&quot;surface.subtle&quot;]" style="background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 14px;"><div id="dom-binding_kpi_conversion_label" class="vs-label" data-ir-id="binding_kpi_conversion_label" data-content-refs="[&quot;node:kpi_conversion#attr:label&quot;]" data-intent-refs="[&quot;viewspec:binding:kpi_conversion_label&quot;]" data-style-tokens="[&quot;tone.muted&quot;]" style="color: #6b7280;" data-binding-id="kpi_conversion_label">Conversion</div><div id="dom-binding_kpi_conversion_value" class="vs-value" data-ir-id="binding_kpi_conversion_value" data-content-refs="[&quot;node:kpi_conversion#attr:value&quot;]" data-intent-refs="[&quot;viewspec:binding:kpi_conversion_value&quot;]" data-style-tokens="[&quot;tone.neutral&quot;, &quot;emphasis.high&quot;]" style="color: #1f2937; font-weight: 800; letter-spacing: -0.025em;" data-binding-id="kpi_conversion_value">3.8%</div></div><div id="dom-motif_kpis_kpi_churn" class="vs-surface" data-ir-id="motif_kpis_kpi_churn" data-content-refs="[]" data-intent-refs="[&quot;viewspec:motif:kpis&quot;]" data-style-tokens="[&quot;surface.subtle&quot;]" style="background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 14px;"><div id="dom-binding_kpi_churn_label" class="vs-label" data-ir-id="binding_kpi_churn_label" data-content-refs="[&quot;node:kpi_churn#attr:label&quot;]" data-intent-refs="[&quot;viewspec:binding:kpi_churn_label&quot;]" data-style-tokens="[&quot;tone.muted&quot;]" style="color: #6b7280;" data-binding-id="kpi_churn_label">Churn</div><div id="dom-binding_kpi_churn_value" class="vs-value" data-ir-id="binding_kpi_churn_value" data-content-refs="[&quot;node:kpi_churn#attr:value&quot;]" data-intent-refs="[&quot;viewspec:binding:kpi_churn_value&quot;]" data-style-tokens="[&quot;tone.neutral&quot;, &quot;emphasis.high&quot;]" style="color: #1f2937; font-weight: 800; letter-spacing: -0.025em;" data-binding-id="kpi_churn_value">1.2%</div></div></div><table id="dom-motif_segments" class="vs-stack" data-ir-id="motif_segments" data-content-refs="[]" data-intent-refs="[&quot;viewspec:motif:segments&quot;]" data-style-tokens="[&quot;density.regular&quot;]" style="gap: 0.68rem; padding: 0.58rem 0.74rem;"><tbody><tr id="dom-motif_segments_segment_enterprise" class="vs-cluster" data-ir-id="motif_segments_segment_enterprise" data-content-refs="[]" data-intent-refs="[&quot;viewspec:motif:segments&quot;]" data-style-tokens="[&quot;density.compact&quot;]" style="gap: 0.34rem; padding: 0.36rem 0.5rem;"><th id="dom-binding_segment_enterprise_label" class="vs-label" data-ir-id="binding_segment_enterprise_label" data-content-refs="[&quot;node:segment_enterprise#attr:label&quot;]" data-intent-refs="[&quot;viewspec:binding:segment_enterprise_label&quot;]" data-style-tokens="[&quot;tone.muted&quot;]" style="color: #6b7280;" data-binding-id="segment_enterprise_label" scope="row">Enterprise</th><td id="dom-binding_segment_enterprise_value" class="vs-value" data-ir-id="binding_segment_enterprise_value" data-content-refs="[&quot;node:segment_enterprise#attr:value&quot;]" data-intent-refs="[&quot;viewspec:binding:segment_enterprise_value&quot;]" data-style-tokens="[&quot;tone.neutral&quot;, &quot;emphasis.high&quot;]" style="color: #1f2937; font-weight: 800; letter-spacing: -0.025em;" data-binding-id="segment_enterprise_value">$1.8M</td><td id="dom-binding_segment_enterprise_growth" class="vs-value" data-ir-id="binding_segment_enterprise_growth" data-content-refs="[&quot;node:segment_enterprise#attr:growth&quot;]" data-intent-refs="[&quot;viewspec:binding:segment_enterprise_growth&quot;]" data-style-tokens="[&quot;tone.neutral&quot;, &quot;emphasis.high&quot;]" style="color: #1f2937; font-weight: 800; letter-spacing: -0.025em;" data-binding-id="segment_enterprise_growth">+22%</td></tr><tr id="dom-motif_segments_segment_mid_market" class="vs-cluster" data-ir-id="motif_segments_segment_mid_market" data-content-refs="[]" data-intent-refs="[&quot;viewspec:motif:segments&quot;]" data-style-tokens="[&quot;density.compact&quot;]" style="gap: 0.34rem; padding: 0.36rem 0.5rem;"><th id="dom-binding_segment_mid_market_label" class="vs-label" data-ir-id="binding_segment_mid_market_label" data-content-refs="[&quot;node:segment_mid_market#attr:label&quot;]" data-intent-refs="[&quot;viewspec:binding:segment_mid_market_label&quot;]" data-style-tokens="[&quot;tone.muted&quot;]" style="color: #6b7280;" data-binding-id="segment_mid_market_label" scope="row">Mid-Market</th><td id="dom-binding_segment_mid_market_value" class="vs-value" data-ir-id="binding_segment_mid_market_value" data-content-refs="[&quot;node:segment_mid_market#attr:value&quot;]" data-intent-refs="[&quot;viewspec:binding:segment_mid_market_value&quot;]" data-style-tokens="[&quot;tone.neutral&quot;, &quot;emphasis.high&quot;]" style="color: #1f2937; font-weight: 800; letter-spacing: -0.025em;" data-binding-id="segment_mid_market_value">$420K</td><td id="dom-binding_segment_mid_market_growth" class="vs-value" data-ir-id="binding_segment_mid_market_growth" data-content-refs="[&quot;node:segment_mid_market#attr:growth&quot;]" data-intent-refs="[&quot;viewspec:binding:segment_mid_market_growth&quot;]" data-style-tokens="[&quot;tone.neutral&quot;, &quot;emphasis.high&quot;]" style="color: #1f2937; font-weight: 800; letter-spacing: -0.025em;" data-binding-id="segment_mid_market_growth">+15%</td></tr><tr id="dom-motif_segments_segment_smb" class="vs-cluster" data-ir-id="motif_segments_segment_smb" data-content-refs="[]" data-intent-refs="[&quot;viewspec:motif:segments&quot;]" data-style-tokens="[&quot;density.compact&quot;]" style="gap: 0.34rem; padding: 0.36rem 0.5rem;"><th id="dom-binding_segment_smb_label" class="vs-label" data-ir-id="binding_segment_smb_label" data-content-refs="[&quot;node:segment_smb#attr:label&quot;]" data-intent-refs="[&quot;viewspec:binding:segment_smb_label&quot;]" data-style-tokens="[&quot;tone.muted&quot;]" style="color: #6b7280;" data-binding-id="segment_smb_label" scope="row">SMB</th><td id="dom-binding_segment_smb_value" class="vs-value" data-ir-id="binding_segment_smb_value" data-content-refs="[&quot;node:segment_smb#attr:value&quot;]" data-intent-refs="[&quot;viewspec:binding:segment_smb_value&quot;]" data-style-tokens="[&quot;tone.neutral&quot;, &quot;emphasis.high&quot;]" style="color: #1f2937; font-weight: 800; letter-spacing: -0.025em;" data-binding-id="segment_smb_value">$180K</td><td id="dom-binding_segment_smb_growth" class="vs-value" data-ir-id="binding_segment_smb_growth" data-content-refs="[&quot;node:segment_smb#attr:growth&quot;]" data-intent-refs="[&quot;viewspec:binding:segment_smb_growth&quot;]" data-style-tokens="[&quot;tone.neutral&quot;, &quot;emphasis.high&quot;]" style="color: #1f2937; font-weight: 800; letter-spacing: -0.025em;" data-binding-id="segment_smb_growth">+8%</td></tr><tr id="dom-motif_segments_segment_self_serve" class="vs-cluster" data-ir-id="motif_segments_segment_self_serve" data-content-refs="[]" data-intent-refs="[&quot;viewspec:motif:segments&quot;]" data-style-tokens="[&quot;density.compact&quot;]" style="gap: 0.34rem; padding: 0.36rem 0.5rem;"><th id="dom-binding_segment_self_serve_label" class="vs-label" data-ir-id="binding_segment_self_serve_label" data-content-refs="[&quot;node:segment_self_serve#attr:label&quot;]" data-intent-refs="[&quot;viewspec:binding:segment_self_serve_label&quot;]" data-style-tokens="[&quot;tone.muted&quot;]" style="color: #6b7280;" data-binding-id="segment_self_serve_label" scope="row">Self-Serve</th><td id="dom-binding_segment_self_serve_value" class="vs-value" data-ir-id="binding_segment_self_serve_value" data-content-refs="[&quot;node:segment_self_serve#attr:value&quot;]" data-intent-refs="[&quot;viewspec:binding:segment_self_serve_value&quot;]" data-style-tokens="[&quot;tone.neutral&quot;, &quot;emphasis.high&quot;]" style="color: #1f2937; font-weight: 800; letter-spacing: -0.025em;" data-binding-id="segment_self_serve_value">$45K</td><td id="dom-binding_segment_self_serve_growth" class="vs-value" data-ir-id="binding_segment_self_serve_growth" data-content-refs="[&quot;node:segment_self_serve#attr:growth&quot;]" data-intent-refs="[&quot;viewspec:binding:segment_self_serve_growth&quot;]" data-style-tokens="[&quot;tone.neutral&quot;, &quot;emphasis.high&quot;]" style="color: #1f2937; font-weight: 800; letter-spacing: -0.025em;" data-binding-id="segment_self_serve_growth">+31%</td></tr><tr id="dom-motif_segments_segment_partner" class="vs-cluster" data-ir-id="motif_segments_segment_partner" data-content-refs="[]" data-intent-refs="[&quot;viewspec:motif:segments&quot;]" data-style-tokens="[&quot;density.compact&quot;]" style="gap: 0.34rem; padding: 0.36rem 0.5rem;"><th id="dom-binding_segment_partner_label" class="vs-label" data-ir-id="binding_segment_partner_label" data-content-refs="[&quot;node:segment_partner#attr:label&quot;]" data-intent-refs="[&quot;viewspec:binding:segment_partner_label&quot;]" data-style-tokens="[&quot;tone.muted&quot;]" style="color: #6b7280;" data-binding-id="segment_partner_label" scope="row">Partner</th><td id="dom-binding_segment_partner_value" class="vs-value" data-ir-id="binding_segment_partner_value" data-content-refs="[&quot;node:segment_partner#attr:value&quot;]" data-intent-refs="[&quot;viewspec:binding:segment_partner_value&quot;]" data-style-tokens="[&quot;tone.neutral&quot;, &quot;emphasis.high&quot;]" style="color: #1f2937; font-weight: 800; letter-spacing: -0.025em;" data-binding-id="segment_partner_value">$12K</td><td id="dom-binding_segment_partner_growth" class="vs-value" data-ir-id="binding_segment_partner_growth" data-content-refs="[&quot;node:segment_partner#attr:growth&quot;]" data-intent-refs="[&quot;viewspec:binding:segment_partner_growth&quot;, &quot;viewspec:style:style_partner_growth&quot;]" data-style-tokens="[&quot;tone.neutral&quot;, &quot;emphasis.high&quot;, &quot;tone.muted&quot;]" style="color: #1f2937; font-weight: 800; letter-spacing: -0.025em; color: #6b7280;" data-binding-id="segment_partner_growth">-3%</td></tr></tbody></table></div></main>
     </section>
 
     <aside id="inspector-panel" class="inspector-panel mt-5 flex flex-col rounded-lg p-4 lg:mt-0" aria-live="polite">
@@ -185,9 +155,12 @@
     "ir_id": "binding_kpi_churn_label",
     "primitive": "label",
     "props": {
+      "binding_id": "kpi_churn_label",
       "text": "Churn"
     },
-    "style_tokens": []
+    "style_tokens": [
+      "tone.muted"
+    ]
   },
   "dom-binding_kpi_churn_value": {
     "content_refs": [
@@ -199,9 +172,13 @@
     "ir_id": "binding_kpi_churn_value",
     "primitive": "value",
     "props": {
+      "binding_id": "kpi_churn_value",
       "text": "1.2%"
     },
-    "style_tokens": []
+    "style_tokens": [
+      "tone.neutral",
+      "emphasis.high"
+    ]
   },
   "dom-binding_kpi_conversion_label": {
     "content_refs": [
@@ -213,9 +190,12 @@
     "ir_id": "binding_kpi_conversion_label",
     "primitive": "label",
     "props": {
+      "binding_id": "kpi_conversion_label",
       "text": "Conversion"
     },
-    "style_tokens": []
+    "style_tokens": [
+      "tone.muted"
+    ]
   },
   "dom-binding_kpi_conversion_value": {
     "content_refs": [
@@ -227,9 +207,13 @@
     "ir_id": "binding_kpi_conversion_value",
     "primitive": "value",
     "props": {
+      "binding_id": "kpi_conversion_value",
       "text": "3.8%"
     },
-    "style_tokens": []
+    "style_tokens": [
+      "tone.neutral",
+      "emphasis.high"
+    ]
   },
   "dom-binding_kpi_revenue_label": {
     "content_refs": [
@@ -241,9 +225,12 @@
     "ir_id": "binding_kpi_revenue_label",
     "primitive": "label",
     "props": {
+      "binding_id": "kpi_revenue_label",
       "text": "Revenue"
     },
-    "style_tokens": []
+    "style_tokens": [
+      "tone.muted"
+    ]
   },
   "dom-binding_kpi_revenue_value": {
     "content_refs": [
@@ -256,9 +243,11 @@
     "ir_id": "binding_kpi_revenue_value",
     "primitive": "value",
     "props": {
+      "binding_id": "kpi_revenue_value",
       "text": "$2.4M"
     },
     "style_tokens": [
+      "tone.neutral",
       "emphasis.high"
     ]
   },
@@ -272,9 +261,12 @@
     "ir_id": "binding_kpi_users_label",
     "primitive": "label",
     "props": {
+      "binding_id": "kpi_users_label",
       "text": "Active Users"
     },
-    "style_tokens": []
+    "style_tokens": [
+      "tone.muted"
+    ]
   },
   "dom-binding_kpi_users_value": {
     "content_refs": [
@@ -286,9 +278,13 @@
     "ir_id": "binding_kpi_users_value",
     "primitive": "value",
     "props": {
+      "binding_id": "kpi_users_value",
       "text": "18,472"
     },
-    "style_tokens": []
+    "style_tokens": [
+      "tone.neutral",
+      "emphasis.high"
+    ]
   },
   "dom-binding_segment_enterprise_growth": {
     "content_refs": [
@@ -300,9 +296,14 @@
     "ir_id": "binding_segment_enterprise_growth",
     "primitive": "value",
     "props": {
+      "binding_id": "segment_enterprise_growth",
+      "table_cell_role": "cell",
       "text": "+22%"
     },
-    "style_tokens": []
+    "style_tokens": [
+      "tone.neutral",
+      "emphasis.high"
+    ]
   },
   "dom-binding_segment_enterprise_label": {
     "content_refs": [
@@ -314,9 +315,13 @@
     "ir_id": "binding_segment_enterprise_label",
     "primitive": "label",
     "props": {
+      "binding_id": "segment_enterprise_label",
+      "table_cell_role": "row_header",
       "text": "Enterprise"
     },
-    "style_tokens": []
+    "style_tokens": [
+      "tone.muted"
+    ]
   },
   "dom-binding_segment_enterprise_value": {
     "content_refs": [
@@ -328,9 +333,14 @@
     "ir_id": "binding_segment_enterprise_value",
     "primitive": "value",
     "props": {
+      "binding_id": "segment_enterprise_value",
+      "table_cell_role": "cell",
       "text": "$1.8M"
     },
-    "style_tokens": []
+    "style_tokens": [
+      "tone.neutral",
+      "emphasis.high"
+    ]
   },
   "dom-binding_segment_mid_market_growth": {
     "content_refs": [
@@ -342,9 +352,14 @@
     "ir_id": "binding_segment_mid_market_growth",
     "primitive": "value",
     "props": {
+      "binding_id": "segment_mid_market_growth",
+      "table_cell_role": "cell",
       "text": "+15%"
     },
-    "style_tokens": []
+    "style_tokens": [
+      "tone.neutral",
+      "emphasis.high"
+    ]
   },
   "dom-binding_segment_mid_market_label": {
     "content_refs": [
@@ -356,9 +371,13 @@
     "ir_id": "binding_segment_mid_market_label",
     "primitive": "label",
     "props": {
+      "binding_id": "segment_mid_market_label",
+      "table_cell_role": "row_header",
       "text": "Mid-Market"
     },
-    "style_tokens": []
+    "style_tokens": [
+      "tone.muted"
+    ]
   },
   "dom-binding_segment_mid_market_value": {
     "content_refs": [
@@ -370,9 +389,14 @@
     "ir_id": "binding_segment_mid_market_value",
     "primitive": "value",
     "props": {
+      "binding_id": "segment_mid_market_value",
+      "table_cell_role": "cell",
       "text": "$420K"
     },
-    "style_tokens": []
+    "style_tokens": [
+      "tone.neutral",
+      "emphasis.high"
+    ]
   },
   "dom-binding_segment_partner_growth": {
     "content_refs": [
@@ -385,9 +409,13 @@
     "ir_id": "binding_segment_partner_growth",
     "primitive": "value",
     "props": {
+      "binding_id": "segment_partner_growth",
+      "table_cell_role": "cell",
       "text": "-3%"
     },
     "style_tokens": [
+      "tone.neutral",
+      "emphasis.high",
       "tone.muted"
     ]
   },
@@ -401,9 +429,13 @@
     "ir_id": "binding_segment_partner_label",
     "primitive": "label",
     "props": {
+      "binding_id": "segment_partner_label",
+      "table_cell_role": "row_header",
       "text": "Partner"
     },
-    "style_tokens": []
+    "style_tokens": [
+      "tone.muted"
+    ]
   },
   "dom-binding_segment_partner_value": {
     "content_refs": [
@@ -415,9 +447,14 @@
     "ir_id": "binding_segment_partner_value",
     "primitive": "value",
     "props": {
+      "binding_id": "segment_partner_value",
+      "table_cell_role": "cell",
       "text": "$12K"
     },
-    "style_tokens": []
+    "style_tokens": [
+      "tone.neutral",
+      "emphasis.high"
+    ]
   },
   "dom-binding_segment_self_serve_growth": {
     "content_refs": [
@@ -429,9 +466,14 @@
     "ir_id": "binding_segment_self_serve_growth",
     "primitive": "value",
     "props": {
+      "binding_id": "segment_self_serve_growth",
+      "table_cell_role": "cell",
       "text": "+31%"
     },
-    "style_tokens": []
+    "style_tokens": [
+      "tone.neutral",
+      "emphasis.high"
+    ]
   },
   "dom-binding_segment_self_serve_label": {
     "content_refs": [
@@ -443,9 +485,13 @@
     "ir_id": "binding_segment_self_serve_label",
     "primitive": "label",
     "props": {
+      "binding_id": "segment_self_serve_label",
+      "table_cell_role": "row_header",
       "text": "Self-Serve"
     },
-    "style_tokens": []
+    "style_tokens": [
+      "tone.muted"
+    ]
   },
   "dom-binding_segment_self_serve_value": {
     "content_refs": [
@@ -457,9 +503,14 @@
     "ir_id": "binding_segment_self_serve_value",
     "primitive": "value",
     "props": {
+      "binding_id": "segment_self_serve_value",
+      "table_cell_role": "cell",
       "text": "$45K"
     },
-    "style_tokens": []
+    "style_tokens": [
+      "tone.neutral",
+      "emphasis.high"
+    ]
   },
   "dom-binding_segment_smb_growth": {
     "content_refs": [
@@ -471,9 +522,14 @@
     "ir_id": "binding_segment_smb_growth",
     "primitive": "value",
     "props": {
+      "binding_id": "segment_smb_growth",
+      "table_cell_role": "cell",
       "text": "+8%"
     },
-    "style_tokens": []
+    "style_tokens": [
+      "tone.neutral",
+      "emphasis.high"
+    ]
   },
   "dom-binding_segment_smb_label": {
     "content_refs": [
@@ -485,9 +541,13 @@
     "ir_id": "binding_segment_smb_label",
     "primitive": "label",
     "props": {
+      "binding_id": "segment_smb_label",
+      "table_cell_role": "row_header",
       "text": "SMB"
     },
-    "style_tokens": []
+    "style_tokens": [
+      "tone.muted"
+    ]
   },
   "dom-binding_segment_smb_value": {
     "content_refs": [
@@ -499,9 +559,14 @@
     "ir_id": "binding_segment_smb_value",
     "primitive": "value",
     "props": {
+      "binding_id": "segment_smb_value",
+      "table_cell_role": "cell",
       "text": "$180K"
     },
-    "style_tokens": []
+    "style_tokens": [
+      "tone.neutral",
+      "emphasis.high"
+    ]
   },
   "dom-motif_kpis": {
     "content_refs": [],
@@ -514,7 +579,9 @@
       "layout_role": "stack",
       "motif_kind": "dashboard"
     },
-    "style_tokens": []
+    "style_tokens": [
+      "density.regular"
+    ]
   },
   "dom-motif_kpis_kpi_churn": {
     "content_refs": [],
@@ -527,7 +594,9 @@
       "layout_role": "surface",
       "motif_kind": "dashboard"
     },
-    "style_tokens": []
+    "style_tokens": [
+      "surface.subtle"
+    ]
   },
   "dom-motif_kpis_kpi_conversion": {
     "content_refs": [],
@@ -540,7 +609,9 @@
       "layout_role": "surface",
       "motif_kind": "dashboard"
     },
-    "style_tokens": []
+    "style_tokens": [
+      "surface.subtle"
+    ]
   },
   "dom-motif_kpis_kpi_revenue": {
     "content_refs": [],
@@ -553,7 +624,9 @@
       "layout_role": "surface",
       "motif_kind": "dashboard"
     },
-    "style_tokens": []
+    "style_tokens": [
+      "surface.subtle"
+    ]
   },
   "dom-motif_kpis_kpi_users": {
     "content_refs": [],
@@ -566,7 +639,9 @@
       "layout_role": "surface",
       "motif_kind": "dashboard"
     },
-    "style_tokens": []
+    "style_tokens": [
+      "surface.subtle"
+    ]
   },
   "dom-motif_segments": {
     "content_refs": [],
@@ -579,7 +654,9 @@
       "layout_role": "stack",
       "motif_kind": "table"
     },
-    "style_tokens": []
+    "style_tokens": [
+      "density.regular"
+    ]
   },
   "dom-motif_segments_segment_enterprise": {
     "content_refs": [],
@@ -592,7 +669,9 @@
       "layout_role": "cluster",
       "motif_kind": "table"
     },
-    "style_tokens": []
+    "style_tokens": [
+      "density.compact"
+    ]
   },
   "dom-motif_segments_segment_mid_market": {
     "content_refs": [],
@@ -605,7 +684,9 @@
       "layout_role": "cluster",
       "motif_kind": "table"
     },
-    "style_tokens": []
+    "style_tokens": [
+      "density.compact"
+    ]
   },
   "dom-motif_segments_segment_partner": {
     "content_refs": [],
@@ -618,7 +699,9 @@
       "layout_role": "cluster",
       "motif_kind": "table"
     },
-    "style_tokens": []
+    "style_tokens": [
+      "density.compact"
+    ]
   },
   "dom-motif_segments_segment_self_serve": {
     "content_refs": [],
@@ -631,7 +714,9 @@
       "layout_role": "cluster",
       "motif_kind": "table"
     },
-    "style_tokens": []
+    "style_tokens": [
+      "density.compact"
+    ]
   },
   "dom-motif_segments_segment_smb": {
     "content_refs": [],
@@ -644,7 +729,9 @@
       "layout_role": "cluster",
       "motif_kind": "table"
     },
-    "style_tokens": []
+    "style_tokens": [
+      "density.compact"
+    ]
   },
   "dom-region_main": {
     "content_refs": [],
@@ -656,7 +743,9 @@
     "props": {
       "layout_role": "stack"
     },
-    "style_tokens": []
+    "style_tokens": [
+      "density.regular"
+    ]
   },
   "dom-region_root": {
     "content_refs": [],
@@ -669,7 +758,10 @@
     "props": {
       "layout_role": "root"
     },
-    "style_tokens": []
+    "style_tokens": [
+      "tone.neutral",
+      "palette.temperature"
+    ]
   }
 };
     const PROVENANCE_BY_IR_ID = {
@@ -683,9 +775,12 @@
     "ir_id": "binding_kpi_churn_label",
     "primitive": "label",
     "props": {
+      "binding_id": "kpi_churn_label",
       "text": "Churn"
     },
-    "style_tokens": []
+    "style_tokens": [
+      "tone.muted"
+    ]
   },
   "binding_kpi_churn_value": {
     "content_refs": [
@@ -697,9 +792,13 @@
     "ir_id": "binding_kpi_churn_value",
     "primitive": "value",
     "props": {
+      "binding_id": "kpi_churn_value",
       "text": "1.2%"
     },
-    "style_tokens": []
+    "style_tokens": [
+      "tone.neutral",
+      "emphasis.high"
+    ]
   },
   "binding_kpi_conversion_label": {
     "content_refs": [
@@ -711,9 +810,12 @@
     "ir_id": "binding_kpi_conversion_label",
     "primitive": "label",
     "props": {
+      "binding_id": "kpi_conversion_label",
       "text": "Conversion"
     },
-    "style_tokens": []
+    "style_tokens": [
+      "tone.muted"
+    ]
   },
   "binding_kpi_conversion_value": {
     "content_refs": [
@@ -725,9 +827,13 @@
     "ir_id": "binding_kpi_conversion_value",
     "primitive": "value",
     "props": {
+      "binding_id": "kpi_conversion_value",
       "text": "3.8%"
     },
-    "style_tokens": []
+    "style_tokens": [
+      "tone.neutral",
+      "emphasis.high"
+    ]
   },
   "binding_kpi_revenue_label": {
     "content_refs": [
@@ -739,9 +845,12 @@
     "ir_id": "binding_kpi_revenue_label",
     "primitive": "label",
     "props": {
+      "binding_id": "kpi_revenue_label",
       "text": "Revenue"
     },
-    "style_tokens": []
+    "style_tokens": [
+      "tone.muted"
+    ]
   },
   "binding_kpi_revenue_value": {
     "content_refs": [
@@ -754,9 +863,11 @@
     "ir_id": "binding_kpi_revenue_value",
     "primitive": "value",
     "props": {
+      "binding_id": "kpi_revenue_value",
       "text": "$2.4M"
     },
     "style_tokens": [
+      "tone.neutral",
       "emphasis.high"
     ]
   },
@@ -770,9 +881,12 @@
     "ir_id": "binding_kpi_users_label",
     "primitive": "label",
     "props": {
+      "binding_id": "kpi_users_label",
       "text": "Active Users"
     },
-    "style_tokens": []
+    "style_tokens": [
+      "tone.muted"
+    ]
   },
   "binding_kpi_users_value": {
     "content_refs": [
@@ -784,9 +898,13 @@
     "ir_id": "binding_kpi_users_value",
     "primitive": "value",
     "props": {
+      "binding_id": "kpi_users_value",
       "text": "18,472"
     },
-    "style_tokens": []
+    "style_tokens": [
+      "tone.neutral",
+      "emphasis.high"
+    ]
   },
   "binding_segment_enterprise_growth": {
     "content_refs": [
@@ -798,9 +916,14 @@
     "ir_id": "binding_segment_enterprise_growth",
     "primitive": "value",
     "props": {
+      "binding_id": "segment_enterprise_growth",
+      "table_cell_role": "cell",
       "text": "+22%"
     },
-    "style_tokens": []
+    "style_tokens": [
+      "tone.neutral",
+      "emphasis.high"
+    ]
   },
   "binding_segment_enterprise_label": {
     "content_refs": [
@@ -812,9 +935,13 @@
     "ir_id": "binding_segment_enterprise_label",
     "primitive": "label",
     "props": {
+      "binding_id": "segment_enterprise_label",
+      "table_cell_role": "row_header",
       "text": "Enterprise"
     },
-    "style_tokens": []
+    "style_tokens": [
+      "tone.muted"
+    ]
   },
   "binding_segment_enterprise_value": {
     "content_refs": [
@@ -826,9 +953,14 @@
     "ir_id": "binding_segment_enterprise_value",
     "primitive": "value",
     "props": {
+      "binding_id": "segment_enterprise_value",
+      "table_cell_role": "cell",
       "text": "$1.8M"
     },
-    "style_tokens": []
+    "style_tokens": [
+      "tone.neutral",
+      "emphasis.high"
+    ]
   },
   "binding_segment_mid_market_growth": {
     "content_refs": [
@@ -840,9 +972,14 @@
     "ir_id": "binding_segment_mid_market_growth",
     "primitive": "value",
     "props": {
+      "binding_id": "segment_mid_market_growth",
+      "table_cell_role": "cell",
       "text": "+15%"
     },
-    "style_tokens": []
+    "style_tokens": [
+      "tone.neutral",
+      "emphasis.high"
+    ]
   },
   "binding_segment_mid_market_label": {
     "content_refs": [
@@ -854,9 +991,13 @@
     "ir_id": "binding_segment_mid_market_label",
     "primitive": "label",
     "props": {
+      "binding_id": "segment_mid_market_label",
+      "table_cell_role": "row_header",
       "text": "Mid-Market"
     },
-    "style_tokens": []
+    "style_tokens": [
+      "tone.muted"
+    ]
   },
   "binding_segment_mid_market_value": {
     "content_refs": [
@@ -868,9 +1009,14 @@
     "ir_id": "binding_segment_mid_market_value",
     "primitive": "value",
     "props": {
+      "binding_id": "segment_mid_market_value",
+      "table_cell_role": "cell",
       "text": "$420K"
     },
-    "style_tokens": []
+    "style_tokens": [
+      "tone.neutral",
+      "emphasis.high"
+    ]
   },
   "binding_segment_partner_growth": {
     "content_refs": [
@@ -883,9 +1029,13 @@
     "ir_id": "binding_segment_partner_growth",
     "primitive": "value",
     "props": {
+      "binding_id": "segment_partner_growth",
+      "table_cell_role": "cell",
       "text": "-3%"
     },
     "style_tokens": [
+      "tone.neutral",
+      "emphasis.high",
       "tone.muted"
     ]
   },
@@ -899,9 +1049,13 @@
     "ir_id": "binding_segment_partner_label",
     "primitive": "label",
     "props": {
+      "binding_id": "segment_partner_label",
+      "table_cell_role": "row_header",
       "text": "Partner"
     },
-    "style_tokens": []
+    "style_tokens": [
+      "tone.muted"
+    ]
   },
   "binding_segment_partner_value": {
     "content_refs": [
@@ -913,9 +1067,14 @@
     "ir_id": "binding_segment_partner_value",
     "primitive": "value",
     "props": {
+      "binding_id": "segment_partner_value",
+      "table_cell_role": "cell",
       "text": "$12K"
     },
-    "style_tokens": []
+    "style_tokens": [
+      "tone.neutral",
+      "emphasis.high"
+    ]
   },
   "binding_segment_self_serve_growth": {
     "content_refs": [
@@ -927,9 +1086,14 @@
     "ir_id": "binding_segment_self_serve_growth",
     "primitive": "value",
     "props": {
+      "binding_id": "segment_self_serve_growth",
+      "table_cell_role": "cell",
       "text": "+31%"
     },
-    "style_tokens": []
+    "style_tokens": [
+      "tone.neutral",
+      "emphasis.high"
+    ]
   },
   "binding_segment_self_serve_label": {
     "content_refs": [
@@ -941,9 +1105,13 @@
     "ir_id": "binding_segment_self_serve_label",
     "primitive": "label",
     "props": {
+      "binding_id": "segment_self_serve_label",
+      "table_cell_role": "row_header",
       "text": "Self-Serve"
     },
-    "style_tokens": []
+    "style_tokens": [
+      "tone.muted"
+    ]
   },
   "binding_segment_self_serve_value": {
     "content_refs": [
@@ -955,9 +1123,14 @@
     "ir_id": "binding_segment_self_serve_value",
     "primitive": "value",
     "props": {
+      "binding_id": "segment_self_serve_value",
+      "table_cell_role": "cell",
       "text": "$45K"
     },
-    "style_tokens": []
+    "style_tokens": [
+      "tone.neutral",
+      "emphasis.high"
+    ]
   },
   "binding_segment_smb_growth": {
     "content_refs": [
@@ -969,9 +1142,14 @@
     "ir_id": "binding_segment_smb_growth",
     "primitive": "value",
     "props": {
+      "binding_id": "segment_smb_growth",
+      "table_cell_role": "cell",
       "text": "+8%"
     },
-    "style_tokens": []
+    "style_tokens": [
+      "tone.neutral",
+      "emphasis.high"
+    ]
   },
   "binding_segment_smb_label": {
     "content_refs": [
@@ -983,9 +1161,13 @@
     "ir_id": "binding_segment_smb_label",
     "primitive": "label",
     "props": {
+      "binding_id": "segment_smb_label",
+      "table_cell_role": "row_header",
       "text": "SMB"
     },
-    "style_tokens": []
+    "style_tokens": [
+      "tone.muted"
+    ]
   },
   "binding_segment_smb_value": {
     "content_refs": [
@@ -997,9 +1179,14 @@
     "ir_id": "binding_segment_smb_value",
     "primitive": "value",
     "props": {
+      "binding_id": "segment_smb_value",
+      "table_cell_role": "cell",
       "text": "$180K"
     },
-    "style_tokens": []
+    "style_tokens": [
+      "tone.neutral",
+      "emphasis.high"
+    ]
   },
   "motif_kpis": {
     "content_refs": [],
@@ -1012,7 +1199,9 @@
       "layout_role": "stack",
       "motif_kind": "dashboard"
     },
-    "style_tokens": []
+    "style_tokens": [
+      "density.regular"
+    ]
   },
   "motif_kpis_kpi_churn": {
     "content_refs": [],
@@ -1025,7 +1214,9 @@
       "layout_role": "surface",
       "motif_kind": "dashboard"
     },
-    "style_tokens": []
+    "style_tokens": [
+      "surface.subtle"
+    ]
   },
   "motif_kpis_kpi_conversion": {
     "content_refs": [],
@@ -1038,7 +1229,9 @@
       "layout_role": "surface",
       "motif_kind": "dashboard"
     },
-    "style_tokens": []
+    "style_tokens": [
+      "surface.subtle"
+    ]
   },
   "motif_kpis_kpi_revenue": {
     "content_refs": [],
@@ -1051,7 +1244,9 @@
       "layout_role": "surface",
       "motif_kind": "dashboard"
     },
-    "style_tokens": []
+    "style_tokens": [
+      "surface.subtle"
+    ]
   },
   "motif_kpis_kpi_users": {
     "content_refs": [],
@@ -1064,7 +1259,9 @@
       "layout_role": "surface",
       "motif_kind": "dashboard"
     },
-    "style_tokens": []
+    "style_tokens": [
+      "surface.subtle"
+    ]
   },
   "motif_segments": {
     "content_refs": [],
@@ -1077,7 +1274,9 @@
       "layout_role": "stack",
       "motif_kind": "table"
     },
-    "style_tokens": []
+    "style_tokens": [
+      "density.regular"
+    ]
   },
   "motif_segments_segment_enterprise": {
     "content_refs": [],
@@ -1090,7 +1289,9 @@
       "layout_role": "cluster",
       "motif_kind": "table"
     },
-    "style_tokens": []
+    "style_tokens": [
+      "density.compact"
+    ]
   },
   "motif_segments_segment_mid_market": {
     "content_refs": [],
@@ -1103,7 +1304,9 @@
       "layout_role": "cluster",
       "motif_kind": "table"
     },
-    "style_tokens": []
+    "style_tokens": [
+      "density.compact"
+    ]
   },
   "motif_segments_segment_partner": {
     "content_refs": [],
@@ -1116,7 +1319,9 @@
       "layout_role": "cluster",
       "motif_kind": "table"
     },
-    "style_tokens": []
+    "style_tokens": [
+      "density.compact"
+    ]
   },
   "motif_segments_segment_self_serve": {
     "content_refs": [],
@@ -1129,7 +1334,9 @@
       "layout_role": "cluster",
       "motif_kind": "table"
     },
-    "style_tokens": []
+    "style_tokens": [
+      "density.compact"
+    ]
   },
   "motif_segments_segment_smb": {
     "content_refs": [],
@@ -1142,7 +1349,9 @@
       "layout_role": "cluster",
       "motif_kind": "table"
     },
-    "style_tokens": []
+    "style_tokens": [
+      "density.compact"
+    ]
   },
   "region_main": {
     "content_refs": [],
@@ -1154,7 +1363,9 @@
     "props": {
       "layout_role": "stack"
     },
-    "style_tokens": []
+    "style_tokens": [
+      "density.regular"
+    ]
   },
   "region_root": {
     "content_refs": [],
@@ -1167,7 +1378,10 @@
     "props": {
       "layout_role": "root"
     },
-    "style_tokens": []
+    "style_tokens": [
+      "tone.neutral",
+      "palette.temperature"
+    ]
   }
 };
     const BINDING_INDEX = {
@@ -1608,16 +1822,62 @@
     };
   </script>
   <script>
-document.addEventListener('click', (e) => {
-  const btn = e.target.closest('[data-action-id]');
-  if (!btn) return;
+function viewspecPayloadBindings(btn) {
+  let payloadBindings = [];
+  try {
+    const parsedPayloadBindings = JSON.parse(btn.dataset.payloadBindings || '[]');
+    if (Array.isArray(parsedPayloadBindings)) {
+      payloadBindings = parsedPayloadBindings.filter((id) => typeof id === 'string');
+    }
+  } catch {
+    payloadBindings = [];
+  }
+  return payloadBindings;
+}
+
+function dispatchViewSpecAction(btn) {
+  const payloadBindings = viewspecPayloadBindings(btn);
   const detail = {
+    schemaVersion: 1,
+    source: 'viewspec-html-tailwind',
     id: btn.dataset.actionId,
     kind: btn.dataset.actionKind,
-    payloadBindings: JSON.parse(btn.dataset.payloadBindings || '[]')
+    targetRef: btn.dataset.actionTargetRef || '',
+    payloadBindings,
+    payloadValues: {}
   };
+  const requested = new Set(detail.payloadBindings);
+  const root = btn.closest('.vs-root') || document;
+  root.querySelectorAll('[data-binding-id]').forEach((el) => {
+    const id = el.dataset.bindingId;
+    if (!requested.has(id)) return;
+    detail.payloadValues[id] = 'value' in el ? el.value : el.textContent || '';
+  });
   document.dispatchEvent(new CustomEvent('viewspec-action', { detail }));
-  console.log('Action Dispatched:', detail);
+}
+
+document.addEventListener('click', (e) => {
+  const target = e.target instanceof Element ? e.target : null;
+  const btn = target ? target.closest('[data-action-id]') : null;
+  if (!btn) return;
+  dispatchViewSpecAction(btn);
+});
+
+document.addEventListener('keydown', (e) => {
+  if (e.key !== 'Enter' || e.defaultPrevented || e.shiftKey || e.altKey || e.ctrlKey || e.metaKey) return;
+  const target = e.target instanceof Element ? e.target : null;
+  if (!target || target.tagName !== 'INPUT') return;
+  const form = target.closest('[role="form"][data-ir-id]');
+  if (!form) return;
+  const irId = form.dataset.irId || '';
+  if (!irId.startsWith('motif_')) return;
+  const targetRef = `motif:${irId.slice(6)}`;
+  const root = form.closest('.vs-root') || document;
+  const btn = Array.from(root.querySelectorAll('[data-action-id][data-action-kind="submit"]'))
+    .find((candidate) => candidate.dataset.actionTargetRef === targetRef);
+  if (!btn) return;
+  e.preventDefault();
+  dispatchViewSpecAction(btn);
 });
 </script>
 </body>

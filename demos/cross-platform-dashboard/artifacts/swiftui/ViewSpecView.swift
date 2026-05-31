@@ -1,11 +1,13 @@
 import SwiftUI
 
 public struct ViewSpecActionIntent {
+    public let schemaVersion: Int
+    public let source: String
     public let id: String
     public let kind: String
     public let targetRef: String
     public let payloadBindings: [String]
-    public let payload: [String: Any]
+    public let payloadValues: [String: Any]
 }
 
 public struct ViewSpecView: View {
@@ -31,16 +33,16 @@ public struct ViewSpecView: View {
         return String(describing: value)
     }
 
-    private func collectPayload(_ payloadBindings: [String]) -> [String: Any] {
-        var payload: [String: Any] = [:]
+    private func collectPayloadValues(_ payloadBindings: [String]) -> [String: Any] {
+        var payloadValues: [String: Any] = [:]
         for bindingId in payloadBindings {
             if let value = inputValues[bindingId] {
-                payload[bindingId] = value
+                payloadValues[bindingId] = value
             } else if let value = compiledPayloadValues[bindingId] {
-                payload[bindingId] = value
+                payloadValues[bindingId] = value
             }
         }
-        return payload
+        return payloadValues
     }
 
     private func isEmptyRuleValue(_ value: Any?) -> Bool {
@@ -106,11 +108,13 @@ public struct ViewSpecView: View {
 
     private func dispatchAction(id: String, kind: String, targetRef: String, payloadBindings: [String]) {
         onAction?(ViewSpecActionIntent(
+            schemaVersion: 1,
+            source: "viewspec-swiftui",
             id: id,
             kind: kind,
             targetRef: targetRef,
             payloadBindings: payloadBindings,
-            payload: collectPayload(payloadBindings)
+            payloadValues: collectPayloadValues(payloadBindings)
         ))
     }
 
@@ -320,7 +324,7 @@ public struct ViewSpecView: View {
                         set: { inputValues["include_mobile"] = $0 }
                     ))
                     .accessibilityIdentifier("dom-input_include_mobile")
-                    Button(action: { dispatchAction(id: "save_launch_review", kind: "submit", targetRef: "/launch-review", payloadBindings: ["phase_filter", "owner_email", "include_mobile", "launch_status", "kpi_blockers_value"]) }) {
+                    Button(action: { dispatchAction(id: "save_launch_review", kind: "submit", targetRef: "view:launch_operations_dashboard", payloadBindings: ["phase_filter", "owner_email", "include_mobile", "launch_status", "kpi_blockers_value"]) }) {
                         Text("Save launch review")
                     }
                     .buttonStyle(.borderedProminent)

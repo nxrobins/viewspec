@@ -127,6 +127,39 @@ def test_compile_remote_response_exposes_design_metadata(monkeypatch):
     assert response.meta.design.dropped_tokens == ["color.loop"]
 
 
+def test_compile_remote_response_normalizes_invalid_design_metadata(monkeypatch):
+    bundle = _bundle()
+    ast = compile(bundle)
+    _install_fake_httpx(
+        monkeypatch,
+        FakeResponse(
+            200,
+            {
+                "ast": ast.to_json(),
+                "meta": {
+                    "design": {
+                        "lint_summary": {"errors": True, "warnings": -2, "info": "3"},
+                        "findings": [
+                            {
+                                "severity": "critical",
+                                "code": "BAD_SEVERITY",
+                                "path": "$.design",
+                                "message": "Severity is outside the public enum.",
+                            }
+                        ],
+                    }
+                },
+            },
+        ),
+    )
+
+    response = compile_remote_response(bundle)
+
+    assert response.meta.design is not None
+    assert response.meta.design.lint_summary == {"errors": 0, "warnings": 0, "info": 3}
+    assert response.meta.design.findings[0].severity == "info"
+
+
 def test_compile_auto_uses_local_when_design_is_attached(monkeypatch):
     bundle = _bundle()
     ast = compile(bundle)
@@ -141,6 +174,25 @@ def test_compile_auto_uses_local_when_design_is_attached(monkeypatch):
     assert restored.title == "auto_design"
     assert len(calls) == 0
     assert "#112233" in restored.style_values["tone.neutral"]
+
+
+def test_compile_auto_falls_back_when_attached_design_is_hosted_only(monkeypatch):
+    request = ViewSpecBuilder("auto_hosted_design").attach_design(
+        "name: Acme\ncolor.primary: #FFFFFF\n",
+        is_path=False,
+    ).build_compile_request()
+    ast = compile(request.bundle)
+    calls, _ = _install_fake_httpx(monkeypatch, FakeResponse(200, {"ast": ast.to_json()}))
+
+    restored = compile_auto(request)
+
+    assert restored.title == ast.title
+    assert len(calls) == 1
+    assert calls[0]["kwargs"]["json"]["design"] == {
+        "format": "design.md",
+        "content": "name: Acme\ncolor.primary: #FFFFFF\n",
+        "lint": True,
+    }
 
 
 def test_compile_remote_import_error_guides_remote_extra(monkeypatch):

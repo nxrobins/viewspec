@@ -24,27 +24,28 @@
   "properties": {
     "version": { "const": 1 },
     "manifest_schema_version": { "const": 1 },
-    "kind": { "type": "string" },
+    "kind": { "enum": ["raw_html_compile", "intent_bundle_compile"] },
     "sdk_version": { "type": "string" },
     "source_name": { "type": ["string", "null"] },
     "raw_source_hash": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
     "source_hash": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
     "design_hash": { "type": ["string", "null"], "pattern": "^[0-9a-f]{64}$" },
+    "design": { "$ref": "#/$defs/designMetadata" },
     "artifact_hash": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
-    "command": { "type": "string" },
+    "command": { "enum": ["compile_html", "compile"] },
     "command_args": {
       "type": "array",
       "items": { "type": "string" }
     },
-    "policy_version": { "type": "string" },
+    "policy_version": { "enum": ["viewspec-raw-html-allowlist@1", "viewspec-intent-bundle@1"] },
     "guarantees": {
       "type": "object",
-      "required": ["sdk_network_calls", "artifact_autofetch_network", "decompilation"],
+      "required": ["sdk_network_calls", "artifact_autofetch_network", "network_calls", "decompilation"],
       "properties": {
         "sdk_network_calls": { "const": "none" },
         "artifact_autofetch_network": { "const": "none" },
         "network_calls": { "const": "none" },
-        "decompilation": { "type": "string" }
+        "decompilation": { "enum": ["not_claimed", "not_applicable"] }
       }
     },
     "nodes": { "type": "object" },
@@ -68,12 +69,255 @@
         "type": "object",
         "required": ["kind", "attr", "url", "behavior"],
         "properties": {
-          "kind": { "type": "string" },
-          "attr": { "type": "string" },
+          "kind": { "enum": ["image", "link"] },
+          "attr": { "enum": ["src", "href"] },
           "url": { "type": "string" },
-          "behavior": { "type": "string" }
+          "behavior": { "enum": ["inert_placeholder", "user_click"] }
+        },
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "kind": { "const": "image" }
+              }
+            },
+            "then": {
+              "properties": {
+                "attr": { "const": "src" },
+                "behavior": { "const": "inert_placeholder" }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "kind": { "const": "link" }
+              }
+            },
+            "then": {
+              "properties": {
+                "attr": { "const": "href" },
+                "behavior": { "const": "user_click" }
+              }
+            }
+          }
+        ]
+      }
+    }
+  },
+  "$defs": {
+    "stringList": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "nonEmptyStringList": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "safeId": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9_.-]+$"
+    },
+    "canonicalContentRef": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^node:[A-Za-z0-9_.-]+(?:#(?:attr|slot|edge):[A-Za-z0-9_.-]+(?:\\[[0-9]+\\])?)?$"
+    },
+    "viewspecIntentRef": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^viewspec:(view|region|binding|group|motif|style|action):[A-Za-z0-9_.-]+$"
+    },
+    "stringMap": {
+      "type": "object",
+      "additionalProperties": { "type": "string" }
+    },
+    "nonNegativeInt": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "designFinding": {
+      "type": "object",
+      "required": ["severity", "code", "path", "message"],
+      "properties": {
+        "severity": { "enum": ["info", "warning", "error"] },
+        "code": { "type": "string", "minLength": 1 },
+        "path": { "type": "string" },
+        "message": { "type": "string", "minLength": 1 }
+      }
+    },
+    "designMetadata": {
+      "type": "object",
+      "required": [
+        "name",
+        "design_hash",
+        "lint_summary",
+        "findings",
+        "applied_tokens",
+        "ignored_tokens",
+        "dropped_tokens",
+        "mode_defaults"
+      ],
+      "properties": {
+        "name": { "type": "string" },
+        "design_hash": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+        "lint_summary": {
+          "type": "object",
+          "required": ["errors", "warnings", "info"],
+          "properties": {
+            "errors": { "$ref": "#/$defs/nonNegativeInt" },
+            "warnings": { "$ref": "#/$defs/nonNegativeInt" },
+            "info": { "$ref": "#/$defs/nonNegativeInt" }
+          }
+        },
+        "findings": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/designFinding" }
+        },
+        "applied_tokens": {
+          "type": "object",
+          "additionalProperties": { "$ref": "#/$defs/stringList" }
+        },
+        "ignored_tokens": { "$ref": "#/$defs/stringList" },
+        "dropped_tokens": { "$ref": "#/$defs/stringList" },
+        "mode_defaults": { "$ref": "#/$defs/stringList" }
+      }
+    },
+    "rawHtmlNode": {
+      "type": "object",
+      "required": ["tag", "attrs", "text"],
+      "properties": {
+        "tag": { "type": "string" },
+        "attrs": { "$ref": "#/$defs/stringMap" },
+        "text": { "type": "string" }
+      },
+      "additionalProperties": true
+    },
+    "intentBundleNode": {
+      "type": "object",
+      "required": ["ir_id", "primitive", "content_refs", "intent_refs", "style_tokens", "props"],
+      "properties": {
+        "ir_id": { "$ref": "#/$defs/safeId" },
+        "primitive": { "type": "string", "minLength": 1 },
+        "content_refs": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/canonicalContentRef" }
+        },
+        "intent_refs": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/viewspecIntentRef" }
+        },
+        "style_tokens": { "$ref": "#/$defs/stringList" },
+        "props": {
+          "type": "object",
+          "properties": {
+            "binding_id": { "$ref": "#/$defs/safeId" },
+            "action_id": { "$ref": "#/$defs/safeId" },
+            "action_kind": { "type": "string", "minLength": 1 },
+            "target_ref": {
+              "type": "string",
+              "pattern": "^(region|binding|motif|view):[A-Za-z0-9_.-]+$"
+            },
+            "payload_bindings": {
+              "type": "array",
+              "items": { "$ref": "#/$defs/safeId" }
+            },
+            "detail_role": { "enum": ["term", "description"] },
+            "empty_state_role": { "enum": ["title", "description", "detail"] },
+            "hero_role": { "enum": ["eyebrow", "title", "description", "detail"] }
+          },
+          "additionalProperties": true
+        }
+      },
+      "additionalProperties": true,
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "props": {
+                "type": "object",
+                "required": ["binding_id"]
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "content_refs": { "$ref": "#/$defs/nonEmptyStringList" }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "primitive": { "const": "button" }
+            }
+          },
+          "then": {
+            "properties": {
+              "props": {
+                "required": ["action_id", "action_kind", "payload_bindings"],
+                "properties": {
+                  "action_id": { "$ref": "#/$defs/safeId" },
+                  "action_kind": { "type": "string", "minLength": 1 },
+                  "payload_bindings": {
+                    "type": "array",
+                    "items": { "$ref": "#/$defs/safeId" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      ]
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "kind": { "const": "raw_html_compile" }
+        }
+      },
+      "then": {
+        "properties": {
+          "command": { "const": "compile_html" },
+          "policy_version": { "const": "viewspec-raw-html-allowlist@1" },
+          "nodes": {
+            "type": "object",
+            "additionalProperties": { "$ref": "#/$defs/rawHtmlNode" }
+          },
+          "guarantees": {
+            "properties": {
+              "decompilation": { "const": "not_claimed" }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "kind": { "const": "intent_bundle_compile" }
+        }
+      },
+      "then": {
+        "properties": {
+          "command": { "const": "compile" },
+          "policy_version": { "const": "viewspec-intent-bundle@1" },
+          "nodes": {
+            "type": "object",
+            "additionalProperties": { "$ref": "#/$defs/intentBundleNode" }
+          },
+          "guarantees": {
+            "properties": {
+              "decompilation": { "const": "not_applicable" }
+            }
+          }
         }
       }
     }
-  }
+  ]
 }

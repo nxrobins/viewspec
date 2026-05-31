@@ -3,11 +3,13 @@
 import * as React from "react";
 
 export type ViewSpecActionIntent = {
+  schemaVersion: 1;
+  source: "viewspec-react-tsx";
   id: string;
   kind: string;
   targetRef: string;
   payloadBindings: string[];
-  payload: Record<string, unknown>;
+  payloadValues: Record<string, unknown>;
 };
 
 type ViewSpecVisibilityRule = {
@@ -70,16 +72,16 @@ export function ViewSpecView({ data = {}, onAction, className }: ViewSpecViewPro
     if (rule.operator === "NOT_EQUALS") return !sameScalar(value, rule.compareValue);
     return true;
   };
-  const collectPayload = (payloadBindings: string[]): Record<string, unknown> => {
-    const payload: Record<string, unknown> = {};
+  const collectPayloadValues = (payloadBindings: string[]): Record<string, unknown> => {
+    const payloadValues: Record<string, unknown> = {};
     payloadBindings.forEach((bindingId) => {
       if (Object.prototype.hasOwnProperty.call(inputValues, bindingId)) {
-        payload[bindingId] = inputValues[bindingId];
+        payloadValues[bindingId] = inputValues[bindingId];
       } else if (Object.prototype.hasOwnProperty.call(compiledPayloadValues, bindingId)) {
-        payload[bindingId] = compiledPayloadValues[bindingId];
+        payloadValues[bindingId] = compiledPayloadValues[bindingId];
       }
     });
-    return payload;
+    return payloadValues;
   };
   return (
       <main id="dom-region_root" className={["min-h-screen bg-slate-50 text-slate-950 p-6 space-y-6", className].filter(Boolean).join(" ")} data-ir-id="region_root" data-content-refs={"[]"} data-intent-refs={"[\"viewspec:view:launch_operations_dashboard\", \"viewspec:region:root\"]"} onSubmit={(event) => event.preventDefault()} style={{ "--vs-temperature": "cool", backgroundColor: "#f0fdfa", "--vs-energy-level": "0.625", "--vs-saturation": "1.113", filter: "saturate(var(--vs-saturation))", "--vs-hierarchy-ratio": "1.16", "--vs-rhythm-density": "compressed", gap: "0.52rem" } as React.CSSProperties}>
@@ -201,7 +203,7 @@ export function ViewSpecView({ data = {}, onAction, className }: ViewSpecViewPro
             <input className="h-4 w-4 rounded border-slate-300 text-teal-700" type="checkbox" name={"include_mobile"} data-input-id={"include_mobile"} data-ir-id={"input_include_mobile"} checked={Boolean(inputValues["include_mobile"])} onChange={(event) => setInputValue("include_mobile", event.target.checked)} />
             <span>Include mobile handoff</span>
           </label>
-          <button id="dom-action_save_launch_review" className="inline-flex w-fit items-center rounded-xl bg-teal-700 min-h-[var(--vs-touch-target,2.5rem)] px-[var(--vs-button-px,1rem)] py-[var(--vs-button-py,0.5rem)] text-sm font-bold text-white shadow-sm hover:bg-teal-800" data-ir-id="action_save_launch_review" data-content-refs={"[]"} data-intent-refs={"[\"viewspec:action:save_launch_review\"]"} data-action-id="save_launch_review" data-action-kind="submit" data-action-target-ref="/launch-review" data-payload-bindings={"[\"phase_filter\", \"owner_email\", \"include_mobile\", \"launch_status\", \"kpi_blockers_value\"]"} data-payload-values={"{\"kpi_blockers_value\": \"1\", \"launch_status\": \"On track\"}"} onClick={() => onAction?.({ id: "save_launch_review", kind: "submit", targetRef: "/launch-review", payloadBindings: ["phase_filter", "owner_email", "include_mobile", "launch_status", "kpi_blockers_value"], payload: collectPayload(["phase_filter", "owner_email", "include_mobile", "launch_status", "kpi_blockers_value"]) })} type="button">Save launch review</button>
+          <button id="dom-action_save_launch_review" className="inline-flex w-fit items-center rounded-xl bg-teal-700 min-h-[var(--vs-touch-target,2.5rem)] px-[var(--vs-button-px,1rem)] py-[var(--vs-button-py,0.5rem)] text-sm font-bold text-white shadow-sm hover:bg-teal-800" data-ir-id="action_save_launch_review" data-content-refs={"[]"} data-intent-refs={"[\"viewspec:action:save_launch_review\"]"} data-action-id="save_launch_review" data-action-kind="submit" data-action-target-ref="view:launch_operations_dashboard" data-payload-bindings={"[\"phase_filter\", \"owner_email\", \"include_mobile\", \"launch_status\", \"kpi_blockers_value\"]"} data-payload-values={"{\"kpi_blockers_value\": \"1\", \"launch_status\": \"On track\"}"} onClick={() => onAction?.({ schemaVersion: 1, source: "viewspec-react-tsx", id: "save_launch_review", kind: "submit", targetRef: "view:launch_operations_dashboard", payloadBindings: ["phase_filter", "owner_email", "include_mobile", "launch_status", "kpi_blockers_value"], payloadValues: collectPayloadValues(["phase_filter", "owner_email", "include_mobile", "launch_status", "kpi_blockers_value"]) })} type="button">Save launch review</button>
         </div>
       </main>
   );

@@ -3,19 +3,96 @@
 from __future__ import annotations
 
 import json
+import re
 from dataclasses import dataclass
 from typing import Any
 
-from viewspec.compiler import CompilerInputError, UnsupportedMotifError, compile
-from viewspec.types import IntentBundle, PRESENT_AS_TO_PRIMITIVE, parse_canonical_address
+from viewspec.compiler import SUPPORTED_ACTION_KINDS, CompilerInputError, UnsupportedMotifError, compile
+from viewspec.types import DEFAULT_STYLE_TOKEN_VALUES, IntentBundle, PRESENT_AS_TO_PRIMITIVE, parse_canonical_address
 
-SUPPORTED_AGENT_MOTIFS = ("table", "dashboard", "outline", "comparison")
+SUPPORTED_AGENT_MOTIFS = ("table", "dashboard", "outline", "comparison", "list", "form", "detail", "empty_state", "hero")
+SUPPORTED_AGENT_ACTION_KINDS = SUPPORTED_ACTION_KINDS
+SUPPORTED_AGENT_CARDINALITIES = ("exactly_once",)
+SUPPORTED_AGENT_GROUP_KINDS = ("ordered",)
+SUPPORTED_AGENT_REGION_LAYOUTS = ("stack", "grid", "cluster")
+HOSTED_ONLY_ROOT_FIELDS = ("design", "motif_library")
+HOSTED_ONLY_VIEW_SPEC_FIELDS = ("inputs", "projections", "rules")
+ROOT_ALLOWED_FIELDS = {"substrate", "view_spec"}
+SUBSTRATE_ALLOWED_FIELDS = {"id", "root_id", "nodes"}
+SUBSTRATE_NODE_ALLOWED_FIELDS = {"id", "kind", "attrs", "slots", "edges"}
+REGION_ALLOWED_FIELDS = {"id", "parent_region", "role", "layout", "min_children", "max_children"}
+BINDING_ALLOWED_FIELDS = {"id", "address", "target_region", "present_as", "cardinality"}
+GROUP_ALLOWED_FIELDS = {"id", "kind", "members", "target_region"}
+MOTIF_ALLOWED_FIELDS = {"id", "kind", "region", "members"}
+STYLE_ALLOWED_FIELDS = {"id", "target", "token"}
+ACTION_ALLOWED_FIELDS = {"id", "kind", "label", "target_region", "target_ref", "payload_bindings"}
+VIEW_SPEC_ALLOWED_FIELDS = {
+    "id",
+    "substrate_id",
+    "complexity_tier",
+    "root_region",
+    "regions",
+    "bindings",
+    "groups",
+    "motifs",
+    "styles",
+    "actions",
+}
+SUPPORTED_AGENT_STYLE_TOKENS = tuple(
+    token
+    for token in (
+        "emphasis.low",
+        "emphasis.medium",
+        "emphasis.high",
+        "density.compact",
+        "density.regular",
+        "density.airy",
+        "palette.temperature",
+        "tone.neutral",
+        "tone.muted",
+        "tone.accent",
+        "tone.warning",
+        "tone.positive",
+        "action.accent",
+        "surface.none",
+        "surface.subtle",
+        "surface.strong",
+        "rhythm.hierarchy",
+        "narrative.flow",
+        "align.start",
+        "align.center",
+        "align.end",
+    )
+    if token in DEFAULT_STYLE_TOKEN_VALUES or token in {"tone.warning", "tone.positive", "rhythm.hierarchy", "narrative.flow"}
+)
+MAX_AGENT_INTENT_BYTES = 256 * 1024
+MAX_AGENT_NODES = 200
+MAX_AGENT_NODE_ATTRS = 64
+MAX_AGENT_NODE_RELATIONS = 64
+MAX_AGENT_RELATION_VALUES = 200
+MAX_AGENT_REGIONS = 32
+MAX_AGENT_BINDINGS = 400
+MAX_AGENT_GROUPS = 64
+MAX_AGENT_MOTIFS = 32
+MAX_AGENT_STYLES = 400
+MAX_AGENT_ACTIONS = 64
+MAX_AGENT_ACTION_PAYLOAD_BINDINGS = 64
+MAX_AGENT_CORRECTION_PROMPT_ISSUES = 20
+DEFAULT_AGENT_REPAIR_SUGGESTION = "Regenerate the full IntentBundle using only the local V1 agent contract."
+SAFE_AGENT_ID_PATTERN = r"^[A-Za-z0-9_.-]+$"
+SAFE_AGENT_ID_RE = re.compile(SAFE_AGENT_ID_PATTERN)
+SAFE_AGENT_ADDRESS_PATTERN = (
+    r"^node:[A-Za-z0-9_.-]+"
+    r"(?:#attr:[A-Za-z0-9_.-]+|#slot:[A-Za-z0-9_.-]+(?:\[\d+])?|#edge:[A-Za-z0-9_.-]+)?$"
+)
 
 AGENT_SYSTEM_PROMPT = """You are a ViewSpec IntentBundle compiler.
 
 Your job is to translate user intent into ViewSpec IntentBundle JSON. You do not output HTML, CSS, React, or CompositionIR. CompositionIR is compiler output only.
 
 Output strict JSON only. Do not wrap it in markdown. Do not explain it.
+
+Use stable ids and object keys matching this pattern only: A-Z, a-z, 0-9, underscore, dot, and dash. Do not use spaces, colons, slashes, markup, or path-like ids.
 
 The JSON object must contain:
 - substrate.id
@@ -33,9 +110,23 @@ The JSON object must contain:
 - view_spec.styles
 - view_spec.actions
 
-Use only these v1 motif kinds: table, dashboard, outline, comparison.
+Use only these v1 motif kinds: table, dashboard, outline, comparison, list, form, detail, empty_state, hero.
 
-Use only these binding present_as values: text, label, value, badge, rich_text, image_slot, rule.
+Use only these binding present_as values: text, label, value, badge, input, rich_text, image_slot, rule.
+
+Use only these action kinds: select, submit, navigate.
+
+Use only this v1 binding cardinality: exactly_once.
+
+Use only these v1 region layouts: stack, grid, cluster.
+
+Use only this v1 group kind: ordered.
+
+Do not include hosted-only fields in the local v1 contract: root design, root motif_library, view_spec.inputs, view_spec.projections, or view_spec.rules. Those belong to the hosted extended compiler contract.
+
+Do not add custom or extension fields to local v1 objects. Unknown fields are rejected instead of silently ignored.
+
+Use style tokens only from this v1 set: emphasis.low, emphasis.medium, emphasis.high, density.compact, density.regular, density.airy, palette.temperature, tone.neutral, tone.muted, tone.accent, tone.warning, tone.positive, action.accent, surface.none, surface.subtle, surface.strong, rhythm.hierarchy, narrative.flow, align.start, align.center, align.end.
 
 Use canonical binding addresses:
 - node:{node_id}
@@ -50,14 +141,20 @@ For JSON wire compatibility, slots and edges are maps whose values contain a val
   "edges": {"next": {"values": ["item_2"]}}
 }
 
-All binding IDs must be unique. Any binding with cardinality exactly_once must use an address that appears only once. Region, group, motif, style, and action references must resolve to declared IDs.
+All binding IDs must be unique. Any binding with cardinality exactly_once must use an address that appears only once. Semantic edges must reference declared substrate node IDs. Style targets must use region:id, binding:id, motif:id, view:id, or an unambiguous bare id. Action target_ref must be empty/null or use region:id, binding:id, motif:id, or view:id. Region, group, motif, style, and action references must resolve to declared IDs. Region parent links must form one acyclic tree rooted at view_spec.root_region.
+
+Motifs must be semantically complete. Every motif must have at least one declared member. Hero and empty_state motifs need a title, heading, headline, or label binding. Form motifs need at least one input binding. Table, dashboard, and detail motifs need both label and value/text-style bindings. Comparison motifs need at least two distinct semantic items.
+
+Use complexity_tier >= 1. Region min_children must be >= 0. Region max_children must be null or >= min_children.
+
+Stay inside the v1 local contract caps: max 256KB JSON, 200 substrate nodes, 32 regions, 400 bindings, 64 groups, 32 motifs, 400 styles, 64 actions, 64 attrs/slots/edges per node, 200 values per slot or edge, and 64 payload bindings per action. Split larger products into smaller IntentBundles.
 
 
-Design research before generation
+Optional reference grounding
 
-For underspecified UI prompts (e.g. "build a pricing page", "design a settings screen"), query an MCP-accessible UI reference library for grounded examples before generating the IntentBundle. Lazyweb (https://www.lazyweb.com) is one such source. Use references to inform semantic intent — sections, hierarchy, typical fields, motif choices. Do not copy pixel layouts, design tokens, or screenshot URLs into IntentBundle output.
+Do not call remote reference libraries by default. Use external or hosted reference sources only when the user explicitly asks for research or the repository instructions explicitly configure an approved source.
 
-If no reference library is configured, returns no results, or errors, proceed without it. References are an enhancement, not a precondition.
+If reference grounding is explicitly enabled, use it only to inform semantic intent: sections, hierarchy, typical fields, and motif choices. Do not copy pixel layouts, hardcoded copy, design tokens, screenshot URLs, image bytes, or external references into IntentBundle output. If the approved reference source is unavailable, proceed without it.
 """
 
 AGENT_INTENT_BUNDLE_SCHEMA: dict[str, Any] = {
@@ -72,34 +169,71 @@ AGENT_INTENT_BUNDLE_SCHEMA: dict[str, Any] = {
         "substrate": {"$ref": "#/$defs/substrate"},
         "view_spec": {"$ref": "#/$defs/view_spec"},
     },
+    "x-viewspec-invariants": [
+        "view_spec.substrate_id must equal substrate.id.",
+        "substrate.root_id must be a key in substrate.nodes.",
+        "Each substrate.nodes object key must equal that node object's id.",
+        "view_spec.root_region must be declared in view_spec.regions.",
+        "Region parent_region links must form one acyclic tree rooted at view_spec.root_region.",
+        "Semantic node edges must reference declared substrate node ids.",
+        "Bindings, groups, motifs, styles, and actions may only reference declared ids.",
+        "Motifs must be semantically complete for their kind before local compilation.",
+        "Hosted-only fields design, motif_library, view_spec.inputs, view_spec.projections, and view_spec.rules are rejected by the local schema and validate-intent.",
+        "Unknown extension fields are rejected instead of silently ignored.",
+        "JSON Schema enforces shape and caps; viewspec validate-intent enforces cross-reference invariants.",
+    ],
     "$defs": {
         "values": {
             "type": "object",
             "required": ["values"],
             "additionalProperties": False,
-            "properties": {"values": {"type": "array"}},
+            "properties": {"values": {"type": "array", "maxItems": MAX_AGENT_RELATION_VALUES}},
+        },
+        "edge_values": {
+            "type": "object",
+            "required": ["values"],
+            "additionalProperties": False,
+            "properties": {
+                "values": {
+                    "type": "array",
+                    "maxItems": MAX_AGENT_RELATION_VALUES,
+                    "items": {"type": "string", "pattern": SAFE_AGENT_ID_PATTERN},
+                }
+            },
         },
         "substrate_node": {
             "type": "object",
             "required": ["id", "kind", "attrs", "slots", "edges"],
-            "additionalProperties": True,
+            "additionalProperties": False,
             "properties": {
-                "id": {"type": "string", "minLength": 1},
+                "id": {"type": "string", "pattern": SAFE_AGENT_ID_PATTERN},
                 "kind": {"type": "string", "minLength": 1},
-                "attrs": {"type": "object"},
-                "slots": {"type": "object", "additionalProperties": {"$ref": "#/$defs/values"}},
-                "edges": {"type": "object", "additionalProperties": {"$ref": "#/$defs/values"}},
+                "attrs": {"type": "object", "maxProperties": MAX_AGENT_NODE_ATTRS, "propertyNames": {"pattern": SAFE_AGENT_ID_PATTERN}},
+                "slots": {
+                    "type": "object",
+                    "maxProperties": MAX_AGENT_NODE_RELATIONS,
+                    "propertyNames": {"pattern": SAFE_AGENT_ID_PATTERN},
+                    "additionalProperties": {"$ref": "#/$defs/values"},
+                },
+                "edges": {
+                    "type": "object",
+                    "maxProperties": MAX_AGENT_NODE_RELATIONS,
+                    "propertyNames": {"pattern": SAFE_AGENT_ID_PATTERN},
+                    "additionalProperties": {"$ref": "#/$defs/edge_values"},
+                },
             },
         },
         "substrate": {
             "type": "object",
             "required": ["id", "root_id", "nodes"],
-            "additionalProperties": True,
+            "additionalProperties": False,
             "properties": {
-                "id": {"type": "string", "minLength": 1},
-                "root_id": {"type": "string", "minLength": 1},
+                "id": {"type": "string", "pattern": SAFE_AGENT_ID_PATTERN},
+                "root_id": {"type": "string", "pattern": SAFE_AGENT_ID_PATTERN},
                 "nodes": {
                     "type": "object",
+                    "maxProperties": MAX_AGENT_NODES,
+                    "propertyNames": {"pattern": SAFE_AGENT_ID_PATTERN},
                     "additionalProperties": {"$ref": "#/$defs/substrate_node"},
                 },
             },
@@ -107,71 +241,77 @@ AGENT_INTENT_BUNDLE_SCHEMA: dict[str, Any] = {
         "region": {
             "type": "object",
             "required": ["id", "parent_region", "role", "layout", "min_children", "max_children"],
-            "additionalProperties": True,
+            "additionalProperties": False,
             "properties": {
-                "id": {"type": "string", "minLength": 1},
-                "parent_region": {"type": ["string", "null"]},
+                "id": {"type": "string", "pattern": SAFE_AGENT_ID_PATTERN},
+                "parent_region": {"anyOf": [{"type": "string", "pattern": SAFE_AGENT_ID_PATTERN}, {"const": ""}, {"type": "null"}]},
                 "role": {"type": "string"},
-                "layout": {"type": "string"},
-                "min_children": {"type": "integer"},
-                "max_children": {"type": ["integer", "null"]},
+                "layout": {"enum": list(SUPPORTED_AGENT_REGION_LAYOUTS)},
+                "min_children": {"type": "integer", "minimum": 0},
+                "max_children": {"anyOf": [{"type": "integer", "minimum": 0}, {"type": "null"}]},
             },
         },
         "binding": {
             "type": "object",
             "required": ["id", "address", "target_region", "present_as", "cardinality"],
-            "additionalProperties": True,
+            "additionalProperties": False,
             "properties": {
-                "id": {"type": "string", "minLength": 1},
-                "address": {"type": "string", "pattern": "^node:"},
-                "target_region": {"type": "string", "minLength": 1},
+                "id": {"type": "string", "pattern": SAFE_AGENT_ID_PATTERN},
+                "address": {"type": "string", "pattern": SAFE_AGENT_ADDRESS_PATTERN},
+                "target_region": {"type": "string", "pattern": SAFE_AGENT_ID_PATTERN},
                 "present_as": {"enum": sorted(PRESENT_AS_TO_PRIMITIVE)},
-                "cardinality": {"type": "string"},
+                "cardinality": {"enum": list(SUPPORTED_AGENT_CARDINALITIES)},
             },
         },
         "group": {
             "type": "object",
             "required": ["id", "kind", "members", "target_region"],
-            "additionalProperties": True,
+            "additionalProperties": False,
             "properties": {
-                "id": {"type": "string", "minLength": 1},
-                "kind": {"type": "string"},
-                "members": {"type": "array", "items": {"type": "string"}},
-                "target_region": {"type": ["string", "null"]},
+                "id": {"type": "string", "pattern": SAFE_AGENT_ID_PATTERN},
+                "kind": {"enum": list(SUPPORTED_AGENT_GROUP_KINDS)},
+                "members": {"type": "array", "maxItems": MAX_AGENT_BINDINGS, "items": {"type": "string", "pattern": SAFE_AGENT_ID_PATTERN}},
+                "target_region": {"anyOf": [{"type": "string", "pattern": SAFE_AGENT_ID_PATTERN}, {"const": ""}, {"type": "null"}]},
             },
         },
         "motif": {
             "type": "object",
             "required": ["id", "kind", "region", "members"],
-            "additionalProperties": True,
+            "additionalProperties": False,
             "properties": {
-                "id": {"type": "string", "minLength": 1},
+                "id": {"type": "string", "pattern": SAFE_AGENT_ID_PATTERN},
                 "kind": {"enum": list(SUPPORTED_AGENT_MOTIFS)},
-                "region": {"type": "string", "minLength": 1},
-                "members": {"type": "array", "items": {"type": "string"}},
+                "region": {"type": "string", "pattern": SAFE_AGENT_ID_PATTERN},
+                "members": {"type": "array", "maxItems": MAX_AGENT_BINDINGS, "items": {"type": "string", "pattern": SAFE_AGENT_ID_PATTERN}},
             },
         },
         "style": {
             "type": "object",
             "required": ["id", "target", "token"],
-            "additionalProperties": True,
+            "additionalProperties": False,
             "properties": {
-                "id": {"type": "string", "minLength": 1},
+                "id": {"type": "string", "pattern": SAFE_AGENT_ID_PATTERN},
                 "target": {"type": "string", "minLength": 1},
-                "token": {"type": "string", "minLength": 1},
+                "token": {"enum": list(SUPPORTED_AGENT_STYLE_TOKENS)},
             },
         },
         "action": {
             "type": "object",
             "required": ["id", "kind", "label", "target_region", "target_ref", "payload_bindings"],
-            "additionalProperties": True,
+            "additionalProperties": False,
             "properties": {
-                "id": {"type": "string", "minLength": 1},
-                "kind": {"type": "string", "minLength": 1},
+                "id": {"type": "string", "pattern": SAFE_AGENT_ID_PATTERN},
+                "kind": {"enum": list(SUPPORTED_AGENT_ACTION_KINDS)},
                 "label": {"type": "string"},
-                "target_region": {"type": "string", "minLength": 1},
-                "target_ref": {"type": ["string", "null"]},
-                "payload_bindings": {"type": "array", "items": {"type": "string"}},
+                "target_region": {"type": "string", "pattern": SAFE_AGENT_ID_PATTERN},
+                "target_ref": {
+                    "anyOf": [
+                        {"type": "string", "pattern": r"^(region|binding|motif|view):[A-Za-z0-9_.-]+$"},
+                        {"const": ""},
+                        {"type": "null"},
+                    ]
+                },
+                "payload_bindings": {"type": "array", "maxItems": MAX_AGENT_ACTION_PAYLOAD_BINDINGS, "items": {"type": "string", "pattern": SAFE_AGENT_ID_PATTERN}},
             },
         },
         "view_spec": {
@@ -188,18 +328,19 @@ AGENT_INTENT_BUNDLE_SCHEMA: dict[str, Any] = {
                 "styles",
                 "actions",
             ],
-            "additionalProperties": True,
+            "additionalProperties": False,
+            "not": {"anyOf": [{"required": [field]} for field in HOSTED_ONLY_VIEW_SPEC_FIELDS]},
             "properties": {
-                "id": {"type": "string", "minLength": 1},
-                "substrate_id": {"type": "string", "minLength": 1},
+                "id": {"type": "string", "pattern": SAFE_AGENT_ID_PATTERN},
+                "substrate_id": {"type": "string", "pattern": SAFE_AGENT_ID_PATTERN},
                 "complexity_tier": {"type": "integer", "minimum": 1},
-                "root_region": {"type": "string", "minLength": 1},
-                "regions": {"type": "array", "items": {"$ref": "#/$defs/region"}},
-                "bindings": {"type": "array", "items": {"$ref": "#/$defs/binding"}},
-                "groups": {"type": "array", "items": {"$ref": "#/$defs/group"}},
-                "motifs": {"type": "array", "items": {"$ref": "#/$defs/motif"}},
-                "styles": {"type": "array", "items": {"$ref": "#/$defs/style"}},
-                "actions": {"type": "array", "items": {"$ref": "#/$defs/action"}},
+                "root_region": {"type": "string", "pattern": SAFE_AGENT_ID_PATTERN},
+                "regions": {"type": "array", "maxItems": MAX_AGENT_REGIONS, "items": {"$ref": "#/$defs/region"}},
+                "bindings": {"type": "array", "maxItems": MAX_AGENT_BINDINGS, "items": {"$ref": "#/$defs/binding"}},
+                "groups": {"type": "array", "maxItems": MAX_AGENT_GROUPS, "items": {"$ref": "#/$defs/group"}},
+                "motifs": {"type": "array", "maxItems": MAX_AGENT_MOTIFS, "items": {"$ref": "#/$defs/motif"}},
+                "styles": {"type": "array", "maxItems": MAX_AGENT_STYLES, "items": {"$ref": "#/$defs/style"}},
+                "actions": {"type": "array", "maxItems": MAX_AGENT_ACTIONS, "items": {"$ref": "#/$defs/action"}},
             },
         },
     },
@@ -215,15 +356,13 @@ class AgentValidationIssue:
     suggestion: str | None = None
 
     def to_json(self) -> dict[str, str]:
-        data = {
+        return {
             "severity": self.severity,
             "code": self.code,
             "path": self.path,
             "message": self.message,
+            "suggestion": self.suggestion or DEFAULT_AGENT_REPAIR_SUGGESTION,
         }
-        if self.suggestion:
-            data["suggestion"] = self.suggestion
-        return data
 
 
 @dataclass(frozen=True)
@@ -307,16 +446,36 @@ def validate_agent_intent_bundle(
 
 def agent_correction_prompt(result: AgentValidationResult) -> str:
     """Return a compact correction prompt for an agent repair loop."""
-    issues = [issue.to_json() for issue in result.issues]
+    shown_issues = [issue.to_json() for issue in result.issues[:MAX_AGENT_CORRECTION_PROMPT_ISSUES]]
+    report = {
+        "issue_count": len(result.issues),
+        "shown_issue_count": len(shown_issues),
+        "truncated": len(result.issues) > len(shown_issues),
+        "issues": shown_issues,
+    }
     return (
         "Regenerate the full ViewSpec IntentBundle JSON. Output strict JSON only. "
-        "Fix these validation issues:\n"
-        f"{json.dumps(issues, separators=(',', ':'), sort_keys=True)}"
+        "Do not patch fragments. Fix this bounded validation report:\n"
+        f"{json.dumps(report, separators=(',', ':'), sort_keys=True)}"
+    )
+
+
+def _intent_too_large_issue(size: int) -> AgentValidationIssue:
+    return AgentValidationIssue(
+        "error",
+        "INTENT_TOO_LARGE",
+        "$",
+        f"IntentBundle JSON is {size} bytes; the v1 local limit is {MAX_AGENT_INTENT_BYTES} bytes.",
+        "Split the UI into smaller IntentBundles before validation.",
     )
 
 
 def _coerce_payload(payload: str | dict[str, Any]) -> tuple[dict[str, Any] | None, list[AgentValidationIssue]]:
+    payload_from_text = isinstance(payload, str)
     if isinstance(payload, str):
+        size = len(payload.encode("utf-8"))
+        if size > MAX_AGENT_INTENT_BYTES:
+            return None, [_intent_too_large_issue(size)]
         try:
             payload = json.loads(payload)
         except json.JSONDecodeError as exc:
@@ -339,6 +498,21 @@ def _coerce_payload(payload: str | dict[str, Any]) -> tuple[dict[str, Any] | Non
                 "Return one IntentBundle object, not prose, markdown, or an array.",
             )
         ]
+    if not payload_from_text:
+        try:
+            size = len(json.dumps(payload, separators=(",", ":"), sort_keys=True).encode("utf-8"))
+        except (TypeError, ValueError) as exc:
+            return None, [
+                AgentValidationIssue(
+                    "error",
+                    "INVALID_JSON_VALUE",
+                    "$",
+                    f"Dictionary payload contains a value that cannot be encoded as JSON: {exc}",
+                    "Pass only JSON-serializable values in IntentBundle dictionaries.",
+                )
+            ]
+        if size > MAX_AGENT_INTENT_BYTES:
+            return None, [_intent_too_large_issue(size)]
     return payload, []
 
 
@@ -354,10 +528,14 @@ def _validate_intent_bundle_shape(data: dict[str, Any]) -> list[AgentValidationI
             )
         )
 
+    _reject_unknown_fields(data, "$", ROOT_ALLOWED_FIELDS | set(HOSTED_ONLY_ROOT_FIELDS), issues)
     substrate = _required_object(data, "substrate", "$", issues)
     view_spec = _required_object(data, "view_spec", "$", issues)
     if substrate is None or view_spec is None:
         return issues
+    _reject_unknown_fields(substrate, "$.substrate", SUBSTRATE_ALLOWED_FIELDS, issues)
+    _reject_unknown_fields(view_spec, "$.view_spec", VIEW_SPEC_ALLOWED_FIELDS | set(HOSTED_ONLY_VIEW_SPEC_FIELDS), issues)
+    hosted_only_found = _validate_hosted_only_fields(data, view_spec, issues)
 
     if isinstance(substrate.get("nodes"), list):
         issues.append(
@@ -377,6 +555,11 @@ def _validate_intent_bundle_shape(data: dict[str, Any]) -> list[AgentValidationI
     view_substrate_id = _required_string(view_spec, "substrate_id", "$.view_spec", issues)
     view_id = _required_string(view_spec, "id", "$.view_spec", issues)
     root_region = _required_string(view_spec, "root_region", "$.view_spec", issues)
+    _validate_safe_id(substrate_id, "$.substrate.id", "substrate id", issues)
+    _validate_safe_id(root_id, "$.substrate.root_id", "substrate root id", issues)
+    _validate_safe_id(view_substrate_id, "$.view_spec.substrate_id", "view substrate id", issues)
+    _validate_safe_id(view_id, "$.view_spec.id", "view id", issues)
+    _validate_safe_id(root_region, "$.view_spec.root_region", "root region id", issues)
 
     if substrate_id and view_substrate_id and substrate_id != view_substrate_id:
         issues.append(
@@ -389,7 +572,8 @@ def _validate_intent_bundle_shape(data: dict[str, Any]) -> list[AgentValidationI
         )
 
     if nodes is not None:
-        _validate_nodes(nodes, root_id, issues)
+        if _check_count(nodes, MAX_AGENT_NODES, "$.substrate.nodes", "TOO_MANY_NODES", "substrate nodes", issues):
+            _validate_nodes(nodes, root_id, issues)
 
     regions = _required_array(view_spec, "regions", "$.view_spec", issues)
     bindings = _required_array(view_spec, "bindings", "$.view_spec", issues)
@@ -397,10 +581,35 @@ def _validate_intent_bundle_shape(data: dict[str, Any]) -> list[AgentValidationI
     motifs = _required_array(view_spec, "motifs", "$.view_spec", issues)
     styles = _required_array(view_spec, "styles", "$.view_spec", issues)
     actions = _required_array(view_spec, "actions", "$.view_spec", issues)
-    _required_int(view_spec, "complexity_tier", "$.view_spec", issues)
+    complexity_tier = _required_int(view_spec, "complexity_tier", "$.view_spec", issues)
+    if complexity_tier is not None and complexity_tier < 1:
+        issues.append(
+            _issue(
+                "INVALID_COMPLEXITY_TIER",
+                "$.view_spec.complexity_tier",
+                "view_spec.complexity_tier must be at least 1.",
+                "Use a positive complexity tier, starting at 1.",
+            )
+        )
+
+    caps_ok = all(
+        (
+            _check_count(regions, MAX_AGENT_REGIONS, "$.view_spec.regions", "TOO_MANY_REGIONS", "regions", issues),
+            _check_count(bindings, MAX_AGENT_BINDINGS, "$.view_spec.bindings", "TOO_MANY_BINDINGS", "bindings", issues),
+            _check_count(groups, MAX_AGENT_GROUPS, "$.view_spec.groups", "TOO_MANY_GROUPS", "groups", issues),
+            _check_count(motifs, MAX_AGENT_MOTIFS, "$.view_spec.motifs", "TOO_MANY_MOTIFS", "motifs", issues),
+            _check_count(styles, MAX_AGENT_STYLES, "$.view_spec.styles", "TOO_MANY_STYLES", "styles", issues),
+            _check_count(actions, MAX_AGENT_ACTIONS, "$.view_spec.actions", "TOO_MANY_ACTIONS", "actions", issues),
+        )
+    )
+    if not caps_ok:
+        return issues
+    if hosted_only_found:
+        return issues
 
     region_ids = _collect_ids(regions, "$.view_spec.regions", "DUPLICATE_REGION_ID", issues)
     binding_ids = _collect_ids(bindings, "$.view_spec.bindings", "DUPLICATE_BINDING_ID", issues)
+    binding_by_id = _index_bindings_by_id(bindings)
     group_ids = _collect_ids(groups, "$.view_spec.groups", "DUPLICATE_GROUP_ID", issues)
     motif_ids = _collect_ids(motifs, "$.view_spec.motifs", "DUPLICATE_MOTIF_ID", issues)
     style_ids = _collect_ids(styles, "$.view_spec.styles", "DUPLICATE_STYLE_ID", issues)
@@ -416,16 +625,60 @@ def _validate_intent_bundle_shape(data: dict[str, Any]) -> list[AgentValidationI
             )
         )
 
-    _validate_regions(regions, region_ids, issues)
+    _validate_regions(regions, root_region, issues)
     _validate_bindings(bindings, binding_ids, region_ids, nodes, issues)
     _validate_groups(groups, binding_ids, region_ids, issues)
-    _validate_motifs(motifs, binding_ids, region_ids, issues)
+    _validate_motifs(motifs, binding_ids, binding_by_id, region_ids, issues)
     _validate_styles(styles, view_id, region_ids, binding_ids, motif_ids, issues)
     _validate_actions(actions, view_id, region_ids, binding_ids, motif_ids, issues)
 
     # Touch these sets so duplicate collection stays explicit for future additions.
     _ = group_ids, style_ids, action_ids
     return issues
+
+
+def _validate_hosted_only_fields(
+    data: dict[str, Any],
+    view_spec: dict[str, Any],
+    issues: list[AgentValidationIssue],
+) -> bool:
+    found = False
+    for key in HOSTED_ONLY_ROOT_FIELDS:
+        if key in data:
+            found = True
+            issues.append(_hosted_only_issue(f"$.{key}", key))
+    for key in HOSTED_ONLY_VIEW_SPEC_FIELDS:
+        if key in view_spec:
+            found = True
+            issues.append(_hosted_only_issue(f"$.view_spec.{key}", key))
+    return found
+
+
+def _reject_unknown_fields(
+    obj: dict[str, Any],
+    path: str,
+    allowed_fields: set[str],
+    issues: list[AgentValidationIssue],
+) -> None:
+    for key in obj:
+        if key not in allowed_fields:
+            issues.append(
+                _issue(
+                    "UNKNOWN_FIELD",
+                    f"{path}.{key}",
+                    f"Field {key} is not part of the local V1 agent contract.",
+                    "Remove unsupported extension fields or use the hosted compiler contract when those fields are required.",
+                )
+            )
+
+
+def _hosted_only_issue(path: str, field: str) -> AgentValidationIssue:
+    return _issue(
+        "HOSTED_ONLY_FIELD",
+        path,
+        f"{field} is part of the hosted extended compiler contract, not the local V1 validate-intent contract.",
+        "Use the hosted compiler for this bundle, or remove hosted-only fields before running local validate-intent.",
+    )
 
 
 def _validate_nodes(nodes: dict[str, Any], root_id: str | None, issues: list[AgentValidationIssue]) -> None:
@@ -440,10 +693,13 @@ def _validate_nodes(nodes: dict[str, Any], root_id: str | None, issues: list[Age
         )
     for node_key, node in nodes.items():
         path = f"$.substrate.nodes.{node_key}"
+        _validate_safe_id(node_key if isinstance(node_key, str) else None, path, "node key", issues)
         if not isinstance(node, dict):
             issues.append(_issue("INVALID_NODE", path, "Each substrate node must be an object."))
             continue
+        _reject_unknown_fields(node, path, SUBSTRATE_NODE_ALLOWED_FIELDS, issues)
         node_id = _required_string(node, "id", path, issues)
+        _validate_safe_id(node_id, f"{path}.id", "node id", issues)
         _required_string(node, "kind", path, issues)
         attrs = _required_object(node, "attrs", path, issues)
         slots = _required_object(node, "slots", path, issues)
@@ -457,12 +713,40 @@ def _validate_nodes(nodes: dict[str, Any], root_id: str | None, issues: list[Age
                     "Use the node id as the substrate.nodes object key.",
                 )
             )
-        if attrs is not None:
+        if attrs is not None and _check_count(
+            attrs,
+            MAX_AGENT_NODE_ATTRS,
+            f"{path}.attrs",
+            "TOO_MANY_NODE_ATTRS",
+            "node attrs",
+            issues,
+        ):
             for attr_key in attrs:
-                if not isinstance(attr_key, str) or not attr_key:
-                    issues.append(_issue("INVALID_ATTR_KEY", f"{path}.attrs", "Attribute keys must be non-empty strings."))
-        _validate_values_map(slots, f"{path}.slots", "SLOT_VALUES_SHAPE", issues)
-        _validate_values_map(edges, f"{path}.edges", "EDGE_VALUES_SHAPE", issues)
+                _validate_safe_id(attr_key if isinstance(attr_key, str) else None, f"{path}.attrs", "attribute key", issues)
+        if slots is not None and _check_count(
+            slots,
+            MAX_AGENT_NODE_RELATIONS,
+            f"{path}.slots",
+            "TOO_MANY_NODE_SLOTS",
+            "node slots",
+            issues,
+        ):
+            _validate_values_map(slots, f"{path}.slots", "SLOT_VALUES_SHAPE", issues)
+        if edges is not None and _check_count(
+            edges,
+            MAX_AGENT_NODE_RELATIONS,
+            f"{path}.edges",
+            "TOO_MANY_NODE_EDGES",
+            "node edges",
+            issues,
+        ):
+            _validate_values_map(
+                edges,
+                f"{path}.edges",
+                "EDGE_VALUES_SHAPE",
+                issues,
+                edge_target_ids=set(nodes),
+            )
 
 
 def _validate_values_map(
@@ -470,11 +754,14 @@ def _validate_values_map(
     path: str,
     code: str,
     issues: list[AgentValidationIssue],
+    *,
+    edge_target_ids: set[str] | None = None,
 ) -> None:
     if value_map is None:
         return
     for key, value in value_map.items():
         item_path = f"{path}.{key}"
+        _validate_safe_id(key if isinstance(key, str) else None, item_path, "slot or edge key", issues)
         if not isinstance(value, dict) or not isinstance(value.get("values"), list):
             issues.append(
                 _issue(
@@ -484,15 +771,48 @@ def _validate_values_map(
                     "Wrap the array in an object with a values key.",
                 )
             )
+            continue
+        _reject_unknown_fields(value, item_path, {"values"}, issues)
+        _check_count(
+            value["values"],
+            MAX_AGENT_RELATION_VALUES,
+            f"{item_path}.values",
+            "TOO_MANY_RELATION_VALUES",
+            "slot or edge values",
+            issues,
+        )
+        if edge_target_ids is not None:
+            for index, target_id in enumerate(value["values"]):
+                target_path = f"{item_path}.values[{index}]"
+                if not _validate_safe_id(target_id if isinstance(target_id, str) else None, target_path, "edge target id", issues):
+                    continue
+                if target_id not in edge_target_ids:
+                    issues.append(
+                        _issue(
+                            "UNKNOWN_EDGE_TARGET",
+                            target_path,
+                            f"Edge target {target_id} is not declared in substrate.nodes.",
+                            "Use only declared substrate node ids in semantic edges.",
+                        )
+                    )
 
 
-def _validate_regions(regions: list[Any], region_ids: set[str], issues: list[AgentValidationIssue]) -> None:
+def _validate_regions(regions: list[Any], root_region: str | None, issues: list[AgentValidationIssue]) -> None:
+    region_ids = {region["id"] for region in regions if isinstance(region, dict) and isinstance(region.get("id"), str) and region["id"]}
+    parent_by_region: dict[str, str | None] = {}
     for index, region in enumerate(regions):
         path = f"$.view_spec.regions[{index}]"
         if not isinstance(region, dict):
             issues.append(_issue("INVALID_REGION", path, "Each region must be an object."))
             continue
+        _reject_unknown_fields(region, path, REGION_ALLOWED_FIELDS, issues)
+        region_id = region.get("id")
         parent = region.get("parent_region")
+        _validate_safe_id(region_id if isinstance(region_id, str) else None, f"{path}.id", "region id", issues)
+        if parent not in (None, ""):
+            _validate_safe_id(parent if isinstance(parent, str) else None, f"{path}.parent_region", "parent region id", issues)
+        if isinstance(region_id, str) and region_id:
+            parent_by_region[region_id] = parent if isinstance(parent, str) and parent else None
         if parent not in (None, "") and parent not in region_ids:
             issues.append(
                 _issue(
@@ -502,11 +822,104 @@ def _validate_regions(regions: list[Any], region_ids: set[str], issues: list[Age
                     "Use a declared region id or null for the root region.",
                 )
             )
+        if isinstance(region_id, str) and region_id and parent == region_id:
+            issues.append(
+                _issue(
+                    "REGION_PARENT_CYCLE",
+                    f"{path}.parent_region",
+                    f"Region {region_id} cannot parent itself.",
+                    "Use an acyclic region tree rooted at view_spec.root_region.",
+                )
+            )
         _required_string(region, "role", path, issues)
-        _required_string(region, "layout", path, issues)
-        _required_int(region, "min_children", path, issues)
-        if "max_children" not in region:
-            issues.append(_issue("MISSING_FIELD", f"{path}.max_children", "Missing required field max_children."))
+        layout = _required_string(region, "layout", path, issues)
+        if layout and layout not in SUPPORTED_AGENT_REGION_LAYOUTS:
+            issues.append(
+                _issue(
+                    "UNSUPPORTED_REGION_LAYOUT",
+                    f"{path}.layout",
+                    f"Region {region.get('id')} uses unsupported layout {layout}.",
+                    f"Use one of: {', '.join(SUPPORTED_AGENT_REGION_LAYOUTS)}.",
+                )
+            )
+        min_children = _required_int(region, "min_children", path, issues)
+        if min_children is not None and min_children < 0:
+            issues.append(
+                _issue(
+                    "INVALID_REGION_CHILD_BOUNDS",
+                    f"{path}.min_children",
+                    f"Region {region.get('id')} min_children must be >= 0.",
+                    "Use non-negative region child bounds.",
+                )
+            )
+        max_children = _required_nullable_int(region, "max_children", path, issues)
+        if min_children is not None and max_children is not None and max_children < min_children:
+            issues.append(
+                _issue(
+                    "INVALID_REGION_CHILD_BOUNDS",
+                    f"{path}.max_children",
+                    f"Region {region.get('id')} max_children must be null or >= min_children.",
+                    "Use null for an unbounded region or set max_children at least as high as min_children.",
+                )
+            )
+    _validate_region_tree(parent_by_region, root_region, issues)
+
+
+def _validate_region_tree(
+    parent_by_region: dict[str, str | None],
+    root_region: str | None,
+    issues: list[AgentValidationIssue],
+) -> None:
+    if not root_region or root_region not in parent_by_region:
+        return
+    root_parent = parent_by_region[root_region]
+    if root_parent is not None:
+        issues.append(
+            _issue(
+                "ROOT_REGION_HAS_PARENT",
+                "$.view_spec.regions",
+                f"Root region {root_region} must not declare parent_region {root_parent}.",
+                "Set the root region parent_region to an empty string or null.",
+            )
+        )
+
+    for region_id, parent in parent_by_region.items():
+        if region_id == root_region:
+            continue
+        if parent is None:
+            issues.append(
+                _issue(
+                    "DETACHED_REGION",
+                    "$.view_spec.regions",
+                    f"Region {region_id} is not the root and has no parent_region.",
+                    "Give every non-root region a parent chain that reaches view_spec.root_region.",
+                )
+            )
+            continue
+        seen: set[str] = set()
+        cursor: str | None = region_id
+        while cursor is not None and cursor != root_region:
+            if cursor in seen:
+                issues.append(
+                    _issue(
+                        "REGION_PARENT_CYCLE",
+                        "$.view_spec.regions",
+                        f"Region {region_id} is part of a parent_region cycle.",
+                        "Use an acyclic region tree rooted at view_spec.root_region.",
+                    )
+                )
+                break
+            seen.add(cursor)
+            cursor = parent_by_region.get(cursor)
+        if cursor is None:
+            issues.append(
+                _issue(
+                    "DETACHED_REGION",
+                    "$.view_spec.regions",
+                    f"Region {region_id} does not reach root region {root_region}.",
+                    "Give every region a parent chain that reaches view_spec.root_region.",
+                )
+            )
 
 
 def _validate_bindings(
@@ -522,11 +935,14 @@ def _validate_bindings(
         if not isinstance(binding, dict):
             issues.append(_issue("INVALID_BINDING", path, "Each binding must be an object."))
             continue
+        _reject_unknown_fields(binding, path, BINDING_ALLOWED_FIELDS, issues)
         binding_id = _required_string(binding, "id", path, issues)
         address = _required_string(binding, "address", path, issues)
         target_region = _required_string(binding, "target_region", path, issues)
         present_as = _required_string(binding, "present_as", path, issues)
         cardinality = _required_string(binding, "cardinality", path, issues)
+        _validate_safe_id(binding_id, f"{path}.id", "binding id", issues)
+        _validate_safe_id(target_region, f"{path}.target_region", "target region id", issues)
         if target_region and target_region not in region_ids:
             issues.append(
                 _issue(
@@ -545,6 +961,15 @@ def _validate_bindings(
                     f"Use one of: {', '.join(sorted(PRESENT_AS_TO_PRIMITIVE))}.",
                 )
             )
+        if cardinality and cardinality not in SUPPORTED_AGENT_CARDINALITIES:
+            issues.append(
+                _issue(
+                    "UNSUPPORTED_CARDINALITY",
+                    f"{path}.cardinality",
+                    f"Binding {binding_id} uses unsupported cardinality {cardinality}.",
+                    f"Use one of: {', '.join(SUPPORTED_AGENT_CARDINALITIES)}.",
+                )
+            )
         if address and nodes is not None:
             _validate_address(address, nodes, f"{path}.address", binding_id or "binding", issues)
             if cardinality == "exactly_once":
@@ -554,7 +979,7 @@ def _validate_bindings(
                             "DUPLICATE_EXACTLY_ONCE_ADDRESS",
                             f"{path}.address",
                             f"Binding {binding_id} duplicates exactly_once address {address} already used by {seen_exactly_once[address]}.",
-                            "Use each exactly_once address once, or change cardinality where repeat use is intentional.",
+                            "Use each source address once in the v1 agent contract.",
                         )
                     )
                 else:
@@ -616,11 +1041,29 @@ def _validate_groups(
         if not isinstance(group, dict):
             issues.append(_issue("INVALID_GROUP", path, "Each group must be an object."))
             continue
-        _required_string(group, "kind", path, issues)
+        _reject_unknown_fields(group, path, GROUP_ALLOWED_FIELDS, issues)
+        group_id = _required_string(group, "id", path, issues)
+        _validate_safe_id(group_id, f"{path}.id", "group id", issues)
+        kind = _required_string(group, "kind", path, issues)
+        if kind and kind not in SUPPORTED_AGENT_GROUP_KINDS:
+            issues.append(
+                _issue(
+                    "UNSUPPORTED_GROUP_KIND",
+                    f"{path}.kind",
+                    f"Group {group.get('id')} uses unsupported kind {kind}.",
+                    f"Use one of: {', '.join(SUPPORTED_AGENT_GROUP_KINDS)}.",
+                )
+            )
         members = _required_array(group, "members", path, issues)
         if "target_region" not in group:
             issues.append(_issue("MISSING_FIELD", f"{path}.target_region", "Missing required field target_region."))
         elif group["target_region"] not in (None, "") and group["target_region"] not in region_ids:
+            _validate_safe_id(
+                group["target_region"] if isinstance(group["target_region"], str) else None,
+                f"{path}.target_region",
+                "target region id",
+                issues,
+            )
             issues.append(
                 _issue(
                     "UNKNOWN_REGION",
@@ -629,7 +1072,17 @@ def _validate_groups(
                     "Target a declared region id or use null.",
                 )
             )
+        if not _check_count(
+            members,
+            MAX_AGENT_BINDINGS,
+            f"{path}.members",
+            "TOO_MANY_GROUP_MEMBERS",
+            "group members",
+            issues,
+        ):
+            continue
         for member in members:
+            _validate_safe_id(member if isinstance(member, str) else None, f"{path}.members", "group member id", issues)
             if member not in binding_ids:
                 issues.append(
                     _issue(
@@ -644,6 +1097,7 @@ def _validate_groups(
 def _validate_motifs(
     motifs: list[Any],
     binding_ids: set[str],
+    binding_by_id: dict[str, dict[str, Any]],
     region_ids: set[str],
     issues: list[AgentValidationIssue],
 ) -> None:
@@ -652,9 +1106,13 @@ def _validate_motifs(
         if not isinstance(motif, dict):
             issues.append(_issue("INVALID_MOTIF", path, "Each motif must be an object."))
             continue
+        _reject_unknown_fields(motif, path, MOTIF_ALLOWED_FIELDS, issues)
+        motif_id = _required_string(motif, "id", path, issues)
+        _validate_safe_id(motif_id, f"{path}.id", "motif id", issues)
         kind = _required_string(motif, "kind", path, issues)
         region = _required_string(motif, "region", path, issues)
         members = _required_array(motif, "members", path, issues)
+        _validate_safe_id(region, f"{path}.region", "region id", issues)
         if kind and kind not in SUPPORTED_AGENT_MOTIFS:
             issues.append(
                 _issue(
@@ -666,8 +1124,20 @@ def _validate_motifs(
             )
         if region and region not in region_ids:
             issues.append(_issue("UNKNOWN_REGION", f"{path}.region", f"Motif {motif.get('id')} targets unknown region {region}."))
+        if not _check_count(
+            members,
+            MAX_AGENT_BINDINGS,
+            f"{path}.members",
+            "TOO_MANY_MOTIF_MEMBERS",
+            "motif members",
+            issues,
+        ):
+            continue
+        missing_member = False
         for member in members:
+            _validate_safe_id(member if isinstance(member, str) else None, f"{path}.members", "motif member id", issues)
             if member not in binding_ids:
+                missing_member = True
                 issues.append(
                     _issue(
                         "MISSING_MOTIF_MEMBER",
@@ -676,6 +1146,118 @@ def _validate_motifs(
                         "Use declared binding ids in motif members.",
                     )
                 )
+        if kind in SUPPORTED_AGENT_MOTIFS and not missing_member:
+            _validate_motif_completeness(kind, motif_id or str(motif.get("id") or index), members, binding_by_id, path, issues)
+
+
+def _validate_motif_completeness(
+    kind: str,
+    motif_id: str,
+    members: list[Any],
+    binding_by_id: dict[str, dict[str, Any]],
+    path: str,
+    issues: list[AgentValidationIssue],
+) -> None:
+    member_bindings = [
+        binding_by_id[member]
+        for member in members
+        if isinstance(member, str) and member in binding_by_id
+    ]
+    if not member_bindings:
+        issues.append(
+            _issue(
+                "EMPTY_MOTIF",
+                f"{path}.members",
+                f"Motif {motif_id} has no declared binding members.",
+                "Add at least one binding member that carries the motif's semantic content.",
+            )
+        )
+        return
+
+    if kind in {"hero", "empty_state"} and not _motif_has_title_binding(member_bindings):
+        issues.append(
+            _issue(
+                "MOTIF_MISSING_TITLE",
+                f"{path}.members",
+                f"Motif {motif_id} needs a title, heading, headline, or label binding.",
+                "Bind a node attr named title, heading, headline, or label and include that binding in motif.members.",
+            )
+        )
+
+    if kind == "form" and not _motif_has_present_as(member_bindings, {"input"}):
+        issues.append(
+            _issue(
+                "MOTIF_MISSING_INPUT",
+                f"{path}.members",
+                f"Form motif {motif_id} needs at least one input binding.",
+                'Use present_as "input" for editable field values and include those bindings in motif.members.',
+            )
+        )
+
+    if kind in {"table", "dashboard", "detail"}:
+        if not _motif_has_present_as(member_bindings, {"label"}):
+            issues.append(
+                _issue(
+                    "MOTIF_MISSING_LABEL",
+                    f"{path}.members",
+                    f"Motif {motif_id} needs at least one label binding.",
+                    'Include a declared binding with present_as "label" in motif.members.',
+                )
+            )
+        if not _motif_has_present_as(member_bindings, {"value", "badge", "text", "rich_text", "input"}):
+            issues.append(
+                _issue(
+                    "MOTIF_MISSING_VALUE",
+                    f"{path}.members",
+                    f"Motif {motif_id} needs at least one value or text-style binding.",
+                    'Include a declared binding with present_as "value", "badge", "text", "rich_text", or "input" in motif.members.',
+                )
+            )
+
+    if kind == "comparison" and len(_motif_distinct_node_ids(member_bindings)) < 2:
+        issues.append(
+            _issue(
+                "MOTIF_TOO_FEW_ITEMS",
+                f"{path}.members",
+                f"Comparison motif {motif_id} needs at least two distinct semantic items.",
+                "Include bindings from at least two distinct substrate nodes in motif.members.",
+            )
+        )
+
+
+def _motif_has_title_binding(bindings: list[dict[str, Any]]) -> bool:
+    return any(_binding_address_part(binding) in {"title", "heading", "headline", "label"} for binding in bindings)
+
+
+def _motif_has_present_as(bindings: list[dict[str, Any]], present_as_values: set[str]) -> bool:
+    return any(binding.get("present_as") in present_as_values for binding in bindings)
+
+
+def _motif_distinct_node_ids(bindings: list[dict[str, Any]]) -> set[str]:
+    node_ids: set[str] = set()
+    for binding in bindings:
+        address = binding.get("address")
+        if not isinstance(address, str):
+            continue
+        try:
+            parts = parse_canonical_address(address)
+        except ValueError:
+            continue
+        node_id = parts.get("node_id")
+        if isinstance(node_id, str):
+            node_ids.add(node_id)
+    return node_ids
+
+
+def _binding_address_part(binding: dict[str, Any]) -> str:
+    address = binding.get("address")
+    if not isinstance(address, str):
+        return ""
+    try:
+        parts = parse_canonical_address(address)
+    except ValueError:
+        return ""
+    return str(parts.get("attr") or parts.get("slot") or "")
 
 
 def _validate_styles(
@@ -691,17 +1273,32 @@ def _validate_styles(
         if not isinstance(style, dict):
             issues.append(_issue("INVALID_STYLE", path, "Each style must be an object."))
             continue
+        _reject_unknown_fields(style, path, STYLE_ALLOWED_FIELDS, issues)
+        style_id = _required_string(style, "id", path, issues)
+        _validate_safe_id(style_id, f"{path}.id", "style id", issues)
         target = _required_string(style, "target", path, issues)
-        _required_string(style, "token", path, issues)
-        if target and not _target_exists(target, view_id, region_ids, binding_ids, motif_ids):
+        token = _required_string(style, "token", path, issues)
+        if token and token not in SUPPORTED_AGENT_STYLE_TOKENS:
             issues.append(
                 _issue(
-                    "UNKNOWN_STYLE_TARGET",
-                    f"{path}.target",
-                    f"Style {style.get('id')} targets unknown {target}.",
-                    "Use region:id, binding:id, motif:id, view:id, or a declared bare id.",
+                    "UNSUPPORTED_STYLE_TOKEN",
+                    f"{path}.token",
+                    f"Style {style.get('id')} uses unsupported token {token}.",
+                    f"Use one of: {', '.join(SUPPORTED_AGENT_STYLE_TOKENS)}.",
                 )
             )
+        _validate_target_ref(
+            target,
+            f"{path}.target",
+            f"Style {style.get('id')}",
+            view_id,
+            region_ids,
+            binding_ids,
+            motif_ids,
+            issues,
+            unknown_code="UNKNOWN_STYLE_TARGET",
+            allow_bare=True,
+        )
 
 
 def _validate_actions(
@@ -717,25 +1314,53 @@ def _validate_actions(
         if not isinstance(action, dict):
             issues.append(_issue("INVALID_ACTION", path, "Each action must be an object."))
             continue
+        _reject_unknown_fields(action, path, ACTION_ALLOWED_FIELDS, issues)
+        action_id = _required_string(action, "id", path, issues)
+        _validate_safe_id(action_id, f"{path}.id", "action id", issues)
         target_region = _required_string(action, "target_region", path, issues)
-        _required_string(action, "kind", path, issues)
+        kind = _required_string(action, "kind", path, issues)
         _required_string(action, "label", path, issues)
-        target_ref = action.get("target_ref")
+        target_ref = _required_nullable_string(action, "target_ref", path, issues)
         payload_bindings = _required_array(action, "payload_bindings", path, issues)
+        _validate_safe_id(target_region, f"{path}.target_region", "target region id", issues)
+        if kind and kind not in SUPPORTED_AGENT_ACTION_KINDS:
+            issues.append(
+                _issue(
+                    "UNSUPPORTED_ACTION_KIND",
+                    f"{path}.kind",
+                    f"Action kind '{kind}' is not supported by the v1 agent contract.",
+                    f"Use one of: {', '.join(SUPPORTED_AGENT_ACTION_KINDS)}.",
+                )
+            )
         if target_region and target_region not in region_ids:
             issues.append(
                 _issue("UNKNOWN_ACTION_TARGET", f"{path}.target_region", f"Action {action.get('id')} targets unknown region {target_region}.")
             )
-        if target_ref not in (None, "") and (not isinstance(target_ref, str) or not _target_exists(target_ref, view_id, region_ids, binding_ids, motif_ids)):
-            issues.append(
-                _issue(
-                    "UNKNOWN_ACTION_TARGET",
-                    f"{path}.target_ref",
-                    f"Action {action.get('id')} targets unknown {target_ref}.",
-                    "Use a declared target ref like binding:save_button or motif:items.",
-                )
+        if target_ref not in (None, ""):
+            _validate_target_ref(
+                target_ref,
+                f"{path}.target_ref",
+                f"Action {action.get('id')}",
+                view_id,
+                region_ids,
+                binding_ids,
+                motif_ids,
+                issues,
+                unknown_code="UNKNOWN_ACTION_TARGET",
+                invalid_code="INVALID_ACTION_TARGET_REF",
+                allow_bare=False,
             )
+        if not _check_count(
+            payload_bindings,
+            MAX_AGENT_ACTION_PAYLOAD_BINDINGS,
+            f"{path}.payload_bindings",
+            "TOO_MANY_ACTION_PAYLOAD_BINDINGS",
+            "action payload bindings",
+            issues,
+        ):
+            continue
         for binding_id in payload_bindings:
+            _validate_safe_id(binding_id if isinstance(binding_id, str) else None, f"{path}.payload_bindings", "payload binding id", issues)
             if binding_id not in binding_ids:
                 issues.append(
                     _issue(
@@ -746,24 +1371,134 @@ def _validate_actions(
                 )
 
 
-def _target_exists(
+def _target_matches(
     target: str,
     view_id: str | None,
     region_ids: set[str],
     binding_ids: set[str],
     motif_ids: set[str],
-) -> bool:
+) -> list[str]:
     if ":" in target:
         kind, target_id = target.split(":", 1)
-    else:
-        target_id = target
-        return target_id in region_ids or target_id in binding_ids or target_id in motif_ids or target_id == view_id
+        return [kind] if _target_kind_exists(kind, target_id, view_id, region_ids, binding_ids, motif_ids) else []
+    matches: list[str] = []
+    if target in region_ids:
+        matches.append("region")
+    if target in binding_ids:
+        matches.append("binding")
+    if target in motif_ids:
+        matches.append("motif")
+    if target == view_id:
+        matches.append("view")
+    return matches
+
+
+def _target_kind_exists(
+    kind: str,
+    target_id: str,
+    view_id: str | None,
+    region_ids: set[str],
+    binding_ids: set[str],
+    motif_ids: set[str],
+) -> bool:
     return (
         (kind == "region" and target_id in region_ids)
         or (kind == "binding" and target_id in binding_ids)
         or (kind == "motif" and target_id in motif_ids)
         or (kind == "view" and target_id == view_id)
     )
+
+
+def _validate_target_ref(
+    target: str | None,
+    path: str,
+    owner: str,
+    view_id: str | None,
+    region_ids: set[str],
+    binding_ids: set[str],
+    motif_ids: set[str],
+    issues: list[AgentValidationIssue],
+    *,
+    unknown_code: str,
+    invalid_code: str | None = None,
+    allow_bare: bool,
+) -> None:
+    if not target:
+        return
+    if ":" in target:
+        kind, target_id = target.split(":", 1)
+        if kind not in {"region", "binding", "motif", "view"} or not SAFE_AGENT_ID_RE.match(target_id):
+            issues.append(
+                _issue(
+                    invalid_code or unknown_code,
+                    path,
+                    f"{owner} target {target} must use region:id, binding:id, motif:id, or view:id.",
+                    "Use an explicit target reference with a supported kind and safe id.",
+                )
+            )
+            return
+        if not _target_kind_exists(kind, target_id, view_id, region_ids, binding_ids, motif_ids):
+            issues.append(
+                _issue(
+                    unknown_code,
+                    path,
+                    f"{owner} targets unknown {target}.",
+                    "Use a declared target ref like binding:save_button or motif:items.",
+                )
+            )
+        return
+
+    if not allow_bare:
+        issues.append(
+            _issue(
+                invalid_code or unknown_code,
+                path,
+                f"{owner} target {target} must use kind:id form.",
+                "Use region:id, binding:id, motif:id, or view:id.",
+            )
+        )
+        return
+
+    matches = _target_matches(target, view_id, region_ids, binding_ids, motif_ids)
+    if not matches:
+        issues.append(
+            _issue(
+                unknown_code,
+                path,
+                f"{owner} targets unknown {target}.",
+                "Use region:id, binding:id, motif:id, view:id, or a declared unambiguous bare id.",
+            )
+        )
+    elif len(matches) > 1:
+        issues.append(
+            _issue(
+                "AMBIGUOUS_STYLE_TARGET",
+                path,
+                f"{owner} target {target} matches multiple namespaces: {', '.join(matches)}.",
+                f"Use an explicit target reference such as binding:{target} or region:{target}.",
+            )
+        )
+
+
+def _validate_safe_id(
+    value: str | None,
+    path: str,
+    label: str,
+    issues: list[AgentValidationIssue],
+) -> bool:
+    if not value:
+        return False
+    if SAFE_AGENT_ID_RE.match(value):
+        return True
+    issues.append(
+        _issue(
+            "INVALID_ID",
+            path,
+            f"{label} '{value}' must match {SAFE_AGENT_ID_PATTERN}.",
+            "Use only letters, digits, underscore, dot, and dash. Do not use spaces, colons, slashes, markup, or path-like ids.",
+        )
+    )
+    return False
 
 
 def _collect_ids(
@@ -783,6 +1518,39 @@ def _collect_ids(
                 issues.append(_issue(duplicate_code, f"{item_path}.id", f"Duplicate id {item_id}."))
             ids.add(item_id)
     return ids
+
+
+def _index_bindings_by_id(bindings: list[Any]) -> dict[str, dict[str, Any]]:
+    indexed: dict[str, dict[str, Any]] = {}
+    for binding in bindings:
+        if not isinstance(binding, dict):
+            continue
+        binding_id = binding.get("id")
+        if isinstance(binding_id, str) and binding_id not in indexed:
+            indexed[binding_id] = binding
+    return indexed
+
+
+def _check_count(
+    value: dict[Any, Any] | list[Any],
+    limit: int,
+    path: str,
+    code: str,
+    label: str,
+    issues: list[AgentValidationIssue],
+) -> bool:
+    count = len(value)
+    if count <= limit:
+        return True
+    issues.append(
+        _issue(
+            code,
+            path,
+            f"IntentBundle declares {count} {label}; the v1 local limit is {limit}.",
+            "Split the UI into smaller IntentBundles.",
+        )
+    )
+    return False
 
 
 def _required_object(
@@ -824,6 +1592,40 @@ def _required_string(
     return value
 
 
+def _required_nullable_string(
+    obj: dict[str, Any],
+    key: str,
+    path: str,
+    issues: list[AgentValidationIssue],
+) -> str | None:
+    if key not in obj:
+        issues.append(_issue("MISSING_FIELD", f"{path}.{key}", f"Missing required string-or-null field {key}."))
+        return None
+    value = obj.get(key)
+    if value is None or isinstance(value, str):
+        return value
+    issues.append(_issue("MISSING_FIELD", f"{path}.{key}", f"Field {key} must be a string or null."))
+    return None
+
+
+def _required_nullable_int(
+    obj: dict[str, Any],
+    key: str,
+    path: str,
+    issues: list[AgentValidationIssue],
+) -> int | None:
+    if key not in obj:
+        issues.append(_issue("MISSING_FIELD", f"{path}.{key}", f"Missing required integer-or-null field {key}."))
+        return None
+    value = obj.get(key)
+    if value is None:
+        return None
+    if type(value) is int:
+        return value
+    issues.append(_issue("MISSING_FIELD", f"{path}.{key}", f"Field {key} must be an integer or null."))
+    return None
+
+
 def _required_int(
     obj: dict[str, Any],
     key: str,
@@ -831,7 +1633,7 @@ def _required_int(
     issues: list[AgentValidationIssue],
 ) -> int | None:
     value = obj.get(key)
-    if not isinstance(value, int):
+    if type(value) is not int:
         issues.append(_issue("MISSING_FIELD", f"{path}.{key}", f"Missing required integer field {key}."))
         return None
     return value
