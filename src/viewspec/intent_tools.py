@@ -476,12 +476,14 @@ def wrap_intent_bundle_manifest(
     raw_source_hash: str,
     design: DesignSystemContext | None,
     command_args: list[str],
+    artifact_path: Path | None = None,
+    emitter: str | None = None,
 ) -> None:
     from viewspec.local_tools import atomic_write
 
     existing = json.loads(manifest_path.read_text(encoding="utf-8"))
-    html_path = manifest_path.with_name("index.html")
-    artifact_hash = file_hash(html_path) if html_path.exists() else None
+    artifact = artifact_path or manifest_path.with_name("index.html")
+    artifact_hash = file_hash(artifact) if artifact.exists() else None
     wrapped: dict[str, Any] = {
         "version": 1,
         "manifest_schema_version": MANIFEST_SCHEMA_VERSION,
@@ -505,6 +507,9 @@ def wrap_intent_bundle_manifest(
         "diagnostics": json.loads(manifest_path.with_name("diagnostics.json").read_text(encoding="utf-8")),
         "external_refs": [],
     }
+    if emitter is not None:
+        wrapped["emitter"] = emitter
+        wrapped["artifact_file"] = artifact.name
     if design is not None:
         wrapped["design"] = design.to_meta()
     atomic_write(manifest_path, json.dumps(wrapped, indent=2, sort_keys=True))

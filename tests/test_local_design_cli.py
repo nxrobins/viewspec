@@ -185,6 +185,36 @@ def test_cli_compile_json_wraps_stable_manifest(tmp_path):
     assert "nodes" in manifest
 
 
+def test_cli_compile_json_can_emit_react_tsx_target(tmp_path):
+    builder = ViewSpecBuilder("react_cli")
+    field = builder.add_text_input("message", label="Message", value="Hello", group_id="fields")
+    builder.add_action("send", "submit", "Send", target_region="main", payload_bindings=[field])
+    bundle_path = tmp_path / "bundle.json"
+    bundle_path.write_text(json.dumps(builder.build_bundle().to_json()), encoding="utf-8")
+    out_dir = tmp_path / "react-dist"
+
+    assert cli_main(["compile", str(bundle_path), "--target", "react-tsx", "--out", str(out_dir)]) == 0
+    manifest = json.loads(out_dir.joinpath("provenance_manifest.json").read_text(encoding="utf-8"))
+    tsx = out_dir.joinpath("ViewSpecView.tsx").read_text(encoding="utf-8")
+
+    assert out_dir.joinpath("index.html").exists() is False
+    assert manifest["kind"] == "intent_bundle_compile"
+    assert manifest["emitter"] == "react_tsx"
+    assert manifest["artifact_file"] == "ViewSpecView.tsx"
+    assert manifest["artifact_hash"] == file_hash(out_dir / "ViewSpecView.tsx")
+    assert manifest["command_args"] == [
+        "viewspec",
+        "compile",
+        "bundle.json",
+        "--target",
+        "react-tsx",
+        "--out",
+        "<out>",
+    ]
+    assert 'source: "viewspec-react-tsx"' in tsx
+    assert "payloadValues: collectPayloadValues" in tsx
+
+
 def test_cli_check_uses_byte_exact_artifact_hash(tmp_path, capsys):
     builder = ViewSpecBuilder("byte_exact_hash")
     table = builder.add_table("items", region="main", group_id="rows")

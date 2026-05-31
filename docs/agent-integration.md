@@ -223,6 +223,14 @@ Hosted extended artifacts must identify that boundary instead of pretending to b
 
 In hosted and local workflows, agents still generate IntentBundle JSON for new UI. They should not generate CompositionIR, React, SwiftUI, Flutter, or HTML directly unless the user explicitly asks for emitter source. Raw HTML tools are only for importing existing HTML.
 
+For local V1 React source output, keep the same IntentBundle-first workflow and change only the compile target:
+
+```bash
+viewspec compile viewspec.intent.json --target react-tsx --out react-output/
+```
+
+The agent still edits `viewspec.intent.json`; `ViewSpecView.tsx` is compiled artifact source. React actions surface through an `onAction` callback with the same V1 action fields used by the HTML runtime.
+
 
 ## Optional Reference Grounding
 

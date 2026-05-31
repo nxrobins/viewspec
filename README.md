@@ -229,6 +229,14 @@ class MyEmitter(EmitterPlugin):
 
 The included HTML/Tailwind emitter produces standalone HTML with full Tailwind styling, provenance data attributes on every DOM element, semantic table/list markup for table and list motifs, definition-list markup for detail motifs, checked absence sections for empty_state motifs, checked header/heading markup for hero motifs, inert `role="form"` sections for form motifs, safe local text inputs, accessible roles for generated image/error primitives, action event dispatch only when actions exist, and a JSON provenance manifest. Local action events dispatch `viewspec-action` with versioned `detail.schemaVersion: 1` payloads containing `source`, `id`, `kind`, `targetRef`, `payloadBindings`, and `payloadValues`. Pressing Enter inside a local inert form dispatches only a declared `submit` action whose `targetRef` exactly matches that form motif.
 
+The local SDK also includes a deterministic React TSX emitter for the same local V1 `ASTBundle`. Use it when you want source code instead of standalone HTML:
+
+```bash
+viewspec compile viewspec.intent.json --target react-tsx --out react-output/
+```
+
+It writes `ViewSpecView.tsx`, `provenance_manifest.json`, and `diagnostics.json`. React actions are surfaced through an `onAction` callback with the same V1 fields and `source: "viewspec-react-tsx"`. `viewspec check` remains the HTML artifact verifier; React output is source artifact generation, not a DOM artifact proof.
+
 ## Motif Types
 
 | Builder | Motif | Use case |
@@ -250,7 +258,7 @@ Each builder returns a chained sub-builder. Compose them freely within a single 
 
 ### Reference Compiler (free, offline)
 
-Handles the nine standard motifs locally. No API, no network, no LLM. Deterministic.
+Handles the nine standard motifs locally. No API, no network, no LLM. Deterministic. The default CLI target is standalone HTML/Tailwind; `--target react-tsx` emits a local React component from the same compiled `ASTBundle`.
 
 ```python
 ast = compile(builder.build_bundle())
@@ -331,7 +339,7 @@ const inline = await compiler.withDesign("name: Acme\n", false).compile(bundle)
 
 ## Launch Compiler Surface
 
-The hosted compiler now exposes the May 6 launch surface: React TSX, SwiftUI, and Flutter emitters; projections; input bindings; rule bindings; submit/navigate actions; and custom motifs. Hosted extended demo artifacts declare `contract_profile: "hosted_extended_v1"` when they go beyond the local V1 `validate-intent` contract. The public SDK remains the stable offline/reference path.
+The hosted compiler now exposes the May 6 launch surface: SwiftUI and Flutter emitters; projections; rich input bindings; rule bindings; submit/navigate actions; and custom motifs. The local SDK ships HTML/Tailwind and React TSX emitters for the bounded local V1 contract. Hosted extended demo artifacts declare `contract_profile: "hosted_extended_v1"` when they go beyond the local V1 `validate-intent` contract.
 
 Pro includes mobile emitters, 5 custom motif instances per compile, and 10,000 hosted compile calls/day.
 
