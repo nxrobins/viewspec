@@ -12,6 +12,7 @@ build/
 .ruff_cache/
 .pytest_cache/
 .test-tmp*/
+.tmp-*/
 output/
 viewspec_output/
 .venv/

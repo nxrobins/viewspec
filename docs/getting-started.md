@@ -1,6 +1,6 @@
 # Getting Started: First ViewSpec In 5 Minutes
 
-ViewSpec's primary local workflow is agent HTML governance. Your agent writes ordinary HTML; the SDK sanitizes it, applies `DESIGN.md`, writes provenance, and exposes semantic diff signals. IntentBundle and hosted API workflows remain available for advanced compiler use.
+ViewSpec's primary workflow is agent-native UI intent. Your agent writes `IntentBundle` JSON, ViewSpec validates it, then the compiler emits HTML and other concrete UI surfaces.
 
 ## Install
 
@@ -8,9 +8,30 @@ ViewSpec's primary local workflow is agent HTML governance. Your agent writes or
 pip install viewspec
 ```
 
-## Agent HTML First
+## Agent Intent First
 
-Use the CLI when you already have raw HTML and need a governed, offline artifact:
+For new UI, make the agent create `viewspec.intent.json` and run:
+
+```bash
+viewspec init-intent --out viewspec.intent.json
+viewspec init-design --out DESIGN.md
+viewspec validate-intent viewspec.intent.json --json
+viewspec diff-intent old.intent.json new.intent.json --json
+viewspec compile viewspec.intent.json --design DESIGN.md --out dist/
+viewspec check dist/
+```
+
+`init-intent` writes a valid scaffold for table, dashboard, outline, comparison, list, form, detail, empty_state, or hero motifs. Replace the sample content with real user intent before compiling. `validate-intent` rejects arrays, markdown-wrapped JSON, malformed JSON, CompositionIR-shaped payloads, oversized bundles, and bundles unsupported by the local reference compiler. `viewspec compile` runs the same validation before writing artifacts. Invalid results include a correction prompt for the agent to regenerate the full IntentBundle.
+
+Use `viewspec diff-intent` when reviewing agent revisions. It reports `basis: "intent_bundle_v1"` and compares top-level bundle metadata, declared semantic nodes, regions, bindings, motifs, styles, actions, selected field changes, and `semantic_changes` for motif, binding, and action contract changes before you inspect generated DOM.
+
+V1 local caps keep agent repair loops predictable: max 256KB JSON, 200 substrate nodes, 32 regions, 400 bindings, 64 groups, 32 motifs, 400 styles, 64 actions, 64 attrs/slots/edges per node, 200 values per slot or edge, and 64 payload bindings per action.
+
+Use `viewspec init-design --out DESIGN.md` for a starter design file when the repo does not already have one, and `viewspec doctor` to check local SDK readiness. `doctor` reports the intent-first commands, runs a starter IntentBundle validation/compile/diff smoke check, verifies `PyYAML`, and states the local no-network policy.
+
+## Import Existing HTML
+
+Use raw HTML commands only when you already have HTML and need an offline import/fallback artifact:
 
 ```bash
 viewspec compile input.html --design DESIGN.md --out dist/
@@ -19,15 +40,11 @@ viewspec diff old.html new.html --json
 viewspec check dist/
 ```
 
-Raw HTML compile writes `index.html`, `provenance_manifest.json`, and `diagnostics.json`. With `--lift-json`, it also writes `lift.json`.
-
-This path is sanitize + theme + manifest + diff. It is not full ViewSpec decompilation, and it does not perform pixel review.
-
-Use `viewspec init-design --out DESIGN.md` for a starter design file and `viewspec doctor` to check local SDK readiness.
+Raw HTML compile writes `index.html`, `provenance_manifest.json`, and `diagnostics.json`. With `--lift-json`, it also writes `lift.json`. This path is sanitize + theme + manifest + diff. It is not full ViewSpec decompilation, and it does not perform pixel review.
 
 ## Native Agent Use
 
-Add managed ViewSpec instructions to a repo so agents run the local governance workflow after they create or edit HTML:
+Add managed ViewSpec instructions to a repo so agents create `viewspec.intent.json`, validate it, compile it, and check the artifact:
 
 ```bash
 viewspec init-agent --target codex
@@ -47,12 +64,14 @@ viewspec mcp
 viewspec doctor --agents
 ```
 
-The MCP tools are local-only by default and reject paths outside the configured working directory.
+The MCP tools are local-only by default and reject paths outside the configured working directory. Intent tools are the default for new UI; raw HTML MCP tools are import/fallback only.
 
 ## Programmatic IntentBundle Compile
 
 ```python
-from viewspec import ViewSpecBuilder, compile
+import json
+
+from viewspec import ViewSpecBuilder, compile, diff_intent_text, validate_intent_text
 from viewspec.emitters.html_tailwind import HtmlTailwindEmitter
 
 builder = ViewSpecBuilder("invoice")
@@ -60,15 +79,21 @@ table = builder.add_table("items", region="main", group_id="rows")
 table.add_row(label="Design System Audit", value="$4,200")
 table.add_row(label="Component Library", value="$8,500")
 
-ast = compile(builder.build_bundle())
+message_binding = builder.add_text_input("message", label="Message", value="")
+builder.add_action("send", "submit", "Send", target_region="main", payload_bindings=[message_binding])
+
+bundle = builder.build_bundle()
+validation = validate_intent_text(json.dumps(bundle.to_json()))
+diff = diff_intent_text(json.dumps(bundle.to_json()), json.dumps(bundle.to_json()))
+ast = compile(bundle)
 HtmlTailwindEmitter().emit(ast, "output/")
 ```
 
-Use the hosted compiler for projections, inputs, declarative rules, custom motifs, Level 2+ derivation, and mobile emitters.
+The local reference compiler supports safe text inputs and local action payload events. HTML action events dispatch `viewspec-action` with `detail.schemaVersion: 1`, `source`, `id`, `kind`, `targetRef`, `payloadBindings`, and `payloadValues`. Pressing Enter inside a local inert form dispatches only a declared `submit` action whose `targetRef` exactly matches that form motif. Use the hosted compiler for richer input controls, projections, declarative rules, custom motifs, Level 2+ derivation, and mobile emitters. Hosted demo artifact indexes declare `contract_profile: "hosted_extended_v1"` when their IntentBundle uses fields beyond local V1 validation.
 
 ## Theming with DESIGN.md
 
-For local compilation, parse a strict `DESIGN.md` subset and pass it to raw HTML or IntentBundle compilation:
+For local compilation, parse a strict `DESIGN.md` subset and pass it to IntentBundle or raw HTML import compilation:
 
 ```python
 from viewspec import compile, compile_html, load_design_system
@@ -81,8 +106,8 @@ ast = compile(builder.build_bundle(), design=design)
 From the CLI:
 
 ```bash
-viewspec compile input.html --design DESIGN.md --out dist/
-viewspec compile bundle.json --design DESIGN.md --out dist/
+viewspec compile viewspec.intent.json --design DESIGN.md --out dist/
+viewspec compile existing.html --design DESIGN.md --out dist/
 ```
 
 Parse errors, broken token references, and cycles are fatal. Malformed ignorable tokens produce diagnostics and fall back to defaults. `--strict-design` escalates warnings to failure.
@@ -100,4 +125,4 @@ ast = response.ast
 design_meta = response.meta.design
 ```
 
-Colors must be exact sRGB hex values such as `#FFFFFF`; `rgba()`, `#FFF`, and named colors are ignored with defaults. React/HTML can receive custom `fontFamily` CSS, while Flutter and SwiftUI coerce custom families to native system defaults and preserve size, weight, and tracking.
+Colors must be exact sRGB hex values such as `#FFFFFF`; `rgba()`, `#FFF`, and named colors are ignored with defaults. React/HTML can receive custom `fontFamily` CSS. In local HTML output, `typography.body` styles normal text and `typography.heading` styles prominent values through the compiler's emphasis token. Flutter and SwiftUI coerce custom families to native system defaults and preserve size, weight, and tracking.

@@ -67,11 +67,25 @@ from viewspec.raw_html import (
 from viewspec.agent import (
     AGENT_INTENT_BUNDLE_SCHEMA,
     AGENT_SYSTEM_PROMPT,
+    SUPPORTED_AGENT_ACTION_KINDS,
+    SUPPORTED_AGENT_CARDINALITIES,
+    SUPPORTED_AGENT_GROUP_KINDS,
     SUPPORTED_AGENT_MOTIFS,
+    SUPPORTED_AGENT_REGION_LAYOUTS,
+    SUPPORTED_AGENT_STYLE_TOKENS,
     AgentValidationIssue,
     AgentValidationResult,
     agent_correction_prompt,
     validate_agent_intent_bundle,
+)
+from viewspec.intent_tools import (
+    STARTER_INTENT_KINDS,
+    diff_intent_files,
+    diff_intent_text,
+    init_intent_file,
+    starter_intent_bundle,
+    validate_intent_file,
+    validate_intent_text,
 )
 
 __all__ = [
@@ -133,11 +147,23 @@ __all__ = [
     # Agent integration
     "AGENT_INTENT_BUNDLE_SCHEMA",
     "AGENT_SYSTEM_PROMPT",
+    "SUPPORTED_AGENT_ACTION_KINDS",
+    "SUPPORTED_AGENT_CARDINALITIES",
+    "SUPPORTED_AGENT_GROUP_KINDS",
     "SUPPORTED_AGENT_MOTIFS",
+    "SUPPORTED_AGENT_REGION_LAYOUTS",
+    "SUPPORTED_AGENT_STYLE_TOKENS",
     "AgentValidationIssue",
     "AgentValidationResult",
     "agent_correction_prompt",
     "validate_agent_intent_bundle",
+    "STARTER_INTENT_KINDS",
+    "diff_intent_files",
+    "diff_intent_text",
+    "init_intent_file",
+    "starter_intent_bundle",
+    "validate_intent_file",
+    "validate_intent_text",
     # Utilities
     "build_address_index",
     "normalize_compiler_result",

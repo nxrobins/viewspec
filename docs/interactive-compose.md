@@ -9,4 +9,4 @@ The compiler owns:
 - submit and navigate action nodes
 - readonly payload values from compiled bindings and projections
 
-The host app owns side effects. Generated artifacts dispatch or call action intents; they do not silently submit data to a remote service.
+The host app owns side effects. Generated artifacts dispatch or call action intents; they do not silently submit data to a remote service. Local HTML dispatches `viewspec-action` with `detail.schemaVersion: 1`, `source: "viewspec-html-tailwind"`, `id`, `kind`, `targetRef`, `payloadBindings`, and collected `payloadValues`. Pressing Enter inside an inert ViewSpec form dispatches only a declared `submit` action whose `targetRef` exactly matches that form motif.

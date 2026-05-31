@@ -5,14 +5,14 @@ build-backend = "hatchling.build"
 [project]
 name = "viewspec"
 version = "0.3.0b1"
-description = "Universal UI from semantic data. Describe what your data means — the compiler figures out how it looks."
+description = "Agent-native UI compiler. Agents describe intent; ViewSpec compiles concrete UI."
 readme = "README.md"
 license = "MIT"
 requires-python = ">=3.11"
 authors = [
     { name = "Nigel Robinson" },
 ]
-keywords = ["ui", "compiler", "semantic", "viewspec", "composition-ir", "protobuf", "declarative"]
+keywords = ["ui", "compiler", "semantic", "viewspec", "composition-ir", "protobuf", "declarative", "agents"]
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Intended Audience :: Developers",
@@ -36,6 +36,7 @@ viewspec = "viewspec.cli:main"
 
 [project.optional-dependencies]
 dev = [
+    "build>=1.2",
     "pytest>=8.0",
     "ruff>=0.4",
     "httpx>=0.27.0",

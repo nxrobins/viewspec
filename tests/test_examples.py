@@ -23,6 +23,7 @@ def _run_example(script, tmp_path, *args):
         [sys.executable, str(ROOT / "examples" / script), *map(str, args)],
         cwd=tmp_path,
         env=_env(),
+        stdin=subprocess.DEVNULL,
         check=True,
         text=True,
         capture_output=True,

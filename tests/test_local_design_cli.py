@@ -9,6 +9,7 @@ import pytest
 
 from viewspec import DesignSystemError, ViewSpecBuilder, compile, load_design_system
 from viewspec.cli import main as cli_main
+from viewspec.local_tools import file_hash
 
 
 def _design(color: str = "#112233") -> str:
@@ -38,6 +39,64 @@ def test_local_design_maps_shared_tokens_into_reference_compile():
     assert "#445566" in ast.style_values["tone.muted"]
     root = ast.result.root.root
     assert "tone.neutral" in root.style_tokens
+
+
+def test_local_design_heading_typography_reaches_prominent_values(tmp_path):
+    design = load_design_system(
+        content="""---
+name: Typography
+typography:
+  heading:
+    fontFamily: Fraunces
+    fontSize: 28px
+    lineHeight: 1.1
+    letterSpacing: 0.02em
+---
+"""
+    )
+    builder = ViewSpecBuilder("typography_design")
+    dashboard = builder.add_dashboard("cards", region="main", group_id="cards")
+    dashboard.add_card(label="Revenue", value="$12", id="revenue")
+
+    ast = compile(builder.build_bundle(), design=design)
+
+    assert "Fraunces" in ast.style_values["emphasis.high"]
+    assert "font-size: 28px;" in ast.style_values["emphasis.high"]
+    assert "line-height: 1.1;" in ast.style_values["emphasis.high"]
+    assert "letter-spacing: 0.02em;" in ast.style_values["emphasis.high"]
+
+    from viewspec.emitters.html_tailwind import HtmlTailwindEmitter
+
+    HtmlTailwindEmitter().emit(ast, tmp_path)
+    html = tmp_path.joinpath("index.html").read_text(encoding="utf-8")
+    assert "font-family: &quot;Fraunces&quot;" in html
+    assert "font-size: 28px;" in html
+
+
+def test_local_design_accent_themes_action_buttons(tmp_path):
+    design = load_design_system(
+        content="""---
+name: Actions
+colors:
+  primary: "#111111"
+  accent: "#CC5500"
+---
+"""
+    )
+    builder = ViewSpecBuilder("action_theme")
+    table = builder.add_table("items", region="main", group_id="rows")
+    table.add_row(label="Alpha", value="Ready", id="alpha")
+    builder.add_action("open_alpha", "select", "Open Alpha", target_region="main")
+
+    ast = compile(builder.build_bundle(), design=design)
+    from viewspec.emitters.html_tailwind import HtmlTailwindEmitter
+
+    HtmlTailwindEmitter().emit(ast, tmp_path)
+    html = tmp_path.joinpath("index.html").read_text(encoding="utf-8")
+
+    assert "action.accent" in ast.style_values
+    assert "background-color: #CC5500;" in ast.style_values["action.accent"]
+    assert 'style="background-color: #0f766e; color: #ffffff; background-color: #111111; background-color: #CC5500;"' in html
 
 
 def test_local_design_rejects_broken_refs_and_cycles_but_warns_on_bad_colors():
@@ -86,6 +145,22 @@ def test_cli_compile_lift_and_diff_stay_local(tmp_path, capsys):
     assert "Report Updated" in stdout
 
 
+def test_cli_diff_json_read_error_stays_machine_readable(tmp_path, capsys):
+    left = tmp_path / "left.html"
+    missing = tmp_path / "missing.html"
+    left.write_text("<h1>Left</h1>", encoding="utf-8")
+
+    assert cli_main(["diff", str(left), str(missing), "--json"]) == 2
+    captured = capsys.readouterr()
+    payload = json.loads(captured.out)
+
+    assert captured.err == ""
+    assert payload["diff_version"] == 1
+    assert payload["basis"] == "lift_v1"
+    assert payload["ok"] is False
+    assert payload["errors"][0]["code"] == "DIFF_INPUT_READ_ERROR"
+
+
 def test_cli_compile_json_wraps_stable_manifest(tmp_path):
     builder = ViewSpecBuilder("json_cli")
     table = builder.add_table("items", region="main", group_id="rows")
@@ -110,12 +185,43 @@ def test_cli_compile_json_wraps_stable_manifest(tmp_path):
     assert "nodes" in manifest
 
 
+def test_cli_check_uses_byte_exact_artifact_hash(tmp_path, capsys):
+    builder = ViewSpecBuilder("byte_exact_hash")
+    table = builder.add_table("items", region="main", group_id="rows")
+    table.add_row(label="Alpha", value="1", id="alpha")
+    bundle_path = tmp_path / "bundle.json"
+    bundle_path.write_text(json.dumps(builder.build_bundle().to_json()), encoding="utf-8")
+    out_dir = tmp_path / "dist"
+
+    assert cli_main(["compile", str(bundle_path), "--out", str(out_dir)]) == 0
+    html_path = out_dir / "index.html"
+    manifest = json.loads(out_dir.joinpath("provenance_manifest.json").read_text(encoding="utf-8"))
+    assert manifest["artifact_hash"] == file_hash(html_path)
+    assert cli_main(["check", str(out_dir), "--json"]) == 0
+
+    html = html_path.read_text(encoding="utf-8")
+    html_path.write_bytes(html.replace("\n", "\r\n").encode("utf-8"))
+
+    assert cli_main(["check", str(out_dir)]) == 2
+    assert "artifact_hash does not match" in capsys.readouterr().out
+
+
 def test_cli_init_design_doctor_and_check_tamper(tmp_path, capsys):
     design_path = tmp_path / "DESIGN.md"
     assert cli_main(["init-design", "--out", str(design_path)]) == 0
     assert "colors:" in design_path.read_text(encoding="utf-8")
+    capsys.readouterr()
     assert cli_main(["doctor"]) == 0
-    assert '"pyyaml": true' in capsys.readouterr().out.lower()
+    doctor_payload = json.loads(capsys.readouterr().out)
+    checks = doctor_payload["checks"]
+    assert checks["pyyaml"] is True
+    assert checks["intent_first_commands"]["validate_intent"] is True
+    assert checks["intent_first_commands"]["diff_intent"] is True
+    assert checks["intent_pipeline"]["ok"] is True
+    assert checks["intent_pipeline"]["compile_check"] == "passed"
+    assert "validate-intent" in checks["local_network_policy"]
+    assert "diff-intent" in checks["local_network_policy"]
+    assert "check" in checks["local_network_policy"]
 
     html_path = tmp_path / "report.html"
     html_path.write_text("<h1>Report</h1>", encoding="utf-8")
@@ -172,6 +278,20 @@ def test_cli_refuses_input_overwrite(tmp_path, capsys):
     assert "Refusing to overwrite input file" in capsys.readouterr().err
 
 
+def test_cli_refuses_json_input_overwrite_before_design_load(tmp_path, capsys):
+    builder = ViewSpecBuilder("overwrite_json")
+    builder.add_dashboard("cards", region="main", group_id="cards").add_card(label="Revenue", value="$12", id="revenue")
+    bundle_path = tmp_path / "provenance_manifest.json"
+    bundle_path.write_text(json.dumps(builder.build_bundle().to_json()), encoding="utf-8")
+
+    exit_code = cli_main(["compile", str(bundle_path), "--design", str(tmp_path / "missing-DESIGN.md"), "--out", str(tmp_path)])
+
+    assert exit_code == 2
+    stderr = capsys.readouterr().err
+    assert "Refusing to overwrite input file" in stderr
+    assert "missing-DESIGN.md" not in stderr
+
+
 def test_cli_accepts_explicit_stdin_formats(tmp_path, monkeypatch):
     html_out = tmp_path / "html-out"
     monkeypatch.setattr(sys, "stdin", StringIO("<h1>From stdin</h1>"))
@@ -191,8 +311,11 @@ def test_claude_code_integration_mentions_only_local_commands():
     root = Path(__file__).resolve().parents[1]
     text = root.joinpath("integrations/claude-code/SKILL.md").read_text(encoding="utf-8")
 
+    assert "viewspec init-intent" in text
+    assert "viewspec validate-intent" in text
     assert "viewspec compile" in text
     assert "viewspec diff" in text
     assert "viewspec check" in text
+    assert "viewspec.intent.json" in text
     assert "viewspec share" not in text
     assert "api.viewspec.dev" not in text

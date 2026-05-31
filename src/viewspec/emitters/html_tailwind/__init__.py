@@ -8,6 +8,7 @@ standalone HTML, a provenance manifest, and a diagnostics JSON file.
 from __future__ import annotations
 
 import json
+import re
 import tempfile
 from html import escape
 from pathlib import Path
@@ -32,12 +33,17 @@ TAILWIND_BY_PRIMITIVE = {
     "label": "vs-label",
     "value": "vs-value",
     "badge": "vs-badge",
+    "input": "vs-input",
     "image_slot": "vs-image-slot",
     "rule": "vs-rule",
     "svg": "vs-svg",
     "button": "vs-button",
     "error_boundary": "vs-error-boundary",
 }
+
+SAFE_IR_ID_RE = re.compile(r"^[A-Za-z0-9_.-]+$")
+ACTION_TARGET_REF_RE = re.compile(r"^(region|binding|motif|view):[A-Za-z0-9_.-]+$")
+SUPPORTED_PRIMITIVES = frozenset(TAILWIND_BY_PRIMITIVE)
 
 
 OFFLINE_EMITTER_CSS = """
@@ -51,6 +57,19 @@ OFFLINE_EMITTER_CSS = """
 body { margin: 0; min-height: 100vh; background: #f8fafc; }
 .vs-root { min-height: 100vh; padding: 24px; display: flex; flex-direction: column; gap: 24px; color: #020617; }
 .vs-stack { display: flex; flex-direction: column; gap: 12px; }
+ul.vs-stack { list-style: none; margin: 0; padding: 0; }
+table.vs-stack { display: table; width: 100%; border-collapse: collapse; border: 1px solid #e2e8f0; border-radius: 12px; overflow: hidden; background: #ffffff; }
+tr.vs-cluster { display: table-row; }
+th.vs-label, td.vs-text, td.vs-value, td.vs-badge, td.vs-label { display: table-cell; padding: 0.7rem 0.85rem; border-bottom: 1px solid #e2e8f0; vertical-align: top; }
+th.vs-label { width: 38%; text-align: left; background: #f8fafc; }
+table.vs-stack tr:last-child th, table.vs-stack tr:last-child td { border-bottom: 0; }
+dl.vs-stack { margin: 0; }
+dl.vs-stack > div.vs-cluster { display: grid; grid-template-columns: minmax(8rem, 30%) 1fr; align-items: start; padding: 0.65rem 0; border-bottom: 1px solid #e2e8f0; }
+dl.vs-stack > div.vs-cluster:last-child { border-bottom: 0; }
+dl.vs-stack dt, dl.vs-stack dd { margin: 0; }
+header.vs-surface { padding: 32px; gap: 14px; }
+header.vs-surface h1.vs-value { margin: 0; font-size: 2.5rem; line-height: 1.05; letter-spacing: 0; }
+header.vs-surface p.vs-text, header.vs-surface p.vs-label { max-width: 68ch; margin: 0; }
 .vs-grid { display: grid; gap: 16px; }
 .vs-cluster { display: flex; flex-flow: row wrap; gap: 12px; }
 .vs-surface { border: 1px solid #e2e8f0; border-radius: 16px; background: #ffffff; padding: 16px; box-shadow: 0 1px 2px rgb(15 23 42 / 0.08); display: flex; flex-direction: column; gap: 12px; }
@@ -58,6 +77,8 @@ body { margin: 0; min-height: 100vh; background: #f8fafc; }
 .vs-label { color: #64748b; font-size: 0.75rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; }
 .vs-value { color: #020617; font-size: 1.5rem; font-weight: 900; line-height: 1.15; }
 .vs-badge { display: inline-flex; width: fit-content; border-radius: 999px; background: #ccfbf1; color: #115e59; padding: 4px 12px; font-size: 0.875rem; font-weight: 700; box-shadow: inset 0 0 0 1px #99f6e4; }
+.vs-input { width: 100%; min-width: 0; border: 1px solid #cbd5e1; border-radius: 10px; background: #ffffff; color: #020617; padding: 0.7rem 0.85rem; font: inherit; }
+.vs-input:focus { outline: 2px solid #0f766e; outline-offset: 2px; }
 .vs-image-slot { min-height: 96px; border-radius: 12px; background: #e2e8f0; color: #64748b; display: grid; place-items: center; }
 .vs-rule { margin: 8px 0; border: 0; border-top: 1px solid #e2e8f0; }
 .vs-svg { border: 1px solid #e2e8f0; border-radius: 12px; background: #f8fafc; color: #475569; padding: 12px; }
@@ -69,16 +90,62 @@ body { margin: 0; min-height: 100vh; background: #f8fafc; }
 
 ACTION_EVENT_SCRIPT = """
 <script>
-document.addEventListener('click', (e) => {
-  const btn = e.target.closest('[data-action-id]');
-  if (!btn) return;
+function viewspecPayloadBindings(btn) {
+  let payloadBindings = [];
+  try {
+    const parsedPayloadBindings = JSON.parse(btn.dataset.payloadBindings || '[]');
+    if (Array.isArray(parsedPayloadBindings)) {
+      payloadBindings = parsedPayloadBindings.filter((id) => typeof id === 'string');
+    }
+  } catch {
+    payloadBindings = [];
+  }
+  return payloadBindings;
+}
+
+function dispatchViewSpecAction(btn) {
+  const payloadBindings = viewspecPayloadBindings(btn);
   const detail = {
+    schemaVersion: 1,
+    source: 'viewspec-html-tailwind',
     id: btn.dataset.actionId,
     kind: btn.dataset.actionKind,
-    payloadBindings: JSON.parse(btn.dataset.payloadBindings || '[]')
+    targetRef: btn.dataset.actionTargetRef || '',
+    payloadBindings,
+    payloadValues: {}
   };
+  const requested = new Set(detail.payloadBindings);
+  const root = btn.closest('.vs-root') || document;
+  root.querySelectorAll('[data-binding-id]').forEach((el) => {
+    const id = el.dataset.bindingId;
+    if (!requested.has(id)) return;
+    detail.payloadValues[id] = 'value' in el ? el.value : el.textContent || '';
+  });
   document.dispatchEvent(new CustomEvent('viewspec-action', { detail }));
-  console.log('Action Dispatched:', detail);
+}
+
+document.addEventListener('click', (e) => {
+  const target = e.target instanceof Element ? e.target : null;
+  const btn = target ? target.closest('[data-action-id]') : null;
+  if (!btn) return;
+  dispatchViewSpecAction(btn);
+});
+
+document.addEventListener('keydown', (e) => {
+  if (e.key !== 'Enter' || e.defaultPrevented || e.shiftKey || e.altKey || e.ctrlKey || e.metaKey) return;
+  const target = e.target instanceof Element ? e.target : null;
+  if (!target || target.tagName !== 'INPUT') return;
+  const form = target.closest('[role="form"][data-ir-id]');
+  if (!form) return;
+  const irId = form.dataset.irId || '';
+  if (!irId.startsWith('motif_')) return;
+  const targetRef = `motif:${irId.slice(6)}`;
+  const root = form.closest('.vs-root') || document;
+  const btn = Array.from(root.querySelectorAll('[data-action-id][data-action-kind="submit"]'))
+    .find((candidate) => candidate.dataset.actionTargetRef === targetRef);
+  if (!btn) return;
+  e.preventDefault();
+  dispatchViewSpecAction(btn);
 });
 </script>
 """.strip()
@@ -88,8 +155,11 @@ def _json_attr(value: Any) -> str:
     return escape(json.dumps(value, sort_keys=True), quote=True)
 
 
-def _style_attr(node: IRNode, style_values: dict[str, str]) -> str:
-    css = " ".join(style_values.get(token, "") for token in node.style_tokens if style_values.get(token))
+def _style_css(node: IRNode, style_values: dict[str, str]) -> str:
+    return " ".join(style_values.get(token, "") for token in node.style_tokens if style_values.get(token))
+
+
+def _style_attr(css: str) -> str:
     return f' style="{escape(css, quote=True)}"' if css else ""
 
 
@@ -100,6 +170,7 @@ def _write_text_atomic(path: Path, text: str) -> None:
         with tempfile.NamedTemporaryFile(
             "w",
             encoding="utf-8",
+            newline="",
             dir=path.parent,
             prefix=f".{path.name}.",
             suffix=".tmp",
@@ -112,6 +183,45 @@ def _write_text_atomic(path: Path, text: str) -> None:
         if temp_name:
             Path(temp_name).unlink(missing_ok=True)
         raise
+
+
+def _validate_ir_contract(node: IRNode, seen_ids: set[str]) -> None:
+    if not node.id or not SAFE_IR_ID_RE.match(node.id):
+        raise ValueError(
+            f"IRNode.id '{node.id}' must use only letters, digits, underscore, dot, and dash."
+        )
+    if node.id in seen_ids:
+        raise ValueError(f"Duplicate IRNode.id '{node.id}' would produce duplicate DOM artifact identity.")
+    seen_ids.add(node.id)
+    if node.primitive not in SUPPORTED_PRIMITIVES:
+        supported = ", ".join(sorted(SUPPORTED_PRIMITIVES))
+        raise ValueError(f"Unsupported IR primitive '{node.primitive}'. Supported primitives: {supported}.")
+    if node.primitive == "grid":
+        try:
+            columns = int(node.props.get("columns") or 1)
+        except (TypeError, ValueError) as exc:
+            raise ValueError(f"Grid IRNode '{node.id}' columns must be a positive integer.") from exc
+        if columns < 1:
+            raise ValueError(f"Grid IRNode '{node.id}' columns must be a positive integer.")
+    if node.primitive == "button":
+        _validate_action_props(node)
+    for child in node.children:
+        _validate_ir_contract(child, seen_ids)
+
+
+def _validate_action_props(node: IRNode) -> None:
+    action_id = node.props.get("action_id")
+    if not isinstance(action_id, str) or not SAFE_IR_ID_RE.match(action_id):
+        raise ValueError(f"Button IRNode '{node.id}' action_id must be a non-empty safe id.")
+    action_kind = node.props.get("action_kind")
+    if not isinstance(action_kind, str) or not SAFE_IR_ID_RE.match(action_kind):
+        raise ValueError(f"Button IRNode '{node.id}' action_kind must be a non-empty safe token.")
+    target_ref = node.props.get("target_ref")
+    if target_ref not in (None, "") and (not isinstance(target_ref, str) or not ACTION_TARGET_REF_RE.match(target_ref)):
+        raise ValueError(f"Button IRNode '{node.id}' target_ref must be region:id, binding:id, motif:id, or view:id.")
+    payload_bindings = node.props.get("payload_bindings", [])
+    if not isinstance(payload_bindings, list) or any(not isinstance(item, str) or not SAFE_IR_ID_RE.match(item) for item in payload_bindings):
+        raise ValueError(f"Button IRNode '{node.id}' payload_bindings must be a list of safe ids.")
 
 
 def _manifest_entry(node: IRNode) -> dict[str, Any]:
@@ -135,34 +245,102 @@ def _render_node(node: IRNode, manifest: dict[str, Any], style_values: dict[str,
         f'data-ir-id="{escape(node.id, quote=True)}"',
         f'data-content-refs="{_json_attr(list(node.provenance.content_refs))}"',
         f'data-intent-refs="{_json_attr(list(node.provenance.intent_refs))}"',
+        f'data-style-tokens="{_json_attr(list(node.style_tokens))}"',
     ]
+    style_css = _style_css(node, style_values)
     if node.primitive == "grid":
         columns = int(node.props.get("columns") or 1)
-        attrs.append(f'style="grid-template-columns: repeat({columns}, minmax(0, 1fr));"')
+        style_css = f"grid-template-columns: repeat({columns}, minmax(0, 1fr)); {style_css}".strip()
+        attrs.append(_style_attr(style_css).strip())
     else:
-        style_attr = _style_attr(node, style_values)
+        style_attr = _style_attr(style_css)
         if style_attr:
             attrs.append(style_attr.strip())
+    if node.props.get("binding_id") is not None:
+        attrs.append(f'data-binding-id="{escape(str(node.props["binding_id"]), quote=True)}"')
     if node.primitive == "button":
         attrs.extend(
             [
+                'type="button"',
                 f'data-action-id="{escape(str(node.props.get("action_id", "")), quote=True)}"',
                 f'data-action-kind="{escape(str(node.props.get("action_kind", "")), quote=True)}"',
+                f'data-action-target-ref="{escape(str(node.props.get("target_ref", "")), quote=True)}"',
                 f'data-payload-bindings="{_json_attr(node.props.get("payload_bindings", []))}"',
             ]
         )
+    elif node.primitive == "input":
+        attrs.extend(
+            [
+                'type="text"',
+                f'value="{escape(str(node.props.get("value", "")), quote=True)}"',
+                f'aria-label="{escape(str(node.props.get("aria_label", node.props.get("binding_id", "input"))), quote=True)}"',
+            ]
+        )
+    elif node.primitive in {"image_slot", "svg"}:
+        label = str(node.props.get("alt", node.props.get("label", node.primitive.replace("_", " "))))
+        attrs.extend(['role="img"', f'aria-label="{escape(label, quote=True)}"'])
+    elif node.primitive == "error_boundary":
+        attrs.append('role="alert"')
+    elif node.props.get("motif_kind") == "form" and node.primitive == "stack":
+        attrs.extend(['role="form"', f'aria-label="{escape(str(node.props.get("label", node.id)), quote=True)}"'])
+    elif node.props.get("motif_kind") == "form" and node.primitive == "surface":
+        attrs.append('role="group"')
+    elif node.props.get("motif_kind") == "empty_state" and node.primitive == "surface":
+        attrs.append(f'aria-label="{escape(str(node.props.get("aria_label", "Empty state")), quote=True)}"')
+    elif node.props.get("motif_kind") == "hero" and node.primitive == "surface":
+        attrs.append(f'aria-label="{escape(str(node.props.get("aria_label", "Hero")), quote=True)}"')
+    elif node.props.get("table_cell_role") == "row_header":
+        attrs.append('scope="row"')
 
     if node.primitive == "root":
         tag = "main"
+    elif node.props.get("motif_kind") == "table" and node.primitive == "stack":
+        tag = "table"
+    elif node.props.get("motif_kind") == "table" and node.primitive == "cluster":
+        tag = "tr"
+    elif node.props.get("motif_kind") == "detail" and node.primitive == "stack":
+        tag = "dl"
+    elif node.props.get("motif_kind") == "detail" and node.primitive == "cluster":
+        tag = "div"
+    elif node.props.get("detail_role") == "term":
+        tag = "dt"
+    elif node.props.get("detail_role") == "description":
+        tag = "dd"
+    elif node.props.get("motif_kind") == "empty_state" and node.primitive == "surface":
+        tag = "section"
+    elif node.props.get("empty_state_role") == "title":
+        tag = "h2"
+    elif node.props.get("empty_state_role") == "description":
+        tag = "p"
+    elif node.props.get("motif_kind") == "hero" and node.primitive == "surface":
+        tag = "header"
+    elif node.props.get("hero_role") == "title":
+        tag = "h1"
+    elif node.props.get("hero_role") in {"description", "eyebrow"}:
+        tag = "p"
+    elif node.props.get("table_cell_role") == "row_header":
+        tag = "th"
+    elif node.props.get("table_cell_role") == "cell":
+        tag = "td"
+    elif node.props.get("motif_kind") == "list" and node.primitive == "stack":
+        tag = "ul"
+    elif node.props.get("motif_kind") == "list" and node.primitive == "surface":
+        tag = "li"
+    elif node.props.get("motif_kind") == "form" and node.primitive == "stack":
+        tag = "section"
     elif node.primitive == "rule":
         tag = "hr"
     elif node.primitive == "button":
         tag = "button"
+    elif node.primitive == "input":
+        tag = "input"
     else:
         tag = "div"
 
     if node.primitive == "rule":
         return f"<{tag} {' '.join(attrs)} />"
+    if node.primitive == "input":
+        return f"<{tag} {' '.join(attrs)}>"
     if node.primitive == "image_slot":
         inner_html = escape(str(node.props.get("alt", "image slot")))
     elif node.primitive == "svg":
@@ -180,7 +358,15 @@ def _render_node(node: IRNode, manifest: dict[str, Any], style_values: dict[str,
         for child in node.children:
             pieces.append(_render_node(child, manifest, style_values))
         inner_html = "".join(pieces)
+        if tag == "table":
+            inner_html = f"<tbody>{inner_html}</tbody>"
     return f"<{tag} {' '.join(attrs)}>{inner_html}</{tag}>"
+
+
+def _has_action_node(node: IRNode) -> bool:
+    if node.primitive == "button" and node.props.get("action_id"):
+        return True
+    return any(_has_action_node(child) for child in node.children)
 
 
 def emit_compiler_result(
@@ -192,9 +378,13 @@ def emit_compiler_result(
 ) -> dict[str, str]:
     """Emit a CompilerResult as HTML + Tailwind with provenance manifest."""
     output_path = Path(output_dir)
+    _validate_ir_contract(result.root.root, set())
     output_path.mkdir(parents=True, exist_ok=True)
     manifest: dict[str, Any] = {}
     body = _render_node(result.root.root, manifest, style_values)
+    body_tail = [body]
+    if _has_action_node(result.root.root):
+        body_tail.append(ACTION_EVENT_SCRIPT)
     html = "\n".join(
         [
             "<!DOCTYPE html>",
@@ -208,8 +398,7 @@ def emit_compiler_result(
             "</style>",
             "</head>",
             "<body>",
-            body,
-            ACTION_EVENT_SCRIPT,
+            *body_tail,
             "</body>",
             "</html>",
         ]

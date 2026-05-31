@@ -16,10 +16,19 @@ def test_init_agent_creates_codex_instructions(tmp_path, capsys):
     text = path.read_text(encoding="utf-8")
     assert BEGIN_MARKER in text
     assert END_MARKER in text
-    assert "viewspec compile input.html --design DESIGN.md --out dist/" in text
+    assert "viewspec.intent.json" in text
+    assert "viewspec validate-intent viewspec.intent.json --json" in text
+    assert "viewspec compile viewspec.intent.json --design DESIGN.md --out dist/" in text
     assert "viewspec check dist/" in text
-    assert "Never recursively compile generated `dist/index.html`" in text
+    assert "If `DESIGN.md` is missing" in text
+    assert "viewspec init-design --out DESIGN.md" in text
+    assert "viewspec diff-intent old.intent.json new.intent.json --json" in text
+    assert "viewspec init-intent --out viewspec.intent.json" in text
+    assert "Use raw HTML tools only when importing existing HTML" in text
+    assert "Never patch or recursively compile generated `dist/index.html`" in text
     assert "Do not upload, share, call hosted APIs" in text
+    assert "compile_html_file" not in text
+    assert "lift_html_file" not in text
 
 
 def test_init_agent_replaces_one_block_and_preserves_surrounding_content(tmp_path):
@@ -46,14 +55,30 @@ def test_init_agent_replaces_one_block_and_preserves_surrounding_content(tmp_pat
         assert handle.read() == before
 
 
-def test_init_agent_conflict_fails_without_partial_writes(tmp_path):
+def test_init_agent_conflict_fails_without_partial_writes(tmp_path, capsys):
     (tmp_path / "AGENTS.md").write_text(
         f"{BEGIN_MARKER}\none\n{END_MARKER}\n{BEGIN_MARKER}\ntwo\n{END_MARKER}\n",
         encoding="utf-8",
     )
 
     assert cli_main(["init-agent", "--target", "all", "--root", str(tmp_path)]) == 2
+    assert "MARKER_CONFLICT" in capsys.readouterr().err
     assert not (tmp_path / "CLAUDE.md").exists()
+    assert not (tmp_path / ".cursor").exists()
+    assert not (tmp_path / ".github").exists()
+
+
+def test_init_agent_late_conflict_fails_without_earlier_partial_writes(tmp_path, capsys):
+    claude = tmp_path / "CLAUDE.md"
+    claude.write_text(
+        f"{BEGIN_MARKER}\none\n{END_MARKER}\n{BEGIN_MARKER}\ntwo\n{END_MARKER}\n",
+        encoding="utf-8",
+    )
+
+    assert cli_main(["init-agent", "--target", "all", "--root", str(tmp_path)]) == 2
+    assert "MARKER_CONFLICT" in capsys.readouterr().err
+    assert not (tmp_path / "AGENTS.md").exists()
+    assert claude.exists()
     assert not (tmp_path / ".cursor").exists()
     assert not (tmp_path / ".github").exists()
 

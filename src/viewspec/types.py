@@ -49,7 +49,7 @@ TARGET_REF_RE = re.compile(
 # ---------------------------------------------------------------------------
 
 CONTAINER_PRIMITIVES = {"root", "stack", "grid", "cluster", "surface"}
-CONTENT_PRIMITIVES = {"text", "label", "value", "badge", "image_slot", "rule", "svg", "button", "error_boundary"}
+CONTENT_PRIMITIVES = {"text", "label", "value", "badge", "input", "image_slot", "rule", "svg", "button", "error_boundary"}
 VISIBLE_TEXT_PRIMITIVES = {"text", "label", "value", "badge", "button", "error_boundary"}
 LAYOUT_PRIMITIVES = {"stack", "grid", "cluster"}
 
@@ -58,6 +58,7 @@ PRESENT_AS_TO_PRIMITIVE = {
     "label": "label",
     "value": "value",
     "badge": "badge",
+    "input": "input",
     "rich_text": "text",
     "image_slot": "image_slot",
     "rule": "rule",
@@ -70,12 +71,18 @@ DEFAULT_STYLE_TOKEN_VALUES = {
     "density.compact": "gap: 0.4rem; padding: 0.4rem 0.55rem;",
     "density.regular": "gap: 0.7rem; padding: 0.6rem 0.8rem;",
     "density.airy": "gap: 1rem; padding: 0.85rem 1rem;",
+    "palette.temperature": "background-color: #ffffff;",
     "tone.neutral": "color: #1f2937;",
     "tone.muted": "color: #5b6472;",
     "tone.accent": "color: #0f766e;",
+    "tone.warning": "color: #b45309; border-color: #f59e0b;",
+    "tone.positive": "color: #047857; border-color: #10b981;",
+    "action.accent": "background-color: #0f766e; color: #ffffff;",
     "surface.none": "background: transparent; border: 0;",
     "surface.subtle": "background: #f3f4f6; border: 1px solid #d1d5db; border-radius: 12px;",
     "surface.strong": "background: #e2e8f0; border: 1px solid #94a3b8; border-radius: 14px;",
+    "rhythm.hierarchy": "font-size: 1.125rem; font-weight: 750; line-height: 1.35;",
+    "narrative.flow": "max-width: 70ch; line-height: 1.75;",
     "align.start": "align-items: start; text-align: left;",
     "align.center": "align-items: center; text-align: center;",
     "align.end": "align-items: end; text-align: right;",
@@ -662,6 +669,14 @@ class DesignRequest:
     format: str = "design.md"
     lint: bool = True
 
+    def __post_init__(self) -> None:
+        if self.format != "design.md":
+            raise ValueError("DesignRequest.format must be 'design.md'")
+        if not isinstance(self.content, str):
+            raise TypeError("DesignRequest.content must be a string")
+        if not isinstance(self.lint, bool):
+            raise TypeError("DesignRequest.lint must be a boolean")
+
     def to_json(self) -> JsonDict:
         return {
             "format": self.format,
@@ -672,14 +687,7 @@ class DesignRequest:
     @classmethod
     def from_json(cls, payload: Any) -> DesignRequest:
         data = _coerce_json_mapping(payload, cls.__name__)
-        lint = data.get("lint", True)
-        if not isinstance(lint, bool):
-            raise TypeError("DesignRequest.lint must be a boolean")
-        return cls(
-            content=str(data.get("content", "")),
-            format=str(data.get("format", "design.md")),
-            lint=lint,
-        )
+        return cls(content=data.get("content", ""), format=data.get("format", "design.md"), lint=data.get("lint", True))
 
 
 @dataclass(frozen=True)
@@ -689,6 +697,12 @@ class CompileRequestPayload:
     bundle: IntentBundle
     design: DesignRequest | None = None
 
+    def __post_init__(self) -> None:
+        if not isinstance(self.bundle, IntentBundle):
+            raise TypeError("CompileRequestPayload.bundle must be an IntentBundle")
+        if self.design is not None and not isinstance(self.design, DesignRequest):
+            raise TypeError("CompileRequestPayload.design must be a DesignRequest or None")
+
     def to_json(self) -> JsonDict:
         data = self.bundle.to_json()
         if self.design is not None:
@@ -697,6 +711,7 @@ class CompileRequestPayload:
 
 
 DesignFindingSeverity = Literal["error", "warning", "info"]
+DESIGN_FINDING_SEVERITIES = {"error", "warning", "info"}
 
 
 @dataclass(frozen=True)
@@ -719,8 +734,11 @@ class DesignFinding:
     @classmethod
     def from_json(cls, payload: Any) -> DesignFinding:
         data = _coerce_json_mapping(payload, cls.__name__)
+        severity = data.get("severity", "info")
+        if severity not in DESIGN_FINDING_SEVERITIES:
+            severity = "info"
         return cls(
-            severity=data.get("severity", "info"),
+            severity=severity,
             code=str(data.get("code", "")),
             path=str(data.get("path", "")),
             message=str(data.get("message", "")),
@@ -733,7 +751,12 @@ def _int_summary(value: Any) -> dict[str, int]:
         return summary
     for key in summary:
         try:
-            summary[key] = int(value.get(key, 0) or 0)
+            raw_value = value.get(key, 0) or 0
+            if isinstance(raw_value, bool):
+                numeric_value = 0
+            else:
+                numeric_value = int(raw_value)
+            summary[key] = numeric_value if numeric_value >= 0 else 0
         except (TypeError, ValueError):
             summary[key] = 0
     return summary
