@@ -31,6 +31,8 @@
     "source_hash": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
     "design_hash": { "type": ["string", "null"], "pattern": "^[0-9a-f]{64}$" },
     "design": { "$ref": "#/$defs/designMetadata" },
+    "emitter": { "enum": ["html_tailwind", "react_tsx"] },
+    "artifact_file": { "type": "string", "minLength": 1 },
     "artifact_hash": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
     "command": { "enum": ["compile_html", "compile"] },
     "command_args": {
