@@ -446,6 +446,49 @@ def init_design_tool(
         )
 
 
+def export_agent_assets_tool(
+    out: str | Path = ".viewspec",
+    *,
+    force: bool = False,
+    dry_run: bool = False,
+    cwd: str | Path | None = None,
+    allow_outside_cwd: bool = False,
+) -> dict[str, Any]:
+    from viewspec.agent_assets import export_agent_assets
+
+    root: Path | None = None
+    try:
+        root = resolve_cwd(cwd)
+        output = resolve_local_path(out, cwd=root, allow_outside_cwd=allow_outside_cwd)
+        result = export_agent_assets(output, force=force, dry_run=dry_run)
+        paths = {"out": str(output)}
+        for item in result["files"]:
+            filename = item["path"]
+            if filename == "agent-system-prompt.txt":
+                paths["prompt"] = str(output / filename)
+            elif filename == "agent-intent-bundle.schema.json":
+                paths["schema"] = str(output / filename)
+        changed = [item for item in result["files"] if item["action"] != "unchanged"]
+        return tool_response(
+            True,
+            "Exported local agent contract assets." if not dry_run else "Planned local agent contract asset export.",
+            paths=paths,
+            data={"assets": result},
+            next_actions=[
+                "Point schema-aware editors or agents at .viewspec/agent-intent-bundle.schema.json.",
+                "Use .viewspec/agent-system-prompt.txt as the local ViewSpec agent contract prompt.",
+            ],
+            metadata={**path_policy_metadata(root, allow_outside_cwd), "dry_run": dry_run, "changes": len(changed)},
+        )
+    except Exception as exc:
+        return exception_response(
+            exc,
+            "IO_ERROR",
+            "Choose a writable asset output directory, or pass force=True to replace existing generated assets.",
+            metadata=path_policy_metadata(root, allow_outside_cwd),
+        )
+
+
 def tool_response(
     ok: bool,
     summary: str,
@@ -505,6 +548,16 @@ def exception_response(
         return tool_error_response(exc.code, str(exc), fallback_fix, metadata=metadata)
     if isinstance(exc, DesignSystemError):
         return tool_error_response("COMPILE_FAILED", str(exc), "Fix DESIGN.md and retry.", metadata=metadata)
+    if hasattr(exc, "code") and str(getattr(exc, "code")) in {
+        "AGENT_ASSET_CONFLICT",
+        "AGENT_ASSET_OUTPUT_NOT_DIRECTORY",
+    }:
+        return tool_error_response(
+            "IO_ERROR",
+            str(exc),
+            "Choose a writable asset output directory, or pass force=True to replace existing generated assets.",
+            metadata=metadata,
+        )
     return tool_error_response(fallback_code, str(exc), fallback_fix, metadata=metadata)
 
 
@@ -1342,6 +1395,7 @@ __all__ = [
     "diff_html_files_tool",
     "ensure_no_input_overwrite",
     "exception_response",
+    "export_agent_assets_tool",
     "init_design_file",
     "init_design_tool",
     "lift_html_file_tool",

@@ -7,6 +7,7 @@ from pathlib import Path
 import pytest
 
 from viewspec import ViewSpecBuilder
+from viewspec.agent import AGENT_INTENT_BUNDLE_SCHEMA, AGENT_SYSTEM_PROMPT
 from viewspec.cli import main as cli_main
 from viewspec.emitters.html_tailwind import ACTION_EVENT_SCRIPT
 from viewspec.intent_tools import (
@@ -22,6 +23,7 @@ from viewspec.local_tools import (
     check_artifact_tool,
     compile_html_file_tool,
     diff_html_files_tool,
+    export_agent_assets_tool,
     file_hash,
     init_design_tool,
     lift_html_file_tool,
@@ -202,6 +204,50 @@ def test_local_tool_wrappers_compile_check_lift_and_diff(tmp_path):
     assert_tool_schema(diffed)
     assert diffed["ok"] is True
     assert diffed["diff"]["basis"] == "lift_v1"
+
+
+def test_export_agent_assets_tool_writes_prompt_and_schema(tmp_path):
+    exported = export_agent_assets_tool(".viewspec", cwd=tmp_path)
+
+    assert_tool_schema(exported)
+    assert exported["ok"] is True
+    assert exported["metadata"]["network_calls"] == "none"
+    assert exported["metadata"]["changes"] == 2
+    assert exported["paths"]["prompt"].endswith("agent-system-prompt.txt")
+    assert exported["paths"]["schema"].endswith("agent-intent-bundle.schema.json")
+    assert (tmp_path / ".viewspec/agent-system-prompt.txt").read_text(encoding="utf-8") == AGENT_SYSTEM_PROMPT
+    assert json.loads((tmp_path / ".viewspec/agent-intent-bundle.schema.json").read_text(encoding="utf-8")) == AGENT_INTENT_BUNDLE_SCHEMA
+    assert {item["path"]: item["action"] for item in exported["assets"]["files"]} == {
+        "agent-system-prompt.txt": "create",
+        "agent-intent-bundle.schema.json": "create",
+    }
+
+    dry_run = export_agent_assets_tool(".viewspec-dry-run", dry_run=True, cwd=tmp_path)
+
+    assert_tool_schema(dry_run)
+    assert dry_run["ok"] is True
+    assert dry_run["metadata"]["dry_run"] is True
+    assert not (tmp_path / ".viewspec-dry-run").exists()
+
+
+def test_export_agent_assets_tool_rejects_conflicts_and_path_escapes(tmp_path):
+    asset_dir = tmp_path / ".viewspec"
+    asset_dir.mkdir()
+    (asset_dir / "agent-system-prompt.txt").write_text("custom prompt\n", encoding="utf-8")
+
+    conflict = export_agent_assets_tool(".viewspec", cwd=tmp_path)
+
+    assert_tool_schema(conflict)
+    assert conflict["ok"] is False
+    assert conflict["errors"][0]["code"] == "IO_ERROR"
+    assert "already exists with different content" in conflict["errors"][0]["message"]
+    assert not (asset_dir / "agent-intent-bundle.schema.json").exists()
+
+    outside = export_agent_assets_tool("../outside-assets", cwd=asset_dir)
+
+    assert_tool_schema(outside)
+    assert outside["ok"] is False
+    assert outside["errors"][0]["code"] == "PATH_OUTSIDE_CWD"
 
 
 def test_intent_mcp_wrappers_validate_compile_and_prompt(tmp_path):
@@ -1030,6 +1076,7 @@ def test_mcp_raw_html_tool_descriptions_are_import_only():
     assert "Compile a ViewSpec IntentBundle JSON file into a local compiler artifact" in text
     assert "target='html-tailwind' for checked standalone HTML" in text
     assert "target='react-tsx' for checked React source" in text
+    assert "Export the local ViewSpec agent system prompt and IntentBundle JSON schema without network calls." in text
 
 
 def test_mcp_path_sandbox_rejects_urls_and_outside_paths(tmp_path):

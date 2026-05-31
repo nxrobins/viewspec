@@ -35,7 +35,7 @@ Raw HTML tools remain available only for importing existing HTML: `viewspec comp
 - Native agent setup: `viewspec init-agent --target codex|claude-code|cursor|copilot|all`.
 - Local agent contract asset export: `viewspec export-agent-assets --out .viewspec`.
 - Optional MCP server: install `viewspec[agents]`, then run `viewspec mcp`.
-- MCP intent tools: `init_intent`, `validate_intent_bundle_file`, `diff_intent_bundle_files`, `compile_intent_bundle_file`, `agent_correction_prompt_file`, `check_artifact`, and `init_design`.
+- MCP intent tools: `init_intent`, `validate_intent_bundle_file`, `diff_intent_bundle_files`, `compile_intent_bundle_file`, `agent_correction_prompt_file`, `check_artifact`, `init_design`, and `export_agent_assets`.
 - Raw HTML tools are import/fallback only for existing HTML.
 - Agents should output IntentBundle JSON, not CompositionIR, HTML, CSS, React, SwiftUI, or Flutter source for new UI.
 - Agents must not call remote reference libraries by default. If the user explicitly asks for research or repo instructions configure an approved source, references may inform semantic intent only.

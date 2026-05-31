@@ -70,7 +70,7 @@ viewspec mcp
 viewspec doctor --agents
 ```
 
-The MCP tools are local-only by default and reject paths outside the configured working directory. Intent tools are the default for new UI; raw HTML MCP tools are import/fallback only.
+The MCP tools are local-only by default and reject paths outside the configured working directory. Intent tools are the default for new UI; raw HTML MCP tools are import/fallback only. MCP also exposes `export_agent_assets` for local prompt/schema export.
 
 ## Programmatic IntentBundle Compile
 

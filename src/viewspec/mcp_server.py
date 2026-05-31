@@ -17,6 +17,7 @@ from viewspec.local_tools import (
     check_artifact_tool,
     compile_html_file_tool,
     diff_html_files_tool,
+    export_agent_assets_tool,
     init_design_tool,
     lift_html_file_tool,
 )
@@ -153,6 +154,10 @@ def run_mcp_server(*, cwd: str | Path | None = None, allow_outside_cwd: bool = F
     @app.tool(description="Write a strict starter DESIGN.md file for local ViewSpec theming.")
     def init_design(out: str = "DESIGN.md", force: bool = False) -> dict[str, Any]:
         return init_design_tool(out, force=force, cwd=root, allow_outside_cwd=allow_outside_cwd)
+
+    @app.tool(description="Export the local ViewSpec agent system prompt and IntentBundle JSON schema without network calls.")
+    def export_agent_assets(out: str = ".viewspec", force: bool = False, dry_run: bool = False) -> dict[str, Any]:
+        return export_agent_assets_tool(out, force=force, dry_run=dry_run, cwd=root, allow_outside_cwd=allow_outside_cwd)
 
     app.run()
 
