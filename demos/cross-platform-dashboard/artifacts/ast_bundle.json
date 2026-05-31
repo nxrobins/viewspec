@@ -772,7 +772,7 @@
                 "props": {
                   "action_id": "save_launch_review",
                   "action_kind": "submit",
-                  "action_target_ref": "/launch-review",
+                  "action_target_ref": "view:launch_operations_dashboard",
                   "button_type": "button",
                   "payload_bindings": [
                     "phase_filter",

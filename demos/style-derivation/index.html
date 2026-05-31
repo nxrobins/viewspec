@@ -3,42 +3,13 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>ViewSpec Demo - Data-Aware Style Derivation</title>
-  <meta name="description" content="Toggle style presets and inspect how ViewSpec keeps structure stable while deriving visual tone, hierarchy, and density from semantic intent.">
+  <title>ViewSpec Demo - Style Derivation</title>
+  <meta name="description" content="Toggle design-token presets on the same compiled ViewSpec structure to see how style derivation changes feel without changing intent.">
   <meta name="robots" content="index,follow,max-snippet:-1,max-image-preview:large">
   <link rel="canonical" href="https://viewspec.dev/style-derivation/">
   <link rel="alternate" type="text/markdown" title="ViewSpec for LLMs" href="https://viewspec.dev/llms.txt">
-  <link rel="alternate" type="application/json" title="ViewSpec OpenAPI" href="https://viewspec.dev/openapi.json">
-  <meta property="og:site_name" content="ViewSpec">
-  <meta property="og:type" content="article">
-  <meta property="og:title" content="ViewSpec Demo - Data-Aware Style Derivation">
-  <meta property="og:description" content="Toggle style presets and inspect how ViewSpec keeps structure stable while deriving visual tone, hierarchy, and density from semantic intent.">
-  <meta property="og:url" content="https://viewspec.dev/style-derivation/">
-  <meta name="twitter:card" content="summary">
-  <meta name="twitter:title" content="ViewSpec Demo - Data-Aware Style Derivation">
-  <meta name="twitter:description" content="Toggle style presets and inspect how ViewSpec keeps structure stable while deriving visual tone, hierarchy, and density from semantic intent.">
-  <script type="application/ld+json">
-    {
-        "@context": "https://schema.org",
-        "@type": "TechArticle",
-        "headline": "Data-Aware Style Derivation",
-        "description": "Toggle style presets and inspect how ViewSpec keeps structure stable while deriving visual tone, hierarchy, and density from semantic intent.",
-        "url": "https://viewspec.dev/style-derivation/",
-        "isPartOf": {
-            "@id": "https://viewspec.dev/#website"
-        },
-        "about": [
-            "style derivation",
-            "semantic UI",
-            "design systems",
-            "AI UI generation"
-        ],
-        "publisher": {
-            "@id": "https://viewspec.dev/#organization"
-        },
-        "inLanguage": "en"
-    }
-  </script>
+  <link rel="service" type="application/json" title="ViewSpec OpenAPI" href="https://viewspec.dev/openapi.json">
+  <script type="application/ld+json">{"@context":"https://schema.org","@type":"WebPage","description":"Toggle design-token presets on the same compiled ViewSpec structure to see how style derivation changes feel without changing intent.","name":"ViewSpec Demo - Style Derivation","url":"https://viewspec.dev/style-derivation/"}</script>
   <link rel="icon" href="data:,">
   <script src="https://cdn.tailwindcss.com"></script>
   <script type="module" src="../shared/pretext-canvas-surfaces.js"></script>
@@ -417,7 +388,7 @@
 
     <section class="artifact-card" aria-label="Rendered dashboard artifact">
       <div id="artifact-wrapper" data-style-preset="default">
-        <main id="dom-region_root" class="min-h-screen bg-slate-50 text-slate-950 p-6 space-y-6" data-ir-id="region_root" data-content-refs="[]" data-intent-refs="[&quot;viewspec:view:style_derivation&quot;, &quot;viewspec:region:root&quot;]"><div id="dom-region_main" class="flex flex-col gap-3" data-ir-id="region_main" data-content-refs="[]" data-intent-refs="[&quot;viewspec:region:main&quot;]"><div id="dom-motif_kpis" class="flex flex-col gap-3" data-ir-id="motif_kpis" data-content-refs="[]" data-intent-refs="[&quot;viewspec:motif:kpis&quot;]"><div id="dom-motif_kpis_kpi_revenue" class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm space-y-3" data-ir-id="motif_kpis_kpi_revenue" data-content-refs="[]" data-intent-refs="[&quot;viewspec:motif:kpis&quot;]"><div id="dom-binding_kpi_revenue_label" class="text-xs font-bold uppercase tracking-widest text-slate-500" data-ir-id="binding_kpi_revenue_label" data-content-refs="[&quot;node:kpi_revenue#attr:label&quot;]" data-intent-refs="[&quot;viewspec:binding:kpi_revenue_label&quot;]">Revenue</div><div id="dom-binding_kpi_revenue_value" class="text-2xl font-black tracking-tight text-slate-950" data-ir-id="binding_kpi_revenue_value" data-content-refs="[&quot;node:kpi_revenue#attr:value&quot;]" data-intent-refs="[&quot;viewspec:binding:kpi_revenue_value&quot;]">$2.4M</div></div><div id="dom-motif_kpis_kpi_users" class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm space-y-3" data-ir-id="motif_kpis_kpi_users" data-content-refs="[]" data-intent-refs="[&quot;viewspec:motif:kpis&quot;]"><div id="dom-binding_kpi_users_label" class="text-xs font-bold uppercase tracking-widest text-slate-500" data-ir-id="binding_kpi_users_label" data-content-refs="[&quot;node:kpi_users#attr:label&quot;]" data-intent-refs="[&quot;viewspec:binding:kpi_users_label&quot;]">Active Users</div><div id="dom-binding_kpi_users_value" class="text-2xl font-black tracking-tight text-slate-950" data-ir-id="binding_kpi_users_value" data-content-refs="[&quot;node:kpi_users#attr:value&quot;]" data-intent-refs="[&quot;viewspec:binding:kpi_users_value&quot;]">18,472</div></div><div id="dom-motif_kpis_kpi_conversion" class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm space-y-3" data-ir-id="motif_kpis_kpi_conversion" data-content-refs="[]" data-intent-refs="[&quot;viewspec:motif:kpis&quot;]"><div id="dom-binding_kpi_conversion_label" class="text-xs font-bold uppercase tracking-widest text-slate-500" data-ir-id="binding_kpi_conversion_label" data-content-refs="[&quot;node:kpi_conversion#attr:label&quot;]" data-intent-refs="[&quot;viewspec:binding:kpi_conversion_label&quot;]">Conversion</div><div id="dom-binding_kpi_conversion_value" class="text-2xl font-black tracking-tight text-slate-950" data-ir-id="binding_kpi_conversion_value" data-content-refs="[&quot;node:kpi_conversion#attr:value&quot;]" data-intent-refs="[&quot;viewspec:binding:kpi_conversion_value&quot;]">3.8%</div></div><div id="dom-motif_kpis_kpi_churn" class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm space-y-3" data-ir-id="motif_kpis_kpi_churn" data-content-refs="[]" data-intent-refs="[&quot;viewspec:motif:kpis&quot;]"><div id="dom-binding_kpi_churn_label" class="text-xs font-bold uppercase tracking-widest text-slate-500" data-ir-id="binding_kpi_churn_label" data-content-refs="[&quot;node:kpi_churn#attr:label&quot;]" data-intent-refs="[&quot;viewspec:binding:kpi_churn_label&quot;]">Churn</div><div id="dom-binding_kpi_churn_value" class="text-2xl font-black tracking-tight text-slate-950" data-ir-id="binding_kpi_churn_value" data-content-refs="[&quot;node:kpi_churn#attr:value&quot;]" data-intent-refs="[&quot;viewspec:binding:kpi_churn_value&quot;]">1.2%</div></div></div></div></main>
+        <main id="dom-region_root" class="vs-root" data-ir-id="region_root" data-content-refs="[]" data-intent-refs="[&quot;viewspec:view:style_derivation&quot;, &quot;viewspec:region:root&quot;]" data-style-tokens="[&quot;tone.neutral&quot;, &quot;palette.temperature&quot;]" style="color: #1f2937; background-color: #ffffff;"><div id="dom-region_main" class="vs-stack" data-ir-id="region_main" data-content-refs="[]" data-intent-refs="[&quot;viewspec:region:main&quot;]" data-style-tokens="[&quot;density.regular&quot;]" style="gap: 0.68rem; padding: 0.58rem 0.74rem;"><div id="dom-motif_kpis" class="vs-stack" data-ir-id="motif_kpis" data-content-refs="[]" data-intent-refs="[&quot;viewspec:motif:kpis&quot;]" data-style-tokens="[&quot;density.regular&quot;]" style="gap: 0.68rem; padding: 0.58rem 0.74rem;"><div id="dom-motif_kpis_kpi_revenue" class="vs-surface" data-ir-id="motif_kpis_kpi_revenue" data-content-refs="[]" data-intent-refs="[&quot;viewspec:motif:kpis&quot;]" data-style-tokens="[&quot;surface.subtle&quot;]" style="background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 14px;"><div id="dom-binding_kpi_revenue_label" class="vs-label" data-ir-id="binding_kpi_revenue_label" data-content-refs="[&quot;node:kpi_revenue#attr:label&quot;]" data-intent-refs="[&quot;viewspec:binding:kpi_revenue_label&quot;]" data-style-tokens="[&quot;tone.muted&quot;]" style="color: #6b7280;" data-binding-id="kpi_revenue_label">Revenue</div><div id="dom-binding_kpi_revenue_value" class="vs-value" data-ir-id="binding_kpi_revenue_value" data-content-refs="[&quot;node:kpi_revenue#attr:value&quot;]" data-intent-refs="[&quot;viewspec:binding:kpi_revenue_value&quot;]" data-style-tokens="[&quot;tone.neutral&quot;, &quot;emphasis.high&quot;]" style="color: #1f2937; font-weight: 800; letter-spacing: -0.025em;" data-binding-id="kpi_revenue_value">$2.4M</div></div><div id="dom-motif_kpis_kpi_users" class="vs-surface" data-ir-id="motif_kpis_kpi_users" data-content-refs="[]" data-intent-refs="[&quot;viewspec:motif:kpis&quot;]" data-style-tokens="[&quot;surface.subtle&quot;]" style="background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 14px;"><div id="dom-binding_kpi_users_label" class="vs-label" data-ir-id="binding_kpi_users_label" data-content-refs="[&quot;node:kpi_users#attr:label&quot;]" data-intent-refs="[&quot;viewspec:binding:kpi_users_label&quot;]" data-style-tokens="[&quot;tone.muted&quot;]" style="color: #6b7280;" data-binding-id="kpi_users_label">Active Users</div><div id="dom-binding_kpi_users_value" class="vs-value" data-ir-id="binding_kpi_users_value" data-content-refs="[&quot;node:kpi_users#attr:value&quot;]" data-intent-refs="[&quot;viewspec:binding:kpi_users_value&quot;]" data-style-tokens="[&quot;tone.neutral&quot;, &quot;emphasis.high&quot;]" style="color: #1f2937; font-weight: 800; letter-spacing: -0.025em;" data-binding-id="kpi_users_value">18,472</div></div><div id="dom-motif_kpis_kpi_conversion" class="vs-surface" data-ir-id="motif_kpis_kpi_conversion" data-content-refs="[]" data-intent-refs="[&quot;viewspec:motif:kpis&quot;]" data-style-tokens="[&quot;surface.subtle&quot;]" style="background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 14px;"><div id="dom-binding_kpi_conversion_label" class="vs-label" data-ir-id="binding_kpi_conversion_label" data-content-refs="[&quot;node:kpi_conversion#attr:label&quot;]" data-intent-refs="[&quot;viewspec:binding:kpi_conversion_label&quot;]" data-style-tokens="[&quot;tone.muted&quot;]" style="color: #6b7280;" data-binding-id="kpi_conversion_label">Conversion</div><div id="dom-binding_kpi_conversion_value" class="vs-value" data-ir-id="binding_kpi_conversion_value" data-content-refs="[&quot;node:kpi_conversion#attr:value&quot;]" data-intent-refs="[&quot;viewspec:binding:kpi_conversion_value&quot;]" data-style-tokens="[&quot;tone.neutral&quot;, &quot;emphasis.high&quot;]" style="color: #1f2937; font-weight: 800; letter-spacing: -0.025em;" data-binding-id="kpi_conversion_value">3.8%</div></div><div id="dom-motif_kpis_kpi_churn" class="vs-surface" data-ir-id="motif_kpis_kpi_churn" data-content-refs="[]" data-intent-refs="[&quot;viewspec:motif:kpis&quot;]" data-style-tokens="[&quot;surface.subtle&quot;]" style="background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 14px;"><div id="dom-binding_kpi_churn_label" class="vs-label" data-ir-id="binding_kpi_churn_label" data-content-refs="[&quot;node:kpi_churn#attr:label&quot;]" data-intent-refs="[&quot;viewspec:binding:kpi_churn_label&quot;]" data-style-tokens="[&quot;tone.muted&quot;]" style="color: #6b7280;" data-binding-id="kpi_churn_label">Churn</div><div id="dom-binding_kpi_churn_value" class="vs-value" data-ir-id="binding_kpi_churn_value" data-content-refs="[&quot;node:kpi_churn#attr:value&quot;]" data-intent-refs="[&quot;viewspec:binding:kpi_churn_value&quot;]" data-style-tokens="[&quot;tone.neutral&quot;, &quot;emphasis.high&quot;]" style="color: #1f2937; font-weight: 800; letter-spacing: -0.025em;" data-binding-id="kpi_churn_value">1.2%</div></div></div></div></main>
       </div>
     </section>
 
@@ -564,16 +535,62 @@
     };
   </script>
   <script>
-document.addEventListener('click', (e) => {
-  const btn = e.target.closest('[data-action-id]');
-  if (!btn) return;
+function viewspecPayloadBindings(btn) {
+  let payloadBindings = [];
+  try {
+    const parsedPayloadBindings = JSON.parse(btn.dataset.payloadBindings || '[]');
+    if (Array.isArray(parsedPayloadBindings)) {
+      payloadBindings = parsedPayloadBindings.filter((id) => typeof id === 'string');
+    }
+  } catch {
+    payloadBindings = [];
+  }
+  return payloadBindings;
+}
+
+function dispatchViewSpecAction(btn) {
+  const payloadBindings = viewspecPayloadBindings(btn);
   const detail = {
+    schemaVersion: 1,
+    source: 'viewspec-html-tailwind',
     id: btn.dataset.actionId,
     kind: btn.dataset.actionKind,
-    payloadBindings: JSON.parse(btn.dataset.payloadBindings || '[]')
+    targetRef: btn.dataset.actionTargetRef || '',
+    payloadBindings,
+    payloadValues: {}
   };
+  const requested = new Set(detail.payloadBindings);
+  const root = btn.closest('.vs-root') || document;
+  root.querySelectorAll('[data-binding-id]').forEach((el) => {
+    const id = el.dataset.bindingId;
+    if (!requested.has(id)) return;
+    detail.payloadValues[id] = 'value' in el ? el.value : el.textContent || '';
+  });
   document.dispatchEvent(new CustomEvent('viewspec-action', { detail }));
-  console.log('Action Dispatched:', detail);
+}
+
+document.addEventListener('click', (e) => {
+  const target = e.target instanceof Element ? e.target : null;
+  const btn = target ? target.closest('[data-action-id]') : null;
+  if (!btn) return;
+  dispatchViewSpecAction(btn);
+});
+
+document.addEventListener('keydown', (e) => {
+  if (e.key !== 'Enter' || e.defaultPrevented || e.shiftKey || e.altKey || e.ctrlKey || e.metaKey) return;
+  const target = e.target instanceof Element ? e.target : null;
+  if (!target || target.tagName !== 'INPUT') return;
+  const form = target.closest('[role="form"][data-ir-id]');
+  if (!form) return;
+  const irId = form.dataset.irId || '';
+  if (!irId.startsWith('motif_')) return;
+  const targetRef = `motif:${irId.slice(6)}`;
+  const root = form.closest('.vs-root') || document;
+  const btn = Array.from(root.querySelectorAll('[data-action-id][data-action-kind="submit"]'))
+    .find((candidate) => candidate.dataset.actionTargetRef === targetRef);
+  if (!btn) return;
+  e.preventDefault();
+  dispatchViewSpecAction(btn);
 });
 </script>
 </body>
