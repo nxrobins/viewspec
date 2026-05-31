@@ -124,7 +124,7 @@ diff = diff_intent_text(old_bundle_json, new_bundle_json)
 
 `viewspec compile` performs the same intent validation before writing output files. If compilation returns an intent validation payload, feed its `correction_prompt` back to the agent and regenerate the full IntentBundle instead of patching fragments.
 
-Use `viewspec doctor` in local setup checks. It reports the available intent-first commands, runs a starter IntentBundle validation/compile/diff smoke check, verifies `PyYAML`, and states that local validation, compile, lift, diff, check, and scaffold commands make no SDK network calls. `viewspec doctor --agents` also reports managed instruction templates, the optional MCP dependency, MCP install hint, and cwd path containment policy.
+Use `viewspec doctor` in local setup checks. It reports the available intent-first commands, runs a starter IntentBundle validation/compile/diff smoke check, verifies `PyYAML`, and states that local validation, compile, lift, diff, check, scaffold, and agent-asset export commands make no SDK network calls. `viewspec doctor --agents` also reports managed instruction templates, the optional MCP dependency, MCP install hint, and cwd path containment policy.
 
 `viewspec check` treats the compiled artifact as a proof boundary. For IntentBundle artifacts, DOM `data-ir-id`, `data-binding-id`, and `data-action-id` values must agree with `provenance_manifest.json`; binding/action ids cannot be duplicated; binding nodes must retain source `content_refs`; and binding/action manifest entries must include the matching `viewspec:binding:*` or `viewspec:action:*` intent ref.
 
@@ -145,6 +145,14 @@ This is intentionally not a visual equivalence proof. It tells reviewers what ch
 - Hosted compiler OpenAPI: `https://viewspec.dev/openapi.json`
 - LLM summary: `https://viewspec.dev/llms.txt`
 - Expanded AI context: `https://viewspec.dev/llms-full.txt`
+
+For local-only setup, export the prompt and schema from the installed SDK instead of fetching hosted static assets:
+
+```bash
+viewspec export-agent-assets --out .viewspec
+```
+
+The command writes `.viewspec/agent-system-prompt.txt` and `.viewspec/agent-intent-bundle.schema.json`, refuses to overwrite edited files unless `--force` is passed, and performs no network calls.
 
 ## Minimal IntentBundle Example
 
@@ -214,6 +222,14 @@ The public SDK agent schema remains V1 and reference-focused. The hosted compile
 Hosted extended artifacts must identify that boundary instead of pretending to be local V1 bundles. Public demo artifact indexes use `contract_profile: "hosted_extended_v1"` when the IntentBundle includes hosted-only fields or cross-platform emitters. Do not use local `viewspec validate-intent` as proof for those hosted-extended files; validate local V1 bundles locally and validate hosted-extended bundles through the hosted compiler contract.
 
 In hosted and local workflows, agents still generate IntentBundle JSON for new UI. They should not generate CompositionIR, React, SwiftUI, Flutter, or HTML directly unless the user explicitly asks for emitter source. Raw HTML tools are only for importing existing HTML.
+
+For local V1 React source output, keep the same IntentBundle-first workflow and change only the compile target:
+
+```bash
+viewspec compile viewspec.intent.json --target react-tsx --out react-output/
+```
+
+The MCP `compile_intent_bundle_file` tool accepts the same target as `target: "react-tsx"` and still runs `viewspec check` against the emitted source artifact. The agent edits `viewspec.intent.json`; `ViewSpecView.tsx` is compiled artifact source. React actions surface through an `onAction` callback with the same V1 action fields used by the HTML runtime.
 
 
 ## Optional Reference Grounding

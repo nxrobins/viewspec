@@ -33,6 +33,7 @@ Raw HTML tools remain available only for importing existing HTML: `viewspec comp
 - V1 local IntentBundle caps: max 256KB JSON, 200 substrate nodes, 32 regions, 400 bindings, 64 groups, 32 motifs, 400 styles, 64 actions, 64 attrs/slots/edges per node, 200 values per slot or edge, and 64 payload bindings per action.
 - V1 public SDK agent ids and object keys use only letters, digits, underscore, dot, and dash.
 - Native agent setup: `viewspec init-agent --target codex|claude-code|cursor|copilot|all`.
+- Local agent contract asset export: `viewspec export-agent-assets --out .viewspec`.
 - Optional MCP server: install `viewspec[agents]`, then run `viewspec mcp`.
 - MCP intent tools: `init_intent`, `validate_intent_bundle_file`, `diff_intent_bundle_files`, `compile_intent_bundle_file`, `agent_correction_prompt_file`, `check_artifact`, and `init_design`.
 - Raw HTML tools are import/fallback only for existing HTML.

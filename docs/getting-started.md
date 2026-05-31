@@ -56,6 +56,12 @@ viewspec init-agent --target all --dry-run
 
 The command preserves user content outside `<!-- BEGIN VIEWSPEC AGENT INSTRUCTIONS v1 -->` and `<!-- END VIEWSPEC AGENT INSTRUCTIONS v1 -->`.
 
+Export local prompt/schema assets when an editor or agent runtime can consume them directly:
+
+```bash
+viewspec export-agent-assets --out .viewspec
+```
+
 For MCP-capable agents:
 
 ```bash
@@ -73,6 +79,7 @@ import json
 
 from viewspec import ViewSpecBuilder, compile, diff_intent_text, validate_intent_text
 from viewspec.emitters.html_tailwind import HtmlTailwindEmitter
+from viewspec.emitters.react_tsx import ReactTsxEmitter
 
 builder = ViewSpecBuilder("invoice")
 table = builder.add_table("items", region="main", group_id="rows")
@@ -87,9 +94,18 @@ validation = validate_intent_text(json.dumps(bundle.to_json()))
 diff = diff_intent_text(json.dumps(bundle.to_json()), json.dumps(bundle.to_json()))
 ast = compile(bundle)
 HtmlTailwindEmitter().emit(ast, "output/")
+ReactTsxEmitter().emit(ast, "react-output/")
 ```
 
-The local reference compiler supports safe text inputs and local action payload events. HTML action events dispatch `viewspec-action` with `detail.schemaVersion: 1`, `source`, `id`, `kind`, `targetRef`, `payloadBindings`, and `payloadValues`. Pressing Enter inside a local inert form dispatches only a declared `submit` action whose `targetRef` exactly matches that form motif. Use the hosted compiler for richer input controls, projections, declarative rules, custom motifs, Level 2+ derivation, and mobile emitters. Hosted demo artifact indexes declare `contract_profile: "hosted_extended_v1"` when their IntentBundle uses fields beyond local V1 validation.
+The local reference compiler supports safe text inputs and local action payload events. HTML action events dispatch `viewspec-action` with `detail.schemaVersion: 1`, `source`, `id`, `kind`, `targetRef`, `payloadBindings`, and `payloadValues`. Pressing Enter inside a local inert form dispatches only a declared `submit` action whose `targetRef` exactly matches that form motif. React TSX output uses an `onAction` callback with the same V1 fields and `source: "viewspec-react-tsx"`.
+
+From the CLI, use `--target react-tsx` when you want component source instead of standalone HTML:
+
+```bash
+viewspec compile viewspec.intent.json --target react-tsx --out react-output/
+```
+
+`viewspec check` also verifies React TSX source artifacts: manifest shape, exact `ViewSpecView.tsx` hash, generated-source markers, diagnostics shape, and absence of active network/runtime escape surfaces. This is source artifact verification, not a rendered DOM proof inside a host React app. Use the hosted compiler for richer input controls, projections, declarative rules, custom motifs, Level 2+ derivation, and mobile emitters. Hosted demo artifact indexes declare `contract_profile: "hosted_extended_v1"` when their IntentBundle uses fields beyond local V1 validation.
 
 ## Theming with DESIGN.md
 

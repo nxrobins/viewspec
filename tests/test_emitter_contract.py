@@ -13,6 +13,7 @@ from viewspec import (
     Provenance,
 )
 from viewspec.emitters.html_tailwind import HtmlTailwindEmitter
+from viewspec.emitters.react_tsx import ReactTsxEmitter
 
 
 def test_emitter_escapes_html_and_writes_contract_artifacts(tmp_path):
@@ -142,6 +143,102 @@ def test_grid_emitter_merges_layout_and_token_styles(tmp_path):
     assert "gap: 20px; padding: 10px;" in grid_tag
     assert 'data-style-tokens="[&quot;density.regular&quot;]"' in grid_tag
     assert grid_tag.count("style=") == 1
+
+
+def test_react_tsx_emitter_writes_component_manifest_and_action_contract(tmp_path):
+    ast = ASTBundle(
+        result=CompilerResult(
+            root=CompositionIR(
+                root=IRNode(
+                    id="root",
+                    primitive="root",
+                    provenance=Provenance(intent_refs=["viewspec:view:react"]),
+                    children=[
+                        IRNode(
+                            id="title",
+                            primitive="text",
+                            props={"text": '<script>alert("x")</script>', "binding_id": "title"},
+                            provenance=Provenance(
+                                content_refs=["node:doc#attr:title"],
+                                intent_refs=["viewspec:binding:title"],
+                            ),
+                        ),
+                        IRNode(
+                            id="field",
+                            primitive="input",
+                            props={"value": "Draft", "binding_id": "message", "aria_label": "Message"},
+                            provenance=Provenance(
+                                content_refs=["node:message#attr:value"],
+                                intent_refs=["viewspec:binding:message"],
+                            ),
+                        ),
+                        IRNode(
+                            id="send",
+                            primitive="button",
+                            props={
+                                "text": "Send",
+                                "action_id": "send",
+                                "action_kind": "submit",
+                                "target_ref": "view:react",
+                                "payload_bindings": ["message", "title"],
+                            },
+                            provenance=Provenance(intent_refs=["viewspec:action:send"]),
+                        ),
+                    ],
+                )
+            ),
+            diagnostics=[],
+        ),
+        style_values={"density.regular": "gap: 20px; padding: 10px;"},
+        title="React Test",
+    )
+
+    paths = ReactTsxEmitter().emit(ast, tmp_path)
+    tsx = tmp_path.joinpath("ViewSpecView.tsx").read_text(encoding="utf-8")
+    manifest = json.loads(tmp_path.joinpath("provenance_manifest.json").read_text(encoding="utf-8"))
+
+    assert paths["tsx"].endswith("ViewSpecView.tsx")
+    assert '"use client";' in tsx
+    assert 'source: "viewspec-react-tsx"' in tsx
+    assert "payloadValues: collectPayloadValues" in tsx
+    assert "payload: collectPayload" not in tsx
+    assert "export type ViewSpecData = Record<string, unknown>;" in tsx
+    assert "function renderValue(value: unknown, fallback: React.ReactNode): React.ReactNode" in tsx
+    assert 'if (typeof value === "boolean") return value ? "true" : "false";' in tsx
+    assert "return JSON.stringify(value);" in tsx
+    assert "React.useState<Record<string, unknown>>" in tsx
+    assert "Object.prototype.hasOwnProperty.call(data, bindingId)" in tsx
+    assert 'data-binding-id={"message"}' in tsx
+    assert '{renderValue(data["title"], "\\u003cscript\\u003ealert' in tsx
+    assert "onAction?.({" in tsx
+    assert "<script>alert" not in tsx
+    assert "\\u003cscript\\u003ealert" in tsx
+    assert manifest["dom-title"]["content_refs"] == ["node:doc#attr:title"]
+    assert manifest["dom-send"]["props"]["payload_bindings"] == ["message", "title"]
+
+
+def test_react_tsx_emitter_rejects_invalid_ir_before_writing(tmp_path):
+    ast = ASTBundle(
+        result=CompilerResult(
+            root=CompositionIR(
+                root=IRNode(
+                    id="root",
+                    primitive="root",
+                    children=[IRNode(id='bad-"id"', primitive="text", props={"text": "Bad"})],
+                    provenance=Provenance(intent_refs=["viewspec:view:react"]),
+                )
+            ),
+            diagnostics=[],
+        ),
+        style_values={},
+        title="Bad React",
+    )
+
+    output = tmp_path / "react"
+    with pytest.raises(ValueError, match="IRNode.id"):
+        ReactTsxEmitter().emit(ast, output)
+
+    assert not output.exists()
 
 
 def test_action_payload_collection_is_scoped_to_artifact_root():

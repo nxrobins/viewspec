@@ -185,6 +185,68 @@ def test_cli_compile_json_wraps_stable_manifest(tmp_path):
     assert "nodes" in manifest
 
 
+def test_cli_compile_json_can_emit_react_tsx_target(tmp_path):
+    builder = ViewSpecBuilder("react_cli")
+    field = builder.add_text_input("message", label="Message", value="Hello", group_id="fields")
+    builder.add_action("send", "submit", "Send", target_region="main", payload_bindings=[field])
+    bundle_path = tmp_path / "bundle.json"
+    bundle_path.write_text(json.dumps(builder.build_bundle().to_json()), encoding="utf-8")
+    out_dir = tmp_path / "react-dist"
+
+    assert cli_main(["compile", str(bundle_path), "--target", "react-tsx", "--out", str(out_dir)]) == 0
+    manifest = json.loads(out_dir.joinpath("provenance_manifest.json").read_text(encoding="utf-8"))
+    tsx = out_dir.joinpath("ViewSpecView.tsx").read_text(encoding="utf-8")
+
+    assert out_dir.joinpath("index.html").exists() is False
+    assert manifest["kind"] == "intent_bundle_compile"
+    assert manifest["emitter"] == "react_tsx"
+    assert manifest["artifact_file"] == "ViewSpecView.tsx"
+    assert manifest["artifact_hash"] == file_hash(out_dir / "ViewSpecView.tsx")
+    assert manifest["command_args"] == [
+        "viewspec",
+        "compile",
+        "bundle.json",
+        "--target",
+        "react-tsx",
+        "--out",
+        "<out>",
+    ]
+    assert 'source: "viewspec-react-tsx"' in tsx
+    assert "payloadValues: collectPayloadValues" in tsx
+    assert cli_main(["check", str(out_dir), "--json"]) == 0
+
+
+def test_cli_check_verifies_react_tsx_artifact_source(tmp_path, capsys):
+    builder = ViewSpecBuilder("react_check")
+    field = builder.add_text_input("message", label="Message", value="Hello", group_id="fields")
+    table = builder.add_table("copy", region="main", group_id="copy_rows")
+    table.add_row(label="fetch('/copy') WebSocket dangerouslySetInnerHTML", value="Literal text", id="copy")
+    builder.add_action("send", "submit", "Send", target_region="main", payload_bindings=[field])
+    bundle_path = tmp_path / "bundle.json"
+    bundle_path.write_text(json.dumps(builder.build_bundle().to_json()), encoding="utf-8")
+    out_dir = tmp_path / "react-dist"
+
+    assert cli_main(["compile", str(bundle_path), "--target", "react-tsx", "--out", str(out_dir)]) == 0
+    capsys.readouterr()
+    assert cli_main(["check", str(out_dir), "--json"]) == 0
+    capsys.readouterr()
+    tsx_path = out_dir / "ViewSpecView.tsx"
+    manifest_path = out_dir / "provenance_manifest.json"
+    tsx = tsx_path.read_text(encoding="utf-8")
+    tsx_path.write_text(tsx + "\n// tampered\n", encoding="utf-8")
+
+    assert cli_main(["check", str(out_dir)]) == 2
+    assert "artifact_hash does not match ViewSpecView.tsx" in capsys.readouterr().out
+
+    tsx_path.write_text(tsx + "\nconst unsafe = { dangerouslySetInnerHTML: {} };\n", encoding="utf-8")
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest["artifact_hash"] = file_hash(tsx_path)
+    manifest_path.write_text(json.dumps(manifest, indent=2, sort_keys=True), encoding="utf-8")
+
+    assert cli_main(["check", str(out_dir)]) == 2
+    assert "ViewSpecView.tsx contains dangerouslySetInnerHTML" in capsys.readouterr().out
+
+
 def test_cli_check_uses_byte_exact_artifact_hash(tmp_path, capsys):
     builder = ViewSpecBuilder("byte_exact_hash")
     table = builder.add_table("items", region="main", group_id="rows")
@@ -217,10 +279,12 @@ def test_cli_init_design_doctor_and_check_tamper(tmp_path, capsys):
     assert checks["pyyaml"] is True
     assert checks["intent_first_commands"]["validate_intent"] is True
     assert checks["intent_first_commands"]["diff_intent"] is True
+    assert checks["intent_first_commands"]["export_agent_assets"] is True
     assert checks["intent_pipeline"]["ok"] is True
     assert checks["intent_pipeline"]["compile_check"] == "passed"
     assert "validate-intent" in checks["local_network_policy"]
     assert "diff-intent" in checks["local_network_policy"]
+    assert "export-agent-assets" in checks["local_network_policy"]
     assert "check" in checks["local_network_policy"]
 
     html_path = tmp_path / "report.html"

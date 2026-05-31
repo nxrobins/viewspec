@@ -9,9 +9,11 @@ import sys
 from pathlib import Path
 
 from viewspec._version import __version__
+from viewspec.agent_assets import AgentAssetError, export_agent_assets
 from viewspec.compiler import compile
 from viewspec.design_md import DesignSystemContext, DesignSystemError, load_design_system
 from viewspec.emitters.html_tailwind import HtmlTailwindEmitter
+from viewspec.emitters.react_tsx import ReactTsxEmitter
 from viewspec.intent_tools import (
     STARTER_INTENT_KINDS,
     diff_intent_files,
@@ -48,6 +50,9 @@ def main(argv: list[str] | None = None) -> int:
     except HtmlInputError as exc:
         print(f"error: {exc.code}: {exc}", file=sys.stderr)
         return 2
+    except AgentAssetError as exc:
+        print(f"error: {exc.code}: {exc}", file=sys.stderr)
+        return 2
     except NativeAgentError as exc:
         print(f"error: {exc.code}: {exc}", file=sys.stderr)
         return 2
@@ -82,6 +87,12 @@ def _build_parser() -> argparse.ArgumentParser:
     compile_parser.add_argument("--design", help="Optional DESIGN.md file to apply locally.")
     compile_parser.add_argument("--strict-design", action="store_true", help="Fail on DESIGN.md warnings as well as errors.")
     compile_parser.add_argument("--out", required=True, help="Output directory.")
+    compile_parser.add_argument(
+        "--target",
+        default="html-tailwind",
+        choices=("html-tailwind", "react-tsx"),
+        help="Renderer target for IntentBundle JSON input. Raw HTML import supports html-tailwind only.",
+    )
     compile_parser.add_argument("--stdin-format", choices=("html", "json"), help="Required when input is '-'.")
     compile_parser.add_argument("--title", help="Optional HTML document title for raw HTML input.")
     compile_parser.add_argument("--lift-json", action="store_true", help="Also write lift.json for raw HTML input.")
@@ -126,7 +137,7 @@ def _build_parser() -> argparse.ArgumentParser:
     doctor_parser.set_defaults(func=_doctor_command)
 
     check_parser = subparsers.add_parser("check", help="Validate a local ViewSpec artifact directory.")
-    check_parser.add_argument("artifact_dir", help="Directory containing index.html and provenance_manifest.json.")
+    check_parser.add_argument("artifact_dir", help="Directory containing provenance_manifest.json and generated artifact output.")
     check_parser.add_argument("--json", action="store_true", help="Print machine-readable JSON.")
     check_parser.set_defaults(func=_check_command)
 
@@ -135,6 +146,15 @@ def _build_parser() -> argparse.ArgumentParser:
     init_agent_parser.add_argument("--root", default=".", help="Repository root for instruction files.")
     init_agent_parser.add_argument("--dry-run", action="store_true", help="Report changes without writing files.")
     init_agent_parser.set_defaults(func=_init_agent_command)
+
+    agent_assets_parser = subparsers.add_parser(
+        "export-agent-assets",
+        help="Export local agent system prompt and IntentBundle JSON schema files.",
+    )
+    agent_assets_parser.add_argument("--out", default=".viewspec", help="Output directory for local agent contract assets.")
+    agent_assets_parser.add_argument("--force", action="store_true", help="Replace existing generated assets.")
+    agent_assets_parser.add_argument("--dry-run", action="store_true", help="Report changes without writing files.")
+    agent_assets_parser.set_defaults(func=_export_agent_assets_command)
 
     mcp_parser = subparsers.add_parser("mcp", help="Start the optional ViewSpec stdio MCP server.")
     mcp_parser.add_argument("--cwd", default=".", help="MCP path sandbox root.")
@@ -150,6 +170,8 @@ def _compile_command(args: argparse.Namespace) -> int:
     out_dir = Path(args.out)
 
     if input_format == "html":
+        if args.target != "html-tailwind":
+            raise ValueError("Raw HTML import only supports --target html-tailwind")
         design = _load_design(args.design, strict=args.strict_design)
         ensure_no_input_overwrite(input_path, out_dir, ("index.html", "provenance_manifest.json", "diagnostics.json", "lift.json"))
         result = compile_html(
@@ -172,13 +194,23 @@ def _compile_command(args: argparse.Namespace) -> int:
     payload = json.loads(data)
     bundle = IntentBundle.from_json(payload)
     ast = compile(bundle, design=design, strict_design=args.strict_design)
-    paths = HtmlTailwindEmitter().emit(ast, out_dir)
+    if args.target == "react-tsx":
+        ensure_no_input_overwrite(input_path, out_dir, ("ViewSpecView.tsx", "provenance_manifest.json", "diagnostics.json"))
+        paths = ReactTsxEmitter().emit(ast, out_dir)
+        artifact_path = Path(paths["tsx"])
+        emitter = "react_tsx"
+    else:
+        paths = HtmlTailwindEmitter().emit(ast, out_dir)
+        artifact_path = Path(paths["html"])
+        emitter = "html_tailwind"
     wrap_intent_bundle_manifest(
         Path(paths["manifest"]),
         source_name=source_name,
         raw_source_hash=source_hash(data),
         design=design,
         command_args=_compile_command_args(args, source_name),
+        artifact_path=artifact_path,
+        emitter=emitter,
     )
     print(json.dumps(paths, indent=2, sort_keys=True))
     return 0
@@ -327,9 +359,10 @@ def _doctor_command(args: argparse.Namespace) -> int:
             "compile": True,
             "check": True,
             "init_design": True,
+            "export_agent_assets": True,
         },
         "intent_pipeline": intent_pipeline,
-        "local_network_policy": "no network calls for validate-intent/compile/lift/diff/diff-intent/check/init-intent/init-design",
+        "local_network_policy": "no network calls for validate-intent/compile/lift/diff/diff-intent/check/init-intent/init-design/export-agent-assets",
     }
     if args.agents:
         checks.update(
@@ -407,6 +440,12 @@ def _init_agent_command(args: argparse.Namespace) -> int:
     return 0
 
 
+def _export_agent_assets_command(args: argparse.Namespace) -> int:
+    result = export_agent_assets(args.out, force=args.force, dry_run=args.dry_run)
+    print(json.dumps(result, indent=2, sort_keys=True))
+    return 0
+
+
 def _mcp_command(args: argparse.Namespace) -> int:
     try:
         run_mcp_server(cwd=args.cwd, allow_outside_cwd=args.allow_outside_cwd)
@@ -450,6 +489,8 @@ def _compile_command_args(args: argparse.Namespace, source_name: str | None) -> 
         command.extend(["--design", Path(args.design).name])
     if args.strict_design:
         command.append("--strict-design")
+    if args.target != "html-tailwind":
+        command.extend(["--target", args.target])
     command.extend(["--out", "<out>"])
     if args.stdin_format:
         command.extend(["--stdin-format", args.stdin_format])
