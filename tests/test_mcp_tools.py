@@ -218,6 +218,8 @@ def test_intent_mcp_wrappers_validate_compile_and_prompt(tmp_path):
     assert compiled["ok"] is True
     assert (tmp_path / "dist/index.html").exists()
     assert ACTION_EVENT_SCRIPT not in (tmp_path / "dist/index.html").read_text(encoding="utf-8")
+    assert compiled["metadata"]["target"] == "html-tailwind"
+    assert compiled["metadata"]["artifact_check"] == "passed"
     assert check_artifact_tool("dist", cwd=tmp_path)["ok"] is True
 
     bad_path = tmp_path / "bad.json"
@@ -226,6 +228,52 @@ def test_intent_mcp_wrappers_validate_compile_and_prompt(tmp_path):
     assert_tool_schema(prompt)
     assert prompt["ok"] is False
     assert "COMPOSITION_IR_INPUT" in prompt["correction_prompt"]
+
+
+def test_intent_mcp_compile_can_emit_react_tsx_without_html_check(tmp_path):
+    intent_path = tmp_path / "viewspec.intent.json"
+    intent_path.write_text(json.dumps(_bundle_with_input_action_json()), encoding="utf-8")
+
+    compiled = compile_intent_bundle_file_tool("viewspec.intent.json", "react-dist", target="react-tsx", cwd=tmp_path)
+    assert_tool_schema(compiled)
+    assert compiled["ok"] is True
+    assert compiled["metadata"]["target"] == "react-tsx"
+    assert compiled["metadata"]["emitter"] == "react_tsx"
+    assert compiled["metadata"]["artifact_check"] == "not_applicable"
+    assert compiled["paths"]["tsx"].endswith("ViewSpecView.tsx")
+    assert (tmp_path / "react-dist/ViewSpecView.tsx").exists()
+    assert (tmp_path / "react-dist/index.html").exists() is False
+
+    tsx = (tmp_path / "react-dist/ViewSpecView.tsx").read_text(encoding="utf-8")
+    manifest = json.loads((tmp_path / "react-dist/provenance_manifest.json").read_text(encoding="utf-8"))
+
+    assert 'source: "viewspec-react-tsx"' in tsx
+    assert "payloadValues: collectPayloadValues" in tsx
+    assert manifest["emitter"] == "react_tsx"
+    assert manifest["artifact_file"] == "ViewSpecView.tsx"
+    assert manifest["artifact_hash"] == file_hash(tmp_path / "react-dist/ViewSpecView.tsx")
+    assert manifest["command_args"] == [
+        "viewspec",
+        "compile",
+        "viewspec.intent.json",
+        "--target",
+        "react-tsx",
+        "--out",
+        "<out>",
+    ]
+
+
+def test_intent_mcp_compile_rejects_unknown_target(tmp_path):
+    intent_path = tmp_path / "viewspec.intent.json"
+    intent_path.write_text(json.dumps(_bundle_json()), encoding="utf-8")
+
+    result = compile_intent_bundle_file_tool("viewspec.intent.json", "dist", target="swiftui", cwd=tmp_path)
+
+    assert_tool_schema(result)
+    assert result["ok"] is False
+    assert result["errors"][0]["code"] == "COMPILE_FAILED"
+    assert result["metadata"]["target"] == "swiftui"
+    assert not (tmp_path / "dist").exists()
 
 
 def test_intent_mcp_diff_reports_semantic_changes(tmp_path):
@@ -957,7 +1005,9 @@ def test_mcp_raw_html_tool_descriptions_are_import_only():
     text = root.joinpath("src/viewspec/mcp_server.py").read_text(encoding="utf-8")
 
     assert text.count("Use only when importing existing HTML; do not use for new UI.") >= 3
-    assert "Compile a ViewSpec IntentBundle JSON file into a checked HTML artifact" in text
+    assert "Compile a ViewSpec IntentBundle JSON file into a local compiler artifact" in text
+    assert "target='html-tailwind' for checked standalone HTML" in text
+    assert "target='react-tsx' for React source" in text
 
 
 def test_mcp_path_sandbox_rejects_urls_and_outside_paths(tmp_path):

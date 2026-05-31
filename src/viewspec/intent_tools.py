@@ -17,6 +17,7 @@ from viewspec.agent import (
 from viewspec.compiler import compile
 from viewspec.design_md import DesignSystemContext, load_design_system
 from viewspec.emitters.html_tailwind import HtmlTailwindEmitter
+from viewspec.emitters.react_tsx import ReactTsxEmitter
 from viewspec.local_tools import (
     atomic_write,
     check_artifact_dir,
@@ -38,6 +39,7 @@ from viewspec.types import IntentBundle
 
 BUNDLE_POLICY_VERSION = INTENT_BUNDLE_POLICY_VERSION
 INTENT_RESULT_SCHEMA_VERSION = 1
+INTENT_COMPILE_TARGETS = ("html-tailwind", "react-tsx")
 INTENT_DIFF_VERSION = 1
 INTENT_DIFF_BASIS = "intent_bundle_v1"
 STARTER_INTENT_KINDS = tuple(SUPPORTED_AGENT_MOTIFS)
@@ -398,15 +400,32 @@ def compile_intent_bundle_file_tool(
     *,
     design_path: str | Path | None = None,
     strict_design: bool = False,
+    target: str = "html-tailwind",
     cwd: str | Path | None = None,
     allow_outside_cwd: bool = False,
 ) -> dict[str, Any]:
     root: Path | None = None
     try:
         root = resolve_cwd(cwd)
+        if target not in INTENT_COMPILE_TARGETS:
+            return tool_error_response(
+                "COMPILE_FAILED",
+                f"Unsupported IntentBundle compile target: {target}",
+                "Use target='html-tailwind' or target='react-tsx'.",
+                metadata={
+                    "cwd": str(root),
+                    "allow_outside_cwd": allow_outside_cwd,
+                    "sdk_version": __version__,
+                    "network_calls": "none",
+                    "target": target,
+                },
+            )
         source = resolve_local_path(input_path, cwd=root, allow_outside_cwd=allow_outside_cwd, must_exist=True)
         output = resolve_local_path(out_dir, cwd=root, allow_outside_cwd=allow_outside_cwd)
-        ensure_no_input_overwrite(source, output, ("index.html", "provenance_manifest.json", "diagnostics.json"))
+        if target == "react-tsx":
+            ensure_no_input_overwrite(source, output, ("ViewSpecView.tsx", "provenance_manifest.json", "diagnostics.json"))
+        else:
+            ensure_no_input_overwrite(source, output, ("index.html", "provenance_manifest.json", "diagnostics.json"))
         text = source.read_text(encoding="utf-8")
         validation = validate_intent_text(text, compile_check=True)
         if not validation["ok"]:
@@ -428,14 +447,39 @@ def compile_intent_bundle_file_tool(
         design = _load_optional_design(design_path, cwd=root, allow_outside_cwd=allow_outside_cwd, strict=strict_design)
         bundle = IntentBundle.from_json(json.loads(text))
         ast = compile(bundle, design=design, strict_design=strict_design)
-        paths = HtmlTailwindEmitter().emit(ast, output)
+        if target == "react-tsx":
+            paths = ReactTsxEmitter().emit(ast, output)
+            artifact_path = Path(paths["tsx"])
+            emitter = "react_tsx"
+        else:
+            paths = HtmlTailwindEmitter().emit(ast, output)
+            artifact_path = Path(paths["html"])
+            emitter = "html_tailwind"
         wrap_intent_bundle_manifest(
             Path(paths["manifest"]),
             source_name=source.name,
             raw_source_hash=source_hash(text),
             design=design,
-            command_args=_compile_command_args(source.name, design_path=design_path, strict_design=strict_design),
+            command_args=_compile_command_args(source.name, design_path=design_path, strict_design=strict_design, target=target),
+            artifact_path=artifact_path,
+            emitter=emitter,
         )
+        metadata = {
+            "cwd": str(root),
+            "allow_outside_cwd": allow_outside_cwd,
+            "sdk_version": __version__,
+            "network_calls": "none",
+            "target": target,
+            "emitter": emitter,
+        }
+        if target == "react-tsx":
+            return tool_response(
+                True,
+                "Compiled IntentBundle React TSX source artifact.",
+                paths=paths,
+                next_actions=["Review ViewSpecView.tsx and provenance_manifest.json."],
+                metadata={**metadata, "artifact_check": "not_applicable"},
+            )
         checked = check_artifact_dir(output)
         if not checked["ok"]:
             return tool_error_response(
@@ -451,14 +495,14 @@ def compile_intent_bundle_file_tool(
                     }
                     for item in checked["errors"]
                 ],
-                metadata={"cwd": str(root), "allow_outside_cwd": allow_outside_cwd, "sdk_version": __version__, "network_calls": "none"},
+                metadata=metadata,
             )
         return tool_response(
             True,
             "Compiled and checked IntentBundle artifact.",
             paths=paths,
             next_actions=["Review dist/index.html and provenance_manifest.json."],
-            metadata={"cwd": str(root), "allow_outside_cwd": allow_outside_cwd, "sdk_version": __version__, "network_calls": "none"},
+            metadata={**metadata, "artifact_check": "passed"},
         )
     except Exception as exc:
         return exception_response(
@@ -520,12 +564,15 @@ def _compile_command_args(
     *,
     design_path: str | Path | None,
     strict_design: bool,
+    target: str = "html-tailwind",
 ) -> list[str]:
     command = ["viewspec", "compile", source_name]
     if design_path is not None:
         command.extend(["--design", Path(design_path).name])
     if strict_design:
         command.append("--strict-design")
+    if target != "html-tailwind":
+        command.extend(["--target", target])
     command.extend(["--out", "<out>"])
     return command
 

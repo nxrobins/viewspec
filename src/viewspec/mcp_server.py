@@ -60,7 +60,8 @@ def run_mcp_server(*, cwd: str | Path | None = None, allow_outside_cwd: bool = F
 
     @app.tool(
         description=(
-            "Compile a ViewSpec IntentBundle JSON file into a checked HTML artifact. "
+            "Compile a ViewSpec IntentBundle JSON file into a local compiler artifact. "
+            "Use target='html-tailwind' for checked standalone HTML or target='react-tsx' for React source. "
             "Use for new UI; HTML, CSS, DOM, React, SwiftUI, Flutter, and CompositionIR are compiler outputs."
         )
     )
@@ -69,12 +70,14 @@ def run_mcp_server(*, cwd: str | Path | None = None, allow_outside_cwd: bool = F
         out_dir: str,
         design_path: str | None = None,
         strict_design: bool = False,
+        target: str = "html-tailwind",
     ) -> dict[str, Any]:
         return compile_intent_bundle_file_tool(
             input_path,
             out_dir,
             design_path=design_path,
             strict_design=strict_design,
+            target=target,
             cwd=root,
             allow_outside_cwd=allow_outside_cwd,
         )
