@@ -163,10 +163,12 @@ def test_doctor_agents_reports_missing_optional_mcp(capsys):
     assert "viewspec[agents]" in output
     assert checks["intent_first_commands"]["validate_intent"] is True
     assert checks["intent_first_commands"]["diff_intent"] is True
+    assert checks["intent_first_commands"]["export_agent_assets"] is True
     assert checks["intent_pipeline"]["ok"] is True
     assert checks["path_policy"] == "cwd containment by default"
     assert "validate-intent" in checks["local_network_policy"]
     assert "diff-intent" in checks["local_network_policy"]
+    assert "export-agent-assets" in checks["local_network_policy"]
     if exit_code == 2:
         assert '"mcp_dependency": false' in output.lower()
 

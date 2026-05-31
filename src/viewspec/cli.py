@@ -9,6 +9,7 @@ import sys
 from pathlib import Path
 
 from viewspec._version import __version__
+from viewspec.agent_assets import AgentAssetError, export_agent_assets
 from viewspec.compiler import compile
 from viewspec.design_md import DesignSystemContext, DesignSystemError, load_design_system
 from viewspec.emitters.html_tailwind import HtmlTailwindEmitter
@@ -46,6 +47,9 @@ def main(argv: list[str] | None = None) -> int:
         _print_design_error(exc)
         return 2
     except HtmlInputError as exc:
+        print(f"error: {exc.code}: {exc}", file=sys.stderr)
+        return 2
+    except AgentAssetError as exc:
         print(f"error: {exc.code}: {exc}", file=sys.stderr)
         return 2
     except NativeAgentError as exc:
@@ -135,6 +139,15 @@ def _build_parser() -> argparse.ArgumentParser:
     init_agent_parser.add_argument("--root", default=".", help="Repository root for instruction files.")
     init_agent_parser.add_argument("--dry-run", action="store_true", help="Report changes without writing files.")
     init_agent_parser.set_defaults(func=_init_agent_command)
+
+    agent_assets_parser = subparsers.add_parser(
+        "export-agent-assets",
+        help="Export local agent system prompt and IntentBundle JSON schema files.",
+    )
+    agent_assets_parser.add_argument("--out", default=".viewspec", help="Output directory for local agent contract assets.")
+    agent_assets_parser.add_argument("--force", action="store_true", help="Replace existing generated assets.")
+    agent_assets_parser.add_argument("--dry-run", action="store_true", help="Report changes without writing files.")
+    agent_assets_parser.set_defaults(func=_export_agent_assets_command)
 
     mcp_parser = subparsers.add_parser("mcp", help="Start the optional ViewSpec stdio MCP server.")
     mcp_parser.add_argument("--cwd", default=".", help="MCP path sandbox root.")
@@ -327,9 +340,10 @@ def _doctor_command(args: argparse.Namespace) -> int:
             "compile": True,
             "check": True,
             "init_design": True,
+            "export_agent_assets": True,
         },
         "intent_pipeline": intent_pipeline,
-        "local_network_policy": "no network calls for validate-intent/compile/lift/diff/diff-intent/check/init-intent/init-design",
+        "local_network_policy": "no network calls for validate-intent/compile/lift/diff/diff-intent/check/init-intent/init-design/export-agent-assets",
     }
     if args.agents:
         checks.update(
@@ -403,6 +417,12 @@ def _check_command(args: argparse.Namespace) -> int:
 
 def _init_agent_command(args: argparse.Namespace) -> int:
     result = init_agent_instructions(args.root, args.target, dry_run=args.dry_run)
+    print(json.dumps(result, indent=2, sort_keys=True))
+    return 0
+
+
+def _export_agent_assets_command(args: argparse.Namespace) -> int:
+    result = export_agent_assets(args.out, force=args.force, dry_run=args.dry_run)
     print(json.dumps(result, indent=2, sort_keys=True))
     return 0
 

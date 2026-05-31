@@ -78,6 +78,13 @@ from viewspec.agent import (
     agent_correction_prompt,
     validate_agent_intent_bundle,
 )
+from viewspec.agent_assets import (
+    AGENT_ASSET_SCHEMA_VERSION,
+    AGENT_INTENT_SCHEMA_FILE,
+    AGENT_SYSTEM_PROMPT_FILE,
+    export_agent_assets,
+    plan_agent_asset_exports,
+)
 from viewspec.intent_tools import (
     STARTER_INTENT_KINDS,
     diff_intent_files,
@@ -147,6 +154,9 @@ __all__ = [
     # Agent integration
     "AGENT_INTENT_BUNDLE_SCHEMA",
     "AGENT_SYSTEM_PROMPT",
+    "AGENT_ASSET_SCHEMA_VERSION",
+    "AGENT_INTENT_SCHEMA_FILE",
+    "AGENT_SYSTEM_PROMPT_FILE",
     "SUPPORTED_AGENT_ACTION_KINDS",
     "SUPPORTED_AGENT_CARDINALITIES",
     "SUPPORTED_AGENT_GROUP_KINDS",
@@ -156,6 +166,8 @@ __all__ = [
     "AgentValidationIssue",
     "AgentValidationResult",
     "agent_correction_prompt",
+    "export_agent_assets",
+    "plan_agent_asset_exports",
     "validate_agent_intent_bundle",
     "STARTER_INTENT_KINDS",
     "diff_intent_files",

@@ -68,7 +68,7 @@ Run `viewspec init-design --out DESIGN.md` only when the repo does not already h
 
 `viewspec validate-intent` exits `0` for valid intent, `2` for user-correctable invalid intent, and `1` for environment or internal failure.
 
-`viewspec doctor` reports the intent-first command surface, runs a starter IntentBundle validation/compile/diff smoke check, verifies `PyYAML`, and states the local no-network policy for `validate-intent`, `compile`, `lift`, `diff`, `diff-intent`, `check`, `init-intent`, and `init-design`.
+`viewspec doctor` reports the intent-first command surface, runs a starter IntentBundle validation/compile/diff smoke check, verifies `PyYAML`, and states the local no-network policy for `validate-intent`, `compile`, `lift`, `diff`, `diff-intent`, `check`, `init-intent`, `init-design`, and `export-agent-assets`.
 
 Use `viewspec diff-intent old.intent.json new.intent.json --json` to review semantic IntentBundle changes before looking at generated DOM or framework artifacts. The diff is intentionally honest: `basis: "intent_bundle_v1"` compares top-level bundle metadata, declared nodes, regions, bindings, groups, motifs, styles, actions, selected field changes, and a `semantic_changes` summary for motif, binding, and action contract changes. It is not a claim of full visual equivalence.
 
@@ -121,6 +121,14 @@ Use `--target all` to write every supported instruction file. The command only m
 <!-- BEGIN VIEWSPEC AGENT INSTRUCTIONS v1 -->
 <!-- END VIEWSPEC AGENT INSTRUCTIONS v1 -->
 ```
+
+For schema-aware editors or agents, export the same local contract assets shipped in the package:
+
+```bash
+viewspec export-agent-assets --out .viewspec
+```
+
+That writes `.viewspec/agent-system-prompt.txt` and `.viewspec/agent-intent-bundle.schema.json` without any network call. Existing edited files are preserved unless `--force` is passed.
 
 Optional MCP tooling is available behind the agent extra:
 

@@ -217,10 +217,12 @@ def test_cli_init_design_doctor_and_check_tamper(tmp_path, capsys):
     assert checks["pyyaml"] is True
     assert checks["intent_first_commands"]["validate_intent"] is True
     assert checks["intent_first_commands"]["diff_intent"] is True
+    assert checks["intent_first_commands"]["export_agent_assets"] is True
     assert checks["intent_pipeline"]["ok"] is True
     assert checks["intent_pipeline"]["compile_check"] == "passed"
     assert "validate-intent" in checks["local_network_policy"]
     assert "diff-intent" in checks["local_network_policy"]
+    assert "export-agent-assets" in checks["local_network_policy"]
     assert "check" in checks["local_network_policy"]
 
     html_path = tmp_path / "report.html"

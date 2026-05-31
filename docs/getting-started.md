@@ -56,6 +56,12 @@ viewspec init-agent --target all --dry-run
 
 The command preserves user content outside `<!-- BEGIN VIEWSPEC AGENT INSTRUCTIONS v1 -->` and `<!-- END VIEWSPEC AGENT INSTRUCTIONS v1 -->`.
 
+Export local prompt/schema assets when an editor or agent runtime can consume them directly:
+
+```bash
+viewspec export-agent-assets --out .viewspec
+```
+
 For MCP-capable agents:
 
 ```bash
