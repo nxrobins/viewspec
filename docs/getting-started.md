@@ -105,7 +105,7 @@ From the CLI, use `--target react-tsx` when you want component source instead of
 viewspec compile viewspec.intent.json --target react-tsx --out react-output/
 ```
 
-`viewspec check` remains the HTML artifact verifier. React output writes `ViewSpecView.tsx`, `provenance_manifest.json`, and `diagnostics.json`, but it is not a rendered DOM proof. Use the hosted compiler for richer input controls, projections, declarative rules, custom motifs, Level 2+ derivation, and mobile emitters. Hosted demo artifact indexes declare `contract_profile: "hosted_extended_v1"` when their IntentBundle uses fields beyond local V1 validation.
+`viewspec check` also verifies React TSX source artifacts: manifest shape, exact `ViewSpecView.tsx` hash, generated-source markers, diagnostics shape, and absence of active network/runtime escape surfaces. This is source artifact verification, not a rendered DOM proof inside a host React app. Use the hosted compiler for richer input controls, projections, declarative rules, custom motifs, Level 2+ derivation, and mobile emitters. Hosted demo artifact indexes declare `contract_profile: "hosted_extended_v1"` when their IntentBundle uses fields beyond local V1 validation.
 
 ## Theming with DESIGN.md
 

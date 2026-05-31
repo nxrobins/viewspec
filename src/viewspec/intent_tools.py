@@ -472,14 +472,6 @@ def compile_intent_bundle_file_tool(
             "target": target,
             "emitter": emitter,
         }
-        if target == "react-tsx":
-            return tool_response(
-                True,
-                "Compiled IntentBundle React TSX source artifact.",
-                paths=paths,
-                next_actions=["Review ViewSpecView.tsx and provenance_manifest.json."],
-                metadata={**metadata, "artifact_check": "not_applicable"},
-            )
         checked = check_artifact_dir(output)
         if not checked["ok"]:
             return tool_error_response(
@@ -501,7 +493,11 @@ def compile_intent_bundle_file_tool(
             True,
             "Compiled and checked IntentBundle artifact.",
             paths=paths,
-            next_actions=["Review dist/index.html and provenance_manifest.json."],
+            next_actions=[
+                "Review ViewSpecView.tsx and provenance_manifest.json."
+                if target == "react-tsx"
+                else "Review dist/index.html and provenance_manifest.json."
+            ],
             metadata={**metadata, "artifact_check": "passed"},
         )
     except Exception as exc:

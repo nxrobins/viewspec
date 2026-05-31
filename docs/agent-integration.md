@@ -229,7 +229,7 @@ For local V1 React source output, keep the same IntentBundle-first workflow and 
 viewspec compile viewspec.intent.json --target react-tsx --out react-output/
 ```
 
-The MCP `compile_intent_bundle_file` tool accepts the same target as `target: "react-tsx"`. The agent still edits `viewspec.intent.json`; `ViewSpecView.tsx` is compiled artifact source. React actions surface through an `onAction` callback with the same V1 action fields used by the HTML runtime.
+The MCP `compile_intent_bundle_file` tool accepts the same target as `target: "react-tsx"` and still runs `viewspec check` against the emitted source artifact. The agent edits `viewspec.intent.json`; `ViewSpecView.tsx` is compiled artifact source. React actions surface through an `onAction` callback with the same V1 action fields used by the HTML runtime.
 
 
 ## Optional Reference Grounding

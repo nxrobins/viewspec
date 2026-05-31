@@ -5,5 +5,6 @@
 - Styling is emitted as deterministic inline `React.CSSProperties` plus stable `vs-*` class names for host overrides.
 - Inputs are local React state seeded from compiled values.
 - Actions are surfaced through an `onAction` callback with `schemaVersion: 1`, `source: "viewspec-react-tsx"`, `id`, `kind`, `targetRef`, `payloadBindings`, and `payloadValues`.
-- `viewspec check` remains the HTML artifact verifier; React output is source artifact generation, not a rendered DOM proof.
+- `viewspec check` verifies the React source artifact manifest, exact `ViewSpecView.tsx` hash, generated-source markers, diagnostics shape, and absence of active network/runtime escape surfaces.
+- React checking is source artifact verification, not a rendered DOM proof inside the host app.
 - The emitter does not create a full Next.js, Vite, or React Native app.

@@ -137,7 +137,7 @@ def _build_parser() -> argparse.ArgumentParser:
     doctor_parser.set_defaults(func=_doctor_command)
 
     check_parser = subparsers.add_parser("check", help="Validate a local ViewSpec artifact directory.")
-    check_parser.add_argument("artifact_dir", help="Directory containing index.html and provenance_manifest.json.")
+    check_parser.add_argument("artifact_dir", help="Directory containing provenance_manifest.json and generated artifact output.")
     check_parser.add_argument("--json", action="store_true", help="Print machine-readable JSON.")
     check_parser.set_defaults(func=_check_command)
 

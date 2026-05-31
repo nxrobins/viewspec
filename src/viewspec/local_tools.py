@@ -48,6 +48,29 @@ EXTERNAL_REF_POLICIES = {
     ("image", "src", "inert_placeholder"),
     ("link", "href", "user_click"),
 }
+KNOWN_EMITTERS = {"html_tailwind", "react_tsx"}
+EMITTER_ARTIFACT_FILES = {
+    "html_tailwind": "index.html",
+    "react_tsx": "ViewSpecView.tsx",
+}
+REACT_TSX_REQUIRED_MARKERS = {
+    '"use client";': "ViewSpecView.tsx missing client component directive",
+    'source: "viewspec-react-tsx"': "ViewSpecView.tsx missing React action source marker",
+    "export function ViewSpecView": "ViewSpecView.tsx missing ViewSpecView export",
+    "payloadValues: collectPayloadValues": "ViewSpecView.tsx missing action payload collection",
+}
+REACT_TSX_FORBIDDEN_SURFACES = (
+    (re.compile(r"\bdangerouslySetInnerHTML\b"), "ViewSpecView.tsx contains dangerouslySetInnerHTML"),
+    (re.compile(r"\bfetch\s*\("), "ViewSpecView.tsx contains fetch()"),
+    (re.compile(r"\bXMLHttpRequest\b"), "ViewSpecView.tsx contains XMLHttpRequest"),
+    (re.compile(r"\bWebSocket\b"), "ViewSpecView.tsx contains WebSocket"),
+    (re.compile(r"\bEventSource\b"), "ViewSpecView.tsx contains EventSource"),
+    (re.compile(r"\bnavigator\.sendBeacon\b"), "ViewSpecView.tsx contains navigator.sendBeacon"),
+    (re.compile(r"\bimport\s*\("), "ViewSpecView.tsx contains dynamic import"),
+    (re.compile(r"\beval\s*\("), "ViewSpecView.tsx contains eval()"),
+    (re.compile(r"\bnew\s+Function\s*\("), "ViewSpecView.tsx contains new Function()"),
+    (re.compile(r"(?i)<script\b"), "ViewSpecView.tsx contains a script tag"),
+)
 REMOTE_AUTOFETCH_ATTRS = {"action", "background", "formaction", "manifest", "poster", "src", "srcset"}
 REMOTE_HREF_AUTOFETCH_TAGS = {"image", "use"}
 ACTIVE_OR_AUTOFETCH_TAGS = {"embed", "iframe", "link", "object"}
@@ -186,8 +209,21 @@ def check_artifact_dir(path: str | Path) -> dict[str, Any]:
     if "design" in manifest:
         _validate_manifest_design(manifest.get("design"), manifest.get("design_hash"), errors)
     _validate_manifest_nodes(manifest, errors)
+    artifact_file = _validate_manifest_artifact_file(manifest, errors)
 
-    if html_path.exists():
+    if artifact_file == "ViewSpecView.tsx":
+        if html_path.exists():
+            errors.append("react_tsx artifact directory must not contain index.html")
+        react_path = artifact_path / artifact_file
+        if react_path.exists():
+            tsx = react_path.read_text(encoding="utf-8")
+            artifact_hash = file_hash(react_path)
+            if manifest.get("artifact_hash") and manifest.get("artifact_hash") != artifact_hash:
+                errors.append("artifact_hash does not match ViewSpecView.tsx")
+            errors.extend(_validate_react_tsx_source(tsx))
+        else:
+            errors.append("missing ViewSpecView.tsx")
+    elif html_path.exists():
         html = html_path.read_text(encoding="utf-8")
         artifact_hash = file_hash(html_path)
         if manifest.get("artifact_hash") and manifest.get("artifact_hash") != artifact_hash:
@@ -611,6 +647,108 @@ def _validate_manifest_envelope(manifest: dict[str, Any], errors: list[str]) -> 
     guarantees = manifest.get("guarantees")
     if isinstance(guarantees, dict) and guarantees.get("decompilation") != expected["decompilation"]:
         errors.append(f"manifest guarantees.decompilation must be {expected['decompilation']} for {kind}")
+
+
+def _validate_manifest_artifact_file(manifest: dict[str, Any], errors: list[str]) -> str:
+    kind = manifest.get("kind")
+    emitter = manifest.get("emitter")
+    artifact_file = manifest.get("artifact_file")
+
+    if emitter is not None:
+        if not isinstance(emitter, str):
+            errors.append("manifest emitter must be a string")
+            emitter = None
+        elif emitter not in KNOWN_EMITTERS:
+            allowed = ", ".join(sorted(KNOWN_EMITTERS))
+            errors.append(f"manifest emitter must be one of: {allowed}")
+            emitter = None
+    if artifact_file is not None:
+        if not isinstance(artifact_file, str) or not artifact_file:
+            errors.append("manifest artifact_file must be a non-empty string")
+            artifact_file = None
+        elif artifact_file in {".", ".."} or "/" in artifact_file or "\\" in artifact_file or ":" in artifact_file:
+            errors.append("manifest artifact_file must be a simple file name")
+            artifact_file = None
+
+    if kind == "raw_html_compile":
+        if emitter is not None:
+            errors.append("raw_html_compile manifest must not declare an emitter")
+        if artifact_file is not None and artifact_file != "index.html":
+            errors.append("manifest artifact_file must be index.html for raw_html_compile")
+        return "index.html"
+
+    if kind == "intent_bundle_compile":
+        resolved_emitter = emitter or "html_tailwind"
+        expected = EMITTER_ARTIFACT_FILES.get(resolved_emitter, "index.html")
+        if artifact_file is None and resolved_emitter == "react_tsx":
+            errors.append("manifest artifact_file must be ViewSpecView.tsx for react_tsx emitter")
+        elif artifact_file is not None and artifact_file != expected:
+            errors.append(f"manifest artifact_file must be {expected} for {resolved_emitter} emitter")
+        return expected
+
+    return "index.html"
+
+
+def _validate_react_tsx_source(tsx: str) -> list[str]:
+    errors: list[str] = []
+    for marker, message in REACT_TSX_REQUIRED_MARKERS.items():
+        if marker not in tsx:
+            errors.append(message)
+    code = _strip_tsx_literals_and_comments(tsx)
+    for pattern, message in REACT_TSX_FORBIDDEN_SURFACES:
+        if pattern.search(code):
+            errors.append(message)
+    return errors
+
+
+def _strip_tsx_literals_and_comments(source: str) -> str:
+    output: list[str] = []
+    index = 0
+    state: str | None = None
+    escaped = False
+    while index < len(source):
+        char = source[index]
+        peek = source[index : index + 2]
+        if state in {"'", '"', "`"}:
+            if escaped:
+                escaped = False
+            elif char == "\\":
+                escaped = True
+            elif char == state:
+                state = None
+            output.append("\n" if char == "\n" else " ")
+            index += 1
+            continue
+        if state == "//":
+            if char == "\n":
+                state = None
+                output.append("\n")
+            else:
+                output.append(" ")
+            index += 1
+            continue
+        if state == "/*":
+            if peek == "*/":
+                state = None
+                output.append("  ")
+                index += 2
+            else:
+                output.append("\n" if char == "\n" else " ")
+                index += 1
+            continue
+        if peek in {"//", "/*"}:
+            state = peek
+            output.append("  ")
+            index += 2
+            continue
+        if char in {"'", '"', "`"}:
+            state = char
+            output.append(" ")
+            index += 1
+            continue
+        output.append(char)
+        index += 1
+    return "".join(output)
 
 
 def _validate_manifest_diagnostics(value: Any, errors: list[str], *, label: str = "manifest diagnostics") -> None:

@@ -213,6 +213,38 @@ def test_cli_compile_json_can_emit_react_tsx_target(tmp_path):
     ]
     assert 'source: "viewspec-react-tsx"' in tsx
     assert "payloadValues: collectPayloadValues" in tsx
+    assert cli_main(["check", str(out_dir), "--json"]) == 0
+
+
+def test_cli_check_verifies_react_tsx_artifact_source(tmp_path, capsys):
+    builder = ViewSpecBuilder("react_check")
+    field = builder.add_text_input("message", label="Message", value="Hello", group_id="fields")
+    table = builder.add_table("copy", region="main", group_id="copy_rows")
+    table.add_row(label="fetch('/copy') WebSocket dangerouslySetInnerHTML", value="Literal text", id="copy")
+    builder.add_action("send", "submit", "Send", target_region="main", payload_bindings=[field])
+    bundle_path = tmp_path / "bundle.json"
+    bundle_path.write_text(json.dumps(builder.build_bundle().to_json()), encoding="utf-8")
+    out_dir = tmp_path / "react-dist"
+
+    assert cli_main(["compile", str(bundle_path), "--target", "react-tsx", "--out", str(out_dir)]) == 0
+    capsys.readouterr()
+    assert cli_main(["check", str(out_dir), "--json"]) == 0
+    capsys.readouterr()
+    tsx_path = out_dir / "ViewSpecView.tsx"
+    manifest_path = out_dir / "provenance_manifest.json"
+    tsx = tsx_path.read_text(encoding="utf-8")
+    tsx_path.write_text(tsx + "\n// tampered\n", encoding="utf-8")
+
+    assert cli_main(["check", str(out_dir)]) == 2
+    assert "artifact_hash does not match ViewSpecView.tsx" in capsys.readouterr().out
+
+    tsx_path.write_text(tsx + "\nconst unsafe = { dangerouslySetInnerHTML: {} };\n", encoding="utf-8")
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest["artifact_hash"] = file_hash(tsx_path)
+    manifest_path.write_text(json.dumps(manifest, indent=2, sort_keys=True), encoding="utf-8")
+
+    assert cli_main(["check", str(out_dir)]) == 2
+    assert "ViewSpecView.tsx contains dangerouslySetInnerHTML" in capsys.readouterr().out
 
 
 def test_cli_check_uses_byte_exact_artifact_hash(tmp_path, capsys):

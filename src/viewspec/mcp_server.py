@@ -61,7 +61,7 @@ def run_mcp_server(*, cwd: str | Path | None = None, allow_outside_cwd: bool = F
     @app.tool(
         description=(
             "Compile a ViewSpec IntentBundle JSON file into a local compiler artifact. "
-            "Use target='html-tailwind' for checked standalone HTML or target='react-tsx' for React source. "
+            "Use target='html-tailwind' for checked standalone HTML or target='react-tsx' for checked React source. "
             "Use for new UI; HTML, CSS, DOM, React, SwiftUI, Flutter, and CompositionIR are compiler outputs."
         )
     )
