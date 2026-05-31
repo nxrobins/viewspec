@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 
+from viewspec import agent_asset_readiness
 from viewspec.agent import AGENT_INTENT_BUNDLE_SCHEMA, AGENT_SYSTEM_PROMPT
 from viewspec.cli import main as cli_main
 from viewspec.native_agents import BEGIN_MARKER, END_MARKER
@@ -154,6 +155,19 @@ def test_export_agent_assets_refuses_conflict_without_partial_writes(tmp_path, c
     assert cli_main(["export-agent-assets", "--out", str(out_dir), "--force"]) == 0
     assert (out_dir / "agent-system-prompt.txt").read_text(encoding="utf-8") == AGENT_SYSTEM_PROMPT
     assert json.loads((out_dir / "agent-intent-bundle.schema.json").read_text(encoding="utf-8")) == AGENT_INTENT_BUNDLE_SCHEMA
+
+
+def test_agent_asset_readiness_reports_local_contract_identity():
+    readiness = agent_asset_readiness()
+
+    assert readiness["ok"] is True
+    assert readiness["schema_version"] == 1
+    assert readiness["system_prompt_file"] == "agent-system-prompt.txt"
+    assert readiness["intent_schema_file"] == "agent-intent-bundle.schema.json"
+    assert readiness["intent_schema_id"] == "https://viewspec.dev/agent-intent-bundle.schema.json"
+    assert readiness["export_command"] == "viewspec export-agent-assets --out .viewspec"
+    assert len(readiness["system_prompt_sha256"]) == 64
+    assert len(readiness["intent_schema_sha256"]) == 64
 
 
 def test_export_agent_assets_rejects_file_output_path(tmp_path, capsys):

@@ -68,7 +68,7 @@ Run `viewspec init-design --out DESIGN.md` only when the repo does not already h
 
 `viewspec validate-intent` exits `0` for valid intent, `2` for user-correctable invalid intent, and `1` for environment or internal failure.
 
-`viewspec doctor` reports the intent-first command surface, runs a starter IntentBundle validation/compile/diff smoke check, verifies `PyYAML`, and states the local no-network policy for `validate-intent`, `compile`, `lift`, `diff`, `diff-intent`, `check`, `init-intent`, `init-design`, and `export-agent-assets`.
+`viewspec doctor` reports the intent-first command surface, runs a starter IntentBundle validation/compile/diff smoke check, verifies `PyYAML`, and states the local no-network policy for `validate-intent`, `compile`, `lift`, `diff`, `diff-intent`, `check`, `init-intent`, `init-design`, and `export-agent-assets`. `viewspec doctor --agents` also reports local agent prompt/schema asset identity and hashes.
 
 Use `viewspec diff-intent old.intent.json new.intent.json --json` to review semantic IntentBundle changes before looking at generated DOM or framework artifacts. The diff is intentionally honest: `basis: "intent_bundle_v1"` compares top-level bundle metadata, declared nodes, regions, bindings, groups, motifs, styles, actions, selected field changes, and a `semantic_changes` summary for motif, binding, and action contract changes. It is not a claim of full visual equivalence.
 

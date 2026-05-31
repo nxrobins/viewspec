@@ -9,7 +9,7 @@ import sys
 from pathlib import Path
 
 from viewspec._version import __version__
-from viewspec.agent_assets import AgentAssetError, export_agent_assets
+from viewspec.agent_assets import AgentAssetError, agent_asset_readiness, export_agent_assets
 from viewspec.compiler import compile
 from viewspec.design_md import DesignSystemContext, DesignSystemError, load_design_system
 from viewspec.emitters.html_tailwind import HtmlTailwindEmitter
@@ -368,6 +368,7 @@ def _doctor_command(args: argparse.Namespace) -> int:
         checks.update(
             {
                 "agent_instruction_templates": True,
+                "agent_contract_assets": agent_asset_readiness(),
                 "mcp_dependency": mcp_dependency_available(),
                 "mcp_install_hint": MCP_INSTALL_HINT,
                 "path_policy": "cwd containment by default",

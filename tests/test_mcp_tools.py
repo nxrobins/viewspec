@@ -167,6 +167,13 @@ def test_doctor_agents_reports_missing_optional_mcp(capsys):
     assert checks["intent_first_commands"]["diff_intent"] is True
     assert checks["intent_first_commands"]["export_agent_assets"] is True
     assert checks["intent_pipeline"]["ok"] is True
+    assert checks["agent_contract_assets"]["ok"] is True
+    assert checks["agent_contract_assets"]["system_prompt_file"] == "agent-system-prompt.txt"
+    assert checks["agent_contract_assets"]["intent_schema_file"] == "agent-intent-bundle.schema.json"
+    assert checks["agent_contract_assets"]["intent_schema_id"] == "https://viewspec.dev/agent-intent-bundle.schema.json"
+    assert checks["agent_contract_assets"]["export_command"] == "viewspec export-agent-assets --out .viewspec"
+    assert len(checks["agent_contract_assets"]["system_prompt_sha256"]) == 64
+    assert len(checks["agent_contract_assets"]["intent_schema_sha256"]) == 64
     assert checks["path_policy"] == "cwd containment by default"
     assert "validate-intent" in checks["local_network_policy"]
     assert "diff-intent" in checks["local_network_policy"]

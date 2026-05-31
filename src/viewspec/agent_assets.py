@@ -55,6 +55,20 @@ def export_agent_assets(out_dir: str | Path, *, force: bool = False, dry_run: bo
     }
 
 
+def agent_asset_readiness() -> dict[str, Any]:
+    contents = _agent_asset_contents()
+    return {
+        "ok": True,
+        "schema_version": AGENT_ASSET_SCHEMA_VERSION,
+        "system_prompt_file": AGENT_SYSTEM_PROMPT_FILE,
+        "intent_schema_file": AGENT_INTENT_SCHEMA_FILE,
+        "intent_schema_id": AGENT_INTENT_BUNDLE_SCHEMA["$id"],
+        "system_prompt_sha256": hashlib.sha256(contents[AGENT_SYSTEM_PROMPT_FILE].encode("utf-8")).hexdigest(),
+        "intent_schema_sha256": hashlib.sha256(contents[AGENT_INTENT_SCHEMA_FILE].encode("utf-8")).hexdigest(),
+        "export_command": "viewspec export-agent-assets --out .viewspec",
+    }
+
+
 def plan_agent_asset_exports(out_dir: str | Path, *, force: bool = False) -> list[AgentAssetChange]:
     output = Path(out_dir).resolve()
     if output.exists() and not output.is_dir():
@@ -107,6 +121,7 @@ __all__ = [
     "AGENT_INTENT_SCHEMA_FILE",
     "AGENT_SYSTEM_PROMPT_FILE",
     "AgentAssetError",
+    "agent_asset_readiness",
     "export_agent_assets",
     "plan_agent_asset_exports",
 ]

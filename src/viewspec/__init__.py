@@ -82,6 +82,7 @@ from viewspec.agent_assets import (
     AGENT_ASSET_SCHEMA_VERSION,
     AGENT_INTENT_SCHEMA_FILE,
     AGENT_SYSTEM_PROMPT_FILE,
+    agent_asset_readiness,
     export_agent_assets,
     plan_agent_asset_exports,
 )
@@ -166,6 +167,7 @@ __all__ = [
     "AgentValidationIssue",
     "AgentValidationResult",
     "agent_correction_prompt",
+    "agent_asset_readiness",
     "export_agent_assets",
     "plan_agent_asset_exports",
     "validate_agent_intent_bundle",
