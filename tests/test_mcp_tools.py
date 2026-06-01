@@ -169,6 +169,7 @@ def test_doctor_agents_reports_missing_optional_mcp(capsys):
     assert checks["intent_first_commands"]["export_agent_assets"] is True
     assert checks["intent_pipeline"]["ok"] is True
     assert checks["agent_contract_assets"]["ok"] is True
+    assert checks["agent_contract_assets"]["schema_version"] == 2
     assert checks["agent_contract_assets"]["system_prompt_file"] == "agent-system-prompt.txt"
     assert checks["agent_contract_assets"]["intent_schema_file"] == "agent-intent-bundle.schema.json"
     assert checks["agent_contract_assets"]["intent_example_file"] == "agent-intent-example.dashboard.json"
@@ -1090,7 +1091,8 @@ def test_mcp_raw_html_tool_descriptions_are_import_only():
     assert "Compile a ViewSpec IntentBundle JSON file into a local compiler artifact" in text
     assert "target='html-tailwind' for checked standalone HTML" in text
     assert "target='react-tsx' for checked React source" in text
-    assert "Export the local ViewSpec agent system prompt and IntentBundle JSON schema without network calls." in text
+    assert "Export the local ViewSpec agent system prompt, IntentBundle JSON schema" in text
+    assert "valid starter IntentBundle example without network calls." in text
 
 
 def test_mcp_path_sandbox_rejects_urls_and_outside_paths(tmp_path):

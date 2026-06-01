@@ -12,7 +12,7 @@ from viewspec.agent import AGENT_INTENT_BUNDLE_SCHEMA, AGENT_SYSTEM_PROMPT
 from viewspec.local_tools import atomic_write
 
 
-AGENT_ASSET_SCHEMA_VERSION = 1
+AGENT_ASSET_SCHEMA_VERSION = 2
 AGENT_SYSTEM_PROMPT_FILE = "agent-system-prompt.txt"
 AGENT_INTENT_SCHEMA_FILE = "agent-intent-bundle.schema.json"
 AGENT_INTENT_EXAMPLE_FILE = "agent-intent-example.dashboard.json"

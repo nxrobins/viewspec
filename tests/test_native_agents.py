@@ -114,7 +114,7 @@ def test_export_agent_assets_creates_local_prompt_and_schema(tmp_path, capsys):
     schema_path = out_dir / "agent-intent-bundle.schema.json"
     example_path = out_dir / "agent-intent-example.dashboard.json"
     assert payload["ok"] is True
-    assert payload["schema_version"] == 1
+    assert payload["schema_version"] == 2
     assert {item["path"]: item["action"] for item in payload["files"]} == {
         "agent-system-prompt.txt": "create",
         "agent-intent-bundle.schema.json": "create",
@@ -169,7 +169,7 @@ def test_agent_asset_readiness_reports_local_contract_identity():
     readiness = agent_asset_readiness()
 
     assert readiness["ok"] is True
-    assert readiness["schema_version"] == 1
+    assert readiness["schema_version"] == 2
     assert readiness["system_prompt_file"] == "agent-system-prompt.txt"
     assert readiness["intent_schema_file"] == "agent-intent-bundle.schema.json"
     assert readiness["intent_example_file"] == "agent-intent-example.dashboard.json"
