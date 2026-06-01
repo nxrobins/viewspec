@@ -6,7 +6,7 @@
     },
     {
       "path": "agent-intent-bundle.schema.json",
-      "sha256": "320219f913202a2c83fbbbaf4f062dadebd41f9b59a5267e44d5402705a0469e"
+      "sha256": "1328bf90a503d1d26809ddd56c847c702056049648e804c1c07b8eef1823c3f2"
     },
     {
       "path": "agent-intent-example.dashboard.json",
