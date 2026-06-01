@@ -342,6 +342,18 @@ def test_cli_refuses_input_overwrite(tmp_path, capsys):
     assert "Refusing to overwrite input file" in capsys.readouterr().err
 
 
+def test_cli_refuses_html_input_overwrite_before_design_load(tmp_path, capsys):
+    html_path = tmp_path / "index.html"
+    html_path.write_text("<h1>Report</h1>", encoding="utf-8")
+
+    exit_code = cli_main(["compile", str(html_path), "--design", str(tmp_path / "missing-DESIGN.md"), "--out", str(tmp_path)])
+
+    assert exit_code == 2
+    stderr = capsys.readouterr().err
+    assert "Refusing to overwrite input file" in stderr
+    assert "missing-DESIGN.md" not in stderr
+
+
 def test_cli_refuses_json_input_overwrite_before_design_load(tmp_path, capsys):
     builder = ViewSpecBuilder("overwrite_json")
     builder.add_dashboard("cards", region="main", group_id="cards").add_card(label="Revenue", value="$12", id="revenue")

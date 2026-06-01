@@ -180,8 +180,8 @@ def _compile_command(args: argparse.Namespace) -> int:
     if input_format == "html":
         if args.target != "html-tailwind":
             raise ValueError("Raw HTML import only supports --target html-tailwind")
-        design = _load_design(args.design, strict=args.strict_design)
         ensure_no_input_overwrite(input_path, out_dir, ("index.html", "provenance_manifest.json", "diagnostics.json", "lift.json"))
+        design = _load_design(args.design, strict=args.strict_design)
         result = compile_html(
             data,
             design=design,
@@ -197,13 +197,17 @@ def _compile_command(args: argparse.Namespace) -> int:
     if not validation["ok"]:
         _print_intent_validation_failure(validation)
         return 2
-    ensure_no_input_overwrite(input_path, out_dir, ("index.html", "provenance_manifest.json", "diagnostics.json"))
+    output_names = (
+        ("ViewSpecView.tsx", "provenance_manifest.json", "diagnostics.json")
+        if args.target == "react-tsx"
+        else ("index.html", "provenance_manifest.json", "diagnostics.json")
+    )
+    ensure_no_input_overwrite(input_path, out_dir, output_names)
     design = _load_design(args.design, strict=args.strict_design)
     payload = json.loads(data)
     bundle = IntentBundle.from_json(payload)
     ast = compile(bundle, design=design, strict_design=args.strict_design)
     if args.target == "react-tsx":
-        ensure_no_input_overwrite(input_path, out_dir, ("ViewSpecView.tsx", "provenance_manifest.json", "diagnostics.json"))
         paths = ReactTsxEmitter().emit(ast, out_dir)
         artifact_path = Path(paths["tsx"])
         emitter = "react_tsx"

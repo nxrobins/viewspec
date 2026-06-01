@@ -277,8 +277,8 @@ def compile_html_file_tool(
         root = resolve_cwd(cwd)
         source = resolve_local_path(input_path, cwd=root, allow_outside_cwd=allow_outside_cwd, must_exist=True)
         output = resolve_local_path(out_dir, cwd=root, allow_outside_cwd=allow_outside_cwd)
-        design = _load_optional_design(design_path, cwd=root, allow_outside_cwd=allow_outside_cwd)
         ensure_no_input_overwrite(source, output, ("index.html", "provenance_manifest.json", "diagnostics.json", "lift.json"))
+        design = _load_optional_design(design_path, cwd=root, allow_outside_cwd=allow_outside_cwd)
         html = source.read_text(encoding="utf-8")
         result = compile_html(
             html,
