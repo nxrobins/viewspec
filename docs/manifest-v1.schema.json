@@ -289,6 +289,7 @@
           "policy_version": { "const": "viewspec-raw-html-allowlist@1" },
           "nodes": {
             "type": "object",
+            "propertyNames": { "$ref": "#/$defs/safeId" },
             "additionalProperties": { "$ref": "#/$defs/rawHtmlNode" }
           },
           "guarantees": {
@@ -311,6 +312,7 @@
           "policy_version": { "const": "viewspec-intent-bundle@1" },
           "nodes": {
             "type": "object",
+            "propertyNames": { "$ref": "#/$defs/safeId" },
             "additionalProperties": { "$ref": "#/$defs/intentBundleNode" }
           },
           "guarantees": {
