@@ -687,7 +687,9 @@ class DesignRequest:
     @classmethod
     def from_json(cls, payload: Any) -> DesignRequest:
         data = _coerce_json_mapping(payload, cls.__name__)
-        return cls(content=data.get("content", ""), format=data.get("format", "design.md"), lint=data.get("lint", True))
+        if "content" not in data:
+            raise ValueError("DesignRequest.content is required")
+        return cls(content=data.get("content"), format=data.get("format", "design.md"), lint=data.get("lint", True))
 
 
 @dataclass(frozen=True)

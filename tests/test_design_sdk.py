@@ -72,6 +72,9 @@ def test_design_request_rejects_non_string_content():
     with pytest.raises(TypeError, match="content must be a string"):
         DesignRequest(content=123)
 
+    with pytest.raises(ValueError, match="content is required"):
+        DesignRequest.from_json({"format": "design.md"})
+
 
 def test_compile_request_payload_rejects_invalid_payload_shapes():
     bundle = ViewSpecBuilder("design_payload_shape").build_bundle()
