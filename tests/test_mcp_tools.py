@@ -414,7 +414,14 @@ def test_intent_mcp_diff_reports_semantic_changes(tmp_path):
     assert result["ok"] is True
     assert result["diff"]["basis"] == "intent_bundle_v1"
     assert result["diff"]["changes"]["substrate_nodes"]["changed"] == ["alpha"]
-    assert result["diff"]["semantic_changes"] == {"motifs": [], "actions": [], "bindings": []}
+    assert result["diff"]["semantic_changes"] == {
+        "regions": [],
+        "groups": [],
+        "motifs": [],
+        "styles": [],
+        "actions": [],
+        "bindings": [],
+    }
     assert result["metadata"]["network_calls"] == "none"
 
 

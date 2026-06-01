@@ -738,10 +738,102 @@ def _intent_semantic_changes(
     right_sections: dict[str, dict[str, Any]],
 ) -> dict[str, list[dict[str, Any]]]:
     return {
+        "regions": _semantic_region_changes(left_sections["regions"], right_sections["regions"]),
+        "groups": _semantic_group_changes(left_sections["groups"], right_sections["groups"]),
         "motifs": _semantic_motif_changes(left_sections["motifs"], right_sections["motifs"]),
+        "styles": _semantic_style_changes(left_sections["styles"], right_sections["styles"]),
         "actions": _semantic_action_changes(left_sections["actions"], right_sections["actions"]),
         "bindings": _semantic_binding_changes(left_sections["bindings"], right_sections["bindings"]),
     }
+
+
+def _semantic_region_changes(left: dict[str, Any], right: dict[str, Any]) -> list[dict[str, Any]]:
+    changes: list[dict[str, Any]] = []
+    for region_id in sorted(set(right) - set(left)):
+        item = right[region_id]
+        changes.append(
+            {
+                "id": region_id,
+                "change": "added",
+                "parent_region": item.get("parent_region"),
+                "role": item.get("role"),
+                "layout": item.get("layout"),
+            }
+        )
+    for region_id in sorted(set(left) - set(right)):
+        item = left[region_id]
+        changes.append(
+            {
+                "id": region_id,
+                "change": "removed",
+                "parent_region": item.get("parent_region"),
+                "role": item.get("role"),
+                "layout": item.get("layout"),
+            }
+        )
+    for region_id in sorted(set(left) & set(right)):
+        left_item = left[region_id]
+        right_item = right[region_id]
+        for field, change_name in (
+            ("parent_region", "parent_changed"),
+            ("role", "role_changed"),
+            ("layout", "layout_changed"),
+            ("min_children", "min_children_changed"),
+            ("max_children", "max_children_changed"),
+        ):
+            if _stable_json(left_item.get(field)) != _stable_json(right_item.get(field)):
+                changes.append(
+                    {
+                        "id": region_id,
+                        "change": change_name,
+                        "left": left_item.get(field),
+                        "right": right_item.get(field),
+                    }
+                )
+    return changes
+
+
+def _semantic_group_changes(left: dict[str, Any], right: dict[str, Any]) -> list[dict[str, Any]]:
+    changes: list[dict[str, Any]] = []
+    for group_id in sorted(set(right) - set(left)):
+        item = right[group_id]
+        changes.append(
+            {
+                "id": group_id,
+                "change": "added",
+                "kind": item.get("kind"),
+                "target_region": item.get("target_region"),
+                "members": list(item.get("members") or []),
+            }
+        )
+    for group_id in sorted(set(left) - set(right)):
+        item = left[group_id]
+        changes.append(
+            {
+                "id": group_id,
+                "change": "removed",
+                "kind": item.get("kind"),
+                "target_region": item.get("target_region"),
+                "members": list(item.get("members") or []),
+            }
+        )
+    for group_id in sorted(set(left) & set(right)):
+        left_item = left[group_id]
+        right_item = right[group_id]
+        for field, change_name in (("kind", "kind_changed"), ("target_region", "target_region_changed")):
+            if _stable_json(left_item.get(field)) != _stable_json(right_item.get(field)):
+                changes.append(
+                    {
+                        "id": group_id,
+                        "change": change_name,
+                        "left": left_item.get(field),
+                        "right": right_item.get(field),
+                    }
+                )
+        member_delta = _ordered_list_delta(left_item.get("members"), right_item.get("members"))
+        if member_delta["added"] or member_delta["removed"] or member_delta["order_changed"]:
+            changes.append({"id": group_id, "change": "members_changed", **member_delta})
+    return changes
 
 
 def _semantic_motif_changes(left: dict[str, Any], right: dict[str, Any]) -> list[dict[str, Any]]:
@@ -784,6 +876,44 @@ def _semantic_motif_changes(left: dict[str, Any], right: dict[str, Any]) -> list
         member_delta = _ordered_list_delta(left_item.get("members"), right_item.get("members"))
         if member_delta["added"] or member_delta["removed"] or member_delta["order_changed"]:
             changes.append({"id": motif_id, "change": "members_changed", **member_delta})
+    return changes
+
+
+def _semantic_style_changes(left: dict[str, Any], right: dict[str, Any]) -> list[dict[str, Any]]:
+    changes: list[dict[str, Any]] = []
+    for style_id in sorted(set(right) - set(left)):
+        item = right[style_id]
+        changes.append(
+            {
+                "id": style_id,
+                "change": "added",
+                "target": item.get("target"),
+                "token": item.get("token"),
+            }
+        )
+    for style_id in sorted(set(left) - set(right)):
+        item = left[style_id]
+        changes.append(
+            {
+                "id": style_id,
+                "change": "removed",
+                "target": item.get("target"),
+                "token": item.get("token"),
+            }
+        )
+    for style_id in sorted(set(left) & set(right)):
+        left_item = left[style_id]
+        right_item = right[style_id]
+        for field, change_name in (("target", "target_changed"), ("token", "token_changed")):
+            if _stable_json(left_item.get(field)) != _stable_json(right_item.get(field)):
+                changes.append(
+                    {
+                        "id": style_id,
+                        "change": change_name,
+                        "left": left_item.get(field),
+                        "right": right_item.get(field),
+                    }
+                )
     return changes
 
 
@@ -913,7 +1043,7 @@ def _empty_intent_changes() -> dict[str, dict[str, list[str]]]:
 
 
 def _empty_intent_semantic_changes() -> dict[str, list[dict[str, Any]]]:
-    return {"motifs": [], "actions": [], "bindings": []}
+    return {"regions": [], "groups": [], "motifs": [], "styles": [], "actions": [], "bindings": []}
 
 
 def _intent_section_names() -> tuple[str, ...]:

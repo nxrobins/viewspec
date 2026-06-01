@@ -71,7 +71,7 @@ The May 6 launch proof remains one agent-authored hosted-extended IntentBundle c
 
 Agents should output IntentBundle JSON, not CompositionIR, HTML, CSS, React, SwiftUI, or Flutter source for new UI. Generated outputs such as `dist/index.html` and `react-output/ViewSpecView.tsx` are artifacts; edit `viewspec.intent.json` or `DESIGN.md`, then regenerate. `viewspec init-intent` is a scaffold only; replace sample content with real user intent before compiling. If validation fails, pass the correction prompt back to the agent and regenerate the full IntentBundle.
 
-Use `viewspec diff-intent` for IntentBundle revisions before reviewing generated files. It reports `diff_version: 1`, `basis: "intent_bundle_v1"`, topology similarity, top-level bundle metadata changes, section-level added/removed/changed ids, selected field changes, and `semantic_changes` for motif, binding, and action contract changes. It is a contract-level review signal, not a full visual equivalence proof.
+Use `viewspec diff-intent` for IntentBundle revisions before reviewing generated files. It reports `diff_version: 1`, `basis: "intent_bundle_v1"`, topology similarity, top-level bundle metadata changes, section-level added/removed/changed ids, selected field changes, and `semantic_changes` for region, group, motif, style, binding, and action contract changes. It is a contract-level review signal, not a full visual equivalence proof.
 
 `viewspec validate-intent` exits 0 for valid intent, 2 for user-correctable invalid intent, and 1 for environment/internal failure.
 
