@@ -2,10 +2,12 @@ from __future__ import annotations
 
 import json
 
+import pytest
+
 from viewspec import AGENT_ASSET_SCHEMA_VERSION, agent_asset_readiness, check_agent_assets, starter_intent_bundle
 from viewspec.agent import AGENT_INTENT_BUNDLE_SCHEMA, AGENT_SYSTEM_PROMPT
 from viewspec.cli import main as cli_main
-from viewspec.native_agents import BEGIN_MARKER, END_MARKER
+from viewspec.native_agents import BEGIN_MARKER, END_MARKER, TARGET_PATHS
 
 
 def test_init_agent_creates_codex_instructions(tmp_path, capsys):
@@ -44,6 +46,49 @@ def test_init_agent_creates_codex_instructions(tmp_path, capsys):
     assert "Do not upload, share, call hosted APIs" in text
     assert "compile_html_file" not in text
     assert "lift_html_file" not in text
+
+
+def _assert_native_agent_instruction_contract(text: str, label: str) -> None:
+    assert BEGIN_MARKER in text
+    assert END_MARKER in text
+    assert f"# ViewSpec Agent-Native UI Intent ({label})" in text
+    assert "viewspec.intent.json" in text
+    assert "Do not write HTML, CSS, React, SwiftUI, Flutter, or CompositionIR as source" in text
+    assert "viewspec validate-intent viewspec.intent.json --json" in text
+    assert "viewspec compile viewspec.intent.json --design DESIGN.md --out dist/" in text
+    assert "viewspec check dist/" in text
+    assert "viewspec compile viewspec.intent.json --design DESIGN.md --target react-tsx --out react-output/" in text
+    assert "viewspec check react-output/" in text
+    assert "viewspec diff-intent old.intent.json new.intent.json --json" in text
+    assert "viewspec export-agent-assets --out .viewspec" in text
+    assert "viewspec check-agent-assets .viewspec --json" in text
+    assert "viewspec doctor --agents" in text
+    assert "Never patch or recursively compile generated artifacts" in text
+    assert "Do not upload, share, call hosted APIs" in text
+    assert "Use raw HTML tools only when importing existing HTML" in text
+    assert "compile_html_file" not in text
+    assert "lift_html_file" not in text
+
+
+@pytest.mark.parametrize(
+    ("target", "label"),
+    [
+        ("codex", "Codex"),
+        ("claude-code", "Claude Code"),
+        ("cursor", "Cursor"),
+        ("copilot", "GitHub Copilot"),
+    ],
+)
+def test_init_agent_each_target_gets_full_native_workflow(tmp_path, capsys, target, label):
+    assert cli_main(["init-agent", "--target", target, "--root", str(tmp_path)]) == 0
+    output = json.loads(capsys.readouterr().out)
+    path = tmp_path / TARGET_PATHS[target]
+
+    assert output["ok"] is True
+    assert output["changes"] == [
+        {"action": "create", "path": str(TARGET_PATHS[target]).replace("\\", "/"), "target": target}
+    ]
+    _assert_native_agent_instruction_contract(path.read_text(encoding="utf-8"), label)
 
 
 def test_init_agent_replaces_one_block_and_preserves_surrounding_content(tmp_path):
