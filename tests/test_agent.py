@@ -130,6 +130,9 @@ def test_agent_prompt_and_schema_preserve_intent_bundle_contract():
     assert "Do not call remote reference libraries by default" in AGENT_SYSTEM_PROMPT
     assert "query an MCP-accessible UI reference library" not in AGENT_SYSTEM_PROMPT
     assert AGENT_INTENT_BUNDLE_SCHEMA["$id"] == "https://viewspec.dev/agent-intent-bundle.schema.json"
+    assert AGENT_INTENT_BUNDLE_SCHEMA["not"] == {
+        "anyOf": [{"required": ["design"]}, {"required": ["motif_library"]}]
+    }
     assert AGENT_INTENT_BUNDLE_SCHEMA["$defs"]["motif"]["properties"]["kind"]["enum"] == list(SUPPORTED_AGENT_MOTIFS)
     assert AGENT_INTENT_BUNDLE_SCHEMA["$defs"]["action"]["properties"]["kind"]["enum"] == list(SUPPORTED_AGENT_ACTION_KINDS)
     assert AGENT_INTENT_BUNDLE_SCHEMA["$defs"]["binding"]["properties"]["cardinality"]["enum"] == list(SUPPORTED_AGENT_CARDINALITIES)
