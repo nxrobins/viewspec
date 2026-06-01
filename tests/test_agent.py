@@ -30,6 +30,7 @@ from viewspec.agent import (
     MAX_AGENT_NODES,
     MAX_AGENT_RELATION_VALUES,
 )
+from viewspec.cli import main as cli_main
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -180,11 +181,25 @@ def test_published_agent_prompt_matches_runtime_contract():
     assert published == AGENT_SYSTEM_PROMPT
 
 
-def test_published_agent_example_matches_runtime_starter():
-    published = json.loads(ROOT.joinpath("demos/agent-intent-example.dashboard.json").read_text(encoding="utf-8"))
+def test_published_agent_example_matches_runtime_starter(tmp_path, capsys):
+    example_path = ROOT.joinpath("demos/agent-intent-example.dashboard.json")
+    published = json.loads(example_path.read_text(encoding="utf-8"))
 
     assert published == starter_intent_bundle("dashboard").to_json()
     assert validate_agent_intent_bundle(published).valid
+    assert cli_main(["validate-intent", str(example_path), "--json"]) == 0
+    capsys.readouterr()
+
+    html_out = tmp_path / "published-html"
+    react_out = tmp_path / "published-react"
+    assert cli_main(["compile", str(example_path), "--out", str(html_out)]) == 0
+    capsys.readouterr()
+    assert cli_main(["check", str(html_out), "--json"]) == 0
+    capsys.readouterr()
+    assert cli_main(["compile", str(example_path), "--target", "react-tsx", "--out", str(react_out)]) == 0
+    capsys.readouterr()
+    assert cli_main(["check", str(react_out), "--json"]) == 0
+    capsys.readouterr()
 
 
 def test_published_agent_asset_manifest_matches_runtime_export(tmp_path):
