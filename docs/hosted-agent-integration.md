@@ -19,7 +19,7 @@ Use these public entry points:
 
 ## Theming with DESIGN.md
 
-SDK clients may send optional root-level `design` context to `/v1/compile`:
+SDK clients may send optional root-level `design` context in the hosted `CompileRequestPayload` envelope for `/v1/compile`:
 
 ```json
 {
@@ -34,6 +34,8 @@ SDK clients may send optional root-level `design` context to `/v1/compile`:
 ```
 
 The SDK treats `content` as an opaque string. The hosted API owns parsing, linting, cycle detection, style mapping, and `meta.design` validation results.
+
+This is a hosted request envelope, not the local IntentBundle source contract. Local `viewspec validate-intent` intentionally rejects root `design` and `motif_library` fields so agents keep `viewspec.intent.json` portable and compiler-owned.
 
 Strict ingestion rules:
 
