@@ -488,6 +488,20 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
   "description": "Agent-authored ViewSpec compiler input. Agents output IntentBundle JSON, never CompositionIR.",
+  "not": {
+    "anyOf": [
+      {
+        "required": [
+          "design"
+        ]
+      },
+      {
+        "required": [
+          "motif_library"
+        ]
+      }
+    ]
+  },
   "properties": {
     "substrate": {
       "$ref": "#/$defs/substrate"

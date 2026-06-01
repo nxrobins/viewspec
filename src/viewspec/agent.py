@@ -165,6 +165,7 @@ AGENT_INTENT_BUNDLE_SCHEMA: dict[str, Any] = {
     "type": "object",
     "required": ["substrate", "view_spec"],
     "additionalProperties": False,
+    "not": {"anyOf": [{"required": [field]} for field in HOSTED_ONLY_ROOT_FIELDS]},
     "properties": {
         "substrate": {"$ref": "#/$defs/substrate"},
         "view_spec": {"$ref": "#/$defs/view_spec"},
