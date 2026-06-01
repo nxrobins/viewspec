@@ -31,6 +31,7 @@ def test_init_agent_creates_codex_instructions(tmp_path, capsys):
     assert "viewspec init-intent --out viewspec.intent.json" in text
     assert "viewspec export-agent-assets --out .viewspec" in text
     assert "viewspec check-agent-assets .viewspec --json" in text
+    assert "viewspec doctor --agents" in text
     assert ".viewspec/agent-assets.json" in text
     assert ".viewspec/agent-system-prompt.txt" in text
     assert ".viewspec/agent-intent-bundle.schema.json" in text
