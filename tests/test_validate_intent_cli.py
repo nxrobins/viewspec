@@ -404,6 +404,17 @@ def test_init_intent_writes_valid_starter_bundle(tmp_path, capsys, kind):
     assert validation["ok"] is True
     assert validation["compile_check"] == "passed"
 
+    html_out = tmp_path / f"{kind}-html"
+    react_out = tmp_path / f"{kind}-react"
+    assert cli_main(["compile", str(path), "--out", str(html_out)]) == 0
+    capsys.readouterr()
+    assert cli_main(["check", str(html_out), "--json"]) == 0
+    capsys.readouterr()
+    assert cli_main(["compile", str(path), "--target", "react-tsx", "--out", str(react_out)]) == 0
+    capsys.readouterr()
+    assert cli_main(["check", str(react_out), "--json"]) == 0
+    capsys.readouterr()
+
 
 def test_init_intent_refuses_overwrite_without_force(tmp_path):
     path = tmp_path / "viewspec.intent.json"

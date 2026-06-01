@@ -57,7 +57,12 @@ REACT_TSX_REQUIRED_MARKERS = {
     '"use client";': "ViewSpecView.tsx missing client component directive",
     'source: "viewspec-react-tsx"': "ViewSpecView.tsx missing React action source marker",
     "export function ViewSpecView": "ViewSpecView.tsx missing ViewSpecView export",
-    "payloadValues: collectPayloadValues": "ViewSpecView.tsx missing action payload collection",
+    "const collectPayloadValues = (payloadBindings: string[]): Record<string, unknown> =>": (
+        "ViewSpecView.tsx missing action payload collection"
+    ),
+}
+REACT_TSX_ACTION_REQUIRED_MARKERS = {
+    "payloadValues: collectPayloadValues": "ViewSpecView.tsx missing action payload dispatch",
 }
 REACT_TSX_FORBIDDEN_SURFACES = (
     (re.compile(r"\bdangerouslySetInnerHTML\b"), "ViewSpecView.tsx contains dangerouslySetInnerHTML"),
@@ -220,7 +225,7 @@ def check_artifact_dir(path: str | Path) -> dict[str, Any]:
             artifact_hash = file_hash(react_path)
             if manifest.get("artifact_hash") and manifest.get("artifact_hash") != artifact_hash:
                 errors.append("artifact_hash does not match ViewSpecView.tsx")
-            errors.extend(_validate_react_tsx_source(tsx))
+            errors.extend(_validate_react_tsx_source(tsx, has_action_nodes=_manifest_has_action_nodes(manifest)))
         else:
             errors.append("missing ViewSpecView.tsx")
     elif html_path.exists():
@@ -785,11 +790,15 @@ def _validate_manifest_artifact_file(manifest: dict[str, Any], errors: list[str]
     return "index.html"
 
 
-def _validate_react_tsx_source(tsx: str) -> list[str]:
+def _validate_react_tsx_source(tsx: str, *, has_action_nodes: bool = False) -> list[str]:
     errors: list[str] = []
     for marker, message in REACT_TSX_REQUIRED_MARKERS.items():
         if marker not in tsx:
             errors.append(message)
+    if has_action_nodes:
+        for marker, message in REACT_TSX_ACTION_REQUIRED_MARKERS.items():
+            if marker not in tsx:
+                errors.append(message)
     code = _strip_tsx_literals_and_comments(tsx)
     for pattern, message in REACT_TSX_FORBIDDEN_SURFACES:
         if pattern.search(code):
