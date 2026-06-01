@@ -448,6 +448,19 @@ def test_intent_mcp_refuses_input_overwrite_before_design_load(tmp_path):
     assert "missing-DESIGN.md" not in result["errors"][0]["message"]
 
 
+def test_raw_html_mcp_refuses_input_overwrite_before_design_load(tmp_path):
+    html_path = tmp_path / "index.html"
+    html_path.write_text("<h1>Report</h1>", encoding="utf-8")
+
+    result = compile_html_file_tool("index.html", ".", design_path="missing-DESIGN.md", cwd=tmp_path)
+
+    assert_tool_schema(result)
+    assert result["ok"] is False
+    assert result["errors"][0]["code"] == "COMPILE_FAILED"
+    assert "Refusing to overwrite input file" in result["errors"][0]["message"]
+    assert "missing-DESIGN.md" not in result["errors"][0]["message"]
+
+
 def test_check_rejects_unknown_script_in_intent_artifact(tmp_path):
     intent_path = tmp_path / "viewspec.intent.json"
     intent_path.write_text(json.dumps(_bundle_json()), encoding="utf-8")
