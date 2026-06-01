@@ -236,6 +236,25 @@ class ViewSpecBuilder:
         )
         return self
 
+    def add_text_input(
+        self,
+        id: str,
+        *,
+        label: Any,
+        value: Any = "",
+        region: str = "main",
+        group_id: str | None = None,
+        node_kind: str = "field",
+    ) -> str:
+        self.add_node(id, node_kind, attrs={"label": label, "value": value})
+        label_id = self.bind_attr(f"{id}_label", id, "label", region=region, present_as="label")
+        value_id = self.bind_attr(f"{id}_value", id, "value", region=region, present_as="input")
+        if group_id:
+            if not any(group.id == group_id for group in self._groups):
+                self.add_group(group_id, "ordered", [], target_region=region)
+            self._extend_group(group_id, [label_id, value_id])
+        return value_id
+
     def add_table(self, id: str, *, region: str = "main", group_id: str | None = None) -> TableBuilder:
         self.add_motif(id, "table", region, [])
         if group_id:
@@ -259,6 +278,78 @@ class ViewSpecBuilder:
         if group_id:
             self.add_group(group_id, "ordered", [], target_region=region)
         return ComparisonBuilder(self, id, region, group_id)
+
+    def add_list(self, id: str, *, region: str = "main", group_id: str | None = None) -> ListBuilder:
+        self.add_motif(id, "list", region, [])
+        if group_id:
+            self.add_group(group_id, "ordered", [], target_region=region)
+        return ListBuilder(self, id, region, group_id)
+
+    def add_form(self, id: str, *, region: str = "main", group_id: str | None = None) -> FormBuilder:
+        self.add_motif(id, "form", region, [])
+        if group_id:
+            self.add_group(group_id, "ordered", [], target_region=region)
+        return FormBuilder(self, id, region, group_id)
+
+    def add_detail(self, id: str, *, region: str = "main", group_id: str | None = None) -> DetailBuilder:
+        self.add_motif(id, "detail", region, [])
+        if group_id:
+            self.add_group(group_id, "ordered", [], target_region=region)
+        return DetailBuilder(self, id, region, group_id)
+
+    def add_empty_state(
+        self,
+        id: str,
+        *,
+        title: Any,
+        description: Any | None = None,
+        region: str = "main",
+        group_id: str | None = None,
+        node_kind: str = "empty_state",
+    ) -> ViewSpecBuilder:
+        self.add_motif(id, "empty_state", region, [])
+        if group_id:
+            self.add_group(group_id, "ordered", [], target_region=region)
+        attrs: dict[str, Any] = {"title": title}
+        if description is not None:
+            attrs["description"] = description
+        self.add_node(id, node_kind, attrs=attrs)
+        members = [self.bind_attr(f"{id}_title", id, "title", region=region, present_as="value")]
+        if description is not None:
+            members.append(self.bind_attr(f"{id}_description", id, "description", region=region, present_as="text"))
+        self._extend_motif(id, members)
+        self._extend_group(group_id, members)
+        return self
+
+    def add_hero(
+        self,
+        id: str,
+        *,
+        title: Any,
+        description: Any | None = None,
+        eyebrow: Any | None = None,
+        region: str = "main",
+        group_id: str | None = None,
+        node_kind: str = "hero",
+    ) -> ViewSpecBuilder:
+        self.add_motif(id, "hero", region, [])
+        if group_id:
+            self.add_group(group_id, "ordered", [], target_region=region)
+        attrs: dict[str, Any] = {"title": title}
+        if eyebrow is not None:
+            attrs["eyebrow"] = eyebrow
+        if description is not None:
+            attrs["description"] = description
+        self.add_node(id, node_kind, attrs=attrs)
+        members: list[str] = []
+        if eyebrow is not None:
+            members.append(self.bind_attr(f"{id}_eyebrow", id, "eyebrow", region=region, present_as="label"))
+        members.append(self.bind_attr(f"{id}_title", id, "title", region=region, present_as="value"))
+        if description is not None:
+            members.append(self.bind_attr(f"{id}_description", id, "description", region=region, present_as="text"))
+        self._extend_motif(id, members)
+        self._extend_group(group_id, members)
+        return self
 
     def _upsert_region(self, region: RegionSpec) -> None:
         for index, existing in enumerate(self._regions):
@@ -363,5 +454,88 @@ class ComparisonBuilder(_MotifBuilder):
             self.builder.bind_attr(f"{item_id}_label", item_id, "label", region=self.region, present_as="label"),
             self.builder.bind_attr(f"{item_id}_value", item_id, "value", region=self.region, present_as="text"),
         ]
+        self._append_members(members)
+        return self
+
+
+class ListBuilder(_MotifBuilder):
+    """Fluent builder for list motifs."""
+
+    def add_item(
+        self,
+        *,
+        label: Any,
+        value: Any | None = None,
+        description: Any | None = None,
+        values: dict[str, Any] | None = None,
+        id: str | None = None,
+        node_kind: str = "list_item",
+    ) -> ListBuilder:
+        self._count += 1
+        item_id = id or f"{self.motif_id}_item_{self._count}"
+        attrs: dict[str, Any] = {"label": label}
+        if value is not None:
+            attrs["value"] = value
+        if description is not None:
+            attrs["description"] = description
+        attrs.update(values or {})
+        self.builder.add_node(item_id, node_kind, attrs=attrs)
+        members = [self.builder.bind_attr(f"{item_id}_label", item_id, "label", region=self.region, present_as="label")]
+        for attr in attrs:
+            if attr == "label":
+                continue
+            members.append(self.builder.bind_attr(f"{item_id}_{attr}", item_id, attr, region=self.region, present_as="text"))
+        self._append_members(members)
+        return self
+
+
+class FormBuilder(_MotifBuilder):
+    """Fluent builder for inert form intent motifs."""
+
+    def add_field(
+        self,
+        *,
+        label: Any,
+        value: Any = "",
+        id: str | None = None,
+        node_kind: str = "field",
+        input_present_as: str = "input",
+    ) -> FormBuilder:
+        self._count += 1
+        field_id = id or f"{self.motif_id}_field_{self._count}"
+        self.builder.add_node(field_id, node_kind, attrs={"label": label, "value": value})
+        members = [
+            self.builder.bind_attr(f"{field_id}_label", field_id, "label", region=self.region, present_as="label"),
+            self.builder.bind_attr(f"{field_id}_value", field_id, "value", region=self.region, present_as=input_present_as),
+        ]
+        self._append_members(members)
+        return self
+
+
+class DetailBuilder(_MotifBuilder):
+    """Fluent builder for read-only detail views."""
+
+    def add_field(
+        self,
+        *,
+        label: Any,
+        value: Any | None = None,
+        values: dict[str, Any] | None = None,
+        id: str | None = None,
+        node_kind: str = "detail_field",
+        value_present_as: str = "value",
+    ) -> DetailBuilder:
+        self._count += 1
+        field_id = id or f"{self.motif_id}_field_{self._count}"
+        attrs: dict[str, Any] = {"label": label}
+        if value is not None:
+            attrs["value"] = value
+        attrs.update(values or {})
+        self.builder.add_node(field_id, node_kind, attrs=attrs)
+        members = [self.builder.bind_attr(f"{field_id}_label", field_id, "label", region=self.region, present_as="label")]
+        for attr in attrs:
+            if attr == "label":
+                continue
+            members.append(self.builder.bind_attr(f"{field_id}_{attr}", field_id, attr, region=self.region, present_as=value_present_as))
         self._append_members(members)
         return self

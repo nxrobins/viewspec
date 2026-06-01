@@ -10,6 +10,7 @@ from typing import Any
 from viewspec import IntentBundle, ViewSpecBuilder, compile
 from viewspec.emitters.html_tailwind import ACTION_EVENT_SCRIPT, _render_node
 from viewspec.types import ASTBundle, DEFAULT_STYLE_TOKEN_VALUES, IRNode
+from seo_metadata import demo_head_metadata
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -182,12 +183,18 @@ def preset_css() -> str:
 def build_page(fragment: str, stats: dict[str, int]) -> str:
     presets_json = safe_json_for_script(STYLE_PRESETS)
     stats_json = safe_json_for_script(stats)
+    head_meta = demo_head_metadata(
+        title="ViewSpec Demo - Style Derivation",
+        description="Toggle design-token presets on the same compiled ViewSpec structure to see how style derivation changes feel without changing intent.",
+        canonical_path="style-derivation",
+    )
     return f"""<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>ViewSpec Demo - Style Derivation</title>
+{head_meta}
   <link rel="icon" href="data:,">
   <script src="https://cdn.tailwindcss.com"></script>
   <script type="module" src="../shared/pretext-canvas-surfaces.js"></script>

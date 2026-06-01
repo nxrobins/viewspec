@@ -1,131 +1,474 @@
 {
-  "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://viewspec.dev/agent-intent-bundle.schema.json",
-  "title": "ViewSpec Agent IntentBundle",
-  "description": "Agent-authored ViewSpec compiler input. Agents output IntentBundle JSON, never CompositionIR.",
-  "type": "object",
-  "required": ["substrate", "view_spec"],
-  "additionalProperties": false,
-  "properties": {
-    "substrate": { "$ref": "#/$defs/substrate" },
-    "view_spec": { "$ref": "#/$defs/view_spec" }
-  },
   "$defs": {
-    "values": {
-      "type": "object",
-      "required": ["values"],
+    "action": {
       "additionalProperties": false,
       "properties": {
-        "values": { "type": "array" }
-      }
-    },
-    "substrate_node": {
-      "type": "object",
-      "required": ["id", "kind", "attrs", "slots", "edges"],
-      "additionalProperties": true,
-      "properties": {
-        "id": { "type": "string", "minLength": 1 },
-        "kind": { "type": "string", "minLength": 1 },
-        "attrs": { "type": "object" },
-        "slots": {
-          "type": "object",
-          "additionalProperties": { "$ref": "#/$defs/values" }
+        "id": {
+          "pattern": "^[A-Za-z0-9_.-]+$",
+          "type": "string"
         },
-        "edges": {
-          "type": "object",
-          "additionalProperties": { "$ref": "#/$defs/values" }
+        "kind": {
+          "enum": [
+            "select",
+            "submit",
+            "navigate"
+          ]
+        },
+        "label": {
+          "type": "string"
+        },
+        "payload_bindings": {
+          "items": {
+            "pattern": "^[A-Za-z0-9_.-]+$",
+            "type": "string"
+          },
+          "maxItems": 64,
+          "type": "array"
+        },
+        "target_ref": {
+          "anyOf": [
+            {
+              "pattern": "^(region|binding|motif|view):[A-Za-z0-9_.-]+$",
+              "type": "string"
+            },
+            {
+              "const": ""
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "target_region": {
+          "pattern": "^[A-Za-z0-9_.-]+$",
+          "type": "string"
         }
-      }
-    },
-    "substrate": {
-      "type": "object",
-      "required": ["id", "root_id", "nodes"],
-      "additionalProperties": true,
-      "properties": {
-        "id": { "type": "string", "minLength": 1 },
-        "root_id": { "type": "string", "minLength": 1 },
-        "nodes": {
-          "type": "object",
-          "additionalProperties": { "$ref": "#/$defs/substrate_node" }
-        }
-      }
-    },
-    "region": {
-      "type": "object",
-      "required": ["id", "parent_region", "role", "layout", "min_children", "max_children"],
-      "additionalProperties": true,
-      "properties": {
-        "id": { "type": "string", "minLength": 1 },
-        "parent_region": { "type": ["string", "null"] },
-        "role": { "type": "string" },
-        "layout": { "type": "string" },
-        "min_children": { "type": "integer" },
-        "max_children": { "type": ["integer", "null"] }
-      }
+      },
+      "required": [
+        "id",
+        "kind",
+        "label",
+        "target_region",
+        "target_ref",
+        "payload_bindings"
+      ],
+      "type": "object"
     },
     "binding": {
-      "type": "object",
-      "required": ["id", "address", "target_region", "present_as", "cardinality"],
-      "additionalProperties": true,
+      "additionalProperties": false,
       "properties": {
-        "id": { "type": "string", "minLength": 1 },
-        "address": { "type": "string", "pattern": "^node:" },
-        "target_region": { "type": "string", "minLength": 1 },
-        "present_as": {
-          "enum": ["badge", "image_slot", "label", "rich_text", "rule", "text", "value"]
+        "address": {
+          "pattern": "^node:[A-Za-z0-9_.-]+(?:#attr:[A-Za-z0-9_.-]+|#slot:[A-Za-z0-9_.-]+(?:\\[\\d+])?|#edge:[A-Za-z0-9_.-]+)?$",
+          "type": "string"
         },
-        "cardinality": { "type": "string" }
-      }
+        "cardinality": {
+          "enum": [
+            "exactly_once"
+          ]
+        },
+        "id": {
+          "pattern": "^[A-Za-z0-9_.-]+$",
+          "type": "string"
+        },
+        "present_as": {
+          "enum": [
+            "badge",
+            "image_slot",
+            "input",
+            "label",
+            "rich_text",
+            "rule",
+            "text",
+            "value"
+          ]
+        },
+        "target_region": {
+          "pattern": "^[A-Za-z0-9_.-]+$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "address",
+        "target_region",
+        "present_as",
+        "cardinality"
+      ],
+      "type": "object"
+    },
+    "edge_values": {
+      "additionalProperties": false,
+      "properties": {
+        "values": {
+          "items": {
+            "pattern": "^[A-Za-z0-9_.-]+$",
+            "type": "string"
+          },
+          "maxItems": 200,
+          "type": "array"
+        }
+      },
+      "required": [
+        "values"
+      ],
+      "type": "object"
     },
     "group": {
-      "type": "object",
-      "required": ["id", "kind", "members", "target_region"],
-      "additionalProperties": true,
+      "additionalProperties": false,
       "properties": {
-        "id": { "type": "string", "minLength": 1 },
-        "kind": { "type": "string" },
-        "members": { "type": "array", "items": { "type": "string" } },
-        "target_region": { "type": ["string", "null"] }
-      }
+        "id": {
+          "pattern": "^[A-Za-z0-9_.-]+$",
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "ordered"
+          ]
+        },
+        "members": {
+          "items": {
+            "pattern": "^[A-Za-z0-9_.-]+$",
+            "type": "string"
+          },
+          "maxItems": 400,
+          "type": "array"
+        },
+        "target_region": {
+          "anyOf": [
+            {
+              "pattern": "^[A-Za-z0-9_.-]+$",
+              "type": "string"
+            },
+            {
+              "const": ""
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "id",
+        "kind",
+        "members",
+        "target_region"
+      ],
+      "type": "object"
     },
     "motif": {
-      "type": "object",
-      "required": ["id", "kind", "region", "members"],
-      "additionalProperties": true,
+      "additionalProperties": false,
       "properties": {
-        "id": { "type": "string", "minLength": 1 },
-        "kind": {
-          "enum": ["table", "dashboard", "outline", "comparison"]
+        "id": {
+          "pattern": "^[A-Za-z0-9_.-]+$",
+          "type": "string"
         },
-        "region": { "type": "string", "minLength": 1 },
-        "members": { "type": "array", "items": { "type": "string" } }
-      }
+        "kind": {
+          "enum": [
+            "table",
+            "dashboard",
+            "outline",
+            "comparison",
+            "list",
+            "form",
+            "detail",
+            "empty_state",
+            "hero"
+          ]
+        },
+        "members": {
+          "items": {
+            "pattern": "^[A-Za-z0-9_.-]+$",
+            "type": "string"
+          },
+          "maxItems": 400,
+          "type": "array"
+        },
+        "region": {
+          "pattern": "^[A-Za-z0-9_.-]+$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "kind",
+        "region",
+        "members"
+      ],
+      "type": "object"
+    },
+    "region": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "pattern": "^[A-Za-z0-9_.-]+$",
+          "type": "string"
+        },
+        "layout": {
+          "enum": [
+            "stack",
+            "grid",
+            "cluster"
+          ]
+        },
+        "max_children": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "min_children": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "parent_region": {
+          "anyOf": [
+            {
+              "pattern": "^[A-Za-z0-9_.-]+$",
+              "type": "string"
+            },
+            {
+              "const": ""
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "role": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "parent_region",
+        "role",
+        "layout",
+        "min_children",
+        "max_children"
+      ],
+      "type": "object"
     },
     "style": {
-      "type": "object",
-      "required": ["id", "target", "token"],
-      "additionalProperties": true,
+      "additionalProperties": false,
       "properties": {
-        "id": { "type": "string", "minLength": 1 },
-        "target": { "type": "string", "minLength": 1 },
-        "token": { "type": "string", "minLength": 1 }
-      }
+        "id": {
+          "pattern": "^[A-Za-z0-9_.-]+$",
+          "type": "string"
+        },
+        "target": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "token": {
+          "enum": [
+            "emphasis.low",
+            "emphasis.medium",
+            "emphasis.high",
+            "density.compact",
+            "density.regular",
+            "density.airy",
+            "palette.temperature",
+            "tone.neutral",
+            "tone.muted",
+            "tone.accent",
+            "tone.warning",
+            "tone.positive",
+            "action.accent",
+            "surface.none",
+            "surface.subtle",
+            "surface.strong",
+            "rhythm.hierarchy",
+            "narrative.flow",
+            "align.start",
+            "align.center",
+            "align.end"
+          ]
+        }
+      },
+      "required": [
+        "id",
+        "target",
+        "token"
+      ],
+      "type": "object"
     },
-    "action": {
-      "type": "object",
-      "required": ["id", "kind", "label", "target_region", "target_ref", "payload_bindings"],
-      "additionalProperties": true,
+    "substrate": {
+      "additionalProperties": false,
       "properties": {
-        "id": { "type": "string", "minLength": 1 },
-        "kind": { "type": "string", "minLength": 1 },
-        "label": { "type": "string" },
-        "target_region": { "type": "string", "minLength": 1 },
-        "target_ref": { "type": ["string", "null"] },
-        "payload_bindings": { "type": "array", "items": { "type": "string" } }
-      }
+        "id": {
+          "pattern": "^[A-Za-z0-9_.-]+$",
+          "type": "string"
+        },
+        "nodes": {
+          "additionalProperties": {
+            "$ref": "#/$defs/substrate_node"
+          },
+          "maxProperties": 200,
+          "propertyNames": {
+            "pattern": "^[A-Za-z0-9_.-]+$"
+          },
+          "type": "object"
+        },
+        "root_id": {
+          "pattern": "^[A-Za-z0-9_.-]+$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "root_id",
+        "nodes"
+      ],
+      "type": "object"
+    },
+    "substrate_node": {
+      "additionalProperties": false,
+      "properties": {
+        "attrs": {
+          "maxProperties": 64,
+          "propertyNames": {
+            "pattern": "^[A-Za-z0-9_.-]+$"
+          },
+          "type": "object"
+        },
+        "edges": {
+          "additionalProperties": {
+            "$ref": "#/$defs/edge_values"
+          },
+          "maxProperties": 64,
+          "propertyNames": {
+            "pattern": "^[A-Za-z0-9_.-]+$"
+          },
+          "type": "object"
+        },
+        "id": {
+          "pattern": "^[A-Za-z0-9_.-]+$",
+          "type": "string"
+        },
+        "kind": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "slots": {
+          "additionalProperties": {
+            "$ref": "#/$defs/values"
+          },
+          "maxProperties": 64,
+          "propertyNames": {
+            "pattern": "^[A-Za-z0-9_.-]+$"
+          },
+          "type": "object"
+        }
+      },
+      "required": [
+        "id",
+        "kind",
+        "attrs",
+        "slots",
+        "edges"
+      ],
+      "type": "object"
+    },
+    "values": {
+      "additionalProperties": false,
+      "properties": {
+        "values": {
+          "maxItems": 200,
+          "type": "array"
+        }
+      },
+      "required": [
+        "values"
+      ],
+      "type": "object"
     },
     "view_spec": {
-      "type": "object",
+      "additionalProperties": false,
+      "not": {
+        "anyOf": [
+          {
+            "required": [
+              "inputs"
+            ]
+          },
+          {
+            "required": [
+              "projections"
+            ]
+          },
+          {
+            "required": [
+              "rules"
+            ]
+          }
+        ]
+      },
+      "properties": {
+        "actions": {
+          "items": {
+            "$ref": "#/$defs/action"
+          },
+          "maxItems": 64,
+          "type": "array"
+        },
+        "bindings": {
+          "items": {
+            "$ref": "#/$defs/binding"
+          },
+          "maxItems": 400,
+          "type": "array"
+        },
+        "complexity_tier": {
+          "minimum": 1,
+          "type": "integer"
+        },
+        "groups": {
+          "items": {
+            "$ref": "#/$defs/group"
+          },
+          "maxItems": 64,
+          "type": "array"
+        },
+        "id": {
+          "pattern": "^[A-Za-z0-9_.-]+$",
+          "type": "string"
+        },
+        "motifs": {
+          "items": {
+            "$ref": "#/$defs/motif"
+          },
+          "maxItems": 32,
+          "type": "array"
+        },
+        "regions": {
+          "items": {
+            "$ref": "#/$defs/region"
+          },
+          "maxItems": 32,
+          "type": "array"
+        },
+        "root_region": {
+          "pattern": "^[A-Za-z0-9_.-]+$",
+          "type": "string"
+        },
+        "styles": {
+          "items": {
+            "$ref": "#/$defs/style"
+          },
+          "maxItems": 400,
+          "type": "array"
+        },
+        "substrate_id": {
+          "pattern": "^[A-Za-z0-9_.-]+$",
+          "type": "string"
+        }
+      },
       "required": [
         "id",
         "substrate_id",
@@ -138,19 +481,38 @@
         "styles",
         "actions"
       ],
-      "additionalProperties": true,
-      "properties": {
-        "id": { "type": "string", "minLength": 1 },
-        "substrate_id": { "type": "string", "minLength": 1 },
-        "complexity_tier": { "type": "integer", "minimum": 1 },
-        "root_region": { "type": "string", "minLength": 1 },
-        "regions": { "type": "array", "items": { "$ref": "#/$defs/region" } },
-        "bindings": { "type": "array", "items": { "$ref": "#/$defs/binding" } },
-        "groups": { "type": "array", "items": { "$ref": "#/$defs/group" } },
-        "motifs": { "type": "array", "items": { "$ref": "#/$defs/motif" } },
-        "styles": { "type": "array", "items": { "$ref": "#/$defs/style" } },
-        "actions": { "type": "array", "items": { "$ref": "#/$defs/action" } }
-      }
+      "type": "object"
     }
-  }
+  },
+  "$id": "https://viewspec.dev/agent-intent-bundle.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "Agent-authored ViewSpec compiler input. Agents output IntentBundle JSON, never CompositionIR.",
+  "properties": {
+    "substrate": {
+      "$ref": "#/$defs/substrate"
+    },
+    "view_spec": {
+      "$ref": "#/$defs/view_spec"
+    }
+  },
+  "required": [
+    "substrate",
+    "view_spec"
+  ],
+  "title": "ViewSpec Agent IntentBundle",
+  "type": "object",
+  "x-viewspec-invariants": [
+    "view_spec.substrate_id must equal substrate.id.",
+    "substrate.root_id must be a key in substrate.nodes.",
+    "Each substrate.nodes object key must equal that node object's id.",
+    "view_spec.root_region must be declared in view_spec.regions.",
+    "Region parent_region links must form one acyclic tree rooted at view_spec.root_region.",
+    "Semantic node edges must reference declared substrate node ids.",
+    "Bindings, groups, motifs, styles, and actions may only reference declared ids.",
+    "Motifs must be semantically complete for their kind before local compilation.",
+    "Hosted-only fields design, motif_library, view_spec.inputs, view_spec.projections, and view_spec.rules are rejected by the local schema and validate-intent.",
+    "Unknown extension fields are rejected instead of silently ignored.",
+    "JSON Schema enforces shape and caps; viewspec validate-intent enforces cross-reference invariants."
+  ]
 }

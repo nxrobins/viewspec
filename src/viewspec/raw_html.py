@@ -429,6 +429,8 @@ def compile_html(
         },
         "diagnostics": [dict(item) for item in diagnostics],
     }
+    if design is not None:
+        manifest["design"] = design.to_meta()
     return HtmlCompileResult(html=output_html, manifest=manifest, diagnostics=diagnostics, lift=lift)
 
 
@@ -464,6 +466,10 @@ def _check_html_size(html: str) -> None:
 
 def _sha256_text(text: str) -> str:
     return hashlib.sha256(text.encode("utf-8")).hexdigest()
+
+
+def _sha256_bytes(data: bytes) -> str:
+    return hashlib.sha256(data).hexdigest()
 
 
 def _sanitize_attrs(
@@ -824,7 +830,9 @@ def write_html_compile_result(result: HtmlCompileResult, output_dir: str | Path,
     }
     try:
         _atomic_write(paths["html"], result.html)
-        _atomic_write(paths["manifest"], json.dumps(result.manifest, indent=2, sort_keys=True))
+        manifest = dict(result.manifest)
+        manifest["artifact_hash"] = _sha256_bytes(paths["html"].read_bytes())
+        _atomic_write(paths["manifest"], json.dumps(manifest, indent=2, sort_keys=True))
         _atomic_write(paths["diagnostics"], json.dumps([dict(item) for item in result.diagnostics], indent=2, sort_keys=True))
         if include_lift:
             lift_path = output / "lift.json"
@@ -843,6 +851,7 @@ def _atomic_write(path: Path, text: str) -> None:
         with tempfile.NamedTemporaryFile(
             "w",
             encoding="utf-8",
+            newline="",
             dir=path.parent,
             prefix=f".{path.name}.",
             suffix=".tmp",

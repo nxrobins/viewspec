@@ -10,6 +10,7 @@ from typing import Any
 from viewspec import IntentBundle, ViewSpecBuilder, compile
 from viewspec.emitters.html_tailwind import ACTION_EVENT_SCRIPT, _render_node
 from viewspec.types import ASTBundle, DEFAULT_STYLE_TOKEN_VALUES, IRNode
+from seo_metadata import demo_head_metadata
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -192,12 +193,18 @@ def build_page(presets: dict[str, dict[str, Any]]) -> str:
     option_html = "\n".join(
         f'<option value="{html.escape(key)}">{html.escape(data["label"])}</option>' for key, data in presets.items()
     )
+    head_meta = demo_head_metadata(
+        title="ViewSpec Demo - Live Builder",
+        description="Edit and inspect IntentBundle JSON, CompositionIR, and rendered HTML output side by side to see ViewSpec compilation stay synchronized.",
+        canonical_path="live-builder",
+    )
     return f"""<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>ViewSpec Demo - Live Builder</title>
+{head_meta}
   <link rel="icon" href="data:,">
   <script src="https://cdn.tailwindcss.com"></script>
   <script type="module" src="../shared/pretext-canvas-surfaces.js"></script>

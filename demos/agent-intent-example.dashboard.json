@@ -1,0 +1,119 @@
+{
+  "substrate": {
+    "id": "starter_dashboard_substrate",
+    "nodes": {
+      "revenue": {
+        "attrs": {
+          "label": "Revenue",
+          "value": "$12.4K"
+        },
+        "edges": {},
+        "id": "revenue",
+        "kind": "dashboard_card",
+        "slots": {}
+      },
+      "starter_dashboard": {
+        "attrs": {
+          "title": "Starter Dashboard"
+        },
+        "edges": {},
+        "id": "starter_dashboard",
+        "kind": "app",
+        "slots": {}
+      },
+      "users": {
+        "attrs": {
+          "label": "Users",
+          "value": "1,284"
+        },
+        "edges": {},
+        "id": "users",
+        "kind": "dashboard_card",
+        "slots": {}
+      }
+    },
+    "root_id": "starter_dashboard"
+  },
+  "view_spec": {
+    "actions": [],
+    "bindings": [
+      {
+        "address": "node:revenue#attr:label",
+        "cardinality": "exactly_once",
+        "id": "revenue_label",
+        "present_as": "label",
+        "target_region": "main"
+      },
+      {
+        "address": "node:revenue#attr:value",
+        "cardinality": "exactly_once",
+        "id": "revenue_value",
+        "present_as": "value",
+        "target_region": "main"
+      },
+      {
+        "address": "node:users#attr:label",
+        "cardinality": "exactly_once",
+        "id": "users_label",
+        "present_as": "label",
+        "target_region": "main"
+      },
+      {
+        "address": "node:users#attr:value",
+        "cardinality": "exactly_once",
+        "id": "users_value",
+        "present_as": "value",
+        "target_region": "main"
+      }
+    ],
+    "complexity_tier": 1,
+    "groups": [
+      {
+        "id": "cards",
+        "kind": "ordered",
+        "members": [
+          "revenue_label",
+          "revenue_value",
+          "users_label",
+          "users_value"
+        ],
+        "target_region": "main"
+      }
+    ],
+    "id": "starter_dashboard",
+    "motifs": [
+      {
+        "id": "metrics",
+        "kind": "dashboard",
+        "members": [
+          "revenue_label",
+          "revenue_value",
+          "users_label",
+          "users_value"
+        ],
+        "region": "main"
+      }
+    ],
+    "regions": [
+      {
+        "id": "root",
+        "layout": "stack",
+        "max_children": null,
+        "min_children": 1,
+        "parent_region": "",
+        "role": "root"
+      },
+      {
+        "id": "main",
+        "layout": "stack",
+        "max_children": null,
+        "min_children": 1,
+        "parent_region": "root",
+        "role": "main"
+      }
+    ],
+    "root_region": "root",
+    "styles": [],
+    "substrate_id": "starter_dashboard_substrate"
+  }
+}

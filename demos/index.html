@@ -3,23 +3,23 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>ViewSpec - Agent HTML governance</title>
-  <meta name="description" content="Your agent writes HTML. ViewSpec sanitizes it, applies DESIGN.md, records provenance, and produces semantic diffs without local SDK network calls.">
+  <title>ViewSpec - Agent-native UI compiler</title>
+  <meta name="description" content="Agents describe UI intent as IntentBundle JSON. ViewSpec validates it, applies DESIGN.md, records provenance, and compiles deterministic UI outputs without runtime LLM calls.">
   <meta name="robots" content="index,follow,max-snippet:-1,max-image-preview:large">
   <meta name="application-name" content="ViewSpec">
-  <meta name="keywords" content="agent HTML governance, agent-native UI IR, semantic UI compiler, AI coding agents, deterministic HTML, semantic diff, provenance, DESIGN.md, Python SDK">
+  <meta name="keywords" content="agent-native UI compiler, IntentBundle, semantic UI compiler, AI coding agents, deterministic HTML, semantic diff, provenance, DESIGN.md, Python SDK">
   <link rel="canonical" href="https://viewspec.dev/">
   <link rel="sitemap" type="application/xml" href="https://viewspec.dev/sitemap.xml">
   <link rel="alternate" type="text/markdown" title="ViewSpec for LLMs" href="https://viewspec.dev/llms.txt">
   <link rel="alternate" type="application/json" title="ViewSpec OpenAPI" href="https://viewspec.dev/openapi.json">
   <meta property="og:site_name" content="ViewSpec">
   <meta property="og:type" content="website">
-  <meta property="og:title" content="ViewSpec - Agent HTML governance">
-  <meta property="og:description" content="Your agent writes HTML. ViewSpec makes it beautiful, consistent, and yours with local compile, lift, diff, and manifest checks.">
+  <meta property="og:title" content="ViewSpec - Agent-native UI compiler">
+  <meta property="og:description" content="Agents describe UI intent. ViewSpec validates IntentBundle JSON, applies DESIGN.md, records provenance, and compiles deterministic UI outputs.">
   <meta property="og:url" content="https://viewspec.dev/">
   <meta name="twitter:card" content="summary">
-  <meta name="twitter:title" content="ViewSpec - Agent HTML governance">
-  <meta name="twitter:description" content="Sanitize agent HTML, apply DESIGN.md, record provenance, and diff semantic changes locally.">
+  <meta name="twitter:title" content="ViewSpec - Agent-native UI compiler">
+  <meta name="twitter:description" content="Validate IntentBundle JSON, apply DESIGN.md, record provenance, and compile deterministic UI outputs locally.">
   <script type="application/ld+json">
     {
       "@context": "https://schema.org",
@@ -39,7 +39,7 @@
           "@id": "https://viewspec.dev/#website",
           "url": "https://viewspec.dev/",
           "name": "ViewSpec",
-          "description": "Local agent HTML governance compiler, hosted compiler API, and Python SDK for deterministic UI generation.",
+          "description": "Agent-native UI compiler, hosted compiler API, and Python SDK for deterministic UI generation.",
           "publisher": { "@id": "https://viewspec.dev/#organization" },
           "inLanguage": "en"
         },
@@ -48,20 +48,20 @@
           "@id": "https://viewspec.dev/#software",
           "name": "ViewSpec",
           "applicationCategory": "DeveloperApplication",
-          "applicationSubCategory": "Agent HTML governance compiler",
+          "applicationSubCategory": "Agent-native UI compiler",
           "operatingSystem": "Python 3.11+ and Web API",
           "url": "https://viewspec.dev/",
           "downloadUrl": "https://pypi.org/project/viewspec/",
           "codeRepository": "https://github.com/nxrobins/viewspec",
           "programmingLanguage": ["Python", "JSON", "Protocol Buffers"],
-          "description": "ViewSpec governs agent-generated HTML locally: sanitize hostile output, apply DESIGN.md, write provenance, and produce semantic diffs before advanced hosted compilation.",
-          "keywords": "agent HTML governance, agent-native UI IR, semantic UI compiler, agentic engineering, AI coding agents, deterministic HTML, semantic diff, provenance",
+          "description": "ViewSpec validates agent-authored IntentBundle JSON, applies DESIGN.md, writes provenance, and compiles deterministic UI outputs before hosted cross-platform emission.",
+          "keywords": "agent-native UI compiler, IntentBundle, semantic UI compiler, agentic engineering, AI coding agents, deterministic HTML, semantic diff, provenance",
           "featureList": [
-            "Local viewspec compile for agent-generated HTML",
-            "Local viewspec lift and diff for semantic signals",
+            "Local viewspec init-intent and validate-intent for agent-authored IntentBundles",
+            "Local viewspec compile for deterministic UI artifacts",
             "Auditable provenance_manifest.json with stable hashes",
             "DESIGN.md theming without arbitrary CSS or script",
-            "Hosted compiler API at api.viewspec.dev for advanced IntentBundle workflows"
+            "Hosted compiler API at api.viewspec.dev for IntentBundle workflows"
           ],
           "offers": [
             { "@type": "Offer", "name": "Free", "price": "0", "priceCurrency": "USD", "url": "https://viewspec.dev/#pricing" },
@@ -88,7 +88,7 @@
               "name": "What is ViewSpec?",
               "acceptedAnswer": {
                 "@type": "Answer",
-                "text": "ViewSpec is a local governance compiler for agent-generated HTML. It sanitizes output, applies DESIGN.md, records provenance, and exposes semantic diff signals. Advanced hosted flows still compile IntentBundles into CompositionIR."
+                "text": "ViewSpec is an agent-native UI compiler. Agents emit IntentBundle JSON, and ViewSpec validates it, applies DESIGN.md, records provenance, and compiles renderer outputs."
               }
             },
             {
@@ -96,7 +96,7 @@
               "name": "Is ViewSpec useful for vibe coding and agentic engineering?",
               "acceptedAnswer": {
                 "@type": "Answer",
-                "text": "Yes. Agents can emit ordinary HTML first, then run local viewspec compile, lift, diff, and check so humans can inspect a governed artifact before sharing or using hosted compiler features."
+                "text": "Yes. Agents can emit IntentBundle JSON first, then run local viewspec validate-intent, compile, and check so humans can inspect a deterministic artifact before hosted compiler features."
               }
             },
             {
@@ -2030,8 +2030,8 @@
   <main>
     <section class="page-shell hero" id="top">
       <div class="hero-copy">
-        <h1>Your agent writes HTML. ViewSpec makes it beautiful, consistent, and yours.</h1>
-        <p class="hero-body">Run <code>viewspec compile</code>, <code>lift</code>, <code>diff</code>, and <code>check</code> locally. The SDK strips unsafe output, applies DESIGN.md, writes a deterministic manifest, and gives semantic change signals before hosted API work enters the picture.</p>
+        <h1>Stop asking agents to write DOM.</h1>
+        <p class="hero-body">Agents emit <code>IntentBundle</code> JSON. Scaffold with <code>viewspec init-intent</code> when useful, then run <code>validate-intent</code>, <code>compile</code>, and <code>check</code> locally so ViewSpec owns renderer output, DESIGN.md theming, and deterministic provenance before hosted API work enters the picture.</p>
         <div class="hero-actions">
           <a class="button-primary" href="#proof">See the proof</a>
           <button type="button" class="pip-pill" data-copy-text="pip install viewspec" aria-label="Copy pip install viewspec command">pip install viewspec</button>
@@ -2108,7 +2108,7 @@
             </div>
           </article>
         </div>
-        <p class="proof-caption"><strong>The hosted compiler proof remains available for advanced IntentBundle and cross-platform emitter workflows.</strong></p>
+        <p class="proof-caption"><strong>The hosted compiler proof remains available for IntentBundle and cross-platform emitter workflows.</strong></p>
       </div>
     </section>
 
@@ -2182,17 +2182,18 @@
             </defs>
             <g class="workflow-row">
               <rect x="8" y="60" width="160" height="56" rx="8" class="workflow-node"></rect>
-              <text x="88" y="92" class="workflow-text" text-anchor="middle">Agent writes HTML</text>
+              <text x="88" y="92" class="workflow-text" text-anchor="middle">Agent writes intent</text>
 
               <line x1="170" y1="88" x2="200" y2="88" class="workflow-edge" marker-end="url(#workflow-arrow)"></line>
 
               <rect x="202" y="60" width="180" height="56" rx="8" class="workflow-node"></rect>
-              <text x="292" y="92" class="workflow-text" text-anchor="middle">local HTML file</text>
+              <text x="292" y="92" class="workflow-text" text-anchor="middle">viewspec.intent.json</text>
 
               <line x1="384" y1="88" x2="416" y2="88" class="workflow-edge" marker-end="url(#workflow-arrow)"></line>
 
               <rect x="418" y="60" width="180" height="56" rx="8" class="workflow-node workflow-node-emphasis"></rect>
-              <text x="508" y="92" class="workflow-text" text-anchor="middle">viewspec compile</text>
+              <text x="508" y="84" class="workflow-text" text-anchor="middle">validate + compile</text>
+              <text x="508" y="102" class="workflow-text-sub" text-anchor="middle">local</text>
 
               <line x1="600" y1="88" x2="632" y2="88" class="workflow-edge" marker-end="url(#workflow-arrow)"></line>
 
@@ -2203,21 +2204,21 @@
               <line x1="836" y1="88" x2="868" y2="88" class="workflow-edge" marker-end="url(#workflow-arrow)"></line>
 
               <rect x="870" y="60" width="80" height="56" rx="8" class="workflow-node workflow-node-emit"></rect>
-              <text x="910" y="84" class="workflow-text" text-anchor="middle">Diff</text>
-              <text x="910" y="102" class="workflow-text-sub" text-anchor="middle">lift_v1</text>
+              <text x="910" y="84" class="workflow-text" text-anchor="middle">Check</text>
+              <text x="910" y="102" class="workflow-text-sub" text-anchor="middle">hashes</text>
             </g>
             <g class="workflow-loop">
               <path d="M508 116 Q 508 162 292 162 Q 202 162 202 116" fill="none" class="workflow-edge workflow-edge-loop" marker-end="url(#workflow-arrow)"></path>
-              <text x="355" y="180" class="workflow-text-loop" text-anchor="middle">Diagnostics &rarr; edit HTML or DESIGN.md &rarr; recompile locally</text>
+              <text x="355" y="180" class="workflow-text-loop" text-anchor="middle">Diagnostics &rarr; regenerate IntentBundle or edit DESIGN.md &rarr; recompile locally</text>
             </g>
           </svg>
-          <p class="workflow-copy"><strong>Start with the local agent HTML contract: compile, lift, diff, and check. IntentBundle JSON and the hosted API remain advanced contracts for richer compiler and emitter workflows.</strong></p>
+          <p class="workflow-copy"><strong>Start with the agent-native contract: validate IntentBundle JSON, compile locally, then check the artifact. Raw HTML tools stay available for importing existing HTML.</strong></p>
           <p class="workflow-links">
-            <a href="https://github.com/nxrobins/viewspec/blob/main/docs/local-html-wedge.md">compile / lift / diff</a>
+            <a href="https://github.com/nxrobins/viewspec/blob/main/docs/agent-integration.md">IntentBundle workflow</a>
             <span aria-hidden="true">&middot;</span>
             <a href="https://github.com/nxrobins/viewspec/tree/main/integrations/claude-code">Claude Code local instructions</a>
             <span aria-hidden="true">&middot;</span>
-            <a href="./agent-intent-bundle.schema.json">Advanced IntentBundle schema</a>
+            <a href="./agent-intent-bundle.schema.json">IntentBundle schema</a>
             <span aria-hidden="true">&middot;</span>
             <a href="./openapi.json">OpenAPI</a>
           </p>
@@ -2251,7 +2252,7 @@
               <li>10,000 hosted compile calls/day</li>
               <li>Interactive compose (inputs, rules, actions)</li>
             </ul>
-            <a class="button-primary" href="https://buy.stripe.com/6oU4gA6PqcM9afq6qq2Z0b8" target="_blank" rel="noopener">Get Pro</a>
+            <a class="button-primary" href="https://buy.stripe.com/6oU4gA6PqcM9afq6qq2Z0b8" data-config-link="pro" target="_blank" rel="noopener">Get Pro</a>
           </article>
           <article class="pricing-card">
             <span class="pricing-name">Enterprise</span>
@@ -2263,7 +2264,7 @@
               <li>Volume pricing</li>
               <li>Support + roadmap alignment</li>
             </ul>
-            <a class="button-secondary" href="mailto:hello@viewspec.dev?subject=ViewSpec%20Enterprise" target="_blank" rel="noopener">Talk to us</a>
+            <a class="button-secondary" href="mailto:hello@viewspec.dev?subject=ViewSpec%20Enterprise" data-config-link="enterprise" target="_blank" rel="noopener">Talk to us</a>
           </article>
         </div>
       </div>
@@ -2274,7 +2275,7 @@
         <h2 id="colophon-heading" class="colophon-title">Builds with</h2>
         <ul class="colophon-list">
           <li><strong>DESIGN.md</strong> &mdash; Google's open-source design-markdown convention. ViewSpec parses it as the brand input format.</li>
-          <li><strong><a href="https://www.lazyweb.com">Lazyweb</a></strong> &mdash; MCP-accessible UI reference library agents query for grounded design context before generating IntentBundles.</li>
+          <li><strong>Optional reference grounding</strong> &mdash; agents must not call remote reference libraries by default; user-approved or repo-configured sources may inform IntentBundle structure without changing the local no-network compiler contract.</li>
           <li><strong><a href="https://github.com/chenglou/pretext">Pretext</a></strong> &mdash; Chenglou's text-layout engine. Renders the headline typography you're reading.</li>
         </ul>
         <p class="colophon-note">Three different roles. Three different relationships. Each acknowledged where it actually plays.</p>

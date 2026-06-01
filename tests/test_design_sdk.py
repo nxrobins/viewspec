@@ -55,3 +55,29 @@ def test_attach_design_last_call_wins(tmp_path):
 def test_design_request_rejects_non_boolean_lint():
     with pytest.raises(TypeError, match="lint must be a boolean"):
         DesignRequest.from_json({"format": "design.md", "content": "name: Acme\n", "lint": "false"})
+
+    with pytest.raises(TypeError, match="lint must be a boolean"):
+        DesignRequest(content="name: Acme\n", lint="false")
+
+
+def test_design_request_rejects_non_design_md_format():
+    with pytest.raises(ValueError, match="format must be 'design.md'"):
+        DesignRequest(content="name: Acme\n", format="css")
+
+    with pytest.raises(ValueError, match="format must be 'design.md'"):
+        DesignRequest.from_json({"format": "css", "content": "name: Acme\n"})
+
+
+def test_design_request_rejects_non_string_content():
+    with pytest.raises(TypeError, match="content must be a string"):
+        DesignRequest(content=123)
+
+
+def test_compile_request_payload_rejects_invalid_payload_shapes():
+    bundle = ViewSpecBuilder("design_payload_shape").build_bundle()
+
+    with pytest.raises(TypeError, match="bundle must be an IntentBundle"):
+        CompileRequestPayload(bundle={"not": "a bundle"})
+
+    with pytest.raises(TypeError, match="design must be a DesignRequest or None"):
+        CompileRequestPayload(bundle=bundle, design={"content": "name: Acme\n"})

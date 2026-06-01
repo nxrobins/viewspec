@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import json
 
+from viewspec import AGENT_ASSET_SCHEMA_VERSION, agent_asset_readiness, check_agent_assets, starter_intent_bundle
+from viewspec.agent import AGENT_INTENT_BUNDLE_SCHEMA, AGENT_SYSTEM_PROMPT
 from viewspec.cli import main as cli_main
 from viewspec.native_agents import BEGIN_MARKER, END_MARKER
 
@@ -16,10 +18,31 @@ def test_init_agent_creates_codex_instructions(tmp_path, capsys):
     text = path.read_text(encoding="utf-8")
     assert BEGIN_MARKER in text
     assert END_MARKER in text
-    assert "viewspec compile input.html --design DESIGN.md --out dist/" in text
+    assert "viewspec.intent.json" in text
+    assert "viewspec validate-intent viewspec.intent.json --json" in text
+    assert "viewspec compile viewspec.intent.json --design DESIGN.md --out dist/" in text
     assert "viewspec check dist/" in text
-    assert "Never recursively compile generated `dist/index.html`" in text
+    assert "If the user explicitly needs local React source instead of standalone HTML" in text
+    assert "viewspec compile viewspec.intent.json --design DESIGN.md --target react-tsx --out react-output/" in text
+    assert "viewspec check react-output/" in text
+    assert "If `DESIGN.md` is missing" in text
+    assert "viewspec init-design --out DESIGN.md" in text
+    assert "viewspec diff-intent old.intent.json new.intent.json --json" in text
+    assert "viewspec init-intent --out viewspec.intent.json" in text
+    assert "viewspec export-agent-assets --out .viewspec" in text
+    assert "viewspec check-agent-assets .viewspec --json" in text
+    assert ".viewspec/agent-assets.json" in text
+    assert ".viewspec/agent-system-prompt.txt" in text
+    assert ".viewspec/agent-intent-bundle.schema.json" in text
+    assert ".viewspec/agent-intent-example.dashboard.json" in text
+    assert "Use the manifest to verify asset identity" in text
+    assert "Use the example only for valid IntentBundle wire shape" in text
+    assert "Use raw HTML tools only when importing existing HTML" in text
+    assert "compiled output directories such as `dist/` or `react-output/` contain generated artifacts" in text
+    assert "Never patch or recursively compile generated artifacts such as `dist/index.html` or `react-output/ViewSpecView.tsx`" in text
     assert "Do not upload, share, call hosted APIs" in text
+    assert "compile_html_file" not in text
+    assert "lift_html_file" not in text
 
 
 def test_init_agent_replaces_one_block_and_preserves_surrounding_content(tmp_path):
@@ -46,14 +69,30 @@ def test_init_agent_replaces_one_block_and_preserves_surrounding_content(tmp_pat
         assert handle.read() == before
 
 
-def test_init_agent_conflict_fails_without_partial_writes(tmp_path):
+def test_init_agent_conflict_fails_without_partial_writes(tmp_path, capsys):
     (tmp_path / "AGENTS.md").write_text(
         f"{BEGIN_MARKER}\none\n{END_MARKER}\n{BEGIN_MARKER}\ntwo\n{END_MARKER}\n",
         encoding="utf-8",
     )
 
     assert cli_main(["init-agent", "--target", "all", "--root", str(tmp_path)]) == 2
+    assert "MARKER_CONFLICT" in capsys.readouterr().err
     assert not (tmp_path / "CLAUDE.md").exists()
+    assert not (tmp_path / ".cursor").exists()
+    assert not (tmp_path / ".github").exists()
+
+
+def test_init_agent_late_conflict_fails_without_earlier_partial_writes(tmp_path, capsys):
+    claude = tmp_path / "CLAUDE.md"
+    claude.write_text(
+        f"{BEGIN_MARKER}\none\n{END_MARKER}\n{BEGIN_MARKER}\ntwo\n{END_MARKER}\n",
+        encoding="utf-8",
+    )
+
+    assert cli_main(["init-agent", "--target", "all", "--root", str(tmp_path)]) == 2
+    assert "MARKER_CONFLICT" in capsys.readouterr().err
+    assert not (tmp_path / "AGENTS.md").exists()
+    assert claude.exists()
     assert not (tmp_path / ".cursor").exists()
     assert not (tmp_path / ".github").exists()
 
@@ -73,3 +112,121 @@ def test_init_agent_all_creates_all_targets(tmp_path):
     assert (tmp_path / "CLAUDE.md").exists()
     assert (tmp_path / ".cursor/rules/viewspec.mdc").exists()
     assert (tmp_path / ".github/copilot-instructions.md").exists()
+
+
+def test_export_agent_assets_creates_local_prompt_and_schema(tmp_path, capsys):
+    out_dir = tmp_path / ".viewspec"
+
+    assert cli_main(["export-agent-assets", "--out", str(out_dir)]) == 0
+    payload = json.loads(capsys.readouterr().out)
+
+    prompt_path = out_dir / "agent-system-prompt.txt"
+    schema_path = out_dir / "agent-intent-bundle.schema.json"
+    example_path = out_dir / "agent-intent-example.dashboard.json"
+    manifest_path = out_dir / "agent-assets.json"
+    assert payload["ok"] is True
+    assert payload["schema_version"] == AGENT_ASSET_SCHEMA_VERSION
+    assert {item["path"]: item["action"] for item in payload["files"]} == {
+        "agent-assets.json": "create",
+        "agent-system-prompt.txt": "create",
+        "agent-intent-bundle.schema.json": "create",
+        "agent-intent-example.dashboard.json": "create",
+    }
+    assert prompt_path.read_text(encoding="utf-8") == AGENT_SYSTEM_PROMPT
+    assert json.loads(schema_path.read_text(encoding="utf-8")) == AGENT_INTENT_BUNDLE_SCHEMA
+    assert json.loads(example_path.read_text(encoding="utf-8")) == starter_intent_bundle("dashboard").to_json()
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    assert manifest["schema_version"] == AGENT_ASSET_SCHEMA_VERSION
+    assert {item["path"] for item in manifest["files"]} == {
+        "agent-system-prompt.txt",
+        "agent-intent-bundle.schema.json",
+        "agent-intent-example.dashboard.json",
+    }
+    checked = check_agent_assets(out_dir)
+    assert checked["ok"] is True
+    assert cli_main(["check-agent-assets", str(out_dir), "--json"]) == 0
+    check_payload = json.loads(capsys.readouterr().out)
+    assert check_payload["ok"] is True
+    assert check_payload["schema_version"] == AGENT_ASSET_SCHEMA_VERSION
+
+    assert cli_main(["export-agent-assets", "--out", str(out_dir)]) == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert {item["path"]: item["action"] for item in payload["files"]} == {
+        "agent-assets.json": "unchanged",
+        "agent-system-prompt.txt": "unchanged",
+        "agent-intent-bundle.schema.json": "unchanged",
+        "agent-intent-example.dashboard.json": "unchanged",
+    }
+
+
+def test_export_agent_assets_dry_run_creates_no_files(tmp_path, capsys):
+    out_dir = tmp_path / ".viewspec"
+
+    assert cli_main(["export-agent-assets", "--out", str(out_dir), "--dry-run"]) == 0
+    payload = json.loads(capsys.readouterr().out)
+
+    assert payload["ok"] is True
+    assert {item["path"]: item["action"] for item in payload["files"]} == {
+        "agent-assets.json": "create",
+        "agent-system-prompt.txt": "create",
+        "agent-intent-bundle.schema.json": "create",
+        "agent-intent-example.dashboard.json": "create",
+    }
+    assert not out_dir.exists()
+
+
+def test_check_agent_assets_rejects_tampered_files(tmp_path, capsys):
+    out_dir = tmp_path / ".viewspec"
+    assert cli_main(["export-agent-assets", "--out", str(out_dir)]) == 0
+    capsys.readouterr()
+    (out_dir / "agent-system-prompt.txt").write_text("tampered\n", encoding="utf-8")
+
+    assert cli_main(["check-agent-assets", str(out_dir), "--json"]) == 2
+    payload = json.loads(capsys.readouterr().out)
+
+    assert payload["ok"] is False
+    assert "agent-system-prompt.txt sha256 does not match" in "\n".join(payload["errors"])
+
+
+def test_export_agent_assets_refuses_conflict_without_partial_writes(tmp_path, capsys):
+    out_dir = tmp_path / ".viewspec"
+    out_dir.mkdir()
+    (out_dir / "agent-system-prompt.txt").write_text("custom prompt\n", encoding="utf-8")
+
+    assert cli_main(["export-agent-assets", "--out", str(out_dir)]) == 2
+    assert "AGENT_ASSET_CONFLICT" in capsys.readouterr().err
+    assert not (out_dir / "agent-assets.json").exists()
+    assert not (out_dir / "agent-intent-bundle.schema.json").exists()
+    assert not (out_dir / "agent-intent-example.dashboard.json").exists()
+    assert (out_dir / "agent-system-prompt.txt").read_text(encoding="utf-8") == "custom prompt\n"
+
+    assert cli_main(["export-agent-assets", "--out", str(out_dir), "--force"]) == 0
+    assert (out_dir / "agent-system-prompt.txt").read_text(encoding="utf-8") == AGENT_SYSTEM_PROMPT
+    assert json.loads((out_dir / "agent-intent-bundle.schema.json").read_text(encoding="utf-8")) == AGENT_INTENT_BUNDLE_SCHEMA
+    assert json.loads((out_dir / "agent-intent-example.dashboard.json").read_text(encoding="utf-8")) == starter_intent_bundle("dashboard").to_json()
+
+
+def test_agent_asset_readiness_reports_local_contract_identity():
+    readiness = agent_asset_readiness()
+
+    assert readiness["ok"] is True
+    assert readiness["schema_version"] == AGENT_ASSET_SCHEMA_VERSION
+    assert readiness["asset_manifest_file"] == "agent-assets.json"
+    assert readiness["system_prompt_file"] == "agent-system-prompt.txt"
+    assert readiness["intent_schema_file"] == "agent-intent-bundle.schema.json"
+    assert readiness["intent_example_file"] == "agent-intent-example.dashboard.json"
+    assert readiness["intent_schema_id"] == "https://viewspec.dev/agent-intent-bundle.schema.json"
+    assert readiness["export_command"] == "viewspec export-agent-assets --out .viewspec"
+    assert len(readiness["asset_manifest_sha256"]) == 64
+    assert len(readiness["system_prompt_sha256"]) == 64
+    assert len(readiness["intent_schema_sha256"]) == 64
+    assert len(readiness["intent_example_sha256"]) == 64
+
+
+def test_export_agent_assets_rejects_file_output_path(tmp_path, capsys):
+    out_path = tmp_path / ".viewspec"
+    out_path.write_text("not a directory", encoding="utf-8")
+
+    assert cli_main(["export-agent-assets", "--out", str(out_path)]) == 2
+    assert "AGENT_ASSET_OUTPUT_NOT_DIRECTORY" in capsys.readouterr().err
+    assert out_path.read_text(encoding="utf-8") == "not a directory"

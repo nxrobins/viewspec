@@ -11,6 +11,7 @@ from __future__ import annotations
 import json
 import re
 import hashlib
+import math
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -20,7 +21,7 @@ import yaml
 
 MAX_REFERENCE_DEPTH = 32
 HEX_COLOR_RE = re.compile(r"^#[0-9A-Fa-f]{6}$")
-DIMENSION_RE = re.compile(r"^(?:0|-?(?:\d+(?:\.\d+)?|\.\d+)(?:px|rem|em))$")
+DIMENSION_RE = re.compile(r"^(?:0|(?:\d+(?:\.\d+)?|\.\d+)(?:px|rem|em))$")
 TOKEN_REF_RE = re.compile(r"^\{([A-Za-z0-9_.-]+)\}$")
 EMBEDDED_TOKEN_REF_RE = re.compile(r"\{([A-Za-z0-9_.-]+)\}")
 
@@ -356,6 +357,23 @@ def _validate_tokens(
         ignored_tokens.append("typography")
         tokens.pop("typography", None)
         report.add("warning", "DESIGN_TYPOGRAPHY_WARNING", "typography", "typography must be a mapping; token ignored")
+    elif isinstance(tokens.get("typography"), dict):
+        _sanitize_typography(tokens["typography"], report, ignored_tokens)
+
+    _sanitize_dimension_map(
+        tokens,
+        "spacing",
+        report,
+        ignored_tokens,
+        "Spacing token must be a non-negative px/rem/em dimension; token ignored",
+    )
+    _sanitize_dimension_map(
+        tokens,
+        "rounded",
+        report,
+        ignored_tokens,
+        "Radius token must be a non-negative px/rem/em dimension; token ignored",
+    )
 
     mapped_color_paths = {
         "colors.primary",
@@ -384,6 +402,75 @@ def _validate_tokens(
             "colors.error",
             "colors.error and colors.warning both target tone.warning; colors.error wins",
         )
+
+
+def _sanitize_dimension_map(
+    tokens: dict[str, Any],
+    key: str,
+    report: DesignLintReport,
+    ignored_tokens: list[str],
+    message: str,
+) -> None:
+    value = tokens.get(key)
+    if value is None:
+        return
+    if not isinstance(value, dict):
+        ignored_tokens.append(key)
+        tokens.pop(key, None)
+        report.add("warning", "DESIGN_DIMENSION_WARNING", key, f"{key} must be a mapping; token ignored")
+        return
+    for child_key, child_value in list(value.items()):
+        path = f"{key}.{child_key}"
+        if _valid_dimension(child_value) is None:
+            ignored_tokens.append(path)
+            value.pop(child_key, None)
+            report.add("warning", "DESIGN_DIMENSION_WARNING", path, message)
+
+
+def _sanitize_typography(
+    typography: dict[str, Any],
+    report: DesignLintReport,
+    ignored_tokens: list[str],
+) -> None:
+    for entry_name, entry in list(typography.items()):
+        entry_path = f"typography.{entry_name}"
+        if not isinstance(entry, dict):
+            ignored_tokens.append(entry_path)
+            typography.pop(entry_name, None)
+            report.add("warning", "DESIGN_TYPOGRAPHY_WARNING", entry_path, "Typography entries must be mappings; token ignored")
+            continue
+        if "fontFamily" in entry and _font_family_css(str(entry["fontFamily"])) is None:
+            ignored_tokens.append(f"{entry_path}.fontFamily")
+            entry.pop("fontFamily", None)
+            report.add(
+                "warning",
+                "DESIGN_TYPOGRAPHY_WARNING",
+                f"{entry_path}.fontFamily",
+                "fontFamily must be a plain CSS font family name or family list; token ignored",
+            )
+        if "fontWeight" in entry and _valid_font_weight(entry["fontWeight"]) is None:
+            ignored_tokens.append(f"{entry_path}.fontWeight")
+            entry.pop("fontWeight", None)
+            report.add("warning", "DESIGN_TYPOGRAPHY_WARNING", f"{entry_path}.fontWeight", "fontWeight must be numeric 1-1000; token ignored")
+        for field_name in ("fontSize", "letterSpacing"):
+            if field_name in entry and _valid_dimension(entry[field_name]) is None:
+                ignored_tokens.append(f"{entry_path}.{field_name}")
+                entry.pop(field_name, None)
+                report.add(
+                    "warning",
+                    "DESIGN_DIMENSION_WARNING",
+                    f"{entry_path}.{field_name}",
+                    f"{field_name} must be a non-negative px/rem/em dimension; token ignored",
+                )
+        if "lineHeight" in entry and _valid_line_height(entry["lineHeight"]) is None:
+            ignored_tokens.append(f"{entry_path}.lineHeight")
+            entry.pop("lineHeight", None)
+            report.add(
+                "warning",
+                "DESIGN_DIMENSION_WARNING",
+                f"{entry_path}.lineHeight",
+                "lineHeight must be a positive number or non-negative px/rem/em dimension; token ignored",
+            )
 
 
 def _apply_mode_defaults(tokens: dict[str, Any]) -> set[str]:
@@ -418,6 +505,7 @@ def _map_style_values(
         append("tone.neutral", f"color: {colors['primary']};", "colors.primary")
         append("emphasis.high", f"color: {colors['primary']};", "colors.primary")
         append("tone.accent", f"color: {colors['primary']};", "colors.primary")
+        append("action.accent", f"background-color: {colors['primary']};", "colors.primary")
     if colors.get("secondary"):
         append("tone.muted", f"color: {colors['secondary']};", "colors.secondary")
         append("surface.subtle", f"border-color: {colors['secondary']};", "colors.secondary")
@@ -425,6 +513,7 @@ def _map_style_values(
         append("tone.accent", f"color: {colors['tertiary']};", "colors.tertiary")
     if colors.get("accent"):
         append("tone.accent", f"color: {colors['accent']};", "colors.accent")
+        append("action.accent", f"background-color: {colors['accent']};", "colors.accent")
     if colors.get("background"):
         append("palette.temperature", f"background-color: {colors['background']};", "colors.background")
     elif colors.get("neutral"):
@@ -448,6 +537,7 @@ def _map_style_values(
         append("tone.positive", f"color: {colors['positive']};", "colors.positive")
     if colors.get("info"):
         append("tone.accent", f"color: {colors['info']};", "colors.info")
+        append("action.accent", f"background-color: {colors['info']};", "colors.info")
 
     typography = tokens.get("typography") if isinstance(tokens.get("typography"), dict) else {}
     heading = _typography_entry(typography, ("heading", "h1"))
@@ -500,10 +590,11 @@ def _append_typography(
         family = _font_family_css(str(entry["fontFamily"]))
         if family:
             append(token, f"font-family: {family};", f"typography.{source_prefix}.fontFamily")
+            if token == "rhythm.hierarchy":
+                append("emphasis.high", f"font-family: {family};", f"typography.{source_prefix}.fontFamily")
     if entry.get("fontWeight") is not None:
-        try:
-            weight = int(entry["fontWeight"])
-        except (TypeError, ValueError):
+        weight = _valid_font_weight(entry["fontWeight"])
+        if weight is None:
             ignored_tokens.append(f"typography.{source_prefix}.fontWeight")
             report.add("warning", "DESIGN_TYPOGRAPHY_WARNING", f"typography.{source_prefix}.fontWeight", "fontWeight must be numeric; token ignored")
         else:
@@ -516,6 +607,8 @@ def _append_typography(
         dim = _valid_dimension(entry[key]) if key != "lineHeight" else _valid_line_height(entry[key])
         if dim:
             append(token, f"{prop}: {dim};", f"typography.{source_prefix}.{key}")
+            if token == "rhythm.hierarchy":
+                append("emphasis.high", f"{prop}: {dim};", f"typography.{source_prefix}.{key}")
         else:
             ignored_tokens.append(f"typography.{source_prefix}.{key}")
             report.add("warning", "DESIGN_DIMENSION_WARNING", f"typography.{source_prefix}.{key}", f"{key} must be a dimension; token ignored")
@@ -530,23 +623,45 @@ def _font_family_css(value: str) -> str | None:
 
 
 def _valid_dimension(value: Any) -> str | None:
+    if isinstance(value, bool):
+        return None
     if isinstance(value, (int, float)):
+        if not math.isfinite(float(value)) or float(value) < 0:
+            return None
         return f"{value}px"
     if isinstance(value, str) and DIMENSION_RE.match(value.strip()):
         return value.strip()
     return None
 
 
+def _valid_font_weight(value: Any) -> int | None:
+    if isinstance(value, bool):
+        return None
+    try:
+        weight = int(value)
+    except (TypeError, ValueError):
+        return None
+    if 1 <= weight <= 1000:
+        return weight
+    return None
+
+
 def _valid_line_height(value: Any) -> str | None:
+    if isinstance(value, bool):
+        return None
     if isinstance(value, (int, float)):
+        if not math.isfinite(float(value)) or float(value) <= 0:
+            return None
         return str(value)
     if isinstance(value, str):
         stripped = value.strip()
         if DIMENSION_RE.match(stripped):
             return stripped
         try:
-            float(stripped)
+            parsed = float(stripped)
         except ValueError:
+            return None
+        if not math.isfinite(parsed) or parsed <= 0:
             return None
         return stripped
     return None

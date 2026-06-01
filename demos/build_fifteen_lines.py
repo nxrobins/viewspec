@@ -11,6 +11,7 @@ from typing import Any
 from viewspec import IntentBundle, ViewSpecBuilder, compile
 from viewspec.emitters.html_tailwind import ACTION_EVENT_SCRIPT, _render_node
 from viewspec.types import ASTBundle, DEFAULT_STYLE_TOKEN_VALUES
+from seo_metadata import demo_head_metadata
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -131,6 +132,11 @@ def build_page(fragments: list[str], lines: list[dict[str, object]], stats: dict
     fragments_json = safe_json_for_script(fragments)
     lines_json = safe_json_for_script(lines)
     stats_json = safe_json_for_script(stats)
+    head_meta = demo_head_metadata(
+        title="ViewSpec Demo - 15 Lines to Full UI",
+        description="Watch fifteen lines of Python ViewSpec intent grow into a complete invoice UI while the compiler preserves structure, styling, and provenance.",
+        canonical_path="fifteen-lines",
+    )
 
     return f"""<!DOCTYPE html>
 <html lang="en">
@@ -138,6 +144,7 @@ def build_page(fragments: list[str], lines: list[dict[str, object]], stats: dict
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>ViewSpec Demo - 15 Lines to Full UI</title>
+{head_meta}
   <link rel="icon" href="data:,">
   <script src="https://cdn.tailwindcss.com"></script>
   <script type="module" src="../shared/pretext-canvas-surfaces.js"></script>

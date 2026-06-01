@@ -2,8 +2,8 @@
   "openapi": "3.1.0",
   "info": {
     "title": "ViewSpec Hosted Compiler API",
-    "summary": "Compile agent-native ViewSpec IntentBundles into portable CompositionIR and provenance.",
-    "description": "ViewSpec is an agent-native UI IR and semantic UI compiler API for deterministic cross-platform UI generation.",
+    "summary": "Compile agent-native ViewSpec IntentBundles into portable UI artifacts and provenance.",
+    "description": "ViewSpec is an agent-native UI compiler API for deterministic cross-platform UI generation.",
     "version": "1.0.0",
     "license": {
       "name": "MIT",
@@ -21,8 +21,11 @@
     "url": "https://viewspec.dev/"
   },
   "x-viewspec-agent-artifacts": {
+    "assetSchemaVersion": 3,
+    "assetManifest": "https://viewspec.dev/agent-assets.json",
     "systemPrompt": "https://viewspec.dev/agent-system-prompt.txt",
     "intentBundleSchema": "https://viewspec.dev/agent-intent-bundle.schema.json",
+    "intentBundleExample": "https://viewspec.dev/agent-intent-example.dashboard.json",
     "agentDocs": "https://github.com/nxrobins/viewspec/blob/main/docs/agent-integration.md"
   },
   "paths": {

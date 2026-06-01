@@ -1,13 +1,24 @@
 """Tests for the reference compiler."""
 
 import pytest
-from viewspec import ViewSpecBuilder, compile, UnsupportedMotifError
-from viewspec.emitters.html_tailwind import HtmlTailwindEmitter
+
+from viewspec import UnsupportedMotifError, ViewSpecBuilder, compile
+from viewspec.agent import SUPPORTED_AGENT_ACTION_KINDS, SUPPORTED_AGENT_STYLE_TOKENS
+from viewspec.compiler import SUPPORTED_ACTION_KINDS
+from viewspec.emitters.html_tailwind import ACTION_EVENT_SCRIPT, HtmlTailwindEmitter
+from viewspec.types import DEFAULT_STYLE_TOKEN_VALUES
 
 
 def _count_nodes(node):
     """Recursively count IR nodes."""
     return 1 + sum(_count_nodes(c) for c in node.children)
+
+
+def _find_nodes(node, primitive):
+    matches = [node] if node.primitive == primitive else []
+    for child in node.children:
+        matches.extend(_find_nodes(child, primitive))
+    return matches
 
 
 def test_table_compile():
@@ -21,6 +32,31 @@ def test_table_compile():
     assert ast.result.root.root.primitive == "root"
     # root → motif_wrapper → 2 row clusters → 2 bindings each = 1+1+2+4 = 8
     assert _count_nodes(ast.result.root.root) >= 7
+
+
+def test_table_compile_emits_semantic_table_contract(tmp_path):
+    builder = ViewSpecBuilder("invoice")
+    table = builder.add_table("items", region="main", group_id="rows")
+    table.add_row(label="Widget A", value="$50", id="widget_a")
+
+    ast = compile(builder.build_bundle())
+    labels = _find_nodes(ast.result.root.root, "label")
+    values = _find_nodes(ast.result.root.root, "value")
+
+    assert len(ast.result.diagnostics) == 0
+    assert labels[0].props["table_cell_role"] == "row_header"
+    assert values[0].props["table_cell_role"] == "cell"
+
+    HtmlTailwindEmitter().emit(ast, tmp_path)
+    html = tmp_path.joinpath("index.html").read_text(encoding="utf-8")
+    header_tag = html[html.index('id="dom-binding_widget_a_label"') : html.index(">", html.index('id="dom-binding_widget_a_label"'))]
+
+    assert '<table id="dom-motif_items"' in html
+    assert "<tbody><tr " in html
+    assert '<tr id="dom-motif_items_widget_a"' in html
+    assert '<th id="dom-binding_widget_a_label"' in html
+    assert 'scope="row"' in header_tag
+    assert '<td id="dom-binding_widget_a_value"' in html
 
 
 def test_dashboard_compile():
@@ -53,6 +89,156 @@ def test_comparison_compile():
     motif_wrapper = region_main.children[0]
     assert motif_wrapper.primitive == "cluster"
     assert motif_wrapper.props.get("motif_kind") == "comparison"
+
+
+def test_list_compile(tmp_path):
+    builder = ViewSpecBuilder("tasks")
+    items = builder.add_list("next_steps", region="main", group_id="steps")
+    items.add_item(label="Plan", description="Define the UI intent", id="plan")
+    items.add_item(label="Build", description="Compile the artifact", id="build")
+
+    ast = compile(builder.build_bundle())
+    root = ast.result.root.root
+    region_main = root.children[0]
+    motif_wrapper = region_main.children[0]
+
+    assert len(ast.result.diagnostics) == 0
+    assert motif_wrapper.primitive == "stack"
+    assert motif_wrapper.props.get("motif_kind") == "list"
+    assert [item.primitive for item in motif_wrapper.children] == ["surface", "surface"]
+    assert motif_wrapper.children[0].children[0].props["text"] == "Plan"
+
+    HtmlTailwindEmitter().emit(ast, tmp_path)
+    html = tmp_path.joinpath("index.html").read_text(encoding="utf-8")
+    assert '<ul id="dom-motif_next_steps"' in html
+    assert '<li id="dom-motif_next_steps_plan"' in html
+
+
+def test_form_compile_emits_inert_form_role_contract(tmp_path):
+    builder = ViewSpecBuilder("contact")
+    form = builder.add_form("contact_form", region="main", group_id="fields")
+    form.add_field(label="Name", value="Ada", id="name")
+    form.add_field(label="Email", value="ada@example.com", id="email")
+    builder.add_action(
+        "submit_contact",
+        "submit",
+        "Submit",
+        target_region="main",
+        target_ref="motif:contact_form",
+        payload_bindings=["name_value", "email_value"],
+    )
+
+    ast = compile(builder.build_bundle())
+    root = ast.result.root.root
+    form_wrapper = root.children[0].children[0]
+    inputs = _find_nodes(root, "input")
+
+    assert len(ast.result.diagnostics) == 0
+    assert form_wrapper.primitive == "stack"
+    assert form_wrapper.props["motif_kind"] == "form"
+    assert [field.props["field_id"] for field in form_wrapper.children] == ["name", "email"]
+    assert [field.primitive for field in form_wrapper.children] == ["surface", "surface"]
+    assert [node.props["aria_label"] for node in inputs] == ["Name", "Email"]
+
+    HtmlTailwindEmitter().emit(ast, tmp_path)
+    html = tmp_path.joinpath("index.html").read_text(encoding="utf-8")
+
+    assert "<form" not in html
+    assert '<section id="dom-motif_contact_form"' in html
+    assert 'role="form"' in html
+    assert 'role="group"' in html
+    assert 'data-action-target-ref="motif:contact_form"' in html
+    assert 'data-payload-bindings="[&quot;name_value&quot;, &quot;email_value&quot;]"' in html
+    assert "document.addEventListener('keydown'" in html
+    assert 'data-action-kind="submit"' in html
+
+
+def test_detail_compile_emits_definition_list_contract(tmp_path):
+    builder = ViewSpecBuilder("profile")
+    detail = builder.add_detail("profile_details", region="main", group_id="fields")
+    detail.add_field(label="Owner", value="Ada Lovelace", id="owner")
+    detail.add_field(label="Status", value="Ready", id="status")
+
+    ast = compile(builder.build_bundle())
+    root = ast.result.root.root
+    detail_wrapper = root.children[0].children[0]
+
+    assert len(ast.result.diagnostics) == 0
+    assert detail_wrapper.primitive == "stack"
+    assert detail_wrapper.props["motif_kind"] == "detail"
+    assert [row.primitive for row in detail_wrapper.children] == ["cluster", "cluster"]
+    assert detail_wrapper.children[0].children[0].props["detail_role"] == "term"
+    assert detail_wrapper.children[0].children[1].props["detail_role"] == "description"
+
+    HtmlTailwindEmitter().emit(ast, tmp_path)
+    html = tmp_path.joinpath("index.html").read_text(encoding="utf-8")
+
+    assert '<dl id="dom-motif_profile_details"' in html
+    assert '<div id="dom-motif_profile_details_owner"' in html
+    assert '<dt id="dom-binding_owner_label"' in html
+    assert '<dd id="dom-binding_owner_value"' in html
+    assert "Ada Lovelace" in html
+
+
+def test_empty_state_compile_emits_section_heading_contract(tmp_path):
+    builder = ViewSpecBuilder("search")
+    builder.add_empty_state(
+        "no_results",
+        title="No results yet",
+        description="Adjust filters or create the first item.",
+        region="main",
+        group_id="message",
+    )
+
+    ast = compile(builder.build_bundle())
+    root = ast.result.root.root
+    empty_state = root.children[0].children[0]
+
+    assert len(ast.result.diagnostics) == 0
+    assert empty_state.primitive == "surface"
+    assert empty_state.props["motif_kind"] == "empty_state"
+    assert [child.props["empty_state_role"] for child in empty_state.children] == ["title", "description"]
+
+    HtmlTailwindEmitter().emit(ast, tmp_path)
+    html = tmp_path.joinpath("index.html").read_text(encoding="utf-8")
+
+    assert '<section id="dom-motif_no_results"' in html
+    assert 'aria-label="Empty state"' in html
+    assert '<h2 id="dom-binding_no_results_title"' in html
+    assert '<p id="dom-binding_no_results_description"' in html
+    assert "No results yet" in html
+    assert "Adjust filters or create the first item." in html
+
+
+def test_hero_compile_emits_header_heading_contract(tmp_path):
+    builder = ViewSpecBuilder("landing")
+    builder.add_hero(
+        "intro",
+        eyebrow="Agent-native UI",
+        title="Stop writing DOM",
+        description="ViewSpec compiles intent into checked UI artifacts.",
+        region="main",
+        group_id="message",
+    )
+
+    ast = compile(builder.build_bundle())
+    root = ast.result.root.root
+    hero = root.children[0].children[0]
+
+    assert len(ast.result.diagnostics) == 0
+    assert hero.primitive == "surface"
+    assert hero.props["motif_kind"] == "hero"
+    assert [child.props["hero_role"] for child in hero.children] == ["eyebrow", "title", "description"]
+
+    HtmlTailwindEmitter().emit(ast, tmp_path)
+    html = tmp_path.joinpath("index.html").read_text(encoding="utf-8")
+
+    assert '<header id="dom-motif_intro"' in html
+    assert 'aria-label="Hero"' in html
+    assert '<h1 id="dom-binding_intro_title"' in html
+    assert '<p id="dom-binding_intro_description"' in html
+    assert "Stop writing DOM" in html
+    assert "ViewSpec compiles intent into checked UI artifacts." in html
 
 
 def test_style_application():
@@ -101,6 +287,44 @@ def test_style_tokens_generated():
     assert "emphasis.high" in ast.style_values
     assert "tone.muted" in ast.style_values
     assert "density.compact" in ast.style_values
+    assert "tone.neutral" in ast.style_values
+    assert "palette.temperature" in ast.style_values
+    assert "tone.warning" in ast.style_values
+    assert "tone.positive" in ast.style_values
+    assert "rhythm.hierarchy" in ast.style_values
+    assert "narrative.flow" in ast.style_values
+
+
+def test_agent_supported_style_tokens_are_compiler_known():
+    builder = ViewSpecBuilder("all_tokens")
+    table = builder.add_table("items", region="main", group_id="rows")
+    table.add_row(label="Item", value="$50")
+    for index, token in enumerate(SUPPORTED_AGENT_STYLE_TOKENS):
+        builder.add_style(f"style_{index}", "binding:items_row_1_value", token)
+
+    ast = compile(builder.build_bundle())
+    codes = {diagnostic.code for diagnostic in ast.result.diagnostics}
+
+    assert set(SUPPORTED_AGENT_STYLE_TOKENS).issubset(DEFAULT_STYLE_TOKEN_VALUES)
+    assert "UNKNOWN_STYLE_TOKEN" not in codes
+
+
+def test_agent_supported_action_kinds_are_compiler_known():
+    assert SUPPORTED_AGENT_ACTION_KINDS == SUPPORTED_ACTION_KINDS
+
+
+def test_unknown_style_token_is_diagnostic_and_not_attached():
+    builder = ViewSpecBuilder("bad_style_token")
+    table = builder.add_table("items", region="main", group_id="rows")
+    table.add_row(label="Item", value="$50")
+    builder.add_style("bad_token", "binding:items_row_1_value", "css.position.fixed")
+
+    ast = compile(builder.build_bundle())
+    value_nodes = _find_nodes(ast.result.root.root, "value")
+    codes = {diagnostic.code for diagnostic in ast.result.diagnostics}
+
+    assert "UNKNOWN_STYLE_TOKEN" in codes
+    assert "css.position.fixed" not in value_nodes[0].style_tokens
 
 
 def test_full_pipeline_emit():
@@ -120,6 +344,127 @@ def test_full_pipeline_emit():
         assert "Test Item" in html
         assert "$42" in html
         assert "<!DOCTYPE html>" in html
+        assert "<script>" not in html
+
+
+def test_actions_compile_to_button_ir_and_html(tmp_path):
+    builder = ViewSpecBuilder("actions")
+    table = builder.add_table("items", region="main", group_id="rows")
+    table.add_row(label="Alpha", value="Ready", id="alpha")
+    builder.add_action(
+        "open_alpha",
+        "select",
+        "Open Alpha",
+        target_region="main",
+        target_ref="binding:alpha_label",
+        payload_bindings=["alpha_label", "alpha_value"],
+    )
+
+    ast = compile(builder.build_bundle())
+    buttons = _find_nodes(ast.result.root.root, "button")
+
+    assert len(ast.result.diagnostics) == 0
+    assert len(buttons) == 1
+    assert buttons[0].props["text"] == "Open Alpha"
+    assert buttons[0].props["target_ref"] == "binding:alpha_label"
+    assert buttons[0].props["payload_bindings"] == ["alpha_label", "alpha_value"]
+    assert buttons[0].provenance.intent_refs == ["viewspec:action:open_alpha"]
+    assert buttons[0].provenance.content_refs == ["node:alpha#attr:label", "node:alpha#attr:value"]
+
+    paths = HtmlTailwindEmitter().emit(ast, tmp_path)
+    html = tmp_path.joinpath("index.html").read_text(encoding="utf-8")
+    assert "Open Alpha" in html
+    assert 'type="button"' in html
+    assert 'data-action-id="open_alpha"' in html
+    assert 'data-action-target-ref="binding:alpha_label"' in html
+    assert ACTION_EVENT_SCRIPT in html
+    assert paths["html"] == str(tmp_path / "index.html")
+
+
+def test_unsupported_action_kind_is_diagnostic_and_not_emitted(tmp_path):
+    builder = ViewSpecBuilder("bad_action_kind")
+    table = builder.add_table("items", region="main", group_id="rows")
+    table.add_row(label="Alpha", value="Ready", id="alpha")
+    builder.add_action(
+        "destroy",
+        "delete_everything",
+        "Destroy",
+        target_region="main",
+        target_ref="binding:alpha_label",
+        payload_bindings=["alpha_label"],
+    )
+
+    ast = compile(builder.build_bundle())
+    buttons = _find_nodes(ast.result.root.root, "button")
+    codes = {diagnostic.code for diagnostic in ast.result.diagnostics}
+
+    assert "UNSUPPORTED_ACTION_KIND" in codes
+    assert buttons == []
+
+    HtmlTailwindEmitter().emit(ast, tmp_path)
+    html = tmp_path.joinpath("index.html").read_text(encoding="utf-8")
+    assert 'data-action-id="destroy"' not in html
+    assert ACTION_EVENT_SCRIPT not in html
+
+
+def test_action_references_only_valid_rendered_bindings(tmp_path):
+    builder = ViewSpecBuilder("bad_action_binding")
+    table = builder.add_table("items", region="main", group_id="rows")
+    table.add_row(label="Alpha", value="Ready", id="alpha")
+    builder.add_binding("bad_payload", "node:missing#attr:value", region="main", present_as="value")
+    builder.add_action(
+        "send_bad_payload",
+        "submit",
+        "Send",
+        target_region="main",
+        target_ref="binding:bad_payload",
+        payload_bindings=["bad_payload"],
+    )
+
+    ast = compile(builder.build_bundle())
+    buttons = _find_nodes(ast.result.root.root, "button")
+    codes = {diagnostic.code for diagnostic in ast.result.diagnostics}
+
+    assert "INVALID_ADDRESS" in codes
+    assert "UNKNOWN_ACTION_TARGET" in codes
+    assert "UNKNOWN_ACTION_PAYLOAD_BINDING" in codes
+    assert buttons == []
+
+    HtmlTailwindEmitter().emit(ast, tmp_path)
+    html = tmp_path.joinpath("index.html").read_text(encoding="utf-8")
+    assert 'data-action-id="send_bad_payload"' not in html
+    assert ACTION_EVENT_SCRIPT not in html
+
+
+def test_input_binding_compiles_to_safe_local_text_control(tmp_path):
+    builder = ViewSpecBuilder("compose")
+    input_binding = builder.add_text_input("draft", label="Message", value="Hello", group_id="fields")
+    builder.add_action("send", "submit", "Send", target_region="main", payload_bindings=[input_binding])
+
+    ast = compile(builder.build_bundle())
+    inputs = _find_nodes(ast.result.root.root, "input")
+
+    assert len(ast.result.diagnostics) == 0
+    assert input_binding == "draft_value"
+    assert inputs[0].props["value"] == "Hello"
+    assert inputs[0].props["input_type"] == "text"
+    assert inputs[0].props["binding_id"] == "draft_value"
+    assert inputs[0].props["aria_label"] == "Message"
+    assert "surface.subtle" in inputs[0].style_tokens
+
+    group = next(group for group in builder.view_spec.groups if group.id == "fields")
+    assert group.members == ["draft_label", "draft_value"]
+
+    HtmlTailwindEmitter().emit(ast, tmp_path)
+    html = tmp_path.joinpath("index.html").read_text(encoding="utf-8")
+
+    assert '<input id="dom-binding_draft_value"' in html
+    assert 'type="text"' in html
+    assert 'value="Hello"' in html
+    assert 'aria-label="Message"' in html
+    assert 'data-binding-id="draft_value"' in html
+    assert "payloadValues" in html
+    assert "<form" not in html
 
 
 def test_unsupported_motif_raises():

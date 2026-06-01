@@ -1,5 +1,7 @@
 {
   "ast_bundle": "ast_bundle.json",
+  "contract_profile": "hosted_extended_v1",
+  "contract_profile_description": "Hosted launch IntentBundle extension: includes inputs, rules, projections, and cross-platform emitters beyond the local validate-intent V1 contract.",
   "flutter": {
     "dart": "flutter/viewspec_view.dart",
     "diagnostics": "flutter/diagnostics.json",

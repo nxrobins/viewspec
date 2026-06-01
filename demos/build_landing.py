@@ -5,9 +5,14 @@ The landing page is defined as a semantic substrate, compiled through the
 reference compiler, and emitted as HTML. The page IS the demo.
 """
 
+import json
+import sys
+from pathlib import Path
+
 from viewspec import ViewSpecBuilder, compile
 from viewspec.emitters.html_tailwind import HtmlTailwindEmitter
-import json
+from viewspec.intent_tools import wrap_intent_bundle_manifest
+from viewspec.local_tools import source_hash
 
 # ---------------------------------------------------------------------------
 # Define the landing page as semantic data
@@ -54,16 +59,25 @@ for d in ast.result.diagnostics:
 # Emit the raw compiled HTML (the ViewSpec output)
 # ---------------------------------------------------------------------------
 
-paths = HtmlTailwindEmitter().emit(ast, "landing-compiled")
+output_dir = Path("demos") / "landing-compiled"
+paths = HtmlTailwindEmitter().emit(ast, output_dir)
+bundle_json = json.dumps(bundle.to_json(), indent=2, sort_keys=True)
+wrap_intent_bundle_manifest(
+    Path(paths["manifest"]),
+    source_name="intent_bundle.json",
+    raw_source_hash=source_hash(bundle_json),
+    design=None,
+    command_args=["python", "demos/build_landing.py"],
+)
 print(f"Compiled HTML: {paths['html']}")
 
 # ---------------------------------------------------------------------------
 # Also dump the IntentBundle JSON for the live-builder demo
 # ---------------------------------------------------------------------------
 
-with open("landing-compiled/intent_bundle.json", "w") as f:
-    json.dump(bundle.to_json(), f, indent=2)
-print("Intent bundle: landing-compiled/intent_bundle.json")
+intent_bundle_path = output_dir / "intent_bundle.json"
+intent_bundle_path.write_text(bundle_json, encoding="utf-8", newline="")
+print(f"Intent bundle: {intent_bundle_path}")
 
 # ---------------------------------------------------------------------------
 # Print the IR tree summary
@@ -75,7 +89,8 @@ def _print_tree(node, indent=0):
     style = f" [{', '.join(node.style_tokens)}]" if node.style_tokens else ""
     text = node.props.get("text", "")
     label = f' "{text}"' if text else ""
-    print(f"{prefix}{node.primitive} ({node.id}) refs={refs}{style}{label}")
+    line = f"{prefix}{node.primitive} ({node.id}) refs={refs}{style}{label}"
+    print(line.encode(sys.stdout.encoding or "utf-8", errors="replace").decode(sys.stdout.encoding or "utf-8"))
     for child in node.children:
         _print_tree(child, indent + 1)
 

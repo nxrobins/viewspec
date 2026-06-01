@@ -19,16 +19,8 @@ export const LANDING_CONFIG = {
   apiUrl: primaryApiUrl,
   apiUrls: uniqueUrls([primaryApiUrl, ...fallbackApiUrls]),
   publicApiKey: configuredApiKey,
-  // TODO: swap to the new $149/mo Pro Payment Link before launch.
-  // Current default is the legacy $699 product; the pricing card already
-  // shows $149, so clicking "Get Pro" today reaches a wrong-priced checkout.
-  // Update this URL the moment the new Stripe Payment Link is live.
-  proStripeUrl: runtimeConfig.proStripeUrl || 'https://buy.stripe.com/7sY00i9v67cJebDd1K1oI00',
-  // Enterprise CTA: real Stripe link if/when one exists, otherwise contact via
-  // GitHub issues. `scaleStripeUrl` was a legacy alias with no consumers and
-  // has been removed; `signupUrl` was unused (no [data-config-link="signup"]
-  // exists in the HTML) and has been removed too.
-  enterpriseUrl: runtimeConfig.enterpriseUrl || 'https://github.com/nxrobins/viewspec/issues',
+  proStripeUrl: runtimeConfig.proStripeUrl || 'https://buy.stripe.com/6oU4gA6PqcM9afq6qq2Z0b8',
+  enterpriseUrl: runtimeConfig.enterpriseUrl || 'mailto:hello@viewspec.dev?subject=ViewSpec%20Enterprise',
   requestTimeoutMs: Number(runtimeConfig.requestTimeoutMs || 6000),
   endpointStaggerMs: Number(runtimeConfig.endpointStaggerMs || 50),
   endpointFailureTtlMs: Number(runtimeConfig.endpointFailureTtlMs || 300000),

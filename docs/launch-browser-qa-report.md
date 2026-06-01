@@ -15,7 +15,7 @@ Checked on May 1, 2026 with headless Chrome/CDP against `https://viewspec.dev`.
 
 ## Browser Coverage
 
-- Landing page renders `ViewSpec - Agent-Native UI IR`, exposes the three launch demo cards, and resolves pricing CTA links.
+- Landing page renders the agent-native UI compiler story, exposes the three launch demo cards, and resolves pricing CTA links.
 - `/cross-platform-dashboard/` renders the Launch Operations Dashboard page and all generated source/provenance links.
 - `/custom-motifs/` renders the MDL custom motif walkthrough and launch tiering copy.
 - `/interactive-compose/` renders the review form and compiled payload preview.
@@ -29,5 +29,5 @@ Checked on May 1, 2026 with headless Chrome/CDP against `https://viewspec.dev`.
 ## Link And Commerce Checks
 
 - Launch artifact links returned `200`: prompt, IntentBundle, ASTBundle, React TSX, SwiftUI, Flutter.
-- Pro checkout route returned `200`: `https://buy.stripe.com/7sY00i9v67cJebDd1K1oI00`.
-- Enterprise fallback route returned `200`: `https://github.com/nxrobins/viewspec/issues`.
+- Pro checkout route returned `200`: `https://buy.stripe.com/6oU4gA6PqcM9afq6qq2Z0b8`.
+- Enterprise contact route is configured as `mailto:hello@viewspec.dev?subject=ViewSpec%20Enterprise`.

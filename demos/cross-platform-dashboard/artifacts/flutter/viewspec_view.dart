@@ -1,18 +1,22 @@
 import 'package:flutter/material.dart';
 
 class ViewSpecActionIntent {
+  final int schemaVersion;
+  final String source;
   final String id;
   final String kind;
   final String targetRef;
   final List<String> payloadBindings;
-  final Map<String, Object?> payload;
+  final Map<String, Object?> payloadValues;
 
   const ViewSpecActionIntent({
+    required this.schemaVersion,
+    required this.source,
     required this.id,
     required this.kind,
     required this.targetRef,
     required this.payloadBindings,
-    required this.payload,
+    required this.payloadValues,
   });
 }
 
@@ -46,16 +50,16 @@ class _ViewSpecViewState extends State<ViewSpecView> {
     super.dispose();
   }
 
-  Map<String, Object?> _collectPayload(List<String> payloadBindings) {
-    final payload = <String, Object?>{};
+  Map<String, Object?> _collectPayloadValues(List<String> payloadBindings) {
+    final payloadValues = <String, Object?>{};
     for (final bindingId in payloadBindings) {
       if (_inputValues.containsKey(bindingId)) {
-        payload[bindingId] = _inputValues[bindingId];
+        payloadValues[bindingId] = _inputValues[bindingId];
       } else if (_compiledPayloadValues.containsKey(bindingId)) {
-        payload[bindingId] = _compiledPayloadValues[bindingId];
+        payloadValues[bindingId] = _compiledPayloadValues[bindingId];
       }
     }
-    return payload;
+    return payloadValues;
   }
 
   bool _isEmptyRuleValue(Object? value) {
@@ -111,11 +115,13 @@ class _ViewSpecViewState extends State<ViewSpecView> {
   void _dispatchAction(String id, String kind, String targetRef, List<String> payloadBindings) {
     widget.onAction?.call(
       ViewSpecActionIntent(
+        schemaVersion: 1,
+        source: 'viewspec-flutter',
         id: id,
         kind: kind,
         targetRef: targetRef,
         payloadBindings: payloadBindings,
-        payload: _collectPayload(payloadBindings),
+        payloadValues: _collectPayloadValues(payloadBindings),
       ),
     );
   }
@@ -302,7 +308,7 @@ class _ViewSpecViewState extends State<ViewSpecView> {
                     ),
                     ElevatedButton(
                       key: const ValueKey("dom-action_save_launch_review"),
-                      onPressed: () => _dispatchAction("save_launch_review", "submit", "/launch-review", const <String>["phase_filter", "owner_email", "include_mobile", "launch_status", "kpi_blockers_value"]),
+                      onPressed: () => _dispatchAction("save_launch_review", "submit", "view:launch_operations_dashboard", const <String>["phase_filter", "owner_email", "include_mobile", "launch_status", "kpi_blockers_value"]),
                       child: Text("Save launch review"),
                     ),
                   ]

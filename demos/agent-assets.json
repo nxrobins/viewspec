@@ -1,0 +1,19 @@
+{
+  "files": [
+    {
+      "path": "agent-system-prompt.txt",
+      "sha256": "65050ca1299324c6d1f8b226467110c702c246921cd7d14cc5811e0e8848f5b2"
+    },
+    {
+      "path": "agent-intent-bundle.schema.json",
+      "sha256": "b953fa6872f270c20de5960605b49a06297015b57a804366f9ab0938c6881dd4"
+    },
+    {
+      "path": "agent-intent-example.dashboard.json",
+      "sha256": "c245afe9f0b9480d0222c30e7ce44ee42f8371c6d2ac2abc7b8792db4a7a747f"
+    }
+  ],
+  "intent_schema_id": "https://viewspec.dev/agent-intent-bundle.schema.json",
+  "kind": "viewspec_agent_assets",
+  "schema_version": 3
+}
