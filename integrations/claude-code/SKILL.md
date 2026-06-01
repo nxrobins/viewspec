@@ -6,12 +6,15 @@ Use this skill when an agent creates a new human-facing UI artifact, report, das
 
 - Emit `viewspec.intent.json` as ViewSpec IntentBundle JSON for new UI.
 - Use `viewspec init-intent --out viewspec.intent.json` only as a scaffold; replace sample content with the user's actual intent before compiling.
-- Do not write HTML, CSS, React, SwiftUI, Flutter, or CompositionIR as source unless the user explicitly asks for emitter code.
+- Do not write HTML, CSS, React, SwiftUI, Flutter, or CompositionIR as source. Those are compiler outputs.
+- If the user explicitly needs local React source, compile the IntentBundle with `--target react-tsx` instead of hand-writing React.
 - If validation fails, regenerate the full IntentBundle using the correction prompt.
 - If `DESIGN.md` is missing, run `viewspec init-design --out DESIGN.md` once before compiling.
 - If a `DESIGN.md` file exists, compile with it through ViewSpec.
 - Treat compiled output as an artifact, not as the editable source.
 - Use raw HTML commands only when importing existing HTML.
+- Do not upload, share, call hosted APIs, or use remote services unless the user explicitly asks.
+- Never patch or recursively compile generated artifacts such as `dist/index.html` or `react-output/ViewSpecView.tsx`.
 
 ## Commands
 
@@ -51,6 +54,13 @@ Validate a compiled artifact directory:
 viewspec check dist/
 ```
 
+Compile local React source when explicitly needed:
+
+```bash
+viewspec compile viewspec.intent.json --design DESIGN.md --target react-tsx --out react-output/
+viewspec check react-output/
+```
+
 Diff two imported HTML versions using local lift signals:
 
 ```bash
@@ -60,14 +70,27 @@ viewspec diff report-v1.html report-v2.html --json
 Check local SDK readiness:
 
 ```bash
-viewspec doctor
+viewspec doctor --agents
+```
+
+Export local contract assets for schema-aware editors and agents:
+
+```bash
+viewspec export-agent-assets --out .viewspec
+viewspec check-agent-assets .viewspec --json
 ```
 
 ## Output Contract
 
-Compiled output is written to the selected output directory:
+Compiled HTML output is written to the selected output directory:
 
 - `index.html`
+- `provenance_manifest.json`
+- `diagnostics.json`
+
+Compiled React output is written to the selected output directory:
+
+- `ViewSpecView.tsx`
 - `provenance_manifest.json`
 - `diagnostics.json`
 
