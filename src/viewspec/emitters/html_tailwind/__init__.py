@@ -43,6 +43,7 @@ TAILWIND_BY_PRIMITIVE = {
 
 SAFE_IR_ID_RE = re.compile(r"^[A-Za-z0-9_.-]+$")
 ACTION_TARGET_REF_RE = re.compile(r"^(region|binding|motif|view):[A-Za-z0-9_.-]+$")
+UNSAFE_STYLE_VALUE_RE = re.compile(r"(?i)(@import|url\s*\(|expression\s*\(|javascript:|vbscript:|data:)")
 SUPPORTED_PRIMITIVES = frozenset(TAILWIND_BY_PRIMITIVE)
 
 
@@ -157,6 +158,16 @@ def _json_attr(value: Any) -> str:
 
 def _style_css(node: IRNode, style_values: dict[str, str]) -> str:
     return " ".join(style_values.get(token, "") for token in node.style_tokens if style_values.get(token))
+
+
+def _validate_style_values(style_values: dict[str, str]) -> None:
+    for token, value in style_values.items():
+        if not isinstance(token, str) or not SAFE_IR_ID_RE.match(token):
+            raise ValueError(f"Style token '{token}' must use only letters, digits, underscore, dot, and dash.")
+        if not isinstance(value, str):
+            raise ValueError(f"Style token '{token}' value must be a CSS declaration string.")
+        if "<" in value or ">" in value or UNSAFE_STYLE_VALUE_RE.search(value):
+            raise ValueError(f"Style token '{token}' contains an active or auto-fetching CSS surface.")
 
 
 def _style_attr(css: str) -> str:
@@ -379,6 +390,7 @@ def emit_compiler_result(
     """Emit a CompilerResult as HTML + Tailwind with provenance manifest."""
     output_path = Path(output_dir)
     _validate_ir_contract(result.root.root, set())
+    _validate_style_values(style_values)
     output_path.mkdir(parents=True, exist_ok=True)
     manifest: dict[str, Any] = {}
     body = _render_node(result.root.root, manifest, style_values)

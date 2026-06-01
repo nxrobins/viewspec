@@ -13,6 +13,7 @@ from viewspec.emitters.html_tailwind import (
     TAILWIND_BY_PRIMITIVE,
     _manifest_entry,
     _style_css,
+    _validate_style_values,
     _validate_ir_contract,
     _write_text_atomic,
 )
@@ -455,6 +456,7 @@ def emit_compiler_result(
     """Emit a CompilerResult as a deterministic React TSX component."""
     output_path = Path(output_dir)
     _validate_ir_contract(result.root.root, set())
+    _validate_style_values(style_values)
     unsupported = {node.primitive for node in _walk(result.root.root)} - SUPPORTED_PRIMITIVES
     if unsupported:
         raise ValueError(f"Unsupported IR primitive(s) for React TSX emitter: {', '.join(sorted(unsupported))}.")
