@@ -140,6 +140,8 @@ This is intentionally not a visual equivalence proof. It tells reviewers what ch
 
 ## Published Agent Artifacts
 
+These assets use agent asset schema version `2`.
+
 - System prompt: `https://viewspec.dev/agent-system-prompt.txt`
 - JSON schema: `https://viewspec.dev/agent-intent-bundle.schema.json`
 - Valid starter example: `https://viewspec.dev/agent-intent-example.dashboard.json`

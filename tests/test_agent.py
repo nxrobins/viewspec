@@ -7,6 +7,7 @@ from pathlib import Path
 import pytest
 
 from viewspec import (
+    AGENT_ASSET_SCHEMA_VERSION,
     AGENT_INTENT_BUNDLE_SCHEMA,
     AGENT_SYSTEM_PROMPT,
     SUPPORTED_AGENT_ACTION_KINDS,
@@ -182,6 +183,16 @@ def test_published_agent_example_matches_runtime_starter():
 
     assert published == starter_intent_bundle("dashboard").to_json()
     assert validate_agent_intent_bundle(published).valid
+
+
+def test_published_openapi_agent_artifacts_match_runtime_contract():
+    openapi = json.loads(ROOT.joinpath("demos/openapi.json").read_text(encoding="utf-8"))
+    artifacts = openapi["x-viewspec-agent-artifacts"]
+
+    assert artifacts["assetSchemaVersion"] == AGENT_ASSET_SCHEMA_VERSION
+    assert artifacts["systemPrompt"] == "https://viewspec.dev/agent-system-prompt.txt"
+    assert artifacts["intentBundleSchema"] == AGENT_INTENT_BUNDLE_SCHEMA["$id"]
+    assert artifacts["intentBundleExample"] == "https://viewspec.dev/agent-intent-example.dashboard.json"
 
 
 def test_rejects_substrate_nodes_array():

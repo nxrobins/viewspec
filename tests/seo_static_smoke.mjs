@@ -121,6 +121,7 @@ const openapi = JSON.parse(await readFile('demos/openapi.json', 'utf8'))
 assert.equal(openapi.openapi, '3.1.0')
 assert.equal(openapi.servers[0].url, 'https://api.viewspec.dev')
 assert(openapi.paths['/v1/compile']?.post, 'OpenAPI needs POST /v1/compile')
+assert.equal(openapi['x-viewspec-agent-artifacts'].assetSchemaVersion, 2)
 assert.equal(openapi['x-viewspec-agent-artifacts'].systemPrompt, 'https://viewspec.dev/agent-system-prompt.txt')
 assert.equal(openapi['x-viewspec-agent-artifacts'].intentBundleExample, 'https://viewspec.dev/agent-intent-example.dashboard.json')
 
