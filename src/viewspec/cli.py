@@ -379,6 +379,7 @@ def _doctor_command(args: argparse.Namespace) -> int:
                 "agent_instruction_templates": True,
                 "agent_contract_assets": agent_asset_readiness(),
                 "local_agent_assets": _doctor_local_agent_assets(Path(".viewspec")),
+                "published_agent_assets": _doctor_published_agent_assets(Path("demos")),
                 "mcp_dependency": mcp_dependency_available(),
                 "mcp_install_hint": MCP_INSTALL_HINT,
                 "path_policy": "cwd containment by default",
@@ -435,6 +436,15 @@ def _doctor_checks_ok(value: object) -> bool:
 def _doctor_local_agent_assets(path: Path) -> dict[str, object]:
     resolved = path.resolve()
     if not resolved.exists():
+        return {"ok": True, "status": "not_found", "path": str(resolved)}
+    result = check_agent_assets(resolved)
+    return {"status": "present", **result}
+
+
+def _doctor_published_agent_assets(path: Path) -> dict[str, object]:
+    resolved = path.resolve()
+    manifest = resolved / "agent-assets.json"
+    if not manifest.exists():
         return {"ok": True, "status": "not_found", "path": str(resolved)}
     result = check_agent_assets(resolved)
     return {"status": "present", **result}

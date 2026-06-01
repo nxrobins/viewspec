@@ -182,6 +182,13 @@ def test_doctor_agents_reports_missing_optional_mcp(capsys):
     assert len(checks["agent_contract_assets"]["system_prompt_sha256"]) == 64
     assert len(checks["agent_contract_assets"]["intent_schema_sha256"]) == 64
     assert len(checks["agent_contract_assets"]["intent_example_sha256"]) == 64
+    assert checks["published_agent_assets"]["ok"] is True
+    assert checks["published_agent_assets"]["status"] == "present"
+    assert checks["published_agent_assets"]["schema_version"] == AGENT_ASSET_SCHEMA_VERSION
+    published_manifest = checks["published_agent_assets"]["manifest"].replace("\\", "/")
+    assert published_manifest.endswith("demos/agent-assets.json")
+    assert checks["local_agent_assets"]["ok"] is True
+    assert checks["local_agent_assets"]["status"] in {"not_found", "present"}
     assert checks["path_policy"] == "cwd containment by default"
     assert "validate-intent" in checks["local_network_policy"]
     assert "diff-intent" in checks["local_network_policy"]
