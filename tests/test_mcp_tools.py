@@ -15,6 +15,7 @@ from viewspec.intent_tools import (
     compile_intent_bundle_file_tool,
     diff_intent_bundle_files_tool,
     init_intent_tool,
+    starter_intent_bundle,
     validate_intent_bundle_file_tool,
 )
 from viewspec.local_tools import (
@@ -170,10 +171,12 @@ def test_doctor_agents_reports_missing_optional_mcp(capsys):
     assert checks["agent_contract_assets"]["ok"] is True
     assert checks["agent_contract_assets"]["system_prompt_file"] == "agent-system-prompt.txt"
     assert checks["agent_contract_assets"]["intent_schema_file"] == "agent-intent-bundle.schema.json"
+    assert checks["agent_contract_assets"]["intent_example_file"] == "agent-intent-example.dashboard.json"
     assert checks["agent_contract_assets"]["intent_schema_id"] == "https://viewspec.dev/agent-intent-bundle.schema.json"
     assert checks["agent_contract_assets"]["export_command"] == "viewspec export-agent-assets --out .viewspec"
     assert len(checks["agent_contract_assets"]["system_prompt_sha256"]) == 64
     assert len(checks["agent_contract_assets"]["intent_schema_sha256"]) == 64
+    assert len(checks["agent_contract_assets"]["intent_example_sha256"]) == 64
     assert checks["path_policy"] == "cwd containment by default"
     assert "validate-intent" in checks["local_network_policy"]
     assert "diff-intent" in checks["local_network_policy"]
@@ -219,14 +222,17 @@ def test_export_agent_assets_tool_writes_prompt_and_schema(tmp_path):
     assert_tool_schema(exported)
     assert exported["ok"] is True
     assert exported["metadata"]["network_calls"] == "none"
-    assert exported["metadata"]["changes"] == 2
+    assert exported["metadata"]["changes"] == 3
     assert exported["paths"]["prompt"].endswith("agent-system-prompt.txt")
     assert exported["paths"]["schema"].endswith("agent-intent-bundle.schema.json")
+    assert exported["paths"]["example"].endswith("agent-intent-example.dashboard.json")
     assert (tmp_path / ".viewspec/agent-system-prompt.txt").read_text(encoding="utf-8") == AGENT_SYSTEM_PROMPT
     assert json.loads((tmp_path / ".viewspec/agent-intent-bundle.schema.json").read_text(encoding="utf-8")) == AGENT_INTENT_BUNDLE_SCHEMA
+    assert json.loads((tmp_path / ".viewspec/agent-intent-example.dashboard.json").read_text(encoding="utf-8")) == starter_intent_bundle("dashboard").to_json()
     assert {item["path"]: item["action"] for item in exported["assets"]["files"]} == {
         "agent-system-prompt.txt": "create",
         "agent-intent-bundle.schema.json": "create",
+        "agent-intent-example.dashboard.json": "create",
     }
 
     dry_run = export_agent_assets_tool(".viewspec-dry-run", dry_run=True, cwd=tmp_path)
@@ -249,6 +255,7 @@ def test_export_agent_assets_tool_rejects_conflicts_and_path_escapes(tmp_path):
     assert conflict["errors"][0]["code"] == "IO_ERROR"
     assert "already exists with different content" in conflict["errors"][0]["message"]
     assert not (asset_dir / "agent-intent-bundle.schema.json").exists()
+    assert not (asset_dir / "agent-intent-example.dashboard.json").exists()
 
     outside = export_agent_assets_tool("../outside-assets", cwd=asset_dir)
 

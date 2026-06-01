@@ -56,7 +56,7 @@ viewspec init-agent --target all --dry-run
 
 The command preserves user content outside `<!-- BEGIN VIEWSPEC AGENT INSTRUCTIONS v1 -->` and `<!-- END VIEWSPEC AGENT INSTRUCTIONS v1 -->`.
 
-Export local prompt/schema assets when an editor or agent runtime can consume them directly:
+Export local prompt, schema, and valid example assets when an editor or agent runtime can consume them directly:
 
 ```bash
 viewspec export-agent-assets --out .viewspec
@@ -70,7 +70,7 @@ viewspec mcp
 viewspec doctor --agents
 ```
 
-The MCP tools are local-only by default and reject paths outside the configured working directory. Intent tools are the default for new UI; raw HTML MCP tools are import/fallback only. MCP also exposes `export_agent_assets` for local prompt/schema export.
+The MCP tools are local-only by default and reject paths outside the configured working directory. Intent tools are the default for new UI; raw HTML MCP tools are import/fallback only. MCP also exposes `export_agent_assets` for local prompt, schema, and valid example export.
 
 Treat compiled output directories as generated artifacts. Edit `viewspec.intent.json` or `DESIGN.md`, then re-run compile and check; do not patch `dist/index.html` or `react-output/ViewSpecView.tsx` by hand.
 

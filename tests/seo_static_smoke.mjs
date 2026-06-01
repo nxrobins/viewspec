@@ -122,6 +122,7 @@ assert.equal(openapi.openapi, '3.1.0')
 assert.equal(openapi.servers[0].url, 'https://api.viewspec.dev')
 assert(openapi.paths['/v1/compile']?.post, 'OpenAPI needs POST /v1/compile')
 assert.equal(openapi['x-viewspec-agent-artifacts'].systemPrompt, 'https://viewspec.dev/agent-system-prompt.txt')
+assert.equal(openapi['x-viewspec-agent-artifacts'].intentBundleExample, 'https://viewspec.dev/agent-intent-example.dashboard.json')
 
 const agentPrompt = await readFile('demos/agent-system-prompt.txt', 'utf8')
 assert.match(agentPrompt, /IntentBundle/)
@@ -130,6 +131,9 @@ assert.doesNotMatch(agentPrompt, /You output ViewSpec IR/)
 
 const agentSchema = JSON.parse(await readFile('demos/agent-intent-bundle.schema.json', 'utf8'))
 assert.deepEqual(agentSchema.$defs.motif.properties.kind.enum, ['table', 'dashboard', 'outline', 'comparison', 'list', 'form', 'detail', 'empty_state', 'hero'])
+const agentExample = JSON.parse(await readFile('demos/agent-intent-example.dashboard.json', 'utf8'))
+assert.equal(agentExample.view_spec.motifs[0].kind, 'dashboard')
+assert.equal(agentExample.view_spec.substrate_id, agentExample.substrate.id)
 
 const artifactIndex = JSON.parse(await readFile('demos/cross-platform-dashboard/artifacts/artifact_index.json', 'utf8'))
 assert.equal(artifactIndex.prompt, 'agent_prompt.txt')

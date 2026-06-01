@@ -18,6 +18,7 @@ Raw HTML tools remain available only for importing existing HTML: `viewspec comp
 - OpenAPI description: https://viewspec.dev/openapi.json
 - Agent system prompt: https://viewspec.dev/agent-system-prompt.txt
 - Agent IntentBundle schema: https://viewspec.dev/agent-intent-bundle.schema.json
+- Valid starter IntentBundle example: https://viewspec.dev/agent-intent-example.dashboard.json
 - Python package: https://pypi.org/project/viewspec/
 - Source repository: https://github.com/nxrobins/viewspec
 - Full AI context: https://viewspec.dev/llms-full.txt

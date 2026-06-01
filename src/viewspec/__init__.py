@@ -80,6 +80,7 @@ from viewspec.agent import (
 )
 from viewspec.agent_assets import (
     AGENT_ASSET_SCHEMA_VERSION,
+    AGENT_INTENT_EXAMPLE_FILE,
     AGENT_INTENT_SCHEMA_FILE,
     AGENT_SYSTEM_PROMPT_FILE,
     agent_asset_readiness,
@@ -156,6 +157,7 @@ __all__ = [
     "AGENT_INTENT_BUNDLE_SCHEMA",
     "AGENT_SYSTEM_PROMPT",
     "AGENT_ASSET_SCHEMA_VERSION",
+    "AGENT_INTENT_EXAMPLE_FILE",
     "AGENT_INTENT_SCHEMA_FILE",
     "AGENT_SYSTEM_PROMPT_FILE",
     "SUPPORTED_AGENT_ACTION_KINDS",

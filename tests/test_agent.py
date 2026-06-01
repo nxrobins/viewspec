@@ -17,6 +17,7 @@ from viewspec import (
     SUPPORTED_AGENT_STYLE_TOKENS,
     ViewSpecBuilder,
     agent_correction_prompt,
+    starter_intent_bundle,
     validate_agent_intent_bundle,
 )
 from viewspec.agent import (
@@ -174,6 +175,13 @@ def test_published_agent_prompt_matches_runtime_contract():
     published = ROOT.joinpath("demos/agent-system-prompt.txt").read_text(encoding="utf-8")
 
     assert published == AGENT_SYSTEM_PROMPT
+
+
+def test_published_agent_example_matches_runtime_starter():
+    published = json.loads(ROOT.joinpath("demos/agent-intent-example.dashboard.json").read_text(encoding="utf-8"))
+
+    assert published == starter_intent_bundle("dashboard").to_json()
+    assert validate_agent_intent_bundle(published).valid
 
 
 def test_rejects_substrate_nodes_array():

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 
-from viewspec import agent_asset_readiness
+from viewspec import agent_asset_readiness, starter_intent_bundle
 from viewspec.agent import AGENT_INTENT_BUNDLE_SCHEMA, AGENT_SYSTEM_PROMPT
 from viewspec.cli import main as cli_main
 from viewspec.native_agents import BEGIN_MARKER, END_MARKER
@@ -112,20 +112,24 @@ def test_export_agent_assets_creates_local_prompt_and_schema(tmp_path, capsys):
 
     prompt_path = out_dir / "agent-system-prompt.txt"
     schema_path = out_dir / "agent-intent-bundle.schema.json"
+    example_path = out_dir / "agent-intent-example.dashboard.json"
     assert payload["ok"] is True
     assert payload["schema_version"] == 1
     assert {item["path"]: item["action"] for item in payload["files"]} == {
         "agent-system-prompt.txt": "create",
         "agent-intent-bundle.schema.json": "create",
+        "agent-intent-example.dashboard.json": "create",
     }
     assert prompt_path.read_text(encoding="utf-8") == AGENT_SYSTEM_PROMPT
     assert json.loads(schema_path.read_text(encoding="utf-8")) == AGENT_INTENT_BUNDLE_SCHEMA
+    assert json.loads(example_path.read_text(encoding="utf-8")) == starter_intent_bundle("dashboard").to_json()
 
     assert cli_main(["export-agent-assets", "--out", str(out_dir)]) == 0
     payload = json.loads(capsys.readouterr().out)
     assert {item["path"]: item["action"] for item in payload["files"]} == {
         "agent-system-prompt.txt": "unchanged",
         "agent-intent-bundle.schema.json": "unchanged",
+        "agent-intent-example.dashboard.json": "unchanged",
     }
 
 
@@ -139,6 +143,7 @@ def test_export_agent_assets_dry_run_creates_no_files(tmp_path, capsys):
     assert {item["path"]: item["action"] for item in payload["files"]} == {
         "agent-system-prompt.txt": "create",
         "agent-intent-bundle.schema.json": "create",
+        "agent-intent-example.dashboard.json": "create",
     }
     assert not out_dir.exists()
 
@@ -151,11 +156,13 @@ def test_export_agent_assets_refuses_conflict_without_partial_writes(tmp_path, c
     assert cli_main(["export-agent-assets", "--out", str(out_dir)]) == 2
     assert "AGENT_ASSET_CONFLICT" in capsys.readouterr().err
     assert not (out_dir / "agent-intent-bundle.schema.json").exists()
+    assert not (out_dir / "agent-intent-example.dashboard.json").exists()
     assert (out_dir / "agent-system-prompt.txt").read_text(encoding="utf-8") == "custom prompt\n"
 
     assert cli_main(["export-agent-assets", "--out", str(out_dir), "--force"]) == 0
     assert (out_dir / "agent-system-prompt.txt").read_text(encoding="utf-8") == AGENT_SYSTEM_PROMPT
     assert json.loads((out_dir / "agent-intent-bundle.schema.json").read_text(encoding="utf-8")) == AGENT_INTENT_BUNDLE_SCHEMA
+    assert json.loads((out_dir / "agent-intent-example.dashboard.json").read_text(encoding="utf-8")) == starter_intent_bundle("dashboard").to_json()
 
 
 def test_agent_asset_readiness_reports_local_contract_identity():
@@ -165,10 +172,12 @@ def test_agent_asset_readiness_reports_local_contract_identity():
     assert readiness["schema_version"] == 1
     assert readiness["system_prompt_file"] == "agent-system-prompt.txt"
     assert readiness["intent_schema_file"] == "agent-intent-bundle.schema.json"
+    assert readiness["intent_example_file"] == "agent-intent-example.dashboard.json"
     assert readiness["intent_schema_id"] == "https://viewspec.dev/agent-intent-bundle.schema.json"
     assert readiness["export_command"] == "viewspec export-agent-assets --out .viewspec"
     assert len(readiness["system_prompt_sha256"]) == 64
     assert len(readiness["intent_schema_sha256"]) == 64
+    assert len(readiness["intent_example_sha256"]) == 64
 
 
 def test_export_agent_assets_rejects_file_output_path(tmp_path, capsys):

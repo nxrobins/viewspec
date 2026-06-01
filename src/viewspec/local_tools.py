@@ -468,6 +468,8 @@ def export_agent_assets_tool(
                 paths["prompt"] = str(output / filename)
             elif filename == "agent-intent-bundle.schema.json":
                 paths["schema"] = str(output / filename)
+            elif filename == "agent-intent-example.dashboard.json":
+                paths["example"] = str(output / filename)
         changed = [item for item in result["files"] if item["action"] != "unchanged"]
         return tool_response(
             True,
@@ -477,6 +479,7 @@ def export_agent_assets_tool(
             next_actions=[
                 "Point schema-aware editors or agents at .viewspec/agent-intent-bundle.schema.json.",
                 "Use .viewspec/agent-system-prompt.txt as the local ViewSpec agent contract prompt.",
+                "Use .viewspec/agent-intent-example.dashboard.json as a valid wire-shape example.",
             ],
             metadata={**path_policy_metadata(root, allow_outside_cwd), "dry_run": dry_run, "changes": len(changed)},
         )

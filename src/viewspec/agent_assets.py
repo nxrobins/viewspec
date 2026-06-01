@@ -15,6 +15,7 @@ from viewspec.local_tools import atomic_write
 AGENT_ASSET_SCHEMA_VERSION = 1
 AGENT_SYSTEM_PROMPT_FILE = "agent-system-prompt.txt"
 AGENT_INTENT_SCHEMA_FILE = "agent-intent-bundle.schema.json"
+AGENT_INTENT_EXAMPLE_FILE = "agent-intent-example.dashboard.json"
 
 
 class AgentAssetError(ValueError):
@@ -62,9 +63,11 @@ def agent_asset_readiness() -> dict[str, Any]:
         "schema_version": AGENT_ASSET_SCHEMA_VERSION,
         "system_prompt_file": AGENT_SYSTEM_PROMPT_FILE,
         "intent_schema_file": AGENT_INTENT_SCHEMA_FILE,
+        "intent_example_file": AGENT_INTENT_EXAMPLE_FILE,
         "intent_schema_id": AGENT_INTENT_BUNDLE_SCHEMA["$id"],
         "system_prompt_sha256": hashlib.sha256(contents[AGENT_SYSTEM_PROMPT_FILE].encode("utf-8")).hexdigest(),
         "intent_schema_sha256": hashlib.sha256(contents[AGENT_INTENT_SCHEMA_FILE].encode("utf-8")).hexdigest(),
+        "intent_example_sha256": hashlib.sha256(contents[AGENT_INTENT_EXAMPLE_FILE].encode("utf-8")).hexdigest(),
         "export_command": "viewspec export-agent-assets --out .viewspec",
     }
 
@@ -96,11 +99,15 @@ def plan_agent_asset_exports(out_dir: str | Path, *, force: bool = False) -> lis
 
 
 def _agent_asset_contents() -> dict[str, str]:
+    from viewspec.intent_tools import starter_intent_bundle
+
     prompt = AGENT_SYSTEM_PROMPT if AGENT_SYSTEM_PROMPT.endswith("\n") else f"{AGENT_SYSTEM_PROMPT}\n"
     schema = json.dumps(AGENT_INTENT_BUNDLE_SCHEMA, indent=2, sort_keys=True) + "\n"
+    example = json.dumps(starter_intent_bundle("dashboard").to_json(), indent=2, sort_keys=True) + "\n"
     return {
         AGENT_SYSTEM_PROMPT_FILE: prompt,
         AGENT_INTENT_SCHEMA_FILE: schema,
+        AGENT_INTENT_EXAMPLE_FILE: example,
     }
 
 
@@ -118,6 +125,7 @@ def _read_text_exact(path: Path) -> str:
 
 __all__ = [
     "AGENT_ASSET_SCHEMA_VERSION",
+    "AGENT_INTENT_EXAMPLE_FILE",
     "AGENT_INTENT_SCHEMA_FILE",
     "AGENT_SYSTEM_PROMPT_FILE",
     "AgentAssetError",
