@@ -27,6 +27,10 @@ def test_init_agent_creates_codex_instructions(tmp_path, capsys):
     assert "viewspec diff-intent old.intent.json new.intent.json --json" in text
     assert "viewspec init-intent --out viewspec.intent.json" in text
     assert "viewspec export-agent-assets --out .viewspec" in text
+    assert ".viewspec/agent-system-prompt.txt" in text
+    assert ".viewspec/agent-intent-bundle.schema.json" in text
+    assert ".viewspec/agent-intent-example.dashboard.json" in text
+    assert "Use the example only for valid IntentBundle wire shape" in text
     assert "Use raw HTML tools only when importing existing HTML" in text
     assert "compiled output directories such as `dist/` or `react-output/` contain generated artifacts" in text
     assert "Never patch or recursively compile generated artifacts such as `dist/index.html` or `react-output/ViewSpecView.tsx`" in text
