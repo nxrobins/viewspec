@@ -12,6 +12,7 @@ def test_primary_docs_are_intent_first():
         root / "demos/llms.txt",
         root / "demos/llms-full.txt",
         root / "demos/agent-system-prompt.txt",
+        root / "integrations/claude-code/SKILL.md",
     ]
 
     for path in docs:
@@ -44,6 +45,7 @@ def test_primary_docs_treat_compiled_outputs_as_artifacts():
         root / "docs/agent-integration.md",
         root / "demos/llms.txt",
         root / "demos/llms-full.txt",
+        root / "integrations/claude-code/SKILL.md",
     ]
 
     for path in docs:
@@ -51,6 +53,22 @@ def test_primary_docs_treat_compiled_outputs_as_artifacts():
         assert "dist/index.html" in text, path
         assert "react-output/ViewSpecView.tsx" in text, path
         assert "viewspec.intent.json" in text, path
+
+
+def test_claude_code_skill_matches_native_agent_workflow():
+    root = Path(__file__).resolve().parents[1]
+    text = root.joinpath("integrations/claude-code/SKILL.md").read_text(encoding="utf-8")
+
+    assert "Do not write HTML, CSS, React, SwiftUI, Flutter, or CompositionIR as source." in text
+    assert "viewspec compile viewspec.intent.json --design DESIGN.md --target react-tsx --out react-output/" in text
+    assert "viewspec check react-output/" in text
+    assert "viewspec doctor --agents" in text
+    assert "viewspec export-agent-assets --out .viewspec" in text
+    assert "viewspec check-agent-assets .viewspec --json" in text
+    assert "Do not upload, share, call hosted APIs" in text
+    assert "Never patch or recursively compile generated artifacts" in text
+    assert "compile_html_file" not in text
+    assert "lift_html_file" not in text
 
 
 def test_reference_grounding_is_explicit_opt_in():
