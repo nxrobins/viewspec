@@ -199,12 +199,19 @@ def test_published_agent_asset_manifest_matches_runtime_export(tmp_path):
 def test_published_openapi_agent_artifacts_match_runtime_contract():
     openapi = json.loads(ROOT.joinpath("demos/openapi.json").read_text(encoding="utf-8"))
     artifacts = openapi["x-viewspec-agent-artifacts"]
+    schemas = openapi["components"]["schemas"]
+    compile_request_ref = openapi["paths"]["/v1/compile"]["post"]["requestBody"]["content"]["application/json"]["schema"]["$ref"]
 
     assert artifacts["assetSchemaVersion"] == AGENT_ASSET_SCHEMA_VERSION
     assert artifacts["assetManifest"] == "https://viewspec.dev/agent-assets.json"
     assert artifacts["systemPrompt"] == "https://viewspec.dev/agent-system-prompt.txt"
     assert artifacts["intentBundleSchema"] == AGENT_INTENT_BUNDLE_SCHEMA["$id"]
     assert artifacts["intentBundleExample"] == "https://viewspec.dev/agent-intent-example.dashboard.json"
+    assert compile_request_ref == "#/components/schemas/CompileRequestPayload"
+    assert schemas["CompileRequestPayload"]["properties"]["design"]["$ref"] == "#/components/schemas/DesignRequest"
+    assert "hosted-only" in schemas["CompileRequestPayload"]["description"]
+    assert "design" not in schemas["IntentBundle"]["properties"]
+    assert "motif_library" not in schemas["IntentBundle"]["properties"]
 
 
 def test_rejects_substrate_nodes_array():

@@ -40,7 +40,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/IntentBundle"
+                "$ref": "#/components/schemas/CompileRequestPayload"
               }
             }
           }
@@ -80,8 +80,9 @@
   },
   "components": {
     "schemas": {
-      "IntentBundle": {
+      "CompileRequestPayload": {
         "type": "object",
+        "description": "Hosted compile request envelope: IntentBundle root fields plus hosted-only compiler context such as DESIGN.md and custom motif libraries. Local validate-intent accepts IntentBundle fields only and rejects hosted-only root context.",
         "required": ["substrate", "view_spec"],
         "properties": {
           "substrate": {
@@ -97,6 +98,20 @@
           },
           "design": {
             "$ref": "#/components/schemas/DesignRequest"
+          }
+        },
+        "additionalProperties": true
+      },
+      "IntentBundle": {
+        "type": "object",
+        "description": "Agent-authored source contract: semantic substrate plus view_spec. Hosted-only request context such as design and motif_library belongs in CompileRequestPayload, not the local IntentBundle contract.",
+        "required": ["substrate", "view_spec"],
+        "properties": {
+          "substrate": {
+            "$ref": "#/components/schemas/Substrate"
+          },
+          "view_spec": {
+            "$ref": "#/components/schemas/ViewSpec"
           }
         },
         "additionalProperties": true

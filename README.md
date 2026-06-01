@@ -304,7 +304,7 @@ html_result = compile_html("<h1>Report</h1>", design=design)
 ast = compile(bundle, design=design)
 ```
 
-The hosted compiler can still ingest a `DESIGN.md` identity file as an opaque payload for hosted-only surfaces:
+The hosted compiler can still ingest a `DESIGN.md` identity file as an opaque `CompileRequestPayload` envelope for hosted-only surfaces. Keep this envelope separate from local `viewspec.intent.json`; local `validate-intent` rejects root `design` so agent-authored intent stays portable.
 
 ```python
 from viewspec import ViewSpecBuilder, compile_remote_response
