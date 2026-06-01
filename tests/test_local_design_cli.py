@@ -115,6 +115,24 @@ def test_local_design_rejects_broken_refs_and_cycles_but_warns_on_bad_colors():
         load_design_system(content=_design("red"), strict=True)
 
 
+def test_local_design_rejects_duplicate_yaml_keys():
+    duplicate = """---
+name: Duplicate
+colors:
+  primary: "#112233"
+  primary: "#445566"
+---
+"""
+
+    with pytest.raises(DesignSystemError) as exc_info:
+        load_design_system(content=duplicate)
+
+    assert exc_info.value.report is not None
+    findings = exc_info.value.report.findings
+    assert findings[0].code == "DESIGN_YAML_ERROR"
+    assert "duplicate key" in findings[0].message
+
+
 def test_cli_compile_lift_and_diff_stay_local(tmp_path, capsys):
     design_path = tmp_path / "DESIGN.md"
     design_path.write_text(_design(), encoding="utf-8")
