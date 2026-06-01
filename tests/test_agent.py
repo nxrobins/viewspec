@@ -756,6 +756,18 @@ def test_rejects_non_json_serializable_intent_dict_before_proto_parse():
     assert result.issues[0].code == "INVALID_JSON_VALUE"
 
 
+def test_rejects_non_finite_intent_dict_before_proto_parse():
+    payload = _bundle_for_motif("dashboard")
+    root_id = payload["substrate"]["root_id"]
+    payload["substrate"]["nodes"][root_id]["attrs"]["bad"] = float("inf")
+
+    result = validate_agent_intent_bundle(payload)
+
+    assert not result.valid
+    assert result.issues[0].code == "INVALID_JSON_VALUE"
+    assert "Out of range float values" in result.issues[0].message
+
+
 def test_rejects_too_many_substrate_nodes():
     payload = _bundle_for_motif("dashboard")
     payload["substrate"]["root_id"] = "node_0"

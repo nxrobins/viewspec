@@ -68,6 +68,28 @@ def test_validate_intent_rejects_non_intent_payloads(tmp_path, capsys, text, cod
     assert "Do not patch fragments" in payload["correction_prompt"]
 
 
+@pytest.mark.parametrize(
+    ("text", "expected_message"),
+    [
+        ('{"substrate":{},"substrate":{},"view_spec":{}}', "duplicate object key 'substrate'"),
+        (lambda: json.dumps(_valid_bundle_json()).replace('"$12"', "NaN", 1), "non-standard JSON constant 'NaN'"),
+        (lambda: json.dumps(_valid_bundle_json()).replace('"$12"', "Infinity", 1), "non-standard JSON constant 'Infinity'"),
+    ],
+)
+def test_validate_intent_rejects_non_strict_json(tmp_path, capsys, text, expected_message):
+    payload_text = text() if callable(text) else text
+    path = tmp_path / "bad.json"
+    path.write_text(payload_text, encoding="utf-8")
+
+    assert cli_main(["validate-intent", str(path), "--json"]) == 2
+    payload = json.loads(capsys.readouterr().out)
+
+    assert payload["ok"] is False
+    assert payload["issues"][0]["code"] == "INVALID_JSON"
+    assert expected_message in payload["issues"][0]["message"]
+    assert payload["correction_prompt"]
+
+
 def test_validate_intent_no_compile_check_returns_skipped(tmp_path, capsys):
     path = tmp_path / "viewspec.intent.json"
     path.write_text(json.dumps(_valid_bundle_json()), encoding="utf-8")
