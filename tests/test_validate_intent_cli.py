@@ -294,6 +294,48 @@ def test_diff_intent_reports_motif_and_binding_semantic_changes(tmp_path, capsys
     assert any(change["id"] == "conversion_label" and change["change"] == "added" for change in payload["semantic_changes"]["bindings"])
 
 
+def test_diff_intent_reports_region_group_and_style_semantic_changes(tmp_path, capsys):
+    left = tmp_path / "old.intent.json"
+    right = tmp_path / "new.intent.json"
+    left_payload = _valid_bundle_json()
+    right_payload = _valid_bundle_json()
+    left_payload["view_spec"]["styles"].append(
+        {"id": "value_tone", "target": "binding:revenue_value", "token": "tone.neutral"}
+    )
+    right_payload["view_spec"]["styles"].append(
+        {"id": "value_tone", "target": "binding:revenue_value", "token": "tone.accent"}
+    )
+    right_payload["view_spec"]["regions"][1]["layout"] = "cluster"
+    right_payload["view_spec"]["groups"][0]["members"] = ["revenue_value", "revenue_label"]
+    left.write_text(json.dumps(left_payload), encoding="utf-8")
+    right.write_text(json.dumps(right_payload), encoding="utf-8")
+
+    assert cli_main(["diff-intent", str(left), str(right), "--json"]) == 0
+    payload = json.loads(capsys.readouterr().out)
+
+    assert {
+        "id": "main",
+        "change": "layout_changed",
+        "left": "stack",
+        "right": "cluster",
+    } in payload["semantic_changes"]["regions"]
+    assert {
+        "id": "cards",
+        "change": "members_changed",
+        "added": [],
+        "removed": [],
+        "order_changed": True,
+        "left_order": ["revenue_label", "revenue_value"],
+        "right_order": ["revenue_value", "revenue_label"],
+    } in payload["semantic_changes"]["groups"]
+    assert {
+        "id": "value_tone",
+        "change": "token_changed",
+        "left": "tone.neutral",
+        "right": "tone.accent",
+    } in payload["semantic_changes"]["styles"]
+
+
 def test_diff_intent_reports_top_level_bundle_metadata_changes(tmp_path, capsys):
     left = tmp_path / "old.intent.json"
     right = tmp_path / "new.intent.json"

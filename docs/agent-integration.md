@@ -134,7 +134,7 @@ The V1 local contract is bounded so validation and correction stay deterministic
 
 ## Intent Review
 
-Use `viewspec diff-intent old.intent.json new.intent.json --json` to review agent-authored revisions at the contract level. The result is versioned as `diff_version: 1` with `basis: "intent_bundle_v1"`, and reports added, removed, and changed top-level bundle metadata, semantic nodes, regions, bindings, groups, motifs, styles, actions, selected field-level changes, and a `semantic_changes` summary for motif membership/kind/region changes, binding source/presentation changes, and action target/payload changes.
+Use `viewspec diff-intent old.intent.json new.intent.json --json` to review agent-authored revisions at the contract level. The result is versioned as `diff_version: 1` with `basis: "intent_bundle_v1"`, and reports added, removed, and changed top-level bundle metadata, semantic nodes, regions, bindings, groups, motifs, styles, actions, selected field-level changes, and a `semantic_changes` summary for region layout/parent/role changes, group membership changes, motif membership/kind/region changes, style target/token changes, binding source/presentation changes, and action target/payload changes.
 
 This is intentionally not a visual equivalence proof. It tells reviewers what changed in the declared UI intent before they inspect compiled HTML, React, SwiftUI, Flutter, or other emitter artifacts.
 
