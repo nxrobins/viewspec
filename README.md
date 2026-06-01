@@ -68,7 +68,7 @@ Run `viewspec init-design --out DESIGN.md` only when the repo does not already h
 
 `viewspec validate-intent` exits `0` for valid intent, `2` for user-correctable invalid intent, and `1` for environment or internal failure.
 
-`viewspec doctor` reports the intent-first command surface, runs a starter IntentBundle validation/compile/diff smoke check, verifies `PyYAML`, and states the local no-network policy for `validate-intent`, `compile`, `lift`, `diff`, `diff-intent`, `check`, `init-intent`, `init-design`, and `export-agent-assets`. `viewspec doctor --agents` also reports local agent prompt, schema, and example asset identity and hashes.
+`viewspec doctor` reports the intent-first command surface, runs a starter IntentBundle validation/compile/diff smoke check, verifies `PyYAML`, and states the local no-network policy for `validate-intent`, `compile`, `lift`, `diff`, `diff-intent`, `check`, `check-agent-assets`, `init-intent`, `init-design`, and `export-agent-assets`. `viewspec doctor --agents` also reports local agent prompt, schema, example, and manifest asset identity and hashes.
 
 Use `viewspec diff-intent old.intent.json new.intent.json --json` to review semantic IntentBundle changes before looking at generated DOM or framework artifacts. The diff is intentionally honest: `basis: "intent_bundle_v1"` compares top-level bundle metadata, declared nodes, regions, bindings, groups, motifs, styles, actions, selected field changes, and a `semantic_changes` summary for motif, binding, and action contract changes. It is not a claim of full visual equivalence.
 
@@ -126,6 +126,7 @@ For schema-aware editors or agents, export the same local contract assets shippe
 
 ```bash
 viewspec export-agent-assets --out .viewspec
+viewspec check-agent-assets .viewspec --json
 ```
 
 That writes `.viewspec/agent-assets.json`, `.viewspec/agent-system-prompt.txt`, `.viewspec/agent-intent-bundle.schema.json`, and `.viewspec/agent-intent-example.dashboard.json` without any network call. Existing edited files are preserved unless `--force` is passed.
@@ -137,7 +138,7 @@ python -m pip install "viewspec[agents]"
 viewspec mcp
 ```
 
-The MCP server exposes intent-first local tools: `init_intent`, `validate_intent_bundle_file`, `diff_intent_bundle_files`, `compile_intent_bundle_file`, `agent_correction_prompt_file`, `check_artifact`, `init_design`, and `export_agent_assets`. `compile_intent_bundle_file` accepts `target="html-tailwind"` for checked standalone HTML or `target="react-tsx"` for checked React source artifacts. Raw HTML MCP tools remain available only for importing existing HTML. By default, all tool paths must resolve under the MCP working directory and the tools make no SDK network calls.
+The MCP server exposes intent-first local tools: `init_intent`, `validate_intent_bundle_file`, `diff_intent_bundle_files`, `compile_intent_bundle_file`, `agent_correction_prompt_file`, `check_artifact`, `check_agent_assets`, `init_design`, and `export_agent_assets`. `compile_intent_bundle_file` accepts `target="html-tailwind"` for checked standalone HTML or `target="react-tsx"` for checked React source artifacts. Raw HTML MCP tools remain available only for importing existing HTML. By default, all tool paths must resolve under the MCP working directory and the tools make no SDK network calls.
 
 For all targets, agents should edit `viewspec.intent.json` or `DESIGN.md` and regenerate artifacts. They should not patch generated files such as `dist/index.html` or `react-output/ViewSpecView.tsx`.
 

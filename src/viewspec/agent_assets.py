@@ -17,6 +17,7 @@ AGENT_ASSET_MANIFEST_FILE = "agent-assets.json"
 AGENT_SYSTEM_PROMPT_FILE = "agent-system-prompt.txt"
 AGENT_INTENT_SCHEMA_FILE = "agent-intent-bundle.schema.json"
 AGENT_INTENT_EXAMPLE_FILE = "agent-intent-example.dashboard.json"
+AGENT_ASSET_PAYLOAD_FILES = (AGENT_SYSTEM_PROMPT_FILE, AGENT_INTENT_SCHEMA_FILE, AGENT_INTENT_EXAMPLE_FILE)
 
 
 class AgentAssetError(ValueError):
@@ -72,6 +73,65 @@ def agent_asset_readiness() -> dict[str, Any]:
         "intent_schema_sha256": hashlib.sha256(contents[AGENT_INTENT_SCHEMA_FILE].encode("utf-8")).hexdigest(),
         "intent_example_sha256": hashlib.sha256(contents[AGENT_INTENT_EXAMPLE_FILE].encode("utf-8")).hexdigest(),
         "export_command": "viewspec export-agent-assets --out .viewspec",
+    }
+
+
+def check_agent_assets(asset_dir: str | Path = ".viewspec") -> dict[str, Any]:
+    root = Path(asset_dir).resolve()
+    expected_contents = _agent_asset_contents()
+    expected_manifest = json.loads(expected_contents[AGENT_ASSET_MANIFEST_FILE])
+    manifest_path = root / AGENT_ASSET_MANIFEST_FILE
+    errors: list[str] = []
+    files: list[dict[str, Any]] = []
+
+    manifest: dict[str, Any] | None = None
+    if not manifest_path.exists():
+        errors.append(f"missing {AGENT_ASSET_MANIFEST_FILE}")
+    else:
+        try:
+            loaded = json.loads(manifest_path.read_text(encoding="utf-8"))
+            if isinstance(loaded, dict):
+                manifest = loaded
+            else:
+                errors.append(f"{AGENT_ASSET_MANIFEST_FILE} must be a JSON object")
+        except json.JSONDecodeError as exc:
+            errors.append(f"invalid {AGENT_ASSET_MANIFEST_FILE}: {exc}")
+        except OSError as exc:
+            errors.append(f"could not read {AGENT_ASSET_MANIFEST_FILE}: {exc}")
+
+    if manifest is not None:
+        if manifest != expected_manifest:
+            errors.append(f"{AGENT_ASSET_MANIFEST_FILE} does not match the current ViewSpec agent asset contract")
+        manifest_files = manifest.get("files")
+        if not isinstance(manifest_files, list):
+            errors.append(f"{AGENT_ASSET_MANIFEST_FILE} files must be a list")
+
+    for filename in AGENT_ASSET_PAYLOAD_FILES:
+        path = root / filename
+        expected_hash = hashlib.sha256(expected_contents[filename].encode("utf-8")).hexdigest()
+        entry = {"path": filename, "sha256": expected_hash, "status": "ok"}
+        if not path.exists():
+            entry["status"] = "missing"
+            errors.append(f"missing {filename}")
+        else:
+            try:
+                actual_hash = hashlib.sha256(path.read_bytes()).hexdigest()
+                if actual_hash != expected_hash:
+                    entry["status"] = "mismatch"
+                    entry["actual_sha256"] = actual_hash
+                    errors.append(f"{filename} sha256 does not match the current ViewSpec agent asset contract")
+            except OSError as exc:
+                entry["status"] = "unreadable"
+                errors.append(f"could not read {filename}: {exc}")
+        files.append(entry)
+
+    return {
+        "ok": not errors,
+        "schema_version": AGENT_ASSET_SCHEMA_VERSION,
+        "path": str(root),
+        "manifest": str(manifest_path),
+        "files": files,
+        "errors": errors,
     }
 
 
@@ -146,12 +206,14 @@ def _read_text_exact(path: Path) -> str:
 
 __all__ = [
     "AGENT_ASSET_MANIFEST_FILE",
+    "AGENT_ASSET_PAYLOAD_FILES",
     "AGENT_ASSET_SCHEMA_VERSION",
     "AGENT_INTENT_EXAMPLE_FILE",
     "AGENT_INTENT_SCHEMA_FILE",
     "AGENT_SYSTEM_PROMPT_FILE",
     "AgentAssetError",
     "agent_asset_readiness",
+    "check_agent_assets",
     "export_agent_assets",
     "plan_agent_asset_exports",
 ]

@@ -65,6 +65,7 @@ The May 6 launch proof remains one agent-authored hosted-extended IntentBundle c
 - `viewspec check dist/`
 - `viewspec init-agent --target codex|claude-code|cursor|copilot|all`
 - `viewspec export-agent-assets --out .viewspec`
+- `viewspec check-agent-assets .viewspec --json`
 - `viewspec doctor`
 - Optional MCP: install `viewspec[agents]`, then run `viewspec mcp`
 

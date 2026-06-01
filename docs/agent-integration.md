@@ -124,7 +124,7 @@ diff = diff_intent_text(old_bundle_json, new_bundle_json)
 
 `viewspec compile` performs the same intent validation before writing output files. If compilation returns an intent validation payload, feed its `correction_prompt` back to the agent and regenerate the full IntentBundle instead of patching fragments.
 
-Use `viewspec doctor` in local setup checks. It reports the available intent-first commands, runs a starter IntentBundle validation/compile/diff smoke check, verifies `PyYAML`, and states that local validation, compile, lift, diff, check, scaffold, and agent-asset export commands make no SDK network calls. `viewspec doctor --agents` also reports managed instruction templates, local agent prompt/schema/example asset identity and hashes, the optional MCP dependency, MCP install hint, and cwd path containment policy.
+Use `viewspec doctor` in local setup checks. It reports the available intent-first commands, runs a starter IntentBundle validation/compile/diff smoke check, verifies `PyYAML`, and states that local validation, compile, lift, diff, check, check-agent-assets, scaffold, and agent-asset export commands make no SDK network calls. `viewspec doctor --agents` also reports managed instruction templates, local agent prompt/schema/example/manifest asset identity and hashes, the optional MCP dependency, MCP install hint, and cwd path containment policy.
 
 `viewspec check` treats the compiled artifact as a proof boundary. For IntentBundle artifacts, DOM `data-ir-id`, `data-binding-id`, and `data-action-id` values must agree with `provenance_manifest.json`; binding/action ids cannot be duplicated; binding nodes must retain source `content_refs`; and binding/action manifest entries must include the matching `viewspec:binding:*` or `viewspec:action:*` intent ref.
 
@@ -154,9 +154,10 @@ For local-only setup, export the asset manifest, prompt, schema, and valid examp
 
 ```bash
 viewspec export-agent-assets --out .viewspec
+viewspec check-agent-assets .viewspec --json
 ```
 
-The command writes `.viewspec/agent-assets.json`, `.viewspec/agent-system-prompt.txt`, `.viewspec/agent-intent-bundle.schema.json`, and `.viewspec/agent-intent-example.dashboard.json`, refuses to overwrite edited files unless `--force` is passed, and performs no network calls.
+The export command writes `.viewspec/agent-assets.json`, `.viewspec/agent-system-prompt.txt`, `.viewspec/agent-intent-bundle.schema.json`, and `.viewspec/agent-intent-example.dashboard.json`, refuses to overwrite edited files unless `--force` is passed, and performs no network calls. The check command verifies those files against the current SDK contract.
 
 ## Minimal IntentBundle Example
 

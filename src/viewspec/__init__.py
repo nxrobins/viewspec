@@ -80,11 +80,13 @@ from viewspec.agent import (
 )
 from viewspec.agent_assets import (
     AGENT_ASSET_MANIFEST_FILE,
+    AGENT_ASSET_PAYLOAD_FILES,
     AGENT_ASSET_SCHEMA_VERSION,
     AGENT_INTENT_EXAMPLE_FILE,
     AGENT_INTENT_SCHEMA_FILE,
     AGENT_SYSTEM_PROMPT_FILE,
     agent_asset_readiness,
+    check_agent_assets,
     export_agent_assets,
     plan_agent_asset_exports,
 )
@@ -158,6 +160,7 @@ __all__ = [
     "AGENT_INTENT_BUNDLE_SCHEMA",
     "AGENT_SYSTEM_PROMPT",
     "AGENT_ASSET_MANIFEST_FILE",
+    "AGENT_ASSET_PAYLOAD_FILES",
     "AGENT_ASSET_SCHEMA_VERSION",
     "AGENT_INTENT_EXAMPLE_FILE",
     "AGENT_INTENT_SCHEMA_FILE",
@@ -172,6 +175,7 @@ __all__ = [
     "AgentValidationResult",
     "agent_correction_prompt",
     "agent_asset_readiness",
+    "check_agent_assets",
     "export_agent_assets",
     "plan_agent_asset_exports",
     "validate_agent_intent_bundle",

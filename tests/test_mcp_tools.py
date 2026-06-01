@@ -22,6 +22,7 @@ from viewspec.local_tools import (
     LocalToolError,
     MCP_RESULT_SCHEMA_VERSION,
     check_artifact_tool,
+    check_agent_assets_tool,
     compile_html_file_tool,
     diff_html_files_tool,
     export_agent_assets_tool,
@@ -166,6 +167,7 @@ def test_doctor_agents_reports_missing_optional_mcp(capsys):
     assert "viewspec[agents]" in output
     assert checks["intent_first_commands"]["validate_intent"] is True
     assert checks["intent_first_commands"]["diff_intent"] is True
+    assert checks["intent_first_commands"]["check_agent_assets"] is True
     assert checks["intent_first_commands"]["export_agent_assets"] is True
     assert checks["intent_pipeline"]["ok"] is True
     assert checks["agent_contract_assets"]["ok"] is True
@@ -183,6 +185,7 @@ def test_doctor_agents_reports_missing_optional_mcp(capsys):
     assert checks["path_policy"] == "cwd containment by default"
     assert "validate-intent" in checks["local_network_policy"]
     assert "diff-intent" in checks["local_network_policy"]
+    assert "check-agent-assets" in checks["local_network_policy"]
     assert "export-agent-assets" in checks["local_network_policy"]
     if exit_code == 2:
         assert '"mcp_dependency": false' in output.lower()
@@ -241,6 +244,10 @@ def test_export_agent_assets_tool_writes_prompt_and_schema(tmp_path):
         "agent-intent-bundle.schema.json": "create",
         "agent-intent-example.dashboard.json": "create",
     }
+    checked = check_agent_assets_tool(".viewspec", cwd=tmp_path)
+    assert_tool_schema(checked)
+    assert checked["ok"] is True
+    assert checked["assets"]["schema_version"] == AGENT_ASSET_SCHEMA_VERSION
 
     dry_run = export_agent_assets_tool(".viewspec-dry-run", dry_run=True, cwd=tmp_path)
 
@@ -270,6 +277,25 @@ def test_export_agent_assets_tool_rejects_conflicts_and_path_escapes(tmp_path):
     assert_tool_schema(outside)
     assert outside["ok"] is False
     assert outside["errors"][0]["code"] == "PATH_OUTSIDE_CWD"
+
+
+def test_check_agent_assets_tool_rejects_tamper_and_path_escapes(tmp_path):
+    exported = export_agent_assets_tool(".viewspec", cwd=tmp_path)
+    assert exported["ok"] is True
+    (tmp_path / ".viewspec/agent-intent-example.dashboard.json").write_text("{}", encoding="utf-8")
+
+    checked = check_agent_assets_tool(".viewspec", cwd=tmp_path)
+
+    assert_tool_schema(checked)
+    assert checked["ok"] is False
+    assert checked["errors"][0]["code"] == "AGENT_ASSET_CHECK_FAILED"
+
+    (tmp_path / "outside-assets").mkdir()
+    escaped = check_agent_assets_tool("../outside-assets", cwd=tmp_path / ".viewspec")
+
+    assert_tool_schema(escaped)
+    assert escaped["ok"] is False
+    assert escaped["errors"][0]["code"] == "PATH_OUTSIDE_CWD"
 
 
 def test_intent_mcp_wrappers_validate_compile_and_prompt(tmp_path):
@@ -1098,6 +1124,7 @@ def test_mcp_raw_html_tool_descriptions_are_import_only():
     assert "Compile a ViewSpec IntentBundle JSON file into a local compiler artifact" in text
     assert "target='html-tailwind' for checked standalone HTML" in text
     assert "target='react-tsx' for checked React source" in text
+    assert "Verify exported local ViewSpec agent contract assets against the current SDK." in text
     assert "Export the local ViewSpec agent system prompt, IntentBundle JSON schema" in text
     assert "valid starter IntentBundle example, and asset manifest without network calls." in text
 

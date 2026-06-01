@@ -113,6 +113,7 @@ def agent_instruction_block(target: str) -> str:
         "Optional local contract assets for schema-aware editors and agents:\n\n"
         "```bash\n"
         "viewspec export-agent-assets --out .viewspec\n"
+        "viewspec check-agent-assets .viewspec --json\n"
         "```\n\n"
         "This writes `.viewspec/agent-assets.json`, `.viewspec/agent-system-prompt.txt`, "
         "`.viewspec/agent-intent-bundle.schema.json`, and `.viewspec/agent-intent-example.dashboard.json`. "

@@ -495,6 +495,43 @@ def export_agent_assets_tool(
         )
 
 
+def check_agent_assets_tool(
+    asset_dir: str | Path = ".viewspec",
+    *,
+    cwd: str | Path | None = None,
+    allow_outside_cwd: bool = False,
+) -> dict[str, Any]:
+    from viewspec.agent_assets import check_agent_assets
+
+    root: Path | None = None
+    try:
+        root = resolve_cwd(cwd)
+        asset_path = resolve_local_path(asset_dir, cwd=root, allow_outside_cwd=allow_outside_cwd, must_exist=True)
+        result = check_agent_assets(asset_path)
+        return tool_response(
+            bool(result["ok"]),
+            "Agent contract assets match the current SDK." if result["ok"] else "Agent contract assets failed verification.",
+            paths={"assets": str(asset_path), "manifest": str(asset_path / "agent-assets.json")},
+            errors=[
+                {
+                    "code": "AGENT_ASSET_CHECK_FAILED",
+                    "message": message,
+                    "fix": "Re-run viewspec export-agent-assets --out .viewspec --force.",
+                }
+                for message in result["errors"]
+            ],
+            data={"assets": result},
+            metadata=path_policy_metadata(root, allow_outside_cwd),
+        )
+    except Exception as exc:
+        return exception_response(
+            exc,
+            "IO_ERROR",
+            "Choose a readable agent asset directory and retry check_agent_assets.",
+            metadata=path_policy_metadata(root, allow_outside_cwd),
+        )
+
+
 def tool_response(
     ok: bool,
     summary: str,
@@ -1397,6 +1434,7 @@ __all__ = [
     "atomic_write",
     "check_artifact_dir",
     "check_artifact_tool",
+    "check_agent_assets_tool",
     "compile_html_file_tool",
     "diff_html_files_tool",
     "ensure_no_input_overwrite",

@@ -15,6 +15,7 @@ from viewspec.intent_tools import (
 )
 from viewspec.local_tools import (
     check_artifact_tool,
+    check_agent_assets_tool,
     compile_html_file_tool,
     diff_html_files_tool,
     export_agent_assets_tool,
@@ -132,6 +133,10 @@ def run_mcp_server(*, cwd: str | Path | None = None, allow_outside_cwd: bool = F
     @app.tool(description="Validate a compiled ViewSpec artifact directory and manifest hashes.")
     def check_artifact(artifact_dir: str) -> dict[str, Any]:
         return check_artifact_tool(artifact_dir, cwd=root, allow_outside_cwd=allow_outside_cwd)
+
+    @app.tool(description="Verify exported local ViewSpec agent contract assets against the current SDK.")
+    def check_agent_assets(asset_dir: str = ".viewspec") -> dict[str, Any]:
+        return check_agent_assets_tool(asset_dir, cwd=root, allow_outside_cwd=allow_outside_cwd)
 
     @app.tool(
         description=(

@@ -9,7 +9,7 @@ import sys
 from pathlib import Path
 
 from viewspec._version import __version__
-from viewspec.agent_assets import AgentAssetError, agent_asset_readiness, export_agent_assets
+from viewspec.agent_assets import AgentAssetError, agent_asset_readiness, check_agent_assets, export_agent_assets
 from viewspec.compiler import compile
 from viewspec.design_md import DesignSystemContext, DesignSystemError, load_design_system
 from viewspec.emitters.html_tailwind import HtmlTailwindEmitter
@@ -155,6 +155,14 @@ def _build_parser() -> argparse.ArgumentParser:
     agent_assets_parser.add_argument("--force", action="store_true", help="Replace existing generated assets.")
     agent_assets_parser.add_argument("--dry-run", action="store_true", help="Report changes without writing files.")
     agent_assets_parser.set_defaults(func=_export_agent_assets_command)
+
+    check_agent_assets_parser = subparsers.add_parser(
+        "check-agent-assets",
+        help="Verify exported local agent contract assets against the current SDK.",
+    )
+    check_agent_assets_parser.add_argument("asset_dir", nargs="?", default=".viewspec", help="Agent asset directory to verify.")
+    check_agent_assets_parser.add_argument("--json", action="store_true", help="Print machine-readable JSON.")
+    check_agent_assets_parser.set_defaults(func=_check_agent_assets_command)
 
     mcp_parser = subparsers.add_parser("mcp", help="Start the optional ViewSpec stdio MCP server.")
     mcp_parser.add_argument("--cwd", default=".", help="MCP path sandbox root.")
@@ -358,17 +366,19 @@ def _doctor_command(args: argparse.Namespace) -> int:
             "diff_intent": True,
             "compile": True,
             "check": True,
+            "check_agent_assets": True,
             "init_design": True,
             "export_agent_assets": True,
         },
         "intent_pipeline": intent_pipeline,
-        "local_network_policy": "no network calls for validate-intent/compile/lift/diff/diff-intent/check/init-intent/init-design/export-agent-assets",
+        "local_network_policy": "no network calls for validate-intent/compile/lift/diff/diff-intent/check/check-agent-assets/init-intent/init-design/export-agent-assets",
     }
     if args.agents:
         checks.update(
             {
                 "agent_instruction_templates": True,
                 "agent_contract_assets": agent_asset_readiness(),
+                "local_agent_assets": _doctor_local_agent_assets(Path(".viewspec")),
                 "mcp_dependency": mcp_dependency_available(),
                 "mcp_install_hint": MCP_INSTALL_HINT,
                 "path_policy": "cwd containment by default",
@@ -422,6 +432,14 @@ def _doctor_checks_ok(value: object) -> bool:
     return True
 
 
+def _doctor_local_agent_assets(path: Path) -> dict[str, object]:
+    resolved = path.resolve()
+    if not resolved.exists():
+        return {"ok": True, "status": "not_found", "path": str(resolved)}
+    result = check_agent_assets(resolved)
+    return {"status": "present", **result}
+
+
 def _check_command(args: argparse.Namespace) -> int:
     result = check_artifact_dir(Path(args.artifact_dir))
     if args.json:
@@ -445,6 +463,17 @@ def _export_agent_assets_command(args: argparse.Namespace) -> int:
     result = export_agent_assets(args.out, force=args.force, dry_run=args.dry_run)
     print(json.dumps(result, indent=2, sort_keys=True))
     return 0
+
+
+def _check_agent_assets_command(args: argparse.Namespace) -> int:
+    result = check_agent_assets(args.asset_dir)
+    if args.json:
+        print(json.dumps(result, indent=2, sort_keys=True))
+    else:
+        print("ok" if result["ok"] else "failed")
+        for error in result["errors"]:
+            print(f"error: {error}")
+    return 0 if result["ok"] else 2
 
 
 def _mcp_command(args: argparse.Namespace) -> int:

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 
-from viewspec import AGENT_ASSET_SCHEMA_VERSION, agent_asset_readiness, starter_intent_bundle
+from viewspec import AGENT_ASSET_SCHEMA_VERSION, agent_asset_readiness, check_agent_assets, starter_intent_bundle
 from viewspec.agent import AGENT_INTENT_BUNDLE_SCHEMA, AGENT_SYSTEM_PROMPT
 from viewspec.cli import main as cli_main
 from viewspec.native_agents import BEGIN_MARKER, END_MARKER
@@ -30,6 +30,7 @@ def test_init_agent_creates_codex_instructions(tmp_path, capsys):
     assert "viewspec diff-intent old.intent.json new.intent.json --json" in text
     assert "viewspec init-intent --out viewspec.intent.json" in text
     assert "viewspec export-agent-assets --out .viewspec" in text
+    assert "viewspec check-agent-assets .viewspec --json" in text
     assert ".viewspec/agent-assets.json" in text
     assert ".viewspec/agent-system-prompt.txt" in text
     assert ".viewspec/agent-intent-bundle.schema.json" in text
@@ -141,6 +142,12 @@ def test_export_agent_assets_creates_local_prompt_and_schema(tmp_path, capsys):
         "agent-intent-bundle.schema.json",
         "agent-intent-example.dashboard.json",
     }
+    checked = check_agent_assets(out_dir)
+    assert checked["ok"] is True
+    assert cli_main(["check-agent-assets", str(out_dir), "--json"]) == 0
+    check_payload = json.loads(capsys.readouterr().out)
+    assert check_payload["ok"] is True
+    assert check_payload["schema_version"] == AGENT_ASSET_SCHEMA_VERSION
 
     assert cli_main(["export-agent-assets", "--out", str(out_dir)]) == 0
     payload = json.loads(capsys.readouterr().out)
@@ -166,6 +173,19 @@ def test_export_agent_assets_dry_run_creates_no_files(tmp_path, capsys):
         "agent-intent-example.dashboard.json": "create",
     }
     assert not out_dir.exists()
+
+
+def test_check_agent_assets_rejects_tampered_files(tmp_path, capsys):
+    out_dir = tmp_path / ".viewspec"
+    assert cli_main(["export-agent-assets", "--out", str(out_dir)]) == 0
+    capsys.readouterr()
+    (out_dir / "agent-system-prompt.txt").write_text("tampered\n", encoding="utf-8")
+
+    assert cli_main(["check-agent-assets", str(out_dir), "--json"]) == 2
+    payload = json.loads(capsys.readouterr().out)
+
+    assert payload["ok"] is False
+    assert "agent-system-prompt.txt sha256 does not match" in "\n".join(payload["errors"])
 
 
 def test_export_agent_assets_refuses_conflict_without_partial_writes(tmp_path, capsys):
