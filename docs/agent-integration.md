@@ -140,8 +140,9 @@ This is intentionally not a visual equivalence proof. It tells reviewers what ch
 
 ## Published Agent Artifacts
 
-These assets use agent asset schema version `2`.
+These assets use agent asset schema version `3`.
 
+- Asset manifest: `https://viewspec.dev/agent-assets.json`
 - System prompt: `https://viewspec.dev/agent-system-prompt.txt`
 - JSON schema: `https://viewspec.dev/agent-intent-bundle.schema.json`
 - Valid starter example: `https://viewspec.dev/agent-intent-example.dashboard.json`
@@ -149,13 +150,13 @@ These assets use agent asset schema version `2`.
 - LLM summary: `https://viewspec.dev/llms.txt`
 - Expanded AI context: `https://viewspec.dev/llms-full.txt`
 
-For local-only setup, export the prompt, schema, and valid example from the installed SDK instead of fetching hosted static assets:
+For local-only setup, export the asset manifest, prompt, schema, and valid example from the installed SDK instead of fetching hosted static assets:
 
 ```bash
 viewspec export-agent-assets --out .viewspec
 ```
 
-The command writes `.viewspec/agent-system-prompt.txt`, `.viewspec/agent-intent-bundle.schema.json`, and `.viewspec/agent-intent-example.dashboard.json`, refuses to overwrite edited files unless `--force` is passed, and performs no network calls.
+The command writes `.viewspec/agent-assets.json`, `.viewspec/agent-system-prompt.txt`, `.viewspec/agent-intent-bundle.schema.json`, and `.viewspec/agent-intent-example.dashboard.json`, refuses to overwrite edited files unless `--force` is passed, and performs no network calls.
 
 ## Minimal IntentBundle Example
 

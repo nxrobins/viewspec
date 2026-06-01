@@ -13,6 +13,7 @@ Use these public entry points:
 - System prompt: `https://viewspec.dev/agent-system-prompt.txt`
 - JSON schema: `https://viewspec.dev/agent-intent-bundle.schema.json`
 - Valid starter example: `https://viewspec.dev/agent-intent-example.dashboard.json`
+- Asset manifest: `https://viewspec.dev/agent-assets.json`
 - Hosted OpenAPI: `https://viewspec.dev/openapi.json`
 - Full LLM context: `https://viewspec.dev/llms-full.txt`
 

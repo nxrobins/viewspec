@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from viewspec import ViewSpecBuilder
+from viewspec import AGENT_ASSET_SCHEMA_VERSION, ViewSpecBuilder
 from viewspec.agent import AGENT_INTENT_BUNDLE_SCHEMA, AGENT_SYSTEM_PROMPT
 from viewspec.cli import main as cli_main
 from viewspec.emitters.html_tailwind import ACTION_EVENT_SCRIPT
@@ -169,12 +169,14 @@ def test_doctor_agents_reports_missing_optional_mcp(capsys):
     assert checks["intent_first_commands"]["export_agent_assets"] is True
     assert checks["intent_pipeline"]["ok"] is True
     assert checks["agent_contract_assets"]["ok"] is True
-    assert checks["agent_contract_assets"]["schema_version"] == 2
+    assert checks["agent_contract_assets"]["schema_version"] == AGENT_ASSET_SCHEMA_VERSION
+    assert checks["agent_contract_assets"]["asset_manifest_file"] == "agent-assets.json"
     assert checks["agent_contract_assets"]["system_prompt_file"] == "agent-system-prompt.txt"
     assert checks["agent_contract_assets"]["intent_schema_file"] == "agent-intent-bundle.schema.json"
     assert checks["agent_contract_assets"]["intent_example_file"] == "agent-intent-example.dashboard.json"
     assert checks["agent_contract_assets"]["intent_schema_id"] == "https://viewspec.dev/agent-intent-bundle.schema.json"
     assert checks["agent_contract_assets"]["export_command"] == "viewspec export-agent-assets --out .viewspec"
+    assert len(checks["agent_contract_assets"]["asset_manifest_sha256"]) == 64
     assert len(checks["agent_contract_assets"]["system_prompt_sha256"]) == 64
     assert len(checks["agent_contract_assets"]["intent_schema_sha256"]) == 64
     assert len(checks["agent_contract_assets"]["intent_example_sha256"]) == 64
@@ -223,14 +225,18 @@ def test_export_agent_assets_tool_writes_prompt_and_schema(tmp_path):
     assert_tool_schema(exported)
     assert exported["ok"] is True
     assert exported["metadata"]["network_calls"] == "none"
-    assert exported["metadata"]["changes"] == 3
+    assert exported["metadata"]["changes"] == 4
+    assert exported["paths"]["manifest"].endswith("agent-assets.json")
     assert exported["paths"]["prompt"].endswith("agent-system-prompt.txt")
     assert exported["paths"]["schema"].endswith("agent-intent-bundle.schema.json")
     assert exported["paths"]["example"].endswith("agent-intent-example.dashboard.json")
     assert (tmp_path / ".viewspec/agent-system-prompt.txt").read_text(encoding="utf-8") == AGENT_SYSTEM_PROMPT
+    manifest = json.loads((tmp_path / ".viewspec/agent-assets.json").read_text(encoding="utf-8"))
+    assert manifest["schema_version"] == AGENT_ASSET_SCHEMA_VERSION
     assert json.loads((tmp_path / ".viewspec/agent-intent-bundle.schema.json").read_text(encoding="utf-8")) == AGENT_INTENT_BUNDLE_SCHEMA
     assert json.loads((tmp_path / ".viewspec/agent-intent-example.dashboard.json").read_text(encoding="utf-8")) == starter_intent_bundle("dashboard").to_json()
     assert {item["path"]: item["action"] for item in exported["assets"]["files"]} == {
+        "agent-assets.json": "create",
         "agent-system-prompt.txt": "create",
         "agent-intent-bundle.schema.json": "create",
         "agent-intent-example.dashboard.json": "create",
@@ -255,6 +261,7 @@ def test_export_agent_assets_tool_rejects_conflicts_and_path_escapes(tmp_path):
     assert conflict["ok"] is False
     assert conflict["errors"][0]["code"] == "IO_ERROR"
     assert "already exists with different content" in conflict["errors"][0]["message"]
+    assert not (asset_dir / "agent-assets.json").exists()
     assert not (asset_dir / "agent-intent-bundle.schema.json").exists()
     assert not (asset_dir / "agent-intent-example.dashboard.json").exists()
 
@@ -1092,7 +1099,7 @@ def test_mcp_raw_html_tool_descriptions_are_import_only():
     assert "target='html-tailwind' for checked standalone HTML" in text
     assert "target='react-tsx' for checked React source" in text
     assert "Export the local ViewSpec agent system prompt, IntentBundle JSON schema" in text
-    assert "valid starter IntentBundle example without network calls." in text
+    assert "valid starter IntentBundle example, and asset manifest without network calls." in text
 
 
 def test_mcp_path_sandbox_rejects_urls_and_outside_paths(tmp_path):

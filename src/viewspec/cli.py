@@ -149,7 +149,7 @@ def _build_parser() -> argparse.ArgumentParser:
 
     agent_assets_parser = subparsers.add_parser(
         "export-agent-assets",
-        help="Export local agent prompt, IntentBundle JSON schema, and valid example files.",
+        help="Export local agent prompt, IntentBundle JSON schema, valid example, and asset manifest files.",
     )
     agent_assets_parser.add_argument("--out", default=".viewspec", help="Output directory for local agent contract assets.")
     agent_assets_parser.add_argument("--force", action="store_true", help="Replace existing generated assets.")

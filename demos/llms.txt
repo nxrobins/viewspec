@@ -16,6 +16,7 @@ Raw HTML tools remain available only for importing existing HTML: `viewspec comp
 - Interactive compose demo: https://viewspec.dev/interactive-compose/
 - Hosted compiler API: https://api.viewspec.dev/v1/compile
 - OpenAPI description: https://viewspec.dev/openapi.json
+- Agent asset manifest: https://viewspec.dev/agent-assets.json
 - Agent system prompt: https://viewspec.dev/agent-system-prompt.txt
 - Agent IntentBundle schema: https://viewspec.dev/agent-intent-bundle.schema.json
 - Valid starter IntentBundle example: https://viewspec.dev/agent-intent-example.dashboard.json

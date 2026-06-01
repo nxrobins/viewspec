@@ -79,6 +79,7 @@ from viewspec.agent import (
     validate_agent_intent_bundle,
 )
 from viewspec.agent_assets import (
+    AGENT_ASSET_MANIFEST_FILE,
     AGENT_ASSET_SCHEMA_VERSION,
     AGENT_INTENT_EXAMPLE_FILE,
     AGENT_INTENT_SCHEMA_FILE,
@@ -156,6 +157,7 @@ __all__ = [
     # Agent integration
     "AGENT_INTENT_BUNDLE_SCHEMA",
     "AGENT_SYSTEM_PROMPT",
+    "AGENT_ASSET_MANIFEST_FILE",
     "AGENT_ASSET_SCHEMA_VERSION",
     "AGENT_INTENT_EXAMPLE_FILE",
     "AGENT_INTENT_SCHEMA_FILE",

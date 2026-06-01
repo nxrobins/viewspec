@@ -464,7 +464,9 @@ def export_agent_assets_tool(
         paths = {"out": str(output)}
         for item in result["files"]:
             filename = item["path"]
-            if filename == "agent-system-prompt.txt":
+            if filename == "agent-assets.json":
+                paths["manifest"] = str(output / filename)
+            elif filename == "agent-system-prompt.txt":
                 paths["prompt"] = str(output / filename)
             elif filename == "agent-intent-bundle.schema.json":
                 paths["schema"] = str(output / filename)
@@ -477,6 +479,7 @@ def export_agent_assets_tool(
             paths=paths,
             data={"assets": result},
             next_actions=[
+                "Verify .viewspec/agent-assets.json when reusing exported assets.",
                 "Point schema-aware editors or agents at .viewspec/agent-intent-bundle.schema.json.",
                 "Use .viewspec/agent-system-prompt.txt as the local ViewSpec agent contract prompt.",
                 "Use .viewspec/agent-intent-example.dashboard.json as a valid wire-shape example.",

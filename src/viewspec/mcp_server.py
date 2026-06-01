@@ -158,7 +158,7 @@ def run_mcp_server(*, cwd: str | Path | None = None, allow_outside_cwd: bool = F
     @app.tool(
         description=(
             "Export the local ViewSpec agent system prompt, IntentBundle JSON schema, "
-            "and valid starter IntentBundle example without network calls."
+            "valid starter IntentBundle example, and asset manifest without network calls."
         )
     )
     def export_agent_assets(out: str = ".viewspec", force: bool = False, dry_run: bool = False) -> dict[str, Any]:

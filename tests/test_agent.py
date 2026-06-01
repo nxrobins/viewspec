@@ -7,6 +7,7 @@ from pathlib import Path
 import pytest
 
 from viewspec import (
+    AGENT_ASSET_MANIFEST_FILE,
     AGENT_ASSET_SCHEMA_VERSION,
     AGENT_INTENT_BUNDLE_SCHEMA,
     AGENT_SYSTEM_PROMPT,
@@ -18,6 +19,7 @@ from viewspec import (
     SUPPORTED_AGENT_STYLE_TOKENS,
     ViewSpecBuilder,
     agent_correction_prompt,
+    export_agent_assets,
     starter_intent_bundle,
     validate_agent_intent_bundle,
 )
@@ -185,11 +187,21 @@ def test_published_agent_example_matches_runtime_starter():
     assert validate_agent_intent_bundle(published).valid
 
 
+def test_published_agent_asset_manifest_matches_runtime_export(tmp_path):
+    export_agent_assets(tmp_path)
+    published = json.loads(ROOT.joinpath("demos/agent-assets.json").read_text(encoding="utf-8"))
+    exported = json.loads(tmp_path.joinpath(AGENT_ASSET_MANIFEST_FILE).read_text(encoding="utf-8"))
+
+    assert published == exported
+    assert published["schema_version"] == AGENT_ASSET_SCHEMA_VERSION
+
+
 def test_published_openapi_agent_artifacts_match_runtime_contract():
     openapi = json.loads(ROOT.joinpath("demos/openapi.json").read_text(encoding="utf-8"))
     artifacts = openapi["x-viewspec-agent-artifacts"]
 
     assert artifacts["assetSchemaVersion"] == AGENT_ASSET_SCHEMA_VERSION
+    assert artifacts["assetManifest"] == "https://viewspec.dev/agent-assets.json"
     assert artifacts["systemPrompt"] == "https://viewspec.dev/agent-system-prompt.txt"
     assert artifacts["intentBundleSchema"] == AGENT_INTENT_BUNDLE_SCHEMA["$id"]
     assert artifacts["intentBundleExample"] == "https://viewspec.dev/agent-intent-example.dashboard.json"
