@@ -153,11 +153,12 @@ def _layout_primitive(layout: str) -> str:
     return "stack"
 
 
-def _grid_columns(region_id: str, view_spec: ViewSpec) -> int:
-    binding_count = sum(1 for b in view_spec.bindings if b.target_region == region_id)
-    if binding_count >= 4:
+def _planner_columns_v0(rendered_child_count: int) -> int:
+    if rendered_child_count <= 1:
+        return 1
+    if rendered_child_count <= 3:
         return 2
-    return 1
+    return 3
 
 
 def _ordered_binding_positions(view_spec: ViewSpec) -> dict[str, int]:
@@ -310,6 +311,125 @@ def _attach_style(node: IRNode, style: StyleSpec) -> None:
     ref = _style_ref(style.id)
     if ref not in node.provenance.intent_refs:
         node.provenance.intent_refs.append(ref)
+
+
+SAFE_MOTIF_LOCAL_ACTION_KINDS = {"dashboard", "empty_state", "form", "hero", "list"}
+SAFE_MOTIF_LOCAL_ACTION_ROOT_TAGS = {"div", "header", "section", "ul"}
+
+
+def _motif_wrapper_root_tag_v0(node: IRNode) -> str:
+    motif_kind = node.props.get("motif_kind")
+    if motif_kind == "table" and node.primitive == "stack":
+        return "table"
+    if motif_kind == "detail" and node.primitive == "stack":
+        return "dl"
+    if motif_kind == "list" and node.primitive == "stack":
+        return "ul"
+    if motif_kind == "form" and node.primitive == "stack":
+        return "section"
+    if motif_kind == "empty_state" and node.primitive == "surface":
+        return "section"
+    if motif_kind == "hero" and node.primitive == "surface":
+        return "header"
+    return "div"
+
+
+def _motif_wrapper_allows_local_action_v0(node: IRNode) -> bool:
+    motif_kind = node.props.get("motif_kind")
+    root_tag = _motif_wrapper_root_tag_v0(node)
+    return motif_kind in SAFE_MOTIF_LOCAL_ACTION_KINDS and root_tag in SAFE_MOTIF_LOCAL_ACTION_ROOT_TAGS
+
+
+def _action_target_motif_id(action: ActionIntent) -> str | None:
+    if not action.target_ref or ":" not in action.target_ref:
+        return None
+    target_kind, target_id = action.target_ref.split(":", 1)
+    if target_kind != "motif":
+        return None
+    return target_id
+
+
+def _validate_unique_action_placement_v0(root: IRNode, diagnostics: list[CompilerDiagnostic]) -> None:
+    action_locations: dict[str, str] = {}
+
+    def walk(node: IRNode) -> None:
+        action_id = node.props.get("action_id")
+        if isinstance(action_id, str) and action_id:
+            previous = action_locations.setdefault(action_id, node.id)
+            if previous != node.id:
+                _add_diagnostic(
+                    diagnostics,
+                    "DUPLICATE_ACTION_PLACEMENT",
+                    f"Action {action_id} was placed more than once in the compiled IR.",
+                    intent_ref=_action_ref(action_id),
+                )
+        for child in node.children:
+            walk(child)
+
+    walk(root)
+
+
+def _apply_layout_planner_v0(
+    *,
+    region_nodes: dict[str, IRNode],
+    motif_wrappers: dict[str, IRNode],
+    motif_by_id: dict[str, MotifSpec],
+    valid_actions: list[ActionIntent],
+    bindings_by_id: dict[str, BindingSpec],
+    diagnostics: list[CompilerDiagnostic],
+    root_region: str,
+) -> None:
+    for region_id in sorted(region_nodes):
+        node = region_nodes[region_id]
+        if node.primitive != "grid":
+            continue
+        node.props["columns"] = _planner_columns_v0(len(node.children))
+        node.props["layout_strategy"] = "region_grid_v0"
+
+    for motif_id in sorted(motif_wrappers):
+        wrapper = motif_wrappers[motif_id]
+        if wrapper.props.get("motif_kind") != "dashboard":
+            continue
+        if len(wrapper.children) < 2:
+            continue
+        wrapper.primitive = "grid"
+        wrapper.props["layout_role"] = "grid"
+        wrapper.props["columns"] = _planner_columns_v0(len(wrapper.children))
+        wrapper.props["layout_strategy"] = "dashboard_grid_v0"
+
+    for action in valid_actions:
+        action_node = _build_action_node(action, bindings_by_id)
+        target_motif_id = _action_target_motif_id(action)
+        if target_motif_id is None:
+            region_nodes[action.target_region].children.append(action_node)
+            continue
+        if target_motif_id in motif_by_id and target_motif_id not in motif_wrappers:
+            _add_diagnostic(
+                diagnostics,
+                "MISSING_ACTION_MOTIF_WRAPPER",
+                f"Action {action.id} targets declared motif {target_motif_id}, but no compiled motif wrapper exists.",
+                intent_ref=_action_ref(action.id),
+                region_id=action.target_region,
+            )
+            continue
+        wrapper = motif_wrappers.get(target_motif_id)
+        if wrapper is None:
+            region_nodes[action.target_region].children.append(action_node)
+            continue
+        if _motif_wrapper_allows_local_action_v0(wrapper):
+            action_node.props["placement"] = "motif_local"
+            wrapper.children.append(action_node)
+            continue
+        _add_diagnostic(
+            diagnostics,
+            "UNSAFE_ACTION_PLACEMENT",
+            f"Action {action.id} targets motif {target_motif_id}, whose compiled wrapper is not a safe local action container.",
+            intent_ref=_action_ref(action.id),
+            region_id=action.target_region,
+        )
+        region_nodes[action.target_region].children.append(action_node)
+
+    _validate_unique_action_placement_v0(region_nodes[root_region], diagnostics)
 
 
 def _add_diagnostic(
@@ -1015,8 +1135,6 @@ def compile(
         valid_regions.append(region)
         primitive = "root" if region.id == view_spec.root_region else _layout_primitive(region.layout)
         props: dict[str, object] = {"layout_role": primitive}
-        if primitive == "grid":
-            props["columns"] = _grid_columns(region.id, view_spec)
         node = IRNode(
             id=f"region_{region.id}",
             primitive=primitive,
@@ -1259,6 +1377,80 @@ def compile(
             if b.id not in placed_binding_ids:
                 region_node.children.append(binding_nodes[b.id])
 
+    valid_actions: list[ActionIntent] = []
+    seen_action_ids: set[str] = set()
+    for action in view_spec.actions:
+        action_valid = True
+        if action.id in seen_action_ids:
+            _add_diagnostic(
+                diagnostics, "DUPLICATE_ACTION_ID",
+                f"Action id {action.id} appears more than once. The first occurrence was used.",
+                intent_ref=_action_ref(action.id),
+                region_id=action.target_region,
+            )
+            continue
+        seen_action_ids.add(action.id)
+        if action.kind not in SUPPORTED_ACTION_KINDS:
+            action_valid = False
+            _add_diagnostic(
+                diagnostics,
+                "UNSUPPORTED_ACTION_KIND",
+                f"Action {action.id} uses unsupported kind {action.kind}.",
+                intent_ref=_action_ref(action.id),
+                region_id=action.target_region,
+            )
+        if action.target_region not in region_nodes:
+            action_valid = False
+            _add_diagnostic(
+                diagnostics, "UNKNOWN_ACTION_TARGET",
+                f"Action {action.id} targets unknown region {action.target_region}.",
+                intent_ref=_action_ref(action.id),
+                region_id=action.target_region,
+            )
+        if action.target_ref:
+            if ":" not in action.target_ref:
+                action_valid = False
+                _add_diagnostic(
+                    diagnostics, "INVALID_ACTION_TARGET_REF",
+                    f"Action {action.id} target_ref must use kind:id form.",
+                    intent_ref=_action_ref(action.id),
+                )
+            else:
+                target_kind, target_id = action.target_ref.split(":", 1)
+                target_exists = (
+                    (target_kind == "region" and target_id in region_nodes)
+                    or (target_kind == "binding" and target_id in valid_binding_ids)
+                    or (target_kind == "motif" and target_id in motif_by_id)
+                    or (target_kind == "view" and target_id == view_spec.id)
+                )
+                if not target_exists:
+                    action_valid = False
+                    _add_diagnostic(
+                        diagnostics, "UNKNOWN_ACTION_TARGET",
+                        f"Action {action.id} targets unknown {target_kind}:{target_id}.",
+                        intent_ref=_action_ref(action.id),
+                    )
+        for binding_id in action.payload_bindings:
+            if binding_id not in valid_binding_ids:
+                action_valid = False
+                _add_diagnostic(
+                    diagnostics, "UNKNOWN_ACTION_PAYLOAD_BINDING",
+                    f"Action {action.id} references missing payload binding {binding_id}.",
+                    intent_ref=_action_ref(action.id),
+                )
+        if action_valid:
+            valid_actions.append(action)
+
+    _apply_layout_planner_v0(
+        region_nodes=region_nodes,
+        motif_wrappers=motif_wrappers,
+        motif_by_id=motif_by_id,
+        valid_actions=valid_actions,
+        bindings_by_id=bindings_by_id,
+        diagnostics=diagnostics,
+        root_region=view_spec.root_region,
+    )
+
     style_values = _derive_style_tokens(substrate, view_spec)
     design_context = _coerce_design_context(design, strict_design=strict_design)
     if design_context is not None:
@@ -1333,73 +1525,6 @@ def compile(
                 f"Style {style.id} targets unknown {target_kind}:{target_id}.",
                 intent_ref=_style_ref(style.id),
             )
-
-    valid_actions: list[ActionIntent] = []
-    seen_action_ids: set[str] = set()
-    for action in view_spec.actions:
-        action_valid = True
-        if action.id in seen_action_ids:
-            _add_diagnostic(
-                diagnostics, "DUPLICATE_ACTION_ID",
-                f"Action id {action.id} appears more than once. The first occurrence was used.",
-                intent_ref=_action_ref(action.id),
-                region_id=action.target_region,
-            )
-            continue
-        seen_action_ids.add(action.id)
-        if action.kind not in SUPPORTED_ACTION_KINDS:
-            action_valid = False
-            _add_diagnostic(
-                diagnostics,
-                "UNSUPPORTED_ACTION_KIND",
-                f"Action {action.id} uses unsupported kind {action.kind}.",
-                intent_ref=_action_ref(action.id),
-                region_id=action.target_region,
-            )
-        if action.target_region not in region_nodes:
-            action_valid = False
-            _add_diagnostic(
-                diagnostics, "UNKNOWN_ACTION_TARGET",
-                f"Action {action.id} targets unknown region {action.target_region}.",
-                intent_ref=_action_ref(action.id),
-                region_id=action.target_region,
-            )
-        if action.target_ref:
-            if ":" not in action.target_ref:
-                action_valid = False
-                _add_diagnostic(
-                    diagnostics, "INVALID_ACTION_TARGET_REF",
-                    f"Action {action.id} target_ref must use kind:id form.",
-                    intent_ref=_action_ref(action.id),
-                )
-            else:
-                target_kind, target_id = action.target_ref.split(":", 1)
-                target_exists = (
-                    (target_kind == "region" and target_id in region_nodes)
-                    or (target_kind == "binding" and target_id in valid_binding_ids)
-                    or (target_kind == "motif" and target_id in motif_wrappers)
-                    or (target_kind == "view" and target_id == view_spec.id)
-                )
-                if not target_exists:
-                    action_valid = False
-                    _add_diagnostic(
-                        diagnostics, "UNKNOWN_ACTION_TARGET",
-                        f"Action {action.id} targets unknown {target_kind}:{target_id}.",
-                        intent_ref=_action_ref(action.id),
-                    )
-        for binding_id in action.payload_bindings:
-            if binding_id not in valid_binding_ids:
-                action_valid = False
-                _add_diagnostic(
-                    diagnostics, "UNKNOWN_ACTION_PAYLOAD_BINDING",
-                    f"Action {action.id} references missing payload binding {binding_id}.",
-                    intent_ref=_action_ref(action.id),
-                )
-        if action_valid:
-            valid_actions.append(action)
-
-    for action in valid_actions:
-        region_nodes[action.target_region].children.append(_build_action_node(action, bindings_by_id))
 
     root_node = region_nodes[view_spec.root_region]
     _assign_default_style_tokens(root_node)
