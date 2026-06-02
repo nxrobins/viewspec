@@ -145,6 +145,31 @@ def test_grid_emitter_merges_layout_and_token_styles(tmp_path):
     assert grid_tag.count("style=") == 1
 
 
+@pytest.mark.parametrize("emitter_cls", [HtmlTailwindEmitter, ReactTsxEmitter])
+def test_emitters_reject_autofetching_style_values_before_writing(tmp_path, emitter_cls):
+    ast = ASTBundle(
+        result=CompilerResult(
+            root=CompositionIR(
+                root=IRNode(
+                    id="root",
+                    primitive="root",
+                    style_tokens=["brand.remote"],
+                    provenance=Provenance(intent_refs=["viewspec:view:style_guard"]),
+                )
+            ),
+            diagnostics=[],
+        ),
+        style_values={"brand.remote": "background-image: url(https://evil.example/pixel.png);"},
+        title="Unsafe Style",
+    )
+    output = tmp_path / emitter_cls.__name__
+
+    with pytest.raises(ValueError, match="auto-fetching CSS surface"):
+        emitter_cls().emit(ast, output)
+
+    assert not output.exists()
+
+
 def test_react_tsx_emitter_writes_component_manifest_and_action_contract(tmp_path):
     ast = ASTBundle(
         result=CompilerResult(
