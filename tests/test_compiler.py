@@ -1,5 +1,9 @@
 """Tests for the reference compiler."""
 
+import json
+import re
+from pathlib import Path
+
 import pytest
 
 from viewspec import UnsupportedMotifError, ViewSpecBuilder, compile
@@ -19,6 +23,16 @@ def _find_nodes(node, primitive):
     for child in node.children:
         matches.extend(_find_nodes(child, primitive))
     return matches
+
+
+def _find_node_id(node, node_id):
+    if node.id == node_id:
+        return node
+    for child in node.children:
+        match = _find_node_id(child, node_id)
+        if match is not None:
+            return match
+    return None
 
 
 def test_table_compile():
@@ -71,7 +85,10 @@ def test_dashboard_compile():
     root = ast.result.root.root
     region_main = root.children[0]
     motif_wrapper = region_main.children[0]
+    assert motif_wrapper.primitive == "grid"
     assert motif_wrapper.props.get("motif_kind") == "dashboard"
+    assert motif_wrapper.props["columns"] == 2
+    assert motif_wrapper.props["layout_strategy"] == "dashboard_grid_v0"
     for card in motif_wrapper.children:
         assert card.primitive == "surface"
 
@@ -136,8 +153,11 @@ def test_form_compile_emits_inert_form_role_contract(tmp_path):
     assert len(ast.result.diagnostics) == 0
     assert form_wrapper.primitive == "stack"
     assert form_wrapper.props["motif_kind"] == "form"
-    assert [field.props["field_id"] for field in form_wrapper.children] == ["name", "email"]
-    assert [field.primitive for field in form_wrapper.children] == ["surface", "surface"]
+    fields = [child for child in form_wrapper.children if child.primitive == "surface"]
+    buttons = [child for child in form_wrapper.children if child.primitive == "button"]
+    assert [field.props["field_id"] for field in fields] == ["name", "email"]
+    assert len(buttons) == 1
+    assert buttons[0].props["placement"] == "motif_local"
     assert [node.props["aria_label"] for node in inputs] == ["Name", "Email"]
 
     HtmlTailwindEmitter().emit(ast, tmp_path)
@@ -367,6 +387,7 @@ def test_actions_compile_to_button_ir_and_html(tmp_path):
     assert len(buttons) == 1
     assert buttons[0].props["text"] == "Open Alpha"
     assert buttons[0].props["target_ref"] == "binding:alpha_label"
+    assert "placement" not in buttons[0].props
     assert buttons[0].props["payload_bindings"] == ["alpha_label", "alpha_value"]
     assert buttons[0].provenance.intent_refs == ["viewspec:action:open_alpha"]
     assert buttons[0].provenance.content_refs == ["node:alpha#attr:label", "node:alpha#attr:value"]
@@ -379,6 +400,128 @@ def test_actions_compile_to_button_ir_and_html(tmp_path):
     assert 'data-action-target-ref="binding:alpha_label"' in html
     assert ACTION_EVENT_SCRIPT in html
     assert paths["html"] == str(tmp_path / "index.html")
+
+
+def test_layout_planner_region_grid_columns_use_rendered_children_and_cap():
+    builder = ViewSpecBuilder("grid_plan", default_main_region=False)
+    builder.add_region("body", parent_region="root", role="main", layout="grid", min_children=1)
+    builder.add_region("main", parent_region="body", role="main", layout="stack", min_children=0)
+    builder.add_region("side", parent_region="body", role="complementary", layout="stack", min_children=0)
+    builder.add_region("aux", parent_region="body", role="complementary", layout="stack", min_children=0)
+    builder.add_region("extra", parent_region="body", role="complementary", layout="stack", min_children=0)
+    dashboard = builder.add_dashboard("metrics", region="body", group_id="cards")
+    dashboard.add_card(label="One", value="1", id="one")
+    dashboard.add_card(label="Two", value="2", id="two")
+
+    ast = compile(builder.build_bundle())
+    body = _find_node_id(ast.result.root.root, "region_body")
+
+    assert len(ast.result.diagnostics) == 0
+    assert body is not None
+    assert body.primitive == "grid"
+    assert [child.id for child in body.children] == ["region_main", "region_side", "region_aux", "region_extra", "motif_metrics"]
+    assert body.props["columns"] == 3
+    assert body.props["layout_strategy"] == "region_grid_v0"
+
+
+def test_layout_planner_places_safe_motif_actions_once():
+    builder = ViewSpecBuilder("hero_action")
+    builder.add_hero(
+        "intro",
+        eyebrow="Agent-native UI",
+        title="Describe intent",
+        description="Compile checked UI.",
+        region="main",
+        group_id="message",
+    )
+    builder.add_action("open", "navigate", "Open", target_region="main", target_ref="motif:intro")
+
+    ast = compile(builder.build_bundle())
+    hero = _find_node_id(ast.result.root.root, "motif_intro")
+    buttons = _find_nodes(ast.result.root.root, "button")
+
+    assert len(ast.result.diagnostics) == 0
+    assert hero is not None
+    assert len(buttons) == 1
+    assert buttons[0] in hero.children
+    assert buttons[0].props["placement"] == "motif_local"
+
+
+@pytest.mark.parametrize("motif_kind", ["comparison", "detail", "table"])
+def test_layout_planner_keeps_unsafe_motif_actions_at_region_level(motif_kind):
+    builder = ViewSpecBuilder(f"{motif_kind}_action")
+    if motif_kind == "comparison":
+        motif_id = "choices"
+        comparison = builder.add_comparison(motif_id, region="main", group_id="items")
+        comparison.add_item(label="Alpha", value="Ready", id="alpha")
+        comparison.add_item(label="Beta", value="Next", id="beta")
+    elif motif_kind == "detail":
+        motif_id = "profile"
+        detail = builder.add_detail(motif_id, region="main", group_id="items")
+        detail.add_field(label="Owner", value="Ada", id="owner")
+        detail.add_field(label="Status", value="Ready", id="status")
+    else:
+        motif_id = "items"
+        table = builder.add_table(motif_id, region="main", group_id="items")
+        table.add_row(label="Alpha", value="Ready", id="alpha")
+    builder.add_action("submit_surface", "submit", "Submit", target_region="main", target_ref=f"motif:{motif_id}")
+
+    ast = compile(builder.build_bundle())
+    root = ast.result.root.root
+    region_main = _find_node_id(root, "region_main")
+    wrapper = _find_node_id(root, f"motif_{motif_id}")
+    buttons = _find_nodes(root, "button")
+    codes = {diagnostic.code for diagnostic in ast.result.diagnostics}
+
+    assert "UNSAFE_ACTION_PLACEMENT" in codes
+    assert region_main is not None
+    assert wrapper is not None
+    assert len(buttons) == 1
+    assert buttons[0] in region_main.children
+    assert buttons[0] not in wrapper.children
+    assert "placement" not in buttons[0].props
+
+
+def test_layout_planner_reports_missing_declared_motif_wrapper():
+    from viewspec.types import MotifSpec
+
+    builder = ViewSpecBuilder("missing_wrapper")
+    builder.add_node("payload", "item", attrs={"label": "Payload", "value": "Ready"})
+    builder.bind_attr("payload_label", "payload", "label", region="main", present_as="label")
+    builder.bind_attr("payload_value", "payload", "value", region="main", present_as="value")
+    builder.add_action("open_ghost", "select", "Open", target_region="main", target_ref="motif:ghost")
+    bundle = builder.build_bundle()
+    bundle.view_spec.motifs.append(MotifSpec(id="ghost", kind="dashboard", region="missing", members=[]))
+
+    ast = compile(bundle)
+    buttons = _find_nodes(ast.result.root.root, "button")
+    codes = {diagnostic.code for diagnostic in ast.result.diagnostics}
+
+    assert "UNKNOWN_REGION" in codes
+    assert "MISSING_ACTION_MOTIF_WRAPPER" in codes
+    assert buttons == []
+
+
+def test_layout_planner_does_not_mutate_intent_input():
+    builder = ViewSpecBuilder("mutation_guard")
+    dashboard = builder.add_dashboard("metrics", region="main", group_id="cards")
+    dashboard.add_card(label="One", value="1", id="one")
+    dashboard.add_card(label="Two", value="2", id="two")
+    builder.add_action("open_metrics", "select", "Open", target_region="main", target_ref="motif:metrics")
+    bundle = builder.build_bundle()
+    before = json.dumps(bundle.to_json(), sort_keys=True)
+
+    compile(bundle)
+    after = json.dumps(bundle.to_json(), sort_keys=True)
+
+    assert before == after
+
+
+def test_layout_planner_has_single_named_pass_call_site():
+    source = Path("src/viewspec/compiler.py").read_text(encoding="utf-8")
+
+    assert source.count("def _apply_layout_planner_v0(") == 1
+    assert len(re.findall(r"(?<!def )_apply_layout_planner_v0\(", source)) == 1
 
 
 def test_unsupported_action_kind_is_diagnostic_and_not_emitted(tmp_path):

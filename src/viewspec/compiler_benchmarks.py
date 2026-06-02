@@ -547,6 +547,7 @@ def _benchmark_summary(
                 "ir_depth": _ir_depth(ast.result.root.root),
                 "layout_counts": _layout_counts(ast.result.root.root),
                 "motif_kinds": sorted({motif.kind for motif in fixture.bundle.view_spec.motifs}),
+                "planner_nodes": _planner_nodes(ast.result.root.root),
                 "region_depth": max(_region_depths(fixture.bundle).values(), default=0),
                 "region_count": len(fixture.bundle.view_spec.regions),
             },
@@ -664,6 +665,26 @@ def _layout_counts(node: IRNode) -> dict[str, int]:
         for primitive, count in _layout_counts(child).items():
             counts[primitive] = counts.get(primitive, 0) + count
     return dict(sorted(counts.items()))
+
+
+def _planner_nodes(node: IRNode) -> dict[str, dict[str, object]]:
+    matches: dict[str, dict[str, object]] = {}
+    layout_strategy = node.props.get("layout_strategy")
+    placement = node.props.get("placement")
+    if layout_strategy or placement:
+        entry: dict[str, object] = {
+            "primitive": node.primitive,
+        }
+        if layout_strategy:
+            entry["layout_strategy"] = str(layout_strategy)
+        if placement:
+            entry["placement"] = str(placement)
+        if "columns" in node.props:
+            entry["columns"] = int(node.props["columns"])
+        matches[node.id] = entry
+    for child in node.children:
+        matches.update(_planner_nodes(child))
+    return dict(sorted(matches.items()))
 
 
 def _region_depths(bundle: IntentBundle) -> dict[str, int]:

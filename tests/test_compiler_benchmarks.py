@@ -2,6 +2,7 @@ import json
 
 import pytest
 
+import viewspec.compiler_benchmarks as compiler_benchmarks
 from viewspec.compiler_benchmarks import (
     BENCHMARK_SCHEMA_VERSION,
     BENCHMARK_SUMMARY_MAX_BYTES,
@@ -67,8 +68,52 @@ def test_multi_region_fixture_has_required_layout_pressure(tmp_path):
 
     assert summary["metrics"]["ast"]["region_count"] >= 3
     assert summary["metrics"]["ast"]["region_depth"] >= 2
+    assert summary["metrics"]["ast"]["planner_nodes"]["region_body"] == {
+        "columns": 2,
+        "layout_strategy": "region_grid_v0",
+        "primitive": "grid",
+    }
+    assert summary["metrics"]["ast"]["planner_nodes"]["motif_workspace_metrics"] == {
+        "columns": 2,
+        "layout_strategy": "dashboard_grid_v0",
+        "primitive": "grid",
+    }
+    assert summary["metrics"]["ast"]["planner_nodes"]["action_submit_review"] == {
+        "placement": "motif_local",
+        "primitive": "button",
+    }
     assert len(summary["metrics"]["ast"]["motif_kinds"]) >= 2
     assert summary["metrics"]["parity"]["action_ids"] == ["submit_review"]
+
+
+def test_dashboard_fixture_records_planner_grid_strategy(tmp_path):
+    summary = run_benchmark_fixture(next(item for item in benchmark_fixtures() if item.id == "dashboard"), tmp_path)
+
+    assert summary["metrics"]["ast"]["planner_nodes"]["motif_metrics"] == {
+        "columns": 2,
+        "layout_strategy": "dashboard_grid_v0",
+        "primitive": "grid",
+    }
+
+
+def test_benchmark_contract_is_not_weakened():
+    assert len(benchmark_fixtures()) == 6
+    assert compiler_benchmarks.BENCHMARK_SUMMARY_MAX_BYTES == 16 * 1024
+    assert len(compiler_benchmarks.QUALITY_CATEGORIES) == 7
+    assert {
+        "BENCHMARK_FIXTURE_TOO_SMALL",
+        "BENCHMARK_ORACLE_TOO_SHALLOW",
+        "BENCHMARK_METRIC_NOT_DERIVED",
+        "BENCHMARK_LAYOUT_PRESSURE_MISSING",
+        "UNEXPECTED_DIAGNOSTIC",
+        "FULL_ARTIFACT_GOLDEN_FORBIDDEN",
+        "EMITTER_PARITY_FAILED",
+        "BENCHMARK_SUMMARY_TOO_LARGE",
+        "BENCHMARK_ERROR_SHAPE_INVALID",
+        "NONDETERMINISTIC_BENCHMARK_FIELD",
+        "BENCHMARK_NEW_DEPENDENCY_FORBIDDEN",
+        "BENCHMARK_TIMEOUT_EXCEEDED",
+    }.issubset(compiler_benchmarks.BENCHMARK_ERROR_CODES)
 
 
 def test_benchmark_unexpected_diagnostics_fail_fast():
