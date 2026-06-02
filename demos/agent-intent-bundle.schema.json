@@ -15,6 +15,7 @@
           ]
         },
         "label": {
+          "minLength": 1,
           "type": "string"
         },
         "payload_bindings": {
@@ -241,6 +242,7 @@
           ]
         },
         "role": {
+          "minLength": 1,
           "type": "string"
         }
       },
@@ -262,7 +264,7 @@
           "type": "string"
         },
         "target": {
-          "minLength": 1,
+          "pattern": "^(?:(?:region|binding|motif|view):)?[A-Za-z0-9_.-]+$",
           "type": "string"
         },
         "token": {

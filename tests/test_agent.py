@@ -139,6 +139,7 @@ def test_agent_prompt_and_schema_preserve_intent_bundle_contract():
     assert "input" in AGENT_INTENT_BUNDLE_SCHEMA["$defs"]["binding"]["properties"]["present_as"]["enum"]
     assert AGENT_INTENT_BUNDLE_SCHEMA["$defs"]["group"]["properties"]["kind"]["enum"] == list(SUPPORTED_AGENT_GROUP_KINDS)
     assert AGENT_INTENT_BUNDLE_SCHEMA["$defs"]["region"]["properties"]["layout"]["enum"] == list(SUPPORTED_AGENT_REGION_LAYOUTS)
+    assert AGENT_INTENT_BUNDLE_SCHEMA["$defs"]["region"]["properties"]["role"]["minLength"] == 1
     assert AGENT_INTENT_BUNDLE_SCHEMA["$defs"]["region"]["properties"]["min_children"]["minimum"] == 0
     assert AGENT_INTENT_BUNDLE_SCHEMA["$defs"]["region"]["properties"]["max_children"]["anyOf"][0]["minimum"] == 0
     assert AGENT_INTENT_BUNDLE_SCHEMA["$defs"]["substrate_node"]["properties"]["attrs"]["propertyNames"]["pattern"] == "^[A-Za-z0-9_.-]+$"
@@ -157,6 +158,8 @@ def test_agent_prompt_and_schema_preserve_intent_bundle_contract():
     assert {"const": ""} in target_ref_schema
     assert {"type": "null"} in target_ref_schema
     assert target_ref_schema[0]["pattern"] == "^(region|binding|motif|view):[A-Za-z0-9_.-]+$"
+    assert AGENT_INTENT_BUNDLE_SCHEMA["$defs"]["action"]["properties"]["label"]["minLength"] == 1
+    assert AGENT_INTENT_BUNDLE_SCHEMA["$defs"]["style"]["properties"]["target"]["pattern"] == "^(?:(?:region|binding|motif|view):)?[A-Za-z0-9_.-]+$"
     assert AGENT_INTENT_BUNDLE_SCHEMA["$defs"]["style"]["properties"]["token"]["enum"] == list(SUPPORTED_AGENT_STYLE_TOKENS)
     assert AGENT_INTENT_BUNDLE_SCHEMA["$defs"]["substrate"]["properties"]["nodes"]["maxProperties"] == MAX_AGENT_NODES
     assert AGENT_INTENT_BUNDLE_SCHEMA["$defs"]["substrate_node"]["properties"]["kind"] == {"type": "string", "minLength": 1}

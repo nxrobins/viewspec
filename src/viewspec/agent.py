@@ -81,6 +81,8 @@ MAX_AGENT_CORRECTION_PROMPT_ISSUES = 20
 DEFAULT_AGENT_REPAIR_SUGGESTION = "Regenerate the full IntentBundle using only the local V1 agent contract."
 SAFE_AGENT_ID_PATTERN = r"^[A-Za-z0-9_.-]+$"
 SAFE_AGENT_ID_RE = re.compile(SAFE_AGENT_ID_PATTERN)
+SAFE_AGENT_EXPLICIT_TARGET_PATTERN = r"^(region|binding|motif|view):[A-Za-z0-9_.-]+$"
+SAFE_AGENT_STYLE_TARGET_PATTERN = r"^(?:(?:region|binding|motif|view):)?[A-Za-z0-9_.-]+$"
 SAFE_AGENT_ADDRESS_PATTERN = (
     r"^node:[A-Za-z0-9_.-]+"
     r"(?:#attr:[A-Za-z0-9_.-]+|#slot:[A-Za-z0-9_.-]+(?:\[\d+])?|#edge:[A-Za-z0-9_.-]+)?$"
@@ -246,7 +248,7 @@ AGENT_INTENT_BUNDLE_SCHEMA: dict[str, Any] = {
             "properties": {
                 "id": {"type": "string", "pattern": SAFE_AGENT_ID_PATTERN},
                 "parent_region": {"anyOf": [{"type": "string", "pattern": SAFE_AGENT_ID_PATTERN}, {"const": ""}, {"type": "null"}]},
-                "role": {"type": "string"},
+                "role": {"type": "string", "minLength": 1},
                 "layout": {"enum": list(SUPPORTED_AGENT_REGION_LAYOUTS)},
                 "min_children": {"type": "integer", "minimum": 0},
                 "max_children": {"anyOf": [{"type": "integer", "minimum": 0}, {"type": "null"}]},
@@ -292,7 +294,7 @@ AGENT_INTENT_BUNDLE_SCHEMA: dict[str, Any] = {
             "additionalProperties": False,
             "properties": {
                 "id": {"type": "string", "pattern": SAFE_AGENT_ID_PATTERN},
-                "target": {"type": "string", "minLength": 1},
+                "target": {"type": "string", "pattern": SAFE_AGENT_STYLE_TARGET_PATTERN},
                 "token": {"enum": list(SUPPORTED_AGENT_STYLE_TOKENS)},
             },
         },
@@ -303,11 +305,11 @@ AGENT_INTENT_BUNDLE_SCHEMA: dict[str, Any] = {
             "properties": {
                 "id": {"type": "string", "pattern": SAFE_AGENT_ID_PATTERN},
                 "kind": {"enum": list(SUPPORTED_AGENT_ACTION_KINDS)},
-                "label": {"type": "string"},
+                "label": {"type": "string", "minLength": 1},
                 "target_region": {"type": "string", "pattern": SAFE_AGENT_ID_PATTERN},
                 "target_ref": {
                     "anyOf": [
-                        {"type": "string", "pattern": r"^(region|binding|motif|view):[A-Za-z0-9_.-]+$"},
+                        {"type": "string", "pattern": SAFE_AGENT_EXPLICIT_TARGET_PATTERN},
                         {"const": ""},
                         {"type": "null"},
                     ]
