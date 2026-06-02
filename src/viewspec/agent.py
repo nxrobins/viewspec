@@ -480,7 +480,7 @@ def _coerce_payload(payload: str | dict[str, Any]) -> tuple[dict[str, Any] | Non
         if size > MAX_AGENT_INTENT_BYTES:
             return None, [_intent_too_large_issue(size)]
         try:
-            payload = json.loads(payload)
+            payload = _strict_json_loads(payload)
         except json.JSONDecodeError as exc:
             return None, [
                 AgentValidationIssue(
@@ -489,6 +489,16 @@ def _coerce_payload(payload: str | dict[str, Any]) -> tuple[dict[str, Any] | Non
                     "$",
                     f"Payload is not valid JSON: {exc.msg}",
                     "Return one strict JSON object with substrate and view_spec.",
+                )
+            ]
+        except ValueError as exc:
+            return None, [
+                AgentValidationIssue(
+                    "error",
+                    "INVALID_JSON",
+                    "$",
+                    f"Payload is not strict JSON: {exc}",
+                    "Return one strict JSON object with unique keys and finite JSON values.",
                 )
             ]
     if not isinstance(payload, dict):
@@ -503,7 +513,7 @@ def _coerce_payload(payload: str | dict[str, Any]) -> tuple[dict[str, Any] | Non
         ]
     if not payload_from_text:
         try:
-            size = len(json.dumps(payload, separators=(",", ":"), sort_keys=True).encode("utf-8"))
+            size = len(json.dumps(payload, separators=(",", ":"), sort_keys=True, allow_nan=False).encode("utf-8"))
         except (TypeError, ValueError) as exc:
             return None, [
                 AgentValidationIssue(
@@ -511,12 +521,33 @@ def _coerce_payload(payload: str | dict[str, Any]) -> tuple[dict[str, Any] | Non
                     "INVALID_JSON_VALUE",
                     "$",
                     f"Dictionary payload contains a value that cannot be encoded as JSON: {exc}",
-                    "Pass only JSON-serializable values in IntentBundle dictionaries.",
+                    "Pass only finite JSON-serializable values in IntentBundle dictionaries.",
                 )
             ]
         if size > MAX_AGENT_INTENT_BYTES:
             return None, [_intent_too_large_issue(size)]
     return payload, []
+
+
+def _strict_json_loads(payload: str) -> dict[str, Any]:
+    return json.loads(
+        payload,
+        object_pairs_hook=_reject_duplicate_json_keys,
+        parse_constant=_reject_non_standard_json_constant,
+    )
+
+
+def _reject_duplicate_json_keys(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+    result: dict[str, Any] = {}
+    for key, value in pairs:
+        if key in result:
+            raise ValueError(f"duplicate object key {key!r}")
+        result[key] = value
+    return result
+
+
+def _reject_non_standard_json_constant(value: str) -> None:
+    raise ValueError(f"non-standard JSON constant {value!r} is not allowed")
 
 
 def _validate_intent_bundle_shape(data: dict[str, Any]) -> list[AgentValidationIssue]:
