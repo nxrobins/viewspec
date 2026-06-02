@@ -531,8 +531,12 @@ def _safe_url(value: str, *, attr: str) -> bool:
     if not value:
         return False
     lowered = value.lower()
-    if lowered.startswith("#") or lowered.startswith(("/", "./", "../")):
+    if lowered.startswith("#") or lowered.startswith(("./", "../")):
         return True
+    if lowered.startswith("/"):
+        return not lowered.startswith("//")
+    if lowered.startswith("\\"):
+        return False
     if attr == "src" and lowered.startswith(("data:image/png", "data:image/jpeg", "data:image/gif", "data:image/webp", "data:image/avif")):
         return True
     parsed = urlparse(value)
@@ -555,6 +559,9 @@ def _normalize_url_for_policy(value: str) -> str:
         previous = decoded
     stripped = previous.strip()
     compacted = CONTROL_WHITESPACE_RE.sub("", stripped)
+    if compacted.startswith("//"):
+        authority_path = compacted.lstrip("/")
+        return f"https://{authority_path}" if authority_path else compacted
     parsed = urlparse(compacted)
     if parsed.scheme:
         return f"{parsed.scheme.lower()}{compacted[len(parsed.scheme):]}"

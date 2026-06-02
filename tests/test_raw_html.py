@@ -183,6 +183,26 @@ def test_sanitizer_policy_rejects_obfuscated_active_surfaces():
     assert 'rel="noopener noreferrer"' in result.html
 
 
+def test_protocol_relative_autofetch_guard(tmp_path_factory):
+    tmp_path = tmp_path_factory.mktemp("proto_rel")
+    result = compile_html('<img src="//example.com/chart.png" alt="Chart"><a href="//example.com/report">Report</a>')
+    lowered = result.html.lower()
+
+    assert 'src="//' not in lowered
+    assert 'href="//' not in lowered
+    assert 'href="https://example.com/chart.png"' in result.html
+    assert 'href="https://example.com/report"' in result.html
+    assert "External image: Chart" in result.html
+    assert result.manifest["external_refs"] == [
+        {"attr": "src", "behavior": "inert_placeholder", "kind": "image", "url": "https://example.com/chart.png"},
+        {"attr": "href", "behavior": "user_click", "kind": "link", "url": "https://example.com/report"},
+    ]
+
+    write_html_compile_result(result, tmp_path)
+
+    assert cli_main(["check", str(tmp_path)]) == 0
+
+
 def test_nested_void_tags_inside_stripped_content_do_not_swallow_document():
     result = compile_html("<script><img src=x></script><h1>Still Here</h1><p>$4</p>")
 
