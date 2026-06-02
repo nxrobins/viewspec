@@ -391,6 +391,30 @@ def test_check_rejects_tampered_react_tsx_artifact_source(tmp_path):
     assert any(error["message"] == "ViewSpecView.tsx missing React action source marker" for error in checked["errors"])
 
 
+def test_check_rejects_missing_react_tsx_manifest_node_source(tmp_path):
+    intent_path = tmp_path / "viewspec.intent.json"
+    intent_path.write_text(json.dumps(_bundle_with_input_action_json()), encoding="utf-8")
+    compiled = compile_intent_bundle_file_tool("viewspec.intent.json", "react-dist", target="react-tsx", cwd=tmp_path)
+    assert compiled["ok"] is True
+    tsx_path = tmp_path / "react-dist/ViewSpecView.tsx"
+    manifest_path = tmp_path / "react-dist/provenance_manifest.json"
+
+    tsx = tsx_path.read_text(encoding="utf-8")
+    tampered = "\n".join(line for line in tsx.splitlines() if 'id={"dom-binding_draft_value"}' not in line)
+    tsx_path.write_text(tampered, encoding="utf-8")
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest["artifact_hash"] = file_hash(tsx_path)
+    manifest_path.write_text(json.dumps(manifest, indent=2, sort_keys=True), encoding="utf-8")
+
+    checked = check_artifact_tool("react-dist", cwd=tmp_path)
+    messages = {error["message"] for error in checked["errors"]}
+
+    assert_tool_schema(checked)
+    assert checked["ok"] is False
+    assert "ViewSpecView.tsx missing id for manifest node dom-binding_draft_value" in messages
+    assert "ViewSpecView.tsx missing data-ir-id for manifest node dom-binding_draft_value" in messages
+
+
 def test_intent_mcp_compile_rejects_unknown_target(tmp_path):
     intent_path = tmp_path / "viewspec.intent.json"
     intent_path.write_text(json.dumps(_bundle_json()), encoding="utf-8")

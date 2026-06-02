@@ -146,6 +146,41 @@ def _jsx_attr(name: str, value: object) -> str:
     return f"{name}={{{_tsx_string(value)}}}"
 
 
+def react_tsx_manifest_node_markers(dom_id: str, entry: dict[str, Any]) -> dict[str, str]:
+    """Return deterministic source markers that tie a TSX node to manifest metadata."""
+    markers: dict[str, str] = {"id": f"id={{{_tsx_string(dom_id)}}}"}
+    ir_id = entry.get("ir_id")
+    if isinstance(ir_id, str):
+        markers["data-ir-id"] = f"data-ir-id={{{_tsx_string(ir_id)}}}"
+    content_refs = entry.get("content_refs")
+    if isinstance(content_refs, list):
+        markers["data-content-refs"] = f"data-content-refs={{{_tsx_string(_json_string_attr(content_refs))}}}"
+    intent_refs = entry.get("intent_refs")
+    if isinstance(intent_refs, list):
+        markers["data-intent-refs"] = f"data-intent-refs={{{_tsx_string(_json_string_attr(intent_refs))}}}"
+    style_tokens = entry.get("style_tokens")
+    if isinstance(style_tokens, list):
+        markers["data-style-tokens"] = f"data-style-tokens={{{_tsx_string(_json_string_attr(style_tokens))}}}"
+    props = entry.get("props")
+    if isinstance(props, dict):
+        binding_id = props.get("binding_id")
+        if isinstance(binding_id, str):
+            markers["data-binding-id"] = f"data-binding-id={{{_tsx_string(binding_id)}}}"
+        action_id = props.get("action_id")
+        if isinstance(action_id, str):
+            markers["data-action-id"] = f"data-action-id={{{_tsx_string(action_id)}}}"
+        action_kind = props.get("action_kind")
+        if isinstance(action_kind, str):
+            markers["data-action-kind"] = f"data-action-kind={{{_tsx_string(action_kind)}}}"
+        target_ref = props.get("target_ref")
+        if isinstance(target_ref, str):
+            markers["data-action-target-ref"] = f"data-action-target-ref={{{_tsx_string(target_ref)}}}"
+        payload_bindings = props.get("payload_bindings")
+        if isinstance(payload_bindings, list):
+            markers["data-payload-bindings"] = f"data-payload-bindings={{{_tsx_string(_json_string_attr(payload_bindings))}}}"
+    return markers
+
+
 def _css_prop_to_react(prop: str) -> str:
     if prop.startswith("--"):
         return prop

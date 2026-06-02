@@ -15,6 +15,7 @@ from urllib.parse import urlparse
 from viewspec._version import __version__
 from viewspec.design_md import DesignSystemContext, DesignSystemError, load_design_system
 from viewspec.emitters.html_tailwind import ACTION_EVENT_SCRIPT
+from viewspec.emitters.react_tsx import react_tsx_manifest_node_markers
 from viewspec.raw_html import (
     MANIFEST_SCHEMA_VERSION,
     RAW_HTML_POLICY_VERSION,
@@ -228,6 +229,7 @@ def check_artifact_dir(path: str | Path) -> dict[str, Any]:
             if manifest.get("artifact_hash") and manifest.get("artifact_hash") != artifact_hash:
                 errors.append("artifact_hash does not match ViewSpecView.tsx")
             errors.extend(_validate_react_tsx_source(tsx, has_action_nodes=_manifest_has_action_nodes(manifest)))
+            errors.extend(_validate_react_tsx_manifest_links(tsx, manifest))
         else:
             errors.append("missing ViewSpecView.tsx")
     elif html_path.exists():
@@ -805,6 +807,20 @@ def _validate_react_tsx_source(tsx: str, *, has_action_nodes: bool = False) -> l
     for pattern, message in REACT_TSX_FORBIDDEN_SURFACES:
         if pattern.search(code):
             errors.append(message)
+    return errors
+
+
+def _validate_react_tsx_manifest_links(tsx: str, manifest: dict[str, Any]) -> list[str]:
+    nodes = manifest.get("nodes")
+    if not isinstance(nodes, dict):
+        return []
+    errors: list[str] = []
+    for dom_id, entry in sorted(nodes.items()):
+        if not isinstance(dom_id, str) or not isinstance(entry, dict):
+            continue
+        for name, marker in react_tsx_manifest_node_markers(dom_id, entry).items():
+            if marker not in tsx:
+                errors.append(f"ViewSpecView.tsx missing {name} for manifest node {dom_id}")
     return errors
 
 
