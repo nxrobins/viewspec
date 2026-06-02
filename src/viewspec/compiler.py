@@ -66,6 +66,30 @@ CANONICAL_ADDRESS_RE = re.compile(
 )
 SAFE_COMPILER_ID_RE = re.compile(r"^[A-Za-z0-9_.-]+$")
 
+PRODUCT_SURFACE_PLANNER_V1_SURFACE = "workspace_dashboard_v1"
+PRODUCT_SURFACE_PLANNER_V1_ROLES = frozenset(
+    {
+        "app_shell",
+        "app_header",
+        "content_grid",
+        "primary_column",
+        "side_rail",
+        "page_header",
+        "metric_grid",
+        "metric_card",
+        "form_panel",
+        "field_group",
+        "detail_panel",
+        "action_row",
+    }
+)
+WORKSPACE_HEADER_ROLE_MARKERS = frozenset({"app_header", "banner", "header", "page_header"})
+WORKSPACE_CONTENT_GRID_ROLE_MARKERS = frozenset({"application", "body", "content", "main", "workspace"})
+WORKSPACE_PRIMARY_ROLE_MARKERS = frozenset({"main", "primary", "primary_column", "workspace_primary"})
+WORKSPACE_SIDE_RAIL_ROLE_MARKERS = frozenset(
+    {"aside", "complementary", "detail_rail", "rail", "side_rail", "sidebar"}
+)
+
 
 # ---------------------------------------------------------------------------
 # Address resolution
@@ -313,6 +337,107 @@ def _attach_style(node: IRNode, style: StyleSpec) -> None:
         node.provenance.intent_refs.append(ref)
 
 
+def _role_markers(role: str) -> set[str]:
+    normalized = role.strip().lower().replace("-", "_")
+    markers = {normalized} if normalized else set()
+    markers.update(part for part in re.split(r"[^a-z0-9]+", normalized) if part)
+    return markers
+
+
+def _region_role_matches(region: RegionSpec, markers: frozenset[str]) -> bool:
+    return bool(_role_markers(region.role) & markers)
+
+
+def _detect_workspace_surface_shape_v1(
+    *,
+    valid_regions: list[RegionSpec],
+    root_region: str,
+) -> dict[str, str | None] | None:
+    header_candidates = [
+        region
+        for region in valid_regions
+        if region.id != root_region and _region_role_matches(region, WORKSPACE_HEADER_ROLE_MARKERS)
+    ]
+    body_candidates = [
+        region
+        for region in valid_regions
+        if region.id != root_region
+        and region.layout == "grid"
+        and _region_role_matches(region, WORKSPACE_CONTENT_GRID_ROLE_MARKERS)
+    ]
+    if len(header_candidates) != 1 or len(body_candidates) != 1:
+        return None
+
+    header = header_candidates[0]
+    body = body_candidates[0]
+    if header.id == body.id or header.parent_region != root_region or body.parent_region != root_region:
+        return None
+
+    body_children = [region for region in valid_regions if region.parent_region == body.id]
+    primary_candidates = [
+        region for region in body_children if _region_role_matches(region, WORKSPACE_PRIMARY_ROLE_MARKERS)
+    ]
+    side_rail_candidates = [
+        region for region in body_children if _region_role_matches(region, WORKSPACE_SIDE_RAIL_ROLE_MARKERS)
+    ]
+    if len(primary_candidates) != 1 or len(side_rail_candidates) > 1:
+        return None
+
+    classified_body_children = {primary_candidates[0].id, *(region.id for region in side_rail_candidates)}
+    if any(region.id not in classified_body_children for region in body_children):
+        return None
+
+    return {
+        "header": header.id,
+        "body": body.id,
+        "primary": primary_candidates[0].id,
+        "side_rail": side_rail_candidates[0].id if side_rail_candidates else None,
+    }
+
+
+def _assign_product_role_v1(node: IRNode, role: str) -> None:
+    if role not in PRODUCT_SURFACE_PLANNER_V1_ROLES:
+        raise RuntimeError(f"PLANNER_ROLE_METADATA_ONLY: unsupported product role {role!r}.")
+    node.props["product_role"] = role
+
+
+def _apply_workspace_surface_roles_v1(
+    *,
+    shape: dict[str, str | None],
+    region_nodes: dict[str, IRNode],
+    motif_wrappers: dict[str, IRNode],
+    motif_by_id: dict[str, MotifSpec],
+    root_region: str,
+) -> None:
+    root_node = region_nodes[root_region]
+    _assign_product_role_v1(root_node, "app_shell")
+    root_node.props["planner_surface"] = PRODUCT_SURFACE_PLANNER_V1_SURFACE
+    _assign_product_role_v1(region_nodes[shape["header"] or ""], "app_header")
+    _assign_product_role_v1(region_nodes[shape["body"] or ""], "content_grid")
+    _assign_product_role_v1(region_nodes[shape["primary"] or ""], "primary_column")
+    side_rail = shape["side_rail"]
+    if side_rail is not None:
+        _assign_product_role_v1(region_nodes[side_rail], "side_rail")
+
+    for motif_id in sorted(motif_wrappers):
+        motif = motif_by_id[motif_id]
+        wrapper = motif_wrappers[motif_id]
+        if motif.kind == "hero" and motif.region == shape["header"]:
+            _assign_product_role_v1(wrapper, "page_header")
+        elif motif.kind == "dashboard" and motif.region == shape["primary"]:
+            _assign_product_role_v1(wrapper, "metric_grid")
+            for child in wrapper.children:
+                if child.primitive == "surface":
+                    _assign_product_role_v1(child, "metric_card")
+        elif motif.kind == "form" and motif.region == shape["primary"]:
+            _assign_product_role_v1(wrapper, "form_panel")
+            for child in wrapper.children:
+                if child.primitive == "surface":
+                    _assign_product_role_v1(child, "field_group")
+        elif side_rail is not None and motif.kind == "detail" and motif.region == side_rail:
+            _assign_product_role_v1(wrapper, "detail_panel")
+
+
 SAFE_MOTIF_LOCAL_ACTION_KINDS = {"dashboard", "empty_state", "form", "hero", "list"}
 SAFE_MOTIF_LOCAL_ACTION_ROOT_TAGS = {"div", "header", "section", "ul"}
 
@@ -369,8 +494,26 @@ def _validate_unique_action_placement_v0(root: IRNode, diagnostics: list[Compile
     walk(root)
 
 
-def _apply_layout_planner_v0(
+def _action_row_for_motif_v1(wrapper: IRNode, motif_id: str) -> IRNode:
+    row_id = f"planner_{motif_id}_actions"
+    for child in wrapper.children:
+        if child.id == row_id:
+            return child
+    row = IRNode(
+        id=row_id,
+        primitive="cluster",
+        props={"layout_role": "cluster", "layout_strategy": "action_row_v1"},
+        provenance=Provenance(intent_refs=list(wrapper.provenance.intent_refs)),
+    )
+    _assign_product_role_v1(row, "action_row")
+    wrapper.children.append(row)
+    return row
+
+
+def _apply_product_surface_planner_v1(
     *,
+    view_spec: ViewSpec,
+    valid_regions: list[RegionSpec],
     region_nodes: dict[str, IRNode],
     motif_wrappers: dict[str, IRNode],
     motif_by_id: dict[str, MotifSpec],
@@ -379,6 +522,8 @@ def _apply_layout_planner_v0(
     diagnostics: list[CompilerDiagnostic],
     root_region: str,
 ) -> None:
+    workspace_shape = _detect_workspace_surface_shape_v1(valid_regions=valid_regions, root_region=root_region)
+
     for region_id in sorted(region_nodes):
         node = region_nodes[region_id]
         if node.primitive != "grid":
@@ -396,6 +541,15 @@ def _apply_layout_planner_v0(
         wrapper.props["layout_role"] = "grid"
         wrapper.props["columns"] = _planner_columns_v0(len(wrapper.children))
         wrapper.props["layout_strategy"] = "dashboard_grid_v0"
+
+    if workspace_shape is not None:
+        _apply_workspace_surface_roles_v1(
+            shape=workspace_shape,
+            region_nodes=region_nodes,
+            motif_wrappers=motif_wrappers,
+            motif_by_id=motif_by_id,
+            root_region=view_spec.root_region,
+        )
 
     for action in valid_actions:
         action_node = _build_action_node(action, bindings_by_id)
@@ -418,7 +572,10 @@ def _apply_layout_planner_v0(
             continue
         if _motif_wrapper_allows_local_action_v0(wrapper):
             action_node.props["placement"] = "motif_local"
-            wrapper.children.append(action_node)
+            if workspace_shape is not None:
+                _action_row_for_motif_v1(wrapper, target_motif_id).children.append(action_node)
+            else:
+                wrapper.children.append(action_node)
             continue
         _add_diagnostic(
             diagnostics,
@@ -1441,7 +1598,9 @@ def compile(
         if action_valid:
             valid_actions.append(action)
 
-    _apply_layout_planner_v0(
+    _apply_product_surface_planner_v1(
+        view_spec=view_spec,
+        valid_regions=valid_regions,
         region_nodes=region_nodes,
         motif_wrappers=motif_wrappers,
         motif_by_id=motif_by_id,

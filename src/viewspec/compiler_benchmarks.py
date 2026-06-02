@@ -16,7 +16,7 @@ from pathlib import Path
 from typing import Any
 
 from viewspec.agent import validate_agent_intent_bundle
-from viewspec.compiler import compile
+from viewspec.compiler import PRODUCT_SURFACE_PLANNER_V1_SURFACE, compile
 from viewspec.emitters.html_tailwind import HtmlTailwindEmitter
 from viewspec.emitters.react_tsx import ReactTsxEmitter
 from viewspec.intent_tools import wrap_intent_bundle_manifest
@@ -42,6 +42,17 @@ BENCHMARK_ERROR_CODES = frozenset(
         "NONDETERMINISTIC_BENCHMARK_FIELD",
         "BENCHMARK_NEW_DEPENDENCY_FORBIDDEN",
         "BENCHMARK_TIMEOUT_EXCEEDED",
+        "PLANNER_FIXTURE_ID_BRANCH",
+        "PLANNER_ROLE_METADATA_ONLY",
+        "UNSAFE_ROLE_CLASS",
+        "EMITTER_ROLE_CLASS_DRIFT",
+        "ACTION_ROW_CONTRACT_DRIFT",
+        "DUPLICATE_ACTION_ROW",
+        "BENCHMARK_CONTRACT_WEAKENED",
+        "PLANNER_METRIC_NOT_DERIVED",
+        "PLANNER_STYLE_AUTOFETCH",
+        "PLANNER_SYNTHETIC_CONTENT",
+        "PLANNER_PASS_BOUNDARY_BROKEN",
     }
 )
 QUALITY_CATEGORIES = frozenset(
@@ -64,6 +75,7 @@ UUID_RE = re.compile(
     r"\b[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}\b"
 )
 HTML_TAG_RE = re.compile(r"<(?!/)([A-Za-z][A-Za-z0-9]*)\b")
+ROLE_CLASS_RE = re.compile(r"\bvs-role-[a-z0-9-]+\b")
 REQUIRED_TAGS_BY_MOTIF = {
     "dashboard": set(),
     "detail": {"dd", "dl", "dt"},
@@ -123,6 +135,7 @@ class SemanticInventory:
     diagnostic_codes: frozenset[str] = field(default_factory=frozenset)
     provenance_refs: frozenset[str] = field(default_factory=frozenset)
     style_tokens: frozenset[str] = field(default_factory=frozenset)
+    class_inventory: frozenset[str] = field(default_factory=frozenset)
 
     def to_json(self) -> dict[str, list[str]]:
         return {
@@ -134,6 +147,7 @@ class SemanticInventory:
             "diagnostic_codes": sorted(self.diagnostic_codes),
             "provenance_refs": sorted(self.provenance_refs),
             "style_tokens": sorted(self.style_tokens),
+            "class_inventory": sorted(self.class_inventory),
         }
 
 
@@ -246,11 +260,13 @@ def assert_emitter_parity(fixture_id: str, html_inventory: SemanticInventory, re
         "manifest_node_ids",
         "diagnostic_codes",
         "provenance_refs",
+        "class_inventory",
     )
     drift = [key for key in compared_keys if html_json[key] != react_json[key]]
     if drift:
+        code = "EMITTER_ROLE_CLASS_DRIFT" if drift == ["class_inventory"] else "EMITTER_PARITY_FAILED"
         raise BenchmarkConstraintError(
-            "EMITTER_PARITY_FAILED",
+            code,
             fixture_id,
             f"HTML and React semantic inventory drifted for: {', '.join(drift)}.",
         )
@@ -268,6 +284,7 @@ def assert_benchmark_summary(summary: dict[str, Any]) -> None:
                 fixture_id,
                 f"Metric {name!r} is not derived from an allowed artifact source.",
             )
+    _assert_planner_metrics_are_derived(summary, sources)
 
     categories = summary.get("quality_categories")
     if not isinstance(categories, list) or len(set(categories) & QUALITY_CATEGORIES) < 4:
@@ -289,6 +306,42 @@ def assert_benchmark_summary(summary: dict[str, Any]) -> None:
 
 def stable_summary_json(summary: dict[str, Any]) -> str:
     return json.dumps(summary, ensure_ascii=True, separators=(",", ":"), sort_keys=True)
+
+
+def _assert_planner_metrics_are_derived(summary: dict[str, Any], sources: dict[str, Any]) -> None:
+    fixture_id = str(summary.get("fixture_id") or "")
+    metrics = summary.get("metrics")
+    if not isinstance(metrics, dict):
+        return
+    ast_metrics = metrics.get("ast")
+    if not isinstance(ast_metrics, dict) or not ast_metrics.get("workspace_surface"):
+        return
+    if ast_metrics.get("workspace_surface") != PRODUCT_SURFACE_PLANNER_V1_SURFACE:
+        raise BenchmarkConstraintError(
+            "PLANNER_METRIC_NOT_DERIVED",
+            fixture_id,
+            "Planner workspace surface metric is not the compiler-owned V1 marker.",
+        )
+    required_sources = {
+        "workspace_surface": "ast",
+        "product_role_counts": "ast",
+        "action_rows": "ast",
+        "html_manifest_product_role_counts": "manifest",
+        "react_manifest_product_role_counts": "manifest",
+        "html_role_classes": "artifact_text",
+        "react_role_classes": "artifact_text",
+    }
+    missing = [
+        metric_name
+        for metric_name, source in required_sources.items()
+        if sources.get(metric_name) != source
+    ]
+    if missing:
+        raise BenchmarkConstraintError(
+            "PLANNER_METRIC_NOT_DERIVED",
+            fixture_id,
+            f"Planner metric source(s) missing or weak: {', '.join(sorted(missing))}.",
+        )
 
 
 def _dashboard_fixture() -> IntentBundle:
@@ -535,21 +588,31 @@ def _benchmark_summary(
         "quality_categories": quality_categories,
         "source_hash": _bundle_hash(fixture.bundle),
         "metric_sources": {
+            "action_rows": "ast",
             "artifact_hashes": "artifact_hash",
             "artifact_text": "artifact_text",
             "ast_shape": "ast",
             "checks": "check",
             "diagnostics": "diagnostics",
+            "html_manifest_product_role_counts": "manifest",
+            "html_role_classes": "artifact_text",
             "manifests": "manifest",
+            "product_role_counts": "ast",
+            "react_manifest_product_role_counts": "manifest",
+            "react_role_classes": "artifact_text",
+            "workspace_surface": "ast",
         },
         "metrics": {
             "ast": {
+                "action_rows": _action_row_ids(ast.result.root.root),
                 "ir_depth": _ir_depth(ast.result.root.root),
                 "layout_counts": _layout_counts(ast.result.root.root),
                 "motif_kinds": sorted({motif.kind for motif in fixture.bundle.view_spec.motifs}),
                 "planner_nodes": _planner_nodes(ast.result.root.root),
+                "product_role_counts": _product_role_counts_from_ast(ast.result.root.root),
                 "region_depth": max(_region_depths(fixture.bundle).values(), default=0),
                 "region_count": len(fixture.bundle.view_spec.regions),
+                "workspace_surface": _workspace_surface(ast.result.root.root),
             },
             "diagnostics": {
                 "actual_codes": sorted({diagnostic.code for diagnostic in ast.result.diagnostics}),
@@ -560,12 +623,16 @@ def _benchmark_summary(
                 "check_ok": html_artifact.check_ok,
                 "html_tags": sorted(html_tags),
                 "manifest_hash": html_artifact.manifest_hash,
+                "manifest_product_role_counts": _product_role_counts_from_manifest(html_artifact.manifest),
+                "role_classes": _role_classes_from_artifact(html_artifact.artifact_text),
                 "visible_text_count": len(html_text),
             },
             "react": {
                 "artifact_hash": react_artifact.artifact_hash,
                 "check_ok": react_artifact.check_ok,
                 "manifest_hash": react_artifact.manifest_hash,
+                "manifest_product_role_counts": _product_role_counts_from_manifest(react_artifact.manifest),
+                "role_classes": _role_classes_from_artifact(react_artifact.artifact_text),
                 "tsx_tags": sorted(react_tags),
             },
             "parity": html_inventory.to_json(),
@@ -590,6 +657,7 @@ def _manifest_inventory(manifest: dict[str, Any]) -> SemanticInventory:
     motif_ids: set[str] = set()
     provenance_refs: set[str] = set()
     style_tokens: set[str] = set()
+    class_inventory: set[str] = set()
     if isinstance(nodes, dict):
         for entry in nodes.values():
             if not isinstance(entry, dict):
@@ -616,6 +684,9 @@ def _manifest_inventory(manifest: dict[str, Any]) -> SemanticInventory:
             for token in entry.get("style_tokens", []):
                 if isinstance(token, str):
                     style_tokens.add(token)
+            for class_name in entry.get("classes", []):
+                if isinstance(class_name, str):
+                    class_inventory.add(class_name)
     diagnostic_codes = {
         item["code"]
         for item in diagnostics
@@ -630,6 +701,7 @@ def _manifest_inventory(manifest: dict[str, Any]) -> SemanticInventory:
         diagnostic_codes=frozenset(diagnostic_codes),
         provenance_refs=frozenset(provenance_refs),
         style_tokens=frozenset(style_tokens),
+        class_inventory=frozenset(class_inventory),
     )
 
 
@@ -685,6 +757,50 @@ def _planner_nodes(node: IRNode) -> dict[str, dict[str, object]]:
     for child in node.children:
         matches.update(_planner_nodes(child))
     return dict(sorted(matches.items()))
+
+
+def _workspace_surface(node: IRNode) -> str:
+    surface = node.props.get("planner_surface")
+    return surface if isinstance(surface, str) else ""
+
+
+def _product_role_counts_from_ast(node: IRNode) -> dict[str, int]:
+    counts: dict[str, int] = {}
+    role = node.props.get("product_role")
+    if isinstance(role, str) and role:
+        counts[role] = counts.get(role, 0) + 1
+    for child in node.children:
+        for child_role, count in _product_role_counts_from_ast(child).items():
+            counts[child_role] = counts.get(child_role, 0) + count
+    return dict(sorted(counts.items()))
+
+
+def _product_role_counts_from_manifest(manifest: dict[str, Any]) -> dict[str, int]:
+    counts: dict[str, int] = {}
+    nodes = manifest.get("nodes", {})
+    if not isinstance(nodes, dict):
+        return counts
+    for entry in nodes.values():
+        if not isinstance(entry, dict):
+            continue
+        props = entry.get("props", {})
+        if not isinstance(props, dict):
+            continue
+        role = props.get("product_role")
+        if isinstance(role, str) and role:
+            counts[role] = counts.get(role, 0) + 1
+    return dict(sorted(counts.items()))
+
+
+def _role_classes_from_artifact(artifact_text: str) -> list[str]:
+    return sorted(set(ROLE_CLASS_RE.findall(artifact_text)))
+
+
+def _action_row_ids(node: IRNode) -> list[str]:
+    ids = [node.id] if node.props.get("product_role") == "action_row" else []
+    for child in node.children:
+        ids.extend(_action_row_ids(child))
+    return sorted(ids)
 
 
 def _region_depths(bundle: IntentBundle) -> dict[str, int]:

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 
 import pytest
 
@@ -12,8 +13,8 @@ from viewspec import (
     IRNode,
     Provenance,
 )
-from viewspec.emitters.html_tailwind import HtmlTailwindEmitter
-from viewspec.emitters.react_tsx import ReactTsxEmitter
+from viewspec.emitters.html_tailwind import HtmlTailwindEmitter, OFFLINE_EMITTER_CSS
+from viewspec.emitters.react_tsx import BASE_STYLE_BY_PRODUCT_ROLE, ReactTsxEmitter
 
 
 def test_emitter_escapes_html_and_writes_contract_artifacts(tmp_path):
@@ -143,6 +144,110 @@ def test_grid_emitter_merges_layout_and_token_styles(tmp_path):
     assert "gap: 20px; padding: 10px;" in grid_tag
     assert 'data-style-tokens="[&quot;density.regular&quot;]"' in grid_tag
     assert grid_tag.count("style=") == 1
+
+
+def test_html_and_react_emit_identical_closed_role_class_inventories(tmp_path):
+    ast = ASTBundle(
+        result=CompilerResult(
+            root=CompositionIR(
+                root=IRNode(
+                    id="root",
+                    primitive="root",
+                    props={"layout_role": "root", "product_role": "app_shell"},
+                    provenance=Provenance(intent_refs=["viewspec:view:classes"]),
+                    children=[
+                        IRNode(
+                            id="metrics",
+                            primitive="grid",
+                            props={
+                                "columns": 2,
+                                "layout_role": "grid",
+                                "motif_kind": "dashboard",
+                                "product_role": "metric_grid",
+                            },
+                            provenance=Provenance(intent_refs=["viewspec:motif:metrics"]),
+                            children=[
+                                IRNode(
+                                    id="metric-card",
+                                    primitive="surface",
+                                    props={
+                                        "layout_role": "surface",
+                                        "motif_kind": "dashboard",
+                                        "product_role": "metric_card",
+                                    },
+                                    provenance=Provenance(intent_refs=["viewspec:motif:metrics"]),
+                                )
+                            ],
+                        )
+                    ],
+                )
+            ),
+            diagnostics=[],
+        ),
+        style_values={},
+        title="Class Inventory",
+    )
+    html_out = tmp_path / "html"
+    react_out = tmp_path / "react"
+
+    HtmlTailwindEmitter().emit(ast, html_out)
+    ReactTsxEmitter().emit(ast, react_out)
+    html_manifest = json.loads(html_out.joinpath("provenance_manifest.json").read_text(encoding="utf-8"))
+    react_manifest = json.loads(react_out.joinpath("provenance_manifest.json").read_text(encoding="utf-8"))
+    html_classes = {entry["ir_id"]: entry["classes"] for entry in html_manifest.values()}
+    react_classes = {entry["ir_id"]: entry["classes"] for entry in react_manifest.values()}
+    html = html_out.joinpath("index.html").read_text(encoding="utf-8")
+    tsx = react_out.joinpath("ViewSpecView.tsx").read_text(encoding="utf-8")
+
+    assert html_classes == react_classes
+    assert html_classes["root"] == ["vs-root", "vs-layout-root", "vs-role-app-shell"]
+    assert html_classes["metrics"] == [
+        "vs-grid",
+        "vs-layout-grid",
+        "vs-motif-dashboard",
+        "vs-role-metric-grid",
+    ]
+    assert html_classes["metric-card"] == [
+        "vs-surface",
+        "vs-layout-surface",
+        "vs-motif-dashboard",
+        "vs-role-metric-card",
+    ]
+    assert 'class="vs-root vs-layout-root vs-role-app-shell"' in html
+    assert '"vs-root vs-layout-root vs-role-app-shell"' in tsx
+
+
+@pytest.mark.parametrize("emitter_cls", [HtmlTailwindEmitter, ReactTsxEmitter])
+def test_emitters_reject_unsafe_role_class_values_before_writing(tmp_path, emitter_cls):
+    ast = ASTBundle(
+        result=CompilerResult(
+            root=CompositionIR(
+                root=IRNode(
+                    id="root",
+                    primitive="root",
+                    props={"product_role": "user-controlled"},
+                    provenance=Provenance(intent_refs=["viewspec:view:unsafe_role"]),
+                )
+            ),
+            diagnostics=[],
+        ),
+        style_values={},
+        title="Unsafe Role",
+    )
+    output = tmp_path / emitter_cls.__name__
+
+    with pytest.raises(ValueError, match="UNSAFE_ROLE_CLASS"):
+        emitter_cls().emit(ast, output)
+
+    assert not output.exists()
+
+
+def test_product_surface_style_additions_have_no_autofetch_surfaces():
+    unsafe = re.compile(r"(?i)(@import|url\s*\(|https?://|fetch\s*\(|XMLHttpRequest|WebSocket|EventSource)")
+    react_style_text = json.dumps(BASE_STYLE_BY_PRODUCT_ROLE, sort_keys=True)
+
+    assert not unsafe.search(OFFLINE_EMITTER_CSS)
+    assert not unsafe.search(react_style_text)
 
 
 @pytest.mark.parametrize("emitter_cls", [HtmlTailwindEmitter, ReactTsxEmitter])

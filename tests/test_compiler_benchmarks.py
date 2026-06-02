@@ -68,6 +68,26 @@ def test_multi_region_fixture_has_required_layout_pressure(tmp_path):
 
     assert summary["metrics"]["ast"]["region_count"] >= 3
     assert summary["metrics"]["ast"]["region_depth"] >= 2
+    assert summary["metrics"]["ast"]["workspace_surface"] == "workspace_dashboard_v1"
+    assert summary["metrics"]["ast"]["action_rows"] == ["planner_review_form_actions"]
+    assert summary["metrics"]["ast"]["product_role_counts"] == {
+        "action_row": 1,
+        "app_header": 1,
+        "app_shell": 1,
+        "content_grid": 1,
+        "detail_panel": 1,
+        "field_group": 2,
+        "form_panel": 1,
+        "metric_card": 2,
+        "metric_grid": 1,
+        "page_header": 1,
+        "primary_column": 1,
+        "side_rail": 1,
+    }
+    assert summary["metrics"]["html"]["manifest_product_role_counts"] == summary["metrics"]["ast"]["product_role_counts"]
+    assert summary["metrics"]["react"]["manifest_product_role_counts"] == summary["metrics"]["ast"]["product_role_counts"]
+    assert "vs-role-action-row" in summary["metrics"]["html"]["role_classes"]
+    assert summary["metrics"]["html"]["role_classes"] == summary["metrics"]["react"]["role_classes"]
     assert summary["metrics"]["ast"]["planner_nodes"]["region_body"] == {
         "columns": 2,
         "layout_strategy": "region_grid_v0",
@@ -82,8 +102,13 @@ def test_multi_region_fixture_has_required_layout_pressure(tmp_path):
         "placement": "motif_local",
         "primitive": "button",
     }
+    assert summary["metrics"]["ast"]["planner_nodes"]["planner_review_form_actions"] == {
+        "layout_strategy": "action_row_v1",
+        "primitive": "cluster",
+    }
     assert len(summary["metrics"]["ast"]["motif_kinds"]) >= 2
     assert summary["metrics"]["parity"]["action_ids"] == ["submit_review"]
+    assert "vs-role-content-grid" in summary["metrics"]["parity"]["class_inventory"]
 
 
 def test_dashboard_fixture_records_planner_grid_strategy(tmp_path):
@@ -113,6 +138,17 @@ def test_benchmark_contract_is_not_weakened():
         "NONDETERMINISTIC_BENCHMARK_FIELD",
         "BENCHMARK_NEW_DEPENDENCY_FORBIDDEN",
         "BENCHMARK_TIMEOUT_EXCEEDED",
+        "PLANNER_FIXTURE_ID_BRANCH",
+        "PLANNER_ROLE_METADATA_ONLY",
+        "UNSAFE_ROLE_CLASS",
+        "EMITTER_ROLE_CLASS_DRIFT",
+        "ACTION_ROW_CONTRACT_DRIFT",
+        "DUPLICATE_ACTION_ROW",
+        "BENCHMARK_CONTRACT_WEAKENED",
+        "PLANNER_METRIC_NOT_DERIVED",
+        "PLANNER_STYLE_AUTOFETCH",
+        "PLANNER_SYNTHETIC_CONTENT",
+        "PLANNER_PASS_BOUNDARY_BROKEN",
     }.issubset(compiler_benchmarks.BENCHMARK_ERROR_CODES)
 
 
@@ -134,6 +170,12 @@ def test_benchmark_emitter_parity_fail_fast():
     assert exc_info.value.code == "EMITTER_PARITY_FAILED"
     assert exc_info.value.fixture_id == "fixture"
 
+    html_classes = SemanticInventory(class_inventory=frozenset({"vs-role-app-shell"}))
+    react_classes = SemanticInventory(class_inventory=frozenset({"vs-role-content-grid"}))
+    with pytest.raises(BenchmarkConstraintError) as class_exc:
+        assert_emitter_parity("fixture", html_classes, react_classes)
+    assert class_exc.value.code == "EMITTER_ROLE_CLASS_DRIFT"
+
 
 def test_benchmark_rejects_shallow_and_non_derived_summary(tmp_path):
     summary = run_benchmark_fixture(next(item for item in benchmark_fixtures() if item.id == "dashboard"), tmp_path)
@@ -147,6 +189,18 @@ def test_benchmark_rejects_shallow_and_non_derived_summary(tmp_path):
     with pytest.raises(BenchmarkConstraintError) as derived_exc:
         assert_benchmark_summary(non_derived)
     assert derived_exc.value.code == "BENCHMARK_METRIC_NOT_DERIVED"
+
+    planner_summary = run_benchmark_fixture(
+        next(item for item in benchmark_fixtures() if item.id == "multi_region_product"),
+        tmp_path / "planner",
+    )
+    weak_planner_sources = {
+        **planner_summary,
+        "metric_sources": {**planner_summary["metric_sources"], "workspace_surface": "manifest"},
+    }
+    with pytest.raises(BenchmarkConstraintError) as planner_exc:
+        assert_benchmark_summary(weak_planner_sources)
+    assert planner_exc.value.code == "PLANNER_METRIC_NOT_DERIVED"
 
 
 def test_benchmark_rejects_nondeterministic_and_oversized_summary(tmp_path):

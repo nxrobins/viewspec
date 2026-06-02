@@ -20,6 +20,7 @@ from viewspec.types import (
     DEFAULT_STYLE_TOKEN_VALUES,
     IRNode,
 )
+from viewspec.compiler import PRODUCT_SURFACE_PLANNER_V1_ROLES
 from viewspec.emitters.base import EmitterPlugin
 
 
@@ -45,6 +46,27 @@ SAFE_IR_ID_RE = re.compile(r"^[A-Za-z0-9_.-]+$")
 ACTION_TARGET_REF_RE = re.compile(r"^(region|binding|motif|view):[A-Za-z0-9_.-]+$")
 UNSAFE_STYLE_VALUE_RE = re.compile(r"(?i)(@import|url\s*\(|expression\s*\(|javascript:|vbscript:|data:)")
 SUPPORTED_PRIMITIVES = frozenset(TAILWIND_BY_PRIMITIVE)
+LAYOUT_ROLE_CLASS_BY_ROLE = {
+    "cluster": "vs-layout-cluster",
+    "grid": "vs-layout-grid",
+    "root": "vs-layout-root",
+    "stack": "vs-layout-stack",
+    "surface": "vs-layout-surface",
+}
+MOTIF_KIND_CLASS_BY_KIND = {
+    "comparison": "vs-motif-comparison",
+    "dashboard": "vs-motif-dashboard",
+    "detail": "vs-motif-detail",
+    "empty_state": "vs-motif-empty-state",
+    "form": "vs-motif-form",
+    "hero": "vs-motif-hero",
+    "list": "vs-motif-list",
+    "outline": "vs-motif-outline",
+    "table": "vs-motif-table",
+}
+PRODUCT_ROLE_CLASS_BY_ROLE = {
+    role: f"vs-role-{role.replace('_', '-')}" for role in sorted(PRODUCT_SURFACE_PLANNER_V1_ROLES)
+}
 
 
 OFFLINE_EMITTER_CSS = """
@@ -86,6 +108,25 @@ header.vs-surface p.vs-text, header.vs-surface p.vs-label { max-width: 68ch; mar
 .vs-button { display: inline-flex; width: fit-content; align-items: center; border: 0; border-radius: 12px; background: #0f766e; color: #ffffff; padding: 8px 16px; font-size: 0.875rem; font-weight: 800; cursor: pointer; box-shadow: 0 1px 2px rgb(15 23 42 / 0.16); }
 .vs-button:hover { background: #115e59; }
 .vs-error-boundary { border: 2px dashed #ef4444; border-radius: 12px; background: #fef2f2; color: #991b1b; padding: 16px; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 0.875rem; }
+.vs-role-app-shell { width: min(100%, 1180px); margin: 0 auto; padding: 28px; gap: 18px; }
+.vs-role-app-header { padding: 20px 0 6px; border-bottom: 1px solid #dbe3ea; }
+.vs-role-page-header { border: 0; border-radius: 0; box-shadow: none; background: transparent; padding: 0 0 14px; gap: 8px; }
+.vs-role-content-grid { align-items: start; gap: 18px; }
+.vs-role-primary-column { gap: 18px; }
+.vs-role-side-rail { gap: 14px; align-self: start; }
+.vs-role-metric-grid { gap: 12px; }
+.vs-role-metric-card { min-height: 108px; justify-content: space-between; border-radius: 8px; }
+.vs-role-form-panel { border-radius: 8px; padding: 18px; gap: 14px; }
+.vs-role-field-group { border-radius: 8px; box-shadow: none; padding: 12px; }
+.vs-role-detail-panel { border-radius: 8px; padding: 16px; }
+.vs-role-action-row { align-items: center; justify-content: flex-end; gap: 10px; padding: 4px 0 0; }
+@media (max-width: 760px) {
+  .vs-root { padding: 16px; }
+  .vs-role-app-shell { padding: 16px; }
+  .vs-role-content-grid { grid-template-columns: 1fr !important; }
+  .vs-role-action-row { justify-content: stretch; }
+  .vs-role-action-row .vs-button { width: 100%; justify-content: center; }
+}
 """.strip()
 
 
@@ -207,6 +248,7 @@ def _validate_ir_contract(node: IRNode, seen_ids: set[str]) -> None:
     if node.primitive not in SUPPORTED_PRIMITIVES:
         supported = ", ".join(sorted(SUPPORTED_PRIMITIVES))
         raise ValueError(f"Unsupported IR primitive '{node.primitive}'. Supported primitives: {supported}.")
+    _node_classes(node)
     if node.primitive == "grid":
         try:
             columns = int(node.props.get("columns") or 1)
@@ -235,10 +277,36 @@ def _validate_action_props(node: IRNode) -> None:
         raise ValueError(f"Button IRNode '{node.id}' payload_bindings must be a list of safe ids.")
 
 
+def _closed_prop_class(node: IRNode, prop_name: str, classes_by_value: dict[str, str]) -> str | None:
+    value = node.props.get(prop_name)
+    if value is None:
+        return None
+    if not isinstance(value, str) or value not in classes_by_value:
+        allowed = ", ".join(sorted(classes_by_value))
+        raise ValueError(
+            f"UNSAFE_ROLE_CLASS: IRNode '{node.id}' prop '{prop_name}' must use one of: {allowed}."
+        )
+    return classes_by_value[value]
+
+
+def _node_classes(node: IRNode) -> list[str]:
+    classes = [TAILWIND_BY_PRIMITIVE[node.primitive]]
+    for prop_name, classes_by_value in (
+        ("layout_role", LAYOUT_ROLE_CLASS_BY_ROLE),
+        ("motif_kind", MOTIF_KIND_CLASS_BY_KIND),
+        ("product_role", PRODUCT_ROLE_CLASS_BY_ROLE),
+    ):
+        class_name = _closed_prop_class(node, prop_name, classes_by_value)
+        if class_name is not None:
+            classes.append(class_name)
+    return classes
+
+
 def _manifest_entry(node: IRNode) -> dict[str, Any]:
     return {
         "ir_id": node.id,
         "primitive": node.primitive,
+        "classes": _node_classes(node),
         "content_refs": list(node.provenance.content_refs),
         "intent_refs": list(node.provenance.intent_refs),
         "style_tokens": list(node.style_tokens),
@@ -249,7 +317,7 @@ def _manifest_entry(node: IRNode) -> dict[str, Any]:
 def _render_node(node: IRNode, manifest: dict[str, Any], style_values: dict[str, str]) -> str:
     dom_id = f"dom-{node.id}"
     manifest[dom_id] = _manifest_entry(node)
-    classes = TAILWIND_BY_PRIMITIVE.get(node.primitive, "rounded border border-slate-200 p-2")
+    classes = " ".join(_node_classes(node))
     attrs = [
         f'id="{escape(dom_id, quote=True)}"',
         f'class="{escape(classes, quote=True)}"',
