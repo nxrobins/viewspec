@@ -8,7 +8,7 @@ import pytest
 
 from viewspec import UnsupportedMotifError, ViewSpecBuilder, compile
 from viewspec.agent import SUPPORTED_AGENT_ACTION_KINDS, SUPPORTED_AGENT_STYLE_TOKENS
-from viewspec.compiler import SUPPORTED_ACTION_KINDS
+from viewspec.compiler import PRODUCT_SURFACE_PLANNER_V1_SURFACE, SUPPORTED_ACTION_KINDS
 from viewspec.emitters.html_tailwind import ACTION_EVENT_SCRIPT, HtmlTailwindEmitter
 from viewspec.types import DEFAULT_STYLE_TOKEN_VALUES
 
@@ -33,6 +33,59 @@ def _find_node_id(node, node_id):
         if match is not None:
             return match
     return None
+
+
+def _walk_nodes(node):
+    nodes = [node]
+    for child in node.children:
+        nodes.extend(_walk_nodes(child))
+    return nodes
+
+
+def _product_workspace_bundle(*, duplicate_header=False, missing_header=False, extra_body_child=False):
+    builder = ViewSpecBuilder(
+        "product_surface_shape",
+        root_attrs={"title": "Surface"},
+        default_main_region=False,
+        root_min_children=2,
+    )
+    if not missing_header:
+        builder.add_region("north", parent_region="root", role="banner", layout="stack", min_children=1)
+    if duplicate_header:
+        builder.add_region("north_alt", parent_region="root", role="page_header", layout="stack", min_children=0)
+    builder.add_region("canvas", parent_region="root", role="application", layout="grid", min_children=2)
+    builder.add_region("focus", parent_region="canvas", role="primary", layout="stack", min_children=2)
+    builder.add_region("assist", parent_region="canvas", role="complementary", layout="stack", min_children=1)
+    if extra_body_child:
+        builder.add_region("overflow", parent_region="canvas", role="secondary", layout="stack", min_children=0)
+
+    if not missing_header:
+        builder.add_hero(
+            "intro",
+            eyebrow="Quality",
+            title="Review workspace",
+            description="Compiler-owned product surface roles.",
+            region="north",
+            group_id="intro_group",
+        )
+    dashboard = builder.add_dashboard("numbers", region="focus", group_id="metric_group")
+    dashboard.add_card(label="Fixtures", value="6", id="fixtures")
+    dashboard.add_card(label="Emitters", value="2", id="emitters")
+    form = builder.add_form("review_form", region="focus", group_id="review_group")
+    form.add_field(label="Reviewer", value="", id="reviewer")
+    form.add_field(label="Decision", value="approve", id="decision")
+    detail = builder.add_detail("identity", region="assist", group_id="identity_group")
+    detail.add_field(label="Manifest", value="checked", id="manifest")
+    detail.add_field(label="Network", value="none", id="network")
+    builder.add_action(
+        "submit_review",
+        "submit",
+        "Submit review",
+        target_region="focus",
+        target_ref="motif:review_form",
+        payload_bindings=["reviewer_value", "decision_value"],
+    )
+    return builder.build_bundle()
 
 
 def test_table_compile():
@@ -402,6 +455,116 @@ def test_actions_compile_to_button_ir_and_html(tmp_path):
     assert paths["html"] == str(tmp_path / "index.html")
 
 
+def test_product_surface_planner_v1_applies_workspace_roles_without_fixture_ids():
+    ast = compile(_product_workspace_bundle())
+    root = ast.result.root.root
+    nodes = {node.id: node for node in _walk_nodes(root)}
+
+    assert len(ast.result.diagnostics) == 0
+    assert root.props["planner_surface"] == PRODUCT_SURFACE_PLANNER_V1_SURFACE
+    assert nodes["region_root"].props["product_role"] == "app_shell"
+    assert nodes["region_north"].props["product_role"] == "app_header"
+    assert nodes["region_canvas"].props["product_role"] == "content_grid"
+    assert nodes["region_focus"].props["product_role"] == "primary_column"
+    assert nodes["region_assist"].props["product_role"] == "side_rail"
+    assert nodes["motif_intro"].props["product_role"] == "page_header"
+    assert nodes["motif_numbers"].props["product_role"] == "metric_grid"
+    assert [child.props.get("product_role") for child in nodes["motif_numbers"].children] == [
+        "metric_card",
+        "metric_card",
+    ]
+    assert nodes["motif_review_form"].props["product_role"] == "form_panel"
+    assert [
+        child.props.get("product_role")
+        for child in nodes["motif_review_form"].children
+        if child.id.startswith("motif_review_form_")
+    ] == ["field_group", "field_group"]
+    assert nodes["motif_identity"].props["product_role"] == "detail_panel"
+    assert nodes["planner_review_form_actions"].props["product_role"] == "action_row"
+    assert nodes["planner_review_form_actions"].primitive == "cluster"
+
+
+@pytest.mark.parametrize(
+    "shape_kwargs",
+    [
+        {"duplicate_header": True},
+        {"missing_header": True},
+        {"extra_body_child": True},
+    ],
+)
+def test_product_surface_planner_v1_fails_closed_for_ambiguous_or_incomplete_workspace_shape(shape_kwargs):
+    ast = compile(_product_workspace_bundle(**shape_kwargs))
+    root = ast.result.root.root
+    nodes = _walk_nodes(root)
+    form_wrapper = _find_node_id(root, "motif_review_form")
+    button = _find_node_id(root, "action_submit_review")
+
+    assert len(ast.result.diagnostics) == 0
+    assert all("product_role" not in node.props for node in nodes)
+    assert "planner_surface" not in root.props
+    assert _find_node_id(root, "planner_review_form_actions") is None
+    assert form_wrapper is not None
+    assert button is not None
+    assert button in form_wrapper.children
+
+
+def test_product_surface_planner_v1_action_row_preserves_action_contract():
+    bundle = _product_workspace_bundle()
+    before = json.dumps(bundle.to_json(), sort_keys=True)
+    action = bundle.view_spec.actions[0]
+
+    ast = compile(bundle)
+    after = json.dumps(bundle.to_json(), sort_keys=True)
+    root = ast.result.root.root
+    row = _find_node_id(root, "planner_review_form_actions")
+    button = _find_node_id(root, "action_submit_review")
+    inputs = {node.props["binding_id"]: node for node in _find_nodes(root, "input")}
+
+    assert before == after
+    assert row is not None
+    assert button is not None
+    assert button in row.children
+    assert [child.id for child in row.children] == ["action_submit_review"]
+    assert button.props["text"] == action.label
+    assert button.props["action_id"] == action.id
+    assert button.props["action_kind"] == action.kind
+    assert button.props["target_ref"] == action.target_ref
+    assert button.props["payload_bindings"] == list(action.payload_bindings)
+    assert button.provenance.intent_refs == ["viewspec:action:submit_review"]
+    assert button.provenance.content_refs == ["node:reviewer#attr:value", "node:decision#attr:value"]
+    assert inputs["reviewer_value"].props["value"] == ""
+    assert inputs["decision_value"].props["value"] == "approve"
+
+
+def test_product_surface_planner_v1_adds_no_synthetic_visible_content_or_actions():
+    bundle = _product_workspace_bundle()
+    allowed_text = {
+        str(value)
+        for node in bundle.substrate.nodes.values()
+        for value in node.attrs.values()
+        if value is not None
+    }
+    allowed_text.update(action.label for action in bundle.view_spec.actions)
+
+    ast = compile(bundle)
+    root = ast.result.root.root
+    visible_text = {
+        str(node.props["text"])
+        for node in _walk_nodes(root)
+        if node.primitive in {"badge", "button", "label", "text", "value"} and "text" in node.props
+    }
+    action_ids = [
+        node.props["action_id"]
+        for node in _walk_nodes(root)
+        if node.primitive == "button" and node.props.get("action_id")
+    ]
+
+    assert visible_text.issubset(allowed_text)
+    assert action_ids == [action.id for action in bundle.view_spec.actions]
+    assert _find_nodes(root, "image_slot") == []
+    assert _find_nodes(root, "svg") == []
+
+
 def test_layout_planner_region_grid_columns_use_rendered_children_and_cap():
     builder = ViewSpecBuilder("grid_plan", default_main_region=False)
     builder.add_region("body", parent_region="root", role="main", layout="grid", min_children=1)
@@ -517,11 +680,27 @@ def test_layout_planner_does_not_mutate_intent_input():
     assert before == after
 
 
-def test_layout_planner_has_single_named_pass_call_site():
+def test_product_surface_planner_v1_has_single_named_pass_call_site():
     source = Path("src/viewspec/compiler.py").read_text(encoding="utf-8")
 
-    assert source.count("def _apply_layout_planner_v0(") == 1
-    assert len(re.findall(r"(?<!def )_apply_layout_planner_v0\(", source)) == 1
+    assert source.count("def _apply_product_surface_planner_v1(") == 1
+    assert len(re.findall(r"(?<!def )_apply_product_surface_planner_v1\(", source)) == 1
+    assert "_apply_layout_planner_v0(" not in source
+
+
+def test_product_surface_planner_v1_has_no_fixture_id_branches():
+    source = Path("src/viewspec/compiler.py").read_text(encoding="utf-8")
+
+    for forbidden in (
+        "multi_region_product",
+        "benchmark_workspace",
+        "workspace_metrics",
+        "artifact_identity",
+        "review_form",
+        "submit_review",
+    ):
+        assert forbidden not in source
+    assert not re.search(r"\.id\s*==\s*['\"](?:header|body|main|side)['\"]", source)
 
 
 def test_unsupported_action_kind_is_diagnostic_and_not_emitted(tmp_path):

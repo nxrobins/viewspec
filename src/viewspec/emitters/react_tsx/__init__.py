@@ -10,8 +10,8 @@ from typing import Any
 from viewspec.emitters.base import EmitterPlugin
 from viewspec.emitters.html_tailwind import (
     SUPPORTED_PRIMITIVES,
-    TAILWIND_BY_PRIMITIVE,
     _manifest_entry,
+    _node_classes,
     _style_css,
     _validate_style_values,
     _validate_ir_contract,
@@ -114,6 +114,28 @@ BASE_STYLE_BY_PRIMITIVE: dict[str, dict[str, str]] = {
     },
 }
 
+BASE_STYLE_BY_PRODUCT_ROLE: dict[str, dict[str, str]] = {
+    "app_shell": {"width": "min(100%, 1180px)", "margin": "0 auto", "padding": "28px", "gap": "18px"},
+    "app_header": {"padding": "20px 0 6px", "borderBottom": "1px solid #dbe3ea"},
+    "page_header": {
+        "border": "0",
+        "borderRadius": "0",
+        "boxShadow": "none",
+        "background": "transparent",
+        "padding": "0 0 14px",
+        "gap": "8px",
+    },
+    "content_grid": {"alignItems": "start", "gap": "18px"},
+    "primary_column": {"gap": "18px"},
+    "side_rail": {"gap": "14px", "alignSelf": "start"},
+    "metric_grid": {"gap": "12px"},
+    "metric_card": {"minHeight": "108px", "justifyContent": "space-between", "borderRadius": "8px"},
+    "form_panel": {"borderRadius": "8px", "padding": "18px", "gap": "14px"},
+    "field_group": {"borderRadius": "8px", "boxShadow": "none", "padding": "12px"},
+    "detail_panel": {"borderRadius": "8px", "padding": "16px"},
+    "action_row": {"alignItems": "center", "justifyContent": "flex-end", "gap": "10px", "padding": "4px 0 0"},
+}
+
 JS_IDENTIFIER_RE = re.compile(r"^[A-Za-z_$][A-Za-z0-9_$]*$")
 
 
@@ -205,6 +227,9 @@ def _css_to_style(css: str) -> dict[str, str]:
 
 def _style_object(node: IRNode, style_values: dict[str, str]) -> str:
     style = dict(BASE_STYLE_BY_PRIMITIVE.get(node.primitive, {}))
+    product_role = node.props.get("product_role")
+    if isinstance(product_role, str):
+        style.update(BASE_STYLE_BY_PRODUCT_ROLE.get(product_role, {}))
     if node.primitive == "grid":
         style["gridTemplateColumns"] = f"repeat({int(node.props.get('columns') or 1)}, minmax(0, 1fr))"
     style.update(_css_to_style(_style_css(node, style_values)))
@@ -298,7 +323,7 @@ def _action_expression(node: IRNode) -> str:
 
 def _attrs_for_node(node: IRNode, style_values: dict[str, str]) -> list[str]:
     dom_id = f"dom-{node.id}"
-    classes = TAILWIND_BY_PRIMITIVE.get(node.primitive, "vs-node")
+    classes = " ".join(_node_classes(node))
     attrs = [
         _jsx_attr("id", dom_id),
         _jsx_attr("data-ir-id", node.id),
