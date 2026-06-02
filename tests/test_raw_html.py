@@ -247,10 +247,12 @@ def test_manifest_v1_schema_and_golden_fixture_match_generated_shape():
     intent_clause = next(item for item in schema["allOf"] if item["if"]["properties"]["kind"]["const"] == "intent_bundle_compile")
     assert raw_clause["then"]["properties"]["command"]["const"] == "compile_html"
     assert raw_clause["then"]["properties"]["policy_version"]["const"] == "viewspec-raw-html-allowlist@1"
+    assert raw_clause["then"]["properties"]["nodes"]["propertyNames"]["$ref"] == "#/$defs/safeId"
     assert raw_clause["then"]["properties"]["nodes"]["additionalProperties"]["$ref"] == "#/$defs/rawHtmlNode"
     assert raw_clause["then"]["properties"]["guarantees"]["properties"]["decompilation"]["const"] == "not_claimed"
     assert intent_clause["then"]["properties"]["command"]["const"] == "compile"
     assert intent_clause["then"]["properties"]["policy_version"]["const"] == "viewspec-intent-bundle@1"
+    assert intent_clause["then"]["properties"]["nodes"]["propertyNames"]["$ref"] == "#/$defs/safeId"
     assert intent_clause["then"]["properties"]["nodes"]["additionalProperties"]["$ref"] == "#/$defs/intentBundleNode"
     assert intent_clause["then"]["properties"]["guarantees"]["properties"]["decompilation"]["const"] == "not_applicable"
     assert schema["$defs"]["intentBundleNode"]["required"] == [

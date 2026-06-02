@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import socket
+from html import escape
 from pathlib import Path
 
 import pytest
@@ -138,6 +139,10 @@ def assert_tool_schema(payload: dict) -> None:
     assert isinstance(payload["paths"], dict)
     assert isinstance(payload["next_actions"], list)
     assert isinstance(payload["errors"], list)
+
+
+def _html_json_attr(value: object) -> str:
+    return escape(json.dumps(value, sort_keys=True), quote=True)
 
 
 def test_tool_response_rejects_reserved_data_key_shadowing():
@@ -673,6 +678,49 @@ def test_check_rejects_invalid_intent_manifest_node_shape(tmp_path):
     assert f"manifest nodes.{dom_id}.ir_id must be a non-empty string" in messages
     assert f"manifest nodes.{dom_id}.style_tokens must be a list of strings" in messages
     assert f"manifest nodes.{dom_id}.props must be an object" in messages
+
+
+def test_check_rejects_invalid_intent_manifest_reference_values_even_when_dom_matches(tmp_path):
+    intent_path = tmp_path / "viewspec.intent.json"
+    intent_path.write_text(json.dumps(_bundle_json()), encoding="utf-8")
+    assert compile_intent_bundle_file_tool("viewspec.intent.json", "dist", cwd=tmp_path)["ok"] is True
+
+    html_path = tmp_path / "dist/index.html"
+    manifest_path = tmp_path / "dist/provenance_manifest.json"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    dom_id = "dom-binding_alpha_label"
+    entry = manifest["nodes"][dom_id]
+    original_ir_id = entry["ir_id"]
+    original_content_refs = entry["content_refs"]
+    original_intent_refs = entry["intent_refs"]
+    entry["ir_id"] = "binding/alpha_label"
+    entry["content_refs"] = ["node:alpha#css:label"]
+    entry["intent_refs"] = ["viewspec:binding:alpha_label", "not-a-viewspec-ref"]
+
+    html = html_path.read_text(encoding="utf-8")
+    html = html.replace(f'data-ir-id="{original_ir_id}"', f'data-ir-id="{entry["ir_id"]}"', 1)
+    html = html.replace(
+        f'data-content-refs="{_html_json_attr(original_content_refs)}"',
+        f'data-content-refs="{_html_json_attr(entry["content_refs"])}"',
+        1,
+    )
+    html = html.replace(
+        f'data-intent-refs="{_html_json_attr(original_intent_refs)}"',
+        f'data-intent-refs="{_html_json_attr(entry["intent_refs"])}"',
+        1,
+    )
+    html_path.write_text(html, encoding="utf-8")
+    manifest["artifact_hash"] = file_hash(html_path)
+    manifest_path.write_text(json.dumps(manifest, indent=2, sort_keys=True), encoding="utf-8")
+
+    checked = check_artifact_tool("dist", cwd=tmp_path)
+    messages = {error["message"] for error in checked["errors"]}
+
+    assert_tool_schema(checked)
+    assert checked["ok"] is False
+    assert f"manifest nodes.{dom_id}.ir_id must be a safe id" in messages
+    assert f"manifest nodes.{dom_id}.content_refs must contain only canonical content refs" in messages
+    assert f"manifest nodes.{dom_id}.intent_refs must contain only ViewSpec intent refs" in messages
 
 
 def test_check_rejects_invalid_raw_html_manifest_node_shape(tmp_path):

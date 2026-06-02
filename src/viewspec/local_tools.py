@@ -30,6 +30,8 @@ MCP_RESULT_SCHEMA_VERSION = 1
 INTENT_BUNDLE_POLICY_VERSION = "viewspec-intent-bundle@1"
 HASH_RE = re.compile(r"^[0-9a-f]{64}$")
 SAFE_ID_RE = re.compile(r"^[A-Za-z0-9_.-]+$")
+CANONICAL_CONTENT_REF_RE = re.compile(r"^node:[A-Za-z0-9_.-]+(?:#(?:attr|slot|edge):[A-Za-z0-9_.-]+(?:\[[0-9]+\])?)?$")
+VIEWSPEC_INTENT_REF_RE = re.compile(r"^viewspec:(view|region|binding|group|motif|style|action):[A-Za-z0-9_.-]+$")
 ACTION_TARGET_REF_RE = re.compile(r"^(region|binding|motif|view):[A-Za-z0-9_.-]+$")
 ABSOLUTE_PATH_ARG_RE = re.compile(r"^(?:[A-Za-z]:[\\/]|[\\/]{1,2})")
 DIAGNOSTIC_SEVERITIES = {"error", "info", "warning"}
@@ -942,6 +944,8 @@ def _validate_manifest_nodes(manifest: dict[str, Any], errors: list[str]) -> Non
         return
     kind = manifest.get("kind")
     for node_id, entry in sorted(nodes.items()):
+        if not node_id or not SAFE_ID_RE.match(node_id):
+            errors.append(f"manifest nodes.{node_id} key must be a safe id")
         if not isinstance(entry, dict):
             errors.append(f"manifest nodes.{node_id} must be an object")
             continue
@@ -952,24 +956,37 @@ def _validate_manifest_nodes(manifest: dict[str, Any], errors: list[str]) -> Non
 
 
 def _validate_intent_manifest_node(node_id: str, entry: dict[str, Any], errors: list[str]) -> None:
-    for key in ("ir_id", "primitive"):
-        if not isinstance(entry.get(key), str) or not entry.get(key):
-            errors.append(f"manifest nodes.{node_id}.{key} must be a non-empty string")
+    ir_id = entry.get("ir_id")
+    if not isinstance(ir_id, str) or not ir_id:
+        errors.append(f"manifest nodes.{node_id}.ir_id must be a non-empty string")
+    elif not SAFE_ID_RE.match(ir_id):
+        errors.append(f"manifest nodes.{node_id}.ir_id must be a safe id")
+    primitive = entry.get("primitive")
+    if not isinstance(primitive, str) or not primitive:
+        errors.append(f"manifest nodes.{node_id}.primitive must be a non-empty string")
     for key in ("content_refs", "intent_refs", "style_tokens"):
         if not _is_string_list(entry.get(key)):
             errors.append(f"manifest nodes.{node_id}.{key} must be a list of strings")
-    if _is_string_list(entry.get("intent_refs")) and not entry["intent_refs"]:
-        errors.append(f"manifest nodes.{node_id}.intent_refs must not be empty")
+    content_refs = entry.get("content_refs")
+    if _is_string_list(content_refs):
+        if any(not CANONICAL_CONTENT_REF_RE.match(item) for item in content_refs):
+            errors.append(f"manifest nodes.{node_id}.content_refs must contain only canonical content refs")
+    intent_refs = entry.get("intent_refs")
+    if _is_string_list(intent_refs):
+        if not intent_refs:
+            errors.append(f"manifest nodes.{node_id}.intent_refs must not be empty")
+        if any(not VIEWSPEC_INTENT_REF_RE.match(item) for item in intent_refs):
+            errors.append(f"manifest nodes.{node_id}.intent_refs must contain only ViewSpec intent refs")
     if not isinstance(entry.get("props"), dict):
         errors.append(f"manifest nodes.{node_id}.props must be an object")
         return
     props = entry["props"]
-    intent_refs = entry.get("intent_refs")
-    content_refs = entry.get("content_refs")
     binding_id = props.get("binding_id")
     if binding_id is not None:
         if not isinstance(binding_id, str) or not binding_id:
             errors.append(f"manifest nodes.{node_id}.props.binding_id must be a non-empty string")
+        elif not SAFE_ID_RE.match(binding_id):
+            errors.append(f"manifest nodes.{node_id}.props.binding_id must be a safe id")
         else:
             if _is_string_list(intent_refs) and f"viewspec:binding:{binding_id}" not in intent_refs:
                 errors.append(f"manifest nodes.{node_id}.intent_refs must include viewspec:binding:{binding_id}")
