@@ -9,6 +9,8 @@ import pytest
 
 from viewspec import DesignSystemError, ViewSpecBuilder, compile, load_design_system
 from viewspec.cli import main as cli_main
+from viewspec.compiler_benchmarks import benchmark_fixtures
+from viewspec.emitters.react_tailwind_tsx import tailwind_recipe_registry_digest
 from viewspec.local_tools import file_hash
 
 
@@ -201,6 +203,8 @@ def test_cli_compile_json_wraps_stable_manifest(tmp_path):
     assert manifest["external_refs"] == []
     assert manifest["diagnostics"] == []
     assert "nodes" in manifest
+    assert manifest["semantic_digest"]["version"] == "semantic_digest.v1"
+    assert manifest["semantic_digest"]["manifest_projection"] == manifest["semantic_digest"]["source_projection"]
 
 
 def test_cli_compile_json_can_emit_react_tsx_target(tmp_path):
@@ -220,6 +224,7 @@ def test_cli_compile_json_can_emit_react_tsx_target(tmp_path):
     assert manifest["emitter"] == "react_tsx"
     assert manifest["artifact_file"] == "ViewSpecView.tsx"
     assert manifest["artifact_hash"] == file_hash(out_dir / "ViewSpecView.tsx")
+    assert manifest["semantic_digest"]["version"] == "semantic_digest.v1"
     assert manifest["command_args"] == [
         "viewspec",
         "compile",
@@ -232,6 +237,236 @@ def test_cli_compile_json_can_emit_react_tsx_target(tmp_path):
     assert 'source: "viewspec-react-tsx"' in tsx
     assert "payloadValues: collectPayloadValues" in tsx
     assert cli_main(["check", str(out_dir), "--json"]) == 0
+
+
+def test_cli_compile_json_can_emit_react_tailwind_tsx_target(tmp_path):
+    builder = ViewSpecBuilder("react_tailwind_cli")
+    dashboard = builder.add_dashboard("metrics", region="main", group_id="cards")
+    dashboard.add_card(label="Open", value="18", id="open")
+    field = builder.add_text_input("message", label="Message", value="Hello", group_id="fields")
+    builder.add_action("send", "submit", "Send", target_region="main", payload_bindings=[field])
+    bundle_path = tmp_path / "bundle.json"
+    bundle_path.write_text(json.dumps(builder.build_bundle().to_json()), encoding="utf-8")
+    out_dir = tmp_path / "react-tailwind-dist"
+
+    assert cli_main(["compile", str(bundle_path), "--target", "react-tailwind-tsx", "--out", str(out_dir)]) == 0
+    manifest = json.loads(out_dir.joinpath("provenance_manifest.json").read_text(encoding="utf-8"))
+    tsx = out_dir.joinpath("ViewSpecView.tsx").read_text(encoding="utf-8")
+
+    assert out_dir.joinpath("index.html").exists() is False
+    assert manifest["kind"] == "intent_bundle_compile"
+    assert manifest["emitter"] == "react_tailwind_tsx"
+    assert manifest["artifact_file"] == "ViewSpecView.tsx"
+    assert manifest["artifact_hash"] == file_hash(out_dir / "ViewSpecView.tsx")
+    assert manifest["tailwind_recipe_inventory"]["recipe_pack"] == "tailwind_app_v1"
+    assert manifest["tailwind_recipe_inventory"]["registry_version"] == "tailwind_recipe_registry.v1"
+    assert manifest["tailwind_recipe_inventory"]["recipe_registry_digest"]
+    assert "primitive:button" in manifest["tailwind_recipe_inventory"]["recipes"]
+    assert manifest["semantic_digest"]["version"] == "semantic_digest.v1"
+    assert manifest["semantic_digest"]["manifest_projection"] == manifest["semantic_digest"]["source_projection"]
+    assert manifest["command_args"] == [
+        "viewspec",
+        "compile",
+        "bundle.json",
+        "--target",
+        "react-tailwind-tsx",
+        "--out",
+        "<out>",
+    ]
+    assert 'source: "viewspec-react-tailwind-tsx"' in tsx
+    assert "payloadValues: collectPayloadValues" in tsx
+    assert "className={" not in tsx
+    assert "style={{" not in tsx
+    assert cli_main(["check", str(out_dir), "--json"]) == 0
+
+
+def test_cli_check_verifies_react_tailwind_static_class_inventory(tmp_path, capsys):
+    builder = ViewSpecBuilder("react_tailwind_check")
+    dashboard = builder.add_dashboard("metrics", region="main", group_id="cards")
+    dashboard.add_card(label="Open", value="18", id="open")
+    bundle_path = tmp_path / "bundle.json"
+    bundle_path.write_text(json.dumps(builder.build_bundle().to_json()), encoding="utf-8")
+    out_dir = tmp_path / "react-tailwind-dist"
+
+    assert cli_main(["compile", str(bundle_path), "--target", "react-tailwind-tsx", "--out", str(out_dir)]) == 0
+    capsys.readouterr()
+    assert cli_main(["check", str(out_dir), "--json"]) == 0
+    capsys.readouterr()
+    tsx_path = out_dir / "ViewSpecView.tsx"
+    manifest_path = out_dir / "provenance_manifest.json"
+    original = tsx_path.read_text(encoding="utf-8")
+    tsx_path.write_text(original.replace('className="', 'className={'), encoding="utf-8")
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest["artifact_hash"] = file_hash(tsx_path)
+    manifest_path.write_text(json.dumps(manifest, indent=2, sort_keys=True), encoding="utf-8")
+
+    assert cli_main(["check", str(out_dir)]) == 2
+    assert "TAILWIND_DYNAMIC_CLASS" in capsys.readouterr().out
+
+    tsx_path.write_text(original.replace("uppercase", "normal-case", 1), encoding="utf-8")
+    manifest["artifact_hash"] = file_hash(tsx_path)
+    manifest_path.write_text(json.dumps(manifest, indent=2, sort_keys=True), encoding="utf-8")
+
+    assert cli_main(["check", str(out_dir)]) == 2
+    assert "TAILWIND_INVENTORY_MISMATCH" in capsys.readouterr().out
+
+
+def test_cli_check_verifies_semantic_digest_for_react_tailwind(tmp_path, capsys):
+    builder = ViewSpecBuilder("react_tailwind_digest")
+    dashboard = builder.add_dashboard("metrics", region="main", group_id="cards")
+    dashboard.add_card(label="Open", value="18", id="open")
+    bundle_path = tmp_path / "bundle.json"
+    bundle_path.write_text(json.dumps(builder.build_bundle().to_json()), encoding="utf-8")
+    out_dir = tmp_path / "react-tailwind-dist"
+
+    assert cli_main(["compile", str(bundle_path), "--target", "react-tailwind-tsx", "--out", str(out_dir)]) == 0
+    capsys.readouterr()
+    tsx_path = out_dir / "ViewSpecView.tsx"
+    manifest_path = out_dir / "provenance_manifest.json"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+
+    missing = dict(manifest)
+    missing.pop("semantic_digest")
+    manifest_path.write_text(json.dumps(missing, indent=2), encoding="utf-8")
+    assert cli_main(["check", str(out_dir)]) == 2
+    assert "SEMANTIC_DIGEST_MISSING" in capsys.readouterr().out
+
+    manifest_path.write_text(json.dumps(manifest, indent=2), encoding="utf-8")
+    tsx_path.write_text(
+        tsx_path.read_text(encoding="utf-8").replace('renderValue(data["open_label"], "Open")', 'renderValue(data["open_label"], "Closed")'),
+        encoding="utf-8",
+    )
+    manifest["artifact_hash"] = file_hash(tsx_path)
+    manifest_path.write_text(json.dumps(manifest, indent=2), encoding="utf-8")
+    assert cli_main(["check", str(out_dir)]) == 2
+    assert "SEMANTIC_DIGEST_MISMATCH" in capsys.readouterr().out
+
+
+def test_cli_check_rejects_forbidden_and_circular_semantic_digest_fields(tmp_path, capsys):
+    builder = ViewSpecBuilder("react_tailwind_digest_fields")
+    dashboard = builder.add_dashboard("metrics", region="main", group_id="cards")
+    dashboard.add_card(label="Open", value="18", id="open")
+    bundle_path = tmp_path / "bundle.json"
+    bundle_path.write_text(json.dumps(builder.build_bundle().to_json()), encoding="utf-8")
+    out_dir = tmp_path / "react-tailwind-dist"
+
+    assert cli_main(["compile", str(bundle_path), "--target", "react-tailwind-tsx", "--out", str(out_dir)]) == 0
+    capsys.readouterr()
+    manifest_path = out_dir / "provenance_manifest.json"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+
+    manifest["semantic_digest"]["manifest_projection"]["nodes"][0]["classes"] = ["not-approved"]
+    manifest_path.write_text(json.dumps(manifest, indent=2), encoding="utf-8")
+    assert cli_main(["check", str(out_dir)]) == 2
+    assert "SEMANTIC_DIGEST_FIELD_FORBIDDEN" in capsys.readouterr().out
+
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest["semantic_digest"]["manifest_projection"]["nodes"][0].pop("classes")
+    manifest["semantic_digest"]["source_projection"]["semantic_digest"] = {}
+    manifest_path.write_text(json.dumps(manifest, indent=2), encoding="utf-8")
+    assert cli_main(["check", str(out_dir)]) == 2
+    assert "SEMANTIC_DIGEST_CIRCULAR" in capsys.readouterr().out
+
+
+def test_cli_check_recomputes_tailwind_app_role_derivation(tmp_path, capsys):
+    fixture = next(item for item in benchmark_fixtures() if item.id == "multi_region_product")
+    bundle_path = tmp_path / "bundle.json"
+    bundle_path.write_text(json.dumps(fixture.bundle.to_json()), encoding="utf-8")
+    out_dir = tmp_path / "react-tailwind-dist"
+
+    assert cli_main(["compile", str(bundle_path), "--target", "react-tailwind-tsx", "--out", str(out_dir)]) == 0
+    capsys.readouterr()
+    manifest_path = out_dir / "provenance_manifest.json"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    filter_bar_dom_id = next(
+        dom_id for dom_id, entry in manifest["nodes"].items() if entry.get("app_role") == "filter_bar"
+    )
+    assert manifest["nodes"][filter_bar_dom_id]["app_role_source"] == "tailwind_app_v1.structural.filter_bar_from_form_action_row"
+
+    manifest["nodes"][filter_bar_dom_id]["app_role_source"] = "tailwind_app_v1.structural.toolbar_from_action_row"
+    manifest_path.write_text(json.dumps(manifest, indent=2), encoding="utf-8")
+    assert cli_main(["check", str(out_dir)]) == 2
+    assert "APP_ROLE_DERIVATION_MISMATCH" in capsys.readouterr().out
+
+    manifest["nodes"][filter_bar_dom_id]["app_role_source"] = "tailwind_app_v1.structural.filter_bar_from_form_action_row"
+    manifest["nodes"][filter_bar_dom_id]["props"]["app_role"] = "filter_bar"
+    manifest_path.write_text(json.dumps(manifest, indent=2), encoding="utf-8")
+    assert cli_main(["check", str(out_dir)]) == 2
+    assert "APP_ROLE_LEXICAL_SOURCE" in capsys.readouterr().out
+
+
+def test_cli_check_verifies_tailwind_registry_digest_and_reachability(tmp_path, capsys):
+    builder = ViewSpecBuilder("react_tailwind_registry")
+    dashboard = builder.add_dashboard("metrics", region="main", group_id="cards")
+    dashboard.add_card(label="Open", value="18", id="open")
+    bundle_path = tmp_path / "bundle.json"
+    bundle_path.write_text(json.dumps(builder.build_bundle().to_json()), encoding="utf-8")
+    out_dir = tmp_path / "react-tailwind-dist"
+
+    assert cli_main(["compile", str(bundle_path), "--target", "react-tailwind-tsx", "--out", str(out_dir)]) == 0
+    capsys.readouterr()
+    manifest_path = out_dir / "provenance_manifest.json"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+
+    manifest["tailwind_recipe_inventory"]["recipe_registry_digest"] = "0" * 64
+    manifest_path.write_text(json.dumps(manifest, indent=2), encoding="utf-8")
+    assert cli_main(["check", str(out_dir)]) == 2
+    assert "TAILWIND_RECIPE_REGISTRY_DIGEST_MISMATCH" in capsys.readouterr().out
+
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest["tailwind_recipe_inventory"]["recipe_registry_digest"] = tailwind_recipe_registry_digest()
+    manifest["tailwind_recipe_inventory"]["recipes"].append("app_role:overlay_panel")
+    manifest_path.write_text(json.dumps(manifest, indent=2), encoding="utf-8")
+    assert cli_main(["check", str(out_dir)]) == 2
+    assert "TAILWIND_RECIPE_UNREACHABLE" in capsys.readouterr().out
+
+
+def test_cli_check_rejects_tailwind_metadata_leaking_into_react_tsx(tmp_path, capsys):
+    builder = ViewSpecBuilder("react_scope_leak")
+    dashboard = builder.add_dashboard("metrics", region="main", group_id="cards")
+    dashboard.add_card(label="Open", value="18", id="open")
+    bundle_path = tmp_path / "bundle.json"
+    bundle_path.write_text(json.dumps(builder.build_bundle().to_json()), encoding="utf-8")
+    out_dir = tmp_path / "react-dist"
+
+    assert cli_main(["compile", str(bundle_path), "--target", "react-tsx", "--out", str(out_dir)]) == 0
+    manifest_path = out_dir / "provenance_manifest.json"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    first_node = next(iter(manifest["nodes"].values()))
+    first_node["recipe_key"] = "primitive:root"
+    manifest_path.write_text(json.dumps(manifest, indent=2, sort_keys=True), encoding="utf-8")
+
+    assert cli_main(["check", str(out_dir)]) == 2
+    assert "TAILWIND_PLANNER_SCOPE_LEAK" in capsys.readouterr().out
+
+
+def test_cli_check_rejects_react_tailwind_active_surfaces(tmp_path, capsys):
+    builder = ViewSpecBuilder("react_tailwind_active_surface")
+    dashboard = builder.add_dashboard("metrics", region="main", group_id="cards")
+    dashboard.add_card(label="Open", value="18", id="open")
+    bundle_path = tmp_path / "bundle.json"
+    bundle_path.write_text(json.dumps(builder.build_bundle().to_json()), encoding="utf-8")
+    out_dir = tmp_path / "react-tailwind-dist"
+
+    assert cli_main(["compile", str(bundle_path), "--target", "react-tailwind-tsx", "--out", str(out_dir)]) == 0
+    capsys.readouterr()
+    tsx_path = out_dir / "ViewSpecView.tsx"
+    manifest_path = out_dir / "provenance_manifest.json"
+    tsx_path.write_text(tsx_path.read_text(encoding="utf-8") + "\nfetch('/unsafe');\n", encoding="utf-8")
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest["artifact_hash"] = file_hash(tsx_path)
+    manifest_path.write_text(json.dumps(manifest, indent=2, sort_keys=True), encoding="utf-8")
+
+    assert cli_main(["check", str(out_dir)]) == 2
+    assert "TAILWIND_ACTIVE_SURFACE_FORBIDDEN" in capsys.readouterr().out
+
+
+def test_cli_rejects_raw_html_import_for_react_tailwind_target(tmp_path, capsys):
+    html_path = tmp_path / "input.html"
+    html_path.write_text("<main><h1>Hello</h1></main>", encoding="utf-8")
+
+    assert cli_main(["compile", str(html_path), "--target", "react-tailwind-tsx", "--out", str(tmp_path / "out")]) == 2
+    assert "TAILWIND_IMPORT_NOT_SUPPORTED" in capsys.readouterr().err
 
 
 def test_cli_check_verifies_react_tsx_artifact_source(tmp_path, capsys):

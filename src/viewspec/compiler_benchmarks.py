@@ -18,6 +18,7 @@ from typing import Any
 from viewspec.agent import validate_agent_intent_bundle
 from viewspec.compiler import PRODUCT_SURFACE_PLANNER_V1_SURFACE, compile
 from viewspec.emitters.html_tailwind import HtmlTailwindEmitter
+from viewspec.emitters.react_tailwind_tsx import ReactTailwindTsxEmitter
 from viewspec.emitters.react_tsx import ReactTsxEmitter
 from viewspec.intent_tools import wrap_intent_bundle_manifest
 from viewspec.local_tools import check_artifact_dir, file_hash, source_hash
@@ -53,6 +54,18 @@ BENCHMARK_ERROR_CODES = frozenset(
         "PLANNER_STYLE_AUTOFETCH",
         "PLANNER_SYNTHETIC_CONTENT",
         "PLANNER_PASS_BOUNDARY_BROKEN",
+        "TAILWIND_ACTIVE_SURFACE_FORBIDDEN",
+        "TAILWIND_DYNAMIC_CLASS",
+        "TAILWIND_GENERIC_FALLBACK_EXCEEDED",
+        "TAILWIND_HOST_CONFIG_DEPENDENCY",
+        "TAILWIND_INLINE_STYLE_FORBIDDEN",
+        "TAILWIND_INVENTORY_MISMATCH",
+        "TAILWIND_RECIPE_REGISTRY_DIGEST_MISMATCH",
+        "TAILWIND_RECIPE_UNREACHABLE",
+        "TAILWIND_SEMANTIC_DRIFT",
+        "TAILWIND_TARGET_REGRESSION",
+        "TAILWIND_TSX_INVALID",
+        "TAILWIND_UNSAFE_CLASS_SOURCE",
     }
 )
 QUALITY_CATEGORIES = frozenset(
@@ -64,6 +77,7 @@ QUALITY_CATEGORIES = frozenset(
         "design_tokens",
         "emitter_parity",
         "determinism",
+        "tailwind_compatibility",
     }
 )
 ALLOWED_METRIC_SOURCES = frozenset({"artifact_hash", "artifact_text", "ast", "check", "diagnostics", "manifest"})
@@ -177,6 +191,7 @@ def benchmark_fixtures() -> tuple[BenchmarkFixture, ...]:
         BenchmarkFixture("hero", _hero_fixture()),
         BenchmarkFixture("list", _list_fixture()),
         BenchmarkFixture("multi_region_product", _multi_region_fixture(), multi_region=True),
+        BenchmarkFixture("tailwind_admin_workspace", _tailwind_admin_workspace_fixture(), multi_region=True),
     )
 
 
@@ -216,7 +231,8 @@ def run_benchmark_fixture(fixture: BenchmarkFixture, output_dir: str | Path) -> 
     output = Path(output_dir)
     html_artifact = _emit_checked_artifact(fixture, ast, output / "html", target="html-tailwind")
     react_artifact = _emit_checked_artifact(fixture, ast, output / "react", target="react-tsx")
-    summary = _benchmark_summary(fixture, ast, html_artifact, react_artifact)
+    tailwind_artifact = _emit_checked_artifact(fixture, ast, output / "react-tailwind", target="react-tailwind-tsx")
+    summary = _benchmark_summary(fixture, ast, html_artifact, react_artifact, tailwind_artifact)
     assert_benchmark_summary(summary)
     return summary
 
@@ -269,6 +285,32 @@ def assert_emitter_parity(fixture_id: str, html_inventory: SemanticInventory, re
             code,
             fixture_id,
             f"HTML and React semantic inventory drifted for: {', '.join(drift)}.",
+        )
+
+
+def assert_tailwind_semantic_parity(
+    fixture_id: str,
+    baseline_inventory: SemanticInventory,
+    tailwind_inventory: SemanticInventory,
+) -> None:
+    baseline_json = baseline_inventory.to_json()
+    tailwind_json = tailwind_inventory.to_json()
+    compared_keys = (
+        "visible_text",
+        "binding_ids",
+        "action_ids",
+        "motif_ids",
+        "manifest_node_ids",
+        "diagnostic_codes",
+        "provenance_refs",
+        "style_tokens",
+    )
+    drift = [key for key in compared_keys if baseline_json[key] != tailwind_json[key]]
+    if drift:
+        raise BenchmarkConstraintError(
+            "TAILWIND_SEMANTIC_DRIFT",
+            fixture_id,
+            f"Tailwind semantic inventory drifted for: {', '.join(drift)}.",
         )
 
 
@@ -330,6 +372,8 @@ def _assert_planner_metrics_are_derived(summary: dict[str, Any], sources: dict[s
         "react_manifest_product_role_counts": "manifest",
         "html_role_classes": "artifact_text",
         "react_role_classes": "artifact_text",
+        "tailwind_manifest_product_role_counts": "manifest",
+        "tailwind_recipe_inventory": "manifest",
     }
     missing = [
         metric_name
@@ -450,6 +494,61 @@ def _multi_region_fixture() -> IntentBundle:
     return builder.build_bundle()
 
 
+def _tailwind_admin_workspace_fixture() -> IntentBundle:
+    builder = ViewSpecBuilder(
+        "benchmark_tailwind_admin",
+        root_attrs={"title": "Tailwind Admin Workspace"},
+        default_main_region=False,
+        root_min_children=2,
+    )
+    builder.add_region("header", parent_region="root", role="banner", layout="stack", min_children=1)
+    builder.add_region("body", parent_region="root", role="workspace", layout="grid", min_children=2)
+    builder.add_region("main", parent_region="body", role="primary", layout="stack", min_children=3)
+    builder.add_region("side", parent_region="body", role="sidebar", layout="stack", min_children=2)
+
+    builder.add_hero(
+        "admin_intro",
+        eyebrow="Operations",
+        title="Review requests",
+        description="Inspect queue state, filter open work, and submit reviewer decisions.",
+        region="header",
+        group_id="admin_intro_message",
+    )
+    nav = builder.add_list("admin_nav", region="side", group_id="admin_nav_items")
+    nav.add_item(label="Inbox", description="Open requests", id="inbox")
+    nav.add_item(label="Escalations", description="Needs review", id="escalations")
+    metrics = builder.add_dashboard("admin_metrics", region="main", group_id="admin_metric_cards")
+    metrics.add_card(label="Open", value="18", id="open")
+    metrics.add_card(label="Blocked", value="3", id="blocked", value_present_as="badge")
+    table = builder.add_table("request_queue", region="main", group_id="request_rows")
+    table.add_row(label="Request A", value="Ready", id="request_a")
+    table.add_row(label="Request B", value="Waiting", id="request_b")
+    filters = builder.add_form("queue_filters", region="main", group_id="filter_fields")
+    filters.add_field(label="Search", value="", id="search")
+    filters.add_field(label="Owner", value="Team", id="owner")
+    detail = builder.add_detail("selected_request", region="side", group_id="selected_request_fields")
+    detail.add_field(label="Reviewer", value="Ada", id="reviewer")
+    detail.add_field(label="Priority", value="High", id="priority")
+    builder.add_empty_state(
+        "empty_queue",
+        title="No matching requests",
+        description="Adjust filters to widen the queue.",
+        region="main",
+        group_id="empty_queue_message",
+    )
+    builder.add_action(
+        "apply_filters",
+        "submit",
+        "Apply filters",
+        target_region="main",
+        target_ref="motif:queue_filters",
+        payload_bindings=["search_value", "owner_value"],
+    )
+    builder.add_style("admin_body_density", "region:body", "density.regular")
+    builder.add_style("admin_detail_surface", "motif:selected_request", "surface.strong")
+    return builder.build_bundle()
+
+
 def _validate_fixture_contract(fixture: BenchmarkFixture) -> None:
     if fixture.full_artifact_golden is not None:
         raise BenchmarkConstraintError(
@@ -508,6 +607,10 @@ def _emit_checked_artifact(
         paths = ReactTsxEmitter().emit(ast, output_dir)
         artifact_path = Path(paths["tsx"])
         emitter = "react_tsx"
+    elif target == "react-tailwind-tsx":
+        paths = ReactTailwindTsxEmitter().emit(ast, output_dir)
+        artifact_path = Path(paths["tsx"])
+        emitter = "react_tailwind_tsx"
     else:
         raise ValueError(f"Unsupported benchmark target: {target}")
 
@@ -550,20 +653,28 @@ def _benchmark_summary(
     ast: ASTBundle,
     html_artifact: EmitterBenchmarkArtifact,
     react_artifact: EmitterBenchmarkArtifact,
+    tailwind_artifact: EmitterBenchmarkArtifact,
 ) -> dict[str, Any]:
     html_inventory = _manifest_inventory(html_artifact.manifest)
     react_inventory = _manifest_inventory(react_artifact.manifest)
+    tailwind_inventory = _manifest_inventory(tailwind_artifact.manifest)
     assert_emitter_parity(fixture.id, html_inventory, react_inventory)
+    assert_tailwind_semantic_parity(fixture.id, html_inventory, tailwind_inventory)
 
     html_tags, html_text = _html_tags_and_text(html_artifact.artifact_text)
     react_tags = _react_tags(react_artifact.artifact_text)
+    tailwind_tags = _react_tags(tailwind_artifact.artifact_text)
     required_tags = _required_tags(fixture.bundle)
-    semantic_tags_ok = required_tags.issubset(html_tags) and required_tags.issubset(react_tags)
-    check_ok = html_artifact.check_ok and react_artifact.check_ok
+    semantic_tags_ok = required_tags.issubset(html_tags) and required_tags.issubset(react_tags) and required_tags.issubset(
+        tailwind_tags
+    )
+    check_ok = html_artifact.check_ok and react_artifact.check_ok and tailwind_artifact.check_ok
     no_network_surfaces = not NETWORK_SURFACE_RE.search(html_artifact.artifact_text) and not NETWORK_SURFACE_RE.search(
         react_artifact.artifact_text
+    ) and not NETWORK_SURFACE_RE.search(
+        tailwind_artifact.artifact_text
     )
-    style_tokens = sorted(html_inventory.style_tokens | react_inventory.style_tokens)
+    style_tokens = sorted(html_inventory.style_tokens | react_inventory.style_tokens | tailwind_inventory.style_tokens)
     style_values = set(ast.style_values)
     quality_categories = sorted(
         category
@@ -575,10 +686,12 @@ def _benchmark_summary(
             "safety": check_ok and no_network_surfaces and not html_artifact.manifest.get("external_refs"),
             "design_tokens": bool(style_tokens) and set(style_tokens).issubset(style_values),
             "emitter_parity": True,
+            "tailwind_compatibility": tailwind_artifact.check_ok
+            and tailwind_artifact.manifest.get("tailwind_recipe_inventory", {}).get("recipe_pack") == "tailwind_app_v1",
         }.items()
         if ok
     )
-    if html_artifact.check_errors or react_artifact.check_errors:
+    if html_artifact.check_errors or react_artifact.check_errors or tailwind_artifact.check_errors:
         quality_categories = [category for category in quality_categories if category != "safety"]
 
     summary = {
@@ -600,6 +713,8 @@ def _benchmark_summary(
             "product_role_counts": "ast",
             "react_manifest_product_role_counts": "manifest",
             "react_role_classes": "artifact_text",
+            "tailwind_manifest_product_role_counts": "manifest",
+            "tailwind_recipe_inventory": "manifest",
             "workspace_surface": "ast",
         },
         "metrics": {
@@ -635,7 +750,17 @@ def _benchmark_summary(
                 "role_classes": _role_classes_from_artifact(react_artifact.artifact_text),
                 "tsx_tags": sorted(react_tags),
             },
+            "tailwind": {
+                "artifact_hash": tailwind_artifact.artifact_hash,
+                "check_ok": tailwind_artifact.check_ok,
+                "manifest_hash": tailwind_artifact.manifest_hash,
+                "manifest_product_role_counts": _product_role_counts_from_manifest(tailwind_artifact.manifest),
+                "recipe_count": tailwind_artifact.manifest.get("tailwind_recipe_inventory", {}).get("recipe_count"),
+                "recipe_pack": tailwind_artifact.manifest.get("tailwind_recipe_inventory", {}).get("recipe_pack"),
+                "tsx_tags": sorted(tailwind_tags),
+            },
             "parity": html_inventory.to_json(),
+            "tailwind_parity": tailwind_inventory.to_json(),
             "required_tags": sorted(required_tags),
             "style_tokens": style_tokens,
         },
@@ -865,5 +990,6 @@ __all__ = [
     "assert_emitter_parity",
     "assert_expected_diagnostics",
     "assert_no_new_benchmark_dependencies",
+    "assert_tailwind_semantic_parity",
     "stable_summary_json",
 ]

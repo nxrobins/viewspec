@@ -14,6 +14,7 @@ from viewspec.compiler_benchmarks import (
     assert_emitter_parity,
     assert_expected_diagnostics,
     assert_no_new_benchmark_dependencies,
+    assert_tailwind_semantic_parity,
     benchmark_fixtures,
     run_benchmark_fixture,
     run_benchmark_suite,
@@ -25,7 +26,7 @@ from viewspec.sdk.builder import ViewSpecBuilder
 def test_compiler_quality_benchmark_fixtures_emit_checked_artifacts(tmp_path):
     summaries = run_benchmark_suite(tmp_path)
 
-    assert len(summaries) == 6
+    assert len(summaries) == 7
     assert {summary["fixture_id"] for summary in summaries} == {
         "dashboard",
         "detail",
@@ -33,6 +34,7 @@ def test_compiler_quality_benchmark_fixtures_emit_checked_artifacts(tmp_path):
         "hero",
         "list",
         "multi_region_product",
+        "tailwind_admin_workspace",
     }
     for summary in summaries:
         assert summary["schema_version"] == BENCHMARK_SCHEMA_VERSION
@@ -41,8 +43,10 @@ def test_compiler_quality_benchmark_fixtures_emit_checked_artifacts(tmp_path):
         assert set(summary["metrics"]["diagnostics"]["actual_codes"]) <= set(summary["metrics"]["diagnostics"]["expected_codes"])
         assert summary["metrics"]["html"]["check_ok"] is True
         assert summary["metrics"]["react"]["check_ok"] is True
+        assert summary["metrics"]["tailwind"]["check_ok"] is True
         assert summary["metrics"]["html"]["artifact_hash"]
         assert summary["metrics"]["react"]["artifact_hash"]
+        assert summary["metrics"]["tailwind"]["artifact_hash"]
         assert len(stable_summary_json(summary).encode("utf-8")) <= BENCHMARK_SUMMARY_MAX_BYTES
         assert_benchmark_summary(summary)
 
@@ -56,8 +60,10 @@ def test_compiler_quality_benchmarks_are_deterministic(tmp_path):
     assert stable_summary_json(first) == stable_summary_json(second)
     assert first["metrics"]["html"]["artifact_hash"] == second["metrics"]["html"]["artifact_hash"]
     assert first["metrics"]["react"]["artifact_hash"] == second["metrics"]["react"]["artifact_hash"]
+    assert first["metrics"]["tailwind"]["artifact_hash"] == second["metrics"]["tailwind"]["artifact_hash"]
     assert first["metrics"]["html"]["manifest_hash"] == second["metrics"]["html"]["manifest_hash"]
     assert first["metrics"]["react"]["manifest_hash"] == second["metrics"]["react"]["manifest_hash"]
+    assert first["metrics"]["tailwind"]["manifest_hash"] == second["metrics"]["tailwind"]["manifest_hash"]
 
 
 def test_multi_region_fixture_has_required_layout_pressure(tmp_path):
@@ -86,6 +92,8 @@ def test_multi_region_fixture_has_required_layout_pressure(tmp_path):
     }
     assert summary["metrics"]["html"]["manifest_product_role_counts"] == summary["metrics"]["ast"]["product_role_counts"]
     assert summary["metrics"]["react"]["manifest_product_role_counts"] == summary["metrics"]["ast"]["product_role_counts"]
+    assert summary["metrics"]["tailwind"]["manifest_product_role_counts"] == summary["metrics"]["ast"]["product_role_counts"]
+    assert summary["metrics"]["tailwind"]["recipe_pack"] == "tailwind_app_v1"
     assert "vs-role-action-row" in summary["metrics"]["html"]["role_classes"]
     assert summary["metrics"]["html"]["role_classes"] == summary["metrics"]["react"]["role_classes"]
     assert summary["metrics"]["ast"]["planner_nodes"]["region_body"] == {
@@ -122,9 +130,9 @@ def test_dashboard_fixture_records_planner_grid_strategy(tmp_path):
 
 
 def test_benchmark_contract_is_not_weakened():
-    assert len(benchmark_fixtures()) == 6
+    assert len(benchmark_fixtures()) == 7
     assert compiler_benchmarks.BENCHMARK_SUMMARY_MAX_BYTES == 16 * 1024
-    assert len(compiler_benchmarks.QUALITY_CATEGORIES) == 7
+    assert len(compiler_benchmarks.QUALITY_CATEGORIES) == 8
     assert {
         "BENCHMARK_FIXTURE_TOO_SMALL",
         "BENCHMARK_ORACLE_TOO_SHALLOW",
@@ -149,6 +157,12 @@ def test_benchmark_contract_is_not_weakened():
         "PLANNER_STYLE_AUTOFETCH",
         "PLANNER_SYNTHETIC_CONTENT",
         "PLANNER_PASS_BOUNDARY_BROKEN",
+        "TAILWIND_DYNAMIC_CLASS",
+        "TAILWIND_INVENTORY_MISMATCH",
+        "TAILWIND_RECIPE_REGISTRY_DIGEST_MISMATCH",
+        "TAILWIND_RECIPE_UNREACHABLE",
+        "TAILWIND_SEMANTIC_DRIFT",
+        "TAILWIND_TSX_INVALID",
     }.issubset(compiler_benchmarks.BENCHMARK_ERROR_CODES)
 
 
@@ -175,6 +189,14 @@ def test_benchmark_emitter_parity_fail_fast():
     with pytest.raises(BenchmarkConstraintError) as class_exc:
         assert_emitter_parity("fixture", html_classes, react_classes)
     assert class_exc.value.code == "EMITTER_ROLE_CLASS_DRIFT"
+
+    with pytest.raises(BenchmarkConstraintError) as tailwind_exc:
+        assert_tailwind_semantic_parity(
+            "fixture",
+            SemanticInventory(visible_text=frozenset({"Alpha"})),
+            SemanticInventory(visible_text=frozenset({"Beta"})),
+        )
+    assert tailwind_exc.value.code == "TAILWIND_SEMANTIC_DRIFT"
 
 
 def test_benchmark_rejects_shallow_and_non_derived_summary(tmp_path):

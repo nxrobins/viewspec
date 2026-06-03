@@ -82,6 +82,7 @@ import json
 
 from viewspec import ViewSpecBuilder, compile, diff_intent_text, validate_intent_text
 from viewspec.emitters.html_tailwind import HtmlTailwindEmitter
+from viewspec.emitters.react_tailwind_tsx import ReactTailwindTsxEmitter
 from viewspec.emitters.react_tsx import ReactTsxEmitter
 
 builder = ViewSpecBuilder("invoice")
@@ -98,6 +99,7 @@ diff = diff_intent_text(json.dumps(bundle.to_json()), json.dumps(bundle.to_json(
 ast = compile(bundle)
 HtmlTailwindEmitter().emit(ast, "output/")
 ReactTsxEmitter().emit(ast, "react-output/")
+ReactTailwindTsxEmitter().emit(ast, "react-tailwind-output/")
 ```
 
 The local reference compiler supports safe text inputs and local action payload events. HTML action events dispatch `viewspec-action` with `detail.schemaVersion: 1`, `source`, `id`, `kind`, `targetRef`, `payloadBindings`, and `payloadValues`. Pressing Enter inside a local inert form dispatches only a declared `submit` action whose `targetRef` exactly matches that form motif. React TSX output uses an `onAction` callback with the same V1 fields and `source: "viewspec-react-tsx"`.
@@ -106,6 +108,12 @@ From the CLI, use `--target react-tsx` when you want component source instead of
 
 ```bash
 viewspec compile viewspec.intent.json --target react-tsx --out react-output/
+```
+
+Use `--target react-tailwind-tsx` when the host React app already has Tailwind and needs compiler-owned utility classes:
+
+```bash
+viewspec compile viewspec.intent.json --target react-tailwind-tsx --out react-tailwind-output/
 ```
 
 `viewspec check` also verifies React TSX source artifacts: manifest shape, exact `ViewSpecView.tsx` hash, generated-source markers, diagnostics shape, and absence of active network/runtime escape surfaces. This is source artifact verification, not a rendered DOM proof inside a host React app. Use the hosted compiler for richer input controls, projections, declarative rules, custom motifs, Level 2+ derivation, and mobile emitters. Hosted demo artifact indexes declare `contract_profile: "hosted_extended_v1"` when their IntentBundle uses fields beyond local V1 validation.

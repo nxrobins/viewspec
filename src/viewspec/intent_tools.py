@@ -17,9 +17,15 @@ from viewspec.agent import (
 from viewspec.compiler import compile
 from viewspec.design_md import DesignSystemContext, load_design_system
 from viewspec.emitters.html_tailwind import HtmlTailwindEmitter
+from viewspec.emitters.react_tailwind_tsx import (
+    TAILWIND_RECIPE_REGISTRY_VERSION,
+    ReactTailwindTsxEmitter,
+    tailwind_recipe_registry_digest,
+)
 from viewspec.emitters.react_tsx import ReactTsxEmitter
 from viewspec.local_tools import (
     atomic_write,
+    build_intent_semantic_digest,
     check_artifact_dir,
     ensure_no_input_overwrite,
     exception_response,
@@ -39,7 +45,7 @@ from viewspec.types import IntentBundle
 
 BUNDLE_POLICY_VERSION = INTENT_BUNDLE_POLICY_VERSION
 INTENT_RESULT_SCHEMA_VERSION = 1
-INTENT_COMPILE_TARGETS = ("html-tailwind", "react-tsx")
+INTENT_COMPILE_TARGETS = ("html-tailwind", "react-tsx", "react-tailwind-tsx")
 INTENT_DIFF_VERSION = 1
 INTENT_DIFF_BASIS = "intent_bundle_v1"
 STARTER_INTENT_KINDS = tuple(SUPPORTED_AGENT_MOTIFS)
@@ -411,7 +417,7 @@ def compile_intent_bundle_file_tool(
             return tool_error_response(
                 "COMPILE_FAILED",
                 f"Unsupported IntentBundle compile target: {target}",
-                "Use target='html-tailwind' or target='react-tsx'.",
+                "Use target='html-tailwind', target='react-tsx', or target='react-tailwind-tsx'.",
                 metadata={
                     "cwd": str(root),
                     "allow_outside_cwd": allow_outside_cwd,
@@ -422,7 +428,7 @@ def compile_intent_bundle_file_tool(
             )
         source = resolve_local_path(input_path, cwd=root, allow_outside_cwd=allow_outside_cwd, must_exist=True)
         output = resolve_local_path(out_dir, cwd=root, allow_outside_cwd=allow_outside_cwd)
-        if target == "react-tsx":
+        if target in {"react-tsx", "react-tailwind-tsx"}:
             ensure_no_input_overwrite(source, output, ("ViewSpecView.tsx", "provenance_manifest.json", "diagnostics.json"))
         else:
             ensure_no_input_overwrite(source, output, ("index.html", "provenance_manifest.json", "diagnostics.json"))
@@ -451,6 +457,10 @@ def compile_intent_bundle_file_tool(
             paths = ReactTsxEmitter().emit(ast, output)
             artifact_path = Path(paths["tsx"])
             emitter = "react_tsx"
+        elif target == "react-tailwind-tsx":
+            paths = ReactTailwindTsxEmitter().emit(ast, output)
+            artifact_path = Path(paths["tsx"])
+            emitter = "react_tailwind_tsx"
         else:
             paths = HtmlTailwindEmitter().emit(ast, output)
             artifact_path = Path(paths["html"])
@@ -495,7 +505,7 @@ def compile_intent_bundle_file_tool(
             paths=paths,
             next_actions=[
                 "Review ViewSpecView.tsx and provenance_manifest.json."
-                if target == "react-tsx"
+                if target in {"react-tsx", "react-tailwind-tsx"}
                 else "Review dist/index.html and provenance_manifest.json."
             ],
             metadata={**metadata, "artifact_check": "passed"},
@@ -550,9 +560,50 @@ def wrap_intent_bundle_manifest(
     if emitter is not None:
         wrapped["emitter"] = emitter
         wrapped["artifact_file"] = artifact.name
+    if emitter == "react_tailwind_tsx":
+        wrapped["tailwind_recipe_inventory"] = _tailwind_recipe_inventory(existing)
     if design is not None:
         wrapped["design"] = design.to_meta()
-    atomic_write(manifest_path, json.dumps(wrapped, indent=2, sort_keys=True))
+    wrapped["semantic_digest"] = build_intent_semantic_digest(
+        wrapped,
+        artifact.read_text(encoding="utf-8") if artifact.exists() else "",
+        emitter=emitter or "html_tailwind",
+        diagnostics=wrapped["diagnostics"],
+    )
+    atomic_write(manifest_path, json.dumps(wrapped, indent=2))
+
+
+def _tailwind_recipe_inventory(nodes: dict[str, Any]) -> dict[str, Any]:
+    recipe_keys: set[str] = set()
+    class_tokens: set[str] = set()
+    app_roles: set[str] = set()
+    app_role_sources: set[str] = set()
+    for entry in nodes.values():
+        if not isinstance(entry, dict):
+            continue
+        recipe_key = entry.get("recipe_key")
+        if isinstance(recipe_key, str) and recipe_key:
+            recipe_keys.add(recipe_key)
+        app_role = entry.get("app_role")
+        if isinstance(app_role, str) and app_role:
+            app_roles.add(app_role)
+        app_role_source = entry.get("app_role_source")
+        if isinstance(app_role_source, str) and app_role_source:
+            app_role_sources.add(app_role_source)
+        classes = entry.get("classes")
+        if isinstance(classes, list):
+            class_tokens.update(item for item in classes if isinstance(item, str) and item)
+    return {
+        "recipe_pack": "tailwind_app_v1",
+        "registry_version": TAILWIND_RECIPE_REGISTRY_VERSION,
+        "recipe_registry_digest": tailwind_recipe_registry_digest(),
+        "recipe_count": len(recipe_keys),
+        "recipes": sorted(recipe_keys),
+        "class_count": len(class_tokens),
+        "class_tokens": sorted(class_tokens),
+        "app_roles": sorted(app_roles),
+        "app_role_sources": sorted(app_role_sources),
+    }
 
 
 def _compile_command_args(

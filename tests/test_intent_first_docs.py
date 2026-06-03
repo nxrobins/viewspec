@@ -61,6 +61,7 @@ def test_claude_code_skill_matches_native_agent_workflow():
 
     assert "Do not write HTML, CSS, React, SwiftUI, Flutter, or CompositionIR as source." in text
     assert "viewspec compile viewspec.intent.json --design DESIGN.md --target react-tsx --out react-output/" in text
+    assert "viewspec compile viewspec.intent.json --design DESIGN.md --target react-tailwind-tsx --out react-tailwind-output/" in text
     assert "viewspec check react-output/" in text
     assert "viewspec doctor --agents" in text
     assert "viewspec export-agent-assets --out .viewspec" in text
