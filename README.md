@@ -138,7 +138,7 @@ python -m pip install "viewspec[agents]"
 viewspec mcp
 ```
 
-The MCP server exposes intent-first local tools: `init_intent`, `validate_intent_bundle_file`, `diff_intent_bundle_files`, `compile_intent_bundle_file`, `agent_correction_prompt_file`, `check_artifact`, `check_agent_assets`, `init_design`, and `export_agent_assets`. `compile_intent_bundle_file` accepts `target="html-tailwind"` for checked standalone HTML or `target="react-tsx"` for checked React source artifacts. Raw HTML MCP tools remain available only for importing existing HTML. By default, all tool paths must resolve under the MCP working directory and the tools make no SDK network calls.
+The MCP server exposes intent-first local tools: `init_intent`, `validate_intent_bundle_file`, `diff_intent_bundle_files`, `compile_intent_bundle_file`, `agent_correction_prompt_file`, `check_artifact`, `check_agent_assets`, `init_design`, and `export_agent_assets`. `compile_intent_bundle_file` accepts `target="html-tailwind"` for checked standalone HTML, `target="react-tsx"` for checked React source artifacts, or `target="react-tailwind-tsx"` for checked React source with closed Tailwind recipes. Raw HTML MCP tools remain available only for importing existing HTML. By default, all tool paths must resolve under the MCP working directory and the tools make no SDK network calls.
 
 For all targets, agents should edit `viewspec.intent.json` or `DESIGN.md` and regenerate artifacts. They should not patch generated files such as `dist/index.html` or `react-output/ViewSpecView.tsx`.
 
@@ -242,6 +242,8 @@ viewspec compile viewspec.intent.json --target react-tsx --out react-output/
 
 It writes `ViewSpecView.tsx`, `provenance_manifest.json`, and `diagnostics.json`. React actions are surfaced through an `onAction` callback with the same V1 fields and `source: "viewspec-react-tsx"`. `viewspec check` verifies the React source artifact's manifest, hash, generated-source markers, diagnostics shape, and no active network/runtime escape surfaces. It does not prove rendered DOM equivalence inside a host React app.
 
+For Tailwind host apps, use `--target react-tailwind-tsx`. This emits the same source artifact file with literal utility classes from the closed `tailwind_app_v1` recipe registry; agents still edit only IntentBundle JSON.
+
 ## Motif Types
 
 | Builder | Motif | Use case |
@@ -263,7 +265,7 @@ Each builder returns a chained sub-builder. Compose them freely within a single 
 
 ### Reference Compiler (free, offline)
 
-Handles the nine standard motifs locally. No API, no network, no LLM. Deterministic. The default CLI target is standalone HTML/Tailwind; `--target react-tsx` emits a local React component from the same compiled `ASTBundle`.
+Handles the nine standard motifs locally. No API, no network, no LLM. Deterministic. The default CLI target is standalone HTML/Tailwind; `--target react-tsx` emits a local React component from the same compiled `ASTBundle`, and `--target react-tailwind-tsx` emits a React component using closed Tailwind recipes.
 
 ```python
 ast = compile(builder.build_bundle())

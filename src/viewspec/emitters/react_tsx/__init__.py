@@ -527,7 +527,7 @@ def emit_compiler_result(
     diagnostics_path = output_path / "diagnostics.json"
     try:
         _write_text_atomic(tsx_path, tsx)
-        _write_text_atomic(manifest_path, json.dumps(manifest, indent=2, sort_keys=True))
+        _write_text_atomic(manifest_path, json.dumps(manifest, indent=2))
         _write_text_atomic(diagnostics_path, json.dumps([d.to_json() for d in result.diagnostics], indent=2, sort_keys=True))
     except Exception as exc:
         try:

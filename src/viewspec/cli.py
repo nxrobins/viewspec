@@ -13,6 +13,7 @@ from viewspec.agent_assets import AgentAssetError, agent_asset_readiness, check_
 from viewspec.compiler import compile
 from viewspec.design_md import DesignSystemContext, DesignSystemError, load_design_system
 from viewspec.emitters.html_tailwind import HtmlTailwindEmitter
+from viewspec.emitters.react_tailwind_tsx import ReactTailwindTsxEmitter
 from viewspec.emitters.react_tsx import ReactTsxEmitter
 from viewspec.intent_tools import (
     STARTER_INTENT_KINDS,
@@ -90,7 +91,7 @@ def _build_parser() -> argparse.ArgumentParser:
     compile_parser.add_argument(
         "--target",
         default="html-tailwind",
-        choices=("html-tailwind", "react-tsx"),
+        choices=("html-tailwind", "react-tsx", "react-tailwind-tsx"),
         help="Renderer target for IntentBundle JSON input. Raw HTML import supports html-tailwind only.",
     )
     compile_parser.add_argument("--stdin-format", choices=("html", "json"), help="Required when input is '-'.")
@@ -179,6 +180,8 @@ def _compile_command(args: argparse.Namespace) -> int:
 
     if input_format == "html":
         if args.target != "html-tailwind":
+            if args.target == "react-tailwind-tsx":
+                raise ValueError("TAILWIND_IMPORT_NOT_SUPPORTED: Raw HTML import only supports --target html-tailwind")
             raise ValueError("Raw HTML import only supports --target html-tailwind")
         ensure_no_input_overwrite(input_path, out_dir, ("index.html", "provenance_manifest.json", "diagnostics.json", "lift.json"))
         design = _load_design(args.design, strict=args.strict_design)
@@ -199,7 +202,7 @@ def _compile_command(args: argparse.Namespace) -> int:
         return 2
     output_names = (
         ("ViewSpecView.tsx", "provenance_manifest.json", "diagnostics.json")
-        if args.target == "react-tsx"
+        if args.target in {"react-tsx", "react-tailwind-tsx"}
         else ("index.html", "provenance_manifest.json", "diagnostics.json")
     )
     ensure_no_input_overwrite(input_path, out_dir, output_names)
@@ -211,6 +214,10 @@ def _compile_command(args: argparse.Namespace) -> int:
         paths = ReactTsxEmitter().emit(ast, out_dir)
         artifact_path = Path(paths["tsx"])
         emitter = "react_tsx"
+    elif args.target == "react-tailwind-tsx":
+        paths = ReactTailwindTsxEmitter().emit(ast, out_dir)
+        artifact_path = Path(paths["tsx"])
+        emitter = "react_tailwind_tsx"
     else:
         paths = HtmlTailwindEmitter().emit(ast, out_dir)
         artifact_path = Path(paths["html"])

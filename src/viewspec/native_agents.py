@@ -102,6 +102,7 @@ def agent_instruction_block(target: str) -> str:
         "viewspec compile viewspec.intent.json --design DESIGN.md --target react-tsx --out react-output/\n"
         "viewspec check react-output/\n"
         "```\n\n"
+        "For Tailwind host apps, use `--target react-tailwind-tsx`; Tailwind classes remain compiler-owned recipes.\n\n"
         "When comparing IntentBundle revisions, run:\n\n"
         "```bash\n"
         "viewspec diff-intent old.intent.json new.intent.json --json\n"

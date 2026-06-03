@@ -14,6 +14,12 @@ from viewspec import (
     Provenance,
 )
 from viewspec.emitters.html_tailwind import HtmlTailwindEmitter, OFFLINE_EMITTER_CSS
+from viewspec.emitters.react_tailwind_tsx import (
+    RECIPE_BY_KEY,
+    TAILWIND_RECIPE_PACK,
+    CompilerConstraintError,
+    ReactTailwindTsxEmitter,
+)
 from viewspec.emitters.react_tsx import BASE_STYLE_BY_PRODUCT_ROLE, ReactTsxEmitter
 
 
@@ -217,7 +223,7 @@ def test_html_and_react_emit_identical_closed_role_class_inventories(tmp_path):
     assert '"vs-root vs-layout-root vs-role-app-shell"' in tsx
 
 
-@pytest.mark.parametrize("emitter_cls", [HtmlTailwindEmitter, ReactTsxEmitter])
+@pytest.mark.parametrize("emitter_cls", [HtmlTailwindEmitter, ReactTsxEmitter, ReactTailwindTsxEmitter])
 def test_emitters_reject_unsafe_role_class_values_before_writing(tmp_path, emitter_cls):
     ast = ASTBundle(
         result=CompilerResult(
@@ -250,7 +256,7 @@ def test_product_surface_style_additions_have_no_autofetch_surfaces():
     assert not unsafe.search(react_style_text)
 
 
-@pytest.mark.parametrize("emitter_cls", [HtmlTailwindEmitter, ReactTsxEmitter])
+@pytest.mark.parametrize("emitter_cls", [HtmlTailwindEmitter, ReactTsxEmitter, ReactTailwindTsxEmitter])
 def test_emitters_reject_autofetching_style_values_before_writing(tmp_path, emitter_cls):
     ast = ASTBundle(
         result=CompilerResult(
@@ -345,6 +351,123 @@ def test_react_tsx_emitter_writes_component_manifest_and_action_contract(tmp_pat
     assert "\\u003cscript\\u003ealert" in tsx
     assert manifest["dom-title"]["content_refs"] == ["node:doc#attr:title"]
     assert manifest["dom-send"]["props"]["payload_bindings"] == ["message", "title"]
+
+
+def test_react_tailwind_tsx_emitter_writes_static_recipe_component(tmp_path):
+    ast = ASTBundle(
+        result=CompilerResult(
+            root=CompositionIR(
+                root=IRNode(
+                    id="root",
+                    primitive="root",
+                    props={"product_role": "app_shell"},
+                    provenance=Provenance(intent_refs=["viewspec:view:tailwind"]),
+                    children=[
+                        IRNode(
+                            id="metrics",
+                            primitive="grid",
+                            props={"columns": 2, "motif_kind": "dashboard", "product_role": "metric_grid"},
+                            provenance=Provenance(intent_refs=["viewspec:motif:metrics"]),
+                            children=[
+                                IRNode(
+                                    id="metric-card",
+                                    primitive="surface",
+                                    props={"motif_kind": "dashboard", "product_role": "metric_card"},
+                                    provenance=Provenance(intent_refs=["viewspec:motif:metrics"]),
+                                    children=[
+                                        IRNode(id="label", primitive="label", props={"text": "Open"}),
+                                        IRNode(id="value", primitive="value", props={"text": "18"}),
+                                    ],
+                                )
+                            ],
+                        ),
+                        IRNode(
+                            id="send",
+                            primitive="button",
+                            props={
+                                "text": "Send",
+                                "action_id": "send",
+                                "action_kind": "submit",
+                                "target_ref": "view:tailwind",
+                                "payload_bindings": [],
+                            },
+                            provenance=Provenance(intent_refs=["viewspec:action:send"]),
+                        ),
+                    ],
+                )
+            ),
+            diagnostics=[],
+        ),
+        style_values={},
+        title="Tailwind Test",
+    )
+
+    paths = ReactTailwindTsxEmitter().emit(ast, tmp_path)
+    tsx = tmp_path.joinpath("ViewSpecView.tsx").read_text(encoding="utf-8")
+    manifest = json.loads(tmp_path.joinpath("provenance_manifest.json").read_text(encoding="utf-8"))
+
+    assert paths["tsx"].endswith("ViewSpecView.tsx")
+    assert 'source: "viewspec-react-tailwind-tsx"' in tsx
+    assert 'className="min-h-screen bg-slate-50 px-6 py-6 text-slate-950 sm:px-8"' in tsx
+    assert "className={" not in tsx
+    assert "style={{" not in tsx
+    assert ".join(" not in tsx
+    assert "dangerouslySetInnerHTML" not in tsx
+    assert manifest["dom-root"]["recipe_pack"] == TAILWIND_RECIPE_PACK
+    assert manifest["dom-root"]["recipe_key"] == "app_role:app_shell"
+    assert manifest["dom-root"]["app_role"] == "app_shell"
+    assert manifest["dom-metrics"]["recipe_key"] == "app_role:metric_grid"
+    assert "grid-cols-1" in manifest["dom-metrics"]["classes"]
+    registry_tokens = {token for value in RECIPE_BY_KEY.values() for token in value.split()}
+    assert set(manifest["dom-root"]["classes"]).issubset(registry_tokens)
+
+
+def test_react_tailwind_tsx_emitter_rejects_user_app_role_before_writing(tmp_path):
+    ast = ASTBundle(
+        result=CompilerResult(
+            root=CompositionIR(
+                root=IRNode(
+                    id="root",
+                    primitive="root",
+                    props={"app_role": "sidebar_nav"},
+                    provenance=Provenance(intent_refs=["viewspec:view:unsafe_app_role"]),
+                )
+            ),
+            diagnostics=[],
+        ),
+        style_values={},
+        title="Unsafe App Role",
+    )
+    output = tmp_path / "tailwind"
+
+    with pytest.raises(ValueError, match="APP_ROLE_LEXICAL_SOURCE"):
+        ReactTailwindTsxEmitter().emit(ast, output)
+
+    assert not output.exists()
+
+
+def test_react_tailwind_tsx_constraint_errors_have_stable_codes(tmp_path):
+    ast = ASTBundle(
+        result=CompilerResult(
+            root=CompositionIR(
+                root=IRNode(
+                    id="root",
+                    primitive="root",
+                    children=[IRNode(id="grid", primitive="grid", props={"columns": 9})],
+                    provenance=Provenance(intent_refs=["viewspec:view:bad_grid"]),
+                )
+            ),
+            diagnostics=[],
+        ),
+        style_values={},
+        title="Bad Grid",
+    )
+
+    with pytest.raises(CompilerConstraintError) as exc_info:
+        ReactTailwindTsxEmitter().emit(ast, tmp_path)
+
+    assert exc_info.value.code == "TAILWIND_LIMIT_EXCEEDED_GRID_COLUMNS"
+    assert not tmp_path.joinpath("ViewSpecView.tsx").exists()
 
 
 def test_react_tsx_emitter_rejects_invalid_ir_before_writing(tmp_path):

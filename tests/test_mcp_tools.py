@@ -370,6 +370,47 @@ def test_intent_mcp_compile_can_emit_checked_react_tsx_artifact(tmp_path):
     ]
 
 
+def test_intent_mcp_compile_can_emit_checked_react_tailwind_tsx_artifact(tmp_path):
+    intent_path = tmp_path / "viewspec.intent.json"
+    intent_path.write_text(json.dumps(_bundle_with_input_action_json()), encoding="utf-8")
+
+    compiled = compile_intent_bundle_file_tool(
+        "viewspec.intent.json",
+        "react-tailwind-dist",
+        target="react-tailwind-tsx",
+        cwd=tmp_path,
+    )
+    assert_tool_schema(compiled)
+    assert compiled["ok"] is True
+    assert compiled["metadata"]["target"] == "react-tailwind-tsx"
+    assert compiled["metadata"]["emitter"] == "react_tailwind_tsx"
+    assert compiled["metadata"]["artifact_check"] == "passed"
+    assert compiled["paths"]["tsx"].endswith("ViewSpecView.tsx")
+    assert (tmp_path / "react-tailwind-dist/ViewSpecView.tsx").exists()
+    assert (tmp_path / "react-tailwind-dist/index.html").exists() is False
+    assert check_artifact_tool("react-tailwind-dist", cwd=tmp_path)["ok"] is True
+
+    tsx = (tmp_path / "react-tailwind-dist/ViewSpecView.tsx").read_text(encoding="utf-8")
+    manifest = json.loads((tmp_path / "react-tailwind-dist/provenance_manifest.json").read_text(encoding="utf-8"))
+
+    assert 'source: "viewspec-react-tailwind-tsx"' in tsx
+    assert "payloadValues: collectPayloadValues" in tsx
+    assert "className={" not in tsx
+    assert manifest["emitter"] == "react_tailwind_tsx"
+    assert manifest["artifact_file"] == "ViewSpecView.tsx"
+    assert manifest["artifact_hash"] == file_hash(tmp_path / "react-tailwind-dist/ViewSpecView.tsx")
+    assert manifest["tailwind_recipe_inventory"]["recipe_pack"] == "tailwind_app_v1"
+    assert manifest["command_args"] == [
+        "viewspec",
+        "compile",
+        "viewspec.intent.json",
+        "--target",
+        "react-tailwind-tsx",
+        "--out",
+        "<out>",
+    ]
+
+
 def test_check_rejects_tampered_react_tsx_artifact_source(tmp_path):
     intent_path = tmp_path / "viewspec.intent.json"
     intent_path.write_text(json.dumps(_bundle_with_input_action_json()), encoding="utf-8")
@@ -1223,6 +1264,7 @@ def test_mcp_raw_html_tool_descriptions_are_import_only():
     assert "Compile a ViewSpec IntentBundle JSON file into a local compiler artifact" in text
     assert "target='html-tailwind' for checked standalone HTML" in text
     assert "target='react-tsx' for checked React source" in text
+    assert "target='react-tailwind-tsx' for checked React source with closed Tailwind recipes" in text
     assert "Verify exported local ViewSpec agent contract assets against the current SDK." in text
     assert "Export the local ViewSpec agent system prompt, IntentBundle JSON schema" in text
     assert "valid starter IntentBundle example, and asset manifest without network calls." in text
