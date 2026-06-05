@@ -1,0 +1,26 @@
+{
+  "name": "viewspec-react-tailwind-host-proof",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "prepare:artifact": "node scripts/prepare-artifact.mjs",
+    "build": "vite build",
+    "preview": "vite preview --host 127.0.0.1 --port 4177 --strictPort",
+    "test": "playwright test",
+    "verify": "node scripts/verify.mjs"
+  },
+  "dependencies": {
+    "@tailwindcss/vite": "4.3.0",
+    "@vitejs/plugin-react": "6.0.2",
+    "react": "19.2.7",
+    "react-dom": "19.2.7",
+    "tailwindcss": "4.3.0",
+    "vite": "8.0.16"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.60.0",
+    "@types/react": "19.2.16",
+    "@types/react-dom": "19.2.3",
+    "typescript": "6.0.3"
+  }
+}

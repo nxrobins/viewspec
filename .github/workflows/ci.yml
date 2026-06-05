@@ -50,3 +50,34 @@ jobs:
 
       - name: Build wheel
         run: python -m pip wheel . --no-deps
+
+  react_tailwind_host:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Install package
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install ".[dev,remote]"
+
+      - name: Install host proof dependencies
+        working-directory: tests/react-tailwind-host
+        run: npm ci
+
+      - name: Install Chromium
+        working-directory: tests/react-tailwind-host
+        run: npx playwright install --with-deps chromium
+
+      - name: React Tailwind host proof
+        working-directory: tests/react-tailwind-host
+        run: npm run verify
