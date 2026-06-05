@@ -12,6 +12,7 @@ The free SDK is the local Python package under `src/viewspec`. Its supported rel
 - local `DESIGN.md` parsing for shared offline tokens
 - mocked hosted fallback client behavior through `compile_remote()` and `compile_auto()`
 - landing-page payload compatibility with `IntentBundle.from_json()`
+- React Tailwind TSX host proof through an isolated Vite/Tailwind/Playwright fixture
 
 The canonical hosted compiler domain is `https://api.viewspec.dev`. Fly deployment URLs are internal implementation details and should not be used in SDK defaults or public docs.
 
@@ -42,9 +43,17 @@ node tests/landing_payload_smoke.mjs
 node tests/landing_config_smoke.mjs
 node tests/seo_static_smoke.mjs
 python -m pip wheel . --no-deps
+cd tests/react-tailwind-host
+npm ci
+npx playwright install --with-deps chromium
+npm run verify
 ```
 
-The workflow sets up Node.js explicitly with `actions/setup-node@v4` before the landing payload smoke test.
+The workflow sets up Node.js explicitly with `actions/setup-node@v4` before the landing payload smoke test and React Tailwind host proof.
+
+## Constraints & Fallbacks
+
+The React Tailwind host proof is a fail-closed CI gate: it must delete and regenerate the component during the same run, run `viewspec check` before build, import exactly that checked artifact, use `npm ci` from a checked lockfile, and fail on stale artifacts, hash drift, skipped checks, tracked generated files, console/page errors, or any forbidden host CSS. The fixture is intentionally bounded: host CSS is capped to Tailwind import/source plus root sizing/reset, fixture source is capped to 12 tracked non-lock files and 40KB, prep/build/preview/test phases time out at 30s/60s/20s/30s, and docs must describe this as a host proof rather than pixel-perfect visual equivalence.
 
 ## Deferred Gate
 
