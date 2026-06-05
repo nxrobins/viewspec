@@ -244,6 +244,8 @@ It writes `ViewSpecView.tsx`, `provenance_manifest.json`, and `diagnostics.json`
 
 For Tailwind host apps, use `--target react-tailwind-tsx`. This emits the same source artifact file with literal utility classes from the closed `tailwind_app_v1` recipe registry; agents still edit only IntentBundle JSON.
 
+The ViewSpec repo also CI-gates one bounded React/Vite/Tailwind host proof for this target: a representative fixture is regenerated, checked, mounted, built, and smoke-tested in Chromium for DOM, Tailwind-produced styles, and action payloads. That proof is not a per-artifact rendering certification for arbitrary user output; `viewspec check` remains the local source-artifact and provenance gate unless a host app adds its own render tests.
+
 ## Motif Types
 
 | Builder | Motif | Use case |

@@ -238,6 +238,8 @@ The MCP `compile_intent_bundle_file` tool accepts the same target as `target: "r
 
 For Tailwind host apps, use `--target react-tailwind-tsx` or MCP `target: "react-tailwind-tsx"`. Tailwind utility classes are closed compiler recipes; agents must still edit only the IntentBundle.
 
+The public repo includes an isolated host proof for one representative React/Tailwind fixture, but agent workflows should not treat that as per-artifact rendering certification. For arbitrary outputs, the required local gate is still validate, compile, and `viewspec check`; host apps may add their own render tests around the generated component.
+
 
 ## Optional Reference Grounding
 
