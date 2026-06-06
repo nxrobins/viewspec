@@ -15,6 +15,7 @@ from viewspec.design_md import DesignSystemContext, DesignSystemError, load_desi
 from viewspec.emitters.html_tailwind import HtmlTailwindEmitter
 from viewspec.emitters.react_tailwind_tsx import ReactTailwindTsxEmitter
 from viewspec.emitters.react_tsx import ReactTsxEmitter
+from viewspec.host_verify import HOST_VERIFY_TARGET, verify_host_artifact_dir, verify_host_intent_file
 from viewspec.intent_tools import (
     STARTER_INTENT_KINDS,
     diff_intent_files,
@@ -141,6 +142,18 @@ def _build_parser() -> argparse.ArgumentParser:
     check_parser.add_argument("artifact_dir", help="Directory containing provenance_manifest.json and generated artifact output.")
     check_parser.add_argument("--json", action="store_true", help="Print machine-readable JSON.")
     check_parser.set_defaults(func=_check_command)
+
+    verify_host_parser = subparsers.add_parser("verify-host", help="Verify a React Tailwind artifact in a bounded host app.")
+    verify_host_parser.add_argument("artifact_dir", nargs="?", help="Checked react-tailwind-tsx artifact directory.")
+    verify_host_parser.add_argument("--intent", help="IntentBundle JSON file to compile before host verification.")
+    verify_host_parser.add_argument("--out", help="Output artifact directory for --intent compile mode.")
+    verify_host_parser.add_argument("--design", help="Optional DESIGN.md file to apply in --intent compile mode.")
+    verify_host_parser.add_argument("--strict-design", action="store_true", help="Fail on DESIGN.md warnings as well as errors.")
+    verify_host_parser.add_argument("--target", default=HOST_VERIFY_TARGET, choices=(HOST_VERIFY_TARGET,), help="Host verification target.")
+    verify_host_parser.add_argument("--install", action="store_true", help="Run npm ci --ignore-scripts in the isolated host template.")
+    verify_host_parser.add_argument("--report-out", help="Optional JSON proof report output path.")
+    verify_host_parser.add_argument("--json", action="store_true", help="Print machine-readable JSON.")
+    verify_host_parser.set_defaults(func=_verify_host_command)
 
     init_agent_parser = subparsers.add_parser("init-agent", help="Install managed ViewSpec instructions for coding agents.")
     init_agent_parser.add_argument("--target", required=True, choices=VALID_TARGETS, help="Agent instruction target to update.")
@@ -471,6 +484,40 @@ def _check_command(args: argparse.Namespace) -> int:
             print(f"error: {error}")
         for warning in result["warnings"]:
             print(f"warning: {warning}")
+    return 0 if result["ok"] else 2
+
+
+def _verify_host_command(args: argparse.Namespace) -> int:
+    compile_mode = args.intent is not None or args.out is not None
+    if compile_mode:
+        if args.artifact_dir is not None or args.intent is None or args.out is None:
+            raise ValueError("verify-host compile mode requires --intent and --out, with no positional artifact_dir")
+        result = verify_host_intent_file(
+            args.intent,
+            args.out,
+            design_path=args.design,
+            strict_design=bool(args.strict_design),
+            target=args.target,
+            install=bool(args.install),
+            report_out=args.report_out,
+        )
+    else:
+        if args.artifact_dir is None:
+            raise ValueError("verify-host requires ARTIFACT_DIR or --intent with --out")
+        if args.design or args.strict_design:
+            raise ValueError("--design and --strict-design are only valid with --intent compile mode")
+        result = verify_host_artifact_dir(
+            args.artifact_dir,
+            target=args.target,
+            install=bool(args.install),
+            report_out=args.report_out,
+        )
+    if args.json:
+        print(json.dumps(result, indent=2, sort_keys=True))
+    else:
+        print("ok" if result["ok"] else "failed")
+        for error in result["errors"]:
+            print(f"error: {error['code']}: {error['message']}")
     return 0 if result["ok"] else 2
 
 

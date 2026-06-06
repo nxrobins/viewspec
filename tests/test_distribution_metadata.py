@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import tomllib
+from importlib import resources
 from pathlib import Path
 
 
@@ -21,3 +22,22 @@ def test_package_metadata_exposes_expected_cli_and_optional_extras():
     assert "build>=1.2" in extras["dev"]
     assert "pytest>=8.0" in extras["dev"]
     assert "ruff>=0.4" in extras["dev"]
+
+
+def test_host_verify_template_resources_are_packaged():
+    root = resources.files("viewspec.host_verify_template")
+    required = [
+        "package.json",
+        "package-lock.json",
+        "vite.config.ts",
+        "playwright.config.ts",
+        "tsconfig.json",
+        "index.html",
+        "src/App.tsx",
+        "src/main.tsx",
+        "src/index.css",
+        "tests/host-verify.spec.ts",
+    ]
+
+    for rel in required:
+        assert root.joinpath(*rel.split("/")).is_file(), rel

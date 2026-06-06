@@ -240,6 +240,8 @@ For Tailwind host apps, use `--target react-tailwind-tsx` or MCP `target: "react
 
 The public repo includes an isolated host proof for one representative React/Tailwind fixture, but agent workflows should not treat that as per-artifact rendering certification. For arbitrary outputs, the required local gate is still validate, compile, and `viewspec check`; host apps may add their own render tests around the generated component.
 
+Agents may run `viewspec verify-host react-tailwind-output/ --target react-tailwind-tsx --install --json`, or MCP `verify_host`, when the user wants a bounded per-artifact React/Vite/Tailwind runtime proof. This verifier checks the exact artifact first, copies only the checked generated files into ViewSpec's isolated reference host, and does not claim compatibility with arbitrary host apps.
+
 
 ## Optional Reference Grounding
 

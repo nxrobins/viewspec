@@ -13,6 +13,7 @@ from viewspec.intent_tools import (
     init_intent_tool,
     validate_intent_bundle_file_tool,
 )
+from viewspec.host_verify import verify_host_tool
 from viewspec.local_tools import (
     check_artifact_tool,
     check_agent_assets_tool,
@@ -134,6 +135,35 @@ def run_mcp_server(*, cwd: str | Path | None = None, allow_outside_cwd: bool = F
     @app.tool(description="Validate a compiled ViewSpec artifact directory and manifest hashes.")
     def check_artifact(artifact_dir: str) -> dict[str, Any]:
         return check_artifact_tool(artifact_dir, cwd=root, allow_outside_cwd=allow_outside_cwd)
+
+    @app.tool(
+        description=(
+            "Verify a checked react-tailwind-tsx artifact in ViewSpec's bounded React/Vite/Tailwind host. "
+            "Use install=True only when the user explicitly permits npm ci --ignore-scripts."
+        )
+    )
+    def verify_host(
+        artifact_dir: str | None = None,
+        intent_path: str | None = None,
+        out_dir: str | None = None,
+        design_path: str | None = None,
+        strict_design: bool = False,
+        target: str = "react-tailwind-tsx",
+        install: bool = False,
+        report_out: str | None = None,
+    ) -> dict[str, Any]:
+        return verify_host_tool(
+            artifact_dir,
+            intent_path=intent_path,
+            out_dir=out_dir,
+            design_path=design_path,
+            strict_design=strict_design,
+            target=target,
+            install=install,
+            report_out=report_out,
+            cwd=root,
+            allow_outside_cwd=allow_outside_cwd,
+        )
 
     @app.tool(description="Verify exported local ViewSpec agent contract assets against the current SDK.")
     def check_agent_assets(asset_dir: str = ".viewspec") -> dict[str, Any]:
