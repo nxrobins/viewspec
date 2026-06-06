@@ -517,6 +517,7 @@ def test_intent_mcp_invalid_intent_returns_stable_error_and_correction_prompt(tm
     assert result["errors"][0]["code"] == "INVALID_PAYLOAD"
     assert "correction_prompt" in result
     assert "Output strict JSON only" in result["correction_prompt"]
+    assert result["validation"]["repair_checklist"]
 
 
 def test_intent_mcp_refuses_input_overwrite_before_design_load(tmp_path):

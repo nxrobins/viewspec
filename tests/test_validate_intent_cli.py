@@ -37,6 +37,7 @@ def test_validate_intent_valid_bundle_exits_zero_and_returns_json(tmp_path, caps
         "ok": True,
         "compile_check": "passed",
         "issues": [],
+        "repair_checklist": [],
         "correction_prompt": None,
     }
 
@@ -64,6 +65,8 @@ def test_validate_intent_rejects_non_intent_payloads(tmp_path, capsys, text, cod
     assert any(issue["code"] == code for issue in payload["issues"])
     assert all(issue["suggestion"] for issue in payload["issues"])
     assert payload["correction_prompt"]
+    assert payload["repair_checklist"]
+    assert any("Regenerate the full IntentBundle" in item for item in payload["repair_checklist"])
     assert "Output strict JSON only" in payload["correction_prompt"]
     assert "Do not patch fragments" in payload["correction_prompt"]
 
@@ -87,6 +90,7 @@ def test_validate_intent_rejects_non_strict_json(tmp_path, capsys, text, expecte
     assert payload["ok"] is False
     assert payload["issues"][0]["code"] == "INVALID_JSON"
     assert expected_message in payload["issues"][0]["message"]
+    assert payload["repair_checklist"]
     assert payload["correction_prompt"]
 
 
@@ -99,6 +103,7 @@ def test_validate_intent_no_compile_check_returns_skipped(tmp_path, capsys):
 
     assert payload["ok"] is True
     assert payload["compile_check"] == "skipped"
+    assert payload["repair_checklist"] == []
 
 
 def test_public_intent_sdk_helpers_are_root_exports(tmp_path):

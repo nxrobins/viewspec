@@ -19,6 +19,7 @@ from viewspec import (
     SUPPORTED_AGENT_STYLE_TOKENS,
     ViewSpecBuilder,
     agent_correction_prompt,
+    agent_repair_checklist,
     export_agent_assets,
     starter_intent_bundle,
     validate_agent_intent_bundle,
@@ -817,11 +818,15 @@ def test_correction_prompt_is_actionable_issue_json():
     payload["substrate"]["nodes"] = []
     result = validate_agent_intent_bundle(payload)
     prompt = agent_correction_prompt(result)
+    report = json.loads(prompt.splitlines()[-1])
 
     assert "Output strict JSON only" in prompt
     assert "Do not patch fragments" in prompt
     assert "NODES_MUST_BE_OBJECT" in prompt
     assert "suggestion" in prompt
+    assert report["repair_mode"] == "regenerate_full_intent_bundle"
+    assert report["retry_command"] == "viewspec validate-intent viewspec.intent.json --json"
+    assert any("required local V1" in item for item in report["repair_checklist"])
     assert "```" not in prompt
     assert len(prompt.splitlines()) < 30
 
@@ -841,5 +846,21 @@ def test_correction_prompt_is_bounded_and_all_issue_json_has_suggestions():
     assert report["shown_issue_count"] == MAX_AGENT_CORRECTION_PROMPT_ISSUES
     assert report["truncated"] is True
     assert len(report["issues"]) == MAX_AGENT_CORRECTION_PROMPT_ISSUES
+    assert 1 <= len(report["repair_checklist"]) <= 8
     assert all(issue["suggestion"] for issue in report["issues"])
     assert all(issue.to_json()["suggestion"] for issue in result.issues)
+
+
+def test_agent_repair_checklist_maps_issue_families():
+    payload = _bundle_for_motif("dashboard")
+    payload["view_spec"]["motifs"][0]["members"] = []
+    payload["view_spec"]["bindings"][0]["address"] = "bad/address"
+
+    result = validate_agent_intent_bundle(payload)
+    checklist = agent_repair_checklist(result)
+
+    assert not result.valid
+    assert any("canonical node addresses" in item for item in checklist)
+    assert any("semantically complete" in item for item in checklist)
+    assert checklist[-1] == "Regenerate the full IntentBundle, then rerun viewspec validate-intent before compiling."
+    assert len(checklist) <= 8

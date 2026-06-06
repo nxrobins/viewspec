@@ -76,6 +76,7 @@ from viewspec.agent import (
     AgentValidationIssue,
     AgentValidationResult,
     agent_correction_prompt,
+    agent_repair_checklist,
     validate_agent_intent_bundle,
 )
 from viewspec.agent_assets import (
@@ -176,6 +177,7 @@ __all__ = [
     "AgentValidationIssue",
     "AgentValidationResult",
     "agent_correction_prompt",
+    "agent_repair_checklist",
     "agent_asset_readiness",
     "check_agent_assets",
     "export_agent_assets",
