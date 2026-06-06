@@ -28,6 +28,15 @@
     "intentBundleExample": "https://viewspec.dev/agent-intent-example.dashboard.json",
     "agentDocs": "https://github.com/nxrobins/viewspec/blob/main/docs/agent-integration.md"
   },
+  "x-viewspec-public-facts": {
+    "manifest": "https://viewspec.dev/public-facts.json",
+    "sdkVersion": "0.3.0b1",
+    "proPriceUsdMonth": 149,
+    "proHostedCompileCallsPerDay": 10000,
+    "firstProofCommand": "viewspec prove --out .viewspec-proof",
+    "proofSummaryFile": ".viewspec-proof/PROOF.md",
+    "proofReportFile": ".viewspec-proof/proof_report.json"
+  },
   "paths": {
     "/v1/compile": {
       "post": {

@@ -35,6 +35,7 @@ from viewspec.local_tools import (
     init_design_file,
     source_hash,
 )
+from viewspec.prove import PROVE_DEFAULT_OUT, prove
 from viewspec.mcp_server import MCP_INSTALL_HINT, MissingMCPDependency, mcp_dependency_available, run_mcp_server
 from viewspec.native_agents import NativeAgentError, VALID_TARGETS, init_agent_instructions
 from viewspec.raw_html import HtmlInputError, compile_html, diff_html, lift_html, write_html_compile_result
@@ -137,6 +138,24 @@ def _build_parser() -> argparse.ArgumentParser:
     doctor_parser = subparsers.add_parser("doctor", help="Check local ViewSpec SDK readiness.")
     doctor_parser.add_argument("--agents", action="store_true", help="Also check native agent integration readiness.")
     doctor_parser.set_defaults(func=_doctor_command)
+
+    prove_parser = subparsers.add_parser("prove", help="Run a first ViewSpec proof and write a proof bundle.")
+    prove_parser.add_argument("--intent", help="Optional existing IntentBundle JSON file.")
+    prove_parser.add_argument("--out", default=PROVE_DEFAULT_OUT, help="Proof workspace output directory.")
+    prove_parser.add_argument("--design", help="Optional DESIGN.md file to apply locally.")
+    prove_parser.add_argument("--strict-design", action="store_true", help="Fail on DESIGN.md warnings as well as errors.")
+    prove_parser.add_argument(
+        "--target",
+        default="html-tailwind",
+        choices=("html-tailwind", "react-tsx", "react-tailwind-tsx"),
+        help="Proof target. html-tailwind is Python-only; react-tailwind-tsx can also run the bounded host proof.",
+    )
+    prove_parser.add_argument("--kind", default="dashboard", choices=STARTER_INTENT_KINDS, help="Starter motif kind when --intent is omitted.")
+    prove_parser.add_argument("--install", action="store_true", help="Allow npm ci --ignore-scripts for react-tailwind-tsx host proof.")
+    prove_parser.add_argument("--force", action="store_true", help="Replace an existing proof output directory after safety checks.")
+    prove_parser.add_argument("--report-out", help="Optional JSON proof report path. Defaults to <out>/proof_report.json.")
+    prove_parser.add_argument("--json", action="store_true", help="Print machine-readable JSON.")
+    prove_parser.set_defaults(func=_prove_command)
 
     check_parser = subparsers.add_parser("check", help="Validate a local ViewSpec artifact directory.")
     check_parser.add_argument("artifact_dir", help="Directory containing provenance_manifest.json and generated artifact output.")
@@ -390,12 +409,13 @@ def _doctor_command(args: argparse.Namespace) -> int:
             "diff_intent": True,
             "compile": True,
             "check": True,
+            "prove": True,
             "check_agent_assets": True,
             "init_design": True,
             "export_agent_assets": True,
         },
         "intent_pipeline": intent_pipeline,
-        "local_network_policy": "no network calls for validate-intent/compile/lift/diff/diff-intent/check/check-agent-assets/init-intent/init-design/export-agent-assets",
+        "local_network_policy": "no network calls for validate-intent/compile/lift/diff/diff-intent/check/prove/check-agent-assets/init-intent/init-design/export-agent-assets by default",
     }
     if args.agents:
         checks.update(
@@ -455,6 +475,35 @@ def _doctor_checks_ok(value: object) -> bool:
     if isinstance(value, list):
         return all(_doctor_checks_ok(item) for item in value)
     return True
+
+
+def _prove_command(args: argparse.Namespace) -> int:
+    result = prove(
+        intent_path=args.intent,
+        out_dir=args.out,
+        design_path=args.design,
+        strict_design=bool(args.strict_design),
+        target=args.target,
+        kind=args.kind,
+        install=bool(args.install),
+        force=bool(args.force),
+        report_out=args.report_out,
+    )
+    if args.json:
+        print(json.dumps(result, indent=2, sort_keys=True))
+    else:
+        print("ok" if result["ok"] else "failed")
+        print(f"proof_level: {result['proof_level']}")
+        for key, value in result.get("paths", {}).items():
+            if value:
+                print(f"{key}: {value}")
+        for error in result["errors"]:
+            print(f"error: {error['code']}: {error['message']}")
+    if result["ok"]:
+        return 0
+    if any(error.get("code") == "PROVE_INTERNAL_ERROR" for error in result["errors"]):
+        return 1
+    return 2
 
 
 def _doctor_local_agent_assets(path: Path) -> dict[str, object]:

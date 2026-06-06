@@ -8,6 +8,16 @@ ViewSpec's primary workflow is agent-native UI intent. Your agent writes `Intent
 pip install viewspec
 ```
 
+## First Proof
+
+Run the one-command proof path before learning the full workflow:
+
+```bash
+viewspec prove --out .viewspec-proof
+```
+
+This writes a starter `viewspec.intent.json`, starter `DESIGN.md`, checked artifact output, human-readable `PROOF.md`, and machine-readable `proof_report.json` under `.viewspec-proof/`. The default proof is Python-only and no-network; it proves source artifact integrity and provenance. ViewSpec prove is not pixel-perfect visual regression, accessibility certification, arbitrary host-app certification, or hosted compiler publish automation.
+
 ## Agent Intent First
 
 For new UI, make the agent create `viewspec.intent.json` and run:
@@ -122,6 +132,7 @@ Run the same bounded proof for a specific artifact with:
 
 ```bash
 viewspec verify-host react-tailwind-output/ --target react-tailwind-tsx --install --json
+viewspec prove --target react-tailwind-tsx --install --out .viewspec-proof --json
 ```
 
 `--install` opts into `npm ci --ignore-scripts` inside the isolated reference host. Without it, the command stays no-install and fails fast when host dependencies are absent.

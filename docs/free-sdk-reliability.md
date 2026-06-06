@@ -14,6 +14,7 @@ The free SDK is the local Python package under `src/viewspec`. Its supported rel
 - landing-page payload compatibility with `IntentBundle.from_json()`
 - React Tailwind TSX host proof through an isolated Vite/Tailwind/Playwright fixture
 - per-artifact React Tailwind host verification through `viewspec verify-host`
+- first-run proof orchestration through `viewspec prove`
 
 The canonical hosted compiler domain is `https://api.viewspec.dev`. Fly deployment URLs are internal implementation details and should not be used in SDK defaults or public docs.
 
@@ -57,6 +58,10 @@ The workflow sets up Node.js explicitly with `actions/setup-node@v4` before the 
 The React Tailwind host proof is a fail-closed CI gate: it must delete and regenerate the component during the same run, run `viewspec check` before build, import exactly that checked artifact, use `npm ci` from a checked lockfile, and fail on stale artifacts, hash drift, skipped checks, tracked generated files, console/page errors, or any forbidden host CSS. The fixture is intentionally bounded: host CSS is capped to Tailwind import/source plus root sizing/reset, fixture source is capped to 12 tracked non-lock files and 40KB, prep/build/preview/test phases time out at 30s/60s/20s/30s, and docs must describe this as a host proof rather than pixel-perfect visual equivalence.
 
 The public host verifier preserves the same fail-closed boundary for one artifact at a time: it runs in a fresh temporary host directory, copies only `ViewSpecView.tsx`, `provenance_manifest.json`, and `diagnostics.json`, requires `--install` before running `npm ci --ignore-scripts`, and returns exact `HOST_VERIFY_*` codes instead of treating missing Node, npm, browser, styles, DOM, or action payload checks as soft failures.
+
+`viewspec prove` preserves the local-first boundary by default: the `html-tailwind` proof performs no package-manager or SDK network calls, writes a bounded proof workspace, compiles through the same public tool path as `viewspec compile`, runs artifact checks, and records `PROOF.md` for humans plus `proof_report.json` for tools. The React Tailwind proof may opt into `npm ci --ignore-scripts` only when `--install` is passed.
+
+Public pricing, version, hosted-call, API, package, and proof-scope facts live in `demos/public-facts.json`; the static smoke test fails with `PUBLIC_FACTS_DRIFT` if README, landing, LLM, OpenAPI, or version metadata disagree with it.
 
 ## Deferred Gate
 
