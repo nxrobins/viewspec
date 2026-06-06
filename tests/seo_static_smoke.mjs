@@ -83,6 +83,7 @@ for (const publicTextPath of ['README.md', 'docs/getting-started.md', 'demos/llm
   const text = await readFile(publicTextPath, 'utf8')
   assertPublicText(text, publicFacts.proof.first_proof_command, `${publicTextPath} first proof`)
   assertPublicText(text, 'PROOF.md', `${publicTextPath} proof summary`)
+  assertPublicText(text, 'proof-bundle.md', `${publicTextPath} proof guide`)
   assertPublicText(text, publicFacts.proof.non_claim.split(',')[0], `${publicTextPath} proof scope`)
 }
 

@@ -92,6 +92,22 @@ def test_first_proof_is_public_and_bounded():
         assert "PROOF.md" in text, path
         assert "pixel-perfect visual" in text, path
 
+    proof_bundle = root.joinpath("docs/proof-bundle.md").read_text(encoding="utf-8")
+    for expected in [
+        "Status",
+        "Proof level",
+        "Claim",
+        "Hashes",
+        "Checks",
+        "Host Verification",
+        "Policy",
+        "Errors",
+        "repair_checklist",
+        "proof_report.json",
+        "not pixel-perfect visual regression",
+    ]:
+        assert expected in proof_bundle
+
     getting_started = root.joinpath("docs/getting-started.md").read_text(encoding="utf-8")
     assert getting_started.index("viewspec prove --out .viewspec-proof") < getting_started.index("viewspec init-intent --out viewspec.intent.json")
 

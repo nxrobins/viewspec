@@ -40,7 +40,7 @@ Avoid describing ViewSpec as a no-code page builder, CSS framework, React compon
 
 ## Launch Proof
 
-The first adoption path is agent-native intent: `viewspec prove --out .viewspec-proof` for a first local proof bundle with `.viewspec-proof/PROOF.md` for humans and `.viewspec-proof/proof_report.json` for tools, or `viewspec init-intent` when a scaffold is useful, then `viewspec validate-intent`, `viewspec compile`, and `viewspec check`.
+The first adoption path is agent-native intent: `viewspec prove --out .viewspec-proof` for a first local proof bundle with `.viewspec-proof/PROOF.md` for humans and `.viewspec-proof/proof_report.json` for tools, or `viewspec init-intent` when a scaffold is useful, then `viewspec validate-intent`, `viewspec compile`, and `viewspec check`. Use `docs/proof-bundle.md` to interpret proof status, hashes, checks, and failure codes.
 
 The May 6 launch proof remains one agent-authored hosted-extended IntentBundle compiled to HTML/Tailwind, React TSX, SwiftUI, and Flutter. Its artifact index declares `contract_profile: "hosted_extended_v1"` because it includes hosted-only inputs, rules, projections, and mobile emitters beyond the local V1 `validate-intent` contract. Feature demos cover custom motif authoring and interactive compose with inputs, rules, and submit payloads.
 
