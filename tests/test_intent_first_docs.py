@@ -63,6 +63,7 @@ def test_claude_code_skill_matches_native_agent_workflow():
     assert "viewspec compile viewspec.intent.json --design DESIGN.md --target react-tsx --out react-output/" in text
     assert "viewspec compile viewspec.intent.json --design DESIGN.md --target react-tailwind-tsx --out react-tailwind-output/" in text
     assert "viewspec check react-output/" in text
+    assert "viewspec verify-host react-tailwind-output/ --target react-tailwind-tsx --install --json" in text
     assert "viewspec doctor --agents" in text
     assert "viewspec export-agent-assets --out .viewspec" in text
     assert "viewspec check-agent-assets .viewspec --json" in text

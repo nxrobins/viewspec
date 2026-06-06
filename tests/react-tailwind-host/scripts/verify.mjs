@@ -2,7 +2,7 @@ import { spawn } from "node:child_process";
 import { createHash, randomUUID } from "node:crypto";
 import { existsSync, readFileSync, statSync } from "node:fs";
 import { readdir, readFile, rm } from "node:fs/promises";
-import { dirname, join, relative, resolve, sep } from "node:path";
+import { delimiter, dirname, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const scriptDir = dirname(fileURLToPath(import.meta.url));
@@ -11,6 +11,7 @@ const repoRoot = resolve(fixtureRoot, "../..");
 const fixtureRel = "tests/react-tailwind-host";
 const generatedRel = `${fixtureRel}/src/generated`;
 const markerPath = join(fixtureRoot, ".tmp", "host-proof-check.json");
+const reportPath = join(fixtureRoot, ".tmp", "host-verify-report.json");
 const npm = "npm";
 
 function fail(code, message) {
@@ -53,6 +54,59 @@ function runPhase(name, args, timeoutMs, env = {}) {
       clearTimeout(timer);
       if (status !== 0) process.exit(status ?? 1);
       resolveRun();
+    });
+  });
+}
+
+function pythonCommand() {
+  if (process.env.PYTHON) return process.env.PYTHON;
+  const local = join(repoRoot, ".venv", process.platform === "win32" ? "Scripts/python.exe" : "bin/python");
+  return existsSync(local) ? local : "python";
+}
+
+function pythonEnv() {
+  const src = join(repoRoot, "src");
+  return { ...process.env, PYTHONPATH: process.env.PYTHONPATH ? `${src}${delimiter}${process.env.PYTHONPATH}` : src };
+}
+
+function runHostVerify(timeoutMs) {
+  return new Promise((resolveRun) => {
+    const child = spawn(
+      pythonCommand(),
+      [
+        "-m",
+        "viewspec.cli",
+        "verify-host",
+        join(fixtureRoot, "src", "generated"),
+        "--target",
+        "react-tailwind-tsx",
+        "--install",
+        "--json",
+        "--report-out",
+        reportPath,
+      ],
+      {
+        cwd: repoRoot,
+        env: pythonEnv(),
+        stdio: ["ignore", "pipe", "pipe"],
+      },
+    );
+    let stdout = "";
+    let stderr = "";
+    const timer = setTimeout(() => {
+      child.kill();
+      fail("HOST_PROOF_TIMEOUT", `verify-host exceeded ${timeoutMs}ms`);
+    }, timeoutMs);
+    child.stdout.on("data", (chunk) => (stdout += chunk));
+    child.stderr.on("data", (chunk) => (stderr += chunk));
+    child.on("error", (error) => {
+      clearTimeout(timer);
+      fail("HOST_PROOF_CI_SOFT_GATE", error.message);
+    });
+    child.on("exit", (status) => {
+      clearTimeout(timer);
+      if (status !== 0) fail("HOST_PROOF_CI_SOFT_GATE", stderr || stdout || `verify-host exited ${status}`);
+      resolveRun(stdout);
     });
   });
 }
@@ -135,7 +189,7 @@ function assertDocs() {
     const lines = readFileSync(join(repoRoot, doc), "utf8").split(/\r?\n/);
     lines.forEach((line, index) => {
       if (forbidden.test(line) && !allowedNegative.test(line)) {
-        fail("HOST_PROOF_DOCS_OVERCLAIM", `${doc}:${index + 1}: ${line}`);
+        fail("HOST_VERIFY_DOCS_OVERCLAIM", `${doc}:${index + 1}: ${line}`);
       }
     });
   }
@@ -153,12 +207,22 @@ async function assertCheckedArtifact(runToken) {
   if (hash !== manifest.artifact_hash || hash !== marker.artifactHash) {
     fail("HOST_PROOF_ARTIFACT_HASH_MISMATCH", "checked artifact hash chain is broken");
   }
+  return marker;
 }
 
 await rm(markerPath, { force: true });
+await rm(reportPath, { force: true });
 await staticGuard();
 const runToken = randomUUID();
 await runPhase("prepare", ["run", "prepare:artifact"], 30_000, { HOST_PROOF_RUN_TOKEN: runToken });
-await assertCheckedArtifact(runToken);
-await runPhase("build", ["run", "build"], 60_000);
-await runPhase("test", ["run", "test"], 30_000);
+const marker = await assertCheckedArtifact(runToken);
+await runHostVerify(180_000);
+const report = JSON.parse(await readFile(reportPath, "utf8").catch(() => fail("HOST_PROOF_CI_SOFT_GATE", "missing verify-host report")));
+if (report.ok !== true) fail("HOST_PROOF_CI_SOFT_GATE", JSON.stringify(report.errors ?? []));
+if (report.artifact_hash !== marker.artifactHash) fail("HOST_PROOF_ARTIFACT_HASH_MISMATCH", "verify-host report does not match checked artifact");
+if (!report.host_template_lock_hash || report.host_template_lock_hash.length !== 64) {
+  fail("HOST_PROOF_ARTIFACT_HASH_MISMATCH", "verify-host report missing host template lock hash");
+}
+if ((report.assertions?.dom_count ?? 0) < 1 || (report.assertions?.style_assertion_count ?? 0) < 4) {
+  fail("HOST_PROOF_STYLE_ASSERTION_TOO_WEAK", "verify-host report has weak DOM/style assertions");
+}

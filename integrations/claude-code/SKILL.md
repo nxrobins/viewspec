@@ -68,6 +68,12 @@ viewspec compile viewspec.intent.json --design DESIGN.md --target react-tailwind
 viewspec check react-tailwind-output/
 ```
 
+Run ViewSpec's bounded per-artifact React/Tailwind host proof when explicitly needed:
+
+```bash
+viewspec verify-host react-tailwind-output/ --target react-tailwind-tsx --install --json
+```
+
 Diff two imported HTML versions using local lift signals:
 
 ```bash

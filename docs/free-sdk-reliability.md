@@ -13,6 +13,7 @@ The free SDK is the local Python package under `src/viewspec`. Its supported rel
 - mocked hosted fallback client behavior through `compile_remote()` and `compile_auto()`
 - landing-page payload compatibility with `IntentBundle.from_json()`
 - React Tailwind TSX host proof through an isolated Vite/Tailwind/Playwright fixture
+- per-artifact React Tailwind host verification through `viewspec verify-host`
 
 The canonical hosted compiler domain is `https://api.viewspec.dev`. Fly deployment URLs are internal implementation details and should not be used in SDK defaults or public docs.
 
@@ -49,11 +50,13 @@ npx playwright install --with-deps chromium
 npm run verify
 ```
 
-The workflow sets up Node.js explicitly with `actions/setup-node@v4` before the landing payload smoke test and React Tailwind host proof.
+The workflow sets up Node.js explicitly with `actions/setup-node@v4` before the landing payload smoke test and React Tailwind host proof. The React Tailwind fixture now runs the public `viewspec verify-host ... --install --json` path so the CI proof exercises the same verifier users can run locally.
 
 ## Constraints & Fallbacks
 
 The React Tailwind host proof is a fail-closed CI gate: it must delete and regenerate the component during the same run, run `viewspec check` before build, import exactly that checked artifact, use `npm ci` from a checked lockfile, and fail on stale artifacts, hash drift, skipped checks, tracked generated files, console/page errors, or any forbidden host CSS. The fixture is intentionally bounded: host CSS is capped to Tailwind import/source plus root sizing/reset, fixture source is capped to 12 tracked non-lock files and 40KB, prep/build/preview/test phases time out at 30s/60s/20s/30s, and docs must describe this as a host proof rather than pixel-perfect visual equivalence.
+
+The public host verifier preserves the same fail-closed boundary for one artifact at a time: it runs in a fresh temporary host directory, copies only `ViewSpecView.tsx`, `provenance_manifest.json`, and `diagnostics.json`, requires `--install` before running `npm ci --ignore-scripts`, and returns exact `HOST_VERIFY_*` codes instead of treating missing Node, npm, browser, styles, DOM, or action payload checks as soft failures.
 
 ## Deferred Gate
 

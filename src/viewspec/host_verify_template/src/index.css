@@ -1,0 +1,12 @@
+@import "tailwindcss";
+@source "./generated/*.tsx";
+
+html,
+body,
+#root {
+  min-height: 100%;
+}
+
+body {
+  margin: 0;
+}

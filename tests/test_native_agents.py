@@ -28,6 +28,7 @@ def test_init_agent_creates_codex_instructions(tmp_path, capsys):
     assert "viewspec compile viewspec.intent.json --design DESIGN.md --target react-tsx --out react-output/" in text
     assert "viewspec check react-output/" in text
     assert "--target react-tailwind-tsx" in text
+    assert "viewspec verify-host react-tailwind-output/ --target react-tailwind-tsx --install --json" in text
     assert "If `DESIGN.md` is missing" in text
     assert "viewspec init-design --out DESIGN.md" in text
     assert "viewspec diff-intent old.intent.json new.intent.json --json" in text
@@ -61,6 +62,7 @@ def _assert_native_agent_instruction_contract(text: str, label: str) -> None:
     assert "viewspec compile viewspec.intent.json --design DESIGN.md --target react-tsx --out react-output/" in text
     assert "viewspec check react-output/" in text
     assert "--target react-tailwind-tsx" in text
+    assert "viewspec verify-host react-tailwind-output/ --target react-tailwind-tsx --install --json" in text
     assert "viewspec diff-intent old.intent.json new.intent.json --json" in text
     assert "viewspec export-agent-assets --out .viewspec" in text
     assert "viewspec check-agent-assets .viewspec --json" in text
