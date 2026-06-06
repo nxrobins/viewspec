@@ -27,6 +27,7 @@ Raw HTML tools remain available only for importing existing HTML: `viewspec comp
 ## Current Product Facts
 
 - Free SDK: `pip install viewspec`
+- First proof: `viewspec prove --out .viewspec-proof` writes `.viewspec-proof/PROOF.md` for humans and `.viewspec-proof/proof_report.json` for tools.
 - Runtime LLM calls: zero in local validate/compile/lift/diff/check and zero in the live compiler path.
 - Agents should emit `viewspec.intent.json` for new UI, optionally scaffold with `viewspec init-intent`, then run `viewspec validate-intent`, `viewspec diff-intent` for revisions, `viewspec compile`, and `viewspec check`.
 - Use `viewspec init-design --out DESIGN.md` when the repo does not already have a design file.
@@ -59,8 +60,10 @@ Raw HTML tools remain available only for importing existing HTML: `viewspec comp
 - Hosted launch emitters: HTML/Tailwind, React TSX, SwiftUI, Flutter.
 - Hosted extended demo artifacts declare `contract_profile: "hosted_extended_v1"` when they include inputs, rules, projections, or mobile emitters beyond the local V1 `validate-intent` contract.
 - Free hosted tier: 500 calls/day.
-- Pro tier: $149/month, hosted compile calls, mobile emitters, and 5 custom motif instances per compile.
+- Pro tier: $149/month, 10,000 hosted compile calls/day, mobile emitters, and 5 custom motif instances per compile.
 - Enterprise tier: custom volume, unlimited custom motifs, org sharing, and launch support.
+- Public facts manifest: https://viewspec.dev/public-facts.json
+- Proof scope: ViewSpec prove is not pixel-perfect visual regression, accessibility certification, arbitrary host-app certification, or hosted compiler publish automation.
 
 ## Short Description
 

@@ -1,0 +1,33 @@
+{
+  "schema_version": 1,
+  "product": "ViewSpec",
+  "sdk_version": "0.3.0b1",
+  "canonical_api_url": "https://api.viewspec.dev/v1/compile",
+  "package_url": "https://pypi.org/project/viewspec/",
+  "repository_url": "https://github.com/nxrobins/viewspec",
+  "pricing": {
+    "free": {
+      "hosted_compile_calls_per_day": 500,
+      "price_usd_month": 0
+    },
+    "pro": {
+      "hosted_compile_calls_per_day": 10000,
+      "custom_motif_instances_per_compile": 5,
+      "price_usd_month": 149
+    },
+    "enterprise": {
+      "price": "Custom",
+      "hosted_compile_calls_per_day": "Custom"
+    }
+  },
+  "proof": {
+    "first_proof_command": "viewspec prove --out .viewspec-proof",
+    "react_tailwind_host_command": "viewspec prove --target react-tailwind-tsx --install --out .viewspec-proof --json",
+    "human_summary_file": ".viewspec-proof/PROOF.md",
+    "machine_report_file": ".viewspec-proof/proof_report.json",
+    "default_proof_level": "source_artifact",
+    "react_tailwind_proof_level": "react_tailwind_reference_host",
+    "scope": "ViewSpec prove validates intent, compiles through the public local path, checks the artifact manifest and hashes, writes PROOF.md for humans plus proof_report.json for tools, and can optionally run the bounded React Tailwind reference host proof.",
+    "non_claim": "ViewSpec prove is not pixel-perfect visual regression, accessibility certification, arbitrary host-app certification, or hosted compiler publish automation."
+  }
+}

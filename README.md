@@ -7,6 +7,7 @@ ViewSpec is an agent-native UI compiler. Agents describe UI intent as `IntentBun
 🌐 **[viewspec.dev](https://viewspec.dev)** — Live hosted compiler playground, demos, and pricing
 
 ```bash
+viewspec prove --out .viewspec-proof
 viewspec init-intent --out viewspec.intent.json
 viewspec init-design --out DESIGN.md
 viewspec validate-intent viewspec.intent.json --json
@@ -49,7 +50,17 @@ pip install viewspec
 
 Requires Python 3.11+.
 
+Python package: <https://pypi.org/project/viewspec/>
+
 ## IntentBundle-First Local Workflow
+
+For a first proof, run:
+
+```bash
+viewspec prove --out .viewspec-proof
+```
+
+This generates a starter IntentBundle and DESIGN.md inside `.viewspec-proof/`, compiles through the public local path, runs artifact checks, and writes `.viewspec-proof/PROOF.md` for humans plus `.viewspec-proof/proof_report.json` for tools. It proves source artifact integrity and provenance for the generated artifact; ViewSpec prove is not pixel-perfect visual regression, accessibility certification, arbitrary host-app certification, or hosted compiler publish automation.
 
 Agents should create `viewspec.intent.json` for new UI. Validate the contract before compiling, then check the artifact manifest and hashes.
 
@@ -255,6 +266,12 @@ viewspec verify-host --intent viewspec.intent.json --out react-tailwind-output/ 
 
 `verify-host` runs `viewspec check`, copies exactly the checked React Tailwind artifact into an isolated Vite/Tailwind host, builds it, and runs Chromium assertions for manifest-backed DOM, computed Tailwind styles, and action payloads. Without `--install`, it performs no package-manager install and fails fast if the reference host dependencies are missing; it does not install Playwright browser binaries.
 
+The same bounded runtime proof is available through the beginner-facing proof command:
+
+```bash
+viewspec prove --target react-tailwind-tsx --install --out .viewspec-proof --json
+```
+
 ## Motif Types
 
 | Builder | Motif | Use case |
@@ -360,6 +377,8 @@ const inline = await compiler.withDesign("name: Acme\n", false).compile(bundle)
 The hosted compiler now exposes the May 6 launch surface: SwiftUI and Flutter emitters; projections; rich input bindings; rule bindings; submit/navigate actions; and custom motifs. The local SDK ships HTML/Tailwind and React TSX emitters for the bounded local V1 contract. Hosted extended demo artifacts declare `contract_profile: "hosted_extended_v1"` when they go beyond the local V1 `validate-intent` contract.
 
 Pro includes mobile emitters, 5 custom motif instances per compile, and 10,000 hosted compile calls/day.
+
+Public version, pricing, hosted-call, API, package, and proof-scope facts are mirrored in `demos/public-facts.json` and checked by CI before release.
 
 ## Wire Format
 

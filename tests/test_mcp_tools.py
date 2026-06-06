@@ -1265,6 +1265,7 @@ def test_mcp_raw_html_tool_descriptions_are_import_only():
     assert "target='html-tailwind' for checked standalone HTML" in text
     assert "target='react-tsx' for checked React source" in text
     assert "target='react-tailwind-tsx' for checked React source with closed Tailwind recipes" in text
+    assert "Run ViewSpec's first proof workflow" in text
     assert "Verify a checked react-tailwind-tsx artifact in ViewSpec's bounded React/Vite/Tailwind host." in text
     assert "Verify exported local ViewSpec agent contract assets against the current SDK." in text
     assert "Export the local ViewSpec agent system prompt, IntentBundle JSON schema" in text

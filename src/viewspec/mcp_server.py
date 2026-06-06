@@ -23,6 +23,7 @@ from viewspec.local_tools import (
     init_design_tool,
     lift_html_file_tool,
 )
+from viewspec.prove import prove_tool
 
 
 MCP_INSTALL_HINT = 'Install with: python -m pip install "viewspec[agents]"'
@@ -160,6 +161,37 @@ def run_mcp_server(*, cwd: str | Path | None = None, allow_outside_cwd: bool = F
             strict_design=strict_design,
             target=target,
             install=install,
+            report_out=report_out,
+            cwd=root,
+            allow_outside_cwd=allow_outside_cwd,
+        )
+
+    @app.tool(
+        description=(
+            "Run ViewSpec's first proof workflow: generate or use an IntentBundle, compile through the public path, "
+            "check the artifact, and optionally run the bounded React Tailwind host proof."
+        )
+    )
+    def prove(
+        intent_path: str | None = None,
+        out_dir: str = ".viewspec-proof",
+        design_path: str | None = None,
+        strict_design: bool = False,
+        target: str = "html-tailwind",
+        kind: str = "dashboard",
+        install: bool = False,
+        force: bool = False,
+        report_out: str | None = None,
+    ) -> dict[str, Any]:
+        return prove_tool(
+            intent_path=intent_path,
+            out_dir=out_dir,
+            design_path=design_path,
+            strict_design=strict_design,
+            target=target,
+            kind=kind,
+            install=install,
+            force=force,
             report_out=report_out,
             cwd=root,
             allow_outside_cwd=allow_outside_cwd,

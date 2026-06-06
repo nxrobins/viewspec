@@ -98,6 +98,7 @@ Every validation issue includes `severity`, `code`, `path`, `message`, and `sugg
 The CLI exposes the same repair loop:
 
 ```bash
+viewspec prove --out .viewspec-proof
 viewspec init-intent --out viewspec.intent.json
 viewspec init-design --out DESIGN.md
 viewspec validate-intent viewspec.intent.json --json
@@ -127,6 +128,8 @@ diff = diff_intent_text(old_bundle_json, new_bundle_json)
 Use `viewspec doctor` in local setup checks. It reports the available intent-first commands, runs a starter IntentBundle validation/compile/diff smoke check, verifies `PyYAML`, and states that local validation, compile, lift, diff, check, check-agent-assets, scaffold, and agent-asset export commands make no SDK network calls. `viewspec doctor --agents` also reports managed instruction templates, local agent prompt/schema/example/manifest asset identity and hashes, local `.viewspec` asset status, published static asset status when `demos/agent-assets.json` is present, the optional MCP dependency, MCP install hint, and cwd path containment policy.
 
 `viewspec check` treats the compiled artifact as a proof boundary. For IntentBundle artifacts, DOM `data-ir-id`, `data-binding-id`, and `data-action-id` values must agree with `provenance_manifest.json`; binding/action ids cannot be duplicated; binding nodes must retain source `content_refs`; and binding/action manifest entries must include the matching `viewspec:binding:*` or `viewspec:action:*` intent ref.
+
+`viewspec prove --out .viewspec-proof` is the beginner-facing first proof: it generates or uses an IntentBundle, compiles through the public local path, checks the artifact, and writes human-readable `PROOF.md` plus machine-readable `proof_report.json`. Treat it as source artifact and provenance proof. ViewSpec prove is not pixel-perfect visual regression, accessibility certification, arbitrary host-app certification, or hosted compiler publish automation.
 
 Local HTML action buttons dispatch `viewspec-action` events only when actions exist. Event `detail` is a stable V1 payload with `schemaVersion: 1`, `source: "viewspec-html-tailwind"`, `id`, `kind`, `targetRef`, `payloadBindings`, and collected `payloadValues`. Pressing Enter inside a local inert form dispatches only a declared `submit` action whose `targetRef` exactly matches that form motif. The host app owns side effects such as navigation or network submission.
 
@@ -241,6 +244,8 @@ For Tailwind host apps, use `--target react-tailwind-tsx` or MCP `target: "react
 The public repo includes an isolated host proof for one representative React/Tailwind fixture, but agent workflows should not treat that as per-artifact rendering certification. For arbitrary outputs, the required local gate is still validate, compile, and `viewspec check`; host apps may add their own render tests around the generated component.
 
 Agents may run `viewspec verify-host react-tailwind-output/ --target react-tailwind-tsx --install --json`, or MCP `verify_host`, when the user wants a bounded per-artifact React/Vite/Tailwind runtime proof. This verifier checks the exact artifact first, copies only the checked generated files into ViewSpec's isolated reference host, and does not claim compatibility with arbitrary host apps.
+
+Agents may also run `viewspec prove --target react-tailwind-tsx --install --out .viewspec-proof --json`, or MCP `prove`, when the user wants the full first-proof path plus the bounded React Tailwind reference host proof in one report.
 
 
 ## Optional Reference Grounding

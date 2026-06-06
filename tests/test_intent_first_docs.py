@@ -64,6 +64,8 @@ def test_claude_code_skill_matches_native_agent_workflow():
     assert "viewspec compile viewspec.intent.json --design DESIGN.md --target react-tailwind-tsx --out react-tailwind-output/" in text
     assert "viewspec check react-output/" in text
     assert "viewspec verify-host react-tailwind-output/ --target react-tailwind-tsx --install --json" in text
+    assert "viewspec prove --out .viewspec-proof" in text
+    assert "viewspec prove --target react-tailwind-tsx --install --out .viewspec-proof --json" in text
     assert "viewspec doctor --agents" in text
     assert "viewspec export-agent-assets --out .viewspec" in text
     assert "viewspec check-agent-assets .viewspec --json" in text
@@ -71,6 +73,32 @@ def test_claude_code_skill_matches_native_agent_workflow():
     assert "Never patch or recursively compile generated artifacts" in text
     assert "compile_html_file" not in text
     assert "lift_html_file" not in text
+
+
+def test_first_proof_is_public_and_bounded():
+    root = Path(__file__).resolve().parents[1]
+    docs = [
+        root / "README.md",
+        root / "docs/getting-started.md",
+        root / "docs/agent-integration.md",
+        root / "demos/llms.txt",
+        root / "demos/llms-full.txt",
+        root / "integrations/claude-code/SKILL.md",
+    ]
+
+    for path in docs:
+        text = path.read_text(encoding="utf-8")
+        assert "viewspec prove --out .viewspec-proof" in text, path
+        assert "PROOF.md" in text, path
+        assert "pixel-perfect visual" in text, path
+
+    getting_started = root.joinpath("docs/getting-started.md").read_text(encoding="utf-8")
+    assert getting_started.index("viewspec prove --out .viewspec-proof") < getting_started.index("viewspec init-intent --out viewspec.intent.json")
+
+    release = root.joinpath("docs/release-checklist.md").read_text(encoding="utf-8")
+    assert "demos/public-facts.json" in release
+    assert "Publish to PyPI manually" in release
+    assert "Do not add automated PyPI upload" in release
 
 
 def test_reference_grounding_is_explicit_opt_in():

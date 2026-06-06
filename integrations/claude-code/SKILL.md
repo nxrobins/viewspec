@@ -12,6 +12,7 @@ Use this skill when an agent creates a new human-facing UI artifact, report, das
 - If `DESIGN.md` is missing, run `viewspec init-design --out DESIGN.md` once before compiling.
 - If a `DESIGN.md` file exists, compile with it through ViewSpec.
 - Treat compiled output as an artifact, not as the editable source.
+- Use `viewspec prove --out .viewspec-proof` for a first local proof bundle; read `.viewspec-proof/PROOF.md` first and use `.viewspec-proof/proof_report.json` for tool output. It proves source artifact integrity and provenance, not pixel-perfect visual equivalence.
 - Use raw HTML commands only when importing existing HTML.
 - Do not upload, share, call hosted APIs, or use remote services unless the user explicitly asks.
 - Never patch or recursively compile generated artifacts such as `dist/index.html` or `react-output/ViewSpecView.tsx`.
@@ -54,6 +55,12 @@ Validate a compiled artifact directory:
 viewspec check dist/
 ```
 
+Run the first proof workflow:
+
+```bash
+viewspec prove --out .viewspec-proof
+```
+
 Compile local React source when explicitly needed:
 
 ```bash
@@ -72,6 +79,7 @@ Run ViewSpec's bounded per-artifact React/Tailwind host proof when explicitly ne
 
 ```bash
 viewspec verify-host react-tailwind-output/ --target react-tailwind-tsx --install --json
+viewspec prove --target react-tailwind-tsx --install --out .viewspec-proof --json
 ```
 
 Diff two imported HTML versions using local lift signals:

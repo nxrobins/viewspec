@@ -100,6 +100,7 @@ from viewspec.intent_tools import (
     validate_intent_text,
 )
 from viewspec.host_verify import verify_host_artifact_dir, verify_host_intent_file, verify_host_tool
+from viewspec.prove import prove, prove_tool
 
 __all__ = [
     "__version__",
@@ -190,6 +191,8 @@ __all__ = [
     "verify_host_artifact_dir",
     "verify_host_intent_file",
     "verify_host_tool",
+    "prove",
+    "prove_tool",
     # Utilities
     "build_address_index",
     "normalize_compiler_result",

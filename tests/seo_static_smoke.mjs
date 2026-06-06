@@ -47,6 +47,66 @@ for (const [file, canonical] of pages) {
 }
 
 const home = await readFile('demos/index.html', 'utf8')
+const publicFacts = JSON.parse(await readFile('demos/public-facts.json', 'utf8'))
+
+function publicFactDrift(message) {
+  assert.fail(`PUBLIC_FACTS_DRIFT: ${message}`)
+}
+
+function assertPublicText(text, expected, label) {
+  if (!text.includes(String(expected))) publicFactDrift(`${label} missing ${expected}`)
+}
+
+function assertPublicEqual(actual, expected, label) {
+  if (actual !== expected) publicFactDrift(`${label} expected ${expected}, got ${actual}`)
+}
+
+const proPrice = `$${publicFacts.pricing.pro.price_usd_month}`
+const proCalls = publicFacts.pricing.pro.hosted_compile_calls_per_day.toLocaleString('en-US')
+const freeCalls = String(publicFacts.pricing.free.hosted_compile_calls_per_day)
+
+assertPublicEqual(publicFacts.schema_version, 1, 'public facts schema_version')
+assert.match(publicFacts.sdk_version, /^\d+\.\d+\.\d+(?:[a-z]+\d+)?$/, 'public facts sdk_version shape')
+assertPublicEqual(publicFacts.canonical_api_url, 'https://api.viewspec.dev/v1/compile', 'public facts canonical_api_url')
+assertPublicEqual(publicFacts.package_url, 'https://pypi.org/project/viewspec/', 'public facts package_url')
+assertPublicEqual(publicFacts.proof.first_proof_command, 'viewspec prove --out .viewspec-proof', 'public facts first proof command')
+assertPublicEqual(publicFacts.proof.human_summary_file, '.viewspec-proof/PROOF.md', 'public facts proof summary file')
+assertPublicEqual(publicFacts.proof.machine_report_file, '.viewspec-proof/proof_report.json', 'public facts proof report file')
+assertPublicText(publicFacts.proof.non_claim, 'not pixel-perfect visual regression', 'public facts proof non-claim')
+
+const pyproject = await readFile('pyproject.toml', 'utf8')
+const versionModule = await readFile('src/viewspec/_version.py', 'utf8')
+assertPublicText(pyproject, `version = "${publicFacts.sdk_version}"`, 'pyproject version')
+assertPublicText(versionModule, `__version__ = "${publicFacts.sdk_version}"`, 'runtime version')
+
+for (const publicTextPath of ['README.md', 'docs/getting-started.md', 'demos/llms.txt', 'demos/llms-full.txt']) {
+  const text = await readFile(publicTextPath, 'utf8')
+  assertPublicText(text, publicFacts.proof.first_proof_command, `${publicTextPath} first proof`)
+  assertPublicText(text, 'PROOF.md', `${publicTextPath} proof summary`)
+  assertPublicText(text, publicFacts.proof.non_claim.split(',')[0], `${publicTextPath} proof scope`)
+}
+
+for (const proofTextPath of ['README.md', 'docs/getting-started.md', 'docs/agent-integration.md', 'demos/index.html', 'demos/llms.txt', 'demos/llms-full.txt']) {
+  const text = await readFile(proofTextPath, 'utf8')
+  if (text.includes('proof_report.json') && !text.includes('PROOF.md')) {
+    publicFactDrift(`${proofTextPath} mentions proof_report.json without PROOF.md`)
+  }
+}
+
+for (const productTextPath of ['README.md', 'demos/index.html', 'demos/llms.txt', 'demos/llms-full.txt']) {
+  const productText = await readFile(productTextPath, 'utf8')
+  assertPublicText(productText, proPrice, `${productTextPath} pro price`)
+  assertPublicText(productText, proCalls, `${productTextPath} pro hosted calls`)
+}
+for (const productTextPath of ['README.md', 'demos/index.html', 'demos/llms.txt', 'demos/llms-full.txt']) {
+  const productText = await readFile(productTextPath, 'utf8')
+  assertPublicText(productText, freeCalls, `${productTextPath} free hosted calls`)
+}
+assertPublicText(await readFile('README.md', 'utf8'), publicFacts.package_url, 'README package URL')
+assertPublicText(home, publicFacts.proof.first_proof_command, 'landing first proof')
+assertPublicText(home, 'PROOF.md', 'landing proof summary')
+assertPublicText(home, publicFacts.proof.non_claim.split(',')[0], 'landing proof scope')
+
 // Three install pills: nav + hero + footer. The footer pill was added in
 // the site bug sweep (b7d5b96); the test was previously asserting on the
 // pre-bug-sweep count of 2.
@@ -120,6 +180,13 @@ for (const productTextPath of ['README.md', 'demos/llms-full.txt', 'demos/shared
 const openapi = JSON.parse(await readFile('demos/openapi.json', 'utf8'))
 assert.equal(openapi.openapi, '3.1.0')
 assert.equal(openapi.servers[0].url, 'https://api.viewspec.dev')
+assertPublicEqual(openapi['x-viewspec-public-facts'].manifest, 'https://viewspec.dev/public-facts.json', 'OpenAPI public facts manifest')
+assertPublicEqual(openapi['x-viewspec-public-facts'].sdkVersion, publicFacts.sdk_version, 'OpenAPI public facts sdkVersion')
+assertPublicEqual(openapi['x-viewspec-public-facts'].proPriceUsdMonth, publicFacts.pricing.pro.price_usd_month, 'OpenAPI public facts proPriceUsdMonth')
+assertPublicEqual(openapi['x-viewspec-public-facts'].proHostedCompileCallsPerDay, publicFacts.pricing.pro.hosted_compile_calls_per_day, 'OpenAPI public facts pro calls')
+assertPublicEqual(openapi['x-viewspec-public-facts'].firstProofCommand, publicFacts.proof.first_proof_command, 'OpenAPI public facts first proof')
+assertPublicEqual(openapi['x-viewspec-public-facts'].proofSummaryFile, publicFacts.proof.human_summary_file, 'OpenAPI public facts proof summary')
+assertPublicEqual(openapi['x-viewspec-public-facts'].proofReportFile, publicFacts.proof.machine_report_file, 'OpenAPI public facts proof report')
 assert(openapi.paths['/v1/compile']?.post, 'OpenAPI needs POST /v1/compile')
 assert.equal(openapi.paths['/v1/compile'].post.requestBody.content['application/json'].schema.$ref, '#/components/schemas/CompileRequestPayload')
 assert.equal(openapi.components.schemas.CompileRequestPayload.properties.design.$ref, '#/components/schemas/DesignRequest')
