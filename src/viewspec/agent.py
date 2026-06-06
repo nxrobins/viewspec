@@ -78,6 +78,7 @@ MAX_AGENT_STYLES = 400
 MAX_AGENT_ACTIONS = 64
 MAX_AGENT_ACTION_PAYLOAD_BINDINGS = 64
 MAX_AGENT_CORRECTION_PROMPT_ISSUES = 20
+MAX_AGENT_REPAIR_CHECKLIST_ITEMS = 8
 DEFAULT_AGENT_REPAIR_SUGGESTION = "Regenerate the full IntentBundle using only the local V1 agent contract."
 SAFE_AGENT_ID_PATTERN = r"^[A-Za-z0-9_.-]+$"
 SAFE_AGENT_ID_RE = re.compile(SAFE_AGENT_ID_PATTERN)
@@ -378,6 +379,7 @@ class AgentValidationResult:
         return {
             "valid": self.valid,
             "issues": [issue.to_json() for issue in self.issues],
+            "repair_checklist": [] if self.valid else agent_repair_checklist(self),
         }
 
 
@@ -454,6 +456,9 @@ def agent_correction_prompt(result: AgentValidationResult) -> str:
         "issue_count": len(result.issues),
         "shown_issue_count": len(shown_issues),
         "truncated": len(result.issues) > len(shown_issues),
+        "repair_mode": "regenerate_full_intent_bundle",
+        "retry_command": "viewspec validate-intent viewspec.intent.json --json",
+        "repair_checklist": agent_repair_checklist(result),
         "issues": shown_issues,
     }
     return (
@@ -461,6 +466,51 @@ def agent_correction_prompt(result: AgentValidationResult) -> str:
         "Do not patch fragments. Fix this bounded validation report:\n"
         f"{json.dumps(report, separators=(',', ':'), sort_keys=True)}"
     )
+
+
+def agent_repair_checklist(result: AgentValidationResult) -> list[str]:
+    """Return bounded retry invariants for invalid agent-authored IntentBundles."""
+    if result.valid:
+        return []
+    codes = {issue.code for issue in result.issues}
+    checks: list[str] = []
+
+    def add(text: str) -> None:
+        if text not in checks and len(checks) < MAX_AGENT_REPAIR_CHECKLIST_ITEMS:
+            checks.append(text)
+
+    if codes & {"INVALID_JSON", "INVALID_JSON_VALUE", "INVALID_PAYLOAD", "COMPOSITION_IR_INPUT"}:
+        add("Return one strict JSON object with substrate and view_spec; no markdown, arrays, CompositionIR, HTML, CSS, or React.")
+    if codes & {
+        "MISSING_FIELD",
+        "NODES_MUST_BE_OBJECT",
+        "INVALID_NODE",
+        "INVALID_REGION",
+        "INVALID_BINDING",
+        "INVALID_GROUP",
+        "INVALID_MOTIF",
+        "INVALID_STYLE",
+        "INVALID_ACTION",
+        "INTENT_BUNDLE_PARSE_ERROR",
+        "COMPILER_INPUT_ERROR",
+    }:
+        add("Include all required local V1 objects and arrays: substrate nodes plus view_spec regions, bindings, groups, motifs, styles, and actions.")
+    if codes & {"UNKNOWN_FIELD", "HOSTED_ONLY_FIELD"}:
+        add("Remove unknown and hosted-only fields; local V1 rejects root design, motif_library, inputs, projections, rules, and custom extensions.")
+    if codes & {"INVALID_ID", "NODE_KEY_MISMATCH", "DUPLICATE_BINDING_ID", "DUPLICATE_REGION_ID", "DUPLICATE_GROUP_ID", "DUPLICATE_MOTIF_ID", "DUPLICATE_STYLE_ID", "DUPLICATE_ACTION_ID"}:
+        add("Use unique safe ids and object keys with only letters, digits, underscore, dot, and dash; node map keys must match node ids.")
+    if codes & {"SUBSTRATE_ID_MISMATCH", "MISSING_SUBSTRATE_ROOT", "MISSING_ROOT_REGION", "ROOT_REGION_HAS_PARENT", "DETACHED_REGION", "REGION_PARENT_CYCLE", "UNKNOWN_REGION", "UNKNOWN_EDGE_TARGET", "UNKNOWN_STYLE_TARGET", "UNKNOWN_ACTION_TARGET", "MISSING_GROUP_MEMBER", "MISSING_MOTIF_MEMBER", "UNKNOWN_ACTION_PAYLOAD_BINDING"}:
+        add("Resolve every reference and keep regions as one acyclic tree rooted at view_spec.root_region.")
+    if codes & {"INVALID_ADDRESS", "DUPLICATE_EXACTLY_ONCE_ADDRESS", "UNKNOWN_PRESENT_AS", "UNSUPPORTED_CARDINALITY", "UNSUPPORTED_GROUP_KIND", "UNSUPPORTED_REGION_LAYOUT"}:
+        add("Use canonical node addresses, exactly_once cardinality, ordered groups, and stack/grid/cluster region layouts.")
+    if codes & {"UNSUPPORTED_MOTIF", "EMPTY_MOTIF", "MOTIF_MISSING_INPUT", "MOTIF_MISSING_LABEL", "MOTIF_MISSING_TITLE", "MOTIF_MISSING_VALUE", "MOTIF_TOO_FEW_ITEMS"}:
+        add("Use only supported motifs and make each motif semantically complete with the required label, value, title, input, or comparison members.")
+    if codes & {"UNSUPPORTED_STYLE_TOKEN", "AMBIGUOUS_STYLE_TARGET", "UNSUPPORTED_ACTION_KIND", "INVALID_ACTION_TARGET_REF"}:
+        add("Use only published style tokens, unambiguous style targets, supported action kinds, and explicit region/binding/motif/view target_ref values.")
+    if any(code.startswith("TOO_MANY_") for code in codes) or codes == {"INTENT_TOO_LARGE"} or "INTENT_TOO_LARGE" in codes:
+        add("Stay within local V1 caps; split larger UI surfaces into smaller IntentBundles instead of forcing one bundle.")
+    add("Regenerate the full IntentBundle, then rerun viewspec validate-intent before compiling.")
+    return checks[:MAX_AGENT_REPAIR_CHECKLIST_ITEMS]
 
 
 def _intent_too_large_issue(size: int) -> AgentValidationIssue:

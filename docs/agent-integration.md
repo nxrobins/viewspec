@@ -93,7 +93,7 @@ else:
 
 `validate_agent_intent_bundle()` accepts a JSON string or a dictionary. Dictionary payloads must still be JSON-serializable and fit the same 256KB serialized-size cap as raw JSON text. The validator checks the agent contract, parses successful payloads through `IntentBundle.from_json()`, and by default compiles with the local reference compiler so diagnostics are returned in an agent-readable shape.
 
-Every validation issue includes `severity`, `code`, `path`, `message`, and `suggestion`. `agent_correction_prompt()` returns a bounded repair report so agents regenerate the full IntentBundle instead of patching fragments; the raw validation result still exposes the full issue list for tooling.
+Every validation issue includes `severity`, `code`, `path`, `message`, and `suggestion`. Validation payloads also include a bounded `repair_checklist` of retry invariants derived from the issue codes. `agent_correction_prompt()` returns the same checklist inside a bounded repair report so agents regenerate the full IntentBundle instead of patching fragments; the raw validation result still exposes the full issue list for tooling.
 
 The CLI exposes the same repair loop:
 

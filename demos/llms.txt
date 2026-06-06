@@ -32,7 +32,7 @@ Raw HTML tools remain available only for importing existing HTML: `viewspec comp
 - Agents should emit `viewspec.intent.json` for new UI, optionally scaffold with `viewspec init-intent`, then run `viewspec validate-intent`, `viewspec diff-intent` for revisions, `viewspec compile`, and `viewspec check`.
 - Use `viewspec init-design --out DESIGN.md` when the repo does not already have a design file.
 - `viewspec validate-intent` exits 0 for valid intent, 2 for user-correctable invalid intent, and 1 for environment/internal failure.
-- Validation issues include severity, code, path, message, and suggestion; correction prompts are bounded and require full IntentBundle regeneration.
+- Validation issues include severity, code, path, message, suggestion, and a bounded repair_checklist; correction prompts require full IntentBundle regeneration.
 - V1 local IntentBundle caps: max 256KB JSON, 200 substrate nodes, 32 regions, 400 bindings, 64 groups, 32 motifs, 400 styles, 64 actions, 64 attrs/slots/edges per node, 200 values per slot or edge, and 64 payload bindings per action.
 - V1 public SDK agent ids and object keys use only letters, digits, underscore, dot, and dash.
 - Native agent setup: `viewspec init-agent --target codex|claude-code|cursor|copilot|all`.

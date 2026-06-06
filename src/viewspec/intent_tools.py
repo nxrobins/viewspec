@@ -12,6 +12,7 @@ from viewspec.agent import (
     AgentValidationIssue,
     AgentValidationResult,
     agent_correction_prompt,
+    agent_repair_checklist,
     validate_agent_intent_bundle,
 )
 from viewspec.compiler import compile
@@ -200,6 +201,7 @@ def intent_validation_payload(result: AgentValidationResult, *, compile_check: b
         "ok": result.valid,
         "compile_check": compile_status,
         "issues": [issue.to_json() for issue in result.issues],
+        "repair_checklist": [] if result.valid else agent_repair_checklist(result),
         "correction_prompt": None if result.valid else agent_correction_prompt(result),
     }
 
