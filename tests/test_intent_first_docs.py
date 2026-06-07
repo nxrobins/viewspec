@@ -83,6 +83,8 @@ def test_first_proof_is_public_and_bounded():
         root / "docs/agent-integration.md",
         root / "demos/llms.txt",
         root / "demos/llms-full.txt",
+        root / "demos/agent-system-prompt.txt",
+        root / "demos/proof-bundle/index.html",
         root / "integrations/claude-code/SKILL.md",
     ]
 

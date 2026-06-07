@@ -11,6 +11,7 @@
     { href: '../provenance-inspector/', label: 'Provenance' },
     { href: '../live-builder/', label: 'Builder' },
     { href: '../invariants/', label: 'Invariants' },
+    { href: '../proof-bundle/', label: 'Proof' },
     { href: '../fifteen-lines/', label: '15 Lines' },
     { href: '../style-derivation/', label: 'Styles' },
     { href: '../#pricing', label: 'Pricing' },

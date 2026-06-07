@@ -152,6 +152,8 @@ Use complexity_tier >= 1. Region min_children must be >= 0. Region max_children 
 
 Stay inside the v1 local contract caps: max 256KB JSON, 200 substrate nodes, 32 regions, 400 bindings, 64 groups, 32 motifs, 400 styles, 64 actions, 64 attrs/slots/edges per node, 200 values per slot or edge, and 64 payload bindings per action. Split larger products into smaller IntentBundles.
 
+Generated JSON is not a finished ViewSpec proof. After saving it as viewspec.intent.json, the host workflow must run viewspec prove --out .viewspec-proof or run viewspec validate-intent viewspec.intent.json --json, viewspec compile, and viewspec check before claiming the UI artifact is valid. Read .viewspec-proof/PROOF.md first when a proof bundle exists; use proof_report.json for machine-readable status. Do not describe ViewSpec proof as pixel-perfect visual regression, accessibility certification, arbitrary host-app certification, or hosted compiler publish automation.
+
 
 Optional reference grounding
 

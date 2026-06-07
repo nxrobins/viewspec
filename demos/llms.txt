@@ -27,7 +27,7 @@ Raw HTML tools remain available only for importing existing HTML: `viewspec comp
 ## Current Product Facts
 
 - Free SDK: `pip install viewspec`
-- First proof: `viewspec prove --out .viewspec-proof` writes `.viewspec-proof/PROOF.md` for humans and `.viewspec-proof/proof_report.json` for tools; `docs/proof-bundle.md` explains status, hashes, checks, and failure codes.
+- First proof: `viewspec prove --out .viewspec-proof` writes `.viewspec-proof/PROOF.md` for humans and `.viewspec-proof/proof_report.json` for tools; `docs/proof-bundle.md` and https://viewspec.dev/proof-bundle/ explain status, hashes, checks, and failure codes.
 - Runtime LLM calls: zero in local validate/compile/lift/diff/check and zero in the live compiler path.
 - Agents should emit `viewspec.intent.json` for new UI, optionally scaffold with `viewspec init-intent`, then run `viewspec validate-intent`, `viewspec diff-intent` for revisions, `viewspec compile`, and `viewspec check`.
 - Use `viewspec init-design --out DESIGN.md` when the repo does not already have a design file.

@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import json
+import os
+import subprocess
 import sys
 from io import StringIO
 from pathlib import Path
@@ -12,6 +14,9 @@ from viewspec.cli import main as cli_main
 from viewspec.compiler_benchmarks import benchmark_fixtures
 from viewspec.emitters.react_tailwind_tsx import tailwind_recipe_registry_digest
 from viewspec.local_tools import file_hash
+
+
+ROOT = Path(__file__).resolve().parents[1]
 
 
 def _design(color: str = "#112233") -> str:
@@ -549,6 +554,37 @@ def test_cli_init_design_doctor_and_check_tamper(tmp_path, capsys):
     out_dir.joinpath("index.html").write_text("<h1>Tampered</h1>", encoding="utf-8")
     assert cli_main(["check", str(out_dir)]) == 2
     assert "artifact_hash does not match" in capsys.readouterr().out
+
+
+def test_python_module_entrypoint_runs_cli(tmp_path):
+    env = os.environ.copy()
+    src_path = str(ROOT / "src")
+    env["PYTHONPATH"] = src_path if not env.get("PYTHONPATH") else f"{src_path}{os.pathsep}{env['PYTHONPATH']}"
+
+    help_result = subprocess.run(
+        [sys.executable, "-m", "viewspec", "--help"],
+        cwd=tmp_path,
+        env=env,
+        capture_output=True,
+        text=True,
+        timeout=20,
+        check=False,
+    )
+    assert help_result.returncode == 0
+    assert "viewspec prove" in help_result.stdout or "prove" in help_result.stdout
+
+    doctor_result = subprocess.run(
+        [sys.executable, "-m", "viewspec", "doctor"],
+        cwd=tmp_path,
+        env=env,
+        capture_output=True,
+        text=True,
+        timeout=30,
+        check=False,
+    )
+    assert doctor_result.returncode == 0
+    payload = json.loads(doctor_result.stdout)
+    assert payload["checks"]["intent_pipeline"]["ok"] is True
 
 
 def test_cli_check_rejects_machine_local_command_args(tmp_path, capsys):
