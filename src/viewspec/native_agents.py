@@ -140,7 +140,7 @@ def agent_instruction_block(target: str) -> str:
         "Rules:\n\n"
         "- `viewspec.intent.json` is editable source; compiled output directories such as `dist/` or `react-output/` contain generated artifacts.\n"
         "- If starting from a blank repo, `viewspec init-intent --out viewspec.intent.json` may be used only as a scaffold; replace all sample content with the user's actual intent.\n"
-        "- Use `viewspec prove --out .viewspec-proof` for a quick first proof before broader manual review; read `.viewspec-proof/PROOF.md` first.\n"
+        "- Use `viewspec prove --out .viewspec-proof` for a quick first proof before broader manual review; read `.viewspec-proof/PROOF.md` first and keep `.viewspec-proof/support_bundle.json` for redacted failure triage.\n"
         "- If `DESIGN.md` is missing, run `viewspec init-design --out DESIGN.md` before compiling.\n"
         "- If validation fails, regenerate the full IntentBundle using the correction prompt.\n"
         "- Use raw HTML tools only when importing existing HTML.\n"

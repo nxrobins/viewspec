@@ -149,7 +149,7 @@ python -m pip install "viewspec[agents]"
 viewspec mcp
 ```
 
-The MCP server exposes intent-first local tools: `init_intent`, `validate_intent_bundle_file`, `diff_intent_bundle_files`, `compile_intent_bundle_file`, `agent_correction_prompt_file`, `check_artifact`, `check_agent_assets`, `init_design`, and `export_agent_assets`. `compile_intent_bundle_file` accepts `target="html-tailwind"` for checked standalone HTML, `target="react-tsx"` for checked React source artifacts, or `target="react-tailwind-tsx"` for checked React source with closed Tailwind recipes. Raw HTML MCP tools remain available only for importing existing HTML. By default, all tool paths must resolve under the MCP working directory and the tools make no SDK network calls.
+The MCP server exposes intent-first local tools: `init_intent`, `validate_intent_bundle_file`, `diff_intent_bundle_files`, `compile_intent_bundle_file`, `agent_correction_prompt_file`, `check_artifact`, `verify_host`, `prove`, `check_agent_assets`, `init_design`, and `export_agent_assets`. `compile_intent_bundle_file` accepts `target="html-tailwind"` for checked standalone HTML, `target="react-tsx"` for checked React source artifacts, or `target="react-tailwind-tsx"` for checked React source with closed Tailwind recipes; `prove` writes `PROOF.md`, `proof_report.json`, and redacted `support_bundle.json`. Raw HTML MCP tools remain available only for importing existing HTML. By default, all tool paths must resolve under the MCP working directory and the tools make no SDK network calls.
 
 For all targets, agents should edit `viewspec.intent.json` or `DESIGN.md` and regenerate artifacts. They should not patch generated files such as `dist/index.html` or `react-output/ViewSpecView.tsx`.
 
