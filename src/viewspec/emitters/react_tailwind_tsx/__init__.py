@@ -36,6 +36,7 @@ TAILWIND_RECIPE_REGISTRY_VERSION = "tailwind_recipe_registry.v1"
 TAILWIND_MAX_IR_NODES = 600
 TAILWIND_MAX_IR_DEPTH = 16
 TAILWIND_MAX_ACTIONS = 128
+TAILWIND_MAX_APP_ROLES = 25
 TAILWIND_MAX_RECIPES = 96
 TAILWIND_MAX_CLASS_TOKENS = 512
 TAILWIND_MAX_ARTIFACT_BYTES = 256 * 1024
@@ -64,9 +65,11 @@ TAILWIND_CONSTRAINT_CODES = frozenset(
         "TAILWIND_LIMIT_EXCEEDED_NODES",
         "TAILWIND_LIMIT_EXCEEDED_RECIPES",
         "TAILWIND_RECIPE_CONFLICT",
+        "TAILWIND_STATEFUL_COLLECTION_RECIPE_MISSING",
         "TAILWIND_STYLE_CONSTRAINT_VIOLATION",
         "TAILWIND_UNSAFE_CLASS_SOURCE",
         "TAILWIND_UNSUPPORTED_PRIMITIVE",
+        "TAILWIND_GENERIC_FALLBACK_EXCEEDED",
     }
 )
 
@@ -104,9 +107,10 @@ TAILWIND_APP_V1_APP_ROLE_CONTRACTS: dict[str, dict[str, tuple[str, ...]]] = {
     "field_group": {"primitives": ("surface",), "product_roles": ("field_group",)},
     "detail_panel": {"primitives": ("stack",), "product_roles": ("detail_panel",)},
     "action_row": {"primitives": ("cluster",), "product_roles": ("action_row",)},
+    "collection_action_bar": {"primitives": ("cluster",), "product_roles": ("action_row",)},
     "empty_state": {"primitives": ("surface",), "motif_kinds": ("empty_state",)},
     "loading_state": {"primitives": ("surface",), "state_roles": ("loading",)},
-    "error_state": {"primitives": ("error_boundary",), "state_roles": ("error",)},
+    "error_state": {"primitives": ("surface",), "state_roles": ("error",)},
     "overlay_panel": {"primitives": ("surface",), "product_roles": ("detail_panel", "form_panel")},
 }
 
@@ -132,7 +136,9 @@ TAILWIND_STRUCTURAL_APP_ROLE_RULE_IDS: dict[str, str] = {
     "data_table": "tailwind_app_v1.structural.data_table_from_table_stack",
     "data_row": "tailwind_app_v1.structural.data_row_from_table_cluster",
     "empty_state": "tailwind_app_v1.structural.empty_state_from_empty_surface",
-    "error_state": "tailwind_app_v1.structural.error_state_from_error_boundary",
+    "loading_state": "tailwind_app_v1.structural.loading_state_from_state_surface",
+    "error_state": "tailwind_app_v1.structural.error_state_from_state_surface",
+    "collection_action_bar": "tailwind_app_v1.structural.collection_action_bar_from_collection_actions",
 }
 
 TAILWIND_APP_ROLE_RULE_PRECEDENCE: tuple[str, ...] = (
@@ -144,7 +150,9 @@ TAILWIND_APP_ROLE_RULE_PRECEDENCE: tuple[str, ...] = (
     TAILWIND_STRUCTURAL_APP_ROLE_RULE_IDS["data_table"],
     TAILWIND_STRUCTURAL_APP_ROLE_RULE_IDS["data_row"],
     TAILWIND_STRUCTURAL_APP_ROLE_RULE_IDS["empty_state"],
+    TAILWIND_STRUCTURAL_APP_ROLE_RULE_IDS["loading_state"],
     TAILWIND_STRUCTURAL_APP_ROLE_RULE_IDS["error_state"],
+    TAILWIND_STRUCTURAL_APP_ROLE_RULE_IDS["collection_action_bar"],
 )
 
 
@@ -169,9 +177,10 @@ RECIPE_BY_KEY: dict[str, str] = {
     "app_role:field_group": "rounded-md border border-slate-200 bg-slate-50 p-3 shadow-none",
     "app_role:detail_panel": "rounded-md border border-slate-200 bg-white p-4 shadow-sm",
     "app_role:action_row": "flex flex-row flex-wrap items-center justify-end gap-2 pt-1",
+    "app_role:collection_action_bar": "flex flex-row flex-wrap items-center gap-2 rounded-md border border-slate-200 bg-white p-3",
     "app_role:empty_state": "items-center rounded-md border border-dashed border-slate-300 bg-white p-8 text-center",
     "app_role:loading_state": "rounded-md border border-slate-200 bg-white p-4 text-slate-500",
-    "app_role:error_state": "rounded-md border border-red-300 bg-red-50 p-4 font-mono text-sm text-red-800",
+    "app_role:error_state": "rounded-md border border-red-300 bg-red-50 p-4 text-red-800",
     "app_role:overlay_panel": "rounded-md border border-slate-200 bg-white p-5 shadow-lg",
     "product_role:app_shell": "mx-auto flex w-full max-w-6xl flex-col gap-5",
     "product_role:app_header": "flex flex-col gap-2",
@@ -190,11 +199,13 @@ RECIPE_BY_KEY: dict[str, str] = {
     "motif:detail:cluster": "grid gap-2 border-b border-slate-200 py-2 last:border-b-0 sm:grid-cols-3",
     "motif:detail:stack": "m-0 flex flex-col gap-0",
     "motif:empty_state:surface": "flex flex-col gap-3",
+    "motif:error_state:surface": "flex flex-col gap-3",
     "motif:form:stack": "flex flex-col gap-4",
     "motif:form:surface": "flex flex-col gap-2",
     "motif:hero:surface": "flex flex-col gap-3",
     "motif:list:stack": "m-0 flex list-none flex-col gap-2 p-0",
     "motif:list:surface": "rounded-md border border-slate-200 bg-white p-3",
+    "motif:loading_state:surface": "flex flex-col gap-3",
     "motif:outline:stack": "flex flex-col gap-2",
     "motif:table:cluster": "table-row",
     "motif:table:stack": "w-full border-collapse text-left",
@@ -207,6 +218,8 @@ RECIPE_BY_KEY: dict[str, str] = {
     "role:hero:title": "text-3xl font-black leading-tight text-slate-950",
     "role:table:cell": "border-b border-slate-200 px-3 py-2 align-top text-slate-700",
     "role:table:row_header": "border-b border-slate-200 bg-slate-50 px-3 py-2 align-top font-semibold text-slate-600",
+    "role:state:description": "text-sm leading-6 text-slate-600",
+    "role:state:title": "text-base font-semibold text-slate-950",
     "layout:cluster": "flex flex-row flex-wrap gap-3",
     "layout:grid": "grid gap-4",
     "layout:root": "flex flex-col gap-6",
@@ -268,8 +281,8 @@ def _depth(node: IRNode) -> int:
 
 
 def _validate_recipe_registry() -> None:
-    if len(TAILWIND_APP_V1_APP_ROLE_CONTRACTS) > 24:
-        _fail("APP_ROLE_UNDECLARED_CONTRACT", "tailwind_app_v1 app-role registry exceeds 24 roles.")
+    if len(TAILWIND_APP_V1_APP_ROLE_CONTRACTS) > TAILWIND_MAX_APP_ROLES:
+        _fail("APP_ROLE_UNDECLARED_CONTRACT", f"tailwind_app_v1 app-role registry exceeds {TAILWIND_MAX_APP_ROLES} roles.")
     for role in TAILWIND_APP_V1_APP_ROLE_CONTRACTS:
         if f"app_role:{role}" not in RECIPE_BY_KEY:
             _fail("APP_ROLE_UNDECLARED_CONTRACT", f"App role {role} has no checked-in recipe.")
@@ -279,6 +292,17 @@ def _validate_recipe_registry() -> None:
     for role, rule_id in TAILWIND_STRUCTURAL_APP_ROLE_RULE_IDS.items():
         if role not in TAILWIND_APP_V1_APP_ROLE_CONTRACTS or rule_id not in TAILWIND_APP_ROLE_RULE_PRECEDENCE:
             _fail("APP_ROLE_UNDECLARED_CONTRACT", f"Structural app-role rule {rule_id} is not declared in registry precedence.")
+    for key in (
+        "app_role:collection_action_bar",
+        "app_role:loading_state",
+        "app_role:error_state",
+        "motif:loading_state:surface",
+        "motif:error_state:surface",
+        "role:state:title",
+        "role:state:description",
+    ):
+        if key not in RECIPE_BY_KEY:
+            _fail("TAILWIND_STATEFUL_COLLECTION_RECIPE_MISSING", f"Missing checked Stateful Collections Tailwind recipe: {key}.")
     if len(RECIPE_BY_KEY) > TAILWIND_MAX_RECIPES:
         _fail("TAILWIND_LIMIT_EXCEEDED_RECIPES", "tailwind_app_v1 recipe registry exceeds 96 recipes.")
     for key, value in RECIPE_BY_KEY.items():
@@ -345,6 +369,12 @@ def _derive_structural_app_role(node: IRNode, parent: IRNode | None) -> AppRoleD
     if (
         node.primitive == "cluster"
         and node.props.get("product_role") == "action_row"
+        and node.props.get("layout_strategy") == "collection_action_bar_v1"
+    ):
+        return AppRoleDerivation("collection_action_bar", TAILWIND_STRUCTURAL_APP_ROLE_RULE_IDS["collection_action_bar"])
+    if (
+        node.primitive == "cluster"
+        and node.props.get("product_role") == "action_row"
         and node.props.get("layout_strategy") == "action_row_v1"
         and parent is not None
         and parent.props.get("motif_kind") == "form"
@@ -372,7 +402,9 @@ def _derive_structural_app_role(node: IRNode, parent: IRNode | None) -> AppRoleD
         return AppRoleDerivation("data_row", TAILWIND_STRUCTURAL_APP_ROLE_RULE_IDS["data_row"])
     if node.props.get("motif_kind") == "empty_state" and node.primitive == "surface":
         return AppRoleDerivation("empty_state", TAILWIND_STRUCTURAL_APP_ROLE_RULE_IDS["empty_state"])
-    if node.primitive == "error_boundary":
+    if node.props.get("state_role") == "loading" and node.primitive == "surface":
+        return AppRoleDerivation("loading_state", TAILWIND_STRUCTURAL_APP_ROLE_RULE_IDS["loading_state"])
+    if node.props.get("state_role") == "error" and node.primitive == "surface":
         return AppRoleDerivation("error_state", TAILWIND_STRUCTURAL_APP_ROLE_RULE_IDS["error_state"])
     return None
 
@@ -382,6 +414,7 @@ def _role_key(node: IRNode) -> str | None:
         ("detail_role", "role:detail"),
         ("empty_state_role", "role:empty_state"),
         ("hero_role", "role:hero"),
+        ("state_motif_role", "role:state"),
         ("table_cell_role", "role:table"),
     ):
         value = node.props.get(prop_name)
@@ -457,6 +490,8 @@ def _is_role_bearing(node: IRNode) -> bool:
             "layout_role",
             "motif_kind",
             "product_role",
+            "state_motif_role",
+            "state_role",
             "table_cell_role",
         )
     )
@@ -541,6 +576,16 @@ def _attrs_for_node(node: IRNode, recipe: ResolvedRecipe) -> list[str]:
         attrs.append('role="group"')
     elif node.props.get("motif_kind") == "empty_state" and node.primitive == "surface":
         attrs.append(_jsx_attr("aria-label", str(node.props.get("aria_label", "Empty state"))))
+    elif node.props.get("motif_kind") == "loading_state" and node.primitive == "surface":
+        attrs.extend(
+            [
+                'role="status"',
+                'aria-busy="true"',
+                _jsx_attr("aria-label", str(node.props.get("aria_label", "Loading state"))),
+            ]
+        )
+    elif node.props.get("motif_kind") == "error_state" and node.primitive == "surface":
+        attrs.extend(['role="alert"', _jsx_attr("aria-label", str(node.props.get("aria_label", "Error state")))])
     elif node.props.get("motif_kind") == "hero" and node.primitive == "surface":
         attrs.append(_jsx_attr("aria-label", str(node.props.get("aria_label", "Hero"))))
     elif node.props.get("table_cell_role") == "row_header":
@@ -648,6 +693,7 @@ def tailwind_recipe_registry_projection() -> dict[str, Any]:
             "ir_depth": TAILWIND_MAX_IR_DEPTH,
             "ir_nodes": TAILWIND_MAX_IR_NODES,
             "actions": TAILWIND_MAX_ACTIONS,
+            "app_roles": TAILWIND_MAX_APP_ROLES,
             "recipes": TAILWIND_MAX_RECIPES,
             "recipe_precedence_tiers": TAILWIND_MAX_RECIPE_PRECEDENCE_TIERS,
         },
@@ -702,6 +748,22 @@ def _emit_source(result: CompilerResult, title: str) -> tuple[str, dict[str, Any
         f"  const compiledPayloadValues: Record<string, unknown> = {compiled_values};",
         "  const setInputValue = (id: string, value: unknown) => {",
         "    setInputValues((current) => ({ ...current, [id]: value }));",
+        "  };",
+        "  const utf8Bytes = (value: unknown): number => new TextEncoder().encode(String(value ?? \"\")).length;",
+        "  const assertPayloadBounds = (kind: string, payloadBindings: string[], payloadValues: Record<string, unknown>) => {",
+        "    if (kind === \"bulk_action\") {",
+        "      const selectionBindings = payloadBindings.filter((id) => id.endsWith(\"_selection\") || id.endsWith(\"_selected_ids\"));",
+        "      if (selectionBindings.length !== 1 || payloadBindings.length !== 1) throw new Error(\"COLLECTION_BULK_SELECTION_AMBIGUOUS\");",
+        "      const value = payloadValues[selectionBindings[0]];",
+        "      if (Array.isArray(value) && value.length > 100) throw new Error(\"COLLECTION_BULK_SELECTION_TOO_LARGE\");",
+        "      if (utf8Bytes(value) > 4096) throw new Error(\"COLLECTION_BULK_SELECTION_TOO_LARGE\");",
+        "      return;",
+        "    }",
+        "    if ([\"search\", \"filter\", \"sort\", \"paginate\"].includes(kind)) {",
+        "      payloadBindings.forEach((bindingId) => {",
+        "        if (utf8Bytes(payloadValues[bindingId]) > 512) throw new Error(\"COLLECTION_ACTION_PAYLOAD_TOO_LARGE\");",
+        "      });",
+        "    }",
         "  };",
         "  const collectPayloadValues = (payloadBindings: string[]): Record<string, unknown> => {",
         "    const payloadValues: Record<string, unknown> = {};",

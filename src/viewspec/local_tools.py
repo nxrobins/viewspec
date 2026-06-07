@@ -69,6 +69,7 @@ EXTERNAL_REF_POLICIES = {
     ("link", "href", "user_click"),
 }
 KNOWN_EMITTERS = {"html_tailwind", "react_tailwind_tsx", "react_tsx"}
+STATEFUL_COLLECTION_ACTION_KINDS = {"search", "filter", "sort", "paginate", "bulk_action"}
 EMITTER_ARTIFACT_FILES = {
     "html_tailwind": "index.html",
     "react_tailwind_tsx": "ViewSpecView.tsx",
@@ -101,7 +102,8 @@ REACT_TSX_REQUIRED_MARKERS = {
     ),
 }
 REACT_TSX_ACTION_REQUIRED_MARKERS = {
-    "payloadValues: collectPayloadValues": "ViewSpecView.tsx missing action payload dispatch",
+    "const payloadValues = collectPayloadValues(payloadBindings);": "ViewSpecView.tsx missing action payload dispatch",
+    "assertPayloadBounds(": "ViewSpecView.tsx missing collection action payload bounds",
 }
 REACT_TSX_FORBIDDEN_SURFACES = (
     (re.compile(r"\bdangerouslySetInnerHTML\b"), "ViewSpecView.tsx contains dangerouslySetInnerHTML"),
@@ -286,6 +288,7 @@ def check_artifact_dir(path: str | Path) -> dict[str, Any]:
                 )
             )
             errors.extend(_validate_react_tsx_manifest_links(tsx, manifest))
+            errors.extend(_validate_stateful_collection_artifact(tsx, manifest, emitter=emitter if isinstance(emitter, str) else "react_tsx"))
             errors.extend(
                 _validate_intent_semantic_digest(
                     tsx,
@@ -319,6 +322,7 @@ def check_artifact_dir(path: str | Path) -> dict[str, Any]:
         if manifest.get("kind") == "intent_bundle_compile":
             errors.extend(_validate_no_tailwind_scope_leak(manifest))
         errors.extend(_validate_manifest_dom_links(manifest, html))
+        errors.extend(_validate_stateful_collection_artifact(html, manifest, emitter=emitter if isinstance(emitter, str) else "html_tailwind"))
         errors.extend(
             _validate_intent_semantic_digest(
                 html,
@@ -1158,6 +1162,8 @@ def _validate_tailwind_generic_fallback(nodes: dict[str, Any]) -> list[str]:
                 "layout_role",
                 "motif_kind",
                 "product_role",
+                "state_motif_role",
+                "state_role",
                 "table_cell_role",
             )
         ):
@@ -1288,6 +1294,23 @@ def _semantic_manifest_projection(manifest: dict[str, Any], *, emitter: str) -> 
     }
 
 
+def _semantic_projection_uses_stateful_collections(projection: Any) -> bool:
+    if not isinstance(projection, dict):
+        return False
+    nodes = projection.get("nodes")
+    if not isinstance(nodes, list):
+        return False
+    for node in nodes:
+        if not isinstance(node, dict):
+            continue
+        action = node.get("action")
+        if isinstance(action, dict) and action.get("kind") in STATEFUL_COLLECTION_ACTION_KINDS:
+            return True
+        if node.get("accessibility_label") in {"Loading state", "Error state"}:
+            return True
+    return False
+
+
 def _semantic_manifest_node(dom_id: str, entry: dict[str, Any], *, emitter: str) -> dict[str, Any]:
     props = entry.get("props") if isinstance(entry.get("props"), dict) else {}
     primitive = str(entry.get("primitive") or "")
@@ -1333,6 +1356,12 @@ def _semantic_tag_for_manifest_node(entry: dict[str, Any]) -> str:
     if props.get("empty_state_role") == "title":
         return "h2"
     if props.get("empty_state_role") == "description":
+        return "p"
+    if props.get("motif_kind") in {"loading_state", "error_state"} and primitive == "surface":
+        return "section"
+    if props.get("state_motif_role") == "title":
+        return "h2"
+    if props.get("state_motif_role") == "description":
         return "p"
     if props.get("motif_kind") == "hero" and primitive == "surface":
         return "header"
@@ -1386,6 +1415,10 @@ def _semantic_accessibility_label(primitive: str, props: dict[str, Any], *, ir_i
         return str(props.get("label", ir_id))
     if props.get("motif_kind") == "empty_state" and primitive == "surface":
         return str(props.get("aria_label", "Empty state"))
+    if props.get("motif_kind") == "loading_state" and primitive == "surface":
+        return str(props.get("aria_label", "Loading state"))
+    if props.get("motif_kind") == "error_state" and primitive == "surface":
+        return str(props.get("aria_label", "Error state"))
     if props.get("motif_kind") == "hero" and primitive == "surface":
         return str(props.get("aria_label", "Hero"))
     return None
@@ -1577,6 +1610,104 @@ def _tsx_semantic_parent_map(tsx: str) -> dict[str, str | None]:
     return parent_by_dom_id
 
 
+def _html_semantic_parent_map(html: str) -> dict[str, str | None]:
+    parser = _SemanticHtmlParentParser()
+    parser.feed(html)
+    parser.close()
+    return parser.parent_by_dom_id
+
+
+class _SemanticHtmlParentParser(HTMLParser):
+    def __init__(self) -> None:
+        super().__init__(convert_charrefs=True)
+        self.parent_by_dom_id: dict[str, str | None] = {}
+        self.stack: list[str] = []
+
+    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        self._handle_tag(tag, attrs, self_closing=False)
+
+    def handle_startendtag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        self._handle_tag(tag, attrs, self_closing=True)
+
+    def handle_endtag(self, tag: str) -> None:
+        if tag.lower() not in VOID_HTML_TAGS and self.stack:
+            self.stack.pop()
+
+    def _handle_tag(self, tag: str, attrs: list[tuple[str, str | None]], *, self_closing: bool) -> None:
+        attr_map = {name.lower(): value or "" for name, value in attrs}
+        dom_id = attr_map.get("id")
+        ir_id = attr_map.get("data-ir-id")
+        semantic_dom_id = dom_id if dom_id and ir_id else None
+        if semantic_dom_id is not None:
+            self.parent_by_dom_id[semantic_dom_id] = self.stack[-1] if self.stack else None
+        if not self_closing and tag.lower() not in VOID_HTML_TAGS:
+            self.stack.append(semantic_dom_id or (self.stack[-1] if self.stack else ""))
+
+
+def _validate_stateful_collection_artifact(artifact_text: str, manifest: dict[str, Any], *, emitter: str) -> list[str]:
+    nodes = manifest.get("nodes")
+    if not isinstance(nodes, dict):
+        return []
+    primitive_by_dom_id = {
+        dom_id: str(entry.get("primitive") or "")
+        for dom_id, entry in nodes.items()
+        if isinstance(dom_id, str) and isinstance(entry, dict)
+    }
+    try:
+        if emitter == "html_tailwind":
+            source_nodes = _semantic_html_source_nodes(artifact_text, primitive_by_dom_id=primitive_by_dom_id)
+            parent_by_dom_id = _html_semantic_parent_map(artifact_text)
+        elif emitter in {"react_tsx", "react_tailwind_tsx"}:
+            source_nodes = _semantic_tsx_source_nodes(artifact_text, primitive_by_dom_id=primitive_by_dom_id)
+            parent_by_dom_id = _tsx_semantic_parent_map(artifact_text)
+        else:
+            return []
+    except ValueError as exc:
+        return [str(exc)]
+    source_order = [str(node["dom_id"]) for node in source_nodes]
+    siblings_by_parent: dict[str | None, list[str]] = {}
+    for dom_id in source_order:
+        siblings_by_parent.setdefault(parent_by_dom_id.get(dom_id), []).append(dom_id)
+    collection_bar_by_motif: dict[str, str] = {}
+    errors: list[str] = []
+    for dom_id, entry in nodes.items():
+        if not isinstance(dom_id, str) or not isinstance(entry, dict):
+            continue
+        props = entry.get("props") if isinstance(entry.get("props"), dict) else {}
+        if props.get("layout_strategy") != "collection_action_bar_v1":
+            continue
+        ir_id = str(entry.get("ir_id") or "")
+        prefix = "planner_"
+        suffix = "_collection_actions"
+        if not (ir_id.startswith(prefix) and ir_id.endswith(suffix)):
+            errors.append("COLLECTION_ACTION_BAR_PLACEMENT_INVALID: action bar id must use planner_<motif_id>_collection_actions.")
+            continue
+        motif_id = ir_id[len(prefix) : -len(suffix)]
+        previous = collection_bar_by_motif.setdefault(motif_id, dom_id)
+        if previous != dom_id:
+            errors.append(f"COLLECTION_ACTION_BAR_DUPLICATE: collection motif {motif_id} has more than one action bar.")
+            continue
+        wrapper_dom_id = f"dom-motif_{motif_id}"
+        wrapper_entry = nodes.get(wrapper_dom_id)
+        wrapper_props = wrapper_entry.get("props") if isinstance(wrapper_entry, dict) and isinstance(wrapper_entry.get("props"), dict) else {}
+        if wrapper_props.get("motif_kind") not in {"table", "list"}:
+            errors.append(f"COLLECTION_ACTION_TARGET_INVALID: action bar {dom_id} does not target a table or list motif.")
+            continue
+        parent = parent_by_dom_id.get(wrapper_dom_id)
+        if parent_by_dom_id.get(dom_id) != parent:
+            errors.append(f"COLLECTION_ACTION_BAR_PLACEMENT_INVALID: action bar {dom_id} is not a sibling of {wrapper_dom_id}.")
+            continue
+        siblings = siblings_by_parent.get(parent, [])
+        try:
+            wrapper_index = siblings.index(wrapper_dom_id)
+        except ValueError:
+            errors.append(f"COLLECTION_ACTION_BAR_PLACEMENT_INVALID: collection wrapper {wrapper_dom_id} is missing from source order.")
+            continue
+        if wrapper_index == 0 or siblings[wrapper_index - 1] != dom_id:
+            errors.append(f"COLLECTION_ACTION_BAR_PLACEMENT_INVALID: action bar {dom_id} must be the direct previous sibling of {wrapper_dom_id}.")
+    return errors
+
+
 def _tsx_render_block_lines(tsx: str) -> list[str] | None:
     lines = tsx.splitlines()
     start: int | None = None
@@ -1687,6 +1818,13 @@ def _validate_intent_semantic_digest(
             errors.append(f"SEMANTIC_DIGEST_MISMATCH: semantic_digest.{key} does not match current artifact")
     if recomputed["manifest_projection"] != recomputed["source_projection"]:
         errors.append("SEMANTIC_DIGEST_MISMATCH: manifest_projection does not match source_projection")
+        if (
+            _semantic_projection_uses_stateful_collections(recomputed["manifest_projection"])
+            or _semantic_projection_uses_stateful_collections(recomputed["source_projection"])
+        ):
+            errors.append(
+                "STATEFUL_COLLECTIONS_EMITTER_PARITY_FAILED: manifest_projection does not match source_projection for stateful collection semantics"
+            )
     return errors
 
 
@@ -1936,6 +2074,12 @@ def _validate_intent_manifest_node(node_id: str, entry: dict[str, Any], errors: 
     empty_state_role = props.get("empty_state_role")
     if empty_state_role is not None and empty_state_role not in {"title", "description", "detail"}:
         errors.append(f"manifest nodes.{node_id}.props.empty_state_role must be title, description, or detail")
+    state_motif_role = props.get("state_motif_role")
+    if state_motif_role is not None and state_motif_role not in {"title", "description", "detail"}:
+        errors.append(f"manifest nodes.{node_id}.props.state_motif_role must be title, description, or detail")
+    state_role = props.get("state_role")
+    if state_role is not None and state_role not in {"loading", "error"}:
+        errors.append(f"manifest nodes.{node_id}.props.state_role must be loading or error")
     hero_role = props.get("hero_role")
     if hero_role is not None and hero_role not in {"eyebrow", "title", "description", "detail"}:
         errors.append(f"manifest nodes.{node_id}.props.hero_role must be eyebrow, title, description, or detail")
@@ -2230,6 +2374,15 @@ def _validate_intent_semantic_attrs(
         if attrs.get("data-action-target-ref", "") != str(props.get("target_ref", "")):
             errors.append(f"DOM element {dom_id} data-action-target-ref does not match manifest props")
         _compare_json_attr(errors, attrs, props, dom_id, "data-payload-bindings", "payload_bindings")
+        if props.get("action_kind") in STATEFUL_COLLECTION_ACTION_KINDS:
+            try:
+                parsed_payload_bindings = json.loads(attrs.get("data-payload-bindings", "null"))
+            except json.JSONDecodeError:
+                parsed_payload_bindings = None
+            if parsed_payload_bindings != props.get("payload_bindings", []):
+                errors.append(
+                    f"STATEFUL_COLLECTIONS_ACTION_PAYLOAD_MISMATCH: DOM element {dom_id} data-payload-bindings does not match manifest props"
+                )
     elif primitive == "input":
         if tag != "input":
             errors.append(f"manifest node {dom_id} input primitive must render as <input>")
@@ -2286,6 +2439,31 @@ def _validate_intent_semantic_attrs(
             errors.append(f"manifest node {dom_id} empty_state description must render as <p>")
     elif empty_state_role is not None and empty_state_role != "detail":
         errors.append(f"manifest node {dom_id} empty_state_role must be title, description, or detail")
+    if props.get("motif_kind") == "loading_state" and primitive == "surface":
+        if tag != "section":
+            errors.append(f"manifest node {dom_id} loading_state surface must render as <section>")
+        if attrs.get("role") != "status":
+            errors.append(f"DOM element {dom_id} loading_state surface missing role=\"status\"")
+        if attrs.get("aria-busy") != "true":
+            errors.append(f"DOM element {dom_id} loading_state surface missing aria-busy=\"true\"")
+        if attrs.get("aria-label") != str(props.get("aria_label", "Loading state")):
+            errors.append(f"DOM element {dom_id} loading_state surface aria-label does not match manifest props")
+    if props.get("motif_kind") == "error_state" and primitive == "surface":
+        if tag != "section":
+            errors.append(f"manifest node {dom_id} error_state surface must render as <section>")
+        if attrs.get("role") != "alert":
+            errors.append(f"DOM element {dom_id} error_state surface missing role=\"alert\"")
+        if attrs.get("aria-label") != str(props.get("aria_label", "Error state")):
+            errors.append(f"DOM element {dom_id} error_state surface aria-label does not match manifest props")
+    state_motif_role = props.get("state_motif_role")
+    if state_motif_role == "title":
+        if tag != "h2":
+            errors.append(f"manifest node {dom_id} state title must render as <h2>")
+    elif state_motif_role == "description":
+        if tag != "p":
+            errors.append(f"manifest node {dom_id} state description must render as <p>")
+    elif state_motif_role is not None and state_motif_role != "detail":
+        errors.append(f"manifest node {dom_id} state_motif_role must be title, description, or detail")
     if props.get("motif_kind") == "hero" and primitive == "surface":
         if tag != "header":
             errors.append(f"manifest node {dom_id} hero surface must render as <header>")

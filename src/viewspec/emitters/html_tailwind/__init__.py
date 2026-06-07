@@ -58,9 +58,11 @@ MOTIF_KIND_CLASS_BY_KIND = {
     "dashboard": "vs-motif-dashboard",
     "detail": "vs-motif-detail",
     "empty_state": "vs-motif-empty-state",
+    "error_state": "vs-motif-error-state",
     "form": "vs-motif-form",
     "hero": "vs-motif-hero",
     "list": "vs-motif-list",
+    "loading_state": "vs-motif-loading-state",
     "outline": "vs-motif-outline",
     "table": "vs-motif-table",
 }
@@ -120,6 +122,9 @@ header.vs-surface p.vs-text, header.vs-surface p.vs-label { max-width: 68ch; mar
 .vs-role-field-group { border-radius: 8px; box-shadow: none; padding: 12px; }
 .vs-role-detail-panel { border-radius: 8px; padding: 16px; }
 .vs-role-action-row { align-items: center; justify-content: flex-end; gap: 10px; padding: 4px 0 0; }
+.vs-motif-loading-state { border-radius: 12px; border-style: dashed; color: #475569; }
+.vs-motif-error-state { border-color: #fca5a5; background: #fef2f2; color: #991b1b; }
+.vs-motif-loading-state .vs-value, .vs-motif-error-state .vs-value { font-size: 1.125rem; }
 @media (max-width: 760px) {
   .vs-root { padding: 16px; }
   .vs-role-app-shell { padding: 16px; }
@@ -145,6 +150,34 @@ function viewspecPayloadBindings(btn) {
   return payloadBindings;
 }
 
+function viewspecUtf8Bytes(value) {
+  return new TextEncoder().encode(String(value ?? '')).length;
+}
+
+function viewspecAssertPayloadBounds(detail) {
+  if (detail.kind === 'bulk_action') {
+    const selectionBindings = detail.payloadBindings.filter((id) => id.endsWith('_selection') || id.endsWith('_selected_ids'));
+    if (selectionBindings.length !== 1 || detail.payloadBindings.length !== 1) {
+      throw new Error('COLLECTION_BULK_SELECTION_AMBIGUOUS');
+    }
+    const value = detail.payloadValues[selectionBindings[0]];
+    if (Array.isArray(value) && value.length > 100) {
+      throw new Error('COLLECTION_BULK_SELECTION_TOO_LARGE');
+    }
+    if (viewspecUtf8Bytes(value) > 4096) {
+      throw new Error('COLLECTION_BULK_SELECTION_TOO_LARGE');
+    }
+    return;
+  }
+  if (['search', 'filter', 'sort', 'paginate'].includes(detail.kind)) {
+    for (const bindingId of detail.payloadBindings) {
+      if (viewspecUtf8Bytes(detail.payloadValues[bindingId]) > 512) {
+        throw new Error('COLLECTION_ACTION_PAYLOAD_TOO_LARGE');
+      }
+    }
+  }
+}
+
 function dispatchViewSpecAction(btn) {
   const payloadBindings = viewspecPayloadBindings(btn);
   const detail = {
@@ -163,6 +196,7 @@ function dispatchViewSpecAction(btn) {
     if (!requested.has(id)) return;
     detail.payloadValues[id] = 'value' in el ? el.value : el.textContent || '';
   });
+  viewspecAssertPayloadBounds(detail);
   document.dispatchEvent(new CustomEvent('viewspec-action', { detail }));
 }
 
@@ -366,6 +400,21 @@ def _render_node(node: IRNode, manifest: dict[str, Any], style_values: dict[str,
         attrs.append('role="group"')
     elif node.props.get("motif_kind") == "empty_state" and node.primitive == "surface":
         attrs.append(f'aria-label="{escape(str(node.props.get("aria_label", "Empty state")), quote=True)}"')
+    elif node.props.get("motif_kind") == "loading_state" and node.primitive == "surface":
+        attrs.extend(
+            [
+                'role="status"',
+                'aria-busy="true"',
+                f'aria-label="{escape(str(node.props.get("aria_label", "Loading state")), quote=True)}"',
+            ]
+        )
+    elif node.props.get("motif_kind") == "error_state" and node.primitive == "surface":
+        attrs.extend(
+            [
+                'role="alert"',
+                f'aria-label="{escape(str(node.props.get("aria_label", "Error state")), quote=True)}"',
+            ]
+        )
     elif node.props.get("motif_kind") == "hero" and node.primitive == "surface":
         attrs.append(f'aria-label="{escape(str(node.props.get("aria_label", "Hero")), quote=True)}"')
     elif node.props.get("table_cell_role") == "row_header":
@@ -390,6 +439,12 @@ def _render_node(node: IRNode, manifest: dict[str, Any], style_values: dict[str,
     elif node.props.get("empty_state_role") == "title":
         tag = "h2"
     elif node.props.get("empty_state_role") == "description":
+        tag = "p"
+    elif node.props.get("motif_kind") in {"loading_state", "error_state"} and node.primitive == "surface":
+        tag = "section"
+    elif node.props.get("state_motif_role") == "title":
+        tag = "h2"
+    elif node.props.get("state_motif_role") == "description":
         tag = "p"
     elif node.props.get("motif_kind") == "hero" and node.primitive == "surface":
         tag = "header"

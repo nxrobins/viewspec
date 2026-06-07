@@ -2,11 +2,11 @@
   "files": [
     {
       "path": "agent-system-prompt.txt",
-      "sha256": "27b90b6caef455251896cdb8ba3df5feb24c71aaacfe904eebdc2ed20d4e585e"
+      "sha256": "16f93f57205cf3d8843bf0d3f34602e0d50c04edeedd42a93bf21f8ea2d2d2d4"
     },
     {
       "path": "agent-intent-bundle.schema.json",
-      "sha256": "1328bf90a503d1d26809ddd56c847c702056049648e804c1c07b8eef1823c3f2"
+      "sha256": "436c55eba69e0c467307a4d76e3b84e9b7e9f2819cd0b2e70346eafe6c46a18c"
     },
     {
       "path": "agent-intent-example.dashboard.json",

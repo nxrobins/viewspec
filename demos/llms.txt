@@ -44,8 +44,9 @@ Raw HTML tools remain available only for importing existing HTML: `viewspec comp
 - Generated outputs such as `dist/index.html` and `react-output/ViewSpecView.tsx` are artifacts; edit `viewspec.intent.json` or `DESIGN.md` instead.
 - Agents should output IntentBundle JSON, not CompositionIR, HTML, CSS, React, SwiftUI, or Flutter source for new UI.
 - Agents must not call remote reference libraries by default. If the user explicitly asks for research or repo instructions configure an approved source, references may inform semantic intent only.
-- V1 public SDK motifs: table, dashboard, outline, comparison, list, form, detail, empty_state, hero.
-- V1 public SDK action kinds: select, submit, navigate.
+- V1 public SDK motifs: table, dashboard, outline, comparison, list, form, detail, empty_state, loading_state, error_state, hero.
+- V1 public SDK action kinds: select, submit, navigate, search, filter, sort, paginate, bulk_action.
+- Collection actions target table/list motifs and dispatch events only; host apps own filtering, sorting, pagination, and selection state.
 - V1 public SDK action target_ref is null/empty or region:id, binding:id, motif:id, or view:id.
 - V1 public SDK agent binding cardinality: exactly_once.
 - V1 public SDK agent group kind: ordered.

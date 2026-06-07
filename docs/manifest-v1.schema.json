@@ -230,6 +230,8 @@
             },
             "detail_role": { "enum": ["term", "description"] },
             "empty_state_role": { "enum": ["title", "description", "detail"] },
+            "state_motif_role": { "enum": ["title", "description", "detail"] },
+            "state_role": { "enum": ["loading", "error"] },
             "hero_role": { "enum": ["eyebrow", "title", "description", "detail"] }
           },
           "additionalProperties": true

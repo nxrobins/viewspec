@@ -1,7 +1,8 @@
 """
 ViewSpec Reference Compiler — local compilation for standard motif types.
 
-Handles: table, dashboard, outline, comparison, list, form, detail, empty_state, hero.
+Handles: table, dashboard, outline, comparison, list, form, detail, empty_state,
+loading_state, error_state, hero.
 For complex or novel layouts, use the hosted compiler at api.viewspec.dev.
 
 This is a deterministic, offline compiler that produces correct CompositionIR
@@ -53,7 +54,30 @@ PRESENT_AS_TO_PRIMITIVE: dict[str, str] = {
     "rule": "rule",
 }
 
-SUPPORTED_ACTION_KINDS = ("select", "submit", "navigate")
+COLLECTION_MOTIF_KINDS = frozenset({"table", "list"})
+STATE_MOTIF_KINDS = frozenset({"empty_state", "loading_state", "error_state"})
+CONFLICTING_STATE_MOTIF_KINDS = frozenset({"loading_state", "error_state"})
+SUPPORTED_MOTIF_KINDS = (
+    "table",
+    "dashboard",
+    "outline",
+    "comparison",
+    "list",
+    "form",
+    "detail",
+    "empty_state",
+    "loading_state",
+    "error_state",
+    "hero",
+)
+COLLECTION_ACTION_KINDS = frozenset({"search", "filter", "sort", "paginate", "bulk_action"})
+SUPPORTED_ACTION_KINDS = ("select", "submit", "navigate", "search", "filter", "sort", "paginate", "bulk_action")
+MAX_COLLECTION_ACTIONS_PER_COLLECTION = 8
+MAX_COLLECTION_ACTION_PAYLOAD_BINDINGS = 8
+MAX_STATE_MOTIFS = 16
+COLLECTION_PAYLOAD_VALUE_MAX_BYTES = 512
+BULK_SELECTION_VALUE_MAX_BYTES = 4096
+BULK_SELECTION_MAX_IDS = 100
 SUPPORTED_BINDING_CARDINALITIES = {"exactly_once"}
 SUPPORTED_GROUP_KINDS = {"ordered"}
 SUPPORTED_REGION_LAYOUTS = {"cluster", "grid", "stack"}
@@ -135,6 +159,20 @@ def _text_from_value(value: Any) -> str:
     if isinstance(value, str):
         return value
     return json.dumps(value, sort_keys=True)
+
+
+def _utf8_size(value: Any) -> int:
+    return len(_text_from_value(value).encode("utf-8"))
+
+
+def _resolved_payload_value(binding_id: str, bindings_by_id: dict[str, BindingSpec], address_index: dict[str, object]) -> object:
+    binding = bindings_by_id.get(binding_id)
+    if binding is None:
+        return ""
+    try:
+        return _resolve_address(binding.address, address_index)
+    except KeyError:
+        return ""
 
 
 # ---------------------------------------------------------------------------
@@ -510,6 +548,151 @@ def _action_row_for_motif_v1(wrapper: IRNode, motif_id: str) -> IRNode:
     return row
 
 
+def _collection_action_bar_for_motif_v1(parent: IRNode, wrapper: IRNode, motif_id: str) -> IRNode:
+    row_id = f"planner_{motif_id}_collection_actions"
+    existing = [child for child in parent.children if child.id == row_id]
+    if len(existing) > 1:
+        raise RuntimeError(f"COLLECTION_ACTION_BAR_DUPLICATE: duplicate action bar for collection motif {motif_id}.")
+    if existing:
+        row = existing[0]
+        wrapper_index = parent.children.index(wrapper)
+        row_index = parent.children.index(row)
+        if row_index != wrapper_index - 1:
+            parent.children.remove(row)
+            wrapper_index = parent.children.index(wrapper)
+            parent.children.insert(wrapper_index, row)
+        return row
+    row = IRNode(
+        id=row_id,
+        primitive="cluster",
+        props={"layout_role": "cluster", "layout_strategy": "collection_action_bar_v1"},
+        provenance=Provenance(intent_refs=list(wrapper.provenance.intent_refs)),
+    )
+    _assign_product_role_v1(row, "action_row")
+    wrapper_index = parent.children.index(wrapper)
+    parent.children.insert(wrapper_index, row)
+    return row
+
+
+def _motif_parent(root: IRNode, target: IRNode) -> IRNode | None:
+    for child in root.children:
+        if child is target:
+            return root
+        parent = _motif_parent(child, target)
+        if parent is not None:
+            return parent
+    return None
+
+
+def _is_collection_action(action: ActionIntent) -> bool:
+    return action.kind in COLLECTION_ACTION_KINDS
+
+
+def _collection_action_target_id(action: ActionIntent) -> str | None:
+    if not _is_collection_action(action) or not action.target_ref or ":" not in action.target_ref:
+        return None
+    target_kind, target_id = action.target_ref.split(":", 1)
+    if target_kind != "motif":
+        return None
+    return target_id
+
+
+def _validate_collection_action(
+    action: ActionIntent,
+    *,
+    motif_by_id: dict[str, MotifSpec],
+    motif_wrappers: dict[str, IRNode],
+    bindings_by_id: dict[str, BindingSpec],
+    address_index: dict[str, object],
+    diagnostics: list[CompilerDiagnostic],
+) -> bool:
+    if not _is_collection_action(action):
+        return True
+    target_motif_id = _collection_action_target_id(action)
+    if (
+        target_motif_id is None
+        or target_motif_id not in motif_by_id
+        or motif_by_id[target_motif_id].kind not in COLLECTION_MOTIF_KINDS
+        or target_motif_id not in motif_wrappers
+    ):
+        _add_diagnostic(
+            diagnostics,
+            "COLLECTION_ACTION_TARGET_INVALID",
+            f"Collection action {action.id} must target a compiled table or list motif by explicit motif:<id>.",
+            intent_ref=_action_ref(action.id),
+            region_id=action.target_region,
+        )
+        return False
+    if action.kind == "bulk_action":
+        selection_bindings = [
+            binding_id
+            for binding_id in action.payload_bindings
+            if binding_id.endswith("_selection") or binding_id.endswith("_selected_ids")
+        ]
+        if not selection_bindings:
+            _add_diagnostic(
+                diagnostics,
+                "COLLECTION_BULK_SELECTION_REQUIRED",
+                f"Bulk action {action.id} must declare exactly one _selection or _selected_ids payload binding.",
+                intent_ref=_action_ref(action.id),
+                region_id=action.target_region,
+            )
+            return False
+        if len(selection_bindings) != 1 or len(action.payload_bindings) != 1:
+            _add_diagnostic(
+                diagnostics,
+                "COLLECTION_BULK_SELECTION_AMBIGUOUS",
+                f"Bulk action {action.id} must declare exactly one selection payload binding and no other payload bindings.",
+                intent_ref=_action_ref(action.id),
+                region_id=action.target_region,
+            )
+            return False
+        payload_value = _resolved_payload_value(selection_bindings[0], bindings_by_id, address_index)
+        if isinstance(payload_value, list) and len(payload_value) > BULK_SELECTION_MAX_IDS:
+            _add_diagnostic(
+                diagnostics,
+                "COLLECTION_BULK_SELECTION_TOO_LARGE",
+                f"Bulk action {action.id} selection payload exceeds {BULK_SELECTION_MAX_IDS} ids.",
+                intent_ref=_action_ref(action.id),
+                region_id=action.target_region,
+            )
+            return False
+        if _utf8_size(payload_value) > BULK_SELECTION_VALUE_MAX_BYTES:
+            _add_diagnostic(
+                diagnostics,
+                "COLLECTION_BULK_SELECTION_TOO_LARGE",
+                f"Bulk action {action.id} selection payload exceeds {BULK_SELECTION_VALUE_MAX_BYTES} UTF-8 bytes.",
+                intent_ref=_action_ref(action.id),
+                region_id=action.target_region,
+            )
+            return False
+        return True
+    if not (1 <= len(action.payload_bindings) <= MAX_COLLECTION_ACTION_PAYLOAD_BINDINGS):
+        _add_diagnostic(
+            diagnostics,
+            "COLLECTION_ACTION_PAYLOAD_REQUIRED",
+            f"Collection action {action.id} must declare 1-{MAX_COLLECTION_ACTION_PAYLOAD_BINDINGS} payload bindings.",
+            intent_ref=_action_ref(action.id),
+            region_id=action.target_region,
+        )
+        return False
+    oversized = [
+        binding_id
+        for binding_id in action.payload_bindings
+        if _utf8_size(_resolved_payload_value(binding_id, bindings_by_id, address_index)) > COLLECTION_PAYLOAD_VALUE_MAX_BYTES
+    ]
+    if oversized:
+        _add_diagnostic(
+            diagnostics,
+            "COLLECTION_ACTION_PAYLOAD_TOO_LARGE",
+            f"Collection action {action.id} has payload bindings over {COLLECTION_PAYLOAD_VALUE_MAX_BYTES} UTF-8 bytes: {', '.join(sorted(oversized))}.",
+            intent_ref=_action_ref(action.id),
+            region_id=action.target_region,
+        )
+        return False
+    return True
+
+
 def _apply_product_surface_planner_v1(
     *,
     view_spec: ViewSpec,
@@ -519,6 +702,7 @@ def _apply_product_surface_planner_v1(
     motif_by_id: dict[str, MotifSpec],
     valid_actions: list[ActionIntent],
     bindings_by_id: dict[str, BindingSpec],
+    address_index: dict[str, object],
     diagnostics: list[CompilerDiagnostic],
     root_region: str,
 ) -> None:
@@ -551,8 +735,53 @@ def _apply_product_surface_planner_v1(
             root_region=view_spec.root_region,
         )
 
+    collection_action_counts: dict[str, int] = {}
+    for action in valid_actions:
+        target_collection_id = _collection_action_target_id(action)
+        if target_collection_id is not None:
+            collection_action_counts[target_collection_id] = collection_action_counts.get(target_collection_id, 0) + 1
+    overfull_collections = {
+        motif_id
+        for motif_id, count in collection_action_counts.items()
+        if count > MAX_COLLECTION_ACTIONS_PER_COLLECTION
+    }
+    for motif_id in sorted(overfull_collections):
+        _add_diagnostic(
+            diagnostics,
+            "TOO_MANY_COLLECTION_ACTIONS",
+            f"Collection motif {motif_id} has more than {MAX_COLLECTION_ACTIONS_PER_COLLECTION} collection actions.",
+            intent_ref=_motif_ref(motif_id),
+        )
+
     for action in valid_actions:
         action_node = _build_action_node(action, bindings_by_id)
+        if _collection_action_target_id(action) in overfull_collections:
+            continue
+        if not _validate_collection_action(
+            action,
+            motif_by_id=motif_by_id,
+            motif_wrappers=motif_wrappers,
+            bindings_by_id=bindings_by_id,
+            address_index=address_index,
+            diagnostics=diagnostics,
+        ):
+            continue
+        target_collection_id = _collection_action_target_id(action)
+        if target_collection_id is not None:
+            wrapper = motif_wrappers[target_collection_id]
+            parent = _motif_parent(region_nodes[root_region], wrapper)
+            if parent is None:
+                _add_diagnostic(
+                    diagnostics,
+                    "COLLECTION_ACTION_TARGET_INVALID",
+                    f"Collection action {action.id} target wrapper could not be located in the compiled IR.",
+                    intent_ref=_action_ref(action.id),
+                    region_id=action.target_region,
+                )
+                continue
+            action_node.props["placement"] = "collection_action_bar"
+            _collection_action_bar_for_motif_v1(parent, wrapper, target_collection_id).children.append(action_node)
+            continue
         target_motif_id = _action_target_motif_id(action)
         if target_motif_id is None:
             region_nodes[action.target_region].children.append(action_node)
@@ -817,6 +1046,78 @@ def _build_empty_state_motif(
         wrapper.children.append(node)
         placed.add(binding.id)
     return wrapper, placed
+
+
+def _build_state_motif(
+    motif: MotifSpec,
+    motif_bindings: list[BindingSpec],
+    *,
+    ordered_positions: dict[str, int],
+    binding_nodes: dict[str, IRNode],
+) -> tuple[IRNode, set[str]]:
+    motif_r = _motif_ref(motif.id)
+    state_role = "loading" if motif.kind == "loading_state" else "error"
+    wrapper = IRNode(
+        id=f"motif_{motif.id}",
+        primitive="surface",
+        props={
+            "layout_role": "surface",
+            "motif_kind": motif.kind,
+            "state_role": state_role,
+            "aria_label": "Loading state" if state_role == "loading" else "Error state",
+        },
+        provenance=Provenance(intent_refs=[motif_r]),
+    )
+    placed: set[str] = set()
+    title_assigned = False
+    for binding in sorted(motif_bindings, key=lambda b: ordered_positions[b.id]):
+        node = binding_nodes[binding.id]
+        attr = _binding_attr_or_slot(binding)
+        if attr in {"title", "heading", "headline", "label"} and not title_assigned:
+            node.props["state_motif_role"] = "title"
+            title_assigned = True
+        elif attr in {"description", "body", "message"}:
+            node.props["state_motif_role"] = "description"
+        else:
+            node.props["state_motif_role"] = "detail"
+        wrapper.children.append(node)
+        placed.add(binding.id)
+    return wrapper, placed
+
+
+def _validate_state_motif_contract(
+    motif: MotifSpec,
+    motif_bindings: list[BindingSpec],
+    diagnostics: list[CompilerDiagnostic],
+) -> bool:
+    title_count = 0
+    description_count = 0
+    for binding in motif_bindings:
+        attr = _binding_attr_or_slot(binding)
+        if attr in {"title", "heading", "headline", "label"}:
+            title_count += 1
+        elif attr in {"description", "body", "message"}:
+            description_count += 1
+    ok = True
+    if title_count != 1:
+        ok = False
+        _add_diagnostic(
+            diagnostics,
+            "STATE_MOTIF_TITLE_REQUIRED",
+            f"{motif.kind} motif {motif.id} must declare exactly one title binding.",
+            intent_ref=_motif_ref(motif.id),
+            region_id=motif.region,
+        )
+    if description_count > 1:
+        ok = False
+        _add_diagnostic(
+            diagnostics,
+            "STATE_MOTIF_TOO_MANY_DESCRIPTIONS",
+            f"{motif.kind} motif {motif.id} may declare at most one description binding.",
+            intent_ref=_motif_ref(motif.id),
+            region_id=motif.region,
+        )
+    return ok
 
 
 def _build_hero_motif(
@@ -1253,7 +1554,8 @@ def compile(
     """
     Compile an IntentBundle into an ASTBundle using the reference compiler.
 
-    Supports motif kinds: table, dashboard, outline, comparison, list, form, detail, empty_state, hero.
+    Supports motif kinds: table, dashboard, outline, comparison, list, form, detail,
+    empty_state, loading_state, error_state, hero.
     Raises UnsupportedMotifError for motif kinds not in the reference set.
 
     For full compilation (arbitrary data shapes, OOD generalization),
@@ -1266,7 +1568,7 @@ def compile(
     address_index = _build_address_index(substrate)
     ordered_positions = _ordered_binding_positions(view_spec)
 
-    supported_kinds = {"table", "dashboard", "outline", "comparison", "list", "form", "detail", "empty_state", "hero"}
+    supported_kinds = set(SUPPORTED_MOTIF_KINDS)
     for motif in view_spec.motifs:
         if motif.kind not in supported_kinds:
             raise UnsupportedMotifError(
@@ -1413,6 +1715,37 @@ def compile(
         motif_by_id[motif.id] = motif
         valid_motifs.append(motif)
 
+    state_motifs = [motif for motif in valid_motifs if motif.kind in STATE_MOTIF_KINDS]
+    overfull_state_ids: set[str] = set()
+    if len(state_motifs) > MAX_STATE_MOTIFS:
+        overfull_state_ids = {motif.id for motif in state_motifs[MAX_STATE_MOTIFS:]}
+        _add_diagnostic(
+            diagnostics,
+            "TOO_MANY_STATE_MOTIFS",
+            f"ViewSpec contains more than {MAX_STATE_MOTIFS} state motifs.",
+            intent_ref=_view_ref(view_spec.id),
+        )
+    motifs_by_region: dict[str, list[MotifSpec]] = {}
+    for motif in valid_motifs:
+        motifs_by_region.setdefault(motif.region, []).append(motif)
+    conflicting_state_ids: set[str] = set()
+    for region_id, region_motifs in motifs_by_region.items():
+        has_collection = any(motif.kind in COLLECTION_MOTIF_KINDS for motif in region_motifs)
+        conflicting_states = [
+            motif
+            for motif in region_motifs
+            if motif.kind in CONFLICTING_STATE_MOTIF_KINDS
+        ]
+        if has_collection and conflicting_states:
+            for motif in conflicting_states:
+                conflicting_state_ids.add(motif.id)
+            _add_diagnostic(
+                diagnostics,
+                "COLLECTION_STATE_CONFLICT",
+                f"Region {region_id} must not render loading_state or error_state with a loaded table/list collection.",
+                region_id=region_id,
+            )
+
     seen_group_ids: set[str] = set()
     for group in view_spec.groups:
         if group.id in seen_group_ids:
@@ -1434,6 +1767,9 @@ def compile(
                 )
 
     for motif in valid_motifs:
+        if motif.id in overfull_state_ids or motif.id in conflicting_state_ids:
+            placed_binding_ids.update(member_id for member_id in motif.members if member_id in valid_binding_ids)
+            continue
         if motif.region not in region_nodes:
             _add_diagnostic(
                 diagnostics, "UNKNOWN_REGION",
@@ -1508,6 +1844,16 @@ def compile(
             )
         elif motif.kind == "empty_state":
             wrapper, motif_placed = _build_empty_state_motif(
+                motif,
+                motif_bindings,
+                ordered_positions=ordered_positions,
+                binding_nodes=binding_nodes,
+            )
+        elif motif.kind in {"loading_state", "error_state"}:
+            if not _validate_state_motif_contract(motif, motif_bindings, diagnostics):
+                placed_binding_ids.update(member_id for member_id in motif.members if member_id in valid_binding_ids)
+                continue
+            wrapper, motif_placed = _build_state_motif(
                 motif,
                 motif_bindings,
                 ordered_positions=ordered_positions,
@@ -1606,6 +1952,7 @@ def compile(
         motif_by_id=motif_by_id,
         valid_actions=valid_actions,
         bindings_by_id=bindings_by_id,
+        address_index=address_index,
         diagnostics=diagnostics,
         root_region=view_spec.root_region,
     )

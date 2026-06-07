@@ -7,10 +7,23 @@ import re
 from dataclasses import dataclass
 from typing import Any
 
-from viewspec.compiler import SUPPORTED_ACTION_KINDS, CompilerInputError, UnsupportedMotifError, compile
+from viewspec.compiler import (
+    COLLECTION_ACTION_KINDS,
+    COLLECTION_MOTIF_KINDS,
+    CONFLICTING_STATE_MOTIF_KINDS,
+    MAX_COLLECTION_ACTION_PAYLOAD_BINDINGS,
+    MAX_COLLECTION_ACTIONS_PER_COLLECTION,
+    MAX_STATE_MOTIFS,
+    STATE_MOTIF_KINDS,
+    SUPPORTED_ACTION_KINDS,
+    SUPPORTED_MOTIF_KINDS,
+    CompilerInputError,
+    UnsupportedMotifError,
+    compile,
+)
 from viewspec.types import DEFAULT_STYLE_TOKEN_VALUES, IntentBundle, PRESENT_AS_TO_PRIMITIVE, parse_canonical_address
 
-SUPPORTED_AGENT_MOTIFS = ("table", "dashboard", "outline", "comparison", "list", "form", "detail", "empty_state", "hero")
+SUPPORTED_AGENT_MOTIFS = SUPPORTED_MOTIF_KINDS
 SUPPORTED_AGENT_ACTION_KINDS = SUPPORTED_ACTION_KINDS
 SUPPORTED_AGENT_CARDINALITIES = ("exactly_once",)
 SUPPORTED_AGENT_GROUP_KINDS = ("ordered",)
@@ -113,11 +126,11 @@ The JSON object must contain:
 - view_spec.styles
 - view_spec.actions
 
-Use only these v1 motif kinds: table, dashboard, outline, comparison, list, form, detail, empty_state, hero.
+Use only these v1 motif kinds: table, dashboard, outline, comparison, list, form, detail, empty_state, loading_state, error_state, hero.
 
 Use only these binding present_as values: text, label, value, badge, input, rich_text, image_slot, rule.
 
-Use only these action kinds: select, submit, navigate.
+Use only these action kinds: select, submit, navigate, search, filter, sort, paginate, bulk_action.
 
 Use only this v1 binding cardinality: exactly_once.
 
@@ -146,7 +159,9 @@ For JSON wire compatibility, slots and edges are maps whose values contain a val
 
 All binding IDs must be unique. Any binding with cardinality exactly_once must use an address that appears only once. Semantic edges must reference declared substrate node IDs. Style targets must use region:id, binding:id, motif:id, view:id, or an unambiguous bare id. Action target_ref must be empty/null or use region:id, binding:id, motif:id, or view:id. Region, group, motif, style, and action references must resolve to declared IDs. Region parent links must form one acyclic tree rooted at view_spec.root_region.
 
-Motifs must be semantically complete. Every motif must have at least one declared member. Hero and empty_state motifs need a title, heading, headline, or label binding. Form motifs need at least one input binding. Table, dashboard, and detail motifs need both label and value/text-style bindings. Comparison motifs need at least two distinct semantic items.
+Motifs must be semantically complete. Every motif must have at least one declared member. Hero and empty_state motifs need a title, heading, headline, or label binding. Loading_state and error_state motifs need exactly one title, heading, headline, or label binding and at most one description, body, or message binding. Form motifs need at least one input binding. Table, dashboard, and detail motifs need both label and value/text-style bindings. Comparison motifs need at least two distinct semantic items.
+
+Stateful collection actions are bounded. Search, filter, sort, paginate, and bulk_action must use target_ref motif:{id} for a declared table or list motif. Search, filter, sort, and paginate need 1-8 payload_bindings. Bulk_action needs exactly one payload binding whose id ends with _selection or _selected_ids. A table or list may have at most 8 collection actions, and a region may not mix loading_state or error_state with a table or list.
 
 Use complexity_tier >= 1. Region min_children must be >= 0. Region max_children must be null or >= min_children.
 
@@ -505,9 +520,29 @@ def agent_repair_checklist(result: AgentValidationResult) -> list[str]:
         add("Resolve every reference and keep regions as one acyclic tree rooted at view_spec.root_region.")
     if codes & {"INVALID_ADDRESS", "DUPLICATE_EXACTLY_ONCE_ADDRESS", "UNKNOWN_PRESENT_AS", "UNSUPPORTED_CARDINALITY", "UNSUPPORTED_GROUP_KIND", "UNSUPPORTED_REGION_LAYOUT"}:
         add("Use canonical node addresses, exactly_once cardinality, ordered groups, and stack/grid/cluster region layouts.")
-    if codes & {"UNSUPPORTED_MOTIF", "EMPTY_MOTIF", "MOTIF_MISSING_INPUT", "MOTIF_MISSING_LABEL", "MOTIF_MISSING_TITLE", "MOTIF_MISSING_VALUE", "MOTIF_TOO_FEW_ITEMS"}:
+    if codes & {
+        "UNSUPPORTED_MOTIF",
+        "EMPTY_MOTIF",
+        "MOTIF_MISSING_INPUT",
+        "MOTIF_MISSING_LABEL",
+        "MOTIF_MISSING_TITLE",
+        "MOTIF_MISSING_VALUE",
+        "MOTIF_TOO_FEW_ITEMS",
+        "STATE_MOTIF_TITLE_REQUIRED",
+        "STATE_MOTIF_TOO_MANY_DESCRIPTIONS",
+        "COLLECTION_STATE_CONFLICT",
+    }:
         add("Use only supported motifs and make each motif semantically complete with the required label, value, title, input, or comparison members.")
-    if codes & {"UNSUPPORTED_STYLE_TOKEN", "AMBIGUOUS_STYLE_TARGET", "UNSUPPORTED_ACTION_KIND", "INVALID_ACTION_TARGET_REF"}:
+    if codes & {
+        "UNSUPPORTED_STYLE_TOKEN",
+        "AMBIGUOUS_STYLE_TARGET",
+        "UNSUPPORTED_ACTION_KIND",
+        "INVALID_ACTION_TARGET_REF",
+        "COLLECTION_ACTION_TARGET_INVALID",
+        "COLLECTION_ACTION_PAYLOAD_REQUIRED",
+        "COLLECTION_BULK_SELECTION_REQUIRED",
+        "COLLECTION_BULK_SELECTION_AMBIGUOUS",
+    }:
         add("Use only published style tokens, unambiguous style targets, supported action kinds, and explicit region/binding/motif/view target_ref values.")
     if any(code.startswith("TOO_MANY_") for code in codes) or codes == {"INTENT_TOO_LARGE"} or "INTENT_TOO_LARGE" in codes:
         add("Stay within local V1 caps; split larger UI surfaces into smaller IntentBundles instead of forcing one bundle.")
@@ -698,6 +733,7 @@ def _validate_intent_bundle_shape(data: dict[str, Any]) -> list[AgentValidationI
     binding_by_id = _index_bindings_by_id(bindings)
     group_ids = _collect_ids(groups, "$.view_spec.groups", "DUPLICATE_GROUP_ID", issues)
     motif_ids = _collect_ids(motifs, "$.view_spec.motifs", "DUPLICATE_MOTIF_ID", issues)
+    motif_kind_by_id = _index_motif_kinds_by_id(motifs)
     style_ids = _collect_ids(styles, "$.view_spec.styles", "DUPLICATE_STYLE_ID", issues)
     action_ids = _collect_ids(actions, "$.view_spec.actions", "DUPLICATE_ACTION_ID", issues)
 
@@ -715,8 +751,9 @@ def _validate_intent_bundle_shape(data: dict[str, Any]) -> list[AgentValidationI
     _validate_bindings(bindings, binding_ids, region_ids, nodes, issues)
     _validate_groups(groups, binding_ids, region_ids, issues)
     _validate_motifs(motifs, binding_ids, binding_by_id, region_ids, issues)
+    _validate_state_motif_conflicts(motifs, issues)
     _validate_styles(styles, view_id, region_ids, binding_ids, motif_ids, issues)
-    _validate_actions(actions, view_id, region_ids, binding_ids, motif_ids, issues)
+    _validate_actions(actions, view_id, region_ids, binding_ids, motif_ids, motif_kind_by_id, issues)
 
     # Touch these sets so duplicate collection stays explicit for future additions.
     _ = group_ids, style_ids, action_ids
@@ -1270,6 +1307,28 @@ def _validate_motif_completeness(
             )
         )
 
+    if kind in {"loading_state", "error_state"}:
+        title_count = _motif_title_binding_count(member_bindings)
+        description_count = _motif_description_binding_count(member_bindings)
+        if title_count != 1:
+            issues.append(
+                _issue(
+                    "STATE_MOTIF_TITLE_REQUIRED",
+                    f"{path}.members",
+                    f"{kind} motif {motif_id} must include exactly one title, heading, headline, or label binding.",
+                    "Use exactly one title-like binding in the state motif members.",
+                )
+            )
+        if description_count > 1:
+            issues.append(
+                _issue(
+                    "STATE_MOTIF_TOO_MANY_DESCRIPTIONS",
+                    f"{path}.members",
+                    f"{kind} motif {motif_id} may include at most one description, body, or message binding.",
+                    "Keep at most one description-like binding in the state motif members.",
+                )
+            )
+
     if kind == "form" and not _motif_has_present_as(member_bindings, {"input"}):
         issues.append(
             _issue(
@@ -1313,6 +1372,46 @@ def _validate_motif_completeness(
 
 def _motif_has_title_binding(bindings: list[dict[str, Any]]) -> bool:
     return any(_binding_address_part(binding) in {"title", "heading", "headline", "label"} for binding in bindings)
+
+
+def _motif_title_binding_count(bindings: list[dict[str, Any]]) -> int:
+    return sum(1 for binding in bindings if _binding_address_part(binding) in {"title", "heading", "headline", "label"})
+
+
+def _motif_description_binding_count(bindings: list[dict[str, Any]]) -> int:
+    return sum(1 for binding in bindings if _binding_address_part(binding) in {"description", "body", "message"})
+
+
+def _validate_state_motif_conflicts(motifs: list[Any], issues: list[AgentValidationIssue]) -> None:
+    state_motifs = [motif for motif in motifs if isinstance(motif, dict) and motif.get("kind") in STATE_MOTIF_KINDS]
+    if len(state_motifs) > MAX_STATE_MOTIFS:
+        issues.append(
+            _issue(
+                "TOO_MANY_STATE_MOTIFS",
+                "$.view_spec.motifs",
+                f"ViewSpec declares more than {MAX_STATE_MOTIFS} state motifs.",
+                f"Keep state motifs at or below {MAX_STATE_MOTIFS}.",
+            )
+        )
+    by_region: dict[str, list[dict[str, Any]]] = {}
+    for motif in motifs:
+        if not isinstance(motif, dict):
+            continue
+        region = motif.get("region")
+        if isinstance(region, str):
+            by_region.setdefault(region, []).append(motif)
+    for region, region_motifs in by_region.items():
+        has_collection = any(motif.get("kind") in COLLECTION_MOTIF_KINDS for motif in region_motifs)
+        has_conflicting_state = any(motif.get("kind") in CONFLICTING_STATE_MOTIF_KINDS for motif in region_motifs)
+        if has_collection and has_conflicting_state:
+            issues.append(
+                _issue(
+                    "COLLECTION_STATE_CONFLICT",
+                    "$.view_spec.motifs",
+                    f"Region {region} mixes loading_state or error_state with a table/list collection.",
+                    "Render either the loaded collection or the current state motif in this region, not both.",
+                )
+            )
 
 
 def _motif_has_present_as(bindings: list[dict[str, Any]], present_as_values: set[str]) -> bool:
@@ -1393,8 +1492,10 @@ def _validate_actions(
     region_ids: set[str],
     binding_ids: set[str],
     motif_ids: set[str],
+    motif_kind_by_id: dict[str, str],
     issues: list[AgentValidationIssue],
 ) -> None:
+    collection_action_counts: dict[str, int] = {}
     for index, action in enumerate(actions):
         path = f"$.view_spec.actions[{index}]"
         if not isinstance(action, dict):
@@ -1455,6 +1556,76 @@ def _validate_actions(
                         f"Action {action.get('id')} references missing payload binding {binding_id}.",
                     )
                 )
+        if kind in COLLECTION_ACTION_KINDS:
+            collection_target = _collection_action_target_id(target_ref)
+            if (
+                collection_target is None
+                or collection_target not in motif_ids
+                or motif_kind_by_id.get(collection_target) not in COLLECTION_MOTIF_KINDS
+            ):
+                issues.append(
+                    _issue(
+                        "COLLECTION_ACTION_TARGET_INVALID",
+                        f"{path}.target_ref",
+                        f"Collection action {action.get('id')} must target a table or list motif by explicit motif:<id>.",
+                        "Use target_ref motif:{collection_id} where the motif is a declared table or list.",
+                    )
+                )
+            else:
+                collection_action_counts[collection_target] = collection_action_counts.get(collection_target, 0) + 1
+            if kind == "bulk_action":
+                selection_bindings = [
+                    binding_id
+                    for binding_id in payload_bindings
+                    if isinstance(binding_id, str)
+                    and (binding_id.endswith("_selection") or binding_id.endswith("_selected_ids"))
+                ]
+                if not selection_bindings:
+                    issues.append(
+                        _issue(
+                            "COLLECTION_BULK_SELECTION_REQUIRED",
+                            f"{path}.payload_bindings",
+                            f"Bulk action {action.get('id')} must declare exactly one _selection or _selected_ids payload binding.",
+                            "Add exactly one declared selection payload binding.",
+                        )
+                    )
+                elif len(selection_bindings) != 1 or len(payload_bindings) != 1:
+                    issues.append(
+                        _issue(
+                            "COLLECTION_BULK_SELECTION_AMBIGUOUS",
+                            f"{path}.payload_bindings",
+                            f"Bulk action {action.get('id')} must not mix selection payload bindings with other payload bindings.",
+                            "Keep exactly one payload binding ending with _selection or _selected_ids.",
+                        )
+                    )
+            elif not (1 <= len(payload_bindings) <= MAX_COLLECTION_ACTION_PAYLOAD_BINDINGS):
+                issues.append(
+                    _issue(
+                        "COLLECTION_ACTION_PAYLOAD_REQUIRED",
+                        f"{path}.payload_bindings",
+                        f"Collection action {action.get('id')} must declare 1-{MAX_COLLECTION_ACTION_PAYLOAD_BINDINGS} payload bindings.",
+                        "Add declared payload bindings for host-owned collection operation parameters.",
+                    )
+                )
+    for motif_id, count in sorted(collection_action_counts.items()):
+        if count > MAX_COLLECTION_ACTIONS_PER_COLLECTION:
+            issues.append(
+                _issue(
+                    "TOO_MANY_COLLECTION_ACTIONS",
+                    "$.view_spec.actions",
+                    f"Collection motif {motif_id} has {count} collection actions; the limit is {MAX_COLLECTION_ACTIONS_PER_COLLECTION}.",
+                    f"Keep at most {MAX_COLLECTION_ACTIONS_PER_COLLECTION} collection actions per table/list motif.",
+                )
+            )
+
+
+def _collection_action_target_id(target_ref: str | None) -> str | None:
+    if not isinstance(target_ref, str) or ":" not in target_ref:
+        return None
+    target_kind, target_id = target_ref.split(":", 1)
+    if target_kind != "motif":
+        return None
+    return target_id
 
 
 def _target_matches(
@@ -1614,6 +1785,18 @@ def _index_bindings_by_id(bindings: list[Any]) -> dict[str, dict[str, Any]]:
         binding_id = binding.get("id")
         if isinstance(binding_id, str) and binding_id not in indexed:
             indexed[binding_id] = binding
+    return indexed
+
+
+def _index_motif_kinds_by_id(motifs: list[Any]) -> dict[str, str]:
+    indexed: dict[str, str] = {}
+    for motif in motifs:
+        if not isinstance(motif, dict):
+            continue
+        motif_id = motif.get("id")
+        kind = motif.get("kind")
+        if isinstance(motif_id, str) and isinstance(kind, str) and motif_id not in indexed:
+            indexed[motif_id] = kind
     return indexed
 
 

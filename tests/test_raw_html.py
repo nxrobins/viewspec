@@ -308,6 +308,8 @@ def test_manifest_v1_schema_documents_intent_trust_boundary(tmp_path):
     assert intent_node_schema["properties"]["props"]["properties"]["target_ref"]["pattern"] == "^(region|binding|motif|view):[A-Za-z0-9_.-]+$"
     assert intent_node_schema["properties"]["props"]["properties"]["detail_role"]["enum"] == ["term", "description"]
     assert intent_node_schema["properties"]["props"]["properties"]["empty_state_role"]["enum"] == ["title", "description", "detail"]
+    assert intent_node_schema["properties"]["props"]["properties"]["state_motif_role"]["enum"] == ["title", "description", "detail"]
+    assert intent_node_schema["properties"]["props"]["properties"]["state_role"]["enum"] == ["loading", "error"]
     assert intent_node_schema["allOf"][0]["then"]["properties"]["content_refs"]["$ref"] == "#/$defs/nonEmptyStringList"
     assert intent_node_schema["allOf"][1]["then"]["properties"]["props"]["required"] == [
         "action_id",

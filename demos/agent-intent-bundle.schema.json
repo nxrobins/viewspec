@@ -11,7 +11,12 @@
           "enum": [
             "select",
             "submit",
-            "navigate"
+            "navigate",
+            "search",
+            "filter",
+            "sort",
+            "paginate",
+            "bulk_action"
           ]
         },
         "label": {
@@ -174,6 +179,8 @@
             "form",
             "detail",
             "empty_state",
+            "loading_state",
+            "error_state",
             "hero"
           ]
         },

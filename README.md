@@ -73,7 +73,7 @@ viewspec check dist/
 viewspec doctor
 ```
 
-`init-intent` writes a valid scaffold for table, dashboard, outline, comparison, list, form, detail, empty_state, or hero motifs. Replace the sample content with real user intent before compiling. `validate-intent` rejects malformed JSON, markdown-wrapped JSON, arrays, CompositionIR-shaped payloads, oversized bundles, and IntentBundles unsupported by the local reference compiler. `viewspec compile` runs the same validation before writing artifacts, so failed intent returns a deterministic correction prompt instead of a partial output directory.
+`init-intent` writes a valid scaffold for table, dashboard, outline, comparison, list, form, detail, empty_state, loading_state, error_state, or hero motifs. Replace the sample content with real user intent before compiling. `validate-intent` rejects malformed JSON, markdown-wrapped JSON, arrays, CompositionIR-shaped payloads, oversized bundles, and IntentBundles unsupported by the local reference compiler. `viewspec compile` runs the same validation before writing artifacts, so failed intent returns a deterministic correction prompt instead of a partial output directory.
 
 Run `viewspec init-design --out DESIGN.md` only when the repo does not already have a design file. Existing `DESIGN.md` files should remain the source of truth for theming.
 
@@ -87,7 +87,7 @@ Python callers can use the same public SDK helpers from the package root: `start
 
 The v1 local agent contract is intentionally bounded: max 256KB JSON, 200 substrate nodes, 32 regions, 400 bindings, 64 groups, 32 motifs, 400 styles, 64 actions, 64 attrs/slots/edges per node, 200 values per slot or edge, and 64 payload bindings per action. V1 ids and object keys use only letters, digits, underscore, dot, and dash. V1 agent bindings use `exactly_once` cardinality, group kind is `ordered`, region layouts are `stack`, `grid`, or `cluster`, regions must form one acyclic tree rooted at `view_spec.root_region`, `complexity_tier` starts at 1, region child bounds are non-negative with `max_children` null or at least `min_children`, and style tokens must come from the published agent schema. The local schema and `validate-intent` reject hosted-only fields with `HOSTED_ONLY_FIELD`: root `design`, root `motif_library`, `view_spec.inputs`, `view_spec.projections`, and `view_spec.rules`. Unknown extension fields fail with `UNKNOWN_FIELD` instead of being ignored. Split larger products into smaller IntentBundles.
 
-Motif validation is semantic, not just structural. Empty motifs fail. `hero` and `empty_state` require title-like bindings, `form` requires an input binding, table/dashboard/detail motifs require label plus value/text-style bindings, and comparison motifs require at least two distinct semantic items.
+Motif validation is semantic, not just structural. Empty motifs fail. `hero` and `empty_state` require title-like bindings; `loading_state` and `error_state` require exactly one title-like binding and at most one description-like binding; `form` requires an input binding; table/dashboard/detail motifs require label plus value/text-style bindings; and comparison motifs require at least two distinct semantic items.
 
 ## Import Existing HTML (0.3.0b1 beta)
 
@@ -243,7 +243,7 @@ class MyEmitter(EmitterPlugin):
         ...
 ```
 
-The included HTML/Tailwind emitter produces standalone HTML with full Tailwind styling, provenance data attributes on every DOM element, semantic table/list markup for table and list motifs, definition-list markup for detail motifs, checked absence sections for empty_state motifs, checked header/heading markup for hero motifs, inert `role="form"` sections for form motifs, safe local text inputs, accessible roles for generated image/error primitives, action event dispatch only when actions exist, and a JSON provenance manifest. Local action events dispatch `viewspec-action` with versioned `detail.schemaVersion: 1` payloads containing `source`, `id`, `kind`, `targetRef`, `payloadBindings`, and `payloadValues`. Pressing Enter inside a local inert form dispatches only a declared `submit` action whose `targetRef` exactly matches that form motif.
+The included HTML/Tailwind emitter produces standalone HTML with full Tailwind styling, provenance data attributes on every DOM element, semantic table/list markup for table and list motifs, definition-list markup for detail motifs, checked absence sections for empty_state motifs, checked loading/error state sections with `role="status"`/`role="alert"` semantics, checked header/heading markup for hero motifs, inert `role="form"` sections for form motifs, safe local text inputs, accessible roles for generated image/error primitives, action event dispatch only when actions exist, and a JSON provenance manifest. Local action events dispatch `viewspec-action` with versioned `detail.schemaVersion: 1` payloads containing `source`, `id`, `kind`, `targetRef`, `payloadBindings`, and `payloadValues`. Collection actions (`search`, `filter`, `sort`, `paginate`, `bulk_action`) dispatch events only; host applications own data operations and selected-row state. Pressing Enter inside a local inert form dispatches only a declared `submit` action whose `targetRef` exactly matches that form motif.
 
 The local SDK also includes a deterministic React TSX emitter for the same local V1 `ASTBundle`. Use it when you want source code instead of standalone HTML:
 
@@ -284,7 +284,10 @@ viewspec prove --target react-tailwind-tsx --install --out .viewspec-proof --jso
 | `add_form()` | `form` | Inert local form intent with text fields and action payloads |
 | `add_detail()` | `detail` | Read-only record/profile/settings detail fields |
 | `add_empty_state()` | `empty_state` | Absence, no-results, or first-run states |
+| `add_loading_state()` | `loading_state` | Current loading state for a collection or region |
+| `add_error_state()` | `error_state` | Current error state for a collection or region |
 | `add_hero()` | `hero` | Intro/header sections with eyebrow, title, and description |
+| `add_collection_action()` | action helper | Search, filter, sort, paginate, or bulk action events for a table/list |
 | `add_text_input()` | binding helper | Safe local text input with inferred accessible label |
 
 Each builder returns a chained sub-builder. Compose them freely within a single ViewSpec.
@@ -293,7 +296,7 @@ Each builder returns a chained sub-builder. Compose them freely within a single 
 
 ### Reference Compiler (free, offline)
 
-Handles the nine standard motifs locally. No API, no network, no LLM. Deterministic. The default CLI target is standalone HTML/Tailwind; `--target react-tsx` emits a local React component from the same compiled `ASTBundle`, and `--target react-tailwind-tsx` emits a React component using closed Tailwind recipes.
+Handles the local V1 motifs and bounded collection action events locally. No API, no network, no LLM. Deterministic. The default CLI target is standalone HTML/Tailwind; `--target react-tsx` emits a local React component from the same compiled `ASTBundle`, and `--target react-tailwind-tsx` emits a React component using closed Tailwind recipes.
 
 ```python
 ast = compile(builder.build_bundle())

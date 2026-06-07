@@ -336,7 +336,8 @@ def test_react_tsx_emitter_writes_component_manifest_and_action_contract(tmp_pat
     assert paths["tsx"].endswith("ViewSpecView.tsx")
     assert '"use client";' in tsx
     assert 'source: "viewspec-react-tsx"' in tsx
-    assert "payloadValues: collectPayloadValues" in tsx
+    assert "const payloadValues = collectPayloadValues(payloadBindings);" in tsx
+    assert "assertPayloadBounds(" in tsx
     assert "payload: collectPayload" not in tsx
     assert "export type ViewSpecData = Record<string, unknown>;" in tsx
     assert "function renderValue(value: unknown, fallback: React.ReactNode): React.ReactNode" in tsx

@@ -136,6 +136,11 @@ BASE_STYLE_BY_PRODUCT_ROLE: dict[str, dict[str, str]] = {
     "action_row": {"alignItems": "center", "justifyContent": "flex-end", "gap": "10px", "padding": "4px 0 0"},
 }
 
+BASE_STYLE_BY_STATE_ROLE: dict[str, dict[str, str]] = {
+    "loading": {"borderStyle": "dashed", "color": "#475569"},
+    "error": {"borderColor": "#fca5a5", "background": "#fef2f2", "color": "#991b1b"},
+}
+
 JS_IDENTIFIER_RE = re.compile(r"^[A-Za-z_$][A-Za-z0-9_$]*$")
 
 
@@ -230,6 +235,9 @@ def _style_object(node: IRNode, style_values: dict[str, str]) -> str:
     product_role = node.props.get("product_role")
     if isinstance(product_role, str):
         style.update(BASE_STYLE_BY_PRODUCT_ROLE.get(product_role, {}))
+    state_role = node.props.get("state_role")
+    if isinstance(state_role, str):
+        style.update(BASE_STYLE_BY_STATE_ROLE.get(state_role, {}))
     if node.primitive == "grid":
         style["gridTemplateColumns"] = f"repeat({int(node.props.get('columns') or 1)}, minmax(0, 1fr))"
     style.update(_css_to_style(_style_css(node, style_values)))
@@ -260,6 +268,12 @@ def _tag_for_node(node: IRNode) -> str:
     if node.props.get("empty_state_role") == "title":
         return "h2"
     if node.props.get("empty_state_role") == "description":
+        return "p"
+    if node.props.get("motif_kind") in {"loading_state", "error_state"} and node.primitive == "surface":
+        return "section"
+    if node.props.get("state_motif_role") == "title":
+        return "h2"
+    if node.props.get("state_motif_role") == "description":
         return "p"
     if node.props.get("motif_kind") == "hero" and node.primitive == "surface":
         return "header"
@@ -308,16 +322,22 @@ def _text_expression(node: IRNode) -> str:
 
 def _action_expression(node: IRNode) -> str:
     payload_bindings = [item for item in node.props.get("payload_bindings", []) if isinstance(item, str)]
+    kind = str(node.props.get("action_kind", ""))
     return (
-        "{() => onAction?.({ "
+        "{() => { "
+        f"const payloadBindings = {json.dumps(payload_bindings, ensure_ascii=False)}; "
+        "const payloadValues = collectPayloadValues(payloadBindings); "
+        f"assertPayloadBounds({_tsx_string(kind)}, payloadBindings, payloadValues); "
+        "onAction?.({ "
         "schemaVersion: 1, "
         'source: "viewspec-react-tsx", '
         f"id: {_tsx_string(node.props.get('action_id', ''))}, "
-        f"kind: {_tsx_string(node.props.get('action_kind', ''))}, "
+        f"kind: {_tsx_string(kind)}, "
         f"targetRef: {_tsx_string(node.props.get('target_ref', ''))}, "
-        f"payloadBindings: {json.dumps(payload_bindings, ensure_ascii=False)}, "
-        f"payloadValues: collectPayloadValues({json.dumps(payload_bindings, ensure_ascii=False)}) "
-        "})}"
+        "payloadBindings, "
+        "payloadValues "
+        "}); "
+        "}}"
     )
 
 
@@ -372,6 +392,16 @@ def _attrs_for_node(node: IRNode, style_values: dict[str, str]) -> list[str]:
         attrs.append('role="group"')
     elif node.props.get("motif_kind") == "empty_state" and node.primitive == "surface":
         attrs.append(_jsx_attr("aria-label", str(node.props.get("aria_label", "Empty state"))))
+    elif node.props.get("motif_kind") == "loading_state" and node.primitive == "surface":
+        attrs.extend(
+            [
+                'role="status"',
+                'aria-busy="true"',
+                _jsx_attr("aria-label", str(node.props.get("aria_label", "Loading state"))),
+            ]
+        )
+    elif node.props.get("motif_kind") == "error_state" and node.primitive == "surface":
+        attrs.extend(['role="alert"', _jsx_attr("aria-label", str(node.props.get("aria_label", "Error state")))])
     elif node.props.get("motif_kind") == "hero" and node.primitive == "surface":
         attrs.append(_jsx_attr("aria-label", str(node.props.get("aria_label", "Hero"))))
     elif node.props.get("table_cell_role") == "row_header":
@@ -481,6 +511,22 @@ def _emit_source(result: CompilerResult, style_values: dict[str, str], title: st
         f"  const compiledPayloadValues: Record<string, unknown> = {compiled_values};",
         "  const setInputValue = (id: string, value: unknown) => {",
         "    setInputValues((current) => ({ ...current, [id]: value }));",
+        "  };",
+        "  const utf8Bytes = (value: unknown): number => new TextEncoder().encode(String(value ?? \"\")).length;",
+        "  const assertPayloadBounds = (kind: string, payloadBindings: string[], payloadValues: Record<string, unknown>) => {",
+        "    if (kind === \"bulk_action\") {",
+        "      const selectionBindings = payloadBindings.filter((id) => id.endsWith(\"_selection\") || id.endsWith(\"_selected_ids\"));",
+        "      if (selectionBindings.length !== 1 || payloadBindings.length !== 1) throw new Error(\"COLLECTION_BULK_SELECTION_AMBIGUOUS\");",
+        "      const value = payloadValues[selectionBindings[0]];",
+        "      if (Array.isArray(value) && value.length > 100) throw new Error(\"COLLECTION_BULK_SELECTION_TOO_LARGE\");",
+        "      if (utf8Bytes(value) > 4096) throw new Error(\"COLLECTION_BULK_SELECTION_TOO_LARGE\");",
+        "      return;",
+        "    }",
+        "    if ([\"search\", \"filter\", \"sort\", \"paginate\"].includes(kind)) {",
+        "      payloadBindings.forEach((bindingId) => {",
+        "        if (utf8Bytes(payloadValues[bindingId]) > 512) throw new Error(\"COLLECTION_ACTION_PAYLOAD_TOO_LARGE\");",
+        "      });",
+        "    }",
         "  };",
         "  const collectPayloadValues = (payloadBindings: string[]): Record<string, unknown> => {",
         "    const payloadValues: Record<string, unknown> = {};",
