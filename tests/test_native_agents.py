@@ -26,6 +26,7 @@ def test_init_agent_creates_codex_instructions(tmp_path, capsys):
     assert "viewspec check dist/" in text
     assert "viewspec prove --out .viewspec-proof" in text
     assert ".viewspec-proof/PROOF.md" in text
+    assert ".viewspec-proof/support_bundle.json" in text
     assert "If the user explicitly needs local React source instead of standalone HTML" in text
     assert "viewspec compile viewspec.intent.json --design DESIGN.md --target react-tsx --out react-output/" in text
     assert "viewspec check react-output/" in text
@@ -64,6 +65,7 @@ def _assert_native_agent_instruction_contract(text: str, label: str) -> None:
     assert "viewspec check dist/" in text
     assert "viewspec prove --out .viewspec-proof" in text
     assert ".viewspec-proof/PROOF.md" in text
+    assert ".viewspec-proof/support_bundle.json" in text
     assert "viewspec compile viewspec.intent.json --design DESIGN.md --target react-tsx --out react-output/" in text
     assert "viewspec check react-output/" in text
     assert "--target react-tailwind-tsx" in text

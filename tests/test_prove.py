@@ -3,7 +3,7 @@ import importlib
 
 from viewspec.cli import main as cli_main
 from viewspec.intent_tools import init_intent_file
-from viewspec.local_tools import check_artifact_dir
+from viewspec.local_tools import check_artifact_dir, file_hash
 from viewspec.prove import prove, prove_tool
 
 
@@ -25,7 +25,9 @@ def test_prove_default_writes_checked_source_report(tmp_path):
     assert out_dir.joinpath("DESIGN.md").exists()
     assert out_dir.joinpath("proof_report.json").exists()
     assert out_dir.joinpath("PROOF.md").exists()
+    assert out_dir.joinpath("support_bundle.json").exists()
     assert report["paths"]["proof_summary"] == str(out_dir / "PROOF.md")
+    assert report["paths"]["support_bundle"] == str(out_dir / "support_bundle.json")
     assert check_artifact_dir(out_dir / "artifact")["ok"] is True
     assert json.loads(out_dir.joinpath("proof_report.json").read_text(encoding="utf-8")) == report
     proof_text = out_dir.joinpath("PROOF.md").read_text(encoding="utf-8")
@@ -35,8 +37,18 @@ def test_prove_default_writes_checked_source_report(tmp_path):
     assert "Artifact SHA-256:" in proof_text
     assert "Manifest SHA-256:" in proof_text
     assert "Proof report SHA-256:" in proof_text
+    assert "Redacted support bundle path:" in proof_text
     assert "Network/install policy: `none`" in proof_text
     assert "pixel-perfect visual regression" in proof_text
+    support_text = out_dir.joinpath("support_bundle.json").read_text(encoding="utf-8")
+    support = json.loads(support_text)
+    assert support["kind"] == "viewspec_proof_support_bundle"
+    assert support["ok"] is True
+    assert support["privacy"]["contains_raw_intent"] is False
+    assert support["privacy"]["contains_absolute_paths"] is False
+    assert support["proof_report_hash"] == file_hash(out_dir / "proof_report.json")
+    assert support["paths"]["proof_dir_name"] == "proof"
+    assert str(tmp_path) not in support_text
 
 
 def test_prove_existing_intent_cli_json(tmp_path, capsys):
@@ -53,6 +65,7 @@ def test_prove_existing_intent_cli_json(tmp_path, capsys):
     assert payload["paths"]["intent"] == str(intent.resolve())
     assert payload["paths"]["report"].endswith("proof_report.json")
     assert payload["paths"]["proof_summary"].endswith("PROOF.md")
+    assert payload["paths"]["support_bundle"].endswith("support_bundle.json")
     assert payload["artifact_hash"]
     assert payload["manifest_hash"]
 
@@ -67,9 +80,13 @@ def test_prove_existing_output_requires_force(tmp_path):
     assert blocked["errors"][0]["code"] == "PROVE_OUTPUT_EXISTS"
     assert out_dir.joinpath("proof_report.json").exists()
     assert out_dir.joinpath("PROOF.md").exists()
+    assert out_dir.joinpath("support_bundle.json").exists()
     proof_text = out_dir.joinpath("PROOF.md").read_text(encoding="utf-8")
     assert "Status: **FAILED**" in proof_text
     assert "PROVE_OUTPUT_EXISTS" in proof_text
+    support_text = out_dir.joinpath("support_bundle.json").read_text(encoding="utf-8")
+    assert "PROVE_OUTPUT_EXISTS" in support_text
+    assert str(tmp_path) not in support_text
     assert prove(out_dir=out_dir, cwd=tmp_path, force=True)["ok"] is True
 
 
@@ -124,6 +141,40 @@ def test_prove_summary_generation_failure_returns_exact_code(tmp_path, monkeypat
     assert not tmp_path.joinpath("proof/PROOF.md").exists()
 
 
+def test_prove_support_bundle_generation_failure_returns_exact_code(tmp_path, monkeypatch):
+    prove_module = importlib.import_module("viewspec.prove")
+    monkeypatch.setattr(prove_module, "_render_support_bundle", lambda *_args, **_kwargs: "x" * (17 * 1024))
+
+    report = prove(out_dir=tmp_path / "proof", cwd=tmp_path)
+
+    assert report["ok"] is False
+    assert report["checks"]["support_bundle"] == "failed"
+    assert report["errors"][-1]["code"] == "PROVE_SUPPORT_BUNDLE_WRITE_FAILED"
+    assert tmp_path.joinpath("proof/proof_report.json").exists()
+    assert tmp_path.joinpath("proof/PROOF.md").exists()
+    assert not tmp_path.joinpath("proof/support_bundle.json").exists()
+    proof_text = tmp_path.joinpath("proof/PROOF.md").read_text(encoding="utf-8")
+    assert "PROVE_SUPPORT_BUNDLE_WRITE_FAILED" in proof_text
+
+
+def test_prove_support_bundle_rejects_full_path_content(tmp_path, monkeypatch):
+    prove_module = importlib.import_module("viewspec.prove")
+
+    def leaking_support_bundle(report, **_kwargs):
+        return json.dumps({"leak": report["paths"]["report"]})
+
+    monkeypatch.setattr(prove_module, "_render_support_bundle", leaking_support_bundle)
+
+    report = prove(out_dir=tmp_path / "proof", cwd=tmp_path)
+
+    assert report["ok"] is False
+    assert report["checks"]["support_bundle"] == "failed"
+    assert report["errors"][-1]["code"] == "PROVE_SUPPORT_BUNDLE_CONTENT_FORBIDDEN"
+    assert tmp_path.joinpath("proof/proof_report.json").exists()
+    assert tmp_path.joinpath("proof/PROOF.md").exists()
+    assert not tmp_path.joinpath("proof/support_bundle.json").exists()
+
+
 def test_prove_tool_returns_standard_envelope_and_respects_cwd(tmp_path):
     outside = tmp_path.parent / f"{tmp_path.name}-outside"
 
@@ -137,3 +188,4 @@ def test_prove_tool_returns_standard_envelope_and_respects_cwd(tmp_path):
     assert result["proof_report"]["ok"] is True
     assert result["proof_report"]["paths"]["proof_dir"].endswith("proof")
     assert result["paths"]["proof_summary"].endswith("PROOF.md")
+    assert result["paths"]["support_bundle"].endswith("support_bundle.json")

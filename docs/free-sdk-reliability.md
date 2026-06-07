@@ -59,7 +59,7 @@ The React Tailwind host proof is a fail-closed CI gate: it must delete and regen
 
 The public host verifier preserves the same fail-closed boundary for one artifact at a time: it runs in a fresh temporary host directory, copies only `ViewSpecView.tsx`, `provenance_manifest.json`, and `diagnostics.json`, requires `--install` before running `npm ci --ignore-scripts`, and returns exact `HOST_VERIFY_*` codes instead of treating missing Node, npm, browser, styles, DOM, or action payload checks as soft failures.
 
-`viewspec prove` preserves the local-first boundary by default: the `html-tailwind` proof performs no package-manager or SDK network calls, writes a bounded proof workspace, compiles through the same public tool path as `viewspec compile`, runs artifact checks, and records `PROOF.md` for humans plus `proof_report.json` for tools. The React Tailwind proof may opt into `npm ci --ignore-scripts` only when `--install` is passed.
+`viewspec prove` preserves the local-first boundary by default: the `html-tailwind` proof performs no package-manager or SDK network calls, writes a bounded proof workspace, compiles through the same public tool path as `viewspec compile`, runs artifact checks, and records `PROOF.md` for humans, `proof_report.json` for tools, and redacted `support_bundle.json` for local support triage. The React Tailwind proof may opt into `npm ci --ignore-scripts` only when `--install` is passed.
 
 Public pricing, version, hosted-call, API, package, and proof-scope facts live in `demos/public-facts.json`; the static smoke test fails with `PUBLIC_FACTS_DRIFT` if README, landing, LLM, OpenAPI, or version metadata disagree with it.
 
