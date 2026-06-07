@@ -122,6 +122,21 @@ def test_first_proof_is_public_and_bounded():
     assert "Do not add automated PyPI upload" in release
 
 
+def test_public_mcp_tool_lists_include_proof_tools():
+    root = Path(__file__).resolve().parents[1]
+    docs = [
+        root / "README.md",
+        root / "demos/llms.txt",
+    ]
+
+    for path in docs:
+        text = path.read_text(encoding="utf-8")
+        assert "validate_intent_bundle_file" in text, path
+        assert "compile_intent_bundle_file" in text, path
+        assert "verify_host" in text, path
+        assert "prove" in text, path
+
+
 def test_reference_grounding_is_explicit_opt_in():
     root = Path(__file__).resolve().parents[1]
     docs = [
