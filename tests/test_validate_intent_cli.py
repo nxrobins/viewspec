@@ -125,6 +125,8 @@ def test_public_intent_sdk_helpers_are_root_exports(tmp_path):
     assert "form" in STARTER_INTENT_KINDS
     assert "detail" in STARTER_INTENT_KINDS
     assert "empty_state" in STARTER_INTENT_KINDS
+    assert "loading_state" in STARTER_INTENT_KINDS
+    assert "error_state" in STARTER_INTENT_KINDS
     assert "hero" in STARTER_INTENT_KINDS
 
 

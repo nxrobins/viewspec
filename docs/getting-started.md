@@ -31,7 +31,7 @@ viewspec compile viewspec.intent.json --design DESIGN.md --out dist/
 viewspec check dist/
 ```
 
-`init-intent` writes a valid scaffold for table, dashboard, outline, comparison, list, form, detail, empty_state, or hero motifs. Replace the sample content with real user intent before compiling. `validate-intent` rejects arrays, markdown-wrapped JSON, malformed JSON, CompositionIR-shaped payloads, oversized bundles, and bundles unsupported by the local reference compiler. `viewspec compile` runs the same validation before writing artifacts. Invalid results include a correction prompt for the agent to regenerate the full IntentBundle.
+`init-intent` writes a valid scaffold for table, dashboard, outline, comparison, list, form, detail, empty_state, loading_state, error_state, or hero motifs. Replace the sample content with real user intent before compiling. `validate-intent` rejects arrays, markdown-wrapped JSON, malformed JSON, CompositionIR-shaped payloads, oversized bundles, and bundles unsupported by the local reference compiler. `viewspec compile` runs the same validation before writing artifacts. Invalid results include a correction prompt for the agent to regenerate the full IntentBundle.
 
 Use `viewspec diff-intent` when reviewing agent revisions. It reports `basis: "intent_bundle_v1"` and compares top-level bundle metadata, declared semantic nodes, regions, bindings, groups, motifs, styles, actions, selected field changes, and `semantic_changes` for region, group, motif, style, binding, and action contract changes before you inspect generated DOM.
 
@@ -112,7 +112,7 @@ ReactTsxEmitter().emit(ast, "react-output/")
 ReactTailwindTsxEmitter().emit(ast, "react-tailwind-output/")
 ```
 
-The local reference compiler supports safe text inputs and local action payload events. HTML action events dispatch `viewspec-action` with `detail.schemaVersion: 1`, `source`, `id`, `kind`, `targetRef`, `payloadBindings`, and `payloadValues`. Pressing Enter inside a local inert form dispatches only a declared `submit` action whose `targetRef` exactly matches that form motif. React TSX output uses an `onAction` callback with the same V1 fields and `source: "viewspec-react-tsx"`.
+The local reference compiler supports safe text inputs, loading/error state motifs, and local action payload events. HTML action events dispatch `viewspec-action` with `detail.schemaVersion: 1`, `source`, `id`, `kind`, `targetRef`, `payloadBindings`, and `payloadValues`. Collection actions for table/list motifs dispatch `search`, `filter`, `sort`, `paginate`, and `bulk_action` events only; they do not locally mutate data. Pressing Enter inside a local inert form dispatches only a declared `submit` action whose `targetRef` exactly matches that form motif. React TSX output uses an `onAction` callback with the same V1 fields and `source: "viewspec-react-tsx"`.
 
 From the CLI, use `--target react-tsx` when you want component source instead of standalone HTML:
 

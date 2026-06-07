@@ -240,7 +240,8 @@ def test_cli_compile_json_can_emit_react_tsx_target(tmp_path):
         "<out>",
     ]
     assert 'source: "viewspec-react-tsx"' in tsx
-    assert "payloadValues: collectPayloadValues" in tsx
+    assert "const payloadValues = collectPayloadValues(payloadBindings);" in tsx
+    assert "assertPayloadBounds(" in tsx
     assert cli_main(["check", str(out_dir), "--json"]) == 0
 
 
@@ -279,7 +280,8 @@ def test_cli_compile_json_can_emit_react_tailwind_tsx_target(tmp_path):
         "<out>",
     ]
     assert 'source: "viewspec-react-tailwind-tsx"' in tsx
-    assert "payloadValues: collectPayloadValues" in tsx
+    assert "const payloadValues = collectPayloadValues(payloadBindings);" in tsx
+    assert "assertPayloadBounds(" in tsx
     assert "className={" not in tsx
     assert "style={{" not in tsx
     assert cli_main(["check", str(out_dir), "--json"]) == 0

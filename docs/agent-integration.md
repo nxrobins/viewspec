@@ -37,15 +37,19 @@ V1 supported motifs are:
 - `form`
 - `detail`
 - `empty_state`
+- `loading_state`
+- `error_state`
 - `hero`
 
-Do not use `chat` or `feed` in V1. Use `form` for local inert form intent; ViewSpec emits role-based fields and action events, not a submitting HTML `<form>`. Use `detail` for read-only record/profile/settings fields; ViewSpec emits definition-list semantics, not layout tables. Use `empty_state` for absence, no-results, or first-run states; ViewSpec emits a checked section with heading/body semantics. Use `hero` for intro, product, or app-header sections; ViewSpec emits checked header, heading, and paragraph semantics.
+Do not use `chat` or `feed` in V1. Use `form` for local inert form intent; ViewSpec emits role-based fields and action events, not a submitting HTML `<form>`. Use `detail` for read-only record/profile/settings fields; ViewSpec emits definition-list semantics, not layout tables. Use `empty_state` for absence, no-results, or first-run states; ViewSpec emits a checked section with heading/body semantics. Use `loading_state` or `error_state` for the current rendered collection/region state; ViewSpec emits checked status/alert sections, not conditional variants or async orchestration. Use `hero` for intro, product, or app-header sections; ViewSpec emits checked header, heading, and paragraph semantics.
 
-Motifs must be complete enough for deterministic local compilation. Every motif needs at least one binding member. `hero` and `empty_state` need a `title`, `heading`, `headline`, or `label` binding. `form` needs an `input` binding. `table`, `dashboard`, and `detail` need both label and value/text-style bindings. `comparison` needs bindings from at least two distinct semantic nodes.
+Motifs must be complete enough for deterministic local compilation. Every motif needs at least one binding member. `hero` and `empty_state` need a `title`, `heading`, `headline`, or `label` binding. `loading_state` and `error_state` need exactly one title-like binding and at most one description-like binding. `form` needs an `input` binding. `table`, `dashboard`, and `detail` need both label and value/text-style bindings. `comparison` needs bindings from at least two distinct semantic nodes.
 
-V1 supported action kinds are `select`, `submit`, and `navigate`. Treat all other action verbs as unsupported unless the compiler contract explicitly expands. Use `present_as: "input"` for local text input intent. For `form` motifs, ViewSpec emits safe text controls and local action payload events, not arbitrary forms or network submission.
+V1 supported action kinds are `select`, `submit`, `navigate`, `search`, `filter`, `sort`, `paginate`, and `bulk_action`. Use `present_as: "input"` for local text input intent. For `form` motifs, ViewSpec emits safe text controls and local action payload events, not arbitrary forms or network submission. For `table` and `list` motifs, collection actions dispatch ViewSpec action events only; generated artifacts do not locally search, filter, sort, paginate, select rows, mutate data, or infer host state.
 
 Action `target_ref` must be `null`, empty, or an explicit target reference using `region:id`, `binding:id`, `motif:id`, or `view:id`. Do not use routes, URLs, DOM selectors, or bare IDs as action targets in the local V1 agent contract.
+
+Collection actions must target an existing table/list motif with `target_ref: "motif:{id}"`. `search`, `filter`, `sort`, and `paginate` require 1-8 payload bindings; `bulk_action` requires exactly one `_selection` or `_selected_ids` payload binding. A table or list may have at most eight collection actions, and a region may not render `loading_state` or `error_state` alongside a loaded table/list collection.
 
 V1 supported binding cardinality is `exactly_once`. If the same source value appears in more than one place, model the repeated presentation explicitly instead of inventing `optional`, `many`, or other cardinality strings.
 

@@ -283,6 +283,44 @@ def test_empty_state_compile_emits_section_heading_contract(tmp_path):
     assert "Adjust filters or create the first item." in html
 
 
+@pytest.mark.parametrize(
+    ("kind", "method_name", "motif_id", "role_attr", "aria_busy"),
+    [
+        ("loading_state", "add_loading_state", "loading_results", 'role="status"', 'aria-busy="true"'),
+        ("error_state", "add_error_state", "error_results", 'role="alert"', None),
+    ],
+)
+def test_state_motifs_compile_to_checked_status_or_alert_sections(tmp_path, kind, method_name, motif_id, role_attr, aria_busy):
+    builder = ViewSpecBuilder(f"{kind}_view")
+    getattr(builder, method_name)(
+        motif_id,
+        title="Collection unavailable" if kind == "error_state" else "Loading collection",
+        description="Current state description.",
+        region="main",
+        group_id="message",
+    )
+
+    ast = compile(builder.build_bundle())
+    state = _find_node_id(ast.result.root.root, f"motif_{motif_id}")
+
+    assert len(ast.result.diagnostics) == 0
+    assert state is not None
+    assert state.primitive == "surface"
+    assert state.props["motif_kind"] == kind
+    assert state.props["state_role"] == ("loading" if kind == "loading_state" else "error")
+    assert [child.props["state_motif_role"] for child in state.children] == ["title", "description"]
+
+    HtmlTailwindEmitter().emit(ast, tmp_path)
+    html = tmp_path.joinpath("index.html").read_text(encoding="utf-8")
+
+    assert f'<section id="dom-motif_{motif_id}"' in html
+    assert role_attr in html
+    if aria_busy is not None:
+        assert aria_busy in html
+    assert f'<h2 id="dom-binding_{motif_id}_title"' in html
+    assert f'<p id="dom-binding_{motif_id}_description"' in html
+
+
 def test_hero_compile_emits_header_heading_contract(tmp_path):
     builder = ViewSpecBuilder("landing")
     builder.add_hero(
@@ -608,6 +646,183 @@ def test_layout_planner_places_safe_motif_actions_once():
     assert len(buttons) == 1
     assert buttons[0] in hero.children
     assert buttons[0].props["placement"] == "motif_local"
+
+
+def test_collection_actions_compile_to_single_previous_sibling_action_bar(tmp_path):
+    builder = ViewSpecBuilder("collection_actions")
+    builder.add_text_input("query", label="Search", value="", group_id="controls")
+    builder.add_text_input("status", label="Status", value="open", group_id="controls")
+    builder.add_text_input("sort", label="Sort", value="created_desc", group_id="controls")
+    builder.add_text_input("page", label="Page", value="next", group_id="controls")
+    builder.add_node("selection", "selection", attrs={"label": "Selected", "selected_ids": "alpha,beta"})
+    builder.bind_attr("selection_label", "selection", "label", region="main", present_as="label")
+    builder.bind_attr("queue_selected_ids", "selection", "selected_ids", region="main", present_as="input")
+    table = builder.add_table("items", region="main", group_id="rows")
+    table.add_row(label="Alpha", value="Ready", id="alpha")
+    table.add_row(label="Beta", value="Waiting", id="beta")
+    builder.add_collection_action("search_items", "search", "Search", collection_id="items", payload_bindings=["query_value"])
+    builder.add_collection_action("filter_items", "filter", "Filter", collection_id="items", payload_bindings=["status_value"])
+    builder.add_collection_action("sort_items", "sort", "Sort", collection_id="items", payload_bindings=["sort_value"])
+    builder.add_collection_action("paginate_items", "paginate", "Next", collection_id="items", payload_bindings=["page_value"])
+    builder.add_collection_action(
+        "bulk_items",
+        "bulk_action",
+        "Assign selected",
+        collection_id="items",
+        payload_bindings=["queue_selected_ids"],
+    )
+
+    ast = compile(builder.build_bundle())
+    root = ast.result.root.root
+    region_main = _find_node_id(root, "region_main")
+    bar = _find_node_id(root, "planner_items_collection_actions")
+    wrapper = _find_node_id(root, "motif_items")
+    buttons = _find_nodes(root, "button")
+
+    assert len(ast.result.diagnostics) == 0
+    assert region_main is not None
+    assert bar is not None
+    assert wrapper is not None
+    assert region_main.children[region_main.children.index(wrapper) - 1] is bar
+    assert bar.props["layout_strategy"] == "collection_action_bar_v1"
+    assert bar.props["product_role"] == "action_row"
+    assert [button.props["action_kind"] for button in buttons] == [
+        "search",
+        "filter",
+        "sort",
+        "paginate",
+        "bulk_action",
+    ]
+    assert [button.props["placement"] for button in buttons] == ["collection_action_bar"] * 5
+
+    HtmlTailwindEmitter().emit(ast, tmp_path)
+    html = tmp_path.joinpath("index.html").read_text(encoding="utf-8")
+    assert html.index('id="dom-planner_items_collection_actions"') < html.index('id="dom-motif_items"')
+    assert 'data-action-kind="bulk_action"' in html
+
+
+@pytest.mark.parametrize(
+    ("kind", "payload_bindings", "expected_code"),
+    [
+        ("search", [], "COLLECTION_ACTION_PAYLOAD_REQUIRED"),
+        ("bulk_action", [], "COLLECTION_BULK_SELECTION_REQUIRED"),
+        ("bulk_action", ["queue_selected_ids", "query_value"], "COLLECTION_BULK_SELECTION_AMBIGUOUS"),
+    ],
+)
+def test_collection_action_payload_constraints_fail_closed(kind, payload_bindings, expected_code):
+    builder = ViewSpecBuilder(f"bad_{kind}")
+    query = builder.add_text_input("query", label="Search", value="", group_id="controls")
+    builder.add_node("selection", "selection", attrs={"selected_ids": "alpha"})
+    builder.bind_attr("queue_selected_ids", "selection", "selected_ids", region="main", present_as="input")
+    table = builder.add_table("items", region="main", group_id="rows")
+    table.add_row(label="Alpha", value="Ready", id="alpha")
+    if payload_bindings == ["queue_selected_ids", "query_value"]:
+        payload_bindings = ["queue_selected_ids", query]
+    builder.add_action(
+        "bad_collection_action",
+        kind,
+        "Bad",
+        target_region="main",
+        target_ref="motif:items",
+        payload_bindings=payload_bindings,
+    )
+
+    ast = compile(builder.build_bundle())
+    codes = {diagnostic.code for diagnostic in ast.result.diagnostics}
+
+    assert expected_code in codes
+    assert _find_nodes(ast.result.root.root, "button") == []
+
+
+def test_collection_action_target_and_size_constraints_fail_closed():
+    builder = ViewSpecBuilder("bad_collection_target")
+    query = builder.add_text_input("query", label="Search", value="x" * 513, group_id="controls")
+    dashboard = builder.add_dashboard("metrics", region="main", group_id="cards")
+    dashboard.add_card(label="Open", value="18", id="open")
+    builder.add_action("bad_target", "search", "Search", target_region="main", target_ref="motif:metrics", payload_bindings=[query])
+
+    ast = compile(builder.build_bundle())
+    codes = {diagnostic.code for diagnostic in ast.result.diagnostics}
+
+    assert "COLLECTION_ACTION_TARGET_INVALID" in codes
+
+    builder = ViewSpecBuilder("bad_collection_size")
+    oversized = builder.add_text_input("query", label="Search", value="x" * 513, group_id="controls")
+    table = builder.add_table("items", region="main", group_id="rows")
+    table.add_row(label="Alpha", value="Ready", id="alpha")
+    builder.add_action("too_large", "search", "Search", target_region="main", target_ref="motif:items", payload_bindings=[oversized])
+
+    ast = compile(builder.build_bundle())
+    codes = {diagnostic.code for diagnostic in ast.result.diagnostics}
+
+    assert "COLLECTION_ACTION_PAYLOAD_TOO_LARGE" in codes
+    assert _find_nodes(ast.result.root.root, "button") == []
+
+
+def test_bulk_selection_size_and_collection_action_count_constraints_fail_closed():
+    builder = ViewSpecBuilder("bad_bulk_size")
+    builder.add_node("selection", "selection", attrs={"selected_ids": [f"row_{index}" for index in range(101)]})
+    builder.bind_attr("queue_selected_ids", "selection", "selected_ids", region="main", present_as="input")
+    table = builder.add_table("items", region="main", group_id="rows")
+    table.add_row(label="Alpha", value="Ready", id="alpha")
+    builder.add_action(
+        "bulk_too_large",
+        "bulk_action",
+        "Assign",
+        target_region="main",
+        target_ref="motif:items",
+        payload_bindings=["queue_selected_ids"],
+    )
+
+    ast = compile(builder.build_bundle())
+    codes = {diagnostic.code for diagnostic in ast.result.diagnostics}
+
+    assert "COLLECTION_BULK_SELECTION_TOO_LARGE" in codes
+
+    builder = ViewSpecBuilder("too_many_collection_actions")
+    payload = builder.add_text_input("query", label="Search", value="", group_id="controls")
+    table = builder.add_table("items", region="main", group_id="rows")
+    table.add_row(label="Alpha", value="Ready", id="alpha")
+    for index in range(9):
+        builder.add_action(
+            f"search_items_{index}",
+            "search",
+            f"Search {index}",
+            target_region="main",
+            target_ref="motif:items",
+            payload_bindings=[payload],
+        )
+
+    ast = compile(builder.build_bundle())
+    codes = {diagnostic.code for diagnostic in ast.result.diagnostics}
+
+    assert "TOO_MANY_COLLECTION_ACTIONS" in codes
+    assert _find_nodes(ast.result.root.root, "button") == []
+
+
+def test_collection_state_conflict_and_state_contract_constraints_fail_closed():
+    builder = ViewSpecBuilder("state_conflict")
+    table = builder.add_table("items", region="main", group_id="rows")
+    table.add_row(label="Alpha", value="Ready", id="alpha")
+    builder.add_loading_state("loading_items", title="Loading", region="main", group_id="message")
+
+    ast = compile(builder.build_bundle())
+    codes = {diagnostic.code for diagnostic in ast.result.diagnostics}
+
+    assert "COLLECTION_STATE_CONFLICT" in codes
+    assert _find_node_id(ast.result.root.root, "motif_loading_items") is None
+
+    builder = ViewSpecBuilder("bad_state_contract")
+    builder.add_node("state", "loading_state", attrs={"description": "Still loading", "body": "Please wait"})
+    description = builder.bind_attr("state_description", "state", "description", region="main", present_as="text")
+    body = builder.bind_attr("state_body", "state", "body", region="main", present_as="text")
+    builder.add_motif("loading_items", "loading_state", "main", [description, body])
+
+    ast = compile(builder.build_bundle())
+    codes = {diagnostic.code for diagnostic in ast.result.diagnostics}
+
+    assert "STATE_MOTIF_TITLE_REQUIRED" in codes
+    assert "STATE_MOTIF_TOO_MANY_DESCRIPTIONS" in codes
 
 
 @pytest.mark.parametrize("motif_kind", ["comparison", "detail", "table"])

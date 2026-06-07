@@ -26,14 +26,17 @@ from viewspec.sdk.builder import ViewSpecBuilder
 def test_compiler_quality_benchmark_fixtures_emit_checked_artifacts(tmp_path):
     summaries = run_benchmark_suite(tmp_path)
 
-    assert len(summaries) == 7
+    assert len(summaries) == 10
     assert {summary["fixture_id"] for summary in summaries} == {
+        "collection_error_state",
+        "collection_loading_state",
         "dashboard",
         "detail",
         "form",
         "hero",
         "list",
         "multi_region_product",
+        "stateful_collection",
         "tailwind_admin_workspace",
     }
     for summary in summaries:
@@ -129,8 +132,28 @@ def test_dashboard_fixture_records_planner_grid_strategy(tmp_path):
     }
 
 
+def test_stateful_collection_fixture_records_collection_action_bar(tmp_path):
+    summary = run_benchmark_fixture(next(item for item in benchmark_fixtures() if item.id == "stateful_collection"), tmp_path)
+
+    assert summary["metrics"]["ast"]["motif_kinds"] == ["form", "table"]
+    assert summary["metrics"]["ast"]["action_rows"] == ["planner_request_queue_collection_actions"]
+    assert summary["metrics"]["ast"]["planner_nodes"]["planner_request_queue_collection_actions"] == {
+        "layout_strategy": "collection_action_bar_v1",
+        "primitive": "cluster",
+    }
+    assert {
+        "bulk_assign_queue",
+        "filter_queue",
+        "page_queue",
+        "search_queue",
+        "sort_queue",
+    } == set(summary["metrics"]["parity"]["action_ids"])
+    assert summary["metrics"]["required_tags"] == ["input", "section", "table", "td", "th", "tr"]
+    assert summary["metrics"]["tailwind"]["recipe_pack"] == "tailwind_app_v1"
+
+
 def test_benchmark_contract_is_not_weakened():
-    assert len(benchmark_fixtures()) == 7
+    assert len(benchmark_fixtures()) == 10
     assert compiler_benchmarks.BENCHMARK_SUMMARY_MAX_BYTES == 16 * 1024
     assert len(compiler_benchmarks.QUALITY_CATEGORIES) == 8
     assert {
@@ -157,12 +180,35 @@ def test_benchmark_contract_is_not_weakened():
         "PLANNER_STYLE_AUTOFETCH",
         "PLANNER_SYNTHETIC_CONTENT",
         "PLANNER_PASS_BOUNDARY_BROKEN",
+        "TAILWIND_ACTIVE_SURFACE_FORBIDDEN",
         "TAILWIND_DYNAMIC_CLASS",
+        "TAILWIND_GENERIC_FALLBACK_EXCEEDED",
+        "TAILWIND_HOST_CONFIG_DEPENDENCY",
+        "TAILWIND_INLINE_STYLE_FORBIDDEN",
         "TAILWIND_INVENTORY_MISMATCH",
         "TAILWIND_RECIPE_REGISTRY_DIGEST_MISMATCH",
         "TAILWIND_RECIPE_UNREACHABLE",
         "TAILWIND_SEMANTIC_DRIFT",
+        "TAILWIND_TARGET_REGRESSION",
         "TAILWIND_TSX_INVALID",
+        "TAILWIND_UNSAFE_CLASS_SOURCE",
+        "COLLECTION_ACTION_TARGET_INVALID",
+        "COLLECTION_ACTION_PAYLOAD_REQUIRED",
+        "COLLECTION_ACTION_PAYLOAD_TOO_LARGE",
+        "COLLECTION_BULK_SELECTION_REQUIRED",
+        "COLLECTION_BULK_SELECTION_AMBIGUOUS",
+        "COLLECTION_BULK_SELECTION_TOO_LARGE",
+        "COLLECTION_ACTION_BAR_DUPLICATE",
+        "COLLECTION_ACTION_BAR_PLACEMENT_INVALID",
+        "COLLECTION_STATE_CONFLICT",
+        "STATE_MOTIF_TITLE_REQUIRED",
+        "STATE_MOTIF_TOO_MANY_DESCRIPTIONS",
+        "TOO_MANY_STATE_MOTIFS",
+        "TOO_MANY_COLLECTION_ACTIONS",
+        "STATEFUL_COLLECTIONS_PUBLIC_CONTRACT_DRIFT",
+        "TAILWIND_STATEFUL_COLLECTION_RECIPE_MISSING",
+        "STATEFUL_COLLECTIONS_EMITTER_PARITY_FAILED",
+        "STATEFUL_COLLECTIONS_ACTION_PAYLOAD_MISMATCH",
     }.issubset(compiler_benchmarks.BENCHMARK_ERROR_CODES)
 
 

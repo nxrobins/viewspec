@@ -54,6 +54,10 @@ function publicFactDrift(message) {
   assert.fail(`PUBLIC_FACTS_DRIFT: ${message}`)
 }
 
+function statefulCollectionsDrift(message) {
+  assert.fail(`STATEFUL_COLLECTIONS_PUBLIC_CONTRACT_DRIFT: ${message}`)
+}
+
 function assertPublicText(text, expected, label) {
   if (!text.includes(String(expected))) publicFactDrift(`${label} missing ${expected}`)
 }
@@ -236,7 +240,14 @@ assert.match(agentPrompt, /pixel-perfect visual regression/)
 assert.doesNotMatch(agentPrompt, /You output ViewSpec IR/)
 
 const agentSchema = JSON.parse(await readFile('demos/agent-intent-bundle.schema.json', 'utf8'))
-assert.deepEqual(agentSchema.$defs.motif.properties.kind.enum, ['table', 'dashboard', 'outline', 'comparison', 'list', 'form', 'detail', 'empty_state', 'hero'])
+assert.deepEqual(agentSchema.$defs.motif.properties.kind.enum, ['table', 'dashboard', 'outline', 'comparison', 'list', 'form', 'detail', 'empty_state', 'loading_state', 'error_state', 'hero'])
+assert.deepEqual(agentSchema.$defs.action.properties.kind.enum, ['select', 'submit', 'navigate', 'search', 'filter', 'sort', 'paginate', 'bulk_action'])
+for (const publicTextPath of ['README.md', 'docs/getting-started.md', 'docs/agent-integration.md', 'demos/llms.txt', 'demos/llms-full.txt']) {
+  const text = await readFile(publicTextPath, 'utf8')
+  for (const expected of ['loading_state', 'error_state', 'search', 'filter', 'sort', 'paginate', 'bulk_action']) {
+    if (!text.includes(expected)) statefulCollectionsDrift(`${publicTextPath} missing ${expected}`)
+  }
+}
 const agentManifest = JSON.parse(await readFile('demos/agent-assets.json', 'utf8'))
 assert.equal(agentManifest.schema_version, 3)
 assert.deepEqual(agentManifest.files.map((file) => file.path), ['agent-system-prompt.txt', 'agent-intent-bundle.schema.json', 'agent-intent-example.dashboard.json'])

@@ -104,6 +104,22 @@ def starter_intent_bundle(kind: str = "dashboard") -> IntentBundle:
             region="main",
             group_id="message",
         )
+    elif kind == "loading_state":
+        builder.add_loading_state(
+            "loading_results",
+            title="Loading results",
+            description="The collection is being prepared.",
+            region="main",
+            group_id="message",
+        )
+    elif kind == "error_state":
+        builder.add_error_state(
+            "collection_error",
+            title="Unable to load results",
+            description="Retry after checking the source data.",
+            region="main",
+            group_id="message",
+        )
     elif kind == "hero":
         builder.add_hero(
             "intro",

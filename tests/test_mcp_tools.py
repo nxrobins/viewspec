@@ -355,7 +355,8 @@ def test_intent_mcp_compile_can_emit_checked_react_tsx_artifact(tmp_path):
     manifest = json.loads((tmp_path / "react-dist/provenance_manifest.json").read_text(encoding="utf-8"))
 
     assert 'source: "viewspec-react-tsx"' in tsx
-    assert "payloadValues: collectPayloadValues" in tsx
+    assert "const payloadValues = collectPayloadValues(payloadBindings);" in tsx
+    assert "assertPayloadBounds(" in tsx
     assert manifest["emitter"] == "react_tsx"
     assert manifest["artifact_file"] == "ViewSpecView.tsx"
     assert manifest["artifact_hash"] == file_hash(tmp_path / "react-dist/ViewSpecView.tsx")
@@ -394,7 +395,8 @@ def test_intent_mcp_compile_can_emit_checked_react_tailwind_tsx_artifact(tmp_pat
     manifest = json.loads((tmp_path / "react-tailwind-dist/provenance_manifest.json").read_text(encoding="utf-8"))
 
     assert 'source: "viewspec-react-tailwind-tsx"' in tsx
-    assert "payloadValues: collectPayloadValues" in tsx
+    assert "const payloadValues = collectPayloadValues(payloadBindings);" in tsx
+    assert "assertPayloadBounds(" in tsx
     assert "className={" not in tsx
     assert manifest["emitter"] == "react_tailwind_tsx"
     assert manifest["artifact_file"] == "ViewSpecView.tsx"

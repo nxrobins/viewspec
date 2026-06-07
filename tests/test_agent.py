@@ -83,6 +83,22 @@ def _bundle_for_motif(motif: str) -> dict:
             region="main",
             group_id="message",
         )
+    elif motif == "loading_state":
+        builder.add_loading_state(
+            "loading_results",
+            title="Loading results",
+            description="Fetching the current collection.",
+            region="main",
+            group_id="message",
+        )
+    elif motif == "error_state":
+        builder.add_error_state(
+            "error_results",
+            title="Unable to load results",
+            description="Retry after checking the source data.",
+            region="main",
+            group_id="message",
+        )
     elif motif == "hero":
         builder.add_hero(
             "intro",
@@ -116,7 +132,7 @@ def test_agent_prompt_and_schema_preserve_intent_bundle_contract():
     assert "Use stable ids and object keys matching this pattern only" in AGENT_SYSTEM_PROMPT
     assert "substrate.nodes as an object keyed by node ID, never an array" in AGENT_SYSTEM_PROMPT
     assert "Stay inside the v1 local contract caps" in AGENT_SYSTEM_PROMPT
-    assert "Use only these action kinds: select, submit, navigate." in AGENT_SYSTEM_PROMPT
+    assert "Use only these action kinds: select, submit, navigate, search, filter, sort, paginate, bulk_action." in AGENT_SYSTEM_PROMPT
     assert "input" in AGENT_SYSTEM_PROMPT
     assert "Use only this v1 binding cardinality: exactly_once." in AGENT_SYSTEM_PROMPT
     assert "Use only these v1 region layouts: stack, grid, cluster." in AGENT_SYSTEM_PROMPT
@@ -126,6 +142,8 @@ def test_agent_prompt_and_schema_preserve_intent_bundle_contract():
     assert "Use style tokens only from this v1 set:" in AGENT_SYSTEM_PROMPT
     assert "Semantic edges must reference declared substrate node IDs" in AGENT_SYSTEM_PROMPT
     assert "Action target_ref must be empty/null or use region:id" in AGENT_SYSTEM_PROMPT
+    assert "Stateful collection actions are bounded." in AGENT_SYSTEM_PROMPT
+    assert "Loading_state and error_state motifs need exactly one title" in AGENT_SYSTEM_PROMPT
     assert "Region parent links must form one acyclic tree" in AGENT_SYSTEM_PROMPT
     assert "Region min_children must be >= 0" in AGENT_SYSTEM_PROMPT
     assert "Generated JSON is not a finished ViewSpec proof" in AGENT_SYSTEM_PROMPT
@@ -554,6 +572,105 @@ def test_rejects_title_required_motifs_without_title_binding(motif):
 
     assert not result.valid
     assert any(issue.code == "MOTIF_MISSING_TITLE" for issue in result.issues)
+
+
+@pytest.mark.parametrize("motif", ["loading_state", "error_state"])
+def test_rejects_state_motifs_without_exactly_one_title_binding(motif):
+    payload = _bundle_for_motif(motif)
+    payload["view_spec"]["motifs"][0]["members"] = [
+        member
+        for member in payload["view_spec"]["motifs"][0]["members"]
+        if not member.endswith("_title")
+    ]
+
+    result = validate_agent_intent_bundle(payload)
+
+    assert not result.valid
+    assert any(issue.code == "STATE_MOTIF_TITLE_REQUIRED" for issue in result.issues)
+
+
+def test_rejects_state_motif_with_too_many_descriptions():
+    payload = _bundle_for_motif("loading_state")
+    payload["substrate"]["nodes"]["loading_results"]["attrs"]["message"] = "Second description"
+    payload["view_spec"]["bindings"].append(
+        {
+            "id": "loading_results_message",
+            "address": "node:loading_results#attr:message",
+            "target_region": "main",
+            "present_as": "text",
+            "cardinality": "exactly_once",
+        }
+    )
+    payload["view_spec"]["motifs"][0]["members"].append("loading_results_message")
+
+    result = validate_agent_intent_bundle(payload)
+
+    assert not result.valid
+    assert any(issue.code == "STATE_MOTIF_TOO_MANY_DESCRIPTIONS" for issue in result.issues)
+
+
+def test_rejects_collection_action_contract_violations():
+    payload = _bundle_for_motif("table")
+    payload["view_spec"]["actions"].extend(
+        [
+            {
+                "id": "search_missing_payload",
+                "kind": "search",
+                "label": "Search",
+                "target_region": "main",
+                "target_ref": "motif:items",
+                "payload_bindings": [],
+            },
+            {
+                "id": "filter_wrong_target",
+                "kind": "filter",
+                "label": "Filter",
+                "target_region": "main",
+                "target_ref": "motif:missing",
+                "payload_bindings": ["alpha_label"],
+            },
+            {
+                "id": "bulk_missing_selection",
+                "kind": "bulk_action",
+                "label": "Bulk",
+                "target_region": "main",
+                "target_ref": "motif:items",
+                "payload_bindings": ["alpha_label"],
+            },
+        ]
+    )
+
+    codes = _issue_codes(payload)
+
+    assert "COLLECTION_ACTION_PAYLOAD_REQUIRED" in codes
+    assert "COLLECTION_ACTION_TARGET_INVALID" in codes
+    assert "COLLECTION_BULK_SELECTION_REQUIRED" in codes
+
+
+def test_rejects_too_many_collection_actions_and_state_conflicts():
+    payload = _bundle_for_motif("table")
+    for index in range(9):
+        payload["view_spec"]["actions"].append(
+            {
+                "id": f"search_items_{index}",
+                "kind": "search",
+                "label": f"Search {index}",
+                "target_region": "main",
+                "target_ref": "motif:items",
+                "payload_bindings": ["alpha_label"],
+            }
+        )
+
+    assert "TOO_MANY_COLLECTION_ACTIONS" in _issue_codes(payload)
+
+    payload = _bundle_for_motif("table")
+    state_payload = _bundle_for_motif("loading_state")
+    payload["substrate"]["nodes"].update(state_payload["substrate"]["nodes"])
+    payload["view_spec"]["bindings"].extend(state_payload["view_spec"]["bindings"])
+    payload["view_spec"]["groups"].extend(state_payload["view_spec"]["groups"])
+    payload["view_spec"]["motifs"].extend(state_payload["view_spec"]["motifs"])
+
+    assert "COLLECTION_STATE_CONFLICT" in _issue_codes(payload)
 
 
 def test_rejects_form_motif_without_input_binding():

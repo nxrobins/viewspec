@@ -66,6 +66,23 @@ BENCHMARK_ERROR_CODES = frozenset(
         "TAILWIND_TARGET_REGRESSION",
         "TAILWIND_TSX_INVALID",
         "TAILWIND_UNSAFE_CLASS_SOURCE",
+        "COLLECTION_ACTION_TARGET_INVALID",
+        "COLLECTION_ACTION_PAYLOAD_REQUIRED",
+        "COLLECTION_ACTION_PAYLOAD_TOO_LARGE",
+        "COLLECTION_BULK_SELECTION_REQUIRED",
+        "COLLECTION_BULK_SELECTION_AMBIGUOUS",
+        "COLLECTION_BULK_SELECTION_TOO_LARGE",
+        "COLLECTION_ACTION_BAR_DUPLICATE",
+        "COLLECTION_ACTION_BAR_PLACEMENT_INVALID",
+        "COLLECTION_STATE_CONFLICT",
+        "STATE_MOTIF_TITLE_REQUIRED",
+        "STATE_MOTIF_TOO_MANY_DESCRIPTIONS",
+        "TOO_MANY_STATE_MOTIFS",
+        "TOO_MANY_COLLECTION_ACTIONS",
+        "STATEFUL_COLLECTIONS_PUBLIC_CONTRACT_DRIFT",
+        "TAILWIND_STATEFUL_COLLECTION_RECIPE_MISSING",
+        "STATEFUL_COLLECTIONS_EMITTER_PARITY_FAILED",
+        "STATEFUL_COLLECTIONS_ACTION_PAYLOAD_MISMATCH",
     }
 )
 QUALITY_CATEGORIES = frozenset(
@@ -96,6 +113,8 @@ REQUIRED_TAGS_BY_MOTIF = {
     "form": {"input", "section"},
     "hero": {"h1", "header"},
     "list": {"li", "ul"},
+    "loading_state": {"h2", "section"},
+    "error_state": {"h2", "section"},
     "table": {"table", "td", "th", "tr"},
 }
 
@@ -190,6 +209,9 @@ def benchmark_fixtures() -> tuple[BenchmarkFixture, ...]:
         BenchmarkFixture("detail", _detail_fixture()),
         BenchmarkFixture("hero", _hero_fixture()),
         BenchmarkFixture("list", _list_fixture()),
+        BenchmarkFixture("stateful_collection", _stateful_collection_fixture()),
+        BenchmarkFixture("collection_loading_state", _collection_loading_state_fixture()),
+        BenchmarkFixture("collection_error_state", _collection_error_state_fixture()),
         BenchmarkFixture("multi_region_product", _multi_region_fixture(), multi_region=True),
         BenchmarkFixture("tailwind_admin_workspace", _tailwind_admin_workspace_fixture(), multi_region=True),
     )
@@ -449,6 +471,91 @@ def _list_fixture() -> IntentBundle:
     steps.add_item(label="Validate", description="Run validate-intent.", id="validate")
     steps.add_item(label="Compile", description="Emit checked artifacts.", id="compile")
     builder.add_style("list_flow", "motif:next_steps", "narrative.flow")
+    return builder.build_bundle()
+
+
+def _stateful_collection_fixture() -> IntentBundle:
+    builder = ViewSpecBuilder("benchmark_stateful_collection")
+    control_members: list[str] = []
+    for node_id, label, attr, value, binding_id in (
+        ("queue_query_control", "Search", "value", "", "queue_query"),
+        ("queue_status_control", "Status", "value", "open", "queue_status"),
+        ("queue_sort_control", "Sort", "value", "created_desc", "queue_sort"),
+        ("queue_page_control", "Page", "value", "next", "queue_page"),
+        ("queue_selection_control", "Selected rows", "selected_ids", "request_a,request_b", "queue_selected_ids"),
+    ):
+        builder.add_node(node_id, "collection_control", attrs={"label": label, attr: value})
+        control_members.append(builder.bind_attr(f"{node_id}_label", node_id, "label", region="main", present_as="label"))
+        control_members.append(builder.bind_attr(binding_id, node_id, attr, region="main", present_as="input"))
+    builder.add_group("queue_control_fields", "ordered", control_members, target_region="main")
+    builder.add_motif("queue_controls", "form", "main", control_members)
+
+    table = builder.add_table("request_queue", region="main", group_id="request_rows")
+    table.add_row(label="Request A", value="Ready", id="request_a")
+    table.add_row(label="Request B", value="Waiting", id="request_b")
+    table.add_row(label="Request C", value="Blocked", id="request_c")
+    builder.add_collection_action(
+        "search_queue",
+        "search",
+        "Search",
+        collection_id="request_queue",
+        payload_bindings=["queue_query"],
+    )
+    builder.add_collection_action(
+        "filter_queue",
+        "filter",
+        "Filter",
+        collection_id="request_queue",
+        payload_bindings=["queue_status"],
+    )
+    builder.add_collection_action(
+        "sort_queue",
+        "sort",
+        "Sort",
+        collection_id="request_queue",
+        payload_bindings=["queue_sort"],
+    )
+    builder.add_collection_action(
+        "page_queue",
+        "paginate",
+        "Next page",
+        collection_id="request_queue",
+        payload_bindings=["queue_page"],
+    )
+    builder.add_collection_action(
+        "bulk_assign_queue",
+        "bulk_action",
+        "Assign selected",
+        collection_id="request_queue",
+        payload_bindings=["queue_selected_ids"],
+    )
+    builder.add_style("queue_table_surface", "motif:request_queue", "surface.strong")
+    return builder.build_bundle()
+
+
+def _collection_loading_state_fixture() -> IntentBundle:
+    builder = ViewSpecBuilder("benchmark_collection_loading")
+    builder.add_loading_state(
+        "queue_loading",
+        title="Loading requests",
+        description="Fetching the current collection.",
+        region="main",
+        group_id="message",
+    )
+    builder.add_style("loading_surface", "motif:queue_loading", "surface.subtle")
+    return builder.build_bundle()
+
+
+def _collection_error_state_fixture() -> IntentBundle:
+    builder = ViewSpecBuilder("benchmark_collection_error")
+    builder.add_error_state(
+        "queue_error",
+        title="Unable to load requests",
+        description="Retry after the source data is available.",
+        region="main",
+        group_id="message",
+    )
+    builder.add_style("error_surface", "motif:queue_error", "tone.warning")
     return builder.build_bundle()
 
 

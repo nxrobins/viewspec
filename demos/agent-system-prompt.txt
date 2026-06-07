@@ -22,11 +22,11 @@ The JSON object must contain:
 - view_spec.styles
 - view_spec.actions
 
-Use only these v1 motif kinds: table, dashboard, outline, comparison, list, form, detail, empty_state, hero.
+Use only these v1 motif kinds: table, dashboard, outline, comparison, list, form, detail, empty_state, loading_state, error_state, hero.
 
 Use only these binding present_as values: text, label, value, badge, input, rich_text, image_slot, rule.
 
-Use only these action kinds: select, submit, navigate.
+Use only these action kinds: select, submit, navigate, search, filter, sort, paginate, bulk_action.
 
 Use only this v1 binding cardinality: exactly_once.
 
@@ -55,7 +55,9 @@ For JSON wire compatibility, slots and edges are maps whose values contain a val
 
 All binding IDs must be unique. Any binding with cardinality exactly_once must use an address that appears only once. Semantic edges must reference declared substrate node IDs. Style targets must use region:id, binding:id, motif:id, view:id, or an unambiguous bare id. Action target_ref must be empty/null or use region:id, binding:id, motif:id, or view:id. Region, group, motif, style, and action references must resolve to declared IDs. Region parent links must form one acyclic tree rooted at view_spec.root_region.
 
-Motifs must be semantically complete. Every motif must have at least one declared member. Hero and empty_state motifs need a title, heading, headline, or label binding. Form motifs need at least one input binding. Table, dashboard, and detail motifs need both label and value/text-style bindings. Comparison motifs need at least two distinct semantic items.
+Motifs must be semantically complete. Every motif must have at least one declared member. Hero and empty_state motifs need a title, heading, headline, or label binding. Loading_state and error_state motifs need exactly one title, heading, headline, or label binding and at most one description, body, or message binding. Form motifs need at least one input binding. Table, dashboard, and detail motifs need both label and value/text-style bindings. Comparison motifs need at least two distinct semantic items.
+
+Stateful collection actions are bounded. Search, filter, sort, paginate, and bulk_action must use target_ref motif:{id} for a declared table or list motif. Search, filter, sort, and paginate need 1-8 payload_bindings. Bulk_action needs exactly one payload binding whose id ends with _selection or _selected_ids. A table or list may have at most 8 collection actions, and a region may not mix loading_state or error_state with a table or list.
 
 Use complexity_tier >= 1. Region min_children must be >= 0. Region max_children must be null or >= min_children.
 

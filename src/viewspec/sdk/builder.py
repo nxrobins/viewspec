@@ -236,6 +236,41 @@ class ViewSpecBuilder:
         )
         return self
 
+    def add_collection_action(
+        self,
+        id: str,
+        kind: str,
+        label: str,
+        *,
+        collection_id: str,
+        target_region: str = "main",
+        payload_bindings: list[str] | None = None,
+    ) -> ViewSpecBuilder:
+        collection = next((motif for motif in self._motifs if motif.id == collection_id), None)
+        if collection is None or collection.kind not in {"table", "list"}:
+            raise ValueError("collection_id must reference an existing table or list motif.")
+        if kind not in {"search", "filter", "sort", "paginate", "bulk_action"}:
+            raise ValueError("collection action kind must be search, filter, sort, paginate, or bulk_action.")
+        bindings = list(payload_bindings or [])
+        if kind == "bulk_action":
+            selection_bindings = [
+                binding_id
+                for binding_id in bindings
+                if binding_id.endswith("_selection") or binding_id.endswith("_selected_ids")
+            ]
+            if len(selection_bindings) != 1 or len(bindings) != 1:
+                raise ValueError("bulk_action requires exactly one _selection or _selected_ids payload binding.")
+        elif not (1 <= len(bindings) <= 8):
+            raise ValueError("collection actions require 1-8 payload bindings.")
+        return self.add_action(
+            id,
+            kind,
+            label,
+            target_region=target_region,
+            target_ref=f"motif:{collection_id}",
+            payload_bindings=bindings,
+        )
+
     def add_text_input(
         self,
         id: str,
@@ -308,6 +343,71 @@ class ViewSpecBuilder:
         node_kind: str = "empty_state",
     ) -> ViewSpecBuilder:
         self.add_motif(id, "empty_state", region, [])
+        if group_id:
+            self.add_group(group_id, "ordered", [], target_region=region)
+        attrs: dict[str, Any] = {"title": title}
+        if description is not None:
+            attrs["description"] = description
+        self.add_node(id, node_kind, attrs=attrs)
+        members = [self.bind_attr(f"{id}_title", id, "title", region=region, present_as="value")]
+        if description is not None:
+            members.append(self.bind_attr(f"{id}_description", id, "description", region=region, present_as="text"))
+        self._extend_motif(id, members)
+        self._extend_group(group_id, members)
+        return self
+
+    def add_loading_state(
+        self,
+        id: str,
+        *,
+        title: Any,
+        description: Any | None = None,
+        region: str = "main",
+        group_id: str | None = None,
+        node_kind: str = "loading_state",
+    ) -> ViewSpecBuilder:
+        return self._add_state_motif(
+            id,
+            "loading_state",
+            title=title,
+            description=description,
+            region=region,
+            group_id=group_id,
+            node_kind=node_kind,
+        )
+
+    def add_error_state(
+        self,
+        id: str,
+        *,
+        title: Any,
+        description: Any | None = None,
+        region: str = "main",
+        group_id: str | None = None,
+        node_kind: str = "error_state",
+    ) -> ViewSpecBuilder:
+        return self._add_state_motif(
+            id,
+            "error_state",
+            title=title,
+            description=description,
+            region=region,
+            group_id=group_id,
+            node_kind=node_kind,
+        )
+
+    def _add_state_motif(
+        self,
+        id: str,
+        kind: str,
+        *,
+        title: Any,
+        description: Any | None,
+        region: str,
+        group_id: str | None,
+        node_kind: str,
+    ) -> ViewSpecBuilder:
+        self.add_motif(id, kind, region, [])
         if group_id:
             self.add_group(group_id, "ordered", [], target_region=region)
         attrs: dict[str, Any] = {"title": title}
