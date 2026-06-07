@@ -35,7 +35,8 @@
     "proHostedCompileCallsPerDay": 10000,
     "firstProofCommand": "viewspec prove --out .viewspec-proof",
     "proofSummaryFile": ".viewspec-proof/PROOF.md",
-    "proofReportFile": ".viewspec-proof/proof_report.json"
+    "proofReportFile": ".viewspec-proof/proof_report.json",
+    "proofSupportBundleFile": ".viewspec-proof/support_bundle.json"
   },
   "paths": {
     "/v1/compile": {

@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import json
+import platform
 import shutil
+import sys
 import time
 from dataclasses import dataclass
 from pathlib import Path
@@ -30,7 +32,9 @@ PROVE_SCHEMA_VERSION = 1
 PROVE_DEFAULT_OUT = ".viewspec-proof"
 PROVE_DEFAULT_REPORT = "proof_report.json"
 PROVE_DEFAULT_SUMMARY = "PROOF.md"
+PROVE_DEFAULT_SUPPORT_BUNDLE = "support_bundle.json"
 PROVE_SUMMARY_MAX_BYTES = 32 * 1024
+PROVE_SUPPORT_BUNDLE_MAX_BYTES = 16 * 1024
 PROVE_ARTIFACT_DIR = "artifact"
 PROVE_TARGETS = INTENT_COMPILE_TARGETS
 PROOF_LEVEL_BY_TARGET = {
@@ -401,6 +405,13 @@ def _report(
         "diagnostics": str(prepared.artifact_dir / "diagnostics.json") if prepared else None,
         "report": str(prepared.report_path if prepared else report_path),
         "proof_summary": str(prepared.summary_path if prepared else output_dir / PROVE_DEFAULT_SUMMARY if output_dir else None),
+        "support_bundle": str(
+            prepared.output_dir / PROVE_DEFAULT_SUPPORT_BUNDLE
+            if prepared
+            else output_dir / PROVE_DEFAULT_SUPPORT_BUNDLE
+            if output_dir
+            else None
+        ),
     }
     return {
         "schema_version": PROVE_SCHEMA_VERSION,
@@ -420,8 +431,22 @@ def _report(
 
 def _write_report(report: dict[str, Any], report_path: Path) -> dict[str, Any]:
     report = _final_report(report, report_path)
+    report.setdefault("checks", {})["support_bundle"] = "written"
     report.setdefault("checks", {})["proof_summary"] = "written"
     atomic_write(report_path, json.dumps(report, indent=2, sort_keys=True) + "\n")
+    try:
+        support_path = report.get("paths", {}).get("support_bundle")
+        if support_path:
+            _write_support_bundle(Path(str(support_path)), _render_support_bundle(report, proof_report_hash=file_hash(report_path)), report=report)
+    except Exception as exc:
+        failed = _support_failure_report(report, report_path, exc)
+        atomic_write(report_path, json.dumps(failed, indent=2, sort_keys=True) + "\n")
+        try:
+            _write_failed_summary(failed, report_path)
+        except Exception as summary_exc:
+            failed = _summary_failure_report(failed, report_path, summary_exc)
+            atomic_write(report_path, json.dumps(failed, indent=2, sort_keys=True) + "\n")
+        return failed
     try:
         summary_path = report.get("paths", {}).get("proof_summary")
         if summary_path:
@@ -430,6 +455,17 @@ def _write_report(report: dict[str, Any], report_path: Path) -> dict[str, Any]:
     except Exception as exc:
         failed = _summary_failure_report(report, report_path, exc)
         atomic_write(report_path, json.dumps(failed, indent=2, sort_keys=True) + "\n")
+        try:
+            support_path = failed.get("paths", {}).get("support_bundle")
+            if support_path:
+                _write_support_bundle(
+                    Path(str(support_path)),
+                    _render_support_bundle(failed, proof_report_hash=file_hash(report_path)),
+                    report=failed,
+                )
+        except Exception as support_exc:
+            failed = _support_failure_report(failed, report_path, support_exc)
+            atomic_write(report_path, json.dumps(failed, indent=2, sort_keys=True) + "\n")
         return failed
     return report
 
@@ -477,6 +513,30 @@ def _summary_failure_report(report: dict[str, Any], report_path: Path, exc: Exce
     return _final_report(failed, report_path)
 
 
+def _support_failure_report(report: dict[str, Any], report_path: Path, exc: Exception) -> dict[str, Any]:
+    failed = json.loads(json.dumps(report))
+    failed["ok"] = False
+    failed.setdefault("checks", {})["support_bundle"] = "failed"
+    code = exc.code if isinstance(exc, ProveFailure) else "PROVE_SUPPORT_BUNDLE_WRITE_FAILED"
+    message = exc.message if isinstance(exc, ProveFailure) else str(exc)
+    failed_errors = _normalize_errors(failed.get("errors"), fallback_code="PROVE_INTERNAL_ERROR") if failed.get("errors") else []
+    failed_errors.append(
+        {
+            "code": code,
+            "message": message or "Could not write support_bundle.json.",
+            "fix": "Inspect proof_report.json and retry viewspec prove with a writable proof output directory.",
+        }
+    )
+    failed["errors"] = failed_errors
+    return _final_report(failed, report_path)
+
+
+def _write_failed_summary(report: dict[str, Any], report_path: Path) -> None:
+    summary_path = report.get("paths", {}).get("proof_summary")
+    if summary_path:
+        _write_proof_summary(Path(str(summary_path)), _render_proof_summary(report, proof_report_hash=file_hash(report_path)))
+
+
 def _write_proof_summary(summary_path: Path, markdown: str) -> None:
     byte_count = len(markdown.encode("utf-8"))
     if byte_count > PROVE_SUMMARY_MAX_BYTES:
@@ -486,6 +546,139 @@ def _write_proof_summary(summary_path: Path, markdown: str) -> None:
             "Inspect proof_report.json for machine-readable details.",
         )
     atomic_write(summary_path, markdown)
+
+
+def _write_support_bundle(support_path: Path, payload: str, *, report: dict[str, Any]) -> None:
+    byte_count = len(payload.encode("utf-8"))
+    if byte_count > PROVE_SUPPORT_BUNDLE_MAX_BYTES:
+        raise ProveFailure(
+            "PROVE_SUPPORT_BUNDLE_WRITE_FAILED",
+            f"Support bundle exceeds {PROVE_SUPPORT_BUNDLE_MAX_BYTES} bytes.",
+            "Inspect proof_report.json for machine-readable details.",
+        )
+    _assert_support_bundle_redacted(payload, report)
+    atomic_write(support_path, payload)
+
+
+def _render_support_bundle(report: dict[str, Any], *, proof_report_hash: str) -> str:
+    bundle = _support_bundle_payload(report, proof_report_hash=proof_report_hash)
+    return json.dumps(bundle, indent=2, sort_keys=True) + "\n"
+
+
+def _support_bundle_payload(report: dict[str, Any], *, proof_report_hash: str) -> dict[str, Any]:
+    checks = report.get("checks", {}) if isinstance(report.get("checks"), dict) else {}
+    errors = report.get("errors", []) if isinstance(report.get("errors"), list) else []
+    metadata = report.get("metadata", {}) if isinstance(report.get("metadata"), dict) else {}
+    timings = report.get("timings_ms", {}) if isinstance(report.get("timings_ms"), dict) else {}
+    host_report = report.get("host_report") if isinstance(report.get("host_report"), dict) else None
+    return {
+        "schema_version": 1,
+        "kind": "viewspec_proof_support_bundle",
+        "ok": bool(report.get("ok")),
+        "target": report.get("target"),
+        "proof_level": report.get("proof_level"),
+        "proof_report_hash": proof_report_hash,
+        "artifact_hash": report.get("artifact_hash"),
+        "manifest_hash": report.get("manifest_hash"),
+        "checks": {str(key): _support_scalar(value) for key, value in checks.items()},
+        "errors": _support_errors(errors),
+        "metadata": {
+            "sdk_version": _support_scalar(metadata.get("sdk_version")),
+            "network_calls": _support_scalar(metadata.get("network_calls")),
+            "install_used": bool(metadata.get("install_used")),
+            "strict_design": bool(metadata.get("strict_design")),
+            "python_version": platform.python_version(),
+            "platform": platform.system(),
+            "executable": Path(sys.executable).name,
+        },
+        "paths": _support_path_hints(report),
+        "host_report": _support_host_report(host_report),
+        "timings_ms": {str(key): int(value) for key, value in timings.items() if isinstance(value, int)},
+        "privacy": {
+            "local_only": True,
+            "contains_raw_intent": False,
+            "contains_raw_design": False,
+            "contains_raw_artifact": False,
+            "contains_raw_diagnostics": False,
+            "contains_absolute_paths": False,
+            "contains_environment_variables": False,
+            "contains_credentials": False,
+        },
+        "next_actions": _support_next_actions(report),
+    }
+
+
+def _support_errors(errors: list[object]) -> list[dict[str, str]]:
+    normalized: list[dict[str, str]] = []
+    for error in errors[:16]:
+        if isinstance(error, dict):
+            normalized.append(
+                {
+                    "code": _support_scalar(error.get("code")),
+                    "fix": _support_scalar(error.get("fix")),
+                }
+            )
+        else:
+            normalized.append({"code": "PROVE_ERROR", "fix": "Inspect proof_report.json and retry."})
+    return normalized
+
+
+def _support_host_report(host_report: dict[str, Any] | None) -> dict[str, Any] | None:
+    if host_report is None:
+        return None
+    assertions = host_report.get("assertions") if isinstance(host_report.get("assertions"), dict) else {}
+    return {
+        "ok": bool(host_report.get("ok")),
+        "artifact_hash": host_report.get("artifact_hash"),
+        "manifest_hash": host_report.get("manifest_hash"),
+        "diagnostics_hash": host_report.get("diagnostics_hash"),
+        "host_template_lock_hash": host_report.get("host_template_lock_hash"),
+        "install_used": bool(host_report.get("install_used")),
+        "node_version": _support_scalar(host_report.get("node_version")),
+        "npm_version": _support_scalar(host_report.get("npm_version")),
+        "assertions": {str(key): int(value) for key, value in assertions.items() if isinstance(value, int)},
+        "error_codes": [str(error.get("code")) for error in host_report.get("errors", []) if isinstance(error, dict) and error.get("code")],
+    }
+
+
+def _support_path_hints(report: dict[str, Any]) -> dict[str, str]:
+    paths = report.get("paths", {}) if isinstance(report.get("paths"), dict) else {}
+    hints: dict[str, str] = {}
+    for key in ("proof_dir", "intent", "design", "artifact_dir", "artifact", "manifest", "diagnostics", "report", "proof_summary", "support_bundle"):
+        value = paths.get(key)
+        if value:
+            hints[f"{key}_name"] = Path(str(value)).name
+    return hints
+
+
+def _support_next_actions(report: dict[str, Any]) -> list[str]:
+    if report.get("ok"):
+        return ["Keep support_bundle.json with proof_report.json for local audit records."]
+    codes = [str(error.get("code")) for error in report.get("errors", []) if isinstance(error, dict) and error.get("code")]
+    if codes:
+        return [f"Fix {codes[0]} and rerun viewspec prove."]
+    return ["Inspect proof_report.json and rerun viewspec prove."]
+
+
+def _support_scalar(value: object) -> str:
+    if value is None:
+        return "not_recorded"
+    return str(value).replace("\r", " ").replace("\n", " ").replace("`", "'")[:256]
+
+
+def _assert_support_bundle_redacted(payload: str, report: dict[str, Any]) -> None:
+    paths = report.get("paths", {}) if isinstance(report.get("paths"), dict) else {}
+    for value in paths.values():
+        if not value:
+            continue
+        raw = str(value)
+        escaped = json.dumps(raw)[1:-1]
+        if (":" in raw or "\\" in raw or "/" in raw) and (raw in payload or escaped in payload):
+            raise ProveFailure(
+                "PROVE_SUPPORT_BUNDLE_CONTENT_FORBIDDEN",
+                "Support bundle included an absolute or structured local path.",
+                "Inspect proof_report.json locally instead of sharing a support bundle with path content.",
+            )
 
 
 def _render_proof_summary(report: dict[str, Any], *, proof_report_hash: str) -> str:
@@ -518,6 +711,7 @@ def _render_proof_summary(report: dict[str, Any], *, proof_report_hash: str) -> 
         f"- Manifest path: `{_summary_value(paths.get('manifest'))}`",
         f"- JSON report path: `{_summary_value(paths.get('report'))}`",
         f"- Human summary path: `{_summary_value(paths.get('proof_summary'))}`",
+        f"- Redacted support bundle path: `{_summary_value(paths.get('support_bundle'))}`",
         "",
         "## Hashes",
         "",

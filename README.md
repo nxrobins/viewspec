@@ -60,7 +60,7 @@ For a first proof, run:
 viewspec prove --out .viewspec-proof
 ```
 
-This generates a starter IntentBundle and DESIGN.md inside `.viewspec-proof/`, compiles through the public local path, runs artifact checks, and writes `.viewspec-proof/PROOF.md` for humans plus `.viewspec-proof/proof_report.json` for tools. Read [ViewSpec Proof Bundle](docs/proof-bundle.md) to interpret the status, hashes, checks, and failure codes. It proves source artifact integrity and provenance for the generated artifact; ViewSpec prove is not pixel-perfect visual regression, accessibility certification, arbitrary host-app certification, or hosted compiler publish automation.
+This generates a starter IntentBundle and DESIGN.md inside `.viewspec-proof/`, compiles through the public local path, runs artifact checks, and writes `.viewspec-proof/PROOF.md` for humans, `.viewspec-proof/proof_report.json` for tools, and `.viewspec-proof/support_bundle.json` for redacted local support triage. Read [ViewSpec Proof Bundle](docs/proof-bundle.md) to interpret the status, hashes, checks, failure codes, and support bundle. It proves source artifact integrity and provenance for the generated artifact; ViewSpec prove is not pixel-perfect visual regression, accessibility certification, arbitrary host-app certification, or hosted compiler publish automation.
 
 Agents should create `viewspec.intent.json` for new UI. Validate the contract before compiling, then check the artifact manifest and hashes.
 

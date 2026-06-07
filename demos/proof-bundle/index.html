@@ -4,12 +4,12 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>ViewSpec Demo - Proof Bundle Guide</title>
-  <meta name="description" content="Read a ViewSpec first proof bundle, understand PROOF.md and proof_report.json, and keep proof claims bounded to checked artifacts and provenance.">
+  <meta name="description" content="Read a ViewSpec first proof bundle, understand PROOF.md, proof_report.json, and redacted support_bundle.json, and keep proof claims bounded.">
   <meta name="robots" content="index,follow,max-snippet:-1,max-image-preview:large">
   <link rel="canonical" href="https://viewspec.dev/proof-bundle/">
   <link rel="alternate" type="text/markdown" title="ViewSpec for LLMs" href="https://viewspec.dev/llms.txt">
   <link rel="service" type="application/json" title="ViewSpec OpenAPI" href="https://viewspec.dev/openapi.json">
-  <script type="application/ld+json">{"@context":"https://schema.org","@type":"WebPage","description":"Read a ViewSpec first proof bundle, understand PROOF.md and proof_report.json, and keep proof claims bounded to checked artifacts and provenance.","name":"ViewSpec Demo - Proof Bundle Guide","url":"https://viewspec.dev/proof-bundle/"}</script>
+  <script type="application/ld+json">{"@context":"https://schema.org","@type":"WebPage","description":"Read a ViewSpec first proof bundle, understand PROOF.md, proof_report.json, and redacted support_bundle.json, and keep proof claims bounded.","name":"ViewSpec Demo - Proof Bundle Guide","url":"https://viewspec.dev/proof-bundle/"}</script>
   <link rel="icon" href="data:,">
   <link rel="stylesheet" href="../shared/launch-pages.css">
   <style>
@@ -94,7 +94,7 @@
       <div>
         <p class="eyebrow">ViewSpec Proof Bundle</p>
         <h1>Read the first proof before trusting the artifact.</h1>
-        <p class="lead">Run <code>viewspec prove --out .viewspec-proof</code>, then open <code>.viewspec-proof/PROOF.md</code>. Use <code>proof_report.json</code> for automation, CI, or MCP tools.</p>
+        <p class="lead">Run <code>viewspec prove --out .viewspec-proof</code>, then open <code>.viewspec-proof/PROOF.md</code>. Use <code>proof_report.json</code> for automation and <code>support_bundle.json</code> for redacted failure triage.</p>
         <p>ViewSpec proof bundles are local source artifact and provenance proof by default. For <code>react-tailwind-tsx</code>, they become a bounded React/Vite/Tailwind reference-host proof only when host verification actually passes.</p>
       </div>
       <aside class="proof-panel" aria-label="Example proof summary">
@@ -111,6 +111,7 @@ Inputs And Outputs
 - Intent path: .viewspec-proof/viewspec.intent.json
 - Artifact path: .viewspec-proof/artifact/index.html
 - JSON report path: .viewspec-proof/proof_report.json
+- Support bundle path: .viewspec-proof/support_bundle.json
 
 Hashes
 - Artifact SHA-256: 64 hex chars
@@ -144,7 +145,7 @@ Checks
         <article class="flow-step">
           <span>4. Errors</span>
           <h3>Fix the first code.</h3>
-          <p>Use the validation <code>repair_checklist</code>, regenerate the full IntentBundle, and rerun <code>viewspec prove</code>.</p>
+          <p>Use the validation <code>repair_checklist</code>, regenerate the full IntentBundle, and rerun <code>viewspec prove</code>. Share <code>support_bundle.json</code> before full local reports.</p>
         </article>
       </div>
     </section>
@@ -162,6 +163,12 @@ Checks
           <h2><code>proof_report.json</code></h2>
           <p>Use this file for CI and agents. It is the stable JSON contract with schema version, checks, paths, hashes, host report, errors, metadata, and timings.</p>
           <pre><code>jq .ok .viewspec-proof/proof_report.json</code></pre>
+        </article>
+        <article>
+          <p class="eyebrow">Support triage</p>
+          <h2><code>support_bundle.json</code></h2>
+          <p>Use this file first when debugging a failed proof. It is capped at 16KB and omits raw intent, design, artifact, diagnostics, absolute paths, environment variables, credentials, and telemetry.</p>
+          <pre><code>jq .errors .viewspec-proof/support_bundle.json</code></pre>
         </article>
       </div>
     </section>

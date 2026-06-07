@@ -134,6 +134,7 @@ def test_agent_prompt_and_schema_preserve_intent_bundle_contract():
     assert "viewspec check" in AGENT_SYSTEM_PROMPT
     assert ".viewspec-proof/PROOF.md" in AGENT_SYSTEM_PROMPT
     assert "proof_report.json" in AGENT_SYSTEM_PROMPT
+    assert "support_bundle.json" in AGENT_SYSTEM_PROMPT
     assert "pixel-perfect visual regression" in AGENT_SYSTEM_PROMPT
     assert "Do not call remote reference libraries by default" in AGENT_SYSTEM_PROMPT
     assert "query an MCP-accessible UI reference library" not in AGENT_SYSTEM_PROMPT

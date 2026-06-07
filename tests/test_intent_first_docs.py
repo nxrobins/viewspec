@@ -92,6 +92,7 @@ def test_first_proof_is_public_and_bounded():
         text = path.read_text(encoding="utf-8")
         assert "viewspec prove --out .viewspec-proof" in text, path
         assert "PROOF.md" in text, path
+        assert "support_bundle.json" in text, path
         assert "pixel-perfect visual" in text, path
 
     proof_bundle = root.joinpath("docs/proof-bundle.md").read_text(encoding="utf-8")
@@ -106,6 +107,8 @@ def test_first_proof_is_public_and_bounded():
         "Errors",
         "repair_checklist",
         "proof_report.json",
+        "support_bundle.json",
+        "PROVE_SUPPORT_BUNDLE_WRITE_FAILED",
         "not pixel-perfect visual regression",
     ]:
         assert expected in proof_bundle

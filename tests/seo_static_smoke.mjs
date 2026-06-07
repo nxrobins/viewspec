@@ -73,6 +73,7 @@ assertPublicEqual(publicFacts.package_url, 'https://pypi.org/project/viewspec/',
 assertPublicEqual(publicFacts.proof.first_proof_command, 'viewspec prove --out .viewspec-proof', 'public facts first proof command')
 assertPublicEqual(publicFacts.proof.human_summary_file, '.viewspec-proof/PROOF.md', 'public facts proof summary file')
 assertPublicEqual(publicFacts.proof.machine_report_file, '.viewspec-proof/proof_report.json', 'public facts proof report file')
+assertPublicEqual(publicFacts.proof.support_bundle_file, '.viewspec-proof/support_bundle.json', 'public facts proof support bundle file')
 assertPublicText(publicFacts.proof.non_claim, 'not pixel-perfect visual regression', 'public facts proof non-claim')
 
 const pyproject = await readFile('pyproject.toml', 'utf8')
@@ -84,6 +85,7 @@ for (const publicTextPath of ['README.md', 'docs/getting-started.md', 'demos/llm
   const text = await readFile(publicTextPath, 'utf8')
   assertPublicText(text, publicFacts.proof.first_proof_command, `${publicTextPath} first proof`)
   assertPublicText(text, 'PROOF.md', `${publicTextPath} proof summary`)
+  assertPublicText(text, 'support_bundle.json', `${publicTextPath} proof support bundle`)
   assertPublicText(text, 'proof-bundle.md', `${publicTextPath} proof guide`)
   assertPublicText(text, publicFacts.proof.non_claim.split(',')[0], `${publicTextPath} proof scope`)
 }
@@ -92,6 +94,9 @@ for (const proofTextPath of ['README.md', 'docs/getting-started.md', 'docs/agent
   const text = await readFile(proofTextPath, 'utf8')
   if (text.includes('proof_report.json') && !text.includes('PROOF.md')) {
     publicFactDrift(`${proofTextPath} mentions proof_report.json without PROOF.md`)
+  }
+  if (text.includes('proof_report.json') && !text.includes('support_bundle.json')) {
+    publicFactDrift(`${proofTextPath} mentions proof_report.json without support_bundle.json`)
   }
 }
 
@@ -107,6 +112,7 @@ for (const productTextPath of ['README.md', 'demos/index.html', 'demos/llms.txt'
 assertPublicText(await readFile('README.md', 'utf8'), publicFacts.package_url, 'README package URL')
 assertPublicText(home, publicFacts.proof.first_proof_command, 'landing first proof')
 assertPublicText(home, 'PROOF.md', 'landing proof summary')
+assertPublicText(home, 'support_bundle.json', 'landing support bundle')
 assertPublicText(home, './proof-bundle/', 'landing proof bundle guide link')
 assertPublicText(home, publicFacts.proof.non_claim.split(',')[0], 'landing proof scope')
 
@@ -115,6 +121,7 @@ for (const expected of [
   publicFacts.proof.first_proof_command,
   'PROOF.md',
   'proof_report.json',
+  'support_bundle.json',
   'source_artifact',
   'react_tailwind_reference_host',
   'Hashes',
@@ -207,6 +214,7 @@ assertPublicEqual(openapi['x-viewspec-public-facts'].proHostedCompileCallsPerDay
 assertPublicEqual(openapi['x-viewspec-public-facts'].firstProofCommand, publicFacts.proof.first_proof_command, 'OpenAPI public facts first proof')
 assertPublicEqual(openapi['x-viewspec-public-facts'].proofSummaryFile, publicFacts.proof.human_summary_file, 'OpenAPI public facts proof summary')
 assertPublicEqual(openapi['x-viewspec-public-facts'].proofReportFile, publicFacts.proof.machine_report_file, 'OpenAPI public facts proof report')
+assertPublicEqual(openapi['x-viewspec-public-facts'].proofSupportBundleFile, publicFacts.proof.support_bundle_file, 'OpenAPI public facts proof support bundle')
 assert(openapi.paths['/v1/compile']?.post, 'OpenAPI needs POST /v1/compile')
 assert.equal(openapi.paths['/v1/compile'].post.requestBody.content['application/json'].schema.$ref, '#/components/schemas/CompileRequestPayload')
 assert.equal(openapi.components.schemas.CompileRequestPayload.properties.design.$ref, '#/components/schemas/DesignRequest')
@@ -223,6 +231,7 @@ assert.match(agentPrompt, /Generated JSON is not a finished ViewSpec proof/)
 assert.match(agentPrompt, /viewspec prove --out \.viewspec-proof/)
 assert.match(agentPrompt, /\.viewspec-proof\/PROOF\.md/)
 assert.match(agentPrompt, /proof_report\.json/)
+assert.match(agentPrompt, /support_bundle\.json/)
 assert.match(agentPrompt, /pixel-perfect visual regression/)
 assert.doesNotMatch(agentPrompt, /You output ViewSpec IR/)
 
