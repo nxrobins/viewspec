@@ -128,6 +128,13 @@ def test_agent_prompt_and_schema_preserve_intent_bundle_contract():
     assert "Action target_ref must be empty/null or use region:id" in AGENT_SYSTEM_PROMPT
     assert "Region parent links must form one acyclic tree" in AGENT_SYSTEM_PROMPT
     assert "Region min_children must be >= 0" in AGENT_SYSTEM_PROMPT
+    assert "Generated JSON is not a finished ViewSpec proof" in AGENT_SYSTEM_PROMPT
+    assert "viewspec prove --out .viewspec-proof" in AGENT_SYSTEM_PROMPT
+    assert "viewspec validate-intent viewspec.intent.json --json" in AGENT_SYSTEM_PROMPT
+    assert "viewspec check" in AGENT_SYSTEM_PROMPT
+    assert ".viewspec-proof/PROOF.md" in AGENT_SYSTEM_PROMPT
+    assert "proof_report.json" in AGENT_SYSTEM_PROMPT
+    assert "pixel-perfect visual regression" in AGENT_SYSTEM_PROMPT
     assert "Do not call remote reference libraries by default" in AGENT_SYSTEM_PROMPT
     assert "query an MCP-accessible UI reference library" not in AGENT_SYSTEM_PROMPT
     assert AGENT_INTENT_BUNDLE_SCHEMA["$id"] == "https://viewspec.dev/agent-intent-bundle.schema.json"

@@ -11,6 +11,7 @@ const pages = [
   ['demos/provenance-inspector/index.html', 'https://viewspec.dev/provenance-inspector/'],
   ['demos/live-builder/index.html', 'https://viewspec.dev/live-builder/'],
   ['demos/invariants/index.html', 'https://viewspec.dev/invariants/'],
+  ['demos/proof-bundle/index.html', 'https://viewspec.dev/proof-bundle/'],
   ['demos/fifteen-lines/index.html', 'https://viewspec.dev/fifteen-lines/'],
   ['demos/style-derivation/index.html', 'https://viewspec.dev/style-derivation/'],
 ]
@@ -87,7 +88,7 @@ for (const publicTextPath of ['README.md', 'docs/getting-started.md', 'demos/llm
   assertPublicText(text, publicFacts.proof.non_claim.split(',')[0], `${publicTextPath} proof scope`)
 }
 
-for (const proofTextPath of ['README.md', 'docs/getting-started.md', 'docs/agent-integration.md', 'demos/index.html', 'demos/llms.txt', 'demos/llms-full.txt']) {
+for (const proofTextPath of ['README.md', 'docs/getting-started.md', 'docs/agent-integration.md', 'demos/index.html', 'demos/proof-bundle/index.html', 'demos/llms.txt', 'demos/llms-full.txt']) {
   const text = await readFile(proofTextPath, 'utf8')
   if (text.includes('proof_report.json') && !text.includes('PROOF.md')) {
     publicFactDrift(`${proofTextPath} mentions proof_report.json without PROOF.md`)
@@ -106,7 +107,25 @@ for (const productTextPath of ['README.md', 'demos/index.html', 'demos/llms.txt'
 assertPublicText(await readFile('README.md', 'utf8'), publicFacts.package_url, 'README package URL')
 assertPublicText(home, publicFacts.proof.first_proof_command, 'landing first proof')
 assertPublicText(home, 'PROOF.md', 'landing proof summary')
+assertPublicText(home, './proof-bundle/', 'landing proof bundle guide link')
 assertPublicText(home, publicFacts.proof.non_claim.split(',')[0], 'landing proof scope')
+
+const proofBundlePage = await readFile('demos/proof-bundle/index.html', 'utf8')
+for (const expected of [
+  publicFacts.proof.first_proof_command,
+  'PROOF.md',
+  'proof_report.json',
+  'source_artifact',
+  'react_tailwind_reference_host',
+  'Hashes',
+  'Checks',
+  'Errors',
+  publicFacts.proof.non_claim,
+]) {
+  assertPublicText(proofBundlePage, expected, 'proof bundle page')
+}
+assertPublicText(await readFile('demos/llms.txt', 'utf8'), 'https://viewspec.dev/proof-bundle/', 'llms proof bundle public URL')
+assertPublicText(await readFile('demos/llms-full.txt', 'utf8'), 'https://viewspec.dev/proof-bundle/', 'llms-full proof bundle public URL')
 
 // Three install pills: nav + hero + footer. The footer pill was added in
 // the site bug sweep (b7d5b96); the test was previously asserting on the
@@ -200,6 +219,11 @@ assert.equal(openapi['x-viewspec-agent-artifacts'].intentBundleExample, 'https:/
 const agentPrompt = await readFile('demos/agent-system-prompt.txt', 'utf8')
 assert.match(agentPrompt, /IntentBundle/)
 assert.match(agentPrompt, /CompositionIR is compiler output only/)
+assert.match(agentPrompt, /Generated JSON is not a finished ViewSpec proof/)
+assert.match(agentPrompt, /viewspec prove --out \.viewspec-proof/)
+assert.match(agentPrompt, /\.viewspec-proof\/PROOF\.md/)
+assert.match(agentPrompt, /proof_report\.json/)
+assert.match(agentPrompt, /pixel-perfect visual regression/)
 assert.doesNotMatch(agentPrompt, /You output ViewSpec IR/)
 
 const agentSchema = JSON.parse(await readFile('demos/agent-intent-bundle.schema.json', 'utf8'))
