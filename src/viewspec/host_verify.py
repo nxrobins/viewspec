@@ -667,6 +667,7 @@ def _assert_runtime_report(runtime: dict[str, Any], *, manifest_summary: dict[st
     normalized = {
         "dom_count": int(assertions.get("dom_count", 0)),
         "grid_column_assertion_count": int(assertions.get("grid_column_assertion_count", 0)),
+        "grid_span_assertion_count": int(assertions.get("grid_span_assertion_count", 0)),
         "style_assertion_count": int(assertions.get("style_assertion_count", 0)),
         "action_count": int(assertions.get("action_count", 0)),
         "aesthetic_layout_assertion_count": int(assertions.get("aesthetic_layout_assertion_count", 0)),
@@ -748,6 +749,7 @@ def _base_report(
             "aesthetic_profile_assertion_count": 0,
             "dom_count": 0,
             "grid_column_assertion_count": 0,
+            "grid_span_assertion_count": 0,
             "payload_binding_count": 0,
             "style_assertion_count": 0,
         },

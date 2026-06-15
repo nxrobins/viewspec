@@ -243,6 +243,9 @@ def _style_object(node: IRNode, style_values: dict[str, str]) -> str:
         style.update(BASE_STYLE_BY_STATE_ROLE.get(state_role, {}))
     if node.primitive == "grid":
         style["gridTemplateColumns"] = f"repeat({int(node.props.get('columns') or 1)}, minmax(0, 1fr))"
+    span_columns = node.props.get("span_columns")
+    if isinstance(span_columns, int) and not isinstance(span_columns, bool) and span_columns > 1:
+        style["gridColumn"] = f"span {span_columns} / span {span_columns}"
     style.update(_css_to_style(_style_css(node, style_values)))
     if not style:
         return ""

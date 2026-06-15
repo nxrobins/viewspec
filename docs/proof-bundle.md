@@ -19,7 +19,7 @@ ViewSpec proof bundles are not pixel-perfect visual regression, accessibility ce
 - `Claim` states the strongest result the proof is allowed to claim for this run.
 - `Inputs And Outputs` shows the IntentBundle, DESIGN.md, generated artifact, manifest, diagnostics, JSON report, and human summary paths.
 - `Hashes` lets reviewers compare the checked artifact, manifest, and report with the files on disk.
-- `Manifest Summary` records bounded manifest facts such as emitter, node count, root aesthetic profile, and checked aesthetic layout roles/columns.
+- `Manifest Summary` records bounded manifest facts such as emitter, node count, root aesthetic profile, and checked aesthetic layout columns/spans.
 - `Checks` shows whether intent setup, compile, artifact check, host verification, summary writing, and support bundle writing ran.
 - `Host Verification` appears for React Tailwind runs and summarizes observed browser assertions, including profiled aesthetic marker/layout counters when applicable, when the reference host was used.
 - `Policy` records network/install behavior, including whether `npm ci --ignore-scripts` was explicitly allowed.

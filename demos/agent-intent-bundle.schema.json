@@ -560,6 +560,9 @@
         "content_grid": {
           "columns": 2
         },
+        "metric_card": {
+          "span_columns": 2
+        },
         "metric_grid": {
           "columns": 2
         }
@@ -568,6 +571,9 @@
         "content_grid": {
           "columns": 2
         },
+        "metric_card": {
+          "span_columns": 2
+        },
         "metric_grid": {
           "columns": 2
         }
@@ -575,6 +581,7 @@
     },
     "layout_roles": [
       "content_grid",
+      "metric_card",
       "metric_grid"
     ],
     "max_declarations": 1,
@@ -604,7 +611,7 @@
     "Motifs must be semantically complete for their kind before local compilation.",
     "IntentBundle may declare at most one aesthetic.* style token.",
     "Aesthetic profile style token must target exactly view:{view_spec.id}.",
-    "Aesthetic profile tokens derive governed style projection and bounded layout metadata for content_grid and metric_grid roles.",
+    "Aesthetic profile tokens derive governed style projection and bounded layout metadata for content_grid, metric_grid, and featured metric_card roles.",
     "Hosted-only fields design, motif_library, view_spec.inputs, view_spec.projections, and view_spec.rules are rejected by the local schema and validate-intent.",
     "Unknown extension fields are rejected instead of silently ignored.",
     "JSON Schema enforces shape and caps; viewspec validate-intent enforces cross-reference invariants."

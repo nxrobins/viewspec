@@ -66,6 +66,7 @@ def _fake_runtime(host_dir, *, install, started, timings):
             "aesthetic_profile_assertion_count": 1,
             "dom_count": 4,
             "grid_column_assertion_count": 2,
+            "grid_span_assertion_count": 0,
             "payload_binding_count": 1,
             "style_assertion_count": 7,
         },
@@ -118,6 +119,7 @@ def test_verify_host_artifact_mode_writes_stable_report(tmp_path, monkeypatch):
     assert report["assertions"]["aesthetic_layout_assertion_count"] == 2
     assert report["assertions"]["aesthetic_profile_assertion_count"] == 1
     assert report["assertions"]["grid_column_assertion_count"] == 2
+    assert report["assertions"]["grid_span_assertion_count"] == 0
     assert report["assertions"]["style_assertion_count"] == 7
     assert report["manifest_summary"]["available"] is True
     assert report["manifest_summary"]["emitter"] == "react_tailwind_tsx"
@@ -177,6 +179,7 @@ def test_verify_host_human_output_prints_manifest_and_assertions(tmp_path, monke
     assert "  aesthetic_profile_assertion_count: 1" in output
     assert "  dom_count: 4" in output
     assert "  grid_column_assertion_count: 2" in output
+    assert "  grid_span_assertion_count: 0" in output
     assert "  payload_binding_count: 1" in output
     assert "  style_assertion_count: 7" in output
 
@@ -268,6 +271,7 @@ def test_verify_host_install_runs_npm_ci_ignore_scripts(tmp_path, monkeypatch):
                             "aesthetic_profile_assertion_count": 0,
                             "dom_count": 1,
                             "grid_column_assertion_count": 1,
+                            "grid_span_assertion_count": 0,
                             "payload_binding_count": 0,
                             "style_assertion_count": 4,
                         }
@@ -321,6 +325,7 @@ def test_verify_host_mcp_tool_metadata_exposes_bounded_proof_summary(tmp_path, m
             "aesthetic_profile_assertion_count": 1,
             "dom_count": 4,
             "grid_column_assertion_count": 2,
+            "grid_span_assertion_count": 0,
             "payload_binding_count": 1,
             "style_assertion_count": 7,
         },

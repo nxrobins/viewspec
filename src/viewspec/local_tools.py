@@ -2160,12 +2160,21 @@ def _validate_aesthetic_layout_manifest_node(
 
     product_role = props.get("product_role")
     expected = profile_layout_props(layout_profile).get(product_role) if isinstance(product_role, str) else None
-    if entry.get("primitive") != "grid" or product_role not in AESTHETIC_PROFILE_LAYOUT_ROLES or expected is None:
+    if product_role not in AESTHETIC_PROFILE_LAYOUT_ROLES or expected is None:
         errors.append(f"AESTHETIC_PROFILE_LAYOUT_TARGET_INVALID: manifest node {node_id} targets unsupported aesthetic layout role")
         return
-    columns = props.get("columns")
-    if not isinstance(columns, int) or isinstance(columns, bool) or columns != expected["columns"]:
-        errors.append(f"AESTHETIC_PROFILE_LAYOUT_MISMATCH: manifest node {node_id} columns do not match aesthetic layout profile")
+    if "columns" in expected:
+        columns = props.get("columns")
+        if entry.get("primitive") != "grid":
+            errors.append(f"AESTHETIC_PROFILE_LAYOUT_TARGET_INVALID: manifest node {node_id} layout columns must target a grid")
+        if not isinstance(columns, int) or isinstance(columns, bool) or columns != expected["columns"]:
+            errors.append(f"AESTHETIC_PROFILE_LAYOUT_MISMATCH: manifest node {node_id} columns do not match aesthetic layout profile")
+    if "span_columns" in expected:
+        span_columns = props.get("span_columns")
+        if entry.get("primitive") != "surface" or product_role != "metric_card":
+            errors.append(f"AESTHETIC_PROFILE_LAYOUT_TARGET_INVALID: manifest node {node_id} span columns must target a metric card surface")
+        if not isinstance(span_columns, int) or isinstance(span_columns, bool) or span_columns != expected["span_columns"]:
+            errors.append(f"AESTHETIC_PROFILE_LAYOUT_MISMATCH: manifest node {node_id} span_columns do not match aesthetic layout profile")
 
 
 def _validate_raw_html_manifest_node(node_id: str, entry: dict[str, Any], errors: list[str]) -> None:

@@ -499,8 +499,21 @@ def _walk_ir(node: IRNode) -> list[IRNode]:
     return nodes
 
 
+def _parent_by_ir_id(root: IRNode) -> dict[str, IRNode | None]:
+    parents: dict[str, IRNode | None] = {root.id: None}
+
+    def walk(node: IRNode) -> None:
+        for child in node.children:
+            parents[child.id] = node
+            walk(child)
+
+    walk(root)
+    return parents
+
+
 def _apply_aesthetic_profile_layout_v1(root: IRNode, profile: str) -> None:
     layout_by_role = profile_layout_props(profile)
+    parents = _parent_by_ir_id(root)
     for node in _walk_ir(root):
         product_role = node.props.get("product_role")
         if not isinstance(product_role, str):
@@ -515,6 +528,21 @@ def _apply_aesthetic_profile_layout_v1(root: IRNode, profile: str) -> None:
                 )
             node.props["columns"] = layout_props["columns"]
             node.props["aesthetic_layout_profile"] = profile
+        if "span_columns" in layout_props:
+            if node.primitive != "surface" or product_role != "metric_card":
+                raise RuntimeError(
+                    f"AESTHETIC_PROFILE_LAYOUT_ROLE_DRIFT: product role {product_role!r} no longer maps to a metric card surface."
+                )
+            parent = parents.get(node.id)
+            if parent is None or parent.props.get("product_role") != "metric_grid" or parent.primitive != "grid":
+                raise RuntimeError("AESTHETIC_PROFILE_LAYOUT_ROLE_DRIFT: metric card span no longer targets a metric grid child.")
+            if parent.children[:1] != [node]:
+                continue
+            parent_columns = int(parent.props.get("columns") or 1)
+            span_columns = min(layout_props["span_columns"], parent_columns)
+            if span_columns > 1:
+                node.props["span_columns"] = span_columns
+                node.props["aesthetic_layout_profile"] = profile
 
 
 def _apply_workspace_surface_roles_v1(

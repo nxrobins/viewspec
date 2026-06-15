@@ -216,7 +216,7 @@ def test_agent_prompt_and_schema_preserve_intent_bundle_contract():
     )
     assert "IntentBundle may declare at most one aesthetic.* style token." in invariants
     assert "Aesthetic profile style token must target exactly view:{view_spec.id}." in invariants
-    assert any("bounded layout metadata for content_grid and metric_grid roles" in item for item in invariants)
+    assert any("bounded layout metadata for content_grid, metric_grid, and featured metric_card roles" in item for item in invariants)
     assert "Unknown extension fields are rejected instead of silently ignored." in invariants
     assert "viewspec validate-intent enforces cross-reference invariants." in invariants[-1]
 

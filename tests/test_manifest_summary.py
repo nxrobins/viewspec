@@ -27,3 +27,28 @@ def test_manifest_summary_helpers_ignore_boolean_layout_columns():
             "profile": "aesthetic.editorial_product",
         }
     }
+
+
+def test_manifest_summary_helpers_include_metric_card_spans():
+    nodes = {
+        "dom-root": {
+            "primitive": "root",
+            "props": {"aesthetic_profile": "aesthetic.premium_saas"},
+        },
+        "dom-card": {
+            "primitive": "surface",
+            "props": {
+                "aesthetic_layout_profile": "aesthetic.premium_saas",
+                "product_role": "metric_card",
+                "span_columns": 2,
+            },
+        },
+    }
+
+    assert manifest_aesthetic_layout_summary(nodes) == {
+        "metric_card": {
+            "node_count": 1,
+            "profile": "aesthetic.premium_saas",
+            "span_columns": 2,
+        }
+    }

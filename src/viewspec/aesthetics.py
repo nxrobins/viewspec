@@ -20,8 +20,9 @@ MAX_AESTHETIC_PROFILE_CSS_BYTES = 2048
 MIN_AESTHETIC_PROFILE_STYLE_CHANGES = 6
 MIN_AESTHETIC_PROFILE_CATEGORIES = 3
 MAX_AESTHETIC_PROFILE_LAYOUT_COLUMNS = 3
+MAX_AESTHETIC_PROFILE_SPAN_COLUMNS = 3
 
-AESTHETIC_PROFILE_LAYOUT_ROLES = frozenset({"content_grid", "metric_grid"})
+AESTHETIC_PROFILE_LAYOUT_ROLES = frozenset({"content_grid", "metric_grid", "metric_card"})
 AESTHETIC_PROFILE_LAYOUT_PROPS = {
     "aesthetic.calm_ops": {
         "content_grid": {"columns": 2},
@@ -30,6 +31,7 @@ AESTHETIC_PROFILE_LAYOUT_PROPS = {
     "aesthetic.premium_saas": {
         "content_grid": {"columns": 2},
         "metric_grid": {"columns": 2},
+        "metric_card": {"span_columns": 2},
     },
     "aesthetic.data_dense": {
         "content_grid": {"columns": 3},
@@ -42,6 +44,7 @@ AESTHETIC_PROFILE_LAYOUT_PROPS = {
     "aesthetic.executive_review": {
         "content_grid": {"columns": 2},
         "metric_grid": {"columns": 2},
+        "metric_card": {"span_columns": 2},
     },
 }
 
@@ -210,14 +213,24 @@ def _validate_profile_layout_props(profile: str, values: dict[str, dict[str, int
     for role, props in values.items():
         if role not in AESTHETIC_PROFILE_LAYOUT_ROLES:
             raise AestheticProfileError("AESTHETIC_PROFILE_LAYOUT_UNSAFE", f"{profile} targets unsupported layout role {role}.")
-        if set(props) != {"columns"}:
-            raise AestheticProfileError("AESTHETIC_PROFILE_LAYOUT_UNSAFE", f"{profile} may only set layout columns.")
-        columns = props["columns"]
-        if not isinstance(columns, int) or not 1 <= columns <= MAX_AESTHETIC_PROFILE_LAYOUT_COLUMNS:
-            raise AestheticProfileError(
-                "AESTHETIC_PROFILE_LAYOUT_UNSAFE",
-                f"{profile} layout columns must be between 1 and {MAX_AESTHETIC_PROFILE_LAYOUT_COLUMNS}.",
-            )
+        if role in {"content_grid", "metric_grid"}:
+            if set(props) != {"columns"}:
+                raise AestheticProfileError("AESTHETIC_PROFILE_LAYOUT_UNSAFE", f"{profile} may only set grid layout columns.")
+            columns = props["columns"]
+            if not isinstance(columns, int) or isinstance(columns, bool) or not 1 <= columns <= MAX_AESTHETIC_PROFILE_LAYOUT_COLUMNS:
+                raise AestheticProfileError(
+                    "AESTHETIC_PROFILE_LAYOUT_UNSAFE",
+                    f"{profile} layout columns must be between 1 and {MAX_AESTHETIC_PROFILE_LAYOUT_COLUMNS}.",
+                )
+        elif role == "metric_card":
+            if set(props) != {"span_columns"}:
+                raise AestheticProfileError("AESTHETIC_PROFILE_LAYOUT_UNSAFE", f"{profile} may only set metric card span columns.")
+            span_columns = props["span_columns"]
+            if not isinstance(span_columns, int) or isinstance(span_columns, bool) or not 1 <= span_columns <= MAX_AESTHETIC_PROFILE_SPAN_COLUMNS:
+                raise AestheticProfileError(
+                    "AESTHETIC_PROFILE_LAYOUT_UNSAFE",
+                    f"{profile} metric card span columns must be between 1 and {MAX_AESTHETIC_PROFILE_SPAN_COLUMNS}.",
+                )
 
 
 def _validate_profile_style_values(profile: str, values: dict[str, str]) -> None:

@@ -520,12 +520,16 @@ def test_aesthetic_profiles_have_closed_layout_props():
     signatures = set()
     for profile in AESTHETIC_PROFILE_TOKENS:
         layout_props = profile_layout_props(profile)
-        signatures.add(tuple(sorted((role, props["columns"]) for role, props in layout_props.items())))
+        signatures.add(tuple(sorted((role, tuple(sorted(props.items()))) for role, props in layout_props.items())))
 
         assert set(layout_props).issubset(AESTHETIC_PROFILE_LAYOUT_ROLES)
-        for props in layout_props.values():
-            assert set(props) == {"columns"}
-            assert 1 <= props["columns"] <= 3
+        for role, props in layout_props.items():
+            if role in {"content_grid", "metric_grid"}:
+                assert set(props) == {"columns"}
+                assert 1 <= props["columns"] <= 3
+            elif role == "metric_card":
+                assert set(props) == {"span_columns"}
+                assert 1 <= props["span_columns"] <= 3
 
     assert len(signatures) >= 3
 
@@ -762,15 +766,16 @@ def test_product_surface_planner_v1_adds_no_synthetic_visible_content_or_actions
 
 
 @pytest.mark.parametrize(
-    ("profile", "expected_content_columns", "expected_metric_columns"),
+    ("profile", "expected_content_columns", "expected_metric_columns", "expected_featured_span"),
     [
-        ("aesthetic.data_dense", 3, 3),
-        ("aesthetic.editorial_product", 2, 1),
-        ("aesthetic.premium_saas", 2, 2),
+        ("aesthetic.data_dense", 3, 3, None),
+        ("aesthetic.editorial_product", 2, 1, None),
+        ("aesthetic.premium_saas", 2, 2, 2),
+        ("aesthetic.executive_review", 2, 2, 2),
     ],
 )
-def test_aesthetic_profile_layout_props_adjust_columns_without_semantic_drift(
-    profile, expected_content_columns, expected_metric_columns
+def test_aesthetic_profile_layout_props_adjust_columns_and_spans_without_semantic_drift(
+    profile, expected_content_columns, expected_metric_columns, expected_featured_span
 ):
     plain = compile(_product_workspace_bundle())
     profiled = compile(_product_workspace_bundle(profile=profile))
@@ -792,6 +797,12 @@ def test_aesthetic_profile_layout_props_adjust_columns_without_semantic_drift(
     assert profiled_nodes["motif_numbers"].props["layout_strategy"] == "dashboard_grid_v0"
     assert profiled_nodes["region_canvas"].props["aesthetic_layout_profile"] == profile
     assert profiled_nodes["motif_numbers"].props["aesthetic_layout_profile"] == profile
+    metric_cards = profiled_nodes["motif_numbers"].children
+    assert [child.id for child in metric_cards] == ["motif_numbers_fixtures", "motif_numbers_emitters"]
+    assert metric_cards[0].props.get("span_columns") == expected_featured_span
+    assert metric_cards[0].props.get("aesthetic_layout_profile") == (profile if expected_featured_span else None)
+    assert "span_columns" not in metric_cards[1].props
+    assert "aesthetic_layout_profile" not in metric_cards[1].props
 
 
 def test_layout_planner_region_grid_columns_use_rendered_children_and_cap():
