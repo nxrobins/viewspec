@@ -67,7 +67,7 @@ V1 style tokens are compiler/design handles, not CSS. Use only the published tok
 
 Style targets may use `region:id`, `binding:id`, `motif:id`, or `view:id`. Bare IDs are accepted only when they resolve to exactly one namespace; use an explicit prefix whenever an ID could refer to more than one target kind.
 
-Aesthetic profile tokens are deterministic art-direction handles, not CSS. At most one `aesthetic.*` token may appear in an IntentBundle, it must target exactly `view:<view_spec.id>`, and V1 supports only `aesthetic.calm_ops`, `aesthetic.premium_saas`, `aesthetic.data_dense`, `aesthetic.editorial_product`, and `aesthetic.executive_review`; the compiler may apply governed style projections and bounded layout metadata. This is not pixel-perfect visual proof, accessibility certification, arbitrary host-app compatibility, or design-review approval.
+Aesthetic profile tokens are deterministic art-direction handles, not CSS. At most one `aesthetic.*` token may appear in an IntentBundle, it must target exactly `view:<view_spec.id>`, and V1 supports only `aesthetic.calm_ops`, `aesthetic.premium_saas`, `aesthetic.data_dense`, `aesthetic.editorial_product`, and `aesthetic.executive_review`; the compiler may apply governed style projections and bounded layout metadata such as grid columns and featured metric-card spans. This is not pixel-perfect visual proof, accessibility certification, arbitrary host-app compatibility, or design-review approval.
 
 Slots and edges use protobuf JSON shape:
 

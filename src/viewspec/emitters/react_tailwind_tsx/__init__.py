@@ -323,6 +323,10 @@ GRID_CLASS_BY_COLUMNS = {
     2: "grid-cols-1 sm:grid-cols-2",
     3: "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3",
 }
+GRID_SPAN_CLASS_BY_COLUMNS = {
+    2: "sm:col-span-2",
+    3: "sm:col-span-2 lg:col-span-3",
+}
 TEXT_SIZE_CLASSES = frozenset({"text-xs", "text-sm", "text-base", "text-lg", "text-xl", "text-2xl", "text-3xl", "text-4xl"})
 FONT_FAMILY_CLASSES = frozenset({"font-mono", "font-sans", "font-serif"})
 FONT_WEIGHT_CLASSES = frozenset({"font-bold", "font-extrabold", "font-black", "font-semibold"})
@@ -422,6 +426,15 @@ def _grid_columns(node: IRNode) -> int:
     if columns not in TAILWIND_GRID_COLUMNS:
         _fail("TAILWIND_LIMIT_EXCEEDED_GRID_COLUMNS", f"Grid IRNode '{node.id}' columns must be 1, 2, or 3.")
     return columns
+
+
+def _grid_span_classes(node: IRNode) -> list[str]:
+    span_columns = node.props.get("span_columns")
+    if span_columns is None:
+        return []
+    if not isinstance(span_columns, int) or isinstance(span_columns, bool) or span_columns not in GRID_SPAN_CLASS_BY_COLUMNS:
+        _fail("TAILWIND_LIMIT_EXCEEDED_GRID_COLUMNS", f"IRNode '{node.id}' span_columns must be 2 or 3.")
+    return GRID_SPAN_CLASS_BY_COLUMNS[span_columns].split()
 
 
 def _role_contract_matches(node: IRNode, app_role: str) -> bool:
@@ -614,6 +627,8 @@ def _tailwind_utility_group(utility: str) -> str | None:
         return "min-height"
     if utility.startswith("gap-"):
         return "gap"
+    if utility.startswith("col-span-"):
+        return "grid-column"
     if utility.startswith("leading-"):
         return "line-height"
     if utility.startswith("tracking-"):
@@ -630,6 +645,7 @@ def _resolve_recipe(node: IRNode, parent: IRNode | None, aesthetic_profile: str 
     classes = _classes_for_recipe(recipe_key, aesthetic_profile)
     if node.primitive == "grid":
         classes.extend(GRID_CLASS_BY_COLUMNS[_grid_columns(node)].split())
+    classes.extend(_grid_span_classes(node))
     return ResolvedRecipe(
         app_role=app_role.app_role if app_role is not None else None,
         app_role_source=app_role.rule_id if app_role is not None else None,
@@ -873,6 +889,7 @@ def tailwind_recipe_registry_projection() -> dict[str, Any]:
             "artifact_bytes": TAILWIND_MAX_ARTIFACT_BYTES,
             "class_tokens": TAILWIND_MAX_CLASS_TOKENS,
             "grid_columns": sorted(TAILWIND_GRID_COLUMNS),
+            "grid_spans": sorted(GRID_SPAN_CLASS_BY_COLUMNS),
             "ir_depth": TAILWIND_MAX_IR_DEPTH,
             "ir_nodes": TAILWIND_MAX_IR_NODES,
             "actions": TAILWIND_MAX_ACTIONS,

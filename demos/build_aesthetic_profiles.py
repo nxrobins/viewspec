@@ -32,9 +32,11 @@ PROFILE_NOTES = {
 }
 
 LAYOUT_PROOF_ROLES = ("content_grid", "metric_grid")
+OPTIONAL_LAYOUT_PROOF_ROLES = ("metric_card",)
 LAYOUT_PROOF_LABELS = {
     "content_grid": "workspace",
     "metric_grid": "metrics",
+    "metric_card": "featured metric",
 }
 
 
@@ -117,26 +119,41 @@ def layout_proof(manifest: dict[str, Any], profile: str) -> dict[str, dict[str, 
             continue
         props = entry.get("props") if isinstance(entry.get("props"), dict) else {}
         role = props.get("product_role")
-        if role not in LAYOUT_PROOF_ROLES:
+        if role not in {*LAYOUT_PROOF_ROLES, *OPTIONAL_LAYOUT_PROOF_ROLES}:
             continue
-        columns = props.get("columns")
-        if not isinstance(columns, int):
-            raise RuntimeError(f"{profile} generated {role} without integer column metadata.")
+        if role in OPTIONAL_LAYOUT_PROOF_ROLES and props.get("aesthetic_layout_profile") is None:
+            continue
         if props.get("aesthetic_layout_profile") != profile:
             raise RuntimeError(f"{profile} generated {role} without matching aesthetic layout profile metadata.")
-        proof[role] = {
-            "columns": columns,
-            "layoutStrategy": props.get("layout_strategy"),
-            "profile": props.get("aesthetic_layout_profile"),
-        }
+        if role in LAYOUT_PROOF_ROLES:
+            columns = props.get("columns")
+            if not isinstance(columns, int):
+                raise RuntimeError(f"{profile} generated {role} without integer column metadata.")
+            proof[role] = {
+                "columns": columns,
+                "layoutStrategy": props.get("layout_strategy"),
+                "profile": props.get("aesthetic_layout_profile"),
+            }
+        elif role == "metric_card":
+            span_columns = props.get("span_columns")
+            if not isinstance(span_columns, int):
+                raise RuntimeError(f"{profile} generated featured metric card without integer span metadata.")
+            proof[role] = {
+                "profile": props.get("aesthetic_layout_profile"),
+                "spanColumns": span_columns,
+            }
     missing = [role for role in LAYOUT_PROOF_ROLES if role not in proof]
     if missing:
         raise RuntimeError(f"{profile} missing layout proof role(s): {', '.join(missing)}")
-    return {role: proof[role] for role in LAYOUT_PROOF_ROLES}
+    ordered_roles = (*LAYOUT_PROOF_ROLES, *(role for role in OPTIONAL_LAYOUT_PROOF_ROLES if role in proof))
+    return {role: proof[role] for role in ordered_roles}
 
 
 def layout_signature(layout: dict[str, dict[str, Any]]) -> str:
-    return " / ".join(f"{LAYOUT_PROOF_LABELS[role]} {layout[role]['columns']}" for role in LAYOUT_PROOF_ROLES)
+    parts = [f"{LAYOUT_PROOF_LABELS[role]} {layout[role]['columns']}" for role in LAYOUT_PROOF_ROLES]
+    if "metric_card" in layout:
+        parts.append(f"{LAYOUT_PROOF_LABELS['metric_card']} span {layout['metric_card']['spanColumns']}")
+    return " / ".join(parts)
 
 
 def compile_profiles() -> dict[str, dict[str, Any]]:
@@ -689,7 +706,7 @@ def build_page(profiles: dict[str, dict[str, Any]]) -> str:
 
     <section class="contract-panel">
       <h2>What stays invariant</h2>
-      <p>The five cards share the same IntentBundle shape, generated semantic ids, and manifest-backed provenance. Only compiler-owned typography, spacing, surface, color, action, hierarchy, rhythm, narrative style projections, and bounded grid metadata change.</p>
+      <p>The five cards share the same IntentBundle shape, generated semantic ids, and manifest-backed provenance. Only compiler-owned typography, spacing, surface, color, action, hierarchy, rhythm, narrative style projections, bounded grid metadata, and featured metric-card span metadata change.</p>
       <p>Demo shell CSS frames the page only. It does not style generated artifact internals or bypass the emitted profile output.</p>
       <div class="code-box" aria-label="Profile proof metadata">{html.escape(script_json(profile_meta))}</div>
       <div class="code-box" aria-label="Representative IntentBundle">{html.escape(first_intent)}</div>

@@ -67,10 +67,15 @@ header.vs-surface p.vs-text, header.vs-surface p.vs-label { max-width: 68ch; mar
 .vs-motif-loading-state { border-radius: 12px; border-style: dashed; color: #475569; }
 .vs-motif-error-state { border-color: #fca5a5; background: #fef2f2; color: #991b1b; }
 .vs-motif-loading-state .vs-value, .vs-motif-error-state .vs-value { font-size: 1.125rem; }
+@media (min-width: 761px) {
+  .vs-span-2 { grid-column: span 2 / span 2; }
+  .vs-span-3 { grid-column: span 3 / span 3; }
+}
 @media (max-width: 760px) {
   .vs-root { padding: 16px; }
   .vs-role-app-shell { padding: 16px; }
   .vs-role-content-grid { grid-template-columns: 1fr !important; }
+  .vs-span-2, .vs-span-3 { grid-column: auto; }
   .vs-role-action-row { justify-content: stretch; }
   .vs-role-action-row .vs-button { width: 100%; justify-content: center; }
 }

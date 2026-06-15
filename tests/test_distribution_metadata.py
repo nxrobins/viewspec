@@ -45,13 +45,16 @@ def test_host_verify_template_resources_are_packaged():
         assert root.joinpath(*rel.split("/")).is_file(), rel
 
 
-def test_host_verify_template_asserts_grid_column_counts():
+def test_host_verify_template_asserts_grid_column_and_span_counts():
     root = resources.files("viewspec.host_verify_template")
     template = root.joinpath("tests", "host-verify.spec.ts").read_text(encoding="utf-8")
 
     assert "expectedGridColumnCount" in template
+    assert "expectedGridSpanCount" in template
     assert "grid-template-columns" in template
+    assert "grid-column-end" in template
     assert "grid_column_assertion_count" in template
+    assert "grid_span_assertion_count" in template
 
 
 def test_top_level_package_exports_summary_helpers():

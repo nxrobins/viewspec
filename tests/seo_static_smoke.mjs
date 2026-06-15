@@ -216,20 +216,26 @@ assert.equal((aestheticProfilesPage.match(/class="profile-card"/g) || []).length
 const aestheticProof = extractScriptJson(aestheticProfilesPage, 'aesthetic-profile-proof')
 assert.deepEqual(Object.keys(aestheticProof).sort(), [...aestheticProfileTokens].sort(), 'aesthetic profile proof tokens')
 const expectedAestheticLayout = {
-  'aesthetic.calm_ops': [2, 2],
-  'aesthetic.premium_saas': [2, 2],
-  'aesthetic.data_dense': [3, 3],
-  'aesthetic.editorial_product': [2, 1],
-  'aesthetic.executive_review': [2, 2],
+  'aesthetic.calm_ops': [2, 2, null],
+  'aesthetic.premium_saas': [2, 2, 2],
+  'aesthetic.data_dense': [3, 3, null],
+  'aesthetic.editorial_product': [2, 1, null],
+  'aesthetic.executive_review': [2, 2, 2],
 }
-for (const [token, [workspaceColumns, metricColumns]] of Object.entries(expectedAestheticLayout)) {
+for (const [token, [workspaceColumns, metricColumns, metricSpan]] of Object.entries(expectedAestheticLayout)) {
   assert.equal(aestheticProof[token].layoutProof.content_grid.columns, workspaceColumns, `${token} workspace columns`)
   assert.equal(aestheticProof[token].layoutProof.metric_grid.columns, metricColumns, `${token} metric columns`)
   assert.equal(aestheticProof[token].layoutProof.content_grid.profile, token, `${token} content grid profile marker`)
   assert.equal(aestheticProof[token].layoutProof.metric_grid.profile, token, `${token} metric grid profile marker`)
+  if (metricSpan === null) {
+    assert.equal(aestheticProof[token].layoutProof.metric_card, undefined, `${token} metric card span`)
+  } else {
+    assert.equal(aestheticProof[token].layoutProof.metric_card.spanColumns, metricSpan, `${token} metric card span`)
+    assert.equal(aestheticProof[token].layoutProof.metric_card.profile, token, `${token} metric card profile marker`)
+  }
   assert.equal(
     aestheticProof[token].layoutSignature,
-    `workspace ${workspaceColumns} / metrics ${metricColumns}`,
+    `workspace ${workspaceColumns} / metrics ${metricColumns}${metricSpan === null ? '' : ` / featured metric span ${metricSpan}`}`,
     `${token} layout signature`
   )
 }

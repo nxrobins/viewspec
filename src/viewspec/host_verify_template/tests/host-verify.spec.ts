@@ -58,6 +58,7 @@ type StyleAssertion = {
   property: string;
   expected?: string | RegExp;
   expectedColumnCount?: number;
+  expectedSpanCount?: number;
   aestheticLayout?: boolean;
 };
 
@@ -102,6 +103,19 @@ function expectedGridColumnCount(classes: string[], viewportWidth: number): numb
   return expected?.count ?? null;
 }
 
+function expectedGridSpanCount(classes: string[], viewportWidth: number): number | null {
+  let expected: { minWidth: number; count: number } | null = null;
+  for (const token of classes) {
+    const match = token.match(/^(?:(sm|md|lg|xl|2xl):)?col-span-([1-6])$/);
+    if (!match) continue;
+    const minWidth = gridBreakpoints[match[1] ?? "base"];
+    if (minWidth > viewportWidth) continue;
+    const count = Number.parseInt(match[2], 10);
+    if (expected === null || minWidth >= expected.minWidth) expected = { minWidth, count };
+  }
+  return expected?.count ?? null;
+}
+
 function computedGridColumnCount(value: string): number {
   if (!value || value === "none") return 0;
   return value.trim().split(/\s+/).filter(Boolean).length;
@@ -135,6 +149,15 @@ function deriveStyleAssertions(viewportWidth: number): StyleAssertion[] {
         aestheticLayout: typeof node.props?.aesthetic_layout_profile === "string",
       });
     }
+    const expectedSpan = expectedGridSpanCount(classes, viewportWidth);
+    if (expectedSpan !== null) {
+      priorityAssertions.push({
+        domId,
+        property: "grid-column-end",
+        expectedSpanCount: expectedSpan,
+        aestheticLayout: typeof node.props?.aesthetic_layout_profile === "string",
+      });
+    }
     if (classes.includes("border") || classes.includes("border-t")) {
       assertions.push({ domId, property: "border-top-width", expected: "1px" });
     }
@@ -155,7 +178,8 @@ async function expectComputed(page: Page, assertion: StyleAssertion) {
     !(
       typeof assertion.expected === "string" ||
       assertion.expected instanceof RegExp ||
-      typeof assertion.expectedColumnCount === "number"
+      typeof assertion.expectedColumnCount === "number" ||
+      typeof assertion.expectedSpanCount === "number"
     )
   ) {
     fail("HOST_VERIFY_STYLE_ASSERTION_TOO_WEAK", "computed style assertions require dom id, property, and exact or regex expected value");
@@ -169,6 +193,17 @@ async function expectComputed(page: Page, assertion: StyleAssertion) {
       fail(
         "HOST_VERIFY_STYLE_ASSERTION_TOO_WEAK",
         `${assertion.domId} ${assertion.property} expected ${assertion.expectedColumnCount} columns got ${count} from ${value}`,
+      );
+    }
+    return;
+  }
+  if (typeof assertion.expectedSpanCount === "number") {
+    const match = value.trim().match(/^span\s+(\d+)$/);
+    const count = match ? Number.parseInt(match[1], 10) : 0;
+    if (count !== assertion.expectedSpanCount) {
+      fail(
+        "HOST_VERIFY_STYLE_ASSERTION_TOO_WEAK",
+        `${assertion.domId} ${assertion.property} expected span ${assertion.expectedSpanCount} got ${value}`,
       );
     }
     return;
@@ -235,8 +270,11 @@ test("generated React Tailwind artifact builds and behaves in the bounded host",
     fail("HOST_VERIFY_STYLE_ASSERTION_TOO_WEAK", `at least four computed style assertions are required, got ${styleAssertions.length}`);
   }
   const gridColumnAssertionCount = styleAssertions.filter((assertion) => typeof assertion.expectedColumnCount === "number").length;
+  const gridSpanAssertionCount = styleAssertions.filter((assertion) => typeof assertion.expectedSpanCount === "number").length;
   const aestheticLayoutAssertionCount = styleAssertions.filter(
-    (assertion) => assertion.aestheticLayout === true && typeof assertion.expectedColumnCount === "number",
+    (assertion) =>
+      assertion.aestheticLayout === true &&
+      (typeof assertion.expectedColumnCount === "number" || typeof assertion.expectedSpanCount === "number"),
   ).length;
   const hasGridColumnClass = Object.values(manifest.nodes).some((node) => expectedGridColumnCount(node.classes ?? [], viewportWidth) !== null);
   if (hasGridColumnClass && gridColumnAssertionCount < 1) {
@@ -246,7 +284,7 @@ test("generated React Tailwind artifact builds and behaves in the bounded host",
   if (expectedAestheticLayoutAssertions > 0 && aestheticLayoutAssertionCount < expectedAestheticLayoutAssertions) {
     fail(
       "HOST_VERIFY_AESTHETIC_LAYOUT_ASSERTION_MISSING",
-      `expected ${expectedAestheticLayoutAssertions} aesthetic layout grid assertions got ${aestheticLayoutAssertionCount}`,
+      `expected ${expectedAestheticLayoutAssertions} aesthetic layout assertions got ${aestheticLayoutAssertionCount}`,
     );
   }
   for (const assertion of styleAssertions) await expectComputed(page, assertion);
@@ -302,6 +340,7 @@ test("generated React Tailwind artifact builds and behaves in the bounded host",
     aesthetic_profile_assertion_count: aestheticProfileAssertionCount,
     dom_count: domCount,
     grid_column_assertion_count: gridColumnAssertionCount,
+    grid_span_assertion_count: gridSpanAssertionCount,
     payload_binding_count: payloadBindingCount,
     style_assertion_count: styleAssertions.length,
   });

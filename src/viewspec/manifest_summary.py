@@ -55,17 +55,31 @@ def manifest_aesthetic_layout_summary(nodes: dict[str, Any]) -> dict[str, dict[s
             {
                 "profile": profile,
                 "columns": _manifest_int(props.get("columns")),
+                "span_columns": _manifest_int(props.get("span_columns")),
                 "node_count": 0,
             },
         )
         item["node_count"] = int(item["node_count"]) + 1
-        if item["profile"] != profile or item["columns"] != _manifest_int(props.get("columns")):
+        if (
+            item["profile"] != profile
+            or item["columns"] != _manifest_int(props.get("columns"))
+            or item["span_columns"] != _manifest_int(props.get("span_columns"))
+        ):
             item["mixed"] = True
-    return {role: layout[role] for role in sorted(layout)}
+    return {role: _compact_layout_item(role, layout[role]) for role in sorted(layout)}
 
 
 def _manifest_int(value: object) -> int | None:
     return value if isinstance(value, int) and not isinstance(value, bool) else None
+
+
+def _compact_layout_item(role: str, item: dict[str, Any]) -> dict[str, Any]:
+    compact = {key: value for key, value in item.items() if value is not None}
+    if role in {"content_grid", "metric_grid"} and "columns" not in compact:
+        compact["columns"] = None
+    if role == "metric_card" and "span_columns" not in compact:
+        compact["span_columns"] = None
+    return compact
 
 
 __all__ = [

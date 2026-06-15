@@ -69,6 +69,10 @@ MOTIF_KIND_CLASS_BY_KIND = {
 PRODUCT_ROLE_CLASS_BY_ROLE = {
     role: f"vs-role-{role.replace('_', '-')}" for role in sorted(PRODUCT_SURFACE_PLANNER_V1_ROLES)
 }
+SPAN_CLASS_BY_COLUMNS = {
+    2: "vs-span-2",
+    3: "vs-span-3",
+}
 
 
 OFFLINE_EMITTER_CSS = """
@@ -125,10 +129,15 @@ header.vs-surface p.vs-text, header.vs-surface p.vs-label { max-width: 68ch; mar
 .vs-motif-loading-state { border-radius: 12px; border-style: dashed; color: #475569; }
 .vs-motif-error-state { border-color: #fca5a5; background: #fef2f2; color: #991b1b; }
 .vs-motif-loading-state .vs-value, .vs-motif-error-state .vs-value { font-size: 1.125rem; }
+@media (min-width: 761px) {
+  .vs-span-2 { grid-column: span 2 / span 2; }
+  .vs-span-3 { grid-column: span 3 / span 3; }
+}
 @media (max-width: 760px) {
   .vs-root { padding: 16px; }
   .vs-role-app-shell { padding: 16px; }
   .vs-role-content-grid { grid-template-columns: 1fr !important; }
+  .vs-span-2, .vs-span-3 { grid-column: auto; }
   .vs-role-action-row { justify-content: stretch; }
   .vs-role-action-row .vs-button { width: 100%; justify-content: center; }
 }
@@ -323,6 +332,16 @@ def _closed_prop_class(node: IRNode, prop_name: str, classes_by_value: dict[str,
     return classes_by_value[value]
 
 
+def _span_class(node: IRNode) -> str | None:
+    value = node.props.get("span_columns")
+    if value is None:
+        return None
+    if not isinstance(value, int) or isinstance(value, bool) or value not in SPAN_CLASS_BY_COLUMNS:
+        allowed = ", ".join(str(value) for value in sorted(SPAN_CLASS_BY_COLUMNS))
+        raise ValueError(f"UNSAFE_ROLE_CLASS: IRNode '{node.id}' prop 'span_columns' must use one of: {allowed}.")
+    return SPAN_CLASS_BY_COLUMNS[value]
+
+
 def _node_classes(node: IRNode) -> list[str]:
     classes = [TAILWIND_BY_PRIMITIVE[node.primitive]]
     for prop_name, classes_by_value in (
@@ -333,6 +352,9 @@ def _node_classes(node: IRNode) -> list[str]:
         class_name = _closed_prop_class(node, prop_name, classes_by_value)
         if class_name is not None:
             classes.append(class_name)
+    span_class = _span_class(node)
+    if span_class is not None:
+        classes.append(span_class)
     return classes
 
 
