@@ -2,12 +2,20 @@
 
 import json
 import re
+from itertools import combinations
 from pathlib import Path
 
 import pytest
 
-from viewspec import UnsupportedMotifError, ViewSpecBuilder, compile
+from viewspec import AESTHETIC_PROFILE_TOKENS, UnsupportedMotifError, ViewSpecBuilder, compile
 from viewspec.agent import SUPPORTED_AGENT_ACTION_KINDS, SUPPORTED_AGENT_STYLE_TOKENS
+from viewspec.aesthetics import (
+    AESTHETIC_PROFILE_LAYOUT_ROLES,
+    MIN_AESTHETIC_PROFILE_CATEGORIES,
+    MIN_AESTHETIC_PROFILE_STYLE_CHANGES,
+    profile_layout_props,
+    profile_style_values,
+)
 from viewspec.compiler import PRODUCT_SURFACE_PLANNER_V1_SURFACE, SUPPORTED_ACTION_KINDS
 from viewspec.emitters.html_tailwind import ACTION_EVENT_SCRIPT, HtmlTailwindEmitter
 from viewspec.types import DEFAULT_STYLE_TOKEN_VALUES
@@ -42,13 +50,15 @@ def _walk_nodes(node):
     return nodes
 
 
-def _product_workspace_bundle(*, duplicate_header=False, missing_header=False, extra_body_child=False):
+def _product_workspace_bundle(*, duplicate_header=False, missing_header=False, extra_body_child=False, profile=None):
     builder = ViewSpecBuilder(
         "product_surface_shape",
         root_attrs={"title": "Surface"},
         default_main_region=False,
         root_min_children=2,
     )
+    if profile is not None:
+        builder.set_aesthetic_profile(profile)
     if not missing_header:
         builder.add_region("north", parent_region="root", role="banner", layout="stack", min_children=1)
     if duplicate_header:
@@ -411,13 +421,161 @@ def test_agent_supported_style_tokens_are_compiler_known():
     table = builder.add_table("items", region="main", group_id="rows")
     table.add_row(label="Item", value="$50")
     for index, token in enumerate(SUPPORTED_AGENT_STYLE_TOKENS):
+        if token.startswith("aesthetic."):
+            continue
         builder.add_style(f"style_{index}", "binding:items_row_1_value", token)
 
     ast = compile(builder.build_bundle())
     codes = {diagnostic.code for diagnostic in ast.result.diagnostics}
 
-    assert set(SUPPORTED_AGENT_STYLE_TOKENS).issubset(DEFAULT_STYLE_TOKEN_VALUES)
+    assert set(SUPPORTED_AGENT_STYLE_TOKENS).issubset(set(DEFAULT_STYLE_TOKEN_VALUES) | set(AESTHETIC_PROFILE_TOKENS))
     assert "UNKNOWN_STYLE_TOKEN" not in codes
+
+
+def test_aesthetic_profile_compiles_to_root_metadata_and_style_projection():
+    builder = ViewSpecBuilder("styled_profile")
+    table = builder.add_table("items", region="main", group_id="rows")
+    table.add_row(label="Item", value="$50")
+    builder.set_aesthetic_profile("aesthetic.premium_saas")
+
+    ast = compile(builder.build_bundle())
+    root = ast.result.root.root
+
+    assert ast.result.diagnostics == []
+    assert root.props["aesthetic_profile"] == "aesthetic.premium_saas"
+    assert "aesthetic.premium_saas" in root.style_tokens
+    assert "viewspec:style:aesthetic_profile" in root.provenance.intent_refs
+    assert ast.style_values["action.accent"].endswith("background-color: #4f46e5; color: #ffffff; border-radius: 999px;")
+    assert ast.style_values["surface.subtle"].endswith(
+        "border-radius: 18px; box-shadow: 0 20px 46px rgb(79 70 229 / 0.16);"
+    )
+    assert "font-size: 1.38rem" in ast.style_values["rhythm.hierarchy"]
+
+
+@pytest.mark.parametrize(
+    ("token", "target", "expected_code"),
+    [
+        ("aesthetic.brutalist", "view:bad_profile", "AESTHETIC_PROFILE_UNKNOWN"),
+        ("aesthetic.calm_ops", "motif:items", "AESTHETIC_PROFILE_TARGET_INVALID"),
+    ],
+)
+def test_aesthetic_profile_rejects_unknown_or_non_view_target(token, target, expected_code):
+    builder = ViewSpecBuilder("bad_profile")
+    table = builder.add_table("items", region="main", group_id="rows")
+    table.add_row(label="Item", value="$50")
+    builder.add_style("profile", target, token)
+
+    ast = compile(builder.build_bundle())
+    codes = {diagnostic.code for diagnostic in ast.result.diagnostics}
+
+    assert expected_code in codes
+    assert "aesthetic_profile" not in ast.result.root.root.props
+
+
+def test_aesthetic_profile_rejects_multiple_profiles():
+    builder = ViewSpecBuilder("duplicate_profile")
+    table = builder.add_table("items", region="main", group_id="rows")
+    table.add_row(label="Item", value="$50")
+    builder.add_style("profile_a", "view:duplicate_profile", "aesthetic.calm_ops")
+    builder.add_style("profile_b", "view:duplicate_profile", "aesthetic.data_dense")
+
+    ast = compile(builder.build_bundle())
+    codes = {diagnostic.code for diagnostic in ast.result.diagnostics}
+
+    assert "AESTHETIC_PROFILE_MULTIPLE" in codes
+    assert "aesthetic_profile" not in ast.result.root.root.props
+
+
+def test_aesthetic_profiles_change_minimum_checked_style_projection():
+    for profile in AESTHETIC_PROFILE_TOKENS:
+        values = profile_style_values(profile)
+        changed = {
+            token
+            for token, css in values.items()
+            if DEFAULT_STYLE_TOKEN_VALUES.get(token, "").strip() != css.strip()
+        }
+        categories = {token.split(".", 1)[0] for token in changed if "." in token}
+
+        assert len(changed) >= MIN_AESTHETIC_PROFILE_STYLE_CHANGES
+        assert len(categories) >= MIN_AESTHETIC_PROFILE_CATEGORIES
+
+
+def test_aesthetic_profiles_are_pairwise_distinct_style_projections():
+    for left, right in combinations(AESTHETIC_PROFILE_TOKENS, 2):
+        left_values = profile_style_values(left)
+        right_values = profile_style_values(right)
+        changed = {
+            token
+            for token in set(left_values) | set(right_values)
+            if left_values.get(token, DEFAULT_STYLE_TOKEN_VALUES.get(token, "")).strip()
+            != right_values.get(token, DEFAULT_STYLE_TOKEN_VALUES.get(token, "")).strip()
+        }
+        categories = {token.split(".", 1)[0] for token in changed if "." in token}
+
+        assert len(changed) >= 8, f"{left} and {right} are too visually similar"
+        assert len(categories) >= 4, f"{left} and {right} do not differ across enough aesthetic categories"
+
+
+def test_aesthetic_profiles_have_closed_layout_props():
+    signatures = set()
+    for profile in AESTHETIC_PROFILE_TOKENS:
+        layout_props = profile_layout_props(profile)
+        signatures.add(tuple(sorted((role, props["columns"]) for role, props in layout_props.items())))
+
+        assert set(layout_props).issubset(AESTHETIC_PROFILE_LAYOUT_ROLES)
+        for props in layout_props.values():
+            assert set(props) == {"columns"}
+            assert 1 <= props["columns"] <= 3
+
+    assert len(signatures) >= 3
+
+
+def test_design_overrides_append_after_aesthetic_profile_defaults():
+    builder = ViewSpecBuilder("brand_override")
+    table = builder.add_table("items", region="main", group_id="rows")
+    table.add_row(label="Item", value="$50")
+    builder.set_aesthetic_profile("aesthetic.calm_ops")
+    design = """---
+name: Brand Override
+colors:
+  accent: "#AA00CC"
+  background: "#FDF2F8"
+---
+"""
+
+    ast = compile(builder.build_bundle(), design)
+
+    assert ast.result.diagnostics == []
+    assert ast.style_values["action.accent"].endswith("background-color: #AA00CC;")
+    assert ast.style_values["action.accent"].index("#0f766e") < ast.style_values["action.accent"].index("#AA00CC")
+    assert ast.style_values["palette.temperature"].endswith("background-color: #FDF2F8;")
+
+
+def test_bundles_without_aesthetic_profile_omit_root_metadata():
+    builder = ViewSpecBuilder("plain_style")
+    table = builder.add_table("items", region="main", group_id="rows")
+    table.add_row(label="Item", value="$50")
+
+    ast = compile(builder.build_bundle())
+
+    assert ast.result.diagnostics == []
+    assert "aesthetic_profile" not in ast.result.root.root.props
+    assert not any(token.startswith("aesthetic.") for token in ast.result.root.root.style_tokens)
+
+
+def test_sdk_helper_emits_one_view_scoped_aesthetic_profile():
+    builder = ViewSpecBuilder("sdk_profile")
+    table = builder.add_table("items", region="main", group_id="rows")
+    table.add_row(label="Item", value="$50")
+    builder.set_aesthetic_profile("aesthetic.calm_ops")
+    builder.set_aesthetic_profile("aesthetic.executive_review")
+    bundle = builder.build_bundle()
+
+    assert [(style.id, style.target, style.token) for style in bundle.view_spec.styles] == [
+        ("aesthetic_profile", "view:sdk_profile", "aesthetic.executive_review")
+    ]
+    with pytest.raises(ValueError, match="profile must be one of"):
+        builder.set_aesthetic_profile("aesthetic.unknown")
 
 
 def test_agent_supported_action_kinds_are_compiler_known():
@@ -601,6 +759,39 @@ def test_product_surface_planner_v1_adds_no_synthetic_visible_content_or_actions
     assert action_ids == [action.id for action in bundle.view_spec.actions]
     assert _find_nodes(root, "image_slot") == []
     assert _find_nodes(root, "svg") == []
+
+
+@pytest.mark.parametrize(
+    ("profile", "expected_content_columns", "expected_metric_columns"),
+    [
+        ("aesthetic.data_dense", 3, 3),
+        ("aesthetic.editorial_product", 2, 1),
+        ("aesthetic.premium_saas", 2, 2),
+    ],
+)
+def test_aesthetic_profile_layout_props_adjust_columns_without_semantic_drift(
+    profile, expected_content_columns, expected_metric_columns
+):
+    plain = compile(_product_workspace_bundle())
+    profiled = compile(_product_workspace_bundle(profile=profile))
+    plain_nodes = {node.id: node for node in _walk_nodes(plain.result.root.root)}
+    profiled_nodes = {node.id: node for node in _walk_nodes(profiled.result.root.root)}
+
+    assert plain.result.diagnostics == []
+    assert profiled.result.diagnostics == []
+    assert sorted(plain_nodes) == sorted(profiled_nodes)
+    assert [child.id for child in plain_nodes["region_canvas"].children] == [
+        child.id for child in profiled_nodes["region_canvas"].children
+    ]
+    assert [child.id for child in plain_nodes["motif_numbers"].children] == [
+        child.id for child in profiled_nodes["motif_numbers"].children
+    ]
+    assert profiled_nodes["region_canvas"].props["columns"] == expected_content_columns
+    assert profiled_nodes["motif_numbers"].props["columns"] == expected_metric_columns
+    assert profiled_nodes["region_canvas"].props["layout_strategy"] == "region_grid_v0"
+    assert profiled_nodes["motif_numbers"].props["layout_strategy"] == "dashboard_grid_v0"
+    assert profiled_nodes["region_canvas"].props["aesthetic_layout_profile"] == profile
+    assert profiled_nodes["motif_numbers"].props["aesthetic_layout_profile"] == profile
 
 
 def test_layout_planner_region_grid_columns_use_rendered_children_and_cap():

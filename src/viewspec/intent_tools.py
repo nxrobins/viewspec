@@ -39,6 +39,7 @@ from viewspec.local_tools import (
     tool_error_response,
     tool_response,
 )
+from viewspec.manifest_summary import summarize_intent_manifest
 from viewspec.raw_html import MANIFEST_SCHEMA_VERSION
 from viewspec.sdk.builder import ViewSpecBuilder
 from viewspec.types import IntentBundle
@@ -492,6 +493,7 @@ def compile_intent_bundle_file_tool(
             artifact_path=artifact_path,
             emitter=emitter,
         )
+        manifest_summary = summarize_intent_manifest(Path(paths["manifest"]))
         metadata = {
             "cwd": str(root),
             "allow_outside_cwd": allow_outside_cwd,
@@ -499,6 +501,7 @@ def compile_intent_bundle_file_tool(
             "network_calls": "none",
             "target": target,
             "emitter": emitter,
+            "manifest_summary": manifest_summary,
         }
         checked = check_artifact_dir(output)
         if not checked["ok"]:
@@ -596,9 +599,13 @@ def _tailwind_recipe_inventory(nodes: dict[str, Any]) -> dict[str, Any]:
     class_tokens: set[str] = set()
     app_roles: set[str] = set()
     app_role_sources: set[str] = set()
+    aesthetic_profile: str | None = None
     for entry in nodes.values():
         if not isinstance(entry, dict):
             continue
+        props = entry.get("props") if isinstance(entry.get("props"), dict) else {}
+        if entry.get("primitive") == "root" and isinstance(props.get("aesthetic_profile"), str):
+            aesthetic_profile = props["aesthetic_profile"]
         recipe_key = entry.get("recipe_key")
         if isinstance(recipe_key, str) and recipe_key:
             recipe_keys.add(recipe_key)
@@ -615,6 +622,7 @@ def _tailwind_recipe_inventory(nodes: dict[str, Any]) -> dict[str, Any]:
         "recipe_pack": "tailwind_app_v1",
         "registry_version": TAILWIND_RECIPE_REGISTRY_VERSION,
         "recipe_registry_digest": tailwind_recipe_registry_digest(),
+        "aesthetic_profile": aesthetic_profile,
         "recipe_count": len(recipe_keys),
         "recipes": sorted(recipe_keys),
         "class_count": len(class_tokens),
@@ -1155,6 +1163,7 @@ __all__ = [
     "intent_error_payload",
     "intent_validation_payload",
     "starter_intent_bundle",
+    "summarize_intent_manifest",
     "validate_intent_bundle_file_tool",
     "validate_intent_file",
     "validate_intent_text",

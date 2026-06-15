@@ -371,6 +371,9 @@ def _render_node(node: IRNode, manifest: dict[str, Any], style_values: dict[str,
             attrs.append(style_attr.strip())
     if node.props.get("binding_id") is not None:
         attrs.append(f'data-binding-id="{escape(str(node.props["binding_id"]), quote=True)}"')
+    aesthetic_profile = node.props.get("aesthetic_profile")
+    if isinstance(aesthetic_profile, str) and aesthetic_profile:
+        attrs.append(f'data-aesthetic-profile="{escape(aesthetic_profile, quote=True)}"')
     if node.primitive == "button":
         attrs.extend(
             [

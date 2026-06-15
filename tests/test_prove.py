@@ -5,6 +5,36 @@ from viewspec.cli import main as cli_main
 from viewspec.intent_tools import init_intent_file
 from viewspec.local_tools import check_artifact_dir, file_hash
 from viewspec.prove import prove, prove_tool
+from viewspec.sdk.builder import ViewSpecBuilder
+
+
+def _profile_workspace_bundle(profile: str):
+    builder = ViewSpecBuilder(
+        "profile_proof",
+        root_attrs={"title": "Profile Proof"},
+        default_main_region=False,
+        root_min_children=2,
+    )
+    builder.set_aesthetic_profile(profile)
+    builder.add_region("north", parent_region="root", role="banner", layout="stack", min_children=1)
+    builder.add_region("canvas", parent_region="root", role="application", layout="grid", min_children=2)
+    builder.add_region("focus", parent_region="canvas", role="primary", layout="stack", min_children=1)
+    builder.add_region("assist", parent_region="canvas", role="complementary", layout="stack", min_children=1)
+    builder.add_hero(
+        "intro",
+        eyebrow="Proof",
+        title="Profile proof workspace",
+        description="Manifest summary should expose profile layout.",
+        region="north",
+        group_id="intro",
+    )
+    dashboard = builder.add_dashboard("numbers", region="focus", group_id="metrics")
+    dashboard.add_card(label="Open", value="4", id="open")
+    dashboard.add_card(label="Blocked", value="1", id="blocked")
+    dashboard.add_card(label="Ready", value="9", id="ready")
+    detail = builder.add_detail("identity", region="assist", group_id="details")
+    detail.add_field(label="Manifest", value="checked", id="manifest")
+    return builder.build_bundle()
 
 
 def test_prove_default_writes_checked_source_report(tmp_path):
@@ -21,6 +51,9 @@ def test_prove_default_writes_checked_source_report(tmp_path):
     assert report["checks"]["artifact_check"] == "passed"
     assert report["checks"]["host_verify"] == "not_applicable"
     assert report["metadata"]["network_calls"] == "none"
+    assert report["manifest_summary"]["available"] is True
+    assert report["manifest_summary"]["emitter"] == "html_tailwind"
+    assert report["manifest_summary"]["node_count"] > 0
     assert out_dir.joinpath("viewspec.intent.json").exists()
     assert out_dir.joinpath("DESIGN.md").exists()
     assert out_dir.joinpath("proof_report.json").exists()
@@ -37,6 +70,8 @@ def test_prove_default_writes_checked_source_report(tmp_path):
     assert "Artifact SHA-256:" in proof_text
     assert "Manifest SHA-256:" in proof_text
     assert "Proof report SHA-256:" in proof_text
+    assert "Manifest Summary" in proof_text
+    assert "Emitter: `html_tailwind`" in proof_text
     assert "Redacted support bundle path:" in proof_text
     assert "Network/install policy: `none`" in proof_text
     assert "pixel-perfect visual regression" in proof_text
@@ -47,8 +82,37 @@ def test_prove_default_writes_checked_source_report(tmp_path):
     assert support["privacy"]["contains_raw_intent"] is False
     assert support["privacy"]["contains_absolute_paths"] is False
     assert support["proof_report_hash"] == file_hash(out_dir / "proof_report.json")
+    assert support["manifest_summary"]["available"] is True
+    assert support["manifest_summary"]["emitter"] == "html_tailwind"
     assert support["paths"]["proof_dir_name"] == "proof"
     assert str(tmp_path) not in support_text
+
+
+def test_prove_reports_aesthetic_profile_layout_summary(tmp_path):
+    intent = tmp_path / "profile.intent.json"
+    intent.write_text(json.dumps(_profile_workspace_bundle("aesthetic.data_dense").to_json(), indent=2), encoding="utf-8")
+    out_dir = tmp_path / "profile-proof"
+
+    report = prove(intent_path=intent, out_dir=out_dir, cwd=tmp_path)
+
+    assert report["ok"] is True
+    summary = report["manifest_summary"]
+    assert summary["aesthetic_profile"] == "aesthetic.data_dense"
+    assert summary["aesthetic_layout"]["content_grid"] == {
+        "profile": "aesthetic.data_dense",
+        "columns": 3,
+        "node_count": 1,
+    }
+    assert summary["aesthetic_layout"]["metric_grid"] == {
+        "profile": "aesthetic.data_dense",
+        "columns": 3,
+        "node_count": 1,
+    }
+    proof_text = out_dir.joinpath("PROOF.md").read_text(encoding="utf-8")
+    assert "Aesthetic profile: `aesthetic.data_dense`" in proof_text
+    assert "Aesthetic layout `content_grid`: profile `aesthetic.data_dense`, columns `3`, nodes `1`" in proof_text
+    support = json.loads(out_dir.joinpath("support_bundle.json").read_text(encoding="utf-8"))
+    assert support["manifest_summary"]["aesthetic_layout"]["metric_grid"]["columns"] == 3
 
 
 def test_prove_existing_intent_cli_json(tmp_path, capsys):
@@ -68,6 +132,55 @@ def test_prove_existing_intent_cli_json(tmp_path, capsys):
     assert payload["paths"]["support_bundle"].endswith("support_bundle.json")
     assert payload["artifact_hash"]
     assert payload["manifest_hash"]
+
+
+def test_prove_cli_human_output_prints_manifest_summary(tmp_path, capsys):
+    out_dir = tmp_path / "proof"
+
+    assert cli_main(["prove", "--out", str(out_dir)]) == 0
+    output = capsys.readouterr().out
+
+    assert output.startswith("ok\n")
+    assert "proof_level: source_artifact" in output
+    assert "proof_summary:" in output
+    assert "support_bundle:" in output
+    assert "manifest: kind=intent_bundle_compile emitter=html_tailwind artifact=index.html nodes=" in output
+
+
+def test_prove_cli_react_tailwind_human_output_prints_host_assertions(tmp_path, monkeypatch, capsys):
+    def fake_verify_host_artifact_dir(*_args, **_kwargs):
+        return {
+            "ok": True,
+            "assertions": {
+                "action_count": 2,
+                "aesthetic_layout_assertion_count": 2,
+                "aesthetic_profile_assertion_count": 1,
+                "dom_count": 8,
+                "grid_column_assertion_count": 1,
+                "payload_binding_count": 2,
+                "style_assertion_count": 6,
+            },
+            "errors": [],
+        }
+
+    prove_module = importlib.import_module("viewspec.prove")
+    monkeypatch.setattr(prove_module, "verify_host_artifact_dir", fake_verify_host_artifact_dir)
+
+    assert cli_main(["prove", "--out", str(tmp_path / "proof"), "--target", "react-tailwind-tsx"]) == 0
+    output = capsys.readouterr().out
+
+    assert output.startswith("ok\n")
+    assert "proof_level: react_tailwind_reference_host" in output
+    assert "manifest: kind=intent_bundle_compile emitter=react_tailwind_tsx artifact=ViewSpecView.tsx nodes=" in output
+    assert "host_verification: passed" in output
+    assert "host_assertions:\n" in output
+    assert "  action_count: 2" in output
+    assert "  aesthetic_layout_assertion_count: 2" in output
+    assert "  aesthetic_profile_assertion_count: 1" in output
+    assert "  dom_count: 8" in output
+    assert "  grid_column_assertion_count: 1" in output
+    assert "  payload_binding_count: 2" in output
+    assert "  style_assertion_count: 6" in output
 
 
 def test_prove_existing_output_requires_force(tmp_path):
@@ -189,3 +302,49 @@ def test_prove_tool_returns_standard_envelope_and_respects_cwd(tmp_path):
     assert result["proof_report"]["paths"]["proof_dir"].endswith("proof")
     assert result["paths"]["proof_summary"].endswith("PROOF.md")
     assert result["paths"]["support_bundle"].endswith("support_bundle.json")
+    assert result["metadata"]["checks"]["artifact_check"] == "passed"
+    assert result["metadata"]["checks"]["host_verify"] == "not_applicable"
+    assert result["metadata"]["manifest_summary"]["available"] is True
+    assert result["metadata"]["manifest_summary"]["emitter"] == "html_tailwind"
+    assert result["metadata"]["host_verification"] is None
+
+
+def test_prove_tool_metadata_exposes_react_tailwind_host_summary(tmp_path, monkeypatch):
+    def fake_verify_host_artifact_dir(*_args, **_kwargs):
+        return {
+            "ok": True,
+            "assertions": {
+                "action_count": 1,
+                "aesthetic_layout_assertion_count": 2,
+                "aesthetic_profile_assertion_count": 1,
+                "dom_count": 5,
+                "grid_column_assertion_count": 1,
+                "payload_binding_count": 1,
+                "style_assertion_count": 6,
+            },
+            "errors": [],
+        }
+
+    prove_module = importlib.import_module("viewspec.prove")
+    monkeypatch.setattr(prove_module, "verify_host_artifact_dir", fake_verify_host_artifact_dir)
+
+    result = prove_tool(out_dir="react-proof", target="react-tailwind-tsx", cwd=tmp_path)
+
+    assert result["ok"] is True
+    assert result["metadata"]["checks"]["host_verify"] == "passed"
+    assert result["metadata"]["manifest_summary"]["emitter"] == "react_tailwind_tsx"
+    assert result["metadata"]["manifest_summary"]["artifact_file"] == "ViewSpecView.tsx"
+    assert result["metadata"]["host_verification"] == {
+        "ok": True,
+        "assertions": {
+            "action_count": 1,
+            "aesthetic_layout_assertion_count": 2,
+            "aesthetic_profile_assertion_count": 1,
+            "dom_count": 5,
+            "grid_column_assertion_count": 1,
+            "payload_binding_count": 1,
+            "style_assertion_count": 6,
+        },
+        "error_codes": [],
+    }
+    assert result["proof_report"]["host_report"]["assertions"]["style_assertion_count"] == 6

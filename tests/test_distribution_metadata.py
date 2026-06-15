@@ -4,6 +4,8 @@ import tomllib
 from importlib import resources
 from pathlib import Path
 
+import viewspec
+
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -41,3 +43,23 @@ def test_host_verify_template_resources_are_packaged():
 
     for rel in required:
         assert root.joinpath(*rel.split("/")).is_file(), rel
+
+
+def test_host_verify_template_asserts_grid_column_counts():
+    root = resources.files("viewspec.host_verify_template")
+    template = root.joinpath("tests", "host-verify.spec.ts").read_text(encoding="utf-8")
+
+    assert "expectedGridColumnCount" in template
+    assert "grid-template-columns" in template
+    assert "grid_column_assertion_count" in template
+
+
+def test_top_level_package_exports_summary_helpers():
+    for name in (
+        "manifest_aesthetic_layout_summary",
+        "manifest_root_aesthetic_profile",
+        "summarize_host_verification_report",
+        "summarize_intent_manifest",
+    ):
+        assert name in viewspec.__all__
+        assert callable(getattr(viewspec, name))

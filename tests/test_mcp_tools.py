@@ -73,6 +73,35 @@ def _bundle_with_image_slot_json() -> dict:
     return builder.build_bundle().to_json()
 
 
+def _profile_workspace_bundle_json(profile: str) -> dict:
+    builder = ViewSpecBuilder(
+        "mcp_profile_workspace",
+        root_attrs={"title": "Profile Workspace"},
+        default_main_region=False,
+        root_min_children=2,
+    )
+    builder.set_aesthetic_profile(profile)
+    builder.add_region("north", parent_region="root", role="banner", layout="stack", min_children=1)
+    builder.add_region("canvas", parent_region="root", role="application", layout="grid", min_children=2)
+    builder.add_region("focus", parent_region="canvas", role="primary", layout="stack", min_children=1)
+    builder.add_region("assist", parent_region="canvas", role="complementary", layout="stack", min_children=1)
+    builder.add_hero(
+        "intro",
+        eyebrow="Operations",
+        title="Profile workspace",
+        description="Compile metadata should expose checked profile layout.",
+        region="north",
+        group_id="intro",
+    )
+    dashboard = builder.add_dashboard("numbers", region="focus", group_id="metrics")
+    dashboard.add_card(label="Open", value="4", id="open")
+    dashboard.add_card(label="Blocked", value="1", id="blocked")
+    dashboard.add_card(label="Ready", value="9", id="ready")
+    detail = builder.add_detail("identity", region="assist", group_id="details")
+    detail.add_field(label="Manifest", value="checked", id="manifest")
+    return builder.build_bundle().to_json()
+
+
 def _bundle_with_list_json() -> dict:
     builder = ViewSpecBuilder("mcp_list")
     items = builder.add_list("tasks", region="main", group_id="task_order")
@@ -411,6 +440,40 @@ def test_intent_mcp_compile_can_emit_checked_react_tailwind_tsx_artifact(tmp_pat
         "--out",
         "<out>",
     ]
+
+
+def test_intent_mcp_compile_metadata_summarizes_checked_profile_layout(tmp_path):
+    intent_path = tmp_path / "viewspec.intent.json"
+    intent_path.write_text(json.dumps(_profile_workspace_bundle_json("aesthetic.editorial_product")), encoding="utf-8")
+
+    compiled = compile_intent_bundle_file_tool(
+        "viewspec.intent.json",
+        "react-tailwind-dist",
+        target="react-tailwind-tsx",
+        cwd=tmp_path,
+    )
+
+    assert_tool_schema(compiled)
+    assert compiled["ok"] is True
+    summary = compiled["metadata"]["manifest_summary"]
+    assert summary["available"] is True
+    assert summary["emitter"] == "react_tailwind_tsx"
+    assert summary["artifact_file"] == "ViewSpecView.tsx"
+    assert summary["aesthetic_profile"] == "aesthetic.editorial_product"
+    assert summary["aesthetic_layout"]["content_grid"] == {
+        "profile": "aesthetic.editorial_product",
+        "columns": 2,
+        "node_count": 1,
+    }
+    assert summary["aesthetic_layout"]["metric_grid"] == {
+        "profile": "aesthetic.editorial_product",
+        "columns": 1,
+        "node_count": 1,
+    }
+    checked = check_artifact_tool("react-tailwind-dist", cwd=tmp_path)
+    assert checked["ok"] is True
+    assert checked["metadata"]["manifest_summary"]["aesthetic_profile"] == "aesthetic.editorial_product"
+    assert checked["metadata"]["manifest_summary"]["aesthetic_layout"]["metric_grid"]["columns"] == 1
 
 
 def test_check_rejects_tampered_react_tsx_artifact_source(tmp_path):

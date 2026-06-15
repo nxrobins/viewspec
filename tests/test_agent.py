@@ -11,6 +11,7 @@ from viewspec import (
     AGENT_ASSET_SCHEMA_VERSION,
     AGENT_INTENT_BUNDLE_SCHEMA,
     AGENT_SYSTEM_PROMPT,
+    AESTHETIC_PROFILE_TOKENS,
     SUPPORTED_AGENT_ACTION_KINDS,
     SUPPORTED_AGENT_CARDINALITIES,
     SUPPORTED_AGENT_GROUP_KINDS,
@@ -31,6 +32,7 @@ from viewspec.agent import (
     MAX_AGENT_NODES,
     MAX_AGENT_RELATION_VALUES,
 )
+from viewspec.aesthetics import AESTHETIC_PROFILE_LAYOUT_PROPS, AESTHETIC_PROFILE_LAYOUT_ROLES
 from viewspec.cli import main as cli_main
 
 
@@ -140,6 +142,9 @@ def test_agent_prompt_and_schema_preserve_intent_bundle_contract():
     assert "Do not include hosted-only fields in the local v1 contract" in AGENT_SYSTEM_PROMPT
     assert "Unknown fields are rejected instead of silently ignored" in AGENT_SYSTEM_PROMPT
     assert "Use style tokens only from this v1 set:" in AGENT_SYSTEM_PROMPT
+    assert "Aesthetic profile tokens are deterministic art-direction handles, not CSS." in AGENT_SYSTEM_PROMPT
+    for token in AESTHETIC_PROFILE_TOKENS:
+        assert token in AGENT_SYSTEM_PROMPT
     assert "Semantic edges must reference declared substrate node IDs" in AGENT_SYSTEM_PROMPT
     assert "Action target_ref must be empty/null or use region:id" in AGENT_SYSTEM_PROMPT
     assert "Stateful collection actions are bounded." in AGENT_SYSTEM_PROMPT
@@ -188,6 +193,17 @@ def test_agent_prompt_and_schema_preserve_intent_bundle_contract():
     assert AGENT_INTENT_BUNDLE_SCHEMA["$defs"]["action"]["properties"]["label"]["minLength"] == 1
     assert AGENT_INTENT_BUNDLE_SCHEMA["$defs"]["style"]["properties"]["target"]["pattern"] == "^(?:(?:region|binding|motif|view):)?[A-Za-z0-9_.-]+$"
     assert AGENT_INTENT_BUNDLE_SCHEMA["$defs"]["style"]["properties"]["token"]["enum"] == list(SUPPORTED_AGENT_STYLE_TOKENS)
+    profile_contract = AGENT_INTENT_BUNDLE_SCHEMA["x-viewspec-aesthetic-profiles"]
+    assert profile_contract["tokens"] == list(AESTHETIC_PROFILE_TOKENS)
+    assert profile_contract["style_token_prefix"] == "aesthetic."
+    assert profile_contract["max_declarations"] == 1
+    assert profile_contract["target"] == "view:{view_spec.id}"
+    assert profile_contract["layout_roles"] == sorted(AESTHETIC_PROFILE_LAYOUT_ROLES)
+    assert profile_contract["layout_props"] == {
+        profile: {role: dict(props) for role, props in role_props.items()}
+        for profile, role_props in AESTHETIC_PROFILE_LAYOUT_PROPS.items()
+    }
+    assert "not_css" in profile_contract["non_claims"]
     assert AGENT_INTENT_BUNDLE_SCHEMA["$defs"]["substrate"]["properties"]["nodes"]["maxProperties"] == MAX_AGENT_NODES
     assert AGENT_INTENT_BUNDLE_SCHEMA["$defs"]["substrate_node"]["properties"]["kind"] == {"type": "string", "minLength": 1}
     invariants = AGENT_INTENT_BUNDLE_SCHEMA["x-viewspec-invariants"]
@@ -198,6 +214,9 @@ def test_agent_prompt_and_schema_preserve_intent_bundle_contract():
         "Hosted-only fields design, motif_library, view_spec.inputs, view_spec.projections, and view_spec.rules are rejected by the local schema" in item
         for item in invariants
     )
+    assert "IntentBundle may declare at most one aesthetic.* style token." in invariants
+    assert "Aesthetic profile style token must target exactly view:{view_spec.id}." in invariants
+    assert any("bounded layout metadata for content_grid and metric_grid roles" in item for item in invariants)
     assert "Unknown extension fields are rejected instead of silently ignored." in invariants
     assert "viewspec validate-intent enforces cross-reference invariants." in invariants[-1]
 
@@ -765,6 +784,45 @@ def test_rejects_unsupported_style_token():
     payload["view_spec"]["styles"].append({"id": "bad_style", "target": "binding:revenue_value", "token": "css.position.fixed"})
 
     assert "UNSUPPORTED_STYLE_TOKEN" in _issue_codes(payload)
+
+
+def test_accepts_view_scoped_aesthetic_profile_token():
+    payload = _bundle_for_motif("dashboard")
+    payload["view_spec"]["styles"].append(
+        {"id": "aesthetic_profile", "target": "view:agent_dashboard", "token": "aesthetic.calm_ops"}
+    )
+
+    result = validate_agent_intent_bundle(payload)
+
+    assert result.valid
+    assert not any(issue.code.startswith("AESTHETIC_PROFILE_") for issue in result.issues)
+
+
+@pytest.mark.parametrize(
+    ("styles", "expected_code"),
+    [
+        (
+            [{"id": "aesthetic_profile", "target": "view:agent_dashboard", "token": "aesthetic.noir"}],
+            "AESTHETIC_PROFILE_UNKNOWN",
+        ),
+        (
+            [{"id": "aesthetic_profile", "target": "motif:kpis", "token": "aesthetic.calm_ops"}],
+            "AESTHETIC_PROFILE_TARGET_INVALID",
+        ),
+        (
+            [
+                {"id": "profile_a", "target": "view:agent_dashboard", "token": "aesthetic.calm_ops"},
+                {"id": "profile_b", "target": "view:agent_dashboard", "token": "aesthetic.data_dense"},
+            ],
+            "AESTHETIC_PROFILE_MULTIPLE",
+        ),
+    ],
+)
+def test_rejects_invalid_aesthetic_profile_tokens(styles, expected_code):
+    payload = _bundle_for_motif("dashboard")
+    payload["view_spec"]["styles"].extend(styles)
+
+    assert expected_code in _issue_codes(payload)
 
 
 def test_rejects_composition_ir_input():

@@ -38,7 +38,9 @@ Do not include hosted-only fields in the local v1 contract: root design, root mo
 
 Do not add custom or extension fields to local v1 objects. Unknown fields are rejected instead of silently ignored.
 
-Use style tokens only from this v1 set: emphasis.low, emphasis.medium, emphasis.high, density.compact, density.regular, density.airy, palette.temperature, tone.neutral, tone.muted, tone.accent, tone.warning, tone.positive, action.accent, surface.none, surface.subtle, surface.strong, rhythm.hierarchy, narrative.flow, align.start, align.center, align.end.
+Use style tokens only from this v1 set: emphasis.low, emphasis.medium, emphasis.high, density.compact, density.regular, density.airy, palette.temperature, tone.neutral, tone.muted, tone.accent, tone.warning, tone.positive, action.accent, surface.none, surface.subtle, surface.strong, rhythm.hierarchy, narrative.flow, align.start, align.center, align.end, aesthetic.calm_ops, aesthetic.premium_saas, aesthetic.data_dense, aesthetic.editorial_product, aesthetic.executive_review.
+
+Aesthetic profile tokens are deterministic art-direction handles, not CSS. At most one style may use an aesthetic.* token, it must target exactly view:{view_spec.id}, and it must be one of aesthetic.calm_ops, aesthetic.premium_saas, aesthetic.data_dense, aesthetic.editorial_product, or aesthetic.executive_review. The compiler may derive governed style projection and bounded layout metadata from that token.
 
 Use canonical binding addresses:
 - node:{node_id}

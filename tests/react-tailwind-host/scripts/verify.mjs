@@ -220,9 +220,29 @@ await runHostVerify(180_000);
 const report = JSON.parse(await readFile(reportPath, "utf8").catch(() => fail("HOST_PROOF_CI_SOFT_GATE", "missing verify-host report")));
 if (report.ok !== true) fail("HOST_PROOF_CI_SOFT_GATE", JSON.stringify(report.errors ?? []));
 if (report.artifact_hash !== marker.artifactHash) fail("HOST_PROOF_ARTIFACT_HASH_MISMATCH", "verify-host report does not match checked artifact");
+if (
+  report.manifest_summary?.available !== true ||
+  report.manifest_summary?.emitter !== "react_tailwind_tsx" ||
+  report.manifest_summary?.artifact_file !== "ViewSpecView.tsx" ||
+  (report.manifest_summary?.node_count ?? 0) < 1
+) {
+  fail("HOST_PROOF_CI_SOFT_GATE", "verify-host report missing checked manifest summary");
+}
 if (!report.host_template_lock_hash || report.host_template_lock_hash.length !== 64) {
   fail("HOST_PROOF_ARTIFACT_HASH_MISMATCH", "verify-host report missing host template lock hash");
 }
 if ((report.assertions?.dom_count ?? 0) < 1 || (report.assertions?.style_assertion_count ?? 0) < 4) {
   fail("HOST_PROOF_STYLE_ASSERTION_TOO_WEAK", "verify-host report has weak DOM/style assertions");
+}
+if ((report.assertions?.grid_column_assertion_count ?? 0) < 1) {
+  fail("HOST_PROOF_STYLE_ASSERTION_TOO_WEAK", "verify-host report did not include a grid column assertion");
+}
+if (report.manifest_summary?.aesthetic_profile && (report.assertions?.aesthetic_profile_assertion_count ?? 0) < 1) {
+  fail("HOST_PROOF_STYLE_ASSERTION_TOO_WEAK", "verify-host report did not include an aesthetic profile marker assertion");
+}
+const aestheticLayoutCount = Object.values(report.manifest_summary?.aesthetic_layout ?? {}).reduce((total, item) => {
+  return total + (Number.isInteger(item?.node_count) ? item.node_count : 0);
+}, 0);
+if (aestheticLayoutCount > 0 && (report.assertions?.aesthetic_layout_assertion_count ?? 0) < aestheticLayoutCount) {
+  fail("HOST_PROOF_STYLE_ASSERTION_TOO_WEAK", "verify-host report did not include all aesthetic layout grid assertions");
 }

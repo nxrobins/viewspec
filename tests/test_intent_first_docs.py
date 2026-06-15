@@ -137,6 +137,32 @@ def test_public_mcp_tool_lists_include_proof_tools():
         assert "prove" in text, path
 
 
+def test_public_docs_include_aesthetic_profile_contract():
+    root = Path(__file__).resolve().parents[1]
+    docs = [
+        root / "README.md",
+        root / "docs/getting-started.md",
+        root / "docs/agent-integration.md",
+        root / "demos/llms.txt",
+        root / "demos/llms-full.txt",
+        root / "demos/agent-system-prompt.txt",
+    ]
+    tokens = [
+        "aesthetic.calm_ops",
+        "aesthetic.premium_saas",
+        "aesthetic.data_dense",
+        "aesthetic.editorial_product",
+        "aesthetic.executive_review",
+    ]
+
+    for path in docs:
+        text = path.read_text(encoding="utf-8")
+        for token in tokens:
+            assert token in text, path
+        assert "not CSS" in text or "not arbitrary CSS" in text, path
+        assert "pixel-perfect" in text, path
+
+
 def test_reference_grounding_is_explicit_opt_in():
     root = Path(__file__).resolve().parents[1]
     docs = [

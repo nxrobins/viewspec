@@ -13,6 +13,7 @@ Use this skill when an agent creates a new human-facing UI artifact, report, das
 - If a `DESIGN.md` file exists, compile with it through ViewSpec.
 - Treat compiled output as an artifact, not as the editable source.
 - Use `viewspec prove --out .viewspec-proof` for a first local proof bundle; read `.viewspec-proof/PROOF.md` first, use `.viewspec-proof/proof_report.json` for tool output, and use `.viewspec-proof/support_bundle.json` for redacted failure triage. It proves source artifact integrity and provenance, not pixel-perfect visual equivalence.
+- For governed art direction, use at most one view-level aesthetic profile token in `viewspec.intent.json`: `aesthetic.calm_ops`, `aesthetic.premium_saas`, `aesthetic.data_dense`, `aesthetic.editorial_product`, or `aesthetic.executive_review`. Aesthetic profiles are deterministic style and bounded-layout handles, not CSS, pixel-perfect visual proof, accessibility certification, arbitrary host-app compatibility, or design-review approval.
 - Use raw HTML commands only when importing existing HTML.
 - Do not upload, share, call hosted APIs, or use remote services unless the user explicitly asks.
 - Never patch or recursively compile generated artifacts such as `dist/index.html` or `react-output/ViewSpecView.tsx`.

@@ -1,0 +1,626 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ViewSpec Demo - Stateful Collections Desk</title>
+  <meta name="description" content="Inspect a bounded operational collection surface with ViewSpec collection actions, state motifs, provenance, and event-only payload dispatch.">
+  <meta name="robots" content="index,follow,max-snippet:-1,max-image-preview:large">
+  <link rel="canonical" href="https://viewspec.dev/stateful-collections/">
+  <link rel="alternate" type="text/markdown" title="ViewSpec for LLMs" href="https://viewspec.dev/llms.txt">
+  <link rel="service" type="application/json" title="ViewSpec OpenAPI" href="https://viewspec.dev/openapi.json">
+  <script type="application/ld+json">{"@context":"https://schema.org","@type":"WebPage","description":"Inspect a bounded operational collection surface with ViewSpec collection actions, state motifs, provenance, and event-only payload dispatch.","name":"ViewSpec Demo - Stateful Collections Desk","url":"https://viewspec.dev/stateful-collections/"}</script>
+  <link rel="icon" href="data:,">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="../shared/nav.js" defer></script>
+  <style>
+:root {
+  color-scheme: light;
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  background: #f8fafc;
+  color: #020617;
+}
+* { box-sizing: border-box; }
+body { margin: 0; min-height: 100vh; background: #f8fafc; }
+.vs-root { min-height: 100vh; padding: 24px; display: flex; flex-direction: column; gap: 24px; color: #020617; }
+.vs-stack { display: flex; flex-direction: column; gap: 12px; }
+ul.vs-stack { list-style: none; margin: 0; padding: 0; }
+table.vs-stack { display: table; width: 100%; border-collapse: collapse; border: 1px solid #e2e8f0; border-radius: 12px; overflow: hidden; background: #ffffff; }
+tr.vs-cluster { display: table-row; }
+th.vs-label, td.vs-text, td.vs-value, td.vs-badge, td.vs-label { display: table-cell; padding: 0.7rem 0.85rem; border-bottom: 1px solid #e2e8f0; vertical-align: top; }
+th.vs-label { width: 38%; text-align: left; background: #f8fafc; }
+table.vs-stack tr:last-child th, table.vs-stack tr:last-child td { border-bottom: 0; }
+dl.vs-stack { margin: 0; }
+dl.vs-stack > div.vs-cluster { display: grid; grid-template-columns: minmax(8rem, 30%) 1fr; align-items: start; padding: 0.65rem 0; border-bottom: 1px solid #e2e8f0; }
+dl.vs-stack > div.vs-cluster:last-child { border-bottom: 0; }
+dl.vs-stack dt, dl.vs-stack dd { margin: 0; }
+header.vs-surface { padding: 32px; gap: 14px; }
+header.vs-surface h1.vs-value { margin: 0; font-size: 2.5rem; line-height: 1.05; letter-spacing: 0; }
+header.vs-surface p.vs-text, header.vs-surface p.vs-label { max-width: 68ch; margin: 0; }
+.vs-grid { display: grid; gap: 16px; }
+.vs-cluster { display: flex; flex-flow: row wrap; gap: 12px; }
+.vs-surface { border: 1px solid #e2e8f0; border-radius: 16px; background: #ffffff; padding: 16px; box-shadow: 0 1px 2px rgb(15 23 42 / 0.08); display: flex; flex-direction: column; gap: 12px; }
+.vs-text { color: #1f2937; font-size: 1rem; line-height: 1.75; }
+.vs-label { color: #64748b; font-size: 0.75rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; }
+.vs-value { color: #020617; font-size: 1.5rem; font-weight: 900; line-height: 1.15; }
+.vs-badge { display: inline-flex; width: fit-content; border-radius: 999px; background: #ccfbf1; color: #115e59; padding: 4px 12px; font-size: 0.875rem; font-weight: 700; box-shadow: inset 0 0 0 1px #99f6e4; }
+.vs-input { width: 100%; min-width: 0; border: 1px solid #cbd5e1; border-radius: 10px; background: #ffffff; color: #020617; padding: 0.7rem 0.85rem; font: inherit; }
+.vs-input:focus { outline: 2px solid #0f766e; outline-offset: 2px; }
+.vs-image-slot { min-height: 96px; border-radius: 12px; background: #e2e8f0; color: #64748b; display: grid; place-items: center; }
+.vs-rule { margin: 8px 0; border: 0; border-top: 1px solid #e2e8f0; }
+.vs-svg { border: 1px solid #e2e8f0; border-radius: 12px; background: #f8fafc; color: #475569; padding: 12px; }
+.vs-button { display: inline-flex; width: fit-content; align-items: center; border: 0; border-radius: 12px; background: #0f766e; color: #ffffff; padding: 8px 16px; font-size: 0.875rem; font-weight: 800; cursor: pointer; box-shadow: 0 1px 2px rgb(15 23 42 / 0.16); }
+.vs-button:hover { background: #115e59; }
+.vs-error-boundary { border: 2px dashed #ef4444; border-radius: 12px; background: #fef2f2; color: #991b1b; padding: 16px; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 0.875rem; }
+.vs-role-app-shell { width: min(100%, 1180px); margin: 0 auto; padding: 28px; gap: 18px; }
+.vs-role-app-header { padding: 20px 0 6px; border-bottom: 1px solid #dbe3ea; }
+.vs-role-page-header { border: 0; border-radius: 0; box-shadow: none; background: transparent; padding: 0 0 14px; gap: 8px; }
+.vs-role-content-grid { align-items: start; gap: 18px; }
+.vs-role-primary-column { gap: 18px; }
+.vs-role-side-rail { gap: 14px; align-self: start; }
+.vs-role-metric-grid { gap: 12px; }
+.vs-role-metric-card { min-height: 108px; justify-content: space-between; border-radius: 8px; }
+.vs-role-form-panel { border-radius: 8px; padding: 18px; gap: 14px; }
+.vs-role-field-group { border-radius: 8px; box-shadow: none; padding: 12px; }
+.vs-role-detail-panel { border-radius: 8px; padding: 16px; }
+.vs-role-action-row { align-items: center; justify-content: flex-end; gap: 10px; padding: 4px 0 0; }
+.vs-motif-loading-state { border-radius: 12px; border-style: dashed; color: #475569; }
+.vs-motif-error-state { border-color: #fca5a5; background: #fef2f2; color: #991b1b; }
+.vs-motif-loading-state .vs-value, .vs-motif-error-state .vs-value { font-size: 1.125rem; }
+@media (max-width: 760px) {
+  .vs-root { padding: 16px; }
+  .vs-role-app-shell { padding: 16px; }
+  .vs-role-content-grid { grid-template-columns: 1fr !important; }
+  .vs-role-action-row { justify-content: stretch; }
+  .vs-role-action-row .vs-button { width: 100%; justify-content: center; }
+}
+
+    :root {
+      color-scheme: dark;
+    }
+
+    body {
+      background: #080b10;
+      color: #f8fafc;
+      min-height: 100vh;
+    }
+
+    .page-shell {
+      width: min(1420px, calc(100% - 32px));
+      margin: 0 auto;
+      padding: 32px 0 48px;
+    }
+
+    .hero {
+      display: grid;
+      gap: 18px;
+      padding: 32px 0 24px;
+      border-bottom: 1px solid rgba(148, 163, 184, 0.16);
+    }
+
+    .eyebrow {
+      color: #2dd4bf;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 0.78rem;
+      font-weight: 900;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    h1 {
+      font-size: clamp(2.35rem, 5.5vw, 4.9rem);
+      line-height: 0.96;
+      margin: 0;
+      letter-spacing: 0;
+      max-width: 12ch;
+    }
+
+    .lead {
+      color: #cbd5e1;
+      font-size: 1.08rem;
+      line-height: 1.7;
+      margin: 0;
+      max-width: 78ch;
+    }
+
+    .demo-grid {
+      display: grid;
+      gap: 18px;
+      grid-template-columns: minmax(0, 1.65fr) minmax(320px, 0.85fr);
+      margin-top: 24px;
+    }
+
+    .panel {
+      background: rgba(15, 23, 42, 0.88);
+      border: 1px solid rgba(148, 163, 184, 0.18);
+      border-radius: 8px;
+      overflow: hidden;
+    }
+
+    .panel-header {
+      align-items: center;
+      border-bottom: 1px solid rgba(148, 163, 184, 0.14);
+      display: flex;
+      gap: 12px;
+      justify-content: space-between;
+      padding: 14px 16px;
+    }
+
+    .panel-title {
+      color: #ffffff;
+      font-weight: 900;
+      letter-spacing: 0;
+    }
+
+    .state-tabs {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .state-tab {
+      background: rgba(15, 23, 42, 0.85);
+      border: 1px solid rgba(148, 163, 184, 0.24);
+      border-radius: 999px;
+      color: #cbd5e1;
+      cursor: pointer;
+      font: inherit;
+      font-size: 0.85rem;
+      font-weight: 850;
+      min-height: 36px;
+      padding: 0 12px;
+    }
+
+    .state-tab[aria-pressed="true"] {
+      background: #0f766e;
+      border-color: #2dd4bf;
+      color: #ffffff;
+    }
+
+    .artifact-stage {
+      background: #e5edf6;
+      min-height: 620px;
+      overflow: auto;
+      padding: 16px;
+    }
+
+    .artifact-view {
+      display: none;
+    }
+
+    .artifact-view.active {
+      display: block;
+    }
+
+    .artifact-stage .vs-root {
+      min-height: 0;
+      width: min(100%, 1040px);
+      margin: 0 auto;
+    }
+
+    .artifact-stage .vs-role-app-shell {
+      width: 100%;
+    }
+
+    .artifact-stage .vs-role-form-panel {
+      display: grid;
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+    }
+
+    .artifact-stage .vs-role-action-row {
+      justify-content: flex-start;
+      margin: 8px 0 2px;
+    }
+
+    .artifact-stage .vs-button {
+      min-height: 38px;
+    }
+
+    .artifact-stage table.vs-stack {
+      font-size: 0.9rem;
+    }
+
+    .artifact-stage th.vs-label {
+      width: 30%;
+    }
+
+    .inspector-body {
+      display: grid;
+      gap: 14px;
+      padding: 16px;
+    }
+
+    .stat-grid {
+      display: grid;
+      gap: 10px;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .stat {
+      background: rgba(2, 6, 23, 0.38);
+      border: 1px solid rgba(148, 163, 184, 0.16);
+      border-radius: 8px;
+      padding: 12px;
+    }
+
+    .stat span {
+      color: #94a3b8;
+      display: block;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 0.7rem;
+      font-weight: 900;
+      margin-bottom: 5px;
+      text-transform: uppercase;
+    }
+
+    .stat strong {
+      color: #ffffff;
+      font-size: 1rem;
+    }
+
+    .summary {
+      color: #cbd5e1;
+      line-height: 1.62;
+      margin: 0;
+    }
+
+    .event-card {
+      background: #05070a;
+      border: 1px solid rgba(45, 212, 191, 0.24);
+      border-radius: 8px;
+      overflow: hidden;
+    }
+
+    .event-card header {
+      align-items: center;
+      border-bottom: 1px solid rgba(148, 163, 184, 0.14);
+      display: flex;
+      gap: 10px;
+      justify-content: space-between;
+      padding: 10px 12px;
+    }
+
+    .pill {
+      border: 1px solid rgba(148, 163, 184, 0.24);
+      border-radius: 999px;
+      color: #94a3b8;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 0.72rem;
+      font-weight: 850;
+      padding: 4px 8px;
+    }
+
+    .pill[data-state="live"] {
+      border-color: rgba(45, 212, 191, 0.4);
+      color: #5eead4;
+    }
+
+    pre {
+      color: #dbeafe;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 0.76rem;
+      line-height: 1.52;
+      margin: 0;
+      max-height: 360px;
+      overflow: auto;
+      padding: 12px;
+      white-space: pre-wrap;
+    }
+
+    .intent-select {
+      background: #020617;
+      border: 1px solid rgba(148, 163, 184, 0.28);
+      border-radius: 8px;
+      color: #f8fafc;
+      min-height: 40px;
+      padding: 0 10px;
+      width: 100%;
+    }
+
+    .contract-list {
+      color: #cbd5e1;
+      display: grid;
+      gap: 8px;
+      line-height: 1.5;
+      margin: 0;
+      padding-left: 18px;
+    }
+
+    @media (max-width: 1100px) {
+      .demo-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .artifact-stage .vs-role-form-panel {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+    }
+
+    @media (max-width: 720px) {
+      .page-shell {
+        width: min(100% - 20px, 1420px);
+      }
+
+      .panel-header {
+        align-items: flex-start;
+        flex-direction: column;
+      }
+
+      .artifact-stage {
+        padding: 10px;
+      }
+
+      .artifact-stage .vs-role-form-panel {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="page-shell">
+    <header class="hero">
+      <span class="eyebrow">ViewSpec Demo</span>
+      <h1>Stateful Collections Desk</h1>
+      <p class="lead">A bounded operational queue compiled from IntentBundle JSON. ViewSpec owns collection structure, action payload identity, provenance, and current-state markup. The host owns search, filtering, sorting, pagination, selection, mutation, retries, and data refresh.</p>
+    </header>
+
+    <section class="demo-grid" aria-label="Stateful collection demo">
+      <article class="panel">
+        <header class="panel-header">
+          <span class="panel-title">Compiled artifact</span>
+          <div class="state-tabs" aria-label="Current rendered state">
+<button type="button" class="state-tab" data-state="loaded" aria-pressed="true">Loaded</button>
+<button type="button" class="state-tab" data-state="loading" aria-pressed="false">Loading</button>
+<button type="button" class="state-tab" data-state="error" aria-pressed="false">Error</button>
+<button type="button" class="state-tab" data-state="empty" aria-pressed="false">Empty</button>
+          </div>
+        </header>
+        <div class="artifact-stage">
+          <section class="artifact-view active" data-artifact-state="loaded" aria-label="Loaded artifact">
+            <main id="loaded-dom-region_root" class="vs-root vs-layout-root" data-ir-id="region_root" data-content-refs="[]" data-intent-refs="[&quot;viewspec:view:stateful_collections_desk&quot;, &quot;viewspec:region:root&quot;]" data-style-tokens="[&quot;tone.neutral&quot;, &quot;palette.temperature&quot;]" style="color: #1f2937; background-color: #ffffff;"><div id="loaded-dom-region_main" class="vs-stack vs-layout-stack" data-ir-id="region_main" data-content-refs="[]" data-intent-refs="[&quot;viewspec:region:main&quot;]" data-style-tokens="[&quot;density.regular&quot;]" style="gap: 0.68rem; padding: 0.58rem 0.74rem;"><section id="loaded-dom-motif_incident_controls" class="vs-stack vs-layout-stack vs-motif-form" data-ir-id="motif_incident_controls" data-content-refs="[]" data-intent-refs="[&quot;viewspec:motif:incident_controls&quot;, &quot;viewspec:style:style_controls&quot;]" data-style-tokens="[&quot;density.regular&quot;, &quot;surface.subtle&quot;]" style="gap: 0.68rem; padding: 0.58rem 0.74rem; background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 14px;" role="form" aria-label="motif_incident_controls"><div id="loaded-dom-motif_incident_controls_search_query" class="vs-surface vs-layout-surface vs-motif-form" data-ir-id="motif_incident_controls_search_query" data-content-refs="[]" data-intent-refs="[&quot;viewspec:motif:incident_controls&quot;]" data-style-tokens="[&quot;surface.subtle&quot;]" style="background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 14px;" role="group"><div id="loaded-dom-binding_search_query_label" class="vs-label" data-ir-id="binding_search_query_label" data-content-refs="[&quot;node:search_query#attr:label&quot;]" data-intent-refs="[&quot;viewspec:binding:search_query_label&quot;]" data-style-tokens="[&quot;tone.muted&quot;]" style="color: #6b7280;" data-binding-id="search_query_label">Search queue</div><input id="loaded-dom-binding_search_query_value" class="vs-input" data-ir-id="binding_search_query_value" data-content-refs="[&quot;node:search_query#attr:value&quot;]" data-intent-refs="[&quot;viewspec:binding:search_query_value&quot;]" data-style-tokens="[&quot;tone.neutral&quot;, &quot;surface.subtle&quot;]" style="color: #1f2937; background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 14px;" data-binding-id="search_query_value" type="text" value="tenant:atlas latency" aria-label="Search queue"></div><div id="loaded-dom-motif_incident_controls_status_filter" class="vs-surface vs-layout-surface vs-motif-form" data-ir-id="motif_incident_controls_status_filter" data-content-refs="[]" data-intent-refs="[&quot;viewspec:motif:incident_controls&quot;]" data-style-tokens="[&quot;surface.subtle&quot;]" style="background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 14px;" role="group"><div id="loaded-dom-binding_status_filter_label" class="vs-label" data-ir-id="binding_status_filter_label" data-content-refs="[&quot;node:status_filter#attr:label&quot;]" data-intent-refs="[&quot;viewspec:binding:status_filter_label&quot;]" data-style-tokens="[&quot;tone.muted&quot;]" style="color: #6b7280;" data-binding-id="status_filter_label">Status filter</div><input id="loaded-dom-binding_status_filter_value" class="vs-input" data-ir-id="binding_status_filter_value" data-content-refs="[&quot;node:status_filter#attr:value&quot;]" data-intent-refs="[&quot;viewspec:binding:status_filter_value&quot;]" data-style-tokens="[&quot;tone.neutral&quot;, &quot;surface.subtle&quot;]" style="color: #1f2937; background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 14px;" data-binding-id="status_filter_value" type="text" value="open|escalated" aria-label="Status filter"></div><div id="loaded-dom-motif_incident_controls_sort_order" class="vs-surface vs-layout-surface vs-motif-form" data-ir-id="motif_incident_controls_sort_order" data-content-refs="[]" data-intent-refs="[&quot;viewspec:motif:incident_controls&quot;]" data-style-tokens="[&quot;surface.subtle&quot;]" style="background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 14px;" role="group"><div id="loaded-dom-binding_sort_order_label" class="vs-label" data-ir-id="binding_sort_order_label" data-content-refs="[&quot;node:sort_order#attr:label&quot;]" data-intent-refs="[&quot;viewspec:binding:sort_order_label&quot;]" data-style-tokens="[&quot;tone.muted&quot;]" style="color: #6b7280;" data-binding-id="sort_order_label">Sort order</div><input id="loaded-dom-binding_sort_order_value" class="vs-input" data-ir-id="binding_sort_order_value" data-content-refs="[&quot;node:sort_order#attr:value&quot;]" data-intent-refs="[&quot;viewspec:binding:sort_order_value&quot;]" data-style-tokens="[&quot;tone.neutral&quot;, &quot;surface.subtle&quot;]" style="color: #1f2937; background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 14px;" data-binding-id="sort_order_value" type="text" value="severity_desc" aria-label="Sort order"></div><div id="loaded-dom-motif_incident_controls_page_cursor" class="vs-surface vs-layout-surface vs-motif-form" data-ir-id="motif_incident_controls_page_cursor" data-content-refs="[]" data-intent-refs="[&quot;viewspec:motif:incident_controls&quot;]" data-style-tokens="[&quot;surface.subtle&quot;]" style="background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 14px;" role="group"><div id="loaded-dom-binding_page_cursor_label" class="vs-label" data-ir-id="binding_page_cursor_label" data-content-refs="[&quot;node:page_cursor#attr:label&quot;]" data-intent-refs="[&quot;viewspec:binding:page_cursor_label&quot;]" data-style-tokens="[&quot;tone.muted&quot;]" style="color: #6b7280;" data-binding-id="page_cursor_label">Page cursor</div><input id="loaded-dom-binding_page_cursor_value" class="vs-input" data-ir-id="binding_page_cursor_value" data-content-refs="[&quot;node:page_cursor#attr:value&quot;]" data-intent-refs="[&quot;viewspec:binding:page_cursor_value&quot;]" data-style-tokens="[&quot;tone.neutral&quot;, &quot;surface.subtle&quot;]" style="color: #1f2937; background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 14px;" data-binding-id="page_cursor_value" type="text" value="cursor:next" aria-label="Page cursor"></div><div id="loaded-dom-motif_incident_controls_selection_state" class="vs-surface vs-layout-surface vs-motif-form" data-ir-id="motif_incident_controls_selection_state" data-content-refs="[]" data-intent-refs="[&quot;viewspec:motif:incident_controls&quot;]" data-style-tokens="[&quot;surface.subtle&quot;]" style="background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 14px;" role="group"><div id="loaded-dom-binding_selection_label" class="vs-label" data-ir-id="binding_selection_label" data-content-refs="[&quot;node:selection_state#attr:label&quot;]" data-intent-refs="[&quot;viewspec:binding:selection_label&quot;]" data-style-tokens="[&quot;tone.muted&quot;]" style="color: #6b7280;" data-binding-id="selection_label">Selected ids</div><input id="loaded-dom-binding_queue_selected_ids" class="vs-input" data-ir-id="binding_queue_selected_ids" data-content-refs="[&quot;node:selection_state#attr:selected_ids&quot;]" data-intent-refs="[&quot;viewspec:binding:queue_selected_ids&quot;]" data-style-tokens="[&quot;tone.neutral&quot;, &quot;surface.subtle&quot;]" style="color: #1f2937; background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 14px;" data-binding-id="queue_selected_ids" type="text" value="INC-1042,INC-1057" aria-label="Selected ids"></div></section><div id="loaded-dom-planner_incident_queue_collection_actions" class="vs-cluster vs-layout-cluster vs-role-action-row" data-ir-id="planner_incident_queue_collection_actions" data-content-refs="[]" data-intent-refs="[&quot;viewspec:motif:incident_queue&quot;]" data-style-tokens="[&quot;density.compact&quot;]" style="gap: 0.34rem; padding: 0.36rem 0.5rem;"><button id="loaded-dom-action_search_incidents" class="vs-button" data-ir-id="action_search_incidents" data-content-refs="[&quot;node:search_query#attr:value&quot;]" data-intent-refs="[&quot;viewspec:action:search_incidents&quot;]" data-style-tokens="[&quot;action.accent&quot;]" style="background-color: #0f766e; color: #ffffff;" type="button" data-action-id="search_incidents" data-action-kind="search" data-action-target-ref="motif:incident_queue" data-payload-bindings="[&quot;search_query_value&quot;]">Search</button><button id="loaded-dom-action_filter_incidents" class="vs-button" data-ir-id="action_filter_incidents" data-content-refs="[&quot;node:status_filter#attr:value&quot;]" data-intent-refs="[&quot;viewspec:action:filter_incidents&quot;]" data-style-tokens="[&quot;action.accent&quot;]" style="background-color: #0f766e; color: #ffffff;" type="button" data-action-id="filter_incidents" data-action-kind="filter" data-action-target-ref="motif:incident_queue" data-payload-bindings="[&quot;status_filter_value&quot;]">Filter</button><button id="loaded-dom-action_sort_incidents" class="vs-button" data-ir-id="action_sort_incidents" data-content-refs="[&quot;node:sort_order#attr:value&quot;]" data-intent-refs="[&quot;viewspec:action:sort_incidents&quot;]" data-style-tokens="[&quot;action.accent&quot;]" style="background-color: #0f766e; color: #ffffff;" type="button" data-action-id="sort_incidents" data-action-kind="sort" data-action-target-ref="motif:incident_queue" data-payload-bindings="[&quot;sort_order_value&quot;]">Sort</button><button id="loaded-dom-action_paginate_incidents" class="vs-button" data-ir-id="action_paginate_incidents" data-content-refs="[&quot;node:page_cursor#attr:value&quot;]" data-intent-refs="[&quot;viewspec:action:paginate_incidents&quot;]" data-style-tokens="[&quot;action.accent&quot;]" style="background-color: #0f766e; color: #ffffff;" type="button" data-action-id="paginate_incidents" data-action-kind="paginate" data-action-target-ref="motif:incident_queue" data-payload-bindings="[&quot;page_cursor_value&quot;]">Next page</button><button id="loaded-dom-action_bulk_assign_incidents" class="vs-button" data-ir-id="action_bulk_assign_incidents" data-content-refs="[&quot;node:selection_state#attr:selected_ids&quot;]" data-intent-refs="[&quot;viewspec:action:bulk_assign_incidents&quot;]" data-style-tokens="[&quot;action.accent&quot;]" style="background-color: #0f766e; color: #ffffff;" type="button" data-action-id="bulk_assign_incidents" data-action-kind="bulk_action" data-action-target-ref="motif:incident_queue" data-payload-bindings="[&quot;queue_selected_ids&quot;]">Assign selected</button></div><table id="loaded-dom-motif_incident_queue" class="vs-stack vs-layout-stack vs-motif-table" data-ir-id="motif_incident_queue" data-content-refs="[]" data-intent-refs="[&quot;viewspec:motif:incident_queue&quot;, &quot;viewspec:style:style_queue&quot;]" data-style-tokens="[&quot;density.regular&quot;, &quot;density.compact&quot;]" style="gap: 0.68rem; padding: 0.58rem 0.74rem; gap: 0.34rem; padding: 0.36rem 0.5rem;"><tbody><tr id="loaded-dom-motif_incident_queue_inc_1042" class="vs-cluster vs-layout-cluster vs-motif-table" data-ir-id="motif_incident_queue_inc_1042" data-content-refs="[]" data-intent-refs="[&quot;viewspec:motif:incident_queue&quot;]" data-style-tokens="[&quot;density.compact&quot;]" style="gap: 0.34rem; padding: 0.36rem 0.5rem;"><th id="loaded-dom-binding_inc_1042_label" class="vs-label" data-ir-id="binding_inc_1042_label" data-content-refs="[&quot;node:inc_1042#attr:label&quot;]" data-intent-refs="[&quot;viewspec:binding:inc_1042_label&quot;]" data-style-tokens="[&quot;tone.muted&quot;]" style="color: #6b7280;" data-binding-id="inc_1042_label" scope="row">INC-1042 API latency</th><td id="loaded-dom-binding_inc_1042_owner" class="vs-value" data-ir-id="binding_inc_1042_owner" data-content-refs="[&quot;node:inc_1042#attr:owner&quot;]" data-intent-refs="[&quot;viewspec:binding:inc_1042_owner&quot;]" data-style-tokens="[&quot;tone.neutral&quot;, &quot;emphasis.high&quot;]" style="color: #1f2937; font-weight: 800; letter-spacing: -0.025em;" data-binding-id="inc_1042_owner">Core Platform</td><td id="loaded-dom-binding_inc_1042_severity" class="vs-value" data-ir-id="binding_inc_1042_severity" data-content-refs="[&quot;node:inc_1042#attr:severity&quot;]" data-intent-refs="[&quot;viewspec:binding:inc_1042_severity&quot;]" data-style-tokens="[&quot;tone.neutral&quot;, &quot;emphasis.high&quot;]" style="color: #1f2937; font-weight: 800; letter-spacing: -0.025em;" data-binding-id="inc_1042_severity">P1</td><td id="loaded-dom-binding_inc_1042_status" class="vs-value" data-ir-id="binding_inc_1042_status" data-content-refs="[&quot;node:inc_1042#attr:status&quot;]" data-intent-refs="[&quot;viewspec:binding:inc_1042_status&quot;]" data-style-tokens="[&quot;tone.neutral&quot;, &quot;emphasis.high&quot;]" style="color: #1f2937; font-weight: 800; letter-spacing: -0.025em;" data-binding-id="inc_1042_status">Open</td><td id="loaded-dom-binding_inc_1042_updated" class="vs-value" data-ir-id="binding_inc_1042_updated" data-content-refs="[&quot;node:inc_1042#attr:updated&quot;]" data-intent-refs="[&quot;viewspec:binding:inc_1042_updated&quot;]" data-style-tokens="[&quot;tone.neutral&quot;, &quot;emphasis.high&quot;]" style="color: #1f2937; font-weight: 800; letter-spacing: -0.025em;" data-binding-id="inc_1042_updated">8 min ago</td><td id="loaded-dom-binding_inc_1042_sla" class="vs-value" data-ir-id="binding_inc_1042_sla" data-content-refs="[&quot;node:inc_1042#attr:sla&quot;]" data-intent-refs="[&quot;viewspec:binding:inc_1042_sla&quot;]" data-style-tokens="[&quot;tone.neutral&quot;, &quot;emphasis.high&quot;]" style="color: #1f2937; font-weight: 800; letter-spacing: -0.025em;" data-binding-id="inc_1042_sla">42 min</td></tr><tr id="loaded-dom-motif_incident_queue_inc_1057" class="vs-cluster vs-layout-cluster vs-motif-table" data-ir-id="motif_incident_queue_inc_1057" data-content-refs="[]" data-intent-refs="[&quot;viewspec:motif:incident_queue&quot;]" data-style-tokens="[&quot;density.compact&quot;]" style="gap: 0.34rem; padding: 0.36rem 0.5rem;"><th id="loaded-dom-binding_inc_1057_label" class="vs-label" data-ir-id="binding_inc_1057_label" data-content-refs="[&quot;node:inc_1057#attr:label&quot;]" data-intent-refs="[&quot;viewspec:binding:inc_1057_label&quot;]" data-style-tokens="[&quot;tone.muted&quot;]" style="color: #6b7280;" data-binding-id="inc_1057_label" scope="row">INC-1057 Checkout failures</th><td id="loaded-dom-binding_inc_1057_owner" class="vs-value" data-ir-id="binding_inc_1057_owner" data-content-refs="[&quot;node:inc_1057#attr:owner&quot;]" data-intent-refs="[&quot;viewspec:binding:inc_1057_owner&quot;]" data-style-tokens="[&quot;tone.neutral&quot;, &quot;emphasis.high&quot;]" style="color: #1f2937; font-weight: 800; letter-spacing: -0.025em;" data-binding-id="inc_1057_owner">Payments</td><td id="loaded-dom-binding_inc_1057_severity" class="vs-value" data-ir-id="binding_inc_1057_severity" data-content-refs="[&quot;node:inc_1057#attr:severity&quot;]" data-intent-refs="[&quot;viewspec:binding:inc_1057_severity&quot;, &quot;viewspec:style:style_p0&quot;]" data-style-tokens="[&quot;tone.neutral&quot;, &quot;emphasis.high&quot;, &quot;tone.accent&quot;]" style="color: #1f2937; font-weight: 800; letter-spacing: -0.025em; color: #0f766e;" data-binding-id="inc_1057_severity">P0</td><td id="loaded-dom-binding_inc_1057_status" class="vs-value" data-ir-id="binding_inc_1057_status" data-content-refs="[&quot;node:inc_1057#attr:status&quot;]" data-intent-refs="[&quot;viewspec:binding:inc_1057_status&quot;, &quot;viewspec:style:style_escalated&quot;]" data-style-tokens="[&quot;tone.neutral&quot;, &quot;emphasis.high&quot;]" style="color: #1f2937; font-weight: 800; letter-spacing: -0.025em;" data-binding-id="inc_1057_status">Escalated</td><td id="loaded-dom-binding_inc_1057_updated" class="vs-value" data-ir-id="binding_inc_1057_updated" data-content-refs="[&quot;node:inc_1057#attr:updated&quot;]" data-intent-refs="[&quot;viewspec:binding:inc_1057_updated&quot;]" data-style-tokens="[&quot;tone.neutral&quot;, &quot;emphasis.high&quot;]" style="color: #1f2937; font-weight: 800; letter-spacing: -0.025em;" data-binding-id="inc_1057_updated">13 min ago</td><td id="loaded-dom-binding_inc_1057_sla" class="vs-value" data-ir-id="binding_inc_1057_sla" data-content-refs="[&quot;node:inc_1057#attr:sla&quot;]" data-intent-refs="[&quot;viewspec:binding:inc_1057_sla&quot;]" data-style-tokens="[&quot;tone.neutral&quot;, &quot;emphasis.high&quot;]" style="color: #1f2937; font-weight: 800; letter-spacing: -0.025em;" data-binding-id="inc_1057_sla">18 min</td></tr><tr id="loaded-dom-motif_incident_queue_inc_1061" class="vs-cluster vs-layout-cluster vs-motif-table" data-ir-id="motif_incident_queue_inc_1061" data-content-refs="[]" data-intent-refs="[&quot;viewspec:motif:incident_queue&quot;]" data-style-tokens="[&quot;density.compact&quot;]" style="gap: 0.34rem; padding: 0.36rem 0.5rem;"><th id="loaded-dom-binding_inc_1061_label" class="vs-label" data-ir-id="binding_inc_1061_label" data-content-refs="[&quot;node:inc_1061#attr:label&quot;]" data-intent-refs="[&quot;viewspec:binding:inc_1061_label&quot;]" data-style-tokens="[&quot;tone.muted&quot;]" style="color: #6b7280;" data-binding-id="inc_1061_label" scope="row">INC-1061 Mobile auth spike</th><td id="loaded-dom-binding_inc_1061_owner" class="vs-value" data-ir-id="binding_inc_1061_owner" data-content-refs="[&quot;node:inc_1061#attr:owner&quot;]" data-intent-refs="[&quot;viewspec:binding:inc_1061_owner&quot;]" data-style-tokens="[&quot;tone.neutral&quot;, &quot;emphasis.high&quot;]" style="color: #1f2937; font-weight: 800; letter-spacing: -0.025em;" data-binding-id="inc_1061_owner">Identity</td><td id="loaded-dom-binding_inc_1061_severity" class="vs-value" data-ir-id="binding_inc_1061_severity" data-content-refs="[&quot;node:inc_1061#attr:severity&quot;]" data-intent-refs="[&quot;viewspec:binding:inc_1061_severity&quot;]" data-style-tokens="[&quot;tone.neutral&quot;, &quot;emphasis.high&quot;]" style="color: #1f2937; font-weight: 800; letter-spacing: -0.025em;" data-binding-id="inc_1061_severity">P2</td><td id="loaded-dom-binding_inc_1061_status" class="vs-value" data-ir-id="binding_inc_1061_status" data-content-refs="[&quot;node:inc_1061#attr:status&quot;]" data-intent-refs="[&quot;viewspec:binding:inc_1061_status&quot;]" data-style-tokens="[&quot;tone.neutral&quot;, &quot;emphasis.high&quot;]" style="color: #1f2937; font-weight: 800; letter-spacing: -0.025em;" data-binding-id="inc_1061_status">Investigating</td><td id="loaded-dom-binding_inc_1061_updated" class="vs-value" data-ir-id="binding_inc_1061_updated" data-content-refs="[&quot;node:inc_1061#attr:updated&quot;]" data-intent-refs="[&quot;viewspec:binding:inc_1061_updated&quot;]" data-style-tokens="[&quot;tone.neutral&quot;, &quot;emphasis.high&quot;]" style="color: #1f2937; font-weight: 800; letter-spacing: -0.025em;" data-binding-id="inc_1061_updated">24 min ago</td><td id="loaded-dom-binding_inc_1061_sla" class="vs-value" data-ir-id="binding_inc_1061_sla" data-content-refs="[&quot;node:inc_1061#attr:sla&quot;]" data-intent-refs="[&quot;viewspec:binding:inc_1061_sla&quot;]" data-style-tokens="[&quot;tone.neutral&quot;, &quot;emphasis.high&quot;]" style="color: #1f2937; font-weight: 800; letter-spacing: -0.025em;" data-binding-id="inc_1061_sla">2 hr</td></tr><tr id="loaded-dom-motif_incident_queue_inc_1069" class="vs-cluster vs-layout-cluster vs-motif-table" data-ir-id="motif_incident_queue_inc_1069" data-content-refs="[]" data-intent-refs="[&quot;viewspec:motif:incident_queue&quot;]" data-style-tokens="[&quot;density.compact&quot;]" style="gap: 0.34rem; padding: 0.36rem 0.5rem;"><th id="loaded-dom-binding_inc_1069_label" class="vs-label" data-ir-id="binding_inc_1069_label" data-content-refs="[&quot;node:inc_1069#attr:label&quot;]" data-intent-refs="[&quot;viewspec:binding:inc_1069_label&quot;]" data-style-tokens="[&quot;tone.muted&quot;]" style="color: #6b7280;" data-binding-id="inc_1069_label" scope="row">INC-1069 Data export lag</th><td id="loaded-dom-binding_inc_1069_owner" class="vs-value" data-ir-id="binding_inc_1069_owner" data-content-refs="[&quot;node:inc_1069#attr:owner&quot;]" data-intent-refs="[&quot;viewspec:binding:inc_1069_owner&quot;]" data-style-tokens="[&quot;tone.neutral&quot;, &quot;emphasis.high&quot;]" style="color: #1f2937; font-weight: 800; letter-spacing: -0.025em;" data-binding-id="inc_1069_owner">Data Ops</td><td id="loaded-dom-binding_inc_1069_severity" class="vs-value" data-ir-id="binding_inc_1069_severity" data-content-refs="[&quot;node:inc_1069#attr:severity&quot;]" data-intent-refs="[&quot;viewspec:binding:inc_1069_severity&quot;]" data-style-tokens="[&quot;tone.neutral&quot;, &quot;emphasis.high&quot;]" style="color: #1f2937; font-weight: 800; letter-spacing: -0.025em;" data-binding-id="inc_1069_severity">P3</td><td id="loaded-dom-binding_inc_1069_status" class="vs-value" data-ir-id="binding_inc_1069_status" data-content-refs="[&quot;node:inc_1069#attr:status&quot;]" data-intent-refs="[&quot;viewspec:binding:inc_1069_status&quot;]" data-style-tokens="[&quot;tone.neutral&quot;, &quot;emphasis.high&quot;]" style="color: #1f2937; font-weight: 800; letter-spacing: -0.025em;" data-binding-id="inc_1069_status">Queued</td><td id="loaded-dom-binding_inc_1069_updated" class="vs-value" data-ir-id="binding_inc_1069_updated" data-content-refs="[&quot;node:inc_1069#attr:updated&quot;]" data-intent-refs="[&quot;viewspec:binding:inc_1069_updated&quot;]" data-style-tokens="[&quot;tone.neutral&quot;, &quot;emphasis.high&quot;]" style="color: #1f2937; font-weight: 800; letter-spacing: -0.025em;" data-binding-id="inc_1069_updated">41 min ago</td><td id="loaded-dom-binding_inc_1069_sla" class="vs-value" data-ir-id="binding_inc_1069_sla" data-content-refs="[&quot;node:inc_1069#attr:sla&quot;]" data-intent-refs="[&quot;viewspec:binding:inc_1069_sla&quot;]" data-style-tokens="[&quot;tone.neutral&quot;, &quot;emphasis.high&quot;]" style="color: #1f2937; font-weight: 800; letter-spacing: -0.025em;" data-binding-id="inc_1069_sla">6 hr</td></tr></tbody></table></div></main>
+          </section>
+          <section class="artifact-view" data-artifact-state="loading" aria-label="Loading artifact">
+            <main id="loading-dom-region_root" class="vs-root vs-layout-root" data-ir-id="region_root" data-content-refs="[]" data-intent-refs="[&quot;viewspec:view:stateful_collections_loading&quot;, &quot;viewspec:region:root&quot;]" data-style-tokens="[&quot;tone.neutral&quot;, &quot;palette.temperature&quot;]" style="color: #1f2937; background-color: #ffffff;"><div id="loading-dom-region_main" class="vs-stack vs-layout-stack" data-ir-id="region_main" data-content-refs="[]" data-intent-refs="[&quot;viewspec:region:main&quot;]" data-style-tokens="[&quot;density.regular&quot;]" style="gap: 0.85rem; padding: 0.74rem 0.9rem;"><section id="loading-dom-motif_incident_loading" class="vs-surface vs-layout-surface vs-motif-loading-state" data-ir-id="motif_incident_loading" data-content-refs="[]" data-intent-refs="[&quot;viewspec:motif:incident_loading&quot;]" data-style-tokens="[&quot;surface.subtle&quot;]" style="background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 14px;" role="status" aria-busy="true" aria-label="Loading state"><h2 id="loading-dom-binding_incident_loading_title" class="vs-value" data-ir-id="binding_incident_loading_title" data-content-refs="[&quot;node:incident_loading#attr:title&quot;]" data-intent-refs="[&quot;viewspec:binding:incident_loading_title&quot;]" data-style-tokens="[&quot;tone.neutral&quot;, &quot;emphasis.high&quot;]" style="color: #1f2937; font-weight: 800; letter-spacing: -0.025em;" data-binding-id="incident_loading_title">Loading incident queue</h2><p id="loading-dom-binding_incident_loading_description" class="vs-text" data-ir-id="binding_incident_loading_description" data-content-refs="[&quot;node:incident_loading#attr:description&quot;]" data-intent-refs="[&quot;viewspec:binding:incident_loading_description&quot;]" data-style-tokens="[&quot;tone.neutral&quot;]" style="color: #1f2937;" data-binding-id="incident_loading_description">Waiting for the host data provider to return the next collection page.</p></section></div></main>
+          </section>
+          <section class="artifact-view" data-artifact-state="error" aria-label="Error artifact">
+            <main id="error-dom-region_root" class="vs-root vs-layout-root" data-ir-id="region_root" data-content-refs="[]" data-intent-refs="[&quot;viewspec:view:stateful_collections_error&quot;, &quot;viewspec:region:root&quot;]" data-style-tokens="[&quot;tone.neutral&quot;, &quot;palette.temperature&quot;]" style="color: #1f2937; background-color: #ffffff;"><div id="error-dom-region_main" class="vs-stack vs-layout-stack" data-ir-id="region_main" data-content-refs="[]" data-intent-refs="[&quot;viewspec:region:main&quot;]" data-style-tokens="[&quot;density.regular&quot;]" style="gap: 0.85rem; padding: 0.74rem 0.9rem;"><section id="error-dom-motif_incident_error" class="vs-surface vs-layout-surface vs-motif-error-state" data-ir-id="motif_incident_error" data-content-refs="[]" data-intent-refs="[&quot;viewspec:motif:incident_error&quot;]" data-style-tokens="[&quot;surface.subtle&quot;]" style="background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 14px;" role="alert" aria-label="Error state"><h2 id="error-dom-binding_incident_error_title" class="vs-value" data-ir-id="binding_incident_error_title" data-content-refs="[&quot;node:incident_error#attr:title&quot;]" data-intent-refs="[&quot;viewspec:binding:incident_error_title&quot;]" data-style-tokens="[&quot;tone.neutral&quot;, &quot;emphasis.high&quot;]" style="color: #1f2937; font-weight: 800; letter-spacing: -0.025em;" data-binding-id="incident_error_title">Queue unavailable</h2><p id="error-dom-binding_incident_error_description" class="vs-text" data-ir-id="binding_incident_error_description" data-content-refs="[&quot;node:incident_error#attr:description&quot;]" data-intent-refs="[&quot;viewspec:binding:incident_error_description&quot;]" data-style-tokens="[&quot;tone.neutral&quot;]" style="color: #1f2937;" data-binding-id="incident_error_description">The host data provider returned a retryable 503. ViewSpec renders the alert; the host owns retry behavior.</p></section></div></main>
+          </section>
+          <section class="artifact-view" data-artifact-state="empty" aria-label="Empty artifact">
+            <main id="empty-dom-region_root" class="vs-root vs-layout-root" data-ir-id="region_root" data-content-refs="[]" data-intent-refs="[&quot;viewspec:view:stateful_collections_empty&quot;, &quot;viewspec:region:root&quot;]" data-style-tokens="[&quot;tone.neutral&quot;, &quot;palette.temperature&quot;]" style="color: #1f2937; background-color: #ffffff;"><div id="empty-dom-region_main" class="vs-stack vs-layout-stack" data-ir-id="region_main" data-content-refs="[]" data-intent-refs="[&quot;viewspec:region:main&quot;]" data-style-tokens="[&quot;density.regular&quot;]" style="gap: 0.85rem; padding: 0.74rem 0.9rem;"><section id="empty-dom-motif_incident_empty" class="vs-surface vs-layout-surface vs-motif-empty-state" data-ir-id="motif_incident_empty" data-content-refs="[]" data-intent-refs="[&quot;viewspec:motif:incident_empty&quot;]" data-style-tokens="[&quot;surface.subtle&quot;]" style="background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 14px;" aria-label="Empty state"><h2 id="empty-dom-binding_incident_empty_title" class="vs-value" data-ir-id="binding_incident_empty_title" data-content-refs="[&quot;node:incident_empty#attr:title&quot;]" data-intent-refs="[&quot;viewspec:binding:incident_empty_title&quot;]" data-style-tokens="[&quot;tone.neutral&quot;, &quot;emphasis.high&quot;]" style="color: #1f2937; font-weight: 800; letter-spacing: -0.025em;" data-binding-id="incident_empty_title">No incidents match this filter</h2><p id="empty-dom-binding_incident_empty_description" class="vs-text" data-ir-id="binding_incident_empty_description" data-content-refs="[&quot;node:incident_empty#attr:description&quot;]" data-intent-refs="[&quot;viewspec:binding:incident_empty_description&quot;]" data-style-tokens="[&quot;tone.neutral&quot;]" style="color: #1f2937;" data-binding-id="incident_empty_description">The current collection is empty. ViewSpec renders the absence state; the host owns query changes.</p></section></div></main>
+          </section>
+        </div>
+      </article>
+
+      <aside class="panel" aria-label="Collection event inspector">
+        <header class="panel-header">
+          <span class="panel-title">Event inspector</span>
+          <span id="event-status" class="pill">waiting</span>
+        </header>
+        <div class="inspector-body">
+          <p id="state-summary" class="summary">Controls plus table/list collection action events. Rows do not mutate in this demo.</p>
+          <div class="stat-grid">
+            <div class="stat"><span>motifs</span><strong id="motif-kinds">table, form</strong></div>
+            <div class="stat"><span>actions</span><strong id="action-count">5</strong></div>
+            <div class="stat"><span>bindings</span><strong id="binding-count">0</strong></div>
+            <div class="stat"><span>IR nodes</span><strong id="node-count">0</strong></div>
+          </div>
+
+          <div class="event-card">
+            <header>
+              <strong>Last viewspec-action</strong>
+              <span id="event-kind" class="pill">none</span>
+            </header>
+            <pre id="event-json">Click Search, Filter, Sort, Next page, or Assign selected in the compiled artifact.</pre>
+          </div>
+
+          <label>
+            <span class="pill">IntentBundle source</span>
+            <select id="intent-select" class="intent-select">
+<option value="loaded">Loaded IntentBundle</option>
+<option value="loading">Loading IntentBundle</option>
+<option value="error">Error IntentBundle</option>
+<option value="empty">Empty IntentBundle</option>
+            </select>
+          </label>
+          <div class="event-card">
+            <pre id="intent-json"></pre>
+          </div>
+
+          <ul class="contract-list">
+            <li>Collection actions target exactly one table/list motif by <code>motif:incident_queue</code>.</li>
+            <li>Generated buttons dispatch ViewSpec events only; this page does not change the table rows.</li>
+            <li>Loading and error tabs are separate compiled current states, not async transition logic.</li>
+          </ul>
+        </div>
+      </aside>
+    </section>
+  </main>
+
+  <script id="state-data" type="application/json">{
+  "empty": {
+    "actionCount": 0,
+    "bindingCount": 2,
+    "label": "Empty",
+    "motifKinds": [
+      "empty_state"
+    ],
+    "nodeCount": 5,
+    "summary": "A checked absence state for no-results or first-run surfaces."
+  },
+  "error": {
+    "actionCount": 0,
+    "bindingCount": 2,
+    "label": "Error",
+    "motifKinds": [
+      "error_state"
+    ],
+    "nodeCount": 5,
+    "summary": "A checked alert section with role=alert."
+  },
+  "loaded": {
+    "actionCount": 5,
+    "bindingCount": 34,
+    "label": "Loaded",
+    "motifKinds": [
+      "form",
+      "table"
+    ],
+    "nodeCount": 53,
+    "summary": "Controls plus table/list collection action events. Rows do not mutate in this demo."
+  },
+  "loading": {
+    "actionCount": 0,
+    "bindingCount": 2,
+    "label": "Loading",
+    "motifKinds": [
+      "loading_state"
+    ],
+    "nodeCount": 5,
+    "summary": "A checked status section with role=status and aria-busy=true."
+  }
+}</script>
+  <script id="intent-data" type="application/json">{
+  "empty": "{\n  \"substrate\": {\n    \"id\": \"stateful_collections_empty_substrate\",\n    \"nodes\": {\n      \"incident_empty\": {\n        \"attrs\": {\n          \"description\": \"The current collection is empty. ViewSpec renders the absence state; the host owns query changes.\",\n          \"title\": \"No incidents match this filter\"\n        },\n        \"edges\": {},\n        \"id\": \"incident_empty\",\n        \"kind\": \"empty_state\",\n        \"slots\": {}\n      },\n      \"stateful_collections_empty\": {\n        \"attrs\": {},\n        \"edges\": {},\n        \"id\": \"stateful_collections_empty\",\n        \"kind\": \"app\",\n        \"slots\": {}\n      }\n    },\n    \"root_id\": \"stateful_collections_empty\"\n  },\n  \"view_spec\": {\n    \"actions\": [],\n    \"bindings\": [\n      {\n        \"address\": \"node:incident_empty#attr:title\",\n        \"cardinality\": \"exactly_once\",\n        \"id\": \"incident_empty_title\",\n        \"present_as\": \"value\",\n        \"target_region\": \"main\"\n      },\n      {\n        \"address\": \"node:incident_empty#attr:description\",\n        \"cardinality\": \"exactly_once\",\n        \"id\": \"incident_empty_description\",\n        \"present_as\": \"text\",\n        \"target_region\": \"main\"\n      }\n    ],\n    \"complexity_tier\": 1,\n    \"groups\": [],\n    \"id\": \"stateful_collections_empty\",\n    \"motifs\": [\n      {\n        \"id\": \"incident_empty\",\n        \"kind\": \"empty_state\",\n        \"members\": [\n          \"incident_empty_title\",\n          \"incident_empty_description\"\n        ],\n        \"region\": \"main\"\n      }\n    ],\n    \"regions\": [\n      {\n        \"id\": \"root\",\n        \"layout\": \"stack\",\n        \"max_children\": null,\n        \"min_children\": 1,\n        \"parent_region\": \"\",\n        \"role\": \"root\"\n      },\n      {\n        \"id\": \"main\",\n        \"layout\": \"stack\",\n        \"max_children\": null,\n        \"min_children\": 1,\n        \"parent_region\": \"root\",\n        \"role\": \"main\"\n      }\n    ],\n    \"root_region\": \"root\",\n    \"styles\": [],\n    \"substrate_id\": \"stateful_collections_empty_substrate\"\n  }\n}",
+  "error": "{\n  \"substrate\": {\n    \"id\": \"stateful_collections_error_substrate\",\n    \"nodes\": {\n      \"incident_error\": {\n        \"attrs\": {\n          \"description\": \"The host data provider returned a retryable 503. ViewSpec renders the alert; the host owns retry behavior.\",\n          \"title\": \"Queue unavailable\"\n        },\n        \"edges\": {},\n        \"id\": \"incident_error\",\n        \"kind\": \"error_state\",\n        \"slots\": {}\n      },\n      \"stateful_collections_error\": {\n        \"attrs\": {},\n        \"edges\": {},\n        \"id\": \"stateful_collections_error\",\n        \"kind\": \"app\",\n        \"slots\": {}\n      }\n    },\n    \"root_id\": \"stateful_collections_error\"\n  },\n  \"view_spec\": {\n    \"actions\": [],\n    \"bindings\": [\n      {\n        \"address\": \"node:incident_error#attr:title\",\n        \"cardinality\": \"exactly_once\",\n        \"id\": \"incident_error_title\",\n        \"present_as\": \"value\",\n        \"target_region\": \"main\"\n      },\n      {\n        \"address\": \"node:incident_error#attr:description\",\n        \"cardinality\": \"exactly_once\",\n        \"id\": \"incident_error_description\",\n        \"present_as\": \"text\",\n        \"target_region\": \"main\"\n      }\n    ],\n    \"complexity_tier\": 1,\n    \"groups\": [],\n    \"id\": \"stateful_collections_error\",\n    \"motifs\": [\n      {\n        \"id\": \"incident_error\",\n        \"kind\": \"error_state\",\n        \"members\": [\n          \"incident_error_title\",\n          \"incident_error_description\"\n        ],\n        \"region\": \"main\"\n      }\n    ],\n    \"regions\": [\n      {\n        \"id\": \"root\",\n        \"layout\": \"stack\",\n        \"max_children\": null,\n        \"min_children\": 1,\n        \"parent_region\": \"\",\n        \"role\": \"root\"\n      },\n      {\n        \"id\": \"main\",\n        \"layout\": \"stack\",\n        \"max_children\": null,\n        \"min_children\": 1,\n        \"parent_region\": \"root\",\n        \"role\": \"main\"\n      }\n    ],\n    \"root_region\": \"root\",\n    \"styles\": [],\n    \"substrate_id\": \"stateful_collections_error_substrate\"\n  }\n}",
+  "loaded": "{\n  \"substrate\": {\n    \"id\": \"stateful_collections_desk_substrate\",\n    \"nodes\": {\n      \"inc_1042\": {\n        \"attrs\": {\n          \"label\": \"INC-1042 API latency\",\n          \"owner\": \"Core Platform\",\n          \"severity\": \"P1\",\n          \"sla\": \"42 min\",\n          \"status\": \"Open\",\n          \"updated\": \"8 min ago\"\n        },\n        \"edges\": {},\n        \"id\": \"inc_1042\",\n        \"kind\": \"table_row\",\n        \"slots\": {}\n      },\n      \"inc_1057\": {\n        \"attrs\": {\n          \"label\": \"INC-1057 Checkout failures\",\n          \"owner\": \"Payments\",\n          \"severity\": \"P0\",\n          \"sla\": \"18 min\",\n          \"status\": \"Escalated\",\n          \"updated\": \"13 min ago\"\n        },\n        \"edges\": {},\n        \"id\": \"inc_1057\",\n        \"kind\": \"table_row\",\n        \"slots\": {}\n      },\n      \"inc_1061\": {\n        \"attrs\": {\n          \"label\": \"INC-1061 Mobile auth spike\",\n          \"owner\": \"Identity\",\n          \"severity\": \"P2\",\n          \"sla\": \"2 hr\",\n          \"status\": \"Investigating\",\n          \"updated\": \"24 min ago\"\n        },\n        \"edges\": {},\n        \"id\": \"inc_1061\",\n        \"kind\": \"table_row\",\n        \"slots\": {}\n      },\n      \"inc_1069\": {\n        \"attrs\": {\n          \"label\": \"INC-1069 Data export lag\",\n          \"owner\": \"Data Ops\",\n          \"severity\": \"P3\",\n          \"sla\": \"6 hr\",\n          \"status\": \"Queued\",\n          \"updated\": \"41 min ago\"\n        },\n        \"edges\": {},\n        \"id\": \"inc_1069\",\n        \"kind\": \"table_row\",\n        \"slots\": {}\n      },\n      \"page_cursor\": {\n        \"attrs\": {\n          \"label\": \"Page cursor\",\n          \"value\": \"cursor:next\"\n        },\n        \"edges\": {},\n        \"id\": \"page_cursor\",\n        \"kind\": \"field\",\n        \"slots\": {}\n      },\n      \"search_query\": {\n        \"attrs\": {\n          \"label\": \"Search queue\",\n          \"value\": \"tenant:atlas latency\"\n        },\n        \"edges\": {},\n        \"id\": \"search_query\",\n        \"kind\": \"field\",\n        \"slots\": {}\n      },\n      \"selection_state\": {\n        \"attrs\": {\n          \"label\": \"Selected ids\",\n          \"selected_ids\": \"INC-1042,INC-1057\"\n        },\n        \"edges\": {},\n        \"id\": \"selection_state\",\n        \"kind\": \"selection_state\",\n        \"slots\": {}\n      },\n      \"sort_order\": {\n        \"attrs\": {\n          \"label\": \"Sort order\",\n          \"value\": \"severity_desc\"\n        },\n        \"edges\": {},\n        \"id\": \"sort_order\",\n        \"kind\": \"field\",\n        \"slots\": {}\n      },\n      \"stateful_collections_desk\": {\n        \"attrs\": {},\n        \"edges\": {},\n        \"id\": \"stateful_collections_desk\",\n        \"kind\": \"app\",\n        \"slots\": {}\n      },\n      \"status_filter\": {\n        \"attrs\": {\n          \"label\": \"Status filter\",\n          \"value\": \"open|escalated\"\n        },\n        \"edges\": {},\n        \"id\": \"status_filter\",\n        \"kind\": \"field\",\n        \"slots\": {}\n      }\n    },\n    \"root_id\": \"stateful_collections_desk\"\n  },\n  \"view_spec\": {\n    \"actions\": [\n      {\n        \"id\": \"search_incidents\",\n        \"kind\": \"search\",\n        \"label\": \"Search\",\n        \"payload_bindings\": [\n          \"search_query_value\"\n        ],\n        \"target_ref\": \"motif:incident_queue\",\n        \"target_region\": \"main\"\n      },\n      {\n        \"id\": \"filter_incidents\",\n        \"kind\": \"filter\",\n        \"label\": \"Filter\",\n        \"payload_bindings\": [\n          \"status_filter_value\"\n        ],\n        \"target_ref\": \"motif:incident_queue\",\n        \"target_region\": \"main\"\n      },\n      {\n        \"id\": \"sort_incidents\",\n        \"kind\": \"sort\",\n        \"label\": \"Sort\",\n        \"payload_bindings\": [\n          \"sort_order_value\"\n        ],\n        \"target_ref\": \"motif:incident_queue\",\n        \"target_region\": \"main\"\n      },\n      {\n        \"id\": \"paginate_incidents\",\n        \"kind\": \"paginate\",\n        \"label\": \"Next page\",\n        \"payload_bindings\": [\n          \"page_cursor_value\"\n        ],\n        \"target_ref\": \"motif:incident_queue\",\n        \"target_region\": \"main\"\n      },\n      {\n        \"id\": \"bulk_assign_incidents\",\n        \"kind\": \"bulk_action\",\n        \"label\": \"Assign selected\",\n        \"payload_bindings\": [\n          \"queue_selected_ids\"\n        ],\n        \"target_ref\": \"motif:incident_queue\",\n        \"target_region\": \"main\"\n      }\n    ],\n    \"bindings\": [\n      {\n        \"address\": \"node:search_query#attr:label\",\n        \"cardinality\": \"exactly_once\",\n        \"id\": \"search_query_label\",\n        \"present_as\": \"label\",\n        \"target_region\": \"main\"\n      },\n      {\n        \"address\": \"node:search_query#attr:value\",\n        \"cardinality\": \"exactly_once\",\n        \"id\": \"search_query_value\",\n        \"present_as\": \"input\",\n        \"target_region\": \"main\"\n      },\n      {\n        \"address\": \"node:status_filter#attr:label\",\n        \"cardinality\": \"exactly_once\",\n        \"id\": \"status_filter_label\",\n        \"present_as\": \"label\",\n        \"target_region\": \"main\"\n      },\n      {\n        \"address\": \"node:status_filter#attr:value\",\n        \"cardinality\": \"exactly_once\",\n        \"id\": \"status_filter_value\",\n        \"present_as\": \"input\",\n        \"target_region\": \"main\"\n      },\n      {\n        \"address\": \"node:sort_order#attr:label\",\n        \"cardinality\": \"exactly_once\",\n        \"id\": \"sort_order_label\",\n        \"present_as\": \"label\",\n        \"target_region\": \"main\"\n      },\n      {\n        \"address\": \"node:sort_order#attr:value\",\n        \"cardinality\": \"exactly_once\",\n        \"id\": \"sort_order_value\",\n        \"present_as\": \"input\",\n        \"target_region\": \"main\"\n      },\n      {\n        \"address\": \"node:page_cursor#attr:label\",\n        \"cardinality\": \"exactly_once\",\n        \"id\": \"page_cursor_label\",\n        \"present_as\": \"label\",\n        \"target_region\": \"main\"\n      },\n      {\n        \"address\": \"node:page_cursor#attr:value\",\n        \"cardinality\": \"exactly_once\",\n        \"id\": \"page_cursor_value\",\n        \"present_as\": \"input\",\n        \"target_region\": \"main\"\n      },\n      {\n        \"address\": \"node:selection_state#attr:label\",\n        \"cardinality\": \"exactly_once\",\n        \"id\": \"selection_label\",\n        \"present_as\": \"label\",\n        \"target_region\": \"main\"\n      },\n      {\n        \"address\": \"node:selection_state#attr:selected_ids\",\n        \"cardinality\": \"exactly_once\",\n        \"id\": \"queue_selected_ids\",\n        \"present_as\": \"input\",\n        \"target_region\": \"main\"\n      },\n      {\n        \"address\": \"node:inc_1042#attr:label\",\n        \"cardinality\": \"exactly_once\",\n        \"id\": \"inc_1042_label\",\n        \"present_as\": \"label\",\n        \"target_region\": \"main\"\n      },\n      {\n        \"address\": \"node:inc_1042#attr:owner\",\n        \"cardinality\": \"exactly_once\",\n        \"id\": \"inc_1042_owner\",\n        \"present_as\": \"value\",\n        \"target_region\": \"main\"\n      },\n      {\n        \"address\": \"node:inc_1042#attr:severity\",\n        \"cardinality\": \"exactly_once\",\n        \"id\": \"inc_1042_severity\",\n        \"present_as\": \"value\",\n        \"target_region\": \"main\"\n      },\n      {\n        \"address\": \"node:inc_1042#attr:status\",\n        \"cardinality\": \"exactly_once\",\n        \"id\": \"inc_1042_status\",\n        \"present_as\": \"value\",\n        \"target_region\": \"main\"\n      },\n      {\n        \"address\": \"node:inc_1042#attr:updated\",\n        \"cardinality\": \"exactly_once\",\n        \"id\": \"inc_1042_updated\",\n        \"present_as\": \"value\",\n        \"target_region\": \"main\"\n      },\n      {\n        \"address\": \"node:inc_1042#attr:sla\",\n        \"cardinality\": \"exactly_once\",\n        \"id\": \"inc_1042_sla\",\n        \"present_as\": \"value\",\n        \"target_region\": \"main\"\n      },\n      {\n        \"address\": \"node:inc_1057#attr:label\",\n        \"cardinality\": \"exactly_once\",\n        \"id\": \"inc_1057_label\",\n        \"present_as\": \"label\",\n        \"target_region\": \"main\"\n      },\n      {\n        \"address\": \"node:inc_1057#attr:owner\",\n        \"cardinality\": \"exactly_once\",\n        \"id\": \"inc_1057_owner\",\n        \"present_as\": \"value\",\n        \"target_region\": \"main\"\n      },\n      {\n        \"address\": \"node:inc_1057#attr:severity\",\n        \"cardinality\": \"exactly_once\",\n        \"id\": \"inc_1057_severity\",\n        \"present_as\": \"value\",\n        \"target_region\": \"main\"\n      },\n      {\n        \"address\": \"node:inc_1057#attr:status\",\n        \"cardinality\": \"exactly_once\",\n        \"id\": \"inc_1057_status\",\n        \"present_as\": \"value\",\n        \"target_region\": \"main\"\n      },\n      {\n        \"address\": \"node:inc_1057#attr:updated\",\n        \"cardinality\": \"exactly_once\",\n        \"id\": \"inc_1057_updated\",\n        \"present_as\": \"value\",\n        \"target_region\": \"main\"\n      },\n      {\n        \"address\": \"node:inc_1057#attr:sla\",\n        \"cardinality\": \"exactly_once\",\n        \"id\": \"inc_1057_sla\",\n        \"present_as\": \"value\",\n        \"target_region\": \"main\"\n      },\n      {\n        \"address\": \"node:inc_1061#attr:label\",\n        \"cardinality\": \"exactly_once\",\n        \"id\": \"inc_1061_label\",\n        \"present_as\": \"label\",\n        \"target_region\": \"main\"\n      },\n      {\n        \"address\": \"node:inc_1061#attr:owner\",\n        \"cardinality\": \"exactly_once\",\n        \"id\": \"inc_1061_owner\",\n        \"present_as\": \"value\",\n        \"target_region\": \"main\"\n      },\n      {\n        \"address\": \"node:inc_1061#attr:severity\",\n        \"cardinality\": \"exactly_once\",\n        \"id\": \"inc_1061_severity\",\n        \"present_as\": \"value\",\n        \"target_region\": \"main\"\n      },\n      {\n        \"address\": \"node:inc_1061#attr:status\",\n        \"cardinality\": \"exactly_once\",\n        \"id\": \"inc_1061_status\",\n        \"present_as\": \"value\",\n        \"target_region\": \"main\"\n      },\n      {\n        \"address\": \"node:inc_1061#attr:updated\",\n        \"cardinality\": \"exactly_once\",\n        \"id\": \"inc_1061_updated\",\n        \"present_as\": \"value\",\n        \"target_region\": \"main\"\n      },\n      {\n        \"address\": \"node:inc_1061#attr:sla\",\n        \"cardinality\": \"exactly_once\",\n        \"id\": \"inc_1061_sla\",\n        \"present_as\": \"value\",\n        \"target_region\": \"main\"\n      },\n      {\n        \"address\": \"node:inc_1069#attr:label\",\n        \"cardinality\": \"exactly_once\",\n        \"id\": \"inc_1069_label\",\n        \"present_as\": \"label\",\n        \"target_region\": \"main\"\n      },\n      {\n        \"address\": \"node:inc_1069#attr:owner\",\n        \"cardinality\": \"exactly_once\",\n        \"id\": \"inc_1069_owner\",\n        \"present_as\": \"value\",\n        \"target_region\": \"main\"\n      },\n      {\n        \"address\": \"node:inc_1069#attr:severity\",\n        \"cardinality\": \"exactly_once\",\n        \"id\": \"inc_1069_severity\",\n        \"present_as\": \"value\",\n        \"target_region\": \"main\"\n      },\n      {\n        \"address\": \"node:inc_1069#attr:status\",\n        \"cardinality\": \"exactly_once\",\n        \"id\": \"inc_1069_status\",\n        \"present_as\": \"value\",\n        \"target_region\": \"main\"\n      },\n      {\n        \"address\": \"node:inc_1069#attr:updated\",\n        \"cardinality\": \"exactly_once\",\n        \"id\": \"inc_1069_updated\",\n        \"present_as\": \"value\",\n        \"target_region\": \"main\"\n      },\n      {\n        \"address\": \"node:inc_1069#attr:sla\",\n        \"cardinality\": \"exactly_once\",\n        \"id\": \"inc_1069_sla\",\n        \"present_as\": \"value\",\n        \"target_region\": \"main\"\n      }\n    ],\n    \"complexity_tier\": 1,\n    \"groups\": [\n      {\n        \"id\": \"control_fields\",\n        \"kind\": \"ordered\",\n        \"members\": [\n          \"search_query_label\",\n          \"search_query_value\",\n          \"status_filter_label\",\n          \"status_filter_value\",\n          \"sort_order_label\",\n          \"sort_order_value\",\n          \"page_cursor_label\",\n          \"page_cursor_value\",\n          \"selection_label\",\n          \"queue_selected_ids\"\n        ],\n        \"target_region\": \"main\"\n      },\n      {\n        \"id\": \"incident_rows\",\n        \"kind\": \"ordered\",\n        \"members\": [\n          \"inc_1042_label\",\n          \"inc_1042_owner\",\n          \"inc_1042_severity\",\n          \"inc_1042_status\",\n          \"inc_1042_updated\",\n          \"inc_1042_sla\",\n          \"inc_1057_label\",\n          \"inc_1057_owner\",\n          \"inc_1057_severity\",\n          \"inc_1057_status\",\n          \"inc_1057_updated\",\n          \"inc_1057_sla\",\n          \"inc_1061_label\",\n          \"inc_1061_owner\",\n          \"inc_1061_severity\",\n          \"inc_1061_status\",\n          \"inc_1061_updated\",\n          \"inc_1061_sla\",\n          \"inc_1069_label\",\n          \"inc_1069_owner\",\n          \"inc_1069_severity\",\n          \"inc_1069_status\",\n          \"inc_1069_updated\",\n          \"inc_1069_sla\"\n        ],\n        \"target_region\": \"main\"\n      }\n    ],\n    \"id\": \"stateful_collections_desk\",\n    \"motifs\": [\n      {\n        \"id\": \"incident_controls\",\n        \"kind\": \"form\",\n        \"members\": [\n          \"search_query_label\",\n          \"search_query_value\",\n          \"status_filter_label\",\n          \"status_filter_value\",\n          \"sort_order_label\",\n          \"sort_order_value\",\n          \"page_cursor_label\",\n          \"page_cursor_value\",\n          \"selection_label\",\n          \"queue_selected_ids\"\n        ],\n        \"region\": \"main\"\n      },\n      {\n        \"id\": \"incident_queue\",\n        \"kind\": \"table\",\n        \"members\": [\n          \"inc_1042_label\",\n          \"inc_1042_owner\",\n          \"inc_1042_severity\",\n          \"inc_1042_status\",\n          \"inc_1042_updated\",\n          \"inc_1042_sla\",\n          \"inc_1057_label\",\n          \"inc_1057_owner\",\n          \"inc_1057_severity\",\n          \"inc_1057_status\",\n          \"inc_1057_updated\",\n          \"inc_1057_sla\",\n          \"inc_1061_label\",\n          \"inc_1061_owner\",\n          \"inc_1061_severity\",\n          \"inc_1061_status\",\n          \"inc_1061_updated\",\n          \"inc_1061_sla\",\n          \"inc_1069_label\",\n          \"inc_1069_owner\",\n          \"inc_1069_severity\",\n          \"inc_1069_status\",\n          \"inc_1069_updated\",\n          \"inc_1069_sla\"\n        ],\n        \"region\": \"main\"\n      }\n    ],\n    \"regions\": [\n      {\n        \"id\": \"root\",\n        \"layout\": \"stack\",\n        \"max_children\": null,\n        \"min_children\": 1,\n        \"parent_region\": \"\",\n        \"role\": \"root\"\n      },\n      {\n        \"id\": \"main\",\n        \"layout\": \"stack\",\n        \"max_children\": null,\n        \"min_children\": 1,\n        \"parent_region\": \"root\",\n        \"role\": \"main\"\n      }\n    ],\n    \"root_region\": \"root\",\n    \"styles\": [\n      {\n        \"id\": \"style_controls\",\n        \"target\": \"motif:incident_controls\",\n        \"token\": \"surface.subtle\"\n      },\n      {\n        \"id\": \"style_p0\",\n        \"target\": \"binding:inc_1057_severity\",\n        \"token\": \"tone.accent\"\n      },\n      {\n        \"id\": \"style_escalated\",\n        \"target\": \"binding:inc_1057_status\",\n        \"token\": \"emphasis.high\"\n      },\n      {\n        \"id\": \"style_queue\",\n        \"target\": \"motif:incident_queue\",\n        \"token\": \"density.compact\"\n      }\n    ],\n    \"substrate_id\": \"stateful_collections_desk_substrate\"\n  }\n}",
+  "loading": "{\n  \"substrate\": {\n    \"id\": \"stateful_collections_loading_substrate\",\n    \"nodes\": {\n      \"incident_loading\": {\n        \"attrs\": {\n          \"description\": \"Waiting for the host data provider to return the next collection page.\",\n          \"title\": \"Loading incident queue\"\n        },\n        \"edges\": {},\n        \"id\": \"incident_loading\",\n        \"kind\": \"loading_state\",\n        \"slots\": {}\n      },\n      \"stateful_collections_loading\": {\n        \"attrs\": {},\n        \"edges\": {},\n        \"id\": \"stateful_collections_loading\",\n        \"kind\": \"app\",\n        \"slots\": {}\n      }\n    },\n    \"root_id\": \"stateful_collections_loading\"\n  },\n  \"view_spec\": {\n    \"actions\": [],\n    \"bindings\": [\n      {\n        \"address\": \"node:incident_loading#attr:title\",\n        \"cardinality\": \"exactly_once\",\n        \"id\": \"incident_loading_title\",\n        \"present_as\": \"value\",\n        \"target_region\": \"main\"\n      },\n      {\n        \"address\": \"node:incident_loading#attr:description\",\n        \"cardinality\": \"exactly_once\",\n        \"id\": \"incident_loading_description\",\n        \"present_as\": \"text\",\n        \"target_region\": \"main\"\n      }\n    ],\n    \"complexity_tier\": 1,\n    \"groups\": [],\n    \"id\": \"stateful_collections_loading\",\n    \"motifs\": [\n      {\n        \"id\": \"incident_loading\",\n        \"kind\": \"loading_state\",\n        \"members\": [\n          \"incident_loading_title\",\n          \"incident_loading_description\"\n        ],\n        \"region\": \"main\"\n      }\n    ],\n    \"regions\": [\n      {\n        \"id\": \"root\",\n        \"layout\": \"stack\",\n        \"max_children\": null,\n        \"min_children\": 1,\n        \"parent_region\": \"\",\n        \"role\": \"root\"\n      },\n      {\n        \"id\": \"main\",\n        \"layout\": \"stack\",\n        \"max_children\": null,\n        \"min_children\": 1,\n        \"parent_region\": \"root\",\n        \"role\": \"main\"\n      }\n    ],\n    \"root_region\": \"root\",\n    \"styles\": [],\n    \"substrate_id\": \"stateful_collections_loading_substrate\"\n  }\n}"
+}</script>
+  <script>
+    const stateData = JSON.parse(document.getElementById('state-data').textContent);
+    const intentData = JSON.parse(document.getElementById('intent-data').textContent);
+    const tabs = Array.from(document.querySelectorAll('.state-tab[data-state]'));
+    const views = Array.from(document.querySelectorAll('[data-artifact-state]'));
+    const stateSummary = document.getElementById('state-summary');
+    const motifKinds = document.getElementById('motif-kinds');
+    const actionCount = document.getElementById('action-count');
+    const bindingCount = document.getElementById('binding-count');
+    const nodeCount = document.getElementById('node-count');
+    const eventStatus = document.getElementById('event-status');
+    const eventKind = document.getElementById('event-kind');
+    const eventJson = document.getElementById('event-json');
+    const intentSelect = document.getElementById('intent-select');
+    const intentJson = document.getElementById('intent-json');
+
+    function activateState(state) {
+      const meta = stateData[state];
+      if (!meta) return;
+      tabs.forEach((button) => button.setAttribute('aria-pressed', String(button.dataset.state === state)));
+      views.forEach((view) => view.classList.toggle('active', view.dataset.artifactState === state));
+      stateSummary.textContent = meta.summary;
+      motifKinds.textContent = meta.motifKinds.join(', ');
+      actionCount.textContent = meta.actionCount;
+      bindingCount.textContent = meta.bindingCount;
+      nodeCount.textContent = meta.nodeCount;
+      intentSelect.value = state;
+      intentJson.textContent = intentData[state];
+    }
+
+    tabs.forEach((button) => {
+      button.addEventListener('click', () => activateState(button.dataset.state));
+    });
+
+    intentSelect.addEventListener('change', () => {
+      intentJson.textContent = intentData[intentSelect.value];
+    });
+
+    document.addEventListener('viewspec-action', (event) => {
+      eventStatus.textContent = 'captured';
+      eventStatus.dataset.state = 'live';
+      eventKind.textContent = event.detail.kind || 'action';
+      eventKind.dataset.state = 'live';
+      eventJson.textContent = JSON.stringify(event.detail, null, 2);
+    });
+
+    activateState('loaded');
+    window.__viewspecStatefulCollectionsDemo = { stateData, intentData };
+  </script>
+  <script>
+function viewspecPayloadBindings(btn) {
+  let payloadBindings = [];
+  try {
+    const parsedPayloadBindings = JSON.parse(btn.dataset.payloadBindings || '[]');
+    if (Array.isArray(parsedPayloadBindings)) {
+      payloadBindings = parsedPayloadBindings.filter((id) => typeof id === 'string');
+    }
+  } catch {
+    payloadBindings = [];
+  }
+  return payloadBindings;
+}
+
+function viewspecUtf8Bytes(value) {
+  return new TextEncoder().encode(String(value ?? '')).length;
+}
+
+function viewspecAssertPayloadBounds(detail) {
+  if (detail.kind === 'bulk_action') {
+    const selectionBindings = detail.payloadBindings.filter((id) => id.endsWith('_selection') || id.endsWith('_selected_ids'));
+    if (selectionBindings.length !== 1 || detail.payloadBindings.length !== 1) {
+      throw new Error('COLLECTION_BULK_SELECTION_AMBIGUOUS');
+    }
+    const value = detail.payloadValues[selectionBindings[0]];
+    if (Array.isArray(value) && value.length > 100) {
+      throw new Error('COLLECTION_BULK_SELECTION_TOO_LARGE');
+    }
+    if (viewspecUtf8Bytes(value) > 4096) {
+      throw new Error('COLLECTION_BULK_SELECTION_TOO_LARGE');
+    }
+    return;
+  }
+  if (['search', 'filter', 'sort', 'paginate'].includes(detail.kind)) {
+    for (const bindingId of detail.payloadBindings) {
+      if (viewspecUtf8Bytes(detail.payloadValues[bindingId]) > 512) {
+        throw new Error('COLLECTION_ACTION_PAYLOAD_TOO_LARGE');
+      }
+    }
+  }
+}
+
+function dispatchViewSpecAction(btn) {
+  const payloadBindings = viewspecPayloadBindings(btn);
+  const detail = {
+    schemaVersion: 1,
+    source: 'viewspec-html-tailwind',
+    id: btn.dataset.actionId,
+    kind: btn.dataset.actionKind,
+    targetRef: btn.dataset.actionTargetRef || '',
+    payloadBindings,
+    payloadValues: {}
+  };
+  const requested = new Set(detail.payloadBindings);
+  const root = btn.closest('.vs-root') || document;
+  root.querySelectorAll('[data-binding-id]').forEach((el) => {
+    const id = el.dataset.bindingId;
+    if (!requested.has(id)) return;
+    detail.payloadValues[id] = 'value' in el ? el.value : el.textContent || '';
+  });
+  viewspecAssertPayloadBounds(detail);
+  document.dispatchEvent(new CustomEvent('viewspec-action', { detail }));
+}
+
+document.addEventListener('click', (e) => {
+  const target = e.target instanceof Element ? e.target : null;
+  const btn = target ? target.closest('[data-action-id]') : null;
+  if (!btn) return;
+  dispatchViewSpecAction(btn);
+});
+
+document.addEventListener('keydown', (e) => {
+  if (e.key !== 'Enter' || e.defaultPrevented || e.shiftKey || e.altKey || e.ctrlKey || e.metaKey) return;
+  const target = e.target instanceof Element ? e.target : null;
+  if (!target || target.tagName !== 'INPUT') return;
+  const form = target.closest('[role="form"][data-ir-id]');
+  if (!form) return;
+  const irId = form.dataset.irId || '';
+  if (!irId.startsWith('motif_')) return;
+  const targetRef = `motif:${irId.slice(6)}`;
+  const root = form.closest('.vs-root') || document;
+  const btn = Array.from(root.querySelectorAll('[data-action-id][data-action-kind="submit"]'))
+    .find((candidate) => candidate.dataset.actionTargetRef === targetRef);
+  if (!btn) return;
+  e.preventDefault();
+  dispatchViewSpecAction(btn);
+});
+</script>
+</body>
+</html>

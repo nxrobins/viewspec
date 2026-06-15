@@ -89,6 +89,8 @@ The v1 local agent contract is intentionally bounded: max 256KB JSON, 200 substr
 
 Motif validation is semantic, not just structural. Empty motifs fail. `hero` and `empty_state` require title-like bindings; `loading_state` and `error_state` require exactly one title-like binding and at most one description-like binding; `form` requires an input binding; table/dashboard/detail motifs require label plus value/text-style bindings; and comparison motifs require at least two distinct semantic items.
 
+Aesthetic Profiles V1 lets an IntentBundle choose one deterministic view-level art-direction handle: `aesthetic.calm_ops`, `aesthetic.premium_saas`, `aesthetic.data_dense`, `aesthetic.editorial_product`, or `aesthetic.executive_review`. Use `builder.set_aesthetic_profile("aesthetic.calm_ops")` or one matching `StyleSpec` targeting `view:<view_spec.id>`; profiles expand into governed style projections and bounded layout metadata, not arbitrary CSS, design certification, or pixel-perfect visual proof.
+
 ## Import Existing HTML (0.3.0b1 beta)
 
 The raw HTML path is an import/fallback tool for existing HTML. It is intentionally narrow: it sanitizes active content, applies local `DESIGN.md` tokens, writes deterministic provenance, and can report semantic diffs. It does not claim full ViewSpec IR recovery or pixel review.
@@ -113,7 +115,7 @@ Raw HTML output files are:
 
 The local commands `compile`, `lift`, and `diff` make no SDK-process network calls. Generated raw-HTML artifacts also avoid automatic network fetches: remote image sources are replaced with inert links and disclosed in `external_refs`; user-clicked external anchors remain clickable with `rel="noopener noreferrer"`.
 
-`provenance_manifest.json` is the trust boundary. It records SDK version, raw source hash, lifted source hash, design hash, artifact hash, command arguments, sanitizer policy, diagnostics, and external references. For IntentBundle artifacts, `viewspec check` also verifies DOM identity against manifest identity: no duplicate binding/action ids, binding nodes keep non-empty source provenance, and action/binding refs match their declared intent refs.
+`provenance_manifest.json` is the trust boundary. It records SDK version, raw source hash, lifted source hash, design hash, artifact hash, command arguments, sanitizer policy, diagnostics, and external references. For IntentBundle artifacts, `viewspec check` also verifies DOM identity against manifest identity: no duplicate binding/action ids, binding nodes keep non-empty source provenance, and action/binding refs match their declared intent refs. Human `viewspec check` output prints the bounded manifest summary, while `viewspec check --json` includes the same summary for tools.
 
 ## Native Agent Use
 
@@ -149,7 +151,7 @@ python -m pip install "viewspec[agents]"
 viewspec mcp
 ```
 
-The MCP server exposes intent-first local tools: `init_intent`, `validate_intent_bundle_file`, `diff_intent_bundle_files`, `compile_intent_bundle_file`, `agent_correction_prompt_file`, `check_artifact`, `verify_host`, `prove`, `check_agent_assets`, `init_design`, and `export_agent_assets`. `compile_intent_bundle_file` accepts `target="html-tailwind"` for checked standalone HTML, `target="react-tsx"` for checked React source artifacts, or `target="react-tailwind-tsx"` for checked React source with closed Tailwind recipes; `prove` writes `PROOF.md`, `proof_report.json`, and redacted `support_bundle.json`. Raw HTML MCP tools remain available only for importing existing HTML. By default, all tool paths must resolve under the MCP working directory and the tools make no SDK network calls.
+The MCP server exposes intent-first local tools: `init_intent`, `validate_intent_bundle_file`, `diff_intent_bundle_files`, `compile_intent_bundle_file`, `agent_correction_prompt_file`, `check_artifact`, `verify_host`, `prove`, `check_agent_assets`, `init_design`, and `export_agent_assets`. `compile_intent_bundle_file` accepts `target="html-tailwind"` for checked standalone HTML, `target="react-tsx"` for checked React source artifacts, or `target="react-tailwind-tsx"` for checked React source with closed Tailwind recipes; `verify_host` metadata exposes manifest summary and bounded host verification facts, while `prove` writes `PROOF.md`, `proof_report.json`, and redacted `support_bundle.json` and exposes checks, manifest summary, and bounded host verification facts. Raw HTML MCP tools remain available only for importing existing HTML. By default, all tool paths must resolve under the MCP working directory and the tools make no SDK network calls.
 
 For all targets, agents should edit `viewspec.intent.json` or `DESIGN.md` and regenerate artifacts. They should not patch generated files such as `dist/index.html` or `react-output/ViewSpecView.tsx`.
 
@@ -195,6 +197,7 @@ The hosted playground, reference demos, and launch demos are available at [views
 | [The Invariants](https://viewspec.dev/invariants/) | Watch the compiler enforce — and refuse — each guarantee. |
 | [15 Lines → Full UI](https://viewspec.dev/fifteen-lines/) | An invoice table builds itself from 15 lines of Python. |
 | [Style Derivation](https://viewspec.dev/style-derivation/) | Same structure, different feel. Toggle four visual presets. |
+| [Same Intent, Five Art Directions](https://viewspec.dev/aesthetic-profiles/) | One local IntentBundle compiles through five deterministic aesthetic profiles while semantic ids stay stable. |
 | [One Spec, Four Surfaces](https://viewspec.dev/cross-platform-dashboard/) | One hosted-extended launch dashboard compiles to HTML, React TSX, SwiftUI, and Flutter. |
 | [Custom Motif Authoring](https://viewspec.dev/custom-motifs/) | Define an MDL motif contract and lower it into portable CompositionIR. |
 | [Interactive Compose](https://viewspec.dev/interactive-compose/) | Inputs, rules, and submit payloads compiled into event surfaces. |
@@ -209,6 +212,7 @@ The raw data graph. Nodes with typed attributes, slots, and edges. This is WHAT 
 
 ```python
 builder = ViewSpecBuilder("my_view")
+builder.set_aesthetic_profile("aesthetic.calm_ops")
 builder.add_node("user_1", "person", attrs={"name": "Alice", "role": "Engineer"})
 builder.add_node("user_2", "person", attrs={"name": "Bob", "role": "Designer"})
 ```
@@ -255,7 +259,7 @@ It writes `ViewSpecView.tsx`, `provenance_manifest.json`, and `diagnostics.json`
 
 For Tailwind host apps, use `--target react-tailwind-tsx`. This emits the same source artifact file with literal utility classes from the closed `tailwind_app_v1` recipe registry; agents still edit only IntentBundle JSON.
 
-The ViewSpec repo also CI-gates one bounded React/Vite/Tailwind host proof for this target: a representative fixture is regenerated, checked, mounted, built, and smoke-tested in Chromium for DOM, Tailwind-produced styles, and action payloads. That proof is not a per-artifact rendering certification for arbitrary user output; `viewspec check` remains the local source-artifact and provenance gate unless a host app adds its own render tests.
+The ViewSpec repo also CI-gates one bounded React/Vite/Tailwind host proof for this target: a representative fixture is regenerated, checked, mounted, built, and smoke-tested in Chromium for DOM, Tailwind-produced styles, computed grid column counts, profiled aesthetic markers/layout, and action payloads. That proof is not a per-artifact rendering certification for arbitrary user output; `viewspec check` remains the local source-artifact and provenance gate unless a host app adds its own render tests.
 
 For a per-artifact runtime proof, use ViewSpec's bounded reference host verifier:
 
@@ -264,7 +268,7 @@ viewspec verify-host react-tailwind-output/ --target react-tailwind-tsx --instal
 viewspec verify-host --intent viewspec.intent.json --out react-tailwind-output/ --target react-tailwind-tsx --install --json
 ```
 
-`verify-host` runs `viewspec check`, copies exactly the checked React Tailwind artifact into an isolated Vite/Tailwind host, builds it, and runs Chromium assertions for manifest-backed DOM, computed Tailwind styles, and action payloads. Without `--install`, it performs no package-manager install and fails fast if the reference host dependencies are missing; it does not install Playwright browser binaries.
+`verify-host` runs `viewspec check`, carries the checked manifest summary into the host proof report, copies exactly the checked React Tailwind artifact into an isolated Vite/Tailwind host, builds it, and runs Chromium assertions for manifest-backed DOM, computed Tailwind styles including grid column counts, profiled aesthetic markers/layout when present, and action payloads. Human output prints the checked manifest summary and nonzero host assertion counts; `--json` returns the full proof report. Without `--install`, it performs no package-manager install and fails fast if the reference host dependencies are missing; it does not install Playwright browser binaries.
 
 The same bounded runtime proof is available through the beginner-facing proof command:
 

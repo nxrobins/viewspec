@@ -79,7 +79,11 @@ const writeIntent = [
   "from pathlib import Path",
   "from viewspec.compiler_benchmarks import benchmark_fixtures",
   "fixture = next(item for item in benchmark_fixtures() if item.id == 'tailwind_admin_workspace')",
-  "Path(sys.argv[1]).write_text(json.dumps(fixture.bundle.to_json(), ensure_ascii=True, sort_keys=True), encoding='utf-8')",
+  "payload = fixture.bundle.to_json()",
+  "view = payload['view_spec']",
+  "view['styles'] = [style for style in view.get('styles', []) if style.get('id') != 'aesthetic_profile' and not str(style.get('token', '')).startswith('aesthetic.')]",
+  "view['styles'].append({'id': 'aesthetic_profile', 'target': f\"view:{view['id']}\", 'token': 'aesthetic.data_dense'})",
+  "Path(sys.argv[1]).write_text(json.dumps(payload, ensure_ascii=True, sort_keys=True), encoding='utf-8')",
 ].join("; ");
 
 await run(python, ["-c", writeIntent, intentPath], "HOST_PROOF_CHECK_NOT_RUN");

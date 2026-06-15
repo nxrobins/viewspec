@@ -67,6 +67,8 @@ V1 style tokens are compiler/design handles, not CSS. Use only the published tok
 
 Style targets may use `region:id`, `binding:id`, `motif:id`, or `view:id`. Bare IDs are accepted only when they resolve to exactly one namespace; use an explicit prefix whenever an ID could refer to more than one target kind.
 
+Aesthetic profile tokens are deterministic art-direction handles, not CSS. At most one `aesthetic.*` token may appear in an IntentBundle, it must target exactly `view:<view_spec.id>`, and V1 supports only `aesthetic.calm_ops`, `aesthetic.premium_saas`, `aesthetic.data_dense`, `aesthetic.editorial_product`, and `aesthetic.executive_review`; the compiler may apply governed style projections and bounded layout metadata. This is not pixel-perfect visual proof, accessibility certification, arbitrary host-app compatibility, or design-review approval.
+
 Slots and edges use protobuf JSON shape:
 
 ```json
@@ -131,7 +133,7 @@ diff = diff_intent_text(old_bundle_json, new_bundle_json)
 
 Use `viewspec doctor` in local setup checks. It reports the available intent-first commands, runs a starter IntentBundle validation/compile/diff smoke check, verifies `PyYAML`, and states that local validation, compile, lift, diff, check, check-agent-assets, scaffold, and agent-asset export commands make no SDK network calls. `viewspec doctor --agents` also reports managed instruction templates, local agent prompt/schema/example/manifest asset identity and hashes, local `.viewspec` asset status, published static asset status when `demos/agent-assets.json` is present, the optional MCP dependency, MCP install hint, and cwd path containment policy.
 
-`viewspec check` treats the compiled artifact as a proof boundary. For IntentBundle artifacts, DOM `data-ir-id`, `data-binding-id`, and `data-action-id` values must agree with `provenance_manifest.json`; binding/action ids cannot be duplicated; binding nodes must retain source `content_refs`; and binding/action manifest entries must include the matching `viewspec:binding:*` or `viewspec:action:*` intent ref.
+`viewspec check` treats the compiled artifact as a proof boundary. For IntentBundle artifacts, DOM `data-ir-id`, `data-binding-id`, and `data-action-id` values must agree with `provenance_manifest.json`; binding/action ids cannot be duplicated; binding nodes must retain source `content_refs`; and binding/action manifest entries must include the matching `viewspec:binding:*` or `viewspec:action:*` intent ref. Human check output prints the bounded manifest summary; `viewspec check --json` returns the same summary for tools.
 
 `viewspec prove --out .viewspec-proof` is the beginner-facing first proof: it generates or uses an IntentBundle, compiles through the public local path, checks the artifact, and writes human-readable `PROOF.md`, machine-readable `proof_report.json`, and redacted `support_bundle.json`. Use [ViewSpec Proof Bundle](proof-bundle.md) to interpret proof status, hashes, checks, failure codes, and local support triage. Treat it as source artifact and provenance proof. ViewSpec prove is not pixel-perfect visual regression, accessibility certification, arbitrary host-app certification, or hosted compiler publish automation.
 
@@ -247,9 +249,9 @@ For Tailwind host apps, use `--target react-tailwind-tsx` or MCP `target: "react
 
 The public repo includes an isolated host proof for one representative React/Tailwind fixture, but agent workflows should not treat that as per-artifact rendering certification. For arbitrary outputs, the required local gate is still validate, compile, and `viewspec check`; host apps may add their own render tests around the generated component.
 
-Agents may run `viewspec verify-host react-tailwind-output/ --target react-tailwind-tsx --install --json`, or MCP `verify_host`, when the user wants a bounded per-artifact React/Vite/Tailwind runtime proof. This verifier checks the exact artifact first, copies only the checked generated files into ViewSpec's isolated reference host, and does not claim compatibility with arbitrary host apps.
+Agents may run `viewspec verify-host react-tailwind-output/ --target react-tailwind-tsx --install --json`, or MCP `verify_host`, when the user wants a bounded per-artifact React/Vite/Tailwind runtime proof. This verifier checks the exact artifact first, carries the checked manifest summary into the host proof report, copies only the checked generated files into ViewSpec's isolated reference host, and asserts profiled aesthetic markers/layout when the manifest declares them. It does not claim compatibility with arbitrary host apps. Human CLI output prints the same summary plus nonzero host assertion counts; MCP metadata exposes the same bounded host verification summary while `--json` returns the full proof report.
 
-Agents may also run `viewspec prove --target react-tailwind-tsx --install --out .viewspec-proof --json`, or MCP `prove`, when the user wants the full first-proof path plus the bounded React Tailwind reference host proof in one report.
+Agents may also run `viewspec prove --target react-tailwind-tsx --install --out .viewspec-proof --json`, or MCP `prove`, when the user wants the full first-proof path plus the bounded React Tailwind reference host proof in one report. MCP `prove` metadata exposes checks, manifest summary, and bounded host verification facts before agents inspect the nested `proof_report`.
 
 
 ## Optional Reference Grounding

@@ -7,6 +7,7 @@ const pages = [
   ['demos/cross-platform-dashboard/index.html', 'https://viewspec.dev/cross-platform-dashboard/'],
   ['demos/custom-motifs/index.html', 'https://viewspec.dev/custom-motifs/'],
   ['demos/interactive-compose/index.html', 'https://viewspec.dev/interactive-compose/'],
+  ['demos/stateful-collections/index.html', 'https://viewspec.dev/stateful-collections/'],
   ['demos/motif-switcher/index.html', 'https://viewspec.dev/motif-switcher/'],
   ['demos/provenance-inspector/index.html', 'https://viewspec.dev/provenance-inspector/'],
   ['demos/live-builder/index.html', 'https://viewspec.dev/live-builder/'],
@@ -14,12 +15,26 @@ const pages = [
   ['demos/proof-bundle/index.html', 'https://viewspec.dev/proof-bundle/'],
   ['demos/fifteen-lines/index.html', 'https://viewspec.dev/fifteen-lines/'],
   ['demos/style-derivation/index.html', 'https://viewspec.dev/style-derivation/'],
+  ['demos/aesthetic-profiles/index.html', 'https://viewspec.dev/aesthetic-profiles/'],
 ]
 
 function extractJsonLd(html) {
   return [...html.matchAll(/<script type="application\/ld\+json">\s*([\s\S]*?)\s*<\/script>/g)].map((match) =>
     JSON.parse(match[1])
   )
+}
+
+function extractTaggedStyle(html, marker) {
+  const escaped = marker.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  const match = html.match(new RegExp(`<style ${escaped}>\\s*([\\s\\S]*?)\\s*</style>`))
+  return match ? match[1] : ''
+}
+
+function extractScriptJson(html, id) {
+  const escaped = id.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  const match = html.match(new RegExp(`<script type="application/json" id="${escaped}">\\s*([\\s\\S]*?)\\s*</script>`))
+  assert(match, `${id} JSON script is missing`)
+  return JSON.parse(match[1])
 }
 
 function sha256(text) {
@@ -80,6 +95,17 @@ assertPublicEqual(publicFacts.proof.machine_report_file, '.viewspec-proof/proof_
 assertPublicEqual(publicFacts.proof.support_bundle_file, '.viewspec-proof/support_bundle.json', 'public facts proof support bundle file')
 assertPublicText(publicFacts.proof.non_claim, 'not pixel-perfect visual regression', 'public facts proof non-claim')
 
+const aestheticProfileTokens = [
+  'aesthetic.calm_ops',
+  'aesthetic.premium_saas',
+  'aesthetic.data_dense',
+  'aesthetic.editorial_product',
+  'aesthetic.executive_review',
+]
+assert.deepEqual(publicFacts.aesthetic_profiles.tokens, aestheticProfileTokens, 'public facts aesthetic profile tokens')
+assertPublicText(publicFacts.aesthetic_profiles.scope, 'deterministic view-level art-direction handles', 'public facts aesthetic scope')
+assertPublicText(publicFacts.aesthetic_profiles.non_claim, 'not arbitrary CSS', 'public facts aesthetic non-claim')
+
 const pyproject = await readFile('pyproject.toml', 'utf8')
 const versionModule = await readFile('src/viewspec/_version.py', 'utf8')
 assertPublicText(pyproject, `version = "${publicFacts.sdk_version}"`, 'pyproject version')
@@ -94,6 +120,16 @@ for (const publicTextPath of ['README.md', 'docs/getting-started.md', 'demos/llm
   assertPublicText(text, publicFacts.proof.non_claim.split(',')[0], `${publicTextPath} proof scope`)
 }
 
+for (const aestheticTextPath of ['README.md', 'docs/getting-started.md', 'docs/agent-integration.md', 'docs/free-sdk-reliability.md', 'demos/llms.txt', 'demos/llms-full.txt']) {
+  const text = await readFile(aestheticTextPath, 'utf8')
+  for (const token of aestheticProfileTokens) {
+    assertPublicText(text, token, `${aestheticTextPath} aesthetic profile token`)
+  }
+  if (!text.includes('not CSS') && !text.includes('not arbitrary CSS')) {
+    publicFactDrift(`${aestheticTextPath} missing aesthetic profile non-css scope`)
+  }
+}
+
 for (const proofTextPath of ['README.md', 'docs/getting-started.md', 'docs/agent-integration.md', 'demos/index.html', 'demos/proof-bundle/index.html', 'demos/llms.txt', 'demos/llms-full.txt']) {
   const text = await readFile(proofTextPath, 'utf8')
   if (text.includes('proof_report.json') && !text.includes('PROOF.md')) {
@@ -102,6 +138,12 @@ for (const proofTextPath of ['README.md', 'docs/getting-started.md', 'docs/agent
   if (text.includes('proof_report.json') && !text.includes('support_bundle.json')) {
     publicFactDrift(`${proofTextPath} mentions proof_report.json without support_bundle.json`)
   }
+}
+
+for (const hostProofTextPath of ['README.md', 'docs/getting-started.md', 'docs/free-sdk-reliability.md', 'docs/known-limits-react-tailwind-tsx.md']) {
+  const text = await readFile(hostProofTextPath, 'utf8')
+  assertPublicText(text, 'profiled aesthetic marker', `${hostProofTextPath} host proof aesthetic marker scope`)
+  assertPublicText(text, 'action payload', `${hostProofTextPath} host proof action payload scope`)
 }
 
 for (const productTextPath of ['README.md', 'demos/index.html', 'demos/llms.txt', 'demos/llms-full.txt']) {
@@ -137,6 +179,67 @@ for (const expected of [
 }
 assertPublicText(await readFile('demos/llms.txt', 'utf8'), 'https://viewspec.dev/proof-bundle/', 'llms proof bundle public URL')
 assertPublicText(await readFile('demos/llms-full.txt', 'utf8'), 'https://viewspec.dev/proof-bundle/', 'llms-full proof bundle public URL')
+
+const statefulCollectionsPage = await readFile('demos/stateful-collections/index.html', 'utf8')
+for (const expected of [
+  'Stateful Collections Desk',
+  'data-action-id="search_incidents"',
+  'data-action-kind="bulk_action"',
+  'role="status"',
+  'aria-busy="true"',
+  'role="alert"',
+  'Generated buttons dispatch ViewSpec events only',
+]) {
+  assertPublicText(statefulCollectionsPage, expected, 'stateful collections demo')
+}
+
+const aestheticProfilesPage = await readFile('demos/aesthetic-profiles/index.html', 'utf8')
+for (const expected of [
+  'Same Intent, Five Art Directions',
+  'Beauty as a checked compiler handle',
+  'deterministic art direction, not CSS',
+  'semantic ids stable',
+  'data-presentation-contract="light-gallery-showroom"',
+  '0 shell overrides',
+  'Demo shell CSS frames the page only',
+  'data-aesthetic-profile',
+  'aesthetic-profile-proof',
+  'active-layout-signature',
+  'bounded grid metadata',
+]) {
+  assertPublicText(aestheticProfilesPage, expected, 'aesthetic profiles demo')
+}
+for (const token of aestheticProfileTokens) {
+  assertPublicText(aestheticProfilesPage, token, 'aesthetic profiles demo token')
+}
+assert.equal((aestheticProfilesPage.match(/class="profile-card"/g) || []).length, 5)
+const aestheticProof = extractScriptJson(aestheticProfilesPage, 'aesthetic-profile-proof')
+assert.deepEqual(Object.keys(aestheticProof).sort(), [...aestheticProfileTokens].sort(), 'aesthetic profile proof tokens')
+const expectedAestheticLayout = {
+  'aesthetic.calm_ops': [2, 2],
+  'aesthetic.premium_saas': [2, 2],
+  'aesthetic.data_dense': [3, 3],
+  'aesthetic.editorial_product': [2, 1],
+  'aesthetic.executive_review': [2, 2],
+}
+for (const [token, [workspaceColumns, metricColumns]] of Object.entries(expectedAestheticLayout)) {
+  assert.equal(aestheticProof[token].layoutProof.content_grid.columns, workspaceColumns, `${token} workspace columns`)
+  assert.equal(aestheticProof[token].layoutProof.metric_grid.columns, metricColumns, `${token} metric columns`)
+  assert.equal(aestheticProof[token].layoutProof.content_grid.profile, token, `${token} content grid profile marker`)
+  assert.equal(aestheticProof[token].layoutProof.metric_grid.profile, token, `${token} metric grid profile marker`)
+  assert.equal(
+    aestheticProof[token].layoutSignature,
+    `workspace ${workspaceColumns} / metrics ${metricColumns}`,
+    `${token} layout signature`
+  )
+}
+const aestheticShellCss = extractTaggedStyle(aestheticProfilesPage, 'data-demo-shell-css="true"')
+if (!aestheticShellCss) publicFactDrift('aesthetic profiles demo missing tagged shell CSS')
+assert.doesNotMatch(aestheticShellCss, /color-scheme:\s*dark/, 'aesthetic profiles shell should stay in the light gallery presentation')
+assert.match(aestheticShellCss, /\.artifact-frame\s*\{[\s\S]*background: #ffffff/, 'aesthetic profiles shell needs a white artifact showroom frame')
+if (/\.vs-|data-ir-id/.test(aestheticShellCss)) {
+  assert.fail('AESTHETIC_DEMO_BYPASS: aesthetic profiles shell CSS styles generated artifact internals')
+}
 
 // Three install pills: nav + hero + footer. The footer pill was added in
 // the site bug sweep (b7d5b96); the test was previously asserting on the

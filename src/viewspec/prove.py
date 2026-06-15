@@ -12,8 +12,13 @@ from pathlib import Path
 from typing import Any
 
 from viewspec._version import __version__
-from viewspec.host_verify import HOST_VERIFY_TARGET, verify_host_artifact_dir
-from viewspec.intent_tools import INTENT_COMPILE_TARGETS, STARTER_INTENT_KINDS, compile_intent_bundle_file_tool, init_intent_file
+from viewspec.host_verify import HOST_VERIFY_TARGET, summarize_host_verification_report, verify_host_artifact_dir
+from viewspec.intent_tools import (
+    INTENT_COMPILE_TARGETS,
+    STARTER_INTENT_KINDS,
+    compile_intent_bundle_file_tool,
+    init_intent_file,
+)
 from viewspec.local_tools import (
     MCP_RESULT_SCHEMA_VERSION,
     LocalToolError,
@@ -26,6 +31,7 @@ from viewspec.local_tools import (
     tool_error_response,
     tool_response,
 )
+from viewspec.manifest_summary import summarize_intent_manifest
 
 
 PROVE_SCHEMA_VERSION = 1
@@ -161,6 +167,7 @@ def prove(
             checks=checks,
             artifact_hash=file_hash(artifact_path) if artifact_path.exists() else None,
             manifest_hash=file_hash(manifest_path) if manifest_path.exists() else None,
+            manifest_summary=summarize_intent_manifest(manifest_path),
             host_report=host_report,
             errors=errors,
             metadata={
@@ -391,6 +398,7 @@ def _report(
     checks: dict[str, str],
     artifact_hash: str | None = None,
     manifest_hash: str | None = None,
+    manifest_summary: dict[str, Any] | None = None,
     host_report: dict[str, Any] | None = None,
     errors: list[dict[str, str]],
     metadata: dict[str, Any],
@@ -422,6 +430,7 @@ def _report(
         "checks": checks,
         "artifact_hash": artifact_hash,
         "manifest_hash": manifest_hash,
+        "manifest_summary": manifest_summary,
         "host_report": host_report,
         "errors": errors,
         "metadata": metadata,
@@ -592,6 +601,7 @@ def _support_bundle_payload(report: dict[str, Any], *, proof_report_hash: str) -
             "executable": Path(sys.executable).name,
         },
         "paths": _support_path_hints(report),
+        "manifest_summary": _support_manifest_summary(report.get("manifest_summary")),
         "host_report": _support_host_report(host_report),
         "timings_ms": {str(key): int(value) for key, value in timings.items() if isinstance(value, int)},
         "privacy": {
@@ -637,7 +647,30 @@ def _support_host_report(host_report: dict[str, Any] | None) -> dict[str, Any] |
         "node_version": _support_scalar(host_report.get("node_version")),
         "npm_version": _support_scalar(host_report.get("npm_version")),
         "assertions": {str(key): int(value) for key, value in assertions.items() if isinstance(value, int)},
+        "manifest_summary": _support_manifest_summary(host_report.get("manifest_summary")),
         "error_codes": [str(error.get("code")) for error in host_report.get("errors", []) if isinstance(error, dict) and error.get("code")],
+    }
+
+
+def _support_manifest_summary(summary: object) -> dict[str, Any] | None:
+    if not isinstance(summary, dict):
+        return None
+    layout = summary.get("aesthetic_layout") if isinstance(summary.get("aesthetic_layout"), dict) else {}
+    return {
+        "available": bool(summary.get("available")),
+        "kind": _support_scalar(summary.get("kind")),
+        "emitter": _support_scalar(summary.get("emitter")),
+        "node_count": int(summary.get("node_count")) if isinstance(summary.get("node_count"), int) else 0,
+        "aesthetic_profile": _support_scalar(summary.get("aesthetic_profile")),
+        "aesthetic_layout": {
+            str(role): {
+                "profile": _support_scalar(item.get("profile")),
+                "columns": int(item.get("columns")) if isinstance(item.get("columns"), int) else 0,
+                "node_count": int(item.get("node_count")) if isinstance(item.get("node_count"), int) else 0,
+            }
+            for role, item in layout.items()
+            if isinstance(item, dict)
+        },
     }
 
 
@@ -718,10 +751,9 @@ def _render_proof_summary(report: dict[str, Any], *, proof_report_hash: str) -> 
         f"- Artifact SHA-256: `{_summary_value(report.get('artifact_hash'))}`",
         f"- Manifest SHA-256: `{_summary_value(report.get('manifest_hash'))}`",
         f"- Proof report SHA-256: `{_summary_value(proof_report_hash)}`",
-        "",
-        "## Checks",
-        "",
     ]
+    lines.extend(_proof_manifest_summary_lines(report.get("manifest_summary")))
+    lines.extend(["", "## Checks", ""])
     for key in sorted(checks):
         lines.append(f"- {_summary_value(key)}: `{_summary_value(checks[key])}`")
 
@@ -767,6 +799,35 @@ def _render_proof_summary(report: dict[str, Any], *, proof_report_hash: str) -> 
     return "\n".join(lines)
 
 
+def _proof_manifest_summary_lines(summary: object) -> list[str]:
+    if not isinstance(summary, dict):
+        return []
+    lines = ["", "## Manifest Summary", ""]
+    if not summary.get("available"):
+        lines.append(f"- Manifest summary: `{_summary_value(summary.get('reason') or 'unavailable')}`")
+        return lines
+    lines.extend(
+        [
+            f"- Emitter: `{_summary_value(summary.get('emitter'))}`",
+            f"- Nodes: `{_summary_value(summary.get('node_count'))}`",
+            f"- Aesthetic profile: `{_summary_value(summary.get('aesthetic_profile'))}`",
+        ]
+    )
+    layout = summary.get("aesthetic_layout")
+    if isinstance(layout, dict) and layout:
+        for role in sorted(layout):
+            item = layout.get(role)
+            if not isinstance(item, dict):
+                continue
+            lines.append(
+                f"- Aesthetic layout `{_summary_value(role)}`: profile `{_summary_value(item.get('profile'))}`, "
+                f"columns `{_summary_value(item.get('columns'))}`, nodes `{_summary_value(item.get('node_count'))}`"
+            )
+    else:
+        lines.append("- Aesthetic layout roles: `none`")
+    return lines
+
+
 def _proof_claim(report: dict[str, Any]) -> str:
     target = report.get("target")
     if target == HOST_VERIFY_TARGET and report.get("ok") and isinstance(report.get("host_report"), dict) and report["host_report"].get("ok"):
@@ -802,9 +863,18 @@ def _tool_from_report(proof: dict[str, Any], root: Path | None, allow_outside_cw
             "target": proof.get("target"),
             "proof_level": proof.get("proof_level"),
             "network_calls": proof.get("metadata", {}).get("network_calls", "none"),
+            "checks": _tool_checks(proof.get("checks")),
+            "manifest_summary": proof.get("manifest_summary"),
+            "host_verification": summarize_host_verification_report(proof.get("host_report")),
         },
         data={"proof_report": proof},
     )
+
+
+def _tool_checks(checks: object) -> dict[str, str]:
+    if not isinstance(checks, dict):
+        return {}
+    return {str(key): str(value) for key, value in checks.items() if value is not None}
 
 
 __all__ = [
