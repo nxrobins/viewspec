@@ -15,6 +15,14 @@ import json
 import re
 from typing import Any
 
+from viewspec.aesthetics import (
+    AESTHETIC_PROFILE_TOKENS,
+    AestheticProfileError,
+    is_aesthetic_profile_token,
+    profile_layout_props,
+    profile_style_values,
+    validate_aesthetic_profile_registry,
+)
 from viewspec.types import (
     ActionIntent,
     ASTBundle,
@@ -107,6 +115,8 @@ PRODUCT_SURFACE_PLANNER_V1_ROLES = frozenset(
         "action_row",
     }
 )
+
+SUPPORTED_AESTHETIC_PROFILES = AESTHETIC_PROFILE_TOKENS
 WORKSPACE_HEADER_ROLE_MARKERS = frozenset({"app_header", "banner", "header", "page_header"})
 WORKSPACE_CONTENT_GRID_ROLE_MARKERS = frozenset({"application", "body", "content", "main", "workspace"})
 WORKSPACE_PRIMARY_ROLE_MARKERS = frozenset({"main", "primary", "primary_column", "workspace_primary"})
@@ -375,6 +385,49 @@ def _attach_style(node: IRNode, style: StyleSpec) -> None:
         node.provenance.intent_refs.append(ref)
 
 
+def _resolve_aesthetic_profile(view_spec: ViewSpec, diagnostics: list[CompilerDiagnostic]) -> StyleSpec | None:
+    profile_styles = [style for style in view_spec.styles if is_aesthetic_profile_token(style.token)]
+    if not profile_styles:
+        return None
+    if len(profile_styles) > 1:
+        _add_diagnostic(
+            diagnostics,
+            "AESTHETIC_PROFILE_MULTIPLE",
+            "IntentBundle may declare at most one aesthetic.* style token.",
+            intent_ref=_view_ref(view_spec.id),
+        )
+        return None
+    style = profile_styles[0]
+    if style.token not in SUPPORTED_AESTHETIC_PROFILES:
+        _add_diagnostic(
+            diagnostics,
+            "AESTHETIC_PROFILE_UNKNOWN",
+            f"Style {style.id} uses unknown aesthetic profile {style.token}.",
+            intent_ref=_style_ref(style.id),
+        )
+        return None
+    expected_target = f"view:{view_spec.id}"
+    if style.target != expected_target:
+        _add_diagnostic(
+            diagnostics,
+            "AESTHETIC_PROFILE_TARGET_INVALID",
+            f"Style {style.id} must target exactly {expected_target}.",
+            intent_ref=_style_ref(style.id),
+        )
+        return None
+    try:
+        validate_aesthetic_profile_registry()
+    except AestheticProfileError as exc:
+        _add_diagnostic(
+            diagnostics,
+            exc.code,
+            exc.message,
+            intent_ref=_style_ref(style.id),
+        )
+        return None
+    return style
+
+
 def _role_markers(role: str) -> set[str]:
     normalized = role.strip().lower().replace("-", "_")
     markers = {normalized} if normalized else set()
@@ -437,6 +490,31 @@ def _assign_product_role_v1(node: IRNode, role: str) -> None:
     if role not in PRODUCT_SURFACE_PLANNER_V1_ROLES:
         raise RuntimeError(f"PLANNER_ROLE_METADATA_ONLY: unsupported product role {role!r}.")
     node.props["product_role"] = role
+
+
+def _walk_ir(node: IRNode) -> list[IRNode]:
+    nodes = [node]
+    for child in node.children:
+        nodes.extend(_walk_ir(child))
+    return nodes
+
+
+def _apply_aesthetic_profile_layout_v1(root: IRNode, profile: str) -> None:
+    layout_by_role = profile_layout_props(profile)
+    for node in _walk_ir(root):
+        product_role = node.props.get("product_role")
+        if not isinstance(product_role, str):
+            continue
+        layout_props = layout_by_role.get(product_role)
+        if not layout_props:
+            continue
+        if "columns" in layout_props:
+            if node.primitive != "grid":
+                raise RuntimeError(
+                    f"AESTHETIC_PROFILE_LAYOUT_ROLE_DRIFT: product role {product_role!r} no longer maps to a grid node."
+                )
+            node.props["columns"] = layout_props["columns"]
+            node.props["aesthetic_layout_profile"] = profile
 
 
 def _apply_workspace_surface_roles_v1(
@@ -1957,7 +2035,21 @@ def compile(
         root_region=view_spec.root_region,
     )
 
+    profile_style = _resolve_aesthetic_profile(view_spec, diagnostics)
     style_values = _derive_style_tokens(substrate, view_spec)
+    if profile_style is not None:
+        selected_profile_values = profile_style_values(profile_style.token)
+        if all(style_values.get(token, "").strip() == css.strip() for token, css in selected_profile_values.items()):
+            _add_diagnostic(
+                diagnostics,
+                "AESTHETIC_PROFILE_NOOP",
+                f"Style {profile_style.id} profile {profile_style.token} produced no style projection changes.",
+                intent_ref=_style_ref(profile_style.id),
+            )
+            profile_style = None
+        else:
+            style_values = merge_style_values(style_values, selected_profile_values)
+            _apply_aesthetic_profile_layout_v1(region_nodes[view_spec.root_region], profile_style.token)
     design_context = _coerce_design_context(design, strict_design=strict_design)
     if design_context is not None:
         style_values = merge_style_values(style_values, design_context.style_values)
@@ -1973,6 +2065,12 @@ def compile(
             )
             continue
         seen_style_ids.add(style.id)
+        if is_aesthetic_profile_token(style.token):
+            if profile_style is style:
+                root_profile = region_nodes[view_spec.root_region]
+                root_profile.props["aesthetic_profile"] = style.token
+                _attach_style(root_profile, style)
+            continue
         style_token_known = style.token in style_values
         if not style_token_known:
             _add_diagnostic(

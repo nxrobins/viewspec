@@ -499,6 +499,10 @@ def _prove_command(args: argparse.Namespace) -> int:
                 print(f"{key}: {value}")
         for error in result["errors"]:
             print(f"error: {error['code']}: {error['message']}")
+        for line in _check_manifest_summary_lines(result.get("manifest_summary")):
+            print(line)
+        for line in _host_report_summary_lines(result.get("host_report")):
+            print(line)
     if result["ok"]:
         return 0
     if any(error.get("code") == "PROVE_INTERNAL_ERROR" for error in result["errors"]):
@@ -533,7 +537,49 @@ def _check_command(args: argparse.Namespace) -> int:
             print(f"error: {error}")
         for warning in result["warnings"]:
             print(f"warning: {warning}")
+        for line in _check_manifest_summary_lines(result.get("manifest_summary")):
+            print(line)
     return 0 if result["ok"] else 2
+
+
+def _check_manifest_summary_lines(summary: object) -> list[str]:
+    if not isinstance(summary, dict):
+        return []
+    if summary.get("available") is not True:
+        reason = _cli_summary_value(summary.get("reason", "unknown"))
+        return [f"manifest: unavailable ({reason})"]
+    lines = [
+        "manifest: "
+        f"kind={_cli_summary_value(summary.get('kind'))} "
+        f"emitter={_cli_summary_value(summary.get('emitter'))} "
+        f"artifact={_cli_summary_value(summary.get('artifact_file'))} "
+        f"nodes={_cli_summary_value(summary.get('node_count'))}"
+    ]
+    aesthetic_profile = summary.get("aesthetic_profile")
+    if isinstance(aesthetic_profile, str) and aesthetic_profile:
+        lines.append(f"aesthetic_profile: {aesthetic_profile}")
+    layout = summary.get("aesthetic_layout")
+    if isinstance(layout, dict) and layout:
+        lines.append("aesthetic_layout:")
+        for role in sorted(layout):
+            entry = layout.get(role)
+            if not isinstance(entry, dict):
+                continue
+            mixed = " mixed=true" if entry.get("mixed") is True else ""
+            lines.append(
+                f"  {role}: "
+                f"columns={_cli_summary_value(entry.get('columns'))} "
+                f"nodes={_cli_summary_value(entry.get('node_count'))} "
+                f"profile={_cli_summary_value(entry.get('profile'))}"
+                f"{mixed}"
+            )
+    return lines
+
+
+def _cli_summary_value(value: object) -> str:
+    if value is None:
+        return "unknown"
+    return str(value)
 
 
 def _verify_host_command(args: argparse.Namespace) -> int:
@@ -567,7 +613,35 @@ def _verify_host_command(args: argparse.Namespace) -> int:
         print("ok" if result["ok"] else "failed")
         for error in result["errors"]:
             print(f"error: {error['code']}: {error['message']}")
+        for line in _check_manifest_summary_lines(result.get("manifest_summary")):
+            print(line)
+        for line in _host_assertion_summary_lines(result.get("assertions")):
+            print(line)
     return 0 if result["ok"] else 2
+
+
+def _host_assertion_summary_lines(assertions: object) -> list[str]:
+    if not isinstance(assertions, dict):
+        return []
+    normalized = {
+        str(key): int(value)
+        for key, value in assertions.items()
+        if isinstance(value, int) and not isinstance(value, bool)
+    }
+    if not normalized or not any(value for value in normalized.values()):
+        return []
+    lines = ["host_assertions:"]
+    for key in sorted(normalized):
+        lines.append(f"  {key}: {normalized[key]}")
+    return lines
+
+
+def _host_report_summary_lines(host_report: object) -> list[str]:
+    if not isinstance(host_report, dict):
+        return []
+    lines = [f"host_verification: {'passed' if host_report.get('ok') else 'failed'}"]
+    lines.extend(_host_assertion_summary_lines(host_report.get("assertions")))
+    return lines
 
 
 def _init_agent_command(args: argparse.Namespace) -> int:

@@ -12,15 +12,66 @@ from viewspec import (
     CompositionIR,
     IRNode,
     Provenance,
+    ViewSpecBuilder,
+    compile,
 )
 from viewspec.emitters.html_tailwind import HtmlTailwindEmitter, OFFLINE_EMITTER_CSS
 from viewspec.emitters.react_tailwind_tsx import (
     RECIPE_BY_KEY,
+    TAILWIND_AESTHETIC_RECIPE_OVERLAYS,
     TAILWIND_RECIPE_PACK,
     CompilerConstraintError,
     ReactTailwindTsxEmitter,
 )
 from viewspec.emitters.react_tsx import BASE_STYLE_BY_PRODUCT_ROLE, ReactTsxEmitter
+from viewspec.intent_tools import compile_intent_bundle_file_tool
+from viewspec.local_tools import check_artifact_dir
+
+
+def _manifest_entry_by_primitive(manifest_nodes: dict[str, object], primitive: str) -> dict[str, object]:
+    for entry in manifest_nodes.values():
+        if isinstance(entry, dict) and entry.get("primitive") == primitive:
+            return entry
+    raise AssertionError(f"manifest missing primitive {primitive}")
+
+
+def _manifest_entry_by_product_role(manifest_nodes: dict[str, object], product_role: str) -> dict[str, object]:
+    for entry in manifest_nodes.values():
+        if not isinstance(entry, dict):
+            continue
+        props = entry.get("props")
+        if isinstance(props, dict) and props.get("product_role") == product_role:
+            return entry
+    raise AssertionError(f"manifest missing product_role {product_role}")
+
+
+def _aesthetic_workspace_bundle(profile: str):
+    builder = ViewSpecBuilder(
+        "aesthetic_workspace",
+        root_attrs={"title": "Aesthetic Workspace"},
+        default_main_region=False,
+        root_min_children=2,
+    )
+    builder.set_aesthetic_profile(profile)
+    builder.add_region("north", parent_region="root", role="banner", layout="stack", min_children=1)
+    builder.add_region("canvas", parent_region="root", role="application", layout="grid", min_children=2)
+    builder.add_region("focus", parent_region="canvas", role="primary", layout="stack", min_children=1)
+    builder.add_region("assist", parent_region="canvas", role="complementary", layout="stack", min_children=1)
+    builder.add_hero(
+        "intro",
+        eyebrow="Operations",
+        title="Review workspace",
+        description="Compiler-owned profile layout.",
+        region="north",
+        group_id="intro",
+    )
+    dashboard = builder.add_dashboard("numbers", region="focus", group_id="metrics")
+    dashboard.add_card(label="Open", value="4", id="open")
+    dashboard.add_card(label="Blocked", value="1", id="blocked")
+    dashboard.add_card(label="Ready", value="9", id="ready")
+    detail = builder.add_detail("identity", region="assist", group_id="details")
+    detail.add_field(label="Manifest", value="checked", id="manifest")
+    return builder.build_bundle()
 
 
 def test_emitter_escapes_html_and_writes_contract_artifacts(tmp_path):
@@ -419,8 +470,234 @@ def test_react_tailwind_tsx_emitter_writes_static_recipe_component(tmp_path):
     assert manifest["dom-root"]["app_role"] == "app_shell"
     assert manifest["dom-metrics"]["recipe_key"] == "app_role:metric_grid"
     assert "grid-cols-1" in manifest["dom-metrics"]["classes"]
+    assert "sm:grid-cols-2" in manifest["dom-metrics"]["classes"]
+    assert "lg:grid-cols-3" not in manifest["dom-metrics"]["classes"]
     registry_tokens = {token for value in RECIPE_BY_KEY.values() for token in value.split()}
     assert set(manifest["dom-root"]["classes"]).issubset(registry_tokens)
+
+
+def test_react_tailwind_grid_columns_come_from_layout_props_only():
+    fixed_grid_classes = {"grid-cols-1", "sm:grid-cols-2", "lg:grid-cols-3"}
+
+    for key, classes in RECIPE_BY_KEY.items():
+        if key in {"layout:grid", "primitive:grid"}:
+            continue
+        assert fixed_grid_classes.isdisjoint(classes.split()), key
+
+
+def test_aesthetic_profile_markers_and_tailwind_overlay_classes_are_checked(tmp_path):
+    builder = ViewSpecBuilder("aesthetic_contract")
+    builder.set_aesthetic_profile("aesthetic.data_dense")
+    dashboard = builder.add_dashboard("metrics", region="main", group_id="cards")
+    dashboard.add_card(label="Revenue", value="$2.4M", id="revenue")
+    ast = compile(builder.build_bundle())
+
+    html_out = tmp_path / "html"
+    react_out = tmp_path / "react"
+    tailwind_out = tmp_path / "tailwind"
+    HtmlTailwindEmitter().emit(ast, html_out)
+    ReactTsxEmitter().emit(ast, react_out)
+    ReactTailwindTsxEmitter().emit(ast, tailwind_out)
+
+    html = html_out.joinpath("index.html").read_text(encoding="utf-8")
+    tsx = react_out.joinpath("ViewSpecView.tsx").read_text(encoding="utf-8")
+    tailwind_tsx = tailwind_out.joinpath("ViewSpecView.tsx").read_text(encoding="utf-8")
+    tailwind_manifest = json.loads(tailwind_out.joinpath("provenance_manifest.json").read_text(encoding="utf-8"))
+
+    assert 'data-aesthetic-profile="aesthetic.data_dense"' in html
+    assert 'data-aesthetic-profile={"aesthetic.data_dense"}' in tsx
+    assert 'data-aesthetic-profile={"aesthetic.data_dense"}' in tailwind_tsx
+    root_entry = _manifest_entry_by_primitive(tailwind_manifest, "root")
+    label_entry = _manifest_entry_by_primitive(tailwind_manifest, "label")
+    value_entry = _manifest_entry_by_primitive(tailwind_manifest, "value")
+    assert root_entry["props"]["aesthetic_profile"] == "aesthetic.data_dense"
+    assert "font-semibold" in label_entry["classes"]
+    assert "text-lg" in value_entry["classes"]
+
+
+def test_react_tailwind_profile_artifact_passes_public_check_path(tmp_path):
+    builder = ViewSpecBuilder("aesthetic_checked")
+    builder.set_aesthetic_profile("aesthetic.executive_review")
+    dashboard = builder.add_dashboard("metrics", region="main", group_id="cards")
+    dashboard.add_card(label="Open risks", value="4", id="open_risks")
+    source = tmp_path / "viewspec.intent.json"
+    source.write_text(json.dumps(builder.build_bundle().to_json(), indent=2), encoding="utf-8")
+
+    result = compile_intent_bundle_file_tool(
+        source,
+        tmp_path / "react-tailwind-output",
+        target="react-tailwind-tsx",
+        cwd=tmp_path,
+        allow_outside_cwd=True,
+    )
+
+    assert result["ok"] is True
+    manifest = json.loads((tmp_path / "react-tailwind-output" / "provenance_manifest.json").read_text(encoding="utf-8"))
+    root_entry = _manifest_entry_by_primitive(manifest["nodes"], "root")
+    assert root_entry["props"]["aesthetic_profile"] == "aesthetic.executive_review"
+    assert manifest["tailwind_recipe_inventory"]["aesthetic_profile"] == "aesthetic.executive_review"
+
+
+def test_react_tailwind_profile_layout_metadata_passes_public_check_path(tmp_path):
+    source = tmp_path / "viewspec.intent.json"
+    output = tmp_path / "react-tailwind-output"
+    source.write_text(json.dumps(_aesthetic_workspace_bundle("aesthetic.data_dense").to_json(), indent=2), encoding="utf-8")
+
+    result = compile_intent_bundle_file_tool(
+        source,
+        output,
+        target="react-tailwind-tsx",
+        cwd=tmp_path,
+        allow_outside_cwd=True,
+    )
+
+    assert result["ok"] is True
+    manifest = json.loads((output / "provenance_manifest.json").read_text(encoding="utf-8"))
+    root_entry = _manifest_entry_by_primitive(manifest["nodes"], "root")
+    content_grid = _manifest_entry_by_product_role(manifest["nodes"], "content_grid")
+    metric_grid = _manifest_entry_by_product_role(manifest["nodes"], "metric_grid")
+    metric_card = _manifest_entry_by_product_role(manifest["nodes"], "metric_card")
+    assert "sm:px-8" not in root_entry["classes"]
+    assert "sm:px-5" in root_entry["classes"]
+    assert "min-h-28" not in metric_card["classes"]
+    assert "min-h-20" in metric_card["classes"]
+    assert content_grid["props"]["aesthetic_layout_profile"] == "aesthetic.data_dense"
+    assert content_grid["props"]["columns"] == 3
+    assert metric_grid["props"]["aesthetic_layout_profile"] == "aesthetic.data_dense"
+    assert metric_grid["props"]["columns"] == 3
+
+    checked = check_artifact_dir(output)
+
+    assert checked["ok"] is True, checked["errors"]
+    assert checked["manifest_summary"]["aesthetic_profile"] == "aesthetic.data_dense"
+    assert checked["manifest_summary"]["aesthetic_layout"]["content_grid"]["columns"] == 3
+    assert checked["manifest_summary"]["aesthetic_layout"]["metric_grid"]["columns"] == 3
+
+
+def test_check_rejects_tampered_aesthetic_profile_metadata(tmp_path):
+    builder = ViewSpecBuilder("aesthetic_tamper")
+    builder.set_aesthetic_profile("aesthetic.calm_ops")
+    dashboard = builder.add_dashboard("metrics", region="main", group_id="cards")
+    dashboard.add_card(label="Open risks", value="4", id="open_risks")
+    source = tmp_path / "viewspec.intent.json"
+    output = tmp_path / "react-tailwind-output"
+    source.write_text(json.dumps(builder.build_bundle().to_json(), indent=2), encoding="utf-8")
+
+    result = compile_intent_bundle_file_tool(
+        source,
+        output,
+        target="react-tailwind-tsx",
+        cwd=tmp_path,
+        allow_outside_cwd=True,
+    )
+    assert result["ok"] is True
+    manifest_path = output / "provenance_manifest.json"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    root_entry = _manifest_entry_by_primitive(manifest["nodes"], "root")
+    root_entry["props"]["aesthetic_profile"] = "aesthetic.unchecked"
+    manifest["tailwind_recipe_inventory"]["aesthetic_profile"] = "aesthetic.unchecked"
+    manifest_path.write_text(json.dumps(manifest, indent=2), encoding="utf-8")
+
+    checked = check_artifact_dir(output)
+
+    assert checked["ok"] is False
+    assert any("AESTHETIC_PROFILE_UNKNOWN" in error for error in checked["errors"])
+
+
+def test_check_rejects_tampered_aesthetic_layout_metadata(tmp_path):
+    source = tmp_path / "viewspec.intent.json"
+    output = tmp_path / "react-tailwind-output"
+    source.write_text(json.dumps(_aesthetic_workspace_bundle("aesthetic.editorial_product").to_json(), indent=2), encoding="utf-8")
+
+    result = compile_intent_bundle_file_tool(
+        source,
+        output,
+        target="react-tailwind-tsx",
+        cwd=tmp_path,
+        allow_outside_cwd=True,
+    )
+    assert result["ok"] is True
+    manifest_path = output / "provenance_manifest.json"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    metric_grid = _manifest_entry_by_product_role(manifest["nodes"], "metric_grid")
+    assert metric_grid["props"]["aesthetic_layout_profile"] == "aesthetic.editorial_product"
+    assert metric_grid["props"]["columns"] == 1
+    metric_grid["props"]["columns"] = 2
+    manifest_path.write_text(json.dumps(manifest, indent=2), encoding="utf-8")
+
+    checked = check_artifact_dir(output)
+
+    assert checked["ok"] is False
+    assert any("AESTHETIC_PROFILE_LAYOUT_MISMATCH" in error for error in checked["errors"])
+
+
+def test_check_rejects_boolean_aesthetic_layout_columns(tmp_path):
+    source = tmp_path / "viewspec.intent.json"
+    output = tmp_path / "react-tailwind-output"
+    source.write_text(json.dumps(_aesthetic_workspace_bundle("aesthetic.editorial_product").to_json(), indent=2), encoding="utf-8")
+
+    result = compile_intent_bundle_file_tool(
+        source,
+        output,
+        target="react-tailwind-tsx",
+        cwd=tmp_path,
+        allow_outside_cwd=True,
+    )
+    assert result["ok"] is True
+    manifest_path = output / "provenance_manifest.json"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    metric_grid = _manifest_entry_by_product_role(manifest["nodes"], "metric_grid")
+    assert metric_grid["props"]["aesthetic_layout_profile"] == "aesthetic.editorial_product"
+    assert metric_grid["props"]["columns"] == 1
+    metric_grid["props"]["columns"] = True
+    manifest_path.write_text(json.dumps(manifest, indent=2), encoding="utf-8")
+
+    checked = check_artifact_dir(output)
+
+    assert checked["ok"] is False
+    assert any("AESTHETIC_PROFILE_LAYOUT_MISMATCH" in error for error in checked["errors"])
+
+
+@pytest.mark.parametrize(
+    ("profile_overlay", "expected_code"),
+    [
+        ({}, "TAILWIND_AESTHETIC_RECIPE_MISSING"),
+        ({"aesthetic.calm_ops": {"app_role:app_shell": "x " * 2200}}, "TAILWIND_AESTHETIC_RECIPE_TOO_LARGE"),
+        ({"aesthetic.calm_ops": {"app_role:app_shell": "[color:red]"}}, "TAILWIND_AESTHETIC_UNSAFE_CLASS"),
+    ],
+)
+def test_react_tailwind_rejects_missing_oversized_or_unsafe_aesthetic_recipes(tmp_path, monkeypatch, profile_overlay, expected_code):
+    import viewspec.emitters.react_tailwind_tsx as react_tailwind
+
+    overlays = {profile: dict(overlay) for profile, overlay in TAILWIND_AESTHETIC_RECIPE_OVERLAYS.items()}
+    if not profile_overlay:
+        overlays.pop("aesthetic.calm_ops")
+    else:
+        for profile, overlay in profile_overlay.items():
+            overlays[profile] = overlay
+    monkeypatch.setattr(react_tailwind, "TAILWIND_AESTHETIC_RECIPE_OVERLAYS", overlays)
+    ast = ASTBundle(
+        result=CompilerResult(
+            root=CompositionIR(
+                root=IRNode(
+                    id="root",
+                    primitive="root",
+                    props={"aesthetic_profile": "aesthetic.calm_ops"},
+                    style_tokens=["aesthetic.calm_ops"],
+                    provenance=Provenance(intent_refs=["viewspec:view:bad_recipe"]),
+                )
+            ),
+            diagnostics=[],
+        ),
+        style_values={},
+        title="Bad Recipe",
+    )
+
+    with pytest.raises(CompilerConstraintError) as exc_info:
+        ReactTailwindTsxEmitter().emit(ast, tmp_path)
+
+    assert exc_info.value.code == expected_code
+    assert not tmp_path.joinpath("ViewSpecView.tsx").exists()
 
 
 def test_react_tailwind_tsx_emitter_rejects_user_app_role_before_writing(tmp_path):

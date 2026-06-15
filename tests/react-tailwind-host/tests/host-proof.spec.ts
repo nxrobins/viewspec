@@ -62,18 +62,19 @@ test("generated React Tailwind artifact builds and behaves in a host app", async
   const searchInput = domIdForProp("binding_id", "search_value");
   const applyButton = domIdForProp("action_id", "apply_filters");
   await expect(page.locator(`#${roleIds.contentGrid}`)).toHaveAttribute("data-ir-id", manifest.nodes[roleIds.contentGrid].ir_id);
+  await expect(page.locator(`#${roleIds.appShell}`)).toHaveAttribute("data-aesthetic-profile", "aesthetic.data_dense");
 
   const styleAssertions: Array<[string, string, string | RegExp]> = [
-    [roleIds.appShell, "background-color", /^(rgb\(248, 250, 252\)|oklch\(0\.984 0\.003 247\.858\))$/],
-    [roleIds.appShell, "padding-left", "32px"],
+    [roleIds.appShell, "background-color", /^(rgb\(226, 232, 240\)|oklch\(0\.929 0\.013 255\.50[78]\))$/],
+    [roleIds.appShell, "padding-left", "20px"],
     [roleIds.contentGrid, "display", "grid"],
     [roleIds.contentGrid, "column-gap", "20px"],
     [roleIds.filterBar, "display", "flex"],
     [roleIds.filterBar, "column-gap", "12px"],
     [roleIds.filterBar, "border-top-width", "1px"],
-    [roleIds.metricCard, "min-height", "112px"],
+    [roleIds.metricCard, "min-height", "80px"],
     [searchInput, "border-top-width", "1px"],
-    [applyButton, "background-color", /^(rgb\(15, 118, 110\)|oklch\(0\.511 0\.096 186\.391\))$/],
+    [applyButton, "background-color", /^(rgb\(29, 78, 216\)|oklch\(0\.488 0\.243 264\.376\))$/],
   ];
   if (styleAssertions.length < 8) fail("HOST_PROOF_STYLE_ASSERTION_TOO_WEAK", "at least 8 computed style assertions are required");
   for (const [domId, property, expected] of styleAssertions) {

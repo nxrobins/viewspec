@@ -103,11 +103,13 @@ def verify_host_artifact_dir(
     timings: dict[str, int] = {}
     started = time.perf_counter()
     artifact_path = Path(artifact_dir).resolve()
+    manifest_summary: dict[str, Any] | None = None
     try:
         if target != HOST_VERIFY_TARGET:
             raise HostVerifyFailure("HOST_VERIFY_UNSUPPORTED_TARGET", f"Unsupported host verification target: {target}")
 
         checked = _time_phase(timings, "check_copy", lambda: check_artifact_dir(artifact_path))
+        manifest_summary = checked.get("manifest_summary") if isinstance(checked.get("manifest_summary"), dict) else None
         if not checked["ok"]:
             return _finalize_report(
                 _error_report(
@@ -116,6 +118,7 @@ def verify_host_artifact_dir(
                     artifact_dir=artifact_path,
                     install=install,
                     timings=timings,
+                    manifest_summary=manifest_summary,
                     errors=[
                         {
                             "code": "HOST_VERIFY_ARTIFACT_CHECK_FAILED",
@@ -148,7 +151,7 @@ def verify_host_artifact_dir(
             if copied_hash != artifact_hash:
                 raise HostVerifyFailure("HOST_VERIFY_ARTIFACT_HASH_MISMATCH", "Copied artifact hash does not match source artifact hash.")
             runtime = _run_host_browser_phases(host_dir, install=install, started=started, timings=timings)
-            assertions = _assert_runtime_report(runtime)
+            assertions = _assert_runtime_report(runtime, manifest_summary=manifest_summary)
             report = _base_report(
                 ok=True,
                 artifact_dir=artifact_path,
@@ -161,6 +164,7 @@ def verify_host_artifact_dir(
                 node_version=runtime["node_version"],
                 npm_version=runtime["npm_version"],
                 assertions=assertions,
+                manifest_summary=manifest_summary,
                 errors=[],
             )
             return _finalize_report(report, report_out)
@@ -172,6 +176,7 @@ def verify_host_artifact_dir(
                 artifact_dir=artifact_path,
                 install=install,
                 timings=timings,
+                manifest_summary=manifest_summary,
                 fix=exc.fix,
             ),
             report_out,
@@ -184,6 +189,7 @@ def verify_host_artifact_dir(
                 artifact_dir=artifact_path,
                 install=install,
                 timings=timings,
+                manifest_summary=manifest_summary,
             ),
             report_out,
         )
@@ -229,6 +235,7 @@ def verify_host_intent_file(
                 "Compile mode failed before host verification.",
                 artifact_dir=Path(out_dir).resolve(),
                 install=install,
+                manifest_summary=_manifest_summary_from_tool_result(compiled),
                 errors=errors,
             ),
             report_out,
@@ -281,6 +288,7 @@ def verify_host_tool(
                     "Compile mode failed before host verification.",
                     artifact_dir=resolve_local_path(out_dir, cwd=root, allow_outside_cwd=allow_outside_cwd),
                     install=install,
+                    manifest_summary=_manifest_summary_from_tool_result(compiled),
                     errors=[
                         {
                             "code": "HOST_VERIFY_ARTIFACT_CHECK_FAILED",
@@ -333,9 +341,45 @@ def _tool_from_report(proof: dict[str, Any], root: Path | None, allow_outside_cw
             **path_policy_metadata(root, allow_outside_cwd),
             "network_calls": "npm_ci_opt_in" if proof.get("install_used") else "none",
             "target": proof.get("target"),
+            "manifest_summary": proof.get("manifest_summary"),
+            "host_verification": summarize_host_verification_report(proof),
         },
         data={"proof_report": proof},
     )
+
+
+def summarize_host_verification_report(report: object) -> dict[str, Any] | None:
+    if not isinstance(report, dict):
+        return None
+    assertions = report.get("assertions")
+    normalized_assertions: dict[str, int] = {}
+    if isinstance(assertions, dict):
+        normalized_assertions = {
+            str(key): int(value)
+            for key, value in assertions.items()
+            if isinstance(value, int) and not isinstance(value, bool)
+        }
+    errors = report.get("errors")
+    error_codes: list[str] = []
+    if isinstance(errors, list):
+        error_codes = [
+            str(error.get("code"))
+            for error in errors
+            if isinstance(error, dict) and error.get("code")
+        ]
+    return {
+        "ok": bool(report.get("ok")),
+        "assertions": normalized_assertions,
+        "error_codes": error_codes,
+    }
+
+
+def _manifest_summary_from_tool_result(result: dict[str, Any]) -> dict[str, Any] | None:
+    metadata = result.get("metadata")
+    if not isinstance(metadata, dict):
+        return None
+    summary = metadata.get("manifest_summary")
+    return summary if isinstance(summary, dict) else None
 
 
 def _run_host_browser_phases(
@@ -616,21 +660,57 @@ def _time_phase(timings: dict[str, int], phase: str, fn: Any) -> Any:
     return result
 
 
-def _assert_runtime_report(runtime: dict[str, Any]) -> dict[str, int]:
+def _assert_runtime_report(runtime: dict[str, Any], *, manifest_summary: dict[str, Any] | None = None) -> dict[str, int]:
     assertions = runtime.get("assertions")
     if not isinstance(assertions, dict):
         raise HostVerifyFailure("HOST_VERIFY_PROOF_REPORT_INVALID", "Browser assertion report has no assertions object.")
     normalized = {
         "dom_count": int(assertions.get("dom_count", 0)),
+        "grid_column_assertion_count": int(assertions.get("grid_column_assertion_count", 0)),
         "style_assertion_count": int(assertions.get("style_assertion_count", 0)),
         "action_count": int(assertions.get("action_count", 0)),
+        "aesthetic_layout_assertion_count": int(assertions.get("aesthetic_layout_assertion_count", 0)),
+        "aesthetic_profile_assertion_count": int(assertions.get("aesthetic_profile_assertion_count", 0)),
         "payload_binding_count": int(assertions.get("payload_binding_count", 0)),
     }
     if normalized["dom_count"] < 1:
         raise HostVerifyFailure("HOST_VERIFY_DOM_NODE_MISSING", "Browser report did not include a DOM assertion.")
     if normalized["style_assertion_count"] < 4:
         raise HostVerifyFailure("HOST_VERIFY_STYLE_ASSERTION_TOO_WEAK", "Browser report did not include four computed style assertions.")
+    if _manifest_summary_has_aesthetic_profile(manifest_summary) and normalized["aesthetic_profile_assertion_count"] < 1:
+        raise HostVerifyFailure(
+            "HOST_VERIFY_AESTHETIC_PROFILE_ASSERTION_MISSING",
+            "Browser report did not include a runtime aesthetic profile marker assertion.",
+        )
+    expected_layout_count = _manifest_summary_aesthetic_layout_node_count(manifest_summary)
+    if expected_layout_count > 0 and normalized["aesthetic_layout_assertion_count"] < expected_layout_count:
+        raise HostVerifyFailure(
+            "HOST_VERIFY_AESTHETIC_LAYOUT_ASSERTION_MISSING",
+            f"Browser report included {normalized['aesthetic_layout_assertion_count']} aesthetic layout assertions for {expected_layout_count} profiled layout nodes.",
+        )
     return normalized
+
+
+def _manifest_summary_has_aesthetic_profile(manifest_summary: dict[str, Any] | None) -> bool:
+    if not isinstance(manifest_summary, dict):
+        return False
+    return isinstance(manifest_summary.get("aesthetic_profile"), str) and bool(manifest_summary["aesthetic_profile"])
+
+
+def _manifest_summary_aesthetic_layout_node_count(manifest_summary: dict[str, Any] | None) -> int:
+    if not isinstance(manifest_summary, dict):
+        return 0
+    layout = manifest_summary.get("aesthetic_layout")
+    if not isinstance(layout, dict):
+        return 0
+    count = 0
+    for item in layout.values():
+        if not isinstance(item, dict):
+            continue
+        node_count = item.get("node_count")
+        if isinstance(node_count, int) and not isinstance(node_count, bool) and node_count > 0:
+            count += node_count
+    return count
 
 
 def _base_report(
@@ -646,6 +726,7 @@ def _base_report(
     node_version: str | None = None,
     npm_version: str | None = None,
     assertions: dict[str, int] | None = None,
+    manifest_summary: dict[str, Any] | None = None,
     errors: list[dict[str, str]] | None = None,
 ) -> dict[str, Any]:
     return {
@@ -660,9 +741,13 @@ def _base_report(
         "install_used": bool(install),
         "node_version": node_version,
         "npm_version": npm_version,
+        "manifest_summary": manifest_summary,
         "assertions": assertions or {
             "action_count": 0,
+            "aesthetic_layout_assertion_count": 0,
+            "aesthetic_profile_assertion_count": 0,
             "dom_count": 0,
+            "grid_column_assertion_count": 0,
             "payload_binding_count": 0,
             "style_assertion_count": 0,
         },
@@ -679,6 +764,7 @@ def _error_report(
     install: bool,
     timings: dict[str, int] | None = None,
     fix: str | None = None,
+    manifest_summary: dict[str, Any] | None = None,
     errors: list[dict[str, str]] | None = None,
 ) -> dict[str, Any]:
     return _base_report(
@@ -686,6 +772,7 @@ def _error_report(
         artifact_dir=artifact_dir,
         install=install,
         timings=timings or {},
+        manifest_summary=manifest_summary,
         errors=errors
         or [
             {
@@ -730,6 +817,7 @@ __all__ = [
     "HOST_VERIFY_SCHEMA_VERSION",
     "HOST_VERIFY_TARGET",
     "HostVerifyFailure",
+    "summarize_host_verification_report",
     "verify_host_artifact_dir",
     "verify_host_intent_file",
     "verify_host_tool",

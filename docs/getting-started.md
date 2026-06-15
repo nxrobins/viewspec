@@ -96,6 +96,7 @@ from viewspec.emitters.react_tailwind_tsx import ReactTailwindTsxEmitter
 from viewspec.emitters.react_tsx import ReactTsxEmitter
 
 builder = ViewSpecBuilder("invoice")
+builder.set_aesthetic_profile("aesthetic.calm_ops")
 table = builder.add_table("items", region="main", group_id="rows")
 table.add_row(label="Design System Audit", value="$4,200")
 table.add_row(label="Component Library", value="$8,500")
@@ -114,6 +115,8 @@ ReactTailwindTsxEmitter().emit(ast, "react-tailwind-output/")
 
 The local reference compiler supports safe text inputs, loading/error state motifs, and local action payload events. HTML action events dispatch `viewspec-action` with `detail.schemaVersion: 1`, `source`, `id`, `kind`, `targetRef`, `payloadBindings`, and `payloadValues`. Collection actions for table/list motifs dispatch `search`, `filter`, `sort`, `paginate`, and `bulk_action` events only; they do not locally mutate data. Pressing Enter inside a local inert form dispatches only a declared `submit` action whose `targetRef` exactly matches that form motif. React TSX output uses an `onAction` callback with the same V1 fields and `source: "viewspec-react-tsx"`.
 
+Use `builder.set_aesthetic_profile("aesthetic.calm_ops")` when you want governed art direction without authoring CSS. V1 supports exactly one view-level profile per IntentBundle: `aesthetic.calm_ops`, `aesthetic.premium_saas`, `aesthetic.data_dense`, `aesthetic.editorial_product`, or `aesthetic.executive_review`; profiles are deterministic style and bounded-layout handles, not CSS, pixel-perfect visual proof, accessibility certification, arbitrary host-app compatibility, or design-review approval.
+
 From the CLI, use `--target react-tsx` when you want component source instead of standalone HTML:
 
 ```bash
@@ -126,7 +129,7 @@ Use `--target react-tailwind-tsx` when the host React app already has Tailwind a
 viewspec compile viewspec.intent.json --target react-tailwind-tsx --out react-tailwind-output/
 ```
 
-The ViewSpec repo CI includes one bounded host proof for this target: it regenerates a representative fixture, runs `viewspec check`, mounts the exact checked `ViewSpecView.tsx` in a Vite/Tailwind host, builds it, and smoke-tests rendered DOM, computed Tailwind styles, and action payloads in Chromium. That proof is not run for every user artifact; `viewspec check` verifies source artifact integrity and provenance for the output you compiled.
+The ViewSpec repo CI includes one bounded host proof for this target: it regenerates a representative fixture, runs `viewspec check`, mounts the exact checked `ViewSpecView.tsx` in a Vite/Tailwind host, builds it, and smoke-tests rendered DOM, computed Tailwind styles, profiled aesthetic marker/layout assertions, and action payloads in Chromium. That proof is not run for every user artifact; `viewspec check` verifies source artifact integrity and provenance for the output you compiled.
 
 Run the same bounded proof for a specific artifact with:
 

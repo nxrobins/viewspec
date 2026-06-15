@@ -25,6 +25,35 @@ def _valid_bundle_json() -> dict:
     return builder.build_bundle().to_json()
 
 
+def _profile_workspace_bundle_json(profile: str) -> dict:
+    builder = ViewSpecBuilder(
+        "validate_cli_profile_workspace",
+        root_attrs={"title": "Profile Workspace"},
+        default_main_region=False,
+        root_min_children=2,
+    )
+    builder.set_aesthetic_profile(profile)
+    builder.add_region("north", parent_region="root", role="banner", layout="stack", min_children=1)
+    builder.add_region("canvas", parent_region="root", role="application", layout="grid", min_children=2)
+    builder.add_region("focus", parent_region="canvas", role="primary", layout="stack", min_children=1)
+    builder.add_region("assist", parent_region="canvas", role="complementary", layout="stack", min_children=1)
+    builder.add_hero(
+        "intro",
+        eyebrow="Operations",
+        title="Profile workspace",
+        description="Check output should expose manifest layout facts.",
+        region="north",
+        group_id="intro",
+    )
+    dashboard = builder.add_dashboard("numbers", region="focus", group_id="metrics")
+    dashboard.add_card(label="Open", value="4", id="open")
+    dashboard.add_card(label="Blocked", value="1", id="blocked")
+    dashboard.add_card(label="Ready", value="9", id="ready")
+    detail = builder.add_detail("identity", region="assist", group_id="details")
+    detail.add_field(label="Manifest", value="checked", id="manifest")
+    return builder.build_bundle().to_json()
+
+
 def test_validate_intent_valid_bundle_exits_zero_and_returns_json(tmp_path, capsys):
     path = tmp_path / "viewspec.intent.json"
     path.write_text(json.dumps(_valid_bundle_json()), encoding="utf-8")
@@ -462,6 +491,33 @@ def test_compile_invalid_intent_reports_validation_before_missing_design(tmp_pat
     assert "INVALID_PAYLOAD" in captured.err
     assert "missing-DESIGN.md" not in captured.err
     assert not out_dir.exists()
+
+
+def test_check_human_output_prints_manifest_summary_for_aesthetic_artifact(tmp_path, capsys):
+    intent_path = tmp_path / "viewspec.intent.json"
+    intent_path.write_text(
+        json.dumps(_profile_workspace_bundle_json("aesthetic.editorial_product")),
+        encoding="utf-8",
+    )
+    out_dir = tmp_path / "react-tailwind-dist"
+
+    assert cli_main(
+        ["compile", str(intent_path), "--target", "react-tailwind-tsx", "--out", str(out_dir)]
+    ) == 0
+    capsys.readouterr()
+
+    assert cli_main(["check", str(out_dir)]) == 0
+    output = capsys.readouterr().out
+
+    assert output.startswith("ok\n")
+    assert (
+        "manifest: kind=intent_bundle_compile emitter=react_tailwind_tsx artifact=ViewSpecView.tsx nodes="
+        in output
+    )
+    assert "aesthetic_profile: aesthetic.editorial_product" in output
+    assert "aesthetic_layout:\n" in output
+    assert "  content_grid: columns=2 nodes=1 profile=aesthetic.editorial_product" in output
+    assert "  metric_grid: columns=1 nodes=1 profile=aesthetic.editorial_product" in output
 
 
 @pytest.mark.parametrize("kind", STARTER_INTENT_KINDS)

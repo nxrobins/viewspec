@@ -7,6 +7,12 @@ import re
 from dataclasses import dataclass
 from typing import Any
 
+from viewspec.aesthetics import (
+    AESTHETIC_PROFILE_LAYOUT_PROPS,
+    AESTHETIC_PROFILE_LAYOUT_ROLES,
+    AESTHETIC_PROFILE_TOKENS,
+    is_aesthetic_profile_token,
+)
 from viewspec.compiler import (
     COLLECTION_ACTION_KINDS,
     COLLECTION_MOTIF_KINDS,
@@ -75,9 +81,28 @@ SUPPORTED_AGENT_STYLE_TOKENS = tuple(
         "align.start",
         "align.center",
         "align.end",
+        *AESTHETIC_PROFILE_TOKENS,
     )
-    if token in DEFAULT_STYLE_TOKEN_VALUES or token in {"tone.warning", "tone.positive", "rhythm.hierarchy", "narrative.flow"}
+    if token in DEFAULT_STYLE_TOKEN_VALUES
+    or token in {"tone.warning", "tone.positive", "rhythm.hierarchy", "narrative.flow"}
+    or token in AESTHETIC_PROFILE_TOKENS
 )
+AGENT_AESTHETIC_PROFILE_CONTRACT = {
+    "tokens": list(AESTHETIC_PROFILE_TOKENS),
+    "style_token_prefix": "aesthetic.",
+    "max_declarations": 1,
+    "target": "view:{view_spec.id}",
+    "layout_roles": sorted(AESTHETIC_PROFILE_LAYOUT_ROLES),
+    "layout_props": {
+        profile: {role: dict(props) for role, props in role_props.items()}
+        for profile, role_props in AESTHETIC_PROFILE_LAYOUT_PROPS.items()
+    },
+    "non_claims": [
+        "not_css",
+        "not_pixel_perfect_visual_proof",
+        "not_design_certification",
+    ],
+}
 MAX_AGENT_INTENT_BYTES = 256 * 1024
 MAX_AGENT_NODES = 200
 MAX_AGENT_NODE_ATTRS = 64
@@ -142,7 +167,9 @@ Do not include hosted-only fields in the local v1 contract: root design, root mo
 
 Do not add custom or extension fields to local v1 objects. Unknown fields are rejected instead of silently ignored.
 
-Use style tokens only from this v1 set: emphasis.low, emphasis.medium, emphasis.high, density.compact, density.regular, density.airy, palette.temperature, tone.neutral, tone.muted, tone.accent, tone.warning, tone.positive, action.accent, surface.none, surface.subtle, surface.strong, rhythm.hierarchy, narrative.flow, align.start, align.center, align.end.
+Use style tokens only from this v1 set: emphasis.low, emphasis.medium, emphasis.high, density.compact, density.regular, density.airy, palette.temperature, tone.neutral, tone.muted, tone.accent, tone.warning, tone.positive, action.accent, surface.none, surface.subtle, surface.strong, rhythm.hierarchy, narrative.flow, align.start, align.center, align.end, aesthetic.calm_ops, aesthetic.premium_saas, aesthetic.data_dense, aesthetic.editorial_product, aesthetic.executive_review.
+
+Aesthetic profile tokens are deterministic art-direction handles, not CSS. At most one style may use an aesthetic.* token, it must target exactly view:{view_spec.id}, and it must be one of aesthetic.calm_ops, aesthetic.premium_saas, aesthetic.data_dense, aesthetic.editorial_product, or aesthetic.executive_review. The compiler may derive governed style projection and bounded layout metadata from that token.
 
 Use canonical binding addresses:
 - node:{node_id}
@@ -199,10 +226,14 @@ AGENT_INTENT_BUNDLE_SCHEMA: dict[str, Any] = {
         "Semantic node edges must reference declared substrate node ids.",
         "Bindings, groups, motifs, styles, and actions may only reference declared ids.",
         "Motifs must be semantically complete for their kind before local compilation.",
+        "IntentBundle may declare at most one aesthetic.* style token.",
+        "Aesthetic profile style token must target exactly view:{view_spec.id}.",
+        "Aesthetic profile tokens derive governed style projection and bounded layout metadata for content_grid and metric_grid roles.",
         "Hosted-only fields design, motif_library, view_spec.inputs, view_spec.projections, and view_spec.rules are rejected by the local schema and validate-intent.",
         "Unknown extension fields are rejected instead of silently ignored.",
         "JSON Schema enforces shape and caps; viewspec validate-intent enforces cross-reference invariants.",
     ],
+    "x-viewspec-aesthetic-profiles": AGENT_AESTHETIC_PROFILE_CONTRACT,
     "$defs": {
         "values": {
             "type": "object",
@@ -542,6 +573,9 @@ def agent_repair_checklist(result: AgentValidationResult) -> list[str]:
         "COLLECTION_ACTION_PAYLOAD_REQUIRED",
         "COLLECTION_BULK_SELECTION_REQUIRED",
         "COLLECTION_BULK_SELECTION_AMBIGUOUS",
+        "AESTHETIC_PROFILE_UNKNOWN",
+        "AESTHETIC_PROFILE_MULTIPLE",
+        "AESTHETIC_PROFILE_TARGET_INVALID",
     }:
         add("Use only published style tokens, unambiguous style targets, supported action kinds, and explicit region/binding/motif/view target_ref values.")
     if any(code.startswith("TOO_MANY_") for code in codes) or codes == {"INTENT_TOO_LARGE"} or "INTENT_TOO_LARGE" in codes:
@@ -1453,6 +1487,7 @@ def _validate_styles(
     motif_ids: set[str],
     issues: list[AgentValidationIssue],
 ) -> None:
+    aesthetic_styles: list[tuple[int, dict[str, Any]]] = []
     for index, style in enumerate(styles):
         path = f"$.view_spec.styles[{index}]"
         if not isinstance(style, dict):
@@ -1463,7 +1498,16 @@ def _validate_styles(
         _validate_safe_id(style_id, f"{path}.id", "style id", issues)
         target = _required_string(style, "target", path, issues)
         token = _required_string(style, "token", path, issues)
-        if token and token not in SUPPORTED_AGENT_STYLE_TOKENS:
+        if token and is_aesthetic_profile_token(token) and token not in AESTHETIC_PROFILE_TOKENS:
+            issues.append(
+                _issue(
+                    "AESTHETIC_PROFILE_UNKNOWN",
+                    f"{path}.token",
+                    f"Style {style.get('id')} uses unknown aesthetic profile {token}.",
+                    f"Use one of: {', '.join(AESTHETIC_PROFILE_TOKENS)}.",
+                )
+            )
+        elif token and token not in SUPPORTED_AGENT_STYLE_TOKENS:
             issues.append(
                 _issue(
                     "UNSUPPORTED_STYLE_TOKEN",
@@ -1472,6 +1516,18 @@ def _validate_styles(
                     f"Use one of: {', '.join(SUPPORTED_AGENT_STYLE_TOKENS)}.",
                 )
             )
+        if token and is_aesthetic_profile_token(token):
+            aesthetic_styles.append((index, style))
+            expected_target = f"view:{view_id}"
+            if target != expected_target:
+                issues.append(
+                    _issue(
+                        "AESTHETIC_PROFILE_TARGET_INVALID",
+                        f"{path}.target",
+                        f"Style {style.get('id')} must target exactly {expected_target}.",
+                        "Use builder.set_aesthetic_profile(profile) or set target to the explicit view ref.",
+                    )
+                )
         _validate_target_ref(
             target,
             f"{path}.target",
@@ -1484,6 +1540,16 @@ def _validate_styles(
             unknown_code="UNKNOWN_STYLE_TARGET",
             allow_bare=True,
         )
+    if len(aesthetic_styles) > 1:
+        for index, style in aesthetic_styles[1:]:
+            issues.append(
+                _issue(
+                    "AESTHETIC_PROFILE_MULTIPLE",
+                    f"$.view_spec.styles[{index}].token",
+                    "IntentBundle may declare at most one aesthetic.* style token.",
+                    "Keep one view-level aesthetic profile and remove the rest.",
+                )
+            )
 
 
 def _validate_actions(

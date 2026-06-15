@@ -64,6 +64,7 @@ from viewspec.raw_html import (
     diff_html,
     lift_html,
 )
+from viewspec.aesthetics import AESTHETIC_PROFILE_TOKENS
 from viewspec.agent import (
     AGENT_INTENT_BUNDLE_SCHEMA,
     AGENT_SYSTEM_PROMPT,
@@ -100,7 +101,17 @@ from viewspec.intent_tools import (
     validate_intent_file,
     validate_intent_text,
 )
-from viewspec.host_verify import verify_host_artifact_dir, verify_host_intent_file, verify_host_tool
+from viewspec.manifest_summary import (
+    manifest_aesthetic_layout_summary,
+    manifest_root_aesthetic_profile,
+    summarize_intent_manifest,
+)
+from viewspec.host_verify import (
+    summarize_host_verification_report,
+    verify_host_artifact_dir,
+    verify_host_intent_file,
+    verify_host_tool,
+)
 from viewspec.prove import prove, prove_tool
 
 __all__ = [
@@ -159,6 +170,8 @@ __all__ = [
     "compile_html",
     "diff_html",
     "lift_html",
+    # Aesthetic profiles
+    "AESTHETIC_PROFILE_TOKENS",
     # Agent integration
     "AGENT_INTENT_BUNDLE_SCHEMA",
     "AGENT_SYSTEM_PROMPT",
@@ -190,6 +203,10 @@ __all__ = [
     "starter_intent_bundle",
     "validate_intent_file",
     "validate_intent_text",
+    "manifest_aesthetic_layout_summary",
+    "manifest_root_aesthetic_profile",
+    "summarize_intent_manifest",
+    "summarize_host_verification_report",
     "verify_host_artifact_dir",
     "verify_host_intent_file",
     "verify_host_tool",

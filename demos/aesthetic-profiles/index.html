@@ -1,0 +1,1320 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ViewSpec Demo - Same Intent, Five Art Directions</title>
+  <meta name="description" content="Compile one ViewSpec IntentBundle through five deterministic aesthetic profile tokens while preserving semantic ids and provenance.">
+  <meta name="robots" content="index,follow,max-snippet:-1,max-image-preview:large">
+  <link rel="canonical" href="https://viewspec.dev/aesthetic-profiles/">
+  <link rel="alternate" type="text/markdown" title="ViewSpec for LLMs" href="https://viewspec.dev/llms.txt">
+  <link rel="service" type="application/json" title="ViewSpec OpenAPI" href="https://viewspec.dev/openapi.json">
+  <script type="application/ld+json">{"@context":"https://schema.org","@type":"WebPage","description":"Compile one ViewSpec IntentBundle through five deterministic aesthetic profile tokens while preserving semantic ids and provenance.","name":"ViewSpec Demo - Same Intent, Five Art Directions","url":"https://viewspec.dev/aesthetic-profiles/"}</script>
+  <link rel="icon" href="data:,">
+  <script src="../shared/nav.js" defer></script>
+  <style data-viewspec-emitter-css="true">
+:root {
+  color-scheme: light;
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  background: #f8fafc;
+  color: #020617;
+}
+* { box-sizing: border-box; }
+body { margin: 0; min-height: 100vh; background: #f8fafc; }
+.vs-root { min-height: 100vh; padding: 24px; display: flex; flex-direction: column; gap: 24px; color: #020617; }
+.vs-stack { display: flex; flex-direction: column; gap: 12px; }
+ul.vs-stack { list-style: none; margin: 0; padding: 0; }
+table.vs-stack { display: table; width: 100%; border-collapse: collapse; border: 1px solid #e2e8f0; border-radius: 12px; overflow: hidden; background: #ffffff; }
+tr.vs-cluster { display: table-row; }
+th.vs-label, td.vs-text, td.vs-value, td.vs-badge, td.vs-label { display: table-cell; padding: 0.7rem 0.85rem; border-bottom: 1px solid #e2e8f0; vertical-align: top; }
+th.vs-label { width: 38%; text-align: left; background: #f8fafc; }
+table.vs-stack tr:last-child th, table.vs-stack tr:last-child td { border-bottom: 0; }
+dl.vs-stack { margin: 0; }
+dl.vs-stack > div.vs-cluster { display: grid; grid-template-columns: minmax(8rem, 30%) 1fr; align-items: start; padding: 0.65rem 0; border-bottom: 1px solid #e2e8f0; }
+dl.vs-stack > div.vs-cluster:last-child { border-bottom: 0; }
+dl.vs-stack dt, dl.vs-stack dd { margin: 0; }
+header.vs-surface { padding: 32px; gap: 14px; }
+header.vs-surface h1.vs-value { margin: 0; font-size: 2.5rem; line-height: 1.05; letter-spacing: 0; }
+header.vs-surface p.vs-text, header.vs-surface p.vs-label { max-width: 68ch; margin: 0; }
+.vs-grid { display: grid; gap: 16px; }
+.vs-cluster { display: flex; flex-flow: row wrap; gap: 12px; }
+.vs-surface { border: 1px solid #e2e8f0; border-radius: 16px; background: #ffffff; padding: 16px; box-shadow: 0 1px 2px rgb(15 23 42 / 0.08); display: flex; flex-direction: column; gap: 12px; }
+.vs-text { color: #1f2937; font-size: 1rem; line-height: 1.75; }
+.vs-label { color: #64748b; font-size: 0.75rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; }
+.vs-value { color: #020617; font-size: 1.5rem; font-weight: 900; line-height: 1.15; }
+.vs-badge { display: inline-flex; width: fit-content; border-radius: 999px; background: #ccfbf1; color: #115e59; padding: 4px 12px; font-size: 0.875rem; font-weight: 700; box-shadow: inset 0 0 0 1px #99f6e4; }
+.vs-input { width: 100%; min-width: 0; border: 1px solid #cbd5e1; border-radius: 10px; background: #ffffff; color: #020617; padding: 0.7rem 0.85rem; font: inherit; }
+.vs-input:focus { outline: 2px solid #0f766e; outline-offset: 2px; }
+.vs-image-slot { min-height: 96px; border-radius: 12px; background: #e2e8f0; color: #64748b; display: grid; place-items: center; }
+.vs-rule { margin: 8px 0; border: 0; border-top: 1px solid #e2e8f0; }
+.vs-svg { border: 1px solid #e2e8f0; border-radius: 12px; background: #f8fafc; color: #475569; padding: 12px; }
+.vs-button { display: inline-flex; width: fit-content; align-items: center; border: 0; border-radius: 12px; background: #0f766e; color: #ffffff; padding: 8px 16px; font-size: 0.875rem; font-weight: 800; cursor: pointer; box-shadow: 0 1px 2px rgb(15 23 42 / 0.16); }
+.vs-button:hover { background: #115e59; }
+.vs-error-boundary { border: 2px dashed #ef4444; border-radius: 12px; background: #fef2f2; color: #991b1b; padding: 16px; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 0.875rem; }
+.vs-role-app-shell { width: min(100%, 1180px); margin: 0 auto; padding: 28px; gap: 18px; }
+.vs-role-app-header { padding: 20px 0 6px; border-bottom: 1px solid #dbe3ea; }
+.vs-role-page-header { border: 0; border-radius: 0; box-shadow: none; background: transparent; padding: 0 0 14px; gap: 8px; }
+.vs-role-content-grid { align-items: start; gap: 18px; }
+.vs-role-primary-column { gap: 18px; }
+.vs-role-side-rail { gap: 14px; align-self: start; }
+.vs-role-metric-grid { gap: 12px; }
+.vs-role-metric-card { min-height: 108px; justify-content: space-between; border-radius: 8px; }
+.vs-role-form-panel { border-radius: 8px; padding: 18px; gap: 14px; }
+.vs-role-field-group { border-radius: 8px; box-shadow: none; padding: 12px; }
+.vs-role-detail-panel { border-radius: 8px; padding: 16px; }
+.vs-role-action-row { align-items: center; justify-content: flex-end; gap: 10px; padding: 4px 0 0; }
+.vs-motif-loading-state { border-radius: 12px; border-style: dashed; color: #475569; }
+.vs-motif-error-state { border-color: #fca5a5; background: #fef2f2; color: #991b1b; }
+.vs-motif-loading-state .vs-value, .vs-motif-error-state .vs-value { font-size: 1.125rem; }
+@media (max-width: 760px) {
+  .vs-root { padding: 16px; }
+  .vs-role-app-shell { padding: 16px; }
+  .vs-role-content-grid { grid-template-columns: 1fr !important; }
+  .vs-role-action-row { justify-content: stretch; }
+  .vs-role-action-row .vs-button { width: 100%; justify-content: center; }
+}
+  </style>
+  <style data-demo-shell-css="true">
+    :root {
+      color-scheme: light;
+      --bg: #f6f8fb;
+      --paper: #ffffff;
+      --paper-2: #f0f4f8;
+      --line: #d8e0e8;
+      --line-strong: #b8c4d1;
+      --ink: #101820;
+      --muted: #5c6978;
+      --soft: #eef3f7;
+      --accent: #0f766e;
+      --accent-soft: #dff6f2;
+      --gold: #a16207;
+      --shell: 1240px;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--ink);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+      min-height: 100vh;
+    }
+
+    .page-shell {
+      margin: 0 auto;
+      padding: 24px 18px 56px;
+      width: min(var(--shell), 100%);
+    }
+
+    .hero {
+      display: grid;
+      gap: 16px;
+      grid-template-columns: minmax(0, 1fr) minmax(280px, 420px);
+      padding: 18px 0 20px;
+      align-items: end;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .eyebrow,
+    .profile-token,
+    .stable-pill,
+    dt {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      letter-spacing: 0;
+    }
+
+    .eyebrow {
+      color: var(--accent);
+      font-size: 0.78rem;
+      font-weight: 900;
+      text-transform: uppercase;
+    }
+
+    h1 {
+      font-size: clamp(2rem, 4.1vw, 3.15rem);
+      line-height: 1.02;
+      margin: 0;
+      max-width: 19ch;
+    }
+
+    .lead {
+      color: var(--muted);
+      font-size: 0.96rem;
+      line-height: 1.6;
+      margin: 0;
+      max-width: 76ch;
+    }
+
+    .hero-copy {
+      display: grid;
+      gap: 12px;
+    }
+
+    .hero-facts {
+      align-self: stretch;
+      display: grid;
+      gap: 8px;
+      list-style: none;
+      margin: 0;
+      padding: 0;
+    }
+
+    .hero-facts li {
+      align-items: baseline;
+      background: rgba(255, 255, 255, 0.72);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      display: flex;
+      gap: 12px;
+      justify-content: space-between;
+      padding: 10px 12px;
+    }
+
+    .hero-facts strong {
+      color: var(--ink);
+      font-size: 0.9rem;
+      font-weight: 850;
+      white-space: nowrap;
+    }
+
+    .hero-facts span {
+      color: var(--muted);
+      font-size: 0.82rem;
+      line-height: 1.35;
+      text-align: right;
+    }
+
+    .demo-layout {
+      display: grid;
+      gap: 22px;
+      grid-template-columns: minmax(235px, 292px) minmax(0, 1fr);
+      margin-top: 20px;
+      align-items: start;
+    }
+
+    .profile-grid {
+      display: grid;
+      gap: 9px;
+      position: sticky;
+      top: 18px;
+    }
+
+    .profile-card {
+      appearance: none;
+      background: rgba(255, 255, 255, 0.82);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      color: inherit;
+      cursor: pointer;
+      display: grid;
+      gap: 7px;
+      padding: 12px;
+      text-align: left;
+      width: 100%;
+    }
+
+    .profile-card:hover {
+      border-color: var(--line-strong);
+      background: #ffffff;
+    }
+
+    .profile-card[aria-pressed="true"] {
+      background: var(--accent-soft);
+      border-color: rgba(15, 118, 110, 0.44);
+      box-shadow: inset 3px 0 0 var(--accent);
+    }
+
+    .profile-token,
+    .profile-name,
+    .profile-note,
+    .stable-pill {
+      display: block;
+    }
+
+    .profile-token {
+      color: var(--accent);
+      font-size: 0.68rem;
+      font-weight: 900;
+    }
+
+    .profile-name,
+    h2 {
+      font-size: 1.05rem;
+      font-weight: 850;
+      line-height: 1.18;
+      margin: 0;
+    }
+
+    .stable-pill {
+      border: 1px solid rgba(15, 118, 110, 0.22);
+      border-radius: 999px;
+      color: #0f5f58;
+      font-size: 0.62rem;
+      font-weight: 800;
+      justify-self: start;
+      padding: 5px 8px;
+    }
+
+    .profile-note {
+      color: var(--muted);
+      font-size: 0.86rem;
+      line-height: 1.55;
+      margin: 0;
+    }
+
+    .artifact-stage {
+      display: grid;
+      gap: 14px;
+      min-width: 0;
+    }
+
+    .stage-header {
+      align-items: start;
+      display: flex;
+      gap: 12px;
+      justify-content: space-between;
+      padding: 2px 2px 0;
+    }
+
+    .stage-title {
+      display: grid;
+      gap: 5px;
+    }
+
+    .stage-title h2 {
+      font-size: 1.35rem;
+    }
+
+    .stage-title p {
+      color: var(--muted);
+      line-height: 1.55;
+      margin: 0;
+    }
+
+    .artifact-frame {
+      background: #ffffff;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      box-shadow: 0 22px 54px rgba(45, 55, 72, 0.14);
+      max-height: min(790px, 76vh);
+      min-height: min(640px, 74vh);
+      overflow: auto;
+      padding: 20px;
+    }
+
+    .artifact-view[hidden] {
+      display: none;
+    }
+
+    .profile-proof {
+      align-self: start;
+      display: grid;
+      gap: 8px;
+      grid-template-columns: repeat(4, minmax(8rem, 1fr));
+      margin: 0;
+      min-width: min(100%, 560px);
+    }
+
+    .profile-proof div {
+      background: var(--soft);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      display: grid;
+      gap: 4px;
+      padding: 9px 10px;
+    }
+
+    dt {
+      color: var(--muted);
+      font-size: 0.68rem;
+      font-weight: 900;
+      text-transform: uppercase;
+    }
+
+    dd {
+      color: var(--ink);
+      font-size: 0.82rem;
+      font-weight: 850;
+      margin: 0;
+    }
+
+    .contract-panel {
+      border-top: 1px solid var(--line);
+      display: grid;
+      gap: 14px;
+      margin-top: 34px;
+      padding: 26px 0 0;
+    }
+
+    .contract-panel p {
+      color: var(--muted);
+      line-height: 1.68;
+      margin: 0;
+      max-width: 94ch;
+    }
+
+    .code-box {
+      background: #111827;
+      border: 1px solid #0f172a;
+      border-radius: 8px;
+      color: #dbeafe;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 0.78rem;
+      line-height: 1.6;
+      max-height: 320px;
+      overflow: auto;
+      padding: 14px;
+      white-space: pre-wrap;
+    }
+
+    @media (max-width: 900px) {
+      .hero {
+        grid-template-columns: 1fr;
+      }
+
+      .hero-facts {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+      }
+
+      .hero-facts li {
+        align-items: start;
+        display: grid;
+      }
+
+      .hero-facts span {
+        text-align: left;
+      }
+
+      .demo-layout {
+        grid-template-columns: 1fr;
+      }
+
+      .profile-grid {
+        grid-auto-columns: minmax(238px, 78vw);
+        grid-auto-flow: column;
+        overflow-x: auto;
+        padding-bottom: 4px;
+        position: static;
+        scroll-snap-type: x proximity;
+      }
+
+      .profile-card {
+        scroll-snap-align: start;
+      }
+
+      .stage-header {
+        align-items: start;
+        display: grid;
+      }
+
+      .profile-proof {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        width: 100%;
+      }
+
+      .artifact-frame {
+        max-height: 68vh;
+        min-height: 480px;
+        padding: 10px;
+      }
+    }
+
+    @media (max-width: 460px) {
+      .page-shell {
+        padding-inline: 10px;
+      }
+
+      .hero {
+        gap: 10px;
+        padding: 18px 0 14px;
+      }
+
+      .hero-facts {
+        grid-template-columns: 1fr;
+      }
+
+      h1 {
+        font-size: 1.8rem;
+        line-height: 1.06;
+        max-width: 16ch;
+      }
+
+      .lead {
+        font-size: 0.9rem;
+        line-height: 1.55;
+      }
+
+      .token-lead {
+        display: none;
+      }
+
+      .profile-grid {
+        gap: 8px;
+        grid-auto-columns: minmax(134px, 43vw);
+      }
+
+      .profile-card {
+        gap: 5px;
+        min-height: 70px;
+        padding: 10px;
+      }
+
+      .profile-card .profile-token,
+      .profile-card .profile-note,
+      .profile-card .stable-pill {
+        display: none;
+      }
+
+      .profile-name {
+        font-size: 0.9rem;
+      }
+
+      .demo-layout,
+      .artifact-stage {
+        gap: 12px;
+      }
+
+      .stage-title h2 {
+        font-size: 1.05rem;
+      }
+
+      #active-profile-note,
+      .profile-proof {
+        display: none;
+      }
+
+      .artifact-frame {
+        max-height: 62vh;
+        min-height: 420px;
+        padding: 6px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="page-shell">
+    <section class="hero" data-presentation-contract="light-gallery-showroom">
+      <div class="hero-copy">
+        <p class="eyebrow">Same Intent, Five Art Directions</p>
+        <h1>Beauty as a checked compiler handle.</h1>
+        <p class="lead">Each generated artifact uses one explicit view-level style token. The token is deterministic art direction, not CSS, visual-regression proof, accessibility certification, or arbitrary design-system certification.</p>
+        <p class="lead token-lead">Supported V1 tokens: aesthetic.calm_ops, aesthetic.premium_saas, aesthetic.data_dense, aesthetic.editorial_product, aesthetic.executive_review.</p>
+      </div>
+      <ul class="hero-facts" aria-label="Aesthetic profile invariants">
+        <li><strong>1 IntentBundle</strong><span>shared semantic graph</span></li>
+        <li><strong>5 profiles</strong><span>governed style handles</span></li>
+        <li><strong>0 shell overrides</strong><span>generated internals untouched</span></li>
+      </ul>
+    </section>
+
+    <section class="demo-layout" aria-label="Generated aesthetic profile variants">
+      <nav class="profile-grid" aria-label="Aesthetic profile selector">
+        <button type="button" class="profile-card" data-profile-token="aesthetic.calm_ops" aria-pressed="true">
+          <span class="profile-token">aesthetic.calm_ops</span>
+          <span class="profile-name">Calm Ops</span>
+          <span class="profile-note">Quiet operational surfaces with teal accents and low-contrast panels.</span>
+          <span class="stable-pill">semantic ids stable</span>
+        </button>
+        <button type="button" class="profile-card" data-profile-token="aesthetic.premium_saas" aria-pressed="false">
+          <span class="profile-token">aesthetic.premium_saas</span>
+          <span class="profile-name">Premium SaaS</span>
+          <span class="profile-note">Polished product rhythm with stronger hierarchy and softer shadows.</span>
+          <span class="stable-pill">semantic ids stable</span>
+        </button>
+        <button type="button" class="profile-card" data-profile-token="aesthetic.data_dense" aria-pressed="false">
+          <span class="profile-token">aesthetic.data_dense</span>
+          <span class="profile-name">Data Dense</span>
+          <span class="profile-note">Compact spacing, smaller type, and tighter controls for repeated scanning.</span>
+          <span class="stable-pill">semantic ids stable</span>
+        </button>
+        <button type="button" class="profile-card" data-profile-token="aesthetic.editorial_product" aria-pressed="false">
+          <span class="profile-token">aesthetic.editorial_product</span>
+          <span class="profile-name">Editorial Product</span>
+          <span class="profile-note">Warmer product-story pacing with broader prose rhythm.</span>
+          <span class="stable-pill">semantic ids stable</span>
+        </button>
+        <button type="button" class="profile-card" data-profile-token="aesthetic.executive_review" aria-pressed="false">
+          <span class="profile-token">aesthetic.executive_review</span>
+          <span class="profile-name">Executive Review</span>
+          <span class="profile-note">Conservative review surfaces with restrained contrast and crisp framing.</span>
+          <span class="stable-pill">semantic ids stable</span>
+        </button>
+      </nav>
+
+      <section class="artifact-stage" aria-live="polite">
+        <div class="stage-header">
+          <div class="stage-title">
+            <p class="profile-token" id="active-profile-token">aesthetic.calm_ops</p>
+            <h2 id="active-profile-label">Calm Ops</h2>
+            <p id="active-profile-note">Quiet operational surfaces with teal accents and low-contrast panels.</p>
+          </div>
+          <dl class="profile-proof">
+            <div><dt>Semantic hash</dt><dd id="active-semantic-hash">a9368dd60ca49910</dd></div>
+            <div><dt>IR nodes</dt><dd id="active-node-count">39</dd></div>
+            <div><dt>Style refs</dt><dd id="active-style-count">15</dd></div>
+            <div><dt>Layout</dt><dd id="active-layout-signature">workspace 2 / metrics 2</dd></div>
+          </dl>
+        </div>
+        <div class="artifact-frame" aria-label="Selected generated artifact">
+          <section class="artifact-view" data-profile-token="aesthetic.calm_ops" aria-label="Calm Ops generated artifact" >
+            <main id="profile0-dom-region_root" class="vs-root vs-layout-root vs-role-app-shell" data-ir-id="region_root" data-content-refs="[]" data-intent-refs="[&quot;viewspec:view:art_direction_workspace&quot;, &quot;viewspec:region:root&quot;, &quot;viewspec:style:aesthetic_profile&quot;, &quot;viewspec:style:page_temperature&quot;]" data-style-tokens="[&quot;tone.neutral&quot;, &quot;aesthetic.calm_ops&quot;, &quot;palette.temperature&quot;]" style="color: #1f2937; color: #172033; font-family: ui-sans-serif, system-ui, sans-serif; background-color: #ffffff; background-color: #f6faf9;" data-aesthetic-profile="aesthetic.calm_ops"><div id="profile0-dom-region_hero" class="vs-stack vs-layout-stack vs-role-app-header" data-ir-id="region_hero" data-content-refs="[]" data-intent-refs="[&quot;viewspec:region:hero&quot;, &quot;viewspec:style:hero_density&quot;]" data-style-tokens="[&quot;density.regular&quot;, &quot;density.airy&quot;]" style="gap: 0.68rem; padding: 0.58rem 0.74rem; gap: 0.78rem; padding: 0.72rem 0.96rem; gap: 1rem; padding: 0.85rem 1rem; gap: 1.2rem; padding: 1rem 1.18rem;"><header id="profile0-dom-motif_overview" class="vs-surface vs-layout-surface vs-motif-hero vs-role-page-header" data-ir-id="motif_overview" data-content-refs="[]" data-intent-refs="[&quot;viewspec:motif:overview&quot;, &quot;viewspec:style:hero_surface&quot;]" data-style-tokens="[&quot;surface.subtle&quot;]" style="background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 14px; background: #ffffff; border: 1px solid #dbe3ea; border-radius: 14px;" aria-label="Hero"><p id="profile0-dom-binding_overview_eyebrow" class="vs-label" data-ir-id="binding_overview_eyebrow" data-content-refs="[&quot;node:overview#attr:eyebrow&quot;]" data-intent-refs="[&quot;viewspec:binding:overview_eyebrow&quot;, &quot;viewspec:style:hero_eyebrow&quot;]" data-style-tokens="[&quot;tone.muted&quot;, &quot;tone.accent&quot;]" style="color: #6b7280; color: #667085; color: #0f766e; color: #0f766e; font-weight: 800;" data-binding-id="overview_eyebrow">Launch desk</p><h1 id="profile0-dom-binding_overview_title" class="vs-value" data-ir-id="binding_overview_title" data-content-refs="[&quot;node:overview#attr:title&quot;]" data-intent-refs="[&quot;viewspec:binding:overview_title&quot;, &quot;viewspec:style:hero_title&quot;]" data-style-tokens="[&quot;tone.neutral&quot;, &quot;emphasis.high&quot;, &quot;rhythm.hierarchy&quot;]" style="color: #1f2937; color: #172033; font-family: ui-sans-serif, system-ui, sans-serif; font-weight: 730; letter-spacing: -0.025em; font-weight: 760; letter-spacing: -0.012em; font-size: 1.125rem; font-weight: 750; line-height: 1.35; font-size: 1.12rem; font-weight: 760; line-height: 1.36;" data-binding-id="overview_title">Resolve the next release decision</h1><p id="profile0-dom-binding_overview_description" class="vs-text" data-ir-id="binding_overview_description" data-content-refs="[&quot;node:overview#attr:description&quot;]" data-intent-refs="[&quot;viewspec:binding:overview_description&quot;, &quot;viewspec:style:hero_body&quot;]" data-style-tokens="[&quot;tone.neutral&quot;, &quot;narrative.flow&quot;]" style="color: #1f2937; color: #172033; font-family: ui-sans-serif, system-ui, sans-serif; max-width: 70ch; line-height: 1.75; max-width: 72ch; line-height: 1.74;" data-binding-id="overview_description">One semantic product surface is compiled through five governed art-direction profiles.</p></header></div><div id="profile0-dom-region_workspace" class="vs-grid vs-layout-grid vs-role-content-grid" data-ir-id="region_workspace" data-content-refs="[]" data-intent-refs="[&quot;viewspec:region:workspace&quot;]" data-style-tokens="[&quot;density.regular&quot;]" style="grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.68rem; padding: 0.58rem 0.74rem; gap: 0.78rem; padding: 0.72rem 0.96rem;"><div id="profile0-dom-region_primary" class="vs-stack vs-layout-stack vs-role-primary-column" data-ir-id="region_primary" data-content-refs="[]" data-intent-refs="[&quot;viewspec:region:primary&quot;]" data-style-tokens="[&quot;density.regular&quot;]" style="gap: 0.68rem; padding: 0.58rem 0.74rem; gap: 0.78rem; padding: 0.72rem 0.96rem;"><div id="profile0-dom-motif_quality_metrics" class="vs-grid vs-layout-grid vs-motif-dashboard vs-role-metric-grid" data-ir-id="motif_quality_metrics" data-content-refs="[]" data-intent-refs="[&quot;viewspec:motif:quality_metrics&quot;, &quot;viewspec:style:metrics_density&quot;]" data-style-tokens="[&quot;density.regular&quot;]" style="grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.68rem; padding: 0.58rem 0.74rem; gap: 0.78rem; padding: 0.72rem 0.96rem;"><div id="profile0-dom-motif_quality_metrics_confidence" class="vs-surface vs-layout-surface vs-motif-dashboard vs-role-metric-card" data-ir-id="motif_quality_metrics_confidence" data-content-refs="[]" data-intent-refs="[&quot;viewspec:motif:quality_metrics&quot;]" data-style-tokens="[&quot;surface.subtle&quot;]" style="background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 14px; background: #ffffff; border: 1px solid #dbe3ea; border-radius: 14px;"><div id="profile0-dom-binding_confidence_label" class="vs-label" data-ir-id="binding_confidence_label" data-content-refs="[&quot;node:confidence#attr:label&quot;]" data-intent-refs="[&quot;viewspec:binding:confidence_label&quot;]" data-style-tokens="[&quot;tone.muted&quot;]" style="color: #6b7280; color: #667085;" data-binding-id="confidence_label">Ship confidence</div><div id="profile0-dom-binding_confidence_value" class="vs-value" data-ir-id="binding_confidence_value" data-content-refs="[&quot;node:confidence#attr:value&quot;]" data-intent-refs="[&quot;viewspec:binding:confidence_value&quot;, &quot;viewspec:style:confidence_focus&quot;]" data-style-tokens="[&quot;tone.neutral&quot;, &quot;emphasis.high&quot;]" style="color: #1f2937; color: #172033; font-family: ui-sans-serif, system-ui, sans-serif; font-weight: 730; letter-spacing: -0.025em; font-weight: 760; letter-spacing: -0.012em;" data-binding-id="confidence_value">92%</div></div><div id="profile0-dom-motif_quality_metrics_risk_delta" class="vs-surface vs-layout-surface vs-motif-dashboard vs-role-metric-card" data-ir-id="motif_quality_metrics_risk_delta" data-content-refs="[]" data-intent-refs="[&quot;viewspec:motif:quality_metrics&quot;]" data-style-tokens="[&quot;surface.subtle&quot;]" style="background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 14px; background: #ffffff; border: 1px solid #dbe3ea; border-radius: 14px;"><div id="profile0-dom-binding_risk_delta_label" class="vs-label" data-ir-id="binding_risk_delta_label" data-content-refs="[&quot;node:risk_delta#attr:label&quot;]" data-intent-refs="[&quot;viewspec:binding:risk_delta_label&quot;]" data-style-tokens="[&quot;tone.muted&quot;]" style="color: #6b7280; color: #667085;" data-binding-id="risk_delta_label">Risk delta</div><div id="profile0-dom-binding_risk_delta_value" class="vs-value" data-ir-id="binding_risk_delta_value" data-content-refs="[&quot;node:risk_delta#attr:value&quot;]" data-intent-refs="[&quot;viewspec:binding:risk_delta_value&quot;, &quot;viewspec:style:risk_accent&quot;]" data-style-tokens="[&quot;tone.neutral&quot;, &quot;emphasis.high&quot;, &quot;tone.accent&quot;]" style="color: #1f2937; color: #172033; font-family: ui-sans-serif, system-ui, sans-serif; font-weight: 730; letter-spacing: -0.025em; font-weight: 760; letter-spacing: -0.012em; color: #0f766e; color: #0f766e; font-weight: 800;" data-binding-id="risk_delta_value">-18%</div></div><div id="profile0-dom-motif_quality_metrics_blockers" class="vs-surface vs-layout-surface vs-motif-dashboard vs-role-metric-card" data-ir-id="motif_quality_metrics_blockers" data-content-refs="[]" data-intent-refs="[&quot;viewspec:motif:quality_metrics&quot;]" data-style-tokens="[&quot;surface.subtle&quot;]" style="background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 14px; background: #ffffff; border: 1px solid #dbe3ea; border-radius: 14px;"><div id="profile0-dom-binding_blockers_label" class="vs-label" data-ir-id="binding_blockers_label" data-content-refs="[&quot;node:blockers#attr:label&quot;]" data-intent-refs="[&quot;viewspec:binding:blockers_label&quot;]" data-style-tokens="[&quot;tone.muted&quot;]" style="color: #6b7280; color: #667085;" data-binding-id="blockers_label">Open blockers</div><div id="profile0-dom-binding_blockers_value" class="vs-value" data-ir-id="binding_blockers_value" data-content-refs="[&quot;node:blockers#attr:value&quot;]" data-intent-refs="[&quot;viewspec:binding:blockers_value&quot;]" data-style-tokens="[&quot;tone.neutral&quot;, &quot;emphasis.high&quot;]" style="color: #1f2937; color: #172033; font-family: ui-sans-serif, system-ui, sans-serif; font-weight: 730; letter-spacing: -0.025em; font-weight: 760; letter-spacing: -0.012em;" data-binding-id="blockers_value">4</div></div><div id="profile0-dom-motif_quality_metrics_review_window" class="vs-surface vs-layout-surface vs-motif-dashboard vs-role-metric-card" data-ir-id="motif_quality_metrics_review_window" data-content-refs="[]" data-intent-refs="[&quot;viewspec:motif:quality_metrics&quot;]" data-style-tokens="[&quot;surface.subtle&quot;]" style="background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 14px; background: #ffffff; border: 1px solid #dbe3ea; border-radius: 14px;"><div id="profile0-dom-binding_review_window_label" class="vs-label" data-ir-id="binding_review_window_label" data-content-refs="[&quot;node:review_window#attr:label&quot;]" data-intent-refs="[&quot;viewspec:binding:review_window_label&quot;]" data-style-tokens="[&quot;tone.muted&quot;]" style="color: #6b7280; color: #667085;" data-binding-id="review_window_label">Review window</div><div id="profile0-dom-binding_review_window_value" class="vs-value" data-ir-id="binding_review_window_value" data-content-refs="[&quot;node:review_window#attr:value&quot;]" data-intent-refs="[&quot;viewspec:binding:review_window_value&quot;]" data-style-tokens="[&quot;tone.neutral&quot;, &quot;emphasis.high&quot;]" style="color: #1f2937; color: #172033; font-family: ui-sans-serif, system-ui, sans-serif; font-weight: 730; letter-spacing: -0.025em; font-weight: 760; letter-spacing: -0.012em;" data-binding-id="review_window_value">36 hr</div></div></div></div><div id="profile0-dom-region_review" class="vs-stack vs-layout-stack vs-role-side-rail" data-ir-id="region_review" data-content-refs="[]" data-intent-refs="[&quot;viewspec:region:review&quot;]" data-style-tokens="[&quot;density.regular&quot;]" style="gap: 0.68rem; padding: 0.58rem 0.74rem; gap: 0.78rem; padding: 0.72rem 0.96rem;"><dl id="profile0-dom-motif_decision_context" class="vs-stack vs-layout-stack vs-motif-detail vs-role-detail-panel" data-ir-id="motif_decision_context" data-content-refs="[]" data-intent-refs="[&quot;viewspec:motif:decision_context&quot;, &quot;viewspec:style:review_surface&quot;, &quot;viewspec:style:review_density&quot;]" data-style-tokens="[&quot;density.regular&quot;, &quot;surface.strong&quot;, &quot;density.compact&quot;]" style="gap: 0.68rem; padding: 0.58rem 0.74rem; gap: 0.78rem; padding: 0.72rem 0.96rem; background: #e2e8f0; border: 1px solid #94a3b8; border-radius: 14px; background: #eaf4f2; border: 1px solid #8ccdc2; border-radius: 16px; gap: 0.34rem; padding: 0.36rem 0.5rem; gap: 0.32rem; padding: 0.34rem 0.5rem;"><div id="profile0-dom-motif_decision_context_owner" class="vs-cluster vs-layout-cluster vs-motif-detail" data-ir-id="motif_decision_context_owner" data-content-refs="[]" data-intent-refs="[&quot;viewspec:motif:decision_context&quot;]" data-style-tokens="[&quot;density.compact&quot;]" style="gap: 0.34rem; padding: 0.36rem 0.5rem; gap: 0.32rem; padding: 0.34rem 0.5rem;"><dt id="profile0-dom-binding_owner_label" class="vs-label" data-ir-id="binding_owner_label" data-content-refs="[&quot;node:owner#attr:label&quot;]" data-intent-refs="[&quot;viewspec:binding:owner_label&quot;]" data-style-tokens="[&quot;tone.muted&quot;]" style="color: #6b7280; color: #667085;" data-binding-id="owner_label">Owner</dt><dd id="profile0-dom-binding_owner_value" class="vs-value" data-ir-id="binding_owner_value" data-content-refs="[&quot;node:owner#attr:value&quot;]" data-intent-refs="[&quot;viewspec:binding:owner_value&quot;, &quot;viewspec:style:owner_muted&quot;]" data-style-tokens="[&quot;tone.neutral&quot;, &quot;emphasis.high&quot;, &quot;tone.muted&quot;]" style="color: #1f2937; color: #172033; font-family: ui-sans-serif, system-ui, sans-serif; font-weight: 730; letter-spacing: -0.025em; font-weight: 760; letter-spacing: -0.012em; color: #6b7280; color: #667085;" data-binding-id="owner_value">Revenue Platform</dd></div><div id="profile0-dom-motif_decision_context_next_gate" class="vs-cluster vs-layout-cluster vs-motif-detail" data-ir-id="motif_decision_context_next_gate" data-content-refs="[]" data-intent-refs="[&quot;viewspec:motif:decision_context&quot;]" data-style-tokens="[&quot;density.compact&quot;]" style="gap: 0.34rem; padding: 0.36rem 0.5rem; gap: 0.32rem; padding: 0.34rem 0.5rem;"><dt id="profile0-dom-binding_next_gate_label" class="vs-label" data-ir-id="binding_next_gate_label" data-content-refs="[&quot;node:next_gate#attr:label&quot;]" data-intent-refs="[&quot;viewspec:binding:next_gate_label&quot;]" data-style-tokens="[&quot;tone.muted&quot;]" style="color: #6b7280; color: #667085;" data-binding-id="next_gate_label">Next gate</dt><dd id="profile0-dom-binding_next_gate_value" class="vs-value" data-ir-id="binding_next_gate_value" data-content-refs="[&quot;node:next_gate#attr:value&quot;]" data-intent-refs="[&quot;viewspec:binding:next_gate_value&quot;]" data-style-tokens="[&quot;tone.neutral&quot;, &quot;emphasis.high&quot;]" style="color: #1f2937; color: #172033; font-family: ui-sans-serif, system-ui, sans-serif; font-weight: 730; letter-spacing: -0.025em; font-weight: 760; letter-spacing: -0.012em;" data-binding-id="next_gate_value">Executive review</dd></div><div id="profile0-dom-motif_decision_context_evidence" class="vs-cluster vs-layout-cluster vs-motif-detail" data-ir-id="motif_decision_context_evidence" data-content-refs="[]" data-intent-refs="[&quot;viewspec:motif:decision_context&quot;]" data-style-tokens="[&quot;density.compact&quot;]" style="gap: 0.34rem; padding: 0.36rem 0.5rem; gap: 0.32rem; padding: 0.34rem 0.5rem;"><dt id="profile0-dom-binding_evidence_label" class="vs-label" data-ir-id="binding_evidence_label" data-content-refs="[&quot;node:evidence#attr:label&quot;]" data-intent-refs="[&quot;viewspec:binding:evidence_label&quot;]" data-style-tokens="[&quot;tone.muted&quot;]" style="color: #6b7280; color: #667085;" data-binding-id="evidence_label">Evidence</dt><dd id="profile0-dom-binding_evidence_value" class="vs-value" data-ir-id="binding_evidence_value" data-content-refs="[&quot;node:evidence#attr:value&quot;]" data-intent-refs="[&quot;viewspec:binding:evidence_value&quot;]" data-style-tokens="[&quot;tone.neutral&quot;, &quot;emphasis.high&quot;]" style="color: #1f2937; color: #172033; font-family: ui-sans-serif, system-ui, sans-serif; font-weight: 730; letter-spacing: -0.025em; font-weight: 760; letter-spacing: -0.012em;" data-binding-id="evidence_value">Provenance manifest aligned</dd></div></dl><ul id="profile0-dom-motif_review_notes" class="vs-stack vs-layout-stack vs-motif-list" data-ir-id="motif_review_notes" data-content-refs="[]" data-intent-refs="[&quot;viewspec:motif:review_notes&quot;, &quot;viewspec:style:notes_surface&quot;]" data-style-tokens="[&quot;density.regular&quot;, &quot;surface.subtle&quot;]" style="gap: 0.68rem; padding: 0.58rem 0.74rem; gap: 0.78rem; padding: 0.72rem 0.96rem; background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 14px; background: #ffffff; border: 1px solid #dbe3ea; border-radius: 14px;"><li id="profile0-dom-motif_review_notes_scope_note" class="vs-surface vs-layout-surface vs-motif-list" data-ir-id="motif_review_notes_scope_note" data-content-refs="[]" data-intent-refs="[&quot;viewspec:motif:review_notes&quot;]" data-style-tokens="[&quot;surface.subtle&quot;]" style="background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 14px; background: #ffffff; border: 1px solid #dbe3ea; border-radius: 14px;"><div id="profile0-dom-binding_scope_note_label" class="vs-label" data-ir-id="binding_scope_note_label" data-content-refs="[&quot;node:scope_note#attr:label&quot;]" data-intent-refs="[&quot;viewspec:binding:scope_note_label&quot;]" data-style-tokens="[&quot;tone.muted&quot;]" style="color: #6b7280; color: #667085;" data-binding-id="scope_note_label">Scope</div><div id="profile0-dom-binding_scope_note_description" class="vs-text" data-ir-id="binding_scope_note_description" data-content-refs="[&quot;node:scope_note#attr:description&quot;]" data-intent-refs="[&quot;viewspec:binding:scope_note_description&quot;, &quot;viewspec:style:notes_flow&quot;]" data-style-tokens="[&quot;tone.neutral&quot;, &quot;narrative.flow&quot;]" style="color: #1f2937; color: #172033; font-family: ui-sans-serif, system-ui, sans-serif; max-width: 70ch; line-height: 1.75; max-width: 72ch; line-height: 1.74;" data-binding-id="scope_note_description">Profile token changes style projection and bounded layout metadata.</div></li><li id="profile0-dom-motif_review_notes_proof_note" class="vs-surface vs-layout-surface vs-motif-list" data-ir-id="motif_review_notes_proof_note" data-content-refs="[]" data-intent-refs="[&quot;viewspec:motif:review_notes&quot;]" data-style-tokens="[&quot;surface.subtle&quot;]" style="background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 14px; background: #ffffff; border: 1px solid #dbe3ea; border-radius: 14px;"><div id="profile0-dom-binding_proof_note_label" class="vs-label" data-ir-id="binding_proof_note_label" data-content-refs="[&quot;node:proof_note#attr:label&quot;]" data-intent-refs="[&quot;viewspec:binding:proof_note_label&quot;]" data-style-tokens="[&quot;tone.muted&quot;]" style="color: #6b7280; color: #667085;" data-binding-id="proof_note_label">Proof</div><div id="profile0-dom-binding_proof_note_description" class="vs-text" data-ir-id="binding_proof_note_description" data-content-refs="[&quot;node:proof_note#attr:description&quot;]" data-intent-refs="[&quot;viewspec:binding:proof_note_description&quot;]" data-style-tokens="[&quot;tone.neutral&quot;]" style="color: #1f2937; color: #172033; font-family: ui-sans-serif, system-ui, sans-serif;" data-binding-id="proof_note_description">Semantic ids and provenance stay stable.</div></li></ul></div></div></main>
+          </section>
+          <section class="artifact-view" data-profile-token="aesthetic.premium_saas" aria-label="Premium SaaS generated artifact" hidden>
+            <main id="profile1-dom-region_root" class="vs-root vs-layout-root vs-role-app-shell" data-ir-id="region_root" data-content-refs="[]" data-intent-refs="[&quot;viewspec:view:art_direction_workspace&quot;, &quot;viewspec:region:root&quot;, &quot;viewspec:style:aesthetic_profile&quot;, &quot;viewspec:style:page_temperature&quot;]" data-style-tokens="[&quot;tone.neutral&quot;, &quot;aesthetic.premium_saas&quot;, &quot;palette.temperature&quot;]" style="color: #1f2937; color: #0f172a; font-family: ui-sans-serif, system-ui, sans-serif; background-color: #ffffff; background-color: #f5f4ff;" data-aesthetic-profile="aesthetic.premium_saas"><div id="profile1-dom-region_hero" class="vs-stack vs-layout-stack vs-role-app-header" data-ir-id="region_hero" data-content-refs="[]" data-intent-refs="[&quot;viewspec:region:hero&quot;, &quot;viewspec:style:hero_density&quot;]" data-style-tokens="[&quot;density.regular&quot;, &quot;density.airy&quot;]" style="gap: 0.68rem; padding: 0.58rem 0.74rem; gap: 1rem; padding: 0.94rem 1.22rem; gap: 1rem; padding: 0.85rem 1rem; gap: 1.55rem; padding: 1.35rem 1.65rem;"><header id="profile1-dom-motif_overview" class="vs-surface vs-layout-surface vs-motif-hero vs-role-page-header" data-ir-id="motif_overview" data-content-refs="[]" data-intent-refs="[&quot;viewspec:motif:overview&quot;, &quot;viewspec:style:hero_surface&quot;]" data-style-tokens="[&quot;surface.subtle&quot;]" style="background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 14px; background: #ffffff; border: 1px solid #ddd6fe; border-radius: 18px; box-shadow: 0 20px 46px rgb(79 70 229 / 0.16);" aria-label="Hero"><p id="profile1-dom-binding_overview_eyebrow" class="vs-label" data-ir-id="binding_overview_eyebrow" data-content-refs="[&quot;node:overview#attr:eyebrow&quot;]" data-intent-refs="[&quot;viewspec:binding:overview_eyebrow&quot;, &quot;viewspec:style:hero_eyebrow&quot;]" data-style-tokens="[&quot;tone.muted&quot;, &quot;tone.accent&quot;]" style="color: #6b7280; color: #5f6678; color: #0f766e; color: #4f46e5; font-weight: 860;" data-binding-id="overview_eyebrow">Launch desk</p><h1 id="profile1-dom-binding_overview_title" class="vs-value" data-ir-id="binding_overview_title" data-content-refs="[&quot;node:overview#attr:title&quot;]" data-intent-refs="[&quot;viewspec:binding:overview_title&quot;, &quot;viewspec:style:hero_title&quot;]" data-style-tokens="[&quot;tone.neutral&quot;, &quot;emphasis.high&quot;, &quot;rhythm.hierarchy&quot;]" style="color: #1f2937; color: #0f172a; font-family: ui-sans-serif, system-ui, sans-serif; font-weight: 730; letter-spacing: -0.025em; font-weight: 860; letter-spacing: -0.03em; font-size: 1.125rem; font-weight: 750; line-height: 1.35; font-size: 1.38rem; font-weight: 860; line-height: 1.12;" data-binding-id="overview_title">Resolve the next release decision</h1><p id="profile1-dom-binding_overview_description" class="vs-text" data-ir-id="binding_overview_description" data-content-refs="[&quot;node:overview#attr:description&quot;]" data-intent-refs="[&quot;viewspec:binding:overview_description&quot;, &quot;viewspec:style:hero_body&quot;]" data-style-tokens="[&quot;tone.neutral&quot;, &quot;narrative.flow&quot;]" style="color: #1f2937; color: #0f172a; font-family: ui-sans-serif, system-ui, sans-serif; max-width: 70ch; line-height: 1.75; max-width: 64ch; line-height: 1.68;" data-binding-id="overview_description">One semantic product surface is compiled through five governed art-direction profiles.</p></header></div><div id="profile1-dom-region_workspace" class="vs-grid vs-layout-grid vs-role-content-grid" data-ir-id="region_workspace" data-content-refs="[]" data-intent-refs="[&quot;viewspec:region:workspace&quot;]" data-style-tokens="[&quot;density.regular&quot;]" style="grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.68rem; padding: 0.58rem 0.74rem; gap: 1rem; padding: 0.94rem 1.22rem;"><div id="profile1-dom-region_primary" class="vs-stack vs-layout-stack vs-role-primary-column" data-ir-id="region_primary" data-content-refs="[]" data-intent-refs="[&quot;viewspec:region:primary&quot;]" data-style-tokens="[&quot;density.regular&quot;]" style="gap: 0.68rem; padding: 0.58rem 0.74rem; gap: 1rem; padding: 0.94rem 1.22rem;"><div id="profile1-dom-motif_quality_metrics" class="vs-grid vs-layout-grid vs-motif-dashboard vs-role-metric-grid" data-ir-id="motif_quality_metrics" data-content-refs="[]" data-intent-refs="[&quot;viewspec:motif:quality_metrics&quot;, &quot;viewspec:style:metrics_density&quot;]" data-style-tokens="[&quot;density.regular&quot;]" style="grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.68rem; padding: 0.58rem 0.74rem; gap: 1rem; padding: 0.94rem 1.22rem;"><div id="profile1-dom-motif_quality_metrics_confidence" class="vs-surface vs-layout-surface vs-motif-dashboard vs-role-metric-card" data-ir-id="motif_quality_metrics_confidence" data-content-refs="[]" data-intent-refs="[&quot;viewspec:motif:quality_metrics&quot;]" data-style-tokens="[&quot;surface.subtle&quot;]" style="background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 14px; background: #ffffff; border: 1px solid #ddd6fe; border-radius: 18px; box-shadow: 0 20px 46px rgb(79 70 229 / 0.16);"><div id="profile1-dom-binding_confidence_label" class="vs-label" data-ir-id="binding_confidence_label" data-content-refs="[&quot;node:confidence#attr:label&quot;]" data-intent-refs="[&quot;viewspec:binding:confidence_label&quot;]" data-style-tokens="[&quot;tone.muted&quot;]" style="color: #6b7280; color: #5f6678;" data-binding-id="confidence_label">Ship confidence</div><div id="profile1-dom-binding_confidence_value" class="vs-value" data-ir-id="binding_confidence_value" data-content-refs="[&quot;node:confidence#attr:value&quot;]" data-intent-refs="[&quot;viewspec:binding:confidence_value&quot;, &quot;viewspec:style:confidence_focus&quot;]" data-style-tokens="[&quot;tone.neutral&quot;, &quot;emphasis.high&quot;]" style="color: #1f2937; color: #0f172a; font-family: ui-sans-serif, system-ui, sans-serif; font-weight: 730; letter-spacing: -0.025em; font-weight: 860; letter-spacing: -0.03em;" data-binding-id="confidence_value">92%</div></div><div id="profile1-dom-motif_quality_metrics_risk_delta" class="vs-surface vs-layout-surface vs-motif-dashboard vs-role-metric-card" data-ir-id="motif_quality_metrics_risk_delta" data-content-refs="[]" data-intent-refs="[&quot;viewspec:motif:quality_metrics&quot;]" data-style-tokens="[&quot;surface.subtle&quot;]" style="background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 14px; background: #ffffff; border: 1px solid #ddd6fe; border-radius: 18px; box-shadow: 0 20px 46px rgb(79 70 229 / 0.16);"><div id="profile1-dom-binding_risk_delta_label" class="vs-label" data-ir-id="binding_risk_delta_label" data-content-refs="[&quot;node:risk_delta#attr:label&quot;]" data-intent-refs="[&quot;viewspec:binding:risk_delta_label&quot;]" data-style-tokens="[&quot;tone.muted&quot;]" style="color: #6b7280; color: #5f6678;" data-binding-id="risk_delta_label">Risk delta</div><div id="profile1-dom-binding_risk_delta_value" class="vs-value" data-ir-id="binding_risk_delta_value" data-content-refs="[&quot;node:risk_delta#attr:value&quot;]" data-intent-refs="[&quot;viewspec:binding:risk_delta_value&quot;, &quot;viewspec:style:risk_accent&quot;]" data-style-tokens="[&quot;tone.neutral&quot;, &quot;emphasis.high&quot;, &quot;tone.accent&quot;]" style="color: #1f2937; color: #0f172a; font-family: ui-sans-serif, system-ui, sans-serif; font-weight: 730; letter-spacing: -0.025em; font-weight: 860; letter-spacing: -0.03em; color: #0f766e; color: #4f46e5; font-weight: 860;" data-binding-id="risk_delta_value">-18%</div></div><div id="profile1-dom-motif_quality_metrics_blockers" class="vs-surface vs-layout-surface vs-motif-dashboard vs-role-metric-card" data-ir-id="motif_quality_metrics_blockers" data-content-refs="[]" data-intent-refs="[&quot;viewspec:motif:quality_metrics&quot;]" data-style-tokens="[&quot;surface.subtle&quot;]" style="background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 14px; background: #ffffff; border: 1px solid #ddd6fe; border-radius: 18px; box-shadow: 0 20px 46px rgb(79 70 229 / 0.16);"><div id="profile1-dom-binding_blockers_label" class="vs-label" data-ir-id="binding_blockers_label" data-content-refs="[&quot;node:blockers#attr:label&quot;]" data-intent-refs="[&quot;viewspec:binding:blockers_label&quot;]" data-style-tokens="[&quot;tone.muted&quot;]" style="color: #6b7280; color: #5f6678;" data-binding-id="blockers_label">Open blockers</div><div id="profile1-dom-binding_blockers_value" class="vs-value" data-ir-id="binding_blockers_value" data-content-refs="[&quot;node:blockers#attr:value&quot;]" data-intent-refs="[&quot;viewspec:binding:blockers_value&quot;]" data-style-tokens="[&quot;tone.neutral&quot;, &quot;emphasis.high&quot;]" style="color: #1f2937; color: #0f172a; font-family: ui-sans-serif, system-ui, sans-serif; font-weight: 730; letter-spacing: -0.025em; font-weight: 860; letter-spacing: -0.03em;" data-binding-id="blockers_value">4</div></div><div id="profile1-dom-motif_quality_metrics_review_window" class="vs-surface vs-layout-surface vs-motif-dashboard vs-role-metric-card" data-ir-id="motif_quality_metrics_review_window" data-content-refs="[]" data-intent-refs="[&quot;viewspec:motif:quality_metrics&quot;]" data-style-tokens="[&quot;surface.subtle&quot;]" style="background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 14px; background: #ffffff; border: 1px solid #ddd6fe; border-radius: 18px; box-shadow: 0 20px 46px rgb(79 70 229 / 0.16);"><div id="profile1-dom-binding_review_window_label" class="vs-label" data-ir-id="binding_review_window_label" data-content-refs="[&quot;node:review_window#attr:label&quot;]" data-intent-refs="[&quot;viewspec:binding:review_window_label&quot;]" data-style-tokens="[&quot;tone.muted&quot;]" style="color: #6b7280; color: #5f6678;" data-binding-id="review_window_label">Review window</div><div id="profile1-dom-binding_review_window_value" class="vs-value" data-ir-id="binding_review_window_value" data-content-refs="[&quot;node:review_window#attr:value&quot;]" data-intent-refs="[&quot;viewspec:binding:review_window_value&quot;]" data-style-tokens="[&quot;tone.neutral&quot;, &quot;emphasis.high&quot;]" style="color: #1f2937; color: #0f172a; font-family: ui-sans-serif, system-ui, sans-serif; font-weight: 730; letter-spacing: -0.025em; font-weight: 860; letter-spacing: -0.03em;" data-binding-id="review_window_value">36 hr</div></div></div></div><div id="profile1-dom-region_review" class="vs-stack vs-layout-stack vs-role-side-rail" data-ir-id="region_review" data-content-refs="[]" data-intent-refs="[&quot;viewspec:region:review&quot;]" data-style-tokens="[&quot;density.regular&quot;]" style="gap: 0.68rem; padding: 0.58rem 0.74rem; gap: 1rem; padding: 0.94rem 1.22rem;"><dl id="profile1-dom-motif_decision_context" class="vs-stack vs-layout-stack vs-motif-detail vs-role-detail-panel" data-ir-id="motif_decision_context" data-content-refs="[]" data-intent-refs="[&quot;viewspec:motif:decision_context&quot;, &quot;viewspec:style:review_surface&quot;, &quot;viewspec:style:review_density&quot;]" data-style-tokens="[&quot;density.regular&quot;, &quot;surface.strong&quot;, &quot;density.compact&quot;]" style="gap: 0.68rem; padding: 0.58rem 0.74rem; gap: 1rem; padding: 0.94rem 1.22rem; background: #e2e8f0; border: 1px solid #94a3b8; border-radius: 14px; background: #eef2ff; border: 1px solid #c4b5fd; border-radius: 20px; gap: 0.34rem; padding: 0.36rem 0.5rem; gap: 0.48rem; padding: 0.52rem 0.76rem;"><div id="profile1-dom-motif_decision_context_owner" class="vs-cluster vs-layout-cluster vs-motif-detail" data-ir-id="motif_decision_context_owner" data-content-refs="[]" data-intent-refs="[&quot;viewspec:motif:decision_context&quot;]" data-style-tokens="[&quot;density.compact&quot;]" style="gap: 0.34rem; padding: 0.36rem 0.5rem; gap: 0.48rem; padding: 0.52rem 0.76rem;"><dt id="profile1-dom-binding_owner_label" class="vs-label" data-ir-id="binding_owner_label" data-content-refs="[&quot;node:owner#attr:label&quot;]" data-intent-refs="[&quot;viewspec:binding:owner_label&quot;]" data-style-tokens="[&quot;tone.muted&quot;]" style="color: #6b7280; color: #5f6678;" data-binding-id="owner_label">Owner</dt><dd id="profile1-dom-binding_owner_value" class="vs-value" data-ir-id="binding_owner_value" data-content-refs="[&quot;node:owner#attr:value&quot;]" data-intent-refs="[&quot;viewspec:binding:owner_value&quot;, &quot;viewspec:style:owner_muted&quot;]" data-style-tokens="[&quot;tone.neutral&quot;, &quot;emphasis.high&quot;, &quot;tone.muted&quot;]" style="color: #1f2937; color: #0f172a; font-family: ui-sans-serif, system-ui, sans-serif; font-weight: 730; letter-spacing: -0.025em; font-weight: 860; letter-spacing: -0.03em; color: #6b7280; color: #5f6678;" data-binding-id="owner_value">Revenue Platform</dd></div><div id="profile1-dom-motif_decision_context_next_gate" class="vs-cluster vs-layout-cluster vs-motif-detail" data-ir-id="motif_decision_context_next_gate" data-content-refs="[]" data-intent-refs="[&quot;viewspec:motif:decision_context&quot;]" data-style-tokens="[&quot;density.compact&quot;]" style="gap: 0.34rem; padding: 0.36rem 0.5rem; gap: 0.48rem; padding: 0.52rem 0.76rem;"><dt id="profile1-dom-binding_next_gate_label" class="vs-label" data-ir-id="binding_next_gate_label" data-content-refs="[&quot;node:next_gate#attr:label&quot;]" data-intent-refs="[&quot;viewspec:binding:next_gate_label&quot;]" data-style-tokens="[&quot;tone.muted&quot;]" style="color: #6b7280; color: #5f6678;" data-binding-id="next_gate_label">Next gate</dt><dd id="profile1-dom-binding_next_gate_value" class="vs-value" data-ir-id="binding_next_gate_value" data-content-refs="[&quot;node:next_gate#attr:value&quot;]" data-intent-refs="[&quot;viewspec:binding:next_gate_value&quot;]" data-style-tokens="[&quot;tone.neutral&quot;, &quot;emphasis.high&quot;]" style="color: #1f2937; color: #0f172a; font-family: ui-sans-serif, system-ui, sans-serif; font-weight: 730; letter-spacing: -0.025em; font-weight: 860; letter-spacing: -0.03em;" data-binding-id="next_gate_value">Executive review</dd></div><div id="profile1-dom-motif_decision_context_evidence" class="vs-cluster vs-layout-cluster vs-motif-detail" data-ir-id="motif_decision_context_evidence" data-content-refs="[]" data-intent-refs="[&quot;viewspec:motif:decision_context&quot;]" data-style-tokens="[&quot;density.compact&quot;]" style="gap: 0.34rem; padding: 0.36rem 0.5rem; gap: 0.48rem; padding: 0.52rem 0.76rem;"><dt id="profile1-dom-binding_evidence_label" class="vs-label" data-ir-id="binding_evidence_label" data-content-refs="[&quot;node:evidence#attr:label&quot;]" data-intent-refs="[&quot;viewspec:binding:evidence_label&quot;]" data-style-tokens="[&quot;tone.muted&quot;]" style="color: #6b7280; color: #5f6678;" data-binding-id="evidence_label">Evidence</dt><dd id="profile1-dom-binding_evidence_value" class="vs-value" data-ir-id="binding_evidence_value" data-content-refs="[&quot;node:evidence#attr:value&quot;]" data-intent-refs="[&quot;viewspec:binding:evidence_value&quot;]" data-style-tokens="[&quot;tone.neutral&quot;, &quot;emphasis.high&quot;]" style="color: #1f2937; color: #0f172a; font-family: ui-sans-serif, system-ui, sans-serif; font-weight: 730; letter-spacing: -0.025em; font-weight: 860; letter-spacing: -0.03em;" data-binding-id="evidence_value">Provenance manifest aligned</dd></div></dl><ul id="profile1-dom-motif_review_notes" class="vs-stack vs-layout-stack vs-motif-list" data-ir-id="motif_review_notes" data-content-refs="[]" data-intent-refs="[&quot;viewspec:motif:review_notes&quot;, &quot;viewspec:style:notes_surface&quot;]" data-style-tokens="[&quot;density.regular&quot;, &quot;surface.subtle&quot;]" style="gap: 0.68rem; padding: 0.58rem 0.74rem; gap: 1rem; padding: 0.94rem 1.22rem; background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 14px; background: #ffffff; border: 1px solid #ddd6fe; border-radius: 18px; box-shadow: 0 20px 46px rgb(79 70 229 / 0.16);"><li id="profile1-dom-motif_review_notes_scope_note" class="vs-surface vs-layout-surface vs-motif-list" data-ir-id="motif_review_notes_scope_note" data-content-refs="[]" data-intent-refs="[&quot;viewspec:motif:review_notes&quot;]" data-style-tokens="[&quot;surface.subtle&quot;]" style="background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 14px; background: #ffffff; border: 1px solid #ddd6fe; border-radius: 18px; box-shadow: 0 20px 46px rgb(79 70 229 / 0.16);"><div id="profile1-dom-binding_scope_note_label" class="vs-label" data-ir-id="binding_scope_note_label" data-content-refs="[&quot;node:scope_note#attr:label&quot;]" data-intent-refs="[&quot;viewspec:binding:scope_note_label&quot;]" data-style-tokens="[&quot;tone.muted&quot;]" style="color: #6b7280; color: #5f6678;" data-binding-id="scope_note_label">Scope</div><div id="profile1-dom-binding_scope_note_description" class="vs-text" data-ir-id="binding_scope_note_description" data-content-refs="[&quot;node:scope_note#attr:description&quot;]" data-intent-refs="[&quot;viewspec:binding:scope_note_description&quot;, &quot;viewspec:style:notes_flow&quot;]" data-style-tokens="[&quot;tone.neutral&quot;, &quot;narrative.flow&quot;]" style="color: #1f2937; color: #0f172a; font-family: ui-sans-serif, system-ui, sans-serif; max-width: 70ch; line-height: 1.75; max-width: 64ch; line-height: 1.68;" data-binding-id="scope_note_description">Profile token changes style projection and bounded layout metadata.</div></li><li id="profile1-dom-motif_review_notes_proof_note" class="vs-surface vs-layout-surface vs-motif-list" data-ir-id="motif_review_notes_proof_note" data-content-refs="[]" data-intent-refs="[&quot;viewspec:motif:review_notes&quot;]" data-style-tokens="[&quot;surface.subtle&quot;]" style="background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 14px; background: #ffffff; border: 1px solid #ddd6fe; border-radius: 18px; box-shadow: 0 20px 46px rgb(79 70 229 / 0.16);"><div id="profile1-dom-binding_proof_note_label" class="vs-label" data-ir-id="binding_proof_note_label" data-content-refs="[&quot;node:proof_note#attr:label&quot;]" data-intent-refs="[&quot;viewspec:binding:proof_note_label&quot;]" data-style-tokens="[&quot;tone.muted&quot;]" style="color: #6b7280; color: #5f6678;" data-binding-id="proof_note_label">Proof</div><div id="profile1-dom-binding_proof_note_description" class="vs-text" data-ir-id="binding_proof_note_description" data-content-refs="[&quot;node:proof_note#attr:description&quot;]" data-intent-refs="[&quot;viewspec:binding:proof_note_description&quot;]" data-style-tokens="[&quot;tone.neutral&quot;]" style="color: #1f2937; color: #0f172a; font-family: ui-sans-serif, system-ui, sans-serif;" data-binding-id="proof_note_description">Semantic ids and provenance stay stable.</div></li></ul></div></div></main>
+          </section>
+          <section class="artifact-view" data-profile-token="aesthetic.data_dense" aria-label="Data Dense generated artifact" hidden>
+            <main id="profile2-dom-region_root" class="vs-root vs-layout-root vs-role-app-shell" data-ir-id="region_root" data-content-refs="[]" data-intent-refs="[&quot;viewspec:view:art_direction_workspace&quot;, &quot;viewspec:region:root&quot;, &quot;viewspec:style:aesthetic_profile&quot;, &quot;viewspec:style:page_temperature&quot;]" data-style-tokens="[&quot;tone.neutral&quot;, &quot;aesthetic.data_dense&quot;, &quot;palette.temperature&quot;]" style="color: #1f2937; color: #162033; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; background-color: #ffffff; background-color: #eef2f7;" data-aesthetic-profile="aesthetic.data_dense"><div id="profile2-dom-region_hero" class="vs-stack vs-layout-stack vs-role-app-header" data-ir-id="region_hero" data-content-refs="[]" data-intent-refs="[&quot;viewspec:region:hero&quot;, &quot;viewspec:style:hero_density&quot;]" data-style-tokens="[&quot;density.regular&quot;, &quot;density.airy&quot;]" style="gap: 0.68rem; padding: 0.58rem 0.74rem; gap: 0.34rem; padding: 0.3rem 0.44rem; gap: 1rem; padding: 0.85rem 1rem; gap: 0.7rem; padding: 0.58rem 0.76rem;"><header id="profile2-dom-motif_overview" class="vs-surface vs-layout-surface vs-motif-hero vs-role-page-header" data-ir-id="motif_overview" data-content-refs="[]" data-intent-refs="[&quot;viewspec:motif:overview&quot;, &quot;viewspec:style:hero_surface&quot;]" data-style-tokens="[&quot;surface.subtle&quot;]" style="background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 14px; background: #ffffff; border: 1px solid #cbd5e1; border-radius: 6px;" aria-label="Hero"><p id="profile2-dom-binding_overview_eyebrow" class="vs-label" data-ir-id="binding_overview_eyebrow" data-content-refs="[&quot;node:overview#attr:eyebrow&quot;]" data-intent-refs="[&quot;viewspec:binding:overview_eyebrow&quot;, &quot;viewspec:style:hero_eyebrow&quot;]" data-style-tokens="[&quot;tone.muted&quot;, &quot;tone.accent&quot;]" style="color: #6b7280; color: #4b5b70; color: #0f766e; color: #1d4ed8; font-weight: 780;" data-binding-id="overview_eyebrow">Launch desk</p><h1 id="profile2-dom-binding_overview_title" class="vs-value" data-ir-id="binding_overview_title" data-content-refs="[&quot;node:overview#attr:title&quot;]" data-intent-refs="[&quot;viewspec:binding:overview_title&quot;, &quot;viewspec:style:hero_title&quot;]" data-style-tokens="[&quot;tone.neutral&quot;, &quot;emphasis.high&quot;, &quot;rhythm.hierarchy&quot;]" style="color: #1f2937; color: #162033; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-weight: 730; letter-spacing: -0.025em; font-weight: 720; letter-spacing: 0; font-size: 1.125rem; font-weight: 750; line-height: 1.35; font-size: 0.92rem; font-weight: 740; line-height: 1.18;" data-binding-id="overview_title">Resolve the next release decision</h1><p id="profile2-dom-binding_overview_description" class="vs-text" data-ir-id="binding_overview_description" data-content-refs="[&quot;node:overview#attr:description&quot;]" data-intent-refs="[&quot;viewspec:binding:overview_description&quot;, &quot;viewspec:style:hero_body&quot;]" data-style-tokens="[&quot;tone.neutral&quot;, &quot;narrative.flow&quot;]" style="color: #1f2937; color: #162033; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; max-width: 70ch; line-height: 1.75; max-width: 92ch; line-height: 1.42;" data-binding-id="overview_description">One semantic product surface is compiled through five governed art-direction profiles.</p></header></div><div id="profile2-dom-region_workspace" class="vs-grid vs-layout-grid vs-role-content-grid" data-ir-id="region_workspace" data-content-refs="[]" data-intent-refs="[&quot;viewspec:region:workspace&quot;]" data-style-tokens="[&quot;density.regular&quot;]" style="grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0.68rem; padding: 0.58rem 0.74rem; gap: 0.34rem; padding: 0.3rem 0.44rem;"><div id="profile2-dom-region_primary" class="vs-stack vs-layout-stack vs-role-primary-column" data-ir-id="region_primary" data-content-refs="[]" data-intent-refs="[&quot;viewspec:region:primary&quot;]" data-style-tokens="[&quot;density.regular&quot;]" style="gap: 0.68rem; padding: 0.58rem 0.74rem; gap: 0.34rem; padding: 0.3rem 0.44rem;"><div id="profile2-dom-motif_quality_metrics" class="vs-grid vs-layout-grid vs-motif-dashboard vs-role-metric-grid" data-ir-id="motif_quality_metrics" data-content-refs="[]" data-intent-refs="[&quot;viewspec:motif:quality_metrics&quot;, &quot;viewspec:style:metrics_density&quot;]" data-style-tokens="[&quot;density.regular&quot;]" style="grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0.68rem; padding: 0.58rem 0.74rem; gap: 0.34rem; padding: 0.3rem 0.44rem;"><div id="profile2-dom-motif_quality_metrics_confidence" class="vs-surface vs-layout-surface vs-motif-dashboard vs-role-metric-card" data-ir-id="motif_quality_metrics_confidence" data-content-refs="[]" data-intent-refs="[&quot;viewspec:motif:quality_metrics&quot;]" data-style-tokens="[&quot;surface.subtle&quot;]" style="background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 14px; background: #ffffff; border: 1px solid #cbd5e1; border-radius: 6px;"><div id="profile2-dom-binding_confidence_label" class="vs-label" data-ir-id="binding_confidence_label" data-content-refs="[&quot;node:confidence#attr:label&quot;]" data-intent-refs="[&quot;viewspec:binding:confidence_label&quot;]" data-style-tokens="[&quot;tone.muted&quot;]" style="color: #6b7280; color: #4b5b70;" data-binding-id="confidence_label">Ship confidence</div><div id="profile2-dom-binding_confidence_value" class="vs-value" data-ir-id="binding_confidence_value" data-content-refs="[&quot;node:confidence#attr:value&quot;]" data-intent-refs="[&quot;viewspec:binding:confidence_value&quot;, &quot;viewspec:style:confidence_focus&quot;]" data-style-tokens="[&quot;tone.neutral&quot;, &quot;emphasis.high&quot;]" style="color: #1f2937; color: #162033; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-weight: 730; letter-spacing: -0.025em; font-weight: 720; letter-spacing: 0;" data-binding-id="confidence_value">92%</div></div><div id="profile2-dom-motif_quality_metrics_risk_delta" class="vs-surface vs-layout-surface vs-motif-dashboard vs-role-metric-card" data-ir-id="motif_quality_metrics_risk_delta" data-content-refs="[]" data-intent-refs="[&quot;viewspec:motif:quality_metrics&quot;]" data-style-tokens="[&quot;surface.subtle&quot;]" style="background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 14px; background: #ffffff; border: 1px solid #cbd5e1; border-radius: 6px;"><div id="profile2-dom-binding_risk_delta_label" class="vs-label" data-ir-id="binding_risk_delta_label" data-content-refs="[&quot;node:risk_delta#attr:label&quot;]" data-intent-refs="[&quot;viewspec:binding:risk_delta_label&quot;]" data-style-tokens="[&quot;tone.muted&quot;]" style="color: #6b7280; color: #4b5b70;" data-binding-id="risk_delta_label">Risk delta</div><div id="profile2-dom-binding_risk_delta_value" class="vs-value" data-ir-id="binding_risk_delta_value" data-content-refs="[&quot;node:risk_delta#attr:value&quot;]" data-intent-refs="[&quot;viewspec:binding:risk_delta_value&quot;, &quot;viewspec:style:risk_accent&quot;]" data-style-tokens="[&quot;tone.neutral&quot;, &quot;emphasis.high&quot;, &quot;tone.accent&quot;]" style="color: #1f2937; color: #162033; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-weight: 730; letter-spacing: -0.025em; font-weight: 720; letter-spacing: 0; color: #0f766e; color: #1d4ed8; font-weight: 780;" data-binding-id="risk_delta_value">-18%</div></div><div id="profile2-dom-motif_quality_metrics_blockers" class="vs-surface vs-layout-surface vs-motif-dashboard vs-role-metric-card" data-ir-id="motif_quality_metrics_blockers" data-content-refs="[]" data-intent-refs="[&quot;viewspec:motif:quality_metrics&quot;]" data-style-tokens="[&quot;surface.subtle&quot;]" style="background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 14px; background: #ffffff; border: 1px solid #cbd5e1; border-radius: 6px;"><div id="profile2-dom-binding_blockers_label" class="vs-label" data-ir-id="binding_blockers_label" data-content-refs="[&quot;node:blockers#attr:label&quot;]" data-intent-refs="[&quot;viewspec:binding:blockers_label&quot;]" data-style-tokens="[&quot;tone.muted&quot;]" style="color: #6b7280; color: #4b5b70;" data-binding-id="blockers_label">Open blockers</div><div id="profile2-dom-binding_blockers_value" class="vs-value" data-ir-id="binding_blockers_value" data-content-refs="[&quot;node:blockers#attr:value&quot;]" data-intent-refs="[&quot;viewspec:binding:blockers_value&quot;]" data-style-tokens="[&quot;tone.neutral&quot;, &quot;emphasis.high&quot;]" style="color: #1f2937; color: #162033; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-weight: 730; letter-spacing: -0.025em; font-weight: 720; letter-spacing: 0;" data-binding-id="blockers_value">4</div></div><div id="profile2-dom-motif_quality_metrics_review_window" class="vs-surface vs-layout-surface vs-motif-dashboard vs-role-metric-card" data-ir-id="motif_quality_metrics_review_window" data-content-refs="[]" data-intent-refs="[&quot;viewspec:motif:quality_metrics&quot;]" data-style-tokens="[&quot;surface.subtle&quot;]" style="background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 14px; background: #ffffff; border: 1px solid #cbd5e1; border-radius: 6px;"><div id="profile2-dom-binding_review_window_label" class="vs-label" data-ir-id="binding_review_window_label" data-content-refs="[&quot;node:review_window#attr:label&quot;]" data-intent-refs="[&quot;viewspec:binding:review_window_label&quot;]" data-style-tokens="[&quot;tone.muted&quot;]" style="color: #6b7280; color: #4b5b70;" data-binding-id="review_window_label">Review window</div><div id="profile2-dom-binding_review_window_value" class="vs-value" data-ir-id="binding_review_window_value" data-content-refs="[&quot;node:review_window#attr:value&quot;]" data-intent-refs="[&quot;viewspec:binding:review_window_value&quot;]" data-style-tokens="[&quot;tone.neutral&quot;, &quot;emphasis.high&quot;]" style="color: #1f2937; color: #162033; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-weight: 730; letter-spacing: -0.025em; font-weight: 720; letter-spacing: 0;" data-binding-id="review_window_value">36 hr</div></div></div></div><div id="profile2-dom-region_review" class="vs-stack vs-layout-stack vs-role-side-rail" data-ir-id="region_review" data-content-refs="[]" data-intent-refs="[&quot;viewspec:region:review&quot;]" data-style-tokens="[&quot;density.regular&quot;]" style="gap: 0.68rem; padding: 0.58rem 0.74rem; gap: 0.34rem; padding: 0.3rem 0.44rem;"><dl id="profile2-dom-motif_decision_context" class="vs-stack vs-layout-stack vs-motif-detail vs-role-detail-panel" data-ir-id="motif_decision_context" data-content-refs="[]" data-intent-refs="[&quot;viewspec:motif:decision_context&quot;, &quot;viewspec:style:review_surface&quot;, &quot;viewspec:style:review_density&quot;]" data-style-tokens="[&quot;density.regular&quot;, &quot;surface.strong&quot;, &quot;density.compact&quot;]" style="gap: 0.68rem; padding: 0.58rem 0.74rem; gap: 0.34rem; padding: 0.3rem 0.44rem; background: #e2e8f0; border: 1px solid #94a3b8; border-radius: 14px; background: #dbeafe; border: 1px solid #93c5fd; border-radius: 6px; gap: 0.34rem; padding: 0.36rem 0.5rem; gap: 0.16rem; padding: 0.18rem 0.3rem;"><div id="profile2-dom-motif_decision_context_owner" class="vs-cluster vs-layout-cluster vs-motif-detail" data-ir-id="motif_decision_context_owner" data-content-refs="[]" data-intent-refs="[&quot;viewspec:motif:decision_context&quot;]" data-style-tokens="[&quot;density.compact&quot;]" style="gap: 0.34rem; padding: 0.36rem 0.5rem; gap: 0.16rem; padding: 0.18rem 0.3rem;"><dt id="profile2-dom-binding_owner_label" class="vs-label" data-ir-id="binding_owner_label" data-content-refs="[&quot;node:owner#attr:label&quot;]" data-intent-refs="[&quot;viewspec:binding:owner_label&quot;]" data-style-tokens="[&quot;tone.muted&quot;]" style="color: #6b7280; color: #4b5b70;" data-binding-id="owner_label">Owner</dt><dd id="profile2-dom-binding_owner_value" class="vs-value" data-ir-id="binding_owner_value" data-content-refs="[&quot;node:owner#attr:value&quot;]" data-intent-refs="[&quot;viewspec:binding:owner_value&quot;, &quot;viewspec:style:owner_muted&quot;]" data-style-tokens="[&quot;tone.neutral&quot;, &quot;emphasis.high&quot;, &quot;tone.muted&quot;]" style="color: #1f2937; color: #162033; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-weight: 730; letter-spacing: -0.025em; font-weight: 720; letter-spacing: 0; color: #6b7280; color: #4b5b70;" data-binding-id="owner_value">Revenue Platform</dd></div><div id="profile2-dom-motif_decision_context_next_gate" class="vs-cluster vs-layout-cluster vs-motif-detail" data-ir-id="motif_decision_context_next_gate" data-content-refs="[]" data-intent-refs="[&quot;viewspec:motif:decision_context&quot;]" data-style-tokens="[&quot;density.compact&quot;]" style="gap: 0.34rem; padding: 0.36rem 0.5rem; gap: 0.16rem; padding: 0.18rem 0.3rem;"><dt id="profile2-dom-binding_next_gate_label" class="vs-label" data-ir-id="binding_next_gate_label" data-content-refs="[&quot;node:next_gate#attr:label&quot;]" data-intent-refs="[&quot;viewspec:binding:next_gate_label&quot;]" data-style-tokens="[&quot;tone.muted&quot;]" style="color: #6b7280; color: #4b5b70;" data-binding-id="next_gate_label">Next gate</dt><dd id="profile2-dom-binding_next_gate_value" class="vs-value" data-ir-id="binding_next_gate_value" data-content-refs="[&quot;node:next_gate#attr:value&quot;]" data-intent-refs="[&quot;viewspec:binding:next_gate_value&quot;]" data-style-tokens="[&quot;tone.neutral&quot;, &quot;emphasis.high&quot;]" style="color: #1f2937; color: #162033; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-weight: 730; letter-spacing: -0.025em; font-weight: 720; letter-spacing: 0;" data-binding-id="next_gate_value">Executive review</dd></div><div id="profile2-dom-motif_decision_context_evidence" class="vs-cluster vs-layout-cluster vs-motif-detail" data-ir-id="motif_decision_context_evidence" data-content-refs="[]" data-intent-refs="[&quot;viewspec:motif:decision_context&quot;]" data-style-tokens="[&quot;density.compact&quot;]" style="gap: 0.34rem; padding: 0.36rem 0.5rem; gap: 0.16rem; padding: 0.18rem 0.3rem;"><dt id="profile2-dom-binding_evidence_label" class="vs-label" data-ir-id="binding_evidence_label" data-content-refs="[&quot;node:evidence#attr:label&quot;]" data-intent-refs="[&quot;viewspec:binding:evidence_label&quot;]" data-style-tokens="[&quot;tone.muted&quot;]" style="color: #6b7280; color: #4b5b70;" data-binding-id="evidence_label">Evidence</dt><dd id="profile2-dom-binding_evidence_value" class="vs-value" data-ir-id="binding_evidence_value" data-content-refs="[&quot;node:evidence#attr:value&quot;]" data-intent-refs="[&quot;viewspec:binding:evidence_value&quot;]" data-style-tokens="[&quot;tone.neutral&quot;, &quot;emphasis.high&quot;]" style="color: #1f2937; color: #162033; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-weight: 730; letter-spacing: -0.025em; font-weight: 720; letter-spacing: 0;" data-binding-id="evidence_value">Provenance manifest aligned</dd></div></dl><ul id="profile2-dom-motif_review_notes" class="vs-stack vs-layout-stack vs-motif-list" data-ir-id="motif_review_notes" data-content-refs="[]" data-intent-refs="[&quot;viewspec:motif:review_notes&quot;, &quot;viewspec:style:notes_surface&quot;]" data-style-tokens="[&quot;density.regular&quot;, &quot;surface.subtle&quot;]" style="gap: 0.68rem; padding: 0.58rem 0.74rem; gap: 0.34rem; padding: 0.3rem 0.44rem; background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 14px; background: #ffffff; border: 1px solid #cbd5e1; border-radius: 6px;"><li id="profile2-dom-motif_review_notes_scope_note" class="vs-surface vs-layout-surface vs-motif-list" data-ir-id="motif_review_notes_scope_note" data-content-refs="[]" data-intent-refs="[&quot;viewspec:motif:review_notes&quot;]" data-style-tokens="[&quot;surface.subtle&quot;]" style="background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 14px; background: #ffffff; border: 1px solid #cbd5e1; border-radius: 6px;"><div id="profile2-dom-binding_scope_note_label" class="vs-label" data-ir-id="binding_scope_note_label" data-content-refs="[&quot;node:scope_note#attr:label&quot;]" data-intent-refs="[&quot;viewspec:binding:scope_note_label&quot;]" data-style-tokens="[&quot;tone.muted&quot;]" style="color: #6b7280; color: #4b5b70;" data-binding-id="scope_note_label">Scope</div><div id="profile2-dom-binding_scope_note_description" class="vs-text" data-ir-id="binding_scope_note_description" data-content-refs="[&quot;node:scope_note#attr:description&quot;]" data-intent-refs="[&quot;viewspec:binding:scope_note_description&quot;, &quot;viewspec:style:notes_flow&quot;]" data-style-tokens="[&quot;tone.neutral&quot;, &quot;narrative.flow&quot;]" style="color: #1f2937; color: #162033; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; max-width: 70ch; line-height: 1.75; max-width: 92ch; line-height: 1.42;" data-binding-id="scope_note_description">Profile token changes style projection and bounded layout metadata.</div></li><li id="profile2-dom-motif_review_notes_proof_note" class="vs-surface vs-layout-surface vs-motif-list" data-ir-id="motif_review_notes_proof_note" data-content-refs="[]" data-intent-refs="[&quot;viewspec:motif:review_notes&quot;]" data-style-tokens="[&quot;surface.subtle&quot;]" style="background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 14px; background: #ffffff; border: 1px solid #cbd5e1; border-radius: 6px;"><div id="profile2-dom-binding_proof_note_label" class="vs-label" data-ir-id="binding_proof_note_label" data-content-refs="[&quot;node:proof_note#attr:label&quot;]" data-intent-refs="[&quot;viewspec:binding:proof_note_label&quot;]" data-style-tokens="[&quot;tone.muted&quot;]" style="color: #6b7280; color: #4b5b70;" data-binding-id="proof_note_label">Proof</div><div id="profile2-dom-binding_proof_note_description" class="vs-text" data-ir-id="binding_proof_note_description" data-content-refs="[&quot;node:proof_note#attr:description&quot;]" data-intent-refs="[&quot;viewspec:binding:proof_note_description&quot;]" data-style-tokens="[&quot;tone.neutral&quot;]" style="color: #1f2937; color: #162033; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;" data-binding-id="proof_note_description">Semantic ids and provenance stay stable.</div></li></ul></div></div></main>
+          </section>
+          <section class="artifact-view" data-profile-token="aesthetic.editorial_product" aria-label="Editorial Product generated artifact" hidden>
+            <main id="profile3-dom-region_root" class="vs-root vs-layout-root vs-role-app-shell" data-ir-id="region_root" data-content-refs="[]" data-intent-refs="[&quot;viewspec:view:art_direction_workspace&quot;, &quot;viewspec:region:root&quot;, &quot;viewspec:style:aesthetic_profile&quot;, &quot;viewspec:style:page_temperature&quot;]" data-style-tokens="[&quot;tone.neutral&quot;, &quot;aesthetic.editorial_product&quot;, &quot;palette.temperature&quot;]" style="color: #1f2937; color: #1f1a23; font-family: ui-serif, Georgia, Cambria, serif; background-color: #ffffff; background-color: #fff7f7;" data-aesthetic-profile="aesthetic.editorial_product"><div id="profile3-dom-region_hero" class="vs-stack vs-layout-stack vs-role-app-header" data-ir-id="region_hero" data-content-refs="[]" data-intent-refs="[&quot;viewspec:region:hero&quot;, &quot;viewspec:style:hero_density&quot;]" data-style-tokens="[&quot;density.regular&quot;, &quot;density.airy&quot;]" style="gap: 0.68rem; padding: 0.58rem 0.74rem; gap: 1.08rem; padding: 0.98rem 1.26rem; gap: 1rem; padding: 0.85rem 1rem; gap: 1.8rem; padding: 1.55rem 1.8rem;"><header id="profile3-dom-motif_overview" class="vs-surface vs-layout-surface vs-motif-hero vs-role-page-header" data-ir-id="motif_overview" data-content-refs="[]" data-intent-refs="[&quot;viewspec:motif:overview&quot;, &quot;viewspec:style:hero_surface&quot;]" data-style-tokens="[&quot;surface.subtle&quot;]" style="background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 14px; background: #ffffff; border: 1px solid #ffd6dc; border-radius: 22px; box-shadow: 0 2px 0 rgb(190 18 60 / 0.10);" aria-label="Hero"><p id="profile3-dom-binding_overview_eyebrow" class="vs-label" data-ir-id="binding_overview_eyebrow" data-content-refs="[&quot;node:overview#attr:eyebrow&quot;]" data-intent-refs="[&quot;viewspec:binding:overview_eyebrow&quot;, &quot;viewspec:style:hero_eyebrow&quot;]" data-style-tokens="[&quot;tone.muted&quot;, &quot;tone.accent&quot;]" style="color: #6b7280; color: #75606b; color: #0f766e; color: #be123c; font-weight: 780;" data-binding-id="overview_eyebrow">Launch desk</p><h1 id="profile3-dom-binding_overview_title" class="vs-value" data-ir-id="binding_overview_title" data-content-refs="[&quot;node:overview#attr:title&quot;]" data-intent-refs="[&quot;viewspec:binding:overview_title&quot;, &quot;viewspec:style:hero_title&quot;]" data-style-tokens="[&quot;tone.neutral&quot;, &quot;emphasis.high&quot;, &quot;rhythm.hierarchy&quot;]" style="color: #1f2937; color: #1f1a23; font-family: ui-serif, Georgia, Cambria, serif; font-weight: 730; letter-spacing: -0.025em; font-weight: 840; letter-spacing: 0; font-size: 1.125rem; font-weight: 750; line-height: 1.35; font-size: 1.58rem; font-weight: 840; line-height: 1.06;" data-binding-id="overview_title">Resolve the next release decision</h1><p id="profile3-dom-binding_overview_description" class="vs-text" data-ir-id="binding_overview_description" data-content-refs="[&quot;node:overview#attr:description&quot;]" data-intent-refs="[&quot;viewspec:binding:overview_description&quot;, &quot;viewspec:style:hero_body&quot;]" data-style-tokens="[&quot;tone.neutral&quot;, &quot;narrative.flow&quot;]" style="color: #1f2937; color: #1f1a23; font-family: ui-serif, Georgia, Cambria, serif; max-width: 70ch; line-height: 1.75; max-width: 56ch; line-height: 1.95;" data-binding-id="overview_description">One semantic product surface is compiled through five governed art-direction profiles.</p></header></div><div id="profile3-dom-region_workspace" class="vs-grid vs-layout-grid vs-role-content-grid" data-ir-id="region_workspace" data-content-refs="[]" data-intent-refs="[&quot;viewspec:region:workspace&quot;]" data-style-tokens="[&quot;density.regular&quot;]" style="grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.68rem; padding: 0.58rem 0.74rem; gap: 1.08rem; padding: 0.98rem 1.26rem;"><div id="profile3-dom-region_primary" class="vs-stack vs-layout-stack vs-role-primary-column" data-ir-id="region_primary" data-content-refs="[]" data-intent-refs="[&quot;viewspec:region:primary&quot;]" data-style-tokens="[&quot;density.regular&quot;]" style="gap: 0.68rem; padding: 0.58rem 0.74rem; gap: 1.08rem; padding: 0.98rem 1.26rem;"><div id="profile3-dom-motif_quality_metrics" class="vs-grid vs-layout-grid vs-motif-dashboard vs-role-metric-grid" data-ir-id="motif_quality_metrics" data-content-refs="[]" data-intent-refs="[&quot;viewspec:motif:quality_metrics&quot;, &quot;viewspec:style:metrics_density&quot;]" data-style-tokens="[&quot;density.regular&quot;]" style="grid-template-columns: repeat(1, minmax(0, 1fr)); gap: 0.68rem; padding: 0.58rem 0.74rem; gap: 1.08rem; padding: 0.98rem 1.26rem;"><div id="profile3-dom-motif_quality_metrics_confidence" class="vs-surface vs-layout-surface vs-motif-dashboard vs-role-metric-card" data-ir-id="motif_quality_metrics_confidence" data-content-refs="[]" data-intent-refs="[&quot;viewspec:motif:quality_metrics&quot;]" data-style-tokens="[&quot;surface.subtle&quot;]" style="background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 14px; background: #ffffff; border: 1px solid #ffd6dc; border-radius: 22px; box-shadow: 0 2px 0 rgb(190 18 60 / 0.10);"><div id="profile3-dom-binding_confidence_label" class="vs-label" data-ir-id="binding_confidence_label" data-content-refs="[&quot;node:confidence#attr:label&quot;]" data-intent-refs="[&quot;viewspec:binding:confidence_label&quot;]" data-style-tokens="[&quot;tone.muted&quot;]" style="color: #6b7280; color: #75606b;" data-binding-id="confidence_label">Ship confidence</div><div id="profile3-dom-binding_confidence_value" class="vs-value" data-ir-id="binding_confidence_value" data-content-refs="[&quot;node:confidence#attr:value&quot;]" data-intent-refs="[&quot;viewspec:binding:confidence_value&quot;, &quot;viewspec:style:confidence_focus&quot;]" data-style-tokens="[&quot;tone.neutral&quot;, &quot;emphasis.high&quot;]" style="color: #1f2937; color: #1f1a23; font-family: ui-serif, Georgia, Cambria, serif; font-weight: 730; letter-spacing: -0.025em; font-weight: 840; letter-spacing: 0;" data-binding-id="confidence_value">92%</div></div><div id="profile3-dom-motif_quality_metrics_risk_delta" class="vs-surface vs-layout-surface vs-motif-dashboard vs-role-metric-card" data-ir-id="motif_quality_metrics_risk_delta" data-content-refs="[]" data-intent-refs="[&quot;viewspec:motif:quality_metrics&quot;]" data-style-tokens="[&quot;surface.subtle&quot;]" style="background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 14px; background: #ffffff; border: 1px solid #ffd6dc; border-radius: 22px; box-shadow: 0 2px 0 rgb(190 18 60 / 0.10);"><div id="profile3-dom-binding_risk_delta_label" class="vs-label" data-ir-id="binding_risk_delta_label" data-content-refs="[&quot;node:risk_delta#attr:label&quot;]" data-intent-refs="[&quot;viewspec:binding:risk_delta_label&quot;]" data-style-tokens="[&quot;tone.muted&quot;]" style="color: #6b7280; color: #75606b;" data-binding-id="risk_delta_label">Risk delta</div><div id="profile3-dom-binding_risk_delta_value" class="vs-value" data-ir-id="binding_risk_delta_value" data-content-refs="[&quot;node:risk_delta#attr:value&quot;]" data-intent-refs="[&quot;viewspec:binding:risk_delta_value&quot;, &quot;viewspec:style:risk_accent&quot;]" data-style-tokens="[&quot;tone.neutral&quot;, &quot;emphasis.high&quot;, &quot;tone.accent&quot;]" style="color: #1f2937; color: #1f1a23; font-family: ui-serif, Georgia, Cambria, serif; font-weight: 730; letter-spacing: -0.025em; font-weight: 840; letter-spacing: 0; color: #0f766e; color: #be123c; font-weight: 780;" data-binding-id="risk_delta_value">-18%</div></div><div id="profile3-dom-motif_quality_metrics_blockers" class="vs-surface vs-layout-surface vs-motif-dashboard vs-role-metric-card" data-ir-id="motif_quality_metrics_blockers" data-content-refs="[]" data-intent-refs="[&quot;viewspec:motif:quality_metrics&quot;]" data-style-tokens="[&quot;surface.subtle&quot;]" style="background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 14px; background: #ffffff; border: 1px solid #ffd6dc; border-radius: 22px; box-shadow: 0 2px 0 rgb(190 18 60 / 0.10);"><div id="profile3-dom-binding_blockers_label" class="vs-label" data-ir-id="binding_blockers_label" data-content-refs="[&quot;node:blockers#attr:label&quot;]" data-intent-refs="[&quot;viewspec:binding:blockers_label&quot;]" data-style-tokens="[&quot;tone.muted&quot;]" style="color: #6b7280; color: #75606b;" data-binding-id="blockers_label">Open blockers</div><div id="profile3-dom-binding_blockers_value" class="vs-value" data-ir-id="binding_blockers_value" data-content-refs="[&quot;node:blockers#attr:value&quot;]" data-intent-refs="[&quot;viewspec:binding:blockers_value&quot;]" data-style-tokens="[&quot;tone.neutral&quot;, &quot;emphasis.high&quot;]" style="color: #1f2937; color: #1f1a23; font-family: ui-serif, Georgia, Cambria, serif; font-weight: 730; letter-spacing: -0.025em; font-weight: 840; letter-spacing: 0;" data-binding-id="blockers_value">4</div></div><div id="profile3-dom-motif_quality_metrics_review_window" class="vs-surface vs-layout-surface vs-motif-dashboard vs-role-metric-card" data-ir-id="motif_quality_metrics_review_window" data-content-refs="[]" data-intent-refs="[&quot;viewspec:motif:quality_metrics&quot;]" data-style-tokens="[&quot;surface.subtle&quot;]" style="background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 14px; background: #ffffff; border: 1px solid #ffd6dc; border-radius: 22px; box-shadow: 0 2px 0 rgb(190 18 60 / 0.10);"><div id="profile3-dom-binding_review_window_label" class="vs-label" data-ir-id="binding_review_window_label" data-content-refs="[&quot;node:review_window#attr:label&quot;]" data-intent-refs="[&quot;viewspec:binding:review_window_label&quot;]" data-style-tokens="[&quot;tone.muted&quot;]" style="color: #6b7280; color: #75606b;" data-binding-id="review_window_label">Review window</div><div id="profile3-dom-binding_review_window_value" class="vs-value" data-ir-id="binding_review_window_value" data-content-refs="[&quot;node:review_window#attr:value&quot;]" data-intent-refs="[&quot;viewspec:binding:review_window_value&quot;]" data-style-tokens="[&quot;tone.neutral&quot;, &quot;emphasis.high&quot;]" style="color: #1f2937; color: #1f1a23; font-family: ui-serif, Georgia, Cambria, serif; font-weight: 730; letter-spacing: -0.025em; font-weight: 840; letter-spacing: 0;" data-binding-id="review_window_value">36 hr</div></div></div></div><div id="profile3-dom-region_review" class="vs-stack vs-layout-stack vs-role-side-rail" data-ir-id="region_review" data-content-refs="[]" data-intent-refs="[&quot;viewspec:region:review&quot;]" data-style-tokens="[&quot;density.regular&quot;]" style="gap: 0.68rem; padding: 0.58rem 0.74rem; gap: 1.08rem; padding: 0.98rem 1.26rem;"><dl id="profile3-dom-motif_decision_context" class="vs-stack vs-layout-stack vs-motif-detail vs-role-detail-panel" data-ir-id="motif_decision_context" data-content-refs="[]" data-intent-refs="[&quot;viewspec:motif:decision_context&quot;, &quot;viewspec:style:review_surface&quot;, &quot;viewspec:style:review_density&quot;]" data-style-tokens="[&quot;density.regular&quot;, &quot;surface.strong&quot;, &quot;density.compact&quot;]" style="gap: 0.68rem; padding: 0.58rem 0.74rem; gap: 1.08rem; padding: 0.98rem 1.26rem; background: #e2e8f0; border: 1px solid #94a3b8; border-radius: 14px; background: #fff1f2; border: 1px solid #fda4af; border-radius: 24px; gap: 0.34rem; padding: 0.36rem 0.5rem; gap: 0.56rem; padding: 0.52rem 0.78rem;"><div id="profile3-dom-motif_decision_context_owner" class="vs-cluster vs-layout-cluster vs-motif-detail" data-ir-id="motif_decision_context_owner" data-content-refs="[]" data-intent-refs="[&quot;viewspec:motif:decision_context&quot;]" data-style-tokens="[&quot;density.compact&quot;]" style="gap: 0.34rem; padding: 0.36rem 0.5rem; gap: 0.56rem; padding: 0.52rem 0.78rem;"><dt id="profile3-dom-binding_owner_label" class="vs-label" data-ir-id="binding_owner_label" data-content-refs="[&quot;node:owner#attr:label&quot;]" data-intent-refs="[&quot;viewspec:binding:owner_label&quot;]" data-style-tokens="[&quot;tone.muted&quot;]" style="color: #6b7280; color: #75606b;" data-binding-id="owner_label">Owner</dt><dd id="profile3-dom-binding_owner_value" class="vs-value" data-ir-id="binding_owner_value" data-content-refs="[&quot;node:owner#attr:value&quot;]" data-intent-refs="[&quot;viewspec:binding:owner_value&quot;, &quot;viewspec:style:owner_muted&quot;]" data-style-tokens="[&quot;tone.neutral&quot;, &quot;emphasis.high&quot;, &quot;tone.muted&quot;]" style="color: #1f2937; color: #1f1a23; font-family: ui-serif, Georgia, Cambria, serif; font-weight: 730; letter-spacing: -0.025em; font-weight: 840; letter-spacing: 0; color: #6b7280; color: #75606b;" data-binding-id="owner_value">Revenue Platform</dd></div><div id="profile3-dom-motif_decision_context_next_gate" class="vs-cluster vs-layout-cluster vs-motif-detail" data-ir-id="motif_decision_context_next_gate" data-content-refs="[]" data-intent-refs="[&quot;viewspec:motif:decision_context&quot;]" data-style-tokens="[&quot;density.compact&quot;]" style="gap: 0.34rem; padding: 0.36rem 0.5rem; gap: 0.56rem; padding: 0.52rem 0.78rem;"><dt id="profile3-dom-binding_next_gate_label" class="vs-label" data-ir-id="binding_next_gate_label" data-content-refs="[&quot;node:next_gate#attr:label&quot;]" data-intent-refs="[&quot;viewspec:binding:next_gate_label&quot;]" data-style-tokens="[&quot;tone.muted&quot;]" style="color: #6b7280; color: #75606b;" data-binding-id="next_gate_label">Next gate</dt><dd id="profile3-dom-binding_next_gate_value" class="vs-value" data-ir-id="binding_next_gate_value" data-content-refs="[&quot;node:next_gate#attr:value&quot;]" data-intent-refs="[&quot;viewspec:binding:next_gate_value&quot;]" data-style-tokens="[&quot;tone.neutral&quot;, &quot;emphasis.high&quot;]" style="color: #1f2937; color: #1f1a23; font-family: ui-serif, Georgia, Cambria, serif; font-weight: 730; letter-spacing: -0.025em; font-weight: 840; letter-spacing: 0;" data-binding-id="next_gate_value">Executive review</dd></div><div id="profile3-dom-motif_decision_context_evidence" class="vs-cluster vs-layout-cluster vs-motif-detail" data-ir-id="motif_decision_context_evidence" data-content-refs="[]" data-intent-refs="[&quot;viewspec:motif:decision_context&quot;]" data-style-tokens="[&quot;density.compact&quot;]" style="gap: 0.34rem; padding: 0.36rem 0.5rem; gap: 0.56rem; padding: 0.52rem 0.78rem;"><dt id="profile3-dom-binding_evidence_label" class="vs-label" data-ir-id="binding_evidence_label" data-content-refs="[&quot;node:evidence#attr:label&quot;]" data-intent-refs="[&quot;viewspec:binding:evidence_label&quot;]" data-style-tokens="[&quot;tone.muted&quot;]" style="color: #6b7280; color: #75606b;" data-binding-id="evidence_label">Evidence</dt><dd id="profile3-dom-binding_evidence_value" class="vs-value" data-ir-id="binding_evidence_value" data-content-refs="[&quot;node:evidence#attr:value&quot;]" data-intent-refs="[&quot;viewspec:binding:evidence_value&quot;]" data-style-tokens="[&quot;tone.neutral&quot;, &quot;emphasis.high&quot;]" style="color: #1f2937; color: #1f1a23; font-family: ui-serif, Georgia, Cambria, serif; font-weight: 730; letter-spacing: -0.025em; font-weight: 840; letter-spacing: 0;" data-binding-id="evidence_value">Provenance manifest aligned</dd></div></dl><ul id="profile3-dom-motif_review_notes" class="vs-stack vs-layout-stack vs-motif-list" data-ir-id="motif_review_notes" data-content-refs="[]" data-intent-refs="[&quot;viewspec:motif:review_notes&quot;, &quot;viewspec:style:notes_surface&quot;]" data-style-tokens="[&quot;density.regular&quot;, &quot;surface.subtle&quot;]" style="gap: 0.68rem; padding: 0.58rem 0.74rem; gap: 1.08rem; padding: 0.98rem 1.26rem; background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 14px; background: #ffffff; border: 1px solid #ffd6dc; border-radius: 22px; box-shadow: 0 2px 0 rgb(190 18 60 / 0.10);"><li id="profile3-dom-motif_review_notes_scope_note" class="vs-surface vs-layout-surface vs-motif-list" data-ir-id="motif_review_notes_scope_note" data-content-refs="[]" data-intent-refs="[&quot;viewspec:motif:review_notes&quot;]" data-style-tokens="[&quot;surface.subtle&quot;]" style="background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 14px; background: #ffffff; border: 1px solid #ffd6dc; border-radius: 22px; box-shadow: 0 2px 0 rgb(190 18 60 / 0.10);"><div id="profile3-dom-binding_scope_note_label" class="vs-label" data-ir-id="binding_scope_note_label" data-content-refs="[&quot;node:scope_note#attr:label&quot;]" data-intent-refs="[&quot;viewspec:binding:scope_note_label&quot;]" data-style-tokens="[&quot;tone.muted&quot;]" style="color: #6b7280; color: #75606b;" data-binding-id="scope_note_label">Scope</div><div id="profile3-dom-binding_scope_note_description" class="vs-text" data-ir-id="binding_scope_note_description" data-content-refs="[&quot;node:scope_note#attr:description&quot;]" data-intent-refs="[&quot;viewspec:binding:scope_note_description&quot;, &quot;viewspec:style:notes_flow&quot;]" data-style-tokens="[&quot;tone.neutral&quot;, &quot;narrative.flow&quot;]" style="color: #1f2937; color: #1f1a23; font-family: ui-serif, Georgia, Cambria, serif; max-width: 70ch; line-height: 1.75; max-width: 56ch; line-height: 1.95;" data-binding-id="scope_note_description">Profile token changes style projection and bounded layout metadata.</div></li><li id="profile3-dom-motif_review_notes_proof_note" class="vs-surface vs-layout-surface vs-motif-list" data-ir-id="motif_review_notes_proof_note" data-content-refs="[]" data-intent-refs="[&quot;viewspec:motif:review_notes&quot;]" data-style-tokens="[&quot;surface.subtle&quot;]" style="background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 14px; background: #ffffff; border: 1px solid #ffd6dc; border-radius: 22px; box-shadow: 0 2px 0 rgb(190 18 60 / 0.10);"><div id="profile3-dom-binding_proof_note_label" class="vs-label" data-ir-id="binding_proof_note_label" data-content-refs="[&quot;node:proof_note#attr:label&quot;]" data-intent-refs="[&quot;viewspec:binding:proof_note_label&quot;]" data-style-tokens="[&quot;tone.muted&quot;]" style="color: #6b7280; color: #75606b;" data-binding-id="proof_note_label">Proof</div><div id="profile3-dom-binding_proof_note_description" class="vs-text" data-ir-id="binding_proof_note_description" data-content-refs="[&quot;node:proof_note#attr:description&quot;]" data-intent-refs="[&quot;viewspec:binding:proof_note_description&quot;]" data-style-tokens="[&quot;tone.neutral&quot;]" style="color: #1f2937; color: #1f1a23; font-family: ui-serif, Georgia, Cambria, serif;" data-binding-id="proof_note_description">Semantic ids and provenance stay stable.</div></li></ul></div></div></main>
+          </section>
+          <section class="artifact-view" data-profile-token="aesthetic.executive_review" aria-label="Executive Review generated artifact" hidden>
+            <main id="profile4-dom-region_root" class="vs-root vs-layout-root vs-role-app-shell" data-ir-id="region_root" data-content-refs="[]" data-intent-refs="[&quot;viewspec:view:art_direction_workspace&quot;, &quot;viewspec:region:root&quot;, &quot;viewspec:style:aesthetic_profile&quot;, &quot;viewspec:style:page_temperature&quot;]" data-style-tokens="[&quot;tone.neutral&quot;, &quot;aesthetic.executive_review&quot;, &quot;palette.temperature&quot;]" style="color: #1f2937; color: #101827; font-family: ui-sans-serif, system-ui, sans-serif; background-color: #ffffff; background-color: #f3f5f8;" data-aesthetic-profile="aesthetic.executive_review"><div id="profile4-dom-region_hero" class="vs-stack vs-layout-stack vs-role-app-header" data-ir-id="region_hero" data-content-refs="[]" data-intent-refs="[&quot;viewspec:region:hero&quot;, &quot;viewspec:style:hero_density&quot;]" data-style-tokens="[&quot;density.regular&quot;, &quot;density.airy&quot;]" style="gap: 0.68rem; padding: 0.58rem 0.74rem; gap: 0.58rem; padding: 0.56rem 0.78rem; gap: 1rem; padding: 0.85rem 1rem; gap: 0.95rem; padding: 0.86rem 1.05rem;"><header id="profile4-dom-motif_overview" class="vs-surface vs-layout-surface vs-motif-hero vs-role-page-header" data-ir-id="motif_overview" data-content-refs="[]" data-intent-refs="[&quot;viewspec:motif:overview&quot;, &quot;viewspec:style:hero_surface&quot;]" data-style-tokens="[&quot;surface.subtle&quot;]" style="background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 14px; background: #ffffff; border: 1px solid #cfd6df; border-radius: 4px; box-shadow: 0 10px 24px rgb(15 23 42 / 0.06);" aria-label="Hero"><p id="profile4-dom-binding_overview_eyebrow" class="vs-label" data-ir-id="binding_overview_eyebrow" data-content-refs="[&quot;node:overview#attr:eyebrow&quot;]" data-intent-refs="[&quot;viewspec:binding:overview_eyebrow&quot;, &quot;viewspec:style:hero_eyebrow&quot;]" data-style-tokens="[&quot;tone.muted&quot;, &quot;tone.accent&quot;]" style="color: #6b7280; color: #566274; color: #0f766e; color: #0f5f72; font-weight: 820; text-transform: uppercase;" data-binding-id="overview_eyebrow">Launch desk</p><h1 id="profile4-dom-binding_overview_title" class="vs-value" data-ir-id="binding_overview_title" data-content-refs="[&quot;node:overview#attr:title&quot;]" data-intent-refs="[&quot;viewspec:binding:overview_title&quot;, &quot;viewspec:style:hero_title&quot;]" data-style-tokens="[&quot;tone.neutral&quot;, &quot;emphasis.high&quot;, &quot;rhythm.hierarchy&quot;]" style="color: #1f2937; color: #101827; font-family: ui-sans-serif, system-ui, sans-serif; font-weight: 730; letter-spacing: -0.025em; font-weight: 800; letter-spacing: -0.006em; font-size: 1.125rem; font-weight: 750; line-height: 1.35; font-size: 1.06rem; font-weight: 800; line-height: 1.22;" data-binding-id="overview_title">Resolve the next release decision</h1><p id="profile4-dom-binding_overview_description" class="vs-text" data-ir-id="binding_overview_description" data-content-refs="[&quot;node:overview#attr:description&quot;]" data-intent-refs="[&quot;viewspec:binding:overview_description&quot;, &quot;viewspec:style:hero_body&quot;]" data-style-tokens="[&quot;tone.neutral&quot;, &quot;narrative.flow&quot;]" style="color: #1f2937; color: #101827; font-family: ui-sans-serif, system-ui, sans-serif; max-width: 70ch; line-height: 1.75; max-width: 78ch; line-height: 1.56;" data-binding-id="overview_description">One semantic product surface is compiled through five governed art-direction profiles.</p></header></div><div id="profile4-dom-region_workspace" class="vs-grid vs-layout-grid vs-role-content-grid" data-ir-id="region_workspace" data-content-refs="[]" data-intent-refs="[&quot;viewspec:region:workspace&quot;]" data-style-tokens="[&quot;density.regular&quot;]" style="grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.68rem; padding: 0.58rem 0.74rem; gap: 0.58rem; padding: 0.56rem 0.78rem;"><div id="profile4-dom-region_primary" class="vs-stack vs-layout-stack vs-role-primary-column" data-ir-id="region_primary" data-content-refs="[]" data-intent-refs="[&quot;viewspec:region:primary&quot;]" data-style-tokens="[&quot;density.regular&quot;]" style="gap: 0.68rem; padding: 0.58rem 0.74rem; gap: 0.58rem; padding: 0.56rem 0.78rem;"><div id="profile4-dom-motif_quality_metrics" class="vs-grid vs-layout-grid vs-motif-dashboard vs-role-metric-grid" data-ir-id="motif_quality_metrics" data-content-refs="[]" data-intent-refs="[&quot;viewspec:motif:quality_metrics&quot;, &quot;viewspec:style:metrics_density&quot;]" data-style-tokens="[&quot;density.regular&quot;]" style="grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.68rem; padding: 0.58rem 0.74rem; gap: 0.58rem; padding: 0.56rem 0.78rem;"><div id="profile4-dom-motif_quality_metrics_confidence" class="vs-surface vs-layout-surface vs-motif-dashboard vs-role-metric-card" data-ir-id="motif_quality_metrics_confidence" data-content-refs="[]" data-intent-refs="[&quot;viewspec:motif:quality_metrics&quot;]" data-style-tokens="[&quot;surface.subtle&quot;]" style="background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 14px; background: #ffffff; border: 1px solid #cfd6df; border-radius: 4px; box-shadow: 0 10px 24px rgb(15 23 42 / 0.06);"><div id="profile4-dom-binding_confidence_label" class="vs-label" data-ir-id="binding_confidence_label" data-content-refs="[&quot;node:confidence#attr:label&quot;]" data-intent-refs="[&quot;viewspec:binding:confidence_label&quot;]" data-style-tokens="[&quot;tone.muted&quot;]" style="color: #6b7280; color: #566274;" data-binding-id="confidence_label">Ship confidence</div><div id="profile4-dom-binding_confidence_value" class="vs-value" data-ir-id="binding_confidence_value" data-content-refs="[&quot;node:confidence#attr:value&quot;]" data-intent-refs="[&quot;viewspec:binding:confidence_value&quot;, &quot;viewspec:style:confidence_focus&quot;]" data-style-tokens="[&quot;tone.neutral&quot;, &quot;emphasis.high&quot;]" style="color: #1f2937; color: #101827; font-family: ui-sans-serif, system-ui, sans-serif; font-weight: 730; letter-spacing: -0.025em; font-weight: 800; letter-spacing: -0.006em;" data-binding-id="confidence_value">92%</div></div><div id="profile4-dom-motif_quality_metrics_risk_delta" class="vs-surface vs-layout-surface vs-motif-dashboard vs-role-metric-card" data-ir-id="motif_quality_metrics_risk_delta" data-content-refs="[]" data-intent-refs="[&quot;viewspec:motif:quality_metrics&quot;]" data-style-tokens="[&quot;surface.subtle&quot;]" style="background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 14px; background: #ffffff; border: 1px solid #cfd6df; border-radius: 4px; box-shadow: 0 10px 24px rgb(15 23 42 / 0.06);"><div id="profile4-dom-binding_risk_delta_label" class="vs-label" data-ir-id="binding_risk_delta_label" data-content-refs="[&quot;node:risk_delta#attr:label&quot;]" data-intent-refs="[&quot;viewspec:binding:risk_delta_label&quot;]" data-style-tokens="[&quot;tone.muted&quot;]" style="color: #6b7280; color: #566274;" data-binding-id="risk_delta_label">Risk delta</div><div id="profile4-dom-binding_risk_delta_value" class="vs-value" data-ir-id="binding_risk_delta_value" data-content-refs="[&quot;node:risk_delta#attr:value&quot;]" data-intent-refs="[&quot;viewspec:binding:risk_delta_value&quot;, &quot;viewspec:style:risk_accent&quot;]" data-style-tokens="[&quot;tone.neutral&quot;, &quot;emphasis.high&quot;, &quot;tone.accent&quot;]" style="color: #1f2937; color: #101827; font-family: ui-sans-serif, system-ui, sans-serif; font-weight: 730; letter-spacing: -0.025em; font-weight: 800; letter-spacing: -0.006em; color: #0f766e; color: #0f5f72; font-weight: 820; text-transform: uppercase;" data-binding-id="risk_delta_value">-18%</div></div><div id="profile4-dom-motif_quality_metrics_blockers" class="vs-surface vs-layout-surface vs-motif-dashboard vs-role-metric-card" data-ir-id="motif_quality_metrics_blockers" data-content-refs="[]" data-intent-refs="[&quot;viewspec:motif:quality_metrics&quot;]" data-style-tokens="[&quot;surface.subtle&quot;]" style="background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 14px; background: #ffffff; border: 1px solid #cfd6df; border-radius: 4px; box-shadow: 0 10px 24px rgb(15 23 42 / 0.06);"><div id="profile4-dom-binding_blockers_label" class="vs-label" data-ir-id="binding_blockers_label" data-content-refs="[&quot;node:blockers#attr:label&quot;]" data-intent-refs="[&quot;viewspec:binding:blockers_label&quot;]" data-style-tokens="[&quot;tone.muted&quot;]" style="color: #6b7280; color: #566274;" data-binding-id="blockers_label">Open blockers</div><div id="profile4-dom-binding_blockers_value" class="vs-value" data-ir-id="binding_blockers_value" data-content-refs="[&quot;node:blockers#attr:value&quot;]" data-intent-refs="[&quot;viewspec:binding:blockers_value&quot;]" data-style-tokens="[&quot;tone.neutral&quot;, &quot;emphasis.high&quot;]" style="color: #1f2937; color: #101827; font-family: ui-sans-serif, system-ui, sans-serif; font-weight: 730; letter-spacing: -0.025em; font-weight: 800; letter-spacing: -0.006em;" data-binding-id="blockers_value">4</div></div><div id="profile4-dom-motif_quality_metrics_review_window" class="vs-surface vs-layout-surface vs-motif-dashboard vs-role-metric-card" data-ir-id="motif_quality_metrics_review_window" data-content-refs="[]" data-intent-refs="[&quot;viewspec:motif:quality_metrics&quot;]" data-style-tokens="[&quot;surface.subtle&quot;]" style="background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 14px; background: #ffffff; border: 1px solid #cfd6df; border-radius: 4px; box-shadow: 0 10px 24px rgb(15 23 42 / 0.06);"><div id="profile4-dom-binding_review_window_label" class="vs-label" data-ir-id="binding_review_window_label" data-content-refs="[&quot;node:review_window#attr:label&quot;]" data-intent-refs="[&quot;viewspec:binding:review_window_label&quot;]" data-style-tokens="[&quot;tone.muted&quot;]" style="color: #6b7280; color: #566274;" data-binding-id="review_window_label">Review window</div><div id="profile4-dom-binding_review_window_value" class="vs-value" data-ir-id="binding_review_window_value" data-content-refs="[&quot;node:review_window#attr:value&quot;]" data-intent-refs="[&quot;viewspec:binding:review_window_value&quot;]" data-style-tokens="[&quot;tone.neutral&quot;, &quot;emphasis.high&quot;]" style="color: #1f2937; color: #101827; font-family: ui-sans-serif, system-ui, sans-serif; font-weight: 730; letter-spacing: -0.025em; font-weight: 800; letter-spacing: -0.006em;" data-binding-id="review_window_value">36 hr</div></div></div></div><div id="profile4-dom-region_review" class="vs-stack vs-layout-stack vs-role-side-rail" data-ir-id="region_review" data-content-refs="[]" data-intent-refs="[&quot;viewspec:region:review&quot;]" data-style-tokens="[&quot;density.regular&quot;]" style="gap: 0.68rem; padding: 0.58rem 0.74rem; gap: 0.58rem; padding: 0.56rem 0.78rem;"><dl id="profile4-dom-motif_decision_context" class="vs-stack vs-layout-stack vs-motif-detail vs-role-detail-panel" data-ir-id="motif_decision_context" data-content-refs="[]" data-intent-refs="[&quot;viewspec:motif:decision_context&quot;, &quot;viewspec:style:review_surface&quot;, &quot;viewspec:style:review_density&quot;]" data-style-tokens="[&quot;density.regular&quot;, &quot;surface.strong&quot;, &quot;density.compact&quot;]" style="gap: 0.68rem; padding: 0.58rem 0.74rem; gap: 0.58rem; padding: 0.56rem 0.78rem; background: #e2e8f0; border: 1px solid #94a3b8; border-radius: 14px; background: #e6eef3; border: 1px solid #8ea7b8; border-radius: 4px; gap: 0.34rem; padding: 0.36rem 0.5rem; gap: 0.28rem; padding: 0.3rem 0.46rem;"><div id="profile4-dom-motif_decision_context_owner" class="vs-cluster vs-layout-cluster vs-motif-detail" data-ir-id="motif_decision_context_owner" data-content-refs="[]" data-intent-refs="[&quot;viewspec:motif:decision_context&quot;]" data-style-tokens="[&quot;density.compact&quot;]" style="gap: 0.34rem; padding: 0.36rem 0.5rem; gap: 0.28rem; padding: 0.3rem 0.46rem;"><dt id="profile4-dom-binding_owner_label" class="vs-label" data-ir-id="binding_owner_label" data-content-refs="[&quot;node:owner#attr:label&quot;]" data-intent-refs="[&quot;viewspec:binding:owner_label&quot;]" data-style-tokens="[&quot;tone.muted&quot;]" style="color: #6b7280; color: #566274;" data-binding-id="owner_label">Owner</dt><dd id="profile4-dom-binding_owner_value" class="vs-value" data-ir-id="binding_owner_value" data-content-refs="[&quot;node:owner#attr:value&quot;]" data-intent-refs="[&quot;viewspec:binding:owner_value&quot;, &quot;viewspec:style:owner_muted&quot;]" data-style-tokens="[&quot;tone.neutral&quot;, &quot;emphasis.high&quot;, &quot;tone.muted&quot;]" style="color: #1f2937; color: #101827; font-family: ui-sans-serif, system-ui, sans-serif; font-weight: 730; letter-spacing: -0.025em; font-weight: 800; letter-spacing: -0.006em; color: #6b7280; color: #566274;" data-binding-id="owner_value">Revenue Platform</dd></div><div id="profile4-dom-motif_decision_context_next_gate" class="vs-cluster vs-layout-cluster vs-motif-detail" data-ir-id="motif_decision_context_next_gate" data-content-refs="[]" data-intent-refs="[&quot;viewspec:motif:decision_context&quot;]" data-style-tokens="[&quot;density.compact&quot;]" style="gap: 0.34rem; padding: 0.36rem 0.5rem; gap: 0.28rem; padding: 0.3rem 0.46rem;"><dt id="profile4-dom-binding_next_gate_label" class="vs-label" data-ir-id="binding_next_gate_label" data-content-refs="[&quot;node:next_gate#attr:label&quot;]" data-intent-refs="[&quot;viewspec:binding:next_gate_label&quot;]" data-style-tokens="[&quot;tone.muted&quot;]" style="color: #6b7280; color: #566274;" data-binding-id="next_gate_label">Next gate</dt><dd id="profile4-dom-binding_next_gate_value" class="vs-value" data-ir-id="binding_next_gate_value" data-content-refs="[&quot;node:next_gate#attr:value&quot;]" data-intent-refs="[&quot;viewspec:binding:next_gate_value&quot;]" data-style-tokens="[&quot;tone.neutral&quot;, &quot;emphasis.high&quot;]" style="color: #1f2937; color: #101827; font-family: ui-sans-serif, system-ui, sans-serif; font-weight: 730; letter-spacing: -0.025em; font-weight: 800; letter-spacing: -0.006em;" data-binding-id="next_gate_value">Executive review</dd></div><div id="profile4-dom-motif_decision_context_evidence" class="vs-cluster vs-layout-cluster vs-motif-detail" data-ir-id="motif_decision_context_evidence" data-content-refs="[]" data-intent-refs="[&quot;viewspec:motif:decision_context&quot;]" data-style-tokens="[&quot;density.compact&quot;]" style="gap: 0.34rem; padding: 0.36rem 0.5rem; gap: 0.28rem; padding: 0.3rem 0.46rem;"><dt id="profile4-dom-binding_evidence_label" class="vs-label" data-ir-id="binding_evidence_label" data-content-refs="[&quot;node:evidence#attr:label&quot;]" data-intent-refs="[&quot;viewspec:binding:evidence_label&quot;]" data-style-tokens="[&quot;tone.muted&quot;]" style="color: #6b7280; color: #566274;" data-binding-id="evidence_label">Evidence</dt><dd id="profile4-dom-binding_evidence_value" class="vs-value" data-ir-id="binding_evidence_value" data-content-refs="[&quot;node:evidence#attr:value&quot;]" data-intent-refs="[&quot;viewspec:binding:evidence_value&quot;]" data-style-tokens="[&quot;tone.neutral&quot;, &quot;emphasis.high&quot;]" style="color: #1f2937; color: #101827; font-family: ui-sans-serif, system-ui, sans-serif; font-weight: 730; letter-spacing: -0.025em; font-weight: 800; letter-spacing: -0.006em;" data-binding-id="evidence_value">Provenance manifest aligned</dd></div></dl><ul id="profile4-dom-motif_review_notes" class="vs-stack vs-layout-stack vs-motif-list" data-ir-id="motif_review_notes" data-content-refs="[]" data-intent-refs="[&quot;viewspec:motif:review_notes&quot;, &quot;viewspec:style:notes_surface&quot;]" data-style-tokens="[&quot;density.regular&quot;, &quot;surface.subtle&quot;]" style="gap: 0.68rem; padding: 0.58rem 0.74rem; gap: 0.58rem; padding: 0.56rem 0.78rem; background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 14px; background: #ffffff; border: 1px solid #cfd6df; border-radius: 4px; box-shadow: 0 10px 24px rgb(15 23 42 / 0.06);"><li id="profile4-dom-motif_review_notes_scope_note" class="vs-surface vs-layout-surface vs-motif-list" data-ir-id="motif_review_notes_scope_note" data-content-refs="[]" data-intent-refs="[&quot;viewspec:motif:review_notes&quot;]" data-style-tokens="[&quot;surface.subtle&quot;]" style="background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 14px; background: #ffffff; border: 1px solid #cfd6df; border-radius: 4px; box-shadow: 0 10px 24px rgb(15 23 42 / 0.06);"><div id="profile4-dom-binding_scope_note_label" class="vs-label" data-ir-id="binding_scope_note_label" data-content-refs="[&quot;node:scope_note#attr:label&quot;]" data-intent-refs="[&quot;viewspec:binding:scope_note_label&quot;]" data-style-tokens="[&quot;tone.muted&quot;]" style="color: #6b7280; color: #566274;" data-binding-id="scope_note_label">Scope</div><div id="profile4-dom-binding_scope_note_description" class="vs-text" data-ir-id="binding_scope_note_description" data-content-refs="[&quot;node:scope_note#attr:description&quot;]" data-intent-refs="[&quot;viewspec:binding:scope_note_description&quot;, &quot;viewspec:style:notes_flow&quot;]" data-style-tokens="[&quot;tone.neutral&quot;, &quot;narrative.flow&quot;]" style="color: #1f2937; color: #101827; font-family: ui-sans-serif, system-ui, sans-serif; max-width: 70ch; line-height: 1.75; max-width: 78ch; line-height: 1.56;" data-binding-id="scope_note_description">Profile token changes style projection and bounded layout metadata.</div></li><li id="profile4-dom-motif_review_notes_proof_note" class="vs-surface vs-layout-surface vs-motif-list" data-ir-id="motif_review_notes_proof_note" data-content-refs="[]" data-intent-refs="[&quot;viewspec:motif:review_notes&quot;]" data-style-tokens="[&quot;surface.subtle&quot;]" style="background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 14px; background: #ffffff; border: 1px solid #cfd6df; border-radius: 4px; box-shadow: 0 10px 24px rgb(15 23 42 / 0.06);"><div id="profile4-dom-binding_proof_note_label" class="vs-label" data-ir-id="binding_proof_note_label" data-content-refs="[&quot;node:proof_note#attr:label&quot;]" data-intent-refs="[&quot;viewspec:binding:proof_note_label&quot;]" data-style-tokens="[&quot;tone.muted&quot;]" style="color: #6b7280; color: #566274;" data-binding-id="proof_note_label">Proof</div><div id="profile4-dom-binding_proof_note_description" class="vs-text" data-ir-id="binding_proof_note_description" data-content-refs="[&quot;node:proof_note#attr:description&quot;]" data-intent-refs="[&quot;viewspec:binding:proof_note_description&quot;]" data-style-tokens="[&quot;tone.neutral&quot;]" style="color: #1f2937; color: #101827; font-family: ui-sans-serif, system-ui, sans-serif;" data-binding-id="proof_note_description">Semantic ids and provenance stay stable.</div></li></ul></div></div></main>
+          </section>
+        </div>
+      </section>
+    </section>
+
+    <section class="contract-panel">
+      <h2>What stays invariant</h2>
+      <p>The five cards share the same IntentBundle shape, generated semantic ids, and manifest-backed provenance. Only compiler-owned typography, spacing, surface, color, action, hierarchy, rhythm, narrative style projections, and bounded grid metadata change.</p>
+      <p>Demo shell CSS frames the page only. It does not style generated artifact internals or bypass the emitted profile output.</p>
+      <div class="code-box" aria-label="Profile proof metadata">{
+  &quot;aesthetic.calm_ops&quot;: {
+    &quot;label&quot;: &quot;Calm Ops&quot;,
+    &quot;layoutProof&quot;: {
+      &quot;content_grid&quot;: {
+        &quot;columns&quot;: 2,
+        &quot;layoutStrategy&quot;: &quot;region_grid_v0&quot;,
+        &quot;profile&quot;: &quot;aesthetic.calm_ops&quot;
+      },
+      &quot;metric_grid&quot;: {
+        &quot;columns&quot;: 2,
+        &quot;layoutStrategy&quot;: &quot;dashboard_grid_v0&quot;,
+        &quot;profile&quot;: &quot;aesthetic.calm_ops&quot;
+      }
+    },
+    &quot;layoutSignature&quot;: &quot;workspace 2 / metrics 2&quot;,
+    &quot;nodeCount&quot;: 39,
+    &quot;note&quot;: &quot;Quiet operational surfaces with teal accents and low-contrast panels.&quot;,
+    &quot;semanticHash&quot;: &quot;a9368dd60ca49910dd3394afa894651f3d5c49945d8d6442cddef789ded09625&quot;,
+    &quot;styleTokenCount&quot;: 15
+  },
+  &quot;aesthetic.data_dense&quot;: {
+    &quot;label&quot;: &quot;Data Dense&quot;,
+    &quot;layoutProof&quot;: {
+      &quot;content_grid&quot;: {
+        &quot;columns&quot;: 3,
+        &quot;layoutStrategy&quot;: &quot;region_grid_v0&quot;,
+        &quot;profile&quot;: &quot;aesthetic.data_dense&quot;
+      },
+      &quot;metric_grid&quot;: {
+        &quot;columns&quot;: 3,
+        &quot;layoutStrategy&quot;: &quot;dashboard_grid_v0&quot;,
+        &quot;profile&quot;: &quot;aesthetic.data_dense&quot;
+      }
+    },
+    &quot;layoutSignature&quot;: &quot;workspace 3 / metrics 3&quot;,
+    &quot;nodeCount&quot;: 39,
+    &quot;note&quot;: &quot;Compact spacing, smaller type, and tighter controls for repeated scanning.&quot;,
+    &quot;semanticHash&quot;: &quot;a9368dd60ca49910dd3394afa894651f3d5c49945d8d6442cddef789ded09625&quot;,
+    &quot;styleTokenCount&quot;: 15
+  },
+  &quot;aesthetic.editorial_product&quot;: {
+    &quot;label&quot;: &quot;Editorial Product&quot;,
+    &quot;layoutProof&quot;: {
+      &quot;content_grid&quot;: {
+        &quot;columns&quot;: 2,
+        &quot;layoutStrategy&quot;: &quot;region_grid_v0&quot;,
+        &quot;profile&quot;: &quot;aesthetic.editorial_product&quot;
+      },
+      &quot;metric_grid&quot;: {
+        &quot;columns&quot;: 1,
+        &quot;layoutStrategy&quot;: &quot;dashboard_grid_v0&quot;,
+        &quot;profile&quot;: &quot;aesthetic.editorial_product&quot;
+      }
+    },
+    &quot;layoutSignature&quot;: &quot;workspace 2 / metrics 1&quot;,
+    &quot;nodeCount&quot;: 39,
+    &quot;note&quot;: &quot;Warmer product-story pacing with broader prose rhythm.&quot;,
+    &quot;semanticHash&quot;: &quot;a9368dd60ca49910dd3394afa894651f3d5c49945d8d6442cddef789ded09625&quot;,
+    &quot;styleTokenCount&quot;: 15
+  },
+  &quot;aesthetic.executive_review&quot;: {
+    &quot;label&quot;: &quot;Executive Review&quot;,
+    &quot;layoutProof&quot;: {
+      &quot;content_grid&quot;: {
+        &quot;columns&quot;: 2,
+        &quot;layoutStrategy&quot;: &quot;region_grid_v0&quot;,
+        &quot;profile&quot;: &quot;aesthetic.executive_review&quot;
+      },
+      &quot;metric_grid&quot;: {
+        &quot;columns&quot;: 2,
+        &quot;layoutStrategy&quot;: &quot;dashboard_grid_v0&quot;,
+        &quot;profile&quot;: &quot;aesthetic.executive_review&quot;
+      }
+    },
+    &quot;layoutSignature&quot;: &quot;workspace 2 / metrics 2&quot;,
+    &quot;nodeCount&quot;: 39,
+    &quot;note&quot;: &quot;Conservative review surfaces with restrained contrast and crisp framing.&quot;,
+    &quot;semanticHash&quot;: &quot;a9368dd60ca49910dd3394afa894651f3d5c49945d8d6442cddef789ded09625&quot;,
+    &quot;styleTokenCount&quot;: 15
+  },
+  &quot;aesthetic.premium_saas&quot;: {
+    &quot;label&quot;: &quot;Premium SaaS&quot;,
+    &quot;layoutProof&quot;: {
+      &quot;content_grid&quot;: {
+        &quot;columns&quot;: 2,
+        &quot;layoutStrategy&quot;: &quot;region_grid_v0&quot;,
+        &quot;profile&quot;: &quot;aesthetic.premium_saas&quot;
+      },
+      &quot;metric_grid&quot;: {
+        &quot;columns&quot;: 2,
+        &quot;layoutStrategy&quot;: &quot;dashboard_grid_v0&quot;,
+        &quot;profile&quot;: &quot;aesthetic.premium_saas&quot;
+      }
+    },
+    &quot;layoutSignature&quot;: &quot;workspace 2 / metrics 2&quot;,
+    &quot;nodeCount&quot;: 39,
+    &quot;note&quot;: &quot;Polished product rhythm with stronger hierarchy and softer shadows.&quot;,
+    &quot;semanticHash&quot;: &quot;a9368dd60ca49910dd3394afa894651f3d5c49945d8d6442cddef789ded09625&quot;,
+    &quot;styleTokenCount&quot;: 15
+  }
+}</div>
+      <div class="code-box" aria-label="Representative IntentBundle">{
+  &quot;substrate&quot;: {
+    &quot;id&quot;: &quot;art_direction_workspace_substrate&quot;,
+    &quot;nodes&quot;: {
+      &quot;art_direction_workspace&quot;: {
+        &quot;attrs&quot;: {
+          &quot;title&quot;: &quot;Launch quality workspace&quot;
+        },
+        &quot;edges&quot;: {},
+        &quot;id&quot;: &quot;art_direction_workspace&quot;,
+        &quot;kind&quot;: &quot;app&quot;,
+        &quot;slots&quot;: {}
+      },
+      &quot;blockers&quot;: {
+        &quot;attrs&quot;: {
+          &quot;label&quot;: &quot;Open blockers&quot;,
+          &quot;value&quot;: &quot;4&quot;
+        },
+        &quot;edges&quot;: {},
+        &quot;id&quot;: &quot;blockers&quot;,
+        &quot;kind&quot;: &quot;dashboard_card&quot;,
+        &quot;slots&quot;: {}
+      },
+      &quot;confidence&quot;: {
+        &quot;attrs&quot;: {
+          &quot;label&quot;: &quot;Ship confidence&quot;,
+          &quot;value&quot;: &quot;92%&quot;
+        },
+        &quot;edges&quot;: {},
+        &quot;id&quot;: &quot;confidence&quot;,
+        &quot;kind&quot;: &quot;dashboard_card&quot;,
+        &quot;slots&quot;: {}
+      },
+      &quot;evidence&quot;: {
+        &quot;attrs&quot;: {
+          &quot;label&quot;: &quot;Evidence&quot;,
+          &quot;value&quot;: &quot;Provenance manifest aligned&quot;
+        },
+        &quot;edges&quot;: {},
+        &quot;id&quot;: &quot;evidence&quot;,
+        &quot;kind&quot;: &quot;detail_field&quot;,
+        &quot;slots&quot;: {}
+      },
+      &quot;next_gate&quot;: {
+        &quot;attrs&quot;: {
+          &quot;label&quot;: &quot;Next gate&quot;,
+          &quot;value&quot;: &quot;Executive review&quot;
+        },
+        &quot;edges&quot;: {},
+        &quot;id&quot;: &quot;next_gate&quot;,
+        &quot;kind&quot;: &quot;detail_field&quot;,
+        &quot;slots&quot;: {}
+      },
+      &quot;overview&quot;: {
+        &quot;attrs&quot;: {
+          &quot;description&quot;: &quot;One semantic product surface is compiled through five governed art-direction profiles.&quot;,
+          &quot;eyebrow&quot;: &quot;Launch desk&quot;,
+          &quot;title&quot;: &quot;Resolve the next release decision&quot;
+        },
+        &quot;edges&quot;: {},
+        &quot;id&quot;: &quot;overview&quot;,
+        &quot;kind&quot;: &quot;hero&quot;,
+        &quot;slots&quot;: {}
+      },
+      &quot;owner&quot;: {
+        &quot;attrs&quot;: {
+          &quot;label&quot;: &quot;Owner&quot;,
+          &quot;value&quot;: &quot;Revenue Platform&quot;
+        },
+        &quot;edges&quot;: {},
+        &quot;id&quot;: &quot;owner&quot;,
+        &quot;kind&quot;: &quot;detail_field&quot;,
+        &quot;slots&quot;: {}
+      },
+      &quot;proof_note&quot;: {
+        &quot;attrs&quot;: {
+          &quot;description&quot;: &quot;Semantic ids and provenance stay stable.&quot;,
+          &quot;label&quot;: &quot;Proof&quot;
+        },
+        &quot;edges&quot;: {},
+        &quot;id&quot;: &quot;proof_note&quot;,
+        &quot;kind&quot;: &quot;list_item&quot;,
+        &quot;slots&quot;: {}
+      },
+      &quot;review_window&quot;: {
+        &quot;attrs&quot;: {
+          &quot;label&quot;: &quot;Review window&quot;,
+          &quot;value&quot;: &quot;36 hr&quot;
+        },
+        &quot;edges&quot;: {},
+        &quot;id&quot;: &quot;review_window&quot;,
+        &quot;kind&quot;: &quot;dashboard_card&quot;,
+        &quot;slots&quot;: {}
+      },
+      &quot;risk_delta&quot;: {
+        &quot;attrs&quot;: {
+          &quot;label&quot;: &quot;Risk delta&quot;,
+          &quot;value&quot;: &quot;-18%&quot;
+        },
+        &quot;edges&quot;: {},
+        &quot;id&quot;: &quot;risk_delta&quot;,
+        &quot;kind&quot;: &quot;dashboard_card&quot;,
+        &quot;slots&quot;: {}
+      },
+      &quot;scope_note&quot;: {
+        &quot;attrs&quot;: {
+          &quot;description&quot;: &quot;Profile token changes style projection and bounded layout metadata.&quot;,
+          &quot;label&quot;: &quot;Scope&quot;
+        },
+        &quot;edges&quot;: {},
+        &quot;id&quot;: &quot;scope_note&quot;,
+        &quot;kind&quot;: &quot;list_item&quot;,
+        &quot;slots&quot;: {}
+      }
+    },
+    &quot;root_id&quot;: &quot;art_direction_workspace&quot;
+  },
+  &quot;view_spec&quot;: {
+    &quot;actions&quot;: [],
+    &quot;bindings&quot;: [
+      {
+        &quot;address&quot;: &quot;node:overview#attr:eyebrow&quot;,
+        &quot;cardinality&quot;: &quot;exactly_once&quot;,
+        &quot;id&quot;: &quot;overview_eyebrow&quot;,
+        &quot;present_as&quot;: &quot;label&quot;,
+        &quot;target_region&quot;: &quot;hero&quot;
+      },
+      {
+        &quot;address&quot;: &quot;node:overview#attr:title&quot;,
+        &quot;cardinality&quot;: &quot;exactly_once&quot;,
+        &quot;id&quot;: &quot;overview_title&quot;,
+        &quot;present_as&quot;: &quot;value&quot;,
+        &quot;target_region&quot;: &quot;hero&quot;
+      },
+      {
+        &quot;address&quot;: &quot;node:overview#attr:description&quot;,
+        &quot;cardinality&quot;: &quot;exactly_once&quot;,
+        &quot;id&quot;: &quot;overview_description&quot;,
+        &quot;present_as&quot;: &quot;text&quot;,
+        &quot;target_region&quot;: &quot;hero&quot;
+      },
+      {
+        &quot;address&quot;: &quot;node:confidence#attr:label&quot;,
+        &quot;cardinality&quot;: &quot;exactly_once&quot;,
+        &quot;id&quot;: &quot;confidence_label&quot;,
+        &quot;present_as&quot;: &quot;label&quot;,
+        &quot;target_region&quot;: &quot;primary&quot;
+      },
+      {
+        &quot;address&quot;: &quot;node:confidence#attr:value&quot;,
+        &quot;cardinality&quot;: &quot;exactly_once&quot;,
+        &quot;id&quot;: &quot;confidence_value&quot;,
+        &quot;present_as&quot;: &quot;value&quot;,
+        &quot;target_region&quot;: &quot;primary&quot;
+      },
+      {
+        &quot;address&quot;: &quot;node:risk_delta#attr:label&quot;,
+        &quot;cardinality&quot;: &quot;exactly_once&quot;,
+        &quot;id&quot;: &quot;risk_delta_label&quot;,
+        &quot;present_as&quot;: &quot;label&quot;,
+        &quot;target_region&quot;: &quot;primary&quot;
+      },
+      {
+        &quot;address&quot;: &quot;node:risk_delta#attr:value&quot;,
+        &quot;cardinality&quot;: &quot;exactly_once&quot;,
+        &quot;id&quot;: &quot;risk_delta_value&quot;,
+        &quot;present_as&quot;: &quot;value&quot;,
+        &quot;target_region&quot;: &quot;primary&quot;
+      },
+      {
+        &quot;address&quot;: &quot;node:blockers#attr:label&quot;,
+        &quot;cardinality&quot;: &quot;exactly_once&quot;,
+        &quot;id&quot;: &quot;blockers_label&quot;,
+        &quot;present_as&quot;: &quot;label&quot;,
+        &quot;target_region&quot;: &quot;primary&quot;
+      },
+      {
+        &quot;address&quot;: &quot;node:blockers#attr:value&quot;,
+        &quot;cardinality&quot;: &quot;exactly_once&quot;,
+        &quot;id&quot;: &quot;blockers_value&quot;,
+        &quot;present_as&quot;: &quot;value&quot;,
+        &quot;target_region&quot;: &quot;primary&quot;
+      },
+      {
+        &quot;address&quot;: &quot;node:review_window#attr:label&quot;,
+        &quot;cardinality&quot;: &quot;exactly_once&quot;,
+        &quot;id&quot;: &quot;review_window_label&quot;,
+        &quot;present_as&quot;: &quot;label&quot;,
+        &quot;target_region&quot;: &quot;primary&quot;
+      },
+      {
+        &quot;address&quot;: &quot;node:review_window#attr:value&quot;,
+        &quot;cardinality&quot;: &quot;exactly_once&quot;,
+        &quot;id&quot;: &quot;review_window_value&quot;,
+        &quot;present_as&quot;: &quot;value&quot;,
+        &quot;target_region&quot;: &quot;primary&quot;
+      },
+      {
+        &quot;address&quot;: &quot;node:owner#attr:label&quot;,
+        &quot;cardinality&quot;: &quot;exactly_once&quot;,
+        &quot;id&quot;: &quot;owner_label&quot;,
+        &quot;present_as&quot;: &quot;label&quot;,
+        &quot;target_region&quot;: &quot;review&quot;
+      },
+      {
+        &quot;address&quot;: &quot;node:owner#attr:value&quot;,
+        &quot;cardinality&quot;: &quot;exactly_once&quot;,
+        &quot;id&quot;: &quot;owner_value&quot;,
+        &quot;present_as&quot;: &quot;value&quot;,
+        &quot;target_region&quot;: &quot;review&quot;
+      },
+      {
+        &quot;address&quot;: &quot;node:next_gate#attr:label&quot;,
+        &quot;cardinality&quot;: &quot;exactly_once&quot;,
+        &quot;id&quot;: &quot;next_gate_label&quot;,
+        &quot;present_as&quot;: &quot;label&quot;,
+        &quot;target_region&quot;: &quot;review&quot;
+      },
+      {
+        &quot;address&quot;: &quot;node:next_gate#attr:value&quot;,
+        &quot;cardinality&quot;: &quot;exactly_once&quot;,
+        &quot;id&quot;: &quot;next_gate_value&quot;,
+        &quot;present_as&quot;: &quot;value&quot;,
+        &quot;target_region&quot;: &quot;review&quot;
+      },
+      {
+        &quot;address&quot;: &quot;node:evidence#attr:label&quot;,
+        &quot;cardinality&quot;: &quot;exactly_once&quot;,
+        &quot;id&quot;: &quot;evidence_label&quot;,
+        &quot;present_as&quot;: &quot;label&quot;,
+        &quot;target_region&quot;: &quot;review&quot;
+      },
+      {
+        &quot;address&quot;: &quot;node:evidence#attr:value&quot;,
+        &quot;cardinality&quot;: &quot;exactly_once&quot;,
+        &quot;id&quot;: &quot;evidence_value&quot;,
+        &quot;present_as&quot;: &quot;value&quot;,
+        &quot;target_region&quot;: &quot;review&quot;
+      },
+      {
+        &quot;address&quot;: &quot;node:scope_note#attr:label&quot;,
+        &quot;cardinality&quot;: &quot;exactly_once&quot;,
+        &quot;id&quot;: &quot;scope_note_label&quot;,
+        &quot;present_as&quot;: &quot;label&quot;,
+        &quot;target_region&quot;: &quot;review&quot;
+      },
+      {
+        &quot;address&quot;: &quot;node:scope_note#attr:description&quot;,
+        &quot;cardinality&quot;: &quot;exactly_once&quot;,
+        &quot;id&quot;: &quot;scope_note_description&quot;,
+        &quot;present_as&quot;: &quot;text&quot;,
+        &quot;target_region&quot;: &quot;review&quot;
+      },
+      {
+        &quot;address&quot;: &quot;node:proof_note#attr:label&quot;,
+        &quot;cardinality&quot;: &quot;exactly_once&quot;,
+        &quot;id&quot;: &quot;proof_note_label&quot;,
+        &quot;present_as&quot;: &quot;label&quot;,
+        &quot;target_region&quot;: &quot;review&quot;
+      },
+      {
+        &quot;address&quot;: &quot;node:proof_note#attr:description&quot;,
+        &quot;cardinality&quot;: &quot;exactly_once&quot;,
+        &quot;id&quot;: &quot;proof_note_description&quot;,
+        &quot;present_as&quot;: &quot;text&quot;,
+        &quot;target_region&quot;: &quot;review&quot;
+      }
+    ],
+    &quot;complexity_tier&quot;: 1,
+    &quot;groups&quot;: [
+      {
+        &quot;id&quot;: &quot;overview_copy&quot;,
+        &quot;kind&quot;: &quot;ordered&quot;,
+        &quot;members&quot;: [
+          &quot;overview_eyebrow&quot;,
+          &quot;overview_title&quot;,
+          &quot;overview_description&quot;
+        ],
+        &quot;target_region&quot;: &quot;hero&quot;
+      },
+      {
+        &quot;id&quot;: &quot;quality_cards&quot;,
+        &quot;kind&quot;: &quot;ordered&quot;,
+        &quot;members&quot;: [
+          &quot;confidence_label&quot;,
+          &quot;confidence_value&quot;,
+          &quot;risk_delta_label&quot;,
+          &quot;risk_delta_value&quot;,
+          &quot;blockers_label&quot;,
+          &quot;blockers_value&quot;,
+          &quot;review_window_label&quot;,
+          &quot;review_window_value&quot;
+        ],
+        &quot;target_region&quot;: &quot;primary&quot;
+      },
+      {
+        &quot;id&quot;: &quot;decision_fields&quot;,
+        &quot;kind&quot;: &quot;ordered&quot;,
+        &quot;members&quot;: [
+          &quot;owner_label&quot;,
+          &quot;owner_value&quot;,
+          &quot;next_gate_label&quot;,
+          &quot;next_gate_value&quot;,
+          &quot;evidence_label&quot;,
+          &quot;evidence_value&quot;
+        ],
+        &quot;target_region&quot;: &quot;review&quot;
+      },
+      {
+        &quot;id&quot;: &quot;note_stack&quot;,
+        &quot;kind&quot;: &quot;ordered&quot;,
+        &quot;members&quot;: [
+          &quot;scope_note_label&quot;,
+          &quot;scope_note_description&quot;,
+          &quot;proof_note_label&quot;,
+          &quot;proof_note_description&quot;
+        ],
+        &quot;target_region&quot;: &quot;review&quot;
+      }
+    ],
+    &quot;id&quot;: &quot;art_direction_workspace&quot;,
+    &quot;motifs&quot;: [
+      {
+        &quot;id&quot;: &quot;overview&quot;,
+        &quot;kind&quot;: &quot;hero&quot;,
+        &quot;members&quot;: [
+          &quot;overview_eyebrow&quot;,
+          &quot;overview_title&quot;,
+          &quot;overview_description&quot;
+        ],
+        &quot;region&quot;: &quot;hero&quot;
+      },
+      {
+        &quot;id&quot;: &quot;quality_metrics&quot;,
+        &quot;kind&quot;: &quot;dashboard&quot;,
+        &quot;members&quot;: [
+          &quot;confidence_label&quot;,
+          &quot;confidence_value&quot;,
+          &quot;risk_delta_label&quot;,
+          &quot;risk_delta_value&quot;,
+          &quot;blockers_label&quot;,
+          &quot;blockers_value&quot;,
+          &quot;review_window_label&quot;,
+          &quot;review_window_value&quot;
+        ],
+        &quot;region&quot;: &quot;primary&quot;
+      },
+      {
+        &quot;id&quot;: &quot;decision_context&quot;,
+        &quot;kind&quot;: &quot;detail&quot;,
+        &quot;members&quot;: [
+          &quot;owner_label&quot;,
+          &quot;owner_value&quot;,
+          &quot;next_gate_label&quot;,
+          &quot;next_gate_value&quot;,
+          &quot;evidence_label&quot;,
+          &quot;evidence_value&quot;
+        ],
+        &quot;region&quot;: &quot;review&quot;
+      },
+      {
+        &quot;id&quot;: &quot;review_notes&quot;,
+        &quot;kind&quot;: &quot;list&quot;,
+        &quot;members&quot;: [
+          &quot;scope_note_label&quot;,
+          &quot;scope_note_description&quot;,
+          &quot;proof_note_label&quot;,
+          &quot;proof_note_description&quot;
+        ],
+        &quot;region&quot;: &quot;review&quot;
+      }
+    ],
+    &quot;regions&quot;: [
+      {
+        &quot;id&quot;: &quot;root&quot;,
+        &quot;layout&quot;: &quot;stack&quot;,
+        &quot;max_children&quot;: null,
+        &quot;min_children&quot;: 2,
+        &quot;parent_region&quot;: &quot;&quot;,
+        &quot;role&quot;: &quot;root&quot;
+      },
+      {
+        &quot;id&quot;: &quot;hero&quot;,
+        &quot;layout&quot;: &quot;stack&quot;,
+        &quot;max_children&quot;: null,
+        &quot;min_children&quot;: 1,
+        &quot;parent_region&quot;: &quot;root&quot;,
+        &quot;role&quot;: &quot;banner&quot;
+      },
+      {
+        &quot;id&quot;: &quot;workspace&quot;,
+        &quot;layout&quot;: &quot;grid&quot;,
+        &quot;max_children&quot;: null,
+        &quot;min_children&quot;: 2,
+        &quot;parent_region&quot;: &quot;root&quot;,
+        &quot;role&quot;: &quot;application&quot;
+      },
+      {
+        &quot;id&quot;: &quot;primary&quot;,
+        &quot;layout&quot;: &quot;stack&quot;,
+        &quot;max_children&quot;: null,
+        &quot;min_children&quot;: 1,
+        &quot;parent_region&quot;: &quot;workspace&quot;,
+        &quot;role&quot;: &quot;primary&quot;
+      },
+      {
+        &quot;id&quot;: &quot;review&quot;,
+        &quot;layout&quot;: &quot;stack&quot;,
+        &quot;max_children&quot;: null,
+        &quot;min_children&quot;: 1,
+        &quot;parent_region&quot;: &quot;workspace&quot;,
+        &quot;role&quot;: &quot;complementary&quot;
+      }
+    ],
+    &quot;root_region&quot;: &quot;root&quot;,
+    &quot;styles&quot;: [
+      {
+        &quot;id&quot;: &quot;aesthetic_profile&quot;,
+        &quot;target&quot;: &quot;view:art_direction_workspace&quot;,
+        &quot;token&quot;: &quot;aesthetic.calm_ops&quot;
+      },
+      {
+        &quot;id&quot;: &quot;page_temperature&quot;,
+        &quot;target&quot;: &quot;view:art_direction_workspace&quot;,
+        &quot;token&quot;: &quot;palette.temperature&quot;
+      },
+      {
+        &quot;id&quot;: &quot;hero_density&quot;,
+        &quot;target&quot;: &quot;region:hero&quot;,
+        &quot;token&quot;: &quot;density.airy&quot;
+      },
+      {
+        &quot;id&quot;: &quot;hero_surface&quot;,
+        &quot;target&quot;: &quot;motif:overview&quot;,
+        &quot;token&quot;: &quot;surface.subtle&quot;
+      },
+      {
+        &quot;id&quot;: &quot;hero_eyebrow&quot;,
+        &quot;target&quot;: &quot;binding:overview_eyebrow&quot;,
+        &quot;token&quot;: &quot;tone.accent&quot;
+      },
+      {
+        &quot;id&quot;: &quot;hero_title&quot;,
+        &quot;target&quot;: &quot;binding:overview_title&quot;,
+        &quot;token&quot;: &quot;rhythm.hierarchy&quot;
+      },
+      {
+        &quot;id&quot;: &quot;hero_body&quot;,
+        &quot;target&quot;: &quot;binding:overview_description&quot;,
+        &quot;token&quot;: &quot;narrative.flow&quot;
+      },
+      {
+        &quot;id&quot;: &quot;metrics_density&quot;,
+        &quot;target&quot;: &quot;motif:quality_metrics&quot;,
+        &quot;token&quot;: &quot;density.regular&quot;
+      },
+      {
+        &quot;id&quot;: &quot;confidence_focus&quot;,
+        &quot;target&quot;: &quot;binding:confidence_value&quot;,
+        &quot;token&quot;: &quot;emphasis.high&quot;
+      },
+      {
+        &quot;id&quot;: &quot;risk_accent&quot;,
+        &quot;target&quot;: &quot;binding:risk_delta_value&quot;,
+        &quot;token&quot;: &quot;tone.accent&quot;
+      },
+      {
+        &quot;id&quot;: &quot;review_surface&quot;,
+        &quot;target&quot;: &quot;motif:decision_context&quot;,
+        &quot;token&quot;: &quot;surface.strong&quot;
+      },
+      {
+        &quot;id&quot;: &quot;review_density&quot;,
+        &quot;target&quot;: &quot;motif:decision_context&quot;,
+        &quot;token&quot;: &quot;density.compact&quot;
+      },
+      {
+        &quot;id&quot;: &quot;owner_muted&quot;,
+        &quot;target&quot;: &quot;binding:owner_value&quot;,
+        &quot;token&quot;: &quot;tone.muted&quot;
+      },
+      {
+        &quot;id&quot;: &quot;notes_surface&quot;,
+        &quot;target&quot;: &quot;motif:review_notes&quot;,
+        &quot;token&quot;: &quot;surface.subtle&quot;
+      },
+      {
+        &quot;id&quot;: &quot;notes_flow&quot;,
+        &quot;target&quot;: &quot;binding:scope_note_description&quot;,
+        &quot;token&quot;: &quot;narrative.flow&quot;
+      }
+    ],
+    &quot;substrate_id&quot;: &quot;art_direction_workspace_substrate&quot;
+  }
+}</div>
+    </section>
+  </main>
+  <script type="application/json" id="aesthetic-profile-proof">{
+  "aesthetic.calm_ops": {
+    "label": "Calm Ops",
+    "layoutProof": {
+      "content_grid": {
+        "columns": 2,
+        "layoutStrategy": "region_grid_v0",
+        "profile": "aesthetic.calm_ops"
+      },
+      "metric_grid": {
+        "columns": 2,
+        "layoutStrategy": "dashboard_grid_v0",
+        "profile": "aesthetic.calm_ops"
+      }
+    },
+    "layoutSignature": "workspace 2 / metrics 2",
+    "nodeCount": 39,
+    "note": "Quiet operational surfaces with teal accents and low-contrast panels.",
+    "semanticHash": "a9368dd60ca49910dd3394afa894651f3d5c49945d8d6442cddef789ded09625",
+    "styleTokenCount": 15
+  },
+  "aesthetic.data_dense": {
+    "label": "Data Dense",
+    "layoutProof": {
+      "content_grid": {
+        "columns": 3,
+        "layoutStrategy": "region_grid_v0",
+        "profile": "aesthetic.data_dense"
+      },
+      "metric_grid": {
+        "columns": 3,
+        "layoutStrategy": "dashboard_grid_v0",
+        "profile": "aesthetic.data_dense"
+      }
+    },
+    "layoutSignature": "workspace 3 / metrics 3",
+    "nodeCount": 39,
+    "note": "Compact spacing, smaller type, and tighter controls for repeated scanning.",
+    "semanticHash": "a9368dd60ca49910dd3394afa894651f3d5c49945d8d6442cddef789ded09625",
+    "styleTokenCount": 15
+  },
+  "aesthetic.editorial_product": {
+    "label": "Editorial Product",
+    "layoutProof": {
+      "content_grid": {
+        "columns": 2,
+        "layoutStrategy": "region_grid_v0",
+        "profile": "aesthetic.editorial_product"
+      },
+      "metric_grid": {
+        "columns": 1,
+        "layoutStrategy": "dashboard_grid_v0",
+        "profile": "aesthetic.editorial_product"
+      }
+    },
+    "layoutSignature": "workspace 2 / metrics 1",
+    "nodeCount": 39,
+    "note": "Warmer product-story pacing with broader prose rhythm.",
+    "semanticHash": "a9368dd60ca49910dd3394afa894651f3d5c49945d8d6442cddef789ded09625",
+    "styleTokenCount": 15
+  },
+  "aesthetic.executive_review": {
+    "label": "Executive Review",
+    "layoutProof": {
+      "content_grid": {
+        "columns": 2,
+        "layoutStrategy": "region_grid_v0",
+        "profile": "aesthetic.executive_review"
+      },
+      "metric_grid": {
+        "columns": 2,
+        "layoutStrategy": "dashboard_grid_v0",
+        "profile": "aesthetic.executive_review"
+      }
+    },
+    "layoutSignature": "workspace 2 / metrics 2",
+    "nodeCount": 39,
+    "note": "Conservative review surfaces with restrained contrast and crisp framing.",
+    "semanticHash": "a9368dd60ca49910dd3394afa894651f3d5c49945d8d6442cddef789ded09625",
+    "styleTokenCount": 15
+  },
+  "aesthetic.premium_saas": {
+    "label": "Premium SaaS",
+    "layoutProof": {
+      "content_grid": {
+        "columns": 2,
+        "layoutStrategy": "region_grid_v0",
+        "profile": "aesthetic.premium_saas"
+      },
+      "metric_grid": {
+        "columns": 2,
+        "layoutStrategy": "dashboard_grid_v0",
+        "profile": "aesthetic.premium_saas"
+      }
+    },
+    "layoutSignature": "workspace 2 / metrics 2",
+    "nodeCount": 39,
+    "note": "Polished product rhythm with stronger hierarchy and softer shadows.",
+    "semanticHash": "a9368dd60ca49910dd3394afa894651f3d5c49945d8d6442cddef789ded09625",
+    "styleTokenCount": 15
+  }
+}</script>
+  <script>
+    const profileProof = JSON.parse(document.getElementById('aesthetic-profile-proof').textContent);
+    const profileButtons = Array.from(document.querySelectorAll('.profile-card'));
+    const profileViews = Array.from(document.querySelectorAll('.artifact-view'));
+    const activeToken = document.getElementById('active-profile-token');
+    const activeLabel = document.getElementById('active-profile-label');
+    const activeNote = document.getElementById('active-profile-note');
+    const activeHash = document.getElementById('active-semantic-hash');
+    const activeNodeCount = document.getElementById('active-node-count');
+    const activeStyleCount = document.getElementById('active-style-count');
+    const activeLayoutSignature = document.getElementById('active-layout-signature');
+
+    function activateProfile(token) {
+      const proof = profileProof[token];
+      if (!proof) return;
+      for (const button of profileButtons) {
+        button.setAttribute('aria-pressed', String(button.dataset.profileToken === token));
+      }
+      for (const view of profileViews) {
+        view.hidden = view.dataset.profileToken !== token;
+      }
+      activeToken.textContent = token;
+      activeLabel.textContent = proof.label;
+      activeNote.textContent = proof.note;
+      activeHash.textContent = proof.semanticHash.slice(0, 16);
+      activeNodeCount.textContent = String(proof.nodeCount);
+      activeStyleCount.textContent = String(proof.styleTokenCount);
+      activeLayoutSignature.textContent = proof.layoutSignature;
+    }
+
+    for (const button of profileButtons) {
+      button.addEventListener('click', () => activateProfile(button.dataset.profileToken));
+    }
+  </script>
+</body>
+</html>

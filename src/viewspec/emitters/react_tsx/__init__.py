@@ -194,6 +194,9 @@ def react_tsx_manifest_node_markers(dom_id: str, entry: dict[str, Any]) -> dict[
         binding_id = props.get("binding_id")
         if isinstance(binding_id, str):
             markers["data-binding-id"] = f"data-binding-id={{{_tsx_string(binding_id)}}}"
+        aesthetic_profile = props.get("aesthetic_profile")
+        if isinstance(aesthetic_profile, str):
+            markers["data-aesthetic-profile"] = f"data-aesthetic-profile={{{_tsx_string(aesthetic_profile)}}}"
         action_id = props.get("action_id")
         if isinstance(action_id, str):
             markers["data-action-id"] = f"data-action-id={{{_tsx_string(action_id)}}}"
@@ -360,6 +363,9 @@ def _attrs_for_node(node: IRNode, style_values: dict[str, str]) -> list[str]:
         attrs.append(style)
     if node.props.get("binding_id") is not None:
         attrs.append(_jsx_attr("data-binding-id", str(node.props["binding_id"])))
+    aesthetic_profile = node.props.get("aesthetic_profile")
+    if isinstance(aesthetic_profile, str) and aesthetic_profile:
+        attrs.append(_jsx_attr("data-aesthetic-profile", aesthetic_profile))
     if node.primitive == "button":
         attrs.extend(
             [

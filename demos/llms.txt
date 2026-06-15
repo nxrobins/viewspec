@@ -12,6 +12,7 @@ Raw HTML tools remain available only for importing existing HTML: `viewspec comp
 - Agent integration docs: https://github.com/nxrobins/viewspec/blob/main/docs/agent-integration.md
 - Local HTML import docs: https://github.com/nxrobins/viewspec/blob/main/docs/local-html-wedge.md
 - Cross-platform launch demo: https://viewspec.dev/cross-platform-dashboard/
+- Aesthetic profiles demo: https://viewspec.dev/aesthetic-profiles/
 - Custom motif demo: https://viewspec.dev/custom-motifs/
 - Interactive compose demo: https://viewspec.dev/interactive-compose/
 - Hosted compiler API: https://api.viewspec.dev/v1/compile
@@ -56,6 +57,7 @@ Raw HTML tools remain available only for importing existing HTML: `viewspec comp
 - V1 public SDK style targets must be explicit refs or unambiguous bare ids.
 - V1 public SDK complexity_tier starts at 1, region child bounds are non-negative, and max_children is null or at least min_children.
 - V1 public SDK agent style tokens must come from agent-intent-bundle.schema.json, not arbitrary CSS.
+- V1 aesthetic profile tokens are deterministic art-direction handles, not CSS: aesthetic.calm_ops, aesthetic.premium_saas, aesthetic.data_dense, aesthetic.editorial_product, and aesthetic.executive_review. At most one may target view:{view_spec.id}; profiles may derive governed style projection and bounded layout metadata, and are not pixel-perfect visual proof, accessibility certification, arbitrary host-app compatibility, or design-review approval.
 - The local schema and validate-intent reject hosted-only fields: root design, root motif_library, view_spec.inputs, view_spec.projections, and view_spec.rules.
 - Unknown local V1 extension fields fail with UNKNOWN_FIELD instead of being ignored.
 - Hosted launch emitters: HTML/Tailwind, React TSX, SwiftUI, Flutter.

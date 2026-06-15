@@ -9,6 +9,10 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from viewspec.aesthetics import (
+    AESTHETIC_PROFILE_TOKENS,
+    MAX_AESTHETIC_PROFILE_CSS_BYTES,
+)
 from viewspec.emitters.base import EmitterPlugin
 from viewspec.emitters.html_tailwind import (
     SUPPORTED_PRIMITIVES,
@@ -65,6 +69,9 @@ TAILWIND_CONSTRAINT_CODES = frozenset(
         "TAILWIND_LIMIT_EXCEEDED_NODES",
         "TAILWIND_LIMIT_EXCEEDED_RECIPES",
         "TAILWIND_RECIPE_CONFLICT",
+        "TAILWIND_AESTHETIC_RECIPE_MISSING",
+        "TAILWIND_AESTHETIC_RECIPE_TOO_LARGE",
+        "TAILWIND_AESTHETIC_UNSAFE_CLASS",
         "TAILWIND_STATEFUL_COLLECTION_RECIPE_MISSING",
         "TAILWIND_STYLE_CONSTRAINT_VIOLATION",
         "TAILWIND_UNSAFE_CLASS_SOURCE",
@@ -160,7 +167,7 @@ RECIPE_BY_KEY: dict[str, str] = {
     "app_role:app_shell": "min-h-screen bg-slate-50 px-6 py-6 text-slate-950 sm:px-8",
     "app_role:app_header": "border-b border-slate-200 pb-4 pt-1",
     "app_role:page_header": "bg-transparent p-0 shadow-none ring-0",
-    "app_role:content_grid": "grid gap-5 lg:grid-cols-3",
+    "app_role:content_grid": "grid gap-5",
     "app_role:primary_column": "flex min-w-0 flex-col gap-5 lg:col-span-2",
     "app_role:side_rail": "flex min-w-0 flex-col gap-4 lg:col-span-1",
     "app_role:sidebar_nav": "flex flex-col gap-2",
@@ -171,7 +178,7 @@ RECIPE_BY_KEY: dict[str, str] = {
     "app_role:filter_bar": "flex flex-row flex-wrap items-center gap-3 rounded-md border border-slate-200 bg-white p-3",
     "app_role:data_table": "w-full overflow-hidden rounded-md border border-slate-200 bg-white text-sm",
     "app_role:data_row": "border-b border-slate-200 last:border-b-0",
-    "app_role:metric_grid": "grid gap-3 sm:grid-cols-2 lg:grid-cols-2",
+    "app_role:metric_grid": "grid gap-3",
     "app_role:metric_card": "min-h-28 justify-between rounded-md border border-slate-200 bg-white p-4 shadow-sm",
     "app_role:form_panel": "rounded-md border border-slate-200 bg-white p-5 shadow-sm",
     "app_role:field_group": "rounded-md border border-slate-200 bg-slate-50 p-3 shadow-none",
@@ -188,14 +195,14 @@ RECIPE_BY_KEY: dict[str, str] = {
     "product_role:content_grid": "items-start",
     "product_role:primary_column": "min-w-0",
     "product_role:side_rail": "min-w-0",
-    "product_role:metric_grid": "grid gap-3 sm:grid-cols-2",
+    "product_role:metric_grid": "grid gap-3",
     "product_role:metric_card": "flex flex-col gap-3",
     "product_role:form_panel": "flex flex-col gap-4",
     "product_role:field_group": "flex flex-col gap-2",
     "product_role:detail_panel": "flex flex-col gap-3",
     "product_role:action_row": "flex flex-row flex-wrap items-center justify-end gap-2",
     "motif:comparison:stack": "flex flex-col gap-3",
-    "motif:dashboard:grid": "grid gap-3 sm:grid-cols-2",
+    "motif:dashboard:grid": "grid gap-3",
     "motif:detail:cluster": "grid gap-2 border-b border-slate-200 py-2 last:border-b-0 sm:grid-cols-3",
     "motif:detail:stack": "m-0 flex flex-col gap-0",
     "motif:empty_state:surface": "flex flex-col gap-3",
@@ -242,11 +249,83 @@ RECIPE_BY_KEY: dict[str, str] = {
     "primitive:value": "text-2xl font-black leading-tight text-slate-950",
 }
 
+TAILWIND_AESTHETIC_RECIPE_OVERLAYS: dict[str, dict[str, str]] = {
+    "aesthetic.calm_ops": {
+        "app_role:app_shell": "bg-teal-50 text-slate-900",
+        "app_role:metric_card": "rounded-xl border-slate-200 bg-white shadow-sm",
+        "app_role:form_panel": "rounded-xl border-slate-200 bg-white shadow-sm",
+        "app_role:detail_panel": "rounded-xl border-teal-200 bg-teal-50 shadow-sm",
+        "app_role:data_table": "border-slate-200 bg-white",
+        "app_role:collection_action_bar": "rounded-xl border-slate-200 bg-white",
+        "primitive:button": "rounded-lg bg-teal-700 hover:bg-teal-800 focus:ring-teal-700",
+        "primitive:badge": "bg-teal-100 text-teal-800 ring-teal-200",
+        "primitive:label": "text-slate-500",
+        "primitive:value": "text-xl font-extrabold leading-snug text-slate-950",
+        "primitive:text": "text-base leading-7 text-slate-700",
+    },
+    "aesthetic.premium_saas": {
+        "app_role:app_shell": "bg-violet-50 px-8 py-8 text-slate-950 sm:px-10",
+        "app_role:metric_card": "rounded-2xl border-violet-200 bg-white p-6 shadow-xl",
+        "app_role:form_panel": "rounded-2xl border-violet-200 bg-white p-6 shadow-xl",
+        "app_role:detail_panel": "rounded-2xl border-violet-200 bg-indigo-50 p-6 shadow-lg",
+        "app_role:data_table": "rounded-xl border-violet-200 bg-white shadow-md",
+        "app_role:collection_action_bar": "rounded-2xl border-violet-200 bg-white p-4 shadow-md",
+        "primitive:button": "rounded-full bg-indigo-600 px-5 py-2.5 hover:bg-indigo-700 focus:ring-indigo-600",
+        "primitive:badge": "bg-indigo-100 text-indigo-800 ring-indigo-200",
+        "primitive:label": "text-slate-500",
+        "primitive:value": "text-3xl font-black tracking-tight text-slate-950",
+        "primitive:text": "text-base leading-7 text-slate-700",
+    },
+    "aesthetic.data_dense": {
+        "app_role:app_shell": "bg-slate-200 px-4 py-4 font-mono text-slate-950 sm:px-5",
+        "app_role:metric_card": "min-h-20 rounded-sm border-slate-400 bg-white p-2 shadow-none",
+        "app_role:form_panel": "rounded-sm border-slate-400 bg-white p-2 shadow-none",
+        "app_role:detail_panel": "rounded-sm border-slate-400 bg-blue-50 p-2 shadow-none",
+        "app_role:data_table": "rounded-sm border-slate-400 bg-white text-xs shadow-none",
+        "app_role:collection_action_bar": "rounded-sm border-slate-400 bg-white p-1.5 shadow-none",
+        "primitive:button": "rounded-sm bg-blue-700 px-2.5 py-1 text-xs hover:bg-blue-800 focus:ring-blue-700",
+        "primitive:badge": "rounded-sm bg-blue-100 px-1.5 py-0 text-xs text-blue-800 ring-blue-200",
+        "primitive:label": "text-xs font-semibold text-slate-600",
+        "primitive:value": "text-lg font-bold leading-tight text-slate-950",
+        "primitive:text": "text-xs leading-5 text-slate-700",
+        "primitive:input": "rounded-sm border-slate-300 px-2 py-1 text-xs",
+    },
+    "aesthetic.editorial_product": {
+        "app_role:app_shell": "bg-rose-50 px-8 py-10 font-serif text-neutral-950 sm:px-12",
+        "app_role:metric_card": "rounded-3xl border-rose-200 bg-white p-6 shadow-none",
+        "app_role:form_panel": "rounded-3xl border-rose-200 bg-white p-6 shadow-none",
+        "app_role:detail_panel": "rounded-3xl border-rose-300 bg-rose-50 p-6 shadow-none",
+        "app_role:data_table": "rounded-2xl border-rose-200 bg-white",
+        "app_role:collection_action_bar": "rounded-3xl border-rose-200 bg-white p-5",
+        "primitive:button": "rounded-2xl bg-rose-700 px-5 py-2.5 hover:bg-rose-800 focus:ring-rose-700",
+        "primitive:badge": "bg-rose-100 text-rose-800 ring-rose-200",
+        "primitive:label": "text-xs font-bold uppercase text-rose-700",
+        "primitive:value": "text-4xl font-black leading-none text-neutral-950",
+        "primitive:text": "max-w-2xl text-lg leading-9 text-neutral-700",
+    },
+    "aesthetic.executive_review": {
+        "app_role:app_shell": "bg-slate-100 px-6 py-6 text-slate-950 sm:px-8",
+        "app_role:metric_card": "rounded-none border-slate-400 bg-white p-4 shadow-sm",
+        "app_role:form_panel": "rounded-none border-slate-400 bg-white p-4 shadow-sm",
+        "app_role:detail_panel": "rounded-none border-slate-400 bg-slate-50 p-4 shadow-sm",
+        "app_role:data_table": "rounded-none border-slate-400 bg-white",
+        "app_role:collection_action_bar": "rounded-none border-slate-400 bg-white p-3",
+        "primitive:button": "rounded-none bg-slate-950 px-4 py-2 hover:bg-slate-800 focus:ring-slate-950",
+        "primitive:badge": "bg-cyan-100 text-cyan-900 ring-cyan-200",
+        "primitive:label": "text-xs font-extrabold uppercase text-slate-600",
+        "primitive:value": "text-2xl font-extrabold leading-tight text-slate-950",
+        "primitive:text": "text-sm leading-6 text-slate-700",
+    },
+}
+
 GRID_CLASS_BY_COLUMNS = {
     1: "grid-cols-1",
     2: "grid-cols-1 sm:grid-cols-2",
     3: "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3",
 }
+TEXT_SIZE_CLASSES = frozenset({"text-xs", "text-sm", "text-base", "text-lg", "text-xl", "text-2xl", "text-3xl", "text-4xl"})
+FONT_FAMILY_CLASSES = frozenset({"font-mono", "font-sans", "font-serif"})
+FONT_WEIGHT_CLASSES = frozenset({"font-bold", "font-extrabold", "font-black", "font-semibold"})
 
 
 @dataclass(frozen=True)
@@ -309,6 +388,20 @@ def _validate_recipe_registry() -> None:
         if not isinstance(key, str) or not key:
             _fail("TAILWIND_RECIPE_CONFLICT", "Tailwind recipe keys must be non-empty strings.")
         _validate_class_string(value, code="TAILWIND_HOST_CONFIG_DEPENDENCY")
+    _validate_aesthetic_recipe_overlays()
+
+
+def _validate_aesthetic_recipe_overlays() -> None:
+    for profile in AESTHETIC_PROFILE_TOKENS:
+        overlay = TAILWIND_AESTHETIC_RECIPE_OVERLAYS.get(profile)
+        if not isinstance(overlay, dict) or not overlay:
+            _fail("TAILWIND_AESTHETIC_RECIPE_MISSING", f"Missing checked Tailwind aesthetic recipes for {profile}.")
+        if len(" ".join(overlay.values()).encode("utf-8")) > MAX_AESTHETIC_PROFILE_CSS_BYTES:
+            _fail("TAILWIND_AESTHETIC_RECIPE_TOO_LARGE", f"Tailwind aesthetic recipes for {profile} exceed 2KB.")
+        for key, classes in overlay.items():
+            if key not in RECIPE_BY_KEY:
+                _fail("TAILWIND_AESTHETIC_RECIPE_MISSING", f"{profile} overlays unknown recipe {key}.")
+            _validate_class_string(classes, code="TAILWIND_AESTHETIC_UNSAFE_CLASS")
 
 
 def _validate_class_string(classes: str, *, code: str) -> None:
@@ -455,9 +548,86 @@ def _recipe_key_for_node(node: IRNode, parent: IRNode | None) -> tuple[AppRoleDe
     raise AssertionError("unreachable")
 
 
-def _resolve_recipe(node: IRNode, parent: IRNode | None) -> ResolvedRecipe:
-    app_role, recipe_key = _recipe_key_for_node(node, parent)
+def _aesthetic_profile_for_root(root: IRNode) -> str | None:
+    profile = root.props.get("aesthetic_profile")
+    if profile is None:
+        return None
+    if not isinstance(profile, str) or profile not in AESTHETIC_PROFILE_TOKENS:
+        _fail("TAILWIND_AESTHETIC_RECIPE_MISSING", "Root aesthetic_profile must be a supported checked profile.")
+    return profile
+
+
+def _classes_for_recipe(recipe_key: str, aesthetic_profile: str | None) -> list[str]:
     classes = RECIPE_BY_KEY[recipe_key].split()
+    if aesthetic_profile is not None:
+        overlay = TAILWIND_AESTHETIC_RECIPE_OVERLAYS.get(aesthetic_profile)
+        if overlay is None:
+            _fail("TAILWIND_AESTHETIC_RECIPE_MISSING", f"Missing checked Tailwind aesthetic recipes for {aesthetic_profile}.")
+        overlay_classes = overlay.get(recipe_key)
+        if overlay_classes:
+            classes = _merge_tailwind_overlay_classes(classes, overlay_classes.split())
+    return classes
+
+
+def _merge_tailwind_overlay_classes(base: list[str], overlay: list[str]) -> list[str]:
+    overlay_keys = {_tailwind_conflict_key(token) for token in overlay}
+    overlay_keys.discard(None)
+    merged = [token for token in base if _tailwind_conflict_key(token) not in overlay_keys]
+    merged.extend(overlay)
+    return merged
+
+
+def _tailwind_conflict_key(token: str) -> tuple[str, str] | None:
+    parts = token.split(":")
+    variants = ":".join(parts[:-1])
+    utility = parts[-1]
+    group = _tailwind_utility_group(utility)
+    if group is None:
+        return None
+    return variants, group
+
+
+def _tailwind_utility_group(utility: str) -> str | None:
+    if utility.startswith("bg-"):
+        return "background-color"
+    if utility in TEXT_SIZE_CLASSES:
+        return "font-size"
+    if utility.startswith("text-"):
+        return "color"
+    if utility in FONT_FAMILY_CLASSES:
+        return "font-family"
+    if utility in FONT_WEIGHT_CLASSES:
+        return "font-weight"
+    if utility.startswith("px-"):
+        return "padding-x"
+    if utility.startswith("py-"):
+        return "padding-y"
+    if utility.startswith("p-"):
+        return "padding"
+    if utility.startswith("rounded"):
+        return "border-radius"
+    if utility.startswith("border-") and utility != "border-t":
+        return "border-color"
+    if utility.startswith("shadow"):
+        return "box-shadow"
+    if utility.startswith("min-h-"):
+        return "min-height"
+    if utility.startswith("gap-"):
+        return "gap"
+    if utility.startswith("leading-"):
+        return "line-height"
+    if utility.startswith("tracking-"):
+        return "letter-spacing"
+    if utility.startswith("ring-") and utility not in {"ring-0", "ring-1", "ring-2", "ring-4", "ring-8"}:
+        return "ring-color"
+    if utility in {"uppercase", "normal-case", "lowercase", "capitalize"}:
+        return "text-transform"
+    return None
+
+
+def _resolve_recipe(node: IRNode, parent: IRNode | None, aesthetic_profile: str | None = None) -> ResolvedRecipe:
+    app_role, recipe_key = _recipe_key_for_node(node, parent)
+    classes = _classes_for_recipe(recipe_key, aesthetic_profile)
     if node.primitive == "grid":
         classes.extend(GRID_CLASS_BY_COLUMNS[_grid_columns(node)].split())
     return ResolvedRecipe(
@@ -544,6 +714,9 @@ def _attrs_for_node(node: IRNode, recipe: ResolvedRecipe) -> list[str]:
     ]
     if node.props.get("binding_id") is not None:
         attrs.append(_jsx_attr("data-binding-id", str(node.props["binding_id"])))
+    aesthetic_profile = node.props.get("aesthetic_profile")
+    if isinstance(aesthetic_profile, str) and aesthetic_profile:
+        attrs.append(_jsx_attr("data-aesthetic-profile", aesthetic_profile))
     if node.primitive == "button":
         attrs.extend(
             [
@@ -637,14 +810,20 @@ def _render_node(
 
 def _resolve_recipes(root: IRNode) -> dict[str, ResolvedRecipe]:
     parents = _node_parent_map(root)
-    return {node.id: _resolve_recipe(node, parents[node.id]) for node in _walk(root)}
+    aesthetic_profile = _aesthetic_profile_for_root(root)
+    return {node.id: _resolve_recipe(node, parents[node.id], aesthetic_profile) for node in _walk(root)}
 
 
-def resolve_manifest_recipe_metadata(entry: dict[str, Any], parent_entry: dict[str, Any] | None = None) -> dict[str, Any]:
+def resolve_manifest_recipe_metadata(
+    entry: dict[str, Any],
+    parent_entry: dict[str, Any] | None = None,
+    *,
+    aesthetic_profile: str | None = None,
+) -> dict[str, Any]:
     """Recompute Tailwind recipe metadata from manifest node shape for artifact checks."""
     node = _manifest_entry_to_ir_node(entry)
     parent = _manifest_entry_to_ir_node(parent_entry) if parent_entry is not None else None
-    recipe = _resolve_recipe(node, parent)
+    recipe = _resolve_recipe(node, parent, aesthetic_profile)
     return {
         "app_role": recipe.app_role,
         "app_role_source": recipe.app_role_source,
@@ -677,6 +856,10 @@ def tailwind_recipe_registry_projection() -> dict[str, Any]:
         "recipe_pack": TAILWIND_RECIPE_PACK,
         "registry_version": TAILWIND_RECIPE_REGISTRY_VERSION,
         "recipes": dict(sorted(RECIPE_BY_KEY.items())),
+        "aesthetic_recipe_overlays": {
+            profile: dict(sorted(overlay.items()))
+            for profile, overlay in sorted(TAILWIND_AESTHETIC_RECIPE_OVERLAYS.items())
+        },
         "app_role_contracts": {
             role: {key: list(values) for key, values in sorted(contract.items())}
             for role, contract in sorted(TAILWIND_APP_V1_APP_ROLE_CONTRACTS.items())
@@ -864,6 +1047,7 @@ __all__ = [
     "GRID_CLASS_BY_COLUMNS",
     "CompilerConstraintError",
     "RECIPE_BY_KEY",
+    "TAILWIND_AESTHETIC_RECIPE_OVERLAYS",
     "TAILWIND_APP_V1_APP_ROLE_CONTRACTS",
     "TAILWIND_APP_ROLE_RULE_PRECEDENCE",
     "TAILWIND_PRODUCT_APP_ROLE_RULE_IDS",

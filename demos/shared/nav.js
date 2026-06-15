@@ -7,6 +7,7 @@
     { href: '../cross-platform-dashboard/', label: 'Cross-platform' },
     { href: '../custom-motifs/', label: 'Custom motifs' },
     { href: '../interactive-compose/', label: 'Compose' },
+    { href: '../stateful-collections/', label: 'Collections' },
     { href: '../motif-switcher/', label: 'Motifs' },
     { href: '../provenance-inspector/', label: 'Provenance' },
     { href: '../live-builder/', label: 'Builder' },
@@ -14,6 +15,7 @@
     { href: '../proof-bundle/', label: 'Proof' },
     { href: '../fifteen-lines/', label: '15 Lines' },
     { href: '../style-derivation/', label: 'Styles' },
+    { href: '../aesthetic-profiles/', label: 'Aesthetic' },
     { href: '../#pricing', label: 'Pricing' },
   ]
 

@@ -6,6 +6,7 @@ import json
 from pathlib import Path
 from typing import Any
 
+from viewspec.aesthetics import AESTHETIC_PROFILE_TOKENS, is_aesthetic_profile_token
 from viewspec.types import (
     ActionIntent,
     BindingSpec,
@@ -212,6 +213,18 @@ class ViewSpecBuilder:
 
     def add_style(self, id: str, target: str, token: str) -> ViewSpecBuilder:
         self._styles.append(StyleSpec(id=id, target=target, token=token))
+        return self
+
+    def set_aesthetic_profile(self, profile: str) -> ViewSpecBuilder:
+        if profile not in AESTHETIC_PROFILE_TOKENS:
+            allowed = ", ".join(AESTHETIC_PROFILE_TOKENS)
+            raise ValueError(f"profile must be one of: {allowed}.")
+        self._styles = [
+            style
+            for style in self._styles
+            if not is_aesthetic_profile_token(style.token) and style.id != "aesthetic_profile"
+        ]
+        self._styles.append(StyleSpec(id="aesthetic_profile", target=f"view:{self.id}", token=profile))
         return self
 
     def add_action(

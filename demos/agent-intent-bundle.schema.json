@@ -296,7 +296,12 @@
             "narrative.flow",
             "align.start",
             "align.center",
-            "align.end"
+            "align.end",
+            "aesthetic.calm_ops",
+            "aesthetic.premium_saas",
+            "aesthetic.data_dense",
+            "aesthetic.editorial_product",
+            "aesthetic.executive_review"
           ]
         }
       },
@@ -525,6 +530,69 @@
   ],
   "title": "ViewSpec Agent IntentBundle",
   "type": "object",
+  "x-viewspec-aesthetic-profiles": {
+    "layout_props": {
+      "aesthetic.calm_ops": {
+        "content_grid": {
+          "columns": 2
+        },
+        "metric_grid": {
+          "columns": 2
+        }
+      },
+      "aesthetic.data_dense": {
+        "content_grid": {
+          "columns": 3
+        },
+        "metric_grid": {
+          "columns": 3
+        }
+      },
+      "aesthetic.editorial_product": {
+        "content_grid": {
+          "columns": 2
+        },
+        "metric_grid": {
+          "columns": 1
+        }
+      },
+      "aesthetic.executive_review": {
+        "content_grid": {
+          "columns": 2
+        },
+        "metric_grid": {
+          "columns": 2
+        }
+      },
+      "aesthetic.premium_saas": {
+        "content_grid": {
+          "columns": 2
+        },
+        "metric_grid": {
+          "columns": 2
+        }
+      }
+    },
+    "layout_roles": [
+      "content_grid",
+      "metric_grid"
+    ],
+    "max_declarations": 1,
+    "non_claims": [
+      "not_css",
+      "not_pixel_perfect_visual_proof",
+      "not_design_certification"
+    ],
+    "style_token_prefix": "aesthetic.",
+    "target": "view:{view_spec.id}",
+    "tokens": [
+      "aesthetic.calm_ops",
+      "aesthetic.premium_saas",
+      "aesthetic.data_dense",
+      "aesthetic.editorial_product",
+      "aesthetic.executive_review"
+    ]
+  },
   "x-viewspec-invariants": [
     "view_spec.substrate_id must equal substrate.id.",
     "substrate.root_id must be a key in substrate.nodes.",
@@ -534,6 +602,9 @@
     "Semantic node edges must reference declared substrate node ids.",
     "Bindings, groups, motifs, styles, and actions may only reference declared ids.",
     "Motifs must be semantically complete for their kind before local compilation.",
+    "IntentBundle may declare at most one aesthetic.* style token.",
+    "Aesthetic profile style token must target exactly view:{view_spec.id}.",
+    "Aesthetic profile tokens derive governed style projection and bounded layout metadata for content_grid and metric_grid roles.",
     "Hosted-only fields design, motif_library, view_spec.inputs, view_spec.projections, and view_spec.rules are rejected by the local schema and validate-intent.",
     "Unknown extension fields are rejected instead of silently ignored.",
     "JSON Schema enforces shape and caps; viewspec validate-intent enforces cross-reference invariants."

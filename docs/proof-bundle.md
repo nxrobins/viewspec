@@ -2,6 +2,8 @@
 
 `viewspec prove --out .viewspec-proof` writes a local proof bundle for the current ViewSpec SDK. Start with `.viewspec-proof/PROOF.md`; use `.viewspec-proof/proof_report.json` when a tool or agent needs the stable JSON contract; use `.viewspec-proof/support_bundle.json` when you need a redacted first-run failure summary for local support triage.
 
+The terminal output mirrors the key proof evidence for quick review: status, proof level, output paths, checked manifest summary, and React Tailwind host assertion counts when the reference host was used.
+
 ## What It Proves
 
 The default `html-tailwind` proof is source artifact and provenance proof. It validates an IntentBundle, compiles through the public local path, runs artifact checks, records artifact and manifest hashes, and names the exact generated files that were checked.
@@ -17,8 +19,9 @@ ViewSpec proof bundles are not pixel-perfect visual regression, accessibility ce
 - `Claim` states the strongest result the proof is allowed to claim for this run.
 - `Inputs And Outputs` shows the IntentBundle, DESIGN.md, generated artifact, manifest, diagnostics, JSON report, and human summary paths.
 - `Hashes` lets reviewers compare the checked artifact, manifest, and report with the files on disk.
+- `Manifest Summary` records bounded manifest facts such as emitter, node count, root aesthetic profile, and checked aesthetic layout roles/columns.
 - `Checks` shows whether intent setup, compile, artifact check, host verification, summary writing, and support bundle writing ran.
-- `Host Verification` appears for React Tailwind runs and summarizes observed browser assertions when the reference host was used.
+- `Host Verification` appears for React Tailwind runs and summarizes observed browser assertions, including profiled aesthetic marker/layout counters when applicable, when the reference host was used.
 - `Policy` records network/install behavior, including whether `npm ci --ignore-scripts` was explicitly allowed.
 - `Errors` lists stable codes and fixes. If validation failed, use the JSON validation `repair_checklist` or correction prompt, regenerate the full IntentBundle, and rerun `viewspec prove`.
 

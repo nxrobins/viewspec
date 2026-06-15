@@ -13,12 +13,19 @@ from typing import Any
 from urllib.parse import urlparse
 
 from viewspec._version import __version__
+from viewspec.aesthetics import (
+    AESTHETIC_PROFILE_LAYOUT_ROLES,
+    AESTHETIC_PROFILE_TOKENS,
+    is_aesthetic_profile_token,
+    profile_layout_props,
+)
 from viewspec.design_md import DesignSystemContext, DesignSystemError, load_design_system
 from viewspec.emitters.html_tailwind import ACTION_EVENT_SCRIPT
 from viewspec.emitters.react_tailwind_tsx import (
     CompilerConstraintError,
     GRID_CLASS_BY_COLUMNS,
     RECIPE_BY_KEY,
+    TAILWIND_AESTHETIC_RECIPE_OVERLAYS,
     TAILWIND_APP_V1_APP_ROLE_CONTRACTS,
     TAILWIND_MAX_ACTIONS,
     TAILWIND_MAX_ARTIFACT_BYTES,
@@ -31,6 +38,7 @@ from viewspec.emitters.react_tailwind_tsx import (
     tailwind_recipe_registry_digest,
 )
 from viewspec.emitters.react_tsx import react_tsx_manifest_node_markers
+from viewspec.manifest_summary import manifest_root_aesthetic_profile, summarize_intent_manifest
 from viewspec.raw_html import (
     MANIFEST_SCHEMA_VERSION,
     RAW_HTML_POLICY_VERSION,
@@ -345,7 +353,12 @@ def check_artifact_dir(path: str | Path) -> dict[str, Any]:
     else:
         errors.append("missing diagnostics.json")
 
-    return {"ok": not errors, "errors": errors, "warnings": warnings}
+    return {
+        "ok": not errors,
+        "errors": errors,
+        "warnings": warnings,
+        "manifest_summary": summarize_intent_manifest(manifest_path),
+    }
 
 
 def compile_html_file_tool(
@@ -426,7 +439,11 @@ def check_artifact_tool(
             paths={"artifact_dir": str(artifact)},
             errors=errors,
             next_actions=[] if result["ok"] else ["Fix the reported issue and re-run viewspec check."],
-            metadata={**path_policy_metadata(root, allow_outside_cwd), "warnings": result["warnings"]},
+            metadata={
+                **path_policy_metadata(root, allow_outside_cwd),
+                "warnings": result["warnings"],
+                "manifest_summary": result.get("manifest_summary"),
+            },
         )
     except Exception as exc:
         return exception_response(
@@ -980,6 +997,10 @@ def _validate_react_tailwind_manifest(tsx: str, nodes: dict[str, Any], manifest:
     allowed_app_roles = set(TAILWIND_APP_V1_APP_ROLE_CONTRACTS)
     allowed_class_tokens = _tailwind_allowed_class_tokens()
     parent_by_dom_id = _tsx_semantic_parent_map(tsx)
+    aesthetic_profile = manifest_root_aesthetic_profile(nodes)
+    if aesthetic_profile not in (None, *AESTHETIC_PROFILE_TOKENS):
+        errors.append("AESTHETIC_PROFILE_UNKNOWN: manifest root declares an unknown aesthetic profile")
+        aesthetic_profile = None
     recipe_keys: set[str] = set()
     class_tokens: set[str] = set()
     app_roles: set[str] = set()
@@ -995,7 +1016,7 @@ def _validate_react_tailwind_manifest(tsx: str, nodes: dict[str, Any], manifest:
         if parent_dom_id is not None and isinstance(nodes.get(parent_dom_id), dict):
             parent_entry = nodes[parent_dom_id]
         try:
-            expected = resolve_manifest_recipe_metadata(entry, parent_entry)
+            expected = resolve_manifest_recipe_metadata(entry, parent_entry, aesthetic_profile=aesthetic_profile)
         except CompilerConstraintError as exc:
             errors.append(str(exc))
             expected = {
@@ -1046,6 +1067,7 @@ def _validate_react_tailwind_manifest(tsx: str, nodes: dict[str, Any], manifest:
             "recipe_pack": TAILWIND_RECIPE_PACK,
             "registry_version": TAILWIND_RECIPE_REGISTRY_VERSION,
             "recipe_registry_digest": tailwind_recipe_registry_digest(),
+            "aesthetic_profile": aesthetic_profile,
             "recipe_count": len(recipe_keys),
             "recipes": sorted(recipe_keys),
             "class_count": len(class_tokens),
@@ -1177,6 +1199,9 @@ def _validate_tailwind_generic_fallback(nodes: dict[str, Any]) -> list[str]:
 
 def _tailwind_allowed_class_tokens() -> set[str]:
     tokens = {token for classes in RECIPE_BY_KEY.values() for token in classes.split()}
+    for overlay in TAILWIND_AESTHETIC_RECIPE_OVERLAYS.values():
+        for classes in overlay.values():
+            tokens.update(classes.split())
     for classes in GRID_CLASS_BY_COLUMNS.values():
         tokens.update(classes.split())
     return tokens
@@ -2000,6 +2025,7 @@ def _validate_manifest_nodes(manifest: dict[str, Any], errors: list[str]) -> Non
         errors.append("manifest nodes must be an object")
         return
     kind = manifest.get("kind")
+    root_aesthetic_profile = manifest_root_aesthetic_profile(nodes) if kind == "intent_bundle_compile" else None
     for node_id, entry in sorted(nodes.items()):
         if not node_id or not SAFE_ID_RE.match(node_id):
             errors.append(f"manifest nodes.{node_id} key must be a safe id")
@@ -2007,12 +2033,17 @@ def _validate_manifest_nodes(manifest: dict[str, Any], errors: list[str]) -> Non
             errors.append(f"manifest nodes.{node_id} must be an object")
             continue
         if kind == "intent_bundle_compile":
-            _validate_intent_manifest_node(node_id, entry, errors)
+            _validate_intent_manifest_node(node_id, entry, root_aesthetic_profile, errors)
         elif kind == "raw_html_compile":
             _validate_raw_html_manifest_node(node_id, entry, errors)
 
 
-def _validate_intent_manifest_node(node_id: str, entry: dict[str, Any], errors: list[str]) -> None:
+def _validate_intent_manifest_node(
+    node_id: str,
+    entry: dict[str, Any],
+    root_aesthetic_profile: str | None,
+    errors: list[str],
+) -> None:
     ir_id = entry.get("ir_id")
     if not isinstance(ir_id, str) or not ir_id:
         errors.append(f"manifest nodes.{node_id}.ir_id must be a non-empty string")
@@ -2083,6 +2114,58 @@ def _validate_intent_manifest_node(node_id: str, entry: dict[str, Any], errors: 
     hero_role = props.get("hero_role")
     if hero_role is not None and hero_role not in {"eyebrow", "title", "description", "detail"}:
         errors.append(f"manifest nodes.{node_id}.props.hero_role must be eyebrow, title, description, or detail")
+    _validate_aesthetic_profile_manifest_node(node_id, entry, props, errors)
+    _validate_aesthetic_layout_manifest_node(node_id, entry, props, root_aesthetic_profile, errors)
+
+
+def _validate_aesthetic_profile_manifest_node(
+    node_id: str,
+    entry: dict[str, Any],
+    props: dict[str, Any],
+    errors: list[str],
+) -> None:
+    style_tokens = entry.get("style_tokens")
+    profile_tokens = [token for token in style_tokens if is_aesthetic_profile_token(token)] if _is_string_list(style_tokens) else []
+    profile = props.get("aesthetic_profile")
+    if profile is None and not profile_tokens:
+        return
+    if entry.get("primitive") != "root":
+        errors.append(f"AESTHETIC_PROFILE_TARGET_INVALID: manifest node {node_id} aesthetic profile must be on the root node")
+    if profile is not None and (not isinstance(profile, str) or profile not in AESTHETIC_PROFILE_TOKENS):
+        errors.append(f"AESTHETIC_PROFILE_UNKNOWN: manifest node {node_id} declares unknown aesthetic_profile")
+    if len(profile_tokens) > 1:
+        errors.append(f"AESTHETIC_PROFILE_MULTIPLE: manifest node {node_id} declares multiple aesthetic style tokens")
+    if profile_tokens and any(token not in AESTHETIC_PROFILE_TOKENS for token in profile_tokens):
+        errors.append(f"AESTHETIC_PROFILE_UNKNOWN: manifest node {node_id} uses unknown aesthetic style token")
+    if isinstance(profile, str) and profile_tokens and profile_tokens[0] != profile:
+        errors.append(f"AESTHETIC_PROFILE_TARGET_INVALID: manifest node {node_id} aesthetic_profile does not match root style token")
+
+
+def _validate_aesthetic_layout_manifest_node(
+    node_id: str,
+    entry: dict[str, Any],
+    props: dict[str, Any],
+    root_aesthetic_profile: str | None,
+    errors: list[str],
+) -> None:
+    layout_profile = props.get("aesthetic_layout_profile")
+    if layout_profile is None:
+        return
+    if not isinstance(layout_profile, str) or layout_profile not in AESTHETIC_PROFILE_TOKENS:
+        errors.append(f"AESTHETIC_PROFILE_LAYOUT_UNKNOWN: manifest node {node_id} declares unknown aesthetic_layout_profile")
+        return
+    if root_aesthetic_profile != layout_profile:
+        errors.append(f"AESTHETIC_PROFILE_LAYOUT_MISMATCH: manifest node {node_id} aesthetic_layout_profile does not match root profile")
+        return
+
+    product_role = props.get("product_role")
+    expected = profile_layout_props(layout_profile).get(product_role) if isinstance(product_role, str) else None
+    if entry.get("primitive") != "grid" or product_role not in AESTHETIC_PROFILE_LAYOUT_ROLES or expected is None:
+        errors.append(f"AESTHETIC_PROFILE_LAYOUT_TARGET_INVALID: manifest node {node_id} targets unsupported aesthetic layout role")
+        return
+    columns = props.get("columns")
+    if not isinstance(columns, int) or isinstance(columns, bool) or columns != expected["columns"]:
+        errors.append(f"AESTHETIC_PROFILE_LAYOUT_MISMATCH: manifest node {node_id} columns do not match aesthetic layout profile")
 
 
 def _validate_raw_html_manifest_node(node_id: str, entry: dict[str, Any], errors: list[str]) -> None:
@@ -2362,6 +2445,9 @@ def _validate_intent_semantic_attrs(
     _validate_intent_visible_text(errors, primitive, props, dom_id, probe)
     if props.get("binding_id") is not None and attrs.get("data-binding-id") != str(props["binding_id"]):
         errors.append(f"DOM element {dom_id} data-binding-id does not match manifest props")
+    profile = props.get("aesthetic_profile")
+    if isinstance(profile, str) and attrs.get("data-aesthetic-profile") != profile:
+        errors.append(f"DOM element {dom_id} data-aesthetic-profile does not match manifest props")
     if primitive == "button":
         if tag != "button":
             errors.append(f"manifest node {dom_id} button primitive must render as <button>")
