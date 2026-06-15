@@ -3,6 +3,9 @@ import importlib.util
 import sys
 from pathlib import Path
 from types import ModuleType
+from typing import Callable
+
+import pytest
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -37,17 +40,61 @@ def _assert_demo_page_current(relative_path: str, generated: str) -> None:
     raise AssertionError(f"{relative_path} is out of date. Regenerate its demo builder output.\n{preview}")
 
 
-def test_aesthetic_profiles_demo_matches_builder_output():
+def _aesthetic_profiles_page() -> str:
     builder = _load_demo_builder("build_aesthetic_profiles")
-    _assert_demo_page_current(
-        "demos/aesthetic-profiles/index.html",
-        builder.build_page(builder.compile_profiles()),
-    )
+    return builder.build_page(builder.compile_profiles())
 
 
-def test_stateful_collections_demo_matches_builder_output():
+def _fifteen_lines_page() -> str:
+    builder = _load_demo_builder("build_fifteen_lines")
+    fragments, stats = builder.compile_fragments()
+    return builder.build_page(fragments, builder.code_line_data(), stats)
+
+
+def _invariants_page() -> str:
+    builder = _load_demo_builder("build_invariants")
+    return builder.build_page(builder.compile_sections())
+
+
+def _live_builder_page() -> str:
+    builder = _load_demo_builder("build_live_builder")
+    return builder.build_page(builder.compile_presets())
+
+
+def _motif_switcher_page() -> str:
+    builder = _load_demo_builder("build_motif_switcher")
+    return builder.build_page(builder.compile_variants())
+
+
+def _provenance_inspector_page() -> str:
+    builder = _load_demo_builder("build_provenance_inspector")
+    fragment, data, bundle = builder.compile_demo()
+    return builder.build_page(fragment, data, bundle)
+
+
+def _stateful_collections_page() -> str:
     builder = _load_demo_builder("build_stateful_collections")
-    _assert_demo_page_current(
-        "demos/stateful-collections/index.html",
-        builder.build_page(builder.compile_demo_bundles()),
-    )
+    return builder.build_page(builder.compile_demo_bundles())
+
+
+def _style_derivation_page() -> str:
+    builder = _load_demo_builder("build_style_derivation")
+    fragment, stats = builder.compile_demo()
+    return builder.build_page(fragment, stats)
+
+
+DETERMINISTIC_DEMO_PAGES: tuple[tuple[str, Callable[[], str]], ...] = (
+    ("demos/aesthetic-profiles/index.html", _aesthetic_profiles_page),
+    ("demos/fifteen-lines/index.html", _fifteen_lines_page),
+    ("demos/invariants/index.html", _invariants_page),
+    ("demos/live-builder/index.html", _live_builder_page),
+    ("demos/motif-switcher/index.html", _motif_switcher_page),
+    ("demos/provenance-inspector/index.html", _provenance_inspector_page),
+    ("demos/stateful-collections/index.html", _stateful_collections_page),
+    ("demos/style-derivation/index.html", _style_derivation_page),
+)
+
+
+@pytest.mark.parametrize(("relative_path", "generate"), DETERMINISTIC_DEMO_PAGES)
+def test_generated_demo_matches_builder_output(relative_path: str, generate: Callable[[], str]):
+    _assert_demo_page_current(relative_path, generate())
