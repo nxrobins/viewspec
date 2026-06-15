@@ -67,4 +67,4 @@ Public pricing, version, hosted-call, API, package, and proof-scope facts live i
 
 ## Generated Demo Drift Gate
 
-Generated-demo tracked-diff checks cover deterministic public demos whose builders expose stable in-memory page generation. The pytest suite currently verifies `demos/aesthetic-profiles/index.html` and `demos/stateful-collections/index.html` against their builders without rewriting tracked files. Add more generated pages only after their scripts expose deterministic output that avoids timestamps, measured durations, and unstable ordering.
+Generated-demo tracked-diff checks cover deterministic public demos whose builders expose stable in-memory page generation. The pytest suite verifies the builder-backed `aesthetic-profiles`, `fifteen-lines`, `invariants`, `live-builder`, `motif-switcher`, `provenance-inspector`, `stateful-collections`, and `style-derivation` pages against their builders without rewriting tracked files. Add more generated pages only after their scripts expose deterministic output that avoids timestamps, measured durations, and unstable ordering.

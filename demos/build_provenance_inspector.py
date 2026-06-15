@@ -169,6 +169,19 @@ def build_page(fragment: str, data: dict[str, Any], bundle: IntentBundle) -> str
       white-space: pre-wrap;
     }}
 
+    #lock-state {{
+      display: inline-flex;
+      justify-content: center;
+      max-width: 4rem;
+      overflow: hidden;
+    }}
+
+    #lock-state canvas {{
+      display: block;
+      height: auto;
+      max-width: 100%;
+    }}
+
     @media (min-width: 1024px) {{
       .content-shell {{
         padding-right: 25rem;
