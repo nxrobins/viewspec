@@ -65,6 +65,6 @@ Aesthetic Profiles V1 preserves the same free-SDK boundary: one view-level token
 
 Public pricing, version, hosted-call, API, package, and proof-scope facts live in `demos/public-facts.json`; the static smoke test fails with `PUBLIC_FACTS_DRIFT` if README, landing, LLM, OpenAPI, or version metadata disagree with it.
 
-## Deferred Gate
+## Generated Demo Drift Gate
 
-Generated-demo tracked-diff checks are intentionally not part of CI yet. They should only be added after demo build scripts expose a deterministic mode that strips timestamps, durations, and unstable ordering.
+Generated-demo tracked-diff checks cover deterministic public demos whose builders expose stable in-memory page generation. The pytest suite currently verifies `demos/aesthetic-profiles/index.html` and `demos/stateful-collections/index.html` against their builders without rewriting tracked files. Add more generated pages only after their scripts expose deterministic output that avoids timestamps, measured durations, and unstable ordering.
