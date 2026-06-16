@@ -12,6 +12,7 @@ from viewspec.aesthetics import (
     AESTHETIC_PROFILE_LAYOUT_ROLES,
     AESTHETIC_PROFILE_TOKENS,
     is_aesthetic_profile_token,
+    profile_style_facts,
 )
 from viewspec.compiler import (
     COLLECTION_ACTION_KINDS,
@@ -97,6 +98,7 @@ AGENT_AESTHETIC_PROFILE_CONTRACT = {
         profile: {role: dict(props) for role, props in role_props.items()}
         for profile, role_props in AESTHETIC_PROFILE_LAYOUT_PROPS.items()
     },
+    "style_facts": {profile: profile_style_facts(profile) for profile in AESTHETIC_PROFILE_TOKENS},
     "non_claims": [
         "not_css",
         "not_pixel_perfect_visual_proof",

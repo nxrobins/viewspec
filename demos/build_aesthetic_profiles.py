@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Any
 
 from seo_metadata import demo_head_metadata
-from viewspec import AESTHETIC_PROFILE_TOKENS, IntentBundle, ViewSpecBuilder, compile
+from viewspec import AESTHETIC_PROFILE_TOKENS, IntentBundle, ViewSpecBuilder, compile, profile_style_facts
 from viewspec.emitters.html_tailwind import OFFLINE_EMITTER_CSS, _render_node
 from viewspec.types import ASTBundle, DEFAULT_STYLE_TOKEN_VALUES
 
@@ -156,6 +156,14 @@ def layout_signature(layout: dict[str, dict[str, Any]]) -> str:
     return " / ".join(parts)
 
 
+def style_signature(style_facts: dict[str, Any]) -> str:
+    return (
+        f"{style_facts['changed_token_count']} changed tokens / "
+        f"{style_facts['category_count']} categories / "
+        f"{style_facts['declaration_count']} declarations"
+    )
+
+
 def compile_profiles() -> dict[str, dict[str, Any]]:
     profiles: dict[str, dict[str, Any]] = {}
     expected_hash: str | None = None
@@ -175,6 +183,7 @@ def compile_profiles() -> dict[str, dict[str, Any]]:
         elif digest != expected_hash or ids != expected_ids:
             raise RuntimeError("Aesthetic profiles changed semantic ids; expected one stable IntentBundle shape.")
         layout = layout_proof(manifest, profile)
+        style_facts = profile_style_facts(profile)
         profiles[profile] = {
             "fragment": fragment,
             "manifest": manifest,
@@ -184,6 +193,8 @@ def compile_profiles() -> dict[str, dict[str, Any]]:
             "semanticHash": digest,
             "nodeCount": len(ids),
             "styleTokenCount": len(bundle.view_spec.styles),
+            "styleProof": style_facts,
+            "styleSignature": style_signature(style_facts),
             "profileLabel": PROFILE_LABELS[profile],
             "profileNote": PROFILE_NOTES[profile],
         }
@@ -224,6 +235,8 @@ def build_page(profiles: dict[str, dict[str, Any]]) -> str:
             "semanticHash": data["semanticHash"],
             "nodeCount": data["nodeCount"],
             "styleTokenCount": data["styleTokenCount"],
+            "styleProof": data["styleProof"],
+            "styleSignature": data["styleSignature"],
             "layoutProof": data["layoutProof"],
             "layoutSignature": data["layoutSignature"],
         }
@@ -695,6 +708,7 @@ def build_page(profiles: dict[str, dict[str, Any]]) -> str:
             <div><dt>Semantic hash</dt><dd id="active-semantic-hash">{html.escape(first_data["semanticHash"][:16])}</dd></div>
             <div><dt>IR nodes</dt><dd id="active-node-count">{first_data["nodeCount"]}</dd></div>
             <div><dt>Style refs</dt><dd id="active-style-count">{first_data["styleTokenCount"]}</dd></div>
+            <div><dt>Style delta</dt><dd id="active-style-signature">{html.escape(first_data["styleSignature"])}</dd></div>
             <div><dt>Layout</dt><dd id="active-layout-signature">{html.escape(first_data["layoutSignature"])}</dd></div>
           </dl>
         </div>
@@ -723,6 +737,7 @@ def build_page(profiles: dict[str, dict[str, Any]]) -> str:
     const activeHash = document.getElementById('active-semantic-hash');
     const activeNodeCount = document.getElementById('active-node-count');
     const activeStyleCount = document.getElementById('active-style-count');
+    const activeStyleSignature = document.getElementById('active-style-signature');
     const activeLayoutSignature = document.getElementById('active-layout-signature');
 
     function activateProfile(token) {{
@@ -740,6 +755,7 @@ def build_page(profiles: dict[str, dict[str, Any]]) -> str:
       activeHash.textContent = proof.semanticHash.slice(0, 16);
       activeNodeCount.textContent = String(proof.nodeCount);
       activeStyleCount.textContent = String(proof.styleTokenCount);
+      activeStyleSignature.textContent = proof.styleSignature;
       activeLayoutSignature.textContent = proof.layoutSignature;
     }}
 

@@ -14,6 +14,7 @@ from viewspec.aesthetics import (
     MIN_AESTHETIC_PROFILE_CATEGORIES,
     MIN_AESTHETIC_PROFILE_STYLE_CHANGES,
     profile_layout_props,
+    profile_style_facts,
     profile_style_values,
 )
 from viewspec.compiler import PRODUCT_SURFACE_PLANNER_V1_SURFACE, SUPPORTED_ACTION_KINDS
@@ -498,6 +499,21 @@ def test_aesthetic_profiles_change_minimum_checked_style_projection():
 
         assert len(changed) >= MIN_AESTHETIC_PROFILE_STYLE_CHANGES
         assert len(categories) >= MIN_AESTHETIC_PROFILE_CATEGORIES
+
+
+def test_aesthetic_profile_style_facts_are_bounded_non_css_metadata():
+    for profile in AESTHETIC_PROFILE_TOKENS:
+        facts = profile_style_facts(profile)
+
+        assert facts["changed_token_count"] >= MIN_AESTHETIC_PROFILE_STYLE_CHANGES
+        assert facts["category_count"] >= MIN_AESTHETIC_PROFILE_CATEGORIES
+        assert len(facts["changed_tokens"]) == facts["changed_token_count"]
+        assert len(facts["categories"]) == facts["category_count"]
+        assert facts["changed_tokens"] == sorted(facts["changed_tokens"])
+        assert facts["categories"] == sorted(facts["categories"])
+        assert facts["declaration_count"] >= facts["changed_token_count"]
+        assert not any(":" in token or ";" in token for token in facts["changed_tokens"])
+        assert not any(":" in category or ";" in category for category in facts["categories"])
 
 
 def test_aesthetic_profiles_are_pairwise_distinct_style_projections():

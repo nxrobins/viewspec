@@ -206,7 +206,9 @@ for (const expected of [
   'data-aesthetic-profile',
   'aesthetic-profile-proof',
   'active-layout-signature',
+  'active-style-signature',
   'bounded grid metadata',
+  'changed tokens',
 ]) {
   assertPublicText(aestheticProfilesPage, expected, 'aesthetic profiles demo')
 }
@@ -224,6 +226,30 @@ const expectedAestheticLayout = {
   'aesthetic.executive_review': [2, 2, 2],
 }
 for (const [token, [workspaceColumns, metricColumns, metricSpan]] of Object.entries(expectedAestheticLayout)) {
+  assert.equal(
+    aestheticProof[token].styleSignature,
+    `${aestheticProof[token].styleProof.changed_token_count} changed tokens / ${aestheticProof[token].styleProof.category_count} categories / ${aestheticProof[token].styleProof.declaration_count} declarations`,
+    `${token} style signature`
+  )
+  assert(aestheticProof[token].styleProof.changed_token_count >= 6, `${token} changed style token count`)
+  assert(aestheticProof[token].styleProof.category_count >= 3, `${token} style category count`)
+  assert(
+    aestheticProof[token].styleProof.declaration_count >= aestheticProof[token].styleProof.changed_token_count,
+    `${token} style declaration count`
+  )
+  assert.equal(
+    aestheticProof[token].styleProof.changed_tokens.length,
+    aestheticProof[token].styleProof.changed_token_count,
+    `${token} changed token list length`
+  )
+  assert.equal(
+    aestheticProof[token].styleProof.categories.length,
+    aestheticProof[token].styleProof.category_count,
+    `${token} category list length`
+  )
+  for (const tokenName of aestheticProof[token].styleProof.changed_tokens) {
+    assert.doesNotMatch(tokenName, /[:;]/, `${token} style proof should expose token names, not CSS`)
+  }
   assert.equal(aestheticProof[token].layoutProof.content_grid.columns, workspaceColumns, `${token} workspace columns`)
   assert.equal(aestheticProof[token].layoutProof.metric_grid.columns, metricColumns, `${token} metric columns`)
   assert.equal(aestheticProof[token].layoutProof.content_grid.profile, token, `${token} content grid profile marker`)

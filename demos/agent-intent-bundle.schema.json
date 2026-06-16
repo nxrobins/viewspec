@@ -590,6 +590,158 @@
       "not_pixel_perfect_visual_proof",
       "not_design_certification"
     ],
+    "style_facts": {
+      "aesthetic.calm_ops": {
+        "categories": [
+          "action",
+          "density",
+          "emphasis",
+          "narrative",
+          "palette",
+          "rhythm",
+          "surface",
+          "tone"
+        ],
+        "category_count": 8,
+        "changed_token_count": 13,
+        "changed_tokens": [
+          "action.accent",
+          "density.airy",
+          "density.compact",
+          "density.regular",
+          "emphasis.high",
+          "narrative.flow",
+          "palette.temperature",
+          "rhythm.hierarchy",
+          "surface.strong",
+          "surface.subtle",
+          "tone.accent",
+          "tone.muted",
+          "tone.neutral"
+        ],
+        "declaration_count": 28
+      },
+      "aesthetic.data_dense": {
+        "categories": [
+          "action",
+          "density",
+          "emphasis",
+          "narrative",
+          "palette",
+          "rhythm",
+          "surface",
+          "tone"
+        ],
+        "category_count": 8,
+        "changed_token_count": 13,
+        "changed_tokens": [
+          "action.accent",
+          "density.airy",
+          "density.compact",
+          "density.regular",
+          "emphasis.high",
+          "narrative.flow",
+          "palette.temperature",
+          "rhythm.hierarchy",
+          "surface.strong",
+          "surface.subtle",
+          "tone.accent",
+          "tone.muted",
+          "tone.neutral"
+        ],
+        "declaration_count": 28
+      },
+      "aesthetic.editorial_product": {
+        "categories": [
+          "action",
+          "density",
+          "emphasis",
+          "narrative",
+          "palette",
+          "rhythm",
+          "surface",
+          "tone"
+        ],
+        "category_count": 8,
+        "changed_token_count": 13,
+        "changed_tokens": [
+          "action.accent",
+          "density.airy",
+          "density.compact",
+          "density.regular",
+          "emphasis.high",
+          "narrative.flow",
+          "palette.temperature",
+          "rhythm.hierarchy",
+          "surface.strong",
+          "surface.subtle",
+          "tone.accent",
+          "tone.muted",
+          "tone.neutral"
+        ],
+        "declaration_count": 29
+      },
+      "aesthetic.executive_review": {
+        "categories": [
+          "action",
+          "density",
+          "emphasis",
+          "narrative",
+          "palette",
+          "rhythm",
+          "surface",
+          "tone"
+        ],
+        "category_count": 8,
+        "changed_token_count": 13,
+        "changed_tokens": [
+          "action.accent",
+          "density.airy",
+          "density.compact",
+          "density.regular",
+          "emphasis.high",
+          "narrative.flow",
+          "palette.temperature",
+          "rhythm.hierarchy",
+          "surface.strong",
+          "surface.subtle",
+          "tone.accent",
+          "tone.muted",
+          "tone.neutral"
+        ],
+        "declaration_count": 30
+      },
+      "aesthetic.premium_saas": {
+        "categories": [
+          "action",
+          "density",
+          "emphasis",
+          "narrative",
+          "palette",
+          "rhythm",
+          "surface",
+          "tone"
+        ],
+        "category_count": 8,
+        "changed_token_count": 13,
+        "changed_tokens": [
+          "action.accent",
+          "density.airy",
+          "density.compact",
+          "density.regular",
+          "emphasis.high",
+          "narrative.flow",
+          "palette.temperature",
+          "rhythm.hierarchy",
+          "surface.strong",
+          "surface.subtle",
+          "tone.accent",
+          "tone.muted",
+          "tone.neutral"
+        ],
+        "declaration_count": 29
+      }
+    },
     "style_token_prefix": "aesthetic.",
     "target": "view:{view_spec.id}",
     "tokens": [

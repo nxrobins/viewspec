@@ -64,7 +64,7 @@ from viewspec.raw_html import (
     diff_html,
     lift_html,
 )
-from viewspec.aesthetics import AESTHETIC_PROFILE_TOKENS
+from viewspec.aesthetics import AESTHETIC_PROFILE_TOKENS, profile_style_facts
 from viewspec.agent import (
     AGENT_INTENT_BUNDLE_SCHEMA,
     AGENT_SYSTEM_PROMPT,
@@ -172,6 +172,7 @@ __all__ = [
     "lift_html",
     # Aesthetic profiles
     "AESTHETIC_PROFILE_TOKENS",
+    "profile_style_facts",
     # Agent integration
     "AGENT_INTENT_BUNDLE_SCHEMA",
     "AGENT_SYSTEM_PROMPT",
