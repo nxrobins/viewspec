@@ -67,6 +67,7 @@ def test_react_tailwind_host_fixture_uses_span_aware_layout_language():
 def test_top_level_package_exports_summary_helpers():
     for name in (
         "manifest_aesthetic_layout_summary",
+        "manifest_aesthetic_style_summary",
         "manifest_root_aesthetic_profile",
         "profile_style_facts",
         "summarize_host_verification_report",

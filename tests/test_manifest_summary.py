@@ -1,6 +1,10 @@
 from __future__ import annotations
 
-from viewspec.manifest_summary import manifest_aesthetic_layout_summary, manifest_root_aesthetic_profile
+from viewspec.manifest_summary import (
+    manifest_aesthetic_layout_summary,
+    manifest_aesthetic_style_summary,
+    manifest_root_aesthetic_profile,
+)
 
 
 def test_manifest_summary_helpers_ignore_boolean_layout_columns():
@@ -52,3 +56,16 @@ def test_manifest_summary_helpers_include_metric_card_spans():
             "span_columns": 2,
         }
     }
+
+
+def test_manifest_summary_style_facts_are_bounded_non_css_metadata():
+    style = manifest_aesthetic_style_summary("aesthetic.executive_review")
+
+    assert style["available"] is True
+    assert style["profile"] == "aesthetic.executive_review"
+    assert style["changed_token_count"] >= 6
+    assert style["category_count"] >= 3
+    assert style["declaration_count"] >= style["changed_token_count"]
+    assert len(style["categories"]) == style["category_count"]
+    assert not any(":" in category or ";" in category for category in style["categories"])
+    assert "changed_tokens" not in style

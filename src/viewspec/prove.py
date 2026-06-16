@@ -656,12 +656,23 @@ def _support_manifest_summary(summary: object) -> dict[str, Any] | None:
     if not isinstance(summary, dict):
         return None
     layout = summary.get("aesthetic_layout") if isinstance(summary.get("aesthetic_layout"), dict) else {}
+    style = summary.get("aesthetic_style") if isinstance(summary.get("aesthetic_style"), dict) else {}
     return {
         "available": bool(summary.get("available")),
         "kind": _support_scalar(summary.get("kind")),
         "emitter": _support_scalar(summary.get("emitter")),
         "node_count": int(summary.get("node_count")) if isinstance(summary.get("node_count"), int) else 0,
         "aesthetic_profile": _support_scalar(summary.get("aesthetic_profile")),
+        "aesthetic_style": {
+            "available": bool(style.get("available")),
+            "profile": _support_scalar(style.get("profile")),
+            "changed_token_count": int(style.get("changed_token_count")) if isinstance(style.get("changed_token_count"), int) else 0,
+            "category_count": int(style.get("category_count")) if isinstance(style.get("category_count"), int) else 0,
+            "declaration_count": int(style.get("declaration_count")) if isinstance(style.get("declaration_count"), int) else 0,
+            "categories": [str(item)[:80] for item in style.get("categories", []) if isinstance(item, str)],
+        }
+        if style
+        else {},
         "aesthetic_layout": {
             str(role): {
                 "profile": _support_scalar(item.get("profile")),
@@ -814,6 +825,20 @@ def _proof_manifest_summary_lines(summary: object) -> list[str]:
         ]
     )
     layout = summary.get("aesthetic_layout")
+    style = summary.get("aesthetic_style")
+    if isinstance(style, dict) and style:
+        if style.get("available") is False:
+            lines.append(
+                f"- Aesthetic style delta: profile `{_summary_value(style.get('profile'))}`, "
+                f"unavailable `{_summary_value(style.get('reason'))}`"
+            )
+        else:
+            lines.append(
+                f"- Aesthetic style delta: profile `{_summary_value(style.get('profile'))}`, "
+                f"changed_tokens `{_summary_value(style.get('changed_token_count'))}`, "
+                f"categories `{_summary_value(style.get('category_count'))}`, "
+                f"declarations `{_summary_value(style.get('declaration_count'))}`"
+            )
     if isinstance(layout, dict) and layout:
         for role in sorted(layout):
             item = layout.get(role)

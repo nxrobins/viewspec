@@ -6,6 +6,8 @@ import json
 from pathlib import Path
 from typing import Any
 
+from viewspec.aesthetics import AestheticProfileError, profile_style_facts
+
 
 def summarize_intent_manifest(manifest_path: Path) -> dict[str, Any]:
     if not manifest_path.exists():
@@ -19,13 +21,15 @@ def summarize_intent_manifest(manifest_path: Path) -> dict[str, Any]:
     nodes = manifest.get("nodes")
     if not isinstance(nodes, dict):
         return {"available": False, "reason": "missing_nodes"}
+    profile = manifest_root_aesthetic_profile(nodes)
     return {
         "available": True,
         "kind": manifest.get("kind"),
         "emitter": manifest.get("emitter"),
         "artifact_file": manifest.get("artifact_file"),
         "node_count": len(nodes),
-        "aesthetic_profile": manifest_root_aesthetic_profile(nodes),
+        "aesthetic_profile": profile,
+        "aesthetic_style": manifest_aesthetic_style_summary(profile),
         "aesthetic_layout": manifest_aesthetic_layout_summary(nodes),
     }
 
@@ -69,6 +73,24 @@ def manifest_aesthetic_layout_summary(nodes: dict[str, Any]) -> dict[str, dict[s
     return {role: _compact_layout_item(role, layout[role]) for role in sorted(layout)}
 
 
+def manifest_aesthetic_style_summary(profile: str | None) -> dict[str, Any]:
+    if not profile:
+        return {}
+    try:
+        facts = profile_style_facts(profile)
+    except AestheticProfileError:
+        return {"available": False, "profile": profile, "reason": "unknown_profile"}
+    categories = facts.get("categories")
+    return {
+        "available": True,
+        "profile": profile,
+        "changed_token_count": facts.get("changed_token_count"),
+        "category_count": facts.get("category_count"),
+        "declaration_count": facts.get("declaration_count"),
+        "categories": list(categories) if isinstance(categories, list) else [],
+    }
+
+
 def _manifest_int(value: object) -> int | None:
     return value if isinstance(value, int) and not isinstance(value, bool) else None
 
@@ -84,6 +106,7 @@ def _compact_layout_item(role: str, item: dict[str, Any]) -> dict[str, Any]:
 
 __all__ = [
     "manifest_aesthetic_layout_summary",
+    "manifest_aesthetic_style_summary",
     "manifest_root_aesthetic_profile",
     "summarize_intent_manifest",
 ]

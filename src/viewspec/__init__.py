@@ -103,6 +103,7 @@ from viewspec.intent_tools import (
 )
 from viewspec.manifest_summary import (
     manifest_aesthetic_layout_summary,
+    manifest_aesthetic_style_summary,
     manifest_root_aesthetic_profile,
     summarize_intent_manifest,
 )
@@ -205,6 +206,7 @@ __all__ = [
     "validate_intent_file",
     "validate_intent_text",
     "manifest_aesthetic_layout_summary",
+    "manifest_aesthetic_style_summary",
     "manifest_root_aesthetic_profile",
     "summarize_intent_manifest",
     "summarize_host_verification_report",

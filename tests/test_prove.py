@@ -1,6 +1,7 @@
 import json
 import importlib
 
+from viewspec import profile_style_facts
 from viewspec.cli import main as cli_main
 from viewspec.intent_tools import init_intent_file
 from viewspec.local_tools import check_artifact_dir, file_hash
@@ -89,6 +90,7 @@ def test_prove_default_writes_checked_source_report(tmp_path):
 
 
 def test_prove_reports_aesthetic_profile_layout_summary(tmp_path):
+    style_facts = profile_style_facts("aesthetic.data_dense")
     intent = tmp_path / "profile.intent.json"
     intent.write_text(json.dumps(_profile_workspace_bundle("aesthetic.data_dense").to_json(), indent=2), encoding="utf-8")
     out_dir = tmp_path / "profile-proof"
@@ -98,6 +100,10 @@ def test_prove_reports_aesthetic_profile_layout_summary(tmp_path):
     assert report["ok"] is True
     summary = report["manifest_summary"]
     assert summary["aesthetic_profile"] == "aesthetic.data_dense"
+    assert summary["aesthetic_style"]["changed_token_count"] == style_facts["changed_token_count"]
+    assert summary["aesthetic_style"]["category_count"] == style_facts["category_count"]
+    assert summary["aesthetic_style"]["declaration_count"] == style_facts["declaration_count"]
+    assert "changed_tokens" not in summary["aesthetic_style"]
     assert summary["aesthetic_layout"]["content_grid"] == {
         "profile": "aesthetic.data_dense",
         "columns": 3,
@@ -110,8 +116,15 @@ def test_prove_reports_aesthetic_profile_layout_summary(tmp_path):
     }
     proof_text = out_dir.joinpath("PROOF.md").read_text(encoding="utf-8")
     assert "Aesthetic profile: `aesthetic.data_dense`" in proof_text
+    assert (
+        "Aesthetic style delta: profile `aesthetic.data_dense`, "
+        f"changed_tokens `{style_facts['changed_token_count']}`, "
+        f"categories `{style_facts['category_count']}`, "
+        f"declarations `{style_facts['declaration_count']}`"
+    ) in proof_text
     assert "Aesthetic layout `content_grid`: profile `aesthetic.data_dense`, columns `3`, nodes `1`" in proof_text
     support = json.loads(out_dir.joinpath("support_bundle.json").read_text(encoding="utf-8"))
+    assert support["manifest_summary"]["aesthetic_style"]["category_count"] == style_facts["category_count"]
     assert support["manifest_summary"]["aesthetic_layout"]["metric_grid"]["columns"] == 3
 
 
