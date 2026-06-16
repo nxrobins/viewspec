@@ -28,7 +28,7 @@
     "support_bundle_file": ".viewspec-proof/support_bundle.json",
     "default_proof_level": "source_artifact",
     "react_tailwind_proof_level": "react_tailwind_reference_host",
-    "scope": "ViewSpec prove validates intent, compiles through the public local path, checks the artifact manifest and hashes, writes PROOF.md for humans, proof_report.json for tools, redacted support_bundle.json for local support triage, and can optionally run the bounded React Tailwind reference host proof.",
+    "scope": "ViewSpec prove validates intent, compiles through the public local path, checks the artifact manifest and hashes, records compact style-delta counts when profiles are present, writes PROOF.md for humans, proof_report.json for tools, redacted support_bundle.json for local support triage, and can optionally run the bounded React Tailwind reference host proof.",
     "non_claim": "ViewSpec prove is not pixel-perfect visual regression, accessibility certification, arbitrary host-app certification, or hosted compiler publish automation."
   },
   "aesthetic_profiles": {
@@ -39,7 +39,7 @@
       "aesthetic.editorial_product",
       "aesthetic.executive_review"
     ],
-    "scope": "Aesthetic Profiles V1 are deterministic view-level art-direction handles that expand into governed style projections, bounded layout metadata, and closed React Tailwind recipes.",
+    "scope": "Aesthetic Profiles V1 are deterministic view-level art-direction handles that expand into governed style projections, bounded layout metadata, compact style-delta counts in checked manifest summaries, and closed React Tailwind recipes.",
     "non_claim": "Aesthetic profiles are not arbitrary CSS, pixel-perfect visual proof, accessibility certification, arbitrary host-app compatibility, or design-review approval."
   }
 }

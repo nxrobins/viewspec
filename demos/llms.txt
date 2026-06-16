@@ -28,7 +28,7 @@ Raw HTML tools remain available only for importing existing HTML: `viewspec comp
 ## Current Product Facts
 
 - Free SDK: `pip install viewspec`
-- First proof: `viewspec prove --out .viewspec-proof` writes `.viewspec-proof/PROOF.md` for humans, `.viewspec-proof/proof_report.json` for tools, and `.viewspec-proof/support_bundle.json` for redacted local support triage; `docs/proof-bundle.md` and https://viewspec.dev/proof-bundle/ explain status, hashes, checks, failure codes, and support bundles.
+- First proof: `viewspec prove --out .viewspec-proof` writes `.viewspec-proof/PROOF.md` for humans, `.viewspec-proof/proof_report.json` for tools, and `.viewspec-proof/support_bundle.json` for redacted local support triage; checked manifest summaries include compact style-delta counts when aesthetic profiles are present; `docs/proof-bundle.md` and https://viewspec.dev/proof-bundle/ explain status, hashes, checks, failure codes, and support bundles.
 - Runtime LLM calls: zero in local validate/compile/lift/diff/check and zero in the live compiler path.
 - Agents should emit `viewspec.intent.json` for new UI, optionally scaffold with `viewspec init-intent`, then run `viewspec validate-intent`, `viewspec diff-intent` for revisions, `viewspec compile`, and `viewspec check`.
 - Use `viewspec init-design --out DESIGN.md` when the repo does not already have a design file.
@@ -57,7 +57,7 @@ Raw HTML tools remain available only for importing existing HTML: `viewspec comp
 - V1 public SDK style targets must be explicit refs or unambiguous bare ids.
 - V1 public SDK complexity_tier starts at 1, region child bounds are non-negative, and max_children is null or at least min_children.
 - V1 public SDK agent style tokens must come from agent-intent-bundle.schema.json, not arbitrary CSS.
-- V1 aesthetic profile tokens are deterministic art-direction handles, not CSS: aesthetic.calm_ops, aesthetic.premium_saas, aesthetic.data_dense, aesthetic.editorial_product, and aesthetic.executive_review. At most one may target view:{view_spec.id}; profiles may derive governed style projection and bounded layout metadata, and are not pixel-perfect visual proof, accessibility certification, arbitrary host-app compatibility, or design-review approval.
+- V1 aesthetic profile tokens are deterministic art-direction handles, not CSS: aesthetic.calm_ops, aesthetic.premium_saas, aesthetic.data_dense, aesthetic.editorial_product, and aesthetic.executive_review. At most one may target view:{view_spec.id}; profiles may derive governed style projection, bounded layout metadata, and compact style-delta counts in checked manifest summaries, and are not pixel-perfect visual proof, accessibility certification, arbitrary host-app compatibility, or design-review approval.
 - The local schema and validate-intent reject hosted-only fields: root design, root motif_library, view_spec.inputs, view_spec.projections, and view_spec.rules.
 - Unknown local V1 extension fields fail with UNKNOWN_FIELD instead of being ignored.
 - Hosted launch emitters: HTML/Tailwind, React TSX, SwiftUI, Flutter.

@@ -54,7 +54,7 @@
           "downloadUrl": "https://pypi.org/project/viewspec/",
           "codeRepository": "https://github.com/nxrobins/viewspec",
           "programmingLanguage": ["Python", "JSON", "Protocol Buffers"],
-          "description": "ViewSpec validates agent-authored IntentBundle JSON, proves first artifacts with viewspec prove, writes PROOF.md, proof_report.json, and support_bundle.json, applies DESIGN.md, writes provenance, and compiles deterministic UI outputs before hosted cross-platform emission.",
+          "description": "ViewSpec validates agent-authored IntentBundle JSON, proves first artifacts with viewspec prove, writes PROOF.md, proof_report.json, and support_bundle.json, records compact style-delta counts for profiled artifacts, applies DESIGN.md, writes provenance, and compiles deterministic UI outputs before hosted cross-platform emission.",
           "keywords": "agent-native UI compiler, IntentBundle, semantic UI compiler, agentic engineering, AI coding agents, deterministic HTML, semantic diff, provenance",
           "featureList": [
             "Local viewspec init-intent and validate-intent for agent-authored IntentBundles",
@@ -2031,7 +2031,7 @@
     <section class="page-shell hero" id="top">
       <div class="hero-copy">
         <h1>Stop asking agents to write DOM.</h1>
-        <p class="hero-body">Agents emit <code>IntentBundle</code> JSON. Start with <code>viewspec prove --out .viewspec-proof</code> and read <code>.viewspec-proof/PROOF.md</code>; keep <code>.viewspec-proof/support_bundle.json</code> for redacted failure triage. Or scaffold with <code>viewspec init-intent</code> when useful, then run <code>viewspec validate-intent</code>, <code>viewspec compile</code>, and <code>viewspec check</code> locally so ViewSpec owns renderer output, DESIGN.md theming, and deterministic provenance before hosted API work enters the picture.</p>
+        <p class="hero-body">Agents emit <code>IntentBundle</code> JSON. Start with <code>viewspec prove --out .viewspec-proof</code> and read <code>.viewspec-proof/PROOF.md</code>; keep <code>.viewspec-proof/support_bundle.json</code> for redacted failure triage. Or scaffold with <code>viewspec init-intent</code> when useful, then run <code>viewspec validate-intent</code>, <code>viewspec compile</code>, and <code>viewspec check</code> locally so ViewSpec owns renderer output, DESIGN.md theming, compact style-delta counts for profiled artifacts, and deterministic provenance before hosted API work enters the picture.</p>
         <div class="hero-actions">
           <a class="button-primary" href="#proof">See the proof</a>
           <button type="button" class="pip-pill" data-copy-text="pip install viewspec" aria-label="Copy pip install viewspec command">pip install viewspec</button>
@@ -2212,7 +2212,7 @@
               <text x="355" y="180" class="workflow-text-loop" text-anchor="middle">Diagnostics &rarr; regenerate IntentBundle or edit DESIGN.md &rarr; recompile locally</text>
             </g>
           </svg>
-          <p class="workflow-copy"><strong>Start with the agent-native contract: run <code>viewspec prove --out .viewspec-proof</code>, read <code>.viewspec-proof/PROOF.md</code>, keep <code>.viewspec-proof/support_bundle.json</code> for redacted failure triage, then run <code>viewspec validate-intent</code>, <code>viewspec compile</code>, and <code>viewspec check</code>. Raw HTML tools stay available for importing existing HTML.</strong></p>
+          <p class="workflow-copy"><strong>Start with the agent-native contract: run <code>viewspec prove --out .viewspec-proof</code>, read <code>.viewspec-proof/PROOF.md</code>, keep <code>.viewspec-proof/support_bundle.json</code> for redacted failure triage, then run <code>viewspec validate-intent</code>, <code>viewspec compile</code>, and <code>viewspec check</code> for manifest-backed provenance, layout facts, and compact style-delta counts. Raw HTML tools stay available for importing existing HTML.</strong></p>
           <p class="workflow-copy">ViewSpec prove is not pixel-perfect visual regression, accessibility certification, arbitrary host-app certification, or hosted compiler publish automation.</p>
           <p class="workflow-links">
             <a href="https://github.com/nxrobins/viewspec/blob/main/docs/agent-integration.md">IntentBundle workflow</a>

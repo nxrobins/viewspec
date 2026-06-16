@@ -4,12 +4,12 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>ViewSpec Demo - Proof Bundle Guide</title>
-  <meta name="description" content="Read a ViewSpec first proof bundle, understand PROOF.md, proof_report.json, and redacted support_bundle.json, and keep proof claims bounded.">
+  <meta name="description" content="Read a ViewSpec first proof bundle, understand PROOF.md, proof_report.json, compact style-delta manifest facts, and redacted support_bundle.json.">
   <meta name="robots" content="index,follow,max-snippet:-1,max-image-preview:large">
   <link rel="canonical" href="https://viewspec.dev/proof-bundle/">
   <link rel="alternate" type="text/markdown" title="ViewSpec for LLMs" href="https://viewspec.dev/llms.txt">
   <link rel="service" type="application/json" title="ViewSpec OpenAPI" href="https://viewspec.dev/openapi.json">
-  <script type="application/ld+json">{"@context":"https://schema.org","@type":"WebPage","description":"Read a ViewSpec first proof bundle, understand PROOF.md, proof_report.json, and redacted support_bundle.json, and keep proof claims bounded.","name":"ViewSpec Demo - Proof Bundle Guide","url":"https://viewspec.dev/proof-bundle/"}</script>
+  <script type="application/ld+json">{"@context":"https://schema.org","@type":"WebPage","description":"Read a ViewSpec first proof bundle, understand PROOF.md, proof_report.json, compact style-delta manifest facts, and redacted support_bundle.json.","name":"ViewSpec Demo - Proof Bundle Guide","url":"https://viewspec.dev/proof-bundle/"}</script>
   <link rel="icon" href="data:,">
   <link rel="stylesheet" href="../shared/launch-pages.css">
   <style>
@@ -117,6 +117,10 @@ Hashes
 - Artifact SHA-256: 64 hex chars
 - Manifest SHA-256: 64 hex chars
 
+Manifest Summary
+- Emitter: html_tailwind
+- Aesthetic style delta: changed_tokens 13, categories 8, declarations 28
+
 Checks
 - compile: passed
 - artifact_check: passed
@@ -143,7 +147,12 @@ Checks
           <p>Artifact, manifest, diagnostics, and report hashes let a reviewer detect stale files or unreviewed generated output.</p>
         </article>
         <article class="flow-step">
-          <span>4. Errors</span>
+          <span>4. Summary</span>
+          <h3>Read compact manifest facts.</h3>
+          <p>The manifest summary records emitter, node count, root aesthetic profile, compact style-delta counts, and checked layout columns/spans when present.</p>
+        </article>
+        <article class="flow-step">
+          <span>5. Errors</span>
           <h3>Fix the first code.</h3>
           <p>Use the validation <code>repair_checklist</code>, regenerate the full IntentBundle, and rerun <code>viewspec prove</code>. Share <code>support_bundle.json</code> before full local reports.</p>
         </article>
@@ -155,7 +164,7 @@ Checks
         <article>
           <p class="eyebrow">Human entrypoint</p>
           <h2><code>PROOF.md</code></h2>
-          <p>Use this file for review. It summarizes status, proof level, target, inputs, outputs, hashes, checks, host verification status, network policy, timings, and fixes.</p>
+          <p>Use this file for review. It summarizes status, proof level, target, inputs, outputs, hashes, manifest summary, compact style-delta counts, checks, host verification status, network policy, timings, and fixes.</p>
           <pre><code>cat .viewspec-proof/PROOF.md</code></pre>
         </article>
         <article>
