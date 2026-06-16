@@ -562,6 +562,7 @@ def test_intent_mcp_diff_reports_semantic_changes(tmp_path):
         "regions": [],
         "groups": [],
         "motifs": [],
+        "aesthetic_profiles": [],
         "styles": [],
         "actions": [],
         "bindings": [],

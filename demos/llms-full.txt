@@ -75,7 +75,7 @@ Agents should output IntentBundle JSON, not CompositionIR, HTML, CSS, React, Swi
 
 `viewspec prove` validates intent, compiles through the public local path, checks artifact manifest and hashes, records compact style-delta counts for profiled aesthetic artifacts, and writes `.viewspec-proof/PROOF.md`, `.viewspec-proof/proof_report.json`, and `.viewspec-proof/support_bundle.json`. For `react-tailwind-tsx`, it can also run the bounded React Tailwind reference host proof when `--install` is passed. ViewSpec prove is not pixel-perfect visual regression, accessibility certification, arbitrary host-app certification, or hosted compiler publish automation.
 
-Use `viewspec diff-intent` for IntentBundle revisions before reviewing generated files. It reports `diff_version: 1`, `basis: "intent_bundle_v1"`, topology similarity, top-level bundle metadata changes, section-level added/removed/changed ids, selected field changes, and `semantic_changes` for region, group, motif, style, binding, and action contract changes. It is a contract-level review signal, not a full visual equivalence proof.
+Use `viewspec diff-intent` for IntentBundle revisions before reviewing generated files. It reports `diff_version: 1`, `basis: "intent_bundle_v1"`, topology similarity, top-level bundle metadata changes, section-level added/removed/changed ids, selected field changes, and `semantic_changes` for region, group, motif, aesthetic profile, style, binding, and action contract changes. It is a contract-level review signal, not a full visual equivalence proof.
 
 `viewspec validate-intent` exits 0 for valid intent, 2 for user-correctable invalid intent, and 1 for environment/internal failure.
 

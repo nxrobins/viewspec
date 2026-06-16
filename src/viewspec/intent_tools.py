@@ -818,6 +818,7 @@ def _intent_semantic_changes(
         "regions": _semantic_region_changes(left_sections["regions"], right_sections["regions"]),
         "groups": _semantic_group_changes(left_sections["groups"], right_sections["groups"]),
         "motifs": _semantic_motif_changes(left_sections["motifs"], right_sections["motifs"]),
+        "aesthetic_profiles": _semantic_aesthetic_profile_changes(left_sections["styles"], right_sections["styles"]),
         "styles": _semantic_style_changes(left_sections["styles"], right_sections["styles"]),
         "actions": _semantic_action_changes(left_sections["actions"], right_sections["actions"]),
         "bindings": _semantic_binding_changes(left_sections["bindings"], right_sections["bindings"]),
@@ -994,6 +995,60 @@ def _semantic_style_changes(left: dict[str, Any], right: dict[str, Any]) -> list
     return changes
 
 
+def _semantic_aesthetic_profile_changes(left: dict[str, Any], right: dict[str, Any]) -> list[dict[str, Any]]:
+    left_profile = _aesthetic_profile_style(left)
+    right_profile = _aesthetic_profile_style(right)
+    if left_profile is None and right_profile is None:
+        return []
+    if left_profile == right_profile:
+        return []
+    if left_profile is None and right_profile is not None:
+        return [
+            {
+                "change": "added",
+                "profile": right_profile["token"],
+                "style_id": right_profile["id"],
+                "target": right_profile["target"],
+            }
+        ]
+    if left_profile is not None and right_profile is None:
+        return [
+            {
+                "change": "removed",
+                "profile": left_profile["token"],
+                "style_id": left_profile["id"],
+                "target": left_profile["target"],
+            }
+        ]
+    assert left_profile is not None and right_profile is not None
+    return [
+        {
+            "change": "profile_changed",
+            "left": left_profile["token"],
+            "right": right_profile["token"],
+            "left_style_id": left_profile["id"],
+            "right_style_id": right_profile["id"],
+            "left_target": left_profile["target"],
+            "right_target": right_profile["target"],
+        }
+    ]
+
+
+def _aesthetic_profile_style(styles: dict[str, Any]) -> dict[str, Any] | None:
+    for style_id in sorted(styles):
+        item = styles[style_id]
+        if not isinstance(item, dict):
+            continue
+        token = item.get("token")
+        if isinstance(token, str) and token.startswith("aesthetic."):
+            return {
+                "id": style_id,
+                "target": item.get("target"),
+                "token": token,
+            }
+    return None
+
+
 def _semantic_action_changes(left: dict[str, Any], right: dict[str, Any]) -> list[dict[str, Any]]:
     changes: list[dict[str, Any]] = []
     for action_id in sorted(set(right) - set(left)):
@@ -1120,7 +1175,7 @@ def _empty_intent_changes() -> dict[str, dict[str, list[str]]]:
 
 
 def _empty_intent_semantic_changes() -> dict[str, list[dict[str, Any]]]:
-    return {"regions": [], "groups": [], "motifs": [], "styles": [], "actions": [], "bindings": []}
+    return {"regions": [], "groups": [], "motifs": [], "aesthetic_profiles": [], "styles": [], "actions": [], "bindings": []}
 
 
 def _intent_section_names() -> tuple[str, ...]:
