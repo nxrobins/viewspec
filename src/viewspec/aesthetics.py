@@ -179,6 +179,24 @@ def profile_layout_props(profile: str) -> dict[str, dict[str, int]]:
     return {role: dict(props) for role, props in values.items()}
 
 
+def profile_style_facts(profile: str) -> dict[str, object]:
+    values = profile_style_values(profile)
+    changed_tokens = sorted(
+        token
+        for token, css in values.items()
+        if DEFAULT_STYLE_TOKEN_VALUES.get(token, "").strip() != css.strip()
+    )
+    categories = sorted({token.split(".", 1)[0] for token in changed_tokens if "." in token})
+    changed_values = {token: values[token] for token in changed_tokens}
+    return {
+        "changed_token_count": len(changed_tokens),
+        "changed_tokens": changed_tokens,
+        "category_count": len(categories),
+        "categories": categories,
+        "declaration_count": len(_css_declarations(changed_values)),
+    }
+
+
 def validate_aesthetic_profile_registry() -> None:
     for profile in AESTHETIC_PROFILE_TOKENS:
         values = AESTHETIC_PROFILE_STYLE_VALUES.get(profile)
@@ -279,6 +297,7 @@ __all__ = [
     "AestheticProfileError",
     "is_aesthetic_profile_token",
     "profile_layout_props",
+    "profile_style_facts",
     "profile_style_values",
     "validate_aesthetic_profile_registry",
 ]

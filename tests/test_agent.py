@@ -32,7 +32,7 @@ from viewspec.agent import (
     MAX_AGENT_NODES,
     MAX_AGENT_RELATION_VALUES,
 )
-from viewspec.aesthetics import AESTHETIC_PROFILE_LAYOUT_PROPS, AESTHETIC_PROFILE_LAYOUT_ROLES
+from viewspec.aesthetics import AESTHETIC_PROFILE_LAYOUT_PROPS, AESTHETIC_PROFILE_LAYOUT_ROLES, profile_style_facts
 from viewspec.cli import main as cli_main
 
 
@@ -203,6 +203,7 @@ def test_agent_prompt_and_schema_preserve_intent_bundle_contract():
         profile: {role: dict(props) for role, props in role_props.items()}
         for profile, role_props in AESTHETIC_PROFILE_LAYOUT_PROPS.items()
     }
+    assert profile_contract["style_facts"] == {profile: profile_style_facts(profile) for profile in AESTHETIC_PROFILE_TOKENS}
     assert "not_css" in profile_contract["non_claims"]
     assert AGENT_INTENT_BUNDLE_SCHEMA["$defs"]["substrate"]["properties"]["nodes"]["maxProperties"] == MAX_AGENT_NODES
     assert AGENT_INTENT_BUNDLE_SCHEMA["$defs"]["substrate_node"]["properties"]["kind"] == {"type": "string", "minLength": 1}
