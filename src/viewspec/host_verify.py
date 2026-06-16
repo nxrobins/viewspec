@@ -689,6 +689,12 @@ def _assert_runtime_report(runtime: dict[str, Any], *, manifest_summary: dict[st
             "HOST_VERIFY_AESTHETIC_LAYOUT_ASSERTION_MISSING",
             f"Browser report included {normalized['aesthetic_layout_assertion_count']} aesthetic layout assertions for {expected_layout_count} profiled layout nodes.",
         )
+    expected_span_count = _manifest_summary_aesthetic_span_node_count(manifest_summary)
+    if expected_span_count > 0 and normalized["grid_span_assertion_count"] < expected_span_count:
+        raise HostVerifyFailure(
+            "HOST_VERIFY_AESTHETIC_LAYOUT_ASSERTION_MISSING",
+            f"Browser report included {normalized['grid_span_assertion_count']} grid span assertions for {expected_span_count} profiled span layout nodes.",
+        )
     return normalized
 
 
@@ -710,6 +716,30 @@ def _manifest_summary_aesthetic_layout_node_count(manifest_summary: dict[str, An
             continue
         node_count = item.get("node_count")
         if isinstance(node_count, int) and not isinstance(node_count, bool) and node_count > 0:
+            count += node_count
+    return count
+
+
+def _manifest_summary_aesthetic_span_node_count(manifest_summary: dict[str, Any] | None) -> int:
+    if not isinstance(manifest_summary, dict):
+        return 0
+    layout = manifest_summary.get("aesthetic_layout")
+    if not isinstance(layout, dict):
+        return 0
+    count = 0
+    for item in layout.values():
+        if not isinstance(item, dict):
+            continue
+        span_columns = item.get("span_columns")
+        node_count = item.get("node_count")
+        if (
+            isinstance(span_columns, int)
+            and not isinstance(span_columns, bool)
+            and span_columns > 1
+            and isinstance(node_count, int)
+            and not isinstance(node_count, bool)
+            and node_count > 0
+        ):
             count += node_count
     return count
 

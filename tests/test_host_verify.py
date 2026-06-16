@@ -241,6 +241,23 @@ def test_verify_host_rejects_profiled_artifact_without_runtime_aesthetic_layout_
     assert report["errors"][0]["code"] == "HOST_VERIFY_AESTHETIC_LAYOUT_ASSERTION_MISSING"
 
 
+def test_verify_host_rejects_profiled_span_without_runtime_span_proof(tmp_path, monkeypatch):
+    out_dir = _write_tailwind_artifact(tmp_path, profile="aesthetic.premium_saas")
+
+    def weak_runtime(host_dir, *, install, started, timings):
+        runtime = _fake_span_runtime(host_dir, install=install, started=started, timings=timings)
+        runtime["assertions"]["grid_span_assertion_count"] = 0
+        return runtime
+
+    monkeypatch.setattr("viewspec.host_verify._run_host_browser_phases", weak_runtime)
+
+    report = verify_host_artifact_dir(out_dir)
+
+    assert report["ok"] is False
+    assert report["errors"][0]["code"] == "HOST_VERIFY_AESTHETIC_LAYOUT_ASSERTION_MISSING"
+    assert "grid span assertions" in report["errors"][0]["message"]
+
+
 def test_verify_host_rejects_non_react_tailwind_artifact(tmp_path):
     builder = ViewSpecBuilder("host_verify_html")
     dashboard = builder.add_dashboard("metrics", region="main", group_id="cards")
