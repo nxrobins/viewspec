@@ -129,7 +129,7 @@ Use `--target react-tailwind-tsx` when the host React app already has Tailwind a
 viewspec compile viewspec.intent.json --target react-tailwind-tsx --out react-tailwind-output/
 ```
 
-The ViewSpec repo CI includes one bounded host proof for this target: it regenerates a representative fixture, runs `viewspec check`, mounts the exact checked `ViewSpecView.tsx` in a Vite/Tailwind host, builds it, and smoke-tests rendered DOM, computed Tailwind styles, profiled aesthetic marker/layout assertions, and action payloads in Chromium. That proof is not run for every user artifact; `viewspec check` verifies source artifact integrity and provenance for the output you compiled.
+The ViewSpec repo CI includes one bounded host proof for this target: it regenerates a representative fixture, runs `viewspec check`, mounts the exact checked `ViewSpecView.tsx` in a Vite/Tailwind host, builds it, and smoke-tests rendered DOM, computed Tailwind styles including grid column/span counts, profiled aesthetic marker/layout assertions, and action payloads in Chromium. That proof is not run for every user artifact; `viewspec check` verifies source artifact integrity and provenance for the output you compiled.
 
 Run the same bounded proof for a specific artifact with:
 

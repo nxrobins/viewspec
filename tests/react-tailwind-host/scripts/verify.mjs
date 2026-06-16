@@ -244,5 +244,5 @@ const aestheticLayoutCount = Object.values(report.manifest_summary?.aesthetic_la
   return total + (Number.isInteger(item?.node_count) ? item.node_count : 0);
 }, 0);
 if (aestheticLayoutCount > 0 && (report.assertions?.aesthetic_layout_assertion_count ?? 0) < aestheticLayoutCount) {
-  fail("HOST_PROOF_STYLE_ASSERTION_TOO_WEAK", "verify-host report did not include all aesthetic layout grid assertions");
+  fail("HOST_PROOF_STYLE_ASSERTION_TOO_WEAK", "verify-host report did not include all aesthetic layout assertions");
 }

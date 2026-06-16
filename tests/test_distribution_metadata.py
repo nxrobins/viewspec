@@ -57,6 +57,13 @@ def test_host_verify_template_asserts_grid_column_and_span_counts():
     assert "grid_span_assertion_count" in template
 
 
+def test_react_tailwind_host_fixture_uses_span_aware_layout_language():
+    script = ROOT.joinpath("tests", "react-tailwind-host", "scripts", "verify.mjs").read_text(encoding="utf-8")
+
+    assert "aesthetic layout assertions" in script
+    assert "aesthetic layout grid assertions" not in script
+
+
 def test_top_level_package_exports_summary_helpers():
     for name in (
         "manifest_aesthetic_layout_summary",
