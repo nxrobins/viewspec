@@ -566,13 +566,14 @@ def _check_manifest_summary_lines(summary: object) -> list[str]:
             if not isinstance(entry, dict):
                 continue
             mixed = " mixed=true" if entry.get("mixed") is True else ""
-            lines.append(
-                f"  {role}: "
-                f"columns={_cli_summary_value(entry.get('columns'))} "
-                f"nodes={_cli_summary_value(entry.get('node_count'))} "
-                f"profile={_cli_summary_value(entry.get('profile'))}"
-                f"{mixed}"
-            )
+            facts = []
+            if "columns" in entry:
+                facts.append(f"columns={_cli_summary_value(entry.get('columns'))}")
+            if "span_columns" in entry:
+                facts.append(f"span_columns={_cli_summary_value(entry.get('span_columns'))}")
+            facts.append(f"nodes={_cli_summary_value(entry.get('node_count'))}")
+            facts.append(f"profile={_cli_summary_value(entry.get('profile'))}")
+            lines.append(f"  {role}: {' '.join(facts)}{mixed}")
     return lines
 
 

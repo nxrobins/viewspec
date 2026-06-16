@@ -15,14 +15,14 @@ from viewspec.local_tools import file_hash
 from viewspec.sdk.builder import ViewSpecBuilder
 
 
-def _write_tailwind_artifact(tmp_path: Path) -> Path:
+def _write_tailwind_artifact(tmp_path: Path, *, profile: str = "aesthetic.data_dense") -> Path:
     builder = ViewSpecBuilder(
         "host_verify",
         root_attrs={"title": "Host Verification"},
         default_main_region=False,
         root_min_children=2,
     )
-    builder.set_aesthetic_profile("aesthetic.data_dense")
+    builder.set_aesthetic_profile(profile)
     builder.add_region("north", parent_region="root", role="banner", layout="stack", min_children=1)
     builder.add_region("canvas", parent_region="root", role="application", layout="grid", min_children=2)
     builder.add_region("focus", parent_region="canvas", role="primary", layout="stack", min_children=1)
@@ -73,6 +73,13 @@ def _fake_runtime(host_dir, *, install, started, timings):
         "node_version": "v22.0.0",
         "npm_version": "10.0.0",
     }
+
+
+def _fake_span_runtime(host_dir, *, install, started, timings):
+    runtime = _fake_runtime(host_dir, install=install, started=started, timings=timings)
+    runtime["assertions"]["aesthetic_layout_assertion_count"] = 3
+    runtime["assertions"]["grid_span_assertion_count"] = 1
+    return runtime
 
 
 def test_summarize_host_verification_report_filters_to_bounded_metadata():
@@ -182,6 +189,24 @@ def test_verify_host_human_output_prints_manifest_and_assertions(tmp_path, monke
     assert "  grid_span_assertion_count: 0" in output
     assert "  payload_binding_count: 1" in output
     assert "  style_assertion_count: 7" in output
+
+
+def test_verify_host_human_output_prints_aesthetic_span_layout_summary(tmp_path, monkeypatch, capsys):
+    out_dir = _write_tailwind_artifact(tmp_path, profile="aesthetic.premium_saas")
+    capsys.readouterr()
+    monkeypatch.setattr("viewspec.host_verify._run_host_browser_phases", _fake_span_runtime)
+
+    assert cli_main(["verify-host", str(out_dir)]) == 0
+    output = capsys.readouterr().out
+
+    assert output.startswith("ok\n")
+    assert "aesthetic_profile: aesthetic.premium_saas" in output
+    assert "  content_grid: columns=2 nodes=1 profile=aesthetic.premium_saas" in output
+    assert "  metric_card: span_columns=2 nodes=1 profile=aesthetic.premium_saas" in output
+    assert "  metric_card: columns=unknown" not in output
+    assert "  metric_grid: columns=2 nodes=1 profile=aesthetic.premium_saas" in output
+    assert "  aesthetic_layout_assertion_count: 3" in output
+    assert "  grid_span_assertion_count: 1" in output
 
 
 def test_verify_host_rejects_profiled_artifact_without_runtime_aesthetic_proof(tmp_path, monkeypatch):

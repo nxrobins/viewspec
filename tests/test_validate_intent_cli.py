@@ -520,6 +520,29 @@ def test_check_human_output_prints_manifest_summary_for_aesthetic_artifact(tmp_p
     assert "  metric_grid: columns=1 nodes=1 profile=aesthetic.editorial_product" in output
 
 
+def test_check_human_output_prints_aesthetic_span_layout_summary(tmp_path, capsys):
+    intent_path = tmp_path / "viewspec.intent.json"
+    intent_path.write_text(
+        json.dumps(_profile_workspace_bundle_json("aesthetic.premium_saas")),
+        encoding="utf-8",
+    )
+    out_dir = tmp_path / "react-tailwind-dist"
+
+    assert cli_main(
+        ["compile", str(intent_path), "--target", "react-tailwind-tsx", "--out", str(out_dir)]
+    ) == 0
+    capsys.readouterr()
+
+    assert cli_main(["check", str(out_dir)]) == 0
+    output = capsys.readouterr().out
+
+    assert "aesthetic_profile: aesthetic.premium_saas" in output
+    assert "  content_grid: columns=2 nodes=1 profile=aesthetic.premium_saas" in output
+    assert "  metric_card: span_columns=2 nodes=1 profile=aesthetic.premium_saas" in output
+    assert "  metric_card: columns=unknown" not in output
+    assert "  metric_grid: columns=2 nodes=1 profile=aesthetic.premium_saas" in output
+
+
 @pytest.mark.parametrize("kind", STARTER_INTENT_KINDS)
 def test_init_intent_writes_valid_starter_bundle(tmp_path, capsys, kind):
     path = tmp_path / f"{kind}.intent.json"
