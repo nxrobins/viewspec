@@ -4,6 +4,7 @@ import json
 import time
 from pathlib import Path
 
+from viewspec import profile_style_facts
 from viewspec.cli import main as cli_main
 from viewspec.host_verify import (
     CommandResult,
@@ -112,6 +113,7 @@ def test_summarize_host_verification_report_filters_to_bounded_metadata():
 
 
 def test_verify_host_artifact_mode_writes_stable_report(tmp_path, monkeypatch):
+    style_facts = profile_style_facts("aesthetic.data_dense")
     out_dir = _write_tailwind_artifact(tmp_path)
     report_path = tmp_path / "host-proof.json"
     monkeypatch.setattr("viewspec.host_verify._run_host_browser_phases", _fake_runtime)
@@ -131,6 +133,8 @@ def test_verify_host_artifact_mode_writes_stable_report(tmp_path, monkeypatch):
     assert report["manifest_summary"]["available"] is True
     assert report["manifest_summary"]["emitter"] == "react_tailwind_tsx"
     assert report["manifest_summary"]["aesthetic_profile"] == "aesthetic.data_dense"
+    assert report["manifest_summary"]["aesthetic_style"]["changed_token_count"] == style_facts["changed_token_count"]
+    assert report["manifest_summary"]["aesthetic_style"]["declaration_count"] == style_facts["declaration_count"]
     assert report["manifest_summary"]["aesthetic_layout"]["metric_grid"]["columns"] == 3
     assert json.loads(report_path.read_text(encoding="utf-8")) == report
 
@@ -168,6 +172,7 @@ def test_verify_host_compile_mode_uses_public_cli_contract(tmp_path, monkeypatch
 
 
 def test_verify_host_human_output_prints_manifest_and_assertions(tmp_path, monkeypatch, capsys):
+    style_facts = profile_style_facts("aesthetic.data_dense")
     out_dir = _write_tailwind_artifact(tmp_path)
     capsys.readouterr()
     monkeypatch.setattr("viewspec.host_verify._run_host_browser_phases", _fake_runtime)
@@ -178,6 +183,13 @@ def test_verify_host_human_output_prints_manifest_and_assertions(tmp_path, monke
     assert output.startswith("ok\n")
     assert "manifest: kind=intent_bundle_compile emitter=react_tailwind_tsx artifact=ViewSpecView.tsx nodes=" in output
     assert "aesthetic_profile: aesthetic.data_dense" in output
+    assert (
+        "aesthetic_style: "
+        f"profile=aesthetic.data_dense "
+        f"changed_tokens={style_facts['changed_token_count']} "
+        f"categories={style_facts['category_count']} "
+        f"declarations={style_facts['declaration_count']}"
+    ) in output
     assert "  content_grid: columns=3 nodes=1 profile=aesthetic.data_dense" in output
     assert "  metric_grid: columns=3 nodes=1 profile=aesthetic.data_dense" in output
     assert "host_assertions:\n" in output
@@ -192,6 +204,7 @@ def test_verify_host_human_output_prints_manifest_and_assertions(tmp_path, monke
 
 
 def test_verify_host_human_output_prints_aesthetic_span_layout_summary(tmp_path, monkeypatch, capsys):
+    style_facts = profile_style_facts("aesthetic.premium_saas")
     out_dir = _write_tailwind_artifact(tmp_path, profile="aesthetic.premium_saas")
     capsys.readouterr()
     monkeypatch.setattr("viewspec.host_verify._run_host_browser_phases", _fake_span_runtime)
@@ -201,6 +214,13 @@ def test_verify_host_human_output_prints_aesthetic_span_layout_summary(tmp_path,
 
     assert output.startswith("ok\n")
     assert "aesthetic_profile: aesthetic.premium_saas" in output
+    assert (
+        "aesthetic_style: "
+        f"profile=aesthetic.premium_saas "
+        f"changed_tokens={style_facts['changed_token_count']} "
+        f"categories={style_facts['category_count']} "
+        f"declarations={style_facts['declaration_count']}"
+    ) in output
     assert "  content_grid: columns=2 nodes=1 profile=aesthetic.premium_saas" in output
     assert "  metric_card: span_columns=2 nodes=1 profile=aesthetic.premium_saas" in output
     assert "  metric_card: columns=unknown" not in output
@@ -351,6 +371,7 @@ def test_verify_host_mcp_tool_respects_cwd_containment(tmp_path):
 
 
 def test_verify_host_mcp_tool_metadata_exposes_bounded_proof_summary(tmp_path, monkeypatch):
+    style_facts = profile_style_facts("aesthetic.data_dense")
     _write_tailwind_artifact(tmp_path)
     monkeypatch.setattr("viewspec.host_verify._run_host_browser_phases", _fake_runtime)
 
@@ -359,6 +380,10 @@ def test_verify_host_mcp_tool_metadata_exposes_bounded_proof_summary(tmp_path, m
     assert result["ok"] is True
     assert result["metadata"]["manifest_summary"]["available"] is True
     assert result["metadata"]["manifest_summary"]["aesthetic_profile"] == "aesthetic.data_dense"
+    assert (
+        result["metadata"]["manifest_summary"]["aesthetic_style"]["changed_token_count"]
+        == style_facts["changed_token_count"]
+    )
     assert result["metadata"]["host_verification"] == {
         "ok": True,
         "assertions": {

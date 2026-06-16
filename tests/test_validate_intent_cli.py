@@ -11,6 +11,7 @@ from viewspec import (
     ViewSpecBuilder,
     diff_intent_text,
     init_intent_file,
+    profile_style_facts,
     starter_intent_bundle,
     validate_intent_file,
     validate_intent_text,
@@ -494,6 +495,7 @@ def test_compile_invalid_intent_reports_validation_before_missing_design(tmp_pat
 
 
 def test_check_human_output_prints_manifest_summary_for_aesthetic_artifact(tmp_path, capsys):
+    style_facts = profile_style_facts("aesthetic.editorial_product")
     intent_path = tmp_path / "viewspec.intent.json"
     intent_path.write_text(
         json.dumps(_profile_workspace_bundle_json("aesthetic.editorial_product")),
@@ -515,12 +517,20 @@ def test_check_human_output_prints_manifest_summary_for_aesthetic_artifact(tmp_p
         in output
     )
     assert "aesthetic_profile: aesthetic.editorial_product" in output
+    assert (
+        "aesthetic_style: "
+        f"profile=aesthetic.editorial_product "
+        f"changed_tokens={style_facts['changed_token_count']} "
+        f"categories={style_facts['category_count']} "
+        f"declarations={style_facts['declaration_count']}"
+    ) in output
     assert "aesthetic_layout:\n" in output
     assert "  content_grid: columns=2 nodes=1 profile=aesthetic.editorial_product" in output
     assert "  metric_grid: columns=1 nodes=1 profile=aesthetic.editorial_product" in output
 
 
 def test_check_human_output_prints_aesthetic_span_layout_summary(tmp_path, capsys):
+    style_facts = profile_style_facts("aesthetic.premium_saas")
     intent_path = tmp_path / "viewspec.intent.json"
     intent_path.write_text(
         json.dumps(_profile_workspace_bundle_json("aesthetic.premium_saas")),
@@ -537,6 +547,13 @@ def test_check_human_output_prints_aesthetic_span_layout_summary(tmp_path, capsy
     output = capsys.readouterr().out
 
     assert "aesthetic_profile: aesthetic.premium_saas" in output
+    assert (
+        "aesthetic_style: "
+        f"profile=aesthetic.premium_saas "
+        f"changed_tokens={style_facts['changed_token_count']} "
+        f"categories={style_facts['category_count']} "
+        f"declarations={style_facts['declaration_count']}"
+    ) in output
     assert "  content_grid: columns=2 nodes=1 profile=aesthetic.premium_saas" in output
     assert "  metric_card: span_columns=2 nodes=1 profile=aesthetic.premium_saas" in output
     assert "  metric_card: columns=unknown" not in output

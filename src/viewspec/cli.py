@@ -558,6 +558,22 @@ def _check_manifest_summary_lines(summary: object) -> list[str]:
     aesthetic_profile = summary.get("aesthetic_profile")
     if isinstance(aesthetic_profile, str) and aesthetic_profile:
         lines.append(f"aesthetic_profile: {aesthetic_profile}")
+    style = summary.get("aesthetic_style")
+    if isinstance(style, dict) and style:
+        if style.get("available") is False:
+            lines.append(
+                "aesthetic_style: "
+                f"profile={_cli_summary_value(style.get('profile'))} "
+                f"unavailable={_cli_summary_value(style.get('reason'))}"
+            )
+        else:
+            lines.append(
+                "aesthetic_style: "
+                f"profile={_cli_summary_value(style.get('profile'))} "
+                f"changed_tokens={_cli_summary_value(style.get('changed_token_count'))} "
+                f"categories={_cli_summary_value(style.get('category_count'))} "
+                f"declarations={_cli_summary_value(style.get('declaration_count'))}"
+            )
     layout = summary.get("aesthetic_layout")
     if isinstance(layout, dict) and layout:
         lines.append("aesthetic_layout:")

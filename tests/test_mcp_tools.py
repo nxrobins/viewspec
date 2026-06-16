@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from viewspec import AGENT_ASSET_SCHEMA_VERSION, ViewSpecBuilder
+from viewspec import AGENT_ASSET_SCHEMA_VERSION, ViewSpecBuilder, profile_style_facts
 from viewspec.agent import AGENT_INTENT_BUNDLE_SCHEMA, AGENT_SYSTEM_PROMPT
 from viewspec.cli import main as cli_main
 from viewspec.emitters.html_tailwind import ACTION_EVENT_SCRIPT
@@ -443,6 +443,7 @@ def test_intent_mcp_compile_can_emit_checked_react_tailwind_tsx_artifact(tmp_pat
 
 
 def test_intent_mcp_compile_metadata_summarizes_checked_profile_layout(tmp_path):
+    style_facts = profile_style_facts("aesthetic.editorial_product")
     intent_path = tmp_path / "viewspec.intent.json"
     intent_path.write_text(json.dumps(_profile_workspace_bundle_json("aesthetic.editorial_product")), encoding="utf-8")
 
@@ -460,6 +461,10 @@ def test_intent_mcp_compile_metadata_summarizes_checked_profile_layout(tmp_path)
     assert summary["emitter"] == "react_tailwind_tsx"
     assert summary["artifact_file"] == "ViewSpecView.tsx"
     assert summary["aesthetic_profile"] == "aesthetic.editorial_product"
+    assert summary["aesthetic_style"]["profile"] == "aesthetic.editorial_product"
+    assert summary["aesthetic_style"]["changed_token_count"] == style_facts["changed_token_count"]
+    assert summary["aesthetic_style"]["declaration_count"] == style_facts["declaration_count"]
+    assert "changed_tokens" not in summary["aesthetic_style"]
     assert summary["aesthetic_layout"]["content_grid"] == {
         "profile": "aesthetic.editorial_product",
         "columns": 2,
@@ -473,6 +478,10 @@ def test_intent_mcp_compile_metadata_summarizes_checked_profile_layout(tmp_path)
     checked = check_artifact_tool("react-tailwind-dist", cwd=tmp_path)
     assert checked["ok"] is True
     assert checked["metadata"]["manifest_summary"]["aesthetic_profile"] == "aesthetic.editorial_product"
+    assert (
+        checked["metadata"]["manifest_summary"]["aesthetic_style"]["category_count"]
+        == style_facts["category_count"]
+    )
     assert checked["metadata"]["manifest_summary"]["aesthetic_layout"]["metric_grid"]["columns"] == 1
 
 
