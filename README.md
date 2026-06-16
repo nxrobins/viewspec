@@ -89,7 +89,7 @@ The v1 local agent contract is intentionally bounded: max 256KB JSON, 200 substr
 
 Motif validation is semantic, not just structural. Empty motifs fail. `hero` and `empty_state` require title-like bindings; `loading_state` and `error_state` require exactly one title-like binding and at most one description-like binding; `form` requires an input binding; table/dashboard/detail motifs require label plus value/text-style bindings; and comparison motifs require at least two distinct semantic items.
 
-Aesthetic Profiles V1 lets an IntentBundle choose one deterministic view-level art-direction handle: `aesthetic.calm_ops`, `aesthetic.premium_saas`, `aesthetic.data_dense`, `aesthetic.editorial_product`, or `aesthetic.executive_review`. Use `builder.set_aesthetic_profile("aesthetic.calm_ops")` or one matching `StyleSpec` targeting `view:<view_spec.id>`; profiles expand into governed style projections plus bounded layout metadata such as grid columns and featured metric-card spans, not arbitrary CSS, design certification, or pixel-perfect visual proof.
+Aesthetic Profiles V1 lets an IntentBundle choose one deterministic view-level art-direction handle: `aesthetic.calm_ops`, `aesthetic.premium_saas`, `aesthetic.data_dense`, `aesthetic.editorial_product`, or `aesthetic.executive_review`. Use `builder.set_aesthetic_profile("aesthetic.calm_ops")` or one matching `StyleSpec` targeting `view:<view_spec.id>`; profiles expand into governed style projections plus bounded layout metadata such as grid columns and featured metric-card spans. Checked manifest summaries expose compact style-delta counts for profiled artifacts, not arbitrary CSS, design certification, or pixel-perfect visual proof.
 
 ## Import Existing HTML (0.3.0b1 beta)
 
@@ -115,7 +115,7 @@ Raw HTML output files are:
 
 The local commands `compile`, `lift`, and `diff` make no SDK-process network calls. Generated raw-HTML artifacts also avoid automatic network fetches: remote image sources are replaced with inert links and disclosed in `external_refs`; user-clicked external anchors remain clickable with `rel="noopener noreferrer"`.
 
-`provenance_manifest.json` is the trust boundary. It records SDK version, raw source hash, lifted source hash, design hash, artifact hash, command arguments, sanitizer policy, diagnostics, and external references. For IntentBundle artifacts, `viewspec check` also verifies DOM identity against manifest identity: no duplicate binding/action ids, binding nodes keep non-empty source provenance, and action/binding refs match their declared intent refs. Human `viewspec check` output prints the bounded manifest summary, while `viewspec check --json` includes the same summary for tools.
+`provenance_manifest.json` is the trust boundary. It records SDK version, raw source hash, lifted source hash, design hash, artifact hash, command arguments, sanitizer policy, diagnostics, and external references. For IntentBundle artifacts, `viewspec check` also verifies DOM identity against manifest identity: no duplicate binding/action ids, binding nodes keep non-empty source provenance, and action/binding refs match their declared intent refs. Human `viewspec check` output prints the bounded manifest summary, including compact style-delta counts and layout facts when an aesthetic profile is present, while `viewspec check --json` includes the same summary for tools.
 
 ## Native Agent Use
 
@@ -151,7 +151,7 @@ python -m pip install "viewspec[agents]"
 viewspec mcp
 ```
 
-The MCP server exposes intent-first local tools: `init_intent`, `validate_intent_bundle_file`, `diff_intent_bundle_files`, `compile_intent_bundle_file`, `agent_correction_prompt_file`, `check_artifact`, `verify_host`, `prove`, `check_agent_assets`, `init_design`, and `export_agent_assets`. `compile_intent_bundle_file` accepts `target="html-tailwind"` for checked standalone HTML, `target="react-tsx"` for checked React source artifacts, or `target="react-tailwind-tsx"` for checked React source with closed Tailwind recipes; `verify_host` metadata exposes manifest summary and bounded host verification facts, while `prove` writes `PROOF.md`, `proof_report.json`, and redacted `support_bundle.json` and exposes checks, manifest summary, and bounded host verification facts. Raw HTML MCP tools remain available only for importing existing HTML. By default, all tool paths must resolve under the MCP working directory and the tools make no SDK network calls.
+The MCP server exposes intent-first local tools: `init_intent`, `validate_intent_bundle_file`, `diff_intent_bundle_files`, `compile_intent_bundle_file`, `agent_correction_prompt_file`, `check_artifact`, `verify_host`, `prove`, `check_agent_assets`, `init_design`, and `export_agent_assets`. `compile_intent_bundle_file` accepts `target="html-tailwind"` for checked standalone HTML, `target="react-tsx"` for checked React source artifacts, or `target="react-tailwind-tsx"` for checked React source with closed Tailwind recipes; `verify_host` metadata exposes manifest summary, compact aesthetic style-delta counts, and bounded host verification facts, while `prove` writes `PROOF.md`, `proof_report.json`, and redacted `support_bundle.json` and exposes checks, manifest summary, and bounded host verification facts. Raw HTML MCP tools remain available only for importing existing HTML. By default, all tool paths must resolve under the MCP working directory and the tools make no SDK network calls.
 
 For all targets, agents should edit `viewspec.intent.json` or `DESIGN.md` and regenerate artifacts. They should not patch generated files such as `dist/index.html` or `react-output/ViewSpecView.tsx`.
 
@@ -259,7 +259,7 @@ It writes `ViewSpecView.tsx`, `provenance_manifest.json`, and `diagnostics.json`
 
 For Tailwind host apps, use `--target react-tailwind-tsx`. This emits the same source artifact file with literal utility classes from the closed `tailwind_app_v1` recipe registry; agents still edit only IntentBundle JSON.
 
-The ViewSpec repo also CI-gates one bounded React/Vite/Tailwind host proof for this target: a representative fixture is regenerated, checked, mounted, built, and smoke-tested in Chromium for DOM, Tailwind-produced styles, computed grid column/span counts, profiled aesthetic markers/layout, and action payloads. That proof is not a per-artifact rendering certification for arbitrary user output; `viewspec check` remains the local source-artifact and provenance gate unless a host app adds its own render tests.
+The ViewSpec repo also CI-gates one bounded React/Vite/Tailwind host proof for this target: a representative fixture is regenerated, checked, mounted, built, and smoke-tested in Chromium for DOM, Tailwind-produced styles, computed grid column/span counts, profiled aesthetic markers/layout, compact style-delta counts in the checked manifest summary, and action payloads. That proof is not a per-artifact rendering certification for arbitrary user output; `viewspec check` remains the local source-artifact and provenance gate unless a host app adds its own render tests.
 
 For a per-artifact runtime proof, use ViewSpec's bounded reference host verifier:
 
@@ -268,7 +268,7 @@ viewspec verify-host react-tailwind-output/ --target react-tailwind-tsx --instal
 viewspec verify-host --intent viewspec.intent.json --out react-tailwind-output/ --target react-tailwind-tsx --install --json
 ```
 
-`verify-host` runs `viewspec check`, carries the checked manifest summary into the host proof report, copies exactly the checked React Tailwind artifact into an isolated Vite/Tailwind host, builds it, and runs Chromium assertions for manifest-backed DOM, computed Tailwind styles including grid column/span counts, profiled aesthetic markers/layout when present, and action payloads. Human output prints the checked manifest summary and nonzero host assertion counts; `--json` returns the full proof report. Without `--install`, it performs no package-manager install and fails fast if the reference host dependencies are missing; it does not install Playwright browser binaries.
+`verify-host` runs `viewspec check`, carries the checked manifest summary into the host proof report, copies exactly the checked React Tailwind artifact into an isolated Vite/Tailwind host, builds it, and runs Chromium assertions for manifest-backed DOM, computed Tailwind styles including grid column/span counts, profiled aesthetic markers/layout when present, and action payloads. Human output prints the checked manifest summary, including compact style-delta counts for profiled artifacts, and nonzero host assertion counts; `--json` returns the full proof report. Without `--install`, it performs no package-manager install and fails fast if the reference host dependencies are missing; it does not install Playwright browser binaries.
 
 The same bounded runtime proof is available through the beginner-facing proof command:
 

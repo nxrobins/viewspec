@@ -93,6 +93,7 @@ assertPublicEqual(publicFacts.proof.first_proof_command, 'viewspec prove --out .
 assertPublicEqual(publicFacts.proof.human_summary_file, '.viewspec-proof/PROOF.md', 'public facts proof summary file')
 assertPublicEqual(publicFacts.proof.machine_report_file, '.viewspec-proof/proof_report.json', 'public facts proof report file')
 assertPublicEqual(publicFacts.proof.support_bundle_file, '.viewspec-proof/support_bundle.json', 'public facts proof support bundle file')
+assertPublicText(publicFacts.proof.scope, 'compact style-delta counts', 'public facts proof style summary scope')
 assertPublicText(publicFacts.proof.non_claim, 'not pixel-perfect visual regression', 'public facts proof non-claim')
 
 const aestheticProfileTokens = [
@@ -104,6 +105,7 @@ const aestheticProfileTokens = [
 ]
 assert.deepEqual(publicFacts.aesthetic_profiles.tokens, aestheticProfileTokens, 'public facts aesthetic profile tokens')
 assertPublicText(publicFacts.aesthetic_profiles.scope, 'deterministic view-level art-direction handles', 'public facts aesthetic scope')
+assertPublicText(publicFacts.aesthetic_profiles.scope, 'compact style-delta counts', 'public facts aesthetic style summary scope')
 assertPublicText(publicFacts.aesthetic_profiles.non_claim, 'not arbitrary CSS', 'public facts aesthetic non-claim')
 
 const pyproject = await readFile('pyproject.toml', 'utf8')
@@ -117,6 +119,7 @@ for (const publicTextPath of ['README.md', 'docs/getting-started.md', 'demos/llm
   assertPublicText(text, 'PROOF.md', `${publicTextPath} proof summary`)
   assertPublicText(text, 'support_bundle.json', `${publicTextPath} proof support bundle`)
   assertPublicText(text, 'proof-bundle.md', `${publicTextPath} proof guide`)
+  assertPublicText(text, 'style-delta counts', `${publicTextPath} proof style summary`)
   assertPublicText(text, publicFacts.proof.non_claim.split(',')[0], `${publicTextPath} proof scope`)
 }
 
@@ -128,10 +131,12 @@ for (const aestheticTextPath of ['README.md', 'docs/getting-started.md', 'docs/a
   if (!text.includes('not CSS') && !text.includes('not arbitrary CSS')) {
     publicFactDrift(`${aestheticTextPath} missing aesthetic profile non-css scope`)
   }
+  assertPublicText(text, 'style-delta counts', `${aestheticTextPath} aesthetic style summary`)
 }
 
 for (const proofTextPath of ['README.md', 'docs/getting-started.md', 'docs/agent-integration.md', 'demos/index.html', 'demos/proof-bundle/index.html', 'demos/llms.txt', 'demos/llms-full.txt']) {
   const text = await readFile(proofTextPath, 'utf8')
+  assertPublicText(text, 'style-delta counts', `${proofTextPath} proof style summary`)
   if (text.includes('proof_report.json') && !text.includes('PROOF.md')) {
     publicFactDrift(`${proofTextPath} mentions proof_report.json without PROOF.md`)
   }
@@ -171,6 +176,8 @@ for (const expected of [
   'support_bundle.json',
   'source_artifact',
   'react_tailwind_reference_host',
+  'Manifest Summary',
+  'style-delta counts',
   'Hashes',
   'Checks',
   'Errors',
