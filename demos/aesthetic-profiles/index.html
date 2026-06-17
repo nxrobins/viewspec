@@ -510,6 +510,7 @@ header.vs-surface p.vs-text, header.vs-surface p.vs-label { max-width: 68ch; mar
       <ul class="hero-facts" aria-label="Aesthetic profile invariants">
         <li><strong>1 IntentBundle</strong><span>shared semantic graph</span></li>
         <li><strong>5 profiles</strong><span>governed style handles</span></li>
+        <li><strong>5 style hashes</strong><span>distinct projections</span></li>
         <li><strong>0 shell overrides</strong><span>generated internals untouched</span></li>
       </ul>
     </section>
@@ -586,7 +587,38 @@ header.vs-surface p.vs-text, header.vs-surface p.vs-label { max-width: 68ch; mar
     <section class="contract-panel">
       <h2>What stays invariant</h2>
       <p>The five cards share the same IntentBundle shape, generated semantic ids, and manifest-backed provenance. Only compiler-owned typography, spacing, surface, color, action, hierarchy, rhythm, narrative style projections, bounded grid metadata, and featured metric-card span metadata change.</p>
+      <p>The proof summary records one shared semantic hash, distinct style projection hashes for every profile, and at least three bounded layout signatures.</p>
       <p>Demo shell CSS frames the page only. It does not style generated artifact internals or bypass the emitted profile output.</p>
+      <div class="code-box" aria-label="Profile proof summary">{
+  &quot;layoutProjectionDiverges&quot;: true,
+  &quot;layoutProofRoles&quot;: [
+    &quot;content_grid&quot;,
+    &quot;metric_grid&quot;,
+    &quot;metric_card&quot;
+  ],
+  &quot;layoutSignatureCount&quot;: 4,
+  &quot;layoutSignatures&quot;: {
+    &quot;aesthetic.calm_ops&quot;: &quot;workspace 2 / metrics 2&quot;,
+    &quot;aesthetic.data_dense&quot;: &quot;workspace 3 / metrics 3&quot;,
+    &quot;aesthetic.editorial_product&quot;: &quot;workspace 2 / metrics 1&quot;,
+    &quot;aesthetic.executive_review&quot;: &quot;workspace 2 / metrics 2 / featured metric span 2&quot;,
+    &quot;aesthetic.premium_saas&quot;: &quot;workspace 2 / metrics 2 / featured metric span 2&quot;
+  },
+  &quot;nodeCount&quot;: 39,
+  &quot;profileCount&quot;: 5,
+  &quot;semanticHash&quot;: &quot;a9368dd60ca49910dd3394afa894651f3d5c49945d8d6442cddef789ded09625&quot;,
+  &quot;semanticIdsStable&quot;: true,
+  &quot;styleProjectionDistinct&quot;: true,
+  &quot;styleProjectionHashCount&quot;: 5,
+  &quot;styleProjectionHashes&quot;: {
+    &quot;aesthetic.calm_ops&quot;: &quot;98feff5ca2756e17729352a429128f2c99e54cf038108405295fae424116b3da&quot;,
+    &quot;aesthetic.data_dense&quot;: &quot;02a411113d0562b01a8eb4dcbd7224600a92e0e9b3be966e1aa7727b3058768b&quot;,
+    &quot;aesthetic.editorial_product&quot;: &quot;27a14269cfa742ab50b7e2d6eb665a0a1a516eb4e353ba889089717d4157e2e3&quot;,
+    &quot;aesthetic.executive_review&quot;: &quot;3611ed389bc117d6e7187c51889ce85958379c5639adaea3a9260a3f28216e58&quot;,
+    &quot;aesthetic.premium_saas&quot;: &quot;a4bff9b518e79b07774b68beef1f66b87db0e16ba1a0811cee5ad6fdf9a5529f&quot;
+  },
+  &quot;version&quot;: &quot;aesthetic_profile_demo_proof.v1&quot;
+}</div>
       <div class="code-box" aria-label="Profile proof metadata">{
   &quot;aesthetic.calm_ops&quot;: {
     &quot;label&quot;: &quot;Calm Ops&quot;,
@@ -606,6 +638,7 @@ header.vs-surface p.vs-text, header.vs-surface p.vs-label { max-width: 68ch; mar
     &quot;nodeCount&quot;: 39,
     &quot;note&quot;: &quot;Quiet operational surfaces with teal accents and low-contrast panels.&quot;,
     &quot;semanticHash&quot;: &quot;a9368dd60ca49910dd3394afa894651f3d5c49945d8d6442cddef789ded09625&quot;,
+    &quot;styleProjectionHash&quot;: &quot;98feff5ca2756e17729352a429128f2c99e54cf038108405295fae424116b3da&quot;,
     &quot;styleProof&quot;: {
       &quot;categories&quot;: [
         &quot;action&quot;,
@@ -657,6 +690,7 @@ header.vs-surface p.vs-text, header.vs-surface p.vs-label { max-width: 68ch; mar
     &quot;nodeCount&quot;: 39,
     &quot;note&quot;: &quot;Compact spacing, smaller type, and tighter controls for repeated scanning.&quot;,
     &quot;semanticHash&quot;: &quot;a9368dd60ca49910dd3394afa894651f3d5c49945d8d6442cddef789ded09625&quot;,
+    &quot;styleProjectionHash&quot;: &quot;02a411113d0562b01a8eb4dcbd7224600a92e0e9b3be966e1aa7727b3058768b&quot;,
     &quot;styleProof&quot;: {
       &quot;categories&quot;: [
         &quot;action&quot;,
@@ -708,6 +742,7 @@ header.vs-surface p.vs-text, header.vs-surface p.vs-label { max-width: 68ch; mar
     &quot;nodeCount&quot;: 39,
     &quot;note&quot;: &quot;Warmer product-story pacing with broader prose rhythm.&quot;,
     &quot;semanticHash&quot;: &quot;a9368dd60ca49910dd3394afa894651f3d5c49945d8d6442cddef789ded09625&quot;,
+    &quot;styleProjectionHash&quot;: &quot;27a14269cfa742ab50b7e2d6eb665a0a1a516eb4e353ba889089717d4157e2e3&quot;,
     &quot;styleProof&quot;: {
       &quot;categories&quot;: [
         &quot;action&quot;,
@@ -763,6 +798,7 @@ header.vs-surface p.vs-text, header.vs-surface p.vs-label { max-width: 68ch; mar
     &quot;nodeCount&quot;: 39,
     &quot;note&quot;: &quot;Conservative review surfaces with restrained contrast and crisp framing.&quot;,
     &quot;semanticHash&quot;: &quot;a9368dd60ca49910dd3394afa894651f3d5c49945d8d6442cddef789ded09625&quot;,
+    &quot;styleProjectionHash&quot;: &quot;3611ed389bc117d6e7187c51889ce85958379c5639adaea3a9260a3f28216e58&quot;,
     &quot;styleProof&quot;: {
       &quot;categories&quot;: [
         &quot;action&quot;,
@@ -818,6 +854,7 @@ header.vs-surface p.vs-text, header.vs-surface p.vs-label { max-width: 68ch; mar
     &quot;nodeCount&quot;: 39,
     &quot;note&quot;: &quot;Polished product rhythm with stronger hierarchy and softer shadows.&quot;,
     &quot;semanticHash&quot;: &quot;a9368dd60ca49910dd3394afa894651f3d5c49945d8d6442cddef789ded09625&quot;,
+    &quot;styleProjectionHash&quot;: &quot;a4bff9b518e79b07774b68beef1f66b87db0e16ba1a0811cee5ad6fdf9a5529f&quot;,
     &quot;styleProof&quot;: {
       &quot;categories&quot;: [
         &quot;action&quot;,
@@ -1349,6 +1386,36 @@ header.vs-surface p.vs-text, header.vs-surface p.vs-label { max-width: 68ch; mar
 }</div>
     </section>
   </main>
+  <script type="application/json" id="aesthetic-profile-evidence">{
+  "layoutProjectionDiverges": true,
+  "layoutProofRoles": [
+    "content_grid",
+    "metric_grid",
+    "metric_card"
+  ],
+  "layoutSignatureCount": 4,
+  "layoutSignatures": {
+    "aesthetic.calm_ops": "workspace 2 / metrics 2",
+    "aesthetic.data_dense": "workspace 3 / metrics 3",
+    "aesthetic.editorial_product": "workspace 2 / metrics 1",
+    "aesthetic.executive_review": "workspace 2 / metrics 2 / featured metric span 2",
+    "aesthetic.premium_saas": "workspace 2 / metrics 2 / featured metric span 2"
+  },
+  "nodeCount": 39,
+  "profileCount": 5,
+  "semanticHash": "a9368dd60ca49910dd3394afa894651f3d5c49945d8d6442cddef789ded09625",
+  "semanticIdsStable": true,
+  "styleProjectionDistinct": true,
+  "styleProjectionHashCount": 5,
+  "styleProjectionHashes": {
+    "aesthetic.calm_ops": "98feff5ca2756e17729352a429128f2c99e54cf038108405295fae424116b3da",
+    "aesthetic.data_dense": "02a411113d0562b01a8eb4dcbd7224600a92e0e9b3be966e1aa7727b3058768b",
+    "aesthetic.editorial_product": "27a14269cfa742ab50b7e2d6eb665a0a1a516eb4e353ba889089717d4157e2e3",
+    "aesthetic.executive_review": "3611ed389bc117d6e7187c51889ce85958379c5639adaea3a9260a3f28216e58",
+    "aesthetic.premium_saas": "a4bff9b518e79b07774b68beef1f66b87db0e16ba1a0811cee5ad6fdf9a5529f"
+  },
+  "version": "aesthetic_profile_demo_proof.v1"
+}</script>
   <script type="application/json" id="aesthetic-profile-proof">{
   "aesthetic.calm_ops": {
     "label": "Calm Ops",
@@ -1368,6 +1435,7 @@ header.vs-surface p.vs-text, header.vs-surface p.vs-label { max-width: 68ch; mar
     "nodeCount": 39,
     "note": "Quiet operational surfaces with teal accents and low-contrast panels.",
     "semanticHash": "a9368dd60ca49910dd3394afa894651f3d5c49945d8d6442cddef789ded09625",
+    "styleProjectionHash": "98feff5ca2756e17729352a429128f2c99e54cf038108405295fae424116b3da",
     "styleProof": {
       "categories": [
         "action",
@@ -1419,6 +1487,7 @@ header.vs-surface p.vs-text, header.vs-surface p.vs-label { max-width: 68ch; mar
     "nodeCount": 39,
     "note": "Compact spacing, smaller type, and tighter controls for repeated scanning.",
     "semanticHash": "a9368dd60ca49910dd3394afa894651f3d5c49945d8d6442cddef789ded09625",
+    "styleProjectionHash": "02a411113d0562b01a8eb4dcbd7224600a92e0e9b3be966e1aa7727b3058768b",
     "styleProof": {
       "categories": [
         "action",
@@ -1470,6 +1539,7 @@ header.vs-surface p.vs-text, header.vs-surface p.vs-label { max-width: 68ch; mar
     "nodeCount": 39,
     "note": "Warmer product-story pacing with broader prose rhythm.",
     "semanticHash": "a9368dd60ca49910dd3394afa894651f3d5c49945d8d6442cddef789ded09625",
+    "styleProjectionHash": "27a14269cfa742ab50b7e2d6eb665a0a1a516eb4e353ba889089717d4157e2e3",
     "styleProof": {
       "categories": [
         "action",
@@ -1525,6 +1595,7 @@ header.vs-surface p.vs-text, header.vs-surface p.vs-label { max-width: 68ch; mar
     "nodeCount": 39,
     "note": "Conservative review surfaces with restrained contrast and crisp framing.",
     "semanticHash": "a9368dd60ca49910dd3394afa894651f3d5c49945d8d6442cddef789ded09625",
+    "styleProjectionHash": "3611ed389bc117d6e7187c51889ce85958379c5639adaea3a9260a3f28216e58",
     "styleProof": {
       "categories": [
         "action",
@@ -1580,6 +1651,7 @@ header.vs-surface p.vs-text, header.vs-surface p.vs-label { max-width: 68ch; mar
     "nodeCount": 39,
     "note": "Polished product rhythm with stronger hierarchy and softer shadows.",
     "semanticHash": "a9368dd60ca49910dd3394afa894651f3d5c49945d8d6442cddef789ded09625",
+    "styleProjectionHash": "a4bff9b518e79b07774b68beef1f66b87db0e16ba1a0811cee5ad6fdf9a5529f",
     "styleProof": {
       "categories": [
         "action",

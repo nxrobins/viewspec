@@ -112,6 +112,11 @@ def semantic_hash(manifest: dict[str, Any]) -> str:
     return hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
 
+def style_projection_hash(style_values: dict[str, Any]) -> str:
+    payload = json.dumps(style_values, separators=(",", ":"), sort_keys=True)
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()
+
+
 def layout_proof(manifest: dict[str, Any], profile: str) -> dict[str, dict[str, Any]]:
     proof: dict[str, dict[str, Any]] = {}
     for entry in manifest.values():
@@ -184,6 +189,7 @@ def compile_profiles() -> dict[str, dict[str, Any]]:
             raise RuntimeError("Aesthetic profiles changed semantic ids; expected one stable IntentBundle shape.")
         layout = layout_proof(manifest, profile)
         style_facts = profile_style_facts(profile)
+        style_values = dict(ast.style_values or DEFAULT_STYLE_TOKEN_VALUES)
         profiles[profile] = {
             "fragment": fragment,
             "manifest": manifest,
@@ -192,6 +198,7 @@ def compile_profiles() -> dict[str, dict[str, Any]]:
             "layoutSignature": layout_signature(layout),
             "semanticHash": digest,
             "nodeCount": len(ids),
+            "styleProjectionHash": style_projection_hash(style_values),
             "styleTokenCount": len(bundle.view_spec.styles),
             "styleProof": style_facts,
             "styleSignature": style_signature(style_facts),
@@ -199,6 +206,40 @@ def compile_profiles() -> dict[str, dict[str, Any]]:
             "profileNote": PROFILE_NOTES[profile],
         }
     return profiles
+
+
+def profile_evidence(profiles: dict[str, dict[str, Any]]) -> dict[str, Any]:
+    semantic_hashes = sorted({data["semanticHash"] for data in profiles.values()})
+    node_counts = sorted({data["nodeCount"] for data in profiles.values()})
+    style_projection_hashes = {
+        profile: data["styleProjectionHash"]
+        for profile, data in profiles.items()
+    }
+    layout_signatures = {
+        profile: data["layoutSignature"]
+        for profile, data in profiles.items()
+    }
+    evidence = {
+        "version": "aesthetic_profile_demo_proof.v1",
+        "profileCount": len(profiles),
+        "semanticIdsStable": len(semantic_hashes) == 1 and len(node_counts) == 1,
+        "semanticHash": semantic_hashes[0] if len(semantic_hashes) == 1 else None,
+        "nodeCount": node_counts[0] if len(node_counts) == 1 else None,
+        "styleProjectionDistinct": len(set(style_projection_hashes.values())) == len(profiles),
+        "styleProjectionHashCount": len(set(style_projection_hashes.values())),
+        "styleProjectionHashes": style_projection_hashes,
+        "layoutSignatureCount": len(set(layout_signatures.values())),
+        "layoutProjectionDiverges": len(set(layout_signatures.values())) >= 3,
+        "layoutSignatures": layout_signatures,
+        "layoutProofRoles": [*LAYOUT_PROOF_ROLES, *OPTIONAL_LAYOUT_PROOF_ROLES],
+    }
+    if not evidence["semanticIdsStable"]:
+        raise RuntimeError("Aesthetic profile demo evidence requires stable semantic ids.")
+    if not evidence["styleProjectionDistinct"]:
+        raise RuntimeError("Aesthetic profile demo evidence requires distinct style projection hashes.")
+    if not evidence["layoutProjectionDiverges"]:
+        raise RuntimeError("Aesthetic profile demo evidence requires at least three layout signatures.")
+    return evidence
 
 
 def script_json(value: Any) -> str:
@@ -223,6 +264,7 @@ def build_page(profiles: dict[str, dict[str, Any]]) -> str:
         for profile, data in profiles.items()
     )
     profile_tokens = ", ".join(AESTHETIC_PROFILE_TOKENS)
+    evidence = profile_evidence(profiles)
     head_meta = demo_head_metadata(
         title="ViewSpec Demo - Same Intent, Five Art Directions",
         description="Compile one ViewSpec IntentBundle through five deterministic aesthetic profile tokens while preserving semantic ids and provenance.",
@@ -235,6 +277,7 @@ def build_page(profiles: dict[str, dict[str, Any]]) -> str:
             "semanticHash": data["semanticHash"],
             "nodeCount": data["nodeCount"],
             "styleTokenCount": data["styleTokenCount"],
+            "styleProjectionHash": data["styleProjectionHash"],
             "styleProof": data["styleProof"],
             "styleSignature": data["styleSignature"],
             "layoutProof": data["layoutProof"],
@@ -688,6 +731,7 @@ def build_page(profiles: dict[str, dict[str, Any]]) -> str:
       <ul class="hero-facts" aria-label="Aesthetic profile invariants">
         <li><strong>1 IntentBundle</strong><span>shared semantic graph</span></li>
         <li><strong>5 profiles</strong><span>governed style handles</span></li>
+        <li><strong>{evidence["styleProjectionHashCount"]} style hashes</strong><span>distinct projections</span></li>
         <li><strong>0 shell overrides</strong><span>generated internals untouched</span></li>
       </ul>
     </section>
@@ -721,11 +765,14 @@ def build_page(profiles: dict[str, dict[str, Any]]) -> str:
     <section class="contract-panel">
       <h2>What stays invariant</h2>
       <p>The five cards share the same IntentBundle shape, generated semantic ids, and manifest-backed provenance. Only compiler-owned typography, spacing, surface, color, action, hierarchy, rhythm, narrative style projections, bounded grid metadata, and featured metric-card span metadata change.</p>
+      <p>The proof summary records one shared semantic hash, distinct style projection hashes for every profile, and at least three bounded layout signatures.</p>
       <p>Demo shell CSS frames the page only. It does not style generated artifact internals or bypass the emitted profile output.</p>
+      <div class="code-box" aria-label="Profile proof summary">{html.escape(script_json(evidence))}</div>
       <div class="code-box" aria-label="Profile proof metadata">{html.escape(script_json(profile_meta))}</div>
       <div class="code-box" aria-label="Representative IntentBundle">{html.escape(first_intent)}</div>
     </section>
   </main>
+  <script type="application/json" id="aesthetic-profile-evidence">{script_json(evidence)}</script>
   <script type="application/json" id="aesthetic-profile-proof">{script_json(profile_meta)}</script>
   <script>
     const profileProof = JSON.parse(document.getElementById('aesthetic-profile-proof').textContent);
