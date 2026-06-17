@@ -891,11 +891,32 @@ def _tool_from_report(proof: dict[str, Any], root: Path | None, allow_outside_cw
             "proof_level": proof.get("proof_level"),
             "network_calls": proof.get("metadata", {}).get("network_calls", "none"),
             "checks": _tool_checks(proof.get("checks")),
+            "proof_identity": _tool_proof_identity(proof),
             "manifest_summary": proof.get("manifest_summary"),
             "host_verification": summarize_host_verification_report(proof.get("host_report")),
         },
         data={"proof_report": proof},
     )
+
+
+def _tool_proof_identity(proof: dict[str, Any]) -> dict[str, str | None]:
+    paths = proof.get("paths") if isinstance(proof.get("paths"), dict) else {}
+    return {
+        "artifact_hash": proof.get("artifact_hash") if isinstance(proof.get("artifact_hash"), str) else None,
+        "manifest_hash": proof.get("manifest_hash") if isinstance(proof.get("manifest_hash"), str) else None,
+        "proof_report_hash": _hash_path_if_present(paths.get("report")),
+        "proof_summary_hash": _hash_path_if_present(paths.get("proof_summary")),
+        "support_bundle_hash": _hash_path_if_present(paths.get("support_bundle")),
+    }
+
+
+def _hash_path_if_present(path: object) -> str | None:
+    if not path:
+        return None
+    candidate = Path(str(path))
+    if not candidate.exists() or not candidate.is_file():
+        return None
+    return file_hash(candidate)
 
 
 def _tool_checks(checks: object) -> dict[str, str]:

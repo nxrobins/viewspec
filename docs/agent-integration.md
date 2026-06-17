@@ -254,7 +254,7 @@ The public repo includes an isolated host proof for one representative React/Tai
 
 Agents may run `viewspec verify-host react-tailwind-output/ --target react-tailwind-tsx --install --json`, or MCP `verify_host`, when the user wants a bounded per-artifact React/Vite/Tailwind runtime proof. This verifier checks the exact artifact first, carries the checked manifest summary into the host proof report, copies only the checked generated files into ViewSpec's isolated reference host, and asserts computed grid column/span counts plus profiled aesthetic markers/layout when the manifest declares them. It does not claim compatibility with arbitrary host apps. Human CLI output prints the same summary, including compact aesthetic style-delta counts, plus nonzero host assertion counts; MCP metadata exposes the same bounded host verification summary while `--json` returns the full proof report.
 
-Agents may also run `viewspec prove --target react-tailwind-tsx --install --out .viewspec-proof --json`, or MCP `prove`, when the user wants the full first-proof path plus the bounded React Tailwind reference host proof in one report. MCP `prove` metadata exposes checks, manifest summary, and bounded host verification facts before agents inspect the nested `proof_report`.
+Agents may also run `viewspec prove --target react-tailwind-tsx --install --out .viewspec-proof --json`, or MCP `prove`, when the user wants the full first-proof path plus the bounded React Tailwind reference host proof in one report. MCP `prove` metadata exposes checks, proof identity hashes, manifest summary, and bounded host verification facts before agents inspect the nested `proof_report`.
 
 
 ## Optional Reference Grounding
