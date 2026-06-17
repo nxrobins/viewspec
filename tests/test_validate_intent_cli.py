@@ -11,6 +11,7 @@ from viewspec import (
     ViewSpecBuilder,
     diff_intent_text,
     init_intent_file,
+    intent_semantic_change_lines,
     profile_style_facts,
     starter_intent_bundle,
     validate_intent_file,
@@ -151,6 +152,7 @@ def test_public_intent_sdk_helpers_are_root_exports(tmp_path):
     assert file_validation["ok"] is True
     assert diff["ok"] is True
     assert diff["basis"] == "intent_bundle_v1"
+    assert intent_semantic_change_lines(diff["semantic_changes"]) == []
     assert "list" in STARTER_INTENT_KINDS
     assert "form" in STARTER_INTENT_KINDS
     assert "detail" in STARTER_INTENT_KINDS
@@ -422,6 +424,13 @@ def test_diff_intent_reports_aesthetic_profile_semantic_changes(tmp_path, capsys
         "left": "aesthetic.calm_ops",
         "right": "aesthetic.executive_review",
     } in payload["semantic_changes"]["styles"]
+    assert intent_semantic_change_lines(payload["semantic_changes"]) == [
+        (
+            "aesthetic_profiles: profile_changed aesthetic.calm_ops -> aesthetic.executive_review "
+            "target=view:validate_cli_profile_workspace"
+        ),
+        "styles.aesthetic_profile: token_changed aesthetic.calm_ops -> aesthetic.executive_review",
+    ]
 
 
 def test_diff_intent_human_output_prints_semantic_changes(tmp_path, capsys):

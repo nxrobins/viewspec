@@ -90,7 +90,7 @@ Treat compiled output directories as generated artifacts. Edit `viewspec.intent.
 ```python
 import json
 
-from viewspec import ViewSpecBuilder, compile, diff_intent_text, validate_intent_text
+from viewspec import ViewSpecBuilder, compile, diff_intent_text, intent_semantic_change_lines, validate_intent_text
 from viewspec.emitters.html_tailwind import HtmlTailwindEmitter
 from viewspec.emitters.react_tailwind_tsx import ReactTailwindTsxEmitter
 from viewspec.emitters.react_tsx import ReactTsxEmitter
@@ -107,6 +107,7 @@ builder.add_action("send", "submit", "Send", target_region="main", payload_bindi
 bundle = builder.build_bundle()
 validation = validate_intent_text(json.dumps(bundle.to_json()))
 diff = diff_intent_text(json.dumps(bundle.to_json()), json.dumps(bundle.to_json()))
+semantic_summary = intent_semantic_change_lines(diff["semantic_changes"])
 ast = compile(bundle)
 HtmlTailwindEmitter().emit(ast, "output/")
 ReactTsxEmitter().emit(ast, "react-output/")
