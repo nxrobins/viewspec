@@ -542,6 +542,7 @@ def test_cli_init_design_doctor_and_check_tamper(tmp_path, capsys):
     assert checks["intent_first_commands"]["export_agent_assets"] is True
     assert checks["intent_pipeline"]["ok"] is True
     assert checks["intent_pipeline"]["compile_check"] == "passed"
+    assert checks["intent_pipeline"]["aesthetic_profile_diff"] is True
     assert "validate-intent" in checks["local_network_policy"]
     assert "diff-intent" in checks["local_network_policy"]
     assert "export-agent-assets" in checks["local_network_policy"]
@@ -587,6 +588,7 @@ def test_python_module_entrypoint_runs_cli(tmp_path):
     assert doctor_result.returncode == 0
     payload = json.loads(doctor_result.stdout)
     assert payload["checks"]["intent_pipeline"]["ok"] is True
+    assert payload["checks"]["intent_pipeline"]["aesthetic_profile_diff"] is True
 
 
 def test_cli_check_rejects_machine_local_command_args(tmp_path, capsys):

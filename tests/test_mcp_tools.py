@@ -204,6 +204,7 @@ def test_doctor_agents_reports_missing_optional_mcp(capsys):
     assert checks["intent_first_commands"]["check_agent_assets"] is True
     assert checks["intent_first_commands"]["export_agent_assets"] is True
     assert checks["intent_pipeline"]["ok"] is True
+    assert checks["intent_pipeline"]["aesthetic_profile_diff"] is True
     assert checks["agent_contract_assets"]["ok"] is True
     assert checks["agent_contract_assets"]["schema_version"] == AGENT_ASSET_SCHEMA_VERSION
     assert checks["agent_contract_assets"]["asset_manifest_file"] == "agent-assets.json"
