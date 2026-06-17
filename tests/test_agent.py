@@ -159,6 +159,10 @@ def test_agent_prompt_and_schema_preserve_intent_bundle_contract():
     assert "proof_report.json" in AGENT_SYSTEM_PROMPT
     assert "support_bundle.json" in AGENT_SYSTEM_PROMPT
     assert "pixel-perfect visual regression" in AGENT_SYSTEM_PROMPT
+    assert "viewspec diff-intent old.intent.json new.intent.json --json" in AGENT_SYSTEM_PROMPT
+    assert "Review semantic_changes first" in AGENT_SYSTEM_PROMPT
+    assert "MCP semantic_summary" in AGENT_SYSTEM_PROMPT
+    assert 'intent_semantic_change_lines(diff["semantic_changes"])' in AGENT_SYSTEM_PROMPT
     assert "Do not call remote reference libraries by default" in AGENT_SYSTEM_PROMPT
     assert "query an MCP-accessible UI reference library" not in AGENT_SYSTEM_PROMPT
     assert AGENT_INTENT_BUNDLE_SCHEMA["$id"] == "https://viewspec.dev/agent-intent-bundle.schema.json"

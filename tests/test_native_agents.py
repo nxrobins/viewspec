@@ -36,6 +36,9 @@ def test_init_agent_creates_codex_instructions(tmp_path, capsys):
     assert "If `DESIGN.md` is missing" in text
     assert "viewspec init-design --out DESIGN.md" in text
     assert "viewspec diff-intent old.intent.json new.intent.json --json" in text
+    assert "Review `semantic_changes` before inspecting generated artifacts" in text
+    assert "MCP `semantic_summary`" in text
+    assert 'intent_semantic_change_lines(diff["semantic_changes"])' in text
     assert "viewspec init-intent --out viewspec.intent.json" in text
     assert "viewspec export-agent-assets --out .viewspec" in text
     assert "viewspec check-agent-assets .viewspec --json" in text
@@ -72,6 +75,9 @@ def _assert_native_agent_instruction_contract(text: str, label: str) -> None:
     assert "viewspec verify-host react-tailwind-output/ --target react-tailwind-tsx --install --json" in text
     assert "viewspec prove --target react-tailwind-tsx --install --out .viewspec-proof --json" in text
     assert "viewspec diff-intent old.intent.json new.intent.json --json" in text
+    assert "Review `semantic_changes` before inspecting generated artifacts" in text
+    assert "MCP `semantic_summary`" in text
+    assert 'intent_semantic_change_lines(diff["semantic_changes"])' in text
     assert "viewspec export-agent-assets --out .viewspec" in text
     assert "viewspec check-agent-assets .viewspec --json" in text
     assert "viewspec doctor --agents" in text
