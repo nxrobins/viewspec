@@ -70,6 +70,7 @@ def test_top_level_package_exports_summary_helpers():
         "manifest_aesthetic_style_summary",
         "manifest_root_aesthetic_profile",
         "profile_style_facts",
+        "intent_semantic_change_lines",
         "summarize_host_verification_report",
         "summarize_intent_manifest",
     ):

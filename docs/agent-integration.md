@@ -120,11 +120,12 @@ Python callers can use the same public SDK helpers from the package root:
 ```python
 import json
 
-from viewspec import diff_intent_text, starter_intent_bundle, validate_intent_text
+from viewspec import diff_intent_text, intent_semantic_change_lines, starter_intent_bundle, validate_intent_text
 
 bundle = starter_intent_bundle("dashboard")
 validation = validate_intent_text(json.dumps(bundle.to_json()))
 diff = diff_intent_text(old_bundle_json, new_bundle_json)
+semantic_summary = intent_semantic_change_lines(diff["semantic_changes"])
 ```
 
 `init-intent` is a scaffold only. Agents must replace sample labels, values, and structure with the user's actual UI intent before compiling. Run `viewspec init-design --out DESIGN.md` only when the repo does not already have a design file; an existing `DESIGN.md` remains the theming source of truth.
