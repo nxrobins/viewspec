@@ -138,6 +138,7 @@ for (const diffIntentTextPath of ['README.md', 'docs/getting-started.md', 'docs/
   const text = await readFile(diffIntentTextPath, 'utf8')
   assertPublicText(text, 'diff-intent', `${diffIntentTextPath} diff-intent review surface`)
   assertPublicText(text, 'aesthetic profile', `${diffIntentTextPath} diff-intent aesthetic profile surface`)
+  assertPublicText(text, 'intent_semantic_change_lines', `${diffIntentTextPath} semantic summary helper`)
 }
 
 for (const proofTextPath of ['README.md', 'docs/getting-started.md', 'docs/agent-integration.md', 'demos/index.html', 'demos/proof-bundle/index.html', 'demos/llms.txt', 'demos/llms-full.txt']) {
