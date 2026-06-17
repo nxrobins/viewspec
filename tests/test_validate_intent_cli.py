@@ -424,6 +424,26 @@ def test_diff_intent_reports_aesthetic_profile_semantic_changes(tmp_path, capsys
     } in payload["semantic_changes"]["styles"]
 
 
+def test_diff_intent_human_output_prints_semantic_changes(tmp_path, capsys):
+    left = tmp_path / "old.intent.json"
+    right = tmp_path / "new.intent.json"
+    left.write_text(json.dumps(_profile_workspace_bundle_json("aesthetic.calm_ops")), encoding="utf-8")
+    right.write_text(json.dumps(_profile_workspace_bundle_json("aesthetic.executive_review")), encoding="utf-8")
+
+    assert cli_main(["diff-intent", str(left), str(right)]) == 0
+    output = capsys.readouterr().out
+
+    assert "topology_similarity:" in output
+    assert "semantic_changes:\n" in output
+    assert (
+        "aesthetic_profiles: profile_changed aesthetic.calm_ops -> aesthetic.executive_review "
+        "target=view:validate_cli_profile_workspace"
+    ) in output
+    assert (
+        "styles.aesthetic_profile: token_changed aesthetic.calm_ops -> aesthetic.executive_review"
+    ) in output
+
+
 def test_diff_intent_reports_top_level_bundle_metadata_changes(tmp_path, capsys):
     left = tmp_path / "old.intent.json"
     right = tmp_path / "new.intent.json"

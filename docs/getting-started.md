@@ -33,7 +33,7 @@ viewspec check dist/
 
 `init-intent` writes a valid scaffold for table, dashboard, outline, comparison, list, form, detail, empty_state, loading_state, error_state, or hero motifs. Replace the sample content with real user intent before compiling. `validate-intent` rejects arrays, markdown-wrapped JSON, malformed JSON, CompositionIR-shaped payloads, oversized bundles, and bundles unsupported by the local reference compiler. `viewspec compile` runs the same validation before writing artifacts. Invalid results include a correction prompt for the agent to regenerate the full IntentBundle.
 
-Use `viewspec diff-intent` when reviewing agent revisions. It reports `basis: "intent_bundle_v1"` and compares top-level bundle metadata, declared semantic nodes, regions, bindings, groups, motifs, styles, actions, selected field changes, and `semantic_changes` for region, group, motif, aesthetic profile, style, binding, and action contract changes before you inspect generated DOM.
+Use `viewspec diff-intent` when reviewing agent revisions. It reports `basis: "intent_bundle_v1"` and compares top-level bundle metadata, declared semantic nodes, regions, bindings, groups, motifs, styles, actions, selected field changes, and `semantic_changes` for region, group, motif, aesthetic profile, style, binding, and action contract changes before you inspect generated DOM. Human output prints concise section and semantic summaries; `--json` returns the full machine-readable payload.
 
 V1 local caps keep agent repair loops predictable: max 256KB JSON, 200 substrate nodes, 32 regions, 400 bindings, 64 groups, 32 motifs, 400 styles, 64 actions, 64 attrs/slots/edges per node, 200 values per slot or edge, and 64 payload bindings per action.
 
