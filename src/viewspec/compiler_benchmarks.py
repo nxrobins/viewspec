@@ -229,10 +229,25 @@ def run_benchmark_suite(
     started_at = time.perf_counter()
     assert_no_new_benchmark_dependencies(benchmark_dependencies, fixture_id="suite")
     summaries: list[dict[str, Any]] = []
+    completed_fixture_ids: list[str] = []
     root = Path(output_root)
     for fixture in benchmark_fixtures():
-        assert_benchmark_timeout(started_at, timeout_seconds, fixture_id=fixture.id)
+        assert_benchmark_timeout(
+            started_at,
+            timeout_seconds,
+            fixture_id=fixture.id,
+            phase="before_fixture",
+            completed_fixture_ids=tuple(completed_fixture_ids),
+        )
         summaries.append(run_benchmark_fixture(fixture, root / fixture.id))
+        completed_fixture_ids.append(fixture.id)
+        assert_benchmark_timeout(
+            started_at,
+            timeout_seconds,
+            fixture_id=fixture.id,
+            phase="after_fixture",
+            completed_fixture_ids=tuple(completed_fixture_ids),
+        )
     return summaries
 
 
@@ -271,12 +286,25 @@ def assert_no_new_benchmark_dependencies(dependency_names: tuple[str, ...] | lis
         )
 
 
-def assert_benchmark_timeout(started_at: float, timeout_seconds: float, *, fixture_id: str) -> None:
-    if time.perf_counter() - started_at > timeout_seconds:
+def assert_benchmark_timeout(
+    started_at: float,
+    timeout_seconds: float,
+    *,
+    fixture_id: str,
+    phase: str = "before_fixture",
+    completed_fixture_ids: tuple[str, ...] = (),
+) -> None:
+    elapsed_seconds = time.perf_counter() - started_at
+    if elapsed_seconds > timeout_seconds:
+        completed = ", ".join(completed_fixture_ids) if completed_fixture_ids else "none"
         raise BenchmarkConstraintError(
             "BENCHMARK_TIMEOUT_EXCEEDED",
             fixture_id,
-            f"Benchmark suite exceeded {timeout_seconds:g}s.",
+            (
+                f"Benchmark suite exceeded {timeout_seconds:g}s "
+                f"({elapsed_seconds:.3f}s elapsed, phase={phase}, "
+                f"completed_count={len(completed_fixture_ids)}, completed={completed})."
+            ),
         )
 
 
