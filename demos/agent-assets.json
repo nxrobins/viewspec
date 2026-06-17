@@ -1,4 +1,17 @@
 {
+  "contract": {
+    "check_command": "viewspec check-agent-assets .viewspec --json",
+    "export_command": "viewspec export-agent-assets --out .viewspec",
+    "files": {
+      "intent_example": "agent-intent-example.dashboard.json",
+      "intent_schema": "agent-intent-bundle.schema.json",
+      "manifest": "agent-assets.json",
+      "system_prompt": "agent-system-prompt.txt"
+    },
+    "intent_schema_id": "https://viewspec.dev/agent-intent-bundle.schema.json",
+    "network_policy": "no SDK network calls",
+    "profile": "local_v1"
+  },
   "files": [
     {
       "path": "agent-system-prompt.txt",
@@ -15,5 +28,5 @@
   ],
   "intent_schema_id": "https://viewspec.dev/agent-intent-bundle.schema.json",
   "kind": "viewspec_agent_assets",
-  "schema_version": 3
+  "schema_version": 4
 }

@@ -73,6 +73,14 @@ def test_top_level_package_exports_summary_helpers():
         "intent_semantic_change_lines",
         "summarize_host_verification_report",
         "summarize_intent_manifest",
+        "AGENT_ASSET_CHECK_COMMAND",
+        "AGENT_ASSET_CONTRACT_PROFILE",
+        "AGENT_ASSET_EXPORT_COMMAND",
+        "AGENT_ASSET_NETWORK_POLICY",
     ):
         assert name in viewspec.__all__
-        assert callable(getattr(viewspec, name))
+        value = getattr(viewspec, name)
+        if name.startswith("AGENT_ASSET_"):
+            assert isinstance(value, str)
+        else:
+            assert callable(value)

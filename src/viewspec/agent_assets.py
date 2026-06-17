@@ -12,7 +12,11 @@ from viewspec.agent import AGENT_INTENT_BUNDLE_SCHEMA, AGENT_SYSTEM_PROMPT
 from viewspec.local_tools import atomic_write
 
 
-AGENT_ASSET_SCHEMA_VERSION = 3
+AGENT_ASSET_SCHEMA_VERSION = 4
+AGENT_ASSET_CONTRACT_PROFILE = "local_v1"
+AGENT_ASSET_EXPORT_COMMAND = "viewspec export-agent-assets --out .viewspec"
+AGENT_ASSET_CHECK_COMMAND = "viewspec check-agent-assets .viewspec --json"
+AGENT_ASSET_NETWORK_POLICY = "no SDK network calls"
 AGENT_ASSET_MANIFEST_FILE = "agent-assets.json"
 AGENT_SYSTEM_PROMPT_FILE = "agent-system-prompt.txt"
 AGENT_INTENT_SCHEMA_FILE = "agent-intent-bundle.schema.json"
@@ -53,7 +57,10 @@ def export_agent_assets(out_dir: str | Path, *, force: bool = False, dry_run: bo
     return {
         "ok": True,
         "schema_version": AGENT_ASSET_SCHEMA_VERSION,
+        "contract_profile": AGENT_ASSET_CONTRACT_PROFILE,
         "out": str(output),
+        "check_command": AGENT_ASSET_CHECK_COMMAND,
+        "network_policy": AGENT_ASSET_NETWORK_POLICY,
         "files": [change.to_json(output) for change in changes],
     }
 
@@ -63,6 +70,7 @@ def agent_asset_readiness() -> dict[str, Any]:
     return {
         "ok": True,
         "schema_version": AGENT_ASSET_SCHEMA_VERSION,
+        "contract_profile": AGENT_ASSET_CONTRACT_PROFILE,
         "asset_manifest_file": AGENT_ASSET_MANIFEST_FILE,
         "system_prompt_file": AGENT_SYSTEM_PROMPT_FILE,
         "intent_schema_file": AGENT_INTENT_SCHEMA_FILE,
@@ -72,7 +80,9 @@ def agent_asset_readiness() -> dict[str, Any]:
         "system_prompt_sha256": hashlib.sha256(contents[AGENT_SYSTEM_PROMPT_FILE].encode("utf-8")).hexdigest(),
         "intent_schema_sha256": hashlib.sha256(contents[AGENT_INTENT_SCHEMA_FILE].encode("utf-8")).hexdigest(),
         "intent_example_sha256": hashlib.sha256(contents[AGENT_INTENT_EXAMPLE_FILE].encode("utf-8")).hexdigest(),
-        "export_command": "viewspec export-agent-assets --out .viewspec",
+        "export_command": AGENT_ASSET_EXPORT_COMMAND,
+        "check_command": AGENT_ASSET_CHECK_COMMAND,
+        "network_policy": AGENT_ASSET_NETWORK_POLICY,
     }
 
 
@@ -128,6 +138,10 @@ def check_agent_assets(asset_dir: str | Path = ".viewspec") -> dict[str, Any]:
     return {
         "ok": not errors,
         "schema_version": AGENT_ASSET_SCHEMA_VERSION,
+        "contract_profile": AGENT_ASSET_CONTRACT_PROFILE,
+        "intent_schema_id": AGENT_INTENT_BUNDLE_SCHEMA["$id"],
+        "check_command": AGENT_ASSET_CHECK_COMMAND,
+        "network_policy": AGENT_ASSET_NETWORK_POLICY,
         "path": str(root),
         "manifest": str(manifest_path),
         "files": files,
@@ -180,6 +194,19 @@ def _agent_asset_manifest(contents: dict[str, str]) -> str:
     payload = {
         "schema_version": AGENT_ASSET_SCHEMA_VERSION,
         "kind": "viewspec_agent_assets",
+        "contract": {
+            "profile": AGENT_ASSET_CONTRACT_PROFILE,
+            "intent_schema_id": AGENT_INTENT_BUNDLE_SCHEMA["$id"],
+            "export_command": AGENT_ASSET_EXPORT_COMMAND,
+            "check_command": AGENT_ASSET_CHECK_COMMAND,
+            "network_policy": AGENT_ASSET_NETWORK_POLICY,
+            "files": {
+                "manifest": AGENT_ASSET_MANIFEST_FILE,
+                "system_prompt": AGENT_SYSTEM_PROMPT_FILE,
+                "intent_schema": AGENT_INTENT_SCHEMA_FILE,
+                "intent_example": AGENT_INTENT_EXAMPLE_FILE,
+            },
+        },
         "intent_schema_id": AGENT_INTENT_BUNDLE_SCHEMA["$id"],
         "files": [
             {
@@ -205,7 +232,11 @@ def _read_text_exact(path: Path) -> str:
 
 
 __all__ = [
+    "AGENT_ASSET_CHECK_COMMAND",
+    "AGENT_ASSET_CONTRACT_PROFILE",
+    "AGENT_ASSET_EXPORT_COMMAND",
     "AGENT_ASSET_MANIFEST_FILE",
+    "AGENT_ASSET_NETWORK_POLICY",
     "AGENT_ASSET_PAYLOAD_FILES",
     "AGENT_ASSET_SCHEMA_VERSION",
     "AGENT_INTENT_EXAMPLE_FILE",

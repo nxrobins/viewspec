@@ -159,11 +159,11 @@ For all targets, agents should edit `viewspec.intent.json` or `DESIGN.md` and re
 
 The home page at [viewspec.dev](https://viewspec.dev) runs a live hosted compile against `https://api.viewspec.dev/v1/compile`. It uses anonymous free-tier requests by default and shows the request, response, measured `compile_ms`, active derivation tokens, and provenance chain.
 
-Agent and crawler entrypoints are published with the static site. Agent assets use schema version `3`:
+Agent and crawler entrypoints are published with the static site. Agent assets use schema version `4` and declare the `local_v1` contract profile plus export/check commands in the manifest:
 
 - `https://viewspec.dev/llms.txt` — concise LLM-facing product map
 - `https://viewspec.dev/llms-full.txt` — expanded AI context and canonical facts
-- `https://viewspec.dev/agent-assets.json` — versioned manifest and hashes for agent assets
+- `https://viewspec.dev/agent-assets.json` — versioned manifest with contract identity and hashes for agent assets
 - `https://viewspec.dev/agent-system-prompt.txt` — system prompt for agents that emit `IntentBundle` JSON
 - `https://viewspec.dev/agent-intent-bundle.schema.json` — JSON schema for agent-authored compiler input
 - `https://viewspec.dev/agent-intent-example.dashboard.json` — valid starter IntentBundle example for local wire-shape grounding
