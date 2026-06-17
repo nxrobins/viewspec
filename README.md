@@ -385,7 +385,7 @@ The hosted compiler now exposes the May 6 launch surface: SwiftUI and Flutter em
 
 Pro includes mobile emitters, 5 custom motif instances per compile, and 10,000 hosted compile calls/day.
 
-Public version, pricing, hosted-call, API, package, and proof-scope facts are mirrored in `demos/public-facts.json` and checked by CI before release.
+Public version, pricing, hosted-call, API, package, proof-scope, and proof identity facts are mirrored in `demos/public-facts.json` and checked by CI before release.
 
 ## Wire Format
 

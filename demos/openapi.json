@@ -36,7 +36,15 @@
     "firstProofCommand": "viewspec prove --out .viewspec-proof",
     "proofSummaryFile": ".viewspec-proof/PROOF.md",
     "proofReportFile": ".viewspec-proof/proof_report.json",
-    "proofSupportBundleFile": ".viewspec-proof/support_bundle.json"
+    "proofSupportBundleFile": ".viewspec-proof/support_bundle.json",
+    "proofIdentityMetadataKey": "proof_identity",
+    "proofIdentityHashFields": [
+      "artifact_hash",
+      "manifest_hash",
+      "proof_report_hash",
+      "proof_summary_hash",
+      "support_bundle_hash"
+    ]
   },
   "paths": {
     "/v1/compile": {

@@ -4,7 +4,7 @@ Use this checklist before publishing a new ViewSpec package or public-site updat
 
 ## Public Facts
 
-- Update `demos/public-facts.json` with the current SDK version, pricing, hosted-call limits, canonical API URL, package URL, and proof-scope wording.
+- Update `demos/public-facts.json` with the current SDK version, pricing, hosted-call limits, canonical API URL, package URL, proof-scope wording, and proof identity metadata contract.
 - Confirm `pyproject.toml`, `src/viewspec/_version.py`, README, Getting Started, `demos/index.html`, `demos/llms.txt`, `demos/llms-full.txt`, and `demos/openapi.json` agree with `demos/public-facts.json`.
 - Run the static smoke tests; `PUBLIC_FACTS_DRIFT` means a public surface still disagrees with the manifest.
 
