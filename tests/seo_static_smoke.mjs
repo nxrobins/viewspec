@@ -134,6 +134,12 @@ for (const aestheticTextPath of ['README.md', 'docs/getting-started.md', 'docs/a
   assertPublicText(text, 'style-delta counts', `${aestheticTextPath} aesthetic style summary`)
 }
 
+for (const diffIntentTextPath of ['README.md', 'docs/getting-started.md', 'docs/agent-integration.md', 'demos/llms.txt', 'demos/llms-full.txt']) {
+  const text = await readFile(diffIntentTextPath, 'utf8')
+  assertPublicText(text, 'diff-intent', `${diffIntentTextPath} diff-intent review surface`)
+  assertPublicText(text, 'aesthetic profile', `${diffIntentTextPath} diff-intent aesthetic profile surface`)
+}
+
 for (const proofTextPath of ['README.md', 'docs/getting-started.md', 'docs/agent-integration.md', 'demos/index.html', 'demos/proof-bundle/index.html', 'demos/llms.txt', 'demos/llms-full.txt']) {
   const text = await readFile(proofTextPath, 'utf8')
   assertPublicText(text, 'style-delta counts', `${proofTextPath} proof style summary`)

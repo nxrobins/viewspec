@@ -395,6 +395,35 @@ def test_diff_intent_reports_region_group_and_style_semantic_changes(tmp_path, c
     } in payload["semantic_changes"]["styles"]
 
 
+def test_diff_intent_reports_aesthetic_profile_semantic_changes(tmp_path, capsys):
+    left = tmp_path / "old.intent.json"
+    right = tmp_path / "new.intent.json"
+    left.write_text(json.dumps(_profile_workspace_bundle_json("aesthetic.calm_ops")), encoding="utf-8")
+    right.write_text(json.dumps(_profile_workspace_bundle_json("aesthetic.executive_review")), encoding="utf-8")
+
+    assert cli_main(["diff-intent", str(left), str(right), "--json"]) == 0
+    payload = json.loads(capsys.readouterr().out)
+
+    assert payload["ok"] is True
+    assert payload["semantic_changes"]["aesthetic_profiles"] == [
+        {
+            "change": "profile_changed",
+            "left": "aesthetic.calm_ops",
+            "right": "aesthetic.executive_review",
+            "left_style_id": "aesthetic_profile",
+            "right_style_id": "aesthetic_profile",
+            "left_target": "view:validate_cli_profile_workspace",
+            "right_target": "view:validate_cli_profile_workspace",
+        }
+    ]
+    assert {
+        "id": "aesthetic_profile",
+        "change": "token_changed",
+        "left": "aesthetic.calm_ops",
+        "right": "aesthetic.executive_review",
+    } in payload["semantic_changes"]["styles"]
+
+
 def test_diff_intent_reports_top_level_bundle_metadata_changes(tmp_path, capsys):
     left = tmp_path / "old.intent.json"
     right = tmp_path / "new.intent.json"
