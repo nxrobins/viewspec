@@ -205,6 +205,11 @@ def test_doctor_agents_reports_missing_optional_mcp(capsys):
     assert checks["intent_first_commands"]["export_agent_assets"] is True
     assert checks["intent_pipeline"]["ok"] is True
     assert checks["intent_pipeline"]["aesthetic_profile_diff"] is True
+    assert checks["intent_pipeline"]["semantic_summary"]["ok"] is True
+    assert checks["intent_pipeline"]["semantic_summary"]["semantic_changes_key"] == "semantic_changes"
+    assert checks["intent_pipeline"]["semantic_summary"]["mcp_result_key"] == "semantic_summary"
+    assert checks["intent_pipeline"]["semantic_summary"]["python_helper"] == "intent_semantic_change_lines"
+    assert checks["intent_pipeline"]["semantic_summary"]["semantic_change_count"] == 2
     assert checks["agent_contract_assets"]["ok"] is True
     assert checks["agent_contract_assets"]["schema_version"] == AGENT_ASSET_SCHEMA_VERSION
     assert checks["agent_contract_assets"]["asset_manifest_file"] == "agent-assets.json"
