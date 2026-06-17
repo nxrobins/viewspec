@@ -42,6 +42,8 @@ from viewspec.native_agents import NativeAgentError, VALID_TARGETS, init_agent_i
 from viewspec.raw_html import HtmlInputError, compile_html, diff_html, lift_html, write_html_compile_result
 from viewspec.types import IntentBundle
 
+DoctorProfileDiff = tuple[dict[str, object], str, dict[str, object], dict[str, object]]
+
 
 def main(argv: list[str] | None = None) -> int:
     parser = _build_parser()
@@ -455,14 +457,17 @@ def _doctor_intent_pipeline() -> dict[str, object]:
                 "message": "starter IntentBundle failed validation",
             }
         diff = diff_intent_text(text, text, compile_check=False)
-        aesthetic_profile_diff = _doctor_aesthetic_profile_diff_smoke()
+        profile_diff = _doctor_profile_diff_smoke()
+        aesthetic_profile_diff = _doctor_aesthetic_profile_diff_smoke(profile_diff)
+        semantic_summary = _doctor_semantic_summary_smoke(profile_diff)
         ast = compile(bundle)
         return {
-            "ok": bool(diff["ok"] and aesthetic_profile_diff and ast.result.root.root.id),
+            "ok": bool(diff["ok"] and aesthetic_profile_diff and semantic_summary["ok"] and ast.result.root.root.id),
             "validate_intent": True,
             "compile_check": validation["compile_check"],
             "diff_intent": bool(diff["ok"]),
             "aesthetic_profile_diff": aesthetic_profile_diff,
+            "semantic_summary": semantic_summary,
             "reference_compile": bool(ast.result.root.root.id),
         }
     except Exception as exc:
@@ -472,12 +477,54 @@ def _doctor_intent_pipeline() -> dict[str, object]:
             "compile_check": "failed",
             "diff_intent": False,
             "aesthetic_profile_diff": False,
+            "semantic_summary": {"ok": False, "helper": "intent_semantic_change_lines", "message": str(exc)},
             "reference_compile": False,
             "message": str(exc),
         }
 
 
-def _doctor_aesthetic_profile_diff_smoke() -> bool:
+def _doctor_aesthetic_profile_diff_smoke(profile_diff: DoctorProfileDiff | None = None) -> bool:
+    diff, _view_id, expected_profile_change, expected_style_change = profile_diff or _doctor_profile_diff_smoke()
+    semantic_changes = diff.get("semantic_changes", {})
+    return bool(
+        diff.get("ok")
+        and semantic_changes.get("aesthetic_profiles") == [expected_profile_change]
+        and expected_style_change in semantic_changes.get("styles", [])
+    )
+
+
+def _doctor_semantic_summary_smoke(profile_diff: DoctorProfileDiff | None = None) -> dict[str, object]:
+    try:
+        diff, view_id, _expected_profile_change, _expected_style_change = profile_diff or _doctor_profile_diff_smoke()
+        summary = intent_semantic_change_lines(diff.get("semantic_changes"))
+        expected_summary = [
+            (
+                "aesthetic_profiles: profile_changed aesthetic.calm_ops -> aesthetic.executive_review "
+                f"target=view:{view_id}"
+            ),
+            "styles.aesthetic_profile: token_changed aesthetic.calm_ops -> aesthetic.executive_review",
+        ]
+        return {
+            "ok": bool(diff.get("ok") and summary == expected_summary),
+            "semantic_changes_key": "semantic_changes",
+            "mcp_result_key": "semantic_summary",
+            "python_helper": "intent_semantic_change_lines",
+            "semantic_change_count": len(summary),
+            "summary_lines": summary,
+        }
+    except Exception as exc:
+        return {
+            "ok": False,
+            "semantic_changes_key": "semantic_changes",
+            "mcp_result_key": "semantic_summary",
+            "python_helper": "intent_semantic_change_lines",
+            "semantic_change_count": 0,
+            "summary_lines": [],
+            "message": str(exc),
+        }
+
+
+def _doctor_profile_diff_smoke() -> DoctorProfileDiff:
     left = starter_intent_bundle("dashboard").to_json()
     right = starter_intent_bundle("dashboard").to_json()
     view_id = left["view_spec"]["id"]
@@ -507,12 +554,7 @@ def _doctor_aesthetic_profile_diff_smoke() -> bool:
         "left": "aesthetic.calm_ops",
         "right": "aesthetic.executive_review",
     }
-    semantic_changes = diff.get("semantic_changes", {})
-    return bool(
-        diff.get("ok")
-        and semantic_changes.get("aesthetic_profiles") == [expected_profile_change]
-        and expected_style_change in semantic_changes.get("styles", [])
-    )
+    return diff, view_id, expected_profile_change, expected_style_change
 
 
 def _doctor_checks_ok(value: object) -> bool:

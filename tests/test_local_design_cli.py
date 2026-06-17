@@ -543,6 +543,18 @@ def test_cli_init_design_doctor_and_check_tamper(tmp_path, capsys):
     assert checks["intent_pipeline"]["ok"] is True
     assert checks["intent_pipeline"]["compile_check"] == "passed"
     assert checks["intent_pipeline"]["aesthetic_profile_diff"] is True
+    assert checks["intent_pipeline"]["semantic_summary"]["ok"] is True
+    assert checks["intent_pipeline"]["semantic_summary"]["semantic_changes_key"] == "semantic_changes"
+    assert checks["intent_pipeline"]["semantic_summary"]["mcp_result_key"] == "semantic_summary"
+    assert checks["intent_pipeline"]["semantic_summary"]["python_helper"] == "intent_semantic_change_lines"
+    assert checks["intent_pipeline"]["semantic_summary"]["semantic_change_count"] == 2
+    assert checks["intent_pipeline"]["semantic_summary"]["summary_lines"] == [
+        (
+            "aesthetic_profiles: profile_changed aesthetic.calm_ops -> aesthetic.executive_review "
+            "target=view:starter_dashboard"
+        ),
+        "styles.aesthetic_profile: token_changed aesthetic.calm_ops -> aesthetic.executive_review",
+    ]
     assert "validate-intent" in checks["local_network_policy"]
     assert "diff-intent" in checks["local_network_policy"]
     assert "export-agent-assets" in checks["local_network_policy"]
