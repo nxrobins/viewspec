@@ -160,6 +160,11 @@ for (const proofTextPath of ['README.md', 'docs/getting-started.md', 'docs/agent
   }
 }
 
+for (const proofMetadataTextPath of ['README.md', 'docs/agent-integration.md', 'demos/llms-full.txt']) {
+  const text = await readFile(proofMetadataTextPath, 'utf8')
+  assertPublicText(text, 'proof identity', `${proofMetadataTextPath} proof identity metadata`)
+}
+
 for (const hostProofTextPath of ['README.md', 'docs/getting-started.md', 'docs/free-sdk-reliability.md', 'docs/known-limits-react-tailwind-tsx.md']) {
   const text = await readFile(hostProofTextPath, 'utf8')
   assertPublicText(text, 'grid column/span counts', `${hostProofTextPath} host proof grid span scope`)

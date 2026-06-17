@@ -170,7 +170,7 @@ def run_mcp_server(*, cwd: str | Path | None = None, allow_outside_cwd: bool = F
         description=(
             "Run ViewSpec's first proof workflow: generate or use an IntentBundle, compile through the public path, "
             "check the artifact, write PROOF.md/proof_report.json/support_bundle.json, and optionally run the bounded "
-            "React Tailwind host proof."
+            "React Tailwind host proof. Metadata includes proof_identity hashes for the written proof artifacts."
         )
     )
     def prove(

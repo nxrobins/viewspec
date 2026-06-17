@@ -320,6 +320,12 @@ def test_prove_tool_returns_standard_envelope_and_respects_cwd(tmp_path):
     assert result["metadata"]["manifest_summary"]["available"] is True
     assert result["metadata"]["manifest_summary"]["emitter"] == "html_tailwind"
     assert result["metadata"]["host_verification"] is None
+    identity = result["metadata"]["proof_identity"]
+    assert identity["artifact_hash"] == result["proof_report"]["artifact_hash"]
+    assert identity["manifest_hash"] == result["proof_report"]["manifest_hash"]
+    assert identity["proof_report_hash"] == file_hash(tmp_path / "proof/proof_report.json")
+    assert identity["proof_summary_hash"] == file_hash(tmp_path / "proof/PROOF.md")
+    assert identity["support_bundle_hash"] == file_hash(tmp_path / "proof/support_bundle.json")
 
 
 def test_prove_tool_metadata_exposes_react_tailwind_host_summary(tmp_path, monkeypatch):
@@ -347,6 +353,9 @@ def test_prove_tool_metadata_exposes_react_tailwind_host_summary(tmp_path, monke
     assert result["metadata"]["checks"]["host_verify"] == "passed"
     assert result["metadata"]["manifest_summary"]["emitter"] == "react_tailwind_tsx"
     assert result["metadata"]["manifest_summary"]["artifact_file"] == "ViewSpecView.tsx"
+    assert result["metadata"]["proof_identity"]["artifact_hash"] == result["proof_report"]["artifact_hash"]
+    assert result["metadata"]["proof_identity"]["manifest_hash"] == result["proof_report"]["manifest_hash"]
+    assert result["metadata"]["proof_identity"]["proof_report_hash"] == file_hash(tmp_path / "react-proof/proof_report.json")
     assert result["metadata"]["host_verification"] == {
         "ok": True,
         "assertions": {
