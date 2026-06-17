@@ -508,6 +508,8 @@ def agent_correction_prompt(result: AgentValidationResult) -> str:
         "issue_count": len(result.issues),
         "shown_issue_count": len(shown_issues),
         "truncated": len(result.issues) > len(shown_issues),
+        "issue_codes": sorted({issue.code for issue in result.issues}),
+        "affected_paths": _bounded_issue_paths(result.issues),
         "repair_mode": "regenerate_full_intent_bundle",
         "retry_command": "viewspec validate-intent viewspec.intent.json --json",
         "repair_checklist": agent_repair_checklist(result),
@@ -518,6 +520,16 @@ def agent_correction_prompt(result: AgentValidationResult) -> str:
         "Do not patch fragments. Fix this bounded validation report:\n"
         f"{json.dumps(report, separators=(',', ':'), sort_keys=True)}"
     )
+
+
+def _bounded_issue_paths(issues: list[AgentValidationIssue]) -> list[str]:
+    paths: list[str] = []
+    for issue in issues:
+        if issue.path not in paths:
+            paths.append(issue.path)
+        if len(paths) >= MAX_AGENT_CORRECTION_PROMPT_ISSUES:
+            break
+    return paths
 
 
 def agent_repair_checklist(result: AgentValidationResult) -> list[str]:

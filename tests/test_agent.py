@@ -1035,6 +1035,8 @@ def test_correction_prompt_is_actionable_issue_json():
     assert "suggestion" in prompt
     assert report["repair_mode"] == "regenerate_full_intent_bundle"
     assert report["retry_command"] == "viewspec validate-intent viewspec.intent.json --json"
+    assert report["issue_codes"] == ["NODES_MUST_BE_OBJECT"]
+    assert report["affected_paths"] == ["$.substrate.nodes"]
     assert any("required local V1" in item for item in report["repair_checklist"])
     assert "```" not in prompt
     assert len(prompt.splitlines()) < 30
@@ -1054,6 +1056,8 @@ def test_correction_prompt_is_bounded_and_all_issue_json_has_suggestions():
     assert report["issue_count"] == len(result.issues)
     assert report["shown_issue_count"] == MAX_AGENT_CORRECTION_PROMPT_ISSUES
     assert report["truncated"] is True
+    assert report["issue_codes"] == ["UNKNOWN_FIELD"]
+    assert report["affected_paths"] == [f"$.extra_{index}" for index in range(MAX_AGENT_CORRECTION_PROMPT_ISSUES)]
     assert len(report["issues"]) == MAX_AGENT_CORRECTION_PROMPT_ISSUES
     assert 1 <= len(report["repair_checklist"]) <= 8
     assert all(issue["suggestion"] for issue in report["issues"])
