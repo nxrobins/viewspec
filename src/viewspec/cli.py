@@ -21,6 +21,7 @@ from viewspec.intent_tools import (
     diff_intent_files,
     diff_intent_text,
     init_intent_file,
+    intent_semantic_change_lines,
     intent_diff_error_payload,
     intent_error_payload,
     starter_intent_bundle,
@@ -376,7 +377,7 @@ def _diff_intent_command(args: argparse.Namespace) -> int:
                 print(
                     f"{section}: +{changes['added']} -{changes['removed']} changed={changes['changed']}"
                 )
-        semantic_lines = _intent_semantic_change_lines(payload.get("semantic_changes"))
+        semantic_lines = intent_semantic_change_lines(payload.get("semantic_changes"))
         if semantic_lines:
             print("semantic_changes:")
             for line in semantic_lines:
@@ -387,76 +388,6 @@ def _diff_intent_command(args: argparse.Namespace) -> int:
             side = f"{error['side']}: " if "side" in error else ""
             print(f"{side}{error['code']}: {error['message']}")
     return 0 if payload["ok"] else 2
-
-
-def _intent_semantic_change_lines(semantic_changes: object) -> list[str]:
-    if not isinstance(semantic_changes, dict):
-        return []
-    lines: list[str] = []
-    for section in ("regions", "groups", "motifs", "aesthetic_profiles", "styles", "bindings", "actions"):
-        changes = semantic_changes.get(section)
-        if not isinstance(changes, list):
-            continue
-        for change in changes:
-            if not isinstance(change, dict):
-                continue
-            line = _intent_semantic_change_line(section, change)
-            if line:
-                lines.append(line)
-    return lines
-
-
-def _intent_semantic_change_line(section: str, change: dict[str, object]) -> str:
-    change_name = str(change.get("change") or "changed")
-    if section == "aesthetic_profiles":
-        if change_name == "profile_changed":
-            return (
-                "aesthetic_profiles: profile_changed "
-                f"{_cli_diff_value(change.get('left'))} -> {_cli_diff_value(change.get('right'))} "
-                f"target={_cli_diff_value(change.get('right_target'))}"
-            )
-        if change_name in {"added", "removed"}:
-            return (
-                f"aesthetic_profiles: {change_name} "
-                f"{_cli_diff_value(change.get('profile'))} "
-                f"target={_cli_diff_value(change.get('target'))}"
-            )
-    item_id = change.get("id")
-    prefix = f"{section}.{item_id}" if isinstance(item_id, str) and item_id else section
-    parts = [f"{prefix}: {change_name}"]
-    if "left" in change and "right" in change:
-        parts.append(f"{_cli_diff_value(change.get('left'))} -> {_cli_diff_value(change.get('right'))}")
-    for field in (
-        "kind",
-        "target",
-        "target_region",
-        "target_ref",
-        "role",
-        "layout",
-        "present_as",
-        "parent_region",
-        "profile",
-        "token",
-        "payload_bindings",
-        "added",
-        "removed",
-        "order_changed",
-    ):
-        if field in change:
-            parts.append(f"{field}={_cli_diff_value(change.get(field))}")
-    return " ".join(parts)
-
-
-def _cli_diff_value(value: object) -> str:
-    if value is None:
-        return "null"
-    if isinstance(value, str):
-        return value
-    if isinstance(value, bool):
-        return "true" if value else "false"
-    if isinstance(value, (dict, list)):
-        return json.dumps(value, sort_keys=True)
-    return str(value)
 
 
 def _init_design_command(args: argparse.Namespace) -> int:

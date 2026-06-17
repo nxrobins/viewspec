@@ -247,6 +247,8 @@ The MCP `compile_intent_bundle_file` tool accepts the same target as `target: "r
 
 For Tailwind host apps, use `--target react-tailwind-tsx` or MCP `target: "react-tailwind-tsx"`. Tailwind utility classes are closed compiler recipes; agents must still edit only the IntentBundle.
 
+MCP `diff_intent_bundle_files` returns the full `diff` payload and a concise `semantic_summary` list for agent-readable review. Metadata also includes `semantic_change_count`, `semantic_change_sections`, and `topology_similarity` so agents can triage revisions before inspecting generated artifacts.
+
 The public repo includes an isolated host proof for one representative React/Tailwind fixture, but agent workflows should not treat that as per-artifact rendering certification. For arbitrary outputs, the required local gate is still validate, compile, and `viewspec check`; host apps may add their own render tests around the generated component.
 
 Agents may run `viewspec verify-host react-tailwind-output/ --target react-tailwind-tsx --install --json`, or MCP `verify_host`, when the user wants a bounded per-artifact React/Vite/Tailwind runtime proof. This verifier checks the exact artifact first, carries the checked manifest summary into the host proof report, copies only the checked generated files into ViewSpec's isolated reference host, and asserts computed grid column/span counts plus profiled aesthetic markers/layout when the manifest declares them. It does not claim compatibility with arbitrary host apps. Human CLI output prints the same summary, including compact aesthetic style-delta counts, plus nonzero host assertion counts; MCP metadata exposes the same bounded host verification summary while `--json` returns the full proof report.
