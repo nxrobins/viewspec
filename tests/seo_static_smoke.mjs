@@ -296,13 +296,13 @@ assert.equal((aestheticProfilesPage.match(/class="profile-card"/g) || []).length
 const aestheticProof = extractScriptJson(aestheticProfilesPage, 'aesthetic-profile-proof')
 assert.deepEqual(Object.keys(aestheticProof).sort(), [...aestheticProfileTokens].sort(), 'aesthetic profile proof tokens')
 const expectedAestheticLayout = {
-  'aesthetic.calm_ops': [2, 2, null],
-  'aesthetic.premium_saas': [2, 2, 2],
-  'aesthetic.data_dense': [3, 3, null],
-  'aesthetic.editorial_product': [2, 1, null],
-  'aesthetic.executive_review': [2, 2, 2],
+  'aesthetic.calm_ops': [2, 2, null, null],
+  'aesthetic.premium_saas': [2, 2, 2, 'featured'],
+  'aesthetic.data_dense': [3, 3, null, null],
+  'aesthetic.editorial_product': [2, 1, null, null],
+  'aesthetic.executive_review': [2, 2, 2, 'featured'],
 }
-for (const [token, [workspaceColumns, metricColumns, metricSpan]] of Object.entries(expectedAestheticLayout)) {
+for (const [token, [workspaceColumns, metricColumns, metricSpan, metricEmphasis]] of Object.entries(expectedAestheticLayout)) {
   assert.equal(
     aestheticProof[token].styleSignature,
     `${aestheticProof[token].styleProof.changed_token_count} changed tokens / ${aestheticProof[token].styleProof.category_count} categories / ${aestheticProof[token].styleProof.declaration_count} declarations`,
@@ -335,11 +335,12 @@ for (const [token, [workspaceColumns, metricColumns, metricSpan]] of Object.entr
     assert.equal(aestheticProof[token].layoutProof.metric_card, undefined, `${token} metric card span`)
   } else {
     assert.equal(aestheticProof[token].layoutProof.metric_card.spanColumns, metricSpan, `${token} metric card span`)
+    assert.equal(aestheticProof[token].layoutProof.metric_card.layoutEmphasis, metricEmphasis, `${token} metric card emphasis`)
     assert.equal(aestheticProof[token].layoutProof.metric_card.profile, token, `${token} metric card profile marker`)
   }
   assert.equal(
     aestheticProof[token].layoutSignature,
-    `workspace ${workspaceColumns} / metrics ${metricColumns}${metricSpan === null ? '' : ` / featured metric span ${metricSpan}`}`,
+    `workspace ${workspaceColumns} / metrics ${metricColumns}${metricSpan === null ? '' : ` / featured metric span ${metricSpan} + ${metricEmphasis} emphasis`}`,
     `${token} layout signature`
   )
 }

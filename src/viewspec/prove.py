@@ -856,11 +856,13 @@ def _proof_manifest_summary_lines(summary: object) -> list[str]:
             item = layout.get(role)
             if not isinstance(item, dict):
                 continue
+            emphasis = item.get("layout_emphasis")
+            emphasis_text = f", layout_emphasis `{_summary_value(emphasis)}`" if emphasis is not None else ""
             span = item.get("span_columns")
             span_text = f", span_columns `{_summary_value(span)}`" if span is not None else ""
             lines.append(
                 f"- Aesthetic layout `{_summary_value(role)}`: profile `{_summary_value(item.get('profile'))}`, "
-                f"columns `{_summary_value(item.get('columns'))}`{span_text}, nodes `{_summary_value(item.get('node_count'))}`"
+                f"columns `{_summary_value(item.get('columns'))}`{emphasis_text}{span_text}, nodes `{_summary_value(item.get('node_count'))}`"
             )
     else:
         lines.append("- Aesthetic layout roles: `none`")

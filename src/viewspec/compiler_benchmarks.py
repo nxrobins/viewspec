@@ -1153,7 +1153,7 @@ def _compact_aesthetic_layout(value: object) -> dict[str, dict[str, Any]]:
     return {
         str(role): {
             key: item.get(key)
-            for key in ("profile", "columns", "span_columns", "node_count")
+            for key in ("profile", "columns", "layout_emphasis", "span_columns", "node_count")
             if key in item
         }
         for role, item in sorted(value.items())

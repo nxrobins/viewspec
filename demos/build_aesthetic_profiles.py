@@ -156,7 +156,11 @@ def layout_proof(manifest: dict[str, Any], profile: str) -> dict[str, dict[str, 
             span_columns = props.get("span_columns")
             if not isinstance(span_columns, int):
                 raise RuntimeError(f"{profile} generated featured metric card without integer span metadata.")
+            layout_emphasis = props.get("layout_emphasis")
+            if layout_emphasis != "featured":
+                raise RuntimeError(f"{profile} generated featured metric card without checked layout emphasis metadata.")
             proof[role] = {
+                "layoutEmphasis": layout_emphasis,
                 "profile": props.get("aesthetic_layout_profile"),
                 "spanColumns": span_columns,
             }
@@ -170,7 +174,10 @@ def layout_proof(manifest: dict[str, Any], profile: str) -> dict[str, dict[str, 
 def layout_signature(layout: dict[str, dict[str, Any]]) -> str:
     parts = [f"{LAYOUT_PROOF_LABELS[role]} {layout[role]['columns']}" for role in LAYOUT_PROOF_ROLES]
     if "metric_card" in layout:
-        parts.append(f"{LAYOUT_PROOF_LABELS['metric_card']} span {layout['metric_card']['spanColumns']}")
+        parts.append(
+            f"{LAYOUT_PROOF_LABELS['metric_card']} span {layout['metric_card']['spanColumns']} "
+            f"+ {layout['metric_card']['layoutEmphasis']} emphasis"
+        )
     return " / ".join(parts)
 
 
@@ -878,7 +885,7 @@ def build_page(profiles: dict[str, dict[str, Any]]) -> str:
 
     <section class="contract-panel">
       <h2>What stays invariant</h2>
-      <p>The five cards share the same IntentBundle shape, generated semantic ids, and manifest-backed provenance. Only compiler-owned typography, spacing, surface, color, action, hierarchy, rhythm, narrative style projections, bounded grid metadata, and featured metric-card span metadata change.</p>
+      <p>The five cards share the same IntentBundle shape, generated semantic ids, and manifest-backed provenance. Only compiler-owned typography, spacing, surface, color, action, hierarchy, rhythm, narrative style projections, bounded grid metadata, and featured metric-card span and emphasis metadata change.</p>
       <p>The proof summary records one shared semantic hash, distinct style projection hashes for every profile, and at least three bounded layout signatures.</p>
       <div class="axis-grid" aria-label="Compiler-derived aesthetic comparison axes">
 {axis_cards}

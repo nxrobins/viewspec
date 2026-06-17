@@ -247,6 +247,8 @@ def _style_object(node: IRNode, style_values: dict[str, str]) -> str:
     if isinstance(span_columns, int) and not isinstance(span_columns, bool) and span_columns > 1:
         style["gridColumn"] = f"span {span_columns} / span {span_columns}"
     style.update(_css_to_style(_style_css(node, style_values)))
+    if node.props.get("layout_emphasis") == "featured":
+        style.update({"outline": "2px solid #14b8a6", "outlineOffset": "0"})
     if not style:
         return ""
     pairs: list[str] = []

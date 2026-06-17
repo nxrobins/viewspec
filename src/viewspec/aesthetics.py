@@ -21,6 +21,7 @@ MIN_AESTHETIC_PROFILE_STYLE_CHANGES = 6
 MIN_AESTHETIC_PROFILE_CATEGORIES = 3
 MAX_AESTHETIC_PROFILE_LAYOUT_COLUMNS = 3
 MAX_AESTHETIC_PROFILE_SPAN_COLUMNS = 3
+LAYOUT_EMPHASIS_VALUES = frozenset({"featured"})
 
 AESTHETIC_PROFILE_LAYOUT_ROLES = frozenset({"content_grid", "metric_grid", "metric_card"})
 AESTHETIC_PROFILE_LAYOUT_PROPS = {
@@ -31,7 +32,7 @@ AESTHETIC_PROFILE_LAYOUT_PROPS = {
     "aesthetic.premium_saas": {
         "content_grid": {"columns": 2},
         "metric_grid": {"columns": 2},
-        "metric_card": {"span_columns": 2},
+        "metric_card": {"span_columns": 2, "layout_emphasis": "featured"},
     },
     "aesthetic.data_dense": {
         "content_grid": {"columns": 3},
@@ -44,7 +45,7 @@ AESTHETIC_PROFILE_LAYOUT_PROPS = {
     "aesthetic.executive_review": {
         "content_grid": {"columns": 2},
         "metric_grid": {"columns": 2},
-        "metric_card": {"span_columns": 2},
+        "metric_card": {"span_columns": 2, "layout_emphasis": "featured"},
     },
 }
 
@@ -171,7 +172,7 @@ def profile_style_values(profile: str) -> dict[str, str]:
     return dict(values)
 
 
-def profile_layout_props(profile: str) -> dict[str, dict[str, int]]:
+def profile_layout_props(profile: str) -> dict[str, dict[str, int | str]]:
     validate_aesthetic_profile_registry()
     values = AESTHETIC_PROFILE_LAYOUT_PROPS.get(profile)
     if values is None:
@@ -241,13 +242,24 @@ def _validate_profile_layout_props(profile: str, values: dict[str, dict[str, int
                     f"{profile} layout columns must be between 1 and {MAX_AESTHETIC_PROFILE_LAYOUT_COLUMNS}.",
                 )
         elif role == "metric_card":
-            if set(props) != {"span_columns"}:
-                raise AestheticProfileError("AESTHETIC_PROFILE_LAYOUT_UNSAFE", f"{profile} may only set metric card span columns.")
-            span_columns = props["span_columns"]
-            if not isinstance(span_columns, int) or isinstance(span_columns, bool) or not 1 <= span_columns <= MAX_AESTHETIC_PROFILE_SPAN_COLUMNS:
+            if not set(props).issubset({"span_columns", "layout_emphasis"}) or not props:
+                raise AestheticProfileError("AESTHETIC_PROFILE_LAYOUT_UNSAFE", f"{profile} may only set metric card span columns and layout emphasis.")
+            span_columns = props.get("span_columns")
+            if span_columns is not None and (
+                not isinstance(span_columns, int)
+                or isinstance(span_columns, bool)
+                or not 1 <= span_columns <= MAX_AESTHETIC_PROFILE_SPAN_COLUMNS
+            ):
                 raise AestheticProfileError(
                     "AESTHETIC_PROFILE_LAYOUT_UNSAFE",
                     f"{profile} metric card span columns must be between 1 and {MAX_AESTHETIC_PROFILE_SPAN_COLUMNS}.",
+                )
+            layout_emphasis = props.get("layout_emphasis")
+            if layout_emphasis is not None and layout_emphasis not in LAYOUT_EMPHASIS_VALUES:
+                allowed = ", ".join(sorted(LAYOUT_EMPHASIS_VALUES))
+                raise AestheticProfileError(
+                    "AESTHETIC_PROFILE_LAYOUT_UNSAFE",
+                    f"{profile} metric card layout emphasis must be one of: {allowed}.",
                 )
 
 

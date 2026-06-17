@@ -1,663 +1,1667 @@
 {
-  "artifact_hash": "455b792977b735df9d41e9070eec91731686241e59fdd35c9ffdffe99537ef03",
+  "version": 1,
+  "manifest_schema_version": 1,
+  "kind": "intent_bundle_compile",
+  "sdk_version": "0.3.0b1",
+  "source_name": "intent_bundle.json",
+  "raw_source_hash": "7397ecd7b2e870d0869703191bc2874673c99909aef0f54f5d128767719ef346",
+  "source_hash": "7397ecd7b2e870d0869703191bc2874673c99909aef0f54f5d128767719ef346",
+  "design_hash": null,
+  "artifact_hash": "d15c936c59ae3c940a78601fa07870c7a411674f174dbe73deebb7ffa3beab7f",
   "command": "compile",
   "command_args": [
     "python",
     "demos/build_landing.py"
   ],
-  "design_hash": null,
-  "diagnostics": [],
-  "external_refs": [],
+  "policy_version": "viewspec-intent-bundle@1",
   "guarantees": {
+    "sdk_network_calls": "none",
     "artifact_autofetch_network": "none",
-    "decompilation": "not_applicable",
     "network_calls": "none",
-    "sdk_network_calls": "none"
+    "decompilation": "not_applicable"
   },
-  "kind": "intent_bundle_compile",
-  "manifest_schema_version": 1,
   "nodes": {
-    "dom-binding_demo_index_row_1_label": {
-      "content_refs": [
-        "node:demo_index_row_1#attr:label"
+    "dom-region_root": {
+      "ir_id": "region_root",
+      "primitive": "root",
+      "classes": [
+        "vs-root",
+        "vs-layout-root"
       ],
+      "content_refs": [],
       "intent_refs": [
-        "viewspec:binding:demo_index_row_1_label"
+        "viewspec:view:viewspec_landing",
+        "viewspec:region:root"
       ],
-      "ir_id": "binding_demo_index_row_1_label",
-      "primitive": "label",
-      "props": {
-        "binding_id": "demo_index_row_1_label",
-        "table_cell_role": "row_header",
-        "text": "Same Data, Three Motifs"
-      },
-      "style_tokens": [
-        "tone.muted"
-      ]
-    },
-    "dom-binding_demo_index_row_1_value": {
-      "content_refs": [
-        "node:demo_index_row_1#attr:value"
-      ],
-      "intent_refs": [
-        "viewspec:binding:demo_index_row_1_value"
-      ],
-      "ir_id": "binding_demo_index_row_1_value",
-      "primitive": "value",
-      "props": {
-        "binding_id": "demo_index_row_1_value",
-        "table_cell_role": "cell",
-        "text": "One dataset, three visual structures. Change one parameter."
-      },
       "style_tokens": [
         "tone.neutral",
+        "palette.temperature"
+      ],
+      "props": {
+        "layout_role": "root"
+      }
+    },
+    "dom-region_main": {
+      "ir_id": "region_main",
+      "primitive": "stack",
+      "classes": [
+        "vs-stack",
+        "vs-layout-stack"
+      ],
+      "content_refs": [],
+      "intent_refs": [
+        "viewspec:region:main"
+      ],
+      "style_tokens": [
+        "density.regular"
+      ],
+      "props": {
+        "layout_role": "stack"
+      }
+    },
+    "dom-motif_hero_features": {
+      "ir_id": "motif_hero_features",
+      "primitive": "grid",
+      "classes": [
+        "vs-grid",
+        "vs-layout-grid",
+        "vs-motif-dashboard"
+      ],
+      "content_refs": [],
+      "intent_refs": [
+        "viewspec:motif:hero_features",
+        "viewspec:style:s_hero_emphasis"
+      ],
+      "style_tokens": [
+        "density.regular",
         "emphasis.high"
-      ]
-    },
-    "dom-binding_demo_index_row_2_label": {
-      "content_refs": [
-        "node:demo_index_row_2#attr:label"
       ],
-      "intent_refs": [
-        "viewspec:binding:demo_index_row_2_label"
-      ],
-      "ir_id": "binding_demo_index_row_2_label",
-      "primitive": "label",
       "props": {
-        "binding_id": "demo_index_row_2_label",
-        "table_cell_role": "row_header",
-        "text": "Provenance Inspector"
-      },
-      "style_tokens": [
-        "tone.muted"
-      ]
+        "layout_role": "grid",
+        "motif_kind": "dashboard",
+        "columns": 2,
+        "layout_strategy": "dashboard_grid_v0"
+      }
     },
-    "dom-binding_demo_index_row_2_value": {
-      "content_refs": [
-        "node:demo_index_row_2#attr:value"
+    "dom-motif_hero_features_hero_features_card_1": {
+      "ir_id": "motif_hero_features_hero_features_card_1",
+      "primitive": "surface",
+      "classes": [
+        "vs-surface",
+        "vs-layout-surface",
+        "vs-motif-dashboard"
       ],
+      "content_refs": [],
       "intent_refs": [
-        "viewspec:binding:demo_index_row_2_value"
+        "viewspec:motif:hero_features"
       ],
-      "ir_id": "binding_demo_index_row_2_value",
-      "primitive": "value",
-      "props": {
-        "binding_id": "demo_index_row_2_value",
-        "table_cell_role": "cell",
-        "text": "Hover any element. Trace DOM \u2192 IR \u2192 binding \u2192 address \u2192 raw data."
-      },
       "style_tokens": [
-        "tone.neutral",
-        "emphasis.high"
-      ]
-    },
-    "dom-binding_demo_index_row_3_label": {
-      "content_refs": [
-        "node:demo_index_row_3#attr:label"
+        "surface.subtle"
       ],
-      "intent_refs": [
-        "viewspec:binding:demo_index_row_3_label"
-      ],
-      "ir_id": "binding_demo_index_row_3_label",
-      "primitive": "label",
       "props": {
-        "binding_id": "demo_index_row_3_label",
-        "table_cell_role": "row_header",
-        "text": "Live Builder"
-      },
-      "style_tokens": [
-        "tone.muted"
-      ]
-    },
-    "dom-binding_demo_index_row_3_value": {
-      "content_refs": [
-        "node:demo_index_row_3#attr:value"
-      ],
-      "intent_refs": [
-        "viewspec:binding:demo_index_row_3_value"
-      ],
-      "ir_id": "binding_demo_index_row_3_value",
-      "primitive": "value",
-      "props": {
-        "binding_id": "demo_index_row_3_value",
-        "table_cell_role": "cell",
-        "text": "Browse ViewSpec JSON, IR tree, and rendered output. Always in sync."
-      },
-      "style_tokens": [
-        "tone.neutral",
-        "emphasis.high"
-      ]
-    },
-    "dom-binding_demo_index_row_4_label": {
-      "content_refs": [
-        "node:demo_index_row_4#attr:label"
-      ],
-      "intent_refs": [
-        "viewspec:binding:demo_index_row_4_label"
-      ],
-      "ir_id": "binding_demo_index_row_4_label",
-      "primitive": "label",
-      "props": {
-        "binding_id": "demo_index_row_4_label",
-        "table_cell_role": "row_header",
-        "text": "The Invariants"
-      },
-      "style_tokens": [
-        "tone.muted"
-      ]
-    },
-    "dom-binding_demo_index_row_4_value": {
-      "content_refs": [
-        "node:demo_index_row_4#attr:value"
-      ],
-      "intent_refs": [
-        "viewspec:binding:demo_index_row_4_value"
-      ],
-      "ir_id": "binding_demo_index_row_4_value",
-      "primitive": "value",
-      "props": {
-        "binding_id": "demo_index_row_4_value",
-        "table_cell_role": "cell",
-        "text": "Watch the compiler enforce \u2014 and refuse \u2014 each guarantee."
-      },
-      "style_tokens": [
-        "tone.neutral",
-        "emphasis.high"
-      ]
-    },
-    "dom-binding_demo_index_row_5_label": {
-      "content_refs": [
-        "node:demo_index_row_5#attr:label"
-      ],
-      "intent_refs": [
-        "viewspec:binding:demo_index_row_5_label"
-      ],
-      "ir_id": "binding_demo_index_row_5_label",
-      "primitive": "label",
-      "props": {
-        "binding_id": "demo_index_row_5_label",
-        "table_cell_role": "row_header",
-        "text": "15 Lines \u2192 Full UI"
-      },
-      "style_tokens": [
-        "tone.muted"
-      ]
-    },
-    "dom-binding_demo_index_row_5_value": {
-      "content_refs": [
-        "node:demo_index_row_5#attr:value"
-      ],
-      "intent_refs": [
-        "viewspec:binding:demo_index_row_5_value"
-      ],
-      "ir_id": "binding_demo_index_row_5_value",
-      "primitive": "value",
-      "props": {
-        "binding_id": "demo_index_row_5_value",
-        "table_cell_role": "cell",
-        "text": "An invoice table builds itself from 15 lines of Python."
-      },
-      "style_tokens": [
-        "tone.neutral",
-        "emphasis.high"
-      ]
+        "layout_role": "surface",
+        "motif_kind": "dashboard"
+      }
     },
     "dom-binding_hero_features_card_1_label": {
+      "ir_id": "binding_hero_features_card_1_label",
+      "primitive": "label",
+      "classes": [
+        "vs-label"
+      ],
       "content_refs": [
         "node:hero_features_card_1#attr:label"
       ],
       "intent_refs": [
         "viewspec:binding:hero_features_card_1_label"
       ],
-      "ir_id": "binding_hero_features_card_1_label",
-      "primitive": "label",
-      "props": {
-        "binding_id": "hero_features_card_1_label",
-        "text": "Compilation"
-      },
       "style_tokens": [
         "tone.muted"
-      ]
+      ],
+      "props": {
+        "text": "Compilation",
+        "binding_id": "hero_features_card_1_label"
+      }
     },
     "dom-binding_hero_features_card_1_value": {
+      "ir_id": "binding_hero_features_card_1_value",
+      "primitive": "value",
+      "classes": [
+        "vs-value"
+      ],
       "content_refs": [
         "node:hero_features_card_1#attr:value"
       ],
       "intent_refs": [
         "viewspec:binding:hero_features_card_1_value"
       ],
-      "ir_id": "binding_hero_features_card_1_value",
-      "primitive": "value",
-      "props": {
-        "binding_id": "hero_features_card_1_value",
-        "text": "3ms deterministic \u2014 no LLM, no GPU"
-      },
       "style_tokens": [
         "tone.neutral",
         "emphasis.high"
-      ]
+      ],
+      "props": {
+        "text": "3ms deterministic \u2014 no LLM, no GPU",
+        "binding_id": "hero_features_card_1_value"
+      }
+    },
+    "dom-motif_hero_features_hero_features_card_2": {
+      "ir_id": "motif_hero_features_hero_features_card_2",
+      "primitive": "surface",
+      "classes": [
+        "vs-surface",
+        "vs-layout-surface",
+        "vs-motif-dashboard"
+      ],
+      "content_refs": [],
+      "intent_refs": [
+        "viewspec:motif:hero_features"
+      ],
+      "style_tokens": [
+        "surface.subtle"
+      ],
+      "props": {
+        "layout_role": "surface",
+        "motif_kind": "dashboard"
+      }
     },
     "dom-binding_hero_features_card_2_label": {
+      "ir_id": "binding_hero_features_card_2_label",
+      "primitive": "label",
+      "classes": [
+        "vs-label"
+      ],
       "content_refs": [
         "node:hero_features_card_2#attr:label"
       ],
       "intent_refs": [
         "viewspec:binding:hero_features_card_2_label"
       ],
-      "ir_id": "binding_hero_features_card_2_label",
-      "primitive": "label",
-      "props": {
-        "binding_id": "hero_features_card_2_label",
-        "text": "Provenance"
-      },
       "style_tokens": [
         "tone.muted"
-      ]
+      ],
+      "props": {
+        "text": "Provenance",
+        "binding_id": "hero_features_card_2_label"
+      }
     },
     "dom-binding_hero_features_card_2_value": {
+      "ir_id": "binding_hero_features_card_2_value",
+      "primitive": "value",
+      "classes": [
+        "vs-value"
+      ],
       "content_refs": [
         "node:hero_features_card_2#attr:value"
       ],
       "intent_refs": [
         "viewspec:binding:hero_features_card_2_value"
       ],
-      "ir_id": "binding_hero_features_card_2_value",
-      "primitive": "value",
-      "props": {
-        "binding_id": "hero_features_card_2_value",
-        "text": "Every pixel traces to its source data"
-      },
       "style_tokens": [
         "tone.neutral",
         "emphasis.high"
-      ]
+      ],
+      "props": {
+        "text": "Every pixel traces to its source data",
+        "binding_id": "hero_features_card_2_value"
+      }
+    },
+    "dom-motif_hero_features_hero_features_card_3": {
+      "ir_id": "motif_hero_features_hero_features_card_3",
+      "primitive": "surface",
+      "classes": [
+        "vs-surface",
+        "vs-layout-surface",
+        "vs-motif-dashboard"
+      ],
+      "content_refs": [],
+      "intent_refs": [
+        "viewspec:motif:hero_features"
+      ],
+      "style_tokens": [
+        "surface.subtle"
+      ],
+      "props": {
+        "layout_role": "surface",
+        "motif_kind": "dashboard"
+      }
     },
     "dom-binding_hero_features_card_3_label": {
+      "ir_id": "binding_hero_features_card_3_label",
+      "primitive": "label",
+      "classes": [
+        "vs-label"
+      ],
       "content_refs": [
         "node:hero_features_card_3#attr:label"
       ],
       "intent_refs": [
         "viewspec:binding:hero_features_card_3_label"
       ],
-      "ir_id": "binding_hero_features_card_3_label",
-      "primitive": "label",
-      "props": {
-        "binding_id": "hero_features_card_3_label",
-        "text": "Invariants"
-      },
       "style_tokens": [
         "tone.muted"
-      ]
+      ],
+      "props": {
+        "text": "Invariants",
+        "binding_id": "hero_features_card_3_label"
+      }
     },
     "dom-binding_hero_features_card_3_value": {
+      "ir_id": "binding_hero_features_card_3_value",
+      "primitive": "value",
+      "classes": [
+        "vs-value"
+      ],
       "content_refs": [
         "node:hero_features_card_3#attr:value"
       ],
       "intent_refs": [
         "viewspec:binding:hero_features_card_3_value"
       ],
-      "ir_id": "binding_hero_features_card_3_value",
-      "primitive": "value",
-      "props": {
-        "binding_id": "hero_features_card_3_value",
-        "text": "Exactly-once \u00b7 Semantic grouping \u00b7 Strict order"
-      },
       "style_tokens": [
         "tone.neutral",
         "emphasis.high"
-      ]
+      ],
+      "props": {
+        "text": "Exactly-once \u00b7 Semantic grouping \u00b7 Strict order",
+        "binding_id": "hero_features_card_3_value"
+      }
+    },
+    "dom-motif_demo_index": {
+      "ir_id": "motif_demo_index",
+      "primitive": "stack",
+      "classes": [
+        "vs-stack",
+        "vs-layout-stack",
+        "vs-motif-table"
+      ],
+      "content_refs": [],
+      "intent_refs": [
+        "viewspec:motif:demo_index"
+      ],
+      "style_tokens": [
+        "density.regular"
+      ],
+      "props": {
+        "layout_role": "stack",
+        "motif_kind": "table"
+      }
+    },
+    "dom-motif_demo_index_demo_index_row_1": {
+      "ir_id": "motif_demo_index_demo_index_row_1",
+      "primitive": "cluster",
+      "classes": [
+        "vs-cluster",
+        "vs-layout-cluster",
+        "vs-motif-table"
+      ],
+      "content_refs": [],
+      "intent_refs": [
+        "viewspec:motif:demo_index"
+      ],
+      "style_tokens": [
+        "density.compact"
+      ],
+      "props": {
+        "layout_role": "cluster",
+        "motif_kind": "table"
+      }
+    },
+    "dom-binding_demo_index_row_1_label": {
+      "ir_id": "binding_demo_index_row_1_label",
+      "primitive": "label",
+      "classes": [
+        "vs-label"
+      ],
+      "content_refs": [
+        "node:demo_index_row_1#attr:label"
+      ],
+      "intent_refs": [
+        "viewspec:binding:demo_index_row_1_label"
+      ],
+      "style_tokens": [
+        "tone.muted"
+      ],
+      "props": {
+        "text": "Same Data, Three Motifs",
+        "binding_id": "demo_index_row_1_label",
+        "table_cell_role": "row_header"
+      }
+    },
+    "dom-binding_demo_index_row_1_value": {
+      "ir_id": "binding_demo_index_row_1_value",
+      "primitive": "value",
+      "classes": [
+        "vs-value"
+      ],
+      "content_refs": [
+        "node:demo_index_row_1#attr:value"
+      ],
+      "intent_refs": [
+        "viewspec:binding:demo_index_row_1_value"
+      ],
+      "style_tokens": [
+        "tone.neutral",
+        "emphasis.high"
+      ],
+      "props": {
+        "text": "One dataset, three visual structures. Change one parameter.",
+        "binding_id": "demo_index_row_1_value",
+        "table_cell_role": "cell"
+      }
+    },
+    "dom-motif_demo_index_demo_index_row_2": {
+      "ir_id": "motif_demo_index_demo_index_row_2",
+      "primitive": "cluster",
+      "classes": [
+        "vs-cluster",
+        "vs-layout-cluster",
+        "vs-motif-table"
+      ],
+      "content_refs": [],
+      "intent_refs": [
+        "viewspec:motif:demo_index"
+      ],
+      "style_tokens": [
+        "density.compact"
+      ],
+      "props": {
+        "layout_role": "cluster",
+        "motif_kind": "table"
+      }
+    },
+    "dom-binding_demo_index_row_2_label": {
+      "ir_id": "binding_demo_index_row_2_label",
+      "primitive": "label",
+      "classes": [
+        "vs-label"
+      ],
+      "content_refs": [
+        "node:demo_index_row_2#attr:label"
+      ],
+      "intent_refs": [
+        "viewspec:binding:demo_index_row_2_label"
+      ],
+      "style_tokens": [
+        "tone.muted"
+      ],
+      "props": {
+        "text": "Provenance Inspector",
+        "binding_id": "demo_index_row_2_label",
+        "table_cell_role": "row_header"
+      }
+    },
+    "dom-binding_demo_index_row_2_value": {
+      "ir_id": "binding_demo_index_row_2_value",
+      "primitive": "value",
+      "classes": [
+        "vs-value"
+      ],
+      "content_refs": [
+        "node:demo_index_row_2#attr:value"
+      ],
+      "intent_refs": [
+        "viewspec:binding:demo_index_row_2_value"
+      ],
+      "style_tokens": [
+        "tone.neutral",
+        "emphasis.high"
+      ],
+      "props": {
+        "text": "Hover any element. Trace DOM \u2192 IR \u2192 binding \u2192 address \u2192 raw data.",
+        "binding_id": "demo_index_row_2_value",
+        "table_cell_role": "cell"
+      }
+    },
+    "dom-motif_demo_index_demo_index_row_3": {
+      "ir_id": "motif_demo_index_demo_index_row_3",
+      "primitive": "cluster",
+      "classes": [
+        "vs-cluster",
+        "vs-layout-cluster",
+        "vs-motif-table"
+      ],
+      "content_refs": [],
+      "intent_refs": [
+        "viewspec:motif:demo_index"
+      ],
+      "style_tokens": [
+        "density.compact"
+      ],
+      "props": {
+        "layout_role": "cluster",
+        "motif_kind": "table"
+      }
+    },
+    "dom-binding_demo_index_row_3_label": {
+      "ir_id": "binding_demo_index_row_3_label",
+      "primitive": "label",
+      "classes": [
+        "vs-label"
+      ],
+      "content_refs": [
+        "node:demo_index_row_3#attr:label"
+      ],
+      "intent_refs": [
+        "viewspec:binding:demo_index_row_3_label"
+      ],
+      "style_tokens": [
+        "tone.muted"
+      ],
+      "props": {
+        "text": "Live Builder",
+        "binding_id": "demo_index_row_3_label",
+        "table_cell_role": "row_header"
+      }
+    },
+    "dom-binding_demo_index_row_3_value": {
+      "ir_id": "binding_demo_index_row_3_value",
+      "primitive": "value",
+      "classes": [
+        "vs-value"
+      ],
+      "content_refs": [
+        "node:demo_index_row_3#attr:value"
+      ],
+      "intent_refs": [
+        "viewspec:binding:demo_index_row_3_value"
+      ],
+      "style_tokens": [
+        "tone.neutral",
+        "emphasis.high"
+      ],
+      "props": {
+        "text": "Browse ViewSpec JSON, IR tree, and rendered output. Always in sync.",
+        "binding_id": "demo_index_row_3_value",
+        "table_cell_role": "cell"
+      }
+    },
+    "dom-motif_demo_index_demo_index_row_4": {
+      "ir_id": "motif_demo_index_demo_index_row_4",
+      "primitive": "cluster",
+      "classes": [
+        "vs-cluster",
+        "vs-layout-cluster",
+        "vs-motif-table"
+      ],
+      "content_refs": [],
+      "intent_refs": [
+        "viewspec:motif:demo_index"
+      ],
+      "style_tokens": [
+        "density.compact"
+      ],
+      "props": {
+        "layout_role": "cluster",
+        "motif_kind": "table"
+      }
+    },
+    "dom-binding_demo_index_row_4_label": {
+      "ir_id": "binding_demo_index_row_4_label",
+      "primitive": "label",
+      "classes": [
+        "vs-label"
+      ],
+      "content_refs": [
+        "node:demo_index_row_4#attr:label"
+      ],
+      "intent_refs": [
+        "viewspec:binding:demo_index_row_4_label"
+      ],
+      "style_tokens": [
+        "tone.muted"
+      ],
+      "props": {
+        "text": "The Invariants",
+        "binding_id": "demo_index_row_4_label",
+        "table_cell_role": "row_header"
+      }
+    },
+    "dom-binding_demo_index_row_4_value": {
+      "ir_id": "binding_demo_index_row_4_value",
+      "primitive": "value",
+      "classes": [
+        "vs-value"
+      ],
+      "content_refs": [
+        "node:demo_index_row_4#attr:value"
+      ],
+      "intent_refs": [
+        "viewspec:binding:demo_index_row_4_value"
+      ],
+      "style_tokens": [
+        "tone.neutral",
+        "emphasis.high"
+      ],
+      "props": {
+        "text": "Watch the compiler enforce \u2014 and refuse \u2014 each guarantee.",
+        "binding_id": "demo_index_row_4_value",
+        "table_cell_role": "cell"
+      }
+    },
+    "dom-motif_demo_index_demo_index_row_5": {
+      "ir_id": "motif_demo_index_demo_index_row_5",
+      "primitive": "cluster",
+      "classes": [
+        "vs-cluster",
+        "vs-layout-cluster",
+        "vs-motif-table"
+      ],
+      "content_refs": [],
+      "intent_refs": [
+        "viewspec:motif:demo_index"
+      ],
+      "style_tokens": [
+        "density.compact"
+      ],
+      "props": {
+        "layout_role": "cluster",
+        "motif_kind": "table"
+      }
+    },
+    "dom-binding_demo_index_row_5_label": {
+      "ir_id": "binding_demo_index_row_5_label",
+      "primitive": "label",
+      "classes": [
+        "vs-label"
+      ],
+      "content_refs": [
+        "node:demo_index_row_5#attr:label"
+      ],
+      "intent_refs": [
+        "viewspec:binding:demo_index_row_5_label"
+      ],
+      "style_tokens": [
+        "tone.muted"
+      ],
+      "props": {
+        "text": "15 Lines \u2192 Full UI",
+        "binding_id": "demo_index_row_5_label",
+        "table_cell_role": "row_header"
+      }
+    },
+    "dom-binding_demo_index_row_5_value": {
+      "ir_id": "binding_demo_index_row_5_value",
+      "primitive": "value",
+      "classes": [
+        "vs-value"
+      ],
+      "content_refs": [
+        "node:demo_index_row_5#attr:value"
+      ],
+      "intent_refs": [
+        "viewspec:binding:demo_index_row_5_value"
+      ],
+      "style_tokens": [
+        "tone.neutral",
+        "emphasis.high"
+      ],
+      "props": {
+        "text": "An invoice table builds itself from 15 lines of Python.",
+        "binding_id": "demo_index_row_5_value",
+        "table_cell_role": "cell"
+      }
+    },
+    "dom-motif_pipeline": {
+      "ir_id": "motif_pipeline",
+      "primitive": "cluster",
+      "classes": [
+        "vs-cluster",
+        "vs-layout-cluster",
+        "vs-motif-comparison"
+      ],
+      "content_refs": [],
+      "intent_refs": [
+        "viewspec:motif:pipeline",
+        "viewspec:style:s_pipeline_subtle"
+      ],
+      "style_tokens": [
+        "density.compact",
+        "surface.subtle"
+      ],
+      "props": {
+        "layout_role": "cluster",
+        "motif_kind": "comparison"
+      }
+    },
+    "dom-motif_pipeline_pipeline_item_1": {
+      "ir_id": "motif_pipeline_pipeline_item_1",
+      "primitive": "stack",
+      "classes": [
+        "vs-stack",
+        "vs-layout-stack",
+        "vs-motif-comparison"
+      ],
+      "content_refs": [],
+      "intent_refs": [
+        "viewspec:motif:pipeline"
+      ],
+      "style_tokens": [
+        "density.regular"
+      ],
+      "props": {
+        "layout_role": "stack",
+        "motif_kind": "comparison"
+      }
     },
     "dom-binding_pipeline_item_1_label": {
+      "ir_id": "binding_pipeline_item_1_label",
+      "primitive": "label",
+      "classes": [
+        "vs-label"
+      ],
       "content_refs": [
         "node:pipeline_item_1#attr:label"
       ],
       "intent_refs": [
         "viewspec:binding:pipeline_item_1_label"
       ],
-      "ir_id": "binding_pipeline_item_1_label",
-      "primitive": "label",
-      "props": {
-        "binding_id": "pipeline_item_1_label",
-        "text": "Describe"
-      },
       "style_tokens": [
         "tone.muted"
-      ]
+      ],
+      "props": {
+        "text": "Describe",
+        "binding_id": "pipeline_item_1_label"
+      }
     },
     "dom-binding_pipeline_item_1_value": {
+      "ir_id": "binding_pipeline_item_1_value",
+      "primitive": "text",
+      "classes": [
+        "vs-text"
+      ],
       "content_refs": [
         "node:pipeline_item_1#attr:value"
       ],
       "intent_refs": [
         "viewspec:binding:pipeline_item_1_value"
       ],
-      "ir_id": "binding_pipeline_item_1_value",
-      "primitive": "text",
-      "props": {
-        "binding_id": "pipeline_item_1_value",
-        "text": "Semantic substrate + ViewSpec. What the data means, not how it looks."
-      },
       "style_tokens": [
         "tone.neutral"
-      ]
+      ],
+      "props": {
+        "text": "Semantic substrate + ViewSpec. What the data means, not how it looks.",
+        "binding_id": "pipeline_item_1_value"
+      }
+    },
+    "dom-motif_pipeline_pipeline_item_2": {
+      "ir_id": "motif_pipeline_pipeline_item_2",
+      "primitive": "stack",
+      "classes": [
+        "vs-stack",
+        "vs-layout-stack",
+        "vs-motif-comparison"
+      ],
+      "content_refs": [],
+      "intent_refs": [
+        "viewspec:motif:pipeline"
+      ],
+      "style_tokens": [
+        "density.regular"
+      ],
+      "props": {
+        "layout_role": "stack",
+        "motif_kind": "comparison"
+      }
     },
     "dom-binding_pipeline_item_2_label": {
+      "ir_id": "binding_pipeline_item_2_label",
+      "primitive": "label",
+      "classes": [
+        "vs-label"
+      ],
       "content_refs": [
         "node:pipeline_item_2#attr:label"
       ],
       "intent_refs": [
         "viewspec:binding:pipeline_item_2_label"
       ],
-      "ir_id": "binding_pipeline_item_2_label",
-      "primitive": "label",
-      "props": {
-        "binding_id": "pipeline_item_2_label",
-        "text": "Compile"
-      },
       "style_tokens": [
         "tone.muted"
-      ]
+      ],
+      "props": {
+        "text": "Compile",
+        "binding_id": "pipeline_item_2_label"
+      }
     },
     "dom-binding_pipeline_item_2_value": {
+      "ir_id": "binding_pipeline_item_2_value",
+      "primitive": "text",
+      "classes": [
+        "vs-text"
+      ],
       "content_refs": [
         "node:pipeline_item_2#attr:value"
       ],
       "intent_refs": [
         "viewspec:binding:pipeline_item_2_value"
       ],
-      "ir_id": "binding_pipeline_item_2_value",
-      "primitive": "text",
-      "props": {
-        "binding_id": "pipeline_item_2_value",
-        "text": "Deterministic routing with provenance guarantees. 3ms. No LLM."
-      },
       "style_tokens": [
         "tone.neutral"
-      ]
+      ],
+      "props": {
+        "text": "Deterministic routing with provenance guarantees. 3ms. No LLM.",
+        "binding_id": "pipeline_item_2_value"
+      }
+    },
+    "dom-motif_pipeline_pipeline_item_3": {
+      "ir_id": "motif_pipeline_pipeline_item_3",
+      "primitive": "stack",
+      "classes": [
+        "vs-stack",
+        "vs-layout-stack",
+        "vs-motif-comparison"
+      ],
+      "content_refs": [],
+      "intent_refs": [
+        "viewspec:motif:pipeline"
+      ],
+      "style_tokens": [
+        "density.regular"
+      ],
+      "props": {
+        "layout_role": "stack",
+        "motif_kind": "comparison"
+      }
     },
     "dom-binding_pipeline_item_3_label": {
+      "ir_id": "binding_pipeline_item_3_label",
+      "primitive": "label",
+      "classes": [
+        "vs-label"
+      ],
       "content_refs": [
         "node:pipeline_item_3#attr:label"
       ],
       "intent_refs": [
         "viewspec:binding:pipeline_item_3_label"
       ],
-      "ir_id": "binding_pipeline_item_3_label",
-      "primitive": "label",
-      "props": {
-        "binding_id": "pipeline_item_3_label",
-        "text": "Render"
-      },
       "style_tokens": [
         "tone.muted"
-      ]
+      ],
+      "props": {
+        "text": "Render",
+        "binding_id": "pipeline_item_3_label"
+      }
     },
     "dom-binding_pipeline_item_3_value": {
+      "ir_id": "binding_pipeline_item_3_value",
+      "primitive": "text",
+      "classes": [
+        "vs-text"
+      ],
       "content_refs": [
         "node:pipeline_item_3#attr:value"
       ],
       "intent_refs": [
         "viewspec:binding:pipeline_item_3_value"
       ],
-      "ir_id": "binding_pipeline_item_3_value",
-      "primitive": "text",
-      "props": {
-        "binding_id": "pipeline_item_3_value",
-        "text": "Pluggable emitters. HTML today. Canvas tomorrow. Your renderer next."
-      },
       "style_tokens": [
         "tone.neutral"
-      ]
-    },
-    "dom-motif_demo_index": {
-      "content_refs": [],
-      "intent_refs": [
-        "viewspec:motif:demo_index"
       ],
-      "ir_id": "motif_demo_index",
-      "primitive": "stack",
       "props": {
-        "layout_role": "stack",
-        "motif_kind": "table"
-      },
-      "style_tokens": [
-        "density.regular"
-      ]
-    },
-    "dom-motif_demo_index_demo_index_row_1": {
-      "content_refs": [],
-      "intent_refs": [
-        "viewspec:motif:demo_index"
-      ],
-      "ir_id": "motif_demo_index_demo_index_row_1",
-      "primitive": "cluster",
-      "props": {
-        "layout_role": "cluster",
-        "motif_kind": "table"
-      },
-      "style_tokens": [
-        "density.compact"
-      ]
-    },
-    "dom-motif_demo_index_demo_index_row_2": {
-      "content_refs": [],
-      "intent_refs": [
-        "viewspec:motif:demo_index"
-      ],
-      "ir_id": "motif_demo_index_demo_index_row_2",
-      "primitive": "cluster",
-      "props": {
-        "layout_role": "cluster",
-        "motif_kind": "table"
-      },
-      "style_tokens": [
-        "density.compact"
-      ]
-    },
-    "dom-motif_demo_index_demo_index_row_3": {
-      "content_refs": [],
-      "intent_refs": [
-        "viewspec:motif:demo_index"
-      ],
-      "ir_id": "motif_demo_index_demo_index_row_3",
-      "primitive": "cluster",
-      "props": {
-        "layout_role": "cluster",
-        "motif_kind": "table"
-      },
-      "style_tokens": [
-        "density.compact"
-      ]
-    },
-    "dom-motif_demo_index_demo_index_row_4": {
-      "content_refs": [],
-      "intent_refs": [
-        "viewspec:motif:demo_index"
-      ],
-      "ir_id": "motif_demo_index_demo_index_row_4",
-      "primitive": "cluster",
-      "props": {
-        "layout_role": "cluster",
-        "motif_kind": "table"
-      },
-      "style_tokens": [
-        "density.compact"
-      ]
-    },
-    "dom-motif_demo_index_demo_index_row_5": {
-      "content_refs": [],
-      "intent_refs": [
-        "viewspec:motif:demo_index"
-      ],
-      "ir_id": "motif_demo_index_demo_index_row_5",
-      "primitive": "cluster",
-      "props": {
-        "layout_role": "cluster",
-        "motif_kind": "table"
-      },
-      "style_tokens": [
-        "density.compact"
-      ]
-    },
-    "dom-motif_hero_features": {
-      "content_refs": [],
-      "intent_refs": [
-        "viewspec:motif:hero_features",
-        "viewspec:style:s_hero_emphasis"
-      ],
-      "ir_id": "motif_hero_features",
-      "primitive": "stack",
-      "props": {
-        "layout_role": "stack",
-        "motif_kind": "dashboard"
-      },
-      "style_tokens": [
-        "density.regular",
-        "emphasis.high"
-      ]
-    },
-    "dom-motif_hero_features_hero_features_card_1": {
-      "content_refs": [],
-      "intent_refs": [
-        "viewspec:motif:hero_features"
-      ],
-      "ir_id": "motif_hero_features_hero_features_card_1",
-      "primitive": "surface",
-      "props": {
-        "layout_role": "surface",
-        "motif_kind": "dashboard"
-      },
-      "style_tokens": [
-        "surface.subtle"
-      ]
-    },
-    "dom-motif_hero_features_hero_features_card_2": {
-      "content_refs": [],
-      "intent_refs": [
-        "viewspec:motif:hero_features"
-      ],
-      "ir_id": "motif_hero_features_hero_features_card_2",
-      "primitive": "surface",
-      "props": {
-        "layout_role": "surface",
-        "motif_kind": "dashboard"
-      },
-      "style_tokens": [
-        "surface.subtle"
-      ]
-    },
-    "dom-motif_hero_features_hero_features_card_3": {
-      "content_refs": [],
-      "intent_refs": [
-        "viewspec:motif:hero_features"
-      ],
-      "ir_id": "motif_hero_features_hero_features_card_3",
-      "primitive": "surface",
-      "props": {
-        "layout_role": "surface",
-        "motif_kind": "dashboard"
-      },
-      "style_tokens": [
-        "surface.subtle"
-      ]
-    },
-    "dom-motif_pipeline": {
-      "content_refs": [],
-      "intent_refs": [
-        "viewspec:motif:pipeline",
-        "viewspec:style:s_pipeline_subtle"
-      ],
-      "ir_id": "motif_pipeline",
-      "primitive": "cluster",
-      "props": {
-        "layout_role": "cluster",
-        "motif_kind": "comparison"
-      },
-      "style_tokens": [
-        "density.compact",
-        "surface.subtle"
-      ]
-    },
-    "dom-motif_pipeline_pipeline_item_1": {
-      "content_refs": [],
-      "intent_refs": [
-        "viewspec:motif:pipeline"
-      ],
-      "ir_id": "motif_pipeline_pipeline_item_1",
-      "primitive": "stack",
-      "props": {
-        "layout_role": "stack",
-        "motif_kind": "comparison"
-      },
-      "style_tokens": [
-        "density.regular"
-      ]
-    },
-    "dom-motif_pipeline_pipeline_item_2": {
-      "content_refs": [],
-      "intent_refs": [
-        "viewspec:motif:pipeline"
-      ],
-      "ir_id": "motif_pipeline_pipeline_item_2",
-      "primitive": "stack",
-      "props": {
-        "layout_role": "stack",
-        "motif_kind": "comparison"
-      },
-      "style_tokens": [
-        "density.regular"
-      ]
-    },
-    "dom-motif_pipeline_pipeline_item_3": {
-      "content_refs": [],
-      "intent_refs": [
-        "viewspec:motif:pipeline"
-      ],
-      "ir_id": "motif_pipeline_pipeline_item_3",
-      "primitive": "stack",
-      "props": {
-        "layout_role": "stack",
-        "motif_kind": "comparison"
-      },
-      "style_tokens": [
-        "density.regular"
-      ]
-    },
-    "dom-region_main": {
-      "content_refs": [],
-      "intent_refs": [
-        "viewspec:region:main"
-      ],
-      "ir_id": "region_main",
-      "primitive": "stack",
-      "props": {
-        "layout_role": "stack"
-      },
-      "style_tokens": [
-        "density.regular"
-      ]
-    },
-    "dom-region_root": {
-      "content_refs": [],
-      "intent_refs": [
-        "viewspec:view:viewspec_landing",
-        "viewspec:region:root"
-      ],
-      "ir_id": "region_root",
-      "primitive": "root",
-      "props": {
-        "layout_role": "root"
-      },
-      "style_tokens": [
-        "tone.neutral",
-        "palette.temperature"
-      ]
+        "text": "Pluggable emitters. HTML today. Canvas tomorrow. Your renderer next.",
+        "binding_id": "pipeline_item_3_value"
+      }
     }
   },
-  "policy_version": "viewspec-intent-bundle@1",
-  "raw_source_hash": "7397ecd7b2e870d0869703191bc2874673c99909aef0f54f5d128767719ef346",
-  "sdk_version": "0.3.0b1",
-  "source_hash": "7397ecd7b2e870d0869703191bc2874673c99909aef0f54f5d128767719ef346",
-  "source_name": "intent_bundle.json",
-  "version": 1
+  "diagnostics": [],
+  "external_refs": [],
+  "semantic_digest": {
+    "version": "semantic_digest.v1",
+    "manifest_projection": {
+      "version": "semantic_digest.v1",
+      "node_order": [
+        "dom-region_root",
+        "dom-region_main",
+        "dom-motif_hero_features",
+        "dom-motif_hero_features_hero_features_card_1",
+        "dom-binding_hero_features_card_1_label",
+        "dom-binding_hero_features_card_1_value",
+        "dom-motif_hero_features_hero_features_card_2",
+        "dom-binding_hero_features_card_2_label",
+        "dom-binding_hero_features_card_2_value",
+        "dom-motif_hero_features_hero_features_card_3",
+        "dom-binding_hero_features_card_3_label",
+        "dom-binding_hero_features_card_3_value",
+        "dom-motif_demo_index",
+        "dom-motif_demo_index_demo_index_row_1",
+        "dom-binding_demo_index_row_1_label",
+        "dom-binding_demo_index_row_1_value",
+        "dom-motif_demo_index_demo_index_row_2",
+        "dom-binding_demo_index_row_2_label",
+        "dom-binding_demo_index_row_2_value",
+        "dom-motif_demo_index_demo_index_row_3",
+        "dom-binding_demo_index_row_3_label",
+        "dom-binding_demo_index_row_3_value",
+        "dom-motif_demo_index_demo_index_row_4",
+        "dom-binding_demo_index_row_4_label",
+        "dom-binding_demo_index_row_4_value",
+        "dom-motif_demo_index_demo_index_row_5",
+        "dom-binding_demo_index_row_5_label",
+        "dom-binding_demo_index_row_5_value",
+        "dom-motif_pipeline",
+        "dom-motif_pipeline_pipeline_item_1",
+        "dom-binding_pipeline_item_1_label",
+        "dom-binding_pipeline_item_1_value",
+        "dom-motif_pipeline_pipeline_item_2",
+        "dom-binding_pipeline_item_2_label",
+        "dom-binding_pipeline_item_2_value",
+        "dom-motif_pipeline_pipeline_item_3",
+        "dom-binding_pipeline_item_3_label",
+        "dom-binding_pipeline_item_3_value"
+      ],
+      "action_order": [],
+      "diagnostic_codes": [],
+      "nodes": [
+        {
+          "dom_id": "dom-region_root",
+          "ir_id": "region_root",
+          "primitive": "root",
+          "tag": "main",
+          "visible_text": "",
+          "binding_id": null,
+          "action": null,
+          "accessibility_label": null
+        },
+        {
+          "dom_id": "dom-region_main",
+          "ir_id": "region_main",
+          "primitive": "stack",
+          "tag": "div",
+          "visible_text": "",
+          "binding_id": null,
+          "action": null,
+          "accessibility_label": null
+        },
+        {
+          "dom_id": "dom-motif_hero_features",
+          "ir_id": "motif_hero_features",
+          "primitive": "grid",
+          "tag": "div",
+          "visible_text": "",
+          "binding_id": null,
+          "action": null,
+          "accessibility_label": null
+        },
+        {
+          "dom_id": "dom-motif_hero_features_hero_features_card_1",
+          "ir_id": "motif_hero_features_hero_features_card_1",
+          "primitive": "surface",
+          "tag": "div",
+          "visible_text": "",
+          "binding_id": null,
+          "action": null,
+          "accessibility_label": null
+        },
+        {
+          "dom_id": "dom-binding_hero_features_card_1_label",
+          "ir_id": "binding_hero_features_card_1_label",
+          "primitive": "label",
+          "tag": "div",
+          "visible_text": "Compilation",
+          "binding_id": "hero_features_card_1_label",
+          "action": null,
+          "accessibility_label": null
+        },
+        {
+          "dom_id": "dom-binding_hero_features_card_1_value",
+          "ir_id": "binding_hero_features_card_1_value",
+          "primitive": "value",
+          "tag": "div",
+          "visible_text": "3ms deterministic \u2014 no LLM, no GPU",
+          "binding_id": "hero_features_card_1_value",
+          "action": null,
+          "accessibility_label": null
+        },
+        {
+          "dom_id": "dom-motif_hero_features_hero_features_card_2",
+          "ir_id": "motif_hero_features_hero_features_card_2",
+          "primitive": "surface",
+          "tag": "div",
+          "visible_text": "",
+          "binding_id": null,
+          "action": null,
+          "accessibility_label": null
+        },
+        {
+          "dom_id": "dom-binding_hero_features_card_2_label",
+          "ir_id": "binding_hero_features_card_2_label",
+          "primitive": "label",
+          "tag": "div",
+          "visible_text": "Provenance",
+          "binding_id": "hero_features_card_2_label",
+          "action": null,
+          "accessibility_label": null
+        },
+        {
+          "dom_id": "dom-binding_hero_features_card_2_value",
+          "ir_id": "binding_hero_features_card_2_value",
+          "primitive": "value",
+          "tag": "div",
+          "visible_text": "Every pixel traces to its source data",
+          "binding_id": "hero_features_card_2_value",
+          "action": null,
+          "accessibility_label": null
+        },
+        {
+          "dom_id": "dom-motif_hero_features_hero_features_card_3",
+          "ir_id": "motif_hero_features_hero_features_card_3",
+          "primitive": "surface",
+          "tag": "div",
+          "visible_text": "",
+          "binding_id": null,
+          "action": null,
+          "accessibility_label": null
+        },
+        {
+          "dom_id": "dom-binding_hero_features_card_3_label",
+          "ir_id": "binding_hero_features_card_3_label",
+          "primitive": "label",
+          "tag": "div",
+          "visible_text": "Invariants",
+          "binding_id": "hero_features_card_3_label",
+          "action": null,
+          "accessibility_label": null
+        },
+        {
+          "dom_id": "dom-binding_hero_features_card_3_value",
+          "ir_id": "binding_hero_features_card_3_value",
+          "primitive": "value",
+          "tag": "div",
+          "visible_text": "Exactly-once \u00b7 Semantic grouping \u00b7 Strict order",
+          "binding_id": "hero_features_card_3_value",
+          "action": null,
+          "accessibility_label": null
+        },
+        {
+          "dom_id": "dom-motif_demo_index",
+          "ir_id": "motif_demo_index",
+          "primitive": "stack",
+          "tag": "table",
+          "visible_text": "",
+          "binding_id": null,
+          "action": null,
+          "accessibility_label": null
+        },
+        {
+          "dom_id": "dom-motif_demo_index_demo_index_row_1",
+          "ir_id": "motif_demo_index_demo_index_row_1",
+          "primitive": "cluster",
+          "tag": "tr",
+          "visible_text": "",
+          "binding_id": null,
+          "action": null,
+          "accessibility_label": null
+        },
+        {
+          "dom_id": "dom-binding_demo_index_row_1_label",
+          "ir_id": "binding_demo_index_row_1_label",
+          "primitive": "label",
+          "tag": "th",
+          "visible_text": "Same Data, Three Motifs",
+          "binding_id": "demo_index_row_1_label",
+          "action": null,
+          "accessibility_label": null
+        },
+        {
+          "dom_id": "dom-binding_demo_index_row_1_value",
+          "ir_id": "binding_demo_index_row_1_value",
+          "primitive": "value",
+          "tag": "td",
+          "visible_text": "One dataset, three visual structures. Change one parameter.",
+          "binding_id": "demo_index_row_1_value",
+          "action": null,
+          "accessibility_label": null
+        },
+        {
+          "dom_id": "dom-motif_demo_index_demo_index_row_2",
+          "ir_id": "motif_demo_index_demo_index_row_2",
+          "primitive": "cluster",
+          "tag": "tr",
+          "visible_text": "",
+          "binding_id": null,
+          "action": null,
+          "accessibility_label": null
+        },
+        {
+          "dom_id": "dom-binding_demo_index_row_2_label",
+          "ir_id": "binding_demo_index_row_2_label",
+          "primitive": "label",
+          "tag": "th",
+          "visible_text": "Provenance Inspector",
+          "binding_id": "demo_index_row_2_label",
+          "action": null,
+          "accessibility_label": null
+        },
+        {
+          "dom_id": "dom-binding_demo_index_row_2_value",
+          "ir_id": "binding_demo_index_row_2_value",
+          "primitive": "value",
+          "tag": "td",
+          "visible_text": "Hover any element. Trace DOM \u2192 IR \u2192 binding \u2192 address \u2192 raw data.",
+          "binding_id": "demo_index_row_2_value",
+          "action": null,
+          "accessibility_label": null
+        },
+        {
+          "dom_id": "dom-motif_demo_index_demo_index_row_3",
+          "ir_id": "motif_demo_index_demo_index_row_3",
+          "primitive": "cluster",
+          "tag": "tr",
+          "visible_text": "",
+          "binding_id": null,
+          "action": null,
+          "accessibility_label": null
+        },
+        {
+          "dom_id": "dom-binding_demo_index_row_3_label",
+          "ir_id": "binding_demo_index_row_3_label",
+          "primitive": "label",
+          "tag": "th",
+          "visible_text": "Live Builder",
+          "binding_id": "demo_index_row_3_label",
+          "action": null,
+          "accessibility_label": null
+        },
+        {
+          "dom_id": "dom-binding_demo_index_row_3_value",
+          "ir_id": "binding_demo_index_row_3_value",
+          "primitive": "value",
+          "tag": "td",
+          "visible_text": "Browse ViewSpec JSON, IR tree, and rendered output. Always in sync.",
+          "binding_id": "demo_index_row_3_value",
+          "action": null,
+          "accessibility_label": null
+        },
+        {
+          "dom_id": "dom-motif_demo_index_demo_index_row_4",
+          "ir_id": "motif_demo_index_demo_index_row_4",
+          "primitive": "cluster",
+          "tag": "tr",
+          "visible_text": "",
+          "binding_id": null,
+          "action": null,
+          "accessibility_label": null
+        },
+        {
+          "dom_id": "dom-binding_demo_index_row_4_label",
+          "ir_id": "binding_demo_index_row_4_label",
+          "primitive": "label",
+          "tag": "th",
+          "visible_text": "The Invariants",
+          "binding_id": "demo_index_row_4_label",
+          "action": null,
+          "accessibility_label": null
+        },
+        {
+          "dom_id": "dom-binding_demo_index_row_4_value",
+          "ir_id": "binding_demo_index_row_4_value",
+          "primitive": "value",
+          "tag": "td",
+          "visible_text": "Watch the compiler enforce \u2014 and refuse \u2014 each guarantee.",
+          "binding_id": "demo_index_row_4_value",
+          "action": null,
+          "accessibility_label": null
+        },
+        {
+          "dom_id": "dom-motif_demo_index_demo_index_row_5",
+          "ir_id": "motif_demo_index_demo_index_row_5",
+          "primitive": "cluster",
+          "tag": "tr",
+          "visible_text": "",
+          "binding_id": null,
+          "action": null,
+          "accessibility_label": null
+        },
+        {
+          "dom_id": "dom-binding_demo_index_row_5_label",
+          "ir_id": "binding_demo_index_row_5_label",
+          "primitive": "label",
+          "tag": "th",
+          "visible_text": "15 Lines \u2192 Full UI",
+          "binding_id": "demo_index_row_5_label",
+          "action": null,
+          "accessibility_label": null
+        },
+        {
+          "dom_id": "dom-binding_demo_index_row_5_value",
+          "ir_id": "binding_demo_index_row_5_value",
+          "primitive": "value",
+          "tag": "td",
+          "visible_text": "An invoice table builds itself from 15 lines of Python.",
+          "binding_id": "demo_index_row_5_value",
+          "action": null,
+          "accessibility_label": null
+        },
+        {
+          "dom_id": "dom-motif_pipeline",
+          "ir_id": "motif_pipeline",
+          "primitive": "cluster",
+          "tag": "div",
+          "visible_text": "",
+          "binding_id": null,
+          "action": null,
+          "accessibility_label": null
+        },
+        {
+          "dom_id": "dom-motif_pipeline_pipeline_item_1",
+          "ir_id": "motif_pipeline_pipeline_item_1",
+          "primitive": "stack",
+          "tag": "div",
+          "visible_text": "",
+          "binding_id": null,
+          "action": null,
+          "accessibility_label": null
+        },
+        {
+          "dom_id": "dom-binding_pipeline_item_1_label",
+          "ir_id": "binding_pipeline_item_1_label",
+          "primitive": "label",
+          "tag": "div",
+          "visible_text": "Describe",
+          "binding_id": "pipeline_item_1_label",
+          "action": null,
+          "accessibility_label": null
+        },
+        {
+          "dom_id": "dom-binding_pipeline_item_1_value",
+          "ir_id": "binding_pipeline_item_1_value",
+          "primitive": "text",
+          "tag": "div",
+          "visible_text": "Semantic substrate + ViewSpec. What the data means, not how it looks.",
+          "binding_id": "pipeline_item_1_value",
+          "action": null,
+          "accessibility_label": null
+        },
+        {
+          "dom_id": "dom-motif_pipeline_pipeline_item_2",
+          "ir_id": "motif_pipeline_pipeline_item_2",
+          "primitive": "stack",
+          "tag": "div",
+          "visible_text": "",
+          "binding_id": null,
+          "action": null,
+          "accessibility_label": null
+        },
+        {
+          "dom_id": "dom-binding_pipeline_item_2_label",
+          "ir_id": "binding_pipeline_item_2_label",
+          "primitive": "label",
+          "tag": "div",
+          "visible_text": "Compile",
+          "binding_id": "pipeline_item_2_label",
+          "action": null,
+          "accessibility_label": null
+        },
+        {
+          "dom_id": "dom-binding_pipeline_item_2_value",
+          "ir_id": "binding_pipeline_item_2_value",
+          "primitive": "text",
+          "tag": "div",
+          "visible_text": "Deterministic routing with provenance guarantees. 3ms. No LLM.",
+          "binding_id": "pipeline_item_2_value",
+          "action": null,
+          "accessibility_label": null
+        },
+        {
+          "dom_id": "dom-motif_pipeline_pipeline_item_3",
+          "ir_id": "motif_pipeline_pipeline_item_3",
+          "primitive": "stack",
+          "tag": "div",
+          "visible_text": "",
+          "binding_id": null,
+          "action": null,
+          "accessibility_label": null
+        },
+        {
+          "dom_id": "dom-binding_pipeline_item_3_label",
+          "ir_id": "binding_pipeline_item_3_label",
+          "primitive": "label",
+          "tag": "div",
+          "visible_text": "Render",
+          "binding_id": "pipeline_item_3_label",
+          "action": null,
+          "accessibility_label": null
+        },
+        {
+          "dom_id": "dom-binding_pipeline_item_3_value",
+          "ir_id": "binding_pipeline_item_3_value",
+          "primitive": "text",
+          "tag": "div",
+          "visible_text": "Pluggable emitters. HTML today. Canvas tomorrow. Your renderer next.",
+          "binding_id": "pipeline_item_3_value",
+          "action": null,
+          "accessibility_label": null
+        }
+      ]
+    },
+    "source_projection": {
+      "version": "semantic_digest.v1",
+      "node_order": [
+        "dom-region_root",
+        "dom-region_main",
+        "dom-motif_hero_features",
+        "dom-motif_hero_features_hero_features_card_1",
+        "dom-binding_hero_features_card_1_label",
+        "dom-binding_hero_features_card_1_value",
+        "dom-motif_hero_features_hero_features_card_2",
+        "dom-binding_hero_features_card_2_label",
+        "dom-binding_hero_features_card_2_value",
+        "dom-motif_hero_features_hero_features_card_3",
+        "dom-binding_hero_features_card_3_label",
+        "dom-binding_hero_features_card_3_value",
+        "dom-motif_demo_index",
+        "dom-motif_demo_index_demo_index_row_1",
+        "dom-binding_demo_index_row_1_label",
+        "dom-binding_demo_index_row_1_value",
+        "dom-motif_demo_index_demo_index_row_2",
+        "dom-binding_demo_index_row_2_label",
+        "dom-binding_demo_index_row_2_value",
+        "dom-motif_demo_index_demo_index_row_3",
+        "dom-binding_demo_index_row_3_label",
+        "dom-binding_demo_index_row_3_value",
+        "dom-motif_demo_index_demo_index_row_4",
+        "dom-binding_demo_index_row_4_label",
+        "dom-binding_demo_index_row_4_value",
+        "dom-motif_demo_index_demo_index_row_5",
+        "dom-binding_demo_index_row_5_label",
+        "dom-binding_demo_index_row_5_value",
+        "dom-motif_pipeline",
+        "dom-motif_pipeline_pipeline_item_1",
+        "dom-binding_pipeline_item_1_label",
+        "dom-binding_pipeline_item_1_value",
+        "dom-motif_pipeline_pipeline_item_2",
+        "dom-binding_pipeline_item_2_label",
+        "dom-binding_pipeline_item_2_value",
+        "dom-motif_pipeline_pipeline_item_3",
+        "dom-binding_pipeline_item_3_label",
+        "dom-binding_pipeline_item_3_value"
+      ],
+      "action_order": [],
+      "diagnostic_codes": [],
+      "nodes": [
+        {
+          "dom_id": "dom-region_root",
+          "ir_id": "region_root",
+          "primitive": "root",
+          "tag": "main",
+          "visible_text": "",
+          "binding_id": null,
+          "action": null,
+          "accessibility_label": null
+        },
+        {
+          "dom_id": "dom-region_main",
+          "ir_id": "region_main",
+          "primitive": "stack",
+          "tag": "div",
+          "visible_text": "",
+          "binding_id": null,
+          "action": null,
+          "accessibility_label": null
+        },
+        {
+          "dom_id": "dom-motif_hero_features",
+          "ir_id": "motif_hero_features",
+          "primitive": "grid",
+          "tag": "div",
+          "visible_text": "",
+          "binding_id": null,
+          "action": null,
+          "accessibility_label": null
+        },
+        {
+          "dom_id": "dom-motif_hero_features_hero_features_card_1",
+          "ir_id": "motif_hero_features_hero_features_card_1",
+          "primitive": "surface",
+          "tag": "div",
+          "visible_text": "",
+          "binding_id": null,
+          "action": null,
+          "accessibility_label": null
+        },
+        {
+          "dom_id": "dom-binding_hero_features_card_1_label",
+          "ir_id": "binding_hero_features_card_1_label",
+          "primitive": "label",
+          "tag": "div",
+          "visible_text": "Compilation",
+          "binding_id": "hero_features_card_1_label",
+          "action": null,
+          "accessibility_label": null
+        },
+        {
+          "dom_id": "dom-binding_hero_features_card_1_value",
+          "ir_id": "binding_hero_features_card_1_value",
+          "primitive": "value",
+          "tag": "div",
+          "visible_text": "3ms deterministic \u2014 no LLM, no GPU",
+          "binding_id": "hero_features_card_1_value",
+          "action": null,
+          "accessibility_label": null
+        },
+        {
+          "dom_id": "dom-motif_hero_features_hero_features_card_2",
+          "ir_id": "motif_hero_features_hero_features_card_2",
+          "primitive": "surface",
+          "tag": "div",
+          "visible_text": "",
+          "binding_id": null,
+          "action": null,
+          "accessibility_label": null
+        },
+        {
+          "dom_id": "dom-binding_hero_features_card_2_label",
+          "ir_id": "binding_hero_features_card_2_label",
+          "primitive": "label",
+          "tag": "div",
+          "visible_text": "Provenance",
+          "binding_id": "hero_features_card_2_label",
+          "action": null,
+          "accessibility_label": null
+        },
+        {
+          "dom_id": "dom-binding_hero_features_card_2_value",
+          "ir_id": "binding_hero_features_card_2_value",
+          "primitive": "value",
+          "tag": "div",
+          "visible_text": "Every pixel traces to its source data",
+          "binding_id": "hero_features_card_2_value",
+          "action": null,
+          "accessibility_label": null
+        },
+        {
+          "dom_id": "dom-motif_hero_features_hero_features_card_3",
+          "ir_id": "motif_hero_features_hero_features_card_3",
+          "primitive": "surface",
+          "tag": "div",
+          "visible_text": "",
+          "binding_id": null,
+          "action": null,
+          "accessibility_label": null
+        },
+        {
+          "dom_id": "dom-binding_hero_features_card_3_label",
+          "ir_id": "binding_hero_features_card_3_label",
+          "primitive": "label",
+          "tag": "div",
+          "visible_text": "Invariants",
+          "binding_id": "hero_features_card_3_label",
+          "action": null,
+          "accessibility_label": null
+        },
+        {
+          "dom_id": "dom-binding_hero_features_card_3_value",
+          "ir_id": "binding_hero_features_card_3_value",
+          "primitive": "value",
+          "tag": "div",
+          "visible_text": "Exactly-once \u00b7 Semantic grouping \u00b7 Strict order",
+          "binding_id": "hero_features_card_3_value",
+          "action": null,
+          "accessibility_label": null
+        },
+        {
+          "dom_id": "dom-motif_demo_index",
+          "ir_id": "motif_demo_index",
+          "primitive": "stack",
+          "tag": "table",
+          "visible_text": "",
+          "binding_id": null,
+          "action": null,
+          "accessibility_label": null
+        },
+        {
+          "dom_id": "dom-motif_demo_index_demo_index_row_1",
+          "ir_id": "motif_demo_index_demo_index_row_1",
+          "primitive": "cluster",
+          "tag": "tr",
+          "visible_text": "",
+          "binding_id": null,
+          "action": null,
+          "accessibility_label": null
+        },
+        {
+          "dom_id": "dom-binding_demo_index_row_1_label",
+          "ir_id": "binding_demo_index_row_1_label",
+          "primitive": "label",
+          "tag": "th",
+          "visible_text": "Same Data, Three Motifs",
+          "binding_id": "demo_index_row_1_label",
+          "action": null,
+          "accessibility_label": null
+        },
+        {
+          "dom_id": "dom-binding_demo_index_row_1_value",
+          "ir_id": "binding_demo_index_row_1_value",
+          "primitive": "value",
+          "tag": "td",
+          "visible_text": "One dataset, three visual structures. Change one parameter.",
+          "binding_id": "demo_index_row_1_value",
+          "action": null,
+          "accessibility_label": null
+        },
+        {
+          "dom_id": "dom-motif_demo_index_demo_index_row_2",
+          "ir_id": "motif_demo_index_demo_index_row_2",
+          "primitive": "cluster",
+          "tag": "tr",
+          "visible_text": "",
+          "binding_id": null,
+          "action": null,
+          "accessibility_label": null
+        },
+        {
+          "dom_id": "dom-binding_demo_index_row_2_label",
+          "ir_id": "binding_demo_index_row_2_label",
+          "primitive": "label",
+          "tag": "th",
+          "visible_text": "Provenance Inspector",
+          "binding_id": "demo_index_row_2_label",
+          "action": null,
+          "accessibility_label": null
+        },
+        {
+          "dom_id": "dom-binding_demo_index_row_2_value",
+          "ir_id": "binding_demo_index_row_2_value",
+          "primitive": "value",
+          "tag": "td",
+          "visible_text": "Hover any element. Trace DOM \u2192 IR \u2192 binding \u2192 address \u2192 raw data.",
+          "binding_id": "demo_index_row_2_value",
+          "action": null,
+          "accessibility_label": null
+        },
+        {
+          "dom_id": "dom-motif_demo_index_demo_index_row_3",
+          "ir_id": "motif_demo_index_demo_index_row_3",
+          "primitive": "cluster",
+          "tag": "tr",
+          "visible_text": "",
+          "binding_id": null,
+          "action": null,
+          "accessibility_label": null
+        },
+        {
+          "dom_id": "dom-binding_demo_index_row_3_label",
+          "ir_id": "binding_demo_index_row_3_label",
+          "primitive": "label",
+          "tag": "th",
+          "visible_text": "Live Builder",
+          "binding_id": "demo_index_row_3_label",
+          "action": null,
+          "accessibility_label": null
+        },
+        {
+          "dom_id": "dom-binding_demo_index_row_3_value",
+          "ir_id": "binding_demo_index_row_3_value",
+          "primitive": "value",
+          "tag": "td",
+          "visible_text": "Browse ViewSpec JSON, IR tree, and rendered output. Always in sync.",
+          "binding_id": "demo_index_row_3_value",
+          "action": null,
+          "accessibility_label": null
+        },
+        {
+          "dom_id": "dom-motif_demo_index_demo_index_row_4",
+          "ir_id": "motif_demo_index_demo_index_row_4",
+          "primitive": "cluster",
+          "tag": "tr",
+          "visible_text": "",
+          "binding_id": null,
+          "action": null,
+          "accessibility_label": null
+        },
+        {
+          "dom_id": "dom-binding_demo_index_row_4_label",
+          "ir_id": "binding_demo_index_row_4_label",
+          "primitive": "label",
+          "tag": "th",
+          "visible_text": "The Invariants",
+          "binding_id": "demo_index_row_4_label",
+          "action": null,
+          "accessibility_label": null
+        },
+        {
+          "dom_id": "dom-binding_demo_index_row_4_value",
+          "ir_id": "binding_demo_index_row_4_value",
+          "primitive": "value",
+          "tag": "td",
+          "visible_text": "Watch the compiler enforce \u2014 and refuse \u2014 each guarantee.",
+          "binding_id": "demo_index_row_4_value",
+          "action": null,
+          "accessibility_label": null
+        },
+        {
+          "dom_id": "dom-motif_demo_index_demo_index_row_5",
+          "ir_id": "motif_demo_index_demo_index_row_5",
+          "primitive": "cluster",
+          "tag": "tr",
+          "visible_text": "",
+          "binding_id": null,
+          "action": null,
+          "accessibility_label": null
+        },
+        {
+          "dom_id": "dom-binding_demo_index_row_5_label",
+          "ir_id": "binding_demo_index_row_5_label",
+          "primitive": "label",
+          "tag": "th",
+          "visible_text": "15 Lines \u2192 Full UI",
+          "binding_id": "demo_index_row_5_label",
+          "action": null,
+          "accessibility_label": null
+        },
+        {
+          "dom_id": "dom-binding_demo_index_row_5_value",
+          "ir_id": "binding_demo_index_row_5_value",
+          "primitive": "value",
+          "tag": "td",
+          "visible_text": "An invoice table builds itself from 15 lines of Python.",
+          "binding_id": "demo_index_row_5_value",
+          "action": null,
+          "accessibility_label": null
+        },
+        {
+          "dom_id": "dom-motif_pipeline",
+          "ir_id": "motif_pipeline",
+          "primitive": "cluster",
+          "tag": "div",
+          "visible_text": "",
+          "binding_id": null,
+          "action": null,
+          "accessibility_label": null
+        },
+        {
+          "dom_id": "dom-motif_pipeline_pipeline_item_1",
+          "ir_id": "motif_pipeline_pipeline_item_1",
+          "primitive": "stack",
+          "tag": "div",
+          "visible_text": "",
+          "binding_id": null,
+          "action": null,
+          "accessibility_label": null
+        },
+        {
+          "dom_id": "dom-binding_pipeline_item_1_label",
+          "ir_id": "binding_pipeline_item_1_label",
+          "primitive": "label",
+          "tag": "div",
+          "visible_text": "Describe",
+          "binding_id": "pipeline_item_1_label",
+          "action": null,
+          "accessibility_label": null
+        },
+        {
+          "dom_id": "dom-binding_pipeline_item_1_value",
+          "ir_id": "binding_pipeline_item_1_value",
+          "primitive": "text",
+          "tag": "div",
+          "visible_text": "Semantic substrate + ViewSpec. What the data means, not how it looks.",
+          "binding_id": "pipeline_item_1_value",
+          "action": null,
+          "accessibility_label": null
+        },
+        {
+          "dom_id": "dom-motif_pipeline_pipeline_item_2",
+          "ir_id": "motif_pipeline_pipeline_item_2",
+          "primitive": "stack",
+          "tag": "div",
+          "visible_text": "",
+          "binding_id": null,
+          "action": null,
+          "accessibility_label": null
+        },
+        {
+          "dom_id": "dom-binding_pipeline_item_2_label",
+          "ir_id": "binding_pipeline_item_2_label",
+          "primitive": "label",
+          "tag": "div",
+          "visible_text": "Compile",
+          "binding_id": "pipeline_item_2_label",
+          "action": null,
+          "accessibility_label": null
+        },
+        {
+          "dom_id": "dom-binding_pipeline_item_2_value",
+          "ir_id": "binding_pipeline_item_2_value",
+          "primitive": "text",
+          "tag": "div",
+          "visible_text": "Deterministic routing with provenance guarantees. 3ms. No LLM.",
+          "binding_id": "pipeline_item_2_value",
+          "action": null,
+          "accessibility_label": null
+        },
+        {
+          "dom_id": "dom-motif_pipeline_pipeline_item_3",
+          "ir_id": "motif_pipeline_pipeline_item_3",
+          "primitive": "stack",
+          "tag": "div",
+          "visible_text": "",
+          "binding_id": null,
+          "action": null,
+          "accessibility_label": null
+        },
+        {
+          "dom_id": "dom-binding_pipeline_item_3_label",
+          "ir_id": "binding_pipeline_item_3_label",
+          "primitive": "label",
+          "tag": "div",
+          "visible_text": "Render",
+          "binding_id": "pipeline_item_3_label",
+          "action": null,
+          "accessibility_label": null
+        },
+        {
+          "dom_id": "dom-binding_pipeline_item_3_value",
+          "ir_id": "binding_pipeline_item_3_value",
+          "primitive": "text",
+          "tag": "div",
+          "visible_text": "Pluggable emitters. HTML today. Canvas tomorrow. Your renderer next.",
+          "binding_id": "pipeline_item_3_value",
+          "action": null,
+          "accessibility_label": null
+        }
+      ]
+    },
+    "digest": "e00a6837aa1fdaca7c5d49bffbf3c9daa5e4606f2f761c6c6ce7a05eb8673384"
+  }
 }

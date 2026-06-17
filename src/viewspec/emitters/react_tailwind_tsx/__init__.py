@@ -327,6 +327,9 @@ GRID_SPAN_CLASS_BY_COLUMNS = {
     2: "sm:col-span-2",
     3: "sm:col-span-2 lg:col-span-3",
 }
+LAYOUT_EMPHASIS_CLASS_BY_VALUE = {
+    "featured": "ring-2 ring-teal-300",
+}
 TEXT_SIZE_CLASSES = frozenset({"text-xs", "text-sm", "text-base", "text-lg", "text-xl", "text-2xl", "text-3xl", "text-4xl"})
 FONT_FAMILY_CLASSES = frozenset({"font-mono", "font-sans", "font-serif"})
 FONT_WEIGHT_CLASSES = frozenset({"font-bold", "font-extrabold", "font-black", "font-semibold"})
@@ -392,6 +395,8 @@ def _validate_recipe_registry() -> None:
         if not isinstance(key, str) or not key:
             _fail("TAILWIND_RECIPE_CONFLICT", "Tailwind recipe keys must be non-empty strings.")
         _validate_class_string(value, code="TAILWIND_HOST_CONFIG_DEPENDENCY")
+    for classes in LAYOUT_EMPHASIS_CLASS_BY_VALUE.values():
+        _validate_class_string(classes, code="TAILWIND_AESTHETIC_UNSAFE_CLASS")
     _validate_aesthetic_recipe_overlays()
 
 
@@ -435,6 +440,16 @@ def _grid_span_classes(node: IRNode) -> list[str]:
     if not isinstance(span_columns, int) or isinstance(span_columns, bool) or span_columns not in GRID_SPAN_CLASS_BY_COLUMNS:
         _fail("TAILWIND_LIMIT_EXCEEDED_GRID_COLUMNS", f"IRNode '{node.id}' span_columns must be 2 or 3.")
     return GRID_SPAN_CLASS_BY_COLUMNS[span_columns].split()
+
+
+def _layout_emphasis_classes(node: IRNode) -> list[str]:
+    value = node.props.get("layout_emphasis")
+    if value is None:
+        return []
+    if not isinstance(value, str) or value not in LAYOUT_EMPHASIS_CLASS_BY_VALUE:
+        allowed = ", ".join(sorted(LAYOUT_EMPHASIS_CLASS_BY_VALUE))
+        _fail("TAILWIND_AESTHETIC_UNSAFE_CLASS", f"IRNode '{node.id}' layout_emphasis must be one of: {allowed}.")
+    return LAYOUT_EMPHASIS_CLASS_BY_VALUE[value].split()
 
 
 def _role_contract_matches(node: IRNode, app_role: str) -> bool:
@@ -646,6 +661,7 @@ def _resolve_recipe(node: IRNode, parent: IRNode | None, aesthetic_profile: str 
     if node.primitive == "grid":
         classes.extend(GRID_CLASS_BY_COLUMNS[_grid_columns(node)].split())
     classes.extend(_grid_span_classes(node))
+    classes.extend(_layout_emphasis_classes(node))
     return ResolvedRecipe(
         app_role=app_role.app_role if app_role is not None else None,
         app_role_source=app_role.rule_id if app_role is not None else None,
@@ -876,6 +892,7 @@ def tailwind_recipe_registry_projection() -> dict[str, Any]:
             profile: dict(sorted(overlay.items()))
             for profile, overlay in sorted(TAILWIND_AESTHETIC_RECIPE_OVERLAYS.items())
         },
+        "layout_emphasis_classes": dict(sorted(LAYOUT_EMPHASIS_CLASS_BY_VALUE.items())),
         "app_role_contracts": {
             role: {key: list(values) for key, values in sorted(contract.items())}
             for role, contract in sorted(TAILWIND_APP_V1_APP_ROLE_CONTRACTS.items())

@@ -544,8 +544,12 @@ def test_aesthetic_profiles_have_closed_layout_props():
                 assert set(props) == {"columns"}
                 assert 1 <= props["columns"] <= 3
             elif role == "metric_card":
-                assert set(props) == {"span_columns"}
-                assert 1 <= props["span_columns"] <= 3
+                assert set(props).issubset({"span_columns", "layout_emphasis"})
+                assert props
+                if "span_columns" in props:
+                    assert 1 <= props["span_columns"] <= 3
+                if "layout_emphasis" in props:
+                    assert props["layout_emphasis"] == "featured"
 
     assert len(signatures) >= 3
 
@@ -782,16 +786,16 @@ def test_product_surface_planner_v1_adds_no_synthetic_visible_content_or_actions
 
 
 @pytest.mark.parametrize(
-    ("profile", "expected_content_columns", "expected_metric_columns", "expected_featured_span"),
+    ("profile", "expected_content_columns", "expected_metric_columns", "expected_featured_span", "expected_layout_emphasis"),
     [
-        ("aesthetic.data_dense", 3, 3, None),
-        ("aesthetic.editorial_product", 2, 1, None),
-        ("aesthetic.premium_saas", 2, 2, 2),
-        ("aesthetic.executive_review", 2, 2, 2),
+        ("aesthetic.data_dense", 3, 3, None, None),
+        ("aesthetic.editorial_product", 2, 1, None, None),
+        ("aesthetic.premium_saas", 2, 2, 2, "featured"),
+        ("aesthetic.executive_review", 2, 2, 2, "featured"),
     ],
 )
 def test_aesthetic_profile_layout_props_adjust_columns_and_spans_without_semantic_drift(
-    profile, expected_content_columns, expected_metric_columns, expected_featured_span
+    profile, expected_content_columns, expected_metric_columns, expected_featured_span, expected_layout_emphasis
 ):
     plain = compile(_product_workspace_bundle())
     profiled = compile(_product_workspace_bundle(profile=profile))
@@ -816,8 +820,10 @@ def test_aesthetic_profile_layout_props_adjust_columns_and_spans_without_semanti
     metric_cards = profiled_nodes["motif_numbers"].children
     assert [child.id for child in metric_cards] == ["motif_numbers_fixtures", "motif_numbers_emitters"]
     assert metric_cards[0].props.get("span_columns") == expected_featured_span
-    assert metric_cards[0].props.get("aesthetic_layout_profile") == (profile if expected_featured_span else None)
+    assert metric_cards[0].props.get("layout_emphasis") == expected_layout_emphasis
+    assert metric_cards[0].props.get("aesthetic_layout_profile") == (profile if expected_featured_span or expected_layout_emphasis else None)
     assert "span_columns" not in metric_cards[1].props
+    assert "layout_emphasis" not in metric_cards[1].props
     assert "aesthetic_layout_profile" not in metric_cards[1].props
 
 
