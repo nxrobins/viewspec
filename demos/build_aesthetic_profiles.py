@@ -38,6 +38,19 @@ LAYOUT_PROOF_LABELS = {
     "metric_grid": "metrics",
     "metric_card": "featured metric",
 }
+COMPARISON_AXIS_LABELS = {
+    "color_tone": "Color + tone",
+    "surface_depth": "Surface depth",
+    "density_spacing": "Density + spacing",
+    "type_rhythm": "Type + rhythm",
+    "layout_composition": "Layout composition",
+}
+COMPARISON_AXIS_CATEGORIES = {
+    "color_tone": ("palette", "tone", "action"),
+    "surface_depth": ("surface",),
+    "density_spacing": ("density",),
+    "type_rhythm": ("emphasis", "rhythm", "narrative"),
+}
 
 
 def build_bundle(profile: str) -> IntentBundle:
@@ -169,6 +182,24 @@ def style_signature(style_facts: dict[str, Any]) -> str:
     )
 
 
+def comparison_axis_evidence(style_facts: dict[str, Any], layout: dict[str, dict[str, Any]]) -> dict[str, dict[str, Any]]:
+    changed_tokens = tuple(str(token) for token in style_facts["changed_tokens"])
+    axes: dict[str, dict[str, Any]] = {}
+    for axis, categories in COMPARISON_AXIS_CATEGORIES.items():
+        tokens = sorted(token for token in changed_tokens if token.split(".", 1)[0] in categories)
+        axes[axis] = {
+            "label": COMPARISON_AXIS_LABELS[axis],
+            "categories": list(categories),
+            "changedTokenCount": len(tokens),
+        }
+    axes["layout_composition"] = {
+        "label": COMPARISON_AXIS_LABELS["layout_composition"],
+        "signature": layout_signature(layout),
+        "roles": list(layout),
+    }
+    return axes
+
+
 def compile_profiles() -> dict[str, dict[str, Any]]:
     profiles: dict[str, dict[str, Any]] = {}
     expected_hash: str | None = None
@@ -196,6 +227,7 @@ def compile_profiles() -> dict[str, dict[str, Any]]:
             "intentJson": json.dumps(bundle.to_json(), indent=2, sort_keys=True),
             "layoutProof": layout,
             "layoutSignature": layout_signature(layout),
+            "axisEvidence": comparison_axis_evidence(style_facts, layout),
             "semanticHash": digest,
             "nodeCount": len(ids),
             "styleProjectionHash": style_projection_hash(style_values),
@@ -219,8 +251,12 @@ def profile_evidence(profiles: dict[str, dict[str, Any]]) -> dict[str, Any]:
         profile: data["layoutSignature"]
         for profile, data in profiles.items()
     }
+    comparison_axes = {
+        profile: data["axisEvidence"]
+        for profile, data in profiles.items()
+    }
     evidence = {
-        "version": "aesthetic_profile_demo_proof.v1",
+        "version": "aesthetic_profile_demo_proof.v2",
         "profileCount": len(profiles),
         "semanticIdsStable": len(semantic_hashes) == 1 and len(node_counts) == 1,
         "semanticHash": semantic_hashes[0] if len(semantic_hashes) == 1 else None,
@@ -232,6 +268,9 @@ def profile_evidence(profiles: dict[str, dict[str, Any]]) -> dict[str, Any]:
         "layoutProjectionDiverges": len(set(layout_signatures.values())) >= 3,
         "layoutSignatures": layout_signatures,
         "layoutProofRoles": [*LAYOUT_PROOF_ROLES, *OPTIONAL_LAYOUT_PROOF_ROLES],
+        "comparisonAxisCount": len(COMPARISON_AXIS_LABELS),
+        "comparisonAxisLabels": COMPARISON_AXIS_LABELS,
+        "comparisonAxes": comparison_axes,
     }
     if not evidence["semanticIdsStable"]:
         raise RuntimeError("Aesthetic profile demo evidence requires stable semantic ids.")
@@ -239,6 +278,15 @@ def profile_evidence(profiles: dict[str, dict[str, Any]]) -> dict[str, Any]:
         raise RuntimeError("Aesthetic profile demo evidence requires distinct style projection hashes.")
     if not evidence["layoutProjectionDiverges"]:
         raise RuntimeError("Aesthetic profile demo evidence requires at least three layout signatures.")
+    expected_axis_keys = set(COMPARISON_AXIS_LABELS)
+    if any(set(axes) != expected_axis_keys for axes in comparison_axes.values()):
+        raise RuntimeError("Aesthetic profile demo evidence requires every profile to cover every comparison axis.")
+    if any(
+        not axes[axis]["changedTokenCount"]
+        for axes in comparison_axes.values()
+        for axis in COMPARISON_AXIS_CATEGORIES
+    ):
+        raise RuntimeError("Aesthetic profile demo evidence requires changed tokens for each style comparison axis.")
     return evidence
 
 
@@ -285,6 +333,20 @@ def build_page(profiles: dict[str, dict[str, Any]]) -> str:
         }
         for profile, data in profiles.items()
     }
+    axis_cards = "\n".join(
+        f"""        <article class="axis-card">
+          <h3>{html.escape(data["profileLabel"])}</h3>
+          <p>{html.escape(data["profileNote"])}</p>
+          <dl>
+            <div><dt>{html.escape(COMPARISON_AXIS_LABELS["color_tone"])}</dt><dd>{data["axisEvidence"]["color_tone"]["changedTokenCount"]} token changes</dd></div>
+            <div><dt>{html.escape(COMPARISON_AXIS_LABELS["surface_depth"])}</dt><dd>{data["axisEvidence"]["surface_depth"]["changedTokenCount"]} surface token</dd></div>
+            <div><dt>{html.escape(COMPARISON_AXIS_LABELS["density_spacing"])}</dt><dd>{data["axisEvidence"]["density_spacing"]["changedTokenCount"]} density tokens</dd></div>
+            <div><dt>{html.escape(COMPARISON_AXIS_LABELS["type_rhythm"])}</dt><dd>{data["axisEvidence"]["type_rhythm"]["changedTokenCount"]} type tokens</dd></div>
+            <div><dt>{html.escape(COMPARISON_AXIS_LABELS["layout_composition"])}</dt><dd>{html.escape(data["axisEvidence"]["layout_composition"]["signature"])}</dd></div>
+          </dl>
+        </article>"""
+        for data in profiles.values()
+    )
     first_intent = profiles[first_profile]["intentJson"]
     first_data = profiles[first_profile]
 
@@ -581,6 +643,50 @@ def build_page(profiles: dict[str, dict[str, Any]]) -> str:
       max-width: 94ch;
     }}
 
+    .axis-grid {{
+      display: grid;
+      gap: 10px;
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+    }}
+
+    .axis-card {{
+      background: rgba(255, 255, 255, 0.74);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      display: grid;
+      gap: 9px;
+      padding: 12px;
+    }}
+
+    .axis-card h3 {{
+      font-size: 0.95rem;
+      line-height: 1.2;
+      margin: 0;
+    }}
+
+    .axis-card p {{
+      font-size: 0.78rem;
+      line-height: 1.45;
+    }}
+
+    .axis-card dl {{
+      display: grid;
+      gap: 7px;
+      margin: 0;
+    }}
+
+    .axis-card dl div {{
+      border-top: 1px solid var(--line);
+      display: grid;
+      gap: 3px;
+      padding-top: 7px;
+    }}
+
+    .axis-card dd {{
+      font-size: 0.76rem;
+      line-height: 1.35;
+    }}
+
     .code-box {{
       background: #111827;
       border: 1px solid #0f172a;
@@ -638,6 +744,10 @@ def build_page(profiles: dict[str, dict[str, Any]]) -> str:
       .profile-proof {{
         grid-template-columns: repeat(2, minmax(0, 1fr));
         width: 100%;
+      }}
+
+      .axis-grid {{
+        grid-template-columns: repeat(2, minmax(0, 1fr));
       }}
 
       .artifact-frame {{
@@ -716,6 +826,10 @@ def build_page(profiles: dict[str, dict[str, Any]]) -> str:
         min-height: 420px;
         padding: 6px;
       }}
+
+      .axis-grid {{
+        grid-template-columns: 1fr;
+      }}
     }}
   </style>
 </head>
@@ -766,6 +880,9 @@ def build_page(profiles: dict[str, dict[str, Any]]) -> str:
       <h2>What stays invariant</h2>
       <p>The five cards share the same IntentBundle shape, generated semantic ids, and manifest-backed provenance. Only compiler-owned typography, spacing, surface, color, action, hierarchy, rhythm, narrative style projections, bounded grid metadata, and featured metric-card span metadata change.</p>
       <p>The proof summary records one shared semantic hash, distinct style projection hashes for every profile, and at least three bounded layout signatures.</p>
+      <div class="axis-grid" aria-label="Compiler-derived aesthetic comparison axes">
+{axis_cards}
+      </div>
       <p>Demo shell CSS frames the page only. It does not style generated artifact internals or bypass the emitted profile output.</p>
       <div class="code-box" aria-label="Profile proof summary">{html.escape(script_json(evidence))}</div>
       <div class="code-box" aria-label="Profile proof metadata">{html.escape(script_json(profile_meta))}</div>

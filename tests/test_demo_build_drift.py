@@ -51,7 +51,7 @@ def test_aesthetic_profiles_demo_proof_tracks_semantics_style_and_layout():
     evidence = builder.profile_evidence(profiles)
     generated = builder.build_page(profiles)
 
-    assert evidence["version"] == "aesthetic_profile_demo_proof.v1"
+    assert evidence["version"] == "aesthetic_profile_demo_proof.v2"
     assert evidence["profileCount"] == len(builder.AESTHETIC_PROFILE_TOKENS)
     assert evidence["semanticIdsStable"] is True
     assert evidence["semanticHash"]
@@ -62,7 +62,24 @@ def test_aesthetic_profiles_demo_proof_tracks_semantics_style_and_layout():
     assert evidence["layoutProjectionDiverges"] is True
     assert evidence["layoutSignatureCount"] >= 3
     assert set(evidence["layoutSignatures"]) == set(builder.AESTHETIC_PROFILE_TOKENS)
+    assert evidence["comparisonAxisCount"] == 5
+    assert set(evidence["comparisonAxisLabels"]) == {
+        "color_tone",
+        "surface_depth",
+        "density_spacing",
+        "type_rhythm",
+        "layout_composition",
+    }
+    assert set(evidence["comparisonAxes"]) == set(builder.AESTHETIC_PROFILE_TOKENS)
+    for axes in evidence["comparisonAxes"].values():
+        assert set(axes) == set(evidence["comparisonAxisLabels"])
+        assert axes["color_tone"]["changedTokenCount"] > 0
+        assert axes["surface_depth"]["changedTokenCount"] > 0
+        assert axes["density_spacing"]["changedTokenCount"] > 0
+        assert axes["type_rhythm"]["changedTokenCount"] > 0
+        assert axes["layout_composition"]["signature"]
     assert 'id="aesthetic-profile-evidence"' in generated
+    assert 'aria-label="Compiler-derived aesthetic comparison axes"' in generated
     assert '"semanticIdsStable": true' in generated
     assert '"styleProjectionDistinct": true' in generated
 

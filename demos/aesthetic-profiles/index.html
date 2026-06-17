@@ -360,6 +360,50 @@ header.vs-surface p.vs-text, header.vs-surface p.vs-label { max-width: 68ch; mar
       max-width: 94ch;
     }
 
+    .axis-grid {
+      display: grid;
+      gap: 10px;
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+    }
+
+    .axis-card {
+      background: rgba(255, 255, 255, 0.74);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      display: grid;
+      gap: 9px;
+      padding: 12px;
+    }
+
+    .axis-card h3 {
+      font-size: 0.95rem;
+      line-height: 1.2;
+      margin: 0;
+    }
+
+    .axis-card p {
+      font-size: 0.78rem;
+      line-height: 1.45;
+    }
+
+    .axis-card dl {
+      display: grid;
+      gap: 7px;
+      margin: 0;
+    }
+
+    .axis-card dl div {
+      border-top: 1px solid var(--line);
+      display: grid;
+      gap: 3px;
+      padding-top: 7px;
+    }
+
+    .axis-card dd {
+      font-size: 0.76rem;
+      line-height: 1.35;
+    }
+
     .code-box {
       background: #111827;
       border: 1px solid #0f172a;
@@ -417,6 +461,10 @@ header.vs-surface p.vs-text, header.vs-surface p.vs-label { max-width: 68ch; mar
       .profile-proof {
         grid-template-columns: repeat(2, minmax(0, 1fr));
         width: 100%;
+      }
+
+      .axis-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
       }
 
       .artifact-frame {
@@ -494,6 +542,10 @@ header.vs-surface p.vs-text, header.vs-surface p.vs-label { max-width: 68ch; mar
         max-height: 62vh;
         min-height: 420px;
         padding: 6px;
+      }
+
+      .axis-grid {
+        grid-template-columns: 1fr;
       }
     }
   </style>
@@ -588,8 +640,287 @@ header.vs-surface p.vs-text, header.vs-surface p.vs-label { max-width: 68ch; mar
       <h2>What stays invariant</h2>
       <p>The five cards share the same IntentBundle shape, generated semantic ids, and manifest-backed provenance. Only compiler-owned typography, spacing, surface, color, action, hierarchy, rhythm, narrative style projections, bounded grid metadata, and featured metric-card span metadata change.</p>
       <p>The proof summary records one shared semantic hash, distinct style projection hashes for every profile, and at least three bounded layout signatures.</p>
+      <div class="axis-grid" aria-label="Compiler-derived aesthetic comparison axes">
+        <article class="axis-card">
+          <h3>Calm Ops</h3>
+          <p>Quiet operational surfaces with teal accents and low-contrast panels.</p>
+          <dl>
+            <div><dt>Color + tone</dt><dd>5 token changes</dd></div>
+            <div><dt>Surface depth</dt><dd>2 surface token</dd></div>
+            <div><dt>Density + spacing</dt><dd>3 density tokens</dd></div>
+            <div><dt>Type + rhythm</dt><dd>3 type tokens</dd></div>
+            <div><dt>Layout composition</dt><dd>workspace 2 / metrics 2</dd></div>
+          </dl>
+        </article>
+        <article class="axis-card">
+          <h3>Premium SaaS</h3>
+          <p>Polished product rhythm with stronger hierarchy and softer shadows.</p>
+          <dl>
+            <div><dt>Color + tone</dt><dd>5 token changes</dd></div>
+            <div><dt>Surface depth</dt><dd>2 surface token</dd></div>
+            <div><dt>Density + spacing</dt><dd>3 density tokens</dd></div>
+            <div><dt>Type + rhythm</dt><dd>3 type tokens</dd></div>
+            <div><dt>Layout composition</dt><dd>workspace 2 / metrics 2 / featured metric span 2</dd></div>
+          </dl>
+        </article>
+        <article class="axis-card">
+          <h3>Data Dense</h3>
+          <p>Compact spacing, smaller type, and tighter controls for repeated scanning.</p>
+          <dl>
+            <div><dt>Color + tone</dt><dd>5 token changes</dd></div>
+            <div><dt>Surface depth</dt><dd>2 surface token</dd></div>
+            <div><dt>Density + spacing</dt><dd>3 density tokens</dd></div>
+            <div><dt>Type + rhythm</dt><dd>3 type tokens</dd></div>
+            <div><dt>Layout composition</dt><dd>workspace 3 / metrics 3</dd></div>
+          </dl>
+        </article>
+        <article class="axis-card">
+          <h3>Editorial Product</h3>
+          <p>Warmer product-story pacing with broader prose rhythm.</p>
+          <dl>
+            <div><dt>Color + tone</dt><dd>5 token changes</dd></div>
+            <div><dt>Surface depth</dt><dd>2 surface token</dd></div>
+            <div><dt>Density + spacing</dt><dd>3 density tokens</dd></div>
+            <div><dt>Type + rhythm</dt><dd>3 type tokens</dd></div>
+            <div><dt>Layout composition</dt><dd>workspace 2 / metrics 1</dd></div>
+          </dl>
+        </article>
+        <article class="axis-card">
+          <h3>Executive Review</h3>
+          <p>Conservative review surfaces with restrained contrast and crisp framing.</p>
+          <dl>
+            <div><dt>Color + tone</dt><dd>5 token changes</dd></div>
+            <div><dt>Surface depth</dt><dd>2 surface token</dd></div>
+            <div><dt>Density + spacing</dt><dd>3 density tokens</dd></div>
+            <div><dt>Type + rhythm</dt><dd>3 type tokens</dd></div>
+            <div><dt>Layout composition</dt><dd>workspace 2 / metrics 2 / featured metric span 2</dd></div>
+          </dl>
+        </article>
+      </div>
       <p>Demo shell CSS frames the page only. It does not style generated artifact internals or bypass the emitted profile output.</p>
       <div class="code-box" aria-label="Profile proof summary">{
+  &quot;comparisonAxes&quot;: {
+    &quot;aesthetic.calm_ops&quot;: {
+      &quot;color_tone&quot;: {
+        &quot;categories&quot;: [
+          &quot;palette&quot;,
+          &quot;tone&quot;,
+          &quot;action&quot;
+        ],
+        &quot;changedTokenCount&quot;: 5,
+        &quot;label&quot;: &quot;Color + tone&quot;
+      },
+      &quot;density_spacing&quot;: {
+        &quot;categories&quot;: [
+          &quot;density&quot;
+        ],
+        &quot;changedTokenCount&quot;: 3,
+        &quot;label&quot;: &quot;Density + spacing&quot;
+      },
+      &quot;layout_composition&quot;: {
+        &quot;label&quot;: &quot;Layout composition&quot;,
+        &quot;roles&quot;: [
+          &quot;content_grid&quot;,
+          &quot;metric_grid&quot;
+        ],
+        &quot;signature&quot;: &quot;workspace 2 / metrics 2&quot;
+      },
+      &quot;surface_depth&quot;: {
+        &quot;categories&quot;: [
+          &quot;surface&quot;
+        ],
+        &quot;changedTokenCount&quot;: 2,
+        &quot;label&quot;: &quot;Surface depth&quot;
+      },
+      &quot;type_rhythm&quot;: {
+        &quot;categories&quot;: [
+          &quot;emphasis&quot;,
+          &quot;rhythm&quot;,
+          &quot;narrative&quot;
+        ],
+        &quot;changedTokenCount&quot;: 3,
+        &quot;label&quot;: &quot;Type + rhythm&quot;
+      }
+    },
+    &quot;aesthetic.data_dense&quot;: {
+      &quot;color_tone&quot;: {
+        &quot;categories&quot;: [
+          &quot;palette&quot;,
+          &quot;tone&quot;,
+          &quot;action&quot;
+        ],
+        &quot;changedTokenCount&quot;: 5,
+        &quot;label&quot;: &quot;Color + tone&quot;
+      },
+      &quot;density_spacing&quot;: {
+        &quot;categories&quot;: [
+          &quot;density&quot;
+        ],
+        &quot;changedTokenCount&quot;: 3,
+        &quot;label&quot;: &quot;Density + spacing&quot;
+      },
+      &quot;layout_composition&quot;: {
+        &quot;label&quot;: &quot;Layout composition&quot;,
+        &quot;roles&quot;: [
+          &quot;content_grid&quot;,
+          &quot;metric_grid&quot;
+        ],
+        &quot;signature&quot;: &quot;workspace 3 / metrics 3&quot;
+      },
+      &quot;surface_depth&quot;: {
+        &quot;categories&quot;: [
+          &quot;surface&quot;
+        ],
+        &quot;changedTokenCount&quot;: 2,
+        &quot;label&quot;: &quot;Surface depth&quot;
+      },
+      &quot;type_rhythm&quot;: {
+        &quot;categories&quot;: [
+          &quot;emphasis&quot;,
+          &quot;rhythm&quot;,
+          &quot;narrative&quot;
+        ],
+        &quot;changedTokenCount&quot;: 3,
+        &quot;label&quot;: &quot;Type + rhythm&quot;
+      }
+    },
+    &quot;aesthetic.editorial_product&quot;: {
+      &quot;color_tone&quot;: {
+        &quot;categories&quot;: [
+          &quot;palette&quot;,
+          &quot;tone&quot;,
+          &quot;action&quot;
+        ],
+        &quot;changedTokenCount&quot;: 5,
+        &quot;label&quot;: &quot;Color + tone&quot;
+      },
+      &quot;density_spacing&quot;: {
+        &quot;categories&quot;: [
+          &quot;density&quot;
+        ],
+        &quot;changedTokenCount&quot;: 3,
+        &quot;label&quot;: &quot;Density + spacing&quot;
+      },
+      &quot;layout_composition&quot;: {
+        &quot;label&quot;: &quot;Layout composition&quot;,
+        &quot;roles&quot;: [
+          &quot;content_grid&quot;,
+          &quot;metric_grid&quot;
+        ],
+        &quot;signature&quot;: &quot;workspace 2 / metrics 1&quot;
+      },
+      &quot;surface_depth&quot;: {
+        &quot;categories&quot;: [
+          &quot;surface&quot;
+        ],
+        &quot;changedTokenCount&quot;: 2,
+        &quot;label&quot;: &quot;Surface depth&quot;
+      },
+      &quot;type_rhythm&quot;: {
+        &quot;categories&quot;: [
+          &quot;emphasis&quot;,
+          &quot;rhythm&quot;,
+          &quot;narrative&quot;
+        ],
+        &quot;changedTokenCount&quot;: 3,
+        &quot;label&quot;: &quot;Type + rhythm&quot;
+      }
+    },
+    &quot;aesthetic.executive_review&quot;: {
+      &quot;color_tone&quot;: {
+        &quot;categories&quot;: [
+          &quot;palette&quot;,
+          &quot;tone&quot;,
+          &quot;action&quot;
+        ],
+        &quot;changedTokenCount&quot;: 5,
+        &quot;label&quot;: &quot;Color + tone&quot;
+      },
+      &quot;density_spacing&quot;: {
+        &quot;categories&quot;: [
+          &quot;density&quot;
+        ],
+        &quot;changedTokenCount&quot;: 3,
+        &quot;label&quot;: &quot;Density + spacing&quot;
+      },
+      &quot;layout_composition&quot;: {
+        &quot;label&quot;: &quot;Layout composition&quot;,
+        &quot;roles&quot;: [
+          &quot;content_grid&quot;,
+          &quot;metric_grid&quot;,
+          &quot;metric_card&quot;
+        ],
+        &quot;signature&quot;: &quot;workspace 2 / metrics 2 / featured metric span 2&quot;
+      },
+      &quot;surface_depth&quot;: {
+        &quot;categories&quot;: [
+          &quot;surface&quot;
+        ],
+        &quot;changedTokenCount&quot;: 2,
+        &quot;label&quot;: &quot;Surface depth&quot;
+      },
+      &quot;type_rhythm&quot;: {
+        &quot;categories&quot;: [
+          &quot;emphasis&quot;,
+          &quot;rhythm&quot;,
+          &quot;narrative&quot;
+        ],
+        &quot;changedTokenCount&quot;: 3,
+        &quot;label&quot;: &quot;Type + rhythm&quot;
+      }
+    },
+    &quot;aesthetic.premium_saas&quot;: {
+      &quot;color_tone&quot;: {
+        &quot;categories&quot;: [
+          &quot;palette&quot;,
+          &quot;tone&quot;,
+          &quot;action&quot;
+        ],
+        &quot;changedTokenCount&quot;: 5,
+        &quot;label&quot;: &quot;Color + tone&quot;
+      },
+      &quot;density_spacing&quot;: {
+        &quot;categories&quot;: [
+          &quot;density&quot;
+        ],
+        &quot;changedTokenCount&quot;: 3,
+        &quot;label&quot;: &quot;Density + spacing&quot;
+      },
+      &quot;layout_composition&quot;: {
+        &quot;label&quot;: &quot;Layout composition&quot;,
+        &quot;roles&quot;: [
+          &quot;content_grid&quot;,
+          &quot;metric_grid&quot;,
+          &quot;metric_card&quot;
+        ],
+        &quot;signature&quot;: &quot;workspace 2 / metrics 2 / featured metric span 2&quot;
+      },
+      &quot;surface_depth&quot;: {
+        &quot;categories&quot;: [
+          &quot;surface&quot;
+        ],
+        &quot;changedTokenCount&quot;: 2,
+        &quot;label&quot;: &quot;Surface depth&quot;
+      },
+      &quot;type_rhythm&quot;: {
+        &quot;categories&quot;: [
+          &quot;emphasis&quot;,
+          &quot;rhythm&quot;,
+          &quot;narrative&quot;
+        ],
+        &quot;changedTokenCount&quot;: 3,
+        &quot;label&quot;: &quot;Type + rhythm&quot;
+      }
+    }
+  },
+  &quot;comparisonAxisCount&quot;: 5,
+  &quot;comparisonAxisLabels&quot;: {
+    &quot;color_tone&quot;: &quot;Color + tone&quot;,
+    &quot;density_spacing&quot;: &quot;Density + spacing&quot;,
+    &quot;layout_composition&quot;: &quot;Layout composition&quot;,
+    &quot;surface_depth&quot;: &quot;Surface depth&quot;,
+    &quot;type_rhythm&quot;: &quot;Type + rhythm&quot;
+  },
   &quot;layoutProjectionDiverges&quot;: true,
   &quot;layoutProofRoles&quot;: [
     &quot;content_grid&quot;,
@@ -617,7 +948,7 @@ header.vs-surface p.vs-text, header.vs-surface p.vs-label { max-width: 68ch; mar
     &quot;aesthetic.executive_review&quot;: &quot;3611ed389bc117d6e7187c51889ce85958379c5639adaea3a9260a3f28216e58&quot;,
     &quot;aesthetic.premium_saas&quot;: &quot;a4bff9b518e79b07774b68beef1f66b87db0e16ba1a0811cee5ad6fdf9a5529f&quot;
   },
-  &quot;version&quot;: &quot;aesthetic_profile_demo_proof.v1&quot;
+  &quot;version&quot;: &quot;aesthetic_profile_demo_proof.v2&quot;
 }</div>
       <div class="code-box" aria-label="Profile proof metadata">{
   &quot;aesthetic.calm_ops&quot;: {
@@ -1387,6 +1718,228 @@ header.vs-surface p.vs-text, header.vs-surface p.vs-label { max-width: 68ch; mar
     </section>
   </main>
   <script type="application/json" id="aesthetic-profile-evidence">{
+  "comparisonAxes": {
+    "aesthetic.calm_ops": {
+      "color_tone": {
+        "categories": [
+          "palette",
+          "tone",
+          "action"
+        ],
+        "changedTokenCount": 5,
+        "label": "Color + tone"
+      },
+      "density_spacing": {
+        "categories": [
+          "density"
+        ],
+        "changedTokenCount": 3,
+        "label": "Density + spacing"
+      },
+      "layout_composition": {
+        "label": "Layout composition",
+        "roles": [
+          "content_grid",
+          "metric_grid"
+        ],
+        "signature": "workspace 2 / metrics 2"
+      },
+      "surface_depth": {
+        "categories": [
+          "surface"
+        ],
+        "changedTokenCount": 2,
+        "label": "Surface depth"
+      },
+      "type_rhythm": {
+        "categories": [
+          "emphasis",
+          "rhythm",
+          "narrative"
+        ],
+        "changedTokenCount": 3,
+        "label": "Type + rhythm"
+      }
+    },
+    "aesthetic.data_dense": {
+      "color_tone": {
+        "categories": [
+          "palette",
+          "tone",
+          "action"
+        ],
+        "changedTokenCount": 5,
+        "label": "Color + tone"
+      },
+      "density_spacing": {
+        "categories": [
+          "density"
+        ],
+        "changedTokenCount": 3,
+        "label": "Density + spacing"
+      },
+      "layout_composition": {
+        "label": "Layout composition",
+        "roles": [
+          "content_grid",
+          "metric_grid"
+        ],
+        "signature": "workspace 3 / metrics 3"
+      },
+      "surface_depth": {
+        "categories": [
+          "surface"
+        ],
+        "changedTokenCount": 2,
+        "label": "Surface depth"
+      },
+      "type_rhythm": {
+        "categories": [
+          "emphasis",
+          "rhythm",
+          "narrative"
+        ],
+        "changedTokenCount": 3,
+        "label": "Type + rhythm"
+      }
+    },
+    "aesthetic.editorial_product": {
+      "color_tone": {
+        "categories": [
+          "palette",
+          "tone",
+          "action"
+        ],
+        "changedTokenCount": 5,
+        "label": "Color + tone"
+      },
+      "density_spacing": {
+        "categories": [
+          "density"
+        ],
+        "changedTokenCount": 3,
+        "label": "Density + spacing"
+      },
+      "layout_composition": {
+        "label": "Layout composition",
+        "roles": [
+          "content_grid",
+          "metric_grid"
+        ],
+        "signature": "workspace 2 / metrics 1"
+      },
+      "surface_depth": {
+        "categories": [
+          "surface"
+        ],
+        "changedTokenCount": 2,
+        "label": "Surface depth"
+      },
+      "type_rhythm": {
+        "categories": [
+          "emphasis",
+          "rhythm",
+          "narrative"
+        ],
+        "changedTokenCount": 3,
+        "label": "Type + rhythm"
+      }
+    },
+    "aesthetic.executive_review": {
+      "color_tone": {
+        "categories": [
+          "palette",
+          "tone",
+          "action"
+        ],
+        "changedTokenCount": 5,
+        "label": "Color + tone"
+      },
+      "density_spacing": {
+        "categories": [
+          "density"
+        ],
+        "changedTokenCount": 3,
+        "label": "Density + spacing"
+      },
+      "layout_composition": {
+        "label": "Layout composition",
+        "roles": [
+          "content_grid",
+          "metric_grid",
+          "metric_card"
+        ],
+        "signature": "workspace 2 / metrics 2 / featured metric span 2"
+      },
+      "surface_depth": {
+        "categories": [
+          "surface"
+        ],
+        "changedTokenCount": 2,
+        "label": "Surface depth"
+      },
+      "type_rhythm": {
+        "categories": [
+          "emphasis",
+          "rhythm",
+          "narrative"
+        ],
+        "changedTokenCount": 3,
+        "label": "Type + rhythm"
+      }
+    },
+    "aesthetic.premium_saas": {
+      "color_tone": {
+        "categories": [
+          "palette",
+          "tone",
+          "action"
+        ],
+        "changedTokenCount": 5,
+        "label": "Color + tone"
+      },
+      "density_spacing": {
+        "categories": [
+          "density"
+        ],
+        "changedTokenCount": 3,
+        "label": "Density + spacing"
+      },
+      "layout_composition": {
+        "label": "Layout composition",
+        "roles": [
+          "content_grid",
+          "metric_grid",
+          "metric_card"
+        ],
+        "signature": "workspace 2 / metrics 2 / featured metric span 2"
+      },
+      "surface_depth": {
+        "categories": [
+          "surface"
+        ],
+        "changedTokenCount": 2,
+        "label": "Surface depth"
+      },
+      "type_rhythm": {
+        "categories": [
+          "emphasis",
+          "rhythm",
+          "narrative"
+        ],
+        "changedTokenCount": 3,
+        "label": "Type + rhythm"
+      }
+    }
+  },
+  "comparisonAxisCount": 5,
+  "comparisonAxisLabels": {
+    "color_tone": "Color + tone",
+    "density_spacing": "Density + spacing",
+    "layout_composition": "Layout composition",
+    "surface_depth": "Surface depth",
+    "type_rhythm": "Type + rhythm"
+  },
   "layoutProjectionDiverges": true,
   "layoutProofRoles": [
     "content_grid",
@@ -1414,7 +1967,7 @@ header.vs-surface p.vs-text, header.vs-surface p.vs-label { max-width: 68ch; mar
     "aesthetic.executive_review": "3611ed389bc117d6e7187c51889ce85958379c5639adaea3a9260a3f28216e58",
     "aesthetic.premium_saas": "a4bff9b518e79b07774b68beef1f66b87db0e16ba1a0811cee5ad6fdf9a5529f"
   },
-  "version": "aesthetic_profile_demo_proof.v1"
+  "version": "aesthetic_profile_demo_proof.v2"
 }</script>
   <script type="application/json" id="aesthetic-profile-proof">{
   "aesthetic.calm_ops": {
