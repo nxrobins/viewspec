@@ -6,6 +6,12 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from viewspec.agent_assets import (
+    AGENT_ASSET_CHECK_COMMAND,
+    AGENT_ASSET_CONTRACT_PROFILE,
+    AGENT_ASSET_EXPORT_COMMAND,
+    AGENT_ASSET_SCHEMA_VERSION,
+)
 from viewspec.local_tools import atomic_write
 
 
@@ -135,13 +141,15 @@ def agent_instruction_block(target: str) -> str:
         "```\n\n"
         "Optional local contract assets for schema-aware editors and agents:\n\n"
         "```bash\n"
-        "viewspec export-agent-assets --out .viewspec\n"
-        "viewspec check-agent-assets .viewspec --json\n"
+        f"{AGENT_ASSET_EXPORT_COMMAND}\n"
+        f"{AGENT_ASSET_CHECK_COMMAND}\n"
         "```\n\n"
         "This writes `.viewspec/agent-assets.json`, `.viewspec/agent-system-prompt.txt`, "
         "`.viewspec/agent-intent-bundle.schema.json`, and `.viewspec/agent-intent-example.dashboard.json`. "
-        "Use the manifest to verify asset identity. Use the example only for valid IntentBundle wire shape; "
-        "replace all sample content with the user's actual intent.\n\n"
+        f"The manifest uses agent asset schema version `{AGENT_ASSET_SCHEMA_VERSION}` and declares the "
+        f"`{AGENT_ASSET_CONTRACT_PROFILE}` contract profile plus the export/check commands. Run the check command "
+        "before reusing cached assets. Use the example only for valid IntentBundle wire shape; replace all sample "
+        "content with the user's actual intent.\n\n"
         "Check local SDK and agent integration readiness:\n\n"
         "```bash\n"
         "viewspec doctor --agents\n"

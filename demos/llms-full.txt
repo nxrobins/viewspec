@@ -68,6 +68,7 @@ The May 6 launch proof remains one agent-authored hosted-extended IntentBundle c
 - `viewspec init-agent --target codex|claude-code|cursor|copilot|all`
 - `viewspec export-agent-assets --out .viewspec`
 - `viewspec check-agent-assets .viewspec --json`
+- Local agent asset manifests use schema version `4`, declare the `local_v1` contract profile, and record export/check commands with no SDK network calls.
 - `viewspec doctor`
 - Optional MCP: install `viewspec[agents]`, then run `viewspec mcp`
 

@@ -49,14 +49,16 @@ def test_init_agent_creates_codex_instructions(tmp_path, capsys):
     assert "MCP `semantic_summary`" in text
     assert 'intent_semantic_change_lines(diff["semantic_changes"])' in text
     assert "viewspec init-intent --out viewspec.intent.json" in text
-    assert "viewspec export-agent-assets --out .viewspec" in text
-    assert "viewspec check-agent-assets .viewspec --json" in text
+    assert AGENT_ASSET_EXPORT_COMMAND in text
+    assert AGENT_ASSET_CHECK_COMMAND in text
     assert "viewspec doctor --agents" in text
     assert ".viewspec/agent-assets.json" in text
     assert ".viewspec/agent-system-prompt.txt" in text
     assert ".viewspec/agent-intent-bundle.schema.json" in text
     assert ".viewspec/agent-intent-example.dashboard.json" in text
-    assert "Use the manifest to verify asset identity" in text
+    assert f"agent asset schema version `{AGENT_ASSET_SCHEMA_VERSION}`" in text
+    assert f"`{AGENT_ASSET_CONTRACT_PROFILE}` contract profile" in text
+    assert "Run the check command before reusing cached assets" in text
     assert "Use the example only for valid IntentBundle wire shape" in text
     assert "Use raw HTML tools only when importing existing HTML" in text
     assert "compiled output directories such as `dist/` or `react-output/` contain generated artifacts" in text
@@ -87,8 +89,11 @@ def _assert_native_agent_instruction_contract(text: str, label: str) -> None:
     assert "Review `semantic_changes` before inspecting generated artifacts" in text
     assert "MCP `semantic_summary`" in text
     assert 'intent_semantic_change_lines(diff["semantic_changes"])' in text
-    assert "viewspec export-agent-assets --out .viewspec" in text
-    assert "viewspec check-agent-assets .viewspec --json" in text
+    assert AGENT_ASSET_EXPORT_COMMAND in text
+    assert AGENT_ASSET_CHECK_COMMAND in text
+    assert f"agent asset schema version `{AGENT_ASSET_SCHEMA_VERSION}`" in text
+    assert f"`{AGENT_ASSET_CONTRACT_PROFILE}` contract profile" in text
+    assert "Run the check command before reusing cached assets" in text
     assert "viewspec doctor --agents" in text
     assert "Never patch or recursively compile generated artifacts" in text
     assert "Do not upload, share, call hosted APIs" in text

@@ -141,6 +141,14 @@ for (const diffIntentTextPath of ['README.md', 'docs/getting-started.md', 'docs/
   assertPublicText(text, 'intent_semantic_change_lines', `${diffIntentTextPath} semantic summary helper`)
 }
 
+for (const agentAssetTextPath of ['README.md', 'docs/getting-started.md', 'docs/agent-integration.md', 'demos/llms.txt', 'demos/llms-full.txt']) {
+  const text = await readFile(agentAssetTextPath, 'utf8')
+  assertPublicText(text, 'schema version `4`', `${agentAssetTextPath} agent asset schema version`)
+  assertPublicText(text, 'local_v1', `${agentAssetTextPath} agent asset contract profile`)
+  assertPublicText(text, 'viewspec export-agent-assets --out .viewspec', `${agentAssetTextPath} agent asset export command`)
+  assertPublicText(text, 'viewspec check-agent-assets .viewspec --json', `${agentAssetTextPath} agent asset check command`)
+}
+
 {
   const agentPrompt = await readFile('demos/agent-system-prompt.txt', 'utf8')
   assertPublicText(agentPrompt, 'diff-intent', 'agent prompt diff-intent review surface')
