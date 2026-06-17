@@ -68,6 +68,7 @@ Raw HTML tools remain available only for importing existing HTML: `viewspec comp
 - Pro tier: $149/month, 10,000 hosted compile calls/day, mobile emitters, and 5 custom motif instances per compile.
 - Enterprise tier: custom volume, unlimited custom motifs, org sharing, and launch support.
 - Public facts manifest: https://viewspec.dev/public-facts.json
+- Host proof assertion requirements: `assertion_requirements` reports expected `dom_count`, `style_assertion_count`, and manifest-derived `aesthetic_layout_assertion_count`, `aesthetic_profile_assertion_count`, and `grid_span_assertion_count` before observed grid column/span counts, profiled aesthetic marker/layout assertions, and action payload checks are accepted.
 - Proof scope: ViewSpec prove is not pixel-perfect visual regression, accessibility certification, arbitrary host-app certification, or hosted compiler publish automation.
 
 ## Short Description

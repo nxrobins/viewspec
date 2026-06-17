@@ -141,7 +141,7 @@ viewspec verify-host react-tailwind-output/ --target react-tailwind-tsx --instal
 viewspec prove --target react-tailwind-tsx --install --out .viewspec-proof --json
 ```
 
-`--install` opts into `npm ci --ignore-scripts` inside the isolated reference host. Without it, the command stays no-install and fails fast when host dependencies are absent.
+`--install` opts into `npm ci --ignore-scripts` inside the isolated reference host. Without it, the command stays no-install and fails fast when host dependencies are absent. JSON proof reports include `assertion_requirements` for expected `dom_count`, `style_assertion_count`, and manifest-derived `aesthetic_layout_assertion_count`, `aesthetic_profile_assertion_count`, and `grid_span_assertion_count` before comparing observed browser assertions.
 
 `viewspec check` also verifies React TSX source artifacts: manifest shape, exact `ViewSpecView.tsx` hash, generated-source markers, diagnostics shape, and absence of active network/runtime escape surfaces. This is source artifact verification, not a rendered DOM proof inside a host React app. Use the hosted compiler for richer input controls, projections, declarative rules, custom motifs, Level 2+ derivation, and mobile emitters. Hosted demo artifact indexes declare `contract_profile: "hosted_extended_v1"` when their IntentBundle uses fields beyond local V1 validation.
 
