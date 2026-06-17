@@ -637,6 +637,11 @@ def _support_host_report(host_report: dict[str, Any] | None) -> dict[str, Any] |
     if host_report is None:
         return None
     assertions = host_report.get("assertions") if isinstance(host_report.get("assertions"), dict) else {}
+    requirements = (
+        host_report.get("assertion_requirements")
+        if isinstance(host_report.get("assertion_requirements"), dict)
+        else {}
+    )
     return {
         "ok": bool(host_report.get("ok")),
         "artifact_hash": host_report.get("artifact_hash"),
@@ -647,6 +652,9 @@ def _support_host_report(host_report: dict[str, Any] | None) -> dict[str, Any] |
         "node_version": _support_scalar(host_report.get("node_version")),
         "npm_version": _support_scalar(host_report.get("npm_version")),
         "assertions": {str(key): int(value) for key, value in assertions.items() if isinstance(value, int)},
+        "assertion_requirements": {
+            str(key): int(value) for key, value in requirements.items() if isinstance(value, int)
+        },
         "manifest_summary": _support_manifest_summary(host_report.get("manifest_summary")),
         "error_codes": [str(error.get("code")) for error in host_report.get("errors", []) if isinstance(error, dict) and error.get("code")],
     }
@@ -777,6 +785,10 @@ def _render_proof_summary(report: dict[str, Any], *, proof_report_hash: str) -> 
             if isinstance(assertions, dict):
                 for key in sorted(assertions):
                     lines.append(f"- Assertion {_summary_value(key)}: `{_summary_value(assertions[key])}`")
+            requirements = host_report.get("assertion_requirements")
+            if isinstance(requirements, dict):
+                for key in sorted(requirements):
+                    lines.append(f"- Required assertion {_summary_value(key)}: `{_summary_value(requirements[key])}`")
         else:
             lines.append("- Status: `not_run`")
 

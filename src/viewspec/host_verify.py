@@ -359,6 +359,14 @@ def summarize_host_verification_report(report: object) -> dict[str, Any] | None:
             for key, value in assertions.items()
             if isinstance(value, int) and not isinstance(value, bool)
         }
+    requirements = report.get("assertion_requirements")
+    normalized_requirements: dict[str, int] = {}
+    if isinstance(requirements, dict):
+        normalized_requirements = {
+            str(key): int(value)
+            for key, value in requirements.items()
+            if isinstance(value, int) and not isinstance(value, bool)
+        }
     errors = report.get("errors")
     error_codes: list[str] = []
     if isinstance(errors, list):
@@ -367,11 +375,14 @@ def summarize_host_verification_report(report: object) -> dict[str, Any] | None:
             for error in errors
             if isinstance(error, dict) and error.get("code")
         ]
-    return {
+    summary = {
         "ok": bool(report.get("ok")),
         "assertions": normalized_assertions,
         "error_codes": error_codes,
     }
+    if normalized_requirements:
+        summary["assertion_requirements"] = normalized_requirements
+    return summary
 
 
 def _manifest_summary_from_tool_result(result: dict[str, Any]) -> dict[str, Any] | None:
@@ -674,28 +685,39 @@ def _assert_runtime_report(runtime: dict[str, Any], *, manifest_summary: dict[st
         "aesthetic_profile_assertion_count": int(assertions.get("aesthetic_profile_assertion_count", 0)),
         "payload_binding_count": int(assertions.get("payload_binding_count", 0)),
     }
-    if normalized["dom_count"] < 1:
+    requirements = _host_assertion_requirements(manifest_summary)
+    if normalized["dom_count"] < requirements["dom_count"]:
         raise HostVerifyFailure("HOST_VERIFY_DOM_NODE_MISSING", "Browser report did not include a DOM assertion.")
-    if normalized["style_assertion_count"] < 4:
+    if normalized["style_assertion_count"] < requirements["style_assertion_count"]:
         raise HostVerifyFailure("HOST_VERIFY_STYLE_ASSERTION_TOO_WEAK", "Browser report did not include four computed style assertions.")
-    if _manifest_summary_has_aesthetic_profile(manifest_summary) and normalized["aesthetic_profile_assertion_count"] < 1:
+    if normalized["aesthetic_profile_assertion_count"] < requirements["aesthetic_profile_assertion_count"]:
         raise HostVerifyFailure(
             "HOST_VERIFY_AESTHETIC_PROFILE_ASSERTION_MISSING",
             "Browser report did not include a runtime aesthetic profile marker assertion.",
         )
-    expected_layout_count = _manifest_summary_aesthetic_layout_node_count(manifest_summary)
+    expected_layout_count = requirements["aesthetic_layout_assertion_count"]
     if expected_layout_count > 0 and normalized["aesthetic_layout_assertion_count"] < expected_layout_count:
         raise HostVerifyFailure(
             "HOST_VERIFY_AESTHETIC_LAYOUT_ASSERTION_MISSING",
             f"Browser report included {normalized['aesthetic_layout_assertion_count']} aesthetic layout assertions for {expected_layout_count} profiled layout nodes.",
         )
-    expected_span_count = _manifest_summary_aesthetic_span_node_count(manifest_summary)
+    expected_span_count = requirements["grid_span_assertion_count"]
     if expected_span_count > 0 and normalized["grid_span_assertion_count"] < expected_span_count:
         raise HostVerifyFailure(
             "HOST_VERIFY_AESTHETIC_LAYOUT_ASSERTION_MISSING",
             f"Browser report included {normalized['grid_span_assertion_count']} grid span assertions for {expected_span_count} profiled span layout nodes.",
         )
     return normalized
+
+
+def _host_assertion_requirements(manifest_summary: dict[str, Any] | None) -> dict[str, int]:
+    return {
+        "aesthetic_layout_assertion_count": _manifest_summary_aesthetic_layout_node_count(manifest_summary),
+        "aesthetic_profile_assertion_count": 1 if _manifest_summary_has_aesthetic_profile(manifest_summary) else 0,
+        "dom_count": 1,
+        "grid_span_assertion_count": _manifest_summary_aesthetic_span_node_count(manifest_summary),
+        "style_assertion_count": 4,
+    }
 
 
 def _manifest_summary_has_aesthetic_profile(manifest_summary: dict[str, Any] | None) -> bool:
@@ -757,6 +779,7 @@ def _base_report(
     node_version: str | None = None,
     npm_version: str | None = None,
     assertions: dict[str, int] | None = None,
+    assertion_requirements: dict[str, int] | None = None,
     manifest_summary: dict[str, Any] | None = None,
     errors: list[dict[str, str]] | None = None,
 ) -> dict[str, Any]:
@@ -783,6 +806,7 @@ def _base_report(
             "payload_binding_count": 0,
             "style_assertion_count": 0,
         },
+        "assertion_requirements": assertion_requirements or _host_assertion_requirements(manifest_summary),
         "errors": errors or [],
         "timings_ms": dict(sorted(timings.items())),
     }

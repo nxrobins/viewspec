@@ -722,12 +722,12 @@ def _verify_host_command(args: argparse.Namespace) -> int:
             print(f"error: {error['code']}: {error['message']}")
         for line in _check_manifest_summary_lines(result.get("manifest_summary")):
             print(line)
-        for line in _host_assertion_summary_lines(result.get("assertions")):
+        for line in _host_assertion_summary_lines(result.get("assertions"), result.get("assertion_requirements")):
             print(line)
     return 0 if result["ok"] else 2
 
 
-def _host_assertion_summary_lines(assertions: object) -> list[str]:
+def _host_assertion_summary_lines(assertions: object, requirements: object = None) -> list[str]:
     if not isinstance(assertions, dict):
         return []
     normalized = {
@@ -740,6 +740,16 @@ def _host_assertion_summary_lines(assertions: object) -> list[str]:
     lines = ["host_assertions:"]
     for key in sorted(normalized):
         lines.append(f"  {key}: {normalized[key]}")
+    if isinstance(requirements, dict):
+        normalized_requirements = {
+            str(key): int(value)
+            for key, value in requirements.items()
+            if isinstance(value, int) and not isinstance(value, bool)
+        }
+        if normalized_requirements:
+            lines.append("host_assertion_requirements:")
+            for key in sorted(normalized_requirements):
+                lines.append(f"  {key}: {normalized_requirements[key]}")
     return lines
 
 
@@ -747,7 +757,7 @@ def _host_report_summary_lines(host_report: object) -> list[str]:
     if not isinstance(host_report, dict):
         return []
     lines = [f"host_verification: {'passed' if host_report.get('ok') else 'failed'}"]
-    lines.extend(_host_assertion_summary_lines(host_report.get("assertions")))
+    lines.extend(_host_assertion_summary_lines(host_report.get("assertions"), host_report.get("assertion_requirements")))
     return lines
 
 
