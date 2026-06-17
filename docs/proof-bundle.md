@@ -21,7 +21,7 @@ ViewSpec proof bundles are not pixel-perfect visual regression, accessibility ce
 - `Hashes` lets reviewers compare the checked artifact, manifest, and report with the files on disk.
 - `Manifest Summary` records bounded manifest facts such as emitter, node count, root aesthetic profile, compact style-delta counts, and checked aesthetic layout columns/spans.
 - `Checks` shows whether intent setup, compile, artifact check, host verification, summary writing, and support bundle writing ran.
-- `Host Verification` appears for React Tailwind runs and summarizes observed browser assertions, including profiled aesthetic marker/layout counters when applicable, when the reference host was used.
+- `Host Verification` appears for React Tailwind runs and summarizes observed browser assertions, including profiled aesthetic marker/layout counters when applicable, when the reference host was used. The machine report also records `assertion_requirements` for expected `dom_count`, `style_assertion_count`, and manifest-derived `aesthetic_layout_assertion_count`, `aesthetic_profile_assertion_count`, and `grid_span_assertion_count`.
 - `Policy` records network/install behavior, including whether `npm ci --ignore-scripts` was explicitly allowed.
 - `Errors` lists stable codes and fixes. If validation failed, use the JSON validation `repair_checklist` or correction prompt, regenerate the full IntentBundle, and rerun `viewspec prove`.
 

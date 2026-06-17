@@ -170,7 +170,7 @@ Checks
         <article>
           <p class="eyebrow">Machine contract</p>
           <h2><code>proof_report.json</code></h2>
-          <p>Use this file for CI and agents. It is the stable JSON contract with schema version, checks, paths, hashes, host report, errors, metadata, and timings.</p>
+          <p>Use this file for CI and agents. It is the stable JSON contract with schema version, checks, paths, hashes, host report, <code>assertion_requirements</code> such as <code>style_assertion_count</code>, errors, metadata, and timings.</p>
           <pre><code>jq .ok .viewspec-proof/proof_report.json</code></pre>
         </article>
         <article>

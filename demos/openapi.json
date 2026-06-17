@@ -49,6 +49,25 @@
       "proof_summary_hash",
       "support_bundle_hash"
     ],
+    "proofHostAssertionRequirements": {
+      "report_key": "assertion_requirements",
+      "base_minimums": {
+        "dom_count": 1,
+        "style_assertion_count": 4
+      },
+      "manifest_derived_fields": [
+        "aesthetic_layout_assertion_count",
+        "aesthetic_profile_assertion_count",
+        "grid_span_assertion_count"
+      ],
+      "all_fields": [
+        "aesthetic_layout_assertion_count",
+        "aesthetic_profile_assertion_count",
+        "dom_count",
+        "grid_span_assertion_count",
+        "style_assertion_count"
+      ]
+    },
     "agentAssetManifest": "https://viewspec.dev/agent-assets.json",
     "agentAssetSchemaVersion": 4,
     "agentAssetContractProfile": "local_v1",

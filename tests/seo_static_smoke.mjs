@@ -95,6 +95,28 @@ assertPublicEqual(publicFacts.proof.machine_report_file, '.viewspec-proof/proof_
 assertPublicEqual(publicFacts.proof.support_bundle_file, '.viewspec-proof/support_bundle.json', 'public facts proof support bundle file')
 assertPublicText(publicFacts.proof.scope, 'compact style-delta counts', 'public facts proof style summary scope')
 assertPublicText(publicFacts.proof.non_claim, 'not pixel-perfect visual regression', 'public facts proof non-claim')
+assertPublicEqual(publicFacts.proof.host_assertion_requirements.report_key, 'assertion_requirements', 'public facts host assertion requirements key')
+assert.deepEqual(
+  publicFacts.proof.host_assertion_requirements.base_minimums,
+  { dom_count: 1, style_assertion_count: 4 },
+  'public facts host assertion base minimums'
+)
+assert.deepEqual(
+  publicFacts.proof.host_assertion_requirements.manifest_derived_fields,
+  ['aesthetic_layout_assertion_count', 'aesthetic_profile_assertion_count', 'grid_span_assertion_count'],
+  'public facts host assertion manifest-derived fields'
+)
+assert.deepEqual(
+  publicFacts.proof.host_assertion_requirements.all_fields,
+  [
+    'aesthetic_layout_assertion_count',
+    'aesthetic_profile_assertion_count',
+    'dom_count',
+    'grid_span_assertion_count',
+    'style_assertion_count',
+  ],
+  'public facts host assertion fields'
+)
 
 const aestheticProfileTokens = [
   'aesthetic.calm_ops',
@@ -187,11 +209,15 @@ for (const proofMetadataTextPath of ['README.md', 'docs/agent-integration.md', '
   assertPublicText(text, 'proof identity', `${proofMetadataTextPath} proof identity metadata`)
 }
 
-for (const hostProofTextPath of ['README.md', 'docs/getting-started.md', 'docs/free-sdk-reliability.md', 'docs/known-limits-react-tailwind-tsx.md']) {
+for (const hostProofTextPath of ['README.md', 'docs/getting-started.md', 'docs/agent-integration.md', 'docs/free-sdk-reliability.md', 'docs/known-limits-react-tailwind-tsx.md', 'demos/llms.txt', 'demos/llms-full.txt']) {
   const text = await readFile(hostProofTextPath, 'utf8')
   assertPublicText(text, 'grid column/span counts', `${hostProofTextPath} host proof grid span scope`)
   assertPublicText(text, 'profiled aesthetic marker', `${hostProofTextPath} host proof aesthetic marker scope`)
   assertPublicText(text, 'action payload', `${hostProofTextPath} host proof action payload scope`)
+  assertPublicText(text, publicFacts.proof.host_assertion_requirements.report_key, `${hostProofTextPath} host assertion requirements key`)
+  assertPublicText(text, 'dom_count', `${hostProofTextPath} host assertion DOM requirement`)
+  assertPublicText(text, 'style_assertion_count', `${hostProofTextPath} host assertion style requirement`)
+  assertPublicText(text, 'aesthetic_layout_assertion_count', `${hostProofTextPath} host assertion layout requirement`)
 }
 
 for (const productTextPath of ['README.md', 'demos/index.html', 'demos/llms.txt', 'demos/llms-full.txt']) {
@@ -220,6 +246,8 @@ for (const expected of [
   'react_tailwind_reference_host',
   'Manifest Summary',
   'style-delta counts',
+  publicFacts.proof.host_assertion_requirements.report_key,
+  'style_assertion_count',
   'Hashes',
   'Checks',
   'Errors',
@@ -409,6 +437,11 @@ assert.deepEqual(
   openapi['x-viewspec-public-facts'].proofIdentityHashFields,
   publicFacts.proof.identity_hash_fields,
   'OpenAPI public facts proof identity hash fields'
+)
+assert.deepEqual(
+  openapi['x-viewspec-public-facts'].proofHostAssertionRequirements,
+  publicFacts.proof.host_assertion_requirements,
+  'OpenAPI public facts host assertion requirements'
 )
 assertPublicEqual(openapi['x-viewspec-public-facts'].agentAssetManifest, publicFacts.agent_assets.manifest_url, 'OpenAPI public facts agent asset manifest')
 assertPublicEqual(openapi['x-viewspec-public-facts'].agentAssetSchemaVersion, publicFacts.agent_assets.schema_version, 'OpenAPI public facts agent asset schema version')

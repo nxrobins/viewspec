@@ -34,6 +34,25 @@
       "proof_summary_hash",
       "support_bundle_hash"
     ],
+    "host_assertion_requirements": {
+      "report_key": "assertion_requirements",
+      "base_minimums": {
+        "dom_count": 1,
+        "style_assertion_count": 4
+      },
+      "manifest_derived_fields": [
+        "aesthetic_layout_assertion_count",
+        "aesthetic_profile_assertion_count",
+        "grid_span_assertion_count"
+      ],
+      "all_fields": [
+        "aesthetic_layout_assertion_count",
+        "aesthetic_profile_assertion_count",
+        "dom_count",
+        "grid_span_assertion_count",
+        "style_assertion_count"
+      ]
+    },
     "default_proof_level": "source_artifact",
     "react_tailwind_proof_level": "react_tailwind_reference_host",
     "scope": "ViewSpec prove validates intent, compiles through the public local path, checks the artifact manifest and hashes, records compact style-delta counts when profiles are present, writes PROOF.md for humans, proof_report.json for tools, redacted support_bundle.json for local support triage, and can optionally run the bounded React Tailwind reference host proof.",

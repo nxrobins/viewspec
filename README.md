@@ -151,7 +151,7 @@ python -m pip install "viewspec[agents]"
 viewspec mcp
 ```
 
-The MCP server exposes intent-first local tools: `init_intent`, `validate_intent_bundle_file`, `diff_intent_bundle_files`, `compile_intent_bundle_file`, `agent_correction_prompt_file`, `check_artifact`, `verify_host`, `prove`, `check_agent_assets`, `init_design`, and `export_agent_assets`. `compile_intent_bundle_file` accepts `target="html-tailwind"` for checked standalone HTML, `target="react-tsx"` for checked React source artifacts, or `target="react-tailwind-tsx"` for checked React source with closed Tailwind recipes; `verify_host` metadata exposes manifest summary, compact aesthetic style-delta counts, and bounded host verification facts, while `prove` writes `PROOF.md`, `proof_report.json`, and redacted `support_bundle.json` and exposes checks, proof identity hashes, manifest summary, and bounded host verification facts. Raw HTML MCP tools remain available only for importing existing HTML. By default, all tool paths must resolve under the MCP working directory and the tools make no SDK network calls.
+The MCP server exposes intent-first local tools: `init_intent`, `validate_intent_bundle_file`, `diff_intent_bundle_files`, `compile_intent_bundle_file`, `agent_correction_prompt_file`, `check_artifact`, `verify_host`, `prove`, `check_agent_assets`, `init_design`, and `export_agent_assets`. `compile_intent_bundle_file` accepts `target="html-tailwind"` for checked standalone HTML, `target="react-tsx"` for checked React source artifacts, or `target="react-tailwind-tsx"` for checked React source with closed Tailwind recipes; `verify_host` metadata exposes manifest summary, compact aesthetic style-delta counts, bounded host verification facts, and `assertion_requirements`, while `prove` writes `PROOF.md`, `proof_report.json`, and redacted `support_bundle.json` and exposes checks, proof identity hashes, manifest summary, bounded host verification facts, and expected host assertion requirements. Raw HTML MCP tools remain available only for importing existing HTML. By default, all tool paths must resolve under the MCP working directory and the tools make no SDK network calls.
 
 For all targets, agents should edit `viewspec.intent.json` or `DESIGN.md` and regenerate artifacts. They should not patch generated files such as `dist/index.html` or `react-output/ViewSpecView.tsx`.
 
@@ -268,7 +268,7 @@ viewspec verify-host react-tailwind-output/ --target react-tailwind-tsx --instal
 viewspec verify-host --intent viewspec.intent.json --out react-tailwind-output/ --target react-tailwind-tsx --install --json
 ```
 
-`verify-host` runs `viewspec check`, carries the checked manifest summary into the host proof report, copies exactly the checked React Tailwind artifact into an isolated Vite/Tailwind host, builds it, and runs Chromium assertions for manifest-backed DOM, computed Tailwind styles including grid column/span counts, profiled aesthetic markers/layout when present, and action payloads. Human output prints the checked manifest summary, including compact style-delta counts for profiled artifacts, and nonzero host assertion counts; `--json` returns the full proof report. Without `--install`, it performs no package-manager install and fails fast if the reference host dependencies are missing; it does not install Playwright browser binaries.
+`verify-host` runs `viewspec check`, carries the checked manifest summary into the host proof report, copies exactly the checked React Tailwind artifact into an isolated Vite/Tailwind host, builds it, and runs Chromium assertions for manifest-backed DOM, computed Tailwind styles including grid column/span counts, profiled aesthetic markers/layout when present, and action payloads. Human output prints the checked manifest summary, including compact style-delta counts for profiled artifacts, and nonzero host assertion counts; `--json` returns the full proof report with `assertion_requirements` for the expected `dom_count`, `style_assertion_count`, and manifest-derived `aesthetic_layout_assertion_count`, `aesthetic_profile_assertion_count`, and `grid_span_assertion_count`. Without `--install`, it performs no package-manager install and fails fast if the reference host dependencies are missing; it does not install Playwright browser binaries.
 
 The same bounded runtime proof is available through the beginner-facing proof command:
 
@@ -385,7 +385,7 @@ The hosted compiler now exposes the May 6 launch surface: SwiftUI and Flutter em
 
 Pro includes mobile emitters, 5 custom motif instances per compile, and 10,000 hosted compile calls/day.
 
-Public version, pricing, hosted-call, API, package, proof-scope, proof identity, and agent asset contract facts are mirrored in `demos/public-facts.json` and checked by CI before release.
+Public version, pricing, hosted-call, API, package, proof-scope, proof identity, host assertion requirement, and agent asset contract facts are mirrored in `demos/public-facts.json` and checked by CI before release.
 
 ## Wire Format
 
