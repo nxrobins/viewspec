@@ -26,8 +26,9 @@ from viewspec.sdk.builder import ViewSpecBuilder
 def test_compiler_quality_benchmark_fixtures_emit_checked_artifacts(tmp_path):
     summaries = run_benchmark_suite(tmp_path)
 
-    assert len(summaries) == 10
+    assert len(summaries) == 11
     assert {summary["fixture_id"] for summary in summaries} == {
+        "aesthetic_profile_workspace",
         "collection_error_state",
         "collection_loading_state",
         "dashboard",
@@ -152,10 +153,50 @@ def test_stateful_collection_fixture_records_collection_action_bar(tmp_path):
     assert summary["metrics"]["tailwind"]["recipe_pack"] == "tailwind_app_v1"
 
 
+def test_aesthetic_profile_fixture_records_manifest_profile_floor(tmp_path):
+    fixture = next(item for item in benchmark_fixtures() if item.id == "aesthetic_profile_workspace")
+    summary = run_benchmark_fixture(fixture, tmp_path)
+
+    assert "aesthetic_profiles" in summary["quality_categories"]
+    aesthetic = summary["metrics"]["aesthetic"]
+    assert aesthetic["available"] is True
+    assert aesthetic["profile"] == "aesthetic.premium_saas"
+    assert aesthetic["profile_consistent"] is True
+    assert aesthetic["style_summary_consistent"] is True
+    assert aesthetic["layout_summary_consistent"] is True
+    assert aesthetic["profiles_by_target"] == {
+        "html-tailwind": "aesthetic.premium_saas",
+        "react-tsx": "aesthetic.premium_saas",
+        "react-tailwind-tsx": "aesthetic.premium_saas",
+    }
+    for target in ("html-tailwind", "react-tsx", "react-tailwind-tsx"):
+        assert aesthetic["style"][target] == {
+            "profile": "aesthetic.premium_saas",
+            "changed_token_count": 13,
+            "category_count": 8,
+            "declaration_count": 29,
+        }
+        assert aesthetic["layout"][target]["content_grid"] == {
+            "profile": "aesthetic.premium_saas",
+            "columns": 2,
+            "node_count": 1,
+        }
+        assert aesthetic["layout"][target]["metric_grid"] == {
+            "profile": "aesthetic.premium_saas",
+            "columns": 2,
+            "node_count": 1,
+        }
+        assert aesthetic["layout"][target]["metric_card"] == {
+            "profile": "aesthetic.premium_saas",
+            "span_columns": 2,
+            "node_count": 1,
+        }
+
+
 def test_benchmark_contract_is_not_weakened():
-    assert len(benchmark_fixtures()) == 10
+    assert len(benchmark_fixtures()) == 11
     assert compiler_benchmarks.BENCHMARK_SUMMARY_MAX_BYTES == 16 * 1024
-    assert len(compiler_benchmarks.QUALITY_CATEGORIES) == 8
+    assert len(compiler_benchmarks.QUALITY_CATEGORIES) == 9
     assert {
         "BENCHMARK_FIXTURE_TOO_SMALL",
         "BENCHMARK_ORACLE_TOO_SHALLOW",
