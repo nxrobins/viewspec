@@ -26,6 +26,14 @@
     "human_summary_file": ".viewspec-proof/PROOF.md",
     "machine_report_file": ".viewspec-proof/proof_report.json",
     "support_bundle_file": ".viewspec-proof/support_bundle.json",
+    "identity_metadata_key": "proof_identity",
+    "identity_hash_fields": [
+      "artifact_hash",
+      "manifest_hash",
+      "proof_report_hash",
+      "proof_summary_hash",
+      "support_bundle_hash"
+    ],
     "default_proof_level": "source_artifact",
     "react_tailwind_proof_level": "react_tailwind_reference_host",
     "scope": "ViewSpec prove validates intent, compiles through the public local path, checks the artifact manifest and hashes, records compact style-delta counts when profiles are present, writes PROOF.md for humans, proof_report.json for tools, redacted support_bundle.json for local support triage, and can optionally run the bounded React Tailwind reference host proof.",

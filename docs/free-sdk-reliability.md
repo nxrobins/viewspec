@@ -63,7 +63,7 @@ The public host verifier preserves the same fail-closed boundary for one artifac
 
 Aesthetic Profiles V1 preserves the same free-SDK boundary: one view-level token from `aesthetic.calm_ops`, `aesthetic.premium_saas`, `aesthetic.data_dense`, `aesthetic.editorial_product`, or `aesthetic.executive_review` expands into checked local style projections, bounded layout metadata, compact style-delta counts in manifest summaries, and closed React Tailwind recipes; it is not arbitrary CSS, remote assets, runtime LLM calls, or host-app certification.
 
-Public pricing, version, hosted-call, API, package, and proof-scope facts live in `demos/public-facts.json`; the static smoke test fails with `PUBLIC_FACTS_DRIFT` if README, landing, LLM, OpenAPI, or version metadata disagree with it.
+Public pricing, version, hosted-call, API, package, proof-scope, and proof identity facts live in `demos/public-facts.json`; the static smoke test fails with `PUBLIC_FACTS_DRIFT` if README, landing, LLM, OpenAPI, or version metadata disagree with it.
 
 ## Generated Demo Drift Gate
 

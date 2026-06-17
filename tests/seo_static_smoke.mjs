@@ -382,6 +382,12 @@ assertPublicEqual(openapi['x-viewspec-public-facts'].firstProofCommand, publicFa
 assertPublicEqual(openapi['x-viewspec-public-facts'].proofSummaryFile, publicFacts.proof.human_summary_file, 'OpenAPI public facts proof summary')
 assertPublicEqual(openapi['x-viewspec-public-facts'].proofReportFile, publicFacts.proof.machine_report_file, 'OpenAPI public facts proof report')
 assertPublicEqual(openapi['x-viewspec-public-facts'].proofSupportBundleFile, publicFacts.proof.support_bundle_file, 'OpenAPI public facts proof support bundle')
+assertPublicEqual(openapi['x-viewspec-public-facts'].proofIdentityMetadataKey, publicFacts.proof.identity_metadata_key, 'OpenAPI public facts proof identity key')
+assert.deepEqual(
+  openapi['x-viewspec-public-facts'].proofIdentityHashFields,
+  publicFacts.proof.identity_hash_fields,
+  'OpenAPI public facts proof identity hash fields'
+)
 assert(openapi.paths['/v1/compile']?.post, 'OpenAPI needs POST /v1/compile')
 assert.equal(openapi.paths['/v1/compile'].post.requestBody.content['application/json'].schema.$ref, '#/components/schemas/CompileRequestPayload')
 assert.equal(openapi.components.schemas.CompileRequestPayload.properties.design.$ref, '#/components/schemas/DesignRequest')
