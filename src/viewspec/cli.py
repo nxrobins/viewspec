@@ -445,15 +445,18 @@ def _doctor_intent_pipeline() -> dict[str, object]:
                 "validate_intent": False,
                 "compile_check": validation["compile_check"],
                 "diff_intent": False,
+                "aesthetic_profile_diff": False,
                 "message": "starter IntentBundle failed validation",
             }
         diff = diff_intent_text(text, text, compile_check=False)
+        aesthetic_profile_diff = _doctor_aesthetic_profile_diff_smoke()
         ast = compile(bundle)
         return {
-            "ok": bool(diff["ok"] and ast.result.root.root.id),
+            "ok": bool(diff["ok"] and aesthetic_profile_diff and ast.result.root.root.id),
             "validate_intent": True,
             "compile_check": validation["compile_check"],
             "diff_intent": bool(diff["ok"]),
+            "aesthetic_profile_diff": aesthetic_profile_diff,
             "reference_compile": bool(ast.result.root.root.id),
         }
     except Exception as exc:
@@ -462,9 +465,48 @@ def _doctor_intent_pipeline() -> dict[str, object]:
             "validate_intent": False,
             "compile_check": "failed",
             "diff_intent": False,
+            "aesthetic_profile_diff": False,
             "reference_compile": False,
             "message": str(exc),
         }
+
+
+def _doctor_aesthetic_profile_diff_smoke() -> bool:
+    left = starter_intent_bundle("dashboard").to_json()
+    right = starter_intent_bundle("dashboard").to_json()
+    view_id = left["view_spec"]["id"]
+    left["view_spec"]["styles"] = [
+        {"id": "aesthetic_profile", "target": f"view:{view_id}", "token": "aesthetic.calm_ops"}
+    ]
+    right["view_spec"]["styles"] = [
+        {"id": "aesthetic_profile", "target": f"view:{view_id}", "token": "aesthetic.executive_review"}
+    ]
+    diff = diff_intent_text(
+        json.dumps(left, sort_keys=True),
+        json.dumps(right, sort_keys=True),
+        compile_check=False,
+    )
+    expected_profile_change = {
+        "change": "profile_changed",
+        "left": "aesthetic.calm_ops",
+        "right": "aesthetic.executive_review",
+        "left_style_id": "aesthetic_profile",
+        "right_style_id": "aesthetic_profile",
+        "left_target": f"view:{view_id}",
+        "right_target": f"view:{view_id}",
+    }
+    expected_style_change = {
+        "id": "aesthetic_profile",
+        "change": "token_changed",
+        "left": "aesthetic.calm_ops",
+        "right": "aesthetic.executive_review",
+    }
+    semantic_changes = diff.get("semantic_changes", {})
+    return bool(
+        diff.get("ok")
+        and semantic_changes.get("aesthetic_profiles") == [expected_profile_change]
+        and expected_style_change in semantic_changes.get("styles", [])
+    )
 
 
 def _doctor_checks_ok(value: object) -> bool:
