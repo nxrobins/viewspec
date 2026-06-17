@@ -40,6 +40,7 @@ Raw HTML tools remain available only for importing existing HTML: `viewspec comp
 - Native agent setup: `viewspec init-agent --target codex|claude-code|cursor|copilot|all`.
 - Local agent contract asset export: `viewspec export-agent-assets --out .viewspec`.
 - Local agent contract asset verification: `viewspec check-agent-assets .viewspec --json`.
+- Local agent asset manifests use schema version `4`, declare the `local_v1` contract profile, and record export/check commands with no SDK network calls.
 - Optional MCP server: install `viewspec[agents]`, then run `viewspec mcp`.
 - MCP intent tools: `init_intent`, `validate_intent_bundle_file`, `diff_intent_bundle_files`, `compile_intent_bundle_file`, `agent_correction_prompt_file`, `check_artifact`, `verify_host`, `prove`, `check_agent_assets`, `init_design`, and `export_agent_assets`.
 - Raw HTML tools are import/fallback only for existing HTML.
