@@ -248,7 +248,7 @@ The MCP `compile_intent_bundle_file` tool accepts the same target as `target: "r
 
 For Tailwind host apps, use `--target react-tailwind-tsx` or MCP `target: "react-tailwind-tsx"`. Tailwind utility classes are closed compiler recipes; agents must still edit only the IntentBundle.
 
-MCP `diff_intent_bundle_files` returns the full `diff` payload and a concise `semantic_summary` list for agent-readable review. Metadata also includes `semantic_change_count`, `semantic_change_sections`, and `topology_similarity` so agents can triage revisions before inspecting generated artifacts.
+MCP `diff_intent_bundle_files` returns the full `diff` payload and a concise `semantic_summary` list for agent-readable review. Metadata also includes `semantic_change_count`, `semantic_change_sections`, and `topology_similarity` so agents can triage revisions before inspecting generated artifacts. When an aesthetic profile changes, the semantic diff includes compact style impact counts and bounded layout deltas such as metric-card span or emphasis changes.
 
 The public repo includes an isolated host proof for one representative React/Tailwind fixture, but agent workflows should not treat that as per-artifact rendering certification. For arbitrary outputs, the required local gate is still validate, compile, and `viewspec check`; host apps may add their own render tests around the generated component.
 
