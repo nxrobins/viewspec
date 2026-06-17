@@ -7,7 +7,15 @@ from pathlib import Path
 
 import pytest
 
-from viewspec import AGENT_ASSET_SCHEMA_VERSION, ViewSpecBuilder, profile_style_facts
+from viewspec import (
+    AGENT_ASSET_CHECK_COMMAND,
+    AGENT_ASSET_CONTRACT_PROFILE,
+    AGENT_ASSET_EXPORT_COMMAND,
+    AGENT_ASSET_NETWORK_POLICY,
+    AGENT_ASSET_SCHEMA_VERSION,
+    ViewSpecBuilder,
+    profile_style_facts,
+)
 from viewspec.agent import AGENT_INTENT_BUNDLE_SCHEMA, AGENT_SYSTEM_PROMPT
 from viewspec.cli import main as cli_main
 from viewspec.emitters.html_tailwind import ACTION_EVENT_SCRIPT
@@ -212,12 +220,15 @@ def test_doctor_agents_reports_missing_optional_mcp(capsys):
     assert checks["intent_pipeline"]["semantic_summary"]["semantic_change_count"] == 2
     assert checks["agent_contract_assets"]["ok"] is True
     assert checks["agent_contract_assets"]["schema_version"] == AGENT_ASSET_SCHEMA_VERSION
+    assert checks["agent_contract_assets"]["contract_profile"] == AGENT_ASSET_CONTRACT_PROFILE
     assert checks["agent_contract_assets"]["asset_manifest_file"] == "agent-assets.json"
     assert checks["agent_contract_assets"]["system_prompt_file"] == "agent-system-prompt.txt"
     assert checks["agent_contract_assets"]["intent_schema_file"] == "agent-intent-bundle.schema.json"
     assert checks["agent_contract_assets"]["intent_example_file"] == "agent-intent-example.dashboard.json"
     assert checks["agent_contract_assets"]["intent_schema_id"] == "https://viewspec.dev/agent-intent-bundle.schema.json"
-    assert checks["agent_contract_assets"]["export_command"] == "viewspec export-agent-assets --out .viewspec"
+    assert checks["agent_contract_assets"]["export_command"] == AGENT_ASSET_EXPORT_COMMAND
+    assert checks["agent_contract_assets"]["check_command"] == AGENT_ASSET_CHECK_COMMAND
+    assert checks["agent_contract_assets"]["network_policy"] == AGENT_ASSET_NETWORK_POLICY
     assert len(checks["agent_contract_assets"]["asset_manifest_sha256"]) == 64
     assert len(checks["agent_contract_assets"]["system_prompt_sha256"]) == 64
     assert len(checks["agent_contract_assets"]["intent_schema_sha256"]) == 64
@@ -283,6 +294,11 @@ def test_export_agent_assets_tool_writes_prompt_and_schema(tmp_path):
     assert (tmp_path / ".viewspec/agent-system-prompt.txt").read_text(encoding="utf-8") == AGENT_SYSTEM_PROMPT
     manifest = json.loads((tmp_path / ".viewspec/agent-assets.json").read_text(encoding="utf-8"))
     assert manifest["schema_version"] == AGENT_ASSET_SCHEMA_VERSION
+    assert manifest["contract"]["profile"] == AGENT_ASSET_CONTRACT_PROFILE
+    assert manifest["contract"]["export_command"] == AGENT_ASSET_EXPORT_COMMAND
+    assert manifest["contract"]["check_command"] == AGENT_ASSET_CHECK_COMMAND
+    assert exported["assets"]["contract_profile"] == AGENT_ASSET_CONTRACT_PROFILE
+    assert exported["assets"]["check_command"] == AGENT_ASSET_CHECK_COMMAND
     assert json.loads((tmp_path / ".viewspec/agent-intent-bundle.schema.json").read_text(encoding="utf-8")) == AGENT_INTENT_BUNDLE_SCHEMA
     assert json.loads((tmp_path / ".viewspec/agent-intent-example.dashboard.json").read_text(encoding="utf-8")) == starter_intent_bundle("dashboard").to_json()
     assert {item["path"]: item["action"] for item in exported["assets"]["files"]} == {
@@ -295,6 +311,8 @@ def test_export_agent_assets_tool_writes_prompt_and_schema(tmp_path):
     assert_tool_schema(checked)
     assert checked["ok"] is True
     assert checked["assets"]["schema_version"] == AGENT_ASSET_SCHEMA_VERSION
+    assert checked["assets"]["contract_profile"] == AGENT_ASSET_CONTRACT_PROFILE
+    assert checked["assets"]["check_command"] == AGENT_ASSET_CHECK_COMMAND
 
     dry_run = export_agent_assets_tool(".viewspec-dry-run", dry_run=True, cwd=tmp_path)
 

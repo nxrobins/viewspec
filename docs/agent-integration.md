@@ -150,7 +150,7 @@ This is intentionally not a visual equivalence proof. It tells reviewers what ch
 
 ## Published Agent Artifacts
 
-These assets use agent asset schema version `3`.
+These assets use agent asset schema version `4`. The manifest declares the `local_v1` contract profile plus the export/check commands agents should use for local verification.
 
 - Asset manifest: `https://viewspec.dev/agent-assets.json`
 - System prompt: `https://viewspec.dev/agent-system-prompt.txt`

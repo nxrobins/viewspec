@@ -7,7 +7,11 @@ from pathlib import Path
 import pytest
 
 from viewspec import (
+    AGENT_ASSET_CHECK_COMMAND,
+    AGENT_ASSET_CONTRACT_PROFILE,
+    AGENT_ASSET_EXPORT_COMMAND,
     AGENT_ASSET_MANIFEST_FILE,
+    AGENT_ASSET_NETWORK_POLICY,
     AGENT_ASSET_SCHEMA_VERSION,
     AGENT_INTENT_BUNDLE_SCHEMA,
     AGENT_SYSTEM_PROMPT,
@@ -266,6 +270,19 @@ def test_published_agent_asset_manifest_matches_runtime_export(tmp_path):
 
     assert published == exported
     assert published["schema_version"] == AGENT_ASSET_SCHEMA_VERSION
+    assert published["contract"] == {
+        "profile": AGENT_ASSET_CONTRACT_PROFILE,
+        "intent_schema_id": AGENT_INTENT_BUNDLE_SCHEMA["$id"],
+        "export_command": AGENT_ASSET_EXPORT_COMMAND,
+        "check_command": AGENT_ASSET_CHECK_COMMAND,
+        "network_policy": AGENT_ASSET_NETWORK_POLICY,
+        "files": {
+            "manifest": "agent-assets.json",
+            "system_prompt": "agent-system-prompt.txt",
+            "intent_schema": "agent-intent-bundle.schema.json",
+            "intent_example": "agent-intent-example.dashboard.json",
+        },
+    }
 
 
 def test_published_openapi_agent_artifacts_match_runtime_contract():
@@ -279,6 +296,10 @@ def test_published_openapi_agent_artifacts_match_runtime_contract():
     assert artifacts["systemPrompt"] == "https://viewspec.dev/agent-system-prompt.txt"
     assert artifacts["intentBundleSchema"] == AGENT_INTENT_BUNDLE_SCHEMA["$id"]
     assert artifacts["intentBundleExample"] == "https://viewspec.dev/agent-intent-example.dashboard.json"
+    assert artifacts["contractProfile"] == AGENT_ASSET_CONTRACT_PROFILE
+    assert artifacts["exportCommand"] == AGENT_ASSET_EXPORT_COMMAND
+    assert artifacts["checkCommand"] == AGENT_ASSET_CHECK_COMMAND
+    assert artifacts["networkPolicy"] == AGENT_ASSET_NETWORK_POLICY
     assert compile_request_ref == "#/components/schemas/CompileRequestPayload"
     assert schemas["CompileRequestPayload"]["properties"]["design"]["$ref"] == "#/components/schemas/DesignRequest"
     assert "hosted-only" in schemas["CompileRequestPayload"]["description"]

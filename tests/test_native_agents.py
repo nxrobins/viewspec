@@ -4,7 +4,16 @@ import json
 
 import pytest
 
-from viewspec import AGENT_ASSET_SCHEMA_VERSION, agent_asset_readiness, check_agent_assets, starter_intent_bundle
+from viewspec import (
+    AGENT_ASSET_CHECK_COMMAND,
+    AGENT_ASSET_CONTRACT_PROFILE,
+    AGENT_ASSET_EXPORT_COMMAND,
+    AGENT_ASSET_NETWORK_POLICY,
+    AGENT_ASSET_SCHEMA_VERSION,
+    agent_asset_readiness,
+    check_agent_assets,
+    starter_intent_bundle,
+)
 from viewspec.agent import AGENT_INTENT_BUNDLE_SCHEMA, AGENT_SYSTEM_PROMPT
 from viewspec.cli import main as cli_main
 from viewspec.native_agents import BEGIN_MARKER, END_MARKER, TARGET_PATHS
@@ -190,6 +199,9 @@ def test_export_agent_assets_creates_local_prompt_and_schema(tmp_path, capsys):
     manifest_path = out_dir / "agent-assets.json"
     assert payload["ok"] is True
     assert payload["schema_version"] == AGENT_ASSET_SCHEMA_VERSION
+    assert payload["contract_profile"] == AGENT_ASSET_CONTRACT_PROFILE
+    assert payload["check_command"] == AGENT_ASSET_CHECK_COMMAND
+    assert payload["network_policy"] == AGENT_ASSET_NETWORK_POLICY
     assert {item["path"]: item["action"] for item in payload["files"]} == {
         "agent-assets.json": "create",
         "agent-system-prompt.txt": "create",
@@ -201,6 +213,9 @@ def test_export_agent_assets_creates_local_prompt_and_schema(tmp_path, capsys):
     assert json.loads(example_path.read_text(encoding="utf-8")) == starter_intent_bundle("dashboard").to_json()
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     assert manifest["schema_version"] == AGENT_ASSET_SCHEMA_VERSION
+    assert manifest["contract"]["profile"] == AGENT_ASSET_CONTRACT_PROFILE
+    assert manifest["contract"]["check_command"] == AGENT_ASSET_CHECK_COMMAND
+    assert manifest["contract"]["network_policy"] == AGENT_ASSET_NETWORK_POLICY
     assert {item["path"] for item in manifest["files"]} == {
         "agent-system-prompt.txt",
         "agent-intent-bundle.schema.json",
@@ -208,10 +223,13 @@ def test_export_agent_assets_creates_local_prompt_and_schema(tmp_path, capsys):
     }
     checked = check_agent_assets(out_dir)
     assert checked["ok"] is True
+    assert checked["contract_profile"] == AGENT_ASSET_CONTRACT_PROFILE
     assert cli_main(["check-agent-assets", str(out_dir), "--json"]) == 0
     check_payload = json.loads(capsys.readouterr().out)
     assert check_payload["ok"] is True
     assert check_payload["schema_version"] == AGENT_ASSET_SCHEMA_VERSION
+    assert check_payload["contract_profile"] == AGENT_ASSET_CONTRACT_PROFILE
+    assert check_payload["check_command"] == AGENT_ASSET_CHECK_COMMAND
 
     assert cli_main(["export-agent-assets", "--out", str(out_dir)]) == 0
     payload = json.loads(capsys.readouterr().out)
@@ -275,12 +293,15 @@ def test_agent_asset_readiness_reports_local_contract_identity():
 
     assert readiness["ok"] is True
     assert readiness["schema_version"] == AGENT_ASSET_SCHEMA_VERSION
+    assert readiness["contract_profile"] == AGENT_ASSET_CONTRACT_PROFILE
     assert readiness["asset_manifest_file"] == "agent-assets.json"
     assert readiness["system_prompt_file"] == "agent-system-prompt.txt"
     assert readiness["intent_schema_file"] == "agent-intent-bundle.schema.json"
     assert readiness["intent_example_file"] == "agent-intent-example.dashboard.json"
     assert readiness["intent_schema_id"] == "https://viewspec.dev/agent-intent-bundle.schema.json"
-    assert readiness["export_command"] == "viewspec export-agent-assets --out .viewspec"
+    assert readiness["export_command"] == AGENT_ASSET_EXPORT_COMMAND
+    assert readiness["check_command"] == AGENT_ASSET_CHECK_COMMAND
+    assert readiness["network_policy"] == AGENT_ASSET_NETWORK_POLICY
     assert len(readiness["asset_manifest_sha256"]) == 64
     assert len(readiness["system_prompt_sha256"]) == 64
     assert len(readiness["intent_schema_sha256"]) == 64
