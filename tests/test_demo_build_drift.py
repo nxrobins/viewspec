@@ -45,6 +45,28 @@ def _aesthetic_profiles_page() -> str:
     return builder.build_page(builder.compile_profiles())
 
 
+def test_aesthetic_profiles_demo_proof_tracks_semantics_style_and_layout():
+    builder = _load_demo_builder("build_aesthetic_profiles")
+    profiles = builder.compile_profiles()
+    evidence = builder.profile_evidence(profiles)
+    generated = builder.build_page(profiles)
+
+    assert evidence["version"] == "aesthetic_profile_demo_proof.v1"
+    assert evidence["profileCount"] == len(builder.AESTHETIC_PROFILE_TOKENS)
+    assert evidence["semanticIdsStable"] is True
+    assert evidence["semanticHash"]
+    assert evidence["nodeCount"] > 0
+    assert evidence["styleProjectionDistinct"] is True
+    assert evidence["styleProjectionHashCount"] == evidence["profileCount"]
+    assert set(evidence["styleProjectionHashes"]) == set(builder.AESTHETIC_PROFILE_TOKENS)
+    assert evidence["layoutProjectionDiverges"] is True
+    assert evidence["layoutSignatureCount"] >= 3
+    assert set(evidence["layoutSignatures"]) == set(builder.AESTHETIC_PROFILE_TOKENS)
+    assert 'id="aesthetic-profile-evidence"' in generated
+    assert '"semanticIdsStable": true' in generated
+    assert '"styleProjectionDistinct": true' in generated
+
+
 def _fifteen_lines_page() -> str:
     builder = _load_demo_builder("build_fifteen_lines")
     fragments, stats = builder.compile_fragments()
