@@ -95,6 +95,7 @@ QUALITY_CATEGORIES = frozenset(
         "emitter_parity",
         "determinism",
         "tailwind_compatibility",
+        "aesthetic_profiles",
     }
 )
 ALLOWED_METRIC_SOURCES = frozenset({"artifact_hash", "artifact_text", "ast", "check", "diagnostics", "manifest"})
@@ -152,6 +153,7 @@ class EmitterBenchmarkArtifact:
     artifact_hash: str
     manifest_hash: str
     manifest: dict[str, Any]
+    manifest_summary: dict[str, Any]
     diagnostics: list[dict[str, Any]]
     artifact_text: str
     check_ok: bool
@@ -213,6 +215,7 @@ def benchmark_fixtures() -> tuple[BenchmarkFixture, ...]:
         BenchmarkFixture("collection_loading_state", _collection_loading_state_fixture()),
         BenchmarkFixture("collection_error_state", _collection_error_state_fixture()),
         BenchmarkFixture("multi_region_product", _multi_region_fixture(), multi_region=True),
+        BenchmarkFixture("aesthetic_profile_workspace", _aesthetic_profile_workspace_fixture(), multi_region=True),
         BenchmarkFixture("tailwind_admin_workspace", _tailwind_admin_workspace_fixture(), multi_region=True),
     )
 
@@ -656,6 +659,49 @@ def _tailwind_admin_workspace_fixture() -> IntentBundle:
     return builder.build_bundle()
 
 
+def _aesthetic_profile_workspace_fixture() -> IntentBundle:
+    builder = ViewSpecBuilder(
+        "benchmark_aesthetic_profile",
+        root_attrs={"title": "Aesthetic Profile Benchmark"},
+        default_main_region=False,
+        root_min_children=2,
+    )
+    builder.set_aesthetic_profile("aesthetic.premium_saas")
+    builder.add_region("hero", parent_region="root", role="banner", layout="stack", min_children=1)
+    builder.add_region("workspace", parent_region="root", role="application", layout="grid", min_children=2)
+    builder.add_region("primary", parent_region="workspace", role="primary", layout="stack", min_children=2)
+    builder.add_region("review", parent_region="workspace", role="complementary", layout="stack", min_children=1)
+    builder.add_hero(
+        "profile_intro",
+        eyebrow="Aesthetic profile",
+        title="Governed style projection",
+        description="Benchmark profile style and bounded layout metadata across emitters.",
+        region="hero",
+        group_id="profile_intro_copy",
+    )
+    metrics = builder.add_dashboard("profile_metrics", region="primary", group_id="profile_metric_cards")
+    metrics.add_card(label="Confidence", value="92%", id="confidence")
+    metrics.add_card(label="Risk", value="Low", id="risk", value_present_as="badge")
+    metrics.add_card(label="Evidence", value="Checked", id="evidence")
+    detail = builder.add_detail("profile_review", region="review", group_id="profile_review_fields")
+    detail.add_field(label="Manifest", value="summary aligned", id="manifest")
+    detail.add_field(label="Layout", value="bounded grid metadata", id="layout")
+    decision = builder.add_form("profile_decision", region="primary", group_id="profile_decision_fields")
+    decision.add_field(label="Reviewer", value="", id="reviewer")
+    decision.add_field(label="Decision", value="approve", id="decision")
+    builder.add_action(
+        "approve_profile",
+        "submit",
+        "Approve profile",
+        target_region="primary",
+        target_ref="motif:profile_decision",
+        payload_bindings=["reviewer_value", "decision_value"],
+    )
+    builder.add_style("profile_review_surface", "motif:profile_review", "surface.strong")
+    builder.add_style("profile_risk_tone", "binding:risk_value", "tone.accent")
+    return builder.build_bundle()
+
+
 def _validate_fixture_contract(fixture: BenchmarkFixture) -> None:
     if fixture.full_artifact_golden is not None:
         raise BenchmarkConstraintError(
@@ -740,6 +786,7 @@ def _emit_checked_artifact(
         artifact_hash=file_hash(artifact_path),
         manifest_hash=file_hash(Path(paths["manifest"])),
         manifest=manifest,
+        manifest_summary=checked.get("manifest_summary", {}),
         diagnostics=diagnostics,
         artifact_text=artifact_text,
         check_ok=bool(checked["ok"]),
@@ -783,6 +830,7 @@ def _benchmark_summary(
     )
     style_tokens = sorted(html_inventory.style_tokens | react_inventory.style_tokens | tailwind_inventory.style_tokens)
     style_values = set(ast.style_values)
+    aesthetic_metrics = _aesthetic_profile_metrics(html_artifact, react_artifact, tailwind_artifact)
     quality_categories = sorted(
         category
         for category, ok in {
@@ -795,6 +843,10 @@ def _benchmark_summary(
             "emitter_parity": True,
             "tailwind_compatibility": tailwind_artifact.check_ok
             and tailwind_artifact.manifest.get("tailwind_recipe_inventory", {}).get("recipe_pack") == "tailwind_app_v1",
+            "aesthetic_profiles": aesthetic_metrics["available"]
+            and aesthetic_metrics["profile_consistent"]
+            and aesthetic_metrics["style_summary_consistent"]
+            and aesthetic_metrics["layout_summary_consistent"],
         }.items()
         if ok
     )
@@ -823,6 +875,9 @@ def _benchmark_summary(
             "tailwind_manifest_product_role_counts": "manifest",
             "tailwind_recipe_inventory": "manifest",
             "workspace_surface": "ast",
+            "aesthetic_profile": "manifest",
+            "aesthetic_style": "manifest",
+            "aesthetic_layout": "manifest",
         },
         "metrics": {
             "ast": {
@@ -866,6 +921,7 @@ def _benchmark_summary(
                 "recipe_pack": tailwind_artifact.manifest.get("tailwind_recipe_inventory", {}).get("recipe_pack"),
                 "tsx_tags": sorted(tailwind_tags),
             },
+            "aesthetic": aesthetic_metrics,
             "parity": html_inventory.to_json(),
             "tailwind_parity": tailwind_inventory.to_json(),
             "required_tags": sorted(required_tags),
@@ -1022,6 +1078,59 @@ def _product_role_counts_from_manifest(manifest: dict[str, Any]) -> dict[str, in
         if isinstance(role, str) and role:
             counts[role] = counts.get(role, 0) + 1
     return dict(sorted(counts.items()))
+
+
+def _aesthetic_profile_metrics(*artifacts: EmitterBenchmarkArtifact) -> dict[str, Any]:
+    profiles = {artifact.target: artifact.manifest_summary.get("aesthetic_profile") for artifact in artifacts}
+    concrete_profiles = {profile for profile in profiles.values() if isinstance(profile, str) and profile}
+    profile = next(iter(sorted(concrete_profiles)), None)
+    style_summaries = {
+        artifact.target: _compact_aesthetic_style(artifact.manifest_summary.get("aesthetic_style"))
+        for artifact in artifacts
+    }
+    layout_summaries = {
+        artifact.target: _compact_aesthetic_layout(artifact.manifest_summary.get("aesthetic_layout"))
+        for artifact in artifacts
+    }
+    concrete_styles = [style for style in style_summaries.values() if style]
+    concrete_layouts = [layout for layout in layout_summaries.values() if layout]
+    return {
+        "available": bool(concrete_profiles),
+        "profile": profile,
+        "profiles_by_target": profiles,
+        "profile_consistent": bool(profile) and all(value == profile for value in profiles.values()),
+        "style_summary_consistent": len(concrete_styles) == len(artifacts)
+        and len({stable_summary_json(style) for style in concrete_styles}) == 1,
+        "layout_summary_consistent": len(concrete_layouts) == len(artifacts)
+        and len({stable_summary_json(layout) for layout in concrete_layouts}) == 1,
+        "style": style_summaries,
+        "layout": layout_summaries,
+    }
+
+
+def _compact_aesthetic_style(value: object) -> dict[str, Any]:
+    if not isinstance(value, dict) or not value.get("available"):
+        return {}
+    return {
+        "profile": value.get("profile"),
+        "changed_token_count": value.get("changed_token_count"),
+        "category_count": value.get("category_count"),
+        "declaration_count": value.get("declaration_count"),
+    }
+
+
+def _compact_aesthetic_layout(value: object) -> dict[str, dict[str, Any]]:
+    if not isinstance(value, dict):
+        return {}
+    return {
+        str(role): {
+            key: item.get(key)
+            for key in ("profile", "columns", "span_columns", "node_count")
+            if key in item
+        }
+        for role, item in sorted(value.items())
+        if isinstance(item, dict)
+    }
 
 
 def _role_classes_from_artifact(artifact_text: str) -> list[str]:
