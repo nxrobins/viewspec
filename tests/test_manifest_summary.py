@@ -43,6 +43,7 @@ def test_manifest_summary_helpers_include_metric_card_spans():
             "primitive": "surface",
             "props": {
                 "aesthetic_layout_profile": "aesthetic.premium_saas",
+                "layout_emphasis": "featured",
                 "product_role": "metric_card",
                 "span_columns": 2,
             },
@@ -51,6 +52,7 @@ def test_manifest_summary_helpers_include_metric_card_spans():
 
     assert manifest_aesthetic_layout_summary(nodes) == {
         "metric_card": {
+            "layout_emphasis": "featured",
             "node_count": 1,
             "profile": "aesthetic.premium_saas",
             "span_columns": 2,

@@ -188,6 +188,7 @@ def test_aesthetic_profile_fixture_records_manifest_profile_floor(tmp_path):
         }
         assert aesthetic["layout"][target]["metric_card"] == {
             "profile": "aesthetic.premium_saas",
+            "layout_emphasis": "featured",
             "span_columns": 2,
             "node_count": 1,
         }

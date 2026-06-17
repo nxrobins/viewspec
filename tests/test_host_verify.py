@@ -245,7 +245,7 @@ def test_verify_host_human_output_prints_aesthetic_span_layout_summary(tmp_path,
         f"declarations={style_facts['declaration_count']}"
     ) in output
     assert "  content_grid: columns=2 nodes=1 profile=aesthetic.premium_saas" in output
-    assert "  metric_card: span_columns=2 nodes=1 profile=aesthetic.premium_saas" in output
+    assert "  metric_card: layout_emphasis=featured span_columns=2 nodes=1 profile=aesthetic.premium_saas" in output
     assert "  metric_card: columns=unknown" not in output
     assert "  metric_grid: columns=2 nodes=1 profile=aesthetic.premium_saas" in output
     assert "  aesthetic_layout_assertion_count: 3" in output

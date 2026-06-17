@@ -19,7 +19,7 @@
     },
     {
       "path": "agent-intent-bundle.schema.json",
-      "sha256": "fc9e22fb9e3ab95eb0504c43c011f68b878cf081a714b9982c26e582ef562bd9"
+      "sha256": "0ad506d41cd51ae0114b8a63a8ae4eae956d02dcc92b165ce70ac710da2fad6b"
     },
     {
       "path": "agent-intent-example.dashboard.json",

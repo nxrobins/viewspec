@@ -561,6 +561,7 @@
           "columns": 2
         },
         "metric_card": {
+          "layout_emphasis": "featured",
           "span_columns": 2
         },
         "metric_grid": {
@@ -572,6 +573,7 @@
           "columns": 2
         },
         "metric_card": {
+          "layout_emphasis": "featured",
           "span_columns": 2
         },
         "metric_grid": {

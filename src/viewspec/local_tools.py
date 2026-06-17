@@ -24,6 +24,7 @@ from viewspec.emitters.html_tailwind import ACTION_EVENT_SCRIPT
 from viewspec.emitters.react_tailwind_tsx import (
     CompilerConstraintError,
     GRID_CLASS_BY_COLUMNS,
+    LAYOUT_EMPHASIS_CLASS_BY_VALUE,
     RECIPE_BY_KEY,
     TAILWIND_AESTHETIC_RECIPE_OVERLAYS,
     TAILWIND_APP_V1_APP_ROLE_CONTRACTS,
@@ -1204,6 +1205,8 @@ def _tailwind_allowed_class_tokens() -> set[str]:
             tokens.update(classes.split())
     for classes in GRID_CLASS_BY_COLUMNS.values():
         tokens.update(classes.split())
+    for classes in LAYOUT_EMPHASIS_CLASS_BY_VALUE.values():
+        tokens.update(classes.split())
     return tokens
 
 
@@ -2175,6 +2178,12 @@ def _validate_aesthetic_layout_manifest_node(
             errors.append(f"AESTHETIC_PROFILE_LAYOUT_TARGET_INVALID: manifest node {node_id} span columns must target a metric card surface")
         if not isinstance(span_columns, int) or isinstance(span_columns, bool) or span_columns != expected["span_columns"]:
             errors.append(f"AESTHETIC_PROFILE_LAYOUT_MISMATCH: manifest node {node_id} span_columns do not match aesthetic layout profile")
+    if "layout_emphasis" in expected:
+        layout_emphasis = props.get("layout_emphasis")
+        if entry.get("primitive") != "surface" or product_role != "metric_card":
+            errors.append(f"AESTHETIC_PROFILE_LAYOUT_TARGET_INVALID: manifest node {node_id} layout emphasis must target a metric card surface")
+        if layout_emphasis != expected["layout_emphasis"]:
+            errors.append(f"AESTHETIC_PROFILE_LAYOUT_MISMATCH: manifest node {node_id} layout_emphasis does not match aesthetic layout profile")
 
 
 def _validate_raw_html_manifest_node(node_id: str, entry: dict[str, Any], errors: list[str]) -> None:

@@ -591,13 +591,17 @@ def test_react_tailwind_profile_span_metadata_passes_public_check_path(tmp_path)
     manifest = json.loads((output / "provenance_manifest.json").read_text(encoding="utf-8"))
     metric_card = _manifest_entry_by_product_role(manifest["nodes"], "metric_card")
     assert metric_card["props"]["aesthetic_layout_profile"] == "aesthetic.premium_saas"
+    assert metric_card["props"]["layout_emphasis"] == "featured"
     assert metric_card["props"]["span_columns"] == 2
+    assert "ring-2" in metric_card["classes"]
+    assert "ring-teal-300" in metric_card["classes"]
     assert "sm:col-span-2" in metric_card["classes"]
 
     checked = check_artifact_dir(output)
 
     assert checked["ok"] is True, checked["errors"]
     assert checked["manifest_summary"]["aesthetic_layout"]["metric_card"]["span_columns"] == 2
+    assert checked["manifest_summary"]["aesthetic_layout"]["metric_card"]["layout_emphasis"] == "featured"
     assert checked["manifest_summary"]["aesthetic_layout"]["metric_card"]["node_count"] == 1
 
 
@@ -677,6 +681,33 @@ def test_check_rejects_tampered_aesthetic_span_metadata(tmp_path):
     assert metric_card["props"]["aesthetic_layout_profile"] == "aesthetic.premium_saas"
     assert metric_card["props"]["span_columns"] == 2
     metric_card["props"]["span_columns"] = 1
+    manifest_path.write_text(json.dumps(manifest, indent=2), encoding="utf-8")
+
+    checked = check_artifact_dir(output)
+
+    assert checked["ok"] is False
+    assert any("AESTHETIC_PROFILE_LAYOUT_MISMATCH" in error for error in checked["errors"])
+
+
+def test_check_rejects_tampered_aesthetic_emphasis_metadata(tmp_path):
+    source = tmp_path / "viewspec.intent.json"
+    output = tmp_path / "react-tailwind-output"
+    source.write_text(json.dumps(_aesthetic_workspace_bundle("aesthetic.premium_saas").to_json(), indent=2), encoding="utf-8")
+
+    result = compile_intent_bundle_file_tool(
+        source,
+        output,
+        target="react-tailwind-tsx",
+        cwd=tmp_path,
+        allow_outside_cwd=True,
+    )
+    assert result["ok"] is True
+    manifest_path = output / "provenance_manifest.json"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    metric_card = _manifest_entry_by_product_role(manifest["nodes"], "metric_card")
+    assert metric_card["props"]["aesthetic_layout_profile"] == "aesthetic.premium_saas"
+    assert metric_card["props"]["layout_emphasis"] == "featured"
+    metric_card["props"]["layout_emphasis"] = "quiet"
     manifest_path.write_text(json.dumps(manifest, indent=2), encoding="utf-8")
 
     checked = check_artifact_dir(output)

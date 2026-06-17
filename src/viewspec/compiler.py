@@ -543,6 +543,18 @@ def _apply_aesthetic_profile_layout_v1(root: IRNode, profile: str) -> None:
             if span_columns > 1:
                 node.props["span_columns"] = span_columns
                 node.props["aesthetic_layout_profile"] = profile
+        if "layout_emphasis" in layout_props:
+            if node.primitive != "surface" or product_role != "metric_card":
+                raise RuntimeError(
+                    f"AESTHETIC_PROFILE_LAYOUT_ROLE_DRIFT: product role {product_role!r} no longer maps to a metric card surface."
+                )
+            parent = parents.get(node.id)
+            if parent is None or parent.props.get("product_role") != "metric_grid" or parent.primitive != "grid":
+                raise RuntimeError("AESTHETIC_PROFILE_LAYOUT_ROLE_DRIFT: metric card emphasis no longer targets a metric grid child.")
+            if parent.children[:1] != [node]:
+                continue
+            node.props["layout_emphasis"] = layout_props["layout_emphasis"]
+            node.props["aesthetic_layout_profile"] = profile
 
 
 def _apply_workspace_surface_roles_v1(

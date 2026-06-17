@@ -675,6 +675,8 @@ def _check_manifest_summary_lines(summary: object) -> list[str]:
             facts = []
             if "columns" in entry:
                 facts.append(f"columns={_cli_summary_value(entry.get('columns'))}")
+            if "layout_emphasis" in entry:
+                facts.append(f"layout_emphasis={_cli_summary_value(entry.get('layout_emphasis'))}")
             if "span_columns" in entry:
                 facts.append(f"span_columns={_cli_summary_value(entry.get('span_columns'))}")
             facts.append(f"nodes={_cli_summary_value(entry.get('node_count'))}")

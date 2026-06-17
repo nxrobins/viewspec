@@ -59,6 +59,7 @@ def manifest_aesthetic_layout_summary(nodes: dict[str, Any]) -> dict[str, dict[s
             {
                 "profile": profile,
                 "columns": _manifest_int(props.get("columns")),
+                "layout_emphasis": _manifest_string(props.get("layout_emphasis")),
                 "span_columns": _manifest_int(props.get("span_columns")),
                 "node_count": 0,
             },
@@ -67,6 +68,7 @@ def manifest_aesthetic_layout_summary(nodes: dict[str, Any]) -> dict[str, dict[s
         if (
             item["profile"] != profile
             or item["columns"] != _manifest_int(props.get("columns"))
+            or item["layout_emphasis"] != _manifest_string(props.get("layout_emphasis"))
             or item["span_columns"] != _manifest_int(props.get("span_columns"))
         ):
             item["mixed"] = True
@@ -93,6 +95,10 @@ def manifest_aesthetic_style_summary(profile: str | None) -> dict[str, Any]:
 
 def _manifest_int(value: object) -> int | None:
     return value if isinstance(value, int) and not isinstance(value, bool) else None
+
+
+def _manifest_string(value: object) -> str | None:
+    return value if isinstance(value, str) and value else None
 
 
 def _compact_layout_item(role: str, item: dict[str, Any]) -> dict[str, Any]:
