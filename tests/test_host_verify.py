@@ -93,6 +93,12 @@ def test_summarize_host_verification_report_filters_to_bounded_metadata():
                 "unsafe_bool": True,
                 "unsafe_string": "9",
             },
+            "assertion_requirements": {
+                "dom_count": 1,
+                "style_assertion_count": 4,
+                "unsafe_bool": False,
+                "unsafe_string": "4",
+            },
             "errors": [
                 {"code": "HOST_VERIFY_AESTHETIC_LAYOUT_ASSERTION_MISSING", "message": "Missing layout proof."},
                 {"message": "No code"},
@@ -106,6 +112,10 @@ def test_summarize_host_verification_report_filters_to_bounded_metadata():
         "assertions": {
             "dom_count": 4,
             "style_assertion_count": 7,
+        },
+        "assertion_requirements": {
+            "dom_count": 1,
+            "style_assertion_count": 4,
         },
         "error_codes": ["HOST_VERIFY_AESTHETIC_LAYOUT_ASSERTION_MISSING"],
     }
@@ -130,6 +140,13 @@ def test_verify_host_artifact_mode_writes_stable_report(tmp_path, monkeypatch):
     assert report["assertions"]["grid_column_assertion_count"] == 2
     assert report["assertions"]["grid_span_assertion_count"] == 0
     assert report["assertions"]["style_assertion_count"] == 7
+    assert report["assertion_requirements"] == {
+        "aesthetic_layout_assertion_count": 2,
+        "aesthetic_profile_assertion_count": 1,
+        "dom_count": 1,
+        "grid_span_assertion_count": 0,
+        "style_assertion_count": 4,
+    }
     assert report["manifest_summary"]["available"] is True
     assert report["manifest_summary"]["emitter"] == "react_tailwind_tsx"
     assert report["manifest_summary"]["aesthetic_profile"] == "aesthetic.data_dense"
@@ -201,6 +218,12 @@ def test_verify_host_human_output_prints_manifest_and_assertions(tmp_path, monke
     assert "  grid_span_assertion_count: 0" in output
     assert "  payload_binding_count: 1" in output
     assert "  style_assertion_count: 7" in output
+    assert "host_assertion_requirements:\n" in output
+    assert "  aesthetic_layout_assertion_count: 2" in output
+    assert "  aesthetic_profile_assertion_count: 1" in output
+    assert "  dom_count: 1" in output
+    assert "  grid_span_assertion_count: 0" in output
+    assert "  style_assertion_count: 4" in output
 
 
 def test_verify_host_human_output_prints_aesthetic_span_layout_summary(tmp_path, monkeypatch, capsys):
@@ -227,6 +250,7 @@ def test_verify_host_human_output_prints_aesthetic_span_layout_summary(tmp_path,
     assert "  metric_grid: columns=2 nodes=1 profile=aesthetic.premium_saas" in output
     assert "  aesthetic_layout_assertion_count: 3" in output
     assert "  grid_span_assertion_count: 1" in output
+    assert "host_assertion_requirements:\n" in output
 
 
 def test_verify_host_rejects_profiled_artifact_without_runtime_aesthetic_proof(tmp_path, monkeypatch):
@@ -395,6 +419,13 @@ def test_verify_host_mcp_tool_metadata_exposes_bounded_proof_summary(tmp_path, m
             "grid_span_assertion_count": 0,
             "payload_binding_count": 1,
             "style_assertion_count": 7,
+        },
+        "assertion_requirements": {
+            "aesthetic_layout_assertion_count": 2,
+            "aesthetic_profile_assertion_count": 1,
+            "dom_count": 1,
+            "grid_span_assertion_count": 0,
+            "style_assertion_count": 4,
         },
         "error_codes": [],
     }

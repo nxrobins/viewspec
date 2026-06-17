@@ -173,6 +173,13 @@ def test_prove_cli_react_tailwind_human_output_prints_host_assertions(tmp_path, 
                 "payload_binding_count": 2,
                 "style_assertion_count": 6,
             },
+            "assertion_requirements": {
+                "aesthetic_layout_assertion_count": 2,
+                "aesthetic_profile_assertion_count": 1,
+                "dom_count": 1,
+                "grid_span_assertion_count": 0,
+                "style_assertion_count": 4,
+            },
             "errors": [],
         }
 
@@ -194,6 +201,9 @@ def test_prove_cli_react_tailwind_human_output_prints_host_assertions(tmp_path, 
     assert "  grid_column_assertion_count: 1" in output
     assert "  payload_binding_count: 2" in output
     assert "  style_assertion_count: 6" in output
+    assert "host_assertion_requirements:\n" in output
+    assert "  dom_count: 1" in output
+    assert "  style_assertion_count: 4" in output
 
 
 def test_prove_existing_output_requires_force(tmp_path):
@@ -341,6 +351,13 @@ def test_prove_tool_metadata_exposes_react_tailwind_host_summary(tmp_path, monke
                 "payload_binding_count": 1,
                 "style_assertion_count": 6,
             },
+            "assertion_requirements": {
+                "aesthetic_layout_assertion_count": 2,
+                "aesthetic_profile_assertion_count": 1,
+                "dom_count": 1,
+                "grid_span_assertion_count": 0,
+                "style_assertion_count": 4,
+            },
             "errors": [],
         }
 
@@ -366,6 +383,13 @@ def test_prove_tool_metadata_exposes_react_tailwind_host_summary(tmp_path, monke
             "grid_column_assertion_count": 1,
             "payload_binding_count": 1,
             "style_assertion_count": 6,
+        },
+        "assertion_requirements": {
+            "aesthetic_layout_assertion_count": 2,
+            "aesthetic_profile_assertion_count": 1,
+            "dom_count": 1,
+            "grid_span_assertion_count": 0,
+            "style_assertion_count": 4,
         },
         "error_codes": [],
     }
