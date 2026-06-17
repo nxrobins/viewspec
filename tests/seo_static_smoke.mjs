@@ -141,6 +141,14 @@ for (const diffIntentTextPath of ['README.md', 'docs/getting-started.md', 'docs/
   assertPublicText(text, 'intent_semantic_change_lines', `${diffIntentTextPath} semantic summary helper`)
 }
 
+{
+  const agentPrompt = await readFile('demos/agent-system-prompt.txt', 'utf8')
+  assertPublicText(agentPrompt, 'diff-intent', 'agent prompt diff-intent review surface')
+  assertPublicText(agentPrompt, 'semantic_changes', 'agent prompt semantic changes review')
+  assertPublicText(agentPrompt, 'semantic_summary', 'agent prompt MCP semantic summary')
+  assertPublicText(agentPrompt, 'intent_semantic_change_lines', 'agent prompt Python semantic summary helper')
+}
+
 for (const proofTextPath of ['README.md', 'docs/getting-started.md', 'docs/agent-integration.md', 'demos/index.html', 'demos/proof-bundle/index.html', 'demos/llms.txt', 'demos/llms-full.txt']) {
   const text = await readFile(proofTextPath, 'utf8')
   assertPublicText(text, 'style-delta counts', `${proofTextPath} proof style summary`)

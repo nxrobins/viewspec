@@ -2,7 +2,7 @@
   "files": [
     {
       "path": "agent-system-prompt.txt",
-      "sha256": "d3d28a17b487ea021a87d2e6fd24026a92b156239d4d38eef1927d1208bd2cad"
+      "sha256": "b89edb85e079bb551be453a0372e020cc7561382e453ecd136804c063416ea9b"
     },
     {
       "path": "agent-intent-bundle.schema.json",
