@@ -49,5 +49,19 @@
     ],
     "scope": "Aesthetic Profiles V1 are deterministic view-level art-direction handles that expand into governed style projections, bounded layout metadata, compact style-delta counts in checked manifest summaries, and closed React Tailwind recipes.",
     "non_claim": "Aesthetic profiles are not arbitrary CSS, pixel-perfect visual proof, accessibility certification, arbitrary host-app compatibility, or design-review approval."
+  },
+  "agent_assets": {
+    "manifest_url": "https://viewspec.dev/agent-assets.json",
+    "schema_version": 4,
+    "contract_profile": "local_v1",
+    "intent_schema_id": "https://viewspec.dev/agent-intent-bundle.schema.json",
+    "export_command": "viewspec export-agent-assets --out .viewspec",
+    "check_command": "viewspec check-agent-assets .viewspec --json",
+    "network_policy": "no SDK network calls",
+    "payload_files": [
+      "agent-system-prompt.txt",
+      "agent-intent-bundle.schema.json",
+      "agent-intent-example.dashboard.json"
+    ]
   }
 }

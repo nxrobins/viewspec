@@ -108,6 +108,20 @@ assertPublicText(publicFacts.aesthetic_profiles.scope, 'deterministic view-level
 assertPublicText(publicFacts.aesthetic_profiles.scope, 'compact style-delta counts', 'public facts aesthetic style summary scope')
 assertPublicText(publicFacts.aesthetic_profiles.non_claim, 'not arbitrary CSS', 'public facts aesthetic non-claim')
 
+const agentManifest = JSON.parse(await readFile('demos/agent-assets.json', 'utf8'))
+assertPublicEqual(publicFacts.agent_assets.manifest_url, 'https://viewspec.dev/agent-assets.json', 'public facts agent assets manifest')
+assertPublicEqual(publicFacts.agent_assets.schema_version, agentManifest.schema_version, 'public facts agent asset schema version')
+assertPublicEqual(publicFacts.agent_assets.contract_profile, agentManifest.contract.profile, 'public facts agent asset contract profile')
+assertPublicEqual(publicFacts.agent_assets.intent_schema_id, agentManifest.intent_schema_id, 'public facts agent asset schema id')
+assertPublicEqual(publicFacts.agent_assets.export_command, agentManifest.contract.export_command, 'public facts agent asset export command')
+assertPublicEqual(publicFacts.agent_assets.check_command, agentManifest.contract.check_command, 'public facts agent asset check command')
+assertPublicEqual(publicFacts.agent_assets.network_policy, agentManifest.contract.network_policy, 'public facts agent asset network policy')
+assert.deepEqual(
+  publicFacts.agent_assets.payload_files,
+  agentManifest.files.map((file) => file.path),
+  'public facts agent asset payload files'
+)
+
 const pyproject = await readFile('pyproject.toml', 'utf8')
 const versionModule = await readFile('src/viewspec/_version.py', 'utf8')
 assertPublicText(pyproject, `version = "${publicFacts.sdk_version}"`, 'pyproject version')
@@ -396,6 +410,13 @@ assert.deepEqual(
   publicFacts.proof.identity_hash_fields,
   'OpenAPI public facts proof identity hash fields'
 )
+assertPublicEqual(openapi['x-viewspec-public-facts'].agentAssetManifest, publicFacts.agent_assets.manifest_url, 'OpenAPI public facts agent asset manifest')
+assertPublicEqual(openapi['x-viewspec-public-facts'].agentAssetSchemaVersion, publicFacts.agent_assets.schema_version, 'OpenAPI public facts agent asset schema version')
+assertPublicEqual(openapi['x-viewspec-public-facts'].agentAssetContractProfile, publicFacts.agent_assets.contract_profile, 'OpenAPI public facts agent asset profile')
+assertPublicEqual(openapi['x-viewspec-public-facts'].agentAssetIntentSchemaId, publicFacts.agent_assets.intent_schema_id, 'OpenAPI public facts agent asset schema id')
+assertPublicEqual(openapi['x-viewspec-public-facts'].agentAssetExportCommand, publicFacts.agent_assets.export_command, 'OpenAPI public facts agent asset export')
+assertPublicEqual(openapi['x-viewspec-public-facts'].agentAssetCheckCommand, publicFacts.agent_assets.check_command, 'OpenAPI public facts agent asset check')
+assertPublicEqual(openapi['x-viewspec-public-facts'].agentAssetNetworkPolicy, publicFacts.agent_assets.network_policy, 'OpenAPI public facts agent asset network policy')
 assert(openapi.paths['/v1/compile']?.post, 'OpenAPI needs POST /v1/compile')
 assert.equal(openapi.paths['/v1/compile'].post.requestBody.content['application/json'].schema.$ref, '#/components/schemas/CompileRequestPayload')
 assert.equal(openapi.components.schemas.CompileRequestPayload.properties.design.$ref, '#/components/schemas/DesignRequest')
@@ -406,6 +427,11 @@ assert.equal(openapi['x-viewspec-agent-artifacts'].contractProfile, 'local_v1')
 assert.equal(openapi['x-viewspec-agent-artifacts'].exportCommand, 'viewspec export-agent-assets --out .viewspec')
 assert.equal(openapi['x-viewspec-agent-artifacts'].checkCommand, 'viewspec check-agent-assets .viewspec --json')
 assert.equal(openapi['x-viewspec-agent-artifacts'].networkPolicy, 'no SDK network calls')
+assert.equal(openapi['x-viewspec-agent-artifacts'].assetSchemaVersion, publicFacts.agent_assets.schema_version)
+assert.equal(openapi['x-viewspec-agent-artifacts'].contractProfile, publicFacts.agent_assets.contract_profile)
+assert.equal(openapi['x-viewspec-agent-artifacts'].exportCommand, publicFacts.agent_assets.export_command)
+assert.equal(openapi['x-viewspec-agent-artifacts'].checkCommand, publicFacts.agent_assets.check_command)
+assert.equal(openapi['x-viewspec-agent-artifacts'].networkPolicy, publicFacts.agent_assets.network_policy)
 assert.equal(openapi['x-viewspec-agent-artifacts'].systemPrompt, 'https://viewspec.dev/agent-system-prompt.txt')
 assert.equal(openapi['x-viewspec-agent-artifacts'].intentBundleExample, 'https://viewspec.dev/agent-intent-example.dashboard.json')
 
@@ -429,7 +455,6 @@ for (const publicTextPath of ['README.md', 'docs/getting-started.md', 'docs/agen
     if (!text.includes(expected)) statefulCollectionsDrift(`${publicTextPath} missing ${expected}`)
   }
 }
-const agentManifest = JSON.parse(await readFile('demos/agent-assets.json', 'utf8'))
 assert.equal(agentManifest.schema_version, 4)
 assert.equal(agentManifest.contract.profile, 'local_v1')
 assert.equal(agentManifest.contract.export_command, 'viewspec export-agent-assets --out .viewspec')
