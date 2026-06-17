@@ -198,7 +198,7 @@ Stay inside the v1 local contract caps: max 256KB JSON, 200 substrate nodes, 32 
 
 Generated JSON is not a finished ViewSpec proof. After saving it as viewspec.intent.json, the host workflow must run viewspec prove --out .viewspec-proof or run viewspec validate-intent viewspec.intent.json --json, viewspec compile, and viewspec check before claiming the UI artifact is valid. Read .viewspec-proof/PROOF.md first when a proof bundle exists; use proof_report.json for machine-readable status and support_bundle.json for redacted failure triage. Do not describe ViewSpec proof as pixel-perfect visual regression, accessibility certification, arbitrary host-app certification, or hosted compiler publish automation.
 
-When revising an existing IntentBundle, run viewspec diff-intent old.intent.json new.intent.json --json before inspecting generated artifacts. Review semantic_changes first. For concise review text, use the human diff-intent output, MCP semantic_summary, or Python intent_semantic_change_lines(diff["semantic_changes"]).
+When revising an existing IntentBundle, run viewspec diff-intent old.intent.json new.intent.json --json before inspecting generated artifacts. Review semantic_changes first, including compact aesthetic profile style impact counts and bounded layout deltas when a profile changes. For concise review text, use the human diff-intent output, MCP semantic_summary, or Python intent_semantic_change_lines(diff["semantic_changes"]).
 
 
 Optional reference grounding

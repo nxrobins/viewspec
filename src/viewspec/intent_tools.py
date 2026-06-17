@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Any
 
 from viewspec._version import __version__
+from viewspec.aesthetics import AestheticProfileError, profile_layout_props, profile_style_facts
 from viewspec.agent import (
     SUPPORTED_AGENT_MOTIFS,
     AgentValidationIssue,
@@ -51,6 +52,12 @@ INTENT_COMPILE_TARGETS = ("html-tailwind", "react-tsx", "react-tailwind-tsx")
 INTENT_DIFF_VERSION = 1
 INTENT_DIFF_BASIS = "intent_bundle_v1"
 STARTER_INTENT_KINDS = tuple(SUPPORTED_AGENT_MOTIFS)
+_AESTHETIC_PROFILE_STYLE_IMPACT_KEYS = ("changed_token_count", "category_count", "declaration_count")
+_AESTHETIC_PROFILE_STYLE_IMPACT_LABELS = {
+    "changed_token_count": "tokens",
+    "category_count": "categories",
+    "declaration_count": "declarations",
+}
 
 
 def starter_intent_bundle(kind: str = "dashboard") -> IntentBundle:
@@ -1013,6 +1020,7 @@ def _semantic_aesthetic_profile_changes(left: dict[str, Any], right: dict[str, A
                 "profile": right_profile["token"],
                 "style_id": right_profile["id"],
                 "target": right_profile["target"],
+                "impact": _aesthetic_profile_impact(right_profile["token"]),
             }
         ]
     if left_profile is not None and right_profile is None:
@@ -1022,9 +1030,12 @@ def _semantic_aesthetic_profile_changes(left: dict[str, Any], right: dict[str, A
                 "profile": left_profile["token"],
                 "style_id": left_profile["id"],
                 "target": left_profile["target"],
+                "impact": _aesthetic_profile_impact(left_profile["token"]),
             }
         ]
     assert left_profile is not None and right_profile is not None
+    left_impact = _aesthetic_profile_impact(left_profile["token"])
+    right_impact = _aesthetic_profile_impact(right_profile["token"])
     return [
         {
             "change": "profile_changed",
@@ -1034,6 +1045,9 @@ def _semantic_aesthetic_profile_changes(left: dict[str, Any], right: dict[str, A
             "right_style_id": right_profile["id"],
             "left_target": left_profile["target"],
             "right_target": right_profile["target"],
+            "left_impact": left_impact,
+            "right_impact": right_impact,
+            "impact_delta": _aesthetic_profile_impact_delta(left_impact, right_impact),
         }
     ]
 
@@ -1051,6 +1065,49 @@ def _aesthetic_profile_style(styles: dict[str, Any]) -> dict[str, Any] | None:
                 "token": token,
             }
     return None
+
+
+def _aesthetic_profile_impact(profile: object) -> dict[str, Any]:
+    if not isinstance(profile, str) or not profile.startswith("aesthetic."):
+        return {}
+    try:
+        style_facts = profile_style_facts(profile)
+        layout_props = profile_layout_props(profile)
+    except AestheticProfileError:
+        return {}
+    return {
+        "style": {
+            key: style_facts[key]
+            for key in _AESTHETIC_PROFILE_STYLE_IMPACT_KEYS
+            if isinstance(style_facts.get(key), int)
+        },
+        "layout": {role: dict(props) for role, props in sorted(layout_props.items())},
+    }
+
+
+def _aesthetic_profile_impact_delta(left_impact: dict[str, Any], right_impact: dict[str, Any]) -> dict[str, Any]:
+    left_style = left_impact.get("style") if isinstance(left_impact.get("style"), dict) else {}
+    right_style = right_impact.get("style") if isinstance(right_impact.get("style"), dict) else {}
+    style_delta = {
+        key: {"left": left_style.get(key), "right": right_style.get(key)}
+        for key in _AESTHETIC_PROFILE_STYLE_IMPACT_KEYS
+        if left_style.get(key) != right_style.get(key)
+    }
+    left_layout = left_impact.get("layout") if isinstance(left_impact.get("layout"), dict) else {}
+    right_layout = right_impact.get("layout") if isinstance(right_impact.get("layout"), dict) else {}
+    layout_delta: list[dict[str, Any]] = []
+    for role in sorted(set(left_layout) | set(right_layout)):
+        left_props = left_layout.get(role)
+        right_props = right_layout.get(role)
+        if _stable_json(left_props) == _stable_json(right_props):
+            continue
+        if left_props is None:
+            layout_delta.append({"role": role, "change": "added", "right": right_props})
+        elif right_props is None:
+            layout_delta.append({"role": role, "change": "removed", "left": left_props})
+        else:
+            layout_delta.append({"role": role, "change": "props_changed", "left": left_props, "right": right_props})
+    return {"style": style_delta, "layout": layout_delta}
 
 
 def _semantic_action_changes(left: dict[str, Any], right: dict[str, Any]) -> list[dict[str, Any]]:
@@ -1214,17 +1271,21 @@ def _intent_semantic_change_line(section: str, change: dict[str, object]) -> str
     change_name = str(change.get("change") or "changed")
     if section == "aesthetic_profiles":
         if change_name == "profile_changed":
-            return (
+            base = (
                 "aesthetic_profiles: profile_changed "
                 f"{_intent_diff_value(change.get('left'))} -> {_intent_diff_value(change.get('right'))} "
                 f"target={_intent_diff_value(change.get('right_target'))}"
             )
+            impact_summary = _aesthetic_profile_change_impact_summary(change)
+            return f"{base} {impact_summary}" if impact_summary else base
         if change_name in {"added", "removed"}:
-            return (
+            base = (
                 f"aesthetic_profiles: {change_name} "
                 f"{_intent_diff_value(change.get('profile'))} "
                 f"target={_intent_diff_value(change.get('target'))}"
             )
+            impact_summary = _aesthetic_profile_impact_summary(change.get("impact"))
+            return f"{base} impact={impact_summary}" if impact_summary else base
     item_id = change.get("id")
     prefix = f"{section}.{item_id}" if isinstance(item_id, str) and item_id else section
     parts = [f"{prefix}: {change_name}"]
@@ -1249,6 +1310,90 @@ def _intent_semantic_change_line(section: str, change: dict[str, object]) -> str
         if field in change:
             parts.append(f"{field}={_intent_diff_value(change.get(field))}")
     return " ".join(parts)
+
+
+def _aesthetic_profile_change_impact_summary(change: dict[str, object]) -> str:
+    impact_delta = change.get("impact_delta")
+    if not isinstance(impact_delta, dict):
+        return ""
+    parts: list[str] = []
+    style_summary = _aesthetic_profile_style_delta_summary(impact_delta.get("style"))
+    if style_summary:
+        parts.append(f"style_delta={style_summary}")
+    layout_summary = _aesthetic_profile_layout_delta_summary(impact_delta.get("layout"))
+    if layout_summary:
+        parts.append(f"layout_delta={layout_summary}")
+    return " ".join(parts)
+
+
+def _aesthetic_profile_style_delta_summary(value: object) -> str:
+    if not isinstance(value, dict):
+        return ""
+    parts: list[str] = []
+    for key in _AESTHETIC_PROFILE_STYLE_IMPACT_KEYS:
+        delta = value.get(key)
+        if not isinstance(delta, dict):
+            continue
+        label = _AESTHETIC_PROFILE_STYLE_IMPACT_LABELS[key]
+        parts.append(f"{label} {_intent_diff_value(delta.get('left'))} -> {_intent_diff_value(delta.get('right'))}")
+    return "; ".join(parts)
+
+
+def _aesthetic_profile_layout_delta_summary(value: object) -> str:
+    if not isinstance(value, list):
+        return ""
+    parts: list[str] = []
+    for item in value:
+        if not isinstance(item, dict):
+            continue
+        role = item.get("role")
+        change = item.get("change")
+        if not isinstance(role, str) or not isinstance(change, str):
+            continue
+        if change == "added":
+            parts.append(f"{role} added {_aesthetic_profile_layout_props_summary(item.get('right'))}")
+        elif change == "removed":
+            parts.append(f"{role} removed {_aesthetic_profile_layout_props_summary(item.get('left'))}")
+        elif change == "props_changed":
+            left = _aesthetic_profile_layout_props_summary(item.get("left"))
+            right = _aesthetic_profile_layout_props_summary(item.get("right"))
+            parts.append(f"{role} {left} -> {right}")
+    return "; ".join(part for part in parts if part.strip())
+
+
+def _aesthetic_profile_impact_summary(value: object) -> str:
+    if not isinstance(value, dict):
+        return ""
+    style = value.get("style")
+    layout = value.get("layout")
+    parts: list[str] = []
+    if isinstance(style, dict):
+        tokens = style.get("changed_token_count")
+        categories = style.get("category_count")
+        declarations = style.get("declaration_count")
+        if tokens is not None and categories is not None and declarations is not None:
+            parts.append(f"style {tokens} tokens/{categories} categories/{declarations} declarations")
+    layout_summary = _aesthetic_profile_layout_summary(layout)
+    if layout_summary:
+        parts.append(f"layout {layout_summary}")
+    return "; ".join(parts)
+
+
+def _aesthetic_profile_layout_summary(value: object) -> str:
+    if not isinstance(value, dict):
+        return ""
+    parts: list[str] = []
+    for role in sorted(value):
+        props = _aesthetic_profile_layout_props_summary(value.get(role))
+        if props:
+            parts.append(f"{role} {props}")
+    return "; ".join(parts)
+
+
+def _aesthetic_profile_layout_props_summary(value: object) -> str:
+    if not isinstance(value, dict):
+        return ""
+    return " ".join(f"{key}={_intent_diff_value(value[key])}" for key in sorted(value))
 
 
 def _intent_diff_value(value: object) -> str:

@@ -611,10 +611,25 @@ def test_intent_mcp_diff_exposes_semantic_summary_for_profile_changes(tmp_path):
     assert result["metadata"]["semantic_change_count"] == 2
     assert result["metadata"]["semantic_change_sections"] == ["aesthetic_profiles", "styles"]
     assert result["semantic_summary"] == [
-        "aesthetic_profiles: profile_changed aesthetic.calm_ops -> aesthetic.executive_review target=view:mcp_profile_workspace",
+        (
+            "aesthetic_profiles: profile_changed aesthetic.calm_ops -> aesthetic.executive_review "
+            "target=view:mcp_profile_workspace style_delta=declarations 28 -> 30 "
+            "layout_delta=metric_card added layout_emphasis=featured span_columns=2"
+        ),
         "styles.aesthetic_profile: token_changed aesthetic.calm_ops -> aesthetic.executive_review",
     ]
-    assert result["diff"]["semantic_changes"]["aesthetic_profiles"][0]["change"] == "profile_changed"
+    profile_change = result["diff"]["semantic_changes"]["aesthetic_profiles"][0]
+    assert profile_change["change"] == "profile_changed"
+    assert profile_change["impact_delta"] == {
+        "style": {"declaration_count": {"left": 28, "right": 30}},
+        "layout": [
+            {
+                "role": "metric_card",
+                "change": "added",
+                "right": {"span_columns": 2, "layout_emphasis": "featured"},
+            }
+        ],
+    }
 
 
 def test_intent_mcp_init_intent_writes_valid_scaffold(tmp_path):

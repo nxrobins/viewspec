@@ -486,9 +486,18 @@ def _doctor_intent_pipeline() -> dict[str, object]:
 def _doctor_aesthetic_profile_diff_smoke(profile_diff: DoctorProfileDiff | None = None) -> bool:
     diff, _view_id, expected_profile_change, expected_style_change = profile_diff or _doctor_profile_diff_smoke()
     semantic_changes = diff.get("semantic_changes", {})
+    profile_changes = semantic_changes.get("aesthetic_profiles")
+    profile_change = profile_changes[0] if isinstance(profile_changes, list) and len(profile_changes) == 1 else {}
+    impact_delta = profile_change.get("impact_delta") if isinstance(profile_change, dict) else {}
+    layout_delta = impact_delta.get("layout") if isinstance(impact_delta, dict) else None
+    style_delta = impact_delta.get("style") if isinstance(impact_delta, dict) else {}
     return bool(
         diff.get("ok")
-        and semantic_changes.get("aesthetic_profiles") == [expected_profile_change]
+        and isinstance(profile_change, dict)
+        and all(profile_change.get(key) == value for key, value in expected_profile_change.items())
+        and style_delta.get("declaration_count") == {"left": 28, "right": 30}
+        and {"role": "metric_card", "change": "added", "right": {"span_columns": 2, "layout_emphasis": "featured"}}
+        in (layout_delta if isinstance(layout_delta, list) else [])
         and expected_style_change in semantic_changes.get("styles", [])
     )
 
@@ -500,7 +509,8 @@ def _doctor_semantic_summary_smoke(profile_diff: DoctorProfileDiff | None = None
         expected_summary = [
             (
                 "aesthetic_profiles: profile_changed aesthetic.calm_ops -> aesthetic.executive_review "
-                f"target=view:{view_id}"
+                f"target=view:{view_id} style_delta=declarations 28 -> 30 "
+                "layout_delta=metric_card added layout_emphasis=featured span_columns=2"
             ),
             "styles.aesthetic_profile: token_changed aesthetic.calm_ops -> aesthetic.executive_review",
         ]

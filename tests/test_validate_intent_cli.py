@@ -407,17 +407,49 @@ def test_diff_intent_reports_aesthetic_profile_semantic_changes(tmp_path, capsys
     payload = json.loads(capsys.readouterr().out)
 
     assert payload["ok"] is True
-    assert payload["semantic_changes"]["aesthetic_profiles"] == [
-        {
-            "change": "profile_changed",
-            "left": "aesthetic.calm_ops",
-            "right": "aesthetic.executive_review",
-            "left_style_id": "aesthetic_profile",
-            "right_style_id": "aesthetic_profile",
-            "left_target": "view:validate_cli_profile_workspace",
-            "right_target": "view:validate_cli_profile_workspace",
-        }
-    ]
+    profile_change = payload["semantic_changes"]["aesthetic_profiles"][0]
+    assert {
+        key: profile_change[key]
+        for key in (
+            "change",
+            "left",
+            "right",
+            "left_style_id",
+            "right_style_id",
+            "left_target",
+            "right_target",
+        )
+    } == {
+        "change": "profile_changed",
+        "left": "aesthetic.calm_ops",
+        "right": "aesthetic.executive_review",
+        "left_style_id": "aesthetic_profile",
+        "right_style_id": "aesthetic_profile",
+        "left_target": "view:validate_cli_profile_workspace",
+        "right_target": "view:validate_cli_profile_workspace",
+    }
+    assert profile_change["left_impact"] == {
+        "style": {"changed_token_count": 13, "category_count": 8, "declaration_count": 28},
+        "layout": {"content_grid": {"columns": 2}, "metric_grid": {"columns": 2}},
+    }
+    assert profile_change["right_impact"] == {
+        "style": {"changed_token_count": 13, "category_count": 8, "declaration_count": 30},
+        "layout": {
+            "content_grid": {"columns": 2},
+            "metric_card": {"span_columns": 2, "layout_emphasis": "featured"},
+            "metric_grid": {"columns": 2},
+        },
+    }
+    assert profile_change["impact_delta"] == {
+        "style": {"declaration_count": {"left": 28, "right": 30}},
+        "layout": [
+            {
+                "role": "metric_card",
+                "change": "added",
+                "right": {"span_columns": 2, "layout_emphasis": "featured"},
+            }
+        ],
+    }
     assert {
         "id": "aesthetic_profile",
         "change": "token_changed",
@@ -427,7 +459,8 @@ def test_diff_intent_reports_aesthetic_profile_semantic_changes(tmp_path, capsys
     assert intent_semantic_change_lines(payload["semantic_changes"]) == [
         (
             "aesthetic_profiles: profile_changed aesthetic.calm_ops -> aesthetic.executive_review "
-            "target=view:validate_cli_profile_workspace"
+            "target=view:validate_cli_profile_workspace style_delta=declarations 28 -> 30 "
+            "layout_delta=metric_card added layout_emphasis=featured span_columns=2"
         ),
         "styles.aesthetic_profile: token_changed aesthetic.calm_ops -> aesthetic.executive_review",
     ]
@@ -446,7 +479,8 @@ def test_diff_intent_human_output_prints_semantic_changes(tmp_path, capsys):
     assert "semantic_changes:\n" in output
     assert (
         "aesthetic_profiles: profile_changed aesthetic.calm_ops -> aesthetic.executive_review "
-        "target=view:validate_cli_profile_workspace"
+        "target=view:validate_cli_profile_workspace style_delta=declarations 28 -> 30 "
+        "layout_delta=metric_card added layout_emphasis=featured span_columns=2"
     ) in output
     assert (
         "styles.aesthetic_profile: token_changed aesthetic.calm_ops -> aesthetic.executive_review"

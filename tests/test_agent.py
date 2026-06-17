@@ -165,6 +165,7 @@ def test_agent_prompt_and_schema_preserve_intent_bundle_contract():
     assert "pixel-perfect visual regression" in AGENT_SYSTEM_PROMPT
     assert "viewspec diff-intent old.intent.json new.intent.json --json" in AGENT_SYSTEM_PROMPT
     assert "Review semantic_changes first" in AGENT_SYSTEM_PROMPT
+    assert "compact aesthetic profile style impact counts and bounded layout deltas" in AGENT_SYSTEM_PROMPT
     assert "MCP semantic_summary" in AGENT_SYSTEM_PROMPT
     assert 'intent_semantic_change_lines(diff["semantic_changes"])' in AGENT_SYSTEM_PROMPT
     assert "Do not call remote reference libraries by default" in AGENT_SYSTEM_PROMPT
