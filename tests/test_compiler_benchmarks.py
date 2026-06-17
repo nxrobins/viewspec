@@ -368,13 +368,41 @@ def test_benchmark_rejects_multi_region_without_layout_pressure(tmp_path):
 
 def test_benchmark_timeout_and_error_shape_are_stable():
     with pytest.raises(BenchmarkConstraintError) as timeout_exc:
-        assert_benchmark_timeout(0.0, -1.0, fixture_id="fixture")
+        assert_benchmark_timeout(
+            0.0,
+            -1.0,
+            fixture_id="fixture",
+            phase="after_fixture",
+            completed_fixture_ids=("dashboard", "form"),
+        )
     assert timeout_exc.value.code == "BENCHMARK_TIMEOUT_EXCEEDED"
+    assert "phase=after_fixture" in timeout_exc.value.message
+    assert "completed_count=2" in timeout_exc.value.message
+    assert "completed=dashboard, form" in timeout_exc.value.message
 
     invalid = BenchmarkConstraintError("NOT_A_CODE", "", "bad")
     assert invalid.code == "BENCHMARK_ERROR_SHAPE_INVALID"
     assert invalid.fixture_id == "<unknown>"
     assert set(invalid.to_json()) == {"code", "fixture_id", "message"}
+
+
+def test_benchmark_suite_timeout_reports_completed_fixture(monkeypatch, tmp_path):
+    class FakeFixture:
+        id = "first"
+
+    perf_counter_values = iter((0.0, 0.1, 1.2))
+    monkeypatch.setattr(compiler_benchmarks.time, "perf_counter", lambda: next(perf_counter_values))
+    monkeypatch.setattr(compiler_benchmarks, "benchmark_fixtures", lambda: (FakeFixture(),))
+    monkeypatch.setattr(compiler_benchmarks, "run_benchmark_fixture", lambda fixture, output_dir: {"fixture_id": fixture.id})
+
+    with pytest.raises(BenchmarkConstraintError) as timeout_exc:
+        run_benchmark_suite(tmp_path, timeout_seconds=1.0)
+
+    assert timeout_exc.value.code == "BENCHMARK_TIMEOUT_EXCEEDED"
+    assert timeout_exc.value.fixture_id == "first"
+    assert "phase=after_fixture" in timeout_exc.value.message
+    assert "completed_count=1" in timeout_exc.value.message
+    assert "completed=first" in timeout_exc.value.message
 
 
 def test_benchmark_summary_json_is_compact_and_stable(tmp_path):
