@@ -568,7 +568,30 @@ def test_intent_mcp_diff_reports_semantic_changes(tmp_path):
         "actions": [],
         "bindings": [],
     }
+    assert result["semantic_summary"] == []
+    assert result["metadata"]["semantic_change_count"] == 0
+    assert result["metadata"]["semantic_change_sections"] == []
+    assert result["metadata"]["topology_similarity"] == result["diff"]["topology_similarity"]
     assert result["metadata"]["network_calls"] == "none"
+
+
+def test_intent_mcp_diff_exposes_semantic_summary_for_profile_changes(tmp_path):
+    left = tmp_path / "old.intent.json"
+    right = tmp_path / "new.intent.json"
+    left.write_text(json.dumps(_profile_workspace_bundle_json("aesthetic.calm_ops")), encoding="utf-8")
+    right.write_text(json.dumps(_profile_workspace_bundle_json("aesthetic.executive_review")), encoding="utf-8")
+
+    result = diff_intent_bundle_files_tool("old.intent.json", "new.intent.json", cwd=tmp_path)
+
+    assert_tool_schema(result)
+    assert result["ok"] is True
+    assert result["metadata"]["semantic_change_count"] == 2
+    assert result["metadata"]["semantic_change_sections"] == ["aesthetic_profiles", "styles"]
+    assert result["semantic_summary"] == [
+        "aesthetic_profiles: profile_changed aesthetic.calm_ops -> aesthetic.executive_review target=view:mcp_profile_workspace",
+        "styles.aesthetic_profile: token_changed aesthetic.calm_ops -> aesthetic.executive_review",
+    ]
+    assert result["diff"]["semantic_changes"]["aesthetic_profiles"][0]["change"] == "profile_changed"
 
 
 def test_intent_mcp_init_intent_writes_valid_scaffold(tmp_path):

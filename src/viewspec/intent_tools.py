@@ -310,6 +310,7 @@ def diff_intent_bundle_files_tool(
         left = resolve_local_path(left_path, cwd=root, allow_outside_cwd=allow_outside_cwd, must_exist=True)
         right = resolve_local_path(right_path, cwd=root, allow_outside_cwd=allow_outside_cwd, must_exist=True)
         diff = diff_intent_files(left, right, compile_check=compile_check)
+        semantic_summary = intent_semantic_change_lines(diff.get("semantic_changes"))
         return tool_response(
             diff["ok"],
             "Computed IntentBundle semantic diff." if diff["ok"] else "IntentBundle diff failed validation.",
@@ -322,7 +323,7 @@ def diff_intent_bundle_files_tool(
                 }
                 for error in diff["errors"]
             ],
-            data={"diff": diff},
+            data={"diff": diff, "semantic_summary": semantic_summary},
             next_actions=[] if diff["ok"] else ["Regenerate invalid IntentBundle files before comparing them."],
             metadata={
                 "cwd": str(root),
@@ -330,6 +331,9 @@ def diff_intent_bundle_files_tool(
                 "sdk_version": __version__,
                 "network_calls": "none",
                 "compile_check": diff["compile_check"],
+                "semantic_change_count": len(semantic_summary),
+                "semantic_change_sections": _intent_semantic_change_sections(diff.get("semantic_changes")),
+                "topology_similarity": diff["topology_similarity"],
             },
         )
     except Exception as exc:
@@ -1178,6 +1182,87 @@ def _empty_intent_semantic_changes() -> dict[str, list[dict[str, Any]]]:
     return {"regions": [], "groups": [], "motifs": [], "aesthetic_profiles": [], "styles": [], "actions": [], "bindings": []}
 
 
+def intent_semantic_change_lines(semantic_changes: object) -> list[str]:
+    if not isinstance(semantic_changes, dict):
+        return []
+    lines: list[str] = []
+    for section in ("regions", "groups", "motifs", "aesthetic_profiles", "styles", "bindings", "actions"):
+        changes = semantic_changes.get(section)
+        if not isinstance(changes, list):
+            continue
+        for change in changes:
+            if not isinstance(change, dict):
+                continue
+            line = _intent_semantic_change_line(section, change)
+            if line:
+                lines.append(line)
+    return lines
+
+
+def _intent_semantic_change_sections(semantic_changes: object) -> list[str]:
+    if not isinstance(semantic_changes, dict):
+        return []
+    sections = []
+    for section in ("regions", "groups", "motifs", "aesthetic_profiles", "styles", "bindings", "actions"):
+        changes = semantic_changes.get(section)
+        if isinstance(changes, list) and changes:
+            sections.append(section)
+    return sections
+
+
+def _intent_semantic_change_line(section: str, change: dict[str, object]) -> str:
+    change_name = str(change.get("change") or "changed")
+    if section == "aesthetic_profiles":
+        if change_name == "profile_changed":
+            return (
+                "aesthetic_profiles: profile_changed "
+                f"{_intent_diff_value(change.get('left'))} -> {_intent_diff_value(change.get('right'))} "
+                f"target={_intent_diff_value(change.get('right_target'))}"
+            )
+        if change_name in {"added", "removed"}:
+            return (
+                f"aesthetic_profiles: {change_name} "
+                f"{_intent_diff_value(change.get('profile'))} "
+                f"target={_intent_diff_value(change.get('target'))}"
+            )
+    item_id = change.get("id")
+    prefix = f"{section}.{item_id}" if isinstance(item_id, str) and item_id else section
+    parts = [f"{prefix}: {change_name}"]
+    if "left" in change and "right" in change:
+        parts.append(f"{_intent_diff_value(change.get('left'))} -> {_intent_diff_value(change.get('right'))}")
+    for field in (
+        "kind",
+        "target",
+        "target_region",
+        "target_ref",
+        "role",
+        "layout",
+        "present_as",
+        "parent_region",
+        "profile",
+        "token",
+        "payload_bindings",
+        "added",
+        "removed",
+        "order_changed",
+    ):
+        if field in change:
+            parts.append(f"{field}={_intent_diff_value(change.get(field))}")
+    return " ".join(parts)
+
+
+def _intent_diff_value(value: object) -> str:
+    if value is None:
+        return "null"
+    if isinstance(value, str):
+        return value
+    if isinstance(value, bool):
+        return "true" if value else "false"
+    if isinstance(value, (dict, list)):
+        return json.dumps(value, sort_keys=True)
+    return str(value)
+
+
 def _intent_section_names() -> tuple[str, ...]:
     return ("bundle_metadata", "substrate_nodes", "regions", "bindings", "groups", "motifs", "styles", "actions")
 
@@ -1212,6 +1297,7 @@ __all__ = [
     "diff_intent_bundle_files_tool",
     "diff_intent_files",
     "diff_intent_text",
+    "intent_semantic_change_lines",
     "init_intent_file",
     "init_intent_tool",
     "intent_diff_error_payload",
