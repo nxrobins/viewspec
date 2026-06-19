@@ -135,6 +135,35 @@ def test_public_mcp_tool_lists_include_proof_tools():
         assert "compile_intent_bundle_file" in text, path
         assert "verify_host" in text, path
         assert "prove" in text, path
+        assert "validate_app_file" in text, path
+        assert "diff_app_files" in text, path
+        assert "compile_app" in text, path
+        assert "prove_app" in text, path
+
+
+def test_public_docs_include_app_bundle_v0_contract():
+    root = Path(__file__).resolve().parents[1]
+    docs = [
+        root / "README.md",
+        root / "docs/getting-started.md",
+        root / "docs/agent-integration.md",
+        root / "docs/app-bundle-v0.md",
+        root / "demos/llms.txt",
+        root / "demos/llms-full.txt",
+        root / "integrations/claude-code/SKILL.md",
+    ]
+
+    for path in docs:
+        text = path.read_text(encoding="utf-8")
+        assert "AppBundle" in text, path
+        assert "viewspec validate-app" in text, path
+        assert "viewspec diff-app" in text, path
+        assert "viewspec compile-app" in text, path
+        assert "viewspec prove-app" in text, path
+        assert "unbound_v0" in text, path
+        assert "fixture_readonly_v0" in text, path
+        assert "Static Shell V0" in text, path
+        assert "runtime navigation" in text or "browser navigation" in text, path
 
 
 def test_public_docs_include_aesthetic_profile_contract():

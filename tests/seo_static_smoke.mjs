@@ -179,7 +179,7 @@ for (const diffIntentTextPath of ['README.md', 'docs/getting-started.md', 'docs/
 
 for (const agentAssetTextPath of ['README.md', 'docs/getting-started.md', 'docs/agent-integration.md', 'demos/llms.txt', 'demos/llms-full.txt']) {
   const text = await readFile(agentAssetTextPath, 'utf8')
-  assertPublicText(text, 'schema version `4`', `${agentAssetTextPath} agent asset schema version`)
+  assertPublicText(text, `schema version \`${publicFacts.agent_assets.schema_version}\``, `${agentAssetTextPath} agent asset schema version`)
   assertPublicText(text, 'local_v1', `${agentAssetTextPath} agent asset contract profile`)
   assertPublicText(text, 'viewspec export-agent-assets --out .viewspec', `${agentAssetTextPath} agent asset export command`)
   assertPublicText(text, 'viewspec check-agent-assets .viewspec --json', `${agentAssetTextPath} agent asset check command`)
@@ -448,6 +448,7 @@ assertPublicEqual(openapi['x-viewspec-public-facts'].agentAssetManifest, publicF
 assertPublicEqual(openapi['x-viewspec-public-facts'].agentAssetSchemaVersion, publicFacts.agent_assets.schema_version, 'OpenAPI public facts agent asset schema version')
 assertPublicEqual(openapi['x-viewspec-public-facts'].agentAssetContractProfile, publicFacts.agent_assets.contract_profile, 'OpenAPI public facts agent asset profile')
 assertPublicEqual(openapi['x-viewspec-public-facts'].agentAssetIntentSchemaId, publicFacts.agent_assets.intent_schema_id, 'OpenAPI public facts agent asset schema id')
+assertPublicEqual(openapi['x-viewspec-public-facts'].agentAssetAppSchemaId, publicFacts.agent_assets.app_schema_id, 'OpenAPI public facts app asset schema id')
 assertPublicEqual(openapi['x-viewspec-public-facts'].agentAssetExportCommand, publicFacts.agent_assets.export_command, 'OpenAPI public facts agent asset export')
 assertPublicEqual(openapi['x-viewspec-public-facts'].agentAssetCheckCommand, publicFacts.agent_assets.check_command, 'OpenAPI public facts agent asset check')
 assertPublicEqual(openapi['x-viewspec-public-facts'].agentAssetNetworkPolicy, publicFacts.agent_assets.network_policy, 'OpenAPI public facts agent asset network policy')
@@ -455,7 +456,7 @@ assert(openapi.paths['/v1/compile']?.post, 'OpenAPI needs POST /v1/compile')
 assert.equal(openapi.paths['/v1/compile'].post.requestBody.content['application/json'].schema.$ref, '#/components/schemas/CompileRequestPayload')
 assert.equal(openapi.components.schemas.CompileRequestPayload.properties.design.$ref, '#/components/schemas/DesignRequest')
 assert(!('design' in openapi.components.schemas.IntentBundle.properties), 'OpenAPI IntentBundle schema should not absorb hosted design context')
-assert.equal(openapi['x-viewspec-agent-artifacts'].assetSchemaVersion, 4)
+assert.equal(openapi['x-viewspec-agent-artifacts'].assetSchemaVersion, 6)
 assert.equal(openapi['x-viewspec-agent-artifacts'].assetManifest, 'https://viewspec.dev/agent-assets.json')
 assert.equal(openapi['x-viewspec-agent-artifacts'].contractProfile, 'local_v1')
 assert.equal(openapi['x-viewspec-agent-artifacts'].exportCommand, 'viewspec export-agent-assets --out .viewspec')
@@ -468,6 +469,8 @@ assert.equal(openapi['x-viewspec-agent-artifacts'].checkCommand, publicFacts.age
 assert.equal(openapi['x-viewspec-agent-artifacts'].networkPolicy, publicFacts.agent_assets.network_policy)
 assert.equal(openapi['x-viewspec-agent-artifacts'].systemPrompt, 'https://viewspec.dev/agent-system-prompt.txt')
 assert.equal(openapi['x-viewspec-agent-artifacts'].intentBundleExample, 'https://viewspec.dev/agent-intent-example.dashboard.json')
+assert.equal(openapi['x-viewspec-agent-artifacts'].appBundleSchema, 'https://viewspec.dev/agent-app-bundle.schema.json')
+assert.equal(openapi['x-viewspec-agent-artifacts'].appBundleExample, 'https://viewspec.dev/agent-app-example.internal-tool.json')
 
 const agentPrompt = await readFile('demos/agent-system-prompt.txt', 'utf8')
 assert.match(agentPrompt, /IntentBundle/)
@@ -478,6 +481,13 @@ assert.match(agentPrompt, /\.viewspec-proof\/PROOF\.md/)
 assert.match(agentPrompt, /proof_report\.json/)
 assert.match(agentPrompt, /support_bundle\.json/)
 assert.match(agentPrompt, /pixel-perfect visual regression/)
+assert.match(agentPrompt, /AppBundle JSON/)
+assert.match(agentPrompt, /fixture_readonly_v0/)
+assert.match(agentPrompt, /resource_views/)
+assert.match(agentPrompt, /viewspec validate-app viewspec\.app\.json --json/)
+assert.match(agentPrompt, /viewspec compile-app viewspec\.app\.json --out app-dist --target html-tailwind-app --json/)
+assert.match(agentPrompt, /viewspec prove-app --app viewspec\.app\.json --out \.viewspec-app-proof --with-shell --json/)
+assert.match(agentPrompt, /Static Shell V0/)
 assert.doesNotMatch(agentPrompt, /You output ViewSpec IR/)
 
 const agentSchema = JSON.parse(await readFile('demos/agent-intent-bundle.schema.json', 'utf8'))
@@ -489,16 +499,30 @@ for (const publicTextPath of ['README.md', 'docs/getting-started.md', 'docs/agen
     if (!text.includes(expected)) statefulCollectionsDrift(`${publicTextPath} missing ${expected}`)
   }
 }
-assert.equal(agentManifest.schema_version, 4)
+assert.equal(agentManifest.schema_version, 6)
 assert.equal(agentManifest.contract.profile, 'local_v1')
 assert.equal(agentManifest.contract.export_command, 'viewspec export-agent-assets --out .viewspec')
 assert.equal(agentManifest.contract.check_command, 'viewspec check-agent-assets .viewspec --json')
 assert.equal(agentManifest.contract.network_policy, 'no SDK network calls')
 assert.equal(agentManifest.contract.files.intent_schema, 'agent-intent-bundle.schema.json')
-assert.deepEqual(agentManifest.files.map((file) => file.path), ['agent-system-prompt.txt', 'agent-intent-bundle.schema.json', 'agent-intent-example.dashboard.json'])
+assert.equal(agentManifest.contract.files.app_schema, 'agent-app-bundle.schema.json')
+assert.deepEqual(agentManifest.files.map((file) => file.path), [
+  'agent-system-prompt.txt',
+  'agent-intent-bundle.schema.json',
+  'agent-intent-example.dashboard.json',
+  'agent-app-bundle.schema.json',
+  'agent-app-example.internal-tool.json'
+])
 const agentExample = JSON.parse(await readFile('demos/agent-intent-example.dashboard.json', 'utf8'))
 assert.equal(agentExample.view_spec.motifs[0].kind, 'dashboard')
 assert.equal(agentExample.view_spec.substrate_id, agentExample.substrate.id)
+const appSchema = JSON.parse(await readFile('demos/agent-app-bundle.schema.json', 'utf8'))
+assert.equal(appSchema.$id, 'https://viewspec.dev/agent-app-bundle.schema.json')
+assert.deepEqual(appSchema['x-viewspec-resource-bindings'], ['unbound_v0', 'fixture_readonly_v0'])
+const appExample = JSON.parse(await readFile('demos/agent-app-example.internal-tool.json', 'utf8'))
+assert.equal(appExample.app.kind, 'internal_tool')
+assert.equal(appExample.resource_binding ?? 'unbound_v0', 'unbound_v0')
+assert.equal(appExample.screens.length, 2)
 
 const artifactIndex = JSON.parse(await readFile('demos/cross-platform-dashboard/artifacts/artifact_index.json', 'utf8'))
 assert.equal(artifactIndex.prompt, 'agent_prompt.txt')

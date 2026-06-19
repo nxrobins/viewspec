@@ -13,6 +13,7 @@ from viewspec import (
     AGENT_ASSET_MANIFEST_FILE,
     AGENT_ASSET_NETWORK_POLICY,
     AGENT_ASSET_SCHEMA_VERSION,
+    AGENT_APP_BUNDLE_SCHEMA,
     AGENT_INTENT_BUNDLE_SCHEMA,
     AGENT_SYSTEM_PROMPT,
     AESTHETIC_PROFILE_TOKENS,
@@ -26,6 +27,7 @@ from viewspec import (
     agent_correction_prompt,
     agent_repair_checklist,
     export_agent_assets,
+    starter_app_bundle,
     starter_intent_bundle,
     validate_agent_intent_bundle,
 )
@@ -168,6 +170,15 @@ def test_agent_prompt_and_schema_preserve_intent_bundle_contract():
     assert "compact aesthetic profile style impact counts and bounded layout deltas" in AGENT_SYSTEM_PROMPT
     assert "MCP semantic_summary" in AGENT_SYSTEM_PROMPT
     assert 'intent_semantic_change_lines(diff["semantic_changes"])' in AGENT_SYSTEM_PROMPT
+    assert "For a multi-screen internal tool, emit AppBundle JSON as viewspec.app.json" in AGENT_SYSTEM_PROMPT
+    assert "fixture_readonly_v0" in AGENT_SYSTEM_PROMPT
+    assert "resource_views" in AGENT_SYSTEM_PROMPT
+    assert "viewspec validate-app viewspec.app.json --json" in AGENT_SYSTEM_PROMPT
+    assert "viewspec diff-app old.app.json new.app.json --json" in AGENT_SYSTEM_PROMPT
+    assert "viewspec compile-app viewspec.app.json --out app-dist --target html-tailwind-app --json" in AGENT_SYSTEM_PROMPT
+    assert "viewspec prove-app --app viewspec.app.json --out .viewspec-app-proof --with-shell --json" in AGENT_SYSTEM_PROMPT
+    assert "Static Shell V0" in AGENT_SYSTEM_PROMPT
+    assert "runtime data binding" in AGENT_SYSTEM_PROMPT
     assert "Do not call remote reference libraries by default" in AGENT_SYSTEM_PROMPT
     assert "query an MCP-accessible UI reference library" not in AGENT_SYSTEM_PROMPT
     assert AGENT_INTENT_BUNDLE_SCHEMA["$id"] == "https://viewspec.dev/agent-intent-bundle.schema.json"
@@ -264,6 +275,14 @@ def test_published_agent_example_matches_runtime_starter(tmp_path, capsys):
     capsys.readouterr()
 
 
+def test_published_app_schema_and_example_match_runtime_contract():
+    schema = json.loads(ROOT.joinpath("demos/agent-app-bundle.schema.json").read_text(encoding="utf-8"))
+    example = json.loads(ROOT.joinpath("demos/agent-app-example.internal-tool.json").read_text(encoding="utf-8"))
+
+    assert schema == AGENT_APP_BUNDLE_SCHEMA
+    assert example == starter_app_bundle("internal_tool")
+
+
 def test_published_agent_asset_manifest_matches_runtime_export(tmp_path):
     export_agent_assets(tmp_path)
     published = json.loads(ROOT.joinpath("demos/agent-assets.json").read_text(encoding="utf-8"))
@@ -274,6 +293,7 @@ def test_published_agent_asset_manifest_matches_runtime_export(tmp_path):
     assert published["contract"] == {
         "profile": AGENT_ASSET_CONTRACT_PROFILE,
         "intent_schema_id": AGENT_INTENT_BUNDLE_SCHEMA["$id"],
+        "app_schema_id": AGENT_APP_BUNDLE_SCHEMA["$id"],
         "export_command": AGENT_ASSET_EXPORT_COMMAND,
         "check_command": AGENT_ASSET_CHECK_COMMAND,
         "network_policy": AGENT_ASSET_NETWORK_POLICY,
@@ -282,6 +302,8 @@ def test_published_agent_asset_manifest_matches_runtime_export(tmp_path):
             "system_prompt": "agent-system-prompt.txt",
             "intent_schema": "agent-intent-bundle.schema.json",
             "intent_example": "agent-intent-example.dashboard.json",
+            "app_schema": "agent-app-bundle.schema.json",
+            "app_example": "agent-app-example.internal-tool.json",
         },
     }
 
@@ -297,6 +319,8 @@ def test_published_openapi_agent_artifacts_match_runtime_contract():
     assert artifacts["systemPrompt"] == "https://viewspec.dev/agent-system-prompt.txt"
     assert artifacts["intentBundleSchema"] == AGENT_INTENT_BUNDLE_SCHEMA["$id"]
     assert artifacts["intentBundleExample"] == "https://viewspec.dev/agent-intent-example.dashboard.json"
+    assert artifacts["appBundleSchema"] == AGENT_APP_BUNDLE_SCHEMA["$id"]
+    assert artifacts["appBundleExample"] == "https://viewspec.dev/agent-app-example.internal-tool.json"
     assert artifacts["contractProfile"] == AGENT_ASSET_CONTRACT_PROFILE
     assert artifacts["exportCommand"] == AGENT_ASSET_EXPORT_COMMAND
     assert artifacts["checkCommand"] == AGENT_ASSET_CHECK_COMMAND

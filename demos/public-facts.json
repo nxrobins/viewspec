@@ -71,16 +71,19 @@
   },
   "agent_assets": {
     "manifest_url": "https://viewspec.dev/agent-assets.json",
-    "schema_version": 4,
+    "schema_version": 6,
     "contract_profile": "local_v1",
     "intent_schema_id": "https://viewspec.dev/agent-intent-bundle.schema.json",
+    "app_schema_id": "https://viewspec.dev/agent-app-bundle.schema.json",
     "export_command": "viewspec export-agent-assets --out .viewspec",
     "check_command": "viewspec check-agent-assets .viewspec --json",
     "network_policy": "no SDK network calls",
     "payload_files": [
       "agent-system-prompt.txt",
       "agent-intent-bundle.schema.json",
-      "agent-intent-example.dashboard.json"
+      "agent-intent-example.dashboard.json",
+      "agent-app-bundle.schema.json",
+      "agent-app-example.internal-tool.json"
     ]
   }
 }

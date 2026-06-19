@@ -39,6 +39,23 @@ V1 local caps keep agent repair loops predictable: max 256KB JSON, 200 substrate
 
 Use `viewspec init-design --out DESIGN.md` for a starter design file when the repo does not already have one, and `viewspec doctor` to check local SDK readiness. `doctor` reports the intent-first commands, runs starter IntentBundle validation/compile/diff, aesthetic-profile diff, and semantic summary smoke checks, verifies `PyYAML`, and states the local no-network policy.
 
+## AppBundle V1/V2
+
+For a narrow multi-screen internal-tool contract, use AppBundle JSON. It keeps app generation at the contract/proof layer: embedded screen `IntentBundle`s, static routes, fixture resources, validation, semantic diffing, and per-screen checked `html-tailwind` artifacts. `schema_version: 1` reports `resource_binding: "unbound_v0"`; `schema_version: 2` adds proof-only `resource_binding: "fixture_readonly_v0"` and declared `resource_views`.
+
+```bash
+viewspec init-app --out viewspec.app.json
+viewspec init-app --resource-binding fixture-readonly-v0 --out viewspec.bound.app.json
+viewspec validate-app viewspec.app.json --json
+viewspec diff-app old.app.json new.app.json --json
+viewspec compile-app viewspec.app.json --out app-dist --target html-tailwind-app --json
+viewspec prove-app --app viewspec.app.json --out .viewspec-app-proof --with-shell --json
+```
+
+`prove-app` writes `APP_PROOF.md`, `app_proof_report.json`, `app_support_bundle.json`, and one checked screen artifact directory per screen. V2 proof reports include `binding_scope: "declared_resource_views_only"`, assertion counts, per-view status, and a binding digest for exact fixture scalar visibility. AppBundle proof does not prove runtime browser navigation, runtime data binding, transformed values, deployable app shells, reducers/mutations, or hosted extended compiler behavior.
+
+Static Shell V0 is the bounded local shell artifact for this contract. `compile-app` writes `app-dist/index.html`, `shell_manifest.json`, `diagnostics.json`, and checked screen artifacts; reports `target: "html-tailwind-app"` and `route_navigation: "static_shell_v0"`; rejects external network/embed/script surfaces; and remains a local proof artifact, not a deployable framework app, runtime data-binding layer, state store, mutation layer, browser-history proof, accessibility certification, or cross-browser visual proof.
+
 ## Import Existing HTML
 
 Use raw HTML commands only when you already have HTML and need an offline import/fallback artifact:
@@ -73,7 +90,7 @@ viewspec export-agent-assets --out .viewspec
 viewspec check-agent-assets .viewspec --json
 ```
 
-The asset manifest uses schema version `4`, declares the `local_v1` contract profile, and records the export/check commands. Run the check command before reusing cached `.viewspec` assets.
+The asset manifest uses schema version `6`, declares the `local_v1` contract profile, and records the export/check commands. It includes the IntentBundle schema/example plus `agent-app-bundle.schema.json` and `agent-app-example.internal-tool.json` for AppBundle V1/V2. Run the check command before reusing cached `.viewspec` assets.
 
 For MCP-capable agents:
 
@@ -83,7 +100,7 @@ viewspec mcp
 viewspec doctor --agents
 ```
 
-The MCP tools are local-only by default and reject paths outside the configured working directory. Intent tools are the default for new UI; raw HTML MCP tools are import/fallback only. MCP also exposes `export_agent_assets` and `check_agent_assets` for local prompt, schema, valid example, and asset manifest workflows.
+The MCP tools are local-only by default and reject paths outside the configured working directory. Intent tools are the default for new UI; `init_app`, `validate_app_file`, `diff_app_files`, `compile_app`, and `prove_app` cover AppBundle V1/V2 and Static Shell V0; raw HTML MCP tools are import/fallback only. MCP also exposes `export_agent_assets` and `check_agent_assets` for local prompt, schema, valid example, and asset manifest workflows.
 
 Treat compiled output directories as generated artifacts. Edit `viewspec.intent.json` or `DESIGN.md`, then re-run compile and check; do not patch `dist/index.html` or `react-output/ViewSpecView.tsx` by hand.
 

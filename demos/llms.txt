@@ -21,6 +21,8 @@ Raw HTML tools remain available only for importing existing HTML: `viewspec comp
 - Agent system prompt: https://viewspec.dev/agent-system-prompt.txt
 - Agent IntentBundle schema: https://viewspec.dev/agent-intent-bundle.schema.json
 - Valid starter IntentBundle example: https://viewspec.dev/agent-intent-example.dashboard.json
+- Agent AppBundle V1/V2 schema: https://viewspec.dev/agent-app-bundle.schema.json
+- Valid starter AppBundle example: https://viewspec.dev/agent-app-example.internal-tool.json
 - Python package: https://pypi.org/project/viewspec/
 - Source repository: https://github.com/nxrobins/viewspec
 - Full AI context: https://viewspec.dev/llms-full.txt
@@ -40,9 +42,11 @@ Raw HTML tools remain available only for importing existing HTML: `viewspec comp
 - Native agent setup: `viewspec init-agent --target codex|claude-code|cursor|copilot|all`.
 - Local agent contract asset export: `viewspec export-agent-assets --out .viewspec`.
 - Local agent contract asset verification: `viewspec check-agent-assets .viewspec --json`.
-- Local agent asset manifests use schema version `4`, declare the `local_v1` contract profile, and record export/check commands with no SDK network calls.
+- Local agent asset manifests use schema version `6`, declare the `local_v1` contract profile, and record export/check commands with no SDK network calls.
+- AppBundle commands: `viewspec init-app --out viewspec.app.json`, `viewspec init-app --resource-binding fixture-readonly-v0 --out viewspec.bound.app.json`, `viewspec validate-app viewspec.app.json --json`, `viewspec diff-app old.app.json new.app.json --json`, `viewspec compile-app viewspec.app.json --out app-dist --target html-tailwind-app --json`, and `viewspec prove-app --app viewspec.app.json --out .viewspec-app-proof --with-shell --json`.
+- AppBundle is local-only app contract proof for multi-screen internal tools: static routes, embedded local V1 screen IntentBundles, V1 `resource_binding: "unbound_v0"` fixture context, optional V2 `fixture_readonly_v0` exact scalar visibility proofs for declared `resource_views`, and per-screen html-tailwind compile/check artifacts. Static Shell V0 writes a bounded local `html-tailwind-app` shell with `route_navigation: "static_shell_v0"` and no external network/embed/script surfaces. It does not prove runtime navigation or browser history semantics, runtime fixture data binding, transformed values, generate a deployable framework app, implement state or mutations, or claim hosted extended compiler behavior.
 - Optional MCP server: install `viewspec[agents]`, then run `viewspec mcp`.
-- MCP intent tools: `init_intent`, `validate_intent_bundle_file`, `diff_intent_bundle_files`, `compile_intent_bundle_file`, `agent_correction_prompt_file`, `check_artifact`, `verify_host`, `prove`, `check_agent_assets`, `init_design`, and `export_agent_assets`.
+- MCP intent/app tools: `init_intent`, `validate_intent_bundle_file`, `diff_intent_bundle_files`, `compile_intent_bundle_file`, `agent_correction_prompt_file`, `init_app`, `validate_app_file`, `diff_app_files`, `compile_app`, `prove_app`, `check_artifact`, `verify_host`, `prove`, `check_agent_assets`, `init_design`, and `export_agent_assets`.
 - Raw HTML tools are import/fallback only for existing HTML.
 - Generated outputs such as `dist/index.html` and `react-output/ViewSpecView.tsx` are artifacts; edit `viewspec.intent.json` or `DESIGN.md` instead.
 - Agents should output IntentBundle JSON, not CompositionIR, HTML, CSS, React, SwiftUI, or Flutter source for new UI.

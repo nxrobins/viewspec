@@ -10,10 +10,14 @@ from viewspec import (
     AGENT_ASSET_EXPORT_COMMAND,
     AGENT_ASSET_NETWORK_POLICY,
     AGENT_ASSET_SCHEMA_VERSION,
+    AGENT_APP_EXAMPLE_FILE,
+    AGENT_APP_SCHEMA_FILE,
     agent_asset_readiness,
     check_agent_assets,
+    starter_app_bundle,
     starter_intent_bundle,
 )
+from viewspec.app_bundle import AGENT_APP_BUNDLE_SCHEMA
 from viewspec.agent import AGENT_INTENT_BUNDLE_SCHEMA, AGENT_SYSTEM_PROMPT
 from viewspec.cli import main as cli_main
 from viewspec.native_agents import BEGIN_MARKER, END_MARKER, TARGET_PATHS
@@ -56,10 +60,16 @@ def test_init_agent_creates_codex_instructions(tmp_path, capsys):
     assert ".viewspec/agent-system-prompt.txt" in text
     assert ".viewspec/agent-intent-bundle.schema.json" in text
     assert ".viewspec/agent-intent-example.dashboard.json" in text
+    assert ".viewspec/agent-app-bundle.schema.json" in text
+    assert ".viewspec/agent-app-example.internal-tool.json" in text
+    assert "viewspec validate-app viewspec.app.json --json" in text
+    assert "viewspec diff-app old.app.json new.app.json --json" in text
+    assert "viewspec compile-app viewspec.app.json --out app-dist --target html-tailwind-app --json" in text
+    assert "viewspec prove-app --app viewspec.app.json --out .viewspec-app-proof --with-shell --json" in text
     assert f"agent asset schema version `{AGENT_ASSET_SCHEMA_VERSION}`" in text
     assert f"`{AGENT_ASSET_CONTRACT_PROFILE}` contract profile" in text
     assert "Run the check command before reusing cached assets" in text
-    assert "Use the example only for valid IntentBundle wire shape" in text
+    assert "Use the examples only for valid IntentBundle/AppBundle wire shape" in text
     assert "Use raw HTML tools only when importing existing HTML" in text
     assert "compiled output directories such as `dist/` or `react-output/` contain generated artifacts" in text
     assert "Never patch or recursively compile generated artifacts such as `dist/index.html` or `react-output/ViewSpecView.tsx`" in text
@@ -86,11 +96,17 @@ def _assert_native_agent_instruction_contract(text: str, label: str) -> None:
     assert "viewspec verify-host react-tailwind-output/ --target react-tailwind-tsx --install --json" in text
     assert "viewspec prove --target react-tailwind-tsx --install --out .viewspec-proof --json" in text
     assert "viewspec diff-intent old.intent.json new.intent.json --json" in text
+    assert "viewspec validate-app viewspec.app.json --json" in text
+    assert "viewspec diff-app old.app.json new.app.json --json" in text
+    assert "viewspec compile-app viewspec.app.json --out app-dist --target html-tailwind-app --json" in text
+    assert "viewspec prove-app --app viewspec.app.json --out .viewspec-app-proof --with-shell --json" in text
     assert "Review `semantic_changes` before inspecting generated artifacts" in text
     assert "MCP `semantic_summary`" in text
     assert 'intent_semantic_change_lines(diff["semantic_changes"])' in text
     assert AGENT_ASSET_EXPORT_COMMAND in text
     assert AGENT_ASSET_CHECK_COMMAND in text
+    assert ".viewspec/agent-app-bundle.schema.json" in text
+    assert ".viewspec/agent-app-example.internal-tool.json" in text
     assert f"agent asset schema version `{AGENT_ASSET_SCHEMA_VERSION}`" in text
     assert f"`{AGENT_ASSET_CONTRACT_PROFILE}` contract profile" in text
     assert "Run the check command before reusing cached assets" in text
@@ -201,6 +217,8 @@ def test_export_agent_assets_creates_local_prompt_and_schema(tmp_path, capsys):
     prompt_path = out_dir / "agent-system-prompt.txt"
     schema_path = out_dir / "agent-intent-bundle.schema.json"
     example_path = out_dir / "agent-intent-example.dashboard.json"
+    app_schema_path = out_dir / "agent-app-bundle.schema.json"
+    app_example_path = out_dir / "agent-app-example.internal-tool.json"
     manifest_path = out_dir / "agent-assets.json"
     assert payload["ok"] is True
     assert payload["schema_version"] == AGENT_ASSET_SCHEMA_VERSION
@@ -212,10 +230,14 @@ def test_export_agent_assets_creates_local_prompt_and_schema(tmp_path, capsys):
         "agent-system-prompt.txt": "create",
         "agent-intent-bundle.schema.json": "create",
         "agent-intent-example.dashboard.json": "create",
+        "agent-app-bundle.schema.json": "create",
+        "agent-app-example.internal-tool.json": "create",
     }
     assert prompt_path.read_text(encoding="utf-8") == AGENT_SYSTEM_PROMPT
     assert json.loads(schema_path.read_text(encoding="utf-8")) == AGENT_INTENT_BUNDLE_SCHEMA
     assert json.loads(example_path.read_text(encoding="utf-8")) == starter_intent_bundle("dashboard").to_json()
+    assert json.loads(app_schema_path.read_text(encoding="utf-8")) == AGENT_APP_BUNDLE_SCHEMA
+    assert json.loads(app_example_path.read_text(encoding="utf-8")) == starter_app_bundle("internal_tool")
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     assert manifest["schema_version"] == AGENT_ASSET_SCHEMA_VERSION
     assert manifest["contract"]["profile"] == AGENT_ASSET_CONTRACT_PROFILE
@@ -225,6 +247,8 @@ def test_export_agent_assets_creates_local_prompt_and_schema(tmp_path, capsys):
         "agent-system-prompt.txt",
         "agent-intent-bundle.schema.json",
         "agent-intent-example.dashboard.json",
+        "agent-app-bundle.schema.json",
+        "agent-app-example.internal-tool.json",
     }
     checked = check_agent_assets(out_dir)
     assert checked["ok"] is True
@@ -243,6 +267,8 @@ def test_export_agent_assets_creates_local_prompt_and_schema(tmp_path, capsys):
         "agent-system-prompt.txt": "unchanged",
         "agent-intent-bundle.schema.json": "unchanged",
         "agent-intent-example.dashboard.json": "unchanged",
+        "agent-app-bundle.schema.json": "unchanged",
+        "agent-app-example.internal-tool.json": "unchanged",
     }
 
 
@@ -258,6 +284,8 @@ def test_export_agent_assets_dry_run_creates_no_files(tmp_path, capsys):
         "agent-system-prompt.txt": "create",
         "agent-intent-bundle.schema.json": "create",
         "agent-intent-example.dashboard.json": "create",
+        "agent-app-bundle.schema.json": "create",
+        "agent-app-example.internal-tool.json": "create",
     }
     assert not out_dir.exists()
 
@@ -285,12 +313,16 @@ def test_export_agent_assets_refuses_conflict_without_partial_writes(tmp_path, c
     assert not (out_dir / "agent-assets.json").exists()
     assert not (out_dir / "agent-intent-bundle.schema.json").exists()
     assert not (out_dir / "agent-intent-example.dashboard.json").exists()
+    assert not (out_dir / "agent-app-bundle.schema.json").exists()
+    assert not (out_dir / "agent-app-example.internal-tool.json").exists()
     assert (out_dir / "agent-system-prompt.txt").read_text(encoding="utf-8") == "custom prompt\n"
 
     assert cli_main(["export-agent-assets", "--out", str(out_dir), "--force"]) == 0
     assert (out_dir / "agent-system-prompt.txt").read_text(encoding="utf-8") == AGENT_SYSTEM_PROMPT
     assert json.loads((out_dir / "agent-intent-bundle.schema.json").read_text(encoding="utf-8")) == AGENT_INTENT_BUNDLE_SCHEMA
     assert json.loads((out_dir / "agent-intent-example.dashboard.json").read_text(encoding="utf-8")) == starter_intent_bundle("dashboard").to_json()
+    assert json.loads((out_dir / AGENT_APP_SCHEMA_FILE).read_text(encoding="utf-8")) == AGENT_APP_BUNDLE_SCHEMA
+    assert json.loads((out_dir / AGENT_APP_EXAMPLE_FILE).read_text(encoding="utf-8")) == starter_app_bundle("internal_tool")
 
 
 def test_agent_asset_readiness_reports_local_contract_identity():
@@ -303,7 +335,10 @@ def test_agent_asset_readiness_reports_local_contract_identity():
     assert readiness["system_prompt_file"] == "agent-system-prompt.txt"
     assert readiness["intent_schema_file"] == "agent-intent-bundle.schema.json"
     assert readiness["intent_example_file"] == "agent-intent-example.dashboard.json"
+    assert readiness["app_schema_file"] == "agent-app-bundle.schema.json"
+    assert readiness["app_example_file"] == "agent-app-example.internal-tool.json"
     assert readiness["intent_schema_id"] == "https://viewspec.dev/agent-intent-bundle.schema.json"
+    assert readiness["app_schema_id"] == "https://viewspec.dev/agent-app-bundle.schema.json"
     assert readiness["export_command"] == AGENT_ASSET_EXPORT_COMMAND
     assert readiness["check_command"] == AGENT_ASSET_CHECK_COMMAND
     assert readiness["network_policy"] == AGENT_ASSET_NETWORK_POLICY
@@ -311,6 +346,8 @@ def test_agent_asset_readiness_reports_local_contract_identity():
     assert len(readiness["system_prompt_sha256"]) == 64
     assert len(readiness["intent_schema_sha256"]) == 64
     assert len(readiness["intent_example_sha256"]) == 64
+    assert len(readiness["app_schema_sha256"]) == 64
+    assert len(readiness["app_example_sha256"]) == 64
 
 
 def test_export_agent_assets_rejects_file_output_path(tmp_path, capsys):

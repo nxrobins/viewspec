@@ -9,6 +9,23 @@ import sys
 from pathlib import Path
 
 from viewspec._version import __version__
+from viewspec.app_bundle import (
+    APP_BUNDLE_ALLOWED_KINDS,
+    APP_BUNDLE_DEFAULT_OUT,
+    APP_BUNDLE_RESOURCE_BINDING,
+    APP_BUNDLE_RESOURCE_BINDING_READONLY,
+    APP_SHELL_DEFAULT_OUT,
+    APP_SHELL_TARGET,
+    app_semantic_change_lines,
+    compile_app,
+    diff_app_files,
+    diff_app_text,
+    init_app_file,
+    prove_app,
+    starter_app_bundle,
+    validate_app_file,
+    validate_app_text,
+)
 from viewspec.agent_assets import AgentAssetError, agent_asset_readiness, check_agent_assets, export_agent_assets
 from viewspec.compiler import compile
 from viewspec.design_md import DesignSystemContext, DesignSystemError, load_design_system
@@ -127,6 +144,49 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     diff_intent_parser.set_defaults(func=_diff_intent_command)
 
+    init_app_parser = subparsers.add_parser("init-app", help="Write a starter local AppBundle JSON file.")
+    init_app_parser.add_argument("--out", default="viewspec.app.json", help="Output AppBundle JSON path.")
+    init_app_parser.add_argument("--kind", default="internal_tool", choices=APP_BUNDLE_ALLOWED_KINDS, help="Starter app kind.")
+    init_app_parser.add_argument(
+        "--resource-binding",
+        default="unbound-v0",
+        choices=("unbound-v0", "fixture-readonly-v0"),
+        help="Starter resource binding mode. fixture-readonly-v0 writes schema_version 2.",
+    )
+    init_app_parser.add_argument("--force", action="store_true", help="Overwrite an existing file.")
+    init_app_parser.set_defaults(func=_init_app_command)
+
+    validate_app_parser = subparsers.add_parser("validate-app", help="Validate a local AppBundle JSON file.")
+    validate_app_parser.add_argument("input", help="Input strict AppBundle .json file.")
+    validate_app_parser.add_argument("--json", action="store_true", help="Print machine-readable JSON.")
+    validate_app_parser.add_argument(
+        "--no-compile-check",
+        action="store_true",
+        help="Skip local compiler support validation for embedded screen intents.",
+    )
+    validate_app_parser.set_defaults(func=_validate_app_command)
+
+    diff_app_parser = subparsers.add_parser("diff-app", help="Diff two local AppBundle JSON files semantically.")
+    diff_app_parser.add_argument("left", help="Old/left AppBundle .json file.")
+    diff_app_parser.add_argument("right", help="New/right AppBundle .json file.")
+    diff_app_parser.add_argument("--json", action="store_true", help="Print machine-readable JSON.")
+    diff_app_parser.add_argument(
+        "--no-compile-check",
+        action="store_true",
+        help="Skip local compiler support validation for changed embedded screen intents.",
+    )
+    diff_app_parser.set_defaults(func=_diff_app_command)
+
+    compile_app_parser = subparsers.add_parser("compile-app", help="Compile a local AppBundle into a Static Shell V0 artifact.")
+    compile_app_parser.add_argument("input", help="Input strict AppBundle .json file.")
+    compile_app_parser.add_argument("--out", default=APP_SHELL_DEFAULT_OUT, help="Static app shell output directory.")
+    compile_app_parser.add_argument("--design", help="Optional DESIGN.md file to apply to every embedded screen intent.")
+    compile_app_parser.add_argument("--strict-design", action="store_true", help="Fail on DESIGN.md warnings as well as errors.")
+    compile_app_parser.add_argument("--force", action="store_true", help="Replace an existing app shell output directory after safety checks.")
+    compile_app_parser.add_argument("--target", default=APP_SHELL_TARGET, choices=(APP_SHELL_TARGET,), help="Static shell target.")
+    compile_app_parser.add_argument("--json", action="store_true", help="Print machine-readable JSON.")
+    compile_app_parser.set_defaults(func=_compile_app_command)
+
     init_parser = subparsers.add_parser("init-design", help="Write a starter strict DESIGN.md file.")
     init_parser.add_argument("--out", default="DESIGN.md", help="Output DESIGN.md path.")
     init_parser.add_argument("--force", action="store_true", help="Overwrite an existing file.")
@@ -159,6 +219,17 @@ def _build_parser() -> argparse.ArgumentParser:
     prove_parser.add_argument("--report-out", help="Optional JSON proof report path. Defaults to <out>/proof_report.json.")
     prove_parser.add_argument("--json", action="store_true", help="Print machine-readable JSON.")
     prove_parser.set_defaults(func=_prove_command)
+
+    prove_app_parser = subparsers.add_parser("prove-app", help="Run a local AppBundle proof and write an app proof bundle.")
+    prove_app_parser.add_argument("--app", required=True, help="Input AppBundle JSON file.")
+    prove_app_parser.add_argument("--out", default=APP_BUNDLE_DEFAULT_OUT, help="App proof workspace output directory.")
+    prove_app_parser.add_argument("--design", help="Optional DESIGN.md file to apply to every embedded screen intent.")
+    prove_app_parser.add_argument("--strict-design", action="store_true", help="Fail on DESIGN.md warnings as well as errors.")
+    prove_app_parser.add_argument("--force", action="store_true", help="Replace an existing app proof output directory after safety checks.")
+    prove_app_parser.add_argument("--report-out", help="Optional JSON app proof report path. Defaults to <out>/app_proof_report.json.")
+    prove_app_parser.add_argument("--with-shell", action="store_true", help="Also write and prove a Static Shell V0 artifact under <out>/app-shell/.")
+    prove_app_parser.add_argument("--json", action="store_true", help="Print machine-readable JSON.")
+    prove_app_parser.set_defaults(func=_prove_app_command)
 
     check_parser = subparsers.add_parser("check", help="Validate a local ViewSpec artifact directory.")
     check_parser.add_argument("artifact_dir", help="Directory containing provenance_manifest.json and generated artifact output.")
@@ -392,6 +463,136 @@ def _diff_intent_command(args: argparse.Namespace) -> int:
     return 0 if payload["ok"] else 2
 
 
+def _init_app_command(args: argparse.Namespace) -> int:
+    binding_mode = {
+        "unbound-v0": APP_BUNDLE_RESOURCE_BINDING,
+        "fixture-readonly-v0": APP_BUNDLE_RESOURCE_BINDING_READONLY,
+    }[args.resource_binding]
+    path = init_app_file(args.out, kind=args.kind, force=args.force, resource_binding=binding_mode)
+    print(str(path))
+    return 0
+
+
+def _validate_app_command(args: argparse.Namespace) -> int:
+    compile_check = not args.no_compile_check
+    try:
+        payload = validate_app_file(args.input, compile_check=compile_check)
+    except FileNotFoundError:
+        payload = {
+            "schema_version": 1,
+            "ok": False,
+            "compile_check": "skipped" if not compile_check else "failed",
+            "resource_binding": "unknown",
+            "summary": None,
+            "route_assertions": None,
+            "raw_bytes": 0,
+            "limits": {},
+            "issues": [
+                {
+                    "severity": "error",
+                    "code": "APP_FILE_NOT_FOUND",
+                    "path": "$",
+                    "message": f"AppBundle file not found: {args.input}",
+                    "suggestion": "Create viewspec.app.json or pass the correct AppBundle file path.",
+                }
+            ],
+        }
+    except OSError as exc:
+        payload = {
+            "schema_version": 1,
+            "ok": False,
+            "compile_check": "skipped" if not compile_check else "failed",
+            "resource_binding": "unknown",
+            "summary": None,
+            "route_assertions": None,
+            "raw_bytes": 0,
+            "limits": {},
+            "issues": [
+                {
+                    "severity": "error",
+                    "code": "APP_FILE_READ_ERROR",
+                    "path": "$",
+                    "message": f"Could not read AppBundle file {args.input}: {exc}",
+                    "suggestion": "Use a readable local AppBundle JSON file.",
+                }
+            ],
+        }
+    if args.json:
+        print(json.dumps(payload, indent=2, sort_keys=True))
+    elif payload["ok"]:
+        summary = payload.get("summary") or {}
+        print(f"ok: compile_check={payload['compile_check']} screens={summary.get('screen_count')} routes={summary.get('route_count')}")
+    else:
+        print(f"failed: compile_check={payload['compile_check']}")
+        for issue in payload["issues"]:
+            print(f"{issue['severity']}: {issue['code']} at {issue['path']}: {issue['message']}")
+    return 0 if payload["ok"] else 2
+
+
+def _diff_app_command(args: argparse.Namespace) -> int:
+    compile_check = not args.no_compile_check
+    try:
+        payload = diff_app_files(args.left, args.right, compile_check=compile_check)
+    except OSError as exc:
+        payload = {
+            "schema_version": 1,
+            "diff_version": 1,
+            "basis": "app_bundle_v0",
+            "ok": False,
+            "compile_check": "failed",
+            "validation": {"left": None, "right": None},
+            "changes": {
+                "app": {"added": [], "removed": [], "changed": []},
+                "routes": {"added": [], "removed": [], "changed": []},
+                "resources": {"added": [], "removed": [], "changed": []},
+                "screens": {"added": [], "removed": [], "changed": []},
+            },
+            "changed_fields": [],
+            "semantic_changes": {"app_metadata": [], "routes": [], "resources": [], "screens": [], "screen_intents": []},
+            "semantic_summary": [],
+            "screen_intent_diffs": {},
+            "counts": {"routes": {"left": 0, "right": 0}, "resources": {"left": 0, "right": 0}, "screens": {"left": 0, "right": 0}},
+            "topology_similarity": 0.0,
+            "errors": [{"code": "APP_DIFF_INPUT_READ_ERROR", "message": str(exc), "fix": "Pass two readable local AppBundle JSON files."}],
+        }
+    if args.json:
+        print(json.dumps(payload, indent=2, sort_keys=True))
+    elif payload["ok"]:
+        print(f"topology_similarity: {payload['topology_similarity']}")
+        for section, changes in payload["changes"].items():
+            if changes["added"] or changes["removed"] or changes["changed"]:
+                print(f"{section}: +{changes['added']} -{changes['removed']} ~{changes['changed']}")
+        for line in app_semantic_change_lines(payload.get("semantic_changes")):
+            print(f"  {line}")
+    else:
+        print("failed: AppBundle diff could not be computed")
+        for error in payload["errors"]:
+            print(f"{error['code']}: {error['message']}")
+    return 0 if payload["ok"] else 2
+
+
+def _compile_app_command(args: argparse.Namespace) -> int:
+    payload = compile_app(
+        args.input,
+        out_dir=args.out,
+        design_path=args.design,
+        strict_design=args.strict_design,
+        force=args.force,
+        target=args.target,
+    )
+    if args.json:
+        print(json.dumps(payload, indent=2, sort_keys=True))
+    elif payload["ok"]:
+        app = payload.get("app") if isinstance(payload.get("app"), dict) else {}
+        print(f"ok: target={payload['target']} app={app.get('id')} routes={app.get('route_count')} screens={app.get('screen_count')}")
+        print(f"shell_artifact_hash: {payload.get('shell_artifact_hash')}")
+    else:
+        print("failed: Static Shell V0 compile could not be completed")
+        for error in payload["errors"]:
+            print(f"{error['code']}: {error['message']}")
+    return 0 if payload["ok"] else 2
+
+
 def _init_design_command(args: argparse.Namespace) -> int:
     path = init_design_file(args.out, force=args.force)
     print(str(path))
@@ -406,6 +607,7 @@ def _init_intent_command(args: argparse.Namespace) -> int:
 
 def _doctor_command(args: argparse.Namespace) -> int:
     intent_pipeline = _doctor_intent_pipeline()
+    app_bundle_pipeline = _doctor_app_bundle_pipeline()
     checks = {
         "viewspec": True,
         "version": __version__,
@@ -415,6 +617,11 @@ def _doctor_command(args: argparse.Namespace) -> int:
             "init_intent": True,
             "validate_intent": True,
             "diff_intent": True,
+            "init_app": True,
+            "validate_app": True,
+            "diff_app": True,
+            "compile_app": True,
+            "prove_app": True,
             "compile": True,
             "check": True,
             "prove": True,
@@ -423,7 +630,8 @@ def _doctor_command(args: argparse.Namespace) -> int:
             "export_agent_assets": True,
         },
         "intent_pipeline": intent_pipeline,
-        "local_network_policy": "no network calls for validate-intent/compile/lift/diff/diff-intent/check/prove/check-agent-assets/init-intent/init-design/export-agent-assets by default",
+        "app_bundle_pipeline": app_bundle_pipeline,
+        "local_network_policy": "no network calls for validate-intent/validate-app/compile-app/compile/lift/diff/diff-intent/diff-app/check/prove/prove-app/check-agent-assets/init-intent/init-app/init-design/export-agent-assets by default",
     }
     if args.agents:
         checks.update(
@@ -479,6 +687,63 @@ def _doctor_intent_pipeline() -> dict[str, object]:
             "aesthetic_profile_diff": False,
             "semantic_summary": {"ok": False, "helper": "intent_semantic_change_lines", "message": str(exc)},
             "reference_compile": False,
+            "message": str(exc),
+        }
+
+
+def _doctor_app_bundle_pipeline() -> dict[str, object]:
+    try:
+        bundle = starter_app_bundle("internal_tool")
+        text = json.dumps(bundle, sort_keys=True)
+        validation = validate_app_text(text, compile_check=True)
+        bound_bundle = starter_app_bundle("internal_tool", resource_binding=APP_BUNDLE_RESOURCE_BINDING_READONLY)
+        bound_validation = validate_app_text(json.dumps(bound_bundle, sort_keys=True), compile_check=True)
+        if not validation["ok"]:
+            return {
+                "ok": False,
+                "validate_app": False,
+                "compile_check": validation["compile_check"],
+                "diff_app": False,
+                "message": "starter AppBundle failed validation",
+            }
+        diff = diff_app_text(text, text, compile_check=False)
+        semantic_summary = app_semantic_change_lines(diff.get("semantic_changes"))
+        return {
+            "ok": bool(diff["ok"] and semantic_summary == [] and bound_validation["ok"]),
+            "validate_app": True,
+            "validate_bound_app": bool(bound_validation["ok"]),
+            "compile_check": validation["compile_check"],
+            "bound_compile_check": bound_validation["compile_check"],
+            "diff_app": bool(diff["ok"]),
+            "compile_app": True,
+            "static_shell_target": APP_SHELL_TARGET,
+            "route_navigation": "static_shell_v0",
+            "semantic_summary": {
+                "ok": semantic_summary == [],
+                "semantic_changes_key": "semantic_changes",
+                "mcp_result_key": "semantic_summary",
+                "python_helper": "app_semantic_change_lines",
+                "semantic_change_count": len(semantic_summary),
+                "summary_lines": semantic_summary,
+            },
+            "resource_binding": validation["resource_binding"],
+            "fixture_readonly_resource_binding": bound_validation["resource_binding"],
+            "binding_scope": bound_validation.get("binding_scope"),
+            "binding_assertion_count": (
+                bound_validation.get("resource_binding_validation", {}).get("assertion_count")
+                if isinstance(bound_validation.get("resource_binding_validation"), dict)
+                else 0
+            ),
+            "route_assertions": validation["route_assertions"],
+            "screen_count": validation["summary"]["screen_count"] if isinstance(validation.get("summary"), dict) else 0,
+        }
+    except Exception as exc:
+        return {
+            "ok": False,
+            "validate_app": False,
+            "compile_check": "failed",
+            "diff_app": False,
+            "semantic_summary": {"ok": False, "helper": "app_semantic_change_lines", "message": str(exc)},
             "message": str(exc),
         }
 
@@ -606,6 +871,37 @@ def _prove_command(args: argparse.Namespace) -> int:
     if result["ok"]:
         return 0
     if any(error.get("code") == "PROVE_INTERNAL_ERROR" for error in result["errors"]):
+        return 1
+    return 2
+
+
+def _prove_app_command(args: argparse.Namespace) -> int:
+    result = prove_app(
+        app_path=args.app,
+        out_dir=args.out,
+        design_path=args.design,
+        strict_design=bool(args.strict_design),
+        force=bool(args.force),
+        report_out=args.report_out,
+        with_shell=bool(args.with_shell),
+    )
+    if args.json:
+        print(json.dumps(result, indent=2, sort_keys=True))
+    else:
+        print("ok" if result["ok"] else "failed")
+        print(f"proof_level: {result['proof_level']}")
+        print(f"target: {result['target']}")
+        app = result.get("app") or {}
+        if isinstance(app, dict):
+            print(f"app: {app.get('id')} screens={app.get('screen_count')} routes={app.get('route_count')}")
+        for key, value in result.get("paths", {}).items():
+            if value:
+                print(f"{key}: {value}")
+        for error in result["errors"]:
+            print(f"error: {error['code']}: {error['message']}")
+    if result["ok"]:
+        return 0
+    if any(error.get("code") in {"APP_PROOF_INTERNAL_ERROR", "APP_SHELL_INTERNAL_ERROR"} for error in result["errors"]):
         return 1
     return 2
 

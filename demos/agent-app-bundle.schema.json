@@ -1,0 +1,336 @@
+{
+  "$defs": {
+    "app": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/safe_id"
+        },
+        "kind": {
+          "enum": [
+            "internal_tool"
+          ]
+        },
+        "root_route": {
+          "maxLength": 96,
+          "pattern": "^/[A-Za-z0-9_.~\\-/]*$",
+          "type": "string"
+        },
+        "title": {
+          "$ref": "#/$defs/safe_string"
+        }
+      },
+      "required": [
+        "id",
+        "title",
+        "kind",
+        "root_route"
+      ],
+      "type": "object"
+    },
+    "app_bundle_v1": {
+      "additionalProperties": false,
+      "properties": {
+        "app": {
+          "$ref": "#/$defs/app"
+        },
+        "resources": {
+          "$ref": "#/$defs/resources"
+        },
+        "routes": {
+          "$ref": "#/$defs/routes"
+        },
+        "schema_version": {
+          "const": 1
+        },
+        "screens": {
+          "items": {
+            "$ref": "#/$defs/screen_v1"
+          },
+          "maxItems": 16,
+          "minItems": 1,
+          "type": "array"
+        }
+      },
+      "required": [
+        "schema_version",
+        "app",
+        "routes",
+        "resources",
+        "screens"
+      ],
+      "type": "object"
+    },
+    "app_bundle_v2": {
+      "additionalProperties": false,
+      "properties": {
+        "app": {
+          "$ref": "#/$defs/app"
+        },
+        "resource_binding": {
+          "const": "fixture_readonly_v0"
+        },
+        "resources": {
+          "$ref": "#/$defs/resources"
+        },
+        "routes": {
+          "$ref": "#/$defs/routes"
+        },
+        "schema_version": {
+          "const": 2
+        },
+        "screens": {
+          "items": {
+            "$ref": "#/$defs/screen_v2"
+          },
+          "maxItems": 16,
+          "minItems": 1,
+          "type": "array"
+        }
+      },
+      "required": [
+        "schema_version",
+        "resource_binding",
+        "app",
+        "routes",
+        "resources",
+        "screens"
+      ],
+      "type": "object"
+    },
+    "fixture_record": {
+      "additionalProperties": {
+        "anyOf": [
+          {
+            "maxLength": 2048,
+            "type": "string"
+          },
+          {
+            "type": "number"
+          },
+          {
+            "type": "boolean"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "maxProperties": 32,
+      "propertyNames": {
+        "maxLength": 96,
+        "pattern": "^[A-Za-z0-9_.-]+$"
+      },
+      "type": "object"
+    },
+    "intent_bundle": {
+      "description": "Embedded local V1 IntentBundle. validate-app/prove-app enforce the full local V1 validator.",
+      "type": "object"
+    },
+    "resource": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/safe_id"
+        },
+        "kind": {
+          "enum": [
+            "fixture"
+          ]
+        },
+        "records": {
+          "items": {
+            "$ref": "#/$defs/fixture_record"
+          },
+          "maxItems": 100,
+          "type": "array"
+        }
+      },
+      "required": [
+        "id",
+        "kind",
+        "records"
+      ],
+      "type": "object"
+    },
+    "resource_view": {
+      "additionalProperties": false,
+      "properties": {
+        "fields": {
+          "items": {
+            "$ref": "#/$defs/safe_id"
+          },
+          "maxItems": 16,
+          "minItems": 1,
+          "type": "array"
+        },
+        "id": {
+          "$ref": "#/$defs/safe_id"
+        },
+        "mode": {
+          "const": "list"
+        },
+        "record_ids": {
+          "items": {
+            "$ref": "#/$defs/safe_id"
+          },
+          "maxItems": 50,
+          "minItems": 1,
+          "type": "array"
+        },
+        "resource_id": {
+          "$ref": "#/$defs/safe_id"
+        },
+        "target_motif_id": {
+          "$ref": "#/$defs/safe_id"
+        }
+      },
+      "required": [
+        "id",
+        "resource_id",
+        "mode",
+        "record_ids",
+        "fields",
+        "target_motif_id"
+      ],
+      "type": "object"
+    },
+    "resources": {
+      "items": {
+        "$ref": "#/$defs/resource"
+      },
+      "maxItems": 8,
+      "type": "array"
+    },
+    "route": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/safe_id"
+        },
+        "label": {
+          "$ref": "#/$defs/safe_string"
+        },
+        "path": {
+          "maxLength": 96,
+          "pattern": "^/[A-Za-z0-9_.~\\-/]*$",
+          "type": "string"
+        },
+        "screen_id": {
+          "$ref": "#/$defs/safe_id"
+        }
+      },
+      "required": [
+        "id",
+        "path",
+        "label",
+        "screen_id"
+      ],
+      "type": "object"
+    },
+    "routes": {
+      "items": {
+        "$ref": "#/$defs/route"
+      },
+      "maxItems": 32,
+      "minItems": 1,
+      "type": "array"
+    },
+    "safe_id": {
+      "maxLength": 96,
+      "pattern": "^[A-Za-z0-9_.-]+$",
+      "type": "string"
+    },
+    "safe_string": {
+      "maxLength": 2048,
+      "type": "string"
+    },
+    "screen_v1": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/safe_id"
+        },
+        "intent_bundle": {
+          "$ref": "#/$defs/intent_bundle"
+        },
+        "title": {
+          "$ref": "#/$defs/safe_string"
+        }
+      },
+      "required": [
+        "id",
+        "title",
+        "intent_bundle"
+      ],
+      "type": "object"
+    },
+    "screen_v2": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/safe_id"
+        },
+        "intent_bundle": {
+          "$ref": "#/$defs/intent_bundle"
+        },
+        "resource_views": {
+          "items": {
+            "$ref": "#/$defs/resource_view"
+          },
+          "maxItems": 8,
+          "type": "array"
+        },
+        "title": {
+          "$ref": "#/$defs/safe_string"
+        }
+      },
+      "required": [
+        "id",
+        "title",
+        "resource_views",
+        "intent_bundle"
+      ],
+      "type": "object"
+    }
+  },
+  "$id": "https://viewspec.dev/agent-app-bundle.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "description": "Local-only multi-screen app contract with embedded IntentBundles, static routes, V1 unbound fixtures, and V2 read-only fixture binding proof.",
+  "oneOf": [
+    {
+      "$ref": "#/$defs/app_bundle_v1"
+    },
+    {
+      "$ref": "#/$defs/app_bundle_v2"
+    }
+  ],
+  "title": "ViewSpec Agent AppBundle V1/V2",
+  "x-viewspec-anti-goals": [
+    "No runtime browser navigation proof.",
+    "No dynamic routes, route params, query strings, hashes, redirects, guards, nested routers, or locale routing.",
+    "No runtime data binding, reducers, mutations, adapters, API clients, backend, or deployable framework generation.",
+    "No transformed, localized, formatted, joined, sorted, filtered, paginated, grouped, or aggregated fixture proof.",
+    "No whole-app data-flow consistency proof beyond explicitly declared resource_views.",
+    "No accessibility, pixel-perfect, cross-browser, production deployment, arbitrary host-app, or hosted extended compiler certification."
+  ],
+  "x-viewspec-binding-scope": "declared_resource_views_only",
+  "x-viewspec-embedded-intent-schema": "https://viewspec.dev/agent-intent-bundle.schema.json",
+  "x-viewspec-invariants": [
+    "AppBundles are local-only and no-network.",
+    "schema_version 1 rejects resource_binding and resource_views, and reports unbound_v0.",
+    "schema_version 2 requires resource_binding fixture_readonly_v0 and per-screen resource_views.",
+    "Routes are static canonical paths only and must map to declared screens.",
+    "The root route must resolve to exactly one route.",
+    "Every screen must be reachable by at least one static route.",
+    "V2 binding proof is exact byte-for-byte fixture scalar visibility in declared target motifs only.",
+    "Every embedded screen intent must validate against the local V1 IntentBundle contract.",
+    "Unknown AppBundle-owned fields are rejected instead of ignored.",
+    "Proof output paths are derived from validated safe ids only."
+  ],
+  "x-viewspec-resource-binding": "unbound_v0",
+  "x-viewspec-resource-bindings": [
+    "unbound_v0",
+    "fixture_readonly_v0"
+  ]
+}

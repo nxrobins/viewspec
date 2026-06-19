@@ -132,7 +132,7 @@ semantic_summary = intent_semantic_change_lines(diff["semantic_changes"])
 
 `viewspec compile` performs the same intent validation before writing output files. If compilation returns an intent validation payload, feed its `correction_prompt` back to the agent and regenerate the full IntentBundle instead of patching fragments.
 
-Use `viewspec doctor` in local setup checks. It reports the available intent-first commands, runs starter IntentBundle validation/compile/diff, aesthetic-profile diff, and semantic summary smoke checks, verifies `PyYAML`, and states that local validation, compile, lift, diff, check, check-agent-assets, scaffold, and agent-asset export commands make no SDK network calls. `viewspec doctor --agents` also reports managed instruction templates, local agent prompt/schema/example/manifest asset identity and hashes, local `.viewspec` asset status, published static asset status when `demos/agent-assets.json` is present, the optional MCP dependency, MCP install hint, and cwd path containment policy.
+Use `viewspec doctor` in local setup checks. It reports the available intent-first commands, runs starter IntentBundle validation/compile/diff, AppBundle validation/diff, aesthetic-profile diff, and semantic summary smoke checks, verifies `PyYAML`, and states that local validation, compile, lift, diff, check, check-agent-assets, scaffold, app proof, and agent-asset export commands make no SDK network calls. `viewspec doctor --agents` also reports managed instruction templates, local agent prompt/schema/example/manifest asset identity and hashes, local `.viewspec` asset status, published static asset status when `demos/agent-assets.json` is present, the optional MCP dependency, MCP install hint, and cwd path containment policy.
 
 `viewspec check` treats the compiled artifact as a proof boundary. For IntentBundle artifacts, DOM `data-ir-id`, `data-binding-id`, and `data-action-id` values must agree with `provenance_manifest.json`; binding/action ids cannot be duplicated; binding nodes must retain source `content_refs`; and binding/action manifest entries must include the matching `viewspec:binding:*` or `viewspec:action:*` intent ref. Human check output prints the bounded manifest summary, including root aesthetic profile, compact style-delta counts, and checked aesthetic layout columns/spans when present; `viewspec check --json` returns the same summary for tools.
 
@@ -148,26 +148,49 @@ Use `viewspec diff-intent old.intent.json new.intent.json --json` to review agen
 
 This is intentionally not a visual equivalence proof. It tells reviewers what changed in the declared UI intent before they inspect compiled HTML, React, SwiftUI, Flutter, or other emitter artifacts.
 
+## AppBundle V1/V2
+
+Use AppBundle JSON for the first narrow multi-screen internal-tool app-generation contract. Agents still emit strict JSON, but the source file is `viewspec.app.json`: app metadata, static routes, fixture resources, and embedded local V1 `IntentBundle`s for each screen. `schema_version: 1` reports `resource_binding: "unbound_v0"`; `schema_version: 2` adds proof-only `resource_binding: "fixture_readonly_v0"` with declared per-screen `resource_views`.
+
+```bash
+viewspec init-app --out viewspec.app.json
+viewspec init-app --resource-binding fixture-readonly-v0 --out viewspec.bound.app.json
+viewspec validate-app viewspec.app.json --json
+viewspec diff-app old.app.json new.app.json --json
+viewspec compile-app viewspec.app.json --out app-dist --target html-tailwind-app --json
+viewspec prove-app --app viewspec.app.json --out .viewspec-app-proof --with-shell --json
+```
+
+The AppBundle contract is physically bounded: 1 MiB raw JSON, 16 screens, 32 routes, 8 fixture resources, 100 records per resource, 32 scalar fields per record, 2,048 characters per scalar string, 256 KiB per embedded `IntentBundle`, and 1 MiB aggregate embedded intent JSON. V2 binding adds max 32 resource views per app, 8 per screen, 50 record refs per view, 16 fields per view, 800 record-field assertions, and 128 KiB serialized assertion report. Routes are static canonical paths only; route paths never become proof output paths. AppBundle-owned objects reject unknown fields and no-network surfaces. Embedded screen intents must pass the existing local V1 validator.
+
+`prove-app` writes `.viewspec-app-proof/APP_PROOF.md`, `.viewspec-app-proof/app_proof_report.json`, `.viewspec-app-proof/app_support_bundle.json`, and per-screen `viewspec.intent.json`, `artifact/index.html`, `provenance_manifest.json`, and `diagnostics.json`. The proof report uses `proof_level: "app_contract_source_artifacts"`, `target: "html-tailwind"`, the validated resource binding mode, and for V2 includes `binding_scope: "declared_resource_views_only"`, assertion counts, per-view status, and a binding digest.
+
+Static Shell V0 consumes the same validated AppBundle contract and writes a local shell artifact with `target: "html-tailwind-app"` and `route_navigation: "static_shell_v0"`. `compile-app` writes `app-dist/index.html`, `shell_manifest.json`, `diagnostics.json`, and checked screen artifacts; `prove-app --with-shell` writes the same byte-identical shell under `.viewspec-app-proof/app-shell/` and records `shell_artifact_hash`, `shell_manifest_hash`, no-network policy, route assertions, resource binding assertions when V2 is enabled, and per-screen proof data. Static Shell V0 is bounded to 16 screens, 32 routes, 2 MiB shell HTML, 64 KiB shell JS, 64 KiB serialized route table, and 8 MiB aggregate embedded checked screen HTML; it rejects external network/embed/script surfaces and generated framework/backend/state/mutation files.
+
+AppBundle proof does not prove runtime browser navigation, dynamic routes, runtime data binding, transformed fixture values, deployable app scaffolding, reducers, API clients, backends, mutations, accessibility certification, pixel-perfect visual equivalence, arbitrary host-app compatibility, or hosted extended compiler behavior.
+
 ## Published Agent Artifacts
 
-These assets use agent asset schema version `4`. The manifest declares the `local_v1` contract profile plus the export/check commands agents should use for local verification.
+These assets use agent asset schema version `6`. The manifest declares the `local_v1` contract profile plus the export/check commands agents should use for local verification.
 
 - Asset manifest: `https://viewspec.dev/agent-assets.json`
 - System prompt: `https://viewspec.dev/agent-system-prompt.txt`
 - JSON schema: `https://viewspec.dev/agent-intent-bundle.schema.json`
 - Valid starter example: `https://viewspec.dev/agent-intent-example.dashboard.json`
+- AppBundle V1/V2 schema: `https://viewspec.dev/agent-app-bundle.schema.json`
+- AppBundle internal-tool example: `https://viewspec.dev/agent-app-example.internal-tool.json`
 - Hosted compiler OpenAPI: `https://viewspec.dev/openapi.json`
 - LLM summary: `https://viewspec.dev/llms.txt`
 - Expanded AI context: `https://viewspec.dev/llms-full.txt`
 
-For local-only setup, export the asset manifest, prompt, schema, and valid example from the installed SDK instead of fetching hosted static assets:
+For local-only setup, export the asset manifest, prompt, schemas, and valid examples from the installed SDK instead of fetching hosted static assets:
 
 ```bash
 viewspec export-agent-assets --out .viewspec
 viewspec check-agent-assets .viewspec --json
 ```
 
-The export command writes `.viewspec/agent-assets.json`, `.viewspec/agent-system-prompt.txt`, `.viewspec/agent-intent-bundle.schema.json`, and `.viewspec/agent-intent-example.dashboard.json`, refuses to overwrite edited files unless `--force` is passed, and performs no network calls. The check command verifies those files against the current SDK contract.
+The export command writes `.viewspec/agent-assets.json`, `.viewspec/agent-system-prompt.txt`, `.viewspec/agent-intent-bundle.schema.json`, `.viewspec/agent-intent-example.dashboard.json`, `.viewspec/agent-app-bundle.schema.json`, and `.viewspec/agent-app-example.internal-tool.json`, refuses to overwrite edited files unless `--force` is passed, and performs no network calls. The check command verifies those files against the current SDK contract.
 
 ## Minimal IntentBundle Example
 

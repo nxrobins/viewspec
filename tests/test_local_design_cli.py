@@ -539,6 +539,10 @@ def test_cli_init_design_doctor_and_check_tamper(tmp_path, capsys):
     assert checks["pyyaml"] is True
     assert checks["intent_first_commands"]["validate_intent"] is True
     assert checks["intent_first_commands"]["diff_intent"] is True
+    assert checks["intent_first_commands"]["validate_app"] is True
+    assert checks["intent_first_commands"]["diff_app"] is True
+    assert checks["intent_first_commands"]["compile_app"] is True
+    assert checks["intent_first_commands"]["prove_app"] is True
     assert checks["intent_first_commands"]["export_agent_assets"] is True
     assert checks["intent_pipeline"]["ok"] is True
     assert checks["intent_pipeline"]["compile_check"] == "passed"
@@ -556,8 +560,21 @@ def test_cli_init_design_doctor_and_check_tamper(tmp_path, capsys):
         ),
         "styles.aesthetic_profile: token_changed aesthetic.calm_ops -> aesthetic.executive_review",
     ]
+    assert checks["app_bundle_pipeline"]["ok"] is True
+    assert checks["app_bundle_pipeline"]["validate_app"] is True
+    assert checks["app_bundle_pipeline"]["diff_app"] is True
+    assert checks["app_bundle_pipeline"]["compile_app"] is True
+    assert checks["app_bundle_pipeline"]["static_shell_target"] == "html-tailwind-app"
+    assert checks["app_bundle_pipeline"]["route_navigation"] == "static_shell_v0"
+    assert checks["app_bundle_pipeline"]["resource_binding"] == "unbound_v0"
+    assert checks["app_bundle_pipeline"]["route_assertions"]["all_routes_resolve"] is True
+    assert checks["app_bundle_pipeline"]["semantic_summary"]["python_helper"] == "app_semantic_change_lines"
     assert "validate-intent" in checks["local_network_policy"]
+    assert "validate-app" in checks["local_network_policy"]
+    assert "compile-app" in checks["local_network_policy"]
     assert "diff-intent" in checks["local_network_policy"]
+    assert "diff-app" in checks["local_network_policy"]
+    assert "prove-app" in checks["local_network_policy"]
     assert "export-agent-assets" in checks["local_network_policy"]
     assert "check" in checks["local_network_policy"]
 
