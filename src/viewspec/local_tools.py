@@ -581,6 +581,10 @@ def export_agent_assets_tool(
                 paths["schema"] = str(output / filename)
             elif filename == "agent-intent-example.dashboard.json":
                 paths["example"] = str(output / filename)
+            elif filename == "agent-app-bundle.schema.json":
+                paths["app_schema"] = str(output / filename)
+            elif filename == "agent-app-example.internal-tool.json":
+                paths["app_example"] = str(output / filename)
         changed = [item for item in result["files"] if item["action"] != "unchanged"]
         return tool_response(
             True,
@@ -590,8 +594,10 @@ def export_agent_assets_tool(
             next_actions=[
                 "Verify .viewspec/agent-assets.json when reusing exported assets.",
                 "Point schema-aware editors or agents at .viewspec/agent-intent-bundle.schema.json.",
+                "Point app-aware agents at .viewspec/agent-app-bundle.schema.json for multi-screen AppBundle V1/V2.",
                 "Use .viewspec/agent-system-prompt.txt as the local ViewSpec agent contract prompt.",
                 "Use .viewspec/agent-intent-example.dashboard.json as a valid wire-shape example.",
+                "Use .viewspec/agent-app-example.internal-tool.json as a valid AppBundle wire-shape example.",
             ],
             metadata={**path_policy_metadata(root, allow_outside_cwd), "dry_run": dry_run, "changes": len(changed)},
         )
@@ -842,11 +848,12 @@ def _load_optional_design(
     *,
     cwd: Path,
     allow_outside_cwd: bool,
+    strict: bool = False,
 ) -> DesignSystemContext | None:
     if design_path is None:
         return None
     resolved = resolve_local_path(design_path, cwd=cwd, allow_outside_cwd=allow_outside_cwd, must_exist=True)
-    return load_design_system(path=resolved)
+    return load_design_system(path=resolved, strict=strict)
 
 
 def path_policy_metadata(cwd: Path | None, allow_outside_cwd: bool) -> dict[str, Any]:

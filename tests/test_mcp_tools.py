@@ -16,6 +16,7 @@ from viewspec import (
     ViewSpecBuilder,
     profile_style_facts,
 )
+from viewspec.app_bundle import AGENT_APP_BUNDLE_SCHEMA, starter_app_bundle
 from viewspec.agent import AGENT_INTENT_BUNDLE_SCHEMA, AGENT_SYSTEM_PROMPT
 from viewspec.cli import main as cli_main
 from viewspec.emitters.html_tailwind import ACTION_EVENT_SCRIPT
@@ -209,6 +210,10 @@ def test_doctor_agents_reports_missing_optional_mcp(capsys):
     assert "viewspec[agents]" in output
     assert checks["intent_first_commands"]["validate_intent"] is True
     assert checks["intent_first_commands"]["diff_intent"] is True
+    assert checks["intent_first_commands"]["validate_app"] is True
+    assert checks["intent_first_commands"]["diff_app"] is True
+    assert checks["intent_first_commands"]["compile_app"] is True
+    assert checks["intent_first_commands"]["prove_app"] is True
     assert checks["intent_first_commands"]["check_agent_assets"] is True
     assert checks["intent_first_commands"]["export_agent_assets"] is True
     assert checks["intent_pipeline"]["ok"] is True
@@ -218,6 +223,16 @@ def test_doctor_agents_reports_missing_optional_mcp(capsys):
     assert checks["intent_pipeline"]["semantic_summary"]["mcp_result_key"] == "semantic_summary"
     assert checks["intent_pipeline"]["semantic_summary"]["python_helper"] == "intent_semantic_change_lines"
     assert checks["intent_pipeline"]["semantic_summary"]["semantic_change_count"] == 2
+    assert checks["app_bundle_pipeline"]["ok"] is True
+    assert checks["app_bundle_pipeline"]["validate_app"] is True
+    assert checks["app_bundle_pipeline"]["diff_app"] is True
+    assert checks["app_bundle_pipeline"]["compile_app"] is True
+    assert checks["app_bundle_pipeline"]["static_shell_target"] == "html-tailwind-app"
+    assert checks["app_bundle_pipeline"]["route_navigation"] == "static_shell_v0"
+    assert checks["app_bundle_pipeline"]["resource_binding"] == "unbound_v0"
+    assert checks["app_bundle_pipeline"]["route_assertions"]["root_route_resolves"] is True
+    assert checks["app_bundle_pipeline"]["semantic_summary"]["mcp_result_key"] == "semantic_summary"
+    assert checks["app_bundle_pipeline"]["semantic_summary"]["python_helper"] == "app_semantic_change_lines"
     assert checks["agent_contract_assets"]["ok"] is True
     assert checks["agent_contract_assets"]["schema_version"] == AGENT_ASSET_SCHEMA_VERSION
     assert checks["agent_contract_assets"]["contract_profile"] == AGENT_ASSET_CONTRACT_PROFILE
@@ -225,7 +240,10 @@ def test_doctor_agents_reports_missing_optional_mcp(capsys):
     assert checks["agent_contract_assets"]["system_prompt_file"] == "agent-system-prompt.txt"
     assert checks["agent_contract_assets"]["intent_schema_file"] == "agent-intent-bundle.schema.json"
     assert checks["agent_contract_assets"]["intent_example_file"] == "agent-intent-example.dashboard.json"
+    assert checks["agent_contract_assets"]["app_schema_file"] == "agent-app-bundle.schema.json"
+    assert checks["agent_contract_assets"]["app_example_file"] == "agent-app-example.internal-tool.json"
     assert checks["agent_contract_assets"]["intent_schema_id"] == "https://viewspec.dev/agent-intent-bundle.schema.json"
+    assert checks["agent_contract_assets"]["app_schema_id"] == "https://viewspec.dev/agent-app-bundle.schema.json"
     assert checks["agent_contract_assets"]["export_command"] == AGENT_ASSET_EXPORT_COMMAND
     assert checks["agent_contract_assets"]["check_command"] == AGENT_ASSET_CHECK_COMMAND
     assert checks["agent_contract_assets"]["network_policy"] == AGENT_ASSET_NETWORK_POLICY
@@ -233,6 +251,8 @@ def test_doctor_agents_reports_missing_optional_mcp(capsys):
     assert len(checks["agent_contract_assets"]["system_prompt_sha256"]) == 64
     assert len(checks["agent_contract_assets"]["intent_schema_sha256"]) == 64
     assert len(checks["agent_contract_assets"]["intent_example_sha256"]) == 64
+    assert len(checks["agent_contract_assets"]["app_schema_sha256"]) == 64
+    assert len(checks["agent_contract_assets"]["app_example_sha256"]) == 64
     assert checks["published_agent_assets"]["ok"] is True
     assert checks["published_agent_assets"]["status"] == "present"
     assert checks["published_agent_assets"]["schema_version"] == AGENT_ASSET_SCHEMA_VERSION
@@ -242,7 +262,11 @@ def test_doctor_agents_reports_missing_optional_mcp(capsys):
     assert checks["local_agent_assets"]["status"] in {"not_found", "present"}
     assert checks["path_policy"] == "cwd containment by default"
     assert "validate-intent" in checks["local_network_policy"]
+    assert "validate-app" in checks["local_network_policy"]
+    assert "compile-app" in checks["local_network_policy"]
     assert "diff-intent" in checks["local_network_policy"]
+    assert "diff-app" in checks["local_network_policy"]
+    assert "prove-app" in checks["local_network_policy"]
     assert "check-agent-assets" in checks["local_network_policy"]
     assert "export-agent-assets" in checks["local_network_policy"]
     if exit_code == 2:
@@ -286,11 +310,13 @@ def test_export_agent_assets_tool_writes_prompt_and_schema(tmp_path):
     assert_tool_schema(exported)
     assert exported["ok"] is True
     assert exported["metadata"]["network_calls"] == "none"
-    assert exported["metadata"]["changes"] == 4
+    assert exported["metadata"]["changes"] == 6
     assert exported["paths"]["manifest"].endswith("agent-assets.json")
     assert exported["paths"]["prompt"].endswith("agent-system-prompt.txt")
     assert exported["paths"]["schema"].endswith("agent-intent-bundle.schema.json")
     assert exported["paths"]["example"].endswith("agent-intent-example.dashboard.json")
+    assert exported["paths"]["app_schema"].endswith("agent-app-bundle.schema.json")
+    assert exported["paths"]["app_example"].endswith("agent-app-example.internal-tool.json")
     assert (tmp_path / ".viewspec/agent-system-prompt.txt").read_text(encoding="utf-8") == AGENT_SYSTEM_PROMPT
     manifest = json.loads((tmp_path / ".viewspec/agent-assets.json").read_text(encoding="utf-8"))
     assert manifest["schema_version"] == AGENT_ASSET_SCHEMA_VERSION
@@ -301,11 +327,15 @@ def test_export_agent_assets_tool_writes_prompt_and_schema(tmp_path):
     assert exported["assets"]["check_command"] == AGENT_ASSET_CHECK_COMMAND
     assert json.loads((tmp_path / ".viewspec/agent-intent-bundle.schema.json").read_text(encoding="utf-8")) == AGENT_INTENT_BUNDLE_SCHEMA
     assert json.loads((tmp_path / ".viewspec/agent-intent-example.dashboard.json").read_text(encoding="utf-8")) == starter_intent_bundle("dashboard").to_json()
+    assert json.loads((tmp_path / ".viewspec/agent-app-bundle.schema.json").read_text(encoding="utf-8")) == AGENT_APP_BUNDLE_SCHEMA
+    assert json.loads((tmp_path / ".viewspec/agent-app-example.internal-tool.json").read_text(encoding="utf-8")) == starter_app_bundle("internal_tool")
     assert {item["path"]: item["action"] for item in exported["assets"]["files"]} == {
         "agent-assets.json": "create",
         "agent-system-prompt.txt": "create",
         "agent-intent-bundle.schema.json": "create",
         "agent-intent-example.dashboard.json": "create",
+        "agent-app-bundle.schema.json": "create",
+        "agent-app-example.internal-tool.json": "create",
     }
     checked = check_agent_assets_tool(".viewspec", cwd=tmp_path)
     assert_tool_schema(checked)
@@ -336,6 +366,8 @@ def test_export_agent_assets_tool_rejects_conflicts_and_path_escapes(tmp_path):
     assert not (asset_dir / "agent-assets.json").exists()
     assert not (asset_dir / "agent-intent-bundle.schema.json").exists()
     assert not (asset_dir / "agent-intent-example.dashboard.json").exists()
+    assert not (asset_dir / "agent-app-bundle.schema.json").exists()
+    assert not (asset_dir / "agent-app-example.internal-tool.json").exists()
 
     outside = export_agent_assets_tool("../outside-assets", cwd=asset_dir)
 
@@ -1403,6 +1435,12 @@ def test_mcp_raw_html_tool_descriptions_are_import_only():
     assert "target='html-tailwind' for checked standalone HTML" in text
     assert "target='react-tsx' for checked React source" in text
     assert "target='react-tailwind-tsx' for checked React source with closed Tailwind recipes" in text
+    assert "Write a valid starter AppBundle JSON file" in text
+    assert "Validate a local AppBundle JSON file" in text
+    assert "Diff two local AppBundle JSON files" in text
+    assert "Compile a local AppBundle JSON file into a Static Shell V0 artifact" in text
+    assert "Run the local AppBundle proof workflow" in text
+    assert "fixture_readonly_v0" in text
     assert "Run ViewSpec's first proof workflow" in text
     assert "support_bundle.json" in text
     assert "Verify a checked react-tailwind-tsx artifact in ViewSpec's bounded React/Vite/Tailwind host." in text

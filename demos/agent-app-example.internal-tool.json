@@ -1,0 +1,345 @@
+{
+  "app": {
+    "id": "incident_console",
+    "kind": "internal_tool",
+    "root_route": "/",
+    "title": "Incident Console"
+  },
+  "resources": [
+    {
+      "id": "incidents",
+      "kind": "fixture",
+      "records": [
+        {
+          "id": "inc_1042",
+          "severity": "high",
+          "status": "investigating"
+        },
+        {
+          "id": "inc_1043",
+          "severity": "medium",
+          "status": "queued"
+        }
+      ]
+    }
+  ],
+  "routes": [
+    {
+      "id": "queue",
+      "label": "Queue",
+      "path": "/",
+      "screen_id": "queue"
+    },
+    {
+      "id": "detail",
+      "label": "Incident",
+      "path": "/incident",
+      "screen_id": "detail"
+    }
+  ],
+  "schema_version": 1,
+  "screens": [
+    {
+      "id": "queue",
+      "intent_bundle": {
+        "substrate": {
+          "id": "incident_queue_substrate",
+          "nodes": {
+            "inc_1042": {
+              "attrs": {
+                "label": "INC-1042",
+                "value": "High - Investigating"
+              },
+              "edges": {},
+              "id": "inc_1042",
+              "kind": "table_row",
+              "slots": {}
+            },
+            "inc_1043": {
+              "attrs": {
+                "label": "INC-1043",
+                "value": "Medium - Queued"
+              },
+              "edges": {},
+              "id": "inc_1043",
+              "kind": "table_row",
+              "slots": {}
+            },
+            "incident_queue": {
+              "attrs": {
+                "title": "Incident Queue"
+              },
+              "edges": {},
+              "id": "incident_queue",
+              "kind": "app",
+              "slots": {}
+            }
+          },
+          "root_id": "incident_queue"
+        },
+        "view_spec": {
+          "actions": [],
+          "bindings": [
+            {
+              "address": "node:inc_1042#attr:label",
+              "cardinality": "exactly_once",
+              "id": "inc_1042_label",
+              "present_as": "label",
+              "target_region": "main"
+            },
+            {
+              "address": "node:inc_1042#attr:value",
+              "cardinality": "exactly_once",
+              "id": "inc_1042_value",
+              "present_as": "value",
+              "target_region": "main"
+            },
+            {
+              "address": "node:inc_1043#attr:label",
+              "cardinality": "exactly_once",
+              "id": "inc_1043_label",
+              "present_as": "label",
+              "target_region": "main"
+            },
+            {
+              "address": "node:inc_1043#attr:value",
+              "cardinality": "exactly_once",
+              "id": "inc_1043_value",
+              "present_as": "value",
+              "target_region": "main"
+            }
+          ],
+          "complexity_tier": 1,
+          "groups": [
+            {
+              "id": "incident_rows",
+              "kind": "ordered",
+              "members": [
+                "inc_1042_label",
+                "inc_1042_value",
+                "inc_1043_label",
+                "inc_1043_value"
+              ],
+              "target_region": "main"
+            }
+          ],
+          "id": "incident_queue",
+          "motifs": [
+            {
+              "id": "incidents",
+              "kind": "table",
+              "members": [
+                "inc_1042_label",
+                "inc_1042_value",
+                "inc_1043_label",
+                "inc_1043_value"
+              ],
+              "region": "main"
+            }
+          ],
+          "regions": [
+            {
+              "id": "root",
+              "layout": "stack",
+              "max_children": null,
+              "min_children": 1,
+              "parent_region": "",
+              "role": "root"
+            },
+            {
+              "id": "main",
+              "layout": "stack",
+              "max_children": null,
+              "min_children": 1,
+              "parent_region": "root",
+              "role": "main"
+            }
+          ],
+          "root_region": "root",
+          "styles": [],
+          "substrate_id": "incident_queue_substrate"
+        }
+      },
+      "title": "Incident Queue"
+    },
+    {
+      "id": "detail",
+      "intent_bundle": {
+        "substrate": {
+          "id": "incident_detail_substrate",
+          "nodes": {
+            "identifier": {
+              "attrs": {
+                "label": "Incident",
+                "value": "INC-1042"
+              },
+              "edges": {},
+              "id": "identifier",
+              "kind": "detail_field",
+              "slots": {}
+            },
+            "incident_detail": {
+              "attrs": {
+                "title": "Incident Detail"
+              },
+              "edges": {},
+              "id": "incident_detail",
+              "kind": "app",
+              "slots": {}
+            },
+            "owner": {
+              "attrs": {
+                "label": "Owner",
+                "value": "On-call Response"
+              },
+              "edges": {},
+              "id": "owner",
+              "kind": "detail_field",
+              "slots": {}
+            },
+            "severity": {
+              "attrs": {
+                "label": "Severity",
+                "value": "High"
+              },
+              "edges": {},
+              "id": "severity",
+              "kind": "detail_field",
+              "slots": {}
+            },
+            "status": {
+              "attrs": {
+                "label": "Status",
+                "value": "Investigating"
+              },
+              "edges": {},
+              "id": "status",
+              "kind": "detail_field",
+              "slots": {}
+            }
+          },
+          "root_id": "incident_detail"
+        },
+        "view_spec": {
+          "actions": [],
+          "bindings": [
+            {
+              "address": "node:identifier#attr:label",
+              "cardinality": "exactly_once",
+              "id": "identifier_label",
+              "present_as": "label",
+              "target_region": "main"
+            },
+            {
+              "address": "node:identifier#attr:value",
+              "cardinality": "exactly_once",
+              "id": "identifier_value",
+              "present_as": "value",
+              "target_region": "main"
+            },
+            {
+              "address": "node:severity#attr:label",
+              "cardinality": "exactly_once",
+              "id": "severity_label",
+              "present_as": "label",
+              "target_region": "main"
+            },
+            {
+              "address": "node:severity#attr:value",
+              "cardinality": "exactly_once",
+              "id": "severity_value",
+              "present_as": "value",
+              "target_region": "main"
+            },
+            {
+              "address": "node:status#attr:label",
+              "cardinality": "exactly_once",
+              "id": "status_label",
+              "present_as": "label",
+              "target_region": "main"
+            },
+            {
+              "address": "node:status#attr:value",
+              "cardinality": "exactly_once",
+              "id": "status_value",
+              "present_as": "value",
+              "target_region": "main"
+            },
+            {
+              "address": "node:owner#attr:label",
+              "cardinality": "exactly_once",
+              "id": "owner_label",
+              "present_as": "label",
+              "target_region": "main"
+            },
+            {
+              "address": "node:owner#attr:value",
+              "cardinality": "exactly_once",
+              "id": "owner_value",
+              "present_as": "value",
+              "target_region": "main"
+            }
+          ],
+          "complexity_tier": 1,
+          "groups": [
+            {
+              "id": "incident_fields",
+              "kind": "ordered",
+              "members": [
+                "identifier_label",
+                "identifier_value",
+                "severity_label",
+                "severity_value",
+                "status_label",
+                "status_value",
+                "owner_label",
+                "owner_value"
+              ],
+              "target_region": "main"
+            }
+          ],
+          "id": "incident_detail",
+          "motifs": [
+            {
+              "id": "incident",
+              "kind": "detail",
+              "members": [
+                "identifier_label",
+                "identifier_value",
+                "severity_label",
+                "severity_value",
+                "status_label",
+                "status_value",
+                "owner_label",
+                "owner_value"
+              ],
+              "region": "main"
+            }
+          ],
+          "regions": [
+            {
+              "id": "root",
+              "layout": "stack",
+              "max_children": null,
+              "min_children": 1,
+              "parent_region": "",
+              "role": "root"
+            },
+            {
+              "id": "main",
+              "layout": "stack",
+              "max_children": null,
+              "min_children": 1,
+              "parent_region": "root",
+              "role": "main"
+            }
+          ],
+          "root_region": "root",
+          "styles": [],
+          "substrate_id": "incident_detail_substrate"
+        }
+      },
+      "title": "Incident Detail"
+    }
+  ]
+}

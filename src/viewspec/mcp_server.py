@@ -6,6 +6,7 @@ import importlib.util
 from pathlib import Path
 from typing import Any
 
+from viewspec.app_bundle import compile_app_tool, diff_app_files_tool, init_app_tool, prove_app_tool, validate_app_file_tool
 from viewspec.intent_tools import (
     agent_correction_prompt_file_tool,
     compile_intent_bundle_file_tool,
@@ -112,6 +113,74 @@ def run_mcp_server(*, cwd: str | Path | None = None, allow_outside_cwd: bool = F
 
     @app.tool(
         description=(
+            "Write a valid starter AppBundle JSON file for a two-screen internal tool. "
+            "Use resource_binding='unbound_v0' for schema_version 1 or 'fixture_readonly_v0' for schema_version 2 read-only fixture binding."
+        )
+    )
+    def init_app(
+        out: str = "viewspec.app.json",
+        kind: str = "internal_tool",
+        resource_binding: str = "unbound_v0",
+        force: bool = False,
+    ) -> dict[str, Any]:
+        return init_app_tool(out, kind=kind, resource_binding=resource_binding, force=force, cwd=root, allow_outside_cwd=allow_outside_cwd)
+
+    @app.tool(
+        description=(
+            "Validate a local AppBundle JSON file. Checks V1 unbound and V2 fixture-readonly binding contracts, "
+            "static routes, bounded fixture resources, unknown-field rejection, no-network app fields, and embedded local V1 IntentBundles."
+        )
+    )
+    def validate_app_file(path: str, compile_check: bool = True) -> dict[str, Any]:
+        return validate_app_file_tool(
+            path,
+            compile_check=compile_check,
+            cwd=root,
+            allow_outside_cwd=allow_outside_cwd,
+        )
+
+    @app.tool(
+        description=(
+            "Diff two local AppBundle JSON files. Reports app route/screen/resource/resource-view/metadata changes "
+            "and per-screen diff-intent semantic summaries for changed embedded intents."
+        )
+    )
+    def diff_app_files(left_path: str, right_path: str, compile_check: bool = True) -> dict[str, Any]:
+        return diff_app_files_tool(
+            left_path,
+            right_path,
+            compile_check=compile_check,
+            cwd=root,
+            allow_outside_cwd=allow_outside_cwd,
+        )
+
+    @app.tool(
+        description=(
+            "Compile a local AppBundle JSON file into a Static Shell V0 artifact. "
+            "For schema_version 2, also proves declared read-only fixture bindings. Use target='html-tailwind-app' only."
+        )
+    )
+    def compile_app(
+        app_path: str,
+        out_dir: str = "app-dist",
+        design_path: str | None = None,
+        strict_design: bool = False,
+        force: bool = False,
+        target: str = "html-tailwind-app",
+    ) -> dict[str, Any]:
+        return compile_app_tool(
+            app_path,
+            out_dir,
+            design_path=design_path,
+            strict_design=strict_design,
+            force=force,
+            target=target,
+            cwd=root,
+            allow_outside_cwd=allow_outside_cwd,
+        )
+
+    @app.tool(
+        description=(
             "Use only when importing existing HTML; do not use for new UI. "
             "Compile local HTML into a sanitized, themed, checked ViewSpec artifact."
         )
@@ -194,6 +263,34 @@ def run_mcp_server(*, cwd: str | Path | None = None, allow_outside_cwd: bool = F
             install=install,
             force=force,
             report_out=report_out,
+            cwd=root,
+            allow_outside_cwd=allow_outside_cwd,
+        )
+
+    @app.tool(
+        description=(
+            "Run the local AppBundle proof workflow: validate V1 unbound or V2 fixture-readonly contracts, compile/check every "
+            "embedded screen through html-tailwind, write APP_PROOF.md/app_proof_report.json/app_support_bundle.json, and optionally "
+            "prove a Static Shell V0 artifact with with_shell=True."
+        )
+    )
+    def prove_app(
+        app_path: str,
+        out_dir: str = ".viewspec-app-proof",
+        design_path: str | None = None,
+        strict_design: bool = False,
+        force: bool = False,
+        report_out: str | None = None,
+        with_shell: bool = False,
+    ) -> dict[str, Any]:
+        return prove_app_tool(
+            app_path=app_path,
+            out_dir=out_dir,
+            design_path=design_path,
+            strict_design=strict_design,
+            force=force,
+            report_out=report_out,
+            with_shell=with_shell,
             cwd=root,
             allow_outside_cwd=allow_outside_cwd,
         )

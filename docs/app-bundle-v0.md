@@ -1,0 +1,107 @@
+# AppBundle V1/V2
+
+AppBundle is the first narrow app-generation contract for local multi-screen internal tools. It does not emit a deployable app. It records app metadata, static routes, fixture resources, and embedded local V1 screen `IntentBundle`s, then proves each screen by compiling/checking through the existing `html-tailwind` path. `schema_version: 1` keeps fixtures unbound; `schema_version: 2` adds proof-only read-only fixture binding.
+
+```bash
+viewspec init-app --out viewspec.app.json
+viewspec init-app --resource-binding fixture-readonly-v0 --out viewspec.bound.app.json
+viewspec validate-app viewspec.app.json --json
+viewspec diff-app old.app.json new.app.json --json
+viewspec compile-app viewspec.app.json --out app-dist --target html-tailwind-app --json
+viewspec prove-app --app viewspec.app.json --out .viewspec-app-proof --with-shell --json
+viewspec prove-app --app viewspec.app.json --out .viewspec-app-proof --json
+```
+
+## Contract Shape
+
+```json
+{
+  "schema_version": 1,
+  "app": {
+    "id": "incident_console",
+    "title": "Incident Console",
+    "kind": "internal_tool",
+    "root_route": "/"
+  },
+  "routes": [
+    { "id": "queue", "path": "/", "label": "Queue", "screen_id": "queue" },
+    { "id": "detail", "path": "/incident", "label": "Incident", "screen_id": "detail" }
+  ],
+  "resources": [
+    { "id": "incidents", "kind": "fixture", "records": [{ "id": "inc_1042" }] }
+  ],
+  "screens": [
+    { "id": "queue", "title": "Incident Queue", "intent_bundle": {} },
+    { "id": "detail", "title": "Incident Detail", "intent_bundle": {} }
+  ]
+}
+```
+
+`intent_bundle` values must be full local V1 IntentBundles. The schema example above is structural only; use `viewspec init-app` for a valid starter with embedded screen intents.
+
+AppBundle V2 adds required root `resource_binding: "fixture_readonly_v0"` and per-screen `resource_views`:
+
+```json
+{
+  "id": "queue_incidents",
+  "resource_id": "incidents",
+  "mode": "list",
+  "record_ids": ["inc_1042"],
+  "fields": ["id", "severity", "status"],
+  "target_motif_id": "incidents"
+}
+```
+
+V2 validates every resource view against existing fixture resources, unique record ids, existing scalar fields, and an existing target motif id on that screen.
+
+## Constraints & Fallbacks
+
+AppBundle V0 is physically bounded: max 1 MiB raw JSON, 16 screens, 32 routes, 8 fixture resources, 100 records per resource, 32 scalar fields per record, 2,048 characters per scalar string, 256 KiB per embedded IntentBundle, 1 MiB aggregate embedded IntentBundle JSON, 256 KiB app proof report, and 16 KiB redacted support bundle. Validation fails closed with stable error codes before writing proof artifacts when any bound is exceeded.
+
+Routes are static and canonical only: paths are unique, at most 96 characters, start with `/`, contain only letters, digits, `_`, `.`, `~`, `-`, and `/`, and must not contain `//`, `/../`, `/./`, `%`, `?`, `#`, or `\`. Proof output paths derive only from validated safe ids, never route paths, labels, titles, resource values, or user copy.
+
+AppBundle V0 is local-only and no-network. AppBundle-owned fields reject URL schemes, environment references, credentials, adapter config, fetch config, mutation definitions, package-install flags, hosted compiler behavior, and unknown fields.
+
+Embedded screen intents pass the existing local V1 IntentBundle validator with compile check enabled by default. Fixture resources are recorded and bounded for app context but remain `resource_binding: "unbound_v0"` and are not required to match, feed, deduplicate, or prove data consistency with embedded screen intents.
+
+Resource Binding V0 is physically bounded and proof-only: max 32 resource views per app, 8 per screen, 50 record refs per view, 16 fields per view, 800 record-field assertions per app, and 128 KiB serialized assertion report. Assertions use only compiler semantic inventory for the declared `target_motif_id`, exact byte-for-byte scalar matching after JSON string decoding only, zero full-HTML scans, zero hidden/comment/attribute sources, zero transforms, and zero query features.
+
+If `resource_binding: "fixture_readonly_v0"` is declared, validation, compile, and proof fail closed with stable `APP_RESOURCE_BINDING_*` errors on schema mismatch, empty assertion set, unsupported source, ambiguous repeated value, limit overflow, report overflow, digest mismatch, or missing `binding_scope: "declared_resource_views_only"`. Commands never downgrade to `unbound_v0`, skip assertions, imply runtime/live/adapter/state/data-flow execution, or return a partial successful proof.
+
+`diff-app` reports app metadata, route, screen, resource, resource-view, and per-screen embedded intent semantic summaries. If a changed embedded screen intent cannot be validated or diffed, `diff-app` fails with `APP_DIFF_SCREEN_INTENT_INVALID`.
+
+Static Shell V0 is physically bounded: max 16 screens, 32 routes, 2 MiB shell HTML, 64 KiB shell JS, 64 KiB serialized route table, 8 MiB aggregate embedded checked screen HTML, 0 external network surfaces, 0 dynamic route features, 0 third-party executable/embed surfaces, and 0 generated framework/backend/state/mutation files. Shell generation fails closed before writing a successful report with stable `APP_SHELL_*` error codes if any bound is exceeded, any route/screen assertion fails, any output path escapes the shell/proof root, any preexisting output exists without `--force`, any screen validation/compile/check/hash fails, or `compile-app` and `prove-app --with-shell` would produce non-identical shell artifacts.
+
+`compile-app` writes `app-dist/index.html`, `shell_manifest.json`, `diagnostics.json`, and checked screen artifacts using `target: "html-tailwind-app"` and `route_navigation: "static_shell_v0"`. It rejects external network/embed/script surfaces, renders unknown route state as one local 404 panel with zero selected screen containers, and remains a local proof artifact rather than a deployable framework app.
+
+## Proof Output
+
+`prove-app` writes:
+
+- `.viewspec-app-proof/APP_PROOF.md`
+- `.viewspec-app-proof/app_proof_report.json`
+- `.viewspec-app-proof/app_support_bundle.json`
+- `.viewspec-app-proof/screens/<screen_id>/viewspec.intent.json`
+- `.viewspec-app-proof/screens/<screen_id>/artifact/index.html`
+- `.viewspec-app-proof/screens/<screen_id>/artifact/provenance_manifest.json`
+- `.viewspec-app-proof/screens/<screen_id>/artifact/diagnostics.json`
+
+The proof report uses `proof_level: "app_contract_source_artifacts"`, `target: "html-tailwind"`, `policy.network_calls: "none"`, route assertions, screen hashes, manifest summaries, check status, and the validated resource binding mode. V2 reports include `resource_binding: "fixture_readonly_v0"`, `binding_scope: "declared_resource_views_only"`, concrete assertion counts, per-view status, and a binding digest.
+
+With `--with-shell`, `prove-app` also writes `.viewspec-app-proof/app-shell/index.html`, `.viewspec-app-proof/app-shell/shell_manifest.json`, and `.viewspec-app-proof/app-shell/diagnostics.json`; the proof report uses `target: "html-tailwind-app"`, `route_navigation: "static_shell_v0"`, `shell_artifact_hash`, `shell_manifest_hash`, shell route assertions, and the same per-screen proof data.
+
+## Explicit Anti-Goals
+
+- AppBundle V0 is not required to prove browser runtime navigation, back/forward behavior, deep linking, focus restoration, scroll restoration, or route transition animation.
+- AppBundle V0 is not required to support dynamic routes, route params, query strings, hash fragments, encoded route aliases, redirects, route guards, nested routers, or locale-aware routing.
+- AppBundle V0 is not required to detect every semantic mismatch between fake fixture resources and duplicated data inside embedded screen IntentBundles.
+- AppBundle V0 is not required to bind fixture resources into screen rendering, infer screen data dependencies, deduplicate repeated data across screens, or prove data-flow consistency.
+- AppBundle V0 is not required to generate a deployable React/Vite/Next app, app shell, runtime router, resource adapter, reducer, API client, backend, database schema, or mutation handler.
+- AppBundle V0 is not required to optimize for very large apps, streaming validation, incremental proof, cross-bundle imports, shared screen libraries, or monorepo-scale app composition.
+- AppBundle V0 is not required to certify accessibility, pixel-perfect visual equivalence, cross-browser behavior, production deployment readiness, arbitrary host-app compatibility, or hosted extended compiler behavior.
+- Static Shell V0 is not required to support browser back/forward history semantics, scroll restoration, focus restoration, route transition animation, multi-tab synchronization, CSP policy generation, service workers, web workers, import maps, production deployment hardening, fixture binding, reducers, persisted local state, mutations, nested routers, redirects, route guards, dynamic segments, route params, query strings, AppBundle hash fragments, locale routing, encoded aliases, canonical URL rewriting, lazy loading, bundle splitting, or deployable React/Vite/Next generation.
+- Resource Binding V0 is not required to prove formatted, localized, case-normalized, concatenated, abbreviated, rounded, pluralized, date-formatted, currency-formatted, or otherwise transformed fixture values.
+- Resource Binding V0 is not required to infer that display labels, aliases, derived columns, badges, icons, colors, severity ordering, or human-readable summaries correspond to fixture fields.
+- Resource Binding V0 is not required to support nested record fields, arrays, objects, joins, cross-resource references, computed fields, filters, sorting, pagination, grouping, aggregation, or query languages.
+- Resource Binding V0 is not required to bind fixture resources at runtime, update the shell after load, persist state, handle mutations, synchronize data across routes, or prove whole-app data-flow consistency beyond explicitly declared `resource_views`.
+- Resource Binding V0 is not required to resolve semantic intent when multiple fixture fields intentionally contain the same scalar value unless the declared record-field assertion boundary is unambiguous.

@@ -12,6 +12,10 @@ viewspec init-intent --out viewspec.intent.json
 viewspec init-design --out DESIGN.md
 viewspec validate-intent viewspec.intent.json --json
 viewspec diff-intent old.intent.json new.intent.json --json
+viewspec init-app --out viewspec.app.json
+viewspec validate-app viewspec.app.json --json
+viewspec compile-app viewspec.app.json --out app-dist --target html-tailwind-app --json
+viewspec prove-app --app viewspec.app.json --out .viewspec-app-proof --with-shell --json
 viewspec compile viewspec.intent.json --design DESIGN.md --out dist/
 viewspec check dist/
 ```
@@ -87,6 +91,23 @@ Python callers can use the same public SDK helpers from the package root: `start
 
 The v1 local agent contract is intentionally bounded: max 256KB JSON, 200 substrate nodes, 32 regions, 400 bindings, 64 groups, 32 motifs, 400 styles, 64 actions, 64 attrs/slots/edges per node, 200 values per slot or edge, and 64 payload bindings per action. V1 ids and object keys use only letters, digits, underscore, dot, and dash. V1 agent bindings use `exactly_once` cardinality, group kind is `ordered`, region layouts are `stack`, `grid`, or `cluster`, regions must form one acyclic tree rooted at `view_spec.root_region`, `complexity_tier` starts at 1, region child bounds are non-negative with `max_children` null or at least `min_children`, and style tokens must come from the published agent schema. The local schema and `validate-intent` reject hosted-only fields with `HOSTED_ONLY_FIELD`: root `design`, root `motif_library`, `view_spec.inputs`, `view_spec.projections`, and `view_spec.rules`. Unknown extension fields fail with `UNKNOWN_FIELD` instead of being ignored. Split larger products into smaller IntentBundles.
 
+## AppBundle V1/V2: Narrow App Generation
+
+For a first multi-screen internal tool contract, use AppBundle JSON. It is JSON-only and local-only: static routes, embedded local V1 screen `IntentBundle`s, bounded fixture resources, semantic diffing, and an app proof bundle that compiles/checks each screen through `html-tailwind`. `schema_version: 1` keeps fixtures unbound; `schema_version: 2` adds proof-only `resource_binding: "fixture_readonly_v0"` with declared per-screen `resource_views`.
+
+```bash
+viewspec init-app --out viewspec.app.json
+viewspec init-app --resource-binding fixture-readonly-v0 --out viewspec.bound.app.json
+viewspec validate-app viewspec.app.json --json
+viewspec diff-app old.app.json new.app.json --json
+viewspec compile-app viewspec.app.json --out app-dist --target html-tailwind-app --json
+viewspec prove-app --app viewspec.app.json --out .viewspec-app-proof --with-shell --json
+```
+
+`prove-app` writes `.viewspec-app-proof/APP_PROOF.md`, `.viewspec-app-proof/app_proof_report.json`, `.viewspec-app-proof/app_support_bundle.json`, and per-screen checked artifacts under `.viewspec-app-proof/screens/<screen_id>/artifact/`. V1 reports `resource_binding: "unbound_v0"`; V2 reports `resource_binding: "fixture_readonly_v0"`, `binding_scope: "declared_resource_views_only"`, assertion counts, per-view status, and a binding digest. V2 proves exact decoded fixture scalar text appears in the declared target motif only; it does not bind fixtures at runtime, transform values, prove whole-app data flow, prove browser navigation, generate a deployable React/Vite/Next app, implement mutations, or claim hosted extended compiler behavior.
+
+Static Shell V0 is the next local app artifact: `compile-app` writes a single `app-dist/index.html`, `shell_manifest.json`, `diagnostics.json`, and checked screen artifacts. It uses hash-based local route selection for validated static AppBundle paths, reports `route_navigation: "static_shell_v0"`, carries the validated resource binding mode, rejects external network/embed/script surfaces, and is physically bounded to 16 screens, 32 routes, 2 MiB shell HTML, 64 KiB shell JS, 64 KiB serialized route table, and 8 MiB aggregate embedded checked screen HTML. It is not a production router, framework scaffold, runtime data-binding layer, state store, mutation layer, browser-history proof, accessibility certification, or cross-browser visual proof.
+
 Motif validation is semantic, not just structural. Empty motifs fail. `hero` and `empty_state` require title-like bindings; `loading_state` and `error_state` require exactly one title-like binding and at most one description-like binding; `form` requires an input binding; table/dashboard/detail motifs require label plus value/text-style bindings; and comparison motifs require at least two distinct semantic items.
 
 Aesthetic Profiles V1 lets an IntentBundle choose one deterministic view-level art-direction handle: `aesthetic.calm_ops`, `aesthetic.premium_saas`, `aesthetic.data_dense`, `aesthetic.editorial_product`, or `aesthetic.executive_review`. Use `builder.set_aesthetic_profile("aesthetic.calm_ops")` or one matching `StyleSpec` targeting `view:<view_spec.id>`; profiles expand into governed style projections plus bounded layout metadata such as grid columns and featured metric-card spans. Checked manifest summaries expose compact style-delta counts for profiled artifacts, not arbitrary CSS, design certification, or pixel-perfect visual proof.
@@ -142,7 +163,7 @@ viewspec export-agent-assets --out .viewspec
 viewspec check-agent-assets .viewspec --json
 ```
 
-That writes `.viewspec/agent-assets.json`, `.viewspec/agent-system-prompt.txt`, `.viewspec/agent-intent-bundle.schema.json`, and `.viewspec/agent-intent-example.dashboard.json` without any network call. Existing edited files are preserved unless `--force` is passed.
+That writes `.viewspec/agent-assets.json`, `.viewspec/agent-system-prompt.txt`, `.viewspec/agent-intent-bundle.schema.json`, `.viewspec/agent-intent-example.dashboard.json`, `.viewspec/agent-app-bundle.schema.json`, and `.viewspec/agent-app-example.internal-tool.json` without any network call. Existing edited files are preserved unless `--force` is passed.
 
 Optional MCP tooling is available behind the agent extra:
 
@@ -151,7 +172,7 @@ python -m pip install "viewspec[agents]"
 viewspec mcp
 ```
 
-The MCP server exposes intent-first local tools: `init_intent`, `validate_intent_bundle_file`, `diff_intent_bundle_files`, `compile_intent_bundle_file`, `agent_correction_prompt_file`, `check_artifact`, `verify_host`, `prove`, `check_agent_assets`, `init_design`, and `export_agent_assets`. `compile_intent_bundle_file` accepts `target="html-tailwind"` for checked standalone HTML, `target="react-tsx"` for checked React source artifacts, or `target="react-tailwind-tsx"` for checked React source with closed Tailwind recipes; `verify_host` metadata exposes manifest summary, compact aesthetic style-delta counts, bounded host verification facts, and `assertion_requirements`, while `prove` writes `PROOF.md`, `proof_report.json`, and redacted `support_bundle.json` and exposes checks, proof identity hashes, manifest summary, bounded host verification facts, and expected host assertion requirements. Raw HTML MCP tools remain available only for importing existing HTML. By default, all tool paths must resolve under the MCP working directory and the tools make no SDK network calls.
+The MCP server exposes intent-first local tools: `init_intent`, `validate_intent_bundle_file`, `diff_intent_bundle_files`, `compile_intent_bundle_file`, `agent_correction_prompt_file`, `init_app`, `validate_app_file`, `diff_app_files`, `compile_app`, `prove_app`, `check_artifact`, `verify_host`, `prove`, `check_agent_assets`, `init_design`, and `export_agent_assets`. `compile_intent_bundle_file` accepts `target="html-tailwind"` for checked standalone HTML, `target="react-tsx"` for checked React source artifacts, or `target="react-tailwind-tsx"` for checked React source with closed Tailwind recipes; `verify_host` metadata exposes manifest summary, compact aesthetic style-delta counts, bounded host verification facts, and `assertion_requirements`, while `prove` writes `PROOF.md`, `proof_report.json`, and redacted `support_bundle.json` and exposes checks, proof identity hashes, manifest summary, bounded host verification facts, and expected host assertion requirements. `compile_app` writes a local Static Shell V0 artifact and `prove_app` writes `APP_PROOF.md`, `app_proof_report.json`, redacted `app_support_bundle.json`, and optionally the same shell proof under `app-shell/` for AppBundle V1/V2. Raw HTML MCP tools remain available only for importing existing HTML. By default, all tool paths must resolve under the MCP working directory and the tools make no SDK network calls.
 
 For all targets, agents should edit `viewspec.intent.json` or `DESIGN.md` and regenerate artifacts. They should not patch generated files such as `dist/index.html` or `react-output/ViewSpecView.tsx`.
 
@@ -159,7 +180,7 @@ For all targets, agents should edit `viewspec.intent.json` or `DESIGN.md` and re
 
 The home page at [viewspec.dev](https://viewspec.dev) runs a live hosted compile against `https://api.viewspec.dev/v1/compile`. It uses anonymous free-tier requests by default and shows the request, response, measured `compile_ms`, active derivation tokens, and provenance chain.
 
-Agent and crawler entrypoints are published with the static site. Agent assets use schema version `4` and declare the `local_v1` contract profile plus export/check commands in the manifest:
+Agent and crawler entrypoints are published with the static site. Agent assets use schema version `6` and declare the `local_v1` contract profile plus export/check commands in the manifest:
 
 - `https://viewspec.dev/llms.txt` — concise LLM-facing product map
 - `https://viewspec.dev/llms-full.txt` — expanded AI context and canonical facts
@@ -167,6 +188,8 @@ Agent and crawler entrypoints are published with the static site. Agent assets u
 - `https://viewspec.dev/agent-system-prompt.txt` — system prompt for agents that emit `IntentBundle` JSON
 - `https://viewspec.dev/agent-intent-bundle.schema.json` — JSON schema for agent-authored compiler input
 - `https://viewspec.dev/agent-intent-example.dashboard.json` — valid starter IntentBundle example for local wire-shape grounding
+- `https://viewspec.dev/agent-app-bundle.schema.json` — JSON schema for local AppBundle V1/V2 app contracts
+- `https://viewspec.dev/agent-app-example.internal-tool.json` — valid starter AppBundle internal-tool example
 - `https://viewspec.dev/openapi.json` — hosted compiler OpenAPI description
 - `https://viewspec.dev/sitemap.xml` — canonical page sitemap
 

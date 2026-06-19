@@ -8,11 +8,12 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from viewspec.app_bundle import AGENT_APP_BUNDLE_SCHEMA, starter_app_bundle
 from viewspec.agent import AGENT_INTENT_BUNDLE_SCHEMA, AGENT_SYSTEM_PROMPT
 from viewspec.local_tools import atomic_write
 
 
-AGENT_ASSET_SCHEMA_VERSION = 4
+AGENT_ASSET_SCHEMA_VERSION = 6
 AGENT_ASSET_CONTRACT_PROFILE = "local_v1"
 AGENT_ASSET_EXPORT_COMMAND = "viewspec export-agent-assets --out .viewspec"
 AGENT_ASSET_CHECK_COMMAND = "viewspec check-agent-assets .viewspec --json"
@@ -21,7 +22,15 @@ AGENT_ASSET_MANIFEST_FILE = "agent-assets.json"
 AGENT_SYSTEM_PROMPT_FILE = "agent-system-prompt.txt"
 AGENT_INTENT_SCHEMA_FILE = "agent-intent-bundle.schema.json"
 AGENT_INTENT_EXAMPLE_FILE = "agent-intent-example.dashboard.json"
-AGENT_ASSET_PAYLOAD_FILES = (AGENT_SYSTEM_PROMPT_FILE, AGENT_INTENT_SCHEMA_FILE, AGENT_INTENT_EXAMPLE_FILE)
+AGENT_APP_SCHEMA_FILE = "agent-app-bundle.schema.json"
+AGENT_APP_EXAMPLE_FILE = "agent-app-example.internal-tool.json"
+AGENT_ASSET_PAYLOAD_FILES = (
+    AGENT_SYSTEM_PROMPT_FILE,
+    AGENT_INTENT_SCHEMA_FILE,
+    AGENT_INTENT_EXAMPLE_FILE,
+    AGENT_APP_SCHEMA_FILE,
+    AGENT_APP_EXAMPLE_FILE,
+)
 
 
 class AgentAssetError(ValueError):
@@ -75,11 +84,16 @@ def agent_asset_readiness() -> dict[str, Any]:
         "system_prompt_file": AGENT_SYSTEM_PROMPT_FILE,
         "intent_schema_file": AGENT_INTENT_SCHEMA_FILE,
         "intent_example_file": AGENT_INTENT_EXAMPLE_FILE,
+        "app_schema_file": AGENT_APP_SCHEMA_FILE,
+        "app_example_file": AGENT_APP_EXAMPLE_FILE,
         "intent_schema_id": AGENT_INTENT_BUNDLE_SCHEMA["$id"],
+        "app_schema_id": AGENT_APP_BUNDLE_SCHEMA["$id"],
         "asset_manifest_sha256": hashlib.sha256(contents[AGENT_ASSET_MANIFEST_FILE].encode("utf-8")).hexdigest(),
         "system_prompt_sha256": hashlib.sha256(contents[AGENT_SYSTEM_PROMPT_FILE].encode("utf-8")).hexdigest(),
         "intent_schema_sha256": hashlib.sha256(contents[AGENT_INTENT_SCHEMA_FILE].encode("utf-8")).hexdigest(),
         "intent_example_sha256": hashlib.sha256(contents[AGENT_INTENT_EXAMPLE_FILE].encode("utf-8")).hexdigest(),
+        "app_schema_sha256": hashlib.sha256(contents[AGENT_APP_SCHEMA_FILE].encode("utf-8")).hexdigest(),
+        "app_example_sha256": hashlib.sha256(contents[AGENT_APP_EXAMPLE_FILE].encode("utf-8")).hexdigest(),
         "export_command": AGENT_ASSET_EXPORT_COMMAND,
         "check_command": AGENT_ASSET_CHECK_COMMAND,
         "network_policy": AGENT_ASSET_NETWORK_POLICY,
@@ -140,6 +154,7 @@ def check_agent_assets(asset_dir: str | Path = ".viewspec") -> dict[str, Any]:
         "schema_version": AGENT_ASSET_SCHEMA_VERSION,
         "contract_profile": AGENT_ASSET_CONTRACT_PROFILE,
         "intent_schema_id": AGENT_INTENT_BUNDLE_SCHEMA["$id"],
+        "app_schema_id": AGENT_APP_BUNDLE_SCHEMA["$id"],
         "check_command": AGENT_ASSET_CHECK_COMMAND,
         "network_policy": AGENT_ASSET_NETWORK_POLICY,
         "path": str(root),
@@ -181,10 +196,14 @@ def _agent_asset_contents() -> dict[str, str]:
     prompt = AGENT_SYSTEM_PROMPT if AGENT_SYSTEM_PROMPT.endswith("\n") else f"{AGENT_SYSTEM_PROMPT}\n"
     schema = json.dumps(AGENT_INTENT_BUNDLE_SCHEMA, indent=2, sort_keys=True) + "\n"
     example = json.dumps(starter_intent_bundle("dashboard").to_json(), indent=2, sort_keys=True) + "\n"
+    app_schema = json.dumps(AGENT_APP_BUNDLE_SCHEMA, indent=2, sort_keys=True) + "\n"
+    app_example = json.dumps(starter_app_bundle("internal_tool"), indent=2, sort_keys=True) + "\n"
     contents = {
         AGENT_SYSTEM_PROMPT_FILE: prompt,
         AGENT_INTENT_SCHEMA_FILE: schema,
         AGENT_INTENT_EXAMPLE_FILE: example,
+        AGENT_APP_SCHEMA_FILE: app_schema,
+        AGENT_APP_EXAMPLE_FILE: app_example,
     }
     contents[AGENT_ASSET_MANIFEST_FILE] = _agent_asset_manifest(contents)
     return contents
@@ -197,6 +216,7 @@ def _agent_asset_manifest(contents: dict[str, str]) -> str:
         "contract": {
             "profile": AGENT_ASSET_CONTRACT_PROFILE,
             "intent_schema_id": AGENT_INTENT_BUNDLE_SCHEMA["$id"],
+            "app_schema_id": AGENT_APP_BUNDLE_SCHEMA["$id"],
             "export_command": AGENT_ASSET_EXPORT_COMMAND,
             "check_command": AGENT_ASSET_CHECK_COMMAND,
             "network_policy": AGENT_ASSET_NETWORK_POLICY,
@@ -205,15 +225,18 @@ def _agent_asset_manifest(contents: dict[str, str]) -> str:
                 "system_prompt": AGENT_SYSTEM_PROMPT_FILE,
                 "intent_schema": AGENT_INTENT_SCHEMA_FILE,
                 "intent_example": AGENT_INTENT_EXAMPLE_FILE,
+                "app_schema": AGENT_APP_SCHEMA_FILE,
+                "app_example": AGENT_APP_EXAMPLE_FILE,
             },
         },
         "intent_schema_id": AGENT_INTENT_BUNDLE_SCHEMA["$id"],
+        "app_schema_id": AGENT_APP_BUNDLE_SCHEMA["$id"],
         "files": [
             {
                 "path": filename,
                 "sha256": hashlib.sha256(contents[filename].encode("utf-8")).hexdigest(),
             }
-            for filename in (AGENT_SYSTEM_PROMPT_FILE, AGENT_INTENT_SCHEMA_FILE, AGENT_INTENT_EXAMPLE_FILE)
+            for filename in AGENT_ASSET_PAYLOAD_FILES
         ],
     }
     return json.dumps(payload, indent=2, sort_keys=True) + "\n"
@@ -239,6 +262,8 @@ __all__ = [
     "AGENT_ASSET_NETWORK_POLICY",
     "AGENT_ASSET_PAYLOAD_FILES",
     "AGENT_ASSET_SCHEMA_VERSION",
+    "AGENT_APP_EXAMPLE_FILE",
+    "AGENT_APP_SCHEMA_FILE",
     "AGENT_INTENT_EXAMPLE_FILE",
     "AGENT_INTENT_SCHEMA_FILE",
     "AGENT_SYSTEM_PROMPT_FILE",

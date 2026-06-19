@@ -1,8 +1,12 @@
 {
+  "app_schema_id": "https://viewspec.dev/agent-app-bundle.schema.json",
   "contract": {
+    "app_schema_id": "https://viewspec.dev/agent-app-bundle.schema.json",
     "check_command": "viewspec check-agent-assets .viewspec --json",
     "export_command": "viewspec export-agent-assets --out .viewspec",
     "files": {
+      "app_example": "agent-app-example.internal-tool.json",
+      "app_schema": "agent-app-bundle.schema.json",
       "intent_example": "agent-intent-example.dashboard.json",
       "intent_schema": "agent-intent-bundle.schema.json",
       "manifest": "agent-assets.json",
@@ -15,7 +19,7 @@
   "files": [
     {
       "path": "agent-system-prompt.txt",
-      "sha256": "7d3b8248eb4f316fc63ed5804ab89ed14016e51445f4055356b9c60bd532e721"
+      "sha256": "2108c3a8233e73a9dfd5854fc240160b4fc8d3386e1640dcf5a1be044f11359d"
     },
     {
       "path": "agent-intent-bundle.schema.json",
@@ -24,9 +28,17 @@
     {
       "path": "agent-intent-example.dashboard.json",
       "sha256": "c245afe9f0b9480d0222c30e7ce44ee42f8371c6d2ac2abc7b8792db4a7a747f"
+    },
+    {
+      "path": "agent-app-bundle.schema.json",
+      "sha256": "0feeab9cdc75cac5e737df87c4f830e79d531b95dbb6ef6c8ebe5737dd1760c9"
+    },
+    {
+      "path": "agent-app-example.internal-tool.json",
+      "sha256": "7cefa686de3db91e614c8bc31867aca096a117436f89dc520e8c326182344a4f"
     }
   ],
   "intent_schema_id": "https://viewspec.dev/agent-intent-bundle.schema.json",
   "kind": "viewspec_agent_assets",
-  "schema_version": 4
+  "schema_version": 6
 }
