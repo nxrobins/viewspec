@@ -1647,6 +1647,7 @@ def _validation_payload(
     binding_validation = _resource_binding_validation_summary(payload) if isinstance(payload, dict) and resource_binding == APP_BUNDLE_RESOURCE_BINDING_READONLY else None
     return {
         "schema_version": APP_BUNDLE_RESULT_SCHEMA_VERSION,
+        "app_schema_version": _app_schema_version(payload),
         "ok": not issues,
         "compile_check": compile_status,
         "resource_binding": resource_binding,
@@ -1677,6 +1678,13 @@ def _app_summary(payload: dict[str, Any] | None) -> dict[str, Any] | None:
         "screen_count": len(screens),
         "resource_count": len(resources),
     }
+
+
+def _app_schema_version(payload: dict[str, Any] | None) -> int | None:
+    if not isinstance(payload, dict):
+        return None
+    schema_version = payload.get("schema_version")
+    return schema_version if type(schema_version) is int else None
 
 
 def _resource_binding_for_payload(payload: dict[str, Any] | None) -> str:
@@ -2114,6 +2122,7 @@ def _app_topology_similarity(changes: dict[str, dict[str, list[str]]]) -> float:
 def _validation_summary(validation: dict[str, Any]) -> dict[str, Any]:
     return {
         "ok": validation.get("ok"),
+        "app_schema_version": validation.get("app_schema_version"),
         "compile_check": validation.get("compile_check"),
         "summary": validation.get("summary"),
         "issue_count": len(validation.get("issues", [])) if isinstance(validation.get("issues"), list) else 0,
@@ -2322,6 +2331,7 @@ def _write_static_app_shell(
     shell_manifest_hash = file_hash(prepared.manifest_path)
     diagnostics = {
         "schema_version": 1,
+        "app_schema_version": _app_schema_version(payload),
         "ok": True,
         "target": APP_SHELL_TARGET,
         "route_navigation": APP_SHELL_ROUTE_NAVIGATION,
@@ -2336,6 +2346,7 @@ def _write_static_app_shell(
         "ok": True,
         "target": APP_SHELL_TARGET,
         "route_navigation": APP_SHELL_ROUTE_NAVIGATION,
+        "app_schema_version": _app_schema_version(payload),
         **binding_fields,
         "policy": {"network_calls": "none"},
         "app": _app_summary(payload),
@@ -2809,6 +2820,7 @@ def _static_shell_manifest(
 ) -> dict[str, Any]:
     return {
         "schema_version": 1,
+        "app_schema_version": _app_schema_version(payload),
         "kind": "app_static_shell_compile",
         "target": APP_SHELL_TARGET,
         "route_navigation": APP_SHELL_ROUTE_NAVIGATION,
@@ -3298,6 +3310,7 @@ def _app_proof_report(
     binding_fields = _resource_binding_report_fields(app_payload, resource_binding_report)
     return {
         "schema_version": APP_BUNDLE_PROOF_SCHEMA_VERSION,
+        "app_schema_version": _app_schema_version(app_payload),
         "ok": ok,
         "proof_level": APP_BUNDLE_PROOF_LEVEL,
         "target": APP_SHELL_TARGET if shell else APP_BUNDLE_TARGET,
@@ -3336,6 +3349,7 @@ def _app_proof_failure_report(
     binding_fields = _resource_binding_fields_from_validation(validation)
     return {
         "schema_version": APP_BUNDLE_PROOF_SCHEMA_VERSION,
+        "app_schema_version": validation.get("app_schema_version") if isinstance(validation, dict) else None,
         "ok": False,
         "proof_level": APP_BUNDLE_PROOF_LEVEL,
         "target": APP_BUNDLE_TARGET,
@@ -3388,6 +3402,7 @@ def _app_shell_report(
         binding_fields = _resource_binding_report_fields(app_payload, shell_payload.get("resource_binding_assertions"))
     return {
         "schema_version": APP_BUNDLE_PROOF_SCHEMA_VERSION,
+        "app_schema_version": _app_schema_version(app_payload),
         "ok": ok,
         "target": APP_SHELL_TARGET,
         "route_navigation": APP_SHELL_ROUTE_NAVIGATION,
@@ -3421,6 +3436,7 @@ def _app_shell_failure_report(
     binding_fields = _resource_binding_fields_from_validation(validation)
     return {
         "schema_version": APP_BUNDLE_PROOF_SCHEMA_VERSION,
+        "app_schema_version": validation.get("app_schema_version") if isinstance(validation, dict) else None,
         "ok": False,
         "target": APP_SHELL_TARGET,
         "route_navigation": APP_SHELL_ROUTE_NAVIGATION,
@@ -3593,6 +3609,7 @@ def _compact_shell_report(shell: dict[str, Any] | None) -> dict[str, Any]:
         "ok": bool(shell.get("ok")),
         "target": shell.get("target"),
         "route_navigation": shell.get("route_navigation"),
+        "app_schema_version": shell.get("app_schema_version"),
         "resource_binding": shell.get("resource_binding"),
         "policy": shell.get("policy") if isinstance(shell.get("policy"), dict) else {"network_calls": "none"},
         "paths": shell.get("paths") if isinstance(shell.get("paths"), dict) else {},
