@@ -71,6 +71,7 @@ def test_bound_starter_app_bundle_validates_and_proves_fixture_readonly(tmp_path
     validation = validate_app_text(_app_text(app))
 
     assert validation["ok"] is True
+    assert validation["app_schema_version"] == 2
     assert validation["summary"]["schema_version"] == 2
     assert validation["resource_binding"] == APP_BUNDLE_RESOURCE_BINDING_READONLY
     assert validation["binding_scope"] == APP_BUNDLE_BINDING_SCOPE
@@ -84,6 +85,8 @@ def test_bound_starter_app_bundle_validates_and_proves_fixture_readonly(tmp_path
 
     for report in (compiled, proof):
         assert report["ok"] is True
+        assert report["app_schema_version"] == 2
+        assert report["validation"]["app_schema_version"] == 2
         assert report["resource_binding"] == APP_BUNDLE_RESOURCE_BINDING_READONLY
         assert report["binding_scope"] == APP_BUNDLE_BINDING_SCOPE
         assert report["resource_binding_assertions"]["ok"] is True
@@ -93,6 +96,7 @@ def test_bound_starter_app_bundle_validates_and_proves_fixture_readonly(tmp_path
 
     assert compiled["resource_binding_assertions"]["binding_digest"] == proof["resource_binding_assertions"]["binding_digest"]
     assert proof["shell"]["resource_binding"] == APP_BUNDLE_RESOURCE_BINDING_READONLY
+    assert proof["shell"]["app_schema_version"] == 2
     assert proof["shell"]["binding_scope"] == APP_BUNDLE_BINDING_SCOPE
 
     cli_out = tmp_path / "viewspec.bound.app.json"
@@ -356,6 +360,7 @@ def test_compile_app_writes_static_shell_artifact_and_cli_report(tmp_path, capsy
     report = compile_app(app_path, out_dir=out_dir, cwd=tmp_path)
 
     assert report["ok"] is True
+    assert report["app_schema_version"] == 1
     assert report["target"] == APP_SHELL_TARGET
     assert report["route_navigation"] == APP_SHELL_ROUTE_NAVIGATION
     assert report["resource_binding"] == "unbound_v0"
@@ -364,6 +369,10 @@ def test_compile_app_writes_static_shell_artifact_and_cli_report(tmp_path, capsy
     assert report["shell_manifest_hash"] == file_hash(out_dir / "shell_manifest.json")
     assert out_dir.joinpath("diagnostics.json").exists()
     assert out_dir.joinpath("screens/queue/artifact/index.html").exists()
+    manifest = json.loads(out_dir.joinpath("shell_manifest.json").read_text(encoding="utf-8"))
+    diagnostics = json.loads(out_dir.joinpath("diagnostics.json").read_text(encoding="utf-8"))
+    assert manifest["app_schema_version"] == 1
+    assert diagnostics["app_schema_version"] == 1
     html = out_dir.joinpath("index.html").read_text(encoding="utf-8")
     assert html.count('<section class="vs-app-404"') == 1
     assert html.count('data-selected="true"') == 1
