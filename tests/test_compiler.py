@@ -2,12 +2,34 @@
 
 import json
 import re
+from dataclasses import replace
 from itertools import combinations
 from pathlib import Path
 
 import pytest
 
-from viewspec import AESTHETIC_PROFILE_TOKENS, UnsupportedMotifError, ViewSpecBuilder, compile
+from viewspec import (
+    AGENT_INTENT_BUNDLE_SCHEMA,
+    AESTHETIC_PROFILE_TOKENS,
+    IRNode,
+    MOTIF_PLUGIN_ABI_VERSION,
+    MotifCompileContext,
+    MotifCompileResult,
+    MotifCompiler,
+    MotifPlugin,
+    MotifPluginError,
+    MotifPluginFixture,
+    MotifPluginManifest,
+    MotifPluginSlot,
+    builtin_motif_registry,
+    check_motif_plugin,
+    create_motif_registry,
+    Provenance,
+    SUPPORTED_AGENT_MOTIFS,
+    UnsupportedMotifError,
+    ViewSpecBuilder,
+    compile,
+)
 from viewspec.agent import SUPPORTED_AGENT_ACTION_KINDS, SUPPORTED_AGENT_STYLE_TOKENS
 from viewspec.aesthetics import (
     AESTHETIC_PROFILE_LAYOUT_ROLES,
@@ -49,6 +71,61 @@ def _walk_nodes(node):
     for child in node.children:
         nodes.extend(_walk_nodes(child))
     return nodes
+
+
+def _summary_strip_bundle():
+    builder = ViewSpecBuilder("custom_summary")
+    dashboard = builder.add_dashboard("summary", region="main", group_id="summary_metrics")
+    dashboard.add_card(label="Revenue", value="$2.4M", id="revenue")
+    dashboard.add_card(label="Users", value="18,472", id="users")
+    bundle = builder.build_bundle()
+    bundle.view_spec.motifs[0] = replace(bundle.view_spec.motifs[0], kind="summary_strip")
+    return bundle
+
+
+def _summary_strip_manifest(
+    *,
+    plugin_id: str = "enterprise.summary_strip",
+    kinds: tuple[str, ...] = ("summary_strip",),
+    abi_version: str = MOTIF_PLUGIN_ABI_VERSION,
+    input_slots: tuple[MotifPluginSlot, ...] = (
+        MotifPluginSlot("label", present_as=("label",)),
+        MotifPluginSlot("value", present_as=("value",)),
+    ),
+) -> MotifPluginManifest:
+    return MotifPluginManifest(
+        plugin_id=plugin_id,
+        version="1.0.0",
+        kinds=kinds,
+        abi_version=abi_version,
+        description="A compact metric summary strip.",
+        input_slots=input_slots,
+        output_guarantees=("deterministic_ir",),
+        diagnostic_codes=(),
+    )
+
+
+def _summary_strip_plugin(
+    *,
+    extra_placed_binding_ids: set[str] | None = None,
+    plugin_manifest: MotifPluginManifest | None = None,
+) -> MotifPlugin:
+    def build_summary_strip(motif, motif_bindings, context: MotifCompileContext) -> MotifCompileResult:
+        wrapper = IRNode(
+            id=f"motif_{motif.id}",
+            primitive="cluster",
+            props={"layout_role": "cluster", "motif_kind": motif.kind},
+            provenance=Provenance(intent_refs=[f"viewspec:motif:{motif.id}"]),
+        )
+        placed: set[str] = set()
+        for binding in motif_bindings:
+            wrapper.children.append(context.binding_nodes[binding.id])
+            placed.add(binding.id)
+        if extra_placed_binding_ids:
+            placed.update(extra_placed_binding_ids)
+        return MotifCompileResult(wrapper=wrapper, placed_binding_ids=frozenset(placed))
+
+    return MotifPlugin(kinds=("summary_strip",), build=build_summary_strip, manifest=plugin_manifest)
 
 
 def _product_workspace_bundle(*, duplicate_header=False, missing_header=False, extra_body_child=False, profile=None):
@@ -1240,3 +1317,188 @@ def test_unsupported_motif_raises():
 
     with pytest.raises(UnsupportedMotifError, match="neural_layout"):
         compile(bundle)
+
+
+def test_custom_motif_plugin_is_explicit_per_compile():
+    bundle = _summary_strip_bundle()
+
+    with pytest.raises(UnsupportedMotifError, match="summary_strip"):
+        compile(bundle)
+
+    ast = compile(bundle, motif_plugins=(_summary_strip_plugin(),))
+    wrapper = _find_node_id(ast.result.root.root, "motif_summary")
+
+    assert ast.result.diagnostics == []
+    assert wrapper is not None
+    assert wrapper.primitive == "cluster"
+    assert wrapper.props == {"layout_role": "cluster", "motif_kind": "summary_strip"}
+    assert wrapper.provenance.intent_refs == ["viewspec:motif:summary"]
+    assert [child.id for child in wrapper.children] == [
+        f"binding_{binding_id}" for binding_id in bundle.view_spec.motifs[0].members
+    ]
+
+
+def test_custom_motif_registry_is_reusable_microkernel_surface():
+    bundle = _summary_strip_bundle()
+    registry = create_motif_registry(_summary_strip_plugin())
+
+    assert "table" in registry
+    assert "summary_strip" in registry
+    assert "summary_strip" not in builtin_motif_registry()
+
+    first = compile(bundle, motif_registry=registry)
+    second = compile(bundle, motif_registry=registry)
+
+    assert _find_node_id(first.result.root.root, "motif_summary").props["motif_kind"] == "summary_strip"
+    assert first.to_json() == second.to_json()
+
+
+def test_manifest_backed_custom_motif_plugin_passes_harness_and_describes_registry():
+    bundle = _summary_strip_bundle()
+    plugin = _summary_strip_plugin(plugin_manifest=_summary_strip_manifest())
+    fixture = MotifPluginFixture(
+        id="summary_strip.basic",
+        bundle=bundle,
+        expected_motif_kinds=("summary_strip",),
+    )
+
+    report = check_motif_plugin(plugin, fixtures=(fixture,))
+    registry = create_motif_registry(plugin)
+    description = registry.describe()
+
+    assert report.ok, report.issues
+    assert description["custom_kinds"] == ["summary_strip"]
+    assert description["custom_plugins"] == [
+        {
+            "plugin_id": "enterprise.summary_strip",
+            "version": "1.0.0",
+            "kinds": ["summary_strip"],
+            "abi_version": MOTIF_PLUGIN_ABI_VERSION,
+            "description": "A compact metric summary strip.",
+            "input_slots": [
+                {
+                    "name": "label",
+                    "required": True,
+                    "present_as": ["label"],
+                    "description": "",
+                },
+                {
+                    "name": "value",
+                    "required": True,
+                    "present_as": ["value"],
+                    "description": "",
+                },
+            ],
+            "output_guarantees": ["deterministic_ir"],
+            "diagnostic_codes": [],
+        }
+    ]
+
+
+def test_compile_rejects_motif_registry_and_plugins_together():
+    bundle = _summary_strip_bundle()
+    registry = create_motif_registry(_summary_strip_plugin())
+
+    with pytest.raises(MotifPluginError, match="either motif_registry or motif_plugins"):
+        compile(bundle, motif_registry=registry, motif_plugins=(_summary_strip_plugin(),))
+
+
+def test_custom_motif_plugin_registration_rejects_duplicate_and_builtin_kinds():
+    bundle = _summary_strip_bundle()
+
+    with pytest.raises(MotifPluginError, match="Duplicate motif compiler registration"):
+        compile(bundle, motif_plugins=(_summary_strip_plugin(), _summary_strip_plugin()))
+
+    with pytest.raises(MotifPluginError, match="cannot override a built-in motif compiler"):
+        compile(bundle, motif_plugins=(MotifCompiler(kinds=("table",), build=_summary_strip_plugin().build),))
+
+
+def test_custom_motif_plugin_registration_rejects_unsafe_kind_ids():
+    bundle = _summary_strip_bundle()
+
+    with pytest.raises(MotifPluginError, match="not a safe ViewSpec id"):
+        compile(bundle, motif_plugins=(MotifCompiler(kinds=("summary strip",), build=_summary_strip_plugin().build),))
+
+
+def test_custom_motif_plugin_manifest_validation_errors():
+    build = _summary_strip_plugin().build
+
+    with pytest.raises(MotifPluginError, match="kinds must exactly match"):
+        create_motif_registry(
+            MotifPlugin(
+                kinds=("summary_strip",),
+                build=build,
+                manifest=_summary_strip_manifest(kinds=("other_summary_strip",)),
+            )
+        )
+
+    with pytest.raises(MotifPluginError, match="not a safe ViewSpec id"):
+        create_motif_registry(
+            MotifPlugin(
+                kinds=("summary_strip",),
+                build=build,
+                manifest=_summary_strip_manifest(plugin_id="enterprise summary strip"),
+            )
+        )
+
+    with pytest.raises(MotifPluginError, match="unsupported ABI"):
+        create_motif_registry(
+            MotifPlugin(
+                kinds=("summary_strip",),
+                build=build,
+                manifest=_summary_strip_manifest(abi_version="motif_plugin_abi_v2"),
+            )
+        )
+
+    with pytest.raises(MotifPluginError, match="Duplicate motif plugin manifest id"):
+        create_motif_registry(
+            _summary_strip_plugin(plugin_manifest=_summary_strip_manifest(plugin_id="enterprise.summary")),
+            MotifPlugin(
+                kinds=("summary_strip_alt",),
+                build=build,
+                manifest=MotifPluginManifest(
+                    plugin_id="enterprise.summary",
+                    version="1.0.0",
+                    kinds=("summary_strip_alt",),
+                ),
+            ),
+        )
+
+
+def test_manifestless_custom_motif_still_compiles_but_fails_public_harness_requirement():
+    bundle = _summary_strip_bundle()
+    plugin = _summary_strip_plugin()
+    fixture = MotifPluginFixture(id="summary_strip.basic", bundle=bundle, expected_motif_kinds=("summary_strip",))
+
+    ast = compile(bundle, motif_plugins=(plugin,))
+    report = check_motif_plugin(plugin, fixtures=(fixture,))
+
+    assert _find_node_id(ast.result.root.root, "motif_summary").props["motif_kind"] == "summary_strip"
+    assert not report.ok
+    assert [issue.code for issue in report.issues] == ["MISSING_PLUGIN_MANIFEST"]
+
+
+def test_custom_motif_harness_reports_missing_required_manifest_slots():
+    bundle = _summary_strip_bundle()
+    plugin = _summary_strip_plugin(
+        plugin_manifest=_summary_strip_manifest(input_slots=(MotifPluginSlot("sparkline"),))
+    )
+    fixture = MotifPluginFixture(id="summary_strip.missing_sparkline", bundle=bundle)
+
+    report = check_motif_plugin(plugin, fixtures=(fixture,))
+
+    assert not report.ok
+    assert any(issue.code == "MISSING_REQUIRED_SLOT" for issue in report.issues)
+    assert any("sparkline" in issue.message for issue in report.issues)
+
+
+def test_custom_motif_plugin_cannot_place_unowned_bindings():
+    bundle = _summary_strip_bundle()
+
+    with pytest.raises(MotifPluginError, match="placed bindings it does not own"):
+        compile(bundle, motif_plugins=(_summary_strip_plugin(extra_placed_binding_ids={"outside_binding"}),))
+
+
+def test_custom_motif_plugin_does_not_expand_local_agent_contract():
+    assert "summary_strip" not in SUPPORTED_AGENT_MOTIFS
+    assert "summary_strip" not in AGENT_INTENT_BUNDLE_SCHEMA["$defs"]["motif"]["properties"]["kind"]["enum"]
