@@ -114,7 +114,7 @@ viewspec export-agent-assets --out .viewspec
 viewspec check-agent-assets .viewspec --json
 ```
 
-The exported assets include `.viewspec/agent-app-bundle.schema.json` and `.viewspec/agent-app-example.internal-tool.json` for AppBundle V1/V2 in addition to the IntentBundle schema/example.
+The exported assets include `.viewspec/agent-app-bundle.schema.json` and `.viewspec/agent-app-example.internal-tool.json` for AppBundle V1/V2/V3 in addition to the IntentBundle schema/example.
 
 AppBundle V1 reports fixture resources as `resource_binding: "unbound_v0"`. AppBundle V2 reports `resource_binding: "fixture_readonly_v0"` with `binding_scope: "declared_resource_views_only"` and exact scalar visibility assertions. Static Shell V0 reports `target: "html-tailwind-app"` and `route_navigation: "static_shell_v0"`, rejects external network/embed/script surfaces, and remains a local shell proof artifact; it does not prove runtime navigation or browser history semantics, bind fixtures at runtime, generate a deployable framework app, implement state or mutations, or claim hosted extended compiler behavior.
 

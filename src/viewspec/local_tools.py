@@ -594,7 +594,7 @@ def export_agent_assets_tool(
             next_actions=[
                 "Verify .viewspec/agent-assets.json when reusing exported assets.",
                 "Point schema-aware editors or agents at .viewspec/agent-intent-bundle.schema.json.",
-                "Point app-aware agents at .viewspec/agent-app-bundle.schema.json for multi-screen AppBundle V1/V2.",
+                "Point app-aware agents at .viewspec/agent-app-bundle.schema.json for multi-screen AppBundle V1/V2/V3.",
                 "Use .viewspec/agent-system-prompt.txt as the local ViewSpec agent contract prompt.",
                 "Use .viewspec/agent-intent-example.dashboard.json as a valid wire-shape example.",
                 "Use .viewspec/agent-app-example.internal-tool.json as a valid AppBundle wire-shape example.",

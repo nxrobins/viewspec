@@ -1,0 +1,1346 @@
+from __future__ import annotations
+
+import copy
+import hashlib
+import json
+import re
+import subprocess
+import tempfile
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Any
+
+
+INTERACTIVE_STATE_PROFILE = "interactive_state_v0"
+STATE_KIND_COLLECTION = "collection"
+STATE_KIND_RECORD = "record"
+STATE_KIND_SCALAR = "scalar"
+STATE_KIND_SELECTION = "selection"
+STATE_KINDS = frozenset({STATE_KIND_COLLECTION, STATE_KIND_RECORD, STATE_KIND_SCALAR, STATE_KIND_SELECTION})
+STATE_SCOPES = frozenset({"app", "screen"})
+MUTATION_OPS = frozenset({"set", "patch", "toggle", "append", "remove", "move", "increment"})
+SELECTOR_OPS = frozenset({"filter_eq", "sort_by", "slice"})
+APP_STATE_MAX_ENTRIES = 32
+APP_STATE_MAX_MUTATIONS = 128
+APP_STATE_MAX_OPS_PER_MUTATION = 16
+APP_STATE_MAX_SELECTORS = 64
+APP_STATE_MAX_SELECTOR_OPS = 8
+APP_STATE_MAX_REPLAY_ASSERTIONS = 32
+APP_STATE_MAX_EVENTS_PER_REPLAY = 32
+APP_STATE_MAX_REDUCER_BYTES = 64 * 1024
+APP_STATE_MAX_MANIFEST_BYTES = 64 * 1024
+STATE_MANIFEST_SCHEMA_VERSION = 2
+STATE_REDUCER_EXPORTS = (
+    "VIEWSPEC_STATE_PROFILE",
+    "initialState",
+    "reduceViewSpecState",
+    "selectViewSpecState",
+)
+SAFE_STATE_ID_RE = re.compile(r"^[A-Za-z0-9_.-]+$")
+
+
+@dataclass(frozen=True)
+class StateValidationIssue:
+    code: str
+    path: str
+    message: str
+    suggestion: str = "Regenerate AppBundle V3 interactive_state_v0 using the bounded state contract."
+
+    def to_json(self) -> dict[str, str]:
+        return {
+            "severity": "error",
+            "code": self.code,
+            "path": self.path,
+            "message": self.message,
+            "suggestion": self.suggestion,
+        }
+
+
+@dataclass(frozen=True)
+class StateEntry:
+    id: str
+    kind: str
+    scope: str
+    initial: dict[str, Any]
+    screen_id: str | None = None
+
+
+@dataclass(frozen=True)
+class StateMutation:
+    id: str
+    trigger: dict[str, str]
+    ops: tuple[dict[str, Any], ...]
+    allowed_payload_bindings: frozenset[str] = frozenset()
+    required_payload_bindings: frozenset[str] = frozenset()
+
+
+@dataclass(frozen=True)
+class StateSelector:
+    id: str
+    source_state: str
+    ops: tuple[dict[str, Any], ...]
+
+
+@dataclass(frozen=True)
+class StateReplayAssertion:
+    id: str
+    events: tuple[dict[str, Any], ...]
+    expect_state: dict[str, Any]
+    expect_selectors: dict[str, Any]
+
+
+@dataclass(frozen=True)
+class StateIR:
+    profile: str
+    states: tuple[StateEntry, ...]
+    mutations: tuple[StateMutation, ...]
+    selectors: tuple[StateSelector, ...]
+    replay_assertions: tuple[StateReplayAssertion, ...]
+
+
+@dataclass(frozen=True)
+class NormalizedStateIR:
+    contract: dict[str, Any]
+    contract_hash: str
+
+    def to_json(self) -> dict[str, Any]:
+        return {"contract_hash": self.contract_hash, **copy.deepcopy(self.contract)}
+
+
+def validate_state_ir(app_payload: dict[str, Any]) -> tuple[StateIR | None, list[StateValidationIssue]]:
+    issues: list[StateValidationIssue] = []
+    profile = app_payload.get("interactive_state")
+    if profile != INTERACTIVE_STATE_PROFILE:
+        issues.append(
+            StateValidationIssue(
+                "APP_STATE_PROFILE_REQUIRED",
+                "$.interactive_state",
+                f"AppBundle V3 must declare interactive_state {INTERACTIVE_STATE_PROFILE}.",
+                "Set interactive_state to interactive_state_v0.",
+            )
+        )
+    state_items = _required_array(app_payload, "state", "$", issues)
+    mutation_items = _required_array(app_payload, "mutations", "$", issues)
+    selector_items = _required_array(app_payload, "selectors", "$", issues)
+    replay_items = app_payload.get("state_replay_assertions", [])
+    if not isinstance(replay_items, list):
+        issues.append(StateValidationIssue("APP_STATE_REPLAY_NOT_ARRAY", "$.state_replay_assertions", "state_replay_assertions must be an array."))
+        replay_items = []
+
+    _check_count(state_items, APP_STATE_MAX_ENTRIES, "$.state", "APP_STATE_LIMIT_EXCEEDED", "state entries", issues)
+    _check_count(mutation_items, APP_STATE_MAX_MUTATIONS, "$.mutations", "APP_STATE_LIMIT_EXCEEDED", "mutations", issues)
+    _check_count(selector_items, APP_STATE_MAX_SELECTORS, "$.selectors", "APP_STATE_LIMIT_EXCEEDED", "selectors", issues)
+    _check_count(
+        replay_items,
+        APP_STATE_MAX_REPLAY_ASSERTIONS,
+        "$.state_replay_assertions",
+        "APP_STATE_LIMIT_EXCEEDED",
+        "replay assertions",
+        issues,
+    )
+
+    screen_ids = _screen_ids(app_payload)
+    action_payload_bindings = _screen_action_payload_bindings(app_payload)
+    resource_view_ids = _resource_view_ids(app_payload)
+    states = _parse_state_entries(state_items, screen_ids, resource_view_ids, issues)
+    state_ids = {state.id for state in states}
+    mutations = _parse_mutations(mutation_items, state_ids, action_payload_bindings, issues)
+    selectors = _parse_selectors(selector_items, state_ids, issues)
+    replay_assertions = _parse_replay_assertions(replay_items, state_ids, {m.id: m for m in mutations}, issues)
+    _validate_unique([state.id for state in states], "$.state", "APP_STATE_DUPLICATE_ID", issues)
+    _validate_unique([mutation.id for mutation in mutations], "$.mutations", "APP_STATE_DUPLICATE_MUTATION_ID", issues)
+    _validate_unique([selector.id for selector in selectors], "$.selectors", "APP_STATE_DUPLICATE_SELECTOR_ID", issues)
+    _validate_unique([assertion.id for assertion in replay_assertions], "$.state_replay_assertions", "APP_STATE_DUPLICATE_REPLAY_ID", issues)
+
+    if issues:
+        return None, issues
+    state_ir = StateIR(
+        profile=INTERACTIVE_STATE_PROFILE,
+        states=tuple(states),
+        mutations=tuple(mutations),
+        selectors=tuple(selectors),
+        replay_assertions=tuple(replay_assertions),
+    )
+    return state_ir, []
+
+
+def state_ir_summary(app_payload: dict[str, Any]) -> dict[str, Any] | None:
+    if app_payload.get("schema_version") != 3:
+        return None
+    return {
+        "profile": app_payload.get("interactive_state"),
+        "state_count": len(app_payload.get("state", [])) if isinstance(app_payload.get("state"), list) else 0,
+        "mutation_count": len(app_payload.get("mutations", [])) if isinstance(app_payload.get("mutations"), list) else 0,
+        "selector_count": len(app_payload.get("selectors", [])) if isinstance(app_payload.get("selectors"), list) else 0,
+        "replay_assertion_count": (
+            len(app_payload.get("state_replay_assertions", []))
+            if isinstance(app_payload.get("state_replay_assertions"), list)
+            else 0
+        ),
+    }
+
+
+def normalize_state_ir(app_payload: dict[str, Any], state_ir: StateIR | None = None) -> NormalizedStateIR:
+    if state_ir is None:
+        state_ir, issues = validate_state_ir(app_payload)
+        if state_ir is None:
+            detail = "; ".join(issue.message for issue in issues)
+            raise ValueError(f"Cannot normalize invalid state IR: {detail}")
+    contract = {
+        "profile": state_ir.profile,
+        "state": [
+            {
+                "id": state.id,
+                "kind": state.kind,
+                "scope": state.scope,
+                **({"screen_id": state.screen_id} if state.screen_id is not None else {}),
+                "initial": copy.deepcopy(state.initial),
+            }
+            for state in state_ir.states
+        ],
+        "mutations": [
+            {
+                "id": mutation.id,
+                "trigger": dict(mutation.trigger),
+                "ops": [copy.deepcopy(op) for op in mutation.ops],
+                "payload_refs": sorted(mutation.required_payload_bindings),
+                "allowed_payload_bindings": sorted(mutation.allowed_payload_bindings),
+                "required_payload_bindings": sorted(mutation.required_payload_bindings),
+            }
+            for mutation in state_ir.mutations
+        ],
+        "selectors": [
+            {
+                "id": selector.id,
+                "source_state": selector.source_state,
+                "ops": [copy.deepcopy(op) for op in selector.ops],
+            }
+            for selector in state_ir.selectors
+        ],
+        "state_event_schemas": state_event_schemas(state_ir),
+        "replay_assertions": [
+            {
+                "id": assertion.id,
+                "event_count": len(assertion.events),
+                "events": [copy.deepcopy(event) for event in assertion.events],
+                "expect_state_ids": list(assertion.expect_state),
+                "expect_selector_ids": list(assertion.expect_selectors),
+            }
+            for assertion in state_ir.replay_assertions
+        ],
+    }
+    return NormalizedStateIR(contract=contract, contract_hash=_hash_json(contract))
+
+
+def state_contract_hash(app_payload: dict[str, Any], state_ir: StateIR | None = None) -> str:
+    return normalize_state_ir(app_payload, state_ir).contract_hash
+
+
+def state_event_schemas(state_ir: StateIR) -> list[dict[str, Any]]:
+    return [
+        {
+            "mutation_id": mutation.id,
+            "trigger": dict(mutation.trigger),
+            "allowed_payload_bindings": sorted(mutation.allowed_payload_bindings),
+            "required_payload_bindings": sorted(mutation.required_payload_bindings),
+            "value_type": "json_value",
+        }
+        for mutation in state_ir.mutations
+    ]
+
+
+def replay_state_assertions(app_payload: dict[str, Any]) -> dict[str, Any]:
+    state_ir, issues = validate_state_ir(app_payload)
+    if state_ir is None:
+        return {
+            "ok": False,
+            "profile": INTERACTIVE_STATE_PROFILE,
+            "assertion_count": 0,
+            "passed_count": 0,
+            "failed_count": len(issues),
+            "errors": [issue.to_json() for issue in issues],
+            "assertions": [],
+        }
+    initial = initial_state(app_payload, state_ir)
+    assertions: list[dict[str, Any]] = []
+    errors: list[dict[str, Any]] = []
+    for assertion in state_ir.replay_assertions:
+        current = copy.deepcopy(initial)
+        event_results: list[dict[str, Any]] = []
+        for event in assertion.events:
+            event_result = apply_event(current, state_ir, event)
+            event_results.append(event_result)
+            if not event_result["ok"]:
+                errors.extend(event_result["errors"])
+                break
+        selector_values = evaluate_selectors(current, state_ir)
+        state_matches = _json_values_equal(_project_expected(current, assertion.expect_state), assertion.expect_state)
+        selector_matches = _json_values_equal(_project_expected(selector_values, assertion.expect_selectors), assertion.expect_selectors)
+        status = "passed" if state_matches and selector_matches and all(result["ok"] for result in event_results) else "failed"
+        if status == "failed":
+            if not state_matches:
+                errors.append(
+                    {
+                        "code": "APP_STATE_REPLAY_STATE_MISMATCH",
+                        "path": f"$.state_replay_assertions.{assertion.id}.expect_state",
+                        "message": f"Replay assertion {assertion.id} final state did not match.",
+                    }
+                )
+            if not selector_matches:
+                errors.append(
+                    {
+                        "code": "APP_STATE_REPLAY_SELECTOR_MISMATCH",
+                        "path": f"$.state_replay_assertions.{assertion.id}.expect_selectors",
+                        "message": f"Replay assertion {assertion.id} selector values did not match.",
+                    }
+                )
+        assertions.append(
+            {
+                "id": assertion.id,
+                "status": status,
+                "event_count": len(assertion.events),
+                "state_matches": state_matches,
+                "selector_matches": selector_matches,
+            }
+        )
+    failed_count = sum(1 for assertion in assertions if assertion["status"] != "passed")
+    return {
+        "ok": failed_count == 0 and not errors,
+        "profile": INTERACTIVE_STATE_PROFILE,
+        "assertion_count": len(assertions),
+        "passed_count": len(assertions) - failed_count,
+        "failed_count": failed_count,
+        "errors": errors,
+        "assertions": assertions,
+    }
+
+
+def initial_state(app_payload: dict[str, Any], state_ir: StateIR) -> dict[str, Any]:
+    values: dict[str, Any] = {}
+    resource_views = _resource_view_values(app_payload)
+    for state in state_ir.states:
+        initial = state.initial
+        if "value" in initial:
+            values[state.id] = copy.deepcopy(initial["value"])
+        elif "from_resource_view" in initial:
+            ref = initial["from_resource_view"]
+            if isinstance(ref, dict):
+                values[state.id] = copy.deepcopy(resource_views.get((str(ref.get("screen_id")), str(ref.get("view_id"))), []))
+            else:
+                values[state.id] = []
+        else:
+            values[state.id] = _default_state_value(state.kind)
+    return values
+
+
+def apply_event(current_state: dict[str, Any], state_ir: StateIR, event: dict[str, Any]) -> dict[str, Any]:
+    mutation_id = event.get("mutation_id")
+    if not isinstance(mutation_id, str):
+        return _event_error("APP_STATE_EVENT_MUTATION_REQUIRED", "State replay events must declare mutation_id.")
+    mutation = next((item for item in state_ir.mutations if item.id == mutation_id), None)
+    if mutation is None:
+        return _event_error("APP_STATE_EVENT_MUTATION_MISSING", f"State replay event references missing mutation {mutation_id}.")
+    payload_values = event.get("payload_values", {})
+    if not isinstance(payload_values, dict):
+        return _event_error("APP_STATE_EVENT_PAYLOAD_INVALID", "State replay event payload_values must be an object.")
+    payload_errors = _validate_event_payload(mutation, payload_values)
+    if payload_errors:
+        return {"ok": False, "mutation_id": mutation_id, "errors": payload_errors}
+    errors: list[dict[str, str]] = []
+    for op in mutation.ops:
+        try:
+            _apply_op(current_state, op, payload_values)
+        except (TypeError, ValueError) as exc:
+            errors.append({"code": "APP_STATE_REDUCER_OP_FAILED", "path": f"$.mutations.{mutation.id}.ops", "message": str(exc)})
+            break
+    return {"ok": not errors, "mutation_id": mutation_id, "errors": errors}
+
+
+def evaluate_selectors(current_state: dict[str, Any], state_ir: StateIR) -> dict[str, Any]:
+    values: dict[str, Any] = {}
+    for selector in state_ir.selectors:
+        value = copy.deepcopy(current_state.get(selector.source_state))
+        for op in selector.ops:
+            kind = op.get("op")
+            if kind == "filter_eq":
+                field = str(op.get("field"))
+                expected = op.get("value")
+                value = [item for item in value if isinstance(item, dict) and item.get(field) == expected] if isinstance(value, list) else []
+            elif kind == "sort_by":
+                field = str(op.get("field"))
+                direction = str(op.get("direction", "asc"))
+                value = (
+                    sorted(value, key=lambda item: _selector_sort_key(item, field), reverse=direction == "desc")
+                    if isinstance(value, list)
+                    else []
+                )
+            elif kind == "slice":
+                start = int(op.get("start", 0))
+                end = op.get("end")
+                value = value[start : int(end)] if isinstance(value, list) and end is not None else value[start:] if isinstance(value, list) else []
+        values[selector.id] = value
+    return values
+
+
+def state_manifest(
+    app_payload: dict[str, Any],
+    *,
+    reducer_hash: str,
+    conformance_report: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    state_ir, issues = validate_state_ir(app_payload)
+    if state_ir is None:
+        detail = "; ".join(issue.message for issue in issues)
+        raise ValueError(f"Cannot build state manifest for invalid state IR: {detail}")
+    normalized = normalize_state_ir(app_payload, state_ir)
+    replay_report = replay_state_assertions(app_payload)
+    return {
+        "schema_version": STATE_MANIFEST_SCHEMA_VERSION,
+        "profile": INTERACTIVE_STATE_PROFILE,
+        "app_schema_version": app_payload.get("schema_version"),
+        "summary": state_ir_summary(app_payload),
+        "normalized_contract": normalized.to_json(),
+        "contract_hash": normalized.contract_hash,
+        "state_event_schemas": state_event_schemas(state_ir),
+        "state_ids": [item.get("id") for item in app_payload.get("state", []) if isinstance(item, dict)],
+        "mutation_ids": [item.get("id") for item in app_payload.get("mutations", []) if isinstance(item, dict)],
+        "selector_ids": [item.get("id") for item in app_payload.get("selectors", []) if isinstance(item, dict)],
+        "reducer_exports": list(STATE_REDUCER_EXPORTS),
+        "reducer_hash": reducer_hash,
+        "replay": replay_report,
+        "reducer_conformance": conformance_report,
+    }
+
+
+def generate_typescript_reducer(app_payload: dict[str, Any]) -> str:
+    state_ir, issues = validate_state_ir(app_payload)
+    if state_ir is None:
+        detail = "; ".join(issue.message for issue in issues)
+        raise ValueError(f"Cannot generate reducer for invalid state IR: {detail}")
+    initial = initial_state(app_payload, state_ir)
+    selectors = [
+        {"id": selector.id, "sourceState": selector.source_state, "ops": list(selector.ops)}
+        for selector in state_ir.selectors
+    ]
+    mutations = [
+        {
+            "id": mutation.id,
+            "trigger": dict(mutation.trigger),
+            "ops": list(mutation.ops),
+            "allowedPayloadBindings": sorted(mutation.allowed_payload_bindings),
+            "requiredPayloadBindings": sorted(mutation.required_payload_bindings),
+        }
+        for mutation in state_ir.mutations
+    ]
+    return (
+        "// Generated by ViewSpec AppBundle V3 interactive_state_v0. Do not edit.\n"
+        "/** @typedef {Record<string, unknown>} ViewSpecState */\n"
+        "/** @typedef {{ mutation_id: string, payload_values?: Record<string, unknown> }} ViewSpecStateEvent */\n\n"
+        f"export const VIEWSPEC_STATE_PROFILE = {json.dumps(INTERACTIVE_STATE_PROFILE)};\n"
+        f"export const initialState = {json.dumps(initial, indent=2, sort_keys=True)};\n"
+        f"const mutations = {json.dumps(mutations, indent=2, sort_keys=True)};\n"
+        f"const selectors = {json.dumps(selectors, indent=2, sort_keys=True)};\n\n"
+        "const clone = (value) => value === undefined ? undefined : JSON.parse(JSON.stringify(value));\n"
+        "const hasOwn = (obj, key) => Object.prototype.hasOwnProperty.call(obj, key);\n"
+        "const payload = (values, key) => values[key];\n"
+        "const valueOf = (value, values) => {\n"
+        "  if (value && typeof value === \"object\" && !Array.isArray(value) && Object.keys(value).length === 1 && \"from_payload\" in value) {\n"
+        "    return payload(values, String(value.from_payload));\n"
+        "  }\n"
+        "  return clone(value);\n"
+        "};\n\n"
+        "const eventError = (code, values) => {\n"
+        "  const suffix = Array.isArray(values) && values.length ? `:${values.join(\",\")}` : \"\";\n"
+        "  const error = new Error(`${code}${suffix}`);\n"
+        "  error.code = code;\n"
+        "  error.values = values;\n"
+        "  return error;\n"
+        "};\n\n"
+        "const assertPayload = (mutation, values) => {\n"
+        "  if (!values || typeof values !== \"object\" || Array.isArray(values)) throw eventError(\"APP_STATE_EVENT_PAYLOAD_INVALID\", []);\n"
+        "  const allowed = new Set(mutation.allowedPayloadBindings || []);\n"
+        "  const required = mutation.requiredPayloadBindings || [];\n"
+        "  const unknown = Object.keys(values).filter((key) => !allowed.has(key)).sort();\n"
+        "  if (unknown.length) throw eventError(\"APP_STATE_EVENT_PAYLOAD_UNKNOWN\", unknown);\n"
+        "  const missing = required.filter((key) => !hasOwn(values, key)).sort();\n"
+        "  if (missing.length) throw eventError(\"APP_STATE_EVENT_PAYLOAD_MISSING\", missing);\n"
+        "};\n\n"
+        "/** @param {ViewSpecState} state @param {ViewSpecStateEvent} event @returns {ViewSpecState} */\n"
+        "export function reduceViewSpecState(state, event) {\n"
+        "  const next = clone(state);\n"
+        "  const mutation = mutations.find((item) => item.id === event.mutation_id);\n"
+        "  if (!mutation) return next;\n"
+        "  const values = event.payload_values ?? {};\n"
+        "  assertPayload(mutation, values);\n"
+        "  for (const op of mutation.ops) {\n"
+        "    const key = String(op.state ?? \"\");\n"
+        "    const current = next[key];\n"
+        "    if (op.op === \"set\") next[key] = valueOf(op.value, values);\n"
+        "    if (op.op === \"append\" && Array.isArray(current)) next[key] = [...current, valueOf(op.value, values)];\n"
+        "    if (op.op === \"remove\" && Array.isArray(current)) next[key] = current.filter((item) => !(item && typeof item === \"object\" && String(item.id) === String(valueOf(op.item_id, values))));\n"
+        "    if (op.op === \"move\" && Array.isArray(current)) {\n"
+        "      const id = String(valueOf(op.item_id, values));\n"
+        "      const from = current.findIndex((item) => item && typeof item === \"object\" && String(item.id) === id);\n"
+        "      const to = Number(valueOf(op.to_index, values));\n"
+        "      if (from >= 0 && Number.isInteger(to)) { const copy = [...current]; const [item] = copy.splice(from, 1); copy.splice(Math.max(0, Math.min(to, copy.length)), 0, item); next[key] = copy; }\n"
+        "    }\n"
+        "    if (op.op === \"patch\") next[key] = patchValue(current, op, values);\n"
+        "    if (op.op === \"toggle\") next[key] = toggleValue(current, op, values);\n"
+        "    if (op.op === \"increment\") next[key] = incrementValue(current, op, values);\n"
+        "  }\n"
+        "  return next;\n"
+        "}\n\n"
+        "function patchValue(current, op, values) {\n"
+        "  const patch = valueOf(op.value, values);\n"
+        "  const idExpr = op.item_id;\n"
+        "  if (Array.isArray(current) && idExpr !== undefined && patch && typeof patch === \"object\") {\n"
+        "    const id = String(valueOf(idExpr, values));\n"
+        "    return current.map((item) => item && typeof item === \"object\" && String(item.id) === id ? { ...item, ...patch } : item);\n"
+        "  }\n"
+        "  return current && typeof current === \"object\" && patch && typeof patch === \"object\" ? { ...current, ...patch } : current;\n"
+        "}\n\n"
+        "function toggleValue(current, op, values) {\n"
+        "  const field = op.field;\n"
+        "  const idExpr = op.item_id;\n"
+        "  if (Array.isArray(current) && field && idExpr !== undefined) {\n"
+        "    const id = String(valueOf(idExpr, values));\n"
+        "    return current.map((item) => item && typeof item === \"object\" && String(item.id) === id ? { ...item, [field]: !item[field] } : item);\n"
+        "  }\n"
+        "  if (current && typeof current === \"object\" && field) return { ...current, [field]: !current[field] };\n"
+        "  return !current;\n"
+        "}\n\n"
+        "function incrementValue(current, op, values) {\n"
+        "  const amount = Number(valueOf(op.amount ?? 1, values));\n"
+        "  const field = op.field;\n"
+        "  const idExpr = op.item_id;\n"
+        "  if (Array.isArray(current) && field && idExpr !== undefined) {\n"
+        "    const id = String(valueOf(idExpr, values));\n"
+        "    return current.map((item) => item && typeof item === \"object\" && String(item.id) === id ? { ...item, [field]: Number(item[field] ?? 0) + amount } : item);\n"
+        "  }\n"
+        "  if (current && typeof current === \"object\" && field) return { ...current, [field]: Number(current[field] ?? 0) + amount };\n"
+        "  return Number(current ?? 0) + amount;\n"
+        "}\n\n"
+        "/** @param {ViewSpecState} state @returns {Record<string, unknown>} */\n"
+        "export function selectViewSpecState(state) {\n"
+        "  const result = {};\n"
+        "  for (const selector of selectors) {\n"
+        "    let value = clone(state[selector.sourceState]);\n"
+        "    for (const op of selector.ops) {\n"
+        "      if (op.op === \"filter_eq\" && Array.isArray(value)) value = value.filter((item) => item && typeof item === \"object\" && item[op.field] === op.value);\n"
+        "      if (op.op === \"sort_by\" && Array.isArray(value)) value = [...value].sort((a, b) => String((a?.[op.field]) ?? \"\").localeCompare(String((b?.[op.field]) ?? \"\")) * (op.direction === \"desc\" ? -1 : 1));\n"
+        "      if (op.op === \"slice\" && Array.isArray(value)) value = value.slice(op.start ?? 0, op.end);\n"
+        "    }\n"
+        "    result[selector.id] = value;\n"
+        "  }\n"
+        "  return result;\n"
+        "}\n"
+    )
+
+
+def check_reducer_conformance(
+    app_payload: dict[str, Any],
+    *,
+    reducer_source: str | None = None,
+    node_command: str = "node",
+) -> dict[str, Any]:
+    state_ir, issues = validate_state_ir(app_payload)
+    if state_ir is None:
+        return {
+            "ok": False,
+            "profile": INTERACTIVE_STATE_PROFILE,
+            "runtime": "node",
+            "assertion_count": 0,
+            "passed_count": 0,
+            "failed_count": len(issues),
+            "reducer_source_hash": None,
+            "export_names": [],
+            "errors": [issue.to_json() for issue in issues],
+            "replays": [],
+        }
+    source = reducer_source if reducer_source is not None else generate_typescript_reducer(app_payload)
+    expected_replays = _expected_conformance_replays(app_payload, state_ir)
+    node_report = _run_node_conformance(source, state_ir, node_command=node_command)
+    errors: list[dict[str, Any]] = []
+    if not node_report.get("ok"):
+        errors.extend(node_report.get("errors") if isinstance(node_report.get("errors"), list) else [])
+        return {
+            "ok": False,
+            "profile": INTERACTIVE_STATE_PROFILE,
+            "runtime": "node",
+            "assertion_count": len(expected_replays),
+            "passed_count": 0,
+            "failed_count": len(expected_replays) or 1,
+            "reducer_source_hash": _hash_text(source),
+            "export_names": node_report.get("export_names") if isinstance(node_report.get("export_names"), list) else [],
+            "errors": errors or [_conformance_error("Node reducer conformance failed before replay.")],
+            "replays": [],
+        }
+    export_names = [name for name in node_report.get("export_names", []) if isinstance(name, str)]
+    missing_exports = [name for name in STATE_REDUCER_EXPORTS if name not in export_names]
+    if node_report.get("profile") != INTERACTIVE_STATE_PROFILE:
+        errors.append(_conformance_error("Generated reducer exported an unexpected VIEWSPEC_STATE_PROFILE."))
+    if missing_exports:
+        errors.append(_conformance_error(f"Generated reducer is missing export(s): {', '.join(missing_exports)}."))
+    node_replays = {
+        replay.get("id"): replay
+        for replay in node_report.get("replays", [])
+        if isinstance(replay, dict) and isinstance(replay.get("id"), str)
+    }
+    replay_reports: list[dict[str, Any]] = []
+    for expected in expected_replays:
+        actual = node_replays.get(expected["id"])
+        if actual is None:
+            state_matches = False
+            selector_matches = False
+            event_ok = False
+            errors.append(_conformance_error(f"Node reducer omitted replay assertion {expected['id']}."))
+        else:
+            state_matches = _json_values_equal(actual.get("state"), expected["state"])
+            selector_matches = _json_values_equal(actual.get("selectors"), expected["selectors"])
+            event_ok = bool(actual.get("ok")) == bool(expected["ok"])
+            actual_errors = actual.get("errors") if isinstance(actual.get("errors"), list) else []
+            if not event_ok:
+                errors.append(_conformance_error(f"Node reducer event status diverged for replay assertion {expected['id']}."))
+            if not state_matches:
+                errors.append(_conformance_error(f"Node reducer final state diverged for replay assertion {expected['id']}."))
+            if not selector_matches:
+                errors.append(_conformance_error(f"Node reducer selector values diverged for replay assertion {expected['id']}."))
+            if not bool(expected["ok"]) and actual_errors and expected.get("error_codes"):
+                actual_codes = {str(error.get("code") or "").split(":", 1)[0] for error in actual_errors if isinstance(error, dict)}
+                if not set(expected["error_codes"]).issubset(actual_codes):
+                    errors.append(_conformance_error(f"Node reducer error codes diverged for replay assertion {expected['id']}."))
+        replay_reports.append(
+            {
+                "id": expected["id"],
+                "status": "passed" if actual is not None and event_ok and state_matches and selector_matches else "failed",
+                "event_count": expected["event_count"],
+                "state_matches": state_matches,
+                "selector_matches": selector_matches,
+                "event_status_matches": event_ok,
+            }
+        )
+    failed_count = sum(1 for replay in replay_reports if replay["status"] != "passed")
+    return {
+        "ok": failed_count == 0 and not errors,
+        "profile": INTERACTIVE_STATE_PROFILE,
+        "runtime": "node",
+        "assertion_count": len(expected_replays),
+        "passed_count": len(expected_replays) - failed_count,
+        "failed_count": failed_count,
+        "reducer_source_hash": _hash_text(source),
+        "export_names": export_names,
+        "errors": errors,
+        "replays": replay_reports,
+    }
+
+
+def _parse_state_entries(
+    items: list[Any],
+    screen_ids: set[str],
+    resource_view_ids: set[tuple[str, str]],
+    issues: list[StateValidationIssue],
+) -> list[StateEntry]:
+    states: list[StateEntry] = []
+    for index, item in enumerate(items):
+        path = f"$.state[{index}]"
+        if not isinstance(item, dict):
+            issues.append(StateValidationIssue("APP_STATE_ENTRY_NOT_OBJECT", path, "Each state entry must be an object."))
+            continue
+        _reject_extra(item, {"id", "kind", "scope", "screen_id", "initial"}, path, issues)
+        state_id = _required_string(item, "id", path, issues)
+        kind = _required_string(item, "kind", path, issues)
+        scope = _required_string(item, "scope", path, issues)
+        screen_id = item.get("screen_id")
+        initial = item.get("initial")
+        _validate_safe_id(state_id, f"{path}.id", "state id", issues)
+        if kind and kind not in STATE_KINDS:
+            issues.append(StateValidationIssue("APP_STATE_KIND_UNSUPPORTED", f"{path}.kind", f"Unsupported state kind {kind}."))
+        if scope and scope not in STATE_SCOPES:
+            issues.append(StateValidationIssue("APP_STATE_SCOPE_UNSUPPORTED", f"{path}.scope", f"Unsupported state scope {scope}."))
+        if scope == "screen":
+            if not isinstance(screen_id, str):
+                issues.append(StateValidationIssue("APP_STATE_SCREEN_REQUIRED", f"{path}.screen_id", "screen-scoped state requires screen_id."))
+            elif screen_id not in screen_ids:
+                issues.append(StateValidationIssue("APP_STATE_SCREEN_MISSING", f"{path}.screen_id", f"State references missing screen {screen_id}."))
+        elif "screen_id" in item:
+            issues.append(StateValidationIssue("APP_STATE_SCREEN_SCOPE_MISMATCH", f"{path}.screen_id", "Only screen-scoped state may declare screen_id."))
+        if not isinstance(initial, dict):
+            issues.append(StateValidationIssue("APP_STATE_INITIAL_INVALID", f"{path}.initial", "state.initial must be an object."))
+            initial = {}
+        else:
+            keys = set(initial)
+            if keys not in ({"value"}, {"from_resource_view"}):
+                issues.append(
+                    StateValidationIssue(
+                        "APP_STATE_INITIAL_INVALID",
+                        f"{path}.initial",
+                        "state.initial must declare exactly one of value or from_resource_view.",
+                    )
+                )
+            if "from_resource_view" in initial:
+                ref = initial["from_resource_view"]
+                if not isinstance(ref, dict):
+                    issues.append(
+                        StateValidationIssue(
+                            "APP_STATE_RESOURCE_VIEW_REF_INVALID",
+                            f"{path}.initial.from_resource_view",
+                            "from_resource_view must be an object with screen_id and view_id.",
+                        )
+                    )
+                else:
+                    _reject_extra(ref, {"screen_id", "view_id"}, f"{path}.initial.from_resource_view", issues)
+                    ref_screen = _required_string(ref, "screen_id", f"{path}.initial.from_resource_view", issues)
+                    view_id = _required_string(ref, "view_id", f"{path}.initial.from_resource_view", issues)
+                    if ref_screen and view_id and (ref_screen, view_id) not in resource_view_ids:
+                        issues.append(
+                            StateValidationIssue(
+                                "APP_STATE_RESOURCE_VIEW_MISSING",
+                                f"{path}.initial.from_resource_view",
+                                f"State references missing resource_view {ref_screen}.{view_id}.",
+                            )
+                        )
+        if state_id and kind and scope and isinstance(initial, dict):
+            states.append(StateEntry(id=state_id, kind=kind, scope=scope, initial=copy.deepcopy(initial), screen_id=screen_id if isinstance(screen_id, str) else None))
+    return states
+
+
+def _parse_mutations(
+    items: list[Any],
+    state_ids: set[str],
+    action_payload_bindings: dict[tuple[str, str], set[str]],
+    issues: list[StateValidationIssue],
+) -> list[StateMutation]:
+    mutations: list[StateMutation] = []
+    for index, item in enumerate(items):
+        path = f"$.mutations[{index}]"
+        if not isinstance(item, dict):
+            issues.append(StateValidationIssue("APP_STATE_MUTATION_NOT_OBJECT", path, "Each mutation must be an object."))
+            continue
+        _reject_extra(item, {"id", "trigger", "ops"}, path, issues)
+        mutation_id = _required_string(item, "id", path, issues)
+        _validate_safe_id(mutation_id, f"{path}.id", "mutation id", issues)
+        trigger = item.get("trigger")
+        if not isinstance(trigger, dict):
+            issues.append(StateValidationIssue("APP_STATE_TRIGGER_INVALID", f"{path}.trigger", "mutation.trigger must be an object."))
+            trigger = {}
+        else:
+            _reject_extra(trigger, {"screen_id", "action_id"}, f"{path}.trigger", issues)
+        screen_id = _required_string(trigger, "screen_id", f"{path}.trigger", issues)
+        action_id = _required_string(trigger, "action_id", f"{path}.trigger", issues)
+        trigger_key = (screen_id, action_id) if screen_id and action_id else None
+        if trigger_key is not None and trigger_key not in action_payload_bindings:
+            issues.append(
+                StateValidationIssue(
+                    "APP_STATE_TRIGGER_ACTION_MISSING",
+                    f"{path}.trigger",
+                    f"Mutation trigger references missing action {screen_id}.{action_id}.",
+                )
+            )
+        payload_bindings = action_payload_bindings.get(trigger_key, set()) if trigger_key is not None else set()
+        ops = _required_array(item, "ops", path, issues)
+        _check_count(ops, APP_STATE_MAX_OPS_PER_MUTATION, f"{path}.ops", "APP_STATE_LIMIT_EXCEEDED", "ops per mutation", issues)
+        parsed_ops: list[dict[str, Any]] = []
+        required_payload_bindings: set[str] = set()
+        for op_index, op in enumerate(ops):
+            op_path = f"{path}.ops[{op_index}]"
+            if not isinstance(op, dict):
+                issues.append(StateValidationIssue("APP_STATE_OP_NOT_OBJECT", op_path, "Mutation ops must be objects."))
+                continue
+            kind = _required_string(op, "op", op_path, issues)
+            if kind and kind not in MUTATION_OPS:
+                issues.append(StateValidationIssue("APP_STATE_OP_UNSUPPORTED", f"{op_path}.op", f"Unsupported mutation op {kind}."))
+            state_id = _required_string(op, "state", op_path, issues)
+            if state_id and state_id not in state_ids:
+                issues.append(StateValidationIssue("APP_STATE_OP_STATE_MISSING", f"{op_path}.state", f"Operation targets missing state {state_id}."))
+            _validate_op_shape(op, op_path, kind, issues)
+            for payload_id in _op_payload_refs(op):
+                required_payload_bindings.add(payload_id)
+                if payload_id not in payload_bindings:
+                    issues.append(
+                        StateValidationIssue(
+                            "APP_STATE_PAYLOAD_BINDING_MISSING",
+                            op_path,
+                            f"Operation reads payload binding {payload_id}, but the trigger action does not declare it.",
+                        )
+                    )
+            parsed_ops.append(copy.deepcopy(op))
+        if mutation_id and screen_id and action_id:
+            mutations.append(
+                StateMutation(
+                    id=mutation_id,
+                    trigger={"screen_id": screen_id, "action_id": action_id},
+                    ops=tuple(parsed_ops),
+                    allowed_payload_bindings=frozenset(payload_bindings),
+                    required_payload_bindings=frozenset(required_payload_bindings),
+                )
+            )
+    return mutations
+
+
+def _validate_op_shape(op: dict[str, Any], path: str, kind: str | None, issues: list[StateValidationIssue]) -> None:
+    allowed = {
+        "set": {"op", "state", "value"},
+        "patch": {"op", "state", "item_id", "value"},
+        "toggle": {"op", "state", "item_id", "field"},
+        "append": {"op", "state", "value"},
+        "remove": {"op", "state", "item_id"},
+        "move": {"op", "state", "item_id", "to_index"},
+        "increment": {"op", "state", "item_id", "field", "amount"},
+    }.get(kind or "", {"op", "state"})
+    _reject_extra(op, allowed, path, issues)
+    required_by_op = {
+        "set": ("value",),
+        "patch": ("value",),
+        "append": ("value",),
+        "remove": ("item_id",),
+        "move": ("item_id", "to_index"),
+    }
+    for key in required_by_op.get(kind or "", ()):
+        if key not in op:
+            issues.append(StateValidationIssue("APP_STATE_OP_FIELD_REQUIRED", f"{path}.{key}", f"Operation {kind} requires {key}."))
+
+
+def _parse_selectors(items: list[Any], state_ids: set[str], issues: list[StateValidationIssue]) -> list[StateSelector]:
+    selectors: list[StateSelector] = []
+    for index, item in enumerate(items):
+        path = f"$.selectors[{index}]"
+        if not isinstance(item, dict):
+            issues.append(StateValidationIssue("APP_STATE_SELECTOR_NOT_OBJECT", path, "Each selector must be an object."))
+            continue
+        _reject_extra(item, {"id", "source_state", "ops"}, path, issues)
+        selector_id = _required_string(item, "id", path, issues)
+        _validate_safe_id(selector_id, f"{path}.id", "selector id", issues)
+        source_state = _required_string(item, "source_state", path, issues)
+        if source_state and source_state not in state_ids:
+            issues.append(StateValidationIssue("APP_STATE_SELECTOR_SOURCE_MISSING", f"{path}.source_state", f"Selector source state {source_state} is missing."))
+        ops = _required_array(item, "ops", path, issues)
+        _check_count(ops, APP_STATE_MAX_SELECTOR_OPS, f"{path}.ops", "APP_STATE_LIMIT_EXCEEDED", "selector ops", issues)
+        parsed_ops: list[dict[str, Any]] = []
+        for op_index, op in enumerate(ops):
+            op_path = f"{path}.ops[{op_index}]"
+            if not isinstance(op, dict):
+                issues.append(StateValidationIssue("APP_STATE_SELECTOR_OP_NOT_OBJECT", op_path, "Selector ops must be objects."))
+                continue
+            kind = _required_string(op, "op", op_path, issues)
+            if kind and kind not in SELECTOR_OPS:
+                issues.append(StateValidationIssue("APP_STATE_SELECTOR_OP_UNSUPPORTED", f"{op_path}.op", f"Unsupported selector op {kind}."))
+            allowed = {
+                "filter_eq": {"op", "field", "value"},
+                "sort_by": {"op", "field", "direction"},
+                "slice": {"op", "start", "end"},
+            }.get(kind or "", {"op"})
+            _reject_extra(op, allowed, op_path, issues)
+            if kind in {"filter_eq", "sort_by"}:
+                _required_string(op, "field", op_path, issues)
+            if kind == "sort_by" and op.get("direction", "asc") not in {"asc", "desc"}:
+                issues.append(StateValidationIssue("APP_STATE_SELECTOR_DIRECTION_INVALID", f"{op_path}.direction", "sort_by direction must be asc or desc."))
+            parsed_ops.append(copy.deepcopy(op))
+        if selector_id and source_state:
+            selectors.append(StateSelector(id=selector_id, source_state=source_state, ops=tuple(parsed_ops)))
+    return selectors
+
+
+def _parse_replay_assertions(
+    items: list[Any],
+    state_ids: set[str],
+    mutations_by_id: dict[str, StateMutation],
+    issues: list[StateValidationIssue],
+) -> list[StateReplayAssertion]:
+    assertions: list[StateReplayAssertion] = []
+    for index, item in enumerate(items):
+        path = f"$.state_replay_assertions[{index}]"
+        if not isinstance(item, dict):
+            issues.append(StateValidationIssue("APP_STATE_REPLAY_NOT_OBJECT", path, "Each replay assertion must be an object."))
+            continue
+        _reject_extra(item, {"id", "events", "expect_state", "expect_selectors"}, path, issues)
+        assertion_id = _required_string(item, "id", path, issues)
+        _validate_safe_id(assertion_id, f"{path}.id", "replay assertion id", issues)
+        events = _required_array(item, "events", path, issues)
+        _check_count(events, APP_STATE_MAX_EVENTS_PER_REPLAY, f"{path}.events", "APP_STATE_LIMIT_EXCEEDED", "events per replay", issues)
+        for event_index, event in enumerate(events):
+            event_path = f"{path}.events[{event_index}]"
+            if not isinstance(event, dict):
+                issues.append(StateValidationIssue("APP_STATE_REPLAY_EVENT_NOT_OBJECT", event_path, "Replay events must be objects."))
+                continue
+            _reject_extra(event, {"mutation_id", "payload_values"}, event_path, issues)
+            mutation_id = _required_string(event, "mutation_id", event_path, issues)
+            mutation = mutations_by_id.get(mutation_id or "")
+            if mutation_id and mutation is None:
+                issues.append(StateValidationIssue("APP_STATE_REPLAY_MUTATION_MISSING", f"{event_path}.mutation_id", f"Replay references missing mutation {mutation_id}."))
+            payload_values = event.get("payload_values", {})
+            if not isinstance(payload_values, dict):
+                issues.append(StateValidationIssue("APP_STATE_REPLAY_PAYLOAD_INVALID", f"{event_path}.payload_values", "payload_values must be an object."))
+            elif mutation is not None:
+                for payload_error in _validate_event_payload(mutation, payload_values):
+                    issues.append(
+                        StateValidationIssue(
+                            str(payload_error["code"]),
+                            f"{event_path}.payload_values",
+                            str(payload_error["message"]),
+                        )
+                    )
+        expect_state = item.get("expect_state", {})
+        expect_selectors = item.get("expect_selectors", {})
+        if not isinstance(expect_state, dict):
+            issues.append(StateValidationIssue("APP_STATE_REPLAY_EXPECT_STATE_INVALID", f"{path}.expect_state", "expect_state must be an object."))
+            expect_state = {}
+        if not isinstance(expect_selectors, dict):
+            issues.append(StateValidationIssue("APP_STATE_REPLAY_EXPECT_SELECTORS_INVALID", f"{path}.expect_selectors", "expect_selectors must be an object."))
+            expect_selectors = {}
+        for state_id in expect_state:
+            if state_id not in state_ids:
+                issues.append(StateValidationIssue("APP_STATE_REPLAY_STATE_MISSING", f"{path}.expect_state.{state_id}", f"Replay expects missing state {state_id}."))
+        if assertion_id:
+            assertions.append(
+                StateReplayAssertion(
+                    id=assertion_id,
+                    events=tuple(copy.deepcopy(events)),
+                    expect_state=copy.deepcopy(expect_state),
+                    expect_selectors=copy.deepcopy(expect_selectors),
+                )
+            )
+    return assertions
+
+
+def _apply_op(current_state: dict[str, Any], op: dict[str, Any], payload_values: dict[str, Any]) -> None:
+    state_id = str(op.get("state") or "")
+    if state_id not in current_state:
+        raise ValueError(f"Operation targets missing state {state_id}.")
+    kind = op.get("op")
+    current = current_state[state_id]
+    if kind == "set":
+        current_state[state_id] = _resolve_expr(op.get("value"), payload_values)
+    elif kind == "append":
+        if not isinstance(current, list):
+            raise TypeError(f"append requires array state {state_id}.")
+        current_state[state_id] = [*current, _resolve_expr(op.get("value"), payload_values)]
+    elif kind == "remove":
+        item_id = str(_resolve_expr(op.get("item_id"), payload_values))
+        current_state[state_id] = [item for item in _require_list(current, "remove") if not (isinstance(item, dict) and str(item.get("id")) == item_id)]
+    elif kind == "move":
+        item_id = str(_resolve_expr(op.get("item_id"), payload_values))
+        to_index = int(_resolve_expr(op.get("to_index"), payload_values))
+        items = list(_require_list(current, "move"))
+        from_index = next((index for index, item in enumerate(items) if isinstance(item, dict) and str(item.get("id")) == item_id), -1)
+        if from_index < 0:
+            return
+        item = items.pop(from_index)
+        items.insert(max(0, min(to_index, len(items))), item)
+        current_state[state_id] = items
+    elif kind == "patch":
+        patch = _resolve_expr(op.get("value"), payload_values)
+        if not isinstance(patch, dict):
+            raise TypeError("patch value must resolve to an object.")
+        if "item_id" in op:
+            item_id = str(_resolve_expr(op.get("item_id"), payload_values))
+            current_state[state_id] = [
+                {**item, **patch} if isinstance(item, dict) and str(item.get("id")) == item_id else item
+                for item in _require_list(current, "patch")
+            ]
+        elif isinstance(current, dict):
+            current_state[state_id] = {**current, **patch}
+        else:
+            raise TypeError("patch without item_id requires record state.")
+    elif kind == "toggle":
+        current_state[state_id] = _toggle(current, op, payload_values)
+    elif kind == "increment":
+        current_state[state_id] = _increment(current, op, payload_values)
+    else:
+        raise ValueError(f"Unsupported op {kind}.")
+
+
+def _toggle(current: Any, op: dict[str, Any], payload_values: dict[str, Any]) -> Any:
+    field = op.get("field")
+    if "item_id" in op and isinstance(field, str):
+        item_id = str(_resolve_expr(op.get("item_id"), payload_values))
+        return [
+            {**item, field: not bool(item.get(field))} if isinstance(item, dict) and str(item.get("id")) == item_id else item
+            for item in _require_list(current, "toggle")
+        ]
+    if isinstance(field, str) and isinstance(current, dict):
+        return {**current, field: not bool(current.get(field))}
+    return not bool(current)
+
+
+def _increment(current: Any, op: dict[str, Any], payload_values: dict[str, Any]) -> Any:
+    amount = _resolve_expr(op.get("amount", 1), payload_values)
+    if not isinstance(amount, (int, float)):
+        raise TypeError("increment amount must resolve to a number.")
+    field = op.get("field")
+    if "item_id" in op and isinstance(field, str):
+        item_id = str(_resolve_expr(op.get("item_id"), payload_values))
+        return [
+            {**item, field: float(item.get(field, 0)) + amount} if isinstance(item, dict) and str(item.get("id")) == item_id else item
+            for item in _require_list(current, "increment")
+        ]
+    if isinstance(field, str) and isinstance(current, dict):
+        return {**current, field: float(current.get(field, 0)) + amount}
+    if not isinstance(current, (int, float)):
+        raise TypeError("increment requires numeric scalar state.")
+    return current + amount
+
+
+def _resolve_expr(value: Any, payload_values: dict[str, Any]) -> Any:
+    if isinstance(value, dict) and set(value) == {"from_payload"} and isinstance(value.get("from_payload"), str):
+        return copy.deepcopy(payload_values.get(value["from_payload"]))
+    return copy.deepcopy(value)
+
+
+def _resource_view_values(app_payload: dict[str, Any]) -> dict[tuple[str, str], list[dict[str, Any]]]:
+    resources_by_id: dict[str, dict[str, dict[str, Any]]] = {}
+    for resource in app_payload.get("resources", []) if isinstance(app_payload.get("resources"), list) else []:
+        if isinstance(resource, dict) and isinstance(resource.get("id"), str):
+            records = resource.get("records") if isinstance(resource.get("records"), list) else []
+            resources_by_id[resource["id"]] = {
+                str(record.get("id")): record
+                for record in records
+                if isinstance(record, dict) and isinstance(record.get("id"), str)
+            }
+    values: dict[tuple[str, str], list[dict[str, Any]]] = {}
+    for screen in app_payload.get("screens", []) if isinstance(app_payload.get("screens"), list) else []:
+        if not isinstance(screen, dict) or not isinstance(screen.get("id"), str):
+            continue
+        screen_id = screen["id"]
+        for view in screen.get("resource_views", []) if isinstance(screen.get("resource_views"), list) else []:
+            if not isinstance(view, dict) or not isinstance(view.get("id"), str):
+                continue
+            records = resources_by_id.get(str(view.get("resource_id")), {})
+            fields = [field for field in view.get("fields", []) if isinstance(field, str)]
+            view_records: list[dict[str, Any]] = []
+            for record_id in view.get("record_ids", []) if isinstance(view.get("record_ids"), list) else []:
+                record = records.get(str(record_id))
+                if isinstance(record, dict):
+                    view_records.append({field: copy.deepcopy(record.get(field)) for field in fields if field in record})
+            values[(screen_id, view["id"])] = view_records
+    return values
+
+
+def _screen_ids(app_payload: dict[str, Any]) -> set[str]:
+    return {
+        screen["id"]
+        for screen in app_payload.get("screens", [])
+        if isinstance(screen, dict) and isinstance(screen.get("id"), str)
+    }
+
+
+def _screen_action_payload_bindings(app_payload: dict[str, Any]) -> dict[tuple[str, str], set[str]]:
+    action_payloads: dict[tuple[str, str], set[str]] = {}
+    for screen in app_payload.get("screens", []) if isinstance(app_payload.get("screens"), list) else []:
+        if not isinstance(screen, dict) or not isinstance(screen.get("id"), str):
+            continue
+        view_spec = screen.get("intent_bundle", {}).get("view_spec") if isinstance(screen.get("intent_bundle"), dict) else {}
+        actions = view_spec.get("actions") if isinstance(view_spec, dict) and isinstance(view_spec.get("actions"), list) else []
+        for action in actions:
+            if isinstance(action, dict) and isinstance(action.get("id"), str):
+                bindings = action.get("payload_bindings") if isinstance(action.get("payload_bindings"), list) else []
+                action_payloads[(screen["id"], action["id"])] = {item for item in bindings if isinstance(item, str)}
+    return action_payloads
+
+
+def _op_payload_refs(op: dict[str, Any]) -> set[str]:
+    refs: set[str] = set()
+    for key in ("value", "item_id", "to_index", "amount"):
+        value = op.get(key)
+        if isinstance(value, dict) and set(value) == {"from_payload"} and isinstance(value.get("from_payload"), str):
+            refs.add(value["from_payload"])
+    return refs
+
+
+def _resource_view_ids(app_payload: dict[str, Any]) -> set[tuple[str, str]]:
+    ids: set[tuple[str, str]] = set()
+    for screen in app_payload.get("screens", []) if isinstance(app_payload.get("screens"), list) else []:
+        if not isinstance(screen, dict) or not isinstance(screen.get("id"), str):
+            continue
+        for view in screen.get("resource_views", []) if isinstance(screen.get("resource_views"), list) else []:
+            if isinstance(view, dict) and isinstance(view.get("id"), str):
+                ids.add((screen["id"], view["id"]))
+    return ids
+
+
+def _required_array(obj: dict[str, Any], key: str, path: str, issues: list[StateValidationIssue]) -> list[Any]:
+    value = obj.get(key)
+    if isinstance(value, list):
+        return value
+    issues.append(StateValidationIssue("APP_STATE_FIELD_REQUIRED", f"{path}.{key}", f"Missing required array field {key}."))
+    return []
+
+
+def _required_string(obj: dict[str, Any], key: str, path: str, issues: list[StateValidationIssue]) -> str | None:
+    value = obj.get(key)
+    if isinstance(value, str) and value:
+        return value
+    issues.append(StateValidationIssue("APP_STATE_FIELD_REQUIRED", f"{path}.{key}", f"Missing required string field {key}."))
+    return None
+
+
+def _check_count(
+    values: list[Any],
+    limit: int,
+    path: str,
+    code: str,
+    label: str,
+    issues: list[StateValidationIssue],
+) -> None:
+    if len(values) > limit:
+        issues.append(StateValidationIssue(code, path, f"AppBundle declares {len(values)} {label}; the V3 limit is {limit}."))
+
+
+def _reject_extra(obj: dict[str, Any], allowed: set[str], path: str, issues: list[StateValidationIssue]) -> None:
+    extra = sorted(set(obj) - allowed)
+    if extra:
+        issues.append(StateValidationIssue("APP_STATE_UNKNOWN_FIELD", path, f"Unsupported state field(s): {', '.join(extra)}."))
+
+
+def _validate_safe_id(value: str | None, path: str, label: str, issues: list[StateValidationIssue]) -> None:
+    if value is None:
+        return
+    if SAFE_STATE_ID_RE.fullmatch(value) is None:
+        issues.append(StateValidationIssue("APP_STATE_INVALID_ID", path, f"Invalid {label} {value!r}."))
+
+
+def _validate_unique(ids: list[str], path: str, code: str, issues: list[StateValidationIssue]) -> None:
+    seen: set[str] = set()
+    for item_id in ids:
+        if item_id in seen:
+            issues.append(StateValidationIssue(code, path, f"Duplicate id {item_id}."))
+        seen.add(item_id)
+
+
+def _require_list(value: Any, op: str) -> list[Any]:
+    if not isinstance(value, list):
+        raise TypeError(f"{op} requires array state.")
+    return value
+
+
+def _default_state_value(kind: str) -> Any:
+    if kind in {STATE_KIND_COLLECTION, STATE_KIND_SELECTION}:
+        return []
+    if kind == STATE_KIND_RECORD:
+        return {}
+    return None
+
+
+def _project_expected(values: dict[str, Any], expected: dict[str, Any]) -> dict[str, Any]:
+    return {key: copy.deepcopy(values.get(key)) for key in expected}
+
+
+def _expected_conformance_replays(app_payload: dict[str, Any], state_ir: StateIR) -> list[dict[str, Any]]:
+    initial = initial_state(app_payload, state_ir)
+    replays: list[dict[str, Any]] = []
+    for assertion in state_ir.replay_assertions:
+        current = copy.deepcopy(initial)
+        errors: list[dict[str, Any]] = []
+        for event in assertion.events:
+            result = apply_event(current, state_ir, event)
+            if not result["ok"]:
+                errors.extend(result["errors"])
+                break
+        replays.append(
+            {
+                "id": assertion.id,
+                "ok": not errors,
+                "event_count": len(assertion.events),
+                "state": current,
+                "selectors": evaluate_selectors(current, state_ir),
+                "errors": errors,
+                "error_codes": [str(error.get("code")) for error in errors if isinstance(error, dict)],
+            }
+        )
+    return replays
+
+
+def _run_node_conformance(source: str, state_ir: StateIR, *, node_command: str) -> dict[str, Any]:
+    input_payload = {
+        "assertions": [
+            {"id": assertion.id, "events": [copy.deepcopy(event) for event in assertion.events]}
+            for assertion in state_ir.replay_assertions
+        ],
+        "exports": list(STATE_REDUCER_EXPORTS),
+    }
+    runner_source = """
+import { readFileSync } from "node:fs";
+import { pathToFileURL } from "node:url";
+
+const reducerPath = process.argv[2];
+const inputPath = process.argv[3];
+const input = JSON.parse(readFileSync(inputPath, "utf8"));
+const mod = await import(pathToFileURL(reducerPath).href);
+const exportNames = Object.keys(mod).sort();
+const replays = [];
+
+for (const assertion of input.assertions || []) {
+  let state = mod.initialState;
+  const errors = [];
+  for (const event of assertion.events || []) {
+    try {
+      state = mod.reduceViewSpecState(state, event);
+    } catch (error) {
+      errors.push({ code: error?.code || String(error?.message || error), message: String(error?.message || error) });
+      break;
+    }
+  }
+  let selectors = {};
+  try {
+    selectors = mod.selectViewSpecState(state);
+  } catch (error) {
+    errors.push({ code: "APP_STATE_REDUCER_CONFORMANCE_FAILED", message: String(error?.message || error) });
+  }
+  replays.push({ id: assertion.id, ok: errors.length === 0, state, selectors, errors });
+}
+
+console.log(JSON.stringify({
+  ok: true,
+  profile: mod.VIEWSPEC_STATE_PROFILE,
+  export_names: exportNames,
+  replays
+}));
+""".lstrip()
+    with tempfile.TemporaryDirectory(prefix="viewspec-state-") as tmp:
+        tmp_path = Path(tmp)
+        reducer_path = tmp_path / "state_reducer.mjs"
+        runner_path = tmp_path / "state_runner.mjs"
+        input_path = tmp_path / "state_input.json"
+        reducer_path.write_text(source, encoding="utf-8")
+        runner_path.write_text(runner_source, encoding="utf-8")
+        input_path.write_text(_stable_json(input_payload), encoding="utf-8")
+        try:
+            completed = subprocess.run(
+                [node_command, str(runner_path), str(reducer_path), str(input_path)],
+                cwd=tmp_path,
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                timeout=10,
+                check=False,
+            )
+        except FileNotFoundError:
+            return {
+                "ok": False,
+                "export_names": [],
+                "errors": [_conformance_error(f"Node command {node_command!r} was not found.")],
+            }
+        except subprocess.TimeoutExpired:
+            return {
+                "ok": False,
+                "export_names": [],
+                "errors": [_conformance_error("Node reducer conformance timed out.")],
+            }
+    if completed.returncode != 0:
+        detail = (completed.stderr or completed.stdout or "").strip()
+        return {
+            "ok": False,
+            "export_names": [],
+            "errors": [_conformance_error(f"Node reducer conformance exited with {completed.returncode}: {detail}")],
+        }
+    try:
+        parsed = json.loads(completed.stdout)
+    except json.JSONDecodeError as exc:
+        return {
+            "ok": False,
+            "export_names": [],
+            "errors": [_conformance_error(f"Node reducer conformance returned invalid JSON: {exc}")],
+        }
+    return parsed if isinstance(parsed, dict) else {"ok": False, "errors": [_conformance_error("Node reducer conformance returned a non-object report.")]}
+
+
+def _validate_event_payload(mutation: StateMutation, payload_values: dict[str, Any]) -> list[dict[str, str]]:
+    errors: list[dict[str, str]] = []
+    unknown = sorted(set(payload_values) - set(mutation.allowed_payload_bindings))
+    missing = sorted(payload_id for payload_id in mutation.required_payload_bindings if payload_id not in payload_values)
+    if unknown:
+        errors.append(
+            {
+                "code": "APP_STATE_EVENT_PAYLOAD_UNKNOWN",
+                "path": f"$.mutations.{mutation.id}.trigger.payload_values",
+                "message": f"State event payload includes undeclared binding(s): {', '.join(unknown)}.",
+            }
+        )
+    if missing:
+        errors.append(
+            {
+                "code": "APP_STATE_EVENT_PAYLOAD_MISSING",
+                "path": f"$.mutations.{mutation.id}.trigger.payload_values",
+                "message": f"State event payload is missing required binding(s): {', '.join(missing)}.",
+            }
+        )
+    return errors
+
+
+def _selector_sort_key(item: Any, field: str) -> tuple[int, str]:
+    if not isinstance(item, dict):
+        return (1, "")
+    return (0, str(item.get(field, "")))
+
+
+def _json_values_equal(left: Any, right: Any) -> bool:
+    if isinstance(left, dict) and isinstance(right, dict):
+        if set(left) != set(right):
+            return False
+        return all(_json_values_equal(left[key], right[key]) for key in left)
+    if isinstance(left, list) and isinstance(right, list):
+        return len(left) == len(right) and all(_json_values_equal(left_item, right_item) for left_item, right_item in zip(left, right))
+    if _is_json_number(left) and _is_json_number(right):
+        return float(left) == float(right)
+    return left == right
+
+
+def _is_json_number(value: Any) -> bool:
+    return type(value) in {int, float}
+
+
+def _event_error(code: str, message: str) -> dict[str, Any]:
+    return {"ok": False, "errors": [{"code": code, "path": "$.state_replay_assertions.events", "message": message}]}
+
+
+def _conformance_error(message: str) -> dict[str, str]:
+    return {
+        "code": "APP_STATE_REDUCER_CONFORMANCE_FAILED",
+        "path": "$.interactive_state",
+        "message": message,
+    }
+
+
+def _hash_text(value: str) -> str:
+    return hashlib.sha256(value.encode("utf-8")).hexdigest()
+
+
+def _hash_json(value: Any) -> str:
+    return _hash_text(_stable_json(value))
+
+
+def _stable_json(value: Any) -> str:
+    return json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=False, allow_nan=False)
+
+
+__all__ = [
+    "APP_STATE_MAX_ENTRIES",
+    "APP_STATE_MAX_EVENTS_PER_REPLAY",
+    "APP_STATE_MAX_MANIFEST_BYTES",
+    "APP_STATE_MAX_MUTATIONS",
+    "APP_STATE_MAX_OPS_PER_MUTATION",
+    "APP_STATE_MAX_REDUCER_BYTES",
+    "APP_STATE_MAX_REPLAY_ASSERTIONS",
+    "APP_STATE_MAX_SELECTOR_OPS",
+    "APP_STATE_MAX_SELECTORS",
+    "INTERACTIVE_STATE_PROFILE",
+    "NormalizedStateIR",
+    "STATE_MANIFEST_SCHEMA_VERSION",
+    "STATE_REDUCER_EXPORTS",
+    "StateEntry",
+    "StateIR",
+    "StateMutation",
+    "StateReplayAssertion",
+    "StateSelector",
+    "StateValidationIssue",
+    "check_reducer_conformance",
+    "evaluate_selectors",
+    "generate_typescript_reducer",
+    "initial_state",
+    "normalize_state_ir",
+    "replay_state_assertions",
+    "state_contract_hash",
+    "state_event_schemas",
+    "state_ir_summary",
+    "state_manifest",
+    "validate_state_ir",
+]
