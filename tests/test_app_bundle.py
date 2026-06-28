@@ -3,13 +3,17 @@ from __future__ import annotations
 import json
 from copy import deepcopy
 
+import viewspec.app_bundle as app_bundle_module
 from viewspec.app_bundle import (
     AGENT_APP_BUNDLE_SCHEMA,
+    APP_BUNDLE_STATE_SCHEMA_VERSION,
     APP_BUNDLE_MAX_BYTES,
     APP_BUNDLE_MAX_EMBEDDED_INTENT_BYTES,
     APP_BUNDLE_RESOURCE_BINDING,
     APP_BUNDLE_RESOURCE_BINDING_READONLY,
     APP_BUNDLE_BINDING_SCOPE,
+    APP_STATE_MANIFEST,
+    APP_STATE_REDUCER,
     APP_SHELL_ROUTE_NAVIGATION,
     APP_SHELL_TARGET,
     app_semantic_change_lines,
@@ -22,9 +26,24 @@ from viewspec.app_bundle import (
     starter_app_bundle,
     validate_app_text,
 )
+from viewspec.agent import AGENT_INTENT_BUNDLE_SCHEMA
 from viewspec.cli import main as cli_main
 from viewspec.intent_tools import starter_intent_bundle
 from viewspec.local_tools import check_artifact_dir, file_hash
+from viewspec.state_ir import (
+    STATE_MANIFEST_SCHEMA_VERSION,
+    STATE_REDUCER_EXPORTS,
+    apply_event,
+    check_reducer_conformance,
+    evaluate_selectors,
+    generate_typescript_reducer,
+    initial_state,
+    normalize_state_ir,
+    replay_state_assertions,
+    state_contract_hash,
+    state_event_schemas,
+    validate_state_ir,
+)
 
 
 def _app_text(payload: dict) -> str:
@@ -33,6 +52,110 @@ def _app_text(payload: dict) -> str:
 
 def _issue_codes(payload: dict) -> set[str]:
     return {issue["code"] for issue in payload["issues"]}
+
+
+def _stateful_app_bundle() -> dict:
+    app = starter_app_bundle("internal_tool", resource_binding="fixture_readonly_v0")
+    app["schema_version"] = APP_BUNDLE_STATE_SCHEMA_VERSION
+    queue_intent = app["screens"][0]["intent_bundle"]
+    queue_intent["view_spec"]["actions"].append(
+        {
+            "id": "triage_incident",
+            "kind": "submit",
+            "label": "Triage",
+            "target_region": "main",
+            "target_ref": None,
+            "payload_bindings": ["inc_1043_id"],
+        }
+    )
+    app["interactive_state"] = "interactive_state_v0"
+    app["state"] = [
+        {
+            "id": "incidents_state",
+            "kind": "collection",
+            "scope": "app",
+            "initial": {"from_resource_view": {"screen_id": "queue", "view_id": "queue_incidents"}},
+        },
+        {"id": "selected_incident", "kind": "scalar", "scope": "screen", "screen_id": "queue", "initial": {"value": None}},
+        {"id": "queue_flags", "kind": "record", "scope": "app", "initial": {"value": {"urgent": False, "count": 0}}},
+        {"id": "selected_ids", "kind": "selection", "scope": "app", "initial": {"value": []}},
+    ]
+    app["mutations"] = [
+        {
+            "id": "triage_incident_state",
+            "trigger": {"screen_id": "queue", "action_id": "triage_incident"},
+            "ops": [
+                {
+                    "op": "patch",
+                    "state": "incidents_state",
+                    "item_id": {"from_payload": "inc_1043_id"},
+                    "value": {"status": "investigating"},
+                },
+                {
+                    "op": "move",
+                    "state": "incidents_state",
+                    "item_id": {"from_payload": "inc_1043_id"},
+                    "to_index": 0,
+                },
+                {"op": "increment", "state": "queue_flags", "field": "count", "amount": 1},
+                {"op": "toggle", "state": "queue_flags", "field": "urgent"},
+                {"op": "set", "state": "selected_incident", "value": {"from_payload": "inc_1043_id"}},
+                {"op": "append", "state": "selected_ids", "value": {"from_payload": "inc_1043_id"}},
+            ],
+        },
+        {
+            "id": "remove_incident_state",
+            "trigger": {"screen_id": "queue", "action_id": "triage_incident"},
+            "ops": [{"op": "remove", "state": "incidents_state", "item_id": {"from_payload": "inc_1043_id"}}],
+        },
+    ]
+    app["selectors"] = [
+        {
+            "id": "active_incidents",
+            "source_state": "incidents_state",
+            "ops": [
+                {"op": "filter_eq", "field": "status", "value": "investigating"},
+                {"op": "sort_by", "field": "severity", "direction": "desc"},
+                {"op": "slice", "start": 0, "end": 1},
+            ],
+        }
+    ]
+    app["state_replay_assertions"] = [
+        {
+            "id": "triage_replay",
+            "events": [{"mutation_id": "triage_incident_state", "payload_values": {"inc_1043_id": "inc_1043"}}],
+            "expect_state": {
+                "incidents_state": [
+                    {"id": "inc_1043", "severity": "medium", "status": "investigating"},
+                    {"id": "inc_1042", "severity": "high", "status": "investigating"},
+                ],
+                "queue_flags": {"urgent": True, "count": 1.0},
+                "selected_incident": "inc_1043",
+                "selected_ids": ["inc_1043"],
+            },
+            "expect_selectors": {
+                "active_incidents": [{"id": "inc_1043", "severity": "medium", "status": "investigating"}]
+            },
+        }
+    ]
+    return app
+
+
+def _stateful_app_bundle_with_remove_replay() -> dict:
+    app = _stateful_app_bundle()
+    app["state_replay_assertions"].append(
+        {
+            "id": "remove_replay",
+            "events": [{"mutation_id": "remove_incident_state", "payload_values": {"inc_1043_id": "inc_1043"}}],
+            "expect_state": {
+                "incidents_state": [{"id": "inc_1042", "severity": "high", "status": "investigating"}],
+            },
+            "expect_selectors": {
+                "active_incidents": [{"id": "inc_1042", "severity": "high", "status": "investigating"}],
+            },
+        }
+    )
+    return app
 
 
 def test_starter_app_bundle_validates_and_cli_writes(tmp_path, capsys):
@@ -103,6 +226,158 @@ def test_bound_starter_app_bundle_validates_and_proves_fixture_readonly(tmp_path
     assert cli_main(["init-app", "--resource-binding", "fixture-readonly-v0", "--out", str(cli_out)]) == 0
     assert json.loads(cli_out.read_text(encoding="utf-8")) == app
     capsys.readouterr()
+
+
+def test_stateful_app_bundle_v3_validates_and_keeps_intent_v1_closed():
+    app = _stateful_app_bundle()
+    validation = validate_app_text(_app_text(app))
+
+    assert validation["ok"] is True
+    assert validation["app_schema_version"] == 3
+    assert validation["resource_binding"] == APP_BUNDLE_RESOURCE_BINDING_READONLY
+    assert validation["interactive_state"] == "interactive_state_v0"
+    assert validation["state_ir"] == {
+        "profile": "interactive_state_v0",
+        "state_count": 4,
+        "mutation_count": 2,
+        "selector_count": 1,
+        "replay_assertion_count": 1,
+    }
+    assert validation["summary"]["state_ir"] == validation["state_ir"]
+    assert AGENT_APP_BUNDLE_SCHEMA["x-viewspec-app-schema-versions"] == [1, 2, 3]
+    assert AGENT_APP_BUNDLE_SCHEMA["x-viewspec-interactive-state"] == "interactive_state_v0"
+    assert {"$ref": "#/$defs/app_bundle_v3"} in AGENT_APP_BUNDLE_SCHEMA["oneOf"]
+    assert "interactive_state" not in AGENT_INTENT_BUNDLE_SCHEMA["properties"]
+    assert "state" not in AGENT_INTENT_BUNDLE_SCHEMA["properties"]
+    assert "mutations" not in AGENT_INTENT_BUNDLE_SCHEMA["properties"]
+
+
+def test_state_ir_normalization_contract_hash_and_event_schemas_are_deterministic():
+    app = _stateful_app_bundle()
+    state_ir, issues = validate_state_ir(app)
+
+    assert issues == []
+    assert state_ir is not None
+
+    normalized = normalize_state_ir(app, state_ir)
+    normalized_again = normalize_state_ir(deepcopy(app)).to_json()
+    event_schemas = state_event_schemas(state_ir)
+
+    assert normalized.to_json() == normalized_again
+    assert normalized.contract_hash == state_contract_hash(app)
+    assert normalized.contract["state"][0]["id"] == "incidents_state"
+    assert normalized.contract["mutations"][0]["id"] == "triage_incident_state"
+    assert normalized.contract["mutations"][0]["ops"][0]["op"] == "patch"
+    assert normalized.contract["selectors"][0]["ops"][0]["op"] == "filter_eq"
+    assert event_schemas == normalized.contract["state_event_schemas"]
+    assert event_schemas[0] == {
+        "mutation_id": "triage_incident_state",
+        "trigger": {"screen_id": "queue", "action_id": "triage_incident"},
+        "allowed_payload_bindings": ["inc_1043_id"],
+        "required_payload_bindings": ["inc_1043_id"],
+        "value_type": "json_value",
+    }
+
+
+def test_state_ir_interpreter_replays_ops_selectors_and_rejects_malformed_payloads():
+    app = _stateful_app_bundle()
+    state_ir, issues = validate_state_ir(app)
+
+    assert issues == []
+    assert state_ir is not None
+    current = initial_state(app, state_ir)
+    result = apply_event(
+        current,
+        state_ir,
+        {"mutation_id": "triage_incident_state", "payload_values": {"inc_1043_id": "inc_1043"}},
+    )
+
+    assert result["ok"] is True
+    assert current["incidents_state"] == [
+        {"id": "inc_1043", "severity": "medium", "status": "investigating"},
+        {"id": "inc_1042", "severity": "high", "status": "investigating"},
+    ]
+    assert current["queue_flags"] == {"urgent": True, "count": 1.0}
+    assert current["selected_incident"] == "inc_1043"
+    assert current["selected_ids"] == ["inc_1043"]
+    assert evaluate_selectors(current, state_ir) == {
+        "active_incidents": [{"id": "inc_1043", "severity": "medium", "status": "investigating"}]
+    }
+
+    removed = initial_state(app, state_ir)
+    remove_result = apply_event(
+        removed,
+        state_ir,
+        {"mutation_id": "remove_incident_state", "payload_values": {"inc_1043_id": "inc_1043"}},
+    )
+
+    assert remove_result["ok"] is True
+    assert removed["incidents_state"] == [{"id": "inc_1042", "severity": "high", "status": "investigating"}]
+
+    malformed = apply_event(
+        removed,
+        state_ir,
+        {"mutation_id": "triage_incident_state", "payload_values": []},
+    )
+
+    assert malformed["ok"] is False
+    assert malformed["errors"][0]["code"] == "APP_STATE_EVENT_PAYLOAD_INVALID"
+
+    missing = apply_event(
+        initial_state(app, state_ir),
+        state_ir,
+        {"mutation_id": "triage_incident_state", "payload_values": {}},
+    )
+    unknown = apply_event(
+        initial_state(app, state_ir),
+        state_ir,
+        {"mutation_id": "triage_incident_state", "payload_values": {"inc_1043_id": "inc_1043", "extra": True}},
+    )
+
+    assert missing["ok"] is False
+    assert missing["errors"][0]["code"] == "APP_STATE_EVENT_PAYLOAD_MISSING"
+    assert unknown["ok"] is False
+    assert unknown["errors"][0]["code"] == "APP_STATE_EVENT_PAYLOAD_UNKNOWN"
+    assert replay_state_assertions(app)["ok"] is True
+
+
+def test_state_ir_replay_contract_rejects_missing_and_unknown_payload_values():
+    missing = _stateful_app_bundle()
+    missing["state_replay_assertions"][0]["events"][0]["payload_values"] = {}
+
+    unknown = _stateful_app_bundle()
+    unknown["state_replay_assertions"][0]["events"][0]["payload_values"]["extra"] = True
+
+    missing_validation = validate_app_text(_app_text(missing))
+    unknown_validation = validate_app_text(_app_text(unknown))
+
+    assert missing_validation["ok"] is False
+    assert "APP_STATE_EVENT_PAYLOAD_MISSING" in _issue_codes(missing_validation)
+    assert unknown_validation["ok"] is False
+    assert "APP_STATE_EVENT_PAYLOAD_UNKNOWN" in _issue_codes(unknown_validation)
+
+
+def test_state_reducer_conformance_executes_generated_es_module_for_all_v0_ops():
+    app = _stateful_app_bundle_with_remove_replay()
+    reducer_source = generate_typescript_reducer(app)
+
+    assert "export type" not in reducer_source
+    assert "export function reduceViewSpecState" in reducer_source
+    assert "export function selectViewSpecState" in reducer_source
+
+    report = check_reducer_conformance(app, reducer_source=reducer_source)
+
+    assert report["ok"] is True
+    assert report["runtime"] == "node"
+    assert report["assertion_count"] == 2
+    assert report["passed_count"] == 2
+    assert set(STATE_REDUCER_EXPORTS).issubset(set(report["export_names"]))
+
+    divergent_source = reducer_source.replace('"status": "investigating"', '"status": "closed"', 1)
+    divergent = check_reducer_conformance(app, reducer_source=divergent_source)
+
+    assert divergent["ok"] is False
+    assert divergent["errors"][0]["code"] == "APP_STATE_REDUCER_CONFORMANCE_FAILED"
 
 
 def test_validate_app_rejects_v0_constraints():
@@ -225,6 +500,54 @@ def test_validate_app_rejects_v2_resource_binding_constraints():
         assert code in _issue_codes(validation)
 
 
+def test_validate_app_rejects_v3_state_constraints_and_v1_v2_mutation_fields():
+    cases: list[tuple[str, dict, str]] = []
+
+    v1_mutations = starter_app_bundle()
+    v1_mutations["mutations"] = []
+    cases.append(("v1 mutation root", v1_mutations, "APP_FORBIDDEN_SURFACE"))
+
+    v2_mutations = starter_app_bundle("internal_tool", resource_binding="fixture_readonly_v0")
+    v2_mutations["mutations"] = []
+    cases.append(("v2 mutation root", v2_mutations, "APP_FORBIDDEN_SURFACE"))
+
+    missing_resource_view = _stateful_app_bundle()
+    missing_resource_view["state"][0]["initial"]["from_resource_view"]["view_id"] = "missing"
+    cases.append(("missing resource view", missing_resource_view, "APP_STATE_RESOURCE_VIEW_MISSING"))
+
+    unsafe_state_id = _stateful_app_bundle()
+    unsafe_state_id["state"][0]["id"] = "../escape"
+    cases.append(("unsafe state id", unsafe_state_id, "APP_STATE_INVALID_ID"))
+
+    missing_action = _stateful_app_bundle()
+    missing_action["mutations"][0]["trigger"]["action_id"] = "missing"
+    cases.append(("missing action", missing_action, "APP_STATE_TRIGGER_ACTION_MISSING"))
+
+    missing_payload = _stateful_app_bundle()
+    missing_payload["mutations"][0]["ops"][0]["item_id"] = {"from_payload": "missing_binding"}
+    cases.append(("missing payload binding", missing_payload, "APP_STATE_PAYLOAD_BINDING_MISSING"))
+
+    unsupported_op = _stateful_app_bundle()
+    unsupported_op["mutations"][0]["ops"][0] = {"op": "fetch", "state": "incidents_state"}
+    cases.append(("unsupported op", unsupported_op, "APP_STATE_OP_UNSUPPORTED"))
+
+    unknown_state_field = _stateful_app_bundle()
+    unknown_state_field["state"][0]["adapter"] = "zustand"
+    cases.append(("unknown state field", unknown_state_field, "APP_STATE_UNKNOWN_FIELD"))
+
+    too_many_states = _stateful_app_bundle()
+    too_many_states["state"] = [
+        {"id": f"state_{index}", "kind": "scalar", "scope": "app", "initial": {"value": index}}
+        for index in range(33)
+    ]
+    cases.append(("too many states", too_many_states, "APP_STATE_LIMIT_EXCEEDED"))
+
+    for _name, payload, code in cases:
+        validation = validate_app_text(_app_text(payload), compile_check=False)
+        assert validation["ok"] is False
+        assert code in _issue_codes(validation)
+
+
 def test_bound_proof_fails_for_values_outside_target_motif_and_ambiguous_values(tmp_path):
     app = starter_app_bundle("internal_tool", resource_binding="fixture_readonly_v0")
     app["screens"][0]["intent_bundle"]["view_spec"]["motifs"][0]["members"].remove("inc_1042_status")
@@ -304,6 +627,29 @@ def test_diff_app_reports_resource_binding_mode_changes():
     lines = app_semantic_change_lines(diff["semantic_changes"])
     assert "app_metadata: schema_version 1 -> 2" in lines
     assert "app_metadata: resource_binding null -> fixture_readonly_v0" in lines
+
+
+def test_diff_app_reports_v3_state_mutation_selector_and_replay_changes():
+    left = _stateful_app_bundle()
+    right = deepcopy(left)
+    right["state"][2]["initial"]["value"]["count"] = 2
+    right["mutations"][0]["ops"][2]["amount"] = 2
+    right["selectors"][0]["ops"][2]["end"] = 2
+    right["state_replay_assertions"][0]["expect_state"]["queue_flags"]["count"] = 2.0
+
+    diff = diff_app_text(_app_text(left), _app_text(right), compile_check=False)
+
+    assert diff["ok"] is True
+    assert diff["changes"]["state"]["changed"] == ["queue_flags"]
+    assert diff["changes"]["mutations"]["changed"] == ["triage_incident_state"]
+    assert diff["changes"]["selectors"]["changed"] == ["active_incidents"]
+    assert diff["changes"]["state_replay_assertions"]["changed"] == ["triage_replay"]
+    assert diff["counts"]["state"] == {"left": 4, "right": 4}
+    lines = app_semantic_change_lines(diff["semantic_changes"])
+    assert "state.queue_flags: definition_changed" in lines
+    assert "mutations.triage_incident_state: definition_changed" in lines
+    assert "selectors.active_incidents: definition_changed" in lines
+    assert "state_replay_assertions.triage_replay: definition_changed" in lines
 
 
 def test_diff_app_fails_changed_invalid_embedded_intent_with_stable_code():
@@ -409,6 +755,92 @@ def test_prove_app_with_shell_writes_shell_proof_and_matches_compile_app_hash(tm
     assert proof["paths"]["app_shell_index"].endswith("app-shell\\index.html") or proof["paths"]["app_shell_index"].endswith("app-shell/index.html")
     assert (tmp_path / "app-proof/app-shell/index.html").exists()
     assert proof["shell"]["route_assertions"]["unknown_route_selects_no_screen_and_one_404"] is True
+
+
+def test_compile_and_prove_app_v3_emit_deterministic_state_artifacts(tmp_path):
+    app_path = tmp_path / "viewspec.stateful.app.json"
+    app_path.write_text(_app_text(_stateful_app_bundle()), encoding="utf-8")
+
+    compiled = compile_app(app_path, out_dir=tmp_path / "app-dist", cwd=tmp_path)
+    proof = prove_app(app_path=app_path, out_dir=tmp_path / "app-proof", with_shell=True, cwd=tmp_path)
+
+    assert compiled["ok"] is True
+    assert proof["ok"] is True
+    assert compiled["app_schema_version"] == 3
+    assert proof["app_schema_version"] == 3
+    reducer_path = tmp_path / "app-dist" / APP_STATE_REDUCER
+    manifest_path = tmp_path / "app-dist" / APP_STATE_MANIFEST
+    proof_reducer_path = tmp_path / "app-proof" / "app-shell" / APP_STATE_REDUCER
+    proof_manifest_path = tmp_path / "app-proof" / "app-shell" / APP_STATE_MANIFEST
+    assert reducer_path.exists()
+    assert manifest_path.exists()
+    assert proof_reducer_path.exists()
+    assert proof_manifest_path.exists()
+    assert compiled["paths"]["state_reducer"].endswith(APP_STATE_REDUCER)
+    assert compiled["paths"]["state_manifest"].endswith(APP_STATE_MANIFEST)
+    assert proof["paths"]["app_state_reducer"].endswith(APP_STATE_REDUCER)
+    assert proof["paths"]["app_state_manifest"].endswith(APP_STATE_MANIFEST)
+    assert compiled["state_reducer_hash"] == file_hash(reducer_path)
+    assert compiled["state_manifest_hash"] == file_hash(manifest_path)
+    assert proof["state_reducer_hash"] == file_hash(proof_reducer_path)
+    assert proof["state_manifest_hash"] == file_hash(proof_manifest_path)
+    assert compiled["state_reducer_hash"] == proof["state_reducer_hash"]
+    assert compiled["state_manifest_hash"] == proof["state_manifest_hash"]
+    assert compiled["state_contract_hash"] == proof["state_contract_hash"]
+    assert compiled["state_reducer_conformance"]["ok"] is True
+    assert proof["state_reducer_conformance"]["ok"] is True
+    assert proof["shell"]["state_contract_hash"] == proof["state_contract_hash"]
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    assert manifest["schema_version"] == STATE_MANIFEST_SCHEMA_VERSION
+    assert manifest["profile"] == "interactive_state_v0"
+    assert manifest["reducer_hash"] == compiled["state_reducer_hash"]
+    assert manifest["contract_hash"] == compiled["state_contract_hash"]
+    assert manifest["normalized_contract"]["contract_hash"] == compiled["state_contract_hash"]
+    assert manifest["state_event_schemas"][0]["required_payload_bindings"] == ["inc_1043_id"]
+    assert manifest["reducer_exports"] == list(STATE_REDUCER_EXPORTS)
+    assert manifest["replay"]["ok"] is True
+    assert manifest["replay"]["passed_count"] == 1
+    assert manifest["reducer_conformance"]["ok"] is True
+    assert manifest["reducer_conformance"]["passed_count"] == 1
+    diagnostics = json.loads((tmp_path / "app-dist" / "diagnostics.json").read_text(encoding="utf-8"))
+    assert diagnostics["state_contract_hash"] == compiled["state_contract_hash"]
+    assert diagnostics["state_reducer_conformance"]["ok"] is True
+    reducer = reducer_path.read_text(encoding="utf-8")
+    assert "export type" not in reducer
+    assert "export function reduceViewSpecState" in reducer
+    assert "export function selectViewSpecState" in reducer
+
+    tool_proof = prove_app_tool(app_path=app_path, out_dir=tmp_path / "tool-proof", with_shell=True, cwd=tmp_path)
+    assert tool_proof["ok"] is True
+    assert tool_proof["metadata"]["state_contract_hash"] == compiled["state_contract_hash"]
+    assert tool_proof["metadata"]["state_reducer_conformance"] == "passed"
+    assert tool_proof["metadata"]["proof_identity"]["state_contract_hash"] == compiled["state_contract_hash"]
+    assert tool_proof["metadata"]["proof_identity"]["state_reducer_conformance"] == "passed"
+
+
+def test_compile_app_fails_when_state_reducer_conformance_fails(tmp_path, monkeypatch):
+    app_path = tmp_path / "viewspec.stateful.app.json"
+    app_path.write_text(_app_text(_stateful_app_bundle()), encoding="utf-8")
+
+    def fail_conformance(*_args, **_kwargs):
+        return {
+            "ok": False,
+            "errors": [
+                {
+                    "code": "APP_STATE_REDUCER_CONFORMANCE_FAILED",
+                    "path": "$.interactive_state",
+                    "message": "forced reducer divergence",
+                }
+            ],
+        }
+
+    monkeypatch.setattr(app_bundle_module, "check_reducer_conformance", fail_conformance)
+
+    compiled = compile_app(app_path, out_dir=tmp_path / "app-dist", cwd=tmp_path)
+
+    assert compiled["ok"] is False
+    assert compiled["errors"][0]["code"] == "APP_STATE_REDUCER_CONFORMANCE_FAILED"
+    assert "forced reducer divergence" in compiled["errors"][0]["message"]
 
 
 def test_compile_app_rejects_static_shell_constraints(tmp_path):

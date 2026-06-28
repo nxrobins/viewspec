@@ -98,6 +98,62 @@
       ],
       "type": "object"
     },
+    "app_bundle_v3": {
+      "additionalProperties": false,
+      "properties": {
+        "app": {
+          "$ref": "#/$defs/app"
+        },
+        "interactive_state": {
+          "const": "interactive_state_v0"
+        },
+        "mutations": {
+          "$ref": "#/$defs/state_mutations"
+        },
+        "resource_binding": {
+          "const": "fixture_readonly_v0"
+        },
+        "resources": {
+          "$ref": "#/$defs/resources"
+        },
+        "routes": {
+          "$ref": "#/$defs/routes"
+        },
+        "schema_version": {
+          "const": 3
+        },
+        "screens": {
+          "items": {
+            "$ref": "#/$defs/screen_v2"
+          },
+          "maxItems": 16,
+          "minItems": 1,
+          "type": "array"
+        },
+        "selectors": {
+          "$ref": "#/$defs/state_selectors"
+        },
+        "state": {
+          "$ref": "#/$defs/state_entries"
+        },
+        "state_replay_assertions": {
+          "$ref": "#/$defs/state_replay_assertions"
+        }
+      },
+      "required": [
+        "schema_version",
+        "resource_binding",
+        "interactive_state",
+        "app",
+        "routes",
+        "resources",
+        "screens",
+        "state",
+        "mutations",
+        "selectors"
+      ],
+      "type": "object"
+    },
     "fixture_record": {
       "additionalProperties": {
         "anyOf": [
@@ -126,6 +182,60 @@
     "intent_bundle": {
       "description": "Embedded local V1 IntentBundle. validate-app/prove-app enforce the full local V1 validator.",
       "type": "object"
+    },
+    "json_value": {
+      "anyOf": [
+        {
+          "maxLength": 2048,
+          "type": "string"
+        },
+        {
+          "type": "number"
+        },
+        {
+          "type": "boolean"
+        },
+        {
+          "type": "null"
+        },
+        {
+          "items": {
+            "$ref": "#/$defs/json_value"
+          },
+          "maxItems": 100,
+          "type": "array"
+        },
+        {
+          "additionalProperties": {
+            "$ref": "#/$defs/json_value"
+          },
+          "maxProperties": 32,
+          "propertyNames": {
+            "maxLength": 96,
+            "pattern": "^[A-Za-z0-9_.-]+$"
+          },
+          "type": "object"
+        }
+      ]
+    },
+    "payload_expr": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/json_value"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "from_payload": {
+              "$ref": "#/$defs/safe_id"
+            }
+          },
+          "required": [
+            "from_payload"
+          ],
+          "type": "object"
+        }
+      ]
     },
     "resource": {
       "additionalProperties": false,
@@ -192,6 +302,22 @@
         "record_ids",
         "fields",
         "target_motif_id"
+      ],
+      "type": "object"
+    },
+    "resource_view_ref": {
+      "additionalProperties": false,
+      "properties": {
+        "screen_id": {
+          "$ref": "#/$defs/safe_id"
+        },
+        "view_id": {
+          "$ref": "#/$defs/safe_id"
+        }
+      },
+      "required": [
+        "screen_id",
+        "view_id"
       ],
       "type": "object"
     },
@@ -292,38 +418,520 @@
         "intent_bundle"
       ],
       "type": "object"
+    },
+    "selector_op_filter_eq": {
+      "additionalProperties": false,
+      "properties": {
+        "field": {
+          "$ref": "#/$defs/safe_id"
+        },
+        "op": {
+          "const": "filter_eq"
+        },
+        "value": {
+          "$ref": "#/$defs/json_value"
+        }
+      },
+      "required": [
+        "op",
+        "field",
+        "value"
+      ],
+      "type": "object"
+    },
+    "selector_op_slice": {
+      "additionalProperties": false,
+      "properties": {
+        "end": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "op": {
+          "const": "slice"
+        },
+        "start": {
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "op"
+      ],
+      "type": "object"
+    },
+    "selector_op_sort_by": {
+      "additionalProperties": false,
+      "properties": {
+        "direction": {
+          "enum": [
+            "asc",
+            "desc"
+          ]
+        },
+        "field": {
+          "$ref": "#/$defs/safe_id"
+        },
+        "op": {
+          "const": "sort_by"
+        }
+      },
+      "required": [
+        "op",
+        "field"
+      ],
+      "type": "object"
+    },
+    "state_entries": {
+      "items": {
+        "$ref": "#/$defs/state_entry"
+      },
+      "maxItems": 32,
+      "type": "array"
+    },
+    "state_entry": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/safe_id"
+        },
+        "initial": {
+          "$ref": "#/$defs/state_initial"
+        },
+        "kind": {
+          "enum": [
+            "collection",
+            "record",
+            "scalar",
+            "selection"
+          ]
+        },
+        "scope": {
+          "enum": [
+            "app",
+            "screen"
+          ]
+        },
+        "screen_id": {
+          "$ref": "#/$defs/safe_id"
+        }
+      },
+      "required": [
+        "id",
+        "kind",
+        "scope",
+        "initial"
+      ],
+      "type": "object"
+    },
+    "state_initial": {
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "value": {
+              "$ref": "#/$defs/json_value"
+            }
+          },
+          "required": [
+            "value"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "from_resource_view": {
+              "$ref": "#/$defs/resource_view_ref"
+            }
+          },
+          "required": [
+            "from_resource_view"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "state_mutation": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/safe_id"
+        },
+        "ops": {
+          "items": {
+            "$ref": "#/$defs/state_mutation_op"
+          },
+          "maxItems": 16,
+          "type": "array"
+        },
+        "trigger": {
+          "$ref": "#/$defs/state_mutation_trigger"
+        }
+      },
+      "required": [
+        "id",
+        "trigger",
+        "ops"
+      ],
+      "type": "object"
+    },
+    "state_mutation_op": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/state_op_set"
+        },
+        {
+          "$ref": "#/$defs/state_op_patch"
+        },
+        {
+          "$ref": "#/$defs/state_op_toggle"
+        },
+        {
+          "$ref": "#/$defs/state_op_append"
+        },
+        {
+          "$ref": "#/$defs/state_op_remove"
+        },
+        {
+          "$ref": "#/$defs/state_op_move"
+        },
+        {
+          "$ref": "#/$defs/state_op_increment"
+        }
+      ]
+    },
+    "state_mutation_trigger": {
+      "additionalProperties": false,
+      "properties": {
+        "action_id": {
+          "$ref": "#/$defs/safe_id"
+        },
+        "screen_id": {
+          "$ref": "#/$defs/safe_id"
+        }
+      },
+      "required": [
+        "screen_id",
+        "action_id"
+      ],
+      "type": "object"
+    },
+    "state_mutations": {
+      "items": {
+        "$ref": "#/$defs/state_mutation"
+      },
+      "maxItems": 128,
+      "type": "array"
+    },
+    "state_op_append": {
+      "additionalProperties": false,
+      "properties": {
+        "op": {
+          "const": "append"
+        },
+        "state": {
+          "$ref": "#/$defs/safe_id"
+        },
+        "value": {
+          "$ref": "#/$defs/payload_expr"
+        }
+      },
+      "required": [
+        "op",
+        "state",
+        "value"
+      ],
+      "type": "object"
+    },
+    "state_op_increment": {
+      "additionalProperties": false,
+      "properties": {
+        "amount": {
+          "$ref": "#/$defs/payload_expr"
+        },
+        "field": {
+          "$ref": "#/$defs/safe_id"
+        },
+        "item_id": {
+          "$ref": "#/$defs/payload_expr"
+        },
+        "op": {
+          "const": "increment"
+        },
+        "state": {
+          "$ref": "#/$defs/safe_id"
+        }
+      },
+      "required": [
+        "op",
+        "state"
+      ],
+      "type": "object"
+    },
+    "state_op_move": {
+      "additionalProperties": false,
+      "properties": {
+        "item_id": {
+          "$ref": "#/$defs/payload_expr"
+        },
+        "op": {
+          "const": "move"
+        },
+        "state": {
+          "$ref": "#/$defs/safe_id"
+        },
+        "to_index": {
+          "$ref": "#/$defs/payload_expr"
+        }
+      },
+      "required": [
+        "op",
+        "state",
+        "item_id",
+        "to_index"
+      ],
+      "type": "object"
+    },
+    "state_op_patch": {
+      "additionalProperties": false,
+      "properties": {
+        "item_id": {
+          "$ref": "#/$defs/payload_expr"
+        },
+        "op": {
+          "const": "patch"
+        },
+        "state": {
+          "$ref": "#/$defs/safe_id"
+        },
+        "value": {
+          "$ref": "#/$defs/payload_expr"
+        }
+      },
+      "required": [
+        "op",
+        "state",
+        "value"
+      ],
+      "type": "object"
+    },
+    "state_op_remove": {
+      "additionalProperties": false,
+      "properties": {
+        "item_id": {
+          "$ref": "#/$defs/payload_expr"
+        },
+        "op": {
+          "const": "remove"
+        },
+        "state": {
+          "$ref": "#/$defs/safe_id"
+        }
+      },
+      "required": [
+        "op",
+        "state",
+        "item_id"
+      ],
+      "type": "object"
+    },
+    "state_op_set": {
+      "additionalProperties": false,
+      "properties": {
+        "op": {
+          "const": "set"
+        },
+        "state": {
+          "$ref": "#/$defs/safe_id"
+        },
+        "value": {
+          "$ref": "#/$defs/payload_expr"
+        }
+      },
+      "required": [
+        "op",
+        "state",
+        "value"
+      ],
+      "type": "object"
+    },
+    "state_op_toggle": {
+      "additionalProperties": false,
+      "properties": {
+        "field": {
+          "$ref": "#/$defs/safe_id"
+        },
+        "item_id": {
+          "$ref": "#/$defs/payload_expr"
+        },
+        "op": {
+          "const": "toggle"
+        },
+        "state": {
+          "$ref": "#/$defs/safe_id"
+        }
+      },
+      "required": [
+        "op",
+        "state"
+      ],
+      "type": "object"
+    },
+    "state_replay_assertion": {
+      "additionalProperties": false,
+      "properties": {
+        "events": {
+          "items": {
+            "$ref": "#/$defs/state_replay_event"
+          },
+          "maxItems": 32,
+          "type": "array"
+        },
+        "expect_selectors": {
+          "additionalProperties": {
+            "$ref": "#/$defs/json_value"
+          },
+          "propertyNames": {
+            "$ref": "#/$defs/safe_id"
+          },
+          "type": "object"
+        },
+        "expect_state": {
+          "additionalProperties": {
+            "$ref": "#/$defs/json_value"
+          },
+          "propertyNames": {
+            "$ref": "#/$defs/safe_id"
+          },
+          "type": "object"
+        },
+        "id": {
+          "$ref": "#/$defs/safe_id"
+        }
+      },
+      "required": [
+        "id",
+        "events",
+        "expect_state",
+        "expect_selectors"
+      ],
+      "type": "object"
+    },
+    "state_replay_assertions": {
+      "items": {
+        "$ref": "#/$defs/state_replay_assertion"
+      },
+      "maxItems": 32,
+      "type": "array"
+    },
+    "state_replay_event": {
+      "additionalProperties": false,
+      "properties": {
+        "mutation_id": {
+          "$ref": "#/$defs/safe_id"
+        },
+        "payload_values": {
+          "additionalProperties": {
+            "$ref": "#/$defs/json_value"
+          },
+          "propertyNames": {
+            "$ref": "#/$defs/safe_id"
+          },
+          "type": "object"
+        }
+      },
+      "required": [
+        "mutation_id"
+      ],
+      "type": "object"
+    },
+    "state_selector": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/safe_id"
+        },
+        "ops": {
+          "items": {
+            "$ref": "#/$defs/state_selector_op"
+          },
+          "maxItems": 8,
+          "type": "array"
+        },
+        "source_state": {
+          "$ref": "#/$defs/safe_id"
+        }
+      },
+      "required": [
+        "id",
+        "source_state",
+        "ops"
+      ],
+      "type": "object"
+    },
+    "state_selector_op": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/selector_op_filter_eq"
+        },
+        {
+          "$ref": "#/$defs/selector_op_sort_by"
+        },
+        {
+          "$ref": "#/$defs/selector_op_slice"
+        }
+      ]
+    },
+    "state_selectors": {
+      "items": {
+        "$ref": "#/$defs/state_selector"
+      },
+      "maxItems": 64,
+      "type": "array"
     }
   },
   "$id": "https://viewspec.dev/agent-app-bundle.schema.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "description": "Local-only multi-screen app contract with embedded IntentBundles, static routes, V1 unbound fixtures, and V2 read-only fixture binding proof.",
+  "description": "Local-only multi-screen app contract with embedded IntentBundles, static routes, V1 unbound fixtures, V2 read-only fixture binding proof, and V3 bounded interactive_state_v0 reducers.",
   "oneOf": [
     {
       "$ref": "#/$defs/app_bundle_v1"
     },
     {
       "$ref": "#/$defs/app_bundle_v2"
+    },
+    {
+      "$ref": "#/$defs/app_bundle_v3"
     }
   ],
-  "title": "ViewSpec Agent AppBundle V1/V2",
+  "title": "ViewSpec Agent AppBundle V1/V2/V3",
   "x-viewspec-anti-goals": [
     "No runtime browser navigation proof.",
     "No dynamic routes, route params, query strings, hashes, redirects, guards, nested routers, or locale routing.",
-    "No runtime data binding, reducers, mutations, adapters, API clients, backend, or deployable framework generation.",
+    "No live DOM rebinding, framework state adapter, optimistic server reconciliation, persistence, CRDT, websocket sync, or gesture runtime.",
     "No transformed, localized, formatted, joined, sorted, filtered, paginated, grouped, or aggregated fixture proof.",
     "No whole-app data-flow consistency proof beyond explicitly declared resource_views.",
     "No accessibility, pixel-perfect, cross-browser, production deployment, arbitrary host-app, or hosted extended compiler certification."
   ],
+  "x-viewspec-app-schema-versions": [
+    1,
+    2,
+    3
+  ],
   "x-viewspec-binding-scope": "declared_resource_views_only",
   "x-viewspec-embedded-intent-schema": "https://viewspec.dev/agent-intent-bundle.schema.json",
+  "x-viewspec-interactive-state": "interactive_state_v0",
   "x-viewspec-invariants": [
     "AppBundles are local-only and no-network.",
     "schema_version 1 rejects resource_binding and resource_views, and reports unbound_v0.",
     "schema_version 2 requires resource_binding fixture_readonly_v0 and per-screen resource_views.",
+    "schema_version 3 requires fixture_readonly_v0 plus interactive_state_v0 state, mutations, and selectors.",
     "Routes are static canonical paths only and must map to declared screens.",
     "The root route must resolve to exactly one route.",
     "Every screen must be reachable by at least one static route.",
     "V2 binding proof is exact byte-for-byte fixture scalar visibility in declared target motifs only.",
+    "V3 state mutations are declarative reducer operations triggered by declared embedded screen actions only.",
+    "V3 selectors are deterministic read-only derived views over declared state.",
     "Every embedded screen intent must validate against the local V1 IntentBundle contract.",
     "Unknown AppBundle-owned fields are rejected instead of ignored.",
     "Proof output paths are derived from validated safe ids only."

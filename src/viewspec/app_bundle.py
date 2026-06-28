@@ -35,14 +35,36 @@ from viewspec.local_tools import (
 )
 from viewspec.manifest_summary import summarize_intent_manifest
 from viewspec.sdk.builder import ViewSpecBuilder
+from viewspec.state_ir import (
+    APP_STATE_MAX_ENTRIES,
+    APP_STATE_MAX_EVENTS_PER_REPLAY,
+    APP_STATE_MAX_MANIFEST_BYTES,
+    APP_STATE_MAX_MUTATIONS,
+    APP_STATE_MAX_OPS_PER_MUTATION,
+    APP_STATE_MAX_REDUCER_BYTES,
+    APP_STATE_MAX_REPLAY_ASSERTIONS,
+    APP_STATE_MAX_SELECTOR_OPS,
+    APP_STATE_MAX_SELECTORS,
+    INTERACTIVE_STATE_PROFILE,
+    check_reducer_conformance,
+    generate_typescript_reducer,
+    state_ir_summary,
+    state_manifest,
+    validate_state_ir,
+)
 
 
 APP_BUNDLE_SCHEMA_VERSION = 1
 APP_BUNDLE_BOUND_SCHEMA_VERSION = 2
-APP_BUNDLE_SUPPORTED_SCHEMA_VERSIONS = (APP_BUNDLE_SCHEMA_VERSION, APP_BUNDLE_BOUND_SCHEMA_VERSION)
+APP_BUNDLE_STATE_SCHEMA_VERSION = 3
+APP_BUNDLE_SUPPORTED_SCHEMA_VERSIONS = (
+    APP_BUNDLE_SCHEMA_VERSION,
+    APP_BUNDLE_BOUND_SCHEMA_VERSION,
+    APP_BUNDLE_STATE_SCHEMA_VERSION,
+)
 APP_BUNDLE_RESULT_SCHEMA_VERSION = 1
 APP_BUNDLE_DIFF_VERSION = 1
-APP_BUNDLE_DIFF_BASIS = "app_bundle_v0_v2"
+APP_BUNDLE_DIFF_BASIS = "app_bundle_v0_v3"
 APP_BUNDLE_PROOF_SCHEMA_VERSION = 1
 APP_BUNDLE_DEFAULT_OUT = ".viewspec-app-proof"
 APP_BUNDLE_DEFAULT_REPORT = "app_proof_report.json"
@@ -60,6 +82,8 @@ APP_SHELL_DIR_NAME = "app-shell"
 APP_SHELL_MANIFEST = "shell_manifest.json"
 APP_SHELL_DIAGNOSTICS = "diagnostics.json"
 APP_SHELL_INDEX = "index.html"
+APP_STATE_REDUCER = "state_reducer.ts"
+APP_STATE_MANIFEST = "state_manifest.json"
 APP_BUNDLE_MAX_BYTES = 1024 * 1024
 APP_BUNDLE_MAX_SCREENS = 16
 APP_BUNDLE_MAX_ROUTES = 32
@@ -89,6 +113,13 @@ APP_BUNDLE_ALLOWED_KINDS = ("internal_tool",)
 APP_BUNDLE_ALLOWED_RESOURCE_KINDS = ("fixture",)
 APP_BUNDLE_ALLOWED_ROOT_FIELDS = {"schema_version", "app", "routes", "resources", "screens"}
 APP_BUNDLE_ALLOWED_ROOT_FIELDS_V2 = APP_BUNDLE_ALLOWED_ROOT_FIELDS | {"resource_binding"}
+APP_BUNDLE_ALLOWED_ROOT_FIELDS_V3 = APP_BUNDLE_ALLOWED_ROOT_FIELDS_V2 | {
+    "interactive_state",
+    "state",
+    "mutations",
+    "selectors",
+    "state_replay_assertions",
+}
 APP_BUNDLE_ALLOWED_APP_FIELDS = {"id", "title", "kind", "root_route"}
 APP_BUNDLE_ALLOWED_ROUTE_FIELDS = {"id", "path", "label", "screen_id"}
 APP_BUNDLE_ALLOWED_RESOURCE_FIELDS = {"id", "kind", "records"}
@@ -106,6 +137,7 @@ PACKAGE_INSTALL_RE = re.compile(r"(\b(?:npm|pnpm|yarn|pip)\s+install\b|--install
 HTML_BODY_RE = re.compile(r"<body\b[^>]*>(?P<body>[\s\S]*?)</body>", re.IGNORECASE)
 HTML_STYLE_RE = re.compile(r"<style\b[^>]*>(?P<style>[\s\S]*?)</style>", re.IGNORECASE)
 HTML_SCRIPT_RE = re.compile(r"<script\b[\s\S]*?</script>", re.IGNORECASE)
+HTML_SCRIPT_OPEN_RE = re.compile(r"<script\b(?P<attrs>[^>]*)>", re.IGNORECASE)
 HTML_FORBIDDEN_EMBED_RE = re.compile(r"<\s*(?:iframe|object|embed)\b", re.IGNORECASE)
 HTML_FORBIDDEN_LINK_RE = re.compile(r"<\s*link\b", re.IGNORECASE)
 HTML_INLINE_HANDLER_RE = re.compile(r"\son[a-z]+\s*=", re.IGNORECASE)
@@ -354,6 +386,19 @@ def diff_app_text(left_text: str, right_text: str, *, compile_check: bool = True
             _screen_sections(left_payload["screens"]),
             _screen_sections(right_payload["screens"]),
         ),
+        "state": _diff_named_items(_state_sections(left_payload, "state"), _state_sections(right_payload, "state")),
+        "mutations": _diff_named_items(
+            _state_sections(left_payload, "mutations"),
+            _state_sections(right_payload, "mutations"),
+        ),
+        "selectors": _diff_named_items(
+            _state_sections(left_payload, "selectors"),
+            _state_sections(right_payload, "selectors"),
+        ),
+        "state_replay_assertions": _diff_named_items(
+            _state_sections(left_payload, "state_replay_assertions"),
+            _state_sections(right_payload, "state_replay_assertions"),
+        ),
     }
     semantic_changes = _app_semantic_changes(left_payload, right_payload)
     screen_intent_diffs: dict[str, Any] = {}
@@ -437,7 +482,7 @@ def app_semantic_change_lines(semantic_changes: object) -> list[str]:
                 f"{_diff_value(item.get('field'))} "
                 f"{_diff_value(item.get('left'))} -> {_diff_value(item.get('right'))}"
             )
-    for section in ("routes", "resources", "screens"):
+    for section in ("routes", "resources", "screens", "state", "mutations", "selectors", "state_replay_assertions"):
         entries = semantic_changes.get(section)
         if not isinstance(entries, list):
             continue
@@ -947,6 +992,10 @@ def compile_app_tool(
                 "app": result.get("app"),
                 "shell_artifact_hash": result.get("shell_artifact_hash"),
                 "shell_manifest_hash": result.get("shell_manifest_hash"),
+                "state_reducer_hash": result.get("state_reducer_hash"),
+                "state_manifest_hash": result.get("state_manifest_hash"),
+                "state_contract_hash": result.get("state_contract_hash"),
+                "state_reducer_conformance": _state_conformance_status(result.get("state_reducer_conformance")),
             },
             data={"compile_report": result},
         )
@@ -1022,6 +1071,10 @@ def prove_app_tool(
                 "route_navigation": proof.get("route_navigation"),
                 "shell_artifact_hash": proof.get("shell_artifact_hash"),
                 "shell_manifest_hash": proof.get("shell_manifest_hash"),
+                "state_reducer_hash": proof.get("state_reducer_hash"),
+                "state_manifest_hash": proof.get("state_manifest_hash"),
+                "state_contract_hash": proof.get("state_contract_hash"),
+                "state_reducer_conformance": _state_conformance_status(proof.get("state_reducer_conformance")),
                 "app": proof.get("app"),
                 "screen_count": len(proof.get("screens", [])) if isinstance(proof.get("screens"), list) else 0,
                 "proof_identity": _app_tool_proof_identity(proof),
@@ -1096,22 +1149,32 @@ def _validate_app_payload(payload: dict[str, Any], issues: list[dict[str, str]],
     schema_version = payload.get("schema_version")
     version: int | None = None
     if type(schema_version) is not int:
-        issues.append(_issue("APP_SCHEMA_VERSION_REQUIRED", "$.schema_version", "AppBundle schema_version must be integer 1 or 2."))
+        issues.append(_issue("APP_SCHEMA_VERSION_REQUIRED", "$.schema_version", "AppBundle schema_version must be integer 1, 2, or 3."))
     elif schema_version not in APP_BUNDLE_SUPPORTED_SCHEMA_VERSIONS:
         issues.append(
             _issue(
                 "APP_SCHEMA_VERSION_UNSUPPORTED",
                 "$.schema_version",
                 f"Unsupported AppBundle schema_version {schema_version}.",
-                "Use AppBundle schema_version 1 for unbound V0 or 2 for fixture_readonly_v0.",
+                "Use AppBundle schema_version 1 for unbound V0, 2 for fixture_readonly_v0, or 3 for interactive_state_v0.",
             )
         )
     else:
         version = schema_version
 
-    allowed_root_fields = APP_BUNDLE_ALLOWED_ROOT_FIELDS_V2 if version == APP_BUNDLE_BOUND_SCHEMA_VERSION else APP_BUNDLE_ALLOWED_ROOT_FIELDS | {"resource_binding"}
+    if version == APP_BUNDLE_STATE_SCHEMA_VERSION:
+        allowed_root_fields = APP_BUNDLE_ALLOWED_ROOT_FIELDS_V3
+    elif version == APP_BUNDLE_BOUND_SCHEMA_VERSION:
+        allowed_root_fields = APP_BUNDLE_ALLOWED_ROOT_FIELDS_V2
+    else:
+        allowed_root_fields = APP_BUNDLE_ALLOWED_ROOT_FIELDS | {"resource_binding"}
     _reject_unknown_fields(payload, "$", allowed_root_fields, issues)
-    _reject_forbidden_object_keys(payload, "$", issues)
+    forbidden_root_payload = (
+        {key: value for key, value in payload.items() if key != "mutations"}
+        if version == APP_BUNDLE_STATE_SCHEMA_VERSION
+        else payload
+    )
+    _reject_forbidden_object_keys(forbidden_root_payload, "$", issues)
     resource_binding = payload.get("resource_binding")
     if version == APP_BUNDLE_SCHEMA_VERSION:
         if "resource_binding" in payload:
@@ -1131,6 +1194,16 @@ def _validate_app_payload(payload: dict[str, Any], issues: list[dict[str, str]],
                     "$.resource_binding",
                     "schema_version 2 requires resource_binding fixture_readonly_v0.",
                     "Set resource_binding to fixture_readonly_v0 or use schema_version 1.",
+                )
+            )
+    elif version == APP_BUNDLE_STATE_SCHEMA_VERSION:
+        if resource_binding != APP_BUNDLE_RESOURCE_BINDING_READONLY:
+            issues.append(
+                _issue(
+                    "APP_SCHEMA_VERSION_RESOURCE_BINDING_MISMATCH",
+                    "$.resource_binding",
+                    "schema_version 3 requires resource_binding fixture_readonly_v0.",
+                    "Set resource_binding to fixture_readonly_v0 for AppBundle V3.",
                 )
             )
 
@@ -1160,8 +1233,11 @@ def _validate_app_payload(payload: dict[str, Any], issues: list[dict[str, str]],
     _validate_unique_ids(resource_ids, "$.resources", "APP_DUPLICATE_RESOURCE_ID", issues)
     _validate_unique_ids(screen_ids, "$.screens", "APP_DUPLICATE_SCREEN_ID", issues)
     _validate_route_graph(app, routes, set(screen_ids), issues)
-    if version == APP_BUNDLE_BOUND_SCHEMA_VERSION:
+    if version in {APP_BUNDLE_BOUND_SCHEMA_VERSION, APP_BUNDLE_STATE_SCHEMA_VERSION}:
         _validate_resource_binding_v0(resources, screens, issues)
+    if version == APP_BUNDLE_STATE_SCHEMA_VERSION:
+        _state_ir, state_issues = validate_state_ir(payload)
+        issues.extend(issue.to_json() for issue in state_issues)
 
 
 def _validate_app_object(app: dict[str, Any], issues: list[dict[str, str]]) -> None:
@@ -1291,7 +1367,11 @@ def _validate_screens(
         if not isinstance(screen, dict):
             issues.append(_issue("APP_SCREEN_NOT_OBJECT", path, "Each screen must be an object."))
             continue
-        allowed_fields = APP_BUNDLE_ALLOWED_SCREEN_FIELDS_V2 if schema_version == APP_BUNDLE_BOUND_SCHEMA_VERSION else APP_BUNDLE_ALLOWED_SCREEN_FIELDS | {"resource_views"}
+        allowed_fields = (
+            APP_BUNDLE_ALLOWED_SCREEN_FIELDS_V2
+            if schema_version in {APP_BUNDLE_BOUND_SCHEMA_VERSION, APP_BUNDLE_STATE_SCHEMA_VERSION}
+            else APP_BUNDLE_ALLOWED_SCREEN_FIELDS | {"resource_views"}
+        )
         _reject_unknown_fields(screen, path, allowed_fields, issues)
         _reject_forbidden_object_keys({key: value for key, value in screen.items() if key != "intent_bundle"}, path, issues)
         if schema_version == APP_BUNDLE_SCHEMA_VERSION and "resource_views" in screen:
@@ -1303,12 +1383,12 @@ def _validate_screens(
                     "Remove resource_views or upgrade to schema_version 2 with fixture_readonly_v0.",
                 )
             )
-        if schema_version == APP_BUNDLE_BOUND_SCHEMA_VERSION and "resource_views" not in screen:
+        if schema_version in {APP_BUNDLE_BOUND_SCHEMA_VERSION, APP_BUNDLE_STATE_SCHEMA_VERSION} and "resource_views" not in screen:
             issues.append(
                 _issue(
                     "APP_RESOURCE_BINDING_VIEWS_REQUIRED",
                     f"{path}.resource_views",
-                    "schema_version 2 screens must declare resource_views, even when the list is empty.",
+                    f"schema_version {schema_version} screens must declare resource_views, even when the list is empty.",
                     "Add resource_views to every screen.",
                 )
             )
@@ -1645,6 +1725,7 @@ def _validation_payload(
     compile_status = "skipped" if not compile_check else "passed" if not issues else "failed"
     resource_binding = _resource_binding_for_payload(payload)
     binding_validation = _resource_binding_validation_summary(payload) if isinstance(payload, dict) and resource_binding == APP_BUNDLE_RESOURCE_BINDING_READONLY else None
+    state_summary = state_ir_summary(payload) if isinstance(payload, dict) else None
     return {
         "schema_version": APP_BUNDLE_RESULT_SCHEMA_VERSION,
         "app_schema_version": _app_schema_version(payload),
@@ -1653,6 +1734,7 @@ def _validation_payload(
         "resource_binding": resource_binding,
         **({"binding_scope": APP_BUNDLE_BINDING_SCOPE} if resource_binding == APP_BUNDLE_RESOURCE_BINDING_READONLY else {}),
         **({"resource_binding_validation": binding_validation} if binding_validation is not None else {}),
+        **({"interactive_state": INTERACTIVE_STATE_PROFILE, "state_ir": state_summary} if state_summary is not None else {}),
         "summary": summary,
         "route_assertions": route_assertions,
         "raw_bytes": raw_bytes,
@@ -1677,6 +1759,7 @@ def _app_summary(payload: dict[str, Any] | None) -> dict[str, Any] | None:
         "route_count": len(routes),
         "screen_count": len(screens),
         "resource_count": len(resources),
+        **({"state_ir": state_ir_summary(payload)} if state_ir_summary(payload) is not None else {}),
     }
 
 
@@ -1688,7 +1771,10 @@ def _app_schema_version(payload: dict[str, Any] | None) -> int | None:
 
 
 def _resource_binding_for_payload(payload: dict[str, Any] | None) -> str:
-    if isinstance(payload, dict) and payload.get("schema_version") == APP_BUNDLE_BOUND_SCHEMA_VERSION:
+    if isinstance(payload, dict) and payload.get("schema_version") in {
+        APP_BUNDLE_BOUND_SCHEMA_VERSION,
+        APP_BUNDLE_STATE_SCHEMA_VERSION,
+    }:
         return APP_BUNDLE_RESOURCE_BINDING_READONLY
     return APP_BUNDLE_RESOURCE_BINDING
 
@@ -1770,6 +1856,7 @@ def _app_limits() -> dict[str, int]:
         "max_support_bundle_bytes": APP_BUNDLE_MAX_SUPPORT_BUNDLE_BYTES,
         "max_id_chars": APP_BUNDLE_MAX_ID_CHARS,
         "max_route_chars": APP_BUNDLE_MAX_ROUTE_CHARS,
+        **_state_ir_limits(),
         **_resource_binding_limits(),
     }
 
@@ -1782,6 +1869,20 @@ def _resource_binding_limits() -> dict[str, int]:
         "max_fields_per_resource_view": APP_RESOURCE_BINDING_MAX_FIELDS_PER_VIEW,
         "max_resource_binding_assertions": APP_RESOURCE_BINDING_MAX_ASSERTIONS,
         "max_resource_binding_report_bytes": APP_RESOURCE_BINDING_MAX_REPORT_BYTES,
+    }
+
+
+def _state_ir_limits() -> dict[str, int]:
+    return {
+        "max_state_entries": APP_STATE_MAX_ENTRIES,
+        "max_state_mutations": APP_STATE_MAX_MUTATIONS,
+        "max_state_ops_per_mutation": APP_STATE_MAX_OPS_PER_MUTATION,
+        "max_state_selectors": APP_STATE_MAX_SELECTORS,
+        "max_state_selector_ops": APP_STATE_MAX_SELECTOR_OPS,
+        "max_state_replay_assertions": APP_STATE_MAX_REPLAY_ASSERTIONS,
+        "max_state_events_per_replay": APP_STATE_MAX_EVENTS_PER_REPLAY,
+        "max_state_reducer_bytes": APP_STATE_MAX_REDUCER_BYTES,
+        "max_state_manifest_bytes": APP_STATE_MAX_MANIFEST_BYTES,
     }
 
 
@@ -2020,6 +2121,16 @@ def _screen_sections(screens: list[Any]) -> dict[str, dict[str, Any]]:
     return sections
 
 
+def _state_sections(payload: dict[str, Any], field: str) -> dict[str, dict[str, Any]]:
+    items = payload.get(field) if isinstance(payload.get(field), list) else []
+    sections: dict[str, dict[str, Any]] = {}
+    for item in items:
+        if not isinstance(item, dict) or not isinstance(item.get("id"), str):
+            continue
+        sections[item["id"]] = {"id": item["id"], "definition_hash": _stable_json(item)}
+    return sections
+
+
 def _diff_named_items(left: dict[str, dict[str, Any]], right: dict[str, dict[str, Any]]) -> dict[str, list[str]]:
     return {
         "added": sorted(set(right) - set(left)),
@@ -2038,6 +2149,10 @@ def _app_semantic_changes(left: dict[str, Any], right: dict[str, Any]) -> dict[s
         "routes": [],
         "resources": [],
         "screens": [],
+        "state": [],
+        "mutations": [],
+        "selectors": [],
+        "state_replay_assertions": [],
         "screen_intents": [],
     }
     left_app = left.get("app") if isinstance(left.get("app"), dict) else {}
@@ -2052,6 +2167,14 @@ def _app_semantic_changes(left: dict[str, Any], right: dict[str, Any]) -> dict[s
         ("routes", _index_by_id(left.get("routes", [])), _index_by_id(right.get("routes", []))),
         ("resources", _resource_sections(left.get("resources", [])), _resource_sections(right.get("resources", []))),
         ("screens", _screen_sections(left.get("screens", [])), _screen_sections(right.get("screens", []))),
+        ("state", _state_sections(left, "state"), _state_sections(right, "state")),
+        ("mutations", _state_sections(left, "mutations"), _state_sections(right, "mutations")),
+        ("selectors", _state_sections(left, "selectors"), _state_sections(right, "selectors")),
+        (
+            "state_replay_assertions",
+            _state_sections(left, "state_replay_assertions"),
+            _state_sections(right, "state_replay_assertions"),
+        ),
     ):
         for item_id in sorted(set(right_items) - set(left_items)):
             changes[section].append({"id": item_id, "change": "added"})
@@ -2061,7 +2184,7 @@ def _app_semantic_changes(left: dict[str, Any], right: dict[str, Any]) -> dict[s
             left_item = left_items[item_id]
             right_item = right_items[item_id]
             for field in sorted(set(left_item) | set(right_item)):
-                if field in {"id", "intent_hash", "records_hash", "resource_views_hash"}:
+                if field in {"id", "intent_hash", "records_hash", "resource_views_hash", "definition_hash"}:
                     continue
                 if _stable_json(left_item.get(field)) != _stable_json(right_item.get(field)):
                     changes[section].append(
@@ -2079,6 +2202,8 @@ def _app_semantic_changes(left: dict[str, Any], right: dict[str, Any]) -> dict[s
                 changes[section].append({"id": item_id, "change": "intent_changed"})
             if section == "screens" and left_item.get("resource_views_hash") != right_item.get("resource_views_hash"):
                 changes[section].append({"id": item_id, "change": "resource_views_changed"})
+            if section in {"state", "mutations", "selectors", "state_replay_assertions"} and left_item.get("definition_hash") != right_item.get("definition_hash"):
+                changes[section].append({"id": item_id, "change": "definition_changed"})
     return changes
 
 
@@ -2097,6 +2222,13 @@ def _app_counts(left: dict[str, Any], right: dict[str, Any]) -> dict[str, dict[s
         "resources": {"left": len(left.get("resources", [])), "right": len(right.get("resources", []))},
         "screens": {"left": len(left.get("screens", [])), "right": len(right.get("screens", []))},
         "resource_views": {"left": _resource_view_count(left), "right": _resource_view_count(right)},
+        "state": {"left": len(left.get("state", [])) if isinstance(left.get("state"), list) else 0, "right": len(right.get("state", [])) if isinstance(right.get("state"), list) else 0},
+        "mutations": {"left": len(left.get("mutations", [])) if isinstance(left.get("mutations"), list) else 0, "right": len(right.get("mutations", [])) if isinstance(right.get("mutations"), list) else 0},
+        "selectors": {"left": len(left.get("selectors", [])) if isinstance(left.get("selectors"), list) else 0, "right": len(right.get("selectors", [])) if isinstance(right.get("selectors"), list) else 0},
+        "state_replay_assertions": {
+            "left": len(left.get("state_replay_assertions", [])) if isinstance(left.get("state_replay_assertions"), list) else 0,
+            "right": len(right.get("state_replay_assertions", [])) if isinstance(right.get("state_replay_assertions"), list) else 0,
+        },
     }
 
 
@@ -2151,12 +2283,39 @@ def _app_diff_error_payload(
         "ok": False,
         "compile_check": "failed",
         "validation": validation or {"left": None, "right": None},
-        "changes": {"app": _empty_change_set(), "routes": _empty_change_set(), "resources": _empty_change_set(), "screens": _empty_change_set()},
+        "changes": {
+            "app": _empty_change_set(),
+            "routes": _empty_change_set(),
+            "resources": _empty_change_set(),
+            "screens": _empty_change_set(),
+            "state": _empty_change_set(),
+            "mutations": _empty_change_set(),
+            "selectors": _empty_change_set(),
+            "state_replay_assertions": _empty_change_set(),
+        },
         "changed_fields": [],
-        "semantic_changes": {"app_metadata": [], "routes": [], "resources": [], "screens": [], "screen_intents": []},
+        "semantic_changes": {
+            "app_metadata": [],
+            "routes": [],
+            "resources": [],
+            "screens": [],
+            "state": [],
+            "mutations": [],
+            "selectors": [],
+            "state_replay_assertions": [],
+            "screen_intents": [],
+        },
         "semantic_summary": [],
         "screen_intent_diffs": {},
-        "counts": {"routes": {"left": 0, "right": 0}, "resources": {"left": 0, "right": 0}, "screens": {"left": 0, "right": 0}},
+        "counts": {
+            "routes": {"left": 0, "right": 0},
+            "resources": {"left": 0, "right": 0},
+            "screens": {"left": 0, "right": 0},
+            "state": {"left": 0, "right": 0},
+            "mutations": {"left": 0, "right": 0},
+            "selectors": {"left": 0, "right": 0},
+            "state_replay_assertions": {"left": 0, "right": 0},
+        },
         "topology_similarity": 0.0,
         "errors": errors or [{"code": code, "message": message, "fix": fix}],
     }
@@ -2327,6 +2486,9 @@ def _write_static_app_shell(
     shell_artifact_hash = file_hash(prepared.index_path)
     manifest = dict(shell_parts["manifest"])
     manifest["shell_artifact_hash"] = shell_artifact_hash
+    state_artifacts = _write_state_artifacts(payload, prepared.output_dir)
+    if state_artifacts is not None:
+        manifest["state_ir"] = state_artifacts["manifest_summary"]
     _write_bounded_json(prepared.manifest_path, manifest, limit=APP_SHELL_MAX_MANIFEST_BYTES, code="APP_SHELL_MANIFEST_WRITE_FAILED")
     shell_manifest_hash = file_hash(prepared.manifest_path)
     diagnostics = {
@@ -2340,6 +2502,9 @@ def _write_static_app_shell(
         "shell_manifest_hash": shell_manifest_hash,
         "limits": _app_shell_limits(),
         **binding_fields,
+        **({"state_ir": state_artifacts["manifest_summary"]} if state_artifacts is not None else {}),
+        **({"state_contract_hash": state_artifacts["contract_hash"]} if state_artifacts is not None else {}),
+        **({"state_reducer_conformance": state_artifacts["conformance"]} if state_artifacts is not None else {}),
     }
     _write_bounded_json(prepared.diagnostics_path, diagnostics, limit=APP_SHELL_MAX_MANIFEST_BYTES, code="APP_SHELL_DIAGNOSTICS_WRITE_FAILED")
     return {
@@ -2355,10 +2520,29 @@ def _write_static_app_shell(
             "index": str(prepared.index_path),
             "manifest": str(prepared.manifest_path),
             "diagnostics": str(prepared.diagnostics_path),
+            **(
+                {
+                    "state_reducer": str(state_artifacts["reducer_path"]),
+                    "state_manifest": str(state_artifacts["manifest_path"]),
+                }
+                if state_artifacts is not None
+                else {}
+            ),
         },
         "route_assertions": shell_parts["route_assertions"],
         "shell_artifact_hash": shell_artifact_hash,
         "shell_manifest_hash": shell_manifest_hash,
+        **(
+            {
+                "state_reducer_hash": state_artifacts["reducer_hash"],
+                "state_manifest_hash": state_artifacts["manifest_hash"],
+                "state_contract_hash": state_artifacts["contract_hash"],
+                "state_replay": state_artifacts["replay"],
+                "state_reducer_conformance": state_artifacts["conformance"],
+            }
+            if state_artifacts is not None
+            else {}
+        ),
         "screens": _screen_shell_summaries(screen_reports),
         "validation": _validation_summary(validation),
         "metadata": {
@@ -2442,6 +2626,76 @@ def _build_static_app_shell(
     return {"html": html, "manifest": manifest, "route_assertions": route_assertions}
 
 
+def _write_state_artifacts(payload: dict[str, Any], output_dir: Path) -> dict[str, Any] | None:
+    if payload.get("schema_version") != APP_BUNDLE_STATE_SCHEMA_VERSION:
+        return None
+    reducer_path = output_dir / APP_STATE_REDUCER
+    manifest_path = output_dir / APP_STATE_MANIFEST
+    try:
+        reducer = generate_typescript_reducer(payload)
+        reducer_bytes = len(reducer.encode("utf-8"))
+        if reducer_bytes > APP_STATE_MAX_REDUCER_BYTES:
+            raise AppBundleProofFailure(
+                "APP_STATE_REDUCER_LIMIT_EXCEEDED",
+                f"Generated state reducer is {reducer_bytes} bytes; limit is {APP_STATE_MAX_REDUCER_BYTES}.",
+                "Reduce AppBundle V3 state, mutation, or selector declarations.",
+            )
+        atomic_write(reducer_path, reducer)
+        reducer_hash = file_hash(reducer_path)
+        conformance = check_reducer_conformance(payload, reducer_source=reducer)
+        if not conformance.get("ok"):
+            errors = conformance.get("errors") if isinstance(conformance.get("errors"), list) else []
+            message = errors[0].get("message") if errors and isinstance(errors[0], dict) else "Generated reducer diverged from the Python state interpreter."
+            raise AppBundleProofFailure(
+                "APP_STATE_REDUCER_CONFORMANCE_FAILED",
+                str(message),
+                "Fix the AppBundle V3 state contract or generated reducer semantics and retry.",
+            )
+        manifest = state_manifest(payload, reducer_hash=reducer_hash, conformance_report=conformance)
+        replay = manifest.get("replay") if isinstance(manifest.get("replay"), dict) else {}
+        if replay and not replay.get("ok"):
+            raise AppBundleProofFailure(
+                "APP_STATE_REPLAY_ASSERTION_FAILED",
+                "State replay assertions failed.",
+                "Fix state_replay_assertions or the referenced mutation operations.",
+            )
+        _write_bounded_json(
+            manifest_path,
+            manifest,
+            limit=APP_STATE_MAX_MANIFEST_BYTES,
+            code="APP_STATE_MANIFEST_WRITE_FAILED",
+        )
+    except AppBundleProofFailure:
+        raise
+    except Exception as exc:
+        raise AppBundleProofFailure(
+            "APP_STATE_REDUCER_WRITE_FAILED",
+            f"Failed to write state reducer artifacts: {exc}",
+            "Fix the AppBundle V3 state contract and retry.",
+        ) from exc
+    manifest_hash = file_hash(manifest_path)
+    return {
+        "reducer_path": reducer_path,
+        "manifest_path": manifest_path,
+        "reducer_hash": reducer_hash,
+        "manifest_hash": manifest_hash,
+        "manifest_summary": {
+            "profile": INTERACTIVE_STATE_PROFILE,
+            "reducer_hash": reducer_hash,
+            "manifest_hash": manifest_hash,
+            "state_count": len(payload.get("state", [])) if isinstance(payload.get("state"), list) else 0,
+            "mutation_count": len(payload.get("mutations", [])) if isinstance(payload.get("mutations"), list) else 0,
+            "selector_count": len(payload.get("selectors", [])) if isinstance(payload.get("selectors"), list) else 0,
+            "replay_ok": bool(manifest.get("replay", {}).get("ok")) if isinstance(manifest.get("replay"), dict) else True,
+            "contract_hash": manifest.get("contract_hash"),
+            "reducer_conformance": _state_conformance_status(conformance),
+        },
+        "replay": manifest.get("replay") if isinstance(manifest.get("replay"), dict) else None,
+        "contract_hash": manifest.get("contract_hash"),
+        "conformance": conformance,
+    }
+
+
 def _collect_shell_screens(screen_reports: list[dict[str, Any]]) -> list[dict[str, Any]]:
     screens: list[dict[str, Any]] = []
     for screen in screen_reports:
@@ -2478,12 +2732,13 @@ def _collect_shell_screens(screen_reports: list[dict[str, Any]]) -> list[dict[st
 
 
 def _assert_screen_artifact_shell_safe(html: str, screen_id: str) -> None:
-    if HTML_SCRIPT_RE.search(html):
-        raise AppBundleProofFailure(
-            "APP_SHELL_EMBEDDING_UNSUPPORTED",
-            f"Screen {screen_id} contains a script tag; Static Shell V0 embeds inert screen fragments only.",
-            "Remove action/runtime script surfaces or use a later app-generation slice.",
-        )
+    for script in HTML_SCRIPT_OPEN_RE.finditer(html):
+        if script.group("attrs").strip():
+            raise AppBundleProofFailure(
+                "APP_SHELL_EMBEDDING_UNSUPPORTED",
+                f"Screen {screen_id} contains an attributed script tag; Static Shell V0 embeds inert fragments only.",
+                "Remove import maps, external script references, or typed script surfaces before compiling the shell.",
+            )
     if HTML_FORBIDDEN_EMBED_RE.search(html) or HTML_IMPORT_MAP_RE.search(html) or HTML_WORKER_IMPORT_RE.search(html):
         raise AppBundleProofFailure(
             "APP_SHELL_EMBEDDING_UNSUPPORTED",
@@ -2519,7 +2774,7 @@ def _extract_screen_body_fragment(html: str, screen_id: str) -> str:
             f"Screen {screen_id} artifact does not contain a body element.",
             "Regenerate the screen through the html-tailwind compiler.",
         )
-    fragment = match.group("body").strip()
+    fragment = HTML_SCRIPT_RE.sub("", match.group("body")).strip()
     if not fragment:
         raise AppBundleProofFailure(
             "APP_SHELL_EMBEDDING_UNSUPPORTED",
@@ -2872,6 +3127,7 @@ def _app_shell_limits() -> dict[str, int]:
         "max_dynamic_route_features": 0,
         "max_third_party_executable_surfaces": 0,
         "max_generated_framework_files": 0,
+        **_state_ir_limits(),
         **_resource_binding_limits(),
     }
 
@@ -3304,6 +3560,10 @@ def _app_proof_report(
             paths["app_shell_manifest"] = str(shell_paths["manifest"])
         if shell_paths.get("diagnostics"):
             paths["app_shell_diagnostics"] = str(shell_paths["diagnostics"])
+        if shell_paths.get("state_reducer"):
+            paths["app_state_reducer"] = str(shell_paths["state_reducer"])
+        if shell_paths.get("state_manifest"):
+            paths["app_state_manifest"] = str(shell_paths["state_manifest"])
     combined_route_assertions = dict(route_assertions)
     if isinstance(shell, dict) and isinstance(shell.get("route_assertions"), dict):
         combined_route_assertions.update(shell["route_assertions"])
@@ -3323,6 +3583,11 @@ def _app_proof_report(
         **({"shell": _compact_shell_report(shell)} if shell else {}),
         **({"shell_artifact_hash": shell.get("shell_artifact_hash")} if shell else {}),
         **({"shell_manifest_hash": shell.get("shell_manifest_hash")} if shell else {}),
+        **({"state_reducer_hash": shell.get("state_reducer_hash")} if shell and shell.get("state_reducer_hash") else {}),
+        **({"state_manifest_hash": shell.get("state_manifest_hash")} if shell and shell.get("state_manifest_hash") else {}),
+        **({"state_contract_hash": shell.get("state_contract_hash")} if shell and shell.get("state_contract_hash") else {}),
+        **({"state_replay": shell.get("state_replay")} if shell and shell.get("state_replay") else {}),
+        **({"state_reducer_conformance": shell.get("state_reducer_conformance")} if shell and shell.get("state_reducer_conformance") else {}),
         "validation": _validation_summary(validation),
         "policy": {"network_calls": "none"},
         "metadata": {
@@ -3397,6 +3662,12 @@ def _app_shell_report(
         "manifest": str(prepared.manifest_path),
         "diagnostics": str(prepared.diagnostics_path),
     }
+    if isinstance(shell_payload, dict) and isinstance(shell_payload.get("paths"), dict):
+        shell_paths = shell_payload["paths"]
+        if shell_paths.get("state_reducer"):
+            paths["state_reducer"] = str(shell_paths["state_reducer"])
+        if shell_paths.get("state_manifest"):
+            paths["state_manifest"] = str(shell_paths["state_manifest"])
     binding_fields = _resource_binding_report_fields(app_payload, resource_binding_report)
     if isinstance(shell_payload, dict):
         binding_fields = _resource_binding_report_fields(app_payload, shell_payload.get("resource_binding_assertions"))
@@ -3413,6 +3684,17 @@ def _app_shell_report(
         "route_assertions": route_assertions,
         "shell_artifact_hash": shell_payload.get("shell_artifact_hash") if isinstance(shell_payload, dict) else None,
         "shell_manifest_hash": shell_payload.get("shell_manifest_hash") if isinstance(shell_payload, dict) else None,
+        **(
+            {
+                "state_reducer_hash": shell_payload.get("state_reducer_hash"),
+                "state_manifest_hash": shell_payload.get("state_manifest_hash"),
+                "state_contract_hash": shell_payload.get("state_contract_hash"),
+                "state_replay": shell_payload.get("state_replay"),
+                "state_reducer_conformance": shell_payload.get("state_reducer_conformance"),
+            }
+            if isinstance(shell_payload, dict) and shell_payload.get("state_reducer_hash")
+            else {}
+        ),
         "screens": _screen_shell_summaries(screen_reports),
         "validation": _validation_summary(validation),
         "metadata": {
@@ -3562,8 +3844,14 @@ def _render_app_support_bundle(report: dict[str, Any], *, proof_report_hash: str
             "route_navigation": _support_scalar(shell.get("route_navigation")),
             "shell_artifact_hash": _support_scalar(report.get("shell_artifact_hash") or shell.get("shell_artifact_hash")),
             "shell_manifest_hash": _support_scalar(report.get("shell_manifest_hash") or shell.get("shell_manifest_hash")),
+            "state_reducer_hash": _support_scalar(report.get("state_reducer_hash") or shell.get("state_reducer_hash")),
+            "state_manifest_hash": _support_scalar(report.get("state_manifest_hash") or shell.get("state_manifest_hash")),
+            "state_contract_hash": _support_scalar(report.get("state_contract_hash") or shell.get("state_contract_hash")),
+            "state_reducer_conformance": _support_scalar(
+                _state_conformance_status(report.get("state_reducer_conformance") or shell.get("state_reducer_conformance"))
+            ),
         }
-        if shell or report.get("shell_artifact_hash") or report.get("shell_manifest_hash")
+        if shell or report.get("shell_artifact_hash") or report.get("shell_manifest_hash") or report.get("state_reducer_hash")
         else None,
         "screens": [
             {
@@ -3616,10 +3904,21 @@ def _compact_shell_report(shell: dict[str, Any] | None) -> dict[str, Any]:
         "route_assertions": shell.get("route_assertions") if isinstance(shell.get("route_assertions"), dict) else {},
         "shell_artifact_hash": shell.get("shell_artifact_hash"),
         "shell_manifest_hash": shell.get("shell_manifest_hash"),
+        "state_reducer_hash": shell.get("state_reducer_hash"),
+        "state_manifest_hash": shell.get("state_manifest_hash"),
+        "state_contract_hash": shell.get("state_contract_hash"),
+        "state_replay": shell.get("state_replay"),
+        "state_reducer_conformance": shell.get("state_reducer_conformance"),
         "binding_scope": shell.get("binding_scope"),
         "resource_binding_assertions": _compact_resource_binding_report(shell.get("resource_binding_assertions")),
         "errors": _normalize_proof_errors(shell.get("errors")),
     }
+
+
+def _state_conformance_status(report: object) -> str | None:
+    if not isinstance(report, dict):
+        return None
+    return "passed" if report.get("ok") else "failed"
 
 
 def _compact_resource_binding_report(report: object) -> dict[str, Any] | None:
@@ -3706,6 +4005,16 @@ def _render_app_proof_summary(report: dict[str, Any], *, proof_report_hash: str)
         lines.append(f"- Route navigation: `{_summary_value(report.get('route_navigation'))}`")
         lines.append(f"- Shell artifact SHA-256: `{_summary_value(report.get('shell_artifact_hash'))}`")
         lines.append(f"- Shell manifest SHA-256: `{_summary_value(report.get('shell_manifest_hash'))}`")
+        if report.get("state_reducer_hash"):
+            lines.append(f"- State reducer SHA-256: `{_summary_value(report.get('state_reducer_hash'))}`")
+        if report.get("state_contract_hash"):
+            lines.append(f"- State contract SHA-256: `{_summary_value(report.get('state_contract_hash'))}`")
+        conformance_status = _state_conformance_status(report.get("state_reducer_conformance"))
+        if conformance_status:
+            lines.append(f"- State reducer conformance: `{_summary_value(conformance_status)}`")
+        if isinstance(report.get("state_replay"), dict):
+            replay = report["state_replay"]
+            lines.append(f"- State replay: `{_summary_value('passed' if replay.get('ok') else 'failed')}`")
         for key in (
             "every_route_maps_exactly_one_screen",
             "every_screen_has_route",
@@ -3834,7 +4143,20 @@ def _support_manifest_summary(summary: object) -> dict[str, Any] | None:
 def _support_path_names(report: dict[str, Any]) -> dict[str, str]:
     paths = report.get("paths", {}) if isinstance(report.get("paths"), dict) else {}
     names: dict[str, str] = {}
-    for key in ("proof_dir", "app", "design", "report", "proof_summary", "support_bundle"):
+    for key in (
+        "proof_dir",
+        "app",
+        "design",
+        "report",
+        "proof_summary",
+        "support_bundle",
+        "app_shell",
+        "app_shell_index",
+        "app_shell_manifest",
+        "app_shell_diagnostics",
+        "app_state_reducer",
+        "app_state_manifest",
+    ):
         value = paths.get(key)
         if value:
             names[f"{key}_name"] = Path(str(value)).name
@@ -3922,6 +4244,10 @@ def _app_tool_proof_identity(proof: dict[str, Any]) -> dict[str, str | None]:
         "support_bundle_hash": _hash_path_if_present(paths.get("support_bundle")),
         "shell_artifact_hash": proof.get("shell_artifact_hash") if isinstance(proof.get("shell_artifact_hash"), str) else None,
         "shell_manifest_hash": proof.get("shell_manifest_hash") if isinstance(proof.get("shell_manifest_hash"), str) else None,
+        "state_reducer_hash": proof.get("state_reducer_hash") if isinstance(proof.get("state_reducer_hash"), str) else None,
+        "state_manifest_hash": proof.get("state_manifest_hash") if isinstance(proof.get("state_manifest_hash"), str) else None,
+        "state_contract_hash": proof.get("state_contract_hash") if isinstance(proof.get("state_contract_hash"), str) else None,
+        "state_reducer_conformance": _state_conformance_status(proof.get("state_reducer_conformance")),
         "screen_hashes": screen_hashes,  # type: ignore[dict-item]
     }
 
@@ -3938,21 +4264,33 @@ def _hash_path_if_present(path: object) -> str | None:
 AGENT_APP_BUNDLE_SCHEMA: dict[str, Any] = {
     "$schema": "https://json-schema.org/draft/2020-12/schema",
     "$id": "https://viewspec.dev/agent-app-bundle.schema.json",
-    "title": "ViewSpec Agent AppBundle V1/V2",
-    "description": "Local-only multi-screen app contract with embedded IntentBundles, static routes, V1 unbound fixtures, and V2 read-only fixture binding proof.",
-    "oneOf": [{"$ref": "#/$defs/app_bundle_v1"}, {"$ref": "#/$defs/app_bundle_v2"}],
+    "title": "ViewSpec Agent AppBundle V1/V2/V3",
+    "description": (
+        "Local-only multi-screen app contract with embedded IntentBundles, static routes, V1 unbound "
+        "fixtures, V2 read-only fixture binding proof, and V3 bounded interactive_state_v0 reducers."
+    ),
+    "oneOf": [
+        {"$ref": "#/$defs/app_bundle_v1"},
+        {"$ref": "#/$defs/app_bundle_v2"},
+        {"$ref": "#/$defs/app_bundle_v3"},
+    ],
+    "x-viewspec-app-schema-versions": list(APP_BUNDLE_SUPPORTED_SCHEMA_VERSIONS),
     "x-viewspec-resource-binding": APP_BUNDLE_RESOURCE_BINDING,
     "x-viewspec-resource-bindings": [APP_BUNDLE_RESOURCE_BINDING, APP_BUNDLE_RESOURCE_BINDING_READONLY],
     "x-viewspec-binding-scope": APP_BUNDLE_BINDING_SCOPE,
+    "x-viewspec-interactive-state": INTERACTIVE_STATE_PROFILE,
     "x-viewspec-embedded-intent-schema": "https://viewspec.dev/agent-intent-bundle.schema.json",
     "x-viewspec-invariants": [
         "AppBundles are local-only and no-network.",
         "schema_version 1 rejects resource_binding and resource_views, and reports unbound_v0.",
         "schema_version 2 requires resource_binding fixture_readonly_v0 and per-screen resource_views.",
+        "schema_version 3 requires fixture_readonly_v0 plus interactive_state_v0 state, mutations, and selectors.",
         "Routes are static canonical paths only and must map to declared screens.",
         "The root route must resolve to exactly one route.",
         "Every screen must be reachable by at least one static route.",
         "V2 binding proof is exact byte-for-byte fixture scalar visibility in declared target motifs only.",
+        "V3 state mutations are declarative reducer operations triggered by declared embedded screen actions only.",
+        "V3 selectors are deterministic read-only derived views over declared state.",
         "Every embedded screen intent must validate against the local V1 IntentBundle contract.",
         "Unknown AppBundle-owned fields are rejected instead of ignored.",
         "Proof output paths are derived from validated safe ids only.",
@@ -3960,7 +4298,7 @@ AGENT_APP_BUNDLE_SCHEMA: dict[str, Any] = {
     "x-viewspec-anti-goals": [
         "No runtime browser navigation proof.",
         "No dynamic routes, route params, query strings, hashes, redirects, guards, nested routers, or locale routing.",
-        "No runtime data binding, reducers, mutations, adapters, API clients, backend, or deployable framework generation.",
+        "No live DOM rebinding, framework state adapter, optimistic server reconciliation, persistence, CRDT, websocket sync, or gesture runtime.",
         "No transformed, localized, formatted, joined, sorted, filtered, paginated, grouped, or aggregated fixture proof.",
         "No whole-app data-flow consistency proof beyond explicitly declared resource_views.",
         "No accessibility, pixel-perfect, cross-browser, production deployment, arbitrary host-app, or hosted extended compiler certification.",
@@ -4001,8 +4339,72 @@ AGENT_APP_BUNDLE_SCHEMA: dict[str, Any] = {
                 },
             },
         },
+        "app_bundle_v3": {
+            "type": "object",
+            "required": [
+                "schema_version",
+                "resource_binding",
+                "interactive_state",
+                "app",
+                "routes",
+                "resources",
+                "screens",
+                "state",
+                "mutations",
+                "selectors",
+            ],
+            "additionalProperties": False,
+            "properties": {
+                "schema_version": {"const": APP_BUNDLE_STATE_SCHEMA_VERSION},
+                "resource_binding": {"const": APP_BUNDLE_RESOURCE_BINDING_READONLY},
+                "interactive_state": {"const": INTERACTIVE_STATE_PROFILE},
+                "app": {"$ref": "#/$defs/app"},
+                "routes": {"$ref": "#/$defs/routes"},
+                "resources": {"$ref": "#/$defs/resources"},
+                "screens": {
+                    "type": "array",
+                    "minItems": 1,
+                    "maxItems": APP_BUNDLE_MAX_SCREENS,
+                    "items": {"$ref": "#/$defs/screen_v2"},
+                },
+                "state": {"$ref": "#/$defs/state_entries"},
+                "mutations": {"$ref": "#/$defs/state_mutations"},
+                "selectors": {"$ref": "#/$defs/state_selectors"},
+                "state_replay_assertions": {"$ref": "#/$defs/state_replay_assertions"},
+            },
+        },
         "safe_id": {"type": "string", "pattern": SAFE_AGENT_ID_PATTERN, "maxLength": APP_BUNDLE_MAX_ID_CHARS},
         "safe_string": {"type": "string", "maxLength": APP_BUNDLE_MAX_SCALAR_STRING_CHARS},
+        "json_value": {
+            "anyOf": [
+                {"type": "string", "maxLength": APP_BUNDLE_MAX_SCALAR_STRING_CHARS},
+                {"type": "number"},
+                {"type": "boolean"},
+                {"type": "null"},
+                {
+                    "type": "array",
+                    "maxItems": APP_BUNDLE_MAX_RECORDS_PER_RESOURCE,
+                    "items": {"$ref": "#/$defs/json_value"},
+                },
+                {
+                    "type": "object",
+                    "maxProperties": APP_BUNDLE_MAX_RECORD_FIELDS,
+                    "propertyNames": {"pattern": SAFE_AGENT_ID_PATTERN, "maxLength": APP_BUNDLE_MAX_ID_CHARS},
+                    "additionalProperties": {"$ref": "#/$defs/json_value"},
+                },
+            ]
+        },
+        "payload_expr": {
+            "anyOf": [
+                {"$ref": "#/$defs/json_value"},
+                {
+                    "type": "object",
+                    "required": ["from_payload"],
+                    "additionalProperties": False,
+                    "properties": {"from_payload": {"$ref": "#/$defs/safe_id"}},
+                },
+            ]
+        },
         "app": {
             "type": "object",
             "required": ["id", "title", "kind", "root_route"],
@@ -4111,6 +4513,259 @@ AGENT_APP_BUNDLE_SCHEMA: dict[str, Any] = {
                 "target_motif_id": {"$ref": "#/$defs/safe_id"},
             },
         },
+        "state_entries": {
+            "type": "array",
+            "maxItems": APP_STATE_MAX_ENTRIES,
+            "items": {"$ref": "#/$defs/state_entry"},
+        },
+        "state_entry": {
+            "type": "object",
+            "required": ["id", "kind", "scope", "initial"],
+            "additionalProperties": False,
+            "properties": {
+                "id": {"$ref": "#/$defs/safe_id"},
+                "kind": {"enum": ["collection", "record", "scalar", "selection"]},
+                "scope": {"enum": ["app", "screen"]},
+                "screen_id": {"$ref": "#/$defs/safe_id"},
+                "initial": {"$ref": "#/$defs/state_initial"},
+            },
+        },
+        "state_initial": {
+            "oneOf": [
+                {
+                    "type": "object",
+                    "required": ["value"],
+                    "additionalProperties": False,
+                    "properties": {"value": {"$ref": "#/$defs/json_value"}},
+                },
+                {
+                    "type": "object",
+                    "required": ["from_resource_view"],
+                    "additionalProperties": False,
+                    "properties": {"from_resource_view": {"$ref": "#/$defs/resource_view_ref"}},
+                },
+            ]
+        },
+        "resource_view_ref": {
+            "type": "object",
+            "required": ["screen_id", "view_id"],
+            "additionalProperties": False,
+            "properties": {
+                "screen_id": {"$ref": "#/$defs/safe_id"},
+                "view_id": {"$ref": "#/$defs/safe_id"},
+            },
+        },
+        "state_mutations": {
+            "type": "array",
+            "maxItems": APP_STATE_MAX_MUTATIONS,
+            "items": {"$ref": "#/$defs/state_mutation"},
+        },
+        "state_mutation": {
+            "type": "object",
+            "required": ["id", "trigger", "ops"],
+            "additionalProperties": False,
+            "properties": {
+                "id": {"$ref": "#/$defs/safe_id"},
+                "trigger": {"$ref": "#/$defs/state_mutation_trigger"},
+                "ops": {
+                    "type": "array",
+                    "maxItems": APP_STATE_MAX_OPS_PER_MUTATION,
+                    "items": {"$ref": "#/$defs/state_mutation_op"},
+                },
+            },
+        },
+        "state_mutation_trigger": {
+            "type": "object",
+            "required": ["screen_id", "action_id"],
+            "additionalProperties": False,
+            "properties": {
+                "screen_id": {"$ref": "#/$defs/safe_id"},
+                "action_id": {"$ref": "#/$defs/safe_id"},
+            },
+        },
+        "state_mutation_op": {
+            "oneOf": [
+                {"$ref": "#/$defs/state_op_set"},
+                {"$ref": "#/$defs/state_op_patch"},
+                {"$ref": "#/$defs/state_op_toggle"},
+                {"$ref": "#/$defs/state_op_append"},
+                {"$ref": "#/$defs/state_op_remove"},
+                {"$ref": "#/$defs/state_op_move"},
+                {"$ref": "#/$defs/state_op_increment"},
+            ]
+        },
+        "state_op_set": {
+            "type": "object",
+            "required": ["op", "state", "value"],
+            "additionalProperties": False,
+            "properties": {
+                "op": {"const": "set"},
+                "state": {"$ref": "#/$defs/safe_id"},
+                "value": {"$ref": "#/$defs/payload_expr"},
+            },
+        },
+        "state_op_patch": {
+            "type": "object",
+            "required": ["op", "state", "value"],
+            "additionalProperties": False,
+            "properties": {
+                "op": {"const": "patch"},
+                "state": {"$ref": "#/$defs/safe_id"},
+                "item_id": {"$ref": "#/$defs/payload_expr"},
+                "value": {"$ref": "#/$defs/payload_expr"},
+            },
+        },
+        "state_op_toggle": {
+            "type": "object",
+            "required": ["op", "state"],
+            "additionalProperties": False,
+            "properties": {
+                "op": {"const": "toggle"},
+                "state": {"$ref": "#/$defs/safe_id"},
+                "item_id": {"$ref": "#/$defs/payload_expr"},
+                "field": {"$ref": "#/$defs/safe_id"},
+            },
+        },
+        "state_op_append": {
+            "type": "object",
+            "required": ["op", "state", "value"],
+            "additionalProperties": False,
+            "properties": {
+                "op": {"const": "append"},
+                "state": {"$ref": "#/$defs/safe_id"},
+                "value": {"$ref": "#/$defs/payload_expr"},
+            },
+        },
+        "state_op_remove": {
+            "type": "object",
+            "required": ["op", "state", "item_id"],
+            "additionalProperties": False,
+            "properties": {
+                "op": {"const": "remove"},
+                "state": {"$ref": "#/$defs/safe_id"},
+                "item_id": {"$ref": "#/$defs/payload_expr"},
+            },
+        },
+        "state_op_move": {
+            "type": "object",
+            "required": ["op", "state", "item_id", "to_index"],
+            "additionalProperties": False,
+            "properties": {
+                "op": {"const": "move"},
+                "state": {"$ref": "#/$defs/safe_id"},
+                "item_id": {"$ref": "#/$defs/payload_expr"},
+                "to_index": {"$ref": "#/$defs/payload_expr"},
+            },
+        },
+        "state_op_increment": {
+            "type": "object",
+            "required": ["op", "state"],
+            "additionalProperties": False,
+            "properties": {
+                "op": {"const": "increment"},
+                "state": {"$ref": "#/$defs/safe_id"},
+                "item_id": {"$ref": "#/$defs/payload_expr"},
+                "field": {"$ref": "#/$defs/safe_id"},
+                "amount": {"$ref": "#/$defs/payload_expr"},
+            },
+        },
+        "state_selectors": {
+            "type": "array",
+            "maxItems": APP_STATE_MAX_SELECTORS,
+            "items": {"$ref": "#/$defs/state_selector"},
+        },
+        "state_selector": {
+            "type": "object",
+            "required": ["id", "source_state", "ops"],
+            "additionalProperties": False,
+            "properties": {
+                "id": {"$ref": "#/$defs/safe_id"},
+                "source_state": {"$ref": "#/$defs/safe_id"},
+                "ops": {
+                    "type": "array",
+                    "maxItems": APP_STATE_MAX_SELECTOR_OPS,
+                    "items": {"$ref": "#/$defs/state_selector_op"},
+                },
+            },
+        },
+        "state_selector_op": {
+            "oneOf": [
+                {"$ref": "#/$defs/selector_op_filter_eq"},
+                {"$ref": "#/$defs/selector_op_sort_by"},
+                {"$ref": "#/$defs/selector_op_slice"},
+            ]
+        },
+        "selector_op_filter_eq": {
+            "type": "object",
+            "required": ["op", "field", "value"],
+            "additionalProperties": False,
+            "properties": {
+                "op": {"const": "filter_eq"},
+                "field": {"$ref": "#/$defs/safe_id"},
+                "value": {"$ref": "#/$defs/json_value"},
+            },
+        },
+        "selector_op_sort_by": {
+            "type": "object",
+            "required": ["op", "field"],
+            "additionalProperties": False,
+            "properties": {
+                "op": {"const": "sort_by"},
+                "field": {"$ref": "#/$defs/safe_id"},
+                "direction": {"enum": ["asc", "desc"]},
+            },
+        },
+        "selector_op_slice": {
+            "type": "object",
+            "required": ["op"],
+            "additionalProperties": False,
+            "properties": {
+                "op": {"const": "slice"},
+                "start": {"type": "integer", "minimum": 0},
+                "end": {"type": "integer", "minimum": 0},
+            },
+        },
+        "state_replay_assertions": {
+            "type": "array",
+            "maxItems": APP_STATE_MAX_REPLAY_ASSERTIONS,
+            "items": {"$ref": "#/$defs/state_replay_assertion"},
+        },
+        "state_replay_assertion": {
+            "type": "object",
+            "required": ["id", "events", "expect_state", "expect_selectors"],
+            "additionalProperties": False,
+            "properties": {
+                "id": {"$ref": "#/$defs/safe_id"},
+                "events": {
+                    "type": "array",
+                    "maxItems": APP_STATE_MAX_EVENTS_PER_REPLAY,
+                    "items": {"$ref": "#/$defs/state_replay_event"},
+                },
+                "expect_state": {
+                    "type": "object",
+                    "propertyNames": {"$ref": "#/$defs/safe_id"},
+                    "additionalProperties": {"$ref": "#/$defs/json_value"},
+                },
+                "expect_selectors": {
+                    "type": "object",
+                    "propertyNames": {"$ref": "#/$defs/safe_id"},
+                    "additionalProperties": {"$ref": "#/$defs/json_value"},
+                },
+            },
+        },
+        "state_replay_event": {
+            "type": "object",
+            "required": ["mutation_id"],
+            "additionalProperties": False,
+            "properties": {
+                "mutation_id": {"$ref": "#/$defs/safe_id"},
+                "payload_values": {
+                    "type": "object",
+                    "propertyNames": {"$ref": "#/$defs/safe_id"},
+                    "additionalProperties": {"$ref": "#/$defs/json_value"},
+                },
+            },
+        },
         "intent_bundle": {
             "type": "object",
             "description": "Embedded local V1 IntentBundle. validate-app/prove-app enforce the full local V1 validator.",
@@ -4130,8 +4785,11 @@ __all__ = [
     "APP_BUNDLE_RESOURCE_BINDING_READONLY",
     "APP_BUNDLE_RESULT_SCHEMA_VERSION",
     "APP_BUNDLE_SCHEMA_VERSION",
+    "APP_BUNDLE_STATE_SCHEMA_VERSION",
     "APP_BUNDLE_TARGET",
     "APP_BUNDLE_PROOF_LEVEL",
+    "APP_STATE_MANIFEST",
+    "APP_STATE_REDUCER",
     "APP_SHELL_DEFAULT_OUT",
     "APP_SHELL_ROUTE_NAVIGATION",
     "APP_SHELL_TARGET",

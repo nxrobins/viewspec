@@ -148,9 +148,9 @@ Use `viewspec diff-intent old.intent.json new.intent.json --json` to review agen
 
 This is intentionally not a visual equivalence proof. It tells reviewers what changed in the declared UI intent before they inspect compiled HTML, React, SwiftUI, Flutter, or other emitter artifacts.
 
-## AppBundle V1/V2
+## AppBundle V1/V2/V3
 
-Use AppBundle JSON for the first narrow multi-screen internal-tool app-generation contract. Agents still emit strict JSON, but the source file is `viewspec.app.json`: app metadata, static routes, fixture resources, and embedded local V1 `IntentBundle`s for each screen. `schema_version: 1` reports `resource_binding: "unbound_v0"`; `schema_version: 2` adds proof-only `resource_binding: "fixture_readonly_v0"` with declared per-screen `resource_views`.
+Use AppBundle JSON for the first narrow multi-screen internal-tool app-generation contract. Agents still emit strict JSON, but the source file is `viewspec.app.json`: app metadata, static routes, fixture resources, and embedded local V1 `IntentBundle`s for each screen. `schema_version: 1` reports `resource_binding: "unbound_v0"`; `schema_version: 2` adds proof-only `resource_binding: "fixture_readonly_v0"` with declared per-screen `resource_views`; `schema_version: 3` adds bounded `interactive_state_v0` state, mutations, selectors, replay assertions, and a generated pure TypeScript reducer.
 
 ```bash
 viewspec init-app --out viewspec.app.json
@@ -161,23 +161,23 @@ viewspec compile-app viewspec.app.json --out app-dist --target html-tailwind-app
 viewspec prove-app --app viewspec.app.json --out .viewspec-app-proof --with-shell --json
 ```
 
-The AppBundle contract is physically bounded: 1 MiB raw JSON, 16 screens, 32 routes, 8 fixture resources, 100 records per resource, 32 scalar fields per record, 2,048 characters per scalar string, 256 KiB per embedded `IntentBundle`, and 1 MiB aggregate embedded intent JSON. V2 binding adds max 32 resource views per app, 8 per screen, 50 record refs per view, 16 fields per view, 800 record-field assertions, and 128 KiB serialized assertion report. Routes are static canonical paths only; route paths never become proof output paths. AppBundle-owned objects reject unknown fields and no-network surfaces. Embedded screen intents must pass the existing local V1 validator.
+The AppBundle contract is physically bounded: 1 MiB raw JSON, 16 screens, 32 routes, 8 fixture resources, 100 records per resource, 32 scalar fields per record, 2,048 characters per scalar string, 256 KiB per embedded `IntentBundle`, and 1 MiB aggregate embedded intent JSON. V2 binding adds max 32 resource views per app, 8 per screen, 50 record refs per view, 16 fields per view, 800 record-field assertions, and 128 KiB serialized assertion report. V3 state adds max 32 state entries, 128 mutations, 16 ops per mutation, 64 selectors, 8 selector ops, 32 replay assertions, 32 events per replay assertion, 64 KiB generated reducer, and 64 KiB state manifest. Routes are static canonical paths only; route paths never become proof output paths. AppBundle-owned objects reject unknown fields and no-network surfaces. Embedded screen intents must pass the existing local V1 validator.
 
-`prove-app` writes `.viewspec-app-proof/APP_PROOF.md`, `.viewspec-app-proof/app_proof_report.json`, `.viewspec-app-proof/app_support_bundle.json`, and per-screen `viewspec.intent.json`, `artifact/index.html`, `provenance_manifest.json`, and `diagnostics.json`. The proof report uses `proof_level: "app_contract_source_artifacts"`, `target: "html-tailwind"`, the validated resource binding mode, and for V2 includes `binding_scope: "declared_resource_views_only"`, assertion counts, per-view status, and a binding digest.
+`prove-app` writes `.viewspec-app-proof/APP_PROOF.md`, `.viewspec-app-proof/app_proof_report.json`, `.viewspec-app-proof/app_support_bundle.json`, and per-screen `viewspec.intent.json`, `artifact/index.html`, `provenance_manifest.json`, and `diagnostics.json`. The proof report uses `proof_level: "app_contract_source_artifacts"`, `target: "html-tailwind"`, the validated resource binding mode, and for V2/V3 includes `binding_scope: "declared_resource_views_only"`, assertion counts, per-view status, and a binding digest.
 
-Static Shell V0 consumes the same validated AppBundle contract and writes a local shell artifact with `target: "html-tailwind-app"` and `route_navigation: "static_shell_v0"`. `compile-app` writes `app-dist/index.html`, `shell_manifest.json`, `diagnostics.json`, and checked screen artifacts; `prove-app --with-shell` writes the same byte-identical shell under `.viewspec-app-proof/app-shell/` and records `shell_artifact_hash`, `shell_manifest_hash`, no-network policy, route assertions, resource binding assertions when V2 is enabled, and per-screen proof data. Static Shell V0 is bounded to 16 screens, 32 routes, 2 MiB shell HTML, 64 KiB shell JS, 64 KiB serialized route table, and 8 MiB aggregate embedded checked screen HTML; it rejects external network/embed/script surfaces and generated framework/backend/state/mutation files.
+Static Shell V0 consumes the same validated AppBundle contract and writes a local shell artifact with `target: "html-tailwind-app"` and `route_navigation: "static_shell_v0"`. `compile-app` writes `app-dist/index.html`, `shell_manifest.json`, `diagnostics.json`, checked screen artifacts, and for V3 `state_reducer.ts` plus `state_manifest.json`; `prove-app --with-shell` writes the same byte-identical shell under `.viewspec-app-proof/app-shell/` and records `shell_artifact_hash`, `shell_manifest_hash`, no-network policy, route assertions, resource binding assertions when V2/V3 is enabled, per-screen proof data, and V3 `state_contract_hash`, state artifact hashes, replay status, and generated reducer conformance status. Static Shell V0 is bounded to 16 screens, 32 routes, 2 MiB shell HTML, 64 KiB shell JS, 64 KiB serialized route table, 8 MiB aggregate embedded checked screen HTML, 64 KiB generated reducer, and 64 KiB state manifest; it rejects external network/embed/script surfaces and generated framework/backend adapters.
 
-AppBundle proof does not prove runtime browser navigation, dynamic routes, runtime data binding, transformed fixture values, deployable app scaffolding, reducers, API clients, backends, mutations, accessibility certification, pixel-perfect visual equivalence, arbitrary host-app compatibility, or hosted extended compiler behavior.
+AppBundle proof does not prove runtime browser navigation, dynamic routes, live DOM rebinding, transformed fixture values, deployable app scaffolding, Zustand/Redux/SwiftData adapters, API clients, backends, persistence, CRDTs, websocket sync, optimistic server reconciliation, accessibility certification, pixel-perfect visual equivalence, arbitrary host-app compatibility, or hosted extended compiler behavior.
 
 ## Published Agent Artifacts
 
-These assets use agent asset schema version `6`. The manifest declares the `local_v1` contract profile plus the export/check commands agents should use for local verification.
+These assets use agent asset schema version `7`. The manifest declares the `local_v1` contract profile plus the export/check commands agents should use for local verification.
 
 - Asset manifest: `https://viewspec.dev/agent-assets.json`
 - System prompt: `https://viewspec.dev/agent-system-prompt.txt`
 - JSON schema: `https://viewspec.dev/agent-intent-bundle.schema.json`
 - Valid starter example: `https://viewspec.dev/agent-intent-example.dashboard.json`
-- AppBundle V1/V2 schema: `https://viewspec.dev/agent-app-bundle.schema.json`
+- AppBundle V1/V2/V3 schema: `https://viewspec.dev/agent-app-bundle.schema.json`
 - AppBundle internal-tool example: `https://viewspec.dev/agent-app-example.internal-tool.json`
 - Hosted compiler OpenAPI: `https://viewspec.dev/openapi.json`
 - LLM summary: `https://viewspec.dev/llms.txt`

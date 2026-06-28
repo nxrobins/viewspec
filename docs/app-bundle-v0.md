@@ -1,6 +1,6 @@
-# AppBundle V1/V2
+# AppBundle V1/V2/V3
 
-AppBundle is the first narrow app-generation contract for local multi-screen internal tools. It does not emit a deployable app. It records app metadata, static routes, fixture resources, and embedded local V1 screen `IntentBundle`s, then proves each screen by compiling/checking through the existing `html-tailwind` path. `schema_version: 1` keeps fixtures unbound; `schema_version: 2` adds proof-only read-only fixture binding.
+AppBundle is the first narrow app-generation contract for local multi-screen internal tools. It does not emit a deployable app. It records app metadata, static routes, fixture resources, and embedded local V1 screen `IntentBundle`s, then proves each screen by compiling/checking through the existing `html-tailwind` path. `schema_version: 1` keeps fixtures unbound; `schema_version: 2` adds proof-only read-only fixture binding; `schema_version: 3` adds bounded declarative state, mutations, selectors, replay assertions, and a generated pure TypeScript reducer artifact.
 
 ```bash
 viewspec init-app --out viewspec.app.json
@@ -54,13 +54,15 @@ AppBundle V2 adds required root `resource_binding: "fixture_readonly_v0"` and pe
 
 V2 validates every resource view against existing fixture resources, unique record ids, existing scalar fields, and an existing target motif id on that screen.
 
+AppBundle V3 adds required root `interactive_state: "interactive_state_v0"`, `state`, `mutations`, and `selectors`, with optional `state_replay_assertions`. Mutation triggers reference declared embedded screen actions by `{ "screen_id": "...", "action_id": "..." }`, and `from_payload` reads must reference that action's declared `payload_bindings`. Supported mutation ops are `set`, `patch`, `toggle`, `append`, `remove`, `move`, and `increment`. Supported selector ops are `filter_eq`, `sort_by`, and `slice`.
+
 ## Constraints & Fallbacks
 
-AppBundle V0 is physically bounded: max 1 MiB raw JSON, 16 screens, 32 routes, 8 fixture resources, 100 records per resource, 32 scalar fields per record, 2,048 characters per scalar string, 256 KiB per embedded IntentBundle, 1 MiB aggregate embedded IntentBundle JSON, 256 KiB app proof report, and 16 KiB redacted support bundle. Validation fails closed with stable error codes before writing proof artifacts when any bound is exceeded.
+AppBundle V0 is physically bounded: max 1 MiB raw JSON, 16 screens, 32 routes, 8 fixture resources, 100 records per resource, 32 scalar fields per record, 2,048 characters per scalar string, 256 KiB per embedded IntentBundle, 1 MiB aggregate embedded IntentBundle JSON, 256 KiB app proof report, and 16 KiB redacted support bundle. V3 state adds max 32 state entries, 128 mutations, 16 ops per mutation, 64 selectors, 8 selector ops, 32 replay assertions, 32 events per replay assertion, 64 KiB generated reducer, and 64 KiB state manifest. Validation fails closed with stable error codes before writing proof artifacts when any bound is exceeded.
 
 Routes are static and canonical only: paths are unique, at most 96 characters, start with `/`, contain only letters, digits, `_`, `.`, `~`, `-`, and `/`, and must not contain `//`, `/../`, `/./`, `%`, `?`, `#`, or `\`. Proof output paths derive only from validated safe ids, never route paths, labels, titles, resource values, or user copy.
 
-AppBundle V0 is local-only and no-network. AppBundle-owned fields reject URL schemes, environment references, credentials, adapter config, fetch config, mutation definitions, package-install flags, hosted compiler behavior, and unknown fields.
+AppBundle V0 is local-only and no-network. AppBundle-owned fields reject URL schemes, environment references, credentials, adapter config, fetch config, package-install flags, hosted compiler behavior, and unknown fields. V1/V2 reject mutation fields; V3 admits only the bounded `interactive_state_v0` profile and no arbitrary code, expressions beyond `from_payload`, network calls, time, randomness, package installs, or host-framework APIs.
 
 Embedded screen intents pass the existing local V1 IntentBundle validator with compile check enabled by default. Fixture resources are recorded and bounded for app context but remain `resource_binding: "unbound_v0"` and are not required to match, feed, deduplicate, or prove data consistency with embedded screen intents.
 
@@ -68,11 +70,11 @@ Resource Binding V0 is physically bounded and proof-only: max 32 resource views 
 
 If `resource_binding: "fixture_readonly_v0"` is declared, validation, compile, and proof fail closed with stable `APP_RESOURCE_BINDING_*` errors on schema mismatch, empty assertion set, unsupported source, ambiguous repeated value, limit overflow, report overflow, digest mismatch, or missing `binding_scope: "declared_resource_views_only"`. Commands never downgrade to `unbound_v0`, skip assertions, imply runtime/live/adapter/state/data-flow execution, or return a partial successful proof.
 
-`diff-app` reports app metadata, route, screen, resource, resource-view, and per-screen embedded intent semantic summaries. If a changed embedded screen intent cannot be validated or diffed, `diff-app` fails with `APP_DIFF_SCREEN_INTENT_INVALID`.
+`diff-app` reports app metadata, route, screen, resource, resource-view, V3 state, mutation, selector, replay assertion, and per-screen embedded intent semantic summaries. If a changed embedded screen intent cannot be validated or diffed, `diff-app` fails with `APP_DIFF_SCREEN_INTENT_INVALID`.
 
-Static Shell V0 is physically bounded: max 16 screens, 32 routes, 2 MiB shell HTML, 64 KiB shell JS, 64 KiB serialized route table, 8 MiB aggregate embedded checked screen HTML, 0 external network surfaces, 0 dynamic route features, 0 third-party executable/embed surfaces, and 0 generated framework/backend/state/mutation files. Shell generation fails closed before writing a successful report with stable `APP_SHELL_*` error codes if any bound is exceeded, any route/screen assertion fails, any output path escapes the shell/proof root, any preexisting output exists without `--force`, any screen validation/compile/check/hash fails, or `compile-app` and `prove-app --with-shell` would produce non-identical shell artifacts.
+Static Shell V0 is physically bounded: max 16 screens, 32 routes, 2 MiB shell HTML, 64 KiB shell JS, 64 KiB serialized route table, 8 MiB aggregate embedded checked screen HTML, 64 KiB generated reducer, 64 KiB state manifest, 0 external network surfaces, 0 dynamic route features, and 0 third-party executable/embed surfaces. Shell generation fails closed before writing a successful report with stable `APP_SHELL_*` or `APP_STATE_*` error codes if any bound is exceeded, any route/screen/state assertion fails, any output path escapes the shell/proof root, any preexisting output exists without `--force`, any screen validation/compile/check/hash fails, or `compile-app` and `prove-app --with-shell` would produce non-identical shell artifacts.
 
-`compile-app` writes `app-dist/index.html`, `shell_manifest.json`, `diagnostics.json`, and checked screen artifacts using `target: "html-tailwind-app"` and `route_navigation: "static_shell_v0"`. It rejects external network/embed/script surfaces, renders unknown route state as one local 404 panel with zero selected screen containers, and remains a local proof artifact rather than a deployable framework app.
+`compile-app` writes `app-dist/index.html`, `shell_manifest.json`, `diagnostics.json`, and checked screen artifacts using `target: "html-tailwind-app"` and `route_navigation: "static_shell_v0"`. For V3 it also writes `state_reducer.ts` and schema-versioned `state_manifest.json`; the state manifest records the normalized state contract, `state_contract_hash`, state event schemas, replay report, reducer exports, reducer hash, and local reducer conformance report. It rejects external network/embed/script surfaces, renders unknown route state as one local 404 panel with zero selected screen containers, and remains a local proof artifact rather than a deployable framework app.
 
 ## Proof Output
 
@@ -90,18 +92,22 @@ The proof report keeps report schema metadata separate from app contract metadat
 
 With `--with-shell`, `prove-app` also writes `.viewspec-app-proof/app-shell/index.html`, `.viewspec-app-proof/app-shell/shell_manifest.json`, and `.viewspec-app-proof/app-shell/diagnostics.json`; the proof report uses `target: "html-tailwind-app"`, `route_navigation: "static_shell_v0"`, `shell_artifact_hash`, `shell_manifest_hash`, shell route assertions, and the same per-screen proof data.
 
+For V3 shell proofs, `compile-app` and `prove-app --with-shell` also write matching `state_reducer.ts` and `state_manifest.json`, record `state_contract_hash`, `state_reducer_hash`, `state_manifest_hash`, replay status, and reducer conformance status. Replay assertions execute through the normalized mutation definitions in the Python interpreter, and the generated reducer is imported with local Node and compared against the Python replay before returning a successful report.
+
 ## Explicit Anti-Goals
 
 - AppBundle V0 is not required to prove browser runtime navigation, back/forward behavior, deep linking, focus restoration, scroll restoration, or route transition animation.
 - AppBundle V0 is not required to support dynamic routes, route params, query strings, hash fragments, encoded route aliases, redirects, route guards, nested routers, or locale-aware routing.
 - AppBundle V0 is not required to detect every semantic mismatch between fake fixture resources and duplicated data inside embedded screen IntentBundles.
 - AppBundle V0 is not required to bind fixture resources into screen rendering, infer screen data dependencies, deduplicate repeated data across screens, or prove data-flow consistency.
-- AppBundle V0 is not required to generate a deployable React/Vite/Next app, app shell, runtime router, resource adapter, reducer, API client, backend, database schema, or mutation handler.
+- AppBundle V0 is not required to generate a deployable React/Vite/Next app, runtime router, resource adapter, framework state adapter, API client, backend, database schema, or mutation handler.
 - AppBundle V0 is not required to optimize for very large apps, streaming validation, incremental proof, cross-bundle imports, shared screen libraries, or monorepo-scale app composition.
 - AppBundle V0 is not required to certify accessibility, pixel-perfect visual equivalence, cross-browser behavior, production deployment readiness, arbitrary host-app compatibility, or hosted extended compiler behavior.
-- Static Shell V0 is not required to support browser back/forward history semantics, scroll restoration, focus restoration, route transition animation, multi-tab synchronization, CSP policy generation, service workers, web workers, import maps, production deployment hardening, fixture binding, reducers, persisted local state, mutations, nested routers, redirects, route guards, dynamic segments, route params, query strings, AppBundle hash fragments, locale routing, encoded aliases, canonical URL rewriting, lazy loading, bundle splitting, or deployable React/Vite/Next generation.
+- Static Shell V0 is not required to support browser back/forward history semantics, scroll restoration, focus restoration, route transition animation, multi-tab synchronization, CSP policy generation, service workers, web workers, import maps, production deployment hardening, fixture binding, live DOM state rebinding, framework state adapters, persisted local state, nested routers, redirects, route guards, dynamic segments, route params, query strings, AppBundle hash fragments, locale routing, encoded aliases, canonical URL rewriting, lazy loading, bundle splitting, or deployable React/Vite/Next generation.
 - Resource Binding V0 is not required to prove formatted, localized, case-normalized, concatenated, abbreviated, rounded, pluralized, date-formatted, currency-formatted, or otherwise transformed fixture values.
 - Resource Binding V0 is not required to infer that display labels, aliases, derived columns, badges, icons, colors, severity ordering, or human-readable summaries correspond to fixture fields.
 - Resource Binding V0 is not required to support nested record fields, arrays, objects, joins, cross-resource references, computed fields, filters, sorting, pagination, grouping, aggregation, or query languages.
 - Resource Binding V0 is not required to bind fixture resources at runtime, update the shell after load, persist state, handle mutations, synchronize data across routes, or prove whole-app data-flow consistency beyond explicitly declared `resource_views`.
 - Resource Binding V0 is not required to resolve semantic intent when multiple fixture fields intentionally contain the same scalar value unless the declared record-field assertion boundary is unambiguous.
+- State IR V0 is not required to generate Zustand, Redux, SwiftData, CRDT, websocket, optimistic reconciliation, persistence, auth, backend/API client, package install, or gesture/pointer runtimes.
+- State IR V0 is not required to relax local V1/V2/V3 caps, stream massive dynamic apps, discover plugins, execute untrusted code, or cross the hosted compiler API boundary.
