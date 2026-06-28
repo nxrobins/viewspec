@@ -78,6 +78,12 @@ from viewspec.app_shell import (
     _shell_route_assertions,
 )
 from viewspec.app_starters import starter_app_bundle
+from viewspec.app_state_artifacts import (
+    APP_STATE_MANIFEST,
+    APP_STATE_REDUCER,
+    _state_conformance_status,
+    _write_state_artifacts,
+)
 from viewspec.agent import SAFE_AGENT_ID_PATTERN
 from viewspec.local_tools import (
     MCP_RESULT_SCHEMA_VERSION,
@@ -96,10 +102,8 @@ from viewspec.manifest_summary import summarize_intent_manifest
 from viewspec.state_ir import (
     APP_STATE_MAX_ENTRIES,
     APP_STATE_MAX_EVENTS_PER_REPLAY,
-    APP_STATE_MAX_MANIFEST_BYTES,
     APP_STATE_MAX_MUTATIONS,
     APP_STATE_MAX_OPS_PER_MUTATION,
-    APP_STATE_MAX_REDUCER_BYTES,
     APP_STATE_MAX_REPLAY_ASSERTIONS,
     APP_STATE_MAX_SELECTOR_OPS,
     APP_STATE_MAX_SELECTORS,
@@ -117,8 +121,6 @@ APP_BUNDLE_DEFAULT_SUMMARY = "APP_PROOF.md"
 APP_BUNDLE_DEFAULT_SUPPORT_BUNDLE = "app_support_bundle.json"
 APP_BUNDLE_PROOF_LEVEL = "app_contract_source_artifacts"
 APP_BUNDLE_TARGET = "html-tailwind"
-APP_STATE_REDUCER = "state_reducer.ts"
-APP_STATE_MANIFEST = "state_manifest.json"
 APP_BUNDLE_MAX_SUMMARY_BYTES = 32 * 1024
 
 
@@ -759,7 +761,13 @@ def _write_static_app_shell(
     shell_artifact_hash = file_hash(prepared.index_path)
     manifest = dict(shell_parts["manifest"])
     manifest["shell_artifact_hash"] = shell_artifact_hash
-    state_artifacts = _write_state_artifacts(payload, prepared.output_dir)
+    state_artifacts = _write_state_artifacts(
+        payload,
+        prepared.output_dir,
+        generate_reducer=generate_typescript_reducer,
+        check_conformance=check_reducer_conformance,
+        build_manifest=state_manifest,
+    )
     if state_artifacts is not None:
         manifest["state_ir"] = state_artifacts["manifest_summary"]
     _write_bounded_json(prepared.manifest_path, manifest, limit=APP_SHELL_MAX_MANIFEST_BYTES, code="APP_SHELL_MANIFEST_WRITE_FAILED")
@@ -825,76 +833,6 @@ def _write_static_app_shell(
             "shell_kind": "static_local_hash_shell",
         },
         "errors": [],
-    }
-
-
-def _write_state_artifacts(payload: dict[str, Any], output_dir: Path) -> dict[str, Any] | None:
-    if payload.get("schema_version") != APP_BUNDLE_STATE_SCHEMA_VERSION:
-        return None
-    reducer_path = output_dir / APP_STATE_REDUCER
-    manifest_path = output_dir / APP_STATE_MANIFEST
-    try:
-        reducer = generate_typescript_reducer(payload)
-        reducer_bytes = len(reducer.encode("utf-8"))
-        if reducer_bytes > APP_STATE_MAX_REDUCER_BYTES:
-            raise AppBundleProofFailure(
-                "APP_STATE_REDUCER_LIMIT_EXCEEDED",
-                f"Generated state reducer is {reducer_bytes} bytes; limit is {APP_STATE_MAX_REDUCER_BYTES}.",
-                "Reduce AppBundle V3 state, mutation, or selector declarations.",
-            )
-        atomic_write(reducer_path, reducer)
-        reducer_hash = file_hash(reducer_path)
-        conformance = check_reducer_conformance(payload, reducer_source=reducer)
-        if not conformance.get("ok"):
-            errors = conformance.get("errors") if isinstance(conformance.get("errors"), list) else []
-            message = errors[0].get("message") if errors and isinstance(errors[0], dict) else "Generated reducer diverged from the Python state interpreter."
-            raise AppBundleProofFailure(
-                "APP_STATE_REDUCER_CONFORMANCE_FAILED",
-                str(message),
-                "Fix the AppBundle V3 state contract or generated reducer semantics and retry.",
-            )
-        manifest = state_manifest(payload, reducer_hash=reducer_hash, conformance_report=conformance)
-        replay = manifest.get("replay") if isinstance(manifest.get("replay"), dict) else {}
-        if replay and not replay.get("ok"):
-            raise AppBundleProofFailure(
-                "APP_STATE_REPLAY_ASSERTION_FAILED",
-                "State replay assertions failed.",
-                "Fix state_replay_assertions or the referenced mutation operations.",
-            )
-        _write_bounded_json(
-            manifest_path,
-            manifest,
-            limit=APP_STATE_MAX_MANIFEST_BYTES,
-            code="APP_STATE_MANIFEST_WRITE_FAILED",
-        )
-    except AppBundleProofFailure:
-        raise
-    except Exception as exc:
-        raise AppBundleProofFailure(
-            "APP_STATE_REDUCER_WRITE_FAILED",
-            f"Failed to write state reducer artifacts: {exc}",
-            "Fix the AppBundle V3 state contract and retry.",
-        ) from exc
-    manifest_hash = file_hash(manifest_path)
-    return {
-        "reducer_path": reducer_path,
-        "manifest_path": manifest_path,
-        "reducer_hash": reducer_hash,
-        "manifest_hash": manifest_hash,
-        "manifest_summary": {
-            "profile": INTERACTIVE_STATE_PROFILE,
-            "reducer_hash": reducer_hash,
-            "manifest_hash": manifest_hash,
-            "state_count": len(payload.get("state", [])) if isinstance(payload.get("state"), list) else 0,
-            "mutation_count": len(payload.get("mutations", [])) if isinstance(payload.get("mutations"), list) else 0,
-            "selector_count": len(payload.get("selectors", [])) if isinstance(payload.get("selectors"), list) else 0,
-            "replay_ok": bool(manifest.get("replay", {}).get("ok")) if isinstance(manifest.get("replay"), dict) else True,
-            "contract_hash": manifest.get("contract_hash"),
-            "reducer_conformance": _state_conformance_status(conformance),
-        },
-        "replay": manifest.get("replay") if isinstance(manifest.get("replay"), dict) else None,
-        "contract_hash": manifest.get("contract_hash"),
-        "conformance": conformance,
     }
 
 
@@ -1382,12 +1320,6 @@ def _compact_shell_report(shell: dict[str, Any] | None) -> dict[str, Any]:
         "resource_binding_assertions": _compact_resource_binding_report(shell.get("resource_binding_assertions")),
         "errors": _normalize_proof_errors(shell.get("errors")),
     }
-
-
-def _state_conformance_status(report: object) -> str | None:
-    if not isinstance(report, dict):
-        return None
-    return "passed" if report.get("ok") else "failed"
 
 
 def _compact_resource_binding_report(report: object) -> dict[str, Any] | None:
