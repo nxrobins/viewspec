@@ -11,7 +11,7 @@ from pathlib import Path
 from typing import Any
 
 from viewspec._version import __version__
-from viewspec.app_errors import AppBundleProofFailure
+from viewspec.app_errors import AppBundleProofFailure, _normalize_proof_errors
 from viewspec.app_paths import (
     _assert_report_under_output,
     _assert_under_proof_root,
@@ -77,6 +77,7 @@ from viewspec.app_shell import (
     _screen_shell_summaries,
     _shell_route_assertions,
 )
+from viewspec.app_screens import _prove_app_screens
 from viewspec.app_starters import starter_app_bundle
 from viewspec.app_state_artifacts import (
     APP_STATE_MANIFEST,
@@ -89,7 +90,6 @@ from viewspec.local_tools import (
     MCP_RESULT_SCHEMA_VERSION,
     LocalToolError,
     atomic_write,
-    check_artifact_dir,
     exception_response,
     file_hash,
     path_policy_metadata,
@@ -98,7 +98,6 @@ from viewspec.local_tools import (
     tool_error_response,
     tool_response,
 )
-from viewspec.manifest_summary import summarize_intent_manifest
 from viewspec.state_ir import (
     APP_STATE_MAX_ENTRIES,
     APP_STATE_MAX_EVENTS_PER_REPLAY,
@@ -213,7 +212,14 @@ def prove_app(
         screen_reports = _time_phase(
             timings,
             "screens",
-            lambda: _prove_app_screens(payload, prepared, root=root, strict_design=strict_design),
+            lambda: _prove_app_screens(
+                payload,
+                prepared.output_dir,
+                design_path=prepared.design_path,
+                root=root,
+                strict_design=strict_design,
+                target=APP_BUNDLE_TARGET,
+            ),
         )
         errors = [error for screen in screen_reports for error in screen.get("errors", []) if isinstance(error, dict)]
         binding_report: dict[str, Any] | None = None
@@ -367,7 +373,14 @@ def compile_app(
         screen_reports = _time_phase(
             timings,
             "screens",
-            lambda: _prove_app_screens(payload, prepared_proof, root=root, strict_design=strict_design),
+            lambda: _prove_app_screens(
+                payload,
+                prepared_proof.output_dir,
+                design_path=prepared_proof.design_path,
+                root=root,
+                strict_design=strict_design,
+                target=APP_BUNDLE_TARGET,
+            ),
         )
         errors = [error for screen in screen_reports for error in screen.get("errors", []) if isinstance(error, dict)]
         binding_report: dict[str, Any] | None = None
@@ -834,105 +847,6 @@ def _write_static_app_shell(
         },
         "errors": [],
     }
-
-
-def _prove_app_screens(
-    payload: dict[str, Any],
-    prepared: _PreparedAppProof,
-    *,
-    root: Path,
-    strict_design: bool,
-) -> list[dict[str, Any]]:
-    screen_reports: list[dict[str, Any]] = []
-    screens = payload.get("screens") if isinstance(payload.get("screens"), list) else []
-    for screen in screens:
-        screen_id = str(screen["id"])
-        screen_dir = prepared.output_dir / "screens" / screen_id
-        artifact_dir = screen_dir / "artifact"
-        _assert_under_proof_root(screen_dir, prepared.output_dir)
-        intent_path = screen_dir / "viewspec.intent.json"
-        intent_text = json.dumps(screen["intent_bundle"], indent=2, sort_keys=True) + "\n"
-        atomic_write(intent_path, intent_text)
-        compiled = _compile_screen(
-            intent_path,
-            artifact_dir,
-            design_path=prepared.design_path,
-            strict_design=strict_design,
-            root=root,
-        )
-        errors = _normalize_proof_errors(compiled.get("errors")) if not compiled.get("ok") else []
-        manifest_path = artifact_dir / "provenance_manifest.json"
-        diagnostics_path = artifact_dir / "diagnostics.json"
-        artifact_path = artifact_dir / "index.html"
-        check = check_artifact_dir(artifact_dir) if artifact_dir.exists() else {"ok": False, "errors": ["artifact directory missing"], "manifest_summary": None}
-        if not check.get("ok") and not errors:
-            errors = [
-                {
-                    "code": "APP_PROOF_SCREEN_CHECK_FAILED",
-                    "message": str(item),
-                    "fix": "Fix the embedded screen IntentBundle and retry prove-app.",
-                }
-                for item in check.get("errors", [])
-            ]
-        manifest_summary = summarize_intent_manifest(manifest_path) if manifest_path.exists() else None
-        if not errors and (not isinstance(manifest_summary, dict) or manifest_summary.get("available") is not True):
-            errors.append(
-                {
-                    "code": "APP_PROOF_MANIFEST_SUMMARY_FAILED",
-                    "message": f"Screen {screen_id} manifest summary unavailable.",
-                    "fix": "Regenerate the screen artifact from a valid embedded IntentBundle.",
-                }
-            )
-        screen_reports.append(
-            {
-                "id": screen_id,
-                "title": screen.get("title"),
-                "validation_status": "passed" if not errors else "failed",
-                "compile_status": "passed" if compiled.get("ok") else "failed",
-                "check_status": "passed" if check.get("ok") else "failed",
-                "artifact_hash": file_hash(artifact_path) if artifact_path.exists() and not errors else None,
-                "manifest_hash": file_hash(manifest_path) if manifest_path.exists() and not errors else None,
-                "manifest_summary": manifest_summary,
-                "paths": {
-                    "intent": str(intent_path),
-                    "artifact_dir": str(artifact_dir),
-                    "artifact": str(artifact_path),
-                    "manifest": str(manifest_path),
-                    "diagnostics": str(diagnostics_path),
-                },
-                "errors": [
-                    {
-                        **error,
-                        "screen_id": screen_id,
-                    }
-                    for error in errors
-                ],
-            }
-        )
-        if errors:
-            break
-    return screen_reports
-
-
-def _compile_screen(
-    intent_path: Path,
-    artifact_dir: Path,
-    *,
-    design_path: Path | None,
-    strict_design: bool,
-    root: Path,
-) -> dict[str, Any]:
-    from viewspec.intent_tools import compile_intent_bundle_file_tool
-
-    return compile_intent_bundle_file_tool(
-        intent_path,
-        artifact_dir,
-        design_path=design_path,
-        strict_design=strict_design,
-        target=APP_BUNDLE_TARGET,
-        cwd=root,
-        allow_outside_cwd=True,
-    )
 
 
 def _app_proof_report(
@@ -1493,25 +1407,6 @@ def _append_app_proof_error(report: dict[str, Any], exc: Exception, *, fallback_
         fix = "Inspect app_proof_report.json and retry viewspec prove-app."
     failed["errors"].append({"code": code, "message": message, "fix": fix})
     return failed
-
-
-def _normalize_proof_errors(errors: object) -> list[dict[str, str]]:
-    if not isinstance(errors, list) or not errors:
-        return []
-    normalized: list[dict[str, str]] = []
-    for item in errors:
-        if isinstance(item, dict):
-            normalized.append(
-                {
-                    "code": str(item.get("code") or "APP_PROOF_FAILED"),
-                    "message": str(item.get("message") or "App proof failed."),
-                    "fix": str(item.get("fix") or "Inspect app_proof_report.json and retry."),
-                    **({"screen_id": str(item["screen_id"])} if item.get("screen_id") else {}),
-                }
-            )
-        else:
-            normalized.append({"code": "APP_PROOF_FAILED", "message": str(item), "fix": "Inspect app_proof_report.json and retry."})
-    return normalized
 
 
 def _support_errors(errors: list[object]) -> list[dict[str, str]]:
