@@ -329,6 +329,43 @@ Handles the local V1 motifs and bounded collection action events locally. No API
 ast = compile(builder.build_bundle())
 ```
 
+For enterprise-specific local motifs, build an explicit motif registry and pass it to the compiler. Plugins run in-process and lower semantic intent into portable CompositionIR; the local V1 agent JSON contract remains bounded and does not dynamically load plugins.
+
+```python
+from viewspec import (
+    MotifPlugin,
+    MotifPluginFixture,
+    MotifPluginManifest,
+    MotifPluginSlot,
+    check_motif_plugin,
+    create_motif_registry,
+    compile,
+)
+
+candlestick_plugin = MotifPlugin(
+    kinds=("financial_candlestick_chart",),
+    build=build_candlestick_chart,
+    manifest=MotifPluginManifest(
+        plugin_id="enterprise.financial_candlestick_chart",
+        version="1.0.0",
+        kinds=("financial_candlestick_chart",),
+        input_slots=(
+            MotifPluginSlot("open", present_as=("value",)),
+            MotifPluginSlot("close", present_as=("value",)),
+        ),
+        output_guarantees=("deterministic_ir",),
+    ),
+)
+report = check_motif_plugin(
+    candlestick_plugin,
+    fixtures=(MotifPluginFixture(id="candlestick.basic", bundle=fixture_bundle),),
+)
+assert report.ok, report.issues
+
+registry = create_motif_registry(candlestick_plugin)
+ast = compile(bundle, motif_registry=registry)
+```
+
 ### Hosted Compiler (api.viewspec.dev)
 
 For complex layouts, novel data shapes, and advanced derivation. The hosted compiler was **evolved** (not hand-written) using reinforcement learning:

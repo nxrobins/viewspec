@@ -23,6 +23,15 @@ from viewspec.aesthetics import (
     profile_style_values,
     validate_aesthetic_profile_registry,
 )
+from viewspec.compiler_refs import (
+    action_ref as _action_ref,
+    add_diagnostic as _add_diagnostic,
+    binding_ref as _binding_ref,
+    motif_ref as _motif_ref,
+    region_ref as _region_ref,
+    style_ref as _style_ref,
+    view_ref as _view_ref,
+)
 from viewspec.types import (
     ActionIntent,
     ASTBundle,
@@ -44,8 +53,18 @@ from viewspec.types import (
     SemanticSubstrate,
     StyleSpec,
     ViewSpec,
+    parse_canonical_address as _parse_canonical_address,
 )
 from viewspec.design_md import DesignSystemContext, DesignSystemError, load_design_system, merge_style_values
+from viewspec.motif_compilers import SUPPORTED_MOTIF_KINDS
+from viewspec.motif_plugins import (
+    MotifCompileContext,
+    MotifPlugin,
+    MotifPluginError,
+    MotifRegistry,
+    builtin_motif_registry,
+    create_motif_registry,
+)
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -65,19 +84,6 @@ PRESENT_AS_TO_PRIMITIVE: dict[str, str] = {
 COLLECTION_MOTIF_KINDS = frozenset({"table", "list"})
 STATE_MOTIF_KINDS = frozenset({"empty_state", "loading_state", "error_state"})
 CONFLICTING_STATE_MOTIF_KINDS = frozenset({"loading_state", "error_state"})
-SUPPORTED_MOTIF_KINDS = (
-    "table",
-    "dashboard",
-    "outline",
-    "comparison",
-    "list",
-    "form",
-    "detail",
-    "empty_state",
-    "loading_state",
-    "error_state",
-    "hero",
-)
 COLLECTION_ACTION_KINDS = frozenset({"search", "filter", "sort", "paginate", "bulk_action"})
 SUPPORTED_ACTION_KINDS = ("select", "submit", "navigate", "search", "filter", "sort", "paginate", "bulk_action")
 MAX_COLLECTION_ACTIONS_PER_COLLECTION = 8
@@ -90,12 +96,6 @@ SUPPORTED_BINDING_CARDINALITIES = {"exactly_once"}
 SUPPORTED_GROUP_KINDS = {"ordered"}
 SUPPORTED_REGION_LAYOUTS = {"cluster", "grid", "stack"}
 
-CANONICAL_ADDRESS_RE = re.compile(
-    r"^node:(?P<node_id>[A-Za-z0-9_.-]+)"
-    r"(?:#attr:(?P<attr>[A-Za-z0-9_.-]+))?"
-    r"(?:#slot:(?P<slot>[A-Za-z0-9_.-]+)(?:\[(?P<slot_index>\d+)\])?)?"
-    r"(?:#edge:(?P<edge>[A-Za-z0-9_.-]+))?$"
-)
 SAFE_COMPILER_ID_RE = re.compile(r"^[A-Za-z0-9_.-]+$")
 
 PRODUCT_SURFACE_PLANNER_V1_SURFACE = "workspace_dashboard_v1"
@@ -128,20 +128,6 @@ WORKSPACE_SIDE_RAIL_ROLE_MARKERS = frozenset(
 # ---------------------------------------------------------------------------
 # Address resolution
 # ---------------------------------------------------------------------------
-
-
-def _parse_canonical_address(address: str) -> dict[str, Any]:
-    match = CANONICAL_ADDRESS_RE.match(address)
-    if not match:
-        raise ValueError(f"Invalid canonical address: {address}")
-    parts = match.groupdict()
-    return {
-        "node_id": parts["node_id"],
-        "attr": parts["attr"],
-        "slot": parts["slot"],
-        "slot_index": int(parts["slot_index"]) if parts["slot_index"] is not None else None,
-        "edge": parts["edge"],
-    }
 
 
 def _build_address_index(substrate: SemanticSubstrate) -> dict[str, Any]:
@@ -186,35 +172,6 @@ def _resolved_payload_value(binding_id: str, bindings_by_id: dict[str, BindingSp
 
 
 # ---------------------------------------------------------------------------
-# Provenance ref helpers
-# ---------------------------------------------------------------------------
-
-
-def _region_ref(region_id: str) -> str:
-    return f"viewspec:region:{region_id}"
-
-
-def _binding_ref(binding_id: str) -> str:
-    return f"viewspec:binding:{binding_id}"
-
-
-def _motif_ref(motif_id: str) -> str:
-    return f"viewspec:motif:{motif_id}"
-
-
-def _style_ref(style_id: str) -> str:
-    return f"viewspec:style:{style_id}"
-
-
-def _action_ref(action_id: str) -> str:
-    return f"viewspec:action:{action_id}"
-
-
-def _view_ref(view_id: str) -> str:
-    return f"viewspec:view:{view_id}"
-
-
-# ---------------------------------------------------------------------------
 # Internal helpers
 # ---------------------------------------------------------------------------
 
@@ -248,49 +205,6 @@ def _ordered_binding_positions(view_spec: ViewSpec) -> dict[str, int]:
             positions[binding.id] = cursor
             cursor += 1
     return positions
-
-
-def _binding_node_id(binding: BindingSpec) -> str:
-    return str(_parse_canonical_address(binding.address)["node_id"])
-
-
-def _bindings_by_semantic_node(
-    bindings: list[BindingSpec], ordered_positions: dict[str, int]
-) -> list[tuple[str, list[BindingSpec]]]:
-    grouped: dict[str, list[BindingSpec]] = {}
-    for binding in sorted(bindings, key=lambda b: ordered_positions[b.id]):
-        grouped.setdefault(_binding_node_id(binding), []).append(binding)
-    return list(grouped.items())
-
-
-def _semantic_children(substrate: SemanticSubstrate, node_id: str) -> list[str]:
-    node = substrate.nodes.get(node_id)
-    if node is None:
-        return []
-    children: list[str] = []
-    for child_ids in node.slots.values():
-        for child_id in child_ids:
-            if child_id in substrate.nodes and child_id not in children:
-                children.append(child_id)
-    for child_ids in node.edges.values():
-        for child_id in child_ids:
-            if child_id in substrate.nodes and child_id not in children:
-                children.append(child_id)
-    return children
-
-
-def _semantic_parent_by_id(substrate: SemanticSubstrate) -> dict[str, str]:
-    parents: dict[str, str] = {}
-    for node in substrate.nodes.values():
-        for child_ids in node.slots.values():
-            for child_id in child_ids:
-                if child_id in substrate.nodes and child_id not in parents:
-                    parents[child_id] = node.id
-        for child_ids in node.edges.values():
-            for child_id in child_ids:
-                if child_id in substrate.nodes and child_id not in parents:
-                    parents[child_id] = node.id
-    return parents
 
 
 def _input_label(binding: BindingSpec, address_index: dict[str, object]) -> str:
@@ -936,507 +850,6 @@ def _apply_product_surface_planner_v1(
     _validate_unique_action_placement_v0(region_nodes[root_region], diagnostics)
 
 
-def _add_diagnostic(
-    diagnostics: list[CompilerDiagnostic],
-    code: str,
-    message: str,
-    *,
-    intent_ref: str | None = None,
-    content_ref: str | None = None,
-    region_id: str | None = None,
-) -> CompilerDiagnostic:
-    d = CompilerDiagnostic(
-        severity="error",
-        code=code,
-        message=message,
-        intent_ref=intent_ref or "",
-        content_ref=content_ref or "",
-        region_id=region_id or "",
-    )
-    diagnostics.append(d)
-    return d
-
-
-# ---------------------------------------------------------------------------
-# Motif builders
-# ---------------------------------------------------------------------------
-
-
-def _build_table_motif(
-    motif: MotifSpec,
-    motif_bindings: list[BindingSpec],
-    *,
-    ordered_positions: dict[str, int],
-    binding_nodes: dict[str, IRNode],
-) -> tuple[IRNode, set[str]]:
-    motif_r = _motif_ref(motif.id)
-    wrapper = IRNode(
-        id=f"motif_{motif.id}",
-        primitive="stack",
-        props={"layout_role": "stack", "motif_kind": motif.kind},
-        provenance=Provenance(intent_refs=[motif_r]),
-    )
-    placed: set[str] = set()
-    for node_id, grouped in _bindings_by_semantic_node(motif_bindings, ordered_positions):
-        row_header_assigned = False
-        row = IRNode(
-            id=f"motif_{motif.id}_{node_id}",
-            primitive="cluster",
-            props={"layout_role": "cluster", "motif_kind": motif.kind},
-            provenance=Provenance(intent_refs=[motif_r]),
-        )
-        for binding in grouped:
-            node = binding_nodes[binding.id]
-            if node.primitive == "label" and not row_header_assigned:
-                node.props["table_cell_role"] = "row_header"
-                row_header_assigned = True
-            else:
-                node.props["table_cell_role"] = "cell"
-            row.children.append(node)
-            placed.add(binding.id)
-        wrapper.children.append(row)
-    return wrapper, placed
-
-
-def _build_dashboard_motif(
-    motif: MotifSpec,
-    motif_bindings: list[BindingSpec],
-    *,
-    ordered_positions: dict[str, int],
-    binding_nodes: dict[str, IRNode],
-) -> tuple[IRNode, set[str]]:
-    motif_r = _motif_ref(motif.id)
-    wrapper = IRNode(
-        id=f"motif_{motif.id}",
-        primitive="stack",
-        props={"layout_role": "stack", "motif_kind": motif.kind},
-        provenance=Provenance(intent_refs=[motif_r]),
-    )
-    placed: set[str] = set()
-    for node_id, grouped in _bindings_by_semantic_node(motif_bindings, ordered_positions):
-        card = IRNode(
-            id=f"motif_{motif.id}_{node_id}",
-            primitive="surface",
-            props={"layout_role": "surface", "motif_kind": motif.kind},
-            provenance=Provenance(intent_refs=[motif_r]),
-        )
-        has_label = any(binding_nodes[b.id].primitive == "label" for b in grouped)
-        has_value = any(binding_nodes[b.id].primitive == "value" for b in grouped)
-        for binding in grouped:
-            node = binding_nodes[binding.id]
-            if has_label and not has_value and node.primitive == "badge":
-                node.primitive = "value"
-                has_value = True
-            card.children.append(node)
-            placed.add(binding.id)
-        wrapper.children.append(card)
-    return wrapper, placed
-
-
-def _build_list_motif(
-    motif: MotifSpec,
-    motif_bindings: list[BindingSpec],
-    *,
-    ordered_positions: dict[str, int],
-    binding_nodes: dict[str, IRNode],
-) -> tuple[IRNode, set[str]]:
-    motif_r = _motif_ref(motif.id)
-    wrapper = IRNode(
-        id=f"motif_{motif.id}",
-        primitive="stack",
-        props={"layout_role": "stack", "motif_kind": motif.kind},
-        provenance=Provenance(intent_refs=[motif_r]),
-    )
-    placed: set[str] = set()
-    for node_id, grouped in _bindings_by_semantic_node(motif_bindings, ordered_positions):
-        item = IRNode(
-            id=f"motif_{motif.id}_{node_id}",
-            primitive="surface",
-            props={"layout_role": "surface", "motif_kind": motif.kind},
-            provenance=Provenance(intent_refs=[motif_r]),
-        )
-        for binding in grouped:
-            item.children.append(binding_nodes[binding.id])
-            placed.add(binding.id)
-        wrapper.children.append(item)
-    return wrapper, placed
-
-
-def _build_form_motif(
-    motif: MotifSpec,
-    motif_bindings: list[BindingSpec],
-    *,
-    ordered_positions: dict[str, int],
-    binding_nodes: dict[str, IRNode],
-) -> tuple[IRNode, set[str]]:
-    motif_r = _motif_ref(motif.id)
-    wrapper = IRNode(
-        id=f"motif_{motif.id}",
-        primitive="stack",
-        props={"layout_role": "stack", "motif_kind": motif.kind},
-        provenance=Provenance(intent_refs=[motif_r]),
-    )
-    placed: set[str] = set()
-    for node_id, grouped in _bindings_by_semantic_node(motif_bindings, ordered_positions):
-        field = IRNode(
-            id=f"motif_{motif.id}_{node_id}",
-            primitive="surface",
-            props={"layout_role": "surface", "motif_kind": motif.kind, "field_id": node_id},
-            provenance=Provenance(intent_refs=[motif_r]),
-        )
-        for binding in grouped:
-            field.children.append(binding_nodes[binding.id])
-            placed.add(binding.id)
-        wrapper.children.append(field)
-    return wrapper, placed
-
-
-def _build_detail_motif(
-    motif: MotifSpec,
-    motif_bindings: list[BindingSpec],
-    *,
-    ordered_positions: dict[str, int],
-    binding_nodes: dict[str, IRNode],
-) -> tuple[IRNode, set[str]]:
-    motif_r = _motif_ref(motif.id)
-    wrapper = IRNode(
-        id=f"motif_{motif.id}",
-        primitive="stack",
-        props={"layout_role": "stack", "motif_kind": motif.kind},
-        provenance=Provenance(intent_refs=[motif_r]),
-    )
-    placed: set[str] = set()
-    for node_id, grouped in _bindings_by_semantic_node(motif_bindings, ordered_positions):
-        row = IRNode(
-            id=f"motif_{motif.id}_{node_id}",
-            primitive="cluster",
-            props={"layout_role": "cluster", "motif_kind": motif.kind},
-            provenance=Provenance(intent_refs=[motif_r]),
-        )
-        term_assigned = False
-        for binding in grouped:
-            node = binding_nodes[binding.id]
-            if node.primitive == "label" and not term_assigned:
-                node.props["detail_role"] = "term"
-                term_assigned = True
-            else:
-                node.props["detail_role"] = "description"
-            row.children.append(node)
-            placed.add(binding.id)
-        wrapper.children.append(row)
-    return wrapper, placed
-
-
-def _binding_attr_or_slot(binding: BindingSpec) -> str:
-    try:
-        parts = _parse_canonical_address(binding.address)
-    except ValueError:
-        return ""
-    return str(parts.get("attr") or parts.get("slot") or "")
-
-
-def _build_empty_state_motif(
-    motif: MotifSpec,
-    motif_bindings: list[BindingSpec],
-    *,
-    ordered_positions: dict[str, int],
-    binding_nodes: dict[str, IRNode],
-) -> tuple[IRNode, set[str]]:
-    motif_r = _motif_ref(motif.id)
-    wrapper = IRNode(
-        id=f"motif_{motif.id}",
-        primitive="surface",
-        props={"layout_role": "surface", "motif_kind": motif.kind, "aria_label": "Empty state"},
-        provenance=Provenance(intent_refs=[motif_r]),
-    )
-    placed: set[str] = set()
-    title_assigned = False
-    for binding in sorted(motif_bindings, key=lambda b: ordered_positions[b.id]):
-        node = binding_nodes[binding.id]
-        attr = _binding_attr_or_slot(binding)
-        if attr in {"title", "heading", "label"} and not title_assigned:
-            node.props["empty_state_role"] = "title"
-            title_assigned = True
-        elif attr in {"description", "body", "message"}:
-            node.props["empty_state_role"] = "description"
-        else:
-            node.props["empty_state_role"] = "detail"
-        wrapper.children.append(node)
-        placed.add(binding.id)
-    return wrapper, placed
-
-
-def _build_state_motif(
-    motif: MotifSpec,
-    motif_bindings: list[BindingSpec],
-    *,
-    ordered_positions: dict[str, int],
-    binding_nodes: dict[str, IRNode],
-) -> tuple[IRNode, set[str]]:
-    motif_r = _motif_ref(motif.id)
-    state_role = "loading" if motif.kind == "loading_state" else "error"
-    wrapper = IRNode(
-        id=f"motif_{motif.id}",
-        primitive="surface",
-        props={
-            "layout_role": "surface",
-            "motif_kind": motif.kind,
-            "state_role": state_role,
-            "aria_label": "Loading state" if state_role == "loading" else "Error state",
-        },
-        provenance=Provenance(intent_refs=[motif_r]),
-    )
-    placed: set[str] = set()
-    title_assigned = False
-    for binding in sorted(motif_bindings, key=lambda b: ordered_positions[b.id]):
-        node = binding_nodes[binding.id]
-        attr = _binding_attr_or_slot(binding)
-        if attr in {"title", "heading", "headline", "label"} and not title_assigned:
-            node.props["state_motif_role"] = "title"
-            title_assigned = True
-        elif attr in {"description", "body", "message"}:
-            node.props["state_motif_role"] = "description"
-        else:
-            node.props["state_motif_role"] = "detail"
-        wrapper.children.append(node)
-        placed.add(binding.id)
-    return wrapper, placed
-
-
-def _validate_state_motif_contract(
-    motif: MotifSpec,
-    motif_bindings: list[BindingSpec],
-    diagnostics: list[CompilerDiagnostic],
-) -> bool:
-    title_count = 0
-    description_count = 0
-    for binding in motif_bindings:
-        attr = _binding_attr_or_slot(binding)
-        if attr in {"title", "heading", "headline", "label"}:
-            title_count += 1
-        elif attr in {"description", "body", "message"}:
-            description_count += 1
-    ok = True
-    if title_count != 1:
-        ok = False
-        _add_diagnostic(
-            diagnostics,
-            "STATE_MOTIF_TITLE_REQUIRED",
-            f"{motif.kind} motif {motif.id} must declare exactly one title binding.",
-            intent_ref=_motif_ref(motif.id),
-            region_id=motif.region,
-        )
-    if description_count > 1:
-        ok = False
-        _add_diagnostic(
-            diagnostics,
-            "STATE_MOTIF_TOO_MANY_DESCRIPTIONS",
-            f"{motif.kind} motif {motif.id} may declare at most one description binding.",
-            intent_ref=_motif_ref(motif.id),
-            region_id=motif.region,
-        )
-    return ok
-
-
-def _build_hero_motif(
-    motif: MotifSpec,
-    motif_bindings: list[BindingSpec],
-    *,
-    ordered_positions: dict[str, int],
-    binding_nodes: dict[str, IRNode],
-) -> tuple[IRNode, set[str]]:
-    motif_r = _motif_ref(motif.id)
-    wrapper = IRNode(
-        id=f"motif_{motif.id}",
-        primitive="surface",
-        props={"layout_role": "surface", "motif_kind": motif.kind, "aria_label": "Hero"},
-        provenance=Provenance(intent_refs=[motif_r]),
-    )
-    placed: set[str] = set()
-    title_assigned = False
-    for binding in sorted(motif_bindings, key=lambda b: ordered_positions[b.id]):
-        node = binding_nodes[binding.id]
-        attr = _binding_attr_or_slot(binding)
-        if attr in {"eyebrow", "kicker", "label"}:
-            node.props["hero_role"] = "eyebrow"
-        elif attr in {"title", "heading", "headline"} and not title_assigned:
-            node.props["hero_role"] = "title"
-            title_assigned = True
-        elif attr in {"description", "subtitle", "body", "summary"}:
-            node.props["hero_role"] = "description"
-        else:
-            node.props["hero_role"] = "detail"
-        wrapper.children.append(node)
-        placed.add(binding.id)
-    return wrapper, placed
-
-
-def _build_outline_branch(
-    node_id: str,
-    *,
-    motif: MotifSpec,
-    substrate: SemanticSubstrate,
-    ordered_positions: dict[str, int],
-    bindings_by_node_id: dict[str, list[BindingSpec]],
-    motif_node_ids: set[str],
-    binding_nodes: dict[str, IRNode],
-    diagnostics: list[CompilerDiagnostic],
-    active_path: tuple[str, ...],
-    emitted_node_ids: set[str],
-) -> IRNode | None:
-    if node_id in active_path:
-        cycle_path = " -> ".join((*active_path, node_id))
-        _add_diagnostic(
-            diagnostics,
-            "SEMANTIC_GRAPH_CYCLE",
-            f"Outline motif {motif.id} skipped cyclic semantic edge at {node_id}: {cycle_path}.",
-            intent_ref=_motif_ref(motif.id),
-            content_ref=f"node:{node_id}",
-            region_id=motif.region,
-        )
-        return None
-    if node_id in emitted_node_ids:
-        _add_diagnostic(
-            diagnostics,
-            "SEMANTIC_GRAPH_SHARED_NODE",
-            f"Outline motif {motif.id} skipped repeated semantic node {node_id} to keep IR node ids unique.",
-            intent_ref=_motif_ref(motif.id),
-            content_ref=f"node:{node_id}",
-            region_id=motif.region,
-        )
-        return None
-
-    emitted_node_ids.add(node_id)
-    child_path = (*active_path, node_id)
-    motif_r = _motif_ref(motif.id)
-    branch = IRNode(
-        id=f"motif_{motif.id}_branch_{node_id}",
-        primitive="surface",
-        props={"layout_role": "surface", "motif_kind": motif.kind},
-        provenance=Provenance(intent_refs=[motif_r]),
-    )
-    for binding in sorted(
-        bindings_by_node_id.get(node_id, []),
-        key=lambda b: ordered_positions[b.id],
-    ):
-        branch.children.append(binding_nodes[binding.id])
-    for child_id in _semantic_children(substrate, node_id):
-        if child_id in motif_node_ids:
-            child = _build_outline_branch(
-                child_id,
-                motif=motif,
-                substrate=substrate,
-                ordered_positions=ordered_positions,
-                bindings_by_node_id=bindings_by_node_id,
-                motif_node_ids=motif_node_ids,
-                binding_nodes=binding_nodes,
-                diagnostics=diagnostics,
-                active_path=child_path,
-                emitted_node_ids=emitted_node_ids,
-            )
-            if child is not None:
-                branch.children.append(child)
-    return branch
-
-
-def _build_outline_motif(
-    motif: MotifSpec,
-    motif_bindings: list[BindingSpec],
-    *,
-    substrate: SemanticSubstrate,
-    ordered_positions: dict[str, int],
-    bindings_by_region: dict[str, list[BindingSpec]],
-    binding_nodes: dict[str, IRNode],
-    diagnostics: list[CompilerDiagnostic],
-) -> tuple[IRNode, set[str]]:
-    motif_r = _motif_ref(motif.id)
-    wrapper = IRNode(
-        id=f"motif_{motif.id}",
-        primitive="stack",
-        props={"layout_role": "stack", "motif_kind": motif.kind},
-        provenance=Provenance(intent_refs=[motif_r]),
-    )
-    placed: set[str] = set()
-    motif_node_ids = {_binding_node_id(b) for b in motif_bindings}
-    outline_bindings = [
-        b for b in bindings_by_region.get(motif.region, [])
-        if _binding_node_id(b) in motif_node_ids
-    ]
-    bindings_by_node_id: dict[str, list[BindingSpec]] = {}
-    for b in outline_bindings:
-        bindings_by_node_id.setdefault(_binding_node_id(b), []).append(b)
-        placed.add(b.id)
-    semantic_parent = _semantic_parent_by_id(substrate)
-    top_level = [
-        nid for nid in motif_node_ids
-        if semantic_parent.get(nid) not in motif_node_ids
-    ]
-
-    def _min_pos(nid: str) -> int:
-        bs = bindings_by_node_id.get(nid)
-        if bs:
-            return min(ordered_positions[b.id] for b in bs)
-        return 10**9
-
-    top_level.sort(key=_min_pos)
-    if motif_node_ids and not top_level:
-        _add_diagnostic(
-            diagnostics,
-            "SEMANTIC_GRAPH_CYCLE",
-            f"Outline motif {motif.id} has no acyclic top-level semantic node; using declaration order and skipping cyclic repeats.",
-            intent_ref=_motif_ref(motif.id),
-            region_id=motif.region,
-        )
-        top_level = sorted(motif_node_ids, key=_min_pos)
-
-    emitted_outline_nodes: set[str] = set()
-    for nid in top_level:
-        branch = _build_outline_branch(
-            nid,
-            motif=motif,
-            substrate=substrate,
-            ordered_positions=ordered_positions,
-            bindings_by_node_id=bindings_by_node_id,
-            motif_node_ids=motif_node_ids,
-            binding_nodes=binding_nodes,
-            diagnostics=diagnostics,
-            active_path=(),
-            emitted_node_ids=emitted_outline_nodes,
-        )
-        if branch is not None:
-            wrapper.children.append(branch)
-    return wrapper, placed
-
-
-def _build_comparison_motif(
-    motif: MotifSpec,
-    motif_bindings: list[BindingSpec],
-    *,
-    ordered_positions: dict[str, int],
-    binding_nodes: dict[str, IRNode],
-) -> tuple[IRNode, set[str]]:
-    motif_r = _motif_ref(motif.id)
-    wrapper = IRNode(
-        id=f"motif_{motif.id}",
-        primitive="cluster",
-        props={"layout_role": "cluster", "motif_kind": motif.kind},
-        provenance=Provenance(intent_refs=[motif_r]),
-    )
-    placed: set[str] = set()
-    for node_id, grouped in _bindings_by_semantic_node(motif_bindings, ordered_positions):
-        panel = IRNode(
-            id=f"motif_{motif.id}_{node_id}",
-            primitive="stack",
-            props={"layout_role": "stack", "motif_kind": motif.kind},
-            provenance=Provenance(intent_refs=[motif_r]),
-        )
-        for binding in grouped:
-            panel.children.append(binding_nodes[binding.id])
-            placed.add(binding.id)
-        wrapper.children.append(panel)
-    return wrapper, placed
-
-
 # ---------------------------------------------------------------------------
 # Public API
 # ---------------------------------------------------------------------------
@@ -1668,6 +1081,8 @@ def compile(
     design: DesignSystemContext | DesignRequest | str | None = None,
     *,
     strict_design: bool = False,
+    motif_plugins: tuple[MotifPlugin, ...] = (),
+    motif_registry: MotifRegistry | None = None,
 ) -> ASTBundle:
     """
     Compile an IntentBundle into an ASTBundle using the reference compiler.
@@ -1685,13 +1100,22 @@ def compile(
     _validate_identifier_contract(substrate, view_spec)
     address_index = _build_address_index(substrate)
     ordered_positions = _ordered_binding_positions(view_spec)
+    if motif_registry is not None and motif_plugins:
+        raise MotifPluginError("Pass either motif_registry or motif_plugins, not both.")
+    active_motif_registry = (
+        motif_registry
+        if motif_registry is not None
+        else create_motif_registry(*tuple(motif_plugins))
+        if motif_plugins
+        else builtin_motif_registry()
+    )
+    supported_motif_kinds = active_motif_registry.kinds if motif_registry is not None or motif_plugins else SUPPORTED_MOTIF_KINDS
 
-    supported_kinds = set(SUPPORTED_MOTIF_KINDS)
     for motif in view_spec.motifs:
-        if motif.kind not in supported_kinds:
+        if motif.kind not in active_motif_registry:
             raise UnsupportedMotifError(
                 f"Motif kind '{motif.kind}' is not supported by the reference compiler. "
-                f"Supported: {', '.join(sorted(supported_kinds))}. "
+                f"Supported: {', '.join(sorted(supported_motif_kinds))}. "
                 f"Use the hosted compiler at api.viewspec.dev for full support."
             )
 
@@ -1817,6 +1241,13 @@ def compile(
         bindings_by_region[region_id].sort(key=lambda b: ordered_positions[b.id])
 
     # Process motifs
+    motif_context = MotifCompileContext(
+        substrate=substrate,
+        ordered_positions=ordered_positions,
+        bindings_by_region=bindings_by_region,
+        binding_nodes=binding_nodes,
+        diagnostics=diagnostics,
+    )
     placed_binding_ids: set[str] = set()
     motif_wrappers: dict[str, IRNode] = {}
     motif_by_id: dict[str, MotifSpec] = {}
@@ -1912,84 +1343,22 @@ def compile(
             key=lambda b: ordered_positions[b.id],
         )
 
-        if motif.kind == "table":
-            wrapper, motif_placed = _build_table_motif(
-                motif, motif_bindings,
-                ordered_positions=ordered_positions,
-                binding_nodes=binding_nodes,
-            )
-        elif motif.kind == "dashboard":
-            wrapper, motif_placed = _build_dashboard_motif(
-                motif, motif_bindings,
-                ordered_positions=ordered_positions,
-                binding_nodes=binding_nodes,
-            )
-        elif motif.kind == "outline":
-            wrapper, motif_placed = _build_outline_motif(
-                motif, motif_bindings,
-                substrate=substrate,
-                ordered_positions=ordered_positions,
-                bindings_by_region=bindings_by_region,
-                binding_nodes=binding_nodes,
-                diagnostics=diagnostics,
-            )
-        elif motif.kind == "comparison":
-            wrapper, motif_placed = _build_comparison_motif(
-                motif, motif_bindings,
-                ordered_positions=ordered_positions,
-                binding_nodes=binding_nodes,
-            )
-        elif motif.kind == "list":
-            wrapper, motif_placed = _build_list_motif(
-                motif,
-                motif_bindings,
-                ordered_positions=ordered_positions,
-                binding_nodes=binding_nodes,
-            )
-        elif motif.kind == "form":
-            wrapper, motif_placed = _build_form_motif(
-                motif,
-                motif_bindings,
-                ordered_positions=ordered_positions,
-                binding_nodes=binding_nodes,
-            )
-        elif motif.kind == "detail":
-            wrapper, motif_placed = _build_detail_motif(
-                motif,
-                motif_bindings,
-                ordered_positions=ordered_positions,
-                binding_nodes=binding_nodes,
-            )
-        elif motif.kind == "empty_state":
-            wrapper, motif_placed = _build_empty_state_motif(
-                motif,
-                motif_bindings,
-                ordered_positions=ordered_positions,
-                binding_nodes=binding_nodes,
-            )
-        elif motif.kind in {"loading_state", "error_state"}:
-            if not _validate_state_motif_contract(motif, motif_bindings, diagnostics):
-                placed_binding_ids.update(member_id for member_id in motif.members if member_id in valid_binding_ids)
-                continue
-            wrapper, motif_placed = _build_state_motif(
-                motif,
-                motif_bindings,
-                ordered_positions=ordered_positions,
-                binding_nodes=binding_nodes,
-            )
-        elif motif.kind == "hero":
-            wrapper, motif_placed = _build_hero_motif(
-                motif,
-                motif_bindings,
-                ordered_positions=ordered_positions,
-                binding_nodes=binding_nodes,
-            )
-        else:
+        compiled_motif = active_motif_registry[motif.kind].compile(motif, motif_bindings, motif_context)
+        if compiled_motif is None:
+            placed_binding_ids.update(member_id for member_id in motif.members if member_id in valid_binding_ids)
             continue
+        allowed_placed_binding_ids = {binding.id for binding in motif_bindings}
+        disallowed_placed_binding_ids = compiled_motif.placed_binding_ids - allowed_placed_binding_ids
+        if disallowed_placed_binding_ids:
+            raise MotifPluginError(
+                f"Motif compiler for '{motif.kind}' placed bindings it does not own: "
+                f"{', '.join(sorted(disallowed_placed_binding_ids))}."
+            )
+        wrapper = compiled_motif.wrapper
 
         carrier.children.append(wrapper)
         motif_wrappers[motif.id] = wrapper
-        placed_binding_ids.update(motif_placed)
+        placed_binding_ids.update(compiled_motif.placed_binding_ids)
 
     # Place remaining unplaced bindings directly in their regions
     for region_id, bindings in bindings_by_region.items():
