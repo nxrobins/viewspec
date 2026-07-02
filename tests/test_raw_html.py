@@ -10,7 +10,7 @@ import pytest
 
 from viewspec import ViewSpecBuilder, compile, compile_html, diff_html, lift_html, load_design_system
 from viewspec.cli import main as cli_main
-from viewspec.raw_html import MAX_HTML_INPUT_BYTES, HtmlInputError, write_html_compile_result
+from viewspec.raw_html import MAX_DOM_DEPTH, MAX_HTML_INPUT_BYTES, HtmlInputError, write_html_compile_result
 
 
 DESIGN = """---
@@ -201,6 +201,17 @@ def test_protocol_relative_autofetch_guard(tmp_path_factory):
     write_html_compile_result(result, tmp_path)
 
     assert cli_main(["check", str(tmp_path)]) == 0
+
+
+def test_html_dom_depth_is_bounded_not_recursion_error():
+    deep = "<div>" * (MAX_DOM_DEPTH + 40) + "x" + "</div>" * (MAX_DOM_DEPTH + 40)
+    with pytest.raises(HtmlInputError) as exc:
+        compile_html(deep)
+    assert exc.value.code == "HTML_DOM_DEPTH_EXCEEDED"
+
+    # A well-under-limit document still compiles.
+    shallow = "<section>" * 10 + "Hello" + "</section>" * 10
+    assert compile_html(shallow).html
 
 
 def test_backslash_protocol_relative_urls_are_treated_as_cross_origin(tmp_path_factory):

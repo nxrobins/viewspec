@@ -24,6 +24,7 @@ from viewspec.aesthetics import (
     validate_aesthetic_profile_registry,
 )
 from viewspec.compiler_refs import (
+    MAX_COMPILE_NESTING_DEPTH,
     action_ref as _action_ref,
     add_diagnostic as _add_diagnostic,
     binding_ref as _binding_ref,
@@ -1063,10 +1064,18 @@ def _validate_region_tree(valid_regions: list[Any], root_region: str) -> None:
             )
         seen: set[str] = set()
         cursor: str | None = region.id
+        depth = 0
         while cursor is not None and cursor != root_region:
             if cursor in seen:
                 raise CompilerInputError(
                     f"Region parent_region cycle detected while walking from '{region.id}'."
+                )
+            depth += 1
+            if depth > MAX_COMPILE_NESTING_DEPTH:
+                raise CompilerInputError(
+                    f"Region nesting depth exceeds the limit of {MAX_COMPILE_NESTING_DEPTH} "
+                    f"while walking from '{region.id}'. Flatten the region hierarchy or "
+                    f"split into multiple IntentBundles."
                 )
             seen.add(cursor)
             cursor = parent_by_region.get(cursor)

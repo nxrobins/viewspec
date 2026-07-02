@@ -19,6 +19,11 @@ from viewspec.design_md import DesignSystemContext
 
 
 MAX_HTML_INPUT_BYTES = 5_000_000
+# Maximum kept-element nesting depth. The parser is stack-based, but the
+# downstream freeze/render passes recurse per DOM level, so a deeply nested (yet
+# small) document would raise a Python RecursionError. Reject during parse
+# instead, mirroring the MAX_HTML_INPUT_BYTES rejection.
+MAX_DOM_DEPTH = 256
 MANIFEST_SCHEMA_VERSION = 1
 RAW_HTML_POLICY_VERSION = "viewspec-raw-html-allowlist@1"
 DIFF_VERSION = 1
@@ -321,6 +326,11 @@ class _SanitizingHTMLParser(HTMLParser):
             self._diagnostic("warning", "HTML_TAG_UNWRAPPED", f"Removed unsupported <{tag}> wrapper but kept text children.")
             return
 
+        if len(self.stack) >= MAX_DOM_DEPTH:
+            raise HtmlInputError(
+                "HTML_DOM_DEPTH_EXCEEDED",
+                f"HTML nesting depth exceeds the {MAX_DOM_DEPTH} level local limit.",
+            )
         node = _HTMLNode(tag, _sanitize_attrs(tag, attrs, self.diagnostics, self.external_refs))
         self.stack[-1].children.append(node)
         if not self_closing and tag not in VOID_TAGS:

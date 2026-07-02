@@ -11,6 +11,7 @@ from viewspec import (
     ViewSpecBuilder,
     compile,
 )
+from viewspec.compiler_refs import MAX_COMPILE_NESTING_DEPTH
 
 
 def _walk(node):
@@ -578,3 +579,38 @@ def test_outline_sibling_order_is_deterministic_across_proto_round_trip():
     assert _labels(in_memory.result.root.root) == ["Parent", "ChildA", "ChildZ"]
     # Identical after a protobuf map round trip.
     assert _labels(round_tripped.result.root.root) == _labels(in_memory.result.root.root)
+
+
+def test_region_nesting_depth_is_bounded_not_recursion_error():
+    builder = ViewSpecBuilder("deep_regions")
+    for i in range(MAX_COMPILE_NESTING_DEPTH + 20):
+        builder.add_region(
+            f"r{i}",
+            parent_region="root" if i == 0 else f"r{i - 1}",
+            layout="stack",
+            min_children=0,
+        )
+    with pytest.raises(CompilerInputError, match="nesting depth"):
+        compile(builder.build_bundle())
+
+
+def test_outline_semantic_depth_is_diagnostic_not_recursion_error():
+    builder = ViewSpecBuilder("deep_outline")
+    outline = builder.add_outline("tree", region="main", group_id="g")
+    n = MAX_COMPILE_NESTING_DEPTH + 20
+    for i in range(n):
+        outline.add_branch(label=f"L{i}", id=f"n{i}")
+    bundle = builder.build_bundle()
+
+    root_id = bundle.substrate.root_id
+    nodes = dict(bundle.substrate.nodes)
+    nodes[root_id] = replace(nodes[root_id], slots={"items": ["n0"]})
+    for i in range(n - 1):
+        nodes[f"n{i}"] = replace(nodes[f"n{i}"], slots={"items": [f"n{i + 1}"]})
+    deep = IntentBundle(
+        substrate=SemanticSubstrate(id=bundle.substrate.id, root_id=root_id, nodes=nodes),
+        view_spec=bundle.view_spec,
+    )
+
+    ast = compile(deep)  # must not raise RecursionError
+    assert "SEMANTIC_GRAPH_TOO_DEEP" in {d.code for d in ast.result.diagnostics}
