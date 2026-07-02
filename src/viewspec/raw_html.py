@@ -129,6 +129,10 @@ SANITIZER_POLICY = {
 NUMERIC_RE = re.compile(r"^[+-]?(?:\$)?\d[\d,]*(?:\.\d+)?(?:%|[KMB])?$", re.IGNORECASE)
 LABEL_RE = re.compile(r"^[A-Z][A-Za-z0-9][A-Za-z0-9 .,&:/()%'_-]{1,58}$")
 CONTROL_WHITESPACE_RE = re.compile(r"[\x00-\x20\x7f]+")
+# Browsers treat backslashes and percent-encoded backslashes as forward slashes
+# when resolving URLs, so values like "/\evil.com" or "\\evil.com" resolve to a
+# protocol-relative (cross-origin) URL. Collapse them before authority detection.
+BACKSLASH_URL_RE = re.compile(r"%5c|\\", re.IGNORECASE)
 
 
 class HtmlInputError(ValueError):
@@ -559,6 +563,7 @@ def _normalize_url_for_policy(value: str) -> str:
         previous = decoded
     stripped = previous.strip()
     compacted = CONTROL_WHITESPACE_RE.sub("", stripped)
+    compacted = BACKSLASH_URL_RE.sub("/", compacted)
     if compacted.startswith("//"):
         authority_path = compacted.lstrip("/")
         return f"https://{authority_path}" if authority_path else compacted

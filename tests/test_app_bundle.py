@@ -380,6 +380,81 @@ def test_state_reducer_conformance_executes_generated_es_module_for_all_v0_ops()
     assert divergent["errors"][0]["code"] == "APP_STATE_REDUCER_CONFORMANCE_FAILED"
 
 
+def _sort_by_app_bundle() -> dict:
+    app = _stateful_app_bundle()
+    app["state"] = [
+        {
+            "id": "rows",
+            "kind": "collection",
+            "scope": "app",
+            "initial": {
+                "value": [
+                    {"id": "r1", "name": "apple"},
+                    {"id": "r2", "name": "Banana"},
+                    {"id": "r3", "name": "cherry"},
+                ]
+            },
+        },
+        {"id": "flags", "kind": "record", "scope": "app", "initial": {"value": {"count": 0}}},
+    ]
+    app["mutations"] = [
+        {
+            "id": "bump",
+            "trigger": {"screen_id": "queue", "action_id": "triage_incident"},
+            "ops": [{"op": "increment", "state": "flags", "field": "count", "amount": 1}],
+        }
+    ]
+    app["selectors"] = [
+        {"id": "sorted_rows", "source_state": "rows", "ops": [{"op": "sort_by", "field": "name", "direction": "asc"}]}
+    ]
+    # Code-point order puts uppercase "Banana" (B=0x42) before lowercase
+    # "apple" (a=0x61); locale-aware collation would flip them. The generated
+    # reducer must match the Python reference regardless of host locale.
+    app["state_replay_assertions"] = [
+        {
+            "id": "sort_replay",
+            "events": [{"mutation_id": "bump", "payload_values": {"inc_1043_id": "r1"}}],
+            "expect_state": {
+                "rows": [
+                    {"id": "r1", "name": "apple"},
+                    {"id": "r2", "name": "Banana"},
+                    {"id": "r3", "name": "cherry"},
+                ],
+                "flags": {"count": 1.0},
+            },
+            "expect_selectors": {
+                "sorted_rows": [
+                    {"id": "r2", "name": "Banana"},
+                    {"id": "r1", "name": "apple"},
+                    {"id": "r3", "name": "cherry"},
+                ]
+            },
+        }
+    ]
+    return app
+
+
+def test_sort_by_selector_is_locale_independent_and_matches_reference():
+    app = _sort_by_app_bundle()
+
+    state_ir, issues = validate_state_ir(app)
+    assert issues == []
+    assert state_ir is not None
+
+    current = initial_state(app, state_ir)
+    order = [row["name"] for row in evaluate_selectors(current, state_ir)["sorted_rows"]]
+    assert order == ["Banana", "apple", "cherry"]
+
+    reducer_source = generate_typescript_reducer(app)
+    assert "localeCompare" not in reducer_source
+
+    # The generated ES module, executed under node, must agree with the Python
+    # reference; a locale-dependent sort would diverge here.
+    report = check_reducer_conformance(app, reducer_source=reducer_source)
+    assert report["ok"] is True
+    assert report["passed_count"] == 1
+
+
 def test_validate_app_rejects_v0_constraints():
     cases: list[tuple[str, dict, str]] = []
     base = starter_app_bundle()

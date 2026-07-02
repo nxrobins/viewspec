@@ -428,13 +428,11 @@ def _build_outline_motif(
     )
     placed: set[str] = set()
     motif_node_ids = {_binding_node_id(binding) for binding in motif_bindings}
-    outline_bindings = [
-        binding
-        for binding in context.bindings_by_region.get(motif.region, [])
-        if _binding_node_id(binding) in motif_node_ids
-    ]
+    # Only the motif's declared members belong to this outline. Re-scanning the
+    # whole region by node id would claim unrelated bindings that merely share a
+    # semantic node with a member, tripping the compiler's ownership check below.
     bindings_by_node_id: dict[str, list[BindingSpec]] = {}
-    for binding in outline_bindings:
+    for binding in motif_bindings:
         bindings_by_node_id.setdefault(_binding_node_id(binding), []).append(binding)
         placed.add(binding.id)
     semantic_parent = _semantic_parent_by_id(context.substrate)

@@ -2213,7 +2213,11 @@ def _is_remote_http_url(value: str) -> bool:
 
 
 def _contains_remote_http_reference(value: str) -> bool:
-    return bool(re.search(r"(?i)(?:https?:)?//", value))
+    # Backslashes and percent-encoded backslashes resolve to forward slashes in
+    # browsers, so "/\\evil.com" or "%5cevil.com" beacon cross-origin despite
+    # containing no literal "//". Collapse them before matching.
+    collapsed = re.sub(r"(?i)%5c|\\", "/", value)
+    return bool(re.search(r"(?i)(?:https?:)?//", collapsed))
 
 
 def _validate_no_autofetch_surfaces(html: str) -> list[str]:

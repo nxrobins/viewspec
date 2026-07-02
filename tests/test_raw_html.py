@@ -203,6 +203,43 @@ def test_protocol_relative_autofetch_guard(tmp_path_factory):
     assert cli_main(["check", str(tmp_path)]) == 0
 
 
+def test_backslash_protocol_relative_urls_are_treated_as_cross_origin(tmp_path_factory):
+    tmp_path = tmp_path_factory.mktemp("backslash_proto")
+    # Browsers resolve "/\\host", "\\/host", "\\\\host" and percent-encoded
+    # "%5c" the same as "//host" (protocol-relative / cross-origin). They must be
+    # caught like "//host" instead of slipping through as same-origin relative.
+    result = compile_html(
+        '<img src="/\\evil.com/chart.png" alt="Chart">'
+        '<a href="/%5Cevil.com/report">Report</a>'
+    )
+    lowered = result.html.lower()
+
+    assert 'src="/\\' not in result.html
+    assert 'href="/\\' not in result.html
+    assert "%5c" not in lowered
+    assert 'href="https://evil.com/report"' in result.html
+    assert "External image: Chart" in result.html
+    assert 'rel="noopener noreferrer"' in result.html
+    assert result.manifest["external_refs"] == [
+        {"attr": "src", "behavior": "inert_placeholder", "kind": "image", "url": "https://evil.com/chart.png"},
+        {"attr": "href", "behavior": "user_click", "kind": "link", "url": "https://evil.com/report"},
+    ]
+
+    write_html_compile_result(result, tmp_path)
+
+    # The governed artifact must not pass `check` while still beaconing out.
+    assert cli_main(["check", str(tmp_path)]) == 0
+
+
+def test_check_autofetch_guard_catches_backslash_protocol_relative():
+    from viewspec.local_tools import _contains_remote_http_reference
+
+    for beacon in ("/\\evil.com/p.png", "\\/evil.com", "\\\\evil.com", "/%5Cevil.com", "//evil.com"):
+        assert _contains_remote_http_reference(beacon) is True, beacon
+    for benign in ("/assets/logo.png", "./x.png", "#anchor", "data:image/png;base64,AAAA"):
+        assert _contains_remote_http_reference(benign) is False, benign
+
+
 def test_nested_void_tags_inside_stripped_content_do_not_swallow_document():
     result = compile_html("<script><img src=x></script><h1>Still Here</h1><p>$4</p>")
 

@@ -1315,6 +1315,7 @@ def compile(
                     region_id=group.target_region,
                 )
 
+    motif_claimed_binding_ids: set[str] = set()
     for motif in valid_motifs:
         if motif.id in overfull_state_ids or motif.id in conflicting_state_ids:
             placed_binding_ids.update(member_id for member_id in motif.members if member_id in valid_binding_ids)
@@ -1338,8 +1339,22 @@ def compile(
                 )
 
         carrier = region_nodes[motif.region]
+        owned_member_ids: list[str] = []
+        for mid in motif.members:
+            if mid not in valid_binding_ids:
+                continue
+            if mid in motif_claimed_binding_ids:
+                _add_diagnostic(
+                    diagnostics, "DUPLICATE_MOTIF_MEMBER",
+                    f"Binding {mid} is claimed by more than one motif. The first "
+                    f"motif to place it was used; motif {motif.id} does not re-render it.",
+                    intent_ref=_motif_ref(motif.id),
+                    region_id=motif.region,
+                )
+                continue
+            owned_member_ids.append(mid)
         motif_bindings = sorted(
-            [bindings_by_id[mid] for mid in motif.members if mid in valid_binding_ids],
+            [bindings_by_id[mid] for mid in owned_member_ids],
             key=lambda b: ordered_positions[b.id],
         )
 
@@ -1359,6 +1374,7 @@ def compile(
         carrier.children.append(wrapper)
         motif_wrappers[motif.id] = wrapper
         placed_binding_ids.update(compiled_motif.placed_binding_ids)
+        motif_claimed_binding_ids.update(owned_member_ids)
 
     # Place remaining unplaced bindings directly in their regions
     for region_id, bindings in bindings_by_region.items():
