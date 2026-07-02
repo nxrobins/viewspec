@@ -2,6 +2,14 @@ from __future__ import annotations
 
 from viewspec.types import CompilerDiagnostic
 
+# Maximum nesting depth for agent-authored structure (region parent chains and
+# outline semantic chains). Bounds recursion in the compile/emit pipeline so
+# pathological input is rejected with a clean diagnostic instead of a Python
+# RecursionError. Kept well under the interpreter's ~1000-frame limit even when
+# region and outline depth compound. Lives here (not compiler.py) because
+# motif_compilers imports it and compiler.py imports motif_compilers.
+MAX_COMPILE_NESTING_DEPTH = 64
+
 
 def region_ref(region_id: str) -> str:
     return f"viewspec:region:{region_id}"

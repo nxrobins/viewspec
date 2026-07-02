@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from viewspec.compiler_refs import add_diagnostic, motif_ref
+from viewspec.compiler_refs import MAX_COMPILE_NESTING_DEPTH, add_diagnostic, motif_ref
 from viewspec.motif_plugins import (
     MOTIF_PLUGIN_ABI_VERSION,
     MotifBuildFn,
@@ -370,6 +370,17 @@ def _build_outline_branch(
     active_path: tuple[str, ...],
     emitted_node_ids: set[str],
 ) -> IRNode | None:
+    if len(active_path) >= MAX_COMPILE_NESTING_DEPTH:
+        add_diagnostic(
+            context.diagnostics,
+            "SEMANTIC_GRAPH_TOO_DEEP",
+            f"Outline motif {motif.id} truncated at semantic nesting depth "
+            f"{MAX_COMPILE_NESTING_DEPTH} at node {node_id}.",
+            intent_ref=motif_ref(motif.id),
+            content_ref=f"node:{node_id}",
+            region_id=motif.region,
+        )
+        return None
     if node_id in active_path:
         cycle_path = " -> ".join((*active_path, node_id))
         add_diagnostic(
