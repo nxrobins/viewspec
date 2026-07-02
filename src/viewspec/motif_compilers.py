@@ -49,16 +49,22 @@ def _bindings_by_semantic_node(
     return list(grouped.items())
 
 
+# NOTE: SemanticNode.slots/edges and SemanticSubstrate.nodes are protobuf `map`
+# fields, whose iteration order is not preserved across a serialize/parse round
+# trip (and is unspecified across protobuf runtimes). The ordered value lists
+# *inside* each slot/edge are `repeated` fields and are stable. To keep outline
+# output deterministic and round-trip-stable, iterate the map keys in a canonical
+# (sorted) order rather than in raw map order.
 def _semantic_children(substrate: SemanticSubstrate, node_id: str) -> list[str]:
     node = substrate.nodes.get(node_id)
     if node is None:
         return []
     children: list[str] = []
-    for child_ids in node.slots.values():
+    for _key, child_ids in sorted(node.slots.items(), key=lambda kv: kv[0]):
         for child_id in child_ids:
             if child_id in substrate.nodes and child_id not in children:
                 children.append(child_id)
-    for child_ids in node.edges.values():
+    for _key, child_ids in sorted(node.edges.items(), key=lambda kv: kv[0]):
         for child_id in child_ids:
             if child_id in substrate.nodes and child_id not in children:
                 children.append(child_id)
@@ -67,12 +73,12 @@ def _semantic_children(substrate: SemanticSubstrate, node_id: str) -> list[str]:
 
 def _semantic_parent_by_id(substrate: SemanticSubstrate) -> dict[str, str]:
     parents: dict[str, str] = {}
-    for node in substrate.nodes.values():
-        for child_ids in node.slots.values():
+    for node in sorted(substrate.nodes.values(), key=lambda n: n.id):
+        for _key, child_ids in sorted(node.slots.items(), key=lambda kv: kv[0]):
             for child_id in child_ids:
                 if child_id in substrate.nodes and child_id not in parents:
                     parents[child_id] = node.id
-        for child_ids in node.edges.values():
+        for _key, child_ids in sorted(node.edges.items(), key=lambda kv: kv[0]):
             for child_id in child_ids:
                 if child_id in substrate.nodes and child_id not in parents:
                     parents[child_id] = node.id
@@ -428,13 +434,11 @@ def _build_outline_motif(
     )
     placed: set[str] = set()
     motif_node_ids = {_binding_node_id(binding) for binding in motif_bindings}
-    outline_bindings = [
-        binding
-        for binding in context.bindings_by_region.get(motif.region, [])
-        if _binding_node_id(binding) in motif_node_ids
-    ]
+    # Only the motif's declared members belong to this outline. Re-scanning the
+    # whole region by node id would claim unrelated bindings that merely share a
+    # semantic node with a member, tripping the compiler's ownership check below.
     bindings_by_node_id: dict[str, list[BindingSpec]] = {}
-    for binding in outline_bindings:
+    for binding in motif_bindings:
         bindings_by_node_id.setdefault(_binding_node_id(binding), []).append(binding)
         placed.add(binding.id)
     semantic_parent = _semantic_parent_by_id(context.substrate)
@@ -446,7 +450,9 @@ def _build_outline_motif(
             return min(context.ordered_positions[binding.id] for binding in node_bindings)
         return 10**9
 
-    top_level.sort(key=_min_pos)
+    # motif_node_ids is a set; tie-break on node id so equal/absent binding
+    # positions do not leave ordering to set-iteration (hash) order.
+    top_level.sort(key=lambda nid: (_min_pos(nid), nid))
     if motif_node_ids and not top_level:
         add_diagnostic(
             context.diagnostics,
@@ -456,7 +462,7 @@ def _build_outline_motif(
             intent_ref=motif_ref(motif.id),
             region_id=motif.region,
         )
-        top_level = sorted(motif_node_ids, key=_min_pos)
+        top_level = sorted(motif_node_ids, key=lambda nid: (_min_pos(nid), nid))
 
     emitted_outline_nodes: set[str] = set()
     for node_id in top_level:

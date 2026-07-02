@@ -538,3 +538,43 @@ def test_non_string_programmatic_id_is_fatal():
 
     with pytest.raises(CompilerInputError, match="ViewSpec.id"):
         compile(bad_bundle)
+
+
+def test_outline_sibling_order_is_deterministic_across_proto_round_trip():
+    # slots/edges/nodes are protobuf map fields whose iteration order is not
+    # preserved across a serialize/parse round trip. Outline sibling order must
+    # be canonical (sorted slot key), so it is deterministic and identical before
+    # and after the round trip regardless of the underlying map order.
+    builder = ViewSpecBuilder("nested_outline")
+    outline = builder.add_outline("tree", region="main", group_id="branches")
+    outline.add_branch(label="Parent", id="parent")
+    outline.add_branch(label="ChildA", id="child_a")
+    outline.add_branch(label="ChildZ", id="child_z")
+    bundle = builder.build_bundle()
+
+    root_id = bundle.substrate.root_id
+    nodes = dict(bundle.substrate.nodes)
+    nodes[root_id] = replace(nodes[root_id], slots={"items": ["parent"]})
+    # Two slots whose insertion order (z before a) differs from sorted order.
+    nodes["parent"] = replace(nodes["parent"], slots={"z_slot": ["child_z"], "a_slot": ["child_a"]})
+    multislot = IntentBundle(
+        substrate=SemanticSubstrate(id=bundle.substrate.id, root_id=root_id, nodes=nodes),
+        view_spec=bundle.view_spec,
+    )
+
+    def _labels(root):
+        return [n.props["text"] for n in _walk(root) if n.id.endswith("_label") and "text" in n.props]
+
+    in_memory = compile(multislot)
+    round_tripped = compile(
+        IntentBundle(
+            substrate=SemanticSubstrate.from_json(multislot.substrate.to_json()),
+            view_spec=multislot.view_spec,
+        )
+    )
+
+    assert not in_memory.result.diagnostics
+    # Canonical sorted-slot-key order (a_slot before z_slot), not insertion order.
+    assert _labels(in_memory.result.root.root) == ["Parent", "ChildA", "ChildZ"]
+    # Identical after a protobuf map round trip.
+    assert _labels(round_tripped.result.root.root) == _labels(in_memory.result.root.root)
