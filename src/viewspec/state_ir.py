@@ -456,6 +456,17 @@ def generate_typescript_reducer(app_payload: dict[str, Any]) -> str:
         "  error.values = values;\n"
         "  return error;\n"
         "};\n\n"
+        "const pyTruthy = (x) => {\n"
+        "  if (x === null || x === undefined || x === false || x === 0 || x === \"\") return false;\n"
+        "  if (Array.isArray(x)) return x.length > 0;\n"
+        "  if (typeof x === \"object\") return Object.keys(x).length > 0;\n"
+        "  return Boolean(x);\n"
+        "};\n"
+        "const toFiniteNumber = (x) => {\n"
+        "  const n = Number(x ?? 0);\n"
+        "  if (!Number.isFinite(n)) throw eventError(\"APP_STATE_REDUCER_OP_FAILED\", []);\n"
+        "  return n;\n"
+        "};\n\n"
         "const assertPayload = (mutation, values) => {\n"
         "  if (!values || typeof values !== \"object\" || Array.isArray(values)) throw eventError(\"APP_STATE_EVENT_PAYLOAD_INVALID\", []);\n"
         "  const allowed = new Set(mutation.allowedPayloadBindings || []);\n"
@@ -504,21 +515,21 @@ def generate_typescript_reducer(app_payload: dict[str, Any]) -> str:
         "  const idExpr = op.item_id;\n"
         "  if (Array.isArray(current) && field && idExpr !== undefined) {\n"
         "    const id = String(valueOf(idExpr, values));\n"
-        "    return current.map((item) => item && typeof item === \"object\" && String(item.id) === id ? { ...item, [field]: !item[field] } : item);\n"
+        "    return current.map((item) => item && typeof item === \"object\" && String(item.id) === id ? { ...item, [field]: !pyTruthy(item[field]) } : item);\n"
         "  }\n"
-        "  if (current && typeof current === \"object\" && field) return { ...current, [field]: !current[field] };\n"
-        "  return !current;\n"
+        "  if (current && typeof current === \"object\" && field) return { ...current, [field]: !pyTruthy(current[field]) };\n"
+        "  return !pyTruthy(current);\n"
         "}\n\n"
         "function incrementValue(current, op, values) {\n"
-        "  const amount = Number(valueOf(op.amount ?? 1, values));\n"
+        "  const amount = toFiniteNumber(valueOf(op.amount ?? 1, values));\n"
         "  const field = op.field;\n"
         "  const idExpr = op.item_id;\n"
         "  if (Array.isArray(current) && field && idExpr !== undefined) {\n"
         "    const id = String(valueOf(idExpr, values));\n"
-        "    return current.map((item) => item && typeof item === \"object\" && String(item.id) === id ? { ...item, [field]: Number(item[field] ?? 0) + amount } : item);\n"
+        "    return current.map((item) => item && typeof item === \"object\" && String(item.id) === id ? { ...item, [field]: toFiniteNumber(item[field]) + amount } : item);\n"
         "  }\n"
-        "  if (current && typeof current === \"object\" && field) return { ...current, [field]: Number(current[field] ?? 0) + amount };\n"
-        "  return Number(current ?? 0) + amount;\n"
+        "  if (current && typeof current === \"object\" && field) return { ...current, [field]: toFiniteNumber(current[field]) + amount };\n"
+        "  return toFiniteNumber(current) + amount;\n"
         "}\n\n"
         "/** @param {ViewSpecState} state @returns {Record<string, unknown>} */\n"
         "export function selectViewSpecState(state) {\n"
@@ -843,6 +854,15 @@ def _parse_selectors(items: list[Any], state_ids: set[str], issues: list[StateVa
                 _required_string(op, "field", op_path, issues)
             if kind == "sort_by" and op.get("direction", "asc") not in {"asc", "desc"}:
                 issues.append(StateValidationIssue("APP_STATE_SELECTOR_DIRECTION_INVALID", f"{op_path}.direction", "sort_by direction must be asc or desc."))
+            if kind == "slice":
+                for bound_key in ("start", "end"):
+                    if bound_key not in op:
+                        continue
+                    bound_value = op.get(bound_key)
+                    if bound_key == "end" and bound_value is None:
+                        continue
+                    if not isinstance(bound_value, int) or isinstance(bound_value, bool) or bound_value < 0:
+                        issues.append(StateValidationIssue("APP_STATE_SELECTOR_SLICE_INVALID", f"{op_path}.{bound_key}", "slice start/end must be non-negative integers."))
             parsed_ops.append(copy.deepcopy(op))
         if selector_id and source_state:
             selectors.append(StateSelector(id=selector_id, source_state=source_state, ops=tuple(parsed_ops)))

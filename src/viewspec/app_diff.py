@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Any
 
 from viewspec.app_validation import APP_BUNDLE_RESULT_SCHEMA_VERSION, _reject_json_constant, _stable_json, validate_app_text
-from viewspec.intent_tools import diff_intent_text, intent_semantic_change_lines
+from viewspec.intent_tools import _intent_topology_similarity, diff_intent_text, intent_semantic_change_lines
 
 APP_BUNDLE_DIFF_VERSION = 1
 APP_BUNDLE_DIFF_BASIS = "app_bundle_v0_v3"
@@ -32,31 +32,27 @@ def diff_app_text(left_text: str, right_text: str, *, compile_check: bool = True
 
     left_payload = json.loads(left_text, parse_constant=_reject_json_constant)
     right_payload = json.loads(right_text, parse_constant=_reject_json_constant)
-    changes = {
-        "app": _diff_named_items({"app": left_payload["app"]}, {"app": right_payload["app"]}),
-        "routes": _diff_named_items(_index_by_id(left_payload["routes"]), _index_by_id(right_payload["routes"])),
-        "resources": _diff_named_items(
-            _resource_sections(left_payload["resources"]),
-            _resource_sections(right_payload["resources"]),
-        ),
-        "screens": _diff_named_items(
-            _screen_sections(left_payload["screens"]),
-            _screen_sections(right_payload["screens"]),
-        ),
-        "state": _diff_named_items(_state_sections(left_payload, "state"), _state_sections(right_payload, "state")),
-        "mutations": _diff_named_items(
-            _state_sections(left_payload, "mutations"),
-            _state_sections(right_payload, "mutations"),
-        ),
-        "selectors": _diff_named_items(
-            _state_sections(left_payload, "selectors"),
-            _state_sections(right_payload, "selectors"),
-        ),
-        "state_replay_assertions": _diff_named_items(
-            _state_sections(left_payload, "state_replay_assertions"),
-            _state_sections(right_payload, "state_replay_assertions"),
-        ),
+    left_sections = {
+        "app": {"app": left_payload["app"]},
+        "routes": _index_by_id(left_payload["routes"]),
+        "resources": _resource_sections(left_payload["resources"]),
+        "screens": _screen_sections(left_payload["screens"]),
+        "state": _state_sections(left_payload, "state"),
+        "mutations": _state_sections(left_payload, "mutations"),
+        "selectors": _state_sections(left_payload, "selectors"),
+        "state_replay_assertions": _state_sections(left_payload, "state_replay_assertions"),
     }
+    right_sections = {
+        "app": {"app": right_payload["app"]},
+        "routes": _index_by_id(right_payload["routes"]),
+        "resources": _resource_sections(right_payload["resources"]),
+        "screens": _screen_sections(right_payload["screens"]),
+        "state": _state_sections(right_payload, "state"),
+        "mutations": _state_sections(right_payload, "mutations"),
+        "selectors": _state_sections(right_payload, "selectors"),
+        "state_replay_assertions": _state_sections(right_payload, "state_replay_assertions"),
+    }
+    changes = {name: _diff_named_items(left_sections[name], right_sections[name]) for name in left_sections}
     semantic_changes = _app_semantic_changes(left_payload, right_payload)
     screen_intent_diffs: dict[str, Any] = {}
     left_screens = _index_by_id(left_payload["screens"])
@@ -117,7 +113,7 @@ def diff_app_text(left_text: str, right_text: str, *, compile_check: bool = True
         "semantic_summary": app_semantic_change_lines(semantic_changes),
         "screen_intent_diffs": screen_intent_diffs,
         "counts": _app_counts(left_payload, right_payload),
-        "topology_similarity": _app_topology_similarity(changes),
+        "topology_similarity": _intent_topology_similarity(left_sections, right_sections, changes),
         "errors": [],
     }
 
@@ -316,16 +312,6 @@ def _resource_view_count(payload: dict[str, Any]) -> int:
         if isinstance(screen, dict) and isinstance(screen.get("resource_views"), list):
             total += len(screen["resource_views"])
     return total
-
-def _app_topology_similarity(changes: dict[str, dict[str, list[str]]]) -> float:
-    changed = 0
-    total = 0
-    for section_changes in changes.values():
-        changed += len(section_changes["added"]) + len(section_changes["removed"]) + len(section_changes["changed"])
-        total += changed
-    if total == 0:
-        return 1.0
-    return round(max(0.0, 1.0 - (changed / max(total, 1))), 4)
 
 def _validation_summary(validation: dict[str, Any]) -> dict[str, Any]:
     return {

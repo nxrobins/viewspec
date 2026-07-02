@@ -455,6 +455,102 @@ def test_sort_by_selector_is_locale_independent_and_matches_reference():
     assert report["passed_count"] == 1
 
 
+def test_toggle_on_empty_container_matches_python_reference():
+    app = _stateful_app_bundle()
+    app["state"] = [{"id": "flag_list", "kind": "collection", "scope": "app", "initial": {"value": []}}]
+    app["mutations"] = [
+        {
+            "id": "flip",
+            "trigger": {"screen_id": "queue", "action_id": "triage_incident"},
+            "ops": [{"op": "toggle", "state": "flag_list"}],
+        }
+    ]
+    app["selectors"] = []
+    app["state_replay_assertions"] = [
+        {
+            "id": "flip_replay",
+            "events": [{"mutation_id": "flip", "payload_values": {"inc_1043_id": "x"}}],
+            "expect_state": {"flag_list": True},
+            "expect_selectors": {},
+        }
+    ]
+
+    state_ir, issues = validate_state_ir(app)
+    assert issues == []
+    current = initial_state(app, state_ir)
+    result = apply_event(current, state_ir, {"mutation_id": "flip", "payload_values": {"inc_1043_id": "x"}})
+    assert result["ok"] is True
+    assert current["flag_list"] is True  # Python not bool([]) == True
+
+    # Generated JS must agree: !pyTruthy([]) === true (pre-fix it returned false).
+    report = check_reducer_conformance(app)
+    assert report["ok"] is True
+
+
+def test_increment_on_non_numeric_fails_like_python_reference():
+    app = _stateful_app_bundle()
+    app["state"] = [{"id": "rec", "kind": "record", "scope": "app", "initial": {"value": {"count": "abc"}}}]
+    app["mutations"] = [
+        {
+            "id": "bump",
+            "trigger": {"screen_id": "queue", "action_id": "triage_incident"},
+            "ops": [{"op": "increment", "state": "rec", "field": "count", "amount": 1}],
+        }
+    ]
+    app["selectors"] = []
+    app["state_replay_assertions"] = [
+        {
+            "id": "bump_replay",
+            "events": [{"mutation_id": "bump", "payload_values": {"inc_1043_id": "x"}}],
+            "expect_state": {},
+            "expect_selectors": {},
+        }
+    ]
+
+    state_ir, issues = validate_state_ir(app)
+    assert issues == []
+    result = apply_event(initial_state(app, state_ir), state_ir, {"mutation_id": "bump", "payload_values": {"inc_1043_id": "x"}})
+    assert result["ok"] is False
+    assert result["errors"][0]["code"] == "APP_STATE_REDUCER_OP_FAILED"
+
+    # Generated JS must throw the same failure, not silently produce NaN.
+    report = check_reducer_conformance(app)
+    assert report["ok"] is True
+
+
+def test_selector_slice_bounds_must_be_non_negative_integers():
+    invalid = _stateful_app_bundle()
+    invalid["selectors"][0]["ops"] = [{"op": "slice", "start": "x", "end": 1}]
+    _, issues = validate_state_ir(invalid)
+    assert "APP_STATE_SELECTOR_SLICE_INVALID" in {issue.code for issue in issues}
+
+    valid = _stateful_app_bundle()
+    valid["selectors"][0]["ops"] = [{"op": "slice", "start": 0, "end": 2}]
+    state_ir, ok_issues = validate_state_ir(valid)
+    assert state_ir is not None
+    assert "APP_STATE_SELECTOR_SLICE_INVALID" not in {issue.code for issue in ok_issues}
+
+
+def test_app_topology_similarity_is_order_independent():
+    base = starter_app_bundle("internal_tool")
+
+    identical = diff_app_text(_app_text(base), _app_text(base), compile_check=False)
+    assert identical["topology_similarity"] == 1.0
+
+    route_change = deepcopy(base)
+    route_change["routes"][1]["label"] = "Incident Detail X"
+    screen_change = deepcopy(base)
+    screen_change["screens"][1]["title"] = "Detail View X"
+
+    da = diff_app_text(_app_text(base), _app_text(route_change), compile_check=False)
+    db = diff_app_text(_app_text(base), _app_text(screen_change), compile_check=False)
+    assert da["ok"] and db["ok"]
+    assert 0.0 < da["topology_similarity"] < 1.0
+    # Equal-magnitude changes to equal-size sections must score identically,
+    # regardless of section order. The pre-fix cumulative denominator did not.
+    assert da["topology_similarity"] == db["topology_similarity"]
+
+
 def test_validate_app_rejects_v0_constraints():
     cases: list[tuple[str, dict, str]] = []
     base = starter_app_bundle()
