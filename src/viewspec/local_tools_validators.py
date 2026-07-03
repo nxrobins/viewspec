@@ -27,7 +27,7 @@ from viewspec.emitters.react_tailwind_tsx import tailwind_recipe_registry_digest
 from viewspec.emitters.react_tsx import react_tsx_manifest_node_markers
 from viewspec.manifest_summary import manifest_root_aesthetic_profile
 from viewspec.manifest_summary import summarize_intent_manifest
-from viewspec.raw_html import MANIFEST_SCHEMA_VERSION
+from viewspec.raw_html import MANIFEST_SCHEMA_VERSION, collapse_url_obfuscation
 import json
 import re
 from viewspec.local_tools_constants import (ACTION_TARGET_REF_RE, ACTIVE_OR_AUTOFETCH_TAGS, ACTIVE_STRUCTURAL_TAGS, CANONICAL_CONTENT_REF_RE, DIAGNOSTIC_SEVERITIES, EMITTER_ARTIFACT_FILES, EXPECTED_MANIFEST_ENVELOPES, EXTERNAL_REF_POLICIES, HASH_RE, KNOWN_EMITTERS, REACT_TSX_ACTION_REQUIRED_MARKERS, REACT_TSX_FORBIDDEN_SURFACES, REACT_TSX_REQUIRED_MARKERS, REACT_TSX_REQUIRED_MARKERS_BY_EMITTER, REMOTE_AUTOFETCH_ATTRS, REMOTE_HREF_AUTOFETCH_TAGS, SAFE_ID_RE, SEMANTIC_ACTION_KEYS, SEMANTIC_DIGEST_KEYS, SEMANTIC_DIGEST_MAX_PROJECTION_BYTES, SEMANTIC_DIGEST_VERSION, SEMANTIC_NODE_KEYS, SEMANTIC_PROJECTION_KEYS, STATEFUL_COLLECTION_ACTION_KINDS, TEXT_PROP_PRIMITIVES, VIEWSPEC_INTENT_REF_RE, VOID_HTML_TAGS)
@@ -1506,10 +1506,12 @@ def _is_remote_http_url(value: str) -> bool:
     return parsed.scheme.lower() in {"http", "https"} and bool(parsed.netloc)
 
 def _contains_remote_http_reference(value: str) -> bool:
-    # Backslashes and percent-encoded backslashes resolve to forward slashes in
-    # browsers, so "/\\evil.com" or "%5cevil.com" beacon cross-origin despite
-    # containing no literal "//". Collapse them before matching.
-    collapsed = re.sub(r"(?i)%5c|\\", "/", value)
+    # Browsers resolve backslashes (incl. %5c) AND strip control whitespace
+    # (tab/LF/CR) when parsing URLs, so "/\\evil.com" or "https:/<tab>/evil.com"
+    # beacon cross-origin despite containing no literal "//". Collapse both the
+    # same way the compiler-side URL policy does (shared helper), so the two
+    # sanitizers cannot drift on obfuscation handling.
+    collapsed = collapse_url_obfuscation(value)
     return bool(re.search(r"(?i)(?:https?:)?//", collapsed))
 
 def _validate_no_autofetch_surfaces(html: str) -> list[str]:
