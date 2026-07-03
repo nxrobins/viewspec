@@ -193,6 +193,27 @@ def prove(
         if report_out is None and exc.code == "PROVE_OUTPUT_UNSAFE":
             return _final_report(report, report_path)
         return _write_report(report, report_path)
+    except LocalToolError as exc:
+        # A missing/unreadable/unsafe input path is USER error, not an internal crash:
+        # stamp a non-internal code so the CLI returns exit 2 (like diff/compile-app), not 1.
+        report = _report(
+            ok=False,
+            target=target if target in PROVE_TARGETS else "unknown",
+            prepared=None,
+            output_dir=output_dir,
+            report_path=report_path,
+            timings=timings,
+            checks={"prepare": "failed"},
+            errors=[
+                {
+                    "code": "PROVE_INPUT_READ_ERROR",
+                    "message": str(exc),
+                    "fix": "Pass a readable local IntentBundle JSON path and retry viewspec prove.",
+                }
+            ],
+            metadata={"sdk_version": __version__, "network_calls": "none"},
+        )
+        return _write_report(report, report_path)
     except Exception as exc:
         report = _report(
             ok=False,
