@@ -463,8 +463,8 @@ def generate_typescript_reducer(app_payload: dict[str, Any]) -> str:
         "  return Boolean(x);\n"
         "};\n"
         "const toFiniteNumber = (x) => {\n"
-        "  const n = Number(x ?? 0);\n"
-        "  if (!Number.isFinite(n)) throw eventError(\"APP_STATE_REDUCER_OP_FAILED\", []);\n"
+        "  const n = x === undefined ? 0 : x;\n"
+        "  if (typeof n !== \"number\" || !Number.isFinite(n)) throw eventError(\"APP_STATE_REDUCER_OP_FAILED\", []);\n"
         "  return n;\n"
         "};\n\n"
         "const assertPayload = (mutation, values) => {\n"
@@ -999,22 +999,29 @@ def _toggle(current: Any, op: dict[str, Any], payload_values: dict[str, Any]) ->
     return not bool(current)
 
 
+def _incr_number(value: Any) -> int | float:
+    # Strict: a real JSON number only. bool is excluded (bool is an int subclass in
+    # Python, but JS `typeof true !== "number"` rejects it, so both sides must reject to
+    # stay conformant); strings / null / objects are rejected too, mirroring the strict JS
+    # toFiniteNumber. Callers default a missing field to 0 before calling this, so only a
+    # present non-number (incl. an explicit null) raises.
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        raise TypeError("increment requires a numeric value.")
+    return value
+
+
 def _increment(current: Any, op: dict[str, Any], payload_values: dict[str, Any]) -> Any:
-    amount = _resolve_expr(op.get("amount", 1), payload_values)
-    if not isinstance(amount, (int, float)):
-        raise TypeError("increment amount must resolve to a number.")
+    amount = _incr_number(_resolve_expr(op.get("amount", 1), payload_values))
     field = op.get("field")
     if "item_id" in op and isinstance(field, str):
         item_id = str(_resolve_expr(op.get("item_id"), payload_values))
         return [
-            {**item, field: float(item.get(field, 0)) + amount} if isinstance(item, dict) and str(item.get("id")) == item_id else item
+            {**item, field: _incr_number(item.get(field, 0)) + amount} if isinstance(item, dict) and str(item.get("id")) == item_id else item
             for item in _require_list(current, "increment")
         ]
     if isinstance(field, str) and isinstance(current, dict):
-        return {**current, field: float(current.get(field, 0)) + amount}
-    if not isinstance(current, (int, float)):
-        raise TypeError("increment requires numeric scalar state.")
-    return current + amount
+        return {**current, field: _incr_number(current.get(field, 0)) + amount}
+    return _incr_number(current) + amount
 
 
 def _resolve_expr(value: Any, payload_values: dict[str, Any]) -> Any:
