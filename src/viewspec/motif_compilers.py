@@ -369,7 +369,9 @@ def _build_outline_branch(
     context: MotifCompileContext,
     active_path: tuple[str, ...],
     emitted_node_ids: set[str],
+    visited: set[str],
 ) -> IRNode | None:
+    visited.add(node_id)
     if len(active_path) >= MAX_COMPILE_NESTING_DEPTH:
         add_diagnostic(
             context.diagnostics,
@@ -427,6 +429,7 @@ def _build_outline_branch(
                 context=context,
                 active_path=child_path,
                 emitted_node_ids=emitted_node_ids,
+                visited=visited,
             )
             if child is not None:
                 branch.children.append(child)
@@ -443,7 +446,6 @@ def _build_outline_motif(
         props={"layout_role": "stack", "motif_kind": motif.kind},
         provenance=Provenance(intent_refs=[motif_r]),
     )
-    placed: set[str] = set()
     motif_node_ids = {_binding_node_id(binding) for binding in motif_bindings}
     # Only the motif's declared members belong to this outline. Re-scanning the
     # whole region by node id would claim unrelated bindings that merely share a
@@ -451,7 +453,6 @@ def _build_outline_motif(
     bindings_by_node_id: dict[str, list[BindingSpec]] = {}
     for binding in motif_bindings:
         bindings_by_node_id.setdefault(_binding_node_id(binding), []).append(binding)
-        placed.add(binding.id)
     semantic_parent = _semantic_parent_by_id(context.substrate)
     top_level = [node_id for node_id in motif_node_ids if semantic_parent.get(node_id) not in motif_node_ids]
 
@@ -476,6 +477,7 @@ def _build_outline_motif(
         top_level = sorted(motif_node_ids, key=lambda nid: (_min_pos(nid), nid))
 
     emitted_outline_nodes: set[str] = set()
+    visited: set[str] = set()
     for node_id in top_level:
         branch = _build_outline_branch(
             node_id,
@@ -485,9 +487,32 @@ def _build_outline_motif(
             context=context,
             active_path=(),
             emitted_node_ids=emitted_outline_nodes,
+            visited=visited,
         )
         if branch is not None:
             wrapper.children.append(branch)
+
+    # Place only the bindings whose node was actually emitted in the tree; every other
+    # declared member's bindings fall through to region leftovers so nothing is dropped
+    # (including nodes stranded behind a partial cycle disconnected from the acyclic root).
+    placed = {
+        binding.id
+        for emitted_id in emitted_outline_nodes
+        for binding in bindings_by_node_id.get(emitted_id, [])
+    }
+    # Never-reached members had no per-node diagnostic (unlike cycle/shared/too-deep, which
+    # are surfaced inside _build_outline_branch); flag them so the drop-to-leftover is loud.
+    unreached = sorted(motif_node_ids - visited)
+    if unreached:
+        add_diagnostic(
+            context.diagnostics,
+            "SEMANTIC_GRAPH_UNREACHED_MEMBER",
+            f"Outline motif {motif.id} could not reach {len(unreached)} declared member "
+            f"node(s) from an acyclic root ({', '.join(unreached)}); their bindings are "
+            "rendered as region leftovers.",
+            intent_ref=motif_ref(motif.id),
+            region_id=motif.region,
+        )
     return _motif_result(wrapper, placed)
 
 
