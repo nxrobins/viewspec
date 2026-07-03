@@ -147,6 +147,21 @@ def test_prove_existing_intent_cli_json(tmp_path, capsys):
     assert payload["manifest_hash"]
 
 
+def test_prove_missing_intent_input_is_user_error_not_internal(tmp_path):
+    # A missing/unreadable input path is USER error -> a coded PROVE_INPUT_READ_ERROR and CLI
+    # exit 2, not an internal crash (PROVE_INTERNAL_ERROR / exit 1). Matches the diff/compile-app
+    # convention; the catch is scoped so a real internal failure still surfaces as exit 1.
+    missing = tmp_path / "no_such_intent.json"
+
+    report = prove(intent_path=str(missing), out_dir=tmp_path / "proof", cwd=tmp_path)
+    assert report["ok"] is False
+    codes = {error["code"] for error in report["errors"]}
+    assert codes == {"PROVE_INPUT_READ_ERROR"}
+    assert "PROVE_INTERNAL_ERROR" not in codes
+
+    assert cli_main(["prove", "--intent", str(missing), "--out", str(tmp_path / "proof_cli"), "--json"]) == 2
+
+
 def test_prove_cli_human_output_prints_manifest_summary(tmp_path, capsys):
     out_dir = tmp_path / "proof"
 

@@ -83,13 +83,24 @@ def prove_app(
     output_dir = resolve_local_path(out_dir, cwd=root, allow_outside_cwd=True)
     report_path = resolve_local_path(report_out, cwd=root, allow_outside_cwd=True) if report_out else output_dir / APP_BUNDLE_DEFAULT_REPORT
     try:
-        source = resolve_local_path(app_path, cwd=root, allow_outside_cwd=True, must_exist=True)
-        design = (
-            resolve_local_path(design_path, cwd=root, allow_outside_cwd=True, must_exist=True)
-            if design_path is not None
-            else None
-        )
-        app_text = source.read_text(encoding="utf-8")
+        try:
+            source = resolve_local_path(app_path, cwd=root, allow_outside_cwd=True, must_exist=True)
+            design = (
+                resolve_local_path(design_path, cwd=root, allow_outside_cwd=True, must_exist=True)
+                if design_path is not None
+                else None
+            )
+            app_text = source.read_text(encoding="utf-8")
+        except (OSError, ValueError) as exc:
+            # A missing/unreadable/unsafe input path is USER error, not an internal crash.
+            # LocalToolError is a ValueError; OSError covers a directory / permission failure.
+            # Scoped to the input step so a genuine internal error downstream still surfaces as
+            # APP_PROOF_INTERNAL_ERROR (exit 1). The user code yields CLI exit 2.
+            raise AppBundleProofFailure(
+                "APP_PROOF_INPUT_READ_ERROR",
+                str(exc),
+                "Pass a readable local AppBundle JSON path and retry prove-app.",
+            ) from exc
         validation = _time_phase(timings, "validate_app", lambda: validate_app_text(app_text, compile_check=True))
         if not validation["ok"]:
             return _app_proof_failure_report(

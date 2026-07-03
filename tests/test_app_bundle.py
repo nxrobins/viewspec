@@ -623,6 +623,21 @@ def test_increment_numeric_amount_succeeds_across_node():
     assert check_reducer_conformance(app)["ok"] is True
 
 
+def test_prove_app_missing_input_is_user_error_not_internal(tmp_path):
+    # A missing/unreadable AppBundle path is USER error -> a coded APP_PROOF_INPUT_READ_ERROR and
+    # CLI exit 2, not an internal crash (APP_PROOF_INTERNAL_ERROR / exit 1). The catch is scoped to
+    # the input read so a genuine internal failure downstream still surfaces as exit 1.
+    missing = tmp_path / "no_such_app.json"
+
+    report = prove_app(app_path=str(missing), out_dir=tmp_path / "proof", cwd=tmp_path)
+    assert report["ok"] is False
+    codes = {error["code"] for error in report["errors"]}
+    assert codes == {"APP_PROOF_INPUT_READ_ERROR"}
+    assert "APP_PROOF_INTERNAL_ERROR" not in codes
+
+    assert cli_main(["prove-app", "--app", str(missing), "--out", str(tmp_path / "proof_cli")]) == 2
+
+
 def test_selector_slice_bounds_must_be_non_negative_integers():
     invalid = _stateful_app_bundle()
     invalid["selectors"][0]["ops"] = [{"op": "slice", "start": "x", "end": 1}]
