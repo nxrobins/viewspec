@@ -574,6 +574,55 @@ def test_increment_on_non_numeric_fails_like_python_reference():
     assert report["ok"] is True
 
 
+def _increment_amount_app(amount: object) -> dict:
+    app = _stateful_app_bundle()
+    app["state"] = [{"id": "rec", "kind": "record", "scope": "app", "initial": {"value": {"count": 0}}}]
+    app["mutations"] = [
+        {
+            "id": "bump",
+            "trigger": {"screen_id": "queue", "action_id": "triage_incident"},
+            "ops": [{"op": "increment", "state": "rec", "field": "count", "amount": amount}],
+        }
+    ]
+    app["selectors"] = []
+    app["state_replay_assertions"] = [
+        {
+            "id": "bump_replay",
+            "events": [{"mutation_id": "bump", "payload_values": {"inc_1043_id": "x"}}],
+            "expect_state": {},
+            "expect_selectors": {},
+        }
+    ]
+    return app
+
+
+def test_increment_numeric_string_amount_fails_like_python_reference():
+    # A numeric-string amount incremented fine under JS (Number("5") -> 5) but failed under
+    # the Python reference (isinstance gate). Both sides now reject it identically instead of
+    # silently coercing -- which also avoids the float()/Number() edge drift a coercion fix
+    # would reintroduce.
+    app = _increment_amount_app("5")
+    state_ir, issues = validate_state_ir(app)
+    assert issues == []
+    current = initial_state(app, state_ir)
+    result = apply_event(current, state_ir, {"mutation_id": "bump", "payload_values": {"inc_1043_id": "x"}})
+    assert result["ok"] is False
+    assert result["errors"][0]["code"] == "APP_STATE_REDUCER_OP_FAILED"
+    assert check_reducer_conformance(app)["ok"] is True
+
+
+def test_increment_numeric_amount_succeeds_across_node():
+    # Non-vacuity: a real numeric amount still increments, identically on Node and Python.
+    app = _increment_amount_app(5)
+    state_ir, issues = validate_state_ir(app)
+    assert issues == []
+    current = initial_state(app, state_ir)
+    result = apply_event(current, state_ir, {"mutation_id": "bump", "payload_values": {"inc_1043_id": "x"}})
+    assert result["ok"] is True
+    assert current["rec"] == {"count": 5}
+    assert check_reducer_conformance(app)["ok"] is True
+
+
 def test_selector_slice_bounds_must_be_non_negative_integers():
     invalid = _stateful_app_bundle()
     invalid["selectors"][0]["ops"] = [{"op": "slice", "start": "x", "end": 1}]
