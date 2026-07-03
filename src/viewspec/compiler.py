@@ -1085,52 +1085,13 @@ def _validate_region_tree(valid_regions: list[Any], root_region: str) -> None:
             )
 
 
-def compile(
-    bundle: IntentBundle,
-    design: DesignSystemContext | DesignRequest | str | None = None,
-    *,
-    strict_design: bool = False,
-    motif_plugins: tuple[MotifPlugin, ...] = (),
-    motif_registry: MotifRegistry | None = None,
-) -> ASTBundle:
-    """
-    Compile an IntentBundle into an ASTBundle using the reference compiler.
-
-    Supports motif kinds: table, dashboard, outline, comparison, list, form, detail,
-    empty_state, loading_state, error_state, hero.
-    Raises UnsupportedMotifError for motif kinds not in the reference set.
-
-    For full compilation (arbitrary data shapes, OOD generalization),
-    use the hosted compiler at api.viewspec.dev.
-    """
-    substrate, view_spec = _validate_bundle_shape(bundle)
-    diagnostics: list[CompilerDiagnostic] = []
-    _validate_roots(substrate, view_spec)
-    _validate_identifier_contract(substrate, view_spec)
-    address_index = _build_address_index(substrate)
-    ordered_positions = _ordered_binding_positions(view_spec)
-    if motif_registry is not None and motif_plugins:
-        raise MotifPluginError("Pass either motif_registry or motif_plugins, not both.")
-    active_motif_registry = (
-        motif_registry
-        if motif_registry is not None
-        else create_motif_registry(*tuple(motif_plugins))
-        if motif_plugins
-        else builtin_motif_registry()
-    )
-    supported_motif_kinds = active_motif_registry.kinds if motif_registry is not None or motif_plugins else SUPPORTED_MOTIF_KINDS
-
-    for motif in view_spec.motifs:
-        if motif.kind not in active_motif_registry:
-            raise UnsupportedMotifError(
-                f"Motif kind '{motif.kind}' is not supported by the reference compiler. "
-                f"Supported: {', '.join(sorted(supported_motif_kinds))}. "
-                f"Use the hosted compiler at api.viewspec.dev for full support."
-            )
-
-    # Build region nodes
+def _build_and_validate_regions(
+    view_spec: ViewSpec,
+    diagnostics: list[CompilerDiagnostic],
+) -> tuple[dict[str, IRNode], list[RegionSpec]]:
+    """Build region IR nodes, dedup ids, validate the region tree, wire hierarchy."""
     region_nodes: dict[str, IRNode] = {}
-    valid_regions = []
+    valid_regions: list[RegionSpec] = []
     seen_region_ids: set[str] = set()
     for region in view_spec.regions:
         if region.id in seen_region_ids:
@@ -1159,7 +1120,6 @@ def compile(
         raise CompilerInputError(f"ViewSpec.root_region '{view_spec.root_region}' is not present in view_spec.regions.")
     _validate_region_tree(valid_regions, view_spec.root_region)
 
-    # Wire region hierarchy
     for region in valid_regions:
         if region.parent_region and region.parent_region in region_nodes:
             region_nodes[region.parent_region].children.append(region_nodes[region.id])
@@ -1170,12 +1130,21 @@ def compile(
                 intent_ref=_region_ref(region.id),
                 region_id=region.parent_region,
             )
+    return region_nodes, valid_regions
 
+
+def _build_and_validate_bindings(
+    view_spec: ViewSpec,
+    region_nodes: dict[str, IRNode],
+    valid_regions: list[RegionSpec],
+    address_index: dict[str, Any],
+    ordered_positions: dict[str, int],
+    diagnostics: list[CompilerDiagnostic],
+) -> tuple[set[str], dict[str, BindingSpec], set[str], dict[str, IRNode], dict[str, list[BindingSpec]]]:
+    """Validate bindings, build their IR nodes, and bucket them by region in order."""
     all_binding_ids: set[str] = set()
     seen_binding_ids: set[str] = set()
     seen_exactly_once_addresses: dict[str, str] = {}
-
-    # Validate bindings
     valid_bindings: list[BindingSpec] = []
     valid_binding_ids: set[str] = set()
     for binding in view_spec.bindings:
@@ -1235,21 +1204,34 @@ def compile(
         if binding.cardinality == "exactly_once":
             seen_exactly_once_addresses[binding.address] = binding.id
 
-    # Build binding IR nodes
     bindings_by_id = {b.id: b for b in valid_bindings}
     binding_nodes: dict[str, IRNode] = {
         b.id: _build_binding_node(b, address_index) for b in valid_bindings
     }
 
-    # Sort bindings by region
     bindings_by_region: dict[str, list[BindingSpec]] = {r.id: [] for r in valid_regions}
     for b in valid_bindings:
         if b.target_region in bindings_by_region:
             bindings_by_region[b.target_region].append(b)
     for region_id in bindings_by_region:
         bindings_by_region[region_id].sort(key=lambda b: ordered_positions[b.id])
+    return all_binding_ids, bindings_by_id, valid_binding_ids, binding_nodes, bindings_by_region
 
-    # Process motifs
+
+def _compile_and_place_motifs(
+    view_spec: ViewSpec,
+    substrate: SemanticSubstrate,
+    region_nodes: dict[str, IRNode],
+    binding_nodes: dict[str, IRNode],
+    bindings_by_id: dict[str, BindingSpec],
+    bindings_by_region: dict[str, list[BindingSpec]],
+    valid_binding_ids: set[str],
+    all_binding_ids: set[str],
+    ordered_positions: dict[str, int],
+    active_motif_registry: Any,
+    diagnostics: list[CompilerDiagnostic],
+) -> tuple[dict[str, IRNode], dict[str, MotifSpec]]:
+    """Dedup and compile motifs, validate groups, place motif wrappers and leftover bindings."""
     motif_context = MotifCompileContext(
         substrate=substrate,
         ordered_positions=ordered_positions,
@@ -1385,13 +1367,22 @@ def compile(
         placed_binding_ids.update(compiled_motif.placed_binding_ids)
         motif_claimed_binding_ids.update(owned_member_ids)
 
-    # Place remaining unplaced bindings directly in their regions
     for region_id, bindings in bindings_by_region.items():
         region_node = region_nodes[region_id]
         for b in bindings:
             if b.id not in placed_binding_ids:
                 region_node.children.append(binding_nodes[b.id])
+    return motif_wrappers, motif_by_id
 
+
+def _validate_actions(
+    view_spec: ViewSpec,
+    region_nodes: dict[str, IRNode],
+    valid_binding_ids: set[str],
+    motif_by_id: dict[str, MotifSpec],
+    diagnostics: list[CompilerDiagnostic],
+) -> list[ActionIntent]:
+    """Validate action ids, kinds, targets, and payload bindings."""
     valid_actions: list[ActionIntent] = []
     seen_action_ids: set[str] = set()
     for action in view_spec.actions:
@@ -1455,20 +1446,21 @@ def compile(
                 )
         if action_valid:
             valid_actions.append(action)
+    return valid_actions
 
-    _apply_product_surface_planner_v1(
-        view_spec=view_spec,
-        valid_regions=valid_regions,
-        region_nodes=region_nodes,
-        motif_wrappers=motif_wrappers,
-        motif_by_id=motif_by_id,
-        valid_actions=valid_actions,
-        bindings_by_id=bindings_by_id,
-        address_index=address_index,
-        diagnostics=diagnostics,
-        root_region=view_spec.root_region,
-    )
 
+def _resolve_and_apply_styles(
+    view_spec: ViewSpec,
+    substrate: SemanticSubstrate,
+    design: DesignSystemContext | DesignRequest | str | None,
+    strict_design: bool,
+    region_nodes: dict[str, IRNode],
+    binding_nodes: dict[str, IRNode],
+    motif_wrappers: dict[str, IRNode],
+    motif_by_id: dict[str, MotifSpec],
+    diagnostics: list[CompilerDiagnostic],
+) -> dict[str, str]:
+    """Resolve the aesthetic profile + design tokens and attach styles to IR nodes."""
     profile_style = _resolve_aesthetic_profile(view_spec, diagnostics)
     style_values = _derive_style_tokens(substrate, view_spec)
     if profile_style is not None:
@@ -1488,7 +1480,6 @@ def compile(
     if design_context is not None:
         style_values = merge_style_values(style_values, design_context.style_values)
 
-    # Apply styles
     seen_style_ids: set[str] = set()
     for style in view_spec.styles:
         if style.id in seen_style_ids:
@@ -1563,6 +1554,104 @@ def compile(
                 f"Style {style.id} targets unknown {target_kind}:{target_id}.",
                 intent_ref=_style_ref(style.id),
             )
+    return style_values
+
+
+def compile(
+    bundle: IntentBundle,
+    design: DesignSystemContext | DesignRequest | str | None = None,
+    *,
+    strict_design: bool = False,
+    motif_plugins: tuple[MotifPlugin, ...] = (),
+    motif_registry: MotifRegistry | None = None,
+) -> ASTBundle:
+    """
+    Compile an IntentBundle into an ASTBundle using the reference compiler.
+
+    Supports motif kinds: table, dashboard, outline, comparison, list, form, detail,
+    empty_state, loading_state, error_state, hero.
+    Raises UnsupportedMotifError for motif kinds not in the reference set.
+
+    For full compilation (arbitrary data shapes, OOD generalization),
+    use the hosted compiler at api.viewspec.dev.
+    """
+    substrate, view_spec = _validate_bundle_shape(bundle)
+    diagnostics: list[CompilerDiagnostic] = []
+    _validate_roots(substrate, view_spec)
+    _validate_identifier_contract(substrate, view_spec)
+    address_index = _build_address_index(substrate)
+    ordered_positions = _ordered_binding_positions(view_spec)
+    if motif_registry is not None and motif_plugins:
+        raise MotifPluginError("Pass either motif_registry or motif_plugins, not both.")
+    active_motif_registry = (
+        motif_registry
+        if motif_registry is not None
+        else create_motif_registry(*tuple(motif_plugins))
+        if motif_plugins
+        else builtin_motif_registry()
+    )
+    supported_motif_kinds = active_motif_registry.kinds if motif_registry is not None or motif_plugins else SUPPORTED_MOTIF_KINDS
+
+    for motif in view_spec.motifs:
+        if motif.kind not in active_motif_registry:
+            raise UnsupportedMotifError(
+                f"Motif kind '{motif.kind}' is not supported by the reference compiler. "
+                f"Supported: {', '.join(sorted(supported_motif_kinds))}. "
+                f"Use the hosted compiler at api.viewspec.dev for full support."
+            )
+
+    region_nodes, valid_regions = _build_and_validate_regions(view_spec, diagnostics)
+
+    (
+        all_binding_ids,
+        bindings_by_id,
+        valid_binding_ids,
+        binding_nodes,
+        bindings_by_region,
+    ) = _build_and_validate_bindings(
+        view_spec, region_nodes, valid_regions, address_index, ordered_positions, diagnostics
+    )
+
+    motif_wrappers, motif_by_id = _compile_and_place_motifs(
+        view_spec,
+        substrate,
+        region_nodes,
+        binding_nodes,
+        bindings_by_id,
+        bindings_by_region,
+        valid_binding_ids,
+        all_binding_ids,
+        ordered_positions,
+        active_motif_registry,
+        diagnostics,
+    )
+
+    valid_actions = _validate_actions(view_spec, region_nodes, valid_binding_ids, motif_by_id, diagnostics)
+
+    _apply_product_surface_planner_v1(
+        view_spec=view_spec,
+        valid_regions=valid_regions,
+        region_nodes=region_nodes,
+        motif_wrappers=motif_wrappers,
+        motif_by_id=motif_by_id,
+        valid_actions=valid_actions,
+        bindings_by_id=bindings_by_id,
+        address_index=address_index,
+        diagnostics=diagnostics,
+        root_region=view_spec.root_region,
+    )
+
+    style_values = _resolve_and_apply_styles(
+        view_spec,
+        substrate,
+        design,
+        strict_design,
+        region_nodes,
+        binding_nodes,
+        motif_wrappers,
+        motif_by_id,
+        diagnostics,
+    )
 
     root_node = region_nodes[view_spec.root_region]
     _assign_default_style_tokens(root_node)
