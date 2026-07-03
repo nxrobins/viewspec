@@ -180,7 +180,7 @@ Reference demos are available at [viewspec.dev](https://viewspec.dev):
 |------|--------------|
 | [Same Data, Three Motifs](https://viewspec.dev/motif-switcher/) | One dataset → table, dashboard, or comparison. |
 | [Provenance Inspector](https://viewspec.dev/provenance-inspector/) | Hover any element. Trace DOM → IR → binding → address → raw data. |
-| [The Invariants](https://viewspec.dev/invariants/) | Watch the compiler enforce each mathematical guarantee. |
+| [The Invariants](https://viewspec.dev/invariants/) | Watch the compiler enforce each deterministic invariant. |
 | [15 Lines → Full UI](https://viewspec.dev/fifteen-lines/) | An invoice table builds itself from 15 lines of Python. |
 | [Style Derivation](https://viewspec.dev/style-derivation/) | Toggle four visual presets deterministically. |
 | [One Spec, Four Surfaces](https://viewspec.dev/cross-platform-dashboard/) | One intent compiles to HTML, React, SwiftUI, and Flutter. |

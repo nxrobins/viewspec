@@ -56,8 +56,7 @@ Launch tiering for hosted custom motifs:
 
 - Free: no custom motifs.
 - Pro: up to 5 custom motif instances per compile.
-- Existing Scale accounts: same 5-instance compile cap as Pro.
-- Enterprise: unlimited custom motifs plus organization sharing and prompt injection tooling.
+- Enterprise: unlimited custom motifs plus organization sharing.
 
 Emitters do not need custom motif code paths because compiler output remains portable CompositionIR.
 
