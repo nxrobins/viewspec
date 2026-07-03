@@ -455,6 +455,62 @@ def test_sort_by_selector_is_locale_independent_and_matches_reference():
     assert report["passed_count"] == 1
 
 
+def _typed_sort_app_bundle() -> dict:
+    app = _sort_by_app_bundle()  # reuse the working flags/bump/replay-event wiring
+    rows = [
+        {"id": "r1", "score": 10, "active": True, "label": "beta"},
+        {"id": "r2", "score": 2, "active": False, "label": None},
+        {"id": "r3", "score": 9, "active": True, "label": "alpha"},
+    ]
+    app["state"][0] = {"id": "rows", "kind": "collection", "scope": "app", "initial": {"value": rows}}
+    app["selectors"] = [
+        {"id": "by_score", "source_state": "rows", "ops": [{"op": "sort_by", "field": "score", "direction": "asc"}]},
+        {"id": "by_active", "source_state": "rows", "ops": [{"op": "sort_by", "field": "active", "direction": "asc"}]},
+        {"id": "by_label", "source_state": "rows", "ops": [{"op": "sort_by", "field": "label", "direction": "asc"}]},
+    ]
+    r1, r2, r3 = rows
+    app["state_replay_assertions"] = [
+        {
+            "id": "typed_sort_replay",
+            "events": app["state_replay_assertions"][0]["events"],
+            "expect_state": {"rows": rows, "flags": {"count": 1.0}},
+            "expect_selectors": {
+                "by_score": [r2, r3, r1],
+                "by_active": [r2, r1, r3],
+                "by_label": [r2, r3, r1],
+            },
+        }
+    ]
+    return app
+
+
+def test_sort_by_typed_keys_match_reference_across_node():
+    # bool/null/number sort keys used to drift: Python str() vs JS String(x ?? "")
+    # produced "True"/"true", "None"/"", "5.0"/"5". The typed comparator compares each
+    # JSON type in its own bucket so Node and the Python reference agree.
+    app = _typed_sort_app_bundle()
+
+    state_ir, issues = validate_state_ir(app)
+    assert issues == []
+    assert state_ir is not None
+
+    current = initial_state(app, state_ir)
+    selectors = evaluate_selectors(current, state_ir)
+    # Non-vacuity: a numeric field sorts numerically (2 < 9 < 10), NOT lexicographically
+    # (which would give 10, 2, 9). A degenerate/constant comparator fails this line.
+    assert [row["score"] for row in selectors["by_score"]] == [2, 9, 10]
+    # Bool: false < true, input order stable within the true bucket.
+    assert [row["active"] for row in selectors["by_active"]] == [False, True, True]
+    # Null bucket sorts before strings; strings in code-point order.
+    assert [row["label"] for row in selectors["by_label"]] == [None, "alpha", "beta"]
+
+    # The generated ES module under node must agree with the Python reference for every
+    # non-string key type -- the drift the old str()/String(x ?? "") derivation hid.
+    report = check_reducer_conformance(app)
+    assert report["ok"] is True
+    assert report["passed_count"] == 1
+
+
 def test_toggle_on_empty_container_matches_python_reference():
     app = _stateful_app_bundle()
     app["state"] = [{"id": "flag_list", "kind": "collection", "scope": "app", "initial": {"value": []}}]
