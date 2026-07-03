@@ -539,12 +539,20 @@ def generate_typescript_reducer(app_payload: dict[str, Any]) -> str:
         "    for (const op of selector.ops) {\n"
         "      if (op.op === \"filter_eq\" && Array.isArray(value)) value = value.filter((item) => item && typeof item === \"object\" && item[op.field] === op.value);\n"
         "      if (op.op === \"sort_by\" && Array.isArray(value)) {\n"
-        "        const vsRank = (x) => (x !== null && typeof x === \"object\" && !Array.isArray(x)) ? 0 : 1;\n"
-        "        const vsKey = (x) => vsRank(x) === 0 ? String((x[op.field]) ?? \"\") : \"\";\n"
+        "        const vsElemRank = (x) => (x !== null && typeof x === \"object\" && !Array.isArray(x)) ? 0 : 1;\n"
+        "        const vsField = (x) => vsElemRank(x) === 0 ? x[op.field] : undefined;\n"
+        "        const vsTypeRank = (v) => (v === null || v === undefined) ? 0 : typeof v === \"boolean\" ? 1 : typeof v === \"number\" ? 2 : typeof v === \"string\" ? 3 : 4;\n"
+        "        const vsNum = (v) => typeof v === \"boolean\" ? (v ? 1 : 0) : typeof v === \"number\" ? v : 0;\n"
+        "        const vsStr = (v) => typeof v === \"string\" ? v : \"\";\n"
         "        const vsDir = op.direction === \"desc\" ? -1 : 1;\n"
         "        value = value.map((item, index) => ({ item, index })).sort((a, b) => {\n"
-        "          let cmp = vsRank(a.item) - vsRank(b.item);\n"
-        "          if (cmp === 0) { const ka = vsKey(a.item), kb = vsKey(b.item); cmp = ka < kb ? -1 : ka > kb ? 1 : 0; }\n"
+        "          let cmp = vsElemRank(a.item) - vsElemRank(b.item);\n"
+        "          if (cmp === 0) {\n"
+        "            const va = vsField(a.item), vb = vsField(b.item);\n"
+        "            cmp = vsTypeRank(va) - vsTypeRank(vb);\n"
+        "            if (cmp === 0) { const na = vsNum(va), nb = vsNum(vb); cmp = na < nb ? -1 : na > nb ? 1 : 0; }\n"
+        "            if (cmp === 0) { const sa = vsStr(va), sb = vsStr(vb); cmp = sa < sb ? -1 : sa > sb ? 1 : 0; }\n"
+        "          }\n"
         "          return cmp !== 0 ? cmp * vsDir : a.index - b.index;\n"
         "        }).map((entry) => entry.item);\n"
         "      }\n"
@@ -1295,10 +1303,28 @@ def _validate_event_payload(mutation: StateMutation, payload_values: dict[str, A
     return errors
 
 
-def _selector_sort_key(item: Any, field: str) -> tuple[int, str]:
+def _selector_sort_key(item: Any, field: str) -> tuple[int, int, Any, str]:
     if not isinstance(item, dict):
-        return (1, "")
-    return (0, str(item.get(field, "")))
+        return (1, 0, 0, "")
+    return (0, *_sort_key_component(item.get(field)))
+
+
+def _sort_key_component(value: Any) -> tuple[int, Any, str]:
+    # Typed sort sub-key shared byte-for-byte with the generated JS reducer's
+    # vsTypeRank/vsNum/vsStr. Heterogeneous JSON types are never stringified (that is
+    # how Python str() and JS String(x ?? "") drifted for bool/null/number/object);
+    # numbers compare numerically, so there is no float-repr string to disagree on.
+    # The numeric/string slots are filled with 0/"" outside their bucket so every
+    # element's key is a type-consistent 4-tuple (sorted() never compares str vs int).
+    if value is None:
+        return (0, 0, "")
+    if value is True or value is False:  # bool before int: bool is an int subclass
+        return (1, 1 if value else 0, "")
+    if isinstance(value, (int, float)):
+        return (2, value, "")
+    if isinstance(value, str):
+        return (3, 0, value)
+    return (4, 0, "")  # dict / list / other JSON container
 
 
 def _json_values_equal(left: Any, right: Any) -> bool:
