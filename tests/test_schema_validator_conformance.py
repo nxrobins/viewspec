@@ -14,10 +14,16 @@ purely as an oracle to pin three properties:
    also rejects. i.e. the published contract is a lower bound on validator
    strictness. Asserted non-vacuously — each corpus member is confirmed
    schema-invalid first, so the antecedent always fires.
+4. Bounded reverse (E4): over the SAME curated, schema-EXPRESSIBLE corpora, every
+   bundle the hand validator rejects the published schema also rejects — so the
+   schema has not drifted LOOSER than the validator. Sound precisely because every
+   corpus member is schema-invalid (asserted in (3)); asserted non-vacuously
+   (validator rejection confirmed first).
 
-The reverse of (3) is intentionally NOT asserted: the hand validator is legitimately
-stricter (semantic checks like "hero requires a title binding" that JSON Schema
-cannot express).
+The GENERAL reverse (validator rejects for ANY reason => schema rejects) is intentionally
+NOT asserted: the hand validator is legitimately stricter via semantic checks (address
+resolution, "hero requires a title binding", root-route-resolves-to-one) that JSON Schema
+cannot express. (E4) is bounded to the curated schema-expressible corpora only.
 """
 
 from __future__ import annotations
@@ -119,6 +125,41 @@ def _intent_corpus() -> list[tuple[str, dict[str, Any]]]:
             {"id": f"r{i}", "parent_region": "root", "layout": "stack", "min_children": 0} for i in range(40)
         ]
 
+    # --- broadened: id / address patterns ---
+    def bad_binding_id(b):
+        b["view_spec"]["bindings"][0]["id"] = "bad id!"
+
+    def bad_binding_address(b):
+        b["view_spec"]["bindings"][0]["address"] = "not-an-address"
+
+    # --- broadened: hosted-only-field not/anyOf guard (top-level + view_spec) ---
+    def hosted_field_design(b):
+        b["design"] = {"x": 1}
+
+    def hosted_field_motif_library(b):
+        b["motif_library"] = {"x": 1}
+
+    def view_spec_inputs(b):
+        b["view_spec"]["inputs"] = []
+
+    # --- broadened: NESTED additionalProperties:false ---
+    def nested_extra_key_binding(b):
+        b["view_spec"]["bindings"][0]["zzz"] = 1
+
+    def nested_extra_key_region(b):
+        b["view_spec"]["regions"][0]["zzz"] = 1
+
+    # --- broadened: minLength / minimum bounds ---
+    def empty_node_kind(b):
+        node_id = next(iter(b["substrate"]["nodes"]))
+        b["substrate"]["nodes"][node_id]["kind"] = ""
+
+    def negative_min_children(b):
+        b["view_spec"]["regions"][0]["min_children"] = -1
+
+    def zero_complexity_tier(b):
+        b["view_spec"]["complexity_tier"] = 0
+
     base = _intent()
     return [
         (name, _mutated(base, fn))
@@ -130,6 +171,16 @@ def _intent_corpus() -> list[tuple[str, dict[str, Any]]]:
             ("unknown_top_field", unknown_top_field),
             ("missing_view_spec", missing_view_spec),
             ("too_many_regions", too_many_regions),
+            ("bad_binding_id_pattern", bad_binding_id),
+            ("bad_binding_address_pattern", bad_binding_address),
+            ("hosted_field_design_not_guard", hosted_field_design),
+            ("hosted_field_motif_library_not_guard", hosted_field_motif_library),
+            ("view_spec_inputs_not_guard", view_spec_inputs),
+            ("nested_extra_key_binding", nested_extra_key_binding),
+            ("nested_extra_key_region", nested_extra_key_region),
+            ("empty_node_kind_minlength", empty_node_kind),
+            ("negative_min_children_minimum", negative_min_children),
+            ("zero_complexity_tier_minimum", zero_complexity_tier),
         ]
     ]
 
@@ -158,6 +209,48 @@ def _app_corpus() -> list[tuple[str, dict[str, Any]]]:
     def bad_mutation_op(b):
         b["mutations"][0]["ops"][0]["op"] = "bogus"
 
+    # --- broadened: safe_id / route-path patterns + maxLength ---
+    def bad_app_id(b):
+        b["app"]["id"] = "bad id"
+
+    def bad_root_route(b):
+        b["app"]["root_route"] = "no-leading-slash"
+
+    def oversize_app_id(b):
+        b["app"]["id"] = "a" * 97
+
+    # --- broadened: NESTED additionalProperties:false (route / resource_view / state_entry / op) ---
+    def nested_extra_key_route(b):
+        b["routes"][0]["zzz"] = 1
+
+    def nested_extra_key_resource_view(b):
+        for screen in b["screens"]:
+            for view in screen.get("resource_views", []):
+                view["zzz"] = 1
+
+    def nested_extra_key_state_entry(b):
+        b["state"][0]["zzz"] = 1
+
+    def nested_extra_key_mutation_op(b):
+        b["mutations"][0]["ops"][0]["zzz"] = 1
+
+    # --- broadened: minItems / minimum / enum / const ---
+    def empty_fields(b):
+        for screen in b["screens"]:
+            for view in screen.get("resource_views", []):
+                view["fields"] = []
+
+    def bad_resource_view_mode(b):
+        for screen in b["screens"]:
+            for view in screen.get("resource_views", []):
+                view["mode"] = "table"
+
+    def bad_state_kind(b):
+        b["state"][0]["kind"] = "bogus"
+
+    def negative_slice_start(b):
+        b["selectors"][0]["ops"].append({"op": "slice", "start": -1})
+
     return [
         ("empty_record_ids", _mutated(v2, empty_record_ids)),
         ("empty_routes", _mutated(v2, empty_routes)),
@@ -165,6 +258,17 @@ def _app_corpus() -> list[tuple[str, dict[str, Any]]]:
         ("bad_schema_version", _mutated(v2, bad_schema_version)),
         ("wrong_type_name", _mutated(v2, wrong_type_name)),
         ("bad_mutation_op_v3", _mutated(v3, bad_mutation_op)),
+        ("bad_app_id_pattern", _mutated(v2, bad_app_id)),
+        ("bad_root_route_pattern", _mutated(v2, bad_root_route)),
+        ("oversize_app_id_maxlength", _mutated(v2, oversize_app_id)),
+        ("nested_extra_key_route", _mutated(v2, nested_extra_key_route)),
+        ("nested_extra_key_resource_view", _mutated(v2, nested_extra_key_resource_view)),
+        ("empty_fields_minitems", _mutated(v2, empty_fields)),
+        ("bad_resource_view_mode_const", _mutated(v2, bad_resource_view_mode)),
+        ("nested_extra_key_state_entry_v3", _mutated(v3, nested_extra_key_state_entry)),
+        ("bad_state_kind_enum_v3", _mutated(v3, bad_state_kind)),
+        ("negative_slice_start_minimum_v3", _mutated(v3, negative_slice_start)),
+        ("nested_extra_key_mutation_op_v3", _mutated(v3, nested_extra_key_mutation_op)),
     ]
 
 
@@ -181,4 +285,32 @@ def test_schema_invalid_app_is_also_validator_invalid(label, bundle):
     assert not _APP_SCHEMA.is_valid(bundle), f"corpus member '{label}' is not actually schema-invalid (vacuous)"
     assert not validate_app_text(json.dumps(bundle))["ok"], (
         f"drift: published schema rejects '{label}' but the hand validator accepts it"
+    )
+
+
+# --- E4: bounded reverse -- the schema is not LOOSER than the validator -----
+# Over the SAME curated corpora (every member is schema-EXPRESSIBLE and, per the forward
+# tests above, provably schema-invalid), assert validator-invalid => schema-invalid. This
+# catches the dangerous drift the forward direction is blind to: a published schema that
+# has grown looser than the hand validator, so an agent trusting the schema emits something
+# the validator rejects. The GENERAL reverse is still NOT asserted (see module docstring).
+
+
+@pytest.mark.parametrize("label,bundle", _intent_corpus())
+def test_validator_invalid_intent_is_also_schema_invalid(label, bundle):
+    assert not validate_intent_text(json.dumps(bundle))["ok"], (
+        f"corpus member '{label}' is not actually validator-invalid (vacuous)"
+    )
+    assert not _INTENT_SCHEMA.is_valid(bundle), (
+        f"looser-schema drift: hand validator rejects '{label}' but the published schema accepts it"
+    )
+
+
+@pytest.mark.parametrize("label,bundle", _app_corpus())
+def test_validator_invalid_app_is_also_schema_invalid(label, bundle):
+    assert not validate_app_text(json.dumps(bundle))["ok"], (
+        f"corpus member '{label}' is not actually validator-invalid (vacuous)"
+    )
+    assert not _APP_SCHEMA.is_valid(bundle), (
+        f"looser-schema drift: hand validator rejects '{label}' but the published schema accepts it"
     )
