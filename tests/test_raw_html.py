@@ -251,6 +251,47 @@ def test_check_autofetch_guard_catches_backslash_protocol_relative():
         assert _contains_remote_http_reference(benign) is False, benign
 
 
+def test_check_autofetch_guard_catches_control_whitespace_scheme():
+    # Browsers strip tab/LF/CR from URLs, so "https:/<ctrl>/evil.com" resolves to a
+    # cross-origin authority even though it has no literal "//". The check gate must
+    # collapse control whitespace the same way the compiler-side URL policy does, or a
+    # tampered artifact beacons while `viewspec check` reports ok.
+    from viewspec.local_tools import _contains_remote_http_reference
+
+    for beacon in (
+        "https:/\t/evil.com",
+        "https:/\n/evil.com",
+        "https:/\r/evil.com",
+        "/\t/evil.com",
+        "https:/\t\\evil.com",
+    ):
+        assert _contains_remote_http_reference(beacon) is True, repr(beacon)
+    for benign in ("/assets/logo.png", "#anchor", "data:image/png;base64,AAAA"):
+        assert _contains_remote_http_reference(benign) is False, repr(benign)
+
+
+def test_check_certifies_no_beacon_but_rejects_tampered_control_whitespace_artifact(tmp_path):
+    # End-to-end: the compiled artifact is clean and passes check; a hand-tampered
+    # index.html with a control-whitespace-obfuscated remote src must fail check.
+    from viewspec.local_tools import file_hash
+
+    result = compile_html("<h1>Report</h1><p>Revenue</p>")
+    write_html_compile_result(result, tmp_path)
+    assert cli_main(["check", str(tmp_path)]) == 0  # clean artifact certifies
+
+    index = tmp_path / "index.html"
+    tampered = index.read_text(encoding="utf-8").replace(
+        "</body>", '<img src="https:/\t/evil.example/track"></body>', 1
+    )
+    index.write_text(tampered, encoding="utf-8")
+    manifest_path = tmp_path / "provenance_manifest.json"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest["artifact_hash"] = file_hash(index)  # re-stamp so only the beacon is "wrong"
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+
+    assert cli_main(["check", str(tmp_path)]) == 2  # tampered beacon is rejected
+
+
 def test_nested_void_tags_inside_stripped_content_do_not_swallow_document():
     result = compile_html("<script><img src=x></script><h1>Still Here</h1><p>$4</p>")
 

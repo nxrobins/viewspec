@@ -564,6 +564,15 @@ def _safe_url(value: str, *, attr: str) -> bool:
     return scheme in SAFE_SCHEMES_BY_ATTR.get(attr, set())
 
 
+def collapse_url_obfuscation(value: str) -> str:
+    """Collapse the obfuscations a browser resolves back to '/': ASCII control
+    whitespace (tab/LF/CR/etc.) removed, and backslashes incl. percent-encoded
+    (%5c) -> '/'. Shared by the compiler URL policy (_normalize_url_for_policy)
+    and the `check` autofetch gate (_contains_remote_http_reference) so the two
+    cannot drift on obfuscation handling."""
+    return BACKSLASH_URL_RE.sub("/", CONTROL_WHITESPACE_RE.sub("", value))
+
+
 def _normalize_url_for_policy(value: str) -> str:
     previous = value
     for _ in range(4):
@@ -571,9 +580,7 @@ def _normalize_url_for_policy(value: str) -> str:
         if decoded == previous:
             break
         previous = decoded
-    stripped = previous.strip()
-    compacted = CONTROL_WHITESPACE_RE.sub("", stripped)
-    compacted = BACKSLASH_URL_RE.sub("/", compacted)
+    compacted = collapse_url_obfuscation(previous.strip())
     if compacted.startswith("//"):
         authority_path = compacted.lstrip("/")
         return f"https://{authority_path}" if authority_path else compacted
