@@ -614,3 +614,37 @@ def test_outline_semantic_depth_is_diagnostic_not_recursion_error():
 
     ast = compile(deep)  # must not raise RecursionError
     assert "SEMANTIC_GRAPH_TOO_DEEP" in {d.code for d in ast.result.diagnostics}
+
+
+def test_outline_unreachable_member_renders_as_leftover_not_silently_dropped():
+    # A partial cycle (o1<->o2) disconnected from the acyclic root (o3) strands o1/o2.
+    # Their bindings must not vanish silently: they render as region leftovers and a
+    # SEMANTIC_GRAPH_UNREACHED_MEMBER diagnostic is emitted.
+    builder = ViewSpecBuilder("stranded_outline")
+    outline = builder.add_outline("tree", region="main", group_id="g")
+    for label, node in (("O1", "o1"), ("O2", "o2"), ("O3", "o3")):
+        outline.add_branch(label=label, id=node)
+    bundle = builder.build_bundle()
+
+    root_id = bundle.substrate.root_id
+    nodes = dict(bundle.substrate.nodes)
+    nodes[root_id] = replace(nodes[root_id], slots={"items": ["o3"]})
+    nodes["o1"] = replace(nodes["o1"], slots={"items": ["o2"]})
+    nodes["o2"] = replace(nodes["o2"], slots={"items": ["o1"]})
+    stranded = IntentBundle(
+        substrate=SemanticSubstrate(id=bundle.substrate.id, root_id=root_id, nodes=nodes),
+        view_spec=bundle.view_spec,
+    )
+
+    ast = compile(stranded)
+    labels = {
+        node.props["text"]
+        for node in _walk(ast.result.root.root)
+        if node.id.endswith("_label") and "text" in node.props
+    }
+    codes = {d.code for d in ast.result.diagnostics}
+    ids = _ir_ids(ast.result.root.root)
+
+    assert {"O1", "O2", "O3"} <= labels  # nothing silently dropped
+    assert "SEMANTIC_GRAPH_UNREACHED_MEMBER" in codes
+    assert len(ids) == len(set(ids))  # unique IR ids preserved
