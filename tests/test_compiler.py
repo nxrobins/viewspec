@@ -1126,6 +1126,38 @@ def test_collection_state_conflict_and_state_contract_constraints_fail_closed():
     assert "STATE_MOTIF_TOO_MANY_DESCRIPTIONS" in codes
 
 
+def test_failed_state_motif_renders_members_as_leftovers_not_silently_dropped():
+    # A state motif that fails its contract (a title-less loading_state) must NOT drop its member
+    # content: the members render as region leftovers and a diagnostic names them, mirroring the
+    # outline unreached-member handling -- previously they were marked placed and vanished silently.
+    builder = ViewSpecBuilder("dropped_state_members")
+    builder.add_node("state", "loading_state", attrs={"description": "Still loading", "body": "PleaseWaitContent"})
+    description = builder.bind_attr("state_description", "state", "description", region="main", present_as="text")
+    body = builder.bind_attr("state_body", "state", "body", region="main", present_as="text")
+    builder.add_motif("loading_items", "loading_state", "main", [description, body])
+
+    ast = compile(builder.build_bundle())
+    codes = {diagnostic.code for diagnostic in ast.result.diagnostics}
+
+    texts: list[str] = []
+    ids: list[str] = []
+
+    def walk(node):
+        ids.append(node.id)
+        for value in (node.props or {}).values():
+            if isinstance(value, str):
+                texts.append(value)
+        for child in node.children:
+            walk(child)
+
+    walk(ast.result.root.root)
+
+    assert "PleaseWaitContent" in texts  # member content still renders (not silently dropped)
+    assert "Still loading" in texts
+    assert "SEMANTIC_MOTIF_MEMBERS_UNPLACED" in codes
+    assert len(ids) == len(set(ids))  # exactly once
+
+
 @pytest.mark.parametrize("motif_kind", ["comparison", "detail", "table"])
 def test_layout_planner_keeps_unsafe_motif_actions_at_region_level(motif_kind):
     builder = ViewSpecBuilder(f"{motif_kind}_action")
