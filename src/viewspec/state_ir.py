@@ -1310,7 +1310,14 @@ console.log(JSON.stringify({
             return {
                 "ok": False,
                 "export_names": [],
-                "errors": [_conformance_error(f"Node command {node_command!r} was not found.")],
+                "errors": [
+                    {
+                        "code": "APP_STATE_REDUCER_NODE_UNAVAILABLE",
+                        "path": "$.interactive_state",
+                        "message": f"Node.js runtime {node_command!r} was not found; V3 reducer conformance requires Node.js.",
+                        "fix": "Install Node.js (>=18) on PATH for V3 reducer conformance, or use a V1/V2 AppBundle (no Node required).",
+                    }
+                ],
             }
         except subprocess.TimeoutExpired:
             return {
