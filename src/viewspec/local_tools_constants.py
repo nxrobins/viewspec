@@ -100,7 +100,7 @@ REACT_TSX_FORBIDDEN_SURFACES = (
 
 REMOTE_AUTOFETCH_ATTRS = {"action", "background", "formaction", "manifest", "poster", "src", "srcset"}
 
-REMOTE_HREF_AUTOFETCH_TAGS = {"image", "use"}
+REMOTE_HREF_AUTOFETCH_TAGS = {"image", "use", "base"}
 
 ACTIVE_OR_AUTOFETCH_TAGS = {"embed", "iframe", "link", "object"}
 

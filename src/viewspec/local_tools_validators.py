@@ -27,7 +27,7 @@ from viewspec.emitters.react_tailwind_tsx import tailwind_recipe_registry_digest
 from viewspec.emitters.react_tsx import react_tsx_manifest_node_markers
 from viewspec.manifest_summary import manifest_root_aesthetic_profile
 from viewspec.manifest_summary import summarize_intent_manifest
-from viewspec.raw_html import MANIFEST_SCHEMA_VERSION, collapse_url_obfuscation
+from viewspec.raw_html import MANIFEST_SCHEMA_VERSION, MAX_HTML_INPUT_BYTES, collapse_url_obfuscation
 import json
 import re
 from viewspec.local_tools_constants import (ACTION_TARGET_REF_RE, ACTIVE_OR_AUTOFETCH_TAGS, ACTIVE_STRUCTURAL_TAGS, CANONICAL_CONTENT_REF_RE, DIAGNOSTIC_SEVERITIES, EMITTER_ARTIFACT_FILES, EXPECTED_MANIFEST_ENVELOPES, EXTERNAL_REF_POLICIES, HASH_RE, KNOWN_EMITTERS, REACT_TSX_ACTION_REQUIRED_MARKERS, REACT_TSX_FORBIDDEN_SURFACES, REACT_TSX_REQUIRED_MARKERS, REACT_TSX_REQUIRED_MARKERS_BY_EMITTER, REMOTE_AUTOFETCH_ATTRS, REMOTE_HREF_AUTOFETCH_TAGS, SAFE_ID_RE, SEMANTIC_ACTION_KEYS, SEMANTIC_DIGEST_KEYS, SEMANTIC_DIGEST_MAX_PROJECTION_BYTES, SEMANTIC_DIGEST_VERSION, SEMANTIC_NODE_KEYS, SEMANTIC_PROJECTION_KEYS, STATEFUL_COLLECTION_ACTION_KINDS, TEXT_PROP_PRIMITIVES, VIEWSPEC_INTENT_REF_RE, VOID_HTML_TAGS)
@@ -143,6 +143,8 @@ def check_artifact_dir(path: str | Path) -> dict[str, Any]:
                 errors.extend(_validate_no_tailwind_scope_leak(manifest))
         else:
             errors.append("missing ViewSpecView.tsx")
+    elif html_path.exists() and html_path.stat().st_size > MAX_HTML_INPUT_BYTES:
+        errors.append(f"index.html is larger than the {MAX_HTML_INPUT_BYTES} byte check limit")
     elif html_path.exists():
         html = html_path.read_text(encoding="utf-8")
         artifact_hash = file_hash(html_path)
@@ -1514,10 +1516,44 @@ def _contains_remote_http_reference(value: str) -> bool:
     collapsed = collapse_url_obfuscation(value)
     return bool(re.search(r"(?i)(?:https?:)?//", collapsed))
 
+# Beacon backstop. The HTMLParser probe below drops a tag a browser's error-recovery
+# parser still acts on: an unterminated final tag at EOF (`<iframe src="//evil"` with no
+# closing `>`), and `<base>` re-rooting relative URLs. Tag markers run on the raw html so
+# `\b` tolerates inter-attribute whitespace; the remote-URL scan runs on the
+# obfuscation-collapsed html (shared helper) so whitespace/backslash/%5c can't hide a
+# scheme. The URL scan is ATTRIBUTE-SCOPED (never a raw `http` substring) so a rendered
+# URL in visible text is not mistaken for a beacon.
+_BEACON_FORBIDDEN_TAG_RE = re.compile(r"(?i)<(?:iframe|embed|object|base|link)\b")
+_BEACON_META_REFRESH_RE = re.compile(r"(?i)<meta\b[^>]*http-equiv\s*=\s*[\"']?\s*refresh")
+# Only AUTO-FETCHING attributes -- NOT href/xlink:href, which are navigation (a plain
+# <a href="https://...">) and are governed per-tag by the probe + external_refs policy;
+# a flat scan can't see the owning tag, so including href would reject legitimate links.
+_BEACON_REMOTE_URL_ATTR_RE = re.compile(
+    r"(?i)(?:src|action|formaction|poster|srcset|background|manifest|data)"
+    r"\s*=\s*[\"']?\s*(?:https?:)?//"
+)
+
+
 def _validate_no_autofetch_surfaces(html: str) -> list[str]:
     probe = _AutofetchSurfaceProbe()
     probe.feed(html)
-    return probe.errors
+    probe.close()
+    errors = list(probe.errors)
+    collapsed = collapse_url_obfuscation(html)
+    checks = (
+        (
+            "index.html contains an active or auto-fetching surface",
+            bool(_BEACON_FORBIDDEN_TAG_RE.search(html) or _BEACON_META_REFRESH_RE.search(html)),
+        ),
+        (
+            "index.html contains an auto-fetching remote URL attribute",
+            bool(_BEACON_REMOTE_URL_ATTR_RE.search(collapsed)),
+        ),
+    )
+    for message, hit in checks:
+        if hit and message not in errors:
+            errors.append(message)
+    return errors
 
 class _AutofetchSurfaceProbe(HTMLParser):
     def __init__(self) -> None:
