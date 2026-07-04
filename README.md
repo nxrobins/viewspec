@@ -182,7 +182,7 @@ Reference demos are available at [viewspec.dev](https://viewspec.dev):
 | [Provenance Inspector](https://viewspec.dev/provenance-inspector/) | Hover any element. Trace DOM → IR → binding → address → raw data. |
 | [The Invariants](https://viewspec.dev/invariants/) | Watch the compiler enforce each deterministic invariant. |
 | [15 Lines → Full UI](https://viewspec.dev/fifteen-lines/) | An invoice table builds itself from 15 lines of Python. |
-| [Style Derivation](https://viewspec.dev/style-derivation/) | Toggle four visual presets deterministically. |
+| [Style Derivation](https://viewspec.dev/style-derivation/) | Toggle five visual presets deterministically. |
 | [One Spec, Four Surfaces](https://viewspec.dev/cross-platform-dashboard/) | One intent compiles to HTML, React, SwiftUI, and Flutter. |
 | [Custom Motif Authoring](https://viewspec.dev/custom-motifs/) | Define an MDL motif contract and lower it into portable IR. |
 | [Interactive Compose](https://viewspec.dev/interactive-compose/) | State IR compiled into event surfaces. |
@@ -238,6 +238,8 @@ from viewspec import compile_auto
 # Try local first, fall back to hosted for unsupported motifs
 ast = compile_auto(builder.build_bundle())
 ```
+
+The hosted fallback requires the `remote` extra: `python -m pip install "viewspec[remote]"` (adds `httpx`). Without it, `compile_auto` runs locally and raises `ImportError` only if a hosted fallback is actually needed.
 
 ### Theming with DESIGN.md
 The local SDK uses a strict YAML-front-matter `DESIGN.md` for offline HTML and IntentBundle compilation. The API requires exact sRGB hex values (e.g., `#FFFFFF`), enforcing strict design token discipline.
