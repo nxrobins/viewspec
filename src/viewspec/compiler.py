@@ -1351,7 +1351,20 @@ def _compile_and_place_motifs(
 
         compiled_motif = active_motif_registry[motif.kind].compile(motif, motif_bindings, motif_context)
         if compiled_motif is None:
-            placed_binding_ids.update(member_id for member_id in motif.members if member_id in valid_binding_ids)
+            # The motif failed its contract (the compiler already emitted a contract diagnostic).
+            # Do NOT mark its members placed: leave them un-placed and un-claimed so the leftover
+            # pass renders each owned member exactly once as a region child -- content must not
+            # vanish silently -- and name them so the fallback is loud, mirroring the outline
+            # SEMANTIC_GRAPH_UNREACHED_MEMBER handling.
+            if owned_member_ids:
+                _add_diagnostic(
+                    diagnostics, "SEMANTIC_MOTIF_MEMBERS_UNPLACED",
+                    f"Motif {motif.id} ({motif.kind}) did not satisfy its contract; its "
+                    f"{len(owned_member_ids)} member binding(s) render as region leftovers instead "
+                    f"of the motif ({', '.join(owned_member_ids)}).",
+                    intent_ref=_motif_ref(motif.id),
+                    region_id=motif.region,
+                )
             continue
         allowed_placed_binding_ids = {binding.id for binding in motif_bindings}
         disallowed_placed_binding_ids = compiled_motif.placed_binding_ids - allowed_placed_binding_ids
