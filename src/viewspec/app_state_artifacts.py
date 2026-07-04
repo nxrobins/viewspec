@@ -42,7 +42,16 @@ def _write_state_artifacts(
         conformance = check_conformance(payload, reducer_source=reducer)
         if not conformance.get("ok"):
             errors = conformance.get("errors") if isinstance(conformance.get("errors"), list) else []
-            message = errors[0].get("message") if errors and isinstance(errors[0], dict) else "Generated reducer diverged from the Python state interpreter."
+            first = errors[0] if errors and isinstance(errors[0], dict) else {}
+            message = first.get("message") or "Generated reducer diverged from the Python state interpreter."
+            if first.get("code") == "APP_STATE_REDUCER_NODE_UNAVAILABLE":
+                # A missing Node.js runtime is an environment prerequisite, not a state-contract
+                # bug -- surface the actionable code/fix instead of "fix your state contract".
+                raise AppBundleProofFailure(
+                    "APP_STATE_REDUCER_NODE_UNAVAILABLE",
+                    str(message),
+                    str(first.get("fix") or "Install Node.js (>=18) on PATH for V3 reducer conformance, or use a V1/V2 AppBundle."),
+                )
             raise AppBundleProofFailure(
                 "APP_STATE_REDUCER_CONFORMANCE_FAILED",
                 str(message),

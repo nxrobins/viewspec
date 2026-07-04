@@ -69,7 +69,7 @@ Extend the local compiler securely with a microkernel architecture:
 pip install viewspec
 ```
 
-Requires Python 3.11+.
+Requires Python 3.11+. AppBundle **V3** (`interactive_state`) reducer conformance additionally requires Node.js (>=18) on `PATH`; V1/V2 and all IntentBundle flows are Python-only and no-network.
 
 Python package: <https://pypi.org/project/viewspec/>
 

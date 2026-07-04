@@ -29,7 +29,7 @@ from viewspec.app_bundle import (
     validate_app_text,
 )
 from viewspec.agent import AGENT_INTENT_BUNDLE_SCHEMA
-from viewspec.cli import main as cli_main
+from viewspec.cli import _doctor_app_bundle_pipeline, _doctor_checks_ok, main as cli_main
 from viewspec.intent_tools import starter_intent_bundle
 from viewspec.local_tools import check_artifact_dir, file_hash
 from viewspec.state_ir import (
@@ -740,6 +740,24 @@ def test_filter_eq_distinguishes_bool_from_number_like_reducer():
     current = initial_state(app, state_ir)
     assert [row["id"] for row in evaluate_selectors(current, state_ir)["ones"]] == ["n"]
     assert check_reducer_conformance(app)["ok"] is True
+
+
+def test_missing_node_yields_actionable_node_unavailable_code():
+    # V3 reducer conformance shells out to Node; a missing Node must report a distinct, actionable
+    # code -- not the generic "fix your state contract" conformance failure.
+    report = check_reducer_conformance(_stateful_app_bundle(), node_command="node_definitely_missing_xyz")
+    assert report["ok"] is False
+    first = report["errors"][0]
+    assert first["code"] == "APP_STATE_REDUCER_NODE_UNAVAILABLE"
+    assert first.get("fix")  # actionable install / escape-hatch hint
+
+
+def test_doctor_reports_node_availability_without_hard_failing():
+    # doctor surfaces Node availability, but node absence must NOT hard-fail doctor -- V1/V2 and
+    # IntentBundle flows are Python-only. Node status is a string so _doctor_checks_ok ignores it.
+    pipeline = _doctor_app_bundle_pipeline()
+    assert pipeline["node_available"] in {"yes", "no"}
+    assert _doctor_checks_ok(pipeline) is True
 
 
 def test_selector_slice_bounds_must_be_non_negative_integers():
