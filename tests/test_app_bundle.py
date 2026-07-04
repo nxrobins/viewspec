@@ -3,6 +3,8 @@ from __future__ import annotations
 import json
 from copy import deepcopy
 
+import pytest
+
 import viewspec.app_bundle as app_bundle_module
 from viewspec.app_bundle import (
     AGENT_APP_BUNDLE_SCHEMA,
@@ -636,6 +638,108 @@ def test_prove_app_missing_input_is_user_error_not_internal(tmp_path):
     assert "APP_PROOF_INTERNAL_ERROR" not in codes
 
     assert cli_main(["prove-app", "--app", str(missing), "--out", str(tmp_path / "proof_cli")]) == 2
+
+
+def _rec_state(value):
+    return [{"id": "rec", "kind": "record", "scope": "app", "initial": {"value": value}}]
+
+
+def _coll_state(value):
+    return [{"id": "rows", "kind": "collection", "scope": "app", "initial": {"value": value}}]
+
+
+def _reducer_scenario_app(state, ops, idval="x"):
+    app = _stateful_app_bundle()
+    app["state"] = state
+    app["mutations"] = [
+        {"id": "m", "trigger": {"screen_id": "queue", "action_id": "triage_incident"}, "ops": ops}
+    ]
+    app["selectors"] = []
+    app["state_replay_assertions"] = [
+        {
+            "id": "r",
+            "events": [{"mutation_id": "m", "payload_values": {"inc_1043_id": idval}}],
+            "expect_state": {},
+            "expect_selectors": {},
+        }
+    ]
+    return app
+
+
+_FROM_PAYLOAD = {"from_payload": "inc_1043_id"}
+
+
+@pytest.mark.parametrize(
+    "state,ops,idval",
+    [
+        # Type mismatch: Python raises; the generated JS used to no-op (append/remove/move) or
+        # corrupt-and-report-success (patch/increment). Both must now fail identically.
+        (_rec_state({"a": 1}), [{"op": "append", "state": "rec", "value": 1}], "x"),
+        (_rec_state({"a": 1}), [{"op": "remove", "state": "rec", "item_id": _FROM_PAYLOAD}], "x"),
+        (_rec_state({"a": 1}), [{"op": "move", "state": "rec", "item_id": _FROM_PAYLOAD, "to_index": 0}], "x"),
+        (
+            _rec_state({"a": 1}),
+            [{"op": "set", "state": "rec", "value": [1, 2]}, {"op": "patch", "state": "rec", "value": {"x": 1}}],
+            "x",
+        ),
+        (
+            _rec_state({"a": 1}),
+            [{"op": "set", "state": "rec", "value": [1, 2]}, {"op": "increment", "state": "rec", "field": "n", "amount": 1}],
+            "x",
+        ),
+        # Integer-valued float id no longer drifts (String(1.0)="1" vs str(1.0)="1.0").
+        (_coll_state([{"id": 1.0}, {"id": 2}]), [{"op": "remove", "state": "rows", "item_id": _FROM_PAYLOAD}], 1),
+        # Well-formed multi-op still succeeds identically.
+        (
+            _coll_state([{"id": "a"}]),
+            [{"op": "append", "state": "rows", "value": {"id": "b"}}, {"op": "patch", "state": "rows", "item_id": _FROM_PAYLOAD, "value": {"v": 1}}],
+            "b",
+        ),
+    ],
+)
+def test_reducer_ops_conform_across_node_on_edge_inputs(state, ops, idval):
+    # The generated reducer (Node) and the Python reference must agree on EVERY op for edge
+    # inputs -- type mismatches, integer-valued float ids -- not just the well-formed path.
+    app = _reducer_scenario_app(state, ops, idval)
+    assert check_reducer_conformance(app)["ok"] is True
+
+
+def test_reducer_type_mismatch_fails_atomically_like_reference():
+    # A multi-op event whose 2nd op is a type mismatch must FAIL and leave state UNCHANGED
+    # (atomic), matching the generated reducer's clone-and-return -- not partially commit op 1.
+    app = _reducer_scenario_app(
+        _rec_state({"a": 1}),
+        [{"op": "set", "state": "rec", "value": [1, 2]}, {"op": "patch", "state": "rec", "value": {"x": 1}}],
+    )
+    state_ir, issues = validate_state_ir(app)
+    assert issues == []
+    current = initial_state(app, state_ir)
+    result = apply_event(current, state_ir, {"mutation_id": "m", "payload_values": {"inc_1043_id": "x"}})
+    assert result["ok"] is False
+    assert result["errors"][0]["code"] == "APP_STATE_REDUCER_OP_FAILED"
+    assert current == {"rec": {"a": 1}}  # op 1's set was rolled back
+
+
+def test_filter_eq_distinguishes_bool_from_number_like_reducer():
+    # Python filter_eq now mirrors JS === : true != 1, so only the numeric row matches.
+    app = _stateful_app_bundle()
+    app["state"] = [
+        {"id": "rows", "kind": "collection", "scope": "app", "initial": {"value": [{"id": "t", "k": True}, {"id": "n", "k": 1}]}},
+        {"id": "flags", "kind": "record", "scope": "app", "initial": {"value": {"count": 0}}},
+    ]
+    app["mutations"] = [
+        {"id": "bump", "trigger": {"screen_id": "queue", "action_id": "triage_incident"}, "ops": [{"op": "increment", "state": "flags", "field": "count", "amount": 1}]}
+    ]
+    app["selectors"] = [{"id": "ones", "source_state": "rows", "ops": [{"op": "filter_eq", "field": "k", "value": 1}]}]
+    app["state_replay_assertions"] = [
+        {"id": "r", "events": [{"mutation_id": "bump", "payload_values": {"inc_1043_id": "x"}}], "expect_state": {}, "expect_selectors": {}}
+    ]
+
+    state_ir, issues = validate_state_ir(app)
+    assert issues == []
+    current = initial_state(app, state_ir)
+    assert [row["id"] for row in evaluate_selectors(current, state_ir)["ones"]] == ["n"]
+    assert check_reducer_conformance(app)["ok"] is True
 
 
 def test_selector_slice_bounds_must_be_non_negative_integers():
