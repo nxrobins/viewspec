@@ -409,6 +409,802 @@
   "version": "landing_compiled_aesthetic_profiles.v1"
 }
 </script>
+<script type="application/json" id="viewspec-real-data">
+{
+  "intent": {
+    "substrate": {
+      "id": "viewspec_landing_substrate",
+      "nodes": {
+        "agent_workflow_row_1": {
+          "attrs": {
+            "label": "describe",
+            "value": "Emit IntentBundle or AppBundle JSON."
+          },
+          "edges": {},
+          "id": "agent_workflow_row_1",
+          "kind": "table_row",
+          "slots": {}
+        },
+        "agent_workflow_row_2": {
+          "attrs": {
+            "label": "validate",
+            "value": "viewspec validate-intent fails closed on drift."
+          },
+          "edges": {},
+          "id": "agent_workflow_row_2",
+          "kind": "table_row",
+          "slots": {}
+        },
+        "agent_workflow_row_3": {
+          "attrs": {
+            "label": "prove",
+            "value": "viewspec prove-app --with-shell writes the report."
+          },
+          "edges": {},
+          "id": "agent_workflow_row_3",
+          "kind": "table_row",
+          "slots": {}
+        },
+        "artifact_identity_card_1": {
+          "attrs": {
+            "label": "provenance",
+            "value": "Every element traces to its address."
+          },
+          "edges": {},
+          "id": "artifact_identity_card_1",
+          "kind": "dashboard_card",
+          "slots": {}
+        },
+        "artifact_identity_card_2": {
+          "attrs": {
+            "label": "determinism",
+            "value": "Same intent, same bytes, same hash."
+          },
+          "edges": {},
+          "id": "artifact_identity_card_2",
+          "kind": "dashboard_card",
+          "slots": {}
+        },
+        "capabilities_row_1": {
+          "attrs": {
+            "label": "State IR",
+            "value": "interactive_state_v0 writes state_reducer.ts and reduceViewSpecState."
+          },
+          "edges": {},
+          "id": "capabilities_row_1",
+          "kind": "table_row",
+          "slots": {}
+        },
+        "capabilities_row_2": {
+          "attrs": {
+            "label": "Aesthetic Profiles",
+            "value": "Five compiled projections from one semantic graph."
+          },
+          "edges": {},
+          "id": "capabilities_row_2",
+          "kind": "table_row",
+          "slots": {}
+        },
+        "capabilities_row_3": {
+          "attrs": {
+            "label": "Proof Pipeline",
+            "value": "state_replay_assertions plus viewspec prove-app --with-shell."
+          },
+          "edges": {},
+          "id": "capabilities_row_3",
+          "kind": "table_row",
+          "slots": {}
+        },
+        "capabilities_row_4": {
+          "attrs": {
+            "label": "Portable Surfaces",
+            "value": "html-tailwind and React locally; SwiftUI and Flutter hosted."
+          },
+          "edges": {},
+          "id": "capabilities_row_4",
+          "kind": "table_row",
+          "slots": {}
+        },
+        "compile_flow_card_1": {
+          "attrs": {
+            "label": "1 \u00b7 intent",
+            "value": "Agent writes IntentBundle JSON."
+          },
+          "edges": {},
+          "id": "compile_flow_card_1",
+          "kind": "dashboard_card",
+          "slots": {}
+        },
+        "compile_flow_card_2": {
+          "attrs": {
+            "label": "2 \u00b7 compile",
+            "value": "CompositionIR to UI and reducer, no LLM."
+          },
+          "edges": {},
+          "id": "compile_flow_card_2",
+          "kind": "dashboard_card",
+          "slots": {}
+        },
+        "compile_flow_card_3": {
+          "attrs": {
+            "label": "3 \u00b7 proof",
+            "value": "Provenance, replay, and shell hash attached."
+          },
+          "edges": {},
+          "id": "compile_flow_card_3",
+          "kind": "dashboard_card",
+          "slots": {}
+        },
+        "launch_hero": {
+          "attrs": {
+            "description": "Agents commit to meaning \u2014 nodes, bindings, motifs. ViewSpec compiles the UI, the state reducer, replay checks, and shell proof. Deterministic, and no runtime LLM.",
+            "eyebrow": "Agent-native app compiler",
+            "title": "Intent goes in. Interface comes out."
+          },
+          "edges": {},
+          "id": "launch_hero",
+          "kind": "hero",
+          "slots": {}
+        },
+        "pricing_row_1": {
+          "attrs": {
+            "label": "Free",
+            "value": "Local SDK. Unlimited compiles, proofs, and surfaces."
+          },
+          "edges": {},
+          "id": "pricing_row_1",
+          "kind": "table_row",
+          "slots": {}
+        },
+        "pricing_row_2": {
+          "attrs": {
+            "label": "Pro",
+            "value": "149/mo. Hosted compiler API, 10k calls per day."
+          },
+          "edges": {},
+          "id": "pricing_row_2",
+          "kind": "table_row",
+          "slots": {}
+        },
+        "pricing_row_3": {
+          "attrs": {
+            "label": "Enterprise",
+            "value": "Custom volume, organization sharing, and support."
+          },
+          "edges": {},
+          "id": "pricing_row_3",
+          "kind": "table_row",
+          "slots": {}
+        },
+        "proof_badges_card_1": {
+          "attrs": {
+            "label": "replay",
+            "value": "state replay passed"
+          },
+          "edges": {},
+          "id": "proof_badges_card_1",
+          "kind": "dashboard_card",
+          "slots": {}
+        },
+        "proof_badges_card_2": {
+          "attrs": {
+            "label": "reducer",
+            "value": "reducer generated"
+          },
+          "edges": {},
+          "id": "proof_badges_card_2",
+          "kind": "dashboard_card",
+          "slots": {}
+        },
+        "proof_badges_card_3": {
+          "attrs": {
+            "label": "manifest",
+            "value": "manifest checked"
+          },
+          "edges": {},
+          "id": "proof_badges_card_3",
+          "kind": "dashboard_card",
+          "slots": {}
+        },
+        "proof_badges_card_4": {
+          "attrs": {
+            "label": "shell",
+            "value": "shell hash matched"
+          },
+          "edges": {},
+          "id": "proof_badges_card_4",
+          "kind": "dashboard_card",
+          "slots": {}
+        },
+        "proof_badges_card_5": {
+          "attrs": {
+            "label": "runtime",
+            "value": "No runtime LLM"
+          },
+          "edges": {},
+          "id": "proof_badges_card_5",
+          "kind": "dashboard_card",
+          "slots": {}
+        },
+        "viewspec_landing": {
+          "attrs": {},
+          "edges": {},
+          "id": "viewspec_landing",
+          "kind": "app",
+          "slots": {}
+        }
+      },
+      "root_id": "viewspec_landing"
+    },
+    "view_spec": {
+      "actions": [],
+      "bindings": [
+        {
+          "address": "node:launch_hero#attr:eyebrow",
+          "cardinality": "exactly_once",
+          "id": "launch_hero_eyebrow",
+          "present_as": "label",
+          "target_region": "main"
+        },
+        {
+          "address": "node:launch_hero#attr:title",
+          "cardinality": "exactly_once",
+          "id": "launch_hero_title",
+          "present_as": "value",
+          "target_region": "main"
+        },
+        {
+          "address": "node:launch_hero#attr:description",
+          "cardinality": "exactly_once",
+          "id": "launch_hero_description",
+          "present_as": "text",
+          "target_region": "main"
+        },
+        {
+          "address": "node:proof_badges_card_1#attr:label",
+          "cardinality": "exactly_once",
+          "id": "proof_badges_card_1_label",
+          "present_as": "label",
+          "target_region": "main"
+        },
+        {
+          "address": "node:proof_badges_card_1#attr:value",
+          "cardinality": "exactly_once",
+          "id": "proof_badges_card_1_value",
+          "present_as": "value",
+          "target_region": "main"
+        },
+        {
+          "address": "node:proof_badges_card_2#attr:label",
+          "cardinality": "exactly_once",
+          "id": "proof_badges_card_2_label",
+          "present_as": "label",
+          "target_region": "main"
+        },
+        {
+          "address": "node:proof_badges_card_2#attr:value",
+          "cardinality": "exactly_once",
+          "id": "proof_badges_card_2_value",
+          "present_as": "value",
+          "target_region": "main"
+        },
+        {
+          "address": "node:proof_badges_card_3#attr:label",
+          "cardinality": "exactly_once",
+          "id": "proof_badges_card_3_label",
+          "present_as": "label",
+          "target_region": "main"
+        },
+        {
+          "address": "node:proof_badges_card_3#attr:value",
+          "cardinality": "exactly_once",
+          "id": "proof_badges_card_3_value",
+          "present_as": "value",
+          "target_region": "main"
+        },
+        {
+          "address": "node:proof_badges_card_4#attr:label",
+          "cardinality": "exactly_once",
+          "id": "proof_badges_card_4_label",
+          "present_as": "label",
+          "target_region": "main"
+        },
+        {
+          "address": "node:proof_badges_card_4#attr:value",
+          "cardinality": "exactly_once",
+          "id": "proof_badges_card_4_value",
+          "present_as": "value",
+          "target_region": "main"
+        },
+        {
+          "address": "node:proof_badges_card_5#attr:label",
+          "cardinality": "exactly_once",
+          "id": "proof_badges_card_5_label",
+          "present_as": "label",
+          "target_region": "main"
+        },
+        {
+          "address": "node:proof_badges_card_5#attr:value",
+          "cardinality": "exactly_once",
+          "id": "proof_badges_card_5_value",
+          "present_as": "value",
+          "target_region": "main"
+        },
+        {
+          "address": "node:compile_flow_card_1#attr:label",
+          "cardinality": "exactly_once",
+          "id": "compile_flow_card_1_label",
+          "present_as": "label",
+          "target_region": "main"
+        },
+        {
+          "address": "node:compile_flow_card_1#attr:value",
+          "cardinality": "exactly_once",
+          "id": "compile_flow_card_1_value",
+          "present_as": "value",
+          "target_region": "main"
+        },
+        {
+          "address": "node:compile_flow_card_2#attr:label",
+          "cardinality": "exactly_once",
+          "id": "compile_flow_card_2_label",
+          "present_as": "label",
+          "target_region": "main"
+        },
+        {
+          "address": "node:compile_flow_card_2#attr:value",
+          "cardinality": "exactly_once",
+          "id": "compile_flow_card_2_value",
+          "present_as": "value",
+          "target_region": "main"
+        },
+        {
+          "address": "node:compile_flow_card_3#attr:label",
+          "cardinality": "exactly_once",
+          "id": "compile_flow_card_3_label",
+          "present_as": "label",
+          "target_region": "main"
+        },
+        {
+          "address": "node:compile_flow_card_3#attr:value",
+          "cardinality": "exactly_once",
+          "id": "compile_flow_card_3_value",
+          "present_as": "value",
+          "target_region": "main"
+        },
+        {
+          "address": "node:capabilities_row_1#attr:label",
+          "cardinality": "exactly_once",
+          "id": "capabilities_row_1_label",
+          "present_as": "label",
+          "target_region": "main"
+        },
+        {
+          "address": "node:capabilities_row_1#attr:value",
+          "cardinality": "exactly_once",
+          "id": "capabilities_row_1_value",
+          "present_as": "value",
+          "target_region": "main"
+        },
+        {
+          "address": "node:capabilities_row_2#attr:label",
+          "cardinality": "exactly_once",
+          "id": "capabilities_row_2_label",
+          "present_as": "label",
+          "target_region": "main"
+        },
+        {
+          "address": "node:capabilities_row_2#attr:value",
+          "cardinality": "exactly_once",
+          "id": "capabilities_row_2_value",
+          "present_as": "value",
+          "target_region": "main"
+        },
+        {
+          "address": "node:capabilities_row_3#attr:label",
+          "cardinality": "exactly_once",
+          "id": "capabilities_row_3_label",
+          "present_as": "label",
+          "target_region": "main"
+        },
+        {
+          "address": "node:capabilities_row_3#attr:value",
+          "cardinality": "exactly_once",
+          "id": "capabilities_row_3_value",
+          "present_as": "value",
+          "target_region": "main"
+        },
+        {
+          "address": "node:capabilities_row_4#attr:label",
+          "cardinality": "exactly_once",
+          "id": "capabilities_row_4_label",
+          "present_as": "label",
+          "target_region": "main"
+        },
+        {
+          "address": "node:capabilities_row_4#attr:value",
+          "cardinality": "exactly_once",
+          "id": "capabilities_row_4_value",
+          "present_as": "value",
+          "target_region": "main"
+        },
+        {
+          "address": "node:agent_workflow_row_1#attr:label",
+          "cardinality": "exactly_once",
+          "id": "agent_workflow_row_1_label",
+          "present_as": "label",
+          "target_region": "main"
+        },
+        {
+          "address": "node:agent_workflow_row_1#attr:value",
+          "cardinality": "exactly_once",
+          "id": "agent_workflow_row_1_value",
+          "present_as": "value",
+          "target_region": "main"
+        },
+        {
+          "address": "node:agent_workflow_row_2#attr:label",
+          "cardinality": "exactly_once",
+          "id": "agent_workflow_row_2_label",
+          "present_as": "label",
+          "target_region": "main"
+        },
+        {
+          "address": "node:agent_workflow_row_2#attr:value",
+          "cardinality": "exactly_once",
+          "id": "agent_workflow_row_2_value",
+          "present_as": "value",
+          "target_region": "main"
+        },
+        {
+          "address": "node:agent_workflow_row_3#attr:label",
+          "cardinality": "exactly_once",
+          "id": "agent_workflow_row_3_label",
+          "present_as": "label",
+          "target_region": "main"
+        },
+        {
+          "address": "node:agent_workflow_row_3#attr:value",
+          "cardinality": "exactly_once",
+          "id": "agent_workflow_row_3_value",
+          "present_as": "value",
+          "target_region": "main"
+        },
+        {
+          "address": "node:pricing_row_1#attr:label",
+          "cardinality": "exactly_once",
+          "id": "pricing_row_1_label",
+          "present_as": "label",
+          "target_region": "main"
+        },
+        {
+          "address": "node:pricing_row_1#attr:value",
+          "cardinality": "exactly_once",
+          "id": "pricing_row_1_value",
+          "present_as": "value",
+          "target_region": "main"
+        },
+        {
+          "address": "node:pricing_row_2#attr:label",
+          "cardinality": "exactly_once",
+          "id": "pricing_row_2_label",
+          "present_as": "label",
+          "target_region": "main"
+        },
+        {
+          "address": "node:pricing_row_2#attr:value",
+          "cardinality": "exactly_once",
+          "id": "pricing_row_2_value",
+          "present_as": "value",
+          "target_region": "main"
+        },
+        {
+          "address": "node:pricing_row_3#attr:label",
+          "cardinality": "exactly_once",
+          "id": "pricing_row_3_label",
+          "present_as": "label",
+          "target_region": "main"
+        },
+        {
+          "address": "node:pricing_row_3#attr:value",
+          "cardinality": "exactly_once",
+          "id": "pricing_row_3_value",
+          "present_as": "value",
+          "target_region": "main"
+        },
+        {
+          "address": "node:artifact_identity_card_1#attr:label",
+          "cardinality": "exactly_once",
+          "id": "artifact_identity_card_1_label",
+          "present_as": "label",
+          "target_region": "main"
+        },
+        {
+          "address": "node:artifact_identity_card_1#attr:value",
+          "cardinality": "exactly_once",
+          "id": "artifact_identity_card_1_value",
+          "present_as": "value",
+          "target_region": "main"
+        },
+        {
+          "address": "node:artifact_identity_card_2#attr:label",
+          "cardinality": "exactly_once",
+          "id": "artifact_identity_card_2_label",
+          "present_as": "label",
+          "target_region": "main"
+        },
+        {
+          "address": "node:artifact_identity_card_2#attr:value",
+          "cardinality": "exactly_once",
+          "id": "artifact_identity_card_2_value",
+          "present_as": "value",
+          "target_region": "main"
+        }
+      ],
+      "complexity_tier": 1,
+      "groups": [
+        {
+          "id": "launch",
+          "kind": "ordered",
+          "members": [
+            "launch_hero_eyebrow",
+            "launch_hero_title",
+            "launch_hero_description"
+          ],
+          "target_region": "main"
+        },
+        {
+          "id": "proof_badges",
+          "kind": "ordered",
+          "members": [
+            "proof_badges_card_1_label",
+            "proof_badges_card_1_value",
+            "proof_badges_card_2_label",
+            "proof_badges_card_2_value",
+            "proof_badges_card_3_label",
+            "proof_badges_card_3_value",
+            "proof_badges_card_4_label",
+            "proof_badges_card_4_value",
+            "proof_badges_card_5_label",
+            "proof_badges_card_5_value"
+          ],
+          "target_region": "main"
+        },
+        {
+          "id": "compile_flow",
+          "kind": "ordered",
+          "members": [
+            "compile_flow_card_1_label",
+            "compile_flow_card_1_value",
+            "compile_flow_card_2_label",
+            "compile_flow_card_2_value",
+            "compile_flow_card_3_label",
+            "compile_flow_card_3_value"
+          ],
+          "target_region": "main"
+        },
+        {
+          "id": "capabilities",
+          "kind": "ordered",
+          "members": [
+            "capabilities_row_1_label",
+            "capabilities_row_1_value",
+            "capabilities_row_2_label",
+            "capabilities_row_2_value",
+            "capabilities_row_3_label",
+            "capabilities_row_3_value",
+            "capabilities_row_4_label",
+            "capabilities_row_4_value"
+          ],
+          "target_region": "main"
+        },
+        {
+          "id": "agent_workflow",
+          "kind": "ordered",
+          "members": [
+            "agent_workflow_row_1_label",
+            "agent_workflow_row_1_value",
+            "agent_workflow_row_2_label",
+            "agent_workflow_row_2_value",
+            "agent_workflow_row_3_label",
+            "agent_workflow_row_3_value"
+          ],
+          "target_region": "main"
+        },
+        {
+          "id": "pricing",
+          "kind": "ordered",
+          "members": [
+            "pricing_row_1_label",
+            "pricing_row_1_value",
+            "pricing_row_2_label",
+            "pricing_row_2_value",
+            "pricing_row_3_label",
+            "pricing_row_3_value"
+          ],
+          "target_region": "main"
+        },
+        {
+          "id": "artifact_identity",
+          "kind": "ordered",
+          "members": [
+            "artifact_identity_card_1_label",
+            "artifact_identity_card_1_value",
+            "artifact_identity_card_2_label",
+            "artifact_identity_card_2_value"
+          ],
+          "target_region": "main"
+        }
+      ],
+      "id": "viewspec_landing",
+      "motifs": [
+        {
+          "id": "launch_hero",
+          "kind": "hero",
+          "members": [
+            "launch_hero_eyebrow",
+            "launch_hero_title",
+            "launch_hero_description"
+          ],
+          "region": "main"
+        },
+        {
+          "id": "proof_badges",
+          "kind": "dashboard",
+          "members": [
+            "proof_badges_card_1_label",
+            "proof_badges_card_1_value",
+            "proof_badges_card_2_label",
+            "proof_badges_card_2_value",
+            "proof_badges_card_3_label",
+            "proof_badges_card_3_value",
+            "proof_badges_card_4_label",
+            "proof_badges_card_4_value",
+            "proof_badges_card_5_label",
+            "proof_badges_card_5_value"
+          ],
+          "region": "main"
+        },
+        {
+          "id": "compile_flow",
+          "kind": "dashboard",
+          "members": [
+            "compile_flow_card_1_label",
+            "compile_flow_card_1_value",
+            "compile_flow_card_2_label",
+            "compile_flow_card_2_value",
+            "compile_flow_card_3_label",
+            "compile_flow_card_3_value"
+          ],
+          "region": "main"
+        },
+        {
+          "id": "capabilities",
+          "kind": "table",
+          "members": [
+            "capabilities_row_1_label",
+            "capabilities_row_1_value",
+            "capabilities_row_2_label",
+            "capabilities_row_2_value",
+            "capabilities_row_3_label",
+            "capabilities_row_3_value",
+            "capabilities_row_4_label",
+            "capabilities_row_4_value"
+          ],
+          "region": "main"
+        },
+        {
+          "id": "agent_workflow",
+          "kind": "table",
+          "members": [
+            "agent_workflow_row_1_label",
+            "agent_workflow_row_1_value",
+            "agent_workflow_row_2_label",
+            "agent_workflow_row_2_value",
+            "agent_workflow_row_3_label",
+            "agent_workflow_row_3_value"
+          ],
+          "region": "main"
+        },
+        {
+          "id": "pricing",
+          "kind": "table",
+          "members": [
+            "pricing_row_1_label",
+            "pricing_row_1_value",
+            "pricing_row_2_label",
+            "pricing_row_2_value",
+            "pricing_row_3_label",
+            "pricing_row_3_value"
+          ],
+          "region": "main"
+        },
+        {
+          "id": "artifact_identity",
+          "kind": "dashboard",
+          "members": [
+            "artifact_identity_card_1_label",
+            "artifact_identity_card_1_value",
+            "artifact_identity_card_2_label",
+            "artifact_identity_card_2_value"
+          ],
+          "region": "main"
+        }
+      ],
+      "regions": [
+        {
+          "id": "root",
+          "layout": "stack",
+          "max_children": null,
+          "min_children": 1,
+          "parent_region": "",
+          "role": "root"
+        },
+        {
+          "id": "main",
+          "layout": "stack",
+          "max_children": null,
+          "min_children": 1,
+          "parent_region": "root",
+          "role": "main"
+        }
+      ],
+      "root_region": "root",
+      "styles": [
+        {
+          "id": "s_launch_hero",
+          "target": "launch_hero",
+          "token": "emphasis.high"
+        },
+        {
+          "id": "s_proof_badges",
+          "target": "proof_badges",
+          "token": "surface.subtle"
+        },
+        {
+          "id": "s_capabilities",
+          "target": "capabilities",
+          "token": "density.compact"
+        },
+        {
+          "id": "aesthetic_profile",
+          "target": "view:viewspec_landing",
+          "token": "aesthetic.calm_ops"
+        }
+      ],
+      "substrate_id": "viewspec_landing_substrate"
+    }
+  },
+  "profiles": {
+    "calm_ops": {
+      "changedTokens": 13,
+      "semanticHash": "6f3e13e1c376a4549c529af0d6e5d465f041c35393e087c3525e771ef344c350",
+      "styleHash": "98feff5ca2756e17729352a429128f2c99e54cf038108405295fae424116b3da"
+    },
+    "data_dense": {
+      "changedTokens": 13,
+      "semanticHash": "6f3e13e1c376a4549c529af0d6e5d465f041c35393e087c3525e771ef344c350",
+      "styleHash": "02a411113d0562b01a8eb4dcbd7224600a92e0e9b3be966e1aa7727b3058768b"
+    },
+    "editorial_product": {
+      "changedTokens": 13,
+      "semanticHash": "6f3e13e1c376a4549c529af0d6e5d465f041c35393e087c3525e771ef344c350",
+      "styleHash": "27a14269cfa742ab50b7e2d6eb665a0a1a516eb4e353ba889089717d4157e2e3"
+    },
+    "executive_review": {
+      "changedTokens": 13,
+      "semanticHash": "6f3e13e1c376a4549c529af0d6e5d465f041c35393e087c3525e771ef344c350",
+      "styleHash": "3611ed389bc117d6e7187c51889ce85958379c5639adaea3a9260a3f28216e58"
+    },
+    "premium_saas": {
+      "changedTokens": 13,
+      "semanticHash": "6f3e13e1c376a4549c529af0d6e5d465f041c35393e087c3525e771ef344c350",
+      "styleHash": "a4bff9b518e79b07774b68beef1f66b87db0e16ba1a0811cee5ad6fdf9a5529f"
+    }
+  },
+  "semanticHash": "6f3e13e1c376a4549c529af0d6e5d465f041c35393e087c3525e771ef344c350"
+}
+</script>
 <link rel="icon" href="data:,">
 <style data-viewspec-emitter-css="true">
 :root {
@@ -482,941 +1278,463 @@ header.vs-surface p.vs-text, header.vs-surface p.vs-label { max-width: 68ch; mar
 </style>
 <style data-viewspec-page-css="true">
 
-:root {
-  color-scheme: dark;
-  --shell-bg-rgb: 10 13 20;
-  --shell-bg-2-rgb: 12 16 26;
-  --shell-panel-rgb: 20 26 40;
-  --shell-ink-rgb: 231 236 245;
-  --shell-line-rgb: 136 148 172;
-  --shell-accent-rgb: 245 178 63;
-  --shell-accent-2-rgb: 87 220 169;
-  --shell-bg: rgb(var(--shell-bg-rgb));
-  --shell-bg-2: rgb(var(--shell-bg-2-rgb));
-  --shell-panel: rgb(var(--shell-panel-rgb));
-  --shell-ink: rgb(var(--shell-ink-rgb));
-  --shell-muted: rgb(var(--shell-line-rgb));
-  --shell-accent: rgb(var(--shell-accent-rgb));
-  --shell-accent-2: rgb(var(--shell-accent-2-rgb));
-  --shell-line: rgb(var(--shell-line-rgb) / 0.17);
-  --shell-line-strong: rgb(var(--shell-accent-rgb) / 0.34);
-  --shell-shadow: 0 30px 70px rgb(0 0 0 / 0.55);
-  --shell-soft-shadow: 0 16px 40px rgb(0 0 0 / 0.42);
-  --bg: var(--shell-bg);
-  --bg-2: var(--shell-bg-2);
-  --panel: var(--shell-panel);
-  --panel-2: rgb(var(--shell-panel-rgb) / 0.82);
-  --panel-3: rgb(var(--shell-panel-rgb) / 0.94);
-  --line: var(--shell-line);
-  --line-strong: var(--shell-line-strong);
-  --text: var(--shell-ink);
-  --muted: var(--shell-muted);
-  --teal: var(--shell-accent);
-  --green: #57DCA9;
-  --amber: #F5B23F;
-  --amber-2: #FFD584;
-  --blue: #93B8FF;
-  --rose: #fb7185;
-  --radius: 10px;
-  --shell: 1180px;
-  --mono: ui-monospace, "JetBrains Mono", "SF Mono", Menlo, Consolas, monospace;
-  --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, Roboto, sans-serif;
-}
-[data-viewspec-profile="aesthetic.premium_saas"] {
-  --shell-bg-rgb: 13 12 22;
-  --shell-bg-2-rgb: 16 14 28;
-  --shell-panel-rgb: 24 22 40;
-  --shell-ink-rgb: 236 238 248;
-  --shell-line-rgb: 150 150 185;
-  --shell-accent-rgb: 245 178 63;
-  --shell-accent-2-rgb: 147 184 255;
-}
-[data-viewspec-profile="aesthetic.data_dense"] {
-  --shell-bg-rgb: 8 11 17;
-  --shell-bg-2-rgb: 10 14 22;
-  --shell-panel-rgb: 17 23 35;
-  --shell-ink-rgb: 226 233 244;
-  --shell-line-rgb: 120 138 168;
-  --shell-accent-rgb: 245 178 63;
-  --shell-accent-2-rgb: 87 220 169;
-  --radius: 7px;
-}
-[data-viewspec-profile="aesthetic.editorial_product"] {
-  --shell-bg-rgb: 17 12 12;
-  --shell-bg-2-rgb: 21 15 14;
-  --shell-panel-rgb: 30 22 22;
-  --shell-ink-rgb: 244 236 232;
-  --shell-line-rgb: 168 140 128;
-  --shell-accent-rgb: 245 178 63;
-  --shell-accent-2-rgb: 255 213 132;
-}
-[data-viewspec-profile="aesthetic.executive_review"] {
-  --shell-bg-rgb: 11 13 19;
-  --shell-bg-2-rgb: 13 16 24;
-  --shell-panel-rgb: 21 26 38;
-  --shell-ink-rgb: 234 238 246;
-  --shell-line-rgb: 130 142 166;
-  --shell-accent-rgb: 245 178 63;
-  --shell-accent-2-rgb: 147 184 255;
-}
-* {
-  box-sizing: border-box;
-}
-body {
-  background:
-    radial-gradient(760px 440px at 84% -6%, rgb(var(--shell-accent-rgb) / 0.10), transparent 62%),
-    radial-gradient(620px 500px at 4% 12%, rgb(var(--shell-accent-2-rgb) / 0.05), transparent 60%),
-    linear-gradient(180deg, var(--shell-bg) 0%, var(--shell-bg-2) 100%);
-  background-attachment: fixed;
-  color: var(--text);
-  font-family: var(--sans);
-  margin: 0;
-  transition: background 180ms ease, color 180ms ease;
-}
-.skip-link {
-  background: var(--shell-panel);
-  border-radius: var(--radius);
-  color: var(--shell-ink);
-  font-weight: 900;
-  left: 1rem;
-  padding: 0.7rem 0.9rem;
-  position: fixed;
-  top: 0.75rem;
-  transform: translateY(-150%);
-  transition: transform 120ms ease;
-  z-index: 100;
-}
-.skip-link:focus {
-  transform: translateY(0);
-}
-.anchor-target {
-  display: block;
-  grid-column: 1 / -1;
-  scroll-margin-top: 6rem;
-}
-.artifact-bar {
-  align-items: center;
-  backdrop-filter: blur(10px);
-  background: rgb(var(--shell-bg-rgb) / 0.94);
-  border-bottom: 1px solid var(--shell-line);
-  box-shadow: none;
-  display: grid;
-  gap: 0.45rem 0.9rem;
-  grid-template-columns: auto minmax(0, 1fr) auto;
-  left: 0;
-  padding: 0.52rem max(1rem, calc((100vw - var(--shell)) / 2)) 0.58rem;
-  position: sticky;
-  right: 0;
-  top: 0;
-  z-index: 50;
-}
-.artifact-brand {
-  color: var(--shell-accent);
-  font-size: 0.92rem;
-  font-weight: 900;
-  letter-spacing: 0;
-  min-width: 0;
-  text-decoration: none;
-}
-.artifact-links, .artifact-controls {
-  align-items: center;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-  min-width: 0;
-}
-.artifact-profile-dock {
-  border-top: 1px solid var(--shell-line);
-  grid-column: 1 / -1;
-  padding-top: 0.42rem;
-  width: 100%;
-}
-.artifact-profile-dock-inner {
-  align-items: center;
-  display: grid;
-  gap: 0.55rem;
-  grid-template-columns: auto minmax(0, 1fr) auto;
-  margin: 0 auto;
-  width: 100%;
-}
-.artifact-profile-label {
-  color: var(--shell-muted);
-  display: grid;
-  font-size: 0.64rem;
-  font-weight: 780;
-  gap: 0.05rem;
-  line-height: 1.05;
-  min-width: 7.5rem;
-  text-transform: uppercase;
-}
-.artifact-profile-label strong {
-  color: var(--shell-ink);
-  font-size: 0.8rem;
-  font-weight: 820;
-  text-transform: none;
-}
-.artifact-profile-switcher {
-  background: transparent;
-  border: 0;
-  border-radius: 0;
-  box-shadow: none;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.65rem;
-  min-width: 0;
-  overflow: visible;
-  padding: 0;
-}
-.artifact-links {
-  justify-content: center;
-}
-.artifact-inspector {
-  justify-self: end;
-  max-width: 100%;
-  min-width: 0;
-  position: static;
-}
-.artifact-inspector-toggle {
-  align-items: center;
-  appearance: none;
-  background: rgb(var(--shell-panel-rgb) / 0.38);
-  border: 1px solid var(--shell-line);
-  border-radius: var(--radius);
-  box-shadow: none;
-  color: var(--shell-accent);
-  cursor: pointer;
-  display: inline-flex;
-  font-size: 0.78rem;
-  font-weight: 820;
-  gap: 0.65rem;
-  list-style: none;
-  min-height: 2.18rem;
-  padding: 0.42rem 0.68rem;
-  white-space: nowrap;
-}
-.artifact-inspector-toggle::after {
-  color: var(--shell-muted);
-  content: "+";
-  font-size: 1rem;
-  line-height: 1;
-}
-.artifact-inspector[data-open="true"] .artifact-inspector-toggle::after {
-  content: "-";
-}
-.artifact-inspector[data-open="false"] .artifact-inspector-panel {
-  display: none;
-}
-.artifact-inspector-panel {
-  background: rgb(var(--shell-panel-rgb) / 0.96);
-  border: 1px solid var(--shell-line);
-  border-radius: var(--radius);
-  box-shadow: var(--shell-soft-shadow);
-  display: grid;
-  gap: 0.7rem;
-  margin-top: 0.55rem;
-  padding: 0.8rem;
-  position: absolute;
-  right: 0;
-  top: 100%;
-  width: min(42rem, calc(100vw - 2rem));
-  z-index: 60;
-}
-.artifact-control-group {
-  border: 1px solid var(--shell-line);
-  border-radius: var(--radius);
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-  margin: 0;
-  min-width: 0;
-  padding: 0.65rem;
-}
-.artifact-control-group legend {
-  color: var(--shell-muted);
-  font-size: 0.68rem;
-  font-weight: 760;
-  padding: 0 0.25rem;
-  text-transform: uppercase;
-}
-.artifact-controls {
-  align-items: center;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-  justify-content: flex-start;
-}
-.artifact-links a, .artifact-link-button {
-  color: var(--shell-muted);
-  font-size: 0.8rem;
-  font-weight: 720;
-  letter-spacing: 0;
-  text-decoration: none;
-  white-space: nowrap;
-}
-.artifact-button, .artifact-link-button {
-  appearance: none;
-  background: rgb(var(--shell-panel-rgb) / 0.5);
-  border: 1px solid var(--shell-line);
-  border-radius: var(--radius);
-  color: var(--shell-ink);
-  cursor: pointer;
-  font: inherit;
-  font-size: 0.78rem;
-  font-weight: 760;
-  letter-spacing: 0;
-  min-height: 2.25rem;
-  padding: 0.45rem 0.7rem;
-  white-space: nowrap;
-}
-.artifact-button[data-active="true"], .artifact-link-button.primary {
-  background: transparent;
-  border-color: rgb(var(--shell-accent-rgb) / 0.36);
-  color: var(--shell-accent);
-}
-.artifact-profile-button {
-  align-items: center;
-  background: transparent;
-  border: 0;
-  border-bottom: 1px solid transparent;
-  border-radius: 0;
-  box-shadow: none;
-  display: inline-flex;
-  flex: 0 1 auto;
-  gap: 0;
-  min-height: 1.6rem;
-  min-width: 0;
-  padding: 0.12rem 0 0.18rem;
-  text-align: center;
-}
-.artifact-profile-button::before {
-  display: none;
-}
-.artifact-profile-button[data-active="true"] {
-  background: transparent;
-  border-color: rgb(var(--shell-accent-rgb) / 0.7);
-}
-.artifact-profile-button code {
-  color: var(--shell-muted);
-  font: 700 0.64rem ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.artifact-profile-status {
-  align-items: center;
-  color: var(--shell-muted);
-  display: inline-flex;
-  justify-self: end;
-  font-size: 0.76rem;
-  font-weight: 720;
-  gap: 0.4rem;
-  min-width: 0;
-  white-space: nowrap;
-}
-.artifact-profile-status output {
-  color: var(--shell-muted);
-  display: inline-block;
-  font: inherit;
-  max-width: 24rem;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.artifact-pretext-status {
-  align-items: center;
-  color: var(--shell-muted);
-  display: inline-flex;
-  flex: 1 1 auto;
-  font-size: 0.76rem;
-  font-weight: 800;
-  gap: 0.4rem;
-  justify-content: flex-end;
-  min-width: 0;
-  overflow: hidden;
-  white-space: nowrap;
-}
-.artifact-pretext-status output {
-  color: var(--shell-accent-2);
-  display: inline-block;
-  font: inherit;
-  max-width: 13rem;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  vertical-align: bottom;
-}
-.artifact-ir-status {
-  color: var(--shell-accent);
-  font-size: 0.74rem;
-  font-weight: 800;
-  min-width: 0;
-}
-.viewspec-artifact-slot {
-  display: block;
-  transition: opacity 160ms ease, transform 160ms ease;
-}
-.vs-root {
-  margin: 0 auto;
-  min-height: auto !important;
-  padding: 3.6rem 1rem 3.75rem !important;
-  width: min(var(--shell), 100%);
-}
-#dom-region_main {
-  display: grid !important;
-  gap: 1.15rem !important;
-  grid-template-columns: repeat(12, minmax(0, 1fr));
-  padding: 0 !important;
-}
-.vs-stack, .vs-grid, .vs-cluster {
-  min-width: 0;
-}
-.vs-surface, .vs-grid, .vs-cluster, table.vs-stack, dl.vs-stack, .vs-motif-comparison {
-  border-radius: var(--radius) !important;
-  box-shadow: none !important;
-}
-.vs-label, .vs-value, .vs-text, .artifact-button, .artifact-link-button, th, td {
-  letter-spacing: 0 !important;
-}
-#dom-motif_launch_hero {
-  background: transparent !important;
-  border: 0 !important;
-  box-shadow: none !important;
-  display: flex !important;
-  flex-direction: column;
-  grid-column: span 7;
-  justify-content: center;
-  min-height: 31rem;
-  padding: 2.85rem 0 2.35rem !important;
-  position: relative;
-}
-#dom-motif_launch_hero .vs-label {
-  font-size: 0.78rem !important;
-  font-weight: 780 !important;
-  margin-bottom: 1rem;
-  text-transform: uppercase;
-}
-#dom-motif_launch_hero h1,
-#dom-binding_launch_hero_title {
-  font-size: 5.15rem !important;
-  font-weight: 880 !important;
-  line-height: 0.97 !important;
-  max-width: 48rem;
-}
-#dom-binding_launch_hero_description {
-  font-size: 1.08rem !important;
-  line-height: 1.8 !important;
-  margin-top: 1.4rem;
-  max-width: 50rem;
-}
-#dom-motif_proof_badges {
-  align-self: stretch;
-  box-shadow: none !important;
-  grid-column: 8 / -1;
-  grid-template-columns: 1fr !important;
-  padding: 0.8rem !important;
-  position: relative;
-}
-#dom-motif_proof_badges::before {
-  color: var(--muted);
-  content: "Proof report";
-  display: block;
-  font-size: 0.72rem;
-  font-weight: 760;
-  grid-column: 1 / -1;
-  letter-spacing: 0;
-  padding: 0.2rem 0.25rem 0.35rem;
-  text-transform: uppercase;
-}
-#dom-motif_proof_badges .vs-surface,
-#dom-motif_compile_flow > .vs-stack,
-table.vs-stack {
-  box-shadow: none !important;
-}
-#dom-motif_proof_badges .vs-surface {
-  min-height: 5.2rem;
-  padding: 0.9rem !important;
-}
-#dom-motif_proof_badges .vs-label {
-  font-size: 0.72rem !important;
-  font-weight: 760 !important;
-  text-transform: uppercase;
-}
-#dom-motif_proof_badges .vs-value {
-  font-size: 1.18rem !important;
-  line-height: 1.25 !important;
-}
-.vs-label {
-  font-weight: 760 !important;
-}
-#dom-motif_compile_flow {
-  background: transparent !important;
-  border: 0 !important;
-  display: grid !important;
-  gap: 0.9rem !important;
-  grid-column: 1 / -1;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  padding: 0 !important;
-}
-#dom-motif_compile_flow > .vs-stack {
-  min-height: 9rem;
-  padding: 1.15rem !important;
-}
-#dom-motif_compile_flow .vs-label {
-  font-size: 0.72rem !important;
-  text-transform: uppercase;
-}
-#dom-motif_compile_flow .vs-text {
-  line-height: 1.55 !important;
-}
-table.vs-stack {
-  border-collapse: separate !important;
-  grid-column: span 6;
-  border-spacing: 0;
-  overflow: hidden;
-}
-#dom-motif_capabilities,
-#dom-motif_pricing {
-  grid-column: span 7;
-}
-#dom-motif_agent_workflow,
-#dom-motif_artifact_identity {
-  grid-column: span 5;
-}
-th.vs-label {
-  font-size: 0.72rem !important;
-  padding: 1rem !important;
-  text-transform: uppercase;
-  width: 30%;
-}
-td.vs-value {
-  font-size: 1rem !important;
-  font-weight: 760 !important;
-  line-height: 1.55 !important;
-  padding: 1rem !important;
-}
-.landing-pretext-wrap {
-  display: none;
-}
-[data-landing-pretext="ready"] .landing-pretext-wrap {
-  display: block;
-  max-width: 100%;
-}
-[data-landing-pretext="ready"] [data-pretext-source="true"] {
-  border: 0;
-  clip: rect(0 0 0 0);
-  clip-path: inset(50%);
-  height: 1px;
-  margin: -1px;
-  overflow: hidden;
-  padding: 0;
-  position: absolute;
-  white-space: nowrap;
-  width: 1px;
-}
-.landing-pretext-title canvas {
-  margin-bottom: 0.2rem;
-}
-.landing-pretext-hero-description canvas {
-  margin-top: 1.2rem;
-}
-.artifact-actions, .artifact-footer {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.75rem;
-  margin: 0 auto 1rem;
-  width: min(var(--shell), calc(100% - 2rem));
-}
-.artifact-actions {
-  justify-content: center;
-}
-.artifact-footer {
-  border-top: 1px solid var(--shell-line);
-  color: var(--muted);
-  font-size: 0.82rem;
-  justify-content: space-between;
-  padding: 1.25rem 0 2rem;
-}
-.artifact-source {
-  background: rgb(var(--shell-panel-rgb) / 0.94);
-  border: 1px solid var(--shell-line-strong);
-  border-radius: var(--radius);
-  box-shadow: var(--shell-shadow);
-  color: var(--shell-ink);
-  display: none;
-  margin: 0 auto 1.25rem;
-  padding: 1rem;
-  width: min(var(--shell), calc(100% - 2rem));
-}
-.artifact-source[data-visible="true"] {
-  display: block;
-}
-.artifact-source-heading {
-  align-items: start;
-  display: flex;
-  gap: 1rem;
-  justify-content: space-between;
-  margin-bottom: 0.9rem;
-}
-.artifact-source-kicker {
-  color: var(--shell-accent);
-  font-size: 0.72rem;
-  font-weight: 900;
-  margin: 0 0 0.2rem;
-  text-transform: uppercase;
-}
-.artifact-source h2 {
-  color: var(--shell-ink);
-  font-size: 1.15rem;
-  line-height: 1.25;
-  margin: 0;
-}
-.artifact-source-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-  justify-content: flex-end;
-}
-.artifact-source-summary {
-  display: grid;
-  gap: 0.65rem;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-}
-.artifact-source-card {
-  background: rgb(var(--shell-bg-rgb) / 0.68);
-  border: 1px solid var(--shell-line);
-  border-radius: var(--radius);
-  min-width: 0;
-  padding: 0.8rem;
-}
-.artifact-source-card dt {
-  color: var(--shell-accent);
-  font-size: 0.72rem;
-  font-weight: 900;
-  margin: 0 0 0.35rem;
-  text-transform: uppercase;
-}
-.artifact-source-card dd {
-  color: var(--shell-ink);
-  font-size: 0.95rem;
-  font-weight: 800;
-  line-height: 1.35;
-  margin: 0;
-  overflow-wrap: anywhere;
-}
-.artifact-source-raw {
-  border-top: 1px solid var(--shell-line);
-  margin-top: 0.9rem;
-  padding-top: 0.75rem;
-}
-.artifact-source-raw summary {
-  color: var(--shell-accent);
-  cursor: pointer;
-  font-size: 0.8rem;
-  font-weight: 900;
-}
-.artifact-source-raw pre {
-  background: rgb(var(--shell-ink-rgb) / 0.94);
-  border-radius: var(--radius);
-  color: #f8fafc;
-  margin: 0.75rem 0 0;
-  max-height: 24rem;
-  overflow: auto;
-  padding: 0.9rem;
-}
-[data-viewspec-evidence="provenance"] [data-ir-id] {
-  outline: 1px solid rgb(var(--shell-accent-rgb) / 0.76) !important;
-  outline-offset: -1px !important;
-  position: relative;
-}
-[data-viewspec-evidence="provenance"] [data-ir-id]::before {
-  background: rgb(var(--shell-ink-rgb) / 0.88);
-  border-radius: 4px;
-  color: #f8fafc;
-  content: attr(data-ir-id);
-  font: 800 10px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  max-width: 16rem;
-  opacity: 0;
-  overflow: hidden;
-  padding: 2px 4px;
-  position: absolute;
-  right: 2px;
-  text-overflow: ellipsis;
-  top: 2px;
-  transform: translateY(-2px);
-  transition: opacity 120ms ease, transform 120ms ease;
-  white-space: nowrap;
-  z-index: 20;
-}
-[data-viewspec-evidence="provenance"] [data-ir-id]:hover::before,
-[data-viewspec-evidence="provenance"] [data-ir-id]:focus-within::before,
-[data-viewspec-evidence="provenance"] [data-ir-selected="true"]::before {
-  opacity: 1;
-  transform: translateY(0);
-}
-@media (max-width: 1080px) {
-  .artifact-bar {
-    grid-template-columns: auto 1fr;
+  *,*::before,*::after{ box-sizing:border-box; }
+  :root{
+    --ink:#0A0D14; --ink-2:#0C111C;
+    --panel:#12172380; --panel-solid:#141A28; --panel-2:#1A2233; --raise:#222C40;
+    --line:#212A3C; --line-2:#374560;
+    --text:#E7ECF5; --muted:#8894AC; --faint:#57617C;
+    --amber:#F5B23F; --amber-2:#FFD584; --amber-dim:rgba(245,178,63,.12);
+    --mint:#57DCA9; --focus:#93B8FF;
+    --mono:ui-monospace,"JetBrains Mono","SF Mono",Menlo,Consolas,monospace;
+    --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,Roboto,sans-serif;
+    --wrap:1120px;
+    /* derived tokens (profile: calm_ops) */
+    --u:8px; --disp:1; --hw:600; --cols:3; --rad:11px; --tint:transparent; --measure:60ch;
   }
-  .artifact-profile-dock-inner {
-    align-items: center;
-    gap: 0.42rem 0.55rem;
-    grid-template-columns: minmax(0, 1fr) auto;
-  }
-  .artifact-profile-label {
-    align-items: baseline;
-    display: flex;
-    gap: 0.45rem;
-    min-width: 0;
-  }
-  .artifact-profile-switcher {
-    grid-column: 1 / -1;
-    width: 100%;
-  }
-  .artifact-profile-status {
-    justify-self: end;
-    max-width: 100%;
-    overflow: hidden;
-  }
-  .artifact-profile-status output {
-    max-width: 17rem;
-  }
-  .artifact-inspector {
-    grid-column: 1 / -1;
-    justify-self: stretch;
-  }
-  .artifact-inspector-panel {
-    left: 0;
-    right: auto;
-    width: 100%;
-  }
-  .artifact-controls {
-    justify-content: flex-start;
-    padding-bottom: 0.1rem;
-  }
-  #dom-motif_launch_hero,
-  #dom-motif_proof_badges,
-  #dom-motif_capabilities,
-  #dom-motif_pricing,
-  #dom-motif_agent_workflow,
-  #dom-motif_artifact_identity {
-    grid-column: 1 / -1;
-  }
-  #dom-motif_launch_hero {
-    min-height: 23rem;
-  }
-  #dom-motif_launch_hero #dom-binding_launch_hero_title {
-    font-size: 4.15rem !important;
-    max-width: 42rem;
-  }
-  #dom-motif_proof_badges {
-    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
-  }
-  #dom-motif_proof_badges::before {
-    grid-column: 1 / -1;
-  }
-}
-@media (max-width: 720px) {
-  .artifact-bar {
-    align-items: start;
-    grid-template-columns: 1fr;
-    overflow-x: clip;
-    position: static;
-    padding-bottom: 0.52rem;
-    padding-top: 0.48rem;
-  }
-  .artifact-profile-dock {
-    padding: 0.34rem 0 0;
-  }
-  .artifact-profile-dock-inner {
-    gap: 0.34rem 0.45rem;
-  }
-  .artifact-profile-label strong {
-    font-size: 0.78rem;
-  }
-  .artifact-profile-switcher {
-    padding: 0.2rem;
-  }
-  .artifact-profile-button {
-    min-height: 1.9rem;
-    padding: 0.34rem 0.5rem;
-  }
-  .artifact-profile-button code {
-    display: none;
-  }
-  .artifact-profile-status output {
-    max-width: min(13.5rem, 48vw);
-  }
-  .artifact-links {
-    justify-content: flex-start;
-    min-width: 0;
-    max-width: 100%;
-    overflow: hidden;
-    width: 100%;
-  }
-  .artifact-inspector-toggle {
-    justify-content: space-between;
-    width: 100%;
-  }
-  .artifact-pretext-status output {
-    max-width: 9rem;
-  }
-  .artifact-inspector-panel {
-    max-width: 100%;
-    overflow-x: hidden;
-    position: static;
-  }
-  .artifact-controls {
-    display: grid;
-    gap: 0.45rem;
-    grid-template-columns: 1fr;
-    overflow-x: visible;
-    width: 100%;
-  }
-  .artifact-button,
-  .artifact-pretext-status {
-    justify-content: center;
-    min-width: 0;
-    overflow: hidden;
-    padding-left: 0.45rem;
-    padding-right: 0.45rem;
-    text-overflow: ellipsis;
-  }
-  .artifact-pretext-status {
-    grid-column: 1 / -1;
-  }
-  .artifact-source-heading {
-    display: block;
-  }
-  .artifact-source-actions {
-    justify-content: flex-start;
-    margin-top: 0.75rem;
-  }
-  .artifact-source-summary {
-    grid-template-columns: 1fr;
-  }
-  .vs-root {
-    padding-top: 1.45rem !important;
-  }
-  #dom-region_main {
-    gap: 0.8rem !important;
-  }
-  #dom-motif_launch_hero {
-    min-height: 0;
-    padding: 1.5rem 0 1rem !important;
-  }
-  #dom-motif_launch_hero #dom-binding_launch_hero_title {
-    font-size: 2.65rem !important;
-    line-height: 1 !important;
-  }
-  #dom-binding_launch_hero_description {
-    font-size: 1rem !important;
-  }
-  #dom-motif_proof_badges,
-  #dom-motif_compile_flow {
-    grid-template-columns: 1fr !important;
-  }
-  th.vs-label, td.vs-value, td.vs-text {
-    display: block !important;
-    width: 100% !important;
-  }
-}
+  body[data-profile="premium_saas"]     { --u:9px;  --disp:1.06; --hw:680; --cols:3; --rad:14px; --tint:rgba(245,178,63,.03); }
+  body[data-profile="data_dense"]       { --u:6px;  --disp:.94;  --hw:560; --cols:4; --rad:7px;  --tint:rgba(120,150,220,.04); --measure:58ch; }
+  body[data-profile="editorial_product"]{ --u:11px; --disp:1.14; --hw:660; --cols:2; --rad:9px;  --tint:rgba(245,178,63,.045); --measure:54ch; }
+  body[data-profile="executive_review"] { --u:11px; --disp:1.2;  --hw:720; --cols:3; --rad:12px; --tint:rgba(255,213,132,.05); }
 
-/* ============ dark / mono / amber reskin — beats the emitter's inline light-theme colors ============ */
-#dom-region_root.vs-root { background: none !important; background-color: transparent !important; color: var(--text) !important; font-family: var(--sans) !important; }
-.vs-value, .vs-text, td.vs-value, td.vs-text { color: var(--text) !important; }
-.vs-label, th.vs-label { color: var(--muted) !important; }
-.vs-surface { background: linear-gradient(160deg, var(--panel-2), var(--panel)) !important; border-color: var(--shell-line) !important; box-shadow: var(--shell-soft-shadow) !important; }
-/* hero — monospace display */
-#dom-motif_launch_hero .vs-label, #dom-binding_launch_hero_eyebrow { font-family: var(--mono) !important; color: var(--shell-accent) !important; letter-spacing: 0.2em !important; text-transform: uppercase; }
-#dom-motif_launch_hero h1, #dom-binding_launch_hero_title { font-family: var(--mono) !important; color: var(--text) !important; font-weight: 660 !important; letter-spacing: -0.03em !important; }
-#dom-binding_launch_hero_description { color: var(--muted) !important; font-family: var(--sans) !important; }
-/* proof badges / compile flow / artifact identity */
-#dom-motif_proof_badges .vs-value, #dom-motif_artifact_identity .vs-value { color: var(--shell-accent-2) !important; font-family: var(--mono) !important; }
-#dom-motif_compile_flow .vs-label { color: var(--shell-accent) !important; font-family: var(--mono) !important; }
-#dom-motif_proof_badges::before, #dom-motif_compile_flow::before { color: var(--muted) !important; font-family: var(--mono) !important; letter-spacing: 0.14em !important; }
-#dom-motif_proof_badges .vs-surface::before, #dom-motif_artifact_identity .vs-surface::before { content: ""; position: absolute; inset: 0 auto auto 0; width: 2px; height: 100%; background: linear-gradient(var(--shell-accent), transparent); }
-#dom-motif_proof_badges .vs-surface, #dom-motif_artifact_identity .vs-surface { position: relative; overflow: hidden; }
-/* tables: capabilities, agent_workflow, pricing */
-table.vs-stack { background: var(--panel) !important; }
-td.vs-label { color: var(--shell-accent-2) !important; font-family: var(--mono) !important; }
-th.vs-label { background: rgb(var(--shell-panel-rgb) / 0.5) !important; font-family: var(--mono) !important; letter-spacing: 0.12em !important; }
-/* monospace chrome accents */
-.artifact-brand, .artifact-profile-button code, .artifact-ir-status, .artifact-source-kicker, .artifact-source-card dt { font-family: var(--mono) !important; }
-/* hero entrance */
-#dom-binding_launch_hero_eyebrow { opacity: 1; animation: vs-rv 0.6s ease 0.05s both; }
-#dom-binding_launch_hero_title { opacity: 1; animation: vs-rv 0.7s cubic-bezier(0.2, 0.7, 0.2, 1) 0.16s both; }
-#dom-binding_launch_hero_description { opacity: 1; animation: vs-rv 0.7s ease 0.3s both; }
-@keyframes vs-rv { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
-@media (prefers-reduced-motion: reduce) {
-  #dom-binding_launch_hero_eyebrow, #dom-binding_launch_hero_title, #dom-binding_launch_hero_description { animation: none !important; }
-}
+  html{ -webkit-text-size-adjust:100%; scroll-behavior:smooth; }
+  @media (prefers-reduced-motion:reduce){ html{ scroll-behavior:auto; } *{ animation:none !important; transition:none !important; } }
+  body{
+    margin:0; background:var(--ink); color:var(--text);
+    font-family:var(--sans); font-size:16px; line-height:1.62; -webkit-font-smoothing:antialiased;
+  }
+  .bg{ position:fixed; inset:0; z-index:0; pointer-events:none;
+    background-image:
+      radial-gradient(760px 460px at 82% -6%, rgba(245,178,63,.09), transparent 62%),
+      radial-gradient(680px 520px at 8% 18%, rgba(87,220,169,.04), transparent 60%),
+      radial-gradient(circle at center, rgba(255,255,255,.028) 1px, transparent 1.4px),
+      linear-gradient(var(--tint),var(--tint));
+    background-size:auto,auto,26px 26px,auto;
+    -webkit-mask-image:linear-gradient(180deg,#000,#000 62%,transparent 96%);
+            mask-image:linear-gradient(180deg,#000,#000 62%,transparent 96%);
+  }
+  .shell{ position:relative; z-index:1; }
+  .mono{ font-family:var(--mono); }
+  ::selection{ background:var(--amber); color:var(--ink); }
+  a{ color:inherit; text-decoration:none; }
+  :focus-visible{ outline:2px solid var(--focus); outline-offset:3px; border-radius:4px; }
+
+  .wrap{ max-width:var(--wrap); margin:0 auto; padding:0 24px; }
+
+  /* ---------------- nav ---------------- */
+  nav{ position:sticky; top:0; z-index:50; backdrop-filter:blur(12px);
+    background:linear-gradient(180deg, rgba(10,13,20,.9), rgba(10,13,20,.6)); border-bottom:1px solid var(--line); }
+  .nav-in{ max-width:var(--wrap); margin:0 auto; padding:13px 24px; display:flex; align-items:center; justify-content:space-between; gap:18px; }
+  .logo{ display:flex; align-items:center; gap:11px; }
+  .logo .mark{ width:22px; height:22px; border-radius:6px; background:linear-gradient(135deg,var(--amber),#E0942A); position:relative; box-shadow:0 0 0 1px rgba(245,178,63,.4), 0 6px 18px rgba(245,178,63,.18); }
+  .logo .mark::after{ content:""; position:absolute; inset:6px 6px auto auto; width:6px; height:6px; border-radius:50%; background:var(--ink); }
+  .logo b{ font-family:var(--mono); font-weight:640; font-size:15.5px; letter-spacing:.005em; }
+  .nav-links{ display:flex; align-items:center; gap:6px; }
+  .nav-links a{ font-family:var(--mono); font-size:12.5px; color:var(--muted); padding:7px 11px; border-radius:8px; }
+  .nav-links a:hover{ color:var(--text); background:var(--panel-2); }
+  .inspect-btn{ display:inline-flex; align-items:center; gap:8px; cursor:pointer; font-family:var(--mono); font-size:12px;
+    color:var(--muted); background:var(--panel-2); border:1px solid var(--line); padding:7px 12px; border-radius:9px; }
+  .inspect-btn .d{ width:7px; height:7px; border-radius:50%; background:var(--faint); box-shadow:0 0 0 3px rgba(87,97,124,.16); }
+  body.inspect .inspect-btn{ color:var(--amber); border-color:rgba(245,178,63,.5); }
+  body.inspect .inspect-btn .d{ background:var(--amber); box-shadow:0 0 0 3px var(--amber-dim); }
+  @media (max-width:720px){ .nav-links a:not(.cta-mini){ display:none; } }
+
+  /* ---------------- hero ---------------- */
+  header{ padding:clamp(46px,9vh,104px) 0 40px; }
+  .eyebrow{ font-family:var(--mono); font-size:11.5px; letter-spacing:.22em; text-transform:uppercase; color:var(--amber);
+    display:inline-flex; align-items:center; gap:10px; }
+  .eyebrow::before{ content:""; width:26px; height:1px; background:linear-gradient(90deg,var(--amber),transparent); }
+  h1{ font-family:var(--mono); font-weight:var(--hw); letter-spacing:-.025em; line-height:1; margin:20px 0 0;
+    font-size:clamp(38px, calc(6.6vw*var(--disp)), 76px); text-wrap:balance; }
+  h1 .out{ color:var(--amber); position:relative; }
+  .sub{ font-size:clamp(16.5px,calc(.7vw+14px),20px); color:var(--muted); max-width:60ch; margin:24px 0 0; }
+  .sub b{ color:var(--text); font-weight:600; }
+  .hero-cta{ display:flex; flex-wrap:wrap; align-items:center; gap:14px; margin-top:30px; }
+  .cmd{ font-family:var(--mono); font-size:13.5px; color:var(--text); background:var(--panel-solid); border:1px solid var(--line-2);
+    border-radius:10px; padding:11px 15px; display:inline-flex; align-items:center; gap:10px; }
+  .cmd .pr{ color:var(--amber); }
+  .cmd .cp{ color:var(--faint); cursor:pointer; border-left:1px solid var(--line); padding-left:10px; font-size:11px; }
+  .cmd .cp:hover{ color:var(--amber); }
+  .ghost{ font-family:var(--mono); font-size:13px; color:var(--muted); display:inline-flex; gap:7px; align-items:center; }
+  .ghost:hover{ color:var(--amber); }
+
+  /* compile composition */
+  .compile{ margin-top:clamp(38px,6vh,64px); display:grid; grid-template-columns:minmax(0,1fr) auto minmax(0,1fr); gap:20px; align-items:center; }
+  .cpanel{ background:var(--panel-solid); border:1px solid var(--line); border-radius:14px; overflow:hidden; box-shadow:0 24px 60px -30px rgba(0,0,0,.8); }
+  .cpanel-h{ display:flex; align-items:center; justify-content:space-between; padding:11px 15px; border-bottom:1px solid var(--line); }
+  .cpanel-h .t{ font-family:var(--mono); font-size:10.5px; letter-spacing:.14em; text-transform:uppercase; color:var(--muted); }
+  .dots{ display:flex; gap:5px; } .dots i{ width:8px; height:8px; border-radius:50%; background:var(--line-2); }
+  pre.intent{ margin:0; padding:16px; font-family:var(--mono); font-size:11.7px; line-height:1.7; overflow-x:auto; color:var(--text); }
+  pre.intent .k{ color:var(--amber-2); } pre.intent .s{ color:var(--mint); } pre.intent .a{ color:var(--amber); } pre.intent .p{ color:var(--faint); }
+  pre.intent .ln{ display:block; opacity:1; animation:lnin .32s ease both; animation-delay:calc(.1s + var(--i,0)*.05s); }
+  @keyframes lnin{ from{ opacity:0; transform:translateY(3px); } to{ opacity:1; transform:none; } }
+  .compile-node{ display:flex; flex-direction:column; align-items:center; gap:9px; }
+  .cn-badge{ width:52px; height:52px; border-radius:14px; display:grid; place-items:center; color:var(--ink);
+    background:radial-gradient(circle at 32% 28%,var(--amber-2),var(--amber)); box-shadow:0 0 0 1px rgba(245,178,63,.5),0 0 34px rgba(245,178,63,.34);
+    font-family:var(--mono); font-weight:700; font-size:19px; }
+  .cn-badge.pulse{ animation:pulse 2.4s ease-out .58s 1; }
+  @keyframes pulse{ 0%{ box-shadow:0 0 0 1px rgba(245,178,63,.5),0 0 0 rgba(245,178,63,.5);} 40%{ box-shadow:0 0 0 1px rgba(245,178,63,.5),0 0 0 16px rgba(245,178,63,0);} 100%{ box-shadow:0 0 0 1px rgba(245,178,63,.5),0 0 34px rgba(245,178,63,.34);} }
+  .cn-label{ font-family:var(--mono); font-size:9.5px; letter-spacing:.16em; text-transform:uppercase; color:var(--faint); }
+  .cn-conn{ width:34px; height:1px; background:linear-gradient(90deg,transparent,var(--line-2)); }
+  .out-card{ padding:16px; }
+  .out-reveal{ opacity:1; animation:reveal .7s cubic-bezier(.2,.7,.2,1) .92s both; }
+  @keyframes reveal{ from{ opacity:0; transform:translateY(10px) scale(.985); } to{ opacity:1; transform:none; } }
+  .oc-row{ animation:rowin .45s ease both; }
+  .oc-rows .oc-row:nth-child(1){ animation-delay:1.14s; }
+  .oc-rows .oc-row:nth-child(2){ animation-delay:1.27s; }
+  .oc-rows .oc-row:nth-child(3){ animation-delay:1.40s; }
+  @keyframes rowin{ from{ opacity:0; transform:translateX(7px); } to{ opacity:1; transform:none; } }
+  .oc-top{ display:flex; align-items:baseline; justify-content:space-between; }
+  .oc-lbl{ font-family:var(--mono); font-size:10px; letter-spacing:.13em; text-transform:uppercase; color:var(--muted); }
+  .oc-big{ font-family:var(--mono); font-weight:680; font-size:34px; letter-spacing:-.02em; margin:6px 0 2px; font-variant-numeric:tabular-nums; }
+  .oc-delta{ font-family:var(--mono); font-size:12px; color:var(--mint); }
+  .oc-rows{ margin-top:14px; border-top:1px solid var(--line); }
+  .oc-row{ display:flex; justify-content:space-between; padding:9px 0; border-bottom:1px solid var(--line); font-size:13px; }
+  .oc-row:last-child{ border-bottom:0; } .oc-row .rk{ color:var(--muted); } .oc-row .rv{ font-family:var(--mono); color:var(--text); font-variant-numeric:tabular-nums; }
+  @media (max-width:840px){ .compile{ grid-template-columns:1fr; } .compile-node{ flex-direction:row; } .cn-conn{ width:1px; height:22px; background:linear-gradient(180deg,transparent,var(--line-2)); } }
+
+  /* ---------------- sections ---------------- */
+  section{ padding:clamp(56px,9vh,104px) 0; border-top:1px solid var(--line); }
+  .reveal-on{ opacity:0; transform:translateY(16px); transition:opacity .7s ease, transform .7s ease; }
+  .reveal-on.in{ opacity:1; transform:none; }
+  .sec-head{ display:flex; flex-direction:column; gap:14px; margin-bottom:clamp(30px,5vh,50px); }
+  .kicker{ font-family:var(--mono); font-size:11.5px; letter-spacing:.2em; text-transform:uppercase; color:var(--faint); }
+  .kicker .n{ color:var(--amber); }
+  h2{ font-family:var(--mono); font-weight:var(--hw); font-size:clamp(25px,calc(3vw*var(--disp)+8px),40px); letter-spacing:-.02em; margin:0; text-wrap:balance; line-height:1.06; }
+  .lead{ color:var(--muted); font-size:clamp(15.5px,.5vw+14px,17.5px); max-width:var(--measure); }
+
+  /* pillars */
+  .pillars{ display:grid; grid-template-columns:repeat(3,1fr); gap:16px; }
+  .pillar{ background:var(--panel); border:1px solid var(--line); border-radius:var(--rad); padding:calc(var(--u)*2.6); }
+  .pillar .pi{ width:34px; height:34px; border-radius:9px; background:var(--amber-dim); border:1px solid rgba(245,178,63,.28); display:grid; place-items:center; margin-bottom:15px; }
+  .pillar .pi svg{ width:17px; height:17px; stroke:var(--amber); fill:none; stroke-width:1.7; }
+  .pillar h3{ font-family:var(--mono); font-size:15.5px; font-weight:640; margin:0 0 8px; letter-spacing:-.01em; }
+  .pillar p{ margin:0; color:var(--muted); font-size:14px; line-height:1.58; }
+  @media (max-width:760px){ .pillars{ grid-template-columns:1fr; } }
+
+  /* switch bar (shared) */
+  .switch{ display:inline-flex; gap:3px; padding:4px; background:var(--panel-solid); border:1px solid var(--line); border-radius:11px; }
+  .switch button{ font-family:var(--mono); font-size:12px; color:var(--muted); background:transparent; border:0; cursor:pointer; padding:8px 14px; border-radius:8px; transition:.12s; }
+  .switch button:hover{ color:var(--text); }
+  .switch button[aria-pressed="true"]{ color:var(--ink); background:var(--amber); font-weight:600; }
+
+  /* motif */
+  .panel{ background:var(--panel-solid); border:1px solid var(--line); border-radius:16px; overflow:hidden; box-shadow:0 30px 70px -44px rgba(0,0,0,.8); }
+  .panel-bar{ display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px; padding:15px 20px; border-bottom:1px solid var(--line); }
+  .panel-bar .meta{ font-family:var(--mono); font-size:11px; letter-spacing:.05em; color:var(--muted); }
+  .panel-bar .meta b{ color:var(--amber-2); font-weight:600; }
+  #motifBody{ padding:22px; overflow-x:auto; }
+  table.mt{ width:100%; border-collapse:collapse; font-size:14px; }
+  table.mt th{ text-align:left; font-family:var(--mono); font-size:10px; letter-spacing:.12em; text-transform:uppercase; color:var(--muted); font-weight:500; padding:0 14px 12px; border-bottom:1px solid var(--line); }
+  table.mt td{ padding:14px; border-bottom:1px solid var(--line); vertical-align:top; }
+  table.mt td.k{ font-family:var(--mono); color:var(--amber-2); white-space:nowrap; font-size:13.5px; }
+  table.mt td .d{ color:var(--muted); font-size:13px; margin-top:3px; }
+  table.mt tr:last-child td{ border-bottom:0; }
+  .cards{ display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:14px; }
+  .mcard{ background:var(--panel-2); border:1px solid var(--line); border-radius:var(--rad); padding:18px; }
+  .mcard .ico{ width:32px; height:32px; border-radius:8px; background:var(--amber-dim); display:grid; place-items:center; color:var(--amber); font-family:var(--mono); font-weight:700; margin-bottom:12px; }
+  .mcard h4{ margin:0 0 6px; font-size:15px; font-weight:640; letter-spacing:-.01em; }
+  .mcard p{ margin:0; color:var(--muted); font-size:13.5px; line-height:1.55; }
+  .gal{ display:grid; grid-template-columns:repeat(auto-fit,minmax(240px,1fr)); gap:14px; }
+  .gtile{ position:relative; border-radius:var(--rad); overflow:hidden; border:1px solid var(--line); min-height:150px; padding:18px; display:flex; flex-direction:column; justify-content:flex-end;
+    background:linear-gradient(155deg,var(--panel-2),var(--panel-solid)); }
+  .gtile::before{ content:""; position:absolute; inset:0; background:radial-gradient(360px 160px at 78% 0%, rgba(245,178,63,.16), transparent 70%); }
+  .gtile .gk{ position:relative; font-family:var(--mono); font-size:10.5px; letter-spacing:.14em; text-transform:uppercase; color:var(--amber); }
+  .gtile h4{ position:relative; margin:8px 0 6px; font-size:16px; font-weight:640; }
+  .gtile p{ position:relative; margin:0; color:var(--muted); font-size:13px; }
+
+  /* derive */
+  .derive-top{ display:flex; flex-wrap:wrap; gap:16px; align-items:center; justify-content:space-between; padding:16px 20px; border-bottom:1px solid var(--line); }
+  .profiles{ display:flex; flex-wrap:wrap; gap:6px; }
+  .profiles button{ font-family:var(--mono); font-size:11.5px; color:var(--muted); background:var(--panel-2); border:1px solid var(--line-2); border-radius:20px; padding:6px 13px; cursor:pointer; transition:.12s; }
+  .profiles button:hover{ color:var(--text); border-color:var(--amber); }
+  .profiles button[aria-pressed="true"]{ color:var(--ink); background:var(--amber); border-color:var(--amber); font-weight:600; }
+  .readout{ font-family:var(--mono); font-size:11.5px; color:var(--faint); } .readout b{ color:var(--amber-2); font-weight:600; }
+  .derive-body{ padding:22px; }
+  .mgrid{ display:grid; grid-template-columns:repeat(var(--cols),minmax(0,1fr)); gap:14px; transition:grid-template-columns .35s ease; }
+  .metric{ background:var(--panel-2); border:1px solid var(--line); border-radius:var(--rad); padding:calc(var(--u)*2.1); }
+  .metric .ml{ font-family:var(--mono); font-size:10.5px; letter-spacing:.12em; text-transform:uppercase; color:var(--muted); }
+  .metric .mv{ font-family:var(--mono); font-weight:var(--hw); font-size:clamp(20px,calc(1.4vw*var(--disp)+11px),29px); margin-top:8px; font-variant-numeric:tabular-nums; letter-spacing:-.01em; }
+  .metric svg{ display:block; width:100%; height:32px; margin-top:11px; }
+  .note{ font-family:var(--mono); font-size:11px; color:var(--faint); padding:0 20px 18px; } .note b{ color:var(--muted); }
+
+  /* reveal / provenance */
+  .under{ display:grid; grid-template-columns:minmax(0,1.05fr) minmax(0,.95fr); gap:22px; align-items:start; }
+  @media (max-width:860px){ .under{ grid-template-columns:1fr; } }
+  .play{ background:var(--panel-solid); border:1px solid var(--line); border-radius:16px; padding:26px; }
+  .play .pk{ font-family:var(--mono); font-size:10.5px; letter-spacing:.14em; text-transform:uppercase; color:var(--muted); margin-bottom:14px; }
+  .specimen{ font-family:var(--mono); }
+  .specimen .big{ font-size:26px; font-weight:660; letter-spacing:-.02em; }
+  .specimen .row{ display:flex; gap:10px; flex-wrap:wrap; margin-top:14px; }
+  .chip{ font-family:var(--mono); font-size:12px; color:var(--text); background:var(--panel-2); border:1px solid var(--line-2); border-radius:8px; padding:8px 12px; cursor:default; }
+  [data-node].lit{ outline:1.5px solid var(--amber); outline-offset:3px; background:var(--amber-dim); border-radius:5px; }
+  body.inspect [data-node]{ position:relative; outline:1px dashed rgba(245,178,63,.4); outline-offset:2px; }
+  body.inspect [data-node]::after{ content:attr(data-node); position:absolute; left:-1px; top:-2px; transform:translateY(-100%);
+    font-family:var(--mono); font-size:9px; line-height:1.5; color:var(--ink); background:var(--amber); padding:1px 5px; border-radius:3px 3px 3px 0; white-space:nowrap; pointer-events:none; z-index:6; }
+  .trace{ background:linear-gradient(180deg,var(--panel-2),var(--panel-solid)); border:1px solid var(--line); border-radius:16px; padding:22px; }
+  .trace .flow{ font-family:var(--mono); font-size:10.5px; letter-spacing:.05em; color:var(--faint); margin-bottom:16px; }
+  .tnode{ border:1px solid var(--line); border-left:2px solid var(--amber); background:var(--panel-solid); border-radius:9px; padding:11px 13px; margin-bottom:8px; }
+  .tnode .tk{ font-family:var(--mono); font-size:9.5px; letter-spacing:.14em; text-transform:uppercase; color:var(--muted); }
+  .tnode .tv{ font-family:var(--mono); font-size:12.5px; color:var(--text); word-break:break-all; margin-top:3px; }
+  .tnode .tv.a{ color:var(--amber-2); } .tnode .tv.r{ color:var(--mint); }
+  .tarrow{ text-align:center; color:var(--faint); font-family:var(--mono); font-size:10px; margin:-2px 0 6px; }
+
+  /* proof */
+  .proof-grid{ display:grid; grid-template-columns:1fr 1fr; gap:18px; }
+  @media (max-width:760px){ .proof-grid{ grid-template-columns:1fr; } }
+  .pcard{ background:var(--panel-solid); border:1px solid var(--line); border-radius:16px; overflow:hidden; }
+  .pcard-h{ display:flex; align-items:center; gap:10px; padding:16px 20px; border-bottom:1px solid var(--line); }
+  .pcard-h .ok{ width:9px; height:9px; border-radius:50%; background:var(--mint); box-shadow:0 0 0 3px rgba(87,220,169,.16); }
+  .pcard-h .tt{ font-family:var(--mono); font-size:13px; color:var(--text); font-weight:600; }
+  .pcard-b{ padding:20px; }
+  .pcard-b p{ margin:0 0 16px; color:var(--muted); font-size:14px; line-height:1.55; }
+  .hashrow{ font-family:var(--mono); font-size:11.5px; color:var(--muted); word-break:break-all; background:var(--ink-2); border:1px solid var(--line); border-radius:9px; padding:12px; }
+  .hashrow .h{ color:var(--mint); }
+  .pbtns{ display:flex; align-items:center; gap:12px; margin-top:14px; flex-wrap:wrap; }
+  .pbtn{ font-family:var(--mono); font-size:12px; color:var(--ink); background:var(--amber); border:0; border-radius:8px; padding:9px 15px; cursor:pointer; font-weight:600; }
+  .pbtn:hover{ background:var(--amber-2); }
+  .verdict{ font-family:var(--mono); font-size:12px; color:var(--mint); display:none; align-items:center; gap:7px; }
+  .verdict.show{ display:inline-flex; }
+  .verdict .ok{ width:8px; height:8px; border-radius:50%; background:var(--mint); }
+  .bignum{ font-family:var(--mono); font-weight:700; font-size:46px; color:var(--text); font-variant-numeric:tabular-nums; line-height:1; }
+  .bignum small{ font-size:15px; color:var(--muted); font-weight:500; letter-spacing:.02em; margin-left:8px; }
+
+  /* cta */
+  .cta{ text-align:center; border-top:1px solid var(--line); }
+  .cta h2{ margin:0 auto; max-width:20ch; }
+  .cta .lead{ margin:16px auto 0; }
+  .cta-row{ display:flex; justify-content:center; flex-wrap:wrap; gap:14px; margin-top:30px; }
+  footer{ border-top:1px solid var(--line); }
+  .foot-in{ max-width:var(--wrap); margin:0 auto; padding:26px 24px; display:flex; justify-content:space-between; flex-wrap:wrap; gap:12px;
+    font-family:var(--mono); font-size:12px; color:var(--faint); }
+  .foot-in a{ color:var(--muted); } .foot-in a:hover{ color:var(--amber); }
+
+  /* inspect HUD (page-wide second gear) */
+  .hud{ position:fixed; left:50%; bottom:20px; transform:translateX(-50%) translateY(20px); z-index:60; opacity:0; pointer-events:none; transition:.18s;
+    background:rgba(12,15,23,.92); backdrop-filter:blur(8px); border:1px solid rgba(245,178,63,.4); border-radius:11px; padding:9px 15px;
+    font-family:var(--mono); font-size:12px; color:var(--text); display:flex; align-items:center; gap:12px; box-shadow:0 12px 40px -12px #000; }
+  body.inspect .hud.on{ opacity:1; transform:translateX(-50%) translateY(0); }
+  .hud .lbl{ color:var(--amber); letter-spacing:.1em; text-transform:uppercase; font-size:9.5px; }
+  .hud .addr{ color:var(--amber-2); }
+
+/* ============ embedded real compiler output — dark-match the emitter inline light theme ============ */
+.skip-link{ position:absolute; left:-999px; top:0; z-index:200; background:var(--amber); color:var(--ink); font-family:var(--mono); font-size:12px; padding:9px 13px; border-radius:8px; }
+.skip-link:focus{ left:12px; top:12px; }
+#viewspec-artifact-slot{ display:block; margin-top:6px; }
+#viewspec-artifact-slot .vs-root,#viewspec-artifact-slot [id^="dom-region"]{ background:none !important; background-color:transparent !important; color:var(--text) !important; font-family:var(--sans) !important; }
+#viewspec-artifact-slot .vs-surface{ background:linear-gradient(160deg,var(--panel-2),var(--panel-solid)) !important; border:1px solid var(--line) !important; border-radius:var(--rad) !important; box-shadow:none !important; }
+#viewspec-artifact-slot .vs-value,#viewspec-artifact-slot td.vs-value,#viewspec-artifact-slot .vs-text{ color:var(--text) !important; }
+#viewspec-artifact-slot .vs-label,#viewspec-artifact-slot th.vs-label{ color:var(--muted) !important; font-family:var(--mono) !important; }
+#viewspec-artifact-slot h1,#viewspec-artifact-slot #dom-binding_launch_hero_title{ font-family:var(--mono) !important; color:var(--text) !important; }
+#viewspec-artifact-slot table{ width:100%; border-collapse:collapse; }
+#viewspec-artifact-slot #dom-binding_launch_hero_eyebrow{ color:var(--amber) !important; font-family:var(--mono) !important; }
+#viewspec-artifact-slot #dom-motif_proof_badges .vs-value{ color:var(--mint) !important; font-family:var(--mono) !important; }
+body.inspect #viewspec-artifact-slot [data-ir-id]{ position:relative; outline:1px dashed rgba(245,178,63,.4); outline-offset:2px; }
+body.inspect #viewspec-artifact-slot [data-ir-id]::after{ content:attr(data-ir-id); position:absolute; left:-1px; top:-2px; transform:translateY(-100%); font-family:var(--mono); font-size:9px; line-height:1.5; color:var(--ink); background:var(--amber); padding:1px 5px; border-radius:3px 3px 3px 0; white-space:nowrap; pointer-events:none; z-index:6; }
+.anchor-target{ display:block; height:0; }
+.pricing-actions{ display:flex; flex-wrap:wrap; gap:12px; justify-content:center; margin-top:20px; }
+.pact{ font-family:var(--mono); font-size:12.5px; padding:10px 16px; border-radius:9px; border:1px solid var(--line-2); color:var(--text); background:var(--panel-solid); cursor:pointer; }
+.pact.primary{ background:var(--amber); color:var(--ink); border-color:var(--amber); font-weight:600; }
+.pact:hover{ border-color:var(--amber); }
+#noteReal{ display:block; margin-top:8px; }
+.receipts{ display:flex; flex-wrap:wrap; gap:8px; margin:0 0 14px; }
+.receipts a{ font-family:var(--mono); font-size:11px; color:var(--amber-2); background:var(--ink-2); border:1px solid var(--line); border-radius:7px; padding:5px 9px; }
+.receipts a:hover{ border-color:var(--amber); color:var(--amber); }
+.foot-links a{ color:var(--muted); } .foot-links a:hover{ color:var(--amber); }
+
 
 </style>
 </head>
-<body>
-<a class="skip-link" href="#dom-region_main">Skip to content</a>
-<nav class="artifact-bar" aria-label="Primary navigation and artifact inspector">
-<a class="artifact-brand" href="./">ViewSpec</a>
-<div class="artifact-links">
-<a href="./appbundle-state-ir/">State IR</a>
-<a href="./proof-bundle/">Proof</a>
-<a href="./custom-motifs/">Motifs</a>
-<a href="./openapi.json">OpenAPI</a>
-<a href="#pricing">Pricing</a>
-<a href="https://github.com/nxrobins/viewspec">GitHub</a>
+<body data-profile="calm_ops">
+<a class="skip-link" href="#top">Skip to content</a>
+<div class="bg"></div>
+<div class="shell">
+  <nav>
+    <div class="nav-in">
+      <a class="logo" href="#top"><span class="mark"></span><b class="mono">viewspec</b></a>
+      <div class="nav-links">
+        <a href="#shape">Product</a>
+        <a href="#under">How it works</a>
+        <a href="#proof">Proof</a>
+        <button class="inspect-btn" id="inspectBtn" aria-pressed="false" title="Overlay every element with its IR address (press i)"><span class="d"></span>Inspect</button>
+      </div>
+    </div>
+  </nav>
+
+  <div class="wrap" id="top">
+    <!-- ================= HERO ================= -->
+    <header>
+      <span class="eyebrow">Agent&#8209;native UI compiler</span>
+      <h1 data-node="node:hero#slot:title[0]" data-binding="hero_title" data-address="node:hero#slot:title[0]" data-present="text" data-raw="Intent goes in. Interface comes out.">Intent goes in.<br>Interface comes <span class="out">out.</span></h1>
+      <p class="sub" data-node="node:hero#slot:body[0]" data-binding="hero_body" data-address="node:hero#slot:body[0]" data-present="rich_text" data-raw="ViewSpec is the compiler between your agents and your UI.">
+        ViewSpec is the compiler between your agents and your UI. Agents commit to <b>meaning</b> &mdash; nodes, bindings, motifs. ViewSpec owns the <b>pixels</b>: deterministic, no model call at render, portable to HTML, React, SwiftUI, and Flutter.
+      </p>
+      <div class="hero-cta">
+        <span class="cmd mono"><span class="pr">$</span> pip install viewspec <button type="button" class="cp" id="copyCmd" data-copy-text="pip install viewspec" aria-label="Copy pip install viewspec command">copy</button></span>
+        <a class="ghost mono" href="#shape">see it compile &#8595;</a>
+      </div>
+
+      <!-- compile composition -->
+      <div class="compile">
+        <div class="cpanel">
+          <div class="cpanel-h"><span class="t">viewspec.intent.json</span><span class="dots"><i></i><i></i><i></i></span></div>
+          <pre class="intent" id="heroIntent"></pre>
+        </div>
+        <div class="compile-node">
+          <span class="cn-conn"></span>
+          <div style="display:flex;flex-direction:column;align-items:center;gap:9px">
+            <div class="cn-badge" id="cnBadge">&rarr;</div>
+            <span class="cn-label">compile</span>
+          </div>
+          <span class="cn-conn"></span>
+        </div>
+        <div class="cpanel">
+          <div class="cpanel-h"><span class="t">rendered &middot; html_tailwind</span><span class="dots" style="opacity:.5"><i></i><i></i><i></i></span></div>
+          <div class="out-card out-reveal">
+            <div class="oc-top"><span class="oc-lbl">Monthly recurring</span><span class="oc-delta">&#9650; 8.2%</span></div>
+            <div class="oc-big" id="ocBig">$48,210</div>
+            <svg viewBox="0 0 120 34" preserveAspectRatio="none" style="width:100%;height:34px" id="heroSpark" aria-hidden="true"></svg>
+            <div class="oc-rows">
+              <div class="oc-row"><span class="rk">Active seats</span><span class="rv">1,284</span></div>
+              <div class="oc-row"><span class="rk">Net retention</span><span class="rv">112%</span></div>
+              <div class="oc-row"><span class="rk">Churn</span><span class="rv">0.9%</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <!-- ================= MODEL ================= -->
+    <section id="model" class="reveal-on">
+      <div class="sec-head">
+        <span class="kicker"><span class="n">/</span> the model</span>
+        <h2>Agents shouldn&rsquo;t write markup. They should commit to meaning.</h2>
+        <p class="lead">An IntentBundle is a semantic contract, not a template. The compiler turns it into an interface the same way every time &mdash; and can prove what it did.</p>
+      </div>
+      <div class="pillars">
+        <div class="pillar">
+          <div class="pi"><svg viewBox="0 0 24 24"><path d="M4 7l8-4 8 4-8 4-8-4zM4 12l8 4 8-4M4 17l8 4 8-4"/></svg></div>
+          <h3>Deterministic</h3>
+          <p>Same intent, same bytes, same hash &mdash; on every machine, every run. No model in the render path, so output never drifts.</p>
+        </div>
+        <div class="pillar">
+          <div class="pi"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/></svg></div>
+          <h3>Portable</h3>
+          <p>One bundle emits html&#8209;tailwind and React locally; SwiftUI and Flutter when hosted. Describe the interface once, ship it anywhere.</p>
+        </div>
+        <div class="pillar">
+          <div class="pi"><svg viewBox="0 0 24 24"><path d="M12 3l7 3v5c0 4.5-3 8-7 10-4-2-7-5.5-7-10V6l7-3z"/><path d="M9 12l2 2 4-4"/></svg></div>
+          <h3>Provable</h3>
+          <p>Every element carries its lineage. Trace any pixel to the binding and raw data &mdash; and prove the artifact phones home to nobody.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================= MOTIF (functional demo 1) ================= -->
+    <section id="shape" class="reveal-on">
+      <div class="sec-head">
+        <span class="kicker"><span class="n">/</span> one intent, every shape</span>
+        <h2>The data doesn&rsquo;t change. The motif does.</h2>
+        <p class="lead">An agent describes a group of things. You decide whether it&rsquo;s a table, a dashboard, or a gallery. Flip it &mdash; same four bindings, three renderings.</p>
+      </div>
+      <div style="margin-bottom:18px"><div class="switch" role="group" aria-label="Motif" id="motifSeg">
+        <button data-motif="table" aria-pressed="true">Table</button>
+        <button data-motif="cards" aria-pressed="false">Dashboard</button>
+        <button data-motif="gal" aria-pressed="false">Gallery</button>
+      </div></div>
+      <div class="panel">
+        <div class="panel-bar">
+          <span class="meta">group: <b>capabilities</b> &middot; motif: <b id="motifName">table</b> &middot; ordered</span>
+          <span class="meta" style="color:var(--faint)">4 bindings &middot; exactly&#8209;once</span>
+        </div>
+        <div id="motifBody" data-node="node:features#slot:items"></div>
+      </div>
+    </section>
+
+    <!-- ================= DERIVE (functional demo 2) ================= -->
+    <section id="style" class="reveal-on">
+      <div class="sec-head">
+        <span class="kicker"><span class="n">/</span> style derivation</span>
+        <h2>Style is a token, not a task.</h2>
+        <p class="lead">Pick an aesthetic profile. The compiler re&#8209;derives density, emphasis, rhythm, and grid from a single token &mdash; a lookup, not a redesign. This whole page re&#8209;themes with it.</p>
+      </div>
+      <div class="panel">
+        <div class="derive-top">
+          <div class="profiles" role="group" aria-label="Aesthetic profile" id="profileGroup"><button type="button" data-profile-token="aesthetic.calm_ops" data-profile="calm_ops" data-profile-slug="calm-ops" aria-pressed="true" aria-label="Use Calm Ops compiled aesthetic profile">calm_ops</button><button type="button" data-profile-token="aesthetic.premium_saas" data-profile="premium_saas" data-profile-slug="premium-saas" aria-pressed="false" aria-label="Use Premium SaaS compiled aesthetic profile">premium_saas</button><button type="button" data-profile-token="aesthetic.data_dense" data-profile="data_dense" data-profile-slug="data-dense" aria-pressed="false" aria-label="Use Data Dense compiled aesthetic profile">data_dense</button><button type="button" data-profile-token="aesthetic.editorial_product" data-profile="editorial_product" data-profile-slug="editorial-product" aria-pressed="false" aria-label="Use Editorial Product compiled aesthetic profile">editorial_product</button><button type="button" data-profile-token="aesthetic.executive_review" data-profile="executive_review" data-profile-slug="executive-review" aria-pressed="false" aria-label="Use Executive Review compiled aesthetic profile">executive_review</button></div>
+          <div class="readout" id="readout">density <b>regular</b> &middot; emphasis <b>medium</b> &middot; columns <b>3</b></div>
+        </div>
+        <div class="derive-body"><div class="mgrid" id="mgrid"></div></div>
+        <div class="note">aesthetic.<span id="noteP">calm_ops</span> &middot; <b>0</b> hand&#8209;written rules &middot; <span class="mono">Same graph, new projection</span> from the same semantic graph</div><div class="note" id="noteReal"></div>
+      </div>
+    </section>
+
+    <!-- ================= REVEAL: PROVENANCE ================= -->
+    <section id="under" class="reveal-on">
+      <div class="sec-head">
+        <span class="kicker"><span class="n">/</span> now look under the hood</span>
+        <h2>Everything above is compiled output. Here&rsquo;s the receipt.</h2>
+        <p class="lead">Turn on <b style="color:var(--amber)">Inspect</b> (top&#8209;right, or press <span class="mono" style="color:var(--amber)">i</span>) and every element on the page shows the IR address it came from. Hover a chip below to trace one all the way back to the data.</p>
+      </div>
+      <div class="under">
+        <div class="play"><div class="pk">compiled artifact &middot; real IR ids &middot; hover a node</div><div class="receipts"><a href="./landing-compiled/intent_bundle.json" target="_blank" rel="noopener">intent_bundle.json</a><a href="./landing-compiled/provenance_manifest.json" target="_blank" rel="noopener">provenance_manifest.json</a><a href="./landing-compiled/profile-evidence.json" target="_blank" rel="noopener">profile-evidence.json</a></div><section id="viewspec-artifact-slot" class="viewspec-artifact-slot" data-active-profile="aesthetic.calm_ops"><main data-viewspec-page-artifact="true" id="dom-region_root" class="vs-root vs-layout-root" data-ir-id="region_root" data-content-refs="[]" data-intent-refs="[&quot;viewspec:view:viewspec_landing&quot;, &quot;viewspec:region:root&quot;, &quot;viewspec:style:aesthetic_profile&quot;]" data-style-tokens="[&quot;tone.neutral&quot;, &quot;palette.temperature&quot;, &quot;aesthetic.calm_ops&quot;]" style="color: #1f2937; color: #172033; font-family: ui-sans-serif, system-ui, sans-serif; background-color: #ffffff; background-color: #f6faf9;" data-aesthetic-profile="aesthetic.calm_ops"><div id="dom-region_main" class="vs-stack vs-layout-stack" data-ir-id="region_main" data-content-refs="[]" data-intent-refs="[&quot;viewspec:region:main&quot;]" data-style-tokens="[&quot;density.regular&quot;]" style="gap: 0.68rem; padding: 0.58rem 0.74rem; gap: 0.78rem; padding: 0.72rem 0.96rem;"><header id="dom-motif_launch_hero" class="vs-surface vs-layout-surface vs-motif-hero" data-ir-id="motif_launch_hero" data-content-refs="[]" data-intent-refs="[&quot;viewspec:motif:launch_hero&quot;, &quot;viewspec:style:s_launch_hero&quot;]" data-style-tokens="[&quot;surface.subtle&quot;, &quot;emphasis.high&quot;]" style="background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 14px; background: #ffffff; border: 1px solid #dbe3ea; border-radius: 14px; font-weight: 730; letter-spacing: -0.025em; font-weight: 760; letter-spacing: -0.012em;" aria-label="Hero"><p id="dom-binding_launch_hero_eyebrow" class="vs-label" data-ir-id="binding_launch_hero_eyebrow" data-content-refs="[&quot;node:launch_hero#attr:eyebrow&quot;]" data-intent-refs="[&quot;viewspec:binding:launch_hero_eyebrow&quot;]" data-style-tokens="[&quot;tone.muted&quot;]" style="color: #6b7280; color: #667085;" data-binding-id="launch_hero_eyebrow">Agent-native app compiler</p><h1 id="dom-binding_launch_hero_title" class="vs-value" data-ir-id="binding_launch_hero_title" data-content-refs="[&quot;node:launch_hero#attr:title&quot;]" data-intent-refs="[&quot;viewspec:binding:launch_hero_title&quot;]" data-style-tokens="[&quot;tone.neutral&quot;, &quot;emphasis.high&quot;]" style="color: #1f2937; color: #172033; font-family: ui-sans-serif, system-ui, sans-serif; font-weight: 730; letter-spacing: -0.025em; font-weight: 760; letter-spacing: -0.012em;" data-binding-id="launch_hero_title">Intent goes in. Interface comes out.</h1><p id="dom-binding_launch_hero_description" class="vs-text" data-ir-id="binding_launch_hero_description" data-content-refs="[&quot;node:launch_hero#attr:description&quot;]" data-intent-refs="[&quot;viewspec:binding:launch_hero_description&quot;]" data-style-tokens="[&quot;tone.neutral&quot;]" style="color: #1f2937; color: #172033; font-family: ui-sans-serif, system-ui, sans-serif;" data-binding-id="launch_hero_description">Agents commit to meaning — nodes, bindings, motifs. ViewSpec compiles the UI, the state reducer, replay checks, and shell proof. Deterministic, and no runtime LLM.</p></header><div id="dom-motif_proof_badges" class="vs-grid vs-layout-grid vs-motif-dashboard" data-ir-id="motif_proof_badges" data-content-refs="[]" data-intent-refs="[&quot;viewspec:motif:proof_badges&quot;, &quot;viewspec:style:s_proof_badges&quot;]" data-style-tokens="[&quot;density.regular&quot;, &quot;surface.subtle&quot;]" style="grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0.68rem; padding: 0.58rem 0.74rem; gap: 0.78rem; padding: 0.72rem 0.96rem; background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 14px; background: #ffffff; border: 1px solid #dbe3ea; border-radius: 14px;"><div id="dom-motif_proof_badges_proof_badges_card_1" class="vs-surface vs-layout-surface vs-motif-dashboard" data-ir-id="motif_proof_badges_proof_badges_card_1" data-content-refs="[]" data-intent-refs="[&quot;viewspec:motif:proof_badges&quot;]" data-style-tokens="[&quot;surface.subtle&quot;]" style="background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 14px; background: #ffffff; border: 1px solid #dbe3ea; border-radius: 14px;"><div id="dom-binding_proof_badges_card_1_label" class="vs-label" data-ir-id="binding_proof_badges_card_1_label" data-content-refs="[&quot;node:proof_badges_card_1#attr:label&quot;]" data-intent-refs="[&quot;viewspec:binding:proof_badges_card_1_label&quot;]" data-style-tokens="[&quot;tone.muted&quot;]" style="color: #6b7280; color: #667085;" data-binding-id="proof_badges_card_1_label">replay</div><div id="dom-binding_proof_badges_card_1_value" class="vs-value" data-ir-id="binding_proof_badges_card_1_value" data-content-refs="[&quot;node:proof_badges_card_1#attr:value&quot;]" data-intent-refs="[&quot;viewspec:binding:proof_badges_card_1_value&quot;]" data-style-tokens="[&quot;tone.neutral&quot;, &quot;emphasis.high&quot;]" style="color: #1f2937; color: #172033; font-family: ui-sans-serif, system-ui, sans-serif; font-weight: 730; letter-spacing: -0.025em; font-weight: 760; letter-spacing: -0.012em;" data-binding-id="proof_badges_card_1_value">state replay passed</div></div><div id="dom-motif_proof_badges_proof_badges_card_2" class="vs-surface vs-layout-surface vs-motif-dashboard" data-ir-id="motif_proof_badges_proof_badges_card_2" data-content-refs="[]" data-intent-refs="[&quot;viewspec:motif:proof_badges&quot;]" data-style-tokens="[&quot;surface.subtle&quot;]" style="background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 14px; background: #ffffff; border: 1px solid #dbe3ea; border-radius: 14px;"><div id="dom-binding_proof_badges_card_2_label" class="vs-label" data-ir-id="binding_proof_badges_card_2_label" data-content-refs="[&quot;node:proof_badges_card_2#attr:label&quot;]" data-intent-refs="[&quot;viewspec:binding:proof_badges_card_2_label&quot;]" data-style-tokens="[&quot;tone.muted&quot;]" style="color: #6b7280; color: #667085;" data-binding-id="proof_badges_card_2_label">reducer</div><div id="dom-binding_proof_badges_card_2_value" class="vs-value" data-ir-id="binding_proof_badges_card_2_value" data-content-refs="[&quot;node:proof_badges_card_2#attr:value&quot;]" data-intent-refs="[&quot;viewspec:binding:proof_badges_card_2_value&quot;]" data-style-tokens="[&quot;tone.neutral&quot;, &quot;emphasis.high&quot;]" style="color: #1f2937; color: #172033; font-family: ui-sans-serif, system-ui, sans-serif; font-weight: 730; letter-spacing: -0.025em; font-weight: 760; letter-spacing: -0.012em;" data-binding-id="proof_badges_card_2_value">reducer generated</div></div><div id="dom-motif_proof_badges_proof_badges_card_3" class="vs-surface vs-layout-surface vs-motif-dashboard" data-ir-id="motif_proof_badges_proof_badges_card_3" data-content-refs="[]" data-intent-refs="[&quot;viewspec:motif:proof_badges&quot;]" data-style-tokens="[&quot;surface.subtle&quot;]" style="background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 14px; background: #ffffff; border: 1px solid #dbe3ea; border-radius: 14px;"><div id="dom-binding_proof_badges_card_3_label" class="vs-label" data-ir-id="binding_proof_badges_card_3_label" data-content-refs="[&quot;node:proof_badges_card_3#attr:label&quot;]" data-intent-refs="[&quot;viewspec:binding:proof_badges_card_3_label&quot;]" data-style-tokens="[&quot;tone.muted&quot;]" style="color: #6b7280; color: #667085;" data-binding-id="proof_badges_card_3_label">manifest</div><div id="dom-binding_proof_badges_card_3_value" class="vs-value" data-ir-id="binding_proof_badges_card_3_value" data-content-refs="[&quot;node:proof_badges_card_3#attr:value&quot;]" data-intent-refs="[&quot;viewspec:binding:proof_badges_card_3_value&quot;]" data-style-tokens="[&quot;tone.neutral&quot;, &quot;emphasis.high&quot;]" style="color: #1f2937; color: #172033; font-family: ui-sans-serif, system-ui, sans-serif; font-weight: 730; letter-spacing: -0.025em; font-weight: 760; letter-spacing: -0.012em;" data-binding-id="proof_badges_card_3_value">manifest checked</div></div><div id="dom-motif_proof_badges_proof_badges_card_4" class="vs-surface vs-layout-surface vs-motif-dashboard" data-ir-id="motif_proof_badges_proof_badges_card_4" data-content-refs="[]" data-intent-refs="[&quot;viewspec:motif:proof_badges&quot;]" data-style-tokens="[&quot;surface.subtle&quot;]" style="background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 14px; background: #ffffff; border: 1px solid #dbe3ea; border-radius: 14px;"><div id="dom-binding_proof_badges_card_4_label" class="vs-label" data-ir-id="binding_proof_badges_card_4_label" data-content-refs="[&quot;node:proof_badges_card_4#attr:label&quot;]" data-intent-refs="[&quot;viewspec:binding:proof_badges_card_4_label&quot;]" data-style-tokens="[&quot;tone.muted&quot;]" style="color: #6b7280; color: #667085;" data-binding-id="proof_badges_card_4_label">shell</div><div id="dom-binding_proof_badges_card_4_value" class="vs-value" data-ir-id="binding_proof_badges_card_4_value" data-content-refs="[&quot;node:proof_badges_card_4#attr:value&quot;]" data-intent-refs="[&quot;viewspec:binding:proof_badges_card_4_value&quot;]" data-style-tokens="[&quot;tone.neutral&quot;, &quot;emphasis.high&quot;]" style="color: #1f2937; color: #172033; font-family: ui-sans-serif, system-ui, sans-serif; font-weight: 730; letter-spacing: -0.025em; font-weight: 760; letter-spacing: -0.012em;" data-binding-id="proof_badges_card_4_value">shell hash matched</div></div><div id="dom-motif_proof_badges_proof_badges_card_5" class="vs-surface vs-layout-surface vs-motif-dashboard" data-ir-id="motif_proof_badges_proof_badges_card_5" data-content-refs="[]" data-intent-refs="[&quot;viewspec:motif:proof_badges&quot;]" data-style-tokens="[&quot;surface.subtle&quot;]" style="background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 14px; background: #ffffff; border: 1px solid #dbe3ea; border-radius: 14px;"><div id="dom-binding_proof_badges_card_5_label" class="vs-label" data-ir-id="binding_proof_badges_card_5_label" data-content-refs="[&quot;node:proof_badges_card_5#attr:label&quot;]" data-intent-refs="[&quot;viewspec:binding:proof_badges_card_5_label&quot;]" data-style-tokens="[&quot;tone.muted&quot;]" style="color: #6b7280; color: #667085;" data-binding-id="proof_badges_card_5_label">runtime</div><div id="dom-binding_proof_badges_card_5_value" class="vs-value" data-ir-id="binding_proof_badges_card_5_value" data-content-refs="[&quot;node:proof_badges_card_5#attr:value&quot;]" data-intent-refs="[&quot;viewspec:binding:proof_badges_card_5_value&quot;]" data-style-tokens="[&quot;tone.neutral&quot;, &quot;emphasis.high&quot;]" style="color: #1f2937; color: #172033; font-family: ui-sans-serif, system-ui, sans-serif; font-weight: 730; letter-spacing: -0.025em; font-weight: 760; letter-spacing: -0.012em;" data-binding-id="proof_badges_card_5_value">No runtime LLM</div></div></div><div id="dom-motif_compile_flow" class="vs-grid vs-layout-grid vs-motif-dashboard" data-ir-id="motif_compile_flow" data-content-refs="[]" data-intent-refs="[&quot;viewspec:motif:compile_flow&quot;]" data-style-tokens="[&quot;density.regular&quot;]" style="grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.68rem; padding: 0.58rem 0.74rem; gap: 0.78rem; padding: 0.72rem 0.96rem;"><div id="dom-motif_compile_flow_compile_flow_card_1" class="vs-surface vs-layout-surface vs-motif-dashboard" data-ir-id="motif_compile_flow_compile_flow_card_1" data-content-refs="[]" data-intent-refs="[&quot;viewspec:motif:compile_flow&quot;]" data-style-tokens="[&quot;surface.subtle&quot;]" style="background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 14px; background: #ffffff; border: 1px solid #dbe3ea; border-radius: 14px;"><div id="dom-binding_compile_flow_card_1_label" class="vs-label" data-ir-id="binding_compile_flow_card_1_label" data-content-refs="[&quot;node:compile_flow_card_1#attr:label&quot;]" data-intent-refs="[&quot;viewspec:binding:compile_flow_card_1_label&quot;]" data-style-tokens="[&quot;tone.muted&quot;]" style="color: #6b7280; color: #667085;" data-binding-id="compile_flow_card_1_label">1 · intent</div><div id="dom-binding_compile_flow_card_1_value" class="vs-value" data-ir-id="binding_compile_flow_card_1_value" data-content-refs="[&quot;node:compile_flow_card_1#attr:value&quot;]" data-intent-refs="[&quot;viewspec:binding:compile_flow_card_1_value&quot;]" data-style-tokens="[&quot;tone.neutral&quot;, &quot;emphasis.high&quot;]" style="color: #1f2937; color: #172033; font-family: ui-sans-serif, system-ui, sans-serif; font-weight: 730; letter-spacing: -0.025em; font-weight: 760; letter-spacing: -0.012em;" data-binding-id="compile_flow_card_1_value">Agent writes IntentBundle JSON.</div></div><div id="dom-motif_compile_flow_compile_flow_card_2" class="vs-surface vs-layout-surface vs-motif-dashboard" data-ir-id="motif_compile_flow_compile_flow_card_2" data-content-refs="[]" data-intent-refs="[&quot;viewspec:motif:compile_flow&quot;]" data-style-tokens="[&quot;surface.subtle&quot;]" style="background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 14px; background: #ffffff; border: 1px solid #dbe3ea; border-radius: 14px;"><div id="dom-binding_compile_flow_card_2_label" class="vs-label" data-ir-id="binding_compile_flow_card_2_label" data-content-refs="[&quot;node:compile_flow_card_2#attr:label&quot;]" data-intent-refs="[&quot;viewspec:binding:compile_flow_card_2_label&quot;]" data-style-tokens="[&quot;tone.muted&quot;]" style="color: #6b7280; color: #667085;" data-binding-id="compile_flow_card_2_label">2 · compile</div><div id="dom-binding_compile_flow_card_2_value" class="vs-value" data-ir-id="binding_compile_flow_card_2_value" data-content-refs="[&quot;node:compile_flow_card_2#attr:value&quot;]" data-intent-refs="[&quot;viewspec:binding:compile_flow_card_2_value&quot;]" data-style-tokens="[&quot;tone.neutral&quot;, &quot;emphasis.high&quot;]" style="color: #1f2937; color: #172033; font-family: ui-sans-serif, system-ui, sans-serif; font-weight: 730; letter-spacing: -0.025em; font-weight: 760; letter-spacing: -0.012em;" data-binding-id="compile_flow_card_2_value">CompositionIR to UI and reducer, no LLM.</div></div><div id="dom-motif_compile_flow_compile_flow_card_3" class="vs-surface vs-layout-surface vs-motif-dashboard" data-ir-id="motif_compile_flow_compile_flow_card_3" data-content-refs="[]" data-intent-refs="[&quot;viewspec:motif:compile_flow&quot;]" data-style-tokens="[&quot;surface.subtle&quot;]" style="background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 14px; background: #ffffff; border: 1px solid #dbe3ea; border-radius: 14px;"><div id="dom-binding_compile_flow_card_3_label" class="vs-label" data-ir-id="binding_compile_flow_card_3_label" data-content-refs="[&quot;node:compile_flow_card_3#attr:label&quot;]" data-intent-refs="[&quot;viewspec:binding:compile_flow_card_3_label&quot;]" data-style-tokens="[&quot;tone.muted&quot;]" style="color: #6b7280; color: #667085;" data-binding-id="compile_flow_card_3_label">3 · proof</div><div id="dom-binding_compile_flow_card_3_value" class="vs-value" data-ir-id="binding_compile_flow_card_3_value" data-content-refs="[&quot;node:compile_flow_card_3#attr:value&quot;]" data-intent-refs="[&quot;viewspec:binding:compile_flow_card_3_value&quot;]" data-style-tokens="[&quot;tone.neutral&quot;, &quot;emphasis.high&quot;]" style="color: #1f2937; color: #172033; font-family: ui-sans-serif, system-ui, sans-serif; font-weight: 730; letter-spacing: -0.025em; font-weight: 760; letter-spacing: -0.012em;" data-binding-id="compile_flow_card_3_value">Provenance, replay, and shell hash attached.</div></div></div><table id="dom-motif_capabilities" class="vs-stack vs-layout-stack vs-motif-table" data-ir-id="motif_capabilities" data-content-refs="[]" data-intent-refs="[&quot;viewspec:motif:capabilities&quot;, &quot;viewspec:style:s_capabilities&quot;]" data-style-tokens="[&quot;density.regular&quot;, &quot;density.compact&quot;]" style="gap: 0.68rem; padding: 0.58rem 0.74rem; gap: 0.78rem; padding: 0.72rem 0.96rem; gap: 0.34rem; padding: 0.36rem 0.5rem; gap: 0.32rem; padding: 0.34rem 0.5rem;"><tbody><tr id="dom-motif_capabilities_capabilities_row_1" class="vs-cluster vs-layout-cluster vs-motif-table" data-ir-id="motif_capabilities_capabilities_row_1" data-content-refs="[]" data-intent-refs="[&quot;viewspec:motif:capabilities&quot;]" data-style-tokens="[&quot;density.compact&quot;]" style="gap: 0.34rem; padding: 0.36rem 0.5rem; gap: 0.32rem; padding: 0.34rem 0.5rem;"><th id="dom-binding_capabilities_row_1_label" class="vs-label" data-ir-id="binding_capabilities_row_1_label" data-content-refs="[&quot;node:capabilities_row_1#attr:label&quot;]" data-intent-refs="[&quot;viewspec:binding:capabilities_row_1_label&quot;]" data-style-tokens="[&quot;tone.muted&quot;]" style="color: #6b7280; color: #667085;" data-binding-id="capabilities_row_1_label" scope="row">State IR</th><td id="dom-binding_capabilities_row_1_value" class="vs-value" data-ir-id="binding_capabilities_row_1_value" data-content-refs="[&quot;node:capabilities_row_1#attr:value&quot;]" data-intent-refs="[&quot;viewspec:binding:capabilities_row_1_value&quot;]" data-style-tokens="[&quot;tone.neutral&quot;, &quot;emphasis.high&quot;]" style="color: #1f2937; color: #172033; font-family: ui-sans-serif, system-ui, sans-serif; font-weight: 730; letter-spacing: -0.025em; font-weight: 760; letter-spacing: -0.012em;" data-binding-id="capabilities_row_1_value">interactive_state_v0 writes state_reducer.ts and reduceViewSpecState.</td></tr><tr id="dom-motif_capabilities_capabilities_row_2" class="vs-cluster vs-layout-cluster vs-motif-table" data-ir-id="motif_capabilities_capabilities_row_2" data-content-refs="[]" data-intent-refs="[&quot;viewspec:motif:capabilities&quot;]" data-style-tokens="[&quot;density.compact&quot;]" style="gap: 0.34rem; padding: 0.36rem 0.5rem; gap: 0.32rem; padding: 0.34rem 0.5rem;"><th id="dom-binding_capabilities_row_2_label" class="vs-label" data-ir-id="binding_capabilities_row_2_label" data-content-refs="[&quot;node:capabilities_row_2#attr:label&quot;]" data-intent-refs="[&quot;viewspec:binding:capabilities_row_2_label&quot;]" data-style-tokens="[&quot;tone.muted&quot;]" style="color: #6b7280; color: #667085;" data-binding-id="capabilities_row_2_label" scope="row">Aesthetic Profiles</th><td id="dom-binding_capabilities_row_2_value" class="vs-value" data-ir-id="binding_capabilities_row_2_value" data-content-refs="[&quot;node:capabilities_row_2#attr:value&quot;]" data-intent-refs="[&quot;viewspec:binding:capabilities_row_2_value&quot;]" data-style-tokens="[&quot;tone.neutral&quot;, &quot;emphasis.high&quot;]" style="color: #1f2937; color: #172033; font-family: ui-sans-serif, system-ui, sans-serif; font-weight: 730; letter-spacing: -0.025em; font-weight: 760; letter-spacing: -0.012em;" data-binding-id="capabilities_row_2_value">Five compiled projections from one semantic graph.</td></tr><tr id="dom-motif_capabilities_capabilities_row_3" class="vs-cluster vs-layout-cluster vs-motif-table" data-ir-id="motif_capabilities_capabilities_row_3" data-content-refs="[]" data-intent-refs="[&quot;viewspec:motif:capabilities&quot;]" data-style-tokens="[&quot;density.compact&quot;]" style="gap: 0.34rem; padding: 0.36rem 0.5rem; gap: 0.32rem; padding: 0.34rem 0.5rem;"><th id="dom-binding_capabilities_row_3_label" class="vs-label" data-ir-id="binding_capabilities_row_3_label" data-content-refs="[&quot;node:capabilities_row_3#attr:label&quot;]" data-intent-refs="[&quot;viewspec:binding:capabilities_row_3_label&quot;]" data-style-tokens="[&quot;tone.muted&quot;]" style="color: #6b7280; color: #667085;" data-binding-id="capabilities_row_3_label" scope="row">Proof Pipeline</th><td id="dom-binding_capabilities_row_3_value" class="vs-value" data-ir-id="binding_capabilities_row_3_value" data-content-refs="[&quot;node:capabilities_row_3#attr:value&quot;]" data-intent-refs="[&quot;viewspec:binding:capabilities_row_3_value&quot;]" data-style-tokens="[&quot;tone.neutral&quot;, &quot;emphasis.high&quot;]" style="color: #1f2937; color: #172033; font-family: ui-sans-serif, system-ui, sans-serif; font-weight: 730; letter-spacing: -0.025em; font-weight: 760; letter-spacing: -0.012em;" data-binding-id="capabilities_row_3_value">state_replay_assertions plus viewspec prove-app --with-shell.</td></tr><tr id="dom-motif_capabilities_capabilities_row_4" class="vs-cluster vs-layout-cluster vs-motif-table" data-ir-id="motif_capabilities_capabilities_row_4" data-content-refs="[]" data-intent-refs="[&quot;viewspec:motif:capabilities&quot;]" data-style-tokens="[&quot;density.compact&quot;]" style="gap: 0.34rem; padding: 0.36rem 0.5rem; gap: 0.32rem; padding: 0.34rem 0.5rem;"><th id="dom-binding_capabilities_row_4_label" class="vs-label" data-ir-id="binding_capabilities_row_4_label" data-content-refs="[&quot;node:capabilities_row_4#attr:label&quot;]" data-intent-refs="[&quot;viewspec:binding:capabilities_row_4_label&quot;]" data-style-tokens="[&quot;tone.muted&quot;]" style="color: #6b7280; color: #667085;" data-binding-id="capabilities_row_4_label" scope="row">Portable Surfaces</th><td id="dom-binding_capabilities_row_4_value" class="vs-value" data-ir-id="binding_capabilities_row_4_value" data-content-refs="[&quot;node:capabilities_row_4#attr:value&quot;]" data-intent-refs="[&quot;viewspec:binding:capabilities_row_4_value&quot;]" data-style-tokens="[&quot;tone.neutral&quot;, &quot;emphasis.high&quot;]" style="color: #1f2937; color: #172033; font-family: ui-sans-serif, system-ui, sans-serif; font-weight: 730; letter-spacing: -0.025em; font-weight: 760; letter-spacing: -0.012em;" data-binding-id="capabilities_row_4_value">html-tailwind and React locally; SwiftUI and Flutter hosted.</td></tr></tbody></table><table id="dom-motif_agent_workflow" class="vs-stack vs-layout-stack vs-motif-table" data-ir-id="motif_agent_workflow" data-content-refs="[]" data-intent-refs="[&quot;viewspec:motif:agent_workflow&quot;]" data-style-tokens="[&quot;density.regular&quot;]" style="gap: 0.68rem; padding: 0.58rem 0.74rem; gap: 0.78rem; padding: 0.72rem 0.96rem;"><tbody><tr id="dom-motif_agent_workflow_agent_workflow_row_1" class="vs-cluster vs-layout-cluster vs-motif-table" data-ir-id="motif_agent_workflow_agent_workflow_row_1" data-content-refs="[]" data-intent-refs="[&quot;viewspec:motif:agent_workflow&quot;]" data-style-tokens="[&quot;density.compact&quot;]" style="gap: 0.34rem; padding: 0.36rem 0.5rem; gap: 0.32rem; padding: 0.34rem 0.5rem;"><th id="dom-binding_agent_workflow_row_1_label" class="vs-label" data-ir-id="binding_agent_workflow_row_1_label" data-content-refs="[&quot;node:agent_workflow_row_1#attr:label&quot;]" data-intent-refs="[&quot;viewspec:binding:agent_workflow_row_1_label&quot;]" data-style-tokens="[&quot;tone.muted&quot;]" style="color: #6b7280; color: #667085;" data-binding-id="agent_workflow_row_1_label" scope="row">describe</th><td id="dom-binding_agent_workflow_row_1_value" class="vs-value" data-ir-id="binding_agent_workflow_row_1_value" data-content-refs="[&quot;node:agent_workflow_row_1#attr:value&quot;]" data-intent-refs="[&quot;viewspec:binding:agent_workflow_row_1_value&quot;]" data-style-tokens="[&quot;tone.neutral&quot;, &quot;emphasis.high&quot;]" style="color: #1f2937; color: #172033; font-family: ui-sans-serif, system-ui, sans-serif; font-weight: 730; letter-spacing: -0.025em; font-weight: 760; letter-spacing: -0.012em;" data-binding-id="agent_workflow_row_1_value">Emit IntentBundle or AppBundle JSON.</td></tr><tr id="dom-motif_agent_workflow_agent_workflow_row_2" class="vs-cluster vs-layout-cluster vs-motif-table" data-ir-id="motif_agent_workflow_agent_workflow_row_2" data-content-refs="[]" data-intent-refs="[&quot;viewspec:motif:agent_workflow&quot;]" data-style-tokens="[&quot;density.compact&quot;]" style="gap: 0.34rem; padding: 0.36rem 0.5rem; gap: 0.32rem; padding: 0.34rem 0.5rem;"><th id="dom-binding_agent_workflow_row_2_label" class="vs-label" data-ir-id="binding_agent_workflow_row_2_label" data-content-refs="[&quot;node:agent_workflow_row_2#attr:label&quot;]" data-intent-refs="[&quot;viewspec:binding:agent_workflow_row_2_label&quot;]" data-style-tokens="[&quot;tone.muted&quot;]" style="color: #6b7280; color: #667085;" data-binding-id="agent_workflow_row_2_label" scope="row">validate</th><td id="dom-binding_agent_workflow_row_2_value" class="vs-value" data-ir-id="binding_agent_workflow_row_2_value" data-content-refs="[&quot;node:agent_workflow_row_2#attr:value&quot;]" data-intent-refs="[&quot;viewspec:binding:agent_workflow_row_2_value&quot;]" data-style-tokens="[&quot;tone.neutral&quot;, &quot;emphasis.high&quot;]" style="color: #1f2937; color: #172033; font-family: ui-sans-serif, system-ui, sans-serif; font-weight: 730; letter-spacing: -0.025em; font-weight: 760; letter-spacing: -0.012em;" data-binding-id="agent_workflow_row_2_value">viewspec validate-intent fails closed on drift.</td></tr><tr id="dom-motif_agent_workflow_agent_workflow_row_3" class="vs-cluster vs-layout-cluster vs-motif-table" data-ir-id="motif_agent_workflow_agent_workflow_row_3" data-content-refs="[]" data-intent-refs="[&quot;viewspec:motif:agent_workflow&quot;]" data-style-tokens="[&quot;density.compact&quot;]" style="gap: 0.34rem; padding: 0.36rem 0.5rem; gap: 0.32rem; padding: 0.34rem 0.5rem;"><th id="dom-binding_agent_workflow_row_3_label" class="vs-label" data-ir-id="binding_agent_workflow_row_3_label" data-content-refs="[&quot;node:agent_workflow_row_3#attr:label&quot;]" data-intent-refs="[&quot;viewspec:binding:agent_workflow_row_3_label&quot;]" data-style-tokens="[&quot;tone.muted&quot;]" style="color: #6b7280; color: #667085;" data-binding-id="agent_workflow_row_3_label" scope="row">prove</th><td id="dom-binding_agent_workflow_row_3_value" class="vs-value" data-ir-id="binding_agent_workflow_row_3_value" data-content-refs="[&quot;node:agent_workflow_row_3#attr:value&quot;]" data-intent-refs="[&quot;viewspec:binding:agent_workflow_row_3_value&quot;]" data-style-tokens="[&quot;tone.neutral&quot;, &quot;emphasis.high&quot;]" style="color: #1f2937; color: #172033; font-family: ui-sans-serif, system-ui, sans-serif; font-weight: 730; letter-spacing: -0.025em; font-weight: 760; letter-spacing: -0.012em;" data-binding-id="agent_workflow_row_3_value">viewspec prove-app --with-shell writes the report.</td></tr></tbody></table><table id="dom-motif_pricing" class="vs-stack vs-layout-stack vs-motif-table" data-ir-id="motif_pricing" data-content-refs="[]" data-intent-refs="[&quot;viewspec:motif:pricing&quot;]" data-style-tokens="[&quot;density.regular&quot;]" style="gap: 0.68rem; padding: 0.58rem 0.74rem; gap: 0.78rem; padding: 0.72rem 0.96rem;"><tbody><tr id="dom-motif_pricing_pricing_row_1" class="vs-cluster vs-layout-cluster vs-motif-table" data-ir-id="motif_pricing_pricing_row_1" data-content-refs="[]" data-intent-refs="[&quot;viewspec:motif:pricing&quot;]" data-style-tokens="[&quot;density.compact&quot;]" style="gap: 0.34rem; padding: 0.36rem 0.5rem; gap: 0.32rem; padding: 0.34rem 0.5rem;"><th id="dom-binding_pricing_row_1_label" class="vs-label" data-ir-id="binding_pricing_row_1_label" data-content-refs="[&quot;node:pricing_row_1#attr:label&quot;]" data-intent-refs="[&quot;viewspec:binding:pricing_row_1_label&quot;]" data-style-tokens="[&quot;tone.muted&quot;]" style="color: #6b7280; color: #667085;" data-binding-id="pricing_row_1_label" scope="row">Free</th><td id="dom-binding_pricing_row_1_value" class="vs-value" data-ir-id="binding_pricing_row_1_value" data-content-refs="[&quot;node:pricing_row_1#attr:value&quot;]" data-intent-refs="[&quot;viewspec:binding:pricing_row_1_value&quot;]" data-style-tokens="[&quot;tone.neutral&quot;, &quot;emphasis.high&quot;]" style="color: #1f2937; color: #172033; font-family: ui-sans-serif, system-ui, sans-serif; font-weight: 730; letter-spacing: -0.025em; font-weight: 760; letter-spacing: -0.012em;" data-binding-id="pricing_row_1_value">Local SDK. Unlimited compiles, proofs, and surfaces.</td></tr><tr id="dom-motif_pricing_pricing_row_2" class="vs-cluster vs-layout-cluster vs-motif-table" data-ir-id="motif_pricing_pricing_row_2" data-content-refs="[]" data-intent-refs="[&quot;viewspec:motif:pricing&quot;]" data-style-tokens="[&quot;density.compact&quot;]" style="gap: 0.34rem; padding: 0.36rem 0.5rem; gap: 0.32rem; padding: 0.34rem 0.5rem;"><th id="dom-binding_pricing_row_2_label" class="vs-label" data-ir-id="binding_pricing_row_2_label" data-content-refs="[&quot;node:pricing_row_2#attr:label&quot;]" data-intent-refs="[&quot;viewspec:binding:pricing_row_2_label&quot;]" data-style-tokens="[&quot;tone.muted&quot;]" style="color: #6b7280; color: #667085;" data-binding-id="pricing_row_2_label" scope="row">Pro</th><td id="dom-binding_pricing_row_2_value" class="vs-value" data-ir-id="binding_pricing_row_2_value" data-content-refs="[&quot;node:pricing_row_2#attr:value&quot;]" data-intent-refs="[&quot;viewspec:binding:pricing_row_2_value&quot;]" data-style-tokens="[&quot;tone.neutral&quot;, &quot;emphasis.high&quot;]" style="color: #1f2937; color: #172033; font-family: ui-sans-serif, system-ui, sans-serif; font-weight: 730; letter-spacing: -0.025em; font-weight: 760; letter-spacing: -0.012em;" data-binding-id="pricing_row_2_value">149/mo. Hosted compiler API, 10k calls per day.</td></tr><tr id="dom-motif_pricing_pricing_row_3" class="vs-cluster vs-layout-cluster vs-motif-table" data-ir-id="motif_pricing_pricing_row_3" data-content-refs="[]" data-intent-refs="[&quot;viewspec:motif:pricing&quot;]" data-style-tokens="[&quot;density.compact&quot;]" style="gap: 0.34rem; padding: 0.36rem 0.5rem; gap: 0.32rem; padding: 0.34rem 0.5rem;"><th id="dom-binding_pricing_row_3_label" class="vs-label" data-ir-id="binding_pricing_row_3_label" data-content-refs="[&quot;node:pricing_row_3#attr:label&quot;]" data-intent-refs="[&quot;viewspec:binding:pricing_row_3_label&quot;]" data-style-tokens="[&quot;tone.muted&quot;]" style="color: #6b7280; color: #667085;" data-binding-id="pricing_row_3_label" scope="row">Enterprise</th><td id="dom-binding_pricing_row_3_value" class="vs-value" data-ir-id="binding_pricing_row_3_value" data-content-refs="[&quot;node:pricing_row_3#attr:value&quot;]" data-intent-refs="[&quot;viewspec:binding:pricing_row_3_value&quot;]" data-style-tokens="[&quot;tone.neutral&quot;, &quot;emphasis.high&quot;]" style="color: #1f2937; color: #172033; font-family: ui-sans-serif, system-ui, sans-serif; font-weight: 730; letter-spacing: -0.025em; font-weight: 760; letter-spacing: -0.012em;" data-binding-id="pricing_row_3_value">Custom volume, organization sharing, and support.</td></tr></tbody></table><div id="dom-motif_artifact_identity" class="vs-grid vs-layout-grid vs-motif-dashboard" data-ir-id="motif_artifact_identity" data-content-refs="[]" data-intent-refs="[&quot;viewspec:motif:artifact_identity&quot;]" data-style-tokens="[&quot;density.regular&quot;]" style="grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.68rem; padding: 0.58rem 0.74rem; gap: 0.78rem; padding: 0.72rem 0.96rem;"><div id="dom-motif_artifact_identity_artifact_identity_card_1" class="vs-surface vs-layout-surface vs-motif-dashboard" data-ir-id="motif_artifact_identity_artifact_identity_card_1" data-content-refs="[]" data-intent-refs="[&quot;viewspec:motif:artifact_identity&quot;]" data-style-tokens="[&quot;surface.subtle&quot;]" style="background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 14px; background: #ffffff; border: 1px solid #dbe3ea; border-radius: 14px;"><div id="dom-binding_artifact_identity_card_1_label" class="vs-label" data-ir-id="binding_artifact_identity_card_1_label" data-content-refs="[&quot;node:artifact_identity_card_1#attr:label&quot;]" data-intent-refs="[&quot;viewspec:binding:artifact_identity_card_1_label&quot;]" data-style-tokens="[&quot;tone.muted&quot;]" style="color: #6b7280; color: #667085;" data-binding-id="artifact_identity_card_1_label">provenance</div><div id="dom-binding_artifact_identity_card_1_value" class="vs-value" data-ir-id="binding_artifact_identity_card_1_value" data-content-refs="[&quot;node:artifact_identity_card_1#attr:value&quot;]" data-intent-refs="[&quot;viewspec:binding:artifact_identity_card_1_value&quot;]" data-style-tokens="[&quot;tone.neutral&quot;, &quot;emphasis.high&quot;]" style="color: #1f2937; color: #172033; font-family: ui-sans-serif, system-ui, sans-serif; font-weight: 730; letter-spacing: -0.025em; font-weight: 760; letter-spacing: -0.012em;" data-binding-id="artifact_identity_card_1_value">Every element traces to its address.</div></div><div id="dom-motif_artifact_identity_artifact_identity_card_2" class="vs-surface vs-layout-surface vs-motif-dashboard" data-ir-id="motif_artifact_identity_artifact_identity_card_2" data-content-refs="[]" data-intent-refs="[&quot;viewspec:motif:artifact_identity&quot;]" data-style-tokens="[&quot;surface.subtle&quot;]" style="background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 14px; background: #ffffff; border: 1px solid #dbe3ea; border-radius: 14px;"><div id="dom-binding_artifact_identity_card_2_label" class="vs-label" data-ir-id="binding_artifact_identity_card_2_label" data-content-refs="[&quot;node:artifact_identity_card_2#attr:label&quot;]" data-intent-refs="[&quot;viewspec:binding:artifact_identity_card_2_label&quot;]" data-style-tokens="[&quot;tone.muted&quot;]" style="color: #6b7280; color: #667085;" data-binding-id="artifact_identity_card_2_label">determinism</div><div id="dom-binding_artifact_identity_card_2_value" class="vs-value" data-ir-id="binding_artifact_identity_card_2_value" data-content-refs="[&quot;node:artifact_identity_card_2#attr:value&quot;]" data-intent-refs="[&quot;viewspec:binding:artifact_identity_card_2_value&quot;]" data-style-tokens="[&quot;tone.neutral&quot;, &quot;emphasis.high&quot;]" style="color: #1f2937; color: #172033; font-family: ui-sans-serif, system-ui, sans-serif; font-weight: 730; letter-spacing: -0.025em; font-weight: 760; letter-spacing: -0.012em;" data-binding-id="artifact_identity_card_2_value">Same intent, same bytes, same hash.</div></div></div></div></main></section></div>
+        <div class="trace" aria-live="polite">
+          <div class="flow">DOM &rarr; binding &rarr; address &rarr; data</div>
+          <div id="traceOut"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================= PROOF ================= -->
+    <section id="proof" class="reveal-on">
+      <div class="sec-head">
+        <span class="kicker"><span class="n">/</span> trust, but verify</span>
+        <h2>Then verify again, and get the same answer.</h2>
+        <p class="lead">Two claims most tools ask you to take on faith. Here they&rsquo;re computed on the page you&rsquo;re reading.</p>
+      </div>
+      <div class="proof-grid">
+        <div class="pcard">
+          <div class="pcard-h"><span class="ok"></span><span class="tt">Deterministic provenance</span></div>
+          <div class="pcard-b">
+            <p>The provenance hash is <code style="color:var(--amber-2);font-family:var(--mono)">sha256</code> over the canonical IntentBundle. Recompute it &mdash; identical bytes, identical digest, every time.</p>
+            <div class="hashrow">sha256 = <span class="h" id="hashOut">computing&hellip;</span></div>
+            <div class="pbtns">
+              <button class="pbtn" id="verifyBtn">re&#8209;verify</button>
+              <span class="verdict" id="verdict"><span class="ok"></span><span id="verdictTxt">match &mdash; deterministic</span></span>
+            </div>
+          </div>
+        </div>
+        <div class="pcard">
+          <div class="pcard-h"><span class="ok"></span><span class="tt">Provably no&#8209;network</span></div>
+          <div class="pcard-b">
+            <p>ViewSpec&rsquo;s <code style="color:var(--amber-2);font-family:var(--mono)">check</code> gate certifies an artifact makes zero cross&#8209;origin requests before it ships. This page holds itself to the same bar &mdash; measured live:</p>
+            <div class="bignum"><span id="netCount">0</span><small>cross&#8209;origin requests</small></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================= CTA ================= -->
+    <span id="pricing" class="anchor-target" aria-hidden="true"></span>
+    <section class="cta reveal-on">
+      <h2>Compile your first interface in a minute.</h2>
+      <p class="lead">No account, no network, no LLM key. Install the SDK, write intent, prove the output.</p>
+      <div class="cta-row">
+        <span class="cmd mono"><span class="pr">$</span> pip install viewspec &amp;&amp; viewspec init&#8209;intent</span>
+        <a class="ghost mono" href="#top" style="color:var(--amber)">read the docs &#8594;</a>
+      <div class="pricing-actions" id="pricing-actions"><a class="pact primary" href="https://buy.stripe.com/6oU4gA6PqcM9afq6qq2Z0b8" data-config-link="pro" target="_blank" rel="noopener">Get Pro</a><a class="pact" href="mailto:hello@viewspec.dev?subject=ViewSpec%20Enterprise" data-config-link="enterprise" target="_blank" rel="noopener">Talk to us</a><button type="button" class="pact" data-copy-text="pip install viewspec" aria-label="Copy pip install viewspec command">pip install viewspec</button><button type="button" class="pact" data-copy-text="pip install viewspec" aria-label="Copy pip install viewspec command">copy install</button></div></div>
+    </section>
+  </div>
+
+  <footer>
+    <div class="foot-in">
+      <span>viewspec &middot; agent&#8209;native UI compiler</span>
+      <span class="foot-links"><a href="./appbundle-state-ir/">State IR</a> &middot; <a href="./proof-bundle/">Proof bundle</a> &middot; <a href="./custom-motifs/">Motifs</a> &middot; <a href="./openapi.json">OpenAPI</a></span>
+      <span id="footState">profile: aesthetic.calm_ops &middot; network: none</span>
+    </div>
+  </footer>
 </div>
-<div class="artifact-inspector" id="artifact-inspector" data-open="false">
-<button type="button" class="artifact-inspector-toggle" id="artifact-inspector-toggle" aria-expanded="false" aria-controls="artifact-inspector-panel" aria-label="Open artifact inspector controls"><span>Inspect artifact</span><span class="artifact-pretext-status">Pretext <output id="pretext-fit" role="status" aria-live="polite">measuring text</output></span></button>
-<div class="artifact-inspector-panel" id="artifact-inspector-panel" role="group" aria-label="Artifact inspector controls">
-<div class="artifact-controls">
-<fieldset class="artifact-control-group"><legend>Evidence</legend>
-<button type="button" class="artifact-button" data-page-evidence="clean" data-active="true" aria-label="Hide compiler IR outlines">Clean</button>
-<button type="button" class="artifact-button" data-page-evidence="provenance" aria-label="Show compiler IR outlines and inspect node ids">Show IR ids</button>
-<span class="artifact-ir-status">IR <output id="ir-inspector-value" role="status" aria-live="polite">hover a highlighted node</output></span>
-</fieldset>
-<fieldset class="artifact-control-group"><legend>Source</legend>
-<button type="button" class="artifact-button" data-source-view="intent" aria-label="Show IntentBundle summary">IntentBundle</button>
-<button type="button" class="artifact-button" data-source-view="manifest" aria-label="Show manifest summary">Manifest</button>
-<button type="button" class="artifact-button" data-source-view="profile" aria-label="Show compiled profile proof summary">Profile proof</button>
-<button type="button" class="artifact-button" data-source-view="hide" data-active="true" aria-label="Hide source summary">Hide source</button>
-<button type="button" class="artifact-button" data-copy-text="pip install viewspec" aria-label="Copy pip install viewspec command">pip install viewspec</button>
-</fieldset>
-</div>
-</div>
-</div>
-<div class="artifact-profile-dock" role="group" aria-label="Compiled aesthetic profile selector">
-<div class="artifact-profile-dock-inner">
-<div class="artifact-profile-label"><span>Compiled profile</span><strong>Same graph, new projection</strong><span class="artifact-profile-caption">Every profile is the same semantic graph, re-projected.</span></div>
-<div class="artifact-profile-switcher">
-<button type="button" class="artifact-button artifact-profile-button" data-profile-token="aesthetic.calm_ops" data-profile-slug="calm-ops" data-active="true" aria-pressed="true" aria-label="Use Calm Ops compiled aesthetic profile"><span>Calm Ops</span><code>aesthetic.calm_ops</code></button><button type="button" class="artifact-button artifact-profile-button" data-profile-token="aesthetic.premium_saas" data-profile-slug="premium-saas" data-active="false" aria-pressed="false" aria-label="Use Premium SaaS compiled aesthetic profile"><span>Premium SaaS</span><code>aesthetic.premium_saas</code></button><button type="button" class="artifact-button artifact-profile-button" data-profile-token="aesthetic.data_dense" data-profile-slug="data-dense" data-active="false" aria-pressed="false" aria-label="Use Data Dense compiled aesthetic profile"><span>Data Dense</span><code>aesthetic.data_dense</code></button><button type="button" class="artifact-button artifact-profile-button" data-profile-token="aesthetic.editorial_product" data-profile-slug="editorial-product" data-active="false" aria-pressed="false" aria-label="Use Editorial Product compiled aesthetic profile"><span>Editorial Product</span><code>aesthetic.editorial_product</code></button><button type="button" class="artifact-button artifact-profile-button" data-profile-token="aesthetic.executive_review" data-profile-slug="executive-review" data-active="false" aria-pressed="false" aria-label="Use Executive Review compiled aesthetic profile"><span>Executive Review</span><code>aesthetic.executive_review</code></button>
-</div>
-<span class="artifact-profile-status">Profile <output id="profile-proof-value" role="status" aria-live="polite">Calm Ops verified</output></span>
-</div>
-</div>
-</nav>
-<section id="artifact-source" class="artifact-source" data-visible="false" aria-hidden="true" role="region" aria-labelledby="artifact-source-title">
-<div class="artifact-source-heading">
-<div><p class="artifact-source-kicker">Artifact evidence</p><h2 id="artifact-source-title">Source summary</h2></div>
-<div class="artifact-source-actions">
-<a id="artifact-source-open" class="artifact-link-button" href="./landing-compiled/intent_bundle.json" target="_blank" rel="noopener">Open raw</a>
-<button id="artifact-source-copy" type="button" class="artifact-button">Copy JSON</button>
-<button type="button" class="artifact-button" data-close-source aria-label="Close source summary">Close</button>
-</div>
-</div>
-<div id="artifact-source-summary" class="artifact-source-summary"></div>
-<details class="artifact-source-raw"><summary>Raw JSON</summary><pre><code id="artifact-source-code"></code></pre></details>
-</section>
-<section id="viewspec-artifact-slot" class="viewspec-artifact-slot" data-active-profile="aesthetic.calm_ops">
-<main data-viewspec-page-artifact="true" id="dom-region_root" class="vs-root vs-layout-root" data-ir-id="region_root" data-content-refs="[]" data-intent-refs="[&quot;viewspec:view:viewspec_landing&quot;, &quot;viewspec:region:root&quot;, &quot;viewspec:style:aesthetic_profile&quot;]" data-style-tokens="[&quot;tone.neutral&quot;, &quot;palette.temperature&quot;, &quot;aesthetic.calm_ops&quot;]" style="color: #1f2937; color: #172033; font-family: ui-sans-serif, system-ui, sans-serif; background-color: #ffffff; background-color: #f6faf9;" data-aesthetic-profile="aesthetic.calm_ops"><div id="dom-region_main" class="vs-stack vs-layout-stack" data-ir-id="region_main" data-content-refs="[]" data-intent-refs="[&quot;viewspec:region:main&quot;]" data-style-tokens="[&quot;density.regular&quot;]" style="gap: 0.68rem; padding: 0.58rem 0.74rem; gap: 0.78rem; padding: 0.72rem 0.96rem;"><header id="dom-motif_launch_hero" class="vs-surface vs-layout-surface vs-motif-hero" data-ir-id="motif_launch_hero" data-content-refs="[]" data-intent-refs="[&quot;viewspec:motif:launch_hero&quot;, &quot;viewspec:style:s_launch_hero&quot;]" data-style-tokens="[&quot;surface.subtle&quot;, &quot;emphasis.high&quot;]" style="background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 14px; background: #ffffff; border: 1px solid #dbe3ea; border-radius: 14px; font-weight: 730; letter-spacing: -0.025em; font-weight: 760; letter-spacing: -0.012em;" aria-label="Hero"><p id="dom-binding_launch_hero_eyebrow" class="vs-label" data-ir-id="binding_launch_hero_eyebrow" data-content-refs="[&quot;node:launch_hero#attr:eyebrow&quot;]" data-intent-refs="[&quot;viewspec:binding:launch_hero_eyebrow&quot;]" data-style-tokens="[&quot;tone.muted&quot;]" style="color: #6b7280; color: #667085;" data-binding-id="launch_hero_eyebrow">Agent-native app compiler</p><h1 id="dom-binding_launch_hero_title" class="vs-value" data-ir-id="binding_launch_hero_title" data-content-refs="[&quot;node:launch_hero#attr:title&quot;]" data-intent-refs="[&quot;viewspec:binding:launch_hero_title&quot;]" data-style-tokens="[&quot;tone.neutral&quot;, &quot;emphasis.high&quot;]" style="color: #1f2937; color: #172033; font-family: ui-sans-serif, system-ui, sans-serif; font-weight: 730; letter-spacing: -0.025em; font-weight: 760; letter-spacing: -0.012em;" data-binding-id="launch_hero_title">Intent goes in. Interface comes out.</h1><p id="dom-binding_launch_hero_description" class="vs-text" data-ir-id="binding_launch_hero_description" data-content-refs="[&quot;node:launch_hero#attr:description&quot;]" data-intent-refs="[&quot;viewspec:binding:launch_hero_description&quot;]" data-style-tokens="[&quot;tone.neutral&quot;]" style="color: #1f2937; color: #172033; font-family: ui-sans-serif, system-ui, sans-serif;" data-binding-id="launch_hero_description">Agents commit to meaning — nodes, bindings, motifs. ViewSpec compiles the UI, the state reducer, replay checks, and shell proof. Deterministic, and no runtime LLM.</p></header><div id="dom-motif_proof_badges" class="vs-grid vs-layout-grid vs-motif-dashboard" data-ir-id="motif_proof_badges" data-content-refs="[]" data-intent-refs="[&quot;viewspec:motif:proof_badges&quot;, &quot;viewspec:style:s_proof_badges&quot;]" data-style-tokens="[&quot;density.regular&quot;, &quot;surface.subtle&quot;]" style="grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0.68rem; padding: 0.58rem 0.74rem; gap: 0.78rem; padding: 0.72rem 0.96rem; background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 14px; background: #ffffff; border: 1px solid #dbe3ea; border-radius: 14px;"><div id="dom-motif_proof_badges_proof_badges_card_1" class="vs-surface vs-layout-surface vs-motif-dashboard" data-ir-id="motif_proof_badges_proof_badges_card_1" data-content-refs="[]" data-intent-refs="[&quot;viewspec:motif:proof_badges&quot;]" data-style-tokens="[&quot;surface.subtle&quot;]" style="background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 14px; background: #ffffff; border: 1px solid #dbe3ea; border-radius: 14px;"><div id="dom-binding_proof_badges_card_1_label" class="vs-label" data-ir-id="binding_proof_badges_card_1_label" data-content-refs="[&quot;node:proof_badges_card_1#attr:label&quot;]" data-intent-refs="[&quot;viewspec:binding:proof_badges_card_1_label&quot;]" data-style-tokens="[&quot;tone.muted&quot;]" style="color: #6b7280; color: #667085;" data-binding-id="proof_badges_card_1_label">replay</div><div id="dom-binding_proof_badges_card_1_value" class="vs-value" data-ir-id="binding_proof_badges_card_1_value" data-content-refs="[&quot;node:proof_badges_card_1#attr:value&quot;]" data-intent-refs="[&quot;viewspec:binding:proof_badges_card_1_value&quot;]" data-style-tokens="[&quot;tone.neutral&quot;, &quot;emphasis.high&quot;]" style="color: #1f2937; color: #172033; font-family: ui-sans-serif, system-ui, sans-serif; font-weight: 730; letter-spacing: -0.025em; font-weight: 760; letter-spacing: -0.012em;" data-binding-id="proof_badges_card_1_value">state replay passed</div></div><div id="dom-motif_proof_badges_proof_badges_card_2" class="vs-surface vs-layout-surface vs-motif-dashboard" data-ir-id="motif_proof_badges_proof_badges_card_2" data-content-refs="[]" data-intent-refs="[&quot;viewspec:motif:proof_badges&quot;]" data-style-tokens="[&quot;surface.subtle&quot;]" style="background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 14px; background: #ffffff; border: 1px solid #dbe3ea; border-radius: 14px;"><div id="dom-binding_proof_badges_card_2_label" class="vs-label" data-ir-id="binding_proof_badges_card_2_label" data-content-refs="[&quot;node:proof_badges_card_2#attr:label&quot;]" data-intent-refs="[&quot;viewspec:binding:proof_badges_card_2_label&quot;]" data-style-tokens="[&quot;tone.muted&quot;]" style="color: #6b7280; color: #667085;" data-binding-id="proof_badges_card_2_label">reducer</div><div id="dom-binding_proof_badges_card_2_value" class="vs-value" data-ir-id="binding_proof_badges_card_2_value" data-content-refs="[&quot;node:proof_badges_card_2#attr:value&quot;]" data-intent-refs="[&quot;viewspec:binding:proof_badges_card_2_value&quot;]" data-style-tokens="[&quot;tone.neutral&quot;, &quot;emphasis.high&quot;]" style="color: #1f2937; color: #172033; font-family: ui-sans-serif, system-ui, sans-serif; font-weight: 730; letter-spacing: -0.025em; font-weight: 760; letter-spacing: -0.012em;" data-binding-id="proof_badges_card_2_value">reducer generated</div></div><div id="dom-motif_proof_badges_proof_badges_card_3" class="vs-surface vs-layout-surface vs-motif-dashboard" data-ir-id="motif_proof_badges_proof_badges_card_3" data-content-refs="[]" data-intent-refs="[&quot;viewspec:motif:proof_badges&quot;]" data-style-tokens="[&quot;surface.subtle&quot;]" style="background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 14px; background: #ffffff; border: 1px solid #dbe3ea; border-radius: 14px;"><div id="dom-binding_proof_badges_card_3_label" class="vs-label" data-ir-id="binding_proof_badges_card_3_label" data-content-refs="[&quot;node:proof_badges_card_3#attr:label&quot;]" data-intent-refs="[&quot;viewspec:binding:proof_badges_card_3_label&quot;]" data-style-tokens="[&quot;tone.muted&quot;]" style="color: #6b7280; color: #667085;" data-binding-id="proof_badges_card_3_label">manifest</div><div id="dom-binding_proof_badges_card_3_value" class="vs-value" data-ir-id="binding_proof_badges_card_3_value" data-content-refs="[&quot;node:proof_badges_card_3#attr:value&quot;]" data-intent-refs="[&quot;viewspec:binding:proof_badges_card_3_value&quot;]" data-style-tokens="[&quot;tone.neutral&quot;, &quot;emphasis.high&quot;]" style="color: #1f2937; color: #172033; font-family: ui-sans-serif, system-ui, sans-serif; font-weight: 730; letter-spacing: -0.025em; font-weight: 760; letter-spacing: -0.012em;" data-binding-id="proof_badges_card_3_value">manifest checked</div></div><div id="dom-motif_proof_badges_proof_badges_card_4" class="vs-surface vs-layout-surface vs-motif-dashboard" data-ir-id="motif_proof_badges_proof_badges_card_4" data-content-refs="[]" data-intent-refs="[&quot;viewspec:motif:proof_badges&quot;]" data-style-tokens="[&quot;surface.subtle&quot;]" style="background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 14px; background: #ffffff; border: 1px solid #dbe3ea; border-radius: 14px;"><div id="dom-binding_proof_badges_card_4_label" class="vs-label" data-ir-id="binding_proof_badges_card_4_label" data-content-refs="[&quot;node:proof_badges_card_4#attr:label&quot;]" data-intent-refs="[&quot;viewspec:binding:proof_badges_card_4_label&quot;]" data-style-tokens="[&quot;tone.muted&quot;]" style="color: #6b7280; color: #667085;" data-binding-id="proof_badges_card_4_label">shell</div><div id="dom-binding_proof_badges_card_4_value" class="vs-value" data-ir-id="binding_proof_badges_card_4_value" data-content-refs="[&quot;node:proof_badges_card_4#attr:value&quot;]" data-intent-refs="[&quot;viewspec:binding:proof_badges_card_4_value&quot;]" data-style-tokens="[&quot;tone.neutral&quot;, &quot;emphasis.high&quot;]" style="color: #1f2937; color: #172033; font-family: ui-sans-serif, system-ui, sans-serif; font-weight: 730; letter-spacing: -0.025em; font-weight: 760; letter-spacing: -0.012em;" data-binding-id="proof_badges_card_4_value">shell hash matched</div></div><div id="dom-motif_proof_badges_proof_badges_card_5" class="vs-surface vs-layout-surface vs-motif-dashboard" data-ir-id="motif_proof_badges_proof_badges_card_5" data-content-refs="[]" data-intent-refs="[&quot;viewspec:motif:proof_badges&quot;]" data-style-tokens="[&quot;surface.subtle&quot;]" style="background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 14px; background: #ffffff; border: 1px solid #dbe3ea; border-radius: 14px;"><div id="dom-binding_proof_badges_card_5_label" class="vs-label" data-ir-id="binding_proof_badges_card_5_label" data-content-refs="[&quot;node:proof_badges_card_5#attr:label&quot;]" data-intent-refs="[&quot;viewspec:binding:proof_badges_card_5_label&quot;]" data-style-tokens="[&quot;tone.muted&quot;]" style="color: #6b7280; color: #667085;" data-binding-id="proof_badges_card_5_label">runtime</div><div id="dom-binding_proof_badges_card_5_value" class="vs-value" data-ir-id="binding_proof_badges_card_5_value" data-content-refs="[&quot;node:proof_badges_card_5#attr:value&quot;]" data-intent-refs="[&quot;viewspec:binding:proof_badges_card_5_value&quot;]" data-style-tokens="[&quot;tone.neutral&quot;, &quot;emphasis.high&quot;]" style="color: #1f2937; color: #172033; font-family: ui-sans-serif, system-ui, sans-serif; font-weight: 730; letter-spacing: -0.025em; font-weight: 760; letter-spacing: -0.012em;" data-binding-id="proof_badges_card_5_value">No runtime LLM</div></div></div><div id="dom-motif_compile_flow" class="vs-grid vs-layout-grid vs-motif-dashboard" data-ir-id="motif_compile_flow" data-content-refs="[]" data-intent-refs="[&quot;viewspec:motif:compile_flow&quot;]" data-style-tokens="[&quot;density.regular&quot;]" style="grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.68rem; padding: 0.58rem 0.74rem; gap: 0.78rem; padding: 0.72rem 0.96rem;"><div id="dom-motif_compile_flow_compile_flow_card_1" class="vs-surface vs-layout-surface vs-motif-dashboard" data-ir-id="motif_compile_flow_compile_flow_card_1" data-content-refs="[]" data-intent-refs="[&quot;viewspec:motif:compile_flow&quot;]" data-style-tokens="[&quot;surface.subtle&quot;]" style="background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 14px; background: #ffffff; border: 1px solid #dbe3ea; border-radius: 14px;"><div id="dom-binding_compile_flow_card_1_label" class="vs-label" data-ir-id="binding_compile_flow_card_1_label" data-content-refs="[&quot;node:compile_flow_card_1#attr:label&quot;]" data-intent-refs="[&quot;viewspec:binding:compile_flow_card_1_label&quot;]" data-style-tokens="[&quot;tone.muted&quot;]" style="color: #6b7280; color: #667085;" data-binding-id="compile_flow_card_1_label">1 · intent</div><div id="dom-binding_compile_flow_card_1_value" class="vs-value" data-ir-id="binding_compile_flow_card_1_value" data-content-refs="[&quot;node:compile_flow_card_1#attr:value&quot;]" data-intent-refs="[&quot;viewspec:binding:compile_flow_card_1_value&quot;]" data-style-tokens="[&quot;tone.neutral&quot;, &quot;emphasis.high&quot;]" style="color: #1f2937; color: #172033; font-family: ui-sans-serif, system-ui, sans-serif; font-weight: 730; letter-spacing: -0.025em; font-weight: 760; letter-spacing: -0.012em;" data-binding-id="compile_flow_card_1_value">Agent writes IntentBundle JSON.</div></div><div id="dom-motif_compile_flow_compile_flow_card_2" class="vs-surface vs-layout-surface vs-motif-dashboard" data-ir-id="motif_compile_flow_compile_flow_card_2" data-content-refs="[]" data-intent-refs="[&quot;viewspec:motif:compile_flow&quot;]" data-style-tokens="[&quot;surface.subtle&quot;]" style="background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 14px; background: #ffffff; border: 1px solid #dbe3ea; border-radius: 14px;"><div id="dom-binding_compile_flow_card_2_label" class="vs-label" data-ir-id="binding_compile_flow_card_2_label" data-content-refs="[&quot;node:compile_flow_card_2#attr:label&quot;]" data-intent-refs="[&quot;viewspec:binding:compile_flow_card_2_label&quot;]" data-style-tokens="[&quot;tone.muted&quot;]" style="color: #6b7280; color: #667085;" data-binding-id="compile_flow_card_2_label">2 · compile</div><div id="dom-binding_compile_flow_card_2_value" class="vs-value" data-ir-id="binding_compile_flow_card_2_value" data-content-refs="[&quot;node:compile_flow_card_2#attr:value&quot;]" data-intent-refs="[&quot;viewspec:binding:compile_flow_card_2_value&quot;]" data-style-tokens="[&quot;tone.neutral&quot;, &quot;emphasis.high&quot;]" style="color: #1f2937; color: #172033; font-family: ui-sans-serif, system-ui, sans-serif; font-weight: 730; letter-spacing: -0.025em; font-weight: 760; letter-spacing: -0.012em;" data-binding-id="compile_flow_card_2_value">CompositionIR to UI and reducer, no LLM.</div></div><div id="dom-motif_compile_flow_compile_flow_card_3" class="vs-surface vs-layout-surface vs-motif-dashboard" data-ir-id="motif_compile_flow_compile_flow_card_3" data-content-refs="[]" data-intent-refs="[&quot;viewspec:motif:compile_flow&quot;]" data-style-tokens="[&quot;surface.subtle&quot;]" style="background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 14px; background: #ffffff; border: 1px solid #dbe3ea; border-radius: 14px;"><div id="dom-binding_compile_flow_card_3_label" class="vs-label" data-ir-id="binding_compile_flow_card_3_label" data-content-refs="[&quot;node:compile_flow_card_3#attr:label&quot;]" data-intent-refs="[&quot;viewspec:binding:compile_flow_card_3_label&quot;]" data-style-tokens="[&quot;tone.muted&quot;]" style="color: #6b7280; color: #667085;" data-binding-id="compile_flow_card_3_label">3 · proof</div><div id="dom-binding_compile_flow_card_3_value" class="vs-value" data-ir-id="binding_compile_flow_card_3_value" data-content-refs="[&quot;node:compile_flow_card_3#attr:value&quot;]" data-intent-refs="[&quot;viewspec:binding:compile_flow_card_3_value&quot;]" data-style-tokens="[&quot;tone.neutral&quot;, &quot;emphasis.high&quot;]" style="color: #1f2937; color: #172033; font-family: ui-sans-serif, system-ui, sans-serif; font-weight: 730; letter-spacing: -0.025em; font-weight: 760; letter-spacing: -0.012em;" data-binding-id="compile_flow_card_3_value">Provenance, replay, and shell hash attached.</div></div></div><table id="dom-motif_capabilities" class="vs-stack vs-layout-stack vs-motif-table" data-ir-id="motif_capabilities" data-content-refs="[]" data-intent-refs="[&quot;viewspec:motif:capabilities&quot;, &quot;viewspec:style:s_capabilities&quot;]" data-style-tokens="[&quot;density.regular&quot;, &quot;density.compact&quot;]" style="gap: 0.68rem; padding: 0.58rem 0.74rem; gap: 0.78rem; padding: 0.72rem 0.96rem; gap: 0.34rem; padding: 0.36rem 0.5rem; gap: 0.32rem; padding: 0.34rem 0.5rem;"><tbody><tr id="dom-motif_capabilities_capabilities_row_1" class="vs-cluster vs-layout-cluster vs-motif-table" data-ir-id="motif_capabilities_capabilities_row_1" data-content-refs="[]" data-intent-refs="[&quot;viewspec:motif:capabilities&quot;]" data-style-tokens="[&quot;density.compact&quot;]" style="gap: 0.34rem; padding: 0.36rem 0.5rem; gap: 0.32rem; padding: 0.34rem 0.5rem;"><th id="dom-binding_capabilities_row_1_label" class="vs-label" data-ir-id="binding_capabilities_row_1_label" data-content-refs="[&quot;node:capabilities_row_1#attr:label&quot;]" data-intent-refs="[&quot;viewspec:binding:capabilities_row_1_label&quot;]" data-style-tokens="[&quot;tone.muted&quot;]" style="color: #6b7280; color: #667085;" data-binding-id="capabilities_row_1_label" scope="row">State IR</th><td id="dom-binding_capabilities_row_1_value" class="vs-value" data-ir-id="binding_capabilities_row_1_value" data-content-refs="[&quot;node:capabilities_row_1#attr:value&quot;]" data-intent-refs="[&quot;viewspec:binding:capabilities_row_1_value&quot;]" data-style-tokens="[&quot;tone.neutral&quot;, &quot;emphasis.high&quot;]" style="color: #1f2937; color: #172033; font-family: ui-sans-serif, system-ui, sans-serif; font-weight: 730; letter-spacing: -0.025em; font-weight: 760; letter-spacing: -0.012em;" data-binding-id="capabilities_row_1_value">interactive_state_v0 writes state_reducer.ts and reduceViewSpecState.</td></tr><tr id="dom-motif_capabilities_capabilities_row_2" class="vs-cluster vs-layout-cluster vs-motif-table" data-ir-id="motif_capabilities_capabilities_row_2" data-content-refs="[]" data-intent-refs="[&quot;viewspec:motif:capabilities&quot;]" data-style-tokens="[&quot;density.compact&quot;]" style="gap: 0.34rem; padding: 0.36rem 0.5rem; gap: 0.32rem; padding: 0.34rem 0.5rem;"><th id="dom-binding_capabilities_row_2_label" class="vs-label" data-ir-id="binding_capabilities_row_2_label" data-content-refs="[&quot;node:capabilities_row_2#attr:label&quot;]" data-intent-refs="[&quot;viewspec:binding:capabilities_row_2_label&quot;]" data-style-tokens="[&quot;tone.muted&quot;]" style="color: #6b7280; color: #667085;" data-binding-id="capabilities_row_2_label" scope="row">Aesthetic Profiles</th><td id="dom-binding_capabilities_row_2_value" class="vs-value" data-ir-id="binding_capabilities_row_2_value" data-content-refs="[&quot;node:capabilities_row_2#attr:value&quot;]" data-intent-refs="[&quot;viewspec:binding:capabilities_row_2_value&quot;]" data-style-tokens="[&quot;tone.neutral&quot;, &quot;emphasis.high&quot;]" style="color: #1f2937; color: #172033; font-family: ui-sans-serif, system-ui, sans-serif; font-weight: 730; letter-spacing: -0.025em; font-weight: 760; letter-spacing: -0.012em;" data-binding-id="capabilities_row_2_value">Five compiled projections from one semantic graph.</td></tr><tr id="dom-motif_capabilities_capabilities_row_3" class="vs-cluster vs-layout-cluster vs-motif-table" data-ir-id="motif_capabilities_capabilities_row_3" data-content-refs="[]" data-intent-refs="[&quot;viewspec:motif:capabilities&quot;]" data-style-tokens="[&quot;density.compact&quot;]" style="gap: 0.34rem; padding: 0.36rem 0.5rem; gap: 0.32rem; padding: 0.34rem 0.5rem;"><th id="dom-binding_capabilities_row_3_label" class="vs-label" data-ir-id="binding_capabilities_row_3_label" data-content-refs="[&quot;node:capabilities_row_3#attr:label&quot;]" data-intent-refs="[&quot;viewspec:binding:capabilities_row_3_label&quot;]" data-style-tokens="[&quot;tone.muted&quot;]" style="color: #6b7280; color: #667085;" data-binding-id="capabilities_row_3_label" scope="row">Proof Pipeline</th><td id="dom-binding_capabilities_row_3_value" class="vs-value" data-ir-id="binding_capabilities_row_3_value" data-content-refs="[&quot;node:capabilities_row_3#attr:value&quot;]" data-intent-refs="[&quot;viewspec:binding:capabilities_row_3_value&quot;]" data-style-tokens="[&quot;tone.neutral&quot;, &quot;emphasis.high&quot;]" style="color: #1f2937; color: #172033; font-family: ui-sans-serif, system-ui, sans-serif; font-weight: 730; letter-spacing: -0.025em; font-weight: 760; letter-spacing: -0.012em;" data-binding-id="capabilities_row_3_value">state_replay_assertions plus viewspec prove-app --with-shell.</td></tr><tr id="dom-motif_capabilities_capabilities_row_4" class="vs-cluster vs-layout-cluster vs-motif-table" data-ir-id="motif_capabilities_capabilities_row_4" data-content-refs="[]" data-intent-refs="[&quot;viewspec:motif:capabilities&quot;]" data-style-tokens="[&quot;density.compact&quot;]" style="gap: 0.34rem; padding: 0.36rem 0.5rem; gap: 0.32rem; padding: 0.34rem 0.5rem;"><th id="dom-binding_capabilities_row_4_label" class="vs-label" data-ir-id="binding_capabilities_row_4_label" data-content-refs="[&quot;node:capabilities_row_4#attr:label&quot;]" data-intent-refs="[&quot;viewspec:binding:capabilities_row_4_label&quot;]" data-style-tokens="[&quot;tone.muted&quot;]" style="color: #6b7280; color: #667085;" data-binding-id="capabilities_row_4_label" scope="row">Portable Surfaces</th><td id="dom-binding_capabilities_row_4_value" class="vs-value" data-ir-id="binding_capabilities_row_4_value" data-content-refs="[&quot;node:capabilities_row_4#attr:value&quot;]" data-intent-refs="[&quot;viewspec:binding:capabilities_row_4_value&quot;]" data-style-tokens="[&quot;tone.neutral&quot;, &quot;emphasis.high&quot;]" style="color: #1f2937; color: #172033; font-family: ui-sans-serif, system-ui, sans-serif; font-weight: 730; letter-spacing: -0.025em; font-weight: 760; letter-spacing: -0.012em;" data-binding-id="capabilities_row_4_value">html-tailwind and React locally; SwiftUI and Flutter hosted.</td></tr></tbody></table><table id="dom-motif_agent_workflow" class="vs-stack vs-layout-stack vs-motif-table" data-ir-id="motif_agent_workflow" data-content-refs="[]" data-intent-refs="[&quot;viewspec:motif:agent_workflow&quot;]" data-style-tokens="[&quot;density.regular&quot;]" style="gap: 0.68rem; padding: 0.58rem 0.74rem; gap: 0.78rem; padding: 0.72rem 0.96rem;"><tbody><tr id="dom-motif_agent_workflow_agent_workflow_row_1" class="vs-cluster vs-layout-cluster vs-motif-table" data-ir-id="motif_agent_workflow_agent_workflow_row_1" data-content-refs="[]" data-intent-refs="[&quot;viewspec:motif:agent_workflow&quot;]" data-style-tokens="[&quot;density.compact&quot;]" style="gap: 0.34rem; padding: 0.36rem 0.5rem; gap: 0.32rem; padding: 0.34rem 0.5rem;"><th id="dom-binding_agent_workflow_row_1_label" class="vs-label" data-ir-id="binding_agent_workflow_row_1_label" data-content-refs="[&quot;node:agent_workflow_row_1#attr:label&quot;]" data-intent-refs="[&quot;viewspec:binding:agent_workflow_row_1_label&quot;]" data-style-tokens="[&quot;tone.muted&quot;]" style="color: #6b7280; color: #667085;" data-binding-id="agent_workflow_row_1_label" scope="row">describe</th><td id="dom-binding_agent_workflow_row_1_value" class="vs-value" data-ir-id="binding_agent_workflow_row_1_value" data-content-refs="[&quot;node:agent_workflow_row_1#attr:value&quot;]" data-intent-refs="[&quot;viewspec:binding:agent_workflow_row_1_value&quot;]" data-style-tokens="[&quot;tone.neutral&quot;, &quot;emphasis.high&quot;]" style="color: #1f2937; color: #172033; font-family: ui-sans-serif, system-ui, sans-serif; font-weight: 730; letter-spacing: -0.025em; font-weight: 760; letter-spacing: -0.012em;" data-binding-id="agent_workflow_row_1_value">Emit IntentBundle or AppBundle JSON.</td></tr><tr id="dom-motif_agent_workflow_agent_workflow_row_2" class="vs-cluster vs-layout-cluster vs-motif-table" data-ir-id="motif_agent_workflow_agent_workflow_row_2" data-content-refs="[]" data-intent-refs="[&quot;viewspec:motif:agent_workflow&quot;]" data-style-tokens="[&quot;density.compact&quot;]" style="gap: 0.34rem; padding: 0.36rem 0.5rem; gap: 0.32rem; padding: 0.34rem 0.5rem;"><th id="dom-binding_agent_workflow_row_2_label" class="vs-label" data-ir-id="binding_agent_workflow_row_2_label" data-content-refs="[&quot;node:agent_workflow_row_2#attr:label&quot;]" data-intent-refs="[&quot;viewspec:binding:agent_workflow_row_2_label&quot;]" data-style-tokens="[&quot;tone.muted&quot;]" style="color: #6b7280; color: #667085;" data-binding-id="agent_workflow_row_2_label" scope="row">validate</th><td id="dom-binding_agent_workflow_row_2_value" class="vs-value" data-ir-id="binding_agent_workflow_row_2_value" data-content-refs="[&quot;node:agent_workflow_row_2#attr:value&quot;]" data-intent-refs="[&quot;viewspec:binding:agent_workflow_row_2_value&quot;]" data-style-tokens="[&quot;tone.neutral&quot;, &quot;emphasis.high&quot;]" style="color: #1f2937; color: #172033; font-family: ui-sans-serif, system-ui, sans-serif; font-weight: 730; letter-spacing: -0.025em; font-weight: 760; letter-spacing: -0.012em;" data-binding-id="agent_workflow_row_2_value">viewspec validate-intent fails closed on drift.</td></tr><tr id="dom-motif_agent_workflow_agent_workflow_row_3" class="vs-cluster vs-layout-cluster vs-motif-table" data-ir-id="motif_agent_workflow_agent_workflow_row_3" data-content-refs="[]" data-intent-refs="[&quot;viewspec:motif:agent_workflow&quot;]" data-style-tokens="[&quot;density.compact&quot;]" style="gap: 0.34rem; padding: 0.36rem 0.5rem; gap: 0.32rem; padding: 0.34rem 0.5rem;"><th id="dom-binding_agent_workflow_row_3_label" class="vs-label" data-ir-id="binding_agent_workflow_row_3_label" data-content-refs="[&quot;node:agent_workflow_row_3#attr:label&quot;]" data-intent-refs="[&quot;viewspec:binding:agent_workflow_row_3_label&quot;]" data-style-tokens="[&quot;tone.muted&quot;]" style="color: #6b7280; color: #667085;" data-binding-id="agent_workflow_row_3_label" scope="row">prove</th><td id="dom-binding_agent_workflow_row_3_value" class="vs-value" data-ir-id="binding_agent_workflow_row_3_value" data-content-refs="[&quot;node:agent_workflow_row_3#attr:value&quot;]" data-intent-refs="[&quot;viewspec:binding:agent_workflow_row_3_value&quot;]" data-style-tokens="[&quot;tone.neutral&quot;, &quot;emphasis.high&quot;]" style="color: #1f2937; color: #172033; font-family: ui-sans-serif, system-ui, sans-serif; font-weight: 730; letter-spacing: -0.025em; font-weight: 760; letter-spacing: -0.012em;" data-binding-id="agent_workflow_row_3_value">viewspec prove-app --with-shell writes the report.</td></tr></tbody></table><table id="dom-motif_pricing" class="vs-stack vs-layout-stack vs-motif-table" data-ir-id="motif_pricing" data-content-refs="[]" data-intent-refs="[&quot;viewspec:motif:pricing&quot;]" data-style-tokens="[&quot;density.regular&quot;]" style="gap: 0.68rem; padding: 0.58rem 0.74rem; gap: 0.78rem; padding: 0.72rem 0.96rem;"><tbody><tr id="dom-motif_pricing_pricing_row_1" class="vs-cluster vs-layout-cluster vs-motif-table" data-ir-id="motif_pricing_pricing_row_1" data-content-refs="[]" data-intent-refs="[&quot;viewspec:motif:pricing&quot;]" data-style-tokens="[&quot;density.compact&quot;]" style="gap: 0.34rem; padding: 0.36rem 0.5rem; gap: 0.32rem; padding: 0.34rem 0.5rem;"><th id="dom-binding_pricing_row_1_label" class="vs-label" data-ir-id="binding_pricing_row_1_label" data-content-refs="[&quot;node:pricing_row_1#attr:label&quot;]" data-intent-refs="[&quot;viewspec:binding:pricing_row_1_label&quot;]" data-style-tokens="[&quot;tone.muted&quot;]" style="color: #6b7280; color: #667085;" data-binding-id="pricing_row_1_label" scope="row">Free</th><td id="dom-binding_pricing_row_1_value" class="vs-value" data-ir-id="binding_pricing_row_1_value" data-content-refs="[&quot;node:pricing_row_1#attr:value&quot;]" data-intent-refs="[&quot;viewspec:binding:pricing_row_1_value&quot;]" data-style-tokens="[&quot;tone.neutral&quot;, &quot;emphasis.high&quot;]" style="color: #1f2937; color: #172033; font-family: ui-sans-serif, system-ui, sans-serif; font-weight: 730; letter-spacing: -0.025em; font-weight: 760; letter-spacing: -0.012em;" data-binding-id="pricing_row_1_value">Local SDK. Unlimited compiles, proofs, and surfaces.</td></tr><tr id="dom-motif_pricing_pricing_row_2" class="vs-cluster vs-layout-cluster vs-motif-table" data-ir-id="motif_pricing_pricing_row_2" data-content-refs="[]" data-intent-refs="[&quot;viewspec:motif:pricing&quot;]" data-style-tokens="[&quot;density.compact&quot;]" style="gap: 0.34rem; padding: 0.36rem 0.5rem; gap: 0.32rem; padding: 0.34rem 0.5rem;"><th id="dom-binding_pricing_row_2_label" class="vs-label" data-ir-id="binding_pricing_row_2_label" data-content-refs="[&quot;node:pricing_row_2#attr:label&quot;]" data-intent-refs="[&quot;viewspec:binding:pricing_row_2_label&quot;]" data-style-tokens="[&quot;tone.muted&quot;]" style="color: #6b7280; color: #667085;" data-binding-id="pricing_row_2_label" scope="row">Pro</th><td id="dom-binding_pricing_row_2_value" class="vs-value" data-ir-id="binding_pricing_row_2_value" data-content-refs="[&quot;node:pricing_row_2#attr:value&quot;]" data-intent-refs="[&quot;viewspec:binding:pricing_row_2_value&quot;]" data-style-tokens="[&quot;tone.neutral&quot;, &quot;emphasis.high&quot;]" style="color: #1f2937; color: #172033; font-family: ui-sans-serif, system-ui, sans-serif; font-weight: 730; letter-spacing: -0.025em; font-weight: 760; letter-spacing: -0.012em;" data-binding-id="pricing_row_2_value">149/mo. Hosted compiler API, 10k calls per day.</td></tr><tr id="dom-motif_pricing_pricing_row_3" class="vs-cluster vs-layout-cluster vs-motif-table" data-ir-id="motif_pricing_pricing_row_3" data-content-refs="[]" data-intent-refs="[&quot;viewspec:motif:pricing&quot;]" data-style-tokens="[&quot;density.compact&quot;]" style="gap: 0.34rem; padding: 0.36rem 0.5rem; gap: 0.32rem; padding: 0.34rem 0.5rem;"><th id="dom-binding_pricing_row_3_label" class="vs-label" data-ir-id="binding_pricing_row_3_label" data-content-refs="[&quot;node:pricing_row_3#attr:label&quot;]" data-intent-refs="[&quot;viewspec:binding:pricing_row_3_label&quot;]" data-style-tokens="[&quot;tone.muted&quot;]" style="color: #6b7280; color: #667085;" data-binding-id="pricing_row_3_label" scope="row">Enterprise</th><td id="dom-binding_pricing_row_3_value" class="vs-value" data-ir-id="binding_pricing_row_3_value" data-content-refs="[&quot;node:pricing_row_3#attr:value&quot;]" data-intent-refs="[&quot;viewspec:binding:pricing_row_3_value&quot;]" data-style-tokens="[&quot;tone.neutral&quot;, &quot;emphasis.high&quot;]" style="color: #1f2937; color: #172033; font-family: ui-sans-serif, system-ui, sans-serif; font-weight: 730; letter-spacing: -0.025em; font-weight: 760; letter-spacing: -0.012em;" data-binding-id="pricing_row_3_value">Custom volume, organization sharing, and support.</td></tr></tbody></table><div id="dom-motif_artifact_identity" class="vs-grid vs-layout-grid vs-motif-dashboard" data-ir-id="motif_artifact_identity" data-content-refs="[]" data-intent-refs="[&quot;viewspec:motif:artifact_identity&quot;]" data-style-tokens="[&quot;density.regular&quot;]" style="grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.68rem; padding: 0.58rem 0.74rem; gap: 0.78rem; padding: 0.72rem 0.96rem;"><div id="dom-motif_artifact_identity_artifact_identity_card_1" class="vs-surface vs-layout-surface vs-motif-dashboard" data-ir-id="motif_artifact_identity_artifact_identity_card_1" data-content-refs="[]" data-intent-refs="[&quot;viewspec:motif:artifact_identity&quot;]" data-style-tokens="[&quot;surface.subtle&quot;]" style="background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 14px; background: #ffffff; border: 1px solid #dbe3ea; border-radius: 14px;"><div id="dom-binding_artifact_identity_card_1_label" class="vs-label" data-ir-id="binding_artifact_identity_card_1_label" data-content-refs="[&quot;node:artifact_identity_card_1#attr:label&quot;]" data-intent-refs="[&quot;viewspec:binding:artifact_identity_card_1_label&quot;]" data-style-tokens="[&quot;tone.muted&quot;]" style="color: #6b7280; color: #667085;" data-binding-id="artifact_identity_card_1_label">provenance</div><div id="dom-binding_artifact_identity_card_1_value" class="vs-value" data-ir-id="binding_artifact_identity_card_1_value" data-content-refs="[&quot;node:artifact_identity_card_1#attr:value&quot;]" data-intent-refs="[&quot;viewspec:binding:artifact_identity_card_1_value&quot;]" data-style-tokens="[&quot;tone.neutral&quot;, &quot;emphasis.high&quot;]" style="color: #1f2937; color: #172033; font-family: ui-sans-serif, system-ui, sans-serif; font-weight: 730; letter-spacing: -0.025em; font-weight: 760; letter-spacing: -0.012em;" data-binding-id="artifact_identity_card_1_value">Every element traces to its address.</div></div><div id="dom-motif_artifact_identity_artifact_identity_card_2" class="vs-surface vs-layout-surface vs-motif-dashboard" data-ir-id="motif_artifact_identity_artifact_identity_card_2" data-content-refs="[]" data-intent-refs="[&quot;viewspec:motif:artifact_identity&quot;]" data-style-tokens="[&quot;surface.subtle&quot;]" style="background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 14px; background: #ffffff; border: 1px solid #dbe3ea; border-radius: 14px;"><div id="dom-binding_artifact_identity_card_2_label" class="vs-label" data-ir-id="binding_artifact_identity_card_2_label" data-content-refs="[&quot;node:artifact_identity_card_2#attr:label&quot;]" data-intent-refs="[&quot;viewspec:binding:artifact_identity_card_2_label&quot;]" data-style-tokens="[&quot;tone.muted&quot;]" style="color: #6b7280; color: #667085;" data-binding-id="artifact_identity_card_2_label">determinism</div><div id="dom-binding_artifact_identity_card_2_value" class="vs-value" data-ir-id="binding_artifact_identity_card_2_value" data-content-refs="[&quot;node:artifact_identity_card_2#attr:value&quot;]" data-intent-refs="[&quot;viewspec:binding:artifact_identity_card_2_value&quot;]" data-style-tokens="[&quot;tone.neutral&quot;, &quot;emphasis.high&quot;]" style="color: #1f2937; color: #172033; font-family: ui-sans-serif, system-ui, sans-serif; font-weight: 730; letter-spacing: -0.025em; font-weight: 760; letter-spacing: -0.012em;" data-binding-id="artifact_identity_card_2_value">Same intent, same bytes, same hash.</div></div></div></div></main>
-</section>
-<span id="pricing" class="anchor-target" aria-hidden="true"></span>
-<div class="artifact-actions" id="pricing-actions">
-<a class="artifact-link-button primary" href="https://buy.stripe.com/6oU4gA6PqcM9afq6qq2Z0b8" data-config-link="pro" target="_blank" rel="noopener">Get Pro</a>
-<a class="artifact-link-button" href="mailto:hello@viewspec.dev?subject=ViewSpec%20Enterprise" data-config-link="enterprise" target="_blank" rel="noopener">Talk to us</a>
-<a class="artifact-link-button" href="https://pypi.org/project/viewspec/">Install SDK</a>
-<button type="button" class="artifact-button" data-copy-text="pip install viewspec" aria-label="Copy pip install viewspec command">pip install viewspec</button>
-</div>
-<footer class="artifact-footer">
-<span>Generated by <code>demos/build_landing.py</code> through the ViewSpec compiler.</span>
-<span><button type="button" class="artifact-button" data-copy-text="pip install viewspec" aria-label="Copy pip install viewspec command">pip install viewspec</button> MIT &copy; 2026</span>
-</footer>
+
+<div class="hud" id="hud"><span class="lbl">inspecting</span><span class="addr" id="hudAddr">&mdash;</span></div>
 <script type="module">
 
 import { LANDING_CONFIG, hasProductionCommerceConfig } from './shared/landing-config.js?v=20260505-launch'
@@ -1435,370 +1753,193 @@ document.querySelectorAll('[data-config-link]').forEach((link) => {
 })
 
 </script>
-<script src="./vendor/pretext/pretext.global.js?v=20260628-global"></script>
 <script>
+window.__VIEWSPEC__ = JSON.parse(document.getElementById("viewspec-real-data").textContent);
 
-;(() => {
-  const root = document.documentElement
-  const source = document.getElementById('artifact-source')
-  const sourceTitle = document.getElementById('artifact-source-title')
-  const sourceSummary = document.getElementById('artifact-source-summary')
-  const sourceCode = document.getElementById('artifact-source-code')
-  const sourceOpen = document.getElementById('artifact-source-open')
-  const copySource = document.getElementById('artifact-source-copy')
-  const irOutput = document.getElementById('ir-inspector-value')
-  const inspector = document.getElementById('artifact-inspector')
-  const inspectorToggle = document.getElementById('artifact-inspector-toggle')
-  const artifactSlot = document.getElementById('viewspec-artifact-slot')
-  const profileOutput = document.getElementById('profile-proof-value')
-  const profileEvidenceElement = document.getElementById('landing-profile-evidence')
-  const profileEvidence = profileEvidenceElement ? JSON.parse(profileEvidenceElement.textContent || '{}') : {}
-  const sourceNames = {
-    intent: 'IntentBundle summary',
-    manifest: 'Manifest summary',
-    profile: 'Profile proof summary',
+(function(){
+  "use strict";
+  var body=document.body, reduce=matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  /* ---------- data ---------- */
+  var CAPS=[
+    {k:"provenance",  ab:"PV", name:"Traceable provenance", desc:"Every node maps back through binding, address, and raw data."},
+    {k:"determinism", ab:"DT", name:"Deterministic render", desc:"No LLM at render. Same intent compiles to identical bytes."},
+    {k:"no_network",  ab:"NW", name:"Provable no-network",  desc:"The check gate certifies zero cross-origin requests."},
+    {k:"surfaces",    ab:"SF", name:"One intent, N surfaces", desc:"Emits html, React, and hosted SwiftUI and Flutter."}
+  ];
+  var PROFILES={
+    calm_ops:{density:"regular",emphasis:"medium",columns:3},
+    premium_saas:{density:"airy",emphasis:"high",columns:3},
+    data_dense:{density:"compact",emphasis:"medium",columns:4},
+    editorial_product:{density:"airy",emphasis:"high",columns:2},
+    executive_review:{density:"airy",emphasis:"high",columns:3}
+  };
+  var METRICS=[
+    {ml:"Compiles / day", mv:"12,480", seed:0.2},
+    {ml:"P50 compile",    mv:"38ms",   seed:1.1},
+    {ml:"Proof pass rate",mv:"100%",   seed:2.0},
+    {ml:"Surfaces",       mv:"4",      seed:0.7}
+  ];
+  var INTENT={
+    substrate:{ id:"card", root_id:"card",
+      nodes:{ card:{ id:"card", kind:"metric_card",
+        attrs:{ label:"Monthly recurring", value:"$48,210", delta:"+8.2%" }, slots:{}, edges:{} } } },
+    view_spec:{ id:"card", substrate_id:"card", complexity_tier:1, root_region:"root",
+      regions:[{id:"root",parent_region:null,role:"panel",layout:"stack",min_children:1,max_children:null}],
+      bindings:[
+        {id:"mrr_label", address:"node:card#attr:label", target_region:"root", present_as:"label", cardinality:"exactly_once"},
+        {id:"mrr_value", address:"node:card#attr:value", target_region:"root", present_as:"value", cardinality:"exactly_once"},
+        {id:"mrr_delta", address:"node:card#attr:delta", target_region:"root", present_as:"badge", cardinality:"exactly_once"}
+      ],
+      groups:[], motifs:[{id:"card",kind:"metric_card",region:"root",members:["mrr_label","mrr_value","mrr_delta"]}],
+      styles:[{id:"aesthetic",target:"view:card",token:"aesthetic.calm_ops"}], actions:[] }
+  };
+
+  function esc(s){ return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;"); }
+
+  /* ---------- hero intent (compact, highlighted) ---------- */
+  function heroIntentHTML(){
+    var lines=[
+      ['{',''],
+      ['  "kind": "metric_card",','key'],
+      ['  "attrs": {',''],
+      ['    "label": "Monthly recurring",','pair'],
+      ['    "value": "$48,210",','pair'],
+      ['    "delta": "+8.2%"','pair'],
+      ['  },',''],
+      ['  "bindings": [ label, value, delta ],','bind'],
+      ['  "style": "aesthetic.calm_ops"','style'],
+      ['}','']
+    ];
+    return lines.map(function(l,idx){
+      var t=esc(l[0]);
+      t=t.replace(/&quot;([^&]*?)&quot;(\s*:)/g,'<span class="k">&quot;$1&quot;</span>$2');
+      t=t.replace(/:\s(&quot;[^&]*?&quot;)/g,function(m,s){return ': <span class="s">'+s+'</span>';});
+      t=t.replace(/(aesthetic\.[a-z_]+)/g,'<span class="a">$1</span>');
+      t=t.replace(/([{}\[\],])/g,'<span class="p">$1</span>');
+      return '<span class="ln" style="--i:'+idx+'">'+(t||"&nbsp;")+'</span>';
+    }).join("");
   }
-  const cache = new Map()
-  let activeSourceText = ''
-  let activeSourceView = 'hide'
-  let activeProfile = profileEvidence.defaultProfile || 'aesthetic.calm_ops'
+  document.getElementById("heroIntent").innerHTML=heroIntentHTML();
 
-  function activeProfileData() {
-    return profileEvidence.profiles?.[activeProfile] || {}
+  /* ---------- sparkline ---------- */
+  function spark(seed,el,fill){
+    var n=24,w=120,h=34,d="";
+    for(var i=0;i<n;i++){ var t=i/(n-1); var y=26-16*Math.abs(Math.sin(t*3.0+seed))-6*t; d+=(i?"L":"M")+(t*w).toFixed(1)+" "+y.toFixed(1)+" "; }
+    var last=d.trim().split(" ").slice(-1)[0];
+    el.innerHTML='<path d="'+d+'L120 34 L0 34 Z" fill="'+(fill||"rgba(245,178,63,.10)")+'"/><path d="'+d+'" fill="none" stroke="var(--amber)" stroke-width="1.5"/><circle cx="120" cy="'+last+'" r="2.2" fill="var(--amber-2)"/>';
+  }
+  spark(0.5, document.getElementById("heroSpark"));
+
+  /* ---------- metrics grid ---------- */
+  function renderMetrics(){
+    var g=document.getElementById("mgrid");
+    g.innerHTML=METRICS.map(function(m,i){
+      return '<div class="metric" data-node="node:board#slot:metric['+i+']" data-binding="kpi_'+i+'" data-address="node:board#slot:metric['+i+']" data-present="value" data-raw="'+m.mv+'" tabindex="0">'
+        +'<div class="ml">'+m.ml+'</div><div class="mv">'+m.mv+'</div>'
+        +'<svg viewBox="0 0 120 34" preserveAspectRatio="none" data-seed="'+m.seed+'"></svg></div>';
+    }).join("");
+    g.querySelectorAll("svg").forEach(function(s){ spark(parseFloat(s.getAttribute("data-seed")),s); });
   }
 
-  function sourceUrl(value) {
-    if (value === 'profile') return './landing-compiled/profile-evidence.json'
-    const data = activeProfileData()
-    if (value === 'intent') return data.intentUrl || './landing-compiled/intent_bundle.json'
-    if (value === 'manifest') return data.manifestUrl || './landing-compiled/provenance_manifest.json'
-    return ''
+  /* ---------- profile ---------- */
+  function setProfile(p){
+    body.setAttribute("data-profile",p);
+    document.querySelectorAll("#profileGroup button").forEach(function(b){ b.setAttribute("aria-pressed", b.getAttribute("data-profile")===p?"true":"false"); });
+    var t=PROFILES[p];
+    document.getElementById("readout").innerHTML="density <b>"+t.density+"</b> &middot; emphasis <b>"+t.emphasis+"</b> &middot; columns <b>"+t.columns+"</b>"; var pf=(window.__VIEWSPEC__&&window.__VIEWSPEC__.profiles&&window.__VIEWSPEC__.profiles[p]); if(pf){ var nn=document.getElementById("noteReal"); if(nn) nn.innerHTML="semantic id hash <b>"+pf.semanticHash.slice(0,12)+"</b> (stable) &middot; style projection <b>"+pf.styleHash.slice(0,12)+"</b> &middot; <b>"+pf.changedTokens+"</b> governed tokens"; }
+    document.getElementById("noteP").textContent=p;
+    document.getElementById("footState").innerHTML="profile: aesthetic."+p+" &middot; network: none";
   }
+  document.getElementById("profileGroup").addEventListener("click",function(e){ var b=e.target.closest("button[data-profile]"); if(b) setProfile(b.getAttribute("data-profile")); });
 
-  function updateProfileStatus() {
-    const data = activeProfileData()
-    root.dataset.viewspecProfile = activeProfile
-    if (artifactSlot) artifactSlot.dataset.activeProfile = activeProfile
-    if (profileOutput) {
-      profileOutput.value = `${data.label || activeProfile} verified`
-      profileOutput.textContent = profileOutput.value
+  /* ---------- motif ---------- */
+  var motifBody=document.getElementById("motifBody"), motifName=document.getElementById("motifName");
+  function renderMotif(kind){
+    motifName.textContent = kind==="cards"?"dashboard":(kind==="gal"?"gallery":"table");
+    var h="";
+    if(kind==="table"){
+      h='<table class="mt"><thead><tr><th>capability</th><th>what it means</th></tr></thead><tbody>';
+      CAPS.forEach(function(c,i){ h+='<tr data-node="node:features#slot:items['+i+']" data-binding="cap_'+c.k+'" data-address="node:features#slot:items['+i+']" data-present="label" data-raw="'+c.name+'" tabindex="0"><td class="k">'+c.name+'</td><td>'+c.desc+'</td></tr>'; });
+      h+='</tbody></table>';
+    } else if(kind==="cards"){
+      h='<div class="cards">'; CAPS.forEach(function(c,i){ h+='<div class="mcard" data-node="node:features#slot:items['+i+']" data-binding="cap_'+c.k+'" data-address="node:features#slot:items['+i+']" data-present="label" data-raw="'+c.name+'" tabindex="0"><div class="ico">'+c.ab+'</div><h4>'+c.name+'</h4><p>'+c.desc+'</p></div>'; }); h+='</div>';
+    } else {
+      h='<div class="gal">'; CAPS.forEach(function(c,i){ h+='<div class="gtile" data-node="node:features#slot:items['+i+']" data-binding="cap_'+c.k+'" data-address="node:features#slot:items['+i+']" data-present="label" data-raw="'+c.name+'" tabindex="0"><span class="gk">'+c.k+'</span><h4>'+c.name+'</h4><p>'+c.desc+'</p></div>'; }); h+='</div>';
+    }
+    motifBody.innerHTML=h;
+  }
+  document.getElementById("motifSeg").addEventListener("click",function(e){ var b=e.target.closest("button[data-motif]"); if(!b) return;
+    document.querySelectorAll("#motifSeg button").forEach(function(x){ x.setAttribute("aria-pressed",x===b?"true":"false"); }); renderMotif(b.getAttribute("data-motif")); });
+
+  /* ---------- trace + inspect ---------- */
+  var traceOut=document.getElementById("traceOut"), hud=document.getElementById("hud"), hudAddr=document.getElementById("hudAddr");
+  function emptyTrace(){ traceOut.innerHTML='<div style="color:var(--faint);font-size:13px;line-height:1.7">Hover or focus a chip on the left. Its DOM node, the binding that owns it, its address in the substrate, and the raw value appear here.</div>'; }
+  function fillTrace(el){
+    var irid=el.getAttribute("data-ir-id"); var rows = irid ? [["dom node","<"+el.tagName.toLowerCase()+">",""],["ir id",irid,"a"],["binding",el.getAttribute("data-binding-id")||"—",""],["intent refs",(el.getAttribute("data-intent-refs")||"[]"),"a"],["content refs",(el.getAttribute("data-content-refs")||"[]"),"r"]] : [["dom node","<"+el.tagName.toLowerCase()+">",""],["binding",el.getAttribute("data-binding")||"—",""],["address",el.getAttribute("data-address")||el.getAttribute("data-node"),"a"],["present_as",el.getAttribute("data-present")||"—",""],["raw data",el.getAttribute("data-raw")||"—","r"]];
+    var h=""; rows.forEach(function(r,i){ h+='<div class="tnode"><div class="tk">'+r[0]+'</div><div class="tv '+r[2]+'">'+esc(r[1])+'</div></div>'; if(i<rows.length-1) h+='<div class="tarrow">&#8595;</div>'; });
+    traceOut.innerHTML=h;
+  }
+  emptyTrace();
+  document.addEventListener("mouseover",function(e){
+    var el=e.target.closest("[data-node],[data-ir-id]");
+    document.querySelectorAll(".lit").forEach(function(n){ if(n!==el) n.classList.remove("lit"); });
+    if(!el){ hud.classList.remove("on"); return; }
+    el.classList.add("lit");
+    if(el.closest("#under")) fillTrace(el);
+    if(body.classList.contains("inspect")){ hud.classList.add("on"); hudAddr.textContent=(el.getAttribute("data-ir-id")||el.getAttribute("data-node")); }
+  });
+  document.addEventListener("focusin",function(e){ var el=e.target.closest("[data-node],[data-ir-id]"); if(el&&el.closest("#under")) fillTrace(el); });
+
+  var inspectBtn=document.getElementById("inspectBtn");
+  function setInspect(on){ body.classList.toggle("inspect",on); inspectBtn.setAttribute("aria-pressed",on?"true":"false"); if(!on) hud.classList.remove("on"); }
+  inspectBtn.addEventListener("click",function(){ setInspect(!body.classList.contains("inspect")); });
+  document.addEventListener("keydown",function(e){ if((e.key==="i"||e.key==="I")&&!/input|textarea/i.test((e.target.tagName||""))) setInspect(!body.classList.contains("inspect")); });
+
+  /* ---------- provenance hash (real) ---------- */
+  function stableJson(v){ if(v===null||typeof v!=="object") return JSON.stringify(v);
+    if(Array.isArray(v)) return "["+v.map(stableJson).join(",")+"]";
+    return "{"+Object.keys(v).sort().map(function(k){ return JSON.stringify(k)+":"+stableJson(v[k]); }).join(",")+"}"; }
+  var canonical=stableJson((window.__VIEWSPEC__&&window.__VIEWSPEC__.intent)||INTENT), hashOut=document.getElementById("hashOut"), verdict=document.getElementById("verdict"), first=null;
+  function computeHash(){
+    if(window.crypto&&crypto.subtle&&window.TextEncoder){
+      return crypto.subtle.digest("SHA-256",new TextEncoder().encode(canonical)).then(function(buf){
+        return Array.prototype.map.call(new Uint8Array(buf),function(b){return b.toString(16).padStart(2,"0");}).join(""); });
+    }
+    var h=2166136261>>>0,out=""; for(var i=0;i<canonical.length;i++){ h^=canonical.charCodeAt(i); h=Math.imul(h,16777619)>>>0; }
+    for(var j=0;j<8;j++){ out+=(h>>>0).toString(16).padStart(8,"0"); h=Math.imul(h^j,16777619)>>>0; } return Promise.resolve(out.slice(0,64));
+  }
+  function showHash(flash){ computeHash().then(function(hex){ hashOut.textContent=hex; if(first===null) first=hex;
+    if(flash){ verdict.classList.add("show"); document.getElementById("verdictTxt").textContent=(hex===first)?"match — deterministic":"changed"; } }); }
+  document.getElementById("verifyBtn").addEventListener("click",function(){ showHash(true); });
+
+  /* ---------- live network count ---------- */
+  function netCount(){ try{ var here=location.origin, res=performance.getEntriesByType("resource")||[];
+    var n=res.filter(function(r){ try{ return new URL(r.name).origin!==here && !/^data:|^blob:/.test(r.name); }catch(e){ return false; } }).length;
+    document.getElementById("netCount").textContent=n; }catch(e){} }
+
+  /* ---------- copy ---------- */
+  document.getElementById("copyCmd").addEventListener("click",function(){ var b=this;
+    if(navigator.clipboard) navigator.clipboard.writeText("pip install viewspec").then(function(){ b.textContent="copied"; setTimeout(function(){ b.textContent="copy"; },1400); }); });
+
+  /* ---------- scroll reveal ---------- */
+  if("IntersectionObserver" in window && !reduce){
+    var io=new IntersectionObserver(function(es){ es.forEach(function(en){ if(en.isIntersecting){ en.target.classList.add("in"); io.unobserve(en.target); } }); },{threshold:.12,rootMargin:"0px 0px -8% 0px"});
+    document.querySelectorAll(".reveal-on").forEach(function(s){ io.observe(s); });
+  } else { document.querySelectorAll(".reveal-on").forEach(function(s){ s.classList.add("in"); }); }
+
+  /* ---------- boot ---------- */
+  renderMetrics(); setProfile("calm_ops"); renderMotif("table"); showHash(false); netCount(); setTimeout(netCount,1200);
+  if(!reduce){
+    document.getElementById("cnBadge").classList.add("pulse");
+    var big=document.getElementById("ocBig");
+    if(big){ var target=48210, t0=null; big.textContent="$0";
+      var step=function(ts){ if(!t0) t0=ts; var k=Math.min(1,(ts-t0)/750); var e=1-Math.pow(1-k,3);
+        big.textContent="$"+Math.round(target*e).toLocaleString(); if(k<1) requestAnimationFrame(step); };
+      setTimeout(function(){ requestAnimationFrame(step); }, 1000);
     }
   }
-
-  function setActive(selector, attr, value) {
-    document.querySelectorAll(selector).forEach((button) => {
-      button.dataset.active = button.getAttribute(attr) === value ? 'true' : 'false'
-    })
-  }
-
-  if (inspector && inspectorToggle) {
-    inspectorToggle.addEventListener('click', () => {
-      const open = inspector.dataset.open !== 'true'
-      inspector.dataset.open = open ? 'true' : 'false'
-      inspectorToggle.setAttribute('aria-expanded', open ? 'true' : 'false')
-    })
-    document.addEventListener('keydown', (event) => {
-      if (event.key !== 'Escape' || inspector.dataset.open !== 'true') return
-      inspector.dataset.open = 'false'
-      inspectorToggle.setAttribute('aria-expanded', 'false')
-      inspectorToggle.focus()
-    })
-  }
-
-  document.querySelectorAll('[data-profile-token]').forEach((button) => {
-    button.addEventListener('click', () => {
-      const value = button.dataset.profileToken || profileEvidence.defaultProfile || 'aesthetic.calm_ops'
-      setProfile(value).catch(() => {
-        if (profileOutput) profileOutput.textContent = 'profile artifact unavailable'
-      })
-    })
-  })
-
-  document.querySelectorAll('[data-page-evidence]').forEach((button) => {
-    button.addEventListener('click', () => {
-      const value = button.dataset.pageEvidence || 'clean'
-      root.dataset.viewspecEvidence = value
-      setActive('[data-page-evidence]', 'data-page-evidence', value)
-    })
-  })
-
-  async function loadSource(value) {
-    activeSourceView = value || 'hide'
-    if (activeSourceView === 'hide') {
-      source.dataset.visible = 'false'
-      source.setAttribute('aria-hidden', 'true')
-      setActive('[data-source-view]', 'data-source-view', activeSourceView)
-      return
-    }
-    const url = sourceUrl(activeSourceView)
-    if (!url) return
-    source.dataset.visible = 'true'
-    source.setAttribute('aria-hidden', 'false')
-    setActive('[data-source-view]', 'data-source-view', activeSourceView)
-    const cacheKey = `${activeProfile}:${activeSourceView}`
-    if (!cache.has(cacheKey)) {
-      const response = await fetch(url)
-      const text = await response.text()
-      const json = JSON.parse(text)
-      cache.set(cacheKey, { json, text: JSON.stringify(json, null, 2), url })
-    }
-    const entry = cache.get(cacheKey)
-    activeSourceText = entry.text
-    sourceTitle.textContent = sourceNames[activeSourceView] || 'Artifact summary'
-    sourceOpen.href = entry.url
-    sourceCode.textContent = entry.text
-    sourceSummary.innerHTML = summaryCards(activeSourceView, entry.json)
-  }
-
-  document.querySelectorAll('[data-source-view]').forEach((button) => {
-    button.addEventListener('click', () => {
-      loadSource(button.dataset.sourceView).catch(() => {
-        sourceTitle.textContent = 'Artifact source unavailable'
-      })
-    })
-  })
-
-  document.querySelectorAll('[data-close-source]').forEach((button) => {
-    button.addEventListener('click', () => {
-      loadSource('hide').catch(() => undefined)
-    })
-  })
-
-  async function setProfile(profile) {
-    if (!profileEvidence.profiles?.[profile]) return
-    activeProfile = profile
-    const data = activeProfileData()
-    if (artifactSlot && data.artifactBodyUrl) {
-      const response = await fetch(data.artifactBodyUrl)
-      if (!response.ok) throw new Error(`Profile artifact unavailable: ${profile}`)
-      artifactSlot.innerHTML = await response.text()
-    }
-    document.querySelectorAll('[data-profile-token]').forEach((button) => {
-      const active = button.dataset.profileToken === profile
-      button.dataset.active = active ? 'true' : 'false'
-      button.setAttribute('aria-pressed', active ? 'true' : 'false')
-    })
-    document.querySelectorAll('[data-ir-selected="true"]').forEach((selected) => {
-      selected.removeAttribute('data-ir-selected')
-    })
-    setIrStatus('profile swapped; hover a highlighted node')
-    updateProfileStatus()
-    if (activeSourceView !== 'hide') await loadSource(activeSourceView)
-    queuePretextMeasure()
-  }
-
-  function escapeHtml(value) {
-    return String(value)
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
-      .replace(/"/g, '&quot;')
-      .replace(/'/g, '&#39;')
-  }
-
-  function shortHash(value) {
-    return value ? `${String(value).slice(0, 12)}...` : 'not recorded'
-  }
-
-  function countObject(value) {
-    return value && typeof value === 'object' ? Object.keys(value).length : 0
-  }
-
-  function manifestProfile(json) {
-    const nodes = json.nodes && typeof json.nodes === 'object' ? Object.values(json.nodes) : []
-    const rootNode = nodes.find((entry) => entry?.primitive === 'root')
-    return rootNode?.props?.aesthetic_profile || activeProfile
-  }
-
-  function summaryCards(kind, json) {
-    const profileData = activeProfileData()
-    const cards = kind === 'profile'
-      ? [
-          ['Active profile', profileData.label || activeProfile],
-          ['Token', activeProfile],
-          ['Semantic ids', profileEvidence.semanticIdsStable ? 'stable' : 'changed'],
-          ['Style hash', shortHash(profileData.styleProjectionHash)],
-          ['Style delta', profileData.styleSignature || 'not recorded'],
-          ['Layout signature', profileData.layoutSignature || 'not recorded'],
-          ['Shell overrides', `${profileEvidence.shellOverrides ?? 0}`],
-          ['Profiles', `${profileEvidence.profileCount || 0}`],
-        ]
-      : kind === 'manifest'
-      ? [
-          ['Kind', json.kind || 'manifest'],
-          ['Profile', manifestProfile(json)],
-          ['Artifact hash', shortHash(json.artifact_hash)],
-          ['Source hash', shortHash(json.source_hash || json.raw_source_hash)],
-          ['Nodes', countObject(json.nodes)],
-          ['Diagnostics', Array.isArray(json.diagnostics) ? json.diagnostics.length : 0],
-          ['Network calls', json.guarantees?.network_calls || 'none'],
-          ['Autofetch', json.guarantees?.artifact_autofetch_network || 'none'],
-          ['Policy', json.policy_version || 'viewspec policy'],
-        ]
-      : [
-          ['View', json.view_spec?.id || json.id || 'viewspec_landing'],
-          ['Motifs', Array.isArray(json.view_spec?.motifs) ? json.view_spec.motifs.length : 0],
-          ['Substrate nodes', countObject(json.substrate?.nodes)],
-          ['Styles', Array.isArray(json.view_spec?.styles) ? json.view_spec.styles.length : 0],
-          ['Profile', activeProfile],
-          ['Compiler source', 'demos/build_landing.py'],
-          ['Reducer', 'not required for this landing artifact'],
-          ['Runtime LLM', 'none'],
-          ['Raw JSON', 'available on demand'],
-        ]
-    return cards.map(([label, value]) => (
-      `<dl class="artifact-source-card"><dt>${escapeHtml(label)}</dt><dd>${escapeHtml(value)}</dd></dl>`
-    )).join('')
-  }
-
-  async function copyText(text) {
-    if (navigator.clipboard && window.isSecureContext) {
-      await navigator.clipboard.writeText(text)
-      return
-    }
-    const textarea = document.createElement('textarea')
-    textarea.value = text
-    textarea.setAttribute('readonly', '')
-    textarea.style.position = 'fixed'
-    textarea.style.opacity = '0'
-    document.body.appendChild(textarea)
-    textarea.focus()
-    textarea.select()
-    document.execCommand('copy')
-    textarea.remove()
-  }
-
-  document.querySelectorAll('[data-copy-text]').forEach((button) => {
-    const text = button.getAttribute('data-copy-text')
-    const defaultLabel = button.textContent
-    button.addEventListener('click', async () => {
-      try {
-        await copyText(text)
-        button.textContent = 'copied'
-      } catch {
-        button.textContent = text
-      }
-      window.setTimeout(() => { button.textContent = defaultLabel }, 1200)
-    })
-  })
-
-  if (copySource) {
-    const defaultSourceLabel = copySource.textContent
-    copySource.addEventListener('click', async () => {
-      if (!activeSourceText) return
-      try {
-        await copyText(activeSourceText)
-        copySource.textContent = 'copied JSON'
-      } catch {
-        copySource.textContent = 'copy failed'
-      }
-      window.setTimeout(() => { copySource.textContent = defaultSourceLabel }, 1200)
-    })
-  }
-
-  function setIrStatus(value) {
-    if (!irOutput) return
-    irOutput.value = value || 'hover a highlighted node'
-    irOutput.textContent = irOutput.value
-  }
-
-  document.addEventListener('mouseover', (event) => {
-    const node = event.target.closest?.('[data-ir-id]')
-    if (!node || root.dataset.viewspecEvidence !== 'provenance') return
-    setIrStatus(node.getAttribute('data-ir-id'))
-  })
-  document.addEventListener('focusin', (event) => {
-    const node = event.target.closest?.('[data-ir-id]')
-    if (!node || root.dataset.viewspecEvidence !== 'provenance') return
-    setIrStatus(node.getAttribute('data-ir-id'))
-  })
-  document.addEventListener('click', (event) => {
-    const node = event.target.closest?.('[data-ir-id]')
-    if (!node || root.dataset.viewspecEvidence !== 'provenance') return
-    document.querySelectorAll('[data-ir-selected="true"]').forEach((selected) => {
-      selected.removeAttribute('data-ir-selected')
-    })
-    node.dataset.irSelected = 'true'
-    setIrStatus(node.getAttribute('data-ir-id'))
-  })
-
-  const pretextOutput = document.getElementById('pretext-fit')
-  const pretextTargets = [
-    ['hero', '#dom-binding_launch_hero_title', 760],
-    ['copy', '#dom-binding_launch_hero_description', 820],
-  ]
-  let pretextFrame = 0
-
-  function numericPx(value, fallback) {
-    const parsed = Number.parseFloat(value || '')
-    return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback
-  }
-
-  function lineHeightFor(style, fontSize) {
-    return numericPx(style.lineHeight, fontSize * 1.18)
-  }
-
-  function fontFor(style, fontSize) {
-    const family = style.fontFamily || 'Inter, ui-sans-serif, system-ui, sans-serif'
-    return `${style.fontStyle || 'normal'} ${style.fontWeight || '400'} ${fontSize}px ${family}`
-  }
-
-  async function measurePretextTargets() {
-    const pretext = window.ViewSpecPretext
-    if (!pretext) throw new Error('Pretext global unavailable')
-    const { layoutWithLines, measureNaturalWidth, prepareWithSegments } = pretext
-    const metrics = pretextTargets.map(([id, selector, fallbackWidth]) => {
-      const element = document.querySelector(selector)
-      if (!element) return null
-      const style = window.getComputedStyle(element)
-      const fontSize = numericPx(style.fontSize, 18)
-      const lineHeight = lineHeightFor(style, fontSize)
-      const width = Math.max(1, Math.min(fallbackWidth, element.getBoundingClientRect().width || fallbackWidth))
-      const prepared = prepareWithSegments(element.textContent.trim(), fontFor(style, fontSize), { whiteSpace: 'normal' })
-      const layout = layoutWithLines(prepared, width, lineHeight)
-      const lines = Array.isArray(layout.lines) ? layout.lines.length : Number(layout.lineCount || 0)
-      return { id, lines, naturalWidth: measureNaturalWidth(prepared), width }
-    }).filter(Boolean)
-    const hero = metrics.find((entry) => entry.id === 'hero')
-    const copy = metrics.find((entry) => entry.id === 'copy')
-    if (!hero || !copy) throw new Error('missing landing text targets')
-
-    root.dataset.landingPretext = 'ready'
-    root.dataset.pretextReady = 'true'
-    root.dataset.pretextHeroLines = String(hero.lines)
-    root.dataset.pretextCopyLines = String(copy.lines)
-    root.dataset.pretextHeroNaturalWidth = hero.naturalWidth.toFixed(2)
-    root.dataset.pretextCopyNaturalWidth = copy.naturalWidth.toFixed(2)
-    delete root.dataset.pretextError
-    if (pretextOutput) {
-      pretextOutput.value = `${hero.lines} title lines / ${copy.lines} copy lines`
-      pretextOutput.textContent = pretextOutput.value
-    }
-  }
-
-  function handlePretextError(error) {
-    root.dataset.landingPretext = 'error'
-    root.dataset.pretextError = error && error.message ? error.message : 'unknown pretext error'
-    if (pretextOutput) pretextOutput.textContent = 'text metrics unavailable'
-  }
-
-  function queuePretextMeasure() {
-    if (pretextFrame) return
-    pretextFrame = window.requestAnimationFrame(() => {
-      pretextFrame = 0
-      measurePretextTargets().catch(handlePretextError)
-    })
-  }
-
-  if (document.fonts?.ready) {
-    document.fonts.ready.catch(() => undefined).then(queuePretextMeasure)
-  } else {
-    queuePretextMeasure()
-  }
-  updateProfileStatus()
-  window.addEventListener('resize', queuePretextMeasure)
-  window.setTimeout(queuePretextMeasure, 160)
-})()
+})();
 
 </script>
 </body>

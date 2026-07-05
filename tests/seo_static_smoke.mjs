@@ -576,45 +576,39 @@ for (const expected of [
   'data-viewspec-page-artifact="true"',
   'data-viewspec-profile="aesthetic.calm_ops"',
   'id="landing-profile-evidence"',
+  'id="viewspec-real-data"',
   'id="viewspec-artifact-slot"',
-  'artifact-profile-dock',
   'data-profile-token="aesthetic.calm_ops"',
   'data-profile-token="aesthetic.premium_saas"',
   'data-profile-token="aesthetic.data_dense"',
   'data-profile-token="aesthetic.editorial_product"',
   'data-profile-token="aesthetic.executive_review"',
-  'id="profile-proof-value"',
+  'id="profileGroup"',
+  'id="inspectBtn"',
+  'id="traceOut"',
+  'id="hud"',
+  'id="noteReal"',
   'Same graph, new projection',
   'same semantic graph',
   'compiled aesthetic profile',
   'Compiled aesthetic profile homepage artifacts',
+  'Everything above is compiled output',
   'landing-compiled/profile-evidence.json',
-  'data-page-evidence="provenance"',
-  'data-source-view="intent"',
-  'data-source-view="profile"',
-  'Inspect artifact',
-  'Profile proof',
-  'artifact-source-summary',
-  'artifact-source-raw',
+  'landing-compiled/intent_bundle.json',
+  'landing-compiled/provenance_manifest.json',
   'id="pricing"',
   'id="pricing-actions"',
   'skip-link',
-  'id="ir-inspector-value"',
-  './vendor/pretext/pretext.global.js?v=20260628-global',
-  'id="pretext-fit"',
-  'landing-compiled/intent_bundle.json',
-  'landing-compiled/provenance_manifest.json',
 ]) {
   assertPublicText(landing, expected, 'landing page artifact controls')
 }
+// The embedded specimen is REAL compiler output carrying real IR provenance.
+assert.match(landing, /id="viewspec-artifact-slot"[\s\S]*?data-ir-id="region_root"/, 'landing embeds the real compiled artifact')
 assert.doesNotMatch(landing, /data-page-style=/)
 assert.doesNotMatch(landing, /data-viewspec-style=/)
-assert.doesNotMatch(landing, /Dense Ops/)
-assert.doesNotMatch(landing, /Launch\s*<\/button>/)
-assert.match(landing, /\.artifact-profile-switcher\s*{[\s\S]*?flex-wrap: wrap;[\s\S]*?overflow: visible;/)
-assert.doesNotMatch(landing, /\.artifact-profile-switcher\s*{[\s\S]*?overflow-x: auto;/)
+assert.match(landing, /\.profiles\s*{[\s\S]*?flex-wrap:\s*wrap;/, 'profile switcher wraps')
 for (const motifId of ['dom-motif_compile_flow', 'dom-motif_agent_workflow', 'dom-motif_artifact_identity', 'dom-motif_pricing']) {
-  assert.match(landing, new RegExp(`<[^>]+id="${motifId}"`), `${motifId} should be emitted on the homepage`)
+  assert.match(landing, new RegExp(`<[^>]+id="${motifId}"`), `${motifId} should be emitted in the embedded artifact`)
 }
 // proof_contract was never a real motif; keep asserting it is absent.
 assert.doesNotMatch(landing, /<[^>]+id="dom-motif_proof_contract"/)
