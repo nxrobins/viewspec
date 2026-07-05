@@ -3,6 +3,8 @@ from __future__ import annotations
 import json
 from copy import deepcopy
 
+import pytest
+
 import viewspec.app_bundle as app_bundle_module
 from viewspec.app_bundle import (
     AGENT_APP_BUNDLE_SCHEMA,
@@ -27,7 +29,7 @@ from viewspec.app_bundle import (
     validate_app_text,
 )
 from viewspec.agent import AGENT_INTENT_BUNDLE_SCHEMA
-from viewspec.cli import main as cli_main
+from viewspec.cli import _doctor_app_bundle_pipeline, _doctor_checks_ok, main as cli_main
 from viewspec.intent_tools import starter_intent_bundle
 from viewspec.local_tools import check_artifact_dir, file_hash
 from viewspec.state_ir import (
@@ -378,6 +380,417 @@ def test_state_reducer_conformance_executes_generated_es_module_for_all_v0_ops()
 
     assert divergent["ok"] is False
     assert divergent["errors"][0]["code"] == "APP_STATE_REDUCER_CONFORMANCE_FAILED"
+
+
+def _sort_by_app_bundle() -> dict:
+    app = _stateful_app_bundle()
+    app["state"] = [
+        {
+            "id": "rows",
+            "kind": "collection",
+            "scope": "app",
+            "initial": {
+                "value": [
+                    {"id": "r1", "name": "apple"},
+                    {"id": "r2", "name": "Banana"},
+                    {"id": "r3", "name": "cherry"},
+                ]
+            },
+        },
+        {"id": "flags", "kind": "record", "scope": "app", "initial": {"value": {"count": 0}}},
+    ]
+    app["mutations"] = [
+        {
+            "id": "bump",
+            "trigger": {"screen_id": "queue", "action_id": "triage_incident"},
+            "ops": [{"op": "increment", "state": "flags", "field": "count", "amount": 1}],
+        }
+    ]
+    app["selectors"] = [
+        {"id": "sorted_rows", "source_state": "rows", "ops": [{"op": "sort_by", "field": "name", "direction": "asc"}]}
+    ]
+    # Code-point order puts uppercase "Banana" (B=0x42) before lowercase
+    # "apple" (a=0x61); locale-aware collation would flip them. The generated
+    # reducer must match the Python reference regardless of host locale.
+    app["state_replay_assertions"] = [
+        {
+            "id": "sort_replay",
+            "events": [{"mutation_id": "bump", "payload_values": {"inc_1043_id": "r1"}}],
+            "expect_state": {
+                "rows": [
+                    {"id": "r1", "name": "apple"},
+                    {"id": "r2", "name": "Banana"},
+                    {"id": "r3", "name": "cherry"},
+                ],
+                "flags": {"count": 1.0},
+            },
+            "expect_selectors": {
+                "sorted_rows": [
+                    {"id": "r2", "name": "Banana"},
+                    {"id": "r1", "name": "apple"},
+                    {"id": "r3", "name": "cherry"},
+                ]
+            },
+        }
+    ]
+    return app
+
+
+def test_sort_by_selector_is_locale_independent_and_matches_reference():
+    app = _sort_by_app_bundle()
+
+    state_ir, issues = validate_state_ir(app)
+    assert issues == []
+    assert state_ir is not None
+
+    current = initial_state(app, state_ir)
+    order = [row["name"] for row in evaluate_selectors(current, state_ir)["sorted_rows"]]
+    assert order == ["Banana", "apple", "cherry"]
+
+    reducer_source = generate_typescript_reducer(app)
+    assert "localeCompare" not in reducer_source
+
+    # The generated ES module, executed under node, must agree with the Python
+    # reference; a locale-dependent sort would diverge here.
+    report = check_reducer_conformance(app, reducer_source=reducer_source)
+    assert report["ok"] is True
+    assert report["passed_count"] == 1
+
+
+def _typed_sort_app_bundle() -> dict:
+    app = _sort_by_app_bundle()  # reuse the working flags/bump/replay-event wiring
+    rows = [
+        {"id": "r1", "score": 10, "active": True, "label": "beta"},
+        {"id": "r2", "score": 2, "active": False, "label": None},
+        {"id": "r3", "score": 9, "active": True, "label": "alpha"},
+    ]
+    app["state"][0] = {"id": "rows", "kind": "collection", "scope": "app", "initial": {"value": rows}}
+    app["selectors"] = [
+        {"id": "by_score", "source_state": "rows", "ops": [{"op": "sort_by", "field": "score", "direction": "asc"}]},
+        {"id": "by_active", "source_state": "rows", "ops": [{"op": "sort_by", "field": "active", "direction": "asc"}]},
+        {"id": "by_label", "source_state": "rows", "ops": [{"op": "sort_by", "field": "label", "direction": "asc"}]},
+    ]
+    r1, r2, r3 = rows
+    app["state_replay_assertions"] = [
+        {
+            "id": "typed_sort_replay",
+            "events": app["state_replay_assertions"][0]["events"],
+            "expect_state": {"rows": rows, "flags": {"count": 1.0}},
+            "expect_selectors": {
+                "by_score": [r2, r3, r1],
+                "by_active": [r2, r1, r3],
+                "by_label": [r2, r3, r1],
+            },
+        }
+    ]
+    return app
+
+
+def test_sort_by_typed_keys_match_reference_across_node():
+    # bool/null/number sort keys used to drift: Python str() vs JS String(x ?? "")
+    # produced "True"/"true", "None"/"", "5.0"/"5". The typed comparator compares each
+    # JSON type in its own bucket so Node and the Python reference agree.
+    app = _typed_sort_app_bundle()
+
+    state_ir, issues = validate_state_ir(app)
+    assert issues == []
+    assert state_ir is not None
+
+    current = initial_state(app, state_ir)
+    selectors = evaluate_selectors(current, state_ir)
+    # Non-vacuity: a numeric field sorts numerically (2 < 9 < 10), NOT lexicographically
+    # (which would give 10, 2, 9). A degenerate/constant comparator fails this line.
+    assert [row["score"] for row in selectors["by_score"]] == [2, 9, 10]
+    # Bool: false < true, input order stable within the true bucket.
+    assert [row["active"] for row in selectors["by_active"]] == [False, True, True]
+    # Null bucket sorts before strings; strings in code-point order.
+    assert [row["label"] for row in selectors["by_label"]] == [None, "alpha", "beta"]
+
+    # The generated ES module under node must agree with the Python reference for every
+    # non-string key type -- the drift the old str()/String(x ?? "") derivation hid.
+    report = check_reducer_conformance(app)
+    assert report["ok"] is True
+    assert report["passed_count"] == 1
+
+
+def test_toggle_on_empty_container_matches_python_reference():
+    app = _stateful_app_bundle()
+    app["state"] = [{"id": "flag_list", "kind": "collection", "scope": "app", "initial": {"value": []}}]
+    app["mutations"] = [
+        {
+            "id": "flip",
+            "trigger": {"screen_id": "queue", "action_id": "triage_incident"},
+            "ops": [{"op": "toggle", "state": "flag_list"}],
+        }
+    ]
+    app["selectors"] = []
+    app["state_replay_assertions"] = [
+        {
+            "id": "flip_replay",
+            "events": [{"mutation_id": "flip", "payload_values": {"inc_1043_id": "x"}}],
+            "expect_state": {"flag_list": True},
+            "expect_selectors": {},
+        }
+    ]
+
+    state_ir, issues = validate_state_ir(app)
+    assert issues == []
+    current = initial_state(app, state_ir)
+    result = apply_event(current, state_ir, {"mutation_id": "flip", "payload_values": {"inc_1043_id": "x"}})
+    assert result["ok"] is True
+    assert current["flag_list"] is True  # Python not bool([]) == True
+
+    # Generated JS must agree: !pyTruthy([]) === true (pre-fix it returned false).
+    report = check_reducer_conformance(app)
+    assert report["ok"] is True
+
+
+def test_increment_on_non_numeric_fails_like_python_reference():
+    app = _stateful_app_bundle()
+    app["state"] = [{"id": "rec", "kind": "record", "scope": "app", "initial": {"value": {"count": "abc"}}}]
+    app["mutations"] = [
+        {
+            "id": "bump",
+            "trigger": {"screen_id": "queue", "action_id": "triage_incident"},
+            "ops": [{"op": "increment", "state": "rec", "field": "count", "amount": 1}],
+        }
+    ]
+    app["selectors"] = []
+    app["state_replay_assertions"] = [
+        {
+            "id": "bump_replay",
+            "events": [{"mutation_id": "bump", "payload_values": {"inc_1043_id": "x"}}],
+            "expect_state": {},
+            "expect_selectors": {},
+        }
+    ]
+
+    state_ir, issues = validate_state_ir(app)
+    assert issues == []
+    result = apply_event(initial_state(app, state_ir), state_ir, {"mutation_id": "bump", "payload_values": {"inc_1043_id": "x"}})
+    assert result["ok"] is False
+    assert result["errors"][0]["code"] == "APP_STATE_REDUCER_OP_FAILED"
+
+    # Generated JS must throw the same failure, not silently produce NaN.
+    report = check_reducer_conformance(app)
+    assert report["ok"] is True
+
+
+def _increment_amount_app(amount: object) -> dict:
+    app = _stateful_app_bundle()
+    app["state"] = [{"id": "rec", "kind": "record", "scope": "app", "initial": {"value": {"count": 0}}}]
+    app["mutations"] = [
+        {
+            "id": "bump",
+            "trigger": {"screen_id": "queue", "action_id": "triage_incident"},
+            "ops": [{"op": "increment", "state": "rec", "field": "count", "amount": amount}],
+        }
+    ]
+    app["selectors"] = []
+    app["state_replay_assertions"] = [
+        {
+            "id": "bump_replay",
+            "events": [{"mutation_id": "bump", "payload_values": {"inc_1043_id": "x"}}],
+            "expect_state": {},
+            "expect_selectors": {},
+        }
+    ]
+    return app
+
+
+def test_increment_numeric_string_amount_fails_like_python_reference():
+    # A numeric-string amount incremented fine under JS (Number("5") -> 5) but failed under
+    # the Python reference (isinstance gate). Both sides now reject it identically instead of
+    # silently coercing -- which also avoids the float()/Number() edge drift a coercion fix
+    # would reintroduce.
+    app = _increment_amount_app("5")
+    state_ir, issues = validate_state_ir(app)
+    assert issues == []
+    current = initial_state(app, state_ir)
+    result = apply_event(current, state_ir, {"mutation_id": "bump", "payload_values": {"inc_1043_id": "x"}})
+    assert result["ok"] is False
+    assert result["errors"][0]["code"] == "APP_STATE_REDUCER_OP_FAILED"
+    assert check_reducer_conformance(app)["ok"] is True
+
+
+def test_increment_numeric_amount_succeeds_across_node():
+    # Non-vacuity: a real numeric amount still increments, identically on Node and Python.
+    app = _increment_amount_app(5)
+    state_ir, issues = validate_state_ir(app)
+    assert issues == []
+    current = initial_state(app, state_ir)
+    result = apply_event(current, state_ir, {"mutation_id": "bump", "payload_values": {"inc_1043_id": "x"}})
+    assert result["ok"] is True
+    assert current["rec"] == {"count": 5}
+    assert check_reducer_conformance(app)["ok"] is True
+
+
+def test_prove_app_missing_input_is_user_error_not_internal(tmp_path):
+    # A missing/unreadable AppBundle path is USER error -> a coded APP_PROOF_INPUT_READ_ERROR and
+    # CLI exit 2, not an internal crash (APP_PROOF_INTERNAL_ERROR / exit 1). The catch is scoped to
+    # the input read so a genuine internal failure downstream still surfaces as exit 1.
+    missing = tmp_path / "no_such_app.json"
+
+    report = prove_app(app_path=str(missing), out_dir=tmp_path / "proof", cwd=tmp_path)
+    assert report["ok"] is False
+    codes = {error["code"] for error in report["errors"]}
+    assert codes == {"APP_PROOF_INPUT_READ_ERROR"}
+    assert "APP_PROOF_INTERNAL_ERROR" not in codes
+
+    assert cli_main(["prove-app", "--app", str(missing), "--out", str(tmp_path / "proof_cli")]) == 2
+
+
+def _rec_state(value):
+    return [{"id": "rec", "kind": "record", "scope": "app", "initial": {"value": value}}]
+
+
+def _coll_state(value):
+    return [{"id": "rows", "kind": "collection", "scope": "app", "initial": {"value": value}}]
+
+
+def _reducer_scenario_app(state, ops, idval="x"):
+    app = _stateful_app_bundle()
+    app["state"] = state
+    app["mutations"] = [
+        {"id": "m", "trigger": {"screen_id": "queue", "action_id": "triage_incident"}, "ops": ops}
+    ]
+    app["selectors"] = []
+    app["state_replay_assertions"] = [
+        {
+            "id": "r",
+            "events": [{"mutation_id": "m", "payload_values": {"inc_1043_id": idval}}],
+            "expect_state": {},
+            "expect_selectors": {},
+        }
+    ]
+    return app
+
+
+_FROM_PAYLOAD = {"from_payload": "inc_1043_id"}
+
+
+@pytest.mark.parametrize(
+    "state,ops,idval",
+    [
+        # Type mismatch: Python raises; the generated JS used to no-op (append/remove/move) or
+        # corrupt-and-report-success (patch/increment). Both must now fail identically.
+        (_rec_state({"a": 1}), [{"op": "append", "state": "rec", "value": 1}], "x"),
+        (_rec_state({"a": 1}), [{"op": "remove", "state": "rec", "item_id": _FROM_PAYLOAD}], "x"),
+        (_rec_state({"a": 1}), [{"op": "move", "state": "rec", "item_id": _FROM_PAYLOAD, "to_index": 0}], "x"),
+        (
+            _rec_state({"a": 1}),
+            [{"op": "set", "state": "rec", "value": [1, 2]}, {"op": "patch", "state": "rec", "value": {"x": 1}}],
+            "x",
+        ),
+        (
+            _rec_state({"a": 1}),
+            [{"op": "set", "state": "rec", "value": [1, 2]}, {"op": "increment", "state": "rec", "field": "n", "amount": 1}],
+            "x",
+        ),
+        # Integer-valued float id no longer drifts (String(1.0)="1" vs str(1.0)="1.0").
+        (_coll_state([{"id": 1.0}, {"id": 2}]), [{"op": "remove", "state": "rows", "item_id": _FROM_PAYLOAD}], 1),
+        # Well-formed multi-op still succeeds identically.
+        (
+            _coll_state([{"id": "a"}]),
+            [{"op": "append", "state": "rows", "value": {"id": "b"}}, {"op": "patch", "state": "rows", "item_id": _FROM_PAYLOAD, "value": {"v": 1}}],
+            "b",
+        ),
+    ],
+)
+def test_reducer_ops_conform_across_node_on_edge_inputs(state, ops, idval):
+    # The generated reducer (Node) and the Python reference must agree on EVERY op for edge
+    # inputs -- type mismatches, integer-valued float ids -- not just the well-formed path.
+    app = _reducer_scenario_app(state, ops, idval)
+    assert check_reducer_conformance(app)["ok"] is True
+
+
+def test_reducer_type_mismatch_fails_atomically_like_reference():
+    # A multi-op event whose 2nd op is a type mismatch must FAIL and leave state UNCHANGED
+    # (atomic), matching the generated reducer's clone-and-return -- not partially commit op 1.
+    app = _reducer_scenario_app(
+        _rec_state({"a": 1}),
+        [{"op": "set", "state": "rec", "value": [1, 2]}, {"op": "patch", "state": "rec", "value": {"x": 1}}],
+    )
+    state_ir, issues = validate_state_ir(app)
+    assert issues == []
+    current = initial_state(app, state_ir)
+    result = apply_event(current, state_ir, {"mutation_id": "m", "payload_values": {"inc_1043_id": "x"}})
+    assert result["ok"] is False
+    assert result["errors"][0]["code"] == "APP_STATE_REDUCER_OP_FAILED"
+    assert current == {"rec": {"a": 1}}  # op 1's set was rolled back
+
+
+def test_filter_eq_distinguishes_bool_from_number_like_reducer():
+    # Python filter_eq now mirrors JS === : true != 1, so only the numeric row matches.
+    app = _stateful_app_bundle()
+    app["state"] = [
+        {"id": "rows", "kind": "collection", "scope": "app", "initial": {"value": [{"id": "t", "k": True}, {"id": "n", "k": 1}]}},
+        {"id": "flags", "kind": "record", "scope": "app", "initial": {"value": {"count": 0}}},
+    ]
+    app["mutations"] = [
+        {"id": "bump", "trigger": {"screen_id": "queue", "action_id": "triage_incident"}, "ops": [{"op": "increment", "state": "flags", "field": "count", "amount": 1}]}
+    ]
+    app["selectors"] = [{"id": "ones", "source_state": "rows", "ops": [{"op": "filter_eq", "field": "k", "value": 1}]}]
+    app["state_replay_assertions"] = [
+        {"id": "r", "events": [{"mutation_id": "bump", "payload_values": {"inc_1043_id": "x"}}], "expect_state": {}, "expect_selectors": {}}
+    ]
+
+    state_ir, issues = validate_state_ir(app)
+    assert issues == []
+    current = initial_state(app, state_ir)
+    assert [row["id"] for row in evaluate_selectors(current, state_ir)["ones"]] == ["n"]
+    assert check_reducer_conformance(app)["ok"] is True
+
+
+def test_missing_node_yields_actionable_node_unavailable_code():
+    # V3 reducer conformance shells out to Node; a missing Node must report a distinct, actionable
+    # code -- not the generic "fix your state contract" conformance failure.
+    report = check_reducer_conformance(_stateful_app_bundle(), node_command="node_definitely_missing_xyz")
+    assert report["ok"] is False
+    first = report["errors"][0]
+    assert first["code"] == "APP_STATE_REDUCER_NODE_UNAVAILABLE"
+    assert first.get("fix")  # actionable install / escape-hatch hint
+
+
+def test_doctor_reports_node_availability_without_hard_failing():
+    # doctor surfaces Node availability, but node absence must NOT hard-fail doctor -- V1/V2 and
+    # IntentBundle flows are Python-only. Node status is a string so _doctor_checks_ok ignores it.
+    pipeline = _doctor_app_bundle_pipeline()
+    assert pipeline["node_available"] in {"yes", "no"}
+    assert _doctor_checks_ok(pipeline) is True
+
+
+def test_selector_slice_bounds_must_be_non_negative_integers():
+    invalid = _stateful_app_bundle()
+    invalid["selectors"][0]["ops"] = [{"op": "slice", "start": "x", "end": 1}]
+    _, issues = validate_state_ir(invalid)
+    assert "APP_STATE_SELECTOR_SLICE_INVALID" in {issue.code for issue in issues}
+
+    valid = _stateful_app_bundle()
+    valid["selectors"][0]["ops"] = [{"op": "slice", "start": 0, "end": 2}]
+    state_ir, ok_issues = validate_state_ir(valid)
+    assert state_ir is not None
+    assert "APP_STATE_SELECTOR_SLICE_INVALID" not in {issue.code for issue in ok_issues}
+
+
+def test_app_topology_similarity_is_order_independent():
+    base = starter_app_bundle("internal_tool")
+
+    identical = diff_app_text(_app_text(base), _app_text(base), compile_check=False)
+    assert identical["topology_similarity"] == 1.0
+
+    route_change = deepcopy(base)
+    route_change["routes"][1]["label"] = "Incident Detail X"
+    screen_change = deepcopy(base)
+    screen_change["screens"][1]["title"] = "Detail View X"
+
+    da = diff_app_text(_app_text(base), _app_text(route_change), compile_check=False)
+    db = diff_app_text(_app_text(base), _app_text(screen_change), compile_check=False)
+    assert da["ok"] and db["ok"]
+    assert 0.0 < da["topology_similarity"] < 1.0
+    # Equal-magnitude changes to equal-size sections must score identically,
+    # regardless of section order. The pre-fix cumulative denominator did not.
+    assert da["topology_similarity"] == db["topology_similarity"]
 
 
 def test_validate_app_rejects_v0_constraints():

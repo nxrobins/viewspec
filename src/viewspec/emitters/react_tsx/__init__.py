@@ -328,7 +328,7 @@ def _text_expression(node: IRNode) -> str:
     return f"{{{fallback}}}"
 
 
-def _action_expression(node: IRNode) -> str:
+def _action_expression(node: IRNode, *, source: str = "viewspec-react-tsx") -> str:
     payload_bindings = [item for item in node.props.get("payload_bindings", []) if isinstance(item, str)]
     kind = str(node.props.get("action_kind", ""))
     return (
@@ -338,7 +338,7 @@ def _action_expression(node: IRNode) -> str:
         f"assertPayloadBounds({_tsx_string(kind)}, payloadBindings, payloadValues); "
         "onAction?.({ "
         "schemaVersion: 1, "
-        'source: "viewspec-react-tsx", '
+        f'source: {json.dumps(source)}, '
         f"id: {_tsx_string(node.props.get('action_id', ''))}, "
         f"kind: {_tsx_string(kind)}, "
         f"targetRef: {_tsx_string(node.props.get('target_ref', ''))}, "

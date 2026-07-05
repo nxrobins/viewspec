@@ -19,6 +19,11 @@ from viewspec.design_md import DesignSystemContext
 
 
 MAX_HTML_INPUT_BYTES = 5_000_000
+# Maximum kept-element nesting depth. The parser is stack-based, but the
+# downstream freeze/render passes recurse per DOM level, so a deeply nested (yet
+# small) document would raise a Python RecursionError. Reject during parse
+# instead, mirroring the MAX_HTML_INPUT_BYTES rejection.
+MAX_DOM_DEPTH = 256
 MANIFEST_SCHEMA_VERSION = 1
 RAW_HTML_POLICY_VERSION = "viewspec-raw-html-allowlist@1"
 DIFF_VERSION = 1
@@ -129,6 +134,10 @@ SANITIZER_POLICY = {
 NUMERIC_RE = re.compile(r"^[+-]?(?:\$)?\d[\d,]*(?:\.\d+)?(?:%|[KMB])?$", re.IGNORECASE)
 LABEL_RE = re.compile(r"^[A-Z][A-Za-z0-9][A-Za-z0-9 .,&:/()%'_-]{1,58}$")
 CONTROL_WHITESPACE_RE = re.compile(r"[\x00-\x20\x7f]+")
+# Browsers treat backslashes and percent-encoded backslashes as forward slashes
+# when resolving URLs, so values like "/\evil.com" or "\\evil.com" resolve to a
+# protocol-relative (cross-origin) URL. Collapse them before authority detection.
+BACKSLASH_URL_RE = re.compile(r"%5c|\\", re.IGNORECASE)
 
 
 class HtmlInputError(ValueError):
@@ -317,6 +326,11 @@ class _SanitizingHTMLParser(HTMLParser):
             self._diagnostic("warning", "HTML_TAG_UNWRAPPED", f"Removed unsupported <{tag}> wrapper but kept text children.")
             return
 
+        if len(self.stack) >= MAX_DOM_DEPTH:
+            raise HtmlInputError(
+                "HTML_DOM_DEPTH_EXCEEDED",
+                f"HTML nesting depth exceeds the {MAX_DOM_DEPTH} level local limit.",
+            )
         node = _HTMLNode(tag, _sanitize_attrs(tag, attrs, self.diagnostics, self.external_refs))
         self.stack[-1].children.append(node)
         if not self_closing and tag not in VOID_TAGS:
@@ -550,6 +564,15 @@ def _safe_url(value: str, *, attr: str) -> bool:
     return scheme in SAFE_SCHEMES_BY_ATTR.get(attr, set())
 
 
+def collapse_url_obfuscation(value: str) -> str:
+    """Collapse the obfuscations a browser resolves back to '/': ASCII control
+    whitespace (tab/LF/CR/etc.) removed, and backslashes incl. percent-encoded
+    (%5c) -> '/'. Shared by the compiler URL policy (_normalize_url_for_policy)
+    and the `check` autofetch gate (_contains_remote_http_reference) so the two
+    cannot drift on obfuscation handling."""
+    return BACKSLASH_URL_RE.sub("/", CONTROL_WHITESPACE_RE.sub("", value))
+
+
 def _normalize_url_for_policy(value: str) -> str:
     previous = value
     for _ in range(4):
@@ -557,8 +580,7 @@ def _normalize_url_for_policy(value: str) -> str:
         if decoded == previous:
             break
         previous = decoded
-    stripped = previous.strip()
-    compacted = CONTROL_WHITESPACE_RE.sub("", stripped)
+    compacted = collapse_url_obfuscation(previous.strip())
     if compacted.startswith("//"):
         authority_path = compacted.lstrip("/")
         return f"https://{authority_path}" if authority_path else compacted

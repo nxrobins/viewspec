@@ -16,6 +16,7 @@ from viewspec import (
     compile,
 )
 from viewspec.emitters.html_tailwind import HtmlTailwindEmitter, OFFLINE_EMITTER_CSS
+from viewspec.emitters.base import EmitterNodeContext, EmitterNodePlugin, EmitterNodeRegistry, RenderedNode
 from viewspec.emitters.react_tailwind_tsx import (
     RECIPE_BY_KEY,
     TAILWIND_AESTHETIC_RECIPE_OVERLAYS,
@@ -43,6 +44,70 @@ def _manifest_entry_by_product_role(manifest_nodes: dict[str, object], product_r
         if isinstance(props, dict) and props.get("product_role") == product_role:
             return entry
     raise AssertionError(f"manifest missing product_role {product_role}")
+
+
+def _emitter_node_context(node: IRNode) -> EmitterNodeContext:
+    return EmitterNodeContext(target="test-target", root=node)
+
+
+def test_emitter_node_registry_validates_plugin_ids_and_priorities():
+    with pytest.raises(ValueError, match="safe ViewSpec id"):
+        EmitterNodePlugin(
+            plugin_id="../bad",
+            priority=1,
+            matches=lambda node, context: True,
+            render=lambda node, context: RenderedNode(tag="div"),
+        )
+
+    with pytest.raises(ValueError, match="priority must be an integer"):
+        EmitterNodePlugin(
+            plugin_id="bad_priority",
+            priority=True,
+            matches=lambda node, context: True,
+            render=lambda node, context: RenderedNode(tag="div"),
+        )
+
+
+def test_emitter_node_registry_selects_highest_priority_deterministically():
+    node = IRNode(id="root", primitive="root")
+    low = EmitterNodePlugin(
+        plugin_id="test.low",
+        priority=1,
+        matches=lambda item, context: item.primitive == "root",
+        render=lambda item, context: RenderedNode(tag="section"),
+    )
+    high = EmitterNodePlugin(
+        plugin_id="test.high",
+        priority=10,
+        matches=lambda item, context: item.primitive == "root",
+        render=lambda item, context: RenderedNode(tag="main"),
+    )
+
+    rendered = EmitterNodeRegistry((low, high)).render(node, _emitter_node_context(node))
+
+    assert rendered.tag == "main"
+
+
+def test_emitter_node_registry_rejects_ambiguous_or_missing_plugins():
+    node = IRNode(id="root", primitive="root")
+    first = EmitterNodePlugin(
+        plugin_id="test.first",
+        priority=5,
+        matches=lambda item, context: item.primitive == "root",
+        render=lambda item, context: RenderedNode(tag="main"),
+    )
+    second = EmitterNodePlugin(
+        plugin_id="test.second",
+        priority=5,
+        matches=lambda item, context: item.primitive == "root",
+        render=lambda item, context: RenderedNode(tag="section"),
+    )
+
+    with pytest.raises(ValueError, match="Ambiguous emitter node plugins"):
+        EmitterNodeRegistry((first, second)).select(node, _emitter_node_context(node))
+
+    with pytest.raises(ValueError, match="No emitter node plugin matched"):
+        EmitterNodeRegistry((first,)).select(IRNode(id="badge", primitive="badge"), _emitter_node_context(node))
 
 
 def _aesthetic_workspace_bundle(profile: str):
@@ -809,6 +874,41 @@ def test_react_tailwind_tsx_emitter_rejects_user_app_role_before_writing(tmp_pat
     assert not output.exists()
 
 
+def test_react_tailwind_node_registry_conflict_fails_before_writing(tmp_path, monkeypatch):
+    import viewspec.emitters.react_tailwind_tsx as react_tailwind
+
+    conflicting_registry = react_tailwind.TAILWIND_NODE_REGISTRY.with_plugins(
+        EmitterNodePlugin(
+            plugin_id="react_tailwind_tsx.test_conflict",
+            priority=30,
+            matches=lambda node, context: context.target == "react-tailwind-tsx" and node.primitive == "input",
+            render=lambda node, context: RenderedNode(tag="input"),
+        )
+    )
+    monkeypatch.setattr(react_tailwind, "TAILWIND_NODE_REGISTRY", conflicting_registry)
+    ast = ASTBundle(
+        result=CompilerResult(
+            root=CompositionIR(
+                root=IRNode(
+                    id="root",
+                    primitive="root",
+                    children=[IRNode(id="query", primitive="input", props={"binding_id": "query"})],
+                    provenance=Provenance(intent_refs=["viewspec:view:registry_conflict"]),
+                )
+            ),
+            diagnostics=[],
+        ),
+        style_values={},
+        title="Registry Conflict",
+    )
+
+    output = tmp_path / "artifact"
+    with pytest.raises(ValueError, match="Ambiguous emitter node plugins"):
+        ReactTailwindTsxEmitter().emit(ast, output)
+
+    assert not output.exists()
+
+
 def test_react_tailwind_tsx_constraint_errors_have_stable_codes(tmp_path):
     ast = ASTBundle(
         result=CompilerResult(
@@ -1002,3 +1102,20 @@ def test_emitter_rejects_unsupported_ir_primitives_before_writing(tmp_path):
         HtmlTailwindEmitter().emit(ast, output)
 
     assert not output.exists()
+
+
+def test_react_tailwind_action_id_not_corrupted_by_source_rewrite(tmp_path):
+    # An action id that contains the react_tsx source token must survive intact;
+    # only the source marker differs per target. Regression: a blanket string
+    # replace over the generated onClick rewrote the dispatched id too.
+    builder = ViewSpecBuilder("action_id_fidelity")
+    builder.add_node("n", "record", attrs={"label": "Title"})
+    builder.add_binding("bl", "node:n#attr:label", region="main", present_as="label")
+    builder.add_action("viewspec-react-tsx", "submit", "Go", target_region="main", payload_bindings=[])
+    ast = compile(builder.build_bundle())
+
+    ReactTailwindTsxEmitter().emit(ast, tmp_path)
+    tsx = tmp_path.joinpath("ViewSpecView.tsx").read_text(encoding="utf-8")
+
+    assert 'source: "viewspec-react-tailwind-tsx"' in tsx
+    assert 'id: "viewspec-react-tsx"' in tsx  # dispatched action id uncorrupted

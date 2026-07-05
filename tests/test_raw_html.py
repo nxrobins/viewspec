@@ -10,7 +10,7 @@ import pytest
 
 from viewspec import ViewSpecBuilder, compile, compile_html, diff_html, lift_html, load_design_system
 from viewspec.cli import main as cli_main
-from viewspec.raw_html import MAX_HTML_INPUT_BYTES, HtmlInputError, write_html_compile_result
+from viewspec.raw_html import MAX_DOM_DEPTH, MAX_HTML_INPUT_BYTES, HtmlInputError, write_html_compile_result
 
 
 DESIGN = """---
@@ -201,6 +201,95 @@ def test_protocol_relative_autofetch_guard(tmp_path_factory):
     write_html_compile_result(result, tmp_path)
 
     assert cli_main(["check", str(tmp_path)]) == 0
+
+
+def test_html_dom_depth_is_bounded_not_recursion_error():
+    deep = "<div>" * (MAX_DOM_DEPTH + 40) + "x" + "</div>" * (MAX_DOM_DEPTH + 40)
+    with pytest.raises(HtmlInputError) as exc:
+        compile_html(deep)
+    assert exc.value.code == "HTML_DOM_DEPTH_EXCEEDED"
+
+    # A well-under-limit document still compiles.
+    shallow = "<section>" * 10 + "Hello" + "</section>" * 10
+    assert compile_html(shallow).html
+
+
+def test_backslash_protocol_relative_urls_are_treated_as_cross_origin(tmp_path_factory):
+    tmp_path = tmp_path_factory.mktemp("backslash_proto")
+    # Browsers resolve "/\\host", "\\/host", "\\\\host" and percent-encoded
+    # "%5c" the same as "//host" (protocol-relative / cross-origin). They must be
+    # caught like "//host" instead of slipping through as same-origin relative.
+    result = compile_html(
+        '<img src="/\\evil.com/chart.png" alt="Chart">'
+        '<a href="/%5Cevil.com/report">Report</a>'
+    )
+    lowered = result.html.lower()
+
+    assert 'src="/\\' not in result.html
+    assert 'href="/\\' not in result.html
+    assert "%5c" not in lowered
+    assert 'href="https://evil.com/report"' in result.html
+    assert "External image: Chart" in result.html
+    assert 'rel="noopener noreferrer"' in result.html
+    assert result.manifest["external_refs"] == [
+        {"attr": "src", "behavior": "inert_placeholder", "kind": "image", "url": "https://evil.com/chart.png"},
+        {"attr": "href", "behavior": "user_click", "kind": "link", "url": "https://evil.com/report"},
+    ]
+
+    write_html_compile_result(result, tmp_path)
+
+    # The governed artifact must not pass `check` while still beaconing out.
+    assert cli_main(["check", str(tmp_path)]) == 0
+
+
+def test_check_autofetch_guard_catches_backslash_protocol_relative():
+    from viewspec.local_tools import _contains_remote_http_reference
+
+    for beacon in ("/\\evil.com/p.png", "\\/evil.com", "\\\\evil.com", "/%5Cevil.com", "//evil.com"):
+        assert _contains_remote_http_reference(beacon) is True, beacon
+    for benign in ("/assets/logo.png", "./x.png", "#anchor", "data:image/png;base64,AAAA"):
+        assert _contains_remote_http_reference(benign) is False, benign
+
+
+def test_check_autofetch_guard_catches_control_whitespace_scheme():
+    # Browsers strip tab/LF/CR from URLs, so "https:/<ctrl>/evil.com" resolves to a
+    # cross-origin authority even though it has no literal "//". The check gate must
+    # collapse control whitespace the same way the compiler-side URL policy does, or a
+    # tampered artifact beacons while `viewspec check` reports ok.
+    from viewspec.local_tools import _contains_remote_http_reference
+
+    for beacon in (
+        "https:/\t/evil.com",
+        "https:/\n/evil.com",
+        "https:/\r/evil.com",
+        "/\t/evil.com",
+        "https:/\t\\evil.com",
+    ):
+        assert _contains_remote_http_reference(beacon) is True, repr(beacon)
+    for benign in ("/assets/logo.png", "#anchor", "data:image/png;base64,AAAA"):
+        assert _contains_remote_http_reference(benign) is False, repr(benign)
+
+
+def test_check_certifies_no_beacon_but_rejects_tampered_control_whitespace_artifact(tmp_path):
+    # End-to-end: the compiled artifact is clean and passes check; a hand-tampered
+    # index.html with a control-whitespace-obfuscated remote src must fail check.
+    from viewspec.local_tools import file_hash
+
+    result = compile_html("<h1>Report</h1><p>Revenue</p>")
+    write_html_compile_result(result, tmp_path)
+    assert cli_main(["check", str(tmp_path)]) == 0  # clean artifact certifies
+
+    index = tmp_path / "index.html"
+    tampered = index.read_text(encoding="utf-8").replace(
+        "</body>", '<img src="https:/\t/evil.example/track"></body>', 1
+    )
+    index.write_text(tampered, encoding="utf-8")
+    manifest_path = tmp_path / "provenance_manifest.json"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest["artifact_hash"] = file_hash(index)  # re-stamp so only the beacon is "wrong"
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+
+    assert cli_main(["check", str(tmp_path)]) == 2  # tampered beacon is rejected
 
 
 def test_nested_void_tags_inside_stripped_content_do_not_swallow_document():

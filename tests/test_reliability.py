@@ -11,6 +11,7 @@ from viewspec import (
     ViewSpecBuilder,
     compile,
 )
+from viewspec.compiler_refs import MAX_COMPILE_NESTING_DEPTH
 
 
 def _walk(node):
@@ -538,3 +539,112 @@ def test_non_string_programmatic_id_is_fatal():
 
     with pytest.raises(CompilerInputError, match="ViewSpec.id"):
         compile(bad_bundle)
+
+
+def test_outline_sibling_order_is_deterministic_across_proto_round_trip():
+    # slots/edges/nodes are protobuf map fields whose iteration order is not
+    # preserved across a serialize/parse round trip. Outline sibling order must
+    # be canonical (sorted slot key), so it is deterministic and identical before
+    # and after the round trip regardless of the underlying map order.
+    builder = ViewSpecBuilder("nested_outline")
+    outline = builder.add_outline("tree", region="main", group_id="branches")
+    outline.add_branch(label="Parent", id="parent")
+    outline.add_branch(label="ChildA", id="child_a")
+    outline.add_branch(label="ChildZ", id="child_z")
+    bundle = builder.build_bundle()
+
+    root_id = bundle.substrate.root_id
+    nodes = dict(bundle.substrate.nodes)
+    nodes[root_id] = replace(nodes[root_id], slots={"items": ["parent"]})
+    # Two slots whose insertion order (z before a) differs from sorted order.
+    nodes["parent"] = replace(nodes["parent"], slots={"z_slot": ["child_z"], "a_slot": ["child_a"]})
+    multislot = IntentBundle(
+        substrate=SemanticSubstrate(id=bundle.substrate.id, root_id=root_id, nodes=nodes),
+        view_spec=bundle.view_spec,
+    )
+
+    def _labels(root):
+        return [n.props["text"] for n in _walk(root) if n.id.endswith("_label") and "text" in n.props]
+
+    in_memory = compile(multislot)
+    round_tripped = compile(
+        IntentBundle(
+            substrate=SemanticSubstrate.from_json(multislot.substrate.to_json()),
+            view_spec=multislot.view_spec,
+        )
+    )
+
+    assert not in_memory.result.diagnostics
+    # Canonical sorted-slot-key order (a_slot before z_slot), not insertion order.
+    assert _labels(in_memory.result.root.root) == ["Parent", "ChildA", "ChildZ"]
+    # Identical after a protobuf map round trip.
+    assert _labels(round_tripped.result.root.root) == _labels(in_memory.result.root.root)
+
+
+def test_region_nesting_depth_is_bounded_not_recursion_error():
+    builder = ViewSpecBuilder("deep_regions")
+    for i in range(MAX_COMPILE_NESTING_DEPTH + 20):
+        builder.add_region(
+            f"r{i}",
+            parent_region="root" if i == 0 else f"r{i - 1}",
+            layout="stack",
+            min_children=0,
+        )
+    with pytest.raises(CompilerInputError, match="nesting depth"):
+        compile(builder.build_bundle())
+
+
+def test_outline_semantic_depth_is_diagnostic_not_recursion_error():
+    builder = ViewSpecBuilder("deep_outline")
+    outline = builder.add_outline("tree", region="main", group_id="g")
+    n = MAX_COMPILE_NESTING_DEPTH + 20
+    for i in range(n):
+        outline.add_branch(label=f"L{i}", id=f"n{i}")
+    bundle = builder.build_bundle()
+
+    root_id = bundle.substrate.root_id
+    nodes = dict(bundle.substrate.nodes)
+    nodes[root_id] = replace(nodes[root_id], slots={"items": ["n0"]})
+    for i in range(n - 1):
+        nodes[f"n{i}"] = replace(nodes[f"n{i}"], slots={"items": [f"n{i + 1}"]})
+    deep = IntentBundle(
+        substrate=SemanticSubstrate(id=bundle.substrate.id, root_id=root_id, nodes=nodes),
+        view_spec=bundle.view_spec,
+    )
+
+    ast = compile(deep)  # must not raise RecursionError
+    assert "SEMANTIC_GRAPH_TOO_DEEP" in {d.code for d in ast.result.diagnostics}
+
+
+def test_outline_unreachable_member_renders_as_leftover_not_silently_dropped():
+    # A partial cycle (o1<->o2) disconnected from the acyclic root (o3) strands o1/o2.
+    # Their bindings must not vanish silently: they render as region leftovers and a
+    # SEMANTIC_GRAPH_UNREACHED_MEMBER diagnostic is emitted.
+    builder = ViewSpecBuilder("stranded_outline")
+    outline = builder.add_outline("tree", region="main", group_id="g")
+    for label, node in (("O1", "o1"), ("O2", "o2"), ("O3", "o3")):
+        outline.add_branch(label=label, id=node)
+    bundle = builder.build_bundle()
+
+    root_id = bundle.substrate.root_id
+    nodes = dict(bundle.substrate.nodes)
+    nodes[root_id] = replace(nodes[root_id], slots={"items": ["o3"]})
+    nodes["o1"] = replace(nodes["o1"], slots={"items": ["o2"]})
+    nodes["o2"] = replace(nodes["o2"], slots={"items": ["o1"]})
+    stranded = IntentBundle(
+        substrate=SemanticSubstrate(id=bundle.substrate.id, root_id=root_id, nodes=nodes),
+        view_spec=bundle.view_spec,
+    )
+
+    ast = compile(stranded)
+    labels = {
+        node.props["text"]
+        for node in _walk(ast.result.root.root)
+        if node.id.endswith("_label") and "text" in node.props
+    }
+    codes = {d.code for d in ast.result.diagnostics}
+    ids = _ir_ids(ast.result.root.root)
+
+    assert {"O1", "O2", "O3"} <= labels  # nothing silently dropped
+    assert "SEMANTIC_GRAPH_UNREACHED_MEMBER" in codes
+    assert len(ids) == len(set(ids))  # unique IR ids preserved

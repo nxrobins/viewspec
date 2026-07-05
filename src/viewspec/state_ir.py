@@ -3,6 +3,7 @@ from __future__ import annotations
 import copy
 import hashlib
 import json
+import math
 import re
 import subprocess
 import tempfile
@@ -347,12 +348,20 @@ def apply_event(current_state: dict[str, Any], state_ir: StateIR, event: dict[st
     if payload_errors:
         return {"ok": False, "mutation_id": mutation_id, "errors": payload_errors}
     errors: list[dict[str, str]] = []
+    # Atomic per event: apply to a working copy and commit only if every op succeeds, so a
+    # failed op leaves state unchanged -- mirroring the generated JS reducer, which builds a
+    # clone and returns it only at the end (a thrown op discards the whole event's changes).
+    # In-place mutation is preserved for callers on success via clear()+update().
+    working = copy.deepcopy(current_state)
     for op in mutation.ops:
         try:
-            _apply_op(current_state, op, payload_values)
+            _apply_op(working, op, payload_values)
         except (TypeError, ValueError) as exc:
             errors.append({"code": "APP_STATE_REDUCER_OP_FAILED", "path": f"$.mutations.{mutation.id}.ops", "message": str(exc)})
             break
+    if not errors:
+        current_state.clear()
+        current_state.update(working)
     return {"ok": not errors, "mutation_id": mutation_id, "errors": errors}
 
 
@@ -365,7 +374,7 @@ def evaluate_selectors(current_state: dict[str, Any], state_ir: StateIR) -> dict
             if kind == "filter_eq":
                 field = str(op.get("field"))
                 expected = op.get("value")
-                value = [item for item in value if isinstance(item, dict) and item.get(field) == expected] if isinstance(value, list) else []
+                value = [item for item in value if isinstance(item, dict) and _js_strict_eq(item.get(field), expected)] if isinstance(value, list) else []
             elif kind == "sort_by":
                 field = str(op.get("field"))
                 direction = str(op.get("direction", "asc"))
@@ -456,6 +465,17 @@ def generate_typescript_reducer(app_payload: dict[str, Any]) -> str:
         "  error.values = values;\n"
         "  return error;\n"
         "};\n\n"
+        "const pyTruthy = (x) => {\n"
+        "  if (x === null || x === undefined || x === false || x === 0 || x === \"\") return false;\n"
+        "  if (Array.isArray(x)) return x.length > 0;\n"
+        "  if (typeof x === \"object\") return Object.keys(x).length > 0;\n"
+        "  return Boolean(x);\n"
+        "};\n"
+        "const toFiniteNumber = (x) => {\n"
+        "  const n = x === undefined ? 0 : x;\n"
+        "  if (typeof n !== \"number\" || !Number.isFinite(n)) throw eventError(\"APP_STATE_REDUCER_OP_FAILED\", []);\n"
+        "  return n;\n"
+        "};\n\n"
         "const assertPayload = (mutation, values) => {\n"
         "  if (!values || typeof values !== \"object\" || Array.isArray(values)) throw eventError(\"APP_STATE_EVENT_PAYLOAD_INVALID\", []);\n"
         "  const allowed = new Set(mutation.allowedPayloadBindings || []);\n"
@@ -476,13 +496,17 @@ def generate_typescript_reducer(app_payload: dict[str, Any]) -> str:
         "    const key = String(op.state ?? \"\");\n"
         "    const current = next[key];\n"
         "    if (op.op === \"set\") next[key] = valueOf(op.value, values);\n"
-        "    if (op.op === \"append\" && Array.isArray(current)) next[key] = [...current, valueOf(op.value, values)];\n"
-        "    if (op.op === \"remove\" && Array.isArray(current)) next[key] = current.filter((item) => !(item && typeof item === \"object\" && String(item.id) === String(valueOf(op.item_id, values))));\n"
-        "    if (op.op === \"move\" && Array.isArray(current)) {\n"
+        "    if (op.op === \"append\") { if (!Array.isArray(current)) throw eventError(\"APP_STATE_REDUCER_OP_FAILED\", []); next[key] = [...current, valueOf(op.value, values)]; }\n"
+        "    if (op.op === \"remove\") { if (!Array.isArray(current)) throw eventError(\"APP_STATE_REDUCER_OP_FAILED\", []); const rid = String(valueOf(op.item_id, values)); next[key] = current.filter((item) => !(item && typeof item === \"object\" && String(item.id) === rid)); }\n"
+        "    if (op.op === \"move\") {\n"
+        "      if (!Array.isArray(current)) throw eventError(\"APP_STATE_REDUCER_OP_FAILED\", []);\n"
         "      const id = String(valueOf(op.item_id, values));\n"
         "      const from = current.findIndex((item) => item && typeof item === \"object\" && String(item.id) === id);\n"
-        "      const to = Number(valueOf(op.to_index, values));\n"
-        "      if (from >= 0 && Number.isInteger(to)) { const copy = [...current]; const [item] = copy.splice(from, 1); copy.splice(Math.max(0, Math.min(to, copy.length)), 0, item); next[key] = copy; }\n"
+        "      const rawTo = valueOf(op.to_index, values);\n"
+        "      const toNum = typeof rawTo === \"number\" ? rawTo : (typeof rawTo === \"string\" ? Number(rawTo) : NaN);\n"
+        "      if (!Number.isFinite(toNum)) throw eventError(\"APP_STATE_REDUCER_OP_FAILED\", []);\n"
+        "      const to = Math.trunc(toNum);\n"
+        "      if (from >= 0) { const copy = [...current]; const [item] = copy.splice(from, 1); copy.splice(Math.max(0, Math.min(to, copy.length)), 0, item); next[key] = copy; }\n"
         "    }\n"
         "    if (op.op === \"patch\") next[key] = patchValue(current, op, values);\n"
         "    if (op.op === \"toggle\") next[key] = toggleValue(current, op, values);\n"
@@ -492,33 +516,38 @@ def generate_typescript_reducer(app_payload: dict[str, Any]) -> str:
         "}\n\n"
         "function patchValue(current, op, values) {\n"
         "  const patch = valueOf(op.value, values);\n"
+        "  if (!(patch && typeof patch === \"object\" && !Array.isArray(patch))) throw eventError(\"APP_STATE_REDUCER_OP_FAILED\", []);\n"
         "  const idExpr = op.item_id;\n"
-        "  if (Array.isArray(current) && idExpr !== undefined && patch && typeof patch === \"object\") {\n"
+        "  if (idExpr !== undefined) {\n"
+        "    if (!Array.isArray(current)) throw eventError(\"APP_STATE_REDUCER_OP_FAILED\", []);\n"
         "    const id = String(valueOf(idExpr, values));\n"
         "    return current.map((item) => item && typeof item === \"object\" && String(item.id) === id ? { ...item, ...patch } : item);\n"
         "  }\n"
-        "  return current && typeof current === \"object\" && patch && typeof patch === \"object\" ? { ...current, ...patch } : current;\n"
+        "  if (current && typeof current === \"object\" && !Array.isArray(current)) return { ...current, ...patch };\n"
+        "  throw eventError(\"APP_STATE_REDUCER_OP_FAILED\", []);\n"
         "}\n\n"
         "function toggleValue(current, op, values) {\n"
         "  const field = op.field;\n"
         "  const idExpr = op.item_id;\n"
-        "  if (Array.isArray(current) && field && idExpr !== undefined) {\n"
+        "  if (idExpr !== undefined && typeof field === \"string\") {\n"
+        "    if (!Array.isArray(current)) throw eventError(\"APP_STATE_REDUCER_OP_FAILED\", []);\n"
         "    const id = String(valueOf(idExpr, values));\n"
-        "    return current.map((item) => item && typeof item === \"object\" && String(item.id) === id ? { ...item, [field]: !item[field] } : item);\n"
+        "    return current.map((item) => item && typeof item === \"object\" && String(item.id) === id ? { ...item, [field]: !pyTruthy(item[field]) } : item);\n"
         "  }\n"
-        "  if (current && typeof current === \"object\" && field) return { ...current, [field]: !current[field] };\n"
-        "  return !current;\n"
+        "  if (typeof field === \"string\" && current && typeof current === \"object\" && !Array.isArray(current)) return { ...current, [field]: !pyTruthy(current[field]) };\n"
+        "  return !pyTruthy(current);\n"
         "}\n\n"
         "function incrementValue(current, op, values) {\n"
-        "  const amount = Number(valueOf(op.amount ?? 1, values));\n"
+        "  const amount = toFiniteNumber(valueOf(op.amount ?? 1, values));\n"
         "  const field = op.field;\n"
         "  const idExpr = op.item_id;\n"
-        "  if (Array.isArray(current) && field && idExpr !== undefined) {\n"
+        "  if (idExpr !== undefined && typeof field === \"string\") {\n"
+        "    if (!Array.isArray(current)) throw eventError(\"APP_STATE_REDUCER_OP_FAILED\", []);\n"
         "    const id = String(valueOf(idExpr, values));\n"
-        "    return current.map((item) => item && typeof item === \"object\" && String(item.id) === id ? { ...item, [field]: Number(item[field] ?? 0) + amount } : item);\n"
+        "    return current.map((item) => item && typeof item === \"object\" && String(item.id) === id ? { ...item, [field]: toFiniteNumber(item[field]) + amount } : item);\n"
         "  }\n"
-        "  if (current && typeof current === \"object\" && field) return { ...current, [field]: Number(current[field] ?? 0) + amount };\n"
-        "  return Number(current ?? 0) + amount;\n"
+        "  if (typeof field === \"string\" && current && typeof current === \"object\" && !Array.isArray(current)) return { ...current, [field]: toFiniteNumber(current[field]) + amount };\n"
+        "  return toFiniteNumber(current) + amount;\n"
         "}\n\n"
         "/** @param {ViewSpecState} state @returns {Record<string, unknown>} */\n"
         "export function selectViewSpecState(state) {\n"
@@ -527,7 +556,24 @@ def generate_typescript_reducer(app_payload: dict[str, Any]) -> str:
         "    let value = clone(state[selector.sourceState]);\n"
         "    for (const op of selector.ops) {\n"
         "      if (op.op === \"filter_eq\" && Array.isArray(value)) value = value.filter((item) => item && typeof item === \"object\" && item[op.field] === op.value);\n"
-        "      if (op.op === \"sort_by\" && Array.isArray(value)) value = [...value].sort((a, b) => String((a?.[op.field]) ?? \"\").localeCompare(String((b?.[op.field]) ?? \"\")) * (op.direction === \"desc\" ? -1 : 1));\n"
+        "      if (op.op === \"sort_by\" && Array.isArray(value)) {\n"
+        "        const vsElemRank = (x) => (x !== null && typeof x === \"object\" && !Array.isArray(x)) ? 0 : 1;\n"
+        "        const vsField = (x) => vsElemRank(x) === 0 ? x[op.field] : undefined;\n"
+        "        const vsTypeRank = (v) => (v === null || v === undefined) ? 0 : typeof v === \"boolean\" ? 1 : typeof v === \"number\" ? 2 : typeof v === \"string\" ? 3 : 4;\n"
+        "        const vsNum = (v) => typeof v === \"boolean\" ? (v ? 1 : 0) : typeof v === \"number\" ? v : 0;\n"
+        "        const vsStr = (v) => typeof v === \"string\" ? v : \"\";\n"
+        "        const vsDir = op.direction === \"desc\" ? -1 : 1;\n"
+        "        value = value.map((item, index) => ({ item, index })).sort((a, b) => {\n"
+        "          let cmp = vsElemRank(a.item) - vsElemRank(b.item);\n"
+        "          if (cmp === 0) {\n"
+        "            const va = vsField(a.item), vb = vsField(b.item);\n"
+        "            cmp = vsTypeRank(va) - vsTypeRank(vb);\n"
+        "            if (cmp === 0) { const na = vsNum(va), nb = vsNum(vb); cmp = na < nb ? -1 : na > nb ? 1 : 0; }\n"
+        "            if (cmp === 0) { const sa = vsStr(va), sb = vsStr(vb); cmp = sa < sb ? -1 : sa > sb ? 1 : 0; }\n"
+        "          }\n"
+        "          return cmp !== 0 ? cmp * vsDir : a.index - b.index;\n"
+        "        }).map((entry) => entry.item);\n"
+        "      }\n"
         "      if (op.op === \"slice\" && Array.isArray(value)) value = value.slice(op.start ?? 0, op.end);\n"
         "    }\n"
         "    result[selector.id] = value;\n"
@@ -834,6 +880,15 @@ def _parse_selectors(items: list[Any], state_ids: set[str], issues: list[StateVa
                 _required_string(op, "field", op_path, issues)
             if kind == "sort_by" and op.get("direction", "asc") not in {"asc", "desc"}:
                 issues.append(StateValidationIssue("APP_STATE_SELECTOR_DIRECTION_INVALID", f"{op_path}.direction", "sort_by direction must be asc or desc."))
+            if kind == "slice":
+                for bound_key in ("start", "end"):
+                    if bound_key not in op:
+                        continue
+                    bound_value = op.get(bound_key)
+                    if bound_key == "end" and bound_value is None:
+                        continue
+                    if not isinstance(bound_value, int) or isinstance(bound_value, bool) or bound_value < 0:
+                        issues.append(StateValidationIssue("APP_STATE_SELECTOR_SLICE_INVALID", f"{op_path}.{bound_key}", "slice start/end must be non-negative integers."))
             parsed_ops.append(copy.deepcopy(op))
         if selector_id and source_state:
             selectors.append(StateSelector(id=selector_id, source_state=source_state, ops=tuple(parsed_ops)))
@@ -915,13 +970,13 @@ def _apply_op(current_state: dict[str, Any], op: dict[str, Any], payload_values:
             raise TypeError(f"append requires array state {state_id}.")
         current_state[state_id] = [*current, _resolve_expr(op.get("value"), payload_values)]
     elif kind == "remove":
-        item_id = str(_resolve_expr(op.get("item_id"), payload_values))
-        current_state[state_id] = [item for item in _require_list(current, "remove") if not (isinstance(item, dict) and str(item.get("id")) == item_id)]
+        item_id = _js_id_string(_resolve_expr(op.get("item_id"), payload_values))
+        current_state[state_id] = [item for item in _require_list(current, "remove") if not (isinstance(item, dict) and _js_id_string(item.get("id")) == item_id)]
     elif kind == "move":
-        item_id = str(_resolve_expr(op.get("item_id"), payload_values))
+        item_id = _js_id_string(_resolve_expr(op.get("item_id"), payload_values))
         to_index = int(_resolve_expr(op.get("to_index"), payload_values))
         items = list(_require_list(current, "move"))
-        from_index = next((index for index, item in enumerate(items) if isinstance(item, dict) and str(item.get("id")) == item_id), -1)
+        from_index = next((index for index, item in enumerate(items) if isinstance(item, dict) and _js_id_string(item.get("id")) == item_id), -1)
         if from_index < 0:
             return
         item = items.pop(from_index)
@@ -932,9 +987,9 @@ def _apply_op(current_state: dict[str, Any], op: dict[str, Any], payload_values:
         if not isinstance(patch, dict):
             raise TypeError("patch value must resolve to an object.")
         if "item_id" in op:
-            item_id = str(_resolve_expr(op.get("item_id"), payload_values))
+            item_id = _js_id_string(_resolve_expr(op.get("item_id"), payload_values))
             current_state[state_id] = [
-                {**item, **patch} if isinstance(item, dict) and str(item.get("id")) == item_id else item
+                {**item, **patch} if isinstance(item, dict) and _js_id_string(item.get("id")) == item_id else item
                 for item in _require_list(current, "patch")
             ]
         elif isinstance(current, dict):
@@ -952,9 +1007,9 @@ def _apply_op(current_state: dict[str, Any], op: dict[str, Any], payload_values:
 def _toggle(current: Any, op: dict[str, Any], payload_values: dict[str, Any]) -> Any:
     field = op.get("field")
     if "item_id" in op and isinstance(field, str):
-        item_id = str(_resolve_expr(op.get("item_id"), payload_values))
+        item_id = _js_id_string(_resolve_expr(op.get("item_id"), payload_values))
         return [
-            {**item, field: not bool(item.get(field))} if isinstance(item, dict) and str(item.get("id")) == item_id else item
+            {**item, field: not bool(item.get(field))} if isinstance(item, dict) and _js_id_string(item.get("id")) == item_id else item
             for item in _require_list(current, "toggle")
         ]
     if isinstance(field, str) and isinstance(current, dict):
@@ -962,28 +1017,66 @@ def _toggle(current: Any, op: dict[str, Any], payload_values: dict[str, Any]) ->
     return not bool(current)
 
 
+def _incr_number(value: Any) -> int | float:
+    # Strict: a real JSON number only. bool is excluded (bool is an int subclass in
+    # Python, but JS `typeof true !== "number"` rejects it, so both sides must reject to
+    # stay conformant); strings / null / objects are rejected too, mirroring the strict JS
+    # toFiniteNumber. Callers default a missing field to 0 before calling this, so only a
+    # present non-number (incl. an explicit null) raises.
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        raise TypeError("increment requires a numeric value.")
+    return value
+
+
 def _increment(current: Any, op: dict[str, Any], payload_values: dict[str, Any]) -> Any:
-    amount = _resolve_expr(op.get("amount", 1), payload_values)
-    if not isinstance(amount, (int, float)):
-        raise TypeError("increment amount must resolve to a number.")
+    amount = _incr_number(_resolve_expr(op.get("amount", 1), payload_values))
     field = op.get("field")
     if "item_id" in op and isinstance(field, str):
-        item_id = str(_resolve_expr(op.get("item_id"), payload_values))
+        item_id = _js_id_string(_resolve_expr(op.get("item_id"), payload_values))
         return [
-            {**item, field: float(item.get(field, 0)) + amount} if isinstance(item, dict) and str(item.get("id")) == item_id else item
+            {**item, field: _incr_number(item.get(field, 0)) + amount} if isinstance(item, dict) and _js_id_string(item.get("id")) == item_id else item
             for item in _require_list(current, "increment")
         ]
     if isinstance(field, str) and isinstance(current, dict):
-        return {**current, field: float(current.get(field, 0)) + amount}
-    if not isinstance(current, (int, float)):
-        raise TypeError("increment requires numeric scalar state.")
-    return current + amount
+        return {**current, field: _incr_number(current.get(field, 0)) + amount}
+    return _incr_number(current) + amount
 
 
 def _resolve_expr(value: Any, payload_values: dict[str, Any]) -> Any:
     if isinstance(value, dict) and set(value) == {"from_payload"} and isinstance(value.get("from_payload"), str):
         return copy.deepcopy(payload_values.get(value["from_payload"]))
     return copy.deepcopy(value)
+
+
+def _js_strict_eq(a: Any, b: Any) -> bool:
+    # Mirror JS === for JSON scalars so the Python reference matches the generated reducer's
+    # filter_eq (`item[field] === op.value`): bool is distinct from number, numbers compare by
+    # value (1 === 1.0), strings/null by value, and containers are never equal (JS === is by
+    # reference). Python's `==` treated `1 == True`, which diverged from the shipped reducer.
+    a_bool, b_bool = isinstance(a, bool), isinstance(b, bool)
+    if a_bool or b_bool:
+        return a_bool and b_bool and a == b
+    a_num, b_num = isinstance(a, (int, float)), isinstance(b, (int, float))
+    if a_num or b_num:
+        return a_num and b_num and a == b
+    if isinstance(a, str) or isinstance(b, str):
+        return isinstance(a, str) and isinstance(b, str) and a == b
+    if a is None or b is None:
+        return a is None and b is None
+    return False
+
+
+def _js_id_string(value: Any) -> str:
+    # Mirror JS String() for the id-match domain so str()/String() cannot drift: an
+    # integer-valued float id (1.0) formats as "1" like String(1.0), not "1.0" like str(1.0).
+    # str/int already match String(); bool and null are formatted the JS way for completeness.
+    if isinstance(value, bool):
+        return "true" if value else "false"
+    if isinstance(value, float):
+        return str(int(value)) if value.is_integer() and math.isfinite(value) else repr(value)
+    if value is None:
+        return "null"
+    return str(value)
 
 
 def _resource_view_values(app_payload: dict[str, Any]) -> dict[tuple[str, str], list[dict[str, Any]]]:
@@ -1217,7 +1310,14 @@ console.log(JSON.stringify({
             return {
                 "ok": False,
                 "export_names": [],
-                "errors": [_conformance_error(f"Node command {node_command!r} was not found.")],
+                "errors": [
+                    {
+                        "code": "APP_STATE_REDUCER_NODE_UNAVAILABLE",
+                        "path": "$.interactive_state",
+                        "message": f"Node.js runtime {node_command!r} was not found; V3 reducer conformance requires Node.js.",
+                        "fix": "Install Node.js (>=18) on PATH for V3 reducer conformance, or use a V1/V2 AppBundle (no Node required).",
+                    }
+                ],
             }
         except subprocess.TimeoutExpired:
             return {
@@ -1266,10 +1366,28 @@ def _validate_event_payload(mutation: StateMutation, payload_values: dict[str, A
     return errors
 
 
-def _selector_sort_key(item: Any, field: str) -> tuple[int, str]:
+def _selector_sort_key(item: Any, field: str) -> tuple[int, int, Any, str]:
     if not isinstance(item, dict):
-        return (1, "")
-    return (0, str(item.get(field, "")))
+        return (1, 0, 0, "")
+    return (0, *_sort_key_component(item.get(field)))
+
+
+def _sort_key_component(value: Any) -> tuple[int, Any, str]:
+    # Typed sort sub-key shared byte-for-byte with the generated JS reducer's
+    # vsTypeRank/vsNum/vsStr. Heterogeneous JSON types are never stringified (that is
+    # how Python str() and JS String(x ?? "") drifted for bool/null/number/object);
+    # numbers compare numerically, so there is no float-repr string to disagree on.
+    # The numeric/string slots are filled with 0/"" outside their bucket so every
+    # element's key is a type-consistent 4-tuple (sorted() never compares str vs int).
+    if value is None:
+        return (0, 0, "")
+    if value is True or value is False:  # bool before int: bool is an int subclass
+        return (1, 1 if value else 0, "")
+    if isinstance(value, (int, float)):
+        return (2, value, "")
+    if isinstance(value, str):
+        return (3, 0, value)
+    return (4, 0, "")  # dict / list / other JSON container
 
 
 def _json_values_equal(left: Any, right: Any) -> bool:

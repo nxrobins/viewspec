@@ -3,8 +3,8 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>ViewSpec - Custom Motif Authoring</title>
-  <meta name="description" content="Define custom motif contracts for the hosted ViewSpec compiler and lower them into portable CompositionIR primitives.">
+  <title>ViewSpec - Local Motif Plugin ABI</title>
+  <meta name="description" content="Use deterministic local MotifPlugin extensions to lower enterprise motifs into portable CompositionIR without forking the ViewSpec compiler.">
   <meta name="robots" content="index,follow,max-snippet:-1,max-image-preview:large">
   <link rel="canonical" href="https://viewspec.dev/custom-motifs/">
   <link rel="alternate" type="text/markdown" title="ViewSpec for LLMs" href="https://viewspec.dev/llms.txt">
@@ -12,8 +12,8 @@
   <script type="application/ld+json">{
   "@context": "https://schema.org",
   "@type": "WebPage",
-  "name": "ViewSpec - Custom Motif Authoring",
-  "description": "Define custom motif contracts for the hosted ViewSpec compiler and lower them into portable CompositionIR primitives.",
+  "name": "ViewSpec - Local Motif Plugin ABI",
+  "description": "Use deterministic local MotifPlugin extensions to lower enterprise motifs into portable CompositionIR without forking the ViewSpec compiler.",
   "url": "https://viewspec.dev/custom-motifs/",
   "isPartOf": {
     "@type": "WebSite",
@@ -30,6 +30,7 @@
       <a class="brand" href="../">ViewSpec</a>
       <div class="links">
         <a href="../cross-platform-dashboard/">Cross-platform</a>
+        <a href="../appbundle-state-ir/">State IR</a>
         <a href="../custom-motifs/">Custom motifs</a>
         <a href="../interactive-compose/">Interactive compose</a>
         <a href="../#pricing">Pricing</a>
@@ -39,28 +40,47 @@
   </div>
   <main>
   <section class="shell hero">
-    <p class="eyebrow">Hosted compiler feature demo</p>
-    <h1>Custom Motif Authoring</h1>
-    <p class="lead">Teams can define a motif contract once, give it slot rules and prompt guidance, then let agents use that motif by ID.</p>
+    <p class="eyebrow">Local compiler extension demo</p>
+    <h1>Local Motif Plugin ABI</h1>
+    <p class="lead">Teams can register deterministic <code>MotifPlugin</code> implementations that lower enterprise motif intent into portable <code>CompositionIR</code> primitives without corrupting compiler invariants.</p>
   </section>
   <section class="section">
     <div class="shell grid two">
       <div class="card">
-        <h2>MDL Definition</h2>
-        <pre>{
-  "id": "acme.risk_panel.v1",
-  "layout": "surface_cards",
-  "style_tokens": ["surface.strong", "density.compact"],
-  "slots": [
-    {"name": "metric", "accepted_sources": ["binding", "projection"], "present_as": ["value", "badge"], "min_count": 1},
-    {"name": "acknowledgement", "accepted_sources": ["input"], "input_kinds": ["input:toggle"], "min_count": 1}
-  ]
-}</pre>
+        <h2>Plugin Boundary</h2>
+        <pre>class RiskPanelPlugin(MotifPlugin):
+    id = "acme.risk_panel.v1"
+    priority = 100
+
+    def supports(self, motif, context):
+        return motif.kind == "acme.risk_panel"
+
+    def lower(self, motif, context):
+        return CompositionIR(
+            nodes=[
+                surface("risk_panel"),
+                value("exposure"),
+                badge("policy_status"),
+            ]
+        )</pre>
       </div>
       <div class="card">
-        <h2>Launch Tiering</h2>
-        <p>Free has no custom motifs. Pro allows five custom motif instances per compile. Existing Scale accounts use the same cap. Enterprise is unlimited and adds org-wide sharing and prompt injection tooling.</p>
-        <p>The hosted compiler lowers custom motifs to standard CompositionIR primitives, so emitters do not need custom rendering paths.</p>
+        <h2>Deterministic Lowering</h2>
+        <p>The compiler selects motif plugins through an ordered local registry and fails on unsupported or ambiguous matches. Plugin ids are explicit, priorities are numeric, and output remains portable <code>CompositionIR</code>.</p>
+        <p>This is not dynamic plugin discovery, filesystem plugin loading, remote code execution, or an untrusted sandbox. It is a local deterministic extension seam for compiler-owned motif lowering.</p>
+      </div>
+    </div>
+  </section>
+  <section class="section">
+    <div class="shell grid two">
+      <div class="card">
+        <h2>Portable Output</h2>
+        <p>Emitters still render standard primitives. A custom motif such as <code>financial_candlestick</code> or <code>acme.risk_panel</code> can carry domain intent at the input edge, then lower into the same renderer-safe tree as built-in table, list, form, detail, and hero motifs.</p>
+      </div>
+      <div class="card">
+        <h2>Hosted Tiering</h2>
+        <p>Public pricing remains unchanged: Free includes the local SDK, Pro includes five custom motif instances per hosted compile, and Enterprise supports unlimited custom motifs with org sharing and launch support.</p>
+        <p>Use this page as the architecture proof point; AppBundle V3 State IR is the flagship app-generation story.</p>
       </div>
     </div>
   </section>

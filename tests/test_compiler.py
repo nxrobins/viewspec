@@ -525,9 +525,9 @@ def test_aesthetic_profile_compiles_to_root_metadata_and_style_projection():
     assert "viewspec:style:aesthetic_profile" in root.provenance.intent_refs
     assert ast.style_values["action.accent"].endswith("background-color: #4f46e5; color: #ffffff; border-radius: 999px;")
     assert ast.style_values["surface.subtle"].endswith(
-        "border-radius: 18px; box-shadow: 0 20px 46px rgb(79 70 229 / 0.16);"
+        "border-radius: 20px; box-shadow: 0 24px 60px rgb(79 70 229 / 0.22);"
     )
-    assert "font-size: 1.38rem" in ast.style_values["rhythm.hierarchy"]
+    assert "font-size: 1.44rem" in ast.style_values["rhythm.hierarchy"]
 
 
 @pytest.mark.parametrize(
@@ -1126,6 +1126,38 @@ def test_collection_state_conflict_and_state_contract_constraints_fail_closed():
     assert "STATE_MOTIF_TOO_MANY_DESCRIPTIONS" in codes
 
 
+def test_failed_state_motif_renders_members_as_leftovers_not_silently_dropped():
+    # A state motif that fails its contract (a title-less loading_state) must NOT drop its member
+    # content: the members render as region leftovers and a diagnostic names them, mirroring the
+    # outline unreached-member handling -- previously they were marked placed and vanished silently.
+    builder = ViewSpecBuilder("dropped_state_members")
+    builder.add_node("state", "loading_state", attrs={"description": "Still loading", "body": "PleaseWaitContent"})
+    description = builder.bind_attr("state_description", "state", "description", region="main", present_as="text")
+    body = builder.bind_attr("state_body", "state", "body", region="main", present_as="text")
+    builder.add_motif("loading_items", "loading_state", "main", [description, body])
+
+    ast = compile(builder.build_bundle())
+    codes = {diagnostic.code for diagnostic in ast.result.diagnostics}
+
+    texts: list[str] = []
+    ids: list[str] = []
+
+    def walk(node):
+        ids.append(node.id)
+        for value in (node.props or {}).values():
+            if isinstance(value, str):
+                texts.append(value)
+        for child in node.children:
+            walk(child)
+
+    walk(ast.result.root.root)
+
+    assert "PleaseWaitContent" in texts  # member content still renders (not silently dropped)
+    assert "Still loading" in texts
+    assert "SEMANTIC_MOTIF_MEMBERS_UNPLACED" in codes
+    assert len(ids) == len(set(ids))  # exactly once
+
+
 @pytest.mark.parametrize("motif_kind", ["comparison", "detail", "table"])
 def test_layout_planner_keeps_unsafe_motif_actions_at_region_level(motif_kind):
     builder = ViewSpecBuilder(f"{motif_kind}_action")
@@ -1502,3 +1534,41 @@ def test_custom_motif_plugin_cannot_place_unowned_bindings():
 def test_custom_motif_plugin_does_not_expand_local_agent_contract():
     assert "summary_strip" not in SUPPORTED_AGENT_MOTIFS
     assert "summary_strip" not in AGENT_INTENT_BUNDLE_SCHEMA["$defs"]["motif"]["properties"]["kind"]["enum"]
+
+
+def test_binding_shared_by_two_motifs_is_routed_exactly_once(tmp_path):
+    # A binding listed in two motifs' members must be placed once (first motif
+    # wins) with a diagnostic, upholding the exactly-once provenance invariant.
+    builder = ViewSpecBuilder("overlap")
+    builder.add_node("n1", "record", attrs={"a": "Alpha", "b": "Beta"})
+    builder.add_binding("b_a", "node:n1#attr:a", region="main", present_as="label")
+    builder.add_binding("b_b", "node:n1#attr:b", region="main", present_as="value")
+    builder.add_motif("m1", "table", "main", ["b_a", "b_b"])
+    builder.add_motif("m2", "table", "main", ["b_a"])
+
+    ast = compile(builder.build_bundle())
+
+    assert "DUPLICATE_MOTIF_MEMBER" in [d.code for d in ast.result.diagnostics]
+
+    HtmlTailwindEmitter().emit(ast, tmp_path)
+    html = tmp_path.joinpath("index.html").read_text(encoding="utf-8")
+    assert html.count("Alpha") == 1
+    assert html.count("Beta") == 1
+
+
+def test_outline_ignores_non_member_binding_on_shared_node(tmp_path):
+    # A plain region binding that merely shares a semantic node with an outline
+    # member must not be claimed by the outline (which would trip the compiler's
+    # ownership check and crash a valid bundle).
+    builder = ViewSpecBuilder("outline_shared_node")
+    builder.add_node("branch1", "record", attrs={"label": "Root", "note": "Side note"})
+    builder.add_binding("b_label", "node:branch1#attr:label", region="main", present_as="label")
+    builder.add_binding("b_note", "node:branch1#attr:note", region="main", present_as="value")
+    builder.add_motif("m_outline", "outline", "main", ["b_label"])
+
+    ast = compile(builder.build_bundle())  # must not raise MotifPluginError
+
+    HtmlTailwindEmitter().emit(ast, tmp_path)
+    html = tmp_path.joinpath("index.html").read_text(encoding="utf-8")
+    assert "Root" in html
+    assert "Side note" in html

@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import importlib.util
 import json
+import shutil
 import sys
 from pathlib import Path
 
@@ -710,6 +711,10 @@ def _doctor_app_bundle_pipeline() -> dict[str, object]:
         semantic_summary = app_semantic_change_lines(diff.get("semantic_changes"))
         return {
             "ok": bool(diff["ok"] and semantic_summary == [] and bound_validation["ok"]),
+            # String, not bool: node absence must NOT hard-fail doctor (V1/V2 and all IntentBundle
+            # flows are Python-only). Node is required only for V3 interactive_state conformance.
+            "node_available": "yes" if shutil.which("node") is not None else "no",
+            "node_requirement": "Node.js (>=18) is required only for V3 interactive_state reducer conformance; V1/V2 are Python-only",
             "validate_app": True,
             "validate_bound_app": bool(bound_validation["ok"]),
             "compile_check": validation["compile_check"],
