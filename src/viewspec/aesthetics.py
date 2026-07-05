@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import colorsys
 import re
 
 from viewspec.types import DEFAULT_STYLE_TOKEN_VALUES
@@ -201,6 +202,147 @@ def profile_style_facts(profile: str) -> dict[str, object]:
     }
 
 
+# --- Projection-distance instrument (dev-only gauge; queue item B0) -----------------------
+# Reads only the registry accessors above; hardcodes no per-profile knowledge, so B3/B4 edits
+# flow through automatically. Buckets and the comparable-axis set are the instrument's fixed
+# identity — see specs/b0-spec.md. Absent declaration -> emitter-base fallback; present but
+# unparseable -> raise (never silently guess an unmeasurable profile to distance 0).
+
+_HEX_RE = re.compile(r"^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$")
+_RADIUS_RE = re.compile(r"^(?:\d+px|0)$")
+# Emitter-base fallbacks (match html_tailwind base CSS) used when a profile drops a property.
+_BASE_BACKGROUND = "#ffffff"
+_BASE_FONT_CLASS = "sans"
+_BASE_ACTION_RADIUS = "12px"
+_BASE_ACCENT = "#0f766e"
+_BASE_EMPHASIS_WEIGHT = 700
+# 9 comparable axes: these eight by identity + emphasis_weight by |Δ| >= 60. ground_luminance
+# is informational only and excluded from distance.
+_COMPARABLE_AXES = (
+    "ground",
+    "font_class",
+    "metric_columns",
+    "radius_bucket",
+    "surface_shadow",
+    "uppercase_accent",
+    "accent_hue_bucket",
+    "featured_span",
+)
+_EMPHASIS_WEIGHT_DELTA = 60
+
+
+def _last_css_value(decls: str, prop: str) -> str | None:
+    matches = re.findall(rf"{re.escape(prop)}\s*:\s*([^;]+)", decls or "")
+    return matches[-1].strip() if matches else None
+
+
+def _normalize_hex(hex_color: str) -> str:
+    digits = hex_color.lstrip("#")
+    if len(digits) == 3:
+        digits = "".join(ch * 2 for ch in digits)
+    return digits
+
+
+def _srgb_luminance(hex_color: str) -> float:
+    digits = _normalize_hex(hex_color)
+    r, g, b = (int(digits[i : i + 2], 16) for i in (0, 2, 4))
+    return 0.2126 * r + 0.7152 * g + 0.0722 * b
+
+
+def _hue_bucket(hex_color: str) -> int:
+    digits = _normalize_hex(hex_color)
+    r, g, b = (int(digits[i : i + 2], 16) / 255 for i in (0, 2, 4))
+    hue, lightness, saturation = colorsys.rgb_to_hls(r, g, b)
+    if saturation < 0.08:  # achromatic: bucket by lightness so grays don't collide with hues
+        return -1 if lightness < 0.5 else -2
+    return int((hue * 360) // 30)
+
+
+def _radius_bucket(pixels: int) -> str:
+    if pixels <= 6:
+        return "sharp"
+    if pixels <= 16:
+        return "soft"
+    if pixels <= 40:
+        return "round"
+    return "pill"
+
+
+def profile_projection_axes(profile: str) -> dict[str, object]:
+    """Registry-derived visual axes for one profile — the reading the distance gauge compares.
+
+    Totality: absent declaration -> emitter-base fallback; present-but-unparseable radius or
+    accent colour -> AestheticProfileError (an unmeasurable profile must never read as
+    distance-0-from-everything).
+    """
+    if profile not in AESTHETIC_PROFILE_TOKENS:
+        raise AestheticProfileError("AESTHETIC_PROFILE_UNKNOWN", f"Unknown aesthetic profile {profile}.")
+    values = profile_style_values(profile)
+    layout = profile_layout_props(profile)
+
+    background = _last_css_value(values.get("palette.temperature", ""), "background-color") or _BASE_BACKGROUND
+    if not _HEX_RE.match(background):
+        raise AestheticProfileError("AESTHETIC_PROFILE_UNSAFE_STYLE", f"{profile} ground: cannot measure {background!r}")
+    luminance = _srgb_luminance(background)
+
+    font_family = _last_css_value(values.get("tone.neutral", ""), "font-family")
+    first_family = font_family.split(",")[0].strip().lower() if font_family else _BASE_FONT_CLASS
+    if "mono" in first_family:
+        font_class = "mono"
+    elif "serif" in first_family and "sans" not in first_family:
+        font_class = "serif"
+    else:
+        font_class = "sans"
+
+    metric_columns = int(layout.get("metric_grid", {}).get("columns", 2) or 2)
+
+    radius_raw = _last_css_value(values.get("action.accent", ""), "border-radius") or _BASE_ACTION_RADIUS
+    if not _RADIUS_RE.match(radius_raw):
+        raise AestheticProfileError(
+            "AESTHETIC_PROFILE_UNSAFE_STYLE", f"{profile} radius_bucket: cannot measure {radius_raw!r}"
+        )
+    radius_pixels = 0 if radius_raw == "0" else int(radius_raw[:-2])
+
+    accent = _last_css_value(values.get("tone.accent", ""), "color") or _BASE_ACCENT
+    if not _HEX_RE.match(accent):
+        raise AestheticProfileError(
+            "AESTHETIC_PROFILE_UNSAFE_STYLE", f"{profile} accent_hue_bucket: cannot measure {accent!r}"
+        )
+
+    weight_raw = _last_css_value(values.get("emphasis.high", ""), "font-weight")
+    if weight_raw is None:
+        emphasis_weight = _BASE_EMPHASIS_WEIGHT
+    elif weight_raw.isdigit():
+        emphasis_weight = int(weight_raw)
+    else:
+        raise AestheticProfileError(
+            "AESTHETIC_PROFILE_UNSAFE_STYLE", f"{profile} emphasis_weight: cannot measure {weight_raw!r}"
+        )
+
+    return {
+        "ground": "dark" if luminance < 128 else "light",
+        "ground_luminance": round(luminance),
+        "font_class": font_class,
+        "metric_columns": metric_columns,
+        "radius_bucket": _radius_bucket(radius_pixels),
+        "surface_shadow": "box-shadow" in values.get("surface.subtle", ""),
+        "uppercase_accent": "uppercase" in values.get("tone.accent", ""),
+        "emphasis_weight": emphasis_weight,
+        "accent_hue_bucket": _hue_bucket(accent),
+        "featured_span": layout.get("metric_card", {}).get("span_columns"),
+    }
+
+
+def profile_projection_distance(a: str, b: str) -> int:
+    """Count of differing comparable axes between two profiles (symmetric). Higher = more visually distinct."""
+    axes_a = profile_projection_axes(a)
+    axes_b = profile_projection_axes(b)
+    distance = sum(1 for axis in _COMPARABLE_AXES if axes_a[axis] != axes_b[axis])
+    if abs(int(axes_a["emphasis_weight"]) - int(axes_b["emphasis_weight"])) >= _EMPHASIS_WEIGHT_DELTA:
+        distance += 1
+    return distance
+
+
 def validate_aesthetic_profile_registry() -> None:
     for profile in AESTHETIC_PROFILE_TOKENS:
         values = AESTHETIC_PROFILE_STYLE_VALUES.get(profile)
@@ -312,6 +454,8 @@ __all__ = [
     "AestheticProfileError",
     "is_aesthetic_profile_token",
     "profile_layout_props",
+    "profile_projection_axes",
+    "profile_projection_distance",
     "profile_style_facts",
     "profile_style_values",
     "validate_aesthetic_profile_registry",
