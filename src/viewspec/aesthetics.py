@@ -54,19 +54,23 @@ AESTHETIC_ALLOWED_CSS_PROPERTIES = frozenset(
     {
         "background",
         "background-color",
+        "backdrop-filter",
         "border",
         "border-color",
         "border-radius",
+        "border-style",
         "box-shadow",
         "color",
         "font-family",
         "font-size",
+        "font-style",
         "font-weight",
         "gap",
         "letter-spacing",
         "line-height",
         "max-width",
         "padding",
+        "text-shadow",
         "text-transform",
     }
 )
