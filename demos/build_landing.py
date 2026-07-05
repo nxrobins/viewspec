@@ -58,11 +58,10 @@ def build_bundle(aesthetic_profile: str | None = None):
     builder.add_hero(
         "launch_hero",
         eyebrow="Agent-native app compiler",
-        title="Ship agent-built apps you can prove.",
+        title="Intent goes in. Interface comes out.",
         description=(
-            "Intent in. App out. Proof attached. Agents commit to meaning — nodes, bindings, "
-            "motifs — and ViewSpec compiles the UI, the state reducer, replay checks, and shell "
-            "proof. Deterministic, and no runtime LLM."
+            "Agents commit to meaning — nodes, bindings, motifs. ViewSpec compiles the UI, "
+            "the state reducer, replay checks, and shell proof. Deterministic, and no runtime LLM."
         ),
         region="main",
         group_id="launch",
@@ -76,6 +75,11 @@ def build_bundle(aesthetic_profile: str | None = None):
     proof_badges.add_card(label="manifest", value="manifest checked")
     proof_badges.add_card(label="shell", value="shell hash matched")
     proof_badges.add_card(label="runtime", value="No runtime LLM")
+
+    compile_flow = builder.add_dashboard("compile_flow", region="main", group_id="compile_flow")
+    compile_flow.add_card(label="1 · intent", value="Agent writes IntentBundle JSON.")
+    compile_flow.add_card(label="2 · compile", value="CompositionIR to UI and reducer, no LLM.")
+    compile_flow.add_card(label="3 · proof", value="Provenance, replay, and shell hash attached.")
 
     capabilities = builder.add_table("capabilities", region="main", group_id="capabilities")
     capabilities.add_row(
@@ -94,6 +98,20 @@ def build_bundle(aesthetic_profile: str | None = None):
         label="Portable Surfaces",
         value="html-tailwind and React locally; SwiftUI and Flutter hosted.",
     )
+
+    agent_workflow = builder.add_table("agent_workflow", region="main", group_id="agent_workflow")
+    agent_workflow.add_row(label="describe", value="Emit IntentBundle or AppBundle JSON.")
+    agent_workflow.add_row(label="validate", value="viewspec validate-intent fails closed on drift.")
+    agent_workflow.add_row(label="prove", value="viewspec prove-app --with-shell writes the report.")
+
+    pricing = builder.add_table("pricing", region="main", group_id="pricing")
+    pricing.add_row(label="Free", value="Local SDK. Unlimited compiles, proofs, and surfaces.")
+    pricing.add_row(label="Pro", value="149/mo. Hosted compiler API, 10k calls per day.")
+    pricing.add_row(label="Enterprise", value="Custom volume, organization sharing, and support.")
+
+    artifact_identity = builder.add_dashboard("artifact_identity", region="main", group_id="artifact_identity")
+    artifact_identity.add_card(label="provenance", value="Every element traces to its address.")
+    artifact_identity.add_card(label="determinism", value="Same intent, same bytes, same hash.")
 
     builder.add_style("s_launch_hero", "launch_hero", "emphasis.high")
     builder.add_style("s_proof_badges", "proof_badges", "surface.subtle")
@@ -809,6 +827,7 @@ body {
   text-transform: uppercase;
 }
 #dom-motif_proof_badges .vs-surface,
+#dom-motif_compile_flow > .vs-stack,
 table.vs-stack {
   box-shadow: none !important;
 }
@@ -828,14 +847,39 @@ table.vs-stack {
 .vs-label {
   font-weight: 760 !important;
 }
+#dom-motif_compile_flow {
+  background: transparent !important;
+  border: 0 !important;
+  display: grid !important;
+  gap: 0.9rem !important;
+  grid-column: 1 / -1;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  padding: 0 !important;
+}
+#dom-motif_compile_flow > .vs-stack {
+  min-height: 9rem;
+  padding: 1.15rem !important;
+}
+#dom-motif_compile_flow .vs-label {
+  font-size: 0.72rem !important;
+  text-transform: uppercase;
+}
+#dom-motif_compile_flow .vs-text {
+  line-height: 1.55 !important;
+}
 table.vs-stack {
   border-collapse: separate !important;
   grid-column: span 6;
   border-spacing: 0;
   overflow: hidden;
 }
-#dom-motif_capabilities {
+#dom-motif_capabilities,
+#dom-motif_pricing {
   grid-column: span 7;
+}
+#dom-motif_agent_workflow,
+#dom-motif_artifact_identity {
+  grid-column: span 5;
 }
 th.vs-label {
   font-size: 0.72rem !important;
@@ -1050,7 +1094,10 @@ td.vs-value {
   }
   #dom-motif_launch_hero,
   #dom-motif_proof_badges,
-  #dom-motif_capabilities {
+  #dom-motif_capabilities,
+  #dom-motif_pricing,
+  #dom-motif_agent_workflow,
+  #dom-motif_artifact_identity {
     grid-column: 1 / -1;
   }
   #dom-motif_launch_hero {
@@ -1163,7 +1210,8 @@ td.vs-value {
   #dom-binding_launch_hero_description {
     font-size: 1rem !important;
   }
-  #dom-motif_proof_badges {
+  #dom-motif_proof_badges,
+  #dom-motif_compile_flow {
     grid-template-columns: 1fr !important;
   }
   th.vs-label, td.vs-value, td.vs-text {
@@ -1181,12 +1229,13 @@ td.vs-value {
 #dom-motif_launch_hero .vs-label, #dom-binding_launch_hero_eyebrow { font-family: var(--mono) !important; color: var(--shell-accent) !important; letter-spacing: 0.2em !important; text-transform: uppercase; }
 #dom-motif_launch_hero h1, #dom-binding_launch_hero_title { font-family: var(--mono) !important; color: var(--text) !important; font-weight: 660 !important; letter-spacing: -0.03em !important; }
 #dom-binding_launch_hero_description { color: var(--muted) !important; font-family: var(--sans) !important; }
-/* proof badges */
-#dom-motif_proof_badges .vs-value { color: var(--shell-accent-2) !important; font-family: var(--mono) !important; }
-#dom-motif_proof_badges::before { color: var(--muted) !important; font-family: var(--mono) !important; letter-spacing: 0.14em !important; }
-#dom-motif_proof_badges .vs-surface::before { content: ""; position: absolute; inset: 0 auto auto 0; width: 2px; height: 100%; background: linear-gradient(var(--shell-accent), transparent); }
-#dom-motif_proof_badges .vs-surface { position: relative; overflow: hidden; }
-/* tables: capabilities */
+/* proof badges / compile flow / artifact identity */
+#dom-motif_proof_badges .vs-value, #dom-motif_artifact_identity .vs-value { color: var(--shell-accent-2) !important; font-family: var(--mono) !important; }
+#dom-motif_compile_flow .vs-label { color: var(--shell-accent) !important; font-family: var(--mono) !important; }
+#dom-motif_proof_badges::before, #dom-motif_compile_flow::before { color: var(--muted) !important; font-family: var(--mono) !important; letter-spacing: 0.14em !important; }
+#dom-motif_proof_badges .vs-surface::before, #dom-motif_artifact_identity .vs-surface::before { content: ""; position: absolute; inset: 0 auto auto 0; width: 2px; height: 100%; background: linear-gradient(var(--shell-accent), transparent); }
+#dom-motif_proof_badges .vs-surface, #dom-motif_artifact_identity .vs-surface { position: relative; overflow: hidden; }
+/* tables: capabilities, agent_workflow, pricing */
 table.vs-stack { background: var(--panel) !important; }
 td.vs-label { color: var(--shell-accent-2) !important; font-family: var(--mono) !important; }
 th.vs-label { background: rgb(var(--shell-panel-rgb) / 0.5) !important; font-family: var(--mono) !important; letter-spacing: 0.12em !important; }

@@ -514,9 +514,9 @@ assert(Array.isArray(landingCompiledManifest.diagnostics), 'landing compiled man
 assert.equal(landingCompiledManifest.external_refs.length, 0)
 for (const expected of [
   'Agent-native app compiler',
-  'Ship agent-built apps you can prove.',
+  'Intent goes in. Interface comes out.',
   'state_replay_assertions',
-  'Intent in',
+  'CompositionIR to UI and reducer',
 ]) {
   assertPublicText(landingCompiledHtml, expected, 'compiled landing artifact')
 }
@@ -571,7 +571,7 @@ assert.doesNotMatch(landing, /Your agent writes HTML/)
 assert.doesNotMatch(landing, /agent HTML governance first/)
 assert.doesNotMatch(landing, /agent HTML governance/)
 assert.match(landing, /Ship agent-built apps you can prove/)
-assert.match(landing, /Intent in\. App out\. Proof attached/)
+assert.match(landing, /Intent goes in\. Interface comes out\./)
 for (const expected of [
   'data-viewspec-page-artifact="true"',
   'data-viewspec-profile="aesthetic.calm_ops"',
@@ -613,9 +613,11 @@ assert.doesNotMatch(landing, /Dense Ops/)
 assert.doesNotMatch(landing, /Launch\s*<\/button>/)
 assert.match(landing, /\.artifact-profile-switcher\s*{[\s\S]*?flex-wrap: wrap;[\s\S]*?overflow: visible;/)
 assert.doesNotMatch(landing, /\.artifact-profile-switcher\s*{[\s\S]*?overflow-x: auto;/)
-for (const removedId of ['dom-motif_compile_flow', 'dom-motif_proof_contract', 'dom-motif_agent_workflow', 'dom-motif_artifact_identity', 'dom-motif_pricing']) {
-  assert.doesNotMatch(landing, new RegExp(`<[^>]+id="${removedId}"`), `${removedId} should not be emitted on concise homepage`)
+for (const motifId of ['dom-motif_compile_flow', 'dom-motif_agent_workflow', 'dom-motif_artifact_identity', 'dom-motif_pricing']) {
+  assert.match(landing, new RegExp(`<[^>]+id="${motifId}"`), `${motifId} should be emitted on the homepage`)
 }
+// proof_contract was never a real motif; keep asserting it is absent.
+assert.doesNotMatch(landing, /<[^>]+id="dom-motif_proof_contract"/)
 await stat('demos/vendor/pretext/pretext.esm.js')
 await stat('demos/vendor/pretext/pretext.global.js')
 for (const file of ['analysis', 'line-break', 'line-text', 'measurement']) {

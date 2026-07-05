@@ -2,6 +2,56 @@
   "substrate": {
     "id": "viewspec_landing_substrate",
     "nodes": {
+      "agent_workflow_row_1": {
+        "attrs": {
+          "label": "describe",
+          "value": "Emit IntentBundle or AppBundle JSON."
+        },
+        "edges": {},
+        "id": "agent_workflow_row_1",
+        "kind": "table_row",
+        "slots": {}
+      },
+      "agent_workflow_row_2": {
+        "attrs": {
+          "label": "validate",
+          "value": "viewspec validate-intent fails closed on drift."
+        },
+        "edges": {},
+        "id": "agent_workflow_row_2",
+        "kind": "table_row",
+        "slots": {}
+      },
+      "agent_workflow_row_3": {
+        "attrs": {
+          "label": "prove",
+          "value": "viewspec prove-app --with-shell writes the report."
+        },
+        "edges": {},
+        "id": "agent_workflow_row_3",
+        "kind": "table_row",
+        "slots": {}
+      },
+      "artifact_identity_card_1": {
+        "attrs": {
+          "label": "provenance",
+          "value": "Every element traces to its address."
+        },
+        "edges": {},
+        "id": "artifact_identity_card_1",
+        "kind": "dashboard_card",
+        "slots": {}
+      },
+      "artifact_identity_card_2": {
+        "attrs": {
+          "label": "determinism",
+          "value": "Same intent, same bytes, same hash."
+        },
+        "edges": {},
+        "id": "artifact_identity_card_2",
+        "kind": "dashboard_card",
+        "slots": {}
+      },
       "capabilities_row_1": {
         "attrs": {
           "label": "State IR",
@@ -42,15 +92,75 @@
         "kind": "table_row",
         "slots": {}
       },
+      "compile_flow_card_1": {
+        "attrs": {
+          "label": "1 \u00b7 intent",
+          "value": "Agent writes IntentBundle JSON."
+        },
+        "edges": {},
+        "id": "compile_flow_card_1",
+        "kind": "dashboard_card",
+        "slots": {}
+      },
+      "compile_flow_card_2": {
+        "attrs": {
+          "label": "2 \u00b7 compile",
+          "value": "CompositionIR to UI and reducer, no LLM."
+        },
+        "edges": {},
+        "id": "compile_flow_card_2",
+        "kind": "dashboard_card",
+        "slots": {}
+      },
+      "compile_flow_card_3": {
+        "attrs": {
+          "label": "3 \u00b7 proof",
+          "value": "Provenance, replay, and shell hash attached."
+        },
+        "edges": {},
+        "id": "compile_flow_card_3",
+        "kind": "dashboard_card",
+        "slots": {}
+      },
       "launch_hero": {
         "attrs": {
-          "description": "Intent in. App out. Proof attached. Agents commit to meaning \u2014 nodes, bindings, motifs \u2014 and ViewSpec compiles the UI, the state reducer, replay checks, and shell proof. Deterministic, and no runtime LLM.",
+          "description": "Agents commit to meaning \u2014 nodes, bindings, motifs. ViewSpec compiles the UI, the state reducer, replay checks, and shell proof. Deterministic, and no runtime LLM.",
           "eyebrow": "Agent-native app compiler",
-          "title": "Ship agent-built apps you can prove."
+          "title": "Intent goes in. Interface comes out."
         },
         "edges": {},
         "id": "launch_hero",
         "kind": "hero",
+        "slots": {}
+      },
+      "pricing_row_1": {
+        "attrs": {
+          "label": "Free",
+          "value": "Local SDK. Unlimited compiles, proofs, and surfaces."
+        },
+        "edges": {},
+        "id": "pricing_row_1",
+        "kind": "table_row",
+        "slots": {}
+      },
+      "pricing_row_2": {
+        "attrs": {
+          "label": "Pro",
+          "value": "149/mo. Hosted compiler API, 10k calls per day."
+        },
+        "edges": {},
+        "id": "pricing_row_2",
+        "kind": "table_row",
+        "slots": {}
+      },
+      "pricing_row_3": {
+        "attrs": {
+          "label": "Enterprise",
+          "value": "Custom volume, organization sharing, and support."
+        },
+        "edges": {},
+        "id": "pricing_row_3",
+        "kind": "table_row",
         "slots": {}
       },
       "proof_badges_card_1": {
@@ -208,6 +318,48 @@
         "target_region": "main"
       },
       {
+        "address": "node:compile_flow_card_1#attr:label",
+        "cardinality": "exactly_once",
+        "id": "compile_flow_card_1_label",
+        "present_as": "label",
+        "target_region": "main"
+      },
+      {
+        "address": "node:compile_flow_card_1#attr:value",
+        "cardinality": "exactly_once",
+        "id": "compile_flow_card_1_value",
+        "present_as": "value",
+        "target_region": "main"
+      },
+      {
+        "address": "node:compile_flow_card_2#attr:label",
+        "cardinality": "exactly_once",
+        "id": "compile_flow_card_2_label",
+        "present_as": "label",
+        "target_region": "main"
+      },
+      {
+        "address": "node:compile_flow_card_2#attr:value",
+        "cardinality": "exactly_once",
+        "id": "compile_flow_card_2_value",
+        "present_as": "value",
+        "target_region": "main"
+      },
+      {
+        "address": "node:compile_flow_card_3#attr:label",
+        "cardinality": "exactly_once",
+        "id": "compile_flow_card_3_label",
+        "present_as": "label",
+        "target_region": "main"
+      },
+      {
+        "address": "node:compile_flow_card_3#attr:value",
+        "cardinality": "exactly_once",
+        "id": "compile_flow_card_3_value",
+        "present_as": "value",
+        "target_region": "main"
+      },
+      {
         "address": "node:capabilities_row_1#attr:label",
         "cardinality": "exactly_once",
         "id": "capabilities_row_1_label",
@@ -262,6 +414,118 @@
         "id": "capabilities_row_4_value",
         "present_as": "value",
         "target_region": "main"
+      },
+      {
+        "address": "node:agent_workflow_row_1#attr:label",
+        "cardinality": "exactly_once",
+        "id": "agent_workflow_row_1_label",
+        "present_as": "label",
+        "target_region": "main"
+      },
+      {
+        "address": "node:agent_workflow_row_1#attr:value",
+        "cardinality": "exactly_once",
+        "id": "agent_workflow_row_1_value",
+        "present_as": "value",
+        "target_region": "main"
+      },
+      {
+        "address": "node:agent_workflow_row_2#attr:label",
+        "cardinality": "exactly_once",
+        "id": "agent_workflow_row_2_label",
+        "present_as": "label",
+        "target_region": "main"
+      },
+      {
+        "address": "node:agent_workflow_row_2#attr:value",
+        "cardinality": "exactly_once",
+        "id": "agent_workflow_row_2_value",
+        "present_as": "value",
+        "target_region": "main"
+      },
+      {
+        "address": "node:agent_workflow_row_3#attr:label",
+        "cardinality": "exactly_once",
+        "id": "agent_workflow_row_3_label",
+        "present_as": "label",
+        "target_region": "main"
+      },
+      {
+        "address": "node:agent_workflow_row_3#attr:value",
+        "cardinality": "exactly_once",
+        "id": "agent_workflow_row_3_value",
+        "present_as": "value",
+        "target_region": "main"
+      },
+      {
+        "address": "node:pricing_row_1#attr:label",
+        "cardinality": "exactly_once",
+        "id": "pricing_row_1_label",
+        "present_as": "label",
+        "target_region": "main"
+      },
+      {
+        "address": "node:pricing_row_1#attr:value",
+        "cardinality": "exactly_once",
+        "id": "pricing_row_1_value",
+        "present_as": "value",
+        "target_region": "main"
+      },
+      {
+        "address": "node:pricing_row_2#attr:label",
+        "cardinality": "exactly_once",
+        "id": "pricing_row_2_label",
+        "present_as": "label",
+        "target_region": "main"
+      },
+      {
+        "address": "node:pricing_row_2#attr:value",
+        "cardinality": "exactly_once",
+        "id": "pricing_row_2_value",
+        "present_as": "value",
+        "target_region": "main"
+      },
+      {
+        "address": "node:pricing_row_3#attr:label",
+        "cardinality": "exactly_once",
+        "id": "pricing_row_3_label",
+        "present_as": "label",
+        "target_region": "main"
+      },
+      {
+        "address": "node:pricing_row_3#attr:value",
+        "cardinality": "exactly_once",
+        "id": "pricing_row_3_value",
+        "present_as": "value",
+        "target_region": "main"
+      },
+      {
+        "address": "node:artifact_identity_card_1#attr:label",
+        "cardinality": "exactly_once",
+        "id": "artifact_identity_card_1_label",
+        "present_as": "label",
+        "target_region": "main"
+      },
+      {
+        "address": "node:artifact_identity_card_1#attr:value",
+        "cardinality": "exactly_once",
+        "id": "artifact_identity_card_1_value",
+        "present_as": "value",
+        "target_region": "main"
+      },
+      {
+        "address": "node:artifact_identity_card_2#attr:label",
+        "cardinality": "exactly_once",
+        "id": "artifact_identity_card_2_label",
+        "present_as": "label",
+        "target_region": "main"
+      },
+      {
+        "address": "node:artifact_identity_card_2#attr:value",
+        "cardinality": "exactly_once",
+        "id": "artifact_identity_card_2_value",
+        "present_as": "value",
+        "target_region": "main"
       }
     ],
     "complexity_tier": 1,
@@ -294,6 +558,19 @@
         "target_region": "main"
       },
       {
+        "id": "compile_flow",
+        "kind": "ordered",
+        "members": [
+          "compile_flow_card_1_label",
+          "compile_flow_card_1_value",
+          "compile_flow_card_2_label",
+          "compile_flow_card_2_value",
+          "compile_flow_card_3_label",
+          "compile_flow_card_3_value"
+        ],
+        "target_region": "main"
+      },
+      {
         "id": "capabilities",
         "kind": "ordered",
         "members": [
@@ -305,6 +582,43 @@
           "capabilities_row_3_value",
           "capabilities_row_4_label",
           "capabilities_row_4_value"
+        ],
+        "target_region": "main"
+      },
+      {
+        "id": "agent_workflow",
+        "kind": "ordered",
+        "members": [
+          "agent_workflow_row_1_label",
+          "agent_workflow_row_1_value",
+          "agent_workflow_row_2_label",
+          "agent_workflow_row_2_value",
+          "agent_workflow_row_3_label",
+          "agent_workflow_row_3_value"
+        ],
+        "target_region": "main"
+      },
+      {
+        "id": "pricing",
+        "kind": "ordered",
+        "members": [
+          "pricing_row_1_label",
+          "pricing_row_1_value",
+          "pricing_row_2_label",
+          "pricing_row_2_value",
+          "pricing_row_3_label",
+          "pricing_row_3_value"
+        ],
+        "target_region": "main"
+      },
+      {
+        "id": "artifact_identity",
+        "kind": "ordered",
+        "members": [
+          "artifact_identity_card_1_label",
+          "artifact_identity_card_1_value",
+          "artifact_identity_card_2_label",
+          "artifact_identity_card_2_value"
         ],
         "target_region": "main"
       }
@@ -339,6 +653,19 @@
         "region": "main"
       },
       {
+        "id": "compile_flow",
+        "kind": "dashboard",
+        "members": [
+          "compile_flow_card_1_label",
+          "compile_flow_card_1_value",
+          "compile_flow_card_2_label",
+          "compile_flow_card_2_value",
+          "compile_flow_card_3_label",
+          "compile_flow_card_3_value"
+        ],
+        "region": "main"
+      },
+      {
         "id": "capabilities",
         "kind": "table",
         "members": [
@@ -350,6 +677,43 @@
           "capabilities_row_3_value",
           "capabilities_row_4_label",
           "capabilities_row_4_value"
+        ],
+        "region": "main"
+      },
+      {
+        "id": "agent_workflow",
+        "kind": "table",
+        "members": [
+          "agent_workflow_row_1_label",
+          "agent_workflow_row_1_value",
+          "agent_workflow_row_2_label",
+          "agent_workflow_row_2_value",
+          "agent_workflow_row_3_label",
+          "agent_workflow_row_3_value"
+        ],
+        "region": "main"
+      },
+      {
+        "id": "pricing",
+        "kind": "table",
+        "members": [
+          "pricing_row_1_label",
+          "pricing_row_1_value",
+          "pricing_row_2_label",
+          "pricing_row_2_value",
+          "pricing_row_3_label",
+          "pricing_row_3_value"
+        ],
+        "region": "main"
+      },
+      {
+        "id": "artifact_identity",
+        "kind": "dashboard",
+        "members": [
+          "artifact_identity_card_1_label",
+          "artifact_identity_card_1_value",
+          "artifact_identity_card_2_label",
+          "artifact_identity_card_2_value"
         ],
         "region": "main"
       }
