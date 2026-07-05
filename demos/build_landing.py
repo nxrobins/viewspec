@@ -18,7 +18,7 @@ from pathlib import Path
 from typing import Any
 
 from viewspec import AESTHETIC_PROFILE_TOKENS, ViewSpecBuilder, compile, profile_style_facts
-from viewspec.aesthetics import profile_layout_props
+from viewspec.aesthetics import profile_layout_props, profile_style_values
 from viewspec.emitters.html_tailwind import HtmlTailwindEmitter
 from viewspec.intent_tools import wrap_intent_bundle_manifest
 from viewspec.local_tools import source_hash
@@ -406,11 +406,10 @@ def _profile_projection(style_values: dict[str, Any], artifact_body: str, profil
     match = re.search(r'id="dom-binding_launch_hero_title"[^>]*?font-family:\s*([^;"]+)', artifact_body)
     font_family = match.group(1).strip() if match else "ui-sans-serif, system-ui, sans-serif"
     first = font_family.split(",")[0]
-    font_label = "mono" if "mono" in first else ("serif" if "serif" in first else "sans")
-    cols = int(profile_layout_props(profile).get("metric_grid", {}).get("columns", 2) or 2)
-    num_size = {1: "50px", 2: "34px", 3: "22px"}.get(cols, "30px")
-    gap = {1: "30px", 2: "18px", 3: "8px"}.get(cols, "16px")
-    pad = {1: "6px 2px 16px", 2: "18px", 3: "11px"}.get(cols, "16px")
+    font_label = "mono" if "mono" in first else ("sans" if "sans" in first else ("serif" if "serif" in first else "sans"))
+    layout = profile_layout_props(profile)
+    cols = int(layout.get("metric_grid", {}).get("columns", 2) or 2)
+    metric_card = layout.get("metric_card") or {}
     return {
         "accent": accent,
         "radius": radius,
@@ -418,25 +417,50 @@ def _profile_projection(style_values: dict[str, Any], artifact_body: str, profil
         "fontFamily": font_family,
         "fontLabel": font_label,
         "cols": cols,
-        "numSize": num_size,
-        "gap": gap,
-        "pad": pad,
+        "featuredSpan": metric_card.get("span_columns"),
+        "uppercase": "uppercase" in style_values.get("tone.accent", ""),
+        "surfaceRadius": _css_last_value(style_values.get("surface.subtle", ""), "border-radius"),
+        "pageTint": _css_last_value(style_values.get("palette.temperature", ""), "background-color"),
         "sparkFill": _rgba(accent, 0.16),
     }
 
 
-def _profile_projection_css(profile_evidence: dict[str, Any]) -> str:
+def _projection_viewport_css() -> str:
+    """Per-profile CSS for the style-derivation viewport.
+
+    Every declaration block is injected VERBATIM from the compiler's aesthetic
+    profile registry (the same `profile_style_values` the compiler projects) plus
+    the bounded layout metadata (`profile_layout_props`). Nothing is invented here:
+    the viewport is skinned by the projection itself.
+    """
     rules: list[str] = []
-    for profile, data in profile_evidence["profiles"].items():
-        pr = data["projection"]
+    for profile in AESTHETIC_PROFILE_TOKENS:
+        sv = profile_style_values(profile)
+        layout = profile_layout_props(profile)
         short = profile.replace("aesthetic.", "")
+        sel = f'body[data-profile="{short}"]'
+        cols = int(layout.get("metric_grid", {}).get("columns", 2) or 2)
+        gap = _css_last_value(sv.get("density.regular", ""), "gap") or "0.8rem"
+        pad = _css_last_value(sv.get("density.regular", ""), "padding") or "0.8rem"
+        accent = _css_last_value(sv.get("tone.accent", ""), "color") or "#0f766e"
+        rules.append(f'{sel} .dv{{ {sv["palette.temperature"]} {sv["tone.neutral"]} }}')
+        rules.append(f'{sel} .dv .dvcard{{ {sv["surface.subtle"]} padding: calc({pad.split()[0]} * 1.6) calc({pad.split()[-1]} * 1.4); }}')
+        rules.append(f'{sel} .dv .dvgrid{{ grid-template-columns: repeat({cols}, minmax(0, 1fr)); gap: {gap}; }}')
+        rules.append(f'{sel} .dv .dvh{{ {sv["rhythm.hierarchy"]} }}')
+        rules.append(f'{sel} .dv .dvlabel{{ {sv["tone.muted"]} }}')
+        rules.append(f'{sel} .dv .dvdelta{{ {sv["tone.accent"]} }}')
+        rules.append(f'{sel} .dv .dvnum{{ {sv["emphasis.high"]} }}')
+        rules.append(f'{sel} .dv .dvbtn{{ {sv["action.accent"]} }}')
+        rules.append(f'{sel} .dv .dvflow{{ {sv["narrative.flow"]} }}')
         rules.append(
-            f'body[data-profile="{short}"] .mgrid {{ '
-            f'--m-cols:{pr["cols"]}; --m-gap:{pr["gap"]}; --m-pad:{pr["pad"]}; '
-            f'--m-accent:{pr["accent"]}; --m-chip-radius:{pr["radius"]}; '
-            f'--m-num-size:{pr["numSize"]}; --m-num-weight:{pr["weight"]}; '
-            f'--m-num-font:{pr["fontFamily"]}; --m-spark-fill:{pr["sparkFill"]}; }}'
+            f'{sel} .dv .spark-line{{ stroke: {accent}; }} '
+            f'{sel} .dv .spark-dot{{ fill: {accent}; }} '
+            f'{sel} .dv .spark-fill{{ fill: {_rgba(accent, 0.14)}; }}'
         )
+        metric_card = layout.get("metric_card") or {}
+        span = metric_card.get("span_columns")
+        if span:
+            rules.append(f'{sel} .dv .dvcard.featured{{ grid-column: span {span}; }}')
     return "\n".join(rules)
 
 
@@ -454,9 +478,6 @@ PAGE_CSS = r"""
     --wrap:1120px;
     /* derived tokens (profile: calm_ops) */
     --u:8px; --disp:1; --hw:600; --cols:3; --rad:11px; --tint:transparent; --measure:60ch;
-    /* metric-projection defaults — overridden per profile by compiler-derived CSS (injected) */
-    --m-cols:2; --m-gap:18px; --m-pad:18px; --m-num-size:34px; --m-num-weight:760;
-    --m-num-font:var(--mono); --m-accent:var(--mint); --m-chip-radius:10px; --m-spark-fill:rgba(87,220,169,.16);
   }
   body[data-profile="premium_saas"]     { --u:9px;  --disp:1.06; --hw:680; --cols:3; --rad:14px; --tint:rgba(245,178,63,.03); }
   body[data-profile="data_dense"]       { --u:6px;  --disp:.94;  --hw:560; --cols:4; --rad:7px;  --tint:rgba(120,150,220,.04); --measure:58ch; }
@@ -617,16 +638,23 @@ PAGE_CSS = r"""
   .profiles button[aria-pressed="true"]{ color:var(--ink); background:var(--amber); border-color:var(--amber); font-weight:600; }
   .readout{ font-family:var(--mono); font-size:11.5px; color:var(--faint); } .readout b{ color:var(--amber-2); font-weight:600; }
   .derive-body{ padding:22px; }
-  /* var()-derived properties are set instantly on profile switch — transitioning them hits a
-     Chromium bug where the value sticks at the first-resolved custom-property value. */
-  .mgrid{ display:grid; grid-template-columns:repeat(var(--m-cols),minmax(0,1fr)); gap:var(--m-gap); }
-  .metric{ background:var(--panel-2); border:1px solid var(--line); border-radius:11px; padding:var(--m-pad); }
-  .m-chip{ display:block; width:28px; height:6px; background:var(--m-accent); border-radius:var(--m-chip-radius); margin-bottom:12px; }
-  .metric .ml{ font-family:var(--mono); font-size:10.5px; letter-spacing:.12em; text-transform:uppercase; color:var(--muted); }
-  .metric .mv{ font-family:var(--m-num-font); font-weight:var(--m-num-weight); font-size:var(--m-num-size); color:var(--text); margin-top:7px; line-height:1; font-variant-numeric:tabular-nums; letter-spacing:-.015em; }
-  .metric svg{ display:block; width:100%; height:32px; margin-top:11px; }
+  /* Artifact viewport: a light "compiled surface" inside the dark chrome. Structure lives here;
+     ALL skin (palette, surfaces, type, density, accent, featured span) is injected per profile
+     as verbatim declarations from the compiler's style projection. */
+  .dv{ border-radius:12px; border:1px solid var(--line-2); padding:26px; box-shadow:0 30px 80px -40px rgba(0,0,0,.9); }
+  .dv .dv-head{ display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:14px; margin-bottom:18px; }
+  .dv .dvh{ margin:0; }
+  .dv .dvbtn{ border:0; font-family:inherit; font-size:12.5px; font-weight:600; padding:9px 17px; cursor:default; }
+  .dv .dvgrid{ display:grid; }
+  .dv .dvcard{ display:flex; flex-direction:column; gap:5px; min-width:0; }
+  .dv .dvcard .dvtop{ display:flex; align-items:baseline; justify-content:space-between; gap:8px; }
+  .dv .dvlabel{ font-size:11.5px; }
+  .dv .dvdelta{ font-size:11px; }
+  .dv .dvnum{ font-size:26px; line-height:1.1; font-variant-numeric:tabular-nums; }
+  .dv .dvcard.featured .dvnum{ font-size:34px; }
+  .dv .dvflow{ margin:18px 0 0; font-size:13.5px; opacity:.82; }
+  .dv svg{ display:block; width:100%; height:30px; margin-top:8px; }
   svg .spark-fill{ fill:rgba(245,178,63,.10); } svg .spark-line{ fill:none; stroke:var(--amber); stroke-width:1.5; } svg .spark-dot{ fill:var(--amber-2); }
-  .metric svg .spark-fill{ fill:var(--m-spark-fill); } .metric svg .spark-line{ stroke:var(--m-accent); } .metric svg .spark-dot{ fill:var(--m-accent); }
   .note{ font-family:var(--mono); font-size:11px; color:var(--faint); padding:0 20px 18px; } .note b{ color:var(--muted); }
 
   /* reveal / provenance */
@@ -833,7 +861,7 @@ PAGE_BODY_TEMPLATE = r"""<a class="skip-link" href="#top">Skip to content</a>
           <div class="profiles" role="group" aria-label="Aesthetic profile" id="profileGroup">{{PROFILE_BUTTONS}}</div>
           <div class="readout" id="readout">density <b>regular</b> &middot; emphasis <b>medium</b> &middot; columns <b>3</b></div>
         </div>
-        <div class="derive-body"><div class="mgrid" id="mgrid"></div></div>
+        <div class="derive-body"><div class="dv" id="dv" data-node="node:workspace#view:projection"></div></div>
         <div class="note">aesthetic.<span id="noteP">calm_ops</span> &middot; <b>0</b> hand&#8209;written rules &middot; <span class="mono">Same graph, new projection</span> from the same semantic graph</div><div class="note" id="noteReal"></div>
       </div>
     </section>
@@ -983,14 +1011,18 @@ PAGE_SCRIPT = r"""
   }
   spark(0.5, document.getElementById("heroSpark"));
 
-  /* ---------- metrics grid ---------- */
-  function renderMetrics(){
-    var g=document.getElementById("mgrid");
-    g.innerHTML=METRICS.map(function(m,i){
-      return '<div class="metric" data-node="node:board#slot:metric['+i+']" data-binding="kpi_'+i+'" data-address="node:board#slot:metric['+i+']" data-present="value" data-raw="'+m.mv+'" tabindex="0">'
-        +'<span class="m-chip"></span><div class="ml">'+m.ml+'</div><div class="mv">'+m.mv+'</div>'
-        +'<svg viewBox="0 0 120 34" preserveAspectRatio="none" data-seed="'+m.seed+'"></svg></div>';
+  /* ---------- artifact viewport (skinned entirely by the compiler's projection CSS) ---------- */
+  function renderViewport(){
+    var g=document.getElementById("dv");
+    var cards=METRICS.map(function(m,i){
+      return '<div class="dvcard'+(i===0?' featured':'')+'" data-node="node:board#slot:metric['+i+']" data-binding="kpi_'+i+'" data-address="node:board#slot:metric['+i+']" data-present="value" data-raw="'+m.mv+'" tabindex="0">'
+        +'<span class="dvtop"><span class="dvlabel">'+m.ml+'</span><span class="dvdelta">&#9650; 8.2%</span></span>'
+        +'<span class="dvnum">'+m.mv+'</span>'
+        +'<svg viewBox="0 0 120 34" preserveAspectRatio="none" data-seed="'+m.seed+'" aria-hidden="true"></svg></div>';
     }).join("");
+    g.innerHTML='<div class="dv-head"><h4 class="dvh">Revenue workspace</h4><button type="button" class="dvbtn">Export report</button></div>'
+      +'<div class="dvgrid">'+cards+'</div>'
+      +'<p class="dvflow">This paragraph&rsquo;s measure and leading come from narrative.flow &mdash; the same sentence reads at a different rhythm in every projection.</p>';
     g.querySelectorAll("svg").forEach(function(s){ spark(parseFloat(s.getAttribute("data-seed")),s); });
   }
 
@@ -1000,9 +1032,14 @@ PAGE_SCRIPT = r"""
     document.querySelectorAll("#profileGroup button").forEach(function(b){ b.setAttribute("aria-pressed", b.getAttribute("data-profile")===p?"true":"false"); });
     var t=PROFILES[p];
     var pf=(window.__VIEWSPEC__&&window.__VIEWSPEC__.profiles&&window.__VIEWSPEC__.profiles[p]), pr=pf&&pf.projection;
-    if(pr){ document.getElementById("readout").innerHTML="font <b>"+pr.fontLabel+"</b> &middot; columns <b>"+pr.cols+"</b> &middot; weight <b>"+pr.weight+"</b> &middot; accent <b style=\"color:"+pr.accent+"\">"+pr.accent+"</b>"; }
+    if(pr){
+      var bits=["font <b>"+pr.fontLabel+"</b>","columns <b>"+pr.cols+"</b>","weight <b>"+pr.weight+"</b>","accent <b style=\"color:"+pr.accent+"\">"+pr.accent+"</b>"];
+      if(pr.featuredSpan) bits.push("featured span <b>"+pr.featuredSpan+"</b>");
+      if(pr.uppercase) bits.push("<b>uppercase</b> accents");
+      document.getElementById("readout").innerHTML=bits.join(" &middot; ");
+    }
     else { document.getElementById("readout").innerHTML="density <b>"+t.density+"</b> &middot; emphasis <b>"+t.emphasis+"</b> &middot; columns <b>"+t.columns+"</b>"; }
-    if(pf){ var nn=document.getElementById("noteReal"); if(nn) nn.innerHTML="compiled from one token &middot; semantic id <b>"+pf.semanticHash.slice(0,10)+"</b> (stable across profiles) &middot; style projection <b>"+pf.styleHash.slice(0,10)+"</b> (distinct) &middot; <b>"+pf.changedTokens+"</b> governed tokens changed"; }
+    if(pf){ var nn=document.getElementById("noteReal"); if(nn) nn.innerHTML="every declaration above is the compiled projection, verbatim &middot; semantic id <b>"+pf.semanticHash.slice(0,10)+"</b> (stable across profiles) &middot; style projection <b>"+pf.styleHash.slice(0,10)+"</b> (distinct) &middot; <b>"+pf.changedTokens+"</b> governed tokens changed"; }
     document.getElementById("noteP").textContent=p;
     document.getElementById("footState").innerHTML="profile: aesthetic."+p+" &middot; network: none";
   }
@@ -1084,7 +1121,7 @@ PAGE_SCRIPT = r"""
   } else { document.querySelectorAll(".reveal-on").forEach(function(s){ s.classList.add("in"); }); }
 
   /* ---------- boot ---------- */
-  renderMetrics(); setProfile("calm_ops"); renderMotif("table"); showHash(false); netCount(); setTimeout(netCount,1200);
+  renderViewport(); setProfile("calm_ops"); renderMotif("table"); showHash(false); netCount(); setTimeout(netCount,1200);
   if(!reduce){
     document.getElementById("cnBadge").classList.add("pulse");
     var big=document.getElementById("ocBig");
@@ -1217,7 +1254,7 @@ def _public_html(generated_html: str, profile_evidence: dict[str, Any]) -> str:
             PAGE_CSS,
             "</style>",
             '<style data-viewspec-profile-projection="true">',
-            _profile_projection_css(profile_evidence),
+            _projection_viewport_css(),
             "</style>",
             "</head>",
             "<body data-profile=\"calm_ops\">",
