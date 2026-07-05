@@ -221,7 +221,9 @@ def _profile_evidence(profile_results: dict[str, dict[str, Any]]) -> dict[str, A
         root_node = manifest_nodes.get("dom-region_root", {}) if isinstance(manifest_nodes, dict) else {}
         root_props = root_node.get("props", {}) if isinstance(root_node, dict) else {}
         style_values = dict(result["ast"].style_values or {})
+        projection = _profile_projection(style_values, result["artifact_body"], profile)
         profiles[profile] = {
+            "projection": projection,
             "artifactBodyUrl": f"./landing-compiled/profiles/{slug}/artifact_body.html",
             "artifactUrl": f"./landing-compiled/profiles/{slug}/index.html",
             "intentUrl": f"./landing-compiled/profiles/{slug}/intent_bundle.json",
@@ -383,6 +385,61 @@ def _script_json(value: Any) -> str:
     return json.dumps(value, indent=2, sort_keys=True).replace("</script>", "<\\/script>")
 
 
+def _rgba(hex_color: str, alpha: float) -> str:
+    h = hex_color.lstrip("#")
+    if len(h) != 6:
+        return f"rgba(245,178,63,{alpha})"
+    r, g, b = int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16)
+    return f"rgba({r},{g},{b},{alpha})"
+
+
+def _css_last_value(decls: str, prop: str) -> str | None:
+    found = re.findall(rf"{re.escape(prop)}:\s*([^;]+)", decls or "")
+    return found[-1].strip() if found else None
+
+
+def _profile_projection(style_values: dict[str, Any], artifact_body: str, profile: str) -> dict[str, Any]:
+    """Real, compiler-derived style facts for the style-derivation demo — no invented values."""
+    accent = _css_last_value(style_values.get("tone.accent", ""), "color") or "#0f766e"
+    radius = _css_last_value(style_values.get("action.accent", ""), "border-radius") or "10px"
+    weight = _css_last_value(style_values.get("emphasis.high", ""), "font-weight") or "700"
+    match = re.search(r'id="dom-binding_launch_hero_title"[^>]*?font-family:\s*([^;"]+)', artifact_body)
+    font_family = match.group(1).strip() if match else "ui-sans-serif, system-ui, sans-serif"
+    first = font_family.split(",")[0]
+    font_label = "mono" if "mono" in first else ("serif" if "serif" in first else "sans")
+    cols = int(profile_layout_props(profile).get("metric_grid", {}).get("columns", 2) or 2)
+    num_size = {1: "50px", 2: "34px", 3: "22px"}.get(cols, "30px")
+    gap = {1: "30px", 2: "18px", 3: "8px"}.get(cols, "16px")
+    pad = {1: "6px 2px 16px", 2: "18px", 3: "11px"}.get(cols, "16px")
+    return {
+        "accent": accent,
+        "radius": radius,
+        "weight": weight,
+        "fontFamily": font_family,
+        "fontLabel": font_label,
+        "cols": cols,
+        "numSize": num_size,
+        "gap": gap,
+        "pad": pad,
+        "sparkFill": _rgba(accent, 0.16),
+    }
+
+
+def _profile_projection_css(profile_evidence: dict[str, Any]) -> str:
+    rules: list[str] = []
+    for profile, data in profile_evidence["profiles"].items():
+        pr = data["projection"]
+        short = profile.replace("aesthetic.", "")
+        rules.append(
+            f'body[data-profile="{short}"] .mgrid {{ '
+            f'--m-cols:{pr["cols"]}; --m-gap:{pr["gap"]}; --m-pad:{pr["pad"]}; '
+            f'--m-accent:{pr["accent"]}; --m-chip-radius:{pr["radius"]}; '
+            f'--m-num-size:{pr["numSize"]}; --m-num-weight:{pr["weight"]}; '
+            f'--m-num-font:{pr["fontFamily"]}; --m-spark-fill:{pr["sparkFill"]}; }}'
+        )
+    return "\n".join(rules)
+
+
 PAGE_CSS = r"""
   *,*::before,*::after{ box-sizing:border-box; }
   :root{
@@ -397,38 +454,14 @@ PAGE_CSS = r"""
     --wrap:1120px;
     /* derived tokens (profile: calm_ops) */
     --u:8px; --disp:1; --hw:600; --cols:3; --rad:11px; --tint:transparent; --measure:60ch;
-    /* metric-projection tokens — the compiler re-derives these per aesthetic profile */
-    --m-cols:3; --m-gap:14px; --m-pad:18px; --m-bg:var(--panel-2); --m-border:1px solid var(--line);
-    --m-radius:11px; --m-shadow:none; --m-num-size:27px; --m-num-weight:600; --m-num-font:var(--mono);
-    --m-num-color:var(--text); --m-accent:var(--mint); --m-spark-fill:rgba(87,220,169,.16);
-    --m-label-size:10.5px; --m-label-ls:.12em; --m-label-color:var(--muted);
+    /* metric-projection defaults — overridden per profile by compiler-derived CSS (injected) */
+    --m-cols:2; --m-gap:18px; --m-pad:18px; --m-num-size:34px; --m-num-weight:760;
+    --m-num-font:var(--mono); --m-accent:var(--mint); --m-chip-radius:10px; --m-spark-fill:rgba(87,220,169,.16);
   }
-  body[data-profile="premium_saas"] {
-    --u:9px; --disp:1.06; --hw:680; --cols:3; --rad:14px; --tint:rgba(245,178,63,.03);
-    --m-cols:3; --m-gap:18px; --m-pad:26px; --m-bg:linear-gradient(165deg,var(--raise),var(--panel-2));
-    --m-border:1px solid var(--line-2); --m-radius:18px; --m-shadow:0 26px 54px -30px rgba(0,0,0,.85);
-    --m-num-size:41px; --m-num-weight:770; --m-num-font:var(--sans); --m-accent:var(--amber);
-    --m-spark-fill:rgba(245,178,63,.16); --m-label-size:11px; --m-label-ls:.1em;
-  }
-  body[data-profile="data_dense"] {
-    --u:6px; --disp:.94; --hw:560; --cols:5; --rad:7px; --tint:rgba(120,150,220,.05); --measure:58ch;
-    --m-cols:5; --m-gap:7px; --m-pad:11px; --m-bg:var(--panel-solid); --m-border:1px solid var(--line);
-    --m-radius:5px; --m-shadow:none; --m-num-size:18px; --m-num-weight:560; --m-num-font:var(--mono);
-    --m-accent:#8FB4FF; --m-spark-fill:rgba(143,180,255,.15); --m-label-size:9px; --m-label-ls:.06em;
-  }
-  body[data-profile="editorial_product"] {
-    --u:11px; --disp:1.14; --hw:660; --cols:2; --rad:9px; --tint:rgba(245,178,63,.05); --measure:54ch;
-    --m-cols:2; --m-gap:30px; --m-pad:6px 2px 18px; --m-bg:transparent; --m-border:1px solid transparent;
-    --m-radius:0; --m-shadow:none; --m-num-size:54px; --m-num-weight:640; --m-num-font:var(--sans);
-    --m-accent:#F0A63C; --m-spark-fill:rgba(240,166,60,.12); --m-label-size:12px; --m-label-ls:.2em;
-  }
-  body[data-profile="editorial_product"] .metric { border-bottom:1px solid var(--line); }
-  body[data-profile="executive_review"] {
-    --u:11px; --disp:1.2; --hw:720; --cols:3; --rad:12px; --tint:rgba(255,213,132,.05);
-    --m-cols:3; --m-gap:16px; --m-pad:20px; --m-bg:var(--panel-solid); --m-border:1.5px solid var(--line-2);
-    --m-radius:6px; --m-shadow:none; --m-num-size:34px; --m-num-weight:720; --m-num-font:var(--mono);
-    --m-accent:var(--amber-2); --m-spark-fill:rgba(255,213,132,.13); --m-label-size:10px; --m-label-ls:.15em;
-  }
+  body[data-profile="premium_saas"]     { --u:9px;  --disp:1.06; --hw:680; --cols:3; --rad:14px; --tint:rgba(245,178,63,.03); }
+  body[data-profile="data_dense"]       { --u:6px;  --disp:.94;  --hw:560; --cols:4; --rad:7px;  --tint:rgba(120,150,220,.04); --measure:58ch; }
+  body[data-profile="editorial_product"]{ --u:11px; --disp:1.14; --hw:660; --cols:2; --rad:9px;  --tint:rgba(245,178,63,.045); --measure:54ch; }
+  body[data-profile="executive_review"] { --u:11px; --disp:1.2;  --hw:720; --cols:3; --rad:12px; --tint:rgba(255,213,132,.05); }
 
   html{ -webkit-text-size-adjust:100%; scroll-behavior:smooth; }
   @media (prefers-reduced-motion:reduce){ html{ scroll-behavior:auto; } *{ animation:none !important; transition:none !important; } }
@@ -584,11 +617,13 @@ PAGE_CSS = r"""
   .profiles button[aria-pressed="true"]{ color:var(--ink); background:var(--amber); border-color:var(--amber); font-weight:600; }
   .readout{ font-family:var(--mono); font-size:11.5px; color:var(--faint); } .readout b{ color:var(--amber-2); font-weight:600; }
   .derive-body{ padding:22px; }
-  .mgrid{ display:grid; grid-template-columns:repeat(var(--m-cols),minmax(0,1fr)); gap:var(--m-gap); transition:gap .4s ease; }
-  .metric{ background:var(--m-bg); border:var(--m-border); border-radius:var(--m-radius); padding:var(--m-pad); box-shadow:var(--m-shadow);
-    transition:padding .4s ease, border-radius .4s ease, box-shadow .4s ease, background .4s ease; }
-  .metric .ml{ font-family:var(--mono); font-size:var(--m-label-size); letter-spacing:var(--m-label-ls); text-transform:uppercase; color:var(--m-label-color,var(--muted)); transition:font-size .4s ease, letter-spacing .4s ease; }
-  .metric .mv{ font-family:var(--m-num-font); font-weight:var(--m-num-weight); font-size:var(--m-num-size); color:var(--m-num-color); margin-top:8px; line-height:1; font-variant-numeric:tabular-nums; letter-spacing:-.015em; transition:font-size .4s cubic-bezier(.2,.7,.2,1), font-weight .4s ease; }
+  /* var()-derived properties are set instantly on profile switch — transitioning them hits a
+     Chromium bug where the value sticks at the first-resolved custom-property value. */
+  .mgrid{ display:grid; grid-template-columns:repeat(var(--m-cols),minmax(0,1fr)); gap:var(--m-gap); }
+  .metric{ background:var(--panel-2); border:1px solid var(--line); border-radius:11px; padding:var(--m-pad); }
+  .m-chip{ display:block; width:28px; height:6px; background:var(--m-accent); border-radius:var(--m-chip-radius); margin-bottom:12px; }
+  .metric .ml{ font-family:var(--mono); font-size:10.5px; letter-spacing:.12em; text-transform:uppercase; color:var(--muted); }
+  .metric .mv{ font-family:var(--m-num-font); font-weight:var(--m-num-weight); font-size:var(--m-num-size); color:var(--text); margin-top:7px; line-height:1; font-variant-numeric:tabular-nums; letter-spacing:-.015em; }
   .metric svg{ display:block; width:100%; height:32px; margin-top:11px; }
   svg .spark-fill{ fill:rgba(245,178,63,.10); } svg .spark-line{ fill:none; stroke:var(--amber); stroke-width:1.5; } svg .spark-dot{ fill:var(--amber-2); }
   .metric svg .spark-fill{ fill:var(--m-spark-fill); } .metric svg .spark-line{ stroke:var(--m-accent); } .metric svg .spark-dot{ fill:var(--m-accent); }
@@ -953,7 +988,7 @@ PAGE_SCRIPT = r"""
     var g=document.getElementById("mgrid");
     g.innerHTML=METRICS.map(function(m,i){
       return '<div class="metric" data-node="node:board#slot:metric['+i+']" data-binding="kpi_'+i+'" data-address="node:board#slot:metric['+i+']" data-present="value" data-raw="'+m.mv+'" tabindex="0">'
-        +'<div class="ml">'+m.ml+'</div><div class="mv">'+m.mv+'</div>'
+        +'<span class="m-chip"></span><div class="ml">'+m.ml+'</div><div class="mv">'+m.mv+'</div>'
         +'<svg viewBox="0 0 120 34" preserveAspectRatio="none" data-seed="'+m.seed+'"></svg></div>';
     }).join("");
     g.querySelectorAll("svg").forEach(function(s){ spark(parseFloat(s.getAttribute("data-seed")),s); });
@@ -964,7 +999,10 @@ PAGE_SCRIPT = r"""
     body.setAttribute("data-profile",p);
     document.querySelectorAll("#profileGroup button").forEach(function(b){ b.setAttribute("aria-pressed", b.getAttribute("data-profile")===p?"true":"false"); });
     var t=PROFILES[p];
-    document.getElementById("readout").innerHTML="density <b>"+t.density+"</b> &middot; emphasis <b>"+t.emphasis+"</b> &middot; columns <b>"+t.columns+"</b>"; var pf=(window.__VIEWSPEC__&&window.__VIEWSPEC__.profiles&&window.__VIEWSPEC__.profiles[p]); if(pf){ var nn=document.getElementById("noteReal"); if(nn) nn.innerHTML="semantic id hash <b>"+pf.semanticHash.slice(0,12)+"</b> (stable) &middot; style projection <b>"+pf.styleHash.slice(0,12)+"</b> &middot; <b>"+pf.changedTokens+"</b> governed tokens"; }
+    var pf=(window.__VIEWSPEC__&&window.__VIEWSPEC__.profiles&&window.__VIEWSPEC__.profiles[p]), pr=pf&&pf.projection;
+    if(pr){ document.getElementById("readout").innerHTML="font <b>"+pr.fontLabel+"</b> &middot; columns <b>"+pr.cols+"</b> &middot; weight <b>"+pr.weight+"</b> &middot; accent <b style=\"color:"+pr.accent+"\">"+pr.accent+"</b>"; }
+    else { document.getElementById("readout").innerHTML="density <b>"+t.density+"</b> &middot; emphasis <b>"+t.emphasis+"</b> &middot; columns <b>"+t.columns+"</b>"; }
+    if(pf){ var nn=document.getElementById("noteReal"); if(nn) nn.innerHTML="compiled from one token &middot; semantic id <b>"+pf.semanticHash.slice(0,10)+"</b> (stable across profiles) &middot; style projection <b>"+pf.styleHash.slice(0,10)+"</b> (distinct) &middot; <b>"+pf.changedTokens+"</b> governed tokens changed"; }
     document.getElementById("noteP").textContent=p;
     document.getElementById("footState").innerHTML="profile: aesthetic."+p+" &middot; network: none";
   }
@@ -1128,6 +1166,7 @@ def _public_html(generated_html: str, profile_evidence: dict[str, Any]) -> str:
             "semanticHash": data["semanticHash"],
             "styleHash": data["styleProjectionHash"],
             "changedTokens": data["styleProof"].get("changed_token_count", 0),
+            "projection": data["projection"],
         }
         for profile, data in profile_evidence["profiles"].items()
     }
@@ -1176,6 +1215,9 @@ def _public_html(generated_html: str, profile_evidence: dict[str, Any]) -> str:
             "</style>",
             '<style data-viewspec-page-css="true">',
             PAGE_CSS,
+            "</style>",
+            '<style data-viewspec-profile-projection="true">',
+            _profile_projection_css(profile_evidence),
             "</style>",
             "</head>",
             "<body data-profile=\"calm_ops\">",
