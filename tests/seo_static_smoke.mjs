@@ -439,7 +439,7 @@ const expectedAestheticLayout = {
   'aesthetic.premium_saas': [2, 2, 2, 'featured'],
   'aesthetic.data_dense': [3, 3, null, null],
   'aesthetic.editorial_product': [2, 1, null, null],
-  'aesthetic.executive_review': [2, 2, 2, 'featured'],
+  'aesthetic.executive_review': [2, 3, 2, 'featured'],
 }
 for (const [token, [workspaceColumns, metricColumns, metricSpan, metricEmphasis]] of Object.entries(expectedAestheticLayout)) {
   assert.equal(

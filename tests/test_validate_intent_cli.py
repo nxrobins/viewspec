@@ -437,7 +437,7 @@ def test_diff_intent_reports_aesthetic_profile_semantic_changes(tmp_path, capsys
         "layout": {
             "content_grid": {"columns": 2},
             "metric_card": {"span_columns": 2, "layout_emphasis": "featured"},
-            "metric_grid": {"columns": 2},
+            "metric_grid": {"columns": 3},
         },
     }
     assert profile_change["impact_delta"] == {
@@ -447,7 +447,8 @@ def test_diff_intent_reports_aesthetic_profile_semantic_changes(tmp_path, capsys
                 "role": "metric_card",
                 "change": "added",
                 "right": {"span_columns": 2, "layout_emphasis": "featured"},
-            }
+            },
+            {"role": "metric_grid", "change": "props_changed", "left": {"columns": 2}, "right": {"columns": 3}},
         ],
     }
     assert {
@@ -460,7 +461,8 @@ def test_diff_intent_reports_aesthetic_profile_semantic_changes(tmp_path, capsys
         (
             "aesthetic_profiles: profile_changed aesthetic.calm_ops -> aesthetic.executive_review "
             "target=view:validate_cli_profile_workspace style_delta=declarations 28 -> 30 "
-            "layout_delta=metric_card added layout_emphasis=featured span_columns=2"
+            "layout_delta=metric_card added layout_emphasis=featured span_columns=2; "
+            "metric_grid columns=2 -> columns=3"
         ),
         "styles.aesthetic_profile: token_changed aesthetic.calm_ops -> aesthetic.executive_review",
     ]

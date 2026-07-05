@@ -646,7 +646,8 @@ def test_intent_mcp_diff_exposes_semantic_summary_for_profile_changes(tmp_path):
         (
             "aesthetic_profiles: profile_changed aesthetic.calm_ops -> aesthetic.executive_review "
             "target=view:mcp_profile_workspace style_delta=declarations 28 -> 30 "
-            "layout_delta=metric_card added layout_emphasis=featured span_columns=2"
+            "layout_delta=metric_card added layout_emphasis=featured span_columns=2; "
+            "metric_grid columns=2 -> columns=3"
         ),
         "styles.aesthetic_profile: token_changed aesthetic.calm_ops -> aesthetic.executive_review",
     ]
@@ -659,7 +660,8 @@ def test_intent_mcp_diff_exposes_semantic_summary_for_profile_changes(tmp_path):
                 "role": "metric_card",
                 "change": "added",
                 "right": {"span_columns": 2, "layout_emphasis": "featured"},
-            }
+            },
+            {"role": "metric_grid", "change": "props_changed", "left": {"columns": 2}, "right": {"columns": 3}},
         ],
     }
 

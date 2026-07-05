@@ -868,7 +868,7 @@ def test_product_surface_planner_v1_adds_no_synthetic_visible_content_or_actions
         ("aesthetic.data_dense", 3, 3, None, None),
         ("aesthetic.editorial_product", 2, 1, None, None),
         ("aesthetic.premium_saas", 2, 2, 2, "featured"),
-        ("aesthetic.executive_review", 2, 2, 2, "featured"),
+        ("aesthetic.executive_review", 2, 3, 2, "featured"),  # B3 ratchet: dense grid, cols 2->3
     ],
 )
 def test_aesthetic_profile_layout_props_adjust_columns_and_spans_without_semantic_drift(

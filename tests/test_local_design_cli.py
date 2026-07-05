@@ -556,7 +556,8 @@ def test_cli_init_design_doctor_and_check_tamper(tmp_path, capsys):
         (
             "aesthetic_profiles: profile_changed aesthetic.calm_ops -> aesthetic.executive_review "
             "target=view:starter_dashboard style_delta=declarations 28 -> 30 "
-            "layout_delta=metric_card added layout_emphasis=featured span_columns=2"
+            "layout_delta=metric_card added layout_emphasis=featured span_columns=2; "
+            "metric_grid columns=2 -> columns=3"
         ),
         "styles.aesthetic_profile: token_changed aesthetic.calm_ops -> aesthetic.executive_review",
     ]

@@ -99,7 +99,7 @@
       },
       "semanticHash": "6f3e13e1c376a4549c529af0d6e5d465f041c35393e087c3525e771ef344c350",
       "slug": "data-dense",
-      "styleProjectionHash": "5897b8a528ec0ef65dca157b3d9221b88bcdc0eede5543cab29af53be0229335",
+      "styleProjectionHash": "8ff472a79635e8ec3ca33679e48c32ac8d4654c8f62c154b730ca4b6a5053890",
       "styleProof": {
         "categories": [
           "action",
@@ -128,9 +128,9 @@
           "tone.muted",
           "tone.neutral"
         ],
-        "declaration_count": 28
+        "declaration_count": 29
       },
-      "styleSignature": "13 changed tokens / 8 categories / 28 declarations"
+      "styleSignature": "13 changed tokens / 8 categories / 29 declarations"
     },
     "aesthetic.editorial_product": {
       "artifactBodyUrl": "./landing-compiled/profiles/editorial-product/artifact_body.html",
@@ -164,7 +164,7 @@
       },
       "semanticHash": "6f3e13e1c376a4549c529af0d6e5d465f041c35393e087c3525e771ef344c350",
       "slug": "editorial-product",
-      "styleProjectionHash": "2d852d23f1cf74c0631af19d944c3ebb43c88eaa574e872e6895e976e0cbe105",
+      "styleProjectionHash": "e49472c415b1ba335f4a7d2770bd39bd537c109a56ea5416b64b468a62b78b54",
       "styleProof": {
         "categories": [
           "action",
@@ -193,9 +193,9 @@
           "tone.muted",
           "tone.neutral"
         ],
-        "declaration_count": 29
+        "declaration_count": 30
       },
-      "styleSignature": "13 changed tokens / 8 categories / 29 declarations"
+      "styleSignature": "13 changed tokens / 8 categories / 30 declarations"
     },
     "aesthetic.executive_review": {
       "artifactBodyUrl": "./landing-compiled/profiles/executive-review/artifact_body.html",
@@ -209,14 +209,14 @@
         "styleProjectionDistinct": true
       },
       "label": "Executive Review",
-      "layoutSignature": "workspace 2 / metrics 2 / featured metric span 2 + featured emphasis",
+      "layoutSignature": "workspace 2 / metrics 3 / featured metric span 2 + featured emphasis",
       "manifestAestheticProfile": "aesthetic.executive_review",
       "manifestUrl": "./landing-compiled/profiles/executive-review/provenance_manifest.json",
       "nodeCount": 72,
       "note": "Conservative review surfaces with restrained contrast and crisp framing.",
       "projection": {
         "accent": "#0f5f72",
-        "cols": 2,
+        "cols": 3,
         "featuredSpan": 2,
         "fontFamily": "ui-sans-serif, system-ui, sans-serif",
         "fontLabel": "sans",
