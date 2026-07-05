@@ -19,9 +19,22 @@
       "manifestUrl": "./landing-compiled/profiles/calm-ops/provenance_manifest.json",
       "nodeCount": 72,
       "note": "Quiet operational surfaces with teal accents and low-contrast panels.",
+      "projection": {
+        "accent": "#0f766e",
+        "cols": 2,
+        "featuredSpan": null,
+        "fontFamily": "ui-sans-serif, system-ui, sans-serif",
+        "fontLabel": "sans",
+        "pageTint": "#e9f3ee",
+        "radius": "10px",
+        "sparkFill": "rgba(15,118,110,0.16)",
+        "surfaceRadius": "14px",
+        "uppercase": false,
+        "weight": "760"
+      },
       "semanticHash": "6f3e13e1c376a4549c529af0d6e5d465f041c35393e087c3525e771ef344c350",
       "slug": "calm-ops",
-      "styleProjectionHash": "98feff5ca2756e17729352a429128f2c99e54cf038108405295fae424116b3da",
+      "styleProjectionHash": "ef3fe9ae67de34a1d4ed970d974ba744f380cc35bc5cc926ba55658f71cec6e0",
       "styleProof": {
         "categories": [
           "action",
@@ -71,9 +84,22 @@
       "manifestUrl": "./landing-compiled/profiles/data-dense/provenance_manifest.json",
       "nodeCount": 72,
       "note": "Compact spacing, smaller type, and tighter controls for repeated scanning.",
+      "projection": {
+        "accent": "#60a5fa",
+        "cols": 3,
+        "featuredSpan": null,
+        "fontFamily": "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
+        "fontLabel": "mono",
+        "pageTint": "#0f172a",
+        "radius": "4px",
+        "sparkFill": "rgba(96,165,250,0.16)",
+        "surfaceRadius": "5px",
+        "uppercase": false,
+        "weight": "720"
+      },
       "semanticHash": "6f3e13e1c376a4549c529af0d6e5d465f041c35393e087c3525e771ef344c350",
       "slug": "data-dense",
-      "styleProjectionHash": "02a411113d0562b01a8eb4dcbd7224600a92e0e9b3be966e1aa7727b3058768b",
+      "styleProjectionHash": "5897b8a528ec0ef65dca157b3d9221b88bcdc0eede5543cab29af53be0229335",
       "styleProof": {
         "categories": [
           "action",
@@ -123,9 +149,22 @@
       "manifestUrl": "./landing-compiled/profiles/editorial-product/provenance_manifest.json",
       "nodeCount": 72,
       "note": "Warmer product-story pacing with broader prose rhythm.",
+      "projection": {
+        "accent": "#be123c",
+        "cols": 1,
+        "featuredSpan": null,
+        "fontFamily": "ui-serif, Georgia, Cambria, serif",
+        "fontLabel": "serif",
+        "pageTint": "#f8f1e5",
+        "radius": "18px",
+        "sparkFill": "rgba(190,18,60,0.16)",
+        "surfaceRadius": "24px",
+        "uppercase": false,
+        "weight": "840"
+      },
       "semanticHash": "6f3e13e1c376a4549c529af0d6e5d465f041c35393e087c3525e771ef344c350",
       "slug": "editorial-product",
-      "styleProjectionHash": "27a14269cfa742ab50b7e2d6eb665a0a1a516eb4e353ba889089717d4157e2e3",
+      "styleProjectionHash": "2d852d23f1cf74c0631af19d944c3ebb43c88eaa574e872e6895e976e0cbe105",
       "styleProof": {
         "categories": [
           "action",
@@ -175,9 +214,22 @@
       "manifestUrl": "./landing-compiled/profiles/executive-review/provenance_manifest.json",
       "nodeCount": 72,
       "note": "Conservative review surfaces with restrained contrast and crisp framing.",
+      "projection": {
+        "accent": "#0f5f72",
+        "cols": 2,
+        "featuredSpan": 2,
+        "fontFamily": "ui-sans-serif, system-ui, sans-serif",
+        "fontLabel": "sans",
+        "pageTint": "#e2e9f1",
+        "radius": "6px",
+        "sparkFill": "rgba(15,95,114,0.16)",
+        "surfaceRadius": "4px",
+        "uppercase": true,
+        "weight": "800"
+      },
       "semanticHash": "6f3e13e1c376a4549c529af0d6e5d465f041c35393e087c3525e771ef344c350",
       "slug": "executive-review",
-      "styleProjectionHash": "3611ed389bc117d6e7187c51889ce85958379c5639adaea3a9260a3f28216e58",
+      "styleProjectionHash": "74ee37a1470142e3a759f3953db53db76515a31b30c25048a93d2febf0cb451c",
       "styleProof": {
         "categories": [
           "action",
@@ -227,9 +279,22 @@
       "manifestUrl": "./landing-compiled/profiles/premium-saas/provenance_manifest.json",
       "nodeCount": 72,
       "note": "Polished product rhythm with stronger hierarchy and softer shadows.",
+      "projection": {
+        "accent": "#4f46e5",
+        "cols": 2,
+        "featuredSpan": 2,
+        "fontFamily": "ui-sans-serif, system-ui, sans-serif",
+        "fontLabel": "sans",
+        "pageTint": "#ece9fe",
+        "radius": "999px",
+        "sparkFill": "rgba(79,70,229,0.16)",
+        "surfaceRadius": "20px",
+        "uppercase": false,
+        "weight": "860"
+      },
       "semanticHash": "6f3e13e1c376a4549c529af0d6e5d465f041c35393e087c3525e771ef344c350",
       "slug": "premium-saas",
-      "styleProjectionHash": "a4bff9b518e79b07774b68beef1f66b87db0e16ba1a0811cee5ad6fdf9a5529f",
+      "styleProjectionHash": "a0fdef8e0916e74bfcc6e5c5225ff10820e2b45894d0c7e590866d1376cba269",
       "styleProof": {
         "categories": [
           "action",

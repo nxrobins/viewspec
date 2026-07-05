@@ -525,9 +525,9 @@ def test_aesthetic_profile_compiles_to_root_metadata_and_style_projection():
     assert "viewspec:style:aesthetic_profile" in root.provenance.intent_refs
     assert ast.style_values["action.accent"].endswith("background-color: #4f46e5; color: #ffffff; border-radius: 999px;")
     assert ast.style_values["surface.subtle"].endswith(
-        "border-radius: 18px; box-shadow: 0 20px 46px rgb(79 70 229 / 0.16);"
+        "border-radius: 20px; box-shadow: 0 24px 60px rgb(79 70 229 / 0.22);"
     )
-    assert "font-size: 1.38rem" in ast.style_values["rhythm.hierarchy"]
+    assert "font-size: 1.44rem" in ast.style_values["rhythm.hierarchy"]
 
 
 @pytest.mark.parametrize(

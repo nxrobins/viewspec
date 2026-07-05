@@ -438,29 +438,29 @@ def _projection_viewport_css() -> str:
         sv = profile_style_values(profile)
         layout = profile_layout_props(profile)
         short = profile.replace("aesthetic.", "")
-        sel = f'body[data-profile="{short}"]'
+        sel = f'.dv[data-p="{short}"]'
         cols = int(layout.get("metric_grid", {}).get("columns", 2) or 2)
         gap = _css_last_value(sv.get("density.regular", ""), "gap") or "0.8rem"
         pad = _css_last_value(sv.get("density.regular", ""), "padding") or "0.8rem"
         accent = _css_last_value(sv.get("tone.accent", ""), "color") or "#0f766e"
-        rules.append(f'{sel} .dv{{ {sv["palette.temperature"]} {sv["tone.neutral"]} }}')
-        rules.append(f'{sel} .dv .dvcard{{ {sv["surface.subtle"]} padding: calc({pad.split()[0]} * 1.6) calc({pad.split()[-1]} * 1.4); }}')
-        rules.append(f'{sel} .dv .dvgrid{{ grid-template-columns: repeat({cols}, minmax(0, 1fr)); gap: {gap}; }}')
-        rules.append(f'{sel} .dv .dvh{{ {sv["rhythm.hierarchy"]} }}')
-        rules.append(f'{sel} .dv .dvlabel{{ {sv["tone.muted"]} }}')
-        rules.append(f'{sel} .dv .dvdelta{{ {sv["tone.accent"]} }}')
-        rules.append(f'{sel} .dv .dvnum{{ {sv["emphasis.high"]} }}')
-        rules.append(f'{sel} .dv .dvbtn{{ {sv["action.accent"]} }}')
-        rules.append(f'{sel} .dv .dvflow{{ {sv["narrative.flow"]} }}')
+        rules.append(f'{sel}{{ {sv["palette.temperature"]} {sv["tone.neutral"]} }}')
+        rules.append(f'{sel} .dvcard{{ {sv["surface.subtle"]} padding: calc({pad.split()[0]} * 1.6) calc({pad.split()[-1]} * 1.4); }}')
+        rules.append(f'{sel} .dvgrid{{ grid-template-columns: repeat({cols}, minmax(0, 1fr)); gap: {gap}; }}')
+        rules.append(f'{sel} .dvh{{ {sv["rhythm.hierarchy"]} }}')
+        rules.append(f'{sel} .dvlabel{{ {sv["tone.muted"]} }}')
+        rules.append(f'{sel} .dvdelta{{ {sv["tone.accent"]} }}')
+        rules.append(f'{sel} .dvnum{{ {sv["emphasis.high"]} }}')
+        rules.append(f'{sel} .dvbtn{{ {sv["action.accent"]} }}')
+        rules.append(f'{sel} .dvflow{{ {sv["narrative.flow"]} }}')
         rules.append(
-            f'{sel} .dv .spark-line{{ stroke: {accent}; }} '
-            f'{sel} .dv .spark-dot{{ fill: {accent}; }} '
-            f'{sel} .dv .spark-fill{{ fill: {_rgba(accent, 0.14)}; }}'
+            f'{sel} .spark-line{{ stroke: {accent}; }} '
+            f'{sel} .spark-dot{{ fill: {accent}; }} '
+            f'{sel} .spark-fill{{ fill: {_rgba(accent, 0.14)}; }}'
         )
         metric_card = layout.get("metric_card") or {}
         span = metric_card.get("span_columns")
         if span:
-            rules.append(f'{sel} .dv .dvcard.featured{{ grid-column: span {span}; }}')
+            rules.append(f'{sel} .dvcard.featured{{ grid-column: span {span}; }}')
     return "\n".join(rules)
 
 
@@ -655,6 +655,17 @@ PAGE_CSS = r"""
   .dv .dvflow{ margin:18px 0 0; font-size:13.5px; opacity:.82; }
   .dv svg{ display:block; width:100%; height:30px; margin-top:8px; }
   svg .spark-fill{ fill:rgba(245,178,63,.10); } svg .spark-line{ fill:none; stroke:var(--amber); stroke-width:1.5; } svg .spark-dot{ fill:var(--amber-2); }
+  /* five-up strip: all projections rendered simultaneously — juxtaposition, not memory */
+  .dv-strip{ display:grid; grid-template-columns:repeat(5,minmax(0,1fr)); gap:10px; margin-bottom:16px; }
+  @media (max-width:760px){ .dv-strip{ grid-template-columns:repeat(auto-fit,minmax(120px,1fr)); } }
+  .dv-slot{ display:flex; flex-direction:column; gap:7px; min-width:0; }
+  button.dv.mini{ padding:13px 13px 15px; cursor:pointer; text-align:left; display:flex; flex-direction:column; align-items:flex-start; gap:7px; width:100%; box-shadow:none; border-color:var(--line-2); }
+  button.dv.mini .dvnum{ font-size:19px !important; }
+  button.dv.mini .dvh{ font-size:12px !important; }
+  button.dv.mini .dvbtn{ font-size:9.5px; padding:4px 10px; pointer-events:none; }
+  button.dv.mini[aria-pressed="true"]{ outline:2px solid var(--amber); outline-offset:3px; }
+  .dv-name{ font-family:var(--mono); font-size:10px; color:var(--faint); text-align:center; }
+  .dv-slot[data-active="true"] .dv-name{ color:var(--amber); }
   .note{ font-family:var(--mono); font-size:11px; color:var(--faint); padding:0 20px 18px; } .note b{ color:var(--muted); }
 
   /* reveal / provenance */
@@ -861,7 +872,10 @@ PAGE_BODY_TEMPLATE = r"""<a class="skip-link" href="#top">Skip to content</a>
           <div class="profiles" role="group" aria-label="Aesthetic profile" id="profileGroup">{{PROFILE_BUTTONS}}</div>
           <div class="readout" id="readout">density <b>regular</b> &middot; emphasis <b>medium</b> &middot; columns <b>3</b></div>
         </div>
-        <div class="derive-body"><div class="dv" id="dv" data-node="node:workspace#view:projection"></div></div>
+        <div class="derive-body">
+          <div class="dv-strip" id="dvStrip" role="group" aria-label="All five compiled projections, side by side"></div>
+          <div class="dv" id="dv" data-p="calm_ops" data-node="node:workspace#view:projection"></div>
+        </div>
         <div class="note">aesthetic.<span id="noteP">calm_ops</span> &middot; <b>0</b> hand&#8209;written rules &middot; <span class="mono">Same graph, new projection</span> from the same semantic graph</div><div class="note" id="noteReal"></div>
       </div>
     </section>
@@ -1025,10 +1039,24 @@ PAGE_SCRIPT = r"""
       +'<p class="dvflow">This paragraph&rsquo;s measure and leading come from narrative.flow &mdash; the same sentence reads at a different rhythm in every projection.</p>';
     g.querySelectorAll("svg").forEach(function(s){ spark(parseFloat(s.getAttribute("data-seed")),s); });
   }
+  function renderStrip(){
+    var strip=document.getElementById("dvStrip");
+    strip.innerHTML=Object.keys(PROFILES).map(function(p){
+      return '<div class="dv-slot" data-slot="'+p+'"><button type="button" class="dv mini" data-p="'+p+'" data-pick="'+p+'" aria-pressed="'+(p==="calm_ops"?"true":"false")+'" aria-label="Select aesthetic.'+p+'">'
+        +'<span class="dvh">Workspace</span>'
+        +'<span class="dvlabel">MRR</span><span class="dvnum">$48k</span>'
+        +'<span class="dvbtn">Export</span>'
+        +'</button><span class="dv-name">'+p+'</span></div>';
+    }).join("");
+    strip.addEventListener("click",function(e){ var b=e.target.closest("button[data-pick]"); if(b) setProfile(b.getAttribute("data-pick")); });
+  }
 
   /* ---------- profile ---------- */
   function setProfile(p){
     body.setAttribute("data-profile",p);
+    var live=document.getElementById("dv"); if(live) live.setAttribute("data-p",p);
+    document.querySelectorAll("#dvStrip button[data-pick]").forEach(function(b){ b.setAttribute("aria-pressed", b.getAttribute("data-pick")===p?"true":"false"); });
+    document.querySelectorAll("#dvStrip .dv-slot").forEach(function(s){ s.setAttribute("data-active", s.getAttribute("data-slot")===p?"true":"false"); });
     document.querySelectorAll("#profileGroup button").forEach(function(b){ b.setAttribute("aria-pressed", b.getAttribute("data-profile")===p?"true":"false"); });
     var t=PROFILES[p];
     var pf=(window.__VIEWSPEC__&&window.__VIEWSPEC__.profiles&&window.__VIEWSPEC__.profiles[p]), pr=pf&&pf.projection;
@@ -1121,7 +1149,7 @@ PAGE_SCRIPT = r"""
   } else { document.querySelectorAll(".reveal-on").forEach(function(s){ s.classList.add("in"); }); }
 
   /* ---------- boot ---------- */
-  renderViewport(); setProfile("calm_ops"); renderMotif("table"); showHash(false); netCount(); setTimeout(netCount,1200);
+  renderViewport(); renderStrip(); setProfile("calm_ops"); renderMotif("table"); showHash(false); netCount(); setTimeout(netCount,1200);
   if(!reduce){
     document.getElementById("cnBadge").classList.add("pulse");
     var big=document.getElementById("ocBig");
