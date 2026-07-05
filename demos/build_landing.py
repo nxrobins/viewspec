@@ -681,7 +681,7 @@ PAGE_CSS = r"""
   body.inspect [data-node]{ position:relative; outline:1px dashed rgba(245,178,63,.4); outline-offset:2px; }
   body.inspect [data-node]::after{ content:attr(data-node); position:absolute; left:-1px; top:-2px; transform:translateY(-100%);
     font-family:var(--mono); font-size:9px; line-height:1.5; color:var(--ink); background:var(--amber); padding:1px 5px; border-radius:3px 3px 3px 0; white-space:nowrap; pointer-events:none; z-index:6; }
-  .trace{ background:linear-gradient(180deg,var(--panel-2),var(--panel-solid)); border:1px solid var(--line); border-radius:16px; padding:22px; }
+  .trace{ background:linear-gradient(180deg,var(--panel-2),var(--panel-solid)); border:1px solid var(--line); border-radius:16px; padding:22px; position:sticky; top:84px; }
   .trace .flow{ font-family:var(--mono); font-size:10.5px; letter-spacing:.05em; color:var(--faint); margin-bottom:16px; }
   .tnode{ border:1px solid var(--line); border-left:2px solid var(--amber); background:var(--panel-solid); border-radius:9px; padding:11px 13px; margin-bottom:8px; }
   .tnode .tk{ font-family:var(--mono); font-size:9.5px; letter-spacing:.14em; text-transform:uppercase; color:var(--muted); }
@@ -730,15 +730,24 @@ PAGE_CSS = r"""
 /* ============ embedded real compiler output — dark-match the emitter inline light theme ============ */
 .skip-link{ position:absolute; left:-999px; top:0; z-index:200; background:var(--amber); color:var(--ink); font-family:var(--mono); font-size:12px; padding:9px 13px; border-radius:8px; }
 .skip-link:focus{ left:12px; top:12px; }
-#viewspec-artifact-slot{ display:block; margin-top:6px; }
+/* artifact window: browser-frame chrome + bounded internal scroll for the embedded artifact */
+.artifact-window{ background:var(--panel-solid); border:1px solid var(--line-2); border-radius:14px; overflow:hidden; box-shadow:0 24px 60px -30px rgba(0,0,0,.8); }
+.artifact-window .cpanel-h{ background:var(--ink-2); }
+.artifact-window-foot{ font-family:var(--mono); font-size:10.5px; color:var(--faint); padding:10px 4px 0; }
+.artifact-window-foot a{ color:var(--amber-2); } .artifact-window-foot a:hover{ color:var(--amber); }
+#viewspec-artifact-slot{ display:block; max-height:440px; overflow-y:auto; overscroll-behavior:contain; font-size:13px; scrollbar-width:thin; scrollbar-color:var(--line-2) transparent; }
 #viewspec-artifact-slot .vs-root,#viewspec-artifact-slot [id^="dom-region"]{ background:none !important; background-color:transparent !important; color:var(--text) !important; font-family:var(--sans) !important; }
-#viewspec-artifact-slot .vs-surface{ background:linear-gradient(160deg,var(--panel-2),var(--panel-solid)) !important; border:1px solid var(--line) !important; border-radius:var(--rad) !important; box-shadow:none !important; }
-#viewspec-artifact-slot .vs-value,#viewspec-artifact-slot td.vs-value,#viewspec-artifact-slot .vs-text{ color:var(--text) !important; }
-#viewspec-artifact-slot .vs-label,#viewspec-artifact-slot th.vs-label{ color:var(--muted) !important; font-family:var(--mono) !important; }
-#viewspec-artifact-slot h1,#viewspec-artifact-slot #dom-binding_launch_hero_title{ font-family:var(--mono) !important; color:var(--text) !important; }
+#viewspec-artifact-slot .vs-surface{ background:linear-gradient(160deg,var(--panel-2),var(--panel-solid)) !important; border:1px solid var(--line) !important; border-radius:9px !important; box-shadow:none !important; padding:0.7rem 0.85rem !important; }
+#viewspec-artifact-slot .vs-value,#viewspec-artifact-slot td.vs-value,#viewspec-artifact-slot .vs-text{ color:var(--text) !important; font-size:0.95em !important; }
+#viewspec-artifact-slot .vs-label,#viewspec-artifact-slot th.vs-label{ color:var(--muted) !important; font-family:var(--mono) !important; font-size:0.72rem !important; letter-spacing:.08em; text-transform:uppercase; }
+#viewspec-artifact-slot h1,#viewspec-artifact-slot #dom-binding_launch_hero_title{ font-family:var(--mono) !important; color:var(--text) !important; font-size:1.4rem !important; line-height:1.2 !important; letter-spacing:-.02em; margin:0.2rem 0 !important; }
 #viewspec-artifact-slot table{ width:100%; border-collapse:collapse; }
-#viewspec-artifact-slot #dom-binding_launch_hero_eyebrow{ color:var(--amber) !important; font-family:var(--mono) !important; }
+#viewspec-artifact-slot td,#viewspec-artifact-slot th{ padding:0.5rem 0.6rem !important; }
+#viewspec-artifact-slot #dom-binding_launch_hero_eyebrow{ color:var(--amber) !important; font-family:var(--mono) !important; font-size:0.68rem !important; letter-spacing:.16em; }
+#viewspec-artifact-slot #dom-binding_launch_hero_description{ color:var(--muted) !important; font-size:0.82rem !important; line-height:1.6 !important; }
 #viewspec-artifact-slot #dom-motif_proof_badges .vs-value{ color:var(--mint) !important; font-family:var(--mono) !important; }
+#viewspec-artifact-slot #dom-motif_proof_badges{ grid-template-columns:repeat(2,minmax(0,1fr)) !important; gap:0.5rem !important; }
+#viewspec-artifact-slot #dom-motif_compile_flow{ grid-template-columns:1fr !important; gap:0.5rem !important; }
 body.inspect #viewspec-artifact-slot [data-ir-id]{ position:relative; outline:1px dashed rgba(245,178,63,.4); outline-offset:2px; }
 body.inspect #viewspec-artifact-slot [data-ir-id]::after{ content:attr(data-ir-id); position:absolute; left:-1px; top:-2px; transform:translateY(-100%); font-family:var(--mono); font-size:9px; line-height:1.5; color:var(--ink); background:var(--amber); padding:1px 5px; border-radius:3px 3px 3px 0; white-space:nowrap; pointer-events:none; z-index:6; }
 .anchor-target{ display:block; height:0; }
@@ -1188,9 +1197,17 @@ def _public_html(generated_html: str, profile_evidence: dict[str, Any]) -> str:
     manifest = json.loads((COMPILED_DIR / "provenance_manifest.json").read_text(encoding="utf-8"))
     semantic_hash = _semantic_hash(manifest)
 
+    # The full compiled artifact, presented as a contained "artifact window" (browser-frame
+    # header + bounded scroll) instead of raw inline flow — the whole page in a viewport.
     real_artifact = (
+        '<div class="artifact-window">'
+        '<div class="cpanel-h"><span class="t">compiled artifact &middot; aesthetic.calm_ops &middot; scroll &amp; hover</span>'
+        '<span class="dots"><i></i><i></i><i></i></span></div>'
         f'<section id="viewspec-artifact-slot" class="viewspec-artifact-slot" '
         f'data-active-profile="{html.escape(DEFAULT_PROFILE, quote=True)}">' + body + "</section>"
+        '</div>'
+        '<div class="artifact-window-foot">the entire homepage artifact, embedded live &middot; '
+        '<a href="./landing-compiled/" target="_blank" rel="noopener">open it full-page &#8599;</a></div>'
     )
 
     # concept-styled profile pills carrying data-profile-token (SEO) + data-profile (theming)
