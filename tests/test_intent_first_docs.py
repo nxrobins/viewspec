@@ -194,12 +194,14 @@ def test_public_docs_include_aesthetic_profile_contract():
 
 def test_reference_grounding_is_explicit_opt_in():
     root = Path(__file__).resolve().parents[1]
+    # Authored prose only. demos/index.html is now compiled ViewSpec output (from
+    # build_landing.py), not hand-written copy, so the "affirm the opt-in stance" positive
+    # assertion does not apply to it.
     docs = [
         root / "docs/agent-integration.md",
         root / "demos/llms.txt",
         root / "demos/llms-full.txt",
         root / "demos/agent-system-prompt.txt",
-        root / "demos/index.html",
     ]
 
     for path in docs:

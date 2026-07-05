@@ -58,7 +58,35 @@
     "scope": "ViewSpec prove validates intent, compiles through the public local path, checks the artifact manifest and hashes, records compact style-delta counts when profiles are present, writes PROOF.md for humans, proof_report.json for tools, redacted support_bundle.json for local support triage, and can optionally run the bounded React Tailwind reference host proof.",
     "non_claim": "ViewSpec prove is not pixel-perfect visual regression, accessibility certification, arbitrary host-app certification, or hosted compiler publish automation."
   },
+  "appbundle_state_ir": {
+    "demo_url": "https://viewspec.dev/appbundle-state-ir/",
+    "state_profile": "interactive_state_v0",
+    "reducer_artifact": "state_reducer.ts",
+    "reducer_export": "reduceViewSpecState",
+    "replay_field": "state_replay_assertions",
+    "proof_command_short": "viewspec prove-app --with-shell",
+    "proof_command": "viewspec prove-app --app viewspec.app.json --out .viewspec-app-proof --with-shell --json",
+    "compile_artifacts": [
+      "index.html",
+      "shell_manifest.json",
+      "diagnostics.json",
+      "state_reducer.ts",
+      "state_manifest.json"
+    ],
+    "proof_facts": [
+      "state replay passed",
+      "reducer generated",
+      "manifest checked",
+      "shell hash matched",
+      "no runtime LLM"
+    ],
+    "scope": "AppBundle V3 is a bounded local app contract for static routes, embedded screen IntentBundles, fixture_readonly_v0 resource views, interactive_state_v0 state, generated reducer artifacts, state_replay_assertions, and html-tailwind-app shell proof.",
+    "non_claim": "State IR is not Redux, Zustand, CRDT, persistence, backend generation, browser-history proof, live DOM rebinding, or a deployable framework app."
+  },
   "aesthetic_profiles": {
+    "homepage_url": "https://viewspec.dev/",
+    "evidence_artifact": "https://viewspec.dev/landing-compiled/profile-evidence.json",
+    "default_profile": "aesthetic.calm_ops",
     "tokens": [
       "aesthetic.calm_ops",
       "aesthetic.premium_saas",
@@ -66,7 +94,7 @@
       "aesthetic.editorial_product",
       "aesthetic.executive_review"
     ],
-    "scope": "Aesthetic Profiles V1 are deterministic view-level art-direction handles that expand into governed style projections, bounded layout metadata, compact style-delta counts in checked manifest summaries, and closed React Tailwind recipes.",
+    "scope": "Aesthetic Profiles V1 are deterministic view-level art-direction handles. The homepage switches between five compiled landing artifacts while preserving the same semantic graph, stable semantic ids, zero shell overrides, governed style projections, bounded layout metadata, compact style-delta counts in checked manifest summaries, and closed React Tailwind recipes.",
     "non_claim": "Aesthetic profiles are not arbitrary CSS, pixel-perfect visual proof, accessibility certification, arbitrary host-app compatibility, or design-review approval."
   },
   "agent_assets": {

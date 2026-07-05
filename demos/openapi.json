@@ -70,6 +70,13 @@
         "style_assertion_count"
       ]
     },
+    "appbundleStateIrDemoUrl": "https://viewspec.dev/appbundle-state-ir/",
+    "appbundleStateIrProfile": "interactive_state_v0",
+    "appbundleStateIrReducerArtifact": "state_reducer.ts",
+    "appbundleStateIrReducerExport": "reduceViewSpecState",
+    "appbundleStateIrReplayField": "state_replay_assertions",
+    "appbundleStateIrProofCommandShort": "viewspec prove-app --with-shell",
+    "appbundleStateIrProofCommand": "viewspec prove-app --app viewspec.app.json --out .viewspec-app-proof --with-shell --json",
     "agentAssetManifest": "https://viewspec.dev/agent-assets.json",
     "agentAssetSchemaVersion": 7,
     "agentAssetContractProfile": "local_v1",

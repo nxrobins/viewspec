@@ -756,7 +756,7 @@
       {
         "id": "aesthetic_profile",
         "target": "view:viewspec_landing",
-        "token": "aesthetic.calm_ops"
+        "token": "aesthetic.editorial_product"
       }
     ],
     "substrate_id": "viewspec_landing_substrate"

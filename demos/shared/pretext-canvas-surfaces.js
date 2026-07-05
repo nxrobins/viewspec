@@ -1,4 +1,4 @@
-import { layoutWithLines, prepareWithSegments } from '../vendor/pretext/pretext.esm.js'
+import { layoutWithLines, prepareWithSegments } from '../vendor/pretext/pretext.esm.js?v=20260628-js'
 
 const DEFAULT_FONT_FAMILY = '-apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif'
 const observedWrappers = new Map()

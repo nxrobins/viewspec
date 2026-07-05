@@ -4,10 +4,10 @@
   "kind": "intent_bundle_compile",
   "sdk_version": "0.3.0b1",
   "source_name": "intent_bundle.json",
-  "raw_source_hash": "c7241f1a49f47f20cc7fb9b86283b35b04f8c2450fd5b4ef04e372150139978a",
-  "source_hash": "c7241f1a49f47f20cc7fb9b86283b35b04f8c2450fd5b4ef04e372150139978a",
+  "raw_source_hash": "61a8f3e501243790f7c9cfa2f5b688d16fc99ddfc1fe78013a5848d34e2d225c",
+  "source_hash": "61a8f3e501243790f7c9cfa2f5b688d16fc99ddfc1fe78013a5848d34e2d225c",
   "design_hash": null,
-  "artifact_hash": "ae64b6e6655b03d24c2eb22e38c114ad973f4cb6867bb8617804494583df5a16",
+  "artifact_hash": "32ab349292194ac1f5aa646a3def086f6dcbda4e98a0dea9a812e4a763c2d15f",
   "command": "compile",
   "command_args": [
     "python",
@@ -37,11 +37,11 @@
       "style_tokens": [
         "tone.neutral",
         "palette.temperature",
-        "aesthetic.calm_ops"
+        "aesthetic.executive_review"
       ],
       "props": {
         "layout_role": "root",
-        "aesthetic_profile": "aesthetic.calm_ops"
+        "aesthetic_profile": "aesthetic.executive_review"
       }
     },
     "dom-region_main": {
