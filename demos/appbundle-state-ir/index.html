@@ -1,0 +1,356 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ViewSpec Demo - AppBundle State IR</title>
+  <meta name="description" content="Inspect AppBundle V3 State IR proof: interactive_state_v0 JSON, generated reduceViewSpecState reducer, replay assertions, rendered shell, and proof facts.">
+  <meta name="robots" content="index,follow,max-snippet:-1,max-image-preview:large">
+  <link rel="canonical" href="https://viewspec.dev/appbundle-state-ir/">
+  <link rel="alternate" type="text/markdown" title="ViewSpec for LLMs" href="https://viewspec.dev/llms.txt">
+  <link rel="alternate" type="application/json" title="ViewSpec OpenAPI" href="https://viewspec.dev/openapi.json">
+  <script type="application/ld+json">{
+    "@context": "https://schema.org",
+    "@type": "WebPage",
+    "name": "ViewSpec Demo - AppBundle State IR",
+    "description": "Inspect AppBundle V3 State IR proof: interactive_state_v0 JSON, generated reduceViewSpecState reducer, replay assertions, rendered shell, and proof facts.",
+    "url": "https://viewspec.dev/appbundle-state-ir/",
+    "isPartOf": {
+      "@type": "WebSite",
+      "name": "ViewSpec",
+      "url": "https://viewspec.dev/"
+    }
+  }</script>
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="../shared/launch-pages.css">
+  <style>
+    .state-hero {
+      grid-template-columns: minmax(0, 1fr) minmax(20rem, 0.72fr);
+      align-items: start;
+    }
+
+    .evidence-strip {
+      display: grid;
+      gap: 10px;
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+      margin-top: 14px;
+    }
+
+    .evidence-pill {
+      background: #0b111a;
+      border: 1px solid rgba(45, 212, 191, 0.22);
+      border-radius: 8px;
+      min-height: 72px;
+      padding: 12px;
+    }
+
+    .evidence-pill span {
+      color: var(--muted);
+      display: block;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 11px;
+      font-weight: 850;
+      text-transform: uppercase;
+    }
+
+    .evidence-pill strong {
+      color: var(--teal);
+      display: block;
+      font-size: 18px;
+      line-height: 1.2;
+      margin-top: 6px;
+    }
+
+    .state-tabs {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-bottom: 14px;
+    }
+
+    .state-tab {
+      appearance: none;
+      background: #0b111a;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      color: #cbd5e1;
+      cursor: pointer;
+      font: inherit;
+      font-size: 14px;
+      font-weight: 800;
+      min-height: 40px;
+      padding: 0 12px;
+    }
+
+    .state-tab[aria-selected="true"] {
+      background: rgba(45, 212, 191, 0.1);
+      border-color: rgba(45, 212, 191, 0.42);
+      color: var(--teal);
+    }
+
+    .state-panel[hidden] {
+      display: none;
+    }
+
+    .artifact-shell {
+      background: #05070a;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      overflow: hidden;
+    }
+
+    .artifact-topbar {
+      align-items: center;
+      border-bottom: 1px solid var(--line);
+      display: flex;
+      justify-content: space-between;
+      padding: 12px 14px;
+    }
+
+    .artifact-topbar span {
+      color: var(--green);
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 12px;
+      font-weight: 850;
+      text-transform: uppercase;
+    }
+
+    .artifact-frame {
+      background: #f8fafc;
+      color: #0f172a;
+      display: grid;
+      gap: 16px;
+      padding: 18px;
+    }
+
+    .shell-route {
+      background: #ffffff;
+      border: 1px solid #dbe3ea;
+      border-radius: 8px;
+      padding: 16px;
+    }
+
+    .shell-route h3 {
+      color: #0f172a;
+      margin: 0 0 8px;
+    }
+
+    .shell-route p {
+      color: #475569;
+      margin: 0;
+    }
+
+    .fact-list {
+      display: grid;
+      gap: 10px;
+      list-style: none;
+      margin: 0;
+      padding: 0;
+    }
+
+    .fact-list li {
+      background: #0b111a;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      color: #dbeafe;
+      padding: 12px;
+    }
+
+    .scope-note {
+      border-left: 3px solid var(--amber);
+      padding-left: 14px;
+    }
+
+    @media (max-width: 920px) {
+      .state-hero,
+      .evidence-strip {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <script src="../shared/nav.js"></script>
+  <main class="shell">
+    <section class="hero state-hero">
+      <div>
+        <p class="eyebrow">AppBundle V3 State IR</p>
+        <h1>State, reducer, shell, and proof from one agent-authored app contract.</h1>
+        <p class="lead">Agents write bounded AppBundle JSON. ViewSpec validates <code>interactive_state_v0</code>, emits a pure TypeScript reducer at <code>state_reducer.ts</code>, checks <code>state_replay_assertions</code>, renders the static shell, and proves it with <code>viewspec prove-app --with-shell</code>.</p>
+        <div class="evidence-strip" aria-label="State IR proof badges">
+          <div class="evidence-pill" aria-label="state replay passed"><span>State replay</span><strong>passed</strong></div>
+          <div class="evidence-pill" aria-label="reducer generated"><span>Reducer</span><strong>generated</strong></div>
+          <div class="evidence-pill" aria-label="manifest checked"><span>Manifest</span><strong>checked</strong></div>
+          <div class="evidence-pill" aria-label="shell hash matched"><span>Shell hash</span><strong>matched</strong></div>
+          <div class="evidence-pill" aria-label="no runtime LLM"><span>Runtime LLM</span><strong>none</strong></div>
+        </div>
+      </div>
+      <aside class="card">
+        <h2>Compiler-owned output</h2>
+        <p>AppBundle V3 is the current flagship proof path because it binds UI and interaction together without asking an agent to hand-wire state transitions.</p>
+        <pre><code>viewspec compile-app viewspec.app.json \
+  --out app-dist \
+  --target html-tailwind-app --json
+
+viewspec prove-app --app viewspec.app.json \
+  --out .viewspec-app-proof \
+  --with-shell --json</code></pre>
+      </aside>
+    </section>
+
+    <section class="section" aria-labelledby="state-evidence-heading">
+      <h2 id="state-evidence-heading">Evidence Tabs</h2>
+      <p>These tabs are static evidence, not a live simulator. They show the contract surface ViewSpec proves: AppBundle JSON, generated reducer, replay assertion, rendered shell, and proof report facts.</p>
+      <div class="state-tabs" role="tablist" aria-label="AppBundle State IR evidence">
+        <button type="button" class="state-tab" id="tab-appbundle" data-state-tab="appbundle" role="tab" aria-selected="true" aria-controls="panel-appbundle">AppBundle JSON</button>
+        <button type="button" class="state-tab" id="tab-reducer" data-state-tab="reducer" role="tab" aria-selected="false" aria-controls="panel-reducer" tabindex="-1">Generated reducer</button>
+        <button type="button" class="state-tab" id="tab-replay" data-state-tab="replay" role="tab" aria-selected="false" aria-controls="panel-replay" tabindex="-1">Replay assertion</button>
+        <button type="button" class="state-tab" id="tab-shell" data-state-tab="shell" role="tab" aria-selected="false" aria-controls="panel-shell" tabindex="-1">Rendered shell</button>
+        <button type="button" class="state-tab" id="tab-proof" data-state-tab="proof" role="tab" aria-selected="false" aria-controls="panel-proof" tabindex="-1">Proof report facts</button>
+      </div>
+
+      <article class="state-panel" id="panel-appbundle" data-state-panel="appbundle" role="tabpanel" aria-labelledby="tab-appbundle">
+        <pre><code>{
+  "schema_version": 3,
+  "resource_binding": "fixture_readonly_v0",
+  "state": {
+    "profile": "interactive_state_v0",
+    "entries": [
+      { "id": "incident_filter", "type": "string", "initial": "open" },
+      { "id": "selected_incident_ids", "type": "string_list", "initial": [] }
+    ],
+    "mutations": [
+      {
+        "id": "set_filter",
+        "kind": "set_value",
+        "state_ref": "incident_filter",
+        "payload_path": "filter"
+      }
+    ],
+    "selectors": [
+      { "id": "visible_incidents", "source": "resource_view:incidents", "where_state": "incident_filter" }
+    ],
+    "state_replay_assertions": [
+      { "id": "filter_changes_visible_rows", "mutation_ref": "set_filter", "expect_selector_ref": "visible_incidents" }
+    ]
+  }
+}</code></pre>
+      </article>
+
+      <article class="state-panel" id="panel-reducer" data-state-panel="reducer" role="tabpanel" aria-labelledby="tab-reducer" hidden>
+        <pre><code>export type ViewSpecState = {
+  incident_filter: string
+  selected_incident_ids: string[]
+}
+
+export type ViewSpecAction =
+  | { type: "set_filter"; payload: { filter: string } }
+  | { type: "select_incident"; payload: { id: string } }
+
+export function reduceViewSpecState(
+  state: ViewSpecState,
+  action: ViewSpecAction
+): ViewSpecState {
+  switch (action.type) {
+    case "set_filter":
+      return { ...state, incident_filter: action.payload.filter }
+    case "select_incident":
+      return { ...state, selected_incident_ids: [action.payload.id] }
+    default:
+      return state
+  }
+}</code></pre>
+      </article>
+
+      <article class="state-panel" id="panel-replay" data-state-panel="replay" role="tabpanel" aria-labelledby="tab-replay" hidden>
+        <pre><code>{
+  "assertion_id": "filter_changes_visible_rows",
+  "artifact": "state_reducer.ts",
+  "reducer_export": "reduceViewSpecState",
+  "initial_state": { "incident_filter": "open", "selected_incident_ids": [] },
+  "action": { "type": "set_filter", "payload": { "filter": "critical" } },
+  "expected_state": { "incident_filter": "critical", "selected_incident_ids": [] },
+  "status": "passed"
+}</code></pre>
+      </article>
+
+      <article class="state-panel artifact-shell" id="panel-shell" data-state-panel="shell" role="tabpanel" aria-labelledby="tab-shell" hidden>
+        <div class="artifact-topbar">
+          <strong>html-tailwind-app shell</strong>
+          <span>shell hash matched</span>
+        </div>
+        <div class="artifact-frame">
+          <section class="shell-route">
+            <h3>Operations Queue</h3>
+            <p>Static Shell V0 route generated from AppBundle screens. Navigation is bounded to declared routes.</p>
+          </section>
+          <section class="shell-route">
+            <h3>Incident Detail</h3>
+            <p>Rendered screen artifacts keep provenance manifests and action payload metadata checked by the proof pipeline.</p>
+          </section>
+        </div>
+      </article>
+
+      <article class="state-panel" id="panel-proof" data-state-panel="proof" role="tabpanel" aria-labelledby="tab-proof" hidden>
+        <ul class="fact-list">
+          <li><code>target</code>: <code>html-tailwind-app</code></li>
+          <li><code>route_navigation</code>: <code>static_shell_v0</code></li>
+          <li><code>policy.network_calls</code>: <code>none</code></li>
+          <li><code>state_reducer_hash</code> and <code>state_manifest_hash</code>: present for V3.</li>
+          <li><code>shell_artifact_hash</code>: matched between <code>compile-app</code> output and <code>prove-app --with-shell</code> shell proof.</li>
+          <li><code>state_replay_assertions</code>: all passed for the generated <code>reduceViewSpecState</code> reducer.</li>
+        </ul>
+      </article>
+    </section>
+
+    <section class="section">
+      <div class="grid two">
+        <article>
+          <p class="eyebrow">What this proves</p>
+          <h2>State is part of the contract.</h2>
+          <p>V3 proves that a bounded app contract can compile screens, local interactive state, reducer code, shell metadata, and replay results into files a reviewer can inspect.</p>
+        </article>
+        <article class="scope-note">
+          <p class="eyebrow">Explicit caveats</p>
+          <h2>Bounded by design.</h2>
+          <p>AppBundle is local and proof-oriented. State IR is not Redux, not Zustand, not CRDT, not persistence, not backend generation, not browser-history proof, and not a deployable framework app.</p>
+        </article>
+      </div>
+    </section>
+  </main>
+  <script>
+    const tabs = Array.from(document.querySelectorAll('[data-state-tab]'))
+    const panels = Array.from(document.querySelectorAll('[data-state-panel]'))
+
+    function activateTab(key) {
+      tabs.forEach((tab) => {
+        const active = tab.dataset.stateTab === key
+        tab.setAttribute('aria-selected', active ? 'true' : 'false')
+        tab.tabIndex = active ? 0 : -1
+      })
+      panels.forEach((panel) => {
+        panel.hidden = panel.dataset.statePanel !== key
+      })
+    }
+
+    tabs.forEach((tab) => {
+      tab.addEventListener('click', () => activateTab(tab.dataset.stateTab))
+      tab.addEventListener('keydown', (event) => {
+        const index = tabs.indexOf(tab)
+        if (event.key === 'ArrowRight') {
+          event.preventDefault()
+          const next = tabs[(index + 1) % tabs.length]
+          next.focus()
+          activateTab(next.dataset.stateTab)
+        }
+        if (event.key === 'ArrowLeft') {
+          event.preventDefault()
+          const previous = tabs[(index - 1 + tabs.length) % tabs.length]
+          previous.focus()
+          activateTab(previous.dataset.stateTab)
+        }
+      })
+    })
+  </script>
+</body>
+</html>

@@ -5,6 +5,7 @@
 (function () {
   const demos = [
     { href: '../cross-platform-dashboard/', label: 'Cross-platform' },
+    { href: '../appbundle-state-ir/', label: 'State IR' },
     { href: '../custom-motifs/', label: 'Custom motifs' },
     { href: '../interactive-compose/', label: 'Compose' },
     { href: '../stateful-collections/', label: 'Collections' },
@@ -15,7 +16,6 @@
     { href: '../proof-bundle/', label: 'Proof' },
     { href: '../fifteen-lines/', label: '15 Lines' },
     { href: '../style-derivation/', label: 'Styles' },
-    { href: '../aesthetic-profiles/', label: 'Aesthetic' },
     { href: '../#pricing', label: 'Pricing' },
   ]
 

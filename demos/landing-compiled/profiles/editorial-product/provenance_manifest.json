@@ -4,10 +4,10 @@
   "kind": "intent_bundle_compile",
   "sdk_version": "0.3.0b1",
   "source_name": "intent_bundle.json",
-  "raw_source_hash": "5ad5bf86780ff3a88232f2274bb88db8f8e8eb46855cd54034745ff06ee8fbe9",
-  "source_hash": "5ad5bf86780ff3a88232f2274bb88db8f8e8eb46855cd54034745ff06ee8fbe9",
+  "raw_source_hash": "5058a04f9ea2f5ee8f4126db33d895440d7f834007bd4cb5e84dbebcbc93300c",
+  "source_hash": "5058a04f9ea2f5ee8f4126db33d895440d7f834007bd4cb5e84dbebcbc93300c",
   "design_hash": null,
-  "artifact_hash": "5416d40237ddd1bc9d31e67d80f3d3c4504c9c6ef6d70c9daae492113e5efeef",
+  "artifact_hash": "a9dc6ac687c8f676fa00c1a692044befc66a849ebd42ac9bf4ee28c618e459ce",
   "command": "compile",
   "command_args": [
     "python",
@@ -37,11 +37,11 @@
       "style_tokens": [
         "tone.neutral",
         "palette.temperature",
-        "aesthetic.calm_ops"
+        "aesthetic.editorial_product"
       ],
       "props": {
         "layout_role": "root",
-        "aesthetic_profile": "aesthetic.calm_ops"
+        "aesthetic_profile": "aesthetic.editorial_product"
       }
     },
     "dom-region_main": {

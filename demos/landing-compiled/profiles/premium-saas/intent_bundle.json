@@ -392,7 +392,7 @@
       {
         "id": "aesthetic_profile",
         "target": "view:viewspec_landing",
-        "token": "aesthetic.calm_ops"
+        "token": "aesthetic.premium_saas"
       }
     ],
     "substrate_id": "viewspec_landing_substrate"

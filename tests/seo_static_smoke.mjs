@@ -5,6 +5,7 @@ import { readFile, stat } from 'node:fs/promises'
 const pages = [
   ['demos/index.html', 'https://viewspec.dev/'],
   ['demos/cross-platform-dashboard/index.html', 'https://viewspec.dev/cross-platform-dashboard/'],
+  ['demos/appbundle-state-ir/index.html', 'https://viewspec.dev/appbundle-state-ir/'],
   ['demos/custom-motifs/index.html', 'https://viewspec.dev/custom-motifs/'],
   ['demos/interactive-compose/index.html', 'https://viewspec.dev/interactive-compose/'],
   ['demos/stateful-collections/index.html', 'https://viewspec.dev/stateful-collections/'],
@@ -15,7 +16,6 @@ const pages = [
   ['demos/proof-bundle/index.html', 'https://viewspec.dev/proof-bundle/'],
   ['demos/fifteen-lines/index.html', 'https://viewspec.dev/fifteen-lines/'],
   ['demos/style-derivation/index.html', 'https://viewspec.dev/style-derivation/'],
-  ['demos/aesthetic-profiles/index.html', 'https://viewspec.dev/aesthetic-profiles/'],
 ]
 
 function extractJsonLd(html) {
@@ -118,6 +118,25 @@ assert.deepEqual(
   'public facts host assertion fields'
 )
 
+assertPublicEqual(publicFacts.appbundle_state_ir.demo_url, 'https://viewspec.dev/appbundle-state-ir/', 'public facts State IR demo URL')
+assertPublicEqual(publicFacts.appbundle_state_ir.state_profile, 'interactive_state_v0', 'public facts State IR profile')
+assertPublicEqual(publicFacts.appbundle_state_ir.reducer_artifact, 'state_reducer.ts', 'public facts State IR reducer artifact')
+assertPublicEqual(publicFacts.appbundle_state_ir.reducer_export, 'reduceViewSpecState', 'public facts State IR reducer export')
+assertPublicEqual(publicFacts.appbundle_state_ir.replay_field, 'state_replay_assertions', 'public facts State IR replay field')
+assertPublicEqual(publicFacts.appbundle_state_ir.proof_command_short, 'viewspec prove-app --with-shell', 'public facts State IR short proof command')
+assertPublicText(JSON.stringify(publicFacts.appbundle_state_ir), 'prove-app --with-shell', 'public facts State IR proof command')
+assertPublicText(publicFacts.appbundle_state_ir.scope, 'interactive_state_v0', 'public facts State IR scope')
+assertPublicText(publicFacts.appbundle_state_ir.non_claim, 'not Redux', 'public facts State IR non-claim')
+assertPublicText(publicFacts.appbundle_state_ir.non_claim, 'Zustand', 'public facts State IR non-claim')
+assertPublicText(publicFacts.appbundle_state_ir.non_claim, 'CRDT', 'public facts State IR non-claim')
+assertPublicText(publicFacts.appbundle_state_ir.non_claim, 'persistence', 'public facts State IR non-claim')
+assertPublicText(publicFacts.appbundle_state_ir.non_claim, 'backend generation', 'public facts State IR non-claim')
+assert.deepEqual(
+  publicFacts.appbundle_state_ir.proof_facts,
+  ['state replay passed', 'reducer generated', 'manifest checked', 'shell hash matched', 'no runtime LLM'],
+  'public facts State IR proof badges'
+)
+
 const aestheticProfileTokens = [
   'aesthetic.calm_ops',
   'aesthetic.premium_saas',
@@ -126,9 +145,89 @@ const aestheticProfileTokens = [
   'aesthetic.executive_review',
 ]
 assert.deepEqual(publicFacts.aesthetic_profiles.tokens, aestheticProfileTokens, 'public facts aesthetic profile tokens')
+assertPublicEqual(publicFacts.aesthetic_profiles.homepage_url, 'https://viewspec.dev/', 'public facts aesthetic homepage URL')
+assertPublicEqual(
+  publicFacts.aesthetic_profiles.evidence_artifact,
+  'https://viewspec.dev/landing-compiled/profile-evidence.json',
+  'public facts aesthetic evidence artifact'
+)
+assertPublicEqual(
+  publicFacts.aesthetic_profiles.default_profile,
+  'aesthetic.calm_ops',
+  'public facts aesthetic default profile'
+)
 assertPublicText(publicFacts.aesthetic_profiles.scope, 'deterministic view-level art-direction handles', 'public facts aesthetic scope')
+assertPublicText(publicFacts.aesthetic_profiles.scope, 'five compiled landing artifacts', 'public facts aesthetic homepage scope')
+assertPublicText(publicFacts.aesthetic_profiles.scope, 'stable semantic ids', 'public facts aesthetic semantic ids scope')
+assertPublicText(publicFacts.aesthetic_profiles.scope, 'zero shell overrides', 'public facts aesthetic shell override scope')
 assertPublicText(publicFacts.aesthetic_profiles.scope, 'compact style-delta counts', 'public facts aesthetic style summary scope')
 assertPublicText(publicFacts.aesthetic_profiles.non_claim, 'not arbitrary CSS', 'public facts aesthetic non-claim')
+
+const expectedProfileSlugs = {
+  'aesthetic.calm_ops': 'calm-ops',
+  'aesthetic.premium_saas': 'premium-saas',
+  'aesthetic.data_dense': 'data-dense',
+  'aesthetic.editorial_product': 'editorial-product',
+  'aesthetic.executive_review': 'executive-review',
+}
+const landingProfileEvidence = JSON.parse(await readFile('demos/landing-compiled/profile-evidence.json', 'utf8'))
+assert.equal(landingProfileEvidence.version, 'landing_compiled_aesthetic_profiles.v1')
+assert.equal(landingProfileEvidence.defaultProfile, 'aesthetic.calm_ops')
+assert.equal(landingProfileEvidence.profileCount, 5)
+assert.equal(landingProfileEvidence.semanticIdsStable, true)
+assert.equal(landingProfileEvidence.shellOverrides, 0)
+assert.equal(landingProfileEvidence.styleProjectionDistinct, true)
+assert.equal(landingProfileEvidence.styleProjectionHashCount, 5)
+assert.deepEqual(Object.keys(landingProfileEvidence.profiles).sort(), [...aestheticProfileTokens].sort())
+const profileSemanticHashes = new Set()
+const profileStyleHashes = new Set()
+const profileNodeCounts = new Set()
+for (const token of aestheticProfileTokens) {
+  const profile = landingProfileEvidence.profiles[token]
+  const profileDir = `demos/landing-compiled/profiles/${expectedProfileSlugs[token]}`
+  assert(profile, `${token} profile evidence is missing`)
+  assert.equal(profile.slug, expectedProfileSlugs[token], `${token} profile slug`)
+  assert.equal(profile.manifestAestheticProfile, token, `${token} manifest profile marker`)
+  assert.equal(profile.invariantFlags?.manifestProfileMatches, true, `${token} manifest profile invariant`)
+  assert.equal(profile.invariantFlags?.sameSemanticGraph, true, `${token} semantic graph invariant`)
+  assert.equal(profile.invariantFlags?.semanticIdsStable, true, `${token} semantic id invariant`)
+  assert.equal(profile.invariantFlags?.shellOverridesZero, true, `${token} shell override invariant`)
+  assert.equal(profile.invariantFlags?.styleProjectionDistinct, true, `${token} style hash invariant`)
+  assert(profile.artifactBodyUrl.includes('/landing-compiled/profiles/'), `${token} artifact body URL`)
+  assert(profile.manifestUrl.includes('/landing-compiled/profiles/'), `${token} manifest URL`)
+  assert(profile.intentUrl.includes('/landing-compiled/profiles/'), `${token} intent URL`)
+  assert(profile.styleSignature.includes('changed tokens'), `${token} style signature`)
+  assert.equal(
+    profile.styleSignature,
+    `${profile.styleProof.changed_token_count} changed tokens / ${profile.styleProof.category_count} categories / ${profile.styleProof.declaration_count} declarations`,
+    `${token} style signature proof`
+  )
+  assert(profile.layoutSignature.includes('workspace'), `${token} layout signature`)
+  assert(profile.nodeCount > 0, `${token} node count`)
+  await stat(`${profileDir}/index.html`)
+  await stat(`${profileDir}/intent_bundle.json`)
+  await stat(`${profileDir}/artifact_body.html`)
+  await stat(`${profileDir}/provenance_manifest.json`)
+  const profileBody = await readFile(`${profileDir}/artifact_body.html`, 'utf8')
+  assertPublicText(profileBody, `data-aesthetic-profile="${token}"`, `${token} compiled body aesthetic marker`)
+  assert.equal((profileBody.match(/data-viewspec-page-artifact="true"/g) || []).length, 1, `${token} active artifact root count`)
+  const profileManifest = JSON.parse(await readFile(`${profileDir}/provenance_manifest.json`, 'utf8'))
+  assert.equal(profileManifest.nodes?.['dom-region_root']?.props?.aesthetic_profile, token, `${token} manifest aesthetic profile`)
+  assert(profileManifest.nodes?.['dom-region_root']?.style_tokens?.includes(token), `${token} manifest root style token`)
+  assert.equal(profileManifest.command, 'compile', `${token} profile manifest command`)
+  assert.equal(profileManifest.kind, 'intent_bundle_compile', `${token} profile manifest kind`)
+  const profileIntent = JSON.parse(await readFile(`${profileDir}/intent_bundle.json`, 'utf8'))
+  assert(
+    profileIntent.view_spec.styles.some((style) => style.token === token || style.tokens?.includes(token)),
+    `${token} profile intent declares aesthetic token`
+  )
+  profileSemanticHashes.add(profile.semanticHash)
+  profileStyleHashes.add(profile.styleProjectionHash)
+  profileNodeCounts.add(profile.nodeCount)
+}
+assert.equal(profileSemanticHashes.size, 1, 'compiled profile semantic hashes stay stable')
+assert.equal(profileStyleHashes.size, 5, 'compiled profile style hashes differ')
+assert.equal(profileNodeCounts.size, 1, 'compiled profile node counts stay stable')
 
 const agentManifest = JSON.parse(await readFile('demos/agent-assets.json', 'utf8'))
 assertPublicEqual(publicFacts.agent_assets.manifest_url, 'https://viewspec.dev/agent-assets.json', 'public facts agent assets manifest')
@@ -220,21 +319,17 @@ for (const hostProofTextPath of ['README.md', 'docs/getting-started.md', 'docs/a
   assertPublicText(text, 'aesthetic_layout_assertion_count', `${hostProofTextPath} host assertion layout requirement`)
 }
 
-for (const productTextPath of ['README.md', 'demos/index.html', 'demos/llms.txt', 'demos/llms-full.txt']) {
+for (const productTextPath of ['README.md', 'demos/llms.txt', 'demos/llms-full.txt']) {
   const productText = await readFile(productTextPath, 'utf8')
   assertPublicText(productText, proPrice, `${productTextPath} pro price`)
   assertPublicText(productText, proCalls, `${productTextPath} pro hosted calls`)
 }
-for (const productTextPath of ['README.md', 'demos/index.html', 'demos/llms.txt', 'demos/llms-full.txt']) {
+for (const productTextPath of ['README.md', 'demos/llms.txt', 'demos/llms-full.txt']) {
   const productText = await readFile(productTextPath, 'utf8')
   assertPublicText(productText, freeCalls, `${productTextPath} free hosted calls`)
 }
 assertPublicText(await readFile('README.md', 'utf8'), publicFacts.package_url, 'README package URL')
-assertPublicText(home, publicFacts.proof.first_proof_command, 'landing first proof')
-assertPublicText(home, 'PROOF.md', 'landing proof summary')
-assertPublicText(home, 'support_bundle.json', 'landing support bundle')
 assertPublicText(home, './proof-bundle/', 'landing proof bundle guide link')
-assertPublicText(home, publicFacts.proof.non_claim.split(',')[0], 'landing proof scope')
 
 const proofBundlePage = await readFile('demos/proof-bundle/index.html', 'utf8')
 for (const expected of [
@@ -257,6 +352,50 @@ for (const expected of [
 }
 assertPublicText(await readFile('demos/llms.txt', 'utf8'), 'https://viewspec.dev/proof-bundle/', 'llms proof bundle public URL')
 assertPublicText(await readFile('demos/llms-full.txt', 'utf8'), 'https://viewspec.dev/proof-bundle/', 'llms-full proof bundle public URL')
+
+const stateIrTerms = [
+  'interactive_state_v0',
+  'reduceViewSpecState',
+  'state_replay_assertions',
+  'prove-app --with-shell',
+  'state_reducer.ts',
+]
+for (const stateIrTextPath of ['demos/index.html', 'demos/appbundle-state-ir/index.html', 'demos/llms.txt', 'demos/llms-full.txt']) {
+  const text = await readFile(stateIrTextPath, 'utf8')
+  for (const term of stateIrTerms) {
+    assertPublicText(text, term, `${stateIrTextPath} State IR term`)
+  }
+}
+for (const term of stateIrTerms) {
+  assertPublicText(JSON.stringify(publicFacts.appbundle_state_ir), term, 'public facts State IR term')
+}
+assertPublicText(home, './appbundle-state-ir/', 'landing State IR page link')
+for (const expected of ['state replay passed', 'reducer generated', 'shell hash matched', 'No runtime LLM']) {
+  assertPublicText(home, expected, 'landing State IR proof badge')
+}
+assertPublicText(await readFile('demos/llms.txt', 'utf8'), 'https://viewspec.dev/appbundle-state-ir/', 'llms State IR public URL')
+assertPublicText(await readFile('demos/llms-full.txt', 'utf8'), 'https://viewspec.dev/appbundle-state-ir/', 'llms-full State IR public URL')
+
+const stateIrPage = await readFile('demos/appbundle-state-ir/index.html', 'utf8')
+for (const expected of [
+  'AppBundle JSON',
+  'Generated reducer',
+  'Replay assertion',
+  'Rendered shell',
+  'Proof report facts',
+  'state replay',
+  'reducer generated',
+  'manifest checked',
+  'shell hash matched',
+  'Runtime LLM',
+  'not Redux',
+  'not Zustand',
+  'not CRDT',
+  'not persistence',
+  'not backend generation',
+]) {
+  assertPublicText(stateIrPage, expected, 'State IR demo')
+}
 
 const statefulCollectionsPage = await readFile('demos/stateful-collections/index.html', 'utf8')
 for (const expected of [
@@ -373,6 +512,14 @@ assert.equal(landingCompiledManifest.guarantees?.decompilation, 'not_applicable'
 assert.equal(landingCompiledManifest.artifact_hash, sha256(landingCompiledBytes))
 assert(Array.isArray(landingCompiledManifest.diagnostics), 'landing compiled manifest needs diagnostics array')
 assert.equal(landingCompiledManifest.external_refs.length, 0)
+for (const expected of [
+  'Agent-native app compiler',
+  'Ship agent-built apps you can prove.',
+  'state_replay_assertions',
+  'Intent in',
+]) {
+  assertPublicText(landingCompiledHtml, expected, 'compiled landing artifact')
+}
 
 const robots = await readFile('demos/robots.txt', 'utf8')
 assert.match(robots, /User-agent: \*/)
@@ -382,6 +529,7 @@ const sitemap = await readFile('demos/sitemap.xml', 'utf8')
 for (const [, canonical] of pages) {
   assert.match(sitemap, new RegExp(`<loc>${canonical.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}</loc>`))
 }
+assert.doesNotMatch(sitemap, /https:\/\/viewspec\.dev\/aesthetic-profiles\//)
 
 const llms = await readFile('demos/llms.txt', 'utf8')
 assert.match(llms, /agent-native UI compiler/i)
@@ -389,7 +537,28 @@ assert.match(llms, /viewspec init-intent/)
 assert.match(llms, /viewspec validate-intent/)
 assert.match(llms, /agentic engineering/i)
 assert.match(llms, /https:\/\/api\.viewspec\.dev\/v1\/compile/)
+assertPublicText(llms, 'Homepage compiled aesthetic profiles: https://viewspec.dev/', 'llms homepage aesthetic public URL')
+assertPublicText(
+  llms,
+  'https://viewspec.dev/landing-compiled/profile-evidence.json',
+  'llms profile evidence public URL'
+)
+assert.doesNotMatch(llms, /Aesthetic profiles demo/)
+assert.doesNotMatch(llms, /https:\/\/viewspec\.dev\/aesthetic-profiles\//)
 assert.doesNotMatch(llms, /\$699|699\/mo/)
+const llmsFull = await readFile('demos/llms-full.txt', 'utf8')
+assertPublicText(
+  llmsFull,
+  'Homepage compiled aesthetic profiles: https://viewspec.dev/',
+  'llms-full homepage aesthetic public URL'
+)
+assertPublicText(
+  llmsFull,
+  'https://viewspec.dev/landing-compiled/profile-evidence.json',
+  'llms-full profile evidence public URL'
+)
+assert.doesNotMatch(llmsFull, /Aesthetic profiles demo/)
+assert.doesNotMatch(llmsFull, /https:\/\/viewspec\.dev\/aesthetic-profiles\//)
 for (const file of ['demos/llms-full.txt', 'demos/openapi.json', 'demos/cross-platform-dashboard/index.html']) {
   const text = await readFile(file, 'utf8')
   assert.doesNotMatch(text, /agent-native UI IR/i, `${file} should describe IntentBundle/compiler, not IR as source`)
@@ -401,9 +570,62 @@ assert.doesNotMatch(landing, /agent-native UI IR, agent-native UI IR/)
 assert.doesNotMatch(landing, /Your agent writes HTML/)
 assert.doesNotMatch(landing, /agent HTML governance first/)
 assert.doesNotMatch(landing, /agent HTML governance/)
-assert.match(landing, /Stop asking agents to write DOM/)
-assert.match(landing, /viewspec init-intent/)
-assert.match(landing, /viewspec validate-intent/)
+assert.match(landing, /Ship agent-built apps you can prove/)
+assert.match(landing, /Intent in\. App out\. Proof attached/)
+for (const expected of [
+  'data-viewspec-page-artifact="true"',
+  'data-viewspec-profile="aesthetic.calm_ops"',
+  'id="landing-profile-evidence"',
+  'id="viewspec-artifact-slot"',
+  'artifact-profile-dock',
+  'data-profile-token="aesthetic.calm_ops"',
+  'data-profile-token="aesthetic.premium_saas"',
+  'data-profile-token="aesthetic.data_dense"',
+  'data-profile-token="aesthetic.editorial_product"',
+  'data-profile-token="aesthetic.executive_review"',
+  'id="profile-proof-value"',
+  'Same graph, new projection',
+  'same semantic graph',
+  'compiled aesthetic profile',
+  'Compiled aesthetic profile homepage artifacts',
+  'landing-compiled/profile-evidence.json',
+  'data-page-evidence="provenance"',
+  'data-source-view="intent"',
+  'data-source-view="profile"',
+  'Inspect artifact',
+  'Profile proof',
+  'artifact-source-summary',
+  'artifact-source-raw',
+  'id="pricing"',
+  'id="pricing-actions"',
+  'skip-link',
+  'id="ir-inspector-value"',
+  './vendor/pretext/pretext.global.js?v=20260628-global',
+  'id="pretext-fit"',
+  'landing-compiled/intent_bundle.json',
+  'landing-compiled/provenance_manifest.json',
+]) {
+  assertPublicText(landing, expected, 'landing page artifact controls')
+}
+assert.doesNotMatch(landing, /data-page-style=/)
+assert.doesNotMatch(landing, /data-viewspec-style=/)
+assert.doesNotMatch(landing, /Dense Ops/)
+assert.doesNotMatch(landing, /Launch\s*<\/button>/)
+assert.match(landing, /\.artifact-profile-switcher\s*{[\s\S]*?flex-wrap: wrap;[\s\S]*?overflow: visible;/)
+assert.doesNotMatch(landing, /\.artifact-profile-switcher\s*{[\s\S]*?overflow-x: auto;/)
+for (const removedId of ['dom-motif_compile_flow', 'dom-motif_proof_contract', 'dom-motif_agent_workflow', 'dom-motif_artifact_identity', 'dom-motif_pricing']) {
+  assert.doesNotMatch(landing, new RegExp(`<[^>]+id="${removedId}"`), `${removedId} should not be emitted on concise homepage`)
+}
+await stat('demos/vendor/pretext/pretext.esm.js')
+await stat('demos/vendor/pretext/pretext.global.js')
+for (const file of ['analysis', 'line-break', 'line-text', 'measurement']) {
+  await stat(`demos/vendor/pretext/dist/${file}.js`)
+}
+const pretextGlobal = await readFile('demos/vendor/pretext/pretext.global.js', 'utf8')
+assertPublicText(pretextGlobal, '@chenglou/pretext@0.0.6', 'landing Pretext global bundle')
+assertPublicText(pretextGlobal, 'window.ViewSpecPretext', 'landing Pretext global export')
+assert.doesNotMatch(landing, /self-render-frame/)
+assert.doesNotMatch(landing, /<iframe[^>]+landing-compiled\/index\.html/)
 assert.doesNotMatch(landing, /\"price\": \"2500\"/)
 // Pricing CTAs keep direct href fallbacks for crawlers and data-config-link
 // hooks so window.VIEWSPEC_LANDING_CONFIG can override destinations at runtime.
@@ -444,6 +666,13 @@ assert.deepEqual(
   publicFacts.proof.host_assertion_requirements,
   'OpenAPI public facts host assertion requirements'
 )
+assertPublicEqual(openapi['x-viewspec-public-facts'].appbundleStateIrDemoUrl, publicFacts.appbundle_state_ir.demo_url, 'OpenAPI public facts State IR demo URL')
+assertPublicEqual(openapi['x-viewspec-public-facts'].appbundleStateIrProfile, publicFacts.appbundle_state_ir.state_profile, 'OpenAPI public facts State IR profile')
+assertPublicEqual(openapi['x-viewspec-public-facts'].appbundleStateIrReducerArtifact, publicFacts.appbundle_state_ir.reducer_artifact, 'OpenAPI public facts State IR reducer artifact')
+assertPublicEqual(openapi['x-viewspec-public-facts'].appbundleStateIrReducerExport, publicFacts.appbundle_state_ir.reducer_export, 'OpenAPI public facts State IR reducer export')
+assertPublicEqual(openapi['x-viewspec-public-facts'].appbundleStateIrReplayField, publicFacts.appbundle_state_ir.replay_field, 'OpenAPI public facts State IR replay field')
+assertPublicEqual(openapi['x-viewspec-public-facts'].appbundleStateIrProofCommandShort, publicFacts.appbundle_state_ir.proof_command_short, 'OpenAPI public facts State IR short proof command')
+assertPublicEqual(openapi['x-viewspec-public-facts'].appbundleStateIrProofCommand, publicFacts.appbundle_state_ir.proof_command, 'OpenAPI public facts State IR proof command')
 assertPublicEqual(openapi['x-viewspec-public-facts'].agentAssetManifest, publicFacts.agent_assets.manifest_url, 'OpenAPI public facts agent asset manifest')
 assertPublicEqual(openapi['x-viewspec-public-facts'].agentAssetSchemaVersion, publicFacts.agent_assets.schema_version, 'OpenAPI public facts agent asset schema version')
 assertPublicEqual(openapi['x-viewspec-public-facts'].agentAssetContractProfile, publicFacts.agent_assets.contract_profile, 'OpenAPI public facts agent asset profile')

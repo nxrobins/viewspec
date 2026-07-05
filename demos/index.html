@@ -1,2306 +1,1774 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-viewspec-profile="aesthetic.calm_ops" data-viewspec-evidence="clean">
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>ViewSpec - Agent-native UI compiler</title>
-  <meta name="description" content="Agents describe UI intent as IntentBundle JSON. ViewSpec validates it, applies DESIGN.md, records provenance, and compiles deterministic UI outputs without runtime LLM calls.">
-  <meta name="robots" content="index,follow,max-snippet:-1,max-image-preview:large">
-  <meta name="application-name" content="ViewSpec">
-  <meta name="keywords" content="agent-native UI compiler, IntentBundle, semantic UI compiler, AI coding agents, deterministic HTML, semantic diff, provenance, DESIGN.md, Python SDK">
-  <link rel="canonical" href="https://viewspec.dev/">
-  <link rel="sitemap" type="application/xml" href="https://viewspec.dev/sitemap.xml">
-  <link rel="alternate" type="text/markdown" title="ViewSpec for LLMs" href="https://viewspec.dev/llms.txt">
-  <link rel="alternate" type="application/json" title="ViewSpec OpenAPI" href="https://viewspec.dev/openapi.json">
-  <meta property="og:site_name" content="ViewSpec">
-  <meta property="og:type" content="website">
-  <meta property="og:title" content="ViewSpec - Agent-native UI compiler">
-  <meta property="og:description" content="Agents describe UI intent. ViewSpec validates IntentBundle JSON, applies DESIGN.md, records provenance, and compiles deterministic UI outputs.">
-  <meta property="og:url" content="https://viewspec.dev/">
-  <meta name="twitter:card" content="summary">
-  <meta name="twitter:title" content="ViewSpec - Agent-native UI compiler">
-  <meta name="twitter:description" content="Validate IntentBundle JSON, apply DESIGN.md, record provenance, and compile deterministic UI outputs locally.">
-  <script type="application/ld+json">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ViewSpec - Ship agent-built apps you can prove</title>
+<meta name="description" content="Agents author app intent as JSON. ViewSpec compiles UI, state reducers, replay checks, shell artifacts, and proof reports without runtime LLM calls.">
+<meta name="robots" content="index,follow,max-snippet:-1,max-image-preview:large">
+<meta name="application-name" content="ViewSpec">
+<meta name="keywords" content="agent-native app compiler, AppBundle, State IR, IntentBundle, semantic UI compiler, AI coding agents, deterministic HTML, reducers, provenance, proof pipeline, Python SDK">
+<link rel="canonical" href="https://viewspec.dev/">
+<link rel="sitemap" type="application/xml" href="https://viewspec.dev/sitemap.xml">
+<link rel="alternate" type="text/markdown" title="ViewSpec for LLMs" href="https://viewspec.dev/llms.txt">
+<link rel="alternate" type="application/json" title="ViewSpec OpenAPI" href="https://viewspec.dev/openapi.json">
+<meta property="og:site_name" content="ViewSpec">
+<meta property="og:type" content="website">
+<meta property="og:title" content="ViewSpec - Ship agent-built apps you can prove">
+<meta property="og:description" content="Agents author app intent. ViewSpec compiles UI, state reducers, shell artifacts, replay assertions, and proof reports.">
+<meta property="og:url" content="https://viewspec.dev/">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="ViewSpec - Ship agent-built apps you can prove">
+<meta name="twitter:description" content="Compile agent-authored app intent into UI, State IR, reducers, replay checks, checked shells, and proof reports.">
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@graph": [
     {
-      "@context": "https://schema.org",
-      "@graph": [
+      "@type": "Organization",
+      "@id": "https://viewspec.dev/#organization",
+      "name": "ViewSpec",
+      "url": "https://viewspec.dev/",
+      "sameAs": [
+        "https://github.com/nxrobins/viewspec",
+        "https://pypi.org/project/viewspec/"
+      ]
+    },
+    {
+      "@type": "WebSite",
+      "@id": "https://viewspec.dev/#website",
+      "url": "https://viewspec.dev/",
+      "name": "ViewSpec",
+      "description": "Agent-native app compiler, hosted compiler API, and Python SDK for deterministic UI, state, reducers, and proof bundles.",
+      "publisher": {
+        "@id": "https://viewspec.dev/#organization"
+      },
+      "inLanguage": "en"
+    },
+    {
+      "@type": "SoftwareApplication",
+      "@id": "https://viewspec.dev/#software",
+      "name": "ViewSpec",
+      "applicationCategory": "DeveloperApplication",
+      "applicationSubCategory": "Agent-native app compiler",
+      "operatingSystem": "Python 3.11+ and Web API",
+      "url": "https://viewspec.dev/",
+      "downloadUrl": "https://pypi.org/project/viewspec/",
+      "codeRepository": "https://github.com/nxrobins/viewspec",
+      "programmingLanguage": [
+        "Python",
+        "JSON",
+        "Protocol Buffers"
+      ],
+      "description": "ViewSpec validates agent-authored IntentBundle and AppBundle JSON, proves first artifacts with viewspec prove and prove-app --with-shell, writes PROOF.md, proof_report.json, support_bundle.json, APP_PROOF.md, app_proof_report.json, state_reducer.ts, and state_manifest.json, records compact style-delta counts, applies DESIGN.md, writes provenance, and compiles deterministic UI outputs.",
+      "keywords": "agent-native app compiler, AppBundle, interactive_state_v0, reduceViewSpecState, state_replay_assertions, IntentBundle, compiled aesthetic profiles, semantic UI compiler, agentic engineering, AI coding agents, deterministic HTML, semantic diff, provenance",
+      "featureList": [
+        "Local viewspec init-intent and validate-intent for agent-authored IntentBundles",
+        "Local AppBundle V3 interactive_state_v0 proof with generated state_reducer.ts",
+        "Pure TypeScript reduceViewSpecState reducer generation with state_replay_assertions",
+        "viewspec prove-app --with-shell for shell hash and replay proof",
+        "Compiled aesthetic profile homepage artifacts with stable semantic ids and distinct style projection hashes",
+        "Local viewspec compile for deterministic UI artifacts",
+        "Auditable provenance_manifest.json with stable hashes",
+        "DESIGN.md theming without arbitrary CSS or script",
+        "Hosted compiler API at api.viewspec.dev for IntentBundle workflows"
+      ],
+      "offers": [
         {
-          "@type": "Organization",
-          "@id": "https://viewspec.dev/#organization",
-          "name": "ViewSpec",
-          "url": "https://viewspec.dev/",
-          "sameAs": [
-            "https://github.com/nxrobins/viewspec",
-            "https://pypi.org/project/viewspec/"
-          ]
+          "@type": "Offer",
+          "name": "Free",
+          "price": "0",
+          "priceCurrency": "USD",
+          "url": "https://viewspec.dev/#pricing"
         },
         {
-          "@type": "WebSite",
-          "@id": "https://viewspec.dev/#website",
-          "url": "https://viewspec.dev/",
-          "name": "ViewSpec",
-          "description": "Agent-native UI compiler, hosted compiler API, and Python SDK for deterministic UI generation.",
-          "publisher": { "@id": "https://viewspec.dev/#organization" },
-          "inLanguage": "en"
+          "@type": "Offer",
+          "name": "Pro",
+          "price": "149",
+          "priceCurrency": "USD",
+          "url": "https://viewspec.dev/#pricing"
         },
         {
-          "@type": "SoftwareApplication",
-          "@id": "https://viewspec.dev/#software",
-          "name": "ViewSpec",
-          "applicationCategory": "DeveloperApplication",
-          "applicationSubCategory": "Agent-native UI compiler",
-          "operatingSystem": "Python 3.11+ and Web API",
-          "url": "https://viewspec.dev/",
-          "downloadUrl": "https://pypi.org/project/viewspec/",
-          "codeRepository": "https://github.com/nxrobins/viewspec",
-          "programmingLanguage": ["Python", "JSON", "Protocol Buffers"],
-          "description": "ViewSpec validates agent-authored IntentBundle JSON, proves first artifacts with viewspec prove, writes PROOF.md, proof_report.json, and support_bundle.json, records compact style-delta counts for profiled artifacts, applies DESIGN.md, writes provenance, and compiles deterministic UI outputs before hosted cross-platform emission.",
-          "keywords": "agent-native UI compiler, IntentBundle, semantic UI compiler, agentic engineering, AI coding agents, deterministic HTML, semantic diff, provenance",
-          "featureList": [
-            "Local viewspec init-intent and validate-intent for agent-authored IntentBundles",
-            "Local viewspec compile for deterministic UI artifacts",
-            "Auditable provenance_manifest.json with stable hashes",
-            "DESIGN.md theming without arbitrary CSS or script",
-            "Hosted compiler API at api.viewspec.dev for IntentBundle workflows"
-          ],
-          "offers": [
-            { "@type": "Offer", "name": "Free", "price": "0", "priceCurrency": "USD", "url": "https://viewspec.dev/#pricing" },
-            { "@type": "Offer", "name": "Pro", "price": "149", "priceCurrency": "USD", "url": "https://viewspec.dev/#pricing" },
-            { "@type": "Offer", "name": "Enterprise", "price": "Custom", "priceCurrency": "USD", "url": "https://viewspec.dev/#pricing" }
-          ],
-          "publisher": { "@id": "https://viewspec.dev/#organization" }
+          "@type": "Offer",
+          "name": "Enterprise",
+          "price": "Custom",
+          "priceCurrency": "USD",
+          "url": "https://viewspec.dev/#pricing"
+        }
+      ],
+      "publisher": {
+        "@id": "https://viewspec.dev/#organization"
+      }
+    },
+    {
+      "@type": "WebAPI",
+      "@id": "https://viewspec.dev/#api",
+      "name": "ViewSpec Hosted Compiler API",
+      "url": "https://api.viewspec.dev/v1/compile",
+      "documentation": "https://viewspec.dev/openapi.json",
+      "description": "HTTP API for advanced ViewSpec IntentBundle compilation into CompositionIR, diagnostics, timing metadata, and provenance.",
+      "provider": {
+        "@id": "https://viewspec.dev/#organization"
+      }
+    },
+    {
+      "@type": "FAQPage",
+      "@id": "https://viewspec.dev/#faq",
+      "mainEntity": [
+        {
+          "@type": "Question",
+          "name": "What is ViewSpec?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "ViewSpec is an agent-native app compiler. Agents emit IntentBundle or AppBundle JSON, and ViewSpec validates it, applies DESIGN.md, records provenance, compiles renderer outputs, generates bounded reducers, and writes proof reports."
+          }
         },
         {
-          "@type": "WebAPI",
-          "@id": "https://viewspec.dev/#api",
-          "name": "ViewSpec Hosted Compiler API",
-          "url": "https://api.viewspec.dev/v1/compile",
-          "documentation": "https://viewspec.dev/openapi.json",
-          "description": "HTTP API for advanced ViewSpec IntentBundle compilation into CompositionIR, diagnostics, timing metadata, and provenance.",
-          "provider": { "@id": "https://viewspec.dev/#organization" }
-        },
-        {
-          "@type": "FAQPage",
-          "@id": "https://viewspec.dev/#faq",
-          "mainEntity": [
-            {
-              "@type": "Question",
-              "name": "What is ViewSpec?",
-              "acceptedAnswer": {
-                "@type": "Answer",
-                "text": "ViewSpec is an agent-native UI compiler. Agents emit IntentBundle JSON, and ViewSpec validates it, applies DESIGN.md, records provenance, and compiles renderer outputs."
-              }
-            },
-            {
-              "@type": "Question",
-              "name": "Is ViewSpec useful for vibe coding and agentic engineering?",
-              "acceptedAnswer": {
-                "@type": "Answer",
-                "text": "Yes. Agents can emit IntentBundle JSON first, then run local viewspec prove, validate-intent, compile, and check so humans can inspect PROOF.md, a redacted support bundle, and a deterministic artifact before hosted compiler features."
-              }
-            },
-            {
-              "@type": "Question",
-              "name": "Does ViewSpec call an LLM at runtime?",
-              "acceptedAnswer": {
-                "@type": "Answer",
-                "text": "No. The live compiler path is deterministic Python and reports measured compile_ms for each request."
-              }
-            }
-          ]
+          "@type": "Question",
+          "name": "Does ViewSpec call an LLM at runtime?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "No. The local compiler and generated artifacts are deterministic and do not call a runtime LLM."
+          }
         }
       ]
     }
-  </script>
-  <link rel="icon" href="data:,">
-  <script>
-    window.tailwind = window.tailwind || {}
-    window.tailwind.config = {
-      theme: {
-        extend: {
-          spacing: {
-            panel: 'var(--space-panel)',
-            card: 'var(--space-card)',
-            control: 'var(--space-control)',
-            section: 'var(--section-y)',
-          },
-        },
+  ]
+}
+</script>
+<script type="application/json" id="landing-profile-evidence">
+{
+  "defaultProfile": "aesthetic.calm_ops",
+  "profileCount": 5,
+  "profiles": {
+    "aesthetic.calm_ops": {
+      "artifactBodyUrl": "./landing-compiled/profiles/calm-ops/artifact_body.html",
+      "artifactUrl": "./landing-compiled/profiles/calm-ops/index.html",
+      "intentUrl": "./landing-compiled/profiles/calm-ops/intent_bundle.json",
+      "invariantFlags": {
+        "manifestProfileMatches": true,
+        "sameSemanticGraph": true,
+        "semanticIdsStable": true,
+        "shellOverridesZero": true,
+        "styleProjectionDistinct": true
       },
-    }
-  </script>
-  <script src="https://cdn.tailwindcss.com"></script>
-  <!-- Runtime config (admin/landing API key). Must load BEFORE landing-playground
-       so window.VIEWSPEC_LANDING_CONFIG is set when landing-config.js reads it. -->
-  <script src="./shared/landing-runtime-config.js?v=20260505-launch"></script>
-  <script type="module" src="./shared/landing-playground.js?v=20260505-launch"></script>
-  <style>
-    :root {
-      color-scheme: dark;
-      --bg: #06080b;
-      --panel: #10151d;
-      --panel-2: #151b24;
-      --line: rgba(148, 163, 184, 0.18);
-      --line-strong: rgba(45, 212, 191, 0.36);
-      --text: #f8fafc;
-      --muted: #94a3b8;
-      --teal: #2dd4bf;
-      --amber: #f59e0b;
-      --rose: #fb7185;
-      --blue: #60a5fa;
-      --green: #34d399;
-      --shell: 1360px;
-      --gutter: 24px;
-      --space-1: 4px;
-      --space-2: 8px;
-      --space-3: 12px;
-      --space-4: 16px;
-      --space-5: 24px;
-      --space-6: 32px;
-      --space-7: 48px;
-      --space-8: 64px;
-      --space-panel: var(--space-4);
-      --space-card: var(--space-5);
-      --space-control: var(--space-3);
-      --section-y: clamp(56px, 7vw, 88px);
-      --radius-sm: 6px;
-      --radius-md: 8px;
-      --radius-lg: 12px;
-      --preview-pad: var(--space-5);
-    }
-
-    html {
-      scroll-behavior: smooth;
-    }
-
-    body {
-      background:
-        linear-gradient(90deg, rgba(148, 163, 184, 0.035) 1px, transparent 1px),
-        linear-gradient(0deg, rgba(148, 163, 184, 0.026) 1px, transparent 1px),
-        var(--bg);
-      background-size: 72px 72px;
-      color: var(--text);
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
-      min-height: 100vh;
-    }
-
-    a {
-      color: inherit;
-    }
-
-    .page-shell {
-      width: min(var(--shell), calc(100% - (var(--gutter) * 2)));
-      margin: 0 auto;
-    }
-
-    .top-nav {
-      align-items: center;
-      background: rgba(6, 8, 11, 0.86);
-      border-bottom: 1px solid rgba(148, 163, 184, 0.14);
-      backdrop-filter: blur(14px);
-      -webkit-backdrop-filter: blur(14px);
-      display: flex;
-      gap: var(--space-4);
-      justify-content: space-between;
-      left: 0;
-      padding: var(--space-3) max(var(--gutter), calc((100vw - var(--shell)) / 2));
-      position: fixed;
-      right: 0;
-      top: 0;
-      z-index: 50;
-    }
-
-    .brand-link {
-      color: var(--teal);
-      font-size: 0.95rem;
-      font-weight: 900;
-      letter-spacing: 0;
-      text-decoration: none;
-    }
-
-    .nav-links {
-      align-items: center;
-      display: flex;
-      flex-wrap: wrap;
-      gap: var(--space-1);
-      justify-content: flex-end;
-    }
-
-    .nav-links a,
-    .nav-install {
-      border: 1px solid transparent;
-      border-radius: var(--radius-sm);
-      color: #cbd5e1;
-      font-size: 0.78rem;
-      font-weight: 700;
-      line-height: 1;
-      padding: var(--space-2) var(--space-3);
-      text-decoration: none;
-    }
-
-    .nav-links a:hover,
-    .nav-install:hover {
-      background: rgba(148, 163, 184, 0.08);
-      color: #fff;
-    }
-
-    .nav-install {
-      align-items: center;
-      appearance: none;
-      background: transparent;
-      border-color: rgba(45, 212, 191, 0.24);
-      color: var(--teal);
-      cursor: pointer;
-      display: inline-flex;
-      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-      justify-content: center;
-      min-width: 10.2rem;
-    }
-
-    .hero {
-      display: grid;
-      gap: var(--space-7);
-      grid-template-columns: minmax(0, 0.86fr) minmax(420px, 1.14fr);
-      min-height: calc(100vh - 4rem);
-      padding: calc(72px + var(--space-7)) 0 var(--space-7);
-      align-items: center;
-    }
-
-    .eyebrow {
-      color: var(--teal);
-      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-      font-size: 0.74rem;
-      font-weight: 800;
-      letter-spacing: 0.12em;
-      margin-bottom: var(--space-4);
-      text-transform: uppercase;
-    }
-
-    .hero-copy {
-      max-width: 36rem;
-    }
-
-    .hero-copy h1 {
-      font-size: clamp(3rem, 8vw, 5.6rem);
-      font-weight: 950;
-      letter-spacing: 0;
-      line-height: 0.96;
-      margin: 0;
-    }
-
-    .hero-subtitle {
-      color: #dbeafe;
-      font-size: clamp(1.15rem, 2.5vw, 1.58rem);
-      font-weight: 760;
-      line-height: 1.24;
-      margin-top: var(--space-4);
-    }
-
-    .hero-body {
-      color: var(--muted);
-      font-size: 1rem;
-      line-height: 1.75;
-      margin-top: var(--space-4);
-      max-width: 34rem;
-    }
-
-    .hero-actions {
-      display: flex;
-      flex-wrap: wrap;
-      gap: var(--space-3);
-      margin-top: var(--space-5);
-    }
-
-    .button-primary,
-    .button-secondary {
-      align-items: center;
-      border-radius: var(--radius-sm);
-      display: inline-flex;
-      font-weight: 850;
-      justify-content: center;
-      min-height: 2.8rem;
-      padding: var(--space-3) var(--space-4);
-      text-decoration: none;
-    }
-
-    .button-primary {
-      background: #f8fafc;
-      color: #020617;
-    }
-
-    .button-primary:hover {
-      background: #dffdf8;
-    }
-
-    .button-secondary {
-      border: 1px solid rgba(148, 163, 184, 0.24);
-      color: #e2e8f0;
-    }
-
-    .button-secondary:hover {
-      border-color: rgba(45, 212, 191, 0.42);
-      color: #fff;
-    }
-
-    .pip-pill {
-      align-items: center;
-      background: rgba(45, 212, 191, 0.08);
-      border: 1px solid rgba(45, 212, 191, 0.24);
-      border-radius: var(--radius-sm);
-      color: var(--teal);
-      display: inline-flex;
-      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-      font-size: 0.9rem;
-      justify-content: center;
-      line-height: 1;
-      min-height: 2.8rem;
-      min-width: 12rem;
-      padding: var(--space-3) var(--space-4);
-      cursor: pointer;
-      user-select: none;
-    }
-
-    .pip-pill {
-      appearance: none;
-    }
-
-    .nav-install[data-copy-state="copied"],
-    .pip-pill[data-copy-state="copied"] {
-      background: rgba(45, 212, 191, 0.16);
-      border-color: rgba(45, 212, 191, 0.54);
-      color: #ccfbf1;
-    }
-
-    .nav-install:focus-visible,
-    .pip-pill:focus-visible {
-      outline: 2px solid rgba(45, 212, 191, 0.72);
-      outline-offset: 3px;
-    }
-
-    .hero-proof-bar {
-      align-items: center;
-      border-top: 1px solid rgba(148, 163, 184, 0.14);
-      display: flex;
-      flex-wrap: wrap;
-      gap: var(--space-4);
-      padding: var(--space-3) var(--space-4);
-    }
-
-    .proof-pill {
-      align-items: baseline;
-      display: inline-flex;
-      gap: var(--space-2);
-      min-height: 1.4rem;
-    }
-
-    .proof-pill-label {
-      color: var(--muted);
-      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-      font-size: 0.66rem;
-      font-weight: 850;
-      letter-spacing: 0.08em;
-      text-transform: uppercase;
-    }
-
-    .proof-pill-value {
-      color: var(--teal);
-      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-      font-size: 0.78rem;
-      font-weight: 900;
-    }
-
-    .section {
-      border-top: 1px solid rgba(148, 163, 184, 0.14);
-      padding: var(--section-y) 0;
-    }
-
-    .section-head {
-      align-items: end;
-      display: grid;
-      gap: var(--space-5);
-      grid-template-columns: minmax(0, 1fr) minmax(18rem, 0.55fr);
-      margin-bottom: var(--space-5);
-    }
-
-    .section-kicker {
-      color: var(--teal);
-      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-      font-size: 0.72rem;
-      font-weight: 850;
-      letter-spacing: 0.12em;
-      margin-bottom: var(--space-3);
-      text-transform: uppercase;
-    }
-
-    .section-title {
-      font-size: clamp(2rem, 5vw, 3.25rem);
-      font-weight: 930;
-      letter-spacing: 0;
-      line-height: 1;
-      margin: 0;
-    }
-
-    .section-copy,
-    .muted-copy {
-      color: var(--muted);
-      font-size: 0.95rem;
-      line-height: 1.65;
-    }
-
-    .panel {
-      background: rgba(16, 21, 29, 0.92);
-      border: 1px solid rgba(148, 163, 184, 0.18);
-      border-radius: var(--radius-md);
-      overflow: hidden;
-    }
-
-    .panel-header {
-      align-items: center;
-      border-bottom: 1px solid rgba(148, 163, 184, 0.14);
-      display: flex;
-      justify-content: space-between;
-      gap: var(--space-3);
-      padding: var(--space-3) var(--space-4);
-    }
-
-    .panel-title {
-      color: #e2e8f0;
-      font-size: 0.82rem;
-      font-weight: 850;
-      letter-spacing: 0.04em;
-      text-transform: uppercase;
-    }
-
-    .panel-body {
-      padding: var(--space-panel);
-    }
-
-    .status-pill {
-      border: 1px solid rgba(148, 163, 184, 0.22);
-      border-radius: 999px;
-      color: #cbd5e1;
-      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-      font-size: 0.7rem;
-      font-weight: 800;
-      padding: var(--space-1) var(--space-2);
-      white-space: nowrap;
-    }
-
-    .status-pill[data-state="live"] {
-      border-color: rgba(52, 211, 153, 0.42);
-      color: var(--green);
-    }
-
-    .status-pill[data-state="static"] {
-      border-color: rgba(245, 158, 11, 0.42);
-      color: var(--amber);
-    }
-
-    .status-pill[data-state="loading"] {
-      border-color: rgba(96, 165, 250, 0.42);
-      color: var(--blue);
-    }
-
-    .playground {
-      display: grid;
-      gap: var(--space-3);
-      grid-template-areas:
-        "controls"
-        "preview"
-        "inspectors";
-      grid-template-columns: 1fr;
-      align-items: start;
-    }
-
-    .controls {
-      display: grid;
-      grid-template-columns: repeat(4, minmax(0, 1fr));
-      gap: var(--space-control);
-    }
-
-    .control-group {
-      display: grid;
-      gap: var(--space-2);
-    }
-
-    .control-label {
-      color: #cbd5e1;
-      font-size: 0.78rem;
-      font-weight: 850;
-      letter-spacing: 0.04em;
-      text-transform: uppercase;
-    }
-
-    .segmented {
-      background: rgba(6, 8, 11, 0.66);
-      border: 1px solid rgba(148, 163, 184, 0.16);
-      border-radius: var(--radius-md);
-      display: grid;
-      gap: var(--space-1);
-      padding: var(--space-1);
-    }
-
-    .segmented.two {
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-    }
-
-    .segmented.three {
-      grid-template-columns: repeat(3, minmax(0, 1fr));
-    }
-
-    .segmented button {
-      border: 1px solid transparent;
-      border-radius: var(--radius-sm);
-      color: #94a3b8;
-      cursor: pointer;
-      font-size: 0.78rem;
-      font-weight: 800;
-      min-height: 2.25rem;
-      padding: var(--space-2) var(--space-2);
-      transition: background 160ms ease, border-color 160ms ease, color 160ms ease;
-    }
-
-    .segmented button[data-active="true"] {
-      background: #e2e8f0;
-      border-color: rgba(45, 212, 191, 0.36);
-      color: #020617;
-    }
-
-    .segmented button:hover {
-      border-color: rgba(148, 163, 184, 0.34);
-      color: #f8fafc;
-    }
-
-    .segmented button[data-active="true"]:hover {
-      color: #020617;
-    }
-
-    .hint-summary {
-      background: rgba(45, 212, 191, 0.08);
-      border: 1px solid rgba(45, 212, 191, 0.18);
-      border-radius: var(--radius-sm);
-      color: #bff7ef;
-      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-      font-size: 0.72rem;
-      font-weight: 760;
-      line-height: 1.45;
-      padding: var(--space-3);
-      grid-column: span 2;
-    }
-
-    .compile-stats {
-      display: grid;
-      gap: var(--space-2);
-      grid-template-columns: repeat(3, minmax(0, 1fr));
-      margin-top: var(--space-1);
-      grid-column: span 2;
-    }
-
-    .stat-cell {
-      background: rgba(6, 8, 11, 0.48);
-      border: 1px solid rgba(148, 163, 184, 0.14);
-      border-radius: var(--radius-sm);
-      padding: var(--space-2);
-    }
-
-    .stat-cell span {
-      color: var(--muted);
-      display: block;
-      font-size: 0.68rem;
-      font-weight: 800;
-      text-transform: uppercase;
-    }
-
-    .stat-cell strong {
-      color: #fff;
-      display: block;
-      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-      font-size: 0.9rem;
-      margin-top: 0.2rem;
-    }
-
-    .preview-shell {
-      display: grid;
-      grid-template-rows: auto 1fr;
-    }
-
-    .playground .preview-shell {
-      grid-area: preview;
-      min-height: 0;
-    }
-
-    .hero .preview-shell {
-      min-height: 0;
-    }
-
-    .playground > aside.panel:first-child {
-      grid-area: controls;
-    }
-
-    .preview-frame {
-      background: #0b1118;
-      border: 1px solid rgba(148, 163, 184, 0.18);
-      border-radius: var(--radius-md);
-      min-height: 18rem;
-      overflow-x: auto;
-      overflow-y: auto;
-      padding: var(--preview-pad);
-      scroll-padding: var(--preview-pad);
-      transition: all 240ms ease;
-    }
-
-    .preview-frame[data-preview-mode="hero"] {
-      align-items: center;
-      display: grid;
-      min-height: 16rem;
-      overflow: hidden;
-      padding: var(--space-4);
-    }
-
-    .preview-frame[data-preview-mode="workbench"] {
-      align-items: center;
-      display: grid;
-      min-height: clamp(17rem, 31vh, 22rem);
-    }
-
-    .viewport-shell {
-      box-sizing: border-box;
-      margin-inline: auto;
-      padding: var(--space-3);
-      transition: width 240ms ease, min-width 240ms ease;
-    }
-
-    .preview-inner {
-      width: 100%;
-      transition: width 240ms ease;
-    }
-
-    :is([data-compiled-output], .compare-output) [data-ir-id="region_root"] {
-      box-sizing: border-box;
-    }
-
-    :is([data-compiled-output], .compare-output) [data-ir-id="region_main"] {
-      gap: 0;
-    }
-
-    :is([data-compiled-output], .compare-output) [data-ir-id="motif_kpis"] {
-      align-items: stretch;
-      gap: var(--kpi-grid-gap, 16px);
-    }
-
-    :is([data-compiled-output], .compare-output) [data-ir-id^="motif_kpis_kpi"] {
-      box-sizing: border-box;
-      min-width: 0;
-    }
-
-    :is([data-compiled-output], .compare-output) [data-ir-id^="binding_kpi_"][data-ir-id$="_label"] {
-      min-width: 0;
-    }
-
-    :is([data-compiled-output], .compare-output) [data-ir-id^="binding_kpi_"][data-ir-id$="_value"] {
-      min-width: 0;
-      white-space: nowrap;
-    }
-
-    :is([data-compiled-output], .compare-output) [data-ir-id^="binding_kpi_"][data-ir-id$="_trend_label"] {
-      min-width: 0;
-    }
-
-    .preview-frame[data-preview-mode="hero"] .viewport-shell {
-      padding: 0;
-      width: 100%;
-    }
-
-    .preview-frame[data-preview-mode="hero"] [data-ir-id="region_root"] {
-      margin-inline: auto;
-      max-width: 100%;
-    }
-
-    .preview-frame[data-preview-mode="hero"] [data-ir-id="motif_kpis"] {
-      gap: clamp(10px, 1.8vw, 16px) !important;
-      grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
-    }
-
-    .preview-frame[data-preview-mode="hero"] [data-ir-id^="motif_kpis_kpi"] {
-      min-height: 126px !important;
-      padding: 16px !important;
-    }
-
-    .preview-frame[data-preview-mode="hero"] [data-ir-id^="binding_kpi_"][data-ir-id$="_label"] {
-      font-size: 0.72rem !important;
-      line-height: 1.12 !important;
-    }
-
-    .preview-frame[data-preview-mode="hero"] [data-ir-id^="binding_kpi_"][data-ir-id$="_value"] {
-      font-size: clamp(1.5rem, 3.1vw, 1.9rem) !important;
-    }
-
-    .preview-frame[data-preview-mode="hero"] [data-ir-id^="binding_kpi_"][data-ir-id$="_trend_label"] {
-      font-size: 0.68rem !important;
-      padding: 6px 9px !important;
-      white-space: nowrap;
-    }
-
-    .provenance-active {
-      outline: 3px solid rgba(96, 165, 250, 0.82);
-      outline-offset: 3px;
-    }
-
-    .inspector-column {
-      display: grid;
-      gap: var(--space-3);
-      grid-area: inspectors;
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-      grid-template-rows: auto auto;
-    }
-
-    .token-list {
-      display: grid;
-      gap: var(--space-2);
-      max-height: 21rem;
-      overflow: auto;
-      padding-right: var(--space-1);
-    }
-
-    .token-row {
-      background: rgba(6, 8, 11, 0.5);
-      border: 1px solid rgba(148, 163, 184, 0.16);
-      border-radius: var(--radius-sm);
-      color: inherit;
-      display: grid;
-      gap: var(--space-1);
-      padding: var(--space-3);
-      text-align: left;
-      width: 100%;
-    }
-
-    .token-row:hover {
-      border-color: rgba(96, 165, 250, 0.46);
-    }
-
-    .token-row-title {
-      color: #fff;
-      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-      font-size: 0.75rem;
-      font-weight: 850;
-    }
-
-    .token-row-trigger {
-      color: var(--teal);
-      font-size: 0.72rem;
-      font-weight: 760;
-    }
-
-    .token-row-reason {
-      color: var(--muted);
-      font-size: 0.72rem;
-      line-height: 1.45;
-    }
-
-    .api-grid {
-      display: grid;
-      gap: var(--space-4);
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-      margin-top: var(--space-4);
-    }
-
-    .code-block {
-      background: #06080b;
-      border: 1px solid rgba(148, 163, 184, 0.14);
-      border-radius: var(--radius-sm);
-      color: #dbeafe;
-      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-      font-size: 0.72rem;
-      line-height: 1.52;
-      max-height: 22rem;
-      overflow: auto;
-      padding: var(--space-3);
-      white-space: pre;
-    }
-
-    .before-after-grid {
-      display: grid;
-      gap: var(--space-4);
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-    }
-
-    .compare-label {
-      align-items: center;
-      display: flex;
-      gap: var(--space-2);
-    }
-
-    .compare-badge {
-      border-radius: 999px;
-      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-      font-size: 0.68rem;
-      font-weight: 850;
-      padding: var(--space-1) var(--space-2);
-    }
-
-    .compare-badge.free {
-      background: rgba(148, 163, 184, 0.12);
-      color: #cbd5e1;
-    }
-
-    .compare-badge.pro {
-      background: rgba(45, 212, 191, 0.14);
-      color: var(--teal);
-    }
-
-    .compare-output {
-      background: #0b1118;
-      border-radius: 0 0 var(--radius-md) var(--radius-md);
-      overflow-x: auto;
-      padding: var(--space-4);
-    }
-
-    .token-gallery {
-      display: grid;
-      gap: var(--space-3);
-      grid-template-columns: repeat(4, minmax(0, 1fr));
-    }
-
-    .token-card {
-      background: rgba(16, 21, 29, 0.92);
-      border: 1px solid rgba(148, 163, 184, 0.16);
-      border-radius: var(--radius-md);
-      color: inherit;
-      cursor: pointer;
-      min-height: 10rem;
-      padding: var(--space-4);
-      text-align: left;
-      transition: border-color 180ms ease, transform 180ms ease;
-    }
-
-    .token-card[data-active="true"] {
-      border-color: rgba(45, 212, 191, 0.56);
-      box-shadow: inset 0 0 0 1px rgba(45, 212, 191, 0.22);
-    }
-
-    .token-card:hover {
-      border-color: rgba(96, 165, 250, 0.5);
-      transform: translateY(-1px);
-    }
-
-    .token-name {
-      color: #fff;
-      display: block;
-      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-      font-size: 0.8rem;
-      font-weight: 900;
-      margin-bottom: var(--space-2);
-    }
-
-    .token-card span:not(.token-name) {
-      color: var(--muted);
-      display: block;
-      font-size: 0.76rem;
-      line-height: 1.45;
-      margin-top: var(--space-2);
-    }
-
-    .demo-grid,
-    .pricing-grid {
-      display: grid;
-      gap: var(--space-4);
-      grid-template-columns: repeat(3, minmax(0, 1fr));
-    }
-
-    .demo-card,
-    .pricing-card {
-      background: rgba(16, 21, 29, 0.9);
-      border: 1px solid rgba(148, 163, 184, 0.16);
-      border-radius: var(--radius-md);
-      display: grid;
-      gap: var(--space-3);
-      padding: var(--space-card);
-      text-decoration: none;
-    }
-
-    .demo-card:hover,
-    .pricing-card.featured {
-      border-color: rgba(45, 212, 191, 0.44);
-    }
-
-    .demo-num {
-      color: var(--teal);
-      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-      font-size: 0.7rem;
-      font-weight: 850;
-    }
-
-    .demo-title,
-    .pricing-name {
-      color: #fff;
-      font-size: 1rem;
-      font-weight: 900;
-    }
-
-    .demo-desc,
-    .pricing-detail {
-      color: var(--muted);
-      font-size: 0.84rem;
-      line-height: 1.55;
-    }
-
-    .price {
-      color: #fff;
-      font-size: 2rem;
-      font-weight: 950;
-      letter-spacing: 0;
-    }
-
-    .pricing-list {
-      color: #cbd5e1;
-      display: grid;
-      font-size: 0.85rem;
-      gap: var(--space-2);
-      line-height: 1.4;
-      list-style: none;
-      margin: 0;
-      padding: 0;
-    }
-
-    .pricing-list li::before {
-      color: var(--teal);
-      content: "+";
-      font-weight: 900;
-      margin-right: var(--space-2);
-    }
-
-    .pricing-card .button-primary,
-    .pricing-card .button-secondary {
-      margin-top: var(--space-2);
-      width: 100%;
-    }
-
-    #provenance-details pre {
-      color: #dbeafe;
-      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-      font-size: 0.7rem;
-      line-height: 1.5;
-      max-height: 12rem;
-      overflow: auto;
-      white-space: pre-wrap;
-    }
-
-    /* Colophon: the three influences ViewSpec acknowledges by name.
-       Functional, role-named framing — each entry says what role it plays
-       in the system (input convention / design research / typography). */
-    .colophon {
-      border-top: 1px solid rgba(148, 163, 184, 0.14);
-      color: var(--muted);
-      padding: var(--space-7) 0 var(--space-6);
-    }
-
-    .colophon-title {
-      color: #cbd5e1;
-      font-size: 0.78rem;
-      font-weight: 800;
-      letter-spacing: 0.18em;
-      margin: 0 0 var(--space-3);
-      text-transform: uppercase;
-    }
-
-    .colophon-list {
-      display: grid;
-      gap: var(--space-2);
-      list-style: none;
-      margin: 0 0 var(--space-3);
-      padding: 0;
-    }
-
-    .colophon-list li {
-      color: #cbd5e1;
-      font-size: 0.92rem;
-      line-height: 1.55;
-    }
-
-    .colophon-list strong {
-      color: #f8fafc;
-      font-weight: 800;
-    }
-
-    .colophon-list a {
-      color: #f8fafc;
-      text-decoration: none;
-    }
-
-    .colophon-list a:hover {
-      color: var(--teal);
-      text-decoration: underline;
-    }
-
-    .colophon-note {
-      color: var(--muted);
-      font-size: 0.78rem;
-      font-style: italic;
-      margin: 0;
-      max-width: 60rem;
-    }
-
-    footer {
-      border-top: 1px solid rgba(148, 163, 184, 0.14);
-      color: var(--muted);
-      font-size: 0.84rem;
-      padding: var(--space-6) 0 var(--space-7);
-    }
-
-    footer .page-shell {
-      align-items: center;
-      display: flex;
-      flex-wrap: wrap;
-      gap: var(--space-3);
-      justify-content: space-between;
-    }
-
-    footer a {
-      color: #cbd5e1;
-      text-decoration: none;
-    }
-
-    footer a:hover {
-      color: #fff;
-    }
-
-    /* ============================================================
-       Proof section: IntentBundle JSON + HTML render + code tabs
-       ============================================================ */
-
-    .proof-grid {
-      display: grid;
-      gap: var(--space-4);
-      grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.2fr) minmax(0, 1fr);
-      align-items: stretch;
-    }
-
-    .proof-panel {
-      display: flex;
-      flex-direction: column;
-      min-height: 26rem;
-      max-height: 38rem;
-      overflow: hidden;
-    }
-
-    .proof-panel .panel-header {
-      gap: var(--space-3);
-    }
-
-    .panel-meta {
-      align-items: center;
-      display: flex;
-      gap: var(--space-2);
-    }
-
-    .proof-button {
-      background: var(--teal);
-      border: none;
-      border-radius: var(--radius-sm);
-      color: #04201c;
-      cursor: pointer;
-      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-      font-size: 0.72rem;
-      font-weight: 900;
-      padding: var(--space-2) var(--space-3);
-      text-transform: uppercase;
-      letter-spacing: 0.04em;
-    }
-
-    .proof-button:hover {
-      background: #5eead4;
-    }
-
-    .proof-button:disabled {
-      cursor: progress;
-      opacity: 0.7;
-    }
-
-    .proof-code {
-      flex: 1;
-      margin: 0;
-      max-height: 30rem;
-      min-height: 22rem;
-      overflow: auto;
-      border: none;
-      border-radius: 0;
-      background: #06080b;
-    }
-
-    /* The Launch Operations Dashboard artifact is a complete page
-       (header + KPIs + status table + form + button — ~64rem tall).
-       Wrap the iframe and use scale-down to show the WHOLE dashboard
-       at half size. The wrapper clips and bounds; the iframe inside
-       is double-size and scaled by 0.5 to fill the wrapper exactly. */
-    .proof-iframe-wrap {
-      background: #ffffff;
-      flex: 1;
-      min-height: 28rem;
-      max-height: 32rem;
-      overflow: hidden;
-      position: relative;
-    }
-    .proof-iframe {
-      border: none;
-      display: block;
-      height: 64rem;
-      pointer-events: none;
-      transform: scale(0.5);
-      transform-origin: top left;
-      width: 200%;
-    }
-
-    .proof-meta-note {
-      border-top: 1px solid rgba(148, 163, 184, 0.14);
-      margin: 0;
-      padding: var(--space-2) var(--space-3);
-    }
-
-    .proof-tabs {
-      display: inline-flex;
-      gap: var(--space-1);
-    }
-
-    .proof-tab {
-      background: transparent;
-      border: 1px solid rgba(148, 163, 184, 0.18);
-      border-radius: var(--radius-sm);
-      color: #94a3b8;
-      cursor: pointer;
-      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-      font-size: 0.7rem;
-      font-weight: 800;
-      padding: var(--space-1) var(--space-2);
-    }
-
-    .proof-tab[data-active="true"] {
-      background: rgba(45, 212, 191, 0.14);
-      border-color: rgba(45, 212, 191, 0.5);
-      color: var(--teal);
-    }
-
-    .proof-code-host {
-      flex: 1;
-      display: flex;
-      min-height: 22rem;
-    }
-
-    .proof-code-host .proof-code {
-      width: 100%;
-      white-space: pre;
-    }
-
-    .proof-caption {
-      color: #e2e8f0;
-      font-size: clamp(1.1rem, 2.2vw, 1.5rem);
-      font-weight: 850;
-      line-height: 1.4;
-      margin: var(--space-6) 0 0;
-      text-align: center;
-    }
-
-    /* ============================================================
-       Capabilities section: Provenance / DESIGN.md / Derivation
-       ============================================================ */
-
-    .capability-grid {
-      display: grid;
-      gap: var(--space-4);
-      grid-template-columns: 1fr;
-    }
-
-    .capability-card {
-      display: flex;
-      flex-direction: column;
-    }
-
-    .capability-body {
-      display: flex;
-      flex-direction: column;
-      gap: var(--space-3);
-    }
-
-    .capability-lede {
-      color: #e2e8f0;
-      font-size: 0.95rem;
-      font-weight: 700;
-      line-height: 1.5;
-      margin: 0;
-    }
-
-    .capability-stage {
-      background: #0b1118;
-      border: 1px solid rgba(148, 163, 184, 0.14);
-      border-radius: var(--radius-sm);
-      min-height: 12rem;
-      overflow: hidden;
-      padding: var(--space-3);
-    }
-
-    .capability-stage [data-compiled-output] {
-      transform: scale(0.72);
-      transform-origin: top left;
-      width: 139%;
-    }
-
-    .capability-hint {
-      color: var(--muted);
-      font-size: 0.74rem;
-      margin: 0;
-    }
-
-    .provenance-detail-panel {
-      background: rgba(6, 8, 11, 0.55);
-      border: 1px solid rgba(148, 163, 184, 0.14);
-      border-radius: var(--radius-sm);
-      max-height: 14rem;
-      min-height: 6rem;
-      overflow: auto;
-      padding: var(--space-3);
-    }
-
-    .provenance-detail-panel pre {
-      color: #dbeafe;
-      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-      font-size: 0.7rem;
-      line-height: 1.5;
-      margin: 0;
-      white-space: pre-wrap;
-    }
-
-    .style-derivation-toggle,
-    .motifs-toggle {
-      background: rgba(6, 8, 11, 0.66);
-      border: 1px solid rgba(148, 163, 184, 0.16);
-      border-radius: var(--radius-md);
-      display: grid;
-      gap: var(--space-1);
-      padding: var(--space-1);
-    }
-
-    .style-derivation-toggle {
-      grid-template-columns: repeat(4, minmax(0, 1fr));
-    }
-
-    .motifs-toggle {
-      grid-template-columns: repeat(3, minmax(0, 1fr));
-    }
-
-    .style-derivation-button,
-    .motifs-button {
-      background: transparent;
-      border: 1px solid transparent;
-      border-radius: var(--radius-sm);
-      color: #94a3b8;
-      cursor: pointer;
-      font-size: 0.74rem;
-      font-weight: 800;
-      min-height: 2.1rem;
-      padding: var(--space-2);
-      transition: background 160ms ease, color 160ms ease, border-color 160ms ease;
-    }
-
-    .style-derivation-button:hover,
-    .motifs-button:hover {
-      border-color: rgba(148, 163, 184, 0.34);
-      color: #f8fafc;
-    }
-
-    .style-derivation-button[data-active="true"],
-    .motifs-button[data-active="true"] {
-      background: #e2e8f0;
-      border-color: rgba(45, 212, 191, 0.36);
-      color: #020617;
-    }
-
-    .motifs-stage {
-      min-height: 16rem;
-    }
-
-    /* Style-derivation card: pure CSS-variable swap. The IR is rendered once;
-       flipping `data-style-preset` on the wrapper redefines the variables the
-       cards read. Same DOM, four completely different visual feels.
-       Mirrors the per-page demo at /style-derivation/. */
-    .style-derivation-stage {
-      min-height: 16rem;
-    }
-
-    #style-derivation-stage {
-      border-radius: var(--radius-md);
-      overflow: hidden;
-      transition: background-color 300ms ease;
-    }
-
-    #style-derivation-stage[data-style-preset="default"] {
-      --bg: #f8fafc;
-      --card-bg: #ffffff;
-      --text-primary: #0f172a;
-      --text-secondary: #64748b;
-      --border-color: #e2e8f0;
-      --border-radius: 1rem;
-      --card-padding: 1rem;
-      --card-gap: 1rem;
-      --font-heading: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
-      --font-body: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
-      --label-size: 0.74rem;
-      --value-size: 2.15rem;
-      --label-weight: 800;
-      --value-weight: 900;
-      --label-tracking: 0.11em;
-      --label-transform: uppercase;
-      --shadow: 0 18px 40px rgba(15, 23, 42, 0.08);
-    }
-
-    #style-derivation-stage[data-style-preset="editorial"] {
-      --bg: #11100d;
-      --card-bg: #171510;
-      --text-primary: #f7efe0;
-      --text-secondary: #b9ad98;
-      --border-color: rgba(247, 239, 224, 0.24);
-      --border-radius: 0.15rem;
-      --card-padding: 0.82rem;
-      --card-gap: 0.65rem;
-      --font-heading: Georgia, 'Times New Roman', serif;
-      --font-body: Georgia, 'Times New Roman', serif;
-      --label-size: 0.72rem;
-      --value-size: 2.4rem;
-      --label-weight: 700;
-      --value-weight: 900;
-      --label-tracking: 0.04em;
-      --label-transform: none;
-      --shadow: 0 1px 0 rgba(247, 239, 224, 0.18);
-    }
-
-    #style-derivation-stage[data-style-preset="data-dense"] {
-      --bg: #050a07;
-      --card-bg: #07120c;
-      --text-primary: #d1fae5;
-      --text-secondary: #86efac;
-      --border-color: rgba(34, 197, 94, 0.42);
-      --border-radius: 0.25rem;
-      --card-padding: 0.6rem;
-      --card-gap: 0.5rem;
-      --font-heading: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-      --font-body: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-      --label-size: 0.68rem;
-      --value-size: 1.85rem;
-      --label-weight: 800;
-      --value-weight: 900;
-      --label-tracking: 0.08em;
-      --label-transform: uppercase;
-      --shadow: inset 0 0 0 1px rgba(34, 197, 94, 0.2);
-    }
-
-    #style-derivation-stage[data-style-preset="soft"] {
-      --bg: #fff7ed;
-      --card-bg: #fffbf3;
-      --text-primary: #3b2f2f;
-      --text-secondary: #9a7361;
-      --border-color: #fed7aa;
-      --border-radius: 1.5rem;
-      --card-padding: 1.35rem;
-      --card-gap: 1.1rem;
-      --font-heading: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
-      --font-body: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
-      --label-size: 0.78rem;
-      --value-size: 2.35rem;
-      --label-weight: 750;
-      --value-weight: 850;
-      --label-tracking: 0.02em;
-      --label-transform: none;
-      --shadow: 0 24px 70px rgba(244, 114, 182, 0.18);
-    }
-
-    #style-derivation-stage > main {
-      background: var(--bg);
-      border-radius: calc(var(--border-radius) + 0.35rem);
-      color: var(--text-primary);
-      font-family: var(--font-body);
-      padding: clamp(1rem, 3vw, 1.6rem);
-      transition: background-color 300ms ease, color 300ms ease, border-radius 300ms ease;
-    }
-
-    #style-derivation-stage [data-ir-id="motif_kpis"] {
-      display: grid;
-      gap: var(--card-gap);
-      grid-template-columns: repeat(4, minmax(0, 1fr));
-      transition: gap 300ms ease;
-    }
-    @media (max-width: 760px) {
-      #style-derivation-stage [data-ir-id="motif_kpis"] {
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-      }
-    }
-    @media (max-width: 480px) {
-      #style-derivation-stage [data-ir-id="motif_kpis"] {
-        grid-template-columns: 1fr;
-      }
-    }
-
-    #style-derivation-stage [data-ir-id^="motif_kpis_kpi_"] {
-      background-color: var(--card-bg);
-      border: 1px solid var(--border-color);
-      border-radius: var(--border-radius);
-      box-shadow: var(--shadow);
-      color: var(--text-primary);
-      display: flex;
-      flex-direction: column;
-      gap: 0.35rem;
-      padding: var(--card-padding);
-      transition: background-color 300ms ease, border-color 300ms ease, border-radius 300ms ease, box-shadow 300ms ease, color 300ms ease, padding 300ms ease;
-    }
-
-    #style-derivation-stage [data-ir-id$="_label"] {
-      color: var(--text-secondary);
-      font-family: var(--font-heading);
-      font-size: var(--label-size);
-      font-weight: var(--label-weight);
-      letter-spacing: var(--label-tracking);
-      line-height: 1.2;
-      text-transform: var(--label-transform);
-      transition: color 300ms ease, font-size 300ms ease, letter-spacing 300ms ease;
-    }
-
-    #style-derivation-stage [data-ir-id$="_value"] {
-      color: var(--text-primary);
-      font-family: var(--font-body);
-      font-size: var(--value-size);
-      font-weight: var(--value-weight);
-      letter-spacing: -0.035em;
-      line-height: 1;
-      transition: color 300ms ease, font-size 300ms ease;
-    }
-
-    #style-derivation-stage[data-style-preset="data-dense"] [data-ir-id^="motif_kpis_kpi_"] {
-      background-image:
-        linear-gradient(rgba(34, 197, 94, 0.08) 1px, transparent 1px),
-        linear-gradient(90deg, rgba(34, 197, 94, 0.08) 1px, transparent 1px);
-      background-size: 12px 12px;
-    }
-
-    #style-derivation-stage[data-style-preset="editorial"] [data-ir-id^="motif_kpis_kpi_"] {
-      border-width: 1px 0 0;
-    }
-
-    #style-derivation-stage[data-style-preset="soft"] [data-ir-id^="motif_kpis_kpi_"] {
-      border-width: 2px;
-    }
-
-    /* Motif-kind switcher (live API): three different visual structures
-       come out of the same KPI bindings. Style each motif kind separately
-       — the wrapper is tagged with `data-motif-kind` by landing-motifs.js
-       after each compile.
-
-       region_main is a multi-col grid; force the motif wrapper to span the
-       full row so the visual uses the entire stage width. */
-    .motifs-stage [data-ir-id="motif_kpis"] {
-      grid-column: 1 / -1;
-    }
-
-    /* DASHBOARD: 4 white KPI cards in a grid. The live compiler pours
-       tone.positive / narrative.entry / emphasis.focal onto the bindings,
-       which paints labels + values teal and adds a halo box-shadow. Reads
-       worse than the static hero / style-derivation cards — those use
-       clean dark text on white with a deep elevation shadow. Match that
-       quality bar by overriding the compiler's color tokens here. */
-    .motifs-stage [data-motif-kind="dashboard"] {
-      gap: var(--space-3) !important;
-    }
-    @media (max-width: 760px) {
-      .motifs-stage [data-motif-kind="dashboard"] {
-        grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
-      }
-    }
-    @media (max-width: 480px) {
-      .motifs-stage [data-motif-kind="dashboard"] {
-        grid-template-columns: 1fr !important;
-      }
-    }
-    .motifs-stage [data-motif-kind="dashboard"] > [data-ir-id^="motif_kpis_"] {
-      background: #ffffff !important;
-      border: none !important;
-      border-radius: 14px !important;
-      box-shadow: 0 18px 34px rgba(15, 23, 42, 0.18), 0 1px 2px rgba(15, 23, 42, 0.08) !important;
-      display: flex !important;
-      flex-direction: column !important;
-      padding: 1.5rem !important;
-      min-height: 150px;
-      gap: 0.65rem !important;
-      justify-content: space-between;
-    }
-    .motifs-stage [data-motif-kind="dashboard"] [data-ir-id$="_label"] {
-      box-shadow: none !important;
-      color: #64748b !important;
-      font-size: 0.74rem !important;
-      font-weight: 800 !important;
-      letter-spacing: 0.11em !important;
-      text-shadow: none !important;
-      text-transform: uppercase !important;
-      opacity: 1 !important;
-    }
-    .motifs-stage [data-motif-kind="dashboard"] [data-ir-id$="_value"] {
-      box-shadow: none !important;
-      color: #0f172a !important;
-      font-size: 2rem !important;
-      font-weight: 900 !important;
-      letter-spacing: -0.025em !important;
-      line-height: 1.1 !important;
-      text-shadow: none !important;
-      opacity: 1 !important;
-      scale: 1 !important;
-    }
-    /* Polarity hint: only color red when the value has tone.warning AND
-       NOT tone.positive. The compiler emits tone.warning on any binding
-       with high KL surprise — including Revenue at +30% off baseline,
-       which is GOOD news. Pairing with tone.positive means "anomalous but
-       positive" (red would mislead). Pairing without tone.positive means
-       "anomalous and concerning" (e.g. Churn at +31%) — red is correct. */
-    .motifs-stage [data-motif-kind="dashboard"] [data-style-tokens*="tone.warning"][data-ir-id$="_value"]:not([data-style-tokens*="tone.positive"]) {
-      color: #b91c1c !important;
-    }
-    .motifs-stage [data-motif-kind="dashboard"] [data-ir-id$="_trend_label"] {
-      align-self: flex-start;
-      background: rgba(15, 23, 42, 0.06);
-      border: 1px solid rgba(15, 23, 42, 0.08);
-      border-radius: 9999px;
-      color: #475569 !important;
-      padding: 0.25rem 0.65rem !important;
-      font-size: 0.72rem !important;
-      font-weight: 700 !important;
-      opacity: 1 !important;
-    }
-    .motifs-stage [data-motif-kind="dashboard"] [data-style-tokens*="tone.warning"][data-ir-id$="_trend_label"]:not([data-style-tokens*="tone.positive"]) {
-      background: rgba(185, 28, 28, 0.08) !important;
-      border-color: rgba(185, 28, 28, 0.22) !important;
-      color: #b91c1c !important;
-    }
-
-    /* TABLE: white container with cluster rows inside. Each row is a
-       horizontal grid of label / value / trend with a hairline divider
-       underneath. Reads like a financial-report table. */
-    .motifs-stage [data-motif-kind="table"] {
-      background: #ffffff !important;
-      border: none !important;
-      border-radius: 14px !important;
-      box-shadow: 0 18px 34px rgba(15, 23, 42, 0.18), 0 1px 2px rgba(15, 23, 42, 0.08) !important;
-      overflow: hidden;
-    }
-    .motifs-stage [data-motif-kind="table"] > [data-ir-id^="motif_kpis_"] {
-      align-items: baseline !important;
-      border-bottom: 1px solid rgba(15, 23, 42, 0.08);
-      display: grid !important;
-      flex-wrap: nowrap !important;
-      gap: var(--space-3);
-      grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr) minmax(0, 1.2fr);
-      padding: 1.05rem 1.5rem;
-    }
-    .motifs-stage [data-motif-kind="table"] > [data-ir-id^="motif_kpis_"]:last-child {
-      border-bottom: none;
-    }
-    .motifs-stage [data-motif-kind="table"] [data-ir-id$="_label"] {
-      box-shadow: none !important;
-      color: #64748b !important;
-      font-size: 0.74rem !important;
-      font-weight: 800 !important;
-      letter-spacing: 0.1em !important;
-      opacity: 1 !important;
-      text-shadow: none !important;
-      text-transform: uppercase !important;
-    }
-    .motifs-stage [data-motif-kind="table"] [data-ir-id$="_value"] {
-      box-shadow: none !important;
-      color: #0f172a !important;
-      font-size: 1.5rem !important;
-      font-weight: 900 !important;
-      letter-spacing: -0.02em !important;
-      opacity: 1 !important;
-      scale: 1 !important;
-      text-align: right;
-      text-shadow: none !important;
-    }
-    .motifs-stage [data-motif-kind="table"] [data-style-tokens*="tone.warning"][data-ir-id$="_value"]:not([data-style-tokens*="tone.positive"]) {
-      color: #b91c1c !important;
-    }
-    .motifs-stage [data-motif-kind="table"] [data-ir-id$="_trend_label"] {
-      align-self: center;
-      background: rgba(15, 23, 42, 0.06);
-      border: 1px solid rgba(15, 23, 42, 0.08);
-      border-radius: 9999px;
-      color: #475569 !important;
-      font-size: 0.72rem !important;
-      font-weight: 700 !important;
-      justify-self: end;
-      opacity: 1 !important;
-      padding: 0.25rem 0.65rem !important;
-    }
-    .motifs-stage [data-motif-kind="table"] [data-style-tokens*="tone.warning"][data-ir-id$="_trend_label"]:not([data-style-tokens*="tone.positive"]) {
-      background: rgba(185, 28, 28, 0.08) !important;
-      border-color: rgba(185, 28, 28, 0.22) !important;
-      color: #b91c1c !important;
-    }
-
-    /* COMPARISON: 4 white cards in a grid, structurally identical to the
-       dashboard variant but emphasizing side-by-side comparison. The
-       compiler tags the wrapper with contrast.separation when numeric
-       spread is wide; we preserve that semantics by using the same card
-       look as dashboard. */
-    .motifs-stage [data-motif-kind="comparison"] {
-      display: grid !important;
-      grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
-      gap: var(--space-3) !important;
-    }
-    @media (max-width: 760px) {
-      .motifs-stage [data-motif-kind="comparison"] {
-        grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
-      }
-    }
-    @media (max-width: 480px) {
-      .motifs-stage [data-motif-kind="comparison"] {
-        grid-template-columns: 1fr !important;
-      }
-    }
-    .motifs-stage [data-motif-kind="comparison"] > [data-ir-id^="motif_kpis_"] {
-      background: #ffffff !important;
-      border: none !important;
-      border-radius: 14px !important;
-      box-shadow: 0 18px 34px rgba(15, 23, 42, 0.18), 0 1px 2px rgba(15, 23, 42, 0.08) !important;
-      display: flex !important;
-      flex-direction: column !important;
-      gap: 0.65rem !important;
-      justify-content: space-between;
-      min-height: 150px;
-      padding: 1.5rem !important;
-    }
-    .motifs-stage [data-motif-kind="comparison"] [data-ir-id$="_label"] {
-      box-shadow: none !important;
-      color: #64748b !important;
-      font-size: 0.74rem !important;
-      font-weight: 800 !important;
-      letter-spacing: 0.11em !important;
-      opacity: 1 !important;
-      text-shadow: none !important;
-      text-transform: uppercase !important;
-    }
-    .motifs-stage [data-motif-kind="comparison"] [data-ir-id$="_value"] {
-      box-shadow: none !important;
-      color: #0f172a !important;
-      font-size: 1.85rem !important;
-      font-weight: 900 !important;
-      letter-spacing: -0.02em !important;
-      line-height: 1.1 !important;
-      opacity: 1 !important;
-      scale: 1 !important;
-      text-shadow: none !important;
-    }
-    .motifs-stage [data-motif-kind="comparison"] [data-style-tokens*="tone.warning"][data-ir-id$="_value"]:not([data-style-tokens*="tone.positive"]) {
-      color: #b91c1c !important;
-    }
-    .motifs-stage [data-motif-kind="comparison"] [data-ir-id$="_trend_label"] {
-      align-self: flex-start;
-      background: rgba(15, 23, 42, 0.06);
-      border: 1px solid rgba(15, 23, 42, 0.08);
-      border-radius: 9999px;
-      color: #475569 !important;
-      font-size: 0.72rem !important;
-      font-weight: 700 !important;
-      opacity: 1 !important;
-      padding: 0.25rem 0.65rem !important;
-    }
-    .motifs-stage [data-motif-kind="comparison"] [data-style-tokens*="tone.warning"][data-ir-id$="_trend_label"]:not([data-style-tokens*="tone.positive"]) {
-      background: rgba(185, 28, 28, 0.08) !important;
-      border-color: rgba(185, 28, 28, 0.22) !important;
-      color: #b91c1c !important;
-    }
-
-    [data-derived="true"] {
-      cursor: help;
-    }
-
-    /* ============================================================
-       Workflow section: agent compile pipeline
-       ============================================================ */
-
-    .workflow-strip {
-      align-items: center;
-      background: rgba(16, 21, 29, 0.82);
-      border: 1px solid rgba(148, 163, 184, 0.18);
-      border-radius: var(--radius-md);
-      display: grid;
-      gap: var(--space-4);
-      padding: var(--space-6);
-    }
-
-    .workflow-svg {
-      max-width: 100%;
-      height: auto;
-      width: 100%;
-    }
-
-    .workflow-node {
-      fill: rgba(6, 8, 11, 0.78);
-      stroke: rgba(148, 163, 184, 0.32);
-      stroke-width: 1;
-    }
-
-    .workflow-node-emphasis {
-      fill: rgba(45, 212, 191, 0.16);
-      stroke: rgba(45, 212, 191, 0.7);
-    }
-
-    .workflow-node-emit {
-      fill: rgba(96, 165, 250, 0.14);
-      stroke: rgba(96, 165, 250, 0.7);
-    }
-
-    .workflow-text {
-      fill: #f8fafc;
-      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-      font-size: 13px;
-      font-weight: 800;
-    }
-
-    .workflow-text-sub {
-      fill: var(--muted);
-      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-      font-size: 10px;
-    }
-
-    .workflow-edge {
-      stroke: var(--teal);
-      stroke-width: 2;
-    }
-
-    .workflow-edge-loop {
-      stroke-dasharray: 4 4;
-    }
-
-    .workflow-text-loop {
-      fill: var(--muted);
-      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-      font-size: 11px;
-    }
-
-    .workflow-copy {
-      color: #e2e8f0;
-      font-size: 1rem;
-      justify-self: center;
-      line-height: 1.55;
-      margin: 0;
-      max-width: 60rem;
-      text-align: center;
-    }
-
-    .workflow-links {
-      align-items: center;
-      color: var(--muted);
-      display: flex;
-      flex-wrap: wrap;
-      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-      font-size: 0.78rem;
-      gap: var(--space-3);
-      justify-content: center;
-      justify-self: center;
-      margin: 0;
-    }
-
-    .workflow-links a {
-      color: var(--teal);
-      text-decoration: none;
-    }
-
-    .workflow-links a:hover {
-      color: #5eead4;
-      text-decoration: underline;
-    }
-
-    /* ============================================================
-       Pricing tweaks: $149 + price unit alignment
-       ============================================================ */
-
-    .price-unit {
-      color: var(--muted);
-      font-size: 1rem;
-      font-weight: 700;
-      margin-left: 4px;
-    }
-
-    .pricing-card {
-      transition: border-color 160ms ease, transform 160ms ease;
-    }
-
-    .pricing-card.featured {
-      box-shadow: inset 0 0 0 1px rgba(45, 212, 191, 0.32);
-    }
-
-    /* ============================================================
-       Footer
-       ============================================================ */
-
-    .footer-install {
-      min-width: auto;
-    }
-
-    .footer-meta {
-      align-items: center;
-      color: var(--muted);
-      display: inline-flex;
-      flex-wrap: wrap;
-      font-size: 0.78rem;
-      gap: var(--space-2);
-    }
-
-    .footer-rights {
-      color: var(--muted);
-    }
-
-    /* ============================================================
-       Hero adjustments for the new layout
-       ============================================================ */
-
-    .hero-copy h1 {
-      font-size: clamp(2.6rem, 6vw, 4.8rem);
-      line-height: 1.0;
-    }
-
-    .hero-actions {
-      align-items: center;
-    }
-
-    /* ============================================================
-       Responsive
-       ============================================================ */
-
-    @media (max-width: 1080px) {
-      :root {
-        --gutter: 20px;
-        --preview-pad: var(--space-4);
-      }
-
-      .hero,
-      .section-head,
-      .before-after-grid,
-      .api-grid {
-        grid-template-columns: 1fr;
-      }
-
-      .playground {
-        grid-template-columns: 1fr;
-      }
-
-      .controls {
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-      }
-
-      .inspector-column {
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-        grid-template-rows: auto;
-      }
-
-      .token-gallery,
-      .demo-grid,
-      .pricing-grid {
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-      }
-
-      .proof-grid {
-        grid-template-columns: 1fr;
-      }
-
-      .proof-panel {
-        min-height: 22rem;
-      }
-
-      .capability-grid {
-        grid-template-columns: 1fr;
-      }
-    }
-
-    @media (max-width: 700px) {
-      :root {
-        --gutter: 16px;
-        --space-panel: var(--space-3);
-        --space-card: var(--space-4);
-        --preview-pad: var(--space-3);
-        --section-y: 48px;
-      }
-
-      .top-nav {
-        align-items: flex-start;
-        flex-direction: column;
-        padding: var(--space-3) var(--gutter);
-      }
-
-      .nav-links {
-        justify-content: flex-start;
-      }
-
-      .hero {
-        padding-top: calc(72px + var(--space-8));
-        grid-template-columns: 1fr;
-      }
-
-      .hero-proof-bar {
-        gap: var(--space-3);
-      }
-
-      .compile-stats,
-      .inspector-column,
-      .token-gallery,
-      .demo-grid,
-      .pricing-grid {
-        grid-template-columns: 1fr;
-      }
-
-      .controls {
-        grid-template-columns: 1fr;
-      }
-
-      .hint-summary,
-      .compile-stats {
-        grid-column: auto;
-      }
-
-      .segmented.three {
-        grid-template-columns: 1fr;
-      }
-
-      .preview-frame {
-        min-height: 24rem;
-      }
-
-      .preview-frame[data-preview-mode="hero"] {
-        min-height: 23rem;
-      }
-
-      .preview-frame[data-preview-mode="hero"] [data-ir-id="region_root"] {
-        padding: 14px !important;
-      }
-
-      .preview-frame[data-preview-mode="hero"] [data-ir-id="motif_kpis"] {
-        gap: 10px !important;
-        grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
-      }
-
-      .preview-frame[data-preview-mode="hero"] [data-ir-id^="motif_kpis_kpi"] {
-        padding: 14px !important;
-      }
-
-      .preview-frame[data-preview-mode="hero"] [data-ir-id^="binding_kpi_"][data-ir-id$="_trend_label"] {
-        font-size: 0.62rem !important;
-        padding: 5px 6px !important;
-      }
-
-      .style-derivation-toggle {
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-      }
-
-      .motifs-toggle {
-        grid-template-columns: 1fr;
-      }
-
-      .capability-stage [data-compiled-output] {
-        transform: scale(0.55);
-        transform-origin: top left;
-        width: 182%;
-      }
-
-      .workflow-strip {
-        padding: var(--space-4);
-      }
-
-      footer .page-shell {
-        flex-direction: column;
-        align-items: flex-start;
-      }
-    }
-  </style>
+      "label": "Calm Ops",
+      "layoutSignature": "workspace 2 / metrics 2",
+      "manifestAestheticProfile": "aesthetic.calm_ops",
+      "manifestUrl": "./landing-compiled/profiles/calm-ops/provenance_manifest.json",
+      "nodeCount": 35,
+      "note": "Quiet operational surfaces with teal accents and low-contrast panels.",
+      "semanticHash": "a040ee3d2d6b000a1c1e0b3d6a1a161a518fe342c1ff8307593cd781a6832d40",
+      "slug": "calm-ops",
+      "styleProjectionHash": "98feff5ca2756e17729352a429128f2c99e54cf038108405295fae424116b3da",
+      "styleProof": {
+        "categories": [
+          "action",
+          "density",
+          "emphasis",
+          "narrative",
+          "palette",
+          "rhythm",
+          "surface",
+          "tone"
+        ],
+        "category_count": 8,
+        "changed_token_count": 13,
+        "changed_tokens": [
+          "action.accent",
+          "density.airy",
+          "density.compact",
+          "density.regular",
+          "emphasis.high",
+          "narrative.flow",
+          "palette.temperature",
+          "rhythm.hierarchy",
+          "surface.strong",
+          "surface.subtle",
+          "tone.accent",
+          "tone.muted",
+          "tone.neutral"
+        ],
+        "declaration_count": 28
+      },
+      "styleSignature": "13 changed tokens / 8 categories / 28 declarations"
+    },
+    "aesthetic.data_dense": {
+      "artifactBodyUrl": "./landing-compiled/profiles/data-dense/artifact_body.html",
+      "artifactUrl": "./landing-compiled/profiles/data-dense/index.html",
+      "intentUrl": "./landing-compiled/profiles/data-dense/intent_bundle.json",
+      "invariantFlags": {
+        "manifestProfileMatches": true,
+        "sameSemanticGraph": true,
+        "semanticIdsStable": true,
+        "shellOverridesZero": true,
+        "styleProjectionDistinct": true
+      },
+      "label": "Data Dense",
+      "layoutSignature": "workspace 3 / metrics 3",
+      "manifestAestheticProfile": "aesthetic.data_dense",
+      "manifestUrl": "./landing-compiled/profiles/data-dense/provenance_manifest.json",
+      "nodeCount": 35,
+      "note": "Compact spacing, smaller type, and tighter controls for repeated scanning.",
+      "semanticHash": "a040ee3d2d6b000a1c1e0b3d6a1a161a518fe342c1ff8307593cd781a6832d40",
+      "slug": "data-dense",
+      "styleProjectionHash": "02a411113d0562b01a8eb4dcbd7224600a92e0e9b3be966e1aa7727b3058768b",
+      "styleProof": {
+        "categories": [
+          "action",
+          "density",
+          "emphasis",
+          "narrative",
+          "palette",
+          "rhythm",
+          "surface",
+          "tone"
+        ],
+        "category_count": 8,
+        "changed_token_count": 13,
+        "changed_tokens": [
+          "action.accent",
+          "density.airy",
+          "density.compact",
+          "density.regular",
+          "emphasis.high",
+          "narrative.flow",
+          "palette.temperature",
+          "rhythm.hierarchy",
+          "surface.strong",
+          "surface.subtle",
+          "tone.accent",
+          "tone.muted",
+          "tone.neutral"
+        ],
+        "declaration_count": 28
+      },
+      "styleSignature": "13 changed tokens / 8 categories / 28 declarations"
+    },
+    "aesthetic.editorial_product": {
+      "artifactBodyUrl": "./landing-compiled/profiles/editorial-product/artifact_body.html",
+      "artifactUrl": "./landing-compiled/profiles/editorial-product/index.html",
+      "intentUrl": "./landing-compiled/profiles/editorial-product/intent_bundle.json",
+      "invariantFlags": {
+        "manifestProfileMatches": true,
+        "sameSemanticGraph": true,
+        "semanticIdsStable": true,
+        "shellOverridesZero": true,
+        "styleProjectionDistinct": true
+      },
+      "label": "Editorial Product",
+      "layoutSignature": "workspace 2 / metrics 1",
+      "manifestAestheticProfile": "aesthetic.editorial_product",
+      "manifestUrl": "./landing-compiled/profiles/editorial-product/provenance_manifest.json",
+      "nodeCount": 35,
+      "note": "Warmer product-story pacing with broader prose rhythm.",
+      "semanticHash": "a040ee3d2d6b000a1c1e0b3d6a1a161a518fe342c1ff8307593cd781a6832d40",
+      "slug": "editorial-product",
+      "styleProjectionHash": "27a14269cfa742ab50b7e2d6eb665a0a1a516eb4e353ba889089717d4157e2e3",
+      "styleProof": {
+        "categories": [
+          "action",
+          "density",
+          "emphasis",
+          "narrative",
+          "palette",
+          "rhythm",
+          "surface",
+          "tone"
+        ],
+        "category_count": 8,
+        "changed_token_count": 13,
+        "changed_tokens": [
+          "action.accent",
+          "density.airy",
+          "density.compact",
+          "density.regular",
+          "emphasis.high",
+          "narrative.flow",
+          "palette.temperature",
+          "rhythm.hierarchy",
+          "surface.strong",
+          "surface.subtle",
+          "tone.accent",
+          "tone.muted",
+          "tone.neutral"
+        ],
+        "declaration_count": 29
+      },
+      "styleSignature": "13 changed tokens / 8 categories / 29 declarations"
+    },
+    "aesthetic.executive_review": {
+      "artifactBodyUrl": "./landing-compiled/profiles/executive-review/artifact_body.html",
+      "artifactUrl": "./landing-compiled/profiles/executive-review/index.html",
+      "intentUrl": "./landing-compiled/profiles/executive-review/intent_bundle.json",
+      "invariantFlags": {
+        "manifestProfileMatches": true,
+        "sameSemanticGraph": true,
+        "semanticIdsStable": true,
+        "shellOverridesZero": true,
+        "styleProjectionDistinct": true
+      },
+      "label": "Executive Review",
+      "layoutSignature": "workspace 2 / metrics 2 / featured metric span 2 + featured emphasis",
+      "manifestAestheticProfile": "aesthetic.executive_review",
+      "manifestUrl": "./landing-compiled/profiles/executive-review/provenance_manifest.json",
+      "nodeCount": 35,
+      "note": "Conservative review surfaces with restrained contrast and crisp framing.",
+      "semanticHash": "a040ee3d2d6b000a1c1e0b3d6a1a161a518fe342c1ff8307593cd781a6832d40",
+      "slug": "executive-review",
+      "styleProjectionHash": "3611ed389bc117d6e7187c51889ce85958379c5639adaea3a9260a3f28216e58",
+      "styleProof": {
+        "categories": [
+          "action",
+          "density",
+          "emphasis",
+          "narrative",
+          "palette",
+          "rhythm",
+          "surface",
+          "tone"
+        ],
+        "category_count": 8,
+        "changed_token_count": 13,
+        "changed_tokens": [
+          "action.accent",
+          "density.airy",
+          "density.compact",
+          "density.regular",
+          "emphasis.high",
+          "narrative.flow",
+          "palette.temperature",
+          "rhythm.hierarchy",
+          "surface.strong",
+          "surface.subtle",
+          "tone.accent",
+          "tone.muted",
+          "tone.neutral"
+        ],
+        "declaration_count": 30
+      },
+      "styleSignature": "13 changed tokens / 8 categories / 30 declarations"
+    },
+    "aesthetic.premium_saas": {
+      "artifactBodyUrl": "./landing-compiled/profiles/premium-saas/artifact_body.html",
+      "artifactUrl": "./landing-compiled/profiles/premium-saas/index.html",
+      "intentUrl": "./landing-compiled/profiles/premium-saas/intent_bundle.json",
+      "invariantFlags": {
+        "manifestProfileMatches": true,
+        "sameSemanticGraph": true,
+        "semanticIdsStable": true,
+        "shellOverridesZero": true,
+        "styleProjectionDistinct": true
+      },
+      "label": "Premium SaaS",
+      "layoutSignature": "workspace 2 / metrics 2 / featured metric span 2 + featured emphasis",
+      "manifestAestheticProfile": "aesthetic.premium_saas",
+      "manifestUrl": "./landing-compiled/profiles/premium-saas/provenance_manifest.json",
+      "nodeCount": 35,
+      "note": "Polished product rhythm with stronger hierarchy and softer shadows.",
+      "semanticHash": "a040ee3d2d6b000a1c1e0b3d6a1a161a518fe342c1ff8307593cd781a6832d40",
+      "slug": "premium-saas",
+      "styleProjectionHash": "a4bff9b518e79b07774b68beef1f66b87db0e16ba1a0811cee5ad6fdf9a5529f",
+      "styleProof": {
+        "categories": [
+          "action",
+          "density",
+          "emphasis",
+          "narrative",
+          "palette",
+          "rhythm",
+          "surface",
+          "tone"
+        ],
+        "category_count": 8,
+        "changed_token_count": 13,
+        "changed_tokens": [
+          "action.accent",
+          "density.airy",
+          "density.compact",
+          "density.regular",
+          "emphasis.high",
+          "narrative.flow",
+          "palette.temperature",
+          "rhythm.hierarchy",
+          "surface.strong",
+          "surface.subtle",
+          "tone.accent",
+          "tone.muted",
+          "tone.neutral"
+        ],
+        "declaration_count": 29
+      },
+      "styleSignature": "13 changed tokens / 8 categories / 29 declarations"
+    }
+  },
+  "semanticIdsStable": true,
+  "shellOverrides": 0,
+  "styleProjectionDistinct": true,
+  "styleProjectionHashCount": 5,
+  "version": "landing_compiled_aesthetic_profiles.v1"
+}
+</script>
+<link rel="icon" href="data:,">
+<style data-viewspec-emitter-css="true">
+:root {
+  color-scheme: light;
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  background: #f8fafc;
+  color: #020617;
+}
+* { box-sizing: border-box; }
+body { margin: 0; min-height: 100vh; background: #f8fafc; }
+.vs-root { min-height: 100vh; padding: 24px; display: flex; flex-direction: column; gap: 24px; color: #020617; }
+.vs-stack { display: flex; min-width: 0; flex-direction: column; gap: 12px; }
+ul.vs-stack { list-style: none; margin: 0; padding: 0; }
+table.vs-stack { display: table; width: 100%; border-collapse: collapse; border: 1px solid #e2e8f0; border-radius: 12px; overflow: hidden; background: #ffffff; }
+tr.vs-cluster { display: table-row; }
+th.vs-label, td.vs-text, td.vs-value, td.vs-badge, td.vs-label { display: table-cell; padding: 0.7rem 0.85rem; border-bottom: 1px solid #e2e8f0; vertical-align: top; }
+th.vs-label { width: 38%; text-align: left; background: #f8fafc; }
+table.vs-stack tr:last-child th, table.vs-stack tr:last-child td { border-bottom: 0; }
+dl.vs-stack { margin: 0; }
+dl.vs-stack > div.vs-cluster { display: grid; grid-template-columns: minmax(8rem, 30%) 1fr; align-items: start; padding: 0.65rem 0; border-bottom: 1px solid #e2e8f0; }
+dl.vs-stack > div.vs-cluster:last-child { border-bottom: 0; }
+dl.vs-stack dt, dl.vs-stack dd { margin: 0; }
+header.vs-surface { padding: 32px; gap: 14px; }
+header.vs-surface h1.vs-value { margin: 0; font-size: 2.5rem; line-height: 1.05; letter-spacing: 0; }
+header.vs-surface p.vs-text, header.vs-surface p.vs-label { max-width: 68ch; margin: 0; }
+.vs-grid { display: grid; min-width: 0; gap: 16px; }
+.vs-cluster { display: flex; min-width: 0; flex-flow: row wrap; gap: 12px; }
+.vs-surface { border: 1px solid #e2e8f0; border-radius: 16px; background: #ffffff; padding: 16px; box-shadow: 0 1px 2px rgb(15 23 42 / 0.08); display: flex; min-width: 0; flex-direction: column; gap: 12px; }
+.vs-text { min-width: 0; color: #1f2937; font-size: 1rem; line-height: 1.75; overflow-wrap: anywhere; }
+.vs-label { min-width: 0; color: #64748b; font-size: 0.75rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; overflow-wrap: anywhere; }
+.vs-value { min-width: 0; color: #020617; font-size: 1.5rem; font-weight: 900; line-height: 1.15; overflow-wrap: anywhere; }
+.vs-badge { display: inline-flex; width: fit-content; max-width: 100%; border-radius: 999px; background: #ccfbf1; color: #115e59; padding: 4px 12px; font-size: 0.875rem; font-weight: 700; box-shadow: inset 0 0 0 1px #99f6e4; overflow-wrap: anywhere; }
+.vs-input { width: 100%; min-width: 0; border: 1px solid #cbd5e1; border-radius: 10px; background: #ffffff; color: #020617; padding: 0.7rem 0.85rem; font: inherit; }
+.vs-input:focus { outline: 2px solid #0f766e; outline-offset: 2px; }
+.vs-image-slot { min-height: 96px; border-radius: 12px; background: #e2e8f0; color: #64748b; display: grid; place-items: center; }
+.vs-rule { margin: 8px 0; border: 0; border-top: 1px solid #e2e8f0; }
+.vs-svg { border: 1px solid #e2e8f0; border-radius: 12px; background: #f8fafc; color: #475569; padding: 12px; }
+.vs-button { display: inline-flex; width: fit-content; align-items: center; border: 0; border-radius: 12px; background: #0f766e; color: #ffffff; padding: 8px 16px; font-size: 0.875rem; font-weight: 800; cursor: pointer; box-shadow: 0 1px 2px rgb(15 23 42 / 0.16); }
+.vs-button:hover { background: #115e59; }
+.vs-error-boundary { border: 2px dashed #ef4444; border-radius: 12px; background: #fef2f2; color: #991b1b; padding: 16px; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 0.875rem; }
+.vs-role-app-shell { width: min(100%, 1180px); margin: 0 auto; padding: 28px; gap: 18px; }
+.vs-role-app-header { padding: 20px 0 6px; border-bottom: 1px solid #dbe3ea; }
+.vs-role-page-header { border: 0; border-radius: 0; box-shadow: none; background: transparent; padding: 0 0 14px; gap: 8px; }
+.vs-role-content-grid { align-items: start; gap: 18px; }
+.vs-role-primary-column { gap: 18px; }
+.vs-role-side-rail { gap: 14px; align-self: start; }
+.vs-role-metric-grid { gap: 12px; }
+.vs-role-metric-card { min-height: 108px; justify-content: space-between; border-radius: 8px; }
+.vs-role-form-panel { border-radius: 8px; padding: 18px; gap: 14px; }
+.vs-role-field-group { border-radius: 8px; box-shadow: none; padding: 12px; }
+.vs-role-detail-panel { border-radius: 8px; padding: 16px; }
+.vs-role-action-row { align-items: center; justify-content: flex-end; gap: 10px; padding: 4px 0 0; }
+.vs-motif-loading-state { border-radius: 12px; border-style: dashed; color: #475569; }
+.vs-motif-error-state { border-color: #fca5a5; background: #fef2f2; color: #991b1b; }
+.vs-motif-loading-state .vs-value, .vs-motif-error-state .vs-value { font-size: 1.125rem; }
+@media (min-width: 761px) {
+  .vs-span-2 { grid-column: span 2 / span 2; }
+  .vs-span-3 { grid-column: span 3 / span 3; }
+}
+.vs-layout-emphasis-featured { outline: 2px solid #14b8a6; outline-offset: 0; }
+@media (max-width: 760px) {
+  .vs-root { padding: 16px; }
+  .vs-role-app-shell { padding: 16px; }
+  .vs-role-content-grid { grid-template-columns: 1fr !important; }
+  .vs-role-metric-grid { grid-template-columns: 1fr !important; }
+  dl.vs-stack > div.vs-cluster { grid-template-columns: 1fr; }
+  .vs-span-2, .vs-span-3 { grid-column: auto; }
+  .vs-role-action-row { justify-content: stretch; }
+  .vs-role-action-row .vs-button { width: 100%; justify-content: center; }
+}
+</style>
+<style data-viewspec-page-css="true">
+
+:root {
+  color-scheme: dark;
+  --shell-bg-rgb: 10 13 20;
+  --shell-bg-2-rgb: 12 16 26;
+  --shell-panel-rgb: 20 26 40;
+  --shell-ink-rgb: 231 236 245;
+  --shell-line-rgb: 136 148 172;
+  --shell-accent-rgb: 245 178 63;
+  --shell-accent-2-rgb: 87 220 169;
+  --shell-bg: rgb(var(--shell-bg-rgb));
+  --shell-bg-2: rgb(var(--shell-bg-2-rgb));
+  --shell-panel: rgb(var(--shell-panel-rgb));
+  --shell-ink: rgb(var(--shell-ink-rgb));
+  --shell-muted: rgb(var(--shell-line-rgb));
+  --shell-accent: rgb(var(--shell-accent-rgb));
+  --shell-accent-2: rgb(var(--shell-accent-2-rgb));
+  --shell-line: rgb(var(--shell-line-rgb) / 0.17);
+  --shell-line-strong: rgb(var(--shell-accent-rgb) / 0.34);
+  --shell-shadow: 0 30px 70px rgb(0 0 0 / 0.55);
+  --shell-soft-shadow: 0 16px 40px rgb(0 0 0 / 0.42);
+  --bg: var(--shell-bg);
+  --bg-2: var(--shell-bg-2);
+  --panel: var(--shell-panel);
+  --panel-2: rgb(var(--shell-panel-rgb) / 0.82);
+  --panel-3: rgb(var(--shell-panel-rgb) / 0.94);
+  --line: var(--shell-line);
+  --line-strong: var(--shell-line-strong);
+  --text: var(--shell-ink);
+  --muted: var(--shell-muted);
+  --teal: var(--shell-accent);
+  --green: #57DCA9;
+  --amber: #F5B23F;
+  --amber-2: #FFD584;
+  --blue: #93B8FF;
+  --rose: #fb7185;
+  --radius: 10px;
+  --shell: 1180px;
+  --mono: ui-monospace, "JetBrains Mono", "SF Mono", Menlo, Consolas, monospace;
+  --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, Roboto, sans-serif;
+}
+[data-viewspec-profile="aesthetic.premium_saas"] {
+  --shell-bg-rgb: 13 12 22;
+  --shell-bg-2-rgb: 16 14 28;
+  --shell-panel-rgb: 24 22 40;
+  --shell-ink-rgb: 236 238 248;
+  --shell-line-rgb: 150 150 185;
+  --shell-accent-rgb: 245 178 63;
+  --shell-accent-2-rgb: 147 184 255;
+}
+[data-viewspec-profile="aesthetic.data_dense"] {
+  --shell-bg-rgb: 8 11 17;
+  --shell-bg-2-rgb: 10 14 22;
+  --shell-panel-rgb: 17 23 35;
+  --shell-ink-rgb: 226 233 244;
+  --shell-line-rgb: 120 138 168;
+  --shell-accent-rgb: 245 178 63;
+  --shell-accent-2-rgb: 87 220 169;
+  --radius: 7px;
+}
+[data-viewspec-profile="aesthetic.editorial_product"] {
+  --shell-bg-rgb: 17 12 12;
+  --shell-bg-2-rgb: 21 15 14;
+  --shell-panel-rgb: 30 22 22;
+  --shell-ink-rgb: 244 236 232;
+  --shell-line-rgb: 168 140 128;
+  --shell-accent-rgb: 245 178 63;
+  --shell-accent-2-rgb: 255 213 132;
+}
+[data-viewspec-profile="aesthetic.executive_review"] {
+  --shell-bg-rgb: 11 13 19;
+  --shell-bg-2-rgb: 13 16 24;
+  --shell-panel-rgb: 21 26 38;
+  --shell-ink-rgb: 234 238 246;
+  --shell-line-rgb: 130 142 166;
+  --shell-accent-rgb: 245 178 63;
+  --shell-accent-2-rgb: 147 184 255;
+}
+* {
+  box-sizing: border-box;
+}
+body {
+  background:
+    radial-gradient(760px 440px at 84% -6%, rgb(var(--shell-accent-rgb) / 0.10), transparent 62%),
+    radial-gradient(620px 500px at 4% 12%, rgb(var(--shell-accent-2-rgb) / 0.05), transparent 60%),
+    linear-gradient(180deg, var(--shell-bg) 0%, var(--shell-bg-2) 100%);
+  background-attachment: fixed;
+  color: var(--text);
+  font-family: var(--sans);
+  margin: 0;
+  transition: background 180ms ease, color 180ms ease;
+}
+.skip-link {
+  background: var(--shell-panel);
+  border-radius: var(--radius);
+  color: var(--shell-ink);
+  font-weight: 900;
+  left: 1rem;
+  padding: 0.7rem 0.9rem;
+  position: fixed;
+  top: 0.75rem;
+  transform: translateY(-150%);
+  transition: transform 120ms ease;
+  z-index: 100;
+}
+.skip-link:focus {
+  transform: translateY(0);
+}
+.anchor-target {
+  display: block;
+  grid-column: 1 / -1;
+  scroll-margin-top: 6rem;
+}
+.artifact-bar {
+  align-items: center;
+  backdrop-filter: blur(10px);
+  background: rgb(var(--shell-bg-rgb) / 0.94);
+  border-bottom: 1px solid var(--shell-line);
+  box-shadow: none;
+  display: grid;
+  gap: 0.45rem 0.9rem;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  left: 0;
+  padding: 0.52rem max(1rem, calc((100vw - var(--shell)) / 2)) 0.58rem;
+  position: sticky;
+  right: 0;
+  top: 0;
+  z-index: 50;
+}
+.artifact-brand {
+  color: var(--shell-accent);
+  font-size: 0.92rem;
+  font-weight: 900;
+  letter-spacing: 0;
+  min-width: 0;
+  text-decoration: none;
+}
+.artifact-links, .artifact-controls {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  min-width: 0;
+}
+.artifact-profile-dock {
+  border-top: 1px solid var(--shell-line);
+  grid-column: 1 / -1;
+  padding-top: 0.42rem;
+  width: 100%;
+}
+.artifact-profile-dock-inner {
+  align-items: center;
+  display: grid;
+  gap: 0.55rem;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  margin: 0 auto;
+  width: 100%;
+}
+.artifact-profile-label {
+  color: var(--shell-muted);
+  display: grid;
+  font-size: 0.64rem;
+  font-weight: 780;
+  gap: 0.05rem;
+  line-height: 1.05;
+  min-width: 7.5rem;
+  text-transform: uppercase;
+}
+.artifact-profile-label strong {
+  color: var(--shell-ink);
+  font-size: 0.8rem;
+  font-weight: 820;
+  text-transform: none;
+}
+.artifact-profile-switcher {
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+  min-width: 0;
+  overflow: visible;
+  padding: 0;
+}
+.artifact-links {
+  justify-content: center;
+}
+.artifact-inspector {
+  justify-self: end;
+  max-width: 100%;
+  min-width: 0;
+  position: static;
+}
+.artifact-inspector-toggle {
+  align-items: center;
+  appearance: none;
+  background: rgb(var(--shell-panel-rgb) / 0.38);
+  border: 1px solid var(--shell-line);
+  border-radius: var(--radius);
+  box-shadow: none;
+  color: var(--shell-accent);
+  cursor: pointer;
+  display: inline-flex;
+  font-size: 0.78rem;
+  font-weight: 820;
+  gap: 0.65rem;
+  list-style: none;
+  min-height: 2.18rem;
+  padding: 0.42rem 0.68rem;
+  white-space: nowrap;
+}
+.artifact-inspector-toggle::after {
+  color: var(--shell-muted);
+  content: "+";
+  font-size: 1rem;
+  line-height: 1;
+}
+.artifact-inspector[data-open="true"] .artifact-inspector-toggle::after {
+  content: "-";
+}
+.artifact-inspector[data-open="false"] .artifact-inspector-panel {
+  display: none;
+}
+.artifact-inspector-panel {
+  background: rgb(var(--shell-panel-rgb) / 0.96);
+  border: 1px solid var(--shell-line);
+  border-radius: var(--radius);
+  box-shadow: var(--shell-soft-shadow);
+  display: grid;
+  gap: 0.7rem;
+  margin-top: 0.55rem;
+  padding: 0.8rem;
+  position: absolute;
+  right: 0;
+  top: 100%;
+  width: min(42rem, calc(100vw - 2rem));
+  z-index: 60;
+}
+.artifact-control-group {
+  border: 1px solid var(--shell-line);
+  border-radius: var(--radius);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin: 0;
+  min-width: 0;
+  padding: 0.65rem;
+}
+.artifact-control-group legend {
+  color: var(--shell-muted);
+  font-size: 0.68rem;
+  font-weight: 760;
+  padding: 0 0.25rem;
+  text-transform: uppercase;
+}
+.artifact-controls {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  justify-content: flex-start;
+}
+.artifact-links a, .artifact-link-button {
+  color: var(--shell-muted);
+  font-size: 0.8rem;
+  font-weight: 720;
+  letter-spacing: 0;
+  text-decoration: none;
+  white-space: nowrap;
+}
+.artifact-button, .artifact-link-button {
+  appearance: none;
+  background: rgb(var(--shell-panel-rgb) / 0.5);
+  border: 1px solid var(--shell-line);
+  border-radius: var(--radius);
+  color: var(--shell-ink);
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 760;
+  letter-spacing: 0;
+  min-height: 2.25rem;
+  padding: 0.45rem 0.7rem;
+  white-space: nowrap;
+}
+.artifact-button[data-active="true"], .artifact-link-button.primary {
+  background: transparent;
+  border-color: rgb(var(--shell-accent-rgb) / 0.36);
+  color: var(--shell-accent);
+}
+.artifact-profile-button {
+  align-items: center;
+  background: transparent;
+  border: 0;
+  border-bottom: 1px solid transparent;
+  border-radius: 0;
+  box-shadow: none;
+  display: inline-flex;
+  flex: 0 1 auto;
+  gap: 0;
+  min-height: 1.6rem;
+  min-width: 0;
+  padding: 0.12rem 0 0.18rem;
+  text-align: center;
+}
+.artifact-profile-button::before {
+  display: none;
+}
+.artifact-profile-button[data-active="true"] {
+  background: transparent;
+  border-color: rgb(var(--shell-accent-rgb) / 0.7);
+}
+.artifact-profile-button code {
+  color: var(--shell-muted);
+  font: 700 0.64rem ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.artifact-profile-status {
+  align-items: center;
+  color: var(--shell-muted);
+  display: inline-flex;
+  justify-self: end;
+  font-size: 0.76rem;
+  font-weight: 720;
+  gap: 0.4rem;
+  min-width: 0;
+  white-space: nowrap;
+}
+.artifact-profile-status output {
+  color: var(--shell-muted);
+  display: inline-block;
+  font: inherit;
+  max-width: 24rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.artifact-pretext-status {
+  align-items: center;
+  color: var(--shell-muted);
+  display: inline-flex;
+  flex: 1 1 auto;
+  font-size: 0.76rem;
+  font-weight: 800;
+  gap: 0.4rem;
+  justify-content: flex-end;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+}
+.artifact-pretext-status output {
+  color: var(--shell-accent-2);
+  display: inline-block;
+  font: inherit;
+  max-width: 13rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  vertical-align: bottom;
+}
+.artifact-ir-status {
+  color: var(--shell-accent);
+  font-size: 0.74rem;
+  font-weight: 800;
+  min-width: 0;
+}
+.viewspec-artifact-slot {
+  display: block;
+  transition: opacity 160ms ease, transform 160ms ease;
+}
+.vs-root {
+  margin: 0 auto;
+  min-height: auto !important;
+  padding: 3.6rem 1rem 3.75rem !important;
+  width: min(var(--shell), 100%);
+}
+#dom-region_main {
+  display: grid !important;
+  gap: 1.15rem !important;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  padding: 0 !important;
+}
+.vs-stack, .vs-grid, .vs-cluster {
+  min-width: 0;
+}
+.vs-surface, .vs-grid, .vs-cluster, table.vs-stack, dl.vs-stack, .vs-motif-comparison {
+  border-radius: var(--radius) !important;
+  box-shadow: none !important;
+}
+.vs-label, .vs-value, .vs-text, .artifact-button, .artifact-link-button, th, td {
+  letter-spacing: 0 !important;
+}
+#dom-motif_launch_hero {
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+  display: flex !important;
+  flex-direction: column;
+  grid-column: span 7;
+  justify-content: center;
+  min-height: 31rem;
+  padding: 2.85rem 0 2.35rem !important;
+  position: relative;
+}
+#dom-motif_launch_hero .vs-label {
+  font-size: 0.78rem !important;
+  font-weight: 780 !important;
+  margin-bottom: 1rem;
+  text-transform: uppercase;
+}
+#dom-motif_launch_hero h1,
+#dom-binding_launch_hero_title {
+  font-size: 5.15rem !important;
+  font-weight: 880 !important;
+  line-height: 0.97 !important;
+  max-width: 48rem;
+}
+#dom-binding_launch_hero_description {
+  font-size: 1.08rem !important;
+  line-height: 1.8 !important;
+  margin-top: 1.4rem;
+  max-width: 50rem;
+}
+#dom-motif_proof_badges {
+  align-self: stretch;
+  box-shadow: none !important;
+  grid-column: 8 / -1;
+  grid-template-columns: 1fr !important;
+  padding: 0.8rem !important;
+  position: relative;
+}
+#dom-motif_proof_badges::before {
+  color: var(--muted);
+  content: "Proof report";
+  display: block;
+  font-size: 0.72rem;
+  font-weight: 760;
+  grid-column: 1 / -1;
+  letter-spacing: 0;
+  padding: 0.2rem 0.25rem 0.35rem;
+  text-transform: uppercase;
+}
+#dom-motif_proof_badges .vs-surface,
+table.vs-stack {
+  box-shadow: none !important;
+}
+#dom-motif_proof_badges .vs-surface {
+  min-height: 5.2rem;
+  padding: 0.9rem !important;
+}
+#dom-motif_proof_badges .vs-label {
+  font-size: 0.72rem !important;
+  font-weight: 760 !important;
+  text-transform: uppercase;
+}
+#dom-motif_proof_badges .vs-value {
+  font-size: 1.18rem !important;
+  line-height: 1.25 !important;
+}
+.vs-label {
+  font-weight: 760 !important;
+}
+table.vs-stack {
+  border-collapse: separate !important;
+  grid-column: span 6;
+  border-spacing: 0;
+  overflow: hidden;
+}
+#dom-motif_capabilities {
+  grid-column: span 7;
+}
+th.vs-label {
+  font-size: 0.72rem !important;
+  padding: 1rem !important;
+  text-transform: uppercase;
+  width: 30%;
+}
+td.vs-value {
+  font-size: 1rem !important;
+  font-weight: 760 !important;
+  line-height: 1.55 !important;
+  padding: 1rem !important;
+}
+.landing-pretext-wrap {
+  display: none;
+}
+[data-landing-pretext="ready"] .landing-pretext-wrap {
+  display: block;
+  max-width: 100%;
+}
+[data-landing-pretext="ready"] [data-pretext-source="true"] {
+  border: 0;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  height: 1px;
+  margin: -1px;
+  overflow: hidden;
+  padding: 0;
+  position: absolute;
+  white-space: nowrap;
+  width: 1px;
+}
+.landing-pretext-title canvas {
+  margin-bottom: 0.2rem;
+}
+.landing-pretext-hero-description canvas {
+  margin-top: 1.2rem;
+}
+.artifact-actions, .artifact-footer {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin: 0 auto 1rem;
+  width: min(var(--shell), calc(100% - 2rem));
+}
+.artifact-actions {
+  justify-content: center;
+}
+.artifact-footer {
+  border-top: 1px solid var(--shell-line);
+  color: var(--muted);
+  font-size: 0.82rem;
+  justify-content: space-between;
+  padding: 1.25rem 0 2rem;
+}
+.artifact-source {
+  background: rgb(var(--shell-panel-rgb) / 0.94);
+  border: 1px solid var(--shell-line-strong);
+  border-radius: var(--radius);
+  box-shadow: var(--shell-shadow);
+  color: var(--shell-ink);
+  display: none;
+  margin: 0 auto 1.25rem;
+  padding: 1rem;
+  width: min(var(--shell), calc(100% - 2rem));
+}
+.artifact-source[data-visible="true"] {
+  display: block;
+}
+.artifact-source-heading {
+  align-items: start;
+  display: flex;
+  gap: 1rem;
+  justify-content: space-between;
+  margin-bottom: 0.9rem;
+}
+.artifact-source-kicker {
+  color: var(--shell-accent);
+  font-size: 0.72rem;
+  font-weight: 900;
+  margin: 0 0 0.2rem;
+  text-transform: uppercase;
+}
+.artifact-source h2 {
+  color: var(--shell-ink);
+  font-size: 1.15rem;
+  line-height: 1.25;
+  margin: 0;
+}
+.artifact-source-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  justify-content: flex-end;
+}
+.artifact-source-summary {
+  display: grid;
+  gap: 0.65rem;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+.artifact-source-card {
+  background: rgb(var(--shell-bg-rgb) / 0.68);
+  border: 1px solid var(--shell-line);
+  border-radius: var(--radius);
+  min-width: 0;
+  padding: 0.8rem;
+}
+.artifact-source-card dt {
+  color: var(--shell-accent);
+  font-size: 0.72rem;
+  font-weight: 900;
+  margin: 0 0 0.35rem;
+  text-transform: uppercase;
+}
+.artifact-source-card dd {
+  color: var(--shell-ink);
+  font-size: 0.95rem;
+  font-weight: 800;
+  line-height: 1.35;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.artifact-source-raw {
+  border-top: 1px solid var(--shell-line);
+  margin-top: 0.9rem;
+  padding-top: 0.75rem;
+}
+.artifact-source-raw summary {
+  color: var(--shell-accent);
+  cursor: pointer;
+  font-size: 0.8rem;
+  font-weight: 900;
+}
+.artifact-source-raw pre {
+  background: rgb(var(--shell-ink-rgb) / 0.94);
+  border-radius: var(--radius);
+  color: #f8fafc;
+  margin: 0.75rem 0 0;
+  max-height: 24rem;
+  overflow: auto;
+  padding: 0.9rem;
+}
+[data-viewspec-evidence="provenance"] [data-ir-id] {
+  outline: 1px solid rgb(var(--shell-accent-rgb) / 0.76) !important;
+  outline-offset: -1px !important;
+  position: relative;
+}
+[data-viewspec-evidence="provenance"] [data-ir-id]::before {
+  background: rgb(var(--shell-ink-rgb) / 0.88);
+  border-radius: 4px;
+  color: #f8fafc;
+  content: attr(data-ir-id);
+  font: 800 10px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  max-width: 16rem;
+  opacity: 0;
+  overflow: hidden;
+  padding: 2px 4px;
+  position: absolute;
+  right: 2px;
+  text-overflow: ellipsis;
+  top: 2px;
+  transform: translateY(-2px);
+  transition: opacity 120ms ease, transform 120ms ease;
+  white-space: nowrap;
+  z-index: 20;
+}
+[data-viewspec-evidence="provenance"] [data-ir-id]:hover::before,
+[data-viewspec-evidence="provenance"] [data-ir-id]:focus-within::before,
+[data-viewspec-evidence="provenance"] [data-ir-selected="true"]::before {
+  opacity: 1;
+  transform: translateY(0);
+}
+@media (max-width: 1080px) {
+  .artifact-bar {
+    grid-template-columns: auto 1fr;
+  }
+  .artifact-profile-dock-inner {
+    align-items: center;
+    gap: 0.42rem 0.55rem;
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+  .artifact-profile-label {
+    align-items: baseline;
+    display: flex;
+    gap: 0.45rem;
+    min-width: 0;
+  }
+  .artifact-profile-switcher {
+    grid-column: 1 / -1;
+    width: 100%;
+  }
+  .artifact-profile-status {
+    justify-self: end;
+    max-width: 100%;
+    overflow: hidden;
+  }
+  .artifact-profile-status output {
+    max-width: 17rem;
+  }
+  .artifact-inspector {
+    grid-column: 1 / -1;
+    justify-self: stretch;
+  }
+  .artifact-inspector-panel {
+    left: 0;
+    right: auto;
+    width: 100%;
+  }
+  .artifact-controls {
+    justify-content: flex-start;
+    padding-bottom: 0.1rem;
+  }
+  #dom-motif_launch_hero,
+  #dom-motif_proof_badges,
+  #dom-motif_capabilities {
+    grid-column: 1 / -1;
+  }
+  #dom-motif_launch_hero {
+    min-height: 23rem;
+  }
+  #dom-motif_launch_hero #dom-binding_launch_hero_title {
+    font-size: 4.15rem !important;
+    max-width: 42rem;
+  }
+  #dom-motif_proof_badges {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+  #dom-motif_proof_badges::before {
+    grid-column: 1 / -1;
+  }
+}
+@media (max-width: 720px) {
+  .artifact-bar {
+    align-items: start;
+    grid-template-columns: 1fr;
+    overflow-x: clip;
+    position: static;
+    padding-bottom: 0.52rem;
+    padding-top: 0.48rem;
+  }
+  .artifact-profile-dock {
+    padding: 0.34rem 0 0;
+  }
+  .artifact-profile-dock-inner {
+    gap: 0.34rem 0.45rem;
+  }
+  .artifact-profile-label strong {
+    font-size: 0.78rem;
+  }
+  .artifact-profile-switcher {
+    padding: 0.2rem;
+  }
+  .artifact-profile-button {
+    min-height: 1.9rem;
+    padding: 0.34rem 0.5rem;
+  }
+  .artifact-profile-button code {
+    display: none;
+  }
+  .artifact-profile-status output {
+    max-width: min(13.5rem, 48vw);
+  }
+  .artifact-links {
+    justify-content: flex-start;
+    min-width: 0;
+    max-width: 100%;
+    overflow: hidden;
+    width: 100%;
+  }
+  .artifact-inspector-toggle {
+    justify-content: space-between;
+    width: 100%;
+  }
+  .artifact-pretext-status output {
+    max-width: 9rem;
+  }
+  .artifact-inspector-panel {
+    max-width: 100%;
+    overflow-x: hidden;
+    position: static;
+  }
+  .artifact-controls {
+    display: grid;
+    gap: 0.45rem;
+    grid-template-columns: 1fr;
+    overflow-x: visible;
+    width: 100%;
+  }
+  .artifact-button,
+  .artifact-pretext-status {
+    justify-content: center;
+    min-width: 0;
+    overflow: hidden;
+    padding-left: 0.45rem;
+    padding-right: 0.45rem;
+    text-overflow: ellipsis;
+  }
+  .artifact-pretext-status {
+    grid-column: 1 / -1;
+  }
+  .artifact-source-heading {
+    display: block;
+  }
+  .artifact-source-actions {
+    justify-content: flex-start;
+    margin-top: 0.75rem;
+  }
+  .artifact-source-summary {
+    grid-template-columns: 1fr;
+  }
+  .vs-root {
+    padding-top: 1.45rem !important;
+  }
+  #dom-region_main {
+    gap: 0.8rem !important;
+  }
+  #dom-motif_launch_hero {
+    min-height: 0;
+    padding: 1.5rem 0 1rem !important;
+  }
+  #dom-motif_launch_hero #dom-binding_launch_hero_title {
+    font-size: 2.65rem !important;
+    line-height: 1 !important;
+  }
+  #dom-binding_launch_hero_description {
+    font-size: 1rem !important;
+  }
+  #dom-motif_proof_badges {
+    grid-template-columns: 1fr !important;
+  }
+  th.vs-label, td.vs-value, td.vs-text {
+    display: block !important;
+    width: 100% !important;
+  }
+}
+
+/* ============ dark / mono / amber reskin — beats the emitter's inline light-theme colors ============ */
+#dom-region_root.vs-root { background: none !important; background-color: transparent !important; color: var(--text) !important; font-family: var(--sans) !important; }
+.vs-value, .vs-text, td.vs-value, td.vs-text { color: var(--text) !important; }
+.vs-label, th.vs-label { color: var(--muted) !important; }
+.vs-surface { background: linear-gradient(160deg, var(--panel-2), var(--panel)) !important; border-color: var(--shell-line) !important; box-shadow: var(--shell-soft-shadow) !important; }
+/* hero — monospace display */
+#dom-motif_launch_hero .vs-label, #dom-binding_launch_hero_eyebrow { font-family: var(--mono) !important; color: var(--shell-accent) !important; letter-spacing: 0.2em !important; text-transform: uppercase; }
+#dom-motif_launch_hero h1, #dom-binding_launch_hero_title { font-family: var(--mono) !important; color: var(--text) !important; font-weight: 660 !important; letter-spacing: -0.03em !important; }
+#dom-binding_launch_hero_description { color: var(--muted) !important; font-family: var(--sans) !important; }
+/* proof badges */
+#dom-motif_proof_badges .vs-value { color: var(--shell-accent-2) !important; font-family: var(--mono) !important; }
+#dom-motif_proof_badges::before { color: var(--muted) !important; font-family: var(--mono) !important; letter-spacing: 0.14em !important; }
+#dom-motif_proof_badges .vs-surface::before { content: ""; position: absolute; inset: 0 auto auto 0; width: 2px; height: 100%; background: linear-gradient(var(--shell-accent), transparent); }
+#dom-motif_proof_badges .vs-surface { position: relative; overflow: hidden; }
+/* tables: capabilities */
+table.vs-stack { background: var(--panel) !important; }
+td.vs-label { color: var(--shell-accent-2) !important; font-family: var(--mono) !important; }
+th.vs-label { background: rgb(var(--shell-panel-rgb) / 0.5) !important; font-family: var(--mono) !important; letter-spacing: 0.12em !important; }
+/* monospace chrome accents */
+.artifact-brand, .artifact-profile-button code, .artifact-ir-status, .artifact-source-kicker, .artifact-source-card dt { font-family: var(--mono) !important; }
+/* hero entrance */
+#dom-binding_launch_hero_eyebrow { opacity: 1; animation: vs-rv 0.6s ease 0.05s both; }
+#dom-binding_launch_hero_title { opacity: 1; animation: vs-rv 0.7s cubic-bezier(0.2, 0.7, 0.2, 1) 0.16s both; }
+#dom-binding_launch_hero_description { opacity: 1; animation: vs-rv 0.7s ease 0.3s both; }
+@keyframes vs-rv { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) {
+  #dom-binding_launch_hero_eyebrow, #dom-binding_launch_hero_title, #dom-binding_launch_hero_description { animation: none !important; }
+}
+
+</style>
 </head>
 <body>
-  <nav class="top-nav" aria-label="Main navigation">
-    <a class="brand-link" href="./">ViewSpec</a>
-    <div class="nav-links">
-      <a href="#proof">Proof</a>
-      <a href="#capabilities">Capabilities</a>
-      <a href="#workflow">Agents</a>
-      <a href="#pricing">Pricing</a>
-      <a href="https://github.com/nxrobins/viewspec">GitHub</a>
-      <button type="button" class="nav-install" data-copy-text="pip install viewspec" aria-label="Copy pip install viewspec command">pip install viewspec</button>
-    </div>
-  </nav>
+<a class="skip-link" href="#dom-region_main">Skip to content</a>
+<nav class="artifact-bar" aria-label="Primary navigation and artifact inspector">
+<a class="artifact-brand" href="./">ViewSpec</a>
+<div class="artifact-links">
+<a href="./appbundle-state-ir/">State IR</a>
+<a href="./proof-bundle/">Proof</a>
+<a href="./custom-motifs/">Motifs</a>
+<a href="./openapi.json">OpenAPI</a>
+<a href="#pricing">Pricing</a>
+<a href="https://github.com/nxrobins/viewspec">GitHub</a>
+</div>
+<div class="artifact-inspector" id="artifact-inspector" data-open="false">
+<button type="button" class="artifact-inspector-toggle" id="artifact-inspector-toggle" aria-expanded="false" aria-controls="artifact-inspector-panel" aria-label="Open artifact inspector controls"><span>Inspect artifact</span><span class="artifact-pretext-status">Pretext <output id="pretext-fit" role="status" aria-live="polite">measuring text</output></span></button>
+<div class="artifact-inspector-panel" id="artifact-inspector-panel" role="group" aria-label="Artifact inspector controls">
+<div class="artifact-controls">
+<fieldset class="artifact-control-group"><legend>Evidence</legend>
+<button type="button" class="artifact-button" data-page-evidence="clean" data-active="true" aria-label="Hide compiler IR outlines">Clean</button>
+<button type="button" class="artifact-button" data-page-evidence="provenance" aria-label="Show compiler IR outlines and inspect node ids">Show IR ids</button>
+<span class="artifact-ir-status">IR <output id="ir-inspector-value" role="status" aria-live="polite">hover a highlighted node</output></span>
+</fieldset>
+<fieldset class="artifact-control-group"><legend>Source</legend>
+<button type="button" class="artifact-button" data-source-view="intent" aria-label="Show IntentBundle summary">IntentBundle</button>
+<button type="button" class="artifact-button" data-source-view="manifest" aria-label="Show manifest summary">Manifest</button>
+<button type="button" class="artifact-button" data-source-view="profile" aria-label="Show compiled profile proof summary">Profile proof</button>
+<button type="button" class="artifact-button" data-source-view="hide" data-active="true" aria-label="Hide source summary">Hide source</button>
+<button type="button" class="artifact-button" data-copy-text="pip install viewspec" aria-label="Copy pip install viewspec command">pip install viewspec</button>
+</fieldset>
+</div>
+</div>
+</div>
+<div class="artifact-profile-dock" role="group" aria-label="Compiled aesthetic profile selector">
+<div class="artifact-profile-dock-inner">
+<div class="artifact-profile-label"><span>Compiled profile</span><strong>Same graph, new projection</strong><span class="artifact-profile-caption">Every profile is the same semantic graph, re-projected.</span></div>
+<div class="artifact-profile-switcher">
+<button type="button" class="artifact-button artifact-profile-button" data-profile-token="aesthetic.calm_ops" data-profile-slug="calm-ops" data-active="true" aria-pressed="true" aria-label="Use Calm Ops compiled aesthetic profile"><span>Calm Ops</span><code>aesthetic.calm_ops</code></button><button type="button" class="artifact-button artifact-profile-button" data-profile-token="aesthetic.premium_saas" data-profile-slug="premium-saas" data-active="false" aria-pressed="false" aria-label="Use Premium SaaS compiled aesthetic profile"><span>Premium SaaS</span><code>aesthetic.premium_saas</code></button><button type="button" class="artifact-button artifact-profile-button" data-profile-token="aesthetic.data_dense" data-profile-slug="data-dense" data-active="false" aria-pressed="false" aria-label="Use Data Dense compiled aesthetic profile"><span>Data Dense</span><code>aesthetic.data_dense</code></button><button type="button" class="artifact-button artifact-profile-button" data-profile-token="aesthetic.editorial_product" data-profile-slug="editorial-product" data-active="false" aria-pressed="false" aria-label="Use Editorial Product compiled aesthetic profile"><span>Editorial Product</span><code>aesthetic.editorial_product</code></button><button type="button" class="artifact-button artifact-profile-button" data-profile-token="aesthetic.executive_review" data-profile-slug="executive-review" data-active="false" aria-pressed="false" aria-label="Use Executive Review compiled aesthetic profile"><span>Executive Review</span><code>aesthetic.executive_review</code></button>
+</div>
+<span class="artifact-profile-status">Profile <output id="profile-proof-value" role="status" aria-live="polite">Calm Ops verified</output></span>
+</div>
+</div>
+</nav>
+<section id="artifact-source" class="artifact-source" data-visible="false" aria-hidden="true" role="region" aria-labelledby="artifact-source-title">
+<div class="artifact-source-heading">
+<div><p class="artifact-source-kicker">Artifact evidence</p><h2 id="artifact-source-title">Source summary</h2></div>
+<div class="artifact-source-actions">
+<a id="artifact-source-open" class="artifact-link-button" href="./landing-compiled/intent_bundle.json" target="_blank" rel="noopener">Open raw</a>
+<button id="artifact-source-copy" type="button" class="artifact-button">Copy JSON</button>
+<button type="button" class="artifact-button" data-close-source aria-label="Close source summary">Close</button>
+</div>
+</div>
+<div id="artifact-source-summary" class="artifact-source-summary"></div>
+<details class="artifact-source-raw"><summary>Raw JSON</summary><pre><code id="artifact-source-code"></code></pre></details>
+</section>
+<section id="viewspec-artifact-slot" class="viewspec-artifact-slot" data-active-profile="aesthetic.calm_ops">
+<main data-viewspec-page-artifact="true" id="dom-region_root" class="vs-root vs-layout-root" data-ir-id="region_root" data-content-refs="[]" data-intent-refs="[&quot;viewspec:view:viewspec_landing&quot;, &quot;viewspec:region:root&quot;, &quot;viewspec:style:aesthetic_profile&quot;]" data-style-tokens="[&quot;tone.neutral&quot;, &quot;palette.temperature&quot;, &quot;aesthetic.calm_ops&quot;]" style="color: #1f2937; color: #172033; font-family: ui-sans-serif, system-ui, sans-serif; background-color: #ffffff; background-color: #f6faf9;" data-aesthetic-profile="aesthetic.calm_ops"><div id="dom-region_main" class="vs-stack vs-layout-stack" data-ir-id="region_main" data-content-refs="[]" data-intent-refs="[&quot;viewspec:region:main&quot;]" data-style-tokens="[&quot;density.regular&quot;]" style="gap: 0.68rem; padding: 0.58rem 0.74rem; gap: 0.78rem; padding: 0.72rem 0.96rem;"><header id="dom-motif_launch_hero" class="vs-surface vs-layout-surface vs-motif-hero" data-ir-id="motif_launch_hero" data-content-refs="[]" data-intent-refs="[&quot;viewspec:motif:launch_hero&quot;, &quot;viewspec:style:s_launch_hero&quot;]" data-style-tokens="[&quot;surface.subtle&quot;, &quot;emphasis.high&quot;]" style="background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 14px; background: #ffffff; border: 1px solid #dbe3ea; border-radius: 14px; font-weight: 730; letter-spacing: -0.025em; font-weight: 760; letter-spacing: -0.012em;" aria-label="Hero"><p id="dom-binding_launch_hero_eyebrow" class="vs-label" data-ir-id="binding_launch_hero_eyebrow" data-content-refs="[&quot;node:launch_hero#attr:eyebrow&quot;]" data-intent-refs="[&quot;viewspec:binding:launch_hero_eyebrow&quot;]" data-style-tokens="[&quot;tone.muted&quot;]" style="color: #6b7280; color: #667085;" data-binding-id="launch_hero_eyebrow">Agent-native app compiler</p><h1 id="dom-binding_launch_hero_title" class="vs-value" data-ir-id="binding_launch_hero_title" data-content-refs="[&quot;node:launch_hero#attr:title&quot;]" data-intent-refs="[&quot;viewspec:binding:launch_hero_title&quot;]" data-style-tokens="[&quot;tone.neutral&quot;, &quot;emphasis.high&quot;]" style="color: #1f2937; color: #172033; font-family: ui-sans-serif, system-ui, sans-serif; font-weight: 730; letter-spacing: -0.025em; font-weight: 760; letter-spacing: -0.012em;" data-binding-id="launch_hero_title">Ship agent-built apps you can prove.</h1><p id="dom-binding_launch_hero_description" class="vs-text" data-ir-id="binding_launch_hero_description" data-content-refs="[&quot;node:launch_hero#attr:description&quot;]" data-intent-refs="[&quot;viewspec:binding:launch_hero_description&quot;]" data-style-tokens="[&quot;tone.neutral&quot;]" style="color: #1f2937; color: #172033; font-family: ui-sans-serif, system-ui, sans-serif;" data-binding-id="launch_hero_description">Intent in. App out. Proof attached. Agents commit to meaning — nodes, bindings, motifs — and ViewSpec compiles the UI, the state reducer, replay checks, and shell proof. Deterministic, and no runtime LLM.</p></header><div id="dom-motif_proof_badges" class="vs-grid vs-layout-grid vs-motif-dashboard" data-ir-id="motif_proof_badges" data-content-refs="[]" data-intent-refs="[&quot;viewspec:motif:proof_badges&quot;, &quot;viewspec:style:s_proof_badges&quot;]" data-style-tokens="[&quot;density.regular&quot;, &quot;surface.subtle&quot;]" style="grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0.68rem; padding: 0.58rem 0.74rem; gap: 0.78rem; padding: 0.72rem 0.96rem; background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 14px; background: #ffffff; border: 1px solid #dbe3ea; border-radius: 14px;"><div id="dom-motif_proof_badges_proof_badges_card_1" class="vs-surface vs-layout-surface vs-motif-dashboard" data-ir-id="motif_proof_badges_proof_badges_card_1" data-content-refs="[]" data-intent-refs="[&quot;viewspec:motif:proof_badges&quot;]" data-style-tokens="[&quot;surface.subtle&quot;]" style="background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 14px; background: #ffffff; border: 1px solid #dbe3ea; border-radius: 14px;"><div id="dom-binding_proof_badges_card_1_label" class="vs-label" data-ir-id="binding_proof_badges_card_1_label" data-content-refs="[&quot;node:proof_badges_card_1#attr:label&quot;]" data-intent-refs="[&quot;viewspec:binding:proof_badges_card_1_label&quot;]" data-style-tokens="[&quot;tone.muted&quot;]" style="color: #6b7280; color: #667085;" data-binding-id="proof_badges_card_1_label">replay</div><div id="dom-binding_proof_badges_card_1_value" class="vs-value" data-ir-id="binding_proof_badges_card_1_value" data-content-refs="[&quot;node:proof_badges_card_1#attr:value&quot;]" data-intent-refs="[&quot;viewspec:binding:proof_badges_card_1_value&quot;]" data-style-tokens="[&quot;tone.neutral&quot;, &quot;emphasis.high&quot;]" style="color: #1f2937; color: #172033; font-family: ui-sans-serif, system-ui, sans-serif; font-weight: 730; letter-spacing: -0.025em; font-weight: 760; letter-spacing: -0.012em;" data-binding-id="proof_badges_card_1_value">state replay passed</div></div><div id="dom-motif_proof_badges_proof_badges_card_2" class="vs-surface vs-layout-surface vs-motif-dashboard" data-ir-id="motif_proof_badges_proof_badges_card_2" data-content-refs="[]" data-intent-refs="[&quot;viewspec:motif:proof_badges&quot;]" data-style-tokens="[&quot;surface.subtle&quot;]" style="background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 14px; background: #ffffff; border: 1px solid #dbe3ea; border-radius: 14px;"><div id="dom-binding_proof_badges_card_2_label" class="vs-label" data-ir-id="binding_proof_badges_card_2_label" data-content-refs="[&quot;node:proof_badges_card_2#attr:label&quot;]" data-intent-refs="[&quot;viewspec:binding:proof_badges_card_2_label&quot;]" data-style-tokens="[&quot;tone.muted&quot;]" style="color: #6b7280; color: #667085;" data-binding-id="proof_badges_card_2_label">reducer</div><div id="dom-binding_proof_badges_card_2_value" class="vs-value" data-ir-id="binding_proof_badges_card_2_value" data-content-refs="[&quot;node:proof_badges_card_2#attr:value&quot;]" data-intent-refs="[&quot;viewspec:binding:proof_badges_card_2_value&quot;]" data-style-tokens="[&quot;tone.neutral&quot;, &quot;emphasis.high&quot;]" style="color: #1f2937; color: #172033; font-family: ui-sans-serif, system-ui, sans-serif; font-weight: 730; letter-spacing: -0.025em; font-weight: 760; letter-spacing: -0.012em;" data-binding-id="proof_badges_card_2_value">reducer generated</div></div><div id="dom-motif_proof_badges_proof_badges_card_3" class="vs-surface vs-layout-surface vs-motif-dashboard" data-ir-id="motif_proof_badges_proof_badges_card_3" data-content-refs="[]" data-intent-refs="[&quot;viewspec:motif:proof_badges&quot;]" data-style-tokens="[&quot;surface.subtle&quot;]" style="background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 14px; background: #ffffff; border: 1px solid #dbe3ea; border-radius: 14px;"><div id="dom-binding_proof_badges_card_3_label" class="vs-label" data-ir-id="binding_proof_badges_card_3_label" data-content-refs="[&quot;node:proof_badges_card_3#attr:label&quot;]" data-intent-refs="[&quot;viewspec:binding:proof_badges_card_3_label&quot;]" data-style-tokens="[&quot;tone.muted&quot;]" style="color: #6b7280; color: #667085;" data-binding-id="proof_badges_card_3_label">manifest</div><div id="dom-binding_proof_badges_card_3_value" class="vs-value" data-ir-id="binding_proof_badges_card_3_value" data-content-refs="[&quot;node:proof_badges_card_3#attr:value&quot;]" data-intent-refs="[&quot;viewspec:binding:proof_badges_card_3_value&quot;]" data-style-tokens="[&quot;tone.neutral&quot;, &quot;emphasis.high&quot;]" style="color: #1f2937; color: #172033; font-family: ui-sans-serif, system-ui, sans-serif; font-weight: 730; letter-spacing: -0.025em; font-weight: 760; letter-spacing: -0.012em;" data-binding-id="proof_badges_card_3_value">manifest checked</div></div><div id="dom-motif_proof_badges_proof_badges_card_4" class="vs-surface vs-layout-surface vs-motif-dashboard" data-ir-id="motif_proof_badges_proof_badges_card_4" data-content-refs="[]" data-intent-refs="[&quot;viewspec:motif:proof_badges&quot;]" data-style-tokens="[&quot;surface.subtle&quot;]" style="background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 14px; background: #ffffff; border: 1px solid #dbe3ea; border-radius: 14px;"><div id="dom-binding_proof_badges_card_4_label" class="vs-label" data-ir-id="binding_proof_badges_card_4_label" data-content-refs="[&quot;node:proof_badges_card_4#attr:label&quot;]" data-intent-refs="[&quot;viewspec:binding:proof_badges_card_4_label&quot;]" data-style-tokens="[&quot;tone.muted&quot;]" style="color: #6b7280; color: #667085;" data-binding-id="proof_badges_card_4_label">shell</div><div id="dom-binding_proof_badges_card_4_value" class="vs-value" data-ir-id="binding_proof_badges_card_4_value" data-content-refs="[&quot;node:proof_badges_card_4#attr:value&quot;]" data-intent-refs="[&quot;viewspec:binding:proof_badges_card_4_value&quot;]" data-style-tokens="[&quot;tone.neutral&quot;, &quot;emphasis.high&quot;]" style="color: #1f2937; color: #172033; font-family: ui-sans-serif, system-ui, sans-serif; font-weight: 730; letter-spacing: -0.025em; font-weight: 760; letter-spacing: -0.012em;" data-binding-id="proof_badges_card_4_value">shell hash matched</div></div><div id="dom-motif_proof_badges_proof_badges_card_5" class="vs-surface vs-layout-surface vs-motif-dashboard" data-ir-id="motif_proof_badges_proof_badges_card_5" data-content-refs="[]" data-intent-refs="[&quot;viewspec:motif:proof_badges&quot;]" data-style-tokens="[&quot;surface.subtle&quot;]" style="background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 14px; background: #ffffff; border: 1px solid #dbe3ea; border-radius: 14px;"><div id="dom-binding_proof_badges_card_5_label" class="vs-label" data-ir-id="binding_proof_badges_card_5_label" data-content-refs="[&quot;node:proof_badges_card_5#attr:label&quot;]" data-intent-refs="[&quot;viewspec:binding:proof_badges_card_5_label&quot;]" data-style-tokens="[&quot;tone.muted&quot;]" style="color: #6b7280; color: #667085;" data-binding-id="proof_badges_card_5_label">runtime</div><div id="dom-binding_proof_badges_card_5_value" class="vs-value" data-ir-id="binding_proof_badges_card_5_value" data-content-refs="[&quot;node:proof_badges_card_5#attr:value&quot;]" data-intent-refs="[&quot;viewspec:binding:proof_badges_card_5_value&quot;]" data-style-tokens="[&quot;tone.neutral&quot;, &quot;emphasis.high&quot;]" style="color: #1f2937; color: #172033; font-family: ui-sans-serif, system-ui, sans-serif; font-weight: 730; letter-spacing: -0.025em; font-weight: 760; letter-spacing: -0.012em;" data-binding-id="proof_badges_card_5_value">No runtime LLM</div></div></div><table id="dom-motif_capabilities" class="vs-stack vs-layout-stack vs-motif-table" data-ir-id="motif_capabilities" data-content-refs="[]" data-intent-refs="[&quot;viewspec:motif:capabilities&quot;, &quot;viewspec:style:s_capabilities&quot;]" data-style-tokens="[&quot;density.regular&quot;, &quot;density.compact&quot;]" style="gap: 0.68rem; padding: 0.58rem 0.74rem; gap: 0.78rem; padding: 0.72rem 0.96rem; gap: 0.34rem; padding: 0.36rem 0.5rem; gap: 0.32rem; padding: 0.34rem 0.5rem;"><tbody><tr id="dom-motif_capabilities_capabilities_row_1" class="vs-cluster vs-layout-cluster vs-motif-table" data-ir-id="motif_capabilities_capabilities_row_1" data-content-refs="[]" data-intent-refs="[&quot;viewspec:motif:capabilities&quot;]" data-style-tokens="[&quot;density.compact&quot;]" style="gap: 0.34rem; padding: 0.36rem 0.5rem; gap: 0.32rem; padding: 0.34rem 0.5rem;"><th id="dom-binding_capabilities_row_1_label" class="vs-label" data-ir-id="binding_capabilities_row_1_label" data-content-refs="[&quot;node:capabilities_row_1#attr:label&quot;]" data-intent-refs="[&quot;viewspec:binding:capabilities_row_1_label&quot;]" data-style-tokens="[&quot;tone.muted&quot;]" style="color: #6b7280; color: #667085;" data-binding-id="capabilities_row_1_label" scope="row">State IR</th><td id="dom-binding_capabilities_row_1_value" class="vs-value" data-ir-id="binding_capabilities_row_1_value" data-content-refs="[&quot;node:capabilities_row_1#attr:value&quot;]" data-intent-refs="[&quot;viewspec:binding:capabilities_row_1_value&quot;]" data-style-tokens="[&quot;tone.neutral&quot;, &quot;emphasis.high&quot;]" style="color: #1f2937; color: #172033; font-family: ui-sans-serif, system-ui, sans-serif; font-weight: 730; letter-spacing: -0.025em; font-weight: 760; letter-spacing: -0.012em;" data-binding-id="capabilities_row_1_value">interactive_state_v0 writes state_reducer.ts and reduceViewSpecState.</td></tr><tr id="dom-motif_capabilities_capabilities_row_2" class="vs-cluster vs-layout-cluster vs-motif-table" data-ir-id="motif_capabilities_capabilities_row_2" data-content-refs="[]" data-intent-refs="[&quot;viewspec:motif:capabilities&quot;]" data-style-tokens="[&quot;density.compact&quot;]" style="gap: 0.34rem; padding: 0.36rem 0.5rem; gap: 0.32rem; padding: 0.34rem 0.5rem;"><th id="dom-binding_capabilities_row_2_label" class="vs-label" data-ir-id="binding_capabilities_row_2_label" data-content-refs="[&quot;node:capabilities_row_2#attr:label&quot;]" data-intent-refs="[&quot;viewspec:binding:capabilities_row_2_label&quot;]" data-style-tokens="[&quot;tone.muted&quot;]" style="color: #6b7280; color: #667085;" data-binding-id="capabilities_row_2_label" scope="row">Aesthetic Profiles</th><td id="dom-binding_capabilities_row_2_value" class="vs-value" data-ir-id="binding_capabilities_row_2_value" data-content-refs="[&quot;node:capabilities_row_2#attr:value&quot;]" data-intent-refs="[&quot;viewspec:binding:capabilities_row_2_value&quot;]" data-style-tokens="[&quot;tone.neutral&quot;, &quot;emphasis.high&quot;]" style="color: #1f2937; color: #172033; font-family: ui-sans-serif, system-ui, sans-serif; font-weight: 730; letter-spacing: -0.025em; font-weight: 760; letter-spacing: -0.012em;" data-binding-id="capabilities_row_2_value">Five compiled projections from one semantic graph.</td></tr><tr id="dom-motif_capabilities_capabilities_row_3" class="vs-cluster vs-layout-cluster vs-motif-table" data-ir-id="motif_capabilities_capabilities_row_3" data-content-refs="[]" data-intent-refs="[&quot;viewspec:motif:capabilities&quot;]" data-style-tokens="[&quot;density.compact&quot;]" style="gap: 0.34rem; padding: 0.36rem 0.5rem; gap: 0.32rem; padding: 0.34rem 0.5rem;"><th id="dom-binding_capabilities_row_3_label" class="vs-label" data-ir-id="binding_capabilities_row_3_label" data-content-refs="[&quot;node:capabilities_row_3#attr:label&quot;]" data-intent-refs="[&quot;viewspec:binding:capabilities_row_3_label&quot;]" data-style-tokens="[&quot;tone.muted&quot;]" style="color: #6b7280; color: #667085;" data-binding-id="capabilities_row_3_label" scope="row">Proof Pipeline</th><td id="dom-binding_capabilities_row_3_value" class="vs-value" data-ir-id="binding_capabilities_row_3_value" data-content-refs="[&quot;node:capabilities_row_3#attr:value&quot;]" data-intent-refs="[&quot;viewspec:binding:capabilities_row_3_value&quot;]" data-style-tokens="[&quot;tone.neutral&quot;, &quot;emphasis.high&quot;]" style="color: #1f2937; color: #172033; font-family: ui-sans-serif, system-ui, sans-serif; font-weight: 730; letter-spacing: -0.025em; font-weight: 760; letter-spacing: -0.012em;" data-binding-id="capabilities_row_3_value">state_replay_assertions plus viewspec prove-app --with-shell.</td></tr><tr id="dom-motif_capabilities_capabilities_row_4" class="vs-cluster vs-layout-cluster vs-motif-table" data-ir-id="motif_capabilities_capabilities_row_4" data-content-refs="[]" data-intent-refs="[&quot;viewspec:motif:capabilities&quot;]" data-style-tokens="[&quot;density.compact&quot;]" style="gap: 0.34rem; padding: 0.36rem 0.5rem; gap: 0.32rem; padding: 0.34rem 0.5rem;"><th id="dom-binding_capabilities_row_4_label" class="vs-label" data-ir-id="binding_capabilities_row_4_label" data-content-refs="[&quot;node:capabilities_row_4#attr:label&quot;]" data-intent-refs="[&quot;viewspec:binding:capabilities_row_4_label&quot;]" data-style-tokens="[&quot;tone.muted&quot;]" style="color: #6b7280; color: #667085;" data-binding-id="capabilities_row_4_label" scope="row">Portable Surfaces</th><td id="dom-binding_capabilities_row_4_value" class="vs-value" data-ir-id="binding_capabilities_row_4_value" data-content-refs="[&quot;node:capabilities_row_4#attr:value&quot;]" data-intent-refs="[&quot;viewspec:binding:capabilities_row_4_value&quot;]" data-style-tokens="[&quot;tone.neutral&quot;, &quot;emphasis.high&quot;]" style="color: #1f2937; color: #172033; font-family: ui-sans-serif, system-ui, sans-serif; font-weight: 730; letter-spacing: -0.025em; font-weight: 760; letter-spacing: -0.012em;" data-binding-id="capabilities_row_4_value">html-tailwind and React locally; SwiftUI and Flutter hosted.</td></tr></tbody></table></div></main>
+</section>
+<span id="pricing" class="anchor-target" aria-hidden="true"></span>
+<div class="artifact-actions" id="pricing-actions">
+<a class="artifact-link-button primary" href="https://buy.stripe.com/6oU4gA6PqcM9afq6qq2Z0b8" data-config-link="pro" target="_blank" rel="noopener">Get Pro</a>
+<a class="artifact-link-button" href="mailto:hello@viewspec.dev?subject=ViewSpec%20Enterprise" data-config-link="enterprise" target="_blank" rel="noopener">Talk to us</a>
+<a class="artifact-link-button" href="https://pypi.org/project/viewspec/">Install SDK</a>
+<button type="button" class="artifact-button" data-copy-text="pip install viewspec" aria-label="Copy pip install viewspec command">pip install viewspec</button>
+</div>
+<footer class="artifact-footer">
+<span>Generated by <code>demos/build_landing.py</code> through the ViewSpec compiler.</span>
+<span><button type="button" class="artifact-button" data-copy-text="pip install viewspec" aria-label="Copy pip install viewspec command">pip install viewspec</button> MIT &copy; 2026</span>
+</footer>
+<script type="module">
 
-  <main>
-    <section class="page-shell hero" id="top">
-      <div class="hero-copy">
-        <h1>Stop asking agents to write DOM.</h1>
-        <p class="hero-body">Agents emit <code>IntentBundle</code> JSON. Start with <code>viewspec prove --out .viewspec-proof</code> and read <code>.viewspec-proof/PROOF.md</code>; keep <code>.viewspec-proof/support_bundle.json</code> for redacted failure triage. Or scaffold with <code>viewspec init-intent</code> when useful, then run <code>viewspec validate-intent</code>, <code>viewspec compile</code>, and <code>viewspec check</code> locally so ViewSpec owns renderer output, DESIGN.md theming, compact style-delta counts for profiled artifacts, and deterministic provenance before hosted API work enters the picture.</p>
-        <div class="hero-actions">
-          <a class="button-primary" href="#proof">See the proof</a>
-          <button type="button" class="pip-pill" data-copy-text="pip install viewspec" aria-label="Copy pip install viewspec command">pip install viewspec</button>
-        </div>
-      </div>
+import { LANDING_CONFIG, hasProductionCommerceConfig } from './shared/landing-config.js?v=20260505-launch'
 
-      <div class="panel preview-shell" aria-label="Live compiler preview">
-        <div class="panel-header">
-          <span class="panel-title">Hosted compiler preview</span>
-          <span id="compile-status" class="status-pill" data-state="idle">initializing</span>
-        </div>
-        <div id="hero-preview-frame" class="preview-frame" data-preview-frame data-preview-mode="hero" data-viewport="desktop">
-          <div class="viewport-shell" data-viewport-shell data-viewport="desktop">
-            <div id="hero-playground-output" class="preview-inner" data-compiled-output></div>
-          </div>
-        </div>
-        <div class="hero-proof-bar" aria-label="Compiler guarantees">
-          <div class="proof-pill">
-            <span class="proof-pill-label">Compile</span>
-            <strong id="hero-compile-time" class="proof-pill-value">live ms</strong>
-          </div>
-          <div class="proof-pill">
-            <span class="proof-pill-label">Runtime LLM</span>
-            <strong class="proof-pill-value">zero</strong>
-          </div>
-          <div class="proof-pill">
-            <span class="proof-pill-label">IR nodes</span>
-            <strong id="hero-ir-count" class="proof-pill-value">&mdash;</strong>
-          </div>
-          <div class="proof-pill">
-            <span class="proof-pill-label">Tokens</span>
-            <strong id="hero-token-count" class="proof-pill-value">&mdash;</strong>
-          </div>
-        </div>
-      </div>
-    </section>
+const links = {
+  pro: LANDING_CONFIG.proStripeUrl,
+  enterprise: LANDING_CONFIG.enterpriseUrl,
+}
 
-    <section class="section" id="proof">
-      <div class="page-shell">
-        <div class="proof-grid">
-          <article class="panel proof-panel proof-panel-json" aria-label="IntentBundle JSON">
-            <div class="panel-header">
-              <span class="panel-title">IntentBundle JSON</span>
-              <span class="status-pill">input</span>
-            </div>
-            <pre id="proof-json" class="code-block proof-code">Loading intent bundle...</pre>
-          </article>
+document.querySelectorAll('[data-config-link]').forEach((link) => {
+  const key = link.getAttribute('data-config-link')
+  link.href = links[key] || '#pricing'
+  if (!hasProductionCommerceConfig()) {
+    link.title = 'Production Stripe/API-key URL must be configured before launch.'
+  }
+})
 
-          <article class="panel proof-panel proof-panel-html" aria-label="HTML render">
-            <div class="panel-header">
-              <span class="panel-title">HTML / Tailwind</span>
-              <div class="panel-meta">
-                <span id="proof-compile-time" class="status-pill" data-state="static">pre-baked</span>
-                <button type="button" id="proof-compile-button" class="proof-button">Recompile</button>
-              </div>
-            </div>
-            <div class="proof-iframe-wrap"><iframe id="proof-html-frame" class="proof-iframe" src="./cross-platform-dashboard/artifacts/html/index.html" title="Compiled HTML output" loading="lazy" sandbox="allow-scripts"></iframe></div>
-            <p class="proof-meta-note"><span id="proof-status" class="status-pill" data-state="static">pre-baked</span></p>
-          </article>
+</script>
+<script src="./vendor/pretext/pretext.global.js?v=20260628-global"></script>
+<script>
 
-          <article class="panel proof-panel proof-panel-code" aria-label="Cross-platform sources">
-            <div class="panel-header">
-              <span class="panel-title">Other surfaces</span>
-              <div class="proof-tabs" role="tablist" aria-label="Cross-platform source">
-                <button type="button" class="proof-tab" data-proof-tab="react-tsx" role="tab" aria-selected="true" aria-controls="proof-panel-react-tsx" id="proof-tab-react-tsx" tabindex="0">React TSX</button>
-                <button type="button" class="proof-tab" data-proof-tab="swiftui" role="tab" aria-selected="false" aria-controls="proof-panel-swiftui" id="proof-tab-swiftui" tabindex="-1">SwiftUI</button>
-                <button type="button" class="proof-tab" data-proof-tab="flutter" role="tab" aria-selected="false" aria-controls="proof-panel-flutter" id="proof-tab-flutter" tabindex="-1">Flutter</button>
-              </div>
-            </div>
-            <div class="proof-code-host">
-              <pre class="code-block proof-code" data-proof-panel="react-tsx" id="proof-panel-react-tsx" role="tabpanel" aria-labelledby="proof-tab-react-tsx"><code class="language-tsx">Loading source...</code></pre>
-              <pre class="code-block proof-code" data-proof-panel="swiftui" id="proof-panel-swiftui" role="tabpanel" aria-labelledby="proof-tab-swiftui" hidden><code class="language-swift">Loading source...</code></pre>
-              <pre class="code-block proof-code" data-proof-panel="flutter" id="proof-panel-flutter" role="tabpanel" aria-labelledby="proof-tab-flutter" hidden><code class="language-dart">Loading source...</code></pre>
-            </div>
-          </article>
-        </div>
-        <p class="proof-caption"><strong>The hosted compiler proof remains available for IntentBundle and cross-platform emitter workflows.</strong></p>
-      </div>
-    </section>
+;(() => {
+  const root = document.documentElement
+  const source = document.getElementById('artifact-source')
+  const sourceTitle = document.getElementById('artifact-source-title')
+  const sourceSummary = document.getElementById('artifact-source-summary')
+  const sourceCode = document.getElementById('artifact-source-code')
+  const sourceOpen = document.getElementById('artifact-source-open')
+  const copySource = document.getElementById('artifact-source-copy')
+  const irOutput = document.getElementById('ir-inspector-value')
+  const inspector = document.getElementById('artifact-inspector')
+  const inspectorToggle = document.getElementById('artifact-inspector-toggle')
+  const artifactSlot = document.getElementById('viewspec-artifact-slot')
+  const profileOutput = document.getElementById('profile-proof-value')
+  const profileEvidenceElement = document.getElementById('landing-profile-evidence')
+  const profileEvidence = profileEvidenceElement ? JSON.parse(profileEvidenceElement.textContent || '{}') : {}
+  const sourceNames = {
+    intent: 'IntentBundle summary',
+    manifest: 'Manifest summary',
+    profile: 'Profile proof summary',
+  }
+  const cache = new Map()
+  let activeSourceText = ''
+  let activeSourceView = 'hide'
+  let activeProfile = profileEvidence.defaultProfile || 'aesthetic.calm_ops'
 
-    <section class="section" id="capabilities">
-      <div class="page-shell">
-        <div class="capability-grid">
-          <article class="panel capability-card" aria-label="Provenance">
-            <div class="panel-header">
-              <span class="panel-title">Provenance</span>
-              <span class="status-pill">hover anything</span>
-            </div>
-            <div class="panel-body capability-body">
-              <p class="capability-lede">Every element traces back to its source data binding. Hover anything. See the chain.</p>
-              <div class="capability-stage">
-                <div id="provenance-output" class="provenance-output" data-compiled-output></div>
-              </div>
-              <div id="provenance-details" class="provenance-detail-panel"></div>
-            </div>
-          </article>
+  function activeProfileData() {
+    return profileEvidence.profiles?.[activeProfile] || {}
+  }
 
-          <article class="panel capability-card" aria-label="Style derivation">
-            <div class="panel-header">
-              <span class="panel-title">Style derivation</span>
-              <span id="style-derivation-status" class="status-pill" data-state="idle">idle</span>
-            </div>
-            <div class="panel-body capability-body">
-              <p class="capability-lede">Same structure. Different feel. The compiler treats visual style as a function of intent — toggle a preset, the IR doesn't change.</p>
-              <div class="style-derivation-toggle" role="tablist">
-                <button type="button" class="style-derivation-button" data-style-preset="default" aria-pressed="true">Default</button>
-                <button type="button" class="style-derivation-button" data-style-preset="editorial" aria-pressed="false">Editorial</button>
-                <button type="button" class="style-derivation-button" data-style-preset="data-dense" aria-pressed="false">Data-dense</button>
-                <button type="button" class="style-derivation-button" data-style-preset="soft" aria-pressed="false">Soft</button>
-              </div>
-              <div class="capability-stage style-derivation-stage">
-                <div id="style-derivation-stage" class="style-derivation-output" data-style-preset="default"></div>
-              </div>
-              <p id="style-derivation-hint" class="capability-hint">Clean, neutral, the reference compiler baseline.</p>
-            </div>
-          </article>
+  function sourceUrl(value) {
+    if (value === 'profile') return './landing-compiled/profile-evidence.json'
+    const data = activeProfileData()
+    if (value === 'intent') return data.intentUrl || './landing-compiled/intent_bundle.json'
+    if (value === 'manifest') return data.manifestUrl || './landing-compiled/provenance_manifest.json'
+    return ''
+  }
 
-          <article class="panel capability-card" aria-label="Same data, different intent">
-            <div class="panel-header">
-              <span class="panel-title">Same data, different intent</span>
-              <span id="motifs-status" class="status-pill" data-state="idle">idle</span>
-            </div>
-            <div class="panel-body capability-body">
-              <p class="capability-lede">Same KPI bindings. One field changes. The compiler picks the structure: cards, rows, or a side-by-side comparison.</p>
-              <div class="motifs-toggle" role="tablist">
-                <button type="button" class="motifs-button" data-motif-kind="dashboard" aria-pressed="true">Dashboard</button>
-                <button type="button" class="motifs-button" data-motif-kind="table" aria-pressed="false">Table</button>
-                <button type="button" class="motifs-button" data-motif-kind="comparison" aria-pressed="false">Comparison</button>
-              </div>
-              <div class="capability-stage motifs-stage">
-                <div id="motifs-output" class="motifs-output" data-compiled-output></div>
-              </div>
-              <p id="motifs-hint" class="capability-hint">Dashboard cards. Focal value gets the largest scale, badge sits beneath, focal card lifted.</p>
-            </div>
-          </article>
-        </div>
-      </div>
-    </section>
+  function updateProfileStatus() {
+    const data = activeProfileData()
+    root.dataset.viewspecProfile = activeProfile
+    if (artifactSlot) artifactSlot.dataset.activeProfile = activeProfile
+    if (profileOutput) {
+      profileOutput.value = `${data.label || activeProfile} verified`
+      profileOutput.textContent = profileOutput.value
+    }
+  }
 
-    <section class="section" id="workflow">
-      <div class="page-shell">
-        <div class="workflow-strip">
-          <svg class="workflow-svg" viewBox="0 0 960 200" role="img" aria-label="Agent compile pipeline" xmlns="http://www.w3.org/2000/svg">
-            <defs>
-              <marker id="workflow-arrow" viewBox="0 0 12 12" refX="10" refY="6" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
-                <path d="M0,0 L12,6 L0,12 Z" fill="#2dd4bf"></path>
-              </marker>
-            </defs>
-            <g class="workflow-row">
-              <rect x="8" y="60" width="160" height="56" rx="8" class="workflow-node"></rect>
-              <text x="88" y="92" class="workflow-text" text-anchor="middle">Agent writes intent</text>
+  function setActive(selector, attr, value) {
+    document.querySelectorAll(selector).forEach((button) => {
+      button.dataset.active = button.getAttribute(attr) === value ? 'true' : 'false'
+    })
+  }
 
-              <line x1="170" y1="88" x2="200" y2="88" class="workflow-edge" marker-end="url(#workflow-arrow)"></line>
+  if (inspector && inspectorToggle) {
+    inspectorToggle.addEventListener('click', () => {
+      const open = inspector.dataset.open !== 'true'
+      inspector.dataset.open = open ? 'true' : 'false'
+      inspectorToggle.setAttribute('aria-expanded', open ? 'true' : 'false')
+    })
+    document.addEventListener('keydown', (event) => {
+      if (event.key !== 'Escape' || inspector.dataset.open !== 'true') return
+      inspector.dataset.open = 'false'
+      inspectorToggle.setAttribute('aria-expanded', 'false')
+      inspectorToggle.focus()
+    })
+  }
 
-              <rect x="202" y="60" width="180" height="56" rx="8" class="workflow-node"></rect>
-              <text x="292" y="92" class="workflow-text" text-anchor="middle">viewspec.intent.json</text>
+  document.querySelectorAll('[data-profile-token]').forEach((button) => {
+    button.addEventListener('click', () => {
+      const value = button.dataset.profileToken || profileEvidence.defaultProfile || 'aesthetic.calm_ops'
+      setProfile(value).catch(() => {
+        if (profileOutput) profileOutput.textContent = 'profile artifact unavailable'
+      })
+    })
+  })
 
-              <line x1="384" y1="88" x2="416" y2="88" class="workflow-edge" marker-end="url(#workflow-arrow)"></line>
+  document.querySelectorAll('[data-page-evidence]').forEach((button) => {
+    button.addEventListener('click', () => {
+      const value = button.dataset.pageEvidence || 'clean'
+      root.dataset.viewspecEvidence = value
+      setActive('[data-page-evidence]', 'data-page-evidence', value)
+    })
+  })
 
-              <rect x="418" y="60" width="180" height="56" rx="8" class="workflow-node workflow-node-emphasis"></rect>
-              <text x="508" y="84" class="workflow-text" text-anchor="middle">validate + compile</text>
-              <text x="508" y="102" class="workflow-text-sub" text-anchor="middle">local</text>
+  async function loadSource(value) {
+    activeSourceView = value || 'hide'
+    if (activeSourceView === 'hide') {
+      source.dataset.visible = 'false'
+      source.setAttribute('aria-hidden', 'true')
+      setActive('[data-source-view]', 'data-source-view', activeSourceView)
+      return
+    }
+    const url = sourceUrl(activeSourceView)
+    if (!url) return
+    source.dataset.visible = 'true'
+    source.setAttribute('aria-hidden', 'false')
+    setActive('[data-source-view]', 'data-source-view', activeSourceView)
+    const cacheKey = `${activeProfile}:${activeSourceView}`
+    if (!cache.has(cacheKey)) {
+      const response = await fetch(url)
+      const text = await response.text()
+      const json = JSON.parse(text)
+      cache.set(cacheKey, { json, text: JSON.stringify(json, null, 2), url })
+    }
+    const entry = cache.get(cacheKey)
+    activeSourceText = entry.text
+    sourceTitle.textContent = sourceNames[activeSourceView] || 'Artifact summary'
+    sourceOpen.href = entry.url
+    sourceCode.textContent = entry.text
+    sourceSummary.innerHTML = summaryCards(activeSourceView, entry.json)
+  }
 
-              <line x1="600" y1="88" x2="632" y2="88" class="workflow-edge" marker-end="url(#workflow-arrow)"></line>
+  document.querySelectorAll('[data-source-view]').forEach((button) => {
+    button.addEventListener('click', () => {
+      loadSource(button.dataset.sourceView).catch(() => {
+        sourceTitle.textContent = 'Artifact source unavailable'
+      })
+    })
+  })
 
-              <rect x="634" y="60" width="200" height="56" rx="8" class="workflow-node"></rect>
-              <text x="734" y="84" class="workflow-text" text-anchor="middle">manifest + artifact</text>
-              <text x="734" y="102" class="workflow-text-sub" text-anchor="middle">no autofetch</text>
+  document.querySelectorAll('[data-close-source]').forEach((button) => {
+    button.addEventListener('click', () => {
+      loadSource('hide').catch(() => undefined)
+    })
+  })
 
-              <line x1="836" y1="88" x2="868" y2="88" class="workflow-edge" marker-end="url(#workflow-arrow)"></line>
+  async function setProfile(profile) {
+    if (!profileEvidence.profiles?.[profile]) return
+    activeProfile = profile
+    const data = activeProfileData()
+    if (artifactSlot && data.artifactBodyUrl) {
+      const response = await fetch(data.artifactBodyUrl)
+      if (!response.ok) throw new Error(`Profile artifact unavailable: ${profile}`)
+      artifactSlot.innerHTML = await response.text()
+    }
+    document.querySelectorAll('[data-profile-token]').forEach((button) => {
+      const active = button.dataset.profileToken === profile
+      button.dataset.active = active ? 'true' : 'false'
+      button.setAttribute('aria-pressed', active ? 'true' : 'false')
+    })
+    document.querySelectorAll('[data-ir-selected="true"]').forEach((selected) => {
+      selected.removeAttribute('data-ir-selected')
+    })
+    setIrStatus('profile swapped; hover a highlighted node')
+    updateProfileStatus()
+    if (activeSourceView !== 'hide') await loadSource(activeSourceView)
+    queuePretextMeasure()
+  }
 
-              <rect x="870" y="60" width="80" height="56" rx="8" class="workflow-node workflow-node-emit"></rect>
-              <text x="910" y="84" class="workflow-text" text-anchor="middle">Check</text>
-              <text x="910" y="102" class="workflow-text-sub" text-anchor="middle">hashes</text>
-            </g>
-            <g class="workflow-loop">
-              <path d="M508 116 Q 508 162 292 162 Q 202 162 202 116" fill="none" class="workflow-edge workflow-edge-loop" marker-end="url(#workflow-arrow)"></path>
-              <text x="355" y="180" class="workflow-text-loop" text-anchor="middle">Diagnostics &rarr; regenerate IntentBundle or edit DESIGN.md &rarr; recompile locally</text>
-            </g>
-          </svg>
-          <p class="workflow-copy"><strong>Start with the agent-native contract: run <code>viewspec prove --out .viewspec-proof</code>, read <code>.viewspec-proof/PROOF.md</code>, keep <code>.viewspec-proof/support_bundle.json</code> for redacted failure triage, then run <code>viewspec validate-intent</code>, <code>viewspec compile</code>, and <code>viewspec check</code> for manifest-backed provenance, layout facts, and compact style-delta counts. Raw HTML tools stay available for importing existing HTML.</strong></p>
-          <p class="workflow-copy">ViewSpec prove is not pixel-perfect visual regression, accessibility certification, arbitrary host-app certification, or hosted compiler publish automation.</p>
-          <p class="workflow-links">
-            <a href="https://github.com/nxrobins/viewspec/blob/main/docs/agent-integration.md">IntentBundle workflow</a>
-            <span aria-hidden="true">&middot;</span>
-            <a href="https://github.com/nxrobins/viewspec/tree/main/integrations/claude-code">Claude Code local instructions</a>
-            <span aria-hidden="true">&middot;</span>
-            <a href="./agent-intent-bundle.schema.json">IntentBundle schema</a>
-            <span aria-hidden="true">&middot;</span>
-            <a href="./proof-bundle/">Proof bundle guide</a>
-            <span aria-hidden="true">&middot;</span>
-            <a href="./stateful-collections/">Stateful collections demo</a>
-            <span aria-hidden="true">&middot;</span>
-            <a href="./aesthetic-profiles/">Aesthetic profiles demo</a>
-            <span aria-hidden="true">&middot;</span>
-            <a href="./openapi.json">OpenAPI</a>
-          </p>
-        </div>
-      </div>
-    </section>
+  function escapeHtml(value) {
+    return String(value)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;')
+  }
 
-    <section class="section" id="pricing">
-      <div class="page-shell">
-        <div class="pricing-grid">
-          <article class="pricing-card">
-            <span class="pricing-name">Free</span>
-            <span class="price">$0<span class="price-unit">/mo</span></span>
-            <p class="pricing-detail"><strong>Build on it before you pay for it.</strong></p>
-            <ul class="pricing-list">
-              <li>Offline Python SDK with compile, lift, diff, and check</li>
-              <li>Local DESIGN.md theming for governed HTML</li>
-              <li>500 hosted compile calls/day</li>
-              <li>No signup required</li>
-            </ul>
-            <a class="button-secondary" href="https://pypi.org/project/viewspec/">Install SDK</a>
-          </article>
-          <article class="pricing-card featured">
-            <span class="pricing-name">Pro</span>
-            <span class="price">$149<span class="price-unit">/mo</span></span>
-            <p class="pricing-detail"><strong>Your brand. Four surfaces. Ship cross-platform.</strong></p>
-            <ul class="pricing-list">
-              <li>All four surfaces (+ SwiftUI, Flutter)</li>
-              <li>DESIGN.md theming (bring your brand)</li>
-              <li>5 custom motif instances per compile</li>
-              <li>10,000 hosted compile calls/day</li>
-              <li>Interactive compose (inputs, rules, actions)</li>
-            </ul>
-            <a class="button-primary" href="https://buy.stripe.com/6oU4gA6PqcM9afq6qq2Z0b8" data-config-link="pro" target="_blank" rel="noopener">Get Pro</a>
-          </article>
-          <article class="pricing-card">
-            <span class="pricing-name">Enterprise</span>
-            <span class="price">Custom</span>
-            <p class="pricing-detail"><strong>Your motif library. Your governance.</strong></p>
-            <ul class="pricing-list">
-              <li>Unlimited custom motifs</li>
-              <li>Org-wide motif sharing</li>
-              <li>Volume pricing</li>
-              <li>Support + roadmap alignment</li>
-            </ul>
-            <a class="button-secondary" href="mailto:hello@viewspec.dev?subject=ViewSpec%20Enterprise" data-config-link="enterprise" target="_blank" rel="noopener">Talk to us</a>
-          </article>
-        </div>
-      </div>
-    </section>
+  function shortHash(value) {
+    return value ? `${String(value).slice(0, 12)}...` : 'not recorded'
+  }
 
-    <section class="colophon" aria-labelledby="colophon-heading">
-      <div class="page-shell">
-        <h2 id="colophon-heading" class="colophon-title">Builds with</h2>
-        <ul class="colophon-list">
-          <li><strong>DESIGN.md</strong> &mdash; Google's open-source design-markdown convention. ViewSpec parses it as the brand input format.</li>
-          <li><strong>Optional reference grounding</strong> &mdash; agents must not call remote reference libraries by default; user-approved or repo-configured sources may inform IntentBundle structure without changing the local no-network compiler contract.</li>
-          <li><strong><a href="https://github.com/chenglou/pretext">Pretext</a></strong> &mdash; Chenglou's text-layout engine. Renders the headline typography you're reading.</li>
-        </ul>
-        <p class="colophon-note">Three different roles. Three different relationships. Each acknowledged where it actually plays.</p>
-      </div>
-    </section>
-  </main>
+  function countObject(value) {
+    return value && typeof value === 'object' ? Object.keys(value).length : 0
+  }
 
-  <footer>
-    <div class="page-shell">
-      <button type="button" class="pip-pill footer-install" data-copy-text="pip install viewspec" aria-label="Copy pip install viewspec command">pip install viewspec</button>
-      <span class="footer-meta">
-        <a href="https://github.com/nxrobins/viewspec">GitHub</a>
-        <span aria-hidden="true">&middot;</span>
-        <a href="https://viewspec.dev/llms.txt">Docs</a>
-        <span aria-hidden="true">&middot;</span>
-        <span class="footer-rights">MIT &copy; 2026</span>
-      </span>
-    </div>
-  </footer>
+  function manifestProfile(json) {
+    const nodes = json.nodes && typeof json.nodes === 'object' ? Object.values(json.nodes) : []
+    const rootNode = nodes.find((entry) => entry?.primitive === 'root')
+    return rootNode?.props?.aesthetic_profile || activeProfile
+  }
+
+  function summaryCards(kind, json) {
+    const profileData = activeProfileData()
+    const cards = kind === 'profile'
+      ? [
+          ['Active profile', profileData.label || activeProfile],
+          ['Token', activeProfile],
+          ['Semantic ids', profileEvidence.semanticIdsStable ? 'stable' : 'changed'],
+          ['Style hash', shortHash(profileData.styleProjectionHash)],
+          ['Style delta', profileData.styleSignature || 'not recorded'],
+          ['Layout signature', profileData.layoutSignature || 'not recorded'],
+          ['Shell overrides', `${profileEvidence.shellOverrides ?? 0}`],
+          ['Profiles', `${profileEvidence.profileCount || 0}`],
+        ]
+      : kind === 'manifest'
+      ? [
+          ['Kind', json.kind || 'manifest'],
+          ['Profile', manifestProfile(json)],
+          ['Artifact hash', shortHash(json.artifact_hash)],
+          ['Source hash', shortHash(json.source_hash || json.raw_source_hash)],
+          ['Nodes', countObject(json.nodes)],
+          ['Diagnostics', Array.isArray(json.diagnostics) ? json.diagnostics.length : 0],
+          ['Network calls', json.guarantees?.network_calls || 'none'],
+          ['Autofetch', json.guarantees?.artifact_autofetch_network || 'none'],
+          ['Policy', json.policy_version || 'viewspec policy'],
+        ]
+      : [
+          ['View', json.view_spec?.id || json.id || 'viewspec_landing'],
+          ['Motifs', Array.isArray(json.view_spec?.motifs) ? json.view_spec.motifs.length : 0],
+          ['Substrate nodes', countObject(json.substrate?.nodes)],
+          ['Styles', Array.isArray(json.view_spec?.styles) ? json.view_spec.styles.length : 0],
+          ['Profile', activeProfile],
+          ['Compiler source', 'demos/build_landing.py'],
+          ['Reducer', 'not required for this landing artifact'],
+          ['Runtime LLM', 'none'],
+          ['Raw JSON', 'available on demand'],
+        ]
+    return cards.map(([label, value]) => (
+      `<dl class="artifact-source-card"><dt>${escapeHtml(label)}</dt><dd>${escapeHtml(value)}</dd></dl>`
+    )).join('')
+  }
+
+  async function copyText(text) {
+    if (navigator.clipboard && window.isSecureContext) {
+      await navigator.clipboard.writeText(text)
+      return
+    }
+    const textarea = document.createElement('textarea')
+    textarea.value = text
+    textarea.setAttribute('readonly', '')
+    textarea.style.position = 'fixed'
+    textarea.style.opacity = '0'
+    document.body.appendChild(textarea)
+    textarea.focus()
+    textarea.select()
+    document.execCommand('copy')
+    textarea.remove()
+  }
+
+  document.querySelectorAll('[data-copy-text]').forEach((button) => {
+    const text = button.getAttribute('data-copy-text')
+    const defaultLabel = button.textContent
+    button.addEventListener('click', async () => {
+      try {
+        await copyText(text)
+        button.textContent = 'copied'
+      } catch {
+        button.textContent = text
+      }
+      window.setTimeout(() => { button.textContent = defaultLabel }, 1200)
+    })
+  })
+
+  if (copySource) {
+    const defaultSourceLabel = copySource.textContent
+    copySource.addEventListener('click', async () => {
+      if (!activeSourceText) return
+      try {
+        await copyText(activeSourceText)
+        copySource.textContent = 'copied JSON'
+      } catch {
+        copySource.textContent = 'copy failed'
+      }
+      window.setTimeout(() => { copySource.textContent = defaultSourceLabel }, 1200)
+    })
+  }
+
+  function setIrStatus(value) {
+    if (!irOutput) return
+    irOutput.value = value || 'hover a highlighted node'
+    irOutput.textContent = irOutput.value
+  }
+
+  document.addEventListener('mouseover', (event) => {
+    const node = event.target.closest?.('[data-ir-id]')
+    if (!node || root.dataset.viewspecEvidence !== 'provenance') return
+    setIrStatus(node.getAttribute('data-ir-id'))
+  })
+  document.addEventListener('focusin', (event) => {
+    const node = event.target.closest?.('[data-ir-id]')
+    if (!node || root.dataset.viewspecEvidence !== 'provenance') return
+    setIrStatus(node.getAttribute('data-ir-id'))
+  })
+  document.addEventListener('click', (event) => {
+    const node = event.target.closest?.('[data-ir-id]')
+    if (!node || root.dataset.viewspecEvidence !== 'provenance') return
+    document.querySelectorAll('[data-ir-selected="true"]').forEach((selected) => {
+      selected.removeAttribute('data-ir-selected')
+    })
+    node.dataset.irSelected = 'true'
+    setIrStatus(node.getAttribute('data-ir-id'))
+  })
+
+  const pretextOutput = document.getElementById('pretext-fit')
+  const pretextTargets = [
+    ['hero', '#dom-binding_launch_hero_title', 760],
+    ['copy', '#dom-binding_launch_hero_description', 820],
+  ]
+  let pretextFrame = 0
+
+  function numericPx(value, fallback) {
+    const parsed = Number.parseFloat(value || '')
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback
+  }
+
+  function lineHeightFor(style, fontSize) {
+    return numericPx(style.lineHeight, fontSize * 1.18)
+  }
+
+  function fontFor(style, fontSize) {
+    const family = style.fontFamily || 'Inter, ui-sans-serif, system-ui, sans-serif'
+    return `${style.fontStyle || 'normal'} ${style.fontWeight || '400'} ${fontSize}px ${family}`
+  }
+
+  async function measurePretextTargets() {
+    const pretext = window.ViewSpecPretext
+    if (!pretext) throw new Error('Pretext global unavailable')
+    const { layoutWithLines, measureNaturalWidth, prepareWithSegments } = pretext
+    const metrics = pretextTargets.map(([id, selector, fallbackWidth]) => {
+      const element = document.querySelector(selector)
+      if (!element) return null
+      const style = window.getComputedStyle(element)
+      const fontSize = numericPx(style.fontSize, 18)
+      const lineHeight = lineHeightFor(style, fontSize)
+      const width = Math.max(1, Math.min(fallbackWidth, element.getBoundingClientRect().width || fallbackWidth))
+      const prepared = prepareWithSegments(element.textContent.trim(), fontFor(style, fontSize), { whiteSpace: 'normal' })
+      const layout = layoutWithLines(prepared, width, lineHeight)
+      const lines = Array.isArray(layout.lines) ? layout.lines.length : Number(layout.lineCount || 0)
+      return { id, lines, naturalWidth: measureNaturalWidth(prepared), width }
+    }).filter(Boolean)
+    const hero = metrics.find((entry) => entry.id === 'hero')
+    const copy = metrics.find((entry) => entry.id === 'copy')
+    if (!hero || !copy) throw new Error('missing landing text targets')
+
+    root.dataset.landingPretext = 'ready'
+    root.dataset.pretextReady = 'true'
+    root.dataset.pretextHeroLines = String(hero.lines)
+    root.dataset.pretextCopyLines = String(copy.lines)
+    root.dataset.pretextHeroNaturalWidth = hero.naturalWidth.toFixed(2)
+    root.dataset.pretextCopyNaturalWidth = copy.naturalWidth.toFixed(2)
+    delete root.dataset.pretextError
+    if (pretextOutput) {
+      pretextOutput.value = `${hero.lines} title lines / ${copy.lines} copy lines`
+      pretextOutput.textContent = pretextOutput.value
+    }
+  }
+
+  function handlePretextError(error) {
+    root.dataset.landingPretext = 'error'
+    root.dataset.pretextError = error && error.message ? error.message : 'unknown pretext error'
+    if (pretextOutput) pretextOutput.textContent = 'text metrics unavailable'
+  }
+
+  function queuePretextMeasure() {
+    if (pretextFrame) return
+    pretextFrame = window.requestAnimationFrame(() => {
+      pretextFrame = 0
+      measurePretextTargets().catch(handlePretextError)
+    })
+  }
+
+  if (document.fonts?.ready) {
+    document.fonts.ready.catch(() => undefined).then(queuePretextMeasure)
+  } else {
+    queuePretextMeasure()
+  }
+  updateProfileStatus()
+  window.addEventListener('resize', queuePretextMeasure)
+  window.setTimeout(queuePretextMeasure, 160)
+})()
+
+</script>
 </body>
 </html>
