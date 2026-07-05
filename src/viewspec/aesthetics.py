@@ -24,6 +24,23 @@ MAX_AESTHETIC_PROFILE_LAYOUT_COLUMNS = 3
 MAX_AESTHETIC_PROFILE_SPAN_COLUMNS = 3
 LAYOUT_EMPHASIS_VALUES = frozenset({"featured"})
 
+# Shape-language variables (queue item B2): a closed set of CSS custom properties that let a
+# profile reach the html_tailwind emitter's structural "bones" (radius / shadow / border weight
+# / value weight). The emitter's base CSS reads each as `var(<name>, <literal>)`; a profile's
+# values are injected as inline custom properties on the root node and inherit to every .vs-*.
+# CANONICAL ORDER — the emitter emits declarations in this tuple order regardless of dict order.
+AESTHETIC_SHAPE_VAR_NAMES = (
+    "--vs-radius",
+    "--vs-control-radius",
+    "--vs-badge-radius",
+    "--vs-action-radius",
+    "--vs-surface-shadow",
+    "--vs-action-shadow",
+    "--vs-surface-border",
+    "--vs-value-weight",
+)
+MAX_AESTHETIC_PROFILE_SHAPE_BYTES = 512
+
 AESTHETIC_PROFILE_LAYOUT_ROLES = frozenset({"content_grid", "metric_grid", "metric_card"})
 AESTHETIC_PROFILE_LAYOUT_PROPS = {
     "aesthetic.calm_ops": {
@@ -168,6 +185,18 @@ AESTHETIC_PROFILE_STYLE_VALUES: dict[str, dict[str, str]] = {
 }
 
 
+# Per-profile shape-variable values. EMPTY for every profile in B2 (plumbing only) — the base
+# CSS fallbacks equal the current literals, so output is visually identical. B3 fills these to
+# drive brutalist / glass / terminal shape languages.
+AESTHETIC_PROFILE_SHAPE_VARS: dict[str, dict[str, str]] = {
+    "aesthetic.calm_ops": {},
+    "aesthetic.premium_saas": {},
+    "aesthetic.data_dense": {},
+    "aesthetic.editorial_product": {},
+    "aesthetic.executive_review": {},
+}
+
+
 def is_aesthetic_profile_token(token: str) -> bool:
     return isinstance(token, str) and token.startswith(AESTHETIC_PROFILE_PREFIX)
 
@@ -186,6 +215,21 @@ def profile_layout_props(profile: str) -> dict[str, dict[str, int | str]]:
     if values is None:
         raise AestheticProfileError("AESTHETIC_PROFILE_UNKNOWN", f"Unknown aesthetic profile {profile}.")
     return {role: dict(props) for role, props in values.items()}
+
+
+def profile_shape_vars(profile: str) -> dict[str, str]:
+    validate_aesthetic_profile_registry()
+    values = AESTHETIC_PROFILE_SHAPE_VARS.get(profile)
+    if values is None:
+        raise AestheticProfileError("AESTHETIC_PROFILE_UNKNOWN", f"Unknown aesthetic profile {profile}.")
+    return dict(values)
+
+
+def profile_shape_var_css(profile: str) -> str:
+    """Shape-var declarations for a profile as inline CSS, in canonical AESTHETIC_SHAPE_VAR_NAMES
+    order (independent of dict insertion order). Empty string when the profile sets none."""
+    shape = profile_shape_vars(profile)
+    return " ".join(f"{name}: {shape[name]};" for name in AESTHETIC_SHAPE_VAR_NAMES if name in shape)
 
 
 def profile_style_facts(profile: str) -> dict[str, object]:
@@ -357,6 +401,10 @@ def validate_aesthetic_profile_registry() -> None:
         if layout_props is None:
             raise AestheticProfileError("AESTHETIC_DEFAULT_REGRESSION", f"Missing profile layout defaults for {profile}.")
         _validate_profile_layout_props(profile, layout_props)
+        shape_vars = AESTHETIC_PROFILE_SHAPE_VARS.get(profile)
+        if shape_vars is None:
+            raise AestheticProfileError("AESTHETIC_DEFAULT_REGRESSION", f"Missing profile shape vars for {profile}.")
+        _validate_profile_shape_vars(profile, shape_vars)
         changed_tokens = {
             token
             for token, css in values.items()
@@ -412,6 +460,25 @@ def _validate_profile_layout_props(profile: str, values: dict[str, dict[str, int
                 )
 
 
+def _validate_profile_shape_vars(profile: str, values: dict[str, str]) -> None:
+    if profile not in AESTHETIC_PROFILE_TOKENS:
+        raise AestheticProfileError("AESTHETIC_PROFILE_UNKNOWN", f"Unknown aesthetic profile {profile}.")
+    if not isinstance(values, dict):
+        raise AestheticProfileError("AESTHETIC_PROFILE_SHAPE_UNSAFE", f"{profile} shape vars must be a mapping.")
+    total = " ".join(f"{name}:{value}" for name, value in values.items())
+    if len(total.encode("utf-8")) > MAX_AESTHETIC_PROFILE_SHAPE_BYTES:
+        raise AestheticProfileError(
+            "AESTHETIC_PROFILE_SHAPE_UNSAFE", f"{profile} shape vars exceed {MAX_AESTHETIC_PROFILE_SHAPE_BYTES} bytes."
+        )
+    for name, value in values.items():
+        if name not in AESTHETIC_SHAPE_VAR_NAMES:
+            raise AestheticProfileError("AESTHETIC_PROFILE_SHAPE_UNSAFE", f"{profile} sets unknown shape var {name}.")
+        if not isinstance(value, str):
+            raise AestheticProfileError("AESTHETIC_PROFILE_SHAPE_UNSAFE", f"{profile} shape var {name} must be CSS text.")
+        if "<" in value or ">" in value or UNSAFE_AESTHETIC_CSS_RE.search(value):
+            raise AestheticProfileError("AESTHETIC_PROFILE_SHAPE_UNSAFE", f"{profile} shape var {name} has unsafe value.")
+
+
 def _validate_profile_style_values(profile: str, values: dict[str, str]) -> None:
     if profile not in AESTHETIC_PROFILE_TOKENS:
         raise AestheticProfileError("AESTHETIC_PROFILE_UNKNOWN", f"Unknown aesthetic profile {profile}.")
@@ -456,10 +523,14 @@ __all__ = [
     "AESTHETIC_PROFILE_LAYOUT_ROLES",
     "AESTHETIC_PROFILE_STYLE_VALUES",
     "AestheticProfileError",
+    "AESTHETIC_PROFILE_SHAPE_VARS",
+    "AESTHETIC_SHAPE_VAR_NAMES",
     "is_aesthetic_profile_token",
     "profile_layout_props",
     "profile_projection_axes",
     "profile_projection_distance",
+    "profile_shape_var_css",
+    "profile_shape_vars",
     "profile_style_facts",
     "profile_style_values",
     "validate_aesthetic_profile_registry",
