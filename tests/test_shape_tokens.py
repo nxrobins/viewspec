@@ -65,9 +65,10 @@ def test_base_css_pins_all_shape_fallbacks_to_the_pre_b2_literals():
         assert fallback in html, f"emitted base CSS missing exact fallback: {fallback}"
 
 
-def test_empty_shape_map_injects_nothing():
-    # SC-3: every B2 profile has an empty map -> no custom property is SET on any node (the base
-    # CSS only var()-references them). The root style must carry no --vs-* declaration.
+def test_empty_shape_map_injects_nothing(monkeypatch):
+    # Mechanism guard: a profile with no shape vars emits no --vs-* custom property (the base CSS
+    # only var()-references them). B3 populates every real map, so clear one to prove it.
+    monkeypatch.setitem(AESTHETIC_PROFILE_SHAPE_VARS, "aesthetic.data_dense", {})
     html = _emit("aesthetic.data_dense")
     assert "--vs-radius:" not in html
     assert "--vs-control-radius:" not in html
@@ -91,10 +92,10 @@ def test_shape_var_css_is_canonical_order_regardless_of_dict_order(monkeypatch):
     )
 
 
-def test_every_profile_ships_empty_shape_vars_in_b2():
-    # SC-4 guard: B2 is plumbing only. A non-empty map here means a B3 restyle leaked in.
+def test_every_profile_now_drives_the_bones():
+    # B3 re-expression: every profile sets a non-empty, valid shape-var map (the emitter bones).
     for token in AESTHETIC_PROFILE_TOKENS:
-        assert profile_shape_vars(token) == {}, f"{token} has non-empty shape vars — that restyle is B3"
+        assert profile_shape_vars(token), f"{token} has no shape vars — B3 should re-express it"
 
 
 @pytest.mark.parametrize(

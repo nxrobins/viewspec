@@ -82,13 +82,19 @@ def test_allow_list_stays_closed_for_reserved_and_layout_properties(declaration)
             validate_aesthetic_profile_registry()
 
 
-def test_registry_is_valid_and_no_profile_uses_the_new_properties():
-    # SC-1: B1 is capability-only. The real registry validates, and no profile yet USES any of
-    # the four new properties (that restyle is B3). A value change sneaking in fails here.
+def test_new_property_usage_is_the_pinned_b3_set():
+    # B3 re-expression uses exactly these of the four widened properties (editorial italics,
+    # data_dense value glow). A usage change beyond this pinned set is a deliberate diff to
+    # update here; border-style and backdrop-filter remain unused for now.
     validate_aesthetic_profile_registry()
+    usage: dict[str, set[str]] = {}
     for token in AESTHETIC_PROFILE_TOKENS:
-        used = set()
+        used: set[str] = set()
         for css in AESTHETIC_PROFILE_STYLE_VALUES[token].values():
             used |= _declaration_props(css)
-        leaked = used & set(NEW_PROPERTIES)
-        assert not leaked, f"{token} already uses B1-only properties {leaked} — that restyle belongs in B3"
+        for prop in used & set(NEW_PROPERTIES):
+            usage.setdefault(prop, set()).add(token)
+    assert usage == {
+        "font-style": {"aesthetic.editorial_product"},
+        "text-shadow": {"aesthetic.data_dense"},
+    }, usage

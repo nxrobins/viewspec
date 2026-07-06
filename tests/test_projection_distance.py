@@ -21,9 +21,10 @@ from viewspec.aesthetics import (
     profile_projection_distance,
 )
 
-# RATCHET: 4 today (weakest real pair premium_saas <-> executive_review == 4).
-# B3 raises to 5. Never lower it to make a change pass.
-PROJECTION_DISTANCE_FLOOR = 4
+# RATCHET: 5 (B3 re-expressed the five identities; executive_review cols 2->3 lifted the
+# weakest pair premium<->executive to 5). Four pairs sit at 5, so `min == floor` holds.
+# Never lower it to make a change pass.
+PROJECTION_DISTANCE_FLOOR = 5
 
 _EXPECTED_AXIS_KEYS = {
     "ground",

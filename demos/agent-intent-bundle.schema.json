@@ -565,7 +565,7 @@
           "span_columns": 2
         },
         "metric_grid": {
-          "columns": 2
+          "columns": 3
         }
       },
       "aesthetic.premium_saas": {
@@ -651,7 +651,7 @@
           "tone.muted",
           "tone.neutral"
         ],
-        "declaration_count": 28
+        "declaration_count": 29
       },
       "aesthetic.editorial_product": {
         "categories": [
@@ -681,7 +681,7 @@
           "tone.muted",
           "tone.neutral"
         ],
-        "declaration_count": 29
+        "declaration_count": 30
       },
       "aesthetic.executive_review": {
         "categories": [

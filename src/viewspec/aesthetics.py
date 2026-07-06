@@ -62,7 +62,7 @@ AESTHETIC_PROFILE_LAYOUT_PROPS = {
     },
     "aesthetic.executive_review": {
         "content_grid": {"columns": 2},
-        "metric_grid": {"columns": 2},
+        "metric_grid": {"columns": 3},  # B3 ratchet: dense executive grid → projection floor 5
         "metric_card": {"span_columns": 2, "layout_emphasis": "featured"},
     },
 }
@@ -148,7 +148,7 @@ AESTHETIC_PROFILE_STYLE_VALUES: dict[str, dict[str, str]] = {
         "density.compact": "gap: 0.16rem; padding: 0.18rem 0.3rem;",
         "density.regular": "gap: 0.34rem; padding: 0.3rem 0.44rem;",
         "density.airy": "gap: 0.7rem; padding: 0.58rem 0.76rem;",
-        "emphasis.high": "font-weight: 720; letter-spacing: 0;",
+        "emphasis.high": "font-weight: 720; letter-spacing: 0; text-shadow: 0 0 8px rgb(96 165 250 / 0.4);",
         "rhythm.hierarchy": "font-size: 0.92rem; font-weight: 740; line-height: 1.18;",
         "narrative.flow": "max-width: 92ch; line-height: 1.42;",
     },
@@ -156,7 +156,7 @@ AESTHETIC_PROFILE_STYLE_VALUES: dict[str, dict[str, str]] = {
         "palette.temperature": "background-color: #f8f1e5;",
         "tone.neutral": "color: #2b2118; font-family: ui-serif, Georgia, Cambria, serif;",
         "tone.muted": "color: #85715f;",
-        "tone.accent": "color: #be123c; font-weight: 780;",
+        "tone.accent": "color: #be123c; font-weight: 780; font-style: italic;",
         "action.accent": "background-color: #be123c; color: #ffffff; border-radius: 18px;",
         "surface.subtle": "background: #fffcf5; border: 1px solid #e7d9bf; border-radius: 24px; box-shadow: 0 3px 0 rgb(190 18 60 / 0.16);",
         "surface.strong": "background: #f3e8d2; border: 1px solid #d9c49a; border-radius: 26px;",
@@ -189,11 +189,47 @@ AESTHETIC_PROFILE_STYLE_VALUES: dict[str, dict[str, str]] = {
 # CSS fallbacks equal the current literals, so output is visually identical. B3 fills these to
 # drive brutalist / glass / terminal shape languages.
 AESTHETIC_PROFILE_SHAPE_VARS: dict[str, dict[str, str]] = {
-    "aesthetic.calm_ops": {},
-    "aesthetic.premium_saas": {},
-    "aesthetic.data_dense": {},
-    "aesthetic.editorial_product": {},
-    "aesthetic.executive_review": {},
+    # sage operations — soft, hairline, quiet teal
+    "aesthetic.calm_ops": {
+        "--vs-radius": "12px",
+        "--vs-surface-shadow": "0 1px 2px rgb(15 118 110 / 0.06)",
+        "--vs-surface-border": "1px solid #cfe2da",
+        "--vs-value-weight": "700",
+    },
+    # glass-adjacent SaaS — big radius, pill actions, indigo glow
+    "aesthetic.premium_saas": {
+        "--vs-radius": "20px",
+        "--vs-badge-radius": "999px",
+        "--vs-action-radius": "999px",
+        "--vs-surface-shadow": "0 24px 60px rgb(79 70 229 / 0.22)",
+        "--vs-value-weight": "820",
+    },
+    # terminal — sharp everywhere, flat, cool grid
+    "aesthetic.data_dense": {
+        "--vs-radius": "4px",
+        "--vs-control-radius": "3px",
+        "--vs-badge-radius": "3px",
+        "--vs-action-radius": "3px",
+        "--vs-surface-shadow": "none",
+        "--vs-surface-border": "1px solid #2c3e5f",
+        "--vs-value-weight": "640",
+    },
+    # luxe editorial — generous radius, crimson underline, warm border
+    "aesthetic.editorial_product": {
+        "--vs-radius": "22px",
+        "--vs-surface-border": "1px solid #e7d9bf",
+        "--vs-surface-shadow": "0 3px 0 rgb(190 18 60 / 0.16)",
+        "--vs-value-weight": "640",
+    },
+    # swiss / steel — sharp, hard frame, no shadow
+    "aesthetic.executive_review": {
+        "--vs-radius": "4px",
+        "--vs-control-radius": "4px",
+        "--vs-badge-radius": "4px",
+        "--vs-action-radius": "4px",
+        "--vs-surface-border": "1.5px solid #b9c8d8",
+        "--vs-value-weight": "800",
+    },
 }
 
 

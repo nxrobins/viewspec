@@ -780,7 +780,8 @@ def _doctor_semantic_summary_smoke(profile_diff: DoctorProfileDiff | None = None
             (
                 "aesthetic_profiles: profile_changed aesthetic.calm_ops -> aesthetic.executive_review "
                 f"target=view:{view_id} style_delta=declarations 28 -> 30 "
-                "layout_delta=metric_card added layout_emphasis=featured span_columns=2"
+                "layout_delta=metric_card added layout_emphasis=featured span_columns=2; "
+                "metric_grid columns=2 -> columns=3"
             ),
             "styles.aesthetic_profile: token_changed aesthetic.calm_ops -> aesthetic.executive_review",
         ]
