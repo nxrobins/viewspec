@@ -1,4 +1,4 @@
-"""Build the Same Intent, Five Art Directions demo page."""
+"""Build the Same Intent, Eight Art Directions demo page."""
 
 from __future__ import annotations
 
@@ -76,7 +76,7 @@ def build_bundle(profile: str) -> IntentBundle:
         "overview",
         eyebrow="Launch desk",
         title="Resolve the next release decision",
-        description="One semantic product surface is compiled through five governed art-direction profiles.",
+        description="One semantic product surface is compiled through eight governed art-direction profiles.",
         region="hero",
         group_id="overview_copy",
     )
@@ -327,8 +327,8 @@ def build_page(profiles: dict[str, dict[str, Any]]) -> str:
     profile_tokens = ", ".join(AESTHETIC_PROFILE_TOKENS)
     evidence = profile_evidence(profiles)
     head_meta = demo_head_metadata(
-        title="ViewSpec Demo - Same Intent, Five Art Directions",
-        description="Compile one ViewSpec IntentBundle through five deterministic aesthetic profile tokens while preserving semantic ids and provenance.",
+        title="ViewSpec Demo - Same Intent, Eight Art Directions",
+        description="Compile one ViewSpec IntentBundle through eight deterministic aesthetic profile tokens while preserving semantic ids and provenance.",
         canonical_path="aesthetic-profiles",
     )
     profile_meta = {
@@ -368,7 +368,7 @@ def build_page(profiles: dict[str, dict[str, Any]]) -> str:
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>ViewSpec Demo - Same Intent, Five Art Directions</title>
+  <title>ViewSpec Demo - Same Intent, Eight Art Directions</title>
 {head_meta}
   <link rel="icon" href="data:,">
   <script src="../shared/nav.js" defer></script>
@@ -850,14 +850,14 @@ def build_page(profiles: dict[str, dict[str, Any]]) -> str:
   <main class="page-shell">
     <section class="hero" data-presentation-contract="light-gallery-showroom">
       <div class="hero-copy">
-        <p class="eyebrow">Same Intent, Five Art Directions</p>
+        <p class="eyebrow">Same Intent, Eight Art Directions</p>
         <h1>Beauty as a checked compiler handle.</h1>
         <p class="lead">Each generated artifact uses one explicit view-level style token. The token is deterministic art direction, not CSS, visual-regression proof, accessibility certification, or arbitrary design-system certification.</p>
         <p class="lead token-lead">Supported V1 tokens: {html.escape(profile_tokens)}.</p>
       </div>
       <ul class="hero-facts" aria-label="Aesthetic profile invariants">
         <li><strong>1 IntentBundle</strong><span>shared semantic graph</span></li>
-        <li><strong>5 profiles</strong><span>governed style handles</span></li>
+        <li><strong>{len(AESTHETIC_PROFILE_TOKENS)} profiles</strong><span>governed style handles</span></li>
         <li><strong>{evidence["styleProjectionHashCount"]} style hashes</strong><span>distinct projections</span></li>
         <li><strong>0 shell overrides</strong><span>generated internals untouched</span></li>
       </ul>
@@ -891,7 +891,7 @@ def build_page(profiles: dict[str, dict[str, Any]]) -> str:
 
     <section class="contract-panel">
       <h2>What stays invariant</h2>
-      <p>The five cards share the same IntentBundle shape, generated semantic ids, and manifest-backed provenance. Only compiler-owned typography, spacing, surface, color, action, hierarchy, rhythm, narrative style projections, bounded grid metadata, and featured metric-card span and emphasis metadata change.</p>
+      <p>The eight cards share the same IntentBundle shape, generated semantic ids, and manifest-backed provenance. Only compiler-owned typography, spacing, surface, color, action, hierarchy, rhythm, narrative style projections, bounded grid metadata, and featured metric-card span and emphasis metadata change.</p>
       <p>The proof summary records one shared semantic hash, distinct style projection hashes for every profile, and at least three bounded layout signatures.</p>
       <div class="axis-grid" aria-label="Compiler-derived aesthetic comparison axes">
 {axis_cards}
