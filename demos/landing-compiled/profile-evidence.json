@@ -475,21 +475,21 @@
       "nodeCount": 72,
       "note": "Warm sand ground, humanist sans, and soft rounded amber surfaces.",
       "projection": {
-        "accent": "#c67e1a",
+        "accent": "#985d10",
         "cols": 3,
         "featuredSpan": 2,
         "fontFamily": "ui-sans-serif, system-ui, sans-serif",
         "fontLabel": "sans",
         "pageTint": "#efe7d6",
         "radius": "22px",
-        "sparkFill": "rgba(198,126,26,0.16)",
+        "sparkFill": "rgba(152,93,16,0.16)",
         "surfaceRadius": "20px",
         "uppercase": false,
         "weight": "600"
       },
       "semanticHash": "6f3e13e1c376a4549c529af0d6e5d465f041c35393e087c3525e771ef344c350",
       "slug": "warm-organic",
-      "styleProjectionHash": "a26ae9490b93dd00b193091a06ffdc3085f781da635db07c95fa731d8431ab63",
+      "styleProjectionHash": "b60d665165742839bd9bd3cfa9d1c896034d2c49e895446d429a420f2b4dbd64",
       "styleProof": {
         "categories": [
           "action",

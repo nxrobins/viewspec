@@ -100,6 +100,15 @@
     "scope": "Aesthetic Profiles V1 are deterministic view-level art-direction handles. The homepage switches between eight compiled landing artifacts while preserving the same semantic graph, stable semantic ids, zero shell overrides, governed style projections, bounded layout metadata, compact style-delta counts in checked manifest summaries, and closed React Tailwind recipes.",
     "non_claim": "Aesthetic profiles are not arbitrary CSS, pixel-perfect visual proof, accessibility certification, arbitrary host-app compatibility, or design-review approval."
   },
+  "accessibility": {
+    "check_names": [
+      "a11y_contrast",
+      "a11y_names"
+    ],
+    "contrast_standard": "WCAG 2.x AA, size/role-scoped: body text 4.5:1, large text and UI components 3.0:1",
+    "scope": "ViewSpec prove enumerates every governed text/background pair from the closed style vocabulary plus the emitter's fixed base pairs, fails closed when any pair is below its scoped WCAG AA threshold, and reports accessible-name presence for interactive controls (author-provided name vs generic fallback).",
+    "non_claim": "Scoped contrast and accessible-name presence are checked, not a full WCAG audit, screen-reader certification, focus-order or keyboard-operability proof; React-emitter contrast is not yet proven."
+  },
   "agent_assets": {
     "manifest_url": "https://viewspec.dev/agent-assets.json",
     "schema_version": 7,

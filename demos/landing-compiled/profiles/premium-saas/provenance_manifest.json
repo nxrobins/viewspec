@@ -7,7 +7,7 @@
   "raw_source_hash": "fb049e1b812189a7b925c9eaf4c3cbea4824c107a5324485908684924b606772",
   "source_hash": "fb049e1b812189a7b925c9eaf4c3cbea4824c107a5324485908684924b606772",
   "design_hash": null,
-  "artifact_hash": "13eeef549bf94e69d54a8c16dfe44f40b61f5fee7ec42b6fd922119ae65dc564",
+  "artifact_hash": "e5b87194609e31065fe0a5c0a89e86563a481962f51edc4f5203553446b1df01",
   "command": "compile",
   "command_args": [
     "python",
