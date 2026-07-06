@@ -166,6 +166,15 @@ assertPublicText(publicFacts.aesthetic_profiles.scope, 'zero shell overrides', '
 assertPublicText(publicFacts.aesthetic_profiles.scope, 'compact style-delta counts', 'public facts aesthetic style summary scope')
 assertPublicText(publicFacts.aesthetic_profiles.non_claim, 'not arbitrary CSS', 'public facts aesthetic non-claim')
 
+assertPublicText(publicFacts.accessibility.scope, 'fails closed', 'public facts a11y scope')
+assertPublicText(publicFacts.accessibility.contrast_standard, 'WCAG 2.x AA', 'public facts a11y contrast standard')
+assertPublicText(publicFacts.accessibility.non_claim, 'not yet proven', 'public facts a11y React non-claim')
+assert.deepEqual(
+  publicFacts.accessibility.check_names,
+  ['a11y_contrast', 'a11y_names'],
+  'public facts a11y check names'
+)
+
 const expectedProfileSlugs = {
   'aesthetic.calm_ops': 'calm-ops',
   'aesthetic.premium_saas': 'premium-saas',

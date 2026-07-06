@@ -31,7 +31,8 @@ from viewspec.local_tools import (
     tool_error_response,
     tool_response,
 )
-from viewspec.manifest_summary import summarize_intent_manifest
+from viewspec.a11y import a11y_contrast_report, name_report
+from viewspec.manifest_summary import manifest_root_aesthetic_profile, summarize_intent_manifest
 
 
 PROVE_SCHEMA_VERSION = 1
@@ -159,6 +160,23 @@ def prove(
             checks["host_verify"] = "passed" if host_report.get("ok") else "failed"
             if not host_report.get("ok"):
                 errors = _normalize_errors(host_report.get("errors"), fallback_code="HOST_VERIFY_BROWSER_RUNTIME_ERROR")
+        a11y = _a11y_report(manifest_path)
+        if a11y.get("available"):
+            checks["a11y_contrast"] = "passed" if a11y["contrast_failures"] == 0 else "failed"
+            # Names are warn-only this release (fallback-named controls exist in the wild); the
+            # summary still reports them so authors can fix, but they do not fail the proof yet.
+            checks["a11y_names"] = "passed" if a11y["unnamed_interactive"] == 0 else "warn"
+            if a11y["contrast_failures"]:
+                errors = list(errors) + [
+                    {
+                        "code": "A11Y_CONTRAST_BELOW_AA",
+                        "message": (
+                            f"{a11y['contrast_failures']} text/background pair(s) below the scoped "
+                            f"WCAG threshold: {', '.join(a11y['contrast_failure_labels'])}."
+                        ),
+                        "fix": "Raise contrast on the named pairs to meet WCAG AA (body 4.5:1, large/UI 3.0:1).",
+                    }
+                ]
         report = _report(
             ok=not errors,
             target=target,
@@ -168,6 +186,7 @@ def prove(
             artifact_hash=file_hash(artifact_path) if artifact_path.exists() else None,
             manifest_hash=file_hash(manifest_path) if manifest_path.exists() else None,
             manifest_summary=summarize_intent_manifest(manifest_path),
+            a11y=a11y if a11y.get("available") else None,
             host_report=host_report,
             errors=errors,
             metadata={
@@ -397,6 +416,39 @@ def _artifact_path(artifact_dir: Path, target: str) -> Path:
     return artifact_dir / ("ViewSpecView.tsx" if target in {"react-tsx", "react-tailwind-tsx"} else "index.html")
 
 
+def _a11y_report(manifest_path: Path) -> dict[str, Any]:
+    """Derive scoped WCAG contrast + accessible-name facts from a compiled artifact manifest.
+
+    Pure and deterministic, no browser: contrast is enumerated from the closed style vocabulary
+    (registry + fixed base pairs), names from the flat node props. `available` is False when there
+    is no readable manifest — the check simply does not apply.
+    """
+    if not manifest_path.exists():
+        return {"available": False}
+    try:
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    except Exception:
+        return {"available": False}
+    nodes = manifest.get("nodes") if isinstance(manifest, dict) else None
+    if not isinstance(nodes, dict):
+        return {"available": False}
+    profile = manifest_root_aesthetic_profile(nodes)
+    contrast = a11y_contrast_report(profile)
+    names = name_report(nodes)
+    return {
+        "available": True,
+        "profile": profile,
+        "pairs_checked": contrast["pairs_checked"],
+        "min_contrast_ratio": contrast["min_contrast_ratio"],
+        "contrast_failures": contrast["contrast_failures"],
+        "contrast_failure_labels": [f["label"] for f in contrast["failures"]],
+        "interactive_controls": names["interactive_controls"],
+        "unnamed_interactive": names["unnamed_interactive"],
+        "unnamed": names["unnamed"],
+        "assertion_count": contrast["pairs_checked"] + names["interactive_controls"],
+    }
+
+
 def _checks(prepared: _PreparedProof, *, target: str, compile_check: str) -> dict[str, str]:
     return {
         "intent": prepared.intent_source,
@@ -420,6 +472,7 @@ def _report(
     artifact_hash: str | None = None,
     manifest_hash: str | None = None,
     manifest_summary: dict[str, Any] | None = None,
+    a11y: dict[str, Any] | None = None,
     host_report: dict[str, Any] | None = None,
     errors: list[dict[str, str]],
     metadata: dict[str, Any],
@@ -452,6 +505,7 @@ def _report(
         "artifact_hash": artifact_hash,
         "manifest_hash": manifest_hash,
         "manifest_summary": manifest_summary,
+        "a11y": a11y,
         "host_report": host_report,
         "errors": errors,
         "metadata": metadata,

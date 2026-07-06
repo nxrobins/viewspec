@@ -235,9 +235,9 @@ AESTHETIC_PROFILE_STYLE_VALUES: dict[str, dict[str, str]] = {
     "aesthetic.warm_organic": {
         "palette.temperature": "background-color: #efe7d6;",
         "tone.neutral": "color: #3a2f24; font-family: ui-sans-serif, system-ui, sans-serif;",
-        "tone.muted": "color: #8a7860;",
-        "tone.accent": "color: #c67e1a; font-weight: 700;",
-        "action.accent": "background-color: #c67e1a; color: #ffffff; border-radius: 22px;",
+        "tone.muted": "color: #77654d;",
+        "tone.accent": "color: #985d10; font-weight: 700;",
+        "action.accent": "background-color: #985d10; color: #ffffff; border-radius: 22px;",
         "surface.subtle": "background: #faf5ea; border: 1px solid #e0d3bc; border-radius: 20px;",
         "surface.strong": "background: #f0e6d4; border: 1px solid #d3c1a3; border-radius: 22px;",
         "density.compact": "gap: 0.5rem; padding: 0.5rem 0.7rem;",

@@ -34,6 +34,7 @@ Raw HTML tools remain available only for importing existing HTML: `viewspec comp
 
 - Free SDK: `pip install viewspec`
 - First proof: `viewspec prove --out .viewspec-proof` writes `.viewspec-proof/PROOF.md` for humans, `.viewspec-proof/proof_report.json` for tools, and `.viewspec-proof/support_bundle.json` for redacted local support triage; checked manifest summaries include compact style-delta counts when aesthetic profiles are present; `docs/proof-bundle.md` and https://viewspec.dev/proof-bundle/ explain status, hashes, checks, failure codes, and support bundles.
+- Accessibility proof: `viewspec prove` runs `a11y_contrast` (fail-closed) and `a11y_names` (warn-only this release). Every governed text/background pair meets size/role-scoped WCAG AA (body 4.5:1, large text and UI components 3.0:1), enumerated from the closed style vocabulary plus fixed base pairs so it provably covers every node; React-emitter contrast is not yet proven. See `docs/known-limits-a11y.md`.
 - Runtime LLM calls: zero in local validate/compile/lift/diff/check and zero in the live compiler path.
 - Agents should emit `viewspec.intent.json` for new UI, optionally scaffold with `viewspec init-intent`, then run `viewspec validate-intent`, `viewspec diff-intent` for revisions including aesthetic profile deltas, `viewspec compile`, and `viewspec check`.
 - Intent diff summaries are available in human CLI output, MCP `semantic_summary`, and Python via `intent_semantic_change_lines(diff["semantic_changes"])`.
