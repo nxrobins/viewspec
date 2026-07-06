@@ -162,21 +162,24 @@ def prove(
                 errors = _normalize_errors(host_report.get("errors"), fallback_code="HOST_VERIFY_BROWSER_RUNTIME_ERROR")
         a11y = _a11y_report(manifest_path)
         if a11y.get("available"):
-            checks["a11y_contrast"] = "passed" if a11y["contrast_failures"] == 0 else "failed"
+            if a11y.get("contrast_checked"):
+                checks["a11y_contrast"] = "passed" if a11y["contrast_failures"] == 0 else "failed"
+                if a11y["contrast_failures"]:
+                    errors = list(errors) + [
+                        {
+                            "code": "A11Y_CONTRAST_BELOW_AA",
+                            "message": (
+                                f"{a11y['contrast_failures']} text/background pair(s) below the scoped "
+                                f"WCAG threshold: {', '.join(a11y['contrast_failure_labels'])}."
+                            ),
+                            "fix": "Raise contrast on the named pairs to meet WCAG AA (body 4.5:1, large/UI 3.0:1).",
+                        }
+                    ]
+            else:
+                checks["a11y_contrast"] = "not_applicable"
             # Names are warn-only this release (fallback-named controls exist in the wild); the
             # summary still reports them so authors can fix, but they do not fail the proof yet.
             checks["a11y_names"] = "passed" if a11y["unnamed_interactive"] == 0 else "warn"
-            if a11y["contrast_failures"]:
-                errors = list(errors) + [
-                    {
-                        "code": "A11Y_CONTRAST_BELOW_AA",
-                        "message": (
-                            f"{a11y['contrast_failures']} text/background pair(s) below the scoped "
-                            f"WCAG threshold: {', '.join(a11y['contrast_failure_labels'])}."
-                        ),
-                        "fix": "Raise contrast on the named pairs to meet WCAG AA (body 4.5:1, large/UI 3.0:1).",
-                    }
-                ]
         report = _report(
             ok=not errors,
             target=target,
@@ -433,20 +436,42 @@ def _a11y_report(manifest_path: Path) -> dict[str, Any]:
     if not isinstance(nodes, dict):
         return {"available": False}
     profile = manifest_root_aesthetic_profile(nodes)
-    contrast = a11y_contrast_report(profile)
+    emitter = manifest.get("emitter") if isinstance(manifest, dict) else None
     names = name_report(nodes)
-    return {
+    contrast = None
+    if emitter == "react_tailwind_tsx":
+        # React colors are Tailwind classes, not the profile hex — use the emitter's own grounded
+        # enumeration. Lazy import so plain prove does not pull in the React emitter.
+        from viewspec.emitters.react_tailwind_tsx.a11y import react_contrast_report
+        from viewspec.emitters.react_tailwind_tsx.recipes import TAILWIND_AESTHETIC_RECIPE_OVERLAYS
+
+        if profile in TAILWIND_AESTHETIC_RECIPE_OVERLAYS:
+            contrast = react_contrast_report(profile)
+        # React base-recipe (no-profile) contrast is a documented future refinement.
+    else:
+        contrast = a11y_contrast_report(profile)
+    report: dict[str, Any] = {
         "available": True,
         "profile": profile,
-        "pairs_checked": contrast["pairs_checked"],
-        "min_contrast_ratio": contrast["min_contrast_ratio"],
-        "contrast_failures": contrast["contrast_failures"],
-        "contrast_failure_labels": [f["label"] for f in contrast["failures"]],
+        "emitter": emitter,
         "interactive_controls": names["interactive_controls"],
         "unnamed_interactive": names["unnamed_interactive"],
         "unnamed": names["unnamed"],
-        "assertion_count": contrast["pairs_checked"] + names["interactive_controls"],
     }
+    if contrast is not None:
+        report.update(
+            {
+                "contrast_checked": True,
+                "pairs_checked": contrast["pairs_checked"],
+                "min_contrast_ratio": contrast["min_contrast_ratio"],
+                "contrast_failures": contrast["contrast_failures"],
+                "contrast_failure_labels": [f["label"] for f in contrast["failures"]],
+                "assertion_count": contrast["pairs_checked"] + names["interactive_controls"],
+            }
+        )
+    else:
+        report.update({"contrast_checked": False, "assertion_count": names["interactive_controls"]})
+    return report
 
 
 def _checks(prepared: _PreparedProof, *, target: str, compile_check: str) -> dict[str, str]:

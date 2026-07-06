@@ -10,6 +10,10 @@ on contrast. This documents exactly what is and is not proven, so reviewers can 
   threshold: body text ≥ 4.5:1, large text and UI components ≥ 3.0:1. Because agents may only use
   governed tokens, that enumeration provably covers every rendered node. Any pair below its
   threshold fails the proof (`a11y_contrast`), naming the offending pair.
+- **React Tailwind emitter contrast (slice 2).** The `react_tailwind_tsx` recipes + per-profile
+  overlays resolve to the browser-grounded Tailwind v4 sRGB palette (rasterized by the same Blink
+  engine the host renders in) and are checked against the same scoped thresholds; all eight profiles
+  clear AA and fail closed otherwise.
 
 ## Reported, warn-only (this release)
 
@@ -21,9 +25,9 @@ on contrast. This documents exactly what is and is not proven, so reviewers can 
 
 ## Explicitly out of scope (no fallback owed)
 
-- **React-emitter contrast** — the React Tailwind recipes are a different color system (Tailwind
-  palette, not the profile hex); React output is checked for accessible-name presence, but **its
-  contrast is not yet proven**. Named next slice.
+- **React base-recipe (no-profile) contrast** — the eight profile recipes are proven (above); a
+  React artifact compiled without an aesthetic profile falls back to the base slate/teal recipe,
+  whose contrast is not yet separately enumerated. Small follow-up.
 - **Text on gradient / image / video backgrounds** — the compiler never emits text on them; an
   unresolvable background fails loudly (`A11Y_UNRESOLVABLE_BACKGROUND`), never silently.
 - **Focus / tab order, ARIA-state truthfulness, keyboard operability, heading hierarchy, target
