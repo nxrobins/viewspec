@@ -120,8 +120,9 @@ class AestheticProfileError(ValueError):
 
 
 AESTHETIC_PROFILE_STYLE_VALUES: dict[str, dict[str, str]] = {
-    # Five deliberately far-apart identities. The grounds alone must read as five
-    # different products at a glance: sage / lavender / dark terminal / cream paper / steel.
+    # Eight deliberately far-apart identities. The grounds alone must read as eight
+    # different products at a glance: sage / lavender / dark terminal / cream paper / steel /
+    # brutalist paper / neon black / warm sand.
     "aesthetic.calm_ops": {
         "palette.temperature": "background-color: #e9f3ee;",
         "tone.neutral": "color: #16241f; font-family: ui-sans-serif, system-ui, sans-serif;",

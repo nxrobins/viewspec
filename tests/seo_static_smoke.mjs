@@ -160,7 +160,7 @@ assertPublicEqual(
   'public facts aesthetic default profile'
 )
 assertPublicText(publicFacts.aesthetic_profiles.scope, 'deterministic view-level art-direction handles', 'public facts aesthetic scope')
-assertPublicText(publicFacts.aesthetic_profiles.scope, 'five compiled landing artifacts', 'public facts aesthetic homepage scope')
+assertPublicText(publicFacts.aesthetic_profiles.scope, 'eight compiled landing artifacts', 'public facts aesthetic homepage scope')
 assertPublicText(publicFacts.aesthetic_profiles.scope, 'stable semantic ids', 'public facts aesthetic semantic ids scope')
 assertPublicText(publicFacts.aesthetic_profiles.scope, 'zero shell overrides', 'public facts aesthetic shell override scope')
 assertPublicText(publicFacts.aesthetic_profiles.scope, 'compact style-delta counts', 'public facts aesthetic style summary scope')
@@ -418,7 +418,7 @@ for (const expected of [
 
 const aestheticProfilesPage = await readFile('demos/aesthetic-profiles/index.html', 'utf8')
 for (const expected of [
-  'Same Intent, Five Art Directions',
+  'Same Intent, Eight Art Directions',
   'Beauty as a checked compiler handle',
   'deterministic art direction, not CSS',
   'semantic ids stable',

@@ -94,7 +94,7 @@ def build_bundle(aesthetic_profile: str | None = None):
     )
     capabilities.add_row(
         label="Aesthetic Profiles",
-        value="Five compiled projections from one semantic graph.",
+        value="Eight compiled projections from one semantic graph.",
     )
     capabilities.add_row(
         label="Proof Pipeline",
@@ -661,7 +661,7 @@ PAGE_CSS = r"""
   .dv .dvflow{ margin:18px 0 0; font-size:13.5px; opacity:.82; }
   .dv svg{ display:block; width:100%; height:30px; margin-top:8px; }
   svg .spark-fill{ fill:rgba(245,178,63,.10); } svg .spark-line{ fill:none; stroke:var(--amber); stroke-width:1.5; } svg .spark-dot{ fill:var(--amber-2); }
-  /* five-up strip: all projections rendered simultaneously — juxtaposition, not memory */
+  /* projection strip: all profiles rendered simultaneously — juxtaposition, not memory */
   .dv-strip{ display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:10px; margin-bottom:16px; }
   @media (max-width:760px){ .dv-strip{ grid-template-columns:repeat(auto-fit,minmax(120px,1fr)); } }
   .dv-slot{ display:flex; flex-direction:column; gap:7px; min-width:0; }
@@ -888,7 +888,7 @@ PAGE_BODY_TEMPLATE = r"""<a class="skip-link" href="#top">Skip to content</a>
           <div class="readout" id="readout">density <b>regular</b> &middot; emphasis <b>medium</b> &middot; columns <b>3</b></div>
         </div>
         <div class="derive-body">
-          <div class="dv-strip" id="dvStrip" role="group" aria-label="All five compiled projections, side by side"></div>
+          <div class="dv-strip" id="dvStrip" role="group" aria-label="All eight compiled projections, side by side"></div>
           <div class="dv" id="dv" data-p="calm_ops" data-node="node:workspace#view:projection"></div>
         </div>
         <div class="note">aesthetic.<span id="noteP">calm_ops</span> &middot; <b>0</b> hand&#8209;written rules &middot; <span class="mono">Same graph, new projection</span> from the same semantic graph</div><div class="note" id="noteReal"></div>

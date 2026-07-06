@@ -4,10 +4,10 @@
   "kind": "intent_bundle_compile",
   "sdk_version": "0.3.0b1",
   "source_name": "intent_bundle.json",
-  "raw_source_hash": "70bc58305a7789ec30969edf662d0487e9deff75ebc47d185efcc2f7b6b073a2",
-  "source_hash": "70bc58305a7789ec30969edf662d0487e9deff75ebc47d185efcc2f7b6b073a2",
+  "raw_source_hash": "8df570ad814043a372f891205d8027d5c6f67d45b26d9acc5b7e33d3e39641d1",
+  "source_hash": "8df570ad814043a372f891205d8027d5c6f67d45b26d9acc5b7e33d3e39641d1",
   "design_hash": null,
-  "artifact_hash": "f4e60eef2cdcb4a0f05ac091ab232f94a02f6905cc25e181105bc5fcee97ebf5",
+  "artifact_hash": "285755d5e71306b8f967c346aacc39145861b09b956967f70559fced1abb6ffb",
   "command": "compile",
   "command_args": [
     "python",
@@ -826,7 +826,7 @@
         "emphasis.high"
       ],
       "props": {
-        "text": "Five compiled projections from one semantic graph.",
+        "text": "Eight compiled projections from one semantic graph.",
         "binding_id": "capabilities_row_2_value",
         "table_cell_role": "cell"
       }
@@ -1988,7 +1988,7 @@
           "ir_id": "binding_capabilities_row_2_value",
           "primitive": "value",
           "tag": "td",
-          "visible_text": "Five compiled projections from one semantic graph.",
+          "visible_text": "Eight compiled projections from one semantic graph.",
           "binding_id": "capabilities_row_2_value",
           "action": null,
           "accessibility_label": null
@@ -2789,7 +2789,7 @@
           "ir_id": "binding_capabilities_row_2_value",
           "primitive": "value",
           "tag": "td",
-          "visible_text": "Five compiled projections from one semantic graph.",
+          "visible_text": "Eight compiled projections from one semantic graph.",
           "binding_id": "capabilities_row_2_value",
           "action": null,
           "accessibility_label": null
@@ -3126,6 +3126,6 @@
         }
       ]
     },
-    "digest": "386d9593c69eda5ab2cdef6bdb005d95f78fa12126cfc9148b101dce71339b9c"
+    "digest": "d7a67a3f997812e6aacc309f716e5824145e4731a07fb063a2b9a4ff4bf23c5f"
   }
 }
