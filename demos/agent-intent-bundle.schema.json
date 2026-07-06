@@ -301,7 +301,10 @@
             "aesthetic.premium_saas",
             "aesthetic.data_dense",
             "aesthetic.editorial_product",
-            "aesthetic.executive_review"
+            "aesthetic.executive_review",
+            "aesthetic.brutalist",
+            "aesthetic.neon_cyber",
+            "aesthetic.warm_organic"
           ]
         }
       },
@@ -532,6 +535,14 @@
   "type": "object",
   "x-viewspec-aesthetic-profiles": {
     "layout_props": {
+      "aesthetic.brutalist": {
+        "content_grid": {
+          "columns": 1
+        },
+        "metric_grid": {
+          "columns": 1
+        }
+      },
       "aesthetic.calm_ops": {
         "content_grid": {
           "columns": 2
@@ -568,6 +579,14 @@
           "columns": 3
         }
       },
+      "aesthetic.neon_cyber": {
+        "content_grid": {
+          "columns": 2
+        },
+        "metric_grid": {
+          "columns": 2
+        }
+      },
       "aesthetic.premium_saas": {
         "content_grid": {
           "columns": 2
@@ -578,6 +597,18 @@
         },
         "metric_grid": {
           "columns": 2
+        }
+      },
+      "aesthetic.warm_organic": {
+        "content_grid": {
+          "columns": 2
+        },
+        "metric_card": {
+          "layout_emphasis": "featured",
+          "span_columns": 2
+        },
+        "metric_grid": {
+          "columns": 3
         }
       }
     },
@@ -593,6 +624,36 @@
       "not_design_certification"
     ],
     "style_facts": {
+      "aesthetic.brutalist": {
+        "categories": [
+          "action",
+          "density",
+          "emphasis",
+          "narrative",
+          "palette",
+          "rhythm",
+          "surface",
+          "tone"
+        ],
+        "category_count": 8,
+        "changed_token_count": 13,
+        "changed_tokens": [
+          "action.accent",
+          "density.airy",
+          "density.compact",
+          "density.regular",
+          "emphasis.high",
+          "narrative.flow",
+          "palette.temperature",
+          "rhythm.hierarchy",
+          "surface.strong",
+          "surface.subtle",
+          "tone.accent",
+          "tone.muted",
+          "tone.neutral"
+        ],
+        "declaration_count": 29
+      },
       "aesthetic.calm_ops": {
         "categories": [
           "action",
@@ -713,6 +774,36 @@
         ],
         "declaration_count": 30
       },
+      "aesthetic.neon_cyber": {
+        "categories": [
+          "action",
+          "density",
+          "emphasis",
+          "narrative",
+          "palette",
+          "rhythm",
+          "surface",
+          "tone"
+        ],
+        "category_count": 8,
+        "changed_token_count": 13,
+        "changed_tokens": [
+          "action.accent",
+          "density.airy",
+          "density.compact",
+          "density.regular",
+          "emphasis.high",
+          "narrative.flow",
+          "palette.temperature",
+          "rhythm.hierarchy",
+          "surface.strong",
+          "surface.subtle",
+          "tone.accent",
+          "tone.muted",
+          "tone.neutral"
+        ],
+        "declaration_count": 31
+      },
       "aesthetic.premium_saas": {
         "categories": [
           "action",
@@ -742,6 +833,36 @@
           "tone.neutral"
         ],
         "declaration_count": 29
+      },
+      "aesthetic.warm_organic": {
+        "categories": [
+          "action",
+          "density",
+          "emphasis",
+          "narrative",
+          "palette",
+          "rhythm",
+          "surface",
+          "tone"
+        ],
+        "category_count": 8,
+        "changed_token_count": 13,
+        "changed_tokens": [
+          "action.accent",
+          "density.airy",
+          "density.compact",
+          "density.regular",
+          "emphasis.high",
+          "narrative.flow",
+          "palette.temperature",
+          "rhythm.hierarchy",
+          "surface.strong",
+          "surface.subtle",
+          "tone.accent",
+          "tone.muted",
+          "tone.neutral"
+        ],
+        "declaration_count": 28
       }
     },
     "style_token_prefix": "aesthetic.",
@@ -751,7 +872,10 @@
       "aesthetic.premium_saas",
       "aesthetic.data_dense",
       "aesthetic.editorial_product",
-      "aesthetic.executive_review"
+      "aesthetic.executive_review",
+      "aesthetic.brutalist",
+      "aesthetic.neon_cyber",
+      "aesthetic.warm_organic"
     ]
   },
   "x-viewspec-invariants": [

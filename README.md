@@ -118,7 +118,7 @@ viewspec prove-app --app viewspec.app.json --out .viewspec-app-proof --with-shel
 
 `compile-app` writes a single `app-dist/index.html` Static Shell V0 artifact with hash-based local routing, plus checked screen artifacts and generated TS state reducers for V3. The shell is proof-oriented source output; it does not claim production runtime navigation, browser navigation proof, framework adapters, persistence, sync, or hosted extended compiler behavior.
 
-Aesthetic Profiles V1 are deterministic art-direction handles, not CSS: `aesthetic.calm_ops`, `aesthetic.premium_saas`, `aesthetic.data_dense`, `aesthetic.editorial_product`, and `aesthetic.executive_review`. Checked summaries expose compact style-delta counts and bounded layout deltas for profiled artifacts, not arbitrary CSS control, pixel-perfect visual proof, or design certification.
+Aesthetic Profiles V1 are deterministic art-direction handles, not CSS: `aesthetic.calm_ops`, `aesthetic.premium_saas`, `aesthetic.data_dense`, `aesthetic.editorial_product`, `aesthetic.executive_review`, `aesthetic.brutalist`, `aesthetic.neon_cyber`, and `aesthetic.warm_organic`. Checked summaries expose compact style-delta counts and bounded layout deltas for profiled artifacts, not arbitrary CSS control, pixel-perfect visual proof, or design certification.
 
 ## Import Existing HTML (0.3.0b1 beta)
 

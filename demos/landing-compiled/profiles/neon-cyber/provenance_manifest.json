@@ -1,0 +1,3131 @@
+{
+  "version": 1,
+  "manifest_schema_version": 1,
+  "kind": "intent_bundle_compile",
+  "sdk_version": "0.3.0b1",
+  "source_name": "intent_bundle.json",
+  "raw_source_hash": "3cb6a5493f22a47fba30a0bbcdf432415262ee28f4d657f27e9fe5b93aa385c3",
+  "source_hash": "3cb6a5493f22a47fba30a0bbcdf432415262ee28f4d657f27e9fe5b93aa385c3",
+  "design_hash": null,
+  "artifact_hash": "4b26dcb52751313399a2d77000a089f62d65c71df3038125df334c7ea909b978",
+  "command": "compile",
+  "command_args": [
+    "python",
+    "demos/build_landing.py"
+  ],
+  "policy_version": "viewspec-intent-bundle@1",
+  "guarantees": {
+    "sdk_network_calls": "none",
+    "artifact_autofetch_network": "none",
+    "network_calls": "none",
+    "decompilation": "not_applicable"
+  },
+  "nodes": {
+    "dom-region_root": {
+      "ir_id": "region_root",
+      "primitive": "root",
+      "classes": [
+        "vs-root",
+        "vs-layout-root"
+      ],
+      "content_refs": [],
+      "intent_refs": [
+        "viewspec:view:viewspec_landing",
+        "viewspec:region:root",
+        "viewspec:style:aesthetic_profile"
+      ],
+      "style_tokens": [
+        "tone.neutral",
+        "palette.temperature",
+        "aesthetic.neon_cyber"
+      ],
+      "props": {
+        "layout_role": "root",
+        "aesthetic_profile": "aesthetic.neon_cyber"
+      }
+    },
+    "dom-region_main": {
+      "ir_id": "region_main",
+      "primitive": "stack",
+      "classes": [
+        "vs-stack",
+        "vs-layout-stack"
+      ],
+      "content_refs": [],
+      "intent_refs": [
+        "viewspec:region:main"
+      ],
+      "style_tokens": [
+        "density.regular"
+      ],
+      "props": {
+        "layout_role": "stack"
+      }
+    },
+    "dom-motif_launch_hero": {
+      "ir_id": "motif_launch_hero",
+      "primitive": "surface",
+      "classes": [
+        "vs-surface",
+        "vs-layout-surface",
+        "vs-motif-hero"
+      ],
+      "content_refs": [],
+      "intent_refs": [
+        "viewspec:motif:launch_hero",
+        "viewspec:style:s_launch_hero"
+      ],
+      "style_tokens": [
+        "surface.subtle",
+        "emphasis.high"
+      ],
+      "props": {
+        "layout_role": "surface",
+        "motif_kind": "hero",
+        "aria_label": "Hero"
+      }
+    },
+    "dom-binding_launch_hero_eyebrow": {
+      "ir_id": "binding_launch_hero_eyebrow",
+      "primitive": "label",
+      "classes": [
+        "vs-label"
+      ],
+      "content_refs": [
+        "node:launch_hero#attr:eyebrow"
+      ],
+      "intent_refs": [
+        "viewspec:binding:launch_hero_eyebrow"
+      ],
+      "style_tokens": [
+        "tone.muted"
+      ],
+      "props": {
+        "text": "Agent-native app compiler",
+        "binding_id": "launch_hero_eyebrow",
+        "hero_role": "eyebrow"
+      }
+    },
+    "dom-binding_launch_hero_title": {
+      "ir_id": "binding_launch_hero_title",
+      "primitive": "value",
+      "classes": [
+        "vs-value"
+      ],
+      "content_refs": [
+        "node:launch_hero#attr:title"
+      ],
+      "intent_refs": [
+        "viewspec:binding:launch_hero_title"
+      ],
+      "style_tokens": [
+        "tone.neutral",
+        "emphasis.high"
+      ],
+      "props": {
+        "text": "Intent goes in. Interface comes out.",
+        "binding_id": "launch_hero_title",
+        "hero_role": "title"
+      }
+    },
+    "dom-binding_launch_hero_description": {
+      "ir_id": "binding_launch_hero_description",
+      "primitive": "text",
+      "classes": [
+        "vs-text"
+      ],
+      "content_refs": [
+        "node:launch_hero#attr:description"
+      ],
+      "intent_refs": [
+        "viewspec:binding:launch_hero_description"
+      ],
+      "style_tokens": [
+        "tone.neutral"
+      ],
+      "props": {
+        "text": "Agents commit to meaning \u2014 nodes, bindings, motifs. ViewSpec compiles the UI, the state reducer, replay checks, and shell proof. Deterministic, and no runtime LLM.",
+        "binding_id": "launch_hero_description",
+        "hero_role": "description"
+      }
+    },
+    "dom-motif_proof_badges": {
+      "ir_id": "motif_proof_badges",
+      "primitive": "grid",
+      "classes": [
+        "vs-grid",
+        "vs-layout-grid",
+        "vs-motif-dashboard"
+      ],
+      "content_refs": [],
+      "intent_refs": [
+        "viewspec:motif:proof_badges",
+        "viewspec:style:s_proof_badges"
+      ],
+      "style_tokens": [
+        "density.regular",
+        "surface.subtle"
+      ],
+      "props": {
+        "layout_role": "grid",
+        "motif_kind": "dashboard",
+        "columns": 3,
+        "layout_strategy": "dashboard_grid_v0"
+      }
+    },
+    "dom-motif_proof_badges_proof_badges_card_1": {
+      "ir_id": "motif_proof_badges_proof_badges_card_1",
+      "primitive": "surface",
+      "classes": [
+        "vs-surface",
+        "vs-layout-surface",
+        "vs-motif-dashboard"
+      ],
+      "content_refs": [],
+      "intent_refs": [
+        "viewspec:motif:proof_badges"
+      ],
+      "style_tokens": [
+        "surface.subtle"
+      ],
+      "props": {
+        "layout_role": "surface",
+        "motif_kind": "dashboard"
+      }
+    },
+    "dom-binding_proof_badges_card_1_label": {
+      "ir_id": "binding_proof_badges_card_1_label",
+      "primitive": "label",
+      "classes": [
+        "vs-label"
+      ],
+      "content_refs": [
+        "node:proof_badges_card_1#attr:label"
+      ],
+      "intent_refs": [
+        "viewspec:binding:proof_badges_card_1_label"
+      ],
+      "style_tokens": [
+        "tone.muted"
+      ],
+      "props": {
+        "text": "replay",
+        "binding_id": "proof_badges_card_1_label"
+      }
+    },
+    "dom-binding_proof_badges_card_1_value": {
+      "ir_id": "binding_proof_badges_card_1_value",
+      "primitive": "value",
+      "classes": [
+        "vs-value"
+      ],
+      "content_refs": [
+        "node:proof_badges_card_1#attr:value"
+      ],
+      "intent_refs": [
+        "viewspec:binding:proof_badges_card_1_value"
+      ],
+      "style_tokens": [
+        "tone.neutral",
+        "emphasis.high"
+      ],
+      "props": {
+        "text": "state replay passed",
+        "binding_id": "proof_badges_card_1_value"
+      }
+    },
+    "dom-motif_proof_badges_proof_badges_card_2": {
+      "ir_id": "motif_proof_badges_proof_badges_card_2",
+      "primitive": "surface",
+      "classes": [
+        "vs-surface",
+        "vs-layout-surface",
+        "vs-motif-dashboard"
+      ],
+      "content_refs": [],
+      "intent_refs": [
+        "viewspec:motif:proof_badges"
+      ],
+      "style_tokens": [
+        "surface.subtle"
+      ],
+      "props": {
+        "layout_role": "surface",
+        "motif_kind": "dashboard"
+      }
+    },
+    "dom-binding_proof_badges_card_2_label": {
+      "ir_id": "binding_proof_badges_card_2_label",
+      "primitive": "label",
+      "classes": [
+        "vs-label"
+      ],
+      "content_refs": [
+        "node:proof_badges_card_2#attr:label"
+      ],
+      "intent_refs": [
+        "viewspec:binding:proof_badges_card_2_label"
+      ],
+      "style_tokens": [
+        "tone.muted"
+      ],
+      "props": {
+        "text": "reducer",
+        "binding_id": "proof_badges_card_2_label"
+      }
+    },
+    "dom-binding_proof_badges_card_2_value": {
+      "ir_id": "binding_proof_badges_card_2_value",
+      "primitive": "value",
+      "classes": [
+        "vs-value"
+      ],
+      "content_refs": [
+        "node:proof_badges_card_2#attr:value"
+      ],
+      "intent_refs": [
+        "viewspec:binding:proof_badges_card_2_value"
+      ],
+      "style_tokens": [
+        "tone.neutral",
+        "emphasis.high"
+      ],
+      "props": {
+        "text": "reducer generated",
+        "binding_id": "proof_badges_card_2_value"
+      }
+    },
+    "dom-motif_proof_badges_proof_badges_card_3": {
+      "ir_id": "motif_proof_badges_proof_badges_card_3",
+      "primitive": "surface",
+      "classes": [
+        "vs-surface",
+        "vs-layout-surface",
+        "vs-motif-dashboard"
+      ],
+      "content_refs": [],
+      "intent_refs": [
+        "viewspec:motif:proof_badges"
+      ],
+      "style_tokens": [
+        "surface.subtle"
+      ],
+      "props": {
+        "layout_role": "surface",
+        "motif_kind": "dashboard"
+      }
+    },
+    "dom-binding_proof_badges_card_3_label": {
+      "ir_id": "binding_proof_badges_card_3_label",
+      "primitive": "label",
+      "classes": [
+        "vs-label"
+      ],
+      "content_refs": [
+        "node:proof_badges_card_3#attr:label"
+      ],
+      "intent_refs": [
+        "viewspec:binding:proof_badges_card_3_label"
+      ],
+      "style_tokens": [
+        "tone.muted"
+      ],
+      "props": {
+        "text": "manifest",
+        "binding_id": "proof_badges_card_3_label"
+      }
+    },
+    "dom-binding_proof_badges_card_3_value": {
+      "ir_id": "binding_proof_badges_card_3_value",
+      "primitive": "value",
+      "classes": [
+        "vs-value"
+      ],
+      "content_refs": [
+        "node:proof_badges_card_3#attr:value"
+      ],
+      "intent_refs": [
+        "viewspec:binding:proof_badges_card_3_value"
+      ],
+      "style_tokens": [
+        "tone.neutral",
+        "emphasis.high"
+      ],
+      "props": {
+        "text": "manifest checked",
+        "binding_id": "proof_badges_card_3_value"
+      }
+    },
+    "dom-motif_proof_badges_proof_badges_card_4": {
+      "ir_id": "motif_proof_badges_proof_badges_card_4",
+      "primitive": "surface",
+      "classes": [
+        "vs-surface",
+        "vs-layout-surface",
+        "vs-motif-dashboard"
+      ],
+      "content_refs": [],
+      "intent_refs": [
+        "viewspec:motif:proof_badges"
+      ],
+      "style_tokens": [
+        "surface.subtle"
+      ],
+      "props": {
+        "layout_role": "surface",
+        "motif_kind": "dashboard"
+      }
+    },
+    "dom-binding_proof_badges_card_4_label": {
+      "ir_id": "binding_proof_badges_card_4_label",
+      "primitive": "label",
+      "classes": [
+        "vs-label"
+      ],
+      "content_refs": [
+        "node:proof_badges_card_4#attr:label"
+      ],
+      "intent_refs": [
+        "viewspec:binding:proof_badges_card_4_label"
+      ],
+      "style_tokens": [
+        "tone.muted"
+      ],
+      "props": {
+        "text": "shell",
+        "binding_id": "proof_badges_card_4_label"
+      }
+    },
+    "dom-binding_proof_badges_card_4_value": {
+      "ir_id": "binding_proof_badges_card_4_value",
+      "primitive": "value",
+      "classes": [
+        "vs-value"
+      ],
+      "content_refs": [
+        "node:proof_badges_card_4#attr:value"
+      ],
+      "intent_refs": [
+        "viewspec:binding:proof_badges_card_4_value"
+      ],
+      "style_tokens": [
+        "tone.neutral",
+        "emphasis.high"
+      ],
+      "props": {
+        "text": "shell hash matched",
+        "binding_id": "proof_badges_card_4_value"
+      }
+    },
+    "dom-motif_proof_badges_proof_badges_card_5": {
+      "ir_id": "motif_proof_badges_proof_badges_card_5",
+      "primitive": "surface",
+      "classes": [
+        "vs-surface",
+        "vs-layout-surface",
+        "vs-motif-dashboard"
+      ],
+      "content_refs": [],
+      "intent_refs": [
+        "viewspec:motif:proof_badges"
+      ],
+      "style_tokens": [
+        "surface.subtle"
+      ],
+      "props": {
+        "layout_role": "surface",
+        "motif_kind": "dashboard"
+      }
+    },
+    "dom-binding_proof_badges_card_5_label": {
+      "ir_id": "binding_proof_badges_card_5_label",
+      "primitive": "label",
+      "classes": [
+        "vs-label"
+      ],
+      "content_refs": [
+        "node:proof_badges_card_5#attr:label"
+      ],
+      "intent_refs": [
+        "viewspec:binding:proof_badges_card_5_label"
+      ],
+      "style_tokens": [
+        "tone.muted"
+      ],
+      "props": {
+        "text": "runtime",
+        "binding_id": "proof_badges_card_5_label"
+      }
+    },
+    "dom-binding_proof_badges_card_5_value": {
+      "ir_id": "binding_proof_badges_card_5_value",
+      "primitive": "value",
+      "classes": [
+        "vs-value"
+      ],
+      "content_refs": [
+        "node:proof_badges_card_5#attr:value"
+      ],
+      "intent_refs": [
+        "viewspec:binding:proof_badges_card_5_value"
+      ],
+      "style_tokens": [
+        "tone.neutral",
+        "emphasis.high"
+      ],
+      "props": {
+        "text": "No runtime LLM",
+        "binding_id": "proof_badges_card_5_value"
+      }
+    },
+    "dom-motif_compile_flow": {
+      "ir_id": "motif_compile_flow",
+      "primitive": "grid",
+      "classes": [
+        "vs-grid",
+        "vs-layout-grid",
+        "vs-motif-dashboard"
+      ],
+      "content_refs": [],
+      "intent_refs": [
+        "viewspec:motif:compile_flow"
+      ],
+      "style_tokens": [
+        "density.regular"
+      ],
+      "props": {
+        "layout_role": "grid",
+        "motif_kind": "dashboard",
+        "columns": 2,
+        "layout_strategy": "dashboard_grid_v0"
+      }
+    },
+    "dom-motif_compile_flow_compile_flow_card_1": {
+      "ir_id": "motif_compile_flow_compile_flow_card_1",
+      "primitive": "surface",
+      "classes": [
+        "vs-surface",
+        "vs-layout-surface",
+        "vs-motif-dashboard"
+      ],
+      "content_refs": [],
+      "intent_refs": [
+        "viewspec:motif:compile_flow"
+      ],
+      "style_tokens": [
+        "surface.subtle"
+      ],
+      "props": {
+        "layout_role": "surface",
+        "motif_kind": "dashboard"
+      }
+    },
+    "dom-binding_compile_flow_card_1_label": {
+      "ir_id": "binding_compile_flow_card_1_label",
+      "primitive": "label",
+      "classes": [
+        "vs-label"
+      ],
+      "content_refs": [
+        "node:compile_flow_card_1#attr:label"
+      ],
+      "intent_refs": [
+        "viewspec:binding:compile_flow_card_1_label"
+      ],
+      "style_tokens": [
+        "tone.muted"
+      ],
+      "props": {
+        "text": "1 \u00b7 intent",
+        "binding_id": "compile_flow_card_1_label"
+      }
+    },
+    "dom-binding_compile_flow_card_1_value": {
+      "ir_id": "binding_compile_flow_card_1_value",
+      "primitive": "value",
+      "classes": [
+        "vs-value"
+      ],
+      "content_refs": [
+        "node:compile_flow_card_1#attr:value"
+      ],
+      "intent_refs": [
+        "viewspec:binding:compile_flow_card_1_value"
+      ],
+      "style_tokens": [
+        "tone.neutral",
+        "emphasis.high"
+      ],
+      "props": {
+        "text": "Agent writes IntentBundle JSON.",
+        "binding_id": "compile_flow_card_1_value"
+      }
+    },
+    "dom-motif_compile_flow_compile_flow_card_2": {
+      "ir_id": "motif_compile_flow_compile_flow_card_2",
+      "primitive": "surface",
+      "classes": [
+        "vs-surface",
+        "vs-layout-surface",
+        "vs-motif-dashboard"
+      ],
+      "content_refs": [],
+      "intent_refs": [
+        "viewspec:motif:compile_flow"
+      ],
+      "style_tokens": [
+        "surface.subtle"
+      ],
+      "props": {
+        "layout_role": "surface",
+        "motif_kind": "dashboard"
+      }
+    },
+    "dom-binding_compile_flow_card_2_label": {
+      "ir_id": "binding_compile_flow_card_2_label",
+      "primitive": "label",
+      "classes": [
+        "vs-label"
+      ],
+      "content_refs": [
+        "node:compile_flow_card_2#attr:label"
+      ],
+      "intent_refs": [
+        "viewspec:binding:compile_flow_card_2_label"
+      ],
+      "style_tokens": [
+        "tone.muted"
+      ],
+      "props": {
+        "text": "2 \u00b7 compile",
+        "binding_id": "compile_flow_card_2_label"
+      }
+    },
+    "dom-binding_compile_flow_card_2_value": {
+      "ir_id": "binding_compile_flow_card_2_value",
+      "primitive": "value",
+      "classes": [
+        "vs-value"
+      ],
+      "content_refs": [
+        "node:compile_flow_card_2#attr:value"
+      ],
+      "intent_refs": [
+        "viewspec:binding:compile_flow_card_2_value"
+      ],
+      "style_tokens": [
+        "tone.neutral",
+        "emphasis.high"
+      ],
+      "props": {
+        "text": "CompositionIR to UI and reducer, no LLM.",
+        "binding_id": "compile_flow_card_2_value"
+      }
+    },
+    "dom-motif_compile_flow_compile_flow_card_3": {
+      "ir_id": "motif_compile_flow_compile_flow_card_3",
+      "primitive": "surface",
+      "classes": [
+        "vs-surface",
+        "vs-layout-surface",
+        "vs-motif-dashboard"
+      ],
+      "content_refs": [],
+      "intent_refs": [
+        "viewspec:motif:compile_flow"
+      ],
+      "style_tokens": [
+        "surface.subtle"
+      ],
+      "props": {
+        "layout_role": "surface",
+        "motif_kind": "dashboard"
+      }
+    },
+    "dom-binding_compile_flow_card_3_label": {
+      "ir_id": "binding_compile_flow_card_3_label",
+      "primitive": "label",
+      "classes": [
+        "vs-label"
+      ],
+      "content_refs": [
+        "node:compile_flow_card_3#attr:label"
+      ],
+      "intent_refs": [
+        "viewspec:binding:compile_flow_card_3_label"
+      ],
+      "style_tokens": [
+        "tone.muted"
+      ],
+      "props": {
+        "text": "3 \u00b7 proof",
+        "binding_id": "compile_flow_card_3_label"
+      }
+    },
+    "dom-binding_compile_flow_card_3_value": {
+      "ir_id": "binding_compile_flow_card_3_value",
+      "primitive": "value",
+      "classes": [
+        "vs-value"
+      ],
+      "content_refs": [
+        "node:compile_flow_card_3#attr:value"
+      ],
+      "intent_refs": [
+        "viewspec:binding:compile_flow_card_3_value"
+      ],
+      "style_tokens": [
+        "tone.neutral",
+        "emphasis.high"
+      ],
+      "props": {
+        "text": "Provenance, replay, and shell hash attached.",
+        "binding_id": "compile_flow_card_3_value"
+      }
+    },
+    "dom-motif_capabilities": {
+      "ir_id": "motif_capabilities",
+      "primitive": "stack",
+      "classes": [
+        "vs-stack",
+        "vs-layout-stack",
+        "vs-motif-table"
+      ],
+      "content_refs": [],
+      "intent_refs": [
+        "viewspec:motif:capabilities",
+        "viewspec:style:s_capabilities"
+      ],
+      "style_tokens": [
+        "density.regular",
+        "density.compact"
+      ],
+      "props": {
+        "layout_role": "stack",
+        "motif_kind": "table"
+      }
+    },
+    "dom-motif_capabilities_capabilities_row_1": {
+      "ir_id": "motif_capabilities_capabilities_row_1",
+      "primitive": "cluster",
+      "classes": [
+        "vs-cluster",
+        "vs-layout-cluster",
+        "vs-motif-table"
+      ],
+      "content_refs": [],
+      "intent_refs": [
+        "viewspec:motif:capabilities"
+      ],
+      "style_tokens": [
+        "density.compact"
+      ],
+      "props": {
+        "layout_role": "cluster",
+        "motif_kind": "table"
+      }
+    },
+    "dom-binding_capabilities_row_1_label": {
+      "ir_id": "binding_capabilities_row_1_label",
+      "primitive": "label",
+      "classes": [
+        "vs-label"
+      ],
+      "content_refs": [
+        "node:capabilities_row_1#attr:label"
+      ],
+      "intent_refs": [
+        "viewspec:binding:capabilities_row_1_label"
+      ],
+      "style_tokens": [
+        "tone.muted"
+      ],
+      "props": {
+        "text": "State IR",
+        "binding_id": "capabilities_row_1_label",
+        "table_cell_role": "row_header"
+      }
+    },
+    "dom-binding_capabilities_row_1_value": {
+      "ir_id": "binding_capabilities_row_1_value",
+      "primitive": "value",
+      "classes": [
+        "vs-value"
+      ],
+      "content_refs": [
+        "node:capabilities_row_1#attr:value"
+      ],
+      "intent_refs": [
+        "viewspec:binding:capabilities_row_1_value"
+      ],
+      "style_tokens": [
+        "tone.neutral",
+        "emphasis.high"
+      ],
+      "props": {
+        "text": "interactive_state_v0 writes state_reducer.ts and reduceViewSpecState.",
+        "binding_id": "capabilities_row_1_value",
+        "table_cell_role": "cell"
+      }
+    },
+    "dom-motif_capabilities_capabilities_row_2": {
+      "ir_id": "motif_capabilities_capabilities_row_2",
+      "primitive": "cluster",
+      "classes": [
+        "vs-cluster",
+        "vs-layout-cluster",
+        "vs-motif-table"
+      ],
+      "content_refs": [],
+      "intent_refs": [
+        "viewspec:motif:capabilities"
+      ],
+      "style_tokens": [
+        "density.compact"
+      ],
+      "props": {
+        "layout_role": "cluster",
+        "motif_kind": "table"
+      }
+    },
+    "dom-binding_capabilities_row_2_label": {
+      "ir_id": "binding_capabilities_row_2_label",
+      "primitive": "label",
+      "classes": [
+        "vs-label"
+      ],
+      "content_refs": [
+        "node:capabilities_row_2#attr:label"
+      ],
+      "intent_refs": [
+        "viewspec:binding:capabilities_row_2_label"
+      ],
+      "style_tokens": [
+        "tone.muted"
+      ],
+      "props": {
+        "text": "Aesthetic Profiles",
+        "binding_id": "capabilities_row_2_label",
+        "table_cell_role": "row_header"
+      }
+    },
+    "dom-binding_capabilities_row_2_value": {
+      "ir_id": "binding_capabilities_row_2_value",
+      "primitive": "value",
+      "classes": [
+        "vs-value"
+      ],
+      "content_refs": [
+        "node:capabilities_row_2#attr:value"
+      ],
+      "intent_refs": [
+        "viewspec:binding:capabilities_row_2_value"
+      ],
+      "style_tokens": [
+        "tone.neutral",
+        "emphasis.high"
+      ],
+      "props": {
+        "text": "Five compiled projections from one semantic graph.",
+        "binding_id": "capabilities_row_2_value",
+        "table_cell_role": "cell"
+      }
+    },
+    "dom-motif_capabilities_capabilities_row_3": {
+      "ir_id": "motif_capabilities_capabilities_row_3",
+      "primitive": "cluster",
+      "classes": [
+        "vs-cluster",
+        "vs-layout-cluster",
+        "vs-motif-table"
+      ],
+      "content_refs": [],
+      "intent_refs": [
+        "viewspec:motif:capabilities"
+      ],
+      "style_tokens": [
+        "density.compact"
+      ],
+      "props": {
+        "layout_role": "cluster",
+        "motif_kind": "table"
+      }
+    },
+    "dom-binding_capabilities_row_3_label": {
+      "ir_id": "binding_capabilities_row_3_label",
+      "primitive": "label",
+      "classes": [
+        "vs-label"
+      ],
+      "content_refs": [
+        "node:capabilities_row_3#attr:label"
+      ],
+      "intent_refs": [
+        "viewspec:binding:capabilities_row_3_label"
+      ],
+      "style_tokens": [
+        "tone.muted"
+      ],
+      "props": {
+        "text": "Proof Pipeline",
+        "binding_id": "capabilities_row_3_label",
+        "table_cell_role": "row_header"
+      }
+    },
+    "dom-binding_capabilities_row_3_value": {
+      "ir_id": "binding_capabilities_row_3_value",
+      "primitive": "value",
+      "classes": [
+        "vs-value"
+      ],
+      "content_refs": [
+        "node:capabilities_row_3#attr:value"
+      ],
+      "intent_refs": [
+        "viewspec:binding:capabilities_row_3_value"
+      ],
+      "style_tokens": [
+        "tone.neutral",
+        "emphasis.high"
+      ],
+      "props": {
+        "text": "state_replay_assertions plus viewspec prove-app --with-shell.",
+        "binding_id": "capabilities_row_3_value",
+        "table_cell_role": "cell"
+      }
+    },
+    "dom-motif_capabilities_capabilities_row_4": {
+      "ir_id": "motif_capabilities_capabilities_row_4",
+      "primitive": "cluster",
+      "classes": [
+        "vs-cluster",
+        "vs-layout-cluster",
+        "vs-motif-table"
+      ],
+      "content_refs": [],
+      "intent_refs": [
+        "viewspec:motif:capabilities"
+      ],
+      "style_tokens": [
+        "density.compact"
+      ],
+      "props": {
+        "layout_role": "cluster",
+        "motif_kind": "table"
+      }
+    },
+    "dom-binding_capabilities_row_4_label": {
+      "ir_id": "binding_capabilities_row_4_label",
+      "primitive": "label",
+      "classes": [
+        "vs-label"
+      ],
+      "content_refs": [
+        "node:capabilities_row_4#attr:label"
+      ],
+      "intent_refs": [
+        "viewspec:binding:capabilities_row_4_label"
+      ],
+      "style_tokens": [
+        "tone.muted"
+      ],
+      "props": {
+        "text": "Portable Surfaces",
+        "binding_id": "capabilities_row_4_label",
+        "table_cell_role": "row_header"
+      }
+    },
+    "dom-binding_capabilities_row_4_value": {
+      "ir_id": "binding_capabilities_row_4_value",
+      "primitive": "value",
+      "classes": [
+        "vs-value"
+      ],
+      "content_refs": [
+        "node:capabilities_row_4#attr:value"
+      ],
+      "intent_refs": [
+        "viewspec:binding:capabilities_row_4_value"
+      ],
+      "style_tokens": [
+        "tone.neutral",
+        "emphasis.high"
+      ],
+      "props": {
+        "text": "html-tailwind and React locally; SwiftUI and Flutter hosted.",
+        "binding_id": "capabilities_row_4_value",
+        "table_cell_role": "cell"
+      }
+    },
+    "dom-motif_agent_workflow": {
+      "ir_id": "motif_agent_workflow",
+      "primitive": "stack",
+      "classes": [
+        "vs-stack",
+        "vs-layout-stack",
+        "vs-motif-table"
+      ],
+      "content_refs": [],
+      "intent_refs": [
+        "viewspec:motif:agent_workflow"
+      ],
+      "style_tokens": [
+        "density.regular"
+      ],
+      "props": {
+        "layout_role": "stack",
+        "motif_kind": "table"
+      }
+    },
+    "dom-motif_agent_workflow_agent_workflow_row_1": {
+      "ir_id": "motif_agent_workflow_agent_workflow_row_1",
+      "primitive": "cluster",
+      "classes": [
+        "vs-cluster",
+        "vs-layout-cluster",
+        "vs-motif-table"
+      ],
+      "content_refs": [],
+      "intent_refs": [
+        "viewspec:motif:agent_workflow"
+      ],
+      "style_tokens": [
+        "density.compact"
+      ],
+      "props": {
+        "layout_role": "cluster",
+        "motif_kind": "table"
+      }
+    },
+    "dom-binding_agent_workflow_row_1_label": {
+      "ir_id": "binding_agent_workflow_row_1_label",
+      "primitive": "label",
+      "classes": [
+        "vs-label"
+      ],
+      "content_refs": [
+        "node:agent_workflow_row_1#attr:label"
+      ],
+      "intent_refs": [
+        "viewspec:binding:agent_workflow_row_1_label"
+      ],
+      "style_tokens": [
+        "tone.muted"
+      ],
+      "props": {
+        "text": "describe",
+        "binding_id": "agent_workflow_row_1_label",
+        "table_cell_role": "row_header"
+      }
+    },
+    "dom-binding_agent_workflow_row_1_value": {
+      "ir_id": "binding_agent_workflow_row_1_value",
+      "primitive": "value",
+      "classes": [
+        "vs-value"
+      ],
+      "content_refs": [
+        "node:agent_workflow_row_1#attr:value"
+      ],
+      "intent_refs": [
+        "viewspec:binding:agent_workflow_row_1_value"
+      ],
+      "style_tokens": [
+        "tone.neutral",
+        "emphasis.high"
+      ],
+      "props": {
+        "text": "Emit IntentBundle or AppBundle JSON.",
+        "binding_id": "agent_workflow_row_1_value",
+        "table_cell_role": "cell"
+      }
+    },
+    "dom-motif_agent_workflow_agent_workflow_row_2": {
+      "ir_id": "motif_agent_workflow_agent_workflow_row_2",
+      "primitive": "cluster",
+      "classes": [
+        "vs-cluster",
+        "vs-layout-cluster",
+        "vs-motif-table"
+      ],
+      "content_refs": [],
+      "intent_refs": [
+        "viewspec:motif:agent_workflow"
+      ],
+      "style_tokens": [
+        "density.compact"
+      ],
+      "props": {
+        "layout_role": "cluster",
+        "motif_kind": "table"
+      }
+    },
+    "dom-binding_agent_workflow_row_2_label": {
+      "ir_id": "binding_agent_workflow_row_2_label",
+      "primitive": "label",
+      "classes": [
+        "vs-label"
+      ],
+      "content_refs": [
+        "node:agent_workflow_row_2#attr:label"
+      ],
+      "intent_refs": [
+        "viewspec:binding:agent_workflow_row_2_label"
+      ],
+      "style_tokens": [
+        "tone.muted"
+      ],
+      "props": {
+        "text": "validate",
+        "binding_id": "agent_workflow_row_2_label",
+        "table_cell_role": "row_header"
+      }
+    },
+    "dom-binding_agent_workflow_row_2_value": {
+      "ir_id": "binding_agent_workflow_row_2_value",
+      "primitive": "value",
+      "classes": [
+        "vs-value"
+      ],
+      "content_refs": [
+        "node:agent_workflow_row_2#attr:value"
+      ],
+      "intent_refs": [
+        "viewspec:binding:agent_workflow_row_2_value"
+      ],
+      "style_tokens": [
+        "tone.neutral",
+        "emphasis.high"
+      ],
+      "props": {
+        "text": "viewspec validate-intent fails closed on drift.",
+        "binding_id": "agent_workflow_row_2_value",
+        "table_cell_role": "cell"
+      }
+    },
+    "dom-motif_agent_workflow_agent_workflow_row_3": {
+      "ir_id": "motif_agent_workflow_agent_workflow_row_3",
+      "primitive": "cluster",
+      "classes": [
+        "vs-cluster",
+        "vs-layout-cluster",
+        "vs-motif-table"
+      ],
+      "content_refs": [],
+      "intent_refs": [
+        "viewspec:motif:agent_workflow"
+      ],
+      "style_tokens": [
+        "density.compact"
+      ],
+      "props": {
+        "layout_role": "cluster",
+        "motif_kind": "table"
+      }
+    },
+    "dom-binding_agent_workflow_row_3_label": {
+      "ir_id": "binding_agent_workflow_row_3_label",
+      "primitive": "label",
+      "classes": [
+        "vs-label"
+      ],
+      "content_refs": [
+        "node:agent_workflow_row_3#attr:label"
+      ],
+      "intent_refs": [
+        "viewspec:binding:agent_workflow_row_3_label"
+      ],
+      "style_tokens": [
+        "tone.muted"
+      ],
+      "props": {
+        "text": "prove",
+        "binding_id": "agent_workflow_row_3_label",
+        "table_cell_role": "row_header"
+      }
+    },
+    "dom-binding_agent_workflow_row_3_value": {
+      "ir_id": "binding_agent_workflow_row_3_value",
+      "primitive": "value",
+      "classes": [
+        "vs-value"
+      ],
+      "content_refs": [
+        "node:agent_workflow_row_3#attr:value"
+      ],
+      "intent_refs": [
+        "viewspec:binding:agent_workflow_row_3_value"
+      ],
+      "style_tokens": [
+        "tone.neutral",
+        "emphasis.high"
+      ],
+      "props": {
+        "text": "viewspec prove-app --with-shell writes the report.",
+        "binding_id": "agent_workflow_row_3_value",
+        "table_cell_role": "cell"
+      }
+    },
+    "dom-motif_pricing": {
+      "ir_id": "motif_pricing",
+      "primitive": "stack",
+      "classes": [
+        "vs-stack",
+        "vs-layout-stack",
+        "vs-motif-table"
+      ],
+      "content_refs": [],
+      "intent_refs": [
+        "viewspec:motif:pricing"
+      ],
+      "style_tokens": [
+        "density.regular"
+      ],
+      "props": {
+        "layout_role": "stack",
+        "motif_kind": "table"
+      }
+    },
+    "dom-motif_pricing_pricing_row_1": {
+      "ir_id": "motif_pricing_pricing_row_1",
+      "primitive": "cluster",
+      "classes": [
+        "vs-cluster",
+        "vs-layout-cluster",
+        "vs-motif-table"
+      ],
+      "content_refs": [],
+      "intent_refs": [
+        "viewspec:motif:pricing"
+      ],
+      "style_tokens": [
+        "density.compact"
+      ],
+      "props": {
+        "layout_role": "cluster",
+        "motif_kind": "table"
+      }
+    },
+    "dom-binding_pricing_row_1_label": {
+      "ir_id": "binding_pricing_row_1_label",
+      "primitive": "label",
+      "classes": [
+        "vs-label"
+      ],
+      "content_refs": [
+        "node:pricing_row_1#attr:label"
+      ],
+      "intent_refs": [
+        "viewspec:binding:pricing_row_1_label"
+      ],
+      "style_tokens": [
+        "tone.muted"
+      ],
+      "props": {
+        "text": "Free",
+        "binding_id": "pricing_row_1_label",
+        "table_cell_role": "row_header"
+      }
+    },
+    "dom-binding_pricing_row_1_value": {
+      "ir_id": "binding_pricing_row_1_value",
+      "primitive": "value",
+      "classes": [
+        "vs-value"
+      ],
+      "content_refs": [
+        "node:pricing_row_1#attr:value"
+      ],
+      "intent_refs": [
+        "viewspec:binding:pricing_row_1_value"
+      ],
+      "style_tokens": [
+        "tone.neutral",
+        "emphasis.high"
+      ],
+      "props": {
+        "text": "Local SDK. Unlimited compiles, proofs, and surfaces.",
+        "binding_id": "pricing_row_1_value",
+        "table_cell_role": "cell"
+      }
+    },
+    "dom-motif_pricing_pricing_row_2": {
+      "ir_id": "motif_pricing_pricing_row_2",
+      "primitive": "cluster",
+      "classes": [
+        "vs-cluster",
+        "vs-layout-cluster",
+        "vs-motif-table"
+      ],
+      "content_refs": [],
+      "intent_refs": [
+        "viewspec:motif:pricing"
+      ],
+      "style_tokens": [
+        "density.compact"
+      ],
+      "props": {
+        "layout_role": "cluster",
+        "motif_kind": "table"
+      }
+    },
+    "dom-binding_pricing_row_2_label": {
+      "ir_id": "binding_pricing_row_2_label",
+      "primitive": "label",
+      "classes": [
+        "vs-label"
+      ],
+      "content_refs": [
+        "node:pricing_row_2#attr:label"
+      ],
+      "intent_refs": [
+        "viewspec:binding:pricing_row_2_label"
+      ],
+      "style_tokens": [
+        "tone.muted"
+      ],
+      "props": {
+        "text": "Pro",
+        "binding_id": "pricing_row_2_label",
+        "table_cell_role": "row_header"
+      }
+    },
+    "dom-binding_pricing_row_2_value": {
+      "ir_id": "binding_pricing_row_2_value",
+      "primitive": "value",
+      "classes": [
+        "vs-value"
+      ],
+      "content_refs": [
+        "node:pricing_row_2#attr:value"
+      ],
+      "intent_refs": [
+        "viewspec:binding:pricing_row_2_value"
+      ],
+      "style_tokens": [
+        "tone.neutral",
+        "emphasis.high"
+      ],
+      "props": {
+        "text": "149/mo. Hosted compiler API, 10k calls per day.",
+        "binding_id": "pricing_row_2_value",
+        "table_cell_role": "cell"
+      }
+    },
+    "dom-motif_pricing_pricing_row_3": {
+      "ir_id": "motif_pricing_pricing_row_3",
+      "primitive": "cluster",
+      "classes": [
+        "vs-cluster",
+        "vs-layout-cluster",
+        "vs-motif-table"
+      ],
+      "content_refs": [],
+      "intent_refs": [
+        "viewspec:motif:pricing"
+      ],
+      "style_tokens": [
+        "density.compact"
+      ],
+      "props": {
+        "layout_role": "cluster",
+        "motif_kind": "table"
+      }
+    },
+    "dom-binding_pricing_row_3_label": {
+      "ir_id": "binding_pricing_row_3_label",
+      "primitive": "label",
+      "classes": [
+        "vs-label"
+      ],
+      "content_refs": [
+        "node:pricing_row_3#attr:label"
+      ],
+      "intent_refs": [
+        "viewspec:binding:pricing_row_3_label"
+      ],
+      "style_tokens": [
+        "tone.muted"
+      ],
+      "props": {
+        "text": "Enterprise",
+        "binding_id": "pricing_row_3_label",
+        "table_cell_role": "row_header"
+      }
+    },
+    "dom-binding_pricing_row_3_value": {
+      "ir_id": "binding_pricing_row_3_value",
+      "primitive": "value",
+      "classes": [
+        "vs-value"
+      ],
+      "content_refs": [
+        "node:pricing_row_3#attr:value"
+      ],
+      "intent_refs": [
+        "viewspec:binding:pricing_row_3_value"
+      ],
+      "style_tokens": [
+        "tone.neutral",
+        "emphasis.high"
+      ],
+      "props": {
+        "text": "Custom volume, organization sharing, and support.",
+        "binding_id": "pricing_row_3_value",
+        "table_cell_role": "cell"
+      }
+    },
+    "dom-motif_artifact_identity": {
+      "ir_id": "motif_artifact_identity",
+      "primitive": "grid",
+      "classes": [
+        "vs-grid",
+        "vs-layout-grid",
+        "vs-motif-dashboard"
+      ],
+      "content_refs": [],
+      "intent_refs": [
+        "viewspec:motif:artifact_identity"
+      ],
+      "style_tokens": [
+        "density.regular"
+      ],
+      "props": {
+        "layout_role": "grid",
+        "motif_kind": "dashboard",
+        "columns": 2,
+        "layout_strategy": "dashboard_grid_v0"
+      }
+    },
+    "dom-motif_artifact_identity_artifact_identity_card_1": {
+      "ir_id": "motif_artifact_identity_artifact_identity_card_1",
+      "primitive": "surface",
+      "classes": [
+        "vs-surface",
+        "vs-layout-surface",
+        "vs-motif-dashboard"
+      ],
+      "content_refs": [],
+      "intent_refs": [
+        "viewspec:motif:artifact_identity"
+      ],
+      "style_tokens": [
+        "surface.subtle"
+      ],
+      "props": {
+        "layout_role": "surface",
+        "motif_kind": "dashboard"
+      }
+    },
+    "dom-binding_artifact_identity_card_1_label": {
+      "ir_id": "binding_artifact_identity_card_1_label",
+      "primitive": "label",
+      "classes": [
+        "vs-label"
+      ],
+      "content_refs": [
+        "node:artifact_identity_card_1#attr:label"
+      ],
+      "intent_refs": [
+        "viewspec:binding:artifact_identity_card_1_label"
+      ],
+      "style_tokens": [
+        "tone.muted"
+      ],
+      "props": {
+        "text": "provenance",
+        "binding_id": "artifact_identity_card_1_label"
+      }
+    },
+    "dom-binding_artifact_identity_card_1_value": {
+      "ir_id": "binding_artifact_identity_card_1_value",
+      "primitive": "value",
+      "classes": [
+        "vs-value"
+      ],
+      "content_refs": [
+        "node:artifact_identity_card_1#attr:value"
+      ],
+      "intent_refs": [
+        "viewspec:binding:artifact_identity_card_1_value"
+      ],
+      "style_tokens": [
+        "tone.neutral",
+        "emphasis.high"
+      ],
+      "props": {
+        "text": "Every element traces to its address.",
+        "binding_id": "artifact_identity_card_1_value"
+      }
+    },
+    "dom-motif_artifact_identity_artifact_identity_card_2": {
+      "ir_id": "motif_artifact_identity_artifact_identity_card_2",
+      "primitive": "surface",
+      "classes": [
+        "vs-surface",
+        "vs-layout-surface",
+        "vs-motif-dashboard"
+      ],
+      "content_refs": [],
+      "intent_refs": [
+        "viewspec:motif:artifact_identity"
+      ],
+      "style_tokens": [
+        "surface.subtle"
+      ],
+      "props": {
+        "layout_role": "surface",
+        "motif_kind": "dashboard"
+      }
+    },
+    "dom-binding_artifact_identity_card_2_label": {
+      "ir_id": "binding_artifact_identity_card_2_label",
+      "primitive": "label",
+      "classes": [
+        "vs-label"
+      ],
+      "content_refs": [
+        "node:artifact_identity_card_2#attr:label"
+      ],
+      "intent_refs": [
+        "viewspec:binding:artifact_identity_card_2_label"
+      ],
+      "style_tokens": [
+        "tone.muted"
+      ],
+      "props": {
+        "text": "determinism",
+        "binding_id": "artifact_identity_card_2_label"
+      }
+    },
+    "dom-binding_artifact_identity_card_2_value": {
+      "ir_id": "binding_artifact_identity_card_2_value",
+      "primitive": "value",
+      "classes": [
+        "vs-value"
+      ],
+      "content_refs": [
+        "node:artifact_identity_card_2#attr:value"
+      ],
+      "intent_refs": [
+        "viewspec:binding:artifact_identity_card_2_value"
+      ],
+      "style_tokens": [
+        "tone.neutral",
+        "emphasis.high"
+      ],
+      "props": {
+        "text": "Same intent, same bytes, same hash.",
+        "binding_id": "artifact_identity_card_2_value"
+      }
+    }
+  },
+  "diagnostics": [],
+  "external_refs": [],
+  "semantic_digest": {
+    "version": "semantic_digest.v1",
+    "manifest_projection": {
+      "version": "semantic_digest.v1",
+      "node_order": [
+        "dom-region_root",
+        "dom-region_main",
+        "dom-motif_launch_hero",
+        "dom-binding_launch_hero_eyebrow",
+        "dom-binding_launch_hero_title",
+        "dom-binding_launch_hero_description",
+        "dom-motif_proof_badges",
+        "dom-motif_proof_badges_proof_badges_card_1",
+        "dom-binding_proof_badges_card_1_label",
+        "dom-binding_proof_badges_card_1_value",
+        "dom-motif_proof_badges_proof_badges_card_2",
+        "dom-binding_proof_badges_card_2_label",
+        "dom-binding_proof_badges_card_2_value",
+        "dom-motif_proof_badges_proof_badges_card_3",
+        "dom-binding_proof_badges_card_3_label",
+        "dom-binding_proof_badges_card_3_value",
+        "dom-motif_proof_badges_proof_badges_card_4",
+        "dom-binding_proof_badges_card_4_label",
+        "dom-binding_proof_badges_card_4_value",
+        "dom-motif_proof_badges_proof_badges_card_5",
+        "dom-binding_proof_badges_card_5_label",
+        "dom-binding_proof_badges_card_5_value",
+        "dom-motif_compile_flow",
+        "dom-motif_compile_flow_compile_flow_card_1",
+        "dom-binding_compile_flow_card_1_label",
+        "dom-binding_compile_flow_card_1_value",
+        "dom-motif_compile_flow_compile_flow_card_2",
+        "dom-binding_compile_flow_card_2_label",
+        "dom-binding_compile_flow_card_2_value",
+        "dom-motif_compile_flow_compile_flow_card_3",
+        "dom-binding_compile_flow_card_3_label",
+        "dom-binding_compile_flow_card_3_value",
+        "dom-motif_capabilities",
+        "dom-motif_capabilities_capabilities_row_1",
+        "dom-binding_capabilities_row_1_label",
+        "dom-binding_capabilities_row_1_value",
+        "dom-motif_capabilities_capabilities_row_2",
+        "dom-binding_capabilities_row_2_label",
+        "dom-binding_capabilities_row_2_value",
+        "dom-motif_capabilities_capabilities_row_3",
+        "dom-binding_capabilities_row_3_label",
+        "dom-binding_capabilities_row_3_value",
+        "dom-motif_capabilities_capabilities_row_4",
+        "dom-binding_capabilities_row_4_label",
+        "dom-binding_capabilities_row_4_value",
+        "dom-motif_agent_workflow",
+        "dom-motif_agent_workflow_agent_workflow_row_1",
+        "dom-binding_agent_workflow_row_1_label",
+        "dom-binding_agent_workflow_row_1_value",
+        "dom-motif_agent_workflow_agent_workflow_row_2",
+        "dom-binding_agent_workflow_row_2_label",
+        "dom-binding_agent_workflow_row_2_value",
+        "dom-motif_agent_workflow_agent_workflow_row_3",
+        "dom-binding_agent_workflow_row_3_label",
+        "dom-binding_agent_workflow_row_3_value",
+        "dom-motif_pricing",
+        "dom-motif_pricing_pricing_row_1",
+        "dom-binding_pricing_row_1_label",
+        "dom-binding_pricing_row_1_value",
+        "dom-motif_pricing_pricing_row_2",
+        "dom-binding_pricing_row_2_label",
+        "dom-binding_pricing_row_2_value",
+        "dom-motif_pricing_pricing_row_3",
+        "dom-binding_pricing_row_3_label",
+        "dom-binding_pricing_row_3_value",
+        "dom-motif_artifact_identity",
+        "dom-motif_artifact_identity_artifact_identity_card_1",
+        "dom-binding_artifact_identity_card_1_label",
+        "dom-binding_artifact_identity_card_1_value",
+        "dom-motif_artifact_identity_artifact_identity_card_2",
+        "dom-binding_artifact_identity_card_2_label",
+        "dom-binding_artifact_identity_card_2_value"
+      ],
+      "action_order": [],
+      "diagnostic_codes": [],
+      "nodes": [
+        {
+          "dom_id": "dom-region_root",
+          "ir_id": "region_root",
+          "primitive": "root",
+          "tag": "main",
+          "visible_text": "",
+          "binding_id": null,
+          "action": null,
+          "accessibility_label": null
+        },
+        {
+          "dom_id": "dom-region_main",
+          "ir_id": "region_main",
+          "primitive": "stack",
+          "tag": "div",
+          "visible_text": "",
+          "binding_id": null,
+          "action": null,
+          "accessibility_label": null
+        },
+        {
+          "dom_id": "dom-motif_launch_hero",
+          "ir_id": "motif_launch_hero",
+          "primitive": "surface",
+          "tag": "header",
+          "visible_text": "",
+          "binding_id": null,
+          "action": null,
+          "accessibility_label": "Hero"
+        },
+        {
+          "dom_id": "dom-binding_launch_hero_eyebrow",
+          "ir_id": "binding_launch_hero_eyebrow",
+          "primitive": "label",
+          "tag": "p",
+          "visible_text": "Agent-native app compiler",
+          "binding_id": "launch_hero_eyebrow",
+          "action": null,
+          "accessibility_label": null
+        },
+        {
+          "dom_id": "dom-binding_launch_hero_title",
+          "ir_id": "binding_launch_hero_title",
+          "primitive": "value",
+          "tag": "h1",
+          "visible_text": "Intent goes in. Interface comes out.",
+          "binding_id": "launch_hero_title",
+          "action": null,
+          "accessibility_label": null
+        },
+        {
+          "dom_id": "dom-binding_launch_hero_description",
+          "ir_id": "binding_launch_hero_description",
+          "primitive": "text",
+          "tag": "p",
+          "visible_text": "Agents commit to meaning \u2014 nodes, bindings, motifs. ViewSpec compiles the UI, the state reducer, replay checks, and shell proof. Deterministic, and no runtime LLM.",
+          "binding_id": "launch_hero_description",
+          "action": null,
+          "accessibility_label": null
+        },
+        {
+          "dom_id": "dom-motif_proof_badges",
+          "ir_id": "motif_proof_badges",
+          "primitive": "grid",
+          "tag": "div",
+          "visible_text": "",
+          "binding_id": null,
+          "action": null,
+          "accessibility_label": null
+        },
+        {
+          "dom_id": "dom-motif_proof_badges_proof_badges_card_1",
+          "ir_id": "motif_proof_badges_proof_badges_card_1",
+          "primitive": "surface",
+          "tag": "div",
+          "visible_text": "",
+          "binding_id": null,
+          "action": null,
+          "accessibility_label": null
+        },
+        {
+          "dom_id": "dom-binding_proof_badges_card_1_label",
+          "ir_id": "binding_proof_badges_card_1_label",
+          "primitive": "label",
+          "tag": "div",
+          "visible_text": "replay",
+          "binding_id": "proof_badges_card_1_label",
+          "action": null,
+          "accessibility_label": null
+        },
+        {
+          "dom_id": "dom-binding_proof_badges_card_1_value",
+          "ir_id": "binding_proof_badges_card_1_value",
+          "primitive": "value",
+          "tag": "div",
+          "visible_text": "state replay passed",
+          "binding_id": "proof_badges_card_1_value",
+          "action": null,
+          "accessibility_label": null
+        },
+        {
+          "dom_id": "dom-motif_proof_badges_proof_badges_card_2",
+          "ir_id": "motif_proof_badges_proof_badges_card_2",
+          "primitive": "surface",
+          "tag": "div",
+          "visible_text": "",
+          "binding_id": null,
+          "action": null,
+          "accessibility_label": null
+        },
+        {
+          "dom_id": "dom-binding_proof_badges_card_2_label",
+          "ir_id": "binding_proof_badges_card_2_label",
+          "primitive": "label",
+          "tag": "div",
+          "visible_text": "reducer",
+          "binding_id": "proof_badges_card_2_label",
+          "action": null,
+          "accessibility_label": null
+        },
+        {
+          "dom_id": "dom-binding_proof_badges_card_2_value",
+          "ir_id": "binding_proof_badges_card_2_value",
+          "primitive": "value",
+          "tag": "div",
+          "visible_text": "reducer generated",
+          "binding_id": "proof_badges_card_2_value",
+          "action": null,
+          "accessibility_label": null
+        },
+        {
+          "dom_id": "dom-motif_proof_badges_proof_badges_card_3",
+          "ir_id": "motif_proof_badges_proof_badges_card_3",
+          "primitive": "surface",
+          "tag": "div",
+          "visible_text": "",
+          "binding_id": null,
+          "action": null,
+          "accessibility_label": null
+        },
+        {
+          "dom_id": "dom-binding_proof_badges_card_3_label",
+          "ir_id": "binding_proof_badges_card_3_label",
+          "primitive": "label",
+          "tag": "div",
+          "visible_text": "manifest",
+          "binding_id": "proof_badges_card_3_label",
+          "action": null,
+          "accessibility_label": null
+        },
+        {
+          "dom_id": "dom-binding_proof_badges_card_3_value",
+          "ir_id": "binding_proof_badges_card_3_value",
+          "primitive": "value",
+          "tag": "div",
+          "visible_text": "manifest checked",
+          "binding_id": "proof_badges_card_3_value",
+          "action": null,
+          "accessibility_label": null
+        },
+        {
+          "dom_id": "dom-motif_proof_badges_proof_badges_card_4",
+          "ir_id": "motif_proof_badges_proof_badges_card_4",
+          "primitive": "surface",
+          "tag": "div",
+          "visible_text": "",
+          "binding_id": null,
+          "action": null,
+          "accessibility_label": null
+        },
+        {
+          "dom_id": "dom-binding_proof_badges_card_4_label",
+          "ir_id": "binding_proof_badges_card_4_label",
+          "primitive": "label",
+          "tag": "div",
+          "visible_text": "shell",
+          "binding_id": "proof_badges_card_4_label",
+          "action": null,
+          "accessibility_label": null
+        },
+        {
+          "dom_id": "dom-binding_proof_badges_card_4_value",
+          "ir_id": "binding_proof_badges_card_4_value",
+          "primitive": "value",
+          "tag": "div",
+          "visible_text": "shell hash matched",
+          "binding_id": "proof_badges_card_4_value",
+          "action": null,
+          "accessibility_label": null
+        },
+        {
+          "dom_id": "dom-motif_proof_badges_proof_badges_card_5",
+          "ir_id": "motif_proof_badges_proof_badges_card_5",
+          "primitive": "surface",
+          "tag": "div",
+          "visible_text": "",
+          "binding_id": null,
+          "action": null,
+          "accessibility_label": null
+        },
+        {
+          "dom_id": "dom-binding_proof_badges_card_5_label",
+          "ir_id": "binding_proof_badges_card_5_label",
+          "primitive": "label",
+          "tag": "div",
+          "visible_text": "runtime",
+          "binding_id": "proof_badges_card_5_label",
+          "action": null,
+          "accessibility_label": null
+        },
+        {
+          "dom_id": "dom-binding_proof_badges_card_5_value",
+          "ir_id": "binding_proof_badges_card_5_value",
+          "primitive": "value",
+          "tag": "div",
+          "visible_text": "No runtime LLM",
+          "binding_id": "proof_badges_card_5_value",
+          "action": null,
+          "accessibility_label": null
+        },
+        {
+          "dom_id": "dom-motif_compile_flow",
+          "ir_id": "motif_compile_flow",
+          "primitive": "grid",
+          "tag": "div",
+          "visible_text": "",
+          "binding_id": null,
+          "action": null,
+          "accessibility_label": null
+        },
+        {
+          "dom_id": "dom-motif_compile_flow_compile_flow_card_1",
+          "ir_id": "motif_compile_flow_compile_flow_card_1",
+          "primitive": "surface",
+          "tag": "div",
+          "visible_text": "",
+          "binding_id": null,
+          "action": null,
+          "accessibility_label": null
+        },
+        {
+          "dom_id": "dom-binding_compile_flow_card_1_label",
+          "ir_id": "binding_compile_flow_card_1_label",
+          "primitive": "label",
+          "tag": "div",
+          "visible_text": "1 \u00b7 intent",
+          "binding_id": "compile_flow_card_1_label",
+          "action": null,
+          "accessibility_label": null
+        },
+        {
+          "dom_id": "dom-binding_compile_flow_card_1_value",
+          "ir_id": "binding_compile_flow_card_1_value",
+          "primitive": "value",
+          "tag": "div",
+          "visible_text": "Agent writes IntentBundle JSON.",
+          "binding_id": "compile_flow_card_1_value",
+          "action": null,
+          "accessibility_label": null
+        },
+        {
+          "dom_id": "dom-motif_compile_flow_compile_flow_card_2",
+          "ir_id": "motif_compile_flow_compile_flow_card_2",
+          "primitive": "surface",
+          "tag": "div",
+          "visible_text": "",
+          "binding_id": null,
+          "action": null,
+          "accessibility_label": null
+        },
+        {
+          "dom_id": "dom-binding_compile_flow_card_2_label",
+          "ir_id": "binding_compile_flow_card_2_label",
+          "primitive": "label",
+          "tag": "div",
+          "visible_text": "2 \u00b7 compile",
+          "binding_id": "compile_flow_card_2_label",
+          "action": null,
+          "accessibility_label": null
+        },
+        {
+          "dom_id": "dom-binding_compile_flow_card_2_value",
+          "ir_id": "binding_compile_flow_card_2_value",
+          "primitive": "value",
+          "tag": "div",
+          "visible_text": "CompositionIR to UI and reducer, no LLM.",
+          "binding_id": "compile_flow_card_2_value",
+          "action": null,
+          "accessibility_label": null
+        },
+        {
+          "dom_id": "dom-motif_compile_flow_compile_flow_card_3",
+          "ir_id": "motif_compile_flow_compile_flow_card_3",
+          "primitive": "surface",
+          "tag": "div",
+          "visible_text": "",
+          "binding_id": null,
+          "action": null,
+          "accessibility_label": null
+        },
+        {
+          "dom_id": "dom-binding_compile_flow_card_3_label",
+          "ir_id": "binding_compile_flow_card_3_label",
+          "primitive": "label",
+          "tag": "div",
+          "visible_text": "3 \u00b7 proof",
+          "binding_id": "compile_flow_card_3_label",
+          "action": null,
+          "accessibility_label": null
+        },
+        {
+          "dom_id": "dom-binding_compile_flow_card_3_value",
+          "ir_id": "binding_compile_flow_card_3_value",
+          "primitive": "value",
+          "tag": "div",
+          "visible_text": "Provenance, replay, and shell hash attached.",
+          "binding_id": "compile_flow_card_3_value",
+          "action": null,
+          "accessibility_label": null
+        },
+        {
+          "dom_id": "dom-motif_capabilities",
+          "ir_id": "motif_capabilities",
+          "primitive": "stack",
+          "tag": "table",
+          "visible_text": "",
+          "binding_id": null,
+          "action": null,
+          "accessibility_label": null
+        },
+        {
+          "dom_id": "dom-motif_capabilities_capabilities_row_1",
+          "ir_id": "motif_capabilities_capabilities_row_1",
+          "primitive": "cluster",
+          "tag": "tr",
+          "visible_text": "",
+          "binding_id": null,
+          "action": null,
+          "accessibility_label": null
+        },
+        {
+          "dom_id": "dom-binding_capabilities_row_1_label",
+          "ir_id": "binding_capabilities_row_1_label",
+          "primitive": "label",
+          "tag": "th",
+          "visible_text": "State IR",
+          "binding_id": "capabilities_row_1_label",
+          "action": null,
+          "accessibility_label": null
+        },
+        {
+          "dom_id": "dom-binding_capabilities_row_1_value",
+          "ir_id": "binding_capabilities_row_1_value",
+          "primitive": "value",
+          "tag": "td",
+          "visible_text": "interactive_state_v0 writes state_reducer.ts and reduceViewSpecState.",
+          "binding_id": "capabilities_row_1_value",
+          "action": null,
+          "accessibility_label": null
+        },
+        {
+          "dom_id": "dom-motif_capabilities_capabilities_row_2",
+          "ir_id": "motif_capabilities_capabilities_row_2",
+          "primitive": "cluster",
+          "tag": "tr",
+          "visible_text": "",
+          "binding_id": null,
+          "action": null,
+          "accessibility_label": null
+        },
+        {
+          "dom_id": "dom-binding_capabilities_row_2_label",
+          "ir_id": "binding_capabilities_row_2_label",
+          "primitive": "label",
+          "tag": "th",
+          "visible_text": "Aesthetic Profiles",
+          "binding_id": "capabilities_row_2_label",
+          "action": null,
+          "accessibility_label": null
+        },
+        {
+          "dom_id": "dom-binding_capabilities_row_2_value",
+          "ir_id": "binding_capabilities_row_2_value",
+          "primitive": "value",
+          "tag": "td",
+          "visible_text": "Five compiled projections from one semantic graph.",
+          "binding_id": "capabilities_row_2_value",
+          "action": null,
+          "accessibility_label": null
+        },
+        {
+          "dom_id": "dom-motif_capabilities_capabilities_row_3",
+          "ir_id": "motif_capabilities_capabilities_row_3",
+          "primitive": "cluster",
+          "tag": "tr",
+          "visible_text": "",
+          "binding_id": null,
+          "action": null,
+          "accessibility_label": null
+        },
+        {
+          "dom_id": "dom-binding_capabilities_row_3_label",
+          "ir_id": "binding_capabilities_row_3_label",
+          "primitive": "label",
+          "tag": "th",
+          "visible_text": "Proof Pipeline",
+          "binding_id": "capabilities_row_3_label",
+          "action": null,
+          "accessibility_label": null
+        },
+        {
+          "dom_id": "dom-binding_capabilities_row_3_value",
+          "ir_id": "binding_capabilities_row_3_value",
+          "primitive": "value",
+          "tag": "td",
+          "visible_text": "state_replay_assertions plus viewspec prove-app --with-shell.",
+          "binding_id": "capabilities_row_3_value",
+          "action": null,
+          "accessibility_label": null
+        },
+        {
+          "dom_id": "dom-motif_capabilities_capabilities_row_4",
+          "ir_id": "motif_capabilities_capabilities_row_4",
+          "primitive": "cluster",
+          "tag": "tr",
+          "visible_text": "",
+          "binding_id": null,
+          "action": null,
+          "accessibility_label": null
+        },
+        {
+          "dom_id": "dom-binding_capabilities_row_4_label",
+          "ir_id": "binding_capabilities_row_4_label",
+          "primitive": "label",
+          "tag": "th",
+          "visible_text": "Portable Surfaces",
+          "binding_id": "capabilities_row_4_label",
+          "action": null,
+          "accessibility_label": null
+        },
+        {
+          "dom_id": "dom-binding_capabilities_row_4_value",
+          "ir_id": "binding_capabilities_row_4_value",
+          "primitive": "value",
+          "tag": "td",
+          "visible_text": "html-tailwind and React locally; SwiftUI and Flutter hosted.",
+          "binding_id": "capabilities_row_4_value",
+          "action": null,
+          "accessibility_label": null
+        },
+        {
+          "dom_id": "dom-motif_agent_workflow",
+          "ir_id": "motif_agent_workflow",
+          "primitive": "stack",
+          "tag": "table",
+          "visible_text": "",
+          "binding_id": null,
+          "action": null,
+          "accessibility_label": null
+        },
+        {
+          "dom_id": "dom-motif_agent_workflow_agent_workflow_row_1",
+          "ir_id": "motif_agent_workflow_agent_workflow_row_1",
+          "primitive": "cluster",
+          "tag": "tr",
+          "visible_text": "",
+          "binding_id": null,
+          "action": null,
+          "accessibility_label": null
+        },
+        {
+          "dom_id": "dom-binding_agent_workflow_row_1_label",
+          "ir_id": "binding_agent_workflow_row_1_label",
+          "primitive": "label",
+          "tag": "th",
+          "visible_text": "describe",
+          "binding_id": "agent_workflow_row_1_label",
+          "action": null,
+          "accessibility_label": null
+        },
+        {
+          "dom_id": "dom-binding_agent_workflow_row_1_value",
+          "ir_id": "binding_agent_workflow_row_1_value",
+          "primitive": "value",
+          "tag": "td",
+          "visible_text": "Emit IntentBundle or AppBundle JSON.",
+          "binding_id": "agent_workflow_row_1_value",
+          "action": null,
+          "accessibility_label": null
+        },
+        {
+          "dom_id": "dom-motif_agent_workflow_agent_workflow_row_2",
+          "ir_id": "motif_agent_workflow_agent_workflow_row_2",
+          "primitive": "cluster",
+          "tag": "tr",
+          "visible_text": "",
+          "binding_id": null,
+          "action": null,
+          "accessibility_label": null
+        },
+        {
+          "dom_id": "dom-binding_agent_workflow_row_2_label",
+          "ir_id": "binding_agent_workflow_row_2_label",
+          "primitive": "label",
+          "tag": "th",
+          "visible_text": "validate",
+          "binding_id": "agent_workflow_row_2_label",
+          "action": null,
+          "accessibility_label": null
+        },
+        {
+          "dom_id": "dom-binding_agent_workflow_row_2_value",
+          "ir_id": "binding_agent_workflow_row_2_value",
+          "primitive": "value",
+          "tag": "td",
+          "visible_text": "viewspec validate-intent fails closed on drift.",
+          "binding_id": "agent_workflow_row_2_value",
+          "action": null,
+          "accessibility_label": null
+        },
+        {
+          "dom_id": "dom-motif_agent_workflow_agent_workflow_row_3",
+          "ir_id": "motif_agent_workflow_agent_workflow_row_3",
+          "primitive": "cluster",
+          "tag": "tr",
+          "visible_text": "",
+          "binding_id": null,
+          "action": null,
+          "accessibility_label": null
+        },
+        {
+          "dom_id": "dom-binding_agent_workflow_row_3_label",
+          "ir_id": "binding_agent_workflow_row_3_label",
+          "primitive": "label",
+          "tag": "th",
+          "visible_text": "prove",
+          "binding_id": "agent_workflow_row_3_label",
+          "action": null,
+          "accessibility_label": null
+        },
+        {
+          "dom_id": "dom-binding_agent_workflow_row_3_value",
+          "ir_id": "binding_agent_workflow_row_3_value",
+          "primitive": "value",
+          "tag": "td",
+          "visible_text": "viewspec prove-app --with-shell writes the report.",
+          "binding_id": "agent_workflow_row_3_value",
+          "action": null,
+          "accessibility_label": null
+        },
+        {
+          "dom_id": "dom-motif_pricing",
+          "ir_id": "motif_pricing",
+          "primitive": "stack",
+          "tag": "table",
+          "visible_text": "",
+          "binding_id": null,
+          "action": null,
+          "accessibility_label": null
+        },
+        {
+          "dom_id": "dom-motif_pricing_pricing_row_1",
+          "ir_id": "motif_pricing_pricing_row_1",
+          "primitive": "cluster",
+          "tag": "tr",
+          "visible_text": "",
+          "binding_id": null,
+          "action": null,
+          "accessibility_label": null
+        },
+        {
+          "dom_id": "dom-binding_pricing_row_1_label",
+          "ir_id": "binding_pricing_row_1_label",
+          "primitive": "label",
+          "tag": "th",
+          "visible_text": "Free",
+          "binding_id": "pricing_row_1_label",
+          "action": null,
+          "accessibility_label": null
+        },
+        {
+          "dom_id": "dom-binding_pricing_row_1_value",
+          "ir_id": "binding_pricing_row_1_value",
+          "primitive": "value",
+          "tag": "td",
+          "visible_text": "Local SDK. Unlimited compiles, proofs, and surfaces.",
+          "binding_id": "pricing_row_1_value",
+          "action": null,
+          "accessibility_label": null
+        },
+        {
+          "dom_id": "dom-motif_pricing_pricing_row_2",
+          "ir_id": "motif_pricing_pricing_row_2",
+          "primitive": "cluster",
+          "tag": "tr",
+          "visible_text": "",
+          "binding_id": null,
+          "action": null,
+          "accessibility_label": null
+        },
+        {
+          "dom_id": "dom-binding_pricing_row_2_label",
+          "ir_id": "binding_pricing_row_2_label",
+          "primitive": "label",
+          "tag": "th",
+          "visible_text": "Pro",
+          "binding_id": "pricing_row_2_label",
+          "action": null,
+          "accessibility_label": null
+        },
+        {
+          "dom_id": "dom-binding_pricing_row_2_value",
+          "ir_id": "binding_pricing_row_2_value",
+          "primitive": "value",
+          "tag": "td",
+          "visible_text": "149/mo. Hosted compiler API, 10k calls per day.",
+          "binding_id": "pricing_row_2_value",
+          "action": null,
+          "accessibility_label": null
+        },
+        {
+          "dom_id": "dom-motif_pricing_pricing_row_3",
+          "ir_id": "motif_pricing_pricing_row_3",
+          "primitive": "cluster",
+          "tag": "tr",
+          "visible_text": "",
+          "binding_id": null,
+          "action": null,
+          "accessibility_label": null
+        },
+        {
+          "dom_id": "dom-binding_pricing_row_3_label",
+          "ir_id": "binding_pricing_row_3_label",
+          "primitive": "label",
+          "tag": "th",
+          "visible_text": "Enterprise",
+          "binding_id": "pricing_row_3_label",
+          "action": null,
+          "accessibility_label": null
+        },
+        {
+          "dom_id": "dom-binding_pricing_row_3_value",
+          "ir_id": "binding_pricing_row_3_value",
+          "primitive": "value",
+          "tag": "td",
+          "visible_text": "Custom volume, organization sharing, and support.",
+          "binding_id": "pricing_row_3_value",
+          "action": null,
+          "accessibility_label": null
+        },
+        {
+          "dom_id": "dom-motif_artifact_identity",
+          "ir_id": "motif_artifact_identity",
+          "primitive": "grid",
+          "tag": "div",
+          "visible_text": "",
+          "binding_id": null,
+          "action": null,
+          "accessibility_label": null
+        },
+        {
+          "dom_id": "dom-motif_artifact_identity_artifact_identity_card_1",
+          "ir_id": "motif_artifact_identity_artifact_identity_card_1",
+          "primitive": "surface",
+          "tag": "div",
+          "visible_text": "",
+          "binding_id": null,
+          "action": null,
+          "accessibility_label": null
+        },
+        {
+          "dom_id": "dom-binding_artifact_identity_card_1_label",
+          "ir_id": "binding_artifact_identity_card_1_label",
+          "primitive": "label",
+          "tag": "div",
+          "visible_text": "provenance",
+          "binding_id": "artifact_identity_card_1_label",
+          "action": null,
+          "accessibility_label": null
+        },
+        {
+          "dom_id": "dom-binding_artifact_identity_card_1_value",
+          "ir_id": "binding_artifact_identity_card_1_value",
+          "primitive": "value",
+          "tag": "div",
+          "visible_text": "Every element traces to its address.",
+          "binding_id": "artifact_identity_card_1_value",
+          "action": null,
+          "accessibility_label": null
+        },
+        {
+          "dom_id": "dom-motif_artifact_identity_artifact_identity_card_2",
+          "ir_id": "motif_artifact_identity_artifact_identity_card_2",
+          "primitive": "surface",
+          "tag": "div",
+          "visible_text": "",
+          "binding_id": null,
+          "action": null,
+          "accessibility_label": null
+        },
+        {
+          "dom_id": "dom-binding_artifact_identity_card_2_label",
+          "ir_id": "binding_artifact_identity_card_2_label",
+          "primitive": "label",
+          "tag": "div",
+          "visible_text": "determinism",
+          "binding_id": "artifact_identity_card_2_label",
+          "action": null,
+          "accessibility_label": null
+        },
+        {
+          "dom_id": "dom-binding_artifact_identity_card_2_value",
+          "ir_id": "binding_artifact_identity_card_2_value",
+          "primitive": "value",
+          "tag": "div",
+          "visible_text": "Same intent, same bytes, same hash.",
+          "binding_id": "artifact_identity_card_2_value",
+          "action": null,
+          "accessibility_label": null
+        }
+      ]
+    },
+    "source_projection": {
+      "version": "semantic_digest.v1",
+      "node_order": [
+        "dom-region_root",
+        "dom-region_main",
+        "dom-motif_launch_hero",
+        "dom-binding_launch_hero_eyebrow",
+        "dom-binding_launch_hero_title",
+        "dom-binding_launch_hero_description",
+        "dom-motif_proof_badges",
+        "dom-motif_proof_badges_proof_badges_card_1",
+        "dom-binding_proof_badges_card_1_label",
+        "dom-binding_proof_badges_card_1_value",
+        "dom-motif_proof_badges_proof_badges_card_2",
+        "dom-binding_proof_badges_card_2_label",
+        "dom-binding_proof_badges_card_2_value",
+        "dom-motif_proof_badges_proof_badges_card_3",
+        "dom-binding_proof_badges_card_3_label",
+        "dom-binding_proof_badges_card_3_value",
+        "dom-motif_proof_badges_proof_badges_card_4",
+        "dom-binding_proof_badges_card_4_label",
+        "dom-binding_proof_badges_card_4_value",
+        "dom-motif_proof_badges_proof_badges_card_5",
+        "dom-binding_proof_badges_card_5_label",
+        "dom-binding_proof_badges_card_5_value",
+        "dom-motif_compile_flow",
+        "dom-motif_compile_flow_compile_flow_card_1",
+        "dom-binding_compile_flow_card_1_label",
+        "dom-binding_compile_flow_card_1_value",
+        "dom-motif_compile_flow_compile_flow_card_2",
+        "dom-binding_compile_flow_card_2_label",
+        "dom-binding_compile_flow_card_2_value",
+        "dom-motif_compile_flow_compile_flow_card_3",
+        "dom-binding_compile_flow_card_3_label",
+        "dom-binding_compile_flow_card_3_value",
+        "dom-motif_capabilities",
+        "dom-motif_capabilities_capabilities_row_1",
+        "dom-binding_capabilities_row_1_label",
+        "dom-binding_capabilities_row_1_value",
+        "dom-motif_capabilities_capabilities_row_2",
+        "dom-binding_capabilities_row_2_label",
+        "dom-binding_capabilities_row_2_value",
+        "dom-motif_capabilities_capabilities_row_3",
+        "dom-binding_capabilities_row_3_label",
+        "dom-binding_capabilities_row_3_value",
+        "dom-motif_capabilities_capabilities_row_4",
+        "dom-binding_capabilities_row_4_label",
+        "dom-binding_capabilities_row_4_value",
+        "dom-motif_agent_workflow",
+        "dom-motif_agent_workflow_agent_workflow_row_1",
+        "dom-binding_agent_workflow_row_1_label",
+        "dom-binding_agent_workflow_row_1_value",
+        "dom-motif_agent_workflow_agent_workflow_row_2",
+        "dom-binding_agent_workflow_row_2_label",
+        "dom-binding_agent_workflow_row_2_value",
+        "dom-motif_agent_workflow_agent_workflow_row_3",
+        "dom-binding_agent_workflow_row_3_label",
+        "dom-binding_agent_workflow_row_3_value",
+        "dom-motif_pricing",
+        "dom-motif_pricing_pricing_row_1",
+        "dom-binding_pricing_row_1_label",
+        "dom-binding_pricing_row_1_value",
+        "dom-motif_pricing_pricing_row_2",
+        "dom-binding_pricing_row_2_label",
+        "dom-binding_pricing_row_2_value",
+        "dom-motif_pricing_pricing_row_3",
+        "dom-binding_pricing_row_3_label",
+        "dom-binding_pricing_row_3_value",
+        "dom-motif_artifact_identity",
+        "dom-motif_artifact_identity_artifact_identity_card_1",
+        "dom-binding_artifact_identity_card_1_label",
+        "dom-binding_artifact_identity_card_1_value",
+        "dom-motif_artifact_identity_artifact_identity_card_2",
+        "dom-binding_artifact_identity_card_2_label",
+        "dom-binding_artifact_identity_card_2_value"
+      ],
+      "action_order": [],
+      "diagnostic_codes": [],
+      "nodes": [
+        {
+          "dom_id": "dom-region_root",
+          "ir_id": "region_root",
+          "primitive": "root",
+          "tag": "main",
+          "visible_text": "",
+          "binding_id": null,
+          "action": null,
+          "accessibility_label": null
+        },
+        {
+          "dom_id": "dom-region_main",
+          "ir_id": "region_main",
+          "primitive": "stack",
+          "tag": "div",
+          "visible_text": "",
+          "binding_id": null,
+          "action": null,
+          "accessibility_label": null
+        },
+        {
+          "dom_id": "dom-motif_launch_hero",
+          "ir_id": "motif_launch_hero",
+          "primitive": "surface",
+          "tag": "header",
+          "visible_text": "",
+          "binding_id": null,
+          "action": null,
+          "accessibility_label": "Hero"
+        },
+        {
+          "dom_id": "dom-binding_launch_hero_eyebrow",
+          "ir_id": "binding_launch_hero_eyebrow",
+          "primitive": "label",
+          "tag": "p",
+          "visible_text": "Agent-native app compiler",
+          "binding_id": "launch_hero_eyebrow",
+          "action": null,
+          "accessibility_label": null
+        },
+        {
+          "dom_id": "dom-binding_launch_hero_title",
+          "ir_id": "binding_launch_hero_title",
+          "primitive": "value",
+          "tag": "h1",
+          "visible_text": "Intent goes in. Interface comes out.",
+          "binding_id": "launch_hero_title",
+          "action": null,
+          "accessibility_label": null
+        },
+        {
+          "dom_id": "dom-binding_launch_hero_description",
+          "ir_id": "binding_launch_hero_description",
+          "primitive": "text",
+          "tag": "p",
+          "visible_text": "Agents commit to meaning \u2014 nodes, bindings, motifs. ViewSpec compiles the UI, the state reducer, replay checks, and shell proof. Deterministic, and no runtime LLM.",
+          "binding_id": "launch_hero_description",
+          "action": null,
+          "accessibility_label": null
+        },
+        {
+          "dom_id": "dom-motif_proof_badges",
+          "ir_id": "motif_proof_badges",
+          "primitive": "grid",
+          "tag": "div",
+          "visible_text": "",
+          "binding_id": null,
+          "action": null,
+          "accessibility_label": null
+        },
+        {
+          "dom_id": "dom-motif_proof_badges_proof_badges_card_1",
+          "ir_id": "motif_proof_badges_proof_badges_card_1",
+          "primitive": "surface",
+          "tag": "div",
+          "visible_text": "",
+          "binding_id": null,
+          "action": null,
+          "accessibility_label": null
+        },
+        {
+          "dom_id": "dom-binding_proof_badges_card_1_label",
+          "ir_id": "binding_proof_badges_card_1_label",
+          "primitive": "label",
+          "tag": "div",
+          "visible_text": "replay",
+          "binding_id": "proof_badges_card_1_label",
+          "action": null,
+          "accessibility_label": null
+        },
+        {
+          "dom_id": "dom-binding_proof_badges_card_1_value",
+          "ir_id": "binding_proof_badges_card_1_value",
+          "primitive": "value",
+          "tag": "div",
+          "visible_text": "state replay passed",
+          "binding_id": "proof_badges_card_1_value",
+          "action": null,
+          "accessibility_label": null
+        },
+        {
+          "dom_id": "dom-motif_proof_badges_proof_badges_card_2",
+          "ir_id": "motif_proof_badges_proof_badges_card_2",
+          "primitive": "surface",
+          "tag": "div",
+          "visible_text": "",
+          "binding_id": null,
+          "action": null,
+          "accessibility_label": null
+        },
+        {
+          "dom_id": "dom-binding_proof_badges_card_2_label",
+          "ir_id": "binding_proof_badges_card_2_label",
+          "primitive": "label",
+          "tag": "div",
+          "visible_text": "reducer",
+          "binding_id": "proof_badges_card_2_label",
+          "action": null,
+          "accessibility_label": null
+        },
+        {
+          "dom_id": "dom-binding_proof_badges_card_2_value",
+          "ir_id": "binding_proof_badges_card_2_value",
+          "primitive": "value",
+          "tag": "div",
+          "visible_text": "reducer generated",
+          "binding_id": "proof_badges_card_2_value",
+          "action": null,
+          "accessibility_label": null
+        },
+        {
+          "dom_id": "dom-motif_proof_badges_proof_badges_card_3",
+          "ir_id": "motif_proof_badges_proof_badges_card_3",
+          "primitive": "surface",
+          "tag": "div",
+          "visible_text": "",
+          "binding_id": null,
+          "action": null,
+          "accessibility_label": null
+        },
+        {
+          "dom_id": "dom-binding_proof_badges_card_3_label",
+          "ir_id": "binding_proof_badges_card_3_label",
+          "primitive": "label",
+          "tag": "div",
+          "visible_text": "manifest",
+          "binding_id": "proof_badges_card_3_label",
+          "action": null,
+          "accessibility_label": null
+        },
+        {
+          "dom_id": "dom-binding_proof_badges_card_3_value",
+          "ir_id": "binding_proof_badges_card_3_value",
+          "primitive": "value",
+          "tag": "div",
+          "visible_text": "manifest checked",
+          "binding_id": "proof_badges_card_3_value",
+          "action": null,
+          "accessibility_label": null
+        },
+        {
+          "dom_id": "dom-motif_proof_badges_proof_badges_card_4",
+          "ir_id": "motif_proof_badges_proof_badges_card_4",
+          "primitive": "surface",
+          "tag": "div",
+          "visible_text": "",
+          "binding_id": null,
+          "action": null,
+          "accessibility_label": null
+        },
+        {
+          "dom_id": "dom-binding_proof_badges_card_4_label",
+          "ir_id": "binding_proof_badges_card_4_label",
+          "primitive": "label",
+          "tag": "div",
+          "visible_text": "shell",
+          "binding_id": "proof_badges_card_4_label",
+          "action": null,
+          "accessibility_label": null
+        },
+        {
+          "dom_id": "dom-binding_proof_badges_card_4_value",
+          "ir_id": "binding_proof_badges_card_4_value",
+          "primitive": "value",
+          "tag": "div",
+          "visible_text": "shell hash matched",
+          "binding_id": "proof_badges_card_4_value",
+          "action": null,
+          "accessibility_label": null
+        },
+        {
+          "dom_id": "dom-motif_proof_badges_proof_badges_card_5",
+          "ir_id": "motif_proof_badges_proof_badges_card_5",
+          "primitive": "surface",
+          "tag": "div",
+          "visible_text": "",
+          "binding_id": null,
+          "action": null,
+          "accessibility_label": null
+        },
+        {
+          "dom_id": "dom-binding_proof_badges_card_5_label",
+          "ir_id": "binding_proof_badges_card_5_label",
+          "primitive": "label",
+          "tag": "div",
+          "visible_text": "runtime",
+          "binding_id": "proof_badges_card_5_label",
+          "action": null,
+          "accessibility_label": null
+        },
+        {
+          "dom_id": "dom-binding_proof_badges_card_5_value",
+          "ir_id": "binding_proof_badges_card_5_value",
+          "primitive": "value",
+          "tag": "div",
+          "visible_text": "No runtime LLM",
+          "binding_id": "proof_badges_card_5_value",
+          "action": null,
+          "accessibility_label": null
+        },
+        {
+          "dom_id": "dom-motif_compile_flow",
+          "ir_id": "motif_compile_flow",
+          "primitive": "grid",
+          "tag": "div",
+          "visible_text": "",
+          "binding_id": null,
+          "action": null,
+          "accessibility_label": null
+        },
+        {
+          "dom_id": "dom-motif_compile_flow_compile_flow_card_1",
+          "ir_id": "motif_compile_flow_compile_flow_card_1",
+          "primitive": "surface",
+          "tag": "div",
+          "visible_text": "",
+          "binding_id": null,
+          "action": null,
+          "accessibility_label": null
+        },
+        {
+          "dom_id": "dom-binding_compile_flow_card_1_label",
+          "ir_id": "binding_compile_flow_card_1_label",
+          "primitive": "label",
+          "tag": "div",
+          "visible_text": "1 \u00b7 intent",
+          "binding_id": "compile_flow_card_1_label",
+          "action": null,
+          "accessibility_label": null
+        },
+        {
+          "dom_id": "dom-binding_compile_flow_card_1_value",
+          "ir_id": "binding_compile_flow_card_1_value",
+          "primitive": "value",
+          "tag": "div",
+          "visible_text": "Agent writes IntentBundle JSON.",
+          "binding_id": "compile_flow_card_1_value",
+          "action": null,
+          "accessibility_label": null
+        },
+        {
+          "dom_id": "dom-motif_compile_flow_compile_flow_card_2",
+          "ir_id": "motif_compile_flow_compile_flow_card_2",
+          "primitive": "surface",
+          "tag": "div",
+          "visible_text": "",
+          "binding_id": null,
+          "action": null,
+          "accessibility_label": null
+        },
+        {
+          "dom_id": "dom-binding_compile_flow_card_2_label",
+          "ir_id": "binding_compile_flow_card_2_label",
+          "primitive": "label",
+          "tag": "div",
+          "visible_text": "2 \u00b7 compile",
+          "binding_id": "compile_flow_card_2_label",
+          "action": null,
+          "accessibility_label": null
+        },
+        {
+          "dom_id": "dom-binding_compile_flow_card_2_value",
+          "ir_id": "binding_compile_flow_card_2_value",
+          "primitive": "value",
+          "tag": "div",
+          "visible_text": "CompositionIR to UI and reducer, no LLM.",
+          "binding_id": "compile_flow_card_2_value",
+          "action": null,
+          "accessibility_label": null
+        },
+        {
+          "dom_id": "dom-motif_compile_flow_compile_flow_card_3",
+          "ir_id": "motif_compile_flow_compile_flow_card_3",
+          "primitive": "surface",
+          "tag": "div",
+          "visible_text": "",
+          "binding_id": null,
+          "action": null,
+          "accessibility_label": null
+        },
+        {
+          "dom_id": "dom-binding_compile_flow_card_3_label",
+          "ir_id": "binding_compile_flow_card_3_label",
+          "primitive": "label",
+          "tag": "div",
+          "visible_text": "3 \u00b7 proof",
+          "binding_id": "compile_flow_card_3_label",
+          "action": null,
+          "accessibility_label": null
+        },
+        {
+          "dom_id": "dom-binding_compile_flow_card_3_value",
+          "ir_id": "binding_compile_flow_card_3_value",
+          "primitive": "value",
+          "tag": "div",
+          "visible_text": "Provenance, replay, and shell hash attached.",
+          "binding_id": "compile_flow_card_3_value",
+          "action": null,
+          "accessibility_label": null
+        },
+        {
+          "dom_id": "dom-motif_capabilities",
+          "ir_id": "motif_capabilities",
+          "primitive": "stack",
+          "tag": "table",
+          "visible_text": "",
+          "binding_id": null,
+          "action": null,
+          "accessibility_label": null
+        },
+        {
+          "dom_id": "dom-motif_capabilities_capabilities_row_1",
+          "ir_id": "motif_capabilities_capabilities_row_1",
+          "primitive": "cluster",
+          "tag": "tr",
+          "visible_text": "",
+          "binding_id": null,
+          "action": null,
+          "accessibility_label": null
+        },
+        {
+          "dom_id": "dom-binding_capabilities_row_1_label",
+          "ir_id": "binding_capabilities_row_1_label",
+          "primitive": "label",
+          "tag": "th",
+          "visible_text": "State IR",
+          "binding_id": "capabilities_row_1_label",
+          "action": null,
+          "accessibility_label": null
+        },
+        {
+          "dom_id": "dom-binding_capabilities_row_1_value",
+          "ir_id": "binding_capabilities_row_1_value",
+          "primitive": "value",
+          "tag": "td",
+          "visible_text": "interactive_state_v0 writes state_reducer.ts and reduceViewSpecState.",
+          "binding_id": "capabilities_row_1_value",
+          "action": null,
+          "accessibility_label": null
+        },
+        {
+          "dom_id": "dom-motif_capabilities_capabilities_row_2",
+          "ir_id": "motif_capabilities_capabilities_row_2",
+          "primitive": "cluster",
+          "tag": "tr",
+          "visible_text": "",
+          "binding_id": null,
+          "action": null,
+          "accessibility_label": null
+        },
+        {
+          "dom_id": "dom-binding_capabilities_row_2_label",
+          "ir_id": "binding_capabilities_row_2_label",
+          "primitive": "label",
+          "tag": "th",
+          "visible_text": "Aesthetic Profiles",
+          "binding_id": "capabilities_row_2_label",
+          "action": null,
+          "accessibility_label": null
+        },
+        {
+          "dom_id": "dom-binding_capabilities_row_2_value",
+          "ir_id": "binding_capabilities_row_2_value",
+          "primitive": "value",
+          "tag": "td",
+          "visible_text": "Five compiled projections from one semantic graph.",
+          "binding_id": "capabilities_row_2_value",
+          "action": null,
+          "accessibility_label": null
+        },
+        {
+          "dom_id": "dom-motif_capabilities_capabilities_row_3",
+          "ir_id": "motif_capabilities_capabilities_row_3",
+          "primitive": "cluster",
+          "tag": "tr",
+          "visible_text": "",
+          "binding_id": null,
+          "action": null,
+          "accessibility_label": null
+        },
+        {
+          "dom_id": "dom-binding_capabilities_row_3_label",
+          "ir_id": "binding_capabilities_row_3_label",
+          "primitive": "label",
+          "tag": "th",
+          "visible_text": "Proof Pipeline",
+          "binding_id": "capabilities_row_3_label",
+          "action": null,
+          "accessibility_label": null
+        },
+        {
+          "dom_id": "dom-binding_capabilities_row_3_value",
+          "ir_id": "binding_capabilities_row_3_value",
+          "primitive": "value",
+          "tag": "td",
+          "visible_text": "state_replay_assertions plus viewspec prove-app --with-shell.",
+          "binding_id": "capabilities_row_3_value",
+          "action": null,
+          "accessibility_label": null
+        },
+        {
+          "dom_id": "dom-motif_capabilities_capabilities_row_4",
+          "ir_id": "motif_capabilities_capabilities_row_4",
+          "primitive": "cluster",
+          "tag": "tr",
+          "visible_text": "",
+          "binding_id": null,
+          "action": null,
+          "accessibility_label": null
+        },
+        {
+          "dom_id": "dom-binding_capabilities_row_4_label",
+          "ir_id": "binding_capabilities_row_4_label",
+          "primitive": "label",
+          "tag": "th",
+          "visible_text": "Portable Surfaces",
+          "binding_id": "capabilities_row_4_label",
+          "action": null,
+          "accessibility_label": null
+        },
+        {
+          "dom_id": "dom-binding_capabilities_row_4_value",
+          "ir_id": "binding_capabilities_row_4_value",
+          "primitive": "value",
+          "tag": "td",
+          "visible_text": "html-tailwind and React locally; SwiftUI and Flutter hosted.",
+          "binding_id": "capabilities_row_4_value",
+          "action": null,
+          "accessibility_label": null
+        },
+        {
+          "dom_id": "dom-motif_agent_workflow",
+          "ir_id": "motif_agent_workflow",
+          "primitive": "stack",
+          "tag": "table",
+          "visible_text": "",
+          "binding_id": null,
+          "action": null,
+          "accessibility_label": null
+        },
+        {
+          "dom_id": "dom-motif_agent_workflow_agent_workflow_row_1",
+          "ir_id": "motif_agent_workflow_agent_workflow_row_1",
+          "primitive": "cluster",
+          "tag": "tr",
+          "visible_text": "",
+          "binding_id": null,
+          "action": null,
+          "accessibility_label": null
+        },
+        {
+          "dom_id": "dom-binding_agent_workflow_row_1_label",
+          "ir_id": "binding_agent_workflow_row_1_label",
+          "primitive": "label",
+          "tag": "th",
+          "visible_text": "describe",
+          "binding_id": "agent_workflow_row_1_label",
+          "action": null,
+          "accessibility_label": null
+        },
+        {
+          "dom_id": "dom-binding_agent_workflow_row_1_value",
+          "ir_id": "binding_agent_workflow_row_1_value",
+          "primitive": "value",
+          "tag": "td",
+          "visible_text": "Emit IntentBundle or AppBundle JSON.",
+          "binding_id": "agent_workflow_row_1_value",
+          "action": null,
+          "accessibility_label": null
+        },
+        {
+          "dom_id": "dom-motif_agent_workflow_agent_workflow_row_2",
+          "ir_id": "motif_agent_workflow_agent_workflow_row_2",
+          "primitive": "cluster",
+          "tag": "tr",
+          "visible_text": "",
+          "binding_id": null,
+          "action": null,
+          "accessibility_label": null
+        },
+        {
+          "dom_id": "dom-binding_agent_workflow_row_2_label",
+          "ir_id": "binding_agent_workflow_row_2_label",
+          "primitive": "label",
+          "tag": "th",
+          "visible_text": "validate",
+          "binding_id": "agent_workflow_row_2_label",
+          "action": null,
+          "accessibility_label": null
+        },
+        {
+          "dom_id": "dom-binding_agent_workflow_row_2_value",
+          "ir_id": "binding_agent_workflow_row_2_value",
+          "primitive": "value",
+          "tag": "td",
+          "visible_text": "viewspec validate-intent fails closed on drift.",
+          "binding_id": "agent_workflow_row_2_value",
+          "action": null,
+          "accessibility_label": null
+        },
+        {
+          "dom_id": "dom-motif_agent_workflow_agent_workflow_row_3",
+          "ir_id": "motif_agent_workflow_agent_workflow_row_3",
+          "primitive": "cluster",
+          "tag": "tr",
+          "visible_text": "",
+          "binding_id": null,
+          "action": null,
+          "accessibility_label": null
+        },
+        {
+          "dom_id": "dom-binding_agent_workflow_row_3_label",
+          "ir_id": "binding_agent_workflow_row_3_label",
+          "primitive": "label",
+          "tag": "th",
+          "visible_text": "prove",
+          "binding_id": "agent_workflow_row_3_label",
+          "action": null,
+          "accessibility_label": null
+        },
+        {
+          "dom_id": "dom-binding_agent_workflow_row_3_value",
+          "ir_id": "binding_agent_workflow_row_3_value",
+          "primitive": "value",
+          "tag": "td",
+          "visible_text": "viewspec prove-app --with-shell writes the report.",
+          "binding_id": "agent_workflow_row_3_value",
+          "action": null,
+          "accessibility_label": null
+        },
+        {
+          "dom_id": "dom-motif_pricing",
+          "ir_id": "motif_pricing",
+          "primitive": "stack",
+          "tag": "table",
+          "visible_text": "",
+          "binding_id": null,
+          "action": null,
+          "accessibility_label": null
+        },
+        {
+          "dom_id": "dom-motif_pricing_pricing_row_1",
+          "ir_id": "motif_pricing_pricing_row_1",
+          "primitive": "cluster",
+          "tag": "tr",
+          "visible_text": "",
+          "binding_id": null,
+          "action": null,
+          "accessibility_label": null
+        },
+        {
+          "dom_id": "dom-binding_pricing_row_1_label",
+          "ir_id": "binding_pricing_row_1_label",
+          "primitive": "label",
+          "tag": "th",
+          "visible_text": "Free",
+          "binding_id": "pricing_row_1_label",
+          "action": null,
+          "accessibility_label": null
+        },
+        {
+          "dom_id": "dom-binding_pricing_row_1_value",
+          "ir_id": "binding_pricing_row_1_value",
+          "primitive": "value",
+          "tag": "td",
+          "visible_text": "Local SDK. Unlimited compiles, proofs, and surfaces.",
+          "binding_id": "pricing_row_1_value",
+          "action": null,
+          "accessibility_label": null
+        },
+        {
+          "dom_id": "dom-motif_pricing_pricing_row_2",
+          "ir_id": "motif_pricing_pricing_row_2",
+          "primitive": "cluster",
+          "tag": "tr",
+          "visible_text": "",
+          "binding_id": null,
+          "action": null,
+          "accessibility_label": null
+        },
+        {
+          "dom_id": "dom-binding_pricing_row_2_label",
+          "ir_id": "binding_pricing_row_2_label",
+          "primitive": "label",
+          "tag": "th",
+          "visible_text": "Pro",
+          "binding_id": "pricing_row_2_label",
+          "action": null,
+          "accessibility_label": null
+        },
+        {
+          "dom_id": "dom-binding_pricing_row_2_value",
+          "ir_id": "binding_pricing_row_2_value",
+          "primitive": "value",
+          "tag": "td",
+          "visible_text": "149/mo. Hosted compiler API, 10k calls per day.",
+          "binding_id": "pricing_row_2_value",
+          "action": null,
+          "accessibility_label": null
+        },
+        {
+          "dom_id": "dom-motif_pricing_pricing_row_3",
+          "ir_id": "motif_pricing_pricing_row_3",
+          "primitive": "cluster",
+          "tag": "tr",
+          "visible_text": "",
+          "binding_id": null,
+          "action": null,
+          "accessibility_label": null
+        },
+        {
+          "dom_id": "dom-binding_pricing_row_3_label",
+          "ir_id": "binding_pricing_row_3_label",
+          "primitive": "label",
+          "tag": "th",
+          "visible_text": "Enterprise",
+          "binding_id": "pricing_row_3_label",
+          "action": null,
+          "accessibility_label": null
+        },
+        {
+          "dom_id": "dom-binding_pricing_row_3_value",
+          "ir_id": "binding_pricing_row_3_value",
+          "primitive": "value",
+          "tag": "td",
+          "visible_text": "Custom volume, organization sharing, and support.",
+          "binding_id": "pricing_row_3_value",
+          "action": null,
+          "accessibility_label": null
+        },
+        {
+          "dom_id": "dom-motif_artifact_identity",
+          "ir_id": "motif_artifact_identity",
+          "primitive": "grid",
+          "tag": "div",
+          "visible_text": "",
+          "binding_id": null,
+          "action": null,
+          "accessibility_label": null
+        },
+        {
+          "dom_id": "dom-motif_artifact_identity_artifact_identity_card_1",
+          "ir_id": "motif_artifact_identity_artifact_identity_card_1",
+          "primitive": "surface",
+          "tag": "div",
+          "visible_text": "",
+          "binding_id": null,
+          "action": null,
+          "accessibility_label": null
+        },
+        {
+          "dom_id": "dom-binding_artifact_identity_card_1_label",
+          "ir_id": "binding_artifact_identity_card_1_label",
+          "primitive": "label",
+          "tag": "div",
+          "visible_text": "provenance",
+          "binding_id": "artifact_identity_card_1_label",
+          "action": null,
+          "accessibility_label": null
+        },
+        {
+          "dom_id": "dom-binding_artifact_identity_card_1_value",
+          "ir_id": "binding_artifact_identity_card_1_value",
+          "primitive": "value",
+          "tag": "div",
+          "visible_text": "Every element traces to its address.",
+          "binding_id": "artifact_identity_card_1_value",
+          "action": null,
+          "accessibility_label": null
+        },
+        {
+          "dom_id": "dom-motif_artifact_identity_artifact_identity_card_2",
+          "ir_id": "motif_artifact_identity_artifact_identity_card_2",
+          "primitive": "surface",
+          "tag": "div",
+          "visible_text": "",
+          "binding_id": null,
+          "action": null,
+          "accessibility_label": null
+        },
+        {
+          "dom_id": "dom-binding_artifact_identity_card_2_label",
+          "ir_id": "binding_artifact_identity_card_2_label",
+          "primitive": "label",
+          "tag": "div",
+          "visible_text": "determinism",
+          "binding_id": "artifact_identity_card_2_label",
+          "action": null,
+          "accessibility_label": null
+        },
+        {
+          "dom_id": "dom-binding_artifact_identity_card_2_value",
+          "ir_id": "binding_artifact_identity_card_2_value",
+          "primitive": "value",
+          "tag": "div",
+          "visible_text": "Same intent, same bytes, same hash.",
+          "binding_id": "artifact_identity_card_2_value",
+          "action": null,
+          "accessibility_label": null
+        }
+      ]
+    },
+    "digest": "386d9593c69eda5ab2cdef6bdb005d95f78fa12126cfc9148b101dce71339b9c"
+  }
+}

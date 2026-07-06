@@ -37,6 +37,9 @@ PROFILE_LABELS = {
     "aesthetic.data_dense": "Data Dense",
     "aesthetic.editorial_product": "Editorial Product",
     "aesthetic.executive_review": "Executive Review",
+    "aesthetic.brutalist": "Brutalist",
+    "aesthetic.neon_cyber": "Neon Cyber",
+    "aesthetic.warm_organic": "Warm Organic",
 }
 
 PROFILE_NOTES = {
@@ -45,6 +48,9 @@ PROFILE_NOTES = {
     "aesthetic.data_dense": "Compact spacing, smaller type, and tighter controls for repeated scanning.",
     "aesthetic.editorial_product": "Warmer product-story pacing with broader prose rhythm.",
     "aesthetic.executive_review": "Conservative review surfaces with restrained contrast and crisp framing.",
+    "aesthetic.brutalist": "Raw off-white ground with hard black frames, zero radius, and a loud red.",
+    "aesthetic.neon_cyber": "Near-black terminal with magenta uppercase accents and cyan glow.",
+    "aesthetic.warm_organic": "Warm sand ground, humanist sans, and soft rounded amber surfaces.",
 }
 
 
@@ -656,7 +662,7 @@ PAGE_CSS = r"""
   .dv svg{ display:block; width:100%; height:30px; margin-top:8px; }
   svg .spark-fill{ fill:rgba(245,178,63,.10); } svg .spark-line{ fill:none; stroke:var(--amber); stroke-width:1.5; } svg .spark-dot{ fill:var(--amber-2); }
   /* five-up strip: all projections rendered simultaneously — juxtaposition, not memory */
-  .dv-strip{ display:grid; grid-template-columns:repeat(5,minmax(0,1fr)); gap:10px; margin-bottom:16px; }
+  .dv-strip{ display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:10px; margin-bottom:16px; }
   @media (max-width:760px){ .dv-strip{ grid-template-columns:repeat(auto-fit,minmax(120px,1fr)); } }
   .dv-slot{ display:flex; flex-direction:column; gap:7px; min-width:0; }
   button.dv.mini{ padding:13px 13px 15px; cursor:pointer; text-align:left; display:flex; flex-direction:column; align-items:flex-start; gap:7px; width:100%; box-shadow:none; border-color:var(--line-2); }
@@ -975,7 +981,10 @@ PAGE_SCRIPT = r"""
     premium_saas:{density:"airy",emphasis:"high",columns:3},
     data_dense:{density:"compact",emphasis:"medium",columns:5},
     editorial_product:{density:"airy",emphasis:"high",columns:2},
-    executive_review:{density:"airy",emphasis:"high",columns:3}
+    executive_review:{density:"airy",emphasis:"high",columns:3},
+    brutalist:{density:"regular",emphasis:"high",columns:1},
+    neon_cyber:{density:"compact",emphasis:"high",columns:2},
+    warm_organic:{density:"airy",emphasis:"medium",columns:3}
   };
   var METRICS=[
     {ml:"Compiles / day", mv:"12,480", seed:0.2},

@@ -1,0 +1,764 @@
+{
+  "substrate": {
+    "id": "viewspec_landing_substrate",
+    "nodes": {
+      "agent_workflow_row_1": {
+        "attrs": {
+          "label": "describe",
+          "value": "Emit IntentBundle or AppBundle JSON."
+        },
+        "edges": {},
+        "id": "agent_workflow_row_1",
+        "kind": "table_row",
+        "slots": {}
+      },
+      "agent_workflow_row_2": {
+        "attrs": {
+          "label": "validate",
+          "value": "viewspec validate-intent fails closed on drift."
+        },
+        "edges": {},
+        "id": "agent_workflow_row_2",
+        "kind": "table_row",
+        "slots": {}
+      },
+      "agent_workflow_row_3": {
+        "attrs": {
+          "label": "prove",
+          "value": "viewspec prove-app --with-shell writes the report."
+        },
+        "edges": {},
+        "id": "agent_workflow_row_3",
+        "kind": "table_row",
+        "slots": {}
+      },
+      "artifact_identity_card_1": {
+        "attrs": {
+          "label": "provenance",
+          "value": "Every element traces to its address."
+        },
+        "edges": {},
+        "id": "artifact_identity_card_1",
+        "kind": "dashboard_card",
+        "slots": {}
+      },
+      "artifact_identity_card_2": {
+        "attrs": {
+          "label": "determinism",
+          "value": "Same intent, same bytes, same hash."
+        },
+        "edges": {},
+        "id": "artifact_identity_card_2",
+        "kind": "dashboard_card",
+        "slots": {}
+      },
+      "capabilities_row_1": {
+        "attrs": {
+          "label": "State IR",
+          "value": "interactive_state_v0 writes state_reducer.ts and reduceViewSpecState."
+        },
+        "edges": {},
+        "id": "capabilities_row_1",
+        "kind": "table_row",
+        "slots": {}
+      },
+      "capabilities_row_2": {
+        "attrs": {
+          "label": "Aesthetic Profiles",
+          "value": "Five compiled projections from one semantic graph."
+        },
+        "edges": {},
+        "id": "capabilities_row_2",
+        "kind": "table_row",
+        "slots": {}
+      },
+      "capabilities_row_3": {
+        "attrs": {
+          "label": "Proof Pipeline",
+          "value": "state_replay_assertions plus viewspec prove-app --with-shell."
+        },
+        "edges": {},
+        "id": "capabilities_row_3",
+        "kind": "table_row",
+        "slots": {}
+      },
+      "capabilities_row_4": {
+        "attrs": {
+          "label": "Portable Surfaces",
+          "value": "html-tailwind and React locally; SwiftUI and Flutter hosted."
+        },
+        "edges": {},
+        "id": "capabilities_row_4",
+        "kind": "table_row",
+        "slots": {}
+      },
+      "compile_flow_card_1": {
+        "attrs": {
+          "label": "1 \u00b7 intent",
+          "value": "Agent writes IntentBundle JSON."
+        },
+        "edges": {},
+        "id": "compile_flow_card_1",
+        "kind": "dashboard_card",
+        "slots": {}
+      },
+      "compile_flow_card_2": {
+        "attrs": {
+          "label": "2 \u00b7 compile",
+          "value": "CompositionIR to UI and reducer, no LLM."
+        },
+        "edges": {},
+        "id": "compile_flow_card_2",
+        "kind": "dashboard_card",
+        "slots": {}
+      },
+      "compile_flow_card_3": {
+        "attrs": {
+          "label": "3 \u00b7 proof",
+          "value": "Provenance, replay, and shell hash attached."
+        },
+        "edges": {},
+        "id": "compile_flow_card_3",
+        "kind": "dashboard_card",
+        "slots": {}
+      },
+      "launch_hero": {
+        "attrs": {
+          "description": "Agents commit to meaning \u2014 nodes, bindings, motifs. ViewSpec compiles the UI, the state reducer, replay checks, and shell proof. Deterministic, and no runtime LLM.",
+          "eyebrow": "Agent-native app compiler",
+          "title": "Intent goes in. Interface comes out."
+        },
+        "edges": {},
+        "id": "launch_hero",
+        "kind": "hero",
+        "slots": {}
+      },
+      "pricing_row_1": {
+        "attrs": {
+          "label": "Free",
+          "value": "Local SDK. Unlimited compiles, proofs, and surfaces."
+        },
+        "edges": {},
+        "id": "pricing_row_1",
+        "kind": "table_row",
+        "slots": {}
+      },
+      "pricing_row_2": {
+        "attrs": {
+          "label": "Pro",
+          "value": "149/mo. Hosted compiler API, 10k calls per day."
+        },
+        "edges": {},
+        "id": "pricing_row_2",
+        "kind": "table_row",
+        "slots": {}
+      },
+      "pricing_row_3": {
+        "attrs": {
+          "label": "Enterprise",
+          "value": "Custom volume, organization sharing, and support."
+        },
+        "edges": {},
+        "id": "pricing_row_3",
+        "kind": "table_row",
+        "slots": {}
+      },
+      "proof_badges_card_1": {
+        "attrs": {
+          "label": "replay",
+          "value": "state replay passed"
+        },
+        "edges": {},
+        "id": "proof_badges_card_1",
+        "kind": "dashboard_card",
+        "slots": {}
+      },
+      "proof_badges_card_2": {
+        "attrs": {
+          "label": "reducer",
+          "value": "reducer generated"
+        },
+        "edges": {},
+        "id": "proof_badges_card_2",
+        "kind": "dashboard_card",
+        "slots": {}
+      },
+      "proof_badges_card_3": {
+        "attrs": {
+          "label": "manifest",
+          "value": "manifest checked"
+        },
+        "edges": {},
+        "id": "proof_badges_card_3",
+        "kind": "dashboard_card",
+        "slots": {}
+      },
+      "proof_badges_card_4": {
+        "attrs": {
+          "label": "shell",
+          "value": "shell hash matched"
+        },
+        "edges": {},
+        "id": "proof_badges_card_4",
+        "kind": "dashboard_card",
+        "slots": {}
+      },
+      "proof_badges_card_5": {
+        "attrs": {
+          "label": "runtime",
+          "value": "No runtime LLM"
+        },
+        "edges": {},
+        "id": "proof_badges_card_5",
+        "kind": "dashboard_card",
+        "slots": {}
+      },
+      "viewspec_landing": {
+        "attrs": {},
+        "edges": {},
+        "id": "viewspec_landing",
+        "kind": "app",
+        "slots": {}
+      }
+    },
+    "root_id": "viewspec_landing"
+  },
+  "view_spec": {
+    "actions": [],
+    "bindings": [
+      {
+        "address": "node:launch_hero#attr:eyebrow",
+        "cardinality": "exactly_once",
+        "id": "launch_hero_eyebrow",
+        "present_as": "label",
+        "target_region": "main"
+      },
+      {
+        "address": "node:launch_hero#attr:title",
+        "cardinality": "exactly_once",
+        "id": "launch_hero_title",
+        "present_as": "value",
+        "target_region": "main"
+      },
+      {
+        "address": "node:launch_hero#attr:description",
+        "cardinality": "exactly_once",
+        "id": "launch_hero_description",
+        "present_as": "text",
+        "target_region": "main"
+      },
+      {
+        "address": "node:proof_badges_card_1#attr:label",
+        "cardinality": "exactly_once",
+        "id": "proof_badges_card_1_label",
+        "present_as": "label",
+        "target_region": "main"
+      },
+      {
+        "address": "node:proof_badges_card_1#attr:value",
+        "cardinality": "exactly_once",
+        "id": "proof_badges_card_1_value",
+        "present_as": "value",
+        "target_region": "main"
+      },
+      {
+        "address": "node:proof_badges_card_2#attr:label",
+        "cardinality": "exactly_once",
+        "id": "proof_badges_card_2_label",
+        "present_as": "label",
+        "target_region": "main"
+      },
+      {
+        "address": "node:proof_badges_card_2#attr:value",
+        "cardinality": "exactly_once",
+        "id": "proof_badges_card_2_value",
+        "present_as": "value",
+        "target_region": "main"
+      },
+      {
+        "address": "node:proof_badges_card_3#attr:label",
+        "cardinality": "exactly_once",
+        "id": "proof_badges_card_3_label",
+        "present_as": "label",
+        "target_region": "main"
+      },
+      {
+        "address": "node:proof_badges_card_3#attr:value",
+        "cardinality": "exactly_once",
+        "id": "proof_badges_card_3_value",
+        "present_as": "value",
+        "target_region": "main"
+      },
+      {
+        "address": "node:proof_badges_card_4#attr:label",
+        "cardinality": "exactly_once",
+        "id": "proof_badges_card_4_label",
+        "present_as": "label",
+        "target_region": "main"
+      },
+      {
+        "address": "node:proof_badges_card_4#attr:value",
+        "cardinality": "exactly_once",
+        "id": "proof_badges_card_4_value",
+        "present_as": "value",
+        "target_region": "main"
+      },
+      {
+        "address": "node:proof_badges_card_5#attr:label",
+        "cardinality": "exactly_once",
+        "id": "proof_badges_card_5_label",
+        "present_as": "label",
+        "target_region": "main"
+      },
+      {
+        "address": "node:proof_badges_card_5#attr:value",
+        "cardinality": "exactly_once",
+        "id": "proof_badges_card_5_value",
+        "present_as": "value",
+        "target_region": "main"
+      },
+      {
+        "address": "node:compile_flow_card_1#attr:label",
+        "cardinality": "exactly_once",
+        "id": "compile_flow_card_1_label",
+        "present_as": "label",
+        "target_region": "main"
+      },
+      {
+        "address": "node:compile_flow_card_1#attr:value",
+        "cardinality": "exactly_once",
+        "id": "compile_flow_card_1_value",
+        "present_as": "value",
+        "target_region": "main"
+      },
+      {
+        "address": "node:compile_flow_card_2#attr:label",
+        "cardinality": "exactly_once",
+        "id": "compile_flow_card_2_label",
+        "present_as": "label",
+        "target_region": "main"
+      },
+      {
+        "address": "node:compile_flow_card_2#attr:value",
+        "cardinality": "exactly_once",
+        "id": "compile_flow_card_2_value",
+        "present_as": "value",
+        "target_region": "main"
+      },
+      {
+        "address": "node:compile_flow_card_3#attr:label",
+        "cardinality": "exactly_once",
+        "id": "compile_flow_card_3_label",
+        "present_as": "label",
+        "target_region": "main"
+      },
+      {
+        "address": "node:compile_flow_card_3#attr:value",
+        "cardinality": "exactly_once",
+        "id": "compile_flow_card_3_value",
+        "present_as": "value",
+        "target_region": "main"
+      },
+      {
+        "address": "node:capabilities_row_1#attr:label",
+        "cardinality": "exactly_once",
+        "id": "capabilities_row_1_label",
+        "present_as": "label",
+        "target_region": "main"
+      },
+      {
+        "address": "node:capabilities_row_1#attr:value",
+        "cardinality": "exactly_once",
+        "id": "capabilities_row_1_value",
+        "present_as": "value",
+        "target_region": "main"
+      },
+      {
+        "address": "node:capabilities_row_2#attr:label",
+        "cardinality": "exactly_once",
+        "id": "capabilities_row_2_label",
+        "present_as": "label",
+        "target_region": "main"
+      },
+      {
+        "address": "node:capabilities_row_2#attr:value",
+        "cardinality": "exactly_once",
+        "id": "capabilities_row_2_value",
+        "present_as": "value",
+        "target_region": "main"
+      },
+      {
+        "address": "node:capabilities_row_3#attr:label",
+        "cardinality": "exactly_once",
+        "id": "capabilities_row_3_label",
+        "present_as": "label",
+        "target_region": "main"
+      },
+      {
+        "address": "node:capabilities_row_3#attr:value",
+        "cardinality": "exactly_once",
+        "id": "capabilities_row_3_value",
+        "present_as": "value",
+        "target_region": "main"
+      },
+      {
+        "address": "node:capabilities_row_4#attr:label",
+        "cardinality": "exactly_once",
+        "id": "capabilities_row_4_label",
+        "present_as": "label",
+        "target_region": "main"
+      },
+      {
+        "address": "node:capabilities_row_4#attr:value",
+        "cardinality": "exactly_once",
+        "id": "capabilities_row_4_value",
+        "present_as": "value",
+        "target_region": "main"
+      },
+      {
+        "address": "node:agent_workflow_row_1#attr:label",
+        "cardinality": "exactly_once",
+        "id": "agent_workflow_row_1_label",
+        "present_as": "label",
+        "target_region": "main"
+      },
+      {
+        "address": "node:agent_workflow_row_1#attr:value",
+        "cardinality": "exactly_once",
+        "id": "agent_workflow_row_1_value",
+        "present_as": "value",
+        "target_region": "main"
+      },
+      {
+        "address": "node:agent_workflow_row_2#attr:label",
+        "cardinality": "exactly_once",
+        "id": "agent_workflow_row_2_label",
+        "present_as": "label",
+        "target_region": "main"
+      },
+      {
+        "address": "node:agent_workflow_row_2#attr:value",
+        "cardinality": "exactly_once",
+        "id": "agent_workflow_row_2_value",
+        "present_as": "value",
+        "target_region": "main"
+      },
+      {
+        "address": "node:agent_workflow_row_3#attr:label",
+        "cardinality": "exactly_once",
+        "id": "agent_workflow_row_3_label",
+        "present_as": "label",
+        "target_region": "main"
+      },
+      {
+        "address": "node:agent_workflow_row_3#attr:value",
+        "cardinality": "exactly_once",
+        "id": "agent_workflow_row_3_value",
+        "present_as": "value",
+        "target_region": "main"
+      },
+      {
+        "address": "node:pricing_row_1#attr:label",
+        "cardinality": "exactly_once",
+        "id": "pricing_row_1_label",
+        "present_as": "label",
+        "target_region": "main"
+      },
+      {
+        "address": "node:pricing_row_1#attr:value",
+        "cardinality": "exactly_once",
+        "id": "pricing_row_1_value",
+        "present_as": "value",
+        "target_region": "main"
+      },
+      {
+        "address": "node:pricing_row_2#attr:label",
+        "cardinality": "exactly_once",
+        "id": "pricing_row_2_label",
+        "present_as": "label",
+        "target_region": "main"
+      },
+      {
+        "address": "node:pricing_row_2#attr:value",
+        "cardinality": "exactly_once",
+        "id": "pricing_row_2_value",
+        "present_as": "value",
+        "target_region": "main"
+      },
+      {
+        "address": "node:pricing_row_3#attr:label",
+        "cardinality": "exactly_once",
+        "id": "pricing_row_3_label",
+        "present_as": "label",
+        "target_region": "main"
+      },
+      {
+        "address": "node:pricing_row_3#attr:value",
+        "cardinality": "exactly_once",
+        "id": "pricing_row_3_value",
+        "present_as": "value",
+        "target_region": "main"
+      },
+      {
+        "address": "node:artifact_identity_card_1#attr:label",
+        "cardinality": "exactly_once",
+        "id": "artifact_identity_card_1_label",
+        "present_as": "label",
+        "target_region": "main"
+      },
+      {
+        "address": "node:artifact_identity_card_1#attr:value",
+        "cardinality": "exactly_once",
+        "id": "artifact_identity_card_1_value",
+        "present_as": "value",
+        "target_region": "main"
+      },
+      {
+        "address": "node:artifact_identity_card_2#attr:label",
+        "cardinality": "exactly_once",
+        "id": "artifact_identity_card_2_label",
+        "present_as": "label",
+        "target_region": "main"
+      },
+      {
+        "address": "node:artifact_identity_card_2#attr:value",
+        "cardinality": "exactly_once",
+        "id": "artifact_identity_card_2_value",
+        "present_as": "value",
+        "target_region": "main"
+      }
+    ],
+    "complexity_tier": 1,
+    "groups": [
+      {
+        "id": "launch",
+        "kind": "ordered",
+        "members": [
+          "launch_hero_eyebrow",
+          "launch_hero_title",
+          "launch_hero_description"
+        ],
+        "target_region": "main"
+      },
+      {
+        "id": "proof_badges",
+        "kind": "ordered",
+        "members": [
+          "proof_badges_card_1_label",
+          "proof_badges_card_1_value",
+          "proof_badges_card_2_label",
+          "proof_badges_card_2_value",
+          "proof_badges_card_3_label",
+          "proof_badges_card_3_value",
+          "proof_badges_card_4_label",
+          "proof_badges_card_4_value",
+          "proof_badges_card_5_label",
+          "proof_badges_card_5_value"
+        ],
+        "target_region": "main"
+      },
+      {
+        "id": "compile_flow",
+        "kind": "ordered",
+        "members": [
+          "compile_flow_card_1_label",
+          "compile_flow_card_1_value",
+          "compile_flow_card_2_label",
+          "compile_flow_card_2_value",
+          "compile_flow_card_3_label",
+          "compile_flow_card_3_value"
+        ],
+        "target_region": "main"
+      },
+      {
+        "id": "capabilities",
+        "kind": "ordered",
+        "members": [
+          "capabilities_row_1_label",
+          "capabilities_row_1_value",
+          "capabilities_row_2_label",
+          "capabilities_row_2_value",
+          "capabilities_row_3_label",
+          "capabilities_row_3_value",
+          "capabilities_row_4_label",
+          "capabilities_row_4_value"
+        ],
+        "target_region": "main"
+      },
+      {
+        "id": "agent_workflow",
+        "kind": "ordered",
+        "members": [
+          "agent_workflow_row_1_label",
+          "agent_workflow_row_1_value",
+          "agent_workflow_row_2_label",
+          "agent_workflow_row_2_value",
+          "agent_workflow_row_3_label",
+          "agent_workflow_row_3_value"
+        ],
+        "target_region": "main"
+      },
+      {
+        "id": "pricing",
+        "kind": "ordered",
+        "members": [
+          "pricing_row_1_label",
+          "pricing_row_1_value",
+          "pricing_row_2_label",
+          "pricing_row_2_value",
+          "pricing_row_3_label",
+          "pricing_row_3_value"
+        ],
+        "target_region": "main"
+      },
+      {
+        "id": "artifact_identity",
+        "kind": "ordered",
+        "members": [
+          "artifact_identity_card_1_label",
+          "artifact_identity_card_1_value",
+          "artifact_identity_card_2_label",
+          "artifact_identity_card_2_value"
+        ],
+        "target_region": "main"
+      }
+    ],
+    "id": "viewspec_landing",
+    "motifs": [
+      {
+        "id": "launch_hero",
+        "kind": "hero",
+        "members": [
+          "launch_hero_eyebrow",
+          "launch_hero_title",
+          "launch_hero_description"
+        ],
+        "region": "main"
+      },
+      {
+        "id": "proof_badges",
+        "kind": "dashboard",
+        "members": [
+          "proof_badges_card_1_label",
+          "proof_badges_card_1_value",
+          "proof_badges_card_2_label",
+          "proof_badges_card_2_value",
+          "proof_badges_card_3_label",
+          "proof_badges_card_3_value",
+          "proof_badges_card_4_label",
+          "proof_badges_card_4_value",
+          "proof_badges_card_5_label",
+          "proof_badges_card_5_value"
+        ],
+        "region": "main"
+      },
+      {
+        "id": "compile_flow",
+        "kind": "dashboard",
+        "members": [
+          "compile_flow_card_1_label",
+          "compile_flow_card_1_value",
+          "compile_flow_card_2_label",
+          "compile_flow_card_2_value",
+          "compile_flow_card_3_label",
+          "compile_flow_card_3_value"
+        ],
+        "region": "main"
+      },
+      {
+        "id": "capabilities",
+        "kind": "table",
+        "members": [
+          "capabilities_row_1_label",
+          "capabilities_row_1_value",
+          "capabilities_row_2_label",
+          "capabilities_row_2_value",
+          "capabilities_row_3_label",
+          "capabilities_row_3_value",
+          "capabilities_row_4_label",
+          "capabilities_row_4_value"
+        ],
+        "region": "main"
+      },
+      {
+        "id": "agent_workflow",
+        "kind": "table",
+        "members": [
+          "agent_workflow_row_1_label",
+          "agent_workflow_row_1_value",
+          "agent_workflow_row_2_label",
+          "agent_workflow_row_2_value",
+          "agent_workflow_row_3_label",
+          "agent_workflow_row_3_value"
+        ],
+        "region": "main"
+      },
+      {
+        "id": "pricing",
+        "kind": "table",
+        "members": [
+          "pricing_row_1_label",
+          "pricing_row_1_value",
+          "pricing_row_2_label",
+          "pricing_row_2_value",
+          "pricing_row_3_label",
+          "pricing_row_3_value"
+        ],
+        "region": "main"
+      },
+      {
+        "id": "artifact_identity",
+        "kind": "dashboard",
+        "members": [
+          "artifact_identity_card_1_label",
+          "artifact_identity_card_1_value",
+          "artifact_identity_card_2_label",
+          "artifact_identity_card_2_value"
+        ],
+        "region": "main"
+      }
+    ],
+    "regions": [
+      {
+        "id": "root",
+        "layout": "stack",
+        "max_children": null,
+        "min_children": 1,
+        "parent_region": "",
+        "role": "root"
+      },
+      {
+        "id": "main",
+        "layout": "stack",
+        "max_children": null,
+        "min_children": 1,
+        "parent_region": "root",
+        "role": "main"
+      }
+    ],
+    "root_region": "root",
+    "styles": [
+      {
+        "id": "s_launch_hero",
+        "target": "launch_hero",
+        "token": "emphasis.high"
+      },
+      {
+        "id": "s_proof_badges",
+        "target": "proof_badges",
+        "token": "surface.subtle"
+      },
+      {
+        "id": "s_capabilities",
+        "target": "capabilities",
+        "token": "density.compact"
+      },
+      {
+        "id": "aesthetic_profile",
+        "target": "view:viewspec_landing",
+        "token": "aesthetic.warm_organic"
+      }
+    ],
+    "substrate_id": "viewspec_landing_substrate"
+  }
+}

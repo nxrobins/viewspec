@@ -143,6 +143,9 @@ const aestheticProfileTokens = [
   'aesthetic.data_dense',
   'aesthetic.editorial_product',
   'aesthetic.executive_review',
+  'aesthetic.brutalist',
+  'aesthetic.neon_cyber',
+  'aesthetic.warm_organic',
 ]
 assert.deepEqual(publicFacts.aesthetic_profiles.tokens, aestheticProfileTokens, 'public facts aesthetic profile tokens')
 assertPublicEqual(publicFacts.aesthetic_profiles.homepage_url, 'https://viewspec.dev/', 'public facts aesthetic homepage URL')
@@ -169,15 +172,18 @@ const expectedProfileSlugs = {
   'aesthetic.data_dense': 'data-dense',
   'aesthetic.editorial_product': 'editorial-product',
   'aesthetic.executive_review': 'executive-review',
+  'aesthetic.brutalist': 'brutalist',
+  'aesthetic.neon_cyber': 'neon-cyber',
+  'aesthetic.warm_organic': 'warm-organic',
 }
 const landingProfileEvidence = JSON.parse(await readFile('demos/landing-compiled/profile-evidence.json', 'utf8'))
 assert.equal(landingProfileEvidence.version, 'landing_compiled_aesthetic_profiles.v1')
 assert.equal(landingProfileEvidence.defaultProfile, 'aesthetic.calm_ops')
-assert.equal(landingProfileEvidence.profileCount, 5)
+assert.equal(landingProfileEvidence.profileCount, 8)
 assert.equal(landingProfileEvidence.semanticIdsStable, true)
 assert.equal(landingProfileEvidence.shellOverrides, 0)
 assert.equal(landingProfileEvidence.styleProjectionDistinct, true)
-assert.equal(landingProfileEvidence.styleProjectionHashCount, 5)
+assert.equal(landingProfileEvidence.styleProjectionHashCount, 8)
 assert.deepEqual(Object.keys(landingProfileEvidence.profiles).sort(), [...aestheticProfileTokens].sort())
 const profileSemanticHashes = new Set()
 const profileStyleHashes = new Set()
@@ -226,7 +232,7 @@ for (const token of aestheticProfileTokens) {
   profileNodeCounts.add(profile.nodeCount)
 }
 assert.equal(profileSemanticHashes.size, 1, 'compiled profile semantic hashes stay stable')
-assert.equal(profileStyleHashes.size, 5, 'compiled profile style hashes differ')
+assert.equal(profileStyleHashes.size, 8, 'compiled profile style hashes differ')
 assert.equal(profileNodeCounts.size, 1, 'compiled profile node counts stay stable')
 
 const agentManifest = JSON.parse(await readFile('demos/agent-assets.json', 'utf8'))
@@ -431,7 +437,7 @@ for (const expected of [
 for (const token of aestheticProfileTokens) {
   assertPublicText(aestheticProfilesPage, token, 'aesthetic profiles demo token')
 }
-assert.equal((aestheticProfilesPage.match(/class="profile-card"/g) || []).length, 5)
+assert.equal((aestheticProfilesPage.match(/class="profile-card"/g) || []).length, 8)
 const aestheticProof = extractScriptJson(aestheticProfilesPage, 'aesthetic-profile-proof')
 assert.deepEqual(Object.keys(aestheticProof).sort(), [...aestheticProfileTokens].sort(), 'aesthetic profile proof tokens')
 const expectedAestheticLayout = {
@@ -440,6 +446,9 @@ const expectedAestheticLayout = {
   'aesthetic.data_dense': [3, 3, null, null],
   'aesthetic.editorial_product': [2, 1, null, null],
   'aesthetic.executive_review': [2, 3, 2, 'featured'],
+  'aesthetic.brutalist': [1, 1, null, null],
+  'aesthetic.neon_cyber': [2, 2, null, null],
+  'aesthetic.warm_organic': [2, 3, 2, 'featured'],
 }
 for (const [token, [workspaceColumns, metricColumns, metricSpan, metricEmphasis]] of Object.entries(expectedAestheticLayout)) {
   assert.equal(
