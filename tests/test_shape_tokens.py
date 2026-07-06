@@ -121,4 +121,4 @@ def test_shape_var_names_are_the_closed_eight():
 
 def test_unknown_profile_raises():
     with pytest.raises(AestheticProfileError):
-        profile_shape_vars("aesthetic.brutalist")
+        profile_shape_vars("aesthetic.nonexistent")

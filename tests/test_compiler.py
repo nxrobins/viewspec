@@ -533,7 +533,7 @@ def test_aesthetic_profile_compiles_to_root_metadata_and_style_projection():
 @pytest.mark.parametrize(
     ("token", "target", "expected_code"),
     [
-        ("aesthetic.brutalist", "view:bad_profile", "AESTHETIC_PROFILE_UNKNOWN"),
+        ("aesthetic.nonexistent", "view:bad_profile", "AESTHETIC_PROFILE_UNKNOWN"),
         ("aesthetic.calm_ops", "motif:items", "AESTHETIC_PROFILE_TARGET_INVALID"),
     ],
 )

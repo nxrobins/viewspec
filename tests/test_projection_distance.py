@@ -117,7 +117,7 @@ def test_axis_sanity_pins():
 
 def test_unknown_profile_raises():
     with pytest.raises(AestheticProfileError):
-        profile_projection_axes("aesthetic.brutalist")
+        profile_projection_axes("aesthetic.nonexistent")
 
 
 def test_print_pairwise_matrix():

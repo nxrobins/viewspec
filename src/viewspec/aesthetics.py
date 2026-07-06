@@ -15,6 +15,9 @@ AESTHETIC_PROFILE_TOKENS = (
     "aesthetic.data_dense",
     "aesthetic.editorial_product",
     "aesthetic.executive_review",
+    "aesthetic.brutalist",
+    "aesthetic.neon_cyber",
+    "aesthetic.warm_organic",
 )
 MAX_AESTHETIC_PROFILE_DECLARATIONS = 32
 MAX_AESTHETIC_PROFILE_CSS_BYTES = 2048
@@ -63,6 +66,19 @@ AESTHETIC_PROFILE_LAYOUT_PROPS = {
     "aesthetic.executive_review": {
         "content_grid": {"columns": 2},
         "metric_grid": {"columns": 3},  # B3 ratchet: dense executive grid → projection floor 5
+        "metric_card": {"span_columns": 2, "layout_emphasis": "featured"},
+    },
+    "aesthetic.brutalist": {
+        "content_grid": {"columns": 1},
+        "metric_grid": {"columns": 1},  # single raw column
+    },
+    "aesthetic.neon_cyber": {
+        "content_grid": {"columns": 2},
+        "metric_grid": {"columns": 2},
+    },
+    "aesthetic.warm_organic": {
+        "content_grid": {"columns": 2},
+        "metric_grid": {"columns": 3},
         "metric_card": {"span_columns": 2, "layout_emphasis": "featured"},
     },
 }
@@ -182,6 +198,54 @@ AESTHETIC_PROFILE_STYLE_VALUES: dict[str, dict[str, str]] = {
         "rhythm.hierarchy": "font-size: 1.06rem; font-weight: 800; line-height: 1.22;",
         "narrative.flow": "max-width: 78ch; line-height: 1.56;",
     },
+    # raw brutalist — off-white ground, mono, hard black frames, zero radius, uppercase red
+    "aesthetic.brutalist": {
+        "palette.temperature": "background-color: #f4f0e6;",
+        "tone.neutral": "color: #0a0a0a; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;",
+        "tone.muted": "color: #4a4a4a;",
+        "tone.accent": "color: #d81e1e; font-weight: 900; text-transform: uppercase;",
+        "action.accent": "background-color: #d81e1e; color: #ffffff; border-radius: 0;",
+        "surface.subtle": "background: #ffffff; border: 2px solid #0a0a0a; border-radius: 0;",
+        "surface.strong": "background: #ece7d8; border: 2px solid #0a0a0a; border-radius: 0;",
+        "density.compact": "gap: 0.3rem; padding: 0.34rem 0.5rem;",
+        "density.regular": "gap: 0.62rem; padding: 0.6rem 0.86rem;",
+        "density.airy": "gap: 1.05rem; padding: 1rem 1.3rem;",
+        "emphasis.high": "font-weight: 900; letter-spacing: -0.01em;",
+        "rhythm.hierarchy": "font-size: 1.24rem; font-weight: 900; line-height: 1.08;",
+        "narrative.flow": "max-width: 66ch; line-height: 1.5;",
+    },
+    # neon cyber — near-black ground, mono, magenta uppercase accent, cyan glow surfaces
+    "aesthetic.neon_cyber": {
+        "palette.temperature": "background-color: #05060a;",
+        "tone.neutral": "color: #d8f6ff; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;",
+        "tone.muted": "color: #6fb8c8;",
+        "tone.accent": "color: #ff2d9b; font-weight: 700; text-transform: uppercase;",
+        "action.accent": "background-color: #ff2d9b; color: #05060a; border-radius: 6px;",
+        "surface.subtle": "background: #0b0f1a; border: 1px solid #00eaff; border-radius: 6px; box-shadow: 0 0 16px rgb(0 234 255 / 0.22);",
+        "surface.strong": "background: #10182a; border: 1px solid #00eaff; border-radius: 6px;",
+        "density.compact": "gap: 0.2rem; padding: 0.2rem 0.34rem;",
+        "density.regular": "gap: 0.42rem; padding: 0.42rem 0.6rem;",
+        "density.airy": "gap: 0.82rem; padding: 0.72rem 0.92rem;",
+        "emphasis.high": "font-weight: 620; letter-spacing: 0.02em; text-shadow: 0 0 10px rgb(0 234 255 / 0.55);",
+        "rhythm.hierarchy": "font-size: 1.02rem; font-weight: 640; line-height: 1.2;",
+        "narrative.flow": "max-width: 76ch; line-height: 1.5;",
+    },
+    # warm organic — sand ground, humanist sans, round amber surfaces, gentle
+    "aesthetic.warm_organic": {
+        "palette.temperature": "background-color: #efe7d6;",
+        "tone.neutral": "color: #3a2f24; font-family: ui-sans-serif, system-ui, sans-serif;",
+        "tone.muted": "color: #8a7860;",
+        "tone.accent": "color: #c67e1a; font-weight: 700;",
+        "action.accent": "background-color: #c67e1a; color: #ffffff; border-radius: 22px;",
+        "surface.subtle": "background: #faf5ea; border: 1px solid #e0d3bc; border-radius: 20px;",
+        "surface.strong": "background: #f0e6d4; border: 1px solid #d3c1a3; border-radius: 22px;",
+        "density.compact": "gap: 0.5rem; padding: 0.5rem 0.7rem;",
+        "density.regular": "gap: 0.95rem; padding: 0.85rem 1.1rem;",
+        "density.airy": "gap: 1.5rem; padding: 1.3rem 1.6rem;",
+        "emphasis.high": "font-weight: 600; letter-spacing: 0;",
+        "rhythm.hierarchy": "font-size: 1.32rem; font-weight: 620; line-height: 1.3;",
+        "narrative.flow": "max-width: 60ch; line-height: 1.8;",
+    },
 }
 
 
@@ -229,6 +293,35 @@ AESTHETIC_PROFILE_SHAPE_VARS: dict[str, dict[str, str]] = {
         "--vs-action-radius": "4px",
         "--vs-surface-border": "1.5px solid #b9c8d8",
         "--vs-value-weight": "800",
+    },
+    # brutalist — zero radius everywhere, hard 2px black frame, no shadow
+    "aesthetic.brutalist": {
+        "--vs-radius": "0",
+        "--vs-control-radius": "0",
+        "--vs-badge-radius": "0",
+        "--vs-action-radius": "0",
+        "--vs-surface-border": "2px solid #0a0a0a",
+        "--vs-surface-shadow": "none",
+        "--vs-value-weight": "900",
+    },
+    # neon cyber — sharp small radius, cyan glow shadow, bright border
+    "aesthetic.neon_cyber": {
+        "--vs-radius": "6px",
+        "--vs-control-radius": "5px",
+        "--vs-badge-radius": "5px",
+        "--vs-action-radius": "5px",
+        "--vs-surface-border": "1px solid #00eaff",
+        "--vs-surface-shadow": "0 0 16px rgb(0 234 255 / 0.22)",
+        "--vs-value-weight": "640",
+    },
+    # warm organic — round, soft amber, gentle
+    "aesthetic.warm_organic": {
+        "--vs-radius": "20px",
+        "--vs-control-radius": "16px",
+        "--vs-badge-radius": "999px",
+        "--vs-action-radius": "999px",
+        "--vs-surface-border": "1px solid #e0d3bc",
+        "--vs-value-weight": "620",
     },
 }
 

@@ -21,6 +21,9 @@ PROFILE_LABELS = {
     "aesthetic.data_dense": "Data Dense",
     "aesthetic.editorial_product": "Editorial Product",
     "aesthetic.executive_review": "Executive Review",
+    "aesthetic.brutalist": "Brutalist",
+    "aesthetic.neon_cyber": "Neon Cyber",
+    "aesthetic.warm_organic": "Warm Organic",
 }
 
 PROFILE_NOTES = {
@@ -29,6 +32,9 @@ PROFILE_NOTES = {
     "aesthetic.data_dense": "Compact spacing, smaller type, and tighter controls for repeated scanning.",
     "aesthetic.editorial_product": "Warmer product-story pacing with broader prose rhythm.",
     "aesthetic.executive_review": "Conservative review surfaces with restrained contrast and crisp framing.",
+    "aesthetic.brutalist": "Raw off-white ground with hard black frames, zero radius, and a loud red.",
+    "aesthetic.neon_cyber": "Near-black terminal with magenta uppercase accents and cyan glow.",
+    "aesthetic.warm_organic": "Warm sand ground, humanist sans, and soft rounded amber surfaces.",
 }
 
 LAYOUT_PROOF_ROLES = ("content_grid", "metric_grid")

@@ -96,5 +96,5 @@ def test_new_property_usage_is_the_pinned_b3_set():
             usage.setdefault(prop, set()).add(token)
     assert usage == {
         "font-style": {"aesthetic.editorial_product"},
-        "text-shadow": {"aesthetic.data_dense"},
+        "text-shadow": {"aesthetic.data_dense", "aesthetic.neon_cyber"},
     }, usage

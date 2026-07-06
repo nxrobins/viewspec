@@ -1,7 +1,72 @@
 {
   "defaultProfile": "aesthetic.calm_ops",
-  "profileCount": 5,
+  "profileCount": 8,
   "profiles": {
+    "aesthetic.brutalist": {
+      "artifactBodyUrl": "./landing-compiled/profiles/brutalist/artifact_body.html",
+      "artifactUrl": "./landing-compiled/profiles/brutalist/index.html",
+      "intentUrl": "./landing-compiled/profiles/brutalist/intent_bundle.json",
+      "invariantFlags": {
+        "manifestProfileMatches": true,
+        "sameSemanticGraph": true,
+        "semanticIdsStable": true,
+        "shellOverridesZero": true,
+        "styleProjectionDistinct": true
+      },
+      "label": "Brutalist",
+      "layoutSignature": "workspace 1 / metrics 1",
+      "manifestAestheticProfile": "aesthetic.brutalist",
+      "manifestUrl": "./landing-compiled/profiles/brutalist/provenance_manifest.json",
+      "nodeCount": 72,
+      "note": "Raw off-white ground with hard black frames, zero radius, and a loud red.",
+      "projection": {
+        "accent": "#d81e1e",
+        "cols": 1,
+        "featuredSpan": null,
+        "fontFamily": "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
+        "fontLabel": "mono",
+        "pageTint": "#f4f0e6",
+        "radius": "0",
+        "sparkFill": "rgba(216,30,30,0.16)",
+        "surfaceRadius": "0",
+        "uppercase": true,
+        "weight": "900"
+      },
+      "semanticHash": "6f3e13e1c376a4549c529af0d6e5d465f041c35393e087c3525e771ef344c350",
+      "slug": "brutalist",
+      "styleProjectionHash": "669d75db93fc54401f7f8ad1db45fc525f116da4f25eef118d7a97e51d126d0c",
+      "styleProof": {
+        "categories": [
+          "action",
+          "density",
+          "emphasis",
+          "narrative",
+          "palette",
+          "rhythm",
+          "surface",
+          "tone"
+        ],
+        "category_count": 8,
+        "changed_token_count": 13,
+        "changed_tokens": [
+          "action.accent",
+          "density.airy",
+          "density.compact",
+          "density.regular",
+          "emphasis.high",
+          "narrative.flow",
+          "palette.temperature",
+          "rhythm.hierarchy",
+          "surface.strong",
+          "surface.subtle",
+          "tone.accent",
+          "tone.muted",
+          "tone.neutral"
+        ],
+        "declaration_count": 29
+      },
+      "styleSignature": "13 changed tokens / 8 categories / 29 declarations"
+    },
     "aesthetic.calm_ops": {
       "artifactBodyUrl": "./landing-compiled/profiles/calm-ops/artifact_body.html",
       "artifactUrl": "./landing-compiled/profiles/calm-ops/index.html",
@@ -262,6 +327,71 @@
       },
       "styleSignature": "13 changed tokens / 8 categories / 30 declarations"
     },
+    "aesthetic.neon_cyber": {
+      "artifactBodyUrl": "./landing-compiled/profiles/neon-cyber/artifact_body.html",
+      "artifactUrl": "./landing-compiled/profiles/neon-cyber/index.html",
+      "intentUrl": "./landing-compiled/profiles/neon-cyber/intent_bundle.json",
+      "invariantFlags": {
+        "manifestProfileMatches": true,
+        "sameSemanticGraph": true,
+        "semanticIdsStable": true,
+        "shellOverridesZero": true,
+        "styleProjectionDistinct": true
+      },
+      "label": "Neon Cyber",
+      "layoutSignature": "workspace 2 / metrics 2",
+      "manifestAestheticProfile": "aesthetic.neon_cyber",
+      "manifestUrl": "./landing-compiled/profiles/neon-cyber/provenance_manifest.json",
+      "nodeCount": 72,
+      "note": "Near-black terminal with magenta uppercase accents and cyan glow.",
+      "projection": {
+        "accent": "#ff2d9b",
+        "cols": 2,
+        "featuredSpan": null,
+        "fontFamily": "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
+        "fontLabel": "mono",
+        "pageTint": "#05060a",
+        "radius": "6px",
+        "sparkFill": "rgba(255,45,155,0.16)",
+        "surfaceRadius": "6px",
+        "uppercase": true,
+        "weight": "620"
+      },
+      "semanticHash": "6f3e13e1c376a4549c529af0d6e5d465f041c35393e087c3525e771ef344c350",
+      "slug": "neon-cyber",
+      "styleProjectionHash": "bf6e5321f3bffd4d6025b80b5a715f664c38e332619e3605074c7bbd8fe6d16f",
+      "styleProof": {
+        "categories": [
+          "action",
+          "density",
+          "emphasis",
+          "narrative",
+          "palette",
+          "rhythm",
+          "surface",
+          "tone"
+        ],
+        "category_count": 8,
+        "changed_token_count": 13,
+        "changed_tokens": [
+          "action.accent",
+          "density.airy",
+          "density.compact",
+          "density.regular",
+          "emphasis.high",
+          "narrative.flow",
+          "palette.temperature",
+          "rhythm.hierarchy",
+          "surface.strong",
+          "surface.subtle",
+          "tone.accent",
+          "tone.muted",
+          "tone.neutral"
+        ],
+        "declaration_count": 31
+      },
+      "styleSignature": "13 changed tokens / 8 categories / 31 declarations"
+    },
     "aesthetic.premium_saas": {
       "artifactBodyUrl": "./landing-compiled/profiles/premium-saas/artifact_body.html",
       "artifactUrl": "./landing-compiled/profiles/premium-saas/index.html",
@@ -326,11 +456,76 @@
         "declaration_count": 29
       },
       "styleSignature": "13 changed tokens / 8 categories / 29 declarations"
+    },
+    "aesthetic.warm_organic": {
+      "artifactBodyUrl": "./landing-compiled/profiles/warm-organic/artifact_body.html",
+      "artifactUrl": "./landing-compiled/profiles/warm-organic/index.html",
+      "intentUrl": "./landing-compiled/profiles/warm-organic/intent_bundle.json",
+      "invariantFlags": {
+        "manifestProfileMatches": true,
+        "sameSemanticGraph": true,
+        "semanticIdsStable": true,
+        "shellOverridesZero": true,
+        "styleProjectionDistinct": true
+      },
+      "label": "Warm Organic",
+      "layoutSignature": "workspace 2 / metrics 3 / featured metric span 2 + featured emphasis",
+      "manifestAestheticProfile": "aesthetic.warm_organic",
+      "manifestUrl": "./landing-compiled/profiles/warm-organic/provenance_manifest.json",
+      "nodeCount": 72,
+      "note": "Warm sand ground, humanist sans, and soft rounded amber surfaces.",
+      "projection": {
+        "accent": "#c67e1a",
+        "cols": 3,
+        "featuredSpan": 2,
+        "fontFamily": "ui-sans-serif, system-ui, sans-serif",
+        "fontLabel": "sans",
+        "pageTint": "#efe7d6",
+        "radius": "22px",
+        "sparkFill": "rgba(198,126,26,0.16)",
+        "surfaceRadius": "20px",
+        "uppercase": false,
+        "weight": "600"
+      },
+      "semanticHash": "6f3e13e1c376a4549c529af0d6e5d465f041c35393e087c3525e771ef344c350",
+      "slug": "warm-organic",
+      "styleProjectionHash": "a26ae9490b93dd00b193091a06ffdc3085f781da635db07c95fa731d8431ab63",
+      "styleProof": {
+        "categories": [
+          "action",
+          "density",
+          "emphasis",
+          "narrative",
+          "palette",
+          "rhythm",
+          "surface",
+          "tone"
+        ],
+        "category_count": 8,
+        "changed_token_count": 13,
+        "changed_tokens": [
+          "action.accent",
+          "density.airy",
+          "density.compact",
+          "density.regular",
+          "emphasis.high",
+          "narrative.flow",
+          "palette.temperature",
+          "rhythm.hierarchy",
+          "surface.strong",
+          "surface.subtle",
+          "tone.accent",
+          "tone.muted",
+          "tone.neutral"
+        ],
+        "declaration_count": 28
+      },
+      "styleSignature": "13 changed tokens / 8 categories / 28 declarations"
     }
   },
   "semanticIdsStable": true,
   "shellOverrides": 0,
   "styleProjectionDistinct": true,
-  "styleProjectionHashCount": 5,
+  "styleProjectionHashCount": 8,
   "version": "landing_compiled_aesthetic_profiles.v1"
 }
