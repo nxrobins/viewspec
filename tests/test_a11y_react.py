@@ -37,6 +37,14 @@ def test_every_profile_clears_scoped_aa():
         assert report["contrast_failures"] == 0, f"{profile} fails AA: {report['failures']}"
 
 
+def test_base_recipe_no_profile_contrast_is_covered():
+    # profile=None resolves the base slate/teal recipe (the no-profile React default) and clears AA.
+    report = react_contrast_report(None)
+    assert report["profile"] is None
+    assert report["contrast_failures"] == 0
+    assert report["min_contrast_ratio"] >= 4.5
+
+
 def test_react_min_contrast_golden():
     # Deliberate pin: a recipe/overlay color change that dips a pair below its scoped threshold
     # changes these and fails loudly. data_dense's min is a high-contrast body pair; the tightest

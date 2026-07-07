@@ -108,12 +108,13 @@ def test_contrast_failure_is_flagged():
 
 
 def test_name_report_treats_fallback_as_unnamed():
+    # Keyed by composition-IR primitive (emitter-agnostic), not the html-only vs-* class.
     nodes = {
-        "n1": {"ir_id": "email_input", "classes": ["vs-input"], "props": {"aria_label": "Email"}},
-        "n2": {"ir_id": "bare_input", "classes": ["vs-input"], "props": {"binding_id": "q"}},
-        "n3": {"ir_id": "save_btn", "classes": ["vs-button"], "props": {"text": "Save"}},
-        "n4": {"ir_id": "anon_img", "classes": ["vs-image-slot"], "props": {}},
-        "n5": {"ir_id": "plain_surface", "classes": ["vs-surface"], "props": {}},  # not a control
+        "n1": {"ir_id": "email_input", "primitive": "input", "props": {"aria_label": "Email"}},
+        "n2": {"ir_id": "bare_input", "primitive": "input", "props": {"binding_id": "q"}},  # fallback
+        "n3": {"ir_id": "save_btn", "primitive": "button", "props": {"text": "Save"}},
+        "n4": {"ir_id": "anon_img", "primitive": "image_slot", "props": {}},  # fallback
+        "n5": {"ir_id": "plain_surface", "primitive": "surface", "props": {}},  # not a control
     }
     report = name_report(nodes)
     assert report["interactive_controls"] == 4
@@ -123,7 +124,7 @@ def test_name_report_treats_fallback_as_unnamed():
 
 
 def test_name_report_empty_when_no_controls():
-    report = name_report({"r": {"ir_id": "root", "classes": ["vs-root"], "props": {}}})
+    report = name_report({"r": {"ir_id": "root", "primitive": "root", "props": {}}})
     assert report == {"interactive_controls": 0, "named": 0, "unnamed_interactive": 0, "unnamed": []}
 
 
@@ -139,4 +140,5 @@ def test_prove_reports_passing_a11y(tmp_path):
     assert a11y["contrast_failures"] == 0
     assert a11y["min_contrast_ratio"] >= 4.5
     assert report["checks"]["a11y_contrast"] == "passed"
-    assert report["checks"]["a11y_names"] in {"passed", "warn"}
+    assert report["checks"]["a11y_names"] in {"passed", "failed"}  # fail-closed now; starter has 0 controls
+    assert report["checks"]["a11y_names"] == "passed"

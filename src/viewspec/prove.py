@@ -177,9 +177,20 @@ def prove(
                     ]
             else:
                 checks["a11y_contrast"] = "not_applicable"
-            # Names are warn-only this release (fallback-named controls exist in the wild); the
-            # summary still reports them so authors can fix, but they do not fail the proof yet.
-            checks["a11y_names"] = "passed" if a11y["unnamed_interactive"] == 0 else "warn"
+            if a11y["unnamed_interactive"]:
+                checks["a11y_names"] = "failed"
+                errors = list(errors) + [
+                    {
+                        "code": "A11Y_CONTROL_UNNAMED",
+                        "message": (
+                            f"{a11y['unnamed_interactive']} interactive control(s) lack an accessible "
+                            f"name: {', '.join(a11y['unnamed'])}."
+                        ),
+                        "fix": "Give each control an author-provided name: input aria_label, image alt/label, button text/label.",
+                    }
+                ]
+            else:
+                checks["a11y_names"] = "passed"
         report = _report(
             ok=not errors,
             target=target,
@@ -445,9 +456,9 @@ def _a11y_report(manifest_path: Path) -> dict[str, Any]:
         from viewspec.emitters.react_tailwind_tsx.a11y import react_contrast_report
         from viewspec.emitters.react_tailwind_tsx.recipes import TAILWIND_AESTHETIC_RECIPE_OVERLAYS
 
-        if profile in TAILWIND_AESTHETIC_RECIPE_OVERLAYS:
-            contrast = react_contrast_report(profile)
-        # React base-recipe (no-profile) contrast is a documented future refinement.
+        # profile overlay when set, else the base recipe (profile=None) — React contrast is always
+        # checked now.
+        contrast = react_contrast_report(profile if profile in TAILWIND_AESTHETIC_RECIPE_OVERLAYS else None)
     else:
         contrast = a11y_contrast_report(profile)
     report: dict[str, Any] = {
