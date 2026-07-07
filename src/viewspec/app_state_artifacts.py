@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Any
 
 from viewspec.app_errors import AppBundleProofFailure
-from viewspec.app_validation import APP_BUNDLE_STATE_SCHEMA_VERSION
+from viewspec.app_validation import APP_BUNDLE_STATE_SCHEMA_VERSION, APP_BUNDLE_VISIBILITY_SCHEMA_VERSION
 from viewspec.local_tools import atomic_write, file_hash
 from viewspec.state_ir import APP_STATE_MAX_MANIFEST_BYTES, APP_STATE_MAX_REDUCER_BYTES, INTERACTIVE_STATE_PROFILE
 
@@ -24,7 +24,7 @@ def _write_state_artifacts(
     check_conformance: Callable[..., dict[str, Any]],
     build_manifest: Callable[..., dict[str, Any]],
 ) -> dict[str, Any] | None:
-    if payload.get("schema_version") != APP_BUNDLE_STATE_SCHEMA_VERSION:
+    if payload.get("schema_version") not in {APP_BUNDLE_STATE_SCHEMA_VERSION, APP_BUNDLE_VISIBILITY_SCHEMA_VERSION}:
         return None
     reducer_path = output_dir / APP_STATE_REDUCER
     manifest_path = output_dir / APP_STATE_MANIFEST
@@ -95,11 +95,50 @@ def _write_state_artifacts(
             "replay_ok": bool(manifest.get("replay", {}).get("ok")) if isinstance(manifest.get("replay"), dict) else True,
             "contract_hash": manifest.get("contract_hash"),
             "reducer_conformance": _state_conformance_status(conformance),
+            # v4-only keys: the v3 summary shape stays byte-stable.
+            **(_visibility_summary(payload, manifest) if payload.get("schema_version") == APP_BUNDLE_VISIBILITY_SCHEMA_VERSION else {}),
         },
         "replay": manifest.get("replay") if isinstance(manifest.get("replay"), dict) else None,
         "contract_hash": manifest.get("contract_hash"),
         "conformance": conformance,
     }
+
+
+def _visibility_summary(payload: dict[str, Any], manifest: dict[str, Any]) -> dict[str, Any]:
+    """v4 visibility facts. SC-V2: visibility_replay_ok is true|false ONLY when at least one
+    replay assertion declares expect_visibility; otherwise null — reported, never claimed."""
+    rules = payload.get("visibility", []) if isinstance(payload.get("visibility"), list) else []
+    assertions = (
+        payload.get("state_replay_assertions", [])
+        if isinstance(payload.get("state_replay_assertions"), list)
+        else []
+    )
+    asserted = any(
+        isinstance(item, dict) and isinstance(item.get("expect_visibility"), dict) and item["expect_visibility"]
+        for item in assertions
+    )
+    visibility_replay_ok: bool | None = None
+    if asserted:
+        replay = manifest.get("replay") if isinstance(manifest.get("replay"), dict) else {}
+        entries = replay.get("assertions") if isinstance(replay.get("assertions"), list) else []
+        visibility_replay_ok = all(
+            entry.get("visibility_matches", True) for entry in entries if isinstance(entry, dict)
+        )
+    initial_hidden = _initial_hidden_count(payload)
+    return {
+        "visibility_rule_count": len(rules),
+        "initial_hidden_count": initial_hidden,
+        "visibility_replay_ok": visibility_replay_ok,
+    }
+
+
+def _initial_hidden_count(payload: dict[str, Any]) -> int | None:
+    from viewspec.state_ir import initial_visibility, validate_state_ir
+
+    state_ir, issues = validate_state_ir(payload)
+    if state_ir is None or issues:
+        return None
+    return sum(1 for visible in initial_visibility(payload, state_ir).values() if not visible)
 
 
 def _state_conformance_status(report: object) -> str | None:

@@ -8,8 +8,20 @@ from typing import Any
 
 from viewspec.app_errors import _normalize_proof_errors
 from viewspec.app_paths import _assert_under_proof_root
+from viewspec.app_visibility import check_screen_visibility_bake, screen_visibility_overlays
 from viewspec.local_tools import atomic_write, check_artifact_dir, file_hash
 from viewspec.manifest_summary import summarize_intent_manifest
+from viewspec.state_ir import validate_state_ir
+
+
+def _visibility_overlays_for(payload: dict[str, Any]) -> dict[str, dict[str, dict[str, Any]]]:
+    if payload.get("schema_version") != 4:
+        return {}
+    state_ir, issues = validate_state_ir(payload)
+    if state_ir is None or issues:
+        # Upstream validation already failed the bundle; screens will not compile cleanly anyway.
+        return {}
+    return screen_visibility_overlays(payload, state_ir)
 
 
 def _prove_app_screens(
@@ -23,6 +35,7 @@ def _prove_app_screens(
 ) -> list[dict[str, Any]]:
     screen_reports: list[dict[str, Any]] = []
     screens = payload.get("screens") if isinstance(payload.get("screens"), list) else []
+    visibility_overlays = _visibility_overlays_for(payload)
     for screen in screens:
         screen_id = str(screen["id"])
         screen_dir = output_dir / "screens" / screen_id
@@ -38,6 +51,7 @@ def _prove_app_screens(
             strict_design=strict_design,
             target=target,
             root=root,
+            ir_props_overlay=visibility_overlays.get(screen_id),
         )
         errors = _normalize_proof_errors(compiled.get("errors")) if not compiled.get("ok") else []
         manifest_path = artifact_dir / "provenance_manifest.json"
@@ -62,6 +76,20 @@ def _prove_app_screens(
                     "fix": "Regenerate the screen artifact from a valid embedded IntentBundle.",
                 }
             )
+        if not errors and screen_id in visibility_overlays and manifest_path.exists():
+            # SC-V1: the artifact's baked markers must equal the initial_visibility-derived overlay.
+            try:
+                screen_manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            except Exception:
+                screen_manifest = {}
+            for mismatch in check_screen_visibility_bake(screen_manifest, visibility_overlays[screen_id]):
+                errors.append(
+                    {
+                        "code": "APP_VISIBILITY_BAKE_MISMATCH",
+                        "message": f"Screen {screen_id} visibility bake mismatch: {mismatch}.",
+                        "fix": "Recompile the AppBundle; baked visibility markers must match initial_visibility exactly.",
+                    }
+                )
         screen_reports.append(
             {
                 "id": screen_id,
@@ -101,6 +129,7 @@ def _compile_screen(
     strict_design: bool,
     target: str,
     root: Path,
+    ir_props_overlay: dict[str, dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     from viewspec.intent_tools import compile_intent_bundle_file_tool
 
@@ -112,6 +141,7 @@ def _compile_screen(
         target=target,
         cwd=root,
         allow_outside_cwd=True,
+        ir_props_overlay=ir_props_overlay,
     )
 
 

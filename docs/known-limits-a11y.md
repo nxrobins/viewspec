@@ -31,6 +31,9 @@ on contrast. This documents exactly what is and is not proven, so reviewers can 
   not statically decidable and/or later slices.
 - **Wide-gamut / non-sRGB color** — the registry is 6-digit sRGB hex; anything else is rejected
   upstream by the style validator.
+- **Initially-hidden visibility targets (AppBundle V4)** — nodes carrying `data-visibility-rule`
+  markers are still name- and contrast-checked even when baked `hidden`: a hidden node can become
+  visible at runtime, so exempting it would under-check. Intentional, not an oversight.
 
 Scoped contrast + name presence is a real, checked handle — not a full WCAG audit or screen-reader
 certification.

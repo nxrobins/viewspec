@@ -148,9 +148,9 @@ Use `viewspec diff-intent old.intent.json new.intent.json --json` to review agen
 
 This is intentionally not a visual equivalence proof. It tells reviewers what changed in the declared UI intent before they inspect compiled HTML, React, SwiftUI, Flutter, or other emitter artifacts.
 
-## AppBundle V1/V2/V3
+## AppBundle V1/V2/V3/V4
 
-Use AppBundle JSON for the first narrow multi-screen internal-tool app-generation contract. Agents still emit strict JSON, but the source file is `viewspec.app.json`: app metadata, static routes, fixture resources, and embedded local V1 `IntentBundle`s for each screen. `schema_version: 1` reports `resource_binding: "unbound_v0"`; `schema_version: 2` adds proof-only `resource_binding: "fixture_readonly_v0"` with declared per-screen `resource_views`; `schema_version: 3` adds bounded `interactive_state_v0` state, mutations, selectors, replay assertions, and a generated pure TypeScript reducer.
+Use AppBundle JSON for the first narrow multi-screen internal-tool app-generation contract. Agents still emit strict JSON, but the source file is `viewspec.app.json`: app metadata, static routes, fixture resources, and embedded local V1 `IntentBundle`s for each screen. `schema_version: 1` reports `resource_binding: "unbound_v0"`; `schema_version: 2` adds proof-only `resource_binding: "fixture_readonly_v0"` with declared per-screen `resource_views`; `schema_version: 3` adds bounded `interactive_state_v0` state, mutations, selectors, replay assertions, and a generated pure TypeScript reducer; `schema_version: 4` adds optional bounded `visibility` rules — per-screen show/hide conditions over declared state and selectors (at most one rule per screen target), baked into compiled screens as `data-visibility-rule` markers with initial `hidden` attributes, replayable via `expect_visibility`, and exported from the generated reducer as `evaluateViewSpecVisibility`.
 
 ```bash
 viewspec init-app --out viewspec.app.json
@@ -171,13 +171,13 @@ AppBundle proof does not prove runtime browser navigation, dynamic routes, live 
 
 ## Published Agent Artifacts
 
-These assets use agent asset schema version `7`. The manifest declares the `local_v1` contract profile plus the export/check commands agents should use for local verification.
+These assets use agent asset schema version `8`. The manifest declares the `local_v1` contract profile plus the export/check commands agents should use for local verification.
 
 - Asset manifest: `https://viewspec.dev/agent-assets.json`
 - System prompt: `https://viewspec.dev/agent-system-prompt.txt`
 - JSON schema: `https://viewspec.dev/agent-intent-bundle.schema.json`
 - Valid starter example: `https://viewspec.dev/agent-intent-example.dashboard.json`
-- AppBundle V1/V2/V3 schema: `https://viewspec.dev/agent-app-bundle.schema.json`
+- AppBundle V1/V2/V3/V4 schema: `https://viewspec.dev/agent-app-bundle.schema.json`
 - AppBundle internal-tool example: `https://viewspec.dev/agent-app-example.internal-tool.json`
 - Hosted compiler OpenAPI: `https://viewspec.dev/openapi.json`
 - LLM summary: `https://viewspec.dev/llms.txt`

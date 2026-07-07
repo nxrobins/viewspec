@@ -19,6 +19,7 @@ from viewspec.state_ir import (
     APP_STATE_MAX_REPLAY_ASSERTIONS,
     APP_STATE_MAX_SELECTOR_OPS,
     APP_STATE_MAX_SELECTORS,
+    APP_VISIBILITY_MAX_RULES,
     INTERACTIVE_STATE_PROFILE,
     state_ir_summary,
     validate_state_ir,
@@ -27,10 +28,12 @@ from viewspec.state_ir import (
 APP_BUNDLE_SCHEMA_VERSION = 1
 APP_BUNDLE_BOUND_SCHEMA_VERSION = 2
 APP_BUNDLE_STATE_SCHEMA_VERSION = 3
+APP_BUNDLE_VISIBILITY_SCHEMA_VERSION = 4
 APP_BUNDLE_SUPPORTED_SCHEMA_VERSIONS = (
     APP_BUNDLE_SCHEMA_VERSION,
     APP_BUNDLE_BOUND_SCHEMA_VERSION,
     APP_BUNDLE_STATE_SCHEMA_VERSION,
+    APP_BUNDLE_VISIBILITY_SCHEMA_VERSION,
 )
 APP_BUNDLE_RESULT_SCHEMA_VERSION = 1
 APP_BUNDLE_RESOURCE_BINDING = "unbound_v0"
@@ -66,6 +69,7 @@ APP_BUNDLE_ALLOWED_ROOT_FIELDS_V3 = APP_BUNDLE_ALLOWED_ROOT_FIELDS_V2 | {
     "selectors",
     "state_replay_assertions",
 }
+APP_BUNDLE_ALLOWED_ROOT_FIELDS_V4 = APP_BUNDLE_ALLOWED_ROOT_FIELDS_V3 | {"visibility"}
 APP_BUNDLE_ALLOWED_APP_FIELDS = {"id", "title", "kind", "root_route"}
 APP_BUNDLE_ALLOWED_ROUTE_FIELDS = {"id", "path", "label", "screen_id"}
 APP_BUNDLE_ALLOWED_RESOURCE_FIELDS = {"id", "kind", "records"}
@@ -106,20 +110,22 @@ def _validate_app_payload(payload: dict[str, Any], issues: list[dict[str, str]],
     schema_version = payload.get("schema_version")
     version: int | None = None
     if type(schema_version) is not int:
-        issues.append(_issue("APP_SCHEMA_VERSION_REQUIRED", "$.schema_version", "AppBundle schema_version must be integer 1, 2, or 3."))
+        issues.append(_issue("APP_SCHEMA_VERSION_REQUIRED", "$.schema_version", "AppBundle schema_version must be integer 1, 2, 3, or 4."))
     elif schema_version not in APP_BUNDLE_SUPPORTED_SCHEMA_VERSIONS:
         issues.append(
             _issue(
                 "APP_SCHEMA_VERSION_UNSUPPORTED",
                 "$.schema_version",
                 f"Unsupported AppBundle schema_version {schema_version}.",
-                "Use AppBundle schema_version 1 for unbound V0, 2 for fixture_readonly_v0, or 3 for interactive_state_v0.",
+                "Use AppBundle schema_version 1 for unbound V0, 2 for fixture_readonly_v0, 3 for interactive_state_v0, or 4 for visibility_v0.",
             )
         )
     else:
         version = schema_version
 
-    if version == APP_BUNDLE_STATE_SCHEMA_VERSION:
+    if version == APP_BUNDLE_VISIBILITY_SCHEMA_VERSION:
+        allowed_root_fields = APP_BUNDLE_ALLOWED_ROOT_FIELDS_V4
+    elif version == APP_BUNDLE_STATE_SCHEMA_VERSION:
         allowed_root_fields = APP_BUNDLE_ALLOWED_ROOT_FIELDS_V3
     elif version == APP_BUNDLE_BOUND_SCHEMA_VERSION:
         allowed_root_fields = APP_BUNDLE_ALLOWED_ROOT_FIELDS_V2
@@ -128,7 +134,7 @@ def _validate_app_payload(payload: dict[str, Any], issues: list[dict[str, str]],
     _reject_unknown_fields(payload, "$", allowed_root_fields, issues)
     forbidden_root_payload = (
         {key: value for key, value in payload.items() if key != "mutations"}
-        if version == APP_BUNDLE_STATE_SCHEMA_VERSION
+        if version in {APP_BUNDLE_STATE_SCHEMA_VERSION, APP_BUNDLE_VISIBILITY_SCHEMA_VERSION}
         else payload
     )
     _reject_forbidden_object_keys(forbidden_root_payload, "$", issues)
@@ -153,14 +159,14 @@ def _validate_app_payload(payload: dict[str, Any], issues: list[dict[str, str]],
                     "Set resource_binding to fixture_readonly_v0 or use schema_version 1.",
                 )
             )
-    elif version == APP_BUNDLE_STATE_SCHEMA_VERSION:
+    elif version in {APP_BUNDLE_STATE_SCHEMA_VERSION, APP_BUNDLE_VISIBILITY_SCHEMA_VERSION}:
         if resource_binding != APP_BUNDLE_RESOURCE_BINDING_READONLY:
             issues.append(
                 _issue(
                     "APP_SCHEMA_VERSION_RESOURCE_BINDING_MISMATCH",
                     "$.resource_binding",
-                    "schema_version 3 requires resource_binding fixture_readonly_v0.",
-                    "Set resource_binding to fixture_readonly_v0 for AppBundle V3.",
+                    f"schema_version {version} requires resource_binding fixture_readonly_v0.",
+                    f"Set resource_binding to fixture_readonly_v0 for AppBundle V{version}.",
                 )
             )
 
@@ -190,9 +196,9 @@ def _validate_app_payload(payload: dict[str, Any], issues: list[dict[str, str]],
     _validate_unique_ids(resource_ids, "$.resources", "APP_DUPLICATE_RESOURCE_ID", issues)
     _validate_unique_ids(screen_ids, "$.screens", "APP_DUPLICATE_SCREEN_ID", issues)
     _validate_route_graph(app, routes, set(screen_ids), issues)
-    if version in {APP_BUNDLE_BOUND_SCHEMA_VERSION, APP_BUNDLE_STATE_SCHEMA_VERSION}:
+    if version in {APP_BUNDLE_BOUND_SCHEMA_VERSION, APP_BUNDLE_STATE_SCHEMA_VERSION, APP_BUNDLE_VISIBILITY_SCHEMA_VERSION}:
         _validate_resource_binding_v0(resources, screens, issues)
-    if version == APP_BUNDLE_STATE_SCHEMA_VERSION:
+    if version in {APP_BUNDLE_STATE_SCHEMA_VERSION, APP_BUNDLE_VISIBILITY_SCHEMA_VERSION}:
         _state_ir, state_issues = validate_state_ir(payload)
         issues.extend(issue.to_json() for issue in state_issues)
 
@@ -321,7 +327,7 @@ def _validate_screens(
             continue
         allowed_fields = (
             APP_BUNDLE_ALLOWED_SCREEN_FIELDS_V2
-            if schema_version in {APP_BUNDLE_BOUND_SCHEMA_VERSION, APP_BUNDLE_STATE_SCHEMA_VERSION}
+            if schema_version in {APP_BUNDLE_BOUND_SCHEMA_VERSION, APP_BUNDLE_STATE_SCHEMA_VERSION, APP_BUNDLE_VISIBILITY_SCHEMA_VERSION}
             else APP_BUNDLE_ALLOWED_SCREEN_FIELDS | {"resource_views"}
         )
         _reject_unknown_fields(screen, path, allowed_fields, issues)
@@ -335,7 +341,7 @@ def _validate_screens(
                     "Remove resource_views or upgrade to schema_version 2 with fixture_readonly_v0.",
                 )
             )
-        if schema_version in {APP_BUNDLE_BOUND_SCHEMA_VERSION, APP_BUNDLE_STATE_SCHEMA_VERSION} and "resource_views" not in screen:
+        if schema_version in {APP_BUNDLE_BOUND_SCHEMA_VERSION, APP_BUNDLE_STATE_SCHEMA_VERSION, APP_BUNDLE_VISIBILITY_SCHEMA_VERSION} and "resource_views" not in screen:
             issues.append(
                 _issue(
                     "APP_RESOURCE_BINDING_VIEWS_REQUIRED",
@@ -715,6 +721,7 @@ def _resource_binding_for_payload(payload: dict[str, Any] | None) -> str:
     if isinstance(payload, dict) and payload.get("schema_version") in {
         APP_BUNDLE_BOUND_SCHEMA_VERSION,
         APP_BUNDLE_STATE_SCHEMA_VERSION,
+        APP_BUNDLE_VISIBILITY_SCHEMA_VERSION,
     }:
         return APP_BUNDLE_RESOURCE_BINDING_READONLY
     return APP_BUNDLE_RESOURCE_BINDING
@@ -818,6 +825,7 @@ def _state_ir_limits() -> dict[str, int]:
         "max_state_events_per_replay": APP_STATE_MAX_EVENTS_PER_REPLAY,
         "max_state_reducer_bytes": APP_STATE_MAX_REDUCER_BYTES,
         "max_state_manifest_bytes": APP_STATE_MAX_MANIFEST_BYTES,
+        "max_visibility_rules": APP_VISIBILITY_MAX_RULES,
     }
 
 def _reject_unknown_fields(
@@ -1070,6 +1078,7 @@ __all__ = [
     "APP_BUNDLE_RESULT_SCHEMA_VERSION",
     "APP_BUNDLE_SCHEMA_VERSION",
     "APP_BUNDLE_STATE_SCHEMA_VERSION",
+    "APP_BUNDLE_VISIBILITY_SCHEMA_VERSION",
     "APP_BUNDLE_SUPPORTED_SCHEMA_VERSIONS",
     "APP_RESOURCE_BINDING_MAX_ASSERTIONS",
     "APP_RESOURCE_BINDING_MAX_FIELDS_PER_VIEW",

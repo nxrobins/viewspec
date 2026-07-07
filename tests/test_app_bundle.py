@@ -246,9 +246,10 @@ def test_stateful_app_bundle_v3_validates_and_keeps_intent_v1_closed():
         "replay_assertion_count": 1,
     }
     assert validation["summary"]["state_ir"] == validation["state_ir"]
-    assert AGENT_APP_BUNDLE_SCHEMA["x-viewspec-app-schema-versions"] == [1, 2, 3]
+    assert AGENT_APP_BUNDLE_SCHEMA["x-viewspec-app-schema-versions"] == [1, 2, 3, 4]
     assert AGENT_APP_BUNDLE_SCHEMA["x-viewspec-interactive-state"] == "interactive_state_v0"
     assert {"$ref": "#/$defs/app_bundle_v3"} in AGENT_APP_BUNDLE_SCHEMA["oneOf"]
+    assert {"$ref": "#/$defs/app_bundle_v4"} in AGENT_APP_BUNDLE_SCHEMA["oneOf"]
     assert "interactive_state" not in AGENT_INTENT_BUNDLE_SCHEMA["properties"]
     assert "state" not in AGENT_INTENT_BUNDLE_SCHEMA["properties"]
     assert "mutations" not in AGENT_INTENT_BUNDLE_SCHEMA["properties"]

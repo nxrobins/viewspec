@@ -154,6 +154,65 @@
       ],
       "type": "object"
     },
+    "app_bundle_v4": {
+      "additionalProperties": false,
+      "properties": {
+        "app": {
+          "$ref": "#/$defs/app"
+        },
+        "interactive_state": {
+          "const": "interactive_state_v0"
+        },
+        "mutations": {
+          "$ref": "#/$defs/state_mutations"
+        },
+        "resource_binding": {
+          "const": "fixture_readonly_v0"
+        },
+        "resources": {
+          "$ref": "#/$defs/resources"
+        },
+        "routes": {
+          "$ref": "#/$defs/routes"
+        },
+        "schema_version": {
+          "const": 4
+        },
+        "screens": {
+          "items": {
+            "$ref": "#/$defs/screen_v2"
+          },
+          "maxItems": 16,
+          "minItems": 1,
+          "type": "array"
+        },
+        "selectors": {
+          "$ref": "#/$defs/state_selectors"
+        },
+        "state": {
+          "$ref": "#/$defs/state_entries"
+        },
+        "state_replay_assertions": {
+          "$ref": "#/$defs/state_replay_assertions_v4"
+        },
+        "visibility": {
+          "$ref": "#/$defs/visibility_rules"
+        }
+      },
+      "required": [
+        "schema_version",
+        "resource_binding",
+        "interactive_state",
+        "app",
+        "routes",
+        "resources",
+        "screens",
+        "state",
+        "mutations",
+        "selectors"
+      ],
+      "type": "object"
+    },
     "fixture_record": {
       "additionalProperties": {
         "anyOf": [
@@ -182,6 +241,23 @@
     "intent_bundle": {
       "description": "Embedded local V1 IntentBundle. validate-app/prove-app enforce the full local V1 validator.",
       "type": "object"
+    },
+    "json_scalar": {
+      "anyOf": [
+        {
+          "maxLength": 2048,
+          "type": "string"
+        },
+        {
+          "type": "number"
+        },
+        {
+          "type": "boolean"
+        },
+        {
+          "type": "null"
+        }
+      ]
     },
     "json_value": {
       "anyOf": [
@@ -817,9 +893,65 @@
       ],
       "type": "object"
     },
+    "state_replay_assertion_v4": {
+      "additionalProperties": false,
+      "properties": {
+        "events": {
+          "items": {
+            "$ref": "#/$defs/state_replay_event"
+          },
+          "maxItems": 32,
+          "type": "array"
+        },
+        "expect_selectors": {
+          "additionalProperties": {
+            "$ref": "#/$defs/json_value"
+          },
+          "propertyNames": {
+            "$ref": "#/$defs/safe_id"
+          },
+          "type": "object"
+        },
+        "expect_state": {
+          "additionalProperties": {
+            "$ref": "#/$defs/json_value"
+          },
+          "propertyNames": {
+            "$ref": "#/$defs/safe_id"
+          },
+          "type": "object"
+        },
+        "expect_visibility": {
+          "additionalProperties": {
+            "type": "boolean"
+          },
+          "propertyNames": {
+            "$ref": "#/$defs/safe_id"
+          },
+          "type": "object"
+        },
+        "id": {
+          "$ref": "#/$defs/safe_id"
+        }
+      },
+      "required": [
+        "id",
+        "events",
+        "expect_state",
+        "expect_selectors"
+      ],
+      "type": "object"
+    },
     "state_replay_assertions": {
       "items": {
         "$ref": "#/$defs/state_replay_assertion"
+      },
+      "maxItems": 32,
+      "type": "array"
+    },
+    "state_replay_assertions_v4": {
+      "items": {
+        "$ref": "#/$defs/state_replay_assertion_v4"
       },
       "maxItems": 32,
       "type": "array"
@@ -888,11 +1020,102 @@
       },
       "maxItems": 64,
       "type": "array"
+    },
+    "visibility_condition": {
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "is": {
+              "enum": [
+                "truthy",
+                "falsy"
+              ]
+            },
+            "state": {
+              "$ref": "#/$defs/safe_id"
+            }
+          },
+          "required": [
+            "state",
+            "is"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "equals": {
+              "$ref": "#/$defs/json_scalar"
+            },
+            "state": {
+              "$ref": "#/$defs/safe_id"
+            }
+          },
+          "required": [
+            "state",
+            "equals"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "is": {
+              "enum": [
+                "non_empty",
+                "empty"
+              ]
+            },
+            "selector": {
+              "$ref": "#/$defs/safe_id"
+            }
+          },
+          "required": [
+            "selector",
+            "is"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "visibility_rule": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/safe_id"
+        },
+        "screen_id": {
+          "$ref": "#/$defs/safe_id"
+        },
+        "target_ref": {
+          "maxLength": 104,
+          "pattern": "^(region|binding|motif):[A-Za-z0-9_.-]+$",
+          "type": "string"
+        },
+        "when": {
+          "$ref": "#/$defs/visibility_condition"
+        }
+      },
+      "required": [
+        "id",
+        "screen_id",
+        "target_ref",
+        "when"
+      ],
+      "type": "object"
+    },
+    "visibility_rules": {
+      "items": {
+        "$ref": "#/$defs/visibility_rule"
+      },
+      "maxItems": 64,
+      "type": "array"
     }
   },
   "$id": "https://viewspec.dev/agent-app-bundle.schema.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "description": "Local-only multi-screen app contract with embedded IntentBundles, static routes, V1 unbound fixtures, V2 read-only fixture binding proof, and V3 bounded interactive_state_v0 reducers.",
+  "description": "Local-only multi-screen app contract with embedded IntentBundles, static routes, V1 unbound fixtures, V2 read-only fixture binding proof, V3 bounded interactive_state_v0 reducers, and V4 bounded visibility_v0 conditional visibility rules.",
   "oneOf": [
     {
       "$ref": "#/$defs/app_bundle_v1"
@@ -902,21 +1125,26 @@
     },
     {
       "$ref": "#/$defs/app_bundle_v3"
+    },
+    {
+      "$ref": "#/$defs/app_bundle_v4"
     }
   ],
-  "title": "ViewSpec Agent AppBundle V1/V2/V3",
+  "title": "ViewSpec Agent AppBundle V1/V2/V3/V4",
   "x-viewspec-anti-goals": [
     "No runtime browser navigation proof.",
     "No dynamic routes, route params, query strings, hashes, redirects, guards, nested routers, or locale routing.",
     "No live DOM rebinding, framework state adapter, optimistic server reconciliation, persistence, CRDT, websocket sync, or gesture runtime.",
     "No transformed, localized, formatted, joined, sorted, filtered, paginated, grouped, or aggregated fixture proof.",
     "No whole-app data-flow consistency proof beyond explicitly declared resource_views.",
-    "No accessibility, pixel-perfect, cross-browser, production deployment, arbitrary host-app, or hosted extended compiler certification."
+    "No accessibility, pixel-perfect, cross-browser, production deployment, arbitrary host-app, or hosted extended compiler certification.",
+    "Visibility V0 is bounded conditional show/hide only: no boolean condition composition, animation, focus management, or data or text rebinding."
   ],
   "x-viewspec-app-schema-versions": [
     1,
     2,
-    3
+    3,
+    4
   ],
   "x-viewspec-binding-scope": "declared_resource_views_only",
   "x-viewspec-embedded-intent-schema": "https://viewspec.dev/agent-intent-bundle.schema.json",
@@ -926,6 +1154,7 @@
     "schema_version 1 rejects resource_binding and resource_views, and reports unbound_v0.",
     "schema_version 2 requires resource_binding fixture_readonly_v0 and per-screen resource_views.",
     "schema_version 3 requires fixture_readonly_v0 plus interactive_state_v0 state, mutations, and selectors.",
+    "schema_version 4 adds optional bounded visibility rules: per-screen show/hide conditions over declared state and selectors, at most one rule per (screen, target).",
     "Routes are static canonical paths only and must map to declared screens.",
     "The root route must resolve to exactly one route.",
     "Every screen must be reachable by at least one static route.",

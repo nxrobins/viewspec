@@ -48,6 +48,7 @@ from viewspec.intent_tools import STARTER_INTENT_KINDS, starter_intent_bundle, v
 # the path so the import works regardless of pytest's import mode.
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from test_app_bundle import _stateful_app_bundle  # noqa: E402
+from test_app_visibility import _visibility_app_bundle  # noqa: E402
 
 _INTENT_SCHEMA = Draft202012Validator(AGENT_INTENT_BUNDLE_SCHEMA)
 _APP_SCHEMA = Draft202012Validator(AGENT_APP_BUNDLE_SCHEMA)
@@ -62,6 +63,7 @@ def _valid_app_bundles() -> list[tuple[str, dict[str, Any]]]:
         ("v1", starter_app_bundle("internal_tool")),
         ("v2", starter_app_bundle("internal_tool", resource_binding="fixture_readonly_v0")),
         ("v3", _stateful_app_bundle()),
+        ("v4", _visibility_app_bundle()),
     ]
 
 
@@ -188,6 +190,7 @@ def _intent_corpus() -> list[tuple[str, dict[str, Any]]]:
 def _app_corpus() -> list[tuple[str, dict[str, Any]]]:
     v2 = starter_app_bundle("internal_tool", resource_binding="fixture_readonly_v0")
     v3 = _stateful_app_bundle()
+    v4 = _visibility_app_bundle()
 
     def empty_record_ids(b):
         for screen in b["screens"]:
@@ -251,6 +254,31 @@ def _app_corpus() -> list[tuple[str, dict[str, Any]]]:
     def negative_slice_start(b):
         b["selectors"][0]["ops"].append({"op": "slice", "start": -1})
 
+    # --- V4 visibility_v0 ---
+    def v3_with_visibility_root(b):
+        b["visibility"] = copy.deepcopy(v4["visibility"])
+
+    def v3_expect_visibility(b):
+        b["state_replay_assertions"][0]["expect_visibility"] = {"ghost": True}
+
+    def v4_bad_target_ref(b):
+        b["visibility"][0]["target_ref"] = "view:main"
+
+    def v4_condition_two_keys(b):
+        b["visibility"][0]["when"] = {"state": "selected_incident", "is": "truthy", "equals": 1}
+
+    def v4_nested_extra_key_rule(b):
+        b["visibility"][0]["zzz"] = 1
+
+    def v4_expect_visibility_non_bool(b):
+        b["state_replay_assertions"][0]["expect_visibility"]["incidents_when_selected"] = "yes"
+
+    def v4_over_cap(b):
+        b["visibility"] = [
+            {"id": f"r{i}", "screen_id": "queue", "target_ref": "motif:incidents", "when": {"state": "selected_incident", "is": "truthy"}}
+            for i in range(65)
+        ]
+
     return [
         ("empty_record_ids", _mutated(v2, empty_record_ids)),
         ("empty_routes", _mutated(v2, empty_routes)),
@@ -269,6 +297,13 @@ def _app_corpus() -> list[tuple[str, dict[str, Any]]]:
         ("bad_state_kind_enum_v3", _mutated(v3, bad_state_kind)),
         ("negative_slice_start_minimum_v3", _mutated(v3, negative_slice_start)),
         ("nested_extra_key_mutation_op_v3", _mutated(v3, nested_extra_key_mutation_op)),
+        ("v3_with_visibility_root", _mutated(v3, v3_with_visibility_root)),
+        ("v3_expect_visibility", _mutated(v3, v3_expect_visibility)),
+        ("v4_bad_target_ref", _mutated(v4, v4_bad_target_ref)),
+        ("v4_condition_two_keys", _mutated(v4, v4_condition_two_keys)),
+        ("v4_nested_extra_key_rule", _mutated(v4, v4_nested_extra_key_rule)),
+        ("v4_expect_visibility_non_bool", _mutated(v4, v4_expect_visibility_non_bool)),
+        ("v4_visibility_over_cap", _mutated(v4, v4_over_cap)),
     ]
 
 

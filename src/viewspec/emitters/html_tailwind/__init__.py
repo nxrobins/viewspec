@@ -298,6 +298,11 @@ def _validate_ir_contract(node: IRNode, seen_ids: set[str]) -> None:
     if node.primitive not in SUPPORTED_PRIMITIVES:
         supported = ", ".join(sorted(SUPPORTED_PRIMITIVES))
         raise ValueError(f"Unsupported IR primitive '{node.primitive}'. Supported primitives: {supported}.")
+    visibility_rule_id = node.props.get("visibility_rule_id")
+    if visibility_rule_id is not None and (
+        not isinstance(visibility_rule_id, str) or not SAFE_IR_ID_RE.match(visibility_rule_id)
+    ):
+        raise ValueError(f"visibility_rule_id '{visibility_rule_id}' must use only letters, digits, underscore, dot, and dash.")
     _node_classes(node)
     if node.primitive == "grid":
         try:
@@ -410,6 +415,14 @@ def _render_node(node: IRNode, manifest: dict[str, Any], style_values: dict[str,
         attrs.append(f'data-binding-id="{escape(str(node.props["binding_id"]), quote=True)}"')
     if isinstance(aesthetic_profile, str) and aesthetic_profile:
         attrs.append(f'data-aesthetic-profile="{escape(aesthetic_profile, quote=True)}"')
+    visibility_rule_id = node.props.get("visibility_rule_id")
+    if isinstance(visibility_rule_id, str) and visibility_rule_id:
+        # AppBundle V4 visibility bake: marker always, `hidden` iff the initial verdict is false.
+        hidden_initial = bool(node.props.get("visibility_hidden_initial"))
+        attrs.append(f'data-visibility-rule="{escape(visibility_rule_id, quote=True)}"')
+        attrs.append(f'data-visibility-state="{"hidden" if hidden_initial else "visible"}"')
+        if hidden_initial:
+            attrs.append("hidden")
     if node.primitive == "button":
         attrs.extend(
             [
@@ -542,6 +555,18 @@ def _has_action_node(node: IRNode) -> bool:
     return any(_has_action_node(child) for child in node.children)
 
 
+# Author style tokens set `display` inline (e.g. flex on .vs-surface), which beats the UA's
+# `[hidden]` rule — visibility-baked nodes need an !important override. Emitted ONLY when a
+# visibility node exists so every existing artifact stays byte-identical.
+VISIBILITY_EMITTER_CSS = ".vs-root [data-visibility-rule][hidden] { display: none !important; }"
+
+
+def _has_visibility_node(node: IRNode) -> bool:
+    if node.props.get("visibility_rule_id"):
+        return True
+    return any(_has_visibility_node(child) for child in node.children)
+
+
 def emit_compiler_result(
     result: CompilerResult,
     style_values: dict[str, str],
@@ -559,6 +584,9 @@ def emit_compiler_result(
     body_tail = [body]
     if _has_action_node(result.root.root):
         body_tail.append(ACTION_EVENT_SCRIPT)
+    emitter_css = OFFLINE_EMITTER_CSS
+    if _has_visibility_node(result.root.root):
+        emitter_css = f"{OFFLINE_EMITTER_CSS}\n{VISIBILITY_EMITTER_CSS}"
     html = "\n".join(
         [
             "<!DOCTYPE html>",
@@ -568,7 +596,7 @@ def emit_compiler_result(
             '<meta name="viewport" content="width=device-width, initial-scale=1">',
             f"<title>{escape(title)}</title>",
             "<style>",
-            OFFLINE_EMITTER_CSS,
+            emitter_css,
             "</style>",
             "</head>",
             "<body>",
