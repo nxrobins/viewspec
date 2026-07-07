@@ -16,7 +16,7 @@ import re
 from typing import Any
 
 from viewspec.a11y import threshold_for, wcag_contrast_ratio
-from viewspec.emitters.react_tailwind_tsx.recipes import TAILWIND_AESTHETIC_RECIPE_OVERLAYS
+from viewspec.emitters.react_tailwind_tsx.recipes import RECIPE_BY_KEY, TAILWIND_AESTHETIC_RECIPE_OVERLAYS
 
 # Browser-grounded (Blink-rasterized) Tailwind v4.3 sRGB hex for every class the recipes/overlays use.
 TAILWIND_PALETTE: dict[str, str] = {
@@ -100,26 +100,38 @@ def _bg_hex(bg: tuple[str, float] | None, *, over: str, fallback: str) -> str:
     return _composite(base, alpha, over) if alpha < 1 else base
 
 
-def react_contrast_report(profile: str) -> dict[str, Any]:
-    """Scoped-WCAG contrast enumeration for a profile's React Tailwind recipes.
+def _effective_classes(key: str, overlay: dict[str, str] | None) -> str:
+    # Base recipe classes merged with the profile overlay (later class wins in _last_*). overlay is
+    # None for the no-profile base recipe.
+    base = RECIPE_BY_KEY.get(key, "")
+    over = overlay.get(key, "") if overlay else ""
+    return f"{base} {over}".strip()
 
-    Reads the profile overlay, resolves each color-bearing element's fg/bg classes to grounded hex,
-    composites alpha backgrounds, and checks the shared scoped thresholds. Returns compact,
-    deterministic facts; `failures` is the fail-closed signal for the React proof.
+
+def react_contrast_report(profile: str | None = None) -> dict[str, Any]:
+    """Scoped-WCAG contrast enumeration for the React Tailwind recipes.
+
+    Resolves each color-bearing element's effective fg/bg classes (base recipe merged with the
+    profile overlay; `profile=None` = the no-profile base recipe) to grounded hex, composites alpha
+    backgrounds, and checks the shared scoped thresholds. Returns compact, deterministic facts;
+    `failures` is the fail-closed signal for the React proof.
     """
-    overlay = TAILWIND_AESTHETIC_RECIPE_OVERLAYS[profile]
-    ground = _bg_hex(_last_bg(overlay["app_role:app_shell"]), over="#ffffff", fallback="#ffffff")
-    surface = _bg_hex(_last_bg(overlay["app_role:metric_card"]), over=ground, fallback=ground)
-    value_fg = _last_text(overlay["primitive:value"])
-    label_fg = _last_text(overlay["primitive:label"])
-    text_fg = _last_text(overlay["primitive:text"])
-    button_bg = _bg_hex(_last_bg(overlay["primitive:button"]), over=surface, fallback="#00786f")
-    button_fg = _last_text(overlay["primitive:button"]) or "white"  # base recipe defaults to text-white
-    badge_raw = _last_bg(overlay["primitive:badge"])
-    badge_bg = _bg_hex(badge_raw, over=surface, fallback="#cbfbf1")  # badges sit on the surface
-    badge_fg = _last_text(overlay["primitive:badge"]) or "teal-800"
+    overlay = TAILWIND_AESTHETIC_RECIPE_OVERLAYS.get(profile) if profile else None
 
-    ground_text_fg = _last_text(overlay["app_role:app_shell"])
+    def cls(key: str) -> str:
+        return _effective_classes(key, overlay)
+
+    ground = _bg_hex(_last_bg(cls("app_role:app_shell")), over="#ffffff", fallback="#ffffff")
+    surface = _bg_hex(_last_bg(cls("app_role:metric_card")), over=ground, fallback=ground)
+    value_fg = _last_text(cls("primitive:value"))
+    label_fg = _last_text(cls("primitive:label"))
+    text_fg = _last_text(cls("primitive:text"))
+    button_bg = _bg_hex(_last_bg(cls("primitive:button")), over=surface, fallback="#00786f")
+    button_fg = _last_text(cls("primitive:button")) or "white"  # base recipe is text-white
+    badge_bg = _bg_hex(_last_bg(cls("primitive:badge")), over=surface, fallback="#cbfbf1")
+    badge_fg = _last_text(cls("primitive:badge")) or "teal-800"
+
+    ground_text_fg = _last_text(cls("app_role:app_shell"))
 
     def fg(name: str | None, default: str) -> str:
         return _palette(name if name else default)

@@ -147,25 +147,24 @@ def a11y_contrast_report(profile: str | None = None) -> dict[str, Any]:
 #     name_source ∈ {author, fallback}. A name that would come from the emitter's generic fallback
 #     ladder counts as UNNAMED — "non-empty" is never the criterion.
 
-# class -> the props that carry an author-supplied accessible name for that control type.
+# manifest node PRIMITIVE -> the props that carry an author-supplied accessible name. Keyed by
+# primitive (emitter-agnostic: html and react manifests share the composition-IR primitives), not
+# the html-only vs-* class. Mirrors the emitter's real derivation (html_tailwind._render_node):
+# input -> aria_label (binding_id is a fallback, not a real name); image_slot/svg -> alt|label;
+# button -> its visible text|label (fallback "Action").
 _NAMED_CONTROL_AUTHOR_PROPS: dict[str, tuple[str, ...]] = {
-    "vs-input": ("aria_label",),
-    "vs-button": ("text", "label"),
-    "vs-image-slot": ("alt", "label"),
-    "vs-svg": ("label",),
+    "input": ("aria_label",),
+    "button": ("text", "label"),
+    "image_slot": ("alt", "label"),
+    "svg": ("alt", "label"),
 }
-
-
-def _node_classes(entry: dict[str, Any]) -> list[str]:
-    classes = entry.get("classes")
-    return [c for c in classes if isinstance(c, str)] if isinstance(classes, list) else []
 
 
 def name_report(nodes: dict[str, Any]) -> dict[str, Any]:
     """Accessible-name provenance over the flat manifest `nodes` map.
 
-    Returns counts plus the ir_ids of controls whose name would come from the fallback ladder
-    (`unnamed`) — the warn/fail signal for `prove`'s `a11y_names` check.
+    Returns counts plus the ir_ids of controls whose name would come from the emitter's generic
+    fallback ladder (`unnamed`) — the fail signal for `prove`'s `a11y_names` check.
     """
     interactive = 0
     named = 0
@@ -173,12 +172,11 @@ def name_report(nodes: dict[str, Any]) -> dict[str, Any]:
     for entry in nodes.values():
         if not isinstance(entry, dict):
             continue
-        props = entry.get("props") if isinstance(entry.get("props"), dict) else {}
-        control_classes = [c for c in _node_classes(entry) if c in _NAMED_CONTROL_AUTHOR_PROPS]
-        if not control_classes:
+        author_props = _NAMED_CONTROL_AUTHOR_PROPS.get(entry.get("primitive"))
+        if author_props is None:
             continue
         interactive += 1
-        author_props = _NAMED_CONTROL_AUTHOR_PROPS[control_classes[0]]
+        props = entry.get("props") if isinstance(entry.get("props"), dict) else {}
         has_author_name = any(isinstance(props.get(key), str) and props.get(key, "").strip() for key in author_props)
         if has_author_name:
             named += 1

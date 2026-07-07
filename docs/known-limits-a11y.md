@@ -12,22 +12,18 @@ on contrast. This documents exactly what is and is not proven, so reviewers can 
   threshold fails the proof (`a11y_contrast`), naming the offending pair.
 - **React Tailwind emitter contrast (slice 2).** The `react_tailwind_tsx` recipes + per-profile
   overlays resolve to the browser-grounded Tailwind v4 sRGB palette (rasterized by the same Blink
-  engine the host renders in) and are checked against the same scoped thresholds; all eight profiles
-  clear AA and fail closed otherwise.
-
-## Reported, warn-only (this release)
-
-- **Accessible-name presence.** Interactive controls (inputs, buttons, image slots) are checked for
-  an author-provided accessible name; a name that would come only from the emitter's generic
-  fallback ladder counts as *unnamed* and is reported (`a11y_names`) but does not yet fail the proof
-  (existing bundles lean on fallback names). It flips to fail-closed once starters and demos carry
-  explicit names.
+  engine the host renders in) and are checked against the same scoped thresholds; the base recipe
+  and all eight profiles clear AA and fail closed otherwise.
+- **Accessible-name presence.** Interactive controls (input, button, image) must carry an
+  author-provided accessible name — input `aria_label`, image `alt`/`label`, or a button's visible
+  `text`/`label`. A name that would come only from the emitter's generic fallback (e.g. an input's
+  binding id) counts as *unnamed* and **fails** the proof (`a11y_names`). Detection is by
+  composition-IR primitive, so it applies to both the html and React emitters. (Follow-up: the
+  emitter will associate a form field's visible label with its input, so a labeled input needs no
+  separate `aria_label`.)
 
 ## Explicitly out of scope (no fallback owed)
 
-- **React base-recipe (no-profile) contrast** — the eight profile recipes are proven (above); a
-  React artifact compiled without an aesthetic profile falls back to the base slate/teal recipe,
-  whose contrast is not yet separately enumerated. Small follow-up.
 - **Text on gradient / image / video backgrounds** — the compiler never emits text on them; an
   unresolvable background fails loudly (`A11Y_UNRESOLVABLE_BACKGROUND`), never silently.
 - **Focus / tab order, ARIA-state truthfulness, keyboard operability, heading hierarchy, target
