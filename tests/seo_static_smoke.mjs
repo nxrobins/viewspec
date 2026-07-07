@@ -168,7 +168,8 @@ assertPublicText(publicFacts.aesthetic_profiles.non_claim, 'not arbitrary CSS', 
 
 assertPublicText(publicFacts.accessibility.scope, 'fails closed', 'public facts a11y scope')
 assertPublicText(publicFacts.accessibility.contrast_standard, 'WCAG 2.x AA', 'public facts a11y contrast standard')
-assertPublicText(publicFacts.accessibility.non_claim, 'not yet proven', 'public facts a11y React non-claim')
+assertPublicText(publicFacts.accessibility.scope, 'react-tailwind-tsx', 'public facts a11y React contrast proven')
+assertPublicText(publicFacts.accessibility.non_claim, 'not a full WCAG audit', 'public facts a11y non-claim')
 assert.deepEqual(
   publicFacts.accessibility.check_names,
   ['a11y_contrast', 'a11y_names'],
