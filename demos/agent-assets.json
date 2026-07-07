@@ -19,7 +19,7 @@
   "files": [
     {
       "path": "agent-system-prompt.txt",
-      "sha256": "7701823948335000dcd82e781a3e798ebe6e882a147b81d6c5ea7eb51e73c229"
+      "sha256": "9c93daf793be18261af7279a60564ac4877e1077f6c8283cfffa408491d69eb2"
     },
     {
       "path": "agent-intent-bundle.schema.json",
@@ -31,7 +31,7 @@
     },
     {
       "path": "agent-app-bundle.schema.json",
-      "sha256": "e4193da8081ab0857efe474014ff51687ca8b31072e2f2b6e7e9de7ce27f29e4"
+      "sha256": "022446aaa1b37d567a8f9dfb211daec50f7f73dad88dc669044bffe88a4dec1b"
     },
     {
       "path": "agent-app-example.internal-tool.json",
@@ -40,5 +40,5 @@
   ],
   "intent_schema_id": "https://viewspec.dev/agent-intent-bundle.schema.json",
   "kind": "viewspec_agent_assets",
-  "schema_version": 8
+  "schema_version": 9
 }

@@ -81,7 +81,7 @@
       "no runtime LLM"
     ],
     "scope": "AppBundle V3 is a bounded local app contract for static routes, embedded screen IntentBundles, fixture_readonly_v0 resource views, interactive_state_v0 state, generated reducer artifacts, state_replay_assertions, and html-tailwind-app shell proof. Schema_version 4 adds bounded visibility_v0 rules with baked initial visibility and a replay-proved evaluateViewSpecVisibility reducer export.",
-    "non_claim": "State IR is not Redux, Zustand, CRDT, persistence, backend generation, browser-history proof, live DOM rebinding, or a deployable framework app."
+    "non_claim": "State IR is not Redux, Zustand, CRDT, persistence, backend generation, browser-history proof, live data or text rebinding, or a deployable framework app."
   },
   "aesthetic_profiles": {
     "homepage_url": "https://viewspec.dev/",
@@ -111,7 +111,7 @@
   },
   "agent_assets": {
     "manifest_url": "https://viewspec.dev/agent-assets.json",
-    "schema_version": 8,
+    "schema_version": 9,
     "contract_profile": "local_v1",
     "intent_schema_id": "https://viewspec.dev/agent-intent-bundle.schema.json",
     "app_schema_id": "https://viewspec.dev/agent-app-bundle.schema.json",
