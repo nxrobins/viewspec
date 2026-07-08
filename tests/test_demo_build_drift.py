@@ -122,6 +122,11 @@ def _style_derivation_page() -> str:
     return builder.build_page(fragment, stats)
 
 
+def _style_range_page() -> str:
+    builder = _load_demo_builder("build_style_range")
+    return builder.build_page(builder.compile_profiles())
+
+
 DETERMINISTIC_DEMO_PAGES: tuple[tuple[str, Callable[[], str]], ...] = (
     ("demos/aesthetic-profiles/index.html", _aesthetic_profiles_page),
     ("demos/fifteen-lines/index.html", _fifteen_lines_page),
@@ -131,6 +136,7 @@ DETERMINISTIC_DEMO_PAGES: tuple[tuple[str, Callable[[], str]], ...] = (
     ("demos/provenance-inspector/index.html", _provenance_inspector_page),
     ("demos/stateful-collections/index.html", _stateful_collections_page),
     ("demos/style-derivation/index.html", _style_derivation_page),
+    ("demos/style-range/index.html", _style_range_page),
 )
 
 
