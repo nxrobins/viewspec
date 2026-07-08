@@ -23,6 +23,7 @@ from viewspec.app_validation import (
     APP_BUNDLE_SCHEMA_VERSION,
     APP_BUNDLE_STATE_SCHEMA_VERSION,
     APP_BUNDLE_SUPPORTED_SCHEMA_VERSIONS,
+    APP_BUNDLE_VISIBILITY_SCHEMA_VERSION,
     APP_RESOURCE_BINDING_MAX_FIELDS_PER_VIEW,
     APP_RESOURCE_BINDING_MAX_RECORD_REFS_PER_VIEW,
     APP_RESOURCE_BINDING_MAX_VIEWS_PER_SCREEN,
@@ -35,21 +36,24 @@ from viewspec.state_ir import (
     APP_STATE_MAX_REPLAY_ASSERTIONS,
     APP_STATE_MAX_SELECTOR_OPS,
     APP_STATE_MAX_SELECTORS,
+    APP_VISIBILITY_MAX_RULES,
     INTERACTIVE_STATE_PROFILE,
 )
 
 AGENT_APP_BUNDLE_SCHEMA: dict[str, Any] = {
     "$schema": "https://json-schema.org/draft/2020-12/schema",
     "$id": "https://viewspec.dev/agent-app-bundle.schema.json",
-    "title": "ViewSpec Agent AppBundle V1/V2/V3",
+    "title": "ViewSpec Agent AppBundle V1/V2/V3/V4",
     "description": (
         "Local-only multi-screen app contract with embedded IntentBundles, static routes, V1 unbound "
-        "fixtures, V2 read-only fixture binding proof, and V3 bounded interactive_state_v0 reducers."
+        "fixtures, V2 read-only fixture binding proof, V3 bounded interactive_state_v0 reducers, and "
+        "V4 bounded visibility_v0 conditional visibility rules."
     ),
     "oneOf": [
         {"$ref": "#/$defs/app_bundle_v1"},
         {"$ref": "#/$defs/app_bundle_v2"},
         {"$ref": "#/$defs/app_bundle_v3"},
+        {"$ref": "#/$defs/app_bundle_v4"},
     ],
     "x-viewspec-app-schema-versions": list(APP_BUNDLE_SUPPORTED_SCHEMA_VERSIONS),
     "x-viewspec-resource-binding": APP_BUNDLE_RESOURCE_BINDING,
@@ -62,6 +66,7 @@ AGENT_APP_BUNDLE_SCHEMA: dict[str, Any] = {
         "schema_version 1 rejects resource_binding and resource_views, and reports unbound_v0.",
         "schema_version 2 requires resource_binding fixture_readonly_v0 and per-screen resource_views.",
         "schema_version 3 requires fixture_readonly_v0 plus interactive_state_v0 state, mutations, and selectors.",
+        "schema_version 4 adds optional bounded visibility rules: per-screen show/hide conditions over declared state and selectors, at most one rule per (screen, target).",
         "Routes are static canonical paths only and must map to declared screens.",
         "The root route must resolve to exactly one route.",
         "Every screen must be reachable by at least one static route.",
@@ -79,6 +84,7 @@ AGENT_APP_BUNDLE_SCHEMA: dict[str, Any] = {
         "No transformed, localized, formatted, joined, sorted, filtered, paginated, grouped, or aggregated fixture proof.",
         "No whole-app data-flow consistency proof beyond explicitly declared resource_views.",
         "No accessibility, pixel-perfect, cross-browser, production deployment, arbitrary host-app, or hosted extended compiler certification.",
+        "Visibility V0 is bounded conditional show/hide only: no boolean condition composition, animation, focus management, or data or text rebinding.",
     ],
     "$defs": {
         "app_bundle_v1": {
@@ -148,6 +154,41 @@ AGENT_APP_BUNDLE_SCHEMA: dict[str, Any] = {
                 "mutations": {"$ref": "#/$defs/state_mutations"},
                 "selectors": {"$ref": "#/$defs/state_selectors"},
                 "state_replay_assertions": {"$ref": "#/$defs/state_replay_assertions"},
+            },
+        },
+        "app_bundle_v4": {
+            "type": "object",
+            "required": [
+                "schema_version",
+                "resource_binding",
+                "interactive_state",
+                "app",
+                "routes",
+                "resources",
+                "screens",
+                "state",
+                "mutations",
+                "selectors",
+            ],
+            "additionalProperties": False,
+            "properties": {
+                "schema_version": {"const": APP_BUNDLE_VISIBILITY_SCHEMA_VERSION},
+                "resource_binding": {"const": APP_BUNDLE_RESOURCE_BINDING_READONLY},
+                "interactive_state": {"const": INTERACTIVE_STATE_PROFILE},
+                "app": {"$ref": "#/$defs/app"},
+                "routes": {"$ref": "#/$defs/routes"},
+                "resources": {"$ref": "#/$defs/resources"},
+                "screens": {
+                    "type": "array",
+                    "minItems": 1,
+                    "maxItems": APP_BUNDLE_MAX_SCREENS,
+                    "items": {"$ref": "#/$defs/screen_v2"},
+                },
+                "state": {"$ref": "#/$defs/state_entries"},
+                "mutations": {"$ref": "#/$defs/state_mutations"},
+                "selectors": {"$ref": "#/$defs/state_selectors"},
+                "visibility": {"$ref": "#/$defs/visibility_rules"},
+                "state_replay_assertions": {"$ref": "#/$defs/state_replay_assertions_v4"},
             },
         },
         "safe_id": {"type": "string", "pattern": SAFE_AGENT_ID_PATTERN, "maxLength": APP_BUNDLE_MAX_ID_CHARS},
@@ -540,6 +581,98 @@ AGENT_APP_BUNDLE_SCHEMA: dict[str, Any] = {
                     "type": "object",
                     "propertyNames": {"$ref": "#/$defs/safe_id"},
                     "additionalProperties": {"$ref": "#/$defs/json_value"},
+                },
+            },
+        },
+        "json_scalar": {
+            "anyOf": [
+                {"type": "string", "maxLength": APP_BUNDLE_MAX_SCALAR_STRING_CHARS},
+                {"type": "number"},
+                {"type": "boolean"},
+                {"type": "null"},
+            ]
+        },
+        "visibility_rules": {
+            "type": "array",
+            "maxItems": APP_VISIBILITY_MAX_RULES,
+            "items": {"$ref": "#/$defs/visibility_rule"},
+        },
+        "visibility_rule": {
+            "type": "object",
+            "required": ["id", "screen_id", "target_ref", "when"],
+            "additionalProperties": False,
+            "properties": {
+                "id": {"$ref": "#/$defs/safe_id"},
+                "screen_id": {"$ref": "#/$defs/safe_id"},
+                "target_ref": {
+                    "type": "string",
+                    "maxLength": APP_BUNDLE_MAX_ID_CHARS + 8,
+                    "pattern": "^(region|binding|motif):[A-Za-z0-9_.-]+$",
+                },
+                "when": {"$ref": "#/$defs/visibility_condition"},
+            },
+        },
+        "visibility_condition": {
+            "oneOf": [
+                {
+                    "type": "object",
+                    "required": ["state", "is"],
+                    "additionalProperties": False,
+                    "properties": {
+                        "state": {"$ref": "#/$defs/safe_id"},
+                        "is": {"enum": ["truthy", "falsy"]},
+                    },
+                },
+                {
+                    "type": "object",
+                    "required": ["state", "equals"],
+                    "additionalProperties": False,
+                    "properties": {
+                        "state": {"$ref": "#/$defs/safe_id"},
+                        "equals": {"$ref": "#/$defs/json_scalar"},
+                    },
+                },
+                {
+                    "type": "object",
+                    "required": ["selector", "is"],
+                    "additionalProperties": False,
+                    "properties": {
+                        "selector": {"$ref": "#/$defs/safe_id"},
+                        "is": {"enum": ["non_empty", "empty"]},
+                    },
+                },
+            ]
+        },
+        "state_replay_assertions_v4": {
+            "type": "array",
+            "maxItems": APP_STATE_MAX_REPLAY_ASSERTIONS,
+            "items": {"$ref": "#/$defs/state_replay_assertion_v4"},
+        },
+        "state_replay_assertion_v4": {
+            "type": "object",
+            "required": ["id", "events", "expect_state", "expect_selectors"],
+            "additionalProperties": False,
+            "properties": {
+                "id": {"$ref": "#/$defs/safe_id"},
+                "events": {
+                    "type": "array",
+                    "maxItems": APP_STATE_MAX_EVENTS_PER_REPLAY,
+                    "items": {"$ref": "#/$defs/state_replay_event"},
+                },
+                "expect_state": {
+                    "type": "object",
+                    "propertyNames": {"$ref": "#/$defs/safe_id"},
+                    "additionalProperties": {"$ref": "#/$defs/json_value"},
+                },
+                "expect_selectors": {
+                    "type": "object",
+                    "propertyNames": {"$ref": "#/$defs/safe_id"},
+                    "additionalProperties": {"$ref": "#/$defs/json_value"},
+                },
+                "expect_visibility": {
+                    "type": "object",
+                    "propertyNames": {"$ref": "#/$defs/safe_id"},
+                    "additionalProperties": {"type": "boolean"},
                 },
             },
         },

@@ -430,6 +430,29 @@ def init_intent_tool(
         )
 
 
+def _apply_ir_props_overlay(root_node: Any, overlay: dict[str, dict[str, Any]]) -> list[str]:
+    """Merge bounded props onto IR nodes by node id, between compile() and emit.
+
+    The overlay is a closed data structure (AppBundle V4 visibility bake): only the visibility
+    marker keys are permitted, so this seam cannot become a generic style/content side channel.
+    Returns the overlay node ids that did not resolve to an IR node (fail-closed at the caller).
+    """
+    allowed_keys = {"visibility_rule_id", "visibility_hidden_initial"}
+    for node_id, props in overlay.items():
+        unexpected = set(props) - allowed_keys
+        if unexpected:
+            raise ValueError(f"ir_props_overlay only supports visibility marker keys; got {sorted(unexpected)} for {node_id}.")
+    remaining = dict(overlay)
+    stack = [root_node]
+    while stack and remaining:
+        node = stack.pop()
+        props = remaining.pop(node.id, None)
+        if props is not None:
+            node.props.update(props)
+        stack.extend(getattr(node, "children", []) or [])
+    return sorted(remaining)
+
+
 def compile_intent_bundle_file_tool(
     input_path: str | Path,
     out_dir: str | Path,
@@ -439,6 +462,7 @@ def compile_intent_bundle_file_tool(
     target: str = "html-tailwind",
     cwd: str | Path | None = None,
     allow_outside_cwd: bool = False,
+    ir_props_overlay: dict[str, dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     root: Path | None = None
     try:
@@ -483,6 +507,23 @@ def compile_intent_bundle_file_tool(
         design = _load_optional_design(design_path, cwd=root, allow_outside_cwd=allow_outside_cwd, strict=strict_design)
         bundle = IntentBundle.from_json(json.loads(text))
         ast = compile(bundle, design=design, strict_design=strict_design)
+        if ir_props_overlay:
+            unresolved = _apply_ir_props_overlay(ast.result.root.root, ir_props_overlay)
+            if unresolved:
+                return tool_error_response(
+                    "COMPILE_FAILED",
+                    f"Visibility target(s) did not resolve to compiled IR nodes: {', '.join(unresolved)}.",
+                    "Verify the visibility target_ref ids are declared in this screen's IntentBundle.",
+                    errors=[
+                        {
+                            "code": "APP_VISIBILITY_TARGET_UNRESOLVED",
+                            "message": f"Visibility target node {node_id} was not found in the compiled IR.",
+                            "fix": "Point the visibility rule at a declared region, binding, or motif id.",
+                        }
+                        for node_id in unresolved
+                    ],
+                    metadata={"cwd": str(root), "allow_outside_cwd": allow_outside_cwd, "sdk_version": __version__, "network_calls": "none"},
+                )
         if target == "react-tsx":
             paths = ReactTsxEmitter().emit(ast, output)
             artifact_path = Path(paths["tsx"])

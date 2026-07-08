@@ -21,6 +21,7 @@ from viewspec.state_ir import _hash_json, _stable_json, state_contract_hash
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from test_app_bundle import _stateful_app_bundle  # noqa: E402
+from test_app_visibility import _visibility_app_bundle  # noqa: E402
 
 # A fixed nested value with intentionally-unsorted keys and mixed scalar types, so the golden pins
 # sort_keys (top-level and nested) + separators + the JSON scalar rendering.
@@ -48,4 +49,14 @@ def test_state_contract_hash_is_pinned():
     assert (
         state_contract_hash(_stateful_app_bundle())
         == "292554461c2c9dc7ea48c250422f4edd24c0607557b2d273ec796bdd8c3295fa"
+    )
+
+
+def test_v4_state_contract_hash_is_pinned():
+    # V4 normalization (visibility rules + expect_visibility_ids in the contract). The v3 pin above
+    # must NEVER change because of visibility work; this pin moves only on deliberate v4 contract
+    # normalization changes.
+    assert (
+        state_contract_hash(_visibility_app_bundle())
+        == "cb2f9b5dd73b15b228afe1bf55f6421e217064096c6af5f33610a2525ccebb5a"
     )
