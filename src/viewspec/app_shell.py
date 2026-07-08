@@ -12,6 +12,7 @@ from viewspec.app_errors import AppBundleProofFailure
 from viewspec.app_validation import (
     APP_BUNDLE_MAX_ROUTES,
     APP_BUNDLE_MAX_SCREENS,
+    APP_BUNDLE_VISIBILITY_SCHEMA_VERSION,
     URL_SCHEME_RE,
     _app_schema_version,
     _app_summary,
@@ -19,6 +20,8 @@ from viewspec.app_validation import (
     _resource_binding_report_fields,
     _state_ir_limits,
 )
+from viewspec.local_tools import source_hash
+from viewspec.state_ir import generate_browser_reducer_script
 
 APP_SHELL_TARGET = "html-tailwind-app"
 APP_SHELL_ROUTE_NAVIGATION = "static_shell_v0"
@@ -30,6 +33,8 @@ APP_SHELL_INDEX = "index.html"
 APP_SHELL_MAX_HTML_BYTES = 2 * 1024 * 1024
 APP_SHELL_MAX_JS_BYTES = 64 * 1024
 APP_SHELL_MAX_ROUTE_JSON_BYTES = 64 * 1024
+APP_SHELL_MAX_STATE_JS_BYTES = 96 * 1024
+APP_SHELL_STATE_DATA_ID = "viewspec-app-state-data"
 APP_SHELL_MAX_AGGREGATE_SCREEN_HTML_BYTES = 8 * 1024 * 1024
 APP_SHELL_MAX_MANIFEST_BYTES = 256 * 1024
 HTML_BODY_RE = re.compile(r"<body\b[^>]*>(?P<body>[\s\S]*?)</body>", re.IGNORECASE)
@@ -93,7 +98,35 @@ def _build_static_app_shell(
             f"Static shell JS is {script_bytes} bytes; limit is {APP_SHELL_MAX_JS_BYTES}.",
             "Reduce the shell runtime before compiling.",
         )
-    html = _render_static_app_shell_html(payload, screen_payloads, styles, route_json, route_script)
+    state_json = ""
+    state_scripts: tuple[str, ...] = ()
+    state_runtime: dict[str, Any] | None = None
+    if payload.get("schema_version") == APP_BUNDLE_VISIBILITY_SCHEMA_VERSION:
+        # V4 bounded visibility runtime: the generated reducer (IIFE) + ONE delegated click
+        # listener that dispatches declared mutations and toggles `hidden` on visibility markers.
+        # Data and text rebinding stay out of scope.
+        state_json = _safe_json_for_script({"triggers": _shell_state_trigger_table(payload)})
+        reducer_script = generate_browser_reducer_script(payload)
+        runtime_script = _app_shell_state_runtime_script()
+        state_js_bytes = len(reducer_script.encode("utf-8")) + len(runtime_script.encode("utf-8"))
+        if state_js_bytes > APP_SHELL_MAX_STATE_JS_BYTES:
+            raise AppBundleProofFailure(
+                "APP_SHELL_SIZE_LIMIT_EXCEEDED",
+                f"Static shell state runtime is {state_js_bytes} bytes; limit is {APP_SHELL_MAX_STATE_JS_BYTES}.",
+                "Reduce AppBundle V4 state, mutation, selector, or visibility declarations.",
+            )
+        state_scripts = (reducer_script, runtime_script)
+        state_runtime = {
+            "enabled": True,
+            "listener_count": 1,
+            "reducer_js_hash": source_hash(reducer_script),
+            "runtime_js_hash": source_hash(runtime_script),
+            "state_data_json_bytes": len(state_json.encode("utf-8")),
+            "state_js_bytes": state_js_bytes,
+        }
+    html = _render_static_app_shell_html(
+        payload, screen_payloads, styles, route_json, route_script, state_json=state_json, state_scripts=state_scripts
+    )
     html_bytes = len(html.encode("utf-8"))
     if html_bytes > APP_SHELL_MAX_HTML_BYTES:
         raise AppBundleProofFailure(
@@ -111,6 +144,7 @@ def _build_static_app_shell(
         route_json_bytes,
         aggregate_screen_html,
         resource_binding_report=resource_binding_report,
+        state_runtime=state_runtime,
     )
     return {"html": html, "manifest": manifest, "route_assertions": route_assertions}
 
@@ -245,6 +279,9 @@ def _render_static_app_shell_html(
     styles: list[str],
     route_json: str,
     route_script: str,
+    *,
+    state_json: str = "",
+    state_scripts: tuple[str, ...] = (),
 ) -> str:
     root_route = payload["app"]["root_route"]
     route_by_screen = {route["screen_id"]: route["path"] for route in payload["routes"]}
@@ -300,6 +337,12 @@ def _render_static_app_shell_html(
             "<script>",
             route_script,
             "</script>",
+            *(
+                [f'<script type="application/json" id="{APP_SHELL_STATE_DATA_ID}">{state_json}</script>']
+                if state_json
+                else []
+            ),
+            *(item for script in state_scripts for item in ("<script>", script, "</script>")),
             "</body>",
             "</html>",
             "",
@@ -438,6 +481,87 @@ def _app_shell_route_script() -> str:
 })();
 """.strip()
 
+def _shell_state_trigger_table(payload: dict[str, Any]) -> list[dict[str, Any]]:
+    """(screenId, actionId) -> declared-order mutation ids, mirroring the replay's event order."""
+    grouped: dict[tuple[str, str], list[str]] = {}
+    order: list[tuple[str, str]] = []
+    for mutation in payload.get("mutations", []) if isinstance(payload.get("mutations"), list) else []:
+        if not isinstance(mutation, dict):
+            continue
+        trigger = mutation.get("trigger") if isinstance(mutation.get("trigger"), dict) else {}
+        key = (str(trigger.get("screen_id")), str(trigger.get("action_id")))
+        if key not in grouped:
+            grouped[key] = []
+            order.append(key)
+        grouped[key].append(str(mutation.get("id")))
+    return [
+        {"screenId": screen_id, "actionId": action_id, "mutationIds": grouped[(screen_id, action_id)]}
+        for screen_id, action_id in order
+    ]
+
+
+def _app_shell_state_runtime_script() -> str:
+    # ONE delegated click listener. Payload harvesting mirrors the html emitter's
+    # dispatchViewSpecAction (declared data-payload-bindings only, [data-binding-id] values,
+    # scoped to the screen section). A failed mutation halts the click's remaining mutations
+    # (mirroring Python replay) and marks the section data-viewspec-state-halted (SC-V5).
+    # NAMING RULE: no identifier may start with "on" (the shell safety regex \son[a-z]+\s*=
+    # scans the full HTML), and no http/url(/Worker( tokens.
+    return """(() => {
+  const dataEl = document.getElementById('viewspec-app-state-data');
+  if (!dataEl || typeof ViewSpecStateRuntime === 'undefined') return;
+  let table = {};
+  try { table = JSON.parse(dataEl.textContent || '{}'); } catch { table = {}; }
+  const triggers = new Map(
+    (Array.isArray(table.triggers) ? table.triggers : [])
+      .map((t) => [`${t.screenId}::${t.actionId}`, Array.isArray(t.mutationIds) ? t.mutationIds : []])
+  );
+  let state = ViewSpecStateRuntime.initialState;
+  const applyVisibility = () => {
+    const verdicts = ViewSpecStateRuntime.evaluateViewSpecVisibility(state);
+    document.querySelectorAll('[data-visibility-rule]').forEach((el) => {
+      const ruleId = el.dataset.visibilityRule;
+      if (!Object.prototype.hasOwnProperty.call(verdicts, ruleId)) return;
+      const visible = verdicts[ruleId] === true;
+      el.hidden = !visible;
+      el.dataset.visibilityState = visible ? 'visible' : 'hidden';
+    });
+  };
+  document.addEventListener('click', (e) => {
+    const target = e.target instanceof Element ? e.target : null;
+    const btn = target ? target.closest('[data-action-id]') : null;
+    if (!btn) return;
+    const section = btn.closest('[data-viewspec-app-screen]');
+    if (!section) return;
+    const mutationIds = triggers.get(`${section.dataset.viewspecAppScreen}::${btn.dataset.actionId}`) || [];
+    if (!mutationIds.length) return;
+    let bindings = [];
+    try {
+      const parsed = JSON.parse(btn.dataset.payloadBindings || '[]');
+      if (Array.isArray(parsed)) bindings = parsed.filter((id) => typeof id === 'string');
+    } catch { bindings = []; }
+    const requested = new Set(bindings);
+    const values = {};
+    section.querySelectorAll('[data-binding-id]').forEach((el) => {
+      const id = el.dataset.bindingId;
+      if (!requested.has(id)) return;
+      values[id] = 'value' in el ? el.value : el.textContent || '';
+    });
+    delete section.dataset.viewspecStateHalted;
+    for (const mutationId of mutationIds) {
+      try {
+        state = ViewSpecStateRuntime.reduceViewSpecState(state, { mutation_id: mutationId, payload_values: values });
+      } catch {
+        section.dataset.viewspecStateHalted = mutationId;
+        break;
+      }
+    }
+    applyVisibility();
+  });
+  applyVisibility();
+})();"""
+
+
 def _safe_json_for_script(payload: dict[str, Any]) -> str:
     text = json.dumps(payload, sort_keys=True, separators=(",", ":"))
     return text.replace("&", "\\u0026").replace("<", "\\u003c").replace(">", "\\u003e")
@@ -478,6 +602,7 @@ def _static_shell_manifest(
     aggregate_screen_html_bytes: int,
     *,
     resource_binding_report: dict[str, Any] | None = None,
+    state_runtime: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     return {
         "schema_version": 1,
@@ -498,6 +623,8 @@ def _static_shell_manifest(
             "route_json_bytes": route_json_bytes,
             "aggregate_screen_html_bytes": aggregate_screen_html_bytes,
         },
+        # v4-only block: v3 shell manifests stay byte-stable.
+        **({"state_runtime": state_runtime} if state_runtime is not None else {}),
     }
 
 def _screen_shell_summaries(screen_reports: list[dict[str, Any]]) -> list[dict[str, Any]]:

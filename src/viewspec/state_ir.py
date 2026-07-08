@@ -740,6 +740,20 @@ def generate_typescript_reducer(app_payload: dict[str, Any]) -> str:
     return source
 
 
+def generate_browser_reducer_script(app_payload: dict[str, Any]) -> str:
+    """Browser variant of the generated reducer for the V4 static shell.
+
+    A purely textual transform of the exact ``generate_typescript_reducer`` output: strip the
+    leading ``export `` prefixes (inline classic scripts cannot contain export declarations) and
+    wrap in an IIFE exposing ``ViewSpecStateRuntime``. Zero new semantics — a structural test pins
+    equality modulo the stripped prefixes and fixed wrapper lines.
+    """
+    source = generate_typescript_reducer(app_payload)
+    stripped = source.replace("\nexport const ", "\nconst ").replace("\nexport function ", "\nfunction ")
+    export_names = ", ".join(state_reducer_exports(app_payload))
+    return "const ViewSpecStateRuntime = (() => {\n" + stripped + f"\nreturn {{ {export_names} }};\n}})();\n"
+
+
 def check_reducer_conformance(
     app_payload: dict[str, Any],
     *,
