@@ -90,7 +90,7 @@ viewspec export-agent-assets --out .viewspec
 viewspec check-agent-assets .viewspec --json
 ```
 
-The asset manifest uses schema version `8`, declares the `local_v1` contract profile, and records the export/check commands. It includes the IntentBundle schema/example plus `agent-app-bundle.schema.json` and `agent-app-example.internal-tool.json` for AppBundle V1/V2/V3/V4. Run the check command before reusing cached `.viewspec` assets.
+The asset manifest uses schema version `9`, declares the `local_v1` contract profile, and records the export/check commands. It includes the IntentBundle schema/example plus `agent-app-bundle.schema.json` and `agent-app-example.internal-tool.json` for AppBundle V1/V2/V3/V4. Run the check command before reusing cached `.viewspec` assets.
 
 For MCP-capable agents:
 

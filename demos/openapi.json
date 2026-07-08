@@ -21,7 +21,7 @@
     "url": "https://viewspec.dev/"
   },
   "x-viewspec-agent-artifacts": {
-    "assetSchemaVersion": 8,
+    "assetSchemaVersion": 9,
     "assetManifest": "https://viewspec.dev/agent-assets.json",
     "contractProfile": "local_v1",
     "exportCommand": "viewspec export-agent-assets --out .viewspec",
@@ -78,7 +78,7 @@
     "appbundleStateIrProofCommandShort": "viewspec prove-app --with-shell",
     "appbundleStateIrProofCommand": "viewspec prove-app --app viewspec.app.json --out .viewspec-app-proof --with-shell --json",
     "agentAssetManifest": "https://viewspec.dev/agent-assets.json",
-    "agentAssetSchemaVersion": 8,
+    "agentAssetSchemaVersion": 9,
     "agentAssetContractProfile": "local_v1",
     "agentAssetIntentSchemaId": "https://viewspec.dev/agent-intent-bundle.schema.json",
     "agentAssetAppSchemaId": "https://viewspec.dev/agent-app-bundle.schema.json",

@@ -1134,7 +1134,7 @@
   "x-viewspec-anti-goals": [
     "No runtime browser navigation proof.",
     "No dynamic routes, route params, query strings, hashes, redirects, guards, nested routers, or locale routing.",
-    "No live DOM rebinding, framework state adapter, optimistic server reconciliation, persistence, CRDT, websocket sync, or gesture runtime.",
+    "No live data or text rebinding (the V4 shell performs bounded visibility toggling only), framework state adapter, optimistic server reconciliation, persistence, CRDT, websocket sync, or gesture runtime.",
     "No transformed, localized, formatted, joined, sorted, filtered, paginated, grouped, or aggregated fixture proof.",
     "No whole-app data-flow consistency proof beyond explicitly declared resource_views.",
     "No accessibility, pixel-perfect, cross-browser, production deployment, arbitrary host-app, or hosted extended compiler certification.",

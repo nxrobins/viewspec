@@ -81,7 +81,7 @@
       "no runtime LLM"
     ],
     "scope": "AppBundle V3 is a bounded local app contract for static routes, embedded screen IntentBundles, fixture_readonly_v0 resource views, interactive_state_v0 state, generated reducer artifacts, state_replay_assertions, and html-tailwind-app shell proof. Schema_version 4 adds bounded visibility_v0 rules with baked initial visibility and a replay-proved evaluateViewSpecVisibility reducer export.",
-    "non_claim": "State IR is not Redux, Zustand, CRDT, persistence, backend generation, browser-history proof, live DOM rebinding, or a deployable framework app."
+    "non_claim": "State IR is not Redux, Zustand, CRDT, persistence, backend generation, browser-history proof, live data or text rebinding, or a deployable framework app."
   },
   "aesthetic_profiles": {
     "homepage_url": "https://viewspec.dev/",
@@ -106,12 +106,12 @@
       "a11y_names"
     ],
     "contrast_standard": "WCAG 2.x AA, size/role-scoped: body text 4.5:1, large text and UI components 3.0:1",
-    "scope": "ViewSpec prove enumerates every governed text/background pair from the closed style vocabulary plus the emitter's fixed base pairs (and, for the react-tailwind-tsx emitter, the closed Tailwind recipes resolved against the browser-grounded Tailwind v4 palette), fails closed when any pair is below its scoped WCAG AA threshold, and fails closed when an interactive control (input, button, image) lacks an author-provided accessible name (a generic fallback such as the binding id does not count).",
+    "scope": "ViewSpec prove enumerates every governed text/background pair from the closed style vocabulary plus the emitter's fixed base pairs (and, for the react-tailwind-tsx emitter, the closed Tailwind recipes resolved against the browser-grounded Tailwind v4 palette), fails closed when any pair is below its scoped WCAG AA threshold, and fails closed when an interactive control (input, button, image) lacks an author-provided accessible name (a generic fallback such as the binding id does not count; a form input associated with its visible field label counts as named).",
     "non_claim": "Scoped contrast (html-tailwind and react-tailwind-tsx) and accessible-name presence are checked, not a full WCAG audit, screen-reader certification, or focus-order or keyboard-operability proof."
   },
   "agent_assets": {
     "manifest_url": "https://viewspec.dev/agent-assets.json",
-    "schema_version": 8,
+    "schema_version": 9,
     "contract_profile": "local_v1",
     "intent_schema_id": "https://viewspec.dev/agent-intent-bundle.schema.json",
     "app_schema_id": "https://viewspec.dev/agent-app-bundle.schema.json",
