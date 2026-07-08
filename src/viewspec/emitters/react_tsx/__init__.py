@@ -390,9 +390,15 @@ def _attrs_for_node(node: IRNode, style_values: dict[str, str]) -> list[str]:
                 f"name={{{_tsx_string(binding_id)}}}",
                 f"value={{String(inputValues[{_tsx_string(binding_id)}] ?? \"\")}}",
                 f"onChange={{(event) => setInputValue({_tsx_string(binding_id)}, event.target.value)}}",
-                _jsx_attr("aria-label", str(node.props.get("aria_label", binding_id))),
             ]
         )
+        labelled_by = node.props.get("labelled_by")
+        if isinstance(node.props.get("aria_label"), str):
+            attrs.append(_jsx_attr("aria-label", str(node.props["aria_label"])))
+        elif isinstance(labelled_by, str) and labelled_by:
+            attrs.append(_jsx_attr("aria-labelledby", f"dom-{labelled_by}"))
+        else:
+            attrs.append(_jsx_attr("aria-label", binding_id))
     elif node.primitive in {"image_slot", "svg"}:
         attrs.extend(['role="img"', _jsx_attr("aria-label", _node_fallback_text(node))])
     elif node.primitive == "error_boundary":

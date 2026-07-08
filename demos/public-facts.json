@@ -106,7 +106,7 @@
       "a11y_names"
     ],
     "contrast_standard": "WCAG 2.x AA, size/role-scoped: body text 4.5:1, large text and UI components 3.0:1",
-    "scope": "ViewSpec prove enumerates every governed text/background pair from the closed style vocabulary plus the emitter's fixed base pairs (and, for the react-tailwind-tsx emitter, the closed Tailwind recipes resolved against the browser-grounded Tailwind v4 palette), fails closed when any pair is below its scoped WCAG AA threshold, and fails closed when an interactive control (input, button, image) lacks an author-provided accessible name (a generic fallback such as the binding id does not count).",
+    "scope": "ViewSpec prove enumerates every governed text/background pair from the closed style vocabulary plus the emitter's fixed base pairs (and, for the react-tailwind-tsx emitter, the closed Tailwind recipes resolved against the browser-grounded Tailwind v4 palette), fails closed when any pair is below its scoped WCAG AA threshold, and fails closed when an interactive control (input, button, image) lacks an author-provided accessible name (a generic fallback such as the binding id does not count; a form input associated with its visible field label counts as named).",
     "non_claim": "Scoped contrast (html-tailwind and react-tailwind-tsx) and accessible-name presence are checked, not a full WCAG audit, screen-reader certification, or focus-order or keyboard-operability proof."
   },
   "agent_assets": {

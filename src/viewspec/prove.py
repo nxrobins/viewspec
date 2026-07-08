@@ -186,7 +186,7 @@ def prove(
                             f"{a11y['unnamed_interactive']} interactive control(s) lack an accessible "
                             f"name: {', '.join(a11y['unnamed'])}."
                         ),
-                        "fix": "Give each control an author-provided name: input aria_label, image alt/label, button text/label.",
+                        "fix": "Give each control an author-provided name: input aria_label or an associated visible field label, image alt/label, button text/label.",
                     }
                 ]
             else:

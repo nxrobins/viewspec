@@ -15,12 +15,15 @@ on contrast. This documents exactly what is and is not proven, so reviewers can 
   engine the host renders in) and are checked against the same scoped thresholds; the base recipe
   and all eight profiles clear AA and fail closed otherwise.
 - **Accessible-name presence.** Interactive controls (input, button, image) must carry an
-  author-provided accessible name — input `aria_label`, image `alt`/`label`, or a button's visible
-  `text`/`label`. A name that would come only from the emitter's generic fallback (e.g. an input's
-  binding id) counts as *unnamed* and **fails** the proof (`a11y_names`). Detection is by
-  composition-IR primitive, so it applies to both the html and React emitters. (Follow-up: the
-  emitter will associate a form field's visible label with its input, so a labeled input needs no
-  separate `aria_label`.)
+  author-provided accessible name — image `alt`/`label`, a button's visible `text`/`label`, and for
+  inputs one of two compiler-derived label associations: the source node's `label` attribute
+  (resolved into the input's `aria-label` automatically — form fields are named by their visible
+  label text with zero extra authoring), or an unambiguous structural association (exactly one
+  label and one input in the same field wrapper, rendered as `aria-labelledby` across all
+  emitters). A binding id is never claimed as a name: the compiler no longer writes the fallback
+  into the manifest, so an unlabeled input genuinely counts as *unnamed* and **fails** the proof
+  (`a11y_names`). Detection is by composition-IR primitive, so it applies to both the html and
+  React emitters.
 
 ## Explicitly out of scope (no fallback owed)
 
