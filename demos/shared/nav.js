@@ -16,6 +16,7 @@
     { href: '../proof-bundle/', label: 'Proof' },
     { href: '../fifteen-lines/', label: '15 Lines' },
     { href: '../style-derivation/', label: 'Styles' },
+    { href: '../style-range/', label: 'Style range' },
     { href: '../#pricing', label: 'Pricing' },
   ]
 

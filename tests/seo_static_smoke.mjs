@@ -16,6 +16,7 @@ const pages = [
   ['demos/proof-bundle/index.html', 'https://viewspec.dev/proof-bundle/'],
   ['demos/fifteen-lines/index.html', 'https://viewspec.dev/fifteen-lines/'],
   ['demos/style-derivation/index.html', 'https://viewspec.dev/style-derivation/'],
+  ['demos/style-range/index.html', 'https://viewspec.dev/style-range/'],
 ]
 
 function extractJsonLd(html) {
@@ -510,6 +511,33 @@ assert.doesNotMatch(aestheticShellCss, /color-scheme:\s*dark/, 'aesthetic profil
 assert.match(aestheticShellCss, /\.artifact-frame\s*\{[\s\S]*background: #ffffff/, 'aesthetic profiles shell needs a white artifact showroom frame')
 if (/\.vs-|data-ir-id/.test(aestheticShellCss)) {
   assert.fail('AESTHETIC_DEMO_BYPASS: aesthetic profiles shell CSS styles generated artifact internals')
+}
+
+// Style-range specimen wall: one intent, every profile, all at once — honest compiler output.
+const styleRangePage = await readFile('demos/style-range/index.html', 'utf8')
+for (const expected of [
+  'The whole style range, compiled at once',
+  'One intent, eight grounds',
+  'real compiler output, not a mockup',
+  'data-presentation-contract="specimen-wall"',
+  'distinct style hashes',
+  'shell overrides',
+  'Why every specimen is honest',
+]) {
+  assertPublicText(styleRangePage, expected, 'style range demo')
+}
+for (const token of aestheticProfileTokens) {
+  assertPublicText(styleRangePage, token, 'style range demo token')
+}
+assert.equal(
+  (styleRangePage.match(/class="sr-tile"/g) || []).length,
+  aestheticProfileTokens.length,
+  'style range specimen count'
+)
+const styleRangeShellCss = extractTaggedStyle(styleRangePage, 'data-demo-shell-css="true"')
+if (!styleRangeShellCss) publicFactDrift('style range demo missing tagged shell CSS')
+if (/\.vs-|data-ir-id/.test(styleRangeShellCss)) {
+  assert.fail('STYLE_RANGE_BYPASS: style range shell CSS styles generated artifact internals')
 }
 
 // Three install pills: nav + hero + footer. The footer pill was added in
