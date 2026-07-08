@@ -438,9 +438,16 @@ def _render_node(node: IRNode, manifest: dict[str, Any], style_values: dict[str,
             [
                 'type="text"',
                 f'value="{escape(str(node.props.get("value", "")), quote=True)}"',
-                f'aria-label="{escape(str(node.props.get("aria_label", node.props.get("binding_id", "input"))), quote=True)}"',
             ]
         )
+        labelled_by = node.props.get("labelled_by")
+        if isinstance(node.props.get("aria_label"), str):
+            attrs.append(f'aria-label="{escape(str(node.props["aria_label"]), quote=True)}"')
+        elif isinstance(labelled_by, str) and labelled_by:
+            # Compiler-associated visible field label: the label's text IS the accessible name.
+            attrs.append(f'aria-labelledby="dom-{escape(labelled_by, quote=True)}"')
+        else:
+            attrs.append(f'aria-label="{escape(str(node.props.get("binding_id", "input")), quote=True)}"')
     elif node.primitive in {"image_slot", "svg"}:
         label = str(node.props.get("alt", node.props.get("label", node.primitive.replace("_", " "))))
         attrs.extend(['role="img"', f'aria-label="{escape(label, quote=True)}"'])

@@ -208,16 +208,23 @@ def _ordered_binding_positions(view_spec: ViewSpec) -> dict[str, int]:
     return positions
 
 
-def _input_label(binding: BindingSpec, address_index: dict[str, object]) -> str:
+def _input_label(binding: BindingSpec, address_index: dict[str, object]) -> str | None:
+    """The input's REAL accessible name (the source node's label attr), or None.
+
+    Deliberately never falls back to the binding id: a generic id in the aria_label prop would
+    make the a11y name check vacuous for inputs (the emitters still render the binding-id
+    fallback at render time, so HTML output is unchanged — only the manifest stops claiming a
+    fallback as an author-provided name).
+    """
     try:
         parts = _parse_canonical_address(binding.address)
     except ValueError:
-        return binding.id
+        return None
     label_value = address_index.get(f"node:{parts['node_id']}#attr:label")
     if label_value is None:
-        return binding.id
+        return None
     label = _text_from_value(label_value).strip()
-    return label or binding.id
+    return label or None
 
 
 def _binding_text(binding: BindingSpec, resolved_value: object, address_index: dict[str, object]) -> dict[str, object]:
@@ -227,12 +234,15 @@ def _binding_text(binding: BindingSpec, resolved_value: object, address_index: d
     if primitive == "svg":
         return {"label": _text_from_value(resolved_value)}
     if primitive == "input":
-        return {
+        props: dict[str, object] = {
             "value": _text_from_value(resolved_value),
             "input_type": "text",
             "binding_id": binding.id,
-            "aria_label": _input_label(binding, address_index),
         }
+        label = _input_label(binding, address_index)
+        if label is not None:
+            props["aria_label"] = label
+        return props
     if primitive == "rule":
         return {}
     return {"text": _text_from_value(resolved_value), "binding_id": binding.id}
@@ -1668,6 +1678,7 @@ def compile(
 
     root_node = region_nodes[view_spec.root_region]
     _assign_default_style_tokens(root_node)
+    _associate_field_labels(root_node)
 
     result = CompilerResult(
         root=CompositionIR(root=root_node),
@@ -1679,6 +1690,23 @@ def compile(
         style_values=style_values,
         title=view_spec.id,
     )
+
+
+def _associate_field_labels(node: IRNode) -> None:
+    """Associate a form field's visible label with its input for the accessible name.
+
+    Bounded, unambiguous rule: within one immediate parent, associate iff that parent contains
+    exactly one `label` child and exactly one `input` child (the compiled form-field wrapper
+    shape); anything else is left untouched. An author-set `aria_label` always wins — the
+    association is only recorded when the author provided none, and emitters render it as
+    `aria-labelledby` so a labeled field needs no separate aria_label.
+    """
+    labels = [child for child in node.children if child.primitive == "label"]
+    inputs = [child for child in node.children if child.primitive == "input"]
+    if len(labels) == 1 and len(inputs) == 1 and not isinstance(inputs[0].props.get("aria_label"), str):
+        inputs[0].props["labelled_by"] = labels[0].id
+    for child in node.children:
+        _associate_field_labels(child)
 
 
 def _coerce_design_context(

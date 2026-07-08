@@ -150,10 +150,11 @@ def a11y_contrast_report(profile: str | None = None) -> dict[str, Any]:
 # manifest node PRIMITIVE -> the props that carry an author-supplied accessible name. Keyed by
 # primitive (emitter-agnostic: html and react manifests share the composition-IR primitives), not
 # the html-only vs-* class. Mirrors the emitter's real derivation (html_tailwind._render_node):
-# input -> aria_label (binding_id is a fallback, not a real name); image_slot/svg -> alt|label;
-# button -> its visible text|label (fallback "Action").
+# input -> aria_label, or `labelled_by` (the compiler-associated visible FIELD LABEL — its text is
+# author content, rendered as aria-labelledby, so it is a real accessible name, not a fallback);
+# image_slot/svg -> alt|label; button -> its visible text|label (fallback "Action").
 _NAMED_CONTROL_AUTHOR_PROPS: dict[str, tuple[str, ...]] = {
-    "input": ("aria_label",),
+    "input": ("aria_label", "labelled_by"),
     "button": ("text", "label"),
     "image_slot": ("alt", "label"),
     "svg": ("alt", "label"),

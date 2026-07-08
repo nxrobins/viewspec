@@ -128,6 +128,164 @@ def test_name_report_empty_when_no_controls():
     assert report == {"interactive_controls": 0, "named": 0, "unnamed_interactive": 0, "unnamed": []}
 
 
+# --- label association: a form field's visible label names its input --------------------------------
+
+
+def _form_bundle():
+    from viewspec import ViewSpecBuilder
+
+    builder = ViewSpecBuilder("label_probe", root_attrs={"title": "Label Probe"})
+    form = builder.add_form("signup", region="main")
+    form.add_field(label="Email address", value="", id="email")
+    form.add_field(label="Full name", value="", id="name")
+    return builder.build_bundle()
+
+
+def _walk_inputs(node, inputs):
+    if node.primitive == "input":
+        inputs[node.id] = dict(node.props)
+    for child in node.children:
+        _walk_inputs(child, inputs)
+
+
+def test_form_field_inputs_get_the_label_attr_as_aria_label():
+    # Mechanism 1 (attr-level): the compiler resolves the source node's `label` attr as the input's
+    # REAL aria_label — form fields are named by their visible label text, no aria_label authoring.
+    from viewspec import compile
+
+    ast = compile(_form_bundle())
+    inputs: dict[str, dict] = {}
+    _walk_inputs(ast.result.root.root, inputs)
+    assert inputs["binding_email_value"]["aria_label"] == "Email address"
+    assert inputs["binding_name_value"]["aria_label"] == "Full name"
+    assert "labelled_by" not in inputs["binding_email_value"]  # attr-level name wins; no structural pass needed
+
+
+def test_structural_association_covers_label_attr_less_inputs():
+    # Mechanism 2 (structural): a node WITHOUT a `label` attr gets no aria_label; when its visible
+    # label (bound from another attr) is the unambiguous sibling, the compiler records labelled_by.
+    from viewspec import ViewSpecBuilder, compile
+
+    builder = ViewSpecBuilder("raw_pair", root_attrs={"title": "Raw"})
+    builder.add_node("q", "query", attrs={"title": "Search term", "value": ""})
+    builder.bind_attr("q_title", "q", "title", region="main", present_as="label")
+    builder.bind_attr("q_value", "q", "value", region="main", present_as="input")
+    ast = compile(builder.build_bundle())
+    inputs: dict[str, dict] = {}
+    _walk_inputs(ast.result.root.root, inputs)
+    assert "aria_label" not in inputs["binding_q_value"]  # no label attr -> no laundered fallback
+    assert inputs["binding_q_value"]["labelled_by"] == "binding_q_title"
+
+
+def test_unlabeled_input_is_genuinely_unnamed():
+    # Non-vacuity (SC-A): before this fix the compiler wrote the binding id INTO aria_label, so the
+    # name check could never fire for inputs. An input with no label attr and no unambiguous
+    # sibling label must now count as unnamed.
+    from viewspec import ViewSpecBuilder, compile
+    from viewspec.emitters.html_tailwind import _render_node
+
+    builder = ViewSpecBuilder("bare_input", root_attrs={"title": "Bare"})
+    builder.add_node("q", "query", attrs={"value": ""})
+    builder.bind_attr("q_value", "q", "value", region="main", present_as="input")
+    ast = compile(builder.build_bundle())
+    manifest: dict = {}
+    _render_node(ast.result.root.root, manifest, dict(ast.style_values or {}))
+    report = name_report(manifest)
+    assert report["interactive_controls"] == 1
+    assert report["unnamed_interactive"] == 1
+
+
+def test_author_aria_label_wins_over_association():
+    from viewspec import ViewSpecBuilder, compile
+
+    builder = ViewSpecBuilder("override_probe", root_attrs={"title": "Override"})
+    form = builder.add_form("f", region="main")
+    form.add_field(label="Email", value="", id="email")
+    bundle = builder.build_bundle()
+    # Simulate an author aria_label by compiling, then re-running the pass on a fresh compile with
+    # the prop injected pre-association is not possible from the public surface; instead assert the
+    # rule directly: the pass skips inputs that already carry aria_label.
+    from viewspec.compiler import _associate_field_labels
+
+    ast = compile(bundle)
+
+    def find_input(node):
+        if node.primitive == "input":
+            return node
+        for child in node.children:
+            found = find_input(child)
+            if found is not None:
+                return found
+        return None
+
+    input_node = find_input(ast.result.root.root)
+    input_node.props.pop("labelled_by", None)
+    input_node.props["aria_label"] = "Work email"
+    _associate_field_labels(ast.result.root.root)
+    assert "labelled_by" not in input_node.props  # author name wins; no association recorded
+
+
+def test_ambiguous_parents_get_no_association():
+    # Node without a label attr (so no attr-level name), two inputs sharing one visible label:
+    # the structural rule refuses to guess — both stay unnamed.
+    from viewspec import ViewSpecBuilder, compile
+
+    builder = ViewSpecBuilder("ambiguous_probe", root_attrs={"title": "Ambiguous"})
+    builder.add_node("q", "query", attrs={"title": "Search", "first": "", "second": ""})
+    builder.bind_attr("q_title", "q", "title", region="main", present_as="label")
+    builder.bind_attr("q_first", "q", "first", region="main", present_as="input")
+    builder.bind_attr("q_second", "q", "second", region="main", present_as="input")
+    ast = compile(builder.build_bundle())
+    inputs: dict[str, dict] = {}
+    _walk_inputs(ast.result.root.root, inputs)
+    assert all("labelled_by" not in props and "aria_label" not in props for props in inputs.values())
+
+
+def test_labelled_inputs_render_and_count_as_named(tmp_path):
+    import json
+
+    from viewspec import compile
+    from viewspec.emitters.html_tailwind import HtmlTailwindEmitter
+    from viewspec.emitters.react_tailwind_tsx import ReactTailwindTsxEmitter
+    from viewspec.emitters.react_tsx import ReactTsxEmitter
+
+    # Form fields (attr-level name): aria-label carries the visible label text in every emitter.
+    ast = compile(_form_bundle())
+    HtmlTailwindEmitter().emit(ast, tmp_path / "html")
+    html = (tmp_path / "html" / "index.html").read_text(encoding="utf-8")
+    assert 'aria-label="Email address"' in html
+    assert 'aria-label="email_value"' not in html  # binding-id never masquerades as a name
+
+    manifest = json.loads((tmp_path / "html" / "provenance_manifest.json").read_text(encoding="utf-8"))
+    nodes = manifest["nodes"] if isinstance(manifest.get("nodes"), dict) else manifest
+    report = name_report(nodes)
+    assert report["interactive_controls"] == 2
+    assert report["unnamed_interactive"] == 0
+
+    # Structural pair (labelled_by): rendered as aria-labelledby in every emitter, counts as named.
+    from viewspec import ViewSpecBuilder
+
+    builder = ViewSpecBuilder("raw_pair", root_attrs={"title": "Raw"})
+    builder.add_node("q", "query", attrs={"title": "Search term", "value": ""})
+    builder.bind_attr("q_title", "q", "title", region="main", present_as="label")
+    builder.bind_attr("q_value", "q", "value", region="main", present_as="input")
+    bundle = builder.build_bundle()
+
+    HtmlTailwindEmitter().emit(compile(bundle), tmp_path / "html2")
+    html2 = (tmp_path / "html2" / "index.html").read_text(encoding="utf-8")
+    assert 'aria-labelledby="dom-binding_q_title"' in html2
+    manifest2 = json.loads((tmp_path / "html2" / "provenance_manifest.json").read_text(encoding="utf-8"))
+    report2 = name_report(manifest2["nodes"] if isinstance(manifest2.get("nodes"), dict) else manifest2)
+    assert report2["unnamed_interactive"] == 0
+
+    ReactTsxEmitter().emit(compile(bundle), tmp_path / "react")
+    tsx = (tmp_path / "react" / "ViewSpecView.tsx").read_text(encoding="utf-8")
+    assert 'aria-labelledby={"dom-binding_q_title"}' in tsx
+    ReactTailwindTsxEmitter().emit(compile(bundle), tmp_path / "tailwind")
+    tailwind_tsx = (tmp_path / "tailwind" / "ViewSpecView.tsx").read_text(encoding="utf-8")
+    assert 'aria-labelledby={"dom-binding_q_title"}' in tailwind_tsx
+
+
 # --- prove integration: the proof carries a11y and passes on governed output -----------------------
 
 
