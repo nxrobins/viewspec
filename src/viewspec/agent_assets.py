@@ -13,7 +13,7 @@ from viewspec.agent import AGENT_INTENT_BUNDLE_SCHEMA, AGENT_SYSTEM_PROMPT
 from viewspec.local_tools import atomic_write
 
 
-AGENT_ASSET_SCHEMA_VERSION = 9
+AGENT_ASSET_SCHEMA_VERSION = 10
 AGENT_ASSET_CONTRACT_PROFILE = "local_v1"
 AGENT_ASSET_EXPORT_COMMAND = "viewspec export-agent-assets --out .viewspec"
 AGENT_ASSET_CHECK_COMMAND = "viewspec check-agent-assets .viewspec --json"
@@ -191,11 +191,11 @@ def plan_agent_asset_exports(out_dir: str | Path, *, force: bool = False) -> lis
 
 
 def _agent_asset_contents() -> dict[str, str]:
-    from viewspec.intent_tools import starter_intent_bundle
+    from viewspec.intent_tools import starter_intent_payload
 
     prompt = AGENT_SYSTEM_PROMPT if AGENT_SYSTEM_PROMPT.endswith("\n") else f"{AGENT_SYSTEM_PROMPT}\n"
     schema = json.dumps(AGENT_INTENT_BUNDLE_SCHEMA, indent=2, sort_keys=True) + "\n"
-    example = json.dumps(starter_intent_bundle("dashboard").to_json(), indent=2, sort_keys=True) + "\n"
+    example = json.dumps(starter_intent_payload("dashboard"), indent=2, sort_keys=True) + "\n"
     app_schema = json.dumps(AGENT_APP_BUNDLE_SCHEMA, indent=2, sort_keys=True) + "\n"
     app_example = json.dumps(starter_app_bundle("internal_tool"), indent=2, sort_keys=True) + "\n"
     contents = {

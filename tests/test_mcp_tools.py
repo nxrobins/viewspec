@@ -25,7 +25,7 @@ from viewspec.intent_tools import (
     compile_intent_bundle_file_tool,
     diff_intent_bundle_files_tool,
     init_intent_tool,
-    starter_intent_bundle,
+    starter_intent_payload,
     validate_intent_bundle_file_tool,
 )
 from viewspec.local_tools import (
@@ -326,7 +326,7 @@ def test_export_agent_assets_tool_writes_prompt_and_schema(tmp_path):
     assert exported["assets"]["contract_profile"] == AGENT_ASSET_CONTRACT_PROFILE
     assert exported["assets"]["check_command"] == AGENT_ASSET_CHECK_COMMAND
     assert json.loads((tmp_path / ".viewspec/agent-intent-bundle.schema.json").read_text(encoding="utf-8")) == AGENT_INTENT_BUNDLE_SCHEMA
-    assert json.loads((tmp_path / ".viewspec/agent-intent-example.dashboard.json").read_text(encoding="utf-8")) == starter_intent_bundle("dashboard").to_json()
+    assert json.loads((tmp_path / ".viewspec/agent-intent-example.dashboard.json").read_text(encoding="utf-8")) == starter_intent_payload("dashboard")
     assert json.loads((tmp_path / ".viewspec/agent-app-bundle.schema.json").read_text(encoding="utf-8")) == AGENT_APP_BUNDLE_SCHEMA
     assert json.loads((tmp_path / ".viewspec/agent-app-example.internal-tool.json").read_text(encoding="utf-8")) == starter_app_bundle("internal_tool")
     assert {item["path"]: item["action"] for item in exported["assets"]["files"]} == {

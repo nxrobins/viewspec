@@ -1,4 +1,5 @@
 {
+  "schema_version": 1,
   "substrate": {
     "id": "starter_dashboard_substrate",
     "nodes": {

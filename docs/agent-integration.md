@@ -61,6 +61,10 @@ Local V1 rejects hosted-only fields in both the published schema and runtime val
 
 Local V1 also rejects unknown extension fields instead of ignoring them. If validation returns `UNKNOWN_FIELD`, remove the field or move the workflow to the hosted contract that explicitly supports it.
 
+IntentBundle documents may declare an optional root `schema_version` with integer value `1`. A document without `schema_version` is schema version 1; any other value fails closed with `UNSUPPORTED_SCHEMA_VERSION`. Include the field in new documents so files stay self-describing on disk — any future intent schema revision will require it, so versionless documents remain unambiguously version 1.
+
+Validation issues share one JSON shape across intent and AppBundle paths: `code`, `path` (a `$.`-rooted location), `message`, and `fix`. Tool-level failures (file IO, proof orchestration, asset checks) carry `code`, `message`, and `fix` without `path`.
+
 Region topology must be one tree rooted at `view_spec.root_region`: the root region has no parent, every non-root region has exactly one parent chain to the root, and parent links must be acyclic.
 
 V1 style tokens are compiler/design handles, not CSS. Use only the published token set in `agent-intent-bundle.schema.json`; do not invent CSS property tokens or copy design-token names from reference screenshots.
@@ -171,7 +175,7 @@ AppBundle proof does not prove runtime browser navigation, dynamic routes, live 
 
 ## Published Agent Artifacts
 
-These assets use agent asset schema version `9`. The manifest declares the `local_v1` contract profile plus the export/check commands agents should use for local verification.
+These assets use agent asset schema version `10`. The manifest declares the `local_v1` contract profile plus the export/check commands agents should use for local verification.
 
 - Asset manifest: `https://viewspec.dev/agent-assets.json`
 - System prompt: `https://viewspec.dev/agent-system-prompt.txt`

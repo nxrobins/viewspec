@@ -520,6 +520,11 @@
     ]
   },
   "properties": {
+    "schema_version": {
+      "const": 1,
+      "description": "Optional IntentBundle schema version. Documents without schema_version are schema version 1.",
+      "type": "integer"
+    },
     "substrate": {
       "$ref": "#/$defs/substrate"
     },
@@ -878,7 +883,11 @@
       "aesthetic.warm_organic"
     ]
   },
+  "x-viewspec-intent-schema-versions": [
+    1
+  ],
   "x-viewspec-invariants": [
+    "Optional root schema_version must be the integer 1; documents without schema_version are schema version 1.",
     "view_spec.substrate_id must equal substrate.id.",
     "substrate.root_id must be a key in substrate.nodes.",
     "Each substrate.nodes object key must equal that node object's id.",

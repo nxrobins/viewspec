@@ -636,6 +636,9 @@ class CompilerResult:
         return cls.from_proto(_json_to_proto(payload, pb2.CompilerResult(), cls.__name__))
 
 
+INTENT_BUNDLE_SCHEMA_VERSION = 1
+
+
 @dataclass(frozen=True)
 class IntentBundle:
     """A substrate + view spec pair — the complete input to the compiler."""
@@ -658,6 +661,15 @@ class IntentBundle:
 
     @classmethod
     def from_json(cls, payload: Any) -> IntentBundle:
+        # Optional root schema_version is contract metadata, not proto state: accept exactly
+        # version 1 (a document without the field IS version 1) and fail closed on the rest.
+        if isinstance(payload, dict) and "schema_version" in payload:
+            version = payload["schema_version"]
+            if isinstance(version, bool) or not isinstance(version, (int, float)) or version != INTENT_BUNDLE_SCHEMA_VERSION:
+                raise ValueError(
+                    f"IntentBundle schema_version must be {INTENT_BUNDLE_SCHEMA_VERSION} when present, got {version!r}"
+                )
+            payload = {key: value for key, value in payload.items() if key != "schema_version"}
         return cls.from_proto(_json_to_proto(payload, pb2.IntentBundle(), cls.__name__))
 
 

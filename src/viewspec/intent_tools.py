@@ -43,7 +43,7 @@ from viewspec.local_tools import (
 from viewspec.manifest_summary import summarize_intent_manifest
 from viewspec.raw_html import MANIFEST_SCHEMA_VERSION
 from viewspec.sdk.builder import ViewSpecBuilder
-from viewspec.types import IntentBundle
+from viewspec.types import INTENT_BUNDLE_SCHEMA_VERSION, IntentBundle
 
 
 BUNDLE_POLICY_VERSION = INTENT_BUNDLE_POLICY_VERSION
@@ -140,11 +140,16 @@ def starter_intent_bundle(kind: str = "dashboard") -> IntentBundle:
     return builder.build_bundle()
 
 
+def starter_intent_payload(kind: str = "dashboard") -> dict[str, Any]:
+    """Starter IntentBundle JSON payload carrying the self-describing schema_version field."""
+    return {"schema_version": INTENT_BUNDLE_SCHEMA_VERSION, **starter_intent_bundle(kind).to_json()}
+
+
 def init_intent_file(path: str | Path = "viewspec.intent.json", *, kind: str = "dashboard", force: bool = False) -> Path:
     output = Path(path)
     if output.exists() and not force:
         raise ValueError(f"{output} already exists; pass --force to overwrite")
-    payload = starter_intent_bundle(kind).to_json()
+    payload = starter_intent_payload(kind)
     atomic_write(output, json.dumps(payload, indent=2, sort_keys=True))
     return output
 
