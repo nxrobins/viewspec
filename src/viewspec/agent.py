@@ -28,7 +28,13 @@ from viewspec.compiler import (
     UnsupportedMotifError,
     compile,
 )
-from viewspec.types import DEFAULT_STYLE_TOKEN_VALUES, IntentBundle, PRESENT_AS_TO_PRIMITIVE, parse_canonical_address
+from viewspec.types import (
+    DEFAULT_STYLE_TOKEN_VALUES,
+    INTENT_BUNDLE_SCHEMA_VERSION,
+    IntentBundle,
+    PRESENT_AS_TO_PRIMITIVE,
+    parse_canonical_address,
+)
 
 SUPPORTED_AGENT_MOTIFS = SUPPORTED_MOTIF_KINDS
 SUPPORTED_AGENT_ACTION_KINDS = SUPPORTED_ACTION_KINDS
@@ -37,7 +43,7 @@ SUPPORTED_AGENT_GROUP_KINDS = ("ordered",)
 SUPPORTED_AGENT_REGION_LAYOUTS = ("stack", "grid", "cluster")
 HOSTED_ONLY_ROOT_FIELDS = ("design", "motif_library")
 HOSTED_ONLY_VIEW_SPEC_FIELDS = ("inputs", "projections", "rules")
-ROOT_ALLOWED_FIELDS = {"substrate", "view_spec"}
+ROOT_ALLOWED_FIELDS = {"schema_version", "substrate", "view_spec"}
 SUBSTRATE_ALLOWED_FIELDS = {"id", "root_id", "nodes"}
 SUBSTRATE_NODE_ALLOWED_FIELDS = {"id", "kind", "attrs", "slots", "edges"}
 REGION_ALLOWED_FIELDS = {"id", "parent_region", "role", "layout", "min_children", "max_children"}
@@ -153,6 +159,8 @@ The JSON object must contain:
 - view_spec.styles
 - view_spec.actions
 
+Include the optional root field schema_version with integer value 1. Documents without schema_version are treated as schema version 1; any other value is rejected.
+
 Use only these v1 motif kinds: table, dashboard, outline, comparison, list, form, detail, empty_state, loading_state, error_state, hero.
 
 Use only these binding present_as values: text, label, value, badge, input, rich_text, image_slot, rule.
@@ -222,10 +230,17 @@ AGENT_INTENT_BUNDLE_SCHEMA: dict[str, Any] = {
     "additionalProperties": False,
     "not": {"anyOf": [{"required": [field]} for field in HOSTED_ONLY_ROOT_FIELDS]},
     "properties": {
+        "schema_version": {
+            "type": "integer",
+            "const": INTENT_BUNDLE_SCHEMA_VERSION,
+            "description": "Optional IntentBundle schema version. Documents without schema_version are schema version 1.",
+        },
         "substrate": {"$ref": "#/$defs/substrate"},
         "view_spec": {"$ref": "#/$defs/view_spec"},
     },
+    "x-viewspec-intent-schema-versions": [INTENT_BUNDLE_SCHEMA_VERSION],
     "x-viewspec-invariants": [
+        "Optional root schema_version must be the integer 1; documents without schema_version are schema version 1.",
         "view_spec.substrate_id must equal substrate.id.",
         "substrate.root_id must be a key in substrate.nodes.",
         "Each substrate.nodes object key must equal that node object's id.",
@@ -565,6 +580,8 @@ def agent_repair_checklist(result: AgentValidationResult) -> list[str]:
         add("Include all required local V1 objects and arrays: substrate nodes plus view_spec regions, bindings, groups, motifs, styles, and actions.")
     if codes & {"UNKNOWN_FIELD", "HOSTED_ONLY_FIELD"}:
         add("Remove unknown and hosted-only fields; local V1 rejects root design, motif_library, inputs, projections, rules, and custom extensions.")
+    if "UNSUPPORTED_SCHEMA_VERSION" in codes:
+        add("Use integer schema_version 1 or omit the field; local V1 is the only supported IntentBundle schema version.")
     if codes & {"INVALID_ID", "NODE_KEY_MISMATCH", "DUPLICATE_BINDING_ID", "DUPLICATE_REGION_ID", "DUPLICATE_GROUP_ID", "DUPLICATE_MOTIF_ID", "DUPLICATE_STYLE_ID", "DUPLICATE_ACTION_ID"}:
         add("Use unique safe ids and object keys with only letters, digits, underscore, dot, and dash; node map keys must match node ids.")
     if codes & {"SUBSTRATE_ID_MISMATCH", "MISSING_SUBSTRATE_ROOT", "MISSING_ROOT_REGION", "ROOT_REGION_HAS_PARENT", "DETACHED_REGION", "REGION_PARENT_CYCLE", "UNKNOWN_REGION", "UNKNOWN_EDGE_TARGET", "UNKNOWN_STYLE_TARGET", "UNKNOWN_ACTION_TARGET", "MISSING_GROUP_MEMBER", "MISSING_MOTIF_MEMBER", "UNKNOWN_ACTION_PAYLOAD_BINDING"}:
@@ -704,6 +721,17 @@ def _validate_intent_bundle_shape(data: dict[str, Any]) -> list[AgentValidationI
         )
 
     _reject_unknown_fields(data, "$", ROOT_ALLOWED_FIELDS | set(HOSTED_ONLY_ROOT_FIELDS), issues)
+    if "schema_version" in data:
+        version = data["schema_version"]
+        if isinstance(version, bool) or not isinstance(version, (int, float)) or version != INTENT_BUNDLE_SCHEMA_VERSION:
+            issues.append(
+                _issue(
+                    "UNSUPPORTED_SCHEMA_VERSION",
+                    "$.schema_version",
+                    f"IntentBundle schema_version must be {INTENT_BUNDLE_SCHEMA_VERSION} when present.",
+                    "Use schema_version 1 or omit the field; documents without schema_version are schema version 1.",
+                )
+            )
     substrate = _required_object(data, "substrate", "$", issues)
     view_spec = _required_object(data, "view_spec", "$", issues)
     if substrate is None or view_spec is None:

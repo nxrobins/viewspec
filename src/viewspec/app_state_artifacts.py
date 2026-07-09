@@ -50,7 +50,7 @@ def _write_state_artifacts(
                 raise AppBundleProofFailure(
                     "APP_STATE_REDUCER_NODE_UNAVAILABLE",
                     str(message),
-                    str(first.get("fix") or "Install Node.js (>=18) on PATH for V3 reducer conformance, or use a V1/V2 AppBundle."),
+                    str(first.get("fix") or "Install Node.js (>=18) on PATH for V3/V4 reducer conformance, or use a V1/V2 AppBundle."),
                 )
             raise AppBundleProofFailure(
                 "APP_STATE_REDUCER_CONFORMANCE_FAILED",

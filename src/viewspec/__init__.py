@@ -15,6 +15,7 @@ from viewspec.types import (
     DesignMetadata,
     DesignRequest,
     GroupSpec,
+    INTENT_BUNDLE_SCHEMA_VERSION,
     IntentBundle,
     IRNode,
     MotifSpec,
@@ -122,9 +123,11 @@ from viewspec.intent_tools import (
     init_intent_file,
     intent_semantic_change_lines,
     starter_intent_bundle,
+    starter_intent_payload,
     validate_intent_file,
     validate_intent_text,
 )
+from viewspec.error_codes import ERROR_CODES
 from viewspec.app_bundle import (
     AGENT_APP_BUNDLE_SCHEMA,
     APP_BUNDLE_BINDING_SCOPE,
@@ -182,7 +185,9 @@ __all__ = [
     "DesignFinding",
     "DesignMetadata",
     "DesignRequest",
+    "ERROR_CODES",
     "GroupSpec",
+    "INTENT_BUNDLE_SCHEMA_VERSION",
     "IntentBundle",
     "IRNode",
     "MotifSpec",
@@ -277,6 +282,7 @@ __all__ = [
     "intent_semantic_change_lines",
     "init_intent_file",
     "starter_intent_bundle",
+    "starter_intent_payload",
     "validate_intent_file",
     "validate_intent_text",
     "AGENT_APP_BUNDLE_SCHEMA",

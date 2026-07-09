@@ -714,7 +714,7 @@ def _doctor_app_bundle_pipeline() -> dict[str, object]:
             # String, not bool: node absence must NOT hard-fail doctor (V1/V2 and all IntentBundle
             # flows are Python-only). Node is required only for V3 interactive_state conformance.
             "node_available": "yes" if shutil.which("node") is not None else "no",
-            "node_requirement": "Node.js (>=18) is required only for V3 interactive_state reducer conformance; V1/V2 are Python-only",
+            "node_requirement": "Node.js (>=18) is required only for V3/V4 interactive_state reducer conformance; V1/V2 are Python-only",
             "validate_app": True,
             "validate_bound_app": bool(bound_validation["ok"]),
             "compile_check": validation["compile_check"],

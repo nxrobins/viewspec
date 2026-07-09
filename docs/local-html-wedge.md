@@ -1,6 +1,6 @@
 # Local HTML Wedge
 
-The local HTML wedge is the beta SDK import/fallback path for existing HTML. For new UI, agents should emit `viewspec.intent.json` and use `viewspec validate-intent` before compiling.
+The local HTML wedge is the SDK import/fallback path for existing HTML. For new UI, agents should emit `viewspec.intent.json` and use `viewspec validate-intent` before compiling.
 
 ```bash
 viewspec compile input.html --design DESIGN.md --out dist/

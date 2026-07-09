@@ -15,7 +15,7 @@ from viewspec import (
     agent_asset_readiness,
     check_agent_assets,
     starter_app_bundle,
-    starter_intent_bundle,
+    starter_intent_payload,
 )
 from viewspec.app_bundle import AGENT_APP_BUNDLE_SCHEMA
 from viewspec.agent import AGENT_INTENT_BUNDLE_SCHEMA, AGENT_SYSTEM_PROMPT
@@ -235,7 +235,7 @@ def test_export_agent_assets_creates_local_prompt_and_schema(tmp_path, capsys):
     }
     assert prompt_path.read_text(encoding="utf-8") == AGENT_SYSTEM_PROMPT
     assert json.loads(schema_path.read_text(encoding="utf-8")) == AGENT_INTENT_BUNDLE_SCHEMA
-    assert json.loads(example_path.read_text(encoding="utf-8")) == starter_intent_bundle("dashboard").to_json()
+    assert json.loads(example_path.read_text(encoding="utf-8")) == starter_intent_payload("dashboard")
     assert json.loads(app_schema_path.read_text(encoding="utf-8")) == AGENT_APP_BUNDLE_SCHEMA
     assert json.loads(app_example_path.read_text(encoding="utf-8")) == starter_app_bundle("internal_tool")
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
@@ -320,7 +320,7 @@ def test_export_agent_assets_refuses_conflict_without_partial_writes(tmp_path, c
     assert cli_main(["export-agent-assets", "--out", str(out_dir), "--force"]) == 0
     assert (out_dir / "agent-system-prompt.txt").read_text(encoding="utf-8") == AGENT_SYSTEM_PROMPT
     assert json.loads((out_dir / "agent-intent-bundle.schema.json").read_text(encoding="utf-8")) == AGENT_INTENT_BUNDLE_SCHEMA
-    assert json.loads((out_dir / "agent-intent-example.dashboard.json").read_text(encoding="utf-8")) == starter_intent_bundle("dashboard").to_json()
+    assert json.loads((out_dir / "agent-intent-example.dashboard.json").read_text(encoding="utf-8")) == starter_intent_payload("dashboard")
     assert json.loads((out_dir / AGENT_APP_SCHEMA_FILE).read_text(encoding="utf-8")) == AGENT_APP_BUNDLE_SCHEMA
     assert json.loads((out_dir / AGENT_APP_EXAMPLE_FILE).read_text(encoding="utf-8")) == starter_app_bundle("internal_tool")
 

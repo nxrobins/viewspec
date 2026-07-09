@@ -22,6 +22,8 @@ The JSON object must contain:
 - view_spec.styles
 - view_spec.actions
 
+Include the optional root field schema_version with integer value 1. Documents without schema_version are treated as schema version 1; any other value is rejected.
+
 Use only these v1 motif kinds: table, dashboard, outline, comparison, list, form, detail, empty_state, loading_state, error_state, hero.
 
 Use only these binding present_as values: text, label, value, badge, input, rich_text, image_slot, rule.

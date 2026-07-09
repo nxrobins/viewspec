@@ -28,7 +28,7 @@ from viewspec import (
     agent_repair_checklist,
     export_agent_assets,
     starter_app_bundle,
-    starter_intent_bundle,
+    starter_intent_payload,
     validate_agent_intent_bundle,
 )
 from viewspec.agent import (
@@ -262,7 +262,8 @@ def test_published_agent_example_matches_runtime_starter(tmp_path, capsys):
     example_path = ROOT.joinpath("demos/agent-intent-example.dashboard.json")
     published = json.loads(example_path.read_text(encoding="utf-8"))
 
-    assert published == starter_intent_bundle("dashboard").to_json()
+    assert published == starter_intent_payload("dashboard")
+    assert published["schema_version"] == 1
     assert validate_agent_intent_bundle(published).valid
     assert cli_main(["validate-intent", str(example_path), "--json"]) == 0
     capsys.readouterr()

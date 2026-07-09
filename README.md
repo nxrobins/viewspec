@@ -120,7 +120,7 @@ viewspec prove-app --app viewspec.app.json --out .viewspec-app-proof --with-shel
 
 Aesthetic Profiles V1 are deterministic art-direction handles, not CSS: `aesthetic.calm_ops`, `aesthetic.premium_saas`, `aesthetic.data_dense`, `aesthetic.editorial_product`, `aesthetic.executive_review`, `aesthetic.brutalist`, `aesthetic.neon_cyber`, and `aesthetic.warm_organic`. Checked summaries expose compact style-delta counts and bounded layout deltas for profiled artifacts, not arbitrary CSS control, pixel-perfect visual proof, or design certification.
 
-## Import Existing HTML (0.3.0b1 beta)
+## Import Existing HTML
 
 The raw HTML path is an import/fallback tool for existing HTML. It sanitizes active content, applies local `DESIGN.md` tokens, writes deterministic provenance, and can report semantic diffs.
 
@@ -150,7 +150,7 @@ viewspec export-agent-assets --out .viewspec
 viewspec check-agent-assets .viewspec --json
 ```
 
-Agent assets use schema version `9`, contract profile `local_v1`, and the same export/check commands shown above; exported files include the local intent schema, AppBundle schema, starter examples, prompt, and asset manifest without SDK network calls.
+Agent assets use schema version `10`, contract profile `local_v1`, and the same export/check commands shown above; exported files include the local intent schema, AppBundle schema, starter examples, prompt, and asset manifest without SDK network calls.
 
 Optional **MCP tooling** is available behind the agent extra:
 
