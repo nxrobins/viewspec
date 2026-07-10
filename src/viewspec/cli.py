@@ -15,6 +15,7 @@ from viewspec.app_bundle import (
     APP_BUNDLE_DEFAULT_OUT,
     APP_BUNDLE_RESOURCE_BINDING,
     APP_BUNDLE_RESOURCE_BINDING_READONLY,
+    APP_BUNDLE_TARGET,
     APP_SHELL_DEFAULT_OUT,
     APP_SHELL_TARGET,
     app_semantic_change_lines,
@@ -154,6 +155,12 @@ def _build_parser() -> argparse.ArgumentParser:
         choices=("unbound-v0", "fixture-readonly-v0"),
         help="Starter resource binding mode. fixture-readonly-v0 writes schema_version 2.",
     )
+    init_app_parser.add_argument(
+        "--template",
+        default="contract",
+        choices=("contract", "react-app"),
+        help="Starter shape. react-app writes the runnable AppBundle V4 golden path.",
+    )
     init_app_parser.add_argument("--force", action="store_true", help="Overwrite an existing file.")
     init_app_parser.set_defaults(func=_init_app_command)
 
@@ -178,13 +185,21 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     diff_app_parser.set_defaults(func=_diff_app_command)
 
-    compile_app_parser = subparsers.add_parser("compile-app", help="Compile a local AppBundle into a Static Shell V0 artifact.")
+    compile_app_parser = subparsers.add_parser(
+        "compile-app",
+        help="Compile a local AppBundle into a static HTML shell or runnable React/Tailwind app.",
+    )
     compile_app_parser.add_argument("input", help="Input strict AppBundle .json file.")
     compile_app_parser.add_argument("--out", default=APP_SHELL_DEFAULT_OUT, help="Static app shell output directory.")
     compile_app_parser.add_argument("--design", help="Optional DESIGN.md file to apply to every embedded screen intent.")
     compile_app_parser.add_argument("--strict-design", action="store_true", help="Fail on DESIGN.md warnings as well as errors.")
     compile_app_parser.add_argument("--force", action="store_true", help="Replace an existing app shell output directory after safety checks.")
-    compile_app_parser.add_argument("--target", default=APP_SHELL_TARGET, choices=(APP_SHELL_TARGET,), help="Static shell target.")
+    compile_app_parser.add_argument(
+        "--target",
+        default=APP_SHELL_TARGET,
+        choices=(APP_SHELL_TARGET, "react-tailwind-app"),
+        help="App output target.",
+    )
     compile_app_parser.add_argument("--json", action="store_true", help="Print machine-readable JSON.")
     compile_app_parser.set_defaults(func=_compile_app_command)
 
@@ -229,6 +244,17 @@ def _build_parser() -> argparse.ArgumentParser:
     prove_app_parser.add_argument("--force", action="store_true", help="Replace an existing app proof output directory after safety checks.")
     prove_app_parser.add_argument("--report-out", help="Optional JSON app proof report path. Defaults to <out>/app_proof_report.json.")
     prove_app_parser.add_argument("--with-shell", action="store_true", help="Also write and prove a Static Shell V0 artifact under <out>/app-shell/.")
+    prove_app_parser.add_argument(
+        "--target",
+        default=APP_BUNDLE_TARGET,
+        choices=(APP_BUNDLE_TARGET, "react-tailwind-app"),
+        help="App proof target.",
+    )
+    prove_app_parser.add_argument(
+        "--install",
+        action="store_true",
+        help="Allow npm ci --ignore-scripts for react-tailwind-app host proof.",
+    )
     prove_app_parser.add_argument("--json", action="store_true", help="Print machine-readable JSON.")
     prove_app_parser.set_defaults(func=_prove_app_command)
 
@@ -469,7 +495,13 @@ def _init_app_command(args: argparse.Namespace) -> int:
         "unbound-v0": APP_BUNDLE_RESOURCE_BINDING,
         "fixture-readonly-v0": APP_BUNDLE_RESOURCE_BINDING_READONLY,
     }[args.resource_binding]
-    path = init_app_file(args.out, kind=args.kind, force=args.force, resource_binding=binding_mode)
+    path = init_app_file(
+        args.out,
+        kind=args.kind,
+        force=args.force,
+        resource_binding=binding_mode,
+        template=args.template,
+    )
     print(str(path))
     return 0
 
@@ -586,9 +618,10 @@ def _compile_app_command(args: argparse.Namespace) -> int:
     elif payload["ok"]:
         app = payload.get("app") if isinstance(payload.get("app"), dict) else {}
         print(f"ok: target={payload['target']} app={app.get('id')} routes={app.get('route_count')} screens={app.get('screen_count')}")
-        print(f"shell_artifact_hash: {payload.get('shell_artifact_hash')}")
+        artifact_hash = payload.get("shell_artifact_hash") or payload.get("app_artifact_hash")
+        print(f"artifact_hash: {artifact_hash}")
     else:
-        print("failed: Static Shell V0 compile could not be completed")
+        print("failed: AppBundle compile could not be completed")
         for error in payload["errors"]:
             print(f"{error['code']}: {error['message']}")
     return 0 if payload["ok"] else 2
@@ -890,6 +923,8 @@ def _prove_app_command(args: argparse.Namespace) -> int:
         force=bool(args.force),
         report_out=args.report_out,
         with_shell=bool(args.with_shell),
+        target=args.target,
+        install=bool(args.install),
     )
     if args.json:
         print(json.dumps(result, indent=2, sort_keys=True))

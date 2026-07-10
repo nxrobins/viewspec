@@ -10,6 +10,7 @@ from viewspec.app_validation import (
     APP_BUNDLE_RESOURCE_BINDING,
     APP_BUNDLE_RESOURCE_BINDING_READONLY,
     APP_BUNDLE_SCHEMA_VERSION,
+    APP_BUNDLE_VISIBILITY_SCHEMA_VERSION,
 )
 from viewspec.sdk.builder import ViewSpecBuilder
 
@@ -119,6 +120,95 @@ def _starter_bound_app_bundle(kind: str) -> dict[str, Any]:
     }
 
 
+def starter_react_app_bundle(kind: str = "internal_tool") -> dict[str, Any]:
+    """Return the runnable React/Tailwind golden-path AppBundle V4 starter."""
+    app = _starter_bound_app_bundle(kind)
+    app["schema_version"] = APP_BUNDLE_VISIBILITY_SCHEMA_VERSION
+    queue_intent = app["screens"][0]["intent_bundle"]
+    queue_intent["view_spec"]["actions"].append(
+        {
+            "id": "triage_incident",
+            "kind": "submit",
+            "label": "Triage",
+            "target_region": "main",
+            "target_ref": None,
+            "payload_bindings": ["inc_1043_id"],
+        }
+    )
+    app["interactive_state"] = "interactive_state_v0"
+    app["state"] = [
+        {
+            "id": "incidents_state",
+            "kind": "collection",
+            "scope": "app",
+            "initial": {"from_resource_view": {"screen_id": "queue", "view_id": "queue_incidents"}},
+        },
+        {
+            "id": "selected_incident",
+            "kind": "scalar",
+            "scope": "screen",
+            "screen_id": "queue",
+            "initial": {"value": None},
+        },
+    ]
+    app["mutations"] = [
+        {
+            "id": "triage_incident_state",
+            "trigger": {"screen_id": "queue", "action_id": "triage_incident"},
+            "ops": [
+                {
+                    "op": "patch",
+                    "state": "incidents_state",
+                    "item_id": {"from_payload": "inc_1043_id"},
+                    "value": {"status": "investigating"},
+                },
+                {"op": "set", "state": "selected_incident", "value": {"from_payload": "inc_1043_id"}},
+            ],
+        }
+    ]
+    app["selectors"] = [
+        {
+            "id": "active_incidents",
+            "source_state": "incidents_state",
+            "ops": [{"op": "filter_eq", "field": "status", "value": "investigating"}],
+        }
+    ]
+    app["visibility"] = [
+        {
+            "id": "show_triaged_status",
+            "screen_id": "queue",
+            "target_ref": "binding:inc_1043_status",
+            "when": {"state": "selected_incident", "is": "truthy"},
+        }
+    ]
+    app["state_replay_assertions"] = [
+        {
+            "id": "triage_replay",
+            "events": [
+                {
+                    "mutation_id": "triage_incident_state",
+                    "payload_values": {"inc_1043_id": "inc_1043"},
+                }
+            ],
+            "expect_state": {
+                "incidents_state": [
+                    {"id": "inc_1042", "severity": "high", "status": "investigating"},
+                    {"id": "inc_1043", "severity": "medium", "status": "investigating"},
+                ],
+                "selected_incident": "inc_1043",
+            },
+            "expect_selectors": {
+                "active_incidents": [
+                    {"id": "inc_1042", "severity": "high", "status": "investigating"},
+                    {"id": "inc_1043", "severity": "medium", "status": "investigating"},
+                ]
+            },
+            "expect_visibility": {"show_triaged_status": True},
+        }
+    ]
+    return app
+
+
 def _starter_queue_screen_intent() -> dict[str, Any]:
     builder = ViewSpecBuilder("incident_queue", root_attrs={"title": "Incident Queue"})
     table = builder.add_table("incidents", region="main", group_id="incident_rows")
@@ -172,4 +262,4 @@ def _starter_bound_detail_screen_intent() -> dict[str, Any]:
     return builder.build_bundle().to_json()
 
 
-__all__ = ["starter_app_bundle"]
+__all__ = ["starter_app_bundle", "starter_react_app_bundle"]

@@ -27,6 +27,8 @@ from viewspec.app_reports import (
     _app_shell_report,
     _write_app_proof,
 )
+from viewspec.app_react import REACT_APP_TARGET, _write_react_app
+from viewspec.app_react_verify import verify_react_app_artifact_dir
 from viewspec.app_resource_binding import _resource_binding_assertion_report
 from viewspec.app_screens import _prove_app_screens
 from viewspec.app_shell import (
@@ -38,7 +40,7 @@ from viewspec.app_shell import (
     APP_SHELL_TARGET,
 )
 from viewspec.app_shell_writer import _write_static_app_shell
-from viewspec.app_starters import starter_app_bundle
+from viewspec.app_starters import starter_app_bundle, starter_react_app_bundle
 from viewspec.app_validation import (
     APP_BUNDLE_RESOURCE_BINDING,
     _reject_json_constant,
@@ -55,11 +57,17 @@ def init_app_file(
     kind: str = "internal_tool",
     force: bool = False,
     resource_binding: str = APP_BUNDLE_RESOURCE_BINDING,
+    template: str = "contract",
 ) -> Path:
     output = Path(path)
     if output.exists() and not force:
         raise ValueError(f"{output} already exists; pass --force to overwrite")
-    payload = starter_app_bundle(kind, resource_binding=resource_binding)
+    if template == "react-app":
+        payload = starter_react_app_bundle(kind)
+    elif template == "contract":
+        payload = starter_app_bundle(kind, resource_binding=resource_binding)
+    else:
+        raise ValueError(f"Unknown starter app template: {template}")
     atomic_write(output, json.dumps(payload, indent=2, sort_keys=True) + "\n")
     return output
 
@@ -73,6 +81,8 @@ def prove_app(
     force: bool = False,
     report_out: str | Path | None = None,
     with_shell: bool = False,
+    target: str = APP_BUNDLE_TARGET,
+    install: bool = False,
     cwd: str | Path | None = None,
     _generate_reducer: Any = generate_typescript_reducer,
     _check_conformance: Any = check_reducer_conformance,
@@ -82,6 +92,38 @@ def prove_app(
     root = resolve_cwd(cwd)
     output_dir = resolve_local_path(out_dir, cwd=root, allow_outside_cwd=True)
     report_path = resolve_local_path(report_out, cwd=root, allow_outside_cwd=True) if report_out else output_dir / APP_BUNDLE_DEFAULT_REPORT
+    if target not in {APP_BUNDLE_TARGET, REACT_APP_TARGET}:
+        return _app_proof_failure_report(
+            output_dir=output_dir,
+            report_path=report_path,
+            errors=[
+                {
+                    "code": "APP_PROOF_TARGET_UNSUPPORTED",
+                    "message": f"AppBundle proof supports {APP_BUNDLE_TARGET} and {REACT_APP_TARGET}.",
+                    "fix": "Use --target html-tailwind or --target react-tailwind-app.",
+                }
+            ],
+            timings=timings,
+            validation=None,
+            write=False,
+            target=target,
+        )
+    if target == REACT_APP_TARGET and with_shell:
+        return _app_proof_failure_report(
+            output_dir=output_dir,
+            report_path=report_path,
+            errors=[
+                {
+                    "code": "APP_PROOF_TARGET_CONFLICT",
+                    "message": "--with-shell cannot be combined with --target react-tailwind-app.",
+                    "fix": "Remove --with-shell; the React target writes its runnable app under <out>/react-app.",
+                }
+            ],
+            timings=timings,
+            validation=None,
+            write=False,
+            target=target,
+        )
     try:
         try:
             source = resolve_local_path(app_path, cwd=root, allow_outside_cwd=True, must_exist=True)
@@ -116,6 +158,7 @@ def prove_app(
                 ],
                 timings=timings,
                 validation=validation,
+                target=target,
                 write=False,
             )
         payload = json.loads(app_text, parse_constant=_reject_json_constant)
@@ -177,6 +220,34 @@ def prove_app(
             )
             if not shell_report.get("ok"):
                 errors.extend(_normalize_proof_errors(shell_report.get("errors")))
+        react_app_report: dict[str, Any] | None = None
+        host_report: dict[str, Any] | None = None
+        if target == REACT_APP_TARGET and not errors:
+            react_app_report = _time_phase(
+                timings,
+                "react_app",
+                lambda: _write_react_app(
+                    payload,
+                    prepared.output_dir / "react-app",
+                    screen_reports,
+                    design_path=design,
+                    root=root,
+                    strict_design=strict_design,
+                    validation=validation,
+                    resource_binding_report=binding_report,
+                    screen_proof_dir=prepared.output_dir,
+                    generate_reducer=_generate_reducer,
+                    check_conformance=_check_conformance,
+                    build_manifest=_build_manifest,
+                ),
+            )
+            host_report = _time_phase(
+                timings,
+                "react_host",
+                lambda: verify_react_app_artifact_dir(prepared.output_dir / "react-app", install=install),
+            )
+            if not host_report.get("ok"):
+                errors.extend(_normalize_proof_errors(host_report.get("errors")))
         route_assertions = _route_assertions(payload)
         report = _app_proof_report(
             ok=not errors,
@@ -189,6 +260,9 @@ def prove_app(
             timings=timings,
             strict_design=strict_design,
             shell=shell_report,
+            react_app=react_app_report,
+            host_report=host_report,
+            install=install,
             resource_binding_report=binding_report,
         )
         return _write_app_proof(report, prepared)
@@ -200,6 +274,7 @@ def prove_app(
             timings=timings,
             validation=None,
             write=_should_write_app_proof_failure(output_dir, exc.code),
+            target=target,
         )
         if _should_write_app_proof_failure(output_dir, exc.code):
             prepared = _PreparedAppProof(output_dir, Path(app_path), None, report_path, output_dir / APP_BUNDLE_DEFAULT_SUMMARY, output_dir / APP_BUNDLE_DEFAULT_SUPPORT_BUNDLE)
@@ -219,6 +294,7 @@ def prove_app(
             timings=timings,
             validation=None,
             write=output_dir.exists(),
+            target=target,
         )
         if output_dir.exists():
             prepared = _PreparedAppProof(output_dir, Path(app_path), None, report_path, output_dir / APP_BUNDLE_DEFAULT_SUMMARY, output_dir / APP_BUNDLE_DEFAULT_SUPPORT_BUNDLE)
@@ -242,18 +318,19 @@ def compile_app(
     timings: dict[str, int] = {}
     root = resolve_cwd(cwd)
     output_dir = resolve_local_path(out_dir, cwd=root, allow_outside_cwd=True)
-    if target != APP_SHELL_TARGET:
+    if target not in {APP_SHELL_TARGET, REACT_APP_TARGET}:
         return _app_shell_failure_report(
             output_dir=output_dir,
             errors=[
                 {
                     "code": "APP_SHELL_TARGET_UNSUPPORTED",
-                    "message": f"Static Shell V0 supports {APP_SHELL_TARGET} only.",
-                    "fix": "Use --target html-tailwind-app.",
+                    "message": f"AppBundle compile supports {APP_SHELL_TARGET} and {REACT_APP_TARGET}.",
+                    "fix": "Use --target html-tailwind-app or --target react-tailwind-app.",
                 }
             ],
             timings=timings,
             validation=None,
+            target=target,
         )
     try:
         source = resolve_local_path(app_path, cwd=root, allow_outside_cwd=True, must_exist=True)
@@ -277,6 +354,7 @@ def compile_app(
                 ],
                 timings=timings,
                 validation=validation,
+                target=target,
             )
         payload = json.loads(app_text, parse_constant=_reject_json_constant)
         prepared_shell = _PreparedAppShell(
@@ -326,6 +404,25 @@ def compile_app(
                 strict_design=strict_design,
                 shell_payload=None,
                 resource_binding_report=binding_report,
+                target=target,
+            )
+        if target == REACT_APP_TARGET:
+            return _time_phase(
+                timings,
+                "react_app",
+                lambda: _write_react_app(
+                    payload,
+                    output_dir,
+                    screen_reports,
+                    design_path=design,
+                    root=root,
+                    strict_design=strict_design,
+                    validation=validation,
+                    resource_binding_report=binding_report,
+                    generate_reducer=_generate_reducer,
+                    check_conformance=_check_conformance,
+                    build_manifest=_build_manifest,
+                ),
             )
         shell_report = _time_phase(
             timings,
@@ -358,6 +455,7 @@ def compile_app(
                 strict_design=strict_design,
                 shell_payload=shell_report,
                 resource_binding_report=binding_report,
+                target=target,
             )
         return _app_shell_report(
             ok=True,
@@ -370,6 +468,7 @@ def compile_app(
             strict_design=strict_design,
             shell_payload=shell_report,
             resource_binding_report=binding_report,
+            target=target,
         )
     except AppBundleProofFailure as exc:
         return _app_shell_failure_report(
@@ -377,6 +476,7 @@ def compile_app(
             errors=[{"code": exc.code, "message": exc.message, "fix": exc.fix}],
             timings=timings,
             validation=None,
+            target=target,
         )
     except Exception as exc:
         return _app_shell_failure_report(
@@ -390,6 +490,7 @@ def compile_app(
             ],
             timings=timings,
             validation=None,
+            target=target,
         )
 
 def _time_phase(timings: dict[str, int], phase: str, fn: Any) -> Any:

@@ -75,6 +75,28 @@ Python package: <https://pypi.org/project/viewspec/>
 
 Hosted compiler pricing starts with Free at 500 hosted compile calls/day. Pro is $149/month for 10,000 hosted compile calls/day and up to 5 custom motif instances per compile; Enterprise is custom volume and terms.
 
+## Runnable React App Golden Path
+
+Generate a checked AppBundle V4 incident console, compile it into a complete Vite/React/Tailwind app, and run it:
+
+```bash
+viewspec init-app --template react-app --out viewspec.app.json
+viewspec compile-app viewspec.app.json --target react-tailwind-app --out app-dist
+cd app-dist
+npm ci
+npm run dev
+```
+
+The generated app wires browser-history routes, host-provided resources with fixture fallback, AppBundle mutations, selectors, and visibility into the checked React screen artifacts. `ViewSpecApp` exposes typed `resources`, `onNavigate`, `onAction`, `onStateChange`, and `onError` host boundaries.
+
+Edit `viewspec.app.json`, then regenerate with `--force`; do not edit generated React. Run the exact-artifact build and Chromium proof with:
+
+```bash
+viewspec prove-app --app viewspec.app.json --target react-tailwind-app --install
+```
+
+This bounded target is a runnable frontend app and host bridge. Authentication, persistence, arbitrary API clients, optimistic updates, and production infrastructure remain host-owned.
+
 ## IntentBundle-First Local Workflow
 
 For a first proof, run:
@@ -116,7 +138,7 @@ viewspec prove-app --app viewspec.app.json --out .viewspec-app-proof --with-shel
 * **V2**: Strict readonly fixture resources reported as `fixture_readonly_v0` with declared per-screen views.
 * **V3**: Adds bounded interactive state, declarative mutations, and a generated pure TypeScript reducer artifact.
 
-`compile-app` writes a single `app-dist/index.html` Static Shell V0 artifact with hash-based local routing, plus checked screen artifacts and generated TS state reducers for V3. The shell is proof-oriented source output; it does not claim production runtime navigation, browser navigation proof, framework adapters, persistence, sync, or hosted extended compiler behavior.
+`compile-app` defaults to a single `app-dist/index.html` Static Shell V0 proof artifact; that default is not browser navigation proof. Use `--target react-tailwind-app` for a runnable Vite/React/Tailwind app with browser-history routing, live resource/state rebinding, and exact-artifact host verification. Neither target generates authentication, persistence, arbitrary API clients, or backend infrastructure.
 
 Aesthetic Profiles V1 are deterministic art-direction handles, not CSS: `aesthetic.calm_ops`, `aesthetic.premium_saas`, `aesthetic.data_dense`, `aesthetic.editorial_product`, `aesthetic.executive_review`, `aesthetic.brutalist`, `aesthetic.neon_cyber`, and `aesthetic.warm_organic`. Checked summaries expose compact style-delta counts and bounded layout deltas for profiled artifacts, not arbitrary CSS control, pixel-perfect visual proof, or design certification.
 
@@ -150,7 +172,7 @@ viewspec export-agent-assets --out .viewspec
 viewspec check-agent-assets .viewspec --json
 ```
 
-Agent assets use schema version `10`, contract profile `local_v1`, and the same export/check commands shown above; exported files include the local intent schema, AppBundle schema, starter examples, prompt, and asset manifest without SDK network calls.
+Agent assets use schema version `11`, contract profile `local_v1`, and the same export/check commands shown above; exported files include the local intent schema, AppBundle schema, starter examples, prompt, and asset manifest without SDK network calls.
 
 Optional **MCP tooling** is available behind the agent extra:
 

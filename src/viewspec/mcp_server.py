@@ -114,16 +114,26 @@ def run_mcp_server(*, cwd: str | Path | None = None, allow_outside_cwd: bool = F
     @app.tool(
         description=(
             "Write a valid starter AppBundle JSON file for a two-screen internal tool. "
-            "Use resource_binding='unbound_v0' for schema_version 1 or 'fixture_readonly_v0' for schema_version 2 read-only fixture binding."
+            "Use template='react-app' for the runnable AppBundle V4 golden path, or use the contract template "
+            "with resource_binding='unbound_v0' or 'fixture_readonly_v0'."
         )
     )
     def init_app(
         out: str = "viewspec.app.json",
         kind: str = "internal_tool",
         resource_binding: str = "unbound_v0",
+        template: str = "contract",
         force: bool = False,
     ) -> dict[str, Any]:
-        return init_app_tool(out, kind=kind, resource_binding=resource_binding, force=force, cwd=root, allow_outside_cwd=allow_outside_cwd)
+        return init_app_tool(
+            out,
+            kind=kind,
+            resource_binding=resource_binding,
+            template=template,
+            force=force,
+            cwd=root,
+            allow_outside_cwd=allow_outside_cwd,
+        )
 
     @app.tool(
         description=(
@@ -156,8 +166,8 @@ def run_mcp_server(*, cwd: str | Path | None = None, allow_outside_cwd: bool = F
 
     @app.tool(
         description=(
-            "Compile a local AppBundle JSON file into a Static Shell V0 artifact. "
-            "For schema_version 2, also proves declared read-only fixture bindings. Use target='html-tailwind-app' only."
+            "Compile a local AppBundle JSON file into a Static Shell V0 artifact or a runnable Vite React/Tailwind app. "
+            "Use target='react-tailwind-app' for the generated host bridge."
         )
     )
     def compile_app(
@@ -269,9 +279,8 @@ def run_mcp_server(*, cwd: str | Path | None = None, allow_outside_cwd: bool = F
 
     @app.tool(
         description=(
-            "Run the local AppBundle proof workflow: validate V1 unbound or V2 fixture-readonly contracts, compile/check every "
-            "embedded screen through html-tailwind, write APP_PROOF.md/app_proof_report.json/app_support_bundle.json, and optionally "
-            "prove a Static Shell V0 artifact with with_shell=True."
+            "Run the local AppBundle proof workflow. Use target='react-tailwind-app' with install=True to generate the exact Vite app, "
+            "build it, and prove routing, history, mutation, data rebinding, selectors, and visibility in Chromium."
         )
     )
     def prove_app(
@@ -282,6 +291,8 @@ def run_mcp_server(*, cwd: str | Path | None = None, allow_outside_cwd: bool = F
         force: bool = False,
         report_out: str | None = None,
         with_shell: bool = False,
+        target: str = "html-tailwind",
+        install: bool = False,
     ) -> dict[str, Any]:
         return prove_app_tool(
             app_path=app_path,
@@ -291,6 +302,8 @@ def run_mcp_server(*, cwd: str | Path | None = None, allow_outside_cwd: bool = F
             force=force,
             report_out=report_out,
             with_shell=with_shell,
+            target=target,
+            install=install,
             cwd=root,
             allow_outside_cwd=allow_outside_cwd,
         )

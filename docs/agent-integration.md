@@ -4,6 +4,28 @@ This page describes the primary agent-native workflow: agents emit `IntentBundle
 
 Agents generate `IntentBundle` JSON. The ViewSpec compiler generates `CompositionIR`.
 
+## Runnable React App Workflow
+
+When the user asks for a runnable multi-screen React internal tool, start from the bounded AppBundle V4 golden path:
+
+```bash
+viewspec init-app --template react-app --out viewspec.app.json
+viewspec compile-app viewspec.app.json --target react-tailwind-app --out app-dist
+cd app-dist
+npm ci
+npm run dev
+```
+
+Replace the starter content by editing `viewspec.app.json`, validate it, and regenerate with `--force`; do not edit generated React. The generated `ViewSpecApp.tsx` is compiler output and exposes typed host resource and callback props.
+
+Before handoff, run the exact-artifact host proof when dependency installation is allowed:
+
+```bash
+viewspec prove-app --app viewspec.app.json --target react-tailwind-app --install
+```
+
+This proves the generated package's Vite build plus browser-history routing, unknown-route behavior, declared mutations, resource-backed text updates, selector replay, and visibility in Chromium. Keep authentication, persistence, API clients, optimistic updates, and deployment infrastructure in host-authored code.
+
 Do not prompt agents to output `CompositionIR`, primitives, nested `children`, or rendered layout. That bypasses the compiler and undermines the provenance and validation model. Agents should describe the semantic substrate and declarative view intent; ViewSpec remains responsible for layout, style resolution, diagnostics, and exact provenance.
 
 ## Agent Contract
@@ -175,7 +197,7 @@ AppBundle proof does not prove runtime browser navigation, dynamic routes, live 
 
 ## Published Agent Artifacts
 
-These assets use agent asset schema version `10`. The manifest declares the `local_v1` contract profile plus the export/check commands agents should use for local verification.
+These assets use agent asset schema version `11`. The manifest declares the `local_v1` contract profile plus the export/check commands agents should use for local verification.
 
 - Asset manifest: `https://viewspec.dev/agent-assets.json`
 - System prompt: `https://viewspec.dev/agent-system-prompt.txt`
