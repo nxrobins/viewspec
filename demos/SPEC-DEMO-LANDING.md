@@ -8,7 +8,7 @@ The landing page for the ViewSpec demo site. Card grid linking to individual dem
 /                           → Landing page (card grid)
 /motif-switcher/            → Same Data, Three Motifs
 /provenance-inspector/      → Provenance Inspector
-/live-builder/              → Live Builder
+/live-builder/              → Pipeline Explorer
 /invariants/                → The Invariants
 /fifteen-lines/             → 15 Lines → Full UI
 ```
@@ -60,10 +60,10 @@ Card styling:
    Table → Dashboard → Comparison. Same data, different motif. One parameter changes the entire visual structure.
 
 2. **Provenance Inspector**
-   Hover any element. See the full chain: DOM → IR → binding → address → raw data. Every pixel has a birth certificate.
+   Click, tap, or hover any element. See the full chain: DOM → IR → binding → address → raw data. Every pixel has a birth certificate.
 
-3. **Live Builder**
-   Browse ViewSpec JSON, see the IR tree, watch the rendered output. Three panels, always in sync.
+3. **Pipeline Explorer**
+   Browse read-only ViewSpec presets, see the IR tree, watch the rendered output. Three panels, always in sync.
 
 4. **The Invariants**
    Exactly-once provenance. Semantic grouping. Strict ordering. Watch the compiler enforce — and refuse — each one.

@@ -11,7 +11,7 @@
     { href: '../stateful-collections/', label: 'Collections' },
     { href: '../motif-switcher/', label: 'Motifs' },
     { href: '../provenance-inspector/', label: 'Provenance' },
-    { href: '../live-builder/', label: 'Builder' },
+    { href: '../live-builder/', label: 'Pipeline' },
     { href: '../invariants/', label: 'Invariants' },
     { href: '../proof-bundle/', label: 'Proof' },
     { href: '../fifteen-lines/', label: '15 Lines' },

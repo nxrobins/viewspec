@@ -647,10 +647,26 @@ for (const expected of [
   'landing-compiled/provenance_manifest.json',
   'id="pricing"',
   'id="pricing-actions"',
+  'id="pricing-grid"',
+  'class="pricing-plan"',
+  'Free local SDK',
+  'Pro hosted compiler',
+  'Enterprise support',
+  '500 hosted compile calls/day',
+  '10,000 hosted compile calls/day',
+  'Try the one-minute proof',
+  './proof-bundle/',
   'skip-link',
 ]) {
   assertPublicText(landing, expected, 'landing page artifact controls')
 }
+assert.match(landing, /<section id="pricing"[\s\S]*?id="pricing-grid"/, 'landing pricing anchor should expose visible plan comparison')
+assert.doesNotMatch(landing, /<a class="ghost mono" href="#top"[^>]*>read the docs/, 'landing docs CTA must not loop back to the hero')
+assert.match(landing, /href="https:\/\/github\.com\/nxrobins\/viewspec\/blob\/main\/docs\/getting-started\.md"[^>]*>read the docs/, 'landing docs CTA points to getting-started docs')
+assert.match(landing, /<a href="#pricing">Pricing<\/a>/, 'landing primary nav includes Pricing')
+assert.doesNotMatch(landing, /@media \(max-width:720px\)\{\s*\.nav-links a:not\(\.cta-mini\)\{\s*display:none;\s*\}\s*\}/, 'mobile nav should keep core links reachable')
+assertPublicText(landing, 'Click, tap, or hover', 'landing provenance copy supports touch and keyboard users')
+assertPublicText(landing, 'data-trace-target', 'landing provenance receipts should be traceable click targets')
 // The embedded specimen is REAL compiler output carrying real IR provenance.
 assert.match(landing, /id="viewspec-artifact-slot"[\s\S]*?data-ir-id="region_root"/, 'landing embeds the real compiled artifact')
 assert.doesNotMatch(landing, /data-page-style=/)
@@ -679,6 +695,21 @@ assert.match(landing, /href=\"mailto:hello@viewspec\.dev\?subject=ViewSpec%20Ent
 assert.match(landing, /data-config-link=\"pro\"/)
 assert.match(landing, /data-config-link=\"enterprise\"/)
 assert.doesNotMatch(landing, /\$699|699\/mo|7sY00i9v67cJebDd1K1oI00/)
+
+const sharedNav = await readFile('demos/shared/nav.js', 'utf8')
+assert.match(sharedNav, /label: 'Pipeline'/, 'shared demo nav should name the preset explorer honestly')
+assert.doesNotMatch(sharedNav, /label: 'Builder'/, 'shared demo nav should not overpromise builder behavior')
+
+const liveBuilder = await readFile('demos/live-builder/index.html', 'utf8')
+assert.match(liveBuilder, /ViewSpec Demo - Pipeline Explorer/, 'live-builder page title should be renamed')
+assert.match(liveBuilder, /Pipeline Explorer/, 'live-builder visible heading should be renamed')
+assert.match(liveBuilder, /read-only preset explorer/i, 'live-builder page should set read-only expectations')
+assert.doesNotMatch(liveBuilder, /<title>ViewSpec Demo - Live Builder<\/title>/)
+
+const provenanceInspector = await readFile('demos/provenance-inspector/index.html', 'utf8')
+assert.match(provenanceInspector, /Click, tap, or hover any rendered element/, 'provenance page should support touch-first instructions')
+assert.match(provenanceInspector, /data-text="Click\/tap"/, 'provenance lock-state pill should avoid hover-only wording')
+assert.doesNotMatch(provenanceInspector, /Hover over any element to inspect its provenance/)
 
 for (const productTextPath of ['README.md', 'demos/llms-full.txt', 'demos/shared/landing-config.js']) {
   const productText = await readFile(productTextPath, 'utf8')
