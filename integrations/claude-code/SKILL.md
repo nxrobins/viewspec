@@ -13,7 +13,7 @@ Use this skill when an agent creates a new human-facing UI artifact, report, das
 - If a `DESIGN.md` file exists, compile with it through ViewSpec.
 - Treat compiled output as an artifact, not as the editable source.
 - Use `viewspec prove --out .viewspec-proof` for a first local proof bundle; read `.viewspec-proof/PROOF.md` first, use `.viewspec-proof/proof_report.json` for tool output, and use `.viewspec-proof/support_bundle.json` for redacted failure triage. It proves source artifact integrity and provenance, not pixel-perfect visual equivalence.
-- For a narrow multi-screen internal tool, use AppBundle JSON as `viewspec.app.json` instead of hand-writing an app shell or router. Schema version 1 embeds local V1 screen IntentBundles, static routes, and unbound fixture resources; schema version 2 adds proof-only `fixture_readonly_v0` resource views for exact scalar visibility. Use Static Shell V0 only through `viewspec compile-app` or `viewspec prove-app --with-shell`.
+- For a narrow multi-screen internal tool, use AppBundle JSON as `viewspec.app.json` instead of hand-writing an app shell or router. Use `--template react-app` and the `react-tailwind-app` target when the user needs a runnable Vite/React/Tailwind application; keep authentication, persistence, APIs, and deployment host-owned.
 - For governed art direction, use at most one view-level aesthetic profile token in `viewspec.intent.json`: `aesthetic.calm_ops`, `aesthetic.premium_saas`, `aesthetic.data_dense`, `aesthetic.editorial_product`, or `aesthetic.executive_review`. Aesthetic profiles are deterministic style and bounded-layout handles, not CSS, pixel-perfect visual proof, accessibility certification, arbitrary host-app compatibility, or design-review approval.
 - Use raw HTML commands only when importing existing HTML.
 - Do not upload, share, call hosted APIs, or use remote services unless the user explicitly asks.
@@ -55,6 +55,19 @@ viewspec diff-app old.app.json new.app.json --json
 viewspec compile-app viewspec.app.json --out app-dist --target html-tailwind-app --json
 viewspec prove-app --app viewspec.app.json --out .viewspec-app-proof --with-shell --json
 ```
+
+Create, run, and prove the runnable React golden path:
+
+```bash
+viewspec init-app --template react-app --out viewspec.app.json
+viewspec compile-app viewspec.app.json --target react-tailwind-app --out app-dist
+cd app-dist
+npm ci
+npm run dev
+viewspec prove-app --app viewspec.app.json --target react-tailwind-app --install
+```
+
+Edit `viewspec.app.json` and regenerate with `--force`; do not edit generated React.
 
 Compile the IntentBundle locally:
 
@@ -114,9 +127,9 @@ viewspec export-agent-assets --out .viewspec
 viewspec check-agent-assets .viewspec --json
 ```
 
-The exported assets include `.viewspec/agent-app-bundle.schema.json` and `.viewspec/agent-app-example.internal-tool.json` for AppBundle V1/V2/V3 in addition to the IntentBundle schema/example.
+The exported assets include `.viewspec/agent-app-bundle.schema.json` and `.viewspec/agent-app-example.internal-tool.json` for AppBundle V1/V2/V3/V4 in addition to the IntentBundle schema/example.
 
-AppBundle V1 reports fixture resources as `resource_binding: "unbound_v0"`. AppBundle V2 reports `resource_binding: "fixture_readonly_v0"` with `binding_scope: "declared_resource_views_only"` and exact scalar visibility assertions. Static Shell V0 reports `target: "html-tailwind-app"` and `route_navigation: "static_shell_v0"`, rejects external network/embed/script surfaces, and remains a local shell proof artifact; it does not prove runtime navigation or browser history semantics, bind fixtures at runtime, generate a deployable framework app, implement state or mutations, or claim hosted extended compiler behavior.
+AppBundle V1 reports fixture resources as `resource_binding: "unbound_v0"`. V2 adds exact `fixture_readonly_v0` visibility proof, V3 adds generated state reducers/selectors, and V4 adds visibility. Static Shell V0 remains a local proof artifact without runtime navigation. The additive React target reports `target: "react-tailwind-app"` and `route_navigation: "browser_history_v1"`, emits a complete Vite package, and verifies generated hashes, build, routing, history, mutation, live resource rebinding, selectors, and visibility in Chromium.
 
 ## Output Contract
 

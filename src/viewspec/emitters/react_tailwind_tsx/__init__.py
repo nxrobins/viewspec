@@ -132,6 +132,16 @@ def _attrs_for_node(node: IRNode, recipe: ResolvedRecipe) -> list[str]:
     aesthetic_profile = node.props.get("aesthetic_profile")
     if isinstance(aesthetic_profile, str) and aesthetic_profile:
         attrs.append(_jsx_attr("data-aesthetic-profile", aesthetic_profile))
+    visibility_rule_id = node.props.get("visibility_rule_id")
+    if isinstance(visibility_rule_id, str) and visibility_rule_id:
+        rule_literal = _tsx_string(visibility_rule_id)
+        attrs.extend(
+            [
+                _jsx_attr("data-visibility-rule", visibility_rule_id),
+                f'data-visibility-state={{visibility[{rule_literal}] === false ? "hidden" : "visible"}}',
+                f"hidden={{visibility[{rule_literal}] === false}}",
+            ]
+        )
     if node.primitive == "button":
         attrs.extend(
             [
@@ -355,6 +365,13 @@ def _emit_source(result: CompilerResult, title: str) -> tuple[str, dict[str, Any
     rendered = _render_node(root, manifest=manifest, recipes=recipes, root=root)
     input_values = _safe_json_literal(_initial_input_values(root))
     compiled_values = _safe_json_literal(_compiled_payload_values(root))
+    initial_visibility = {
+        str(node.props["visibility_rule_id"]): not bool(node.props.get("visibility_hidden_initial"))
+        for node in _walk(root)
+        if isinstance(node.props.get("visibility_rule_id"), str) and node.props.get("visibility_rule_id")
+    }
+    visibility_props = ["  visibility?: Record<string, boolean>;"] if initial_visibility else []
+    visibility_default = f", visibility = {_safe_json_literal(initial_visibility)}" if initial_visibility else ""
     lines = [
         '"use client";',
         "",
@@ -375,6 +392,7 @@ def _emit_source(result: CompilerResult, title: str) -> tuple[str, dict[str, Any
         "export type ViewSpecViewProps = {",
         "  data?: ViewSpecData;",
         "  onAction?: (intent: ViewSpecActionIntent) => void;",
+        *visibility_props,
         "};",
         "",
         f"export const viewspecTitle = {_tsx_string(title)};",
@@ -391,7 +409,7 @@ def _emit_source(result: CompilerResult, title: str) -> tuple[str, dict[str, Any
         "  }",
         "}",
         "",
-        "export function ViewSpecView({ data = {}, onAction }: ViewSpecViewProps) {",
+        f"export function ViewSpecView({{ data = {{}}, onAction{visibility_default} }}: ViewSpecViewProps) {{",
         f"  const [inputValues, setInputValues] = React.useState<Record<string, unknown>>({input_values});",
         f"  const compiledPayloadValues: Record<string, unknown> = {compiled_values};",
         "  const setInputValue = (id: string, value: unknown) => {",

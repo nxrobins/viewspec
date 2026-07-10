@@ -19,7 +19,7 @@
   "files": [
     {
       "path": "agent-system-prompt.txt",
-      "sha256": "07745864dedb912aa95caa91bd594033adc841f2c3b01e8d8952513b1d7add50"
+      "sha256": "6e00d357c50b8a239a5b99b40d97b7a79c16d39983ff4ef74529e467bf261704"
     },
     {
       "path": "agent-intent-bundle.schema.json",
@@ -40,5 +40,5 @@
   ],
   "intent_schema_id": "https://viewspec.dev/agent-intent-bundle.schema.json",
   "kind": "viewspec_agent_assets",
-  "schema_version": 10
+  "schema_version": 11
 }

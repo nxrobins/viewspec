@@ -18,6 +18,28 @@ viewspec prove --out .viewspec-proof
 
 This writes a starter `viewspec.intent.json`, starter `DESIGN.md`, checked artifact output, human-readable `PROOF.md`, machine-readable `proof_report.json`, and redacted `support_bundle.json` under `.viewspec-proof/`. Read [ViewSpec Proof Bundle](proof-bundle.md) when you need to interpret status, hashes, checks, failure codes, or local support triage. The default proof is Python-only and no-network; it proves source artifact integrity and provenance. ViewSpec prove is not pixel-perfect visual regression, accessibility certification, arbitrary host-app certification, or hosted compiler publish automation.
 
+## Runnable React App Golden Path
+
+Use the checked AppBundle V4 starter when the goal is a running multi-screen React application rather than a source proof:
+
+```bash
+viewspec init-app --template react-app --out viewspec.app.json
+viewspec compile-app viewspec.app.json --target react-tailwind-app --out app-dist
+cd app-dist
+npm ci
+npm run dev
+```
+
+The target writes a complete Vite/React/Tailwind package. Browser-history routes, generated reducer events, resource-backed text, selectors, and visibility update at runtime. This is bounded browser navigation and frontend-state proof; host applications can pass resource records and typed callbacks through `ViewSpecAppProps`.
+
+Make changes in `viewspec.app.json`, review them with `viewspec diff-app`, and recompile with `--force`; do not edit generated React. Prove the exact generated package in Chromium with:
+
+```bash
+viewspec prove-app --app viewspec.app.json --target react-tailwind-app --install
+```
+
+The proof runs `npm ci --ignore-scripts`, a Vite production build, and generated Playwright assertions for every static route, browser history, the unknown-route fallback, declared state actions, live resource rebinding, selector replay, and visibility. Authentication, persistence, arbitrary API clients, and production infrastructure remain host-owned.
+
 ## Agent Intent First
 
 For new UI, make the agent create `viewspec.intent.json` and run:
@@ -52,7 +74,7 @@ viewspec compile-app viewspec.app.json --out app-dist --target html-tailwind-app
 viewspec prove-app --app viewspec.app.json --out .viewspec-app-proof --with-shell --json
 ```
 
-`prove-app` writes `APP_PROOF.md`, `app_proof_report.json`, `app_support_bundle.json`, and one checked screen artifact directory per screen. V2/V3 proof reports include `binding_scope: "declared_resource_views_only"`, assertion counts, per-view status, and a binding digest for exact fixture scalar visibility. V3 shell proofs also include `state_contract_hash`, `state_reducer_hash`, `state_manifest_hash`, replay assertion status, and generated reducer conformance status. AppBundle proof does not prove runtime browser navigation, live DOM rebinding, transformed values, deployable app shells, framework adapters, persistence, sync, or hosted extended compiler behavior.
+`prove-app` writes `APP_PROOF.md`, `app_proof_report.json`, `app_support_bundle.json`, and one checked screen artifact directory per screen. The default source proof and `--with-shell` remain bounded proof-artifact paths. The `react-tailwind-app` target additionally proves its exact generated package in the reference React host when `--install` is supplied.
 
 Static Shell V0 is the bounded local shell artifact for this contract. `compile-app` writes `app-dist/index.html`, `shell_manifest.json`, `diagnostics.json`, checked screen artifacts, and for V3 `state_reducer.ts` plus `state_manifest.json`; reports `target: "html-tailwind-app"` and `route_navigation: "static_shell_v0"`; rejects external network/embed/script surfaces; and remains a local proof artifact, not a deployable framework app, live DOM rebinding layer, framework state adapter, persistence layer, browser-history proof, accessibility certification, or cross-browser visual proof.
 
@@ -90,7 +112,7 @@ viewspec export-agent-assets --out .viewspec
 viewspec check-agent-assets .viewspec --json
 ```
 
-The asset manifest uses schema version `10`, declares the `local_v1` contract profile, and records the export/check commands. It includes the IntentBundle schema/example plus `agent-app-bundle.schema.json` and `agent-app-example.internal-tool.json` for AppBundle V1/V2/V3/V4. Run the check command before reusing cached `.viewspec` assets.
+The asset manifest uses schema version `11`, declares the `local_v1` contract profile, and records the export/check commands. It includes the IntentBundle schema/example plus `agent-app-bundle.schema.json` and `agent-app-example.internal-tool.json` for AppBundle V1/V2/V3/V4. Run the check command before reusing cached `.viewspec` assets.
 
 For MCP-capable agents:
 

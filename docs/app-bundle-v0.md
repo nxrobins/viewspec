@@ -1,6 +1,26 @@
 # AppBundle V1/V2/V3/V4
 
-AppBundle is the first narrow app-generation contract for local multi-screen internal tools. It does not emit a deployable app. It records app metadata, static routes, fixture resources, and embedded local V1 screen `IntentBundle`s, then proves each screen by compiling/checking through the existing `html-tailwind` path. `schema_version: 1` keeps fixtures unbound; `schema_version: 2` adds proof-only read-only fixture binding; `schema_version: 3` adds bounded declarative state, mutations, selectors, replay assertions, and a generated pure TypeScript reducer artifact. `schema_version: 4` adds optional bounded `visibility` rules: per-screen show/hide conditions over the declared state/selector vocabulary, at most 64 rules and one rule per `(screen_id, target_ref)`, where `target_ref` is a `region:`, `motif:`, or `binding:` id declared in that screen's embedded intent and `when` is exactly one of `{"state", "is": "truthy"|"falsy"}`, `{"state", "equals": <JSON scalar>}`, or `{"selector", "is": "non_empty"|"empty"}`. Compiled screens bake initial visibility (`data-visibility-rule` + `data-visibility-state` markers, plus `hidden` when the initial verdict is false, cross-checked against `initial_visibility` at proof time), replay assertions may add `expect_visibility`, and the generated reducer additionally exports `evaluateViewSpecVisibility(state)` with Node conformance comparing Python and JavaScript verdicts.
+AppBundle is the bounded app-generation contract for local multi-screen internal tools. Its default Static Shell V0 target remains a proof artifact. The additive `react-tailwind-app` target emits a complete runnable Vite/React/Tailwind package with browser-history routes, host resource props, generated state reducers, selectors, conditional visibility, typed host callbacks, and exact-artifact browser verification. `schema_version: 1` keeps fixtures unbound; `schema_version: 2` adds proof-only read-only fixture binding; `schema_version: 3` adds bounded declarative state, mutations, selectors, replay assertions, and a generated pure TypeScript reducer artifact. `schema_version: 4` adds bounded visibility rules and is the golden-path runtime contract.
+
+## Runnable React App Golden Path
+
+```bash
+viewspec init-app --template react-app --out viewspec.app.json
+viewspec compile-app viewspec.app.json --target react-tailwind-app --out app-dist
+cd app-dist
+npm ci
+npm run dev
+```
+
+Edit the AppBundle and regenerate with `--force`; do not edit generated React. To compile and prove the exact generated app in one workflow:
+
+```bash
+viewspec prove-app --app viewspec.app.json --target react-tailwind-app --install
+```
+
+The proof checks the same embedded screen provenance and resource assertions as the source path, verifies generated reducer replay under Node, checks every generated file hash, runs the Vite production build, and exercises routes, browser history, unknown-route fallback, state actions, live resource-field rebinding, selector expectations, and visibility in Chromium.
+
+The generated `ViewSpecApp` accepts fixture-compatible resource records plus typed navigation, action, state-change, and error callbacks. Network requests, authentication, persistence, optimistic updates, and deployment infrastructure remain host-owned.
 
 ```bash
 viewspec init-app --out viewspec.app.json
@@ -102,14 +122,14 @@ For V3/V4 shell proofs, `compile-app` and `prove-app --with-shell` also write ma
 - AppBundle V0 is not required to support dynamic routes, route params, query strings, hash fragments, encoded route aliases, redirects, route guards, nested routers, or locale-aware routing.
 - AppBundle V0 is not required to detect every semantic mismatch between fake fixture resources and duplicated data inside embedded screen IntentBundles.
 - AppBundle V0 is not required to bind fixture resources into screen rendering, infer screen data dependencies, deduplicate repeated data across screens, or prove data-flow consistency.
-- AppBundle V0 is not required to generate a deployable React/Vite/Next app, runtime router, resource adapter, framework state adapter, API client, backend, database schema, or mutation handler.
+- The `react-tailwind-app` target emits a runnable Vite/React/Tailwind frontend and bounded host adapter; it does not generate Next.js, arbitrary routers, API clients, backends, database schemas, authentication, persistence, or optimistic server mutation handlers.
 - AppBundle V0 is not required to optimize for very large apps, streaming validation, incremental proof, cross-bundle imports, shared screen libraries, or monorepo-scale app composition.
 - AppBundle V0 is not required to certify accessibility, pixel-perfect visual equivalence, cross-browser behavior, production deployment readiness, arbitrary host-app compatibility, or hosted extended compiler behavior.
-- Static Shell V0 is not required to support browser back/forward history semantics, scroll restoration, focus restoration, route transition animation, multi-tab synchronization, CSP policy generation, service workers, web workers, import maps, production deployment hardening, fixture binding, live data or text rebinding, framework state adapters, persisted local state, nested routers, redirects, route guards, dynamic segments, route params, query strings, AppBundle hash fragments, locale routing, encoded aliases, canonical URL rewriting, lazy loading, bundle splitting, or deployable React/Vite/Next generation.
+- Static Shell V0 does not support browser back/forward history semantics, live data or text rebinding, or deployable framework generation. Those bounded frontend behaviors belong to `react-tailwind-app`; scroll/focus restoration, transitions, multi-tab synchronization, service workers, persisted state, nested or dynamic routing, redirects, route guards, query strings, locale routing, lazy loading, and bundle splitting remain out of scope for both local targets.
 - Resource Binding V0 is not required to prove formatted, localized, case-normalized, concatenated, abbreviated, rounded, pluralized, date-formatted, currency-formatted, or otherwise transformed fixture values.
 - Resource Binding V0 is not required to infer that display labels, aliases, derived columns, badges, icons, colors, severity ordering, or human-readable summaries correspond to fixture fields.
 - Resource Binding V0 is not required to support nested record fields, arrays, objects, joins, cross-resource references, computed fields, filters, sorting, pagination, grouping, aggregation, or query languages.
-- Resource Binding V0 is not required to bind fixture resources at runtime, update the shell after load, persist state, handle mutations, synchronize data across routes, or prove whole-app data-flow consistency beyond explicitly declared `resource_views`.
+- Static Shell Resource Binding V0 remains proof-only. The React target projects declared scalar resource-view fields from host props or generated state into checked bindings, but does not infer undeclared data flow, persist state, or synchronize with a server.
 - Resource Binding V0 is not required to resolve semantic intent when multiple fixture fields intentionally contain the same scalar value unless the declared record-field assertion boundary is unambiguous.
 - State IR V0 is not required to generate Zustand, Redux, SwiftData, CRDT, websocket, optimistic reconciliation, persistence, auth, backend/API client, package install, or gesture/pointer runtimes.
 - State IR V0 is not required to relax local V1/V2/V3 caps, stream massive dynamic apps, discover plugins, execute untrusted code, or cross the hosted compiler API boundary.

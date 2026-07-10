@@ -13,6 +13,7 @@ from viewspec.app_reports import (
     APP_BUNDLE_PROOF_LEVEL,
     APP_BUNDLE_TARGET,
 )
+from viewspec.app_react import REACT_APP_ROUTE_NAVIGATION, REACT_APP_TARGET
 from viewspec.app_validation import (
     APP_BUNDLE_ALLOWED_KINDS,
     APP_BUNDLE_BINDING_SCOPE,
@@ -40,7 +41,7 @@ from viewspec.app_shell import (
     APP_SHELL_ROUTE_NAVIGATION,
     APP_SHELL_TARGET,
 )
-from viewspec.app_starters import starter_app_bundle
+from viewspec.app_starters import starter_app_bundle, starter_react_app_bundle
 from viewspec.app_state_artifacts import (
     APP_STATE_MANIFEST,
     APP_STATE_REDUCER,
@@ -58,8 +59,15 @@ def init_app_file(
     kind: str = "internal_tool",
     force: bool = False,
     resource_binding: str = APP_BUNDLE_RESOURCE_BINDING,
+    template: str = "contract",
 ) -> Path:
-    return _app_pipeline.init_app_file(path, kind=kind, force=force, resource_binding=resource_binding)
+    return _app_pipeline.init_app_file(
+        path,
+        kind=kind,
+        force=force,
+        resource_binding=resource_binding,
+        template=template,
+    )
 
 
 def prove_app(
@@ -71,6 +79,8 @@ def prove_app(
     force: bool = False,
     report_out: str | Path | None = None,
     with_shell: bool = False,
+    target: str = APP_BUNDLE_TARGET,
+    install: bool = False,
     cwd: str | Path | None = None,
 ) -> dict[str, Any]:
     return _app_pipeline.prove_app(
@@ -81,6 +91,8 @@ def prove_app(
         force=force,
         report_out=report_out,
         with_shell=with_shell,
+        target=target,
+        install=install,
         cwd=cwd,
         _generate_reducer=generate_typescript_reducer,
         _check_conformance=check_reducer_conformance,
@@ -117,6 +129,7 @@ def init_app_tool(
     *,
     kind: str = "internal_tool",
     resource_binding: str = APP_BUNDLE_RESOURCE_BINDING,
+    template: str = "contract",
     force: bool = False,
     cwd: str | Path | None = None,
     allow_outside_cwd: bool = False,
@@ -125,6 +138,7 @@ def init_app_tool(
         out,
         kind=kind,
         resource_binding=resource_binding,
+        template=template,
         force=force,
         cwd=cwd,
         allow_outside_cwd=allow_outside_cwd,
@@ -197,6 +211,8 @@ def prove_app_tool(
     force: bool = False,
     report_out: str | Path | None = None,
     with_shell: bool = False,
+    target: str = APP_BUNDLE_TARGET,
+    install: bool = False,
     cwd: str | Path | None = None,
     allow_outside_cwd: bool = False,
 ) -> dict[str, Any]:
@@ -208,6 +224,8 @@ def prove_app_tool(
         force=force,
         report_out=report_out,
         with_shell=with_shell,
+        target=target,
+        install=install,
         cwd=cwd,
         allow_outside_cwd=allow_outside_cwd,
         _prove_app=prove_app,
@@ -238,6 +256,8 @@ __all__ = [
     "APP_SHELL_DEFAULT_OUT",
     "APP_SHELL_ROUTE_NAVIGATION",
     "APP_SHELL_TARGET",
+    "REACT_APP_ROUTE_NAVIGATION",
+    "REACT_APP_TARGET",
     "app_semantic_change_lines",
     "compile_app",
     "compile_app_tool",
@@ -249,6 +269,7 @@ __all__ = [
     "prove_app",
     "prove_app_tool",
     "starter_app_bundle",
+    "starter_react_app_bundle",
     "validate_app_file",
     "validate_app_file_tool",
     "validate_app_text",

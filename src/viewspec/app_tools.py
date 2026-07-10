@@ -29,6 +29,7 @@ def init_app_tool(
     *,
     kind: str = "internal_tool",
     resource_binding: str = APP_BUNDLE_RESOURCE_BINDING,
+    template: str = "contract",
     force: bool = False,
     cwd: str | Path | None = None,
     allow_outside_cwd: bool = False,
@@ -39,22 +40,36 @@ def init_app_tool(
         root = resolve_cwd(cwd)
         output = resolve_local_path(out, cwd=root, allow_outside_cwd=allow_outside_cwd)
         normalized_binding = resource_binding.replace("-", "_")
-        _init_app_file(output, kind=kind, resource_binding=normalized_binding, force=force)
+        _init_app_file(
+            output,
+            kind=kind,
+            resource_binding=normalized_binding,
+            template=template,
+            force=force,
+        )
         validation = validate_app_file(output)
         return tool_response(
             validation["ok"],
             "Wrote starter AppBundle." if validation["ok"] else "Wrote starter AppBundle, but validation failed.",
             paths={"app": str(output)},
             data={"validation": validation},
-            next_actions=[
-                "Replace sample internal-tool labels and records with real app context.",
-                "Run viewspec prove-app --app viewspec.app.json --out .viewspec-app-proof --json.",
-            ],
+            next_actions=(
+                [
+                    "Replace sample internal-tool labels and records with real app context.",
+                    "Run viewspec compile-app viewspec.app.json --target react-tailwind-app --out app-dist.",
+                ]
+                if template == "react-app"
+                else [
+                    "Replace sample internal-tool labels and records with real app context.",
+                    "Run viewspec prove-app --app viewspec.app.json --out .viewspec-app-proof --json.",
+                ]
+            ),
             metadata={
                 **path_policy_metadata(root, allow_outside_cwd),
                 "sdk_version": __version__,
                 "network_calls": "none",
                 "kind": kind,
+                "template": template,
                 "resource_binding": validation.get("resource_binding"),
                 "binding_scope": validation.get("binding_scope"),
             },
@@ -193,7 +208,7 @@ def compile_app_tool(
         errors = _normalize_proof_errors(result.get("errors")) if not result.get("ok") else []
         return tool_response(
             bool(result.get("ok")),
-            "Compiled Static Shell V0 app artifact." if result.get("ok") else "Static Shell V0 compile failed.",
+            "Compiled AppBundle artifact." if result.get("ok") else "AppBundle compile failed.",
             paths={key: str(value) for key, value in result.get("paths", {}).items() if value},
             errors=errors,
             next_actions=[] if result.get("ok") else ["Fix the reported app shell issue and retry compile_app."],
@@ -214,6 +229,8 @@ def compile_app_tool(
                 "app": result.get("app"),
                 "shell_artifact_hash": result.get("shell_artifact_hash"),
                 "shell_manifest_hash": result.get("shell_manifest_hash"),
+                "app_artifact_hash": result.get("app_artifact_hash"),
+                "manifest_hash": result.get("manifest_hash"),
                 "state_reducer_hash": result.get("state_reducer_hash"),
                 "state_manifest_hash": result.get("state_manifest_hash"),
                 "state_contract_hash": result.get("state_contract_hash"),
@@ -241,6 +258,8 @@ def prove_app_tool(
     force: bool = False,
     report_out: str | Path | None = None,
     with_shell: bool = False,
+    target: str = "html-tailwind",
+    install: bool = False,
     cwd: str | Path | None = None,
     allow_outside_cwd: bool = False,
     _prove_app: Any = prove_app,
@@ -268,6 +287,8 @@ def prove_app_tool(
             force=force,
             report_out=report,
             with_shell=with_shell,
+            target=target,
+            install=install,
             cwd=root,
         )
         errors = _normalize_proof_errors(proof.get("errors")) if not proof.get("ok") else []
@@ -294,6 +315,13 @@ def prove_app_tool(
                 "route_navigation": proof.get("route_navigation"),
                 "shell_artifact_hash": proof.get("shell_artifact_hash"),
                 "shell_manifest_hash": proof.get("shell_manifest_hash"),
+                "app_artifact_hash": proof.get("app_artifact_hash"),
+                "manifest_hash": proof.get("manifest_hash"),
+                "host_assertions": (
+                    proof.get("host_report", {}).get("assertions")
+                    if isinstance(proof.get("host_report"), dict)
+                    else None
+                ),
                 "state_reducer_hash": proof.get("state_reducer_hash"),
                 "state_manifest_hash": proof.get("state_manifest_hash"),
                 "state_contract_hash": proof.get("state_contract_hash"),

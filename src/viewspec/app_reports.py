@@ -12,6 +12,7 @@ from viewspec._version import __version__
 from viewspec.app_diff import _validation_summary
 from viewspec.app_errors import AppBundleProofFailure, _normalize_proof_errors
 from viewspec.app_prepared import _PreparedAppProof, _PreparedAppShell
+from viewspec.app_react import REACT_APP_ROUTE_NAVIGATION, REACT_APP_TARGET
 from viewspec.app_shell import (
     APP_SHELL_DIAGNOSTICS,
     APP_SHELL_INDEX,
@@ -38,6 +39,7 @@ APP_BUNDLE_DEFAULT_REPORT = "app_proof_report.json"
 APP_BUNDLE_DEFAULT_SUMMARY = "APP_PROOF.md"
 APP_BUNDLE_DEFAULT_SUPPORT_BUNDLE = "app_support_bundle.json"
 APP_BUNDLE_PROOF_LEVEL = "app_contract_source_artifacts"
+APP_REACT_PROOF_LEVEL = "react_app_reference_host"
 APP_BUNDLE_TARGET = "html-tailwind"
 APP_BUNDLE_MAX_SUMMARY_BYTES = 32 * 1024
 
@@ -54,6 +56,9 @@ def _app_proof_report(
     timings: dict[str, int],
     strict_design: bool,
     shell: dict[str, Any] | None = None,
+    react_app: dict[str, Any] | None = None,
+    host_report: dict[str, Any] | None = None,
+    install: bool = False,
     resource_binding_report: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     paths = {
@@ -78,37 +83,86 @@ def _app_proof_report(
             paths["app_state_reducer"] = str(shell_paths["state_reducer"])
         if shell_paths.get("state_manifest"):
             paths["app_state_manifest"] = str(shell_paths["state_manifest"])
+    if isinstance(react_app, dict) and isinstance(react_app.get("paths"), dict):
+        react_paths = react_app["paths"]
+        paths["react_app"] = str(react_paths.get("output_dir"))
+        paths["react_app_entry"] = str(react_paths.get("app"))
+        paths["react_app_manifest"] = str(react_paths.get("manifest"))
+        paths["react_app_diagnostics"] = str(react_paths.get("diagnostics"))
+        if react_paths.get("state_reducer"):
+            paths["app_state_reducer"] = str(react_paths["state_reducer"])
+        if react_paths.get("state_manifest"):
+            paths["app_state_manifest"] = str(react_paths["state_manifest"])
     combined_route_assertions = dict(route_assertions)
     if isinstance(shell, dict) and isinstance(shell.get("route_assertions"), dict):
         combined_route_assertions.update(shell["route_assertions"])
+    if isinstance(react_app, dict) and isinstance(react_app.get("route_assertions"), dict):
+        combined_route_assertions.update(react_app["route_assertions"])
     binding_fields = _resource_binding_report_fields(app_payload, resource_binding_report)
+    artifact_report = react_app if isinstance(react_app, dict) else shell
+    is_react = isinstance(react_app, dict)
     return {
         "schema_version": APP_BUNDLE_PROOF_SCHEMA_VERSION,
         "app_schema_version": _app_schema_version(app_payload),
         "ok": ok,
-        "proof_level": APP_BUNDLE_PROOF_LEVEL,
-        "target": APP_SHELL_TARGET if shell else APP_BUNDLE_TARGET,
+        "proof_level": APP_REACT_PROOF_LEVEL if is_react else APP_BUNDLE_PROOF_LEVEL,
+        "target": REACT_APP_TARGET if is_react else APP_SHELL_TARGET if shell else APP_BUNDLE_TARGET,
         "app": _app_summary(app_payload),
         "paths": paths,
         "route_assertions": combined_route_assertions,
-        **({"route_navigation": APP_SHELL_ROUTE_NAVIGATION} if shell else {}),
+        **(
+            {"route_navigation": REACT_APP_ROUTE_NAVIGATION}
+            if is_react
+            else {"route_navigation": APP_SHELL_ROUTE_NAVIGATION}
+            if shell
+            else {}
+        ),
         **binding_fields,
         "screens": screen_reports,
         **({"shell": _compact_shell_report(shell)} if shell else {}),
+        **({"react_app": _compact_react_app_report(react_app)} if is_react else {}),
+        **({"host_report": host_report} if isinstance(host_report, dict) else {}),
+        **({"app_artifact_hash": react_app.get("app_artifact_hash")} if is_react else {}),
+        **({"manifest_hash": react_app.get("manifest_hash")} if is_react else {}),
         **({"shell_artifact_hash": shell.get("shell_artifact_hash")} if shell else {}),
         **({"shell_manifest_hash": shell.get("shell_manifest_hash")} if shell else {}),
-        **({"state_reducer_hash": shell.get("state_reducer_hash")} if shell and shell.get("state_reducer_hash") else {}),
-        **({"state_manifest_hash": shell.get("state_manifest_hash")} if shell and shell.get("state_manifest_hash") else {}),
-        **({"state_contract_hash": shell.get("state_contract_hash")} if shell and shell.get("state_contract_hash") else {}),
-        **({"state_replay": shell.get("state_replay")} if shell and shell.get("state_replay") else {}),
-        **({"state_reducer_conformance": shell.get("state_reducer_conformance")} if shell and shell.get("state_reducer_conformance") else {}),
+        **(
+            {"state_reducer_hash": artifact_report.get("state_reducer_hash")}
+            if artifact_report and artifact_report.get("state_reducer_hash")
+            else {}
+        ),
+        **(
+            {"state_manifest_hash": artifact_report.get("state_manifest_hash")}
+            if artifact_report and artifact_report.get("state_manifest_hash")
+            else {}
+        ),
+        **(
+            {"state_contract_hash": artifact_report.get("state_contract_hash")}
+            if artifact_report and artifact_report.get("state_contract_hash")
+            else {}
+        ),
+        **(
+            {"state_replay": artifact_report.get("state_replay")}
+            if artifact_report and artifact_report.get("state_replay")
+            else {}
+        ),
+        **(
+            {"state_reducer_conformance": artifact_report.get("state_reducer_conformance")}
+            if artifact_report and artifact_report.get("state_reducer_conformance")
+            else {}
+        ),
         "validation": _validation_summary(validation),
-        "policy": {"network_calls": "none"},
+        "policy": {
+            "network_calls": "package_install_only" if is_react and install else "none",
+            "install": bool(install) if is_react else False,
+            "install_command": "npm ci --ignore-scripts" if is_react and install else "none",
+        },
         "metadata": {
             "sdk_version": __version__,
             "strict_design": bool(strict_design),
             "screen_source": "embedded_intents",
             **({"shell_kind": "static_local_hash_shell"} if shell else {}),
+            **({"app_kind": "runnable_vite_react_tailwind"} if is_react else {}),
         },
         "errors": errors,
         "timings_ms": _final_timings(timings),
@@ -123,6 +177,7 @@ def _app_proof_failure_report(
     timings: dict[str, int],
     validation: dict[str, Any] | None,
     write: bool,
+    target: str = APP_BUNDLE_TARGET,
 ) -> dict[str, Any]:
     del write
     binding_fields = _resource_binding_fields_from_validation(validation)
@@ -131,7 +186,7 @@ def _app_proof_failure_report(
         "app_schema_version": validation.get("app_schema_version") if isinstance(validation, dict) else None,
         "ok": False,
         "proof_level": APP_BUNDLE_PROOF_LEVEL,
-        "target": APP_BUNDLE_TARGET,
+        "target": target,
         "app": validation.get("summary") if isinstance(validation, dict) else None,
         "paths": {
             "proof_dir": str(output_dir),
@@ -164,6 +219,7 @@ def _app_shell_report(
     strict_design: bool,
     shell_payload: dict[str, Any] | None,
     resource_binding_report: dict[str, Any] | None = None,
+    target: str = APP_SHELL_TARGET,
 ) -> dict[str, Any]:
     route_assertions = (
         dict(shell_payload["route_assertions"])
@@ -189,8 +245,8 @@ def _app_shell_report(
         "schema_version": APP_BUNDLE_PROOF_SCHEMA_VERSION,
         "app_schema_version": _app_schema_version(app_payload),
         "ok": ok,
-        "target": APP_SHELL_TARGET,
-        "route_navigation": APP_SHELL_ROUTE_NAVIGATION,
+        "target": target,
+        "route_navigation": REACT_APP_ROUTE_NAVIGATION if target == REACT_APP_TARGET else APP_SHELL_ROUTE_NAVIGATION,
         **binding_fields,
         "policy": {"network_calls": "none"},
         "app": _app_summary(app_payload),
@@ -228,14 +284,15 @@ def _app_shell_failure_report(
     errors: list[dict[str, str]],
     timings: dict[str, int],
     validation: dict[str, Any] | None,
+    target: str = APP_SHELL_TARGET,
 ) -> dict[str, Any]:
     binding_fields = _resource_binding_fields_from_validation(validation)
     return {
         "schema_version": APP_BUNDLE_PROOF_SCHEMA_VERSION,
         "app_schema_version": validation.get("app_schema_version") if isinstance(validation, dict) else None,
         "ok": False,
-        "target": APP_SHELL_TARGET,
-        "route_navigation": APP_SHELL_ROUTE_NAVIGATION,
+        "target": target,
+        "route_navigation": REACT_APP_ROUTE_NAVIGATION if target == REACT_APP_TARGET else APP_SHELL_ROUTE_NAVIGATION,
         **binding_fields,
         "policy": {"network_calls": "none"},
         "app": validation.get("summary") if isinstance(validation, dict) else None,
@@ -381,7 +438,13 @@ def _render_app_support_bundle(report: dict[str, Any], *, proof_report_hash: str
             if isinstance(screen, dict)
         ],
         "errors": _support_errors(report.get("errors") if isinstance(report.get("errors"), list) else []),
-        "policy": {"network_calls": "none"},
+        "policy": {
+            "network_calls": _support_scalar(
+                report.get("policy", {}).get("network_calls")
+                if isinstance(report.get("policy"), dict)
+                else "none"
+            )
+        },
         "metadata": {
             "sdk_version": __version__,
             "python_version": platform.python_version(),
@@ -426,6 +489,31 @@ def _compact_shell_report(shell: dict[str, Any] | None) -> dict[str, Any]:
         "binding_scope": shell.get("binding_scope"),
         "resource_binding_assertions": _compact_resource_binding_report(shell.get("resource_binding_assertions")),
         "errors": _normalize_proof_errors(shell.get("errors")),
+    }
+
+
+def _compact_react_app_report(report: dict[str, Any] | None) -> dict[str, Any]:
+    if not isinstance(report, dict):
+        return {}
+    return {
+        "ok": bool(report.get("ok")),
+        "target": report.get("target"),
+        "route_navigation": report.get("route_navigation"),
+        "app_schema_version": report.get("app_schema_version"),
+        "resource_binding": report.get("resource_binding"),
+        "binding_scope": report.get("binding_scope"),
+        "runtime": report.get("runtime") if isinstance(report.get("runtime"), dict) else {},
+        "paths": report.get("paths") if isinstance(report.get("paths"), dict) else {},
+        "route_assertions": report.get("route_assertions") if isinstance(report.get("route_assertions"), dict) else {},
+        "app_artifact_hash": report.get("app_artifact_hash"),
+        "manifest_hash": report.get("manifest_hash"),
+        "diagnostics_hash": report.get("diagnostics_hash"),
+        "state_reducer_hash": report.get("state_reducer_hash"),
+        "state_manifest_hash": report.get("state_manifest_hash"),
+        "state_contract_hash": report.get("state_contract_hash"),
+        "state_replay": report.get("state_replay"),
+        "state_reducer_conformance": report.get("state_reducer_conformance"),
+        "errors": _normalize_proof_errors(report.get("errors")),
     }
 
 
@@ -478,18 +566,31 @@ def _support_binding_summary(report: object) -> dict[str, Any] | None:
 def _render_app_proof_summary(report: dict[str, Any], *, proof_report_hash: str) -> str:
     app = report.get("app") if isinstance(report.get("app"), dict) else {}
     status = "PASSED" if report.get("ok") else "FAILED"
+    is_react = report.get("target") == REACT_APP_TARGET
+    claim = (
+        "Claim: AppBundle contract, checked per-screen provenance, generated React app source, browser-history "
+        "routing, state mutation, resource data rebinding, selectors, and visibility passed in the exact reference host."
+        if is_react
+        else "Claim: AppBundle contract, static route graph, per-screen source artifact/provenance proof, and declared read-only fixture binding proof when enabled."
+    )
+    non_claim = (
+        "Non-claim: The React app proof does not prove authentication, persistence, arbitrary APIs, optimistic updates, "
+        "accessibility certification, cross-browser equivalence, or production infrastructure behavior."
+        if is_react
+        else (
+            "Non-claim: AppBundle proofs do not prove browser runtime navigation, dynamic routing, "
+            "runtime data binding, deployable app scaffolding, pixel-perfect visual equivalence, "
+            "accessibility certification, or hosted extended compiler behavior."
+        )
+    )
     lines = [
         "# ViewSpec App Proof",
         "",
         f"Status: **{status}**",
         f"Target: `{_summary_value(report.get('target'))}`",
         f"Proof level: `{_summary_value(report.get('proof_level'))}`",
-        "Claim: AppBundle contract, static route graph, per-screen source artifact/provenance proof, and declared read-only fixture binding proof when enabled.",
-        (
-            "Non-claim: AppBundle proofs do not prove browser runtime navigation, dynamic routing, "
-            "runtime data binding, deployable app scaffolding, pixel-perfect visual equivalence, "
-            "accessibility certification, or hosted extended compiler behavior."
-        ),
+        claim,
+        non_claim,
         "",
         "## App",
         "",
@@ -508,6 +609,23 @@ def _render_app_proof_summary(report: dict[str, Any], *, proof_report_hash: str)
     assertions = report.get("route_assertions") if isinstance(report.get("route_assertions"), dict) else {}
     for key in ("root_route_resolves", "all_routes_resolve", "all_screens_reachable"):
         lines.append(f"- {key}: `{_summary_value(assertions.get(key))}`")
+    if is_react:
+        lines.extend(["", "## React App Host", ""])
+        lines.append(f"- Route navigation: `{_summary_value(report.get('route_navigation'))}`")
+        lines.append(f"- App artifact SHA-256: `{_summary_value(report.get('app_artifact_hash'))}`")
+        lines.append(f"- App manifest SHA-256: `{_summary_value(report.get('manifest_hash'))}`")
+        host = report.get("host_report") if isinstance(report.get("host_report"), dict) else {}
+        host_assertions = host.get("assertions") if isinstance(host.get("assertions"), dict) else {}
+        for key in (
+            "route_count",
+            "history_assertion_count",
+            "unknown_route_assertion_count",
+            "state_action_count",
+            "rebound_binding_count",
+            "selector_assertion_count",
+            "visibility_assertion_count",
+        ):
+            lines.append(f"- {key}: `{_summary_value(host_assertions.get(key))}`")
     if report.get("shell"):
         lines.extend(["", "## Static Shell", ""])
         lines.append(f"- Route navigation: `{_summary_value(report.get('route_navigation'))}`")
@@ -564,14 +682,26 @@ def _render_app_proof_summary(report: dict[str, Any], *, proof_report_hash: str)
             "",
             "## Policy",
             "",
-            "- Network/install policy: `none`",
+            f"- Network/install policy: `{_summary_value(report.get('policy', {}).get('network_calls'))}`",
             "",
             "## Files",
             "",
         ]
     )
     paths = report.get("paths") if isinstance(report.get("paths"), dict) else {}
-    for key in ("app", "design", "report", "proof_summary", "support_bundle", "app_shell_index", "app_shell_manifest", "app_shell_diagnostics"):
+    for key in (
+        "app",
+        "design",
+        "report",
+        "proof_summary",
+        "support_bundle",
+        "app_shell_index",
+        "app_shell_manifest",
+        "app_shell_diagnostics",
+        "react_app_entry",
+        "react_app_manifest",
+        "react_app_diagnostics",
+    ):
         lines.append(f"- {key}: `{_summary_value(paths.get(key))}`")
     lines.extend(["", "## Hashes", "", f"- App proof report SHA-256: `{_summary_value(proof_report_hash)}`"])
     lines.extend(["", "## Errors", ""])
@@ -643,6 +773,10 @@ def _support_path_names(report: dict[str, Any]) -> dict[str, str]:
         "app_shell_index",
         "app_shell_manifest",
         "app_shell_diagnostics",
+        "react_app",
+        "react_app_entry",
+        "react_app_manifest",
+        "react_app_diagnostics",
         "app_state_reducer",
         "app_state_manifest",
     ):
@@ -701,6 +835,8 @@ def _app_tool_proof_identity(proof: dict[str, Any]) -> dict[str, str | None]:
         "support_bundle_hash": _hash_path_if_present(paths.get("support_bundle")),
         "shell_artifact_hash": proof.get("shell_artifact_hash") if isinstance(proof.get("shell_artifact_hash"), str) else None,
         "shell_manifest_hash": proof.get("shell_manifest_hash") if isinstance(proof.get("shell_manifest_hash"), str) else None,
+        "app_artifact_hash": proof.get("app_artifact_hash") if isinstance(proof.get("app_artifact_hash"), str) else None,
+        "app_manifest_hash": proof.get("manifest_hash") if isinstance(proof.get("manifest_hash"), str) else None,
         "state_reducer_hash": proof.get("state_reducer_hash") if isinstance(proof.get("state_reducer_hash"), str) else None,
         "state_manifest_hash": proof.get("state_manifest_hash") if isinstance(proof.get("state_manifest_hash"), str) else None,
         "state_contract_hash": proof.get("state_contract_hash") if isinstance(proof.get("state_contract_hash"), str) else None,
