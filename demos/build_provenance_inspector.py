@@ -172,7 +172,7 @@ def build_page(fragment: str, data: dict[str, Any], bundle: IntentBundle) -> str
     #lock-state {{
       display: inline-flex;
       justify-content: center;
-      max-width: 4rem;
+      max-width: 5rem;
       overflow: hidden;
     }}
 
@@ -212,9 +212,9 @@ def build_page(fragment: str, data: dict[str, Any], bundle: IntentBundle) -> str
         <div class="pretext-canvas-wrap max-w-3xl">
           <canvas data-pretext-canvas data-text="Provenance Inspector" data-size="50" data-weight="900" data-line-height="54" class="text-white" role="img" aria-label="Provenance Inspector">Provenance Inspector</canvas>
         </div>
-        <p class="sr-only">Hover any rendered element to trace it from DOM node to IR, binding, canonical address, semantic node, and raw value.</p>
+        <p class="sr-only">Click, tap, or hover any rendered element to trace it from DOM node to IR, binding, canonical address, semantic node, and raw value.</p>
         <div class="pretext-canvas-wrap mt-4 max-w-3xl">
-          <canvas data-pretext-canvas data-text="Hover any rendered element to trace it from DOM node to IR, binding, canonical address, semantic node, and raw value." data-size="18" data-weight="400" data-line-height="29" class="text-slate-300" role="img" aria-label="Hover any rendered element to trace it from DOM node to IR, binding, canonical address, semantic node, and raw value.">Hover any rendered element to trace it from DOM node to IR, binding, canonical address, semantic node, and raw value.</canvas>
+          <canvas data-pretext-canvas data-text="Click, tap, or hover any rendered element to trace it from DOM node to IR, binding, canonical address, semantic node, and raw value." data-size="18" data-weight="400" data-line-height="29" class="text-slate-300" role="img" aria-label="Click, tap, or hover any rendered element to trace it from DOM node to IR, binding, canonical address, semantic node, and raw value.">Click, tap, or hover any rendered element to trace it from DOM node to IR, binding, canonical address, semantic node, and raw value.</canvas>
         </div>
         <div class="mt-4 flex flex-wrap gap-4 font-mono text-sm text-slate-300">
           <span><span class="text-teal-300">bindings</span> = {binding_count}</span>
@@ -238,13 +238,13 @@ def build_page(fragment: str, data: dict[str, Any], bundle: IntentBundle) -> str
             <canvas id="inspector-title" data-pretext-canvas data-text="Ready" data-size="18" data-weight="900" data-line-height="23" class="text-white" role="img" aria-label="Ready">Ready</canvas>
           </div>
         </div>
-        <span id="lock-state" class="pretext-canvas-wrap w-16 rounded-full border border-slate-600 px-2 py-1 text-slate-400">
-          <canvas id="lock-state-text" data-pretext-canvas data-text="Hover" data-size="11" data-weight="800" data-line-height="14" class="text-slate-400" role="img" aria-label="Hover">Hover</canvas>
+        <span id="lock-state" class="pretext-canvas-wrap w-20 rounded-full border border-slate-600 px-2 py-1 text-slate-400">
+          <canvas id="lock-state-text" data-pretext-canvas data-text="Click/tap" data-size="11" data-weight="800" data-line-height="14" class="text-slate-400" role="img" aria-label="Click/tap">Click/tap</canvas>
         </span>
       </div>
       <div id="inspector-body" class="min-h-0 flex-1 overflow-y-auto pr-1">
         <div class="rounded-lg border border-dashed border-slate-600 p-4 text-sm leading-6 text-slate-400">
-          Hover over any element to inspect its provenance...
+          Click, tap, or hover any element to inspect its provenance...
         </div>
       </div>
     </aside>
@@ -335,12 +335,12 @@ def build_page(fragment: str, data: dict[str, Any], bundle: IntentBundle) -> str
       activeElement = null;
       locked = false;
       setCanvasText(panelTitle, 'Ready');
-      setCanvasText(lockStateText, 'Hover');
-      lockState.className = 'pretext-canvas-wrap w-16 rounded-full border border-slate-600 px-2 py-1 text-slate-400';
+      setCanvasText(lockStateText, 'Click/tap');
+      lockState.className = 'pretext-canvas-wrap w-20 rounded-full border border-slate-600 px-2 py-1 text-slate-400';
       lockStateText.className = 'text-slate-400';
       panelBody.innerHTML = `
         <div class="rounded-lg border border-dashed border-slate-600 p-4 text-sm leading-6 text-slate-400">
-          Hover over any element to inspect its provenance...
+          Click, tap, or hover any element to inspect its provenance...
         </div>
       `;
       window.ViewSpecPretext?.refresh(panel);
@@ -362,10 +362,10 @@ def build_page(fragment: str, data: dict[str, Any], bundle: IntentBundle) -> str
       setActiveElement(element);
       locked = shouldLock;
       setCanvasText(panelTitle, shouldLock ? `Locked: ${{entry.primitive}}` : `Inspecting: ${{entry.primitive}}`);
-      setCanvasText(lockStateText, shouldLock ? 'Locked' : 'Hover');
+      setCanvasText(lockStateText, shouldLock ? 'Locked' : 'Active');
       lockState.className = shouldLock
-        ? 'pretext-canvas-wrap w-16 rounded-full border border-teal-400 bg-teal-500/10 px-2 py-1 text-teal-200'
-        : 'pretext-canvas-wrap w-16 rounded-full border border-slate-600 px-2 py-1 text-slate-400';
+        ? 'pretext-canvas-wrap w-20 rounded-full border border-teal-400 bg-teal-500/10 px-2 py-1 text-teal-200'
+        : 'pretext-canvas-wrap w-20 rounded-full border border-slate-600 px-2 py-1 text-slate-400';
       lockStateText.className = shouldLock ? 'text-teal-200' : 'text-slate-400';
 
       const bindingSummary = binding

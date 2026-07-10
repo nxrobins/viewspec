@@ -1,4 +1,4 @@
-"""Build the Live Builder demo page from the reference compiler."""
+"""Build the Pipeline Explorer demo page from the reference compiler."""
 
 from __future__ import annotations
 
@@ -194,8 +194,8 @@ def build_page(presets: dict[str, dict[str, Any]]) -> str:
         f'<option value="{html.escape(key)}">{html.escape(data["label"])}</option>' for key, data in presets.items()
     )
     head_meta = demo_head_metadata(
-        title="ViewSpec Demo - Live Builder",
-        description="Edit and inspect IntentBundle JSON, CompositionIR, and rendered HTML output side by side to see ViewSpec compilation stay synchronized.",
+        title="ViewSpec Demo - Pipeline Explorer",
+        description="Browse a read-only ViewSpec pipeline: IntentBundle JSON, CompositionIR, and rendered HTML output stay synchronized.",
         canonical_path="live-builder",
     )
     return f"""<!DOCTYPE html>
@@ -203,7 +203,7 @@ def build_page(presets: dict[str, dict[str, Any]]) -> str:
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>ViewSpec Demo - Live Builder</title>
+  <title>ViewSpec Demo - Pipeline Explorer</title>
 {head_meta}
   <link rel="icon" href="data:,">
   <script src="https://cdn.tailwindcss.com"></script>
@@ -323,13 +323,13 @@ def build_page(presets: dict[str, dict[str, Any]]) -> str:
     <header class="mb-6 grid gap-5 border-b border-white/10 pb-6 lg:grid-cols-[1fr_auto] lg:items-end">
       <div class="max-w-3xl">
         <p class="mb-3 font-mono text-sm font-semibold uppercase tracking-[0.18em] text-teal-300">ViewSpec Demo</p>
-        <h1 class="sr-only">Live Builder</h1>
+        <h1 class="sr-only">Pipeline Explorer</h1>
         <div class="pretext-canvas-wrap max-w-3xl">
-          <canvas data-pretext-canvas data-text="Live Builder" data-size="50" data-weight="900" data-line-height="54" class="text-white" role="img" aria-label="Live Builder">Live Builder</canvas>
+          <canvas data-pretext-canvas data-text="Pipeline Explorer" data-size="50" data-weight="900" data-line-height="54" class="text-white" role="img" aria-label="Pipeline Explorer">Pipeline Explorer</canvas>
         </div>
-        <p class="sr-only">Browse a compiled ViewSpec pipeline: declarative intent, CompositionIR, and emitted UI stay in sync.</p>
+        <p class="sr-only">Browse a read-only preset explorer: declarative intent, CompositionIR, and emitted UI stay in sync.</p>
         <div class="pretext-canvas-wrap mt-4 max-w-3xl">
-          <canvas data-pretext-canvas data-text="Browse a compiled ViewSpec pipeline: declarative intent, CompositionIR, and emitted UI stay in sync." data-size="18" data-weight="400" data-line-height="29" class="text-slate-300" role="img" aria-label="Browse a compiled ViewSpec pipeline: declarative intent, CompositionIR, and emitted UI stay in sync.">Browse a compiled ViewSpec pipeline: declarative intent, CompositionIR, and emitted UI stay in sync.</canvas>
+          <canvas data-pretext-canvas data-text="Browse a read-only preset explorer: declarative intent, CompositionIR, and emitted UI stay in sync." data-size="18" data-weight="400" data-line-height="29" class="text-slate-300" role="img" aria-label="Browse a read-only preset explorer: declarative intent, CompositionIR, and emitted UI stay in sync.">Browse a read-only preset explorer: declarative intent, CompositionIR, and emitted UI stay in sync.</canvas>
         </div>
       </div>
       <label class="grid gap-2 text-sm font-bold text-slate-300">

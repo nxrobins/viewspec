@@ -530,7 +530,12 @@ PAGE_CSS = r"""
   .inspect-btn .d{ width:7px; height:7px; border-radius:50%; background:var(--faint); box-shadow:0 0 0 3px rgba(87,97,124,.16); }
   body.inspect .inspect-btn{ color:var(--amber); border-color:rgba(245,178,63,.5); }
   body.inspect .inspect-btn .d{ background:var(--amber); box-shadow:0 0 0 3px var(--amber-dim); }
-  @media (max-width:720px){ .nav-links a:not(.cta-mini){ display:none; } }
+  @media (max-width:720px){
+    .nav-in{ align-items:flex-start; flex-wrap:wrap; gap:10px; padding:12px 24px; }
+    .nav-links{ width:100%; align-items:center; flex-wrap:wrap; justify-content:flex-start; gap:4px; }
+    .nav-links a{ font-size:11px; padding:6px 8px; }
+    .inspect-btn{ font-size:11px; padding:6px 9px; }
+  }
 
   /* ---------------- hero ---------------- */
   header{ padding:clamp(46px,9vh,104px) 0 40px; }
@@ -716,7 +721,21 @@ PAGE_CSS = r"""
   .bignum small{ font-size:15px; color:var(--muted); font-weight:500; letter-spacing:.02em; margin-left:8px; }
 
   /* cta */
-  .cta{ text-align:center; border-top:1px solid var(--line); }
+  .pricing-section{ border-top:1px solid var(--line); }
+  .pricing-grid{ display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:16px; margin-top:26px; }
+  .pricing-plan{ background:linear-gradient(180deg,var(--panel-solid),rgba(20,26,40,.72)); border:1px solid var(--line); border-radius:16px; padding:20px; display:flex; flex-direction:column; min-height:260px; }
+  .pricing-plan.featured{ border-color:rgba(245,178,63,.62); box-shadow:0 24px 64px -42px rgba(245,178,63,.8); }
+  .pricing-plan .plan-kicker{ font-family:var(--mono); font-size:10.5px; letter-spacing:.14em; text-transform:uppercase; color:var(--amber); margin-bottom:10px; }
+  .pricing-plan h3{ margin:0; font-size:19px; line-height:1.2; letter-spacing:-.01em; }
+  .pricing-plan .price{ margin:12px 0 4px; font-family:var(--mono); font-size:28px; color:var(--text); }
+  .pricing-plan .price small{ color:var(--muted); font-size:13px; font-weight:500; }
+  .pricing-plan p{ color:var(--muted); margin:0; font-size:14px; line-height:1.55; }
+  .pricing-list{ display:grid; gap:9px; margin:18px 0 0; padding:0; list-style:none; }
+  .pricing-list li{ color:var(--text); font-size:13.5px; display:flex; gap:8px; }
+  .pricing-list li::before{ content:""; width:7px; height:7px; margin-top:8px; border-radius:50%; background:var(--mint); box-shadow:0 0 0 3px rgba(87,220,169,.12); flex:0 0 auto; }
+  .pricing-note{ margin-top:22px; color:var(--muted); font-size:14px; max-width:68ch; }
+  @media (max-width:860px){ .pricing-grid{ grid-template-columns:1fr; } .pricing-plan{ min-height:0; } }
+  .cta{ text-align:center; padding-top:48px; }
   .cta h2{ margin:0 auto; max-width:20ch; }
   .cta .lead{ margin:16px auto 0; }
   .cta-row{ display:flex; justify-content:center; flex-wrap:wrap; gap:14px; margin-top:30px; }
@@ -763,8 +782,10 @@ body.inspect #viewspec-artifact-slot [data-ir-id]::after{ content:attr(data-ir-i
 .pact:hover{ border-color:var(--amber); }
 #noteReal{ display:block; margin-top:8px; }
 .receipts{ display:flex; flex-wrap:wrap; gap:8px; margin:0 0 14px; }
-.receipts a{ font-family:var(--mono); font-size:11px; color:var(--amber-2); background:var(--ink-2); border:1px solid var(--line); border-radius:7px; padding:5px 9px; }
-.receipts a:hover{ border-color:var(--amber); color:var(--amber); }
+.receipts a,.receipts button{ font-family:var(--mono); font-size:11px; color:var(--amber-2); background:var(--ink-2); border:1px solid var(--line); border-radius:7px; padding:5px 9px; }
+.receipts button{ appearance:none; cursor:pointer; }
+.receipts a:hover,.receipts button:hover,.receipts button:focus-visible{ border-color:var(--amber); color:var(--amber); }
+.trace-receipts{ margin:0 0 16px; }
 .foot-links a{ color:var(--muted); } .foot-links a:hover{ color:var(--amber); }
 
 """
@@ -780,6 +801,8 @@ PAGE_BODY_TEMPLATE = r"""<a class="skip-link" href="#top">Skip to content</a>
         <a href="#shape">Product</a>
         <a href="#under">How it works</a>
         <a href="#proof">Proof</a>
+        <a href="#pricing">Pricing</a>
+        <a href="https://github.com/nxrobins/viewspec/blob/main/docs/getting-started.md" target="_blank" rel="noopener">Docs</a>
         <button class="inspect-btn" id="inspectBtn" aria-pressed="false" title="Overlay every element with its IR address (press i)"><span class="d"></span>Inspect</button>
       </div>
     </div>
@@ -900,11 +923,16 @@ PAGE_BODY_TEMPLATE = r"""<a class="skip-link" href="#top">Skip to content</a>
       <div class="sec-head">
         <span class="kicker"><span class="n">/</span> now look under the hood</span>
         <h2>Everything above is compiled output. Here&rsquo;s the receipt.</h2>
-        <p class="lead">Turn on <b style="color:var(--amber)">Inspect</b> (top&#8209;right, or press <span class="mono" style="color:var(--amber)">i</span>) and every element on the page shows the IR address it came from. Hover a chip below to trace one all the way back to the data.</p>
+        <p class="lead">Turn on <b style="color:var(--amber)">Inspect</b> (top&#8209;right, or press <span class="mono" style="color:var(--amber)">i</span>) and every element on the page shows the IR address it came from. Click, tap, or hover a chip below to trace one all the way back to the data.</p>
       </div>
       <div class="under">
-        <div class="play"><div class="pk">compiled artifact &middot; real IR ids &middot; hover a node</div><div class="receipts"><a href="./landing-compiled/intent_bundle.json" target="_blank" rel="noopener">intent_bundle.json</a><a href="./landing-compiled/provenance_manifest.json" target="_blank" rel="noopener">provenance_manifest.json</a><a href="./landing-compiled/profile-evidence.json" target="_blank" rel="noopener">profile-evidence.json</a></div>{{REAL_ARTIFACT}}</div>
+        <div class="play"><div class="pk">compiled artifact &middot; real IR ids &middot; click/tap/hover a node</div><div class="receipts"><a href="./landing-compiled/intent_bundle.json" target="_blank" rel="noopener" data-trace-target="intent_bundle" data-node="node:receipt#attr:intent_bundle" data-binding="receipt_intent_bundle" data-address="artifact:landing-compiled/intent_bundle.json" data-present="artifact_link" data-raw="Canonical agent-authored intent bundle">intent_bundle.json</a><a href="./landing-compiled/provenance_manifest.json" target="_blank" rel="noopener" data-trace-target="provenance_manifest" data-node="node:receipt#attr:provenance_manifest" data-binding="receipt_provenance_manifest" data-address="artifact:landing-compiled/provenance_manifest.json" data-present="artifact_link" data-raw="Compiled DOM to IR provenance manifest">provenance_manifest.json</a><a href="./landing-compiled/profile-evidence.json" target="_blank" rel="noopener" data-trace-target="profile_evidence" data-node="node:receipt#attr:profile_evidence" data-binding="receipt_profile_evidence" data-address="artifact:landing-compiled/profile-evidence.json" data-present="artifact_link" data-raw="Aesthetic profile evidence and invariant flags">profile-evidence.json</a></div>{{REAL_ARTIFACT}}</div>
         <div class="trace" aria-live="polite">
+          <div class="receipts trace-receipts" aria-label="Trace compiled receipts">
+            <button type="button" data-trace-target="viewspec:view:viewspec_landing" data-node="viewspec:view:viewspec_landing" data-binding="view root" data-address="viewspec:view:viewspec_landing" data-present="artifact" data-raw="IntentBundle root">Click/tap intent</button>
+            <button type="button" data-trace-target="viewspec:motif:pricing" data-node="viewspec:motif:pricing" data-binding="pricing" data-address="viewspec:motif:pricing" data-present="table" data-raw="Pricing rows">Click/tap pricing</button>
+            <button type="button" data-trace-target="viewspec:style:aesthetic_profile" data-node="viewspec:style:aesthetic_profile" data-binding="aesthetic.calm_ops" data-address="viewspec:style:aesthetic_profile" data-present="style projection" data-raw="Calm Ops profile">Click/tap style</button>
+          </div>
           <div class="flow">DOM &rarr; binding &rarr; address &rarr; data</div>
           <div id="traceOut"></div>
         </div>
@@ -940,15 +968,60 @@ PAGE_BODY_TEMPLATE = r"""<a class="skip-link" href="#top">Skip to content</a>
       </div>
     </section>
 
-    <!-- ================= CTA ================= -->
-    <span id="pricing" class="anchor-target" aria-hidden="true"></span>
-    <section class="cta reveal-on">
-      <h2>Compile your first interface in a minute.</h2>
-      <p class="lead">No account, no network, no LLM key. Install the SDK, write intent, prove the output.</p>
+    <!-- ================= PRICING + CTA ================= -->
+    <section id="pricing" class="pricing-section reveal-on">
+      <div class="sec-head">
+        <span class="kicker"><span class="n">/</span> pricing</span>
+        <h2>Start local. Add the hosted compiler when teams need it.</h2>
+        <p class="lead">The free SDK stays offline and deterministic. Hosted plans add shared compilation capacity, organization controls, and support around the same proof pipeline.</p>
+      </div>
+      <div class="pricing-grid" id="pricing-grid" aria-label="ViewSpec pricing plans">
+        <article class="pricing-plan">
+          <span class="plan-kicker">Free</span>
+          <h3>Free local SDK</h3>
+          <div class="price">$0 <small>/ forever</small></div>
+          <p>Build, compile, and prove ViewSpec artifacts locally without an account.</p>
+          <ul class="pricing-list">
+            <li>Unlimited local compile runs</li>
+            <li>HTML and React emitters</li>
+            <li>Proof bundle and shell checks</li>
+            <li>500 hosted compile calls/day trial</li>
+          </ul>
+        </article>
+        <article class="pricing-plan featured">
+          <span class="plan-kicker">Pro</span>
+          <h3>Pro hosted compiler</h3>
+          <div class="price">$149 <small>/ month</small></div>
+          <p>Hosted compile API for production agent workflows and shared team demos.</p>
+          <ul class="pricing-list">
+            <li>10,000 hosted compile calls/day</li>
+            <li>Hosted SwiftUI and Flutter emitters</li>
+            <li>Team usage receipts</li>
+            <li>Email support</li>
+          </ul>
+        </article>
+        <article class="pricing-plan">
+          <span class="plan-kicker">Enterprise</span>
+          <h3>Enterprise support</h3>
+          <div class="price">Custom</div>
+          <p>Scale ViewSpec across internal agent products with support and controls.</p>
+          <ul class="pricing-list">
+            <li>Custom compile volume</li>
+            <li>Organization sharing and policy gates</li>
+            <li>Private deployment support</li>
+            <li>Launch and migration help</li>
+          </ul>
+        </article>
+      </div>
+      <p class="pricing-note">Pricing is intentionally simple: the compiler remains useful locally, while hosted capacity is there for teams that need API volume, mobile emitters, and support.</p>
+      <div class="cta">
+        <h2>Compile your first interface in a minute.</h2>
+        <p class="lead">No account, no network, no LLM key. Install the SDK, write intent, prove the output.</p>
       <div class="cta-row">
         <span class="cmd mono"><span class="pr">$</span> pip install viewspec &amp;&amp; viewspec init&#8209;intent</span>
-        <a class="ghost mono" href="#top" style="color:var(--amber)">read the docs &#8594;</a>
-      {{PRICING_ACTIONS}}</div>
+        <a class="ghost mono" href="https://github.com/nxrobins/viewspec/blob/main/docs/getting-started.md" target="_blank" rel="noopener" style="color:var(--amber)">read the docs &#8594;</a>
+        <a class="ghost mono" href="./proof-bundle/" style="color:var(--amber)">Try the one-minute proof &#8594;</a>
+      {{PRICING_ACTIONS}}</div></div>
     </section>
   </div>
 
@@ -1112,22 +1185,23 @@ PAGE_SCRIPT = r"""
 
   /* ---------- trace + inspect ---------- */
   var traceOut=document.getElementById("traceOut"), hud=document.getElementById("hud"), hudAddr=document.getElementById("hudAddr");
-  function emptyTrace(){ traceOut.innerHTML='<div style="color:var(--faint);font-size:13px;line-height:1.7">Hover or focus a chip on the left. Its DOM node, the binding that owns it, its address in the substrate, and the raw value appear here.</div>'; }
+  function emptyTrace(){ traceOut.innerHTML='<div style="color:var(--faint);font-size:13px;line-height:1.7">Click, tap, hover, or focus a receipt on the left. Its DOM node, the binding that owns it, its address in the substrate, and the raw value appear here.</div>'; }
   function fillTrace(el){
-    var irid=el.getAttribute("data-ir-id"); var rows = irid ? [["dom node","<"+el.tagName.toLowerCase()+">",""],["ir id",irid,"a"],["binding",el.getAttribute("data-binding-id")||"—",""],["intent refs",(el.getAttribute("data-intent-refs")||"[]"),"a"],["content refs",(el.getAttribute("data-content-refs")||"[]"),"r"]] : [["dom node","<"+el.tagName.toLowerCase()+">",""],["binding",el.getAttribute("data-binding")||"—",""],["address",el.getAttribute("data-address")||el.getAttribute("data-node"),"a"],["present_as",el.getAttribute("data-present")||"—",""],["raw data",el.getAttribute("data-raw")||"—","r"]];
+    var irid=el.getAttribute("data-ir-id"); var rows = irid ? [["dom node","<"+el.tagName.toLowerCase()+">",""],["ir id",irid,"a"],["binding",el.getAttribute("data-binding-id")||"—",""],["intent refs",(el.getAttribute("data-intent-refs")||"[]"),"a"],["content refs",(el.getAttribute("data-content-refs")||"[]"),"r"]] : [["dom node","<"+el.tagName.toLowerCase()+">",""],["binding",el.getAttribute("data-binding")||"—",""],["address",el.getAttribute("data-address")||el.getAttribute("data-trace-target")||el.getAttribute("data-node"),"a"],["present_as",el.getAttribute("data-present")||"—",""],["raw data",el.getAttribute("data-raw")||"—","r"]];
     var h=""; rows.forEach(function(r,i){ h+='<div class="tnode"><div class="tk">'+r[0]+'</div><div class="tv '+r[2]+'">'+esc(r[1])+'</div></div>'; if(i<rows.length-1) h+='<div class="tarrow">&#8595;</div>'; });
     traceOut.innerHTML=h;
   }
   emptyTrace();
   document.addEventListener("mouseover",function(e){
-    var el=e.target.closest("[data-node],[data-ir-id]");
+    var el=e.target.closest("[data-node],[data-ir-id],[data-trace-target]");
     document.querySelectorAll(".lit").forEach(function(n){ if(n!==el) n.classList.remove("lit"); });
     if(!el){ hud.classList.remove("on"); return; }
     el.classList.add("lit");
     if(el.closest("#under")) fillTrace(el);
-    if(body.classList.contains("inspect")){ hud.classList.add("on"); hudAddr.textContent=(el.getAttribute("data-ir-id")||el.getAttribute("data-node")); }
+    if(body.classList.contains("inspect")){ hud.classList.add("on"); hudAddr.textContent=(el.getAttribute("data-ir-id")||el.getAttribute("data-trace-target")||el.getAttribute("data-node")); }
   });
-  document.addEventListener("focusin",function(e){ var el=e.target.closest("[data-node],[data-ir-id]"); if(el&&el.closest("#under")) fillTrace(el); });
+  document.addEventListener("focusin",function(e){ var el=e.target.closest("[data-node],[data-ir-id],[data-trace-target]"); if(el&&el.closest("#under")) fillTrace(el); });
+  document.addEventListener("click",function(e){ var el=e.target.closest("[data-node],[data-ir-id],[data-trace-target]"); if(el&&el.closest("#under")) fillTrace(el); });
 
   var inspectBtn=document.getElementById("inspectBtn");
   function setInspect(on){ body.classList.toggle("inspect",on); inspectBtn.setAttribute("aria-pressed",on?"true":"false"); if(!on) hud.classList.remove("on"); }

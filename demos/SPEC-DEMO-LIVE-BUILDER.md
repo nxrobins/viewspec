@@ -1,4 +1,4 @@
-# Demo: Live Builder
+# Demo: Pipeline Explorer
 
 ## What It Proves
 ViewSpec is a protocol, not a black box. You can see the semantic input, the IR structure, and the rendered output simultaneously. The relationship between intent and output is transparent and inspectable.
@@ -13,19 +13,19 @@ Three-panel layout (horizontal on desktop, stacked on mobile):
 │   VIEWSPEC       │   COMPOSITION    │   RENDERED       │
 │   (JSON input)   │   IR (tree)      │   (HTML output)  │
 │                  │                  │                  │
-│   Editable       │   Read-only      │   Live preview   │
-│   textarea       │   tree view      │                  │
+│   Read-only      │   Read-only      │   Live preview   │
+│   JSON panel     │   tree view      │                  │
 │                  │                  │                  │
 └──────────────────┴──────────────────┴──────────────────┘
 ```
 
-**Left panel:** JSON textarea pre-loaded with an example IntentBundle. Editable. Dropdown above to switch between presets (Invoice, Dashboard, Team Roster, Comparison).
+**Left panel:** JSON panel pre-loaded with an example IntentBundle. Read-only in v1. Dropdown above to switch between presets (Invoice, Dashboard, Team Roster, Comparison).
 
 **Middle panel:** A collapsible tree visualization of the CompositionIR. Each node shows: `primitive`, `id`, provenance refs. Color-coded by primitive type (containers = slate, content = teal, layout = blue).
 
 **Right panel:** The rendered HTML output, live. Updates when the left panel changes.
 
-**The flow:** User edits JSON (or picks a preset) → IR tree updates → rendered output updates. The three panels are always in sync.
+**The flow:** User picks a preset → IntentBundle JSON, IR tree, and rendered output update together. The three panels are always in sync.
 
 ### Important Constraint
 Since the compiler is private, this demo uses pre-built IR trees for each preset. The JSON editor is read-only in v1 (users can browse presets but not free-edit). The middle and right panels update when presets change. Future versions will hit the hosted compiler API for live editing.
