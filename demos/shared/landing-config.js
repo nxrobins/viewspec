@@ -19,7 +19,7 @@ export const LANDING_CONFIG = {
   apiUrl: primaryApiUrl,
   apiUrls: uniqueUrls([primaryApiUrl, ...fallbackApiUrls]),
   publicApiKey: configuredApiKey,
-  proStripeUrl: runtimeConfig.proStripeUrl || 'https://buy.stripe.com/6oU4gA6PqcM9afq6qq2Z0b8',
+  proStripeUrl: runtimeConfig.proStripeUrl || 'https://buy.stripe.com/6oU4gA6PqcM9afq6gq2ZO00',
   enterpriseUrl: runtimeConfig.enterpriseUrl || 'mailto:hello@viewspec.dev?subject=ViewSpec%20Enterprise',
   requestTimeoutMs: Number(runtimeConfig.requestTimeoutMs || 6000),
   endpointStaggerMs: Number(runtimeConfig.endpointStaggerMs || 50),
