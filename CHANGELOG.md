@@ -7,6 +7,8 @@ All notable changes to ViewSpec are documented in this file. The format follows
 
 ## [Unreleased]
 
+## [0.3.0b1] - 2026-07-11
+
 ### Added
 
 - IntentBundle documents may declare an optional root `schema_version` (integer `1`). A document
@@ -41,7 +43,7 @@ All notable changes to ViewSpec are documented in this file. The format follows
 - Demo and public-site copy now aligns pricing, provenance language, and the Pro checkout link
   with `demos/public-facts.json`.
 
-## [0.3.0b1] - earlier beta
+## [0.2.0] - earlier release
 
-Pre-changelog beta line. The public surfaces as of this release are described in the README,
+Pre-changelog release line. The public surfaces as of this release are described in the README,
 `docs/`, and `demos/public-facts.json` at the corresponding tag.
