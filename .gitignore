@@ -16,4 +16,5 @@ build/
 output/
 viewspec_output/
 .venv/
+.env
 demos/server.*.log
