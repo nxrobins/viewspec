@@ -24,16 +24,22 @@ All notable changes to ViewSpec are documented in this file. The format follows
   initial visibility, `expect_visibility` replay proof, an `evaluateViewSpecVisibility` reducer
   export, and a bounded Static Shell V0 runtime that toggles visibility on declared action
   clicks.
+- Runnable AppBundle React app generation: `viewspec init-app --template react-app`,
+  `compile-app --target react-tailwind-app`, and `prove-app --target react-tailwind-app --install`
+  now produce and verify a bounded Vite/React/Tailwind app with browser-history routes,
+  host-provided resources, state mutations/selectors, visibility, and exact-artifact host proof.
 - Fail-closed accessibility proofs across emitters: scoped WCAG AA contrast enumeration and
   accessible-name presence (including structural label-input association).
 
 ### Changed
 
-- Agent asset schema version is now `10` (regenerated intent schema, example, and system
-  prompt).
+- Agent asset schema version is now `11` (latest exported assets reflect the IntentBundle
+  `schema_version` refresh and the runnable React app target prompt/public-surface updates).
 - Documentation corrections: the Node.js requirement applies to AppBundle V3/V4 reducer
   conformance (previously stated as V3-only), and stale beta labeling was removed from the raw
   HTML import docs.
+- Demo and public-site copy now aligns pricing, provenance language, and the Pro checkout link
+  with `demos/public-facts.json`.
 
 ## [0.3.0b1] - earlier beta
 
