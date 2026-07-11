@@ -29,5 +29,5 @@ Checked on May 1, 2026 with headless Chrome/CDP against `https://viewspec.dev`.
 ## Link And Commerce Checks
 
 - Launch artifact links returned `200`: prompt, IntentBundle, ASTBundle, React TSX, SwiftUI, Flutter.
-- Pro checkout route returned `200`: `https://buy.stripe.com/6oU4gA6PqcM9afq6qq2Z0b8`.
+- Pro checkout route returned `200`: `https://buy.stripe.com/6oU4gA6PqcM9afq6gq2ZO00`.
 - Enterprise contact route is configured as `mailto:hello@viewspec.dev?subject=ViewSpec%20Enterprise`.

@@ -1311,7 +1311,7 @@ def _public_html(generated_html: str, profile_evidence: dict[str, Any]) -> str:
 
     pricing_actions = (
         '<div class="pricing-actions" id="pricing-actions">'
-        '<a class="pact primary" href="https://buy.stripe.com/6oU4gA6PqcM9afq6qq2Z0b8" data-config-link="pro" target="_blank" rel="noopener">Get Pro</a>'
+        '<a class="pact primary" href="https://buy.stripe.com/6oU4gA6PqcM9afq6gq2ZO00" data-config-link="pro" target="_blank" rel="noopener">Get Pro</a>'
         '<a class="pact" href="mailto:hello@viewspec.dev?subject=ViewSpec%20Enterprise" data-config-link="enterprise" target="_blank" rel="noopener">Talk to us</a>'
         '<button type="button" class="pact" data-copy-text="pip install viewspec" aria-label="Copy pip install viewspec command">pip install viewspec</button>'
         '<button type="button" class="pact" data-copy-text="pip install viewspec" aria-label="Copy pip install viewspec command">copy install</button>'

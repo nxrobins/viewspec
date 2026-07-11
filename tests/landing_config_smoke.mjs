@@ -24,7 +24,7 @@ assert(LANDING_CONFIG.apiUrls.includes('https://api.viewspec.dev/v1/compile'))
 assert(LANDING_CONFIG.apiUrls.includes('https://viewspec-api.fly.dev/v1/compile'))
 assert.equal(LANDING_CONFIG.endpointStaggerMs, 50)
 assert.equal(LANDING_CONFIG.endpointFailureTtlMs, 300000)
-assert.equal(LANDING_CONFIG.proStripeUrl, 'https://buy.stripe.com/6oU4gA6PqcM9afq6qq2Z0b8')
+assert.equal(LANDING_CONFIG.proStripeUrl, 'https://buy.stripe.com/6oU4gA6PqcM9afq6gq2ZO00')
 assert.equal(LANDING_CONFIG.enterpriseUrl, 'mailto:hello@viewspec.dev?subject=ViewSpec%20Enterprise')
 // `scaleStripeUrl` and `signupUrl` were dropped in the site bug sweep
 // (b7d5b96) because nothing in the HTML referenced them. Re-asserting them
