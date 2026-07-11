@@ -7,7 +7,7 @@ All notable changes to ViewSpec are documented in this file. The format follows
 
 ## [Unreleased]
 
-## [0.3.0b1] - 2026-07-11
+## [0.3.0b2] - 2026-07-11
 
 ### Added
 

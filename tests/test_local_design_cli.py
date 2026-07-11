@@ -9,7 +9,7 @@ from pathlib import Path
 
 import pytest
 
-from viewspec import DesignSystemError, ViewSpecBuilder, compile, load_design_system
+from viewspec import __version__, DesignSystemError, ViewSpecBuilder, compile, load_design_system
 from viewspec.cli import main as cli_main
 from viewspec.compiler_benchmarks import benchmark_fixtures
 from viewspec.emitters.react_tailwind_tsx import tailwind_recipe_registry_digest
@@ -641,7 +641,7 @@ def test_cli_version_and_design_lint_errors_are_stable(tmp_path, capsys):
     with pytest.raises(SystemExit) as version_exit:
         cli_main(["--version"])
     assert version_exit.value.code == 0
-    assert "viewspec 0.3.0b1" in capsys.readouterr().out
+    assert f"viewspec {__version__}" in capsys.readouterr().out
 
     bad_design = tmp_path / "DESIGN.md"
     bad_design.write_text(_design("red"), encoding="utf-8")

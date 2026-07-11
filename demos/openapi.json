@@ -36,7 +36,7 @@
   },
   "x-viewspec-public-facts": {
     "manifest": "https://viewspec.dev/public-facts.json",
-    "sdkVersion": "0.3.0b1",
+    "sdkVersion": "0.3.0b2",
     "proPriceUsdMonth": 149,
     "proHostedCompileCallsPerDay": 10000,
     "firstProofCommand": "viewspec prove --out .viewspec-proof",
