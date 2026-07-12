@@ -57,6 +57,18 @@ from viewspec.hosted_artifacts import (
     compile_artifact_remote,
 )
 from viewspec.hosted_receipts import RECEIPT_ALGORITHM, ReceiptPublicKey, verify_usage_receipt
+from viewspec.hosted_receipts import verify_signed_receipt
+from viewspec.hosted_app_bundles import (
+    APP_BUILD_MANIFEST,
+    APP_BUILD_SCHEMA_VERSION,
+    APP_BUILD_TARGET,
+    AppBuildFile,
+    AppBuildProvenance,
+    AppBuildUsage,
+    AppBundleBuildContractError,
+    AppBundleBuildResponse,
+    compile_app_remote,
+)
 from viewspec.motif_plugins import (
     MOTIF_PLUGIN_ABI_VERSION,
     MotifCompileContext,
@@ -236,6 +248,16 @@ __all__ = [
     "RECEIPT_ALGORITHM",
     "ReceiptPublicKey",
     "verify_usage_receipt",
+    "verify_signed_receipt",
+    "APP_BUILD_MANIFEST",
+    "APP_BUILD_SCHEMA_VERSION",
+    "APP_BUILD_TARGET",
+    "AppBuildFile",
+    "AppBuildProvenance",
+    "AppBuildUsage",
+    "AppBundleBuildContractError",
+    "AppBundleBuildResponse",
+    "compile_app_remote",
     "MOTIF_PLUGIN_ABI_VERSION",
     "MotifCompileContext",
     "MotifCompileResult",

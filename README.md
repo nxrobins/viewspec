@@ -2,7 +2,7 @@
 
 **Stop asking agents to write React, DOM, or State.**
 
-ViewSpec is an agent-native UI compiler. It acts as a universal Intermediate Representation (IR) for AI Software Engineering. Agents describe UI and state intent as `IntentBundle` or `AppBundle` JSON; ViewSpec compiles that intent into deterministic HTML and React surfaces with the free local compiler. The paid hosted API adds Level 2 derivation, DESIGN.md context, projections, rules, custom motifs, signed usage receipts, and integrity-checked HTML, React TSX, SwiftUI, or Flutter artifact delivery.
+ViewSpec is an agent-native UI compiler. It acts as a universal Intermediate Representation (IR) for AI Software Engineering. Agents describe UI and state intent as `IntentBundle` or `AppBundle` JSON; ViewSpec compiles that intent into deterministic HTML and React surfaces with the free local compiler. The paid hosted API adds Level 2 derivation, DESIGN.md context, projections, rules, custom motifs, signed usage receipts, integrity-checked single-screen artifacts, and verified runnable AppBundle projects.
 
 By totally decoupling intent from implementation, ViewSpec eliminates the "visual context window" problem. Agents no longer need to see pixels to build complex, perfectly styled, and deeply interactive applications.
 

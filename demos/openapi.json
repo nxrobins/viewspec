@@ -10,6 +10,126 @@
     "version": "1.0.0"
   },
   "paths": {
+    "/v1/app-bundles/build": {
+      "post": {
+        "tags": [
+          "compiler"
+        ],
+        "summary": "Build App Bundle V1",
+        "description": "Build a checked runnable AppBundle project through the public SDK compiler.",
+        "operationId": "buildViewSpecAppBundle",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AppBundleBuildRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppBundleBuildResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Content Too Large",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Content",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too Many Requests",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "Bad Gateway",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service Unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          },
+          "504": {
+            "description": "Gateway Timeout",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          },
+          {
+            "ApiKeyAuth": []
+          }
+        ]
+      }
+    },
     "/v1/artifacts": {
       "post": {
         "tags": [
@@ -545,6 +665,156 @@
           "note"
         ],
         "title": "ApiKeyResponse"
+      },
+      "AppBuildFile": {
+        "properties": {
+          "path": {
+            "type": "string",
+            "title": "Path"
+          },
+          "role": {
+            "type": "string",
+            "title": "Role"
+          },
+          "content_type": {
+            "type": "string",
+            "title": "Content Type"
+          },
+          "sha256": {
+            "type": "string",
+            "title": "Sha256"
+          },
+          "bytes": {
+            "type": "integer",
+            "title": "Bytes"
+          },
+          "content": {
+            "type": "string",
+            "title": "Content"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "path",
+          "role",
+          "content_type",
+          "sha256",
+          "bytes",
+          "content"
+        ],
+        "title": "AppBuildFile"
+      },
+      "AppBuildProvenance": {
+        "properties": {
+          "manifest_file": {
+            "type": "string",
+            "title": "Manifest File"
+          },
+          "sha256": {
+            "type": "string",
+            "title": "Sha256"
+          },
+          "entry_count": {
+            "type": "integer",
+            "title": "Entry Count"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "manifest_file",
+          "sha256",
+          "entry_count"
+        ],
+        "title": "AppBuildProvenance"
+      },
+      "AppBundleBuildRequest": {
+        "properties": {
+          "app_bundle": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "App Bundle"
+          },
+          "target": {
+            "type": "string",
+            "const": "react-tailwind-app",
+            "title": "Target",
+            "default": "react-tailwind-app"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "app_bundle"
+        ],
+        "title": "AppBundleBuildRequest"
+      },
+      "AppBundleBuildResponse": {
+        "properties": {
+          "schema_version": {
+            "type": "integer",
+            "const": 1,
+            "title": "Schema Version"
+          },
+          "build_id": {
+            "type": "string",
+            "title": "Build Id"
+          },
+          "target": {
+            "type": "string",
+            "const": "react-tailwind-app",
+            "title": "Target"
+          },
+          "app_schema_version": {
+            "type": "integer",
+            "title": "App Schema Version"
+          },
+          "sdk_version": {
+            "type": "string",
+            "title": "Sdk Version"
+          },
+          "input_sha256": {
+            "type": "string",
+            "title": "Input Sha256"
+          },
+          "artifact_set_sha256": {
+            "type": "string",
+            "title": "Artifact Set Sha256"
+          },
+          "files": {
+            "items": {
+              "$ref": "#/components/schemas/AppBuildFile"
+            },
+            "type": "array",
+            "title": "Files"
+          },
+          "provenance": {
+            "$ref": "#/components/schemas/AppBuildProvenance"
+          },
+          "usage": {
+            "$ref": "#/components/schemas/ArtifactUsage"
+          },
+          "receipt": {
+            "$ref": "#/components/schemas/UsageReceipt"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "schema_version",
+          "build_id",
+          "target",
+          "app_schema_version",
+          "sdk_version",
+          "input_sha256",
+          "artifact_set_sha256",
+          "files",
+          "provenance",
+          "usage",
+          "receipt"
+        ],
+        "title": "AppBundleBuildResponse"
       },
       "ArtifactFile": {
         "properties": {
