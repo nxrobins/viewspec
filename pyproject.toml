@@ -38,12 +38,14 @@ viewspec = "viewspec.cli:main"
 dev = [
     "build>=1.2",
     "pytest>=8.0",
+    "hypothesis>=6.100,<7",
     "ruff>=0.4",
     "httpx>=0.27.0",
     "jsonschema>=4.18",
 ]
 remote = [
     "httpx>=0.27.0",
+    "cryptography>=48.0.1,<49",
 ]
 agents = [
     "mcp>=1.9.0",

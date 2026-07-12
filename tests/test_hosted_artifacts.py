@@ -18,10 +18,11 @@ from viewspec import (
 
 
 class FakeResponse:
-    def __init__(self, status_code: int, payload: object, text: str = ""):
+    def __init__(self, status_code: int, payload: object, text: str = "", headers=None):
         self.status_code = status_code
         self._payload = payload
         self.text = text
+        self.headers = headers or {}
 
     def json(self):
         return self._payload
@@ -72,6 +73,46 @@ def _artifact_payload(bundle: dict, target: str = "react-tsx") -> dict:
         "diagnostics": [],
         "usage": {"tier": "pro", "usage": 1, "limit": 10_000},
     }
+
+
+def _artifact_payload_with_provenance(bundle: dict) -> dict:
+    payload = _artifact_payload(bundle)
+    manifest = json.dumps({"node_a": {"intent_refs": ["viewspec:binding:a"]}}, sort_keys=True)
+    diagnostics = json.dumps([{"severity": "warning", "code": "EXAMPLE"}], sort_keys=True)
+    for path, role, content in (
+        ("provenance_manifest.json", "manifest", manifest),
+        ("diagnostics.json", "diagnostics", diagnostics),
+    ):
+        encoded = content.encode()
+        payload["files"].append(
+            {
+                "path": path,
+                "role": role,
+                "content_type": "application/json",
+                "sha256": hashlib.sha256(encoded).hexdigest(),
+                "bytes": len(encoded),
+                "content": content,
+            }
+        )
+    payload["diagnostics"] = json.loads(diagnostics)
+    payload["provenance"] = {
+        "manifest_file": "provenance_manifest.json",
+        "sha256": next(file["sha256"] for file in payload["files"] if file["role"] == "manifest"),
+        "entry_count": 1,
+    }
+    artifact_index = sorted(
+        ({"path": file["path"], "sha256": file["sha256"]} for file in payload["files"]),
+        key=lambda item: item["path"],
+    )
+    payload["artifact_set_sha256"] = hashlib.sha256(_canonical(artifact_index)).hexdigest()
+    material = {
+        "schema_version": 1,
+        "target": payload["target"],
+        "input_sha256": payload["input_sha256"],
+        "artifact_set_sha256": payload["artifact_set_sha256"],
+    }
+    payload["build_id"] = f"vsb_{hashlib.sha256(_canonical(material)).hexdigest()[:32]}"
+    return payload
 
 
 def _install_httpx(monkeypatch, response: FakeResponse):
@@ -131,3 +172,61 @@ def test_remote_artifact_helper_surfaces_api_error(monkeypatch) -> None:
 
     with pytest.raises(CompilerAPIError, match="Paid plan required"):
         compile_artifact_remote(_bundle(), "react-tsx")
+
+
+def test_remote_artifact_helper_preserves_structured_error_metadata(monkeypatch) -> None:
+    _install_httpx(
+        monkeypatch,
+        FakeResponse(
+            403,
+            {
+                "error": {"code": "paid_plan_required", "message": "Paid plan required", "path": "$.target"},
+                "request_id": "req_artifact_123",
+            },
+            headers={"Retry-After": "60"},
+        ),
+    )
+
+    with pytest.raises(CompilerAPIError) as raised:
+        compile_artifact_remote(_bundle(), "react-tsx")
+
+    assert raised.value.code == "paid_plan_required"
+    assert raised.value.path == "$.target"
+    assert raised.value.status_code == 403
+    assert raised.value.request_id == "req_artifact_123"
+    assert raised.value.retry_after == "60"
+
+
+@pytest.mark.parametrize(
+    "mutation",
+    ["manifest_file", "manifest_hash", "manifest_count", "manifest_role", "diagnostics"],
+)
+def test_artifact_provenance_metadata_must_match_verified_files(mutation: str) -> None:
+    bundle = _bundle().to_json()
+    payload = deepcopy(_artifact_payload_with_provenance(bundle))
+    if mutation == "manifest_file":
+        payload["provenance"]["manifest_file"] = "missing.json"
+    elif mutation == "manifest_hash":
+        payload["provenance"]["sha256"] = "0" * 64
+    elif mutation == "manifest_count":
+        payload["provenance"]["entry_count"] = 2
+    elif mutation == "manifest_role":
+        next(file for file in payload["files"] if file["path"] == "provenance_manifest.json")["role"] = "source"
+    else:
+        payload["diagnostics"] = []
+
+    with pytest.raises(ArtifactContractError):
+        ArtifactResponse.from_json(payload, expected_input=bundle, expected_target="react-tsx")
+
+
+def test_artifact_provenance_metadata_accepts_exact_verified_files() -> None:
+    bundle = _bundle().to_json()
+
+    response = ArtifactResponse.from_json(
+        _artifact_payload_with_provenance(bundle),
+        expected_input=bundle,
+        expected_target="react-tsx",
+    )
+
+    assert response.provenance.manifest_file == "provenance_manifest.json"
+    assert response.provenance.entry_count == 1

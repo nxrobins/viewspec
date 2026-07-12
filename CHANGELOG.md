@@ -7,6 +7,28 @@ All notable changes to ViewSpec are documented in this file. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- Customer-side Ed25519 verification for hosted usage receipts through
+  `ReceiptPublicKey` and `verify_usage_receipt(...)`.
+- Property-based remote error tests that preserve hosted error codes, JSON paths, HTTP status,
+  request ids, and retry metadata on `CompilerAPIError`.
+
+### Changed
+
+- `demos/openapi.json` is generated from the running hosted API's typed route models and exposes
+  only the public contract; admin, webhook, legacy, health, and readiness routes are excluded.
+- The `remote` extra now includes `cryptography` for Ed25519 receipt verification, and the
+  development extra includes Hypothesis for contract properties.
+- Hosted artifact verification now ties provenance filename, role, hash, entry count, and
+  diagnostics metadata back to the already verified artifact files.
+
+### Security
+
+- Hosted usage receipts are independently verifiable without sharing service signing material.
+- Hosted artifact clients reject provenance or diagnostics metadata that diverges from the
+  integrity-addressed files.
+
 ## [0.3.0b3] - 2026-07-11
 
 ### Added

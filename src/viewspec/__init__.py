@@ -56,6 +56,7 @@ from viewspec.hosted_artifacts import (
     ArtifactUsage,
     compile_artifact_remote,
 )
+from viewspec.hosted_receipts import RECEIPT_ALGORITHM, ReceiptPublicKey, verify_usage_receipt
 from viewspec.motif_plugins import (
     MOTIF_PLUGIN_ABI_VERSION,
     MotifCompileContext,
@@ -232,6 +233,9 @@ __all__ = [
     "ArtifactResponse",
     "ArtifactUsage",
     "compile_artifact_remote",
+    "RECEIPT_ALGORITHM",
+    "ReceiptPublicKey",
+    "verify_usage_receipt",
     "MOTIF_PLUGIN_ABI_VERSION",
     "MotifCompileContext",
     "MotifCompileResult",

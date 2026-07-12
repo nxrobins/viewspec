@@ -1803,8 +1803,66 @@ VIEWSPEC_API_URL = "https://api.viewspec.dev"
 
 
 class CompilerAPIError(Exception):
-    """Raised when the hosted compiler API returns an error."""
-    pass
+    """Structured failure returned by the hosted compiler API."""
+
+    def __init__(
+        self,
+        message: str,
+        *,
+        code: str = "remote_error",
+        path: str | None = None,
+        status_code: int | None = None,
+        request_id: str | None = None,
+        retry_after: str | None = None,
+    ) -> None:
+        super().__init__(message)
+        self.code = code
+        self.path = path
+        self.status_code = status_code
+        self.request_id = request_id
+        self.retry_after = retry_after
+
+
+def _response_header(response: Any, name: str) -> str | None:
+    headers = getattr(response, "headers", {})
+    value = headers.get(name) if hasattr(headers, "get") else None
+    if value is None and hasattr(headers, "items"):
+        value = next((item for key, item in headers.items() if str(key).lower() == name.lower()), None)
+    return None if value is None else str(value)
+
+
+def _compiler_api_error(response: Any, data: Any = None) -> CompilerAPIError:
+    status_code = int(getattr(response, "status_code", 0)) or None
+    if data is None:
+        try:
+            data = response.json()
+        except ValueError:
+            data = None
+    error = data.get("error") if isinstance(data, dict) else None
+    structured = error if isinstance(error, dict) else {}
+    message = str(structured.get("message") or "")
+    code = str(structured.get("code") or "remote_error")
+    path = structured.get("path") if isinstance(structured.get("path"), str) else None
+    if not message and isinstance(data, dict) and isinstance(data.get("message"), str):
+        message = data["message"]
+    if status_code == 401 and not structured:
+        message = "Invalid API key"
+        code = "invalid_api_key"
+    elif status_code == 429 and not structured:
+        message = f"Rate limit exceeded: {message or 'Upgrade at viewspec.dev'}"
+        code = "rate_limit_exceeded"
+    elif not message:
+        message = f"Compilation failed (HTTP {status_code})"
+    request_id = data.get("request_id") if isinstance(data, dict) and isinstance(data.get("request_id"), str) else None
+    request_id = request_id or _response_header(response, "X-Request-ID")
+    return CompilerAPIError(
+        message,
+        code=code,
+        path=path,
+        status_code=status_code,
+        request_id=request_id,
+        retry_after=_response_header(response, "Retry-After"),
+    )
 
 
 def _compile_request_payload(request: IntentBundle | CompileRequestPayload) -> CompileRequestPayload:
@@ -1859,7 +1917,9 @@ def compile_remote_response(
             timeout=30.0,
         )
     except httpx.HTTPError as exc:
-        raise CompilerAPIError(f"Remote compilation request failed: {exc}") from exc
+        raise CompilerAPIError(
+            f"Remote compilation request failed: {exc}", code="network_error"
+        ) from exc
 
     def _response_json() -> dict[str, Any]:
         try:
@@ -1870,17 +1930,8 @@ def compile_remote_response(
             raise CompilerAPIError("Compilation failed: response JSON was not an object")
         return data
 
-    if response.status_code == 429:
-        data = _response_json()
-        raise CompilerAPIError(
-            f"Rate limit exceeded: {data.get('message', 'Upgrade at viewspec.dev')}"
-        )
-    if response.status_code == 401:
-        raise CompilerAPIError("Invalid API key")
     if response.status_code != 200:
-        raise CompilerAPIError(
-            f"Compilation failed (HTTP {response.status_code}): {response.text}"
-        )
+        raise _compiler_api_error(response, _response_json())
 
     data = _response_json()
     if "ast" not in data:
