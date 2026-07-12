@@ -50,8 +50,8 @@ class ReceiptPublicKey:
         return cls(algorithm, key_id, public_key)
 
 
-def verify_usage_receipt(receipt: Any, public_key: ReceiptPublicKey | Mapping[str, Any]) -> bool:
-    """Verify a hosted usage receipt against the API's published public key."""
+def verify_signed_receipt(receipt: Any, public_key: ReceiptPublicKey | Mapping[str, Any]) -> bool:
+    """Verify any hosted ViewSpec receipt against the API's published public key."""
     try:
         parsed_key = public_key if isinstance(public_key, ReceiptPublicKey) else ReceiptPublicKey.from_json(public_key)
     except (TypeError, ValueError):
@@ -76,4 +76,9 @@ def verify_usage_receipt(receipt: Any, public_key: ReceiptPublicKey | Mapping[st
     return True
 
 
-__all__ = ["RECEIPT_ALGORITHM", "ReceiptPublicKey", "verify_usage_receipt"]
+def verify_usage_receipt(receipt: Any, public_key: ReceiptPublicKey | Mapping[str, Any]) -> bool:
+    """Backward-compatible name for verifying a hosted usage receipt."""
+    return verify_signed_receipt(receipt, public_key)
+
+
+__all__ = ["RECEIPT_ALGORITHM", "ReceiptPublicKey", "verify_signed_receipt", "verify_usage_receipt"]

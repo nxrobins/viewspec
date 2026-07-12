@@ -6,7 +6,7 @@ import json
 
 from hypothesis import given, strategies as st
 
-from viewspec import ReceiptPublicKey, verify_usage_receipt
+from viewspec import ReceiptPublicKey, verify_signed_receipt, verify_usage_receipt
 
 
 SECRET = "customer-verifiable-receipt-test-secret"
@@ -48,6 +48,7 @@ def test_public_receipt_key_parses_and_verifies_a_receipt() -> None:
 
     assert parsed.key_id == key["key_id"]
     assert verify_usage_receipt(receipt, parsed)
+    assert verify_signed_receipt(receipt, parsed)
 
 
 @given(delta=st.integers(min_value=-1_000_000, max_value=1_000_000))

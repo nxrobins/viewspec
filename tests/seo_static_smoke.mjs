@@ -734,7 +734,7 @@ assert.deepEqual(
 assertPublicEqual(openapi['x-viewspec-public-facts'].proSignedUsageReceipts, publicFacts.pricing.pro.signed_usage_receipts, 'OpenAPI public facts signed receipts')
 assert.deepEqual(
   Object.keys(openapi.paths).sort(),
-  ['/v1/artifacts', '/v1/checkout/claim', '/v1/compile', '/v1/keys/current', '/v1/keys/rotate', '/v1/plans', '/v1/receipt-key', '/v1/usage'],
+  ['/v1/app-bundles/build', '/v1/artifacts', '/v1/checkout/claim', '/v1/compile', '/v1/keys/current', '/v1/keys/rotate', '/v1/plans', '/v1/receipt-key', '/v1/usage'],
   'OpenAPI must expose only the public hosted contract'
 )
 assert(openapi.paths['/v1/compile']?.post, 'OpenAPI needs POST /v1/compile')

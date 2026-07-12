@@ -9,6 +9,12 @@ All notable changes to ViewSpec are documented in this file. The format follows
 
 ### Added
 
+- `compile_app_remote(...)` and `AppBundleBuildResponse` for paid, verified hosted builds of
+  complete React/Tailwind AppBundle projects. The client validates nested paths, every file hash,
+  the complete outer manifest, deterministic build identity, and the Ed25519 build receipt before
+  returning or materializing source.
+- `verify_signed_receipt(...)` as the receipt-type-neutral verifier; `verify_usage_receipt(...)`
+  remains a backward-compatible alias.
 - Customer-side Ed25519 verification for hosted usage receipts through
   `ReceiptPublicKey` and `verify_usage_receipt(...)`.
 - Property-based remote error tests that preserve hosted error codes, JSON paths, HTTP status,
