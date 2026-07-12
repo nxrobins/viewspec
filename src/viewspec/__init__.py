@@ -50,6 +50,7 @@ from viewspec.hosted_artifacts import (
     ARTIFACT_SCHEMA_VERSION,
     ARTIFACT_TARGETS,
     ArtifactContractError,
+    ArtifactCompilerIdentity,
     ArtifactFile,
     ArtifactProvenance,
     ArtifactResponse,
@@ -68,6 +69,11 @@ from viewspec.hosted_app_bundles import (
     AppBundleBuildContractError,
     AppBundleBuildResponse,
     compile_app_remote,
+)
+from viewspec.intent_contract import (
+    IntentBundleContractError,
+    normalize_intent_bundle_payload,
+    validate_intent_bundle_schema_version,
 )
 from viewspec.motif_plugins import (
     MOTIF_PLUGIN_ABI_VERSION,
@@ -240,6 +246,7 @@ __all__ = [
     "ARTIFACT_SCHEMA_VERSION",
     "ARTIFACT_TARGETS",
     "ArtifactContractError",
+    "ArtifactCompilerIdentity",
     "ArtifactFile",
     "ArtifactProvenance",
     "ArtifactResponse",
@@ -258,6 +265,9 @@ __all__ = [
     "AppBundleBuildContractError",
     "AppBundleBuildResponse",
     "compile_app_remote",
+    "IntentBundleContractError",
+    "normalize_intent_bundle_payload",
+    "validate_intent_bundle_schema_version",
     "MOTIF_PLUGIN_ABI_VERSION",
     "MotifCompileContext",
     "MotifCompileResult",

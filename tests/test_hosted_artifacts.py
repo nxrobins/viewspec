@@ -62,6 +62,13 @@ def _artifact_payload(bundle: dict, target: str = "react-tsx") -> dict:
         "input_sha256": input_hash,
         "artifact_set_sha256": artifact_set_hash,
     }
+    compiler_material = {
+        "profile": "hosted_extended_v1",
+        "source_revision": "abc123",
+        "api_contract_version": "1.0.0",
+        "public_sdk_version": "0.3.0b3",
+        "intent_contract_sha256": "1" * 64,
+    }
     return {
         "schema_version": 1,
         "build_id": f"vsb_{hashlib.sha256(_canonical(material)).hexdigest()[:32]}",
@@ -72,6 +79,10 @@ def _artifact_payload(bundle: dict, target: str = "react-tsx") -> dict:
         "provenance": {"manifest_file": None, "sha256": None, "entry_count": 0},
         "diagnostics": [],
         "usage": {"tier": "pro", "usage": 1, "limit": 10_000},
+        "compiler": {
+            "build_id": f"vsc_{hashlib.sha256(_canonical(compiler_material)).hexdigest()[:32]}",
+            **compiler_material,
+        },
     }
 
 
@@ -138,6 +149,8 @@ def test_remote_artifact_helper_posts_and_verifies_response(monkeypatch) -> None
 
     assert isinstance(response, ArtifactResponse)
     assert response.files[0].path == "ViewSpecView.tsx"
+    assert response.compiler.profile == "hosted_extended_v1"
+    assert response.compiler.source_revision == "abc123"
     assert response.files[0].content.startswith("export function")
     assert calls[0]["args"][0] == "https://api.viewspec.dev/v1/artifacts"
     assert calls[0]["kwargs"]["headers"]["Authorization"] == "Bearer secret"
@@ -230,3 +243,13 @@ def test_artifact_provenance_metadata_accepts_exact_verified_files() -> None:
 
     assert response.provenance.manifest_file == "provenance_manifest.json"
     assert response.provenance.entry_count == 1
+
+
+@pytest.mark.parametrize("field", ["build_id", "profile", "source_revision", "intent_contract_sha256"])
+def test_artifact_compiler_identity_is_required_and_typed(field: str) -> None:
+    bundle = _bundle().to_json()
+    payload = _artifact_payload(bundle)
+    payload["compiler"][field] = ""
+
+    with pytest.raises(ArtifactContractError, match="compiler identity"):
+        ArtifactResponse.from_json(payload, expected_input=bundle, expected_target="react-tsx")

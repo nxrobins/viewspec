@@ -51,6 +51,11 @@ SDK clients may send optional root-level `design` context in the hosted `Compile
 
 The SDK treats `content` as an opaque string. The hosted API owns parsing, linting, cycle detection, style mapping, and `meta.design` validation results.
 
+Every successful compile includes `meta.compiler`, and paid artifact responses expose the same
+identity as `response.compiler`. Record its `build_id` and `source_revision` with generated output
+when exact hosted reproducibility matters. The identity also binds the contract profile, API and
+public SDK versions, and the SHA-256 digest of the canonical IntentBundle boundary.
+
 This is a hosted request envelope, not the local IntentBundle source contract. Local `viewspec validate-intent` intentionally rejects root `design` and `motif_library` fields so agents keep `viewspec.intent.json` portable and compiler-owned.
 
 Strict ingestion rules:
