@@ -46,6 +46,16 @@ from viewspec.compiler import (
     CompilerInputError,
     UnsupportedMotifError,
 )
+from viewspec.hosted_artifacts import (
+    ARTIFACT_SCHEMA_VERSION,
+    ARTIFACT_TARGETS,
+    ArtifactContractError,
+    ArtifactFile,
+    ArtifactProvenance,
+    ArtifactResponse,
+    ArtifactUsage,
+    compile_artifact_remote,
+)
 from viewspec.motif_plugins import (
     MOTIF_PLUGIN_ABI_VERSION,
     MotifCompileContext,
@@ -214,6 +224,14 @@ __all__ = [
     "CompilerAPIError",
     "CompilerInputError",
     "UnsupportedMotifError",
+    "ARTIFACT_SCHEMA_VERSION",
+    "ARTIFACT_TARGETS",
+    "ArtifactContractError",
+    "ArtifactFile",
+    "ArtifactProvenance",
+    "ArtifactResponse",
+    "ArtifactUsage",
+    "compile_artifact_remote",
     "MOTIF_PLUGIN_ABI_VERSION",
     "MotifCompileContext",
     "MotifCompileResult",

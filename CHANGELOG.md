@@ -7,6 +7,34 @@ All notable changes to ViewSpec are documented in this file. The format follows
 
 ## [Unreleased]
 
+## [0.3.0b3] - 2026-07-11
+
+### Added
+
+- `compile_artifact_remote(...)` and typed hosted artifact response models for paid
+  HTML/Tailwind, React TSX, SwiftUI, and Flutter delivery. The client fails closed on unsafe
+  filenames, content or artifact-set hash mismatches, input drift, and forged build identity.
+- A no-store checkout success page that exchanges Stripe's one-time Checkout session for an API
+  key, removes the session id from browser history, and never writes the key to browser storage.
+- Static OpenAPI discovery for plans, paid artifacts, signed usage receipts, checkout claim, and
+  API-key rotation and revocation.
+- Cross-repository commercial contract checks covering price, quota, custom motifs, checkout URL,
+  artifact targets, signed receipts, and the exact production-canary starter.
+
+### Changed
+
+- Hosted product copy now matches the enforced paid contract: Pro is $149/month for 10,000 hosted
+  compile calls/day, up to five custom motifs per compile, four integrity-checked artifact targets,
+  signed usage receipts, and email support.
+- Hosted integration documentation now distinguishes the free local compiler, portable AST
+  compile response, and paid artifact-delivery response.
+
+### Security
+
+- Hosted artifact clients verify every file and the aggregate deterministic build identity before
+  returning generated source to an agent workflow.
+- Checkout key delivery is one-time and deliberately avoids local or session storage.
+
 ## [0.3.0b2] - 2026-07-11
 
 ### Added

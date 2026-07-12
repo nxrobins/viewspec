@@ -46,6 +46,8 @@ jobs:
         run: |
           node tests/landing_payload_smoke.mjs
           node tests/landing_config_smoke.mjs
+          node tests/commercial_contract_smoke.mjs
+          node tests/checkout_claim_smoke.mjs
           node tests/seo_static_smoke.mjs
 
       - name: Build wheel

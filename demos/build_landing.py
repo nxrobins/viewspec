@@ -102,7 +102,7 @@ def build_bundle(aesthetic_profile: str | None = None):
     )
     capabilities.add_row(
         label="Portable Surfaces",
-        value="html-tailwind and React locally; SwiftUI and Flutter hosted.",
+        value="html-tailwind and React locally; four integrity-checked targets through the paid API.",
     )
 
     agent_workflow = builder.add_table("agent_workflow", region="main", group_id="agent_workflow")
@@ -814,7 +814,7 @@ PAGE_BODY_TEMPLATE = r"""<a class="skip-link" href="#top">Skip to content</a>
       <span class="eyebrow">Agent&#8209;native UI compiler</span>
       <h1 data-node="node:hero#slot:title[0]" data-binding="hero_title" data-address="node:hero#slot:title[0]" data-present="text" data-raw="Intent goes in. Interface comes out.">Intent goes in.<br>Interface comes <span class="out">out.</span></h1>
       <p class="sub" data-node="node:hero#slot:body[0]" data-binding="hero_body" data-address="node:hero#slot:body[0]" data-present="rich_text" data-raw="ViewSpec is the compiler between your agents and your UI.">
-        ViewSpec is the compiler between your agents and your UI. Agents commit to <b>meaning</b> &mdash; nodes, bindings, motifs. ViewSpec owns the <b>pixels</b>: deterministic, no model call at render, portable to HTML, React, SwiftUI, and Flutter.
+        ViewSpec is the compiler between your agents and your UI. Agents commit to <b>meaning</b> &mdash; nodes, bindings, motifs. ViewSpec owns the <b>pixels</b>: deterministic, no model call at render, and portable to HTML, React, SwiftUI, and Flutter.
       </p>
       <div class="hero-cta">
         <span class="cmd mono"><span class="pr">$</span> pip install viewspec <button type="button" class="cp" id="copyCmd" data-copy-text="pip install viewspec" aria-label="Copy pip install viewspec command">copy</button></span>
@@ -867,7 +867,7 @@ PAGE_BODY_TEMPLATE = r"""<a class="skip-link" href="#top">Skip to content</a>
         <div class="pillar">
           <div class="pi"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/></svg></div>
           <h3>Portable</h3>
-          <p>One bundle emits html&#8209;tailwind and React locally; SwiftUI and Flutter when hosted. Describe the interface once, ship it anywhere.</p>
+          <p>One bundle emits html&#8209;tailwind and React locally; the paid API delivers four targets with hashes, provenance, and diagnostics.</p>
         </div>
         <div class="pillar">
           <div class="pi"><svg viewBox="0 0 24 24"><path d="M12 3l7 3v5c0 4.5-3 8-7 10-4-2-7-5.5-7-10V6l7-3z"/><path d="M9 12l2 2 4-4"/></svg></div>
@@ -995,8 +995,10 @@ PAGE_BODY_TEMPLATE = r"""<a class="skip-link" href="#top">Skip to content</a>
           <p>Hosted compile API for production agent workflows and shared team demos.</p>
           <ul class="pricing-list">
             <li>10,000 hosted compile calls/day</li>
-            <li>Hosted SwiftUI and Flutter emitters</li>
-            <li>Team usage receipts</li>
+            <li>Level 2 derivation and DESIGN.md context</li>
+            <li>Up to 5 custom motifs per compile</li>
+            <li>HTML, React, SwiftUI, and Flutter artifacts</li>
+            <li>Signed team usage receipts</li>
             <li>Email support</li>
           </ul>
         </article>
@@ -1013,7 +1015,7 @@ PAGE_BODY_TEMPLATE = r"""<a class="skip-link" href="#top">Skip to content</a>
           </ul>
         </article>
       </div>
-      <p class="pricing-note">Pricing is intentionally simple: the compiler remains useful locally, while hosted capacity is there for teams that need API volume, mobile emitters, and support.</p>
+      <p class="pricing-note">Pricing is intentionally simple: the compiler remains useful locally, while hosted capacity adds API volume, richer derivation, custom motifs, portable artifacts, receipts, and support.</p>
       <div class="cta">
         <h2>Compile your first interface in a minute.</h2>
         <p class="lead">No account, no network, no LLM key. Install the SDK, write intent, prove the output.</p>
@@ -1047,7 +1049,7 @@ PAGE_SCRIPT = r"""
     {k:"provenance",  ab:"PV", name:"Traceable provenance", desc:"Every node maps back through binding, address, and raw data."},
     {k:"determinism", ab:"DT", name:"Deterministic render", desc:"No LLM at render. Same intent compiles to identical bytes."},
     {k:"no_network",  ab:"NW", name:"Provable no-network",  desc:"The check gate certifies zero cross-origin requests."},
-    {k:"surfaces",    ab:"SF", name:"One intent, N surfaces", desc:"Emits html, React, and hosted SwiftUI and Flutter."}
+    {k:"surfaces",    ab:"SF", name:"One intent, N surfaces", desc:"Emits HTML, React, SwiftUI, and Flutter with verified build identity."}
   ];
   var PROFILES={
     calm_ops:{density:"regular",emphasis:"medium",columns:3},
