@@ -966,6 +966,9 @@
           },
           "usage": {
             "$ref": "#/components/schemas/ArtifactUsage"
+          },
+          "compiler": {
+            "$ref": "#/components/schemas/CompilerIdentity"
           }
         },
         "additionalProperties": false,
@@ -979,7 +982,8 @@
           "files",
           "provenance",
           "diagnostics",
-          "usage"
+          "usage",
+          "compiler"
         ],
         "title": "ArtifactResponse"
       },
@@ -1057,6 +1061,9 @@
             ],
             "title": "Limit"
           },
+          "compiler": {
+            "$ref": "#/components/schemas/CompilerIdentity"
+          },
           "design": {
             "anyOf": [
               {
@@ -1077,7 +1084,8 @@
           "diagnostic_count",
           "tier",
           "usage",
-          "limit"
+          "limit",
+          "compiler"
         ],
         "title": "CompileMeta"
       },
@@ -1149,6 +1157,46 @@
           "meta"
         ],
         "title": "CompileResponse"
+      },
+      "CompilerIdentity": {
+        "properties": {
+          "build_id": {
+            "type": "string",
+            "title": "Build Id"
+          },
+          "profile": {
+            "type": "string",
+            "const": "hosted_extended_v1",
+            "title": "Profile"
+          },
+          "source_revision": {
+            "type": "string",
+            "title": "Source Revision"
+          },
+          "api_contract_version": {
+            "type": "string",
+            "title": "Api Contract Version"
+          },
+          "public_sdk_version": {
+            "type": "string",
+            "title": "Public Sdk Version"
+          },
+          "intent_contract_sha256": {
+            "type": "string",
+            "title": "Intent Contract Sha256"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "build_id",
+          "profile",
+          "source_revision",
+          "api_contract_version",
+          "public_sdk_version",
+          "intent_contract_sha256"
+        ],
+        "title": "CompilerIdentity"
       },
       "DesignRequest": {
         "properties": {

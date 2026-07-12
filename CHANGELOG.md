@@ -9,6 +9,11 @@ All notable changes to ViewSpec are documented in this file. The format follows
 
 ### Added
 
+- A canonical, dependency-free IntentBundle envelope boundary shared byte-for-byte with the
+  hosted compiler, with stable error codes and JSON paths plus property-based cross-process
+  parity tests.
+- Typed hosted artifact compiler identity, including the deterministic compiler build id,
+  source revision, contract profile, API and SDK versions, and IntentBundle contract digest.
 - `compile_app_remote(...)` and `AppBundleBuildResponse` for paid, verified hosted builds of
   complete React/Tailwind AppBundle projects. The client validates nested paths, every file hash,
   the complete outer manifest, deterministic build identity, and the Ed25519 build receipt before
@@ -22,6 +27,10 @@ All notable changes to ViewSpec are documented in this file. The format follows
 
 ### Changed
 
+- Hosted and local parsing now agree with JSON Schema integer semantics for
+  `schema_version: 1.0`, and release checks reject any source drift in the shared boundary.
+- Hosted compile metadata, health, and paid artifacts identify the exact immutable compiler
+  revision that produced them.
 - `demos/openapi.json` is generated from the running hosted API's typed route models and exposes
   only the public contract; admin, webhook, legacy, health, and readiness routes are excluded.
 - The `remote` extra now includes `cryptography` for Ed25519 receipt verification, and the

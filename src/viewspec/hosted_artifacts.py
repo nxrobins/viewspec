@@ -101,6 +101,39 @@ class ArtifactUsage:
 
 
 @dataclass(frozen=True)
+class ArtifactCompilerIdentity:
+    build_id: str
+    profile: str
+    source_revision: str
+    api_contract_version: str
+    public_sdk_version: str
+    intent_contract_sha256: str
+
+    @classmethod
+    def from_json(cls, payload: Any) -> ArtifactCompilerIdentity:
+        data = _mapping(payload, "artifact compiler identity")
+        fields = (
+            "profile",
+            "source_revision",
+            "api_contract_version",
+            "public_sdk_version",
+            "intent_contract_sha256",
+        )
+        if any(not isinstance(data.get(field), str) or not data[field] for field in fields):
+            raise ArtifactContractError("Artifact compiler identity is incomplete")
+        if data["profile"] != "hosted_extended_v1":
+            raise ArtifactContractError("Artifact compiler identity profile is unsupported")
+        digest = data["intent_contract_sha256"]
+        if len(digest) != 64 or any(character not in "0123456789abcdef" for character in digest):
+            raise ArtifactContractError("Artifact compiler identity contract digest is invalid")
+        material = {field: data[field] for field in fields}
+        expected_build_id = f"vsc_{hashlib.sha256(_canonical(material)).hexdigest()[:32]}"
+        if data.get("build_id") != expected_build_id:
+            raise ArtifactContractError("Artifact compiler identity build_id does not match its material")
+        return cls(data["build_id"], *(data[field] for field in fields))
+
+
+@dataclass(frozen=True)
 class ArtifactResponse:
     schema_version: int
     build_id: str
@@ -111,6 +144,7 @@ class ArtifactResponse:
     provenance: ArtifactProvenance
     diagnostics: tuple[dict, ...]
     usage: ArtifactUsage
+    compiler: ArtifactCompilerIdentity
 
     @classmethod
     def from_json(
@@ -194,6 +228,7 @@ class ArtifactResponse:
             provenance,
             tuple(diagnostics),
             ArtifactUsage.from_json(data.get("usage")),
+            ArtifactCompilerIdentity.from_json(data.get("compiler")),
         )
 
 
