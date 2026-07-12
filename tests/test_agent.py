@@ -331,7 +331,8 @@ def test_published_openapi_agent_artifacts_match_runtime_contract():
     assert artifacts["checkCommand"] == AGENT_ASSET_CHECK_COMMAND
     assert artifacts["networkPolicy"] == AGENT_ASSET_NETWORK_POLICY
     assert compile_request_ref == "#/components/schemas/CompileRequestPayload"
-    assert schemas["CompileRequestPayload"]["properties"]["design"]["$ref"] == "#/components/schemas/DesignRequest"
+    design_schema = schemas["CompileRequestPayload"]["properties"]["design"]
+    assert {item.get("$ref") for item in design_schema["anyOf"]} >= {"#/components/schemas/DesignRequest"}
     assert "hosted-only" in schemas["CompileRequestPayload"]["description"]
     assert "design" not in schemas["IntentBundle"]["properties"]
     assert "motif_library" not in schemas["IntentBundle"]["properties"]

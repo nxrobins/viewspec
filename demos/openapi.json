@@ -2,12 +2,1286 @@
   "openapi": "3.1.0",
   "info": {
     "title": "ViewSpec Hosted Compiler API",
-    "summary": "Compile agent-native ViewSpec IntentBundles into portable UI artifacts and provenance.",
-    "description": "ViewSpec is an agent-native UI compiler API for deterministic cross-platform UI generation.",
-    "version": "1.0.0",
+    "description": "Deterministic hosted compilation and verified artifact delivery for software agents.",
     "license": {
       "name": "MIT",
       "url": "https://github.com/nxrobins/viewspec/blob/main/LICENSE"
+    },
+    "version": "1.0.0"
+  },
+  "paths": {
+    "/v1/artifacts": {
+      "post": {
+        "tags": [
+          "compiler"
+        ],
+        "summary": "Artifacts V1",
+        "operationId": "compileViewSpecArtifact",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ArtifactRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ArtifactResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Content Too Large",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Content",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          },
+          {
+            "ApiKeyAuth": []
+          }
+        ]
+      }
+    },
+    "/v1/checkout/claim": {
+      "post": {
+        "tags": [
+          "commerce"
+        ],
+        "summary": "Claim Checkout",
+        "operationId": "claimViewSpecCheckoutKey",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CheckoutClaimRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiKeyResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/compile": {
+      "post": {
+        "tags": [
+          "compiler"
+        ],
+        "summary": "Compile V1",
+        "description": "Compile an IntentBundle into an ASTBundle (v1).",
+        "operationId": "compileViewSpecIntentBundle",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CompileRequestPayload"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CompileResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Content",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too Many Requests",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "Bad Gateway",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          },
+          "504": {
+            "description": "Gateway Timeout",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/keys/current": {
+      "delete": {
+        "tags": [
+          "commerce"
+        ],
+        "summary": "Revoke Current Key",
+        "operationId": "revokeViewSpecApiKey",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RevokeKeyResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          },
+          {
+            "ApiKeyAuth": []
+          }
+        ]
+      }
+    },
+    "/v1/keys/rotate": {
+      "post": {
+        "tags": [
+          "commerce"
+        ],
+        "summary": "Rotate Current Key",
+        "operationId": "rotateViewSpecApiKey",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiKeyResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          },
+          {
+            "ApiKeyAuth": []
+          }
+        ]
+      }
+    },
+    "/v1/plans": {
+      "get": {
+        "tags": [
+          "commerce"
+        ],
+        "summary": "Plans V1",
+        "operationId": "listViewSpecPlans",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlanCatalogResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/receipt-key": {
+      "get": {
+        "tags": [
+          "commerce"
+        ],
+        "summary": "Receipt Key V1",
+        "operationId": "getViewSpecReceiptKey",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReceiptKeyResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service Unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/usage": {
+      "get": {
+        "tags": [
+          "commerce"
+        ],
+        "summary": "Usage V1",
+        "operationId": "getViewSpecUsage",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UsageResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service Unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          },
+          {
+            "ApiKeyAuth": []
+          }
+        ]
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "ApiError": {
+        "properties": {
+          "code": {
+            "type": "string",
+            "title": "Code"
+          },
+          "message": {
+            "type": "string",
+            "title": "Message"
+          },
+          "path": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Path"
+          },
+          "tier": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tier"
+          },
+          "usage": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Usage"
+          },
+          "limit": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Limit"
+          },
+          "limit_bytes": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Limit Bytes"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "code",
+          "message"
+        ],
+        "title": "ApiError"
+      },
+      "ApiErrorResponse": {
+        "properties": {
+          "error": {
+            "$ref": "#/components/schemas/ApiError"
+          },
+          "request_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Request Id"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "error"
+        ],
+        "title": "ApiErrorResponse"
+      },
+      "ApiKeyResponse": {
+        "properties": {
+          "api_key": {
+            "type": "string",
+            "title": "Api Key"
+          },
+          "tier": {
+            "type": "string",
+            "title": "Tier"
+          },
+          "note": {
+            "type": "string",
+            "title": "Note"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "api_key",
+          "tier",
+          "note"
+        ],
+        "title": "ApiKeyResponse"
+      },
+      "ArtifactFile": {
+        "properties": {
+          "path": {
+            "type": "string",
+            "title": "Path"
+          },
+          "role": {
+            "type": "string",
+            "title": "Role"
+          },
+          "content_type": {
+            "type": "string",
+            "title": "Content Type"
+          },
+          "sha256": {
+            "type": "string",
+            "title": "Sha256"
+          },
+          "bytes": {
+            "type": "integer",
+            "title": "Bytes"
+          },
+          "content": {
+            "type": "string",
+            "title": "Content"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "path",
+          "role",
+          "content_type",
+          "sha256",
+          "bytes",
+          "content"
+        ],
+        "title": "ArtifactFile"
+      },
+      "ArtifactProvenance": {
+        "properties": {
+          "manifest_file": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Manifest File"
+          },
+          "sha256": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sha256"
+          },
+          "entry_count": {
+            "type": "integer",
+            "title": "Entry Count"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "manifest_file",
+          "sha256",
+          "entry_count"
+        ],
+        "title": "ArtifactProvenance"
+      },
+      "ArtifactRequest": {
+        "properties": {
+          "target": {
+            "type": "string",
+            "enum": [
+              "html-tailwind",
+              "react-tsx",
+              "swiftui",
+              "flutter"
+            ],
+            "title": "Target"
+          },
+          "bundle": {
+            "$ref": "#/components/schemas/CompileRequestPayload"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "target",
+          "bundle"
+        ],
+        "title": "ArtifactRequest"
+      },
+      "ArtifactResponse": {
+        "properties": {
+          "schema_version": {
+            "type": "integer",
+            "const": 1,
+            "title": "Schema Version"
+          },
+          "build_id": {
+            "type": "string",
+            "title": "Build Id"
+          },
+          "target": {
+            "type": "string",
+            "enum": [
+              "html-tailwind",
+              "react-tsx",
+              "swiftui",
+              "flutter"
+            ],
+            "title": "Target"
+          },
+          "input_sha256": {
+            "type": "string",
+            "title": "Input Sha256"
+          },
+          "artifact_set_sha256": {
+            "type": "string",
+            "title": "Artifact Set Sha256"
+          },
+          "files": {
+            "items": {
+              "$ref": "#/components/schemas/ArtifactFile"
+            },
+            "type": "array",
+            "title": "Files"
+          },
+          "provenance": {
+            "$ref": "#/components/schemas/ArtifactProvenance"
+          },
+          "diagnostics": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Diagnostics"
+          },
+          "usage": {
+            "$ref": "#/components/schemas/ArtifactUsage"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "schema_version",
+          "build_id",
+          "target",
+          "input_sha256",
+          "artifact_set_sha256",
+          "files",
+          "provenance",
+          "diagnostics",
+          "usage"
+        ],
+        "title": "ArtifactResponse"
+      },
+      "ArtifactUsage": {
+        "properties": {
+          "tier": {
+            "type": "string",
+            "title": "Tier"
+          },
+          "usage": {
+            "type": "integer",
+            "title": "Usage"
+          },
+          "limit": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Limit"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "tier",
+          "usage",
+          "limit"
+        ],
+        "title": "ArtifactUsage"
+      },
+      "CheckoutClaimRequest": {
+        "properties": {
+          "session_id": {
+            "type": "string",
+            "title": "Session Id"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "session_id"
+        ],
+        "title": "CheckoutClaimRequest"
+      },
+      "CompileMeta": {
+        "properties": {
+          "compile_ms": {
+            "type": "number",
+            "title": "Compile Ms"
+          },
+          "diagnostic_count": {
+            "type": "integer",
+            "title": "Diagnostic Count"
+          },
+          "tier": {
+            "type": "string",
+            "title": "Tier"
+          },
+          "usage": {
+            "type": "integer",
+            "title": "Usage"
+          },
+          "limit": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Limit"
+          },
+          "design": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Design"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "compile_ms",
+          "diagnostic_count",
+          "tier",
+          "usage",
+          "limit"
+        ],
+        "title": "CompileMeta"
+      },
+      "CompileRequestPayload": {
+        "properties": {
+          "schema_version": {
+            "type": "integer",
+            "const": 1,
+            "title": "Schema Version",
+            "default": 1
+          },
+          "substrate": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Substrate"
+          },
+          "view_spec": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "View Spec"
+          },
+          "motif_library": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Motif Library"
+          },
+          "design": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DesignRequest"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "substrate",
+          "view_spec"
+        ],
+        "title": "CompileRequestPayload",
+        "description": "IntentBundle plus bounded hosted-only compiler context."
+      },
+      "CompileResponse": {
+        "properties": {
+          "ast": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Ast"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/CompileMeta"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "ast",
+          "meta"
+        ],
+        "title": "CompileResponse"
+      },
+      "DesignRequest": {
+        "properties": {
+          "format": {
+            "type": "string",
+            "const": "design.md",
+            "title": "Format",
+            "default": "design.md"
+          },
+          "content": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Content"
+          },
+          "lint": {
+            "type": "boolean",
+            "title": "Lint",
+            "default": true
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "content"
+        ],
+        "title": "DesignRequest"
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "type": "array",
+            "title": "Detail"
+          }
+        },
+        "type": "object",
+        "title": "HTTPValidationError"
+      },
+      "PlanCatalogResponse": {
+        "properties": {
+          "schema_version": {
+            "type": "integer",
+            "const": 1,
+            "title": "Schema Version"
+          },
+          "effective_date": {
+            "type": "string",
+            "title": "Effective Date"
+          },
+          "currency": {
+            "type": "string",
+            "title": "Currency"
+          },
+          "plans": {
+            "items": {
+              "$ref": "#/components/schemas/PlanResponse"
+            },
+            "type": "array",
+            "title": "Plans"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "schema_version",
+          "effective_date",
+          "currency",
+          "plans"
+        ],
+        "title": "PlanCatalogResponse"
+      },
+      "PlanResponse": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "public": {
+            "type": "boolean",
+            "title": "Public"
+          },
+          "monthly_price_cents": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Monthly Price Cents"
+          },
+          "daily_compile_limit": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Daily Compile Limit"
+          },
+          "overage_usd_per_compile": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Overage Usd Per Compile"
+          },
+          "custom_motif_limit": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Custom Motif Limit"
+          },
+          "support": {
+            "type": "string",
+            "title": "Support"
+          },
+          "artifact_targets": {
+            "items": {
+              "type": "string",
+              "enum": [
+                "html-tailwind",
+                "react-tsx",
+                "swiftui",
+                "flutter"
+              ]
+            },
+            "type": "array",
+            "title": "Artifact Targets"
+          },
+          "signed_usage_receipts": {
+            "type": "boolean",
+            "title": "Signed Usage Receipts"
+          },
+          "checkout_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Checkout Url"
+          },
+          "contact_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Contact Url"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "public",
+          "monthly_price_cents",
+          "daily_compile_limit",
+          "overage_usd_per_compile",
+          "custom_motif_limit",
+          "support",
+          "artifact_targets",
+          "signed_usage_receipts",
+          "checkout_url",
+          "contact_url"
+        ],
+        "title": "PlanResponse"
+      },
+      "ReceiptKeyResponse": {
+        "properties": {
+          "algorithm": {
+            "type": "string",
+            "const": "ed25519",
+            "title": "Algorithm"
+          },
+          "key_id": {
+            "type": "string",
+            "title": "Key Id"
+          },
+          "public_key": {
+            "type": "string",
+            "title": "Public Key"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "algorithm",
+          "key_id",
+          "public_key"
+        ],
+        "title": "ReceiptKeyResponse"
+      },
+      "RevokeKeyResponse": {
+        "properties": {
+          "revoked": {
+            "type": "boolean",
+            "title": "Revoked"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "revoked"
+        ],
+        "title": "RevokeKeyResponse"
+      },
+      "UsageReceipt": {
+        "properties": {
+          "algorithm": {
+            "type": "string",
+            "const": "ed25519",
+            "title": "Algorithm"
+          },
+          "key_id": {
+            "type": "string",
+            "title": "Key Id"
+          },
+          "payload": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Payload"
+          },
+          "signature": {
+            "type": "string",
+            "title": "Signature"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "algorithm",
+          "key_id",
+          "payload",
+          "signature"
+        ],
+        "title": "UsageReceipt"
+      },
+      "UsageResponse": {
+        "properties": {
+          "customer_id": {
+            "type": "string",
+            "title": "Customer Id"
+          },
+          "date": {
+            "type": "string",
+            "title": "Date"
+          },
+          "tier": {
+            "type": "string",
+            "title": "Tier"
+          },
+          "usage": {
+            "type": "integer",
+            "title": "Usage"
+          },
+          "limit": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Limit"
+          },
+          "remaining": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Remaining"
+          },
+          "issued_at": {
+            "type": "string",
+            "title": "Issued At"
+          },
+          "receipt": {
+            "$ref": "#/components/schemas/UsageReceipt"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "customer_id",
+          "date",
+          "tier",
+          "usage",
+          "limit",
+          "remaining",
+          "issued_at",
+          "receipt"
+        ],
+        "title": "UsageResponse"
+      },
+      "ValidationError": {
+        "properties": {
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Location"
+          },
+          "msg": {
+            "type": "string",
+            "title": "Message"
+          },
+          "type": {
+            "type": "string",
+            "title": "Error Type"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "ctx": {
+            "type": "object",
+            "title": "Context"
+          }
+        },
+        "type": "object",
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError"
+      },
+      "IntentBundle": {
+        "additionalProperties": false,
+        "properties": {
+          "schema_version": {
+            "const": 1,
+            "default": 1,
+            "title": "Schema Version",
+            "type": "integer"
+          },
+          "substrate": {
+            "additionalProperties": true,
+            "title": "Substrate",
+            "type": "object"
+          },
+          "view_spec": {
+            "additionalProperties": true,
+            "title": "View Spec",
+            "type": "object"
+          }
+        },
+        "required": [
+          "substrate",
+          "view_spec"
+        ],
+        "title": "IntentBundle",
+        "type": "object"
+      }
+    },
+    "securitySchemes": {
+      "BearerAuth": {
+        "type": "http",
+        "scheme": "bearer"
+      },
+      "ApiKeyAuth": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "X-API-Key"
+      }
     }
   },
   "servers": [
@@ -17,7 +1291,7 @@
     }
   ],
   "externalDocs": {
-    "description": "ViewSpec playground and demos",
+    "description": "ViewSpec agent integration and compiler documentation",
     "url": "https://viewspec.dev/"
   },
   "x-viewspec-agent-artifacts": {
@@ -35,396 +1309,14 @@
     "agentDocs": "https://github.com/nxrobins/viewspec/blob/main/docs/agent-integration.md"
   },
   "x-viewspec-public-facts": {
-    "manifest": "https://viewspec.dev/public-facts.json",
-    "sdkVersion": "0.3.0b3",
     "proPriceUsdMonth": 149,
     "proHostedCompileCallsPerDay": 10000,
-    "proArtifactTargets": ["html-tailwind", "react-tsx", "swiftui", "flutter"],
-    "proSignedUsageReceipts": true,
-    "firstProofCommand": "viewspec prove --out .viewspec-proof",
-    "proofSummaryFile": ".viewspec-proof/PROOF.md",
-    "proofReportFile": ".viewspec-proof/proof_report.json",
-    "proofSupportBundleFile": ".viewspec-proof/support_bundle.json",
-    "proofIdentityMetadataKey": "proof_identity",
-    "proofIdentityHashFields": [
-      "artifact_hash",
-      "manifest_hash",
-      "proof_report_hash",
-      "proof_summary_hash",
-      "support_bundle_hash"
+    "proArtifactTargets": [
+      "html-tailwind",
+      "react-tsx",
+      "swiftui",
+      "flutter"
     ],
-    "proofHostAssertionRequirements": {
-      "report_key": "assertion_requirements",
-      "base_minimums": {
-        "dom_count": 1,
-        "style_assertion_count": 4
-      },
-      "manifest_derived_fields": [
-        "aesthetic_layout_assertion_count",
-        "aesthetic_profile_assertion_count",
-        "grid_span_assertion_count"
-      ],
-      "all_fields": [
-        "aesthetic_layout_assertion_count",
-        "aesthetic_profile_assertion_count",
-        "dom_count",
-        "grid_span_assertion_count",
-        "style_assertion_count"
-      ]
-    },
-    "appbundleStateIrDemoUrl": "https://viewspec.dev/appbundle-state-ir/",
-    "appbundleStateIrProfile": "interactive_state_v0",
-    "appbundleStateIrReducerArtifact": "state_reducer.ts",
-    "appbundleStateIrReducerExport": "reduceViewSpecState",
-    "appbundleStateIrReplayField": "state_replay_assertions",
-    "appbundleStateIrProofCommandShort": "viewspec prove-app --with-shell",
-    "appbundleStateIrProofCommand": "viewspec prove-app --app viewspec.app.json --out .viewspec-app-proof --with-shell --json",
-    "agentAssetManifest": "https://viewspec.dev/agent-assets.json",
-    "agentAssetSchemaVersion": 11,
-    "agentAssetContractProfile": "local_v1",
-    "agentAssetIntentSchemaId": "https://viewspec.dev/agent-intent-bundle.schema.json",
-    "agentAssetAppSchemaId": "https://viewspec.dev/agent-app-bundle.schema.json",
-    "agentAssetExportCommand": "viewspec export-agent-assets --out .viewspec",
-    "agentAssetCheckCommand": "viewspec check-agent-assets .viewspec --json",
-    "agentAssetNetworkPolicy": "no SDK network calls"
-  },
-  "paths": {
-    "/v1/plans": {
-      "get": {
-        "operationId": "listViewSpecPlans",
-        "summary": "List public plans and enforced limits",
-        "tags": ["commerce"],
-        "responses": {
-          "200": {
-            "description": "Versioned public plan catalog",
-            "content": {"application/json": {"schema": {"type": "object", "additionalProperties": true}}}
-          }
-        }
-      }
-    },
-    "/v1/artifacts": {
-      "post": {
-        "operationId": "compileViewSpecArtifact",
-        "summary": "Compile and deliver a verified paid artifact",
-        "description": "Returns inline text files with media types and SHA-256 hashes, deterministic build identity, provenance, diagnostics, and quota metadata.",
-        "tags": ["compiler"],
-        "security": [{"bearerAuth": []}, {"apiKeyAuth": []}],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "required": ["target", "bundle"],
-                "properties": {
-                  "target": {"type": "string", "enum": ["html-tailwind", "react-tsx", "swiftui", "flutter"]},
-                  "bundle": {"$ref": "#/components/schemas/CompileRequestPayload"}
-                },
-                "additionalProperties": false
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {"description": "Integrity-addressed artifact response", "content": {"application/json": {"schema": {"type": "object", "additionalProperties": true}}}},
-          "403": {"description": "Paid plan required"},
-          "413": {"description": "Generated artifact exceeds output limits"},
-          "422": {"description": "Invalid bundle or unsupported target"}
-        }
-      }
-    },
-    "/v1/usage": {
-      "get": {
-        "operationId": "getViewSpecUsage",
-        "summary": "Read customer-level usage and signed receipt",
-        "tags": ["commerce"],
-        "security": [{"bearerAuth": []}, {"apiKeyAuth": []}],
-        "responses": {
-          "200": {"description": "Usage totals and HMAC-SHA256 receipt", "content": {"application/json": {"schema": {"type": "object", "additionalProperties": true}}}},
-          "401": {"description": "Paid API key required"}
-        }
-      }
-    },
-    "/v1/checkout/claim": {
-      "post": {
-        "operationId": "claimViewSpecCheckoutKey",
-        "summary": "Claim a purchased API key once",
-        "tags": ["commerce"],
-        "requestBody": {"required": true, "content": {"application/json": {"schema": {"type": "object", "required": ["session_id"], "properties": {"session_id": {"type": "string"}}, "additionalProperties": false}}}},
-        "responses": {
-          "200": {"description": "One-time API key response"},
-          "404": {"description": "Webhook-backed checkout is not ready"},
-          "409": {"description": "Checkout key was already claimed"}
-        }
-      }
-    },
-    "/v1/keys/rotate": {
-      "post": {
-        "operationId": "rotateViewSpecApiKey",
-        "summary": "Rotate and revoke the current paid API key",
-        "tags": ["commerce"],
-        "security": [{"bearerAuth": []}, {"apiKeyAuth": []}],
-        "responses": {"200": {"description": "One-time replacement API key"}, "401": {"description": "Invalid API key"}}
-      }
-    },
-    "/v1/keys/current": {
-      "delete": {
-        "operationId": "revokeViewSpecApiKey",
-        "summary": "Revoke the current paid API key",
-        "tags": ["commerce"],
-        "security": [{"bearerAuth": []}, {"apiKeyAuth": []}],
-        "responses": {"200": {"description": "Key revoked"}, "401": {"description": "Invalid API key"}}
-      }
-    },
-    "/v1/compile": {
-      "post": {
-        "operationId": "compileViewSpecIntentBundle",
-        "summary": "Compile a ViewSpec intent bundle",
-        "description": "Compiles semantic substrate and view_spec JSON into CompositionIR, style values, diagnostics, timing metadata, quota metadata, and provenance-aware UI artifacts.",
-        "tags": ["compiler"],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/CompileRequestPayload"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Compiled UI artifact",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/CompileResponse"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Malformed intent bundle"
-          },
-          "401": {
-            "description": "Invalid or missing API key for a protected tier"
-          },
-          "429": {
-            "description": "Quota exceeded"
-          }
-        }
-      },
-      "options": {
-        "operationId": "compileViewSpecCorsPreflight",
-        "summary": "CORS preflight for compile endpoint",
-        "responses": {
-          "200": {
-            "description": "CORS headers accepted"
-          }
-        }
-      }
-    }
-  },
-  "components": {
-    "securitySchemes": {
-      "bearerAuth": {"type": "http", "scheme": "bearer"},
-      "apiKeyAuth": {"type": "apiKey", "in": "header", "name": "X-API-Key"}
-    },
-    "schemas": {
-      "CompileRequestPayload": {
-        "type": "object",
-        "description": "Hosted compile request envelope: IntentBundle root fields plus hosted-only compiler context such as DESIGN.md and custom motif libraries. Local validate-intent accepts IntentBundle fields only and rejects hosted-only root context.",
-        "required": ["substrate", "view_spec"],
-        "properties": {
-          "substrate": {
-            "$ref": "#/components/schemas/Substrate"
-          },
-          "view_spec": {
-            "$ref": "#/components/schemas/ViewSpec"
-          },
-          "motif_library": {
-            "type": "object",
-            "description": "Optional hosted compiler custom motif library.",
-            "additionalProperties": true
-          },
-          "design": {
-            "$ref": "#/components/schemas/DesignRequest"
-          }
-        },
-        "additionalProperties": true
-      },
-      "IntentBundle": {
-        "type": "object",
-        "description": "Agent-authored source contract: semantic substrate plus view_spec. Hosted-only request context such as design and motif_library belongs in CompileRequestPayload, not the local IntentBundle contract.",
-        "required": ["substrate", "view_spec"],
-        "properties": {
-          "substrate": {
-            "$ref": "#/components/schemas/Substrate"
-          },
-          "view_spec": {
-            "$ref": "#/components/schemas/ViewSpec"
-          }
-        },
-        "additionalProperties": true
-      },
-      "DesignRequest": {
-        "type": "object",
-        "required": ["format", "content"],
-        "properties": {
-          "format": {
-            "type": "string",
-            "const": "design.md"
-          },
-          "content": {
-            "type": "string",
-            "description": "Opaque DESIGN.md content. Parsing, linting, cycle detection, and token mapping are owned by the API."
-          },
-          "lint": {
-            "type": "boolean",
-            "default": true
-          }
-        },
-        "additionalProperties": false
-      },
-      "Substrate": {
-        "type": "object",
-        "required": ["id", "root_id", "nodes"],
-        "properties": {
-          "id": { "type": "string" },
-          "root_id": { "type": "string" },
-          "nodes": {
-            "type": "object",
-            "description": "Dictionary of substrate nodes keyed by node ID.",
-            "additionalProperties": {
-              "$ref": "#/components/schemas/SubstrateNode"
-            }
-          }
-        },
-        "additionalProperties": true
-      },
-      "SubstrateNode": {
-        "type": "object",
-        "required": ["id", "kind", "attrs", "slots", "edges"],
-        "properties": {
-          "id": { "type": "string" },
-          "kind": { "type": "string" },
-          "attrs": { "type": "object", "additionalProperties": true },
-          "slots": { "type": "object", "additionalProperties": true },
-          "edges": { "type": "object", "additionalProperties": true }
-        },
-        "additionalProperties": true
-      },
-      "ViewSpec": {
-        "type": "object",
-        "required": ["id", "substrate_id", "complexity_tier", "root_region", "regions", "bindings", "groups", "motifs"],
-        "properties": {
-          "id": { "type": "string" },
-          "substrate_id": { "type": "string" },
-          "complexity_tier": { "type": "integer", "minimum": 1 },
-          "root_region": { "type": "string" },
-          "regions": { "type": "array", "items": { "type": "object", "additionalProperties": true } },
-          "bindings": { "type": "array", "items": { "type": "object", "additionalProperties": true } },
-          "groups": { "type": "array", "items": { "type": "object", "additionalProperties": true } },
-          "motifs": { "type": "array", "items": { "type": "object", "additionalProperties": true } },
-          "styles": { "type": "array", "items": { "type": "object", "additionalProperties": true } },
-          "actions": { "type": "array", "items": { "type": "object", "additionalProperties": true } },
-          "projections": { "type": "array", "items": { "type": "object", "additionalProperties": true } },
-          "inputs": { "type": "array", "items": { "type": "object", "additionalProperties": true } },
-          "rules": { "type": "array", "items": { "type": "object", "additionalProperties": true } }
-        },
-        "additionalProperties": true
-      },
-      "CompileResponse": {
-        "type": "object",
-        "required": ["ast"],
-        "properties": {
-          "ast": {
-            "type": "object",
-            "description": "Compiled CompositionIR bundle and style values.",
-            "additionalProperties": true
-          },
-          "meta": {
-            "$ref": "#/components/schemas/CompileResponseMeta"
-          },
-          "derivations": {
-            "type": "array",
-            "description": "Hosted compiler derivation token explanations when available.",
-            "items": { "type": "object", "additionalProperties": true }
-          },
-          "quota": {
-            "type": "object",
-            "description": "Quota information when returned by the hosted API.",
-            "additionalProperties": true
-          }
-        },
-        "additionalProperties": true
-      },
-      "CompileResponseMeta": {
-        "type": "object",
-        "description": "Compiler timing, tier, usage, diagnostic metadata, and optional DESIGN.md validation results.",
-        "properties": {
-          "design": {
-            "$ref": "#/components/schemas/DesignMetadata"
-          }
-        },
-        "additionalProperties": true
-      },
-      "DesignMetadata": {
-        "type": "object",
-        "properties": {
-          "name": {
-            "type": "string"
-          },
-          "lint_summary": {
-            "type": "object",
-            "required": ["errors", "warnings", "info"],
-            "properties": {
-              "errors": { "type": "integer", "minimum": 0 },
-              "warnings": { "type": "integer", "minimum": 0 },
-              "info": { "type": "integer", "minimum": 0 }
-            },
-            "additionalProperties": false
-          },
-          "findings": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/DesignFinding"
-            }
-          },
-          "applied_tokens": {
-            "type": "object",
-            "additionalProperties": { "type": "string" }
-          },
-          "inferred_hints": {
-            "type": "object",
-            "additionalProperties": { "type": "string" }
-          },
-          "ignored_tokens": {
-            "type": "array",
-            "items": { "type": "string" }
-          },
-          "dropped_tokens": {
-            "type": "array",
-            "description": "Tokens dropped by API cycle detection.",
-            "items": { "type": "string" }
-          }
-        },
-        "additionalProperties": true
-      },
-      "DesignFinding": {
-        "type": "object",
-        "required": ["severity", "code", "path", "message"],
-        "properties": {
-          "severity": {
-            "type": "string",
-            "enum": ["error", "warning", "info"]
-          },
-          "code": { "type": "string" },
-          "path": { "type": "string" },
-          "message": { "type": "string" }
-        },
-        "additionalProperties": false
-      }
-    }
+    "proSignedUsageReceipts": true
   }
 }

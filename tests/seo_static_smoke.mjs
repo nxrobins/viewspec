@@ -722,45 +722,27 @@ for (const productTextPath of ['README.md', 'demos/llms-full.txt', 'demos/shared
 
 const openapi = JSON.parse(await readFile('demos/openapi.json', 'utf8'))
 assert.equal(openapi.openapi, '3.1.0')
+assert.equal(openapi.info.version, '1.0.0')
 assert.equal(openapi.servers[0].url, 'https://api.viewspec.dev')
-assertPublicEqual(openapi['x-viewspec-public-facts'].manifest, 'https://viewspec.dev/public-facts.json', 'OpenAPI public facts manifest')
-assertPublicEqual(openapi['x-viewspec-public-facts'].sdkVersion, publicFacts.sdk_version, 'OpenAPI public facts sdkVersion')
 assertPublicEqual(openapi['x-viewspec-public-facts'].proPriceUsdMonth, publicFacts.pricing.pro.price_usd_month, 'OpenAPI public facts proPriceUsdMonth')
 assertPublicEqual(openapi['x-viewspec-public-facts'].proHostedCompileCallsPerDay, publicFacts.pricing.pro.hosted_compile_calls_per_day, 'OpenAPI public facts pro calls')
-assertPublicEqual(openapi['x-viewspec-public-facts'].firstProofCommand, publicFacts.proof.first_proof_command, 'OpenAPI public facts first proof')
-assertPublicEqual(openapi['x-viewspec-public-facts'].proofSummaryFile, publicFacts.proof.human_summary_file, 'OpenAPI public facts proof summary')
-assertPublicEqual(openapi['x-viewspec-public-facts'].proofReportFile, publicFacts.proof.machine_report_file, 'OpenAPI public facts proof report')
-assertPublicEqual(openapi['x-viewspec-public-facts'].proofSupportBundleFile, publicFacts.proof.support_bundle_file, 'OpenAPI public facts proof support bundle')
-assertPublicEqual(openapi['x-viewspec-public-facts'].proofIdentityMetadataKey, publicFacts.proof.identity_metadata_key, 'OpenAPI public facts proof identity key')
 assert.deepEqual(
-  openapi['x-viewspec-public-facts'].proofIdentityHashFields,
-  publicFacts.proof.identity_hash_fields,
-  'OpenAPI public facts proof identity hash fields'
+  openapi['x-viewspec-public-facts'].proArtifactTargets,
+  publicFacts.pricing.pro.artifact_targets,
+  'OpenAPI public facts artifact targets'
 )
+assertPublicEqual(openapi['x-viewspec-public-facts'].proSignedUsageReceipts, publicFacts.pricing.pro.signed_usage_receipts, 'OpenAPI public facts signed receipts')
 assert.deepEqual(
-  openapi['x-viewspec-public-facts'].proofHostAssertionRequirements,
-  publicFacts.proof.host_assertion_requirements,
-  'OpenAPI public facts host assertion requirements'
+  Object.keys(openapi.paths).sort(),
+  ['/v1/artifacts', '/v1/checkout/claim', '/v1/compile', '/v1/keys/current', '/v1/keys/rotate', '/v1/plans', '/v1/receipt-key', '/v1/usage'],
+  'OpenAPI must expose only the public hosted contract'
 )
-assertPublicEqual(openapi['x-viewspec-public-facts'].appbundleStateIrDemoUrl, publicFacts.appbundle_state_ir.demo_url, 'OpenAPI public facts State IR demo URL')
-assertPublicEqual(openapi['x-viewspec-public-facts'].appbundleStateIrProfile, publicFacts.appbundle_state_ir.state_profile, 'OpenAPI public facts State IR profile')
-assertPublicEqual(openapi['x-viewspec-public-facts'].appbundleStateIrReducerArtifact, publicFacts.appbundle_state_ir.reducer_artifact, 'OpenAPI public facts State IR reducer artifact')
-assertPublicEqual(openapi['x-viewspec-public-facts'].appbundleStateIrReducerExport, publicFacts.appbundle_state_ir.reducer_export, 'OpenAPI public facts State IR reducer export')
-assertPublicEqual(openapi['x-viewspec-public-facts'].appbundleStateIrReplayField, publicFacts.appbundle_state_ir.replay_field, 'OpenAPI public facts State IR replay field')
-assertPublicEqual(openapi['x-viewspec-public-facts'].appbundleStateIrProofCommandShort, publicFacts.appbundle_state_ir.proof_command_short, 'OpenAPI public facts State IR short proof command')
-assertPublicEqual(openapi['x-viewspec-public-facts'].appbundleStateIrProofCommand, publicFacts.appbundle_state_ir.proof_command, 'OpenAPI public facts State IR proof command')
-assertPublicEqual(openapi['x-viewspec-public-facts'].agentAssetManifest, publicFacts.agent_assets.manifest_url, 'OpenAPI public facts agent asset manifest')
-assertPublicEqual(openapi['x-viewspec-public-facts'].agentAssetSchemaVersion, publicFacts.agent_assets.schema_version, 'OpenAPI public facts agent asset schema version')
-assertPublicEqual(openapi['x-viewspec-public-facts'].agentAssetContractProfile, publicFacts.agent_assets.contract_profile, 'OpenAPI public facts agent asset profile')
-assertPublicEqual(openapi['x-viewspec-public-facts'].agentAssetIntentSchemaId, publicFacts.agent_assets.intent_schema_id, 'OpenAPI public facts agent asset schema id')
-assertPublicEqual(openapi['x-viewspec-public-facts'].agentAssetAppSchemaId, publicFacts.agent_assets.app_schema_id, 'OpenAPI public facts app asset schema id')
-assertPublicEqual(openapi['x-viewspec-public-facts'].agentAssetExportCommand, publicFacts.agent_assets.export_command, 'OpenAPI public facts agent asset export')
-assertPublicEqual(openapi['x-viewspec-public-facts'].agentAssetCheckCommand, publicFacts.agent_assets.check_command, 'OpenAPI public facts agent asset check')
-assertPublicEqual(openapi['x-viewspec-public-facts'].agentAssetNetworkPolicy, publicFacts.agent_assets.network_policy, 'OpenAPI public facts agent asset network policy')
 assert(openapi.paths['/v1/compile']?.post, 'OpenAPI needs POST /v1/compile')
 assert.equal(openapi.paths['/v1/compile'].post.requestBody.content['application/json'].schema.$ref, '#/components/schemas/CompileRequestPayload')
-assert.equal(openapi.components.schemas.CompileRequestPayload.properties.design.$ref, '#/components/schemas/DesignRequest')
+assert(openapi.components.schemas.CompileRequestPayload.properties.design.anyOf.some(item => item.$ref === '#/components/schemas/DesignRequest'))
 assert(!('design' in openapi.components.schemas.IntentBundle.properties), 'OpenAPI IntentBundle schema should not absorb hosted design context')
+assert.deepEqual(openapi.components.securitySchemes.BearerAuth, { type: 'http', scheme: 'bearer' })
+assert.deepEqual(openapi.components.securitySchemes.ApiKeyAuth, { type: 'apiKey', in: 'header', name: 'X-API-Key' })
 assert.equal(openapi['x-viewspec-agent-artifacts'].assetSchemaVersion, 11)
 assert.equal(openapi['x-viewspec-agent-artifacts'].assetManifest, 'https://viewspec.dev/agent-assets.json')
 assert.equal(openapi['x-viewspec-agent-artifacts'].contractProfile, 'local_v1')

@@ -18,7 +18,7 @@ assert.deepEqual(pro.artifact_targets, ['html-tailwind', 'react-tsx', 'swiftui',
 assert.equal(pro.signed_usage_receipts, true)
 assert.equal(openapi['x-viewspec-public-facts'].proPriceUsdMonth, pro.price_usd_month)
 assert.equal(openapi['x-viewspec-public-facts'].proHostedCompileCallsPerDay, pro.hosted_compile_calls_per_day)
-for (const path of ['/v1/compile', '/v1/plans', '/v1/artifacts', '/v1/usage', '/v1/checkout/claim', '/v1/keys/rotate', '/v1/keys/current']) {
+for (const path of ['/v1/compile', '/v1/plans', '/v1/artifacts', '/v1/usage', '/v1/receipt-key', '/v1/checkout/claim', '/v1/keys/rotate', '/v1/keys/current']) {
   assert(Object.hasOwn(openapi.paths, path), `OpenAPI is missing ${path}`)
 }
 assert(config.includes('https://buy.stripe.com/6oU4gA6PqcM9afq6gq2ZO00'))

@@ -21,8 +21,10 @@ def test_package_metadata_exposes_expected_cli_and_optional_extras():
     extras = pyproject["project"]["optional-dependencies"]
     assert "mcp>=1.9.0" in extras["agents"]
     assert "httpx>=0.27.0" in extras["remote"]
+    assert "cryptography>=48.0.1,<49" in extras["remote"]
     assert "build>=1.2" in extras["dev"]
     assert "pytest>=8.0" in extras["dev"]
+    assert "hypothesis>=6.100,<7" in extras["dev"]
     assert "ruff>=0.4" in extras["dev"]
 
 

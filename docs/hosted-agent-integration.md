@@ -4,7 +4,7 @@ This page is for hosted/API integration. The local-first path is the same agent-
 
 For hosted/API integration, agents should emit IntentBundle JSON and never CompositionIR. CompositionIR is compiler output.
 
-For launch, the public SDK remains V1/reference-focused. The hosted `/v1/compile` API adds projections, input bindings, rule bindings, custom motif libraries, Level 2 derivation, and DESIGN.md context to its portable AST response. Paid callers can use `/v1/artifacts` or `compile_artifact_remote(...)` for integrity-checked HTML, React TSX, SwiftUI, and Flutter files with deterministic build identity, provenance, diagnostics, and usage metadata.
+For launch, the public SDK remains V1/reference-focused. The hosted `/v1/compile` API adds projections, input bindings, rule bindings, custom motif libraries, Level 2 derivation, and DESIGN.md context to its portable AST response. Paid callers can use `/v1/artifacts` or `compile_artifact_remote(...)` for integrity-checked HTML, React TSX, SwiftUI, and Flutter files with deterministic build identity, provenance, diagnostics, and usage metadata. Usage responses carry Ed25519 receipts; fetch `/v1/receipt-key` and verify them with `viewspec.verify_usage_receipt(...)`.
 
 Hosted examples that use those extended fields declare `contract_profile: "hosted_extended_v1"` in their artifact index. That marker means the source is still an IntentBundle, but it is not claiming to satisfy the local `viewspec validate-intent` V1 reference contract.
 

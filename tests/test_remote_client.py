@@ -4,6 +4,7 @@ import sys
 from types import SimpleNamespace
 
 import pytest
+from hypothesis import HealthCheck, given, settings, strategies as st
 
 from viewspec import (
     ASTBundle,
@@ -17,10 +18,11 @@ from viewspec import (
 
 
 class FakeResponse:
-    def __init__(self, status_code, payload=None, text=""):
+    def __init__(self, status_code, payload=None, text="", headers=None):
         self.status_code = status_code
         self._payload = payload
         self.text = text
+        self.headers = headers or {}
 
     def json(self):
         if isinstance(self._payload, Exception):
@@ -232,3 +234,28 @@ def test_compile_remote_wraps_network_errors(monkeypatch):
 
     with pytest.raises(CompilerAPIError, match="request failed"):
         compile_remote(_bundle())
+
+
+@given(
+    st.sampled_from([400, 401, 403, 409, 422, 429, 500, 502, 503, 504]),
+    st.text(alphabet=st.characters(whitelist_categories=("Ll", "Lu", "Nd")), min_size=1, max_size=24),
+    st.text(alphabet=st.characters(whitelist_categories=("Ll", "Lu", "Nd", "Zs")), min_size=1, max_size=50),
+)
+@settings(suppress_health_check=[HealthCheck.function_scoped_fixture])
+def test_compile_remote_preserves_structured_agent_error_metadata(monkeypatch, status, code, message):
+    response = FakeResponse(
+        status,
+        {"error": {"code": code, "message": message, "path": "$.view_spec"}, "request_id": "req_property_123"},
+        headers={"X-Request-ID": "req_header_456", "Retry-After": "17"},
+    )
+    _install_fake_httpx(monkeypatch, response)
+
+    with pytest.raises(CompilerAPIError) as raised:
+        compile_remote(_bundle())
+
+    assert str(raised.value) == message
+    assert raised.value.code == code
+    assert raised.value.path == "$.view_spec"
+    assert raised.value.status_code == status
+    assert raised.value.request_id == "req_property_123"
+    assert raised.value.retry_after == "17"

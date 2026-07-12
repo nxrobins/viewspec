@@ -74,7 +74,13 @@ class ArtifactProvenance:
         count = data.get("entry_count")
         if type(count) is not int or count < 0:
             raise ArtifactContractError("Artifact provenance entry_count must be a non-negative integer")
-        return cls(data.get("manifest_file"), data.get("sha256"), count)
+        manifest_file = data.get("manifest_file")
+        sha256 = data.get("sha256")
+        if manifest_file is not None and (not isinstance(manifest_file, str) or not manifest_file):
+            raise ArtifactContractError("Artifact provenance manifest_file must be a filename or null")
+        if sha256 is not None and (not isinstance(sha256, str) or len(sha256) != 64):
+            raise ArtifactContractError("Artifact provenance sha256 must be a SHA-256 hex digest or null")
+        return cls(manifest_file, sha256, count)
 
 
 @dataclass(frozen=True)
@@ -126,6 +132,23 @@ class ArtifactResponse:
         files = tuple(ArtifactFile.from_json(file) for file in raw_files)
         if len({file.path for file in files}) != len(files):
             raise ArtifactContractError("Artifact file paths must be unique")
+        provenance = ArtifactProvenance.from_json(data.get("provenance"))
+        files_by_path = {file.path: file for file in files}
+        if provenance.manifest_file is None:
+            if provenance.sha256 is not None or provenance.entry_count != 0:
+                raise ArtifactContractError("Artifact provenance without a manifest must be empty")
+        else:
+            manifest_file = files_by_path.get(provenance.manifest_file)
+            if manifest_file is None or manifest_file.role != "manifest":
+                raise ArtifactContractError("Artifact provenance manifest_file must reference the manifest artifact")
+            if provenance.sha256 != manifest_file.sha256:
+                raise ArtifactContractError("Artifact provenance hash does not match the manifest artifact")
+            try:
+                manifest = json.loads(manifest_file.content)
+            except json.JSONDecodeError as exc:
+                raise ArtifactContractError("Artifact provenance manifest was not valid JSON") from exc
+            if not isinstance(manifest, dict) or len(manifest) != provenance.entry_count:
+                raise ArtifactContractError("Artifact provenance entry_count does not match the manifest artifact")
 
         input_hash = data.get("input_sha256")
         if expected_input is not None:
@@ -151,6 +174,16 @@ class ArtifactResponse:
         diagnostics = data.get("diagnostics")
         if not isinstance(diagnostics, list) or not all(isinstance(item, dict) for item in diagnostics):
             raise ArtifactContractError("Artifact diagnostics must be a list of objects")
+        diagnostic_files = [file for file in files if file.role == "diagnostics"]
+        if len(diagnostic_files) > 1:
+            raise ArtifactContractError("Artifact response must not contain multiple diagnostics artifacts")
+        if diagnostic_files:
+            try:
+                file_diagnostics = json.loads(diagnostic_files[0].content)
+            except json.JSONDecodeError as exc:
+                raise ArtifactContractError("Artifact diagnostics file was not valid JSON") from exc
+            if file_diagnostics != diagnostics:
+                raise ArtifactContractError("Artifact diagnostics do not match the diagnostics artifact")
         return cls(
             ARTIFACT_SCHEMA_VERSION,
             build_id,
@@ -158,7 +191,7 @@ class ArtifactResponse:
             input_hash,
             artifact_set_hash,
             files,
-            ArtifactProvenance.from_json(data.get("provenance")),
+            provenance,
             tuple(diagnostics),
             ArtifactUsage.from_json(data.get("usage")),
         )
@@ -180,7 +213,7 @@ def compile_artifact_remote(
     api_key: str | None = None,
 ) -> ArtifactResponse:
     """Compile and integrity-check one paid hosted artifact target."""
-    from viewspec.compiler import CompilerAPIError
+    from viewspec.compiler import CompilerAPIError, _compiler_api_error
 
     if target not in ARTIFACT_TARGETS:
         raise ValueError(f"target must be one of: {', '.join(ARTIFACT_TARGETS)}")
@@ -200,18 +233,13 @@ def compile_artifact_remote(
             timeout=45.0,
         )
     except httpx.HTTPError as exc:
-        raise CompilerAPIError(f"Remote artifact request failed: {exc}") from exc
+        raise CompilerAPIError(f"Remote artifact request failed: {exc}", code="network_error") from exc
     try:
         data = response.json()
     except ValueError as exc:
         raise CompilerAPIError("Artifact request failed: response was not valid JSON") from exc
     if response.status_code != 200:
-        message = ""
-        if isinstance(data, dict):
-            error = data.get("error")
-            if isinstance(error, dict):
-                message = str(error.get("message", ""))
-        raise CompilerAPIError(message or f"Artifact request failed (HTTP {response.status_code})")
+        raise _compiler_api_error(response, data)
     try:
         return ArtifactResponse.from_json(data, expected_input=bundle, expected_target=target)
     except ArtifactContractError:
