@@ -36,9 +36,11 @@
   },
   "x-viewspec-public-facts": {
     "manifest": "https://viewspec.dev/public-facts.json",
-    "sdkVersion": "0.3.0b2",
+    "sdkVersion": "0.3.0b3",
     "proPriceUsdMonth": 149,
     "proHostedCompileCallsPerDay": 10000,
+    "proArtifactTargets": ["html-tailwind", "react-tsx", "swiftui", "flutter"],
+    "proSignedUsageReceipts": true,
     "firstProofCommand": "viewspec prove --out .viewspec-proof",
     "proofSummaryFile": ".viewspec-proof/PROOF.md",
     "proofReportFile": ".viewspec-proof/proof_report.json",
@@ -87,6 +89,93 @@
     "agentAssetNetworkPolicy": "no SDK network calls"
   },
   "paths": {
+    "/v1/plans": {
+      "get": {
+        "operationId": "listViewSpecPlans",
+        "summary": "List public plans and enforced limits",
+        "tags": ["commerce"],
+        "responses": {
+          "200": {
+            "description": "Versioned public plan catalog",
+            "content": {"application/json": {"schema": {"type": "object", "additionalProperties": true}}}
+          }
+        }
+      }
+    },
+    "/v1/artifacts": {
+      "post": {
+        "operationId": "compileViewSpecArtifact",
+        "summary": "Compile and deliver a verified paid artifact",
+        "description": "Returns inline text files with media types and SHA-256 hashes, deterministic build identity, provenance, diagnostics, and quota metadata.",
+        "tags": ["compiler"],
+        "security": [{"bearerAuth": []}, {"apiKeyAuth": []}],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["target", "bundle"],
+                "properties": {
+                  "target": {"type": "string", "enum": ["html-tailwind", "react-tsx", "swiftui", "flutter"]},
+                  "bundle": {"$ref": "#/components/schemas/CompileRequestPayload"}
+                },
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {"description": "Integrity-addressed artifact response", "content": {"application/json": {"schema": {"type": "object", "additionalProperties": true}}}},
+          "403": {"description": "Paid plan required"},
+          "413": {"description": "Generated artifact exceeds output limits"},
+          "422": {"description": "Invalid bundle or unsupported target"}
+        }
+      }
+    },
+    "/v1/usage": {
+      "get": {
+        "operationId": "getViewSpecUsage",
+        "summary": "Read customer-level usage and signed receipt",
+        "tags": ["commerce"],
+        "security": [{"bearerAuth": []}, {"apiKeyAuth": []}],
+        "responses": {
+          "200": {"description": "Usage totals and HMAC-SHA256 receipt", "content": {"application/json": {"schema": {"type": "object", "additionalProperties": true}}}},
+          "401": {"description": "Paid API key required"}
+        }
+      }
+    },
+    "/v1/checkout/claim": {
+      "post": {
+        "operationId": "claimViewSpecCheckoutKey",
+        "summary": "Claim a purchased API key once",
+        "tags": ["commerce"],
+        "requestBody": {"required": true, "content": {"application/json": {"schema": {"type": "object", "required": ["session_id"], "properties": {"session_id": {"type": "string"}}, "additionalProperties": false}}}},
+        "responses": {
+          "200": {"description": "One-time API key response"},
+          "404": {"description": "Webhook-backed checkout is not ready"},
+          "409": {"description": "Checkout key was already claimed"}
+        }
+      }
+    },
+    "/v1/keys/rotate": {
+      "post": {
+        "operationId": "rotateViewSpecApiKey",
+        "summary": "Rotate and revoke the current paid API key",
+        "tags": ["commerce"],
+        "security": [{"bearerAuth": []}, {"apiKeyAuth": []}],
+        "responses": {"200": {"description": "One-time replacement API key"}, "401": {"description": "Invalid API key"}}
+      }
+    },
+    "/v1/keys/current": {
+      "delete": {
+        "operationId": "revokeViewSpecApiKey",
+        "summary": "Revoke the current paid API key",
+        "tags": ["commerce"],
+        "security": [{"bearerAuth": []}, {"apiKeyAuth": []}],
+        "responses": {"200": {"description": "Key revoked"}, "401": {"description": "Invalid API key"}}
+      }
+    },
     "/v1/compile": {
       "post": {
         "operationId": "compileViewSpecIntentBundle",
@@ -137,6 +226,10 @@
     }
   },
   "components": {
+    "securitySchemes": {
+      "bearerAuth": {"type": "http", "scheme": "bearer"},
+      "apiKeyAuth": {"type": "apiKey", "in": "header", "name": "X-API-Key"}
+    },
     "schemas": {
       "CompileRequestPayload": {
         "type": "object",

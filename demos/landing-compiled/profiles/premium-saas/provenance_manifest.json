@@ -2,12 +2,12 @@
   "version": 1,
   "manifest_schema_version": 1,
   "kind": "intent_bundle_compile",
-  "sdk_version": "0.3.0b2",
+  "sdk_version": "0.3.0b3",
   "source_name": "intent_bundle.json",
-  "raw_source_hash": "fb049e1b812189a7b925c9eaf4c3cbea4824c107a5324485908684924b606772",
-  "source_hash": "fb049e1b812189a7b925c9eaf4c3cbea4824c107a5324485908684924b606772",
+  "raw_source_hash": "d127b32e3a37bf5b47a39c757d2a153ec7ece8cc6f84009cebb773a9d966366b",
+  "source_hash": "d127b32e3a37bf5b47a39c757d2a153ec7ece8cc6f84009cebb773a9d966366b",
   "design_hash": null,
-  "artifact_hash": "e5b87194609e31065fe0a5c0a89e86563a481962f51edc4f5203553446b1df01",
+  "artifact_hash": "0177eac61cfdf59b3b34772f73ba6c72f8b3f13f4e3eb7c3beca9e21e70a9f4f",
   "command": "compile",
   "command_args": [
     "python",
@@ -952,7 +952,7 @@
         "emphasis.high"
       ],
       "props": {
-        "text": "html-tailwind and React locally; SwiftUI and Flutter hosted.",
+        "text": "html-tailwind and React locally; four integrity-checked targets through the paid API.",
         "binding_id": "capabilities_row_4_value",
         "table_cell_role": "cell"
       }
@@ -2048,7 +2048,7 @@
           "ir_id": "binding_capabilities_row_4_value",
           "primitive": "value",
           "tag": "td",
-          "visible_text": "html-tailwind and React locally; SwiftUI and Flutter hosted.",
+          "visible_text": "html-tailwind and React locally; four integrity-checked targets through the paid API.",
           "binding_id": "capabilities_row_4_value",
           "action": null,
           "accessibility_label": null
@@ -2849,7 +2849,7 @@
           "ir_id": "binding_capabilities_row_4_value",
           "primitive": "value",
           "tag": "td",
-          "visible_text": "html-tailwind and React locally; SwiftUI and Flutter hosted.",
+          "visible_text": "html-tailwind and React locally; four integrity-checked targets through the paid API.",
           "binding_id": "capabilities_row_4_value",
           "action": null,
           "accessibility_label": null
@@ -3126,6 +3126,6 @@
         }
       ]
     },
-    "digest": "d7a67a3f997812e6aacc309f716e5824145e4731a07fb063a2b9a4ff4bf23c5f"
+    "digest": "6acde908b15c8a1505edc1908cdc45349a1711a40264d8a87ef1e342cba138df"
   }
 }

@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "product": "ViewSpec",
-  "sdk_version": "0.3.0b2",
+  "sdk_version": "0.3.0b3",
   "canonical_api_url": "https://api.viewspec.dev/v1/compile",
   "package_url": "https://pypi.org/project/viewspec/",
   "repository_url": "https://github.com/nxrobins/viewspec",
@@ -13,6 +13,8 @@
     "pro": {
       "hosted_compile_calls_per_day": 10000,
       "custom_motif_instances_per_compile": 5,
+      "artifact_targets": ["html-tailwind", "react-tsx", "swiftui", "flutter"],
+      "signed_usage_receipts": true,
       "price_usd_month": 149
     },
     "enterprise": {
