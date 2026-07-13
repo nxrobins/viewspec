@@ -1,0 +1,111 @@
+{
+  "schema_version": 1,
+  "substrate": {
+    "id": "starter_form_substrate",
+    "nodes": {
+      "email": {
+        "attrs": {"label": "Email", "value": ""},
+        "edges": {},
+        "id": "email",
+        "kind": "field",
+        "slots": {}
+      },
+      "name": {
+        "attrs": {"label": "Name", "value": ""},
+        "edges": {},
+        "id": "name",
+        "kind": "field",
+        "slots": {}
+      },
+      "starter_form": {
+        "attrs": {"title": "Starter Form"},
+        "edges": {},
+        "id": "starter_form",
+        "kind": "app",
+        "slots": {}
+      }
+    },
+    "root_id": "starter_form"
+  },
+  "view_spec": {
+    "actions": [
+      {
+        "id": "submit_contact",
+        "kind": "submit",
+        "label": "Submit",
+        "payload_bindings": ["name_value", "email_value"],
+        "target_ref": "motif:contact",
+        "target_region": "main"
+      }
+    ],
+    "bindings": [
+      {
+        "address": "node:name#attr:label",
+        "cardinality": "exactly_once",
+        "id": "name_label",
+        "present_as": "label",
+        "target_region": "main"
+      },
+      {
+        "address": "node:name#attr:value",
+        "cardinality": "exactly_once",
+        "id": "name_value",
+        "present_as": "input",
+        "target_region": "main"
+      },
+      {
+        "address": "node:email#attr:label",
+        "cardinality": "exactly_once",
+        "id": "email_label",
+        "present_as": "label",
+        "target_region": "main"
+      },
+      {
+        "address": "node:email#attr:value",
+        "cardinality": "exactly_once",
+        "id": "email_value",
+        "present_as": "input",
+        "target_region": "main"
+      }
+    ],
+    "complexity_tier": 1,
+    "groups": [
+      {
+        "id": "fields",
+        "kind": "ordered",
+        "members": ["name_label", "name_value", "email_label", "email_value"],
+        "target_region": "main"
+      }
+    ],
+    "id": "starter_form",
+    "motifs": [
+      {
+        "id": "contact",
+        "kind": "form",
+        "members": ["name_label", "name_value", "email_label", "email_value"],
+        "region": "main"
+      }
+    ],
+    "regions": [
+      {
+        "id": "root",
+        "layout": "stack",
+        "max_children": null,
+        "min_children": 1,
+        "parent_region": "",
+        "role": "root"
+      },
+      {
+        "id": "main",
+        "layout": "stack",
+        "max_children": null,
+        "min_children": 1,
+        "parent_region": "root",
+        "role": "main"
+      }
+    ],
+    "root_region": "root",
+    "styles": [],
+    "substrate_id": "starter_form_substrate"
+  }
+}

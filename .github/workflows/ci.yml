@@ -83,3 +83,12 @@ jobs:
       - name: React Tailwind host proof
         working-directory: tests/react-tailwind-host
         run: npm run verify
+
+      - name: Install verification corpus host dependencies
+        working-directory: src/viewspec/host_verify_template
+        run: npm ci --ignore-scripts
+
+      - name: Verification conformance corpus
+        env:
+          VIEWSPEC_HOST_VERIFY_NODE_MODULES_DIR: ${{ github.workspace }}/src/viewspec/host_verify_template/node_modules
+        run: python scripts/run_verification_corpus.py --install --output verification-corpus-report.json

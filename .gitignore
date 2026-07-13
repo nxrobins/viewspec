@@ -17,4 +17,5 @@ output/
 viewspec_output/
 .venv/
 .env
+node_modules/
 demos/server.*.log

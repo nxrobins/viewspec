@@ -540,6 +540,177 @@
           }
         ]
       }
+    },
+    "/v1/verifications": {
+      "post": {
+        "tags": [
+          "verification"
+        ],
+        "summary": "Create Verification V1",
+        "description": "Run or replay one owner-scoped idempotent AppBundle verification job.",
+        "operationId": "createViewSpecVerification",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VerificationRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VerificationJobResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Content Too Large",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too Many Requests",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service Unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          },
+          {
+            "ApiKeyAuth": []
+          }
+        ]
+      }
+    },
+    "/v1/verifications/{job_id}": {
+      "get": {
+        "tags": [
+          "verification"
+        ],
+        "summary": "Get Verification V1",
+        "description": "Return an owner-scoped verification job without leaking its existence.",
+        "operationId": "getViewSpecVerification",
+        "parameters": [
+          {
+            "name": "job_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Job Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VerificationJobResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          },
+          {
+            "ApiKeyAuth": []
+          }
+        ]
+      }
     }
   },
   "components": {
@@ -1561,6 +1732,465 @@
           "type"
         ],
         "title": "ValidationError"
+      },
+      "VerificationArtifact": {
+        "properties": {
+          "path": {
+            "type": "string",
+            "title": "Path"
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "accessibility",
+              "dom",
+              "log",
+              "screenshot",
+              "trace"
+            ],
+            "title": "Role"
+          },
+          "sha256": {
+            "type": "string",
+            "title": "Sha256"
+          },
+          "bytes": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Bytes"
+          },
+          "content_type": {
+            "type": "string",
+            "title": "Content Type"
+          },
+          "content_base64": {
+            "type": "string",
+            "title": "Content Base64"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "path",
+          "role",
+          "sha256",
+          "bytes",
+          "content_type",
+          "content_base64"
+        ],
+        "title": "VerificationArtifact"
+      },
+      "VerificationDiagnostic": {
+        "properties": {
+          "code": {
+            "type": "string",
+            "title": "Code"
+          },
+          "severity": {
+            "type": "string",
+            "enum": [
+              "info",
+              "warning",
+              "error"
+            ],
+            "title": "Severity"
+          },
+          "message": {
+            "type": "string",
+            "title": "Message"
+          },
+          "fix": {
+            "type": "string",
+            "title": "Fix"
+          },
+          "source_ref": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Ref"
+          },
+          "viewport": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Viewport"
+          },
+          "evidence_refs": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Evidence Refs"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "code",
+          "severity",
+          "message",
+          "fix",
+          "evidence_refs"
+        ],
+        "title": "VerificationDiagnostic"
+      },
+      "VerificationError": {
+        "properties": {
+          "code": {
+            "type": "string",
+            "title": "Code"
+          },
+          "message": {
+            "type": "string",
+            "title": "Message"
+          },
+          "retryable": {
+            "type": "boolean",
+            "title": "Retryable"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "code",
+          "message",
+          "retryable"
+        ],
+        "title": "VerificationError"
+      },
+      "VerificationEvidence": {
+        "properties": {
+          "path": {
+            "type": "string",
+            "title": "Path"
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "accessibility",
+              "dom",
+              "log",
+              "screenshot",
+              "trace"
+            ],
+            "title": "Role"
+          },
+          "sha256": {
+            "type": "string",
+            "title": "Sha256"
+          },
+          "bytes": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Bytes"
+          },
+          "content_type": {
+            "type": "string",
+            "title": "Content Type"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "path",
+          "role",
+          "sha256",
+          "bytes",
+          "content_type"
+        ],
+        "title": "VerificationEvidence"
+      },
+      "VerificationJobResponse": {
+        "properties": {
+          "schema_version": {
+            "type": "integer",
+            "const": 1,
+            "title": "Schema Version"
+          },
+          "job_id": {
+            "type": "string",
+            "title": "Job Id"
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "queued",
+              "running",
+              "succeeded",
+              "failed"
+            ],
+            "title": "State"
+          },
+          "input_sha256": {
+            "type": "string",
+            "title": "Input Sha256"
+          },
+          "result": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/VerificationResult"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "artifacts": {
+            "items": {
+              "$ref": "#/components/schemas/VerificationArtifact"
+            },
+            "type": "array",
+            "title": "Artifacts"
+          },
+          "usage": {
+            "$ref": "#/components/schemas/ArtifactUsage"
+          },
+          "receipt": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/UsageReceipt"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "error": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/VerificationError"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "schema_version",
+          "job_id",
+          "state",
+          "input_sha256",
+          "result",
+          "artifacts",
+          "usage",
+          "receipt",
+          "error"
+        ],
+        "title": "VerificationJobResponse"
+      },
+      "VerificationLineage": {
+        "properties": {
+          "attempt": {
+            "type": "integer",
+            "minimum": 1.0,
+            "title": "Attempt"
+          },
+          "parent_verification_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Parent Verification Id"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "attempt"
+        ],
+        "title": "VerificationLineage"
+      },
+      "VerificationPlan": {
+        "properties": {
+          "schema_version": {
+            "type": "integer",
+            "const": 1,
+            "title": "Schema Version",
+            "default": 1
+          },
+          "viewports": {
+            "items": {
+              "$ref": "#/components/schemas/VerificationViewport"
+            },
+            "type": "array",
+            "maxItems": 8,
+            "minItems": 1,
+            "title": "Viewports"
+          },
+          "checks": {
+            "items": {
+              "type": "string",
+              "enum": [
+                "accessibility",
+                "content",
+                "interaction",
+                "layout",
+                "runtime"
+              ]
+            },
+            "type": "array",
+            "minItems": 1,
+            "title": "Checks"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "viewports",
+          "checks"
+        ],
+        "title": "VerificationPlan"
+      },
+      "VerificationRequest": {
+        "properties": {
+          "schema_version": {
+            "type": "integer",
+            "const": 1,
+            "title": "Schema Version",
+            "default": 1
+          },
+          "target": {
+            "type": "string",
+            "const": "react-tailwind-app",
+            "title": "Target",
+            "default": "react-tailwind-app"
+          },
+          "app_bundle": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "App Bundle"
+          },
+          "plan": {
+            "$ref": "#/components/schemas/VerificationPlan"
+          },
+          "lineage": {
+            "$ref": "#/components/schemas/VerificationLineage"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "app_bundle",
+          "plan",
+          "lineage"
+        ],
+        "title": "VerificationRequest"
+      },
+      "VerificationResult": {
+        "properties": {
+          "schema_version": {
+            "type": "integer",
+            "const": 1,
+            "title": "Schema Version"
+          },
+          "verification_id": {
+            "type": "string",
+            "title": "Verification Id"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "conformant",
+              "nonconformant",
+              "indeterminate"
+            ],
+            "title": "Status"
+          },
+          "complete": {
+            "type": "boolean",
+            "title": "Complete"
+          },
+          "artifact_sha256": {
+            "type": "string",
+            "title": "Artifact Sha256"
+          },
+          "plan": {
+            "$ref": "#/components/schemas/VerificationPlan"
+          },
+          "plan_sha256": {
+            "type": "string",
+            "title": "Plan Sha256"
+          },
+          "diagnostics": {
+            "items": {
+              "$ref": "#/components/schemas/VerificationDiagnostic"
+            },
+            "type": "array",
+            "title": "Diagnostics"
+          },
+          "evidence": {
+            "items": {
+              "$ref": "#/components/schemas/VerificationEvidence"
+            },
+            "type": "array",
+            "title": "Evidence"
+          },
+          "lineage": {
+            "$ref": "#/components/schemas/VerificationLineage"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "schema_version",
+          "verification_id",
+          "status",
+          "complete",
+          "artifact_sha256",
+          "plan",
+          "plan_sha256",
+          "diagnostics",
+          "evidence",
+          "lineage"
+        ],
+        "title": "VerificationResult"
+      },
+      "VerificationViewport": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Name"
+          },
+          "width": {
+            "type": "integer",
+            "maximum": 7680.0,
+            "minimum": 240.0,
+            "title": "Width"
+          },
+          "height": {
+            "type": "integer",
+            "maximum": 7680.0,
+            "minimum": 240.0,
+            "title": "Height"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "name",
+          "width",
+          "height"
+        ],
+        "title": "VerificationViewport"
       },
       "IntentBundle": {
         "additionalProperties": false,

@@ -46,6 +46,20 @@ from viewspec.compiler import (
     CompilerInputError,
     UnsupportedMotifError,
 )
+from viewspec.conformance import (
+    CONFORMANCE_CORPUS_SCHEMA_VERSION,
+    ConformanceCase,
+    ConformanceCorpus,
+    load_conformance_corpus,
+    run_conformance_corpus,
+)
+from viewspec.convergence import (
+    CONVERGENCE_SCHEMA_VERSION,
+    ConvergenceAttempt,
+    ConvergenceRun,
+    MAX_CONVERGENCE_ATTEMPTS,
+    run_until_conformant,
+)
 from viewspec.hosted_artifacts import (
     ARTIFACT_SCHEMA_VERSION,
     ARTIFACT_TARGETS,
@@ -69,6 +83,21 @@ from viewspec.hosted_app_bundles import (
     AppBundleBuildContractError,
     AppBundleBuildResponse,
     compile_app_remote,
+)
+from viewspec.hosted_verification import (
+    HOSTED_VERIFICATION_SCHEMA_VERSION,
+    HOSTED_VERIFICATION_TARGET,
+    HostedEvidenceArtifact,
+    HostedVerificationContractError,
+    HostedVerificationError,
+    HostedVerificationJob,
+    HostedVerificationUsage,
+    build_verification_job_id,
+    compile_until_conformant_remote,
+    get_verification_remote,
+    submit_verification_remote,
+    verification_request_payload,
+    wait_verification_remote,
 )
 from viewspec.intent_contract import (
     IntentBundleContractError,
@@ -200,6 +229,24 @@ from viewspec.host_verify import (
     verify_host_intent_file,
     verify_host_tool,
 )
+from viewspec.local_verify import BrowserEvidence, BrowserPlanOutcome, verify_local_artifact
+from viewspec.repair import (
+    REPAIR_SCHEMA_VERSION,
+    RepairDirective,
+    SourceNodePath,
+    VerificationRepairPlan,
+)
+from viewspec.verification import (
+    DEFAULT_VIEWPORTS,
+    EvidenceFile,
+    RetryLineage,
+    VERIFICATION_SCHEMA_VERSION,
+    VerificationDiagnostic,
+    VerificationPlan,
+    VerificationResult,
+    VerificationViewport,
+    build_verification_id,
+)
 from viewspec.prove import prove, prove_tool
 
 __all__ = [
@@ -213,6 +260,12 @@ __all__ = [
     "CompileResponseMeta",
     "CompilerDiagnostic",
     "CompilerResult",
+    "CONFORMANCE_CORPUS_SCHEMA_VERSION",
+    "CONVERGENCE_SCHEMA_VERSION",
+    "ConformanceCase",
+    "ConformanceCorpus",
+    "ConvergenceAttempt",
+    "ConvergenceRun",
     "CompositionIR",
     "DesignFinding",
     "DesignMetadata",
@@ -265,6 +318,19 @@ __all__ = [
     "AppBundleBuildContractError",
     "AppBundleBuildResponse",
     "compile_app_remote",
+    "HOSTED_VERIFICATION_SCHEMA_VERSION",
+    "HOSTED_VERIFICATION_TARGET",
+    "HostedEvidenceArtifact",
+    "HostedVerificationContractError",
+    "HostedVerificationError",
+    "HostedVerificationJob",
+    "HostedVerificationUsage",
+    "build_verification_job_id",
+    "compile_until_conformant_remote",
+    "get_verification_remote",
+    "submit_verification_remote",
+    "verification_request_payload",
+    "wait_verification_remote",
     "IntentBundleContractError",
     "normalize_intent_bundle_payload",
     "validate_intent_bundle_schema_version",
@@ -379,11 +445,31 @@ __all__ = [
     "verify_host_artifact_dir",
     "verify_host_intent_file",
     "verify_host_tool",
+    "BrowserEvidence",
+    "BrowserPlanOutcome",
+    "verify_local_artifact",
+    "DEFAULT_VIEWPORTS",
+    "EvidenceFile",
+    "RetryLineage",
+    "REPAIR_SCHEMA_VERSION",
+    "RepairDirective",
+    "SourceNodePath",
+    "VERIFICATION_SCHEMA_VERSION",
+    "VerificationDiagnostic",
+    "VerificationPlan",
+    "VerificationResult",
+    "VerificationRepairPlan",
+    "VerificationViewport",
+    "build_verification_id",
     "prove",
     "prove_tool",
     # Utilities
     "build_address_index",
     "normalize_compiler_result",
+    "load_conformance_corpus",
+    "MAX_CONVERGENCE_ATTEMPTS",
     "parse_canonical_address",
     "resolve_address",
+    "run_conformance_corpus",
+    "run_until_conformant",
 ]

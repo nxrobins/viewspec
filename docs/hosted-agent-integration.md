@@ -33,6 +33,55 @@ service-owned manifest and deterministic build identity, fetches `/v1/receipt-ke
 Ed25519 build receipt, and only then returns a typed response. Output materialization refuses to
 overwrite an existing directory.
 
+## Hosted Verification
+
+Hosted verification is paid and compiles the complete AppBundle before checking route/state
+behavior and every screen at canonical mobile, tablet, and desktop viewports.
+
+```python
+from viewspec import starter_react_app_bundle, submit_verification_remote
+
+job = submit_verification_remote(
+    starter_react_app_bundle(),
+    api_key="vs_pro_...",
+)
+assert job.result is not None
+print(job.result.status)
+print(job.repair_plan.to_json())
+job.write_evidence_to("verification-evidence")
+```
+
+The client checks the request-derived job id, every evidence hash and byte count, exact result and
+artifact-set equality, and the Ed25519 verification receipt before exposing a successful job.
+Repair plans group stable diagnostics by source node across viewports and provide the exact next
+lineage. A retry must descend from an owned, nonconformant or indeterminate parent with the same
+verification plan.
+
+## Compile Until Conformant
+
+`compile_until_conformant_remote(...)` provides a bounded premium loop while keeping semantic
+editing in the caller's agent:
+
+```python
+from viewspec import compile_until_conformant_remote, starter_react_app_bundle
+
+def repair_app(app_bundle, repair_plan):
+    # Give the semantic AppBundle and repair_plan to the caller's coding agent.
+    return agent.repair_app_bundle(app_bundle, repair_plan.to_json())
+
+run = compile_until_conformant_remote(
+    starter_react_app_bundle(),
+    repair_attempt=repair_app,
+    max_attempts=3,
+    api_key="vs_pro_...",
+)
+print(run.status, run.run_id)
+```
+
+The loop stops on conformance, an unchanged repair, or the configured attempt bound. It retries an
+indeterminate infrastructure result without asking the agent to edit the AppBundle, rejects plan
+drift, and records every signed verification result and derived repair plan in the convergence run.
+
 ## Theming with DESIGN.md
 
 SDK clients may send optional root-level `design` context in the hosted `CompileRequestPayload` envelope for `/v1/compile`:

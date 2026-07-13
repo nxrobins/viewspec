@@ -7,8 +7,22 @@ All notable changes to ViewSpec are documented in this file. The format follows
 
 ## [Unreleased]
 
+## [0.3.0b4] - 2026-07-12
+
 ### Added
 
+- `viewspec verify` for canonical mobile, tablet, and desktop browser conformance with
+  integrity-addressed screenshots, DOM snapshots, accessibility evidence, stable `VERIFY_*`
+  diagnostics, deterministic result identities, and status-specific exit codes.
+- Deterministic `VerificationRepairPlan` output with canonical source-node paths, grouped
+  cross-viewport repair directives, recurrence fingerprints, and exact retry lineage.
+- Typed hosted `/v1/verifications` client contracts with idempotent job identities, bounded
+  evidence decoding, complete artifact-set checks, and independently verified Ed25519 receipts.
+- `compile_until_conformant_remote(...)`, a bounded paid workflow that combines hosted
+  compile-and-verify attempts with a caller-owned semantic repair agent, plan stability,
+  no-progress detection, and auditable convergence runs.
+- A five-case executable public conformance corpus covering AppBundle queue/detail screens,
+  data-dense and landing intents, and editable form action payloads in real Chromium.
 - A canonical, dependency-free IntentBundle envelope boundary shared byte-for-byte with the
   hosted compiler, with stable error codes and JSON paths plus property-based cross-process
   parity tests.
@@ -27,6 +41,12 @@ All notable changes to ViewSpec are documented in this file. The format follows
 
 ### Changed
 
+- React/Tailwind verification accepts CSS display blockification for `inline-flex` controls and
+  verifies both editable and manifest-backed static action payload bindings.
+- Browser process failures retain the stable Playwright assertion line instead of replacing it
+  with Node startup warnings, and blank runtime failures normalize to valid retry diagnostics.
+- Hosted browser workers can use one prebuilt read-only Node dependency bundle, eliminating
+  per-attempt package network access while preserving explicit local `--install` behavior.
 - Hosted and local parsing now agree with JSON Schema integer semantics for
   `schema_version: 1.0`, and release checks reject any source drift in the shared boundary.
 - Hosted compile metadata, health, and paid artifacts identify the exact immutable compiler
@@ -40,6 +60,10 @@ All notable changes to ViewSpec are documented in this file. The format follows
 
 ### Security
 
+- Repair attempts are bound to a verified parent, exact next attempt, stable plan, and
+  owner-scoped hosted lineage before worker admission or quota use.
+- Hosted verification rejects evidence path traversal, undeclared or duplicate files, forged
+  hashes, oversized artifact sets, result/artifact divergence, and receipt/result drift.
 - Hosted usage receipts are independently verifiable without sharing service signing material.
 - Hosted artifact clients reject provenance or diagnostics metadata that diverges from the
   integrity-addressed files.

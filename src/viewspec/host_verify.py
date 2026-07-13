@@ -15,6 +15,7 @@ import urllib.request
 from dataclasses import dataclass
 from importlib import resources
 from pathlib import Path
+from pathlib import PurePosixPath
 from typing import Any
 
 from viewspec.intent_tools import compile_intent_bundle_file_tool
@@ -29,6 +30,8 @@ from viewspec.local_tools import (
     tool_error_response,
     tool_response,
 )
+from viewspec.node_runtime import materialize_prebuilt_node_modules
+from viewspec.verification import VerificationDiagnostic, VerificationPlan
 
 
 HOST_VERIFY_SCHEMA_VERSION = 1
@@ -98,6 +101,8 @@ def verify_host_artifact_dir(
     target: str = HOST_VERIFY_TARGET,
     install: bool = False,
     report_out: str | Path | None = None,
+    verification_plan: VerificationPlan | None = None,
+    evidence_dir: str | Path | None = None,
 ) -> dict[str, Any]:
     """Verify an already compiled React Tailwind artifact in the bounded reference host."""
     timings: dict[str, int] = {}
@@ -150,7 +155,22 @@ def verify_host_artifact_dir(
             copied_hash = _copy_artifact_files(source_files, host_dir)
             if copied_hash != artifact_hash:
                 raise HostVerifyFailure("HOST_VERIFY_ARTIFACT_HASH_MISMATCH", "Copied artifact hash does not match source artifact hash.")
-            runtime = _run_host_browser_phases(host_dir, install=install, started=started, timings=timings)
+            if verification_plan is None:
+                runtime = _run_host_browser_phases(host_dir, install=install, started=started, timings=timings)
+            else:
+                if evidence_dir is None:
+                    raise HostVerifyFailure(
+                        "HOST_VERIFY_PROOF_REPORT_INVALID",
+                        "Planned verification requires an evidence directory.",
+                    )
+                runtime = _run_host_browser_phases(
+                    host_dir,
+                    install=install,
+                    started=started,
+                    timings=timings,
+                    verification_plan=verification_plan,
+                    evidence_dir=Path(evidence_dir).resolve(),
+                )
             assertions = _assert_runtime_report(runtime, manifest_summary=manifest_summary)
             report = _base_report(
                 ok=True,
@@ -164,6 +184,9 @@ def verify_host_artifact_dir(
                 node_version=runtime["node_version"],
                 npm_version=runtime["npm_version"],
                 assertions=assertions,
+                verification_diagnostics=runtime.get("verification_diagnostics", []),
+                evidence=runtime.get("evidence", []),
+                viewport_count=runtime.get("viewport_count", 1),
                 manifest_summary=manifest_summary,
                 errors=[],
             )
@@ -399,6 +422,8 @@ def _run_host_browser_phases(
     install: bool,
     started: float,
     timings: dict[str, int],
+    verification_plan: VerificationPlan | None = None,
+    evidence_dir: Path | None = None,
 ) -> dict[str, Any]:
     node = _require_executable("node", "HOST_VERIFY_NODE_MISSING")
     npm = _require_executable("npm", "HOST_VERIFY_NPM_MISSING")
@@ -406,16 +431,24 @@ def _run_host_browser_phases(
     npm_version = _run_process([npm, "--version"], cwd=host_dir, timeout_ms=5_000, code="HOST_VERIFY_NPM_MISSING").stdout.strip()
 
     if install:
-        _time_phase(
-            timings,
-            "install",
-            lambda: _run_process(
-                [npm, "ci", "--ignore-scripts"],
-                cwd=host_dir,
-                timeout_ms=_remaining_timeout(started, HOST_VERIFY_PHASE_TIMEOUTS_MS["install"]),
-                code="HOST_VERIFY_NPM_INSTALL_FAILED",
-            ),
-        )
+        seed = os.environ.get("VIEWSPEC_HOST_VERIFY_NODE_MODULES_DIR")
+        if seed:
+            _time_phase(
+                timings,
+                "install",
+                lambda: _link_prebuilt_node_modules(host_dir, Path(seed)),
+            )
+        else:
+            _time_phase(
+                timings,
+                "install",
+                lambda: _run_process(
+                    [npm, "ci", "--ignore-scripts"],
+                    cwd=host_dir,
+                    timeout_ms=_remaining_timeout(started, HOST_VERIFY_PHASE_TIMEOUTS_MS["install"]),
+                    code="HOST_VERIFY_NPM_INSTALL_FAILED",
+                ),
+            )
     _assert_node_modules(host_dir)
     _time_phase(
         timings,
@@ -428,37 +461,181 @@ def _run_host_browser_phases(
         ),
     )
 
-    browser_report = host_dir / ".viewspec-host-verify" / "browser-report.json"
+    browser_root = host_dir / ".viewspec-host-verify"
+    browser_report = browser_root / "browser-report.json"
+    browser_reports_dir = browser_root / "browser-reports"
+    browser_evidence_dir = browser_root / "evidence"
     port = _free_port()
     preview = _start_preview(host_dir, npm, port)
     try:
         _time_phase(timings, "preview_startup", lambda: _wait_for_preview(port, started))
+        if verification_plan is None:
+            browser_command = [npm, "run", "test", "--", "--project=chromium"]
+            browser_env = {
+                "VIEWSPEC_HOST_VERIFY_BASE_URL": f"http://127.0.0.1:{port}",
+                "VIEWSPEC_HOST_VERIFY_BROWSER_REPORT": str(browser_report),
+            }
+        else:
+            browser_reports_dir.mkdir(parents=True, exist_ok=True)
+            browser_evidence_dir.mkdir(parents=True, exist_ok=True)
+            browser_command = [npm, "run", "test"]
+            browser_env = {
+                "VIEWSPEC_HOST_VERIFY_BASE_URL": f"http://127.0.0.1:{port}",
+                "VIEWSPEC_HOST_VERIFY_PLAN_JSON": json.dumps(verification_plan.to_json(), sort_keys=True),
+                "VIEWSPEC_HOST_VERIFY_BROWSER_REPORT_DIR": str(browser_reports_dir),
+                "VIEWSPEC_HOST_VERIFY_EVIDENCE_DIR": str(browser_evidence_dir),
+            }
         result = _time_phase(
             timings,
             "browser",
             lambda: _run_process(
-                [npm, "run", "test", "--", "--project=chromium"],
+                browser_command,
                 cwd=host_dir,
                 timeout_ms=_remaining_timeout(started, HOST_VERIFY_PHASE_TIMEOUTS_MS["browser"]),
                 code="HOST_VERIFY_BROWSER_RUNTIME_ERROR",
-                env={
-                    "VIEWSPEC_HOST_VERIFY_BASE_URL": f"http://127.0.0.1:{port}",
-                    "VIEWSPEC_HOST_VERIFY_BROWSER_REPORT": str(browser_report),
-                },
+                env=browser_env,
             ),
         )
         if result.returncode != 0:
             code = _extract_host_verify_code(result.stdout + result.stderr) or "HOST_VERIFY_BROWSER_RUNTIME_ERROR"
-            raise HostVerifyFailure(code, result.stderr or result.stdout or "Playwright failed.")
-        if not browser_report.exists():
-            raise HostVerifyFailure("HOST_VERIFY_PROOF_REPORT_INVALID", "Browser assertion report was not written.")
-        loaded = json.loads(browser_report.read_text(encoding="utf-8"))
+            raise HostVerifyFailure(code, _browser_failure_message(result, code=code))
+        if verification_plan is None:
+            if not browser_report.exists():
+                raise HostVerifyFailure("HOST_VERIFY_PROOF_REPORT_INVALID", "Browser assertion report was not written.")
+            loaded = json.loads(browser_report.read_text(encoding="utf-8"))
+        else:
+            if evidence_dir is None:
+                raise HostVerifyFailure("HOST_VERIFY_PROOF_REPORT_INVALID", "Planned verification has no evidence output.")
+            loaded = _collect_planned_browser_results(
+                browser_reports_dir,
+                browser_evidence_dir,
+                evidence_dir,
+                verification_plan,
+            )
     finally:
         _time_phase(timings, "cleanup", lambda: _kill_process_tree(preview))
     return {
         "assertions": loaded.get("assertions", {}) if isinstance(loaded, dict) else {},
         "node_version": node_version,
         "npm_version": npm_version,
+        "verification_diagnostics": loaded.get("verification_diagnostics", []) if isinstance(loaded, dict) else [],
+        "evidence": loaded.get("evidence", []) if isinstance(loaded, dict) else [],
+        "viewport_count": loaded.get("viewport_count", 1) if isinstance(loaded, dict) else 1,
+    }
+
+
+def _collect_planned_browser_results(
+    reports_dir: Path,
+    source_evidence_dir: Path,
+    output_evidence_dir: Path,
+    plan: VerificationPlan,
+) -> dict[str, Any]:
+    """Validate and copy the exact evidence set emitted for a browser plan."""
+    expected_reports = {f"{viewport.name}.json" for viewport in plan.viewports}
+    actual_reports = {path.name for path in reports_dir.iterdir() if path.is_file()} if reports_dir.is_dir() else set()
+    missing = [f"{viewport.name}.json" for viewport in plan.viewports if f"{viewport.name}.json" not in actual_reports]
+    extra = sorted(actual_reports - expected_reports)
+    if missing:
+        raise HostVerifyFailure("HOST_VERIFY_PROOF_REPORT_INVALID", f"Missing browser report for viewport {missing[0][:-5]}.")
+    if extra:
+        raise HostVerifyFailure("HOST_VERIFY_PROOF_REPORT_INVALID", f"Unexpected browser viewport report: {extra[0]}")
+
+    assertions: dict[str, int] = {}
+    diagnostics: list[dict[str, Any]] = []
+    evidence: list[dict[str, str]] = []
+    evidence_paths: set[str] = set()
+    for viewport in plan.viewports:
+        try:
+            payload = json.loads((reports_dir / f"{viewport.name}.json").read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError) as exc:
+            raise HostVerifyFailure(
+                "HOST_VERIFY_PROOF_REPORT_INVALID",
+                f"Could not read browser report for viewport {viewport.name}: {exc}",
+            ) from exc
+        if not isinstance(payload, dict) or payload.get("viewport") != viewport.to_json():
+            raise HostVerifyFailure(
+                "HOST_VERIFY_PROOF_REPORT_INVALID",
+                f"Browser report identity does not match viewport {viewport.name}.",
+            )
+        raw_assertions = payload.get("assertions")
+        if not isinstance(raw_assertions, dict):
+            raise HostVerifyFailure("HOST_VERIFY_PROOF_REPORT_INVALID", f"Viewport {viewport.name} has no assertions.")
+        for key, value in raw_assertions.items():
+            if not isinstance(key, str) or not isinstance(value, int) or isinstance(value, bool) or value < 0:
+                raise HostVerifyFailure("HOST_VERIFY_PROOF_REPORT_INVALID", "Browser assertion counts must be non-negative integers.")
+            assertions[key] = assertions.get(key, 0) + value
+        raw_diagnostics = payload.get("diagnostics", [])
+        if not isinstance(raw_diagnostics, list):
+            raise HostVerifyFailure("HOST_VERIFY_PROOF_REPORT_INVALID", "Browser diagnostics must be an array.")
+        for item in raw_diagnostics:
+            try:
+                diagnostic = VerificationDiagnostic.from_json(item)
+            except ValueError as exc:
+                raise HostVerifyFailure("HOST_VERIFY_PROOF_REPORT_INVALID", str(exc)) from exc
+            if diagnostic.viewport != viewport.name:
+                raise HostVerifyFailure(
+                    "HOST_VERIFY_PROOF_REPORT_INVALID",
+                    f"Diagnostic viewport does not match report {viewport.name}.",
+                )
+            diagnostics.append(diagnostic.to_json())
+        raw_evidence = payload.get("evidence")
+        if not isinstance(raw_evidence, list) or not raw_evidence:
+            raise HostVerifyFailure("HOST_VERIFY_PROOF_REPORT_INVALID", f"Viewport {viewport.name} has no evidence.")
+        for item in raw_evidence:
+            if not isinstance(item, dict):
+                raise HostVerifyFailure("HOST_VERIFY_PROOF_REPORT_INVALID", "Browser evidence declarations must be objects.")
+            path_value = item.get("path")
+            role = item.get("role")
+            content_type = item.get("content_type")
+            if not all(isinstance(value, str) and value for value in (path_value, role, content_type)):
+                raise HostVerifyFailure("HOST_VERIFY_PROOF_REPORT_INVALID", "Browser evidence metadata is incomplete.")
+            path = PurePosixPath(path_value)
+            if (
+                path.is_absolute()
+                or len(path.parts) < 2
+                or path.parts[0] != "evidence"
+                or path.as_posix() != path_value
+                or any(part in {"", ".", ".."} for part in path.parts)
+            ):
+                raise HostVerifyFailure("HOST_VERIFY_PROOF_REPORT_INVALID", f"Unsafe browser evidence path: {path_value}")
+            if path_value in evidence_paths:
+                raise HostVerifyFailure("HOST_VERIFY_PROOF_REPORT_INVALID", f"Duplicate browser evidence path: {path_value}")
+            evidence_paths.add(path_value)
+            source = source_evidence_dir.joinpath(*path.parts[1:])
+            destination = output_evidence_dir.joinpath(*path.parts[1:])
+            if not source.is_file() or source.is_symlink():
+                raise HostVerifyFailure("HOST_VERIFY_PROOF_REPORT_INVALID", f"Browser evidence was not written: {path_value}")
+            if destination.exists():
+                raise HostVerifyFailure("HOST_VERIFY_PROOF_REPORT_INVALID", f"Evidence output already exists: {path_value}")
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copyfile(source, destination)
+            evidence.append({"path": path_value, "role": role, "content_type": content_type})
+
+    declared_refs = {
+        ref
+        for item in diagnostics
+        for ref in item.get("evidence_refs", [])
+        if isinstance(ref, str)
+    }
+    missing_refs = sorted(declared_refs - evidence_paths)
+    if missing_refs:
+        raise HostVerifyFailure(
+            "HOST_VERIFY_PROOF_REPORT_INVALID",
+            f"Browser diagnostic references missing evidence: {missing_refs[0]}",
+        )
+    actual_evidence = {
+        f"evidence/{path.relative_to(source_evidence_dir).as_posix()}"
+        for path in source_evidence_dir.rglob("*")
+        if path.is_file()
+    }
+    undeclared = sorted(actual_evidence - evidence_paths)
+    if undeclared:
+        raise HostVerifyFailure("HOST_VERIFY_PROOF_REPORT_INVALID", f"Browser wrote undeclared evidence: {undeclared[0]}")
+    return {
+        "assertions": assertions,
+        "verification_diagnostics": diagnostics,
+        "evidence": evidence,
+        "viewport_count": len(plan.viewports),
     }
 
 
@@ -560,7 +737,11 @@ def _require_executable(name: str, code: str) -> str:
 
 
 def _assert_node_modules(host_dir: Path) -> None:
-    bin_dir = host_dir / "node_modules" / ".bin"
+    _assert_node_modules_dir(host_dir / "node_modules")
+
+
+def _assert_node_modules_dir(node_modules: Path) -> None:
+    bin_dir = node_modules / ".bin"
     for name in HOST_VERIFY_NODE_MODULE_BINS:
         candidates = [bin_dir / name, bin_dir / f"{name}.cmd"]
         if not any(path.exists() for path in candidates):
@@ -568,6 +749,28 @@ def _assert_node_modules(host_dir: Path) -> None:
                 "HOST_VERIFY_NODE_MODULES_MISSING",
                 f"Missing {name} in node_modules/.bin; re-run with --install to allow npm ci --ignore-scripts.",
             )
+
+
+def _link_prebuilt_node_modules(host_dir: Path, configured: Path) -> None:
+    if not configured.is_absolute():
+        raise HostVerifyFailure(
+            "HOST_VERIFY_NODE_MODULES_MISSING",
+            "VIEWSPEC_HOST_VERIFY_NODE_MODULES_DIR must be an absolute path.",
+        )
+    seed = configured.resolve()
+    if not seed.is_dir():
+        raise HostVerifyFailure(
+            "HOST_VERIFY_NODE_MODULES_MISSING",
+            "Configured prebuilt node_modules directory does not exist.",
+        )
+    _assert_node_modules_dir(seed)
+    destination = host_dir / "node_modules"
+    if destination.exists() or destination.is_symlink():
+        raise HostVerifyFailure(
+            "HOST_VERIFY_NODE_MODULES_MISSING",
+            "Host node_modules destination must be empty before linking dependencies.",
+        )
+    materialize_prebuilt_node_modules(destination, seed)
 
 
 def _run_process(
@@ -601,7 +804,11 @@ def _run_process(
     result = CommandResult(stdout=stdout, stderr=stderr, returncode=proc.returncode or 0)
     if result.returncode != 0:
         extracted = _extract_host_verify_code(stdout + stderr)
-        raise HostVerifyFailure(extracted or code, stderr or stdout or f"{command[0]} exited {result.returncode}.")
+        failure_code = extracted or code
+        raise HostVerifyFailure(
+            failure_code,
+            _browser_failure_message(result, code=failure_code),
+        )
     return result
 
 
@@ -780,6 +987,9 @@ def _base_report(
     npm_version: str | None = None,
     assertions: dict[str, int] | None = None,
     assertion_requirements: dict[str, int] | None = None,
+    verification_diagnostics: list[dict[str, Any]] | None = None,
+    evidence: list[dict[str, Any]] | None = None,
+    viewport_count: int = 1,
     manifest_summary: dict[str, Any] | None = None,
     errors: list[dict[str, str]] | None = None,
 ) -> dict[str, Any]:
@@ -807,6 +1017,9 @@ def _base_report(
             "style_assertion_count": 0,
         },
         "assertion_requirements": assertion_requirements or _host_assertion_requirements(manifest_summary),
+        "verification_diagnostics": verification_diagnostics or [],
+        "evidence": evidence or [],
+        "viewport_count": viewport_count,
         "errors": errors or [],
         "timings_ms": dict(sorted(timings.items())),
     }
@@ -859,6 +1072,19 @@ def _finalize_report(report: dict[str, Any], report_out: str | Path | None) -> d
 def _extract_host_verify_code(text: str) -> str | None:
     match = HOST_VERIFY_CODE_RE.search(text)
     return match.group(1) if match else None
+
+
+def _browser_failure_message(result: CommandResult, *, code: str | None = None) -> str:
+    parts = [part.strip() for part in (result.stdout, result.stderr) if part.strip()]
+    if code:
+        lines = "\n".join(parts).splitlines()
+        for line in lines:
+            if code in line and "Error:" in line:
+                return line.strip()[:4096].rstrip()
+        for line in lines:
+            if code in line:
+                return line.strip()[:4096].rstrip()
+    return "\n".join(parts) or "Playwright failed."
 
 
 def _is_relative_to(path: Path, parent: Path) -> bool:

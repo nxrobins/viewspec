@@ -1,0 +1,42 @@
+{
+  "schema_version": 1,
+  "cases": [
+    {
+      "id": "data-dense-dashboard",
+      "kind": "intent",
+      "source": "demos/agent-intent-example.dashboard.json",
+      "expected_status": "conformant",
+      "required_evidence_roles": ["accessibility", "dom", "log", "screenshot"]
+    },
+    {
+      "id": "landing-intent",
+      "kind": "intent",
+      "source": "demos/landing-compiled/intent_bundle.json",
+      "expected_status": "conformant",
+      "required_evidence_roles": ["accessibility", "dom", "log", "screenshot"]
+    },
+    {
+      "id": "interactive-form",
+      "kind": "intent",
+      "source": "conformance/verification/fixtures/interactive-form.intent.json",
+      "expected_status": "conformant",
+      "required_evidence_roles": ["accessibility", "dom", "log", "screenshot"]
+    },
+    {
+      "id": "app-queue",
+      "kind": "app_screen",
+      "source": "demos/agent-app-example.internal-tool.json",
+      "screen_id": "queue",
+      "expected_status": "conformant",
+      "required_evidence_roles": ["accessibility", "dom", "log", "screenshot"]
+    },
+    {
+      "id": "app-detail",
+      "kind": "app_screen",
+      "source": "demos/agent-app-example.internal-tool.json",
+      "screen_id": "detail",
+      "expected_status": "conformant",
+      "required_evidence_roles": ["accessibility", "dom", "log", "screenshot"]
+    }
+  ]
+}

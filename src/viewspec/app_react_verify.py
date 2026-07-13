@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 import shutil
 import subprocess
 import tempfile
@@ -12,6 +13,7 @@ from typing import Any
 
 from viewspec.app_react import REACT_APP_MANIFEST, REACT_APP_TARGET
 from viewspec.local_tools import file_hash
+from viewspec.node_runtime import materialize_prebuilt_node_modules
 
 
 APP_REACT_VERIFY_SCHEMA_VERSION = 1
@@ -43,12 +45,20 @@ def verify_react_app_artifact_dir(
             host_dir = Path(temp_name) / "app"
             _copy_artifact(artifact_path, host_dir)
             if install:
-                install_result = _run_process(
-                    ["npm", "ci", "--ignore-scripts"],
-                    cwd=host_dir,
-                    timeout=APP_REACT_VERIFY_INSTALL_TIMEOUT_SECONDS,
-                )
-                _require_success(install_result, "APP_REACT_VERIFY_INSTALL_FAILED", "npm ci --ignore-scripts")
+                seed = os.environ.get("VIEWSPEC_HOST_VERIFY_NODE_MODULES_DIR")
+                if seed:
+                    _link_prebuilt_node_modules(host_dir, Path(seed))
+                else:
+                    install_result = _run_process(
+                        ["npm", "ci", "--ignore-scripts"],
+                        cwd=host_dir,
+                        timeout=APP_REACT_VERIFY_INSTALL_TIMEOUT_SECONDS,
+                    )
+                    _require_success(
+                        install_result,
+                        "APP_REACT_VERIFY_INSTALL_FAILED",
+                        "npm ci --ignore-scripts",
+                    )
             else:
                 source_modules = artifact_path / "node_modules"
                 if not source_modules.is_dir():
@@ -87,7 +97,13 @@ def verify_react_app_artifact_dir(
             "install": bool(install),
             "assertions": assertions,
             "policy": {
-                "install_command": "npm ci --ignore-scripts" if install else "none",
+                "install_command": (
+                    "prebuilt_node_modules"
+                    if install and os.environ.get("VIEWSPEC_HOST_VERIFY_NODE_MODULES_DIR")
+                    else "npm ci --ignore-scripts"
+                    if install
+                    else "none"
+                ),
                 "build_command": "npm run build",
                 "browser_command": "npm run viewspec:verify",
             },
@@ -120,6 +136,30 @@ class ReactAppVerifyFailure(ValueError):
         self.code = code
         self.message = message
         self.fix = fix
+
+
+def _link_prebuilt_node_modules(host_dir: Path, configured: Path) -> None:
+    if not configured.is_absolute():
+        raise ReactAppVerifyFailure(
+            "APP_REACT_VERIFY_DEPENDENCIES_MISSING",
+            "VIEWSPEC_HOST_VERIFY_NODE_MODULES_DIR must be an absolute path.",
+            "Configure an absolute prebuilt node_modules path and retry.",
+        )
+    seed = configured.resolve()
+    if not seed.is_dir():
+        raise ReactAppVerifyFailure(
+            "APP_REACT_VERIFY_DEPENDENCIES_MISSING",
+            "Configured prebuilt node_modules directory does not exist.",
+            "Build the configured dependency bundle and retry.",
+        )
+    destination = host_dir / "node_modules"
+    if destination.exists() or destination.is_symlink():
+        raise ReactAppVerifyFailure(
+            "APP_REACT_VERIFY_DEPENDENCIES_MISSING",
+            "Host node_modules destination must be empty before linking dependencies.",
+            "Remove the existing host dependency directory and retry.",
+        )
+    materialize_prebuilt_node_modules(destination, seed)
 
 
 def _preflight(artifact_dir: Path, manifest_path: Path) -> dict[str, Any]:

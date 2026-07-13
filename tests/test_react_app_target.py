@@ -287,6 +287,53 @@ def test_verify_react_app_rejects_tampered_generated_source(tmp_path):
     assert report["errors"][0]["code"] == "APP_REACT_VERIFY_HASH_MISMATCH"
 
 
+def test_verify_react_app_uses_prebuilt_dependencies_without_network(tmp_path, monkeypatch):
+    app_path = tmp_path / "viewspec.app.json"
+    out_dir = tmp_path / "react-app"
+    _write_app(app_path, _react_app_bundle())
+    assert compile_app(app_path, out_dir=out_dir, target=REACT_APP_TARGET, cwd=tmp_path)["ok"]
+    seed = tmp_path / "seed-node-modules"
+    seed.mkdir()
+    seed.joinpath("react").mkdir()
+    commands: list[tuple[str, ...]] = []
+
+    def fake_run(command, *, cwd, timeout):
+        commands.append(tuple(command))
+        node_modules = cwd / "node_modules"
+        assert node_modules.is_dir()
+        assert not node_modules.is_symlink()
+        assert node_modules.joinpath("react").is_symlink()
+        assert node_modules.joinpath("react").resolve() == seed.joinpath("react").resolve()
+        node_modules.joinpath(".vite-temp").mkdir(exist_ok=True)
+        if tuple(command) == ("npm", "run", "viewspec:verify"):
+            (cwd / "viewspec_runtime_report.json").write_text(
+                json.dumps(
+                    {
+                        "route_count": 2,
+                        "history_assertion_count": 1,
+                        "unknown_route_assertion_count": 1,
+                        "state_action_count": 1,
+                        "rebound_binding_count": 1,
+                        "selector_assertion_count": 1,
+                        "visibility_assertion_count": 1,
+                    }
+                ),
+                encoding="utf-8",
+            )
+        return {"returncode": 0, "stdout": "ok", "stderr": ""}
+
+    monkeypatch.setenv("VIEWSPEC_HOST_VERIFY_NODE_MODULES_DIR", str(seed))
+    monkeypatch.setattr("viewspec.app_react_verify._run_process", fake_run)
+
+    report = verify_react_app_artifact_dir(out_dir, install=True)
+
+    assert report["ok"] is True
+    assert commands == [
+        ("npm", "run", "build"),
+        ("npm", "run", "viewspec:verify"),
+    ]
+
+
 def test_prove_app_react_target_records_exact_host_runtime(tmp_path, monkeypatch):
     app_path = tmp_path / "viewspec.app.json"
     proof_dir = tmp_path / "app-proof"
