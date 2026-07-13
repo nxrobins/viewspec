@@ -299,7 +299,16 @@ For Tailwind host apps, use `--target react-tailwind-tsx` or MCP `target: "react
 
 MCP `diff_intent_bundle_files` returns the full `diff` payload and a concise `semantic_summary` list for agent-readable review. Metadata also includes `semantic_change_count`, `semantic_change_sections`, and `topology_similarity` so agents can triage revisions before inspecting generated artifacts. When an aesthetic profile changes, the semantic diff includes compact style impact counts and bounded layout deltas such as metric-card span or emphasis changes.
 
-The public repo includes an isolated host proof for one representative React/Tailwind fixture, but agent workflows should not treat that as per-artifact rendering certification. For arbitrary outputs, the required local gate is still validate, compile, and `viewspec check`; host apps may add their own render tests around the generated component.
+The public repo includes an executable five-case browser conformance corpus. For arbitrary generated
+React/Tailwind output, agents should run validate, compile, `viewspec check`, and `viewspec verify`.
+The final command renders canonical viewports, records screenshots, DOM and accessibility evidence,
+and writes a deterministic repair plan beside the canonical result.
+
+`repair.json` distinguishes `done`, `repair`, and `retry`. Repair directives use stable `vfix_*`
+identities, canonical `ir:<node>` or `screen:<screen>/ir:<node>` source paths, exact evidence
+references, and recurrence fingerprints that ignore prose and screenshot churn. Agents should send
+the repaired semantic source through the returned `next_lineage`; they should not patch generated
+TSX directly.
 
 Agents may run `viewspec verify-host react-tailwind-output/ --target react-tailwind-tsx --install --json`, or MCP `verify_host`, when the user wants a bounded per-artifact React/Vite/Tailwind runtime proof. This verifier checks the exact artifact first, carries the checked manifest summary into the host proof report, copies only the checked generated files into ViewSpec's isolated reference host, and asserts computed grid column/span counts plus profiled aesthetic markers/layout when the manifest declares them. It does not claim compatibility with arbitrary host apps. Human CLI output prints the same summary, including compact aesthetic style-delta counts, plus nonzero host assertion counts; MCP metadata exposes the same bounded host verification summary and `--json` returns the full proof report with `assertion_requirements` for expected `dom_count`, `style_assertion_count`, and manifest-derived `aesthetic_layout_assertion_count`, `aesthetic_profile_assertion_count`, and `grid_span_assertion_count`.
 

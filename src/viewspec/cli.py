@@ -55,6 +55,8 @@ from viewspec.local_tools import (
     init_design_file,
     source_hash,
 )
+from viewspec.local_verify import verify_local_artifact
+from viewspec.verification import VerificationPlan
 from viewspec.prove import PROVE_DEFAULT_OUT, prove
 from viewspec.mcp_server import MCP_INSTALL_HINT, MissingMCPDependency, mcp_dependency_available, run_mcp_server
 from viewspec.native_agents import NativeAgentError, VALID_TARGETS, init_agent_instructions
@@ -274,6 +276,27 @@ def _build_parser() -> argparse.ArgumentParser:
     verify_host_parser.add_argument("--report-out", help="Optional JSON proof report output path.")
     verify_host_parser.add_argument("--json", action="store_true", help="Print machine-readable JSON.")
     verify_host_parser.set_defaults(func=_verify_host_command)
+
+    verify_parser = subparsers.add_parser("verify", help="Verify rendered UI conformance across canonical viewports.")
+    verify_parser.add_argument("artifact_dir", help="Checked react-tailwind-tsx artifact directory.")
+    verify_parser.add_argument("--plan", help="Optional verification plan JSON file.")
+    verify_parser.add_argument(
+        "--evidence-out",
+        default=".viewspec-verification/evidence",
+        help="Empty directory where browser evidence will be written.",
+    )
+    verify_parser.add_argument(
+        "--report-out",
+        default=".viewspec-verification/result.json",
+        help="Canonical verification result JSON path.",
+    )
+    verify_parser.add_argument(
+        "--repair-out",
+        help="Repair plan JSON path. Defaults to repair.json beside --report-out.",
+    )
+    verify_parser.add_argument("--install", action="store_true", help="Allow npm ci in the isolated browser host.")
+    verify_parser.add_argument("--json", action="store_true", help="Print machine-readable JSON.")
+    verify_parser.set_defaults(func=_verify_command)
 
     init_agent_parser = subparsers.add_parser("init-agent", help="Install managed ViewSpec instructions for coding agents.")
     init_agent_parser.add_argument("--target", required=True, choices=VALID_TARGETS, help="Agent instruction target to update.")
@@ -1074,6 +1097,47 @@ def _verify_host_command(args: argparse.Namespace) -> int:
         for line in _host_assertion_summary_lines(result.get("assertions"), result.get("assertion_requirements")):
             print(line)
     return 0 if result["ok"] else 2
+
+
+def _verify_command(args: argparse.Namespace) -> int:
+    plan = VerificationPlan.default()
+    if args.plan:
+        plan = VerificationPlan.from_json(json.loads(Path(args.plan).read_text(encoding="utf-8")))
+    result = verify_local_artifact(
+        args.artifact_dir,
+        plan=plan,
+        evidence_dir=args.evidence_out,
+        report_out=args.report_out,
+        install=bool(args.install),
+    )
+    from viewspec.repair import VerificationRepairPlan
+
+    repair = VerificationRepairPlan.from_result(result)
+    repair_path = (
+        Path(args.repair_out)
+        if args.repair_out
+        else Path(args.report_out).with_name("repair.json")
+    )
+    atomic_write(
+        repair_path,
+        json.dumps(repair.to_json(), indent=2, sort_keys=True) + "\n",
+    )
+    payload = {**result.to_json(), "repair_plan": repair.to_json()}
+    if args.json:
+        print(json.dumps(payload, indent=2, sort_keys=True))
+    else:
+        print(result.status)
+        print(f"verification_id: {result.verification_id}")
+        print(f"evidence_files: {len(result.evidence)}")
+        print(f"next: {repair.disposition}")
+        for diagnostic in result.diagnostics:
+            location = f" [{diagnostic.viewport}]" if diagnostic.viewport else ""
+            source = f" {diagnostic.source_ref}" if diagnostic.source_ref else ""
+            print(f"{diagnostic.severity}: {diagnostic.code}{location}{source}: {diagnostic.message}")
+        for directive in repair.directives:
+            source = f" {directive.source_path.to_text()}" if directive.source_path else ""
+            print(f"repair: {directive.repair_id}{source}: {directive.instruction}")
+    return {"conformant": 0, "nonconformant": 1, "indeterminate": 2}[result.status]
 
 
 def _host_assertion_summary_lines(assertions: object, requirements: object = None) -> list[str]:

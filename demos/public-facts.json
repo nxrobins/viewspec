@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "product": "ViewSpec",
-  "sdk_version": "0.3.0b3",
+  "sdk_version": "0.3.0b4",
   "canonical_api_url": "https://api.viewspec.dev/v1/compile",
   "package_url": "https://pypi.org/project/viewspec/",
   "repository_url": "https://github.com/nxrobins/viewspec",

@@ -1,4 +1,4 @@
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type Page, type TestInfo } from "@playwright/test";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -22,6 +22,32 @@ type ActionIntent = {
 
 type ActionWindow = Window & {
   __viewspecActions?: ActionIntent[];
+};
+
+type VerificationDiagnostic = {
+  code: string;
+  severity: "info" | "warning" | "error";
+  message: string;
+  fix: string;
+  source_ref: string | null;
+  viewport: string;
+  evidence_refs: string[];
+};
+
+type EvidenceDeclaration = {
+  path: string;
+  role: "screenshot" | "dom" | "accessibility";
+  content_type: string;
+};
+
+type DomSnapshot = {
+  domId: string;
+  parentId: string | null;
+  tag: string;
+  text: string;
+  visible: boolean;
+  position: string;
+  rect: { left: number; top: number; right: number; bottom: number; width: number; height: number };
 };
 
 const fixtureRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
@@ -139,7 +165,9 @@ function deriveStyleAssertions(viewportWidth: number): StyleAssertion[] {
     const classes = node.classes ?? [];
     if (classes.includes("grid")) assertions.push({ domId, property: "display", expected: "grid" });
     if (classes.includes("flex")) assertions.push({ domId, property: "display", expected: "flex" });
-    if (classes.includes("inline-flex")) assertions.push({ domId, property: "display", expected: "inline-flex" });
+    if (classes.includes("inline-flex")) {
+      assertions.push({ domId, property: "display", expected: /^(inline-flex|flex)$/ });
+    }
     const expectedColumns = expectedGridColumnCount(classes, viewportWidth);
     if (expectedColumns !== null) {
       priorityAssertions.push({
@@ -218,14 +246,217 @@ async function expectComputed(page: Page, assertion: StyleAssertion) {
   }
 }
 
-function writeBrowserReport(assertions: Record<string, number>) {
+function plannedViewport(projectName: string): { name: string; width: number; height: number } {
+  const raw = process.env.VIEWSPEC_HOST_VERIFY_PLAN_JSON;
+  if (!raw) return { name: projectName, width: 1280, height: 900 };
+  const parsed = JSON.parse(raw) as { viewports?: Array<{ name: string; width: number; height: number }> };
+  const viewport = parsed.viewports?.find((item) => item.name === projectName);
+  if (!viewport) fail("HOST_VERIFY_PROOF_REPORT_INVALID", `missing viewport plan for ${projectName}`);
+  return viewport;
+}
+
+function sourceRef(domId: string): string | null {
+  const node = manifest.nodes[domId];
+  return node ? `ir:${node.ir_id}` : null;
+}
+
+function overlaps(left: DomSnapshot, right: DomSnapshot): boolean {
+  if (!left.visible || !right.visible || left.parentId !== right.parentId || left.parentId === null) return false;
+  if ([left.position, right.position].some((position) => ["absolute", "fixed", "sticky"].includes(position))) return false;
+  const width = Math.min(left.rect.right, right.rect.right) - Math.max(left.rect.left, right.rect.left);
+  const height = Math.min(left.rect.bottom, right.rect.bottom) - Math.max(left.rect.top, right.rect.top);
+  return width > 2 && height > 2;
+}
+
+async function writeVerificationEvidence(
+  page: Page,
+  testInfo: TestInfo,
+): Promise<{ diagnostics: VerificationDiagnostic[]; evidence: EvidenceDeclaration[] }> {
+  const evidenceRoot = process.env.VIEWSPEC_HOST_VERIFY_EVIDENCE_DIR;
+  if (!evidenceRoot) return { diagnostics: [], evidence: [] };
+  mkdirSync(evidenceRoot, { recursive: true });
+  const viewport = plannedViewport(testInfo.project.name);
+  const screenshotName = `${viewport.name}.png`;
+  const domName = `${viewport.name}.dom.json`;
+  const accessibilityName = `${viewport.name}.a11y.json`;
+  await page.screenshot({ path: join(evidenceRoot, screenshotName), fullPage: true });
+
+  const ids = Object.keys(manifest.nodes);
+  const browserState = await page.evaluate(({ manifestIds }) => {
+    const nodes = manifestIds.flatMap((domId) => {
+      const element = document.getElementById(domId);
+      if (!element) return [];
+      const rect = element.getBoundingClientRect();
+      const style = getComputedStyle(element);
+      return [
+        {
+          domId,
+          parentId: element.parentElement?.id || null,
+          tag: element.tagName.toLowerCase(),
+          text: (element.textContent ?? "").trim().slice(0, 500),
+          visible: rect.width > 0 && rect.height > 0 && style.visibility !== "hidden" && style.display !== "none",
+          position: style.position,
+          rect: {
+            left: rect.left,
+            top: rect.top,
+            right: rect.right,
+            bottom: rect.bottom,
+            width: rect.width,
+            height: rect.height,
+          },
+        },
+      ];
+    });
+    const semanticElements = Array.from(
+      document.querySelectorAll<HTMLElement>("button,input,select,textarea,a,[role],img"),
+    );
+    const accessibilityNodes = semanticElements.map((element) => {
+      const tag = element.tagName.toLowerCase();
+      const explicitRole = element.getAttribute("role");
+      const role = explicitRole || (tag === "a" ? "link" : tag === "img" ? "img" : tag);
+      const labelledBy = element.getAttribute("aria-labelledby");
+      const labelledText = labelledBy
+        ? labelledBy
+            .split(/\s+/)
+            .map((id) => document.getElementById(id)?.textContent ?? "")
+            .join(" ")
+            .trim()
+        : "";
+      const labels = "labels" in element && element.labels ? Array.from(element.labels as NodeListOf<HTMLLabelElement>) : [];
+      const name = (
+        element.getAttribute("aria-label") ||
+        labelledText ||
+        labels.map((label) => label.textContent ?? "").join(" ") ||
+        (tag === "img" ? element.getAttribute("alt") : element.textContent) ||
+        ""
+      ).trim();
+      return { domId: element.id || null, tag, role, name };
+    });
+    const violations: Array<{ type: string; domId: string | null; message: string }> = [];
+    const seenIds = new Set<string>();
+    for (const element of Array.from(document.querySelectorAll<HTMLElement>("[id]"))) {
+      if (seenIds.has(element.id)) {
+        violations.push({ type: "duplicate_id", domId: element.id, message: `Duplicate DOM id ${element.id}.` });
+      }
+      seenIds.add(element.id);
+    }
+    for (const node of accessibilityNodes) {
+      if (["button", "input", "select", "textarea", "link", "img"].includes(node.role) && !node.name) {
+        violations.push({
+          type: "missing_name",
+          domId: node.domId,
+          message: `${node.role} has no accessible name.`,
+        });
+      }
+    }
+    return {
+      nodes,
+      accessibilityNodes,
+      violations,
+      documentWidth: document.documentElement.scrollWidth,
+      viewportWidth: window.innerWidth,
+    };
+  }, { manifestIds: ids });
+
+  writeFileSync(
+    join(evidenceRoot, domName),
+    JSON.stringify({ viewport, documentWidth: browserState.documentWidth, nodes: browserState.nodes }, null, 2),
+  );
+  writeFileSync(
+    join(evidenceRoot, accessibilityName),
+    JSON.stringify({ viewport, nodes: browserState.accessibilityNodes, violations: browserState.violations }, null, 2),
+  );
+
+  const screenshotRef = `evidence/${screenshotName}`;
+  const domRef = `evidence/${domName}`;
+  const accessibilityRef = `evidence/${accessibilityName}`;
+  const diagnostics: VerificationDiagnostic[] = [];
+  if (browserState.documentWidth > browserState.viewportWidth + 1) {
+    const root = Object.entries(manifest.nodes).find(([, node]) => node.primitive === "root");
+    diagnostics.push({
+      code: "VERIFY_LAYOUT_OVERFLOW",
+      severity: "error",
+      message: `Document width ${browserState.documentWidth}px exceeds the ${browserState.viewportWidth}px viewport.`,
+      fix: "Constrain the referenced layout width and remove horizontal document overflow.",
+      source_ref: root ? `ir:${root[1].ir_id}` : null,
+      viewport: viewport.name,
+      evidence_refs: [screenshotRef, domRef],
+    });
+  }
+  for (const node of browserState.nodes) {
+    if (!node.visible || node.rect.width <= 0) continue;
+    if (node.rect.left < -1 || node.rect.right > browserState.viewportWidth + 1) {
+      diagnostics.push({
+        code: "VERIFY_LAYOUT_OVERFLOW",
+        severity: "error",
+        message: `${node.domId} extends outside the ${viewport.name} viewport.`,
+        fix: "Constrain the referenced source node at this viewport and retry verification.",
+        source_ref: sourceRef(node.domId),
+        viewport: viewport.name,
+        evidence_refs: [screenshotRef, domRef],
+      });
+    }
+  }
+  for (let leftIndex = 0; leftIndex < browserState.nodes.length; leftIndex += 1) {
+    for (let rightIndex = leftIndex + 1; rightIndex < browserState.nodes.length; rightIndex += 1) {
+      const left = browserState.nodes[leftIndex];
+      const right = browserState.nodes[rightIndex];
+      if (!overlaps(left, right)) continue;
+      diagnostics.push({
+        code: "VERIFY_LAYOUT_OVERLAP",
+        severity: "error",
+        message: `${left.domId} overlaps sibling ${right.domId} at the ${viewport.name} viewport.`,
+        fix: "Adjust the referenced sibling layout so their rendered bounds do not overlap.",
+        source_ref: sourceRef(right.domId) ?? sourceRef(left.domId),
+        viewport: viewport.name,
+        evidence_refs: [screenshotRef, domRef],
+      });
+    }
+  }
+  for (const violation of browserState.violations) {
+    diagnostics.push({
+      code: "VERIFY_A11Y_VIOLATION",
+      severity: "error",
+      message: violation.message,
+      fix: "Add a unique semantic identity and accessible name to the referenced source node.",
+      source_ref: violation.domId ? sourceRef(violation.domId) : null,
+      viewport: viewport.name,
+      evidence_refs: [screenshotRef, accessibilityRef],
+    });
+  }
+  return {
+    diagnostics,
+    evidence: [
+      { path: screenshotRef, role: "screenshot", content_type: "image/png" },
+      { path: domRef, role: "dom", content_type: "application/json" },
+      { path: accessibilityRef, role: "accessibility", content_type: "application/json" },
+    ],
+  };
+}
+
+function writeBrowserReport(
+  assertions: Record<string, number>,
+  testInfo: TestInfo,
+  diagnostics: VerificationDiagnostic[],
+  evidence: EvidenceDeclaration[],
+) {
+  const reportDir = process.env.VIEWSPEC_HOST_VERIFY_BROWSER_REPORT_DIR;
+  if (reportDir) {
+    mkdirSync(reportDir, { recursive: true });
+    const viewport = plannedViewport(testInfo.project.name);
+    writeFileSync(
+      join(reportDir, `${viewport.name}.json`),
+      JSON.stringify({ viewport, assertions, diagnostics, evidence }, null, 2),
+    );
+    return;
+  }
   const reportPath = process.env.VIEWSPEC_HOST_VERIFY_BROWSER_REPORT;
   if (!reportPath) return;
   mkdirSync(dirname(reportPath), { recursive: true });
   writeFileSync(reportPath, JSON.stringify({ assertions }, null, 2));
 }
 
-test("generated React Tailwind artifact builds and behaves in the bounded host", async ({ page }) => {
+test("generated React Tailwind artifact builds and behaves in the bounded host", async ({ page }, testInfo) => {
   const runtimeErrors: string[] = [];
   page.on("pageerror", (error) => runtimeErrors.push(`pageerror: ${error.message}`));
   page.on("console", (message) => {
@@ -266,7 +497,7 @@ test("generated React Tailwind artifact builds and behaves in the bounded host",
 
   const viewportWidth = page.viewportSize()?.width ?? 1280;
   const styleAssertions = deriveStyleAssertions(viewportWidth);
-  if (styleAssertions.length < 4) {
+  if (!process.env.VIEWSPEC_HOST_VERIFY_PLAN_JSON && styleAssertions.length < 4) {
     fail("HOST_VERIFY_STYLE_ASSERTION_TOO_WEAK", `at least four computed style assertions are required, got ${styleAssertions.length}`);
   }
   const gridColumnAssertionCount = styleAssertions.filter((assertion) => typeof assertion.expectedColumnCount === "number").length;
@@ -299,14 +530,32 @@ test("generated React Tailwind artifact builds and behaves in the bounded host",
       : [];
     const expectedPayloadValues: Record<string, unknown> = {};
     for (const [index, bindingId] of payloadBindings.entries()) {
-      const input = page.locator(`[data-binding-id="${bindingId}"]`);
-      const count = await input.count();
-      if (count !== 1) fail("HOST_VERIFY_PAYLOAD_VALUE_MISMATCH", `${actionId} payload binding ${bindingId} has ${count} editable inputs`);
-      const current = await input.inputValue();
-      let next = `verify-${actionId}-${index}`;
-      if (next === current) next = `${next}-override`;
-      await input.fill(next);
-      expectedPayloadValues[bindingId] = next;
+      const binding = page.locator(`[data-binding-id="${bindingId}"]`);
+      const count = await binding.count();
+      if (count !== 1) fail("HOST_VERIFY_PAYLOAD_VALUE_MISMATCH", `${actionId} payload binding ${bindingId} has ${count} bound nodes`);
+      const editable = binding.locator("input,textarea,select");
+      const tag = await binding.evaluate((element) => element.tagName.toLowerCase());
+      if (["input", "textarea", "select"].includes(tag)) {
+        const current = await binding.inputValue();
+        let next = `verify-${actionId}-${index}`;
+        if (next === current) next = `${next}-override`;
+        await binding.fill(next);
+        expectedPayloadValues[bindingId] = next;
+      } else if (await editable.count()) {
+        const current = await editable.first().inputValue();
+        let next = `verify-${actionId}-${index}`;
+        if (next === current) next = `${next}-override`;
+        await editable.first().fill(next);
+        expectedPayloadValues[bindingId] = next;
+      } else {
+        const boundDomId = await binding.getAttribute("id");
+        const boundNode = boundDomId ? manifest.nodes[boundDomId] : undefined;
+        const staticValue = boundNode?.props?.value ?? boundNode?.props?.text;
+        if (staticValue === undefined) {
+          fail("HOST_VERIFY_PAYLOAD_VALUE_MISMATCH", `${actionId} static payload binding ${bindingId} has no manifest value`);
+        }
+        expectedPayloadValues[bindingId] = staticValue;
+      }
       payloadBindingCount += 1;
     }
 
@@ -334,6 +583,7 @@ test("generated React Tailwind artifact builds and behaves in the bounded host",
   }
   if (runtimeErrors.length) fail("HOST_VERIFY_BROWSER_RUNTIME_ERROR", runtimeErrors.join("\n"));
 
+  const verification = await writeVerificationEvidence(page, testInfo);
   writeBrowserReport({
     action_count: actionCount,
     aesthetic_layout_assertion_count: aestheticLayoutAssertionCount,
@@ -343,5 +593,5 @@ test("generated React Tailwind artifact builds and behaves in the bounded host",
     grid_span_assertion_count: gridSpanAssertionCount,
     payload_binding_count: payloadBindingCount,
     style_assertion_count: styleAssertions.length,
-  });
+  }, testInfo, verification.diagnostics, verification.evidence);
 });

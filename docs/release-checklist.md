@@ -17,7 +17,10 @@ Use this checklist before publishing a new ViewSpec package or public-site updat
 
 - Run `python -m build` and `python -m pip wheel . --no-deps`.
 - Inspect the generated README/long-description source before upload so PyPI does not publish stale pricing, version, proof-scope, or hosted-call claims.
-- Confirm the package exposes `viewspec prove`, `viewspec check`, `viewspec verify-host`, and the documented local no-network defaults.
+- Confirm the package exposes `viewspec prove`, `viewspec check`, `viewspec verify-host`, and
+  `viewspec verify`, including documented local no-network defaults and status-specific exits.
+- Run `python scripts/run_verification_corpus.py --install`; all public cases must compile and
+  produce the required browser evidence roles.
 
 ## Manual Publish
 

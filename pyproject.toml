@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "viewspec"
-version = "0.3.0b3"
+version = "0.3.0b4"
 description = "Agent-native UI compiler. Agents describe intent; ViewSpec compiles concrete UI."
 readme = "README.md"
 license = "MIT"
@@ -14,7 +14,7 @@ authors = [
 ]
 keywords = ["ui", "compiler", "semantic", "viewspec", "composition-ir", "protobuf", "declarative", "agents"]
 classifiers = [
-    "Development Status :: 3 - Alpha",
+    "Development Status :: 4 - Beta",
     "Intended Audience :: Developers",
     "License :: OSI Approved :: MIT License",
     "Programming Language :: Python :: 3",

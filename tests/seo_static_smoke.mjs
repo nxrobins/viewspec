@@ -734,10 +734,24 @@ assert.deepEqual(
 assertPublicEqual(openapi['x-viewspec-public-facts'].proSignedUsageReceipts, publicFacts.pricing.pro.signed_usage_receipts, 'OpenAPI public facts signed receipts')
 assert.deepEqual(
   Object.keys(openapi.paths).sort(),
-  ['/v1/app-bundles/build', '/v1/artifacts', '/v1/checkout/claim', '/v1/compile', '/v1/keys/current', '/v1/keys/rotate', '/v1/plans', '/v1/receipt-key', '/v1/usage'],
+  [
+    '/v1/app-bundles/build',
+    '/v1/artifacts',
+    '/v1/checkout/claim',
+    '/v1/compile',
+    '/v1/keys/current',
+    '/v1/keys/rotate',
+    '/v1/plans',
+    '/v1/receipt-key',
+    '/v1/usage',
+    '/v1/verifications',
+    '/v1/verifications/{job_id}',
+  ],
   'OpenAPI must expose only the public hosted contract'
 )
 assert(openapi.paths['/v1/compile']?.post, 'OpenAPI needs POST /v1/compile')
+assert(openapi.paths['/v1/verifications']?.post, 'OpenAPI needs POST /v1/verifications')
+assert(openapi.paths['/v1/verifications/{job_id}']?.get, 'OpenAPI needs GET /v1/verifications/{job_id}')
 assert.equal(openapi.paths['/v1/compile'].post.requestBody.content['application/json'].schema.$ref, '#/components/schemas/CompileRequestPayload')
 assert(openapi.components.schemas.CompileRequestPayload.properties.design.anyOf.some(item => item.$ref === '#/components/schemas/DesignRequest'))
 assert(!('design' in openapi.components.schemas.IntentBundle.properties), 'OpenAPI IntentBundle schema should not absorb hosted design context')

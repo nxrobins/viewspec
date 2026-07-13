@@ -182,7 +182,20 @@ viewspec mcp
 ```
 The MCP server exposes all intent-first local tools without requiring shell commands, including `validate_intent_bundle_file`, `compile_intent_bundle_file`, `verify_host`, `prove`, `validate_app_file`, `diff_app_files`, `compile_app`, and `prove_app`.
 
-For bounded React Tailwind runtime proof, run `viewspec prove --target react-tailwind-tsx --install --out .viewspec-proof --json` or `viewspec verify-host react-tailwind-output/ --target react-tailwind-tsx --install --json`. The host proof checks grid column/span counts, profiled aesthetic marker/layout assertions, and action payload behavior; JSON reports include `assertion_requirements` with `dom_count`, `style_assertion_count`, `aesthetic_layout_assertion_count`, `aesthetic_profile_assertion_count`, and `grid_span_assertion_count`.
+For rendered conformance, compile React/Tailwind TSX and run:
+
+```bash
+viewspec verify react-tailwind-output/ --install --json
+```
+
+The verifier renders canonical mobile, tablet, and desktop viewports and writes integrity-addressed
+screenshots, DOM snapshots, accessibility evidence, `result.json`, and a deterministic `repair.json`.
+Exit codes distinguish conformant (`0`), nonconformant (`1`), and indeterminate (`2`) results.
+`viewspec verify-host` remains the lower-level bounded host assertion proof for
+grid column/span counts, profiled aesthetic markers/layout, and action payload behavior.
+Its JSON `assertion_requirements` records `dom_count`, `style_assertion_count`, and
+`aesthetic_layout_assertion_count` expectations from the checked manifest.
+`viewspec prove` combines compilation checks with that proof.
 
 ## viewspec.dev
 
@@ -262,6 +275,12 @@ ast = compile_auto(builder.build_bundle())
 ```
 
 The hosted fallback requires the `remote` extra: `python -m pip install "viewspec[remote]"` (adds `httpx`). Without it, `compile_auto` runs locally and raises `ImportError` only if a hosted fallback is actually needed.
+
+Paid agents can submit a complete AppBundle to `submit_verification_remote(...)` for compiled
+route/state proof plus per-screen browser evidence and a signed receipt. For bounded autonomous
+repair, `compile_until_conformant_remote(...)` repeats that paid compile-and-verify step while a
+caller-owned repair callback edits the semantic AppBundle. ViewSpec enforces lineage, plan
+stability, attempt limits, and no-progress termination.
 
 ### Theming with DESIGN.md
 The local SDK uses a strict YAML-front-matter `DESIGN.md` for offline HTML and IntentBundle compilation. The API requires exact sRGB hex values (e.g., `#FFFFFF`), enforcing strict design token discipline.

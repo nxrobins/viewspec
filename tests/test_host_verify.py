@@ -1,19 +1,27 @@
 from __future__ import annotations
 
 import json
+import sys
 import time
 from pathlib import Path
+
+import pytest
 
 from viewspec import profile_style_facts
 from viewspec.cli import main as cli_main
 from viewspec.host_verify import (
     CommandResult,
+    HostVerifyFailure,
+    _browser_failure_message,
+    _collect_planned_browser_results,
+    _run_process,
     summarize_host_verification_report,
     verify_host_artifact_dir,
     verify_host_tool,
 )
 from viewspec.local_tools import file_hash
 from viewspec.sdk.builder import ViewSpecBuilder
+from viewspec.verification import VerificationPlan
 
 
 def _write_tailwind_artifact(tmp_path: Path, *, profile: str = "aesthetic.data_dense") -> Path:
@@ -154,6 +162,128 @@ def test_verify_host_artifact_mode_writes_stable_report(tmp_path, monkeypatch):
     assert report["manifest_summary"]["aesthetic_style"]["declaration_count"] == style_facts["declaration_count"]
     assert report["manifest_summary"]["aesthetic_layout"]["metric_grid"]["columns"] == 3
     assert json.loads(report_path.read_text(encoding="utf-8")) == report
+
+
+def test_verify_host_passes_canonical_plan_to_browser_and_returns_evidence(tmp_path, monkeypatch):
+    out_dir = _write_tailwind_artifact(tmp_path)
+    evidence_dir = tmp_path / "evidence"
+    evidence_dir.mkdir()
+    plan = VerificationPlan.default()
+
+    def fake_planned_runtime(
+        host_dir,
+        *,
+        install,
+        started,
+        timings,
+        verification_plan,
+        evidence_dir,
+    ):
+        assert verification_plan == plan
+        assert evidence_dir == tmp_path / "evidence"
+        (evidence_dir / "mobile.png").write_bytes(b"png")
+        return {
+            **_fake_runtime(host_dir, install=install, started=started, timings=timings),
+            "verification_diagnostics": [],
+            "evidence": [
+                {
+                    "path": "evidence/mobile.png",
+                    "role": "screenshot",
+                    "content_type": "image/png",
+                }
+            ],
+            "viewport_count": 3,
+        }
+
+    monkeypatch.setattr("viewspec.host_verify._run_host_browser_phases", fake_planned_runtime)
+
+    report = verify_host_artifact_dir(
+        out_dir,
+        verification_plan=plan,
+        evidence_dir=evidence_dir,
+    )
+
+    assert report["ok"] is True
+    assert report["viewport_count"] == 3
+    assert report["verification_diagnostics"] == []
+    assert report["evidence"] == [
+        {
+            "path": "evidence/mobile.png",
+            "role": "screenshot",
+            "content_type": "image/png",
+        }
+    ]
+
+
+def test_planned_browser_results_require_every_viewport_and_copy_exact_evidence(tmp_path):
+    plan = VerificationPlan.default()
+    reports_dir = tmp_path / "reports"
+    source_dir = tmp_path / "source-evidence"
+    output_dir = tmp_path / "evidence"
+    reports_dir.mkdir()
+    source_dir.mkdir()
+    output_dir.mkdir()
+    for viewport in plan.viewports:
+        screenshot_name = f"{viewport.name}.png"
+        (source_dir / screenshot_name).write_bytes(viewport.name.encode())
+        payload = {
+            "viewport": viewport.to_json(),
+            "assertions": {
+                "dom_count": 1,
+                "style_assertion_count": 4,
+            },
+            "diagnostics": (
+                [
+                    {
+                        "code": "VERIFY_LAYOUT_OVERFLOW",
+                        "severity": "error",
+                        "message": "Mobile content overflows.",
+                        "fix": "Constrain the source node.",
+                        "source_ref": "ir:content-grid",
+                        "viewport": "mobile",
+                        "evidence_refs": ["evidence/mobile.png"],
+                    }
+                ]
+                if viewport.name == "mobile"
+                else []
+            ),
+            "evidence": [
+                {
+                    "path": f"evidence/{screenshot_name}",
+                    "role": "screenshot",
+                    "content_type": "image/png",
+                }
+            ],
+        }
+        (reports_dir / f"{viewport.name}.json").write_text(json.dumps(payload), encoding="utf-8")
+
+    result = _collect_planned_browser_results(reports_dir, source_dir, output_dir, plan)
+
+    assert result["viewport_count"] == 3
+    assert result["assertions"]["dom_count"] == 3
+    assert result["assertions"]["style_assertion_count"] == 12
+    assert result["verification_diagnostics"][0]["code"] == "VERIFY_LAYOUT_OVERFLOW"
+    assert [item["path"] for item in result["evidence"]] == [
+        "evidence/mobile.png",
+        "evidence/tablet.png",
+        "evidence/desktop.png",
+    ]
+    assert (output_dir / "mobile.png").read_bytes() == b"mobile"
+
+
+def test_planned_browser_results_reject_missing_viewport_report(tmp_path):
+    plan = VerificationPlan.default()
+    reports_dir = tmp_path / "reports"
+    source_dir = tmp_path / "source-evidence"
+    output_dir = tmp_path / "evidence"
+    reports_dir.mkdir()
+    source_dir.mkdir()
+    output_dir.mkdir()
+
+    with pytest.raises(HostVerifyFailure, match="mobile") as raised:
+        _collect_planned_browser_results(reports_dir, source_dir, output_dir, plan)
+
+    assert raised.value.code == "HOST_VERIFY_PROOF_REPORT_INVALID"
 
 
 def test_verify_host_preflight_failure_preserves_manifest_summary(tmp_path):
@@ -334,6 +464,61 @@ def test_verify_host_missing_node_and_node_modules_are_exact_codes(tmp_path, mon
     assert missing_modules["errors"][0]["code"] == "HOST_VERIFY_NODE_MODULES_MISSING"
 
 
+def test_browser_failure_message_retains_playwright_assertion_and_warnings():
+    result = CommandResult(
+        "HOST_VERIFY_STYLE_ASSERTION_TOO_WEAK: expected grid",
+        "Node emitted a deprecation warning",
+        1,
+    )
+
+    message = _browser_failure_message(result)
+    focused = _browser_failure_message(
+        result,
+        code="HOST_VERIFY_STYLE_ASSERTION_TOO_WEAK",
+    )
+
+    assert "HOST_VERIFY_STYLE_ASSERTION_TOO_WEAK: expected grid" in message
+    assert "Node emitted a deprecation warning" in message
+    assert focused == "HOST_VERIFY_STYLE_ASSERTION_TOO_WEAK: expected grid"
+
+    transformed = CommandResult(
+        'if (count !== 1) fail("HOST_VERIFY_PAYLOAD_VALUE_MISMATCH", message);\n'
+        "Error: HOST_VERIFY_PAYLOAD_VALUE_MISMATCH: binding inc_id has 0 inputs",
+        "",
+        1,
+    )
+    assert _browser_failure_message(
+        transformed,
+        code="HOST_VERIFY_PAYLOAD_VALUE_MISMATCH",
+    ) == "Error: HOST_VERIFY_PAYLOAD_VALUE_MISMATCH: binding inc_id has 0 inputs"
+
+
+def test_process_failure_surfaces_stable_code_line_from_stdout(tmp_path):
+    command = [
+        sys.executable,
+        "-c",
+        (
+            "import sys; "
+            "print('HOST_VERIFY_STYLE_ASSERTION_TOO_WEAK: expected grid'); "
+            "print('Node warning', file=sys.stderr); "
+            "raise SystemExit(1)"
+        ),
+    ]
+
+    with pytest.raises(HostVerifyFailure) as failure:
+        _run_process(
+            command,
+            cwd=tmp_path,
+            timeout_ms=5_000,
+            code="HOST_VERIFY_BROWSER_RUNTIME_ERROR",
+        )
+
+    assert failure.value.code == "HOST_VERIFY_STYLE_ASSERTION_TOO_WEAK"
+    assert failure.value.message == (
+        "HOST_VERIFY_STYLE_ASSERTION_TOO_WEAK: expected grid"
+    )
+
+
 def test_verify_host_install_runs_npm_ci_ignore_scripts(tmp_path, monkeypatch):
     host_dir = tmp_path / "host"
     host_dir.mkdir()
@@ -372,6 +557,7 @@ def test_verify_host_install_runs_npm_ci_ignore_scripts(tmp_path, monkeypatch):
     monkeypatch.setattr("viewspec.host_verify._start_preview", lambda host, npm, port: None)
     monkeypatch.setattr("viewspec.host_verify._wait_for_preview", lambda port, started: None)
     monkeypatch.setattr("viewspec.host_verify._kill_process_tree", lambda proc: None)
+    monkeypatch.setattr("viewspec.host_verify._free_port", lambda: 4177)
 
     from viewspec.host_verify import _run_host_browser_phases
 
@@ -380,6 +566,54 @@ def test_verify_host_install_runs_npm_ci_ignore_scripts(tmp_path, monkeypatch):
     assert ["npm", "ci", "--ignore-scripts"] in commands
     assert runtime["assertions"]["grid_column_assertion_count"] == 1
     assert runtime["assertions"]["style_assertion_count"] == 4
+
+
+def test_verify_host_uses_prebuilt_node_modules_without_network(tmp_path, monkeypatch):
+    host_dir = tmp_path / "host"
+    host_dir.mkdir()
+    seed = tmp_path / "seed-node-modules"
+    bin_dir = seed / ".bin"
+    bin_dir.mkdir(parents=True)
+    for name in ("vite", "playwright"):
+        bin_dir.joinpath(name).write_text("", encoding="utf-8")
+    seed.joinpath("vite").mkdir()
+    commands: list[list[str]] = []
+
+    def fake_run(command, *, cwd, timeout_ms, code, env=None):
+        commands.append(command)
+        if command[1:3] == ["run", "test"] and env:
+            Path(env["VIEWSPEC_HOST_VERIFY_BROWSER_REPORT"]).parent.mkdir(parents=True)
+            Path(env["VIEWSPEC_HOST_VERIFY_BROWSER_REPORT"]).write_text(
+                json.dumps({"assertions": {"dom_count": 1}}),
+                encoding="utf-8",
+            )
+        return CommandResult("v-test", "", 0)
+
+    monkeypatch.setenv("VIEWSPEC_HOST_VERIFY_NODE_MODULES_DIR", str(seed))
+    monkeypatch.setattr("viewspec.host_verify._require_executable", lambda name, code: name)
+    monkeypatch.setattr("viewspec.host_verify._run_process", fake_run)
+    monkeypatch.setattr("viewspec.host_verify._start_preview", lambda host, npm, port: None)
+    monkeypatch.setattr("viewspec.host_verify._wait_for_preview", lambda port, started: None)
+    monkeypatch.setattr("viewspec.host_verify._kill_process_tree", lambda proc: None)
+    monkeypatch.setattr("viewspec.host_verify._free_port", lambda: 4177)
+
+    from viewspec.host_verify import _run_host_browser_phases
+
+    runtime = _run_host_browser_phases(
+        host_dir,
+        install=True,
+        started=time.perf_counter(),
+        timings={},
+    )
+
+    node_modules = host_dir / "node_modules"
+    assert node_modules.is_dir()
+    assert not node_modules.is_symlink()
+    assert node_modules.joinpath("vite").is_symlink()
+    assert node_modules.joinpath("vite").resolve() == seed.joinpath("vite").resolve()
+    node_modules.joinpath(".vite-temp").mkdir()
+    assert not any(command[1:] == ["ci", "--ignore-scripts"] for command in commands)
+    assert runtime["assertions"]["dom_count"] == 1
 
 
 def test_verify_host_mcp_tool_respects_cwd_containment(tmp_path):
