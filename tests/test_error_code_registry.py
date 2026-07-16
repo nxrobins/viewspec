@@ -32,6 +32,7 @@ NON_CODE_LITERAL_TOKENS = {
     "VIEWSPEC_HOST_VERIFY_EVIDENCE_DIR",  # environment variable name
     "VIEWSPEC_HOST_VERIFY_NODE_MODULES_DIR",  # environment variable name
     "VIEWSPEC_HOST_VERIFY_PLAN_JSON",  # environment variable name
+    "VIEWSPEC_REVIEW_STATE_DIR",  # environment variable name
     "VIEWSPEC_STATE_PROFILE",  # export symbol in the generated reducer artifact
 }
 
