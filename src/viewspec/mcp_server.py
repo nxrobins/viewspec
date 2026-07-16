@@ -23,8 +23,13 @@ from viewspec.local_tools import (
     export_agent_assets_tool,
     init_design_tool,
     lift_html_file_tool,
+    resolve_local_path,
 )
 from viewspec.prove import prove_tool
+from viewspec.review_cli import end_review as end_review_cli
+from viewspec.review_cli import open_review as open_review_cli
+from viewspec.review_cli import poll_review as poll_review_cli
+from viewspec.review_cli import review_status as review_status_cli
 
 
 MCP_INSTALL_HINT = 'Install with: python -m pip install "viewspec[agents]"'
@@ -342,6 +347,68 @@ def run_mcp_server(*, cwd: str | Path | None = None, allow_outside_cwd: bool = F
     )
     def export_agent_assets(out: str = ".viewspec", force: bool = False, dry_run: bool = False) -> dict[str, Any]:
         return export_agent_assets_tool(out, force=force, dry_run=dry_run, cwd=root, allow_outside_cwd=allow_outside_cwd)
+
+    @app.tool(description="Open or resume a checked local ViewSpec Review session without launching a browser automatically.")
+    def open_review(
+        source: str,
+        design_path: str | None = None,
+        target: str | None = None,
+        port: int = 4388,
+        state_dir: str = ".viewspec-review",
+        reopen: bool = False,
+        verify: bool = False,
+        install: bool = False,
+    ) -> dict[str, Any]:
+        resolved_source = resolve_local_path(source, cwd=root, allow_outside_cwd=allow_outside_cwd, must_exist=True)
+        resolved_design = (
+            resolve_local_path(design_path, cwd=root, allow_outside_cwd=allow_outside_cwd, must_exist=True)
+            if design_path is not None
+            else None
+        )
+        resolved_state = resolve_local_path(state_dir, cwd=root, allow_outside_cwd=allow_outside_cwd)
+        return open_review_cli(
+            resolved_source,
+            design=resolved_design,
+            target=target,
+            port=port,
+            state_root=resolved_state,
+            reopen=reopen,
+            no_open=True,
+            verify=verify,
+            install=install,
+        )
+
+    @app.tool(description="Long-poll one active Review session with at-least-once batch acknowledgement semantics.")
+    def poll_review(
+        source: str,
+        ack: str | None = None,
+        agent_reply: str | None = None,
+        timeout_ms: int = 55_000,
+        state_dir: str = ".viewspec-review",
+    ) -> dict[str, Any]:
+        resolved_source = resolve_local_path(source, cwd=root, allow_outside_cwd=allow_outside_cwd)
+        resolved_state = resolve_local_path(state_dir, cwd=root, allow_outside_cwd=allow_outside_cwd)
+        return poll_review_cli(
+            resolved_source,
+            ack=ack,
+            agent_reply=agent_reply,
+            timeout_ms=timeout_ms,
+            state_root=resolved_state,
+        )
+
+    @app.tool(description="End an active local ViewSpec Review session with agent attribution.")
+    def end_review(source: str, state_dir: str = ".viewspec-review") -> dict[str, Any]:
+        resolved_source = resolve_local_path(source, cwd=root, allow_outside_cwd=allow_outside_cwd)
+        resolved_state = resolve_local_path(state_dir, cwd=root, allow_outside_cwd=allow_outside_cwd)
+        return end_review_cli(resolved_source, state_root=resolved_state)
+
+    @app.tool(description="Get bounded Review status without capability values, source paths, or feedback bodies.")
+    def get_review_status(source: str | None = None, state_dir: str = ".viewspec-review") -> dict[str, Any]:
+        resolved_source = (
+            resolve_local_path(source, cwd=root, allow_outside_cwd=allow_outside_cwd) if source is not None else None
+        )
+        resolved_state = resolve_local_path(state_dir, cwd=root, allow_outside_cwd=allow_outside_cwd)
+        return review_status_cli(resolved_source, state_root=resolved_state)
 
     app.run()
 

@@ -61,6 +61,8 @@ from viewspec.prove import PROVE_DEFAULT_OUT, prove
 from viewspec.mcp_server import MCP_INSTALL_HINT, MissingMCPDependency, mcp_dependency_available, run_mcp_server
 from viewspec.native_agents import NativeAgentError, VALID_TARGETS, init_agent_instructions
 from viewspec.raw_html import HtmlInputError, compile_html, diff_html, lift_html, write_html_compile_result
+from viewspec.review_cli import end_review, open_review, poll_review, review_status
+from viewspec.review_contract import ReviewContractError
 from viewspec.types import IntentBundle
 
 DoctorProfileDiff = tuple[dict[str, object], str, dict[str, object], dict[str, object]]
@@ -83,6 +85,9 @@ def main(argv: list[str] | None = None) -> int:
     except NativeAgentError as exc:
         print(f"error: {exc.code}: {exc}", file=sys.stderr)
         return 2
+    except ReviewContractError as exc:
+        print(f"error: {exc.code}: {exc.message}\nfix: {exc.fix}", file=sys.stderr)
+        return exc.cli_exit
     except (FileNotFoundError, ValueError, TypeError, json.JSONDecodeError) as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 2
@@ -321,12 +326,112 @@ def _build_parser() -> argparse.ArgumentParser:
     check_agent_assets_parser.add_argument("--json", action="store_true", help="Print machine-readable JSON.")
     check_agent_assets_parser.set_defaults(func=_check_agent_assets_command)
 
+    review_parser = subparsers.add_parser("review", help="Open a checked local ViewSpec review session.")
+    review_parser.add_argument("source", help="Canonical local IntentBundle or AppBundle JSON file.")
+    review_parser.add_argument("--design", help="Optional DESIGN.md file to watch with the source.")
+    review_parser.add_argument(
+        "--target",
+        choices=("html-tailwind", "html-tailwind-app", "react-tailwind-app"),
+        help="Explicit review compile target; defaults by detected source kind.",
+    )
+    review_parser.add_argument("--verify", action="store_true", help="Run canonical viewport verification when available.")
+    review_parser.add_argument("--install", action="store_true", help="Allow the explicit existing verification install flow.")
+    review_parser.add_argument("--no-open", action="store_true", help="Start or resume without launching a browser.")
+    review_parser.add_argument("--port", type=int, default=4388, help="Literal unprivileged 127.0.0.1 port (default: 4388).")
+    review_parser.add_argument("--state-dir", help="Private Review state root.")
+    review_parser.add_argument("--reopen", action="store_true", help="Explicitly reopen a human-ended session.")
+    review_parser.add_argument("--json", action="store_true", help="Print machine-readable JSON.")
+    review_parser.set_defaults(func=_review_command)
+
+    review_poll_parser = subparsers.add_parser("review-poll", help="Wait for durable human Review feedback.")
+    review_poll_parser.add_argument("source", help="Canonical source path used to open the review.")
+    review_poll_parser.add_argument("--ack", help="Exact previously returned batch id to acknowledge.")
+    review_poll_parser.add_argument("--agent-reply", help="Bounded reply committed atomically with --ack.")
+    review_poll_parser.add_argument("--timeout-ms", type=int, default=55_000, help="Long-poll timeout from 1 through 55000 ms.")
+    review_poll_parser.add_argument("--state-dir", help="Private Review state root.")
+    review_poll_parser.add_argument("--json", action="store_true", help="Print machine-readable JSON.")
+    review_poll_parser.set_defaults(func=_review_poll_command)
+
+    review_end_parser = subparsers.add_parser("review-end", help="End an active Review session as the agent.")
+    review_end_parser.add_argument("source", help="Canonical source path used to open the review.")
+    review_end_parser.add_argument("--state-dir", help="Private Review state root.")
+    review_end_parser.add_argument("--json", action="store_true", help="Print machine-readable JSON.")
+    review_end_parser.set_defaults(func=_review_end_command)
+
+    review_status_parser = subparsers.add_parser("review-status", help="Inspect active or durable local Review status.")
+    review_status_parser.add_argument("source", nargs="?", help="Optional canonical source path.")
+    review_status_parser.add_argument("--state-dir", help="Private Review state root.")
+    review_status_parser.add_argument("--json", action="store_true", help="Print machine-readable JSON.")
+    review_status_parser.set_defaults(func=_review_status_command)
+
     mcp_parser = subparsers.add_parser("mcp", help="Start the optional ViewSpec stdio MCP server.")
     mcp_parser.add_argument("--cwd", default=".", help="MCP path sandbox root.")
     mcp_parser.add_argument("--allow-outside-cwd", action="store_true", help="Allow MCP tools to read/write outside --cwd.")
     mcp_parser.set_defaults(func=_mcp_command)
 
     return parser
+
+
+def _review_command(args: argparse.Namespace) -> int:
+    payload = open_review(
+        args.source,
+        design=args.design,
+        target=args.target,
+        port=args.port,
+        state_root=args.state_dir,
+        reopen=args.reopen,
+        no_open=args.no_open,
+        verify=args.verify,
+        install=args.install,
+    )
+    if args.json:
+        print(json.dumps(payload, indent=2, sort_keys=True))
+    else:
+        review = payload["review"]
+        print(f"ready: {review['url']}")
+        print(f"source_kind={review['source_kind']} target={review['target']} revision={review['revision']}")
+        print(payload["next_actions"][-1])
+    return 0
+
+
+def _review_poll_command(args: argparse.Namespace) -> int:
+    payload = poll_review(
+        args.source,
+        ack=args.ack,
+        agent_reply=args.agent_reply,
+        timeout_ms=args.timeout_ms,
+        state_root=args.state_dir,
+    )
+    if args.json:
+        print(json.dumps(payload, indent=2, sort_keys=True))
+    else:
+        print(f"status: {payload.get('status')}")
+        batch = payload.get("batch")
+        if isinstance(batch, dict):
+            print(f"batch: {batch.get('batch_id')} events={len(batch.get('events', []))}")
+    return 0
+
+
+def _review_end_command(args: argparse.Namespace) -> int:
+    payload = end_review(args.source, state_root=args.state_dir)
+    if args.json:
+        print(json.dumps(payload, indent=2, sort_keys=True))
+    else:
+        print("ended_by: agent")
+    return 0
+
+
+def _review_status_command(args: argparse.Namespace) -> int:
+    payload = review_status(args.source, state_root=args.state_dir)
+    if args.json:
+        print(json.dumps(payload, indent=2, sort_keys=True))
+    else:
+        if "review" in payload:
+            review = payload["review"]
+            print(f"status={review['status']} revision={review['revision']} queued={review['queued_events']}")
+        else:
+            print(f"reviews: {len(payload.get('reviews', []))}")
+    return 0
 
 
 def _compile_command(args: argparse.Namespace) -> int:
@@ -682,6 +787,10 @@ def _doctor_command(args: argparse.Namespace) -> int:
             "compile": True,
             "check": True,
             "prove": True,
+            "review": True,
+            "review_poll": True,
+            "review_end": True,
+            "review_status": True,
             "check_agent_assets": True,
             "init_design": True,
             "export_agent_assets": True,
