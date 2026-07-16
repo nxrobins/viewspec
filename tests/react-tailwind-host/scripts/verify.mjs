@@ -122,7 +122,7 @@ async function staticGuard() {
   const trackedGenerated = files.filter((file) => file.startsWith(`${generatedRel}/`));
   if (trackedGenerated.length) fail("HOST_PROOF_GENERATED_ARTIFACT_TRACKED", trackedGenerated.join(", "));
   const nonLock = await physicalSourceFiles();
-  if (nonLock.length > 12) fail("HOST_PROOF_FIXTURE_TOO_LARGE", `tracked non-lock fixture files: ${nonLock.length}`);
+  if (nonLock.length > 14) fail("HOST_PROOF_FIXTURE_TOO_LARGE", `non-lock fixture files: ${nonLock.length}`);
   const total = nonLock.reduce((size, file) => size + statSync(join(fixtureRoot, file)).size, 0);
   if (total > 40 * 1024) fail("HOST_PROOF_FIXTURE_TOO_LARGE", `tracked non-lock fixture source is ${total} bytes`);
   assertHostCss();

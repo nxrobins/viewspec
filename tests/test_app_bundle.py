@@ -4,6 +4,7 @@ import json
 from copy import deepcopy
 
 import pytest
+from hypothesis import given, settings, strategies as st
 
 import viewspec.app_bundle as app_bundle_module
 from viewspec.app_bundle import (
@@ -719,6 +720,38 @@ def test_reducer_type_mismatch_fails_atomically_like_reference():
     assert result["ok"] is False
     assert result["errors"][0]["code"] == "APP_STATE_REDUCER_OP_FAILED"
     assert current == {"rec": {"a": 1}}  # op 1's set was rolled back
+
+
+@settings(max_examples=24, deadline=None)
+@given(
+    original=st.dictionaries(
+        st.text(alphabet="abcdefghijklmnopqrstuvwxyz", min_size=1, max_size=8),
+        st.integers(min_value=-100, max_value=100),
+        max_size=6,
+    ),
+    replacement=st.lists(st.integers(min_value=-10, max_value=10), max_size=6),
+    invalid_op=st.sampled_from(("patch", "increment")),
+)
+def test_reducer_property_conformance_and_failure_atomicity(original, replacement, invalid_op):
+    second = (
+        {"op": "patch", "state": "rec", "value": {"x": 1}}
+        if invalid_op == "patch"
+        else {"op": "increment", "state": "rec", "field": "n", "amount": 1}
+    )
+    app = _reducer_scenario_app(
+        _rec_state(original),
+        [{"op": "set", "state": "rec", "value": replacement}, second],
+    )
+
+    assert check_reducer_conformance(app)["ok"] is True
+    state_ir, issues = validate_state_ir(app)
+    assert issues == []
+    current = initial_state(app, state_ir)
+    before = deepcopy(current)
+    result = apply_event(current, state_ir, {"mutation_id": "m", "payload_values": {"inc_1043_id": "x"}})
+
+    assert result["ok"] is False
+    assert current == before
 
 
 def test_filter_eq_distinguishes_bool_from_number_like_reducer():

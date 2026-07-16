@@ -17,7 +17,13 @@ async function loadConfig(windowConfig = {}) {
   return import(pathToFileURL(modulePath).href)
 }
 
-const { LANDING_CONFIG, hasLiveApiConfig } = await loadConfig()
+const {
+  LANDING_CONFIG,
+  compileRequestHeaders,
+  hasLiveApiConfig,
+  hasPublicApiKey,
+  redactedCompileRequestHeaders,
+} = await loadConfig()
 
 assert.equal(LANDING_CONFIG.apiUrl, 'https://api.viewspec.dev/v1/compile')
 assert(LANDING_CONFIG.apiUrls.includes('https://api.viewspec.dev/v1/compile'))
@@ -34,6 +40,24 @@ assert.equal(LANDING_CONFIG.scaleStripeUrl, undefined)
 assert.equal(LANDING_CONFIG.signupUrl, undefined)
 assert.equal(new Set(LANDING_CONFIG.apiUrls).size, LANDING_CONFIG.apiUrls.length)
 assert.equal(hasLiveApiConfig(), true)
+assert.equal(hasPublicApiKey(), false)
+assert.deepEqual(compileRequestHeaders(), { 'Content-Type': 'application/json' })
+assert.deepEqual(redactedCompileRequestHeaders(), { 'Content-Type': 'application/json' })
+
+const authenticated = await loadConfig({ publicApiKey: 'vsk_public_browser_key' })
+assert.equal(authenticated.hasPublicApiKey(), true)
+assert.deepEqual(authenticated.compileRequestHeaders(), {
+  'Content-Type': 'application/json',
+  Authorization: 'Bearer vsk_public_browser_key',
+})
+assert.deepEqual(authenticated.redactedCompileRequestHeaders(), {
+  'Content-Type': 'application/json',
+  Authorization: 'Bearer ***REDACTED***',
+})
+
+const placeholderKey = await loadConfig({ publicApiKey: 'REPLACE_WITH_PUBLIC_KEY' })
+assert.equal(placeholderKey.hasPublicApiKey(), false)
+assert.equal(Object.hasOwn(placeholderKey.compileRequestHeaders(), 'Authorization'), false)
 
 const customCommerce = await loadConfig({ enterpriseUrl: 'https://enterprise.test/contact' })
 assert.equal(customCommerce.LANDING_CONFIG.enterpriseUrl, 'https://enterprise.test/contact')

@@ -2,7 +2,7 @@
   "version": 1,
   "manifest_schema_version": 1,
   "kind": "intent_bundle_compile",
-  "sdk_version": "0.3.0b3",
+  "sdk_version": "0.3.0b4",
   "source_name": "intent_bundle.json",
   "raw_source_hash": "81a2f44fb3bc0063f1489f88fd3f90c7cbf84b7d968b177f8c8c0ecc383fd701",
   "source_hash": "81a2f44fb3bc0063f1489f88fd3f90c7cbf84b7d968b177f8c8c0ecc383fd701",

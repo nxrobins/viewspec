@@ -8,6 +8,7 @@ from io import StringIO
 from pathlib import Path
 
 import pytest
+from hypothesis import given, strategies as st
 
 from viewspec import __version__, DesignSystemError, ViewSpecBuilder, compile, load_design_system
 from viewspec.cli import main as cli_main
@@ -138,6 +139,29 @@ colors:
     findings = exc_info.value.report.findings
     assert findings[0].code == "DESIGN_YAML_ERROR"
     assert "duplicate key" in findings[0].message
+
+
+@given(
+    key=st.text(alphabet="abcdefghijklmnopqrstuvwxyz_", min_size=1, max_size=24),
+    first=st.integers(min_value=0, max_value=0xFFFFFF),
+    second=st.integers(min_value=0, max_value=0xFFFFFF),
+)
+def test_design_yaml_duplicate_keys_fail_closed_for_arbitrary_nested_tokens(key: str, first: int, second: int):
+    duplicate = (
+        "---\n"
+        "name: Duplicate property probe\n"
+        "colors:\n"
+        f'  {key}: "#{first:06X}"\n'
+        f'  {key}: "#{second:06X}"\n'
+        "---\n"
+    )
+
+    with pytest.raises(DesignSystemError) as exc_info:
+        load_design_system(content=duplicate)
+
+    assert exc_info.value.report is not None
+    assert exc_info.value.report.findings[0].code == "DESIGN_YAML_ERROR"
+    assert "duplicate key" in exc_info.value.report.findings[0].message
 
 
 def test_cli_compile_lift_and_diff_stay_local(tmp_path, capsys):

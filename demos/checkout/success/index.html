@@ -227,9 +227,49 @@
       }
     }
 
+    function legacyCopy(text) {
+      const input = document.createElement('textarea')
+      input.value = text
+      input.setAttribute('readonly', '')
+      input.style.cssText = 'position:fixed;opacity:0;pointer-events:none;left:-9999px'
+      document.body.appendChild(input)
+      input.select()
+      input.setSelectionRange(0, input.value.length)
+      let copied = false
+      try {
+        copied = document.execCommand('copy')
+      } finally {
+        input.remove()
+      }
+      if (!copied) throw new Error('Browser rejected the copy command')
+    }
+
+    async function copyText(text) {
+      if (navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
+        try {
+          await navigator.clipboard.writeText(text)
+          return
+        } catch (error) {
+          legacyCopy(text)
+          return
+        }
+      }
+      legacyCopy(text)
+    }
+
     copyKey.addEventListener('click', async () => {
-      await navigator.clipboard.writeText(apiKey.textContent || '')
-      copyKey.textContent = 'Copied'
+      copyKey.disabled = true
+      copyKey.dataset.copyState = 'pending'
+      try {
+        await copyText(apiKey.textContent || '')
+        copyKey.textContent = 'Copied'
+        copyKey.dataset.copyState = 'success'
+      } catch (error) {
+        copyKey.textContent = 'Copy failed'
+        copyKey.dataset.copyState = 'error'
+      } finally {
+        copyKey.disabled = false
+      }
     })
 
     claimKey()

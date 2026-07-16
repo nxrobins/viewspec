@@ -4,6 +4,7 @@ import json
 import re
 
 import pytest
+from hypothesis import given, strategies as st
 
 from viewspec import (
     ASTBundle,
@@ -15,7 +16,7 @@ from viewspec import (
     ViewSpecBuilder,
     compile,
 )
-from viewspec.emitters.html_tailwind import HtmlTailwindEmitter, OFFLINE_EMITTER_CSS
+from viewspec.emitters.html_tailwind import HtmlTailwindEmitter, OFFLINE_EMITTER_CSS, _validate_style_values
 from viewspec.emitters.base import EmitterNodeContext, EmitterNodePlugin, EmitterNodeRegistry, RenderedNode
 from viewspec.emitters.react_tailwind_tsx import (
     RECIPE_BY_KEY,
@@ -395,6 +396,17 @@ def test_emitters_reject_autofetching_style_values_before_writing(tmp_path, emit
         emitter_cls().emit(ast, output)
 
     assert not output.exists()
+
+
+@given(
+    function=st.sampled_from(("url", "URL", "u\\72l", "\\75rl", "ur\\6c", "u/**/rl")),
+    whitespace=st.text(alphabet=" \t\n\r\f", min_size=0, max_size=8),
+)
+def test_style_guard_rejects_generated_css_escape_and_comment_autofetch_variants(function, whitespace):
+    value = f"background-image: {function}{whitespace}(https://evil.example/pixel.png);"
+
+    with pytest.raises(ValueError, match="auto-fetching CSS surface"):
+        _validate_style_values({"brand.remote": value})
 
 
 def test_react_tsx_emitter_writes_component_manifest_and_action_contract(tmp_path):

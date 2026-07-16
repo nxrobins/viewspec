@@ -7,6 +7,7 @@ import socket
 from pathlib import Path
 
 import pytest
+from hypothesis import given, strategies as st
 
 from viewspec import ViewSpecBuilder, compile, compile_html, diff_html, lift_html, load_design_system
 from viewspec.cli import main as cli_main
@@ -268,6 +269,24 @@ def test_check_autofetch_guard_catches_control_whitespace_scheme():
         assert _contains_remote_http_reference(beacon) is True, repr(beacon)
     for benign in ("/assets/logo.png", "#anchor", "data:image/png;base64,AAAA"):
         assert _contains_remote_http_reference(benign) is False, repr(benign)
+
+
+@given(
+    scheme=st.sampled_from(("", "http:", "https:", "HTTPs:")),
+    first_separator=st.sampled_from(("/", "\\", "%5c", "%5C")),
+    second_separator=st.sampled_from(("/", "\\", "%5c", "%5C")),
+    controls=st.text(alphabet="\x00\t\n\r\x1f\x20\x7f", min_size=0, max_size=6),
+)
+def test_url_policy_rejects_every_browser_equivalent_obfuscated_authority(
+    scheme: str,
+    first_separator: str,
+    second_separator: str,
+    controls: str,
+):
+    from viewspec.local_tools import _contains_remote_http_reference
+
+    candidate = f"{scheme}{first_separator}{controls}{second_separator}evil.example/beacon"
+    assert _contains_remote_http_reference(candidate) is True, repr(candidate)
 
 
 def test_check_certifies_no_beacon_but_rejects_tampered_control_whitespace_artifact(tmp_path):

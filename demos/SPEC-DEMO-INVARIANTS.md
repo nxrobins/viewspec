@@ -44,12 +44,12 @@ Write a Python script (`demos/build_invariants.py`) that:
 <section class="invariant">
   <h2>Exactly-Once Provenance</h2>
   <p>Every data binding is routed exactly once. Nothing dropped. Nothing duplicated.</p>
-  
+
   <div class="toggle-group">
     <button data-state="valid" class="active">✓ Valid</button>
     <button data-state="violation">✗ Violation</button>
   </div>
-  
+
   <div class="demo-container">
     <div class="state-valid active">
       <!-- valid rendered HTML with green border -->

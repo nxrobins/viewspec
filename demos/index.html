@@ -2353,7 +2353,7 @@ window.__VIEWSPEC__ = JSON.parse(document.getElementById("viewspec-real-data").t
   };
   var METRICS=[
     {ml:"Compiles / day", mv:"12,480", seed:0.2},
-    {ml:"P50 compile",    mv:"38ms",   seed:1.1},
+    {ml:"runtime LLM",    mv:"none",   seed:1.1},
     {ml:"Proof pass rate",mv:"100%",   seed:2.0},
     {ml:"Surfaces",       mv:"4",      seed:0.7}
   ];
@@ -2523,8 +2523,31 @@ window.__VIEWSPEC__ = JSON.parse(document.getElementById("viewspec-real-data").t
     document.getElementById("netCount").textContent=n; }catch(e){} }
 
   /* ---------- copy ---------- */
-  document.getElementById("copyCmd").addEventListener("click",function(){ var b=this;
-    if(navigator.clipboard) navigator.clipboard.writeText("pip install viewspec").then(function(){ b.textContent="copied"; setTimeout(function(){ b.textContent="copy"; },1400); }); });
+  function legacyCopy(text){
+    var input=document.createElement("textarea");
+    input.value=text; input.setAttribute("readonly","");
+    input.style.cssText="position:fixed;opacity:0;pointer-events:none;left:-9999px";
+    document.body.appendChild(input); input.select(); input.setSelectionRange(0,input.value.length);
+    var copied=false; try{ copied=document.execCommand("copy"); }finally{ input.remove(); }
+    if(!copied) throw new Error("Browser rejected the copy command");
+  }
+  function copyText(text){
+    if(navigator.clipboard&&typeof navigator.clipboard.writeText==="function"){
+      return navigator.clipboard.writeText(text).catch(function(){ legacyCopy(text); });
+    }
+    try{ legacyCopy(text); return Promise.resolve(); }catch(error){ return Promise.reject(error); }
+  }
+  document.querySelectorAll("[data-copy-text]").forEach(function(button){
+    var original=button.textContent;
+    button.addEventListener("click",function(){
+      button.disabled=true; button.setAttribute("data-copy-state","pending");
+      copyText(button.getAttribute("data-copy-text")||"").then(function(){
+        button.textContent="copied"; button.setAttribute("data-copy-state","success");
+      }).catch(function(){
+        button.textContent="copy failed"; button.setAttribute("data-copy-state","error");
+      }).then(function(){ setTimeout(function(){ button.textContent=original; button.disabled=false; button.removeAttribute("data-copy-state"); },1400); });
+    });
+  });
 
   /* ---------- scroll reveal ---------- */
   if("IntersectionObserver" in window && !reduce){

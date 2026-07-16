@@ -13,5 +13,7 @@ assert(!page.includes('localStorage'))
 assert(!page.includes('sessionStorage'))
 assert(!page.includes('console.log'))
 assert(!page.includes('innerHTML'))
+assert(page.includes("document.execCommand('copy')"))
+assert(page.includes("copyKey.dataset.copyState = 'error'"))
 
 console.log('Validated one-time checkout key claim page.')

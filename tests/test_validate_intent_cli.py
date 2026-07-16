@@ -5,6 +5,7 @@ import subprocess
 import sys
 
 import pytest
+from hypothesis import given, strategies as st
 
 from viewspec import (
     STARTER_INTENT_KINDS,
@@ -18,6 +19,7 @@ from viewspec import (
     validate_intent_text,
 )
 from viewspec.cli import main as cli_main
+from viewspec.agent import _strict_json_loads
 
 
 def _valid_bundle_json() -> dict:
@@ -123,6 +125,18 @@ def test_validate_intent_rejects_non_strict_json(tmp_path, capsys, text, expecte
     assert expected_message in payload["issues"][0]["message"]
     assert payload["repair_checklist"]
     assert payload["correction_prompt"]
+
+
+@given(
+    key=st.text(alphabet="abcdefghijklmnopqrstuvwxyz_", min_size=1, max_size=30),
+    first=st.one_of(st.none(), st.booleans(), st.integers(), st.text(max_size=30)),
+    second=st.one_of(st.none(), st.booleans(), st.integers(), st.text(max_size=30)),
+)
+def test_strict_json_rejects_arbitrary_duplicate_keys_instead_of_last_wins(key, first, second):
+    text = "{" + json.dumps(key) + ":" + json.dumps(first) + "," + json.dumps(key) + ":" + json.dumps(second) + "}"
+
+    with pytest.raises(ValueError, match="duplicate object key"):
+        _strict_json_loads(text)
 
 
 def test_validate_intent_no_compile_check_returns_skipped(tmp_path, capsys):
