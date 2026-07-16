@@ -56,7 +56,7 @@ Write a Python script (`demos/build_fifteen_lines.py`) that:
     </div>
     <pre><code id="code-display"></code></pre>
   </div>
-  
+
   <div class="output-panel">
     <div class="panel-header">
       <span class="filename">Rendered Output</span>

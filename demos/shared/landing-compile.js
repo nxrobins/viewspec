@@ -90,6 +90,19 @@ function abortError() {
   return error
 }
 
+function validateCompileResponse(data) {
+  if (!data || typeof data !== 'object' || Array.isArray(data)) {
+    throw new Error('Compiler response payload must be an object.')
+  }
+  if (!data.ast || typeof data.ast !== 'object' || Array.isArray(data.ast)) {
+    throw new Error('Compiler response payload must contain an ast object.')
+  }
+  if (data.meta != null && (typeof data.meta !== 'object' || Array.isArray(data.meta))) {
+    throw new Error('Compiler response meta must be an object when present.')
+  }
+  return data
+}
+
 /**
  * Post a payload to /v1/compile with endpoint failover.
  *
@@ -133,7 +146,7 @@ export async function compileBundle(payload, options = {}) {
       })
 
       if (!response.ok) throw new Error(`HTTP ${response.status}`)
-      const data = await response.json()
+      const data = validateCompileResponse(await response.json())
       const roundTripMs = performance.now() - startedAt
       data.meta = {
         ...(data.meta || {}),

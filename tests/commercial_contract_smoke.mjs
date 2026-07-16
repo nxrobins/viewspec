@@ -28,6 +28,8 @@ for (const page of [source, built]) {
   assert(page.includes('Up to 5 custom motifs per compile'))
   assert(page.includes('HTML, React, SwiftUI, and Flutter artifacts'))
   assert(page.includes('Signed team usage receipts'))
+  assert.doesNotMatch(page, /P(?:50|95|99) compile[^\n]{0,40}\b\d+(?:\.\d+)?ms\b/i)
+  assert(page.includes('runtime LLM'))
 }
 
 console.log('Validated public pricing, checkout, and current hosted capabilities.')

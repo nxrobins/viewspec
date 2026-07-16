@@ -1,0 +1,431 @@
+{
+  "schema_version": 1,
+  "scope": "viewspec repository history through pull request 135",
+  "history_tip": "066b383dab10700fadf5422d80c149db25408b9a",
+  "fix_commits": {
+    "VSBUG-001": ["3ed35820ca4a2755f5a39e6b2cc9dea00f88ccd6"],
+    "VSBUG-002": ["c7a75aef2a199d81a9e723372df4ce4468c2cfcb"],
+    "VSBUG-003": ["b42775088e1870cf83505b664d2ce1e1052725c3"],
+    "VSBUG-004": ["22ecefc5cdcd81de2b86f2730ed49a1bb151088c"],
+    "VSBUG-005": ["cae33c6b88d957ceaf7588be98dd18cc35ba9cbd"],
+    "VSBUG-006": ["a164415bc6d09b4ada9c96e85289f8182a2c7215"],
+    "VSBUG-007": ["8f3a2aa622eaf9132d98b8364f6c0e1c972c7761"],
+    "VSBUG-008": ["56b20e4f2b30b521295bbf63315fe82cc8e91c4a"],
+    "VSBUG-009": ["dc32ce1ae0a5f5684d2662d046f67d6df968ebd4"],
+    "VSBUG-010": ["196dc9f651dc50613779934c815a0e01254b3451"],
+    "VSBUG-011": ["a89ca5593b91a003545a69e1bed6236af3cdff08"],
+    "VSBUG-012": ["b7d5b966e505918166088c499ebe94f1505d86fe"],
+    "VSBUG-013": ["35b3ab103daf8b4468bed6a61c53c84a02bee705"],
+    "VSBUG-014": [
+      "a895048eec39b358aae493f8bc3d3098acaedef7",
+      "110479d1e07c653dd48229952d3d99a44f0cc557",
+      "a58a22a9bd62d9b134880d8e366e1850dd9321c1"
+    ],
+    "VSBUG-015": ["bca82b100265e3b26b269b670029fab58ec807de"],
+    "VSBUG-016": ["d8d0d3bd43aac995337468355dcbf729e5e68d53"],
+    "VSBUG-017": ["acc88211f7ec11127d925ea91709a039d3c1f73c"],
+    "VSBUG-018": ["eca24afc86c1e442b35981d64325a75b1cc765db"],
+    "VSBUG-019": ["bac52cf345e5382151fed705c206c75cef3e8108"],
+    "VSBUG-020": ["b7cbc7aadb24aa047795a69e734d2f1295dadafe"],
+    "VSBUG-021": [
+      "76822c4fa86951b8829d9fe34807b35f352af4c9",
+      "cec9c143a1331ba6e28136cc8541c89abfbde625"
+    ],
+    "VSBUG-022": ["c6371226fc44c9c6b144a1843bd03fa7b8d198d3"],
+    "VSBUG-023": ["76734ec20d0d768f706e4e55ef25e821c0b7501c"],
+    "VSBUG-024": ["88ee8ad9ebb85c442df56a18f461c3d1c8efd7e0"],
+    "VSBUG-025": [
+      "1286c862c6de56cc7db12c11b2cd718973dcdb0c",
+      "70dbf4cc25963bc934dd245adc138c4446921c00",
+      "9f80d713bb8dab1268d20d45792ede5b81a67b31"
+    ],
+    "VSBUG-026": ["20d0d30ca1a35ce9655296a3e031c6d7413d0088"],
+    "VSBUG-027": [
+      "32fd68fb2d7f1413501133e112f0edd2a11351c5",
+      "03626e3764726342a6f1d4fd029937de212e0ca8"
+    ],
+    "VSBUG-028": ["7f5a9140cd9c95cd0a8730ac14d44a3fbc84cb9d"],
+    "VSBUG-029": ["c15b146baa3abeeaddf620e553877eae38ef1c42"],
+    "VSBUG-030": [
+      "20d0d30ca1a35ce9655296a3e031c6d7413d0088",
+      "1356819ab73e10cf0ea716f4a0e65111be4235d9",
+      "39df5f08a5d7acbeb1216d8f1cc83ee7e489b048",
+      "18eadf1f2461523e9946c27509f5d09f44124349"
+    ],
+    "VSBUG-031": ["18eadf1f2461523e9946c27509f5d09f44124349"],
+    "VSBUG-032": [
+      "d8f8e9dc733012c7cf79ed64e627da90bf1ba0ca",
+      "ff6afdf736051cbb071f4b0559008b29e6b24a83"
+    ],
+    "VSBUG-033": ["bb7a20b41a674144603d5fe33826efe64167d141"],
+    "VSBUG-034": ["59417d24a67ccdaa5884a693bc6251ab4fac4e36"],
+    "VSBUG-035": [
+      "dbd8ba457ed8f2a6c0f00209f2c86d14803a26be",
+      "540fa4df5729da2a5af22a132b31a2fd2fa4e49e"
+    ],
+    "VSBUG-036": [
+      "4310a61e514f51181b1e9a4da210029098803cb6",
+      "21c8f0ce9a84c5fc198d32a4b3c9f4be7f45e076"
+    ],
+    "VSBUG-037": ["7ed6bd7aa63fca01fb2a142d032064547900e276"],
+    "VSBUG-038": ["f0da7343bc9bb3eaa2154f32ede9c855787e68ab"],
+    "VSBUG-039": ["f0823c8ef1d11ec4cc260cf9f5925f17dfe39e97"],
+    "VSBUG-040": ["564ed932fc999d202bdf44839255983c79c0d8e2"]
+  },
+  "bugs": [
+    {
+      "id": "VSBUG-001",
+      "name": "Responsive and inspector overflow",
+      "invariant": "Every public page must remain within the document viewport at 390px and 1440px widths.",
+      "fixed_by": "https://github.com/nxrobins/viewspec/commit/3ed3582",
+      "guards": [{"kind": "browser", "path": "tests/react-tailwind-host/tests/site-regressions.spec.ts", "anchor": "public demos are runtime-clean and viewport-bounded"}]
+    },
+    {
+      "id": "VSBUG-002",
+      "name": "Malformed landing IntentBundle payload",
+      "invariant": "Every selectable landing payload combination must satisfy the canonical substrate, address, group, and motif shapes.",
+      "fixed_by": "https://github.com/nxrobins/viewspec/commit/c7a75ae",
+      "guards": [{"kind": "node", "path": "tests/landing_payload_smoke.mjs", "anchor": "Validated ${cartesian(HINT_OPTIONS).length} landing payload combinations."}]
+    },
+    {
+      "id": "VSBUG-003",
+      "name": "Playground authentication and boot failure",
+      "invariant": "The public landing must boot without browser runtime errors and its live API configuration must remain explicit and valid.",
+      "fixed_by": "https://github.com/nxrobins/viewspec/commit/b427750",
+      "guards": [
+        {"kind": "browser", "path": "tests/react-tailwind-host/tests/site-regressions.spec.ts", "anchor": "public demos are runtime-clean and viewport-bounded"},
+        {"kind": "node", "path": "tests/landing_config_smoke.mjs", "anchor": "assert.equal(Object.hasOwn(placeholderKey.compileRequestHeaders(), 'Authorization'), false)"}
+      ]
+    },
+    {
+      "id": "VSBUG-004",
+      "name": "Hosted response shape mismatch",
+      "invariant": "Browser surfaces must reject runtime shape failures and the SDK must normalize hosted responses through one contract.",
+      "fixed_by": "https://github.com/nxrobins/viewspec/commit/22ecefc",
+      "guards": [
+        {"kind": "browser", "path": "tests/react-tailwind-host/tests/site-regressions.spec.ts", "anchor": "public demos are runtime-clean and viewport-bounded"},
+        {"kind": "node", "path": "tests/landing_compile_smoke.mjs", "anchor": "Compiler response payload must be an object"},
+        {"kind": "pytest", "path": "tests/test_remote_client.py", "symbol": "test_compile_remote_response_normalizes_invalid_design_metadata"}
+      ]
+    },
+    {
+      "id": "VSBUG-005",
+      "name": "Hard-coded compile timing claims",
+      "invariant": "The site must render without stale timing-dependent failures and public commercial facts must come from checked source data.",
+      "fixed_by": "https://github.com/nxrobins/viewspec/commit/cae33c6",
+      "guards": [
+        {"kind": "browser", "path": "tests/react-tailwind-host/tests/site-regressions.spec.ts", "anchor": "public demos are runtime-clean and viewport-bounded"},
+        {"kind": "node", "path": "tests/commercial_contract_smoke.mjs", "anchor": "assert.doesNotMatch(page, /P(?:50|95|99) compile"},
+        {"kind": "node", "path": "tests/landing_compile_smoke.mjs", "anchor": "Number.isFinite(result.data.meta.round_trip_ms)"}
+      ]
+    },
+    {
+      "id": "VSBUG-006",
+      "name": "Endpoint, quota, and failover drift",
+      "invariant": "Endpoint candidates must be unique, bounded by pinned stagger and failure-TTL values, and remain browser-loadable.",
+      "fixed_by": "https://github.com/nxrobins/viewspec/commit/a164415",
+      "guards": [
+        {"kind": "browser", "path": "tests/react-tailwind-host/tests/site-regressions.spec.ts", "anchor": "public demos are runtime-clean and viewport-bounded"},
+        {"kind": "node", "path": "tests/landing_config_smoke.mjs", "anchor": "assert.equal(LANDING_CONFIG.endpointFailureTtlMs, 300000)"},
+        {"kind": "node", "path": "tests/landing_compile_smoke.mjs", "anchor": "assert.deepEqual(stored.failures, {})"}
+      ]
+    },
+    {
+      "id": "VSBUG-007",
+      "name": "Clipboard false-success and rejection",
+      "invariant": "Every public copy control must fall back after Clipboard API rejection and expose success or failure without an unhandled promise.",
+      "fixed_by": "https://github.com/nxrobins/viewspec/commit/8f3a2aa",
+      "guards": [
+        {"kind": "browser", "path": "tests/react-tailwind-host/tests/site-regressions.spec.ts", "anchor": "copy controls fall back when the Clipboard API rejects"},
+        {"kind": "browser", "path": "tests/react-tailwind-host/tests/site-regressions.spec.ts", "anchor": "checkout key copy falls back without leaking a runtime rejection"}
+      ]
+    },
+    {
+      "id": "VSBUG-008",
+      "name": "DESIGN.md duplicate-key and ingestion ambiguity",
+      "invariant": "DESIGN.md parsing must reject duplicate keys at every nesting level instead of accepting last-write-wins data.",
+      "fixed_by": "https://github.com/nxrobins/viewspec/pull/35",
+      "guards": [{"kind": "property", "path": "tests/test_local_design_cli.py", "symbol": "test_design_yaml_duplicate_keys_fail_closed_for_arbitrary_nested_tokens"}]
+    },
+    {
+      "id": "VSBUG-009",
+      "name": "Generated landing JavaScript syntax errors",
+      "invariant": "Every public demo must execute in Chromium without pageerror or console error events.",
+      "fixed_by": "https://github.com/nxrobins/viewspec/commit/dc32ce1",
+      "guards": [{"kind": "browser", "path": "tests/react-tailwind-host/tests/site-regressions.spec.ts", "anchor": "public demos are runtime-clean and viewport-bounded"}]
+    },
+    {
+      "id": "VSBUG-010",
+      "name": "Stale transitive browser module graph",
+      "invariant": "Every same-origin module requested by a public demo must return below HTTP 400 during a real browser load.",
+      "fixed_by": "https://github.com/nxrobins/viewspec/pull/6",
+      "guards": [{"kind": "browser", "path": "tests/react-tailwind-host/tests/site-regressions.spec.ts", "anchor": "public demos are runtime-clean and viewport-bounded"}]
+    },
+    {
+      "id": "VSBUG-011",
+      "name": "Proof demo sandbox, cropping, and static rendering",
+      "invariant": "Proof surfaces must load as visible main content at both bounded browser viewports without overflow or runtime failure.",
+      "fixed_by": "https://github.com/nxrobins/viewspec/pull/8",
+      "guards": [
+        {"kind": "browser", "path": "tests/react-tailwind-host/tests/site-regressions.spec.ts", "anchor": "proof bundle exposes complete bounded proof content"},
+        {"kind": "browser", "path": "tests/react-tailwind-host/tests/site-regressions.spec.ts", "anchor": "provenance inspector locks a verified semantic chain"}
+      ]
+    },
+    {
+      "id": "VSBUG-012",
+      "name": "Hover flicker and unstable interaction state",
+      "invariant": "Public demo interaction code must execute without runtime errors across desktop and mobile browser layouts.",
+      "fixed_by": "https://github.com/nxrobins/viewspec/commit/b7d5b96",
+      "guards": [{"kind": "browser", "path": "tests/react-tailwind-host/tests/site-regressions.spec.ts", "anchor": "provenance hover remains populated across sibling transitions"}]
+    },
+    {
+      "id": "VSBUG-013",
+      "name": "Invalid tab semantics",
+      "invariant": "Every role=tab must belong to a tablist, carry boolean aria-selected, and control an existing tabpanel.",
+      "fixed_by": "https://github.com/nxrobins/viewspec/commit/35b3ab1",
+      "guards": [{"kind": "browser", "path": "tests/react-tailwind-host/tests/site-regressions.spec.ts", "anchor": "invalid tab semantics"}]
+    },
+    {
+      "id": "VSBUG-014",
+      "name": "Stranded UI fixes and stale landing CI",
+      "invariant": "Committed public demos must stay runnable in the browser and generated demos must stay byte-equivalent to their builders.",
+      "fixed_by": "https://github.com/nxrobins/viewspec/commit/a895048",
+      "guards": [
+        {"kind": "browser", "path": "tests/react-tailwind-host/tests/site-regressions.spec.ts", "anchor": "public demos are runtime-clean and viewport-bounded"},
+        {"kind": "pytest", "path": "tests/test_demo_build_drift.py", "symbol": "test_generated_demo_matches_builder_output"}
+      ]
+    },
+    {
+      "id": "VSBUG-015",
+      "name": "Package and runtime version mismatch",
+      "invariant": "Project metadata, built archive metadata, filenames, and viewspec._version must carry one identical version.",
+      "fixed_by": "https://github.com/nxrobins/viewspec/commit/bca82b1",
+      "guards": [
+        {"kind": "pytest", "path": "tests/test_distribution_metadata.py", "symbol": "test_package_metadata_exposes_expected_cli_and_optional_extras"},
+        {"kind": "pytest", "path": "tests/test_distribution_artifacts.py", "symbol": "test_distribution_audit_rejects_version_drift"}
+      ]
+    },
+    {
+      "id": "VSBUG-016",
+      "name": "Compiler and remote-client raw failure leakage",
+      "invariant": "Remote failures must preserve bounded structured code, message, status, checklist, and correction metadata across generated responses.",
+      "fixed_by": "https://github.com/nxrobins/viewspec/pull/13",
+      "guards": [{"kind": "property", "path": "tests/test_remote_client.py", "symbol": "test_compile_remote_preserves_structured_agent_error_metadata"}]
+    },
+    {
+      "id": "VSBUG-017",
+      "name": "React runtime data crashes",
+      "invariant": "A generated React artifact must build, mount, render data, dispatch an action, and produce no browser runtime errors in a host app.",
+      "fixed_by": "https://github.com/nxrobins/viewspec/commit/acc8821",
+      "guards": [{"kind": "browser", "path": "tests/react-tailwind-host/tests/host-proof.spec.ts", "anchor": "generated React Tailwind artifact builds and behaves in a host app"}]
+    },
+    {
+      "id": "VSBUG-018",
+      "name": "React checker rejected actionless artifacts",
+      "invariant": "Every starter kind must compile and check successfully for both HTML and React, including artifacts with zero actions.",
+      "fixed_by": "https://github.com/nxrobins/viewspec/commit/eca24af",
+      "guards": [{"kind": "pytest", "path": "tests/test_validate_intent_cli.py", "symbol": "test_init_intent_writes_valid_starter_bundle"}]
+    },
+    {
+      "id": "VSBUG-019",
+      "name": "Missing DESIGN.md content accepted",
+      "invariant": "A design request without string content must fail before compilation or network access.",
+      "fixed_by": "https://github.com/nxrobins/viewspec/pull/25",
+      "guards": [{"kind": "pytest", "path": "tests/test_design_sdk.py", "symbol": "test_design_request_rejects_non_string_content"}]
+    },
+    {
+      "id": "VSBUG-020",
+      "name": "Source overwrite check occurred too late",
+      "invariant": "CLI compilation must reject input/output aliasing before reading DESIGN.md or writing any artifact.",
+      "fixed_by": "https://github.com/nxrobins/viewspec/pull/27",
+      "guards": [{"kind": "pytest", "path": "tests/test_local_design_cli.py", "symbol": "test_cli_refuses_json_input_overwrite_before_design_load"}]
+    },
+    {
+      "id": "VSBUG-021",
+      "name": "Artifact integrity checker blind spots",
+      "invariant": "Manifest identities, canonical references, DOM provenance, source hashes, and emitted node inventories must fail closed on drift.",
+      "fixed_by": "https://github.com/nxrobins/viewspec/pull/29",
+      "guards": [
+        {"kind": "pytest", "path": "tests/test_mcp_tools.py", "symbol": "test_check_rejects_invalid_intent_manifest_reference_values_even_when_dom_matches"},
+        {"kind": "pytest", "path": "tests/test_mcp_tools.py", "symbol": "test_check_rejects_missing_react_tsx_manifest_node_source"},
+        {"kind": "pytest", "path": "tests/test_local_design_cli.py", "symbol": "test_cli_check_uses_byte_exact_artifact_hash"},
+        {"kind": "pytest", "path": "tests/test_emitter_contract.py", "symbol": "test_emitter_rejects_duplicate_ir_ids_before_manifest_overwrite"}
+      ]
+    },
+    {
+      "id": "VSBUG-022",
+      "name": "Published schema and runtime validator drift",
+      "invariant": "The published JSON schemas and runtime validators must reject each other's invalid conformance corpus in both directions.",
+      "fixed_by": "https://github.com/nxrobins/viewspec/pull/96",
+      "guards": [
+        {"kind": "pytest", "path": "tests/test_schema_validator_conformance.py", "symbol": "test_schema_invalid_intent_is_also_validator_invalid"},
+        {"kind": "pytest", "path": "tests/test_schema_validator_conformance.py", "symbol": "test_validator_invalid_intent_is_also_schema_invalid"}
+      ]
+    },
+    {
+      "id": "VSBUG-023",
+      "name": "Non-strict JSON ingestion",
+      "invariant": "Intent JSON must reject duplicate keys for arbitrary key names and values instead of silently applying last-write-wins.",
+      "fixed_by": "https://github.com/nxrobins/viewspec/pull/33",
+      "guards": [{"kind": "property", "path": "tests/test_validate_intent_cli.py", "symbol": "test_strict_json_rejects_arbitrary_duplicate_keys_instead_of_last_wins"}]
+    },
+    {
+      "id": "VSBUG-024",
+      "name": "Unsafe CSS and autofetch values",
+      "invariant": "Emitter style values capable of fetching, escaping, or injecting active content must be rejected before any artifact write.",
+      "fixed_by": "https://github.com/nxrobins/viewspec/pull/34",
+      "guards": [
+        {"kind": "pytest", "path": "tests/test_emitter_contract.py", "symbol": "test_emitters_reject_autofetching_style_values_before_writing"},
+        {"kind": "property", "path": "tests/test_emitter_contract.py", "symbol": "test_style_guard_rejects_generated_css_escape_and_comment_autofetch_variants"}
+      ]
+    },
+    {
+      "id": "VSBUG-025",
+      "name": "URL and beacon policy bypasses",
+      "invariant": "Every browser-equivalent HTTP authority using slash, backslash, percent-backslash, or control whitespace must be classified as remote.",
+      "fixed_by": "https://github.com/nxrobins/viewspec/pull/99",
+      "guards": [
+        {"kind": "property", "path": "tests/test_raw_html.py", "symbol": "test_url_policy_rejects_every_browser_equivalent_obfuscated_authority"},
+        {"kind": "pytest", "path": "tests/test_raw_html.py", "symbol": "test_check_certifies_no_beacon_but_rejects_tampered_control_whitespace_artifact"}
+      ]
+    },
+    {
+      "id": "VSBUG-026",
+      "name": "Exactly-once provenance duplication",
+      "invariant": "Every generated built-in motif must route each content address exactly once and emit globally unique IR identifiers.",
+      "fixed_by": "https://github.com/nxrobins/viewspec/pull/86",
+      "guards": [{"kind": "property", "path": "tests/test_reliability.py", "symbol": "test_exactly_once_provenance_holds_for_generated_builtin_motifs"}]
+    },
+    {
+      "id": "VSBUG-027",
+      "name": "Silent content loss in motif planning",
+      "invariant": "A declared member that cannot enter its motif wrapper must remain rendered as a leftover with a diagnostic, never disappear.",
+      "fixed_by": "https://github.com/nxrobins/viewspec/pull/101",
+      "guards": [
+        {"kind": "pytest", "path": "tests/test_reliability.py", "symbol": "test_outline_unreachable_member_renders_as_leftover_not_silently_dropped"},
+        {"kind": "pytest", "path": "tests/test_compiler.py", "symbol": "test_failed_state_motif_renders_members_as_leftovers_not_silently_dropped"}
+      ]
+    },
+    {
+      "id": "VSBUG-028",
+      "name": "Protobuf map-dependent outline ordering",
+      "invariant": "Outline output order must remain canonical under every insertion permutation of protobuf map-backed slots.",
+      "fixed_by": "https://github.com/nxrobins/viewspec/pull/86",
+      "guards": [{"kind": "property", "path": "tests/test_reliability.py", "symbol": "test_outline_order_is_canonical_for_every_map_insertion_order"}]
+    },
+    {
+      "id": "VSBUG-029",
+      "name": "Unbounded recursive input",
+      "invariant": "Region and outline nesting beyond the declared depth bound must return diagnostics instead of raising RecursionError.",
+      "fixed_by": "https://github.com/nxrobins/viewspec/pull/87",
+      "guards": [
+        {"kind": "pytest", "path": "tests/test_reliability.py", "symbol": "test_region_nesting_depth_is_bounded_not_recursion_error"},
+        {"kind": "pytest", "path": "tests/test_reliability.py", "symbol": "test_outline_semantic_depth_is_diagnostic_not_recursion_error"}
+      ]
+    },
+    {
+      "id": "VSBUG-030",
+      "name": "Python and generated reducer divergence",
+      "invariant": "Generated operations over bounded arbitrary records must return the same state or the same failure class as the Python interpreter.",
+      "fixed_by": "https://github.com/nxrobins/viewspec/pull/100",
+      "guards": [
+        {"kind": "property", "path": "tests/test_app_bundle.py", "symbol": "test_reducer_property_conformance_and_failure_atomicity"},
+        {"kind": "pytest", "path": "tests/test_app_bundle.py", "symbol": "test_state_reducer_conformance_executes_generated_es_module_for_all_v0_ops"}
+      ]
+    },
+    {
+      "id": "VSBUG-031",
+      "name": "Reducer partial mutation on failure",
+      "invariant": "A reducer operation list that fails after a valid first operation must return no partial state in either runtime.",
+      "fixed_by": "https://github.com/nxrobins/viewspec/pull/100",
+      "guards": [{"kind": "property", "path": "tests/test_app_bundle.py", "symbol": "test_reducer_property_conformance_and_failure_atomicity"}]
+    },
+    {
+      "id": "VSBUG-032",
+      "name": "State validation, topology, and action-id corruption",
+      "invariant": "State selectors, topology comparison, and emitted action identifiers must be validated structurally and remain order independent.",
+      "fixed_by": "https://github.com/nxrobins/viewspec/pull/86",
+      "guards": [
+        {"kind": "pytest", "path": "tests/test_app_bundle.py", "symbol": "test_selector_slice_bounds_must_be_non_negative_integers"},
+        {"kind": "pytest", "path": "tests/test_app_bundle.py", "symbol": "test_app_topology_similarity_is_order_independent"},
+        {"kind": "pytest", "path": "tests/test_emitter_contract.py", "symbol": "test_react_tailwind_action_id_not_corrupted_by_source_rewrite"}
+      ]
+    },
+    {
+      "id": "VSBUG-033",
+      "name": "CLI user errors misclassified as internal failures",
+      "invariant": "Missing or unreadable user inputs must return public exit code 2 and structured user-error output.",
+      "fixed_by": "https://github.com/nxrobins/viewspec/pull/97",
+      "guards": [
+        {"kind": "pytest", "path": "tests/test_app_bundle.py", "symbol": "test_prove_app_missing_input_is_user_error_not_internal"},
+        {"kind": "pytest", "path": "tests/test_prove.py", "symbol": "test_prove_missing_intent_input_is_user_error_not_internal"}
+      ]
+    },
+    {
+      "id": "VSBUG-034",
+      "name": "Missing Node.js misdiagnosed",
+      "invariant": "Node absence must produce its exact actionable code and doctor result rather than masquerading as reducer nonconformance.",
+      "fixed_by": "https://github.com/nxrobins/viewspec/pull/102",
+      "guards": [{"kind": "pytest", "path": "tests/test_app_bundle.py", "symbol": "test_missing_node_yields_actionable_node_unavailable_code"}]
+    },
+    {
+      "id": "VSBUG-035",
+      "name": "Insufficient generated color contrast",
+      "invariant": "Every supported aesthetic profile and base recipe must meet the scoped WCAG AA contrast floor and fail closed when colors are unknown.",
+      "fixed_by": "https://github.com/nxrobins/viewspec/pull/119",
+      "guards": [
+        {"kind": "pytest", "path": "tests/test_a11y.py", "symbol": "test_every_profile_clears_scoped_aa"},
+        {"kind": "pytest", "path": "tests/test_a11y_react.py", "symbol": "test_every_profile_clears_scoped_aa"}
+      ]
+    },
+    {
+      "id": "VSBUG-036",
+      "name": "Accessibility name checks were vacuous",
+      "invariant": "Interactive controls must receive a real accessible name through explicit or unambiguous structural association, and unknown cases fail closed.",
+      "fixed_by": "https://github.com/nxrobins/viewspec/pull/124",
+      "guards": [
+        {"kind": "pytest", "path": "tests/test_a11y.py", "symbol": "test_unlabeled_input_is_genuinely_unnamed"},
+        {"kind": "pytest", "path": "tests/test_a11y.py", "symbol": "test_labelled_inputs_render_and_count_as_named"},
+        {"kind": "browser", "path": "tests/react-tailwind-host/tests/site-regressions.spec.ts", "anchor": "has unnamed controls"}
+      ]
+    },
+    {
+      "id": "VSBUG-037",
+      "name": "Source distribution repository bloat",
+      "invariant": "A release must contain exactly one wheel and one sdist, each below 4 MiB compressed and free of repository, cache, dependency, and traversal paths.",
+      "fixed_by": "https://github.com/nxrobins/viewspec/pull/110",
+      "guards": [
+        {"kind": "pytest", "path": "tests/test_distribution_artifacts.py", "symbol": "test_distribution_audit_rejects_traversal_and_repository_bloat"},
+        {"kind": "property", "path": "tests/test_distribution_artifacts.py", "symbol": "test_distribution_member_policy_rejects_generated_forbidden_components"}
+      ]
+    },
+    {
+      "id": "VSBUG-038",
+      "name": "Broken pricing, provenance, and conversion paths",
+      "invariant": "Commercial facts must stay synchronized and the public pricing and provenance surfaces must remain browser-usable at desktop and mobile widths.",
+      "fixed_by": "https://github.com/nxrobins/viewspec/pull/128",
+      "guards": [
+        {"kind": "browser", "path": "tests/react-tailwind-host/tests/site-regressions.spec.ts", "anchor": "provenance inspector locks a verified semantic chain"},
+        {"kind": "browser", "path": "tests/react-tailwind-host/tests/site-regressions.spec.ts", "anchor": "pricing conversion links match the public commercial contract"},
+        {"kind": "node", "path": "tests/commercial_contract_smoke.mjs", "anchor": "Validated public pricing, checkout, and current hosted capabilities."}
+      ]
+    },
+    {
+      "id": "VSBUG-039",
+      "name": "Stacked PR delivery stranded generated UI",
+      "invariant": "All public demo outputs must match their current builders and remain reachable through the real-browser regression corpus.",
+      "fixed_by": "https://github.com/nxrobins/viewspec/pull/125",
+      "guards": [
+        {"kind": "browser", "path": "tests/react-tailwind-host/tests/site-regressions.spec.ts", "anchor": "public demos are runtime-clean and viewport-bounded"},
+        {"kind": "pytest", "path": "tests/test_demo_build_drift.py", "symbol": "test_generated_demo_matches_builder_output"}
+      ]
+    },
+    {
+      "id": "VSBUG-040",
+      "name": "Local and hosted canonical parser drift",
+      "invariant": "All public parsing surfaces must accept and reject schema_version according to the same JSON-integer semantics.",
+      "fixed_by": "https://github.com/nxrobins/viewspec/pull/134",
+      "guards": [{"kind": "property", "path": "tests/test_intent_contract_boundary.py", "symbol": "test_schema_version_acceptance_matches_json_integer_semantics"}]
+    }
+  ]
+}

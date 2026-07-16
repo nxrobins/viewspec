@@ -24,7 +24,7 @@ viewspec check dist/
 
 ## What ViewSpec Does
 
-The primary workflow is Intent-first compilation: semantic UI intent goes in, concrete renderer output plus a manifest comes out. 
+The primary workflow is Intent-first compilation: semantic UI intent goes in, concrete renderer output plus a manifest comes out.
 
 **Before ViewSpec:** Agents author DOM, CSS, and framework code directly. The model gets trapped in markup details instead of expressing structure, data, hierarchy, and interaction intent.
 
@@ -256,7 +256,7 @@ Pluggable renderers that turn CompositionIR into concrete output. The local SDK 
 ## Compilation
 
 ### Reference Compiler (free, offline)
-Handles the local V1 motifs and bounded collection action events locally. No API, no network, no LLM. Deterministic. 
+Handles the local V1 motifs and bounded collection action events locally. No API, no network, no LLM. Deterministic.
 
 ```python
 ast = compile(builder.build_bundle())

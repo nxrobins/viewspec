@@ -257,7 +257,14 @@ def _validate_style_values(style_values: dict[str, str]) -> None:
             raise ValueError(f"Style token '{token}' must use only letters, digits, underscore, dot, and dash.")
         if not isinstance(value, str):
             raise ValueError(f"Style token '{token}' value must be a CSS declaration string.")
-        if "<" in value or ">" in value or UNSAFE_STYLE_VALUE_RE.search(value):
+        if (
+            "<" in value
+            or ">" in value
+            or "\\" in value
+            or "/*" in value
+            or "*/" in value
+            or UNSAFE_STYLE_VALUE_RE.search(value)
+        ):
             raise ValueError(f"Style token '{token}' contains an active or auto-fetching CSS surface.")
 
 

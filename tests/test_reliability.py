@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import replace
 
 import pytest
+from hypothesis import given, strategies as st
 
 from viewspec import (
     CompilerInputError,
@@ -62,6 +63,46 @@ def test_valid_motifs_route_each_binding_exactly_once(motif_name):
     ids = _ir_ids(root)
     assert len(ids) == len(set(ids))
     assert all(node.provenance.intent_refs for node in _walk(root))
+
+
+@given(
+    motif_name=st.sampled_from(("table", "dashboard", "comparison", "outline")),
+    labels=st.lists(
+        st.text(alphabet="abcdefghijklmnopqrstuvwxyz", min_size=1, max_size=12),
+        min_size=1,
+        max_size=16,
+        unique=True,
+    ),
+)
+def test_exactly_once_provenance_holds_for_generated_builtin_motifs(motif_name: str, labels: list[str]):
+    builder = ViewSpecBuilder(f"generated_{motif_name}")
+    if motif_name == "table":
+        motif = builder.add_table("items", region="main", group_id="members")
+        add = motif.add_row
+    elif motif_name == "dashboard":
+        motif = builder.add_dashboard("items", region="main", group_id="members")
+        add = motif.add_card
+    elif motif_name == "comparison":
+        motif = builder.add_comparison("items", region="main", group_id="members")
+        add = motif.add_item
+    else:
+        motif = builder.add_outline("items", region="main", group_id="members")
+        add = motif.add_branch
+    for index, label in enumerate(labels):
+        if motif_name == "outline":
+            add(label=label, id=f"item_{index}")
+        else:
+            add(label=label, value=str(index), id=f"item_{index}")
+
+    bundle = builder.build_bundle()
+    ast = compile(bundle)
+    refs = _content_refs(ast.result.root.root)
+    expected = [binding.address for binding in bundle.view_spec.bindings]
+
+    assert not ast.result.diagnostics
+    assert sorted(refs) == sorted(expected)
+    assert len(refs) == len(set(refs))
+    assert len(_ir_ids(ast.result.root.root)) == len(set(_ir_ids(ast.result.root.root)))
 
 
 def test_ordered_group_preserves_declared_binding_order():
@@ -579,6 +620,39 @@ def test_outline_sibling_order_is_deterministic_across_proto_round_trip():
     assert _labels(in_memory.result.root.root) == ["Parent", "ChildA", "ChildZ"]
     # Identical after a protobuf map round trip.
     assert _labels(round_tripped.result.root.root) == _labels(in_memory.result.root.root)
+
+
+@given(slot_order=st.permutations(("alpha", "bravo", "charlie", "delta")))
+def test_outline_order_is_canonical_for_every_map_insertion_order(slot_order: list[str]):
+    builder = ViewSpecBuilder("generated_outline_order")
+    outline = builder.add_outline("tree", region="main", group_id="branches")
+    outline.add_branch(label="Parent", id="parent")
+    for label in ("alpha", "bravo", "charlie", "delta"):
+        outline.add_branch(label=label, id=label)
+    bundle = builder.build_bundle()
+    nodes = dict(bundle.substrate.nodes)
+    nodes[bundle.substrate.root_id] = replace(nodes[bundle.substrate.root_id], slots={"items": ["parent"]})
+    nodes["parent"] = replace(nodes["parent"], slots={key: [key] for key in slot_order})
+    generated = IntentBundle(
+        substrate=SemanticSubstrate(id=bundle.substrate.id, root_id=bundle.substrate.root_id, nodes=nodes),
+        view_spec=bundle.view_spec,
+    )
+
+    before = compile(generated)
+    after = compile(IntentBundle.from_proto(generated.to_proto()))
+    before_labels = [
+        node.props["text"]
+        for node in _walk(before.result.root.root)
+        if node.id.endswith("_label") and "text" in node.props
+    ]
+    after_labels = [
+        node.props["text"]
+        for node in _walk(after.result.root.root)
+        if node.id.endswith("_label") and "text" in node.props
+    ]
+
+    assert before_labels == ["Parent", "alpha", "bravo", "charlie", "delta"]
+    assert after_labels == before_labels
 
 
 def test_region_nesting_depth_is_bounded_not_recursion_error():
