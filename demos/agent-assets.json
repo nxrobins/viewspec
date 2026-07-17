@@ -10,16 +10,19 @@
       "intent_example": "agent-intent-example.dashboard.json",
       "intent_schema": "agent-intent-bundle.schema.json",
       "manifest": "agent-assets.json",
+      "patch_example": "intent-patch-example.dashboard.json",
+      "patch_schema": "intent-patch.schema.json",
       "system_prompt": "agent-system-prompt.txt"
     },
     "intent_schema_id": "https://viewspec.dev/agent-intent-bundle.schema.json",
     "network_policy": "no SDK network calls",
+    "patch_schema_id": "https://viewspec.dev/intent-patch.schema.json",
     "profile": "local_v1"
   },
   "files": [
     {
       "path": "agent-system-prompt.txt",
-      "sha256": "6e00d357c50b8a239a5b99b40d97b7a79c16d39983ff4ef74529e467bf261704"
+      "sha256": "86a29f3dba745319619a6546ebb6437a73867f706c28e4560e280e2b3eb392c8"
     },
     {
       "path": "agent-intent-bundle.schema.json",
@@ -36,9 +39,18 @@
     {
       "path": "agent-app-example.internal-tool.json",
       "sha256": "7cefa686de3db91e614c8bc31867aca096a117436f89dc520e8c326182344a4f"
+    },
+    {
+      "path": "intent-patch.schema.json",
+      "sha256": "3bbf7431410f5bb01e290f79e3e91e391e4a8b70d8acd5b224c0722cd917454d"
+    },
+    {
+      "path": "intent-patch-example.dashboard.json",
+      "sha256": "3638d74a81ad33accb2b54ba16230cb0b8e2eabf658d82ff7bd391f5be08ab1c"
     }
   ],
   "intent_schema_id": "https://viewspec.dev/agent-intent-bundle.schema.json",
   "kind": "viewspec_agent_assets",
-  "schema_version": 11
+  "patch_schema_id": "https://viewspec.dev/intent-patch.schema.json",
+  "schema_version": 12
 }

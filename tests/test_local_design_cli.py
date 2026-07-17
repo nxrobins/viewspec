@@ -568,6 +568,8 @@ def test_cli_init_design_doctor_and_check_tamper(tmp_path, capsys):
     assert checks["intent_first_commands"]["compile_app"] is True
     assert checks["intent_first_commands"]["prove_app"] is True
     assert checks["intent_first_commands"]["export_agent_assets"] is True
+    assert checks["intent_first_commands"]["patch_preview"] is True
+    assert checks["intent_first_commands"]["patch_apply"] is True
     assert checks["intent_pipeline"]["ok"] is True
     assert checks["intent_pipeline"]["compile_check"] == "passed"
     assert checks["intent_pipeline"]["aesthetic_profile_diff"] is True

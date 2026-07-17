@@ -152,6 +152,26 @@ viewspec lift input.html --out lift.json
 viewspec diff old.html new.html --json
 ```
 
+## ViewSpec Converge: Approved Semantic Changes
+
+IntentPatch V1 turns Review feedback or verifier repairs into a bounded proposal against exact
+ViewSpec source bytes. It supports nine stable-ID semantic operations, requires exact old values,
+validates and compile-checks the complete candidate, and returns an approval token without changing
+the source.
+
+```bash
+viewspec patch-preview viewspec.intent.json change.intentpatch.json \
+  --candidate-out candidate.intent.json --json
+viewspec patch-apply viewspec.intent.json change.intentpatch.json \
+  --approval <exact-token-from-current-preview> --json
+```
+
+Apply re-proves the preview under a per-source lock, writes the source atomically, and records a
+durable receipt with a source-bound inverse patch. Feedback and verifier output are evidence, not
+approval; stale bases, missing targets, unknown operations, concurrent applies, and unprovable crash
+states fail closed. See [IntentPatch V1](docs/intent-patch-v1.md) for the contract and constraint
+matrix.
+
 ## Native Agent Use
 
 Install managed instructions so coding agents natively understand how to use ViewSpec:
@@ -172,7 +192,7 @@ viewspec export-agent-assets --out .viewspec
 viewspec check-agent-assets .viewspec --json
 ```
 
-Agent assets use schema version `11`, contract profile `local_v1`, and the same export/check commands shown above; exported files include the local intent schema, AppBundle schema, starter examples, prompt, and asset manifest without SDK network calls.
+Agent assets use schema version `12`, contract profile `local_v1`, and the same export/check commands shown above; exported files include the local intent schema, AppBundle schema, IntentPatch schema, checked examples, prompt, and asset manifest without SDK network calls.
 
 Optional **MCP tooling** is available behind the agent extra:
 
@@ -180,7 +200,7 @@ Optional **MCP tooling** is available behind the agent extra:
 python -m pip install "viewspec[agents]"
 viewspec mcp
 ```
-The MCP server exposes all intent-first local tools without requiring shell commands, including `validate_intent_bundle_file`, `compile_intent_bundle_file`, `verify_host`, `prove`, `validate_app_file`, `diff_app_files`, `compile_app`, and `prove_app`.
+The MCP server exposes all intent-first local tools without requiring shell commands, including `validate_intent_bundle_file`, `compile_intent_bundle_file`, `build_intent_patch_context`, `preview_intent_patch`, `apply_intent_patch`, `verify_host`, `prove`, `validate_app_file`, `diff_app_files`, `compile_app`, and `prove_app`.
 
 For rendered conformance, compile React/Tailwind TSX and run:
 

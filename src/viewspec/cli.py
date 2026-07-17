@@ -48,6 +48,7 @@ from viewspec.intent_tools import (
     validate_intent_text,
     wrap_intent_bundle_manifest,
 )
+from viewspec.intent_patch import IntentPatchError, apply_intent_patch_file, preview_intent_patch_file
 from viewspec.local_tools import (
     atomic_write,
     check_artifact_dir,
@@ -86,6 +87,9 @@ def main(argv: list[str] | None = None) -> int:
         print(f"error: {exc.code}: {exc}", file=sys.stderr)
         return 2
     except ReviewContractError as exc:
+        print(f"error: {exc.code}: {exc.message}\nfix: {exc.fix}", file=sys.stderr)
+        return exc.cli_exit
+    except IntentPatchError as exc:
         print(f"error: {exc.code}: {exc.message}\nfix: {exc.fix}", file=sys.stderr)
         return exc.cli_exit
     except (FileNotFoundError, ValueError, TypeError, json.JSONDecodeError) as exc:
@@ -364,6 +368,30 @@ def _build_parser() -> argparse.ArgumentParser:
     review_status_parser.add_argument("--json", action="store_true", help="Print machine-readable JSON.")
     review_status_parser.set_defaults(func=_review_status_command)
 
+    patch_preview_parser = subparsers.add_parser(
+        "patch-preview",
+        help="Validate and preview an exact source-bound IntentPatch without mutating its source.",
+    )
+    patch_preview_parser.add_argument("source", help="Canonical local IntentBundle or AppBundle JSON file.")
+    patch_preview_parser.add_argument("patch", help="Strict IntentPatch V1 JSON file.")
+    patch_preview_parser.add_argument("--candidate-out", help="Optional path for the validated candidate source.")
+    patch_preview_parser.add_argument("--verify", action="store_true", help="Require canonical verification to pass.")
+    patch_preview_parser.add_argument("--install", action="store_true", help="Allow the explicit verification install flow.")
+    patch_preview_parser.add_argument("--json", action="store_true", help="Print machine-readable JSON.")
+    patch_preview_parser.set_defaults(func=_patch_preview_command)
+
+    patch_apply_parser = subparsers.add_parser(
+        "patch-apply",
+        help="Atomically apply an exact preview-approved IntentPatch and write a rollback receipt.",
+    )
+    patch_apply_parser.add_argument("source", help="Canonical local IntentBundle or AppBundle JSON file.")
+    patch_apply_parser.add_argument("patch", help="Strict IntentPatch V1 JSON file.")
+    patch_apply_parser.add_argument("--approval", required=True, help="Exact approval_token from patch-preview.")
+    patch_apply_parser.add_argument("--verify", action="store_true", help="Require canonical verification to pass again.")
+    patch_apply_parser.add_argument("--install", action="store_true", help="Allow the explicit verification install flow.")
+    patch_apply_parser.add_argument("--json", action="store_true", help="Print machine-readable JSON.")
+    patch_apply_parser.set_defaults(func=_patch_apply_command)
+
     mcp_parser = subparsers.add_parser("mcp", help="Start the optional ViewSpec stdio MCP server.")
     mcp_parser.add_argument("--cwd", default=".", help="MCP path sandbox root.")
     mcp_parser.add_argument("--allow-outside-cwd", action="store_true", help="Allow MCP tools to read/write outside --cwd.")
@@ -431,6 +459,82 @@ def _review_status_command(args: argparse.Namespace) -> int:
             print(f"status={review['status']} revision={review['revision']} queued={review['queued_events']}")
         else:
             print(f"reviews: {len(payload.get('reviews', []))}")
+    return 0
+
+
+def _patch_preview_command(args: argparse.Namespace) -> int:
+    source_path = Path(args.source)
+    patch_path = Path(args.patch)
+    preview = preview_intent_patch_file(
+        source_path,
+        patch_path,
+        verify=args.verify,
+        install=args.install,
+    )
+    candidate_path: Path | None = None
+    if args.candidate_out is not None:
+        candidate_path = Path(args.candidate_out)
+        resolved_candidate = candidate_path.resolve(strict=False)
+        if resolved_candidate in {source_path.resolve(), patch_path.resolve()}:
+            raise IntentPatchError(
+                "PATCH_PATH_INVALID",
+                "Candidate output cannot overwrite the source or patch file.",
+                "Choose a separate candidate output path.",
+            )
+        atomic_write(candidate_path, preview.candidate_text)
+    payload = {
+        "schema_version": 1,
+        "ok": True,
+        "summary": "IntentPatch preview is valid; source was not changed.",
+        "paths": {
+            "source": str(source_path),
+            "patch": str(patch_path),
+            "candidate": str(candidate_path) if candidate_path is not None else None,
+        },
+        "preview": preview.to_json(),
+        "next_actions": [
+            "Inspect semantic_diff and candidate output.",
+            "Apply only with this exact approval_token while the source remains unchanged.",
+        ],
+    }
+    if args.json:
+        print(json.dumps(payload, indent=2, sort_keys=True))
+    else:
+        print(f"preview_id: {preview.preview_id}")
+        print(f"candidate_source_sha256: {preview.candidate_source_sha256}")
+        print(f"approval_token: {preview.approval_token}")
+        if candidate_path is not None:
+            print(f"candidate: {candidate_path}")
+    return 0
+
+
+def _patch_apply_command(args: argparse.Namespace) -> int:
+    source_path = Path(args.source)
+    patch_path = Path(args.patch)
+    receipt = apply_intent_patch_file(
+        source_path,
+        patch_path,
+        approval_token=args.approval,
+        verify=args.verify,
+        install=args.install,
+    )
+    payload = {
+        "schema_version": 1,
+        "ok": True,
+        "summary": "IntentPatch applied atomically; inverse patch is recorded in the receipt.",
+        "paths": {
+            "source": str(source_path),
+            "patch": str(patch_path),
+            "receipt": str(receipt.receipt_path),
+        },
+        "receipt": receipt.to_json(),
+        "next_actions": ["Retain the receipt to audit or explicitly apply its source-bound inverse patch."],
+    }
+    if args.json:
+        print(json.dumps(payload, indent=2, sort_keys=True))
+    else:
+        print(f"applied: {receipt.receipt_id}")
+        print(f"receipt: {receipt.receipt_path}")
     return 0
 
 
@@ -791,13 +895,15 @@ def _doctor_command(args: argparse.Namespace) -> int:
             "review_poll": True,
             "review_end": True,
             "review_status": True,
+            "patch_preview": True,
+            "patch_apply": True,
             "check_agent_assets": True,
             "init_design": True,
             "export_agent_assets": True,
         },
         "intent_pipeline": intent_pipeline,
         "app_bundle_pipeline": app_bundle_pipeline,
-        "local_network_policy": "no network calls for validate-intent/validate-app/compile-app/compile/lift/diff/diff-intent/diff-app/check/prove/prove-app/check-agent-assets/init-intent/init-app/init-design/export-agent-assets by default",
+        "local_network_policy": "no network calls for validate-intent/validate-app/compile-app/compile/lift/diff/diff-intent/diff-app/check/prove/prove-app/patch-preview/patch-apply/check-agent-assets/init-intent/init-app/init-design/export-agent-assets by default; explicit verification install flags retain their documented behavior",
     }
     if args.agents:
         checks.update(

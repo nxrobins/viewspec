@@ -1,0 +1,543 @@
+{
+  "$defs": {
+    "field": {
+      "maxLength": 128,
+      "minLength": 1,
+      "pattern": "^[A-Za-z_][A-Za-z0-9_.-]*$",
+      "type": "string"
+    },
+    "id": {
+      "maxLength": 128,
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9_.-]+$",
+      "type": "string"
+    },
+    "move_region": {
+      "additionalProperties": false,
+      "properties": {
+        "old_parent_id": {
+          "$ref": "#/$defs/id"
+        },
+        "op": {
+          "const": "move_region"
+        },
+        "parent_id": {
+          "$ref": "#/$defs/id"
+        },
+        "region_id": {
+          "$ref": "#/$defs/id"
+        },
+        "screen_id": {
+          "$ref": "#/$defs/id"
+        }
+      },
+      "required": [
+        "op",
+        "region_id",
+        "old_parent_id",
+        "parent_id"
+      ],
+      "type": "object"
+    },
+    "reorder_region_children": {
+      "additionalProperties": false,
+      "properties": {
+        "children": {
+          "items": {
+            "$ref": "#/$defs/id"
+          },
+          "maxItems": 32,
+          "type": "array",
+          "uniqueItems": true
+        },
+        "old_children": {
+          "items": {
+            "$ref": "#/$defs/id"
+          },
+          "maxItems": 32,
+          "type": "array",
+          "uniqueItems": true
+        },
+        "op": {
+          "const": "reorder_region_children"
+        },
+        "region_id": {
+          "$ref": "#/$defs/id"
+        },
+        "screen_id": {
+          "$ref": "#/$defs/id"
+        }
+      },
+      "required": [
+        "op",
+        "region_id",
+        "old_children",
+        "children"
+      ],
+      "type": "object"
+    },
+    "replace_fixture_scalar": {
+      "additionalProperties": false,
+      "properties": {
+        "field": {
+          "$ref": "#/$defs/field"
+        },
+        "old_value": {
+          "$ref": "#/$defs/scalar"
+        },
+        "op": {
+          "const": "replace_fixture_scalar"
+        },
+        "record_id": {
+          "$ref": "#/$defs/id"
+        },
+        "resource_id": {
+          "$ref": "#/$defs/id"
+        },
+        "value": {
+          "$ref": "#/$defs/scalar"
+        }
+      },
+      "required": [
+        "op",
+        "resource_id",
+        "record_id",
+        "field",
+        "old_value",
+        "value"
+      ],
+      "type": "object"
+    },
+    "replace_semantic_attr": {
+      "additionalProperties": false,
+      "properties": {
+        "attr": {
+          "$ref": "#/$defs/field"
+        },
+        "node_id": {
+          "$ref": "#/$defs/id"
+        },
+        "old_value": {
+          "$ref": "#/$defs/scalar"
+        },
+        "op": {
+          "const": "replace_semantic_attr"
+        },
+        "screen_id": {
+          "$ref": "#/$defs/id"
+        },
+        "value": {
+          "$ref": "#/$defs/scalar"
+        }
+      },
+      "required": [
+        "op",
+        "node_id",
+        "attr",
+        "old_value",
+        "value"
+      ],
+      "type": "object"
+    },
+    "scalar": {
+      "type": [
+        "string",
+        "number",
+        "boolean",
+        "null"
+      ]
+    },
+    "set_aesthetic_profile": {
+      "additionalProperties": false,
+      "properties": {
+        "old_value": {
+          "enum": [
+            null,
+            "aesthetic.brutalist",
+            "aesthetic.calm_ops",
+            "aesthetic.data_dense",
+            "aesthetic.editorial_product",
+            "aesthetic.executive_review",
+            "aesthetic.neon_cyber",
+            "aesthetic.premium_saas",
+            "aesthetic.warm_organic"
+          ],
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "op": {
+          "const": "set_aesthetic_profile"
+        },
+        "screen_id": {
+          "$ref": "#/$defs/id"
+        },
+        "value": {
+          "enum": [
+            null,
+            "aesthetic.brutalist",
+            "aesthetic.calm_ops",
+            "aesthetic.data_dense",
+            "aesthetic.editorial_product",
+            "aesthetic.executive_review",
+            "aesthetic.neon_cyber",
+            "aesthetic.premium_saas",
+            "aesthetic.warm_organic"
+          ],
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "op",
+        "old_value",
+        "value"
+      ],
+      "type": "object"
+    },
+    "set_binding_presentation": {
+      "additionalProperties": false,
+      "properties": {
+        "binding_id": {
+          "$ref": "#/$defs/id"
+        },
+        "old_value": {
+          "enum": [
+            "badge",
+            "image_slot",
+            "input",
+            "label",
+            "rich_text",
+            "rule",
+            "text",
+            "value"
+          ],
+          "type": "string"
+        },
+        "op": {
+          "const": "set_binding_presentation"
+        },
+        "screen_id": {
+          "$ref": "#/$defs/id"
+        },
+        "value": {
+          "enum": [
+            "badge",
+            "image_slot",
+            "input",
+            "label",
+            "rich_text",
+            "rule",
+            "text",
+            "value"
+          ],
+          "type": "string"
+        }
+      },
+      "required": [
+        "op",
+        "binding_id",
+        "old_value",
+        "value"
+      ],
+      "type": "object"
+    },
+    "set_region_layout": {
+      "additionalProperties": false,
+      "properties": {
+        "old_value": {
+          "enum": [
+            "cluster",
+            "grid",
+            "stack"
+          ],
+          "type": "string"
+        },
+        "op": {
+          "const": "set_region_layout"
+        },
+        "region_id": {
+          "$ref": "#/$defs/id"
+        },
+        "screen_id": {
+          "$ref": "#/$defs/id"
+        },
+        "value": {
+          "enum": [
+            "cluster",
+            "grid",
+            "stack"
+          ],
+          "type": "string"
+        }
+      },
+      "required": [
+        "op",
+        "region_id",
+        "old_value",
+        "value"
+      ],
+      "type": "object"
+    },
+    "set_style_token": {
+      "additionalProperties": false,
+      "properties": {
+        "old_value": {
+          "enum": [
+            "action.accent",
+            "aesthetic.brutalist",
+            "aesthetic.calm_ops",
+            "aesthetic.data_dense",
+            "aesthetic.editorial_product",
+            "aesthetic.executive_review",
+            "aesthetic.neon_cyber",
+            "aesthetic.premium_saas",
+            "aesthetic.warm_organic",
+            "align.center",
+            "align.end",
+            "align.start",
+            "density.airy",
+            "density.compact",
+            "density.regular",
+            "emphasis.high",
+            "emphasis.low",
+            "emphasis.medium",
+            "narrative.flow",
+            "palette.temperature",
+            "rhythm.hierarchy",
+            "surface.none",
+            "surface.strong",
+            "surface.subtle",
+            "tone.accent",
+            "tone.muted",
+            "tone.neutral",
+            "tone.positive",
+            "tone.warning"
+          ],
+          "type": "string"
+        },
+        "op": {
+          "const": "set_style_token"
+        },
+        "screen_id": {
+          "$ref": "#/$defs/id"
+        },
+        "style_id": {
+          "$ref": "#/$defs/id"
+        },
+        "value": {
+          "enum": [
+            "action.accent",
+            "aesthetic.brutalist",
+            "aesthetic.calm_ops",
+            "aesthetic.data_dense",
+            "aesthetic.editorial_product",
+            "aesthetic.executive_review",
+            "aesthetic.neon_cyber",
+            "aesthetic.premium_saas",
+            "aesthetic.warm_organic",
+            "align.center",
+            "align.end",
+            "align.start",
+            "density.airy",
+            "density.compact",
+            "density.regular",
+            "emphasis.high",
+            "emphasis.low",
+            "emphasis.medium",
+            "narrative.flow",
+            "palette.temperature",
+            "rhythm.hierarchy",
+            "surface.none",
+            "surface.strong",
+            "surface.subtle",
+            "tone.accent",
+            "tone.muted",
+            "tone.neutral",
+            "tone.positive",
+            "tone.warning"
+          ],
+          "type": "string"
+        }
+      },
+      "required": [
+        "op",
+        "style_id",
+        "old_value",
+        "value"
+      ],
+      "type": "object"
+    },
+    "set_visibility_condition": {
+      "additionalProperties": false,
+      "properties": {
+        "old_value": {
+          "type": "object"
+        },
+        "op": {
+          "const": "set_visibility_condition"
+        },
+        "value": {
+          "type": "object"
+        },
+        "visibility_id": {
+          "$ref": "#/$defs/id"
+        }
+      },
+      "required": [
+        "op",
+        "visibility_id",
+        "old_value",
+        "value"
+      ],
+      "type": "object"
+    }
+  },
+  "$id": "https://viewspec.dev/intent-patch.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "allOf": [
+    {
+      "else": {
+        "properties": {
+          "operations": {
+            "items": {
+              "if": {
+                "properties": {
+                  "op": {
+                    "enum": [
+                      "move_region",
+                      "reorder_region_children",
+                      "replace_semantic_attr",
+                      "set_aesthetic_profile",
+                      "set_binding_presentation",
+                      "set_region_layout",
+                      "set_style_token"
+                    ]
+                  }
+                },
+                "required": [
+                  "op"
+                ]
+              },
+              "then": {
+                "required": [
+                  "screen_id"
+                ]
+              }
+            }
+          }
+        }
+      },
+      "if": {
+        "properties": {
+          "source_kind": {
+            "const": "intent_bundle"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "operations": {
+            "items": {
+              "not": {
+                "required": [
+                  "screen_id"
+                ]
+              }
+            }
+          }
+        }
+      }
+    }
+  ],
+  "description": "Closed, source-bound semantic changes for a validated IntentBundle or AppBundle.",
+  "properties": {
+    "base_source_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "type": "string"
+    },
+    "contract_profile": {
+      "const": "local_v1",
+      "type": "string"
+    },
+    "evidence_refs": {
+      "items": {
+        "maxLength": 256,
+        "pattern": "^(?!.*\\.\\.)[A-Za-z0-9_.:/-]+$",
+        "type": "string"
+      },
+      "maxItems": 64,
+      "type": "array",
+      "uniqueItems": true
+    },
+    "operations": {
+      "items": {
+        "oneOf": [
+          {
+            "$ref": "#/$defs/move_region"
+          },
+          {
+            "$ref": "#/$defs/reorder_region_children"
+          },
+          {
+            "$ref": "#/$defs/replace_fixture_scalar"
+          },
+          {
+            "$ref": "#/$defs/replace_semantic_attr"
+          },
+          {
+            "$ref": "#/$defs/set_aesthetic_profile"
+          },
+          {
+            "$ref": "#/$defs/set_binding_presentation"
+          },
+          {
+            "$ref": "#/$defs/set_region_layout"
+          },
+          {
+            "$ref": "#/$defs/set_style_token"
+          },
+          {
+            "$ref": "#/$defs/set_visibility_condition"
+          }
+        ]
+      },
+      "maxItems": 64,
+      "minItems": 1,
+      "type": "array"
+    },
+    "schema_version": {
+      "const": 1,
+      "type": "integer"
+    },
+    "source_kind": {
+      "enum": [
+        "app_bundle",
+        "intent_bundle"
+      ],
+      "type": "string"
+    }
+  },
+  "required": [
+    "schema_version",
+    "contract_profile",
+    "source_kind",
+    "base_source_sha256",
+    "operations",
+    "evidence_refs"
+  ],
+  "title": "ViewSpec IntentPatch V1",
+  "type": "object",
+  "x-viewspec-invariants": [
+    "The UTF-8 document is capped at 65536 bytes; JSON Schema character limits are supplemented by runtime byte limits.",
+    "base_source_sha256 must match the exact current source bytes; stale patches are never rebased.",
+    "Every operation targets one existing stable id and carries an exact old-value precondition.",
+    "Every operation must change its target; duplicate semantic targets, field creation, and field deletion are rejected.",
+    "Preview validates, semantic-diffs, and compile-checks the full candidate before producing an approval token.",
+    "Apply re-previews under a source lock and accepts only the exact current preview approval token."
+  ]
+}

@@ -1,0 +1,16 @@
+{
+  "base_source_sha256": "78e159bb38be9ac73bc5d82a42a164d0526a15e1dc197a17cc0a6ed8abdc1c03",
+  "contract_profile": "local_v1",
+  "evidence_refs": [],
+  "operations": [
+    {
+      "attr": "title",
+      "node_id": "starter_dashboard",
+      "old_value": "Starter Dashboard",
+      "op": "replace_semantic_attr",
+      "value": "Operations Dashboard"
+    }
+  ],
+  "schema_version": 1,
+  "source_kind": "intent_bundle"
+}

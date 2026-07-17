@@ -216,6 +216,8 @@ def test_doctor_agents_reports_missing_optional_mcp(capsys):
     assert checks["intent_first_commands"]["prove_app"] is True
     assert checks["intent_first_commands"]["check_agent_assets"] is True
     assert checks["intent_first_commands"]["export_agent_assets"] is True
+    assert checks["intent_first_commands"]["patch_preview"] is True
+    assert checks["intent_first_commands"]["patch_apply"] is True
     assert checks["intent_pipeline"]["ok"] is True
     assert checks["intent_pipeline"]["aesthetic_profile_diff"] is True
     assert checks["intent_pipeline"]["semantic_summary"]["ok"] is True
@@ -310,13 +312,15 @@ def test_export_agent_assets_tool_writes_prompt_and_schema(tmp_path):
     assert_tool_schema(exported)
     assert exported["ok"] is True
     assert exported["metadata"]["network_calls"] == "none"
-    assert exported["metadata"]["changes"] == 6
+    assert exported["metadata"]["changes"] == 8
     assert exported["paths"]["manifest"].endswith("agent-assets.json")
     assert exported["paths"]["prompt"].endswith("agent-system-prompt.txt")
     assert exported["paths"]["schema"].endswith("agent-intent-bundle.schema.json")
     assert exported["paths"]["example"].endswith("agent-intent-example.dashboard.json")
     assert exported["paths"]["app_schema"].endswith("agent-app-bundle.schema.json")
     assert exported["paths"]["app_example"].endswith("agent-app-example.internal-tool.json")
+    assert exported["paths"]["patch_schema"].endswith("intent-patch.schema.json")
+    assert exported["paths"]["patch_example"].endswith("intent-patch-example.dashboard.json")
     assert (tmp_path / ".viewspec/agent-system-prompt.txt").read_text(encoding="utf-8") == AGENT_SYSTEM_PROMPT
     manifest = json.loads((tmp_path / ".viewspec/agent-assets.json").read_text(encoding="utf-8"))
     assert manifest["schema_version"] == AGENT_ASSET_SCHEMA_VERSION
@@ -336,6 +340,8 @@ def test_export_agent_assets_tool_writes_prompt_and_schema(tmp_path):
         "agent-intent-example.dashboard.json": "create",
         "agent-app-bundle.schema.json": "create",
         "agent-app-example.internal-tool.json": "create",
+        "intent-patch.schema.json": "create",
+        "intent-patch-example.dashboard.json": "create",
     }
     checked = check_agent_assets_tool(".viewspec", cwd=tmp_path)
     assert_tool_schema(checked)
@@ -1495,6 +1501,9 @@ def test_mcp_raw_html_tool_descriptions_are_import_only():
     assert "Verify exported local ViewSpec agent contract assets against the current SDK." in text
     assert "Export the local ViewSpec agent system prompt, IntentBundle JSON schema" in text
     assert "valid starter IntentBundle example, and asset manifest without network calls." in text
+    assert "Validate and compile-check an exact source-bound IntentPatch" in text
+    assert "Atomically apply an IntentPatch only when given the exact approval token" in text
+    assert "Convert exactly one validated Review batch or verification repair plan" in text
 
 
 def test_mcp_path_sandbox_rejects_urls_and_outside_paths(tmp_path):

@@ -253,6 +253,7 @@ assertPublicEqual(publicFacts.agent_assets.manifest_url, 'https://viewspec.dev/a
 assertPublicEqual(publicFacts.agent_assets.schema_version, agentManifest.schema_version, 'public facts agent asset schema version')
 assertPublicEqual(publicFacts.agent_assets.contract_profile, agentManifest.contract.profile, 'public facts agent asset contract profile')
 assertPublicEqual(publicFacts.agent_assets.intent_schema_id, agentManifest.intent_schema_id, 'public facts agent asset schema id')
+assertPublicEqual(publicFacts.agent_assets.patch_schema_id, agentManifest.patch_schema_id, 'public facts intent patch schema id')
 assertPublicEqual(publicFacts.agent_assets.export_command, agentManifest.contract.export_command, 'public facts agent asset export command')
 assertPublicEqual(publicFacts.agent_assets.check_command, agentManifest.contract.check_command, 'public facts agent asset check command')
 assertPublicEqual(publicFacts.agent_assets.network_policy, agentManifest.contract.network_policy, 'public facts agent asset network policy')
@@ -757,7 +758,7 @@ assert(openapi.components.schemas.CompileRequestPayload.properties.design.anyOf.
 assert(!('design' in openapi.components.schemas.IntentBundle.properties), 'OpenAPI IntentBundle schema should not absorb hosted design context')
 assert.deepEqual(openapi.components.securitySchemes.BearerAuth, { type: 'http', scheme: 'bearer' })
 assert.deepEqual(openapi.components.securitySchemes.ApiKeyAuth, { type: 'apiKey', in: 'header', name: 'X-API-Key' })
-assert.equal(openapi['x-viewspec-agent-artifacts'].assetSchemaVersion, 11)
+assert.equal(openapi['x-viewspec-agent-artifacts'].assetSchemaVersion, 12)
 assert.equal(openapi['x-viewspec-agent-artifacts'].assetManifest, 'https://viewspec.dev/agent-assets.json')
 assert.equal(openapi['x-viewspec-agent-artifacts'].contractProfile, 'local_v1')
 assert.equal(openapi['x-viewspec-agent-artifacts'].exportCommand, 'viewspec export-agent-assets --out .viewspec')
@@ -772,6 +773,8 @@ assert.equal(openapi['x-viewspec-agent-artifacts'].systemPrompt, 'https://viewsp
 assert.equal(openapi['x-viewspec-agent-artifacts'].intentBundleExample, 'https://viewspec.dev/agent-intent-example.dashboard.json')
 assert.equal(openapi['x-viewspec-agent-artifacts'].appBundleSchema, 'https://viewspec.dev/agent-app-bundle.schema.json')
 assert.equal(openapi['x-viewspec-agent-artifacts'].appBundleExample, 'https://viewspec.dev/agent-app-example.internal-tool.json')
+assert.equal(openapi['x-viewspec-agent-artifacts'].intentPatchSchema, 'https://viewspec.dev/intent-patch.schema.json')
+assert.equal(openapi['x-viewspec-agent-artifacts'].intentPatchExample, 'https://viewspec.dev/intent-patch-example.dashboard.json')
 
 const agentPrompt = await readFile('demos/agent-system-prompt.txt', 'utf8')
 assert.match(agentPrompt, /IntentBundle/)
@@ -800,19 +803,22 @@ for (const publicTextPath of ['README.md', 'docs/getting-started.md', 'docs/agen
     if (!text.includes(expected)) statefulCollectionsDrift(`${publicTextPath} missing ${expected}`)
   }
 }
-assert.equal(agentManifest.schema_version, 11)
+assert.equal(agentManifest.schema_version, 12)
 assert.equal(agentManifest.contract.profile, 'local_v1')
 assert.equal(agentManifest.contract.export_command, 'viewspec export-agent-assets --out .viewspec')
 assert.equal(agentManifest.contract.check_command, 'viewspec check-agent-assets .viewspec --json')
 assert.equal(agentManifest.contract.network_policy, 'no SDK network calls')
 assert.equal(agentManifest.contract.files.intent_schema, 'agent-intent-bundle.schema.json')
 assert.equal(agentManifest.contract.files.app_schema, 'agent-app-bundle.schema.json')
+assert.equal(agentManifest.contract.files.patch_schema, 'intent-patch.schema.json')
 assert.deepEqual(agentManifest.files.map((file) => file.path), [
   'agent-system-prompt.txt',
   'agent-intent-bundle.schema.json',
   'agent-intent-example.dashboard.json',
   'agent-app-bundle.schema.json',
-  'agent-app-example.internal-tool.json'
+  'agent-app-example.internal-tool.json',
+  'intent-patch.schema.json',
+  'intent-patch-example.dashboard.json'
 ])
 const agentExample = JSON.parse(await readFile('demos/agent-intent-example.dashboard.json', 'utf8'))
 assert.equal(agentExample.view_spec.motifs[0].kind, 'dashboard')
