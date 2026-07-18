@@ -10,11 +10,12 @@ from typing import Any
 
 from viewspec.app_bundle import AGENT_APP_BUNDLE_SCHEMA, starter_app_bundle
 from viewspec.agent import AGENT_INTENT_BUNDLE_SCHEMA, AGENT_SYSTEM_PROMPT
+from viewspec.converge_sessions import CONVERGENCE_TASK_JSON_SCHEMA, starter_convergence_task_payload
 from viewspec.intent_patch import INTENT_PATCH_JSON_SCHEMA, starter_intent_patch_payload
 from viewspec.local_tools import atomic_write
 
 
-AGENT_ASSET_SCHEMA_VERSION = 12
+AGENT_ASSET_SCHEMA_VERSION = 13
 AGENT_ASSET_CONTRACT_PROFILE = "local_v1"
 AGENT_ASSET_EXPORT_COMMAND = "viewspec export-agent-assets --out .viewspec"
 AGENT_ASSET_CHECK_COMMAND = "viewspec check-agent-assets .viewspec --json"
@@ -27,6 +28,8 @@ AGENT_APP_SCHEMA_FILE = "agent-app-bundle.schema.json"
 AGENT_APP_EXAMPLE_FILE = "agent-app-example.internal-tool.json"
 AGENT_PATCH_SCHEMA_FILE = "intent-patch.schema.json"
 AGENT_PATCH_EXAMPLE_FILE = "intent-patch-example.dashboard.json"
+AGENT_CONVERGE_TASK_SCHEMA_FILE = "converge-task.schema.json"
+AGENT_CONVERGE_TASK_EXAMPLE_FILE = "converge-task-example.dashboard.json"
 AGENT_ASSET_PAYLOAD_FILES = (
     AGENT_SYSTEM_PROMPT_FILE,
     AGENT_INTENT_SCHEMA_FILE,
@@ -35,6 +38,8 @@ AGENT_ASSET_PAYLOAD_FILES = (
     AGENT_APP_EXAMPLE_FILE,
     AGENT_PATCH_SCHEMA_FILE,
     AGENT_PATCH_EXAMPLE_FILE,
+    AGENT_CONVERGE_TASK_SCHEMA_FILE,
+    AGENT_CONVERGE_TASK_EXAMPLE_FILE,
 )
 
 
@@ -93,9 +98,12 @@ def agent_asset_readiness() -> dict[str, Any]:
         "app_example_file": AGENT_APP_EXAMPLE_FILE,
         "patch_schema_file": AGENT_PATCH_SCHEMA_FILE,
         "patch_example_file": AGENT_PATCH_EXAMPLE_FILE,
+        "converge_task_schema_file": AGENT_CONVERGE_TASK_SCHEMA_FILE,
+        "converge_task_example_file": AGENT_CONVERGE_TASK_EXAMPLE_FILE,
         "intent_schema_id": AGENT_INTENT_BUNDLE_SCHEMA["$id"],
         "app_schema_id": AGENT_APP_BUNDLE_SCHEMA["$id"],
         "patch_schema_id": INTENT_PATCH_JSON_SCHEMA["$id"],
+        "converge_task_schema_id": CONVERGENCE_TASK_JSON_SCHEMA["$id"],
         "asset_manifest_sha256": hashlib.sha256(contents[AGENT_ASSET_MANIFEST_FILE].encode("utf-8")).hexdigest(),
         "system_prompt_sha256": hashlib.sha256(contents[AGENT_SYSTEM_PROMPT_FILE].encode("utf-8")).hexdigest(),
         "intent_schema_sha256": hashlib.sha256(contents[AGENT_INTENT_SCHEMA_FILE].encode("utf-8")).hexdigest(),
@@ -104,6 +112,12 @@ def agent_asset_readiness() -> dict[str, Any]:
         "app_example_sha256": hashlib.sha256(contents[AGENT_APP_EXAMPLE_FILE].encode("utf-8")).hexdigest(),
         "patch_schema_sha256": hashlib.sha256(contents[AGENT_PATCH_SCHEMA_FILE].encode("utf-8")).hexdigest(),
         "patch_example_sha256": hashlib.sha256(contents[AGENT_PATCH_EXAMPLE_FILE].encode("utf-8")).hexdigest(),
+        "converge_task_schema_sha256": hashlib.sha256(
+            contents[AGENT_CONVERGE_TASK_SCHEMA_FILE].encode("utf-8")
+        ).hexdigest(),
+        "converge_task_example_sha256": hashlib.sha256(
+            contents[AGENT_CONVERGE_TASK_EXAMPLE_FILE].encode("utf-8")
+        ).hexdigest(),
         "export_command": AGENT_ASSET_EXPORT_COMMAND,
         "check_command": AGENT_ASSET_CHECK_COMMAND,
         "network_policy": AGENT_ASSET_NETWORK_POLICY,
@@ -166,6 +180,7 @@ def check_agent_assets(asset_dir: str | Path = ".viewspec") -> dict[str, Any]:
         "intent_schema_id": AGENT_INTENT_BUNDLE_SCHEMA["$id"],
         "app_schema_id": AGENT_APP_BUNDLE_SCHEMA["$id"],
         "patch_schema_id": INTENT_PATCH_JSON_SCHEMA["$id"],
+        "converge_task_schema_id": CONVERGENCE_TASK_JSON_SCHEMA["$id"],
         "check_command": AGENT_ASSET_CHECK_COMMAND,
         "network_policy": AGENT_ASSET_NETWORK_POLICY,
         "path": str(root),
@@ -211,6 +226,8 @@ def _agent_asset_contents() -> dict[str, str]:
     app_example = json.dumps(starter_app_bundle("internal_tool"), indent=2, sort_keys=True) + "\n"
     patch_schema = json.dumps(INTENT_PATCH_JSON_SCHEMA, indent=2, sort_keys=True) + "\n"
     patch_example = json.dumps(starter_intent_patch_payload(), indent=2, sort_keys=True) + "\n"
+    converge_task_schema = json.dumps(CONVERGENCE_TASK_JSON_SCHEMA, indent=2, sort_keys=True) + "\n"
+    converge_task_example = json.dumps(starter_convergence_task_payload(), indent=2, sort_keys=True) + "\n"
     contents = {
         AGENT_SYSTEM_PROMPT_FILE: prompt,
         AGENT_INTENT_SCHEMA_FILE: schema,
@@ -219,6 +236,8 @@ def _agent_asset_contents() -> dict[str, str]:
         AGENT_APP_EXAMPLE_FILE: app_example,
         AGENT_PATCH_SCHEMA_FILE: patch_schema,
         AGENT_PATCH_EXAMPLE_FILE: patch_example,
+        AGENT_CONVERGE_TASK_SCHEMA_FILE: converge_task_schema,
+        AGENT_CONVERGE_TASK_EXAMPLE_FILE: converge_task_example,
     }
     contents[AGENT_ASSET_MANIFEST_FILE] = _agent_asset_manifest(contents)
     return contents
@@ -233,6 +252,7 @@ def _agent_asset_manifest(contents: dict[str, str]) -> str:
             "intent_schema_id": AGENT_INTENT_BUNDLE_SCHEMA["$id"],
             "app_schema_id": AGENT_APP_BUNDLE_SCHEMA["$id"],
             "patch_schema_id": INTENT_PATCH_JSON_SCHEMA["$id"],
+            "converge_task_schema_id": CONVERGENCE_TASK_JSON_SCHEMA["$id"],
             "export_command": AGENT_ASSET_EXPORT_COMMAND,
             "check_command": AGENT_ASSET_CHECK_COMMAND,
             "network_policy": AGENT_ASSET_NETWORK_POLICY,
@@ -245,11 +265,14 @@ def _agent_asset_manifest(contents: dict[str, str]) -> str:
                 "app_example": AGENT_APP_EXAMPLE_FILE,
                 "patch_schema": AGENT_PATCH_SCHEMA_FILE,
                 "patch_example": AGENT_PATCH_EXAMPLE_FILE,
+                "converge_task_schema": AGENT_CONVERGE_TASK_SCHEMA_FILE,
+                "converge_task_example": AGENT_CONVERGE_TASK_EXAMPLE_FILE,
             },
         },
         "intent_schema_id": AGENT_INTENT_BUNDLE_SCHEMA["$id"],
         "app_schema_id": AGENT_APP_BUNDLE_SCHEMA["$id"],
         "patch_schema_id": INTENT_PATCH_JSON_SCHEMA["$id"],
+        "converge_task_schema_id": CONVERGENCE_TASK_JSON_SCHEMA["$id"],
         "files": [
             {
                 "path": filename,
@@ -283,6 +306,8 @@ __all__ = [
     "AGENT_ASSET_SCHEMA_VERSION",
     "AGENT_APP_EXAMPLE_FILE",
     "AGENT_APP_SCHEMA_FILE",
+    "AGENT_CONVERGE_TASK_EXAMPLE_FILE",
+    "AGENT_CONVERGE_TASK_SCHEMA_FILE",
     "AGENT_PATCH_EXAMPLE_FILE",
     "AGENT_PATCH_SCHEMA_FILE",
     "AGENT_INTENT_EXAMPLE_FILE",

@@ -3,10 +3,13 @@
   "contract": {
     "app_schema_id": "https://viewspec.dev/agent-app-bundle.schema.json",
     "check_command": "viewspec check-agent-assets .viewspec --json",
+    "converge_task_schema_id": "https://viewspec.dev/converge-task.schema.json",
     "export_command": "viewspec export-agent-assets --out .viewspec",
     "files": {
       "app_example": "agent-app-example.internal-tool.json",
       "app_schema": "agent-app-bundle.schema.json",
+      "converge_task_example": "converge-task-example.dashboard.json",
+      "converge_task_schema": "converge-task.schema.json",
       "intent_example": "agent-intent-example.dashboard.json",
       "intent_schema": "agent-intent-bundle.schema.json",
       "manifest": "agent-assets.json",
@@ -19,10 +22,11 @@
     "patch_schema_id": "https://viewspec.dev/intent-patch.schema.json",
     "profile": "local_v1"
   },
+  "converge_task_schema_id": "https://viewspec.dev/converge-task.schema.json",
   "files": [
     {
       "path": "agent-system-prompt.txt",
-      "sha256": "86a29f3dba745319619a6546ebb6437a73867f706c28e4560e280e2b3eb392c8"
+      "sha256": "07ce1c6f70b3f21df73e23bcb946f6c656d3175a362854c38eef4455fedaf3b8"
     },
     {
       "path": "agent-intent-bundle.schema.json",
@@ -47,10 +51,18 @@
     {
       "path": "intent-patch-example.dashboard.json",
       "sha256": "3638d74a81ad33accb2b54ba16230cb0b8e2eabf658d82ff7bd391f5be08ab1c"
+    },
+    {
+      "path": "converge-task.schema.json",
+      "sha256": "1aa49acd56c936794b3c257a640c8694d5f53e91bf19ec36269f0ce36e129f67"
+    },
+    {
+      "path": "converge-task-example.dashboard.json",
+      "sha256": "a4ae06e6ed91647a2315883c0c7af8040a36d3314b982a1ac1bfb9818e141c2b"
     }
   ],
   "intent_schema_id": "https://viewspec.dev/agent-intent-bundle.schema.json",
   "kind": "viewspec_agent_assets",
   "patch_schema_id": "https://viewspec.dev/intent-patch.schema.json",
-  "schema_version": 12
+  "schema_version": 13
 }

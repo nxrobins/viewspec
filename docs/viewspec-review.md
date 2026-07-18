@@ -1087,6 +1087,19 @@ that exact preview under a source lock, writes a durable receipt and inverse pat
 separate externally visible action that is not authorized merely by opening a review session or
 submitting feedback.
 
+## Implemented Additive Contract: Converge Sessions V1
+
+Review now projects a pending Converge proposal into the side panel with its semantic before/after
+and progress certificate. The browser receives no approval token: an authenticated, same-origin,
+current-frame Approve or Reject action names only the exact `preview_id`, and the server consumes
+its private authority after checking that the proposal is still current.
+
+Agents automatically operate the session workflow—start or resume, author from the legal-operation
+menu, submit, and re-verify—while humans express intent and grant authority. The controller is
+durable, capped at three attempts and ten minutes, rejects source drift and cycles, and accepts
+verifier candidates only when their error-obligation set is a proper subset of the baseline under
+the identical complete plan. See [Converge Sessions V1](converge-sessions-v1.md).
+
 ## Follow-On: State and Cross-Surface Review
 
 ViewSpec Studio can extend the same protocol with:

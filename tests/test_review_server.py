@@ -10,6 +10,8 @@ import subprocess
 
 import pytest
 
+from viewspec.converge_sessions import start_convergence_session, submit_convergence_patch
+from viewspec.intent_patch import IntentPatchContext, source_sha256
 from viewspec.intent_tools import starter_intent_payload
 from viewspec.review_contract import ReviewContractError
 from viewspec.review_runtime import ReviewRuntime
@@ -92,6 +94,53 @@ def _event_payload(runtime: ReviewRuntime) -> bytes:
         },
         separators=(",", ":"),
     ).encode("utf-8")
+
+
+def _pending_convergence(runtime: ReviewRuntime) -> tuple[str, str]:
+    source = runtime.configuration.source_path
+    text = open(source, encoding="utf-8").read()
+    evidence_refs = ("review:vrw_server:batch_server", "review_event:event_server")
+    context = IntentPatchContext(
+        origin="review_batch",
+        source_kind="intent_bundle",
+        base_source_sha256=source_sha256(text),
+        contract_profile="local_v1",
+        evidence_refs=evidence_refs,
+        requests=(
+            {
+                "request_id": "event_server",
+                "kind": "change_request",
+                "instruction": "Show revenue as a badge.",
+                "screen_id": None,
+                "source_ref": "ir:binding_revenue_value",
+                "binding_id": "revenue_value",
+                "action_id": None,
+                "intent_refs": ["viewspec:binding:revenue_value"],
+                "content_refs": ["node:revenue#attr:value"],
+            },
+        ),
+    )
+    start_convergence_session(source, context)
+    session = submit_convergence_patch(
+        source,
+        {
+            "schema_version": 1,
+            "contract_profile": "local_v1",
+            "source_kind": "intent_bundle",
+            "base_source_sha256": source_sha256(text),
+            "operations": [
+                {
+                    "op": "set_binding_presentation",
+                    "binding_id": "revenue_value",
+                    "old_value": "value",
+                    "value": "badge",
+                }
+            ],
+            "evidence_refs": list(evidence_refs),
+        },
+    )
+    assert session.pending_preview is not None
+    return session.pending_preview.preview_id, text
 
 
 def test_server_refuses_every_nonliteral_loopback_bind(tmp_path) -> None:
@@ -248,6 +297,82 @@ def test_generated_review_chrome_and_frame_sdk_are_valid_javascript(tmp_path) ->
         result = subprocess.run((node, "--check", "-"), input=script, text=True, capture_output=True)
         assert result.returncode == 0, result.stderr
     server.stop()
+
+
+def test_review_chrome_exposes_proof_not_authority_and_approves_exact_preview(tmp_path) -> None:
+    runtime = _runtime(tmp_path)
+    preview_id, original = _pending_convergence(runtime)
+    server = _server(runtime)
+    chrome = server._chrome_response().body.decode("utf-8")  # noqa: SLF001
+    assert "Convergence proposal" in chrome
+    assert "Approve proposal" in chrome
+    assert "Reject proposal" in chrome
+    server.start()
+    try:
+        cookie, _ = _bootstrap(server)
+        _handshake(server, cookie)
+        root = f"/r/{runtime.session.review_id}/api/v1"
+        status, _, content = _request(
+            server.port,
+            "GET",
+            f"{root}/session",
+            headers={"Cookie": cookie},
+        )
+        assert status == 200
+        browser = json.loads(content)
+        pending = browser["review"]["convergence"]["pending_preview"]
+        assert pending["preview_id"] == preview_id
+        assert pending["progress_certificate"]["mode"] == "human_review"
+        assert "approval_token" not in content.decode("utf-8")
+        assert "intent_approval_token" not in content.decode("utf-8")
+
+        forbidden, _, content = _request(
+            server.port,
+            "POST",
+            f"{root}/convergence/approve",
+            headers={**_browser_headers(server, cookie), "Origin": "http://localhost"},
+            body=json.dumps({"preview_id": preview_id}).encode(),
+        )
+        assert forbidden == 403
+        assert json.loads(content)["error"]["code"] == "REVIEW_REQUEST_FORBIDDEN"
+        assert open(runtime.configuration.source_path, encoding="utf-8").read() == original
+
+        accepted, _, content = _request(
+            server.port,
+            "POST",
+            f"{root}/convergence/approve",
+            headers=_browser_headers(server, cookie),
+            body=json.dumps({"preview_id": preview_id}).encode(),
+        )
+        assert accepted == 200, content
+        assert json.loads(content)["convergence"]["status"] == "applied"
+        source_payload = json.loads(open(runtime.configuration.source_path, encoding="utf-8").read())
+        assert source_payload["view_spec"]["bindings"][1]["present_as"] == "badge"
+    finally:
+        server.stop()
+
+
+def test_review_chrome_rejects_exact_preview_without_mutating_source(tmp_path) -> None:
+    runtime = _runtime(tmp_path)
+    preview_id, original = _pending_convergence(runtime)
+    server = _server(runtime)
+    server.start()
+    try:
+        cookie, _ = _bootstrap(server)
+        _handshake(server, cookie)
+        endpoint = f"/r/{runtime.session.review_id}/api/v1/convergence/reject"
+        status, _, content = _request(
+            server.port,
+            "POST",
+            endpoint,
+            headers=_browser_headers(server, cookie),
+            body=json.dumps({"preview_id": preview_id}).encode(),
+        )
+        assert status == 200, content
+        assert json.loads(content)["convergence"]["status"] == "rejected"
+        assert open(runtime.configuration.source_path, encoding="utf-8").read() == original
+    finally:
+        server.stop()
 
 
 def test_agent_poll_capability_preserves_at_least_once_ack_semantics(tmp_path) -> None:

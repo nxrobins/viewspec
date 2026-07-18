@@ -7,6 +7,13 @@ from pathlib import Path
 from typing import Any
 
 from viewspec.app_bundle import compile_app_tool, diff_app_files_tool, init_app_tool, prove_app_tool, validate_app_file_tool
+from viewspec.converge_tools import (
+    approve_convergence_preview_tool,
+    convergence_status_tool,
+    reject_convergence_preview_tool,
+    start_convergence_session_tool,
+    submit_convergence_patch_tool,
+)
 from viewspec.intent_tools import (
     agent_correction_prompt_file_tool,
     compile_intent_bundle_file_tool,
@@ -346,8 +353,9 @@ def run_mcp_server(*, cwd: str | Path | None = None, allow_outside_cwd: bool = F
 
     @app.tool(
         description=(
-            "Export the local ViewSpec agent system prompt, IntentBundle JSON schema, "
-            "valid starter IntentBundle example, and asset manifest without network calls."
+            "Export the local ViewSpec agent system prompt, IntentBundle JSON schema, valid starter IntentBundle example, and asset manifest without network calls. "
+            "The export also includes AppBundle, IntentPatch, "
+            "and Convergence Authoring Task schemas and examples."
         )
     )
     def export_agent_assets(out: str = ".viewspec", force: bool = False, dry_run: bool = False) -> dict[str, Any]:
@@ -478,6 +486,101 @@ def run_mcp_server(*, cwd: str | Path | None = None, allow_outside_cwd: bool = F
             repair_plan=repair_plan,
             source_kind=source_kind,
             base_source_sha256=base_source_sha256,
+        )
+
+    @app.tool(
+        description=(
+            "Automatically start a durable, bounded Converge Session from exact Review or verifier context. "
+            "This proposal-only tool grants no source-write authority; use it after build_intent_patch_context."
+        )
+    )
+    def start_convergence(
+        source: str,
+        context: dict[str, Any],
+        baseline_result: dict[str, Any] | None = None,
+        state_dir: str | None = None,
+    ) -> dict[str, Any]:
+        return start_convergence_session_tool(
+            source,
+            context,
+            baseline_result=baseline_result,
+            state_dir=state_dir,
+            cwd=root,
+            allow_outside_cwd=allow_outside_cwd,
+        )
+
+    @app.tool(
+        description=(
+            "Submit one IntentPatch using only the active convergence task's legal operations and exact evidence. "
+            "The response withholds every source-write token; ask the human to decide in ViewSpec Review."
+        )
+    )
+    def submit_convergence_patch(
+        source: str,
+        patch: dict[str, Any],
+        state_dir: str | None = None,
+    ) -> dict[str, Any]:
+        return submit_convergence_patch_tool(
+            source,
+            patch,
+            state_dir=state_dir,
+            cwd=root,
+            allow_outside_cwd=allow_outside_cwd,
+        )
+
+    @app.tool(
+        description=(
+            "Get bounded Converge Session status and the next automatic workflow action. "
+            "Approval authority is always withheld from this agent-facing response."
+        )
+    )
+    def get_convergence_status(
+        source: str,
+        state_dir: str | None = None,
+    ) -> dict[str, Any]:
+        return convergence_status_tool(
+            source,
+            state_dir=state_dir,
+            cwd=root,
+            allow_outside_cwd=allow_outside_cwd,
+        )
+
+    @app.tool(
+        description=(
+            "Apply a convergence preview only when a human operator explicitly supplies its outer approval token. "
+            "Never discover, infer, retain, or self-authorize this value; normal human approval happens in Review."
+        )
+    )
+    def approve_convergence(
+        source: str,
+        approval_token: str,
+        state_dir: str | None = None,
+    ) -> dict[str, Any]:
+        return approve_convergence_preview_tool(
+            source,
+            approval_token,
+            state_dir=state_dir,
+            cwd=root,
+            allow_outside_cwd=allow_outside_cwd,
+        )
+
+    @app.tool(
+        description=(
+            "Reject the exact pending convergence preview by id without changing source. "
+            "Use only after the operator explicitly rejects the proposal."
+        )
+    )
+    def reject_convergence(
+        source: str,
+        preview_id: str,
+        state_dir: str | None = None,
+    ) -> dict[str, Any]:
+        return reject_convergence_preview_tool(
+            source,
+            preview_id,
+            state_dir=state_dir,
+            cwd=root,
+            allow_outside_cwd=allow_outside_cwd,
         )
 
     app.run()

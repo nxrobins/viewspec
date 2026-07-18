@@ -22,11 +22,12 @@ waits for the next major version.
    `schema_version` field — a document without it is version 1, and any future intent revision
    will *require* the field, so versionless documents stay unambiguous forever) and AppBundle
    `schema_version` 1–4, plus source-bound IntentPatch `schema_version: 1` under
-   `contract_profile: "local_v1"`. Every AppBundle and IntentPatch document declares its version;
-   readers discriminate by that field.
+   `contract_profile: "local_v1"`, plus Convergence Authoring Task `schema_version: 1`. Every
+   AppBundle, IntentPatch, and convergence task declares its version; readers discriminate by that
+   field.
 2. **Published JSON Schemas.** `agent-intent-bundle.schema.json` and
-   `agent-app-bundle.schema.json`, plus `intent-patch.schema.json`, including their `$id` URIs and
-   `x-viewspec-*` extension fields.
+   `agent-app-bundle.schema.json`, plus `intent-patch.schema.json` and
+   `converge-task.schema.json`, including their `$id` URIs and `x-viewspec-*` extension fields.
 3. **Error codes and error shape.** The closed registry exported as `viewspec.ERROR_CODES`.
    Validation issues are `{code, path, message, fix}` objects; tool-level failures are
    `{code, message, fix}` (no `path`). Codes are stable identifiers: they are never renamed and
@@ -42,7 +43,7 @@ waits for the next major version.
    names and meaning; proof, replay, and conformance semantics for a given bundle stay fixed.
 7. **Determinism.** For a given ViewSpec version, the same input bytes produce the same output
    bytes: artifacts, manifests, digests, hashes, patch identities, candidates, inverses, and
-   approval tokens. See
+   IntentPatch approval tokens. Converge operator capabilities are deliberately random. See
    [free-sdk-reliability](free-sdk-reliability.md).
 
 ## The rules for 1.x releases

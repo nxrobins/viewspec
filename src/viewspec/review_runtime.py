@@ -456,6 +456,12 @@ class ReviewRuntime:
             "compaction_failure": self.session.compaction_failure,
         }
 
+    @property
+    def routes(self) -> tuple[str, ...]:
+        """Return the current checked route names for the browser chrome."""
+
+        return tuple(sorted(self._route_screens))
+
     def _assert_context(self, context: ReviewContext, *, screen_id: str | None) -> None:
         if context.control_values:
             raise ReviewContractError(

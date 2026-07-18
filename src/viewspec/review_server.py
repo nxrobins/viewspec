@@ -19,6 +19,13 @@ import time
 from typing import Callable
 from urllib.parse import unquote_to_bytes, urlsplit
 
+from viewspec.converge_sessions import (
+    ConvergeError,
+    ConvergenceSession,
+    approve_convergence_preview,
+    get_convergence_status,
+    reject_convergence_preview,
+)
 from viewspec.review_contract import ReviewContext, ReviewContractError, canonical_json_bytes
 from viewspec.review_errors import make_review_error
 from viewspec.review_runtime import ReviewRuntime
@@ -354,6 +361,50 @@ class ReviewServer:
                 )
                 self._condition.notify_all()
             return _json_response(201, {"schema_version": 1, "ok": True, "event": event.to_json()})
+        if path == f"{review_root}api/v1/convergence/approve":
+            self._require_frame_handshake()
+            preview_id = _exact_preview_request(body)
+            try:
+                current = get_convergence_status(self.runtime.configuration.source_path)
+                pending = current.pending_preview
+                if pending is None or pending.preview_id != preview_id:
+                    raise ConvergeError(
+                        "CONVERGE_PREVIEW_INVALID",
+                        "The approved preview is no longer the exact pending proposal.",
+                        "Reload Review and inspect the current convergence proposal.",
+                    )
+                session = approve_convergence_preview(
+                    self.runtime.configuration.source_path,
+                    pending.approval_token,
+                )
+            except ConvergeError as exc:
+                raise _convergence_review_error(exc) from exc
+            return _json_response(
+                200,
+                {
+                    "schema_version": 1,
+                    "ok": True,
+                    "convergence": _browser_convergence_projection(session),
+                },
+            )
+        if path == f"{review_root}api/v1/convergence/reject":
+            self._require_frame_handshake()
+            preview_id = _exact_preview_request(body)
+            try:
+                session = reject_convergence_preview(
+                    self.runtime.configuration.source_path,
+                    preview_id,
+                )
+            except ConvergeError as exc:
+                raise _convergence_review_error(exc) from exc
+            return _json_response(
+                200,
+                {
+                    "schema_version": 1,
+                    "ok": True,
+                    "convergence": _browser_convergence_projection(session),
+                },
+            )
         if path == f"{review_root}api/v1/end":
             self._require_frame_handshake()
             payload = _json_object(body)
@@ -654,6 +705,8 @@ class ReviewServer:
         end_endpoint = f"/r/{self.runtime.session.review_id}/api/v1/end"
         handshake_endpoint = f"/r/{self.runtime.session.review_id}/api/v1/handshake"
         session_endpoint = f"/r/{self.runtime.session.review_id}/api/v1/session"
+        convergence_approve_endpoint = f"/r/{self.runtime.session.review_id}/api/v1/convergence/approve"
+        convergence_reject_endpoint = f"/r/{self.runtime.session.review_id}/api/v1/convergence/reject"
         style = (
             "body{margin:0;overflow-x:hidden;font:14px system-ui;background:#f6f7f9;color:#111827}"
             ".toolbar{display:flex;flex-wrap:wrap;align-items:center;gap:16px;padding:10px 16px;background:#111827;color:white}"
@@ -675,11 +728,18 @@ class ReviewServer:
             + handshake_endpoint
             + "',sessionEndpoint='"
             + session_endpoint
+            + "',convergenceApproveEndpoint='"
+            + convergence_approve_endpoint
+            + "',convergenceRejectEndpoint='"
+            + convergence_reject_endpoint
             + "',revision="
             + str(self.runtime.built.revision.number)
             + ",frame=document.getElementById('artifact'),mode=document.getElementById('mode'),"
             "status=document.getElementById('status'),composer=document.getElementById('composer'),trace=document.getElementById('trace'),"
-            "conversation=document.getElementById('conversation');"
+            "conversation=document.getElementById('conversation'),convergence=document.getElementById('convergence'),"
+            "convergenceSummary=document.getElementById('convergence-summary'),convergenceDiff=document.getElementById('convergence-diff'),"
+            "convergenceProof=document.getElementById('convergence-proof'),approveConvergence=document.getElementById('approve-convergence'),"
+            "rejectConvergence=document.getElementById('reject-convergence');let pendingConvergence=null;"
             "let annotate=false,selection=null,queued=0,retainedContext=null,restoreContext=null;"
             "try{restoreContext=JSON.parse(sessionStorage.getItem('viewspec-context-restore')||'null');}catch{}"
             "sessionStorage.removeItem('viewspec-context-restore');const reset=sessionStorage.getItem('viewspec-context-reset');"
@@ -716,9 +776,22 @@ class ReviewServer:
             "queued++;document.getElementById('queued').textContent=String(queued);feedback.value='';status.textContent=end?'Feedback sent; review ended':'Feedback queued';"
             "if(end){document.getElementById('send').disabled=true;document.getElementById('send-end').disabled=true;}};"
             "document.getElementById('send').addEventListener('click',()=>submit(false));document.getElementById('send-end').addEventListener('click',()=>submit(true));"
+            "const renderConvergence=value=>{pendingConvergence=value?.status==='awaiting_approval'?value:null;convergence.hidden=!pendingConvergence;"
+            "if(!pendingConvergence)return;const preview=pendingConvergence.pending_preview,proof=preview.progress_certificate;"
+            "convergenceSummary.textContent='Attempt '+preview.attempt+' proposes a checked change to the current source.';"
+            "convergenceDiff.textContent=JSON.stringify(preview.semantic_diff,null,2);convergenceProof.textContent=JSON.stringify({"
+            "mode:proof.mode,accepted:proof.accepted,fixed:proof.fixed_obligations?.length||0,remaining:proof.remaining_obligations?.length||0,"
+            "introduced:proof.introduced_obligations?.length||0,reason:proof.reason},null,2);approveConvergence.disabled=false;rejectConvergence.disabled=false;};"
+            "const decideConvergence=async action=>{if(!pendingConvergence)return;approveConvergence.disabled=true;rejectConvergence.disabled=true;"
+            "const previewId=pendingConvergence.pending_preview.preview_id;try{const response=await fetch(action==='approve'?convergenceApproveEndpoint:convergenceRejectEndpoint,{"
+            "method:'POST',headers:{'Content-Type':'application/json','X-ViewSpec-Frame-Nonce':nonce},body:JSON.stringify({preview_id:previewId})});"
+            "const result=await response.json();status.textContent=response.ok?(action==='approve'?'Proposal approved':'Proposal rejected'):(result.error?.code||'Decision failed');"
+            "if(response.ok)renderConvergence(result.convergence);}catch{status.textContent='Convergence decision failed';}finally{if(pendingConvergence){"
+            "approveConvergence.disabled=false;rejectConvergence.disabled=false;}}};approveConvergence.addEventListener('click',()=>decideConvergence('approve'));"
+            "rejectConvergence.addEventListener('click',()=>decideConvergence('reject'));"
             "setInterval(async()=>{try{const response=await fetch(sessionEndpoint);if(!response.ok)return;const result=await response.json();"
             "const replies=result.review?.agent_replies||[];conversation.replaceChildren(...replies.map(reply=>{const item=document.createElement('li');"
-            "item.textContent='Agent: '+reply;return item;}));"
+            "item.textContent='Agent: '+reply;return item;}));renderConvergence(result.review?.convergence);"
             "if(result.review?.revision!==revision){if(retainedContext?.route&&result.review?.routes?.includes(retainedContext.route)){"
             "sessionStorage.setItem('viewspec-context-restore',JSON.stringify(retainedContext));}else{sessionStorage.setItem('viewspec-context-reset','1');}"
             "location.reload();}}catch{}},500);})();"
@@ -735,6 +808,10 @@ class ReviewServer:
             f"sandbox='allow-scripts allow-forms' src='{frame}'></iframe></section>"
             "<aside class=panel><h1>Review panel</h1><p>Select a compiler-owned element in Annotate mode. Cmd/Ctrl+I toggles modes.</p>"
             "<h2>Conversation</h2><ol id=conversation aria-live=polite></ol>"
+            "<section id=convergence hidden><h2>Convergence proposal</h2><p id=convergence-summary></p>"
+            "<h3>Semantic before/after</h3><pre id=convergence-diff class=trace></pre><h3>Progress proof</h3>"
+            "<pre id=convergence-proof class=trace></pre><button id=approve-convergence type=button>Approve proposal</button>"
+            "<button id=reject-convergence type=button>Reject proposal</button></section>"
             "<section id=composer hidden><h2>Annotation</h2><pre id=trace class=trace></pre>"
             "<button id=page-target type=button>Use page-level target</button>"
             "<label for=kind>Kind</label><select id=kind><option value=change_request>Change request</option>"
@@ -753,12 +830,22 @@ class ReviewServer:
 
     def _browser_status(self) -> dict[str, object]:
         status = self.runtime.status()
+        try:
+            convergence: dict[str, object] | None = _browser_convergence_projection(
+                get_convergence_status(self.runtime.configuration.source_path)
+            )
+        except ConvergeError as exc:
+            convergence = None if exc.code == "CONVERGE_SESSION_NOT_FOUND" else {
+                "status": "unavailable",
+                "error_code": exc.code,
+            }
         status.update(
             {
                 "frame_path": self.frame_path("index.html"),
                 "frame_nonce": self.frame_nonce,
-                "routes": sorted(self._route_screens),
+                "routes": list(self.runtime.routes),
                 "agent_replies": list(self.runtime.session.agent_replies[-4:]),
+                "convergence": convergence,
             }
         )
         return status
@@ -946,6 +1033,68 @@ def _canonical_frame_path(raw: str) -> str:
     if any(not part or part in {".", ".."} or _SAFE_FRAME_SEGMENT.fullmatch(part) is None for part in parts):
         raise _artifact_not_found()
     return "/".join(parts)
+
+
+def _browser_convergence_projection(session: ConvergenceSession) -> dict[str, object]:
+    pending: dict[str, object] | None = None
+    if session.pending_preview is not None:
+        preview = session.pending_preview
+        pending = {
+            "schema_version": 1,
+            "preview_id": preview.preview_id,
+            "attempt": preview.attempt,
+            "base_source_sha256": preview.base_source_sha256,
+            "candidate_source_sha256": preview.candidate_source_sha256,
+            "semantic_diff": preview.semantic_diff,
+            "compile_check": preview.compile_check,
+            "progress_certificate": preview.progress_certificate.to_json(),
+        }
+    return {
+        "schema_version": session.schema_version,
+        "session_id": session.session_id,
+        "status": session.status,
+        "mode": session.mode,
+        "attempt_count": session.attempt_count,
+        "expires_at": session.expires_at,
+        "terminal_reason": session.terminal_reason,
+        "pending_preview": pending,
+    }
+
+
+def _convergence_review_error(error: ConvergeError) -> ReviewContractError:
+    if error.code == "CONVERGE_SESSION_NOT_FOUND":
+        status = 404
+    elif error.code in {"CONVERGE_STATE_CORRUPT", "CONVERGE_STATE_IO"}:
+        status = 500
+    elif error.code in {
+        "CONVERGE_APPROVAL_INVALID",
+        "CONVERGE_PREVIEW_INVALID",
+        "CONVERGE_SESSION_EXPIRED",
+        "CONVERGE_SESSION_STATUS",
+        "CONVERGE_SOURCE_CHANGED",
+    }:
+        status = 409
+    else:
+        status = 422
+    return ReviewContractError(
+        error.code,
+        error.message,
+        error.fix,
+        http_status=status,
+        cli_exit=error.cli_exit,
+    )
+
+
+def _exact_preview_request(content: bytes) -> str:
+    payload = _json_object(content)
+    preview_id = payload.get("preview_id")
+    if set(payload) != {"preview_id"} or not isinstance(preview_id, str):
+        raise _http_error(
+            400,
+            "REVIEW_REQUEST_INVALID",
+            "Convergence decision requires exactly one preview_id string.",
+        )
+    return preview_id
 
 
 def _json_object(content: bytes) -> dict[str, object]:

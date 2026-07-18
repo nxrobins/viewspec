@@ -30,6 +30,14 @@ from viewspec.app_bundle import (
 )
 from viewspec.agent_assets import AgentAssetError, agent_asset_readiness, check_agent_assets, export_agent_assets
 from viewspec.compiler import compile
+from viewspec.converge_sessions import (
+    ConvergeError,
+    approve_convergence_preview,
+    get_convergence_status,
+    reject_convergence_preview,
+    start_convergence_session,
+    submit_convergence_patch,
+)
 from viewspec.design_md import DesignSystemContext, DesignSystemError, load_design_system
 from viewspec.emitters.html_tailwind import HtmlTailwindEmitter
 from viewspec.emitters.react_tailwind_tsx import ReactTailwindTsxEmitter
@@ -48,7 +56,13 @@ from viewspec.intent_tools import (
     validate_intent_text,
     wrap_intent_bundle_manifest,
 )
-from viewspec.intent_patch import IntentPatchError, apply_intent_patch_file, preview_intent_patch_file
+from viewspec.intent_patch import (
+    IntentPatchContext,
+    IntentPatchError,
+    _strict_json_loads,
+    apply_intent_patch_file,
+    preview_intent_patch_file,
+)
 from viewspec.local_tools import (
     atomic_write,
     check_artifact_dir,
@@ -57,7 +71,7 @@ from viewspec.local_tools import (
     source_hash,
 )
 from viewspec.local_verify import verify_local_artifact
-from viewspec.verification import VerificationPlan
+from viewspec.verification import VerificationPlan, VerificationResult
 from viewspec.prove import PROVE_DEFAULT_OUT, prove
 from viewspec.mcp_server import MCP_INSTALL_HINT, MissingMCPDependency, mcp_dependency_available, run_mcp_server
 from viewspec.native_agents import NativeAgentError, VALID_TARGETS, init_agent_instructions
@@ -90,6 +104,9 @@ def main(argv: list[str] | None = None) -> int:
         print(f"error: {exc.code}: {exc.message}\nfix: {exc.fix}", file=sys.stderr)
         return exc.cli_exit
     except IntentPatchError as exc:
+        print(f"error: {exc.code}: {exc.message}\nfix: {exc.fix}", file=sys.stderr)
+        return exc.cli_exit
+    except ConvergeError as exc:
         print(f"error: {exc.code}: {exc.message}\nfix: {exc.fix}", file=sys.stderr)
         return exc.cli_exit
     except (FileNotFoundError, ValueError, TypeError, json.JSONDecodeError) as exc:
@@ -315,7 +332,7 @@ def _build_parser() -> argparse.ArgumentParser:
 
     agent_assets_parser = subparsers.add_parser(
         "export-agent-assets",
-        help="Export local agent prompt, IntentBundle JSON schema, valid example, and asset manifest files.",
+        help="Export the local agent prompt, semantic schemas/examples, and asset manifest.",
     )
     agent_assets_parser.add_argument("--out", default=".viewspec", help="Output directory for local agent contract assets.")
     agent_assets_parser.add_argument("--force", action="store_true", help="Replace existing generated assets.")
@@ -391,6 +408,66 @@ def _build_parser() -> argparse.ArgumentParser:
     patch_apply_parser.add_argument("--install", action="store_true", help="Allow the explicit verification install flow.")
     patch_apply_parser.add_argument("--json", action="store_true", help="Print machine-readable JSON.")
     patch_apply_parser.set_defaults(func=_patch_apply_command)
+
+    converge_start_parser = subparsers.add_parser(
+        "converge-start",
+        help="Start a bounded source-bound Converge Session V1 from IntentPatch proposal context.",
+    )
+    converge_start_parser.add_argument("source", help="Canonical local IntentBundle or AppBundle JSON file.")
+    converge_start_parser.add_argument("context", help="IntentPatchContext JSON from Review or verification evidence.")
+    converge_start_parser.add_argument("--baseline-result", help="Exact VerificationResult JSON for verifier-driven sessions.")
+    converge_start_parser.add_argument("--state-dir", help="Private convergence state directory.")
+    converge_start_parser.add_argument("--json", action="store_true", help="Print machine-readable JSON.")
+    converge_start_parser.set_defaults(func=_converge_start_command)
+
+    converge_submit_parser = subparsers.add_parser(
+        "converge-submit",
+        help="Submit one legal IntentPatch proposal to the active convergence session.",
+    )
+    converge_submit_parser.add_argument("source", help="Canonical source path used to start convergence.")
+    converge_submit_parser.add_argument("patch", help="Strict IntentPatch V1 JSON file.")
+    converge_submit_parser.add_argument("--state-dir", help="Private convergence state directory.")
+    converge_submit_parser.add_argument(
+        "--show-authority",
+        action="store_true",
+        help="Expert-only: print the outer approval token; normal approval occurs in Review.",
+    )
+    converge_submit_parser.add_argument("--json", action="store_true", help="Print machine-readable JSON.")
+    converge_submit_parser.set_defaults(func=_converge_submit_command)
+
+    converge_status_parser = subparsers.add_parser(
+        "converge-status",
+        help="Inspect the active or terminal convergence session for one source.",
+    )
+    converge_status_parser.add_argument("source", help="Canonical source path used to start convergence.")
+    converge_status_parser.add_argument("--state-dir", help="Private convergence state directory.")
+    converge_status_parser.add_argument(
+        "--show-authority",
+        action="store_true",
+        help="Expert-only: print the outer approval token; normal approval occurs in Review.",
+    )
+    converge_status_parser.add_argument("--json", action="store_true", help="Print machine-readable JSON.")
+    converge_status_parser.set_defaults(func=_converge_status_command)
+
+    converge_approve_parser = subparsers.add_parser(
+        "converge-approve",
+        help="Apply an exact operator-approved convergence preview.",
+    )
+    converge_approve_parser.add_argument("source", help="Canonical source path used to start convergence.")
+    converge_approve_parser.add_argument("--approval", required=True, help="Exact outer convergence approval token.")
+    converge_approve_parser.add_argument("--state-dir", help="Private convergence state directory.")
+    converge_approve_parser.add_argument("--json", action="store_true", help="Print machine-readable JSON.")
+    converge_approve_parser.set_defaults(func=_converge_approve_command)
+
+    converge_reject_parser = subparsers.add_parser(
+        "converge-reject",
+        help="Reject the exact pending convergence preview without mutating source.",
+    )
+    converge_reject_parser.add_argument("source", help="Canonical source path used to start convergence.")
+    converge_reject_parser.add_argument("--preview", required=True, help="Exact pending convergence preview id.")
+    converge_reject_parser.add_argument("--state-dir", help="Private convergence state directory.")
+    converge_reject_parser.add_argument("--json", action="store_true", help="Print machine-readable JSON.")
+    converge_reject_parser.set_defaults(func=_converge_reject_command)
 
     mcp_parser = subparsers.add_parser("mcp", help="Start the optional ViewSpec stdio MCP server.")
     mcp_parser.add_argument("--cwd", default=".", help="MCP path sandbox root.")
@@ -535,6 +612,166 @@ def _patch_apply_command(args: argparse.Namespace) -> int:
     else:
         print(f"applied: {receipt.receipt_id}")
         print(f"receipt: {receipt.receipt_path}")
+    return 0
+
+
+def _converge_json_file(path: str, *, code: str, noun: str) -> dict[str, object]:
+    value = _strict_json_loads(Path(path).read_text(encoding="utf-8"), code=code, noun=noun)
+    if not isinstance(value, dict):
+        raise ConvergeError(
+            code,
+            f"{noun} must be a JSON object.",
+            f"Use the documented {noun} object shape.",
+        )
+    return value
+
+
+def _converge_context_from_file(path: str) -> IntentPatchContext:
+    value = _converge_json_file(
+        path,
+        code="CONVERGE_CONTEXT_INVALID",
+        noun="convergence context",
+    )
+    try:
+        return IntentPatchContext(
+            origin=value.get("origin"),
+            source_kind=value.get("source_kind"),
+            base_source_sha256=value.get("base_source_sha256"),
+            contract_profile=value.get("contract_profile"),
+            evidence_refs=tuple(value.get("evidence_refs", [])),
+            requests=tuple(value.get("requests", [])),
+        )
+    except Exception as exc:
+        raise ConvergeError(
+            "CONVERGE_CONTEXT_INVALID",
+            f"Convergence context is invalid: {exc}",
+            "Regenerate exact proposal context from Review or a verification repair plan.",
+        ) from exc
+
+
+def _converge_result_from_file(path: str) -> VerificationResult:
+    value = _converge_json_file(
+        path,
+        code="CONVERGE_BASELINE_INVALID",
+        noun="baseline verification result",
+    )
+    try:
+        return VerificationResult.from_json(value)
+    except Exception as exc:
+        raise ConvergeError(
+            "CONVERGE_BASELINE_INVALID",
+            f"Baseline verification result is invalid: {exc}",
+            "Use the exact canonical VerificationResult that produced the repair context.",
+        ) from exc
+
+
+def _converge_cli_session(session: object, *, show_authority: bool = False) -> dict[str, object]:
+    payload = session.to_json(include_approval_token=show_authority)
+    pending = payload.get("pending_preview")
+    if isinstance(pending, dict):
+        pending.pop("intent_approval_token", None)
+        pending["approval"] = {
+            "required": True,
+            "channel": "expert_cli" if show_authority else "viewspec_review",
+        }
+    return payload
+
+
+def _print_converge(
+    session: object,
+    *,
+    summary: str,
+    as_json: bool,
+    show_authority: bool = False,
+) -> None:
+    convergence = _converge_cli_session(session, show_authority=show_authority)
+    payload = {
+        "schema_version": 1,
+        "ok": True,
+        "summary": summary,
+        "convergence": convergence,
+    }
+    if as_json:
+        print(json.dumps(payload, indent=2, sort_keys=True))
+        return
+    print(f"status: {convergence['status']}")
+    print(f"session: {convergence['session_id']}")
+    pending = convergence.get("pending_preview")
+    if isinstance(pending, dict):
+        print(f"preview: {pending['preview_id']}")
+        if show_authority and isinstance(pending.get("approval_token"), str):
+            print(f"approval_token: {pending['approval_token']}")
+
+
+def _converge_start_command(args: argparse.Namespace) -> int:
+    context = _converge_context_from_file(args.context)
+    baseline = _converge_result_from_file(args.baseline_result) if args.baseline_result else None
+    session = start_convergence_session(
+        args.source,
+        context,
+        baseline_result=baseline,
+        state_root=args.state_dir,
+    )
+    _print_converge(
+        session,
+        summary="Started a source-bound convergence session; source was not changed.",
+        as_json=bool(args.json),
+    )
+    return 0
+
+
+def _converge_submit_command(args: argparse.Namespace) -> int:
+    patch = _converge_json_file(
+        args.patch,
+        code="CONVERGE_PATCH_INVALID",
+        noun="convergence IntentPatch",
+    )
+    session = submit_convergence_patch(args.source, patch, state_root=args.state_dir)
+    _print_converge(
+        session,
+        summary="Submitted one bounded proposal; source-write authority remains operator-gated.",
+        as_json=bool(args.json),
+        show_authority=bool(args.show_authority),
+    )
+    return 0
+
+
+def _converge_status_command(args: argparse.Namespace) -> int:
+    session = get_convergence_status(args.source, state_root=args.state_dir)
+    _print_converge(
+        session,
+        summary=f"Convergence session status is {session.status}.",
+        as_json=bool(args.json),
+        show_authority=bool(args.show_authority),
+    )
+    return 0
+
+
+def _converge_approve_command(args: argparse.Namespace) -> int:
+    session = approve_convergence_preview(
+        args.source,
+        args.approval,
+        state_root=args.state_dir,
+    )
+    _print_converge(
+        session,
+        summary=f"Explicit approval completed with status {session.status}.",
+        as_json=bool(args.json),
+    )
+    return 0
+
+
+def _converge_reject_command(args: argparse.Namespace) -> int:
+    session = reject_convergence_preview(
+        args.source,
+        args.preview,
+        state_root=args.state_dir,
+    )
+    _print_converge(
+        session,
+        summary="Rejected the exact pending preview; source was not changed.",
+        as_json=bool(args.json),
+    )
     return 0
 
 

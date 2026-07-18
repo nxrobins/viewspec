@@ -72,7 +72,8 @@ The May 6 launch proof remains one agent-authored hosted-extended IntentBundle c
 - `viewspec init-agent --target codex|claude-code|cursor|copilot|all`
 - `viewspec export-agent-assets --out .viewspec`
 - `viewspec check-agent-assets .viewspec --json`
-- Local agent asset manifests use schema version `12`, declare the `local_v1` contract profile, and include the closed IntentPatch V1 schema plus an exact-source example.
+- Local agent asset manifests use schema version `13`, declare the `local_v1` contract profile, and include the closed IntentPatch V1 and Convergence Authoring Task V1 schemas plus exact-source examples.
+- Converge Sessions automatically turn Review or verifier evidence into source-bound patch proposals; humans inspect semantic before/after and progress proof in Review, then approve or reject without handling hashes, operations, or tokens.
 - `viewspec init-app --out viewspec.app.json`
 - `viewspec validate-app viewspec.app.json --json`
 - `viewspec diff-app old.app.json new.app.json --json`

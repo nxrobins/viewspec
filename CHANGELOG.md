@@ -7,6 +7,23 @@ All notable changes to ViewSpec are documented in this file. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- Durable Converge Sessions V1 for Review- and verifier-driven semantic repair, with source-bound
+  legal-operation tasks, three-attempt/ten-minute limits, cycle detection, checksum-protected local
+  state, and strict set-wise progress certificates backed by property tests.
+- A human approval panel in ViewSpec Review that shows semantic before/after and progress proof,
+  withholds both write capabilities from browser and agent status, and applies or rejects only the
+  exact current preview after the existing origin, cookie, frame nonce, and handshake checks.
+- Agent-safe Converge MCP adapters, expert CLI commands, public Python types, the published
+  `converge-task.schema.json` contract and example, and agent asset schema version 13.
+
+### Security
+
+- Convergence approval uses a private random 256-bit outer capability; stale authority, changed
+  source bytes, out-of-task targets, evidence substitution, corrupt state, and post-apply verifier
+  drift all fail closed without silently rebasing or continuing.
+
 ## [0.3.0b4] - 2026-07-12
 
 ### Added

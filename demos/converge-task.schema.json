@@ -1,0 +1,147 @@
+{
+  "$defs": {
+    "operation": {
+      "additionalProperties": false,
+      "properties": {
+        "allowed_values": {
+          "maxItems": 64,
+          "type": "array"
+        },
+        "fixed_fields": {
+          "type": "object"
+        },
+        "op": {
+          "maxLength": 64,
+          "minLength": 1,
+          "type": "string"
+        },
+        "replacement_field": {
+          "maxLength": 64,
+          "minLength": 1,
+          "type": "string"
+        },
+        "target_key": {
+          "$ref": "#/$defs/target_key"
+        }
+      },
+      "required": [
+        "op",
+        "fixed_fields",
+        "replacement_field",
+        "target_key"
+      ],
+      "type": "object"
+    },
+    "target": {
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "enum": [
+            "binding",
+            "region",
+            "semantic_node",
+            "style",
+            "visibility"
+          ]
+        },
+        "legal_operations": {
+          "items": {
+            "$ref": "#/$defs/operation"
+          },
+          "maxItems": 64,
+          "minItems": 1,
+          "type": "array"
+        },
+        "screen_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "source_fragment": {
+          "type": "object"
+        },
+        "target_id": {
+          "maxLength": 128,
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": [
+        "target_id",
+        "kind",
+        "screen_id",
+        "source_fragment",
+        "legal_operations"
+      ],
+      "type": "object"
+    },
+    "target_key": {
+      "items": {
+        "maxLength": 128,
+        "minLength": 1,
+        "type": "string"
+      },
+      "maxItems": 6,
+      "minItems": 3,
+      "type": "array"
+    }
+  },
+  "$id": "https://viewspec.dev/converge-task.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "A source-bound menu of the only semantic operations an agent may propose in one convergence step.",
+  "properties": {
+    "allowed_target_keys": {
+      "items": {
+        "$ref": "#/$defs/target_key"
+      },
+      "maxItems": 128,
+      "type": "array",
+      "uniqueItems": true
+    },
+    "base_source_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "type": "string"
+    },
+    "requests": {
+      "items": {
+        "type": "object"
+      },
+      "maxItems": 63,
+      "minItems": 1,
+      "type": "array"
+    },
+    "schema_version": {
+      "const": 1
+    },
+    "source_kind": {
+      "enum": [
+        "intent_bundle",
+        "app_bundle"
+      ]
+    },
+    "targets": {
+      "items": {
+        "$ref": "#/$defs/target"
+      },
+      "maxItems": 128,
+      "type": "array"
+    },
+    "task_id": {
+      "pattern": "^vctask_[0-9a-f]{32}$",
+      "type": "string"
+    }
+  },
+  "required": [
+    "schema_version",
+    "task_id",
+    "source_kind",
+    "base_source_sha256",
+    "requests",
+    "targets",
+    "allowed_target_keys"
+  ],
+  "title": "ViewSpec Convergence Authoring Task V1",
+  "type": "object"
+}
