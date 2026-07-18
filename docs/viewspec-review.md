@@ -76,8 +76,9 @@ V0 is not:
 - a promise that arbitrary imported HTML has ViewSpec-native provenance;
 - permission to install packages, open network connections, or publish artifacts implicitly.
 
-Typed source patch proposals, state time travel, cross-emitter synchronized review, hosted sharing,
-and arbitrary HTML compatibility are follow-on capabilities described later in this document.
+Typed source patch proposals are now the additive IntentPatch V1 contract; state time travel,
+cross-emitter synchronized review, hosted sharing, and arbitrary HTML compatibility remain follow-on
+capabilities described later in this document.
 
 ## Users and Jobs
 
@@ -1050,12 +1051,14 @@ Do not begin with visual patching, arbitrary HTML, sharing, or whiteboards. The 
 proof is that a human can point at a rendered element and the agent receives a durable,
 manifest-verified semantic source address.
 
-## Follow-On: Typed IntentPatch V1
+## Implemented Additive Contract: Typed IntentPatch V1
 
-After Review V0 is trustworthy, direct manipulation may produce proposals using an id-addressed,
-domain-specific `IntentPatch`, not RFC 6902 array-index patches and never generated-code edits.
+Review V0 feedback and verifier repair plans may now produce proposal context for an id-addressed,
+domain-specific `IntentPatch`, not RFC 6902 array-index patches and never generated-code edits. The
+normative contract, physical limits, transaction recovery rules, and explicit anti-goals are in
+[IntentPatch V1](intent-patch-v1.md).
 
-Candidate operations:
+Closed V1 operations:
 
 - `set_aesthetic_profile`
 - `set_style_token`
@@ -1067,7 +1070,7 @@ Candidate operations:
 - `replace_fixture_scalar`
 - `set_visibility_condition`
 
-Every proposal must include:
+Every proposal includes:
 
 - base source SHA-256 and contract profile;
 - stable target ids;
@@ -1078,9 +1081,11 @@ Every proposal must include:
 - compile/check result;
 - explicit user approval before source write.
 
-Patch application refuses changed bases, stale targets, unknown fields, and ambiguous ids. Applying
-a patch is a separate, externally visible write action and is not authorized merely by opening a
-review session.
+`patch-preview` now refuses changed bases, stale targets, unknown fields, ambiguous ids, duplicate
+targets, and candidate proof failures before returning an approval token. `patch-apply` re-proves
+that exact preview under a source lock, writes a durable receipt and inverse patch, and remains a
+separate externally visible action that is not authorized merely by opening a review session or
+submitting feedback.
 
 ## Follow-On: State and Cross-Surface Review
 

@@ -25,6 +25,7 @@ NON_CODE_LITERAL_TOKENS = {
     "APP_SCREEN_INTENT",  # startswith() prefix over APP_SCREEN_INTENT_* codes
     "ARTIFACT_DIR",  # CLI usage/metavar text
     "HOST_VERIFY",  # regex fragment matching HOST_VERIFY_* codes
+    "O_NOFOLLOW",  # optional os module flag used to reject symlink lock files
     "TOO_MANY",  # startswith() prefix over TOO_MANY_* codes
     "VIEWSPEC_HOST_VERIFY_BASE_URL",  # environment variable name
     "VIEWSPEC_HOST_VERIFY_BROWSER_REPORT",  # environment variable name

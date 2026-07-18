@@ -361,6 +361,10 @@ def export_agent_assets_tool(
                 paths["app_schema"] = str(output / filename)
             elif filename == "agent-app-example.internal-tool.json":
                 paths["app_example"] = str(output / filename)
+            elif filename == "intent-patch.schema.json":
+                paths["patch_schema"] = str(output / filename)
+            elif filename == "intent-patch-example.dashboard.json":
+                paths["patch_example"] = str(output / filename)
         changed = [item for item in result["files"] if item["action"] != "unchanged"]
         return tool_response(
             True,
@@ -374,6 +378,7 @@ def export_agent_assets_tool(
                 "Use .viewspec/agent-system-prompt.txt as the local ViewSpec agent contract prompt.",
                 "Use .viewspec/agent-intent-example.dashboard.json as a valid wire-shape example.",
                 "Use .viewspec/agent-app-example.internal-tool.json as a valid AppBundle wire-shape example.",
+                "Use .viewspec/intent-patch.schema.json and its example for bounded source revisions.",
             ],
             metadata={**path_policy_metadata(root, allow_outside_cwd), "dry_run": dry_run, "changes": len(changed)},
         )

@@ -14,6 +14,11 @@ from viewspec.intent_tools import (
     init_intent_tool,
     validate_intent_bundle_file_tool,
 )
+from viewspec.intent_patch_tools import (
+    apply_intent_patch_file_tool,
+    intent_patch_context_tool,
+    preview_intent_patch_file_tool,
+)
 from viewspec.host_verify import verify_host_tool
 from viewspec.local_tools import (
     check_artifact_tool,
@@ -409,6 +414,71 @@ def run_mcp_server(*, cwd: str | Path | None = None, allow_outside_cwd: bool = F
         )
         resolved_state = resolve_local_path(state_dir, cwd=root, allow_outside_cwd=allow_outside_cwd)
         return review_status_cli(resolved_source, state_root=resolved_state)
+
+    @app.tool(
+        description=(
+            "Validate and compile-check an exact source-bound IntentPatch, return its semantic diff and approval token, "
+            "and optionally write the candidate without mutating the source."
+        )
+    )
+    def preview_intent_patch(
+        source: str,
+        patch: str,
+        candidate_out: str | None = None,
+        verify: bool = False,
+        install: bool = False,
+    ) -> dict[str, Any]:
+        return preview_intent_patch_file_tool(
+            source,
+            patch,
+            candidate_out=candidate_out,
+            verify=verify,
+            install=install,
+            cwd=root,
+            allow_outside_cwd=allow_outside_cwd,
+        )
+
+    @app.tool(
+        description=(
+            "Atomically apply an IntentPatch only when given the exact approval token from the current preview; "
+            "write a durable receipt containing the inverse patch."
+        )
+    )
+    def apply_intent_patch(
+        source: str,
+        patch: str,
+        approval_token: str,
+        verify: bool = False,
+        install: bool = False,
+    ) -> dict[str, Any]:
+        return apply_intent_patch_file_tool(
+            source,
+            patch,
+            approval_token=approval_token,
+            verify=verify,
+            install=install,
+            cwd=root,
+            allow_outside_cwd=allow_outside_cwd,
+        )
+
+    @app.tool(
+        description=(
+            "Convert exactly one validated Review batch or verification repair plan into bounded, source-bound "
+            "IntentPatch proposal context. This tool grants no approval and performs no source mutation."
+        )
+    )
+    def build_intent_patch_context(
+        review_batch: dict[str, Any] | None = None,
+        repair_plan: dict[str, Any] | None = None,
+        source_kind: str | None = None,
+        base_source_sha256: str | None = None,
+    ) -> dict[str, Any]:
+        return intent_patch_context_tool(
+            review_batch=review_batch,
+            repair_plan=repair_plan,
+            source_kind=source_kind,
+            base_source_sha256=base_source_sha256,
+        )
 
     app.run()
 

@@ -168,6 +168,36 @@ Local HTML action buttons dispatch `viewspec-action` events only when actions ex
 
 The V1 local contract is bounded so validation and correction stay deterministic: max 256KB JSON, 200 substrate nodes, 32 regions, 400 bindings, 64 groups, 32 motifs, 400 styles, 64 actions, 64 attrs/slots/edges per node, 200 values per slot or edge, and 64 payload bindings per action. `complexity_tier` starts at 1, region child bounds are non-negative, and `max_children` must be null or at least `min_children`. Agents should split larger UI surfaces into smaller IntentBundles.
 
+## IntentPatch V1 and Converge
+
+When an agent is revising existing validated source from Review feedback or a verification repair,
+it may propose `IntentPatch` V1 instead of regenerating the whole document. Use the exported
+`intent-patch.schema.json`; bind `base_source_sha256` to the exact current UTF-8 source bytes, use
+only the nine stable-ID operations, and include the exact old value for every write.
+
+```bash
+viewspec patch-preview viewspec.intent.json change.intentpatch.json \
+  --candidate-out candidate.intent.json --json
+viewspec patch-apply viewspec.intent.json change.intentpatch.json \
+  --approval <exact-token-from-current-preview> --json
+```
+
+The first command validates, semantic-diffs, compiles, and checks the complete candidate without
+changing source. The second command repeats that proof under a source lock and accepts only the
+exact current approval token; Review events and verifier repairs are proposal evidence and never
+authorize apply.
+
+Python callers can use `patch_context_from_review_batch()` and
+`patch_context_from_repair_plan()` to create bounded source-bound authorship context, then
+`preview_intent_patch()` or `apply_intent_patch_file()` for the proof and transaction boundaries.
+MCP callers use `build_intent_patch_context`, `preview_intent_patch`, and `apply_intent_patch`, which retain the MCP cwd path
+sandbox and the standard tool response envelope.
+
+IntentPatch cannot add/delete source structure or address arbitrary JSON, DOM, CSS, or generated
+files. Use a full IntentBundle/AppBundle revision for changes outside its nine-operation vocabulary.
+The full contract, constraint matrix, recovery behavior, and explicit anti-goals are in
+[IntentPatch V1](intent-patch-v1.md).
+
 ## Intent Review
 
 Use `viewspec diff-intent old.intent.json new.intent.json --json` to review agent-authored revisions at the contract level. The result is versioned as `diff_version: 1` with `basis: "intent_bundle_v1"`, and reports added, removed, and changed top-level bundle metadata, semantic nodes, regions, bindings, groups, motifs, styles, actions, selected field-level changes, and a `semantic_changes` summary for region layout/parent/role changes, group membership changes, motif membership/kind/region changes, aesthetic profile changes, style target/token changes, binding source/presentation changes, and action target/payload changes. Human output prints concise section and semantic summaries; Python callers can use `intent_semantic_change_lines(diff["semantic_changes"])`; `--json` returns the full machine-readable payload.
@@ -197,7 +227,7 @@ AppBundle proof does not prove runtime browser navigation, dynamic routes, live 
 
 ## Published Agent Artifacts
 
-These assets use agent asset schema version `11`. The manifest declares the `local_v1` contract profile plus the export/check commands agents should use for local verification.
+These assets use agent asset schema version `12`. The manifest declares the `local_v1` contract profile plus the export/check commands agents should use for local verification.
 
 - Asset manifest: `https://viewspec.dev/agent-assets.json`
 - System prompt: `https://viewspec.dev/agent-system-prompt.txt`
@@ -205,6 +235,8 @@ These assets use agent asset schema version `11`. The manifest declares the `loc
 - Valid starter example: `https://viewspec.dev/agent-intent-example.dashboard.json`
 - AppBundle V1/V2/V3/V4 schema: `https://viewspec.dev/agent-app-bundle.schema.json`
 - AppBundle internal-tool example: `https://viewspec.dev/agent-app-example.internal-tool.json`
+- IntentPatch V1 schema: `https://viewspec.dev/intent-patch.schema.json`
+- IntentPatch dashboard example: `https://viewspec.dev/intent-patch-example.dashboard.json`
 - Hosted compiler OpenAPI: `https://viewspec.dev/openapi.json`
 - LLM summary: `https://viewspec.dev/llms.txt`
 - Expanded AI context: `https://viewspec.dev/llms-full.txt`

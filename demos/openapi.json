@@ -2243,7 +2243,7 @@
     "url": "https://viewspec.dev/"
   },
   "x-viewspec-agent-artifacts": {
-    "assetSchemaVersion": 11,
+    "assetSchemaVersion": 12,
     "assetManifest": "https://viewspec.dev/agent-assets.json",
     "contractProfile": "local_v1",
     "exportCommand": "viewspec export-agent-assets --out .viewspec",
@@ -2254,6 +2254,8 @@
     "intentBundleExample": "https://viewspec.dev/agent-intent-example.dashboard.json",
     "appBundleSchema": "https://viewspec.dev/agent-app-bundle.schema.json",
     "appBundleExample": "https://viewspec.dev/agent-app-example.internal-tool.json",
+    "intentPatchSchema": "https://viewspec.dev/intent-patch.schema.json",
+    "intentPatchExample": "https://viewspec.dev/intent-patch-example.dashboard.json",
     "agentDocs": "https://github.com/nxrobins/viewspec/blob/main/docs/agent-integration.md"
   },
   "x-viewspec-public-facts": {
