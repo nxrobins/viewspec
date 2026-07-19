@@ -1098,7 +1098,9 @@ Agents automatically operate the session workflow—start or resume, author from
 menu, submit, and re-verify—while humans express intent and grant authority. The controller is
 durable, capped at three attempts and ten minutes, rejects source drift and cycles, and accepts
 verifier candidates only when their error-obligation set is a proper subset of the baseline under
-the identical complete plan. See [Converge Sessions V1](converge-sessions-v1.md).
+the identical complete plan. Review persists an optional custom Converge state root in its private
+configuration, and interrupted applies or post-apply verification resume from durable receipts and
+checkpoints. See [Converge Sessions V1](converge-sessions-v1.md).
 
 ## Follow-On: State and Cross-Surface Review
 

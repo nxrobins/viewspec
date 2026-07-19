@@ -38,6 +38,7 @@
         "kind": {
           "enum": [
             "binding",
+            "fixture",
             "region",
             "semantic_node",
             "style",

@@ -31,6 +31,7 @@ from viewspec.app_bundle import (
 from viewspec.agent_assets import AgentAssetError, agent_asset_readiness, check_agent_assets, export_agent_assets
 from viewspec.compiler import compile
 from viewspec.converge_sessions import (
+    CONVERGE_MAX_STATE_BYTES,
     ConvergeError,
     approve_convergence_preview,
     get_convergence_status,
@@ -57,8 +58,10 @@ from viewspec.intent_tools import (
     wrap_intent_bundle_manifest,
 )
 from viewspec.intent_patch import (
+    INTENT_PATCH_MAX_BYTES,
     IntentPatchContext,
     IntentPatchError,
+    _read_bounded_utf8_file,
     _strict_json_loads,
     apply_intent_patch_file,
     preview_intent_patch_file,
@@ -360,6 +363,10 @@ def _build_parser() -> argparse.ArgumentParser:
     review_parser.add_argument("--no-open", action="store_true", help="Start or resume without launching a browser.")
     review_parser.add_argument("--port", type=int, default=4388, help="Literal unprivileged 127.0.0.1 port (default: 4388).")
     review_parser.add_argument("--state-dir", help="Private Review state root.")
+    review_parser.add_argument(
+        "--convergence-state-dir",
+        help="Private Converge state root used by this Review session.",
+    )
     review_parser.add_argument("--reopen", action="store_true", help="Explicitly reopen a human-ended session.")
     review_parser.add_argument("--json", action="store_true", help="Print machine-readable JSON.")
     review_parser.set_defaults(func=_review_command)
@@ -484,6 +491,7 @@ def _review_command(args: argparse.Namespace) -> int:
         target=args.target,
         port=args.port,
         state_root=args.state_dir,
+        convergence_state_root=args.convergence_state_dir,
         reopen=args.reopen,
         no_open=args.no_open,
         verify=args.verify,
@@ -615,8 +623,25 @@ def _patch_apply_command(args: argparse.Namespace) -> int:
     return 0
 
 
-def _converge_json_file(path: str, *, code: str, noun: str) -> dict[str, object]:
-    value = _strict_json_loads(Path(path).read_text(encoding="utf-8"), code=code, noun=noun)
+def _converge_json_file(
+    path: str,
+    *,
+    code: str,
+    too_large_code: str,
+    noun: str,
+    maximum: int,
+) -> dict[str, object]:
+    try:
+        text = _read_bounded_utf8_file(
+            Path(path),
+            maximum=maximum,
+            too_large_code=too_large_code,
+            noun=noun,
+            changed_code=code,
+        )
+    except IntentPatchError as exc:
+        raise ConvergeError(exc.code, exc.message, exc.fix, cli_exit=exc.cli_exit) from exc
+    value = _strict_json_loads(text, code=code, noun=noun)
     if not isinstance(value, dict):
         raise ConvergeError(
             code,
@@ -630,7 +655,9 @@ def _converge_context_from_file(path: str) -> IntentPatchContext:
     value = _converge_json_file(
         path,
         code="CONVERGE_CONTEXT_INVALID",
+        too_large_code="CONVERGE_CONTEXT_TOO_LARGE",
         noun="convergence context",
+        maximum=INTENT_PATCH_MAX_BYTES,
     )
     try:
         return IntentPatchContext(
@@ -653,7 +680,9 @@ def _converge_result_from_file(path: str) -> VerificationResult:
     value = _converge_json_file(
         path,
         code="CONVERGE_BASELINE_INVALID",
+        too_large_code="CONVERGE_BASELINE_TOO_LARGE",
         noun="baseline verification result",
+        maximum=CONVERGE_MAX_STATE_BYTES,
     )
     try:
         return VerificationResult.from_json(value)
@@ -724,7 +753,9 @@ def _converge_submit_command(args: argparse.Namespace) -> int:
     patch = _converge_json_file(
         args.patch,
         code="CONVERGE_PATCH_INVALID",
+        too_large_code="CONVERGE_PATCH_TOO_LARGE",
         noun="convergence IntentPatch",
+        maximum=INTENT_PATCH_MAX_BYTES,
     )
     session = submit_convergence_patch(args.source, patch, state_root=args.state_dir)
     _print_converge(

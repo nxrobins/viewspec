@@ -188,6 +188,10 @@ viewspec converge-submit viewspec.intent.json change.intentpatch.json --json
 viewspec converge-status viewspec.intent.json --json
 ```
 
+If an integration uses `--state-dir` for Converge, it must pass that same private path as
+`viewspec review --convergence-state-dir ...`; the agent wires this automatically so the human
+still sees the pending proposal without handling storage configuration.
+
 Submit validates, semantic-diffs, compiles, and checks the complete candidate without changing
 source. Review keeps approval authority private and applies only the exact preview shown in its
 authenticated current frame; Review events and verifier repairs remain proposal evidence only.
@@ -198,6 +202,9 @@ Python callers can use `patch_context_from_review_batch()` and
 controller. MCP callers use `build_intent_patch_context`, `start_convergence`,
 `submit_convergence_patch`, and `get_convergence_status`; all retain the cwd path sandbox and
 standard response envelope while withholding write capabilities.
+
+Verifier-driven start reconstructs the canonical proposal context from the supplied baseline and
+requires exact equality; reusing a real repair-plan id with substituted requests is rejected.
 
 IntentPatch cannot add/delete source structure or address arbitrary JSON, DOM, CSS, or generated
 files. Use a full IntentBundle/AppBundle revision for changes outside its nine-operation vocabulary.

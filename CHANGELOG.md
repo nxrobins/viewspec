@@ -17,12 +17,17 @@ All notable changes to ViewSpec are documented in this file. The format follows
   exact current preview after the existing origin, cookie, frame nonce, and handshake checks.
 - Agent-safe Converge MCP adapters, expert CLI commands, public Python types, the published
   `converge-task.schema.json` contract and example, and agent asset schema version 13.
+- Crash-consistent Converge recovery from durable IntentPatch receipts, resumable post-apply
+  verification, immutable terminal-session archives, complete nine-operation task generation,
+  exact verifier-context binding, bounded CLI readers, and custom-state Review integration.
 
 ### Security
 
 - Convergence approval uses a private random 256-bit outer capability; stale authority, changed
   source bytes, out-of-task targets, evidence substitution, corrupt state, and post-apply verifier
   drift all fail closed without silently rebasing or continuing.
+- Existing shared state directories are rejected without permission mutation, and already-applied
+  candidates can be reconciled only from exact source hashes plus matching durable receipts.
 
 ## [0.3.0b4] - 2026-07-12
 

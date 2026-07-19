@@ -4,7 +4,8 @@ import json
 from pathlib import Path
 
 from viewspec import cli
-from viewspec.intent_patch import IntentPatchContext, source_sha256
+from viewspec.converge_sessions import CONVERGE_MAX_STATE_BYTES
+from viewspec.intent_patch import INTENT_PATCH_MAX_BYTES, IntentPatchContext, source_sha256
 from viewspec.intent_tools import starter_intent_payload
 
 
@@ -168,3 +169,53 @@ def test_converge_cli_uses_duplicate_key_rejecting_json_parser(tmp_path: Path, c
 
     assert cli.main(["converge-start", str(source_path), str(context_path), "--json"]) == 2
     assert "CONVERGE_CONTEXT_INVALID" in capsys.readouterr().err
+
+
+def test_converge_cli_rejects_oversized_files_before_json_parsing(tmp_path: Path, capsys) -> None:
+    source_path, context_path, patch_path, _source = _write_inputs(tmp_path)
+    state = tmp_path / "state"
+
+    context_path.write_bytes(b" " * (INTENT_PATCH_MAX_BYTES + 1))
+    assert cli.main(["converge-start", str(source_path), str(context_path), "--json"]) == 2
+    assert "CONVERGE_CONTEXT_TOO_LARGE" in capsys.readouterr().err
+
+    _source_path, context_path, patch_path, _source = _write_inputs(tmp_path)
+    assert cli.main(
+        [
+            "converge-start",
+            str(source_path),
+            str(context_path),
+            "--state-dir",
+            str(state),
+            "--json",
+        ]
+    ) == 0
+    capsys.readouterr()
+    patch_path.write_bytes(b" " * (INTENT_PATCH_MAX_BYTES + 1))
+    assert cli.main(
+        [
+            "converge-submit",
+            str(source_path),
+            str(patch_path),
+            "--state-dir",
+            str(state),
+            "--json",
+        ]
+    ) == 2
+    assert "CONVERGE_PATCH_TOO_LARGE" in capsys.readouterr().err
+
+    baseline_path = tmp_path / "baseline.json"
+    baseline_path.write_bytes(b" " * (CONVERGE_MAX_STATE_BYTES + 1))
+    assert cli.main(
+        [
+            "converge-start",
+            str(source_path),
+            str(context_path),
+            "--baseline-result",
+            str(baseline_path),
+            "--state-dir",
+            str(tmp_path / "other-state"),
+            "--json",
+        ]
+    ) == 2
+    assert "CONVERGE_BASELINE_TOO_LARGE" in capsys.readouterr().err

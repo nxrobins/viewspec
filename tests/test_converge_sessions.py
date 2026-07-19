@@ -8,7 +8,7 @@ from hypothesis import HealthCheck, given, settings, strategies as st
 from jsonschema import Draft202012Validator, ValidationError
 import pytest
 
-from viewspec.app_bundle import starter_app_bundle
+from viewspec.app_bundle import starter_app_bundle, starter_react_app_bundle
 from viewspec.converge_sessions import (
     CONVERGE_MAX_ATTEMPTS,
     CONVERGENCE_TASK_JSON_SCHEMA,
@@ -173,6 +173,39 @@ def test_progress_certificate_rejects_indeterminate_and_plan_drift() -> None:
     assert ProgressCertificate.compare(baseline, drifted).reason == "verification_plan_changed"
 
 
+def test_verifier_start_rejects_fabricated_requests_under_real_plan_id(tmp_path: Path) -> None:
+    source, text = _source(tmp_path)
+    baseline = _result((_error("VERIFY_LAYOUT_OVERFLOW", "ir:binding_revenue_value"),))
+    canonical = _repair_context(text, baseline)
+    fabricated = IntentPatchContext(
+        origin=canonical.origin,
+        source_kind=canonical.source_kind,
+        base_source_sha256=canonical.base_source_sha256,
+        contract_profile=canonical.contract_profile,
+        evidence_refs=canonical.evidence_refs,
+        requests=(
+            {
+                "request_id": "invented",
+                "code": "VERIFY_LAYOUT_OVERFLOW",
+                "instruction": "Change an unrelated binding.",
+                "source_ref": "ir:binding_users_value",
+                "binding_id": "users_value",
+                "intent_refs": ["viewspec:binding:users_value"],
+                "content_refs": ["node:users#attr:value"],
+            },
+        ),
+    )
+
+    with pytest.raises(ConvergeError) as rejected:
+        start_convergence_session(
+            source,
+            fabricated,
+            baseline_result=baseline,
+            state_root=tmp_path / "state",
+        )
+    assert rejected.value.code == "CONVERGE_BASELINE_INVALID"
+
+
 @given(
     baseline_keys=st.sets(st.integers(min_value=0, max_value=12), min_size=1),
     candidate_keys=st.sets(st.integers(min_value=0, max_value=12)),
@@ -307,6 +340,106 @@ def test_app_session_scopes_legal_operation_and_apply_to_exact_screen(tmp_path: 
     assert binding["present_as"] == "badge"
 
 
+def test_app_task_exposes_aesthetic_fixture_and_visibility_operations(tmp_path: Path) -> None:
+    source = tmp_path / "viewspec.app.json"
+    text = json.dumps(starter_react_app_bundle(), indent=2, sort_keys=True) + "\n"
+    source.write_text(text, encoding="utf-8")
+    context = IntentPatchContext(
+        origin="review_batch",
+        source_kind="app_bundle",
+        base_source_sha256=source_sha256(text),
+        contract_profile="local_v1",
+        evidence_refs=("review:vrw_app_ops:batch_app_ops", "review_event:event_app_ops"),
+        requests=(
+            {
+                "request_id": "aesthetic",
+                "kind": "change_request",
+                "instruction": "Apply a supported aesthetic profile.",
+                "screen_id": "queue",
+                "style_id": "aesthetic_profile",
+                "intent_refs": ["viewspec:style:aesthetic_profile"],
+                "content_refs": [],
+            },
+            {
+                "request_id": "fixture",
+                "kind": "change_request",
+                "instruction": "Update the fixture status.",
+                "screen_id": "queue",
+                "resource_id": "incidents",
+                "record_id": "inc_1043",
+                "field": "status",
+                "intent_refs": ["viewspec:fixture:incidents/inc_1043/status"],
+                "content_refs": ["node:inc_1043#attr:status"],
+            },
+            {
+                "request_id": "visibility",
+                "kind": "change_request",
+                "instruction": "Change the visibility condition.",
+                "visibility_id": "show_triaged_status",
+                "intent_refs": ["viewspec:visibility:show_triaged_status"],
+                "content_refs": [],
+            },
+        ),
+    )
+
+    session = start_convergence_session(source, context, state_root=tmp_path / "state")
+    operations = {
+        operation["op"]
+        for target in session.task.targets
+        for operation in target.legal_operations
+    }
+    assert {
+        "set_aesthetic_profile",
+        "replace_fixture_scalar",
+        "set_visibility_condition",
+    } <= operations
+    target_kinds = {target.kind for target in session.task.targets}
+    assert {"fixture", "style", "visibility"} <= target_kinds
+
+    previewed = submit_convergence_patch(
+        source,
+        {
+            "schema_version": 1,
+            "contract_profile": "local_v1",
+            "source_kind": "app_bundle",
+            "base_source_sha256": source_sha256(text),
+            "operations": [
+                {
+                    "op": "set_aesthetic_profile",
+                    "screen_id": "queue",
+                    "old_value": None,
+                    "value": "aesthetic.calm_ops",
+                },
+                {
+                    "op": "replace_fixture_scalar",
+                    "resource_id": "incidents",
+                    "record_id": "inc_1043",
+                    "field": "status",
+                    "old_value": "queued",
+                    "value": "resolved",
+                },
+                {
+                    "op": "replace_semantic_attr",
+                    "screen_id": "queue",
+                    "node_id": "inc_1043",
+                    "attr": "status",
+                    "old_value": "queued",
+                    "value": "resolved",
+                },
+                {
+                    "op": "set_visibility_condition",
+                    "visibility_id": "show_triaged_status",
+                    "old_value": {"state": "selected_incident", "is": "truthy"},
+                    "value": {"selector": "active_incidents", "is": "non_empty"},
+                },
+            ],
+            "evidence_refs": list(context.evidence_refs),
+        },
+        state_root=tmp_path / "state",
+    )
+    assert previewed.status == "awaiting_approval"
+
+
 def test_review_session_preview_requires_exact_convergence_approval_before_write(tmp_path: Path) -> None:
     source, text = _source(tmp_path)
     state = tmp_path / "state"
@@ -381,6 +514,80 @@ def test_verifier_session_binds_progress_certificate_into_approval_and_reverifie
     assert len(calls) == 2
     assert calls[0].attempt == 2
     assert calls[1].attempt == 2
+
+
+def test_status_recovers_approved_source_after_session_state_commit_failure(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import viewspec.converge_sessions as converge_module
+
+    source, text = _source(tmp_path)
+    state = tmp_path / "state"
+    context = _review_context(text)
+    start_convergence_session(source, context, state_root=state)
+    previewed = submit_convergence_patch(source, _patch(text), state_root=state)
+    original_write = converge_module._write_state
+    failed = False
+
+    def fail_first_applied_write(source_path, state_root, session):
+        nonlocal failed
+        if session.status == "applied" and not failed:
+            failed = True
+            raise OSError("simulated convergence state fsync failure")
+        return original_write(source_path, state_root, session)
+
+    monkeypatch.setattr(converge_module, "_write_state", fail_first_applied_write)
+    with pytest.raises(OSError, match="state fsync failure"):
+        approve_convergence_preview(
+            source,
+            previewed.pending_preview.approval_token,
+            state_root=state,
+        )
+
+    assert json.loads(source.read_text(encoding="utf-8"))["view_spec"]["bindings"][1]["present_as"] == "badge"
+    recovered = get_convergence_status(source, state_root=state)
+    assert recovered.status == "applied"
+    assert recovered.current_source_sha256 == source_sha256(source.read_text(encoding="utf-8"))
+    assert recovered.attempts[-1].receipt is not None
+
+
+def test_status_resumes_verification_after_post_apply_verifier_failure(tmp_path: Path) -> None:
+    source, text = _source(tmp_path)
+    state = tmp_path / "state"
+    baseline = _result((_error("VERIFY_LAYOUT_OVERFLOW", "ir:binding_revenue_value"),))
+    context = _repair_context(text, baseline)
+    calls = 0
+
+    def verifier(candidate_text, source_kind, plan, lineage):
+        nonlocal calls
+        calls += 1
+        if calls == 2:
+            raise RuntimeError("simulated post-apply verifier crash")
+        return _result(
+            (),
+            plan=plan,
+            lineage=lineage,
+            artifact=source_sha256(candidate_text),
+        )
+
+    start_convergence_session(source, context, baseline_result=baseline, state_root=state)
+    patch = _patch(text)
+    patch["evidence_refs"] = list(context.evidence_refs)
+    previewed = submit_convergence_patch(source, patch, verifier=verifier, state_root=state)
+    with pytest.raises(ConvergeError) as failure:
+        approve_convergence_preview(
+            source,
+            previewed.pending_preview.approval_token,
+            verifier=verifier,
+            state_root=state,
+        )
+    assert failure.value.code == "CONVERGE_VERIFIER_FAILED"
+    assert json.loads(source.read_text(encoding="utf-8"))["view_spec"]["bindings"][1]["present_as"] == "badge"
+
+    resumed = get_convergence_status(source, verifier=verifier, state_root=state)
+    assert resumed.status == "conformant"
+    assert calls == 3
 
 
 def test_nonprogressing_candidate_stalls_without_writing(tmp_path: Path) -> None:
@@ -463,6 +670,38 @@ def test_attempt_bound_and_human_rejection_are_terminal(tmp_path: Path) -> None:
     assert session.session_id == rejected.session_id
 
 
+def test_start_archives_complete_terminal_session_before_replacement(tmp_path: Path) -> None:
+    source, text = _source(tmp_path)
+    state = tmp_path / "state"
+    first = start_convergence_session(source, _review_context(text), state_root=state)
+    previewed = submit_convergence_patch(source, _patch(text), state_root=state)
+    rejected = reject_convergence_preview(
+        source,
+        previewed.pending_preview.preview_id,
+        state_root=state,
+    )
+
+    second = start_convergence_session(source, _review_context(text), state_root=state)
+    source_path_sha = hashlib.sha256(str(source.resolve()).encode("utf-8")).hexdigest()
+    archive_path = state / "archive" / source_path_sha / f"{first.session_id}.json"
+    assert archive_path.is_file()
+    envelope = json.loads(archive_path.read_text(encoding="utf-8"))
+    assert envelope["payload"]["session_id"] == first.session_id
+    assert envelope["payload"]["status"] == "rejected"
+    assert envelope["payload"]["terminal_reason"] == "human_rejected"
+    assert envelope["payload_sha256"] == hashlib.sha256(
+        json.dumps(
+            envelope["payload"],
+            ensure_ascii=False,
+            allow_nan=False,
+            sort_keys=True,
+            separators=(",", ":"),
+        ).encode("utf-8")
+    ).hexdigest()
+    assert rejected.session_id != second.session_id
+    assert get_convergence_status(source, state_root=state).session_id == second.session_id
+
+
 def test_deadline_source_drift_and_corrupt_state_all_fail_closed(tmp_path: Path) -> None:
     source, text = _source(tmp_path)
     state = tmp_path / "state"
@@ -527,6 +766,34 @@ def test_active_session_symlink_and_out_of_band_source_changes_are_rejected(tmp_
             state_root=linked_state,
         )
     assert state_symlink_error.value.code == "CONVERGE_STATE_UNSAFE"
+
+
+def test_existing_shared_state_directory_is_rejected_without_chmod(tmp_path: Path) -> None:
+    source, text = _source(tmp_path)
+    shared_state = tmp_path / "shared-state"
+    shared_state.mkdir(mode=0o755)
+    shared_state.chmod(0o755)
+    before = shared_state.stat().st_mode & 0o777
+
+    with pytest.raises(ConvergeError) as rejected:
+        start_convergence_session(
+            source,
+            _review_context(text),
+            state_root=shared_state,
+        )
+    assert rejected.value.code == "CONVERGE_STATE_UNSAFE"
+    assert shared_state.stat().st_mode & 0o777 == before
+    assert list(shared_state.iterdir()) == []
+
+    private_state = tmp_path / "private-state"
+    private_state.mkdir(mode=0o700)
+    private_state.chmod(0o700)
+    session = start_convergence_session(
+        source,
+        _review_context(text),
+        state_root=private_state,
+    )
+    assert session.status == "awaiting_proposal"
 
 
 @given(st.binary(min_size=1, max_size=32))

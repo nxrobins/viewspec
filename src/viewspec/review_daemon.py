@@ -30,6 +30,7 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(add_help=False)
     parser.add_argument("--source", required=True)
     parser.add_argument("--state-root", required=True)
+    parser.add_argument("--convergence-state-root")
     parser.add_argument("--target")
     parser.add_argument("--design")
     parser.add_argument("--port", type=int, default=DEFAULT_REVIEW_PORT)
@@ -53,6 +54,7 @@ def main(argv: list[str] | None = None) -> int:
             runtime = ReviewRuntime.open(
                 args.source,
                 state_root=args.state_root,
+                convergence_state_root=args.convergence_state_root,
                 target=args.target,
                 design_path=args.design,
                 requested_port=args.port,

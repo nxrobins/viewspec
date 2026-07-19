@@ -51,13 +51,13 @@ awaiting_approval + approve
   -> full_revision_required   (remaining failure has no legal patch target)
 ```
 
-Only `awaiting_proposal` and `awaiting_approval` are active. Every other status is terminal for that bounded session except that a verification approval may atomically return to `awaiting_proposal` with a new source hash, baseline result, evidence context, and authoring task.
+Only `awaiting_proposal` and `awaiting_approval` accept new proposals or decisions. `applied` is terminal for a human Review session but is a durable reconciliation checkpoint for verifier-driven sessions: status/resume repeats the identical post-apply verification until it reaches `conformant`, `awaiting_proposal`, `stalled`, `exhausted`, or `full_revision_required`.
 
 ## Convergence Authoring Task
 
 The published schema is `https://viewspec.dev/converge-task.schema.json`. A task contains exact source fragments, exact old values, replacement fields, optional closed allowed-value menus, and target keys for the only operations the agent may propose.
 
-The agent must copy fixed fields exactly, fill only the declared replacement field, use only an allowed value when one is supplied, and copy the task evidence refs exactly. If the evidence cannot be resolved to an existing IntentPatch target, the controller returns `full_revision_required`; it never escapes through arbitrary JSON Patch, DOM, CSS, generated files, field creation, or field deletion.
+The agent must copy fixed fields exactly, fill only the declared replacement field, use only an allowed value when one is supplied, and copy the task evidence refs exactly. The task generator covers all nine IntentPatch operations, including aesthetic profiles, fixture scalars, and visibility conditions; if the evidence cannot be resolved to an existing IntentPatch target, the controller returns `full_revision_required` rather than escaping through arbitrary JSON Patch, DOM, CSS, generated files, field creation, or field deletion.
 
 ## Progress certificate
 
@@ -75,7 +75,9 @@ The certificate records fixed, remaining, and introduced obligations plus both r
 
 Approval rechecks the deadline, session status, exact random outer capability, exact source bytes, and current preview. The controller then invokes the existing IntentPatch transaction with its private inner capability, atomically replaces the source, and durably records the normal inverse-patch receipt.
 
-Verifier-driven sessions immediately run the same verification plan again against the applied bytes. The result must have the same completeness, status, plan, and error obligations as the approved candidate proof; drift stops the session rather than being swallowed.
+If the source transaction commits but the session-state write is interrupted, the next status call reconstructs `applied` only from the matching durable IntentPatch receipt and exact candidate bytes. Verifier-driven sessions then run the same verification plan again against those applied bytes; verifier failure leaves the resumable checkpoint intact, while a completed result must have the same completeness, status, plan, and error obligations as the approved candidate proof.
+
+Starting a replacement session archives the complete checksum-protected terminal state by session id before moving the active pointer. At most 64 terminal sessions are retained per source; exceeding that bound fails closed until an operator exports and removes old archives.
 
 ## Constraints & Fallbacks
 
@@ -85,13 +87,16 @@ Verifier-driven sessions immediately run the same verification plan again agains
 | Concurrent writers | Exactly 1 active session and 1 pending proposal may own a source; the source lock wait is 2 seconds. | Reject a second session with `CONVERGE_SESSION_ACTIVE`, or fail the operation with `CONVERGE_LOCK_TIMEOUT`; never queue silently. |
 | Stale or out-of-band edits | Every transition must match the exact current source SHA-256 and the preview's base hash. | Return `CONVERGE_SOURCE_CHANGED` before preview or apply; never rebase automatically. |
 | Agent self-approval | Agent responses contain 0 approval capabilities; the outer operator capability is 256 random bits and exact-preview scoped. | Return `CONVERGE_APPROVAL_INVALID` and leave source byte-for-byte unchanged. |
-| Oversized source or state | Source is capped at 1 MiB, authoring task at 128 KiB, session state at 1 MiB, and IntentPatch at 64 KiB. | Return the corresponding `*_TOO_LARGE` error before unbounded parsing, verification, or mutation. |
+| Oversized source or state | Source and baseline files are capped at 1 MiB, authoring task at 128 KiB, and context/IntentPatch files at 64 KiB. | Return the corresponding `*_TOO_LARGE` error from the bounded reader before JSON parsing, verification, or mutation. |
 | Patch fan-out | One patch contains 1–64 unique semantic operations, and one context contains at most 63 requests. | Reject through the closed IntentPatch parser; no partial operations are applied. |
 | Ambiguous authority | Patch evidence must equal the task evidence as a set, and every operation target key must appear in the task. | Return `CONVERGE_EVIDENCE_MISMATCH` or `CONVERGE_TARGET_OUTSIDE_TASK`; do not preview the candidate. |
 | Regression disguised as progress | Candidate error obligations must be a proper subset of baseline errors under the identical plan. | Persist `stalled` with `introduced_error`, `no_strict_progress`, `candidate_indeterminate`, or `verification_plan_changed`. |
 | Oscillation | Every accepted candidate source hash is retained for the entire session. | Persist `stalled` with `candidate_cycle` when a candidate repeats any seen source hash. |
 | Post-approval nondeterminism | Applied verification must reproduce the approved candidate's plan, completeness, status, and error obligations exactly. | Persist `stalled` with `post_apply_verification_drift`; never continue from the divergent result. |
-| Unsafe local paths | Source, state, lock, and stored patch entries must be regular non-symlink files under a private `0700` state directory; files are `0600`. | Return `CONVERGE_PATH_INVALID`, `CONVERGE_STATE_UNSAFE`, or `CONVERGE_STATE_INVALID` before reading or writing through the unsafe entry. |
+| Interrupted approval | A candidate source may be reconciled only from its exact applied IntentPatch receipt and matching candidate SHA-256. | Preserve or reconstruct `applied`; never leave an already-written source represented as `awaiting_approval`. |
+| Interrupted re-verification | Verifier-driven `applied` is a resumable checkpoint with the complete candidate proof and receipt. | Return `CONVERGE_VERIFIER_FAILED` while retaining the checkpoint; the next status call retries reconciliation. |
+| Audit retention | Exactly 64 immutable terminal session envelopes may be archived per source. | Return `CONVERGE_ARCHIVE_LIMIT_EXCEEDED` before replacing the active pointer. |
+| Unsafe local paths | Source, state, lock, and stored patch entries must be regular non-symlink files under an existing owner-controlled `0700` state directory; files are `0600`. | Return `CONVERGE_PATH_INVALID`, `CONVERGE_STATE_UNSAFE`, or `CONVERGE_STATE_INVALID`; never chmod an existing shared directory. |
 | Corrupt durable state | The state envelope is strict JSON, capped at 1 MiB, and carries a SHA-256 checksum over its canonical payload. | Return `CONVERGE_STATE_INVALID`; never guess, repair, or resume corrupted state. |
 | Hidden dependency side effects | Canonical candidate verification permits no implicit package installation and no SDK network call. | Return an incomplete verification, causing `candidate_indeterminate` and a terminal `stalled` session. |
 | Oversized Review projection | Review JSON responses are capped at 256 KiB and expose only a bounded convergence projection. | Return `REVIEW_RESPONSE_TOO_LARGE`; never truncate proof or authority fields into a misleading response. |
@@ -114,6 +119,6 @@ Future developers are not required to auto-merge two independently valid human p
 
 ## Expert surfaces
 
-The expert CLI commands are `converge-start`, `converge-submit`, `converge-status`, `converge-approve`, and `converge-reject`. Normal submit/status output withholds authority; `--show-authority` is an explicit diagnostic escape hatch for an operator-controlled terminal.
+The expert CLI commands are `converge-start`, `converge-submit`, `converge-status`, `converge-approve`, and `converge-reject`. Normal submit/status output withholds authority; `--show-authority` is an explicit diagnostic escape hatch for an operator-controlled terminal. When an integration selects a custom Converge state root, the agent starts Review with the matching `--convergence-state-dir`; the path is persisted in Review's private configuration and is not a human workflow concept.
 
 The MCP tools are `start_convergence`, `submit_convergence_patch`, `get_convergence_status`, `approve_convergence`, and `reject_convergence`. The approval tool can consume authority explicitly supplied by an operator, but no agent-facing tool can discover it; normal approval remains ViewSpec Review.

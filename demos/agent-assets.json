@@ -54,7 +54,7 @@
     },
     {
       "path": "converge-task.schema.json",
-      "sha256": "1aa49acd56c936794b3c257a640c8694d5f53e91bf19ec36269f0ce36e129f67"
+      "sha256": "b51ac751b3bc7b2e42eb4ec85129911c451771d51eb85ee93c1b024878f2a028"
     },
     {
       "path": "converge-task-example.dashboard.json",

@@ -18,10 +18,14 @@ from viewspec.review_runtime import ReviewRuntime
 from viewspec.review_server import ReviewServer, _json_object
 
 
-def _runtime(tmp_path) -> ReviewRuntime:
+def _runtime(tmp_path, *, convergence_state_root=None) -> ReviewRuntime:
     source = tmp_path / "viewspec.intent.json"
     source.write_text(json.dumps(starter_intent_payload(), sort_keys=True), encoding="utf-8")
-    return ReviewRuntime.open(source, state_root=tmp_path / "state")
+    return ReviewRuntime.open(
+        source,
+        state_root=tmp_path / "state",
+        convergence_state_root=convergence_state_root,
+    )
 
 
 def _server(runtime: ReviewRuntime, **kwargs) -> ReviewServer:
@@ -96,7 +100,7 @@ def _event_payload(runtime: ReviewRuntime) -> bytes:
     ).encode("utf-8")
 
 
-def _pending_convergence(runtime: ReviewRuntime) -> tuple[str, str]:
+def _pending_convergence(runtime: ReviewRuntime, *, state_root=None) -> tuple[str, str]:
     source = runtime.configuration.source_path
     text = open(source, encoding="utf-8").read()
     evidence_refs = ("review:vrw_server:batch_server", "review_event:event_server")
@@ -120,7 +124,7 @@ def _pending_convergence(runtime: ReviewRuntime) -> tuple[str, str]:
             },
         ),
     )
-    start_convergence_session(source, context)
+    start_convergence_session(source, context, state_root=state_root)
     session = submit_convergence_patch(
         source,
         {
@@ -138,6 +142,7 @@ def _pending_convergence(runtime: ReviewRuntime) -> tuple[str, str]:
             ],
             "evidence_refs": list(evidence_refs),
         },
+        state_root=state_root,
     )
     assert session.pending_preview is not None
     return session.pending_preview.preview_id, text
@@ -348,6 +353,38 @@ def test_review_chrome_exposes_proof_not_authority_and_approves_exact_preview(tm
         assert json.loads(content)["convergence"]["status"] == "applied"
         source_payload = json.loads(open(runtime.configuration.source_path, encoding="utf-8").read())
         assert source_payload["view_spec"]["bindings"][1]["present_as"] == "badge"
+    finally:
+        server.stop()
+
+
+def test_review_uses_configured_custom_convergence_state_root(tmp_path) -> None:
+    convergence_state = tmp_path / "custom-convergence-state"
+    runtime = _runtime(tmp_path, convergence_state_root=convergence_state)
+    preview_id, _ = _pending_convergence(runtime, state_root=convergence_state)
+    server = _server(runtime)
+    server.start()
+    try:
+        cookie, _ = _bootstrap(server)
+        _handshake(server, cookie)
+        root = f"/r/{runtime.session.review_id}/api/v1"
+        status, _, content = _request(
+            server.port,
+            "GET",
+            f"{root}/session",
+            headers={"Cookie": cookie},
+        )
+        assert status == 200
+        assert json.loads(content)["review"]["convergence"]["pending_preview"]["preview_id"] == preview_id
+
+        accepted, _, content = _request(
+            server.port,
+            "POST",
+            f"{root}/convergence/approve",
+            headers=_browser_headers(server, cookie),
+            body=json.dumps({"preview_id": preview_id}).encode(),
+        )
+        assert accepted == 200, content
+        assert json.loads(content)["convergence"]["status"] == "applied"
     finally:
         server.stop()
 

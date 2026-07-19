@@ -365,7 +365,10 @@ class ReviewServer:
             self._require_frame_handshake()
             preview_id = _exact_preview_request(body)
             try:
-                current = get_convergence_status(self.runtime.configuration.source_path)
+                current = get_convergence_status(
+                    self.runtime.configuration.source_path,
+                    state_root=self.runtime.configuration.convergence_state_root,
+                )
                 pending = current.pending_preview
                 if pending is None or pending.preview_id != preview_id:
                     raise ConvergeError(
@@ -376,6 +379,7 @@ class ReviewServer:
                 session = approve_convergence_preview(
                     self.runtime.configuration.source_path,
                     pending.approval_token,
+                    state_root=self.runtime.configuration.convergence_state_root,
                 )
             except ConvergeError as exc:
                 raise _convergence_review_error(exc) from exc
@@ -394,6 +398,7 @@ class ReviewServer:
                 session = reject_convergence_preview(
                     self.runtime.configuration.source_path,
                     preview_id,
+                    state_root=self.runtime.configuration.convergence_state_root,
                 )
             except ConvergeError as exc:
                 raise _convergence_review_error(exc) from exc
@@ -832,7 +837,10 @@ class ReviewServer:
         status = self.runtime.status()
         try:
             convergence: dict[str, object] | None = _browser_convergence_projection(
-                get_convergence_status(self.runtime.configuration.source_path)
+                get_convergence_status(
+                    self.runtime.configuration.source_path,
+                    state_root=self.runtime.configuration.convergence_state_root,
+                )
             )
         except ConvergeError as exc:
             convergence = None if exc.code == "CONVERGE_SESSION_NOT_FOUND" else {

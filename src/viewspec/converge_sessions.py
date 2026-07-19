@@ -15,6 +15,7 @@ import tempfile
 import time
 from typing import Any, Callable, Mapping
 
+from viewspec.aesthetics import AESTHETIC_PROFILE_TOKENS
 from viewspec.agent import SUPPORTED_AGENT_REGION_LAYOUTS, SUPPORTED_AGENT_STYLE_TOKENS
 from viewspec.intent_patch import (
     APP_BUNDLE_MAX_BYTES,
@@ -23,6 +24,7 @@ from viewspec.intent_patch import (
     IntentPatchContext,
     IntentPatchError,
     IntentPatchPreview,
+    IntentPatchReceipt,
     _durable_write_bytes,
     _read_bounded_utf8_file,
     _strict_json_loads,
@@ -47,6 +49,7 @@ CONVERGE_SESSION_SCHEMA_VERSION = 1
 CONVERGE_MAX_ATTEMPTS = 3
 CONVERGE_MAX_SECONDS = 10 * 60
 CONVERGE_MAX_STATE_BYTES = 1024 * 1024
+CONVERGE_MAX_ARCHIVED_SESSIONS = 64
 CONVERGE_LOCK_TIMEOUT_SECONDS = 2.0
 CONVERGE_SESSION_ID_RE = re.compile(r"^vcgs_[0-9a-f]{32}$")
 CONVERGE_PREVIEW_ID_RE = re.compile(r"^vcpv_[0-9a-f]{32}$")
@@ -133,7 +136,7 @@ CONVERGENCE_TASK_JSON_SCHEMA: dict[str, Any] = {
             "additionalProperties": False,
             "properties": {
                 "target_id": {"type": "string", "minLength": 1, "maxLength": 128},
-                "kind": {"enum": ["binding", "region", "semantic_node", "style", "visibility"]},
+                "kind": {"enum": ["binding", "fixture", "region", "semantic_node", "style", "visibility"]},
                 "screen_id": {"type": ["string", "null"]},
                 "source_fragment": {"type": "object"},
                 "legal_operations": {
@@ -560,9 +563,16 @@ def _source_candidates(request: Mapping[str, Any]) -> dict[str, set[str]]:
         "node": set(),
         "visibility": set(),
     }
-    binding_id = request.get("binding_id")
-    if isinstance(binding_id, str):
-        candidates["binding"].add(binding_id)
+    for kind, field in (
+        ("binding", "binding_id"),
+        ("region", "region_id"),
+        ("style", "style_id"),
+        ("node", "node_id"),
+        ("visibility", "visibility_id"),
+    ):
+        candidate_id = request.get(field)
+        if isinstance(candidate_id, str):
+            candidates[kind].add(candidate_id)
     for ref in request.get("intent_refs", []):
         if not isinstance(ref, str) or not ref.startswith("viewspec:"):
             continue
@@ -587,6 +597,29 @@ def _source_candidates(request: Mapping[str, Any]) -> dict[str, set[str]]:
         candidates["region"].add(ir_id)
         candidates["style"].add(ir_id)
         candidates["node"].add(ir_id)
+    return candidates
+
+
+def _fixture_candidates(request: Mapping[str, Any]) -> set[tuple[str, str, str]]:
+    candidates: set[tuple[str, str, str]] = set()
+    explicit = (request.get("resource_id"), request.get("record_id"), request.get("field"))
+    if all(isinstance(item, str) for item in explicit):
+        candidates.add((explicit[0], explicit[1], explicit[2]))
+    for ref in request.get("intent_refs", []):
+        if not isinstance(ref, str) or not ref.startswith("viewspec:fixture:"):
+            continue
+        parts = ref[len("viewspec:fixture:") :].split("/")
+        if len(parts) == 3 and all(parts):
+            candidates.add((parts[0], parts[1], parts[2]))
+    for ref in request.get("content_refs", []):
+        if not isinstance(ref, str):
+            continue
+        match = re.fullmatch(
+            r"resource:([A-Za-z0-9_.-]{1,128})#record:([A-Za-z0-9_.-]{1,128})#field:([A-Za-z_][A-Za-z0-9_.-]{0,127})",
+            ref,
+        )
+        if match is not None:
+            candidates.add((match.group(1), match.group(2), match.group(3)))
     return candidates
 
 
@@ -628,12 +661,63 @@ def _build_authoring_task(
             source_ref = request.get("source_ref")
             if isinstance(source_ref, str) and source_ref.startswith("screen:"):
                 screen_id = source_ref[7:].split("/", 1)[0]
+        candidates = _source_candidates(request)
+        if context.source_kind == "app_bundle":
+            for resource_id, record_id, field in sorted(_fixture_candidates(request)):
+                resource = _item_by_id(payload.get("resources"), resource_id)
+                record = _item_by_id(resource.get("records"), record_id) if resource is not None else None
+                if record is None or field not in record:
+                    continue
+                old_value = record[field]
+                if isinstance(old_value, (dict, list)):
+                    continue
+                target_material = {
+                    "resource_id": resource_id,
+                    "record_id": record_id,
+                    "field": field,
+                }
+                add_target(
+                    screen_id=None,
+                    kind="fixture",
+                    target_id=_identity(
+                        "fixture_",
+                        "viewspec_convergence_fixture_target_v1",
+                        target_material,
+                    ),
+                    fragment={**target_material, "value": old_value},
+                    operations=[
+                        _legal_operation(
+                            "replace_fixture_scalar",
+                            {**target_material, "old_value": old_value},
+                            "value",
+                            ("app", "fixture_scalar", resource_id, record_id, field),
+                        )
+                    ],
+                )
+            for visibility_id in sorted(candidates["visibility"]):
+                visibility = _item_by_id(payload.get("visibility"), visibility_id)
+                if visibility is None or not isinstance(visibility.get("when"), dict):
+                    continue
+                add_target(
+                    screen_id=None,
+                    kind="visibility",
+                    target_id=visibility_id,
+                    fragment=visibility,
+                    operations=[
+                        _legal_operation(
+                            "set_visibility_condition",
+                            {"visibility_id": visibility_id, "old_value": visibility["when"]},
+                            "value",
+                            ("app", "visibility_condition", visibility_id),
+                        )
+                    ],
+                )
+
         intent = _intent_for_screen(payload, context.source_kind, screen_id)
         if intent is None:
             continue
         view = intent.get("view_spec") if isinstance(intent.get("view_spec"), dict) else {}
         substrate = intent.get("substrate") if isinstance(intent.get("substrate"), dict) else {}
-        candidates = _source_candidates(request)
         node_attrs: dict[str, set[str]] = {}
         for content_ref in request.get("content_refs", []):
             if isinstance(content_ref, str) and content_ref.startswith("node:") and "#attr:" in content_ref:
@@ -728,9 +812,53 @@ def _build_authoring_task(
                 operations=operations,
             )
 
+        styles = view.get("styles") if isinstance(view.get("styles"), list) else []
+        profile_matches = [
+            item
+            for item in styles
+            if isinstance(item, dict)
+            and (
+                item.get("id") == "aesthetic_profile"
+                or str(item.get("token", "")).startswith("aesthetic.")
+            )
+        ]
+        profile_requested = "aesthetic_profile" in candidates["style"] or any(
+            item.get("id") in candidates["style"] for item in profile_matches
+        )
+        if profile_requested and len(profile_matches) <= 1:
+            profile = profile_matches[0] if profile_matches else {"id": "aesthetic_profile", "token": None}
+            old_profile = profile.get("token")
+            if old_profile is None or old_profile in AESTHETIC_PROFILE_TOKENS:
+                scope = screen_id or "root"
+                add_target(
+                    screen_id=screen_id,
+                    kind="style",
+                    target_id="aesthetic_profile",
+                    fragment=profile,
+                    operations=[
+                        _legal_operation(
+                            "set_aesthetic_profile",
+                            _fixed_fields(screen_id, {"old_value": old_profile}),
+                            "value",
+                            ("intent", scope, "aesthetic_profile"),
+                            allowed_values=(None, *sorted(AESTHETIC_PROFILE_TOKENS)),
+                        )
+                    ],
+                )
+
+        profile_ids = {
+            str(item.get("id"))
+            for item in profile_matches
+            if isinstance(item.get("id"), str)
+        }
         for style_id in sorted(candidates["style"]):
             style = _item_by_id(view.get("styles"), style_id)
-            if style is None or style_id == "aesthetic_profile" or not isinstance(style.get("token"), str):
+            if (
+                style is None
+                or style_id == "aesthetic_profile"
+                or style_id in profile_ids
+                or not isinstance(style.get("token"), str)
+            ):
                 continue
             scope = screen_id or "root"
             add_target(
@@ -1076,6 +1204,7 @@ class ConvergenceSession:
                 "max_attempts": CONVERGE_MAX_ATTEMPTS,
                 "max_seconds": CONVERGE_MAX_SECONDS,
                 "max_state_bytes": CONVERGE_MAX_STATE_BYTES,
+                "max_archived_sessions": CONVERGE_MAX_ARCHIVED_SESSIONS,
             },
         }
 
@@ -1182,16 +1311,33 @@ def _assert_state_root(root: Path) -> None:
             "Choose a local owner-controlled state directory.",
             cli_exit=1,
         )
-    root.mkdir(mode=0o700, parents=True, exist_ok=True)
     try:
-        root.chmod(0o700)
+        root.mkdir(mode=0o700, parents=True, exist_ok=True)
+        value = root.lstat()
     except OSError as exc:
         raise ConvergeError(
             "CONVERGE_STATE_UNSAFE",
-            f"Cannot secure convergence state root: {exc}",
+            f"Cannot inspect convergence state root: {exc}",
             "Choose an owner-controlled writable directory.",
             cli_exit=1,
         ) from exc
+    if not stat.S_ISDIR(value.st_mode):
+        raise ConvergeError(
+            "CONVERGE_STATE_UNSAFE",
+            "Convergence state root must be a private non-symlink directory.",
+            "Choose a local owner-controlled state directory.",
+            cli_exit=1,
+        )
+    if os.name != "nt":
+        mode = stat.S_IMODE(value.st_mode)
+        owner_mismatch = hasattr(os, "getuid") and value.st_uid != os.getuid()
+        if owner_mismatch or mode & 0o077:
+            raise ConvergeError(
+                "CONVERGE_STATE_UNSAFE",
+                "Existing convergence state root is not owner-only.",
+                "Create a dedicated directory owned by the current user with mode 0700.",
+                cli_exit=1,
+            )
 
 
 @contextmanager
@@ -1265,9 +1411,7 @@ def _session_lock(source: Path, state_root: str | Path | None):
         os.close(descriptor)
 
 
-def _write_state(source: Path, state_root: str | Path | None, session: ConvergenceSession) -> Path:
-    root, state_path, _ = _state_paths(source, state_root)
-    _assert_state_root(root)
+def _encoded_state(session: ConvergenceSession) -> bytes:
     payload = session.to_json(include_approval_token=True)
     payload_bytes = _canonical(payload)
     envelope = {
@@ -1282,9 +1426,62 @@ def _write_state(source: Path, state_root: str | Path | None, session: Convergen
             "End this bounded session and split the repair evidence.",
             cli_exit=1,
         )
+    return encoded
+
+
+def _write_state(source: Path, state_root: str | Path | None, session: ConvergenceSession) -> Path:
+    root, state_path, _ = _state_paths(source, state_root)
+    _assert_state_root(root)
+    encoded = _encoded_state(session)
     _durable_write_bytes(state_path, encoded)
     state_path.chmod(0o600)
     return state_path
+
+
+def _archive_terminal_session(
+    source: Path,
+    state_root: str | Path | None,
+    session: ConvergenceSession,
+) -> Path:
+    if session.status in _ACTIVE_STATUSES:
+        raise ValueError("active convergence sessions cannot be archived")
+    root, state_path, _ = _state_paths(source, state_root)
+    archive_dir = root / "archive" / state_path.stem
+    _assert_state_root(archive_dir)
+    archive_path = archive_dir / f"{session.session_id}.json"
+    encoded = _encoded_state(session)
+    if archive_path.exists():
+        if (
+            archive_path.is_symlink()
+            or not archive_path.is_file()
+            or archive_path.stat(follow_symlinks=False).st_size > CONVERGE_MAX_STATE_BYTES
+            or archive_path.read_bytes() != encoded
+        ):
+            raise ConvergeError(
+                "CONVERGE_STATE_INVALID",
+                "Archived convergence session conflicts with terminal state.",
+                "Inspect the private archive before starting another session.",
+                cli_exit=1,
+            )
+        return archive_path
+    archived = list(archive_dir.glob("vcgs_*.json"))
+    if any(path.is_symlink() or not path.is_file() for path in archived):
+        raise ConvergeError(
+            "CONVERGE_STATE_INVALID",
+            "Convergence archive contains an unsafe entry.",
+            "Inspect the private archive before starting another session.",
+            cli_exit=1,
+        )
+    if len(archived) >= CONVERGE_MAX_ARCHIVED_SESSIONS:
+        raise ConvergeError(
+            "CONVERGE_ARCHIVE_LIMIT_EXCEEDED",
+            f"Convergence archive retains {CONVERGE_MAX_ARCHIVED_SESSIONS} sessions for this source.",
+            "Export and remove old archived sessions before starting another.",
+            cli_exit=1,
+        )
+    _durable_write_bytes(archive_path, encoded)
+    archive_path.chmod(0o600)
+    return archive_path
 
 
 def _read_state(source: Path, state_root: str | Path | None) -> ConvergenceSession:
@@ -1433,6 +1630,7 @@ def start_convergence_session(
         _, state_path, _ = _state_paths(source, state_root)
         if state_path.exists():
             existing = _read_state(source, state_root)
+            existing = _resume_durable_session(source, state_root, existing)
             existing = _expire_if_needed(source, state_root, existing, now)
             if existing.status in _ACTIVE_STATUSES:
                 raise ConvergeError(
@@ -1440,6 +1638,7 @@ def start_convergence_session(
                     "An active convergence session already owns this source.",
                     "Finish, reject, or let the bounded session expire before starting another.",
                 )
+            _archive_terminal_session(source, state_root, existing)
         text, payload, current_hash = _read_source(source, context.source_kind)
         if context.contract_profile != INTENT_PATCH_CONTRACT_PROFILE:
             raise ConvergeError(
@@ -1468,7 +1667,12 @@ def start_convergence_session(
                     "Retry indeterminate verification or skip convergence for a conformant result.",
                 )
             expected_plan = VerificationRepairPlan.from_result(baseline_result)
-            if f"verify:{expected_plan.repair_plan_id}" not in context.evidence_refs:
+            expected_context = patch_context_from_repair_plan(
+                expected_plan,
+                source_kind=context.source_kind,
+                base_source_sha256=current_hash,
+            )
+            if context != expected_context:
                 raise ConvergeError(
                     "CONVERGE_BASELINE_INVALID",
                     "Convergence context does not match the supplied baseline result.",
@@ -1570,12 +1774,22 @@ def _run_candidate_verifier(
     baseline: VerificationResult,
 ) -> VerificationResult:
     lineage = baseline.lineage.next_attempt(baseline.verification_id)
-    result = (verifier or _default_candidate_verifier)(
-        candidate_text,
-        source_kind,
-        baseline.plan,
-        lineage,
-    )
+    try:
+        result = (verifier or _default_candidate_verifier)(
+            candidate_text,
+            source_kind,
+            baseline.plan,
+            lineage,
+        )
+    except ConvergeError:
+        raise
+    except Exception as exc:
+        raise ConvergeError(
+            "CONVERGE_VERIFIER_FAILED",
+            f"Candidate verifier failed before producing a result: {exc}",
+            "Repair the verifier environment and resume the durable convergence session.",
+            cli_exit=1,
+        ) from exc
     if not isinstance(result, VerificationResult):
         raise ConvergeError(
             "CONVERGE_VERIFIER_INVALID",
@@ -1772,6 +1986,182 @@ def _same_verification_obligations(left: VerificationResult, right: Verification
     )
 
 
+def _applied_session_from_receipt(
+    session: ConvergenceSession,
+    preview: ConvergencePreview,
+    receipt: IntentPatchReceipt,
+) -> ConvergenceSession:
+    if receipt.candidate_source_sha256 != preview.candidate_source_sha256:
+        raise ConvergeError(
+            "CONVERGE_APPLY_MISMATCH",
+            "IntentPatch receipt does not match the approved convergence candidate.",
+            "Stop and inspect the source and receipts; do not continue automatically.",
+            cli_exit=1,
+        )
+    attempts = list(session.attempts)
+    attempts[-1] = ConvergenceAttempt(
+        attempt=attempts[-1].attempt,
+        base_source_sha256=attempts[-1].base_source_sha256,
+        candidate_source_sha256=attempts[-1].candidate_source_sha256,
+        patch=attempts[-1].patch,
+        preview_id=attempts[-1].preview_id,
+        progress_certificate=attempts[-1].progress_certificate,
+        candidate_result=attempts[-1].candidate_result,
+        receipt=receipt.to_json(),
+    )
+    return _replace_session(
+        session,
+        status="applied",
+        current_source_sha256=preview.candidate_source_sha256,
+        attempts=tuple(attempts),
+        pending_preview=None,
+        terminal_reason=None,
+    )
+
+
+def _apply_or_recover_preview(
+    source: Path,
+    state_root: str | Path | None,
+    session: ConvergenceSession,
+    preview: ConvergencePreview,
+) -> ConvergenceSession:
+    _, _, actual_hash = _read_source(source, session.context.source_kind)
+    if actual_hash not in {preview.base_source_sha256, preview.candidate_source_sha256}:
+        raise ConvergeError(
+            "CONVERGE_SOURCE_CHANGED",
+            "Source bytes changed outside the active convergence session.",
+            "Start a new session from the current source; convergence never rebases automatically.",
+        )
+    patch_file = _patch_file_for_preview(source, state_root, preview)
+    try:
+        receipt = apply_intent_patch_file(
+            source,
+            patch_file,
+            approval_token=preview.intent_approval_token,
+        )
+    except IntentPatchError as exc:
+        raise _convert_patch_error(exc) from exc
+    applied = _applied_session_from_receipt(session, preview, receipt)
+    _write_state(source, state_root, applied)
+    return applied
+
+
+def _recover_committed_pending_apply(
+    source: Path,
+    state_root: str | Path | None,
+    session: ConvergenceSession,
+) -> ConvergenceSession:
+    preview = session.pending_preview
+    if session.status != "awaiting_approval" or preview is None:
+        return session
+    _, _, actual_hash = _read_source(source, session.context.source_kind)
+    if actual_hash != preview.candidate_source_sha256:
+        return session
+    return _apply_or_recover_preview(source, state_root, session, preview)
+
+
+def _reconcile_applied_verification(
+    source: Path,
+    state_root: str | Path | None,
+    session: ConvergenceSession,
+    verifier: CandidateVerifier | None,
+) -> ConvergenceSession:
+    if session.status != "applied" or session.mode != "verification":
+        return session
+    if not session.attempts or session.baseline_result is None:
+        raise ConvergeError(
+            "CONVERGE_STATE_INVALID",
+            "Applied verification session lacks its baseline or attempt history.",
+            "Inspect and archive the malformed state before retrying.",
+            cli_exit=1,
+        )
+    attempt = session.attempts[-1]
+    if attempt.candidate_result is None or attempt.receipt is None:
+        raise ConvergeError(
+            "CONVERGE_STATE_INVALID",
+            "Applied verification session lacks its candidate proof or apply receipt.",
+            "Inspect and archive the malformed state before retrying.",
+            cli_exit=1,
+        )
+    source_text, payload = _ensure_source_hash(
+        source,
+        session.context.source_kind,
+        session.current_source_sha256,
+    )
+    reverified = _run_candidate_verifier(
+        verifier,
+        source_text,
+        session.context.source_kind,
+        session.baseline_result,
+    )
+    if not _same_verification_obligations(attempt.candidate_result, reverified):
+        stalled = _replace_session(
+            session,
+            status="stalled",
+            terminal_reason="post_apply_verification_drift",
+        )
+        _write_state(source, state_root, stalled)
+        return stalled
+    if reverified.status == "conformant":
+        conformant = _replace_session(
+            session,
+            status="conformant",
+            baseline_result=reverified,
+            task=None,
+            terminal_reason="all_obligations_satisfied",
+        )
+        _write_state(source, state_root, conformant)
+        return conformant
+    if len(session.attempts) >= CONVERGE_MAX_ATTEMPTS:
+        exhausted = _replace_session(
+            session,
+            status="exhausted",
+            baseline_result=reverified,
+            task=None,
+            terminal_reason="attempt_limit",
+        )
+        _write_state(source, state_root, exhausted)
+        return exhausted
+    repair_plan = VerificationRepairPlan.from_result(reverified)
+    if repair_plan.disposition != "repair":
+        stalled = _replace_session(
+            session,
+            status="stalled",
+            baseline_result=reverified,
+            task=None,
+            terminal_reason="post_apply_verification_indeterminate",
+        )
+        _write_state(source, state_root, stalled)
+        return stalled
+    context = patch_context_from_repair_plan(
+        repair_plan,
+        source_kind=session.context.source_kind,
+        base_source_sha256=session.current_source_sha256,
+    )
+    task = _build_authoring_task(payload, context)
+    continued = _replace_session(
+        session,
+        status="awaiting_proposal" if task.targets else "full_revision_required",
+        context=context,
+        task=task,
+        baseline_result=reverified,
+        terminal_reason=None if task.targets else "no_legal_intent_patch_target",
+    )
+    _write_state(source, state_root, continued)
+    return continued
+
+
+def _resume_durable_session(
+    source: Path,
+    state_root: str | Path | None,
+    session: ConvergenceSession,
+    *,
+    verifier: CandidateVerifier | None = None,
+) -> ConvergenceSession:
+    session = _recover_committed_pending_apply(source, state_root, session)
+    return _reconcile_applied_verification(source, state_root, session, verifier)
+
+
 def approve_convergence_preview(
     source_path: str | Path,
     approval_token: str,
@@ -1809,114 +2199,10 @@ def approve_convergence_preview(
                 "Approval does not authorize this exact preview and progress certificate.",
                 "Approve the current before/after proposal; stale or substituted authority is rejected.",
             )
-        _ensure_source_hash(source, session.context.source_kind, preview.base_source_sha256)
-        patch_file = _patch_file_for_preview(source, state_root, preview)
-        try:
-            receipt = apply_intent_patch_file(
-                source,
-                patch_file,
-                approval_token=preview.intent_approval_token,
-            )
-        except IntentPatchError as exc:
-            raise _convert_patch_error(exc) from exc
-        if receipt.candidate_source_sha256 != preview.candidate_source_sha256:
-            raise ConvergeError(
-                "CONVERGE_APPLY_MISMATCH",
-                "IntentPatch receipt does not match the approved convergence candidate.",
-                "Stop and inspect the source and receipts; do not continue automatically.",
-                cli_exit=1,
-            )
-        attempts = list(session.attempts)
-        attempts[-1] = ConvergenceAttempt(
-            attempt=attempts[-1].attempt,
-            base_source_sha256=attempts[-1].base_source_sha256,
-            candidate_source_sha256=attempts[-1].candidate_source_sha256,
-            patch=attempts[-1].patch,
-            preview_id=attempts[-1].preview_id,
-            progress_certificate=attempts[-1].progress_certificate,
-            candidate_result=attempts[-1].candidate_result,
-            receipt=receipt.to_json(),
-        )
-        applied = _replace_session(
-            session,
-            status="applied",
-            current_source_sha256=preview.candidate_source_sha256,
-            attempts=tuple(attempts),
-            pending_preview=None,
-            terminal_reason=None,
-        )
-        _write_state(source, state_root, applied)
+        applied = _apply_or_recover_preview(source, state_root, session, preview)
         if session.mode == "review":
             return applied
-
-        assert session.baseline_result is not None
-        assert preview.candidate_result is not None
-        source_text, payload = _ensure_source_hash(
-            source,
-            session.context.source_kind,
-            preview.candidate_source_sha256,
-        )
-        reverified = _run_candidate_verifier(
-            verifier,
-            source_text,
-            session.context.source_kind,
-            session.baseline_result,
-        )
-        if not _same_verification_obligations(preview.candidate_result, reverified):
-            stalled = _replace_session(
-                applied,
-                status="stalled",
-                terminal_reason="post_apply_verification_drift",
-            )
-            _write_state(source, state_root, stalled)
-            return stalled
-        if reverified.status == "conformant":
-            conformant = _replace_session(
-                applied,
-                status="conformant",
-                baseline_result=reverified,
-                task=None,
-                terminal_reason="all_obligations_satisfied",
-            )
-            _write_state(source, state_root, conformant)
-            return conformant
-        if len(attempts) >= CONVERGE_MAX_ATTEMPTS:
-            exhausted = _replace_session(
-                applied,
-                status="exhausted",
-                baseline_result=reverified,
-                task=None,
-                terminal_reason="attempt_limit",
-            )
-            _write_state(source, state_root, exhausted)
-            return exhausted
-        repair_plan = VerificationRepairPlan.from_result(reverified)
-        if repair_plan.disposition != "repair":
-            stalled = _replace_session(
-                applied,
-                status="stalled",
-                baseline_result=reverified,
-                task=None,
-                terminal_reason="post_apply_verification_indeterminate",
-            )
-            _write_state(source, state_root, stalled)
-            return stalled
-        context = patch_context_from_repair_plan(
-            repair_plan,
-            source_kind=session.context.source_kind,
-            base_source_sha256=preview.candidate_source_sha256,
-        )
-        task = _build_authoring_task(payload, context)
-        continued = _replace_session(
-            applied,
-            status="awaiting_proposal" if task.targets else "full_revision_required",
-            context=context,
-            task=task,
-            baseline_result=reverified,
-            terminal_reason=None if task.targets else "no_legal_intent_patch_target",
-        )
-        _write_state(source, state_root, continued)
-        return continued
+        return _reconcile_applied_verification(source, state_root, applied, verifier)
 
 
 def reject_convergence_preview(
@@ -1953,6 +2239,7 @@ def reject_convergence_preview(
 def get_convergence_status(
     source_path: str | Path,
     *,
+    verifier: CandidateVerifier | None = None,
     state_root: str | Path | None = None,
     clock: Callable[[], float] | None = None,
 ) -> ConvergenceSession:
@@ -1961,10 +2248,17 @@ def get_convergence_status(
     source = _canonical_source(source_path)
     now = _now(clock)
     with _session_lock(source, state_root):
-        return _expire_if_needed(source, state_root, _read_state(source, state_root), now)
+        session = _resume_durable_session(
+            source,
+            state_root,
+            _read_state(source, state_root),
+            verifier=verifier,
+        )
+        return _expire_if_needed(source, state_root, session, now)
 
 
 __all__ = [
+    "CONVERGE_MAX_ARCHIVED_SESSIONS",
     "CONVERGE_MAX_ATTEMPTS",
     "CONVERGE_MAX_SECONDS",
     "CONVERGE_SESSION_SCHEMA_VERSION",
