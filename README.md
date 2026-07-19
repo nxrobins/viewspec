@@ -154,23 +154,28 @@ viewspec diff old.html new.html --json
 
 ## ViewSpec Converge: Approved Semantic Changes
 
-IntentPatch V1 turns Review feedback or verifier repairs into a bounded proposal against exact
-ViewSpec source bytes. It supports nine stable-ID semantic operations, requires exact old values,
-validates and compile-checks the complete candidate, and returns an approval token without changing
-the source.
+Converge Sessions V1 turn Review feedback or verifier failures into a durable sequence of bounded
+IntentPatch proposals. The agent automatically starts or resumes the controller, chooses only from a
+source-bound legal-operation menu, submits the patch, and re-verifies after apply; the human opens
+Review, inspects the semantic before/after and progress proof, then approves or rejects.
+
+Humans do not need to operate hashes, task ids, operation names, tool names, or approval tokens.
+Agent-facing session responses withhold both write capabilities, and Review authorizes only the exact
+preview shown in its authenticated current frame.
+
+The following commands are expert/debug surfaces for integrations, not the normal operator workflow:
 
 ```bash
-viewspec patch-preview viewspec.intent.json change.intentpatch.json \
-  --candidate-out candidate.intent.json --json
-viewspec patch-apply viewspec.intent.json change.intentpatch.json \
-  --approval <exact-token-from-current-preview> --json
+viewspec converge-start viewspec.intent.json context.json --json
+viewspec converge-submit viewspec.intent.json change.intentpatch.json --json
+viewspec converge-status viewspec.intent.json --json
 ```
 
-Apply re-proves the preview under a per-source lock, writes the source atomically, and records a
-durable receipt with a source-bound inverse patch. Feedback and verifier output are evidence, not
-approval; stale bases, missing targets, unknown operations, concurrent applies, and unprovable crash
-states fail closed. See [IntentPatch V1](docs/intent-patch-v1.md) for the contract and constraint
-matrix.
+The verifier accepts only strict set-wise progress: the candidate must remove at least one existing
+error, introduce none, and use the identical complete verification plan. Sessions permit three
+attempts over ten minutes, reject cycles and out-of-band source edits, apply through the existing
+atomic IntentPatch receipt transaction, and fail closed on post-apply proof drift. See
+[Converge Sessions V1](docs/converge-sessions-v1.md) and [IntentPatch V1](docs/intent-patch-v1.md).
 
 ## Native Agent Use
 
@@ -192,7 +197,7 @@ viewspec export-agent-assets --out .viewspec
 viewspec check-agent-assets .viewspec --json
 ```
 
-Agent assets use schema version `12`, contract profile `local_v1`, and the same export/check commands shown above; exported files include the local intent schema, AppBundle schema, IntentPatch schema, checked examples, prompt, and asset manifest without SDK network calls.
+Agent assets use schema version `13`, contract profile `local_v1`, and the same export/check commands shown above; exported files include the local intent schema, AppBundle schema, IntentPatch schema, Convergence Authoring Task schema, checked examples, prompt, and asset manifest without SDK network calls.
 
 Optional **MCP tooling** is available behind the agent extra:
 
@@ -200,7 +205,7 @@ Optional **MCP tooling** is available behind the agent extra:
 python -m pip install "viewspec[agents]"
 viewspec mcp
 ```
-The MCP server exposes all intent-first local tools without requiring shell commands, including `validate_intent_bundle_file`, `compile_intent_bundle_file`, `build_intent_patch_context`, `preview_intent_patch`, `apply_intent_patch`, `verify_host`, `prove`, `validate_app_file`, `diff_app_files`, `compile_app`, and `prove_app`.
+The MCP server exposes all intent-first local tools without requiring shell commands, including `validate_intent_bundle_file`, `compile_intent_bundle_file`, `build_intent_patch_context`, `start_convergence`, `submit_convergence_patch`, `get_convergence_status`, `verify_host`, `prove`, `validate_app_file`, `diff_app_files`, `compile_app`, and `prove_app`. Convergence approval remains human-gated in Review; the expert `approve_convergence` tool can only consume an operator-supplied capability that agent-facing tools never reveal.
 
 For rendered conformance, compile React/Tailwind TSX and run:
 

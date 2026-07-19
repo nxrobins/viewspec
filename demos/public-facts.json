@@ -113,11 +113,12 @@
   },
   "agent_assets": {
     "manifest_url": "https://viewspec.dev/agent-assets.json",
-    "schema_version": 12,
+    "schema_version": 13,
     "contract_profile": "local_v1",
     "intent_schema_id": "https://viewspec.dev/agent-intent-bundle.schema.json",
     "app_schema_id": "https://viewspec.dev/agent-app-bundle.schema.json",
     "patch_schema_id": "https://viewspec.dev/intent-patch.schema.json",
+    "converge_task_schema_id": "https://viewspec.dev/converge-task.schema.json",
     "export_command": "viewspec export-agent-assets --out .viewspec",
     "check_command": "viewspec check-agent-assets .viewspec --json",
     "network_policy": "no SDK network calls",
@@ -128,7 +129,9 @@
       "agent-app-bundle.schema.json",
       "agent-app-example.internal-tool.json",
       "intent-patch.schema.json",
-      "intent-patch-example.dashboard.json"
+      "intent-patch-example.dashboard.json",
+      "converge-task.schema.json",
+      "converge-task-example.dashboard.json"
     ]
   }
 }

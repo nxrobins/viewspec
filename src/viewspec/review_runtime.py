@@ -55,6 +55,7 @@ class ReviewRuntimeConfiguration:
     design_path: str | None
     source_kind: str
     target: str
+    convergence_state_root: str | None = None
     compiler_version: str = __version__
     contract_profile: str = "local_v1"
     plugin_registry_sha256: str = _EMPTY_PLUGIN_REGISTRY_SHA256
@@ -72,6 +73,11 @@ class ReviewRuntimeConfiguration:
             raise _configuration_conflict("Review configuration source path is missing.")
         if self.design_path is not None and not isinstance(self.design_path, str):
             raise _configuration_conflict("Review configuration design path is invalid.")
+        if self.convergence_state_root is not None and (
+            not isinstance(self.convergence_state_root, str)
+            or not os.path.isabs(self.convergence_state_root)
+        ):
+            raise _configuration_conflict("Review convergence state root must be an absolute path.")
         if type(self.requested_port) is not int or not 1024 <= self.requested_port <= 65535:
             raise _configuration_conflict("Review configuration port is outside 1024 through 65535.")
         if type(self.allow_install) is not bool:
@@ -84,6 +90,7 @@ class ReviewRuntimeConfiguration:
             "design_path": self.design_path,
             "source_kind": self.source_kind,
             "target": self.target,
+            "convergence_state_root": self.convergence_state_root,
             "compiler_version": self.compiler_version,
             "contract_profile": self.contract_profile,
             "plugin_registry_sha256": self.plugin_registry_sha256,
@@ -102,6 +109,7 @@ class ReviewRuntimeConfiguration:
             "design_path",
             "source_kind",
             "target",
+            "convergence_state_root",
             "compiler_version",
             "contract_profile",
             "plugin_registry_sha256",
@@ -109,9 +117,11 @@ class ReviewRuntimeConfiguration:
             "verification_plan_sha256",
             "allow_install",
         }
-        if set(value) != allowed:
+        legacy_allowed = allowed - {"convergence_state_root"}
+        fields = set(value)
+        if fields != allowed and fields != legacy_allowed:
             raise _configuration_conflict("Stored Review configuration fields do not match V0.")
-        return cls(**value)
+        return cls(**{**value, "convergence_state_root": value.get("convergence_state_root")})
 
 
 class ReviewRuntime:
@@ -178,6 +188,7 @@ class ReviewRuntime:
         source_path: str | Path,
         *,
         state_root: str | Path,
+        convergence_state_root: str | Path | None = None,
         target: str | None = None,
         design_path: str | Path | None = None,
         requested_port: int = 4388,
@@ -188,6 +199,11 @@ class ReviewRuntime:
         snapshot = capture_source_snapshot(source_path, design_path=design_path)
         selected_target = target or ("html-tailwind" if snapshot.source_kind == "intent_bundle" else "html-tailwind-app")
         root = Path(os.path.abspath(Path(state_root).expanduser()))
+        convergence_root = (
+            str(Path(os.path.abspath(Path(convergence_state_root).expanduser())))
+            if convergence_state_root is not None
+            else None
+        )
         _ensure_private_directory(root)
         sessions_dir = root / "sessions"
         _ensure_private_directory(sessions_dir)
@@ -197,6 +213,7 @@ class ReviewRuntime:
             design_path=str(snapshot.design_path) if snapshot.design_path is not None else None,
             source_kind=snapshot.source_kind,
             target=selected_target,
+            convergence_state_root=convergence_root,
             requested_port=requested_port,
             verification_plan_sha256=verification_plan_sha256,
             allow_install=allow_install if selected_target == "react-tailwind-app" else False,
@@ -455,6 +472,12 @@ class ReviewRuntime:
             "semantic_diff": self.semantic_diff,
             "compaction_failure": self.session.compaction_failure,
         }
+
+    @property
+    def routes(self) -> tuple[str, ...]:
+        """Return the current checked route names for the browser chrome."""
+
+        return tuple(sorted(self._route_screens))
 
     def _assert_context(self, context: ReviewContext, *, screen_id: str | None) -> None:
         if context.control_values:

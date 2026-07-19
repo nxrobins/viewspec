@@ -1,0 +1,111 @@
+{
+  "allowed_target_keys": [
+    [
+      "intent",
+      "root",
+      "binding_presentation",
+      "revenue_value"
+    ],
+    [
+      "intent",
+      "root",
+      "semantic_attr",
+      "revenue",
+      "value"
+    ]
+  ],
+  "base_source_sha256": "78e159bb38be9ac73bc5d82a42a164d0526a15e1dc197a17cc0a6ed8abdc1c03",
+  "requests": [
+    {
+      "action_id": null,
+      "binding_id": "revenue_value",
+      "content_refs": [
+        "node:revenue#attr:value"
+      ],
+      "instruction": "Show the revenue value as a badge.",
+      "intent_refs": [
+        "viewspec:binding:revenue_value"
+      ],
+      "kind": "change_request",
+      "request_id": "event_example",
+      "screen_id": null,
+      "source_ref": "ir:binding_revenue_value"
+    }
+  ],
+  "schema_version": 1,
+  "source_kind": "intent_bundle",
+  "targets": [
+    {
+      "kind": "binding",
+      "legal_operations": [
+        {
+          "allowed_values": [
+            "badge",
+            "image_slot",
+            "input",
+            "label",
+            "rich_text",
+            "rule",
+            "text",
+            "value"
+          ],
+          "fixed_fields": {
+            "binding_id": "revenue_value",
+            "old_value": "value"
+          },
+          "op": "set_binding_presentation",
+          "replacement_field": "value",
+          "target_key": [
+            "intent",
+            "root",
+            "binding_presentation",
+            "revenue_value"
+          ]
+        }
+      ],
+      "screen_id": null,
+      "source_fragment": {
+        "address": "node:revenue#attr:value",
+        "cardinality": "exactly_once",
+        "id": "revenue_value",
+        "present_as": "value",
+        "target_region": "main"
+      },
+      "target_id": "revenue_value"
+    },
+    {
+      "kind": "semantic_node",
+      "legal_operations": [
+        {
+          "fixed_fields": {
+            "attr": "value",
+            "node_id": "revenue",
+            "old_value": "$12.4K"
+          },
+          "op": "replace_semantic_attr",
+          "replacement_field": "value",
+          "target_key": [
+            "intent",
+            "root",
+            "semantic_attr",
+            "revenue",
+            "value"
+          ]
+        }
+      ],
+      "screen_id": null,
+      "source_fragment": {
+        "attrs": {
+          "label": "Revenue",
+          "value": "$12.4K"
+        },
+        "edges": {},
+        "id": "revenue",
+        "kind": "dashboard_card",
+        "slots": {}
+      },
+      "target_id": "revenue"
+    }
+  ],
+  "task_id": "vctask_9289bb680285ac3ac6415cedb886ca04"
+}

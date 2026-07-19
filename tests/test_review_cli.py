@@ -52,6 +52,8 @@ def test_review_cli_routes_all_bounded_options_and_prints_json(monkeypatch, caps
             "4388",
             "--state-dir",
             ".review-state",
+            "--convergence-state-dir",
+            ".converge-state",
             "--no-open",
             "--json",
         ]
@@ -61,6 +63,7 @@ def test_review_cli_routes_all_bounded_options_and_prints_json(monkeypatch, caps
     assert called["source"] == "viewspec.intent.json"
     assert called["port"] == 4388
     assert called["no_open"] is True
+    assert called["convergence_state_root"] == ".converge-state"
     assert json.loads(capsys.readouterr().out)["review"]["revision"] == 1
 
 

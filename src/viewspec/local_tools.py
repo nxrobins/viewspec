@@ -365,6 +365,10 @@ def export_agent_assets_tool(
                 paths["patch_schema"] = str(output / filename)
             elif filename == "intent-patch-example.dashboard.json":
                 paths["patch_example"] = str(output / filename)
+            elif filename == "converge-task.schema.json":
+                paths["converge_task_schema"] = str(output / filename)
+            elif filename == "converge-task-example.dashboard.json":
+                paths["converge_task_example"] = str(output / filename)
         changed = [item for item in result["files"] if item["action"] != "unchanged"]
         return tool_response(
             True,

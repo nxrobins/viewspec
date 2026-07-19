@@ -312,7 +312,7 @@ def test_export_agent_assets_tool_writes_prompt_and_schema(tmp_path):
     assert_tool_schema(exported)
     assert exported["ok"] is True
     assert exported["metadata"]["network_calls"] == "none"
-    assert exported["metadata"]["changes"] == 8
+    assert exported["metadata"]["changes"] == 10
     assert exported["paths"]["manifest"].endswith("agent-assets.json")
     assert exported["paths"]["prompt"].endswith("agent-system-prompt.txt")
     assert exported["paths"]["schema"].endswith("agent-intent-bundle.schema.json")
@@ -321,6 +321,8 @@ def test_export_agent_assets_tool_writes_prompt_and_schema(tmp_path):
     assert exported["paths"]["app_example"].endswith("agent-app-example.internal-tool.json")
     assert exported["paths"]["patch_schema"].endswith("intent-patch.schema.json")
     assert exported["paths"]["patch_example"].endswith("intent-patch-example.dashboard.json")
+    assert exported["paths"]["converge_task_schema"].endswith("converge-task.schema.json")
+    assert exported["paths"]["converge_task_example"].endswith("converge-task-example.dashboard.json")
     assert (tmp_path / ".viewspec/agent-system-prompt.txt").read_text(encoding="utf-8") == AGENT_SYSTEM_PROMPT
     manifest = json.loads((tmp_path / ".viewspec/agent-assets.json").read_text(encoding="utf-8"))
     assert manifest["schema_version"] == AGENT_ASSET_SCHEMA_VERSION
@@ -342,6 +344,8 @@ def test_export_agent_assets_tool_writes_prompt_and_schema(tmp_path):
         "agent-app-example.internal-tool.json": "create",
         "intent-patch.schema.json": "create",
         "intent-patch-example.dashboard.json": "create",
+        "converge-task.schema.json": "create",
+        "converge-task-example.dashboard.json": "create",
     }
     checked = check_agent_assets_tool(".viewspec", cwd=tmp_path)
     assert_tool_schema(checked)

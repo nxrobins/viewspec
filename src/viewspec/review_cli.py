@@ -32,6 +32,7 @@ def open_review(
     target: str | None = None,
     port: int = DEFAULT_REVIEW_PORT,
     state_root: str | Path | None = None,
+    convergence_state_root: str | Path | None = None,
     reopen: bool = False,
     no_open: bool = False,
     verify: bool = False,
@@ -45,6 +46,11 @@ def open_review(
             cli_exit=2,
         )
     root = Path(state_root) if state_root is not None else default_review_state_root()
+    expected_convergence_root = (
+        str(Path(os.path.abspath(Path(convergence_state_root).expanduser())))
+        if convergence_state_root is not None
+        else None
+    )
     from viewspec.verification import VerificationPlan
 
     expected_plan = VerificationPlan.default().plan_sha256 if verify else None
@@ -59,6 +65,7 @@ def open_review(
             or runtime.configuration.requested_port != port
             or runtime.configuration.verification_plan_sha256 != expected_plan
             or runtime.configuration.allow_install != (install if expected_target == "react-tailwind-app" else False)
+            or runtime.configuration.convergence_state_root != expected_convergence_root
         ):
             raise ReviewContractError(
                 "REVIEW_SESSION_CONFIGURATION_CONFLICT",
@@ -84,6 +91,7 @@ def open_review(
             reopen=reopen,
             verify=verify,
             install=install,
+            convergence_state_root=convergence_state_root,
         )
         bootstrap_url = started.get("bootstrap_url")
         review = started.get("review")
@@ -211,6 +219,7 @@ def _spawn_daemon(
     reopen: bool,
     verify: bool,
     install: bool,
+    convergence_state_root: str | Path | None,
 ) -> dict[str, object]:
     command = [
         sys.executable,
@@ -233,6 +242,8 @@ def _spawn_daemon(
         command.append("--verify")
     if install:
         command.append("--install")
+    if convergence_state_root is not None:
+        command.extend(("--convergence-state-root", str(convergence_state_root)))
     process = subprocess.Popen(
         command,
         stdin=subprocess.DEVNULL,

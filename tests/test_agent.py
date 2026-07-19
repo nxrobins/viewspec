@@ -15,6 +15,7 @@ from viewspec import (
     AGENT_ASSET_SCHEMA_VERSION,
     AGENT_APP_BUNDLE_SCHEMA,
     AGENT_INTENT_BUNDLE_SCHEMA,
+    CONVERGENCE_TASK_JSON_SCHEMA,
     INTENT_PATCH_JSON_SCHEMA,
     AGENT_SYSTEM_PROMPT,
     AESTHETIC_PROFILE_TOKENS,
@@ -31,6 +32,7 @@ from viewspec import (
     starter_app_bundle,
     starter_intent_payload,
     starter_intent_patch_payload,
+    starter_convergence_task_payload,
     validate_agent_intent_bundle,
 )
 from viewspec.agent import (
@@ -298,6 +300,14 @@ def test_published_patch_schema_and_example_match_runtime_contract():
     assert example == starter_intent_patch_payload()
 
 
+def test_published_convergence_task_schema_and_example_match_runtime_contract():
+    schema = json.loads(ROOT.joinpath("demos/converge-task.schema.json").read_text(encoding="utf-8"))
+    example = json.loads(ROOT.joinpath("demos/converge-task-example.dashboard.json").read_text(encoding="utf-8"))
+
+    assert schema == CONVERGENCE_TASK_JSON_SCHEMA
+    assert example == starter_convergence_task_payload()
+
+
 def test_published_agent_asset_manifest_matches_runtime_export(tmp_path):
     export_agent_assets(tmp_path)
     published = json.loads(ROOT.joinpath("demos/agent-assets.json").read_text(encoding="utf-8"))
@@ -310,6 +320,7 @@ def test_published_agent_asset_manifest_matches_runtime_export(tmp_path):
         "intent_schema_id": AGENT_INTENT_BUNDLE_SCHEMA["$id"],
         "app_schema_id": AGENT_APP_BUNDLE_SCHEMA["$id"],
         "patch_schema_id": INTENT_PATCH_JSON_SCHEMA["$id"],
+        "converge_task_schema_id": CONVERGENCE_TASK_JSON_SCHEMA["$id"],
         "export_command": AGENT_ASSET_EXPORT_COMMAND,
         "check_command": AGENT_ASSET_CHECK_COMMAND,
         "network_policy": AGENT_ASSET_NETWORK_POLICY,
@@ -322,6 +333,8 @@ def test_published_agent_asset_manifest_matches_runtime_export(tmp_path):
             "app_example": "agent-app-example.internal-tool.json",
             "patch_schema": "intent-patch.schema.json",
             "patch_example": "intent-patch-example.dashboard.json",
+            "converge_task_schema": "converge-task.schema.json",
+            "converge_task_example": "converge-task-example.dashboard.json",
         },
     }
 
@@ -341,6 +354,8 @@ def test_published_openapi_agent_artifacts_match_runtime_contract():
     assert artifacts["appBundleExample"] == "https://viewspec.dev/agent-app-example.internal-tool.json"
     assert artifacts["intentPatchSchema"] == INTENT_PATCH_JSON_SCHEMA["$id"]
     assert artifacts["intentPatchExample"] == "https://viewspec.dev/intent-patch-example.dashboard.json"
+    assert artifacts["convergeTaskSchema"] == CONVERGENCE_TASK_JSON_SCHEMA["$id"]
+    assert artifacts["convergeTaskExample"] == "https://viewspec.dev/converge-task-example.dashboard.json"
     assert artifacts["contractProfile"] == AGENT_ASSET_CONTRACT_PROFILE
     assert artifacts["exportCommand"] == AGENT_ASSET_EXPORT_COMMAND
     assert artifacts["checkCommand"] == AGENT_ASSET_CHECK_COMMAND

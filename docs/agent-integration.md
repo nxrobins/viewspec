@@ -171,32 +171,47 @@ The V1 local contract is bounded so validation and correction stay deterministic
 ## IntentPatch V1 and Converge
 
 When an agent is revising existing validated source from Review feedback or a verification repair,
-it may propose `IntentPatch` V1 instead of regenerating the whole document. Use the exported
-`intent-patch.schema.json`; bind `base_source_sha256` to the exact current UTF-8 source bytes, use
-only the nine stable-ID operations, and include the exact old value for every write.
+it should automatically use a Converge Session rather than asking the operator to drive patch
+commands. The session returns a Convergence Authoring Task: use the exported
+`converge-task.schema.json`, choose only its legal operation menu, copy fixed fields and evidence
+exactly, and submit one `IntentPatch` V1.
+
+The human workflow is only to open Review, inspect the semantic before/after and progress proof,
+and approve or reject. Agents must not expose or discover approval tokens, use `--show-authority`,
+or approve their own proposals.
+
+These commands exist as expert/debug equivalents of the automatic workflow:
 
 ```bash
-viewspec patch-preview viewspec.intent.json change.intentpatch.json \
-  --candidate-out candidate.intent.json --json
-viewspec patch-apply viewspec.intent.json change.intentpatch.json \
-  --approval <exact-token-from-current-preview> --json
+viewspec converge-start viewspec.intent.json context.json --json
+viewspec converge-submit viewspec.intent.json change.intentpatch.json --json
+viewspec converge-status viewspec.intent.json --json
 ```
 
-The first command validates, semantic-diffs, compiles, and checks the complete candidate without
-changing source. The second command repeats that proof under a source lock and accepts only the
-exact current approval token; Review events and verifier repairs are proposal evidence and never
-authorize apply.
+If an integration uses `--state-dir` for Converge, it must pass that same private path as
+`viewspec review --convergence-state-dir ...`; the agent wires this automatically so the human
+still sees the pending proposal without handling storage configuration.
+
+Submit validates, semantic-diffs, compiles, and checks the complete candidate without changing
+source. Review keeps approval authority private and applies only the exact preview shown in its
+authenticated current frame; Review events and verifier repairs remain proposal evidence only.
 
 Python callers can use `patch_context_from_review_batch()` and
 `patch_context_from_repair_plan()` to create bounded source-bound authorship context, then
-`preview_intent_patch()` or `apply_intent_patch_file()` for the proof and transaction boundaries.
-MCP callers use `build_intent_patch_context`, `preview_intent_patch`, and `apply_intent_patch`, which retain the MCP cwd path
-sandbox and the standard tool response envelope.
+`start_convergence_session()`, `submit_convergence_patch()`, and `get_convergence_status()` for the
+controller. MCP callers use `build_intent_patch_context`, `start_convergence`,
+`submit_convergence_patch`, and `get_convergence_status`; all retain the cwd path sandbox and
+standard response envelope while withholding write capabilities.
+
+Verifier-driven start reconstructs the canonical proposal context from the supplied baseline and
+requires exact equality; reusing a real repair-plan id with substituted requests is rejected.
 
 IntentPatch cannot add/delete source structure or address arbitrary JSON, DOM, CSS, or generated
 files. Use a full IntentBundle/AppBundle revision for changes outside its nine-operation vocabulary.
 The full contract, constraint matrix, recovery behavior, and explicit anti-goals are in
 [IntentPatch V1](intent-patch-v1.md).
+The durable controller, strict set-wise verifier progress rule, constraints, and operator boundary
+are specified in [Converge Sessions V1](converge-sessions-v1.md).
 
 ## Intent Review
 
@@ -227,7 +242,7 @@ AppBundle proof does not prove runtime browser navigation, dynamic routes, live 
 
 ## Published Agent Artifacts
 
-These assets use agent asset schema version `12`. The manifest declares the `local_v1` contract profile plus the export/check commands agents should use for local verification.
+These assets use agent asset schema version `13`. The manifest declares the `local_v1` contract profile plus the export/check commands agents should use for local verification.
 
 - Asset manifest: `https://viewspec.dev/agent-assets.json`
 - System prompt: `https://viewspec.dev/agent-system-prompt.txt`
@@ -237,6 +252,8 @@ These assets use agent asset schema version `12`. The manifest declares the `loc
 - AppBundle internal-tool example: `https://viewspec.dev/agent-app-example.internal-tool.json`
 - IntentPatch V1 schema: `https://viewspec.dev/intent-patch.schema.json`
 - IntentPatch dashboard example: `https://viewspec.dev/intent-patch-example.dashboard.json`
+- Convergence Authoring Task V1 schema: `https://viewspec.dev/converge-task.schema.json`
+- Convergence Authoring Task dashboard example: `https://viewspec.dev/converge-task-example.dashboard.json`
 - Hosted compiler OpenAPI: `https://viewspec.dev/openapi.json`
 - LLM summary: `https://viewspec.dev/llms.txt`
 - Expanded AI context: `https://viewspec.dev/llms-full.txt`
@@ -248,7 +265,7 @@ viewspec export-agent-assets --out .viewspec
 viewspec check-agent-assets .viewspec --json
 ```
 
-The export command writes `.viewspec/agent-assets.json`, `.viewspec/agent-system-prompt.txt`, `.viewspec/agent-intent-bundle.schema.json`, `.viewspec/agent-intent-example.dashboard.json`, `.viewspec/agent-app-bundle.schema.json`, and `.viewspec/agent-app-example.internal-tool.json`, refuses to overwrite edited files unless `--force` is passed, and performs no network calls. The check command verifies those files against the current SDK contract.
+The export command also writes the IntentPatch and Convergence Authoring Task schemas and examples, refuses to overwrite edited files unless `--force` is passed, and performs no network calls. The check command verifies every exported file against the current SDK contract.
 
 ## Minimal IntentBundle Example
 
