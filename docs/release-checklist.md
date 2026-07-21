@@ -10,6 +10,7 @@ Use this checklist before publishing a new ViewSpec package or public-site updat
 - Refresh the hosted `compiler/intent_contract.py` mirror from
   `src/viewspec/intent_contract.py`; the deployment gate requires byte-for-byte identity.
 - Move `CHANGELOG.md` `[Unreleased]` entries under the new version heading with the release date; note any deprecations explicitly.
+- For a prerelease, confirm every current-SDK install surface uses `--pre` or an exact prerelease pin. Plain `pip install viewspec` resolves the stable channel and must not be presented as the current prerelease command.
 - Re-read `docs/compatibility.md` and confirm every claim still holds for this release: covered surfaces unchanged or extended additively, caps only rose, error codes add-only, environment floors accurate.
 - Run the static smoke tests; `PUBLIC_FACTS_DRIFT` means a public surface still disagrees with the manifest.
 

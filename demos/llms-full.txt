@@ -4,6 +4,12 @@
 
 ViewSpec is an agent-native app compiler, an agent-native UI compiler, a semantic UI compiler contract, a Python SDK, and a hosted compiler API. It is built for agentic engineering, AI coding agents, vibe coding workflows, design-system automation, and data-heavy product interfaces that need deterministic, auditable output.
 
+Current public SDK version: `0.3.0b5`.
+
+This is a beta release. Install the current SDK with `python -m pip install --pre viewspec`;
+plain `python -m pip install viewspec` follows the stable channel because pip excludes
+prereleases by default.
+
 The primary local idea: your agent writes `viewspec.intent.json` as IntentBundle JSON or `viewspec.app.json` as AppBundle JSON, then ViewSpec validates it, applies `DESIGN.md`, compiles renderer output, writes provenance and shell manifests, generates bounded State IR reducer artifacts when requested, and checks the artifact with no SDK network calls.
 
 The hosted idea is the same contract at larger scope: describe what the data means, not how the UI should be hand-wired. ViewSpec compiles that semantic intent into CompositionIR, renderable UI primitives, style values, diagnostics, provenance, and emitter artifacts.
@@ -45,7 +51,9 @@ Avoid describing ViewSpec as a no-code page builder, CSS framework, React compon
 
 ## Launch Proof
 
-The first adoption path is agent-native intent: `viewspec prove --out .viewspec-proof` for a first local proof bundle with `.viewspec-proof/PROOF.md` for humans, `.viewspec-proof/proof_report.json` for tools, and `.viewspec-proof/support_bundle.json` for redacted local support triage, or `viewspec init-intent` when a scaffold is useful, then `viewspec validate-intent`, `viewspec compile`, and `viewspec check`. Checked manifest summaries include compact style-delta counts when aesthetic profiles are present. Use `docs/proof-bundle.md` or https://viewspec.dev/proof-bundle/ to interpret proof status, hashes, checks, failure codes, and support bundles.
+Use `viewspec prove --out .viewspec-proof` for a starter local proof bundle with `.viewspec-proof/PROOF.md` for humans, `.viewspec-proof/proof_report.json` for tools, and `.viewspec-proof/support_bundle.json` for redacted local support triage. For an authored brief, use the canonical lifecycle: `viewspec init-intent --out viewspec.intent.json`; edit the semantic source; `viewspec validate-intent viewspec.intent.json --json`; then `viewspec prove --intent viewspec.intent.json --target react-tailwind-tsx --install --out .viewspec-proof --json`. The authored proof compiles, checks, and renders the exact artifact at canonical mobile, tablet, and desktop viewports. Lower-level `viewspec compile` and `viewspec check` remain expert/debug surfaces. Checked manifest summaries include compact style-delta counts when aesthetic profiles are present. Use `docs/proof-bundle.md` or https://viewspec.dev/proof-bundle/ to interpret proof status, hashes, checks, failure codes, and support bundles.
+
+The checked core workflow has fixed-corpus regression evidence: 10/10 cases were conformant across mobile, tablet, and desktop with accessibility, DOM, log, and screenshot evidence; all ten passed the product-quality scorecard on first compile with zero critical issues; and 10/10 bounded semantic corrections produced verified previews and applied receipts. See https://github.com/nxrobins/viewspec/blob/main/conformance/refinement/gate-status-v1.json, https://github.com/nxrobins/viewspec/blob/main/conformance/refinement/scorecard-v2.json, and https://github.com/nxrobins/viewspec/blob/main/conformance/refinement/correction-proof-v1.json. These results cover the fixed supported brief families on the checked revision; they do not certify arbitrary briefs or host applications.
 
 The May 6 launch proof remains one agent-authored hosted-extended IntentBundle compiled to HTML/Tailwind, React TSX, SwiftUI, and Flutter. Its artifact index declares `contract_profile: "hosted_extended_v1"` because it includes hosted-only inputs, rules, projections, and mobile emitters beyond the local V1 `validate-intent` contract. Feature demos cover custom motif authoring and interactive compose with inputs, rules, and submit payloads.
 
@@ -63,12 +71,12 @@ The May 6 launch proof remains one agent-authored hosted-extended IntentBundle c
 ## Agent-Native Local Workflow
 
 - `viewspec init-intent --out viewspec.intent.json`
-- `viewspec prove --out .viewspec-proof`
 - `viewspec init-design --out DESIGN.md` when the repo does not already have a design file
 - `viewspec validate-intent viewspec.intent.json --json`
+- `viewspec prove --intent viewspec.intent.json --target react-tailwind-tsx --install --out .viewspec-proof --json`
+- `viewspec prove --out .viewspec-proof` for a starter proof when there is no authored intent yet
 - `viewspec diff-intent old.intent.json new.intent.json --json`
-- `viewspec compile viewspec.intent.json --design DESIGN.md --out dist/`
-- `viewspec check dist/`
+- `viewspec compile viewspec.intent.json --design DESIGN.md --out dist/` and `viewspec check dist/` as lower-level expert/debug surfaces
 - `viewspec init-agent --target codex|claude-code|cursor|copilot|all`
 - `viewspec export-agent-assets --out .viewspec`
 - `viewspec check-agent-assets .viewspec --json`
@@ -82,7 +90,7 @@ The May 6 launch proof remains one agent-authored hosted-extended IntentBundle c
 - `viewspec patch-preview viewspec.intent.json change.intentpatch.json --candidate-out candidate.intent.json --json`
 - `viewspec patch-apply viewspec.intent.json change.intentpatch.json --approval <exact-preview-token> --json`
 - `viewspec doctor`
-- Optional MCP: install `viewspec[agents]`, then run `viewspec mcp`
+- Optional MCP: run `python -m pip install --pre "viewspec[agents]"`, then `viewspec mcp`
 
 Agents should output IntentBundle JSON, not CompositionIR, HTML, CSS, React, SwiftUI, or Flutter source for new UI. Generated outputs such as `dist/index.html` and `react-output/ViewSpecView.tsx` are artifacts; edit `viewspec.intent.json` or `DESIGN.md`, then regenerate. `viewspec init-intent` is a scaffold only; replace sample content with real user intent before compiling. If validation fails, pass the correction prompt back to the agent and regenerate the full IntentBundle.
 

@@ -30,6 +30,8 @@ COMPILED_DIR = DEMOS / "landing-compiled"
 PROFILE_DIR = COMPILED_DIR / "profiles"
 PUBLIC_INDEX = DEMOS / "index.html"
 DEFAULT_PROFILE = "aesthetic.calm_ops"
+PUBLIC_FACTS = json.loads((DEMOS / "public-facts.json").read_text(encoding="utf-8"))
+INSTALL_COMMAND = PUBLIC_FACTS["installation"]["current_command"]
 
 PROFILE_LABELS = {
     "aesthetic.calm_ops": "Calm Ops",
@@ -58,8 +60,18 @@ def _profile_slug(profile: str) -> str:
     return profile.replace("aesthetic.", "").replace("_", "-")
 
 
+def _human_list(values: list[str]) -> str:
+    if len(values) < 2:
+        return "".join(values)
+    return f'{", ".join(values[:-1])}, and {values[-1]}'
+
+
 def build_bundle(aesthetic_profile: str | None = None):
     builder = ViewSpecBuilder("viewspec_landing")
+    refinement = PUBLIC_FACTS["core_refinement"]
+    corpus = refinement["browser_corpus"]
+    quality = refinement["product_quality"]
+    corrections = refinement["semantic_corrections"]
 
     builder.add_hero(
         "launch_hero",
@@ -82,6 +94,34 @@ def build_bundle(aesthetic_profile: str | None = None):
     proof_badges.add_card(label="shell", value="shell hash matched")
     proof_badges.add_card(label="runtime", value="No runtime LLM")
 
+    quality_evidence = builder.add_dashboard("quality_evidence", region="main", group_id="quality_evidence")
+    quality_evidence.add_card(
+        label="browser corpus",
+        value=f'{corpus["conformant_count"]}/{corpus["case_count"]} conformant',
+    )
+    quality_evidence.add_card(
+        label="viewports",
+        value=" · ".join(corpus["canonical_viewports"]),
+    )
+    quality_evidence.add_card(
+        label="product quality",
+        value=(
+            f'{quality["first_compile_pass_count"]}/{corpus["case_count"]} first-compile passes · '
+            f'{quality["critical_issue_count"]} critical issues'
+        ),
+    )
+    quality_evidence.add_card(
+        label="semantic corrections",
+        value=(
+            f'{corrections["verified_preview_count"]}/{corrections["case_count"]} verified previews · '
+            f'{corrections["applied_receipt_count"]} applied receipts'
+        ),
+    )
+    quality_evidence.add_card(
+        label="refinement gates",
+        value=f'{refinement["gate_count"]}/{refinement["gate_count"]} passed',
+    )
+
     compile_flow = builder.add_dashboard("compile_flow", region="main", group_id="compile_flow")
     compile_flow.add_card(label="1 · intent", value="Agent writes IntentBundle JSON.")
     compile_flow.add_card(label="2 · compile", value="CompositionIR to UI and reducer, no LLM.")
@@ -101,14 +141,18 @@ def build_bundle(aesthetic_profile: str | None = None):
         value="state_replay_assertions plus viewspec prove-app --with-shell.",
     )
     capabilities.add_row(
+        label="Semantic Correction",
+        value="Source-bound previews and applied receipts keep changes traceable.",
+    )
+    capabilities.add_row(
         label="Portable Surfaces",
         value="html-tailwind and React locally; four integrity-checked targets through the paid API.",
     )
 
     agent_workflow = builder.add_table("agent_workflow", region="main", group_id="agent_workflow")
-    agent_workflow.add_row(label="describe", value="Emit IntentBundle or AppBundle JSON.")
+    agent_workflow.add_row(label="describe", value="Author IntentBundle or AppBundle JSON.")
     agent_workflow.add_row(label="validate", value="viewspec validate-intent fails closed on drift.")
-    agent_workflow.add_row(label="prove", value="viewspec prove-app --with-shell writes the report.")
+    agent_workflow.add_row(label="prove", value="viewspec prove --intent compiles, checks, and renders the exact artifact.")
 
     pricing = builder.add_table("pricing", region="main", group_id="pricing")
     pricing.add_row(label="Free", value="Local SDK. Unlimited compiles, proofs, and surfaces.")
@@ -117,10 +161,11 @@ def build_bundle(aesthetic_profile: str | None = None):
 
     artifact_identity = builder.add_dashboard("artifact_identity", region="main", group_id="artifact_identity")
     artifact_identity.add_card(label="provenance", value="Every element traces to its address.")
-    artifact_identity.add_card(label="determinism", value="Same intent, same bytes, same hash.")
+    artifact_identity.add_card(label="determinism", value="Same source, design, and compiler version; same bytes and hash.")
 
     builder.add_style("s_launch_hero", "launch_hero", "emphasis.high")
     builder.add_style("s_proof_badges", "proof_badges", "surface.subtle")
+    builder.add_style("s_quality_evidence", "quality_evidence", "surface.subtle")
     builder.add_style("s_capabilities", "capabilities", "density.compact")
     if aesthetic_profile is not None:
         builder.set_aesthetic_profile(aesthetic_profile)
@@ -307,15 +352,18 @@ def _json_ld() -> str:
                 "operatingSystem": "Python 3.11+ and Web API",
                 "url": "https://viewspec.dev/",
                 "downloadUrl": "https://pypi.org/project/viewspec/",
+                "softwareVersion": PUBLIC_FACTS["sdk_version"],
                 "codeRepository": "https://github.com/nxrobins/viewspec",
                 "programmingLanguage": ["Python", "JSON", "Protocol Buffers"],
                 "description": "ViewSpec validates agent-authored IntentBundle and AppBundle JSON, proves first artifacts with viewspec prove and prove-app --with-shell, writes PROOF.md, proof_report.json, support_bundle.json, APP_PROOF.md, app_proof_report.json, state_reducer.ts, and state_manifest.json, records compact style-delta counts, applies DESIGN.md, writes provenance, and compiles deterministic UI outputs.",
                 "keywords": "agent-native app compiler, AppBundle, interactive_state_v0, reduceViewSpecState, state_replay_assertions, IntentBundle, compiled aesthetic profiles, semantic UI compiler, agentic engineering, AI coding agents, deterministic HTML, semantic diff, provenance",
                 "featureList": [
                     "Local viewspec init-intent and validate-intent for agent-authored IntentBundles",
-                    "Local AppBundle V3 interactive_state_v0 proof with generated state_reducer.ts",
+                    "Local AppBundle V3/V4 interactive_state_v0 proof with generated state_reducer.ts",
                     "Pure TypeScript reduceViewSpecState reducer generation with state_replay_assertions",
                     "viewspec prove-app --with-shell for shell hash and replay proof",
+                    "Ten-case core workflow evidence across mobile, tablet, and desktop",
+                    "Receipt-backed semantic correction previews and applies",
                     "Compiled aesthetic profile homepage artifacts with stable semantic ids and distinct style projection hashes",
                     "Local viewspec compile for deterministic UI artifacts",
                     "Auditable provenance_manifest.json with stable hashes",
@@ -715,6 +763,10 @@ PAGE_CSS = r"""
   .pbtn{ font-family:var(--mono); font-size:12px; color:var(--ink); background:var(--amber); border:0; border-radius:8px; padding:9px 15px; cursor:pointer; font-weight:600; }
   .pbtn:hover{ background:var(--amber-2); }
   .verdict{ font-family:var(--mono); font-size:12px; color:var(--mint); display:none; align-items:center; gap:7px; }
+  .core-evidence{ margin-top:18px; padding:18px 20px; border:1px solid var(--line); border-radius:16px; background:var(--panel-solid); }
+  .core-evidence h3{ margin:0 0 8px; color:var(--text); font-size:17px; }
+  .core-evidence p{ margin:0; color:var(--muted); font-size:14px; line-height:1.6; }
+  .core-evidence a{ color:var(--amber-2); }
   .verdict.show{ display:inline-flex; }
   .verdict .ok{ width:8px; height:8px; border-radius:50%; background:var(--mint); }
   .bignum{ font-family:var(--mono); font-weight:700; font-size:46px; color:var(--text); font-variant-numeric:tabular-nums; line-height:1; }
@@ -814,10 +866,10 @@ PAGE_BODY_TEMPLATE = r"""<a class="skip-link" href="#top">Skip to content</a>
       <span class="eyebrow">Agent&#8209;native UI compiler</span>
       <h1 data-node="node:hero#slot:title[0]" data-binding="hero_title" data-address="node:hero#slot:title[0]" data-present="text" data-raw="Intent goes in. Interface comes out.">Intent goes in.<br>Interface comes <span class="out">out.</span></h1>
       <p class="sub" data-node="node:hero#slot:body[0]" data-binding="hero_body" data-address="node:hero#slot:body[0]" data-present="rich_text" data-raw="ViewSpec is the compiler between your agents and your UI.">
-        ViewSpec is the compiler between your agents and your UI. Agents commit to <b>meaning</b> &mdash; nodes, bindings, motifs. ViewSpec owns the <b>pixels</b>: deterministic, no model call at render, and portable to HTML, React, SwiftUI, and Flutter.
+        ViewSpec is the compiler between your agents and your UI. Agents commit to <b>meaning</b> &mdash; nodes, bindings, motifs. ViewSpec owns the <b>renderer output</b>: deterministic, with no model call at render. HTML and React compile locally; the hosted API adds SwiftUI and Flutter.
       </p>
       <div class="hero-cta">
-        <span class="cmd mono"><span class="pr">$</span> pip install viewspec <button type="button" class="cp" id="copyCmd" data-copy-text="pip install viewspec" aria-label="Copy pip install viewspec command">copy</button></span>
+        <span class="cmd mono"><span class="pr">$</span> {{INSTALL_COMMAND}} <button type="button" class="cp" id="copyCmd" data-copy-text="{{INSTALL_COMMAND}}" aria-label="Copy ViewSpec beta install command">copy</button></span>
         <a class="ghost mono" href="#shape">see it compile &#8595;</a>
       </div>
 
@@ -966,6 +1018,7 @@ PAGE_BODY_TEMPLATE = r"""<a class="skip-link" href="#top">Skip to content</a>
           </div>
         </div>
       </div>
+      {{CORE_REFINEMENT_EVIDENCE}}
     </section>
 
     <!-- ================= PRICING + CTA ================= -->
@@ -1020,7 +1073,7 @@ PAGE_BODY_TEMPLATE = r"""<a class="skip-link" href="#top">Skip to content</a>
         <h2>Compile your first interface in a minute.</h2>
         <p class="lead">No account, no network, no LLM key. Install the SDK, write intent, prove the output.</p>
       <div class="cta-row">
-        <span class="cmd mono"><span class="pr">$</span> pip install viewspec &amp;&amp; viewspec init&#8209;intent</span>
+        <span class="cmd mono"><span class="pr">$</span> viewspec prove --intent viewspec.intent.json --target react-tailwind-tsx --install</span>
         <a class="ghost mono" href="https://github.com/nxrobins/viewspec/blob/main/docs/getting-started.md" target="_blank" rel="noopener" style="color:var(--amber)">read the docs &#8594;</a>
         <a class="ghost mono" href="./proof-bundle/" style="color:var(--amber)">Try the one-minute proof &#8594;</a>
       {{PRICING_ACTIONS}}</div></div>
@@ -1030,7 +1083,7 @@ PAGE_BODY_TEMPLATE = r"""<a class="skip-link" href="#top">Skip to content</a>
   <footer>
     <div class="foot-in">
       <span>viewspec &middot; agent&#8209;native UI compiler</span>
-      <span class="foot-links"><a href="./appbundle-state-ir/">State IR</a> &middot; <a href="./proof-bundle/">Proof bundle</a> &middot; <a href="./custom-motifs/">Motifs</a> &middot; <a href="./openapi.json">OpenAPI</a></span>
+      <span class="foot-links"><a href="{{CORE_EVIDENCE_URL}}" target="_blank" rel="noopener">Core evidence</a> &middot; <a href="./appbundle-state-ir/">State IR</a> &middot; <a href="./proof-bundle/">Proof bundle</a> &middot; <a href="./custom-motifs/">Motifs</a> &middot; <a href="./openapi.json">OpenAPI</a></span>
       <span id="footState">profile: aesthetic.calm_ops &middot; network: none</span>
     </div>
   </footer>
@@ -1304,6 +1357,28 @@ def _public_html(generated_html: str, profile_evidence: dict[str, Any]) -> str:
     intent_json = (COMPILED_DIR / "intent_bundle.json").read_text(encoding="utf-8")
     manifest = json.loads((COMPILED_DIR / "provenance_manifest.json").read_text(encoding="utf-8"))
     semantic_hash = _semantic_hash(manifest)
+    refinement = PUBLIC_FACTS["core_refinement"]
+    corpus = refinement["browser_corpus"]
+    quality = refinement["product_quality"]
+    corrections = refinement["semantic_corrections"]
+    viewport_text = _human_list(corpus["canonical_viewports"])
+    evidence_role_text = _human_list(["DOM" if role == "dom" else role for role in corpus["evidence_roles"]])
+    core_evidence = (
+        '<div class="core-evidence" id="core-evidence" data-public-fact="core-refinement">'
+        f'<h3>Checked core workflow &middot; {corpus["conformant_count"]}/{corpus["case_count"]} conformant</h3>'
+        f'<p>All {quality["first_compile_pass_count"]} fixed cases passed product quality on first compile '
+        f'with {quality["critical_issue_count"]} critical issues, rendered at {html.escape(viewport_text)} '
+        f'with {html.escape(evidence_role_text)} evidence, and completed '
+        f'{corrections["verified_preview_count"]}/{corrections["case_count"]} verified semantic corrections '
+        f'with {corrections["applied_receipt_count"]} applied receipts. '
+        f'<a href="{html.escape(refinement["gate_status_url"], quote=True)}" target="_blank" rel="noopener">'
+        'Eight-gate result</a> &middot; '
+        f'<a href="{html.escape(refinement["scorecard_url"], quote=True)}" target="_blank" rel="noopener">'
+        'Scorecard</a> &middot; '
+        f'<a href="{html.escape(corrections["proof_url"], quote=True)}" target="_blank" rel="noopener">'
+        'Correction proof</a>. Fixed-corpus evidence is not certification of arbitrary briefs or host apps.</p>'
+        "</div>"
+    )
 
     # The full compiled artifact, presented as a contained "artifact window" (browser-frame
     # header + bounded scroll) instead of raw inline flow — the whole page in a viewport.
@@ -1338,8 +1413,8 @@ def _public_html(generated_html: str, profile_evidence: dict[str, Any]) -> str:
         '<div class="pricing-actions" id="pricing-actions">'
         '<a class="pact primary" href="https://buy.stripe.com/6oU4gA6PqcM9afq6gq2ZO00" data-config-link="pro" target="_blank" rel="noopener">Get Pro</a>'
         '<a class="pact" href="mailto:hello@viewspec.dev?subject=ViewSpec%20Enterprise" data-config-link="enterprise" target="_blank" rel="noopener">Talk to us</a>'
-        '<button type="button" class="pact" data-copy-text="pip install viewspec" aria-label="Copy pip install viewspec command">pip install viewspec</button>'
-        '<button type="button" class="pact" data-copy-text="pip install viewspec" aria-label="Copy pip install viewspec command">copy install</button>'
+        f'<button type="button" class="pact" data-copy-text="{html.escape(INSTALL_COMMAND, quote=True)}" aria-label="Copy ViewSpec beta install command">{html.escape(INSTALL_COMMAND)}</button>'
+        f'<button type="button" class="pact" data-copy-text="{html.escape(INSTALL_COMMAND, quote=True)}" aria-label="Copy ViewSpec beta install command">copy install</button>'
         "</div>"
     )
 
@@ -1348,6 +1423,9 @@ def _public_html(generated_html: str, profile_evidence: dict[str, Any]) -> str:
         .replace("{{REAL_ARTIFACT}}", real_artifact)
         .replace("{{PROFILE_BUTTONS}}", profile_buttons)
         .replace("{{PRICING_ACTIONS}}", pricing_actions)
+        .replace("{{CORE_REFINEMENT_EVIDENCE}}", core_evidence)
+        .replace("{{CORE_EVIDENCE_URL}}", html.escape(refinement["gate_status_url"], quote=True))
+        .replace("{{INSTALL_COMMAND}}", html.escape(INSTALL_COMMAND, quote=True))
     )
 
     # real data for the page script: hash the canonical IntentBundle + real profile evidence

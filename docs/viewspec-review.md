@@ -199,7 +199,7 @@ Successful JSON output:
     "Run viewspec review-poll viewspec.app.json --json to wait for feedback."
   ],
   "metadata": {
-    "sdk_version": "0.3.0b4",
+    "sdk_version": "0.3.0b5",
     "network_calls": "none"
   },
   "review": {
@@ -392,7 +392,7 @@ output promise. Every promoted revision is nevertheless bound to deterministic i
   "source_sha256": "<64 lowercase hex>",
   "design_sha256": "<64 lowercase hex or null>",
   "compiler": {
-    "package_version": "0.3.0b4",
+    "package_version": "0.3.0b5",
     "contract_profile": "local_v1"
   },
   "artifact": {
@@ -445,7 +445,7 @@ to agents uses the basename plus source hashes and never relies on the basename 
     "artifact_set_sha256": "<64 lowercase hex>",
     "root_manifest_kind": "shell_manifest",
     "root_manifest_sha256": "<64 lowercase hex>",
-    "compiler_version": "0.3.0b4",
+    "compiler_version": "0.3.0b5",
     "contract_profile": "local_v1"
   },
   "events": [

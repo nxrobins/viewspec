@@ -28,7 +28,7 @@ The compiler figures out how it looks.
 
 Centered. Large title (text-5xl, font-black). Subtitle in muted tone. No logo yet — the name is the brand.
 
-Below the subtitle, a single line in monospace: `pip install viewspec`
+Below the subtitle, a single line in monospace: `python -m pip install --pre viewspec`
 
 ### Card Grid
 Five cards in a responsive grid (3 columns on desktop, 2 on tablet, 1 on mobile). Each card:
@@ -97,5 +97,5 @@ Single `demos/index.html` file. Pure HTML + Tailwind. No build step. No JS (land
 - Must feel like a product page, not a docs page
 - Cards must invite clicking
 - The page should take <2 seconds to understand what ViewSpec is
-- `pip install viewspec` must be visible without scrolling
+- `python -m pip install --pre viewspec` must be visible without scrolling while the public SDK is a beta
 - Works perfectly on mobile

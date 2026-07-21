@@ -23,7 +23,7 @@
   },
   "verification": {
     "report_path": "conformance/refinement/verification-report-v2.json",
-    "report_sha256": "2dcbf39798401e3efd8791516e84193535afd5f3f2aad1717f1c55e18ae85314",
+    "report_sha256": "142f048643f03489c81bceda92d778fc45c3731ee8b35a500819649feb7f49c8",
     "case_count": 10,
     "conformant_count": 10,
     "canonical_viewports": [
@@ -31,11 +31,12 @@
       "tablet",
       "desktop"
     ],
-    "screenshot_root": "conformance/refinement/evidence-v2"
+    "screenshot_root": "conformance/refinement/evidence-v2",
+    "sdk_version": "0.3.0b5"
   },
   "correction_proof": {
     "path": "conformance/refinement/correction-proof-v1.json",
-    "sha256": "bcf912dcf9e0b01f9a244d9ffbc4bb4baa048296dfc5de956db88450d78d79a8",
+    "sha256": "7d956f5338c4226e4c726b5a912828cd28d5d70e25f5ec93536cc7ee9e7023d9",
     "case_count": 10,
     "verified_preview_count": 10,
     "applied_receipt_count": 10
@@ -58,8 +59,8 @@
       "id": "app-detail",
       "source_sha256": "d2917c0bc2f416d8ddcf6ea3b6fee56c4320e650b20d506cf2dd68d4bf946d75",
       "intent_sha256": "796b2b1979bacd87a9e494a8cf1cc26c6eac3f8038c8bc93032c0a77140fdb95",
-      "artifact_sha256": "e97795fc8bc02725cb4831e40b40f2bece8c782169662895e0a6a64009303965",
-      "verification_id": "vvr_f4330052f6fb1a282a58a5759a7cc76a",
+      "artifact_sha256": "980491df6a645b9a7c383a5c9b02de2aeb7870bf5e6415a5bbc158bd8f752da7",
+      "verification_id": "vvr_ac2ddff870cb0bc207066e2771e59635",
       "screenshot_directory": "conformance/refinement/evidence-v2/app-detail",
       "desktop_screenshot_sha256": "ba496c29616f86eba05a82ffb73c8c709fcc83f72d34570d0a835cae5f96a439",
       "scores": {
@@ -78,8 +79,8 @@
       "id": "app-queue",
       "source_sha256": "d2917c0bc2f416d8ddcf6ea3b6fee56c4320e650b20d506cf2dd68d4bf946d75",
       "intent_sha256": "674cd9787e83642529d5c2242eb4b0712fef5bce5cf32aef8c42e37881f33b43",
-      "artifact_sha256": "08268d744e321f324585e0010a38a6f56a7b8af83e3c38755c80e9520e0aa6ae",
-      "verification_id": "vvr_2f74796454bf0d3eb47f12fbfa58a9b6",
+      "artifact_sha256": "59f8e1f82bfd243990935ee41068f8d3cad957cb1ebe59f5af114ce12cf02642",
+      "verification_id": "vvr_3971124a3d68813bcbd25b92eaff8fb5",
       "screenshot_directory": "conformance/refinement/evidence-v2/app-queue",
       "desktop_screenshot_sha256": "a0ee56385a236fe3778b8db529c88a5c598fe04f673e1fc9aa3aaa1399b28a6f",
       "scores": {
@@ -98,8 +99,8 @@
       "id": "collection-states",
       "source_sha256": "011872d9c56ea49f9f5ab1edc612f8cd238bebb2012d8972f1d1064b0beafc65",
       "intent_sha256": "011872d9c56ea49f9f5ab1edc612f8cd238bebb2012d8972f1d1064b0beafc65",
-      "artifact_sha256": "da4800f91f4998f812f2c445c03a6049b980c948c2735c7a574ba20e5cdb6884",
-      "verification_id": "vvr_bfda35c0691c2479bebd3418708e4a1b",
+      "artifact_sha256": "6b90e2d92bf3593089e7171f060fcf121e9af01c72b8054209f1efc27f8e09f5",
+      "verification_id": "vvr_46fe1476af6ac34337aea56e5f7a72a5",
       "screenshot_directory": "conformance/refinement/evidence-v2/collection-states",
       "desktop_screenshot_sha256": "deaf2da8aea8b2e75e331d7c177394a0634ce462c3047106a7f3d40d15bcb6bb",
       "scores": {
@@ -118,8 +119,8 @@
       "id": "data-dense-dashboard",
       "source_sha256": "2f927effe0949f688418e477c09eab56bc3b57dbe289f301979221d723018f3f",
       "intent_sha256": "2f927effe0949f688418e477c09eab56bc3b57dbe289f301979221d723018f3f",
-      "artifact_sha256": "64e965620363d53702f2e96aa2a9ecf88220520e423a8261e13cc53472147780",
-      "verification_id": "vvr_bdf019e194f3806fbddaf5a601acf396",
+      "artifact_sha256": "fb0c639b1e3ea3de53f92c84710fb7663bc929c51e76e5a70328a15c379fbe93",
+      "verification_id": "vvr_52cac9877a8d0fdb01d224f516a9963a",
       "screenshot_directory": "conformance/refinement/evidence-v2/data-dense-dashboard",
       "desktop_screenshot_sha256": "0d129346fb6c1b0ca74d9bce5c7db56648f4e460b681846f275f3479b7f5097d",
       "scores": {
@@ -138,8 +139,8 @@
       "id": "dense-operational-console",
       "source_sha256": "f94b55facb2652507b9797d8da38af1f995fe81f6b97cf011c86ff168ab8d62a",
       "intent_sha256": "f94b55facb2652507b9797d8da38af1f995fe81f6b97cf011c86ff168ab8d62a",
-      "artifact_sha256": "08abc472e50f2a360774d3779a6fc49b7b0d85714d2d2cc02f48b4783ef916cc",
-      "verification_id": "vvr_78454f31f1d9a79a57dc06272131f7af",
+      "artifact_sha256": "c250082bb6c9ea5df9fc9a439b93dfb7ece7cec33588bcf761ca3955dbd52005",
+      "verification_id": "vvr_0c662d48382d3586a23db98ba0a93315",
       "screenshot_directory": "conformance/refinement/evidence-v2/dense-operational-console",
       "desktop_screenshot_sha256": "40623cbcd586b72ddffa360638089e8eb66867bf36779c0cfc56c7b3c288f1e2",
       "scores": {
@@ -158,8 +159,8 @@
       "id": "interactive-form",
       "source_sha256": "16c47f6f5d01fd03135e4b0cbdfbf469bff1130adc210e544c1bc5cf8ee4dcf7",
       "intent_sha256": "16c47f6f5d01fd03135e4b0cbdfbf469bff1130adc210e544c1bc5cf8ee4dcf7",
-      "artifact_sha256": "208a7caf310a621e674a874802beaf46778128d62530a5bc03062006f462fb23",
-      "verification_id": "vvr_bcfc7e419607638c8230d03131b65bae",
+      "artifact_sha256": "e584ac5a50bb3a3adaa1aaf95ebb1e7c41c4454b590ce8612e75c3f06cbc6940",
+      "verification_id": "vvr_9615858b5065295e2f3beda58b1ae142",
       "screenshot_directory": "conformance/refinement/evidence-v2/interactive-form",
       "desktop_screenshot_sha256": "055dc20de493379e04edba1125ab540a9ba23bd3fb06a91166ae002260d54289",
       "scores": {
@@ -176,12 +177,12 @@
     },
     {
       "id": "landing-intent",
-      "source_sha256": "9f274154fbaa312a4440b80bcc0f55d1bb837e13c2cbccc75ae2cbd517eaf500",
-      "intent_sha256": "9f274154fbaa312a4440b80bcc0f55d1bb837e13c2cbccc75ae2cbd517eaf500",
-      "artifact_sha256": "b39894e775b846294e002ce193a0829f7c67d47656ecd5e92086203843a49df7",
-      "verification_id": "vvr_421b0105786a34c469e748fef85b92fd",
+      "source_sha256": "add0d6cd3f4c6051e08045ef9e763d33376b6ddd8eff43dbf40ac4a34073a301",
+      "intent_sha256": "add0d6cd3f4c6051e08045ef9e763d33376b6ddd8eff43dbf40ac4a34073a301",
+      "artifact_sha256": "04b2ab0892197544a13f9d8580a8f891a4dd4b01b091a1a9c9689b774cbc9a33",
+      "verification_id": "vvr_e633f134bd4bdff3f98234be4f72f355",
       "screenshot_directory": "conformance/refinement/evidence-v2/landing-intent",
-      "desktop_screenshot_sha256": "c49b989bc2886fbc1f73be68bfcae8edfe3a0d71c309154c9e5a5e667c96e479",
+      "desktop_screenshot_sha256": "fe4886514ead3193ec5f9ab59a680572b486a82d24eb5b1c429a0461edc60d54",
       "scores": {
         "task_clarity": 4,
         "information_hierarchy": 4,
@@ -198,8 +199,8 @@
       "id": "multi-step-workflow",
       "source_sha256": "5936001fcfaf1e8e76e5cd9391c41388981835133216cd49c9af9fc8c2d91bec",
       "intent_sha256": "5936001fcfaf1e8e76e5cd9391c41388981835133216cd49c9af9fc8c2d91bec",
-      "artifact_sha256": "6e64e94094a7cdb083e1a166737e655a9f734a0d7db0d873416a1e86536f7d66",
-      "verification_id": "vvr_02a3cd5aba3f1b3c1c803381df0bcb19",
+      "artifact_sha256": "5fee1eb84a03ed8c647c324de06e5f1b56e3f850ff0366435d7ba1c5a7a62005",
+      "verification_id": "vvr_db04785a7d2009d9abb95499f33d9e53",
       "screenshot_directory": "conformance/refinement/evidence-v2/multi-step-workflow",
       "desktop_screenshot_sha256": "9367739f9d5a40727414290be8eb8ae8b275f06173ef4367f53abfd550178e03",
       "scores": {
@@ -218,8 +219,8 @@
       "id": "outcome-states",
       "source_sha256": "b4fb8cd6d9815c797babba88d82423ffccb32aa28d3aa27cf6807118ed40f819",
       "intent_sha256": "b4fb8cd6d9815c797babba88d82423ffccb32aa28d3aa27cf6807118ed40f819",
-      "artifact_sha256": "d2acb703f7db66e0709a6288c9fbed5ea58245dd34ebd2a92b4de097ee9e4606",
-      "verification_id": "vvr_000e90eb782ef8c3d3d9d0a2129e2df0",
+      "artifact_sha256": "9670bfb34e465f34462b2bbe818c751d8def88969321bc20aba508dc120e5591",
+      "verification_id": "vvr_c845b3e35cbca519380ba9cc58f65534",
       "screenshot_directory": "conformance/refinement/evidence-v2/outcome-states",
       "desktop_screenshot_sha256": "c880e53b6fd2dd6b666dc5c52913c6cfa879113744deb03dba3a5d28b2c9b415",
       "scores": {
@@ -238,8 +239,8 @@
       "id": "settings",
       "source_sha256": "8f45cc5b92f046ae38d09d547ec03fbb225b3ed8fee24b2c4f70be40b747c738",
       "intent_sha256": "8f45cc5b92f046ae38d09d547ec03fbb225b3ed8fee24b2c4f70be40b747c738",
-      "artifact_sha256": "58fc73d729807813b2ad43a011f7a6d5d868d84cf146ffc05130b7031275e59f",
-      "verification_id": "vvr_4a32b043f90c6a0c72d2703a14515ccf",
+      "artifact_sha256": "63184c34f02be0dec6f2ec61b49738ff65bfda58118d4dde585ec4bc19a4860b",
+      "verification_id": "vvr_f14baee7fb3d7e4b7c925ee2f607ad21",
       "screenshot_directory": "conformance/refinement/evidence-v2/settings",
       "desktop_screenshot_sha256": "92653e9cb1717ca66dd1b5350621eec60709e04966c7c34a83a205a1b806c60c",
       "scores": {

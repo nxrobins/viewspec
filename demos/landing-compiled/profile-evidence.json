@@ -17,7 +17,7 @@
       "layoutSignature": "workspace 1 / metrics 1",
       "manifestAestheticProfile": "aesthetic.brutalist",
       "manifestUrl": "./landing-compiled/profiles/brutalist/provenance_manifest.json",
-      "nodeCount": 72,
+      "nodeCount": 91,
       "note": "Raw off-white ground with hard black frames, zero radius, and a loud red.",
       "projection": {
         "accent": "#d81e1e",
@@ -32,7 +32,7 @@
         "uppercase": true,
         "weight": "900"
       },
-      "semanticHash": "6f3e13e1c376a4549c529af0d6e5d465f041c35393e087c3525e771ef344c350",
+      "semanticHash": "fd4789371267338ee565306acece9fb605309c701e2ca45e5b8c8eb4b5a07644",
       "slug": "brutalist",
       "styleProjectionHash": "669d75db93fc54401f7f8ad1db45fc525f116da4f25eef118d7a97e51d126d0c",
       "styleProof": {
@@ -82,7 +82,7 @@
       "layoutSignature": "workspace 2 / metrics 2",
       "manifestAestheticProfile": "aesthetic.calm_ops",
       "manifestUrl": "./landing-compiled/profiles/calm-ops/provenance_manifest.json",
-      "nodeCount": 72,
+      "nodeCount": 91,
       "note": "Quiet operational surfaces with teal accents and low-contrast panels.",
       "projection": {
         "accent": "#0f766e",
@@ -97,7 +97,7 @@
         "uppercase": false,
         "weight": "760"
       },
-      "semanticHash": "6f3e13e1c376a4549c529af0d6e5d465f041c35393e087c3525e771ef344c350",
+      "semanticHash": "fd4789371267338ee565306acece9fb605309c701e2ca45e5b8c8eb4b5a07644",
       "slug": "calm-ops",
       "styleProjectionHash": "ef3fe9ae67de34a1d4ed970d974ba744f380cc35bc5cc926ba55658f71cec6e0",
       "styleProof": {
@@ -147,7 +147,7 @@
       "layoutSignature": "workspace 3 / metrics 3",
       "manifestAestheticProfile": "aesthetic.data_dense",
       "manifestUrl": "./landing-compiled/profiles/data-dense/provenance_manifest.json",
-      "nodeCount": 72,
+      "nodeCount": 91,
       "note": "Compact spacing, smaller type, and tighter controls for repeated scanning.",
       "projection": {
         "accent": "#60a5fa",
@@ -162,7 +162,7 @@
         "uppercase": false,
         "weight": "720"
       },
-      "semanticHash": "6f3e13e1c376a4549c529af0d6e5d465f041c35393e087c3525e771ef344c350",
+      "semanticHash": "fd4789371267338ee565306acece9fb605309c701e2ca45e5b8c8eb4b5a07644",
       "slug": "data-dense",
       "styleProjectionHash": "8ff472a79635e8ec3ca33679e48c32ac8d4654c8f62c154b730ca4b6a5053890",
       "styleProof": {
@@ -212,7 +212,7 @@
       "layoutSignature": "workspace 2 / metrics 1",
       "manifestAestheticProfile": "aesthetic.editorial_product",
       "manifestUrl": "./landing-compiled/profiles/editorial-product/provenance_manifest.json",
-      "nodeCount": 72,
+      "nodeCount": 91,
       "note": "Warmer product-story pacing with broader prose rhythm.",
       "projection": {
         "accent": "#be123c",
@@ -227,7 +227,7 @@
         "uppercase": false,
         "weight": "840"
       },
-      "semanticHash": "6f3e13e1c376a4549c529af0d6e5d465f041c35393e087c3525e771ef344c350",
+      "semanticHash": "fd4789371267338ee565306acece9fb605309c701e2ca45e5b8c8eb4b5a07644",
       "slug": "editorial-product",
       "styleProjectionHash": "e49472c415b1ba335f4a7d2770bd39bd537c109a56ea5416b64b468a62b78b54",
       "styleProof": {
@@ -277,7 +277,7 @@
       "layoutSignature": "workspace 2 / metrics 3 / featured metric span 2 + featured emphasis",
       "manifestAestheticProfile": "aesthetic.executive_review",
       "manifestUrl": "./landing-compiled/profiles/executive-review/provenance_manifest.json",
-      "nodeCount": 72,
+      "nodeCount": 91,
       "note": "Conservative review surfaces with restrained contrast and crisp framing.",
       "projection": {
         "accent": "#0f5f72",
@@ -292,7 +292,7 @@
         "uppercase": true,
         "weight": "800"
       },
-      "semanticHash": "6f3e13e1c376a4549c529af0d6e5d465f041c35393e087c3525e771ef344c350",
+      "semanticHash": "fd4789371267338ee565306acece9fb605309c701e2ca45e5b8c8eb4b5a07644",
       "slug": "executive-review",
       "styleProjectionHash": "74ee37a1470142e3a759f3953db53db76515a31b30c25048a93d2febf0cb451c",
       "styleProof": {
@@ -342,7 +342,7 @@
       "layoutSignature": "workspace 2 / metrics 2",
       "manifestAestheticProfile": "aesthetic.neon_cyber",
       "manifestUrl": "./landing-compiled/profiles/neon-cyber/provenance_manifest.json",
-      "nodeCount": 72,
+      "nodeCount": 91,
       "note": "Near-black terminal with magenta uppercase accents and cyan glow.",
       "projection": {
         "accent": "#ff2d9b",
@@ -357,7 +357,7 @@
         "uppercase": true,
         "weight": "620"
       },
-      "semanticHash": "6f3e13e1c376a4549c529af0d6e5d465f041c35393e087c3525e771ef344c350",
+      "semanticHash": "fd4789371267338ee565306acece9fb605309c701e2ca45e5b8c8eb4b5a07644",
       "slug": "neon-cyber",
       "styleProjectionHash": "bf6e5321f3bffd4d6025b80b5a715f664c38e332619e3605074c7bbd8fe6d16f",
       "styleProof": {
@@ -407,7 +407,7 @@
       "layoutSignature": "workspace 2 / metrics 2 / featured metric span 2 + featured emphasis",
       "manifestAestheticProfile": "aesthetic.premium_saas",
       "manifestUrl": "./landing-compiled/profiles/premium-saas/provenance_manifest.json",
-      "nodeCount": 72,
+      "nodeCount": 91,
       "note": "Polished product rhythm with stronger hierarchy and softer shadows.",
       "projection": {
         "accent": "#4f46e5",
@@ -422,7 +422,7 @@
         "uppercase": false,
         "weight": "860"
       },
-      "semanticHash": "6f3e13e1c376a4549c529af0d6e5d465f041c35393e087c3525e771ef344c350",
+      "semanticHash": "fd4789371267338ee565306acece9fb605309c701e2ca45e5b8c8eb4b5a07644",
       "slug": "premium-saas",
       "styleProjectionHash": "a0fdef8e0916e74bfcc6e5c5225ff10820e2b45894d0c7e590866d1376cba269",
       "styleProof": {
@@ -472,7 +472,7 @@
       "layoutSignature": "workspace 2 / metrics 3 / featured metric span 2 + featured emphasis",
       "manifestAestheticProfile": "aesthetic.warm_organic",
       "manifestUrl": "./landing-compiled/profiles/warm-organic/provenance_manifest.json",
-      "nodeCount": 72,
+      "nodeCount": 91,
       "note": "Warm sand ground, humanist sans, and soft rounded amber surfaces.",
       "projection": {
         "accent": "#985d10",
@@ -487,7 +487,7 @@
         "uppercase": false,
         "weight": "600"
       },
-      "semanticHash": "6f3e13e1c376a4549c529af0d6e5d465f041c35393e087c3525e771ef344c350",
+      "semanticHash": "fd4789371267338ee565306acece9fb605309c701e2ca45e5b8c8eb4b5a07644",
       "slug": "warm-organic",
       "styleProjectionHash": "b60d665165742839bd9bd3cfa9d1c896034d2c49e895446d429a420f2b4dbd64",
       "styleProof": {

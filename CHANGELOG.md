@@ -7,8 +7,19 @@ All notable changes to ViewSpec are documented in this file. The format follows
 
 ## [Unreleased]
 
+## [0.3.0b5] - 2026-07-21
+
 ### Added
 
+- ViewSpec Review V0, a local-first loopback browser review workflow for IntentBundle and
+  AppBundle sources with manifest-backed semantic annotations, exact revision identity,
+  acknowledgement-based agent batches, semantic diffs, and last-good-artifact reloads.
+- IntentPatch V1 as the additive `local_v1` contract for bounded semantic transactions: strict
+  source-bound operations, deterministic previews, candidate compile/check proof, exact approval
+  tokens, inverse patches, crash-consistent atomic apply, and durable receipts.
+- A historical bug-prevention ledger with executable invariants, property and browser guards, and
+  a distribution auditor that rejects version drift, unsafe archive paths, repository bloat, and
+  oversized release artifacts.
 - Durable Converge Sessions V1 for Review- and verifier-driven semantic repair, with source-bound
   legal-operation tasks, three-attempt/ten-minute limits, cycle detection, checksum-protected local
   state, and strict set-wise progress certificates backed by property tests.
@@ -20,9 +31,36 @@ All notable changes to ViewSpec are documented in this file. The format follows
 - Crash-consistent Converge recovery from durable IntentPatch receipts, resumable post-apply
   verification, immutable terminal-session archives, complete nine-operation task generation,
   exact verifier-context binding, bounded CLI readers, and custom-state Review integration.
+- A fixed ten-case core-workflow corpus spanning AppBundle queue/detail screens, collection and
+  outcome states, dense operational and dashboard surfaces, forms, landing pages, multi-step
+  workflows, and settings.
+- Same-revision product-quality evidence for all ten cases: canonical mobile, tablet, and desktop
+  screenshots plus DOM, accessibility, and log artifacts, with a scored rubric and eight explicit
+  refinement gates.
+- A receipt-backed semantic-correction proof for every corpus case, plus journey, determinism,
+  negative-corpus, and correction regression tests.
+
+### Changed
+
+- CI now treats lint, byte compilation, static public-site contracts, browser demo regressions,
+  historical prevention guards, and bounded wheel/sdist inspection as mandatory release gates.
+- Semantic root titles now project into traceable page headers when a brief does not author an
+  explicit header; starter queue, dashboard, collection-state, and verifier-capture behavior were
+  refined for clearer hierarchy, actions, state meaning, and initial-value evidence.
+- The beginner workflow now leads with `viewspec prove`, gives failures a bounded next action, and
+  documents the validate, compile, check, verify, and semantic-correction loop against the public
+  ten-case corpus.
+- No covered `local_v1` surface was removed or deprecated; the release is additive within the
+  pre-1.0 compatibility policy.
 
 ### Security
 
+- Review is loopback-only and binds browser events, batches, revision updates, cookies, frame
+  nonces, and handshakes to the exact session and checked artifact; stale or cross-origin authority
+  fails closed.
+- IntentPatch treats Review and verifier output as proposal evidence only. Source writes require
+  the exact approval token for the re-proved base, candidate, semantic diff, compile/check result,
+  optional verification result, and inverse patch under an interprocess transaction lock.
 - Convergence approval uses a private random 256-bit outer capability; stale authority, changed
   source bytes, out-of-task targets, evidence substitution, corrupt state, and post-apply verifier
   drift all fail closed without silently rebasing or continuing.

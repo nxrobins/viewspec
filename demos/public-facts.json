@@ -1,10 +1,16 @@
 {
   "schema_version": 1,
   "product": "ViewSpec",
-  "sdk_version": "0.3.0b4",
+  "sdk_version": "0.3.0b5",
   "canonical_api_url": "https://api.viewspec.dev/v1/compile",
   "package_url": "https://pypi.org/project/viewspec/",
   "repository_url": "https://github.com/nxrobins/viewspec",
+  "installation": {
+    "release_channel": "beta",
+    "current_command": "python -m pip install --pre viewspec",
+    "stable_command": "python -m pip install viewspec",
+    "scope": "The current public SDK version is a prerelease. pip excludes prereleases unless --pre or an exact prerelease version is requested."
+  },
   "pricing": {
     "free": {
       "hosted_compile_calls_per_day": 500,
@@ -59,6 +65,34 @@
     "react_tailwind_proof_level": "react_tailwind_reference_host",
     "scope": "ViewSpec prove validates intent, compiles through the public local path, checks the artifact manifest and hashes, records compact style-delta counts when profiles are present, writes PROOF.md for humans, proof_report.json for tools, redacted support_bundle.json for local support triage, and can optionally run the bounded React Tailwind reference host proof.",
     "non_claim": "ViewSpec prove is not pixel-perfect visual regression, accessibility certification, arbitrary host-app certification, or hosted compiler publish automation."
+  },
+  "core_refinement": {
+    "sdk_version": "0.3.0b5",
+    "evaluated_on": "2026-07-21",
+    "status": "passed",
+    "gate_count": 8,
+    "gate_status_url": "https://github.com/nxrobins/viewspec/blob/main/conformance/refinement/gate-status-v1.json",
+    "scorecard_url": "https://github.com/nxrobins/viewspec/blob/main/conformance/refinement/scorecard-v2.json",
+    "product_quality": {
+      "first_compile_pass_count": 10,
+      "required_first_compile_pass_count": 9,
+      "critical_issue_count": 0
+    },
+    "browser_corpus": {
+      "case_count": 10,
+      "conformant_count": 10,
+      "canonical_viewports": ["mobile", "tablet", "desktop"],
+      "evidence_roles": ["accessibility", "dom", "log", "screenshot"],
+      "report_url": "https://github.com/nxrobins/viewspec/blob/main/conformance/refinement/verification-report-v2.json"
+    },
+    "semantic_corrections": {
+      "case_count": 10,
+      "verified_preview_count": 10,
+      "applied_receipt_count": 10,
+      "proof_url": "https://github.com/nxrobins/viewspec/blob/main/conformance/refinement/correction-proof-v1.json"
+    },
+    "scope": "A fixed ten-case corpus of supported briefs passed the product-quality gate and rendered conformantly at canonical mobile, tablet, and desktop viewports with accessibility, DOM, log, and screenshot evidence. Every case also completed one bounded semantic correction with a verified preview and applied receipt.",
+    "non_claim": "This fixed regression corpus is evidence for the supported brief families and checked revision; it is not a guarantee that every arbitrary product brief is desirable, accessible, or production-ready."
   },
   "appbundle_state_ir": {
     "demo_url": "https://viewspec.dev/appbundle-state-ir/",

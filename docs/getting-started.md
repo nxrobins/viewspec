@@ -5,8 +5,11 @@ ViewSpec's primary workflow is agent-native UI intent. Your agent writes `Intent
 ## Install
 
 ```bash
-pip install viewspec
+python -m pip install --pre viewspec
 ```
+
+The current public SDK is a beta, so `--pre` is required. Plain
+`python -m pip install viewspec` follows the stable channel instead.
 
 ## First Proof
 
@@ -50,6 +53,17 @@ For a later revision, use `viewspec diff-intent old.intent.json viewspec.intent.
 inspect the semantic change, then rerun `prove` with `--force`. When feedback already identifies a
 bounded semantic change, Review and Converge preview and receipt the exact `IntentPatch`; the human
 approves the candidate shown, not an emitted file.
+
+## Checked Core Workflow Scope
+
+The repository's fixed ten-case corpus is the regression boundary for the workflow described
+above. On the checked release revision, all 10 cases passed the product-quality scorecard on first
+compile with zero critical issues, rendered conformantly at canonical mobile, tablet, and desktop
+viewports, and completed a bounded semantic correction with a verified preview and applied receipt.
+See the [eight-gate result](../conformance/refinement/gate-status-v1.json),
+[scorecard](../conformance/refinement/scorecard-v2.json), and
+[correction proof](../conformance/refinement/correction-proof-v1.json). This evidence covers the
+fixed supported brief families; it does not certify every arbitrary brief or host application.
 
 ## Runnable React App Golden Path
 
@@ -110,7 +124,7 @@ viewspec prove-app --app viewspec.app.json --out .viewspec-app-proof --with-shel
 
 `prove-app` writes `APP_PROOF.md`, `app_proof_report.json`, `app_support_bundle.json`, and one checked screen artifact directory per screen. The default source proof and `--with-shell` remain bounded proof-artifact paths. The `react-tailwind-app` target additionally proves its exact generated package in the reference React host when `--install` is supplied.
 
-Static Shell V0 is the bounded local shell artifact for this contract. `compile-app` writes `app-dist/index.html`, `shell_manifest.json`, `diagnostics.json`, checked screen artifacts, and for V3 `state_reducer.ts` plus `state_manifest.json`; reports `target: "html-tailwind-app"` and `route_navigation: "static_shell_v0"`; rejects external network/embed/script surfaces; and remains a local proof artifact, not a deployable framework app, live DOM rebinding layer, framework state adapter, persistence layer, browser-history proof, accessibility certification, or cross-browser visual proof.
+Static Shell V0 is the bounded local shell artifact for this contract. `compile-app` writes `app-dist/index.html`, `shell_manifest.json`, `diagnostics.json`, checked screen artifacts, and for V3/V4 `state_reducer.ts` plus `state_manifest.json`; reports `target: "html-tailwind-app"` and `route_navigation: "static_shell_v0"`; rejects external network/embed/script surfaces; and remains a local proof artifact, not a deployable framework app, live DOM rebinding layer, framework state adapter, persistence layer, browser-history proof, accessibility certification, or cross-browser visual proof.
 
 ## Import Existing HTML
 
@@ -151,12 +165,12 @@ The asset manifest uses schema version `13`, declares the `local_v1` contract pr
 For MCP-capable agents:
 
 ```bash
-python -m pip install "viewspec[agents]"
+python -m pip install --pre "viewspec[agents]"
 viewspec mcp
 viewspec doctor --agents
 ```
 
-The MCP tools are local-only by default and reject paths outside the configured working directory. Intent tools are the default for new UI; `init_app`, `validate_app_file`, `diff_app_files`, `compile_app`, and `prove_app` cover AppBundle V1/V2/V3 and Static Shell V0; raw HTML MCP tools are import/fallback only. MCP also exposes `export_agent_assets` and `check_agent_assets` for local prompt, schema, valid example, and asset manifest workflows.
+The MCP tools are local-only by default and reject paths outside the configured working directory. Intent tools are the default for new UI; `init_app`, `validate_app_file`, `diff_app_files`, `compile_app`, and `prove_app` cover AppBundle V1/V2/V3/V4 and Static Shell V0; raw HTML MCP tools are import/fallback only. MCP also exposes `export_agent_assets` and `check_agent_assets` for local prompt, schema, valid example, and asset manifest workflows.
 
 Treat compiled output directories as generated artifacts. Edit `viewspec.intent.json` or `DESIGN.md`, then re-run compile and check; do not patch `dist/index.html` or `react-output/ViewSpecView.tsx` by hand.
 
