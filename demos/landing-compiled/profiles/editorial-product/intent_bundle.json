@@ -5,7 +5,7 @@
       "agent_workflow_row_1": {
         "attrs": {
           "label": "describe",
-          "value": "Emit IntentBundle or AppBundle JSON."
+          "value": "Author IntentBundle or AppBundle JSON."
         },
         "edges": {},
         "id": "agent_workflow_row_1",
@@ -25,7 +25,7 @@
       "agent_workflow_row_3": {
         "attrs": {
           "label": "prove",
-          "value": "viewspec prove-app --with-shell writes the report."
+          "value": "viewspec prove --intent compiles, checks, and renders the exact artifact."
         },
         "edges": {},
         "id": "agent_workflow_row_3",
@@ -45,7 +45,7 @@
       "artifact_identity_card_2": {
         "attrs": {
           "label": "determinism",
-          "value": "Same intent, same bytes, same hash."
+          "value": "Same source, design, and compiler version; same bytes and hash."
         },
         "edges": {},
         "id": "artifact_identity_card_2",
@@ -84,11 +84,21 @@
       },
       "capabilities_row_4": {
         "attrs": {
+          "label": "Semantic Correction",
+          "value": "Source-bound previews and applied receipts keep changes traceable."
+        },
+        "edges": {},
+        "id": "capabilities_row_4",
+        "kind": "table_row",
+        "slots": {}
+      },
+      "capabilities_row_5": {
+        "attrs": {
           "label": "Portable Surfaces",
           "value": "html-tailwind and React locally; four integrity-checked targets through the paid API."
         },
         "edges": {},
-        "id": "capabilities_row_4",
+        "id": "capabilities_row_5",
         "kind": "table_row",
         "slots": {}
       },
@@ -213,6 +223,56 @@
         "kind": "dashboard_card",
         "slots": {}
       },
+      "quality_evidence_card_1": {
+        "attrs": {
+          "label": "browser corpus",
+          "value": "10/10 conformant"
+        },
+        "edges": {},
+        "id": "quality_evidence_card_1",
+        "kind": "dashboard_card",
+        "slots": {}
+      },
+      "quality_evidence_card_2": {
+        "attrs": {
+          "label": "viewports",
+          "value": "mobile \u00b7 tablet \u00b7 desktop"
+        },
+        "edges": {},
+        "id": "quality_evidence_card_2",
+        "kind": "dashboard_card",
+        "slots": {}
+      },
+      "quality_evidence_card_3": {
+        "attrs": {
+          "label": "product quality",
+          "value": "10/10 first-compile passes \u00b7 0 critical issues"
+        },
+        "edges": {},
+        "id": "quality_evidence_card_3",
+        "kind": "dashboard_card",
+        "slots": {}
+      },
+      "quality_evidence_card_4": {
+        "attrs": {
+          "label": "semantic corrections",
+          "value": "10/10 verified previews \u00b7 10 applied receipts"
+        },
+        "edges": {},
+        "id": "quality_evidence_card_4",
+        "kind": "dashboard_card",
+        "slots": {}
+      },
+      "quality_evidence_card_5": {
+        "attrs": {
+          "label": "refinement gates",
+          "value": "8/8 passed"
+        },
+        "edges": {},
+        "id": "quality_evidence_card_5",
+        "kind": "dashboard_card",
+        "slots": {}
+      },
       "viewspec_landing": {
         "attrs": {},
         "edges": {},
@@ -318,6 +378,76 @@
         "target_region": "main"
       },
       {
+        "address": "node:quality_evidence_card_1#attr:label",
+        "cardinality": "exactly_once",
+        "id": "quality_evidence_card_1_label",
+        "present_as": "label",
+        "target_region": "main"
+      },
+      {
+        "address": "node:quality_evidence_card_1#attr:value",
+        "cardinality": "exactly_once",
+        "id": "quality_evidence_card_1_value",
+        "present_as": "value",
+        "target_region": "main"
+      },
+      {
+        "address": "node:quality_evidence_card_2#attr:label",
+        "cardinality": "exactly_once",
+        "id": "quality_evidence_card_2_label",
+        "present_as": "label",
+        "target_region": "main"
+      },
+      {
+        "address": "node:quality_evidence_card_2#attr:value",
+        "cardinality": "exactly_once",
+        "id": "quality_evidence_card_2_value",
+        "present_as": "value",
+        "target_region": "main"
+      },
+      {
+        "address": "node:quality_evidence_card_3#attr:label",
+        "cardinality": "exactly_once",
+        "id": "quality_evidence_card_3_label",
+        "present_as": "label",
+        "target_region": "main"
+      },
+      {
+        "address": "node:quality_evidence_card_3#attr:value",
+        "cardinality": "exactly_once",
+        "id": "quality_evidence_card_3_value",
+        "present_as": "value",
+        "target_region": "main"
+      },
+      {
+        "address": "node:quality_evidence_card_4#attr:label",
+        "cardinality": "exactly_once",
+        "id": "quality_evidence_card_4_label",
+        "present_as": "label",
+        "target_region": "main"
+      },
+      {
+        "address": "node:quality_evidence_card_4#attr:value",
+        "cardinality": "exactly_once",
+        "id": "quality_evidence_card_4_value",
+        "present_as": "value",
+        "target_region": "main"
+      },
+      {
+        "address": "node:quality_evidence_card_5#attr:label",
+        "cardinality": "exactly_once",
+        "id": "quality_evidence_card_5_label",
+        "present_as": "label",
+        "target_region": "main"
+      },
+      {
+        "address": "node:quality_evidence_card_5#attr:value",
+        "cardinality": "exactly_once",
+        "id": "quality_evidence_card_5_value",
+        "present_as": "value",
+        "target_region": "main"
+      },
+      {
         "address": "node:compile_flow_card_1#attr:label",
         "cardinality": "exactly_once",
         "id": "compile_flow_card_1_label",
@@ -412,6 +542,20 @@
         "address": "node:capabilities_row_4#attr:value",
         "cardinality": "exactly_once",
         "id": "capabilities_row_4_value",
+        "present_as": "value",
+        "target_region": "main"
+      },
+      {
+        "address": "node:capabilities_row_5#attr:label",
+        "cardinality": "exactly_once",
+        "id": "capabilities_row_5_label",
+        "present_as": "label",
+        "target_region": "main"
+      },
+      {
+        "address": "node:capabilities_row_5#attr:value",
+        "cardinality": "exactly_once",
+        "id": "capabilities_row_5_value",
         "present_as": "value",
         "target_region": "main"
       },
@@ -558,6 +702,23 @@
         "target_region": "main"
       },
       {
+        "id": "quality_evidence",
+        "kind": "ordered",
+        "members": [
+          "quality_evidence_card_1_label",
+          "quality_evidence_card_1_value",
+          "quality_evidence_card_2_label",
+          "quality_evidence_card_2_value",
+          "quality_evidence_card_3_label",
+          "quality_evidence_card_3_value",
+          "quality_evidence_card_4_label",
+          "quality_evidence_card_4_value",
+          "quality_evidence_card_5_label",
+          "quality_evidence_card_5_value"
+        ],
+        "target_region": "main"
+      },
+      {
         "id": "compile_flow",
         "kind": "ordered",
         "members": [
@@ -581,7 +742,9 @@
           "capabilities_row_3_label",
           "capabilities_row_3_value",
           "capabilities_row_4_label",
-          "capabilities_row_4_value"
+          "capabilities_row_4_value",
+          "capabilities_row_5_label",
+          "capabilities_row_5_value"
         ],
         "target_region": "main"
       },
@@ -653,6 +816,23 @@
         "region": "main"
       },
       {
+        "id": "quality_evidence",
+        "kind": "dashboard",
+        "members": [
+          "quality_evidence_card_1_label",
+          "quality_evidence_card_1_value",
+          "quality_evidence_card_2_label",
+          "quality_evidence_card_2_value",
+          "quality_evidence_card_3_label",
+          "quality_evidence_card_3_value",
+          "quality_evidence_card_4_label",
+          "quality_evidence_card_4_value",
+          "quality_evidence_card_5_label",
+          "quality_evidence_card_5_value"
+        ],
+        "region": "main"
+      },
+      {
         "id": "compile_flow",
         "kind": "dashboard",
         "members": [
@@ -676,7 +856,9 @@
           "capabilities_row_3_label",
           "capabilities_row_3_value",
           "capabilities_row_4_label",
-          "capabilities_row_4_value"
+          "capabilities_row_4_value",
+          "capabilities_row_5_label",
+          "capabilities_row_5_value"
         ],
         "region": "main"
       },
@@ -746,6 +928,11 @@
       {
         "id": "s_proof_badges",
         "target": "proof_badges",
+        "token": "surface.subtle"
+      },
+      {
+        "id": "s_quality_evidence",
+        "target": "quality_evidence",
         "token": "surface.subtle"
       },
       {

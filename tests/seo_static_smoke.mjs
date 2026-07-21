@@ -65,6 +65,9 @@ for (const [file, canonical] of pages) {
 
 const home = await readFile('demos/index.html', 'utf8')
 const publicFacts = JSON.parse(await readFile('demos/public-facts.json', 'utf8'))
+const refinementGate = JSON.parse(await readFile('conformance/refinement/gate-status-v1.json', 'utf8'))
+const refinementScorecard = JSON.parse(await readFile('conformance/refinement/scorecard-v2.json', 'utf8'))
+const refinementCorrections = JSON.parse(await readFile('conformance/refinement/correction-proof-v1.json', 'utf8'))
 
 function publicFactDrift(message) {
   assert.fail(`PUBLIC_FACTS_DRIFT: ${message}`)
@@ -96,6 +99,71 @@ assertPublicEqual(publicFacts.proof.machine_report_file, '.viewspec-proof/proof_
 assertPublicEqual(publicFacts.proof.support_bundle_file, '.viewspec-proof/support_bundle.json', 'public facts proof support bundle file')
 assertPublicText(publicFacts.proof.scope, 'compact style-delta counts', 'public facts proof style summary scope')
 assertPublicText(publicFacts.proof.non_claim, 'not pixel-perfect visual regression', 'public facts proof non-claim')
+assertPublicEqual(publicFacts.core_refinement.status, refinementGate.status, 'core refinement gate status')
+assertPublicEqual(publicFacts.core_refinement.sdk_version, publicFacts.sdk_version, 'core refinement SDK version')
+assertPublicEqual(
+  refinementGate.same_revision_evidence.browser_corpus.sdk_version,
+  publicFacts.sdk_version,
+  'core refinement gate SDK version'
+)
+assertPublicEqual(
+  refinementScorecard.verification.sdk_version,
+  publicFacts.sdk_version,
+  'core refinement scorecard SDK version'
+)
+assertPublicEqual(publicFacts.core_refinement.evaluated_on, refinementGate.evaluated_on, 'core refinement evaluation date')
+assertPublicEqual(publicFacts.core_refinement.gate_count, refinementGate.gates.length, 'core refinement gate count')
+assert(
+  refinementGate.gates.every((gate) => gate.status === 'passed'),
+  'every checked core refinement gate must pass'
+)
+assertPublicEqual(
+  publicFacts.core_refinement.browser_corpus.case_count,
+  refinementScorecard.verification.case_count,
+  'core refinement corpus case count'
+)
+assertPublicEqual(
+  publicFacts.core_refinement.browser_corpus.conformant_count,
+  refinementScorecard.verification.conformant_count,
+  'core refinement conformant case count'
+)
+assert.deepEqual(
+  publicFacts.core_refinement.browser_corpus.canonical_viewports,
+  refinementScorecard.verification.canonical_viewports,
+  'core refinement canonical viewports'
+)
+assert.deepEqual(
+  publicFacts.core_refinement.product_quality,
+  {
+    first_compile_pass_count: refinementScorecard.summary.first_compile_pass_count,
+    required_first_compile_pass_count: refinementScorecard.summary.required_first_compile_pass_count,
+    critical_issue_count: refinementScorecard.summary.critical_issue_count,
+  },
+  'core refinement product quality facts'
+)
+assertPublicEqual(
+  publicFacts.core_refinement.semantic_corrections.case_count,
+  refinementCorrections.case_count,
+  'core refinement correction case count'
+)
+assertPublicEqual(
+  publicFacts.core_refinement.semantic_corrections.verified_preview_count,
+  refinementScorecard.correction_proof.verified_preview_count,
+  'core refinement verified correction count'
+)
+assertPublicEqual(
+  publicFacts.core_refinement.semantic_corrections.applied_receipt_count,
+  refinementScorecard.correction_proof.applied_receipt_count,
+  'core refinement applied receipt count'
+)
+assertPublicEqual(refinementCorrections.ok, true, 'core refinement correction proof status')
+assertPublicText(home, `${publicFacts.core_refinement.browser_corpus.conformant_count}/${publicFacts.core_refinement.browser_corpus.case_count} conformant`, 'homepage core corpus result')
+assertPublicText(home, `${publicFacts.core_refinement.product_quality.critical_issue_count} critical issues`, 'homepage core quality result')
+assertPublicText(home, `${publicFacts.core_refinement.semantic_corrections.verified_preview_count}/${publicFacts.core_refinement.semantic_corrections.case_count} verified semantic corrections`, 'homepage correction result')
+assertPublicText(home, publicFacts.core_refinement.gate_status_url, 'homepage core evidence URL')
+assertPublicText(home, publicFacts.core_refinement.scorecard_url, 'homepage scorecard URL')
+assertPublicText(home, publicFacts.core_refinement.semantic_corrections.proof_url, 'homepage correction proof URL')
+assertPublicText(home, `"softwareVersion": "${publicFacts.sdk_version}"`, 'homepage SDK version')
 assertPublicEqual(publicFacts.proof.host_assertion_requirements.report_key, 'assertion_requirements', 'public facts host assertion requirements key')
 assert.deepEqual(
   publicFacts.proof.host_assertion_requirements.base_minimums,
@@ -277,6 +345,26 @@ for (const publicTextPath of ['README.md', 'docs/getting-started.md', 'demos/llm
   assertPublicText(text, 'proof-bundle.md', `${publicTextPath} proof guide`)
   assertPublicText(text, 'style-delta counts', `${publicTextPath} proof style summary`)
   assertPublicText(text, publicFacts.proof.non_claim.split(',')[0], `${publicTextPath} proof scope`)
+}
+
+for (const refinementTextPath of ['README.md', 'docs/getting-started.md', 'docs/agent-integration.md', 'demos/llms.txt', 'demos/llms-full.txt']) {
+  const text = await readFile(refinementTextPath, 'utf8')
+  assertPublicText(text, '10', `${refinementTextPath} core corpus case count`)
+  assertPublicText(text, 'mobile', `${refinementTextPath} mobile evidence`)
+  assertPublicText(text, 'tablet', `${refinementTextPath} tablet evidence`)
+  assertPublicText(text, 'desktop', `${refinementTextPath} desktop evidence`)
+  assertPublicText(text, 'zero critical issues', `${refinementTextPath} product quality result`)
+  assertPublicText(text, 'verified preview', `${refinementTextPath} semantic correction preview`)
+  assertPublicText(text, 'applied receipt', `${refinementTextPath} semantic correction receipt`)
+}
+
+for (const llmTextPath of ['demos/llms.txt', 'demos/llms-full.txt']) {
+  const text = await readFile(llmTextPath, 'utf8')
+  assertPublicText(text, publicFacts.sdk_version, `${llmTextPath} SDK version`)
+  assertPublicText(text, publicFacts.core_refinement.gate_status_url, `${llmTextPath} core evidence URL`)
+  assertPublicText(text, publicFacts.core_refinement.scorecard_url, `${llmTextPath} scorecard URL`)
+  assertPublicText(text, publicFacts.core_refinement.semantic_corrections.proof_url, `${llmTextPath} correction proof URL`)
+  assertPublicText(text, 'viewspec prove --intent viewspec.intent.json --target react-tailwind-tsx --install --out .viewspec-proof --json', `${llmTextPath} authored proof path`)
 }
 
 for (const aestheticTextPath of ['README.md', 'docs/getting-started.md', 'docs/agent-integration.md', 'docs/free-sdk-reliability.md', 'demos/llms.txt', 'demos/llms-full.txt']) {

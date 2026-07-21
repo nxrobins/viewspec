@@ -94,7 +94,7 @@
       <div>
         <p class="eyebrow">ViewSpec Proof Bundle</p>
         <h1>Read the first proof before trusting the artifact.</h1>
-        <p class="lead">Run <code>viewspec prove --out .viewspec-proof</code>, then open <code>.viewspec-proof/PROOF.md</code>. Use <code>proof_report.json</code> for automation and <code>support_bundle.json</code> for redacted failure triage.</p>
+        <p class="lead">Run <code>viewspec prove --out .viewspec-proof</code> for the starter proof, then open <code>.viewspec-proof/PROOF.md</code>. To prove an authored brief, run <code>viewspec prove --intent viewspec.intent.json --target react-tailwind-tsx --install --out .viewspec-proof --json</code>. Use <code>proof_report.json</code> for automation and <code>support_bundle.json</code> for redacted failure triage.</p>
         <p>ViewSpec proof bundles are local source artifact and provenance proof by default. For <code>react-tailwind-tsx</code>, they become a bounded React/Vite/Tailwind reference-host proof only when host verification actually passes.</p>
       </div>
       <aside class="proof-panel" aria-label="Example proof summary">

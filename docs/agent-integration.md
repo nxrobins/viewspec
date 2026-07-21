@@ -370,6 +370,14 @@ React/Tailwind output, agents should run validate, compile, `viewspec check`, an
 The final command renders canonical viewports, records screenshots, DOM and accessibility evidence,
 and writes a deterministic repair plan beside the canonical result.
 
+On the checked release revision, all 10 corpus cases passed the product-quality scorecard on first
+compile with zero critical issues, rendered conformantly at mobile, tablet, and desktop viewports,
+and completed one bounded semantic correction with a verified preview and applied receipt. The
+[eight-gate result](../conformance/refinement/gate-status-v1.json),
+[scorecard](../conformance/refinement/scorecard-v2.json), and
+[correction proof](../conformance/refinement/correction-proof-v1.json) are fixed-corpus regression
+evidence, not certification of arbitrary briefs or host applications.
+
 `repair.json` distinguishes `done`, `repair`, and `retry`. Repair directives use stable `vfix_*`
 identities, canonical `ir:<node>` or `screen:<screen>/ir:<node>` source paths, exact evidence
 references, and recurrence fingerprints that ignore prose and screenshot churn. Agents should send

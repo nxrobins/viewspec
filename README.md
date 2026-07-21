@@ -1,26 +1,50 @@
 # ViewSpec
 
-**Stop asking agents to write React, DOM, or State.**
+**Describe intent. Compile a checked interface.**
 
-ViewSpec is an agent-native UI compiler. It acts as a universal Intermediate Representation (IR) for AI Software Engineering. Agents describe UI and state intent as `IntentBundle` or `AppBundle` JSON; ViewSpec compiles that intent into deterministic HTML and React surfaces with the free local compiler. The paid hosted API adds Level 2 derivation, DESIGN.md context, projections, rules, custom motifs, signed usage receipts, integrity-checked single-screen artifacts, and verified runnable AppBundle projects.
+ViewSpec is an agent-native UI and app compiler. Agents describe semantic UI, state, and action intent as `IntentBundle` or `AppBundle` JSON. The free local compiler turns that source into deterministic HTML or React artifacts with provenance and checks; `prove --target react-tailwind-tsx --install` adds bounded browser evidence. The paid hosted API adds Level 2 derivation, projections, rules, custom motifs, signed receipts, SwiftUI and Flutter artifacts, and verified runnable AppBundle projects.
 
-By totally decoupling intent from implementation, ViewSpec eliminates the "visual context window" problem. Agents no longer need to see pixels to build complex, perfectly styled, and deeply interactive applications.
+Generated DOM and framework code stay compiler-owned. Developers and agents revise semantic source, then regenerate and verify the result instead of patching output by hand.
 
 🌐 **[viewspec.dev](https://viewspec.dev)** — Compiled reference demos, pricing, and hosted compiler docs
 
+## Quick Start
+
 ```bash
+pip install viewspec
 viewspec prove --out .viewspec-proof
-viewspec init-intent --out viewspec.intent.json
-viewspec init-design --out DESIGN.md
-viewspec validate-intent viewspec.intent.json --json
-viewspec diff-intent old.intent.json new.intent.json --json
-viewspec init-app --out viewspec.app.json
-viewspec validate-app viewspec.app.json --json
-viewspec compile-app viewspec.app.json --out app-dist --target html-tailwind-app --json
-viewspec prove-app --app viewspec.app.json --out .viewspec-app-proof --with-shell --json
-viewspec compile viewspec.intent.json --design DESIGN.md --out dist/
-viewspec check dist/
 ```
+
+Start with `.viewspec-proof/PROOF.md`. The same directory contains the machine-readable
+`proof_report.json`, redacted `support_bundle.json`, semantic source, generated artifact, and
+provenance manifest.
+
+For an authored brief, use the canonical three-command lifecycle:
+
+```bash
+viewspec init-intent --out viewspec.intent.json
+# Edit viewspec.intent.json; optionally author DESIGN.md.
+viewspec validate-intent viewspec.intent.json --json
+viewspec prove --intent viewspec.intent.json --target react-tailwind-tsx --install --out .viewspec-proof --json
+```
+
+Run `viewspec init-design --out DESIGN.md` once when the repository does not already provide a
+governed design file.
+
+## Core Workflow Evidence
+
+The checked core workflow is exercised against a fixed ten-case corpus covering app queue/detail,
+collection and outcome states, dense operations, dashboards, forms, landing pages, multi-step
+flows, and settings. All 10 cases render conformantly at canonical mobile, tablet, and desktop
+viewports with screenshot, DOM, accessibility, and log evidence. All ten passed the product-quality
+scorecard on first compile with zero critical issues. Each case also has one bounded semantic
+correction with a verified preview and applied receipt.
+
+See the [eight-gate result](https://github.com/nxrobins/viewspec/blob/main/conformance/refinement/gate-status-v1.json),
+[product-quality scorecard](https://github.com/nxrobins/viewspec/blob/main/conformance/refinement/scorecard-v2.json),
+and [correction proof](https://github.com/nxrobins/viewspec/blob/main/conformance/refinement/correction-proof-v1.json).
+This is fixed-corpus evidence for supported brief families, not a guarantee that every arbitrary
+product brief is desirable, accessible, or production-ready.
 
 ## What ViewSpec Does
 
@@ -34,7 +58,7 @@ The primary workflow is Intent-first compilation: semantic UI intent goes in, co
 IntentBundle JSON -> ViewSpec compiler -> HTML / React / SwiftUI / Flutter / CompositionIR
        |-- validate agent contract
        |-- apply DESIGN.md
-       |-- generate TypeScript Reducers (AppBundle V3)
+       |-- generate and replay TypeScript reducers (AppBundle V3/V4)
        |-- write provenance_manifest.json
        `-- keep DOM and framework code as compiler output
 ```
@@ -47,13 +71,13 @@ ViewSpec enforces three deterministic invariants:
 2. **Semantic grouping.** Data is grouped by meaning, not by visual adjacency.
 3. **Strict ordering.** The original data order is preserved deterministically, including across serialization round-trips.
 
-## New: AppBundle V3 & State IR
+## AppBundle V4 & State IR
 
-ViewSpec is no longer just for static dashboards. With AppBundle V3, agents can declare fully interactive state mutations safely:
+AppBundle V3 introduced bounded interactive state; V4 adds replay-proved visibility rules over that state:
 
-* **Declarative Mutation IR**: Agents define state transitions (`set`, `patch`, `toggle`, `append`, `move`, `increment`) in JSON.
-* **Deterministic Reducer Generation**: The compiler automatically generates bulletproof TypeScript reducers (`reduceViewSpecState`).
-* **State Replay Assertions**: Agents write expected state outputs; the compiler statically proves the generated logic against the Node.js runtime before the code even runs in a browser.
+* **Declarative Mutation IR**: Agents define state transitions (`set`, `patch`, `toggle`, `append`, `remove`, `move`, `increment`) in JSON.
+* **Deterministic Reducer Generation**: The compiler generates a pure TypeScript `reduceViewSpecState` reducer.
+* **State and Visibility Replay**: Assertions prove expected state plus `visibility_v0` outcomes against the generated reducer before browser use.
 
 ## New: Custom Motif Plugins
 
@@ -69,7 +93,7 @@ Extend the local compiler securely with a microkernel architecture:
 pip install viewspec
 ```
 
-Requires Python 3.11+. AppBundle **V3** (`interactive_state`) reducer conformance additionally requires Node.js (>=18) on `PATH`; V1/V2 and all IntentBundle flows are Python-only and no-network.
+Requires Python 3.11+. AppBundle **V3/V4** (`interactive_state_v0`) reducer conformance additionally requires Node.js (>=18) on `PATH`; V1/V2 and all IntentBundle flows are Python-only and no-network.
 
 Python package: <https://pypi.org/project/viewspec/>
 
@@ -105,7 +129,7 @@ For a first proof, run:
 viewspec prove --out .viewspec-proof
 ```
 
-This generates a starter IntentBundle and DESIGN.md inside `.viewspec-proof/`, compiles through the public local path, runs artifact checks, records compact style-delta counts when profiles are present, and writes `.viewspec-proof/PROOF.md` for humans, `.viewspec-proof/proof_report.json` for tools, and `.viewspec-proof/support_bundle.json` for redacted local support triage. Read [ViewSpec Proof Bundle](docs/proof-bundle.md) when you need to interpret status, hashes, checks, failure codes, or local support triage. Machine reports include proof identity metadata under `proof_identity` for artifact, manifest, proof report, human summary, and support bundle hashes. It proves source artifact integrity and provenance for the generated artifact; ViewSpec prove is not pixel-perfect visual regression, accessibility certification, arbitrary host-app certification, or hosted compiler publish automation.
+This generates a starter IntentBundle and DESIGN.md inside `.viewspec-proof/`, compiles through the public local path, runs artifact checks, records compact style-delta counts when profiles are present, and writes `.viewspec-proof/PROOF.md` for humans, `.viewspec-proof/proof_report.json` for tools, and `.viewspec-proof/support_bundle.json` for redacted local support triage. Read [ViewSpec Proof Bundle](https://github.com/nxrobins/viewspec/blob/main/docs/proof-bundle.md) when you need to interpret status, hashes, checks, failure codes, or local support triage. Machine reports include proof identity metadata under `proof_identity` for artifact, manifest, proof report, human summary, and support bundle hashes. It proves source artifact integrity and provenance for the generated artifact; ViewSpec prove is not pixel-perfect visual regression, accessibility certification, arbitrary host-app certification, or hosted compiler publish automation.
 
 ### Core Commands
 
@@ -137,6 +161,7 @@ viewspec prove-app --app viewspec.app.json --out .viewspec-app-proof --with-shel
 * **V1**: Unbound fixtures reported as `unbound_v0`.
 * **V2**: Strict readonly fixture resources reported as `fixture_readonly_v0` with declared per-screen views.
 * **V3**: Adds bounded interactive state, declarative mutations, and a generated pure TypeScript reducer artifact.
+* **V4**: Adds bounded `visibility_v0` rules, baked initial visibility, and replay-proved `evaluateViewSpecVisibility` output.
 
 `compile-app` defaults to a single `app-dist/index.html` Static Shell V0 proof artifact; that default is not browser navigation proof. Use `--target react-tailwind-app` for a runnable Vite/React/Tailwind app with browser-history routing, live resource/state rebinding, and exact-artifact host verification. Neither target generates authentication, persistence, arbitrary API clients, or backend infrastructure.
 
@@ -175,7 +200,7 @@ The verifier accepts only strict set-wise progress: the candidate must remove at
 error, introduce none, and use the identical complete verification plan. Sessions permit three
 attempts over ten minutes, reject cycles and out-of-band source edits, apply through the existing
 atomic IntentPatch receipt transaction, and fail closed on post-apply proof drift. See
-[Converge Sessions V1](docs/converge-sessions-v1.md) and [IntentPatch V1](docs/intent-patch-v1.md).
+[Converge Sessions V1](https://github.com/nxrobins/viewspec/blob/main/docs/converge-sessions-v1.md) and [IntentPatch V1](https://github.com/nxrobins/viewspec/blob/main/docs/intent-patch-v1.md).
 
 ## Native Agent Use
 
@@ -312,7 +337,7 @@ The local SDK uses a strict YAML-front-matter `DESIGN.md` for offline HTML and I
 
 ## Compatibility & Versioning
 
-The local contract is anchored by the `local_v1` profile: document schemas (IntentBundle V1, AppBundle V1-V4), the closed error-code registry (`viewspec.ERROR_CODES`), the CLI surface, every name in `viewspec.__all__`, and per-version determinism. Within a major version those surfaces evolve additively only — caps only rise, codes are never repurposed, commands are never removed — and anything breaking waits for a new major version with a new contract profile and migration notes. Cross-version artifact bytes and hashes are explicitly *not* promised; determinism is a within-version guarantee. The full policy, including what is deliberately out of scope, is in [docs/compatibility.md](docs/compatibility.md); changes ship documented in [CHANGELOG.md](CHANGELOG.md).
+The local contract is anchored by the `local_v1` profile: document schemas (IntentBundle V1, AppBundle V1-V4), the closed error-code registry (`viewspec.ERROR_CODES`), the CLI surface, every name in `viewspec.__all__`, and per-version determinism. Within a major version those surfaces evolve additively only — caps only rise, codes are never repurposed, commands are never removed — and anything breaking waits for a new major version with a new contract profile and migration notes. Cross-version artifact bytes and hashes are explicitly *not* promised; determinism is a within-version guarantee. The full policy, including what is deliberately out of scope, is in [docs/compatibility.md](https://github.com/nxrobins/viewspec/blob/main/docs/compatibility.md); changes ship documented in [CHANGELOG.md](https://github.com/nxrobins/viewspec/blob/main/CHANGELOG.md).
 
 ## License
 MIT

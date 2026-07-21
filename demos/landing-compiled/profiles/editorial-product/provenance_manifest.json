@@ -2,12 +2,12 @@
   "version": 1,
   "manifest_schema_version": 1,
   "kind": "intent_bundle_compile",
-  "sdk_version": "0.3.0b4",
+  "sdk_version": "0.3.0b5",
   "source_name": "intent_bundle.json",
-  "raw_source_hash": "133000f4a8384c631f4f08d2724a3cab741190397693323b1709f1c56d3d7b2a",
-  "source_hash": "133000f4a8384c631f4f08d2724a3cab741190397693323b1709f1c56d3d7b2a",
+  "raw_source_hash": "98cbad1c68dc0a47c3037fd9603cda2482be5b767571c4a90c9d2f305ebdaf2d",
+  "source_hash": "98cbad1c68dc0a47c3037fd9603cda2482be5b767571c4a90c9d2f305ebdaf2d",
   "design_hash": null,
-  "artifact_hash": "933b3fd9f66cd0b8771e398f69f1e7c59aac189a54bddeb908b49a9d3dc9ada8",
+  "artifact_hash": "1ade8e7f75a8e6a160c43cdb472d625daa6765e10608ecaf069426b8caa9bb5b",
   "command": "compile",
   "command_args": [
     "python",
@@ -26,7 +26,8 @@
       "primitive": "root",
       "classes": [
         "vs-root",
-        "vs-layout-root"
+        "vs-layout-root",
+        "vs-role-app-shell"
       ],
       "content_refs": [],
       "intent_refs": [
@@ -41,6 +42,8 @@
       ],
       "props": {
         "layout_role": "root",
+        "product_role": "app_shell",
+        "planner_surface": "single_column_v1",
         "aesthetic_profile": "aesthetic.editorial_product"
       }
     },
@@ -49,7 +52,8 @@
       "primitive": "stack",
       "classes": [
         "vs-stack",
-        "vs-layout-stack"
+        "vs-layout-stack",
+        "vs-role-primary-column"
       ],
       "content_refs": [],
       "intent_refs": [
@@ -59,7 +63,8 @@
         "density.regular"
       ],
       "props": {
-        "layout_role": "stack"
+        "layout_role": "stack",
+        "product_role": "primary_column"
       }
     },
     "dom-motif_launch_hero": {
@@ -68,7 +73,8 @@
       "classes": [
         "vs-surface",
         "vs-layout-surface",
-        "vs-motif-hero"
+        "vs-motif-hero",
+        "vs-role-page-header"
       ],
       "content_refs": [],
       "intent_refs": [
@@ -82,7 +88,8 @@
       "props": {
         "layout_role": "surface",
         "motif_kind": "hero",
-        "aria_label": "Hero"
+        "aria_label": "Hero",
+        "product_role": "page_header"
       }
     },
     "dom-binding_launch_hero_eyebrow": {
@@ -155,7 +162,8 @@
       "classes": [
         "vs-grid",
         "vs-layout-grid",
-        "vs-motif-dashboard"
+        "vs-motif-dashboard",
+        "vs-role-metric-grid"
       ],
       "content_refs": [],
       "intent_refs": [
@@ -169,8 +177,10 @@
       "props": {
         "layout_role": "grid",
         "motif_kind": "dashboard",
-        "columns": 3,
-        "layout_strategy": "dashboard_grid_v0"
+        "columns": 1,
+        "layout_strategy": "dashboard_grid_v0",
+        "product_role": "metric_grid",
+        "aesthetic_layout_profile": "aesthetic.editorial_product"
       }
     },
     "dom-motif_proof_badges_proof_badges_card_1": {
@@ -179,7 +189,8 @@
       "classes": [
         "vs-surface",
         "vs-layout-surface",
-        "vs-motif-dashboard"
+        "vs-motif-dashboard",
+        "vs-role-metric-card"
       ],
       "content_refs": [],
       "intent_refs": [
@@ -190,7 +201,8 @@
       ],
       "props": {
         "layout_role": "surface",
-        "motif_kind": "dashboard"
+        "motif_kind": "dashboard",
+        "product_role": "metric_card"
       }
     },
     "dom-binding_proof_badges_card_1_label": {
@@ -240,7 +252,8 @@
       "classes": [
         "vs-surface",
         "vs-layout-surface",
-        "vs-motif-dashboard"
+        "vs-motif-dashboard",
+        "vs-role-metric-card"
       ],
       "content_refs": [],
       "intent_refs": [
@@ -251,7 +264,8 @@
       ],
       "props": {
         "layout_role": "surface",
-        "motif_kind": "dashboard"
+        "motif_kind": "dashboard",
+        "product_role": "metric_card"
       }
     },
     "dom-binding_proof_badges_card_2_label": {
@@ -301,7 +315,8 @@
       "classes": [
         "vs-surface",
         "vs-layout-surface",
-        "vs-motif-dashboard"
+        "vs-motif-dashboard",
+        "vs-role-metric-card"
       ],
       "content_refs": [],
       "intent_refs": [
@@ -312,7 +327,8 @@
       ],
       "props": {
         "layout_role": "surface",
-        "motif_kind": "dashboard"
+        "motif_kind": "dashboard",
+        "product_role": "metric_card"
       }
     },
     "dom-binding_proof_badges_card_3_label": {
@@ -362,7 +378,8 @@
       "classes": [
         "vs-surface",
         "vs-layout-surface",
-        "vs-motif-dashboard"
+        "vs-motif-dashboard",
+        "vs-role-metric-card"
       ],
       "content_refs": [],
       "intent_refs": [
@@ -373,7 +390,8 @@
       ],
       "props": {
         "layout_role": "surface",
-        "motif_kind": "dashboard"
+        "motif_kind": "dashboard",
+        "product_role": "metric_card"
       }
     },
     "dom-binding_proof_badges_card_4_label": {
@@ -423,7 +441,8 @@
       "classes": [
         "vs-surface",
         "vs-layout-surface",
-        "vs-motif-dashboard"
+        "vs-motif-dashboard",
+        "vs-role-metric-card"
       ],
       "content_refs": [],
       "intent_refs": [
@@ -434,7 +453,8 @@
       ],
       "props": {
         "layout_role": "surface",
-        "motif_kind": "dashboard"
+        "motif_kind": "dashboard",
+        "product_role": "metric_card"
       }
     },
     "dom-binding_proof_badges_card_5_label": {
@@ -478,13 +498,356 @@
         "binding_id": "proof_badges_card_5_value"
       }
     },
+    "dom-motif_quality_evidence": {
+      "ir_id": "motif_quality_evidence",
+      "primitive": "grid",
+      "classes": [
+        "vs-grid",
+        "vs-layout-grid",
+        "vs-motif-dashboard",
+        "vs-role-metric-grid"
+      ],
+      "content_refs": [],
+      "intent_refs": [
+        "viewspec:motif:quality_evidence",
+        "viewspec:style:s_quality_evidence"
+      ],
+      "style_tokens": [
+        "density.regular",
+        "surface.subtle"
+      ],
+      "props": {
+        "layout_role": "grid",
+        "motif_kind": "dashboard",
+        "columns": 1,
+        "layout_strategy": "dashboard_grid_v0",
+        "product_role": "metric_grid",
+        "aesthetic_layout_profile": "aesthetic.editorial_product"
+      }
+    },
+    "dom-motif_quality_evidence_quality_evidence_card_1": {
+      "ir_id": "motif_quality_evidence_quality_evidence_card_1",
+      "primitive": "surface",
+      "classes": [
+        "vs-surface",
+        "vs-layout-surface",
+        "vs-motif-dashboard",
+        "vs-role-metric-card"
+      ],
+      "content_refs": [],
+      "intent_refs": [
+        "viewspec:motif:quality_evidence"
+      ],
+      "style_tokens": [
+        "surface.subtle"
+      ],
+      "props": {
+        "layout_role": "surface",
+        "motif_kind": "dashboard",
+        "product_role": "metric_card"
+      }
+    },
+    "dom-binding_quality_evidence_card_1_label": {
+      "ir_id": "binding_quality_evidence_card_1_label",
+      "primitive": "label",
+      "classes": [
+        "vs-label"
+      ],
+      "content_refs": [
+        "node:quality_evidence_card_1#attr:label"
+      ],
+      "intent_refs": [
+        "viewspec:binding:quality_evidence_card_1_label"
+      ],
+      "style_tokens": [
+        "tone.muted"
+      ],
+      "props": {
+        "text": "browser corpus",
+        "binding_id": "quality_evidence_card_1_label"
+      }
+    },
+    "dom-binding_quality_evidence_card_1_value": {
+      "ir_id": "binding_quality_evidence_card_1_value",
+      "primitive": "value",
+      "classes": [
+        "vs-value"
+      ],
+      "content_refs": [
+        "node:quality_evidence_card_1#attr:value"
+      ],
+      "intent_refs": [
+        "viewspec:binding:quality_evidence_card_1_value"
+      ],
+      "style_tokens": [
+        "tone.neutral",
+        "emphasis.high"
+      ],
+      "props": {
+        "text": "10/10 conformant",
+        "binding_id": "quality_evidence_card_1_value"
+      }
+    },
+    "dom-motif_quality_evidence_quality_evidence_card_2": {
+      "ir_id": "motif_quality_evidence_quality_evidence_card_2",
+      "primitive": "surface",
+      "classes": [
+        "vs-surface",
+        "vs-layout-surface",
+        "vs-motif-dashboard",
+        "vs-role-metric-card"
+      ],
+      "content_refs": [],
+      "intent_refs": [
+        "viewspec:motif:quality_evidence"
+      ],
+      "style_tokens": [
+        "surface.subtle"
+      ],
+      "props": {
+        "layout_role": "surface",
+        "motif_kind": "dashboard",
+        "product_role": "metric_card"
+      }
+    },
+    "dom-binding_quality_evidence_card_2_label": {
+      "ir_id": "binding_quality_evidence_card_2_label",
+      "primitive": "label",
+      "classes": [
+        "vs-label"
+      ],
+      "content_refs": [
+        "node:quality_evidence_card_2#attr:label"
+      ],
+      "intent_refs": [
+        "viewspec:binding:quality_evidence_card_2_label"
+      ],
+      "style_tokens": [
+        "tone.muted"
+      ],
+      "props": {
+        "text": "viewports",
+        "binding_id": "quality_evidence_card_2_label"
+      }
+    },
+    "dom-binding_quality_evidence_card_2_value": {
+      "ir_id": "binding_quality_evidence_card_2_value",
+      "primitive": "value",
+      "classes": [
+        "vs-value"
+      ],
+      "content_refs": [
+        "node:quality_evidence_card_2#attr:value"
+      ],
+      "intent_refs": [
+        "viewspec:binding:quality_evidence_card_2_value"
+      ],
+      "style_tokens": [
+        "tone.neutral",
+        "emphasis.high"
+      ],
+      "props": {
+        "text": "mobile \u00b7 tablet \u00b7 desktop",
+        "binding_id": "quality_evidence_card_2_value"
+      }
+    },
+    "dom-motif_quality_evidence_quality_evidence_card_3": {
+      "ir_id": "motif_quality_evidence_quality_evidence_card_3",
+      "primitive": "surface",
+      "classes": [
+        "vs-surface",
+        "vs-layout-surface",
+        "vs-motif-dashboard",
+        "vs-role-metric-card"
+      ],
+      "content_refs": [],
+      "intent_refs": [
+        "viewspec:motif:quality_evidence"
+      ],
+      "style_tokens": [
+        "surface.subtle"
+      ],
+      "props": {
+        "layout_role": "surface",
+        "motif_kind": "dashboard",
+        "product_role": "metric_card"
+      }
+    },
+    "dom-binding_quality_evidence_card_3_label": {
+      "ir_id": "binding_quality_evidence_card_3_label",
+      "primitive": "label",
+      "classes": [
+        "vs-label"
+      ],
+      "content_refs": [
+        "node:quality_evidence_card_3#attr:label"
+      ],
+      "intent_refs": [
+        "viewspec:binding:quality_evidence_card_3_label"
+      ],
+      "style_tokens": [
+        "tone.muted"
+      ],
+      "props": {
+        "text": "product quality",
+        "binding_id": "quality_evidence_card_3_label"
+      }
+    },
+    "dom-binding_quality_evidence_card_3_value": {
+      "ir_id": "binding_quality_evidence_card_3_value",
+      "primitive": "value",
+      "classes": [
+        "vs-value"
+      ],
+      "content_refs": [
+        "node:quality_evidence_card_3#attr:value"
+      ],
+      "intent_refs": [
+        "viewspec:binding:quality_evidence_card_3_value"
+      ],
+      "style_tokens": [
+        "tone.neutral",
+        "emphasis.high"
+      ],
+      "props": {
+        "text": "10/10 first-compile passes \u00b7 0 critical issues",
+        "binding_id": "quality_evidence_card_3_value"
+      }
+    },
+    "dom-motif_quality_evidence_quality_evidence_card_4": {
+      "ir_id": "motif_quality_evidence_quality_evidence_card_4",
+      "primitive": "surface",
+      "classes": [
+        "vs-surface",
+        "vs-layout-surface",
+        "vs-motif-dashboard",
+        "vs-role-metric-card"
+      ],
+      "content_refs": [],
+      "intent_refs": [
+        "viewspec:motif:quality_evidence"
+      ],
+      "style_tokens": [
+        "surface.subtle"
+      ],
+      "props": {
+        "layout_role": "surface",
+        "motif_kind": "dashboard",
+        "product_role": "metric_card"
+      }
+    },
+    "dom-binding_quality_evidence_card_4_label": {
+      "ir_id": "binding_quality_evidence_card_4_label",
+      "primitive": "label",
+      "classes": [
+        "vs-label"
+      ],
+      "content_refs": [
+        "node:quality_evidence_card_4#attr:label"
+      ],
+      "intent_refs": [
+        "viewspec:binding:quality_evidence_card_4_label"
+      ],
+      "style_tokens": [
+        "tone.muted"
+      ],
+      "props": {
+        "text": "semantic corrections",
+        "binding_id": "quality_evidence_card_4_label"
+      }
+    },
+    "dom-binding_quality_evidence_card_4_value": {
+      "ir_id": "binding_quality_evidence_card_4_value",
+      "primitive": "value",
+      "classes": [
+        "vs-value"
+      ],
+      "content_refs": [
+        "node:quality_evidence_card_4#attr:value"
+      ],
+      "intent_refs": [
+        "viewspec:binding:quality_evidence_card_4_value"
+      ],
+      "style_tokens": [
+        "tone.neutral",
+        "emphasis.high"
+      ],
+      "props": {
+        "text": "10/10 verified previews \u00b7 10 applied receipts",
+        "binding_id": "quality_evidence_card_4_value"
+      }
+    },
+    "dom-motif_quality_evidence_quality_evidence_card_5": {
+      "ir_id": "motif_quality_evidence_quality_evidence_card_5",
+      "primitive": "surface",
+      "classes": [
+        "vs-surface",
+        "vs-layout-surface",
+        "vs-motif-dashboard",
+        "vs-role-metric-card"
+      ],
+      "content_refs": [],
+      "intent_refs": [
+        "viewspec:motif:quality_evidence"
+      ],
+      "style_tokens": [
+        "surface.subtle"
+      ],
+      "props": {
+        "layout_role": "surface",
+        "motif_kind": "dashboard",
+        "product_role": "metric_card"
+      }
+    },
+    "dom-binding_quality_evidence_card_5_label": {
+      "ir_id": "binding_quality_evidence_card_5_label",
+      "primitive": "label",
+      "classes": [
+        "vs-label"
+      ],
+      "content_refs": [
+        "node:quality_evidence_card_5#attr:label"
+      ],
+      "intent_refs": [
+        "viewspec:binding:quality_evidence_card_5_label"
+      ],
+      "style_tokens": [
+        "tone.muted"
+      ],
+      "props": {
+        "text": "refinement gates",
+        "binding_id": "quality_evidence_card_5_label"
+      }
+    },
+    "dom-binding_quality_evidence_card_5_value": {
+      "ir_id": "binding_quality_evidence_card_5_value",
+      "primitive": "value",
+      "classes": [
+        "vs-value"
+      ],
+      "content_refs": [
+        "node:quality_evidence_card_5#attr:value"
+      ],
+      "intent_refs": [
+        "viewspec:binding:quality_evidence_card_5_value"
+      ],
+      "style_tokens": [
+        "tone.neutral",
+        "emphasis.high"
+      ],
+      "props": {
+        "text": "8/8 passed",
+        "binding_id": "quality_evidence_card_5_value"
+      }
+    },
     "dom-motif_compile_flow": {
       "ir_id": "motif_compile_flow",
       "primitive": "grid",
       "classes": [
         "vs-grid",
         "vs-layout-grid",
-        "vs-motif-dashboard"
+        "vs-motif-dashboard",
+        "vs-role-metric-grid"
       ],
       "content_refs": [],
       "intent_refs": [
@@ -496,8 +859,10 @@
       "props": {
         "layout_role": "grid",
         "motif_kind": "dashboard",
-        "columns": 2,
-        "layout_strategy": "dashboard_grid_v0"
+        "columns": 1,
+        "layout_strategy": "dashboard_grid_v0",
+        "product_role": "metric_grid",
+        "aesthetic_layout_profile": "aesthetic.editorial_product"
       }
     },
     "dom-motif_compile_flow_compile_flow_card_1": {
@@ -506,7 +871,8 @@
       "classes": [
         "vs-surface",
         "vs-layout-surface",
-        "vs-motif-dashboard"
+        "vs-motif-dashboard",
+        "vs-role-metric-card"
       ],
       "content_refs": [],
       "intent_refs": [
@@ -517,7 +883,8 @@
       ],
       "props": {
         "layout_role": "surface",
-        "motif_kind": "dashboard"
+        "motif_kind": "dashboard",
+        "product_role": "metric_card"
       }
     },
     "dom-binding_compile_flow_card_1_label": {
@@ -567,7 +934,8 @@
       "classes": [
         "vs-surface",
         "vs-layout-surface",
-        "vs-motif-dashboard"
+        "vs-motif-dashboard",
+        "vs-role-metric-card"
       ],
       "content_refs": [],
       "intent_refs": [
@@ -578,7 +946,8 @@
       ],
       "props": {
         "layout_role": "surface",
-        "motif_kind": "dashboard"
+        "motif_kind": "dashboard",
+        "product_role": "metric_card"
       }
     },
     "dom-binding_compile_flow_card_2_label": {
@@ -628,7 +997,8 @@
       "classes": [
         "vs-surface",
         "vs-layout-surface",
-        "vs-motif-dashboard"
+        "vs-motif-dashboard",
+        "vs-role-metric-card"
       ],
       "content_refs": [],
       "intent_refs": [
@@ -639,7 +1009,8 @@
       ],
       "props": {
         "layout_role": "surface",
-        "motif_kind": "dashboard"
+        "motif_kind": "dashboard",
+        "product_role": "metric_card"
       }
     },
     "dom-binding_compile_flow_card_3_label": {
@@ -930,7 +1301,7 @@
         "tone.muted"
       ],
       "props": {
-        "text": "Portable Surfaces",
+        "text": "Semantic Correction",
         "binding_id": "capabilities_row_4_label",
         "table_cell_role": "row_header"
       }
@@ -952,8 +1323,71 @@
         "emphasis.high"
       ],
       "props": {
-        "text": "html-tailwind and React locally; four integrity-checked targets through the paid API.",
+        "text": "Source-bound previews and applied receipts keep changes traceable.",
         "binding_id": "capabilities_row_4_value",
+        "table_cell_role": "cell"
+      }
+    },
+    "dom-motif_capabilities_capabilities_row_5": {
+      "ir_id": "motif_capabilities_capabilities_row_5",
+      "primitive": "cluster",
+      "classes": [
+        "vs-cluster",
+        "vs-layout-cluster",
+        "vs-motif-table"
+      ],
+      "content_refs": [],
+      "intent_refs": [
+        "viewspec:motif:capabilities"
+      ],
+      "style_tokens": [
+        "density.compact"
+      ],
+      "props": {
+        "layout_role": "cluster",
+        "motif_kind": "table"
+      }
+    },
+    "dom-binding_capabilities_row_5_label": {
+      "ir_id": "binding_capabilities_row_5_label",
+      "primitive": "label",
+      "classes": [
+        "vs-label"
+      ],
+      "content_refs": [
+        "node:capabilities_row_5#attr:label"
+      ],
+      "intent_refs": [
+        "viewspec:binding:capabilities_row_5_label"
+      ],
+      "style_tokens": [
+        "tone.muted"
+      ],
+      "props": {
+        "text": "Portable Surfaces",
+        "binding_id": "capabilities_row_5_label",
+        "table_cell_role": "row_header"
+      }
+    },
+    "dom-binding_capabilities_row_5_value": {
+      "ir_id": "binding_capabilities_row_5_value",
+      "primitive": "value",
+      "classes": [
+        "vs-value"
+      ],
+      "content_refs": [
+        "node:capabilities_row_5#attr:value"
+      ],
+      "intent_refs": [
+        "viewspec:binding:capabilities_row_5_value"
+      ],
+      "style_tokens": [
+        "tone.neutral",
+        "emphasis.high"
+      ],
+      "props": {
+        "text": "html-tailwind and React locally; four integrity-checked targets through the paid API.",
+        "binding_id": "capabilities_row_5_value",
         "table_cell_role": "cell"
       }
     },
@@ -1035,7 +1469,7 @@
         "emphasis.high"
       ],
       "props": {
-        "text": "Emit IntentBundle or AppBundle JSON.",
+        "text": "Author IntentBundle or AppBundle JSON.",
         "binding_id": "agent_workflow_row_1_value",
         "table_cell_role": "cell"
       }
@@ -1161,7 +1595,7 @@
         "emphasis.high"
       ],
       "props": {
-        "text": "viewspec prove-app --with-shell writes the report.",
+        "text": "viewspec prove --intent compiles, checks, and renders the exact artifact.",
         "binding_id": "agent_workflow_row_3_value",
         "table_cell_role": "cell"
       }
@@ -1381,7 +1815,8 @@
       "classes": [
         "vs-grid",
         "vs-layout-grid",
-        "vs-motif-dashboard"
+        "vs-motif-dashboard",
+        "vs-role-metric-grid"
       ],
       "content_refs": [],
       "intent_refs": [
@@ -1393,8 +1828,10 @@
       "props": {
         "layout_role": "grid",
         "motif_kind": "dashboard",
-        "columns": 2,
-        "layout_strategy": "dashboard_grid_v0"
+        "columns": 1,
+        "layout_strategy": "dashboard_grid_v0",
+        "product_role": "metric_grid",
+        "aesthetic_layout_profile": "aesthetic.editorial_product"
       }
     },
     "dom-motif_artifact_identity_artifact_identity_card_1": {
@@ -1403,7 +1840,8 @@
       "classes": [
         "vs-surface",
         "vs-layout-surface",
-        "vs-motif-dashboard"
+        "vs-motif-dashboard",
+        "vs-role-metric-card"
       ],
       "content_refs": [],
       "intent_refs": [
@@ -1414,7 +1852,8 @@
       ],
       "props": {
         "layout_role": "surface",
-        "motif_kind": "dashboard"
+        "motif_kind": "dashboard",
+        "product_role": "metric_card"
       }
     },
     "dom-binding_artifact_identity_card_1_label": {
@@ -1464,7 +1903,8 @@
       "classes": [
         "vs-surface",
         "vs-layout-surface",
-        "vs-motif-dashboard"
+        "vs-motif-dashboard",
+        "vs-role-metric-card"
       ],
       "content_refs": [],
       "intent_refs": [
@@ -1475,7 +1915,8 @@
       ],
       "props": {
         "layout_role": "surface",
-        "motif_kind": "dashboard"
+        "motif_kind": "dashboard",
+        "product_role": "metric_card"
       }
     },
     "dom-binding_artifact_identity_card_2_label": {
@@ -1515,7 +1956,7 @@
         "emphasis.high"
       ],
       "props": {
-        "text": "Same intent, same bytes, same hash.",
+        "text": "Same source, design, and compiler version; same bytes and hash.",
         "binding_id": "artifact_identity_card_2_value"
       }
     }
@@ -1549,6 +1990,22 @@
         "dom-motif_proof_badges_proof_badges_card_5",
         "dom-binding_proof_badges_card_5_label",
         "dom-binding_proof_badges_card_5_value",
+        "dom-motif_quality_evidence",
+        "dom-motif_quality_evidence_quality_evidence_card_1",
+        "dom-binding_quality_evidence_card_1_label",
+        "dom-binding_quality_evidence_card_1_value",
+        "dom-motif_quality_evidence_quality_evidence_card_2",
+        "dom-binding_quality_evidence_card_2_label",
+        "dom-binding_quality_evidence_card_2_value",
+        "dom-motif_quality_evidence_quality_evidence_card_3",
+        "dom-binding_quality_evidence_card_3_label",
+        "dom-binding_quality_evidence_card_3_value",
+        "dom-motif_quality_evidence_quality_evidence_card_4",
+        "dom-binding_quality_evidence_card_4_label",
+        "dom-binding_quality_evidence_card_4_value",
+        "dom-motif_quality_evidence_quality_evidence_card_5",
+        "dom-binding_quality_evidence_card_5_label",
+        "dom-binding_quality_evidence_card_5_value",
         "dom-motif_compile_flow",
         "dom-motif_compile_flow_compile_flow_card_1",
         "dom-binding_compile_flow_card_1_label",
@@ -1572,6 +2029,9 @@
         "dom-motif_capabilities_capabilities_row_4",
         "dom-binding_capabilities_row_4_label",
         "dom-binding_capabilities_row_4_value",
+        "dom-motif_capabilities_capabilities_row_5",
+        "dom-binding_capabilities_row_5_label",
+        "dom-binding_capabilities_row_5_value",
         "dom-motif_agent_workflow",
         "dom-motif_agent_workflow_agent_workflow_row_1",
         "dom-binding_agent_workflow_row_1_label",
@@ -1824,6 +2284,166 @@
           "accessibility_label": null
         },
         {
+          "dom_id": "dom-motif_quality_evidence",
+          "ir_id": "motif_quality_evidence",
+          "primitive": "grid",
+          "tag": "div",
+          "visible_text": "",
+          "binding_id": null,
+          "action": null,
+          "accessibility_label": null
+        },
+        {
+          "dom_id": "dom-motif_quality_evidence_quality_evidence_card_1",
+          "ir_id": "motif_quality_evidence_quality_evidence_card_1",
+          "primitive": "surface",
+          "tag": "div",
+          "visible_text": "",
+          "binding_id": null,
+          "action": null,
+          "accessibility_label": null
+        },
+        {
+          "dom_id": "dom-binding_quality_evidence_card_1_label",
+          "ir_id": "binding_quality_evidence_card_1_label",
+          "primitive": "label",
+          "tag": "div",
+          "visible_text": "browser corpus",
+          "binding_id": "quality_evidence_card_1_label",
+          "action": null,
+          "accessibility_label": null
+        },
+        {
+          "dom_id": "dom-binding_quality_evidence_card_1_value",
+          "ir_id": "binding_quality_evidence_card_1_value",
+          "primitive": "value",
+          "tag": "div",
+          "visible_text": "10/10 conformant",
+          "binding_id": "quality_evidence_card_1_value",
+          "action": null,
+          "accessibility_label": null
+        },
+        {
+          "dom_id": "dom-motif_quality_evidence_quality_evidence_card_2",
+          "ir_id": "motif_quality_evidence_quality_evidence_card_2",
+          "primitive": "surface",
+          "tag": "div",
+          "visible_text": "",
+          "binding_id": null,
+          "action": null,
+          "accessibility_label": null
+        },
+        {
+          "dom_id": "dom-binding_quality_evidence_card_2_label",
+          "ir_id": "binding_quality_evidence_card_2_label",
+          "primitive": "label",
+          "tag": "div",
+          "visible_text": "viewports",
+          "binding_id": "quality_evidence_card_2_label",
+          "action": null,
+          "accessibility_label": null
+        },
+        {
+          "dom_id": "dom-binding_quality_evidence_card_2_value",
+          "ir_id": "binding_quality_evidence_card_2_value",
+          "primitive": "value",
+          "tag": "div",
+          "visible_text": "mobile \u00b7 tablet \u00b7 desktop",
+          "binding_id": "quality_evidence_card_2_value",
+          "action": null,
+          "accessibility_label": null
+        },
+        {
+          "dom_id": "dom-motif_quality_evidence_quality_evidence_card_3",
+          "ir_id": "motif_quality_evidence_quality_evidence_card_3",
+          "primitive": "surface",
+          "tag": "div",
+          "visible_text": "",
+          "binding_id": null,
+          "action": null,
+          "accessibility_label": null
+        },
+        {
+          "dom_id": "dom-binding_quality_evidence_card_3_label",
+          "ir_id": "binding_quality_evidence_card_3_label",
+          "primitive": "label",
+          "tag": "div",
+          "visible_text": "product quality",
+          "binding_id": "quality_evidence_card_3_label",
+          "action": null,
+          "accessibility_label": null
+        },
+        {
+          "dom_id": "dom-binding_quality_evidence_card_3_value",
+          "ir_id": "binding_quality_evidence_card_3_value",
+          "primitive": "value",
+          "tag": "div",
+          "visible_text": "10/10 first-compile passes \u00b7 0 critical issues",
+          "binding_id": "quality_evidence_card_3_value",
+          "action": null,
+          "accessibility_label": null
+        },
+        {
+          "dom_id": "dom-motif_quality_evidence_quality_evidence_card_4",
+          "ir_id": "motif_quality_evidence_quality_evidence_card_4",
+          "primitive": "surface",
+          "tag": "div",
+          "visible_text": "",
+          "binding_id": null,
+          "action": null,
+          "accessibility_label": null
+        },
+        {
+          "dom_id": "dom-binding_quality_evidence_card_4_label",
+          "ir_id": "binding_quality_evidence_card_4_label",
+          "primitive": "label",
+          "tag": "div",
+          "visible_text": "semantic corrections",
+          "binding_id": "quality_evidence_card_4_label",
+          "action": null,
+          "accessibility_label": null
+        },
+        {
+          "dom_id": "dom-binding_quality_evidence_card_4_value",
+          "ir_id": "binding_quality_evidence_card_4_value",
+          "primitive": "value",
+          "tag": "div",
+          "visible_text": "10/10 verified previews \u00b7 10 applied receipts",
+          "binding_id": "quality_evidence_card_4_value",
+          "action": null,
+          "accessibility_label": null
+        },
+        {
+          "dom_id": "dom-motif_quality_evidence_quality_evidence_card_5",
+          "ir_id": "motif_quality_evidence_quality_evidence_card_5",
+          "primitive": "surface",
+          "tag": "div",
+          "visible_text": "",
+          "binding_id": null,
+          "action": null,
+          "accessibility_label": null
+        },
+        {
+          "dom_id": "dom-binding_quality_evidence_card_5_label",
+          "ir_id": "binding_quality_evidence_card_5_label",
+          "primitive": "label",
+          "tag": "div",
+          "visible_text": "refinement gates",
+          "binding_id": "quality_evidence_card_5_label",
+          "action": null,
+          "accessibility_label": null
+        },
+        {
+          "dom_id": "dom-binding_quality_evidence_card_5_value",
+          "ir_id": "binding_quality_evidence_card_5_value",
+          "primitive": "value",
+          "tag": "div",
+          "visible_text": "8/8 passed",
+          "binding_id": "quality_evidence_card_5_value",
+          "action": null,
+          "accessibility_label": null
+        },
+        {
           "dom_id": "dom-motif_compile_flow",
           "ir_id": "motif_compile_flow",
           "primitive": "grid",
@@ -2038,7 +2658,7 @@
           "ir_id": "binding_capabilities_row_4_label",
           "primitive": "label",
           "tag": "th",
-          "visible_text": "Portable Surfaces",
+          "visible_text": "Semantic Correction",
           "binding_id": "capabilities_row_4_label",
           "action": null,
           "accessibility_label": null
@@ -2048,8 +2668,38 @@
           "ir_id": "binding_capabilities_row_4_value",
           "primitive": "value",
           "tag": "td",
-          "visible_text": "html-tailwind and React locally; four integrity-checked targets through the paid API.",
+          "visible_text": "Source-bound previews and applied receipts keep changes traceable.",
           "binding_id": "capabilities_row_4_value",
+          "action": null,
+          "accessibility_label": null
+        },
+        {
+          "dom_id": "dom-motif_capabilities_capabilities_row_5",
+          "ir_id": "motif_capabilities_capabilities_row_5",
+          "primitive": "cluster",
+          "tag": "tr",
+          "visible_text": "",
+          "binding_id": null,
+          "action": null,
+          "accessibility_label": null
+        },
+        {
+          "dom_id": "dom-binding_capabilities_row_5_label",
+          "ir_id": "binding_capabilities_row_5_label",
+          "primitive": "label",
+          "tag": "th",
+          "visible_text": "Portable Surfaces",
+          "binding_id": "capabilities_row_5_label",
+          "action": null,
+          "accessibility_label": null
+        },
+        {
+          "dom_id": "dom-binding_capabilities_row_5_value",
+          "ir_id": "binding_capabilities_row_5_value",
+          "primitive": "value",
+          "tag": "td",
+          "visible_text": "html-tailwind and React locally; four integrity-checked targets through the paid API.",
+          "binding_id": "capabilities_row_5_value",
           "action": null,
           "accessibility_label": null
         },
@@ -2088,7 +2738,7 @@
           "ir_id": "binding_agent_workflow_row_1_value",
           "primitive": "value",
           "tag": "td",
-          "visible_text": "Emit IntentBundle or AppBundle JSON.",
+          "visible_text": "Author IntentBundle or AppBundle JSON.",
           "binding_id": "agent_workflow_row_1_value",
           "action": null,
           "accessibility_label": null
@@ -2148,7 +2798,7 @@
           "ir_id": "binding_agent_workflow_row_3_value",
           "primitive": "value",
           "tag": "td",
-          "visible_text": "viewspec prove-app --with-shell writes the report.",
+          "visible_text": "viewspec prove --intent compiles, checks, and renders the exact artifact.",
           "binding_id": "agent_workflow_row_3_value",
           "action": null,
           "accessibility_label": null
@@ -2318,7 +2968,7 @@
           "ir_id": "binding_artifact_identity_card_2_value",
           "primitive": "value",
           "tag": "div",
-          "visible_text": "Same intent, same bytes, same hash.",
+          "visible_text": "Same source, design, and compiler version; same bytes and hash.",
           "binding_id": "artifact_identity_card_2_value",
           "action": null,
           "accessibility_label": null
@@ -2350,6 +3000,22 @@
         "dom-motif_proof_badges_proof_badges_card_5",
         "dom-binding_proof_badges_card_5_label",
         "dom-binding_proof_badges_card_5_value",
+        "dom-motif_quality_evidence",
+        "dom-motif_quality_evidence_quality_evidence_card_1",
+        "dom-binding_quality_evidence_card_1_label",
+        "dom-binding_quality_evidence_card_1_value",
+        "dom-motif_quality_evidence_quality_evidence_card_2",
+        "dom-binding_quality_evidence_card_2_label",
+        "dom-binding_quality_evidence_card_2_value",
+        "dom-motif_quality_evidence_quality_evidence_card_3",
+        "dom-binding_quality_evidence_card_3_label",
+        "dom-binding_quality_evidence_card_3_value",
+        "dom-motif_quality_evidence_quality_evidence_card_4",
+        "dom-binding_quality_evidence_card_4_label",
+        "dom-binding_quality_evidence_card_4_value",
+        "dom-motif_quality_evidence_quality_evidence_card_5",
+        "dom-binding_quality_evidence_card_5_label",
+        "dom-binding_quality_evidence_card_5_value",
         "dom-motif_compile_flow",
         "dom-motif_compile_flow_compile_flow_card_1",
         "dom-binding_compile_flow_card_1_label",
@@ -2373,6 +3039,9 @@
         "dom-motif_capabilities_capabilities_row_4",
         "dom-binding_capabilities_row_4_label",
         "dom-binding_capabilities_row_4_value",
+        "dom-motif_capabilities_capabilities_row_5",
+        "dom-binding_capabilities_row_5_label",
+        "dom-binding_capabilities_row_5_value",
         "dom-motif_agent_workflow",
         "dom-motif_agent_workflow_agent_workflow_row_1",
         "dom-binding_agent_workflow_row_1_label",
@@ -2625,6 +3294,166 @@
           "accessibility_label": null
         },
         {
+          "dom_id": "dom-motif_quality_evidence",
+          "ir_id": "motif_quality_evidence",
+          "primitive": "grid",
+          "tag": "div",
+          "visible_text": "",
+          "binding_id": null,
+          "action": null,
+          "accessibility_label": null
+        },
+        {
+          "dom_id": "dom-motif_quality_evidence_quality_evidence_card_1",
+          "ir_id": "motif_quality_evidence_quality_evidence_card_1",
+          "primitive": "surface",
+          "tag": "div",
+          "visible_text": "",
+          "binding_id": null,
+          "action": null,
+          "accessibility_label": null
+        },
+        {
+          "dom_id": "dom-binding_quality_evidence_card_1_label",
+          "ir_id": "binding_quality_evidence_card_1_label",
+          "primitive": "label",
+          "tag": "div",
+          "visible_text": "browser corpus",
+          "binding_id": "quality_evidence_card_1_label",
+          "action": null,
+          "accessibility_label": null
+        },
+        {
+          "dom_id": "dom-binding_quality_evidence_card_1_value",
+          "ir_id": "binding_quality_evidence_card_1_value",
+          "primitive": "value",
+          "tag": "div",
+          "visible_text": "10/10 conformant",
+          "binding_id": "quality_evidence_card_1_value",
+          "action": null,
+          "accessibility_label": null
+        },
+        {
+          "dom_id": "dom-motif_quality_evidence_quality_evidence_card_2",
+          "ir_id": "motif_quality_evidence_quality_evidence_card_2",
+          "primitive": "surface",
+          "tag": "div",
+          "visible_text": "",
+          "binding_id": null,
+          "action": null,
+          "accessibility_label": null
+        },
+        {
+          "dom_id": "dom-binding_quality_evidence_card_2_label",
+          "ir_id": "binding_quality_evidence_card_2_label",
+          "primitive": "label",
+          "tag": "div",
+          "visible_text": "viewports",
+          "binding_id": "quality_evidence_card_2_label",
+          "action": null,
+          "accessibility_label": null
+        },
+        {
+          "dom_id": "dom-binding_quality_evidence_card_2_value",
+          "ir_id": "binding_quality_evidence_card_2_value",
+          "primitive": "value",
+          "tag": "div",
+          "visible_text": "mobile \u00b7 tablet \u00b7 desktop",
+          "binding_id": "quality_evidence_card_2_value",
+          "action": null,
+          "accessibility_label": null
+        },
+        {
+          "dom_id": "dom-motif_quality_evidence_quality_evidence_card_3",
+          "ir_id": "motif_quality_evidence_quality_evidence_card_3",
+          "primitive": "surface",
+          "tag": "div",
+          "visible_text": "",
+          "binding_id": null,
+          "action": null,
+          "accessibility_label": null
+        },
+        {
+          "dom_id": "dom-binding_quality_evidence_card_3_label",
+          "ir_id": "binding_quality_evidence_card_3_label",
+          "primitive": "label",
+          "tag": "div",
+          "visible_text": "product quality",
+          "binding_id": "quality_evidence_card_3_label",
+          "action": null,
+          "accessibility_label": null
+        },
+        {
+          "dom_id": "dom-binding_quality_evidence_card_3_value",
+          "ir_id": "binding_quality_evidence_card_3_value",
+          "primitive": "value",
+          "tag": "div",
+          "visible_text": "10/10 first-compile passes \u00b7 0 critical issues",
+          "binding_id": "quality_evidence_card_3_value",
+          "action": null,
+          "accessibility_label": null
+        },
+        {
+          "dom_id": "dom-motif_quality_evidence_quality_evidence_card_4",
+          "ir_id": "motif_quality_evidence_quality_evidence_card_4",
+          "primitive": "surface",
+          "tag": "div",
+          "visible_text": "",
+          "binding_id": null,
+          "action": null,
+          "accessibility_label": null
+        },
+        {
+          "dom_id": "dom-binding_quality_evidence_card_4_label",
+          "ir_id": "binding_quality_evidence_card_4_label",
+          "primitive": "label",
+          "tag": "div",
+          "visible_text": "semantic corrections",
+          "binding_id": "quality_evidence_card_4_label",
+          "action": null,
+          "accessibility_label": null
+        },
+        {
+          "dom_id": "dom-binding_quality_evidence_card_4_value",
+          "ir_id": "binding_quality_evidence_card_4_value",
+          "primitive": "value",
+          "tag": "div",
+          "visible_text": "10/10 verified previews \u00b7 10 applied receipts",
+          "binding_id": "quality_evidence_card_4_value",
+          "action": null,
+          "accessibility_label": null
+        },
+        {
+          "dom_id": "dom-motif_quality_evidence_quality_evidence_card_5",
+          "ir_id": "motif_quality_evidence_quality_evidence_card_5",
+          "primitive": "surface",
+          "tag": "div",
+          "visible_text": "",
+          "binding_id": null,
+          "action": null,
+          "accessibility_label": null
+        },
+        {
+          "dom_id": "dom-binding_quality_evidence_card_5_label",
+          "ir_id": "binding_quality_evidence_card_5_label",
+          "primitive": "label",
+          "tag": "div",
+          "visible_text": "refinement gates",
+          "binding_id": "quality_evidence_card_5_label",
+          "action": null,
+          "accessibility_label": null
+        },
+        {
+          "dom_id": "dom-binding_quality_evidence_card_5_value",
+          "ir_id": "binding_quality_evidence_card_5_value",
+          "primitive": "value",
+          "tag": "div",
+          "visible_text": "8/8 passed",
+          "binding_id": "quality_evidence_card_5_value",
+          "action": null,
+          "accessibility_label": null
+        },
+        {
           "dom_id": "dom-motif_compile_flow",
           "ir_id": "motif_compile_flow",
           "primitive": "grid",
@@ -2839,7 +3668,7 @@
           "ir_id": "binding_capabilities_row_4_label",
           "primitive": "label",
           "tag": "th",
-          "visible_text": "Portable Surfaces",
+          "visible_text": "Semantic Correction",
           "binding_id": "capabilities_row_4_label",
           "action": null,
           "accessibility_label": null
@@ -2849,8 +3678,38 @@
           "ir_id": "binding_capabilities_row_4_value",
           "primitive": "value",
           "tag": "td",
-          "visible_text": "html-tailwind and React locally; four integrity-checked targets through the paid API.",
+          "visible_text": "Source-bound previews and applied receipts keep changes traceable.",
           "binding_id": "capabilities_row_4_value",
+          "action": null,
+          "accessibility_label": null
+        },
+        {
+          "dom_id": "dom-motif_capabilities_capabilities_row_5",
+          "ir_id": "motif_capabilities_capabilities_row_5",
+          "primitive": "cluster",
+          "tag": "tr",
+          "visible_text": "",
+          "binding_id": null,
+          "action": null,
+          "accessibility_label": null
+        },
+        {
+          "dom_id": "dom-binding_capabilities_row_5_label",
+          "ir_id": "binding_capabilities_row_5_label",
+          "primitive": "label",
+          "tag": "th",
+          "visible_text": "Portable Surfaces",
+          "binding_id": "capabilities_row_5_label",
+          "action": null,
+          "accessibility_label": null
+        },
+        {
+          "dom_id": "dom-binding_capabilities_row_5_value",
+          "ir_id": "binding_capabilities_row_5_value",
+          "primitive": "value",
+          "tag": "td",
+          "visible_text": "html-tailwind and React locally; four integrity-checked targets through the paid API.",
+          "binding_id": "capabilities_row_5_value",
           "action": null,
           "accessibility_label": null
         },
@@ -2889,7 +3748,7 @@
           "ir_id": "binding_agent_workflow_row_1_value",
           "primitive": "value",
           "tag": "td",
-          "visible_text": "Emit IntentBundle or AppBundle JSON.",
+          "visible_text": "Author IntentBundle or AppBundle JSON.",
           "binding_id": "agent_workflow_row_1_value",
           "action": null,
           "accessibility_label": null
@@ -2949,7 +3808,7 @@
           "ir_id": "binding_agent_workflow_row_3_value",
           "primitive": "value",
           "tag": "td",
-          "visible_text": "viewspec prove-app --with-shell writes the report.",
+          "visible_text": "viewspec prove --intent compiles, checks, and renders the exact artifact.",
           "binding_id": "agent_workflow_row_3_value",
           "action": null,
           "accessibility_label": null
@@ -3119,13 +3978,13 @@
           "ir_id": "binding_artifact_identity_card_2_value",
           "primitive": "value",
           "tag": "div",
-          "visible_text": "Same intent, same bytes, same hash.",
+          "visible_text": "Same source, design, and compiler version; same bytes and hash.",
           "binding_id": "artifact_identity_card_2_value",
           "action": null,
           "accessibility_label": null
         }
       ]
     },
-    "digest": "6acde908b15c8a1505edc1908cdc45349a1711a40264d8a87ef1e342cba138df"
+    "digest": "8146a7a14f8f5490c22b86971f2b431c9d8b275e6c1497d78c2e6d6916b24443"
   }
 }

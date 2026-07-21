@@ -6,9 +6,10 @@
   "same_revision_evidence": {
     "browser_corpus": {
       "path": "conformance/refinement/verification-report-v2.json",
-      "sha256": "2dcbf39798401e3efd8791516e84193535afd5f3f2aad1717f1c55e18ae85314",
+      "sha256": "142f048643f03489c81bceda92d778fc45c3731ee8b35a500819649feb7f49c8",
       "case_count": 10,
-      "conformant_count": 10
+      "conformant_count": 10,
+      "sdk_version": "0.3.0b5"
     },
     "full_suite": {
       "command": ".venv/bin/pytest -q --tb=short",
