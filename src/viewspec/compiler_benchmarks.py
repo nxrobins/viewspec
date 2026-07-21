@@ -16,7 +16,11 @@ from pathlib import Path
 from typing import Any
 
 from viewspec.agent import validate_agent_intent_bundle
-from viewspec.compiler import PRODUCT_SURFACE_PLANNER_V1_SURFACE, compile
+from viewspec.compiler import (
+    PRODUCT_SINGLE_COLUMN_SURFACE_V1,
+    PRODUCT_SURFACE_PLANNER_V1_SURFACE,
+    compile,
+)
 from viewspec.emitters.html_tailwind import HtmlTailwindEmitter
 from viewspec.emitters.react_tailwind_tsx import ReactTailwindTsxEmitter
 from viewspec.emitters.react_tsx import ReactTsxEmitter
@@ -411,11 +415,14 @@ def _assert_planner_metrics_are_derived(summary: dict[str, Any], sources: dict[s
     ast_metrics = metrics.get("ast")
     if not isinstance(ast_metrics, dict) or not ast_metrics.get("workspace_surface"):
         return
-    if ast_metrics.get("workspace_surface") != PRODUCT_SURFACE_PLANNER_V1_SURFACE:
+    if ast_metrics.get("workspace_surface") not in {
+        PRODUCT_SINGLE_COLUMN_SURFACE_V1,
+        PRODUCT_SURFACE_PLANNER_V1_SURFACE,
+    }:
         raise BenchmarkConstraintError(
             "PLANNER_METRIC_NOT_DERIVED",
             fixture_id,
-            "Planner workspace surface metric is not the compiler-owned V1 marker.",
+            "Planner surface metric is not a compiler-owned V1 marker.",
         )
     required_sources = {
         "workspace_surface": "ast",

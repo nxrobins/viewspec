@@ -1,0 +1,283 @@
+{
+  "schema_version": 1,
+  "substrate": {
+    "id": "production_release_substrate",
+    "nodes": {
+      "build_passed": {
+        "attrs": {
+          "label": "1. Build passed"
+        },
+        "edges": {},
+        "id": "build_passed",
+        "kind": "outline_item",
+        "slots": {}
+      },
+      "deploy_production": {
+        "attrs": {
+          "label": "3. Deploy to production"
+        },
+        "edges": {},
+        "id": "deploy_production",
+        "kind": "outline_item",
+        "slots": {}
+      },
+      "production_release": {
+        "attrs": {
+          "title": "Production release"
+        },
+        "edges": {},
+        "id": "production_release",
+        "kind": "app",
+        "slots": {}
+      },
+      "release_changes": {
+        "attrs": {
+          "label": "Changes",
+          "value": "14 commits \u00b7 6 services"
+        },
+        "edges": {},
+        "id": "release_changes",
+        "kind": "detail_field",
+        "slots": {}
+      },
+      "release_environment": {
+        "attrs": {
+          "label": "Environment",
+          "value": "Production"
+        },
+        "edges": {},
+        "id": "release_environment",
+        "kind": "detail_field",
+        "slots": {}
+      },
+      "release_intro": {
+        "attrs": {
+          "description": "Build and policy checks passed. Confirm the production change before deployment.",
+          "eyebrow": "Release 2.8.0",
+          "title": "Review and deploy"
+        },
+        "edges": {},
+        "id": "release_intro",
+        "kind": "hero",
+        "slots": {}
+      },
+      "release_risk": {
+        "attrs": {
+          "label": "Risk",
+          "value": "Medium \u00b7 database migration"
+        },
+        "edges": {},
+        "id": "release_risk",
+        "kind": "detail_field",
+        "slots": {}
+      },
+      "review_changes": {
+        "attrs": {
+          "label": "2. Review changes \u2014 current"
+        },
+        "edges": {},
+        "id": "review_changes",
+        "kind": "outline_item",
+        "slots": {}
+      }
+    },
+    "root_id": "production_release"
+  },
+  "view_spec": {
+    "actions": [
+      {
+        "id": "deploy_release",
+        "kind": "submit",
+        "label": "Deploy release 2.8.0",
+        "payload_bindings": [],
+        "target_ref": null,
+        "target_region": "main"
+      }
+    ],
+    "bindings": [
+      {
+        "address": "node:release_intro#attr:eyebrow",
+        "cardinality": "exactly_once",
+        "id": "release_intro_eyebrow",
+        "present_as": "label",
+        "target_region": "main"
+      },
+      {
+        "address": "node:release_intro#attr:title",
+        "cardinality": "exactly_once",
+        "id": "release_intro_title",
+        "present_as": "value",
+        "target_region": "main"
+      },
+      {
+        "address": "node:release_intro#attr:description",
+        "cardinality": "exactly_once",
+        "id": "release_intro_description",
+        "present_as": "text",
+        "target_region": "main"
+      },
+      {
+        "address": "node:build_passed#attr:label",
+        "cardinality": "exactly_once",
+        "id": "build_passed_label",
+        "present_as": "label",
+        "target_region": "main"
+      },
+      {
+        "address": "node:review_changes#attr:label",
+        "cardinality": "exactly_once",
+        "id": "review_changes_label",
+        "present_as": "label",
+        "target_region": "main"
+      },
+      {
+        "address": "node:deploy_production#attr:label",
+        "cardinality": "exactly_once",
+        "id": "deploy_production_label",
+        "present_as": "label",
+        "target_region": "main"
+      },
+      {
+        "address": "node:release_environment#attr:label",
+        "cardinality": "exactly_once",
+        "id": "release_environment_label",
+        "present_as": "label",
+        "target_region": "main"
+      },
+      {
+        "address": "node:release_environment#attr:value",
+        "cardinality": "exactly_once",
+        "id": "release_environment_value",
+        "present_as": "value",
+        "target_region": "main"
+      },
+      {
+        "address": "node:release_changes#attr:label",
+        "cardinality": "exactly_once",
+        "id": "release_changes_label",
+        "present_as": "label",
+        "target_region": "main"
+      },
+      {
+        "address": "node:release_changes#attr:value",
+        "cardinality": "exactly_once",
+        "id": "release_changes_value",
+        "present_as": "value",
+        "target_region": "main"
+      },
+      {
+        "address": "node:release_risk#attr:label",
+        "cardinality": "exactly_once",
+        "id": "release_risk_label",
+        "present_as": "label",
+        "target_region": "main"
+      },
+      {
+        "address": "node:release_risk#attr:value",
+        "cardinality": "exactly_once",
+        "id": "release_risk_value",
+        "present_as": "value",
+        "target_region": "main"
+      }
+    ],
+    "complexity_tier": 2,
+    "groups": [
+      {
+        "id": "release_intro_content",
+        "kind": "ordered",
+        "members": [
+          "release_intro_eyebrow",
+          "release_intro_title",
+          "release_intro_description"
+        ],
+        "target_region": "main"
+      },
+      {
+        "id": "release_step_items",
+        "kind": "ordered",
+        "members": [
+          "build_passed_label",
+          "review_changes_label",
+          "deploy_production_label"
+        ],
+        "target_region": "main"
+      },
+      {
+        "id": "release_summary_fields",
+        "kind": "ordered",
+        "members": [
+          "release_environment_label",
+          "release_environment_value",
+          "release_changes_label",
+          "release_changes_value",
+          "release_risk_label",
+          "release_risk_value"
+        ],
+        "target_region": "main"
+      }
+    ],
+    "id": "production_release",
+    "motifs": [
+      {
+        "id": "release_intro",
+        "kind": "hero",
+        "members": [
+          "release_intro_eyebrow",
+          "release_intro_title",
+          "release_intro_description"
+        ],
+        "region": "main"
+      },
+      {
+        "id": "release_steps",
+        "kind": "outline",
+        "members": [
+          "build_passed_label",
+          "review_changes_label",
+          "deploy_production_label"
+        ],
+        "region": "main"
+      },
+      {
+        "id": "release_summary",
+        "kind": "detail",
+        "members": [
+          "release_environment_label",
+          "release_environment_value",
+          "release_changes_label",
+          "release_changes_value",
+          "release_risk_label",
+          "release_risk_value"
+        ],
+        "region": "main"
+      }
+    ],
+    "regions": [
+      {
+        "id": "root",
+        "layout": "stack",
+        "max_children": null,
+        "min_children": 1,
+        "parent_region": "",
+        "role": "root"
+      },
+      {
+        "id": "main",
+        "layout": "stack",
+        "max_children": null,
+        "min_children": 1,
+        "parent_region": "root",
+        "role": "main"
+      }
+    ],
+    "root_region": "root",
+    "styles": [
+      {
+        "id": "aesthetic_profile",
+        "target": "view:production_release",
+        "token": "aesthetic.premium_saas"
+      }
+    ],
+    "substrate_id": "production_release_substrate"
+  }
+}

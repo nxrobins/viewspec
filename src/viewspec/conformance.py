@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
+from contextlib import contextmanager
 from dataclasses import dataclass
+import hashlib
 import json
 from pathlib import Path, PurePosixPath
 import re
 import tempfile
-from typing import Any, Mapping
+from typing import Any, Iterator, Mapping
 
 from viewspec.intent_tools import compile_intent_bundle_file_tool
 from viewspec.local_verify import verify_local_artifact
@@ -200,19 +202,54 @@ def _case_intent(case: ConformanceCase, workspace: Path) -> Path:
     return path
 
 
+def _file_sha256(path: Path) -> str:
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def _compile_errors(compiled: Mapping[str, Any]) -> list[Any]:
+    errors = compiled.get("errors")
+    if isinstance(errors, list):
+        return errors
+    issues = compiled.get("issues")
+    return issues if isinstance(issues, list) else []
+
+
+def _prepare_persistent_workspace(path: Path) -> Path:
+    workspace = path.resolve()
+    if workspace.exists():
+        if workspace.is_symlink() or not workspace.is_dir() or any(workspace.iterdir()):
+            raise FileExistsError(
+                f"Conformance evidence output must be an empty directory: {workspace}"
+            )
+    else:
+        workspace.mkdir(parents=True)
+    return workspace
+
+
+@contextmanager
+def _corpus_workspace(evidence_out: str | Path | None) -> Iterator[tuple[Path, bool]]:
+    if evidence_out is not None:
+        yield _prepare_persistent_workspace(Path(evidence_out)), True
+        return
+    with tempfile.TemporaryDirectory(prefix="viewspec-conformance-") as temp_name:
+        yield Path(temp_name), False
+
+
 def run_conformance_corpus(
     corpus: ConformanceCorpus,
     *,
     install: bool = False,
+    evidence_out: str | Path | None = None,
 ) -> dict[str, Any]:
-    """Compile and verify every corpus case in a disposable workspace."""
+    """Compile and verify every corpus case, optionally retaining review evidence."""
     case_reports = []
-    with tempfile.TemporaryDirectory(prefix="viewspec-conformance-") as temp_name:
-        workspace = Path(temp_name)
+    with _corpus_workspace(evidence_out) as (workspace, retained):
         for case in corpus.cases:
             case_root = workspace / case.id
             case_root.mkdir()
             intent_path = _case_intent(case, case_root)
+            source_sha256 = _file_sha256(case.source_path)
+            intent_sha256 = _file_sha256(intent_path)
             artifact_dir = case_root / "artifact"
             compiled = compile_intent_bundle_file_tool(
                 intent_path,
@@ -222,25 +259,29 @@ def run_conformance_corpus(
                 allow_outside_cwd=True,
             )
             if compiled.get("ok") is not True:
+                compile_errors = _compile_errors(compiled)
                 case_reports.append(
                     {
                         "id": case.id,
                         "ok": False,
                         "expected_status": case.expected_status,
                         "actual_status": "compile_failed",
+                        "source_sha256": source_sha256,
+                        "intent_sha256": intent_sha256,
+                        "artifact_sha256": None,
+                        "plan_sha256": None,
                         "verification_id": None,
                         "diagnostic_codes": sorted(
                             {
                                 str(item.get("code"))
-                                for item in compiled.get("issues", [])
+                                for item in compile_errors
                                 if isinstance(item, dict) and item.get("code")
                             }
                         ),
                         "evidence_roles": [],
-                        "compile_errors": compiled.get(
-                            "errors",
-                            compiled.get("issues", []),
-                        ),
+                        "evidence": [],
+                        "evidence_dir": None,
+                        "compile_errors": compile_errors,
                     }
                 )
                 continue
@@ -262,9 +303,15 @@ def run_conformance_corpus(
                     "ok": ok,
                     "expected_status": case.expected_status,
                     "actual_status": result.status,
+                    "source_sha256": source_sha256,
+                    "intent_sha256": intent_sha256,
+                    "artifact_sha256": result.artifact_sha256,
+                    "plan_sha256": result.plan.plan_sha256,
                     "verification_id": result.verification_id,
                     "diagnostic_codes": sorted({item.code for item in result.diagnostics}),
                     "evidence_roles": list(evidence_roles),
+                    "evidence": [item.to_json() for item in result.evidence],
+                    "evidence_dir": f"{case.id}/evidence" if retained else None,
                     "compile_errors": [],
                 }
             )
@@ -272,6 +319,7 @@ def run_conformance_corpus(
         "schema_version": CONFORMANCE_CORPUS_SCHEMA_VERSION,
         "ok": all(item["ok"] for item in case_reports),
         "case_count": len(case_reports),
+        "evidence_root": str(workspace) if retained else None,
         "cases": case_reports,
     }
 

@@ -1,0 +1,258 @@
+{
+  "schema_version": 1,
+  "scorecard_id": "core-refinement-v2",
+  "status": "product_quality_gate_passed",
+  "supersedes": "scorecard-v1.json",
+  "rubric": {
+    "dimensions": [
+      "task_clarity",
+      "information_hierarchy",
+      "state_completeness",
+      "responsive_composition",
+      "fit_and_finish"
+    ],
+    "dimension_scale": {
+      "minimum": 1,
+      "maximum": 5
+    },
+    "brief_pass": {
+      "minimum_dimension": 3,
+      "minimum_mean": 4.0,
+      "critical_issue_auto_fails": true
+    }
+  },
+  "verification": {
+    "report_path": "conformance/refinement/verification-report-v2.json",
+    "report_sha256": "2dcbf39798401e3efd8791516e84193535afd5f3f2aad1717f1c55e18ae85314",
+    "case_count": 10,
+    "conformant_count": 10,
+    "canonical_viewports": [
+      "mobile",
+      "tablet",
+      "desktop"
+    ],
+    "screenshot_root": "conformance/refinement/evidence-v2"
+  },
+  "correction_proof": {
+    "path": "conformance/refinement/correction-proof-v1.json",
+    "sha256": "bcf912dcf9e0b01f9a244d9ffbc4bb4baa048296dfc5de956db88450d78d79a8",
+    "case_count": 10,
+    "verified_preview_count": 10,
+    "applied_receipt_count": 10
+  },
+  "summary": {
+    "first_compile_pass_count": 10,
+    "required_first_compile_pass_count": 9,
+    "corpus_pass": true,
+    "critical_issue_count": 0,
+    "changes_from_v1": [
+      "existing semantic root titles project into traceable page headers when no explicit header is authored",
+      "the starter queue includes an item action",
+      "the starter dashboard includes summary, trend, and priority metrics",
+      "the collection fixture models a background refresh over a current empty result",
+      "verification screenshots capture initial authored values before action-contract probes mutate controls"
+    ]
+  },
+  "cases": [
+    {
+      "id": "app-detail",
+      "source_sha256": "d2917c0bc2f416d8ddcf6ea3b6fee56c4320e650b20d506cf2dd68d4bf946d75",
+      "intent_sha256": "796b2b1979bacd87a9e494a8cf1cc26c6eac3f8038c8bc93032c0a77140fdb95",
+      "artifact_sha256": "e97795fc8bc02725cb4831e40b40f2bece8c782169662895e0a6a64009303965",
+      "verification_id": "vvr_f4330052f6fb1a282a58a5759a7cc76a",
+      "screenshot_directory": "conformance/refinement/evidence-v2/app-detail",
+      "desktop_screenshot_sha256": "ba496c29616f86eba05a82ffb73c8c709fcc83f72d34570d0a835cae5f96a439",
+      "scores": {
+        "task_clarity": 4,
+        "information_hierarchy": 4,
+        "state_completeness": 4,
+        "responsive_composition": 4,
+        "fit_and_finish": 4
+      },
+      "mean": 4.0,
+      "critical_issues": [],
+      "pass": true,
+      "review": "The semantic record title now frames a readable, responsive detail surface without duplicated content."
+    },
+    {
+      "id": "app-queue",
+      "source_sha256": "d2917c0bc2f416d8ddcf6ea3b6fee56c4320e650b20d506cf2dd68d4bf946d75",
+      "intent_sha256": "674cd9787e83642529d5c2242eb4b0712fef5bce5cf32aef8c42e37881f33b43",
+      "artifact_sha256": "08268d744e321f324585e0010a38a6f56a7b8af83e3c38755c80e9520e0aa6ae",
+      "verification_id": "vvr_2f74796454bf0d3eb47f12fbfa58a9b6",
+      "screenshot_directory": "conformance/refinement/evidence-v2/app-queue",
+      "desktop_screenshot_sha256": "a0ee56385a236fe3778b8db529c88a5c598fe04f673e1fc9aa3aaa1399b28a6f",
+      "scores": {
+        "task_clarity": 4,
+        "information_hierarchy": 4,
+        "state_completeness": 4,
+        "responsive_composition": 4,
+        "fit_and_finish": 4
+      },
+      "mean": 4.0,
+      "critical_issues": [],
+      "pass": true,
+      "review": "The queue is titled, rows are directly comparable, and the selected incident has a clear semantic action."
+    },
+    {
+      "id": "collection-states",
+      "source_sha256": "011872d9c56ea49f9f5ab1edc612f8cd238bebb2012d8972f1d1064b0beafc65",
+      "intent_sha256": "011872d9c56ea49f9f5ab1edc612f8cd238bebb2012d8972f1d1064b0beafc65",
+      "artifact_sha256": "da4800f91f4998f812f2c445c03a6049b980c948c2735c7a574ba20e5cdb6884",
+      "verification_id": "vvr_bfda35c0691c2479bebd3418708e4a1b",
+      "screenshot_directory": "conformance/refinement/evidence-v2/collection-states",
+      "desktop_screenshot_sha256": "deaf2da8aea8b2e75e331d7c177394a0634ce462c3047106a7f3d40d15bcb6bb",
+      "scores": {
+        "task_clarity": 4,
+        "information_hierarchy": 4,
+        "state_completeness": 4,
+        "responsive_composition": 4,
+        "fit_and_finish": 4
+      },
+      "mean": 4.0,
+      "critical_issues": [],
+      "pass": true,
+      "review": "The current empty result and non-blocking background refresh are distinct, useful, and recoverable."
+    },
+    {
+      "id": "data-dense-dashboard",
+      "source_sha256": "2f927effe0949f688418e477c09eab56bc3b57dbe289f301979221d723018f3f",
+      "intent_sha256": "2f927effe0949f688418e477c09eab56bc3b57dbe289f301979221d723018f3f",
+      "artifact_sha256": "64e965620363d53702f2e96aa2a9ecf88220520e423a8261e13cc53472147780",
+      "verification_id": "vvr_bdf019e194f3806fbddaf5a601acf396",
+      "screenshot_directory": "conformance/refinement/evidence-v2/data-dense-dashboard",
+      "desktop_screenshot_sha256": "0d129346fb6c1b0ca74d9bce5c7db56648f4e460b681846f275f3479b7f5097d",
+      "scores": {
+        "task_clarity": 4,
+        "information_hierarchy": 4,
+        "state_completeness": 4,
+        "responsive_composition": 4,
+        "fit_and_finish": 4
+      },
+      "mean": 4.0,
+      "critical_issues": [],
+      "pass": true,
+      "review": "Summary metrics, weekly direction, and the priority signal are visible in one scan and reflow cleanly."
+    },
+    {
+      "id": "dense-operational-console",
+      "source_sha256": "f94b55facb2652507b9797d8da38af1f995fe81f6b97cf011c86ff168ab8d62a",
+      "intent_sha256": "f94b55facb2652507b9797d8da38af1f995fe81f6b97cf011c86ff168ab8d62a",
+      "artifact_sha256": "08abc472e50f2a360774d3779a6fc49b7b0d85714d2d2cc02f48b4783ef916cc",
+      "verification_id": "vvr_78454f31f1d9a79a57dc06272131f7af",
+      "screenshot_directory": "conformance/refinement/evidence-v2/dense-operational-console",
+      "desktop_screenshot_sha256": "40623cbcd586b72ddffa360638089e8eb66867bf36779c0cfc56c7b3c288f1e2",
+      "scores": {
+        "task_clarity": 5,
+        "information_hierarchy": 4,
+        "state_completeness": 4,
+        "responsive_composition": 4,
+        "fit_and_finish": 4
+      },
+      "mean": 4.2,
+      "critical_issues": [],
+      "pass": true,
+      "review": "Failures are the first message, dense operational context remains scannable, and recovery starts from one action."
+    },
+    {
+      "id": "interactive-form",
+      "source_sha256": "16c47f6f5d01fd03135e4b0cbdfbf469bff1130adc210e544c1bc5cf8ee4dcf7",
+      "intent_sha256": "16c47f6f5d01fd03135e4b0cbdfbf469bff1130adc210e544c1bc5cf8ee4dcf7",
+      "artifact_sha256": "208a7caf310a621e674a874802beaf46778128d62530a5bc03062006f462fb23",
+      "verification_id": "vvr_bcfc7e419607638c8230d03131b65bae",
+      "screenshot_directory": "conformance/refinement/evidence-v2/interactive-form",
+      "desktop_screenshot_sha256": "055dc20de493379e04edba1125ab540a9ba23bd3fb06a91166ae002260d54289",
+      "scores": {
+        "task_clarity": 4,
+        "information_hierarchy": 4,
+        "state_completeness": 4,
+        "responsive_composition": 4,
+        "fit_and_finish": 4
+      },
+      "mean": 4.0,
+      "critical_issues": [],
+      "pass": true,
+      "review": "A titled form, labelled fields, and the submit action remain clear before verifier interaction mutates input state."
+    },
+    {
+      "id": "landing-intent",
+      "source_sha256": "9f274154fbaa312a4440b80bcc0f55d1bb837e13c2cbccc75ae2cbd517eaf500",
+      "intent_sha256": "9f274154fbaa312a4440b80bcc0f55d1bb837e13c2cbccc75ae2cbd517eaf500",
+      "artifact_sha256": "b39894e775b846294e002ce193a0829f7c67d47656ecd5e92086203843a49df7",
+      "verification_id": "vvr_421b0105786a34c469e748fef85b92fd",
+      "screenshot_directory": "conformance/refinement/evidence-v2/landing-intent",
+      "desktop_screenshot_sha256": "c49b989bc2886fbc1f73be68bfcae8edfe3a0d71c309154c9e5a5e667c96e479",
+      "scores": {
+        "task_clarity": 4,
+        "information_hierarchy": 4,
+        "state_completeness": 4,
+        "responsive_composition": 4,
+        "fit_and_finish": 4
+      },
+      "mean": 4.0,
+      "critical_issues": [],
+      "pass": true,
+      "review": "The content surface preserves narrative hierarchy and traceability at all canonical viewports."
+    },
+    {
+      "id": "multi-step-workflow",
+      "source_sha256": "5936001fcfaf1e8e76e5cd9391c41388981835133216cd49c9af9fc8c2d91bec",
+      "intent_sha256": "5936001fcfaf1e8e76e5cd9391c41388981835133216cd49c9af9fc8c2d91bec",
+      "artifact_sha256": "6e64e94094a7cdb083e1a166737e655a9f734a0d7db0d873416a1e86536f7d66",
+      "verification_id": "vvr_02a3cd5aba3f1b3c1c803381df0bcb19",
+      "screenshot_directory": "conformance/refinement/evidence-v2/multi-step-workflow",
+      "desktop_screenshot_sha256": "9367739f9d5a40727414290be8eb8ae8b275f06173ef4367f53abfd550178e03",
+      "scores": {
+        "task_clarity": 5,
+        "information_hierarchy": 4,
+        "state_completeness": 4,
+        "responsive_composition": 4,
+        "fit_and_finish": 4
+      },
+      "mean": 4.2,
+      "critical_issues": [],
+      "pass": true,
+      "review": "Progress, current step, deployment context, and the next action form one coherent decision path."
+    },
+    {
+      "id": "outcome-states",
+      "source_sha256": "b4fb8cd6d9815c797babba88d82423ffccb32aa28d3aa27cf6807118ed40f819",
+      "intent_sha256": "b4fb8cd6d9815c797babba88d82423ffccb32aa28d3aa27cf6807118ed40f819",
+      "artifact_sha256": "d2acb703f7db66e0709a6288c9fbed5ea58245dd34ebd2a92b4de097ee9e4606",
+      "verification_id": "vvr_000e90eb782ef8c3d3d9d0a2129e2df0",
+      "screenshot_directory": "conformance/refinement/evidence-v2/outcome-states",
+      "desktop_screenshot_sha256": "c880e53b6fd2dd6b666dc5c52913c6cfa879113744deb03dba3a5d28b2c9b415",
+      "scores": {
+        "task_clarity": 4,
+        "information_hierarchy": 4,
+        "state_completeness": 4,
+        "responsive_composition": 4,
+        "fit_and_finish": 4
+      },
+      "mean": 4.0,
+      "critical_issues": [],
+      "pass": true,
+      "review": "Completed deployment context remains visible while the failed rollback is explained and recoverable."
+    },
+    {
+      "id": "settings",
+      "source_sha256": "8f45cc5b92f046ae38d09d547ec03fbb225b3ed8fee24b2c4f70be40b747c738",
+      "intent_sha256": "8f45cc5b92f046ae38d09d547ec03fbb225b3ed8fee24b2c4f70be40b747c738",
+      "artifact_sha256": "58fc73d729807813b2ad43a011f7a6d5d868d84cf146ffc05130b7031275e59f",
+      "verification_id": "vvr_4a32b043f90c6a0c72d2703a14515ccf",
+      "screenshot_directory": "conformance/refinement/evidence-v2/settings",
+      "desktop_screenshot_sha256": "92653e9cb1717ca66dd1b5350621eec60709e04966c7c34a83a205a1b806c60c",
+      "scores": {
+        "task_clarity": 4,
+        "information_hierarchy": 4,
+        "state_completeness": 4,
+        "responsive_composition": 4,
+        "fit_and_finish": 4
+      },
+      "mean": 4.0,
+      "critical_issues": [],
+      "pass": true,
+      "review": "Current values, grouped controls, and the save action are immediately understandable."
+    }
+  ]
+}

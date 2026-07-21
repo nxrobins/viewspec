@@ -343,6 +343,31 @@ def test_preview_is_deterministic_across_patch_key_order() -> None:
     assert left.inverse_patch.to_json() == right.inverse_patch.to_json()
 
 
+def test_verified_preview_approval_uses_stable_proof_identity_not_runtime_evidence_hash(monkeypatch) -> None:
+    source = _source_text(starter_intent_payload("dashboard"))
+    patch = _semantic_attr_patch(source, "Starter Dashboard", "Changed")
+    result_hashes = iter(("a" * 64, "b" * 64))
+
+    def verify_candidate(_candidate_text: str, _source_kind: str, *, install: bool):
+        assert install is False
+        return {
+            "status": "conformant",
+            "target": "react-tailwind-tsx",
+            "verification_id": "vvr_stable",
+            "result_sha256": next(result_hashes),
+            "diagnostic_codes": [],
+        }
+
+    monkeypatch.setattr("viewspec.intent_patch._verify_candidate", verify_candidate)
+
+    first = preview_intent_patch(source, patch, verify=True)
+    second = preview_intent_patch(source, patch, verify=True)
+
+    assert first.verification["result_sha256"] != second.verification["result_sha256"]
+    assert first.preview_id == second.preview_id
+    assert first.approval_token == second.approval_token
+
+
 def test_apply_requires_exact_approval_and_writes_receipt_atomically(tmp_path: Path) -> None:
     source_path = tmp_path / "viewspec.intent.json"
     patch_path = tmp_path / "change.intentpatch.json"

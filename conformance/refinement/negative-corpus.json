@@ -1,0 +1,54 @@
+{
+  "schema_version": 1,
+  "cases": [
+    {
+      "id": "invalid-semantic-input",
+      "kind": "semantic_validation",
+      "diagnostic_code": "INVALID_JSON",
+      "message_contains": "not valid JSON",
+      "source_path": "$",
+      "next_action": "Return one strict JSON object with substrate and view_spec."
+    },
+    {
+      "id": "unresolved-target",
+      "kind": "semantic_validation",
+      "diagnostic_code": "UNKNOWN_ACTION_TARGET",
+      "message_contains": "targets unknown motif:missing",
+      "source_path": "$.view_spec.actions[0].target_ref",
+      "next_action": "Use a declared target ref like binding:save_button or motif:items."
+    },
+    {
+      "id": "unsupported-construct",
+      "kind": "semantic_validation",
+      "diagnostic_code": "UNSUPPORTED_MOTIF",
+      "message_contains": "Motif kind 'chat' is not supported",
+      "source_path": "$.view_spec.motifs[0].kind",
+      "next_action": "Use one of: table, dashboard, outline, comparison, list, form, detail, empty_state, loading_state, error_state, hero."
+    },
+    {
+      "id": "artifact-tampering",
+      "kind": "artifact_preflight",
+      "diagnostic_code": "HOST_VERIFY_ARTIFACT_CHECK_FAILED",
+      "message_contains": "artifact_hash does not match ViewSpecView.tsx",
+      "evidence_ref": "provenance_manifest.json#artifact_hash",
+      "next_action": "Fix the compiled artifact and re-run viewspec check."
+    },
+    {
+      "id": "browser-environment-failure",
+      "kind": "browser_environment",
+      "diagnostic_code": "HOST_VERIFY_NODE_MODULES_MISSING",
+      "message_contains": "reference browser dependencies are not installed",
+      "evidence_ref": "browser_environment",
+      "next_action": "Run viewspec prove again with --install after approving the bounded dependency install."
+    },
+    {
+      "id": "visible-conformance-failure",
+      "kind": "browser_conformance",
+      "diagnostic_code": "VERIFY_LAYOUT_OVERFLOW",
+      "message_contains": "content grid extends past the mobile viewport",
+      "source_ref": "ir:content-grid",
+      "evidence_ref": "evidence/mobile.png",
+      "next_action": "Constrain the content grid width and rerun browser verification."
+    }
+  ]
+}

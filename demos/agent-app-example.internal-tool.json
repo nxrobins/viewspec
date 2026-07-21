@@ -78,7 +78,16 @@
           "root_id": "incident_queue"
         },
         "view_spec": {
-          "actions": [],
+          "actions": [
+            {
+              "id": "open_incident",
+              "kind": "navigate",
+              "label": "Open INC-1042",
+              "payload_bindings": [],
+              "target_ref": "binding:inc_1042_label",
+              "target_region": "main"
+            }
+          ],
           "bindings": [
             {
               "address": "node:inc_1042#attr:label",

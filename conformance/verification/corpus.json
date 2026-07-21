@@ -37,6 +37,41 @@
       "screen_id": "detail",
       "expected_status": "conformant",
       "required_evidence_roles": ["accessibility", "dom", "log", "screenshot"]
+    },
+    {
+      "id": "settings",
+      "kind": "intent",
+      "source": "conformance/verification/fixtures/settings.intent.json",
+      "expected_status": "conformant",
+      "required_evidence_roles": ["accessibility", "dom", "log", "screenshot"]
+    },
+    {
+      "id": "multi-step-workflow",
+      "kind": "intent",
+      "source": "conformance/verification/fixtures/multi-step-workflow.intent.json",
+      "expected_status": "conformant",
+      "required_evidence_roles": ["accessibility", "dom", "log", "screenshot"]
+    },
+    {
+      "id": "dense-operational-console",
+      "kind": "intent",
+      "source": "conformance/verification/fixtures/dense-operational-console.intent.json",
+      "expected_status": "conformant",
+      "required_evidence_roles": ["accessibility", "dom", "log", "screenshot"]
+    },
+    {
+      "id": "collection-states",
+      "kind": "intent",
+      "source": "conformance/verification/fixtures/collection-states.intent.json",
+      "expected_status": "conformant",
+      "required_evidence_roles": ["accessibility", "dom", "log", "screenshot"]
+    },
+    {
+      "id": "outcome-states",
+      "kind": "intent",
+      "source": "conformance/verification/fixtures/outcome-states.intent.json",
+      "expected_status": "conformant",
+      "required_evidence_roles": ["accessibility", "dom", "log", "screenshot"]
     }
   ]
 }

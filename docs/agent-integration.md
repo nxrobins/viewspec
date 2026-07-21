@@ -4,6 +4,23 @@ This page describes the primary agent-native workflow: agents emit `IntentBundle
 
 Agents generate `IntentBundle` JSON. The ViewSpec compiler generates `CompositionIR`.
 
+## Canonical Agent Loop
+
+An agent should need only the semantic source and the public command results:
+
+1. Author or revise `viewspec.intent.json` (and `DESIGN.md` when the repository uses it).
+2. Run `viewspec validate-intent viewspec.intent.json --json` and follow its stable code,
+   semantic path, `correction_prompt`, and next action on failure.
+3. Run `viewspec prove --intent viewspec.intent.json --target react-tailwind-tsx --install
+   --out .viewspec-proof --json` to compile, check, and browser-verify the exact artifact.
+4. For a later revision, inspect `diff-intent` or submit one bounded Converge patch, then rerun
+   the proof with `--force`.
+
+The editable authority is `IntentBundle`, `AppBundle`, or `DESIGN.md`. Renderer files,
+`provenance_manifest.json`, and proof reports are generated evidence. Never repair them directly.
+The agent does not need compiler implementation knowledge: public failures must name the problem,
+the semantic source or exact evidence when available, and one bounded next action.
+
 ## Runnable React App Workflow
 
 When the user asks for a runnable multi-screen React internal tool, start from the bounded AppBundle V4 golden path:
@@ -348,7 +365,7 @@ For Tailwind host apps, use `--target react-tailwind-tsx` or MCP `target: "react
 
 MCP `diff_intent_bundle_files` returns the full `diff` payload and a concise `semantic_summary` list for agent-readable review. Metadata also includes `semantic_change_count`, `semantic_change_sections`, and `topology_similarity` so agents can triage revisions before inspecting generated artifacts. When an aesthetic profile changes, the semantic diff includes compact style impact counts and bounded layout deltas such as metric-card span or emphasis changes.
 
-The public repo includes an executable five-case browser conformance corpus. For arbitrary generated
+The public repo includes an executable ten-case browser conformance corpus. For arbitrary generated
 React/Tailwind output, agents should run validate, compile, `viewspec check`, and `viewspec verify`.
 The final command renders canonical viewports, records screenshots, DOM and accessibility evidence,
 and writes a deterministic repair plan beside the canonical result.

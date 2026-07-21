@@ -1,0 +1,87 @@
+{
+  "schema_version": 1,
+  "corrections": [
+    {
+      "case_id": "app-detail",
+      "source_kind": "app_bundle",
+      "screen_id": "detail",
+      "node_id": "incident_detail",
+      "attr": "title",
+      "old_value": "Incident Detail",
+      "value": "Incident INC-1042"
+    },
+    {
+      "case_id": "app-queue",
+      "source_kind": "app_bundle",
+      "screen_id": "queue",
+      "node_id": "incident_queue",
+      "attr": "title",
+      "old_value": "Incident Queue",
+      "value": "Active Incident Queue"
+    },
+    {
+      "case_id": "collection-states",
+      "source_kind": "intent_bundle",
+      "node_id": "project_collection_states",
+      "attr": "title",
+      "old_value": "Project collection states",
+      "value": "Filtered projects"
+    },
+    {
+      "case_id": "data-dense-dashboard",
+      "source_kind": "intent_bundle",
+      "node_id": "starter_dashboard",
+      "attr": "title",
+      "old_value": "Starter Dashboard",
+      "value": "Executive Dashboard"
+    },
+    {
+      "case_id": "dense-operational-console",
+      "source_kind": "intent_bundle",
+      "node_id": "deployment_operations",
+      "attr": "title",
+      "old_value": "Deployment operations",
+      "value": "Deployment health"
+    },
+    {
+      "case_id": "interactive-form",
+      "source_kind": "intent_bundle",
+      "node_id": "starter_form",
+      "attr": "title",
+      "old_value": "Starter Form",
+      "value": "Contact the team"
+    },
+    {
+      "case_id": "landing-intent",
+      "source_kind": "intent_bundle",
+      "node_id": "launch_hero",
+      "attr": "title",
+      "old_value": "Intent goes in. Interface comes out.",
+      "value": "Intent becomes interface."
+    },
+    {
+      "case_id": "multi-step-workflow",
+      "source_kind": "intent_bundle",
+      "node_id": "production_release",
+      "attr": "title",
+      "old_value": "Production release",
+      "value": "Production release 2.8.0"
+    },
+    {
+      "case_id": "outcome-states",
+      "source_kind": "intent_bundle",
+      "node_id": "deployment_outcome_states",
+      "attr": "title",
+      "old_value": "Deployment outcome states",
+      "value": "Release 2.8.0 outcome"
+    },
+    {
+      "case_id": "settings",
+      "source_kind": "intent_bundle",
+      "node_id": "notification_settings",
+      "attr": "title",
+      "old_value": "Deployment notification settings",
+      "value": "Alert preferences"
+    }
+  ]
+}

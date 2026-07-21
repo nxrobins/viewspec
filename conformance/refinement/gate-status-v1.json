@@ -1,0 +1,97 @@
+{
+  "schema_version": 1,
+  "goal": "Refine the existing ViewSpec core workflow until supported briefs produce desirable, traceable, shippable interfaces without editing generated output or interpreting ambiguous failures.",
+  "status": "passed",
+  "evaluated_on": "2026-07-21",
+  "same_revision_evidence": {
+    "browser_corpus": {
+      "path": "conformance/refinement/verification-report-v2.json",
+      "sha256": "2dcbf39798401e3efd8791516e84193535afd5f3f2aad1717f1c55e18ae85314",
+      "case_count": 10,
+      "conformant_count": 10
+    },
+    "full_suite": {
+      "command": ".venv/bin/pytest -q --tb=short",
+      "passed": 1129,
+      "skipped": 1
+    }
+  },
+  "gates": [
+    {
+      "id": 1,
+      "name": "workflow_understandable",
+      "status": "passed",
+      "evidence": [
+        "docs/getting-started.md",
+        "docs/agent-integration.md",
+        "tests/test_refinement_journey.py"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "fixed_corpus_completes",
+      "status": "passed",
+      "evidence": [
+        "conformance/verification/corpus.json",
+        "conformance/refinement/verification-report-v2.json",
+        "conformance/refinement/evidence-v2"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "product_quality",
+      "status": "passed",
+      "evidence": [
+        "conformance/refinement/scorecard-v2.json",
+        "conformance/refinement/evidence-v2"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "semantic_predictable_corrections",
+      "status": "passed",
+      "evidence": [
+        "conformance/refinement/corrections.json",
+        "conformance/refinement/correction-proof-v1.json",
+        "tests/test_refinement_corrections.py"
+      ]
+    },
+    {
+      "id": 5,
+      "name": "deterministic_traceable_output",
+      "status": "passed",
+      "evidence": [
+        "tests/test_refinement_determinism.py",
+        "tests/test_local_design_cli.py",
+        "tests/test_intent_patch.py"
+      ]
+    },
+    {
+      "id": 6,
+      "name": "actionable_failures",
+      "status": "passed",
+      "evidence": [
+        "conformance/refinement/negative-corpus.json",
+        "tests/test_refinement_negative_corpus.py"
+      ]
+    },
+    {
+      "id": 7,
+      "name": "repeated_use_gets_easier",
+      "status": "passed",
+      "evidence": [
+        "tests/test_refinement_journey.py",
+        "docs/getting-started.md"
+      ]
+    },
+    {
+      "id": 8,
+      "name": "existing_guarantees_hold",
+      "status": "passed",
+      "evidence": [
+        "conformance/refinement/verification-report-v2.json",
+        "tests"
+      ]
+    }
+  ]
+}

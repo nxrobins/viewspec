@@ -520,6 +520,10 @@ test("generated React Tailwind artifact builds and behaves in the bounded host",
   }
   for (const assertion of styleAssertions) await expectComputed(page, assertion);
 
+  // Capture the reviewable initial UI before action-contract checks fill inputs with
+  // deterministic verifier values. Interaction proof continues below against the same page.
+  const verification = await writeVerificationEvidence(page, testInfo);
+
   const emittedActions = actionNodes();
   let payloadBindingCount = 0;
   for (const [domId, node] of emittedActions) {
@@ -583,7 +587,6 @@ test("generated React Tailwind artifact builds and behaves in the bounded host",
   }
   if (runtimeErrors.length) fail("HOST_VERIFY_BROWSER_RUNTIME_ERROR", runtimeErrors.join("\n"));
 
-  const verification = await writeVerificationEvidence(page, testInfo);
   writeBrowserReport({
     action_count: actionCount,
     aesthetic_layout_assertion_count: aestheticLayoutAssertionCount,

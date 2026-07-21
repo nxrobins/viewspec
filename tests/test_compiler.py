@@ -39,7 +39,11 @@ from viewspec.aesthetics import (
     profile_style_facts,
     profile_style_values,
 )
-from viewspec.compiler import PRODUCT_SURFACE_PLANNER_V1_SURFACE, SUPPORTED_ACTION_KINDS
+from viewspec.compiler import (
+    PRODUCT_SINGLE_COLUMN_SURFACE_V1,
+    PRODUCT_SURFACE_PLANNER_V1_SURFACE,
+    SUPPORTED_ACTION_KINDS,
+)
 from viewspec.emitters.html_tailwind import ACTION_EVENT_SCRIPT, HtmlTailwindEmitter
 from viewspec.types import DEFAULT_STYLE_TOKEN_VALUES
 
@@ -779,6 +783,107 @@ def test_product_surface_planner_v1_applies_workspace_roles_without_fixture_ids(
     assert nodes["motif_identity"].props["product_role"] == "detail_panel"
     assert nodes["planner_review_form_actions"].props["product_role"] == "action_row"
     assert nodes["planner_review_form_actions"].primitive == "cluster"
+
+
+def test_product_surface_planner_v1_applies_single_column_roles_to_local_starter_shape():
+    builder = ViewSpecBuilder("single_column_surface", root_attrs={"title": "Single column"})
+    builder.add_hero(
+        "intro",
+        eyebrow="Release",
+        title="Review and deploy",
+        description="Confirm the production change.",
+        group_id="intro_group",
+    )
+    metrics = builder.add_dashboard("metrics", group_id="metric_group")
+    metrics.add_card(label="Failed", value="2", id="failed")
+    metrics.add_card(label="Healthy", value="41", id="healthy")
+    form = builder.add_form("review_form", group_id="review_group")
+    form.add_field(label="Reviewer", value="", id="reviewer")
+    detail = builder.add_detail("summary", group_id="summary_group")
+    detail.add_field(label="Environment", value="Production", id="environment")
+    builder.add_action(
+        "submit_review",
+        "submit",
+        "Submit review",
+        target_ref="motif:review_form",
+        payload_bindings=["reviewer_value"],
+    )
+
+    ast = compile(builder.build_bundle())
+    root = ast.result.root.root
+    nodes = {node.id: node for node in _walk_nodes(root)}
+
+    assert len(ast.result.diagnostics) == 0
+    assert root.props["planner_surface"] == PRODUCT_SINGLE_COLUMN_SURFACE_V1
+    assert nodes["region_root"].props["product_role"] == "app_shell"
+    assert nodes["region_main"].props["product_role"] == "primary_column"
+    assert nodes["motif_intro"].props["product_role"] == "page_header"
+    assert nodes["motif_metrics"].props["product_role"] == "metric_grid"
+    assert [child.props.get("product_role") for child in nodes["motif_metrics"].children] == [
+        "metric_card",
+        "metric_card",
+    ]
+    assert nodes["motif_review_form"].props["product_role"] == "form_panel"
+    assert nodes["motif_review_form_reviewer"].props["product_role"] == "field_group"
+    assert nodes["motif_summary"].props["product_role"] == "detail_panel"
+    assert "planner_review_form_actions" not in nodes
+    assert nodes["action_submit_review"] in nodes["motif_review_form"].children
+
+
+def test_single_column_surface_projects_unbound_root_title_as_traceable_page_header():
+    builder = ViewSpecBuilder("incident_detail", root_attrs={"title": "Incident detail"})
+    detail = builder.add_detail("summary", group_id="summary_group")
+    detail.add_field(label="Status", value="Investigating", id="status")
+
+    ast = compile(builder.build_bundle())
+    root = ast.result.root.root
+    nodes = {node.id: node for node in _walk_nodes(root)}
+    main = nodes["region_main"]
+    page_header = nodes["planner_incident_detail_page_header"]
+    page_title = nodes["planner_incident_detail_page_title"]
+
+    assert len(ast.result.diagnostics) == 0
+    assert main.children[0] is page_header
+    assert page_header.props["product_role"] == "page_header"
+    assert page_header.provenance.content_refs == ["node:incident_detail#attr:title"]
+    assert page_title.props == {"text": "Incident detail", "hero_role": "title"}
+    assert page_title.provenance.content_refs == ["node:incident_detail#attr:title"]
+
+
+def test_single_column_surface_does_not_duplicate_explicit_or_bound_page_title():
+    explicit = ViewSpecBuilder("explicit_title", root_attrs={"title": "Explicit"})
+    explicit.add_hero("intro", title="Authored header", group_id="intro_group")
+    explicit_ast = compile(explicit.build_bundle())
+
+    bound = ViewSpecBuilder("bound_title", root_attrs={"title": "Bound"})
+    bound.bind_attr("root_title", "bound_title", "title", present_as="value")
+    bound_ast = compile(bound.build_bundle())
+
+    assert _find_node_id(explicit_ast.result.root.root, "planner_explicit_title_page_header") is None
+    assert _find_node_id(bound_ast.result.root.root, "planner_bound_title_page_header") is None
+
+
+@pytest.mark.parametrize(
+    "title",
+    [
+        " leading",
+        "trailing ",
+        "line\nbreak",
+        "carriage\rreturn",
+        "control\u0007",
+        "nonbreaking\u00a0space",
+        "x" * 513,
+    ],
+)
+def test_single_column_surface_does_not_implicitly_render_unsafe_root_titles(title):
+    builder = ViewSpecBuilder("unsafe_title", root_attrs={"title": title})
+    detail = builder.add_detail("summary", group_id="summary_group")
+    detail.add_field(label="Status", value="Ready", id="status")
+
+    ast = compile(builder.build_bundle())
+
+    assert len(ast.result.diagnostics) == 0
+    assert _find_node_id(ast.result.root.root, "planner_unsafe_title_page_header") is None
 
 
 @pytest.mark.parametrize(

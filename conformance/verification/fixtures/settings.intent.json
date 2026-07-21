@@ -1,0 +1,219 @@
+{
+  "schema_version": 1,
+  "substrate": {
+    "id": "notification_settings_substrate",
+    "nodes": {
+      "alert_channel": {
+        "attrs": {
+          "label": "Alert channel",
+          "value": "#deployments"
+        },
+        "edges": {},
+        "id": "alert_channel",
+        "kind": "field",
+        "slots": {}
+      },
+      "daily_digest": {
+        "attrs": {
+          "label": "Daily digest",
+          "value": "09:00 local time"
+        },
+        "edges": {},
+        "id": "daily_digest",
+        "kind": "field",
+        "slots": {}
+      },
+      "failure_alerts": {
+        "attrs": {
+          "label": "Failure alerts",
+          "value": "Enabled"
+        },
+        "edges": {},
+        "id": "failure_alerts",
+        "kind": "field",
+        "slots": {}
+      },
+      "notification_settings": {
+        "attrs": {
+          "title": "Deployment notification settings"
+        },
+        "edges": {},
+        "id": "notification_settings",
+        "kind": "app",
+        "slots": {}
+      },
+      "settings_intro": {
+        "attrs": {
+          "description": "Choose where urgent failures and routine deployment updates are delivered.",
+          "eyebrow": "Workspace preferences",
+          "title": "Deployment notifications"
+        },
+        "edges": {},
+        "id": "settings_intro",
+        "kind": "hero",
+        "slots": {}
+      }
+    },
+    "root_id": "notification_settings"
+  },
+  "view_spec": {
+    "actions": [
+      {
+        "id": "save_preferences",
+        "kind": "submit",
+        "label": "Save notification settings",
+        "payload_bindings": [
+          "failure_alerts_value",
+          "alert_channel_value",
+          "daily_digest_value"
+        ],
+        "target_ref": "motif:notification_preferences",
+        "target_region": "main"
+      }
+    ],
+    "bindings": [
+      {
+        "address": "node:settings_intro#attr:eyebrow",
+        "cardinality": "exactly_once",
+        "id": "settings_intro_eyebrow",
+        "present_as": "label",
+        "target_region": "main"
+      },
+      {
+        "address": "node:settings_intro#attr:title",
+        "cardinality": "exactly_once",
+        "id": "settings_intro_title",
+        "present_as": "value",
+        "target_region": "main"
+      },
+      {
+        "address": "node:settings_intro#attr:description",
+        "cardinality": "exactly_once",
+        "id": "settings_intro_description",
+        "present_as": "text",
+        "target_region": "main"
+      },
+      {
+        "address": "node:failure_alerts#attr:label",
+        "cardinality": "exactly_once",
+        "id": "failure_alerts_label",
+        "present_as": "label",
+        "target_region": "main"
+      },
+      {
+        "address": "node:failure_alerts#attr:value",
+        "cardinality": "exactly_once",
+        "id": "failure_alerts_value",
+        "present_as": "input",
+        "target_region": "main"
+      },
+      {
+        "address": "node:alert_channel#attr:label",
+        "cardinality": "exactly_once",
+        "id": "alert_channel_label",
+        "present_as": "label",
+        "target_region": "main"
+      },
+      {
+        "address": "node:alert_channel#attr:value",
+        "cardinality": "exactly_once",
+        "id": "alert_channel_value",
+        "present_as": "input",
+        "target_region": "main"
+      },
+      {
+        "address": "node:daily_digest#attr:label",
+        "cardinality": "exactly_once",
+        "id": "daily_digest_label",
+        "present_as": "label",
+        "target_region": "main"
+      },
+      {
+        "address": "node:daily_digest#attr:value",
+        "cardinality": "exactly_once",
+        "id": "daily_digest_value",
+        "present_as": "input",
+        "target_region": "main"
+      }
+    ],
+    "complexity_tier": 2,
+    "groups": [
+      {
+        "id": "settings_intro_content",
+        "kind": "ordered",
+        "members": [
+          "settings_intro_eyebrow",
+          "settings_intro_title",
+          "settings_intro_description"
+        ],
+        "target_region": "main"
+      },
+      {
+        "id": "preference_fields",
+        "kind": "ordered",
+        "members": [
+          "failure_alerts_label",
+          "failure_alerts_value",
+          "alert_channel_label",
+          "alert_channel_value",
+          "daily_digest_label",
+          "daily_digest_value"
+        ],
+        "target_region": "main"
+      }
+    ],
+    "id": "notification_settings",
+    "motifs": [
+      {
+        "id": "settings_intro",
+        "kind": "hero",
+        "members": [
+          "settings_intro_eyebrow",
+          "settings_intro_title",
+          "settings_intro_description"
+        ],
+        "region": "main"
+      },
+      {
+        "id": "notification_preferences",
+        "kind": "form",
+        "members": [
+          "failure_alerts_label",
+          "failure_alerts_value",
+          "alert_channel_label",
+          "alert_channel_value",
+          "daily_digest_label",
+          "daily_digest_value"
+        ],
+        "region": "main"
+      }
+    ],
+    "regions": [
+      {
+        "id": "root",
+        "layout": "stack",
+        "max_children": null,
+        "min_children": 1,
+        "parent_region": "",
+        "role": "root"
+      },
+      {
+        "id": "main",
+        "layout": "stack",
+        "max_children": null,
+        "min_children": 1,
+        "parent_region": "root",
+        "role": "main"
+      }
+    ],
+    "root_region": "root",
+    "styles": [
+      {
+        "id": "aesthetic_profile",
+        "target": "view:notification_settings",
+        "token": "aesthetic.calm_ops"
+      }
+    ],
+    "substrate_id": "notification_settings_substrate"
+  }
+}

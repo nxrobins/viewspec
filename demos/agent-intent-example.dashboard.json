@@ -3,6 +3,16 @@
   "substrate": {
     "id": "starter_dashboard_substrate",
     "nodes": {
+      "priority": {
+        "attrs": {
+          "label": "Priority",
+          "value": "Activation -4%"
+        },
+        "edges": {},
+        "id": "priority",
+        "kind": "dashboard_card",
+        "slots": {}
+      },
       "revenue": {
         "attrs": {
           "label": "Revenue",
@@ -29,6 +39,16 @@
         },
         "edges": {},
         "id": "users",
+        "kind": "dashboard_card",
+        "slots": {}
+      },
+      "weekly_trend": {
+        "attrs": {
+          "label": "Weekly trend",
+          "value": "Revenue +12%"
+        },
+        "edges": {},
+        "id": "weekly_trend",
         "kind": "dashboard_card",
         "slots": {}
       }
@@ -65,6 +85,34 @@
         "id": "users_value",
         "present_as": "value",
         "target_region": "main"
+      },
+      {
+        "address": "node:weekly_trend#attr:label",
+        "cardinality": "exactly_once",
+        "id": "weekly_trend_label",
+        "present_as": "label",
+        "target_region": "main"
+      },
+      {
+        "address": "node:weekly_trend#attr:value",
+        "cardinality": "exactly_once",
+        "id": "weekly_trend_value",
+        "present_as": "value",
+        "target_region": "main"
+      },
+      {
+        "address": "node:priority#attr:label",
+        "cardinality": "exactly_once",
+        "id": "priority_label",
+        "present_as": "label",
+        "target_region": "main"
+      },
+      {
+        "address": "node:priority#attr:value",
+        "cardinality": "exactly_once",
+        "id": "priority_value",
+        "present_as": "badge",
+        "target_region": "main"
       }
     ],
     "complexity_tier": 1,
@@ -76,7 +124,11 @@
           "revenue_label",
           "revenue_value",
           "users_label",
-          "users_value"
+          "users_value",
+          "weekly_trend_label",
+          "weekly_trend_value",
+          "priority_label",
+          "priority_value"
         ],
         "target_region": "main"
       }
@@ -90,7 +142,11 @@
           "revenue_label",
           "revenue_value",
           "users_label",
-          "users_value"
+          "users_value",
+          "weekly_trend_label",
+          "weekly_trend_value",
+          "priority_label",
+          "priority_value"
         ],
         "region": "main"
       }

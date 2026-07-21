@@ -1,0 +1,240 @@
+{
+  "schema_version": 1,
+  "scorecard_id": "core-refinement-v1",
+  "status": "baseline_after_first_refinement_slice",
+  "rubric": {
+    "dimensions": [
+      "task_clarity",
+      "information_hierarchy",
+      "state_completeness",
+      "responsive_composition",
+      "fit_and_finish"
+    ],
+    "dimension_scale": {
+      "minimum": 1,
+      "maximum": 5
+    },
+    "brief_pass": {
+      "minimum_dimension": 3,
+      "minimum_mean": 4.0,
+      "critical_issue_auto_fails": true
+    }
+  },
+  "verification": {
+    "report_sha256": "7e95a1ee43a7d1cc86ddfa5d2defe363b171acdedda9e76e82760e44d2464615",
+    "case_count": 10,
+    "conformant_count": 10,
+    "canonical_viewports": [
+      "mobile",
+      "tablet",
+      "desktop"
+    ]
+  },
+  "summary": {
+    "first_compile_pass_count": 5,
+    "required_first_compile_pass_count": 9,
+    "corpus_pass": false,
+    "priority_gaps": [
+      "thin semantic inputs can omit a page-level task frame even when the substrate root has a title",
+      "the starter queue has no primary item action",
+      "the starter dashboard has no trend or priority metric",
+      "the collection-state fixture presents loading and empty as simultaneous blocking states"
+    ]
+  },
+  "cases": [
+    {
+      "id": "app-detail",
+      "source_sha256": "7cefa686de3db91e614c8bc31867aca096a117436f89dc520e8c326182344a4f",
+      "intent_sha256": "796b2b1979bacd87a9e494a8cf1cc26c6eac3f8038c8bc93032c0a77140fdb95",
+      "artifact_sha256": "27786e78d79e1115106d46e12733a175ce22b45dde1cf11120665ccc936dec9d",
+      "desktop_screenshot_sha256": "94b3147bd9458ca87e12facdccaff03de62437d0b7cedfda663eaf0ba017caa3",
+      "verification_id": "vvr_7685cf65a0de43be37f25ae4a7c743d1",
+      "scores": {
+        "task_clarity": 3,
+        "information_hierarchy": 3,
+        "state_completeness": 3,
+        "responsive_composition": 4,
+        "fit_and_finish": 3
+      },
+      "mean": 3.2,
+      "critical_issues": [],
+      "pass": false,
+      "review": "The record is readable and responsive, but it has no page title or task-level context."
+    },
+    {
+      "id": "app-queue",
+      "source_sha256": "7cefa686de3db91e614c8bc31867aca096a117436f89dc520e8c326182344a4f",
+      "intent_sha256": "43e64857022529fce9f7538c0da7b8a49ea9075fd382beda00e0d6296282ad88",
+      "artifact_sha256": "c99ea3b2eb5141aa4a8db3dc8a2363187f73855362ff5bdaed17b4766a299a03",
+      "desktop_screenshot_sha256": "1b4773e472f05a535cf57172559ca1344f36a8ecfb296348d38511e24deaacae",
+      "verification_id": "vvr_65b924755c49fc65adad7cacb1b407bf",
+      "scores": {
+        "task_clarity": 2,
+        "information_hierarchy": 2,
+        "state_completeness": 2,
+        "responsive_composition": 3,
+        "fit_and_finish": 2
+      },
+      "mean": 2.2,
+      "critical_issues": [
+        "The required primary item action is absent."
+      ],
+      "pass": false,
+      "review": "The table is technically valid but lacks page context, column meaning, and an actionable next step."
+    },
+    {
+      "id": "collection-states",
+      "source_sha256": "f314aa802e6ba5954f8a77575f1dace5fc4c9f8cc2fe8b51f46ef2a60072f5f5",
+      "intent_sha256": "f314aa802e6ba5954f8a77575f1dace5fc4c9f8cc2fe8b51f46ef2a60072f5f5",
+      "artifact_sha256": "12ca48b833a73e81de930c545a7648c0d41ac9e9601c8f7a71d3186305f242e8",
+      "desktop_screenshot_sha256": "1c803882891dcae498c927b108b9f10eed9e09d27c4ab3d4a9f83fa1bcc33803",
+      "verification_id": "vvr_cfcf7e2d17a4ae62119e408d0bfebbe3",
+      "scores": {
+        "task_clarity": 3,
+        "information_hierarchy": 3,
+        "state_completeness": 2,
+        "responsive_composition": 4,
+        "fit_and_finish": 4
+      },
+      "mean": 3.2,
+      "critical_issues": [
+        "Loading and empty are presented as simultaneous blocking collection states."
+      ],
+      "pass": false,
+      "review": "Both required states are legible, but their simultaneous presentation is contradictory."
+    },
+    {
+      "id": "data-dense-dashboard",
+      "source_sha256": "78e159bb38be9ac73bc5d82a42a164d0526a15e1dc197a17cc0a6ed8abdc1c03",
+      "intent_sha256": "78e159bb38be9ac73bc5d82a42a164d0526a15e1dc197a17cc0a6ed8abdc1c03",
+      "artifact_sha256": "e3b5085073151d42efe4c153e5667bb65460f9ff107eab248eb2599cc40ea503",
+      "desktop_screenshot_sha256": "fe522bea9ec136929c0b04eaa3dbf2c973bd00e6d33065ce6541ec612211d687",
+      "verification_id": "vvr_76d1b73ac1f40adda35e1014d7f710db",
+      "scores": {
+        "task_clarity": 2,
+        "information_hierarchy": 3,
+        "state_completeness": 2,
+        "responsive_composition": 4,
+        "fit_and_finish": 3
+      },
+      "mean": 2.8,
+      "critical_issues": [],
+      "pass": false,
+      "review": "The metric cards compose cleanly, but the brief's summary, trend, and priority metric are absent."
+    },
+    {
+      "id": "dense-operational-console",
+      "source_sha256": "f94b55facb2652507b9797d8da38af1f995fe81f6b97cf011c86ff168ab8d62a",
+      "intent_sha256": "f94b55facb2652507b9797d8da38af1f995fe81f6b97cf011c86ff168ab8d62a",
+      "artifact_sha256": "08abc472e50f2a360774d3779a6fc49b7b0d85714d2d2cc02f48b4783ef916cc",
+      "desktop_screenshot_sha256": "40623cbcd586b72ddffa360638089e8eb66867bf36779c0cfc56c7b3c288f1e2",
+      "verification_id": "vvr_78454f31f1d9a79a57dc06272131f7af",
+      "scores": {
+        "task_clarity": 4,
+        "information_hierarchy": 4,
+        "state_completeness": 4,
+        "responsive_composition": 4,
+        "fit_and_finish": 4
+      },
+      "mean": 4.0,
+      "critical_issues": [],
+      "pass": true,
+      "review": "Failures are named first, dense records remain scannable, and the primary review action is clear."
+    },
+    {
+      "id": "interactive-form",
+      "source_sha256": "16c47f6f5d01fd03135e4b0cbdfbf469bff1130adc210e544c1bc5cf8ee4dcf7",
+      "intent_sha256": "16c47f6f5d01fd03135e4b0cbdfbf469bff1130adc210e544c1bc5cf8ee4dcf7",
+      "artifact_sha256": "06a032a321003d9228f67b8ca9c4c118ae72fe95b3b1be2096f1db67469b12b9",
+      "desktop_screenshot_sha256": "9cf38f65526eedf8e9c2d30c85d4935900cbc760998d19c52eac998ca7f8a8c5",
+      "verification_id": "vvr_0502c61dcd7213122b7c84e2ae94538d",
+      "scores": {
+        "task_clarity": 3,
+        "information_hierarchy": 3,
+        "state_completeness": 3,
+        "responsive_composition": 4,
+        "fit_and_finish": 3
+      },
+      "mean": 3.2,
+      "critical_issues": [],
+      "pass": false,
+      "review": "The form is usable and checked, but it lacks a title, purpose, and stronger submit hierarchy."
+    },
+    {
+      "id": "landing-intent",
+      "source_sha256": "9f274154fbaa312a4440b80bcc0f55d1bb837e13c2cbccc75ae2cbd517eaf500",
+      "intent_sha256": "9f274154fbaa312a4440b80bcc0f55d1bb837e13c2cbccc75ae2cbd517eaf500",
+      "artifact_sha256": "b39894e775b846294e002ce193a0829f7c67d47656ecd5e92086203843a49df7",
+      "desktop_screenshot_sha256": "c49b989bc2886fbc1f73be68bfcae8edfe3a0d71c309154c9e5a5e667c96e479",
+      "verification_id": "vvr_421b0105786a34c469e748fef85b92fd",
+      "scores": {
+        "task_clarity": 4,
+        "information_hierarchy": 4,
+        "state_completeness": 4,
+        "responsive_composition": 4,
+        "fit_and_finish": 4
+      },
+      "mean": 4.0,
+      "critical_issues": [],
+      "pass": true,
+      "review": "The content surface preserves its narrative hierarchy and traceability across canonical viewports."
+    },
+    {
+      "id": "multi-step-workflow",
+      "source_sha256": "5936001fcfaf1e8e76e5cd9391c41388981835133216cd49c9af9fc8c2d91bec",
+      "intent_sha256": "5936001fcfaf1e8e76e5cd9391c41388981835133216cd49c9af9fc8c2d91bec",
+      "artifact_sha256": "6e64e94094a7cdb083e1a166737e655a9f734a0d7db0d873416a1e86536f7d66",
+      "desktop_screenshot_sha256": "9367739f9d5a40727414290be8eb8ae8b275f06173ef4367f53abfd550178e03",
+      "verification_id": "vvr_02a3cd5aba3f1b3c1c803381df0bcb19",
+      "scores": {
+        "task_clarity": 4,
+        "information_hierarchy": 4,
+        "state_completeness": 4,
+        "responsive_composition": 4,
+        "fit_and_finish": 4
+      },
+      "mean": 4.0,
+      "critical_issues": [],
+      "pass": true,
+      "review": "Progress, the current step, deployment context, and the next action form one coherent task path."
+    },
+    {
+      "id": "outcome-states",
+      "source_sha256": "b4fb8cd6d9815c797babba88d82423ffccb32aa28d3aa27cf6807118ed40f819",
+      "intent_sha256": "b4fb8cd6d9815c797babba88d82423ffccb32aa28d3aa27cf6807118ed40f819",
+      "artifact_sha256": "d2acb703f7db66e0709a6288c9fbed5ea58245dd34ebd2a92b4de097ee9e4606",
+      "desktop_screenshot_sha256": "c880e53b6fd2dd6b666dc5c52913c6cfa879113744deb03dba3a5d28b2c9b415",
+      "verification_id": "vvr_000e90eb782ef8c3d3d9d0a2129e2df0",
+      "scores": {
+        "task_clarity": 4,
+        "information_hierarchy": 4,
+        "state_completeness": 4,
+        "responsive_composition": 4,
+        "fit_and_finish": 4
+      },
+      "mean": 4.0,
+      "critical_issues": [],
+      "pass": true,
+      "review": "The completed deployment remains visible while a failed rollback is clearly explained and recoverable."
+    },
+    {
+      "id": "settings",
+      "source_sha256": "2cd3573cb6eecdd4cc12f799392c815dc76bb79ba25b9c3206f3563ebb42b0e0",
+      "intent_sha256": "2cd3573cb6eecdd4cc12f799392c815dc76bb79ba25b9c3206f3563ebb42b0e0",
+      "artifact_sha256": "092b95691b7c103fe39a715212f191e413a4c8e4f4a8421a8b4f2b5b2d1cf0f9",
+      "desktop_screenshot_sha256": "92653e9cb1717ca66dd1b5350621eec60709e04966c7c34a83a205a1b806c60c",
+      "verification_id": "vvr_66d25c92ebbe97398537d9e49cf66eff",
+      "scores": {
+        "task_clarity": 4,
+        "information_hierarchy": 4,
+        "state_completeness": 4,
+        "responsive_composition": 4,
+        "fit_and_finish": 4
+      },
+      "mean": 4.0,
+      "critical_issues": [],
+      "pass": true,
+      "review": "Current values, grouped controls, and the save action are immediately understandable."
+    }
+  ]
+}
