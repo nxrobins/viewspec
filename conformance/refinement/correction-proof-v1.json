@@ -1,0 +1,545 @@
+{
+  "case_count": 10,
+  "cases": [
+    {
+      "base_source_sha256": "d2917c0bc2f416d8ddcf6ea3b6fee56c4320e650b20d506cf2dd68d4bf946d75",
+      "candidate_source_sha256": "68de21672e355886f3f8b5678b36ae42d7f85e6fef04abaf7deb04e90e3157ac",
+      "case_id": "app-detail",
+      "compile_check": {
+        "artifact_check": "passed",
+        "status": "passed",
+        "target": "html-tailwind-app"
+      },
+      "patch_id": "vpatch_05c71efe36af52ff2f69a735ad5d06d9",
+      "preview_id": "vpv_ce85d5d31d58b2bc88d074d63c68fa49",
+      "receipt": {
+        "approval_token": "vapprove_da2d7f8406e858e8021e0a35dd7951ac0f56d379d7500475bad7371ee752fa98",
+        "base_source_sha256": "d2917c0bc2f416d8ddcf6ea3b6fee56c4320e650b20d506cf2dd68d4bf946d75",
+        "candidate_source_sha256": "68de21672e355886f3f8b5678b36ae42d7f85e6fef04abaf7deb04e90e3157ac",
+        "inverse_patch": {
+          "base_source_sha256": "68de21672e355886f3f8b5678b36ae42d7f85e6fef04abaf7deb04e90e3157ac",
+          "contract_profile": "local_v1",
+          "evidence_refs": [
+            "patch:vpatch_05c71efe36af52ff2f69a735ad5d06d9"
+          ],
+          "operations": [
+            {
+              "attr": "title",
+              "node_id": "incident_detail",
+              "old_value": "Incident INC-1042",
+              "op": "replace_semantic_attr",
+              "screen_id": "detail",
+              "value": "Incident Detail"
+            }
+          ],
+          "schema_version": 1,
+          "source_kind": "app_bundle"
+        },
+        "patch_id": "vpatch_05c71efe36af52ff2f69a735ad5d06d9",
+        "preview_id": "vpv_ce85d5d31d58b2bc88d074d63c68fa49",
+        "receipt_id": "vreceipt_d638f27ffb3df4db71c9f5bdfd35eac9",
+        "schema_version": 1,
+        "status": "applied"
+      },
+      "semantic_diff_ok": true,
+      "source_kind": "app_bundle",
+      "target": {
+        "attr": "title",
+        "node_id": "incident_detail",
+        "screen_id": "detail"
+      },
+      "verification": {
+        "diagnostic_codes": [],
+        "status": "conformant",
+        "target": "react-tailwind-app"
+      }
+    },
+    {
+      "base_source_sha256": "d2917c0bc2f416d8ddcf6ea3b6fee56c4320e650b20d506cf2dd68d4bf946d75",
+      "candidate_source_sha256": "8111f94b3d0540d89254ba5012b0294c1c9797353a63ed1743930b7c01c98788",
+      "case_id": "app-queue",
+      "compile_check": {
+        "artifact_check": "passed",
+        "status": "passed",
+        "target": "html-tailwind-app"
+      },
+      "patch_id": "vpatch_d4f689f893fd41786ca70ab0bd82a88d",
+      "preview_id": "vpv_448d6fcdf060cf84ebcd0b34f121678a",
+      "receipt": {
+        "approval_token": "vapprove_145ce3a7edc128056dbcfc21a42aea33e1b7c3e3b6097fdd55f53928fe2acb5a",
+        "base_source_sha256": "d2917c0bc2f416d8ddcf6ea3b6fee56c4320e650b20d506cf2dd68d4bf946d75",
+        "candidate_source_sha256": "8111f94b3d0540d89254ba5012b0294c1c9797353a63ed1743930b7c01c98788",
+        "inverse_patch": {
+          "base_source_sha256": "8111f94b3d0540d89254ba5012b0294c1c9797353a63ed1743930b7c01c98788",
+          "contract_profile": "local_v1",
+          "evidence_refs": [
+            "patch:vpatch_d4f689f893fd41786ca70ab0bd82a88d"
+          ],
+          "operations": [
+            {
+              "attr": "title",
+              "node_id": "incident_queue",
+              "old_value": "Active Incident Queue",
+              "op": "replace_semantic_attr",
+              "screen_id": "queue",
+              "value": "Incident Queue"
+            }
+          ],
+          "schema_version": 1,
+          "source_kind": "app_bundle"
+        },
+        "patch_id": "vpatch_d4f689f893fd41786ca70ab0bd82a88d",
+        "preview_id": "vpv_448d6fcdf060cf84ebcd0b34f121678a",
+        "receipt_id": "vreceipt_7a9cd9a040fed5bc749d75ec74ed9f04",
+        "schema_version": 1,
+        "status": "applied"
+      },
+      "semantic_diff_ok": true,
+      "source_kind": "app_bundle",
+      "target": {
+        "attr": "title",
+        "node_id": "incident_queue",
+        "screen_id": "queue"
+      },
+      "verification": {
+        "diagnostic_codes": [],
+        "status": "conformant",
+        "target": "react-tailwind-app"
+      }
+    },
+    {
+      "base_source_sha256": "011872d9c56ea49f9f5ab1edc612f8cd238bebb2012d8972f1d1064b0beafc65",
+      "candidate_source_sha256": "4b4204475bdff1d6eecbb75fc5228ec5ef908430497813d6041955155c98bb5b",
+      "case_id": "collection-states",
+      "compile_check": {
+        "artifact_check": "passed",
+        "status": "passed",
+        "target": "html-tailwind"
+      },
+      "patch_id": "vpatch_42b5a1f7deacbd60ef42386df42971cb",
+      "preview_id": "vpv_e529deaaa6bc657984763e42b046945d",
+      "receipt": {
+        "approval_token": "vapprove_b074b6f2e209e159222d37810d383e8a07fd8dc90f41dd916c1dd2c4755abe5f",
+        "base_source_sha256": "011872d9c56ea49f9f5ab1edc612f8cd238bebb2012d8972f1d1064b0beafc65",
+        "candidate_source_sha256": "4b4204475bdff1d6eecbb75fc5228ec5ef908430497813d6041955155c98bb5b",
+        "inverse_patch": {
+          "base_source_sha256": "4b4204475bdff1d6eecbb75fc5228ec5ef908430497813d6041955155c98bb5b",
+          "contract_profile": "local_v1",
+          "evidence_refs": [
+            "patch:vpatch_42b5a1f7deacbd60ef42386df42971cb"
+          ],
+          "operations": [
+            {
+              "attr": "title",
+              "node_id": "project_collection_states",
+              "old_value": "Filtered projects",
+              "op": "replace_semantic_attr",
+              "value": "Project collection states"
+            }
+          ],
+          "schema_version": 1,
+          "source_kind": "intent_bundle"
+        },
+        "patch_id": "vpatch_42b5a1f7deacbd60ef42386df42971cb",
+        "preview_id": "vpv_e529deaaa6bc657984763e42b046945d",
+        "receipt_id": "vreceipt_1f1478b5cdbee620364e9148bac3096f",
+        "schema_version": 1,
+        "status": "applied"
+      },
+      "semantic_diff_ok": true,
+      "source_kind": "intent_bundle",
+      "target": {
+        "attr": "title",
+        "node_id": "project_collection_states",
+        "screen_id": null
+      },
+      "verification": {
+        "diagnostic_codes": [],
+        "result_sha256": "d61fc43aad1908ac5ba740b6e5820f187feb683952e21593be6e3f6d4688fb95",
+        "status": "conformant",
+        "target": "react-tailwind-tsx",
+        "verification_id": "vvr_2be89ffa860374e9d002969c845474d5"
+      }
+    },
+    {
+      "base_source_sha256": "2f927effe0949f688418e477c09eab56bc3b57dbe289f301979221d723018f3f",
+      "candidate_source_sha256": "f394eb049abb8e84a3552e521ed1f2512cdc0326484f9d4b25528207b3f22194",
+      "case_id": "data-dense-dashboard",
+      "compile_check": {
+        "artifact_check": "passed",
+        "status": "passed",
+        "target": "html-tailwind"
+      },
+      "patch_id": "vpatch_045930ae1c9ea52ef3d7cdd6b7bc6f52",
+      "preview_id": "vpv_cf79b9bde98041b5bb9c974ab2150567",
+      "receipt": {
+        "approval_token": "vapprove_08a05aeeb2f67329373ef0175e665a76efe930e5fa215652c7ddcb9a9e15df75",
+        "base_source_sha256": "2f927effe0949f688418e477c09eab56bc3b57dbe289f301979221d723018f3f",
+        "candidate_source_sha256": "f394eb049abb8e84a3552e521ed1f2512cdc0326484f9d4b25528207b3f22194",
+        "inverse_patch": {
+          "base_source_sha256": "f394eb049abb8e84a3552e521ed1f2512cdc0326484f9d4b25528207b3f22194",
+          "contract_profile": "local_v1",
+          "evidence_refs": [
+            "patch:vpatch_045930ae1c9ea52ef3d7cdd6b7bc6f52"
+          ],
+          "operations": [
+            {
+              "attr": "title",
+              "node_id": "starter_dashboard",
+              "old_value": "Executive Dashboard",
+              "op": "replace_semantic_attr",
+              "value": "Starter Dashboard"
+            }
+          ],
+          "schema_version": 1,
+          "source_kind": "intent_bundle"
+        },
+        "patch_id": "vpatch_045930ae1c9ea52ef3d7cdd6b7bc6f52",
+        "preview_id": "vpv_cf79b9bde98041b5bb9c974ab2150567",
+        "receipt_id": "vreceipt_d264d4f3f52fd9358b0a4b67e28f6825",
+        "schema_version": 1,
+        "status": "applied"
+      },
+      "semantic_diff_ok": true,
+      "source_kind": "intent_bundle",
+      "target": {
+        "attr": "title",
+        "node_id": "starter_dashboard",
+        "screen_id": null
+      },
+      "verification": {
+        "diagnostic_codes": [],
+        "result_sha256": "15f19c9b85240898c6a5abb085852badf848501a973dbc612451c6ebd1404bd6",
+        "status": "conformant",
+        "target": "react-tailwind-tsx",
+        "verification_id": "vvr_9806d9d2f7882b90a45c60cd21ef3e92"
+      }
+    },
+    {
+      "base_source_sha256": "f94b55facb2652507b9797d8da38af1f995fe81f6b97cf011c86ff168ab8d62a",
+      "candidate_source_sha256": "15221e70a263a0996e22552436ec7396bd3bac6427909c7d5c699fc7c6fc9099",
+      "case_id": "dense-operational-console",
+      "compile_check": {
+        "artifact_check": "passed",
+        "status": "passed",
+        "target": "html-tailwind"
+      },
+      "patch_id": "vpatch_5f4ae646834261a887847b4a08dc8945",
+      "preview_id": "vpv_e668790bcb302ba5cb018db034de61b1",
+      "receipt": {
+        "approval_token": "vapprove_0b829913dff9d9f05a7e75d9f45b1aad17fef91a6176a1a23be850d1acbfb2c9",
+        "base_source_sha256": "f94b55facb2652507b9797d8da38af1f995fe81f6b97cf011c86ff168ab8d62a",
+        "candidate_source_sha256": "15221e70a263a0996e22552436ec7396bd3bac6427909c7d5c699fc7c6fc9099",
+        "inverse_patch": {
+          "base_source_sha256": "15221e70a263a0996e22552436ec7396bd3bac6427909c7d5c699fc7c6fc9099",
+          "contract_profile": "local_v1",
+          "evidence_refs": [
+            "patch:vpatch_5f4ae646834261a887847b4a08dc8945"
+          ],
+          "operations": [
+            {
+              "attr": "title",
+              "node_id": "deployment_operations",
+              "old_value": "Deployment health",
+              "op": "replace_semantic_attr",
+              "value": "Deployment operations"
+            }
+          ],
+          "schema_version": 1,
+          "source_kind": "intent_bundle"
+        },
+        "patch_id": "vpatch_5f4ae646834261a887847b4a08dc8945",
+        "preview_id": "vpv_e668790bcb302ba5cb018db034de61b1",
+        "receipt_id": "vreceipt_078821fea09f80ec4a1bff5c48ac8fdc",
+        "schema_version": 1,
+        "status": "applied"
+      },
+      "semantic_diff_ok": true,
+      "source_kind": "intent_bundle",
+      "target": {
+        "attr": "title",
+        "node_id": "deployment_operations",
+        "screen_id": null
+      },
+      "verification": {
+        "diagnostic_codes": [],
+        "result_sha256": "8d80c8295f611ae4e4bee50cd5cae3ae7b483b2e3b6aa5d6f17ba3e0fdc67532",
+        "status": "conformant",
+        "target": "react-tailwind-tsx",
+        "verification_id": "vvr_af29a2cb6864db2beba2afa126f25bd7"
+      }
+    },
+    {
+      "base_source_sha256": "16c47f6f5d01fd03135e4b0cbdfbf469bff1130adc210e544c1bc5cf8ee4dcf7",
+      "candidate_source_sha256": "52ccb992448827be795feec2b1da4a2d04f8cf3e128735916fa2f91062d4f312",
+      "case_id": "interactive-form",
+      "compile_check": {
+        "artifact_check": "passed",
+        "status": "passed",
+        "target": "html-tailwind"
+      },
+      "patch_id": "vpatch_29563aa5c3d2dbc9fe3bcaf700e7cdfb",
+      "preview_id": "vpv_17cc47459608ba0059a70f6d83a08530",
+      "receipt": {
+        "approval_token": "vapprove_1e35ed32b318bfcaee39e3252c682ee93c1a3bf8fdd21a060a146e27e4993e6c",
+        "base_source_sha256": "16c47f6f5d01fd03135e4b0cbdfbf469bff1130adc210e544c1bc5cf8ee4dcf7",
+        "candidate_source_sha256": "52ccb992448827be795feec2b1da4a2d04f8cf3e128735916fa2f91062d4f312",
+        "inverse_patch": {
+          "base_source_sha256": "52ccb992448827be795feec2b1da4a2d04f8cf3e128735916fa2f91062d4f312",
+          "contract_profile": "local_v1",
+          "evidence_refs": [
+            "patch:vpatch_29563aa5c3d2dbc9fe3bcaf700e7cdfb"
+          ],
+          "operations": [
+            {
+              "attr": "title",
+              "node_id": "starter_form",
+              "old_value": "Contact the team",
+              "op": "replace_semantic_attr",
+              "value": "Starter Form"
+            }
+          ],
+          "schema_version": 1,
+          "source_kind": "intent_bundle"
+        },
+        "patch_id": "vpatch_29563aa5c3d2dbc9fe3bcaf700e7cdfb",
+        "preview_id": "vpv_17cc47459608ba0059a70f6d83a08530",
+        "receipt_id": "vreceipt_e9e1145ae6e575361e678ec6e6275a72",
+        "schema_version": 1,
+        "status": "applied"
+      },
+      "semantic_diff_ok": true,
+      "source_kind": "intent_bundle",
+      "target": {
+        "attr": "title",
+        "node_id": "starter_form",
+        "screen_id": null
+      },
+      "verification": {
+        "diagnostic_codes": [],
+        "result_sha256": "b44684ad6fa2b4520d028ba7d3ad31acdf4b4addf1a519be2e4f4f2b24978e5b",
+        "status": "conformant",
+        "target": "react-tailwind-tsx",
+        "verification_id": "vvr_091246c3a7e62f5be3c91158cf112ab5"
+      }
+    },
+    {
+      "base_source_sha256": "9f274154fbaa312a4440b80bcc0f55d1bb837e13c2cbccc75ae2cbd517eaf500",
+      "candidate_source_sha256": "62b24d187fe93de553ce618fef09d2d72624e078f9a2615930cc261d5744c268",
+      "case_id": "landing-intent",
+      "compile_check": {
+        "artifact_check": "passed",
+        "status": "passed",
+        "target": "html-tailwind"
+      },
+      "patch_id": "vpatch_71fe5f9e39965957e6ed9c1369608769",
+      "preview_id": "vpv_8d53c9fd2b228d066f193339407840ea",
+      "receipt": {
+        "approval_token": "vapprove_50a91d6aee381347816a1f9feffc4ef6c5e8432a314fdaeea9b1f999948b232e",
+        "base_source_sha256": "9f274154fbaa312a4440b80bcc0f55d1bb837e13c2cbccc75ae2cbd517eaf500",
+        "candidate_source_sha256": "62b24d187fe93de553ce618fef09d2d72624e078f9a2615930cc261d5744c268",
+        "inverse_patch": {
+          "base_source_sha256": "62b24d187fe93de553ce618fef09d2d72624e078f9a2615930cc261d5744c268",
+          "contract_profile": "local_v1",
+          "evidence_refs": [
+            "patch:vpatch_71fe5f9e39965957e6ed9c1369608769"
+          ],
+          "operations": [
+            {
+              "attr": "title",
+              "node_id": "launch_hero",
+              "old_value": "Intent becomes interface.",
+              "op": "replace_semantic_attr",
+              "value": "Intent goes in. Interface comes out."
+            }
+          ],
+          "schema_version": 1,
+          "source_kind": "intent_bundle"
+        },
+        "patch_id": "vpatch_71fe5f9e39965957e6ed9c1369608769",
+        "preview_id": "vpv_8d53c9fd2b228d066f193339407840ea",
+        "receipt_id": "vreceipt_dab0c961a31a5b95eb1b688cb4c86913",
+        "schema_version": 1,
+        "status": "applied"
+      },
+      "semantic_diff_ok": true,
+      "source_kind": "intent_bundle",
+      "target": {
+        "attr": "title",
+        "node_id": "launch_hero",
+        "screen_id": null
+      },
+      "verification": {
+        "diagnostic_codes": [],
+        "result_sha256": "f659f569e7b91eb30abdfd84af6344b7c948d814b708d99a50e8dca2f113912c",
+        "status": "conformant",
+        "target": "react-tailwind-tsx",
+        "verification_id": "vvr_8b6f0fb7fb258721094052c6a9837bdb"
+      }
+    },
+    {
+      "base_source_sha256": "5936001fcfaf1e8e76e5cd9391c41388981835133216cd49c9af9fc8c2d91bec",
+      "candidate_source_sha256": "73406acbb0414c950344019a7da21a5ac20617a19f210387fbefd62c620e41b1",
+      "case_id": "multi-step-workflow",
+      "compile_check": {
+        "artifact_check": "passed",
+        "status": "passed",
+        "target": "html-tailwind"
+      },
+      "patch_id": "vpatch_8df29442e3ae471b00da2e8f7cf9e2d2",
+      "preview_id": "vpv_b0b9d10dd78b1d6a6d9fc84fac4e4673",
+      "receipt": {
+        "approval_token": "vapprove_4b8067788b4d9d7028bf403327f9406ad5e5332b3bdf86c164ebcd57c315c7fd",
+        "base_source_sha256": "5936001fcfaf1e8e76e5cd9391c41388981835133216cd49c9af9fc8c2d91bec",
+        "candidate_source_sha256": "73406acbb0414c950344019a7da21a5ac20617a19f210387fbefd62c620e41b1",
+        "inverse_patch": {
+          "base_source_sha256": "73406acbb0414c950344019a7da21a5ac20617a19f210387fbefd62c620e41b1",
+          "contract_profile": "local_v1",
+          "evidence_refs": [
+            "patch:vpatch_8df29442e3ae471b00da2e8f7cf9e2d2"
+          ],
+          "operations": [
+            {
+              "attr": "title",
+              "node_id": "production_release",
+              "old_value": "Production release 2.8.0",
+              "op": "replace_semantic_attr",
+              "value": "Production release"
+            }
+          ],
+          "schema_version": 1,
+          "source_kind": "intent_bundle"
+        },
+        "patch_id": "vpatch_8df29442e3ae471b00da2e8f7cf9e2d2",
+        "preview_id": "vpv_b0b9d10dd78b1d6a6d9fc84fac4e4673",
+        "receipt_id": "vreceipt_37944658be8d416076f778d7e40d3a17",
+        "schema_version": 1,
+        "status": "applied"
+      },
+      "semantic_diff_ok": true,
+      "source_kind": "intent_bundle",
+      "target": {
+        "attr": "title",
+        "node_id": "production_release",
+        "screen_id": null
+      },
+      "verification": {
+        "diagnostic_codes": [],
+        "result_sha256": "ddfcc5e52916de82c60f32cb4bf2879569e8514ccc4c328896af86adeb10e821",
+        "status": "conformant",
+        "target": "react-tailwind-tsx",
+        "verification_id": "vvr_28cbe338bbdcd4e38b7884a962833937"
+      }
+    },
+    {
+      "base_source_sha256": "b4fb8cd6d9815c797babba88d82423ffccb32aa28d3aa27cf6807118ed40f819",
+      "candidate_source_sha256": "34c8af469c546f7ddad571afdb20d752af81e7e42de16f6a79c1ed462c012fde",
+      "case_id": "outcome-states",
+      "compile_check": {
+        "artifact_check": "passed",
+        "status": "passed",
+        "target": "html-tailwind"
+      },
+      "patch_id": "vpatch_fa0ab8c4eabed94d9ac75db674ace122",
+      "preview_id": "vpv_4aa21b9df22d83e58472b5bfc912f56c",
+      "receipt": {
+        "approval_token": "vapprove_521a8ee6ffd56cc83fb97246044b6314cf6ca5d166990208945cd55fa54cb998",
+        "base_source_sha256": "b4fb8cd6d9815c797babba88d82423ffccb32aa28d3aa27cf6807118ed40f819",
+        "candidate_source_sha256": "34c8af469c546f7ddad571afdb20d752af81e7e42de16f6a79c1ed462c012fde",
+        "inverse_patch": {
+          "base_source_sha256": "34c8af469c546f7ddad571afdb20d752af81e7e42de16f6a79c1ed462c012fde",
+          "contract_profile": "local_v1",
+          "evidence_refs": [
+            "patch:vpatch_fa0ab8c4eabed94d9ac75db674ace122"
+          ],
+          "operations": [
+            {
+              "attr": "title",
+              "node_id": "deployment_outcome_states",
+              "old_value": "Release 2.8.0 outcome",
+              "op": "replace_semantic_attr",
+              "value": "Deployment outcome states"
+            }
+          ],
+          "schema_version": 1,
+          "source_kind": "intent_bundle"
+        },
+        "patch_id": "vpatch_fa0ab8c4eabed94d9ac75db674ace122",
+        "preview_id": "vpv_4aa21b9df22d83e58472b5bfc912f56c",
+        "receipt_id": "vreceipt_07dbfb50390125141b0730dab5d63fc7",
+        "schema_version": 1,
+        "status": "applied"
+      },
+      "semantic_diff_ok": true,
+      "source_kind": "intent_bundle",
+      "target": {
+        "attr": "title",
+        "node_id": "deployment_outcome_states",
+        "screen_id": null
+      },
+      "verification": {
+        "diagnostic_codes": [],
+        "result_sha256": "de6fc3d8f62eddf4e2829989ce8c2c04acf027f60147003d4dd5a6908ca21237",
+        "status": "conformant",
+        "target": "react-tailwind-tsx",
+        "verification_id": "vvr_1a461b49ba21bcee6d14409cef6a4576"
+      }
+    },
+    {
+      "base_source_sha256": "8f45cc5b92f046ae38d09d547ec03fbb225b3ed8fee24b2c4f70be40b747c738",
+      "candidate_source_sha256": "c9874b96bb06a0dd90b3bf0c41ba880d7225c82f1a648a0b64e452c78b1a741b",
+      "case_id": "settings",
+      "compile_check": {
+        "artifact_check": "passed",
+        "status": "passed",
+        "target": "html-tailwind"
+      },
+      "patch_id": "vpatch_0ff3c4d114c51dd4a7ba7d31e09c5bd6",
+      "preview_id": "vpv_d4665d264f4b0790204dce2faadd88a3",
+      "receipt": {
+        "approval_token": "vapprove_82ed38c9bf3eb7dc9ad0a717c0dd557d379a4e1530920a5662d09d65424dab69",
+        "base_source_sha256": "8f45cc5b92f046ae38d09d547ec03fbb225b3ed8fee24b2c4f70be40b747c738",
+        "candidate_source_sha256": "c9874b96bb06a0dd90b3bf0c41ba880d7225c82f1a648a0b64e452c78b1a741b",
+        "inverse_patch": {
+          "base_source_sha256": "c9874b96bb06a0dd90b3bf0c41ba880d7225c82f1a648a0b64e452c78b1a741b",
+          "contract_profile": "local_v1",
+          "evidence_refs": [
+            "patch:vpatch_0ff3c4d114c51dd4a7ba7d31e09c5bd6"
+          ],
+          "operations": [
+            {
+              "attr": "title",
+              "node_id": "notification_settings",
+              "old_value": "Alert preferences",
+              "op": "replace_semantic_attr",
+              "value": "Deployment notification settings"
+            }
+          ],
+          "schema_version": 1,
+          "source_kind": "intent_bundle"
+        },
+        "patch_id": "vpatch_0ff3c4d114c51dd4a7ba7d31e09c5bd6",
+        "preview_id": "vpv_d4665d264f4b0790204dce2faadd88a3",
+        "receipt_id": "vreceipt_8075b0a67411f11291865438af186b5d",
+        "schema_version": 1,
+        "status": "applied"
+      },
+      "semantic_diff_ok": true,
+      "source_kind": "intent_bundle",
+      "target": {
+        "attr": "title",
+        "node_id": "notification_settings",
+        "screen_id": null
+      },
+      "verification": {
+        "diagnostic_codes": [],
+        "result_sha256": "3e1b64301c62941c5d3d5318676afc3362853e8eb6730055dfb2a1d00ff43c86",
+        "status": "conformant",
+        "target": "react-tailwind-tsx",
+        "verification_id": "vvr_9d1f684f9d7f3768064cd85df2530854"
+      }
+    }
+  ],
+  "ok": true,
+  "schema_version": 1
+}

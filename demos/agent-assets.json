@@ -34,7 +34,7 @@
     },
     {
       "path": "agent-intent-example.dashboard.json",
-      "sha256": "78e159bb38be9ac73bc5d82a42a164d0526a15e1dc197a17cc0a6ed8abdc1c03"
+      "sha256": "2f927effe0949f688418e477c09eab56bc3b57dbe289f301979221d723018f3f"
     },
     {
       "path": "agent-app-bundle.schema.json",
@@ -42,7 +42,7 @@
     },
     {
       "path": "agent-app-example.internal-tool.json",
-      "sha256": "7cefa686de3db91e614c8bc31867aca096a117436f89dc520e8c326182344a4f"
+      "sha256": "d2917c0bc2f416d8ddcf6ea3b6fee56c4320e650b20d506cf2dd68d4bf946d75"
     },
     {
       "path": "intent-patch.schema.json",
@@ -50,7 +50,7 @@
     },
     {
       "path": "intent-patch-example.dashboard.json",
-      "sha256": "3638d74a81ad33accb2b54ba16230cb0b8e2eabf658d82ff7bd391f5be08ab1c"
+      "sha256": "7d47517476d365a0ba17c7e0f93f66cfa1f0fcbc9b3124892a60518a2bfe706b"
     },
     {
       "path": "converge-task.schema.json",
@@ -58,7 +58,7 @@
     },
     {
       "path": "converge-task-example.dashboard.json",
-      "sha256": "a4ae06e6ed91647a2315883c0c7af8040a36d3314b982a1ac1bfb9818e141c2b"
+      "sha256": "d8b0b73385cc6328a3989b11778508e285534e67a7f3122167b5b79f86ca34ac"
     }
   ],
   "intent_schema_id": "https://viewspec.dev/agent-intent-bundle.schema.json",

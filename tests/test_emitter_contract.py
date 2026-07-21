@@ -537,7 +537,7 @@ def test_react_tailwind_tsx_emitter_writes_static_recipe_component(tmp_path):
 
     assert paths["tsx"].endswith("ViewSpecView.tsx")
     assert 'source: "viewspec-react-tailwind-tsx"' in tsx
-    assert 'className="min-h-screen bg-slate-50 px-6 py-6 text-slate-950 sm:px-8"' in tsx
+    assert 'className="mx-auto min-h-screen w-full max-w-6xl bg-slate-50 px-6 py-6 text-slate-950 sm:px-8"' in tsx
     assert "className={" not in tsx
     assert "style={{" not in tsx
     assert ".join(" not in tsx

@@ -23,12 +23,17 @@ def main() -> int:
         default="verification-corpus-report.json",
         help="Machine-readable corpus report path.",
     )
+    parser.add_argument(
+        "--evidence-out",
+        help="Optional empty directory that retains per-case artifacts and browser evidence.",
+    )
     parser.add_argument("--install", action="store_true", help="Prepare host dependencies.")
     args = parser.parse_args()
 
     report = run_conformance_corpus(
         load_conformance_corpus(args.manifest),
         install=args.install,
+        evidence_out=args.evidence_out,
     )
     atomic_write(Path(args.output), json.dumps(report, indent=2, sort_keys=True) + "\n")
     print(json.dumps(report, indent=2, sort_keys=True))

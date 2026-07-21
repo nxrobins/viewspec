@@ -75,6 +75,13 @@ def starter_intent_bundle(kind: str = "dashboard") -> IntentBundle:
         dashboard = builder.add_dashboard("metrics", region="main", group_id="cards")
         dashboard.add_card(label="Revenue", value="$12.4K", id="revenue")
         dashboard.add_card(label="Users", value="1,284", id="users")
+        dashboard.add_card(label="Weekly trend", value="Revenue +12%", id="weekly_trend")
+        dashboard.add_card(
+            label="Priority",
+            value="Activation -4%",
+            id="priority",
+            value_present_as="badge",
+        )
     elif kind == "outline":
         outline = builder.add_outline("plan", region="main", group_id="steps")
         outline.add_branch(label="Define intent", id="define")

@@ -18,6 +18,39 @@ viewspec prove --out .viewspec-proof
 
 This writes a starter `viewspec.intent.json`, starter `DESIGN.md`, checked artifact output, human-readable `PROOF.md`, machine-readable `proof_report.json`, and redacted `support_bundle.json` under `.viewspec-proof/`. Read [ViewSpec Proof Bundle](proof-bundle.md) when you need to interpret status, hashes, checks, failure codes, or local support triage. The default proof is Python-only and no-network; it proves source artifact integrity and provenance. ViewSpec prove is not pixel-perfect visual regression, accessibility certification, arbitrary host-app certification, or hosted compiler publish automation.
 
+## Canonical Intent Lifecycle
+
+The supported happy path is three user-invoked commands. Authoring the semantic source happens
+between the first and second command:
+
+```bash
+viewspec init-intent --out viewspec.intent.json
+# Edit viewspec.intent.json; optionally author DESIGN.md.
+viewspec validate-intent viewspec.intent.json --json
+viewspec prove --intent viewspec.intent.json --target react-tailwind-tsx --install --out .viewspec-proof --json
+```
+
+The proof command performs compile, artifact check, and bounded browser verification as one
+operation. Its outputs have distinct jobs:
+
+| Item | Role | Correct it by editing |
+| --- | --- | --- |
+| `viewspec.intent.json` | Editable semantic source | This file |
+| `DESIGN.md` | Optional governed design input | This file |
+| `.viewspec-proof/artifact/` | Generated renderer artifact | Never directly; regenerate it |
+| `.viewspec-proof/proof_report.json` | Machine proof and exact hashes | The semantic source named by its diagnostic |
+| `.viewspec-proof/PROOF.md` | Human proof summary | The semantic source named by its next action |
+
+On failure, follow the returned stable code, semantic path or evidence reference, and bounded next
+action. Validation results include `correction_prompt`; proof results identify the failed phase and
+evidence. Do not inspect compiler implementation code to repair a brief, and do not edit generated
+HTML, CSS, or TSX.
+
+For a later revision, use `viewspec diff-intent old.intent.json viewspec.intent.json --json` to
+inspect the semantic change, then rerun `prove` with `--force`. When feedback already identifies a
+bounded semantic change, Review and Converge preview and receipt the exact `IntentPatch`; the human
+approves the candidate shown, not an emitted file.
+
 ## Runnable React App Golden Path
 
 Use the checked AppBundle V4 starter when the goal is a running multi-screen React application rather than a source proof:
@@ -42,7 +75,8 @@ The proof runs `npm ci --ignore-scripts`, a Vite production build, and generated
 
 ## Agent Intent First
 
-For new UI, make the agent create `viewspec.intent.json` and run:
+The canonical lifecycle above is the default. The lower-level commands below are expert/debug
+equivalents when an integration needs to inspect each phase separately:
 
 ```bash
 viewspec init-intent --out viewspec.intent.json

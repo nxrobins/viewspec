@@ -143,7 +143,7 @@ TAILWIND_APP_ROLE_RULE_PRECEDENCE: tuple[str, ...] = (
 
 
 RECIPE_BY_KEY: dict[str, str] = {
-    "app_role:app_shell": "min-h-screen bg-slate-50 px-6 py-6 text-slate-950 sm:px-8",
+    "app_role:app_shell": "mx-auto min-h-screen w-full max-w-6xl bg-slate-50 px-6 py-6 text-slate-950 sm:px-8",
     "app_role:app_header": "border-b border-slate-200 pb-4 pt-1",
     "app_role:page_header": "bg-transparent p-0 shadow-none ring-0",
     "app_role:content_grid": "grid gap-5",

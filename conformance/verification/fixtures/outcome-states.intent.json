@@ -1,0 +1,257 @@
+{
+  "schema_version": 1,
+  "substrate": {
+    "id": "deployment_outcome_states_substrate",
+    "nodes": {
+      "deployment_outcome_states": {
+        "attrs": {
+          "title": "Deployment outcome states"
+        },
+        "edges": {},
+        "id": "deployment_outcome_states",
+        "kind": "app",
+        "slots": {}
+      },
+      "outcomes_intro": {
+        "attrs": {
+          "description": "A finished deployment should confirm what changed; a failure should preserve context and offer recovery.",
+          "eyebrow": "Deployment result",
+          "title": "Completion and recovery states"
+        },
+        "edges": {},
+        "id": "outcomes_intro",
+        "kind": "hero",
+        "slots": {}
+      },
+      "rollback_failure": {
+        "attrs": {
+          "description": "Two services remain on release 2.8.0. Retry the rollback or open the incident runbook.",
+          "title": "Rollback could not complete"
+        },
+        "edges": {},
+        "id": "rollback_failure",
+        "kind": "error_state",
+        "slots": {}
+      },
+      "success_environment": {
+        "attrs": {
+          "label": "Environment",
+          "value": "Production"
+        },
+        "edges": {},
+        "id": "success_environment",
+        "kind": "detail_field",
+        "slots": {}
+      },
+      "success_revision": {
+        "attrs": {
+          "label": "Revision",
+          "value": "2.8.0 \u00b7 a16e2c9"
+        },
+        "edges": {},
+        "id": "success_revision",
+        "kind": "detail_field",
+        "slots": {}
+      },
+      "success_status": {
+        "attrs": {
+          "label": "Status",
+          "value": "Deployment complete"
+        },
+        "edges": {},
+        "id": "success_status",
+        "kind": "detail_field",
+        "slots": {}
+      }
+    },
+    "root_id": "deployment_outcome_states"
+  },
+  "view_spec": {
+    "actions": [
+      {
+        "id": "retry_rollback",
+        "kind": "submit",
+        "label": "Retry rollback",
+        "payload_bindings": [],
+        "target_ref": null,
+        "target_region": "main"
+      }
+    ],
+    "bindings": [
+      {
+        "address": "node:outcomes_intro#attr:eyebrow",
+        "cardinality": "exactly_once",
+        "id": "outcomes_intro_eyebrow",
+        "present_as": "label",
+        "target_region": "main"
+      },
+      {
+        "address": "node:outcomes_intro#attr:title",
+        "cardinality": "exactly_once",
+        "id": "outcomes_intro_title",
+        "present_as": "value",
+        "target_region": "main"
+      },
+      {
+        "address": "node:outcomes_intro#attr:description",
+        "cardinality": "exactly_once",
+        "id": "outcomes_intro_description",
+        "present_as": "text",
+        "target_region": "main"
+      },
+      {
+        "address": "node:success_status#attr:label",
+        "cardinality": "exactly_once",
+        "id": "success_status_label",
+        "present_as": "label",
+        "target_region": "main"
+      },
+      {
+        "address": "node:success_status#attr:value",
+        "cardinality": "exactly_once",
+        "id": "success_status_value",
+        "present_as": "value",
+        "target_region": "main"
+      },
+      {
+        "address": "node:success_environment#attr:label",
+        "cardinality": "exactly_once",
+        "id": "success_environment_label",
+        "present_as": "label",
+        "target_region": "main"
+      },
+      {
+        "address": "node:success_environment#attr:value",
+        "cardinality": "exactly_once",
+        "id": "success_environment_value",
+        "present_as": "value",
+        "target_region": "main"
+      },
+      {
+        "address": "node:success_revision#attr:label",
+        "cardinality": "exactly_once",
+        "id": "success_revision_label",
+        "present_as": "label",
+        "target_region": "main"
+      },
+      {
+        "address": "node:success_revision#attr:value",
+        "cardinality": "exactly_once",
+        "id": "success_revision_value",
+        "present_as": "value",
+        "target_region": "main"
+      },
+      {
+        "address": "node:rollback_failure#attr:title",
+        "cardinality": "exactly_once",
+        "id": "rollback_failure_title",
+        "present_as": "value",
+        "target_region": "main"
+      },
+      {
+        "address": "node:rollback_failure#attr:description",
+        "cardinality": "exactly_once",
+        "id": "rollback_failure_description",
+        "present_as": "text",
+        "target_region": "main"
+      }
+    ],
+    "complexity_tier": 2,
+    "groups": [
+      {
+        "id": "outcomes_intro_content",
+        "kind": "ordered",
+        "members": [
+          "outcomes_intro_eyebrow",
+          "outcomes_intro_title",
+          "outcomes_intro_description"
+        ],
+        "target_region": "main"
+      },
+      {
+        "id": "success_fields",
+        "kind": "ordered",
+        "members": [
+          "success_status_label",
+          "success_status_value",
+          "success_environment_label",
+          "success_environment_value",
+          "success_revision_label",
+          "success_revision_value"
+        ],
+        "target_region": "main"
+      },
+      {
+        "id": "failure_content",
+        "kind": "ordered",
+        "members": [
+          "rollback_failure_title",
+          "rollback_failure_description"
+        ],
+        "target_region": "main"
+      }
+    ],
+    "id": "deployment_outcome_states",
+    "motifs": [
+      {
+        "id": "outcomes_intro",
+        "kind": "hero",
+        "members": [
+          "outcomes_intro_eyebrow",
+          "outcomes_intro_title",
+          "outcomes_intro_description"
+        ],
+        "region": "main"
+      },
+      {
+        "id": "deployment_success",
+        "kind": "detail",
+        "members": [
+          "success_status_label",
+          "success_status_value",
+          "success_environment_label",
+          "success_environment_value",
+          "success_revision_label",
+          "success_revision_value"
+        ],
+        "region": "main"
+      },
+      {
+        "id": "rollback_failure",
+        "kind": "error_state",
+        "members": [
+          "rollback_failure_title",
+          "rollback_failure_description"
+        ],
+        "region": "main"
+      }
+    ],
+    "regions": [
+      {
+        "id": "root",
+        "layout": "stack",
+        "max_children": null,
+        "min_children": 1,
+        "parent_region": "",
+        "role": "root"
+      },
+      {
+        "id": "main",
+        "layout": "stack",
+        "max_children": null,
+        "min_children": 1,
+        "parent_region": "root",
+        "role": "main"
+      }
+    ],
+    "root_region": "root",
+    "styles": [
+      {
+        "id": "aesthetic_profile",
+        "target": "view:deployment_outcome_states",
+        "token": "aesthetic.executive_review"
+      }
+    ],
+    "substrate_id": "deployment_outcome_states_substrate"
+  }
+}

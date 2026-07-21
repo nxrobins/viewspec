@@ -214,6 +214,13 @@ def _starter_queue_screen_intent() -> dict[str, Any]:
     table = builder.add_table("incidents", region="main", group_id="incident_rows")
     table.add_row(label="INC-1042", value="High - Investigating", id="inc_1042")
     table.add_row(label="INC-1043", value="Medium - Queued", id="inc_1043")
+    builder.add_action(
+        "open_incident",
+        "navigate",
+        "Open INC-1042",
+        target_region="main",
+        target_ref="binding:inc_1042_label",
+    )
     return builder.build_bundle().to_json()
 
 

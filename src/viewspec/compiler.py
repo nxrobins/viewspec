@@ -100,6 +100,8 @@ SUPPORTED_REGION_LAYOUTS = {"cluster", "grid", "stack"}
 SAFE_COMPILER_ID_RE = re.compile(r"^[A-Za-z0-9_.-]+$")
 
 PRODUCT_SURFACE_PLANNER_V1_SURFACE = "workspace_dashboard_v1"
+PRODUCT_SINGLE_COLUMN_SURFACE_V1 = "single_column_v1"
+MAX_IMPLICIT_PAGE_TITLE_BYTES = 512
 PRODUCT_SURFACE_PLANNER_V1_ROLES = frozenset(
     {
         "app_shell",
@@ -360,6 +362,17 @@ def _role_markers(role: str) -> set[str]:
     return markers
 
 
+def _implicit_page_title_v1(value: object) -> str | None:
+    """Return a safe authored one-line title without changing semantic content."""
+    if not isinstance(value, str) or not value or value.strip() != value:
+        return None
+    if len(value.encode("utf-8")) > MAX_IMPLICIT_PAGE_TITLE_BYTES:
+        return None
+    if any(ord(character) < 32 or ord(character) > 126 for character in value):
+        return None
+    return value
+
+
 def _region_role_matches(region: RegionSpec, markers: frozenset[str]) -> bool:
     return bool(_role_markers(region.role) & markers)
 
@@ -516,6 +529,106 @@ def _apply_workspace_surface_roles_v1(
                 if child.primitive == "surface":
                     _assign_product_role_v1(child, "field_group")
         elif side_rail is not None and motif.kind == "detail" and motif.region == side_rail:
+            _assign_product_role_v1(wrapper, "detail_panel")
+
+
+def _detect_single_column_surface_v1(
+    *,
+    valid_regions: list[RegionSpec],
+    root_region: str,
+) -> str | None:
+    """Recognize the unambiguous root -> main stack used by local starter surfaces."""
+    children = [region for region in valid_regions if region.parent_region == root_region]
+    if len(children) != 1:
+        return None
+    main = children[0]
+    if main.layout != "stack" or main.role not in WORKSPACE_PRIMARY_ROLE_MARKERS:
+        return None
+    if any(
+        region.id not in {root_region, main.id}
+        for region in valid_regions
+    ):
+        return None
+    return main.id
+
+
+def _apply_single_column_surface_roles_v1(
+    *,
+    view_spec: ViewSpec,
+    substrate: SemanticSubstrate,
+    main_region: str,
+    region_nodes: dict[str, IRNode],
+    motif_wrappers: dict[str, IRNode],
+    motif_by_id: dict[str, MotifSpec],
+    bindings_by_id: dict[str, BindingSpec],
+    root_region: str,
+) -> None:
+    root_node = region_nodes[root_region]
+    _assign_product_role_v1(root_node, "app_shell")
+    root_node.props["planner_surface"] = PRODUCT_SINGLE_COLUMN_SURFACE_V1
+    _assign_product_role_v1(region_nodes[main_region], "primary_column")
+
+    has_explicit_page_header = any(
+        motif.kind == "hero" and motif.region == main_region
+        for motif in motif_by_id.values()
+    )
+    root_title_address = f"node:{substrate.root_id}#attr:title"
+    root_title = _implicit_page_title_v1(
+        substrate.nodes[substrate.root_id].attrs.get("title")
+    )
+    root_title_is_bound = any(
+        binding.address == root_title_address
+        for binding in bindings_by_id.values()
+    )
+    if (
+        not has_explicit_page_header
+        and not root_title_is_bound
+        and root_title is not None
+    ):
+        title_node = IRNode(
+            id=f"planner_{view_spec.id}_page_title",
+            primitive="value",
+            props={"text": root_title, "hero_role": "title"},
+            provenance=Provenance(
+                content_refs=[root_title_address],
+                intent_refs=[_view_ref(view_spec.id)],
+            ),
+        )
+        page_header = IRNode(
+            id=f"planner_{view_spec.id}_page_header",
+            primitive="surface",
+            props={
+                "layout_role": "surface",
+                "motif_kind": "hero",
+                "aria_label": "Page header",
+            },
+            children=[title_node],
+            provenance=Provenance(
+                content_refs=[root_title_address],
+                intent_refs=[_view_ref(view_spec.id)],
+            ),
+        )
+        _assign_product_role_v1(page_header, "page_header")
+        region_nodes[main_region].children.insert(0, page_header)
+
+    for motif_id in sorted(motif_wrappers):
+        motif = motif_by_id[motif_id]
+        if motif.region != main_region:
+            continue
+        wrapper = motif_wrappers[motif_id]
+        if motif.kind == "hero":
+            _assign_product_role_v1(wrapper, "page_header")
+        elif motif.kind == "dashboard" and wrapper.primitive == "grid":
+            _assign_product_role_v1(wrapper, "metric_grid")
+            for child in wrapper.children:
+                if child.primitive == "surface":
+                    _assign_product_role_v1(child, "metric_card")
+        elif motif.kind == "form":
+            _assign_product_role_v1(wrapper, "form_panel")
+            for child in wrapper.children:
+                if child.primitive == "surface":
+                    _assign_product_role_v1(child, "field_group")
+        elif motif.kind == "detail":
             _assign_product_role_v1(wrapper, "detail_panel")
 
 
@@ -739,6 +852,7 @@ def _validate_collection_action(
 def _apply_product_surface_planner_v1(
     *,
     view_spec: ViewSpec,
+    substrate: SemanticSubstrate,
     valid_regions: list[RegionSpec],
     region_nodes: dict[str, IRNode],
     motif_wrappers: dict[str, IRNode],
@@ -750,6 +864,10 @@ def _apply_product_surface_planner_v1(
     root_region: str,
 ) -> None:
     workspace_shape = _detect_workspace_surface_shape_v1(valid_regions=valid_regions, root_region=root_region)
+    single_column_region = _detect_single_column_surface_v1(
+        valid_regions=valid_regions,
+        root_region=root_region,
+    )
 
     for region_id in sorted(region_nodes):
         node = region_nodes[region_id]
@@ -775,6 +893,17 @@ def _apply_product_surface_planner_v1(
             region_nodes=region_nodes,
             motif_wrappers=motif_wrappers,
             motif_by_id=motif_by_id,
+            root_region=view_spec.root_region,
+        )
+    elif single_column_region is not None:
+        _apply_single_column_surface_roles_v1(
+            view_spec=view_spec,
+            substrate=substrate,
+            main_region=single_column_region,
+            region_nodes=region_nodes,
+            motif_wrappers=motif_wrappers,
+            motif_by_id=motif_by_id,
+            bindings_by_id=bindings_by_id,
             root_region=view_spec.root_region,
         )
 
@@ -1653,6 +1782,7 @@ def compile(
 
     _apply_product_surface_planner_v1(
         view_spec=view_spec,
+        substrate=substrate,
         valid_regions=valid_regions,
         region_nodes=region_nodes,
         motif_wrappers=motif_wrappers,

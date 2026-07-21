@@ -1279,6 +1279,11 @@ def preview_intent_patch(
                 "Repair the candidate until verification is conformant before applying this verified preview.",
             )
     inverse = _inverse_patch(patch, candidate_hash)
+    verification_identity = {
+        key: verification[key]
+        for key in ("status", "target", "verification_id", "diagnostic_codes")
+        if key in verification
+    }
     preview_material = {
         "type": "viewspec_intent_patch_preview_v1",
         "patch_id": patch.patch_id,
@@ -1286,7 +1291,10 @@ def preview_intent_patch(
         "candidate_source_sha256": candidate_hash,
         "semantic_diff_sha256": _canonical_json_sha256(semantic_diff),
         "compile_check": compile_check,
-        "verification": verification,
+        # Browser evidence bytes can include runtime timings, so result_sha256 may
+        # legitimately differ across identical proofs. Approval binds to the stable
+        # verification identity and the exact candidate source instead.
+        "verification": verification_identity,
         "inverse_patch_id": inverse.patch_id,
     }
     preview_id = f"vpv_{_canonical_json_sha256(preview_material)[:32]}"

@@ -1,0 +1,497 @@
+{
+  "schema_version": 1,
+  "substrate": {
+    "id": "deployment_operations_substrate",
+    "nodes": {
+      "catalog_success": {
+        "attrs": {
+          "duration": "5m 08s",
+          "label": "catalog-api",
+          "revision": "3b2e971",
+          "status": "Succeeded"
+        },
+        "edges": {},
+        "id": "catalog_success",
+        "kind": "table_row",
+        "slots": {}
+      },
+      "checkout_failed": {
+        "attrs": {
+          "duration": "4m 03s",
+          "label": "checkout-web",
+          "revision": "dd91f42",
+          "status": "Failed"
+        },
+        "edges": {},
+        "id": "checkout_failed",
+        "kind": "table_row",
+        "slots": {}
+      },
+      "deployment_operations": {
+        "attrs": {
+          "title": "Deployment operations"
+        },
+        "edges": {},
+        "id": "deployment_operations",
+        "kind": "app",
+        "slots": {}
+      },
+      "failed_count": {
+        "attrs": {
+          "label": "Failed",
+          "value": "2"
+        },
+        "edges": {},
+        "id": "failed_count",
+        "kind": "dashboard_card",
+        "slots": {}
+      },
+      "identity_running": {
+        "attrs": {
+          "duration": "3m 44s",
+          "label": "identity-service",
+          "revision": "c703de1",
+          "status": "Deploying"
+        },
+        "edges": {},
+        "id": "identity_running",
+        "kind": "table_row",
+        "slots": {}
+      },
+      "median_duration": {
+        "attrs": {
+          "label": "Median duration",
+          "value": "6m 18s"
+        },
+        "edges": {},
+        "id": "median_duration",
+        "kind": "dashboard_card",
+        "slots": {}
+      },
+      "operations_intro": {
+        "attrs": {
+          "description": "Failures are ordered first. Healthy and in-progress deployments remain visible for context.",
+          "eyebrow": "Production \u00b7 last 24 hours",
+          "title": "2 failed deployments need attention"
+        },
+        "edges": {},
+        "id": "operations_intro",
+        "kind": "hero",
+        "slots": {}
+      },
+      "payments_failed": {
+        "attrs": {
+          "duration": "2m 11s",
+          "label": "payments-api",
+          "revision": "a16e2c9",
+          "status": "Failed"
+        },
+        "edges": {},
+        "id": "payments_failed",
+        "kind": "table_row",
+        "slots": {}
+      },
+      "running_count": {
+        "attrs": {
+          "label": "In progress",
+          "value": "3"
+        },
+        "edges": {},
+        "id": "running_count",
+        "kind": "dashboard_card",
+        "slots": {}
+      },
+      "search_success": {
+        "attrs": {
+          "duration": "7m 26s",
+          "label": "search-indexer",
+          "revision": "8fe021a",
+          "status": "Succeeded"
+        },
+        "edges": {},
+        "id": "search_success",
+        "kind": "table_row",
+        "slots": {}
+      },
+      "succeeded_count": {
+        "attrs": {
+          "label": "Succeeded",
+          "value": "41"
+        },
+        "edges": {},
+        "id": "succeeded_count",
+        "kind": "dashboard_card",
+        "slots": {}
+      }
+    },
+    "root_id": "deployment_operations"
+  },
+  "view_spec": {
+    "actions": [
+      {
+        "id": "open_failed_deployments",
+        "kind": "navigate",
+        "label": "Review failed deployments",
+        "payload_bindings": [],
+        "target_ref": null,
+        "target_region": "main"
+      }
+    ],
+    "bindings": [
+      {
+        "address": "node:operations_intro#attr:eyebrow",
+        "cardinality": "exactly_once",
+        "id": "operations_intro_eyebrow",
+        "present_as": "label",
+        "target_region": "main"
+      },
+      {
+        "address": "node:operations_intro#attr:title",
+        "cardinality": "exactly_once",
+        "id": "operations_intro_title",
+        "present_as": "value",
+        "target_region": "main"
+      },
+      {
+        "address": "node:operations_intro#attr:description",
+        "cardinality": "exactly_once",
+        "id": "operations_intro_description",
+        "present_as": "text",
+        "target_region": "main"
+      },
+      {
+        "address": "node:failed_count#attr:label",
+        "cardinality": "exactly_once",
+        "id": "failed_count_label",
+        "present_as": "label",
+        "target_region": "main"
+      },
+      {
+        "address": "node:failed_count#attr:value",
+        "cardinality": "exactly_once",
+        "id": "failed_count_value",
+        "present_as": "value",
+        "target_region": "main"
+      },
+      {
+        "address": "node:running_count#attr:label",
+        "cardinality": "exactly_once",
+        "id": "running_count_label",
+        "present_as": "label",
+        "target_region": "main"
+      },
+      {
+        "address": "node:running_count#attr:value",
+        "cardinality": "exactly_once",
+        "id": "running_count_value",
+        "present_as": "value",
+        "target_region": "main"
+      },
+      {
+        "address": "node:succeeded_count#attr:label",
+        "cardinality": "exactly_once",
+        "id": "succeeded_count_label",
+        "present_as": "label",
+        "target_region": "main"
+      },
+      {
+        "address": "node:succeeded_count#attr:value",
+        "cardinality": "exactly_once",
+        "id": "succeeded_count_value",
+        "present_as": "value",
+        "target_region": "main"
+      },
+      {
+        "address": "node:median_duration#attr:label",
+        "cardinality": "exactly_once",
+        "id": "median_duration_label",
+        "present_as": "label",
+        "target_region": "main"
+      },
+      {
+        "address": "node:median_duration#attr:value",
+        "cardinality": "exactly_once",
+        "id": "median_duration_value",
+        "present_as": "value",
+        "target_region": "main"
+      },
+      {
+        "address": "node:payments_failed#attr:label",
+        "cardinality": "exactly_once",
+        "id": "payments_failed_label",
+        "present_as": "label",
+        "target_region": "main"
+      },
+      {
+        "address": "node:payments_failed#attr:status",
+        "cardinality": "exactly_once",
+        "id": "payments_failed_status",
+        "present_as": "value",
+        "target_region": "main"
+      },
+      {
+        "address": "node:payments_failed#attr:revision",
+        "cardinality": "exactly_once",
+        "id": "payments_failed_revision",
+        "present_as": "value",
+        "target_region": "main"
+      },
+      {
+        "address": "node:payments_failed#attr:duration",
+        "cardinality": "exactly_once",
+        "id": "payments_failed_duration",
+        "present_as": "value",
+        "target_region": "main"
+      },
+      {
+        "address": "node:checkout_failed#attr:label",
+        "cardinality": "exactly_once",
+        "id": "checkout_failed_label",
+        "present_as": "label",
+        "target_region": "main"
+      },
+      {
+        "address": "node:checkout_failed#attr:status",
+        "cardinality": "exactly_once",
+        "id": "checkout_failed_status",
+        "present_as": "value",
+        "target_region": "main"
+      },
+      {
+        "address": "node:checkout_failed#attr:revision",
+        "cardinality": "exactly_once",
+        "id": "checkout_failed_revision",
+        "present_as": "value",
+        "target_region": "main"
+      },
+      {
+        "address": "node:checkout_failed#attr:duration",
+        "cardinality": "exactly_once",
+        "id": "checkout_failed_duration",
+        "present_as": "value",
+        "target_region": "main"
+      },
+      {
+        "address": "node:identity_running#attr:label",
+        "cardinality": "exactly_once",
+        "id": "identity_running_label",
+        "present_as": "label",
+        "target_region": "main"
+      },
+      {
+        "address": "node:identity_running#attr:status",
+        "cardinality": "exactly_once",
+        "id": "identity_running_status",
+        "present_as": "value",
+        "target_region": "main"
+      },
+      {
+        "address": "node:identity_running#attr:revision",
+        "cardinality": "exactly_once",
+        "id": "identity_running_revision",
+        "present_as": "value",
+        "target_region": "main"
+      },
+      {
+        "address": "node:identity_running#attr:duration",
+        "cardinality": "exactly_once",
+        "id": "identity_running_duration",
+        "present_as": "value",
+        "target_region": "main"
+      },
+      {
+        "address": "node:catalog_success#attr:label",
+        "cardinality": "exactly_once",
+        "id": "catalog_success_label",
+        "present_as": "label",
+        "target_region": "main"
+      },
+      {
+        "address": "node:catalog_success#attr:status",
+        "cardinality": "exactly_once",
+        "id": "catalog_success_status",
+        "present_as": "value",
+        "target_region": "main"
+      },
+      {
+        "address": "node:catalog_success#attr:revision",
+        "cardinality": "exactly_once",
+        "id": "catalog_success_revision",
+        "present_as": "value",
+        "target_region": "main"
+      },
+      {
+        "address": "node:catalog_success#attr:duration",
+        "cardinality": "exactly_once",
+        "id": "catalog_success_duration",
+        "present_as": "value",
+        "target_region": "main"
+      },
+      {
+        "address": "node:search_success#attr:label",
+        "cardinality": "exactly_once",
+        "id": "search_success_label",
+        "present_as": "label",
+        "target_region": "main"
+      },
+      {
+        "address": "node:search_success#attr:status",
+        "cardinality": "exactly_once",
+        "id": "search_success_status",
+        "present_as": "value",
+        "target_region": "main"
+      },
+      {
+        "address": "node:search_success#attr:revision",
+        "cardinality": "exactly_once",
+        "id": "search_success_revision",
+        "present_as": "value",
+        "target_region": "main"
+      },
+      {
+        "address": "node:search_success#attr:duration",
+        "cardinality": "exactly_once",
+        "id": "search_success_duration",
+        "present_as": "value",
+        "target_region": "main"
+      }
+    ],
+    "complexity_tier": 3,
+    "groups": [
+      {
+        "id": "operations_intro_content",
+        "kind": "ordered",
+        "members": [
+          "operations_intro_eyebrow",
+          "operations_intro_title",
+          "operations_intro_description"
+        ],
+        "target_region": "main"
+      },
+      {
+        "id": "metric_cards",
+        "kind": "ordered",
+        "members": [
+          "failed_count_label",
+          "failed_count_value",
+          "running_count_label",
+          "running_count_value",
+          "succeeded_count_label",
+          "succeeded_count_value",
+          "median_duration_label",
+          "median_duration_value"
+        ],
+        "target_region": "main"
+      },
+      {
+        "id": "deployment_rows",
+        "kind": "ordered",
+        "members": [
+          "payments_failed_label",
+          "payments_failed_status",
+          "payments_failed_revision",
+          "payments_failed_duration",
+          "checkout_failed_label",
+          "checkout_failed_status",
+          "checkout_failed_revision",
+          "checkout_failed_duration",
+          "identity_running_label",
+          "identity_running_status",
+          "identity_running_revision",
+          "identity_running_duration",
+          "catalog_success_label",
+          "catalog_success_status",
+          "catalog_success_revision",
+          "catalog_success_duration",
+          "search_success_label",
+          "search_success_status",
+          "search_success_revision",
+          "search_success_duration"
+        ],
+        "target_region": "main"
+      }
+    ],
+    "id": "deployment_operations",
+    "motifs": [
+      {
+        "id": "operations_intro",
+        "kind": "hero",
+        "members": [
+          "operations_intro_eyebrow",
+          "operations_intro_title",
+          "operations_intro_description"
+        ],
+        "region": "main"
+      },
+      {
+        "id": "deployment_metrics",
+        "kind": "dashboard",
+        "members": [
+          "failed_count_label",
+          "failed_count_value",
+          "running_count_label",
+          "running_count_value",
+          "succeeded_count_label",
+          "succeeded_count_value",
+          "median_duration_label",
+          "median_duration_value"
+        ],
+        "region": "main"
+      },
+      {
+        "id": "recent_deployments",
+        "kind": "table",
+        "members": [
+          "payments_failed_label",
+          "payments_failed_status",
+          "payments_failed_revision",
+          "payments_failed_duration",
+          "checkout_failed_label",
+          "checkout_failed_status",
+          "checkout_failed_revision",
+          "checkout_failed_duration",
+          "identity_running_label",
+          "identity_running_status",
+          "identity_running_revision",
+          "identity_running_duration",
+          "catalog_success_label",
+          "catalog_success_status",
+          "catalog_success_revision",
+          "catalog_success_duration",
+          "search_success_label",
+          "search_success_status",
+          "search_success_revision",
+          "search_success_duration"
+        ],
+        "region": "main"
+      }
+    ],
+    "regions": [
+      {
+        "id": "root",
+        "layout": "stack",
+        "max_children": null,
+        "min_children": 1,
+        "parent_region": "",
+        "role": "root"
+      },
+      {
+        "id": "main",
+        "layout": "stack",
+        "max_children": null,
+        "min_children": 1,
+        "parent_region": "root",
+        "role": "main"
+      }
+    ],
+    "root_region": "root",
+    "styles": [
+      {
+        "id": "aesthetic_profile",
+        "target": "view:deployment_operations",
+        "token": "aesthetic.data_dense"
+      }
+    ],
+    "substrate_id": "deployment_operations_substrate"
+  }
+}

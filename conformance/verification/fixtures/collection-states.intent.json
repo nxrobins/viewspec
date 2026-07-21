@@ -1,0 +1,201 @@
+{
+  "schema_version": 1,
+  "substrate": {
+    "id": "project_collection_states_substrate",
+    "nodes": {
+      "project_collection_states": {
+        "attrs": {
+          "title": "Project collection states"
+        },
+        "edges": {},
+        "id": "project_collection_states",
+        "kind": "app",
+        "slots": {}
+      },
+      "projects_empty": {
+        "attrs": {
+          "description": "Clear the active filters or create a project to start deploying.",
+          "title": "No projects match these filters"
+        },
+        "edges": {},
+        "id": "projects_empty",
+        "kind": "empty_state",
+        "slots": {}
+      },
+      "projects_intro": {
+        "attrs": {
+          "description": "Keep the current empty result understandable while a background refresh checks for newly matching projects.",
+          "eyebrow": "Projects",
+          "title": "Collection state coverage"
+        },
+        "edges": {},
+        "id": "projects_intro",
+        "kind": "hero",
+        "slots": {}
+      },
+      "projects_loading": {
+        "attrs": {
+          "description": "Checking for newly matching projects while the current filtered result remains empty.",
+          "title": "Refreshing project status"
+        },
+        "edges": {},
+        "id": "projects_loading",
+        "kind": "loading_state",
+        "slots": {}
+      }
+    },
+    "root_id": "project_collection_states"
+  },
+  "view_spec": {
+    "actions": [
+      {
+        "id": "clear_project_filters",
+        "kind": "submit",
+        "label": "Clear filters",
+        "payload_bindings": [],
+        "target_ref": null,
+        "target_region": "main"
+      }
+    ],
+    "bindings": [
+      {
+        "address": "node:projects_intro#attr:eyebrow",
+        "cardinality": "exactly_once",
+        "id": "projects_intro_eyebrow",
+        "present_as": "label",
+        "target_region": "main"
+      },
+      {
+        "address": "node:projects_intro#attr:title",
+        "cardinality": "exactly_once",
+        "id": "projects_intro_title",
+        "present_as": "value",
+        "target_region": "main"
+      },
+      {
+        "address": "node:projects_intro#attr:description",
+        "cardinality": "exactly_once",
+        "id": "projects_intro_description",
+        "present_as": "text",
+        "target_region": "main"
+      },
+      {
+        "address": "node:projects_loading#attr:title",
+        "cardinality": "exactly_once",
+        "id": "projects_loading_title",
+        "present_as": "value",
+        "target_region": "main"
+      },
+      {
+        "address": "node:projects_loading#attr:description",
+        "cardinality": "exactly_once",
+        "id": "projects_loading_description",
+        "present_as": "text",
+        "target_region": "main"
+      },
+      {
+        "address": "node:projects_empty#attr:title",
+        "cardinality": "exactly_once",
+        "id": "projects_empty_title",
+        "present_as": "value",
+        "target_region": "main"
+      },
+      {
+        "address": "node:projects_empty#attr:description",
+        "cardinality": "exactly_once",
+        "id": "projects_empty_description",
+        "present_as": "text",
+        "target_region": "main"
+      }
+    ],
+    "complexity_tier": 2,
+    "groups": [
+      {
+        "id": "projects_intro_content",
+        "kind": "ordered",
+        "members": [
+          "projects_intro_eyebrow",
+          "projects_intro_title",
+          "projects_intro_description"
+        ],
+        "target_region": "main"
+      },
+      {
+        "id": "projects_loading_content",
+        "kind": "ordered",
+        "members": [
+          "projects_loading_title",
+          "projects_loading_description"
+        ],
+        "target_region": "main"
+      },
+      {
+        "id": "projects_empty_content",
+        "kind": "ordered",
+        "members": [
+          "projects_empty_title",
+          "projects_empty_description"
+        ],
+        "target_region": "main"
+      }
+    ],
+    "id": "project_collection_states",
+    "motifs": [
+      {
+        "id": "projects_intro",
+        "kind": "hero",
+        "members": [
+          "projects_intro_eyebrow",
+          "projects_intro_title",
+          "projects_intro_description"
+        ],
+        "region": "main"
+      },
+      {
+        "id": "projects_loading",
+        "kind": "loading_state",
+        "members": [
+          "projects_loading_title",
+          "projects_loading_description"
+        ],
+        "region": "main"
+      },
+      {
+        "id": "projects_empty",
+        "kind": "empty_state",
+        "members": [
+          "projects_empty_title",
+          "projects_empty_description"
+        ],
+        "region": "main"
+      }
+    ],
+    "regions": [
+      {
+        "id": "root",
+        "layout": "stack",
+        "max_children": null,
+        "min_children": 1,
+        "parent_region": "",
+        "role": "root"
+      },
+      {
+        "id": "main",
+        "layout": "stack",
+        "max_children": null,
+        "min_children": 1,
+        "parent_region": "root",
+        "role": "main"
+      }
+    ],
+    "root_region": "root",
+    "styles": [
+      {
+        "id": "aesthetic_profile",
+        "target": "view:project_collection_states",
+        "token": "aesthetic.editorial_product"
+      }
+    ],
+    "substrate_id": "project_collection_states_substrate"
+  }
+}
