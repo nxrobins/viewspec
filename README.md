@@ -11,9 +11,12 @@ Generated DOM and framework code stay compiler-owned. Developers and agents revi
 ## Quick Start
 
 ```bash
-pip install viewspec
+python -m pip install --pre viewspec
 viewspec prove --out .viewspec-proof
 ```
+
+`0.3.0b5` is a beta release, so `--pre` is required to install the current SDK. Plain
+`python -m pip install viewspec` follows the stable channel instead.
 
 Start with `.viewspec-proof/PROOF.md`. The same directory contains the machine-readable
 `proof_report.json`, redacted `support_bundle.json`, semantic source, generated artifact, and
@@ -90,10 +93,13 @@ Extend the local compiler securely with a microkernel architecture:
 ## Install
 
 ```bash
-pip install viewspec
+python -m pip install --pre viewspec
 ```
 
-Requires Python 3.11+. AppBundle **V3/V4** (`interactive_state_v0`) reducer conformance additionally requires Node.js (>=18) on `PATH`; V1/V2 and all IntentBundle flows are Python-only and no-network.
+The current public SDK is a beta; plain `python -m pip install viewspec` follows the stable
+channel. Requires Python 3.11+. AppBundle **V3/V4** (`interactive_state_v0`) reducer conformance
+additionally requires Node.js (>=18) on `PATH`; V1/V2 and all IntentBundle flows are Python-only
+and no-network.
 
 Python package: <https://pypi.org/project/viewspec/>
 
@@ -227,7 +233,7 @@ Agent assets use schema version `13`, contract profile `local_v1`, and the same 
 Optional **MCP tooling** is available behind the agent extra:
 
 ```bash
-python -m pip install "viewspec[agents]"
+python -m pip install --pre "viewspec[agents]"
 viewspec mcp
 ```
 The MCP server exposes all intent-first local tools without requiring shell commands, including `validate_intent_bundle_file`, `compile_intent_bundle_file`, `build_intent_patch_context`, `start_convergence`, `submit_convergence_patch`, `get_convergence_status`, `verify_host`, `prove`, `validate_app_file`, `diff_app_files`, `compile_app`, and `prove_app`. Convergence approval remains human-gated in Review; the expert `approve_convergence` tool can only consume an operator-supplied capability that agent-facing tools never reveal.
@@ -324,7 +330,9 @@ from viewspec import compile_auto
 ast = compile_auto(builder.build_bundle())
 ```
 
-The hosted fallback requires the `remote` extra: `python -m pip install "viewspec[remote]"` (adds `httpx`). Without it, `compile_auto` runs locally and raises `ImportError` only if a hosted fallback is actually needed.
+The hosted fallback requires the `remote` extra: `python -m pip install --pre "viewspec[remote]"`
+(adds `httpx`). Without it, `compile_auto` runs locally and raises `ImportError` only if a hosted
+fallback is actually needed.
 
 Paid agents can submit a complete AppBundle to `submit_verification_remote(...)` for compiled
 route/state proof plus per-screen browser evidence and a signed receipt. For bounded autonomous

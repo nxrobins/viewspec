@@ -93,6 +93,18 @@ assertPublicEqual(publicFacts.schema_version, 1, 'public facts schema_version')
 assert.match(publicFacts.sdk_version, /^\d+\.\d+\.\d+(?:[a-z]+\d+)?$/, 'public facts sdk_version shape')
 assertPublicEqual(publicFacts.canonical_api_url, 'https://api.viewspec.dev/v1/compile', 'public facts canonical_api_url')
 assertPublicEqual(publicFacts.package_url, 'https://pypi.org/project/viewspec/', 'public facts package_url')
+assertPublicEqual(publicFacts.installation.release_channel, 'beta', 'public facts release channel')
+assert.match(publicFacts.sdk_version, /[a-z]+\d+$/, 'beta channel requires a prerelease SDK version')
+assertPublicEqual(
+  publicFacts.installation.current_command,
+  'python -m pip install --pre viewspec',
+  'public facts current beta install command'
+)
+assertPublicEqual(
+  publicFacts.installation.stable_command,
+  'python -m pip install viewspec',
+  'public facts stable install command'
+)
 assertPublicEqual(publicFacts.proof.first_proof_command, 'viewspec prove --out .viewspec-proof', 'public facts first proof command')
 assertPublicEqual(publicFacts.proof.human_summary_file, '.viewspec-proof/PROOF.md', 'public facts proof summary file')
 assertPublicEqual(publicFacts.proof.machine_report_file, '.viewspec-proof/proof_report.json', 'public facts proof report file')
@@ -339,6 +351,8 @@ assertPublicText(versionModule, `__version__ = "${publicFacts.sdk_version}"`, 'r
 
 for (const publicTextPath of ['README.md', 'docs/getting-started.md', 'demos/llms.txt', 'demos/llms-full.txt']) {
   const text = await readFile(publicTextPath, 'utf8')
+  assertPublicText(text, publicFacts.installation.current_command, `${publicTextPath} current beta install command`)
+  assertPublicText(text, publicFacts.installation.stable_command, `${publicTextPath} stable-channel distinction`)
   assertPublicText(text, publicFacts.proof.first_proof_command, `${publicTextPath} first proof`)
   assertPublicText(text, 'PROOF.md', `${publicTextPath} proof summary`)
   assertPublicText(text, 'support_bundle.json', `${publicTextPath} proof support bundle`)
@@ -633,8 +647,10 @@ if (/\.vs-|data-ir-id/.test(styleRangeShellCss)) {
 // Three install pills: nav + hero + footer. The footer pill was added in
 // the site bug sweep (b7d5b96); the test was previously asserting on the
 // pre-bug-sweep count of 2.
-assert.equal((home.match(/data-copy-text="pip install viewspec"/g) || []).length, 3)
-assert.match(home, /aria-label="Copy pip install viewspec command"/)
+const installCommandPattern = publicFacts.installation.current_command.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+assert.equal((home.match(new RegExp(`data-copy-text="${installCommandPattern}"`, 'g')) || []).length, 3)
+assert.match(home, /aria-label="Copy ViewSpec beta install command"/)
+assert.doesNotMatch(home, /data-copy-text="python -m pip install viewspec"/)
 const homeJsonLd = extractJsonLd(home)
 const graph = homeJsonLd.find((entry) => Array.isArray(entry['@graph']))?.['@graph'] || []
 assert(graph.some((entry) => entry['@type'] === 'SoftwareApplication'), 'home JSON-LD needs SoftwareApplication')

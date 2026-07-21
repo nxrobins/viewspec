@@ -31,6 +31,7 @@ PROFILE_DIR = COMPILED_DIR / "profiles"
 PUBLIC_INDEX = DEMOS / "index.html"
 DEFAULT_PROFILE = "aesthetic.calm_ops"
 PUBLIC_FACTS = json.loads((DEMOS / "public-facts.json").read_text(encoding="utf-8"))
+INSTALL_COMMAND = PUBLIC_FACTS["installation"]["current_command"]
 
 PROFILE_LABELS = {
     "aesthetic.calm_ops": "Calm Ops",
@@ -868,7 +869,7 @@ PAGE_BODY_TEMPLATE = r"""<a class="skip-link" href="#top">Skip to content</a>
         ViewSpec is the compiler between your agents and your UI. Agents commit to <b>meaning</b> &mdash; nodes, bindings, motifs. ViewSpec owns the <b>renderer output</b>: deterministic, with no model call at render. HTML and React compile locally; the hosted API adds SwiftUI and Flutter.
       </p>
       <div class="hero-cta">
-        <span class="cmd mono"><span class="pr">$</span> pip install viewspec <button type="button" class="cp" id="copyCmd" data-copy-text="pip install viewspec" aria-label="Copy pip install viewspec command">copy</button></span>
+        <span class="cmd mono"><span class="pr">$</span> {{INSTALL_COMMAND}} <button type="button" class="cp" id="copyCmd" data-copy-text="{{INSTALL_COMMAND}}" aria-label="Copy ViewSpec beta install command">copy</button></span>
         <a class="ghost mono" href="#shape">see it compile &#8595;</a>
       </div>
 
@@ -1412,8 +1413,8 @@ def _public_html(generated_html: str, profile_evidence: dict[str, Any]) -> str:
         '<div class="pricing-actions" id="pricing-actions">'
         '<a class="pact primary" href="https://buy.stripe.com/6oU4gA6PqcM9afq6gq2ZO00" data-config-link="pro" target="_blank" rel="noopener">Get Pro</a>'
         '<a class="pact" href="mailto:hello@viewspec.dev?subject=ViewSpec%20Enterprise" data-config-link="enterprise" target="_blank" rel="noopener">Talk to us</a>'
-        '<button type="button" class="pact" data-copy-text="pip install viewspec" aria-label="Copy pip install viewspec command">pip install viewspec</button>'
-        '<button type="button" class="pact" data-copy-text="pip install viewspec" aria-label="Copy pip install viewspec command">copy install</button>'
+        f'<button type="button" class="pact" data-copy-text="{html.escape(INSTALL_COMMAND, quote=True)}" aria-label="Copy ViewSpec beta install command">{html.escape(INSTALL_COMMAND)}</button>'
+        f'<button type="button" class="pact" data-copy-text="{html.escape(INSTALL_COMMAND, quote=True)}" aria-label="Copy ViewSpec beta install command">copy install</button>'
         "</div>"
     )
 
@@ -1424,6 +1425,7 @@ def _public_html(generated_html: str, profile_evidence: dict[str, Any]) -> str:
         .replace("{{PRICING_ACTIONS}}", pricing_actions)
         .replace("{{CORE_REFINEMENT_EVIDENCE}}", core_evidence)
         .replace("{{CORE_EVIDENCE_URL}}", html.escape(refinement["gate_status_url"], quote=True))
+        .replace("{{INSTALL_COMMAND}}", html.escape(INSTALL_COMMAND, quote=True))
     )
 
     # real data for the page script: hash the canonical IntentBundle + real profile evidence

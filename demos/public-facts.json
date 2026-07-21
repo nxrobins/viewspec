@@ -5,6 +5,12 @@
   "canonical_api_url": "https://api.viewspec.dev/v1/compile",
   "package_url": "https://pypi.org/project/viewspec/",
   "repository_url": "https://github.com/nxrobins/viewspec",
+  "installation": {
+    "release_channel": "beta",
+    "current_command": "python -m pip install --pre viewspec",
+    "stable_command": "python -m pip install viewspec",
+    "scope": "The current public SDK version is a prerelease. pip excludes prereleases unless --pre or an exact prerelease version is requested."
+  },
   "pricing": {
     "free": {
       "hosted_compile_calls_per_day": 500,

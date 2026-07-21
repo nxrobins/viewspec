@@ -6,6 +6,10 @@ ViewSpec is an agent-native app compiler, an agent-native UI compiler, a semanti
 
 Current public SDK version: `0.3.0b5`.
 
+This is a beta release. Install the current SDK with `python -m pip install --pre viewspec`;
+plain `python -m pip install viewspec` follows the stable channel because pip excludes
+prereleases by default.
+
 The primary local idea: your agent writes `viewspec.intent.json` as IntentBundle JSON or `viewspec.app.json` as AppBundle JSON, then ViewSpec validates it, applies `DESIGN.md`, compiles renderer output, writes provenance and shell manifests, generates bounded State IR reducer artifacts when requested, and checks the artifact with no SDK network calls.
 
 The hosted idea is the same contract at larger scope: describe what the data means, not how the UI should be hand-wired. ViewSpec compiles that semantic intent into CompositionIR, renderable UI primitives, style values, diagnostics, provenance, and emitter artifacts.
@@ -86,7 +90,7 @@ The May 6 launch proof remains one agent-authored hosted-extended IntentBundle c
 - `viewspec patch-preview viewspec.intent.json change.intentpatch.json --candidate-out candidate.intent.json --json`
 - `viewspec patch-apply viewspec.intent.json change.intentpatch.json --approval <exact-preview-token> --json`
 - `viewspec doctor`
-- Optional MCP: install `viewspec[agents]`, then run `viewspec mcp`
+- Optional MCP: run `python -m pip install --pre "viewspec[agents]"`, then `viewspec mcp`
 
 Agents should output IntentBundle JSON, not CompositionIR, HTML, CSS, React, SwiftUI, or Flutter source for new UI. Generated outputs such as `dist/index.html` and `react-output/ViewSpecView.tsx` are artifacts; edit `viewspec.intent.json` or `DESIGN.md`, then regenerate. `viewspec init-intent` is a scaffold only; replace sample content with real user intent before compiling. If validation fails, pass the correction prompt back to the agent and regenerate the full IntentBundle.
 

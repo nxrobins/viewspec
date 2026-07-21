@@ -5,8 +5,11 @@ ViewSpec's primary workflow is agent-native UI intent. Your agent writes `Intent
 ## Install
 
 ```bash
-pip install viewspec
+python -m pip install --pre viewspec
 ```
+
+The current public SDK is a beta, so `--pre` is required. Plain
+`python -m pip install viewspec` follows the stable channel instead.
 
 ## First Proof
 
@@ -162,7 +165,7 @@ The asset manifest uses schema version `13`, declares the `local_v1` contract pr
 For MCP-capable agents:
 
 ```bash
-python -m pip install "viewspec[agents]"
+python -m pip install --pre "viewspec[agents]"
 viewspec mcp
 viewspec doctor --agents
 ```
