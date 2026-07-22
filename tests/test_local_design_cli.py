@@ -616,6 +616,36 @@ def test_cli_init_design_doctor_and_check_tamper(tmp_path, capsys):
     assert "artifact_hash does not match" in capsys.readouterr().out
 
 
+def test_doctor_freerange_is_opt_in_and_read_only(tmp_path, monkeypatch, capsys):
+    calls: list[str] = []
+
+    def fake_readiness():
+        calls.append("readiness")
+        return {
+            "ok": True,
+            "status": "ready",
+            "engine": {"name": "freerange", "version": "0.0.1"},
+            "runtime": {"name": "bun", "version": "1.2.0"},
+            "package": {"status": "not_checked"},
+            "errors": [],
+        }
+
+    monkeypatch.setattr("viewspec.app_freerange.freerange_readiness", fake_readiness)
+    monkeypatch.chdir(tmp_path)
+
+    assert cli_main(["doctor"]) == 0
+    plain = json.loads(capsys.readouterr().out)
+    assert "freerange" not in plain["checks"]
+    assert calls == []
+    assert list(tmp_path.iterdir()) == []
+
+    assert cli_main(["doctor", "--freerange"]) == 0
+    opted_in = json.loads(capsys.readouterr().out)
+    assert opted_in["checks"]["freerange"]["status"] == "ready"
+    assert calls == ["readiness"]
+    assert list(tmp_path.iterdir()) == []
+
+
 def test_python_module_entrypoint_runs_cli(tmp_path):
     env = os.environ.copy()
     src_path = str(ROOT / "src")

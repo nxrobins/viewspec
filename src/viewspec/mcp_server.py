@@ -297,7 +297,9 @@ def run_mcp_server(*, cwd: str | Path | None = None, allow_outside_cwd: bool = F
     @app.tool(
         description=(
             "Run the local AppBundle proof workflow. Use target='react-tailwind-app' with install=True to generate the exact Vite app, "
-            "build it, and prove routing, history, mutation, data rebinding, selectors, and visibility in Chromium."
+            "build it, and prove routing, history, mutation, data rebinding, selectors, and visibility in Chromium. "
+            "Set freerange=True only for the opt-in Bun-backed proof of manifest-declared runtime numeric helpers. "
+            "Set pretext=True for pinned Chromium text-layout evidence over compiler-owned native DOM text."
         )
     )
     def prove_app(
@@ -310,6 +312,8 @@ def run_mcp_server(*, cwd: str | Path | None = None, allow_outside_cwd: bool = F
         with_shell: bool = False,
         target: str = "html-tailwind",
         install: bool = False,
+        freerange: bool = False,
+        pretext: bool = False,
     ) -> dict[str, Any]:
         return prove_app_tool(
             app_path=app_path,
@@ -321,6 +325,8 @@ def run_mcp_server(*, cwd: str | Path | None = None, allow_outside_cwd: bool = F
             with_shell=with_shell,
             target=target,
             install=install,
+            freerange=freerange,
+            pretext=pretext,
             cwd=root,
             allow_outside_cwd=allow_outside_cwd,
         )

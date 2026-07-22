@@ -4,7 +4,7 @@
 
 ViewSpec is an agent-native app compiler, an agent-native UI compiler, a semantic UI compiler contract, a Python SDK, and a hosted compiler API. It is built for agentic engineering, AI coding agents, vibe coding workflows, design-system automation, and data-heavy product interfaces that need deterministic, auditable output.
 
-Current public SDK version: `0.3.0b5`.
+Current public SDK version: `0.3.0b6`.
 
 This is a beta release. Install the current SDK with `python -m pip install --pre viewspec`;
 plain `python -m pip install viewspec` follows the stable channel because pip excludes
@@ -56,6 +56,14 @@ Use `viewspec prove --out .viewspec-proof` for a starter local proof bundle with
 The checked core workflow has fixed-corpus regression evidence: 10/10 cases were conformant across mobile, tablet, and desktop with accessibility, DOM, log, and screenshot evidence; all ten passed the product-quality scorecard on first compile with zero critical issues; and 10/10 bounded semantic corrections produced verified previews and applied receipts. See https://github.com/nxrobins/viewspec/blob/main/conformance/refinement/gate-status-v1.json, https://github.com/nxrobins/viewspec/blob/main/conformance/refinement/scorecard-v2.json, and https://github.com/nxrobins/viewspec/blob/main/conformance/refinement/correction-proof-v1.json. These results cover the fixed supported brief families on the checked revision; they do not certify arbitrary briefs or host applications.
 
 The May 6 launch proof remains one agent-authored hosted-extended IntentBundle compiled to HTML/Tailwind, React TSX, SwiftUI, and Flutter. Its artifact index declares `contract_profile: "hosted_extended_v1"` because it includes hosted-only inputs, rules, projections, and mobile emitters beyond the local V1 `validate-intent` contract. Feature demos cover custom motif authoring and interactive compose with inputs, rules, and submit payloads.
+
+## Opt-in React App Proof Integrations
+
+Generated `react-tailwind-app` proofs can explicitly opt in to two exact-versioned integrations by chenglou. [Freerange](https://github.com/chenglou/freerange) is pinned as `@chenglou/freerange@0.0.1`: run `viewspec prove-app --app viewspec.app.json --target react-tailwind-app --install --freerange --json`. It requires a user-installed stable Bun 1.x on `PATH`; ViewSpec never installs Bun. Results are reported under `static_analysis` and `analyses.freerange`. The adapter analyzes only the manifest-described generated numeric kernel and its recorded call-site hashes; it does not analyze CSS, prove rendered geometry, certify arbitrary math, or certify arbitrary host applications.
+
+[Pretext](https://github.com/chenglou/pretext) is pinned as `@chenglou/pretext@0.0.8`: run `viewspec prove-app --app viewspec.app.json --target react-tailwind-app --install --pretext --json`. The `viewspec_pretext_native_dom_v1` profile preserves native DOM semantics and compares only native-DOM and Pretext line counts and overflow using named `Arial, sans-serif` at 390x844, 768x1024, and 1440x1000 in Chromium. Results are reported under `text_layout` and `analyses.pretext`. It needs no Bun and is not general typography proof, canvas-rendering proof, pixel-perfect visual regression, accessibility certification, or arbitrary-host certification.
+
+Run both with `viewspec prove-app --app viewspec.app.json --target react-tailwind-app --install --freerange --pretext --json`. This is composition of independently reported analyses, not a broader guarantee. Dedicated hosted E2E is configured for relevant pushes and pull requests, a weekly schedule, and manual dispatch; this status does not claim that a hosted run has completed.
 
 ## Hosted Compiler Capabilities
 

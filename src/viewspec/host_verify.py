@@ -39,12 +39,13 @@ HOST_VERIFY_REPORT_MAX_BYTES = 64 * 1024
 HOST_VERIFY_TARGET = "react-tailwind-tsx"
 HOST_VERIFY_EMITTER = "react_tailwind_tsx"
 HOST_VERIFY_TEMPLATE_PACKAGE = "viewspec.host_verify_template"
-HOST_VERIFY_TEMPLATE_NON_LOCK_FILE_LIMIT = 12
+HOST_VERIFY_TEMPLATE_NON_LOCK_FILE_LIMIT = 13
 HOST_VERIFY_TEMPLATE_NON_LOCK_BYTES_LIMIT = 40 * 1024
 HOST_VERIFY_TOTAL_TIMEOUT_MS = 180_000
 HOST_VERIFY_PHASE_TIMEOUTS_MS = {
     "check_copy": 10_000,
     "install": 90_000,
+    "typecheck": 60_000,
     "build": 60_000,
     "preview_startup": 20_000,
     "browser": 30_000,
@@ -59,6 +60,7 @@ HOST_VERIFY_TEMPLATE_FILES = (
     "playwright.config.ts",
     "src/App.tsx",
     "src/main.tsx",
+    "src/vite-env.d.ts",
     "src/index.css",
     "tests/host-verify.spec.ts",
 )
@@ -74,7 +76,7 @@ HOST_VERIFY_EXPECTED_CSS_LINES = [
     "  margin: 0;",
     "}",
 ]
-HOST_VERIFY_NODE_MODULE_BINS = ("vite", "playwright")
+HOST_VERIFY_NODE_MODULE_BINS = ("tsc", "vite", "playwright")
 HOST_VERIFY_CODE_RE = re.compile(r"\b(HOST_VERIFY_[A-Z0-9_]+)\b")
 
 
@@ -450,6 +452,16 @@ def _run_host_browser_phases(
                 ),
             )
     _assert_node_modules(host_dir)
+    _time_phase(
+        timings,
+        "typecheck",
+        lambda: _run_process(
+            [npm, "run", "typecheck"],
+            cwd=host_dir,
+            timeout_ms=_remaining_timeout(started, HOST_VERIFY_PHASE_TIMEOUTS_MS["typecheck"]),
+            code="HOST_VERIFY_BUILD_FAILED",
+        ),
+    )
     _time_phase(
         timings,
         "build",

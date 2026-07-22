@@ -42,7 +42,7 @@ jobs:
         run: python -m compileall src tests examples scripts
 
       - name: Pytest
-        run: python -m pytest -q
+        run: python -m pytest -q --strict-markers -m "not e2e"
 
       - name: Landing payload smoke test
         run: |

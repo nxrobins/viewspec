@@ -81,6 +81,8 @@ def prove_app(
     with_shell: bool = False,
     target: str = APP_BUNDLE_TARGET,
     install: bool = False,
+    freerange: bool = False,
+    pretext: bool = False,
     cwd: str | Path | None = None,
 ) -> dict[str, Any]:
     return _app_pipeline.prove_app(
@@ -93,6 +95,8 @@ def prove_app(
         with_shell=with_shell,
         target=target,
         install=install,
+        freerange=freerange,
+        pretext=pretext,
         cwd=cwd,
         _generate_reducer=generate_typescript_reducer,
         _check_conformance=check_reducer_conformance,
@@ -213,6 +217,8 @@ def prove_app_tool(
     with_shell: bool = False,
     target: str = APP_BUNDLE_TARGET,
     install: bool = False,
+    freerange: bool = False,
+    pretext: bool = False,
     cwd: str | Path | None = None,
     allow_outside_cwd: bool = False,
 ) -> dict[str, Any]:
@@ -226,6 +232,8 @@ def prove_app_tool(
         with_shell=with_shell,
         target=target,
         install=install,
+        freerange=freerange,
+        pretext=pretext,
         cwd=cwd,
         allow_outside_cwd=allow_outside_cwd,
         _prove_app=prove_app,

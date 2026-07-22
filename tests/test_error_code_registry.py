@@ -24,9 +24,26 @@ NON_CODE_LITERAL_TOKENS = {
     "APP_PROOF",  # the APP_PROOF.md summary filename
     "APP_SCREEN_INTENT",  # startswith() prefix over APP_SCREEN_INTENT_* codes
     "ARTIFACT_DIR",  # CLI usage/metavar text
+    "CHROMIUM_ARIAL_LAYOUT_FIT_TOLERANCE_PX",  # generated Pretext runtime constant
+    "CLIPPING_OVERFLOW_VALUES",  # generated Pretext runtime constant
+    "EMPTY_SHA256",  # generated Pretext runtime constant
+    "FONT_READY_TIMEOUT_MS",  # generated Pretext runtime constant
+    "GENERIC_FONT_FAMILIES",  # generated Pretext runtime constant
     "HOST_VERIFY",  # regex fragment matching HOST_VERIFY_* codes
+    "LINE_TOP_EPSILON_PX",  # generated Pretext runtime constant
+    "LOCALE_RE",  # generated Pretext runtime constant
+    "MAX_CACHE_ENTRIES",  # generated Pretext runtime constant
+    "MAX_ID_LENGTH",  # generated Pretext runtime constant
+    "MAX_SURFACES",  # generated Pretext runtime constant
+    "MAX_TEXT_BYTES",  # generated Pretext runtime constant
+    "MAX_TOTAL_TEXT_BYTES",  # generated Pretext runtime constant
     "O_NOFOLLOW",  # optional os module flag used to reject symlink lock files
+    "OVERFLOW_EPSILON_PX",  # generated Pretext runtime constant
+    "PX_RE",  # generated Pretext runtime constant
+    "SAFE_ID_RE",  # generated Pretext runtime constant
+    "SUPPORTED_FONT_FAMILY",  # generated Pretext runtime constant
     "TOO_MANY",  # startswith() prefix over TOO_MANY_* codes
+    "UNSAFE_SYSTEM_FAMILIES",  # generated Pretext runtime constant
     "VIEWSPEC_HOST_VERIFY_BASE_URL",  # environment variable name
     "VIEWSPEC_HOST_VERIFY_BROWSER_REPORT",  # environment variable name
     "VIEWSPEC_HOST_VERIFY_BROWSER_REPORT_DIR",  # environment variable name
@@ -52,7 +69,9 @@ def _skipped_constant_ids(tree: ast.Module) -> set[int]:
             ):
                 marked.add(id(body[0].value))
     for stmt in tree.body:
-        targets = stmt.targets if isinstance(stmt, ast.Assign) else [stmt.target] if isinstance(stmt, ast.AugAssign) else []
+        targets = (
+            stmt.targets if isinstance(stmt, ast.Assign) else [stmt.target] if isinstance(stmt, ast.AugAssign) else []
+        )
         for target in targets:
             if isinstance(target, ast.Name) and target.id == "__all__":
                 for sub in ast.walk(stmt):

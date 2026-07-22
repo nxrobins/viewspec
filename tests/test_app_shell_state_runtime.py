@@ -34,7 +34,7 @@ from viewspec.state_ir import (
     evaluate_selectors,
     evaluate_visibility,
     generate_browser_reducer_script,
-    generate_typescript_reducer,
+    generate_javascript_reducer,
     initial_state,
     initial_visibility,
     validate_state_ir,
@@ -147,9 +147,10 @@ def test_click_sequence_parity_and_startup_noop(tmp_path):
         assert result["ok"], result
     py_after = evaluate_visibility(current, evaluate_selectors(current, state_ir), state_ir)
 
-    # JS side: import the ESM reducer artifact, replay the same click, compare maps.
+    # JS side: import the executable sibling emitted from the same source model, replay the same
+    # click, and compare maps. The checked artifact itself is strict TypeScript.
     reducer_path = tmp_path / "state_reducer.mjs"
-    reducer_path.write_text(generate_typescript_reducer(payload), encoding="utf-8")
+    reducer_path.write_text(generate_javascript_reducer(payload), encoding="utf-8")
     harness = tmp_path / "harness.mjs"
     harness.write_text(
         """
@@ -211,9 +212,9 @@ def test_runtime_script_structure_and_safety():
     assert "console." not in script
 
 
-def test_browser_reducer_is_textual_transform_only():
+def test_browser_reducer_wraps_shared_javascript_emitter_only():
     payload = _visibility_app_bundle()
-    module_source = generate_typescript_reducer(payload)
+    module_source = generate_javascript_reducer(payload)
     browser_source = generate_browser_reducer_script(payload)
     inner = browser_source.removeprefix("const ViewSpecStateRuntime = (() => {\n")
     inner = inner[: inner.rindex("\nreturn { ")]

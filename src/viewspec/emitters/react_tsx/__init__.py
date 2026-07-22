@@ -333,7 +333,7 @@ def _action_expression(node: IRNode, *, source: str = "viewspec-react-tsx") -> s
     kind = str(node.props.get("action_kind", ""))
     return (
         "{() => { "
-        f"const payloadBindings = {json.dumps(payload_bindings, ensure_ascii=False)}; "
+        f"const payloadBindings: string[] = {json.dumps(payload_bindings, ensure_ascii=False)}; "
         "const payloadValues = collectPayloadValues(payloadBindings); "
         f"assertPayloadBounds({_tsx_string(kind)}, payloadBindings, payloadValues); "
         "onAction?.({ "

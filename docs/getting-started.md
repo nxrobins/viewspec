@@ -85,7 +85,83 @@ Make changes in `viewspec.app.json`, review them with `viewspec diff-app`, and r
 viewspec prove-app --app viewspec.app.json --target react-tailwind-app --install
 ```
 
-The proof runs `npm ci --ignore-scripts`, a Vite production build, and generated Playwright assertions for every static route, browser history, the unknown-route fallback, declared state actions, live resource rebinding, selector replay, and visibility. Authentication, persistence, arbitrary API clients, and production infrastructure remain host-owned.
+With `--install`, the proof is allowed to run `npm ci --ignore-scripts`; keep that flag on the
+public `prove-app` workflow because it verifies a freshly generated tree. The lower-level artifact
+verifier is the separate path for an existing app directory with dependencies already installed.
+The proof then runs strict TypeScript checking before the Vite production build and generated
+Playwright assertions for every static route, browser history, the unknown-route fallback,
+declared state actions, live resource rebinding, selector replay, and visibility.
+Authentication, persistence, arbitrary API clients, and production infrastructure remain host-owned.
+
+### Optional Freerange Numeric Proof
+
+When the generated app contains ViewSpec's supported numeric operations, add the pinned Freerange
+phase:
+
+```bash
+viewspec doctor --freerange
+viewspec prove-app --app viewspec.app.json --target react-tailwind-app --install --freerange --json
+```
+
+Install stable Bun 1.x or newer explicitly and put it on `PATH`; ViewSpec never installs Bun.
+`doctor --freerange` is read-only and may run `bun --version`, but it does not install packages,
+change the app, or invoke a network-capable package runner. The generated proof package pins
+`@chenglou/freerange` exactly to `0.0.1`. For this proof, `--install` is the explicit permission for
+`npm ci --ignore-scripts`, which may access the package registry. Keep it on the public
+`prove-app` command, which verifies a freshly generated tree. The lower-level artifact verifier is
+the separate path for an existing app directory with already installed dependencies.
+
+The phase order is fixed: exact-artifact preflight and dependency preparation, strict
+`tsc --noEmit`, Freerange findings plus coverage audit, Vite build, then Chromium verification.
+An applicable analysis reports `passed` only when every manifest-required function is present and
+fully analyzed, findings and audit coverage agree, module setup is complete, any reported
+assertions are proven, contracts introduce no unapproved requirements or assumptions, and no error
+findings remain. A
+scope with no supported numeric operations reports `static_analysis.status: "not_applicable"` and
+does not require Bun; `not_applicable` is never presented as a passed analysis.
+
+The integration fails closed with stable `APP_FREERANGE_*` codes for missing or unsupported Bun,
+package/version/integrity drift, invalid transcripts, incomplete or mismatched coverage, unsafe or
+unproven contracts, analyzer findings, bounded-output or timeout failures, and changed proof inputs.
+It analyzes only generated numeric-helper source described by the manifest. It does not analyze CSS
+or Tailwind, prove rendered geometry, or certify arbitrary hosts.
+
+### Optional Pretext Native-DOM Text Proof
+
+Add Pretext when you want manifest-scoped text-wrapping evidence for the generated React app:
+
+```bash
+viewspec prove-app --app viewspec.app.json --target react-tailwind-app --install --pretext --json
+# Both independent analyses may run in one immutable proof:
+viewspec prove-app --app viewspec.app.json --target react-tailwind-app --install --freerange --pretext --json
+```
+
+The generated package pins `@chenglou/pretext` exactly to `0.0.8`. ViewSpec validates the lock's
+resolved npm artifact and integrity, the installed metadata, and the complete installed package
+tree. Pretext itself does not require Bun; Bun remains necessary only for an applicable Freerange
+scope. As with the base React proof, keep `--install` on public `prove-app`; only the lower-level
+artifact verifier accepts an existing app directory with the exact dependencies already installed.
+
+The `viewspec_pretext_native_dom_v1` support profile uses the named `Arial, sans-serif` stack and
+measures existing compiler-owned DOM text after `document.fonts.ready` at mobile 390×844, tablet
+768×1024, and desktop 1440×1000 in Chromium. Pretext preparation is cached by text and supported
+typography inputs without width, then reused for each width-specific layout. The probe compares
+predicted and observed native-DOM line counts under a fixed 1px line-fit tolerance and rejects
+actual horizontal or vertical overflow; it does
+not replace the DOM with a canvas or write predicted layout into the app.
+
+The combined order is artifact/dependency preflight, strict TypeScript, optional Freerange, Vite
+build, Chromium observation, Pretext report validation, then final package and artifact integrity.
+Read `text_layout` or its `analyses.pretext` alias for engine/profile/environment, viewports,
+coverage, cache counts, hashes, phases, timings, and errors; proof identity includes the Pretext
+scope, observation, and report digests. Scope, package, protocol, coverage, layout, cache, report,
+or immutable-input drift fails closed with `APP_PRETEXT_*`. No eligible compiler-owned text reports
+`not_applicable`, not `passed`.
+
+This is bounded native text-wrapping evidence for the recorded Chromium environment. It is not a
+cross-browser, Retina/device-pixel-ratio, canvas-rendering, pixel-perfect, accessibility, or
+arbitrary-host claim. See [AppBundle V1/V2/V3/V4](app-bundle-v0.md) for the exact support profile
+and evidence fields.
 
 ## Agent Intent First
 
@@ -107,7 +183,7 @@ Use `viewspec diff-intent` when reviewing agent revisions. It reports `basis: "i
 
 V1 local caps keep agent repair loops predictable: max 256KB JSON, 200 substrate nodes, 32 regions, 400 bindings, 64 groups, 32 motifs, 400 styles, 64 actions, 64 attrs/slots/edges per node, 200 values per slot or edge, and 64 payload bindings per action.
 
-Use `viewspec init-design --out DESIGN.md` for a starter design file when the repo does not already have one, and `viewspec doctor` to check local SDK readiness. `doctor` reports the intent-first commands, runs starter IntentBundle validation/compile/diff, aesthetic-profile diff, and semantic summary smoke checks, verifies `PyYAML`, and states the local no-network policy. It also reports Node.js availability, which is required only for AppBundle V3/V4 (`interactive_state_v0`) reducer conformance; V1/V2 and all IntentBundle flows are Python-only.
+Use `viewspec init-design --out DESIGN.md` for a starter design file when the repo does not already have one, and `viewspec doctor` to check local SDK readiness. `doctor` reports the intent-first commands, runs starter IntentBundle validation/compile/diff, aesthetic-profile diff, and semantic summary smoke checks, verifies `PyYAML`, and states the local no-network policy. It also reports Node.js availability, which is required only for AppBundle V3/V4 (`interactive_state_v0`) reducer conformance; V1/V2 and all IntentBundle flows are Python-only. Add `--freerange` for the separate read-only Bun readiness probe.
 
 ## AppBundle V1/V2/V3/V4
 

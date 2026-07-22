@@ -83,6 +83,8 @@ def prove_app(
     with_shell: bool = False,
     target: str = APP_BUNDLE_TARGET,
     install: bool = False,
+    freerange: bool = False,
+    pretext: bool = False,
     cwd: str | Path | None = None,
     _generate_reducer: Any = generate_typescript_reducer,
     _check_conformance: Any = check_reducer_conformance,
@@ -101,6 +103,38 @@ def prove_app(
                     "code": "APP_PROOF_TARGET_UNSUPPORTED",
                     "message": f"AppBundle proof supports {APP_BUNDLE_TARGET} and {REACT_APP_TARGET}.",
                     "fix": "Use --target html-tailwind or --target react-tailwind-app.",
+                }
+            ],
+            timings=timings,
+            validation=None,
+            write=False,
+            target=target,
+        )
+    if freerange and target != REACT_APP_TARGET:
+        return _app_proof_failure_report(
+            output_dir=output_dir,
+            report_path=report_path,
+            errors=[
+                {
+                    "code": "APP_FREERANGE_TARGET_UNSUPPORTED",
+                    "message": "--freerange is supported only with --target react-tailwind-app.",
+                    "fix": "Use --target react-tailwind-app or remove --freerange.",
+                }
+            ],
+            timings=timings,
+            validation=None,
+            write=False,
+            target=target,
+        )
+    if pretext and target != REACT_APP_TARGET:
+        return _app_proof_failure_report(
+            output_dir=output_dir,
+            report_path=report_path,
+            errors=[
+                {
+                    "code": "APP_PRETEXT_TARGET_UNSUPPORTED",
+                    "message": "--pretext is supported only with --target react-tailwind-app.",
+                    "fix": "Use --target react-tailwind-app or remove --pretext.",
                 }
             ],
             timings=timings,
@@ -239,12 +273,19 @@ def prove_app(
                     generate_reducer=_generate_reducer,
                     check_conformance=_check_conformance,
                     build_manifest=_build_manifest,
+                    freerange=freerange,
+                    pretext=pretext,
                 ),
             )
             host_report = _time_phase(
                 timings,
                 "react_host",
-                lambda: verify_react_app_artifact_dir(prepared.output_dir / "react-app", install=install),
+                lambda: verify_react_app_artifact_dir(
+                    prepared.output_dir / "react-app",
+                    install=install,
+                    freerange=freerange,
+                    pretext=pretext,
+                ),
             )
             if not host_report.get("ok"):
                 errors.extend(_normalize_proof_errors(host_report.get("errors")))
@@ -263,6 +304,8 @@ def prove_app(
             react_app=react_app_report,
             host_report=host_report,
             install=install,
+            freerange=freerange,
+            pretext=pretext,
             resource_binding_report=binding_report,
         )
         return _write_app_proof(report, prepared)

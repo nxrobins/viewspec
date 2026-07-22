@@ -8,6 +8,13 @@ Generated DOM and framework code stay compiler-owned. Developers and agents revi
 
 🌐 **[viewspec.dev](https://viewspec.dev)** — Compiled reference demos, pricing, and hosted compiler docs
 
+Generated React apps can opt into two exact-versioned proof integrations by
+[chenglou](https://github.com/chenglou):
+[Freerange](https://github.com/chenglou/freerange) for the manifest-described generated numeric
+kernel, and [Pretext](https://github.com/chenglou/pretext) for native-DOM text line-count and
+overflow checks. Each integration is requested explicitly, reported separately, and fails closed
+within its documented scope.
+
 ## Quick Start
 
 ```bash
@@ -15,7 +22,7 @@ python -m pip install --pre viewspec
 viewspec prove --out .viewspec-proof
 ```
 
-`0.3.0b5` is a beta release, so `--pre` is required to install the current SDK. Plain
+`0.3.0b6` is a beta release, so `--pre` is required to install the current SDK. Plain
 `python -m pip install viewspec` follows the stable channel instead.
 
 Start with `.viewspec-proof/PROOF.md`. The same directory contains the machine-readable
@@ -99,7 +106,9 @@ python -m pip install --pre viewspec
 The current public SDK is a beta; plain `python -m pip install viewspec` follows the stable
 channel. Requires Python 3.11+. AppBundle **V3/V4** (`interactive_state_v0`) reducer conformance
 additionally requires Node.js (>=18) on `PATH`; V1/V2 and all IntentBundle flows are Python-only
-and no-network.
+and no-network. The optional Freerange proof for an applicable generated numeric scope additionally
+requires a stable Bun 1.x or newer executable on `PATH`; ViewSpec never installs Bun. The separate
+Pretext native-DOM text proof uses the React app's npm/Chromium toolchain and does not require Bun.
 
 Python package: <https://pypi.org/project/viewspec/>
 
@@ -124,6 +133,84 @@ Edit `viewspec.app.json`, then regenerate with `--force`; do not edit generated 
 ```bash
 viewspec prove-app --app viewspec.app.json --target react-tailwind-app --install
 ```
+
+Opt in to the pinned [Freerange](https://github.com/chenglou/freerange) numeric-helper proof with:
+
+```bash
+viewspec doctor --freerange
+viewspec prove-app --app viewspec.app.json --target react-tailwind-app --install --freerange --json
+```
+
+`doctor --freerange` is a read-only Bun readiness probe: it may run `bun --version`, but it does
+not install anything, mutate the app, or invoke a network-capable package runner. The generated
+proof package pins `@chenglou/freerange` exactly to `0.0.1`. In this proof workflow, `--install` is
+the explicit boundary that permits `npm ci --ignore-scripts` and possible registry access. Use it
+with the public `prove-app` command, which verifies a freshly generated tree. The lower-level
+artifact verifier can consume dependencies prepared in an existing app directory; neither path
+installs Bun.
+
+After dependency preparation, exact-app verification runs strict TypeScript (`tsc --noEmit`)
+before Freerange analysis, then runs the Vite build and Chromium proof. Freerange reports `passed`
+only when an applicable scope has at least one manifest-required function and every required
+function is fully analyzed with complete, matching coverage, safe allowed contracts, required
+guarantees, no unproven assertion verdicts, and no error findings. A generated app with no
+supported numeric operations reports
+`static_analysis.status: "not_applicable"` and `runtime.status: "not_required"`; that outcome is
+not relabeled as `passed`. Missing or unsupported Bun, dependency or integrity drift, malformed
+analyzer output, incomplete coverage, unsafe contracts, findings, limits, timeouts, or source/tool
+changes fail closed with stable `APP_FREERANGE_*` codes.
+
+The machine report keeps explicit statuses for artifact integrity, TypeScript, Freerange, Vite,
+Chromium, and final integrity so completed evidence remains visible without turning a later failure
+into a successful composite claim.
+
+The Freerange phase analyzes only the manifest-described generated numeric kernel and its recorded
+call-site hashes. It does not analyze CSS or Tailwind, prove rendered geometry, or certify arbitrary
+host applications; the later Vite/Chromium phases retain their existing bounded runtime claims.
+
+Opt in to the pinned [Pretext](https://github.com/chenglou/pretext) native-DOM text-layout proof
+independently or compose both analyses:
+
+```bash
+viewspec prove-app --app viewspec.app.json --target react-tailwind-app --install --pretext --json
+viewspec prove-app --app viewspec.app.json --target react-tailwind-app --install --freerange --pretext --json
+```
+
+The generated package pins `@chenglou/pretext` exactly to `0.0.8`; ViewSpec validates its npm lock
+identity, integrity, and installed tree. The `viewspec_pretext_native_dom_v1` profile uses named
+`Arial, sans-serif`, waits for fonts, compares Pretext and native-DOM line counts under a fixed
+1px line-fit tolerance without allowing actual overflow
+at 390×844, 768×1024, and 1440×1000 in Chromium, and reuses preparation across widths. It reads and
+hashes existing compiler-owned DOM text without applying layout or replacing the DOM with canvas.
+Pretext needs no Bun; combined runs need Bun only for an applicable Freerange scope.
+
+With both flags, phases are artifact/dependency preflight, TypeScript, Freerange, Vite build,
+Chromium observation, Pretext report validation, and final integrity. Results appear under
+`text_layout` and `analyses.pretext` alongside the Freerange fields, with bounded coverage, cache,
+identity, digest, timing, phase, and error evidence. Scope, package, protocol, coverage, layout,
+cache, report, or immutable-input drift fails closed with `APP_PRETEXT_*`; zero eligible surfaces is
+`not_applicable`, not `passed`. This is not cross-browser/Retina, canvas-rendering, pixel-perfect,
+accessibility, or arbitrary-host certification.
+
+The real-browser acceptance suite is deliberately opt-in because it performs fresh registry-backed
+installs and launches Chromium. Install Bun and the repository's pinned Playwright Chromium once,
+then run both the standalone Pretext and composed Freerange + Pretext proofs:
+
+```bash
+cd src/viewspec/host_verify_template
+npm ci --ignore-scripts
+npx playwright install chromium
+cd ../../..
+VIEWSPEC_RUN_PRETEXT_E2E=1 \
+  python -m pytest -q --strict-markers -m e2e tests/test_app_pretext_e2e.py
+```
+
+Set `VIEWSPEC_PRETEXT_E2E_ARTIFACT_DIR` to a fresh directory to retain the generated inputs, apps,
+proof reports, summaries, and support bundles. The dedicated
+[Pretext E2E workflow](.github/workflows/pretext-e2e.yml) runs on relevant pull requests and pushes,
+every Monday at 10:17 UTC, and by manual dispatch. It pins Python, Node/npm, Bun, Playwright, and
+Chromium, rejects an all-skipped run, and retains the two proof trees plus JUnit and toolchain evidence
+for 30 days. Ordinary CI explicitly excludes the `e2e` marker.
 
 This bounded target is a runnable frontend app and host bridge. Authentication, persistence, arbitrary API clients, optimistic updates, and production infrastructure remain host-owned.
 

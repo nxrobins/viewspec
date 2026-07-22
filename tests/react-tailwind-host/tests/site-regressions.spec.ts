@@ -170,6 +170,40 @@ test("proof bundle exposes complete bounded proof content", async ({ page }) => 
   expect(failures).toEqual([]);
 });
 
+test("homepage exposes bounded opt-in Freerange and Pretext proof integrations", async ({ page }) => {
+  const failures = captureRuntimeFailures(page);
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/", { waitUntil: "domcontentloaded" });
+
+  const proof = page.locator("#proof");
+  const freerange = proof.locator('[data-proof-integration="freerange"]');
+  const pretext = proof.locator('[data-proof-integration="pretext"]');
+  await expect(freerange).toBeVisible();
+  await expect(freerange).toContainText("@chenglou/freerange@0.0.1");
+  await expect(freerange).toContainText("user-installed stable Bun 1.x");
+  await expect(freerange).toContainText("ViewSpec never installs Bun");
+  await expect(freerange.getByRole("link", { name: "Freerange" })).toHaveAttribute(
+    "href",
+    "https://github.com/chenglou/freerange",
+  );
+
+  await expect(pretext).toBeVisible();
+  await expect(pretext).toContainText("@chenglou/pretext@0.0.8");
+  await expect(pretext).toContainText("preserves native DOM semantics");
+  await expect(pretext).toContainText("390×844, 768×1024, and 1440×1000");
+  await expect(pretext).toContainText("No Bun required");
+  await expect(pretext.getByRole("link", { name: "Pretext" })).toHaveAttribute(
+    "href",
+    "https://github.com/chenglou/pretext",
+  );
+
+  const composition = proof.locator(".integration-proof-compose");
+  await expect(composition).toContainText("--freerange --pretext --json");
+  await expect(composition).toContainText("does not broaden either guarantee");
+  await expect(composition).toContainText("does not claim that a hosted run has completed");
+  expect(failures).toEqual([]);
+});
+
 test("provenance hover remains populated across sibling transitions", async ({ page }) => {
   const failures = captureRuntimeFailures(page);
   await page.goto("/", { waitUntil: "domcontentloaded" });

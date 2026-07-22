@@ -355,8 +355,8 @@ def _json_ld() -> str:
                 "softwareVersion": PUBLIC_FACTS["sdk_version"],
                 "codeRepository": "https://github.com/nxrobins/viewspec",
                 "programmingLanguage": ["Python", "JSON", "Protocol Buffers"],
-                "description": "ViewSpec validates agent-authored IntentBundle and AppBundle JSON, proves first artifacts with viewspec prove and prove-app --with-shell, writes PROOF.md, proof_report.json, support_bundle.json, APP_PROOF.md, app_proof_report.json, state_reducer.ts, and state_manifest.json, records compact style-delta counts, applies DESIGN.md, writes provenance, and compiles deterministic UI outputs.",
-                "keywords": "agent-native app compiler, AppBundle, interactive_state_v0, reduceViewSpecState, state_replay_assertions, IntentBundle, compiled aesthetic profiles, semantic UI compiler, agentic engineering, AI coding agents, deterministic HTML, semantic diff, provenance",
+                "description": "ViewSpec validates agent-authored IntentBundle and AppBundle JSON, proves first artifacts with viewspec prove and prove-app --with-shell, writes PROOF.md, proof_report.json, support_bundle.json, APP_PROOF.md, app_proof_report.json, state_reducer.ts, and state_manifest.json, records compact style-delta counts, offers opt-in bounded Freerange numeric-kernel and Pretext native-DOM line-count/overflow proofs, applies DESIGN.md, writes provenance, and compiles deterministic UI outputs.",
+                "keywords": "agent-native app compiler, AppBundle, interactive_state_v0, reduceViewSpecState, state_replay_assertions, IntentBundle, compiled aesthetic profiles, Freerange numeric kernel proof, Pretext native DOM text proof, semantic UI compiler, agentic engineering, AI coding agents, deterministic HTML, semantic diff, provenance",
                 "featureList": [
                     "Local viewspec init-intent and validate-intent for agent-authored IntentBundles",
                     "Local AppBundle V3/V4 interactive_state_v0 proof with generated state_reducer.ts",
@@ -365,6 +365,8 @@ def _json_ld() -> str:
                     "Ten-case core workflow evidence across mobile, tablet, and desktop",
                     "Receipt-backed semantic correction previews and applies",
                     "Compiled aesthetic profile homepage artifacts with stable semantic ids and distinct style projection hashes",
+                    "Opt-in @chenglou/freerange@0.0.1 proof for the manifest-described generated numeric kernel",
+                    "Opt-in @chenglou/pretext@0.0.8 native-DOM line-count and overflow proof at three canonical viewports",
                     "Local viewspec compile for deterministic UI artifacts",
                     "Auditable provenance_manifest.json with stable hashes",
                     "DESIGN.md theming without arbitrary CSS or script",
@@ -767,6 +769,15 @@ PAGE_CSS = r"""
   .core-evidence h3{ margin:0 0 8px; color:var(--text); font-size:17px; }
   .core-evidence p{ margin:0; color:var(--muted); font-size:14px; line-height:1.6; }
   .core-evidence a{ color:var(--amber-2); }
+  .integration-proofs{ margin-top:18px; padding-top:24px; border-top:1px solid var(--line); }
+  .integration-proofs-head{ max-width:var(--measure); margin-bottom:18px; }
+  .integration-proofs-head h3{ margin:8px 0; color:var(--text); font-size:22px; }
+  .integration-proofs-head p,.integration-proof-compose{ margin:0; color:var(--muted); font-size:14px; line-height:1.6; }
+  .integration-proofs a{ color:var(--amber-2); }
+  .integration-proof-command{ display:block; margin:14px 0; padding:11px 12px; color:var(--text); background:var(--ink-2); border:1px solid var(--line); border-radius:9px; font-family:var(--mono); font-size:11px; line-height:1.55; overflow-wrap:anywhere; }
+  .integration-proof-meta{ font-family:var(--mono); font-size:11px !important; color:var(--faint) !important; }
+  .integration-proof-compose{ margin-top:16px; padding:16px 18px; border:1px solid var(--line); border-radius:12px; background:var(--panel-solid); }
+  .integration-proof-compose code{ color:var(--amber-2); font-family:var(--mono); overflow-wrap:anywhere; }
   .verdict.show{ display:inline-flex; }
   .verdict .ok{ width:8px; height:8px; border-radius:50%; background:var(--mint); }
   .bignum{ font-family:var(--mono); font-weight:700; font-size:46px; color:var(--text); font-variant-numeric:tabular-nums; line-height:1; }
@@ -1019,6 +1030,34 @@ PAGE_BODY_TEMPLATE = r"""<a class="skip-link" href="#top">Skip to content</a>
         </div>
       </div>
       {{CORE_REFINEMENT_EVIDENCE}}
+      <div class="integration-proofs" aria-labelledby="integration-proofs-title">
+        <div class="integration-proofs-head">
+          <span class="kicker"><span class="n">/</span> exact-versioned proof integrations</span>
+          <h3 id="integration-proofs-title">Freerange and Pretext, bounded on purpose.</h3>
+          <p>Two opt-in integrations by <a href="https://github.com/chenglou" target="_blank" rel="noopener">chenglou</a> add independently reported evidence to generated <code>react-tailwind-app</code> proofs.</p>
+        </div>
+        <div class="proof-grid">
+          <article class="pcard" data-proof-integration="freerange">
+            <div class="pcard-h"><span class="ok"></span><span class="tt"><a href="https://github.com/chenglou/freerange" target="_blank" rel="noopener">Freerange</a> numeric proof</span></div>
+            <div class="pcard-b">
+              <p><code>@chenglou/freerange@0.0.1</code> checks only the manifest-described generated numeric kernel and its recorded call-site hashes.</p>
+              <code class="integration-proof-command">viewspec prove-app --app viewspec.app.json --target react-tailwind-app --install --freerange --json</code>
+              <p class="integration-proof-meta">Requires a user-installed stable Bun 1.x on PATH. ViewSpec never installs Bun.</p>
+              <p>It does not analyze CSS, prove rendered geometry, certify arbitrary math, or certify arbitrary host apps.</p>
+            </div>
+          </article>
+          <article class="pcard" data-proof-integration="pretext">
+            <div class="pcard-h"><span class="ok"></span><span class="tt"><a href="https://github.com/chenglou/pretext" target="_blank" rel="noopener">Pretext</a> text proof</span></div>
+            <div class="pcard-b">
+              <p><code>@chenglou/pretext@0.0.8</code> preserves native DOM semantics and checks only native-DOM versus Pretext line count and overflow with named <code>Arial, sans-serif</code>.</p>
+              <code class="integration-proof-command">viewspec prove-app --app viewspec.app.json --target react-tailwind-app --install --pretext --json</code>
+              <p class="integration-proof-meta">Runs at 390&times;844, 768&times;1024, and 1440&times;1000 in Chromium. No Bun required.</p>
+              <p>It is not general typography proof, canvas-rendering proof, pixel-perfect visual regression, accessibility certification, or arbitrary-host certification.</p>
+            </div>
+          </article>
+        </div>
+        <p class="integration-proof-compose"><b>Compose, don&rsquo;t expand:</b> <code>viewspec prove-app --app viewspec.app.json --target react-tailwind-app --install --freerange --pretext --json</code> runs both independently reported analyses; it does not broaden either guarantee. Dedicated hosted E2E is configured for relevant pushes and pull requests, a weekly schedule, and manual dispatch; this does not claim that a hosted run has completed.</p>
+      </div>
     </section>
 
     <!-- ================= PRICING + CTA ================= -->
