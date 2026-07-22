@@ -247,6 +247,11 @@ def _build_parser() -> argparse.ArgumentParser:
 
     doctor_parser = subparsers.add_parser("doctor", help="Check local ViewSpec SDK readiness.")
     doctor_parser.add_argument("--agents", action="store_true", help="Also check native agent integration readiness.")
+    doctor_parser.add_argument(
+        "--freerange",
+        action="store_true",
+        help="Also run the read-only Bun/Freerange readiness probe; nothing is installed.",
+    )
     doctor_parser.set_defaults(func=_doctor_command)
 
     prove_parser = subparsers.add_parser("prove", help="Run a first ViewSpec proof and write a proof bundle.")
@@ -285,6 +290,16 @@ def _build_parser() -> argparse.ArgumentParser:
         "--install",
         action="store_true",
         help="Allow npm ci --ignore-scripts for react-tailwind-app host proof.",
+    )
+    prove_app_parser.add_argument(
+        "--freerange",
+        action="store_true",
+        help="Opt in to the pinned Bun/Freerange proof of runtime-connected numeric helpers.",
+    )
+    prove_app_parser.add_argument(
+        "--pretext",
+        action="store_true",
+        help="Opt in to pinned Pretext text-layout evidence for compiler-owned native DOM text.",
     )
     prove_app_parser.add_argument("--json", action="store_true", help="Print machine-readable JSON.")
     prove_app_parser.set_defaults(func=_prove_app_command)
@@ -1185,6 +1200,10 @@ def _doctor_command(args: argparse.Namespace) -> int:
                 "path_policy": "cwd containment by default",
             }
         )
+    if bool(getattr(args, "freerange", False)):
+        from viewspec.app_freerange import freerange_readiness
+
+        checks["freerange"] = freerange_readiness()
     ok = _doctor_checks_ok(checks)
     print(json.dumps({"ok": ok, "checks": checks}, indent=2, sort_keys=True))
     return 0 if ok else 2
@@ -1431,6 +1450,8 @@ def _prove_app_command(args: argparse.Namespace) -> int:
         with_shell=bool(args.with_shell),
         target=args.target,
         install=bool(args.install),
+        freerange=bool(getattr(args, "freerange", False)),
+        pretext=bool(getattr(args, "pretext", False)),
     )
     if args.json:
         print(json.dumps(result, indent=2, sort_keys=True))
@@ -1446,6 +1467,22 @@ def _prove_app_command(args: argparse.Namespace) -> int:
                 print(f"{key}: {value}")
         for error in result["errors"]:
             print(f"error: {error['code']}: {error['message']}")
+        static_analysis = result.get("static_analysis")
+        if isinstance(static_analysis, dict):
+            coverage = static_analysis.get("coverage") if isinstance(static_analysis.get("coverage"), dict) else {}
+            print(
+                "static_analysis: "
+                f"{static_analysis.get('status')} "
+                f"coverage={coverage.get('fully_analyzed', coverage.get('analyzed', 0))}/{coverage.get('required', 0)}"
+            )
+        text_layout = result.get("text_layout")
+        if isinstance(text_layout, dict):
+            coverage = text_layout.get("coverage") if isinstance(text_layout.get("coverage"), dict) else {}
+            print(
+                "text_layout: "
+                f"{text_layout.get('status')} "
+                f"coverage={coverage.get('measured', 0)}/{coverage.get('required', 0)}"
+            )
     if result["ok"]:
         return 0
     if any(error.get("code") in {"APP_PROOF_INTERNAL_ERROR", "APP_SHELL_INTERNAL_ERROR"} for error in result["errors"]):

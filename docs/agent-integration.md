@@ -43,6 +43,71 @@ viewspec prove-app --app viewspec.app.json --target react-tailwind-app --install
 
 This proves the generated package's Vite build plus browser-history routing, unknown-route behavior, declared mutations, resource-backed text updates, selector replay, and visibility in Chromium. Keep authentication, persistence, API clients, optimistic updates, and deployment infrastructure in host-authored code.
 
+For generated apps that use ViewSpec's supported numeric operations, agents may request the pinned
+Freerange phase:
+
+```bash
+viewspec doctor --freerange
+viewspec prove-app --app viewspec.app.json --target react-tailwind-app --install --freerange --json
+```
+
+Treat Bun as an explicit operator prerequisite: stable Bun 1.x or newer must already be on `PATH`
+for an applicable scope, and ViewSpec never installs it. `doctor --freerange` is a read-only probe
+that may run `bun --version`; it does not install packages, change the app, or invoke a package
+runner. The generated proof package pins `@chenglou/freerange` exactly to `0.0.1`. Within this
+proof, `--install` grants permission for `npm ci --ignore-scripts` and possible registry access;
+keep it on the public `prove-app` command because that workflow verifies a freshly generated tree.
+Only the lower-level artifact verifier can consume an existing app directory with dependencies
+already installed.
+
+Agents should interpret the composite proof in phase order: strict `tsc --noEmit`, optional
+Freerange findings and coverage audit, Vite build, then Chromium verification. Continue only on
+`static_analysis.status: "passed"` when the scope is applicable and all manifest-required functions
+have complete matching coverage, required guarantees, no unproven assertion verdicts, safe contracts, and no error findings.
+`static_analysis.status: "not_applicable"` means the generated app declared no supported numeric
+operations; Bun is not required for that phase, and the result is not a passed analysis. Any stable
+`APP_FREERANGE_*` failure is terminal for that proof attempt: repair the named semantic/generated
+input or prerequisite and regenerate rather than editing the generated kernel, analyzer package,
+lockfile, manifest, or report.
+
+Do not describe this phase as CSS or Tailwind analysis, rendered-geometry proof, or arbitrary-host
+certification. Its scope is the manifest-described generated numeric kernel and hashed generated
+call sites; the later build/browser phases retain their separate bounded claims.
+
+When the operator wants compiler-owned native text-wrapping evidence, agents may independently
+request Pretext or compose it with Freerange:
+
+```bash
+viewspec prove-app --app viewspec.app.json --target react-tailwind-app --install --pretext --json
+viewspec prove-app --app viewspec.app.json --target react-tailwind-app --install --freerange --pretext --json
+```
+
+Pretext is supported only for `react-tailwind-app`. The generated package pins
+`@chenglou/pretext` exactly to `0.0.8`, and the proof validates its resolved npm artifact,
+integrity, installed metadata, and complete package tree. It has no Bun prerequisite; a composed
+run needs Bun only when Freerange is applicable. `--install` has the same narrow npm dependency
+permission as the base React proof.
+
+Interpret `viewspec_pretext_native_dom_v1` literally. It generates an `Arial, sans-serif` support
+profile, waits for loaded fonts, and observes exact manifest-derived native DOM surfaces in
+Chromium at 390×844, 768×1024, and 1440×1000. It reuses width-independent Pretext preparation for
+width-specific layouts, then requires predicted and observed line counts to agree under a fixed
+1px line-fit tolerance without allowing actual overflow.
+It reads and hashes native text without returning raw text, mutating the DOM, applying predicted
+layout, or replacing text with a canvas.
+
+With both flags, phases are exact-artifact/dependency preflight, TypeScript, Freerange, Vite build,
+Chromium observation, Pretext report validation, and final integrity. Read the compatibility field
+`text_layout` and alias `analyses.pretext` for status, engine/profile/protocol, environment,
+viewports, coverage, cache, bounded observations, digests, timings, phases, and errors. Any
+`APP_PRETEXT_*` failure is terminal; repair semantic source or the named prerequisite and
+regenerate instead of editing the generated runtime, package lock, manifest, or report. Zero
+eligible compiler-owned surfaces is `not_applicable`, never a passed analysis.
+
+Do not describe this as cross-browser, Retina/device-pixel-ratio, canvas-rendering, pixel-perfect,
+accessibility, or arbitrary-host proof. It is loaded-font native text evidence for only the recorded
+Chromium environment.
+
 Do not prompt agents to output `CompositionIR`, primitives, nested `children`, or rendered layout. That bypasses the compiler and undermines the provenance and validation model. Agents should describe the semantic substrate and declarative view intent; ViewSpec remains responsible for layout, style resolution, diagnostics, and exact provenance.
 
 ## Agent Contract
@@ -175,7 +240,7 @@ semantic_summary = intent_semantic_change_lines(diff["semantic_changes"])
 
 `viewspec compile` performs the same intent validation before writing output files. If compilation returns an intent validation payload, feed its `correction_prompt` back to the agent and regenerate the full IntentBundle instead of patching fragments.
 
-Use `viewspec doctor` in local setup checks. It reports the available intent-first commands, runs starter IntentBundle validation/compile/diff, AppBundle validation/diff, aesthetic-profile diff, and semantic summary smoke checks, verifies `PyYAML`, and states that local validation, compile, lift, diff, check, check-agent-assets, scaffold, app proof, and agent-asset export commands make no SDK network calls. `viewspec doctor --agents` also reports managed instruction templates, local agent prompt/schema/example/manifest asset identity and hashes, local `.viewspec` asset status, published static asset status when `demos/agent-assets.json` is present, the optional MCP dependency, MCP install hint, and cwd path containment policy.
+Use `viewspec doctor` in local setup checks. It reports the available intent-first commands, runs starter IntentBundle validation/compile/diff, AppBundle validation/diff, aesthetic-profile diff, and semantic summary smoke checks, verifies `PyYAML`, and states that local validation, compile, lift, diff, check, check-agent-assets, scaffold, app proof, and agent-asset export commands make no SDK network calls. `viewspec doctor --agents` also reports managed instruction templates, local agent prompt/schema/example/manifest asset identity and hashes, local `.viewspec` asset status, published static asset status when `demos/agent-assets.json` is present, the optional MCP dependency, MCP install hint, and cwd path containment policy. `viewspec doctor --freerange` adds only the read-only Bun/Freerange readiness report; it performs no installation.
 
 `viewspec check` treats the compiled artifact as a proof boundary. For IntentBundle artifacts, DOM `data-ir-id`, `data-binding-id`, and `data-action-id` values must agree with `provenance_manifest.json`; binding/action ids cannot be duplicated; binding nodes must retain source `content_refs`; and binding/action manifest entries must include the matching `viewspec:binding:*` or `viewspec:action:*` intent ref. Human check output prints the bounded manifest summary, including root aesthetic profile, compact style-delta counts, and checked aesthetic layout columns/spans when present; `viewspec check --json` returns the same summary for tools.
 

@@ -14,6 +14,15 @@ Use this skill when an agent creates a new human-facing UI artifact, report, das
 - Treat compiled output as an artifact, not as the editable source.
 - Use `viewspec prove --out .viewspec-proof` for a first local proof bundle; read `.viewspec-proof/PROOF.md` first, use `.viewspec-proof/proof_report.json` for tool output, and use `.viewspec-proof/support_bundle.json` for redacted failure triage. It proves source artifact integrity and provenance, not pixel-perfect visual equivalence.
 - For a narrow multi-screen internal tool, use AppBundle JSON as `viewspec.app.json` instead of hand-writing an app shell or router. Use `--template react-app` and the `react-tailwind-app` target when the user needs a runnable Vite/React/Tailwind application; keep authentication, persistence, APIs, and deployment host-owned.
+- When the generated React AppBundle uses ViewSpec's supported numeric operations and the operator
+  wants the additional proof, use `doctor --freerange` and `prove-app --freerange`. Require the
+  operator to install stable Bun 1.x or newer explicitly; never claim ViewSpec or `--install`
+  installs Bun. Treat this as generated numeric-kernel analysis, not CSS/Tailwind, rendered-geometry,
+  or arbitrary-host proof.
+- When the operator wants compiler-owned native text-wrapping evidence, use
+  `prove-app --target react-tailwind-app --pretext`. Pretext needs no Bun; treat it as an exact
+  loaded-font Chromium proof for the supported native-DOM profile, not cross-browser/Retina,
+  canvas-rendering, pixel-perfect, accessibility, or arbitrary-host proof.
 - For governed art direction, use at most one view-level aesthetic profile token in `viewspec.intent.json`: `aesthetic.calm_ops`, `aesthetic.premium_saas`, `aesthetic.data_dense`, `aesthetic.editorial_product`, or `aesthetic.executive_review`. Aesthetic profiles are deterministic style and bounded-layout handles, not CSS, pixel-perfect visual proof, accessibility certification, arbitrary host-app compatibility, or design-review approval.
 - Use raw HTML commands only when importing existing HTML.
 - Do not upload, share, call hosted APIs, or use remote services unless the user explicitly asks.
@@ -69,6 +78,51 @@ viewspec prove-app --app viewspec.app.json --target react-tailwind-app --install
 
 Edit `viewspec.app.json` and regenerate with `--force`; do not edit generated React.
 
+Opt in to the pinned numeric-helper proof only when requested:
+
+```bash
+viewspec doctor --freerange
+viewspec prove-app --app viewspec.app.json --target react-tailwind-app --install --freerange --json
+```
+
+The generated package pins `@chenglou/freerange` exactly to `0.0.1`. `doctor --freerange` is
+read-only: it may run `bun --version`, but it never installs packages, changes the app, or invokes a
+network-capable package runner. In app proof, `--install` is the explicit permission for
+`npm ci --ignore-scripts` and possible registry access. Keep it on the public `prove-app` command,
+which verifies a freshly generated tree. Only the lower-level artifact verifier can consume an
+existing app directory with dependencies already installed. It never installs Bun.
+
+Read phases and results literally. Strict `tsc --noEmit` must pass before Freerange, which must
+finish before Vite build and Chromium proof. `static_analysis.status: "passed"` is valid only for an
+applicable scope when all manifest-required functions are present and fully analyzed with matching
+coverage, safe contracts, required guarantees, no unproven assertion verdicts, and no error findings. No supported numeric operations
+produces `static_analysis.status: "not_applicable"` and Bun `not_required`; do not call that a passed
+analysis. On any `APP_FREERANGE_*` failure, fix the named prerequisite or semantic source and
+regenerate. Never edit generated numeric source, package locks, manifests, or reports to bypass the
+fail-closed gate.
+
+Opt in to the pinned Pretext proof independently or compose it with Freerange:
+
+```bash
+viewspec prove-app --app viewspec.app.json --target react-tailwind-app --install --pretext --json
+viewspec prove-app --app viewspec.app.json --target react-tailwind-app --install --freerange --pretext --json
+```
+
+The generated package pins `@chenglou/pretext` exactly to `0.0.8`; ViewSpec validates its resolved
+npm artifact, integrity, installed metadata, and complete package tree. Pretext itself has no Bun
+prerequisite. The `viewspec_pretext_native_dom_v1` profile uses named `Arial, sans-serif`, waits for
+fonts, and checks manifest-derived native DOM text at 390×844, 768×1024, and 1440×1000 in Chromium.
+Preparation is reused across widths; predicted and observed line counts must agree under a fixed
+1px line-fit tolerance without actual overflow. The probe reads and hashes text but never returns raw text, mutates the DOM, applies
+predicted layout, or replaces elements with canvas-rendered text.
+
+With both flags, read phases in this order: exact-artifact/dependency preflight, TypeScript,
+Freerange, Vite build, Chromium observation, Pretext report validation, final integrity. Inspect
+`text_layout` or `analyses.pretext` for status, engine/profile/protocol, environment, viewports,
+coverage, cache, observations, digests, timings, phases, and errors. `APP_PRETEXT_*` is fail-closed;
+repair the named prerequisite or semantic source and regenerate. No eligible surface is
+`not_applicable`, never a passed result.
+
 Compile the IntentBundle locally:
 
 ```bash
@@ -118,6 +172,7 @@ Check local SDK readiness:
 
 ```bash
 viewspec doctor --agents
+viewspec doctor --freerange
 ```
 
 Export local contract assets for schema-aware editors and agents:

@@ -11,7 +11,7 @@ from hypothesis import given, strategies as st
 from scripts.check_distribution import DistributionError, _validate_member_name, audit_distribution
 
 
-VERSION = "0.3.0b5"
+VERSION = "0.3.0b6"
 
 
 def _write_wheel(path: Path, *, extra: dict[str, bytes] | None = None) -> None:

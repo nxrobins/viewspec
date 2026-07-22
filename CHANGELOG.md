@@ -7,6 +7,50 @@ All notable changes to ViewSpec are documented in this file. The format follows
 
 ## [Unreleased]
 
+## [0.3.0b6] - 2026-07-22
+
+### Added
+
+- An opt-in `prove-app --target react-tailwind-app --freerange` phase for manifest-scoped generated
+  numeric helpers, pinned exactly to `@chenglou/freerange` `0.0.1`, plus a read-only
+  `doctor --freerange` Bun readiness probe.
+- Machine evidence for applicable Freerange scopes, including complete required-function coverage,
+  bounded findings and contracts, source/configuration/tool hashes, transcript hashes, runtime
+  identity, timings, and stable failure codes. Apps with no numeric scope report
+  `not_applicable`, not `passed`.
+- An opt-in `prove-app --target react-tailwind-app --pretext` native-DOM text-layout proof, pinned
+  exactly to `@chenglou/pretext` `0.0.8`, with an `Arial, sans-serif` support profile, loaded-font
+  Chromium observations at 390×844, 768×1024, and 1440×1000, and width-independent preparation
+  cache reuse. It composes with `--freerange` and does not itself require Bun.
+- Bounded `text_layout` and `analyses.pretext` evidence for scope, environment, coverage, cache,
+  observations, package identity, hashes, phases, timings, and stable failures. Apps with no
+  eligible compiler-owned text surfaces report `not_applicable`, not `passed`.
+- A committed, environment-gated real-browser E2E suite for standalone Pretext and composed
+  Freerange + Pretext proofs, including fresh package installation, exact engine identities,
+  Chromium coverage/cache checks, phase integrity, and durable proof artifacts.
+- A dedicated Pretext E2E workflow for relevant changes, weekly recurrence, and manual dispatch,
+  with pinned Python, Node/npm, Bun, and Playwright versions, all-skipped-run rejection, and 30-day
+  JUnit, toolchain, log, and proof retention.
+
+### Changed
+
+- Exact React AppBundle verification now runs strict TypeScript checking before optional Freerange
+  analysis and before Vite build and Chromium runtime verification.
+- When Pretext is requested, exact React AppBundle verification observes unchanged native DOM in
+  Chromium, validates its text-layout report after the browser phase, and rechecks package and
+  artifact integrity. With both options, Freerange remains between TypeScript and Vite build.
+
+### Security
+
+- Freerange verification fails closed on runtime, package, version, integrity, protocol, coverage,
+  contract, finding, limit, timeout, and proof-input mutation failures. Bun must be installed explicitly;
+  `--install` permits only the proof's pinned `npm ci --ignore-scripts` dependency step and does not
+  install Bun.
+- Pretext verification validates the exact lock URL, npm integrity, installed package tree,
+  manifest-derived scope, protocol, full cross-viewport coverage, cache invariants, line counts,
+  overflow, and immutable inputs. Unsupported or contradictory evidence fails with
+  `APP_PRETEXT_*`; it is not cross-browser, Retina, canvas-rendering, or pixel-perfect proof.
+
 ## [0.3.0b5] - 2026-07-21
 
 ### Added

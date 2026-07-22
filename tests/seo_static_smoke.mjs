@@ -111,16 +111,65 @@ assertPublicEqual(publicFacts.proof.machine_report_file, '.viewspec-proof/proof_
 assertPublicEqual(publicFacts.proof.support_bundle_file, '.viewspec-proof/support_bundle.json', 'public facts proof support bundle file')
 assertPublicText(publicFacts.proof.scope, 'compact style-delta counts', 'public facts proof style summary scope')
 assertPublicText(publicFacts.proof.non_claim, 'not pixel-perfect visual regression', 'public facts proof non-claim')
+assertPublicEqual(publicFacts.proof_integrations.target, 'react-tailwind-app', 'proof integrations target')
+assertPublicEqual(publicFacts.proof_integrations.opt_in, true, 'proof integrations opt-in policy')
+assertPublicEqual(publicFacts.proof_integrations.freerange.repository_url, 'https://github.com/chenglou/freerange', 'Freerange repository URL')
+assertPublicEqual(publicFacts.proof_integrations.freerange.package, '@chenglou/freerange', 'Freerange package')
+assertPublicEqual(publicFacts.proof_integrations.freerange.version, '0.0.1', 'Freerange version')
+assertPublicText(publicFacts.proof_integrations.freerange.command, '--freerange --json', 'Freerange command')
+assertPublicText(publicFacts.proof_integrations.freerange.prerequisite, 'user-installed stable Bun 1.x', 'Freerange Bun prerequisite')
+assertPublicText(publicFacts.proof_integrations.freerange.prerequisite, 'ViewSpec never installs Bun', 'Freerange Bun ownership')
+assert.deepEqual(
+  publicFacts.proof_integrations.freerange.report_keys,
+  ['static_analysis', 'analyses.freerange'],
+  'Freerange report keys'
+)
+assertPublicText(publicFacts.proof_integrations.freerange.scope, 'generated numeric kernel', 'Freerange bounded scope')
+assertPublicText(publicFacts.proof_integrations.freerange.non_claim, 'does not analyze CSS', 'Freerange CSS non-claim')
+assertPublicText(publicFacts.proof_integrations.freerange.non_claim, 'arbitrary math', 'Freerange arbitrary-math non-claim')
+assertPublicEqual(publicFacts.proof_integrations.pretext.repository_url, 'https://github.com/chenglou/pretext', 'Pretext repository URL')
+assertPublicEqual(publicFacts.proof_integrations.pretext.package, '@chenglou/pretext', 'Pretext package')
+assertPublicEqual(publicFacts.proof_integrations.pretext.version, '0.0.8', 'Pretext proof version')
+assertPublicText(publicFacts.proof_integrations.pretext.command, '--pretext --json', 'Pretext command')
+assertPublicText(publicFacts.proof_integrations.pretext.prerequisite, 'does not require Bun', 'Pretext Bun boundary')
+assertPublicEqual(publicFacts.proof_integrations.pretext.profile, 'viewspec_pretext_native_dom_v1', 'Pretext profile')
+assertPublicEqual(publicFacts.proof_integrations.pretext.font_family, 'Arial, sans-serif', 'Pretext font family')
+assert.deepEqual(
+  publicFacts.proof_integrations.pretext.viewports,
+  [
+    { width: 390, height: 844 },
+    { width: 768, height: 1024 },
+    { width: 1440, height: 1000 },
+  ],
+  'Pretext canonical viewports'
+)
+assert.deepEqual(
+  publicFacts.proof_integrations.pretext.report_keys,
+  ['text_layout', 'analyses.pretext'],
+  'Pretext report keys'
+)
+assertPublicText(publicFacts.proof_integrations.pretext.scope, 'preserves native DOM semantics', 'Pretext DOM-preservation scope')
+assertPublicText(publicFacts.proof_integrations.pretext.scope, 'line counts and overflow', 'Pretext metric scope')
+assertPublicText(publicFacts.proof_integrations.pretext.non_claim, 'not general typography proof', 'Pretext typography non-claim')
+assertPublicText(publicFacts.proof_integrations.pretext.non_claim, 'canvas-rendering proof', 'Pretext canvas non-claim')
+assertPublicText(publicFacts.proof_integrations.composed.command, '--freerange --pretext --json', 'composed proof command')
+assertPublicText(publicFacts.proof_integrations.composed.non_claim, 'does not broaden', 'composed proof non-claim')
+assertPublicEqual(publicFacts.proof_integrations.e2e.status, 'configured', 'proof integrations hosted E2E status')
+assertPublicText(publicFacts.proof_integrations.e2e.scope, 'does not claim a hosted run has completed', 'hosted E2E evidence boundary')
 assertPublicEqual(publicFacts.core_refinement.status, refinementGate.status, 'core refinement gate status')
-assertPublicEqual(publicFacts.core_refinement.sdk_version, publicFacts.sdk_version, 'core refinement SDK version')
+assert.match(
+  publicFacts.core_refinement.sdk_version,
+  /^\d+\.\d+\.\d+(?:[a-z]+\d+)?$/,
+  'core refinement evidence SDK version shape'
+)
 assertPublicEqual(
   refinementGate.same_revision_evidence.browser_corpus.sdk_version,
-  publicFacts.sdk_version,
+  publicFacts.core_refinement.sdk_version,
   'core refinement gate SDK version'
 )
 assertPublicEqual(
   refinementScorecard.verification.sdk_version,
-  publicFacts.sdk_version,
+  publicFacts.core_refinement.sdk_version,
   'core refinement scorecard SDK version'
 )
 assertPublicEqual(publicFacts.core_refinement.evaluated_on, refinementGate.evaluated_on, 'core refinement evaluation date')
@@ -379,6 +428,14 @@ for (const llmTextPath of ['demos/llms.txt', 'demos/llms-full.txt']) {
   assertPublicText(text, publicFacts.core_refinement.scorecard_url, `${llmTextPath} scorecard URL`)
   assertPublicText(text, publicFacts.core_refinement.semantic_corrections.proof_url, `${llmTextPath} correction proof URL`)
   assertPublicText(text, 'viewspec prove --intent viewspec.intent.json --target react-tailwind-tsx --install --out .viewspec-proof --json', `${llmTextPath} authored proof path`)
+  assertPublicText(text, '@chenglou/freerange@0.0.1', `${llmTextPath} Freerange proof pin`)
+  assertPublicText(text, publicFacts.proof_integrations.freerange.command, `${llmTextPath} Freerange command`)
+  assertPublicText(text, 'user-installed stable Bun 1.x', `${llmTextPath} Freerange Bun prerequisite`)
+  assertPublicText(text, '@chenglou/pretext@0.0.8', `${llmTextPath} Pretext proof pin`)
+  assertPublicText(text, publicFacts.proof_integrations.pretext.command, `${llmTextPath} Pretext command`)
+  assertPublicText(text, '390x844', `${llmTextPath} Pretext mobile viewport`)
+  assertPublicText(text, publicFacts.proof_integrations.composed.command, `${llmTextPath} composed proof command`)
+  assertPublicText(text, 'does not claim that a hosted run has completed', `${llmTextPath} hosted E2E boundary`)
 }
 
 for (const aestheticTextPath of ['README.md', 'docs/getting-started.md', 'docs/agent-integration.md', 'docs/free-sdk-reliability.md', 'demos/llms.txt', 'demos/llms-full.txt']) {
@@ -656,6 +713,11 @@ const graph = homeJsonLd.find((entry) => Array.isArray(entry['@graph']))?.['@gra
 assert(graph.some((entry) => entry['@type'] === 'SoftwareApplication'), 'home JSON-LD needs SoftwareApplication')
 assert(graph.some((entry) => entry['@type'] === 'WebAPI'), 'home JSON-LD needs WebAPI')
 assert(graph.some((entry) => entry['@type'] === 'FAQPage'), 'home JSON-LD needs FAQPage')
+const softwareJsonLd = graph.find((entry) => entry['@type'] === 'SoftwareApplication') || {}
+assertPublicText(softwareJsonLd.keywords || '', 'Freerange numeric kernel proof', 'home JSON-LD Freerange keyword')
+assertPublicText(softwareJsonLd.keywords || '', 'Pretext native DOM text proof', 'home JSON-LD Pretext keyword')
+assertPublicText(JSON.stringify(softwareJsonLd.featureList || []), '@chenglou/freerange@0.0.1', 'home JSON-LD Freerange feature')
+assertPublicText(JSON.stringify(softwareJsonLd.featureList || []), '@chenglou/pretext@0.0.8', 'home JSON-LD Pretext feature')
 
 const landingCompiledBytes = await readFile('demos/landing-compiled/index.html')
 const landingCompiledHtml = landingCompiledBytes.toString('utf8')
@@ -762,6 +824,16 @@ for (const expected of [
   '10,000 hosted compile calls/day',
   'Try the one-minute proof',
   './proof-bundle/',
+  'id="integration-proofs-title"',
+  'data-proof-integration="freerange"',
+  'data-proof-integration="pretext"',
+  '@chenglou/freerange@0.0.1',
+  '@chenglou/pretext@0.0.8',
+  'https://github.com/chenglou/freerange',
+  'https://github.com/chenglou/pretext',
+  '--freerange --pretext --json',
+  'Dedicated hosted E2E is configured',
+  'does not claim that a hosted run has completed',
   'skip-link',
 ]) {
   assertPublicText(landing, expected, 'landing page artifact controls')
@@ -789,6 +861,8 @@ for (const file of ['analysis', 'line-break', 'line-text', 'measurement']) {
   await stat(`demos/vendor/pretext/dist/${file}.js`)
 }
 const pretextGlobal = await readFile('demos/vendor/pretext/pretext.global.js', 'utf8')
+assertPublicText(landing, '@chenglou/pretext@0.0.8', 'landing Pretext proof integration pin')
+// The homepage canvas-heading demo remains a separate vendored Pretext 0.0.6 runtime.
 assertPublicText(pretextGlobal, '@chenglou/pretext@0.0.6', 'landing Pretext global bundle')
 assertPublicText(pretextGlobal, 'window.ViewSpecPretext', 'landing Pretext global export')
 assert.doesNotMatch(landing, /self-render-frame/)

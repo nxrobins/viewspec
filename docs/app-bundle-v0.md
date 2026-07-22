@@ -18,9 +18,145 @@ Edit the AppBundle and regenerate with `--force`; do not edit generated React. T
 viewspec prove-app --app viewspec.app.json --target react-tailwind-app --install
 ```
 
-The proof checks the same embedded screen provenance and resource assertions as the source path, verifies generated reducer replay under Node, checks every generated file hash, runs the Vite production build, and exercises routes, browser history, unknown-route fallback, state actions, live resource-field rebinding, selector expectations, and visibility in Chromium.
+The proof checks the same embedded screen provenance and resource assertions as the source path,
+verifies generated reducer replay under Node, checks every generated file hash, runs strict
+TypeScript checking before the Vite production build, and exercises routes, browser history,
+unknown-route fallback, state actions, live resource-field rebinding, selector expectations, and
+visibility in Chromium.
 
 The generated `ViewSpecApp` accepts fixture-compatible resource records plus typed navigation, action, state-change, and error callbacks. Network requests, authentication, persistence, optimistic updates, and deployment infrastructure remain host-owned.
+
+## Optional Freerange Numeric Proof
+
+`react-tailwind-app` may add a fail-closed proof of its manifest-described generated numeric kernel:
+
+```bash
+viewspec doctor --freerange
+viewspec prove-app --app viewspec.app.json --target react-tailwind-app --install --freerange --json
+```
+
+This option is supported only for `react-tailwind-app`. The generated package and lockfile pin
+`@chenglou/freerange` exactly to `0.0.1`; version, resolved package, integrity, binary metadata, and
+the accompanying TypeScript toolchain are verified before analysis. Stable Bun 1.x or newer must
+be installed explicitly on `PATH` for an applicable numeric scope. ViewSpec never installs Bun.
+Because Freerange `0.0.1` exposes human-readable CLI output rather than a versioned JSON API,
+ViewSpec uses a strict version-pinned transcript adapter and rejects protocol drift.
+`doctor --freerange` is read-only: it may execute `bun --version` and reports the expected engine
+identity, while the package itself remains unchecked until app proof. It does not mutate the app,
+install dependencies, or invoke a network-capable package runner.
+
+In the exact-app proof, `--install` is the only permission to run `npm ci --ignore-scripts` and
+therefore the only dependency-preparation phase that may access the registry. Keep it on the
+public `prove-app` command because that workflow verifies a freshly generated artifact. The
+lower-level artifact verifier can use an existing artifact that already contains `node_modules`;
+`--install` still does not install Bun. After dependency preparation, the proof order is strict
+and fail-closed:
+
+1. Validate and privately snapshot the exact generated artifact.
+2. Run strict TypeScript checking with `npm run typecheck` (`tsc --noEmit`).
+3. When requested, run Freerange findings and `--audit` over only the declared numeric kernel.
+4. Run the Vite production build.
+5. Run the generated Chromium verification and recheck immutable hashes.
+
+An applicable Freerange scope contains at least one kernel file, required function, and recorded
+runtime call site. It reports `static_analysis.status: "passed"` only when findings and audit agree,
+module initialization is fully analyzed, the observed function set exactly matches the required
+set, every required function is fully analyzed with zero partial, unsupported, or skipped work,
+required guarantees are present, any reported assertions are proven, caller requirements are explicitly
+allowlisted, no assumptions are accepted, and no error findings remain. A generated app with no
+supported numeric operations reports `static_analysis.status: "not_applicable"`, zero coverage,
+and `runtime.status: "not_required"`; it is not relabeled as a passed analysis.
+
+The machine report records pinned engine/protocol and Bun identity, required functions, per-file
+coverage and bounded contract evidence, findings, analyzed-source/call-site/configuration/tool
+hashes, findings and audit transcript hashes, explicit phase statuses, timings, and errors. Missing
+or unsupported Bun,
+package/version/integrity drift, malformed or contradictory output, incomplete coverage, unsafe
+contracts, unproven assertions, error findings, timeout/output bounds, or changed source, config,
+runtime, or tool inputs fail with stable `APP_FREERANGE_*` codes and cannot produce `passed`.
+
+Freerange does not analyze CSS or Tailwind, prove rendered geometry, or certify arbitrary host
+applications. It proves only the supported generated numeric helpers under their recorded
+contracts; ViewSpec separately binds that evidence to generated call-site hashes, strict
+TypeScript, exact-artifact hashes, and the later bounded browser proof.
+
+## Optional Pretext Native-DOM Text Proof
+
+`react-tailwind-app` may also add a fail-closed proof for compiler-owned native text surfaces:
+
+```bash
+viewspec prove-app --app viewspec.app.json --target react-tailwind-app --install --pretext --json
+viewspec prove-app --app viewspec.app.json --target react-tailwind-app --install --freerange --pretext --json
+```
+
+`--pretext` is opt-in and supported only for `react-tailwind-app`. For an applicable scope, the
+generated runtime dependency and npm lock pin `@chenglou/pretext` exactly to `0.0.8`, resolved as
+`https://registry.npmjs.org/@chenglou/pretext/-/pretext-0.0.8.tgz` with integrity
+`sha512-yqm2GMxnPI7VHcHwe84P8ZF0JK/2d2DMKPqMN+s95jQhwDMYYXKVFVJUMEaVWckQStdsjdLav/0Vu+d9YbtGxA==`.
+Before accepting evidence, ViewSpec also checks the installed package metadata and complete package
+tree against SHA-256
+`e5a45193af0a178be6f0c9138f704ba92bdb18eff1da39da99533c2c17b4f103`. `--install` remains the
+explicit permission for `npm ci --ignore-scripts` and possible registry access; otherwise
+`node_modules` must already exist. Pretext does not require Bun. A combined proof requires Bun only
+when its Freerange scope is applicable.
+
+The `viewspec_pretext_native_dom_v1` profile generates the named `Arial, sans-serif` font stack and
+`overflow-wrap: anywhere` for compiler-owned IR nodes. Its proof probe waits for
+`document.fonts.ready`, resolves only the exact manifest-derived element and IR identities, and
+compares Pretext's predicted line count with native DOM `Range` line rectangles plus horizontal and
+vertical overflow. It covers every eligible visible text surface at exactly these Chromium
+viewports:
+
+- mobile: 390×844
+- tablet: 768×1024
+- desktop: 1440×1000
+
+The bounded profile accepts the named, loaded `Arial, sans-serif` stack rather than `system-ui` or
+`-apple-system`, horizontal writing, normal/pre-wrap white space, normal/keep-all word breaking,
+`overflow-wrap: anywhere`, numeric letter spacing, and a numeric line height or `normal`
+interpreted as 1.2× font size. Unsupported computed typography is a proof failure. Pretext
+`prepare()` results are cached by hashed text and supported typography inputs without width;
+`layout()` reuses that prepared value at each width with a fixed 1px line-fit tolerance. Actual DOM
+overflow remains disallowed. The cache counters are validated so claimed cross-width reuse cannot
+be fabricated.
+
+The native DOM remains the rendered and semantic authority. The probe reads and hashes text but
+does not return raw text, write layout decisions into the page, replace elements, or render the UI
+to a canvas. Pretext may use Canvas 2D internally for measurement; this proof does not certify a
+canvas renderer or the separate demo canvas shim.
+
+The composite phase order is strict:
+
+1. Validate and privately snapshot the exact generated artifact, then prepare dependencies and
+   validate the applicable Pretext installation.
+2. Run strict TypeScript checking.
+3. When requested, run Freerange over the declared numeric kernel.
+4. Run the Vite production build.
+5. Run the generated core Chromium verification.
+6. Run the isolated manifest-scoped Pretext Chromium observations, then validate the bounded report
+   and its full surface × viewport coverage.
+7. Recheck Freerange inputs when present, the installed Pretext tree when applicable, and all final
+   artifact hashes.
+
+Machine output exposes the result at `text_layout` and `analyses.pretext`; a composed proof also
+keeps `static_analysis` and `analyses.freerange`. Pretext evidence records `status`, pinned
+`engine`, `profile`, `protocol`, `environment`, canonical `viewports`, bounded per-surface items,
+`coverage` (`required`, `accounted`, `measured`, `hidden`, `unsupported`, `failed`), `cache`
+(`prepare_calls`, `unique_inputs`, `layout_calls`, `cache_hits`), installation identity, scope,
+observation and report digests, timings, phase statuses, and errors. `proof_identity` binds
+`pretext_scope_digest`, `pretext_observation_digest`, and `pretext_report_hash` when present.
+
+The scope is derived only from eligible compiler-owned nodes in checked screen manifests and must
+account exactly once for their cross-product with the three viewports. Hidden surfaces are explicit;
+unsupported or failed observations, missing or duplicate coverage, line-count or overflow
+mismatches, cache contradictions, package/version/integrity drift, invalid protocols or reports,
+and changed inputs fail with stable `APP_PRETEXT_*` codes. No eligible surface reports
+`text_layout.status: "not_applicable"` with zero coverage; it is not a passed layout proof.
+
+This proves only the reported native text wrapping in the recorded loaded-font Chromium
+environment. It is not cross-browser or cross-operating-system evidence, a Retina/device-pixel-ratio
+matrix, canvas-rendering proof, pixel-perfect visual equivalence, accessibility certification, or
+arbitrary host-app certification.
 
 ```bash
 viewspec init-app --out viewspec.app.json

@@ -39,6 +39,7 @@ from viewspec.state_ir import (
     apply_event,
     check_reducer_conformance,
     evaluate_selectors,
+    generate_javascript_reducer,
     generate_typescript_reducer,
     initial_state,
     normalize_state_ir,
@@ -365,9 +366,12 @@ def test_state_reducer_conformance_executes_generated_es_module_for_all_v0_ops()
     app = _stateful_app_bundle_with_remove_replay()
     reducer_source = generate_typescript_reducer(app)
 
-    assert "export type" not in reducer_source
+    assert "export type ViewSpecState = Record<string, unknown>;" in reducer_source
+    assert "state: ViewSpecState, event: ViewSpecStateEvent" in reducer_source
+    assert "from \"./viewspec_numeric\"" in reducer_source
     assert "export function reduceViewSpecState" in reducer_source
     assert "export function selectViewSpecState" in reducer_source
+    assert "export type" not in generate_javascript_reducer(app)
 
     report = check_reducer_conformance(app, reducer_source=reducer_source)
 
@@ -1253,7 +1257,8 @@ def test_compile_and_prove_app_v3_emit_deterministic_state_artifacts(tmp_path):
     assert diagnostics["state_contract_hash"] == compiled["state_contract_hash"]
     assert diagnostics["state_reducer_conformance"]["ok"] is True
     reducer = reducer_path.read_text(encoding="utf-8")
-    assert "export type" not in reducer
+    assert "export type ViewSpecState = Record<string, unknown>;" in reducer
+    assert "state: ViewSpecState, event: ViewSpecStateEvent" in reducer
     assert "export function reduceViewSpecState" in reducer
     assert "export function selectViewSpecState" in reducer
 

@@ -529,7 +529,7 @@ def test_verify_host_install_runs_npm_ci_ignore_scripts(tmp_path, monkeypatch):
         if command[1:] == ["ci", "--ignore-scripts"]:
             bin_dir = cwd / "node_modules" / ".bin"
             bin_dir.mkdir(parents=True)
-            for name in ("vite", "playwright"):
+            for name in ("tsc", "vite", "playwright"):
                 bin_dir.joinpath(name).write_text("", encoding="utf-8")
         if command[1:3] == ["run", "test"] and env:
             Path(env["VIEWSPEC_HOST_VERIFY_BROWSER_REPORT"]).parent.mkdir(parents=True)
@@ -564,6 +564,7 @@ def test_verify_host_install_runs_npm_ci_ignore_scripts(tmp_path, monkeypatch):
     runtime = _run_host_browser_phases(host_dir, install=True, started=time.perf_counter(), timings={})
 
     assert ["npm", "ci", "--ignore-scripts"] in commands
+    assert commands.index(["npm", "run", "typecheck"]) < commands.index(["npm", "run", "build"])
     assert runtime["assertions"]["grid_column_assertion_count"] == 1
     assert runtime["assertions"]["style_assertion_count"] == 4
 
@@ -574,7 +575,7 @@ def test_verify_host_uses_prebuilt_node_modules_without_network(tmp_path, monkey
     seed = tmp_path / "seed-node-modules"
     bin_dir = seed / ".bin"
     bin_dir.mkdir(parents=True)
-    for name in ("vite", "playwright"):
+    for name in ("tsc", "vite", "playwright"):
         bin_dir.joinpath(name).write_text("", encoding="utf-8")
     seed.joinpath("vite").mkdir()
     commands: list[list[str]] = []
@@ -613,6 +614,7 @@ def test_verify_host_uses_prebuilt_node_modules_without_network(tmp_path, monkey
     assert node_modules.joinpath("vite").resolve() == seed.joinpath("vite").resolve()
     node_modules.joinpath(".vite-temp").mkdir()
     assert not any(command[1:] == ["ci", "--ignore-scripts"] for command in commands)
+    assert commands.index(["npm", "run", "typecheck"]) < commands.index(["npm", "run", "build"])
     assert runtime["assertions"]["dom_count"] == 1
 
 

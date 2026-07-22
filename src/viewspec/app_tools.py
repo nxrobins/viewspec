@@ -260,6 +260,8 @@ def prove_app_tool(
     with_shell: bool = False,
     target: str = "html-tailwind",
     install: bool = False,
+    freerange: bool = False,
+    pretext: bool = False,
     cwd: str | Path | None = None,
     allow_outside_cwd: bool = False,
     _prove_app: Any = prove_app,
@@ -289,6 +291,8 @@ def prove_app_tool(
             with_shell=with_shell,
             target=target,
             install=install,
+            freerange=freerange,
+            pretext=pretext,
             cwd=root,
         )
         errors = _normalize_proof_errors(proof.get("errors")) if not proof.get("ok") else []
@@ -304,6 +308,11 @@ def prove_app_tool(
                 "target": proof.get("target"),
                 "proof_level": proof.get("proof_level"),
                 "network_calls": proof.get("policy", {}).get("network_calls", "none"),
+                "freerange_requested": bool(freerange),
+                "pretext_requested": bool(pretext),
+                "static_analysis": proof.get("static_analysis") if isinstance(proof.get("static_analysis"), dict) else None,
+                "text_layout": proof.get("text_layout") if isinstance(proof.get("text_layout"), dict) else None,
+                "analyses": proof.get("analyses") if isinstance(proof.get("analyses"), dict) else {},
                 "resource_binding": proof.get("resource_binding"),
                 "binding_scope": proof.get("binding_scope"),
                 "binding_digest": (
