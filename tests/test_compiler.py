@@ -736,6 +736,7 @@ def test_actions_compile_to_button_ir_and_html(tmp_path):
 
     ast = compile(builder.build_bundle())
     buttons = _find_nodes(ast.result.root.root, "button")
+    nodes = {node.id: node for node in _walk_nodes(ast.result.root.root)}
 
     assert len(ast.result.diagnostics) == 0
     assert len(buttons) == 1
@@ -745,6 +746,13 @@ def test_actions_compile_to_button_ir_and_html(tmp_path):
     assert buttons[0].props["payload_bindings"] == ["alpha_label", "alpha_value"]
     assert buttons[0].provenance.intent_refs == ["viewspec:action:open_alpha"]
     assert buttons[0].provenance.content_refs == ["node:alpha#attr:label", "node:alpha#attr:value"]
+    action_row = nodes["planner_region_main_actions"]
+    assert action_row.props == {
+        "layout_role": "cluster",
+        "layout_strategy": "region_action_row_v1",
+        "product_role": "action_row",
+    }
+    assert [child.id for child in action_row.children] == ["action_open_alpha"]
 
     paths = HtmlTailwindEmitter().emit(ast, tmp_path)
     html = tmp_path.joinpath("index.html").read_text(encoding="utf-8")

@@ -10,6 +10,7 @@ from __future__ import annotations
 import json
 import os
 import re
+import subprocess
 from pathlib import Path
 from typing import Any
 
@@ -22,6 +23,8 @@ from viewspec.app_freerange import (
     FREERANGE_PACKAGE_TREE,
     FREERANGE_PROTOCOL,
     FREERANGE_VERSION,
+    FreerangeFailure,
+    analyze_freerange_numeric_scope,
 )
 from viewspec.app_pretext import (
     PRETEXT_NPM_INTEGRITY,
@@ -34,6 +37,7 @@ from viewspec.app_pretext import (
     PRETEXT_VIEWPORTS,
 )
 from viewspec.local_tools import file_hash
+from viewspec.app_react_verify import verify_react_app_artifact_dir
 
 
 E2E_OPT_IN = "VIEWSPEC_RUN_PRETEXT_E2E"
@@ -108,7 +112,14 @@ def _assert_pretext_evidence(
     hidden: int,
     unique_inputs: int,
 ) -> None:
-    text_layout = report["text_layout"]
+    compact = report["text_layout"]
+    evidence_path = Path(report["paths"]["analysis_evidence"])
+    assert report["analysis_evidence"]["sha256"] == file_hash(evidence_path)
+    evidence = json.loads(evidence_path.read_text(encoding="utf-8"))
+    text_layout = evidence["host_report"]["text_layout"]
+    assert compact["status"] == text_layout["status"]
+    assert compact["coverage"] == text_layout["coverage"]
+    assert compact["cache"] == text_layout["cache"]
     assert text_layout["status"] == "passed"
     assert text_layout["errors"] == []
     assert text_layout["font_family"] == "Arial"
@@ -140,6 +151,13 @@ def _assert_pretext_evidence(
     assert len(text_layout["items"]) == required
     assert {item["status"] for item in text_layout["items"]} <= {"passed", "hidden"}
     assert all("text" not in item for item in text_layout["items"])
+    eligible_coverage = text_layout["eligible_surface_coverage"]
+    assert eligible_coverage["required"] == 12
+    assert eligible_coverage["accounted"] == 12
+    assert eligible_coverage["matrix_inventories"] == 6
+    assert SHA256_RE.fullmatch(eligible_coverage["inventory_sha256"])
+    assert SHA256_RE.fullmatch(eligible_coverage["coverage_contract_sha256"])
+    assert len(text_layout["inventories"]) == 6
 
     cache = text_layout["cache"]
     assert cache == {
@@ -167,7 +185,11 @@ def _assert_pretext_evidence(
 
 
 def _assert_freerange_evidence(report: dict[str, Any]) -> None:
-    static_analysis = report["static_analysis"]
+    evidence_path = Path(report["paths"]["analysis_evidence"])
+    evidence = json.loads(evidence_path.read_text(encoding="utf-8"))
+    static_analysis = evidence["host_report"]["static_analysis"]
+    assert report["static_analysis"]["status"] == static_analysis["status"]
+    assert report["static_analysis"]["coverage"]["required"] == static_analysis["coverage"]["required"]
     assert static_analysis["status"] == "passed"
     assert static_analysis["errors"] == []
     assert static_analysis["findings"] == []
@@ -180,6 +202,9 @@ def _assert_freerange_evidence(report: dict[str, Any]) -> None:
         "partial": 0,
         "unsupported": 0,
     }
+    assert static_analysis["operation_coverage"]["required"] == 4
+    assert static_analysis["operation_coverage"]["accounted"] == 4
+    assert SHA256_RE.fullmatch(static_analysis["operation_coverage"]["inventory_sha256"])
     engine = static_analysis["engine"]
     assert engine["name"] == "freerange"
     assert engine["package"] == FREERANGE_PACKAGE
@@ -197,6 +222,8 @@ def _assert_manifest_evidence(proof_dir: Path, report: dict[str, Any], *, freera
     manifest_path = proof_dir / "react-app" / "viewspec_app_manifest.json"
     assert Path(report["paths"]["react_app_manifest"]).resolve() == manifest_path.resolve()
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    analysis_evidence = json.loads(Path(report["paths"]["analysis_evidence"]).read_text(encoding="utf-8"))
+    full_host = analysis_evidence["host_report"]
 
     text_scope = manifest["text_layout_analysis"]
     assert text_scope["status"] == "applicable"
@@ -204,6 +231,9 @@ def _assert_manifest_evidence(proof_dir: Path, report: dict[str, Any], *, freera
     assert text_scope["protocol"] == PRETEXT_PROTOCOL
     assert text_scope["viewports"] == list(PRETEXT_VIEWPORTS)
     assert text_scope["required_observation_count"] == report["text_layout"]["coverage"]["required"]
+    assert text_scope["eligible_surface_count"] == 12
+    assert SHA256_RE.fullmatch(text_scope["eligible_surface_sha256"])
+    assert SHA256_RE.fullmatch(text_scope["coverage_contract_sha256"])
 
     engine = manifest["text_layout_engine"]
     assert engine["package"] == PRETEXT_PACKAGE
@@ -219,27 +249,57 @@ def _assert_manifest_evidence(proof_dir: Path, report: dict[str, Any], *, freera
     manifest_files = {item["path"]: item["sha256"] for item in manifest["files"]}
     assert manifest_files[engine["runtime_path"]] == engine["runtime_sha256"]
     assert manifest["runtime"]["text_layout"] == PRETEXT_PROFILE
-    assert report["text_layout"]["engine"]["package"] == engine["package"]
-    assert report["text_layout"]["engine"]["version"] == engine["version"]
-    assert report["text_layout"]["engine"]["integrity"] == engine["integrity"]
-    assert report["text_layout"]["engine"]["package_tree_sha256"] == engine["package_tree"]["sha256"]
+    assert full_host["text_layout"]["engine"]["package"] == engine["package"]
+    assert full_host["text_layout"]["engine"]["version"] == engine["version"]
+    assert full_host["text_layout"]["engine"]["integrity"] == engine["integrity"]
+    assert full_host["text_layout"]["engine"]["package_tree_sha256"] == engine["package_tree"]["sha256"]
 
     numeric_scope = manifest["numeric_analysis"]
     if freerange:
         assert numeric_scope["status"] == "applicable"
         assert numeric_scope["required_functions"] == list(REQUIRED_NUMERIC_FUNCTIONS)
         assert numeric_scope["kernel_path"] == "src/viewspec_numeric.ts"
+        assert numeric_scope["operation_count"] == 4
+        assert numeric_scope["required_function_count"] == 6
+        assert SHA256_RE.fullmatch(numeric_scope["operation_inventory_sha256"])
         numeric_file = numeric_scope["files"][0]
         assert numeric_file["path"] == numeric_scope["kernel_path"]
         assert SHA256_RE.fullmatch(numeric_file["sha256"])
         assert file_hash(proof_dir / "react-app" / numeric_file["path"]) == numeric_file["sha256"]
         assert manifest_files[numeric_file["path"]] == numeric_file["sha256"]
-        assert report["static_analysis"]["source_hashes"]["analyzed_sources"] == [
+        assert full_host["static_analysis"]["source_hashes"]["analyzed_sources"] == [
             {"path": numeric_file["path"], "sha256": numeric_file["sha256"]}
         ]
     else:
         assert numeric_scope["status"] == "not_applicable"
         assert numeric_scope["required_functions"] == []
+
+
+def _refresh_manifest_file_hash(app_dir: Path, relative_path: str) -> None:
+    manifest_path = app_dir / "viewspec_app_manifest.json"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    matches = [item for item in manifest["files"] if item["path"] == relative_path]
+    assert len(matches) == 1
+    matches[0]["sha256"] = file_hash(app_dir / relative_path)
+    manifest_path.write_text(json.dumps(manifest, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+
+
+def _real_freerange_fault_scope(app_dir: Path, function_name: str) -> dict[str, Any]:
+    kernel_path = "src/viewspec_numeric_fault.ts"
+    call_site_path = "src/viewspec_numeric_fault_call.ts"
+    return {
+        "status": "applicable",
+        "files": [
+            {
+                "path": kernel_path,
+                "sha256": file_hash(app_dir / kernel_path),
+                "required_functions": [function_name],
+            }
+        ],
+        "call_sites": [
+            {"path": call_site_path, "sha256": file_hash(app_dir / call_site_path)}
+        ],
+    }
 
 
 @pytest.mark.e2e
@@ -253,13 +313,13 @@ def _assert_manifest_evidence(proof_dir: Path, report: dict[str, Any], *, freera
         pytest.param(
             "pretext-standalone",
             False,
-            {"required": 36, "measured": 33, "hidden": 3, "unique_inputs": 11},
+            {"required": 36, "measured": 33, "hidden": 3, "unique_inputs": 8},
             id="pretext-standalone",
         ),
         pytest.param(
             "pretext-freerange-composed",
             True,
-            {"required": 36, "measured": 36, "hidden": 0, "unique_inputs": 12},
+            {"required": 36, "measured": 36, "hidden": 0, "unique_inputs": 9},
             id="pretext-freerange-composed",
         ),
     ],
@@ -313,6 +373,8 @@ def test_public_prove_app_real_pretext_browser_e2e(
         "rebound_binding_count": 6,
         "selector_assertion_count": 1,
         "visibility_assertion_count": 0 if freerange else 1,
+        "presentation_anchor_assertion_count": 0,
+        "presentation_viewport_count": 3,
     }
     assert host["phases"] == {
         "artifact_integrity": "passed",
@@ -350,9 +412,125 @@ def test_public_prove_app_real_pretext_browser_e2e(
     retained_paths = {
         "proof_summary": proof_dir / "APP_PROOF.md",
         "support_bundle": proof_dir / "app_support_bundle.json",
+        "analysis_evidence": proof_dir / "app_analysis_evidence.json",
     }
     for path_key, expected_path in retained_paths.items():
         actual_path = Path(report["paths"][path_key])
         assert actual_path.resolve() == expected_path.resolve()
         assert actual_path.is_file()
         assert actual_path.stat().st_size > 0
+
+
+@pytest.mark.e2e
+@pytest.mark.skipif(
+    os.environ.get(E2E_OPT_IN) != "1",
+    reason=f"set {E2E_OPT_IN}=1 to run real npm/Bun/Playwright E2E proofs",
+)
+def test_real_injected_numeric_and_text_defects_are_caught(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Exercise five intentional defects through real Freerange and Chromium runtimes."""
+
+    monkeypatch.delenv(PREBUILT_NODE_MODULES, raising=False)
+    scenario_root = _scenario_root(tmp_path, "injected-defects")
+    app_path = scenario_root / "viewspec.app.json"
+    proof_dir = scenario_root / "proof"
+    app_path.write_text(
+        json.dumps(_numeric_v3_app_bundle(), indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    baseline = prove_app(
+        app_path=app_path,
+        out_dir=proof_dir,
+        target=REACT_APP_TARGET,
+        install=True,
+        freerange=True,
+        pretext=True,
+        cwd=scenario_root,
+    )
+    assert baseline["ok"] is True, json.dumps(baseline.get("errors", []), indent=2)
+
+    app_dir = proof_dir / "react-app"
+    install = subprocess.run(
+        ["npm", "ci", "--ignore-scripts"],
+        cwd=app_dir,
+        capture_output=True,
+        text=True,
+        timeout=120,
+        check=False,
+    )
+    assert install.returncode == 0, install.stderr[-4000:]
+
+    numeric_faults = {
+        "divisionDefect": (
+            "export function divisionDefect(value: number): number {\n"
+            "  return value / 0;\n"
+            "}\n",
+            "inferred-requirement",
+        ),
+        "boundsDefect": (
+            "export function boundsDefect(): number {\n"
+            "  const values = [1, 2];\n"
+            "  return values[2]!;\n"
+            "}\n",
+            "out-of-bounds-read",
+        ),
+    }
+    for function_name, (source, expected_rule) in numeric_faults.items():
+        (app_dir / "src" / "viewspec_numeric_fault.ts").write_text(source, encoding="utf-8")
+        (app_dir / "src" / "viewspec_numeric_fault_call.ts").write_text(
+            f'import {{ {function_name} }} from "./viewspec_numeric_fault";\n'
+            f"export const faultResult = {function_name}({'' if function_name == 'boundsDefect' else '1'});\n",
+            encoding="utf-8",
+        )
+        with pytest.raises(FreerangeFailure) as caught:
+            analyze_freerange_numeric_scope(
+                app_dir,
+                _real_freerange_fault_scope(app_dir, function_name),
+            )
+        assert caught.value.code in {
+            "APP_FREERANGE_FINDINGS",
+            "APP_FREERANGE_REQUIRED_FUNCTION_INCOMPLETE",
+        }
+        assert any(finding["rule"] == expected_rule for finding in caught.value.report["findings"])
+
+    css_path = app_dir / "src" / "index.css"
+    baseline_css = css_path.read_text(encoding="utf-8")
+    text_faults = {
+        "font": baseline_css.replace(
+            "font-family: Arial, sans-serif !important;",
+            "font-family: system-ui !important;",
+            1,
+        ),
+        "wrapping": baseline_css.replace(
+            "overflow-wrap: anywhere !important;",
+            "overflow-wrap: normal !important;",
+            1,
+        ),
+        "overflow": (
+            baseline_css
+            + "\n.vs-app-main [data-ir-primitive] { "
+            + "display: block !important; height: 1px !important; max-height: 1px !important; "
+            + "overflow-y: hidden !important; }\n"
+        ),
+    }
+    mutation_reports: dict[str, Any] = {}
+    for defect_name, mutated_css in text_faults.items():
+        assert mutated_css != baseline_css
+        css_path.write_text(mutated_css, encoding="utf-8")
+        _refresh_manifest_file_hash(app_dir, "src/index.css")
+        result = verify_react_app_artifact_dir(
+            app_dir,
+            install=False,
+            freerange=False,
+            pretext=True,
+        )
+        mutation_reports[defect_name] = result
+        assert result["ok"] is False, defect_name
+        assert result["errors"][0]["code"] == "APP_PRETEXT_LAYOUT_FAILED"
+
+    (scenario_root / "injected-defect-reports.json").write_text(
+        json.dumps(mutation_reports, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )

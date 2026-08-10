@@ -88,25 +88,75 @@ def _assert_failure(code: str, operation: Any) -> PretextFailure:
 
 def _scope() -> dict[str, Any]:
     viewports = [dict(item) for item in app_pretext.PRETEXT_VIEWPORTS]
-    return {
-        "schema_version": 1,
-        "status": "applicable",
-        "profile": PRETEXT_PROFILE,
-        "protocol": PRETEXT_PROTOCOL,
+    surfaces = [
+        {"surface_id": "dom-title", "ir_id": "binding_title"},
+        {"surface_id": "dom-secret", "ir_id": "binding_secret"},
+    ]
+    screens = [
+        {
+            "screen_id": "queue",
+            "route_id": "queue_route",
+            "route_path": "/",
+            "source_manifest": {"path": "src/screens/queue/provenance_manifest.json", "sha256": "a" * 64},
+            "surfaces": surfaces,
+            "eligible_surface_count": len(surfaces),
+            "eligible_surface_sha256": app_pretext._surface_inventory_sha256(surfaces),
+        }
+    ]
+    coverage_contract = {
+        "eligible_primitives": sorted(app_pretext.PRETEXT_VISIBLE_PRIMITIVES),
         "viewports": viewports,
         "screens": [
             {
                 "screen_id": "queue",
                 "route_id": "queue_route",
                 "route_path": "/",
-                "surfaces": [
-                    {"surface_id": "dom-title", "ir_id": "binding_title"},
-                    {"surface_id": "dom-secret", "ir_id": "binding_secret"},
-                ],
+                "eligible_surface_count": len(surfaces),
+                "eligible_surface_sha256": app_pretext._surface_inventory_sha256(surfaces),
             }
         ],
-        "required_observation_count": 6,
     }
+    return {
+        "schema_version": 2,
+        "status": "applicable",
+        "profile": PRETEXT_PROFILE,
+        "protocol": PRETEXT_PROTOCOL,
+        "eligible_primitives": sorted(app_pretext.PRETEXT_VISIBLE_PRIMITIVES),
+        "viewports": viewports,
+        "screens": screens,
+        "eligible_surface_count": len(surfaces),
+        "eligible_surface_sha256": app_pretext._routed_surface_inventory_sha256(screens),
+        "required_observation_count": 6,
+        "coverage_contract_sha256": app_pretext._canonical_sha256(coverage_contract),
+    }
+
+
+def _not_applicable_scope() -> dict[str, Any]:
+    scope = _scope()
+    screen = scope["screens"][0]
+    screen["surfaces"] = []
+    screen["eligible_surface_count"] = 0
+    screen["eligible_surface_sha256"] = app_pretext._surface_inventory_sha256([])
+    scope["status"] = "not_applicable"
+    scope["eligible_surface_count"] = 0
+    scope["eligible_surface_sha256"] = app_pretext._routed_surface_inventory_sha256(scope["screens"])
+    scope["required_observation_count"] = 0
+    scope["coverage_contract_sha256"] = app_pretext._canonical_sha256(
+        {
+            "eligible_primitives": scope["eligible_primitives"],
+            "viewports": scope["viewports"],
+            "screens": [
+                {
+                    "screen_id": screen["screen_id"],
+                    "route_id": screen["route_id"],
+                    "route_path": screen["route_path"],
+                    "eligible_surface_count": 0,
+                    "eligible_surface_sha256": screen["eligible_surface_sha256"],
+                }
+            ],
+        }
+    )
+    return scope
 
 
 def _item(
@@ -136,6 +186,8 @@ def _item(
                 "observed_line_count": 2,
                 "horizontal_overflow": False,
                 "vertical_overflow": False,
+                "horizontal_clipped": False,
+                "vertical_clipped": False,
             }
         )
     return item
@@ -145,7 +197,7 @@ def _runtime_report() -> dict[str, Any]:
     shared_input = hashlib.sha256(b"same prepared text and style").hexdigest()
     hidden_input = hashlib.sha256(b"hidden text and style").hexdigest()
     return {
-        "schema_version": 1,
+        "schema_version": 2,
         "engine": {"name": "pretext", "package": PRETEXT_PACKAGE, "version": PRETEXT_VERSION},
         "profile": PRETEXT_PROFILE,
         "protocol": PRETEXT_PROTOCOL,
@@ -156,6 +208,16 @@ def _runtime_report() -> dict[str, Any]:
             "font_status": "loaded",
         },
         "viewports": copy.deepcopy(_scope()["viewports"]),
+        "inventories": [
+            {
+                "screen_id": "queue",
+                "route_id": "queue_route",
+                "viewport_id": viewport["id"],
+                "eligible_surface_count": _scope()["screens"][0]["eligible_surface_count"],
+                "eligible_surface_sha256": _scope()["screens"][0]["eligible_surface_sha256"],
+            }
+            for viewport in _scope()["viewports"]
+        ],
         "items": [
             _item("mobile", "dom-title", "binding_title", status="passed", digest=shared_input),
             _item("tablet", "dom-title", "binding_title", status="passed", digest=shared_input),
@@ -339,22 +401,13 @@ def test_build_pretext_scope_returns_strict_not_applicable_for_zero_surfaces(tmp
         output_dir,
     )
 
-    assert scope == {
-        "schema_version": 1,
-        "status": "not_applicable",
-        "profile": PRETEXT_PROFILE,
-        "protocol": PRETEXT_PROTOCOL,
-        "viewports": [dict(item) for item in app_pretext.PRETEXT_VIEWPORTS],
-        "screens": [
-            {
-                "screen_id": "form",
-                "route_id": "form_route",
-                "route_path": "/",
-                "surfaces": [],
-            }
-        ],
-        "required_observation_count": 0,
-    }
+    assert scope["schema_version"] == 2
+    assert scope["status"] == "not_applicable"
+    assert scope["eligible_surface_count"] == 0
+    assert scope["screens"][0]["eligible_surface_count"] == 0
+    assert len(scope["eligible_surface_sha256"]) == 64
+    assert len(scope["coverage_contract_sha256"]) == 64
+    assert validate_pretext_scope(scope) == scope
 
     invalid_applicable = copy.deepcopy(scope)
     invalid_applicable["status"] = "applicable"
@@ -367,29 +420,14 @@ def test_build_pretext_scope_returns_strict_not_applicable_for_zero_surfaces(tmp
     "mutation",
     [
         lambda scope: scope.update(profile="tampered"),
-        lambda scope: scope.update(protocol="viewspec.pretext-runtime-v2"),
+        lambda scope: scope.update(protocol="viewspec.pretext-runtime-v1"),
         lambda scope: scope.update(required_observation_count=999),
         lambda scope: scope["viewports"][0].update(width=391),
         lambda scope: scope.update(unexpected=True),
     ],
 )
 def test_validate_pretext_scope_rejects_tampered_not_applicable_contract(mutation):
-    scope = {
-        "schema_version": 1,
-        "status": "not_applicable",
-        "profile": PRETEXT_PROFILE,
-        "protocol": PRETEXT_PROTOCOL,
-        "viewports": [dict(item) for item in app_pretext.PRETEXT_VIEWPORTS],
-        "screens": [
-            {
-                "screen_id": "form",
-                "route_id": "form_route",
-                "route_path": "/",
-                "surfaces": [],
-            }
-        ],
-        "required_observation_count": 0,
-    }
+    scope = _not_applicable_scope()
     mutation(scope)
 
     _assert_failure("APP_PRETEXT_SCOPE_INVALID", lambda: validate_pretext_scope(scope))
@@ -493,7 +531,7 @@ def test_pretext_observation_digest_is_canonical_across_report_item_order(tmp_pa
 @pytest.mark.parametrize(
     ("mutation", "code"),
     [
-        (lambda report: report.update(protocol="viewspec.pretext-runtime-v2"), "APP_PRETEXT_PROTOCOL_INVALID"),
+        (lambda report: report.update(protocol="viewspec.pretext-runtime-v1"), "APP_PRETEXT_PROTOCOL_INVALID"),
         (lambda report: report["engine"].update(version="0.0.7"), "APP_PRETEXT_PROTOCOL_INVALID"),
         (lambda report: report["viewports"].reverse(), "APP_PRETEXT_PROTOCOL_INVALID"),
     ],
@@ -518,12 +556,33 @@ def test_pretext_runtime_rejects_incomplete_or_contradictory_coverage(tmp_path):
     _assert_failure("APP_PRETEXT_COVERAGE_INCOMPLETE", lambda: validate_pretext_runtime_report(path, _scope()))
 
 
+def test_pretext_runtime_rejects_silently_shrunken_dom_inventory(tmp_path):
+    report = _runtime_report()
+    report["inventories"][0]["eligible_surface_count"] = 1
+    report["inventories"][0]["eligible_surface_sha256"] = app_pretext._surface_inventory_sha256(
+        [{"surface_id": "dom-title", "ir_id": "binding_title"}]
+    )
+
+    _assert_failure(
+        "APP_PRETEXT_COVERAGE_INCOMPLETE",
+        lambda: validate_pretext_runtime_report(_write_runtime_report(tmp_path, report), _scope()),
+    )
+
+
+def test_pretext_scope_rejects_surface_inventory_digest_drift() -> None:
+    scope = _scope()
+    scope["screens"][0]["surfaces"].pop()
+    scope["required_observation_count"] = 3
+
+    _assert_failure("APP_PRETEXT_SCOPE_INVALID", lambda: validate_pretext_scope(scope))
+
 @pytest.mark.parametrize(
     "mutation",
     [
         lambda item: item.update(observed_line_count=3),
         lambda item: item.update(horizontal_overflow=True),
-        lambda item: item.update(status="failed"),
+        lambda item: item.update(vertical_clipped=True),
+        lambda item: item.update(status="failed", reason="line_count_mismatch"),
     ],
 )
 def test_pretext_runtime_rejects_layout_mismatch_overflow_and_failed_status(tmp_path, mutation):
@@ -533,7 +592,41 @@ def test_pretext_runtime_rejects_layout_mismatch_overflow_and_failed_status(tmp_
     expected = (
         "APP_PRETEXT_LAYOUT_FAILED" if report["items"][0]["status"] == "failed" else "APP_PRETEXT_LAYOUT_MISMATCH"
     )
-    _assert_failure(expected, lambda: validate_pretext_runtime_report(path, _scope()))
+    failure = _assert_failure(expected, lambda: validate_pretext_runtime_report(path, _scope()))
+    if report["items"][0]["status"] == "failed":
+        assert "queue/queue_route/mobile/dom-title (binding_title)" in failure.message
+        assert "reported status 'failed'" in failure.message
+        assert "with reason 'line_count_mismatch'" in failure.message
+        assert "available_width=320.123456789" in failure.message
+        assert "predicted_line_count=2" in failure.message
+        assert "observed_line_count=2" in failure.message
+        assert "mobile layout for surface dom-title" in failure.fix
+
+
+def test_pretext_runtime_allows_only_bounded_long_wrap_drift(tmp_path):
+    report = _runtime_report()
+    report["items"][0].update(predicted_line_count=12, observed_line_count=13)
+    path = _write_runtime_report(tmp_path / "bounded", report)
+    evidence = validate_pretext_runtime_report(path, _scope())
+    assert evidence["items"][0]["predicted_line_count"] == 12
+    assert evidence["items"][0]["observed_line_count"] == 13
+
+    report["items"][0].update(predicted_line_count=11, observed_line_count=13)
+    path = _write_runtime_report(tmp_path / "too-far", report)
+    _assert_failure("APP_PRETEXT_LAYOUT_MISMATCH", lambda: validate_pretext_runtime_report(path, _scope()))
+
+    report["items"][0].update(predicted_line_count=1, observed_line_count=2)
+    path = _write_runtime_report(tmp_path / "short", report)
+    _assert_failure("APP_PRETEXT_LAYOUT_MISMATCH", lambda: validate_pretext_runtime_report(path, _scope()))
+
+
+def test_pretext_runtime_records_visible_vertical_ink_overflow_without_treating_it_as_clipping(tmp_path):
+    report = _runtime_report()
+    report["items"][0]["vertical_overflow"] = True
+    path = _write_runtime_report(tmp_path, report)
+    evidence = validate_pretext_runtime_report(path, _scope())
+    assert evidence["items"][0]["vertical_overflow"] is True
+    assert evidence["items"][0]["vertical_clipped"] is False
 
 
 def test_pretext_runtime_rejects_cache_counter_drift_and_missing_cross_width_reuse(tmp_path):
@@ -555,7 +648,7 @@ def test_pretext_runtime_rejects_duplicate_observations_and_duplicate_json_keys(
     _assert_failure("APP_PRETEXT_DUPLICATE_EVIDENCE", lambda: validate_pretext_runtime_report(path, _scope()))
 
     raw = json.dumps(_runtime_report())
-    raw = raw.replace('"schema_version": 1', '"schema_version": 1, "schema_version": 1', 1)
+    raw = raw.replace('"schema_version": 2', '"schema_version": 2, "schema_version": 2', 1)
     duplicate_path = tmp_path / "duplicate-keys.json"
     duplicate_path.write_text(raw, encoding="utf-8")
     _assert_failure(

@@ -76,7 +76,7 @@
       "command": "viewspec prove-app --app viewspec.app.json --target react-tailwind-app --install --freerange --json",
       "prerequisite": "A user-installed stable Bun 1.x executable on PATH; ViewSpec never installs Bun.",
       "report_keys": ["static_analysis", "analyses.freerange"],
-      "scope": "Freerange analyzes only the manifest-described generated numeric kernel and its recorded call-site hashes.",
+      "scope": "Freerange binds every eligible state-operation occurrence from the emitted state contract to an ordered inventory digest, the exact generated numeric kernel helpers, 100% required-function analysis, and recorded call-site hashes.",
       "non_claim": "The Freerange integration does not analyze CSS, prove rendered geometry, certify arbitrary math, or certify arbitrary host applications."
     },
     "pretext": {
@@ -85,7 +85,7 @@
       "version": "0.0.8",
       "command": "viewspec prove-app --app viewspec.app.json --target react-tailwind-app --install --pretext --json",
       "prerequisite": "The generated React app npm/Chromium proof toolchain; Pretext does not require Bun.",
-      "profile": "viewspec_pretext_native_dom_v1",
+      "profile": "viewspec_pretext_native_dom_v2",
       "font_family": "Arial, sans-serif",
       "viewports": [
         {"width": 390, "height": 844},
@@ -93,7 +93,7 @@
         {"width": 1440, "height": 1000}
       ],
       "report_keys": ["text_layout", "analyses.pretext"],
-      "scope": "Pretext preserves native DOM semantics and compares only native-DOM and Pretext line counts and overflow under the named Arial profile at the three canonical viewports.",
+      "scope": "Pretext preserves native DOM semantics, independently inventories every eligible checked-manifest text surface per route and viewport, and requires exact accounting before comparing native-DOM and Pretext line counts and overflow under the named Arial profile.",
       "non_claim": "The Pretext integration is not general typography proof, canvas-rendering proof, pixel-perfect visual regression, accessibility certification, or arbitrary-host certification."
     },
     "composed": {
@@ -105,7 +105,7 @@
       "workflow_url": "https://github.com/nxrobins/viewspec/blob/main/.github/workflows/pretext-e2e.yml",
       "status": "configured",
       "triggers": ["relevant pull requests and pushes", "weekly schedule", "manual dispatch"],
-      "scope": "Dedicated hosted E2E is configured for standalone Pretext and composed Freerange plus Pretext proofs; this status does not claim a hosted run has completed."
+      "scope": "Dedicated hosted E2E is configured for healthy standalone and composed proofs plus real division, bounds, font, wrapping, and overflow mutation rejection; this status does not claim a hosted run has completed."
     }
   },
   "core_refinement": {

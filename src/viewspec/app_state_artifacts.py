@@ -60,10 +60,39 @@ def _write_state_artifacts(
         manifest = build_manifest(payload, reducer_hash=reducer_hash, conformance_report=conformance)
         replay = manifest.get("replay") if isinstance(manifest.get("replay"), dict) else {}
         if replay and not replay.get("ok"):
+            replay_errors = replay.get("errors") if isinstance(replay.get("errors"), list) else []
+            first = replay_errors[0] if replay_errors and isinstance(replay_errors[0], dict) else {}
+            detail = str(first.get("message") or "State replay assertions failed.")
+            assertion_id = first.get("assertion_id")
+            event_index = first.get("event_index")
+            mutation_id = first.get("mutation_id")
+            state_path = first.get("path")
+            expected = first.get("expected")
+            actual = first.get("actual")
+            context = []
+            if assertion_id is not None:
+                context.append(f"assertion={assertion_id}")
+            if event_index is not None:
+                context.append(f"event={event_index}")
+            if mutation_id is not None:
+                context.append(f"mutation={mutation_id}")
+            if state_path is not None:
+                context.append(f"path={state_path}")
+            error_code = str(first.get("code") or "APP_STATE_REPLAY_ASSERTION_FAILED")
+            if "VISIBILITY" in error_code:
+                context.append("result=visibility")
+            elif "SELECTOR" in error_code:
+                context.append("result=selector")
+            elif "STATE" in error_code:
+                context.append("result=state")
+            if "expected" in first or "actual" in first:
+                context.append(f"expected={expected!r} actual={actual!r}")
+            if context:
+                detail = f"{detail} ({', '.join(context)})"
             raise AppBundleProofFailure(
-                "APP_STATE_REPLAY_ASSERTION_FAILED",
-                "State replay assertions failed.",
-                "Fix state_replay_assertions or the referenced mutation operations.",
+                error_code,
+                detail,
+                str(first.get("suggestion") or "Fix the named replay assertion, mutation, or expected value and retry."),
             )
         _write_bounded_json(
             manifest_path,

@@ -19,3 +19,4 @@ viewspec_output/
 .env
 node_modules/
 demos/server.*.log
+.agent-eval-runs/

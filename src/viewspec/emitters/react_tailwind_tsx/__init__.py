@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 from pathlib import Path
 from typing import Any
@@ -14,8 +15,15 @@ from viewspec.emitters.base import (
     RenderedNode,
 )
 from viewspec.emitters.html_tailwind import (
+    LAYOUT_EMPHASIS_CLASS_BY_VALUE as SEMANTIC_LAYOUT_EMPHASIS_CLASS_BY_VALUE,
+    LAYOUT_ROLE_CLASS_BY_ROLE,
+    MOTIF_KIND_CLASS_BY_KIND,
+    PRODUCT_ROLE_CLASS_BY_ROLE,
+    SPAN_CLASS_BY_COLUMNS,
     SUPPORTED_PRIMITIVES,
+    TAILWIND_BY_PRIMITIVE,
     _manifest_entry,
+    _node_classes,
     _validate_ir_contract,
     _validate_style_values,
     _write_text_atomic,
@@ -56,6 +64,18 @@ from viewspec.emitters.react_tailwind_tsx.recipes import (
 from viewspec.types import ASTBundle, CompilerResult, DEFAULT_STYLE_TOKEN_VALUES, IRNode
 
 
+TAILWIND_PARITY_CLASS_TOKENS = frozenset(
+    {
+        *TAILWIND_BY_PRIMITIVE.values(),
+        *LAYOUT_ROLE_CLASS_BY_ROLE.values(),
+        *MOTIF_KIND_CLASS_BY_KIND.values(),
+        *PRODUCT_ROLE_CLASS_BY_ROLE.values(),
+        *SPAN_CLASS_BY_COLUMNS.values(),
+        *SEMANTIC_LAYOUT_EMPHASIS_CLASS_BY_VALUE.values(),
+    }
+)
+
+
 def _sync_recipe_module() -> None:
     _recipes.RECIPE_BY_KEY = RECIPE_BY_KEY
     _recipes.TAILWIND_AESTHETIC_RECIPE_OVERLAYS = TAILWIND_AESTHETIC_RECIPE_OVERLAYS
@@ -73,7 +93,17 @@ def _validate_recipe_registry() -> None:
 
 def _resolve_recipes(root: IRNode) -> dict[str, ResolvedRecipe]:
     _sync_recipe_module()
-    return _recipes._resolve_recipes(root)
+    recipes = _recipes._resolve_recipes(root)
+    nodes = {node.id: node for node in _walk(root)}
+    return {
+        node_id: ResolvedRecipe(
+            app_role=recipe.app_role,
+            app_role_source=recipe.app_role_source,
+            recipe_key=recipe.recipe_key,
+            classes=tuple(dict.fromkeys([*recipe.classes, *_node_classes(nodes[node_id])])),
+        )
+        for node_id, recipe in recipes.items()
+    }
 
 
 def _validate_tailwind_contract(root: IRNode, recipes: dict[str, ResolvedRecipe], source: str) -> None:
@@ -89,21 +119,32 @@ def resolve_manifest_recipe_metadata(
 ) -> dict[str, Any]:
     """Recompute Tailwind recipe metadata from manifest node shape for artifact checks."""
     _sync_recipe_module()
-    return _recipes.resolve_manifest_recipe_metadata(
+    metadata = _recipes.resolve_manifest_recipe_metadata(
         entry,
         parent_entry,
         aesthetic_profile=aesthetic_profile,
     )
+    props = entry.get("props") if isinstance(entry.get("props"), dict) else {}
+    node = IRNode(
+        id=str(entry.get("ir_id") or ""),
+        primitive=str(entry.get("primitive") or ""),
+        props=dict(props),
+    )
+    metadata["classes"] = list(dict.fromkeys([*metadata["classes"], *_node_classes(node)]))
+    return metadata
 
 
 def tailwind_recipe_registry_digest() -> str:
-    _sync_recipe_module()
-    return _recipes.tailwind_recipe_registry_digest()
+    payload = tailwind_recipe_registry_projection()
+    encoded = json.dumps(payload, ensure_ascii=True, separators=(",", ":"), sort_keys=True).encode("utf-8")
+    return hashlib.sha256(encoded).hexdigest()
 
 
 def tailwind_recipe_registry_projection() -> dict[str, Any]:
     _sync_recipe_module()
-    return _recipes.tailwind_recipe_registry_projection()
+    projection = _recipes.tailwind_recipe_registry_projection()
+    projection["semantic_parity_classes"] = sorted(TAILWIND_PARITY_CLASS_TOKENS)
+    return projection
 
 
 
@@ -122,6 +163,7 @@ def _attrs_for_node(node: IRNode, recipe: ResolvedRecipe) -> list[str]:
     attrs = [
         _jsx_attr("id", dom_id),
         _jsx_attr("data-ir-id", node.id),
+        _jsx_attr("data-ir-primitive", node.primitive),
         _jsx_attr("data-content-refs", _json_string_attr(list(node.provenance.content_refs))),
         _jsx_attr("data-intent-refs", _json_string_attr(list(node.provenance.intent_refs))),
         _jsx_attr("data-style-tokens", _json_string_attr(list(node.style_tokens))),
@@ -129,9 +171,20 @@ def _attrs_for_node(node: IRNode, recipe: ResolvedRecipe) -> list[str]:
     ]
     if node.props.get("binding_id") is not None:
         attrs.append(_jsx_attr("data-binding-id", str(node.props["binding_id"])))
+    for prop, attribute in (
+        ("resource_id", "data-resource-id"),
+        ("resource_view_id", "data-resource-view-id"),
+        ("record_id", "data-record-id"),
+        ("resource_field", "data-resource-field"),
+    ):
+        value = node.props.get(prop)
+        if isinstance(value, str) and value:
+            attrs.append(_jsx_attr(attribute, value))
     aesthetic_profile = node.props.get("aesthetic_profile")
     if isinstance(aesthetic_profile, str) and aesthetic_profile:
         attrs.append(_jsx_attr("data-aesthetic-profile", aesthetic_profile))
+    if node.primitive == "root" and node.props.get("semantic_context") == "embedded_screen":
+        attrs.append(_jsx_attr("data-viewspec-screen-root", "embedded"))
     visibility_rule_id = node.props.get("visibility_rule_id")
     if isinstance(visibility_rule_id, str) and visibility_rule_id:
         rule_literal = _tsx_string(visibility_rule_id)
@@ -539,6 +592,7 @@ __all__ = [
     "TAILWIND_MAX_CLASS_TOKENS",
     "TAILWIND_MAX_IR_NODES",
     "TAILWIND_MAX_RECIPES",
+    "TAILWIND_PARITY_CLASS_TOKENS",
     "TAILWIND_RECIPE_REGISTRY_VERSION",
     "TAILWIND_RECIPE_PACK",
     "TAILWIND_STRUCTURAL_APP_ROLE_RULE_IDS",

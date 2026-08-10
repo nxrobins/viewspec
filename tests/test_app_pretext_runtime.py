@@ -23,8 +23,8 @@ def test_pretext_runtime_pins_protocol_engine_and_browser_entrypoint() -> None:
 
     assert 'import { prepare, layout, type PreparedText } from "@chenglou/pretext";' in source
     assert 'import { setLocale } from "@chenglou/pretext";' in source
-    assert 'const PROFILE = "viewspec_pretext_native_dom_v1" as const;' in source
-    assert 'const PROTOCOL = "viewspec.pretext-runtime-v1" as const;' in source
+    assert 'const PROFILE = "viewspec_pretext_native_dom_v2" as const;' in source
+    assert 'const PROTOCOL = "viewspec.pretext-runtime-v2" as const;' in source
     assert 'name: "pretext" as const' in source
     assert 'package: "@chenglou/pretext" as const' in source
     assert 'version: "0.0.8" as const' in source
@@ -41,9 +41,9 @@ def test_pretext_runtime_reads_only_exact_targets_and_preserves_native_dom() -> 
     assert 'target.getAttribute("data-ir-id") !== surface.ir_id' in source
     assert "surface_id: candidate.surface_id" in source
     assert "ir_id: candidate.ir_id" in source
-    assert "document.querySelector" not in source
-    assert ".querySelector(" not in source
-    assert ".querySelectorAll(" not in source
+    assert "observedEligibleSurfaceInventory" in source
+    assert 'querySelectorAll<HTMLElement>("[data-viewspec-app-screen]")' in source
+    assert 'screen.querySelectorAll<HTMLElement>("[data-ir-primitive]")' in source
     assert ".innerHTML" not in source
     assert ".outerHTML" not in source
     assert ".appendChild(" not in source
@@ -76,7 +76,7 @@ def test_pretext_runtime_caches_prepare_without_width_and_lays_out_each_probe() 
             "]);", source.index("const cacheKey = JSON.stringify([")
         )
     ]
-    assert "measurementText" in cache_key
+    assert "transformedText" in cache_key
     assert "config.font" in cache_key
     assert "config.whiteSpace" in cache_key
     assert "config.wordBreak" in cache_key
@@ -105,7 +105,8 @@ def test_pretext_runtime_enforces_bounded_supported_style_profile() -> None:
     assert 'style.whiteSpace !== "normal" && style.whiteSpace !== "pre-wrap"' in source
     assert 'style.wordBreak !== "normal" && style.wordBreak !== "keep-all"' in source
     assert 'style.overflowWrap !== "anywhere"' in source
-    assert "addAnywhereBreakOpportunities(transformedText, locale)" in source
+    assert "addAnywhereBreakOpportunities" not in source
+    assert "preparedFor(cacheKey, transformedText, config, locale)" in source
     assert 'style.letterSpacing !== "normal"' in source
     assert 'if (style.lineHeight === "normal")' in source
     assert "lineHeight = fontSize * 1.2;" in source
@@ -125,10 +126,14 @@ def test_pretext_runtime_enforces_bounded_supported_style_profile() -> None:
 def test_pretext_runtime_verdict_is_line_count_and_overflow_based() -> None:
     source = generate_pretext_runtime_typescript()
 
-    assert "predicted.lineCount !== lineTops.length" in source
+    assert "predicted.lineCount === lineTops.length" in source
     assert "target.scrollWidth > target.clientWidth + OVERFLOW_EPSILON_PX" in source
     assert "target.scrollHeight > target.clientHeight + OVERFLOW_EPSILON_PX" in source
-    assert "const CHROMIUM_ARIAL_LAYOUT_FIT_TOLERANCE_PX = 1;" in source
+    assert "const CHROMIUM_ARIAL_LAYOUT_FIT_TOLERANCE_PX = 4;" in source
+    assert "const longWrapMinLines = 10;" in source
+    assert "const longWrapLineTolerance = 1;" in source
+    assert "Math.min(predicted.lineCount, lineTops.length) >= longWrapMinLines" in source
+    assert "lineCountDelta <= longWrapLineTolerance" in source
     assert "available_width: Number(width.toFixed(6))" in source
     assert 'reason = "line_count_mismatch";' in source
     assert 'reason = "horizontal_overflow";' in source
@@ -137,6 +142,9 @@ def test_pretext_runtime_verdict_is_line_count_and_overflow_based() -> None:
     assert "predicted.height !==" not in source
     assert "horizontalClipped = horizontalOverflow" in source
     assert "verticalClipped = verticalOverflow" in source
+    assert 'else if (verticalClipped) reason = "vertical_overflow";' in source
+    assert "horizontal_clipped: horizontalClipped" in source
+    assert "vertical_clipped: verticalClipped" in source
 
 
 def test_pretext_runtime_has_explicit_item_statuses_for_fail_closed_adapter() -> None:

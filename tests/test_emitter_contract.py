@@ -234,6 +234,40 @@ def test_emitter_escapes_html_and_writes_contract_artifacts(tmp_path):
     assert diagnostics[0]["code"] == "TEST_DIAGNOSTIC"
 
 
+@pytest.mark.parametrize("emitter_cls", [HtmlTailwindEmitter, ReactTsxEmitter, ReactTailwindTsxEmitter])
+def test_emitters_share_standalone_and_embedded_root_landmark_contract(tmp_path, emitter_cls):
+    def bundle(semantic_context: str | None) -> ASTBundle:
+        props = {} if semantic_context is None else {"semantic_context": semantic_context}
+        return ASTBundle(
+            result=CompilerResult(
+                root=CompositionIR(
+                    root=IRNode(
+                        id="root",
+                        primitive="root",
+                        props=props,
+                        provenance=Provenance(intent_refs=["viewspec:view:landmarks"]),
+                    )
+                ),
+                diagnostics=[],
+            ),
+            style_values={},
+            title="Landmark Contract",
+        )
+
+    standalone_dir = tmp_path / emitter_cls.__name__ / "standalone"
+    embedded_dir = tmp_path / emitter_cls.__name__ / "embedded"
+    standalone_paths = emitter_cls().emit(bundle(None), standalone_dir)
+    embedded_paths = emitter_cls().emit(bundle("embedded_screen"), embedded_dir)
+    source_key = "html" if emitter_cls is HtmlTailwindEmitter else "tsx"
+    standalone = standalone_dir.joinpath(standalone_paths[source_key]).read_text(encoding="utf-8")
+    embedded = embedded_dir.joinpath(embedded_paths[source_key]).read_text(encoding="utf-8")
+
+    assert standalone.lower().count("<main") == 1
+    assert "data-viewspec-screen-root" not in standalone
+    assert "<main" not in embedded.lower()
+    assert embedded.count("data-viewspec-screen-root") == 1
+
+
 def test_grid_emitter_merges_layout_and_token_styles(tmp_path):
     ast = ASTBundle(
         result=CompilerResult(
@@ -537,7 +571,7 @@ def test_react_tailwind_tsx_emitter_writes_static_recipe_component(tmp_path):
 
     assert paths["tsx"].endswith("ViewSpecView.tsx")
     assert 'source: "viewspec-react-tailwind-tsx"' in tsx
-    assert 'className="mx-auto min-h-screen w-full max-w-6xl bg-slate-50 px-6 py-6 text-slate-950 sm:px-8"' in tsx
+    assert 'className="mx-auto min-h-screen w-full max-w-6xl bg-slate-50 px-6 py-6 text-slate-950 sm:px-8 vs-root vs-role-app-shell"' in tsx
     assert "className={" not in tsx
     assert "style={{" not in tsx
     assert ".join(" not in tsx
@@ -549,7 +583,12 @@ def test_react_tailwind_tsx_emitter_writes_static_recipe_component(tmp_path):
     assert "grid-cols-1" in manifest["dom-metrics"]["classes"]
     assert "sm:grid-cols-2" in manifest["dom-metrics"]["classes"]
     assert "lg:grid-cols-3" not in manifest["dom-metrics"]["classes"]
-    registry_tokens = {token for value in RECIPE_BY_KEY.values() for token in value.split()}
+    from viewspec.emitters.react_tailwind_tsx import TAILWIND_PARITY_CLASS_TOKENS
+
+    registry_tokens = {
+        *TAILWIND_PARITY_CLASS_TOKENS,
+        *(token for value in RECIPE_BY_KEY.values() for token in value.split()),
+    }
     assert set(manifest["dom-root"]["classes"]).issubset(registry_tokens)
 
 

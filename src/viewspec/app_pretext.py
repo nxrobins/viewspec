@@ -28,8 +28,8 @@ PRETEXT_PACKAGE_TREE = {
     "bytes": 902_216,
     "files": 69,
 }
-PRETEXT_PROFILE = "viewspec_pretext_native_dom_v1"
-PRETEXT_PROTOCOL = "viewspec.pretext-runtime-v1"
+PRETEXT_PROFILE = "viewspec_pretext_native_dom_v2"
+PRETEXT_PROTOCOL = "viewspec.pretext-runtime-v2"
 
 PRETEXT_JSON_MAX_BYTES = 4 * 1024 * 1024
 PRETEXT_RUNTIME_REPORT_MAX_BYTES = 2 * 1024 * 1024
@@ -61,12 +61,25 @@ _SCOPE_KEYS = {
     "status",
     "profile",
     "protocol",
+    "eligible_primitives",
     "viewports",
     "screens",
+    "eligible_surface_count",
+    "eligible_surface_sha256",
     "required_observation_count",
+    "coverage_contract_sha256",
 }
 _VIEWPORT_KEYS = {"id", "width", "height"}
-_SCREEN_KEYS = {"screen_id", "route_id", "route_path", "surfaces"}
+_SCREEN_KEYS = {
+    "screen_id",
+    "route_id",
+    "route_path",
+    "source_manifest",
+    "surfaces",
+    "eligible_surface_count",
+    "eligible_surface_sha256",
+}
+_SOURCE_MANIFEST_KEYS = {"path", "sha256"}
 _SURFACE_KEYS = {"surface_id", "ir_id"}
 _REPORT_KEYS = {
     "schema_version",
@@ -75,6 +88,7 @@ _REPORT_KEYS = {
     "protocol",
     "environment",
     "viewports",
+    "inventories",
     "items",
     "summary",
     "cache",
@@ -99,9 +113,20 @@ _ITEM_METRIC_KEYS = {
     "observed_line_count",
     "horizontal_overflow",
     "vertical_overflow",
+    "horizontal_clipped",
+    "vertical_clipped",
 }
 _SUMMARY_KEYS = {"required", "accounted", "measured", "hidden", "unsupported", "failed"}
 _CACHE_KEYS = {"prepare_calls", "unique_inputs", "layout_calls", "cache_hits"}
+_INVENTORY_KEYS = {
+    "screen_id",
+    "route_id",
+    "viewport_id",
+    "eligible_surface_count",
+    "eligible_surface_sha256",
+}
+_LONG_WRAP_MIN_LINES = 10
+_LONG_WRAP_LINE_TOLERANCE = 1
 
 
 class PretextFailure(ValueError):
@@ -252,6 +277,7 @@ def build_pretext_scope(
             raise _scope_failure("AppBundle routes are required to build a Pretext scope.")
         scoped_screens: list[dict[str, Any]] = []
         manifest_surfaces: dict[str, list[dict[str, str]]] = {}
+        manifest_sources: dict[str, dict[str, str]] = {}
         for route in sorted(routes, key=_route_sort_key):
             if not isinstance(route, Mapping):
                 raise _scope_failure("Every AppBundle route must be an object.")
@@ -265,6 +291,7 @@ def build_pretext_scope(
                 raise _scope_failure("An AppBundle route has no checked React screen report.")
             if screen_id not in manifest_surfaces:
                 manifest_path = _checked_manifest_path(root, report)
+                manifest_evidence = _hash_file(manifest_path, PRETEXT_MANIFEST_MAX_BYTES)
                 manifest = _read_json_object(
                     manifest_path,
                     limit=PRETEXT_MANIFEST_MAX_BYTES,
@@ -291,12 +318,20 @@ def build_pretext_scope(
                 if len(surfaces) > PRETEXT_MAX_SURFACES_PER_SCREEN:
                     raise _scope_failure("A screen exceeds the bounded Pretext surface count.")
                 manifest_surfaces[screen_id] = surfaces
+                manifest_sources[screen_id] = {
+                    "path": manifest_path.relative_to(root).as_posix(),
+                    "sha256": manifest_evidence["sha256"],
+                }
+            surfaces = [dict(item) for item in manifest_surfaces[screen_id]]
             scoped_screens.append(
                 {
                     "screen_id": screen_id,
                     "route_id": route_id,
                     "route_path": route_path,
-                    "surfaces": [dict(item) for item in manifest_surfaces[screen_id]],
+                    "source_manifest": dict(manifest_sources[screen_id]),
+                    "surfaces": surfaces,
+                    "eligible_surface_count": len(surfaces),
+                    "eligible_surface_sha256": _surface_inventory_sha256(surfaces),
                 }
             )
         if len(scoped_screens) > PRETEXT_MAX_SCREENS:
@@ -305,14 +340,34 @@ def build_pretext_scope(
         required = len(viewports) * sum(len(screen["surfaces"]) for screen in scoped_screens)
         if required > PRETEXT_MAX_OBSERVATIONS:
             raise _scope_failure("The generated Pretext scope exceeds its bounded observation count.")
+        eligible_surface_count = sum(len(screen["surfaces"]) for screen in scoped_screens)
+        eligible_surface_sha256 = _routed_surface_inventory_sha256(scoped_screens)
+        coverage_contract = {
+            "eligible_primitives": sorted(PRETEXT_VISIBLE_PRIMITIVES),
+            "viewports": viewports,
+            "screens": [
+                {
+                    "screen_id": screen["screen_id"],
+                    "route_id": screen["route_id"],
+                    "route_path": screen["route_path"],
+                    "eligible_surface_count": screen["eligible_surface_count"],
+                    "eligible_surface_sha256": screen["eligible_surface_sha256"],
+                }
+                for screen in scoped_screens
+            ],
+        }
         scope = {
-            "schema_version": 1,
+            "schema_version": 2,
             "status": "applicable" if required else "not_applicable",
             "profile": PRETEXT_PROFILE,
             "protocol": PRETEXT_PROTOCOL,
+            "eligible_primitives": sorted(PRETEXT_VISIBLE_PRIMITIVES),
             "viewports": viewports,
             "screens": scoped_screens,
+            "eligible_surface_count": eligible_surface_count,
+            "eligible_surface_sha256": eligible_surface_sha256,
             "required_observation_count": required,
+            "coverage_contract_sha256": _canonical_sha256(coverage_contract),
         }
         _validate_scope(scope)
         return scope
@@ -326,21 +381,28 @@ def validate_pretext_scope(scope: Mapping[str, Any]) -> dict[str, Any]:
     try:
         validated = _validate_scope(scope)
         return {
-            "schema_version": 1,
+            "schema_version": 2,
             "status": validated["status"],
             "profile": PRETEXT_PROFILE,
             "protocol": PRETEXT_PROTOCOL,
+            "eligible_primitives": sorted(PRETEXT_VISIBLE_PRIMITIVES),
             "viewports": [dict(item) for item in validated["viewports"]],
             "screens": [
                 {
                     "screen_id": screen["screen_id"],
                     "route_id": screen["route_id"],
                     "route_path": screen["route_path"],
+                    "source_manifest": dict(screen["source_manifest"]),
                     "surfaces": [dict(surface) for surface in screen["surfaces"]],
+                    "eligible_surface_count": screen["eligible_surface_count"],
+                    "eligible_surface_sha256": screen["eligible_surface_sha256"],
                 }
                 for screen in scope["screens"]
             ],
+            "eligible_surface_count": scope["eligible_surface_count"],
+            "eligible_surface_sha256": scope["eligible_surface_sha256"],
             "required_observation_count": len(validated["expected"]),
+            "coverage_contract_sha256": scope["coverage_contract_sha256"],
         }
     except PretextFailure as error:
         raise error.attach_report(_failure_evidence(error))
@@ -359,7 +421,7 @@ def validate_pretext_runtime_report(
         path = Path(report_path).expanduser().resolve()
         report, file_evidence = _read_runtime_report(path)
         _require_exact_keys(report, _REPORT_KEYS, "runtime report", "APP_PRETEXT_PROTOCOL_INVALID")
-        if report.get("schema_version") != 1:
+        if report.get("schema_version") != 2:
             raise _protocol_failure("Runtime report schema_version is not supported.")
 
         engine = report.get("engine")
@@ -372,6 +434,49 @@ def validate_pretext_runtime_report(
         if report_viewports != validated_scope["viewports"]:
             raise _protocol_failure("Runtime viewports do not exactly match the requested scope.")
         environment = _validate_environment(report.get("environment"))
+
+        inventories = report.get("inventories")
+        expected_inventories = validated_scope["expected_inventories"]
+        if not isinstance(inventories, list) or len(inventories) > PRETEXT_MAX_OBSERVATIONS:
+            raise _protocol_failure("Runtime inventories must be a bounded array.")
+        seen_inventories: set[tuple[str, str, str]] = set()
+        sanitized_inventories: list[dict[str, Any]] = []
+        for inventory in inventories:
+            _require_exact_keys(
+                inventory,
+                _INVENTORY_KEYS,
+                "runtime eligible-surface inventory",
+                "APP_PRETEXT_PROTOCOL_INVALID",
+            )
+            identity = (
+                inventory.get("screen_id"),
+                inventory.get("route_id"),
+                inventory.get("viewport_id"),
+            )
+            count = inventory.get("eligible_surface_count")
+            digest = inventory.get("eligible_surface_sha256")
+            if (
+                any(not _valid_id(item) for item in identity)
+                or identity in seen_inventories
+                or not _is_int(count)
+                or count < 0
+                or not isinstance(digest, str)
+                or _SHA256_RE.fullmatch(digest) is None
+                or expected_inventories.get(identity) != (count, digest)
+            ):
+                raise PretextFailure(
+                    "APP_PRETEXT_COVERAGE_INCOMPLETE",
+                    "Runtime eligible-surface inventory does not exactly match the declared matrix.",
+                    "Restore every eligible DOM surface and rerun all declared route and viewport observations.",
+                )
+            seen_inventories.add(identity)
+            sanitized_inventories.append(dict(inventory))
+        if seen_inventories != set(expected_inventories):
+            raise PretextFailure(
+                "APP_PRETEXT_COVERAGE_INCOMPLETE",
+                "Runtime report is missing an eligible-surface inventory for part of the declared matrix.",
+                "Emit one independently observed DOM inventory per route and viewport.",
+            )
 
         items = report.get("items")
         if not isinstance(items, list) or len(items) > PRETEXT_MAX_OBSERVATIONS:
@@ -479,7 +584,15 @@ def validate_pretext_runtime_report(
             "environment": environment,
             "viewports": [dict(item) for item in report_viewports],
             "coverage": counts,
+            "eligible_surface_coverage": {
+                "required": validated_scope["eligible_surface_count"],
+                "accounted": validated_scope["eligible_surface_count"],
+                "inventory_sha256": validated_scope["eligible_surface_sha256"],
+                "matrix_inventories": len(sanitized_inventories),
+                "coverage_contract_sha256": validated_scope["coverage_contract_sha256"],
+            },
             "cache": cache,
+            "inventories": sanitized_inventories,
             "items": sanitized_items,
             "observation_digest": _canonical_sha256(canonical_observations),
             "scope_sha256": _canonical_sha256(scope),
@@ -495,10 +608,11 @@ def _validate_scope(scope: Mapping[str, Any]) -> dict[str, Any]:
     _require_exact_keys(scope, _SCOPE_KEYS, "Pretext scope", "APP_PRETEXT_SCOPE_INVALID")
     status = scope.get("status")
     if (
-        scope.get("schema_version") != 1
+        scope.get("schema_version") != 2
         or status not in {"applicable", "not_applicable"}
         or scope.get("profile") != PRETEXT_PROFILE
         or scope.get("protocol") != PRETEXT_PROTOCOL
+        or scope.get("eligible_primitives") != sorted(PRETEXT_VISIBLE_PRIMITIVES)
     ):
         raise _scope_failure("Pretext scope identity is invalid.")
     viewports = _validate_viewports(scope.get("viewports"), code="APP_PRETEXT_SCOPE_INVALID")
@@ -510,6 +624,8 @@ def _validate_scope(scope: Mapping[str, Any]) -> dict[str, Any]:
     route_ids: set[str] = set()
     route_paths: set[str] = set()
     expected: dict[tuple[str, str, str, str], str] = {}
+    expected_inventories: dict[tuple[str, str, str], tuple[int, str]] = {}
+    eligible_surface_count = 0
     for screen in screens:
         _require_exact_keys(screen, _SCREEN_KEYS, "scope screen", "APP_PRETEXT_SCOPE_INVALID")
         screen_id = screen.get("screen_id")
@@ -521,6 +637,21 @@ def _validate_scope(scope: Mapping[str, Any]) -> dict[str, Any]:
             raise _scope_failure("Pretext scope repeats a route identity or path.")
         route_ids.add(route_id)
         route_paths.add(route_path)
+        source_manifest = screen.get("source_manifest")
+        if not isinstance(source_manifest, Mapping) or set(source_manifest) != _SOURCE_MANIFEST_KEYS:
+            raise _scope_failure("Scope screen source_manifest metadata is invalid.")
+        source_path = source_manifest.get("path")
+        source_sha256 = source_manifest.get("sha256")
+        if (
+            not isinstance(source_path, str)
+            or not source_path
+            or source_path != Path(source_path).as_posix()
+            or Path(source_path).is_absolute()
+            or any(part in {"", ".", ".."} for part in Path(source_path).parts)
+            or not isinstance(source_sha256, str)
+            or _SHA256_RE.fullmatch(source_sha256) is None
+        ):
+            raise _scope_failure("Scope screen source_manifest path or hash is invalid.")
         surfaces = screen.get("surfaces")
         if not isinstance(surfaces, list) or len(surfaces) > PRETEXT_MAX_SURFACES_PER_SCREEN:
             raise _scope_failure("Scope surfaces must be a bounded array.")
@@ -534,6 +665,38 @@ def _validate_scope(scope: Mapping[str, Any]) -> dict[str, Any]:
             surface_ids.add(surface_id)
             for viewport in viewports:
                 expected[(screen_id, route_id, viewport["id"], surface_id)] = ir_id
+        if (
+            screen.get("eligible_surface_count") != len(surfaces)
+            or screen.get("eligible_surface_sha256") != _surface_inventory_sha256(surfaces)
+        ):
+            raise _scope_failure("Scope screen eligible-surface inventory is inconsistent.")
+        for viewport in viewports:
+            expected_inventories[(screen_id, route_id, viewport["id"])] = (
+                screen["eligible_surface_count"],
+                screen["eligible_surface_sha256"],
+            )
+        eligible_surface_count += len(surfaces)
+    if (
+        scope.get("eligible_surface_count") != eligible_surface_count
+        or scope.get("eligible_surface_sha256") != _routed_surface_inventory_sha256(screens)
+    ):
+        raise _scope_failure("Top-level eligible-surface inventory is inconsistent.")
+    coverage_contract = {
+        "eligible_primitives": sorted(PRETEXT_VISIBLE_PRIMITIVES),
+        "viewports": viewports,
+        "screens": [
+            {
+                "screen_id": screen["screen_id"],
+                "route_id": screen["route_id"],
+                "route_path": screen["route_path"],
+                "eligible_surface_count": screen["eligible_surface_count"],
+                "eligible_surface_sha256": screen["eligible_surface_sha256"],
+            }
+            for screen in screens
+        ],
+    }
+    if scope.get("coverage_contract_sha256") != _canonical_sha256(coverage_contract):
+        raise _scope_failure("Pretext coverage-contract digest is inconsistent.")
     required = scope.get("required_observation_count")
     if (
         not _is_int(required)
@@ -549,6 +712,10 @@ def _validate_scope(scope: Mapping[str, Any]) -> dict[str, Any]:
         "viewports": viewports,
         "viewport_ids": frozenset(item["id"] for item in viewports),
         "expected": expected,
+        "expected_inventories": expected_inventories,
+        "eligible_surface_count": eligible_surface_count,
+        "eligible_surface_sha256": scope["eligible_surface_sha256"],
+        "coverage_contract_sha256": scope["coverage_contract_sha256"],
     }
 
 
@@ -609,21 +776,6 @@ def _validate_runtime_item(
 ) -> dict[str, Any]:
     if not isinstance(value, Mapping):
         raise _protocol_failure("Every runtime item must be an object.")
-    status_value = value.get("status")
-    if status_value not in {"passed", "hidden"}:
-        raise PretextFailure(
-            "APP_PRETEXT_LAYOUT_FAILED",
-            "Runtime item status must be passed or hidden.",
-            "Resolve unsupported or failed layouts before accepting Pretext evidence.",
-        )
-    keys = set(value)
-    full_keys = _ITEM_IDENTITY_KEYS | _ITEM_METRIC_KEYS
-    if status_value == "passed":
-        if keys != full_keys:
-            raise _protocol_failure("A passed runtime item must include the complete metric set.")
-    elif keys not in (_ITEM_IDENTITY_KEYS, full_keys):
-        raise _protocol_failure("A hidden runtime item has partial or unsupported fields.")
-
     identities = [value.get(key) for key in ("screen_id", "route_id", "viewport_id", "surface_id", "ir_id")]
     if any(not _valid_id(item) for item in identities) or identities[2] not in viewport_ids:
         raise _protocol_failure("Runtime item contains an invalid observation identity.")
@@ -634,6 +786,35 @@ def _validate_runtime_item(
             "Runtime item is outside the requested scope or has the wrong IR identity.",
             "Generate evidence only from the immutable manifest-derived Pretext scope.",
         )
+    status_value = value.get("status")
+    if status_value not in {"passed", "hidden"}:
+        identity = "/".join(str(item) for item in identities[:4])
+        runtime_reason = value.get("reason")
+        reason_detail = f" with reason {runtime_reason!r}" if _valid_id(runtime_reason) else ""
+        metric_details: list[str] = []
+        for key in ("available_width", "predicted_line_count", "observed_line_count"):
+            metric = value.get(key)
+            if (_is_int(metric) and metric >= 0) or (
+                isinstance(metric, float) and math.isfinite(metric) and metric >= 0
+            ):
+                metric_details.append(f"{key}={metric}")
+        metrics_detail = f" ({', '.join(metric_details)})" if metric_details else ""
+        raise PretextFailure(
+            "APP_PRETEXT_LAYOUT_FAILED",
+            (
+                f"Runtime item {identity} ({identities[4]}) reported status {status_value!r}"
+                f"{reason_detail}{metrics_detail}."
+            ),
+            f"Resolve the {identities[2]} layout for surface {identities[3]} before accepting Pretext evidence.",
+        )
+    keys = set(value)
+    full_keys = _ITEM_IDENTITY_KEYS | _ITEM_METRIC_KEYS
+    if status_value == "passed":
+        if keys != full_keys:
+            raise _protocol_failure("A passed runtime item must include the complete metric set.")
+    elif keys not in (_ITEM_IDENTITY_KEYS, full_keys):
+        raise _protocol_failure("A hidden runtime item has partial or unsupported fields.")
+
     digest = value.get("input_sha256")
     input_bytes = value.get("input_bytes")
     if (
@@ -673,14 +854,28 @@ def _validate_runtime_item(
                 "Runtime item has invalid finite layout metrics.",
                 "Measure the visible surface after fonts load and emit bounded numeric metrics.",
             )
+        line_count_matches = predicted == observed or (
+            min(predicted, observed) >= _LONG_WRAP_MIN_LINES
+            and abs(predicted - observed) <= _LONG_WRAP_LINE_TOLERANCE
+        )
+        horizontal_overflow = value.get("horizontal_overflow")
+        vertical_overflow = value.get("vertical_overflow")
+        horizontal_clipped = value.get("horizontal_clipped")
+        vertical_clipped = value.get("vertical_clipped")
+        if not all(
+            isinstance(item, bool)
+            for item in (horizontal_overflow, vertical_overflow, horizontal_clipped, vertical_clipped)
+        ):
+            raise _protocol_failure("Runtime item overflow and clipping metrics must be booleans.")
         if (
-            predicted != observed
-            or value.get("horizontal_overflow") is not False
-            or value.get("vertical_overflow") is not False
+            not line_count_matches
+            or horizontal_overflow
+            or horizontal_clipped
+            or vertical_clipped
         ):
             raise PretextFailure(
                 "APP_PRETEXT_LAYOUT_MISMATCH",
-                "Pretext prediction does not exactly match observed layout or the surface overflows.",
+                "Pretext prediction exceeds the bounded line-count contract or the surface overflows.",
                 "Fix the responsive text surface and rerun the browser evidence pass.",
             )
         sanitized.update(
@@ -689,8 +884,10 @@ def _validate_runtime_item(
                 "line_height": _rounded_number(line_height),
                 "predicted_line_count": predicted,
                 "observed_line_count": observed,
-                "horizontal_overflow": False,
-                "vertical_overflow": False,
+                "horizontal_overflow": horizontal_overflow,
+                "vertical_overflow": vertical_overflow,
+                "horizontal_clipped": horizontal_clipped,
+                "vertical_clipped": vertical_clipped,
             }
         )
     return sanitized
@@ -940,9 +1137,36 @@ def _rounded_number(value: int | float) -> int | float:
     return round(float(value), 6)
 
 
-def _canonical_sha256(value: Mapping[str, Any]) -> str:
+def _canonical_sha256(value: object) -> str:
     encoded = json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=True).encode("utf-8")
     return hashlib.sha256(encoded).hexdigest()
+
+
+def _surface_inventory_sha256(surfaces: Sequence[Mapping[str, Any]]) -> str:
+    inventory = sorted(
+        [[surface.get("surface_id"), surface.get("ir_id")] for surface in surfaces],
+        key=lambda item: (str(item[0]), str(item[1])),
+    )
+    return _canonical_sha256(inventory)
+
+
+def _routed_surface_inventory_sha256(screens: Sequence[Mapping[str, Any]]) -> str:
+    inventory = [
+        {
+            "screen_id": screen.get("screen_id"),
+            "route_id": screen.get("route_id"),
+            "surfaces": sorted(
+                [
+                    [surface.get("surface_id"), surface.get("ir_id")]
+                    for surface in screen.get("surfaces", [])
+                    if isinstance(surface, Mapping)
+                ],
+                key=lambda item: (str(item[0]), str(item[1])),
+            ),
+        }
+        for screen in screens
+    ]
+    return _canonical_sha256(inventory)
 
 
 def _engine_identity() -> dict[str, str]:

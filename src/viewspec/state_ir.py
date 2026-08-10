@@ -330,21 +330,35 @@ def replay_state_assertions(app_payload: dict[str, Any]) -> dict[str, Any]:
     for assertion in state_ir.replay_assertions:
         current = copy.deepcopy(initial)
         event_results: list[dict[str, Any]] = []
-        for event in assertion.events:
+        for event_index, event in enumerate(assertion.events):
             event_result = apply_event(current, state_ir, event)
+            event_result = {**event_result, "event_index": event_index}
             event_results.append(event_result)
             if not event_result["ok"]:
-                errors.extend(event_result["errors"])
+                errors.extend(
+                    {
+                        **error,
+                        "assertion_id": assertion.id,
+                        "event_index": event_index,
+                        "mutation_id": event.get("mutation_id"),
+                        "post_event_state": copy.deepcopy(current),
+                    }
+                    for error in event_result["errors"]
+                    if isinstance(error, dict)
+                )
                 break
         selector_values = evaluate_selectors(current, state_ir)
-        state_matches = _json_values_equal(_project_expected(current, assertion.expect_state), assertion.expect_state)
-        selector_matches = _json_values_equal(_project_expected(selector_values, assertion.expect_selectors), assertion.expect_selectors)
+        actual_state = _project_expected(current, assertion.expect_state)
+        actual_selectors = _project_expected(selector_values, assertion.expect_selectors)
+        state_matches = _json_values_equal(actual_state, assertion.expect_state)
+        selector_matches = _json_values_equal(actual_selectors, assertion.expect_selectors)
         visibility_matches = True
+        visibility_values: dict[str, Any] = {}
+        actual_visibility: dict[str, Any] = {}
         if is_v4:
             visibility_values = evaluate_visibility(current, selector_values, state_ir)
-            visibility_matches = _json_values_equal(
-                _project_expected(visibility_values, assertion.expect_visibility), assertion.expect_visibility
-            )
+            actual_visibility = _project_expected(visibility_values, assertion.expect_visibility)
+            visibility_matches = _json_values_equal(actual_visibility, assertion.expect_visibility)
         status = (
             "passed"
             if state_matches and selector_matches and visibility_matches and all(result["ok"] for result in event_results)
@@ -352,28 +366,40 @@ def replay_state_assertions(app_payload: dict[str, Any]) -> dict[str, Any]:
         )
         if status == "failed":
             if not state_matches:
-                errors.append(
-                    {
-                        "code": "APP_STATE_REPLAY_STATE_MISMATCH",
-                        "path": f"$.state_replay_assertions.{assertion.id}.expect_state",
-                        "message": f"Replay assertion {assertion.id} final state did not match.",
-                    }
+                errors.extend(
+                    _replay_value_mismatches(
+                        code="APP_STATE_REPLAY_STATE_MISMATCH",
+                        assertion_id=assertion.id,
+                        section="expect_state",
+                        expected=assertion.expect_state,
+                        actual=actual_state,
+                        event_results=event_results,
+                        post_event_state=current,
+                    )
                 )
             if not selector_matches:
-                errors.append(
-                    {
-                        "code": "APP_STATE_REPLAY_SELECTOR_MISMATCH",
-                        "path": f"$.state_replay_assertions.{assertion.id}.expect_selectors",
-                        "message": f"Replay assertion {assertion.id} selector values did not match.",
-                    }
+                errors.extend(
+                    _replay_value_mismatches(
+                        code="APP_STATE_REPLAY_SELECTOR_MISMATCH",
+                        assertion_id=assertion.id,
+                        section="expect_selectors",
+                        expected=assertion.expect_selectors,
+                        actual=actual_selectors,
+                        event_results=event_results,
+                        post_event_state=current,
+                    )
                 )
             if not visibility_matches:
-                errors.append(
-                    {
-                        "code": "APP_VISIBILITY_REPLAY_MISMATCH",
-                        "path": f"$.state_replay_assertions.{assertion.id}.expect_visibility",
-                        "message": f"Replay assertion {assertion.id} visibility verdicts did not match.",
-                    }
+                errors.extend(
+                    _replay_value_mismatches(
+                        code="APP_VISIBILITY_REPLAY_MISMATCH",
+                        assertion_id=assertion.id,
+                        section="expect_visibility",
+                        expected=assertion.expect_visibility,
+                        actual=actual_visibility,
+                        event_results=event_results,
+                        post_event_state=current,
+                    )
                 )
         entry = {
             "id": assertion.id,
@@ -396,6 +422,41 @@ def replay_state_assertions(app_payload: dict[str, Any]) -> dict[str, Any]:
         "errors": errors,
         "assertions": assertions,
     }
+
+
+def _replay_value_mismatches(
+    *,
+    code: str,
+    assertion_id: str,
+    section: str,
+    expected: dict[str, Any],
+    actual: dict[str, Any],
+    event_results: list[dict[str, Any]],
+    post_event_state: dict[str, Any],
+) -> list[dict[str, Any]]:
+    last_event = event_results[-1] if event_results else {}
+    mismatches: list[dict[str, Any]] = []
+    for key, expected_value in expected.items():
+        actual_value = actual.get(key)
+        if _json_values_equal(actual_value, expected_value):
+            continue
+        mismatches.append(
+            {
+                "code": code,
+                "path": f"$.state_replay_assertions.{assertion_id}.{section}.{key}",
+                "message": (
+                    f"Replay assertion {assertion_id} expected {section}.{key}={expected_value!r}, "
+                    f"but observed {actual_value!r} after event {last_event.get('event_index')!r}."
+                ),
+                "assertion_id": assertion_id,
+                "event_index": last_event.get("event_index"),
+                "mutation_id": last_event.get("mutation_id"),
+                "expected": copy.deepcopy(expected_value),
+                "actual": copy.deepcopy(actual_value),
+                "post_event_state": copy.deepcopy(post_event_state),
+            }
+        )
+    return mismatches
 
 
 def initial_state(app_payload: dict[str, Any], state_ir: StateIR) -> dict[str, Any]:
@@ -650,7 +711,10 @@ def _reducer_type_declarations() -> list[str]:
         "type SliceSelectorOp = { op: \"slice\"; start?: number; end?: number };",
         "type SelectorOp = FilterSelectorOp | SortSelectorOp | SliceSelectorOp;",
         "type Selector = { id: string; sourceState: string; ops: SelectorOp[] };",
-        "type VisibilityWhen = { selector?: string; state?: string; is: string; equals?: unknown };",
+        "type VisibilityWhen =",
+        "  | { selector: string; is: \"non_empty\" | \"empty\" }",
+        "  | { state: string; is: \"truthy\" | \"falsy\" }",
+        "  | { state: string; equals: unknown };",
         "type VisibilityRule = { id: string; when: VisibilityWhen };",
         "",
     ]
@@ -960,11 +1024,11 @@ def _emit_reducer_source(model: _ReducerSourceModel, *, typescript: bool) -> str
                 "  for (const rule of visibilityRules) {",
                 "    const w = rule.when;",
                 "    let visible = false;",
-                "    if (typeof w.selector === \"string\") {",
+                "    if (\"selector\" in w) {",
                 "      const v = selectorValues[w.selector];",
                 "      const filled = Array.isArray(v) && v.length > 0;",
                 "      visible = w.is === \"empty\" ? !filled : filled;",
-                "    } else if (hasOwn(w, \"equals\")) {",
+                "    } else if (\"equals\" in w) {",
                 "      visible = state[String(w.state)] === w.equals;",
                 "    } else {",
                 "      const t = pyTruthy(state[String(w.state)]);",
@@ -1368,21 +1432,98 @@ def _parse_replay_assertions(
         assertion_id = _required_string(item, "id", path, issues)
         _validate_safe_id(assertion_id, f"{path}.id", "replay assertion id", issues)
         events = _required_array(item, "events", path, issues)
-        _check_count(events, APP_STATE_MAX_EVENTS_PER_REPLAY, f"{path}.events", "APP_STATE_LIMIT_EXCEEDED", "events per replay", issues)
+        normalized_events: list[dict[str, Any]] = []
         for event_index, event in enumerate(events):
             event_path = f"{path}.events[{event_index}]"
             if not isinstance(event, dict):
                 issues.append(StateValidationIssue("APP_STATE_REPLAY_EVENT_NOT_OBJECT", event_path, "Replay events must be objects."))
                 continue
-            _reject_extra(event, {"mutation_id", "payload_values"}, event_path, issues)
-            mutation_id = _required_string(event, "mutation_id", event_path, issues)
-            mutation = mutations_by_id.get(mutation_id or "")
-            if mutation_id and mutation is None:
-                issues.append(StateValidationIssue("APP_STATE_REPLAY_MUTATION_MISSING", f"{event_path}.mutation_id", f"Replay references missing mutation {mutation_id}."))
+            _reject_extra(event, {"action_id", "mutation_id", "payload_values", "repeat", "screen_id"}, event_path, issues)
+            mutation_id = event.get("mutation_id")
+            action_id = event.get("action_id")
+            if (isinstance(mutation_id, str) and mutation_id) == (isinstance(action_id, str) and action_id):
+                issues.append(
+                    StateValidationIssue(
+                        "APP_STATE_EVENT_MUTATION_REQUIRED",
+                        event_path,
+                        "Replay events must declare exactly one of mutation_id or action_id.",
+                        "Use mutation_id for a reducer event or action_id for a compact user-action scenario.",
+                    )
+                )
+                continue
+            repeat = event.get("repeat", 1)
+            if not isinstance(repeat, int) or isinstance(repeat, bool) or not 1 <= repeat <= APP_STATE_MAX_EVENTS_PER_REPLAY:
+                issues.append(
+                    StateValidationIssue(
+                        "APP_STATE_REPLAY_REPEAT_INVALID",
+                        f"{event_path}.repeat",
+                        f"repeat must be an integer from 1 through {APP_STATE_MAX_EVENTS_PER_REPLAY}.",
+                    )
+                )
+                repeat = 1
+            mutations: list[StateMutation] = []
+            if isinstance(mutation_id, str) and mutation_id:
+                mutation = mutations_by_id.get(mutation_id)
+                if mutation is None:
+                    issues.append(
+                        StateValidationIssue(
+                            "APP_STATE_REPLAY_MUTATION_MISSING",
+                            f"{event_path}.mutation_id",
+                            f"Replay references missing mutation {mutation_id}.",
+                        )
+                    )
+                else:
+                    mutations = [mutation]
+                if "screen_id" in event:
+                    issues.append(
+                        StateValidationIssue(
+                            "APP_STATE_REPLAY_ACTION_AMBIGUOUS",
+                            f"{event_path}.screen_id",
+                            "screen_id is only valid with action_id replay shorthand.",
+                        )
+                    )
+            elif isinstance(action_id, str) and action_id:
+                screen_id = event.get("screen_id")
+                if screen_id is not None and (not isinstance(screen_id, str) or not screen_id):
+                    issues.append(
+                        StateValidationIssue(
+                            "APP_STATE_REPLAY_ACTION_AMBIGUOUS",
+                            f"{event_path}.screen_id",
+                            "screen_id must be a non-empty string when provided.",
+                        )
+                    )
+                matches = [
+                    mutation
+                    for mutation in mutations_by_id.values()
+                    if mutation.trigger.get("action_id") == action_id
+                    and (screen_id is None or mutation.trigger.get("screen_id") == screen_id)
+                ]
+                matched_screens = {mutation.trigger.get("screen_id") for mutation in matches}
+                if not matches:
+                    issues.append(
+                        StateValidationIssue(
+                            "APP_STATE_REPLAY_ACTION_MISSING",
+                            f"{event_path}.action_id",
+                            f"Replay action {action_id} does not trigger a declared mutation.",
+                            "Use an action id referenced by a mutation trigger.",
+                        )
+                    )
+                elif screen_id is None and len(matched_screens) > 1:
+                    issues.append(
+                        StateValidationIssue(
+                            "APP_STATE_REPLAY_ACTION_AMBIGUOUS",
+                            f"{event_path}.action_id",
+                            f"Replay action {action_id} exists on multiple screens: {', '.join(sorted(str(item) for item in matched_screens))}.",
+                            "Add screen_id to the compact replay event.",
+                        )
+                    )
+                else:
+                    mutations = matches
             payload_values = event.get("payload_values", {})
             if not isinstance(payload_values, dict):
                 issues.append(StateValidationIssue("APP_STATE_REPLAY_PAYLOAD_INVALID", f"{event_path}.payload_values", "payload_values must be an object."))
-            elif mutation is not None:
+                payload_values = {}
+            for mutation in mutations:
                 for payload_error in _validate_event_payload(mutation, payload_values):
                     issues.append(
                         StateValidationIssue(
@@ -1391,6 +1532,19 @@ def _parse_replay_assertions(
                             str(payload_error["message"]),
                         )
                     )
+            for _ in range(repeat):
+                normalized_events.extend(
+                    {"mutation_id": mutation.id, "payload_values": copy.deepcopy(payload_values)}
+                    for mutation in mutations
+                )
+        _check_count(
+            normalized_events,
+            APP_STATE_MAX_EVENTS_PER_REPLAY,
+            f"{path}.events",
+            "APP_STATE_LIMIT_EXCEEDED",
+            "normalized events per replay",
+            issues,
+        )
         expect_state = item.get("expect_state", {})
         expect_selectors = item.get("expect_selectors", {})
         if not isinstance(expect_state, dict):
@@ -1436,7 +1590,7 @@ def _parse_replay_assertions(
             assertions.append(
                 StateReplayAssertion(
                     id=assertion_id,
-                    events=tuple(copy.deepcopy(events)),
+                    events=tuple(normalized_events),
                     expect_state=copy.deepcopy(expect_state),
                     expect_selectors=copy.deepcopy(expect_selectors),
                     expect_visibility=copy.deepcopy(expect_visibility),

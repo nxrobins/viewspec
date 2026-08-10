@@ -52,7 +52,7 @@ require Bun. It may be composed with `--freerange`, whose own applicable scope s
 The combined order is artifact/dependency preflight, TypeScript, Freerange, Vite build, Chromium
 observation, Pretext report validation, then final integrity.
 
-The `viewspec_pretext_native_dom_v1` profile is intentionally narrow. It uses named
+The `viewspec_pretext_native_dom_v2` profile is intentionally narrow. It uses named
 `Arial, sans-serif`, waits for loaded fonts, and covers eligible compiler-owned text at 390×844,
 768×1024, and 1440×1000 in Chromium. It caches preparation without width, reuses it for each
 width-specific layout, and requires predicted/native-DOM line-count agreement under a fixed 1px

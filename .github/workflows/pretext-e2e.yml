@@ -7,12 +7,20 @@ on:
       - ".github/workflows/pretext-e2e.yml"
       - "pyproject.toml"
       - "src/viewspec/**"
+      - "conformance/agent-ui-v2/**"
+      - "scripts/agent_ui_browser_score.mjs"
+      - "scripts/run_agent_ui_eval.py"
+      - "tests/test_agent_eval_runner.py"
       - "tests/test_app_pretext*.py"
   pull_request:
     paths:
       - ".github/workflows/pretext-e2e.yml"
       - "pyproject.toml"
       - "src/viewspec/**"
+      - "conformance/agent-ui-v2/**"
+      - "scripts/agent_ui_browser_score.mjs"
+      - "scripts/run_agent_ui_eval.py"
+      - "tests/test_agent_eval_runner.py"
       - "tests/test_app_pretext*.py"
   schedule:
     - cron: "17 10 * * 1"
@@ -42,7 +50,9 @@ jobs:
       PYTHONDONTWRITEBYTECODE: "1"
       PYTHON_VERSION: "3.11.15"
       VIEWSPEC_RUN_PRETEXT_E2E: "1"
+      VIEWSPEC_RUN_AGENT_UI_V2_PRODUCT_E2E: "1"
       VIEWSPEC_PRETEXT_E2E_ARTIFACT_DIR: ${{ github.workspace }}/.artifacts/pretext-e2e
+      VIEWSPEC_AGENT_UI_V2_PRODUCT_E2E_ARTIFACT_DIR: ${{ github.workspace }}/.artifacts/pretext-e2e/agent-ui-v2
 
     steps:
       - uses: actions/checkout@v4
@@ -100,13 +110,15 @@ jobs:
         working-directory: src/viewspec/host_verify_template
         run: ./node_modules/.bin/playwright install --with-deps chromium
 
-      - name: Run opt-in Pretext E2E proofs
+      - name: Run opt-in Pretext and Agent UI V2 E2E proofs
         run: |
           set -o pipefail
           test "$VIEWSPEC_RUN_PRETEXT_E2E" = "1"
+          test "$VIEWSPEC_RUN_AGENT_UI_V2_PRODUCT_E2E" = "1"
           python -m pytest -q --strict-markers -m e2e \
             --junitxml="$VIEWSPEC_PRETEXT_E2E_ARTIFACT_DIR/junit.xml" \
-            tests/test_app_pretext_e2e.py 2>&1 \
+            tests/test_app_pretext_e2e.py \
+            tests/test_agent_eval_runner.py::test_retained_viewspec_arms_clear_v2_product_gates 2>&1 \
             | tee "$VIEWSPEC_PRETEXT_E2E_ARTIFACT_DIR/pytest.log"
 
       - name: Validate E2E result contract
@@ -115,7 +127,7 @@ jobs:
           root = ET.parse(os.path.join(os.environ["VIEWSPEC_PRETEXT_E2E_ARTIFACT_DIR"], "junit.xml")).getroot();
           suites = root.findall("testsuite") if root.tag == "testsuites" else [root];
           totals = {key: sum(int(suite.attrib.get(key, 0)) for suite in suites) for key in ("tests", "failures", "errors", "skipped")};
-          assert totals == {"tests": 2, "failures": 0, "errors": 0, "skipped": 0}, totals'
+          assert totals == {"tests": 7, "failures": 0, "errors": 0, "skipped": 0}, totals'
 
       - name: Upload Pretext E2E proof artifacts
         if: ${{ always() }}

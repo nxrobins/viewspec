@@ -28,7 +28,8 @@ from viewspec.app_pretext import (
     build_pretext_scope,
 )
 from viewspec.app_pretext_runtime import PRETEXT_RUNTIME_PATH, generate_pretext_runtime_typescript
-from viewspec.app_screens import _compile_screen, _visibility_overlays_for
+from viewspec.app_resource_repeat import resource_binding_address, resource_repeat_summary
+from viewspec.app_screens import _compile_screen, _screen_ir_overlays_for
 from viewspec.app_state_artifacts import _write_state_artifacts
 from viewspec.app_validation import (
     _app_schema_version,
@@ -36,7 +37,17 @@ from viewspec.app_validation import (
     _resource_binding_report_fields,
     _route_assertions,
 )
+from viewspec.emitters.html_tailwind import OFFLINE_EMITTER_CSS
 from viewspec.local_tools import atomic_write, check_artifact_dir, file_hash
+from viewspec.presentation_plan import (
+    PRESENTATION_PLAN_FILE,
+    PRESENTATION_PLAN_MAX_BYTES,
+    build_presentation_plan,
+    presentation_plan_css,
+    presentation_plan_diagnostics,
+    presentation_plan_hash,
+    presentation_plan_text,
+)
 
 
 REACT_APP_TARGET = "react-tailwind-app"
@@ -73,6 +84,7 @@ def _write_react_app(
         strict_design=strict_design,
         screen_proof_dir=screen_proof_dir or output_dir,
     )
+    semantic_contract = _assert_cross_target_semantic_contract(screen_reports, react_screens)
     state_artifacts = _write_state_artifacts(
         payload,
         output_dir / "src",
@@ -98,15 +110,28 @@ def _write_react_app(
         pretext_runtime_path = output_dir / PRETEXT_RUNTIME_PATH
         atomic_write(pretext_runtime_path, generate_pretext_runtime_typescript())
 
+    presentation_plan = build_presentation_plan(payload)
+    presentation_text = presentation_plan_text(presentation_plan)
+    if len(presentation_text.encode("utf-8")) > PRESENTATION_PLAN_MAX_BYTES:
+        raise AppBundleProofFailure(
+            "APP_PRESENTATION_PLAN_WRITE_FAILED",
+            f"PresentationPlan exceeds {PRESENTATION_PLAN_MAX_BYTES} bytes.",
+            "Reduce presentation rules or anchors and retry compile-app.",
+        )
+    presentation_path = output_dir / PRESENTATION_PLAN_FILE
+    atomic_write(presentation_path, presentation_text)
+
     _write_runtime_template(
         payload,
         output_dir,
         freerange=freerange and numeric_scope["status"] == "applicable",
         pretext=pretext_enabled,
         pretext_scope=pretext_scope,
+        presentation_plan=presentation_plan,
     )
     app_path = output_dir / REACT_APP_ENTRY
     app_source = _react_app_source(payload)
+    _assert_react_landmark_contract(app_source, react_screens)
     if len(app_source.encode("utf-8")) > REACT_APP_MAX_SOURCE_BYTES:
         raise AppBundleProofFailure(
             "APP_REACT_SOURCE_TOO_LARGE",
@@ -126,6 +151,9 @@ def _write_react_app(
         numeric_scope=numeric_scope,
         pretext_runtime_path=pretext_runtime_path,
         pretext_scope=pretext_scope,
+        presentation_plan=presentation_plan,
+        presentation_path=presentation_path,
+        semantic_contract=semantic_contract,
     )
     atomic_write(manifest_path, json.dumps(manifest, indent=2, sort_keys=True) + "\n")
     manifest_hash = file_hash(manifest_path)
@@ -137,6 +165,10 @@ def _write_react_app(
         "route_navigation": REACT_APP_ROUTE_NAVIGATION,
         "manifest_hash": manifest_hash,
         "screen_count": len(react_screens),
+        "presentation_plan_hash": presentation_plan_hash(presentation_plan),
+        "presentation_plan_diagnostics": presentation_plan_diagnostics(presentation_plan),
+        "resource_repeat": resource_repeat_summary(payload),
+        "cross_target_semantics": semantic_contract,
         "state_reducer_conformance": state_artifacts.get("conformance") if state_artifacts else None,
     }
     atomic_write(diagnostics_path, json.dumps(diagnostics, indent=2, sort_keys=True) + "\n")
@@ -148,6 +180,7 @@ def _write_react_app(
         state_artifacts,
         numeric_path=numeric_path,
         pretext_runtime_path=pretext_runtime_path,
+        presentation_path=presentation_path,
     )
     route_assertions = {
         **_route_assertions(payload),
@@ -176,6 +209,10 @@ def _write_react_app(
         "app_artifact_hash": file_hash(app_path),
         "manifest_hash": manifest_hash,
         "diagnostics_hash": file_hash(diagnostics_path),
+        "presentation_plan_hash": presentation_plan_hash(presentation_plan),
+        "presentation_plan_diagnostics": presentation_plan_diagnostics(presentation_plan),
+        "resource_repeat": resource_repeat_summary(payload),
+        "cross_target_semantics": semantic_contract,
         **_state_report_fields(state_artifacts),
         "screens": react_screens,
         "source_screen_proofs": [
@@ -208,7 +245,7 @@ def _compile_react_screens(
     strict_design: bool,
     screen_proof_dir: Path,
 ) -> list[dict[str, Any]]:
-    overlays = _visibility_overlays_for(payload)
+    overlays = _screen_ir_overlays_for(payload)
     reports: list[dict[str, Any]] = []
     for screen in payload.get("screens", []):
         screen_id = str(screen["id"])
@@ -259,6 +296,112 @@ def _compile_react_screens(
     return reports
 
 
+def _assert_react_landmark_contract(app_source: str, react_screens: list[dict[str, Any]]) -> None:
+    main_count = len(re.findall(r"<main\b", app_source, flags=re.IGNORECASE))
+    if main_count != 1:
+        raise AppBundleProofFailure(
+            "APP_SEMANTIC_LANDMARK_INVALID",
+            f"React AppBundle shell must own exactly one main landmark; generated shell contains {main_count}.",
+            "Regenerate the app with one shell-owned main and neutral embedded screen roots.",
+        )
+    for screen in react_screens:
+        paths = screen.get("paths") if isinstance(screen.get("paths"), dict) else {}
+        tsx_path = Path(str(paths.get("tsx") or ""))
+        source = tsx_path.read_text(encoding="utf-8") if tsx_path.exists() else ""
+        embedded_main_count = len(re.findall(r"<main\b", source, flags=re.IGNORECASE))
+        root_marker_count = source.count("data-viewspec-screen-root")
+        if embedded_main_count or root_marker_count != 1:
+            raise AppBundleProofFailure(
+                "APP_SEMANTIC_LANDMARK_INVALID",
+                (
+                    f"React screen {screen.get('id')} must have one neutral embedded root and no main landmarks; "
+                    f"found {root_marker_count} embedded-root markers and {embedded_main_count} main landmarks."
+                ),
+                "Regenerate the embedded screen with semantic_context='embedded_screen'.",
+            )
+
+
+def _assert_cross_target_semantic_contract(
+    static_screens: list[dict[str, Any]],
+    react_screens: list[dict[str, Any]],
+) -> dict[str, Any]:
+    static_by_id = {str(screen.get("id")): screen for screen in static_screens if isinstance(screen, dict)}
+    results: list[dict[str, Any]] = []
+    for react_screen in react_screens:
+        screen_id = str(react_screen.get("id") or "")
+        static_screen = static_by_id.get(screen_id)
+        if static_screen is None:
+            raise AppBundleProofFailure(
+                "APP_SEMANTIC_TARGET_DIVERGENCE",
+                f"React screen {screen_id} has no matching static semantic artifact.",
+                "Regenerate both AppBundle targets from the same validated source.",
+            )
+        static_manifest = _screen_manifest(static_screen)
+        react_manifest = _screen_manifest(react_screen)
+        static_digest = static_manifest.get("semantic_digest")
+        react_digest = react_manifest.get("semantic_digest")
+        if not isinstance(static_digest, dict) or not isinstance(react_digest, dict):
+            raise AppBundleProofFailure(
+                "APP_SEMANTIC_TARGET_DIVERGENCE",
+                f"Screen {screen_id} is missing a static or React semantic digest.",
+                "Regenerate both checked screen artifacts before compiling the React app.",
+            )
+        static_tags = _semantic_tag_projection(static_digest)
+        react_tags = _semantic_tag_projection(react_digest)
+        for ir_id in sorted(set(static_tags) | set(react_tags)):
+            static_tag = static_tags.get(ir_id)
+            react_tag = react_tags.get(ir_id)
+            if static_tag != react_tag:
+                raise AppBundleProofFailure(
+                    "APP_SEMANTIC_TARGET_DIVERGENCE",
+                    (
+                        f"Screen {screen_id} node {ir_id} resolves to static tag {static_tag or 'missing'} "
+                        f"but React tag {react_tag or 'missing'}."
+                    ),
+                    "Use one compiler-owned semantic context and regenerate both targets.",
+                )
+        results.append(
+            {
+                "screen_id": screen_id,
+                "node_count": len(static_tags),
+                "semantic_digest": str(static_digest.get("digest") or ""),
+                "status": "passed",
+            }
+        )
+    return {
+        "status": "passed",
+        "screen_count": len(results),
+        "node_count": sum(item["node_count"] for item in results),
+        "screens": results,
+    }
+
+
+def _screen_manifest(screen: dict[str, Any]) -> dict[str, Any]:
+    paths = screen.get("paths") if isinstance(screen.get("paths"), dict) else {}
+    manifest_path = Path(str(paths.get("manifest") or ""))
+    try:
+        value = json.loads(manifest_path.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as exc:
+        raise AppBundleProofFailure(
+            "APP_SEMANTIC_TARGET_DIVERGENCE",
+            f"Could not read screen semantic manifest {manifest_path}: {exc}.",
+            "Regenerate both checked screen artifacts before compiling the React app.",
+        ) from exc
+    return value if isinstance(value, dict) else {}
+
+
+def _semantic_tag_projection(digest: dict[str, Any]) -> dict[str, str]:
+    projection = digest.get("source_projection")
+    nodes = projection.get("nodes") if isinstance(projection, dict) else None
+    if not isinstance(nodes, list):
+        return {}
+    return {
+        str(node.get("ir_id")): str(node.get("tag"))
+        for node in nodes
+        if isinstance(node, dict) and isinstance(node.get("ir_id"), str) and isinstance(node.get("tag"), str)
+    }
+
+
 def _write_runtime_template(
     payload: dict[str, Any],
     output_dir: Path,
@@ -266,7 +409,9 @@ def _write_runtime_template(
     freerange: bool = False,
     pretext: bool = False,
     pretext_scope: dict[str, Any] | None = None,
+    presentation_plan: dict[str, Any] | None = None,
 ) -> None:
+    effective_presentation_plan = presentation_plan or build_presentation_plan(payload)
     package_json = json.loads(_template_text("package.json"))
     package_lock = json.loads(_template_text("package-lock.json"))
     package_name = _package_name(str(payload["app"]["id"]))
@@ -312,10 +457,17 @@ def _write_runtime_template(
     atomic_write(output_dir / "index.html", _index_html(str(payload["app"]["title"])))
     atomic_write(output_dir / "src" / "main.tsx", _main_source(pretext=pretext))
     atomic_write(output_dir / "src" / "vite-env.d.ts", _template_text("src/vite-env.d.ts"))
-    atomic_write(output_dir / "src" / "index.css", _styles_source(pretext=pretext))
+    atomic_write(
+        output_dir / "src" / "index.css",
+        _styles_source(pretext=pretext, presentation_plan=effective_presentation_plan),
+    )
     atomic_write(
         output_dir / "tests" / "viewspec-app.spec.ts",
-        _playwright_test_source(payload, pretext_scope=pretext_scope if pretext else None),
+        _playwright_test_source(
+            payload,
+            pretext_scope=pretext_scope if pretext else None,
+            presentation_plan=effective_presentation_plan,
+        ),
     )
 
 
@@ -598,7 +750,7 @@ def _resource_bindings(payload: dict[str, Any]) -> list[dict[str, str]]:
             state_id = state_sources.get((screen_id, str(view.get("id"))))
             for record_id in view.get("record_ids", []):
                 for field in view.get("fields", []):
-                    address = f"node:{record_id}#attr:{field}"
+                    address = resource_binding_address(view, str(record_id), str(field))
                     binding_id = by_address.get(address)
                     if binding_id is None:
                         continue
@@ -668,6 +820,9 @@ def _react_app_manifest(
     numeric_scope: dict[str, Any],
     pretext_runtime_path: Path | None,
     pretext_scope: dict[str, Any] | None,
+    presentation_plan: dict[str, Any],
+    presentation_path: Path,
+    semantic_contract: dict[str, Any],
 ) -> dict[str, Any]:
     file_paths = [
         output_dir / "index.html",
@@ -682,6 +837,7 @@ def _react_app_manifest(
         output_dir / REACT_APP_ENTRY,
         output_dir / "src" / "state_reducer.ts",
         output_dir / "tests" / "viewspec-app.spec.ts",
+        presentation_path,
     ]
     if numeric_path is not None:
         file_paths.append(numeric_path)
@@ -692,8 +848,20 @@ def _react_app_manifest(
     reducer_path = output_dir / "src" / "state_reducer.ts"
     numeric_analysis = dict(numeric_scope)
     if numeric_path is not None:
+        if state_artifacts is None:
+            raise AppBundleProofFailure(
+                "APP_FREERANGE_SCOPE_INVALID",
+                "A numeric kernel requires an emitted state contract.",
+                "Regenerate the state artifacts before requesting Freerange analysis.",
+            )
+        state_manifest_path = Path(state_artifacts["manifest_path"])
         numeric_analysis.update(
             {
+                "state_contract": {
+                    "path": str(state_manifest_path.relative_to(output_dir)),
+                    "sha256": file_hash(state_manifest_path),
+                    "contract_hash": state_artifacts["contract_hash"],
+                },
                 "files": [
                     {
                         "path": str(numeric_path.relative_to(output_dir)),
@@ -723,6 +891,19 @@ def _react_app_manifest(
         "entry_file": REACT_APP_ENTRY,
         "route_count": len(payload.get("routes", [])),
         "screen_count": len(react_screens),
+        "presentation_plan": {
+            "path": str(presentation_path.relative_to(output_dir)),
+            "plan_hash": presentation_plan_hash(presentation_plan),
+            "screen_count": len(presentation_plan.get("screens", [])),
+            "diagnostics": presentation_plan_diagnostics(presentation_plan),
+            "sources": {
+                str(screen.get("id")): str(screen.get("source"))
+                for screen in presentation_plan.get("screens", [])
+                if isinstance(screen, dict)
+            },
+        },
+        "resource_repeat": resource_repeat_summary(payload),
+        "cross_target_semantics": semantic_contract,
         "numeric_analysis": numeric_analysis,
         **({"text_layout_analysis": pretext_scope} if pretext_scope is not None else {}),
         **(
@@ -772,6 +953,7 @@ def _react_app_paths(
     *,
     numeric_path: Path | None,
     pretext_runtime_path: Path | None,
+    presentation_path: Path,
 ) -> dict[str, str]:
     paths = {
         "output_dir": str(output_dir),
@@ -789,6 +971,7 @@ def _react_app_paths(
         "manifest": str(output_dir / REACT_APP_MANIFEST),
         "diagnostics": str(output_dir / REACT_APP_DIAGNOSTICS),
         "state_reducer": str(reducer_path),
+        "presentation_plan": str(presentation_path),
     }
     if state_artifacts is not None:
         paths["state_manifest"] = str(state_artifacts["manifest_path"])
@@ -846,13 +1029,16 @@ export default defineConfig({
 def _playwright_config_source() -> str:
     return """import { defineConfig } from "@playwright/test";
 
+const verifyPort = process.env.VIEWSPEC_APP_VERIFY_PORT ?? "4178";
+const verifyBaseURL = `http://127.0.0.1:${verifyPort}`;
+
 export default defineConfig({
   testDir: "./tests",
   workers: 1,
-  use: { baseURL: "http://127.0.0.1:4178" },
+  use: { baseURL: verifyBaseURL },
   webServer: {
-    command: "npm run preview -- --host 127.0.0.1 --port 4178 --strictPort",
-    url: "http://127.0.0.1:4178",
+    command: `npm run preview -- --host 127.0.0.1 --port ${verifyPort} --strictPort`,
+    url: verifyBaseURL,
     reuseExistingServer: false,
     timeout: 20000,
   },
@@ -864,6 +1050,7 @@ def _playwright_test_source(
     payload: dict[str, Any],
     *,
     pretext_scope: dict[str, Any] | None = None,
+    presentation_plan: dict[str, Any] | None = None,
 ) -> str:
     routes = [
         {
@@ -875,6 +1062,11 @@ def _playwright_test_source(
         for route in payload.get("routes", [])
     ]
     proof_cases = _runtime_proof_cases(payload)
+    presentation_screens = [
+        {"id": str(screen.get("id") or ""), "anchors": screen.get("anchors", [])}
+        for screen in (presentation_plan or {}).get("screens", [])
+        if isinstance(screen, dict)
+    ]
     runtime_report = {
         "route_count": len(routes),
         "history_assertion_count": 1 if len(routes) > 1 else 0,
@@ -883,6 +1075,12 @@ def _playwright_test_source(
         "rebound_binding_count": sum(len(case["bindings"]) for case in proof_cases),
         "selector_assertion_count": sum(case["selectorAssertionCount"] for case in proof_cases),
         "visibility_assertion_count": sum(len(case["visibility"]) for case in proof_cases),
+        "presentation_anchor_assertion_count": sum(
+            len(screen.get("anchors", []))
+            for screen in (presentation_plan or {}).get("screens", [])
+            if isinstance(screen, dict)
+        ),
+        "presentation_viewport_count": 3,
     }
     pretext_enabled = bool(pretext_scope and pretext_scope.get("status") == "applicable")
     lines = [
@@ -896,9 +1094,27 @@ def _playwright_test_source(
         "  id: string; events: readonly RuntimeProofEvent[]; bindings: readonly RuntimeBindingAssertion[];",
         "  selectorAssertionCount: number; visibility: readonly RuntimeVisibilityAssertion[];",
         "};",
+        "type PresentationRect = { left: number; top: number; right: number; bottom: number; width: number; height: number };",
+        "type PresentationAnchor = {",
+        "  id: string; target_ref: string; relation: string; anchor_ref: string; viewports?: readonly string[];",
+        "};",
+        "type PresentationScreen = { id: string; anchors: readonly PresentationAnchor[] };",
+        "type AnchorDivergence = {",
+        "  screenId: string; anchorId: string; targetRef: string; anchorRef: string; relation: string;",
+        "  property: string; expected: string; actual: string;",
+        "};",
         "",
         f"const routes = {_safe_json(routes)} as const;",
         f"const proofCases: readonly RuntimeProofCase[] = {_safe_json(proof_cases)};",
+        (
+            "const presentationScreens: readonly PresentationScreen[] = "
+            f"{_safe_json(presentation_screens)};"
+        ),
+        "const presentationViewports = [",
+        '  { id: "compact", width: 390, height: 844 },',
+        '  { id: "medium", width: 768, height: 1024 },',
+        '  { id: "wide", width: 1440, height: 1000 },',
+        "] as const;",
         f"const runtimeReport = {_safe_json(runtime_report)};",
         "",
         "const routeForScreen = (screenId: string) => routes.find((route) => route.screenId === screenId);",
@@ -911,6 +1127,47 @@ def _playwright_test_source(
         '  await expect(page.locator(`[data-viewspec-app-screen="${screenId}"]`)).toBeVisible();',
         "}",
         "",
+        "function irIdForTarget(targetRef: string): string {",
+        "  const [kind, id] = targetRef.split(':', 2);",
+        "  return `${kind}_${id}`;",
+        "}",
+        "",
+        "function rectForBox(box: { x: number; y: number; width: number; height: number }): PresentationRect {",
+        "  return { left: box.x, top: box.y, right: box.x + box.width, bottom: box.y + box.height, width: box.width, height: box.height };",
+        "}",
+        "",
+        "function firstAnchorDivergence(",
+        "  screenId: string, anchor: PresentationAnchor, target: PresentationRect, reference: PresentationRect,",
+        "): AnchorDivergence | null {",
+        "  const failure = (property: string, expected: string, actual: string): AnchorDivergence => ({",
+        "    screenId, anchorId: anchor.id, targetRef: anchor.target_ref, anchorRef: anchor.anchor_ref,",
+        "    relation: anchor.relation, property, expected, actual,",
+        "  });",
+        "  const rounded = (value: number) => Math.round(value * 100) / 100;",
+        "  if (anchor.relation === 'inside') {",
+        "    if (target.left < reference.left - 1) return failure('left', `>= ${rounded(reference.left)}`, String(rounded(target.left)));",
+        "    if (target.top < reference.top - 1) return failure('top', `>= ${rounded(reference.top)}`, String(rounded(target.top)));",
+        "    if (target.right > reference.right + 1) return failure('right', `<= ${rounded(reference.right)}`, String(rounded(target.right)));",
+        "    if (target.bottom > reference.bottom + 1) return failure('bottom', `<= ${rounded(reference.bottom)}`, String(rounded(target.bottom)));",
+        "  } else if (anchor.relation === 'before' && target.bottom > reference.top + 1) {",
+        "    return failure('bottom', `<= ${rounded(reference.top)}`, String(rounded(target.bottom)));",
+        "  } else if (anchor.relation === 'after' && target.top < reference.bottom - 1) {",
+        "    return failure('top', `>= ${rounded(reference.bottom)}`, String(rounded(target.top)));",
+        "  } else if (anchor.relation === 'aligned_start' && Math.abs(target.left - reference.left) > 2) {",
+        "    return failure('left', `within 2px of ${rounded(reference.left)}`, String(rounded(target.left)));",
+        "  } else if (anchor.relation === 'aligned_center') {",
+        "    const targetCenter = target.left + target.width / 2;",
+        "    const referenceCenter = reference.left + reference.width / 2;",
+        "    if (Math.abs(targetCenter - referenceCenter) > 2) {",
+        "      return failure('center_x', `within 2px of ${rounded(referenceCenter)}`, String(rounded(targetCenter)));",
+        "    }",
+        "  } else if (anchor.relation === 'same_row') {",
+        "    const overlap = Math.min(target.bottom, reference.bottom) - Math.max(target.top, reference.top);",
+        "    if (overlap <= 0) return failure('vertical_overlap', '> 0', String(rounded(overlap)));",
+        "  }",
+        "  return null;",
+        "}",
+        "",
     ]
     if pretext_enabled:
         lines.extend(
@@ -918,10 +1175,12 @@ def _playwright_test_source(
                 "type PretextCache = { prepare_calls: number; unique_inputs: number; layout_calls: number; cache_hits: number };",
                 "type PretextProbeResult = {",
                 "  engine: Record<string, unknown>; environment: Record<string, unknown>;",
+                "  inventory: { eligible_surface_count: number; eligible_surface_sha256: string };",
                 "  items: Array<Record<string, unknown>>; cache: PretextCache; errors: Array<Record<string, unknown>>;",
                 "};",
                 f"const pretextScope = {_safe_json(pretext_scope)} as const;",
                 "const pretextItems: Array<Record<string, unknown>> = [];",
+                "const pretextInventories: Array<Record<string, unknown>> = [];",
                 "const pretextErrors: Array<Record<string, unknown>> = [];",
                 "const pretextCache: PretextCache = { prepare_calls: 0, unique_inputs: 0, layout_calls: 0, cache_hits: 0 };",
                 "let pretextEnvironment: Record<string, unknown> = {};",
@@ -950,8 +1209,8 @@ def _playwright_test_source(
         lines.extend(
             [
                 '  await writeFile("viewspec_pretext_report.json", JSON.stringify({',
-                "    schema_version: 1, engine: pretextEngine, profile: pretextScope.profile, protocol: pretextScope.protocol,",
-                "    environment: pretextEnvironment, viewports: pretextScope.viewports, items: pretextItems,",
+                "    schema_version: 2, engine: pretextEngine, profile: pretextScope.profile, protocol: pretextScope.protocol,",
+                "    environment: pretextEnvironment, viewports: pretextScope.viewports, inventories: pretextInventories, items: pretextItems,",
                 "    summary: pretextSummary(), cache: pretextCache, errors: pretextErrors,",
                 "  }, null, 2));",
             ]
@@ -1014,6 +1273,59 @@ def _playwright_test_source(
                 "});",
             ]
         )
+    if any(
+        isinstance(screen, dict) and screen.get("anchors")
+        for screen in (presentation_plan or {}).get("screens", [])
+    ):
+        lines.extend(
+            [
+                "",
+                'test("PresentationPlan responsive anchors", async ({ page }) => {',
+                "  for (const viewport of presentationViewports) {",
+                "    await page.setViewportSize({ width: viewport.width, height: viewport.height });",
+                "    for (const screen of presentationScreens) {",
+                "      const anchors = screen.anchors.filter((anchor) => !anchor.viewports || anchor.viewports.includes(viewport.id));",
+                "      if (!anchors.length) continue;",
+                "      const route = routeForScreen(screen.id);",
+                "      if (!route) throw new Error(`APP_PRESENTATION_ANCHOR_ROUTE_MISSING:${screen.id}`);",
+                "      await page.goto(route.path);",
+                '      await expect(page.locator(`[data-viewspec-app-screen="${screen.id}"]`)).toBeVisible();',
+                '      const scope = page.locator(`[data-viewspec-app-screen="${screen.id}"]`);',
+                "      for (const anchor of anchors) {",
+                '        const target = scope.locator(`[data-ir-id="${irIdForTarget(anchor.target_ref)}"]`);',
+                '        const reference = scope.locator(`[data-ir-id="${irIdForTarget(anchor.anchor_ref)}"]`);',
+                "        const targetCount = await target.count();",
+                "        const referenceCount = await reference.count();",
+                "        let divergence: AnchorDivergence | null = null;",
+                "        if (targetCount !== 1 || referenceCount !== 1) {",
+                "          divergence = { screenId: screen.id, anchorId: anchor.id, targetRef: anchor.target_ref,",
+                "            anchorRef: anchor.anchor_ref, relation: anchor.relation,",
+                "            property: targetCount !== 1 ? 'target_count' : 'anchor_count', expected: '1',",
+                "            actual: String(targetCount !== 1 ? targetCount : referenceCount) };",
+                "        } else {",
+                "          const targetBox = await target.boundingBox();",
+                "          const referenceBox = await reference.boundingBox();",
+                "          if (!targetBox || !referenceBox) {",
+                "            divergence = { screenId: screen.id, anchorId: anchor.id, targetRef: anchor.target_ref,",
+                "              anchorRef: anchor.anchor_ref, relation: anchor.relation, property: 'bounding_box',",
+                "              expected: 'visible geometry', actual: 'missing' };",
+                "          } else {",
+                "            divergence = firstAnchorDivergence(",
+                "              screen.id, anchor, rectForBox(targetBox), rectForBox(referenceBox),",
+                "            );",
+                "          }",
+                "        }",
+                "        if (divergence) throw new Error([",
+                "          'APP_PRESENTATION_ANCHOR_DIVERGED', viewport.id, divergence.screenId, divergence.anchorId,",
+                "          divergence.targetRef, divergence.relation, divergence.property,",
+                "          `expected=${divergence.expected}`, `actual=${divergence.actual}`,",
+                "        ].join(':'));",
+                "      }",
+                "    }",
+                "  }",
+                "});",
+            ]
+        )
     if pretext_enabled:
         lines.extend(
             [
@@ -1040,6 +1352,11 @@ def _playwright_test_source(
                 "      }, {",
                 "        screenId: screen.screen_id, routeId: screen.route_id, viewportId: viewport.id, surfaces: screen.surfaces,",
                 "      }) as PretextProbeResult;",
+                "      pretextInventories.push({",
+                "        screen_id: screen.screen_id, route_id: screen.route_id, viewport_id: viewport.id,",
+                "        eligible_surface_count: result.inventory.eligible_surface_count,",
+                "        eligible_surface_sha256: result.inventory.eligible_surface_sha256,",
+                "      });",
                 "      pretextItems.push(...result.items);",
                 "      pretextErrors.push(...result.errors);",
                 "      pretextEnvironment = result.environment;",
@@ -1186,6 +1503,7 @@ import { installViewSpecPretextProbe } from "./viewspec_pretext";
 import "./index.css";
 
 if (new URLSearchParams(window.location.search).get("__viewspec_pretext") === "1") {
+  document.documentElement.dataset.viewspecPretext = "1";
   installViewSpecPretextProbe();
 }
 
@@ -1200,7 +1518,7 @@ createRoot(root).render(
 """
 
 
-def _styles_source(*, pretext: bool = False) -> str:
+def _styles_source(*, pretext: bool = False, presentation_plan: dict[str, Any] | None = None) -> str:
     source = """@import "tailwindcss";
 @source "./**/*.tsx";
 
@@ -1249,15 +1567,22 @@ button, input { font: inherit; }
   .vs-app-header nav { width: 100%; overflow-x: auto; }
 }
 """
-    if not pretext:
-        return source
-    return source.replace(
-        "font-family: Inter, ui-sans-serif, system-ui, sans-serif;",
-        "font-family: Arial, sans-serif;",
-    ).replace(
-        "* { box-sizing: border-box; }",
-        "* { box-sizing: border-box; }\n.vs-app-main [data-ir-id] { overflow-wrap: anywhere; }",
-    )
+    source = source.rstrip() + "\n\n" + OFFLINE_EMITTER_CSS + "\n"
+    if presentation_plan is not None:
+        source = source.rstrip() + "\n\n" + presentation_plan_css(presentation_plan) + "\n"
+    if pretext:
+        source = source.rstrip() + """
+
+
+/* Measurement-only Pretext profile; production rendering remains target-neutral. */
+html[data-viewspec-pretext="1"] body .vs-app-shell .vs-app-main [data-ir-id][data-ir-id] {
+  font-family: Arial, sans-serif !important;
+  white-space: normal !important;
+  overflow-wrap: anywhere !important;
+  word-break: normal !important;
+}
+"""
+    return source
 
 
 def _safe_json(value: Any) -> str:

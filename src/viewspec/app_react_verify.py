@@ -6,6 +6,7 @@ import copy
 import json
 import os
 import shutil
+import socket
 import subprocess
 import tempfile
 import time
@@ -30,6 +31,8 @@ APP_REACT_VERIFY_ASSERTION_KEYS = (
     "rebound_binding_count",
     "selector_assertion_count",
     "visibility_assertion_count",
+    "presentation_anchor_assertion_count",
+    "presentation_viewport_count",
 )
 
 
@@ -84,7 +87,15 @@ def verify_react_app_artifact_dir(
             if install:
                 seed = os.environ.get("VIEWSPEC_HOST_VERIFY_NODE_MODULES_DIR")
                 if seed:
-                    _link_prebuilt_node_modules(host_dir, Path(seed))
+                    copy_packages = frozenset(
+                        ({"@chenglou/pretext"} if pretext else set())
+                        | ({"@chenglou/freerange", "typescript"} if freerange else set())
+                    )
+                    _link_prebuilt_node_modules(
+                        host_dir,
+                        Path(seed),
+                        copy_packages=copy_packages,
+                    )
                 else:
                     install_result = _time_phase(
                         timings,
@@ -352,7 +363,12 @@ class ReactAppVerifyFailure(ValueError):
         self.text_layout = text_layout
 
 
-def _link_prebuilt_node_modules(host_dir: Path, configured: Path) -> None:
+def _link_prebuilt_node_modules(
+    host_dir: Path,
+    configured: Path,
+    *,
+    copy_packages: frozenset[str] = frozenset(),
+) -> None:
     if not configured.is_absolute():
         raise ReactAppVerifyFailure(
             "APP_REACT_VERIFY_DEPENDENCIES_MISSING",
@@ -373,7 +389,11 @@ def _link_prebuilt_node_modules(host_dir: Path, configured: Path) -> None:
             "Host node_modules destination must be empty before linking dependencies.",
             "Remove the existing host dependency directory and retry.",
         )
-    materialize_prebuilt_node_modules(destination, seed)
+    materialize_prebuilt_node_modules(
+        destination,
+        seed,
+        copy_packages=copy_packages,
+    )
 
 
 def _preflight(artifact_dir: Path, manifest_path: Path) -> dict[str, Any]:
@@ -473,11 +493,19 @@ def _copy_artifact(source: Path, destination: Path) -> None:
 
 
 def _run_process(command: list[str], *, cwd: Path, timeout: int) -> dict[str, Any]:
+    environment = None
+    if command[:2] == ["npm", "run"] and command[2:] in (
+        ["viewspec:verify"],
+        ["viewspec:verify-pretext"],
+    ):
+        environment = os.environ.copy()
+        environment["VIEWSPEC_APP_VERIFY_PORT"] = str(_available_loopback_port())
     try:
         completed = subprocess.run(
             command,
             cwd=cwd,
             capture_output=True,
+            env=environment,
             text=True,
             timeout=timeout,
             check=False,
@@ -501,10 +529,21 @@ def _run_process(command: list[str], *, cwd: Path, timeout: int) -> dict[str, An
     }
 
 
+def _available_loopback_port() -> int:
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as listener:
+        listener.bind(("127.0.0.1", 0))
+        return int(listener.getsockname()[1])
+
+
 def _require_success(result: dict[str, Any], code: str, command: str) -> None:
     if result.get("returncode") == 0:
         return
-    detail = str(result.get("stderr") or result.get("stdout") or "unknown command failure")
+    output = [
+        str(value).strip()
+        for value in (result.get("stdout"), result.get("stderr"))
+        if isinstance(value, str) and value.strip()
+    ]
+    detail = "\n".join(output) or "unknown command failure"
     raise ReactAppVerifyFailure(
         code,
         f"{command} failed: {detail}",
@@ -536,6 +575,12 @@ def _runtime_assertions(path: Path) -> dict[str, int]:
             "APP_REACT_VERIFY_ROUTE_ASSERTION_MISSING",
             "Runtime report did not prove at least one route and exactly one unknown-route fallback.",
             "Regenerate the React app target and rerun browser verification.",
+        )
+    if assertions["presentation_viewport_count"] != 3:
+        raise ReactAppVerifyFailure(
+            "APP_PRESENTATION_VIEWPORT_COVERAGE_INCOMPLETE",
+            "Runtime report did not exercise all three canonical PresentationPlan viewports.",
+            "Regenerate the React app target and rerun browser verification at 390, 768, and 1440 pixels.",
         )
     return assertions
 
@@ -591,6 +636,22 @@ def _pretext_scope(manifest: dict[str, Any]) -> dict[str, Any]:
         ) from exc
     if scope.get("status") == "applicable":
         inventory = manifest.get("files") if isinstance(manifest.get("files"), list) else []
+        inventory_hashes = {
+            item.get("path"): item.get("sha256")
+            for item in inventory
+            if isinstance(item, dict)
+            and isinstance(item.get("path"), str)
+            and isinstance(item.get("sha256"), str)
+        }
+        inventory_hashes.update(
+            {
+                item.get("manifest"): item.get("manifest_hash")
+                for item in manifest.get("screen_artifacts", [])
+                if isinstance(item, dict)
+                and isinstance(item.get("manifest"), str)
+                and isinstance(item.get("manifest_hash"), str)
+            }
+        )
         runtime_hash = next(
             (
                 item.get("sha256")
@@ -616,6 +677,14 @@ def _pretext_scope(manifest: dict[str, Any]) -> dict[str, Any]:
                 "Generated app manifest has invalid Pretext engine or runtime identity evidence.",
                 "Regenerate the React AppBundle with --pretext and retry.",
             )
+        for screen in scope["screens"]:
+            source_manifest = screen["source_manifest"]
+            if inventory_hashes.get(source_manifest["path"]) != source_manifest["sha256"]:
+                raise ReactAppVerifyFailure(
+                    "APP_PRETEXT_SCOPE_INVALID",
+                    "Pretext eligible-surface scope is not bound to its checked screen manifest.",
+                    "Regenerate the React AppBundle with --pretext and retry.",
+                )
     elif "text_layout_engine" in manifest:
         raise ReactAppVerifyFailure(
             "APP_PRETEXT_SCOPE_INVALID",

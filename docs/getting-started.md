@@ -142,7 +142,7 @@ tree. Pretext itself does not require Bun; Bun remains necessary only for an app
 scope. As with the base React proof, keep `--install` on public `prove-app`; only the lower-level
 artifact verifier accepts an existing app directory with the exact dependencies already installed.
 
-The `viewspec_pretext_native_dom_v1` support profile uses the named `Arial, sans-serif` stack and
+The `viewspec_pretext_native_dom_v2` support profile uses the named `Arial, sans-serif` stack and
 measures existing compiler-owned DOM text after `document.fonts.ready` at mobile 390×844, tablet
 768×1024, and desktop 1440×1000 in Chromium. Pretext preparation is cached by text and supported
 typography inputs without width, then reused for each width-specific layout. The probe compares

@@ -8,6 +8,7 @@ from typing import Any
 
 from viewspec.app_errors import _normalize_proof_errors
 from viewspec.app_paths import _assert_under_proof_root
+from viewspec.app_resource_repeat import resource_binding_address
 from viewspec.app_visibility import check_screen_visibility_bake, screen_visibility_overlays
 from viewspec.local_tools import atomic_write, check_artifact_dir, file_hash
 from viewspec.manifest_summary import summarize_intent_manifest
@@ -24,6 +25,90 @@ def _visibility_overlays_for(payload: dict[str, Any]) -> dict[str, dict[str, dic
     return screen_visibility_overlays(payload, state_ir)
 
 
+def _screen_ir_overlays_for(payload: dict[str, Any]) -> dict[str, dict[str, dict[str, Any]]]:
+    """Return compiler-owned overlays for IntentBundles embedded inside an AppBundle.
+
+    A standalone IntentBundle owns its page landmark and therefore emits a ``main`` root.
+    An AppBundle shell owns that landmark, so every embedded screen root is explicitly
+    rendered as a neutral container. Visibility overlays are merged into the same bounded
+    compile seam.
+    """
+    overlays = {
+        screen_id: {node_id: dict(props) for node_id, props in screen_overlay.items()}
+        for screen_id, screen_overlay in _visibility_overlays_for(payload).items()
+    }
+    screens = payload.get("screens") if isinstance(payload.get("screens"), list) else []
+    for screen in screens:
+        if not isinstance(screen, dict):
+            continue
+        screen_id = screen.get("id")
+        intent_bundle = screen.get("intent_bundle")
+        view_spec = intent_bundle.get("view_spec") if isinstance(intent_bundle, dict) else None
+        root_region = view_spec.get("root_region") if isinstance(view_spec, dict) else None
+        if not isinstance(screen_id, str) or not isinstance(root_region, str):
+            continue
+        root_props = overlays.setdefault(screen_id, {}).setdefault(f"region_{root_region}", {})
+        root_props["semantic_context"] = "embedded_screen"
+        _add_resource_identity_overlays(screen, overlays[screen_id])
+    return overlays
+
+
+def _add_resource_identity_overlays(screen: dict[str, Any], overlay: dict[str, dict[str, Any]]) -> None:
+    intent_bundle = screen.get("intent_bundle")
+    view_spec = intent_bundle.get("view_spec") if isinstance(intent_bundle, dict) else None
+    if not isinstance(view_spec, dict):
+        return
+    bindings = view_spec.get("bindings") if isinstance(view_spec.get("bindings"), list) else []
+    bindings_by_address: dict[str, list[str]] = {}
+    for binding in bindings:
+        if not isinstance(binding, dict):
+            continue
+        binding_id = binding.get("id")
+        address = binding.get("address")
+        if isinstance(binding_id, str) and isinstance(address, str):
+            bindings_by_address.setdefault(address, []).append(binding_id)
+    motifs = view_spec.get("motifs") if isinstance(view_spec.get("motifs"), list) else []
+    motif_members = {
+        str(motif.get("id")): {item for item in motif.get("members", []) if isinstance(item, str)}
+        for motif in motifs
+        if isinstance(motif, dict) and isinstance(motif.get("id"), str)
+    }
+    resource_views = screen.get("resource_views") if isinstance(screen.get("resource_views"), list) else []
+    for resource_view in resource_views:
+        if not isinstance(resource_view, dict):
+            continue
+        view_id = resource_view.get("id")
+        resource_id = resource_view.get("resource_id")
+        target_motif_id = resource_view.get("target_motif_id")
+        if not all(isinstance(item, str) and item for item in (view_id, resource_id, target_motif_id)):
+            continue
+        members = motif_members.get(str(target_motif_id), set())
+        for record_id in resource_view.get("record_ids", []):
+            if not isinstance(record_id, str):
+                continue
+            for field in resource_view.get("fields", []):
+                if not isinstance(field, str):
+                    continue
+                address = resource_binding_address(resource_view, record_id, field)
+                for binding_id in bindings_by_address.get(address, []):
+                    if binding_id not in members:
+                        continue
+                    node_props = overlay.setdefault(f"binding_{binding_id}", {})
+                    identity = {
+                        "record_id": record_id,
+                        "resource_field": field,
+                        "resource_id": str(resource_id),
+                        "resource_view_id": str(view_id),
+                    }
+                    existing = {key: node_props.get(key) for key in identity if key in node_props}
+                    if existing and existing != {key: value for key, value in identity.items() if key in existing}:
+                        # Leave an invalid sentinel for the bounded overlay validator. A single
+                        # binding cannot claim two canonical resource identities.
+                        node_props["resource_id"] = ""
+                        continue
+                    node_props.update(identity)
+
+
 def _prove_app_screens(
     payload: dict[str, Any],
     output_dir: Path,
@@ -36,6 +121,7 @@ def _prove_app_screens(
     screen_reports: list[dict[str, Any]] = []
     screens = payload.get("screens") if isinstance(payload.get("screens"), list) else []
     visibility_overlays = _visibility_overlays_for(payload)
+    screen_ir_overlays = _screen_ir_overlays_for(payload)
     for screen in screens:
         screen_id = str(screen["id"])
         screen_dir = output_dir / "screens" / screen_id
@@ -51,7 +137,7 @@ def _prove_app_screens(
             strict_design=strict_design,
             target=target,
             root=root,
-            ir_props_overlay=visibility_overlays.get(screen_id),
+            ir_props_overlay=screen_ir_overlays.get(screen_id),
         )
         errors = _normalize_proof_errors(compiled.get("errors")) if not compiled.get("ok") else []
         manifest_path = artifact_dir / "provenance_manifest.json"
@@ -145,4 +231,4 @@ def _compile_screen(
     )
 
 
-__all__ = ["_prove_app_screens"]
+__all__ = ["_prove_app_screens", "_screen_ir_overlays_for", "_visibility_overlays_for"]

@@ -106,7 +106,7 @@ _ALLOWED_SUGGESTION_RULES = {
     "use-loop-for-aggregation",
     "write-explicit-condition",
 }
-_NUMERIC_SCOPE_PROFILE = "viewspec_numeric_kernel_v1"
+_NUMERIC_SCOPE_PROFILE = "viewspec_numeric_kernel_v2"
 
 
 class FreerangeFailure(ValueError):
@@ -168,6 +168,8 @@ class _ValidatedScope:
     status: str
     files: tuple[_ScopeFile, ...]
     call_sites: tuple[_ScopeCallSite, ...]
+    operation_count: int = 0
+    operation_inventory_sha256: str | None = None
 
 
 @dataclass(frozen=True)
@@ -295,6 +297,7 @@ def _analyze_freerange_numeric_scope(
                 "partial": 0,
                 "unsupported": 0,
             },
+            "operation_coverage": _operation_coverage(validated_scope),
             "findings": [],
             "source_hashes": {"analyzed_sources": [], "call_sites": [], "configuration": [], "tools": []},
             "findings_transcript_sha256": None,
@@ -518,6 +521,7 @@ def _analyze_freerange_numeric_scope(
         "required_functions": [name for source in validated_scope.files for name in source.required_functions],
         "scope": {"status": "applicable", "files": file_evidence, "call_sites": call_site_evidence},
         "coverage": totals,
+        "operation_coverage": _operation_coverage(validated_scope),
         "findings": all_findings,
         "source_hashes": {
             "analyzed_sources": [{"path": item.path, "sha256": item.sha256} for item in validated_scope.files],
@@ -586,6 +590,7 @@ def _preflight_failure_report(
             "partial": 0,
             "unsupported": 0,
         },
+        "operation_coverage": _operation_coverage(scope),
         "findings": [],
         "source_hashes": {
             "analyzed_sources": [
@@ -619,6 +624,7 @@ def _minimal_failure_report(error: FreerangeFailure, started: float) -> dict[str
             "partial": 0,
             "unsupported": 0,
         },
+        "operation_coverage": {"required": 0, "accounted": 0, "inventory_sha256": None},
         "findings": [],
         "source_hashes": {"analyzed_sources": [], "call_sites": [], "configuration": [], "tools": []},
         "findings_transcript_sha256": None,
@@ -642,6 +648,14 @@ def _engine_identity() -> dict[str, str]:
     }
 
 
+def _operation_coverage(scope: _ValidatedScope) -> dict[str, Any]:
+    return {
+        "required": scope.operation_count,
+        "accounted": scope.operation_count,
+        "inventory_sha256": scope.operation_inventory_sha256,
+    }
+
+
 def _resolve_app_dir(app_dir: str | Path) -> Path:
     path = Path(app_dir).expanduser().resolve()
     if not path.is_dir():
@@ -662,6 +676,11 @@ def _validate_scope(app_dir: Path, scope: Mapping[str, Any]) -> _ValidatedScope:
         "required_functions",
         "allowed_requires",
         "required_ensures",
+        "operation_count",
+        "operation_inventory",
+        "operation_inventory_sha256",
+        "required_function_count",
+        "state_contract",
     }
     if (
         not isinstance(scope, Mapping)
@@ -680,15 +699,31 @@ def _validate_scope(app_dir: Path, scope: Mapping[str, Any]) -> _ValidatedScope:
         if files_value or call_sites_value:
             raise _scope_failure("A not_applicable scope must not name files or call sites.")
         metadata_present = set(scope) - base_keys
-        expected_metadata = {"schema_version", "profile", "required_functions", "allowed_requires", "required_ensures"}
+        expected_metadata = {
+            "schema_version",
+            "profile",
+            "required_functions",
+            "allowed_requires",
+            "required_ensures",
+            "operation_count",
+            "operation_inventory",
+            "operation_inventory_sha256",
+            "required_function_count",
+        }
         if metadata_present and metadata_present != expected_metadata:
             raise _scope_failure("A generated not_applicable scope has incomplete metadata.")
+        from viewspec.app_numeric import numeric_operation_inventory_sha256
+
         if metadata_present and (
-            scope.get("schema_version") != 1
+            scope.get("schema_version") != 2
             or scope.get("profile") != _NUMERIC_SCOPE_PROFILE
             or scope.get("required_functions") != []
             or scope.get("allowed_requires") != {}
             or scope.get("required_ensures") != {}
+            or scope.get("operation_count") != 0
+            or scope.get("operation_inventory") != []
+            or scope.get("operation_inventory_sha256") != numeric_operation_inventory_sha256([])
+            or scope.get("required_function_count") != 0
         ):
             raise _scope_failure("A generated not_applicable scope has invalid metadata.")
         return _ValidatedScope("not_applicable", (), ())
@@ -779,9 +814,10 @@ def _validate_scope(app_dir: Path, scope: Mapping[str, Any]) -> _ValidatedScope:
         if metadata_present != metadata_keys:
             raise _scope_failure("Generated applicable scope metadata is incomplete.")
         if (
-            scope.get("schema_version") != 1
+            scope.get("schema_version") != 2
             or scope.get("profile") != _NUMERIC_SCOPE_PROFILE
             or scope.get("required_functions") != list(flattened_functions)
+            or scope.get("required_function_count") != len(flattened_functions)
             or len(files) != 1
             or scope.get("kernel_path") != files[0].path
         ):
@@ -798,7 +834,89 @@ def _validate_scope(app_dir: Path, scope: Mapping[str, Any]) -> _ValidatedScope:
             raise _scope_failure("Generated numeric kernel is not readable UTF-8.") from error
         if actual_source != generate_numeric_typescript(scope):
             raise _scope_failure("Generated numeric kernel source differs from its declared function contract.")
+        operation_count, operation_inventory_sha256 = _validate_operation_contract(
+            app_dir,
+            scope,
+            flattened_functions,
+            seen_paths,
+        )
+        return _ValidatedScope(
+            "applicable",
+            tuple(files),
+            tuple(call_sites),
+            operation_count,
+            operation_inventory_sha256,
+        )
     return _ValidatedScope("applicable", tuple(files), tuple(call_sites))
+
+
+def _validate_operation_contract(
+    app_dir: Path,
+    scope: Mapping[str, Any],
+    flattened_functions: tuple[str, ...],
+    seen_paths: set[str],
+) -> tuple[int, str]:
+    """Bind the generated kernel inventory to the independently emitted state contract."""
+
+    state_contract = scope.get("state_contract")
+    if not isinstance(state_contract, Mapping) or set(state_contract) != {"path", "sha256", "contract_hash"}:
+        raise _scope_failure("Generated numeric scope has invalid state_contract metadata.")
+    contract_hash = state_contract.get("contract_hash")
+    if not isinstance(contract_hash, str) or _SHA256_RE.fullmatch(contract_hash) is None:
+        raise _scope_failure("Generated numeric scope state_contract hash is invalid.")
+    _path, absolute, _sha256 = _validate_hashed_scope_path(app_dir, state_contract, seen_paths)
+    try:
+        raw_contract = absolute.read_text(encoding="utf-8", errors="strict")
+
+        def reject_duplicates(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+            result: dict[str, Any] = {}
+            for key, value in pairs:
+                if key in result:
+                    raise ValueError(f"duplicate key: {key}")
+                result[key] = value
+            return result
+
+        state_manifest = json.loads(raw_contract, object_pairs_hook=reject_duplicates)
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError, ValueError) as error:
+        raise _scope_failure("Generated numeric scope state contract is not strict UTF-8 JSON.") from error
+    if not isinstance(state_manifest, Mapping):
+        raise _scope_failure("Generated numeric scope state contract root is not an object.")
+    normalized = state_manifest.get("normalized_contract")
+    if (
+        state_manifest.get("contract_hash") != contract_hash
+        or not isinstance(normalized, Mapping)
+        or normalized.get("contract_hash") != contract_hash
+    ):
+        raise _scope_failure("Generated numeric scope state contract identity is inconsistent.")
+
+    from viewspec.app_numeric import numeric_operation_inventory, numeric_operation_inventory_sha256
+
+    expected_inventory = numeric_operation_inventory(normalized)
+    expected_digest = numeric_operation_inventory_sha256(expected_inventory)
+    declared_inventory = scope.get("operation_inventory")
+    declared_count = scope.get("operation_count")
+    declared_digest = scope.get("operation_inventory_sha256")
+    if (
+        declared_inventory != expected_inventory
+        or declared_count != len(expected_inventory)
+        or declared_digest != expected_digest
+    ):
+        raise _scope_failure("Numeric operation inventory does not exactly match the emitted state contract.")
+    expected_functions = tuple(
+        name
+        for name in (
+            "clampMoveIndex",
+            "addFiniteNumbers",
+            "compareFiniteNumbers",
+            "applySortDirection",
+            "stableSortIndexDelta",
+            "normalizeSliceIndex",
+        )
+        if any(name in item["required_functions"] for item in expected_inventory)
+    )
+    if expected_functions != flattened_functions:
+        raise _scope_failure("Numeric required functions do not cover every eligible state operation.")
+    return len(expected_inventory), expected_digest
 
 
 def _validate_generated_call_site_connection(call_site: _ScopeCallSite) -> None:
@@ -1645,6 +1763,7 @@ def _failure_report(
         "required_functions": [name for source in scope.files for name in source.required_functions],
         "scope": {"status": "applicable", "files": list(file_evidence), "call_sites": call_sites},
         "coverage": coverage,
+        "operation_coverage": _operation_coverage(scope),
         "findings": [dict(item) for item in findings],
         "source_hashes": {
             "analyzed_sources": [{"path": item.path, "sha256": item.sha256} for item in scope.files],

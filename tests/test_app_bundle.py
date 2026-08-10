@@ -7,6 +7,10 @@ import pytest
 from hypothesis import given, settings, strategies as st
 
 import viewspec.app_bundle as app_bundle_module
+from viewspec.app_errors import AppBundleProofFailure
+from viewspec.app_resource_binding import _resource_binding_assertion_report
+from viewspec.app_shell import _assert_rendered_shell_static_contract
+from viewspec.app_state_artifacts import _write_state_artifacts
 from viewspec.app_bundle import (
     AGENT_APP_BUNDLE_SCHEMA,
     APP_BUNDLE_STATE_SCHEMA_VERSION,
@@ -999,7 +1003,7 @@ def test_validate_app_rejects_v3_state_constraints_and_v1_v2_mutation_fields():
         assert code in _issue_codes(validation)
 
 
-def test_bound_proof_fails_for_values_outside_target_motif_and_ambiguous_values(tmp_path):
+def test_bound_proof_fails_outside_target_motif_and_allows_repeated_values_by_identity(tmp_path):
     app = starter_app_bundle("internal_tool", resource_binding="fixture_readonly_v0")
     app["screens"][0]["intent_bundle"]["view_spec"]["motifs"][0]["members"].remove("inc_1042_status")
     app_path = tmp_path / "viewspec.app.json"
@@ -1016,10 +1020,155 @@ def test_bound_proof_fails_for_values_outside_target_motif_and_ambiguous_values(
     ambiguous_path = tmp_path / "ambiguous.app.json"
     ambiguous_path.write_text(_app_text(ambiguous), encoding="utf-8")
 
-    ambiguous_report = compile_app(ambiguous_path, out_dir=tmp_path / "ambiguous", cwd=tmp_path)
+    repeated_report = compile_app(ambiguous_path, out_dir=tmp_path / "repeated", cwd=tmp_path)
 
-    assert ambiguous_report["ok"] is False
-    assert ambiguous_report["errors"][0]["code"] == "APP_RESOURCE_BINDING_AMBIGUOUS_VALUE"
+    assert repeated_report["ok"] is True
+    repeated_statuses = [
+        assertion
+        for view in repeated_report["resource_binding_assertions"]["views"]
+        for assertion in view["assertions"]
+        if assertion["screen_id"] == "queue"
+        and assertion["field"] == "status"
+        and assertion["expected"] == "investigating"
+    ]
+    assert len(repeated_statuses) == 2
+    assert {assertion["canonical_identity"] for assertion in repeated_statuses} == {
+        "incidents/inc_1042/status",
+        "incidents/inc_1043/status",
+    }
+    assert len({assertion["matched_dom_id"] for assertion in repeated_statuses}) == 2
+
+
+def test_resource_binding_ambiguity_names_record_field_bindings_and_dom_identities(tmp_path):
+    app = starter_app_bundle("internal_tool", resource_binding="fixture_readonly_v0")
+    screen = app["screens"][0]
+    resource_view = screen["resource_views"][0]
+    motif = screen["intent_bundle"]["view_spec"]["motifs"][0]
+    first_binding = motif["members"][0]
+    second_binding = "duplicate_incident_id"
+    motif["members"].append(second_binding)
+    record_id = resource_view["record_ids"][0]
+    field = resource_view["fields"][0]
+    resource_id = resource_view["resource_id"]
+    expected = app["resources"][0]["records"][0][field]
+    address = f"node:{record_id}#attr:{field}"
+    manifest_path = tmp_path / "manifest.json"
+    manifest_path.write_text(
+        json.dumps(
+            {
+                "nodes": {
+                    "dom-first": {
+                        "ir_id": f"binding_{first_binding}",
+                        "primitive": "label",
+                        "content_refs": [address],
+                        "props": {
+                            "binding_id": first_binding,
+                            "resource_id": resource_id,
+                            "resource_view_id": resource_view["id"],
+                            "record_id": record_id,
+                            "resource_field": field,
+                            "text": expected,
+                        },
+                    },
+                    "dom-second": {
+                        "ir_id": f"binding_{second_binding}",
+                        "primitive": "label",
+                        "content_refs": [address],
+                        "props": {
+                            "binding_id": second_binding,
+                            "resource_id": resource_id,
+                            "resource_view_id": resource_view["id"],
+                            "record_id": record_id,
+                            "resource_field": field,
+                            "text": expected,
+                        },
+                    },
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    report = _resource_binding_assertion_report(
+        app,
+        [{"id": screen["id"], "paths": {"manifest": str(manifest_path)}}],
+    )
+
+    assert report is not None and report["ok"] is False
+    failure = next(
+        item
+        for item in report["errors"]
+        if item["code"] == "APP_RESOURCE_BINDING_AMBIGUOUS_VALUE"
+    )
+    assert f"record={record_id}" in failure["message"]
+    assert f"field={field}" in failure["message"]
+    assert f"binding={first_binding} dom=dom-first" in failure["message"]
+    assert f"binding={second_binding} dom=dom-second" in failure["message"]
+
+
+def test_compact_action_replay_normalizes_repeat_and_replays_real_click_semantics():
+    app = _stateful_app_bundle()
+    app["mutations"] = [
+        {
+            "id": "increment_review_count",
+            "trigger": {"screen_id": "queue", "action_id": "triage_incident"},
+            "ops": [{"op": "increment", "state": "queue_flags", "field": "count", "amount": 1}],
+        }
+    ]
+    app["state_replay_assertions"] = [
+        {
+            "id": "reviewed_twice",
+            "events": [{"action_id": "triage_incident", "screen_id": "queue", "repeat": 2}],
+            "expect_state": {"queue_flags": {"urgent": False, "count": 2.0}},
+            "expect_selectors": {},
+        }
+    ]
+
+    state_ir, issues = validate_state_ir(app)
+    assert issues == []
+    assert state_ir is not None
+    assert state_ir.replay_assertions[0].events == (
+        {"mutation_id": "increment_review_count", "payload_values": {}},
+        {"mutation_id": "increment_review_count", "payload_values": {}},
+    )
+    assert replay_state_assertions(app)["ok"] is True
+
+
+def test_replay_artifact_failure_surfaces_complete_actionable_context(tmp_path):
+    output_dir = tmp_path / "state-artifacts"
+    output_dir.mkdir()
+    failure = {
+        "code": "APP_VISIBILITY_REPLAY_MISMATCH",
+        "message": "Review panel visibility diverged.",
+        "assertion_id": "single_review_replay",
+        "event_index": 0,
+        "mutation_id": "increment_reviewed_count",
+        "path": "$.state_replay_assertions.single_review_replay.expect_visibility.show_review_count",
+        "expected": True,
+        "actual": False,
+    }
+
+    with pytest.raises(AppBundleProofFailure) as caught:
+        _write_state_artifacts(
+            {"schema_version": 4},
+            output_dir,
+            generate_reducer=lambda _payload: "export const reducer = true;\n",
+            check_conformance=lambda _payload, **_kwargs: {"ok": True},
+            build_manifest=lambda _payload, **_kwargs: {
+                "replay": {"ok": False, "errors": [failure]}
+            },
+        )
+
+    assert caught.value.code == "APP_VISIBILITY_REPLAY_MISMATCH"
+    for detail in (
+        "assertion=single_review_replay",
+        "event=0",
+        "mutation=increment_reviewed_count",
+        "path=$.state_replay_assertions.single_review_replay.expect_visibility.show_review_count",
+        "result=visibility",
+        "expected=True actual=False",
+    ):
+        assert detail in caught.value.message
 
 
 def test_diff_app_reports_app_route_resource_screen_and_intent_changes():
@@ -1173,6 +1322,8 @@ def test_compile_app_writes_static_shell_artifact_and_cli_report(tmp_path, capsy
     html = out_dir.joinpath("index.html").read_text(encoding="utf-8")
     assert html.count('<section class="vs-app-404"') == 1
     assert html.count('data-selected="true"') == 1
+    assert html.lower().count("<main") == 1
+    assert html.count('data-viewspec-screen-root="embedded"') == 2
     assert "http:" not in html.lower()
     assert "https:" not in html.lower()
     assert "<iframe" not in html.lower()
@@ -1189,6 +1340,27 @@ def test_compile_app_writes_static_shell_artifact_and_cli_report(tmp_path, capsy
     assert payload["ok"] is True
     assert payload["target"] == APP_SHELL_TARGET
     assert payload["shell_artifact_hash"] == file_hash(cli_out / "index.html")
+
+
+@pytest.mark.parametrize(
+    "html,expected_detail",
+    [
+        ('<div data-viewspec-screen-root="embedded"></div>', "found 0 main landmarks"),
+        (
+            '<main><main data-viewspec-screen-root="embedded"></main></main>',
+            "found 2 main landmarks",
+        ),
+    ],
+)
+def test_static_shell_landmark_contract_reports_precise_pre_browser_failure(
+    html,
+    expected_detail,
+):
+    with pytest.raises(AppBundleProofFailure) as caught:
+        _assert_rendered_shell_static_contract(html)
+
+    assert caught.value.code == "APP_SEMANTIC_LANDMARK_INVALID"
+    assert expected_detail in caught.value.message
 
 
 def test_prove_app_with_shell_writes_shell_proof_and_matches_compile_app_hash(tmp_path):

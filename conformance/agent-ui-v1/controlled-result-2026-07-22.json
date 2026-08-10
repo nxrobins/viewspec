@@ -1,0 +1,72 @@
+{
+  "schema_version": 1,
+  "run_id": "controlled-20260722-gpt-5p6-sol-v3",
+  "status": "pilot_only",
+  "valid": true,
+  "model": "gpt-5.6-sol",
+  "task_id": "field-dispatch",
+  "seed": 104729,
+  "session_count": 3,
+  "sample_size_met": false,
+  "minimum_sessions_per_arm": 18,
+  "provenance_complete": true,
+  "provenance_consistent": true,
+  "arms": {
+    "code-first": {
+      "final_checks": {"passed": 71, "total": 75},
+      "final_acceptance": 0.9466666666666667,
+      "final_functional_acceptance": 1.0,
+      "final_layout_fidelity": 0.8095238095238095,
+      "total_tokens": 1284064,
+      "uncached_input_tokens": 169891,
+      "iteration_tokens": 1192153,
+      "total_wall_ms": 253867,
+      "iteration_wall_ms": 163822,
+      "regressions": 4,
+      "native_proofs": null
+    },
+    "viewspec-core": {
+      "final_checks": {"passed": 51, "total": 75},
+      "final_acceptance": 0.68,
+      "final_functional_acceptance": 0.9444444444444444,
+      "final_layout_fidelity": 0.0,
+      "total_tokens": 3944803,
+      "uncached_input_tokens": 272997,
+      "iteration_tokens": 3688541,
+      "total_wall_ms": 495717,
+      "iteration_wall_ms": 318775,
+      "regressions": 4,
+      "native_proofs": {"passed": 3, "total": 5}
+    },
+    "viewspec-deep": {
+      "final_checks": {"passed": 51, "total": 75},
+      "final_acceptance": 0.68,
+      "final_functional_acceptance": 0.9444444444444444,
+      "final_layout_fidelity": 0.0,
+      "total_tokens": 3455564,
+      "uncached_input_tokens": 422930,
+      "iteration_tokens": 3167764,
+      "total_wall_ms": 396228,
+      "iteration_wall_ms": 242282,
+      "regressions": 0,
+      "native_proofs": {"passed": 2, "total": 5},
+      "freerange_passes": 2,
+      "pretext_passes": 2
+    }
+  },
+  "gates": {
+    "acceptance_not_lower": false,
+    "total_tokens": false,
+    "iteration_tokens": false,
+    "iteration_speed": false,
+    "regressions": true,
+    "proof_overhead": false,
+    "deep_mutation_detection": null
+  },
+  "invalidated_attempt": {
+    "run_id": "controlled-20260722-gpt-5p6-sol-v2",
+    "reason": "resumed Codex turns did not retain workspace-write sandbox access",
+    "included_in_result": false
+  },
+  "full_result": ".agent-eval-runs/controlled-20260722-gpt-5p6-sol-v3/study-report.json"
+}

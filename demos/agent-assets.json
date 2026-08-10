@@ -26,7 +26,7 @@
   "files": [
     {
       "path": "agent-system-prompt.txt",
-      "sha256": "07ce1c6f70b3f21df73e23bcb946f6c656d3175a362854c38eef4455fedaf3b8"
+      "sha256": "866d51b21d8d07c00d845fb1cb1003c06e680bb93bae3d13907033b788d3eaca"
     },
     {
       "path": "agent-intent-bundle.schema.json",
@@ -38,7 +38,7 @@
     },
     {
       "path": "agent-app-bundle.schema.json",
-      "sha256": "022446aaa1b37d567a8f9dfb211daec50f7f73dad88dc669044bffe88a4dec1b"
+      "sha256": "1437bbb51f39b3d86e5fc3c4e82f19911be1de11f8ee8f12d6b4e2a1d811aa31"
     },
     {
       "path": "agent-app-example.internal-tool.json",

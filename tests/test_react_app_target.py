@@ -18,7 +18,12 @@ from viewspec.app_bundle import (
 )
 from viewspec.app_pretext import PRETEXT_PROFILE, PRETEXT_PROTOCOL, PRETEXT_VIEWPORTS
 from viewspec.app_react_verify import ReactAppVerifyFailure, _pretext_scope, verify_react_app_artifact_dir
-from viewspec.app_react import _write_runtime_template
+from viewspec.app_react import (
+    _assert_cross_target_semantic_contract,
+    _assert_react_landmark_contract,
+    _write_runtime_template,
+)
+from viewspec.app_errors import AppBundleProofFailure
 from viewspec.cli import main as cli_main
 from viewspec.local_tools import file_hash
 
@@ -198,6 +203,8 @@ def test_compile_react_app_target_writes_runnable_checked_app(tmp_path):
     assert result["runtime"]["side_effects"] == "typed_callbacks_v1"
     assert result["route_assertions"]["browser_history_navigation"] is True
     assert result["state_reducer_conformance"]["ok"] is True
+    assert result["cross_target_semantics"]["status"] == "passed"
+    assert result["cross_target_semantics"]["screen_count"] == 2
 
     expected_paths = {
         "index",
@@ -214,6 +221,7 @@ def test_compile_react_app_target_writes_runnable_checked_app(tmp_path):
         "diagnostics",
         "state_reducer",
         "state_manifest",
+        "presentation_plan",
     }
     assert expected_paths.issubset(result["paths"])
     for key in expected_paths:
@@ -223,6 +231,7 @@ def test_compile_react_app_target_writes_runnable_checked_app(tmp_path):
     queue_source = (out_dir / "src" / "screens" / "queue" / "ViewSpecView.tsx").read_text(encoding="utf-8")
     manifest = json.loads((out_dir / "viewspec_app_manifest.json").read_text(encoding="utf-8"))
     package_json = json.loads((out_dir / "package.json").read_text(encoding="utf-8"))
+    playwright_config = (out_dir / "playwright.config.ts").read_text(encoding="utf-8")
     runtime_test = (out_dir / "tests" / "viewspec-app.spec.ts").read_text(encoding="utf-8")
 
     assert 'from "./state_reducer"' in app_source
@@ -238,6 +247,9 @@ def test_compile_react_app_target_writes_runnable_checked_app(tmp_path):
     assert 'data-viewspec-app-screen="queue"' in app_source
     assert 'data-viewspec-app-screen="detail"' in app_source
     assert "data-viewspec-app-not-found" in app_source
+    assert app_source.count("<main") == 1
+    assert "<main" not in queue_source
+    assert queue_source.count("data-viewspec-screen-root") == 1
     assert "visibility?: Record<string, boolean>" in queue_source
     assert 'data-visibility-rule={"show_triaged_status"}' in queue_source
     assert "hidden={visibility[\"show_triaged_status\"] === false}" in queue_source
@@ -249,11 +261,81 @@ def test_compile_react_app_target_writes_runnable_checked_app(tmp_path):
     )
     assert package_json["scripts"]["viewspec:verify"] == "playwright test --reporter=line"
     assert package_json["scripts"]["typecheck"] == "tsc --noEmit"
+    assert 'process.env.VIEWSPEC_APP_VERIFY_PORT ?? "4178"' in playwright_config
+    assert "use: { baseURL: verifyBaseURL }" in playwright_config
+    assert "--port ${verifyPort} --strictPort" in playwright_config
     assert "@chenglou/freerange" not in package_json["devDependencies"]
     assert "browser history, routes, and unknown path" in runtime_test
     assert "state actions rebind data and visibility" in runtime_test
     assert "inc_1043_status" in runtime_test
     assert "show_triaged_status" in runtime_test
+
+
+def test_cross_target_semantic_contract_reports_first_divergent_node(tmp_path):
+    static_manifest = tmp_path / "static.json"
+    react_manifest = tmp_path / "react.json"
+    static_manifest.write_text(
+        json.dumps(
+            {
+                "semantic_digest": {
+                    "digest": "a" * 64,
+                    "source_projection": {
+                        "nodes": [
+                            {"ir_id": "region_root", "tag": "div"},
+                            {"ir_id": "binding_title", "tag": "h2"},
+                        ]
+                    },
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+    react_manifest.write_text(
+        json.dumps(
+            {
+                "semantic_digest": {
+                    "digest": "b" * 64,
+                    "source_projection": {
+                        "nodes": [
+                            {"ir_id": "region_root", "tag": "div"},
+                            {"ir_id": "binding_title", "tag": "span"},
+                        ]
+                    },
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+    static = [{"id": "queue", "paths": {"manifest": str(static_manifest)}}]
+    react = [{"id": "queue", "paths": {"manifest": str(react_manifest)}}]
+
+    with pytest.raises(AppBundleProofFailure) as caught:
+        _assert_cross_target_semantic_contract(static, react)
+
+    assert caught.value.code == "APP_SEMANTIC_TARGET_DIVERGENCE"
+    assert "binding_title" in caught.value.message
+    assert "static tag h2" in caught.value.message
+    assert "React tag span" in caught.value.message
+
+
+def test_react_landmark_contract_rejects_shell_and_embedded_screen_violations(tmp_path):
+    screen_source = tmp_path / "ViewSpecView.tsx"
+    screen_source.write_text(
+        '<main data-viewspec-screen-root={"embedded"}>Nested</main>\n',
+        encoding="utf-8",
+    )
+    screens = [{"id": "queue", "paths": {"tsx": str(screen_source)}}]
+
+    with pytest.raises(AppBundleProofFailure) as missing_shell:
+        _assert_react_landmark_contract("export default () => <div />;", screens)
+    assert missing_shell.value.code == "APP_SEMANTIC_LANDMARK_INVALID"
+    assert "generated shell contains 0" in missing_shell.value.message
+
+    with pytest.raises(AppBundleProofFailure) as nested_screen:
+        _assert_react_landmark_contract("export default () => <main />;", screens)
+    assert nested_screen.value.code == "APP_SEMANTIC_LANDMARK_INVALID"
+    assert "React screen queue" in nested_screen.value.message
+    assert "1 main landmarks" in nested_screen.value.message
 
 
 def test_react_runtime_template_adds_pinned_freerange_only_when_requested(tmp_path):
@@ -423,6 +505,8 @@ def test_verify_react_app_runs_exact_generated_package(tmp_path, monkeypatch):
                         "rebound_binding_count": 1,
                         "selector_assertion_count": 1,
                         "visibility_assertion_count": 1,
+                        "presentation_anchor_assertion_count": 0,
+                        "presentation_viewport_count": 3,
                     }
                 ),
                 encoding="utf-8",
@@ -471,6 +555,8 @@ def test_verify_react_app_runs_freerange_after_typecheck_before_build(tmp_path, 
                         "rebound_binding_count": 1,
                         "selector_assertion_count": 1,
                         "visibility_assertion_count": 0,
+                        "presentation_anchor_assertion_count": 0,
+                        "presentation_viewport_count": 3,
                     }
                 ),
                 encoding="utf-8",
@@ -618,6 +704,8 @@ def test_verify_react_app_rejects_original_output_race_and_retains_evidence(tmp_
                         "rebound_binding_count": 1,
                         "selector_assertion_count": 1,
                         "visibility_assertion_count": 0,
+                        "presentation_anchor_assertion_count": 0,
+                        "presentation_viewport_count": 3,
                     }
                 ),
                 encoding="utf-8",
@@ -664,6 +752,8 @@ def test_verify_react_app_invalidates_static_evidence_on_post_analysis_tamper(tm
                         "rebound_binding_count": 1,
                         "selector_assertion_count": 1,
                         "visibility_assertion_count": 0,
+                        "presentation_anchor_assertion_count": 0,
+                        "presentation_viewport_count": 3,
                     }
                 ),
                 encoding="utf-8",
@@ -734,6 +824,8 @@ def test_verify_react_app_uses_prebuilt_dependencies_without_network(tmp_path, m
                         "rebound_binding_count": 1,
                         "selector_assertion_count": 1,
                         "visibility_assertion_count": 1,
+                        "presentation_anchor_assertion_count": 0,
+                        "presentation_viewport_count": 3,
                     }
                 ),
                 encoding="utf-8",
@@ -779,6 +871,8 @@ def test_prove_app_react_target_records_exact_host_runtime(tmp_path, monkeypatch
                 "rebound_binding_count": 6,
                 "selector_assertion_count": 1,
                 "visibility_assertion_count": 1,
+                "presentation_anchor_assertion_count": 0,
+                "presentation_viewport_count": 3,
             },
             "policy": {
                 "install_command": "npm ci --ignore-scripts",
@@ -902,6 +996,8 @@ def test_prove_app_freerange_propagates_composite_machine_evidence(tmp_path, mon
                 "rebound_binding_count": 6,
                 "selector_assertion_count": 1,
                 "visibility_assertion_count": 0,
+                "presentation_anchor_assertion_count": 0,
+                "presentation_viewport_count": 3,
             },
             "policy": {
                 "install_command": "npm ci --ignore-scripts",
@@ -977,6 +1073,8 @@ def test_prove_app_cli_accepts_react_target_and_install(tmp_path, monkeypatch, c
                 "rebound_binding_count": 6,
                 "selector_assertion_count": 1,
                 "visibility_assertion_count": 1,
+                "presentation_anchor_assertion_count": 0,
+                "presentation_viewport_count": 3,
             },
             "policy": {"install_command": "npm ci --ignore-scripts"},
             "duration_ms": 1,

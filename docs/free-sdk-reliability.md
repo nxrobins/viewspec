@@ -100,7 +100,7 @@ existing Vite and Chromium phases keep their own bounded claims.
 
 The Pretext integration is independently opt-in through
 `prove-app --target react-tailwind-app --pretext`. For an applicable manifest-derived scope, the
-`viewspec_pretext_native_dom_v1` profile uses the named `Arial, sans-serif` stack, waits for
+`viewspec_pretext_native_dom_v2` profile uses the named `Arial, sans-serif` stack, waits for
 `document.fonts.ready`, and accounts exactly once for every eligible compiler-owned text surface at
 390×844, 768×1024, and 1440×1000 in Chromium. Prepared text is cached by text and supported
 typography inputs without width and reused across width-specific layouts. The proof accepts only

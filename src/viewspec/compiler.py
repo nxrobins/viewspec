@@ -704,6 +704,23 @@ def _action_row_for_motif_v1(wrapper: IRNode, motif_id: str) -> IRNode:
     return row
 
 
+def _action_row_for_region_v1(region: IRNode, region_id: str) -> IRNode:
+    """Return the single stable action slot owned by a semantic region."""
+    row_id = f"planner_region_{region_id}_actions"
+    for child in region.children:
+        if child.id == row_id:
+            return child
+    row = IRNode(
+        id=row_id,
+        primitive="cluster",
+        props={"layout_role": "cluster", "layout_strategy": "region_action_row_v1"},
+        provenance=Provenance(intent_refs=list(region.provenance.intent_refs)),
+    )
+    _assign_product_role_v1(row, "action_row")
+    region.children.append(row)
+    return row
+
+
 def _collection_action_bar_for_motif_v1(parent: IRNode, wrapper: IRNode, motif_id: str) -> IRNode:
     row_id = f"planner_{motif_id}_collection_actions"
     existing = [child for child in parent.children if child.id == row_id]
@@ -956,7 +973,10 @@ def _apply_product_surface_planner_v1(
             continue
         target_motif_id = _action_target_motif_id(action)
         if target_motif_id is None:
-            region_nodes[action.target_region].children.append(action_node)
+            _action_row_for_region_v1(
+                region_nodes[action.target_region],
+                action.target_region,
+            ).children.append(action_node)
             continue
         if target_motif_id in motif_by_id and target_motif_id not in motif_wrappers:
             _add_diagnostic(
@@ -969,7 +989,10 @@ def _apply_product_surface_planner_v1(
             continue
         wrapper = motif_wrappers.get(target_motif_id)
         if wrapper is None:
-            region_nodes[action.target_region].children.append(action_node)
+            _action_row_for_region_v1(
+                region_nodes[action.target_region],
+                action.target_region,
+            ).children.append(action_node)
             continue
         if _motif_wrapper_allows_local_action_v0(wrapper):
             action_node.props["placement"] = "motif_local"

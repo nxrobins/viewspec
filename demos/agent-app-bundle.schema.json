@@ -313,6 +313,395 @@
         }
       ]
     },
+    "presentation": {
+      "additionalProperties": false,
+      "description": "Shared static/React layout contract. operations_workspace keeps sibling sidebar/main regions visible, stacks them at compact/medium, and uses a wide rail/content row.",
+      "properties": {
+        "anchors": {
+          "items": {
+            "$ref": "#/$defs/presentation_anchor"
+          },
+          "maxItems": 64,
+          "type": "array"
+        },
+        "profile": {
+          "enum": [
+            "neutral",
+            "operations_workspace",
+            "editorial_dashboard"
+          ]
+        },
+        "rules": {
+          "items": {
+            "$ref": "#/$defs/presentation_rule"
+          },
+          "maxItems": 96,
+          "type": "array"
+        }
+      },
+      "type": "object"
+    },
+    "presentation_anchor": {
+      "additionalProperties": false,
+      "description": "Responsive semantic geometry assertion. Scope viewports to widths where the relation is true; a rail/content same_row relation is normally wide-only when compact and medium stack.",
+      "properties": {
+        "anchor_ref": {
+          "$ref": "#/$defs/presentation_target_ref"
+        },
+        "id": {
+          "$ref": "#/$defs/safe_id"
+        },
+        "relation": {
+          "enum": [
+            "inside",
+            "before",
+            "after",
+            "aligned_start",
+            "aligned_center",
+            "same_row"
+          ]
+        },
+        "target_ref": {
+          "$ref": "#/$defs/presentation_target_ref"
+        },
+        "viewports": {
+          "items": {
+            "enum": [
+              "compact",
+              "medium",
+              "wide"
+            ]
+          },
+          "maxItems": 3,
+          "minItems": 1,
+          "type": "array",
+          "uniqueItems": true
+        }
+      },
+      "required": [
+        "id",
+        "target_ref",
+        "relation",
+        "anchor_ref"
+      ],
+      "type": "object"
+    },
+    "presentation_item_layout": {
+      "additionalProperties": false,
+      "properties": {
+        "base": {
+          "$ref": "#/$defs/presentation_layout"
+        },
+        "variants": {
+          "additionalProperties": false,
+          "properties": {
+            "compact": {
+              "$ref": "#/$defs/presentation_layout"
+            },
+            "medium": {
+              "$ref": "#/$defs/presentation_layout"
+            },
+            "wide": {
+              "$ref": "#/$defs/presentation_layout"
+            }
+          },
+          "type": "object"
+        }
+      },
+      "type": "object"
+    },
+    "presentation_layout": {
+      "additionalProperties": false,
+      "properties": {
+        "align": {
+          "enum": [
+            "start",
+            "center",
+            "end",
+            "stretch"
+          ]
+        },
+        "area": {
+          "$ref": "#/$defs/safe_id"
+        },
+        "areas": {
+          "items": {
+            "items": {
+              "$ref": "#/$defs/safe_id"
+            },
+            "maxItems": 4,
+            "minItems": 1,
+            "type": "array"
+          },
+          "maxItems": 4,
+          "minItems": 1,
+          "type": "array"
+        },
+        "background": {
+          "enum": [
+            "transparent",
+            "canvas",
+            "surface",
+            "sidebar",
+            "subtle",
+            "accent",
+            "danger_subtle"
+          ]
+        },
+        "border": {
+          "enum": [
+            "none",
+            "subtle",
+            "strong"
+          ]
+        },
+        "columns": {
+          "oneOf": [
+            {
+              "maximum": 4,
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "items": {
+                "enum": [
+                  "auto",
+                  "fluid",
+                  "fluid_wide",
+                  "content_sm",
+                  "content_md",
+                  "identity_sm",
+                  "identity_md",
+                  "identity_lg",
+                  "rail_sm",
+                  "rail_md",
+                  "rail_lg"
+                ]
+              },
+              "maxItems": 4,
+              "minItems": 1,
+              "type": "array"
+            }
+          ]
+        },
+        "direction": {
+          "enum": [
+            "row",
+            "column"
+          ]
+        },
+        "display": {
+          "enum": [
+            "block",
+            "flex",
+            "grid",
+            "none"
+          ]
+        },
+        "font_family": {
+          "enum": [
+            "sans",
+            "serif",
+            "mono"
+          ]
+        },
+        "font_size": {
+          "enum": [
+            "caption",
+            "small",
+            "body",
+            "title",
+            "display_sm",
+            "display_lg"
+          ]
+        },
+        "font_weight": {
+          "enum": [
+            "regular",
+            "medium",
+            "semibold",
+            "bold",
+            "black"
+          ]
+        },
+        "foreground": {
+          "enum": [
+            "ink",
+            "muted",
+            "inverse",
+            "accent",
+            "danger"
+          ]
+        },
+        "gap": {
+          "enum": [
+            "none",
+            "xs",
+            "sm",
+            "md",
+            "lg",
+            "xl",
+            "2xl",
+            "3xl"
+          ]
+        },
+        "justify": {
+          "enum": [
+            "start",
+            "center",
+            "end",
+            "between",
+            "stretch"
+          ]
+        },
+        "letter_spacing": {
+          "enum": [
+            "tight",
+            "normal",
+            "wide"
+          ]
+        },
+        "line_height": {
+          "enum": [
+            "tight",
+            "snug",
+            "normal",
+            "relaxed"
+          ]
+        },
+        "max_lines": {
+          "maximum": 8,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "max_width": {
+          "enum": [
+            "auto",
+            "full",
+            "intrinsic",
+            "content_sm",
+            "content_md",
+            "content_lg",
+            "rail_sm",
+            "rail_md",
+            "rail_lg"
+          ]
+        },
+        "min_inline_size": {
+          "enum": [
+            "zero",
+            "content"
+          ]
+        },
+        "order": {
+          "maximum": 16,
+          "minimum": -16,
+          "type": "integer"
+        },
+        "padding": {
+          "enum": [
+            "none",
+            "xs",
+            "sm",
+            "md",
+            "lg",
+            "xl",
+            "2xl",
+            "3xl"
+          ]
+        },
+        "radius": {
+          "enum": [
+            "none",
+            "sm",
+            "md",
+            "pill"
+          ]
+        },
+        "span": {
+          "maximum": 4,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "sticky": {
+          "type": "boolean"
+        },
+        "text_transform": {
+          "enum": [
+            "none",
+            "uppercase"
+          ]
+        },
+        "text_wrap": {
+          "enum": [
+            "normal",
+            "anywhere",
+            "no_wrap"
+          ]
+        },
+        "visibility": {
+          "enum": [
+            "visible",
+            "hidden"
+          ]
+        },
+        "width": {
+          "enum": [
+            "auto",
+            "full",
+            "intrinsic",
+            "content_sm",
+            "content_md",
+            "content_lg",
+            "rail_sm",
+            "rail_md",
+            "rail_lg"
+          ]
+        }
+      },
+      "type": "object"
+    },
+    "presentation_rule": {
+      "additionalProperties": false,
+      "properties": {
+        "base": {
+          "$ref": "#/$defs/presentation_layout"
+        },
+        "id": {
+          "$ref": "#/$defs/safe_id"
+        },
+        "items": {
+          "$ref": "#/$defs/presentation_item_layout"
+        },
+        "target_ref": {
+          "$ref": "#/$defs/presentation_target_ref"
+        },
+        "variants": {
+          "additionalProperties": false,
+          "properties": {
+            "compact": {
+              "$ref": "#/$defs/presentation_layout"
+            },
+            "medium": {
+              "$ref": "#/$defs/presentation_layout"
+            },
+            "wide": {
+              "$ref": "#/$defs/presentation_layout"
+            }
+          },
+          "type": "object"
+        }
+      },
+      "required": [
+        "id",
+        "target_ref"
+      ],
+      "type": "object"
+    },
+    "presentation_target_ref": {
+      "pattern": "^(region|motif|binding):[A-Za-z0-9_.-]+$",
+      "type": "string"
+    },
     "resource": {
       "additionalProperties": false,
       "properties": {
@@ -336,6 +725,48 @@
         "id",
         "kind",
         "records"
+      ],
+      "type": "object"
+    },
+    "resource_repeat": {
+      "additionalProperties": false,
+      "description": "Generates every declared record-field binding inside the target motif. Do not also keep hand-authored prototype bindings for repeated record-fields in that motif.",
+      "properties": {
+        "field_presentations": {
+          "items": {
+            "$ref": "#/$defs/resource_repeat_field_presentation"
+          },
+          "maxItems": 16,
+          "minItems": 1,
+          "type": "array"
+        },
+        "group_id": {
+          "$ref": "#/$defs/safe_id"
+        }
+      },
+      "required": [
+        "field_presentations"
+      ],
+      "type": "object"
+    },
+    "resource_repeat_field_presentation": {
+      "additionalProperties": false,
+      "properties": {
+        "field": {
+          "$ref": "#/$defs/safe_id"
+        },
+        "present_as": {
+          "enum": [
+            "badge",
+            "label",
+            "text",
+            "value"
+          ]
+        }
+      },
+      "required": [
+        "field",
+        "present_as"
       ],
       "type": "object"
     },
@@ -363,6 +794,9 @@
           "maxItems": 50,
           "minItems": 1,
           "type": "array"
+        },
+        "repeat": {
+          "$ref": "#/$defs/resource_repeat"
         },
         "resource_id": {
           "$ref": "#/$defs/safe_id"
@@ -456,6 +890,9 @@
         "intent_bundle": {
           "$ref": "#/$defs/intent_bundle"
         },
+        "presentation": {
+          "$ref": "#/$defs/presentation"
+        },
         "title": {
           "$ref": "#/$defs/safe_string"
         }
@@ -475,6 +912,9 @@
         },
         "intent_bundle": {
           "$ref": "#/$defs/intent_bundle"
+        },
+        "presentation": {
+          "$ref": "#/$defs/presentation"
         },
         "resource_views": {
           "items": {
@@ -958,7 +1398,32 @@
     },
     "state_replay_event": {
       "additionalProperties": false,
+      "oneOf": [
+        {
+          "not": {
+            "required": [
+              "action_id"
+            ]
+          },
+          "required": [
+            "mutation_id"
+          ]
+        },
+        {
+          "not": {
+            "required": [
+              "mutation_id"
+            ]
+          },
+          "required": [
+            "action_id"
+          ]
+        }
+      ],
       "properties": {
+        "action_id": {
+          "$ref": "#/$defs/safe_id"
+        },
         "mutation_id": {
           "$ref": "#/$defs/safe_id"
         },
@@ -970,11 +1435,16 @@
             "$ref": "#/$defs/safe_id"
           },
           "type": "object"
+        },
+        "repeat": {
+          "maximum": 32,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "screen_id": {
+          "$ref": "#/$defs/safe_id"
         }
       },
-      "required": [
-        "mutation_id"
-      ],
       "type": "object"
     },
     "state_selector": {
