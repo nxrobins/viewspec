@@ -15,6 +15,7 @@ from viewspec.app_starters import starter_react_app_bundle
 
 
 _NODE = shutil.which("node")
+_BUN = shutil.which("bun")
 _PLAYWRIGHT = Path("src/viewspec/host_verify_template/node_modules/playwright/index.mjs")
 _PRODUCT_E2E_OPT_IN = "VIEWSPEC_RUN_AGENT_UI_V2_PRODUCT_E2E"
 _RETAINED_PRODUCT_FIXTURES = Path(
@@ -683,6 +684,7 @@ def test_value_trials_are_rejected_for_archived_v1_before_workspace_creation(tmp
     assert not (tmp_path / "must-not-exist").exists()
 
 
+@pytest.mark.skipif(not _BUN, reason="The pinned Deep proof requires Bun on PATH")
 def test_run_pair_records_seeded_arm_order_before_dispatch(tmp_path, monkeypatch):
     observed: list[str] = []
 

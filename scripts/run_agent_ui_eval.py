@@ -44,7 +44,23 @@ from viewspec.node_runtime import materialize_prebuilt_node_modules
 
 ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_PROTOCOL = ROOT / "conformance" / "agent-ui-v2" / "protocol.json"
-VIEWSPEC = ROOT / ".venv" / "bin" / "viewspec"
+
+
+def _resolve_viewspec_cli() -> Path:
+    """Locate the viewspec console script.
+
+    Prefers the in-repo virtualenv so a developer's working tree wins, then falls
+    back to whatever is on PATH, which is how CI and pipx installs expose it.
+    """
+
+    local = ROOT / ".venv" / "bin" / "viewspec"
+    if local.is_file():
+        return local
+    discovered = shutil.which("viewspec")
+    return Path(discovered) if discovered else local
+
+
+VIEWSPEC = _resolve_viewspec_cli()
 BROWSER_SCORER = ROOT / "scripts" / "agent_ui_browser_score.mjs"
 NODE_MODULE_SEED = ROOT / "conformance" / "agent-ui-v2" / "react-dependencies" / "node_modules"
 MUTATION_MANIFEST = (

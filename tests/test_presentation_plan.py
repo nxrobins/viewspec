@@ -830,16 +830,12 @@ def test_page_hero_in_main_region_still_gets_page_header_typography():
 
 
 def test_retained_v5_plans_normalize_direct_semantic_surfaces_and_action_slots():
-    retained = ROOT / "conformance" / "agent-ui-v2" / "evidence" / "shakedown-104729-2026-08-06-v5"
+    retained = ROOT / "conformance" / "agent-ui-v2" / "fixtures" / "shakedown-104729-2026-08-06-v5"
     core = json.loads(
-        (retained / "viewspec-core" / "workspace" / "viewspec.app.json").read_text(
-            encoding="utf-8"
-        )
+        (retained / "viewspec-core.app.json").read_text(encoding="utf-8")
     )
     deep = json.loads(
-        (retained / "viewspec-deep" / "workspace" / "viewspec.app.json").read_text(
-            encoding="utf-8"
-        )
+        (retained / "viewspec-deep.app.json").read_text(encoding="utf-8")
     )
 
     core_plan = build_presentation_plan(core)

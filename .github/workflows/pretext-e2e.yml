@@ -98,6 +98,10 @@ jobs:
       - name: Install ViewSpec test dependencies
         run: python -m pip install ".[dev,remote]"
 
+      - name: Install shared React dependency seed
+        working-directory: conformance/agent-ui-v2/react-dependencies
+        run: npm ci
+
       - name: Install pinned Playwright package
         working-directory: src/viewspec/host_verify_template
         run: |
