@@ -30,6 +30,7 @@ from viewspec.app_reports import (
 from viewspec.app_react import REACT_APP_TARGET, _write_react_app
 from viewspec.app_react_verify import verify_react_app_artifact_dir
 from viewspec.app_resource_binding import _resource_binding_assertion_report
+from viewspec.app_resource_repeat import materialize_resource_repeats
 from viewspec.app_screens import _prove_app_screens
 from viewspec.app_shell import (
     APP_SHELL_DEFAULT_OUT,
@@ -195,7 +196,7 @@ def prove_app(
                 target=target,
                 write=False,
             )
-        payload = json.loads(app_text, parse_constant=_reject_json_constant)
+        payload = materialize_resource_repeats(json.loads(app_text, parse_constant=_reject_json_constant))
         _assert_report_under_output(report_path, output_dir)
         _prepare_app_output_dir(output_dir, root=root, force=force, raw_out=out_dir)
         prepared = _PreparedAppProof(
@@ -399,7 +400,7 @@ def compile_app(
                 validation=validation,
                 target=target,
             )
-        payload = json.loads(app_text, parse_constant=_reject_json_constant)
+        payload = materialize_resource_repeats(json.loads(app_text, parse_constant=_reject_json_constant))
         prepared_shell = _PreparedAppShell(
             output_dir=output_dir,
             app_path=source,

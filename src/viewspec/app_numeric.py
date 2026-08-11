@@ -9,10 +9,11 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 import hashlib
+import json
 from typing import Any, Iterable, Mapping
 
 
-NUMERIC_KERNEL_PROFILE = "viewspec_numeric_kernel_v1"
+NUMERIC_KERNEL_PROFILE = "viewspec_numeric_kernel_v2"
 NUMERIC_KERNEL_PATH = "src/viewspec_numeric.ts"
 NUMERIC_KERNEL_MODULE = "./viewspec_numeric"
 
@@ -103,24 +104,76 @@ _FUNCTIONS: dict[str, _NumericFunction] = {
 
 _FUNCTION_ORDER = tuple(_FUNCTIONS)
 
+_FUNCTIONS_BY_OPERATION: dict[tuple[str, str], tuple[str, ...]] = {
+    ("mutation", "move"): ("clampMoveIndex",),
+    ("mutation", "increment"): ("addFiniteNumbers",),
+    ("selector", "sort_by"): (
+        "compareFiniteNumbers",
+        "applySortDirection",
+        "stableSortIndexDelta",
+    ),
+    ("selector", "slice"): ("normalizeSliceIndex",),
+}
+
+
+def numeric_operation_inventory(app_payload: Mapping[str, Any]) -> list[dict[str, Any]]:
+    """Enumerate every declared operation whose runtime path uses the numeric kernel."""
+
+    inventory: list[dict[str, Any]] = []
+    for domain, collection_name in (("mutation", "mutations"), ("selector", "selectors")):
+        items = app_payload.get(collection_name)
+        if not isinstance(items, list):
+            continue
+        for item_index, item in enumerate(items):
+            if not isinstance(item, Mapping):
+                continue
+            owner_id = item.get("id") if isinstance(item.get("id"), str) else f"{domain}_{item_index}"
+            ops = item.get("ops")
+            if not isinstance(ops, list):
+                continue
+            for op_index, op in enumerate(ops):
+                if not isinstance(op, Mapping) or not isinstance(op.get("op"), str):
+                    continue
+                required_functions = _FUNCTIONS_BY_OPERATION.get((domain, op["op"]))
+                if required_functions is None:
+                    continue
+                inventory.append(
+                    {
+                        "domain": domain,
+                        "owner_id": owner_id,
+                        "op_index": op_index,
+                        "operation": op["op"],
+                        "required_functions": list(required_functions),
+                    }
+                )
+    return inventory
+
+
+def numeric_operation_inventory_sha256(inventory: Iterable[Mapping[str, Any]]) -> str:
+    """Hash the ordered eligible-operation inventory using canonical JSON."""
+
+    payload = json.dumps(list(inventory), sort_keys=True, separators=(",", ":"), ensure_ascii=True)
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()
+
 
 def numeric_scope_for_app(app_payload: Mapping[str, Any]) -> dict[str, Any]:
     """Return the deterministic numeric proof scope implied by runtime operations."""
-    mutation_ops = _operation_names(app_payload.get("mutations"))
-    selector_ops = _operation_names(app_payload.get("selectors"))
-    required: list[str] = []
-    if "move" in mutation_ops:
-        required.append("clampMoveIndex")
-    if "increment" in mutation_ops:
-        required.append("addFiniteNumbers")
-    if "sort_by" in selector_ops:
-        required.extend(("compareFiniteNumbers", "applySortDirection", "stableSortIndexDelta"))
-    if "slice" in selector_ops:
-        required.append("normalizeSliceIndex")
+    operation_inventory = numeric_operation_inventory(app_payload)
+    required = {
+        name
+        for operation in operation_inventory
+        for name in operation["required_functions"]
+    }
     ordered = tuple(name for name in _FUNCTION_ORDER if name in required)
+    inventory_fields = {
+        "operation_count": len(operation_inventory),
+        "operation_inventory": operation_inventory,
+        "operation_inventory_sha256": numeric_operation_inventory_sha256(operation_inventory),
+        "required_function_count": len(ordered),
+    }
     if not ordered:
         return {
-            "schema_version": 1,
+            "schema_version": 2,
             "profile": NUMERIC_KERNEL_PROFILE,
             "status": "not_applicable",
             "files": [],
@@ -128,15 +181,17 @@ def numeric_scope_for_app(app_payload: Mapping[str, Any]) -> dict[str, Any]:
             "required_functions": [],
             "allowed_requires": {},
             "required_ensures": {},
+            **inventory_fields,
         }
     return {
-        "schema_version": 1,
+        "schema_version": 2,
         "profile": NUMERIC_KERNEL_PROFILE,
         "status": "applicable",
         "kernel_path": NUMERIC_KERNEL_PATH,
         "required_functions": list(ordered),
         "allowed_requires": {name: list(_FUNCTIONS[name].allowed_requires) for name in ordered},
         "required_ensures": {name: list(_FUNCTIONS[name].required_ensures) for name in ordered},
+        **inventory_fields,
     }
 
 
@@ -179,28 +234,12 @@ def _scope_names(scope_or_payload: Mapping[str, Any]) -> tuple[str, ...]:
     return tuple(name for name in _FUNCTION_ORDER if name in names)
 
 
-def _operation_names(items: object) -> frozenset[str]:
-    names: set[str] = set()
-    if not isinstance(items, list):
-        return frozenset()
-    for item in items:
-        if not isinstance(item, dict):
-            continue
-        ops = item.get("ops")
-        if not isinstance(ops, list):
-            continue
-        for op in ops:
-            if isinstance(op, dict) and isinstance(op.get("op"), str):
-                names.add(op["op"])
-    return frozenset(names)
-
-
 def _render_numeric_source(names: Iterable[str], *, typescript: bool, exports: bool) -> str:
     selected = tuple(names)
     if not selected:
         return ""
     lines = [
-        "// Generated by ViewSpec numeric kernel v1. Do not edit.",
+        "// Generated by ViewSpec numeric kernel v2. Do not edit.",
         "// Runtime-connected helpers only; this module contains no certificate-only implementation.",
         "",
     ]
@@ -234,5 +273,7 @@ __all__ = [
     "generate_numeric_typescript",
     "numeric_import_names",
     "numeric_function_hashes",
+    "numeric_operation_inventory",
+    "numeric_operation_inventory_sha256",
     "numeric_scope_for_app",
 ]

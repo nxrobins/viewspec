@@ -10,6 +10,7 @@ from __future__ import annotations
 import copy
 import json
 import shutil
+import subprocess
 import sys
 from pathlib import Path
 from typing import Any
@@ -20,6 +21,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from test_app_bundle import _stateful_app_bundle  # noqa: E402
 
 from viewspec.app_bundle import APP_BUNDLE_VISIBILITY_SCHEMA_VERSION, validate_app_text
+from viewspec.app_numeric import generate_numeric_typescript
 from viewspec.state_ir import (
     APP_VISIBILITY_MAX_RULES,
     STATE_REDUCER_VISIBILITY_EXPORT,
@@ -37,6 +39,7 @@ from viewspec.state_ir import (
 )
 
 _NODE_AVAILABLE = shutil.which("node") is not None
+_TSC = Path("src/viewspec/host_verify_template/node_modules/.bin/tsc").resolve()
 
 
 def _visibility_app_bundle() -> dict[str, Any]:
@@ -207,7 +210,14 @@ def test_replay_visibility_mismatch_fails_closed():
     report = replay_state_assertions(payload)
     assert report["ok"] is False
     assert report["assertions"][0]["visibility_matches"] is False
-    assert any(error["code"] == "APP_VISIBILITY_REPLAY_MISMATCH" for error in report["errors"])
+    mismatch = next(error for error in report["errors"] if error["code"] == "APP_VISIBILITY_REPLAY_MISMATCH")
+    assert mismatch["assertion_id"] == "triage_replay"
+    assert mismatch["event_index"] == 0
+    assert mismatch["mutation_id"] == "triage_incident_state"
+    assert mismatch["path"].endswith("expect_visibility.incidents_when_selected")
+    assert mismatch["expected"] is False
+    assert mismatch["actual"] is True
+    assert mismatch["post_event_state"]["selected_incident"] == "inc_1043"
 
 
 def test_v3_replay_report_has_no_visibility_key():
@@ -221,10 +231,31 @@ def test_v3_replay_report_has_no_visibility_key():
 def test_v4_reducer_exports_visibility_and_v3_does_not():
     v4_source = generate_typescript_reducer(_visibility_app_bundle())
     assert "export function evaluateViewSpecVisibility" in v4_source
+    assert '| { state: string; equals: unknown };' in v4_source
+    assert "selector?: string; state?: string; is: string" not in v4_source
     v3_source = generate_typescript_reducer(_stateful_app_bundle())
     assert "evaluateViewSpecVisibility" not in v3_source
     assert state_reducer_exports(_visibility_app_bundle())[-1] == STATE_REDUCER_VISIBILITY_EXPORT
     assert STATE_REDUCER_VISIBILITY_EXPORT not in state_reducer_exports(_stateful_app_bundle())
+
+
+@pytest.mark.skipif(not _TSC.is_file(), reason="Pinned TypeScript compiler is required")
+def test_v4_equals_visibility_reducer_typechecks(tmp_path):
+    source = tmp_path / "state_reducer.ts"
+    payload = _visibility_app_bundle()
+    source.write_text(generate_typescript_reducer(payload), encoding="utf-8")
+    tmp_path.joinpath("viewspec_numeric.ts").write_text(generate_numeric_typescript(payload), encoding="utf-8")
+
+    result = subprocess.run(
+        [str(_TSC), "--strict", "--noEmit", "--skipLibCheck", "--target", "ES2022", str(source)],
+        cwd=tmp_path,
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        check=False,
+    )
+
+    assert result.returncode == 0, result.stdout
 
 
 def test_state_manifest_carries_visibility_rule_ids():

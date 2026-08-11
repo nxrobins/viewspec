@@ -317,6 +317,7 @@ def test_requested_pretext_writes_exact_pin_runtime_manifest_and_composed_report
     manifest = json.loads((generated / "viewspec_app_manifest.json").read_text(encoding="utf-8"))
     runtime = (generated / "src" / "viewspec_pretext.ts").read_text(encoding="utf-8")
     main = (generated / "src" / "main.tsx").read_text(encoding="utf-8")
+    styles = (generated / "src" / "index.css").read_text(encoding="utf-8")
 
     assert package["dependencies"][PRETEXT_PACKAGE] == PRETEXT_VERSION
     assert PRETEXT_PACKAGE not in package["devDependencies"]
@@ -333,6 +334,16 @@ def test_requested_pretext_writes_exact_pin_runtime_manifest_and_composed_report
     assert f'version: "{PRETEXT_VERSION}" as const' in runtime
     assert "installViewSpecPretextProbe" in runtime
     assert 'from "./viewspec_pretext"' in main
+    assert 'document.documentElement.dataset.viewspecPretext = "1"' in main
+    assert (
+        'html[data-viewspec-pretext="1"] body .vs-app-shell .vs-app-main '
+        '[data-ir-id][data-ir-id]'
+        in styles
+    )
+    assert "font-family: Arial, sans-serif !important;" in styles
+    assert "white-space: normal !important;" in styles
+    assert "overflow-wrap: anywhere !important;" in styles
+    assert "word-break: normal !important;" in styles
 
     scope = manifest["text_layout_analysis"]
     assert scope["status"] == "applicable"
@@ -355,12 +366,48 @@ def test_requested_pretext_writes_exact_pin_runtime_manifest_and_composed_report
 
     assert proof["policy"]["freerange"] == "requested"
     assert proof["policy"]["pretext"] == "requested"
-    assert proof["static_analysis"] == proof["host_report"]["static_analysis"]
-    assert proof["text_layout"] == proof["host_report"]["text_layout"]
+    assert proof["host_report"]["ok"] is True
+    assert proof["host_report"]["static_analysis"] == proof["static_analysis"]
+    assert proof["host_report"]["text_layout"] == proof["text_layout"]
     assert proof["analyses"] == {
         "freerange": proof["static_analysis"],
         "pretext": proof["text_layout"],
     }
+    evidence_path = Path(proof["paths"]["analysis_evidence"])
+    evidence = json.loads(evidence_path.read_text(encoding="utf-8"))
+    assert evidence["host_report"]["static_analysis"] == _passed_static_analysis()
+    assert evidence["host_report"]["text_layout"] == _passed_text_layout()
+    assert proof["analysis_evidence"]["sha256"] == file_hash(evidence_path)
+
+
+def test_large_analysis_payload_is_externalized_without_overflowing_proof_report(tmp_path, monkeypatch) -> None:
+    app_path = tmp_path / "viewspec.app.json"
+    proof_dir = tmp_path / "proof"
+    _write_json(app_path, app_bundle.starter_react_app_bundle())
+
+    def large_host(path, *, install, freerange=False, pretext=False):
+        report = _host_success(path, install=install, freerange=freerange, pretext=pretext)
+        finding = {"code": "SYNTHETIC_LARGE_FINDING", "detail": "x" * (300 * 1024)}
+        report["static_analysis"]["findings"] = [finding]
+        return report
+
+    monkeypatch.setattr("viewspec.app_pipeline.verify_react_app_artifact_dir", large_host)
+
+    proof = app_bundle.prove_app(
+        app_path=app_path,
+        out_dir=proof_dir,
+        target=REACT_APP_TARGET,
+        freerange=True,
+        pretext=True,
+        cwd=tmp_path,
+    )
+
+    report_path = proof_dir / "app_proof_report.json"
+    evidence_path = proof_dir / "app_analysis_evidence.json"
+    assert proof["ok"] is True, proof["errors"]
+    assert report_path.stat().st_size < 256 * 1024
+    assert evidence_path.stat().st_size > 256 * 1024
+    assert proof["analysis_evidence"]["sha256"] == file_hash(evidence_path)
 
 
 def test_default_react_artifact_shape_has_no_pretext_surface(tmp_path, monkeypatch) -> None:
@@ -427,11 +474,9 @@ def test_zero_text_surface_scope_is_strictly_not_applicable(tmp_path) -> None:
 
     assert scope["status"] == "not_applicable"
     assert scope["required_observation_count"] == 0
-    assert scope["screens"] == [
-        {
-            "screen_id": "form",
-            "route_id": "form_route",
-            "route_path": "/",
-            "surfaces": [],
-        }
-    ]
+    assert scope["eligible_surface_count"] == 0
+    assert scope["screens"][0]["screen_id"] == "form"
+    assert scope["screens"][0]["route_id"] == "form_route"
+    assert scope["screens"][0]["surfaces"] == []
+    assert scope["screens"][0]["eligible_surface_count"] == 0
+    assert len(scope["screens"][0]["eligible_surface_sha256"]) == 64

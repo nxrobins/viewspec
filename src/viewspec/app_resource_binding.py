@@ -7,6 +7,7 @@ import json
 from pathlib import Path
 from typing import Any
 
+from viewspec.app_resource_repeat import resource_binding_address, resource_repeat_summary
 from viewspec.app_validation import (
     APP_BUNDLE_BINDING_SCOPE,
     APP_BUNDLE_RESOURCE_BINDING_READONLY,
@@ -27,7 +28,7 @@ def _resource_binding_assertion_report(payload: dict[str, Any], screen_reports: 
     views: list[dict[str, Any]] = []
     assertions: list[dict[str, Any]] = []
     errors: list[dict[str, str]] = []
-    occurrence_credit: set[tuple[str, str, str]] = set()
+    occurrence_credit: dict[tuple[str, str], dict[str, str]] = {}
     screens = payload.get("screens") if isinstance(payload.get("screens"), list) else []
     for screen in screens:
         if not isinstance(screen, dict) or not isinstance(screen.get("id"), str):
@@ -44,23 +45,21 @@ def _resource_binding_assertion_report(payload: dict[str, Any], screen_reports: 
             records = resources.get(resource_id, {})
             record_ids = [item for item in resource_view.get("record_ids", []) if isinstance(item, str)]
             fields = [item for item in resource_view.get("fields", []) if isinstance(item, str)]
-            ambiguous_view_values = _resource_binding_ambiguous_view_values(records, record_ids, fields)
             for record_id in record_ids:
                 record = records.get(record_id, {})
                 for field in fields:
                     value_text = _resource_binding_scalar_text(record.get(field) if isinstance(record, dict) else None)
-                    ambiguous_value = (field, value_text) in ambiguous_view_values
-                    candidates = (
-                        []
-                        if ambiguous_value
-                        else _resource_binding_candidates(
-                            projection,
-                            screen,
-                            target_motif_id=target_motif_id,
-                            record_id=record_id,
-                            field=field,
-                            value_text=value_text,
-                        )
+                    canonical_identity = f"{resource_id}/{record_id}/{field}"
+                    candidates = _resource_binding_candidates(
+                        projection,
+                        screen,
+                        resource_view=resource_view,
+                        resource_id=resource_id,
+                        resource_view_id=view_id,
+                        target_motif_id=target_motif_id,
+                        record_id=record_id,
+                        field=field,
+                        value_text=value_text,
                     )
                     assertion = {
                         "screen_id": screen_id,
@@ -69,42 +68,60 @@ def _resource_binding_assertion_report(payload: dict[str, Any], screen_reports: 
                         "record_id": record_id,
                         "field": field,
                         "target_motif_id": target_motif_id,
+                        "canonical_identity": canonical_identity,
                         "expected": value_text,
                         "status": "passed" if len(candidates) == 1 else "failed",
                         "source": "compiler_semantic_inventory_text",
                         "matched_binding_id": candidates[0]["binding_id"] if len(candidates) == 1 else None,
                         "matched_dom_id": candidates[0]["dom_id"] if len(candidates) == 1 else None,
                     }
-                    if ambiguous_value:
-                        errors.append(
-                            {
-                                "code": "APP_RESOURCE_BINDING_AMBIGUOUS_VALUE",
-                                "message": f"Resource view {view_id} repeats scalar value {value_text!r} for field {field}.",
-                                "fix": "Use unique scalar values within each declared resource_view field or defer this proof to a later binding slice.",
-                            }
-                        )
-                    elif len(candidates) == 1:
-                        credit_key = (screen_id, str(candidates[0]["dom_id"]), f"{view_id}:{record_id}:{field}")
-                        if any(existing[0] == credit_key[0] and existing[1] == credit_key[1] for existing in occurrence_credit):
+                    if len(candidates) == 1:
+                        candidate = candidates[0]
+                        credit_key = (screen_id, str(candidate["dom_id"]))
+                        previous_credit = occurrence_credit.get(credit_key)
+                        if previous_credit is not None:
                             assertion["status"] = "failed"
                             errors.append(
                                 {
                                     "code": "APP_RESOURCE_BINDING_AMBIGUOUS_VALUE",
-                                    "message": f"Screen {screen_id} value for {view_id}.{record_id}.{field} reused one semantic occurrence.",
-                                    "fix": "Render each record-field assertion from a distinct target motif binding.",
+                                    "message": (
+                                        f"Screen {screen_id} resource={resource_id} record={record_id} field={field} "
+                                        f"canonical={canonical_identity} binding={candidate['binding_id']} reused "
+                                        f"dom={candidate['dom_id']}, already credited to "
+                                        f"canonical={previous_credit['canonical_identity']} "
+                                        f"binding={previous_credit['binding_id']}."
+                                    ),
+                                    "fix": "Give every resource record-field one distinct binding and generated DOM occurrence.",
                                 }
                             )
                         else:
-                            occurrence_credit.add(credit_key)
+                            occurrence_credit[credit_key] = {
+                                "canonical_identity": canonical_identity,
+                                "binding_id": str(candidate["binding_id"]),
+                            }
                     else:
                         error_code = "APP_RESOURCE_BINDING_ASSERTION_FAILED"
                         if len(candidates) > 1:
                             error_code = "APP_RESOURCE_BINDING_AMBIGUOUS_VALUE"
+                        candidate_details = ", ".join(
+                            (
+                                f"binding={item.get('binding_id')} dom={item.get('dom_id')} "
+                                f"record={item.get('record_id')} field={item.get('resource_field')}"
+                            )
+                            for item in candidates
+                        )
                         errors.append(
                             {
                                 "code": error_code,
-                                "message": f"Screen {screen_id} failed resource binding assertion {view_id}.{record_id}.{field}.",
-                                "fix": "Render the exact fixture scalar as visible text in the declared target motif binding.",
+                                "message": (
+                                    f"Screen {screen_id} resource={resource_id} record={record_id} field={field} "
+                                    f"canonical={canonical_identity} matched {len(candidates)} bindings in motif "
+                                    f"{target_motif_id}: {candidate_details or 'none'}."
+                                ),
+                                "fix": (
+                                    "Bind this resource/record/field identity exactly once in the declared motif and render "
+                                    "its fixture scalar as visible text."
+                                ),
                             }
                         )
                     view_assertions.append(assertion)
@@ -149,6 +166,7 @@ def _resource_binding_assertion_report(payload: dict[str, Any], screen_reports: 
                 "field": item.get("field"),
                 "target_motif_id": item.get("target_motif_id"),
                 "expected": item.get("expected"),
+                "canonical_identity": item.get("canonical_identity"),
                 "matched_binding_id": item.get("matched_binding_id"),
                 "matched_dom_id": item.get("matched_dom_id"),
                 "status": item.get("status"),
@@ -167,6 +185,7 @@ def _resource_binding_assertion_report(payload: dict[str, Any], screen_reports: 
         "failed_count": sum(1 for item in assertions if item.get("status") != "passed"),
         "view_count": len(views),
         "views": views,
+        "resource_repeat": resource_repeat_summary(payload),
         "binding_digest": binding_digest,
         "limits": _resource_binding_limits(),
         "errors": errors,
@@ -226,49 +245,42 @@ def _screen_manifest_binding_projection(screen_report: dict[str, Any] | None) ->
                 "primitive": primitive,
                 "binding_id": binding_id,
                 "content_refs": [item for item in content_refs if isinstance(item, str)],
+                "resource_id": props.get("resource_id"),
+                "resource_view_id": props.get("resource_view_id"),
+                "record_id": props.get("record_id"),
+                "resource_field": props.get("resource_field"),
                 "visible_text": str(text) if isinstance(text, str) else "",
             }
         )
     return projection
 
 
-def _resource_binding_ambiguous_view_values(
-    records: dict[str, dict[str, Any]],
-    record_ids: list[str],
-    fields: list[str],
-) -> set[tuple[str, str]]:
-    repeated: set[tuple[str, str]] = set()
-    seen: set[tuple[str, str]] = set()
-    for record_id in record_ids:
-        record = records.get(record_id)
-        if not isinstance(record, dict):
-            continue
-        for field in fields:
-            value_text = _resource_binding_scalar_text(record.get(field))
-            key = (field, value_text)
-            if key in seen:
-                repeated.add(key)
-            seen.add(key)
-    return repeated
-
-
 def _resource_binding_candidates(
     projection: list[dict[str, Any]],
     screen: dict[str, Any],
     *,
+    resource_view: dict[str, Any],
+    resource_id: str,
+    resource_view_id: str,
     target_motif_id: str,
     record_id: str,
     field: str,
     value_text: str,
 ) -> list[dict[str, Any]]:
     motif_members = _screen_motif_members(screen, target_motif_id)
-    expected_ref = f"node:{record_id}#attr:{field}"
+    expected_ref = resource_binding_address(resource_view, record_id, field)
     matches: list[dict[str, Any]] = []
     for item in projection:
         binding_id = item.get("binding_id")
         if binding_id not in motif_members:
             continue
         if item.get("visible_text") != value_text:
+            continue
+        if item.get("resource_id") != resource_id:
+            continue
+        if item.get("resource_view_id") != resource_view_id:
+            continue
+        if item.get("record_id") != record_id or item.get("resource_field") != field:
             continue
         content_refs = item.get("content_refs") if isinstance(item.get("content_refs"), list) else []
         if expected_ref not in content_refs:

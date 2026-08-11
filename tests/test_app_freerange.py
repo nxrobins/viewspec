@@ -22,7 +22,7 @@ from viewspec.app_freerange import (
     analyze_freerange_numeric_scope,
     freerange_readiness,
 )
-from viewspec.app_numeric import generate_numeric_typescript, numeric_function_hashes
+from viewspec.app_numeric import generate_numeric_typescript, numeric_function_hashes, numeric_scope_for_app
 
 
 KERNEL_PATH = "src/viewspec_numeric.ts"
@@ -159,6 +159,29 @@ def _scope(app_dir: Path) -> dict[str, Any]:
     }
 
 
+def _generated_scope(app_dir: Path) -> dict[str, Any]:
+    contract_payload = {
+        "mutations": [{"id": "increment_count", "ops": [{"op": "increment"}]}],
+        "selectors": [],
+    }
+    scope = numeric_scope_for_app(contract_payload)
+    contract_hash = "d" * 64
+    state_manifest_path = app_dir / "src" / "state_manifest.json"
+    _write_json(
+        state_manifest_path,
+        {
+            "contract_hash": contract_hash,
+            "normalized_contract": {"contract_hash": contract_hash, **contract_payload},
+        },
+    )
+    scope["state_contract"] = {
+        "path": "src/state_manifest.json",
+        "sha256": _sha(state_manifest_path),
+        "contract_hash": contract_hash,
+    }
+    return scope
+
+
 def _findings(*, analyzed: int = 1, functions: int = 1, partial: int = 0, unsupported: int = 0) -> str:
     return (
         "No lint findings.\n\n"
@@ -280,15 +303,7 @@ def test_valid_numeric_kernel_returns_complete_bounded_evidence(tmp_path, monkey
 
 def test_generated_manifest_scope_is_cross_checked_against_the_kernel_contract(tmp_path, monkeypatch):
     app_dir, bun = _make_app(tmp_path)
-    generated_scope = {
-        "schema_version": 1,
-        "profile": "viewspec_numeric_kernel_v1",
-        "status": "applicable",
-        "kernel_path": KERNEL_PATH,
-        "required_functions": [FUNCTION_NAME],
-        "allowed_requires": {FUNCTION_NAME: [REQUIREMENT, "Number.isFinite(amount)"]},
-        "required_ensures": {FUNCTION_NAME: [ENSURE]},
-    }
+    generated_scope = _generated_scope(app_dir)
     (app_dir / KERNEL_PATH).write_text(generate_numeric_typescript(generated_scope), encoding="utf-8")
     (app_dir / CALL_SITE_PATH).write_text(
         f'import {{ {FUNCTION_NAME} }} from "./viewspec_numeric";\n'
@@ -337,15 +352,7 @@ def test_generated_manifest_scope_is_cross_checked_against_the_kernel_contract(t
 
 def test_generated_connection_metadata_requires_exact_import_and_real_calls(tmp_path, monkeypatch):
     app_dir, bun = _make_app(tmp_path)
-    generated_scope = {
-        "schema_version": 1,
-        "profile": "viewspec_numeric_kernel_v1",
-        "status": "applicable",
-        "kernel_path": KERNEL_PATH,
-        "required_functions": [FUNCTION_NAME],
-        "allowed_requires": {FUNCTION_NAME: [REQUIREMENT, "Number.isFinite(amount)"]},
-        "required_ensures": {FUNCTION_NAME: [ENSURE]},
-    }
+    generated_scope = _generated_scope(app_dir)
     (app_dir / KERNEL_PATH).write_text(generate_numeric_typescript(generated_scope), encoding="utf-8")
     (app_dir / CALL_SITE_PATH).write_text(
         f'import {{ {FUNCTION_NAME} }} from "./viewspec_numeric";\n'
@@ -372,6 +379,47 @@ def test_generated_connection_metadata_requires_exact_import_and_real_calls(tmp_
                     "connection": "generated_import_and_call_v1",
                 }
             ],
+        }
+    )
+    _install_fake_runner(monkeypatch)
+
+    _assert_failure(
+        "APP_FREERANGE_SCOPE_INVALID",
+        lambda: analyze_freerange_numeric_scope(app_dir, generated_scope, bun_executable=bun),
+    )
+
+
+def test_generated_operation_inventory_cannot_silently_shrink(tmp_path, monkeypatch):
+    app_dir, bun = _make_app(tmp_path)
+    generated_scope = _generated_scope(app_dir)
+    (app_dir / KERNEL_PATH).write_text(generate_numeric_typescript(generated_scope), encoding="utf-8")
+    (app_dir / CALL_SITE_PATH).write_text(
+        f'import {{ {FUNCTION_NAME} }} from "./viewspec_numeric";\n'
+        f"export const next = {FUNCTION_NAME}(1, 2);\n",
+        encoding="utf-8",
+    )
+    generated_scope.update(
+        {
+            "files": [
+                {
+                    "path": KERNEL_PATH,
+                    "sha256": _sha(app_dir / KERNEL_PATH),
+                    "required_functions": [FUNCTION_NAME],
+                    "function_sha256": numeric_function_hashes(generated_scope),
+                    "allowed_requires": generated_scope["allowed_requires"],
+                    "required_ensures": generated_scope["required_ensures"],
+                }
+            ],
+            "call_sites": [
+                {
+                    "path": CALL_SITE_PATH,
+                    "sha256": _sha(app_dir / CALL_SITE_PATH),
+                    "required_functions": [FUNCTION_NAME],
+                    "connection": "generated_import_and_call_v1",
+                }
+            ],
+            "operation_count": 0,
+            "operation_inventory": [],
         }
     )
     _install_fake_runner(monkeypatch)

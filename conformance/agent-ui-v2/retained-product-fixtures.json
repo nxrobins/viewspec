@@ -1,0 +1,39 @@
+{
+  "schema_version": 1,
+  "task_id": "field-dispatch-lifecycle",
+  "seed": 104729,
+  "fixtures": [
+    {
+      "arm": "viewspec-core",
+      "source": "fixtures/shakedown-104729-2026-08-05-v4/viewspec-core.app.json",
+      "source_sha256": "e483b2e9fe61de24b60007a0e9773beb8939159cfd897d43d15eb17edc6d1573"
+    },
+    {
+      "arm": "viewspec-deep",
+      "source": "fixtures/shakedown-104729-2026-08-05-v4/viewspec-deep.app.json",
+      "source_sha256": "898b37d70a6a0725e8c483a46c03eaacb336fef1213525801242dabd273e7b09"
+    },
+    {
+      "arm": "viewspec-core",
+      "source": "fixtures/shakedown-104729-2026-08-06-v5/viewspec-core.app.json",
+      "source_sha256": "541bf3ad31952952b77476d2bbeac86b18aad5a73d2cf639947fa2ce14d6c7b5"
+    },
+    {
+      "arm": "viewspec-deep",
+      "source": "fixtures/shakedown-104729-2026-08-06-v5/viewspec-deep.app.json",
+      "source_sha256": "61b7b876f067107f17ea88d21617ec8c9d7fb0aefe7d1c373aa3368243db3966"
+    }
+  ],
+  "gates": {
+    "functional_acceptance": 1.0,
+    "layout_fidelity_minimum": 0.6769,
+    "parity_minimum_per_viewport": 0.95,
+    "required_target_trials": [
+      "static-shell",
+      "native-react"
+    ],
+    "native_proof_required": true,
+    "deep_freerange_required": true,
+    "deep_pretext_required": true
+  }
+}

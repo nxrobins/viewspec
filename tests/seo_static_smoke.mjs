@@ -132,7 +132,7 @@ assertPublicEqual(publicFacts.proof_integrations.pretext.package, '@chenglou/pre
 assertPublicEqual(publicFacts.proof_integrations.pretext.version, '0.0.8', 'Pretext proof version')
 assertPublicText(publicFacts.proof_integrations.pretext.command, '--pretext --json', 'Pretext command')
 assertPublicText(publicFacts.proof_integrations.pretext.prerequisite, 'does not require Bun', 'Pretext Bun boundary')
-assertPublicEqual(publicFacts.proof_integrations.pretext.profile, 'viewspec_pretext_native_dom_v1', 'Pretext profile')
+assertPublicEqual(publicFacts.proof_integrations.pretext.profile, 'viewspec_pretext_native_dom_v2', 'Pretext profile')
 assertPublicEqual(publicFacts.proof_integrations.pretext.font_family, 'Arial, sans-serif', 'Pretext font family')
 assert.deepEqual(
   publicFacts.proof_integrations.pretext.viewports,

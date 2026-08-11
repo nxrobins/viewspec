@@ -1,0 +1,118 @@
+{
+  "schema_version": 1,
+  "protocol_id": "viewspec-agent-ui-pilot-v1",
+  "status": "pilot_only",
+  "sample_size_met": false,
+  "minimum_full_study_sessions_per_arm": 18,
+  "environment": {
+    "codex_cli": "0.145.0-alpha.18",
+    "model": "configured Codex default; exact model identity was not emitted by the runtime",
+    "date": "2026-07-22",
+    "viewports": ["390x844", "768x1024", "1440x1000"]
+  },
+  "evidence": {
+    "protocol_sha256": "f608a446320290b6efa128193e66139bb944e588e5227cc2d42b3ba57b084042",
+    "sessions": {
+      "code-first": {
+        "sha256": "b0e56484a7fd4e53e51de7f06026159e7070eda2ff71e3d04a193bfe004f5a3b",
+        "final_desktop_screenshot_sha256": "b44742b4fdbf98db52d2ef3ec68223a0103a53c41212c0791f95be6da9f2d94e"
+      },
+      "viewspec-core": {
+        "sha256": "eb8cc795ce5523bb31cc8ccccfb53f0a5653a764ea2c3fb53314db392c8e1a8c",
+        "final_desktop_screenshot_sha256": "523d5c82f1edeccaa55fccca1f074b1a537afbb120dded872ad2fc822f685192"
+      },
+      "viewspec-deep": {
+        "sha256": "32b8e9fe9252cb783e015017a7854bc95e0caed7d183af640f8d4ed1a1fa1fce",
+        "final_desktop_screenshot_sha256": "fb897f2712dd095e1f5c31b1cad579142539d79e6a1c1616556cbd84a8d579cf"
+      }
+    },
+    "local_evidence_root": ".agent-eval-runs/pilot-20260722"
+  },
+  "arms": {
+    "code-first": {
+      "final_acceptance": 0.9866666666666667,
+      "final_functional_acceptance": 1.0,
+      "final_layout_anchor_pass_rate": 0.9523809523809523,
+      "processed_tokens": 8536032,
+      "uncached_input_tokens": 497130,
+      "cached_input_tokens": 7912960,
+      "output_tokens": 125942,
+      "iteration_processed_tokens": 8244341,
+      "total_wall_ms": 876780,
+      "iteration_wall_ms": 653699,
+      "deterministic_overhead_ratio": 0.013337439266406624,
+      "stable_criterion_regressions": 1,
+      "native_proofs_passed": null
+    },
+    "viewspec-core": {
+      "final_acceptance": 0.6933333333333334,
+      "final_functional_acceptance": 0.9444444444444444,
+      "final_layout_anchor_pass_rate": 0.047619047619047616,
+      "processed_tokens": 27380525,
+      "uncached_input_tokens": 821886,
+      "cached_input_tokens": 26401792,
+      "output_tokens": 156847,
+      "iteration_processed_tokens": 26593183,
+      "total_wall_ms": 1109207,
+      "iteration_wall_ms": 784023,
+      "deterministic_overhead_ratio": 0.04719948575874476,
+      "stable_criterion_regressions": 1,
+      "native_proofs_passed": "5/5"
+    },
+    "viewspec-deep": {
+      "final_acceptance": 0.6933333333333334,
+      "final_functional_acceptance": 0.9444444444444444,
+      "final_layout_anchor_pass_rate": 0.047619047619047616,
+      "processed_tokens": 67436954,
+      "uncached_input_tokens": 1887106,
+      "cached_input_tokens": 65254400,
+      "output_tokens": 295448,
+      "iteration_processed_tokens": 63742546,
+      "total_wall_ms": 2035765,
+      "iteration_wall_ms": 1328816,
+      "deterministic_overhead_ratio": 0.02182963161268614,
+      "stable_criterion_regressions": 1,
+      "native_proofs_passed": "0/5",
+      "freerange_statuses": {"passed": 4},
+      "pretext_statuses": {"passed": 2, "failed": 2},
+      "proof_error_codes": [
+        "APP_REACT_VERIFY_TYPECHECK_FAILED",
+        "APP_PROOF_REPORT_WRITE_FAILED",
+        "APP_PRETEXT_LAYOUT_FAILED",
+        "APP_PRETEXT_LAYOUT_FAILED",
+        "APP_PROOF_REPORT_WRITE_FAILED"
+      ]
+    }
+  },
+  "comparisons_to_code_first": {
+    "viewspec-core": {
+      "processed_token_multiplier": 3.2076408570164685,
+      "uncached_input_multiplier": 1.6532617222859212,
+      "iteration_time_multiplier": 1.199363927434492,
+      "final_acceptance_delta": -0.29333333333333333
+    },
+    "viewspec-deep": {
+      "processed_token_multiplier": 7.900269586618232,
+      "uncached_input_multiplier": 3.796001046004063,
+      "iteration_time_multiplier": 2.032764315074675,
+      "final_acceptance_delta": -0.29333333333333333
+    }
+  },
+  "candidate_gate_results": {
+    "acceptance_not_lower": false,
+    "total_tokens": false,
+    "iteration_tokens": false,
+    "iteration_speed": false,
+    "regressions": false,
+    "proof_overhead": false,
+    "deep_mutation_detection": null
+  },
+  "validity_limits": [
+    "One task and one nondeterministic replicate per arm cannot support population-level product claims.",
+    "The exact Codex model was not pinned or emitted by the runtime.",
+    "The independent browser scorer used the static shell while native proofs used the generated React app.",
+    "The wrapping requirement was not independently measured beyond visible text and horizontal overflow.",
+    "No injected mutation suite was run, so the 90% deep mutation-detection gate is unevaluated.",
+    "The pilot measured file-first AppBundle editing, not the existing IntentPatch, Converge, or MCP delta workflows."
+  ]
+}

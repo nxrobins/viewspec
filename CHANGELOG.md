@@ -7,6 +7,43 @@ All notable changes to ViewSpec are documented in this file. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- Freerange numeric scope v2 now binds every eligible mutation and selector operation occurrence
+  to the independently emitted state contract, an ordered inventory digest, the exact generated
+  helper set, and runtime call sites. Reports expose exact operation coverage in addition to 100%
+  required-function analysis.
+- Pretext native-DOM profile/runtime v2 now binds every eligible checked-manifest text surface to
+  an independently observed DOM inventory at every declared route and viewport. Reports expose
+  eligible-surface counts, digests, coverage-contract identity, and per-matrix inventories.
+- The dedicated opt-in E2E suite now injects division-by-zero, asserted out-of-bounds, unsafe-font,
+  unsupported-wrapping, and real-overflow defects and requires real Freerange/Bun and
+  Pretext/Chromium rejection. The recurring CI guard requires all three E2E scenarios to execute.
+- The agent UI evaluation runner now records controlled model/runtime provenance, Codex tool and
+  skill activity, authored-source and semantic diffs, per-phase timings, criterion transitions,
+  proof artifact identities, and browser runtime/screenshot/text-geometry telemetry.
+- AppBundle screens can now compile one deterministic, hash-bound PresentationPlan for static and
+  React, with bounded breakpoint variants, named areas, motif item layouts, surface/typography
+  tokens, and native semantic-anchor proof at 390, 768, and 1440 pixels.
+- Bound list resource views can declare one `repeat` field-presentation contract that generates
+  stable per-record nodes and bindings with canonical resource/record/field provenance. Equal
+  visible scalar values across different records are now proved by identity instead of rejected.
+- State replay events can name a screen/action pair plus a bounded repeat count; replay failures
+  now retain exact assertion, event, mutation, path, expected, actual, selector, and visibility
+  context.
+
+### Fixed
+
+- Generated V4 reducers now typecheck state-equality visibility rules with a correctly narrowed
+  `VisibilityWhen` union.
+- React proof reports externalize complete analyzer payloads to a bounded, hash-linked
+  `app_analysis_evidence.json` so successful large Freerange/Pretext evidence cannot overflow the
+  bounded operational report.
+- Pretext failed runtime items now identify the exact screen, route, viewport, surface, IR binding,
+  and reported status without exposing text content.
+- Embedded AppBundle screen roots no longer emit nested `<main>` landmarks, and static/React
+  compilation now rejects any semantic tag divergence for the same IR identity.
+
 ## [0.3.0b6] - 2026-07-22
 
 ### Added

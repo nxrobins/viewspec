@@ -28,6 +28,35 @@ from viewspec.app_validation import (
     APP_RESOURCE_BINDING_MAX_RECORD_REFS_PER_VIEW,
     APP_RESOURCE_BINDING_MAX_VIEWS_PER_SCREEN,
 )
+from viewspec.presentation_plan import (
+    ALIGN_VALUES,
+    BACKGROUND_VALUES,
+    BORDER_VALUES,
+    DIRECTION_VALUES,
+    DISPLAY_VALUES,
+    FONT_FAMILY_VALUES,
+    FONT_SIZE_VALUES,
+    FONT_WEIGHT_VALUES,
+    FOREGROUND_VALUES,
+    JUSTIFY_VALUES,
+    LETTER_SPACING_VALUES,
+    LINE_HEIGHT_VALUES,
+    MIN_INLINE_SIZE_VALUES,
+    PRESENTATION_BREAKPOINTS,
+    PRESENTATION_MAX_ANCHORS,
+    PRESENTATION_MAX_GRID_ROWS,
+    PRESENTATION_MAX_GRID_TRACKS,
+    PRESENTATION_MAX_RULES,
+    PRESENTATION_PROFILES,
+    PRESENTATION_RELATIONS,
+    RADIUS_VALUES,
+    SIZE_VALUES,
+    SPACING_VALUES,
+    TEXT_WRAP_VALUES,
+    TEXT_TRANSFORM_VALUES,
+    TRACK_VALUES,
+    VISIBILITY_VALUES,
+)
 from viewspec.state_ir import (
     APP_STATE_MAX_ENTRIES,
     APP_STATE_MAX_EVENTS_PER_REPLAY,
@@ -290,6 +319,7 @@ AGENT_APP_BUNDLE_SCHEMA: dict[str, Any] = {
             "properties": {
                 "id": {"$ref": "#/$defs/safe_id"},
                 "title": {"$ref": "#/$defs/safe_string"},
+                "presentation": {"$ref": "#/$defs/presentation"},
                 "intent_bundle": {"$ref": "#/$defs/intent_bundle"},
             },
         },
@@ -305,7 +335,137 @@ AGENT_APP_BUNDLE_SCHEMA: dict[str, Any] = {
                     "maxItems": APP_RESOURCE_BINDING_MAX_VIEWS_PER_SCREEN,
                     "items": {"$ref": "#/$defs/resource_view"},
                 },
+                "presentation": {"$ref": "#/$defs/presentation"},
                 "intent_bundle": {"$ref": "#/$defs/intent_bundle"},
+            },
+        },
+        "presentation": {
+            "type": "object",
+            "description": "Shared static/React layout contract. operations_workspace keeps sibling sidebar/main regions visible, stacks them at compact/medium, and uses a wide rail/content row.",
+            "additionalProperties": False,
+            "properties": {
+                "profile": {"enum": list(PRESENTATION_PROFILES)},
+                "rules": {
+                    "type": "array",
+                    "maxItems": PRESENTATION_MAX_RULES,
+                    "items": {"$ref": "#/$defs/presentation_rule"},
+                },
+                "anchors": {
+                    "type": "array",
+                    "maxItems": PRESENTATION_MAX_ANCHORS,
+                    "items": {"$ref": "#/$defs/presentation_anchor"},
+                },
+            },
+        },
+        "presentation_rule": {
+            "type": "object",
+            "required": ["id", "target_ref"],
+            "additionalProperties": False,
+            "properties": {
+                "id": {"$ref": "#/$defs/safe_id"},
+                "target_ref": {"$ref": "#/$defs/presentation_target_ref"},
+                "base": {"$ref": "#/$defs/presentation_layout"},
+                "items": {"$ref": "#/$defs/presentation_item_layout"},
+                "variants": {
+                    "type": "object",
+                    "additionalProperties": False,
+                    "properties": {
+                        breakpoint: {"$ref": "#/$defs/presentation_layout"}
+                        for breakpoint in PRESENTATION_BREAKPOINTS
+                    },
+                },
+            },
+        },
+        "presentation_item_layout": {
+            "type": "object",
+            "additionalProperties": False,
+            "properties": {
+                "base": {"$ref": "#/$defs/presentation_layout"},
+                "variants": {
+                    "type": "object",
+                    "additionalProperties": False,
+                    "properties": {
+                        breakpoint: {"$ref": "#/$defs/presentation_layout"}
+                        for breakpoint in PRESENTATION_BREAKPOINTS
+                    },
+                },
+            },
+        },
+        "presentation_anchor": {
+            "type": "object",
+            "description": "Responsive semantic geometry assertion. Scope viewports to widths where the relation is true; a rail/content same_row relation is normally wide-only when compact and medium stack.",
+            "required": ["id", "target_ref", "relation", "anchor_ref"],
+            "additionalProperties": False,
+            "properties": {
+                "id": {"$ref": "#/$defs/safe_id"},
+                "target_ref": {"$ref": "#/$defs/presentation_target_ref"},
+                "relation": {"enum": list(PRESENTATION_RELATIONS)},
+                "anchor_ref": {"$ref": "#/$defs/presentation_target_ref"},
+                "viewports": {
+                    "type": "array",
+                    "minItems": 1,
+                    "maxItems": len(PRESENTATION_BREAKPOINTS),
+                    "uniqueItems": True,
+                    "items": {"enum": list(PRESENTATION_BREAKPOINTS)},
+                },
+            },
+        },
+        "presentation_target_ref": {
+            "type": "string",
+            "pattern": "^(region|motif|binding):[A-Za-z0-9_.-]+$",
+        },
+        "presentation_layout": {
+            "type": "object",
+            "additionalProperties": False,
+            "properties": {
+                "display": {"enum": list(DISPLAY_VALUES)},
+                "area": {"$ref": "#/$defs/safe_id"},
+                "font_family": {"enum": list(FONT_FAMILY_VALUES)},
+                "font_size": {"enum": list(FONT_SIZE_VALUES)},
+                "font_weight": {"enum": list(FONT_WEIGHT_VALUES)},
+                "line_height": {"enum": list(LINE_HEIGHT_VALUES)},
+                "letter_spacing": {"enum": list(LETTER_SPACING_VALUES)},
+                "text_transform": {"enum": list(TEXT_TRANSFORM_VALUES)},
+                "foreground": {"enum": list(FOREGROUND_VALUES)},
+                "background": {"enum": list(BACKGROUND_VALUES)},
+                "border": {"enum": list(BORDER_VALUES)},
+                "radius": {"enum": list(RADIUS_VALUES)},
+                "direction": {"enum": list(DIRECTION_VALUES)},
+                "columns": {
+                    "oneOf": [
+                        {"type": "integer", "minimum": 1, "maximum": PRESENTATION_MAX_GRID_TRACKS},
+                        {
+                            "type": "array",
+                            "minItems": 1,
+                            "maxItems": PRESENTATION_MAX_GRID_TRACKS,
+                            "items": {"enum": list(TRACK_VALUES)},
+                        },
+                    ]
+                },
+                "areas": {
+                    "type": "array",
+                    "minItems": 1,
+                    "maxItems": PRESENTATION_MAX_GRID_ROWS,
+                    "items": {
+                        "type": "array",
+                        "minItems": 1,
+                        "maxItems": PRESENTATION_MAX_GRID_TRACKS,
+                        "items": {"$ref": "#/$defs/safe_id"},
+                    },
+                },
+                "gap": {"enum": list(SPACING_VALUES)},
+                "padding": {"enum": list(SPACING_VALUES)},
+                "width": {"enum": list(SIZE_VALUES)},
+                "max_width": {"enum": list(SIZE_VALUES)},
+                "order": {"type": "integer", "minimum": -16, "maximum": 16},
+                "span": {"type": "integer", "minimum": 1, "maximum": 4},
+                "visibility": {"enum": list(VISIBILITY_VALUES)},
+                "align": {"enum": list(ALIGN_VALUES)},
+                "justify": {"enum": list(JUSTIFY_VALUES)},
+                "sticky": {"type": "boolean"},
+                "text_wrap": {"enum": list(TEXT_WRAP_VALUES)},
+                "max_lines": {"type": "integer", "minimum": 1, "maximum": 8},
+                "min_inline_size": {"enum": list(MIN_INLINE_SIZE_VALUES)},
             },
         },
         "resource_view": {
@@ -329,6 +489,31 @@ AGENT_APP_BUNDLE_SCHEMA: dict[str, Any] = {
                     "items": {"$ref": "#/$defs/safe_id"},
                 },
                 "target_motif_id": {"$ref": "#/$defs/safe_id"},
+                "repeat": {"$ref": "#/$defs/resource_repeat"},
+            },
+        },
+        "resource_repeat": {
+            "type": "object",
+            "description": "Generates every declared record-field binding inside the target motif. Do not also keep hand-authored prototype bindings for repeated record-fields in that motif.",
+            "required": ["field_presentations"],
+            "additionalProperties": False,
+            "properties": {
+                "field_presentations": {
+                    "type": "array",
+                    "minItems": 1,
+                    "maxItems": APP_RESOURCE_BINDING_MAX_FIELDS_PER_VIEW,
+                    "items": {"$ref": "#/$defs/resource_repeat_field_presentation"},
+                },
+                "group_id": {"$ref": "#/$defs/safe_id"},
+            },
+        },
+        "resource_repeat_field_presentation": {
+            "type": "object",
+            "required": ["field", "present_as"],
+            "additionalProperties": False,
+            "properties": {
+                "field": {"$ref": "#/$defs/safe_id"},
+                "present_as": {"enum": ["badge", "label", "text", "value"]},
             },
         },
         "state_entries": {
@@ -573,16 +758,22 @@ AGENT_APP_BUNDLE_SCHEMA: dict[str, Any] = {
         },
         "state_replay_event": {
             "type": "object",
-            "required": ["mutation_id"],
             "additionalProperties": False,
             "properties": {
                 "mutation_id": {"$ref": "#/$defs/safe_id"},
+                "action_id": {"$ref": "#/$defs/safe_id"},
+                "screen_id": {"$ref": "#/$defs/safe_id"},
+                "repeat": {"type": "integer", "minimum": 1, "maximum": APP_STATE_MAX_EVENTS_PER_REPLAY},
                 "payload_values": {
                     "type": "object",
                     "propertyNames": {"$ref": "#/$defs/safe_id"},
                     "additionalProperties": {"$ref": "#/$defs/json_value"},
                 },
             },
+            "oneOf": [
+                {"required": ["mutation_id"], "not": {"required": ["action_id"]}},
+                {"required": ["action_id"], "not": {"required": ["mutation_id"]}},
+            ],
         },
         "json_scalar": {
             "anyOf": [

@@ -25,7 +25,7 @@ def test_package_metadata_exposes_expected_cli_and_optional_extras():
     assert "build>=1.2" in extras["dev"]
     assert "pytest>=8.0" in extras["dev"]
     assert "hypothesis>=6.100,<7" in extras["dev"]
-    assert "ruff>=0.4" in extras["dev"]
+    assert "ruff==0.15.22" in extras["dev"]
 
 
 def test_host_verify_template_resources_are_packaged():

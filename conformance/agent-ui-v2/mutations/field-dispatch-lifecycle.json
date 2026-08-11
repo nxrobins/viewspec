@@ -1,0 +1,133 @@
+{
+  "schema_version": 1,
+  "task_id": "field-dispatch-lifecycle",
+  "stable_hooks": [
+    "action-show-guide",
+    "action-record-review",
+    "action-pause-intake",
+    "panel-escalation-guide",
+    "panel-review-count",
+    "panel-intake-paused",
+    "job-j205-title",
+    "job-j207"
+  ],
+  "identity_contract": {
+    "code-first": {
+      "action-show-guide": "data-eval-id=\"action-show-guide\"",
+      "action-record-review": "data-eval-id=\"action-record-review\"",
+      "action-pause-intake": "data-eval-id=\"action-pause-intake\"",
+      "panel-escalation-guide": "data-eval-id=\"panel-escalation-guide\"",
+      "panel-review-count": "data-eval-id=\"panel-review-count\"",
+      "panel-intake-paused": "data-eval-id=\"panel-intake-paused\"",
+      "job-j205-title": "data-eval-id=\"job-j205-title\"",
+      "job-j207": "data-eval-id=\"job-j207\""
+    },
+    "viewspec": {
+      "action-show-guide": {
+        "kind": "action",
+        "id": "show_escalation_guide"
+      },
+      "action-record-review": {
+        "kind": "action",
+        "id": "record_review"
+      },
+      "action-pause-intake": {
+        "kind": "action",
+        "id": "pause_intake"
+      },
+      "panel-escalation-guide": {
+        "kind": "visibility",
+        "id": "show_escalation_panel"
+      },
+      "panel-review-count": {
+        "kind": "visibility",
+        "id": "show_review_count"
+      },
+      "panel-intake-paused": {
+        "kind": "visibility",
+        "id": "show_intake_paused"
+      },
+      "job-j205-title": {
+        "kind": "record",
+        "id": "J-205"
+      },
+      "job-j207": {
+        "kind": "record",
+        "id": "J-207"
+      }
+    }
+  },
+  "mutations": [
+    {
+      "id": "break-escalation-action",
+      "kind": "mutation",
+      "class": "action-state-transition",
+      "observable_failure": "Clicking Show escalation guide does not reveal Escalation owner: Maya Chen.",
+      "repairable": true,
+      "expected_detectors": {
+        "code-first": ["browser:interaction:Show escalation guide"],
+        "viewspec-core": ["compile-or-replay:reveal_escalation_guide"],
+        "viewspec-deep": ["compile-or-replay:reveal_escalation_guide"]
+      }
+    },
+    {
+      "id": "corrupt-reviewed-count",
+      "kind": "mutation",
+      "class": "numeric-invariant",
+      "observable_failure": "One Record review click does not reveal exactly Review count: 1.",
+      "repairable": true,
+      "expected_detectors": {
+        "code-first": ["browser:interaction:Record review"],
+        "viewspec-core": ["browser:interaction:Record review", "replay:increment_reviewed_count"],
+        "viewspec-deep": ["browser:interaction:Record review", "replay:increment_reviewed_count", "freerange:numeric-invariant"]
+      }
+    },
+    {
+      "id": "break-escalation-visibility",
+      "kind": "mutation",
+      "class": "visibility-contract",
+      "observable_failure": "The escalation panel is not visibly revealed after its action.",
+      "repairable": true,
+      "expected_detectors": {
+        "code-first": ["browser:interaction:Show escalation guide"],
+        "viewspec-core": ["browser:interaction:Show escalation guide", "replay-or-browser:show_escalation_panel"],
+        "viewspec-deep": ["browser:interaction:Show escalation guide", "replay-or-browser:show_escalation_panel"]
+      }
+    },
+    {
+      "id": "duplicate-j207-resource",
+      "kind": "mutation",
+      "class": "resource-binding",
+      "observable_failure": "J-207 has more than one visible resource identity or binding.",
+      "repairable": true,
+      "expected_detectors": {
+        "code-first": ["browser:unique-hook:job-j207"],
+        "viewspec-core": ["compile:resource-identity"],
+        "viewspec-deep": ["compile:resource-identity"]
+      }
+    },
+    {
+      "id": "break-j205-mobile-geometry",
+      "kind": "mutation",
+      "class": "text-layout",
+      "observable_failure": "J-205 no longer satisfies its exact mobile title and natural-wrap geometry contract.",
+      "repairable": true,
+      "expected_detectors": {
+        "code-first": ["browser:text-geometry:J-205"],
+        "viewspec-core": ["browser:text-geometry:J-205"],
+        "viewspec-deep": ["pretext-or-browser:text-geometry:J-205"]
+      }
+    }
+  ],
+  "controls": [
+    {
+      "id": "control-unchanged-a",
+      "kind": "control"
+    },
+    {
+      "id": "control-unchanged-b",
+      "kind": "control"
+    }
+  ],
+  "manifest_sha256": "a11e663c982d6c533f3175fcf1384b4b69e2371f68ba4783fc54db5423affaa7"
+}

@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Any
 
 from viewspec.app_errors import AppBundleProofFailure
+from viewspec.app_resource_repeat import resource_repeat_summary
 from viewspec.app_validation import (
     APP_BUNDLE_MAX_ROUTES,
     APP_BUNDLE_MAX_SCREENS,
@@ -21,6 +22,12 @@ from viewspec.app_validation import (
     _state_ir_limits,
 )
 from viewspec.local_tools import source_hash
+from viewspec.presentation_plan import (
+    build_presentation_plan,
+    presentation_plan_css,
+    presentation_plan_diagnostics,
+    presentation_plan_hash,
+)
 from viewspec.state_ir import generate_browser_reducer_script
 
 APP_SHELL_TARGET = "html-tailwind-app"
@@ -89,7 +96,9 @@ def _build_static_app_shell(
             f"Serialized shell route table is {route_json_bytes} bytes; limit is {APP_SHELL_MAX_ROUTE_JSON_BYTES}.",
             "Reduce route labels or split the app into smaller AppBundles.",
         )
+    presentation_plan = build_presentation_plan(payload)
     styles = _dedupe_styles(screen_payloads)
+    styles.append(presentation_plan_css(presentation_plan))
     route_script = _app_shell_route_script()
     script_bytes = len(route_script.encode("utf-8"))
     if script_bytes > APP_SHELL_MAX_JS_BYTES:
@@ -145,8 +154,15 @@ def _build_static_app_shell(
         aggregate_screen_html,
         resource_binding_report=resource_binding_report,
         state_runtime=state_runtime,
+        presentation_plan=presentation_plan,
     )
-    return {"html": html, "manifest": manifest, "route_assertions": route_assertions}
+    return {
+        "html": html,
+        "manifest": manifest,
+        "presentation_plan": presentation_plan,
+        "presentation_plan_hash": presentation_plan_hash(presentation_plan),
+        "route_assertions": route_assertions,
+    }
 
 def _collect_shell_screens(screen_reports: list[dict[str, Any]]) -> list[dict[str, Any]]:
     screens: list[dict[str, Any]] = []
@@ -567,6 +583,17 @@ def _safe_json_for_script(payload: dict[str, Any]) -> str:
     return text.replace("&", "\\u0026").replace("<", "\\u003c").replace(">", "\\u003e")
 
 def _assert_rendered_shell_static_contract(html: str) -> None:
+    main_count = len(re.findall(r"<main\b", html, flags=re.IGNORECASE))
+    embedded_root_count = len(re.findall(r"\bdata-viewspec-screen-root=[\"']embedded[\"']", html, flags=re.IGNORECASE))
+    if main_count != 1 or embedded_root_count < 1:
+        raise AppBundleProofFailure(
+            "APP_SEMANTIC_LANDMARK_INVALID",
+            (
+                "Static AppBundle shell must contain exactly one main landmark and at least one neutral embedded "
+                f"screen root; found {main_count} main landmarks and {embedded_root_count} embedded roots."
+            ),
+            "Regenerate the app with one shell-owned main and neutral embedded screen roots.",
+        )
     if len(re.findall(r"<section\b[^>]*\bdata-viewspec-app-404\b", html, flags=re.IGNORECASE)) != 1:
         raise AppBundleProofFailure(
             "APP_SHELL_ROUTE_ASSERTION_FAILED",
@@ -603,6 +630,7 @@ def _static_shell_manifest(
     *,
     resource_binding_report: dict[str, Any] | None = None,
     state_runtime: dict[str, Any] | None = None,
+    presentation_plan: dict[str, Any],
 ) -> dict[str, Any]:
     return {
         "schema_version": 1,
@@ -615,6 +643,18 @@ def _static_shell_manifest(
         "app": _app_summary(payload),
         "routes": _shell_route_table(payload),
         "route_assertions": route_assertions,
+        "presentation_plan": {
+            "path": "presentation_plan.json",
+            "plan_hash": presentation_plan_hash(presentation_plan),
+            "screen_count": len(presentation_plan.get("screens", [])),
+            "diagnostics": presentation_plan_diagnostics(presentation_plan),
+            "sources": {
+                str(screen.get("id")): str(screen.get("source"))
+                for screen in presentation_plan.get("screens", [])
+                if isinstance(screen, dict)
+            },
+        },
+        "resource_repeat": resource_repeat_summary(payload),
         "screens": _screen_shell_summaries(screen_reports),
         "limits": _app_shell_limits(),
         "sizes": {

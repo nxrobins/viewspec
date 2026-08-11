@@ -1,0 +1,280 @@
+{
+  "schema_version": 4,
+  "app": {
+    "id": "fieldwork_dispatch",
+    "kind": "internal_tool",
+    "root_route": "/",
+    "title": "Fieldwork"
+  },
+  "resource_binding": "fixture_readonly_v0",
+  "interactive_state": "interactive_state_v0",
+  "resources": [
+    {
+      "id": "jobs",
+      "kind": "fixture",
+      "records": [
+        {"id":"J-204","title":"HVAC inspection","location":"Harbor Clinic","time":"10:30 AM","assignee":"Maya Chen","role":"Field technician","status":"Ready for dispatch","workload":"· 1 job"},
+        {"id":"J-205","title":"Replace north terminal refrigeration sensor before evening medicine delivery window","location":"North Terminal","time":"12:45 PM","assignee":"Owen Park","role":"Field technician","status":"At risk","workload":"· 1 job"},
+        {"id":"J-206","title":"Safety inspection","location":"Ridge School","time":"2:15 PM","assignee":"Lena Ortiz","role":"Field technician","status":"Ready for dispatch"},
+        {"id":"J-207","title":"Generator test","location":"Lakeside Pharmacy","time":"4:30 PM","assignee":"Lena Ortiz","role":"Field technician","status":"Ready for dispatch","workload":"· 6 jobs"},
+        {"id":"J-208","title":"Boiler pressure check","location":"Cedar Medical","time":"5:00 PM","assignee":"Lena Ortiz","role":"Field technician","status":"Ready for dispatch"},
+        {"id":"J-209","title":"Loading dock sensor test","location":"Riverfront Market","time":"5:30 PM","assignee":"Lena Ortiz","role":"Field technician","status":"Ready for dispatch"},
+        {"id":"J-210","title":"Emergency lighting inspection","location":"Parkview Offices","time":"6:00 PM","assignee":"Lena Ortiz","role":"Field technician","status":"Ready for dispatch"},
+        {"id":"J-211","title":"Cooling system calibration","location":"Hillcrest Lab","time":"6:30 PM","assignee":"Lena Ortiz","role":"Field technician","status":"Ready for dispatch"}
+      ]
+    }
+  ],
+  "routes": [
+    {"id":"dispatch","label":"Dispatch","path":"/","screen_id":"dispatch"}
+  ],
+  "screens": [
+    {
+      "id": "dispatch",
+      "title": "Field Dispatch",
+      "intent_bundle": {
+        "substrate": {
+          "id": "dispatch_substrate",
+          "root_id": "dispatch_app",
+          "nodes": {
+            "dispatch_app": {"id":"dispatch_app","kind":"app","attrs":{"title":"Fieldwork"},"slots":{},"edges":{}},
+            "brand": {"id":"brand","kind":"brand","attrs":{"mark":"F","label":"Fieldwork"},"slots":{},"edges":{}},
+            "navigation": {"id":"navigation","kind":"navigation","attrs":{"dispatch":"Dispatch","technicians":"Technicians","assets":"Assets","reports":"Reports"},"slots":{},"edges":{}},
+            "page_header": {"id":"page_header","kind":"heading","attrs":{"eyebrow":"Tuesday · July 22","title":"Field Dispatch","avatar":"NR"},"slots":{},"edges":{}},
+            "metrics": {"id":"metrics","kind":"summary","attrs":{"unassigned_value":"3","unassigned_label":"Unassigned","risk_value":"1","risk_label":"At risk","ontime_value":"86%","ontime_label":"On time"},"slots":{},"edges":{}},
+            "attention_heading": {"id":"attention_heading","kind":"heading","attrs":{"title":"Needs attention","label":"At risk"},"slots":{},"edges":{}},
+            "queue_heading": {"id":"queue_heading","kind":"heading","attrs":{"label":"Route Queue"},"slots":{},"edges":{}},
+            "workload_heading": {"id":"workload_heading","kind":"heading","attrs":{"title":"Technician workload"},"slots":{},"edges":{}},
+            "attention_collection": {"id":"attention_collection","kind":"collection","attrs":{"label":"At risk jobs"},"slots":{},"edges":{}},
+            "jobs_collection": {"id":"jobs_collection","kind":"collection","attrs":{"label":"Route Queue"},"slots":{},"edges":{}},
+            "escalation_guide": {"id":"escalation_guide","kind":"notice","attrs":{"title":"Escalation guide","body":"Escalation owner: Maya Chen"},"slots":{},"edges":{}},
+            "review_status": {"id":"review_status","kind":"status","attrs":{"label":"Reviews","value":"Review count: 1"},"slots":{},"edges":{}},
+            "intake_status": {"id":"intake_status","kind":"status","attrs":{"label":"Dispatch","value":"Dispatch intake paused"},"slots":{},"edges":{}}
+          }
+        },
+        "view_spec": {
+          "id": "dispatch_view",
+          "substrate_id": "dispatch_substrate",
+          "complexity_tier": 2,
+          "root_region": "root",
+          "regions": [
+            {"id":"root","role":"root","layout":"stack","parent_region":"","min_children":2,"max_children":2},
+            {"id":"sidebar","role":"sidebar","layout":"stack","parent_region":"root","min_children":2,"max_children":2},
+            {"id":"main","role":"main","layout":"stack","parent_region":"root","min_children":4,"max_children":null}
+          ],
+          "bindings": [
+            {"id":"brand_mark","address":"node:brand#attr:mark","present_as":"label","target_region":"sidebar","cardinality":"exactly_once"},
+            {"id":"brand_name","address":"node:brand#attr:label","present_as":"label","target_region":"sidebar","cardinality":"exactly_once"},
+            {"id":"nav_dispatch","address":"node:navigation#attr:dispatch","present_as":"label","target_region":"sidebar","cardinality":"exactly_once"},
+            {"id":"nav_technicians","address":"node:navigation#attr:technicians","present_as":"value","target_region":"sidebar","cardinality":"exactly_once"},
+            {"id":"nav_assets","address":"node:navigation#attr:assets","present_as":"value","target_region":"sidebar","cardinality":"exactly_once"},
+            {"id":"nav_reports","address":"node:navigation#attr:reports","present_as":"value","target_region":"sidebar","cardinality":"exactly_once"},
+            {"id":"dispatch_eyebrow","address":"node:page_header#attr:eyebrow","present_as":"label","target_region":"main","cardinality":"exactly_once"},
+            {"id":"dispatch_title","address":"node:page_header#attr:title","present_as":"label","target_region":"main","cardinality":"exactly_once"},
+            {"id":"avatar_initials","address":"node:page_header#attr:avatar","present_as":"label","target_region":"main","cardinality":"exactly_once"},
+            {"id":"unassigned_value","address":"node:metrics#attr:unassigned_value","present_as":"value","target_region":"main","cardinality":"exactly_once"},
+            {"id":"unassigned_label","address":"node:metrics#attr:unassigned_label","present_as":"label","target_region":"main","cardinality":"exactly_once"},
+            {"id":"risk_value","address":"node:metrics#attr:risk_value","present_as":"value","target_region":"main","cardinality":"exactly_once"},
+            {"id":"risk_label","address":"node:metrics#attr:risk_label","present_as":"label","target_region":"main","cardinality":"exactly_once"},
+            {"id":"ontime_value","address":"node:metrics#attr:ontime_value","present_as":"value","target_region":"main","cardinality":"exactly_once"},
+            {"id":"ontime_label","address":"node:metrics#attr:ontime_label","present_as":"label","target_region":"main","cardinality":"exactly_once"},
+            {"id":"attention_title","address":"node:attention_heading#attr:title","present_as":"label","target_region":"main","cardinality":"exactly_once"},
+            {"id":"attention_risk_label","address":"node:attention_heading#attr:label","present_as":"badge","target_region":"main","cardinality":"exactly_once"},
+            {"id":"route_queue_label","address":"node:queue_heading#attr:label","present_as":"label","target_region":"main","cardinality":"exactly_once"},
+            {"id":"workload_title","address":"node:workload_heading#attr:title","present_as":"label","target_region":"main","cardinality":"exactly_once"},
+            {"id":"escalation_title","address":"node:escalation_guide#attr:title","present_as":"label","target_region":"main","cardinality":"exactly_once"},
+            {"id":"escalation_body","address":"node:escalation_guide#attr:body","present_as":"value","target_region":"main","cardinality":"exactly_once"},
+            {"id":"review_count_label","address":"node:review_status#attr:label","present_as":"label","target_region":"main","cardinality":"exactly_once"},
+            {"id":"review_count_value","address":"node:review_status#attr:value","present_as":"value","target_region":"main","cardinality":"exactly_once"},
+            {"id":"intake_paused_label","address":"node:intake_status#attr:label","present_as":"label","target_region":"main","cardinality":"exactly_once"},
+            {"id":"intake_paused_value","address":"node:intake_status#attr:value","present_as":"value","target_region":"main","cardinality":"exactly_once"}
+          ],
+          "groups": [
+            {"id":"brand_group","kind":"ordered","members":["brand_mark","brand_name"],"target_region":"sidebar"},
+            {"id":"navigation_group","kind":"ordered","members":["nav_dispatch","nav_technicians","nav_assets","nav_reports"],"target_region":"sidebar"},
+            {"id":"header_group","kind":"ordered","members":["dispatch_eyebrow","dispatch_title","avatar_initials"],"target_region":"main"},
+            {"id":"metrics_group","kind":"ordered","members":["unassigned_value","unassigned_label","risk_value","risk_label","ontime_value","ontime_label"],"target_region":"main"},
+            {"id":"attention_heading_group","kind":"ordered","members":["attention_title","attention_risk_label"],"target_region":"main"},
+            {"id":"workload_heading_group","kind":"ordered","members":["workload_title"],"target_region":"main"},
+            {"id":"technician_workload_rows","kind":"ordered","members":[],"target_region":"main"},
+            {"id":"escalation_group","kind":"ordered","members":["escalation_title","escalation_body"],"target_region":"main"},
+            {"id":"review_status_group","kind":"ordered","members":["review_count_label","review_count_value"],"target_region":"main"},
+            {"id":"intake_status_group","kind":"ordered","members":["intake_paused_label","intake_paused_value"],"target_region":"main"}
+          ],
+          "motifs": [
+            {"id":"brand_motif","kind":"hero","members":["brand_mark","brand_name"],"region":"sidebar"},
+            {"id":"navigation_motif","kind":"detail","members":["nav_dispatch","nav_technicians","nav_assets","nav_reports"],"region":"sidebar"},
+            {"id":"page_hero","kind":"hero","members":["dispatch_eyebrow","dispatch_title","avatar_initials"],"region":"main"},
+            {"id":"summary_metrics","kind":"detail","members":["unassigned_value","unassigned_label","risk_value","risk_label","ontime_value","ontime_label"],"region":"main"},
+            {"id":"attention_heading_motif","kind":"hero","members":["attention_title","attention_risk_label"],"region":"main"},
+            {"id":"attention_job_cards","kind":"table","members":[],"region":"main"},
+            {"id":"queue_heading_motif","kind":"hero","members":["route_queue_label"],"region":"main"},
+            {"id":"job_cards","kind":"table","members":[],"region":"main"},
+            {"id":"workload_heading_motif","kind":"hero","members":["workload_title"],"region":"main"},
+            {"id":"technician_workload","kind":"table","members":[],"region":"main"},
+            {"id":"escalation_panel","kind":"detail","members":["escalation_title","escalation_body"],"region":"main"},
+            {"id":"review_count_status","kind":"detail","members":["review_count_label","review_count_value"],"region":"main"},
+            {"id":"intake_paused_status","kind":"detail","members":["intake_paused_label","intake_paused_value"],"region":"main"}
+          ],
+          "actions": [
+            {"id":"show_escalation_guide","kind":"submit","label":"Show escalation guide","payload_bindings":[],"target_ref":null,"target_region":"main"},
+            {"id":"record_review","kind":"submit","label":"Record review","payload_bindings":[],"target_ref":null,"target_region":"main"},
+            {"id":"pause_intake","kind":"submit","label":"Pause intake","payload_bindings":[],"target_ref":null,"target_region":"main"}
+          ],
+          "styles": []
+        }
+      },
+      "resource_views": [
+        {
+          "id":"attention_jobs",
+          "resource_id":"jobs",
+          "mode":"list",
+          "record_ids":["J-205"],
+          "fields":["id","title","location","time","assignee","role","status"],
+          "target_motif_id":"attention_job_cards",
+          "repeat": {
+            "field_presentations": [
+              {"field":"id","present_as":"label"},
+              {"field":"title","present_as":"label"},
+              {"field":"location","present_as":"value"},
+              {"field":"time","present_as":"value"},
+              {"field":"assignee","present_as":"label"},
+              {"field":"role","present_as":"value"},
+              {"field":"status","present_as":"badge"}
+            ]
+          }
+        },
+        {
+          "id":"dispatch_jobs",
+          "resource_id":"jobs",
+          "mode":"list",
+          "record_ids":["J-204","J-206","J-207","J-208","J-209","J-210","J-211"],
+          "fields":["id","title","location","time","assignee","role","status"],
+          "target_motif_id":"job_cards",
+          "repeat": {
+            "field_presentations": [
+              {"field":"id","present_as":"label"},
+              {"field":"title","present_as":"label"},
+              {"field":"location","present_as":"value"},
+              {"field":"time","present_as":"value"},
+              {"field":"assignee","present_as":"label"},
+              {"field":"role","present_as":"value"},
+              {"field":"status","present_as":"badge"}
+            ]
+          }
+        },
+        {
+          "id":"workload_by_technician",
+          "resource_id":"jobs",
+          "mode":"list",
+          "record_ids":["J-204","J-205","J-207"],
+          "fields":["assignee","workload"],
+          "target_motif_id":"technician_workload",
+          "repeat": {
+            "group_id":"technician_workload_rows",
+            "field_presentations": [
+              {"field":"assignee","present_as":"label"},
+              {"field":"workload","present_as":"value"}
+            ]
+          }
+        }
+      ],
+      "presentation": {
+        "profile":"operations_workspace",
+        "rules":[
+          {
+            "id":"root_shell","target_ref":"region:root",
+            "base":{"display":"grid","columns":["rail_lg","fluid"],"areas":[["sidebar","main"]],"gap":"none","padding":"none"},
+            "variants":{
+              "compact":{"display":"grid","columns":1,"areas":[["sidebar"],["main"]]},
+              "medium":{"display":"grid","columns":1,"areas":[["sidebar"],["main"]]},
+              "wide":{"display":"grid","columns":["rail_lg","fluid"],"areas":[["sidebar","main"]]}
+            }
+          },
+          {
+            "id":"sidebar_layout","target_ref":"region:sidebar",
+            "base":{"display":"flex","direction":"column","gap":"md","padding":"xl","sticky":true},
+            "variants":{
+              "compact":{"gap":"xs","padding":"sm","sticky":false},
+              "medium":{"gap":"sm","padding":"lg","sticky":false},
+              "wide":{"sticky":true}
+            }
+          },
+          {
+            "id":"main_layout","target_ref":"region:main",
+            "base":{"display":"flex","direction":"column","gap":"xl","padding":"xl","min_inline_size":"zero"},
+            "variants":{"compact":{"gap":"sm","padding":"lg"},"medium":{"gap":"md","padding":"2xl"},"wide":{"gap":"xl","padding":"xl"}}
+          },
+          {
+            "id":"compact_dispatch_title","target_ref":"binding:dispatch_title",
+            "base":{"width":"intrinsic","max_width":"full","text_wrap":"normal","min_inline_size":"zero"},
+            "variants":{"compact":{"font_size":"title"},"medium":{"font_size":"display_sm"}}
+          },
+          {
+            "id":"attention_heading_layout","target_ref":"motif:attention_heading_motif",
+            "base":{"display":"flex","direction":"row","gap":"sm","width":"intrinsic","padding":"none"},
+            "variants":{"compact":{"gap":"xs"},"medium":{"gap":"sm"},"wide":{"gap":"sm"}}
+          },
+          {
+            "id":"attention_job_card_items","target_ref":"motif:attention_job_cards",
+            "base":{"display":"block","width":"full","min_inline_size":"zero","padding":"none"},
+            "items":{
+              "base":{"display":"grid","columns":["identity_lg","fluid_wide","fluid","auto"],"gap":"sm","padding":"lg","min_inline_size":"zero"},
+              "variants":{
+                "compact":{"display":"grid","columns":["identity_sm","fluid","auto"],"gap":"xs","padding":"md","min_inline_size":"zero"},
+                "medium":{"display":"grid","columns":["identity_md","fluid_wide","auto"],"gap":"md","padding":"md","min_inline_size":"zero"},
+                "wide":{"display":"grid","columns":["identity_lg","fluid_wide","fluid","auto"],"gap":"sm","padding":"lg","min_inline_size":"zero"}
+              }
+            }
+          },
+          {
+            "id":"job_card_items","target_ref":"motif:job_cards",
+            "base":{"display":"block","width":"full","min_inline_size":"zero","padding":"none"},
+            "items":{
+              "base":{"display":"grid","columns":["identity_lg","fluid_wide","fluid","auto"],"gap":"sm","padding":"lg","min_inline_size":"zero"},
+              "variants":{
+                "compact":{"display":"grid","columns":["identity_sm","fluid","auto"],"gap":"xs","padding":"md","min_inline_size":"zero"},
+                "medium":{"display":"grid","columns":["identity_md","fluid_wide","auto"],"gap":"md","padding":"md","min_inline_size":"zero"},
+                "wide":{"display":"grid","columns":["identity_lg","fluid_wide","fluid","auto"],"gap":"sm","padding":"lg","min_inline_size":"zero"}
+              }
+            }
+          },
+          {
+            "id":"technician_workload_items","target_ref":"motif:technician_workload",
+            "base":{"display":"block","width":"full","min_inline_size":"zero","padding":"none"},
+            "items":{
+              "base":{"display":"grid","columns":3,"gap":"sm","padding":"none","width":"full","min_inline_size":"zero"},
+              "variants":{
+                "compact":{"display":"grid","columns":1,"gap":"xs","width":"full","min_inline_size":"zero"},
+                "medium":{"display":"grid","columns":3,"gap":"sm","width":"full","min_inline_size":"zero"},
+                "wide":{"display":"grid","columns":3,"gap":"sm","width":"full","min_inline_size":"zero"}
+              }
+            }
+          }
+        ],
+        "anchors":[{"id":"sidebar_main_row","target_ref":"region:sidebar","anchor_ref":"region:main","relation":"same_row","viewports":["wide"]}]
+      }
+    }
+  ],
+  "state": [
+    {"id":"reviewed_count","kind":"scalar","scope":"app","initial":{"value":0}},
+    {"id":"escalation_guide_visible","kind":"scalar","scope":"screen","screen_id":"dispatch","initial":{"value":false}},
+    {"id":"intake_paused","kind":"scalar","scope":"screen","screen_id":"dispatch","initial":{"value":false}}
+  ],
+  "mutations": [
+    {"id":"increment_reviewed_count","trigger":{"action_id":"record_review","screen_id":"dispatch"},"ops":[{"op":"increment","state":"reviewed_count"}]},
+    {"id":"reveal_escalation_guide","trigger":{"action_id":"show_escalation_guide","screen_id":"dispatch"},"ops":[{"op":"set","state":"escalation_guide_visible","value":true}]},
+    {"id":"pause_intake_state","trigger":{"action_id":"pause_intake","screen_id":"dispatch"},"ops":[{"op":"set","state":"intake_paused","value":true}]}
+  ],
+  "selectors": [],
+  "visibility": [
+    {"id":"show_escalation_panel","screen_id":"dispatch","target_ref":"motif:escalation_panel","when":{"state":"escalation_guide_visible","is":"truthy"}},
+    {"id":"show_review_count","screen_id":"dispatch","target_ref":"motif:review_count_status","when":{"state":"reviewed_count","is":"truthy"}},
+    {"id":"show_intake_paused","screen_id":"dispatch","target_ref":"motif:intake_paused_status","when":{"state":"intake_paused","is":"truthy"}}
+  ],
+  "state_replay_assertions": [
+    {"id":"review_one_job","events":[{"mutation_id":"increment_reviewed_count"}],"expect_state":{"reviewed_count":1},"expect_visibility":{"show_review_count":true}},
+    {"id":"review_two_jobs","events":[{"mutation_id":"increment_reviewed_count"},{"mutation_id":"increment_reviewed_count"}],"expect_state":{"reviewed_count":2},"expect_visibility":{"show_review_count":true}},
+    {"id":"reveal_guide","events":[{"mutation_id":"reveal_escalation_guide"}],"expect_state":{"escalation_guide_visible":true},"expect_visibility":{"show_escalation_panel":true}},
+    {"id":"pause_dispatch_intake","events":[{"mutation_id":"pause_intake_state"}],"expect_state":{"intake_paused":true},"expect_visibility":{"show_intake_paused":true}}
+  ]
+}

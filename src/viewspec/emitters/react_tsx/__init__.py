@@ -260,7 +260,7 @@ def _style_object(node: IRNode, style_values: dict[str, str]) -> str:
 
 def _tag_for_node(node: IRNode) -> str:
     if node.primitive == "root":
-        return "main"
+        return "div" if node.props.get("semantic_context") == "embedded_screen" else "main"
     if node.props.get("motif_kind") == "table" and node.primitive == "stack":
         return "table"
     if node.props.get("motif_kind") == "table" and node.primitive == "cluster":
@@ -361,6 +361,8 @@ def _attrs_for_node(node: IRNode, style_values: dict[str, str]) -> list[str]:
     ]
     if node.primitive == "root":
         attrs.append(f'className={{[{_tsx_string(classes)}, className].filter(Boolean).join(" ")}}')
+        if node.props.get("semantic_context") == "embedded_screen":
+            attrs.append(_jsx_attr("data-viewspec-screen-root", "embedded"))
     else:
         attrs.append(_jsx_attr("className", classes))
     style = _style_object(node, style_values)
@@ -368,6 +370,15 @@ def _attrs_for_node(node: IRNode, style_values: dict[str, str]) -> list[str]:
         attrs.append(style)
     if node.props.get("binding_id") is not None:
         attrs.append(_jsx_attr("data-binding-id", str(node.props["binding_id"])))
+    for prop, attribute in (
+        ("resource_id", "data-resource-id"),
+        ("resource_view_id", "data-resource-view-id"),
+        ("record_id", "data-record-id"),
+        ("resource_field", "data-resource-field"),
+    ):
+        value = node.props.get(prop)
+        if isinstance(value, str) and value:
+            attrs.append(_jsx_attr(attribute, value))
     aesthetic_profile = node.props.get("aesthetic_profile")
     if isinstance(aesthetic_profile, str) and aesthetic_profile:
         attrs.append(_jsx_attr("data-aesthetic-profile", aesthetic_profile))

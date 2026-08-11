@@ -1033,14 +1033,14 @@ PAGE_BODY_TEMPLATE = r"""<a class="skip-link" href="#top">Skip to content</a>
       <div class="integration-proofs" aria-labelledby="integration-proofs-title">
         <div class="integration-proofs-head">
           <span class="kicker"><span class="n">/</span> exact-versioned proof integrations</span>
-          <h3 id="integration-proofs-title">Freerange and Pretext, bounded on purpose.</h3>
-          <p>Two opt-in integrations by <a href="https://github.com/chenglou" target="_blank" rel="noopener">chenglou</a> add independently reported evidence to generated <code>react-tailwind-app</code> proofs.</p>
+          <h3 id="integration-proofs-title">Freerange and Pretext, end-to-end accountable.</h3>
+          <p>Two opt-in integrations by <a href="https://github.com/chenglou" target="_blank" rel="noopener">chenglou</a> bind declared source inventories to independently checked generated behavior in <code>react-tailwind-app</code> proofs.</p>
         </div>
         <div class="proof-grid">
           <article class="pcard" data-proof-integration="freerange">
             <div class="pcard-h"><span class="ok"></span><span class="tt"><a href="https://github.com/chenglou/freerange" target="_blank" rel="noopener">Freerange</a> numeric proof</span></div>
             <div class="pcard-b">
-              <p><code>@chenglou/freerange@0.0.1</code> checks only the manifest-described generated numeric kernel and its recorded call-site hashes.</p>
+              <p><code>@chenglou/freerange@0.0.1</code> binds every eligible state-operation occurrence to the emitted state contract, exact generated helpers, 100% function analysis, and runtime call sites.</p>
               <code class="integration-proof-command">viewspec prove-app --app viewspec.app.json --target react-tailwind-app --install --freerange --json</code>
               <p class="integration-proof-meta">Requires a user-installed stable Bun 1.x on PATH. ViewSpec never installs Bun.</p>
               <p>It does not analyze CSS, prove rendered geometry, certify arbitrary math, or certify arbitrary host apps.</p>
@@ -1049,14 +1049,14 @@ PAGE_BODY_TEMPLATE = r"""<a class="skip-link" href="#top">Skip to content</a>
           <article class="pcard" data-proof-integration="pretext">
             <div class="pcard-h"><span class="ok"></span><span class="tt"><a href="https://github.com/chenglou/pretext" target="_blank" rel="noopener">Pretext</a> text proof</span></div>
             <div class="pcard-b">
-              <p><code>@chenglou/pretext@0.0.8</code> preserves native DOM semantics and checks only native-DOM versus Pretext line count and overflow with named <code>Arial, sans-serif</code>.</p>
+              <p><code>@chenglou/pretext@0.0.8</code> preserves native DOM semantics, independently inventories every eligible text surface per route and viewport, and checks native-DOM versus Pretext line count and overflow with named <code>Arial, sans-serif</code>.</p>
               <code class="integration-proof-command">viewspec prove-app --app viewspec.app.json --target react-tailwind-app --install --pretext --json</code>
               <p class="integration-proof-meta">Runs at 390&times;844, 768&times;1024, and 1440&times;1000 in Chromium. No Bun required.</p>
               <p>It is not general typography proof, canvas-rendering proof, pixel-perfect visual regression, accessibility certification, or arbitrary-host certification.</p>
             </div>
           </article>
         </div>
-        <p class="integration-proof-compose"><b>Compose, don&rsquo;t expand:</b> <code>viewspec prove-app --app viewspec.app.json --target react-tailwind-app --install --freerange --pretext --json</code> runs both independently reported analyses; it does not broaden either guarantee. Dedicated hosted E2E is configured for relevant pushes and pull requests, a weekly schedule, and manual dispatch; this does not claim that a hosted run has completed.</p>
+        <p class="integration-proof-compose"><b>Compose the proofs:</b> <code>viewspec prove-app --app viewspec.app.json --target react-tailwind-app --install --freerange --pretext --json</code> runs both independently reported analyses and does not broaden either guarantee. Dedicated hosted E2E is configured to cover healthy proofs plus division, bounds, font, wrapping, and overflow mutation rejection on relevant changes, weekly, and by manual dispatch; this does not claim that a hosted run has completed.</p>
       </div>
     </section>
 

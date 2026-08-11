@@ -1,0 +1,142 @@
+{
+  "schema_version": 1,
+  "id": "viewspec-agent-ui-pilot-v1",
+  "model": "codex-default-2026-07-22",
+  "seeds": [104729],
+  "arms": ["code-first", "viewspec-core", "viewspec-deep"],
+  "success_criteria": {
+    "minimum_token_reduction": 0.3,
+    "minimum_iteration_token_reduction": 0.4,
+    "minimum_iteration_speedup": 0.3,
+    "minimum_regression_reduction": 0.5,
+    "minimum_deep_mutation_detection": 0.9,
+    "maximum_proof_overhead": 0.2
+  },
+  "tasks": [
+    {
+      "id": "field-dispatch",
+      "title": "Field Dispatch",
+      "brief": "Build the responsive field-service dispatch interface shown in the attached reference. Preserve the information hierarchy and visual character while using production-quality semantics and behavior. No network requests or remote assets are allowed.",
+      "reference": "tasks/field-dispatch/reference.html",
+      "visual_anchors": [
+        "Field Dispatch",
+        "Unassigned",
+        "J-204",
+        "J-205",
+        "J-206",
+        "Needs attention",
+        "J-207"
+      ],
+      "steps": [
+        {
+          "id": "initial-build",
+          "prompt": "Create the initial interface. It needs a Field Dispatch heading, a Tuesday · July 22 eyebrow, summary metrics for 3 Unassigned and 1 At risk, and jobs J-204, J-205, and J-206. J-204 is a Harbor Clinic HVAC inspection assigned to Maya Chen. J-205 is a North Terminal refrigeration sensor job. J-206 is a Ridge School safety inspection. Match the supplied desktop reference closely and make the document structurally semantic.",
+          "acceptance": {
+            "required_text": [
+              "Field Dispatch",
+              "Tuesday · July 22",
+              "Unassigned",
+              "At risk",
+              "J-204",
+              "Harbor Clinic",
+              "Maya Chen",
+              "J-205",
+              "North Terminal",
+              "J-206",
+              "Ridge School"
+            ],
+            "forbidden_text": ["J-207", "Needs attention"],
+            "required_buttons": [],
+            "text_order": ["Field Dispatch", "Unassigned", "J-204", "J-205", "J-206"]
+          }
+        },
+        {
+          "id": "content-change",
+          "prompt": "Update the dispatch data without losing the existing hierarchy. Rename the Queued state to Awaiting assignment everywhere and add J-207, a Lakeside Pharmacy generator test scheduled for 4:30 PM.",
+          "acceptance": {
+            "required_text": [
+              "Field Dispatch",
+              "Awaiting assignment",
+              "J-204",
+              "J-205",
+              "J-206",
+              "J-207",
+              "Lakeside Pharmacy",
+              "4:30 PM"
+            ],
+            "forbidden_text": ["Queued", "Needs attention"],
+            "required_buttons": [],
+            "text_order": ["Field Dispatch", "J-204", "J-205", "J-206", "J-207"]
+          }
+        },
+        {
+          "id": "hierarchy-change",
+          "prompt": "Add a Needs attention lane before the main route queue and move J-205 into it. Give the lane a clear At risk label and show the remaining route jobs after it. Keep all four jobs and all content from the prior iteration.",
+          "acceptance": {
+            "required_text": [
+              "Field Dispatch",
+              "Needs attention",
+              "At risk",
+              "J-205",
+              "North Terminal",
+              "J-204",
+              "J-206",
+              "J-207",
+              "Awaiting assignment"
+            ],
+            "forbidden_text": ["Queued"],
+            "required_buttons": [],
+            "text_order": ["Needs attention", "J-205", "J-204", "J-206", "J-207"]
+          }
+        },
+        {
+          "id": "state-behavior",
+          "prompt": "Add bounded state behavior. A Show escalation guide button must reveal a previously hidden panel containing Escalation owner: Maya Chen. Add a separate Record review action backed by a numeric reviewed-count increment so it can be replayed and statically analyzed. Preserve every earlier requirement. In a ViewSpec arm, express this in the AppBundle V4 state, mutation, selector/visibility, and replay contracts rather than editing generated output.",
+          "acceptance": {
+            "required_text": [
+              "Field Dispatch",
+              "Needs attention",
+              "J-205",
+              "J-204",
+              "J-206",
+              "J-207",
+              "Show escalation guide",
+              "Record review"
+            ],
+            "forbidden_text": ["Queued"],
+            "required_buttons": ["Show escalation guide", "Record review"],
+            "text_order": ["Needs attention", "J-205", "J-204", "J-206", "J-207"],
+            "click": {
+              "button": "Show escalation guide",
+              "reveals": "Escalation owner: Maya Chen"
+            }
+          }
+        },
+        {
+          "id": "responsive-repair",
+          "prompt": "Finish the responsive pass and repair any regression reported by the evaluator. At 390px there must be no horizontal overflow, controls must remain usable, and the J-205 title must wrap naturally as: Replace north terminal refrigeration sensor before evening medicine delivery window. Retain the attention lane, all four jobs, both actions, and the reveal behavior.",
+          "acceptance": {
+            "required_text": [
+              "Field Dispatch",
+              "Needs attention",
+              "J-205",
+              "Replace north terminal refrigeration sensor before evening medicine delivery window",
+              "J-204",
+              "J-206",
+              "J-207",
+              "Show escalation guide",
+              "Record review"
+            ],
+            "forbidden_text": ["Queued"],
+            "required_buttons": ["Show escalation guide", "Record review"],
+            "text_order": ["Needs attention", "J-205", "J-204", "J-206", "J-207"],
+            "click": {
+              "button": "Show escalation guide",
+              "reveals": "Escalation owner: Maya Chen"
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

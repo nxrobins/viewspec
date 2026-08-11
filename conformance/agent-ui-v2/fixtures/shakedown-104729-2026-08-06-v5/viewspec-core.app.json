@@ -1,0 +1,435 @@
+{
+  "schema_version": 4,
+  "app": {
+    "id": "field_dispatch",
+    "kind": "internal_tool",
+    "root_route": "/",
+    "title": "Field Dispatch"
+  },
+  "resource_binding": "fixture_readonly_v0",
+  "interactive_state": "interactive_state_v0",
+  "resources": [
+    {
+      "id": "dispatch_jobs",
+      "kind": "fixture",
+      "records": [
+        {
+          "id": "J-204",
+          "title": "HVAC inspection",
+          "location": "Harbor Clinic",
+          "scheduled_time": "10:30 AM",
+          "technician": "Maya Chen",
+          "technician_role": "Field technician",
+          "status": "Ready for dispatch",
+          "workload_summary": "Maya Chen · 1 job"
+        },
+        {
+          "id": "J-205",
+          "title": "Replace north terminal refrigeration sensor before evening medicine delivery window",
+          "location": "North Terminal",
+          "scheduled_time": "12:45 PM",
+          "technician": "Owen Park",
+          "technician_role": "Field technician",
+          "status": "At risk",
+          "workload_summary": "Owen Park · 1 job"
+        },
+        {
+          "id": "J-206",
+          "title": "Safety inspection",
+          "location": "Ridge School",
+          "scheduled_time": "2:15 PM",
+          "technician": "Lena Ortiz",
+          "technician_role": "Field technician",
+          "status": "Ready for dispatch"
+        },
+        {
+          "id": "J-207",
+          "title": "Generator test",
+          "location": "Lakeside Pharmacy",
+          "scheduled_time": "4:30 PM",
+          "technician": "Lena Ortiz",
+          "technician_role": "Field technician",
+          "status": "Ready for dispatch",
+          "workload_summary": "Lena Ortiz · 6 jobs"
+        },
+        {
+          "id": "J-208",
+          "title": "Emergency lighting inspection",
+          "location": "Cedar Medical Center",
+          "scheduled_time": "5:00 PM",
+          "technician": "Lena Ortiz",
+          "technician_role": "Field technician",
+          "status": "Ready for dispatch"
+        },
+        {
+          "id": "J-209",
+          "title": "Loading dock door service",
+          "location": "West Market",
+          "scheduled_time": "5:30 PM",
+          "technician": "Lena Ortiz",
+          "technician_role": "Field technician",
+          "status": "Ready for dispatch"
+        },
+        {
+          "id": "J-210",
+          "title": "Backup battery test",
+          "location": "Pine Street Clinic",
+          "scheduled_time": "6:00 PM",
+          "technician": "Lena Ortiz",
+          "technician_role": "Field technician",
+          "status": "Ready for dispatch"
+        },
+        {
+          "id": "J-211",
+          "title": "Temperature monitor calibration",
+          "location": "Central Pharmacy",
+          "scheduled_time": "6:30 PM",
+          "technician": "Lena Ortiz",
+          "technician_role": "Field technician",
+          "status": "Ready for dispatch"
+        }
+      ]
+    }
+  ],
+  "routes": [
+    {
+      "id": "dispatch",
+      "label": "Dispatch",
+      "path": "/",
+      "screen_id": "dispatch"
+    }
+  ],
+  "screens": [
+    {
+      "id": "dispatch",
+      "title": "Field Dispatch",
+      "presentation": {
+        "profile": "operations_workspace",
+        "rules": [
+          {"id":"workspace_shell","target_ref":"region:root","base":{"display":"flex","direction":"column","width":"full","padding":"none","gap":"none"},"variants":{"compact":{"display":"flex","direction":"column"},"medium":{"display":"flex","direction":"column"},"wide":{"display":"grid","columns":["rail_lg","fluid"]}}},
+          {"id":"sidebar_rail","target_ref":"region:sidebar","base":{"display":"flex","direction":"row","width":"full","padding":"lg","gap":"sm","align":"start","justify":"start"},"variants":{"compact":{"padding":"lg"},"medium":{"padding":"lg"},"wide":{"direction":"column","width":"rail_lg","padding":"lg","gap":"lg"}}},
+          {"id":"main_canvas","target_ref":"region:main","base":{"display":"flex","direction":"column","width":"full","padding":"lg","gap":"lg","align":"start"},"variants":{"medium":{"padding":"2xl"},"wide":{"padding":"xl"}}},
+          {"id":"hero_native_heading","target_ref":"motif:page_hero","base":{"display":"flex","direction":"column","gap":"xs","align":"start","justify":"start"}},
+          {"id":"page_title_intrinsic","target_ref":"binding:page_title","base":{"width":"intrinsic","max_width":"intrinsic","align":"start","justify":"start"}},
+          {"id":"page_eyebrow_intrinsic","target_ref":"binding:page_eyebrow","base":{"width":"intrinsic","align":"start"}},
+          {"id":"metrics_three_up","target_ref":"motif:summary_metrics","base":{"display":"grid","columns":1,"gap":"md"},"variants":{"medium":{"columns":3},"wide":{"columns":3}}},
+          {"id":"attention_cards","target_ref":"motif:needs_attention","base":{"display":"flex","direction":"column","width":"full","gap":"sm"}},
+          {"id":"attention_title_intrinsic","target_ref":"binding:attention_title","base":{"width":"intrinsic","align":"start"}},
+          {"id":"unassigned_label_intrinsic","target_ref":"binding:unassigned_label","base":{"width":"intrinsic","align":"start"}},
+          {"id":"j205_title_wrap","target_ref":"binding:rvb_attention_jobs__J-205__title","base":{"display":"block","width":"full","align":"start"}},
+          {"id":"queue_cards","target_ref":"motif:route_queue","base":{"display":"flex","direction":"column","width":"full","gap":"sm"}},
+          {"id":"state_controls","target_ref":"region:controls","base":{"display":"flex","direction":"column","width":"full","gap":"sm"},"variants":{"wide":{"direction":"row"}}}
+        ],
+        "anchors": [
+          {"id":"sidebar_main_wide_row","target_ref":"region:sidebar","anchor_ref":"region:main","relation":"same_row","viewports":["wide"]}
+        ]
+      },
+      "intent_bundle": {
+        "substrate": {
+          "id": "field_dispatch_substrate",
+          "root_id": "field_dispatch",
+          "nodes": {
+            "field_dispatch": {
+              "id": "field_dispatch",
+              "kind": "app",
+              "attrs": {
+                "title": "Field Dispatch",
+                "eyebrow": "Tuesday · July 22"
+              },
+              "slots": {},
+              "edges": {}
+            },
+            "brand": {
+              "id": "brand",
+              "kind": "brand",
+              "attrs": {
+                "mark": "F",
+                "name": "Fieldwork"
+              },
+              "slots": {},
+              "edges": {}
+            },
+            "navigation": {
+              "id": "navigation",
+              "kind": "navigation",
+              "attrs": {
+                "dispatch": "Dispatch",
+                "technicians": "Technicians",
+                "assets": "Assets",
+                "reports": "Reports"
+              },
+              "slots": {},
+              "edges": {}
+            },
+            "summary": {
+              "id": "summary",
+              "kind": "summary",
+              "attrs": {
+                "unassigned_count": "3",
+                "unassigned_label": "Unassigned",
+                "at_risk_count": "1",
+                "at_risk_label": "At risk",
+                "on_time_value": "86%",
+                "on_time_label": "On time"
+              },
+              "slots": {},
+              "edges": {}
+            },
+            "attention": {
+              "id": "attention",
+              "kind": "section",
+              "attrs": {
+                "title": "Needs attention",
+                "label": "At risk"
+              },
+              "slots": {},
+              "edges": {}
+            },
+            "escalation_guide": {
+              "id": "escalation_guide",
+              "kind": "panel",
+              "attrs": {
+                "title": "Escalation guide",
+                "owner": "Escalation owner: Maya Chen"
+              },
+              "slots": {},
+              "edges": {}
+            },
+            "review_summary": {
+              "id": "review_summary",
+              "kind": "status",
+              "attrs": {
+                "count": "Review count: 1"
+              },
+              "slots": {},
+              "edges": {}
+            },
+            "intake_status": {
+              "id": "intake_status",
+              "kind": "status",
+              "attrs": {
+                "message": "Dispatch intake paused"
+              },
+              "slots": {},
+              "edges": {}
+            },
+            "queue": {
+              "id": "queue",
+              "kind": "section",
+              "attrs": {
+                "label": "Route queue"
+              },
+              "slots": {},
+              "edges": {}
+            },
+            "workload": {
+              "id": "workload",
+              "kind": "section",
+              "attrs": {
+                "title": "Technician workload"
+              },
+              "slots": {},
+              "edges": {}
+            }
+          }
+        },
+        "view_spec": {
+          "id": "field_dispatch_view",
+          "substrate_id": "field_dispatch_substrate",
+          "complexity_tier": 2,
+          "root_region": "root",
+          "regions": [
+            {
+              "id": "root",
+              "role": "root",
+              "layout": "stack",
+              "parent_region": "",
+              "min_children": 2,
+              "max_children": 2
+            },
+            {
+              "id": "sidebar",
+              "role": "navigation",
+              "layout": "stack",
+              "parent_region": "root",
+              "min_children": 2,
+              "max_children": null
+            },
+            {
+              "id": "main",
+              "role": "main",
+              "layout": "stack",
+              "parent_region": "root",
+              "min_children": 6,
+              "max_children": null
+            },
+            {
+              "id": "controls",
+              "role": "controls",
+              "layout": "stack",
+              "parent_region": "main",
+              "min_children": 3,
+              "max_children": null
+            }
+          ],
+          "bindings": [
+            {"id":"brand_mark","address":"node:brand#attr:mark","target_region":"sidebar","present_as":"label","cardinality":"exactly_once"},
+            {"id":"brand_title","address":"node:brand#attr:name","target_region":"sidebar","present_as":"label","cardinality":"exactly_once"},
+            {"id":"nav_dispatch","address":"node:navigation#attr:dispatch","target_region":"sidebar","present_as":"label","cardinality":"exactly_once"},
+            {"id":"nav_technicians","address":"node:navigation#attr:technicians","target_region":"sidebar","present_as":"label","cardinality":"exactly_once"},
+            {"id":"nav_assets","address":"node:navigation#attr:assets","target_region":"sidebar","present_as":"label","cardinality":"exactly_once"},
+            {"id":"nav_reports","address":"node:navigation#attr:reports","target_region":"sidebar","present_as":"label","cardinality":"exactly_once"},
+            {"id":"page_eyebrow","address":"node:field_dispatch#attr:eyebrow","target_region":"main","present_as":"label","cardinality":"exactly_once"},
+            {"id":"page_title","address":"node:field_dispatch#attr:title","target_region":"main","present_as":"label","cardinality":"exactly_once"},
+            {"id":"unassigned_count","address":"node:summary#attr:unassigned_count","target_region":"main","present_as":"value","cardinality":"exactly_once"},
+            {"id":"unassigned_label","address":"node:summary#attr:unassigned_label","target_region":"main","present_as":"label","cardinality":"exactly_once"},
+            {"id":"at_risk_count","address":"node:summary#attr:at_risk_count","target_region":"main","present_as":"value","cardinality":"exactly_once"},
+            {"id":"at_risk_label","address":"node:summary#attr:at_risk_label","target_region":"main","present_as":"label","cardinality":"exactly_once"},
+            {"id":"on_time_value","address":"node:summary#attr:on_time_value","target_region":"main","present_as":"value","cardinality":"exactly_once"},
+            {"id":"on_time_label","address":"node:summary#attr:on_time_label","target_region":"main","present_as":"label","cardinality":"exactly_once"},
+            {"id":"attention_title","address":"node:attention#attr:title","target_region":"main","present_as":"label","cardinality":"exactly_once"},
+            {"id":"attention_label","address":"node:attention#attr:label","target_region":"main","present_as":"badge","cardinality":"exactly_once"},
+            {"id":"escalation_title","address":"node:escalation_guide#attr:title","target_region":"controls","present_as":"label","cardinality":"exactly_once"},
+            {"id":"escalation_owner","address":"node:escalation_guide#attr:owner","target_region":"controls","present_as":"value","cardinality":"exactly_once"},
+            {"id":"review_count_text","address":"node:review_summary#attr:count","target_region":"controls","present_as":"value","cardinality":"exactly_once"},
+            {"id":"intake_paused_text","address":"node:intake_status#attr:message","target_region":"controls","present_as":"value","cardinality":"exactly_once"},
+            {"id":"queue_label","address":"node:queue#attr:label","target_region":"main","present_as":"label","cardinality":"exactly_once"},
+            {"id":"workload_title","address":"node:workload#attr:title","target_region":"main","present_as":"label","cardinality":"exactly_once"}
+          ],
+          "actions": [
+            {"id":"show_escalation_guide","kind":"submit","label":"Show escalation guide","payload_bindings":[],"target_ref":null,"target_region":"controls"},
+            {"id":"record_review","kind":"submit","label":"Record review","payload_bindings":[],"target_ref":null,"target_region":"controls"},
+            {"id":"pause_intake","kind":"submit","label":"Pause intake","payload_bindings":[],"target_ref":null,"target_region":"controls"}
+          ],
+          "groups": [
+            {"id":"brand_group","kind":"ordered","members":["brand_mark","brand_title"],"target_region":"sidebar"},
+            {"id":"navigation_group","kind":"ordered","members":["nav_dispatch","nav_technicians","nav_assets","nav_reports"],"target_region":"sidebar"},
+            {"id":"hero_group","kind":"ordered","members":["page_eyebrow","page_title"],"target_region":"main"},
+            {"id":"metrics_group","kind":"ordered","members":["unassigned_count","unassigned_label","at_risk_count","at_risk_label","on_time_value","on_time_label"],"target_region":"main"},
+            {"id":"attention_group","kind":"ordered","members":["attention_title","attention_label"],"target_region":"main"},
+            {"id":"escalation_group","kind":"ordered","members":["escalation_title","escalation_owner"],"target_region":"controls"},
+            {"id":"review_group","kind":"ordered","members":["review_count_text"],"target_region":"controls"},
+            {"id":"intake_status_group","kind":"ordered","members":["intake_paused_text"],"target_region":"controls"},
+            {"id":"queue_group","kind":"ordered","members":["queue_label"],"target_region":"main"},
+            {"id":"workload_group","kind":"ordered","members":["workload_title"],"target_region":"main"}
+          ],
+          "motifs": [
+            {"id":"page_hero","kind":"hero","members":["page_eyebrow","page_title"],"region":"main"},
+            {"id":"summary_metrics","kind":"list","members":["unassigned_count","unassigned_label","at_risk_count","at_risk_label","on_time_value","on_time_label"],"region":"main"},
+            {"id":"needs_attention","kind":"list","members":["attention_title","attention_label"],"region":"main"},
+            {"id":"escalation_panel","kind":"detail","members":["escalation_title","escalation_owner"],"region":"controls"},
+            {"id":"review_count_panel","kind":"list","members":["review_count_text"],"region":"controls"},
+            {"id":"intake_paused_panel","kind":"list","members":["intake_paused_text"],"region":"controls"},
+            {"id":"route_queue","kind":"list","members":["queue_label"],"region":"main"},
+            {"id":"technician_workload","kind":"list","members":["workload_title"],"region":"main"}
+          ],
+          "styles": []
+        }
+      },
+      "resource_views": [
+        {
+          "id": "attention_jobs",
+          "resource_id": "dispatch_jobs",
+          "mode": "list",
+          "record_ids": ["J-205"],
+          "fields": ["id", "title", "location", "scheduled_time", "technician", "technician_role", "status"],
+          "target_motif_id": "needs_attention",
+          "repeat": {
+            "group_id": "attention_group",
+            "field_presentations": [
+              {"field":"id","present_as":"label"},
+              {"field":"title","present_as":"text"},
+              {"field":"location","present_as":"label"},
+              {"field":"scheduled_time","present_as":"value"},
+              {"field":"technician","present_as":"value"},
+              {"field":"technician_role","present_as":"label"},
+              {"field":"status","present_as":"badge"}
+            ]
+          }
+        },
+        {
+          "id": "route_jobs",
+          "resource_id": "dispatch_jobs",
+          "mode": "list",
+          "record_ids": ["J-204", "J-206", "J-207", "J-208", "J-209", "J-210", "J-211"],
+          "fields": ["id", "title", "location", "scheduled_time", "technician", "technician_role", "status"],
+          "target_motif_id": "route_queue",
+          "repeat": {
+            "group_id": "queue_group",
+            "field_presentations": [
+              {"field":"id","present_as":"label"},
+              {"field":"title","present_as":"text"},
+              {"field":"location","present_as":"label"},
+              {"field":"scheduled_time","present_as":"value"},
+              {"field":"technician","present_as":"value"},
+              {"field":"technician_role","present_as":"label"},
+              {"field":"status","present_as":"badge"}
+            ]
+          }
+        },
+        {
+          "id": "workload_summary",
+          "resource_id": "dispatch_jobs",
+          "mode": "list",
+          "record_ids": ["J-204", "J-205", "J-207"],
+          "fields": ["workload_summary"],
+          "target_motif_id": "technician_workload",
+          "repeat": {
+            "group_id": "workload_group",
+            "field_presentations": [
+              {"field":"workload_summary","present_as":"text"}
+            ]
+          }
+        }
+      ]
+    }
+  ],
+  "state": [
+    {"id":"escalation_guide_visible","kind":"scalar","scope":"app","initial":{"value":false}},
+    {"id":"reviewed_count","kind":"scalar","scope":"app","initial":{"value":0}},
+    {"id":"intake_paused","kind":"scalar","scope":"app","initial":{"value":false}}
+  ],
+  "mutations": [
+    {
+      "id":"reveal_escalation_guide",
+      "trigger":{"action_id":"show_escalation_guide","screen_id":"dispatch"},
+      "ops":[{"op":"set","state":"escalation_guide_visible","value":true}]
+    },
+    {
+      "id":"increment_reviewed_count",
+      "trigger":{"action_id":"record_review","screen_id":"dispatch"},
+      "ops":[{"op":"increment","state":"reviewed_count"}]
+    },
+    {
+      "id":"pause_dispatch_intake",
+      "trigger":{"action_id":"pause_intake","screen_id":"dispatch"},
+      "ops":[{"op":"set","state":"intake_paused","value":true}]
+    }
+  ],
+  "selectors": [],
+  "visibility": [
+    {"id":"show_escalation_panel","screen_id":"dispatch","target_ref":"motif:escalation_panel","when":{"state":"escalation_guide_visible","is":"truthy"}},
+    {"id":"show_review_count","screen_id":"dispatch","target_ref":"motif:review_count_panel","when":{"state":"reviewed_count","is":"truthy"}},
+    {"id":"show_intake_paused","screen_id":"dispatch","target_ref":"motif:intake_paused_panel","when":{"state":"intake_paused","is":"truthy"}}
+  ],
+  "state_replay_assertions": [
+    {
+      "id":"escalation_guide_replay",
+      "events":[{"mutation_id":"reveal_escalation_guide"}],
+      "expect_state":{"escalation_guide_visible":true},
+      "expect_visibility":{"show_escalation_panel":true}
+    },
+    {
+      "id":"review_count_replay",
+      "events":[{"mutation_id":"increment_reviewed_count"},{"mutation_id":"increment_reviewed_count"}],
+      "expect_state":{"reviewed_count":2},
+      "expect_visibility":{"show_review_count":true}
+    },
+    {
+      "id":"pause_intake_replay",
+      "events":[{"mutation_id":"pause_dispatch_intake"}],
+      "expect_state":{"intake_paused":true},
+      "expect_visibility":{"show_intake_paused":true}
+    }
+  ]
+}

@@ -107,7 +107,7 @@ header.vs-surface p.vs-text, header.vs-surface p.vs-label { max-width: 68ch; mar
 .vs-cluster { display: flex; min-width: 0; flex-flow: row wrap; gap: 12px; }
 .vs-surface { border: var(--vs-surface-border, 1px solid #e2e8f0); border-radius: var(--vs-radius, 16px); background: #ffffff; padding: 16px; box-shadow: var(--vs-surface-shadow, 0 1px 2px rgb(15 23 42 / 0.08)); display: flex; min-width: 0; flex-direction: column; gap: 12px; }
 .vs-text { min-width: 0; color: #1f2937; font-size: 1rem; line-height: 1.75; overflow-wrap: anywhere; }
-.vs-label { min-width: 0; color: #64748b; font-size: 0.75rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; overflow-wrap: anywhere; }
+.vs-label { min-width: 0; color: #64748b; font-size: 0.75rem; font-weight: 700; line-height: normal; letter-spacing: 0.08em; text-transform: uppercase; overflow-wrap: anywhere; }
 .vs-value { min-width: 0; color: #020617; font-size: 1.5rem; font-weight: var(--vs-value-weight, 900); line-height: 1.15; overflow-wrap: anywhere; }
 .vs-badge { display: inline-flex; width: fit-content; max-width: 100%; border-radius: var(--vs-badge-radius, 999px); background: #ccfbf1; color: #115e59; padding: 4px 12px; font-size: 0.875rem; font-weight: 700; box-shadow: inset 0 0 0 1px #99f6e4; overflow-wrap: anywhere; }
 .vs-input { width: 100%; min-width: 0; border: 1px solid #cbd5e1; border-radius: var(--vs-control-radius, 10px); background: #ffffff; color: #020617; padding: 0.7rem 0.85rem; font: inherit; }
@@ -422,6 +422,17 @@ def _render_node(node: IRNode, manifest: dict[str, Any], style_values: dict[str,
         attrs.append(f'data-binding-id="{escape(str(node.props["binding_id"]), quote=True)}"')
     if isinstance(aesthetic_profile, str) and aesthetic_profile:
         attrs.append(f'data-aesthetic-profile="{escape(aesthetic_profile, quote=True)}"')
+    if node.primitive == "root" and node.props.get("semantic_context") == "embedded_screen":
+        attrs.append('data-viewspec-screen-root="embedded"')
+    for prop, attribute in (
+        ("resource_id", "data-resource-id"),
+        ("resource_view_id", "data-resource-view-id"),
+        ("record_id", "data-record-id"),
+        ("resource_field", "data-resource-field"),
+    ):
+        value = node.props.get(prop)
+        if isinstance(value, str) and value:
+            attrs.append(f'{attribute}="{escape(value, quote=True)}"')
     visibility_rule_id = node.props.get("visibility_rule_id")
     if isinstance(visibility_rule_id, str) and visibility_rule_id:
         # AppBundle V4 visibility bake: marker always, `hidden` iff the initial verdict is false.
@@ -487,7 +498,7 @@ def _render_node(node: IRNode, manifest: dict[str, Any], style_values: dict[str,
         attrs.append('scope="row"')
 
     if node.primitive == "root":
-        tag = "main"
+        tag = "div" if node.props.get("semantic_context") == "embedded_screen" else "main"
     elif node.props.get("motif_kind") == "table" and node.primitive == "stack":
         tag = "table"
     elif node.props.get("motif_kind") == "table" and node.primitive == "cluster":

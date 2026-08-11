@@ -24,6 +24,7 @@ from viewspec.app_shell import (
 )
 from viewspec.app_state_artifacts import _state_conformance_status
 from viewspec.app_validation import (
+    APP_BUNDLE_MAX_ANALYSIS_EVIDENCE_BYTES,
     APP_BUNDLE_MAX_PROOF_REPORT_BYTES,
     APP_BUNDLE_MAX_SUPPORT_BUNDLE_BYTES,
     _app_schema_version,
@@ -38,6 +39,7 @@ APP_BUNDLE_DEFAULT_OUT = ".viewspec-app-proof"
 APP_BUNDLE_DEFAULT_REPORT = "app_proof_report.json"
 APP_BUNDLE_DEFAULT_SUMMARY = "APP_PROOF.md"
 APP_BUNDLE_DEFAULT_SUPPORT_BUNDLE = "app_support_bundle.json"
+APP_BUNDLE_DEFAULT_ANALYSIS_EVIDENCE = "app_analysis_evidence.json"
 APP_BUNDLE_PROOF_LEVEL = "app_contract_source_artifacts"
 APP_REACT_PROOF_LEVEL = "react_app_reference_host"
 APP_BUNDLE_TARGET = "html-tailwind"
@@ -113,11 +115,20 @@ def _app_proof_report(
         if isinstance(host_report, dict) and isinstance(host_report.get("text_layout"), dict)
         else None
     )
-    analyses = (
-        host_report.get("analyses")
-        if isinstance(host_report, dict) and isinstance(host_report.get("analyses"), dict)
-        else {}
-    )
+    compact_static_analysis = _support_static_analysis(static_analysis)
+    compact_text_layout = _support_text_layout(text_layout)
+    analyses = {
+        **({"freerange": compact_static_analysis} if compact_static_analysis is not None else {}),
+        **({"pretext": compact_text_layout} if compact_text_layout is not None else {}),
+    }
+    analysis_evidence = None
+    if isinstance(host_report, dict):
+        paths["analysis_evidence"] = str(prepared.output_dir / APP_BUNDLE_DEFAULT_ANALYSIS_EVIDENCE)
+        analysis_evidence = {
+            "schema_version": 1,
+            "kind": "viewspec_app_analysis_evidence",
+            "host_report": host_report,
+        }
     host_policy = (
         host_report.get("policy")
         if isinstance(host_report, dict) and isinstance(host_report.get("policy"), dict)
@@ -146,10 +157,11 @@ def _app_proof_report(
         "screens": screen_reports,
         **({"shell": _compact_shell_report(shell)} if shell else {}),
         **({"react_app": _compact_react_app_report(react_app)} if is_react else {}),
-        **({"host_report": host_report} if isinstance(host_report, dict) else {}),
-        **({"static_analysis": static_analysis} if static_analysis is not None else {}),
-        **({"text_layout": text_layout} if text_layout is not None else {}),
+        **({"host_report": _compact_host_report(host_report)} if isinstance(host_report, dict) else {}),
+        **({"static_analysis": compact_static_analysis} if compact_static_analysis is not None else {}),
+        **({"text_layout": compact_text_layout} if compact_text_layout is not None else {}),
         **({"analyses": analyses} if analyses else {}),
+        **({"_analysis_evidence": analysis_evidence} if analysis_evidence is not None else {}),
         **({"app_artifact_hash": react_app.get("app_artifact_hash")} if is_react else {}),
         **({"manifest_hash": react_app.get("manifest_hash")} if is_react else {}),
         **({"shell_artifact_hash": shell.get("shell_artifact_hash")} if shell else {}),
@@ -264,6 +276,8 @@ def _app_shell_report(
     }
     if isinstance(shell_payload, dict) and isinstance(shell_payload.get("paths"), dict):
         shell_paths = shell_payload["paths"]
+        if shell_paths.get("presentation_plan"):
+            paths["presentation_plan"] = str(shell_paths["presentation_plan"])
         if shell_paths.get("state_reducer"):
             paths["state_reducer"] = str(shell_paths["state_reducer"])
         if shell_paths.get("state_manifest"):
@@ -284,6 +298,14 @@ def _app_shell_report(
         "route_assertions": route_assertions,
         "shell_artifact_hash": shell_payload.get("shell_artifact_hash") if isinstance(shell_payload, dict) else None,
         "shell_manifest_hash": shell_payload.get("shell_manifest_hash") if isinstance(shell_payload, dict) else None,
+        "presentation_plan_hash": (
+            shell_payload.get("presentation_plan_hash") if isinstance(shell_payload, dict) else None
+        ),
+        "presentation_plan_diagnostics": (
+            shell_payload.get("presentation_plan_diagnostics", [])
+            if isinstance(shell_payload, dict)
+            else []
+        ),
         **(
             {
                 "state_reducer_hash": shell_payload.get("state_reducer_hash"),
@@ -345,6 +367,29 @@ def _app_shell_failure_report(
 
 def _write_app_proof(report: dict[str, Any], prepared: _PreparedAppProof) -> dict[str, Any]:
     report = _finalize_report_paths(report, prepared)
+    analysis_evidence = report.pop("_analysis_evidence", None)
+    if isinstance(analysis_evidence, dict):
+        evidence_path = prepared.output_dir / APP_BUNDLE_DEFAULT_ANALYSIS_EVIDENCE
+        try:
+            _write_bounded_json(
+                evidence_path,
+                analysis_evidence,
+                limit=APP_BUNDLE_MAX_ANALYSIS_EVIDENCE_BYTES,
+                code="APP_PROOF_ANALYSIS_EVIDENCE_WRITE_FAILED",
+            )
+            report["analysis_evidence"] = {
+                "schema_version": 1,
+                "kind": "viewspec_app_analysis_evidence",
+                "sha256": file_hash(evidence_path),
+                "bytes": evidence_path.stat().st_size,
+            }
+        except Exception as exc:
+            report = _append_app_proof_error(
+                report,
+                exc,
+                fallback_code="APP_PROOF_ANALYSIS_EVIDENCE_WRITE_FAILED",
+            )
+            report["ok"] = False
     report.setdefault("timings_ms", {})["total"] = sum(
         value for key, value in report.get("timings_ms", {}).items() if key != "total" and isinstance(value, int)
     )
@@ -577,6 +622,35 @@ def _compact_react_app_report(report: dict[str, Any] | None) -> dict[str, Any]:
     }
 
 
+def _compact_host_report(report: dict[str, Any] | None) -> dict[str, Any]:
+    if not isinstance(report, dict):
+        return {}
+    static_analysis = _support_static_analysis(report.get("static_analysis"))
+    text_layout = _support_text_layout(report.get("text_layout"))
+    analyses = {
+        **({"freerange": static_analysis} if static_analysis is not None else {}),
+        **({"pretext": text_layout} if text_layout is not None else {}),
+    }
+    return {
+        "schema_version": report.get("schema_version"),
+        "ok": bool(report.get("ok")),
+        "target": report.get("target"),
+        "app_artifact_hash": report.get("app_artifact_hash"),
+        "manifest_hash": report.get("manifest_hash"),
+        "install": bool(report.get("install")),
+        "typecheck": report.get("typecheck") if isinstance(report.get("typecheck"), dict) else {},
+        "assertions": report.get("assertions") if isinstance(report.get("assertions"), dict) else {},
+        "phases": report.get("phases") if isinstance(report.get("phases"), dict) else {},
+        "policy": report.get("policy") if isinstance(report.get("policy"), dict) else {},
+        "duration_ms": report.get("duration_ms"),
+        "timings_ms": report.get("timings_ms") if isinstance(report.get("timings_ms"), dict) else {},
+        **({"static_analysis": static_analysis} if static_analysis is not None else {}),
+        **({"text_layout": text_layout} if text_layout is not None else {}),
+        **({"analyses": analyses} if analyses else {}),
+        "errors": _normalize_proof_errors(report.get("errors")),
+    }
+
+
 def _compact_resource_binding_report(report: object) -> dict[str, Any] | None:
     if not isinstance(report, dict):
         return None
@@ -640,8 +714,10 @@ def _support_static_analysis(report: object) -> dict[str, Any] | None:
         "status": _support_scalar(report.get("status")),
         "engine": {
             "name": _support_scalar(engine.get("name")),
+            "package": _support_scalar(engine.get("package")),
             "version": _support_scalar(engine.get("version")),
             "integrity": _support_scalar(engine.get("integrity")),
+            "protocol": _support_scalar(engine.get("protocol")),
         },
         "runtime": {
             "name": _support_scalar(runtime.get("name")),
@@ -680,12 +756,14 @@ def _support_text_layout(report: object) -> dict[str, Any] | None:
         "font_family": _support_scalar(report.get("font_family")),
         "engine": {
             "name": _support_scalar(engine.get("name")),
+            "package": _support_scalar(engine.get("package")),
             "version": _support_scalar(engine.get("version")),
             "integrity": _support_scalar(engine.get("integrity")),
             "package_tree_sha256": _support_scalar(engine.get("package_tree_sha256")),
         },
         "environment": {
             "browser": _support_scalar(environment.get("browser")),
+            "locale": _support_scalar(environment.get("locale")),
             "device_scale_factor": _support_scalar(environment.get("device_scale_factor")),
             "font_status": _support_scalar(environment.get("font_status")),
         },
@@ -712,6 +790,7 @@ def _support_text_layout(report: object) -> dict[str, Any] | None:
         "scope_digest": _support_scalar(report.get("scope_digest")),
         "observation_digest": _support_scalar(report.get("observation_digest")),
         "report_sha256": _support_scalar(report.get("report_sha256")),
+        "viewports": report.get("viewports") if isinstance(report.get("viewports"), list) else [],
     }
 
 
@@ -907,6 +986,7 @@ def _render_app_proof_summary(report: dict[str, Any], *, proof_report_hash: str)
         "report",
         "proof_summary",
         "support_bundle",
+        "analysis_evidence",
         "app_shell_index",
         "app_shell_manifest",
         "app_shell_diagnostics",
@@ -981,6 +1061,7 @@ def _support_path_names(report: dict[str, Any]) -> dict[str, str]:
         "report",
         "proof_summary",
         "support_bundle",
+        "analysis_evidence",
         "app_shell",
         "app_shell_index",
         "app_shell_manifest",
@@ -1047,6 +1128,7 @@ def _app_tool_proof_identity(proof: dict[str, Any]) -> dict[str, str | None]:
         "proof_report_hash": _hash_path_if_present(paths.get("report")),
         "proof_summary_hash": _hash_path_if_present(paths.get("proof_summary")),
         "support_bundle_hash": _hash_path_if_present(paths.get("support_bundle")),
+        "analysis_evidence_hash": _hash_path_if_present(paths.get("analysis_evidence")),
         "shell_artifact_hash": proof.get("shell_artifact_hash")
         if isinstance(proof.get("shell_artifact_hash"), str)
         else None,
@@ -1099,6 +1181,7 @@ def _hash_path_if_present(path: object) -> str | None:
 
 __all__ = [
     "APP_BUNDLE_DEFAULT_OUT",
+    "APP_BUNDLE_DEFAULT_ANALYSIS_EVIDENCE",
     "APP_BUNDLE_DEFAULT_REPORT",
     "APP_BUNDLE_DEFAULT_SUMMARY",
     "APP_BUNDLE_DEFAULT_SUPPORT_BUNDLE",

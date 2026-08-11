@@ -10,10 +10,11 @@ Generated DOM and framework code stay compiler-owned. Developers and agents revi
 
 Generated React apps can opt into two exact-versioned proof integrations by
 [chenglou](https://github.com/chenglou):
-[Freerange](https://github.com/chenglou/freerange) for the manifest-described generated numeric
-kernel, and [Pretext](https://github.com/chenglou/pretext) for native-DOM text line-count and
-overflow checks. Each integration is requested explicitly, reported separately, and fails closed
-within its documented scope.
+[Freerange](https://github.com/chenglou/freerange) for every eligible state-operation occurrence
+and its generated numeric kernel, and [Pretext](https://github.com/chenglou/pretext) for every
+eligible native-DOM text surface across the declared route and viewport matrix. Each integration
+is requested explicitly, reported separately, inventory-bound, and fails closed within its
+documented scope.
 
 ## Quick Start
 
@@ -88,6 +89,9 @@ AppBundle V3 introduced bounded interactive state; V4 adds replay-proved visibil
 * **Declarative Mutation IR**: Agents define state transitions (`set`, `patch`, `toggle`, `append`, `remove`, `move`, `increment`) in JSON.
 * **Deterministic Reducer Generation**: The compiler generates a pure TypeScript `reduceViewSpecState` reducer.
 * **State and Visibility Replay**: Assertions prove expected state plus `visibility_v0` outcomes against the generated reducer before browser use.
+* **One Shared PresentationPlan**: Static and React consume the same deterministic responsive layout, surface, and typography plan; declared semantic anchors are proved at 390, 768, and 1440 pixels.
+* **Identity-Based Collection Repeats**: `resource_view.repeat` generates stable per-record fields and proves resource → record → field → binding identity, including equal visible values across different records.
+* **Action-Oriented Replay**: Compact action/repeat scenarios normalize to deterministic mutation events and retain precise assertion, event, mutation, path, expected, actual, selector, and visibility diagnostics.
 
 ## New: Custom Motif Plugins
 
@@ -126,7 +130,7 @@ npm ci
 npm run dev
 ```
 
-The generated app wires browser-history routes, host-provided resources with fixture fallback, AppBundle mutations, selectors, and visibility into the checked React screen artifacts. `ViewSpecApp` exposes typed `resources`, `onNavigate`, `onAction`, `onStateChange`, and `onError` host boundaries.
+The generated app wires browser-history routes, host-provided resources with fixture fallback, AppBundle mutations, selectors, visibility, resource repeats, and the same hash-bound PresentationPlan used by the static target into the checked React screen artifacts. `ViewSpecApp` exposes typed `resources`, `onNavigate`, `onAction`, `onStateChange`, and `onError` host boundaries.
 
 Edit `viewspec.app.json`, then regenerate with `--force`; do not edit generated React. Run the exact-artifact build and Chromium proof with:
 
@@ -164,9 +168,17 @@ The machine report keeps explicit statuses for artifact integrity, TypeScript, F
 Chromium, and final integrity so completed evidence remains visible without turning a later failure
 into a successful composite claim.
 
+React proofs keep that operational report bounded and write the complete host, Freerange, and
+Pretext payloads to hash-linked `.viewspec-app-proof/app_analysis_evidence.json`. This preserves
+full local diagnostics without allowing duplicated analyzer evidence to overflow
+`app_proof_report.json`.
+
 The Freerange phase analyzes only the manifest-described generated numeric kernel and its recorded
-call-site hashes. It does not analyze CSS or Tailwind, prove rendered geometry, or certify arbitrary
-host applications; the later Vite/Chromium phases retain their existing bounded runtime claims.
+call-site hashes. Its v2 coverage contract independently re-derives every eligible operation
+occurrence from the emitted state contract, binds that inventory by digest, and requires the exact
+helper set implied by it, so required-function coverage cannot shrink by editing only the analysis
+manifest. It does not analyze CSS or Tailwind, prove rendered geometry, or certify arbitrary host
+applications; the later Vite/Chromium phases retain their existing bounded runtime claims.
 
 Opt in to the pinned [Pretext](https://github.com/chenglou/pretext) native-DOM text-layout proof
 independently or compose both analyses:
@@ -177,12 +189,17 @@ viewspec prove-app --app viewspec.app.json --target react-tailwind-app --install
 ```
 
 The generated package pins `@chenglou/pretext` exactly to `0.0.8`; ViewSpec validates its npm lock
-identity, integrity, and installed tree. The `viewspec_pretext_native_dom_v1` profile uses named
+identity, integrity, and installed tree. The `viewspec_pretext_native_dom_v2` profile uses named
 `Arial, sans-serif`, waits for fonts, compares Pretext and native-DOM line counts under a fixed
 1px line-fit tolerance without allowing actual overflow
 at 390×844, 768×1024, and 1440×1000 in Chromium, and reuses preparation across widths. It reads and
 hashes existing compiler-owned DOM text without applying layout or replacing the DOM with canvas.
 Pretext needs no Bun; combined runs need Bun only for an applicable Freerange scope.
+
+The v2 browser protocol also enumerates eligible DOM primitives independently at every route and
+viewport. Their exact count and digest must match the checked screen-manifest inventory before
+the per-surface line and overflow evidence can pass. Removing a scoped item from the requested
+probe therefore produces a coverage failure instead of a smaller successful report.
 
 With both flags, phases are artifact/dependency preflight, TypeScript, Freerange, Vite build,
 Chromium observation, Pretext report validation, and final integrity. Results appear under
@@ -194,7 +211,7 @@ accessibility, or arbitrary-host certification.
 
 The real-browser acceptance suite is deliberately opt-in because it performs fresh registry-backed
 installs and launches Chromium. Install Bun and the repository's pinned Playwright Chromium once,
-then run both the standalone Pretext and composed Freerange + Pretext proofs:
+then run the standalone Pretext, composed Freerange + Pretext, and injected-defect scenarios:
 
 ```bash
 cd src/viewspec/host_verify_template
@@ -209,8 +226,10 @@ Set `VIEWSPEC_PRETEXT_E2E_ARTIFACT_DIR` to a fresh directory to retain the gener
 proof reports, summaries, and support bundles. The dedicated
 [Pretext E2E workflow](.github/workflows/pretext-e2e.yml) runs on relevant pull requests and pushes,
 every Monday at 10:17 UTC, and by manual dispatch. It pins Python, Node/npm, Bun, Playwright, and
-Chromium, rejects an all-skipped run, and retains the two proof trees plus JUnit and toolchain evidence
-for 30 days. Ordinary CI explicitly excludes the `e2e` marker.
+Chromium, rejects an all-skipped run, and retains the three scenario trees plus JUnit and toolchain evidence
+for 30 days. In addition to healthy standalone and composed proofs, the suite injects and rejects
+division, bounds, font, wrapping, and overflow defects through real Bun and Chromium runtimes.
+Ordinary CI explicitly excludes the `e2e` marker.
 
 This bounded target is a runnable frontend app and host bridge. Authentication, persistence, arbitrary API clients, optimistic updates, and production infrastructure remain host-owned.
 
@@ -255,6 +274,8 @@ viewspec prove-app --app viewspec.app.json --out .viewspec-app-proof --with-shel
 * **V2**: Strict readonly fixture resources reported as `fixture_readonly_v0` with declared per-screen views.
 * **V3**: Adds bounded interactive state, declarative mutations, and a generated pure TypeScript reducer artifact.
 * **V4**: Adds bounded `visibility_v0` rules, baked initial visibility, and replay-proved `evaluateViewSpecVisibility` output.
+
+All four schema versions may use the additive screen presentation contract. Reference-sensitive screens can declare breakpoint variants, named grid areas, per-motif item geometry, and semantic anchors; compilation writes `presentation_plan.json` with the same hash for static and React. Bound list views may use `resource_view.repeat` instead of manually duplicating record nodes and bindings, and V3/V4 replay events may use compact screen/action/repeat declarations.
 
 `compile-app` defaults to a single `app-dist/index.html` Static Shell V0 proof artifact; that default is not browser navigation proof. Use `--target react-tailwind-app` for a runnable Vite/React/Tailwind app with browser-history routing, live resource/state rebinding, and exact-artifact host verification. Neither target generates authentication, persistence, arbitrary API clients, or backend infrastructure.
 

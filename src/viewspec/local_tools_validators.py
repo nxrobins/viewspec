@@ -20,6 +20,7 @@ from viewspec.emitters.react_tailwind_tsx import TAILWIND_MAX_ARTIFACT_BYTES
 from viewspec.emitters.react_tailwind_tsx import TAILWIND_MAX_CLASS_TOKENS
 from viewspec.emitters.react_tailwind_tsx import TAILWIND_MAX_IR_NODES
 from viewspec.emitters.react_tailwind_tsx import TAILWIND_MAX_RECIPES
+from viewspec.emitters.react_tailwind_tsx import TAILWIND_PARITY_CLASS_TOKENS
 from viewspec.emitters.react_tailwind_tsx import TAILWIND_RECIPE_PACK
 from viewspec.emitters.react_tailwind_tsx import TAILWIND_RECIPE_REGISTRY_VERSION
 from viewspec.emitters.react_tailwind_tsx import resolve_manifest_recipe_metadata
@@ -542,7 +543,8 @@ def _validate_tailwind_generic_fallback(nodes: dict[str, Any]) -> list[str]:
     return []
 
 def _tailwind_allowed_class_tokens() -> set[str]:
-    tokens = {token for classes in RECIPE_BY_KEY.values() for token in classes.split()}
+    tokens = set(TAILWIND_PARITY_CLASS_TOKENS)
+    tokens.update(token for classes in RECIPE_BY_KEY.values() for token in classes.split())
     for overlay in TAILWIND_AESTHETIC_RECIPE_OVERLAYS.values():
         for classes in overlay.values():
             tokens.update(classes.split())
@@ -701,7 +703,7 @@ def _semantic_tag_for_manifest_node(entry: dict[str, Any]) -> str:
     primitive = entry.get("primitive")
     props = entry.get("props") if isinstance(entry.get("props"), dict) else {}
     if primitive == "root":
-        return "main"
+        return "div" if props.get("semantic_context") == "embedded_screen" else "main"
     if props.get("motif_kind") == "table" and primitive == "stack":
         return "table"
     if props.get("motif_kind") == "table" and primitive == "cluster":

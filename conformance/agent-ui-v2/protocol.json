@@ -1,0 +1,460 @@
+{
+  "schema_version": 2,
+  "id": "viewspec-agent-ui-value-premium-v2.2",
+  "evaluation_mode": "value_premium",
+  "primary_arm": "viewspec-deep",
+  "model": "gpt-5.6-sol",
+  "seeds": [104729, 130363, 155921],
+  "arms": ["code-first", "viewspec-core", "viewspec-deep"],
+  "minimum_sessions_per_arm": 18,
+  "qualification": {
+    "max_turns_per_arm": 2,
+    "trigger": "post-lifecycle-ineligible-or-layout-miss",
+    "feedback": "compact-evaluator-only",
+    "thread_policy": "continue-lifecycle-thread",
+    "cost_accounting": "total-and-post-establishment"
+  },
+  "study_design": {
+    "thesis": "ViewSpec earns a bounded compute premium through quality parity, stronger durability and assurance, and reusable equivalent targets.",
+    "pairing": "task-and-seed",
+    "arm_order": "randomized-within-pair",
+    "calibration_sessions_per_arm": 3,
+    "confirmatory_tasks": 6,
+    "confirmatory_replicates_per_task": 3,
+    "phases": ["establishment", "evolution", "leverage", "assurance", "repair", "qualification"],
+    "required_target_trials": ["static-shell", "native-react"],
+    "required_mutation_classes": [
+      "action-state-transition",
+      "numeric-invariant",
+      "visibility-contract",
+      "resource-binding",
+      "text-layout"
+    ],
+    "negative_control_trials_per_session": 2,
+    "mutation_reset_policy": "restore-the-same-healthy-hash-before-each-trial",
+    "reporting": "outcome-vector-and-pareto-frontier"
+  },
+  "success_criteria": {
+    "minimum_functional_acceptance": 1.0,
+    "minimum_layout_fidelity": 0.6769,
+    "maximum_functional_acceptance_loss": 0.0,
+    "maximum_layout_fidelity_loss": 0.02,
+    "minimum_regression_reduction": 0.75,
+    "minimum_deep_proof_pass_rate": 1.0,
+    "minimum_mutation_detection_rate": 0.9,
+    "minimum_mutation_repair_rate": 0.9,
+    "maximum_mutation_false_positive_rate": 0.05,
+    "minimum_mutation_trials_per_session": 5,
+    "minimum_negative_control_trials_per_session": 2,
+    "minimum_cross_target_pass_rate": 1.0,
+    "minimum_cross_target_parity": 0.95,
+    "minimum_target_trials_per_session": 2,
+    "maximum_total_token_premium": 3.0,
+    "maximum_evolution_token_premium": 2.0,
+    "maximum_evolution_wall_time_premium": 1.75,
+    "maximum_proof_overhead": 0.2
+  },
+  "tasks": [
+    {
+      "id": "field-dispatch-lifecycle",
+      "title": "Field Dispatch Lifecycle",
+      "brief": "Build and evolve the responsive field-service dispatch system shown in the attached reference. Preserve its visual character, semantics, behavior, and established contracts through every cumulative change. No network requests or remote assets are allowed.",
+      "reference": "../agent-ui-v1/tasks/field-dispatch/reference.html",
+      "primary_heading": "Field Dispatch",
+      "visual_anchors": [
+        "Field Dispatch",
+        "Unassigned",
+        "J-204",
+        "J-205",
+        "J-206",
+        "Needs attention",
+        "J-207"
+      ],
+      "steps": [
+        {
+          "id": "establish-baseline",
+          "phase": "establishment",
+          "assurance_tags": ["visual-baseline", "semantic-structure"],
+          "prompt": "Create the initial interface. It needs a Field Dispatch heading, a Tuesday · July 22 eyebrow, summary metrics for 3 Unassigned and 1 At risk, and jobs J-204, J-205, and J-206. J-204 is a Harbor Clinic HVAC inspection assigned to Maya Chen. J-205 is a North Terminal refrigeration sensor job assigned to Owen Park. J-206 is a Ridge School safety inspection assigned to Maya Chen. Match the supplied desktop reference closely and make the document structurally semantic.",
+          "acceptance": {
+            "required_text": [
+              "Field Dispatch",
+              "Tuesday · July 22",
+              "Unassigned",
+              "At risk",
+              "J-204",
+              "Harbor Clinic",
+              "Maya Chen",
+              "J-205",
+              "North Terminal",
+              "Owen Park",
+              "J-206",
+              "Ridge School"
+            ],
+            "forbidden_text": ["J-207", "Needs attention"],
+            "required_buttons": [],
+            "text_order": ["Field Dispatch", "Unassigned", "J-204", "J-205", "J-206"]
+          }
+        },
+        {
+          "id": "evolve-content",
+          "phase": "evolution",
+          "assurance_tags": ["identity-retention", "rename-propagation"],
+          "prompt": "Rename the Queued state to Awaiting assignment everywhere and add J-207, a Lakeside Pharmacy generator test assigned to no technician and scheduled for 4:30 PM. Preserve the established hierarchy, styling, and all prior content.",
+          "acceptance": {
+            "required_text": [
+              "Field Dispatch",
+              "Awaiting assignment",
+              "J-204",
+              "J-205",
+              "J-206",
+              "J-207",
+              "Lakeside Pharmacy",
+              "4:30 PM"
+            ],
+            "forbidden_text": ["Queued", "Needs attention"],
+            "required_buttons": [],
+            "text_order": ["Field Dispatch", "J-204", "J-205", "J-206", "J-207"]
+          }
+        },
+        {
+          "id": "evolve-hierarchy",
+          "phase": "evolution",
+          "assurance_tags": ["hierarchy-retention", "resource-membership"],
+          "prompt": "Add a Needs attention lane before the main route queue and move J-205 into it. Give the lane a clear At risk label and show the remaining route jobs after it. Keep all four jobs and every earlier requirement.",
+          "acceptance": {
+            "required_text": [
+              "Field Dispatch",
+              "Needs attention",
+              "At risk",
+              "J-205",
+              "North Terminal",
+              "J-204",
+              "J-206",
+              "J-207",
+              "Awaiting assignment"
+            ],
+            "forbidden_text": ["Queued"],
+            "required_buttons": [],
+            "text_order": ["Needs attention", "J-205", "J-204", "J-206", "J-207"]
+          }
+        },
+        {
+          "id": "evolve-state",
+          "phase": "evolution",
+          "assurance_tags": ["state-replay", "visibility-contract", "numeric-invariant"],
+          "prompt": "Add bounded state behavior. A Show escalation guide button must reveal a previously hidden panel containing Escalation owner: Maya Chen. Add a separate Record review action backed by a numeric reviewed-count increment; one click must visibly reveal Review count: 1, while the ViewSpec replay must also assert two increments produce reviewed_count = 2. Preserve every earlier requirement. In a ViewSpec arm, express this in AppBundle V4 state, mutation, visibility, and replay contracts rather than editing generated output.",
+          "acceptance": {
+            "required_text": [
+              "Field Dispatch",
+              "Needs attention",
+              "J-205",
+              "J-204",
+              "J-206",
+              "J-207",
+              "Show escalation guide",
+              "Record review"
+            ],
+            "forbidden_text": ["Queued"],
+            "required_buttons": ["Show escalation guide", "Record review"],
+            "text_order": ["Needs attention", "J-205", "J-204", "J-206", "J-207"],
+            "interactions": [
+              {
+                "button": "Show escalation guide",
+                "reveals": "Escalation owner: Maya Chen"
+              },
+              {
+                "button": "Record review",
+                "assertions": [
+                  {
+                    "kind": "visible_text",
+                    "text": "Review count: 1"
+                  }
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "id": "evolve-responsive",
+          "phase": "evolution",
+          "assurance_tags": ["responsive-retention", "text-layout"],
+          "prompt": "Complete the responsive pass. At 390px there must be no horizontal overflow, controls must remain usable, and the J-205 title must wrap naturally as: Replace north terminal refrigeration sensor before evening medicine delivery window. Retain the attention lane, all four jobs, both actions, and reveal behavior.",
+          "acceptance": {
+            "required_text": [
+              "Field Dispatch",
+              "Needs attention",
+              "J-205",
+              "Replace north terminal refrigeration sensor before evening medicine delivery window",
+              "J-204",
+              "J-206",
+              "J-207",
+              "Show escalation guide",
+              "Record review"
+            ],
+            "forbidden_text": ["Queued"],
+            "required_buttons": ["Show escalation guide", "Record review"],
+            "text_order": ["Needs attention", "J-205", "J-204", "J-206", "J-207"],
+            "interactions": [
+              {
+                "button": "Show escalation guide",
+                "reveals": "Escalation owner: Maya Chen"
+              },
+              {
+                "button": "Record review",
+                "reveals": "Review count: 1"
+              }
+            ],
+            "text_geometry": [
+              {
+                "text": "Replace north terminal refrigeration sensor before evening medicine delivery window",
+                "identity": "job-j205-title",
+                "resource": {
+                  "record_id": "J-205",
+                  "field": "title"
+                },
+                "viewport_width": 390,
+                "minimum_lines": 2,
+                "maximum_lines": 6,
+                "minimum_width_px": 180,
+                "no_word_fragmentation": true,
+                "no_clip": true
+              }
+            ]
+          }
+        },
+        {
+          "id": "evolve-policy",
+          "phase": "evolution",
+          "assurance_tags": ["rename-propagation", "identity-retention", "derived-state"],
+          "prompt": "Apply a dispatch policy change without rebuilding the interface. Rename Awaiting assignment to Ready for dispatch everywhere and assign J-207 to Lena Ortiz. Preserve the attention lane, long J-205 title, both actions, numeric review state, and reveal behavior.",
+          "acceptance": {
+            "required_text": [
+              "Field Dispatch",
+              "Needs attention",
+              "Ready for dispatch",
+              "J-205",
+              "J-204",
+              "J-206",
+              "J-207",
+              "Lena Ortiz",
+              "Show escalation guide",
+              "Record review"
+            ],
+            "forbidden_text": ["Queued", "Awaiting assignment"],
+            "required_buttons": ["Show escalation guide", "Record review"],
+            "text_order": ["Needs attention", "J-205", "J-204", "J-206", "J-207"],
+            "interactions": [
+              {
+                "button": "Show escalation guide",
+                "reveals": "Escalation owner: Maya Chen"
+              },
+              {
+                "button": "Record review",
+                "reveals": "Review count: 1"
+              }
+            ]
+          }
+        },
+        {
+          "id": "evolve-second-workflow",
+          "phase": "evolution",
+          "assurance_tags": ["independent-state-machines", "interaction-retention"],
+          "prompt": "Add a second independent workflow after the existing actions. A Pause intake button must reveal Dispatch intake paused while leaving the escalation-guide and reviewed-count behavior intact. In ViewSpec, model it as separate state, mutation, visibility, and replay contracts. Preserve every prior requirement.",
+          "acceptance": {
+            "required_text": [
+              "Field Dispatch",
+              "Needs attention",
+              "Ready for dispatch",
+              "J-205",
+              "J-204",
+              "J-206",
+              "J-207",
+              "Lena Ortiz",
+              "Show escalation guide",
+              "Record review",
+              "Pause intake"
+            ],
+            "forbidden_text": ["Queued", "Awaiting assignment"],
+            "required_buttons": ["Show escalation guide", "Record review", "Pause intake"],
+            "text_order": ["Needs attention", "J-205", "J-204", "J-206", "J-207"],
+            "interactions": [
+              {
+                "button": "Show escalation guide",
+                "reveals": "Escalation owner: Maya Chen"
+              },
+              {
+                "button": "Record review",
+                "reveals": "Review count: 1"
+              },
+              {
+                "button": "Pause intake",
+                "reveals": "Dispatch intake paused"
+              }
+            ]
+          }
+        },
+        {
+          "id": "leverage-derived-view",
+          "phase": "leverage",
+          "assurance_tags": ["data-scale", "derived-view", "cross-target"],
+          "prompt": "Scale the same dispatch data and add a derived Technician workload section after the route queue. Add J-208, J-209, J-210, and J-211, all assigned to Lena Ortiz and all Ready for dispatch. The derived summary must read Maya Chen · 2 jobs, Owen Park · 1 job, and Lena Ortiz · 5 jobs. It must be driven by the same assignment data, not separately duplicated labels. Preserve both state workflows and the established layout above the new section.",
+          "acceptance": {
+            "required_text": [
+              "Field Dispatch",
+              "Needs attention",
+              "Ready for dispatch",
+              "J-205",
+              "J-204",
+              "J-206",
+              "J-207",
+              "J-208",
+              "J-209",
+              "J-210",
+              "J-211",
+              "Technician workload",
+              "Maya Chen · 2 jobs",
+              "Owen Park · 1 job",
+              "Lena Ortiz · 5 jobs",
+              "Show escalation guide",
+              "Record review",
+              "Pause intake"
+            ],
+            "forbidden_text": ["Queued", "Awaiting assignment"],
+            "required_buttons": ["Show escalation guide", "Record review", "Pause intake"],
+            "text_order": ["Needs attention", "J-205", "J-204", "J-206", "J-207", "Technician workload"],
+            "interactions": [
+              {
+                "button": "Show escalation guide",
+                "reveals": "Escalation owner: Maya Chen"
+              },
+              {
+                "button": "Record review",
+                "reveals": "Review count: 1"
+              },
+              {
+                "button": "Pause intake",
+                "reveals": "Dispatch intake paused"
+              }
+            ]
+          }
+        },
+        {
+          "id": "assure-derived-consistency",
+          "phase": "assurance",
+          "assurance_tags": ["derived-view-consistency", "identity-change", "regression-resistance"],
+          "prompt": "Reassign J-206 from Maya Chen to Lena Ortiz. Update every derived workload result from the same underlying assignment relation so the summary becomes Maya Chen · 1 job, Owen Park · 1 job, and Lena Ortiz · 6 jobs. Do not disturb either state workflow, any other job, the attention lane, responsive wrapping, or the visual hierarchy.",
+          "acceptance": {
+            "required_text": [
+              "Field Dispatch",
+              "Needs attention",
+              "Ready for dispatch",
+              "J-205",
+              "J-204",
+              "J-206",
+              "J-207",
+              "J-208",
+              "J-209",
+              "J-210",
+              "J-211",
+              "Technician workload",
+              "Maya Chen · 1 job",
+              "Owen Park · 1 job",
+              "Lena Ortiz · 6 jobs",
+              "Show escalation guide",
+              "Record review",
+              "Pause intake"
+            ],
+            "forbidden_text": ["Queued", "Awaiting assignment", "Maya Chen · 2 jobs", "Lena Ortiz · 5 jobs"],
+            "required_buttons": ["Show escalation guide", "Record review", "Pause intake"],
+            "text_order": ["Needs attention", "J-205", "J-204", "J-206", "J-207", "Technician workload"],
+            "interactions": [
+              {
+                "button": "Show escalation guide",
+                "reveals": "Escalation owner: Maya Chen"
+              },
+              {
+                "button": "Record review",
+                "reveals": "Review count: 1"
+              },
+              {
+                "button": "Pause intake",
+                "reveals": "Dispatch intake paused"
+              }
+            ]
+          }
+        },
+        {
+          "id": "repair-and-finalize",
+          "phase": "repair",
+          "assurance_tags": ["full-retention", "responsive-retention", "proof-health"],
+          "prompt": "Perform the final repair pass using evaluator feedback. Preserve all eight jobs, the attention lane, Ready for dispatch policy, derived workload counts, both independent reveal workflows, numeric review replay, semantic structure, and established visual character. At 390px the long J-205 title must wrap to at least two lines without clipping or horizontal overflow. Finish only when every available local check is healthy.",
+          "acceptance": {
+            "required_text": [
+              "Field Dispatch",
+              "Needs attention",
+              "Ready for dispatch",
+              "J-205",
+              "Replace north terminal refrigeration sensor before evening medicine delivery window",
+              "J-204",
+              "J-206",
+              "J-207",
+              "J-208",
+              "J-209",
+              "J-210",
+              "J-211",
+              "Technician workload",
+              "Maya Chen · 1 job",
+              "Owen Park · 1 job",
+              "Lena Ortiz · 6 jobs",
+              "Show escalation guide",
+              "Record review",
+              "Pause intake"
+            ],
+            "forbidden_text": ["Queued", "Awaiting assignment", "Maya Chen · 2 jobs", "Lena Ortiz · 5 jobs"],
+            "required_buttons": ["Show escalation guide", "Record review", "Pause intake"],
+            "text_order": ["Needs attention", "J-205", "J-204", "J-206", "J-207", "Technician workload"],
+            "interactions": [
+              {
+                "button": "Show escalation guide",
+                "reveals": "Escalation owner: Maya Chen"
+              },
+              {
+                "button": "Record review",
+                "reveals": "Review count: 1"
+              },
+              {
+                "button": "Pause intake",
+                "reveals": "Dispatch intake paused"
+              }
+            ],
+            "unique_text": ["J-207"],
+            "resources": [
+              {
+                "identity": "job-j207",
+                "text": "J-207",
+                "count": 1
+              }
+            ],
+            "text_geometry": [
+              {
+                "text": "Replace north terminal refrigeration sensor before evening medicine delivery window",
+                "identity": "job-j205-title",
+                "resource": {
+                  "record_id": "J-205",
+                  "field": "title"
+                },
+                "viewport_width": 390,
+                "minimum_lines": 2,
+                "maximum_lines": 6,
+                "minimum_width_px": 180,
+                "no_word_fragmentation": true,
+                "no_clip": true
+              }
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

@@ -27,7 +27,7 @@ analysis, and only `--install` permits the proof to run the pinned npm dependenc
 not extend emitter claims to CSS/Tailwind analysis, rendered geometry, or arbitrary host apps.
 
 The separate opt-in `--pretext` app proof pins `@chenglou/pretext` `0.0.8` and validates its npm
-integrity and installed tree. Its `viewspec_pretext_native_dom_v1` profile uses named
+integrity and installed tree. Its `viewspec_pretext_native_dom_v2` profile uses named
 `Arial, sans-serif`, waits for fonts, and compares predicted line counts under a fixed 1px line-fit
 tolerance with the unchanged native
 DOM across 390×844, 768×1024, and 1440×1000 Chromium viewports while reusing preparation across

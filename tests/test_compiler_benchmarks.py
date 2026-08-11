@@ -51,6 +51,9 @@ def test_compiler_quality_benchmark_fixtures_emit_checked_artifacts(tmp_path):
         assert summary["metrics"]["html"]["artifact_hash"]
         assert summary["metrics"]["react"]["artifact_hash"]
         assert summary["metrics"]["tailwind"]["artifact_hash"]
+        assert summary["metrics"]["tailwind_parity"]["class_inventory_count"] > 0
+        assert len(summary["metrics"]["tailwind_parity"]["class_inventory_sha256"]) == 64
+        assert "class_inventory" not in summary["metrics"]["tailwind_parity"]
         assert len(stable_summary_json(summary).encode("utf-8")) <= BENCHMARK_SUMMARY_MAX_BYTES
         assert_benchmark_summary(summary)
 

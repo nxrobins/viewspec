@@ -8,7 +8,16 @@ from pathlib import Path
 from typing import Any
 
 from viewspec.agent import SAFE_AGENT_ID_PATTERN
+from viewspec.app_resource_repeat import (
+    RESOURCE_REPEAT_ALLOWED_FIELDS,
+    RESOURCE_REPEAT_FIELD_PRESENTATION_ALLOWED_FIELDS,
+    materialize_resource_repeats,
+    resource_binding_address,
+    resource_repeat_binding_id,
+    resource_repeat_node_id,
+)
 from viewspec.intent_tools import validate_intent_text
+from viewspec.presentation_plan import validate_screen_presentation
 from viewspec.state_ir import (
     APP_STATE_MAX_ENTRIES,
     APP_STATE_MAX_EVENTS_PER_REPLAY,
@@ -49,6 +58,7 @@ APP_BUNDLE_MAX_SCALAR_STRING_CHARS = 2048
 APP_BUNDLE_MAX_EMBEDDED_INTENT_BYTES = 256 * 1024
 APP_BUNDLE_MAX_AGGREGATE_INTENT_BYTES = 1024 * 1024
 APP_BUNDLE_MAX_PROOF_REPORT_BYTES = 256 * 1024
+APP_BUNDLE_MAX_ANALYSIS_EVIDENCE_BYTES = 4 * 1024 * 1024
 APP_BUNDLE_MAX_SUPPORT_BUNDLE_BYTES = 16 * 1024
 APP_BUNDLE_MAX_ID_CHARS = 96
 APP_BUNDLE_MAX_ROUTE_CHARS = 96
@@ -73,9 +83,17 @@ APP_BUNDLE_ALLOWED_ROOT_FIELDS_V4 = APP_BUNDLE_ALLOWED_ROOT_FIELDS_V3 | {"visibi
 APP_BUNDLE_ALLOWED_APP_FIELDS = {"id", "title", "kind", "root_route"}
 APP_BUNDLE_ALLOWED_ROUTE_FIELDS = {"id", "path", "label", "screen_id"}
 APP_BUNDLE_ALLOWED_RESOURCE_FIELDS = {"id", "kind", "records"}
-APP_BUNDLE_ALLOWED_SCREEN_FIELDS = {"id", "title", "intent_bundle"}
+APP_BUNDLE_ALLOWED_SCREEN_FIELDS = {"id", "title", "intent_bundle", "presentation"}
 APP_BUNDLE_ALLOWED_SCREEN_FIELDS_V2 = APP_BUNDLE_ALLOWED_SCREEN_FIELDS | {"resource_views"}
-APP_BUNDLE_ALLOWED_RESOURCE_VIEW_FIELDS = {"id", "resource_id", "mode", "record_ids", "fields", "target_motif_id"}
+APP_BUNDLE_ALLOWED_RESOURCE_VIEW_FIELDS = {
+    "fields",
+    "id",
+    "mode",
+    "record_ids",
+    "repeat",
+    "resource_id",
+    "target_motif_id",
+}
 APP_RESOURCE_BINDING_TEXT_PRIMITIVES = {"badge", "label", "text", "value"}
 
 SAFE_APP_ID_RE = re.compile(SAFE_AGENT_ID_PATTERN)
@@ -182,7 +200,23 @@ def _validate_app_payload(payload: dict[str, Any], issues: list[dict[str, str]],
 
     route_ids = _validate_routes(routes, issues)
     resource_ids = _validate_resources(resources, issues)
-    screen_ids, aggregate_intent_bytes = _validate_screens(screens, issues, compile_check=compile_check, schema_version=version)
+    if version in {
+        APP_BUNDLE_BOUND_SCHEMA_VERSION,
+        APP_BUNDLE_STATE_SCHEMA_VERSION,
+        APP_BUNDLE_VISIBILITY_SCHEMA_VERSION,
+    }:
+        _validate_resource_binding_v0(resources, screens, issues)
+        validation_payload = materialize_resource_repeats(payload)
+        validation_screens = validation_payload.get("screens", [])
+    else:
+        validation_payload = payload
+        validation_screens = screens
+    screen_ids, aggregate_intent_bytes = _validate_screens(
+        validation_screens,
+        issues,
+        compile_check=compile_check,
+        schema_version=version,
+    )
     if aggregate_intent_bytes > APP_BUNDLE_MAX_AGGREGATE_INTENT_BYTES:
         issues.append(
             _issue(
@@ -196,10 +230,8 @@ def _validate_app_payload(payload: dict[str, Any], issues: list[dict[str, str]],
     _validate_unique_ids(resource_ids, "$.resources", "APP_DUPLICATE_RESOURCE_ID", issues)
     _validate_unique_ids(screen_ids, "$.screens", "APP_DUPLICATE_SCREEN_ID", issues)
     _validate_route_graph(app, routes, set(screen_ids), issues)
-    if version in {APP_BUNDLE_BOUND_SCHEMA_VERSION, APP_BUNDLE_STATE_SCHEMA_VERSION, APP_BUNDLE_VISIBILITY_SCHEMA_VERSION}:
-        _validate_resource_binding_v0(resources, screens, issues)
     if version in {APP_BUNDLE_STATE_SCHEMA_VERSION, APP_BUNDLE_VISIBILITY_SCHEMA_VERSION}:
-        _state_ir, state_issues = validate_state_ir(payload)
+        _state_ir, state_issues = validate_state_ir(validation_payload)
         issues.extend(issue.to_json() for issue in state_issues)
 
 def _validate_app_object(app: dict[str, Any], issues: list[dict[str, str]]) -> None:
@@ -360,6 +392,14 @@ def _validate_screens(
         if not isinstance(intent, dict):
             issues.append(_issue("APP_SCREEN_INTENT_NOT_OBJECT", f"{path}.intent_bundle", "screen.intent_bundle must be an IntentBundle object."))
             continue
+        if "presentation" in screen:
+            issues.extend(
+                validate_screen_presentation(
+                    screen.get("presentation"),
+                    screen=screen,
+                    path=f"{path}.presentation",
+                )
+            )
         try:
             intent_text = _stable_json(intent)
         except ValueError as exc:
@@ -469,6 +509,8 @@ def _validate_resource_binding_v0(resources: list[Any], screens: list[Any], issu
         total_views += len(resource_views)
         target_motifs = _screen_target_motif_ids(screen)
         seen_view_ids: list[str] = []
+        claimed_generated_ids: dict[str, str] = {}
+        claimed_generated_addresses: dict[str, str] = {}
         for view_index, resource_view in enumerate(resource_views):
             path = f"{screen_path}.resource_views[{view_index}]"
             if not isinstance(resource_view, dict):
@@ -562,6 +604,16 @@ def _validate_resource_binding_v0(resources: list[Any], screens: list[Any], issu
                             )
                         )
                     total_assertions += 1
+            _validate_resource_repeat(
+                screen,
+                resource_view,
+                path=path,
+                clean_record_ids=clean_record_ids,
+                clean_fields=clean_fields,
+                claimed_generated_ids=claimed_generated_ids,
+                claimed_generated_addresses=claimed_generated_addresses,
+                issues=issues,
+            )
         _validate_unique_ids(seen_view_ids, f"{screen_path}.resource_views", "APP_RESOURCE_BINDING_DUPLICATE_VIEW_ID", issues)
     if total_views > APP_RESOURCE_BINDING_MAX_VIEWS:
         issues.append(
@@ -628,6 +680,231 @@ def _screen_target_motif_ids(screen: dict[str, Any]) -> set[str]:
     view_spec = intent.get("view_spec") if isinstance(intent.get("view_spec"), dict) else {}
     motifs = view_spec.get("motifs") if isinstance(view_spec.get("motifs"), list) else []
     return {motif.get("id") for motif in motifs if isinstance(motif, dict) and isinstance(motif.get("id"), str)}
+
+
+def _validate_resource_repeat(
+    screen: dict[str, Any],
+    resource_view: dict[str, Any],
+    *,
+    path: str,
+    clean_record_ids: list[str],
+    clean_fields: list[str],
+    claimed_generated_ids: dict[str, str],
+    claimed_generated_addresses: dict[str, str],
+    issues: list[dict[str, str]],
+) -> None:
+    if "repeat" not in resource_view:
+        return
+    repeat = resource_view.get("repeat")
+    if not isinstance(repeat, dict):
+        issues.append(
+            _issue(
+                "APP_RESOURCE_REPEAT_INVALID",
+                f"{path}.repeat",
+                "resource_view.repeat must be an object.",
+                "Declare field_presentations once for the repeated resource fields.",
+            )
+        )
+        return
+    extra = sorted(set(repeat) - RESOURCE_REPEAT_ALLOWED_FIELDS)
+    if extra:
+        issues.append(
+            _issue(
+                "APP_RESOURCE_REPEAT_INVALID",
+                f"{path}.repeat",
+                f"resource_view.repeat contains unsupported field(s): {', '.join(extra)}.",
+                "Use only field_presentations and optional group_id.",
+            )
+        )
+    presentations = repeat.get("field_presentations")
+    if not isinstance(presentations, list) or not presentations:
+        issues.append(
+            _issue(
+                "APP_RESOURCE_REPEAT_INVALID",
+                f"{path}.repeat.field_presentations",
+                "repeat.field_presentations must be a non-empty array.",
+                "Declare one field/present_as entry for every resource_view field.",
+            )
+        )
+        presentations = []
+    presentation_fields: list[str] = []
+    for index, presentation in enumerate(presentations):
+        item_path = f"{path}.repeat.field_presentations[{index}]"
+        if not isinstance(presentation, dict):
+            issues.append(
+                _issue(
+                    "APP_RESOURCE_REPEAT_INVALID",
+                    item_path,
+                    "Each repeated field presentation must be an object.",
+                    "Use {field, present_as} objects.",
+                )
+            )
+            continue
+        item_extra = sorted(set(presentation) - RESOURCE_REPEAT_FIELD_PRESENTATION_ALLOWED_FIELDS)
+        if item_extra:
+            issues.append(
+                _issue(
+                    "APP_RESOURCE_REPEAT_INVALID",
+                    item_path,
+                    f"Repeated field presentation contains unsupported field(s): {', '.join(item_extra)}.",
+                    "Use exactly field and present_as.",
+                )
+            )
+        field = _required_string(presentation, "field", item_path, issues)
+        present_as = _required_string(presentation, "present_as", item_path, issues)
+        if field:
+            presentation_fields.append(field)
+        if present_as and present_as not in APP_RESOURCE_BINDING_TEXT_PRIMITIVES:
+            issues.append(
+                _issue(
+                    "APP_RESOURCE_REPEAT_INVALID",
+                    f"{item_path}.present_as",
+                    f"Repeated resource fields must use one of {', '.join(sorted(APP_RESOURCE_BINDING_TEXT_PRIMITIVES))}.",
+                    "Use a visible text presentation so resource proof can observe the field.",
+                )
+            )
+    _validate_unique_ids(
+        presentation_fields,
+        f"{path}.repeat.field_presentations",
+        "APP_RESOURCE_REPEAT_DUPLICATE_FIELD",
+        issues,
+    )
+    if set(presentation_fields) != set(clean_fields):
+        missing = sorted(set(clean_fields) - set(presentation_fields))
+        extra_fields = sorted(set(presentation_fields) - set(clean_fields))
+        detail = []
+        if missing:
+            detail.append(f"missing {', '.join(missing)}")
+        if extra_fields:
+            detail.append(f"undeclared {', '.join(extra_fields)}")
+        issues.append(
+            _issue(
+                "APP_RESOURCE_REPEAT_FIELD_COVERAGE_INVALID",
+                f"{path}.repeat.field_presentations",
+                f"Repeated field presentations must cover resource_view.fields exactly ({'; '.join(detail)}).",
+                "Declare each resource_view field exactly once.",
+            )
+        )
+
+    intent = screen.get("intent_bundle") if isinstance(screen.get("intent_bundle"), dict) else {}
+    substrate = intent.get("substrate") if isinstance(intent.get("substrate"), dict) else {}
+    nodes = substrate.get("nodes") if isinstance(substrate.get("nodes"), dict) else {}
+    view_spec = intent.get("view_spec") if isinstance(intent.get("view_spec"), dict) else {}
+    bindings = [item for item in view_spec.get("bindings", []) if isinstance(item, dict)]
+    motifs = {
+        str(item.get("id")): item
+        for item in view_spec.get("motifs", [])
+        if isinstance(item, dict) and isinstance(item.get("id"), str)
+    }
+    existing_binding_ids = {item.get("id") for item in bindings if isinstance(item.get("id"), str)}
+    existing_addresses = {item.get("address") for item in bindings if isinstance(item.get("address"), str)}
+    groups = {
+        item.get("id")
+        for item in view_spec.get("groups", [])
+        if isinstance(item, dict) and isinstance(item.get("id"), str)
+    }
+    group_id = repeat.get("group_id")
+    if group_id is not None:
+        if not isinstance(group_id, str) or group_id not in groups:
+            issues.append(
+                _issue(
+                    "APP_RESOURCE_REPEAT_GROUP_MISSING",
+                    f"{path}.repeat.group_id",
+                    f"repeat.group_id {group_id!r} does not identify a declared screen group.",
+                    "Use an existing ordered group id or omit group_id.",
+                )
+            )
+
+    view_id = str(resource_view.get("id") or "")
+    resource_id = str(resource_view.get("resource_id") or "")
+    target_motif_id = str(resource_view.get("target_motif_id") or "")
+    target_motif = motifs.get(target_motif_id)
+    target_members = {
+        item
+        for item in target_motif.get("members", [])
+        if isinstance(item, str)
+    } if isinstance(target_motif, dict) else set()
+    authored_by_address = {
+        str(binding.get("address")): str(binding.get("id"))
+        for binding in bindings
+        if isinstance(binding.get("id"), str)
+        and binding.get("id") in target_members
+        and isinstance(binding.get("address"), str)
+    }
+    for record_id in clean_record_ids:
+        node_id = resource_repeat_node_id(view_id, record_id)
+        node_identity = f"{resource_id}/{record_id}"
+        _claim_resource_repeat_identity(
+            node_id,
+            node_identity,
+            existing=nodes,
+            claimed=claimed_generated_ids,
+            path=f"{path}.repeat",
+            kind="semantic node",
+            issues=issues,
+        )
+        for field in clean_fields:
+            canonical_identity = f"{resource_id}/{record_id}/{field}"
+            authored_address = f"node:{record_id}#attr:{field}"
+            authored_binding_id = authored_by_address.get(authored_address)
+            if authored_binding_id is not None:
+                issues.append(
+                    _issue(
+                        "APP_RESOURCE_REPEAT_AUTHORED_DUPLICATE",
+                        f"{path}.repeat",
+                        f"resource_view {view_id} repeats {canonical_identity} into motif {target_motif_id}, "
+                        f"but authored binding {authored_binding_id} already presents {authored_address} there.",
+                        "Remove the hand-authored prototype binding from the target motif; repeat generates every record-field binding deterministically.",
+                    )
+                )
+            binding_id = resource_repeat_binding_id(view_id, record_id, field)
+            address = resource_binding_address(resource_view, record_id, field)
+            _claim_resource_repeat_identity(
+                binding_id,
+                canonical_identity,
+                existing=existing_binding_ids,
+                claimed=claimed_generated_ids,
+                path=f"{path}.repeat",
+                kind="binding",
+                issues=issues,
+            )
+            _claim_resource_repeat_identity(
+                address,
+                canonical_identity,
+                existing=existing_addresses,
+                claimed=claimed_generated_addresses,
+                path=f"{path}.repeat",
+                kind="content address",
+                issues=issues,
+            )
+
+
+def _claim_resource_repeat_identity(
+    generated_id: str,
+    canonical_identity: str,
+    *,
+    existing: object,
+    claimed: dict[str, str],
+    path: str,
+    kind: str,
+    issues: list[dict[str, str]],
+) -> None:
+    previous = claimed.get(generated_id)
+    collision = generated_id in existing or (previous is not None and previous != canonical_identity)
+    if collision:
+        issues.append(
+            _issue(
+                "APP_RESOURCE_REPEAT_ID_COLLISION",
+                path,
+                (
+                    f"Generated {kind} {generated_id} for {canonical_identity} collides with "
+                    f"{previous or 'an authored screen identity'}."
+                ),
+                "Rename the resource view, record, field, or conflicting authored semantic identity.",
+            )
+        )
+        return
+    claimed[generated_id] = canonical_identity
 
 def _validate_resource_binding_string_list(values: list[Any], path: str, label: str, issues: list[dict[str, str]]) -> list[str]:
     clean: list[str] = []
@@ -797,6 +1074,7 @@ def _app_limits() -> dict[str, int]:
         "max_embedded_intent_bytes": APP_BUNDLE_MAX_EMBEDDED_INTENT_BYTES,
         "max_aggregate_embedded_intent_bytes": APP_BUNDLE_MAX_AGGREGATE_INTENT_BYTES,
         "max_proof_report_bytes": APP_BUNDLE_MAX_PROOF_REPORT_BYTES,
+        "max_analysis_evidence_bytes": APP_BUNDLE_MAX_ANALYSIS_EVIDENCE_BYTES,
         "max_support_bundle_bytes": APP_BUNDLE_MAX_SUPPORT_BUNDLE_BYTES,
         "max_id_chars": APP_BUNDLE_MAX_ID_CHARS,
         "max_route_chars": APP_BUNDLE_MAX_ROUTE_CHARS,
@@ -1065,6 +1343,7 @@ __all__ = [
     "APP_BUNDLE_MAX_EMBEDDED_INTENT_BYTES",
     "APP_BUNDLE_MAX_ID_CHARS",
     "APP_BUNDLE_MAX_PROOF_REPORT_BYTES",
+    "APP_BUNDLE_MAX_ANALYSIS_EVIDENCE_BYTES",
     "APP_BUNDLE_MAX_RECORDS_PER_RESOURCE",
     "APP_BUNDLE_MAX_RECORD_FIELDS",
     "APP_BUNDLE_MAX_RESOURCES",

@@ -849,6 +849,12 @@ def _benchmark_summary(
     tailwind_inventory = _manifest_inventory(tailwind_artifact.manifest)
     assert_emitter_parity(fixture.id, html_inventory, react_inventory)
     assert_tailwind_semantic_parity(fixture.id, html_inventory, tailwind_inventory)
+    tailwind_parity_evidence = tailwind_inventory.to_json()
+    tailwind_classes = tailwind_parity_evidence.pop("class_inventory")
+    tailwind_parity_evidence["class_inventory_count"] = len(tailwind_classes)
+    tailwind_parity_evidence["class_inventory_sha256"] = hashlib.sha256(
+        json.dumps(tailwind_classes, ensure_ascii=True, separators=(",", ":")).encode("utf-8")
+    ).hexdigest()
 
     html_tags, html_text = _html_tags_and_text(html_artifact.artifact_text)
     react_tags = _react_tags(react_artifact.artifact_text)
@@ -958,7 +964,7 @@ def _benchmark_summary(
             },
             "aesthetic": aesthetic_metrics,
             "parity": html_inventory.to_json(),
-            "tailwind_parity": tailwind_inventory.to_json(),
+            "tailwind_parity": tailwind_parity_evidence,
             "required_tags": sorted(required_tags),
             "style_tokens": style_tokens,
         },

@@ -445,15 +445,32 @@ def init_intent_tool(
 def _apply_ir_props_overlay(root_node: Any, overlay: dict[str, dict[str, Any]]) -> list[str]:
     """Merge bounded props onto IR nodes by node id, between compile() and emit.
 
-    The overlay is a closed data structure (AppBundle V4 visibility bake): only the visibility
-    marker keys are permitted, so this seam cannot become a generic style/content side channel.
+    The overlay is a closed data structure used by AppBundle compilation. Only visibility
+    markers and the compiler-owned semantic embedding context are permitted, so this seam
+    cannot become a generic style/content side channel.
     Returns the overlay node ids that did not resolve to an IR node (fail-closed at the caller).
     """
-    allowed_keys = {"visibility_rule_id", "visibility_hidden_initial"}
+    allowed_keys = {
+        "record_id",
+        "resource_field",
+        "resource_id",
+        "resource_view_id",
+        "semantic_context",
+        "visibility_rule_id",
+        "visibility_hidden_initial",
+    }
     for node_id, props in overlay.items():
         unexpected = set(props) - allowed_keys
         if unexpected:
-            raise ValueError(f"ir_props_overlay only supports visibility marker keys; got {sorted(unexpected)} for {node_id}.")
+            raise ValueError(f"ir_props_overlay contains unsupported keys {sorted(unexpected)} for {node_id}.")
+        semantic_context = props.get("semantic_context")
+        if semantic_context is not None and semantic_context != "embedded_screen":
+            raise ValueError(
+                f"ir_props_overlay semantic_context must be 'embedded_screen'; got {semantic_context!r} for {node_id}."
+            )
+        for key in ("record_id", "resource_field", "resource_id", "resource_view_id"):
+            if key in props and (not isinstance(props[key], str) or not props[key]):
+                raise ValueError(f"ir_props_overlay {key} must be a non-empty string for {node_id}.")
     remaining = dict(overlay)
     stack = [root_node]
     while stack and remaining:

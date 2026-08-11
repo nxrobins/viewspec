@@ -20,8 +20,14 @@ from viewspec.app_shell import (
     _screen_shell_summaries,
 )
 from viewspec.app_state_artifacts import _write_state_artifacts
+from viewspec.app_resource_repeat import resource_repeat_summary
 from viewspec.app_validation import _app_schema_version, _app_summary, _resource_binding_report_fields
 from viewspec.local_tools import atomic_write, file_hash
+from viewspec.presentation_plan import (
+    PRESENTATION_PLAN_FILE,
+    PRESENTATION_PLAN_MAX_BYTES,
+    presentation_plan_diagnostics,
+)
 
 
 def _write_static_app_shell(
@@ -46,6 +52,13 @@ def _write_static_app_shell(
     binding_fields = _resource_binding_report_fields(payload, resource_binding_report)
     shell_parts = _build_static_app_shell(payload, screen_reports, resource_binding_report=resource_binding_report)
     atomic_write(prepared.index_path, shell_parts["html"])
+    presentation_plan_path = prepared.output_dir / PRESENTATION_PLAN_FILE
+    _write_bounded_json(
+        presentation_plan_path,
+        shell_parts["presentation_plan"],
+        limit=PRESENTATION_PLAN_MAX_BYTES,
+        code="APP_PRESENTATION_PLAN_WRITE_FAILED",
+    )
     shell_artifact_hash = file_hash(prepared.index_path)
     manifest = dict(shell_parts["manifest"])
     manifest["shell_artifact_hash"] = shell_artifact_hash
@@ -69,6 +82,9 @@ def _write_static_app_shell(
         "route_assertions": shell_parts["route_assertions"],
         "shell_artifact_hash": shell_artifact_hash,
         "shell_manifest_hash": shell_manifest_hash,
+        "presentation_plan_hash": shell_parts["presentation_plan_hash"],
+        "presentation_plan_diagnostics": presentation_plan_diagnostics(shell_parts["presentation_plan"]),
+        "resource_repeat": resource_repeat_summary(payload),
         "limits": _app_shell_limits(),
         **binding_fields,
         **({"state_ir": state_artifacts["manifest_summary"]} if state_artifacts is not None else {}),
@@ -89,6 +105,7 @@ def _write_static_app_shell(
             "index": str(prepared.index_path),
             "manifest": str(prepared.manifest_path),
             "diagnostics": str(prepared.diagnostics_path),
+            "presentation_plan": str(presentation_plan_path),
             **(
                 {
                     "state_reducer": str(state_artifacts["reducer_path"]),
@@ -101,6 +118,9 @@ def _write_static_app_shell(
         "route_assertions": shell_parts["route_assertions"],
         "shell_artifact_hash": shell_artifact_hash,
         "shell_manifest_hash": shell_manifest_hash,
+        "presentation_plan_hash": shell_parts["presentation_plan_hash"],
+        "presentation_plan_diagnostics": presentation_plan_diagnostics(shell_parts["presentation_plan"]),
+        "resource_repeat": resource_repeat_summary(payload),
         **(
             {
                 "state_reducer_hash": state_artifacts["reducer_hash"],
