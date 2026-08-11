@@ -110,6 +110,29 @@ jobs:
           ./node_modules/.bin/playwright --version \
             | tee -a "$VIEWSPEC_PRETEXT_E2E_ARTIFACT_DIR/toolchain.txt"
 
+      - name: Install reference fonts
+        run: |
+          set -euxo pipefail
+          # The conformance reference renders Georgia, an Inter/system-ui stack, and a
+          # Menlo monospace stack. None ship on the runner, so Chromium falls back to
+          # DejaVu and the geometry diverges from the calibrated layout-fidelity gate.
+          sudo apt-get update
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+            fonts-liberation fonts-dejavu-core
+          # Real Georgia and Times New Roman, with the EULA pre-accepted for a
+          # non-interactive install. Kept non-fatal: a sourceforge hiccup should not
+          # fail the proof, and the font census below records what actually landed.
+          echo "ttf-mscorefonts-installer msttcorefonts/accepted-mscorefonts-eula select true" \
+            | sudo debconf-set-selections
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y ttf-mscorefonts-installer \
+            || echo "WARNING: msttcorefonts unavailable; Georgia will fall back"
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y fonts-inter \
+            || echo "WARNING: fonts-inter unavailable; Inter will fall back"
+          sudo fc-cache -f
+          for family in Georgia "Times New Roman" Arial Inter DejaVu; do
+            printf '%-18s %s\n' "$family" "$(fc-list : family | grep -ic "$family" || true)"
+          done | tee "$VIEWSPEC_PRETEXT_E2E_ARTIFACT_DIR/font-census.txt"
+
       - name: Install Playwright Chromium
         working-directory: src/viewspec/host_verify_template
         run: ./node_modules/.bin/playwright install --with-deps chromium
