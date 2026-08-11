@@ -1049,14 +1049,14 @@ PAGE_BODY_TEMPLATE = r"""<a class="skip-link" href="#top">Skip to content</a>
           <article class="pcard" data-proof-integration="pretext">
             <div class="pcard-h"><span class="ok"></span><span class="tt"><a href="https://github.com/chenglou/pretext" target="_blank" rel="noopener">Pretext</a> text proof</span></div>
             <div class="pcard-b">
-              <p><code>@chenglou/pretext@0.0.8</code> independently inventories every eligible text surface per route and viewport before checking native-DOM versus Pretext line count and overflow with named <code>Arial, sans-serif</code>.</p>
+              <p><code>@chenglou/pretext@0.0.8</code> preserves native DOM semantics, independently inventories every eligible text surface per route and viewport, and checks native-DOM versus Pretext line count and overflow with named <code>Arial, sans-serif</code>.</p>
               <code class="integration-proof-command">viewspec prove-app --app viewspec.app.json --target react-tailwind-app --install --pretext --json</code>
               <p class="integration-proof-meta">Runs at 390&times;844, 768&times;1024, and 1440&times;1000 in Chromium. No Bun required.</p>
               <p>It is not general typography proof, canvas-rendering proof, pixel-perfect visual regression, accessibility certification, or arbitrary-host certification.</p>
             </div>
           </article>
         </div>
-        <p class="integration-proof-compose"><b>Compose the proofs:</b> <code>viewspec prove-app --app viewspec.app.json --target react-tailwind-app --install --freerange --pretext --json</code> runs both independently reported analyses. Dedicated hosted E2E is configured to cover healthy proofs plus division, bounds, font, wrapping, and overflow mutation rejection on relevant changes, weekly, and by manual dispatch; this does not claim that a hosted run has completed.</p>
+        <p class="integration-proof-compose"><b>Compose the proofs:</b> <code>viewspec prove-app --app viewspec.app.json --target react-tailwind-app --install --freerange --pretext --json</code> runs both independently reported analyses and does not broaden either guarantee. Dedicated hosted E2E is configured to cover healthy proofs plus division, bounds, font, wrapping, and overflow mutation rejection on relevant changes, weekly, and by manual dispatch; this does not claim that a hosted run has completed.</p>
       </div>
     </section>
 

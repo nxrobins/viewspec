@@ -5,22 +5,22 @@
   "fixtures": [
     {
       "arm": "viewspec-core",
-      "source": "evidence/shakedown-104729-2026-08-05-v4/viewspec-core/workspace/viewspec.app.json",
+      "source": "fixtures/shakedown-104729-2026-08-05-v4/viewspec-core.app.json",
       "source_sha256": "e483b2e9fe61de24b60007a0e9773beb8939159cfd897d43d15eb17edc6d1573"
     },
     {
       "arm": "viewspec-deep",
-      "source": "evidence/shakedown-104729-2026-08-05-v4/viewspec-deep/workspace/viewspec.app.json",
+      "source": "fixtures/shakedown-104729-2026-08-05-v4/viewspec-deep.app.json",
       "source_sha256": "898b37d70a6a0725e8c483a46c03eaacb336fef1213525801242dabd273e7b09"
     },
     {
       "arm": "viewspec-core",
-      "source": "evidence/shakedown-104729-2026-08-06-v5/viewspec-core/workspace/viewspec.app.json",
+      "source": "fixtures/shakedown-104729-2026-08-06-v5/viewspec-core.app.json",
       "source_sha256": "541bf3ad31952952b77476d2bbeac86b18aad5a73d2cf639947fa2ce14d6c7b5"
     },
     {
       "arm": "viewspec-deep",
-      "source": "evidence/shakedown-104729-2026-08-06-v5/viewspec-deep/workspace/viewspec.app.json",
+      "source": "fixtures/shakedown-104729-2026-08-06-v5/viewspec-deep.app.json",
       "source_sha256": "61b7b876f067107f17ea88d21617ec8c9d7fb0aefe7d1c373aa3368243db3966"
     }
   ],
