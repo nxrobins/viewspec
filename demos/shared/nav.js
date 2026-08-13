@@ -13,6 +13,7 @@
     { href: '../provenance-inspector/', label: 'Provenance' },
     { href: '../live-builder/', label: 'Pipeline' },
     { href: '../invariants/', label: 'Invariants' },
+    { href: '../proof-explorer/', label: 'Evidence' },
     { href: '../proof-bundle/', label: 'Proof' },
     { href: '../fifteen-lines/', label: '15 Lines' },
     { href: '../style-derivation/', label: 'Styles' },
