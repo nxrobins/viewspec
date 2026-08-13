@@ -21,9 +21,11 @@ from viewspec.intent_tools import (
     init_intent_tool,
     validate_intent_bundle_file_tool,
 )
+from viewspec.intent_patch import INTENT_PATCH_TARGET_LIMIT_DEFAULT
 from viewspec.intent_patch_tools import (
     apply_intent_patch_file_tool,
     intent_patch_context_tool,
+    list_intent_patch_targets_tool,
     preview_intent_patch_file_tool,
 )
 from viewspec.host_verify import verify_host_tool
@@ -428,6 +430,28 @@ def run_mcp_server(*, cwd: str | Path | None = None, allow_outside_cwd: bool = F
         )
         resolved_state = resolve_local_path(state_dir, cwd=root, allow_outside_cwd=allow_outside_cwd)
         return review_status_cli(resolved_source, state_root=resolved_state)
+
+    @app.tool(
+        description=(
+            "List every applicable IntentPatch V1 operation stub for one source with its exact base_source_sha256, "
+            "fixed fields, current old value, and allowed replacements. Start every in-place edit of an existing "
+            "IntentBundle or AppBundle here instead of text-patching the JSON file."
+        )
+    )
+    def list_intent_patch_targets(
+        source: str,
+        op: str | None = None,
+        screen_id: str | None = None,
+        limit: int = INTENT_PATCH_TARGET_LIMIT_DEFAULT,
+    ) -> dict[str, Any]:
+        return list_intent_patch_targets_tool(
+            source,
+            op=op,
+            screen_id=screen_id,
+            limit=limit,
+            cwd=root,
+            allow_outside_cwd=allow_outside_cwd,
+        )
 
     @app.tool(
         description=(

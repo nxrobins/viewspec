@@ -218,7 +218,7 @@ def test_value_premium_protocol_is_separate_long_horizon_and_executable():
     protocol = load_agent_eval_protocol(VALUE_PROTOCOL_PATH)
 
     assert protocol.schema_version == 2
-    assert protocol.id == "viewspec-agent-ui-value-premium-v2.2"
+    assert protocol.id == "viewspec-agent-ui-value-premium-v2.3"
     assert protocol.qualification_max_turns == 2
     assert protocol.qualification["trigger"] == "post-lifecycle-ineligible-or-layout-miss"
     assert protocol.evaluation_mode == "value_premium"

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -12,6 +13,7 @@ from scripts import run_agent_ui_eval as runner
 from viewspec.app_bundle import compile_app
 from viewspec.agent_eval_value import STABLE_HOOKS
 from viewspec.app_starters import starter_react_app_bundle
+from viewspec.native_agents import BEGIN_MARKER, agent_instruction_block
 
 
 _NODE = shutil.which("node")
@@ -2190,3 +2192,48 @@ document.querySelector("#review").onclick=()=>{const el=document.querySelector("
     assert parity_result.returncode == 2, parity_result.stdout
     parity = json.loads(parity_report.read_text(encoding="utf-8"))
     assert min(item["layout_fidelity"] for item in parity["viewports"]) < 0.95
+
+
+def _prepared_workspace(tmp_path: Path, arm: str) -> Path:
+    protocol, _protocol_path = runner._protocol(runner.DEFAULT_PROTOCOL)
+    output = tmp_path / arm
+    output.mkdir()
+    return runner._prepare_workspace(output, protocol.tasks[0], arm, 104729)
+
+
+def test_viewspec_arms_receive_the_shipped_managed_agent_instructions(tmp_path: Path) -> None:
+    """The eval must measure the guidance ViewSpec ships, not a copy kept inside the runner."""
+
+    workspace = _prepared_workspace(tmp_path, "viewspec-deep")
+    instructions = (workspace / "AGENTS.md").read_text(encoding="utf-8")
+
+    assert agent_instruction_block("codex") in instructions
+    assert instructions.index("Arm: viewspec-deep") < instructions.index(BEGIN_MARKER)
+    assert "viewspec patch-targets" in instructions
+    assert "Lane A — change the value of something that already exists (the default)" in instructions
+    assert "Never use a line-based or text-diff editing tool on them" in instructions
+
+
+def test_code_first_arm_receives_no_viewspec_guidance(tmp_path: Path) -> None:
+    workspace = _prepared_workspace(tmp_path, "code-first")
+    instructions = (workspace / "AGENTS.md").read_text(encoding="utf-8")
+
+    assert BEGIN_MARKER not in instructions
+    assert "patch-targets" not in instructions
+    assert (workspace / "submission" / "index.html").is_file()
+
+
+def test_managed_instruction_identity_is_recorded_for_the_viewspec_arms() -> None:
+    fact = runner._managed_instruction_fact()
+
+    assert fact["sha256"] == hashlib.sha256(agent_instruction_block("codex").encode("utf-8")).hexdigest()
+    assert fact["applies_to_arms"] == ["viewspec-core", "viewspec-deep"]
+    assert fact["path"] == "AGENTS.md"
+
+
+def test_managed_instructions_do_not_leak_into_measured_source(tmp_path: Path) -> None:
+    workspace = _prepared_workspace(tmp_path, "viewspec-core")
+
+    sources = runner._source_files(workspace, "viewspec-core")
+
+    assert [path.name for path in sources] == ["viewspec.app.json"]

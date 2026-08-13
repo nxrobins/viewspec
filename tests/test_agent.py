@@ -162,6 +162,11 @@ def test_agent_prompt_and_schema_preserve_intent_bundle_contract():
     assert "Region parent links must form one acyclic tree" in AGENT_SYSTEM_PROMPT
     assert "Region min_children must be >= 0" in AGENT_SYSTEM_PROMPT
     assert "Generated JSON is not a finished ViewSpec proof" in AGENT_SYSTEM_PROMPT
+    assert "Existing source is edited through exactly two lanes" in AGENT_SYSTEM_PROMPT
+    assert "never by line-based or text-diff editing of the bundle JSON" in AGENT_SYSTEM_PROMPT
+    assert "the structured patch surface is the default" in AGENT_SYSTEM_PROMPT
+    assert "viewspec patch-targets viewspec.intent.json --json" in AGENT_SYSTEM_PROMPT
+    assert "IntentPatch V1 cannot create or delete declared elements" in AGENT_SYSTEM_PROMPT
     assert "viewspec prove --out .viewspec-proof" in AGENT_SYSTEM_PROMPT
     assert "viewspec validate-intent viewspec.intent.json --json" in AGENT_SYSTEM_PROMPT
     assert "viewspec check" in AGENT_SYSTEM_PROMPT

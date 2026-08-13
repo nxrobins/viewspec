@@ -39,6 +39,7 @@ from viewspec.agent_eval_value import (
 )
 from viewspec.app_freerange import FREERANGE_PACKAGE, FREERANGE_VERSION
 from viewspec.app_pretext import PRETEXT_PACKAGE, PRETEXT_VERSION
+from viewspec.native_agents import agent_instruction_block
 from viewspec.node_runtime import materialize_prebuilt_node_modules
 
 
@@ -405,6 +406,20 @@ def _command_version(command: list[str], *, cwd: Path = ROOT) -> str | None:
     return lines[-1][:256] if result.returncode == 0 and lines else None
 
 
+def _managed_instruction_fact() -> dict[str, Any]:
+    """Bind the exact managed instruction block the ViewSpec arms received."""
+
+    block = agent_instruction_block("codex")
+    encoded = block.encode("utf-8")
+    return {
+        "target": "codex",
+        "path": "AGENTS.md",
+        "applies_to_arms": [arm for arm in AGENT_UI_EVAL_ARMS if arm != "code-first"],
+        "bytes": len(encoded),
+        "sha256": hashlib.sha256(encoded).hexdigest(),
+    }
+
+
 def _git_fact(command: list[str]) -> str | None:
     result, _elapsed = _run(["git", *command], cwd=ROOT, timeout=20)
     return result.stdout.strip()[:512] if result.returncode == 0 else None
@@ -442,6 +457,7 @@ def _environment_telemetry(
             "browser_scorer": _file_fact(BROWSER_SCORER),
             "mutation_manifest": _file_fact(MUTATION_MANIFEST),
             "viewspec_product_tree": _product_tree_fact(),
+            "managed_agent_instructions": _managed_instruction_fact(),
             "node_dependency_seed": {
                 "sha256": _dependency_seed_hash(),
                 "path": str(NODE_MODULE_SEED),
@@ -829,6 +845,25 @@ def _build_react_target(source: Path, artifact: Path) -> tuple[dict[str, Any], i
     )
 
 
+def _install_managed_agent_instructions(workspace: Path) -> None:
+    """Materialize the shipped managed instruction block into the arm workspace.
+
+    ViewSpec arms must evaluate the guidance ViewSpec actually ships, not a copy
+    maintained inside this runner. `init-agent` appends its own marked block to the
+    runner-authored AGENTS.md, so arm rules stay first and the product block follows.
+    Agents still never read the ViewSpec repository; the instructions are local files,
+    exactly as a real adopter receives them.
+    """
+
+    result, _elapsed = _run(
+        [str(VIEWSPEC), "init-agent", "--target", "codex"],
+        cwd=workspace,
+        timeout=30,
+    )
+    if result.returncode:
+        raise RuntimeError(f"Unable to install managed ViewSpec agent instructions:\n{result.stdout}")
+
+
 def _prepare_workspace(output: Path, task: AgentEvalTask, arm: str, seed: int) -> Path:
     workspace = output / "workspace"
     workspace.mkdir()
@@ -846,6 +881,7 @@ def _prepare_workspace(output: Path, task: AgentEvalTask, arm: str, seed: int) -
         )
         if result.returncode:
             raise RuntimeError(f"Unable to scaffold the evaluation AppBundle:\n{result.stdout}")
+        _install_managed_agent_instructions(workspace)
     git, _elapsed = _run(["git", "init", "-q"], cwd=workspace, timeout=30)
     if git.returncode:
         raise RuntimeError(f"Unable to initialize evaluation workspace:\n{git.stdout}")

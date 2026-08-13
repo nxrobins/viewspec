@@ -9,6 +9,25 @@ All notable changes to ViewSpec are documented in this file. The format follows
 
 ### Added
 
+- The structured patch surface is now the documented default agent edit path for existing
+  IntentBundle and AppBundle source. Managed agent instructions, the agent system prompt, and the
+  integration docs state a two-lane rule — `patch-targets` → `patch-preview` → `patch-apply` for a
+  declared value, a whole-file rewrite for anything additive or structural — and explicitly prohibit
+  line-based or text-diff editing of bundle JSON and identical failing-command retries.
+- Agent UI eval protocol v2.3 installs the shipped managed instruction block into the ViewSpec arm
+  workspaces with `viewspec init-agent`, so the evaluation measures the guidance ViewSpec actually
+  ships instead of a copy maintained inside the runner. `code-first` still receives no ViewSpec
+  guidance, and each session binds the block's identity under
+  `environment.inputs.managed_agent_instructions`. v2.2 and v2.3 results are not directly
+  comparable.
+- New read-only `viewspec patch-targets` command, `list_intent_patch_targets` MCP tool, and
+  `intent_patch_targets` / `intent_patch_targets_file` Python API. They return a source's exact
+  `base_source_sha256` plus one ready-to-fill stub per legally patchable target, carrying the
+  operation, its fixed fields with the exact current old value, its single replacement field, and
+  allowed values where the vocabulary is closed, so an agent never computes a source hash or derives
+  the operation vocabulary by hand. `--op`, `--screen`, and `--limit` bound large sources, and
+  `counts` stays pre-truncation so a truncated response cannot read as full coverage.
+
 - Freerange numeric scope v2 now binds every eligible mutation and selector operation occurrence
   to the independently emitted state contract, an ordered inventory digest, the exact generated
   helper set, and runtime call sites. Reports expose exact operation coverage in addition to 100%

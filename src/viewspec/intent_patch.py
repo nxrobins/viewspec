@@ -37,6 +37,8 @@ INTENT_PATCH_MAX_EVIDENCE_REFS = 64
 INTENT_PATCH_MAX_EVIDENCE_REF_BYTES = 256
 INTENT_PATCH_MAX_STRING_BYTES = 8 * 1024
 INTENT_PATCH_MAX_CONTEXT_REQUESTS = 63
+INTENT_PATCH_TARGET_LIMIT_DEFAULT = 200
+INTENT_PATCH_TARGET_LIMIT_MAX = 4096
 INTENT_PATCH_RECEIPT_DIR = ".viewspec/patch-receipts"
 INTENT_PATCH_MAX_RECEIPT_BYTES = 256 * 1024
 INTENT_PATCH_LOCK_TIMEOUT_SECONDS = 5.0
@@ -1023,6 +1025,14 @@ def parse_intent_patch(value: str | Mapping[str, Any] | IntentPatch) -> IntentPa
     )
 
 
+def _detect_source_kind(payload: Mapping[str, Any]) -> str | None:
+    if {"app", "screens", "routes"}.issubset(payload):
+        return "app_bundle"
+    if {"substrate", "view_spec"}.issubset(payload):
+        return "intent_bundle"
+    return None
+
+
 def _validate_source_text(text: str, source_kind: str) -> dict[str, Any]:
     size = len(text.encode("utf-8"))
     maximum = 256 * 1024 if source_kind == "intent_bundle" else APP_BUNDLE_MAX_BYTES
@@ -1031,7 +1041,7 @@ def _validate_source_text(text: str, source_kind: str) -> dict[str, Any]:
     payload = _strict_json_loads(text, code="PATCH_SOURCE_INVALID", noun="ViewSpec source")
     if not isinstance(payload, dict):
         raise IntentPatchError("PATCH_SOURCE_INVALID", "ViewSpec source root must be an object.", "Use an IntentBundle or AppBundle object.")
-    detected = "app_bundle" if {"app", "screens", "routes"}.issubset(payload) else "intent_bundle" if {"substrate", "view_spec"}.issubset(payload) else None
+    detected = _detect_source_kind(payload)
     if detected != source_kind:
         raise IntentPatchError(
             "PATCH_SOURCE_KIND_MISMATCH",
@@ -1165,6 +1175,318 @@ def _apply_operation(payload: dict[str, Any], operation: IntentPatchOperation, s
     visibility = _find_one(payload.get("visibility"), op["visibility_id"], noun="visibility rule")
     _require_old(visibility.get("when"), op["old_value"], target=operation.target_key)
     visibility["when"] = op["value"]
+
+
+def _canonical_copy(value: object) -> Any:
+    return json.loads(_canonical_json_bytes(value))
+
+
+def _patchable_scalar(value: object) -> bool:
+    """Report whether a current source value can serve as an exact old-value precondition."""
+
+    if isinstance(value, (dict, list)):
+        return False
+    return not (isinstance(value, str) and len(value.encode("utf-8")) > INTENT_PATCH_MAX_STRING_BYTES)
+
+
+def _unique_by_id(items: object) -> dict[str, dict[str, Any]]:
+    """Return source-ordered items whose stable id resolves exactly once, matching `_find_one`."""
+
+    if not isinstance(items, list):
+        return {}
+    counts: dict[str, int] = {}
+    first: dict[str, dict[str, Any]] = {}
+    for item in items:
+        if not isinstance(item, dict):
+            continue
+        identifier = item.get("id")
+        if not isinstance(identifier, str) or _ID_RE.fullmatch(identifier) is None:
+            continue
+        counts[identifier] = counts.get(identifier, 0) + 1
+        first.setdefault(identifier, item)
+    return {identifier: item for identifier, item in first.items() if counts[identifier] == 1}
+
+
+def _patch_target(
+    op: str,
+    fixed_fields: Mapping[str, Any],
+    replacement_field: str,
+    source_kind: str,
+    *,
+    allowed_values: object | None = None,
+) -> dict[str, Any]:
+    target: dict[str, Any] = {
+        "op": op,
+        "fixed_fields": _canonical_copy(fixed_fields),
+        "replacement_field": replacement_field,
+        "target_key": list(_operation_target_key({"op": op, **fixed_fields}, source_kind)),
+    }
+    if allowed_values is not None:
+        target["allowed_values"] = _canonical_copy(allowed_values)
+    return target
+
+
+def _intent_patch_targets(intent: Mapping[str, Any], screen_id: str | None, source_kind: str) -> list[dict[str, Any]]:
+    view = intent.get("view_spec")
+    substrate = intent.get("substrate")
+    if not isinstance(view, dict) or not isinstance(substrate, dict):
+        return []
+    scope: dict[str, Any] = {"screen_id": screen_id} if screen_id is not None else {}
+    targets: list[dict[str, Any]] = []
+
+    styles = view.get("styles") if isinstance(view.get("styles"), list) else []
+    profiles = [
+        item
+        for item in styles
+        if isinstance(item, dict) and (item.get("id") == "aesthetic_profile" or str(item.get("token", "")).startswith("aesthetic."))
+    ]
+    if len(profiles) <= 1:
+        current = profiles[0].get("token") if profiles else None
+        if current is None or current in AESTHETIC_PROFILE_TOKENS:
+            targets.append(
+                _patch_target(
+                    "set_aesthetic_profile",
+                    {**scope, "old_value": current},
+                    "value",
+                    source_kind,
+                    allowed_values=[*sorted(AESTHETIC_PROFILE_TOKENS), None],
+                )
+            )
+
+    for style_id, style in _unique_by_id(styles).items():
+        token = style.get("token")
+        if style_id == "aesthetic_profile" or not isinstance(token, str) or token.startswith("aesthetic."):
+            continue
+        if token not in SUPPORTED_AGENT_STYLE_TOKENS:
+            continue
+        targets.append(
+            _patch_target(
+                "set_style_token",
+                {**scope, "style_id": style_id, "old_value": token},
+                "value",
+                source_kind,
+                allowed_values=sorted(SUPPORTED_AGENT_STYLE_TOKENS),
+            )
+        )
+
+    regions = view.get("regions") if isinstance(view.get("regions"), list) else []
+    unique_regions = _unique_by_id(regions)
+    root_region = view.get("root_region")
+    for region_id, region in unique_regions.items():
+        layout = region.get("layout")
+        if isinstance(layout, str) and layout in SUPPORTED_AGENT_REGION_LAYOUTS:
+            targets.append(
+                _patch_target(
+                    "set_region_layout",
+                    {**scope, "region_id": region_id, "old_value": layout},
+                    "value",
+                    source_kind,
+                    allowed_values=sorted(SUPPORTED_AGENT_REGION_LAYOUTS),
+                )
+            )
+        parent = region.get("parent_region")
+        movable = region_id != "root" and region_id != root_region
+        if movable and isinstance(parent, str) and _ID_RE.fullmatch(parent) is not None:
+            targets.append(
+                _patch_target(
+                    "move_region",
+                    {**scope, "region_id": region_id, "old_parent_id": parent},
+                    "parent_id",
+                    source_kind,
+                )
+            )
+
+    for region_id in unique_regions:
+        children = [
+            str(item.get("id")) for item in regions if isinstance(item, dict) and item.get("parent_region") == region_id
+        ]
+        if not 2 <= len(children) <= 32 or len(set(children)) != len(children):
+            continue
+        if any(_ID_RE.fullmatch(child) is None for child in children):
+            continue
+        targets.append(
+            _patch_target(
+                "reorder_region_children",
+                {**scope, "region_id": region_id, "old_children": children},
+                "children",
+                source_kind,
+            )
+        )
+
+    for binding_id, binding in _unique_by_id(view.get("bindings")).items():
+        present_as = binding.get("present_as")
+        if not isinstance(present_as, str) or present_as not in PRESENT_AS_TO_PRIMITIVE:
+            continue
+        targets.append(
+            _patch_target(
+                "set_binding_presentation",
+                {**scope, "binding_id": binding_id, "old_value": present_as},
+                "value",
+                source_kind,
+                allowed_values=sorted(PRESENT_AS_TO_PRIMITIVE),
+            )
+        )
+
+    nodes = substrate.get("nodes")
+    if isinstance(nodes, dict):
+        for node_id in sorted(nodes):
+            node = nodes[node_id]
+            if _ID_RE.fullmatch(node_id) is None or not isinstance(node, dict):
+                continue
+            attrs = node.get("attrs")
+            if not isinstance(attrs, dict):
+                continue
+            for attr in sorted(attrs):
+                if _FIELD_RE.fullmatch(attr) is None or not _patchable_scalar(attrs[attr]):
+                    continue
+                targets.append(
+                    _patch_target(
+                        "replace_semantic_attr",
+                        {**scope, "node_id": node_id, "attr": attr, "old_value": attrs[attr]},
+                        "value",
+                        source_kind,
+                    )
+                )
+    return targets
+
+
+def _app_patch_targets(payload: Mapping[str, Any]) -> list[dict[str, Any]]:
+    targets: list[dict[str, Any]] = []
+    for resource_id, resource in _unique_by_id(payload.get("resources")).items():
+        for record_id, record in _unique_by_id(resource.get("records")).items():
+            for field in sorted(record):
+                if field == "id" or _FIELD_RE.fullmatch(field) is None or not _patchable_scalar(record[field]):
+                    continue
+                targets.append(
+                    _patch_target(
+                        "replace_fixture_scalar",
+                        {
+                            "resource_id": resource_id,
+                            "record_id": record_id,
+                            "field": field,
+                            "old_value": record[field],
+                        },
+                        "value",
+                        "app_bundle",
+                    )
+                )
+    for visibility_id, rule in _unique_by_id(payload.get("visibility")).items():
+        when = rule.get("when")
+        if not isinstance(when, dict):
+            continue
+        targets.append(
+            _patch_target(
+                "set_visibility_condition",
+                {"visibility_id": visibility_id, "old_value": when},
+                "value",
+                "app_bundle",
+            )
+        )
+    return targets
+
+
+def intent_patch_targets(
+    source_text: str,
+    *,
+    op: str | None = None,
+    screen_id: str | None = None,
+    limit: int = INTENT_PATCH_TARGET_LIMIT_DEFAULT,
+) -> dict[str, Any]:
+    """Enumerate the applicable IntentPatch V1 operation stubs for one validated source.
+
+    Every returned target resolves exactly once and carries the exact current old-value
+    precondition, so supplying only its `replacement_field` yields a patch that passes
+    `preview_intent_patch` preconditions against these same source bytes.
+    """
+
+    if op is not None and op not in INTENT_PATCH_OPERATION_KINDS:
+        raise IntentPatchError(
+            "PATCH_OPERATION_UNSUPPORTED",
+            f"Unsupported patch operation {op!r}.",
+            "Filter by one of the nine closed IntentPatch V1 operations.",
+        )
+    if not isinstance(limit, int) or isinstance(limit, bool) or not 1 <= limit <= INTENT_PATCH_TARGET_LIMIT_MAX:
+        raise IntentPatchError(
+            "PATCH_VALUE_INVALID",
+            f"limit must be an integer between 1 and {INTENT_PATCH_TARGET_LIMIT_MAX}.",
+            "Request a bounded number of targets.",
+        )
+
+    payload = _strict_json_loads(source_text, code="PATCH_SOURCE_INVALID", noun="ViewSpec source")
+    if not isinstance(payload, dict):
+        raise IntentPatchError("PATCH_SOURCE_INVALID", "ViewSpec source root must be an object.", "Use an IntentBundle or AppBundle object.")
+    source_kind = _detect_source_kind(payload)
+    if source_kind is None:
+        raise IntentPatchError(
+            "PATCH_SOURCE_INVALID",
+            "ViewSpec source is neither an IntentBundle nor an AppBundle.",
+            "Point at viewspec.intent.json or viewspec.app.json.",
+        )
+    payload = _validate_source_text(source_text, source_kind)
+
+    if source_kind == "intent_bundle":
+        if screen_id is not None:
+            raise IntentPatchError(
+                "PATCH_TARGET_INVALID",
+                "An IntentBundle has no screens; the screen filter requires an AppBundle.",
+                "Drop the screen filter or point at an AppBundle source.",
+            )
+        targets = _intent_patch_targets(payload, None, source_kind)
+    else:
+        screens = _unique_by_id(payload.get("screens"))
+        if screen_id is not None and screen_id not in screens:
+            raise IntentPatchError(
+                "PATCH_TARGET_INVALID",
+                f"Screen {screen_id!r} is not declared exactly once in this AppBundle.",
+                "Filter by a declared screen id from the current source.",
+            )
+        targets = []
+        for declared_id, screen in screens.items():
+            if screen_id is not None and declared_id != screen_id:
+                continue
+            intent = screen.get("intent_bundle")
+            if isinstance(intent, dict):
+                targets.extend(_intent_patch_targets(intent, declared_id, source_kind))
+        if screen_id is None:
+            targets.extend(_app_patch_targets(payload))
+
+    if op is not None:
+        targets = [target for target in targets if target["op"] == op]
+    targets.sort(key=lambda target: tuple(target["target_key"]))
+
+    by_op: dict[str, int] = {}
+    for target in targets:
+        by_op[target["op"]] = by_op.get(target["op"], 0) + 1
+    total = len(targets)
+    returned = targets[:limit]
+    return {
+        "schema_version": 1,
+        "contract_profile": INTENT_PATCH_CONTRACT_PROFILE,
+        "source_kind": source_kind,
+        "base_source_sha256": source_sha256(source_text),
+        "filters": {"op": op, "screen_id": screen_id, "limit": limit},
+        "counts": {"total": total, "returned": len(returned), "by_op": dict(sorted(by_op.items()))},
+        "truncated": total > len(returned),
+        "targets": returned,
+    }
+
+
+def intent_patch_targets_file(
+    source_path: str | Path,
+    *,
+    op: str | None = None,
+    screen_id: str | None = None,
+    limit: int = INTENT_PATCH_TARGET_LIMIT_DEFAULT,
+) -> dict[str, Any]:
+    """Read one bounded regular source file and enumerate its applicable patch targets."""
+
+    source_text = _read_bounded_utf8_file(
+        Path(source_path),
+        maximum=APP_BUNDLE_MAX_BYTES,
+        too_large_code="PATCH_SOURCE_TOO_LARGE",
+        noun="ViewSpec source",
+    )
+    return intent_patch_targets(source_text, op=op, screen_id=screen_id, limit=limit)
 
 
 def _candidate_text(payload: dict[str, Any]) -> str:
@@ -1874,6 +2196,8 @@ __all__ = [
     "INTENT_PATCH_MAX_RECEIPT_BYTES",
     "INTENT_PATCH_OPERATION_KINDS",
     "INTENT_PATCH_SCHEMA_VERSION",
+    "INTENT_PATCH_TARGET_LIMIT_DEFAULT",
+    "INTENT_PATCH_TARGET_LIMIT_MAX",
     "IntentPatch",
     "IntentPatchContext",
     "IntentPatchError",
@@ -1881,6 +2205,8 @@ __all__ = [
     "IntentPatchPreview",
     "IntentPatchReceipt",
     "apply_intent_patch_file",
+    "intent_patch_targets",
+    "intent_patch_targets_file",
     "parse_intent_patch",
     "patch_context_from_repair_plan",
     "patch_context_from_review_batch",

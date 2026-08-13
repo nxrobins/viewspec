@@ -9,6 +9,35 @@ The published schema is `https://viewspec.dev/intent-patch.schema.json`. The run
 authority for UTF-8 byte caps, source cross-references, old-value preconditions, candidate
 validation, and transaction behavior that JSON Schema cannot express.
 
+## Default Agent Edit Path
+
+IntentPatch is the default way an agent changes an existing ViewSpec source, not a special case
+reserved for Review or verifier repairs. Bundle JSON is never edited with a line-based or text-diff
+tool: `apply_patch`, `sed`, and search-and-replace match on surrounding lines and fail against
+generated JSON formatting. Two lanes cover every edit.
+
+**Lane A — change a declared value.** Start at `patch-targets`, which reads one source and returns
+its exact `base_source_sha256` plus one stub per legally patchable target:
+
+```bash
+viewspec patch-targets viewspec.intent.json --json
+```
+
+Each target carries `op`, `fixed_fields` (the stable target ids plus the exact current `old_value`),
+the single `replacement_field` to supply, `target_key`, and `allowed_values` where the vocabulary is
+closed. An operation is `{"op": op, **fixed_fields, replacement_field: <new value>}`. Enumeration
+mirrors the apply-time resolver, so every listed target resolves exactly once and satisfies its
+old-value precondition against those same source bytes; whether the *candidate* validates still
+depends on the value chosen.
+
+`--op` and `--screen` narrow large sources and `--limit` bounds the response. `counts.total` and
+`counts.by_op` always report pre-truncation totals, so a response with `truncated: true` can never
+be read as full coverage.
+
+**Lane B — add, remove, or restructure.** The nine operations below change declared values only. When
+`patch-targets` lists no target for the intended change, rewrite the whole bundle file in one write
+and revalidate it; do not attempt a partial textual edit.
+
 ## Authority Boundary
 
 Review batches and verification repair plans are **proposal evidence only**. They may be converted
@@ -187,6 +216,8 @@ Every maximum is inclusive; limit-plus-one must fail before source mutation.
 ## CLI and MCP
 
 ```bash
+viewspec patch-targets viewspec.intent.json --op replace_semantic_attr --json
+
 viewspec patch-preview viewspec.intent.json change.intentpatch.json \
   --candidate-out candidate.intent.json --json
 
@@ -194,10 +225,16 @@ viewspec patch-apply viewspec.intent.json change.intentpatch.json \
   --approval vapprove_<exact-token-from-current-preview> --json
 ```
 
+`patch-targets` is read-only: it validates the source, performs no compile of a candidate, writes
+nothing, and makes no network call. Its filters are `--op`, `--screen`, and `--limit`; an unsupported
+operation returns `PATCH_OPERATION_UNSUPPORTED` and an undeclared screen returns
+`PATCH_TARGET_INVALID`.
+
 Add `--verify` to bind approval to canonical verification. Add `--install` only when the existing
 bounded verifier is allowed to install its locked local browser-host dependencies.
 
-The MCP tools are `build_intent_patch_context`, `preview_intent_patch`, and `apply_intent_patch`. They use the standard ViewSpec
+The MCP tools are `list_intent_patch_targets`, `build_intent_patch_context`, `preview_intent_patch`,
+and `apply_intent_patch`. They use the standard ViewSpec
 tool envelope, enforce the MCP cwd path boundary, and return patch errors as `{code, message, fix}`
 without raising a transport-level success.
 
@@ -205,5 +242,7 @@ without raising a transport-level success.
 
 The package root exports `IntentPatch`, `IntentPatchContext`, `IntentPatchPreview`,
 `IntentPatchReceipt`, `parse_intent_patch`, `preview_intent_patch`, `apply_intent_patch_file`,
+`intent_patch_targets`, `intent_patch_targets_file`,
 `patch_context_from_review_batch`, `patch_context_from_repair_plan`,
-`INTENT_PATCH_JSON_SCHEMA`, and `starter_intent_patch_payload`.
+`INTENT_PATCH_JSON_SCHEMA`, `INTENT_PATCH_TARGET_LIMIT_DEFAULT`, `INTENT_PATCH_TARGET_LIMIT_MAX`,
+and `starter_intent_patch_payload`.

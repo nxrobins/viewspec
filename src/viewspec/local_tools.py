@@ -382,7 +382,7 @@ def export_agent_assets_tool(
                 "Use .viewspec/agent-system-prompt.txt as the local ViewSpec agent contract prompt.",
                 "Use .viewspec/agent-intent-example.dashboard.json as a valid wire-shape example.",
                 "Use .viewspec/agent-app-example.internal-tool.json as a valid AppBundle wire-shape example.",
-                "Use .viewspec/intent-patch.schema.json and its example for bounded source revisions.",
+                "Use .viewspec/intent-patch.schema.json and its example for in-place source revisions; start each one at viewspec patch-targets rather than text-editing the bundle.",
             ],
             metadata={**path_policy_metadata(root, allow_outside_cwd), "dry_run": dry_run, "changes": len(changed)},
         )

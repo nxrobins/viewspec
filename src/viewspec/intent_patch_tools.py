@@ -6,8 +6,10 @@ from pathlib import Path
 from typing import Any
 
 from viewspec.intent_patch import (
+    INTENT_PATCH_TARGET_LIMIT_DEFAULT,
     IntentPatchError,
     apply_intent_patch_file,
+    intent_patch_targets_file,
     patch_context_from_repair_plan,
     patch_context_from_review_batch,
     preview_intent_patch_file,
@@ -34,6 +36,63 @@ def _failure(exc: Exception, *, metadata: dict[str, Any]) -> dict[str, Any]:
         "Fix the local patch inputs and retry.",
         metadata=metadata,
     )
+
+
+def list_intent_patch_targets_tool(
+    source_path: str | Path,
+    *,
+    op: str | None = None,
+    screen_id: str | None = None,
+    limit: int = INTENT_PATCH_TARGET_LIMIT_DEFAULT,
+    cwd: str | Path | None = None,
+    allow_outside_cwd: bool = False,
+) -> dict[str, Any]:
+    """Enumerate the applicable patch targets for one source without reading or writing anything else."""
+
+    root: Path | None = None
+    try:
+        root = resolve_cwd(cwd)
+        metadata = path_policy_metadata(root, allow_outside_cwd)
+        source = resolve_local_path(
+            source_path,
+            cwd=root,
+            allow_outside_cwd=allow_outside_cwd,
+            must_exist=True,
+        )
+        targets = intent_patch_targets_file(source, op=op, screen_id=screen_id, limit=limit)
+        return tool_response(
+            True,
+            _targets_summary(targets),
+            paths={"source": str(source)},
+            next_actions=_targets_next_actions(targets),
+            metadata=metadata,
+            data={"targets": targets},
+        )
+    except Exception as exc:
+        return _failure(exc, metadata=path_policy_metadata(root, allow_outside_cwd))
+
+
+def _targets_summary(targets: dict[str, Any]) -> str:
+    counts = targets["counts"]
+    if counts["total"] == 0:
+        return "No IntentPatch V1 target matches this source and filter; use a full source revision instead."
+    return (
+        f"Listed {counts['returned']} of {counts['total']} applicable IntentPatch V1 targets; source was not changed."
+    )
+
+
+def _targets_next_actions(targets: dict[str, Any]) -> tuple[str, ...]:
+    if targets["counts"]["total"] == 0:
+        return (
+            "IntentPatch V1 cannot add or delete declared elements; rewrite the whole bundle file and revalidate it.",
+        )
+    actions = [
+        "Build one operation per change: copy op and fixed_fields verbatim, then add only replacement_field.",
+        "Bind the patch to this exact base_source_sha256 and preview it before applying.",
+    ]
+    if targets["truncated"]:
+        actions.append("Narrow with the op or screen filter; this response is truncated and is not full coverage.")
+    return tuple(actions)
 
 
 def preview_intent_patch_file_tool(
@@ -216,5 +275,6 @@ def intent_patch_context_tool(
 __all__ = [
     "apply_intent_patch_file_tool",
     "intent_patch_context_tool",
+    "list_intent_patch_targets_tool",
     "preview_intent_patch_file_tool",
 ]
