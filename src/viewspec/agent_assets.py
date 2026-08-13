@@ -15,7 +15,7 @@ from viewspec.intent_patch import INTENT_PATCH_JSON_SCHEMA, starter_intent_patch
 from viewspec.local_tools import atomic_write
 
 
-AGENT_ASSET_SCHEMA_VERSION = 13
+AGENT_ASSET_SCHEMA_VERSION = 14
 AGENT_ASSET_CONTRACT_PROFILE = "local_v1"
 AGENT_ASSET_EXPORT_COMMAND = "viewspec export-agent-assets --out .viewspec"
 AGENT_ASSET_CHECK_COMMAND = "viewspec check-agent-assets .viewspec --json"

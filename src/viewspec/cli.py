@@ -59,11 +59,13 @@ from viewspec.intent_tools import (
 )
 from viewspec.intent_patch import (
     INTENT_PATCH_MAX_BYTES,
+    INTENT_PATCH_TARGET_LIMIT_DEFAULT,
     IntentPatchContext,
     IntentPatchError,
     _read_bounded_utf8_file,
     _strict_json_loads,
     apply_intent_patch_file,
+    intent_patch_targets_file,
     preview_intent_patch_file,
 )
 from viewspec.local_tools import (
@@ -407,6 +409,22 @@ def _build_parser() -> argparse.ArgumentParser:
     review_status_parser.add_argument("--json", action="store_true", help="Print machine-readable JSON.")
     review_status_parser.set_defaults(func=_review_status_command)
 
+    patch_targets_parser = subparsers.add_parser(
+        "patch-targets",
+        help="List the applicable IntentPatch V1 operation stubs and exact base hash for one source.",
+    )
+    patch_targets_parser.add_argument("source", help="Canonical local IntentBundle or AppBundle JSON file.")
+    patch_targets_parser.add_argument("--op", help="Only list targets for one IntentPatch V1 operation.")
+    patch_targets_parser.add_argument("--screen", help="Only list targets for one declared AppBundle screen id.")
+    patch_targets_parser.add_argument(
+        "--limit",
+        type=int,
+        default=INTENT_PATCH_TARGET_LIMIT_DEFAULT,
+        help=f"Maximum targets to return (default {INTENT_PATCH_TARGET_LIMIT_DEFAULT}).",
+    )
+    patch_targets_parser.add_argument("--json", action="store_true", help="Print machine-readable JSON.")
+    patch_targets_parser.set_defaults(func=_patch_targets_command)
+
     patch_preview_parser = subparsers.add_parser(
         "patch-preview",
         help="Validate and preview an exact source-bound IntentPatch without mutating its source.",
@@ -559,6 +577,51 @@ def _review_status_command(args: argparse.Namespace) -> int:
             print(f"status={review['status']} revision={review['revision']} queued={review['queued_events']}")
         else:
             print(f"reviews: {len(payload.get('reviews', []))}")
+    return 0
+
+
+def _patch_targets_command(args: argparse.Namespace) -> int:
+    source_path = Path(args.source)
+    targets = intent_patch_targets_file(
+        source_path,
+        op=args.op,
+        screen_id=args.screen,
+        limit=args.limit,
+    )
+    counts = targets["counts"]
+    empty = counts["total"] == 0
+    next_actions = (
+        ["IntentPatch V1 cannot add or delete declared elements; rewrite the whole bundle file and revalidate it."]
+        if empty
+        else [
+            "Build one operation per change: copy op and fixed_fields verbatim, then add only replacement_field.",
+            "Bind the patch to this exact base_source_sha256 and preview it before applying.",
+        ]
+    )
+    if targets["truncated"]:
+        next_actions.append("Narrow with --op or --screen; this response is truncated and is not full coverage.")
+    payload = {
+        "schema_version": 1,
+        "ok": True,
+        "summary": (
+            "No IntentPatch V1 target matches this source and filter; use a full source revision instead."
+            if empty
+            else f"Listed {counts['returned']} of {counts['total']} applicable IntentPatch V1 targets; source was not changed."
+        ),
+        "paths": {"source": str(source_path)},
+        "targets": targets,
+        "next_actions": next_actions,
+    }
+    if args.json:
+        print(json.dumps(payload, indent=2, sort_keys=True))
+    else:
+        print(f"source_kind: {targets['source_kind']}")
+        print(f"base_source_sha256: {targets['base_source_sha256']}")
+        print(f"targets: {counts['returned']} of {counts['total']}{' (truncated)' if targets['truncated'] else ''}")
+        for op_name, count in counts["by_op"].items():
+            print(f"  {op_name}: {count}")
+        if empty:
+            print("no patchable target; rewrite the whole bundle file instead")
     return 0
 
 
@@ -1178,6 +1241,7 @@ def _doctor_command(args: argparse.Namespace) -> int:
             "review_poll": True,
             "review_end": True,
             "review_status": True,
+            "patch_targets": True,
             "patch_preview": True,
             "patch_apply": True,
             "check_agent_assets": True,
@@ -1186,7 +1250,7 @@ def _doctor_command(args: argparse.Namespace) -> int:
         },
         "intent_pipeline": intent_pipeline,
         "app_bundle_pipeline": app_bundle_pipeline,
-        "local_network_policy": "no network calls for validate-intent/validate-app/compile-app/compile/lift/diff/diff-intent/diff-app/check/prove/prove-app/patch-preview/patch-apply/check-agent-assets/init-intent/init-app/init-design/export-agent-assets by default; explicit verification install flags retain their documented behavior",
+        "local_network_policy": "no network calls for validate-intent/validate-app/compile-app/compile/lift/diff/diff-intent/diff-app/check/prove/prove-app/patch-targets/patch-preview/patch-apply/check-agent-assets/init-intent/init-app/init-design/export-agent-assets by default; explicit verification install flags retain their documented behavior",
     }
     if args.agents:
         checks.update(

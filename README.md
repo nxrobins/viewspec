@@ -248,6 +248,7 @@ This generates a starter IntentBundle and DESIGN.md inside `.viewspec-proof/`, c
 * `init-intent`: Writes a valid scaffold for all supported motifs.
 * `init-design`: Scaffolds a local `DESIGN.md` for theming.
 * `validate-intent`: Rejects malformed JSON and enforces the bounded local agent contract.
+* `patch-targets`: Lists the exact base source hash and every legally patchable target for a source; the entry point for editing existing source.
 * `diff-intent`: Provides a semantic diff between intent states, including aesthetic profile changes, before generated HTML review; Python callers can format semantic changes with `intent_semantic_change_lines`.
 * `compile`: Compiles the intent into HTML/React based on the target.
 * `check`: Verifies the provenance manifest against the generated DOM.
@@ -256,6 +257,32 @@ This generates a starter IntentBundle and DESIGN.md inside `.viewspec-proof/`, c
 **The Bounded Local Agent Contract**: The local schema enforces strict bounds to prevent agent hallucinations and infinite loops (e.g., max 256KB JSON, 32 regions, 400 bindings, 64 actions). Split larger products into smaller IntentBundles.
 
 Generated outputs are artifacts, not source: standalone HTML writes `dist/index.html`, while React source targets write `react-output/ViewSpecView.tsx` plus checked `provenance_manifest.json` and `diagnostics.json`. Agents should edit `viewspec.intent.json` or `DESIGN.md`, then regenerate artifacts instead of patching generated files.
+
+### Editing Existing Source
+
+`viewspec.intent.json` and `viewspec.app.json` are compiler source documents. Line-based and
+text-diff editing tools (`apply_patch`, `sed`, search-and-replace) match on surrounding lines and
+fail repeatedly against generated JSON formatting, so there are exactly two supported lanes.
+
+**Changing a value that already exists** uses the structured patch surface, which is the default
+agent edit path. `patch-targets` is its entry point: it returns the exact `base_source_sha256` and
+one ready-to-fill stub per legally patchable target, carrying the operation, its fixed fields, the
+exact current `old_value`, the single `replacement_field` to supply, and `allowed_values` where the
+vocabulary is closed.
+
+```bash
+viewspec patch-targets viewspec.intent.json --json
+viewspec patch-preview viewspec.intent.json change.intentpatch.json --json
+viewspec patch-apply viewspec.intent.json change.intentpatch.json --approval <exact-preview-token> --json
+```
+
+Filter large sources with `--op` and `--screen`; a response reporting `truncated: true` is not full
+coverage. No step requires computing a source hash by hand.
+
+**Adding, removing, or restructuring anything** means rewriting the whole bundle file in one write
+and revalidating it. IntentPatch V1 changes declared values only — it cannot create or delete
+semantic nodes, regions, bindings, styles, fixture records, screens, resources, state, or
+visibility rules, so `patch-targets` returning no matching target is the signal to take this lane.
 
 ## AppBundle: Narrow App Generation
 
@@ -302,7 +329,9 @@ Humans do not need to operate hashes, task ids, operation names, tool names, or 
 Agent-facing session responses withhold both write capabilities, and Review authorizes only the exact
 preview shown in its authenticated current frame.
 
-The following commands are expert/debug surfaces for integrations, not the normal operator workflow:
+Converge is the controller for *repeated* Review- or verifier-driven revisions; a single bounded
+change uses `patch-targets` → `patch-preview` → `patch-apply` directly. The following commands are
+the agent's own session mechanics, not commands a human operator needs to run:
 
 ```bash
 viewspec converge-start viewspec.intent.json context.json --json
@@ -336,7 +365,7 @@ viewspec export-agent-assets --out .viewspec
 viewspec check-agent-assets .viewspec --json
 ```
 
-Agent assets use schema version `13`, contract profile `local_v1`, and the same export/check commands shown above; exported files include the local intent schema, AppBundle schema, IntentPatch schema, Convergence Authoring Task schema, checked examples, prompt, and asset manifest without SDK network calls.
+Agent assets use schema version `14`, contract profile `local_v1`, and the same export/check commands shown above; exported files include the local intent schema, AppBundle schema, IntentPatch schema, Convergence Authoring Task schema, checked examples, prompt, and asset manifest without SDK network calls.
 
 Optional **MCP tooling** is available behind the agent extra:
 
@@ -344,7 +373,7 @@ Optional **MCP tooling** is available behind the agent extra:
 python -m pip install --pre "viewspec[agents]"
 viewspec mcp
 ```
-The MCP server exposes all intent-first local tools without requiring shell commands, including `validate_intent_bundle_file`, `compile_intent_bundle_file`, `build_intent_patch_context`, `start_convergence`, `submit_convergence_patch`, `get_convergence_status`, `verify_host`, `prove`, `validate_app_file`, `diff_app_files`, `compile_app`, and `prove_app`. Convergence approval remains human-gated in Review; the expert `approve_convergence` tool can only consume an operator-supplied capability that agent-facing tools never reveal.
+The MCP server exposes all intent-first local tools without requiring shell commands, including `validate_intent_bundle_file`, `compile_intent_bundle_file`, `list_intent_patch_targets`, `build_intent_patch_context`, `start_convergence`, `submit_convergence_patch`, `get_convergence_status`, `verify_host`, `prove`, `validate_app_file`, `diff_app_files`, `compile_app`, and `prove_app`. Convergence approval remains human-gated in Review; the expert `approve_convergence` tool can only consume an operator-supplied capability that agent-facing tools never reveal.
 
 For rendered conformance, compile React/Tailwind TSX and run:
 

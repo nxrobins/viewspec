@@ -13,11 +13,43 @@ An agent should need only the semantic source and the public command results:
    semantic path, `correction_prompt`, and next action on failure.
 3. Run `viewspec prove --intent viewspec.intent.json --target react-tailwind-tsx --install
    --out .viewspec-proof --json` to compile, check, and browser-verify the exact artifact.
-4. For a later revision, inspect `diff-intent` or submit one bounded Converge patch, then rerun
+4. For a later revision, take one of the two edit lanes below, inspect `diff-intent`, then rerun
    the proof with `--force`.
 
 The editable authority is `IntentBundle`, `AppBundle`, or `DESIGN.md`. Renderer files,
 `provenance_manifest.json`, and proof reports are generated evidence. Never repair them directly.
+
+## Editing Existing Source
+
+Bundle JSON is never edited with a line-based or text-diff tool. `apply_patch`, `sed`, and
+search-and-replace match on surrounding lines and fail against generated JSON formatting; a
+repeated failure means the wrong lane was chosen, not that the attempt was unlucky. There are
+exactly two lanes.
+
+**Lane A — change an existing declared value (the default).** The structured patch surface is
+source-hash bound, precondition checked, compile-proved, and atomically applied with a rollback
+receipt. Start at `patch-targets`, which supplies the exact `base_source_sha256` and one stub per
+legally patchable target:
+
+```bash
+viewspec patch-targets viewspec.app.json --op set_binding_presentation --screen queue --json
+viewspec patch-preview viewspec.app.json change.intentpatch.json --json
+viewspec patch-apply viewspec.app.json change.intentpatch.json --approval <exact-preview-token> --json
+```
+
+Each target carries `op`, `fixed_fields` (including the exact current `old_value`),
+`replacement_field`, and `allowed_values` where the vocabulary is closed. Copy `op` and
+`fixed_fields` verbatim and add only `replacement_field`. Never compute a source hash and never
+invent an operation name. `truncated: true` is not full coverage — narrow with `--op`/`--screen`.
+
+**Lane B — add, remove, or restructure.** IntentPatch V1 changes declared values only; it cannot
+create or delete semantic nodes, regions, bindings, styles, fixture records or fields, routes,
+screens, resources, state entries, mutations, selectors, or visibility rules. `patch-targets`
+returning no matching target is the signal for this lane: rewrite the whole bundle file in one
+write, then revalidate with `validate-intent` or `validate-app`.
+
+The MCP equivalents are `list_intent_patch_targets`, `preview_intent_patch`, and
+`apply_intent_patch`.
 The agent does not need compiler implementation knowledge: public failures must name the problem,
 the semantic source or exact evidence when available, and one bounded next action.
 
@@ -328,7 +360,7 @@ AppBundle proof does not prove runtime browser navigation, dynamic routes, live 
 
 ## Published Agent Artifacts
 
-These assets use agent asset schema version `13`. The manifest declares the `local_v1` contract profile plus the export/check commands agents should use for local verification.
+These assets use agent asset schema version `14`. The manifest declares the `local_v1` contract profile plus the export/check commands agents should use for local verification.
 
 - Asset manifest: `https://viewspec.dev/agent-assets.json`
 - System prompt: `https://viewspec.dev/agent-system-prompt.txt`

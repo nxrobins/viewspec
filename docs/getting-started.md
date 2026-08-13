@@ -236,7 +236,7 @@ viewspec export-agent-assets --out .viewspec
 viewspec check-agent-assets .viewspec --json
 ```
 
-The asset manifest uses schema version `13`, declares the `local_v1` contract profile, and records the export/check commands. It includes IntentBundle, AppBundle, IntentPatch, and Convergence Authoring Task schemas plus checked examples. Run the check command before reusing cached `.viewspec` assets.
+The asset manifest uses schema version `14`, declares the `local_v1` contract profile, and records the export/check commands. It includes IntentBundle, AppBundle, IntentPatch, and Convergence Authoring Task schemas plus checked examples. Run the check command before reusing cached `.viewspec` assets.
 
 For MCP-capable agents:
 
