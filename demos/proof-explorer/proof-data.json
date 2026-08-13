@@ -1,0 +1,975 @@
+{
+  "cases": [
+    {
+      "artifacts": {
+        "artifact_sha256": "980491df6a645b9a7c383a5c9b02de2aeb7870bf5e6415a5bbc158bd8f752da7",
+        "intent_sha256": "796b2b1979bacd87a9e494a8cf1cc26c6eac3f8038c8bc93032c0a77140fdb95",
+        "plan_sha256": "6bd13fe358f52cbb7e17ea81d6f1953a5af119109254d80c0f2b8f69f312ca0c",
+        "source_sha256": "d2917c0bc2f416d8ddcf6ea3b6fee56c4320e650b20d506cf2dd68d4bf946d75",
+        "verification_id": "vvr_ac2ddff870cb0bc207066e2771e59635"
+      },
+      "correction": {
+        "after": "Incident INC-1042",
+        "base_source_sha256": "d2917c0bc2f416d8ddcf6ea3b6fee56c4320e650b20d506cf2dd68d4bf946d75",
+        "before": "Incident Detail",
+        "candidate_source_sha256": "68de21672e355886f3f8b5678b36ae42d7f85e6fef04abaf7deb04e90e3157ac",
+        "compile_status": "passed",
+        "operation": "replace_semantic_attr",
+        "patch_id": "vpatch_05c71efe36af52ff2f69a735ad5d06d9",
+        "preview_id": "vpv_ce85d5d31d58b2bc88d074d63c68fa49",
+        "receipt_id": "vreceipt_d638f27ffb3df4db71c9f5bdfd35eac9",
+        "receipt_status": "applied",
+        "source_kind": "app_bundle",
+        "target": {
+          "attr": "title",
+          "node_id": "incident_detail",
+          "screen_id": "detail"
+        },
+        "verification_status": "conformant",
+        "verification_target": "react-tailwind-app"
+      },
+      "critical_issues": [],
+      "description": "A focused record surface with one clear operational action.",
+      "evidence": {
+        "item_count": 10,
+        "roles": [
+          "accessibility",
+          "dom",
+          "log",
+          "screenshot"
+        ],
+        "screenshots": {
+          "desktop": {
+            "bytes": 23695,
+            "capture_kind": "viewport",
+            "height": 1000,
+            "path": "screenshots/app-detail/desktop.png",
+            "sha256": "ba496c29616f86eba05a82ffb73c8c709fcc83f72d34570d0a835cae5f96a439",
+            "width": 1440
+          },
+          "mobile": {
+            "bytes": 18832,
+            "capture_kind": "viewport",
+            "height": 844,
+            "path": "screenshots/app-detail/mobile.png",
+            "sha256": "4f40c7fc74adb846f13daba726d868ae12a635115f9cc3365fa45cc57e8d70e7",
+            "width": 390
+          },
+          "tablet": {
+            "bytes": 21336,
+            "capture_kind": "viewport",
+            "height": 1024,
+            "path": "screenshots/app-detail/tablet.png",
+            "sha256": "9d39451f60f21d24f1bb6beb13821058fe118ac7e711fd578ddf1913c7a6d506",
+            "width": 768
+          }
+        }
+      },
+      "id": "app-detail",
+      "label": "Incident detail",
+      "mean_score": 4.0,
+      "review": "The semantic record title now frames a readable, responsive detail surface without duplicated content.",
+      "scores": {
+        "fit_and_finish": 4,
+        "information_hierarchy": 4,
+        "responsive_composition": 4,
+        "state_completeness": 4,
+        "task_clarity": 4
+      },
+      "status": "conformant"
+    },
+    {
+      "artifacts": {
+        "artifact_sha256": "59f8e1f82bfd243990935ee41068f8d3cad957cb1ebe59f5af114ce12cf02642",
+        "intent_sha256": "674cd9787e83642529d5c2242eb4b0712fef5bce5cf32aef8c42e37881f33b43",
+        "plan_sha256": "6bd13fe358f52cbb7e17ea81d6f1953a5af119109254d80c0f2b8f69f312ca0c",
+        "source_sha256": "d2917c0bc2f416d8ddcf6ea3b6fee56c4320e650b20d506cf2dd68d4bf946d75",
+        "verification_id": "vvr_3971124a3d68813bcbd25b92eaff8fb5"
+      },
+      "correction": {
+        "after": "Active Incident Queue",
+        "base_source_sha256": "d2917c0bc2f416d8ddcf6ea3b6fee56c4320e650b20d506cf2dd68d4bf946d75",
+        "before": "Incident Queue",
+        "candidate_source_sha256": "8111f94b3d0540d89254ba5012b0294c1c9797353a63ed1743930b7c01c98788",
+        "compile_status": "passed",
+        "operation": "replace_semantic_attr",
+        "patch_id": "vpatch_d4f689f893fd41786ca70ab0bd82a88d",
+        "preview_id": "vpv_448d6fcdf060cf84ebcd0b34f121678a",
+        "receipt_id": "vreceipt_7a9cd9a040fed5bc749d75ec74ed9f04",
+        "receipt_status": "applied",
+        "source_kind": "app_bundle",
+        "target": {
+          "attr": "title",
+          "node_id": "incident_queue",
+          "screen_id": "queue"
+        },
+        "verification_status": "conformant",
+        "verification_target": "react-tailwind-app"
+      },
+      "critical_issues": [],
+      "description": "Comparable incident rows with a selected-item action.",
+      "evidence": {
+        "item_count": 10,
+        "roles": [
+          "accessibility",
+          "dom",
+          "log",
+          "screenshot"
+        ],
+        "screenshots": {
+          "desktop": {
+            "bytes": 20275,
+            "capture_kind": "viewport",
+            "height": 1000,
+            "path": "screenshots/app-queue/desktop.png",
+            "sha256": "a0ee56385a236fe3778b8db529c88a5c598fe04f673e1fc9aa3aaa1399b28a6f",
+            "width": 1440
+          },
+          "mobile": {
+            "bytes": 15618,
+            "capture_kind": "viewport",
+            "height": 844,
+            "path": "screenshots/app-queue/mobile.png",
+            "sha256": "44eef37ed511f2fb1a89d5bd80fa1d263e3ca03eab26c8a5e628a006d6421bc5",
+            "width": 390
+          },
+          "tablet": {
+            "bytes": 17838,
+            "capture_kind": "viewport",
+            "height": 1024,
+            "path": "screenshots/app-queue/tablet.png",
+            "sha256": "08470596921f471efc030a9faabd50d2dc608e3ee1b2425955e78b0afa5c72a2",
+            "width": 768
+          }
+        }
+      },
+      "id": "app-queue",
+      "label": "Incident queue",
+      "mean_score": 4.0,
+      "review": "The queue is titled, rows are directly comparable, and the selected incident has a clear semantic action.",
+      "scores": {
+        "fit_and_finish": 4,
+        "information_hierarchy": 4,
+        "responsive_composition": 4,
+        "state_completeness": 4,
+        "task_clarity": 4
+      },
+      "status": "conformant"
+    },
+    {
+      "artifacts": {
+        "artifact_sha256": "6b90e2d92bf3593089e7171f060fcf121e9af01c72b8054209f1efc27f8e09f5",
+        "intent_sha256": "011872d9c56ea49f9f5ab1edc612f8cd238bebb2012d8972f1d1064b0beafc65",
+        "plan_sha256": "6bd13fe358f52cbb7e17ea81d6f1953a5af119109254d80c0f2b8f69f312ca0c",
+        "source_sha256": "011872d9c56ea49f9f5ab1edc612f8cd238bebb2012d8972f1d1064b0beafc65",
+        "verification_id": "vvr_46fe1476af6ac34337aea56e5f7a72a5"
+      },
+      "correction": {
+        "after": "Filtered projects",
+        "base_source_sha256": "011872d9c56ea49f9f5ab1edc612f8cd238bebb2012d8972f1d1064b0beafc65",
+        "before": "Project collection states",
+        "candidate_source_sha256": "4b4204475bdff1d6eecbb75fc5228ec5ef908430497813d6041955155c98bb5b",
+        "compile_status": "passed",
+        "operation": "replace_semantic_attr",
+        "patch_id": "vpatch_42b5a1f7deacbd60ef42386df42971cb",
+        "preview_id": "vpv_b5cf82e50351f2f77a7c194de1d02164",
+        "receipt_id": "vreceipt_d39fb7ae49b6a464f20d1a0c2a7a6490",
+        "receipt_status": "applied",
+        "source_kind": "intent_bundle",
+        "target": {
+          "attr": "title",
+          "node_id": "project_collection_states",
+          "screen_id": null
+        },
+        "verification_status": "conformant",
+        "verification_target": "react-tailwind-tsx"
+      },
+      "critical_issues": [],
+      "description": "Empty, loading, and refresh states that remain distinct.",
+      "evidence": {
+        "item_count": 10,
+        "roles": [
+          "accessibility",
+          "dom",
+          "log",
+          "screenshot"
+        ],
+        "screenshots": {
+          "desktop": {
+            "bytes": 55442,
+            "capture_kind": "viewport",
+            "height": 1000,
+            "path": "screenshots/collection-states/desktop.png",
+            "sha256": "deaf2da8aea8b2e75e331d7c177394a0634ce462c3047106a7f3d40d15bcb6bb",
+            "width": 1440
+          },
+          "mobile": {
+            "bytes": 49023,
+            "capture_kind": "viewport",
+            "height": 844,
+            "path": "screenshots/collection-states/mobile.png",
+            "sha256": "6041c0c45fa9ce7c4b228da23dcfdfb8a3dfb4712095d120c32933a739c552eb",
+            "width": 390
+          },
+          "tablet": {
+            "bytes": 51280,
+            "capture_kind": "viewport",
+            "height": 1024,
+            "path": "screenshots/collection-states/tablet.png",
+            "sha256": "82e029634493888ef9e661e90d2a941168e304a68ee7d3332e20576781d94a31",
+            "width": 768
+          }
+        }
+      },
+      "id": "collection-states",
+      "label": "Collection states",
+      "mean_score": 4.0,
+      "review": "The current empty result and non-blocking background refresh are distinct, useful, and recoverable.",
+      "scores": {
+        "fit_and_finish": 4,
+        "information_hierarchy": 4,
+        "responsive_composition": 4,
+        "state_completeness": 4,
+        "task_clarity": 4
+      },
+      "status": "conformant"
+    },
+    {
+      "artifacts": {
+        "artifact_sha256": "fb0c639b1e3ea3de53f92c84710fb7663bc929c51e76e5a70328a15c379fbe93",
+        "intent_sha256": "2f927effe0949f688418e477c09eab56bc3b57dbe289f301979221d723018f3f",
+        "plan_sha256": "6bd13fe358f52cbb7e17ea81d6f1953a5af119109254d80c0f2b8f69f312ca0c",
+        "source_sha256": "2f927effe0949f688418e477c09eab56bc3b57dbe289f301979221d723018f3f",
+        "verification_id": "vvr_52cac9877a8d0fdb01d224f516a9963a"
+      },
+      "correction": {
+        "after": "Executive Dashboard",
+        "base_source_sha256": "2f927effe0949f688418e477c09eab56bc3b57dbe289f301979221d723018f3f",
+        "before": "Starter Dashboard",
+        "candidate_source_sha256": "f394eb049abb8e84a3552e521ed1f2512cdc0326484f9d4b25528207b3f22194",
+        "compile_status": "passed",
+        "operation": "replace_semantic_attr",
+        "patch_id": "vpatch_045930ae1c9ea52ef3d7cdd6b7bc6f52",
+        "preview_id": "vpv_6e09889b19dd740b323fd3cdc7425484",
+        "receipt_id": "vreceipt_0b3bc64d7ea8d402a09ec0b54019dcf4",
+        "receipt_status": "applied",
+        "source_kind": "intent_bundle",
+        "target": {
+          "attr": "title",
+          "node_id": "starter_dashboard",
+          "screen_id": null
+        },
+        "verification_status": "conformant",
+        "verification_target": "react-tailwind-tsx"
+      },
+      "critical_issues": [],
+      "description": "Summary, direction, and priority signals in one scan.",
+      "evidence": {
+        "item_count": 10,
+        "roles": [
+          "accessibility",
+          "dom",
+          "log",
+          "screenshot"
+        ],
+        "screenshots": {
+          "desktop": {
+            "bytes": 26908,
+            "capture_kind": "viewport",
+            "height": 1000,
+            "path": "screenshots/data-dense-dashboard/desktop.png",
+            "sha256": "0d129346fb6c1b0ca74d9bce5c7db56648f4e460b681846f275f3479b7f5097d",
+            "width": 1440
+          },
+          "mobile": {
+            "bytes": 22871,
+            "capture_kind": "viewport",
+            "height": 844,
+            "path": "screenshots/data-dense-dashboard/mobile.png",
+            "sha256": "4559996a0d3975f5549a0d69a75ceecdbbd4b4b82d98b2b50874f321816e36df",
+            "width": 390
+          },
+          "tablet": {
+            "bytes": 24255,
+            "capture_kind": "viewport",
+            "height": 1024,
+            "path": "screenshots/data-dense-dashboard/tablet.png",
+            "sha256": "7e743703e78e89eed586e2f54e38b0e516dbc3fdd87eda6f8f2449cd6356f8eb",
+            "width": 768
+          }
+        }
+      },
+      "id": "data-dense-dashboard",
+      "label": "Data-dense dashboard",
+      "mean_score": 4.0,
+      "review": "Summary metrics, weekly direction, and the priority signal are visible in one scan and reflow cleanly.",
+      "scores": {
+        "fit_and_finish": 4,
+        "information_hierarchy": 4,
+        "responsive_composition": 4,
+        "state_completeness": 4,
+        "task_clarity": 4
+      },
+      "status": "conformant"
+    },
+    {
+      "artifacts": {
+        "artifact_sha256": "c250082bb6c9ea5df9fc9a439b93dfb7ece7cec33588bcf761ca3955dbd52005",
+        "intent_sha256": "f94b55facb2652507b9797d8da38af1f995fe81f6b97cf011c86ff168ab8d62a",
+        "plan_sha256": "6bd13fe358f52cbb7e17ea81d6f1953a5af119109254d80c0f2b8f69f312ca0c",
+        "source_sha256": "f94b55facb2652507b9797d8da38af1f995fe81f6b97cf011c86ff168ab8d62a",
+        "verification_id": "vvr_0c662d48382d3586a23db98ba0a93315"
+      },
+      "correction": {
+        "after": "Deployment health",
+        "base_source_sha256": "f94b55facb2652507b9797d8da38af1f995fe81f6b97cf011c86ff168ab8d62a",
+        "before": "Deployment operations",
+        "candidate_source_sha256": "15221e70a263a0996e22552436ec7396bd3bac6427909c7d5c699fc7c6fc9099",
+        "compile_status": "passed",
+        "operation": "replace_semantic_attr",
+        "patch_id": "vpatch_5f4ae646834261a887847b4a08dc8945",
+        "preview_id": "vpv_95aeb00838d4537bea08b3e5714b6252",
+        "receipt_id": "vreceipt_7b676ba6575f6078dc5b435f36922a8a",
+        "receipt_status": "applied",
+        "source_kind": "intent_bundle",
+        "target": {
+          "attr": "title",
+          "node_id": "deployment_operations",
+          "screen_id": null
+        },
+        "verification_status": "conformant",
+        "verification_target": "react-tailwind-tsx"
+      },
+      "critical_issues": [],
+      "description": "Failure-first hierarchy with dense recovery context.",
+      "evidence": {
+        "item_count": 10,
+        "roles": [
+          "accessibility",
+          "dom",
+          "log",
+          "screenshot"
+        ],
+        "screenshots": {
+          "desktop": {
+            "bytes": 61207,
+            "capture_kind": "viewport",
+            "height": 1000,
+            "path": "screenshots/dense-operational-console/desktop.png",
+            "sha256": "40623cbcd586b72ddffa360638089e8eb66867bf36779c0cfc56c7b3c288f1e2",
+            "width": 1440
+          },
+          "mobile": {
+            "bytes": 57045,
+            "capture_kind": "full_page",
+            "height": 931,
+            "path": "screenshots/dense-operational-console/mobile.png",
+            "sha256": "73a8feae945ece9433e784d957dbae7e43dba29c73f48708e53830115d7dc215",
+            "width": 390
+          },
+          "tablet": {
+            "bytes": 57129,
+            "capture_kind": "viewport",
+            "height": 1024,
+            "path": "screenshots/dense-operational-console/tablet.png",
+            "sha256": "94ca11e34defa58a495bedd7f1b7bd6434217feaff95af06c61eb32f2126cea3",
+            "width": 768
+          }
+        }
+      },
+      "id": "dense-operational-console",
+      "label": "Operational console",
+      "mean_score": 4.2,
+      "review": "Failures are the first message, dense operational context remains scannable, and recovery starts from one action.",
+      "scores": {
+        "fit_and_finish": 4,
+        "information_hierarchy": 4,
+        "responsive_composition": 4,
+        "state_completeness": 4,
+        "task_clarity": 5
+      },
+      "status": "conformant"
+    },
+    {
+      "artifacts": {
+        "artifact_sha256": "e584ac5a50bb3a3adaa1aaf95ebb1e7c41c4454b590ce8612e75c3f06cbc6940",
+        "intent_sha256": "16c47f6f5d01fd03135e4b0cbdfbf469bff1130adc210e544c1bc5cf8ee4dcf7",
+        "plan_sha256": "6bd13fe358f52cbb7e17ea81d6f1953a5af119109254d80c0f2b8f69f312ca0c",
+        "source_sha256": "16c47f6f5d01fd03135e4b0cbdfbf469bff1130adc210e544c1bc5cf8ee4dcf7",
+        "verification_id": "vvr_9615858b5065295e2f3beda58b1ae142"
+      },
+      "correction": {
+        "after": "Contact the team",
+        "base_source_sha256": "16c47f6f5d01fd03135e4b0cbdfbf469bff1130adc210e544c1bc5cf8ee4dcf7",
+        "before": "Starter Form",
+        "candidate_source_sha256": "52ccb992448827be795feec2b1da4a2d04f8cf3e128735916fa2f91062d4f312",
+        "compile_status": "passed",
+        "operation": "replace_semantic_attr",
+        "patch_id": "vpatch_29563aa5c3d2dbc9fe3bcaf700e7cdfb",
+        "preview_id": "vpv_f22b1d23fcd57ec10c1ccd0e83a49a11",
+        "receipt_id": "vreceipt_239d52392f844f3f36ab4d9825afce7c",
+        "receipt_status": "applied",
+        "source_kind": "intent_bundle",
+        "target": {
+          "attr": "title",
+          "node_id": "starter_form",
+          "screen_id": null
+        },
+        "verification_status": "conformant",
+        "verification_target": "react-tailwind-tsx"
+      },
+      "critical_issues": [],
+      "description": "Labelled fields and a clear submit path before interaction.",
+      "evidence": {
+        "item_count": 10,
+        "roles": [
+          "accessibility",
+          "dom",
+          "log",
+          "screenshot"
+        ],
+        "screenshots": {
+          "desktop": {
+            "bytes": 14906,
+            "capture_kind": "viewport",
+            "height": 1000,
+            "path": "screenshots/interactive-form/desktop.png",
+            "sha256": "055dc20de493379e04edba1125ab540a9ba23bd3fb06a91166ae002260d54289",
+            "width": 1440
+          },
+          "mobile": {
+            "bytes": 10673,
+            "capture_kind": "viewport",
+            "height": 844,
+            "path": "screenshots/interactive-form/mobile.png",
+            "sha256": "97db043196bd846a7a2eb6940971ef7e104a6439f2f58bb6b4db91fb29d7945f",
+            "width": 390
+          },
+          "tablet": {
+            "bytes": 12693,
+            "capture_kind": "viewport",
+            "height": 1024,
+            "path": "screenshots/interactive-form/tablet.png",
+            "sha256": "e218209f9718ad900f55d6ff66d508105ec3c48c1bcfa00fc9b7bcbe6fcfcc52",
+            "width": 768
+          }
+        }
+      },
+      "id": "interactive-form",
+      "label": "Interactive form",
+      "mean_score": 4.0,
+      "review": "A titled form, labelled fields, and the submit action remain clear before verifier interaction mutates input state.",
+      "scores": {
+        "fit_and_finish": 4,
+        "information_hierarchy": 4,
+        "responsive_composition": 4,
+        "state_completeness": 4,
+        "task_clarity": 4
+      },
+      "status": "conformant"
+    },
+    {
+      "artifacts": {
+        "artifact_sha256": "04b2ab0892197544a13f9d8580a8f891a4dd4b01b091a1a9c9689b774cbc9a33",
+        "intent_sha256": "add0d6cd3f4c6051e08045ef9e763d33376b6ddd8eff43dbf40ac4a34073a301",
+        "plan_sha256": "6bd13fe358f52cbb7e17ea81d6f1953a5af119109254d80c0f2b8f69f312ca0c",
+        "source_sha256": "add0d6cd3f4c6051e08045ef9e763d33376b6ddd8eff43dbf40ac4a34073a301",
+        "verification_id": "vvr_e633f134bd4bdff3f98234be4f72f355"
+      },
+      "correction": {
+        "after": "Intent becomes interface.",
+        "base_source_sha256": "add0d6cd3f4c6051e08045ef9e763d33376b6ddd8eff43dbf40ac4a34073a301",
+        "before": "Intent goes in. Interface comes out.",
+        "candidate_source_sha256": "2d20c3c62aabba36a6bfaeaa5ce5c72004de60eba94d61df3f33a71a9a525304",
+        "compile_status": "passed",
+        "operation": "replace_semantic_attr",
+        "patch_id": "vpatch_83c78556b2f0e1bc8a0bad0bed7281ac",
+        "preview_id": "vpv_68db50657a58c42ac611e84325f5a14a",
+        "receipt_id": "vreceipt_2880633f50c94977eecd3f42acad5067",
+        "receipt_status": "applied",
+        "source_kind": "intent_bundle",
+        "target": {
+          "attr": "title",
+          "node_id": "launch_hero",
+          "screen_id": null
+        },
+        "verification_status": "conformant",
+        "verification_target": "react-tailwind-tsx"
+      },
+      "critical_issues": [],
+      "description": "A complete product narrative compiled from semantic intent.",
+      "evidence": {
+        "item_count": 10,
+        "roles": [
+          "accessibility",
+          "dom",
+          "log",
+          "screenshot"
+        ],
+        "screenshots": {
+          "desktop": {
+            "bytes": 202010,
+            "capture_kind": "full_page",
+            "height": 1776,
+            "path": "screenshots/landing-intent/desktop.png",
+            "sha256": "fe4886514ead3193ec5f9ab59a680572b486a82d24eb5b1c429a0461edc60d54",
+            "width": 1440
+          },
+          "mobile": {
+            "bytes": 207393,
+            "capture_kind": "full_page",
+            "height": 2954,
+            "path": "screenshots/landing-intent/mobile.png",
+            "sha256": "2158facdcda1ae8b0f2a4266e65892b952f103b29e44866d23465f536a8617bd",
+            "width": 390
+          },
+          "tablet": {
+            "bytes": 193394,
+            "capture_kind": "full_page",
+            "height": 1836,
+            "path": "screenshots/landing-intent/tablet.png",
+            "sha256": "160592f51152839883417a711bc1aa2a622070349b6365350f6b6be04b6e69d2",
+            "width": 768
+          }
+        }
+      },
+      "id": "landing-intent",
+      "label": "Product landing page",
+      "mean_score": 4.0,
+      "review": "The content surface preserves narrative hierarchy and traceability at all canonical viewports.",
+      "scores": {
+        "fit_and_finish": 4,
+        "information_hierarchy": 4,
+        "responsive_composition": 4,
+        "state_completeness": 4,
+        "task_clarity": 4
+      },
+      "status": "conformant"
+    },
+    {
+      "artifacts": {
+        "artifact_sha256": "5fee1eb84a03ed8c647c324de06e5f1b56e3f850ff0366435d7ba1c5a7a62005",
+        "intent_sha256": "5936001fcfaf1e8e76e5cd9391c41388981835133216cd49c9af9fc8c2d91bec",
+        "plan_sha256": "6bd13fe358f52cbb7e17ea81d6f1953a5af119109254d80c0f2b8f69f312ca0c",
+        "source_sha256": "5936001fcfaf1e8e76e5cd9391c41388981835133216cd49c9af9fc8c2d91bec",
+        "verification_id": "vvr_db04785a7d2009d9abb95499f33d9e53"
+      },
+      "correction": {
+        "after": "Production release 2.8.0",
+        "base_source_sha256": "5936001fcfaf1e8e76e5cd9391c41388981835133216cd49c9af9fc8c2d91bec",
+        "before": "Production release",
+        "candidate_source_sha256": "73406acbb0414c950344019a7da21a5ac20617a19f210387fbefd62c620e41b1",
+        "compile_status": "passed",
+        "operation": "replace_semantic_attr",
+        "patch_id": "vpatch_8df29442e3ae471b00da2e8f7cf9e2d2",
+        "preview_id": "vpv_91d631d519197fd3a2e9d20e84fd5bc1",
+        "receipt_id": "vreceipt_b18aecd65fec83982bb50e8ba04672fe",
+        "receipt_status": "applied",
+        "source_kind": "intent_bundle",
+        "target": {
+          "attr": "title",
+          "node_id": "production_release",
+          "screen_id": null
+        },
+        "verification_status": "conformant",
+        "verification_target": "react-tailwind-tsx"
+      },
+      "critical_issues": [],
+      "description": "A staged flow with visible progress and next actions.",
+      "evidence": {
+        "item_count": 10,
+        "roles": [
+          "accessibility",
+          "dom",
+          "log",
+          "screenshot"
+        ],
+        "screenshots": {
+          "desktop": {
+            "bytes": 49029,
+            "capture_kind": "viewport",
+            "height": 1000,
+            "path": "screenshots/multi-step-workflow/desktop.png",
+            "sha256": "9367739f9d5a40727414290be8eb8ae8b275f06173ef4367f53abfd550178e03",
+            "width": 1440
+          },
+          "mobile": {
+            "bytes": 44282,
+            "capture_kind": "viewport",
+            "height": 844,
+            "path": "screenshots/multi-step-workflow/mobile.png",
+            "sha256": "c76ff9eedf9dd61027c7515aa453e1d5cd785d07a45042bdbe18f2e500ab1e82",
+            "width": 390
+          },
+          "tablet": {
+            "bytes": 45349,
+            "capture_kind": "viewport",
+            "height": 1024,
+            "path": "screenshots/multi-step-workflow/tablet.png",
+            "sha256": "d5da917fd56d7683bcc0a8d334f178e6341f056e7fad7ce2a591d606d249cb58",
+            "width": 768
+          }
+        }
+      },
+      "id": "multi-step-workflow",
+      "label": "Multi-step workflow",
+      "mean_score": 4.2,
+      "review": "Progress, current step, deployment context, and the next action form one coherent decision path.",
+      "scores": {
+        "fit_and_finish": 4,
+        "information_hierarchy": 4,
+        "responsive_composition": 4,
+        "state_completeness": 4,
+        "task_clarity": 5
+      },
+      "status": "conformant"
+    },
+    {
+      "artifacts": {
+        "artifact_sha256": "9670bfb34e465f34462b2bbe818c751d8def88969321bc20aba508dc120e5591",
+        "intent_sha256": "b4fb8cd6d9815c797babba88d82423ffccb32aa28d3aa27cf6807118ed40f819",
+        "plan_sha256": "6bd13fe358f52cbb7e17ea81d6f1953a5af119109254d80c0f2b8f69f312ca0c",
+        "source_sha256": "b4fb8cd6d9815c797babba88d82423ffccb32aa28d3aa27cf6807118ed40f819",
+        "verification_id": "vvr_c845b3e35cbca519380ba9cc58f65534"
+      },
+      "correction": {
+        "after": "Release 2.8.0 outcome",
+        "base_source_sha256": "b4fb8cd6d9815c797babba88d82423ffccb32aa28d3aa27cf6807118ed40f819",
+        "before": "Deployment outcome states",
+        "candidate_source_sha256": "34c8af469c546f7ddad571afdb20d752af81e7e42de16f6a79c1ed462c012fde",
+        "compile_status": "passed",
+        "operation": "replace_semantic_attr",
+        "patch_id": "vpatch_fa0ab8c4eabed94d9ac75db674ace122",
+        "preview_id": "vpv_84a0e235f72aeb51767e506b8a520ede",
+        "receipt_id": "vreceipt_d4565632a7acc736df88285b418443d6",
+        "receipt_status": "applied",
+        "source_kind": "intent_bundle",
+        "target": {
+          "attr": "title",
+          "node_id": "deployment_outcome_states",
+          "screen_id": null
+        },
+        "verification_status": "conformant",
+        "verification_target": "react-tailwind-tsx"
+      },
+      "critical_issues": [],
+      "description": "Success and failure outcomes with useful recovery paths.",
+      "evidence": {
+        "item_count": 10,
+        "roles": [
+          "accessibility",
+          "dom",
+          "log",
+          "screenshot"
+        ],
+        "screenshots": {
+          "desktop": {
+            "bytes": 50754,
+            "capture_kind": "viewport",
+            "height": 1000,
+            "path": "screenshots/outcome-states/desktop.png",
+            "sha256": "c880e53b6fd2dd6b666dc5c52913c6cfa879113744deb03dba3a5d28b2c9b415",
+            "width": 1440
+          },
+          "mobile": {
+            "bytes": 47022,
+            "capture_kind": "viewport",
+            "height": 844,
+            "path": "screenshots/outcome-states/mobile.png",
+            "sha256": "73a2699bbf8a60c2aa14d90f0ec157722927a602114430b4150480fa3b1394f6",
+            "width": 390
+          },
+          "tablet": {
+            "bytes": 48106,
+            "capture_kind": "viewport",
+            "height": 1024,
+            "path": "screenshots/outcome-states/tablet.png",
+            "sha256": "f5861480500bbda3d8de7c5863c1e99841802305f17e55628294f3ca4faeea79",
+            "width": 768
+          }
+        }
+      },
+      "id": "outcome-states",
+      "label": "Outcome states",
+      "mean_score": 4.0,
+      "review": "Completed deployment context remains visible while the failed rollback is explained and recoverable.",
+      "scores": {
+        "fit_and_finish": 4,
+        "information_hierarchy": 4,
+        "responsive_composition": 4,
+        "state_completeness": 4,
+        "task_clarity": 4
+      },
+      "status": "conformant"
+    },
+    {
+      "artifacts": {
+        "artifact_sha256": "63184c34f02be0dec6f2ec61b49738ff65bfda58118d4dde585ec4bc19a4860b",
+        "intent_sha256": "8f45cc5b92f046ae38d09d547ec03fbb225b3ed8fee24b2c4f70be40b747c738",
+        "plan_sha256": "6bd13fe358f52cbb7e17ea81d6f1953a5af119109254d80c0f2b8f69f312ca0c",
+        "source_sha256": "8f45cc5b92f046ae38d09d547ec03fbb225b3ed8fee24b2c4f70be40b747c738",
+        "verification_id": "vvr_f14baee7fb3d7e4b7c925ee2f607ad21"
+      },
+      "correction": {
+        "after": "Alert preferences",
+        "base_source_sha256": "8f45cc5b92f046ae38d09d547ec03fbb225b3ed8fee24b2c4f70be40b747c738",
+        "before": "Deployment notification settings",
+        "candidate_source_sha256": "c9874b96bb06a0dd90b3bf0c41ba880d7225c82f1a648a0b64e452c78b1a741b",
+        "compile_status": "passed",
+        "operation": "replace_semantic_attr",
+        "patch_id": "vpatch_0ff3c4d114c51dd4a7ba7d31e09c5bd6",
+        "preview_id": "vpv_9f46531d0da6299b05f784b2e42bbe36",
+        "receipt_id": "vreceipt_46e68c03486068710d1ebf09b27cd032",
+        "receipt_status": "applied",
+        "source_kind": "intent_bundle",
+        "target": {
+          "attr": "title",
+          "node_id": "notification_settings",
+          "screen_id": null
+        },
+        "verification_status": "conformant",
+        "verification_target": "react-tailwind-tsx"
+      },
+      "critical_issues": [],
+      "description": "Grouped configuration with readable controls at every viewport.",
+      "evidence": {
+        "item_count": 10,
+        "roles": [
+          "accessibility",
+          "dom",
+          "log",
+          "screenshot"
+        ],
+        "screenshots": {
+          "desktop": {
+            "bytes": 39312,
+            "capture_kind": "viewport",
+            "height": 1000,
+            "path": "screenshots/settings/desktop.png",
+            "sha256": "92653e9cb1717ca66dd1b5350621eec60709e04966c7c34a83a205a1b806c60c",
+            "width": 1440
+          },
+          "mobile": {
+            "bytes": 34847,
+            "capture_kind": "viewport",
+            "height": 844,
+            "path": "screenshots/settings/mobile.png",
+            "sha256": "587c8ba610366f2628335efc1a7f015f7d6fdcceed1e83030202db858b849862",
+            "width": 390
+          },
+          "tablet": {
+            "bytes": 36690,
+            "capture_kind": "viewport",
+            "height": 1024,
+            "path": "screenshots/settings/tablet.png",
+            "sha256": "e0bad65cafc5c71f12b4008e6c52ba1382108c01599e6e6fca701dccb4b3da42",
+            "width": 768
+          }
+        }
+      },
+      "id": "settings",
+      "label": "Settings",
+      "mean_score": 4.0,
+      "review": "Current values, grouped controls, and the save action are immediately understandable.",
+      "scores": {
+        "fit_and_finish": 4,
+        "information_hierarchy": 4,
+        "responsive_composition": 4,
+        "state_completeness": 4,
+        "task_clarity": 4
+      },
+      "status": "conformant"
+    }
+  ],
+  "gates": [
+    {
+      "evidence": [
+        "docs/getting-started.md",
+        "docs/agent-integration.md",
+        "tests/test_refinement_journey.py"
+      ],
+      "id": 1,
+      "name": "workflow_understandable",
+      "status": "passed"
+    },
+    {
+      "evidence": [
+        "conformance/verification/corpus.json",
+        "conformance/refinement/verification-report-v2.json",
+        "conformance/refinement/evidence-v2"
+      ],
+      "id": 2,
+      "name": "fixed_corpus_completes",
+      "status": "passed"
+    },
+    {
+      "evidence": [
+        "conformance/refinement/scorecard-v2.json",
+        "conformance/refinement/evidence-v2"
+      ],
+      "id": 3,
+      "name": "product_quality",
+      "status": "passed"
+    },
+    {
+      "evidence": [
+        "conformance/refinement/corrections.json",
+        "conformance/refinement/correction-proof-v1.json",
+        "tests/test_refinement_corrections.py"
+      ],
+      "id": 4,
+      "name": "semantic_predictable_corrections",
+      "status": "passed"
+    },
+    {
+      "evidence": [
+        "tests/test_refinement_determinism.py",
+        "tests/test_local_design_cli.py",
+        "tests/test_intent_patch.py"
+      ],
+      "id": 5,
+      "name": "deterministic_traceable_output",
+      "status": "passed"
+    },
+    {
+      "evidence": [
+        "conformance/refinement/negative-corpus.json",
+        "tests/test_refinement_negative_corpus.py"
+      ],
+      "id": 6,
+      "name": "actionable_failures",
+      "status": "passed"
+    },
+    {
+      "evidence": [
+        "tests/test_refinement_journey.py",
+        "docs/getting-started.md"
+      ],
+      "id": 7,
+      "name": "repeated_use_gets_easier",
+      "status": "passed"
+    },
+    {
+      "evidence": [
+        "conformance/refinement/verification-report-v2.json",
+        "tests"
+      ],
+      "id": 8,
+      "name": "existing_guarantees_hold",
+      "status": "passed"
+    }
+  ],
+  "kind": "viewspec_public_proof_explorer",
+  "negative_controls": [
+    {
+      "diagnostic_code": "INVALID_JSON",
+      "id": "invalid-semantic-input",
+      "kind": "semantic_validation",
+      "message_contains": "not valid JSON",
+      "next_action": "Return one strict JSON object with substrate and view_spec.",
+      "source_path": "$"
+    },
+    {
+      "diagnostic_code": "UNKNOWN_ACTION_TARGET",
+      "id": "unresolved-target",
+      "kind": "semantic_validation",
+      "message_contains": "targets unknown motif:missing",
+      "next_action": "Use a declared target ref like binding:save_button or motif:items.",
+      "source_path": "$.view_spec.actions[0].target_ref"
+    },
+    {
+      "diagnostic_code": "UNSUPPORTED_MOTIF",
+      "id": "unsupported-construct",
+      "kind": "semantic_validation",
+      "message_contains": "Motif kind 'chat' is not supported",
+      "next_action": "Use one of: table, dashboard, outline, comparison, list, form, detail, empty_state, loading_state, error_state, hero.",
+      "source_path": "$.view_spec.motifs[0].kind"
+    },
+    {
+      "diagnostic_code": "HOST_VERIFY_ARTIFACT_CHECK_FAILED",
+      "evidence_ref": "provenance_manifest.json#artifact_hash",
+      "id": "artifact-tampering",
+      "kind": "artifact_preflight",
+      "message_contains": "artifact_hash does not match ViewSpecView.tsx",
+      "next_action": "Fix the compiled artifact and re-run viewspec check."
+    },
+    {
+      "diagnostic_code": "HOST_VERIFY_NODE_MODULES_MISSING",
+      "evidence_ref": "browser_environment",
+      "id": "browser-environment-failure",
+      "kind": "browser_environment",
+      "message_contains": "reference browser dependencies are not installed",
+      "next_action": "Run viewspec prove again with --install after approving the bounded dependency install."
+    },
+    {
+      "diagnostic_code": "VERIFY_LAYOUT_OVERFLOW",
+      "evidence_ref": "evidence/mobile.png",
+      "id": "visible-conformance-failure",
+      "kind": "browser_conformance",
+      "message_contains": "content grid extends past the mobile viewport",
+      "next_action": "Constrain the content grid width and rerun browser verification.",
+      "source_ref": "ir:content-grid"
+    }
+  ],
+  "quality_dimensions": [
+    "task_clarity",
+    "information_hierarchy",
+    "state_completeness",
+    "responsive_composition",
+    "fit_and_finish"
+  ],
+  "schema_version": 1,
+  "scope": "Retained fixed-corpus evidence for supported brief families. This is not certification of arbitrary briefs, host applications, accessibility, or pixel-perfect fidelity.",
+  "sources": [
+    {
+      "path": "conformance/refinement/verification-report-v2.json",
+      "sha256": "142f048643f03489c81bceda92d778fc45c3731ee8b35a500819649feb7f49c8"
+    },
+    {
+      "path": "conformance/refinement/scorecard-v2.json",
+      "sha256": "71c28270066a347b4dc75182ca541e434a96e49f0589edceb2b1262fa4783667"
+    },
+    {
+      "path": "conformance/refinement/correction-proof-v1.json",
+      "sha256": "7d956f5338c4226e4c726b5a912828cd28d5d70e25f5ec93536cc7ee9e7023d9"
+    },
+    {
+      "path": "conformance/refinement/gate-status-v1.json",
+      "sha256": "06ac1579623a0aeff5bc94d5c8c6f4afb775efb70cfc1c062b64a23281bbb8b9"
+    },
+    {
+      "path": "conformance/refinement/negative-corpus.json",
+      "sha256": "4b16668bf807fa6025a09c1fca22048e679667962c8a77ae1a44c482c0bdef9f"
+    }
+  ],
+  "summary": {
+    "applied_receipt_count": 10,
+    "case_count": 10,
+    "conformant_count": 10,
+    "critical_issue_count": 0,
+    "first_compile_pass_count": 10,
+    "negative_control_count": 6,
+    "passed_gate_count": 8,
+    "verified_correction_count": 10
+  },
+  "viewports": [
+    {
+      "height": 844,
+      "id": "mobile",
+      "label": "Mobile",
+      "width": 390
+    },
+    {
+      "height": 1024,
+      "id": "tablet",
+      "label": "Tablet",
+      "width": 768
+    },
+    {
+      "height": 1000,
+      "id": "desktop",
+      "label": "Desktop",
+      "width": 1440
+    }
+  ]
+}

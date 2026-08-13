@@ -1122,7 +1122,7 @@ PAGE_BODY_TEMPLATE = r"""<a class="skip-link" href="#top">Skip to content</a>
   <footer>
     <div class="foot-in">
       <span>viewspec &middot; agent&#8209;native UI compiler</span>
-      <span class="foot-links"><a href="{{CORE_EVIDENCE_URL}}" target="_blank" rel="noopener">Core evidence</a> &middot; <a href="./appbundle-state-ir/">State IR</a> &middot; <a href="./proof-bundle/">Proof bundle</a> &middot; <a href="./custom-motifs/">Motifs</a> &middot; <a href="./openapi.json">OpenAPI</a></span>
+      <span class="foot-links"><a href="./proof-explorer/">Proof explorer</a> &middot; <a href="{{CORE_EVIDENCE_URL}}" target="_blank" rel="noopener">Core evidence</a> &middot; <a href="./appbundle-state-ir/">State IR</a> &middot; <a href="./proof-bundle/">Proof bundle</a> &middot; <a href="./custom-motifs/">Motifs</a> &middot; <a href="./openapi.json">OpenAPI</a></span>
       <span id="footState">profile: aesthetic.calm_ops &middot; network: none</span>
     </div>
   </footer>
@@ -1410,6 +1410,7 @@ def _public_html(generated_html: str, profile_evidence: dict[str, Any]) -> str:
         f'with {html.escape(evidence_role_text)} evidence, and completed '
         f'{corrections["verified_preview_count"]}/{corrections["case_count"]} verified semantic corrections '
         f'with {corrections["applied_receipt_count"]} applied receipts. '
+        '<a href="./proof-explorer/"><strong>Explore the retained evidence</strong></a> &middot; '
         f'<a href="{html.escape(refinement["gate_status_url"], quote=True)}" target="_blank" rel="noopener">'
         'Eight-gate result</a> &middot; '
         f'<a href="{html.escape(refinement["scorecard_url"], quote=True)}" target="_blank" rel="noopener">'

@@ -11,6 +11,7 @@ const publicPages = [
   "/provenance-inspector/",
   "/live-builder/",
   "/invariants/",
+  "/proof-explorer/",
   "/proof-bundle/",
   "/fifteen-lines/",
   "/style-derivation/",
@@ -167,6 +168,32 @@ test("proof bundle exposes complete bounded proof content", async ({ page }) => 
   });
   expect(bounds.left).toBeGreaterThanOrEqual(0);
   expect(bounds.right).toBeLessThanOrEqual(bounds.viewport + 1);
+  expect(failures).toEqual([]);
+});
+
+test("proof explorer keeps evidence selection, identity, and viewport state in sync", async ({ page }) => {
+  const failures = captureRuntimeFailures(page);
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/proof-explorer/", { waitUntil: "networkidle" });
+
+  await expect(page.locator("#explorerLayout")).toHaveAttribute("aria-busy", "false");
+  await expect(page.locator("#caseList button")).toHaveCount(10);
+  await expect(page.locator("#gateList .gate-item")).toHaveCount(8);
+  await expect(page.locator("#negativeList .negative-item")).toHaveCount(6);
+  await expect(page.locator("#evidenceImage")).toBeVisible();
+
+  await page.getByRole("button", { name: /Operational console/ }).click();
+  await page.getByRole("button", { name: "Mobile · 390" }).click();
+  await expect(page.locator("#caseTitle")).toHaveText("Operational console");
+  await expect(page.locator("#viewportReadout")).toContainText("Mobile viewport · 390×844");
+  await expect(page.locator("#viewportReadout")).toContainText("full-page evidence 390×931");
+  await expect(page).toHaveURL(/case=dense-operational-console&viewport=mobile/);
+
+  const image = page.locator("#evidenceImage");
+  await expect(image).toHaveAttribute("src", "screenshots/dense-operational-console/mobile.png");
+  expect(await image.evaluate((element: HTMLImageElement) => element.naturalWidth)).toBe(390);
+  expect(await image.evaluate((element: HTMLImageElement) => element.naturalHeight)).toBe(931);
+  await expect(page.locator("#screenshotHash")).toHaveText(/^[a-f0-9]{64}$/);
   expect(failures).toEqual([]);
 });
 

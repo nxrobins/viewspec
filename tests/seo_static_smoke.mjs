@@ -13,6 +13,7 @@ const pages = [
   ['demos/provenance-inspector/index.html', 'https://viewspec.dev/provenance-inspector/'],
   ['demos/live-builder/index.html', 'https://viewspec.dev/live-builder/'],
   ['demos/invariants/index.html', 'https://viewspec.dev/invariants/'],
+  ['demos/proof-explorer/index.html', 'https://viewspec.dev/proof-explorer/'],
   ['demos/proof-bundle/index.html', 'https://viewspec.dev/proof-bundle/'],
   ['demos/fifteen-lines/index.html', 'https://viewspec.dev/fifteen-lines/'],
   ['demos/style-derivation/index.html', 'https://viewspec.dev/style-derivation/'],
@@ -510,6 +511,7 @@ for (const productTextPath of ['README.md', 'demos/llms.txt', 'demos/llms-full.t
 }
 assertPublicText(await readFile('README.md', 'utf8'), publicFacts.package_url, 'README package URL')
 assertPublicText(home, './proof-bundle/', 'landing proof bundle guide link')
+assertPublicText(home, './proof-explorer/', 'landing public proof explorer link')
 
 const proofBundlePage = await readFile('demos/proof-bundle/index.html', 'utf8')
 for (const expected of [
@@ -532,6 +534,47 @@ for (const expected of [
 }
 assertPublicText(await readFile('demos/llms.txt', 'utf8'), 'https://viewspec.dev/proof-bundle/', 'llms proof bundle public URL')
 assertPublicText(await readFile('demos/llms-full.txt', 'utf8'), 'https://viewspec.dev/proof-bundle/', 'llms-full proof bundle public URL')
+
+const proofExplorerPage = await readFile('demos/proof-explorer/index.html', 'utf8')
+const proofExplorerDataText = await readFile('demos/proof-explorer/proof-data.json', 'utf8')
+const proofExplorerData = JSON.parse(proofExplorerDataText)
+for (const expected of [
+  'Don&rsquo;t trust the score',
+  'Inspect the evidence',
+  'proof-data.json',
+  'Quality scorecard',
+  'Verified semantic correction',
+  'Successes alone are not a verifier',
+  'fixed-corpus evidence',
+]) {
+  assertPublicText(proofExplorerPage, expected, 'proof explorer page')
+}
+assert.equal(proofExplorerData.kind, 'viewspec_public_proof_explorer')
+assert.equal(proofExplorerData.schema_version, 1)
+assert.equal(proofExplorerData.summary.case_count, 10)
+assert.equal(proofExplorerData.summary.conformant_count, 10)
+assert.equal(proofExplorerData.summary.passed_gate_count, 8)
+assert.equal(proofExplorerData.summary.negative_control_count, 6)
+assert.equal(proofExplorerData.summary.verified_correction_count, 10)
+assert.equal(proofExplorerData.summary.critical_issue_count, 0)
+assert.equal(proofExplorerData.cases.length, 10)
+assert.equal(proofExplorerData.viewports.length, 3)
+assert.doesNotMatch(proofExplorerDataText, /\/Users\/|approval_token|generated turn context/i)
+for (const source of proofExplorerData.sources) {
+  const sourceBytes = await readFile(source.path)
+  assert.equal(createHash('sha256').update(sourceBytes).digest('hex'), source.sha256)
+}
+for (const proofCase of proofExplorerData.cases) {
+  assert.equal(proofCase.status, 'conformant')
+  assert.equal(proofCase.correction.receipt_status, 'applied')
+  for (const screenshot of Object.values(proofCase.evidence.screenshots)) {
+    const imageBytes = await readFile(`demos/proof-explorer/${screenshot.path}`)
+    assert.equal(createHash('sha256').update(imageBytes).digest('hex'), screenshot.sha256)
+    assert.equal(imageBytes.length, screenshot.bytes)
+  }
+}
+assertPublicText(await readFile('demos/llms.txt', 'utf8'), 'https://viewspec.dev/proof-explorer/', 'llms proof explorer public URL')
+assertPublicText(await readFile('demos/llms-full.txt', 'utf8'), 'https://viewspec.dev/proof-explorer/proof-data.json', 'llms-full proof explorer data URL')
 
 const stateIrTerms = [
   'interactive_state_v0',

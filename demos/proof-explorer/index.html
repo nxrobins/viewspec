@@ -1,0 +1,170 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>ViewSpec Proof Explorer - Inspect Responsive Evidence</title>
+  <meta name="description" content="Inspect ten ViewSpec interfaces across mobile, tablet, and desktop with quality scores, artifact hashes, browser evidence, and semantic correction receipts.">
+  <meta name="robots" content="index,follow,max-snippet:-1,max-image-preview:large">
+  <link rel="canonical" href="https://viewspec.dev/proof-explorer/">
+  <link rel="alternate" type="text/markdown" title="ViewSpec for LLMs" href="https://viewspec.dev/llms.txt">
+  <link rel="service" type="application/json" title="ViewSpec OpenAPI" href="https://viewspec.dev/openapi.json">
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="../shared/launch-pages.css">
+  <link rel="stylesheet" href="./proof-explorer.css">
+  <script type="application/ld+json">{"@context":"https://schema.org","@type":"Dataset","name":"ViewSpec Public Proof Explorer","description":"Retained responsive browser evidence, product-quality scoring, artifact identities, and semantic correction receipts for ten fixed ViewSpec corpus cases.","url":"https://viewspec.dev/proof-explorer/","license":"https://opensource.org/license/mit"}</script>
+  <script src="../shared/nav.js" defer></script>
+  <script src="./proof-explorer.js" defer></script>
+</head>
+<body>
+  <main>
+    <header class="explorer-hero shell">
+      <div>
+        <p class="eyebrow">Public proof explorer · retained evidence</p>
+        <h1>Don&rsquo;t trust the score.<br><span>Inspect the evidence.</span></h1>
+        <p class="lead">Ten fixed product briefs, three canonical viewports, one source-bound artifact identity per case, and a verified semantic correction you can trace from preview to receipt.</p>
+        <div class="hero-actions">
+          <a class="button" href="#explorer">Explore the corpus</a>
+          <a class="button secondary" href="./proof-data.json">Open the evidence contract</a>
+        </div>
+      </div>
+      <aside class="scope-card" aria-label="Explorer evidence boundary">
+        <span class="scope-status"><i></i> Hash-bound and retained</span>
+        <p>This explorer presents committed fixed-corpus evidence. It does not rerun the compiler in your browser, and it does not certify arbitrary briefs or host apps.</p>
+        <code>verification → screenshot → score → correction → receipt</code>
+      </aside>
+    </header>
+
+    <section class="summary-band" aria-label="Proof corpus summary">
+      <div class="shell summary-grid" id="summaryGrid">
+        <div class="summary-item"><strong>10/10</strong><span>conformant cases</span></div>
+        <div class="summary-item"><strong>30</strong><span>responsive screenshots</span></div>
+        <div class="summary-item"><strong>10/10</strong><span>verified corrections</span></div>
+        <div class="summary-item"><strong>8/8</strong><span>passed gates</span></div>
+        <div class="summary-item"><strong>0</strong><span>critical issues</span></div>
+      </div>
+    </section>
+
+    <section class="section shell" id="explorer" aria-labelledby="explorer-title">
+      <div class="section-heading">
+        <div>
+          <p class="eyebrow">Case workspace</p>
+          <h2 id="explorer-title">Follow one interface through the proof chain.</h2>
+        </div>
+        <p>Select a case, change viewport, then inspect the qualitative review, exact hashes, browser evidence roles, and approved semantic correction.</p>
+      </div>
+
+      <div class="explorer-layout" id="explorerLayout" aria-busy="true">
+        <aside class="case-rail" aria-label="Proof cases">
+          <div class="rail-label">10 fixed briefs</div>
+          <div class="case-list" id="caseList"></div>
+        </aside>
+
+        <div class="workbench">
+          <header class="workbench-head">
+            <div>
+              <span class="status-pill"><i></i><span id="caseStatus">Loading evidence</span></span>
+              <h3 id="caseTitle">Proof case</h3>
+              <p id="caseDescription">Loading the retained proof contract.</p>
+            </div>
+            <div class="viewport-switcher" id="viewportSwitcher" aria-label="Evidence viewport"></div>
+          </header>
+
+          <div class="stage-and-facts">
+            <figure class="evidence-stage" id="evidenceStage">
+              <div class="stage-bar">
+                <span id="viewportReadout">Browser evidence</span>
+                <a id="fullSizeLink" href="#" target="_blank" rel="noopener">Open original ↗</a>
+              </div>
+              <div class="image-well" id="imageWell">
+                <img id="evidenceImage" alt="" width="1440" height="1000">
+              </div>
+              <figcaption>
+                <span>Screenshot SHA-256</span>
+                <code id="screenshotHash">—</code>
+              </figcaption>
+            </figure>
+
+            <aside class="fact-stack" aria-label="Selected case evidence">
+              <section class="fact-card">
+                <span class="fact-label">Product review</span>
+                <blockquote id="caseReview">—</blockquote>
+                <div class="mean-score"><strong id="meanScore">—</strong><span>mean / 5</span></div>
+              </section>
+              <section class="fact-card">
+                <span class="fact-label">Evidence retained</span>
+                <div class="role-list" id="evidenceRoles"></div>
+                <p id="evidenceCount">—</p>
+              </section>
+              <section class="fact-card hash-card">
+                <span class="fact-label">Artifact identity</span>
+                <dl id="artifactHashes"></dl>
+              </section>
+            </aside>
+          </div>
+
+          <div class="detail-grid">
+            <section class="detail-card quality-card" aria-labelledby="quality-title">
+              <div class="detail-head">
+                <div><span class="step">01</span><h3 id="quality-title">Quality scorecard</h3></div>
+                <span class="pass-chip">pass</span>
+              </div>
+              <div class="score-list" id="scoreList"></div>
+              <p class="card-note">Every dimension must be at least 3/5, the mean must be at least 4/5, and any critical issue fails the case.</p>
+            </section>
+
+            <section class="detail-card correction-card" aria-labelledby="correction-title">
+              <div class="detail-head">
+                <div><span class="step">02</span><h3 id="correction-title">Verified semantic correction</h3></div>
+                <span class="pass-chip">receipt applied</span>
+              </div>
+              <div class="change-block">
+                <div><span>Before</span><strong id="changeBefore">—</strong></div>
+                <i aria-hidden="true">→</i>
+                <div><span>After</span><strong id="changeAfter">—</strong></div>
+              </div>
+              <div class="correction-meta" id="correctionMeta"></div>
+              <ol class="proof-chain" id="proofChain"></ol>
+            </section>
+          </div>
+        </div>
+      </div>
+      <p class="load-error" id="loadError" role="alert" hidden>Proof data could not be loaded. The retained JSON contract remains available directly.</p>
+    </section>
+
+    <section class="section assurance-section">
+      <div class="shell">
+        <div class="section-heading">
+          <div><p class="eyebrow">Assurance boundary</p><h2>Successes alone are not a verifier.</h2></div>
+          <p>The corpus pairs eight product gates with six negative controls so failure behavior stays as inspectable as the healthy screenshots.</p>
+        </div>
+        <div class="assurance-grid">
+          <section class="assurance-panel">
+            <header><span>Eight delivery gates</span><strong>8/8 passed</strong></header>
+            <div class="gate-list" id="gateList"></div>
+          </section>
+          <section class="assurance-panel negative-panel">
+            <header><span>Negative controls</span><strong>6 rejected safely</strong></header>
+            <div class="negative-list" id="negativeList"></div>
+          </section>
+        </div>
+      </div>
+    </section>
+
+    <section class="section shell next-section">
+      <p class="eyebrow">What this unlocks</p>
+      <h2>The evidence layer is now a product surface.</h2>
+      <p class="lead">This static, hash-bound contract is the foundation for the next two experiences: direct static/React and breakpoint comparison, then human-approved IntentPatch previews against an isolated hosted compile.</p>
+      <div class="next-grid">
+        <article><span>Next</span><h3>Target parity viewer</h3><p>Compare static and React at 390, 768, and 1440 pixels with shared anchor evidence.</p></article>
+        <article><span>Then</span><h3>Semantic change preview</h3><p>Select a legal patch target, inspect exact before/after intent, approve, and re-prove.</p></article>
+        <article><span>Later</span><h3>Isolated agent workspace</h3><p>Compile, verify, repair, and export inside a bounded hosted execution session.</p></article>
+      </div>
+      <div class="hero-actions">
+        <a class="button" href="../proof-bundle/">Run your first proof</a>
+        <a class="button secondary" href="https://github.com/nxrobins/viewspec/blob/main/conformance/refinement/scorecard-v2.json">Inspect the source scorecard</a>
+      </div>
+    </section>
+  </main>
+</body>
+</html>
