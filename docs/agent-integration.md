@@ -360,7 +360,7 @@ AppBundle proof does not prove runtime browser navigation, dynamic routes, live 
 
 ## Published Agent Artifacts
 
-These assets use agent asset schema version `13`. The manifest declares the `local_v1` contract profile plus the export/check commands agents should use for local verification.
+These assets use agent asset schema version `14`. The manifest declares the `local_v1` contract profile plus the export/check commands agents should use for local verification.
 
 - Asset manifest: `https://viewspec.dev/agent-assets.json`
 - System prompt: `https://viewspec.dev/agent-system-prompt.txt`

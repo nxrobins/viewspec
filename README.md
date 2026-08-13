@@ -365,7 +365,7 @@ viewspec export-agent-assets --out .viewspec
 viewspec check-agent-assets .viewspec --json
 ```
 
-Agent assets use schema version `13`, contract profile `local_v1`, and the same export/check commands shown above; exported files include the local intent schema, AppBundle schema, IntentPatch schema, Convergence Authoring Task schema, checked examples, prompt, and asset manifest without SDK network calls.
+Agent assets use schema version `14`, contract profile `local_v1`, and the same export/check commands shown above; exported files include the local intent schema, AppBundle schema, IntentPatch schema, Convergence Authoring Task schema, checked examples, prompt, and asset manifest without SDK network calls.
 
 Optional **MCP tooling** is available behind the agent extra:
 
