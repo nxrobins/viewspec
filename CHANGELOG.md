@@ -7,6 +7,8 @@ All notable changes to ViewSpec are documented in this file. The format follows
 
 ## [Unreleased]
 
+## [0.3.0b7] - 2026-08-13
+
 ### Added
 
 - The structured patch surface is now the documented default agent edit path for existing
@@ -53,6 +55,8 @@ All notable changes to ViewSpec are documented in this file. The format follows
 
 ### Fixed
 
+- Release builds pin Hatchling 1.31.0 so published archives retain broadly supported Core Metadata
+  2.4 instead of silently changing metadata format with the ambient build backend.
 - Generated V4 reducers now typecheck state-equality visibility rules with a correctly narrowed
   `VisibilityWhen` union.
 - React proof reports externalize complete analyzer payloads to a bounded, hash-linked
