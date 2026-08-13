@@ -26,7 +26,7 @@
   "files": [
     {
       "path": "agent-system-prompt.txt",
-      "sha256": "866d51b21d8d07c00d845fb1cb1003c06e680bb93bae3d13907033b788d3eaca"
+      "sha256": "3eb2114ab061c4e30235587da6c34230bdb850350e9368ee741d2d41cfafc057"
     },
     {
       "path": "agent-intent-bundle.schema.json",
@@ -64,5 +64,5 @@
   "intent_schema_id": "https://viewspec.dev/agent-intent-bundle.schema.json",
   "kind": "viewspec_agent_assets",
   "patch_schema_id": "https://viewspec.dev/intent-patch.schema.json",
-  "schema_version": 13
+  "schema_version": 14
 }

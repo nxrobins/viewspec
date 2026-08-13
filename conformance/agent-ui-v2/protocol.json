@@ -1,6 +1,6 @@
 {
   "schema_version": 2,
-  "id": "viewspec-agent-ui-value-premium-v2.2",
+  "id": "viewspec-agent-ui-value-premium-v2.3",
   "evaluation_mode": "value_premium",
   "primary_arm": "viewspec-deep",
   "model": "gpt-5.6-sol",

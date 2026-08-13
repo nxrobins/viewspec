@@ -80,8 +80,10 @@ def test_init_agent_creates_codex_instructions(tmp_path, capsys):
     assert f"`{AGENT_ASSET_CONTRACT_PROFILE}` contract profile" in text
     assert "Run the check command before reusing cached assets" in text
     assert "Use the examples only for valid IntentBundle/AppBundle/IntentPatch/Converge Task wire shape" in text
+    assert "viewspec patch-targets" in text
     assert "viewspec patch-preview" in text
     assert "viewspec patch-apply" in text
+    _assert_default_edit_path_contract(text)
     assert "human workflow is only: open Review" in text
     assert "never use `--show-authority`" in text
     assert "Use raw HTML tools only when importing existing HTML" in text
@@ -90,6 +92,29 @@ def test_init_agent_creates_codex_instructions(tmp_path, capsys):
     assert "Do not upload, share, call hosted APIs" in text
     assert "compile_html_file" not in text
     assert "lift_html_file" not in text
+
+
+def _assert_default_edit_path_contract(text: str) -> None:
+    """The structured patch surface must stay the stated default for editing existing source."""
+
+    assert "## Editing existing ViewSpec source" in text
+    assert "`viewspec.intent.json` and `viewspec.app.json` are compiler source documents" in text
+    assert "Never use a line-based or text-diff editing tool on them" in text
+    assert "no `apply_patch`, no `sed`, no " in text
+    assert "search-and-replace" in text
+    assert "Lane A — change the value of something that already exists (the default)" in text
+    assert "Lane B — add, remove, or restructure something" in text
+    assert "viewspec patch-targets viewspec.intent.json --json" in text
+    assert "`patch-targets` is the entry point" in text
+    assert "Do not compute a source hash yourself" in text
+    assert "`truncated: true`" in text
+    assert "never reissue the identical command" in text
+
+    rules = text.split("Rules:\n\n", 1)[1]
+    assert "Never edit `viewspec.intent.json` or `viewspec.app.json` with a line-based or text-diff tool" in rules
+    assert "start at `viewspec patch-targets`" in rules
+    assert "rewrite the whole bundle file in one write and revalidate" in rules
+    assert "Never reissue an identical failing edit command" in rules
 
 
 def _assert_native_agent_instruction_contract(text: str, label: str) -> None:

@@ -9,6 +9,24 @@ V1 remains unchanged because its protocol and completed runs are hash-bound. V2 
 use fewer tokens than direct implementation. Tokens, latency, and proof runtime are cost ceilings. Quality parity is
 the entry requirement; assurance and leverage are the expected return.
 
+## Protocol revisions
+
+**v2.3 — arms receive the shipped managed instructions.** Through v2.2 the runner authored the
+entire workspace `AGENTS.md` itself, so a ViewSpec arm never saw the managed instruction block that
+`viewspec init-agent` ships to real adopters. Any change to that block was therefore invisible to
+this eval. From v2.3, `_prepare_workspace` runs `viewspec init-agent --target codex` inside the
+workspace for `viewspec-core` and `viewspec-deep`, appending the real block after the arm rules.
+`code-first` is unchanged and receives no ViewSpec guidance. Agents still never read the ViewSpec
+repository — the instructions are local workspace files, exactly as an adopter receives them.
+
+Each session's `environment.json` now records `inputs.managed_agent_instructions` with the block's
+target, applicable arms, byte count, and SHA-256, so evidence is bound to the exact guidance the
+arms received and the freeze check detects any later drift.
+
+Results are not directly comparable across this boundary: v2.2 evidence measures ViewSpec arms
+operating without the shipped instructions, v2.3 measures them with. Compare `code-first` first to
+separate model and runtime drift from the effect of the guidance itself.
+
 ## Primary comparison
 
 `viewspec-deep` is the primary candidate and `code-first` is the baseline. `viewspec-core` remains a diagnostic arm
