@@ -32,7 +32,7 @@ Raw HTML tools remain available only for importing existing HTML: `viewspec comp
 
 ## Current Product Facts
 
-- Current public SDK version: `0.3.0b6` (beta).
+- Current public SDK version: `0.3.0b7` (beta).
 - Free beta SDK: `python -m pip install --pre viewspec`. Plain `python -m pip install viewspec` follows the stable channel because pip excludes prereleases by default.
 - Starter proof: `viewspec prove --out .viewspec-proof` writes `.viewspec-proof/PROOF.md` for humans, `.viewspec-proof/proof_report.json` for tools, and `.viewspec-proof/support_bundle.json` for redacted local support triage; checked manifest summaries include compact style-delta counts when aesthetic profiles are present; `docs/proof-bundle.md` and https://viewspec.dev/proof-bundle/ explain status, hashes, checks, failure codes, and support bundles.
 - Canonical authored-intent lifecycle: `viewspec init-intent --out viewspec.intent.json`; edit the semantic source; `viewspec validate-intent viewspec.intent.json --json`; then `viewspec prove --intent viewspec.intent.json --target react-tailwind-tsx --install --out .viewspec-proof --json`. The final command compiles, checks, and renders the exact artifact at canonical mobile, tablet, and desktop viewports.

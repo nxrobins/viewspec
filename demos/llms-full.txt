@@ -4,7 +4,7 @@
 
 ViewSpec is an agent-native app compiler, an agent-native UI compiler, a semantic UI compiler contract, a Python SDK, and a hosted compiler API. It is built for agentic engineering, AI coding agents, vibe coding workflows, design-system automation, and data-heavy product interfaces that need deterministic, auditable output.
 
-Current public SDK version: `0.3.0b6`.
+Current public SDK version: `0.3.0b7`.
 
 This is a beta release. Install the current SDK with `python -m pip install --pre viewspec`;
 plain `python -m pip install viewspec` follows the stable channel because pip excludes

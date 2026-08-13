@@ -23,7 +23,7 @@ python -m pip install --pre viewspec
 viewspec prove --out .viewspec-proof
 ```
 
-`0.3.0b6` is a beta release, so `--pre` is required to install the current SDK. Plain
+`0.3.0b7` is a beta release, so `--pre` is required to install the current SDK. Plain
 `python -m pip install viewspec` follows the stable channel instead.
 
 Start with `.viewspec-proof/PROOF.md`. The same directory contains the machine-readable
