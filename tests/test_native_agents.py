@@ -84,7 +84,15 @@ def test_init_agent_creates_codex_instructions(tmp_path, capsys):
     assert "viewspec patch-preview" in text
     assert "viewspec patch-apply" in text
     _assert_default_edit_path_contract(text)
-    assert "human workflow is only: open Review" in text
+    assert "viewspec studio viewspec.intent.json --json" in text
+    assert "human workflow is only: open Studio" in text
+    assert "viewspec studio-create --brief-file product-brief.md --reference reference.png --kind app --json" in text
+    assert "viewspec studio-accept --json" in text
+    assert "viewspec studio-share-prepare viewspec.app.json --reference reference.png --json" in text
+    assert "Preparation uploads nothing and creates no review link or capability" in text
+    assert "no authorized private-review HTTPS deployment exists" in text
+    assert "task-provided candidate_path" in text
+    assert "does not prove visual fidelity" in text
     assert "never use `--show-authority`" in text
     assert "Use raw HTML tools only when importing existing HTML" in text
     assert "compiled output directories such as `dist/` or `react-output/` contain generated artifacts" in text

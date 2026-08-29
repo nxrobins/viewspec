@@ -16,6 +16,7 @@ from typing import Any
 
 from viewspec._version import __version__
 from viewspec.review_contract import ReviewContractError, canonical_json_bytes
+from viewspec.review_compile import STUDIO_COMPARE_TARGET
 from viewspec.review_runtime import ReviewRuntime, default_review_state_root, review_session_dir
 
 
@@ -37,6 +38,8 @@ def open_review(
     no_open: bool = False,
     verify: bool = False,
     install: bool = False,
+    studio_share: bool = False,
+    studio_share_reference: str | Path | None = None,
 ) -> dict[str, object]:
     if type(port) is not int or not 1024 <= port <= 65535:
         raise ReviewContractError(
@@ -57,6 +60,15 @@ def open_review(
     info = _active_server_info(source, root)
     if info is not None:
         runtime = ReviewRuntime.resume(source, state_root=root)
+        active = _agent_request(info, "GET", "/internal/v1/status", None)
+        active_review = active.get("review")
+        if not isinstance(active_review, dict):
+            raise ReviewContractError(
+                "REVIEW_SERVER_START_FAILED",
+                "Active Review server returned an incomplete status projection.",
+                "Restart the local Review server.",
+                cli_exit=1,
+            )
         expected_target = target or ("html-tailwind" if runtime.configuration.source_kind == "intent_bundle" else "html-tailwind-app")
         expected_design = str(Path(os.path.abspath(Path(design).expanduser()))) if design is not None else None
         if (
@@ -64,8 +76,12 @@ def open_review(
             or runtime.configuration.design_path != expected_design
             or runtime.configuration.requested_port != port
             or runtime.configuration.verification_plan_sha256 != expected_plan
-            or runtime.configuration.allow_install != (install if expected_target == "react-tailwind-app" else False)
+            or runtime.configuration.allow_install
+            != (install if expected_target in {"react-tailwind-app", STUDIO_COMPARE_TARGET} else False)
             or runtime.configuration.convergence_state_root != expected_convergence_root
+            or bool(info.get("studio_share", False)) != studio_share
+            or info.get("studio_share_reference_sha256")
+            != _studio_share_reference_sha256(studio_share_reference)
         ):
             raise ReviewContractError(
                 "REVIEW_SESSION_CONFIGURATION_CONFLICT",
@@ -75,9 +91,17 @@ def open_review(
             )
         if runtime.session.ended_by is not None:
             _agent_request(info, "POST", "/internal/v1/reopen", {"allow_human": reopen})
-            review = {**runtime.status(), "status": "active", "ended_by": None}
+            reopened = _agent_request(info, "GET", "/internal/v1/status", None)
+            review = reopened.get("review")
+            if not isinstance(review, dict):
+                raise ReviewContractError(
+                    "REVIEW_SERVER_START_FAILED",
+                    "Reopened Review server returned an incomplete status projection.",
+                    "Restart the local Review server.",
+                    cli_exit=1,
+                )
         else:
-            review = runtime.status()
+            review = active_review
         refreshed = _agent_request(info, "POST", "/internal/v1/bootstrap", {})
         bootstrap_url = refreshed.get("bootstrap_url")
         actual_port = info["port"]
@@ -92,6 +116,8 @@ def open_review(
             verify=verify,
             install=install,
             convergence_state_root=convergence_state_root,
+            studio_share=studio_share,
+            studio_share_reference=studio_share_reference,
         )
         bootstrap_url = started.get("bootstrap_url")
         review = started.get("review")
@@ -113,6 +139,7 @@ def open_review(
             "Open the local review URL and inspect the compiled interface.",
             f"Run viewspec review-poll {Path(source).name} --json to wait for feedback.",
         ],
+        network_calls="private_review_opt_in" if studio_share else "loopback_only",
     )
 
 
@@ -220,6 +247,8 @@ def _spawn_daemon(
     verify: bool,
     install: bool,
     convergence_state_root: str | Path | None,
+    studio_share: bool,
+    studio_share_reference: str | Path | None,
 ) -> dict[str, object]:
     command = [
         sys.executable,
@@ -244,6 +273,10 @@ def _spawn_daemon(
         command.append("--install")
     if convergence_state_root is not None:
         command.extend(("--convergence-state-root", str(convergence_state_root)))
+    if studio_share:
+        command.append("--studio-share")
+    if studio_share_reference is not None:
+        command.extend(("--studio-share-reference", str(studio_share_reference)))
     process = subprocess.Popen(
         command,
         stdin=subprocess.DEVNULL,
@@ -365,6 +398,13 @@ def _active_server_info(source: str | Path, state_root: Path) -> dict[str, Any] 
         return None
 
 
+def _studio_share_reference_sha256(reference: str | Path | None) -> str | None:
+    if reference is None:
+        return None
+    resolved = Path(os.path.abspath(Path(reference).expanduser()))
+    return hashlib.sha256(b"viewspec.studio.share-reference.v1\x00" + os.fsencode(resolved)).hexdigest()
+
+
 def _read_server_info_path(path: Path) -> dict[str, Any]:
     value = path.lstat()
     if value.st_size > MAX_SERVER_INFO_BYTES:
@@ -375,11 +415,21 @@ def _read_server_info_path(path: Path) -> dict[str, Any]:
             http_status=500,
         )
     payload = json.loads(path.read_text(encoding="utf-8"))
+    share_reference_sha256 = payload.get("studio_share_reference_sha256") if isinstance(payload, dict) else None
     if (
         not isinstance(payload, dict)
         or payload.get("schema_version") != 1
         or type(payload.get("port")) is not int
         or not isinstance(payload.get("agent_capability_sha256"), str)
+        or type(payload.get("studio_share", False)) is not bool
+        or (
+            share_reference_sha256 is not None
+            and (
+                not isinstance(share_reference_sha256, str)
+                or len(share_reference_sha256) != 64
+                or any(character not in "0123456789abcdef" for character in share_reference_sha256)
+            )
+        )
     ):
         raise ReviewContractError(
             "REVIEW_JOURNAL_INVALID",
@@ -483,6 +533,7 @@ def _tool_envelope(
     *,
     review: dict[str, object],
     next_actions: list[str] | None = None,
+    network_calls: str = "loopback_only",
 ) -> dict[str, object]:
     return {
         "schema_version": 1,
@@ -493,7 +544,7 @@ def _tool_envelope(
         "paths": {},
         "errors": [],
         "next_actions": next_actions or [],
-        "metadata": {"sdk_version": __version__, "network_calls": "loopback_only"},
+        "metadata": {"sdk_version": __version__, "network_calls": network_calls},
         "review": review,
     }
 

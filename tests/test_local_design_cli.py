@@ -570,6 +570,10 @@ def test_cli_init_design_doctor_and_check_tamper(tmp_path, capsys):
     assert checks["intent_first_commands"]["export_agent_assets"] is True
     assert checks["intent_first_commands"]["patch_preview"] is True
     assert checks["intent_first_commands"]["patch_apply"] is True
+    assert checks["intent_first_commands"]["studio"] is True
+    assert checks["intent_first_commands"]["studio_create"] is True
+    assert checks["intent_first_commands"]["studio_accept"] is True
+    assert checks["intent_first_commands"]["studio_share_prepare"] is True
     assert checks["intent_pipeline"]["ok"] is True
     assert checks["intent_pipeline"]["compile_check"] == "passed"
     assert checks["intent_pipeline"]["aesthetic_profile_diff"] is True
@@ -604,6 +608,9 @@ def test_cli_init_design_doctor_and_check_tamper(tmp_path, capsys):
     assert "prove-app" in checks["local_network_policy"]
     assert "export-agent-assets" in checks["local_network_policy"]
     assert "check" in checks["local_network_policy"]
+    assert "studio-create" in checks["local_network_policy"]
+    assert "studio-accept" in checks["local_network_policy"]
+    assert "studio-share-prepare" in checks["local_network_policy"]
 
     html_path = tmp_path / "report.html"
     html_path.write_text("<h1>Report</h1>", encoding="utf-8")

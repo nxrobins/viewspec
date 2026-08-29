@@ -6,7 +6,7 @@ import pytest
 
 from viewspec.intent_tools import starter_intent_payload
 from viewspec.review_contract import ReviewContext, ReviewContractError, ReviewSelectedText, ReviewViewport
-from viewspec.review_runtime import ReviewRuntime
+from viewspec.review_runtime import ReviewRuntime, _inspection_replay_refs, _inspection_resource_ref
 from viewspec.verification import VerificationPlan, VerificationResult
 
 
@@ -29,6 +29,52 @@ def _context() -> ReviewContext:
 def _first_dom_id(runtime: ReviewRuntime) -> str:
     manifest = json.loads(runtime.built.artifact_dir.joinpath("provenance_manifest.json").read_text(encoding="utf-8"))
     return next(iter(manifest["nodes"]))
+
+
+def test_studio_inspection_refs_are_exact_and_screen_scoped() -> None:
+    inspection = {
+        "state": {
+            "replays": [
+                {
+                    "checkpoints": [
+                        {"evidence_ref": "studio-inspection/replays/triage/checkpoints/0"},
+                        {"evidence_ref": "studio-inspection/replays/triage/checkpoints/1"},
+                    ]
+                }
+            ]
+        },
+        "resources": {
+            "views": [
+                {
+                    "screen_id": "queue",
+                    "assertions": [
+                        {
+                            "matched_binding_id": "status",
+                            "canonical_identity": "incidents/inc_1043/status",
+                        }
+                    ],
+                },
+                {
+                    "screen_id": "detail",
+                    "assertions": [
+                        {
+                            "matched_binding_id": "status",
+                            "canonical_identity": "incidents/inc_1042/status",
+                        }
+                    ],
+                },
+            ]
+        },
+    }
+
+    assert _inspection_replay_refs(inspection) == {
+        "studio-inspection/replays/triage/checkpoints/0",
+        "studio-inspection/replays/triage/checkpoints/1",
+    }
+    assert _inspection_resource_ref(inspection, screen_id="queue", target_binding_id="status") == (
+        "studio-inspection/resources/incidents/inc_1043/status"
+    )
+    assert _inspection_resource_ref(inspection, screen_id="missing", target_binding_id="status") is None
 
 
 def test_runtime_rebuilds_browser_target_from_checked_manifest(tmp_path) -> None:
@@ -173,6 +219,27 @@ def test_runtime_rejects_default_forbidden_controls_and_unproven_selection(tmp_p
             dom_ancestors=(dom_id,),
             page_level=False,
             context=forbidden_controls,
+        )
+    assert raised.value.code == "REVIEW_CONTEXT_FORBIDDEN"
+
+    forged_evidence = ReviewContext(
+        route=None,
+        screen_id=None,
+        viewport=ReviewViewport.canonical("desktop"),
+        selected_text=None,
+        control_values=(),
+        visibility="visible",
+        evidence_refs=("studio-inspection/replays/forged/checkpoints/1",),
+    )
+    with pytest.raises(ReviewContractError) as raised:
+        runtime.submit_browser_event(
+            idempotency_key="c" * 32,
+            kind="note",
+            body="No forged evidence.",
+            screen_id=None,
+            dom_ancestors=(dom_id,),
+            page_level=False,
+            context=forged_evidence,
         )
     assert raised.value.code == "REVIEW_CONTEXT_FORBIDDEN"
 

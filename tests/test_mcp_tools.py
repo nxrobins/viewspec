@@ -218,6 +218,7 @@ def test_doctor_agents_reports_missing_optional_mcp(capsys):
     assert checks["intent_first_commands"]["export_agent_assets"] is True
     assert checks["intent_first_commands"]["patch_preview"] is True
     assert checks["intent_first_commands"]["patch_apply"] is True
+    assert checks["intent_first_commands"]["studio_share_prepare"] is True
     assert checks["intent_pipeline"]["ok"] is True
     assert checks["intent_pipeline"]["aesthetic_profile_diff"] is True
     assert checks["intent_pipeline"]["semantic_summary"]["ok"] is True
@@ -271,6 +272,9 @@ def test_doctor_agents_reports_missing_optional_mcp(capsys):
     assert "prove-app" in checks["local_network_policy"]
     assert "check-agent-assets" in checks["local_network_policy"]
     assert "export-agent-assets" in checks["local_network_policy"]
+    assert "studio-create" in checks["local_network_policy"]
+    assert "studio-accept" in checks["local_network_policy"]
+    assert "studio-share-prepare" in checks["local_network_policy"]
     if exit_code == 2:
         assert '"mcp_dependency": false' in output.lower()
 

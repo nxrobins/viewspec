@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import base64
 import hashlib
 import http.client
 import json
@@ -7,15 +8,98 @@ import re
 import shutil
 import socket
 import subprocess
+from pathlib import Path
 
 import pytest
 
+from viewspec.app_starters import starter_app_bundle
 from viewspec.converge_sessions import start_convergence_session, submit_convergence_patch
 from viewspec.intent_patch import IntentPatchContext, source_sha256
 from viewspec.intent_tools import starter_intent_payload
+import viewspec.review_compile as review_compile
+from viewspec.review_compile import STUDIO_COMPARE_TARGET
 from viewspec.review_contract import ReviewContractError
 from viewspec.review_runtime import ReviewRuntime
 from viewspec.review_server import ReviewServer, _json_object
+
+
+_REAL_SUBPROCESS_RUN = review_compile.subprocess.run
+
+
+class _FakeSharePublisher:
+    def __init__(self) -> None:
+        self.prepares = 0
+        self.publishes: list[dict[str, object]] = []
+
+    def status(self) -> dict[str, object]:
+        return {
+            "status": "available",
+            "review_origin": "https://review.viewspec.test",
+            "deployment_sha256": "a" * 64,
+            "run_id": "vsrcan_" + ("b" * 32),
+            "report_sha256": "c" * 64,
+            "expires_at_epoch_s": 2_100_000_000,
+        }
+
+    def prepare(self) -> dict[str, object]:
+        self.prepares += 1
+        return {
+            "schema_version": 1,
+            "status": "awaiting_confirmation",
+            "package_id": "d" * 64,
+            "revision": 1,
+            "file_count": 3,
+            "bytes": 4096,
+            "disclosure": {
+                "will_leave_machine": [{"category": "exact semantic source", "file_count": 1, "bytes": 100}],
+                "will_not_leave_machine": ["environment variables"],
+            },
+            "expiry_options": [3600, 86400, 604800],
+            "release": self.status(),
+            "upload_performed": False,
+        }
+
+    def publish(self, *, package_id, disclosure_accepted, expires_in_seconds) -> dict[str, object]:
+        self.publishes.append(
+            {
+                "package_id": package_id,
+                "disclosure_accepted": disclosure_accepted,
+                "expires_in_seconds": expires_in_seconds,
+            }
+        )
+        return {
+            "schema_version": 1,
+            "status": "active",
+            "session_id": "vsr_" + ("A" * 24),
+            "package_id": package_id,
+            "expires_at": 2_100_000_000,
+            "owner_url": "https://review.viewspec.test/review/vsr_AAAAAAAAAAAAAAAAAAAAAAAA/#cap=vsc_ownerownerownerowner",
+            "reviewer_url": "https://review.viewspec.test/review/vsr_AAAAAAAAAAAAAAAAAAAAAAAA/#cap=vsc_reviewreviewreviewrevi",
+            "review_origin": "https://review.viewspec.test",
+            "deployment_sha256": "a" * 64,
+            "upload_performed": True,
+            "private": True,
+        }
+
+
+def _fake_react_npm(command, *, cwd, **kwargs):
+    if tuple(command[:3]) == ("npm", "run", "build"):
+        runtime = Path(cwd) / "runtime-dist"
+        assets = runtime / "assets"
+        assets.mkdir(parents=True)
+        assets.joinpath("main.js").write_text(
+            "document.getElementById('root').textContent='ready';",
+            encoding="utf-8",
+        )
+        runtime.joinpath("index.html").write_text(
+            '<!doctype html><html><body><div id="root"></div>'
+            '<script type="module" crossorigin src="./assets/main.js"></script></body></html>',
+            encoding="utf-8",
+        )
+        return object()
+    if tuple(command[:2]) == ("npm", "ci"):
+        return object()
+    return _REAL_SUBPROCESS_RUN(command, cwd=cwd, **kwargs)
 
 
 def _runtime(tmp_path, *, convergence_state_root=None) -> ReviewRuntime:
@@ -25,6 +109,18 @@ def _runtime(tmp_path, *, convergence_state_root=None) -> ReviewRuntime:
         source,
         state_root=tmp_path / "state",
         convergence_state_root=convergence_state_root,
+    )
+
+
+def _comparison_runtime(tmp_path, monkeypatch) -> ReviewRuntime:
+    source = tmp_path / "viewspec.app.json"
+    source.write_text(json.dumps(starter_app_bundle("internal_tool"), sort_keys=True), encoding="utf-8")
+    monkeypatch.setattr("viewspec.review_compile.subprocess.run", _fake_react_npm)
+    return ReviewRuntime.open(
+        source,
+        state_root=tmp_path / "comparison-state",
+        target=STUDIO_COMPARE_TARGET,
+        allow_install=True,
     )
 
 
@@ -70,7 +166,18 @@ def _handshake(server: ReviewServer, cookie: str) -> None:
         "POST",
         endpoint,
         headers=_browser_headers(server, cookie),
-        body=b"{}",
+        body=json.dumps(
+            {
+                "targets": [
+                    {
+                        "target": server.runtime.built.revision.target,
+                        "route": None,
+                        "screen_id": None,
+                    }
+                ]
+            },
+            separators=(",", ":"),
+        ).encode("utf-8"),
     )
     assert status == 200, payload
 
@@ -273,7 +380,16 @@ def test_frame_serving_checks_allowlist_hash_and_never_changes_stored_html(tmp_p
         status, headers, payload = _request(server.port, "GET", server.frame_path("index.html"))
         assert status == 200
         assert b"viewspec-review-sdk" in payload
-        assert "sandbox" not in headers.get("Content-Security-Policy", "")
+        assert b"viewspec-review-style" in payload
+        assert b"data-viewspec-review-selected=true" in payload
+        csp = headers.get("Content-Security-Policy", "")
+        assert "sandbox" not in csp
+        assert "style-src-attr 'unsafe-hashes'" in csp
+        assert "'unsafe-inline'" not in csp
+        style_value = re.search(rb'\bstyle="([^"]+)"', payload)
+        assert style_value is not None
+        style_hash = base64.b64encode(hashlib.sha256(style_value.group(1)).digest()).decode("ascii")
+        assert f"'sha256-{style_hash}'" in csp
         assert hashlib.sha256(stored.read_bytes()).hexdigest() == before
 
         traversal, _, error = _request(server.port, "GET", server.frame_path("%2e%2e/session.json"))
@@ -288,12 +404,203 @@ def test_frame_serving_checks_allowlist_hash_and_never_changes_stored_html(tmp_p
         server.stop()
 
 
+def test_comparison_frame_sets_route_before_react_mount_and_handshake_proves_both_screens(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    runtime = _comparison_runtime(tmp_path, monkeypatch)
+    server = _server(runtime)
+    server.start()
+    try:
+        chrome = server._chrome_response().body.decode("utf-8")  # noqa: SLF001
+        assert "<option value=mobile selected>Mobile · 390</option>" in chrome
+        assert "<html lang=en data-studio-viewport=mobile>" in chrome
+        assert "html[data-studio-viewport=mobile] iframe{width:390px;height:844px}" in chrome
+        assert "html[data-studio-viewport=mobile] .compare-stage{flex-direction:row}" in chrome
+        assert "html[data-studio-viewport=desktop] .compare-stage{display:grid}" in chrome
+        assert "data-studio-surface-active=false aria-hidden=true inert" in chrome
+        assert "const showSurface=surface=>" in chrome
+        assert "fitShell.dataset.fitScale=scale.toFixed(3)" in chrome
+        assert "new ResizeObserver(fitCanvas).observe(canvas)" in chrome
+        assert "panelToggle.setAttribute('aria-expanded','true')" in chrome
+        assert "openPanel(composer)" in chrome
+        assert "openPanel(convergence)" in chrome
+        assert "document.documentElement.dataset.studioViewport=e.target.value" in chrome
+        assert "overflow-anchor:none" in chrome
+        assert "place-items:start center" not in chrome
+        assert "body:JSON.stringify({targets:observations})" in chrome
+        assert "Target coherence" in chrome
+        assert "Observed in this browser from exact semantic pairs" in chrome
+        assert "viewspec-studio-coherence-measure" in chrome
+        assert "viewspec-studio-coherence-result" in chrome
+        assert "viewspec-studio-coherence-choose" in chrome
+        assert "Make this consistent across Static and React." in chrome
+
+        cookie, _ = _bootstrap(server)
+        static_status, _, _ = _request(server.port, "GET", server.frame_path("static/index.html"))
+        react_status, _, react_payload = _request(server.port, "GET", server.frame_path("react/index.html"))
+        assert static_status == 200
+        assert react_status == 200
+        assert b'window.__viewspecInitialPath="/";' in react_payload
+        assert react_payload.index(b'id="viewspec-initial-route"') < react_payload.index(b'<script type="module">')
+
+        endpoint = f"/r/{runtime.session.review_id}/api/v1/handshake"
+        invalid_status, _, invalid_payload = _request(
+            server.port,
+            "POST",
+            endpoint,
+            headers=_browser_headers(server, cookie),
+            body=json.dumps(
+                {
+                    "targets": [
+                        {"target": "html-tailwind-app", "route": "/", "screen_id": "queue"},
+                        {"target": "react-tailwind-app", "route": "/", "screen_id": None},
+                    ]
+                },
+                separators=(",", ":"),
+            ).encode("utf-8"),
+        )
+        assert invalid_status == 422
+        assert json.loads(invalid_payload)["error"]["code"] == "REVIEW_CONTEXT_FORBIDDEN"
+
+        valid_status, _, valid_payload = _request(
+            server.port,
+            "POST",
+            endpoint,
+            headers=_browser_headers(server, cookie),
+            body=json.dumps(
+                {
+                    "targets": [
+                        {"target": "html-tailwind-app", "route": "/", "screen_id": "queue"},
+                        {"target": "react-tailwind-app", "route": "/", "screen_id": "queue"},
+                    ]
+                },
+                separators=(",", ":"),
+            ).encode("utf-8"),
+        )
+        assert valid_status == 200, valid_payload
+    finally:
+        server.stop()
+
+
+def test_studio_share_is_absent_by_default_and_projects_fail_closed_status(tmp_path) -> None:
+    server = _server(_runtime(tmp_path))
+    chrome = server._chrome_response().body.decode("utf-8")  # noqa: SLF001
+    assert "id=share-toggle" not in chrome
+    assert "id=share-panel" not in chrome
+    assert "/api/v1/share/" not in chrome
+    assert server._agent_status()["share"] == {  # noqa: SLF001
+        "status": "unavailable",
+        "reason": "production_canary_required",
+    }
+    server.stop()
+
+
+def test_attested_studio_share_prepares_then_publishes_only_through_exact_browser_contract(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    publisher = _FakeSharePublisher()
+    runtime = _comparison_runtime(tmp_path, monkeypatch)
+    server = _server(runtime, share_publisher=publisher)
+    chrome = server._chrome_response().body.decode("utf-8")  # noqa: SLF001
+    assert "<button id=share-toggle" in chrome
+    assert "<section id=share-panel" in chrome
+    assert "Nothing has been uploaded" in chrome
+    assert "I reviewed this exact inventory and approve its upload." in chrome
+    assert "Create private link" in chrome
+    assert "innerHTML" not in chrome
+    assert "VIEWSPEC_STUDIO_API_KEY" not in chrome
+
+    server.start()
+    try:
+        cookie, _ = _bootstrap(server)
+        root = f"/r/{runtime.session.review_id}/api/v1"
+        before_handshake, _, content = _request(
+            server.port,
+            "POST",
+            f"{root}/share/prepare",
+            headers=_browser_headers(server, cookie),
+            body=b"{}",
+        )
+        assert before_handshake == 409
+        assert json.loads(content)["error"]["code"] == "REVIEW_BROWSER_HANDSHAKE_TIMEOUT"
+        assert publisher.prepares == 0
+
+        for relative in ("static/index.html", "react/index.html"):
+            frame_status, _, _ = _request(server.port, "GET", server.frame_path(relative))
+            assert frame_status == 200
+        handshake, _, content = _request(
+            server.port,
+            "POST",
+            f"{root}/handshake",
+            headers=_browser_headers(server, cookie),
+            body=json.dumps(
+                {
+                    "targets": [
+                        {"target": "html-tailwind-app", "route": "/", "screen_id": "queue"},
+                        {"target": "react-tailwind-app", "route": "/", "screen_id": "queue"},
+                    ]
+                }
+            ).encode(),
+        )
+        assert handshake == 200, content
+
+        prepared_status, _, prepared_content = _request(
+            server.port,
+            "POST",
+            f"{root}/share/prepare",
+            headers=_browser_headers(server, cookie),
+            body=b"{}",
+        )
+        assert prepared_status == 200
+        prepared = json.loads(prepared_content)["share"]
+        assert prepared["upload_performed"] is False
+        assert publisher.prepares == 1
+        assert publisher.publishes == []
+
+        created_status, _, created_content = _request(
+            server.port,
+            "POST",
+            f"{root}/share/publish",
+            headers=_browser_headers(server, cookie),
+            body=json.dumps(
+                {
+                    "package_id": prepared["package_id"],
+                    "disclosure_accepted": True,
+                    "expires_in_seconds": 3600,
+                }
+            ).encode(),
+        )
+        assert created_status == 201
+        created = json.loads(created_content)["share"]
+        assert created["status"] == "active"
+        assert publisher.publishes == [
+            {
+                "package_id": "d" * 64,
+                "disclosure_accepted": True,
+                "expires_in_seconds": 3600,
+            }
+        ]
+    finally:
+        server.stop()
+
+
 def test_generated_review_chrome_and_frame_sdk_are_valid_javascript(tmp_path) -> None:
     node = shutil.which("node")
     if node is None:
         pytest.skip("Node.js is unavailable for generated browser-script syntax checking")
     server = _server(_runtime(tmp_path))
     chrome = server._chrome_response().body.decode("utf-8")  # noqa: SLF001
+    assert "Selected in " in chrome
+    assert "Matched across Static + React" in chrome
+    assert "viewspec-review-selection" in chrome
+    assert "handshakeConfirmed" in chrome
+    assert "Proved result" in chrome
+    assert "searchParams.set('viewspec_replay'" in chrome
+    assert "item.src='about:blank'" not in chrome
+    assert "Exact selection details" in chrome
+    assert "Checked semantic element" in chrome
     frame_status = server._serve_frame(server.frame_path("index.html"))  # noqa: SLF001
     scripts = re.findall(r"<script[^>]*>([\s\S]*?)</script>", chrome + frame_status.body.decode("utf-8"))
 
@@ -304,14 +611,27 @@ def test_generated_review_chrome_and_frame_sdk_are_valid_javascript(tmp_path) ->
     server.stop()
 
 
+def test_generated_attested_share_chrome_is_valid_javascript(tmp_path, monkeypatch) -> None:
+    node = shutil.which("node")
+    if node is None:
+        pytest.skip("Node.js is unavailable for generated browser-script syntax checking")
+    server = _server(_comparison_runtime(tmp_path, monkeypatch), share_publisher=_FakeSharePublisher())
+    chrome = server._chrome_response().body.decode("utf-8")  # noqa: SLF001
+    scripts = re.findall(r"<script[^>]*>([\s\S]*?)</script>", chrome)
+    assert len(scripts) == 1
+    result = _REAL_SUBPROCESS_RUN((node, "--check", "-"), input=scripts[0], text=True, capture_output=True)
+    assert result.returncode == 0, result.stderr
+    server.stop()
+
+
 def test_review_chrome_exposes_proof_not_authority_and_approves_exact_preview(tmp_path) -> None:
     runtime = _runtime(tmp_path)
     preview_id, original = _pending_convergence(runtime)
     server = _server(runtime)
     chrome = server._chrome_response().body.decode("utf-8")  # noqa: SLF001
-    assert "Convergence proposal" in chrome
-    assert "Approve proposal" in chrome
-    assert "Reject proposal" in chrome
+    assert "Ready for your decision" in chrome
+    assert "Approve change" in chrome
+    assert ">Reject<" in chrome
     server.start()
     try:
         cookie, _ = _bootstrap(server)

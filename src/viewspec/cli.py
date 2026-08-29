@@ -83,6 +83,18 @@ from viewspec.native_agents import NativeAgentError, VALID_TARGETS, init_agent_i
 from viewspec.raw_html import HtmlInputError, compile_html, diff_html, lift_html, write_html_compile_result
 from viewspec.review_cli import end_review, open_review, poll_review, review_status
 from viewspec.review_contract import ReviewContractError
+from viewspec.studio import open_studio
+from viewspec.studio_creation import (
+    STUDIO_CREATION_TASK_DEFAULT,
+    StudioCreationError,
+    accept_studio_creation,
+    prepare_studio_creation,
+)
+from viewspec.studio_share import (
+    STUDIO_SHARE_ROOT_DEFAULT,
+    StudioShareError,
+    prepare_studio_share,
+)
 from viewspec.types import IntentBundle
 
 DoctorProfileDiff = tuple[dict[str, object], str, dict[str, object], dict[str, object]]
@@ -108,6 +120,12 @@ def main(argv: list[str] | None = None) -> int:
     except ReviewContractError as exc:
         print(f"error: {exc.code}: {exc.message}\nfix: {exc.fix}", file=sys.stderr)
         return exc.cli_exit
+    except StudioCreationError as exc:
+        print(f"error: {exc.code}: {exc.message}\nfix: {exc.fix}", file=sys.stderr)
+        return exc.cli_exit
+    except StudioShareError as exc:
+        print(f"error: {exc.code}: {exc.message}\nfix: {exc.fix}", file=sys.stderr)
+        return exc.cli_exit
     except IntentPatchError as exc:
         print(f"error: {exc.code}: {exc.message}\nfix: {exc.fix}", file=sys.stderr)
         return exc.cli_exit
@@ -129,6 +147,102 @@ def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="viewspec", description="Local ViewSpec SDK tools.")
     parser.add_argument("--version", action="version", version=f"viewspec {__version__}")
     subparsers = parser.add_subparsers(dest="command", required=True)
+
+    studio_parser = subparsers.add_parser(
+        "studio",
+        help="Open the checked ViewSpec Preview, Comment, Approve experience.",
+    )
+    studio_parser.add_argument(
+        "source",
+        nargs="?",
+        help="IntentBundle or AppBundle JSON; auto-detected when exactly one canonical source exists.",
+    )
+    studio_parser.add_argument("--design", help="Optional DESIGN.md file to watch with the source.")
+    studio_parser.add_argument(
+        "--target",
+        choices=("html-tailwind", "html-tailwind-app", "react-tailwind-app"),
+        help="Explicit Studio target; defaults by detected source kind.",
+    )
+    studio_parser.add_argument("--verify", action="store_true", help="Add canonical viewport verification when available.")
+    studio_parser.add_argument("--install", action="store_true", help="Allow the explicit existing verification install flow.")
+    studio_parser.add_argument(
+        "--compare",
+        action="store_true",
+        help="Open an AppBundle in synchronized static/React comparison (requires --install).",
+    )
+    studio_parser.add_argument(
+        "--share",
+        action="store_true",
+        help="Opt in to the canary-gated private-review service (requires --compare --install).",
+    )
+    studio_parser.add_argument(
+        "--share-reference",
+        help="Optional exact local reference image to disclose and include in the private review.",
+    )
+    studio_parser.add_argument("--no-open", action="store_true", help="Start or resume without launching a browser.")
+    studio_parser.add_argument("--port", type=int, default=4388, help="Literal unprivileged 127.0.0.1 port (default: 4388).")
+    studio_parser.add_argument("--state-dir", help="Private Studio state root.")
+    studio_parser.add_argument("--convergence-state-dir", help="Private Converge state root used by Studio.")
+    studio_parser.add_argument("--reopen", action="store_true", help="Explicitly reopen a human-ended session.")
+    studio_parser.add_argument("--json", action="store_true", help="Print machine-readable JSON.")
+    studio_parser.set_defaults(func=_studio_command)
+
+    studio_create_parser = subparsers.add_parser(
+        "studio-create",
+        help="Prepare a brief-bound first-creation task for a coding agent.",
+    )
+    studio_create_brief = studio_create_parser.add_mutually_exclusive_group(required=True)
+    studio_create_brief.add_argument("--brief", help="Exact inline product brief.")
+    studio_create_brief.add_argument("--brief-file", help="UTF-8 product brief file under the workspace.")
+    studio_create_parser.add_argument("--reference", help="Optional local PNG, JPEG, or WebP reference image.")
+    studio_create_parser.add_argument(
+        "--kind",
+        choices=("app", "view"),
+        default="app",
+        help="Create a multi-screen app by default, or one bounded view.",
+    )
+    studio_create_parser.add_argument(
+        "--task-out",
+        default=STUDIO_CREATION_TASK_DEFAULT,
+        help=f"Deterministic creation task path (default: {STUDIO_CREATION_TASK_DEFAULT}).",
+    )
+    studio_create_parser.add_argument("--json", action="store_true", help="Print machine-readable JSON.")
+    studio_create_parser.set_defaults(func=_studio_create_command)
+
+    studio_accept_parser = subparsers.add_parser(
+        "studio-accept",
+        help="Prove an agent-authored first-creation candidate and publish semantic source.",
+    )
+    studio_accept_parser.add_argument(
+        "task",
+        nargs="?",
+        default=STUDIO_CREATION_TASK_DEFAULT,
+        help=f"Creation task path (default: {STUDIO_CREATION_TASK_DEFAULT}).",
+    )
+    studio_accept_parser.add_argument("--json", action="store_true", help="Print machine-readable JSON.")
+    studio_accept_parser.set_defaults(func=_studio_accept_command)
+
+    studio_share_parser = subparsers.add_parser(
+        "studio-share-prepare",
+        help="Prepare and disclose an exact private-review package without uploading it.",
+    )
+    studio_share_parser.add_argument(
+        "source",
+        nargs="?",
+        help="Checked AppBundle source; auto-detected when exactly one canonical source exists.",
+    )
+    studio_share_parser.add_argument(
+        "--reference",
+        help="Optional exact local PNG, JPEG, or WebP reference image to include and disclose.",
+    )
+    studio_share_parser.add_argument("--state-dir", help="Private Studio state root containing the checked comparison.")
+    studio_share_parser.add_argument(
+        "--out-dir",
+        default=STUDIO_SHARE_ROOT_DEFAULT,
+        help=f"Private content-addressed package root (default: {STUDIO_SHARE_ROOT_DEFAULT}).",
+    )
+    studio_share_parser.add_argument("--json", action="store_true", help="Print machine-readable JSON.")
+    studio_share_parser.set_defaults(func=_studio_share_prepare_command)
 
     validate_parser = subparsers.add_parser("validate-intent", help="Validate a ViewSpec IntentBundle JSON file.")
     validate_parser.add_argument("input", help="Input strict IntentBundle .json file.")
@@ -515,6 +629,78 @@ def _build_parser() -> argparse.ArgumentParser:
     mcp_parser.set_defaults(func=_mcp_command)
 
     return parser
+
+
+def _studio_command(args: argparse.Namespace) -> int:
+    payload = open_studio(
+        args.source,
+        design=args.design,
+        target=args.target,
+        port=args.port,
+        state_root=args.state_dir,
+        convergence_state_root=args.convergence_state_dir,
+        reopen=args.reopen,
+        no_open=args.no_open,
+        verify=args.verify,
+        install=args.install,
+        compare=args.compare,
+        share=args.share,
+        share_reference=args.share_reference,
+    )
+    if args.json:
+        print(json.dumps(payload, indent=2, sort_keys=True))
+    else:
+        studio = payload["studio"]
+        review = payload["review"]
+        print(f"ViewSpec Studio ready in {studio['ready_ms']} ms.")
+        print(f"open: {review['url']}")
+        print("Preview → Comment → Approve")
+    return 0
+
+
+def _studio_create_command(args: argparse.Namespace) -> int:
+    payload = prepare_studio_creation(
+        brief=args.brief,
+        brief_file=args.brief_file,
+        reference=args.reference,
+        kind=args.kind,
+        task_out=args.task_out,
+    )
+    if args.json:
+        print(json.dumps(payload, indent=2, sort_keys=True))
+    else:
+        print("Studio creation task ready for your agent.")
+        print(f"candidate: {payload['creation']['candidate_path']}")
+        print(f"accept: viewspec studio-accept {args.task_out}")
+    return 0
+
+
+def _studio_accept_command(args: argparse.Namespace) -> int:
+    payload = accept_studio_creation(args.task)
+    if args.json:
+        print(json.dumps(payload, indent=2, sort_keys=True))
+    else:
+        print("Studio semantic source is checked and ready.")
+        print(f"source: {payload['creation']['source_name']}")
+        print("open: viewspec studio")
+    return 0
+
+
+def _studio_share_prepare_command(args: argparse.Namespace) -> int:
+    payload = prepare_studio_share(
+        args.source,
+        reference=args.reference,
+        state_root=args.state_dir,
+        out_root=args.out_dir,
+    )
+    if args.json:
+        print(json.dumps(payload, indent=2, sort_keys=True))
+    else:
+        print("Private review package prepared locally. Nothing was uploaded.")
+        print(f"disclosure: {payload['paths']['disclosure']}")
+        print(f"transport archive: {payload['paths']['upload_archive']}")
+        print("No review link or capability was created.")
+    return 0
 
 
 def _review_command(args: argparse.Namespace) -> int:
@@ -1237,6 +1423,10 @@ def _doctor_command(args: argparse.Namespace) -> int:
             "compile": True,
             "check": True,
             "prove": True,
+            "studio": True,
+            "studio_create": True,
+            "studio_accept": True,
+            "studio_share_prepare": True,
             "review": True,
             "review_poll": True,
             "review_end": True,
@@ -1250,7 +1440,13 @@ def _doctor_command(args: argparse.Namespace) -> int:
         },
         "intent_pipeline": intent_pipeline,
         "app_bundle_pipeline": app_bundle_pipeline,
-        "local_network_policy": "no network calls for validate-intent/validate-app/compile-app/compile/lift/diff/diff-intent/diff-app/check/prove/prove-app/patch-targets/patch-preview/patch-apply/check-agent-assets/init-intent/init-app/init-design/export-agent-assets by default; explicit verification install flags retain their documented behavior",
+        "local_network_policy": (
+            "no network calls for studio by default or for studio-create/studio-accept/studio-share-prepare/validate-intent/validate-app/"
+            "compile-app/compile/lift/diff/diff-intent/diff-app/check/prove/prove-app/patch-targets/"
+            "patch-preview/patch-apply/check-agent-assets/init-intent/init-app/init-design/"
+            "export-agent-assets; studio --share explicitly enables the canary-gated private-review service, and explicit "
+            "verification install flags retain their documented behavior"
+        ),
     }
     if args.agents:
         checks.update(

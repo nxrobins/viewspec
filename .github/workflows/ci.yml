@@ -102,9 +102,9 @@ jobs:
         working-directory: tests/react-tailwind-host
         run: npm ci
 
-      - name: Install Chromium
+      - name: Install browser engines
         working-directory: tests/react-tailwind-host
-        run: npx playwright install --with-deps chromium
+        run: npx playwright install --with-deps chromium firefox webkit
 
       - name: React Tailwind host proof
         working-directory: tests/react-tailwind-host
@@ -113,6 +113,42 @@ jobs:
       - name: Public demo browser regressions
         working-directory: tests/react-tailwind-host
         run: npm run test:site
+
+      - name: ViewSpec Studio browser moment
+        working-directory: tests/react-tailwind-host
+        run: npm run test:studio
+
+      - name: Enforce Studio product-journey gate
+        working-directory: tests/react-tailwind-host
+        run: >-
+          python ../../scripts/check_studio_product_evidence.py
+          test-results
+          --out test-results/studio-product-mechanical-report.json
+
+      - name: Retain Studio product-journey evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: studio-product-journey-evidence
+          path: |
+            tests/react-tailwind-host/test-results/**/studio-product-journey-evidence.json
+            tests/react-tailwind-host/test-results/**/studio-state-text-evidence.json
+            tests/react-tailwind-host/test-results/studio-product-mechanical-report.json
+          if-no-files-found: warn
+          retention-days: 14
+
+      - name: Private Studio review HTTPS journey
+        working-directory: tests/react-tailwind-host
+        run: npm run test:studio-review
+
+      - name: Retain private-review browser evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: studio-private-review-browser-evidence
+          path: tests/react-tailwind-host/test-results/**/studio-private-review-evidence.json
+          if-no-files-found: warn
+          retention-days: 14
 
       - name: Install verification corpus host dependencies
         working-directory: src/viewspec/host_verify_template

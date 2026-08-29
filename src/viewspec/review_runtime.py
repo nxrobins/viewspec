@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 import hashlib
 from html.parser import HTMLParser
 import json
@@ -23,6 +23,10 @@ from viewspec.review_compile import (
     compute_review_semantic_diff,
     load_review_revision,
     load_review_semantic_diff,
+    STUDIO_COMPARE_MANIFEST,
+    STUDIO_COMPARE_TARGET,
+    STUDIO_INSPECTION_MANIFEST,
+    STUDIO_INSPECTION_MAX_BYTES,
 )
 from viewspec.review_contract import ReviewContext, ReviewContractError, ReviewEvent, canonical_json_bytes
 from viewspec.review_session import ReviewSession, read_current_revision
@@ -145,6 +149,7 @@ class ReviewRuntime:
         self._gate = gate
         self.last_source_failure: dict[str, object] | None = None
         self._route_screens = _load_route_screens(built)
+        self.inspection = _load_studio_inspection(built)
         self.semantic_diff = load_review_semantic_diff(built)
         self.verification = _load_verification(built)
 
@@ -216,7 +221,7 @@ class ReviewRuntime:
             convergence_state_root=convergence_root,
             requested_port=requested_port,
             verification_plan_sha256=verification_plan_sha256,
-            allow_install=allow_install if selected_target == "react-tailwind-app" else False,
+            allow_install=allow_install if selected_target in {"react-tailwind-app", STUDIO_COMPARE_TARGET} else False,
         )
         config_path = session_dir / "session.json"
         gate = GenerationGate()
@@ -332,6 +337,7 @@ class ReviewRuntime:
             raise
         self.built = built
         self._route_screens = _load_route_screens(built)
+        self.inspection = _load_studio_inspection(built)
         self.semantic_diff = semantic_diff.to_json()
         self.verification = _load_verification(built)
         self.last_source_failure = None
@@ -369,6 +375,7 @@ class ReviewRuntime:
         target = index.page_target() if page_level else index.resolve_dom_ancestors(dom_ancestors)
         self._assert_context(context, screen_id=screen_id)
         self._assert_selection(context, target_dom_id=target.dom_id, screen_id=screen_id)
+        context = self._inspection_context(context, screen_id=screen_id, target_binding_id=target.binding_id)
         return self.session.submit_event(
             idempotency_key=idempotency_key,
             kind=kind,
@@ -408,6 +415,7 @@ class ReviewRuntime:
         target = index.page_target() if page_level else index.resolve_dom_ancestors(dom_ancestors)
         self._assert_context(context, screen_id=screen_id)
         self._assert_selection(context, target_dom_id=target.dom_id, screen_id=screen_id)
+        context = self._inspection_context(context, screen_id=screen_id, target_binding_id=target.binding_id)
         return self.session.submit_event_and_end(
             idempotency_key=idempotency_key,
             kind=kind,
@@ -470,6 +478,7 @@ class ReviewRuntime:
             "queued_events": len(self.session.events) - self.session.cursor,
             "source_failure": self.last_source_failure,
             "semantic_diff": self.semantic_diff,
+            "inspection": _inspection_status(self.inspection),
             "compaction_failure": self.session.compaction_failure,
         }
 
@@ -478,6 +487,17 @@ class ReviewRuntime:
         """Return the current checked route names for the browser chrome."""
 
         return tuple(sorted(self._route_screens))
+
+    @property
+    def initial_route(self) -> str | None:
+        """Return the first declared checked AppBundle route, when one exists."""
+
+        return next(iter(self._route_screens), None)
+
+    def screen_for_route(self, route: str) -> str | None:
+        """Resolve one checked route to its exact semantic screen identity."""
+
+        return self._route_screens.get(route)
 
     def _assert_context(self, context: ReviewContext, *, screen_id: str | None) -> None:
         if context.control_values:
@@ -501,6 +521,30 @@ class ReviewRuntime:
                 "Use the exact current checked route or omit route context.",
                 http_status=422,
             )
+        allowed_replay_refs = _inspection_replay_refs(self.inspection)
+        if any(ref not in allowed_replay_refs for ref in context.evidence_refs):
+            raise ReviewContractError(
+                "REVIEW_CONTEXT_FORBIDDEN",
+                "Browser evidence does not name a checked replay checkpoint in this exact revision.",
+                "Reload Studio and select one declared replay checkpoint.",
+                http_status=422,
+            )
+
+    def _inspection_context(
+        self,
+        context: ReviewContext,
+        *,
+        screen_id: str | None,
+        target_binding_id: str | None,
+    ) -> ReviewContext:
+        resource_ref = _inspection_resource_ref(
+            self.inspection,
+            screen_id=screen_id,
+            target_binding_id=target_binding_id,
+        )
+        if resource_ref is None:
+            return context
+        return replace(context, evidence_refs=tuple(dict.fromkeys((*context.evidence_refs, resource_ref))))
 
     def _assert_selection(self, context: ReviewContext, *, target_dom_id: str | None, screen_id: str | None) -> None:
         selected = context.selected_text
@@ -515,6 +559,8 @@ class ReviewRuntime:
             )
         if screen_id is None:
             html_path = self.built.artifact_dir / "index.html"
+        elif self.built.revision.target == STUDIO_COMPARE_TARGET:
+            html_path = self.built.artifact_dir / "static" / "screens" / screen_id / "artifact" / "index.html"
         else:
             html_path = self.built.artifact_dir / "screens" / screen_id / "artifact" / "index.html"
         parser = _ElementTextParser(target_dom_id)
@@ -553,7 +599,10 @@ class ReviewRuntime:
 def _load_route_screens(built: BuiltReviewRevision) -> dict[str, str]:
     if built.revision.source_kind != "app_bundle":
         return {}
-    manifest_name = "review_manifest.json" if built.revision.target == "react-tailwind-app" else "shell_manifest.json"
+    if built.revision.target == STUDIO_COMPARE_TARGET:
+        manifest_name = STUDIO_COMPARE_MANIFEST
+    else:
+        manifest_name = "review_manifest.json" if built.revision.target == "react-tailwind-app" else "shell_manifest.json"
     try:
         payload = json.loads(built.artifact_dir.joinpath(manifest_name).read_text(encoding="utf-8"))
     except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
@@ -591,6 +640,101 @@ def _load_route_screens(built: BuiltReviewRevision) -> dict[str, str]:
             )
         result[path] = route["screenId"]
     return result
+
+
+def _load_studio_inspection(built: BuiltReviewRevision) -> dict[str, object] | None:
+    if built.revision.target != STUDIO_COMPARE_TARGET:
+        return None
+    path = built.artifact_dir / STUDIO_INSPECTION_MANIFEST
+    try:
+        raw = path.read_bytes()
+        if len(raw) > STUDIO_INSPECTION_MAX_BYTES:
+            raise ValueError("inspection manifest exceeds its bound")
+        payload = json.loads(raw.decode("utf-8"))
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError, ValueError) as exc:
+        raise ReviewContractError(
+            "REVIEW_REVISION_IDENTITY_MISMATCH",
+            f"Could not load checked Studio inspection evidence: {exc}",
+            "Rebuild the exact static/React comparison revision.",
+            http_status=500,
+            cli_exit=1,
+        ) from exc
+    if (
+        not isinstance(payload, dict)
+        or payload.get("schema_version") != 1
+        or payload.get("kind") != "studio_state_resource_inspection"
+        or payload.get("source_sha256") != built.revision.source_sha256
+    ):
+        raise ReviewContractError(
+            "REVIEW_REVISION_IDENTITY_MISMATCH",
+            "Studio inspection evidence is not bound to the current source revision.",
+            "Rebuild the exact static/React comparison revision.",
+            http_status=500,
+            cli_exit=1,
+        )
+    return payload
+
+
+def _inspection_status(inspection: dict[str, object] | None) -> dict[str, object] | None:
+    if not isinstance(inspection, dict):
+        return None
+    state = inspection.get("state") if isinstance(inspection.get("state"), dict) else {}
+    resources = inspection.get("resources") if isinstance(inspection.get("resources"), dict) else {}
+    coherence = inspection.get("coherence") if isinstance(inspection.get("coherence"), dict) else {}
+    replays = state.get("replays") if isinstance(state.get("replays"), list) else []
+    return {
+        "state_status": state.get("status"),
+        "replay_count": len(replays),
+        "resource_status": resources.get("status"),
+        "resource_assertion_count": resources.get("assertion_count", 0),
+        "coherence_status": coherence.get("status"),
+        "coherence_contract": coherence.get("contract"),
+        "production_data": "not_claimed",
+    }
+
+
+def _inspection_replay_refs(inspection: dict[str, object] | None) -> frozenset[str]:
+    if not isinstance(inspection, dict):
+        return frozenset()
+    state = inspection.get("state")
+    if not isinstance(state, dict) or not isinstance(state.get("replays"), list):
+        return frozenset()
+    return frozenset(
+        str(checkpoint["evidence_ref"])
+        for replay in state["replays"]
+        if isinstance(replay, dict) and isinstance(replay.get("checkpoints"), list)
+        for checkpoint in replay["checkpoints"]
+        if isinstance(checkpoint, dict) and isinstance(checkpoint.get("evidence_ref"), str)
+    )
+
+
+def _inspection_resource_ref(
+    inspection: dict[str, object] | None,
+    *,
+    screen_id: str | None,
+    target_binding_id: str | None,
+) -> str | None:
+    if target_binding_id is None or not isinstance(inspection, dict):
+        return None
+    resources = inspection.get("resources")
+    if not isinstance(resources, dict) or not isinstance(resources.get("views"), list):
+        return None
+    matches = [
+        assertion
+        for view in resources["views"]
+        if isinstance(view, dict)
+        and view.get("screen_id") == screen_id
+        and isinstance(view.get("assertions"), list)
+        for assertion in view["assertions"]
+        if isinstance(assertion, dict) and assertion.get("matched_binding_id") == target_binding_id
+    ]
+    identities = {assertion.get("canonical_identity") for assertion in matches}
+    if len(identities) != 1:
+        return None
+    identity = next(iter(identities))
+    if not isinstance(identity, str):
+        return None
+    return f"studio-inspection/resources/{identity}"
 
 
 def _load_verification(built: BuiltReviewRevision) -> dict[str, object]:

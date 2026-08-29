@@ -30,6 +30,23 @@ Start with `.viewspec-proof/PROOF.md`. The same directory contains the machine-r
 `proof_report.json`, redacted `support_bundle.json`, semantic source, generated artifact, and
 provenance manifest.
 
+From a blank workspace, tell your coding agent what to create and ask it to open ViewSpec Studio.
+The agent preserves your exact brief and optional local reference image in a deterministic,
+no-network creation task; it authors a semantic candidate, and ViewSpec validates, compiles, and
+checks that candidate before publishing canonical source. An unchanged starter is rejected.
+
+The agent-facing handoff is:
+
+```bash
+viewspec studio-create --brief-file product-brief.md --reference reference.png --kind app --json
+# The agent authors the exact candidate path returned by the task.
+viewspec studio-accept --json
+viewspec studio
+```
+
+Reference bytes remain local and hash-bound. This proves source and artifact health, not visual
+fidelity to the reference; fidelity remains a Studio review decision.
+
 For an authored brief, use the canonical three-command lifecycle:
 
 ```bash
@@ -41,6 +58,114 @@ viewspec prove --intent viewspec.intent.json --target react-tailwind-tsx --insta
 
 Run `viewspec init-design --out DESIGN.md` once when the repository does not already provide a
 governed design file.
+
+Once semantic source exists, the human product loop is one command:
+
+```bash
+viewspec studio
+```
+
+Studio discovers exactly one canonical `viewspec.app.json` or `viewspec.intent.json`, opens the
+checked local interface, and presents the primary loop as **Preview → Comment → Approve**. Point at
+the rendered product and describe the outcome you want; the agent receives exact semantic identity,
+not a guessed selector. Generated output remains immutable, and approval applies only the exact
+source-bound proposal shown. See the [proved Studio goal](docs/viewspec-studio-goal.md) for the
+current milestone, evidence, and deliberately deferred work.
+
+CI also exercises the complete mechanical product journey from a brief through three separately
+approved semantic changes. Every revision must keep stable interactions healthy at 390, 768, and
+1440 pixels in both static and React targets without editing generated output. The retained
+machine-readable result is evaluated against
+[`viewspec-studio-product-v1`](conformance/studio-product-v1/protocol.json). This proves continuity
+and target health; it deliberately does not claim human desirability or production sharing.
+The remaining value claim has a separate
+[preregistered human-study protocol](conformance/studio-product-v1/HUMAN_STUDY.md): 18 new-user
+sessions per arm plus 18 independent blinded comparisons, with production-only handoff evidence
+and a confidence interval above chance required before the human gate can pass. No human results
+are claimed yet. The prerequisite production gate also has a hash-bound, resumable nine-stage
+runner and independent verifier. Its deployment-owned collector is implemented locally, while
+workflow authorization, readiness signing, and the production run are still pending, so Share
+remains absent in current public installs.
+
+For an AppBundle, opt into one synchronized static/React review revision:
+
+```bash
+viewspec studio viewspec.app.json --compare --install
+```
+
+Studio builds both targets from the exact same source, rejects semantic-identity or route drift,
+and keeps route, viewport, and semantic selection synchronized across both canvases. Dependency
+installation is explicit and locked; runtime SDK network calls remain absent. This is a checked
+cross-target inspection surface, not a claim of pixel equality: visual parity remains
+`not_proven` until a person or separate fidelity evaluator judges it.
+
+The Studio canvas fits the product without changing the product's checked viewport. Mobile stays
+side by side when both targets fit; Tablet and Desktop show one canonical Live surface at the
+available canvas width, with Static available inside **Details** and kept mounted for proof. Each
+inner frame remains exactly 768 or 1440 CSS pixels wide for layout, interaction, replay, and
+coherence proof.
+
+The product canvas is the default surface. **Details** opens proof, state, conversation, and the
+Live/Static inspection choice without shrinking the interface. The same rail appears automatically
+for a detected target mismatch, an exact semantic request, or an approval, and leaves with Close or
+Escape.
+
+The comparison also includes **Target coherence**. At the current 390, 768, or 1440 canvas size,
+Studio observes visible elements that share the same checked semantic identity, reports one
+prioritized text/geometry/type mismatch in plain language, and offers **Review this**. That action
+selects the exact source-bound target and carries the discrepancy into the normal Comment → agent
+proposal → Approve loop. This is browser-observed semantic geometry, not screenshot or pixel-parity
+certification; `visual_parity` remains `not_proven`.
+
+For AppBundle V3/V4 state and declared fixture resources, the same comparison opens a quiet
+**State & data** drawer. Choose a checked replay checkpoint to reset both targets and drive the
+exact declared actions; then point at a rendered field to see its checked
+resource → record → field identity, semantic binding, source fixture value, and current target
+text. Feedback retains the server-validated replay checkpoint and resource evidence. The drawer
+does not claim production data, persistence, or live pixel parity, and ambiguous action triggers
+remain proof-only instead of being synthetically replayed.
+
+When a person explicitly asks to prepare that exact comparison for private review, create the
+local upload envelope first:
+
+```bash
+viewspec studio-share-prepare viewspec.app.json --reference reference.png
+```
+
+This command revalidates the current checked comparison, copies only its exact semantic source,
+optional `DESIGN.md`, optional named reference, and checked static/React artifacts into a private
+content-addressed package, writes `share-disclosure.md` plus `envelope.json`, and creates one
+deterministic sibling `.vsreview` transport archive. It rejects stale
+source, altered proof files, unlisted payloads, unsafe files, and bounded sensitive-value patterns.
+It makes no network call, uploads nothing, creates no capability, and does not create a review
+link. The pattern scan is not certification that content is non-sensitive; read the disclosure and
+inventory before any future upload. Hosted private-review transport is not deployed yet. The
+archive is still local and inert. The provider-independent service trust core strictly revalidates
+this exact ingress format. A framework-neutral HTTPS adapter and a real local-HTTPS journey across
+Chromium, Firefox, and WebKit now prove one-time fragment exchange, scoped hardened cookies,
+checked static/React presentation, synchronized routes, semantic comments, replay, fixture
+evidence, and owner-only approval. Each engine completes the measured journey under the explicit
+five-minute bound with redacted request and receipt evidence retained by CI. These are internal
+service contracts, not a deployment: no authorized storage or live link exists yet. The SDK now
+also contains the bounded ASGI mount and an install-free, pinned-dependency remote
+rebuild verifier that requires byte-for-byte static/React equivalence plus a separately supplied
+real sandbox attestation. Its isolated worker request contains semantic source and expected hashes,
+not executable uploaded artifacts, while blocking verification runs outside the API event loop. See the
+[private review deployment contract](docs/studio-review-deployment.md) for the remaining hosted
+canary gate.
+
+The human-facing path is implemented behind that gate:
+
+```bash
+VIEWSPEC_STUDIO_API_KEY=... viewspec studio viewspec.app.json --compare --install --share
+```
+
+This explicit opt-in verifies a short-lived Ed25519-signed production-canary release before the
+browser receives any Share control. The first click still uploads nothing: it prepares the exact
+package and shows what will leave the machine. Only a second deliberate confirmation creates a
+private link, and the daemon validates every returned local/remote identity before showing it. The
+API key never enters the browser or command arguments. Because the canonical readiness endpoint
+has not been deployed and approved, the command currently fails closed rather than exposing Share.
 
 ## Core Workflow Evidence
 
@@ -84,11 +209,12 @@ ViewSpec enforces three deterministic invariants:
 
 ## AppBundle V4 & State IR
 
-AppBundle V3 introduced bounded interactive state; V4 adds replay-proved visibility rules over that state:
+AppBundle V3 introduced bounded interactive state; V4 adds replay-proved visibility and exact scalar state-to-text rules over that state:
 
 * **Declarative Mutation IR**: Agents define state transitions (`set`, `patch`, `toggle`, `append`, `remove`, `move`, `increment`) in JSON.
 * **Deterministic Reducer Generation**: The compiler generates a pure TypeScript `reduceViewSpecState` reducer.
 * **State and Visibility Replay**: Assertions prove expected state plus `visibility_v0` outcomes against the generated reducer before browser use.
+* **Visible State Truth**: An optional `state_text` rule maps one scalar state value through one literal `{value}` template into one exactly-once semantic text binding. Static and React share the evaluator, marker, replay expectation, and browser assertion.
 * **One Shared PresentationPlan**: Static and React consume the same deterministic responsive layout, surface, and typography plan; declared semantic anchors are proved at 390, 768, and 1440 pixels.
 * **Identity-Based Collection Repeats**: `resource_view.repeat` generates stable per-record fields and proves resource → record → field → binding identity, including equal visible values across different records.
 * **Action-Oriented Replay**: Compact action/repeat scenarios normalize to deterministic mutation events and retain precise assertion, event, mutation, path, expected, actual, selector, and visibility diagnostics.
@@ -130,7 +256,7 @@ npm ci
 npm run dev
 ```
 
-The generated app wires browser-history routes, host-provided resources with fixture fallback, AppBundle mutations, selectors, visibility, resource repeats, and the same hash-bound PresentationPlan used by the static target into the checked React screen artifacts. `ViewSpecApp` exposes typed `resources`, `onNavigate`, `onAction`, `onStateChange`, and `onError` host boundaries.
+The generated app wires browser-history routes, host-provided resources with fixture fallback, AppBundle mutations, selectors, visibility, scalar state text, resource repeats, and the same hash-bound PresentationPlan used by the static target into the checked React screen artifacts. `ViewSpecApp` exposes typed `resources`, `onNavigate`, `onAction`, `onStateChange`, and `onError` host boundaries.
 
 Edit `viewspec.app.json`, then regenerate with `--force`; do not edit generated React. Run the exact-artifact build and Chromium proof with:
 
@@ -300,11 +426,11 @@ viewspec prove-app --app viewspec.app.json --out .viewspec-app-proof --with-shel
 * **V1**: Unbound fixtures reported as `unbound_v0`.
 * **V2**: Strict readonly fixture resources reported as `fixture_readonly_v0` with declared per-screen views.
 * **V3**: Adds bounded interactive state, declarative mutations, and a generated pure TypeScript reducer artifact.
-* **V4**: Adds bounded `visibility_v0` rules, baked initial visibility, and replay-proved `evaluateViewSpecVisibility` output.
+* **V4**: Adds bounded `visibility_v0` rules plus optional exact scalar `state_text`, with baked initial output and replay-proved `evaluateViewSpecVisibility` / `evaluateViewSpecText` results.
 
 All four schema versions may use the additive screen presentation contract. Reference-sensitive screens can declare breakpoint variants, named grid areas, per-motif item geometry, and semantic anchors; compilation writes `presentation_plan.json` with the same hash for static and React. Bound list views may use `resource_view.repeat` instead of manually duplicating record nodes and bindings, and V3/V4 replay events may use compact screen/action/repeat declarations.
 
-`compile-app` defaults to a single `app-dist/index.html` Static Shell V0 proof artifact; that default is not browser navigation proof. Use `--target react-tailwind-app` for a runnable Vite/React/Tailwind app with browser-history routing, live resource/state rebinding, and exact-artifact host verification. Neither target generates authentication, persistence, arbitrary API clients, or backend infrastructure.
+`compile-app` defaults to a single `app-dist/index.html` Static Shell V0 proof artifact with bounded visibility and scalar state-text updates; that default is not browser navigation proof or live resource rebinding. Use `--target react-tailwind-app` for a runnable Vite/React/Tailwind app with browser-history routing, live resource/state rebinding, and exact-artifact host verification. Neither target generates authentication, persistence, arbitrary API clients, or backend infrastructure.
 
 Aesthetic Profiles V1 are deterministic art-direction handles, not CSS: `aesthetic.calm_ops`, `aesthetic.premium_saas`, `aesthetic.data_dense`, `aesthetic.editorial_product`, `aesthetic.executive_review`, `aesthetic.brutalist`, `aesthetic.neon_cyber`, and `aesthetic.warm_organic`. Checked summaries expose compact style-delta counts and bounded layout deltas for profiled artifacts, not arbitrary CSS control, pixel-perfect visual proof, or design certification.
 
