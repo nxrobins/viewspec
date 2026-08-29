@@ -1156,6 +1156,8 @@ def _apply_operation(payload: dict[str, Any], operation: IntentPatchOperation, s
                 "IntentPatch V1 can replace existing scalar attributes but cannot add or delete fields.",
             )
         actual = attrs.get(op["attr"])
+        if _json_equal(actual, op["value"]):
+            return
         _require_old(actual, op["old_value"], target=operation.target_key)
         attrs[op["attr"]] = op["value"]
         return
@@ -1171,10 +1173,148 @@ def _apply_operation(payload: dict[str, Any], operation: IntentPatchOperation, s
             )
         _require_old(record.get(op["field"]), op["old_value"], target=operation.target_key)
         record[op["field"]] = op["value"]
+        _propagate_fixture_scalar(payload, op)
         return
     visibility = _find_one(payload.get("visibility"), op["visibility_id"], noun="visibility rule")
     _require_old(visibility.get("when"), op["old_value"], target=operation.target_key)
     visibility["when"] = op["value"]
+
+
+def _propagate_fixture_scalar(payload: dict[str, Any], op: Mapping[str, Any]) -> None:
+    """Keep exact bound semantic and replay projections coherent with one fixture edit."""
+
+    resource_id = str(op["resource_id"])
+    record_id = str(op["record_id"])
+    field = str(op["field"])
+    old_value = op["old_value"]
+    new_value = op["value"]
+    matching_views: set[tuple[str, str]] = set()
+    authored_binding_updates = 0
+    screens = payload.get("screens")
+    if not isinstance(screens, list):
+        return
+    for screen in screens:
+        if not isinstance(screen, dict) or not isinstance(screen.get("id"), str):
+            continue
+        screen_id = str(screen["id"])
+        resource_views = screen.get("resource_views")
+        if not isinstance(resource_views, list):
+            continue
+        for resource_view in resource_views:
+            if (
+                not isinstance(resource_view, dict)
+                or resource_view.get("resource_id") != resource_id
+                or record_id not in resource_view.get("record_ids", [])
+                or field not in resource_view.get("fields", [])
+                or not isinstance(resource_view.get("id"), str)
+            ):
+                continue
+            matching_views.add((screen_id, str(resource_view["id"])))
+            if isinstance(resource_view.get("repeat"), dict):
+                continue
+            intent = screen.get("intent_bundle")
+            substrate = intent.get("substrate") if isinstance(intent, dict) else None
+            view_spec = intent.get("view_spec") if isinstance(intent, dict) else None
+            nodes = substrate.get("nodes") if isinstance(substrate, dict) else None
+            bindings = view_spec.get("bindings") if isinstance(view_spec, dict) else None
+            if not isinstance(nodes, dict) or not isinstance(bindings, list):
+                continue
+            address = f"node:{record_id}#attr:{field}"
+            matched = [binding for binding in bindings if isinstance(binding, dict) and binding.get("address") == address]
+            if not matched:
+                continue
+            node = nodes.get(record_id)
+            attrs = node.get("attrs") if isinstance(node, dict) else None
+            if not isinstance(attrs, dict) or field not in attrs:
+                raise IntentPatchError(
+                    "PATCH_TARGET_MISSING",
+                    "A bound fixture projection no longer identifies its semantic attribute.",
+                    "Regenerate the AppBundle resource view before changing the fixture value.",
+                )
+            actual = attrs.get(field)
+            if not _json_equal(actual, new_value):
+                _require_old(actual, old_value, target=("intent", screen_id, "semantic_attr", record_id, field))
+                attrs[field] = new_value
+            authored_binding_updates += 1
+
+    state_ids: set[str] = set()
+    for state in payload.get("state", []):
+        if not isinstance(state, dict) or not isinstance(state.get("id"), str):
+            continue
+        initial = state.get("initial")
+        source = initial.get("from_resource_view") if isinstance(initial, dict) else None
+        if (
+            isinstance(source, dict)
+            and isinstance(source.get("screen_id"), str)
+            and isinstance(source.get("view_id"), str)
+            and (str(source["screen_id"]), str(source["view_id"])) in matching_views
+        ):
+            state_ids.add(str(state["id"]))
+    selector_ids = {
+        str(selector["id"])
+        for selector in payload.get("selectors", [])
+        if isinstance(selector, dict)
+        and isinstance(selector.get("id"), str)
+        and selector.get("source_state") in state_ids
+    }
+    for assertion in payload.get("state_replay_assertions", []):
+        if not isinstance(assertion, dict):
+            continue
+        expected_state = assertion.get("expect_state")
+        if isinstance(expected_state, dict):
+            for state_id in state_ids:
+                _replace_expected_record_scalar(
+                    expected_state.get(state_id),
+                    record_id=record_id,
+                    field=field,
+                    old_value=old_value,
+                    new_value=new_value,
+                )
+        expected_selectors = assertion.get("expect_selectors")
+        if isinstance(expected_selectors, dict):
+            for selector_id in selector_ids:
+                _replace_expected_record_scalar(
+                    expected_selectors.get(selector_id),
+                    record_id=record_id,
+                    field=field,
+                    old_value=old_value,
+                    new_value=new_value,
+                )
+    if matching_views and authored_binding_updates == 0 and not any(
+        isinstance(view.get("repeat"), dict)
+        for screen in screens
+        if isinstance(screen, dict)
+        for view in screen.get("resource_views", [])
+        if isinstance(view, dict)
+        and isinstance(screen.get("id"), str)
+        and (str(screen["id"]), str(view.get("id"))) in matching_views
+    ):
+        raise IntentPatchError(
+            "PATCH_TARGET_MISSING",
+            "The fixture field has no exact authored or repeated semantic projection.",
+            "Repair the resource view before changing its fixture value.",
+        )
+
+
+def _replace_expected_record_scalar(
+    value: object,
+    *,
+    record_id: str,
+    field: str,
+    old_value: object,
+    new_value: object,
+) -> None:
+    if not isinstance(value, list):
+        return
+    for record in value:
+        if not isinstance(record, dict) or record.get("id") != record_id or field not in record:
+            continue
+        actual = record.get(field)
+        if _json_equal(actual, new_value):
+            continue
+        if _json_equal(actual, old_value):
+            record[field] = _canonical_copy(new_value)
+        # A replay may intentionally assert a later action-derived value; preserve that outcome.
 
 
 def _canonical_copy(value: object) -> Any:

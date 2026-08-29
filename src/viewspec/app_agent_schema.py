@@ -65,6 +65,8 @@ from viewspec.state_ir import (
     APP_STATE_MAX_REPLAY_ASSERTIONS,
     APP_STATE_MAX_SELECTOR_OPS,
     APP_STATE_MAX_SELECTORS,
+    APP_STATE_TEXT_MAX_RULES,
+    APP_STATE_TEXT_MAX_TEMPLATE_CHARS,
     APP_VISIBILITY_MAX_RULES,
     INTERACTIVE_STATE_PROFILE,
 )
@@ -96,6 +98,7 @@ AGENT_APP_BUNDLE_SCHEMA: dict[str, Any] = {
         "schema_version 2 requires resource_binding fixture_readonly_v0 and per-screen resource_views.",
         "schema_version 3 requires fixture_readonly_v0 plus interactive_state_v0 state, mutations, and selectors.",
         "schema_version 4 adds optional bounded visibility rules: per-screen show/hide conditions over declared state and selectors, at most one rule per (screen, target).",
+        "schema_version 4 optionally projects one scalar state value into one exactly-once text binding through a literal {value} template.",
         "Routes are static canonical paths only and must map to declared screens.",
         "The root route must resolve to exactly one route.",
         "Every screen must be reachable by at least one static route.",
@@ -109,11 +112,12 @@ AGENT_APP_BUNDLE_SCHEMA: dict[str, Any] = {
     "x-viewspec-anti-goals": [
         "No runtime browser navigation proof.",
         "No dynamic routes, route params, query strings, hashes, redirects, guards, nested routers, or locale routing.",
-        "No live data or text rebinding (the V4 shell performs bounded visibility toggling only), framework state adapter, optimistic server reconciliation, persistence, CRDT, websocket sync, or gesture runtime.",
+        "No live data rebinding, framework state adapter, optimistic server reconciliation, persistence, CRDT, websocket sync, or gesture runtime.",
         "No transformed, localized, formatted, joined, sorted, filtered, paginated, grouped, or aggregated fixture proof.",
         "No whole-app data-flow consistency proof beyond explicitly declared resource_views.",
         "No accessibility, pixel-perfect, cross-browser, production deployment, arbitrary host-app, or hosted extended compiler certification.",
-        "Visibility V0 is bounded conditional show/hide only: no boolean condition composition, animation, focus management, or data or text rebinding.",
+        "Visibility V0 is bounded conditional show/hide only: no boolean condition composition, animation, or focus management.",
+        "State Text V0 is one scalar-to-text projection only: no HTML, expressions, paths, localization, formatting functions, or multiple placeholders.",
     ],
     "$defs": {
         "app_bundle_v1": {
@@ -217,6 +221,7 @@ AGENT_APP_BUNDLE_SCHEMA: dict[str, Any] = {
                 "mutations": {"$ref": "#/$defs/state_mutations"},
                 "selectors": {"$ref": "#/$defs/state_selectors"},
                 "visibility": {"$ref": "#/$defs/visibility_rules"},
+                "state_text": {"$ref": "#/$defs/state_text_rules"},
                 "state_replay_assertions": {"$ref": "#/$defs/state_replay_assertions_v4"},
             },
         },
@@ -834,6 +839,31 @@ AGENT_APP_BUNDLE_SCHEMA: dict[str, Any] = {
                 },
             ]
         },
+        "state_text_rules": {
+            "type": "array",
+            "maxItems": APP_STATE_TEXT_MAX_RULES,
+            "items": {"$ref": "#/$defs/state_text_rule"},
+        },
+        "state_text_rule": {
+            "type": "object",
+            "required": ["id", "screen_id", "target_ref", "state", "template"],
+            "additionalProperties": False,
+            "properties": {
+                "id": {"$ref": "#/$defs/safe_id"},
+                "screen_id": {"$ref": "#/$defs/safe_id"},
+                "target_ref": {
+                    "type": "string",
+                    "maxLength": APP_BUNDLE_MAX_ID_CHARS + 8,
+                    "pattern": "^binding:[A-Za-z0-9_.-]+$",
+                },
+                "state": {"$ref": "#/$defs/safe_id"},
+                "template": {
+                    "type": "string",
+                    "maxLength": APP_STATE_TEXT_MAX_TEMPLATE_CHARS,
+                    "pattern": "^[^{}]*\\{value\\}[^{}]*$",
+                },
+            },
+        },
         "state_replay_assertions_v4": {
             "type": "array",
             "maxItems": APP_STATE_MAX_REPLAY_ASSERTIONS,
@@ -864,6 +894,14 @@ AGENT_APP_BUNDLE_SCHEMA: dict[str, Any] = {
                     "type": "object",
                     "propertyNames": {"$ref": "#/$defs/safe_id"},
                     "additionalProperties": {"type": "boolean"},
+                },
+                "expect_text": {
+                    "type": "object",
+                    "propertyNames": {"$ref": "#/$defs/safe_id"},
+                    "additionalProperties": {
+                        "type": "string",
+                        "maxLength": APP_STATE_TEXT_MAX_TEMPLATE_CHARS + APP_BUNDLE_MAX_SCALAR_STRING_CHARS,
+                    },
                 },
             },
         },

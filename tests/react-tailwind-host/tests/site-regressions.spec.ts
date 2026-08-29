@@ -231,6 +231,39 @@ test("homepage exposes bounded opt-in Freerange and Pretext proof integrations",
   expect(failures).toEqual([]);
 });
 
+test("homepage leads with the complete, bounded Studio product loop", async ({ page }) => {
+  const failures = captureRuntimeFailures(page);
+
+  for (const viewport of viewports) {
+    await page.setViewportSize(viewport);
+    await page.goto("/", { waitUntil: "domcontentloaded" });
+
+    await expect(page.locator("#top > header > h1")).toHaveAttribute(
+      "data-raw",
+      "Tell your agent what to build. See the real product. Point at what should change.",
+    );
+    const studio = page.locator("#studio");
+    await expect(studio).toBeVisible();
+    await expect(studio.getByRole("heading", { name: "One room from first brief to final approval." })).toBeVisible();
+    await expect(studio.locator("[data-studio-step]" )).toHaveCount(4);
+    await expect(studio).toContainText("Static and React, side by side.");
+    await expect(studio).toContainText("Replay behavior and fixture data.");
+    await expect(studio).toContainText("Chromium, Firefox, and WebKit");
+    await expect(studio).toContainText("no hosted review endpoint is deployed");
+    await expect(studio).toContainText("Static/React visual parity is not claimed.");
+    await expect(studio).toContainText("Production data is not loaded.");
+    await expect(studio).toContainText("viewspec studio viewspec.app.json --compare --install");
+
+    const bounds = await studio.evaluate((element) => {
+      const rect = element.getBoundingClientRect();
+      return { left: rect.left, right: rect.right, viewport: document.documentElement.clientWidth };
+    });
+    expect(bounds.left, `Studio starts inside ${viewport.name} viewport`).toBeGreaterThanOrEqual(0);
+    expect(bounds.right, `Studio ends inside ${viewport.name} viewport`).toBeLessThanOrEqual(bounds.viewport + 1);
+    expect(failures, `Studio emitted runtime failures at ${viewport.name}`).toEqual([]);
+  }
+});
+
 test("provenance hover remains populated across sibling transitions", async ({ page }) => {
   const failures = captureRuntimeFailures(page);
   await page.goto("/", { waitUntil: "domcontentloaded" });

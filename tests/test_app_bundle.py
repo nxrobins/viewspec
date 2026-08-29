@@ -1203,6 +1203,24 @@ def test_diff_app_reports_app_route_resource_screen_and_intent_changes():
     assert any(line.startswith("screen_intents.queue:") for line in lines)
 
 
+def test_diff_app_retains_nested_field_changes_for_studio_approval() -> None:
+    left = starter_app_bundle()
+    right = deepcopy(left)
+    right["screens"][0]["intent_bundle"]["view_spec"]["bindings"][1]["present_as"] = "badge"
+
+    diff = diff_app_text(_app_text(left), _app_text(right), compile_check=False)
+
+    assert diff["screen_intent_diffs"]["queue"]["changed_fields"] == [
+        {
+            "section": "bindings",
+            "id": "inc_1042_value",
+            "field": "present_as",
+            "left": "value",
+            "right": "badge",
+        }
+    ]
+
+
 def test_diff_app_reports_v2_resource_binding_and_resource_view_changes():
     left = starter_app_bundle("internal_tool", resource_binding="fixture_readonly_v0")
     right = deepcopy(left)

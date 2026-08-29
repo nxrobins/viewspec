@@ -1,6 +1,6 @@
 # AppBundle V1/V2/V3/V4
 
-AppBundle is the bounded app-generation contract for local multi-screen internal tools. Its default Static Shell V0 target remains a proof artifact. The additive `react-tailwind-app` target emits a complete runnable Vite/React/Tailwind package with browser-history routes, host resource props, generated state reducers, selectors, conditional visibility, typed host callbacks, and exact-artifact browser verification. `schema_version: 1` keeps fixtures unbound; `schema_version: 2` adds proof-only read-only fixture binding; `schema_version: 3` adds bounded declarative state, mutations, selectors, replay assertions, and a generated pure TypeScript reducer artifact. `schema_version: 4` adds bounded visibility rules and is the golden-path runtime contract.
+AppBundle is the bounded app-generation contract for local multi-screen internal tools. Its default Static Shell V0 target remains a proof artifact. The additive `react-tailwind-app` target emits a complete runnable Vite/React/Tailwind package with browser-history routes, host resource props, generated state reducers, selectors, conditional visibility, scalar state text, typed host callbacks, and exact-artifact browser verification. `schema_version: 1` keeps fixtures unbound; `schema_version: 2` adds proof-only read-only fixture binding; `schema_version: 3` adds bounded declarative state, mutations, selectors, replay assertions, and a generated pure TypeScript reducer artifact. `schema_version: 4` adds bounded visibility and optional scalar-to-text rules and is the golden-path runtime contract.
 
 ## Runnable React App Golden Path
 
@@ -21,8 +21,8 @@ viewspec prove-app --app viewspec.app.json --target react-tailwind-app --install
 The proof checks the same embedded screen provenance and resource assertions as the source path,
 verifies generated reducer replay under Node, checks every generated file hash, runs strict
 TypeScript checking before the Vite production build, and exercises routes, browser history,
-unknown-route fallback, state actions, live resource-field rebinding, selector expectations, and
-visibility in Chromium.
+unknown-route fallback, state actions, live resource-field rebinding, selector expectations,
+visibility, and declared state text in Chromium.
 
 The generated `ViewSpecApp` accepts fixture-compatible resource records plus typed navigation, action, state-change, and error callbacks. Network requests, authentication, persistence, optimistic updates, and deployment infrastructure remain host-owned.
 
@@ -228,6 +228,27 @@ V2 validates every resource view against existing fixture resources, unique reco
 AppBundle V3 adds required root `interactive_state: "interactive_state_v0"`, `state`, `mutations`, and `selectors`, with optional `state_replay_assertions`. Mutation triggers reference declared embedded screen actions by `{ "screen_id": "...", "action_id": "..." }`, and `from_payload` reads must reference that action's declared `payload_bindings`. Supported mutation ops are `set`, `patch`, `toggle`, `append`, `remove`, `move`, and `increment`. Supported selector ops are `filter_eq`, `sort_by`, and `slice`.
 
 AppBundle V4 keeps the full V3 contract and adds an optional root `visibility` array. Each rule is `{ "id", "screen_id", "target_ref", "when" }`: `target_ref` is `region:<id>`, `motif:<id>`, or `binding:<id>` declared in that screen's embedded intent (`view:` is excluded — whole-screen visibility is the router's job), and `when` is exactly one closed condition form: `{"state": id, "is": "truthy"|"falsy"}` (scalar or selection state), `{"state": id, "equals": <JSON scalar>}` (scalar state, JS strict-equality semantics), or `{"selector": id, "is": "non_empty"|"empty"}` (selectors sourcing collection or selection state). At most one rule per `(screen_id, target_ref)`. Replay assertions may declare `expect_visibility` maps of rule id to boolean; replay and Node reducer conformance both verify the verdicts, and compiled screens bake initial visibility that proof cross-checks against `initial_visibility` (`APP_VISIBILITY_BAKE_MISMATCH` fails closed).
+
+V4 may also add optional root `state_text` rules:
+
+```json
+{
+  "id": "review_count_text",
+  "screen_id": "dispatch",
+  "target_ref": "binding:review_count_label",
+  "state": "reviewed_count",
+  "template": "Review count: {value}"
+}
+```
+
+The target must be one `exactly_once` binding presented as `badge`, `label`, `text`, or `value` on
+that screen. The source must be scalar app state or scalar state scoped to the same screen. The
+template is a literal string with exactly one `{value}` placeholder and no other braces. Initial
+text is derived and cross-checked during screen compilation; the generated reducer exports
+`evaluateViewSpecText(state)`; the static shell updates `textContent`; React consumes the same
+derived map. Replay assertions may add `expect_text` maps, and the generated Chromium test verifies
+each final string at its stable `data-state-text-id`. The contract deliberately excludes HTML,
+expressions, paths, localization, formatters, and heuristic source discovery.
 
 ### Shared presentation and responsive anchors
 

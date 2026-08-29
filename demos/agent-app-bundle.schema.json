@@ -195,6 +195,9 @@
         "state_replay_assertions": {
           "$ref": "#/$defs/state_replay_assertions_v4"
         },
+        "state_text": {
+          "$ref": "#/$defs/state_text_rules"
+        },
         "visibility": {
           "$ref": "#/$defs/visibility_rules"
         }
@@ -1361,6 +1364,16 @@
           },
           "type": "object"
         },
+        "expect_text": {
+          "additionalProperties": {
+            "maxLength": 2304,
+            "type": "string"
+          },
+          "propertyNames": {
+            "$ref": "#/$defs/safe_id"
+          },
+          "type": "object"
+        },
         "expect_visibility": {
           "additionalProperties": {
             "type": "boolean"
@@ -1491,6 +1504,45 @@
       "maxItems": 64,
       "type": "array"
     },
+    "state_text_rule": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/safe_id"
+        },
+        "screen_id": {
+          "$ref": "#/$defs/safe_id"
+        },
+        "state": {
+          "$ref": "#/$defs/safe_id"
+        },
+        "target_ref": {
+          "maxLength": 104,
+          "pattern": "^binding:[A-Za-z0-9_.-]+$",
+          "type": "string"
+        },
+        "template": {
+          "maxLength": 256,
+          "pattern": "^[^{}]*\\{value\\}[^{}]*$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "screen_id",
+        "target_ref",
+        "state",
+        "template"
+      ],
+      "type": "object"
+    },
+    "state_text_rules": {
+      "items": {
+        "$ref": "#/$defs/state_text_rule"
+      },
+      "maxItems": 64,
+      "type": "array"
+    },
     "visibility_condition": {
       "oneOf": [
         {
@@ -1604,11 +1656,12 @@
   "x-viewspec-anti-goals": [
     "No runtime browser navigation proof.",
     "No dynamic routes, route params, query strings, hashes, redirects, guards, nested routers, or locale routing.",
-    "No live data or text rebinding (the V4 shell performs bounded visibility toggling only), framework state adapter, optimistic server reconciliation, persistence, CRDT, websocket sync, or gesture runtime.",
+    "No live data rebinding, framework state adapter, optimistic server reconciliation, persistence, CRDT, websocket sync, or gesture runtime.",
     "No transformed, localized, formatted, joined, sorted, filtered, paginated, grouped, or aggregated fixture proof.",
     "No whole-app data-flow consistency proof beyond explicitly declared resource_views.",
     "No accessibility, pixel-perfect, cross-browser, production deployment, arbitrary host-app, or hosted extended compiler certification.",
-    "Visibility V0 is bounded conditional show/hide only: no boolean condition composition, animation, focus management, or data or text rebinding."
+    "Visibility V0 is bounded conditional show/hide only: no boolean condition composition, animation, or focus management.",
+    "State Text V0 is one scalar-to-text projection only: no HTML, expressions, paths, localization, formatting functions, or multiple placeholders."
   ],
   "x-viewspec-app-schema-versions": [
     1,
@@ -1625,6 +1678,7 @@
     "schema_version 2 requires resource_binding fixture_readonly_v0 and per-screen resource_views.",
     "schema_version 3 requires fixture_readonly_v0 plus interactive_state_v0 state, mutations, and selectors.",
     "schema_version 4 adds optional bounded visibility rules: per-screen show/hide conditions over declared state and selectors, at most one rule per (screen, target).",
+    "schema_version 4 optionally projects one scalar state value into one exactly-once text binding through a literal {value} template.",
     "Routes are static canonical paths only and must map to declared screens.",
     "The root route must resolve to exactly one route.",
     "Every screen must be reachable by at least one static route.",

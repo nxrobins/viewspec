@@ -2177,8 +2177,8 @@ def _role_css(selector: str, role: str, profile: str) -> list[str]:
             "font-size: 0.85rem !important; font-weight: 800 !important; line-height: 1 !important; }",
             f"{name} {{ margin: 0 !important; color: inherit !important; font-size: 0.95rem !important; "
             "font-weight: 700 !important; letter-spacing: 0 !important; }",
-            f"{navigation} {{ margin: 0 !important; color: inherit !important; font-size: 0.85rem !important; "
-            "font-weight: 500 !important; letter-spacing: 0 !important; line-height: 1.2 !important; }",
+            f"{navigation} {{ flex: 0 0 auto; margin: 0 !important; color: inherit !important; font-size: 0.85rem !important; "
+            "font-weight: 500 !important; letter-spacing: 0 !important; line-height: 1.2 !important; white-space: nowrap !important; }",
             f"{active} {{ border-radius: 0.55rem; background: rgb(255 255 255 / 0.12) !important; "
             "padding: 0.65rem 0.75rem !important; font-weight: 700 !important; }",
         ]
@@ -2210,14 +2210,14 @@ def _role_css(selector: str, role: str, profile: str) -> list[str]:
         active = _child_selector(selector, '[data-binding-id="nav_dispatch"]')
         return [
             f"{selector} {{ border: 0 !important; border-radius: 0 !important; "
-            "background: transparent !important; box-shadow: none !important; color: inherit !important; }",
+            "background: transparent !important; box-shadow: none !important; color: inherit !important; flex-wrap: wrap; }",
             f"{mark} {{ display: inline-grid; flex: 0 0 auto; width: 1.75rem !important; height: 1.75rem; "
             "place-items: center; border-radius: 0.4rem; background: #bdff42 !important; color: #18231f !important; "
             "font-size: 0.85rem !important; font-weight: 800 !important; line-height: 1 !important; }",
             f"{name} {{ margin: 0 !important; color: inherit !important; font-size: 0.95rem !important; "
             "font-weight: 700 !important; letter-spacing: 0 !important; }",
-            f"{bindings} {{ margin: 0 !important; color: inherit !important; font-size: 0.85rem !important; "
-            "font-weight: 500 !important; letter-spacing: 0 !important; line-height: 1.2 !important; }",
+            f"{bindings} {{ flex: 0 0 auto; margin: 0 !important; color: inherit !important; font-size: 0.85rem !important; "
+            "font-weight: 500 !important; letter-spacing: 0 !important; line-height: 1.2 !important; white-space: nowrap !important; }",
             f"{active} {{ border-radius: 0.55rem; background: rgb(255 255 255 / 0.12) !important; "
             "padding: 0.65rem 0.75rem !important; font-weight: 700 !important; }",
         ]

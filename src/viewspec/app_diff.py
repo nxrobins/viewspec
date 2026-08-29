@@ -41,6 +41,7 @@ def diff_app_text(left_text: str, right_text: str, *, compile_check: bool = True
         "mutations": _state_sections(left_payload, "mutations"),
         "selectors": _state_sections(left_payload, "selectors"),
         "visibility": _state_sections(left_payload, "visibility"),
+        "state_text": _state_sections(left_payload, "state_text"),
         "state_replay_assertions": _state_sections(left_payload, "state_replay_assertions"),
     }
     right_sections = {
@@ -52,6 +53,7 @@ def diff_app_text(left_text: str, right_text: str, *, compile_check: bool = True
         "mutations": _state_sections(right_payload, "mutations"),
         "selectors": _state_sections(right_payload, "selectors"),
         "visibility": _state_sections(right_payload, "visibility"),
+        "state_text": _state_sections(right_payload, "state_text"),
         "state_replay_assertions": _state_sections(right_payload, "state_replay_assertions"),
     }
     changes = {name: _diff_named_items(left_sections[name], right_sections[name]) for name in left_sections}
@@ -92,6 +94,7 @@ def diff_app_text(left_text: str, right_text: str, *, compile_check: bool = True
             "semantic_summary": summary,
             "semantic_changes": intent_diff.get("semantic_changes"),
             "changes": intent_diff.get("changes"),
+            "changed_fields": intent_diff.get("changed_fields", []),
         }
         semantic_changes["screen_intents"].append(
             {
@@ -135,7 +138,7 @@ def app_semantic_change_lines(semantic_changes: object) -> list[str]:
                 f"{_diff_value(item.get('field'))} "
                 f"{_diff_value(item.get('left'))} -> {_diff_value(item.get('right'))}"
             )
-    for section in ("routes", "resources", "screens", "state", "mutations", "selectors", "visibility", "state_replay_assertions"):
+    for section in ("routes", "resources", "screens", "state", "mutations", "selectors", "visibility", "state_text", "state_replay_assertions"):
         entries = semantic_changes.get(section)
         if not isinstance(entries, list):
             continue
@@ -232,6 +235,7 @@ def _app_semantic_changes(left: dict[str, Any], right: dict[str, Any]) -> dict[s
         "mutations": [],
         "selectors": [],
         "visibility": [],
+        "state_text": [],
         "state_replay_assertions": [],
         "screen_intents": [],
     }
@@ -251,6 +255,7 @@ def _app_semantic_changes(left: dict[str, Any], right: dict[str, Any]) -> dict[s
         ("mutations", _state_sections(left, "mutations"), _state_sections(right, "mutations")),
         ("selectors", _state_sections(left, "selectors"), _state_sections(right, "selectors")),
         ("visibility", _state_sections(left, "visibility"), _state_sections(right, "visibility")),
+        ("state_text", _state_sections(left, "state_text"), _state_sections(right, "state_text")),
         (
             "state_replay_assertions",
             _state_sections(left, "state_replay_assertions"),
@@ -283,7 +288,7 @@ def _app_semantic_changes(left: dict[str, Any], right: dict[str, Any]) -> dict[s
                 changes[section].append({"id": item_id, "change": "intent_changed"})
             if section == "screens" and left_item.get("resource_views_hash") != right_item.get("resource_views_hash"):
                 changes[section].append({"id": item_id, "change": "resource_views_changed"})
-            if section in {"state", "mutations", "selectors", "visibility", "state_replay_assertions"} and left_item.get("definition_hash") != right_item.get("definition_hash"):
+            if section in {"state", "mutations", "selectors", "visibility", "state_text", "state_replay_assertions"} and left_item.get("definition_hash") != right_item.get("definition_hash"):
                 changes[section].append({"id": item_id, "change": "definition_changed"})
     return changes
 
@@ -305,6 +310,7 @@ def _app_counts(left: dict[str, Any], right: dict[str, Any]) -> dict[str, dict[s
         "mutations": {"left": len(left.get("mutations", [])) if isinstance(left.get("mutations"), list) else 0, "right": len(right.get("mutations", [])) if isinstance(right.get("mutations"), list) else 0},
         "selectors": {"left": len(left.get("selectors", [])) if isinstance(left.get("selectors"), list) else 0, "right": len(right.get("selectors", [])) if isinstance(right.get("selectors"), list) else 0},
         "visibility": {"left": len(left.get("visibility", [])) if isinstance(left.get("visibility"), list) else 0, "right": len(right.get("visibility", [])) if isinstance(right.get("visibility"), list) else 0},
+        "state_text": {"left": len(left.get("state_text", [])) if isinstance(left.get("state_text"), list) else 0, "right": len(right.get("state_text", [])) if isinstance(right.get("state_text"), list) else 0},
         "state_replay_assertions": {
             "left": len(left.get("state_replay_assertions", [])) if isinstance(left.get("state_replay_assertions"), list) else 0,
             "right": len(right.get("state_replay_assertions", [])) if isinstance(right.get("state_replay_assertions"), list) else 0,
@@ -357,6 +363,7 @@ def _app_diff_error_payload(
             "mutations": _empty_change_set(),
             "selectors": _empty_change_set(),
             "visibility": _empty_change_set(),
+            "state_text": _empty_change_set(),
             "state_replay_assertions": _empty_change_set(),
         },
         "changed_fields": [],
@@ -369,6 +376,7 @@ def _app_diff_error_payload(
             "mutations": [],
             "selectors": [],
             "visibility": [],
+            "state_text": [],
             "state_replay_assertions": [],
             "screen_intents": [],
         },
@@ -382,6 +390,7 @@ def _app_diff_error_payload(
             "mutations": {"left": 0, "right": 0},
             "selectors": {"left": 0, "right": 0},
             "visibility": {"left": 0, "right": 0},
+            "state_text": {"left": 0, "right": 0},
             "state_replay_assertions": {"left": 0, "right": 0},
         },
         "topology_similarity": 0.0,

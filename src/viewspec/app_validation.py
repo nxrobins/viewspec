@@ -28,6 +28,8 @@ from viewspec.state_ir import (
     APP_STATE_MAX_REPLAY_ASSERTIONS,
     APP_STATE_MAX_SELECTOR_OPS,
     APP_STATE_MAX_SELECTORS,
+    APP_STATE_TEXT_MAX_RULES,
+    APP_STATE_TEXT_MAX_TEMPLATE_CHARS,
     APP_VISIBILITY_MAX_RULES,
     INTERACTIVE_STATE_PROFILE,
     state_ir_summary,
@@ -79,7 +81,7 @@ APP_BUNDLE_ALLOWED_ROOT_FIELDS_V3 = APP_BUNDLE_ALLOWED_ROOT_FIELDS_V2 | {
     "selectors",
     "state_replay_assertions",
 }
-APP_BUNDLE_ALLOWED_ROOT_FIELDS_V4 = APP_BUNDLE_ALLOWED_ROOT_FIELDS_V3 | {"visibility"}
+APP_BUNDLE_ALLOWED_ROOT_FIELDS_V4 = APP_BUNDLE_ALLOWED_ROOT_FIELDS_V3 | {"state_text", "visibility"}
 APP_BUNDLE_ALLOWED_APP_FIELDS = {"id", "title", "kind", "root_route"}
 APP_BUNDLE_ALLOWED_ROUTE_FIELDS = {"id", "path", "label", "screen_id"}
 APP_BUNDLE_ALLOWED_RESOURCE_FIELDS = {"id", "kind", "records"}
@@ -1104,6 +1106,8 @@ def _state_ir_limits() -> dict[str, int]:
         "max_state_reducer_bytes": APP_STATE_MAX_REDUCER_BYTES,
         "max_state_manifest_bytes": APP_STATE_MAX_MANIFEST_BYTES,
         "max_visibility_rules": APP_VISIBILITY_MAX_RULES,
+        "max_state_text_rules": APP_STATE_TEXT_MAX_RULES,
+        "max_state_text_template_chars": APP_STATE_TEXT_MAX_TEMPLATE_CHARS,
     }
 
 def _reject_unknown_fields(

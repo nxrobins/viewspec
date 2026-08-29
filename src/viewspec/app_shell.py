@@ -111,9 +111,8 @@ def _build_static_app_shell(
     state_scripts: tuple[str, ...] = ()
     state_runtime: dict[str, Any] | None = None
     if payload.get("schema_version") == APP_BUNDLE_VISIBILITY_SCHEMA_VERSION:
-        # V4 bounded visibility runtime: the generated reducer (IIFE) + ONE delegated click
-        # listener that dispatches declared mutations and toggles `hidden` on visibility markers.
-        # Data and text rebinding stay out of scope.
+        # V4 bounded state runtime: the generated reducer (IIFE) + ONE delegated click listener
+        # dispatches declared mutations, toggles visibility, and applies exact scalar text projections.
         state_json = _safe_json_for_script({"triggers": _shell_state_trigger_table(payload)})
         reducer_script = generate_browser_reducer_script(payload)
         runtime_script = _app_shell_state_runtime_script()
@@ -132,6 +131,9 @@ def _build_static_app_shell(
             "runtime_js_hash": source_hash(runtime_script),
             "state_data_json_bytes": len(state_json.encode("utf-8")),
             "state_js_bytes": state_js_bytes,
+            "state_text_rule_count": (
+                len(payload.get("state_text", [])) if isinstance(payload.get("state_text"), list) else 0
+            ),
         }
     html = _render_static_app_shell_html(
         payload, screen_payloads, styles, route_json, route_script, state_json=state_json, state_scripts=state_scripts
@@ -335,7 +337,7 @@ def _render_static_app_shell_html(
             '<div class="vs-app-shell">',
             '<header class="vs-app-chrome">',
             '<div class="vs-app-title-block">',
-            '<p class="vs-app-kicker">ViewSpec Static Shell</p>',
+            '<p class="vs-app-kicker">ViewSpec App Shell</p>',
             '<h1 id="vs-app-title" class="vs-app-title"></h1>',
             "</div>",
             '<nav id="vs-app-nav" class="vs-app-nav" aria-label="App routes"></nav>',
@@ -390,6 +392,7 @@ def _app_shell_css() -> str:
   color: #64748b;
   font-size: 0.72rem;
   font-weight: 800;
+  line-height: 1.2;
   letter-spacing: 0.08em;
   text-transform: uppercase;
 }
@@ -414,6 +417,7 @@ def _app_shell_css() -> str:
   font: inherit;
   font-size: 0.86rem;
   font-weight: 800;
+  line-height: 1.25;
   cursor: pointer;
 }
 .vs-app-route-button[aria-current="page"] {
@@ -543,6 +547,15 @@ def _app_shell_state_runtime_script() -> str:
       el.dataset.visibilityState = visible ? 'visible' : 'hidden';
     });
   };
+  const applyStateText = () => {
+    if (typeof ViewSpecStateRuntime.evaluateViewSpecText !== 'function') return;
+    const values = ViewSpecStateRuntime.evaluateViewSpecText(state);
+    document.querySelectorAll('[data-state-text-id]').forEach((el) => {
+      const ruleId = el.dataset.stateTextId;
+      if (!Object.prototype.hasOwnProperty.call(values, ruleId)) return;
+      el.textContent = values[ruleId];
+    });
+  };
   document.addEventListener('click', (e) => {
     const target = e.target instanceof Element ? e.target : null;
     const btn = target ? target.closest('[data-action-id]') : null;
@@ -573,8 +586,10 @@ def _app_shell_state_runtime_script() -> str:
       }
     }
     applyVisibility();
+    applyStateText();
   });
   applyVisibility();
+  applyStateText();
 })();"""
 
 

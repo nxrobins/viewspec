@@ -471,7 +471,7 @@ def _validate_react_tailwind_semantic_markers(tsx: str, nodes: dict[str, Any]) -
         if isinstance(action_id, str) and action_id:
             manifest_actions.add(action_id)
         primitive = entry.get("primitive")
-        text = props.get("text")
+        text = props.get("state_text_initial") if isinstance(props.get("state_text_id"), str) else props.get("text")
         if primitive in TEXT_PROP_PRIMITIVES and isinstance(text, str) and text:
             if _tsx_text_marker(text) not in tsx:
                 errors.append(f"TAILWIND_SEMANTIC_DRIFT: ViewSpecView.tsx missing text for manifest node {dom_id}")
@@ -751,6 +751,8 @@ def _semantic_tag_for_manifest_node(entry: dict[str, Any]) -> str:
     return "div"
 
 def _semantic_visible_text_from_props(primitive: str, props: dict[str, Any], *, emitter: str) -> str:
+    if isinstance(props.get("state_text_id"), str):
+        return str(props.get("state_text_initial") or "")
     if primitive == "image_slot":
         return str(props.get("alt", "image slot"))
     if primitive == "svg":
@@ -1119,6 +1121,15 @@ def _semantic_tsx_inner_text(line: str, tag: str) -> str:
     if rendered is not None:
         try:
             return str(json.loads(rendered.group(1)))
+        except json.JSONDecodeError:
+            return ""
+    projected = re.search(
+        r'>\{renderValue\(stateText\["(?:\\.|[^"\\])*"\],\s*("(?:\\.|[^"\\])*")\)\}</' + re.escape(tag) + r">",
+        line,
+    )
+    if projected is not None:
+        try:
+            return str(json.loads(projected.group(1)))
         except json.JSONDecodeError:
             return ""
     return ""
@@ -1939,7 +1950,10 @@ def _validate_intent_visible_text(
     probe: _ArtifactDomProbe,
 ) -> None:
     dom_text = _collapse_artifact_text(" ".join(probe.text_by_node_id.get(dom_id, [])))
-    if primitive in TEXT_PROP_PRIMITIVES and "text" in props:
+    if primitive in TEXT_PROP_PRIMITIVES and isinstance(props.get("state_text_id"), str):
+        if dom_text != _collapse_artifact_text(str(props.get("state_text_initial") or "")):
+            errors.append(f"DOM element {dom_id} text does not match manifest props")
+    elif primitive in TEXT_PROP_PRIMITIVES and "text" in props:
         if dom_text != str(props["text"]):
             errors.append(f"DOM element {dom_id} text does not match manifest props")
     elif primitive == "button" and "label" in props:

@@ -195,6 +195,9 @@ def _attrs_for_node(node: IRNode, recipe: ResolvedRecipe) -> list[str]:
                 f"hidden={{visibility[{rule_literal}] === false}}",
             ]
         )
+    state_text_id = node.props.get("state_text_id")
+    if isinstance(state_text_id, str) and state_text_id:
+        attrs.append(_jsx_attr("data-state-text-id", state_text_id))
     if node.primitive == "button":
         attrs.extend(
             [
@@ -316,7 +319,13 @@ def _render_tailwind_self_closing(node: IRNode, context: EmitterNodeContext) -> 
 
 
 def _render_tailwind_leaf(node: IRNode, context: EmitterNodeContext) -> RenderedNode:
-    return _render_node_spec(node, context, text=_text_expression(node))
+    state_text_id = node.props.get("state_text_id")
+    if isinstance(state_text_id, str) and state_text_id:
+        fallback = _tsx_string(str(node.props.get("state_text_initial") or ""))
+        text = f"{{renderValue(stateText[{_tsx_string(state_text_id)}], {fallback})}}"
+    else:
+        text = _text_expression(node)
+    return _render_node_spec(node, context, text=text)
 
 
 def _render_tailwind_container(node: IRNode, context: EmitterNodeContext) -> RenderedNode:
@@ -425,6 +434,13 @@ def _emit_source(result: CompilerResult, title: str) -> tuple[str, dict[str, Any
     }
     visibility_props = ["  visibility?: Record<string, boolean>;"] if initial_visibility else []
     visibility_default = f", visibility = {_safe_json_literal(initial_visibility)}" if initial_visibility else ""
+    initial_state_text = {
+        str(node.props["state_text_id"]): str(node.props.get("state_text_initial") or "")
+        for node in _walk(root)
+        if isinstance(node.props.get("state_text_id"), str) and node.props.get("state_text_id")
+    }
+    state_text_props = ["  stateText?: Record<string, string>;"] if initial_state_text else []
+    state_text_default = f", stateText = {_safe_json_literal(initial_state_text)}" if initial_state_text else ""
     lines = [
         '"use client";',
         "",
@@ -446,6 +462,7 @@ def _emit_source(result: CompilerResult, title: str) -> tuple[str, dict[str, Any
         "  data?: ViewSpecData;",
         "  onAction?: (intent: ViewSpecActionIntent) => void;",
         *visibility_props,
+        *state_text_props,
         "};",
         "",
         f"export const viewspecTitle = {_tsx_string(title)};",
@@ -462,7 +479,7 @@ def _emit_source(result: CompilerResult, title: str) -> tuple[str, dict[str, Any
         "  }",
         "}",
         "",
-        f"export function ViewSpecView({{ data = {{}}, onAction{visibility_default} }}: ViewSpecViewProps) {{",
+        f"export function ViewSpecView({{ data = {{}}, onAction{visibility_default}{state_text_default} }}: ViewSpecViewProps) {{",
         f"  const [inputValues, setInputValues] = React.useState<Record<string, unknown>>({input_values});",
         f"  const compiledPayloadValues: Record<string, unknown> = {compiled_values};",
         "  const setInputValue = (id: string, value: unknown) => {",

@@ -16,12 +16,12 @@
     {
       "arm": "viewspec-core",
       "source": "fixtures/shakedown-104729-2026-08-06-v5/viewspec-core.app.json",
-      "source_sha256": "541bf3ad31952952b77476d2bbeac86b18aad5a73d2cf639947fa2ce14d6c7b5"
+      "source_sha256": "eb384d98ef04f4406aa135ccff4ea46295dfa8fbbd7181b9d36cc3b9a09a92de"
     },
     {
       "arm": "viewspec-deep",
       "source": "fixtures/shakedown-104729-2026-08-06-v5/viewspec-deep.app.json",
-      "source_sha256": "61b7b876f067107f17ea88d21617ec8c9d7fb0aefe7d1c373aa3368243db3966"
+      "source_sha256": "7e4c8efb2b95e2c8b38b2f2f935cd39bf8c34ae297b1bafbb6791449e87c9123"
     }
   ],
   "gates": {

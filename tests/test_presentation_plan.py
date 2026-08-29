@@ -966,6 +966,9 @@ def test_inferred_navigation_rail_uses_a_vertical_item_flow():
         "{ display: flex !important; flex-direction: column"
         in css
     )
+    assert "flex-wrap: wrap" in css
+    assert "flex: 0 0 auto" in css
+    assert "white-space: nowrap !important" in css
 
 
 def test_declared_anchor_generates_canonical_viewport_proof_and_typechecks(tmp_path):

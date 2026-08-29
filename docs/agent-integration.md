@@ -276,6 +276,59 @@ Use `viewspec doctor` in local setup checks. It reports the available intent-fir
 
 `viewspec check` treats the compiled artifact as a proof boundary. For IntentBundle artifacts, DOM `data-ir-id`, `data-binding-id`, and `data-action-id` values must agree with `provenance_manifest.json`; binding/action ids cannot be duplicated; binding nodes must retain source `content_refs`; and binding/action manifest entries must include the matching `viewspec:binding:*` or `viewspec:action:*` intent ref. Human check output prints the bounded manifest summary, including root aesthetic profile, compact style-delta counts, and checked aesthetic layout columns/spans when present; `viewspec check --json` returns the same summary for tools.
 
+## First creation from a user brief
+
+When the user asks for a new interface and neither canonical semantic source exists, preserve their
+exact request in a local brief file and run `viewspec studio-create`. Pass a local PNG, JPEG, or WebP
+with `--reference` when the user supplied one. Default to `--kind app` for a product and choose
+`--kind view` only for one bounded screen.
+
+Read the returned task instead of guessing paths. Author the complete candidate at its exact
+`candidate_path` against its `candidate_schema`, replacing all sample content. Then run
+`viewspec studio-accept --json`; do not copy the candidate into canonical source yourself. On
+success, run `viewspec studio` and keep the Review poll attached to the active agent turn.
+
+The task and candidate proof are no-network and reference bytes remain local. Acceptance proves
+semantic source and artifact health but deliberately reports reference fidelity as `not_proven`;
+the human judges fidelity in Studio.
+
+When the user explicitly asks to compare an AppBundle's static and React products, request or use
+their authorization for the locked local dependency install, then open the single comparison
+revision:
+
+```bash
+viewspec studio viewspec.app.json --compare --install --json
+```
+
+Do not open two unrelated review sessions. The comparison gate requires the exact same source hash,
+successful static and React builds, identical routes, and exact cross-emitter semantic identity.
+Viewport and route changes synchronize both canvases, and feedback from either resolves to the same
+semantic source. Treat `visual_parity: "not_proven"` as a deliberate boundary, not a failed check.
+
+If the comparison reports ready replay or resource inspection, leave the human in the same Studio
+panel. A selected declared checkpoint resets both targets and drives only exact, uniquely mapped
+action triggers; ambiguous triggers stay `not_replayable` even when their reducer proof passes.
+Feedback may contain checked `studio-inspection/replays/...` and server-derived
+`studio-inspection/resources/...` evidence refs. Treat those as exact source-bound context. Keep
+fixture source values distinct from current rendered state, and never describe them as production
+data, persistence, or backend truth.
+
+When the user explicitly asks to share the exact checked AppBundle comparison, run only the local
+preparation step:
+
+```bash
+viewspec studio-share-prepare viewspec.app.json --reference reference.png --json
+```
+
+Omit `--reference` unless the user intends that exact image to leave the machine. Read and present
+the returned `share-disclosure.md` before requesting any future upload authority. The package is
+content-addressed and revalidates its source, optional `DESIGN.md`, full checked artifact inventory,
+comparison identities, disclosure, and deterministic sibling `.vsreview` transport archive.
+Preparation makes no network call, uploads nothing, and
+creates no review link or capability. Do not invent a transport step or imply that private sharing
+is live; the provider-independent trust core and framework-neutral HTTPS contract exist, but no
+authorized HTTPS service is deployed.
+
 `viewspec prove --out .viewspec-proof` is the beginner-facing first proof: it generates or uses an IntentBundle, compiles through the public local path, checks the artifact, and writes human-readable `PROOF.md`, machine-readable `proof_report.json`, and redacted `support_bundle.json`. Use [ViewSpec Proof Bundle](proof-bundle.md) to interpret proof status, hashes, checks, failure codes, and local support triage. Treat it as source artifact and provenance proof. ViewSpec prove is not pixel-perfect visual regression, accessibility certification, arbitrary host-app certification, or hosted compiler publish automation.
 
 Local HTML action buttons dispatch `viewspec-action` events only when actions exist. Event `detail` is a stable V1 payload with `schemaVersion: 1`, `source: "viewspec-html-tailwind"`, `id`, `kind`, `targetRef`, `payloadBindings`, and collected `payloadValues`. Pressing Enter inside a local inert form dispatches only a declared `submit` action whose `targetRef` exactly matches that form motif. The host app owns side effects such as navigation or network submission.
@@ -290,7 +343,7 @@ commands. The session returns a Convergence Authoring Task: use the exported
 `converge-task.schema.json`, choose only its legal operation menu, copy fixed fields and evidence
 exactly, and submit one `IntentPatch` V1.
 
-The human workflow is only to open Review, inspect the semantic before/after and progress proof,
+The human workflow is only to open Studio, inspect the semantic before/after and progress proof,
 and approve or reject. Agents must not expose or discover approval tokens, use `--show-authority`,
 or approve their own proposals.
 
@@ -303,7 +356,7 @@ viewspec converge-status viewspec.intent.json --json
 ```
 
 If an integration uses `--state-dir` for Converge, it must pass that same private path as
-`viewspec review --convergence-state-dir ...`; the agent wires this automatically so the human
+`viewspec studio --convergence-state-dir ...`; the agent wires this automatically so the human
 still sees the pending proposal without handling storage configuration.
 
 Submit validates, semantic-diffs, compiles, and checks the complete candidate without changing
@@ -360,7 +413,7 @@ AppBundle proof does not prove runtime browser navigation, dynamic routes, live 
 
 ## Published Agent Artifacts
 
-These assets use agent asset schema version `14`. The manifest declares the `local_v1` contract profile plus the export/check commands agents should use for local verification.
+These assets use agent asset schema version `15`. The manifest declares the `local_v1` contract profile plus the export/check commands agents should use for local verification.
 
 - Asset manifest: `https://viewspec.dev/agent-assets.json`
 - System prompt: `https://viewspec.dev/agent-system-prompt.txt`

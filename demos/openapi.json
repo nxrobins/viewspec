@@ -2243,7 +2243,7 @@
     "url": "https://viewspec.dev/"
   },
   "x-viewspec-agent-artifacts": {
-    "assetSchemaVersion": 14,
+    "assetSchemaVersion": 15,
     "assetManifest": "https://viewspec.dev/agent-assets.json",
     "contractProfile": "local_v1",
     "exportCommand": "viewspec export-agent-assets --out .viewspec",

@@ -187,10 +187,12 @@ def test_agent_prompt_and_schema_preserve_intent_bundle_contract():
     assert "viewspec compile-app viewspec.app.json --out app-dist --target html-tailwind-app --json" in AGENT_SYSTEM_PROMPT
     assert "viewspec prove-app --app viewspec.app.json --out .viewspec-app-proof --with-shell --json" in AGENT_SYSTEM_PROMPT
     assert "Static Shell V0" in AGENT_SYSTEM_PROMPT
-    # V4 wording (deliberate pin move): the shell performs bounded visibility toggling only;
-    # data/text rebinding stays a non-claim.
-    assert "runtime data or text rebinding" in AGENT_SYSTEM_PROMPT
-    assert "bounded visibility toggling only" in AGENT_SYSTEM_PROMPT
+    # V4 wording (deliberate pin move): both targets perform the same bounded
+    # scalar state-text projection; live resource rebinding remains React-only.
+    assert "scalar state text" in AGENT_SYSTEM_PROMPT
+    assert "bounded visibility and scalar state-text updates" in AGENT_SYSTEM_PROMPT
+    assert "does not prove live resource rebinding" in AGENT_SYSTEM_PROMPT
+    assert "evaluateViewSpecText" in AGENT_SYSTEM_PROMPT
     assert "evaluateViewSpecVisibility" in AGENT_SYSTEM_PROMPT
     assert "Do not call remote reference libraries by default" in AGENT_SYSTEM_PROMPT
     assert "query an MCP-accessible UI reference library" not in AGENT_SYSTEM_PROMPT
