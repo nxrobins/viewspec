@@ -16,21 +16,27 @@ def _evidence() -> dict[str, object]:
         ("replace_semantic_attr", "queue/title", "Jobs", "Priority jobs"),
     )
     for index, (operation, target, before, after) in enumerate(operations, start=1):
-        changes.append(
-            {
-                "index": index,
-                "operation": operation,
-                "target": target,
-                "before": before,
-                "after": after,
-                "source_sha256": str(index) * 64,
-                "proposal_ms": 500,
-                "approval_to_revision_ms": 2500,
-                "revision": index + 1,
-                "viewports": [390, 768, 1440],
-                "targets": ["html-tailwind-app", "react-tailwind-app"],
-            }
-        )
+        change = {
+            "index": index,
+            "operation": operation,
+            "target": target,
+            "before": before,
+            "after": after,
+            "source_sha256": str(index) * 64,
+            "proposal_ms": 500,
+            "approval_to_revision_ms": 2500,
+            "revision": index + 1,
+            "viewports": [390, 768, 1440],
+            "targets": ["html-tailwind-app", "react-tailwind-app"],
+        }
+        if index == 1:
+            change.update(
+                {
+                    "coherence_detector": "Status sits 24 px farther right in React.",
+                    "coherence_recovered": True,
+                }
+            )
+        changes.append(change)
     return {
         "schema_version": 1,
         "status": "passed",
@@ -114,4 +120,22 @@ def test_product_evidence_shape_is_closed(tmp_path: Path) -> None:
     payload["claim"] = "desirable"
 
     with pytest.raises(ValueError, match="unsupported evidence shape"):
+        evaluate(_write(tmp_path, payload), protocol)
+
+
+def test_product_change_evidence_shape_is_closed(tmp_path: Path) -> None:
+    protocol = json.loads(PROTOCOL.read_text(encoding="utf-8"))
+    payload = _evidence()
+    payload["changes"][0]["unknown"] = True
+
+    with pytest.raises(ValueError, match="unsupported change record"):
+        evaluate(_write(tmp_path, payload), protocol)
+
+
+def test_product_change_coherence_record_is_complete(tmp_path: Path) -> None:
+    protocol = json.loads(PROTOCOL.read_text(encoding="utf-8"))
+    payload = _evidence()
+    payload["changes"][0].pop("coherence_recovered")
+
+    with pytest.raises(ValueError, match="incomplete coherence record"):
         evaluate(_write(tmp_path, payload), protocol)

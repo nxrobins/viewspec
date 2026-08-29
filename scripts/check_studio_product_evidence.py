@@ -43,6 +43,10 @@ CHANGE_FIELDS = {
     "viewports",
     "targets",
 }
+OPTIONAL_CHANGE_FIELDS = {
+    "coherence_detector",
+    "coherence_recovered",
+}
 
 
 def _read_object(path: Path) -> dict[str, Any]:
@@ -67,8 +71,20 @@ def evaluate(path: Path, protocol: dict[str, Any]) -> dict[str, Any]:
     if not isinstance(changes, list):
         raise ValueError(f"{path} changes must be an array")
     for change in changes:
-        if not isinstance(change, dict) or set(change) != CHANGE_FIELDS:
+        if not isinstance(change, dict):
             raise ValueError(f"{path} contains an unsupported change record")
+        fields = set(change)
+        optional_fields = fields - CHANGE_FIELDS
+        if not CHANGE_FIELDS.issubset(fields) or not optional_fields.issubset(OPTIONAL_CHANGE_FIELDS):
+            raise ValueError(f"{path} contains an unsupported change record")
+        if optional_fields and optional_fields != OPTIONAL_CHANGE_FIELDS:
+            raise ValueError(f"{path} contains an incomplete coherence record")
+        if optional_fields and (
+            not isinstance(change["coherence_detector"], str)
+            or not change["coherence_detector"].strip()
+            or type(change["coherence_recovered"]) is not bool
+        ):
+            raise ValueError(f"{path} contains an invalid coherence record")
     required_viewports = gates["required_viewports"]
     required_targets = gates["required_targets"]
     hashes = [evidence.get("initial_source_sha256")]
