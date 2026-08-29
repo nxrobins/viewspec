@@ -109,16 +109,16 @@ header.vs-surface p.vs-text, header.vs-surface p.vs-label { max-width: 68ch; mar
 .vs-text { min-width: 0; color: #1f2937; font-size: 1rem; line-height: 1.75; overflow-wrap: anywhere; }
 .vs-label { min-width: 0; color: #64748b; font-size: 0.75rem; font-weight: 700; line-height: normal; letter-spacing: 0.08em; text-transform: uppercase; overflow-wrap: anywhere; }
 .vs-value { min-width: 0; color: #020617; font-size: 1.5rem; font-weight: var(--vs-value-weight, 900); line-height: 1.15; overflow-wrap: anywhere; }
-.vs-badge { display: inline-flex; width: fit-content; max-width: 100%; border-radius: var(--vs-badge-radius, 999px); background: #ccfbf1; color: #115e59; padding: 4px 12px; font-size: 0.875rem; font-weight: 700; box-shadow: inset 0 0 0 1px #99f6e4; overflow-wrap: anywhere; }
+.vs-badge { display: inline-flex; width: fit-content; max-width: 100%; border-radius: var(--vs-badge-radius, 999px); background: #ccfbf1; color: #115e59; padding: 4px 12px; font-size: 0.875rem; font-weight: 700; line-height: 1.25; box-shadow: inset 0 0 0 1px #99f6e4; overflow-wrap: anywhere; }
 .vs-input { width: 100%; min-width: 0; border: 1px solid #cbd5e1; border-radius: var(--vs-control-radius, 10px); background: #ffffff; color: #020617; padding: 0.7rem 0.85rem; font: inherit; }
 .vs-input:focus { outline: 2px solid #0f766e; outline-offset: 2px; }
 .vs-image-slot { min-height: 96px; border-radius: var(--vs-control-radius, 12px); background: #e2e8f0; color: #475569; display: grid; place-items: center; }
 .vs-rule { margin: 8px 0; border: 0; border-top: 1px solid #e2e8f0; }
 .vs-svg { border: 1px solid #e2e8f0; border-radius: var(--vs-control-radius, 12px); background: #f8fafc; color: #475569; padding: 12px; }
-.vs-button { display: inline-flex; width: fit-content; align-items: center; border: 0; border-radius: var(--vs-action-radius, 12px); background: #0f766e; color: #ffffff; padding: 8px 16px; font-size: 0.875rem; font-weight: 800; cursor: pointer; box-shadow: var(--vs-action-shadow, 0 1px 2px rgb(15 23 42 / 0.16)); }
+.vs-button { display: inline-flex; width: fit-content; align-items: center; border: 0; border-radius: var(--vs-action-radius, 12px); background: #0f766e; color: #ffffff; padding: 8px 16px; font-family: inherit; font-size: 0.875rem; font-weight: 800; line-height: 1.5; cursor: pointer; box-shadow: var(--vs-action-shadow, 0 1px 2px rgb(15 23 42 / 0.16)); }
 .vs-button:hover { background: #115e59; }
 .vs-error-boundary { border: 2px dashed #ef4444; border-radius: 12px; background: #fef2f2; color: #991b1b; padding: 16px; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 0.875rem; }
-.vs-role-app-shell { width: min(100%, 1180px); margin: 0 auto; padding: 28px; gap: 18px; }
+.vs-role-app-shell { width: min(100%, 1180px); max-width: 1180px; margin: 0 auto; padding: 28px; gap: 18px; }
 .vs-role-app-header { padding: 20px 0 6px; border-bottom: 1px solid #dbe3ea; }
 .vs-role-page-header { border: 0; border-radius: 0; box-shadow: none; background: transparent; padding: 0 0 14px; gap: 8px; }
 .vs-role-content-grid { align-items: start; gap: 18px; }
@@ -310,6 +310,13 @@ def _validate_ir_contract(node: IRNode, seen_ids: set[str]) -> None:
         not isinstance(visibility_rule_id, str) or not SAFE_IR_ID_RE.match(visibility_rule_id)
     ):
         raise ValueError(f"visibility_rule_id '{visibility_rule_id}' must use only letters, digits, underscore, dot, and dash.")
+    state_text_id = node.props.get("state_text_id")
+    if state_text_id is not None and (
+        not isinstance(state_text_id, str) or not SAFE_IR_ID_RE.match(state_text_id)
+    ):
+        raise ValueError(f"state_text_id '{state_text_id}' must use only letters, digits, underscore, dot, and dash.")
+    if "state_text_initial" in node.props and not isinstance(node.props.get("state_text_initial"), str):
+        raise ValueError(f"state_text_initial on '{node.id}' must be a string.")
     _node_classes(node)
     if node.primitive == "grid":
         try:
@@ -441,6 +448,9 @@ def _render_node(node: IRNode, manifest: dict[str, Any], style_values: dict[str,
         attrs.append(f'data-visibility-state="{"hidden" if hidden_initial else "visible"}"')
         if hidden_initial:
             attrs.append("hidden")
+    state_text_id = node.props.get("state_text_id")
+    if isinstance(state_text_id, str) and state_text_id:
+        attrs.append(f'data-state-text-id="{escape(state_text_id, quote=True)}"')
     if node.primitive == "button":
         attrs.extend(
             [
@@ -564,7 +574,9 @@ def _render_node(node: IRNode, manifest: dict[str, Any], style_values: dict[str,
         inner_html = f"<div class=\"font-bold\">{code}</div><div class=\"mt-1\">{message}</div>"
     else:
         pieces: list[str] = []
-        if "text" in node.props:
+        if isinstance(node.props.get("state_text_id"), str):
+            pieces.append(escape(str(node.props.get("state_text_initial") or "")))
+        elif "text" in node.props:
             pieces.append(escape(str(node.props["text"])))
         for child in node.children:
             pieces.append(_render_node(child, manifest, style_values))

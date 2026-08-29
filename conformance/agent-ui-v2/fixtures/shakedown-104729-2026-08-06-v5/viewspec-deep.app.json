@@ -181,8 +181,11 @@
     {"id":"show_review_count","screen_id":"operations_workspace","target_ref":"binding:review_label","when":{"state":"reviewed_count","is":"truthy"}},
     {"id":"show_intake_paused","screen_id":"operations_workspace","target_ref":"binding:intake_text","when":{"state":"intake_paused","is":"truthy"}}
   ],
+  "state_text":[
+    {"id":"review_count_text","screen_id":"operations_workspace","target_ref":"binding:review_label","state":"reviewed_count","template":"Review count: {value}"}
+  ],
   "state_replay_assertions":[
-    {"id":"review_twice","events":[{"mutation_id":"increment_reviewed_count","payload_values":{}},{"mutation_id":"increment_reviewed_count","payload_values":{}}],"expect_state":{"reviewed_count":2},"expect_selectors":{},"expect_visibility":{"show_review_count":true}},
+    {"id":"review_twice","events":[{"mutation_id":"increment_reviewed_count","payload_values":{}},{"mutation_id":"increment_reviewed_count","payload_values":{}}],"expect_state":{"reviewed_count":2},"expect_selectors":{},"expect_visibility":{"show_review_count":true},"expect_text":{"review_count_text":"Review count: 2"}},
     {"id":"reveal_guide","events":[{"mutation_id":"reveal_escalation_guide","payload_values":{}}],"expect_state":{"escalation_visible":true},"expect_selectors":{},"expect_visibility":{"show_escalation_panel":true}},
     {"id":"pause_dispatch_intake_replay","events":[{"mutation_id":"pause_dispatch_intake","payload_values":{}}],"expect_state":{"intake_paused":true},"expect_selectors":{},"expect_visibility":{"show_intake_paused":true}}
   ]

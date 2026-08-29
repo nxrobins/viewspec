@@ -237,6 +237,12 @@ def test_compile_react_app_target_writes_runnable_checked_app(tmp_path):
     assert 'from "./state_reducer"' in app_source
     assert "window.history.pushState" in app_source
     assert 'window.addEventListener("popstate"' in app_source
+    assert 'viewspecAppRestoreEvent = "viewspec-app-restore"' in app_source
+    assert 'viewspecAppRouteEvent = "viewspec-app-route"' in app_source
+    assert "__viewspecInitialPath" in app_source
+    assert "isDeclaredRoute(injected)" in app_source
+    assert "historyUpdated = true" in app_source
+    assert "new CustomEvent(viewspecAppRouteEvent" in app_source
     assert "reduceViewSpecState" in app_source
     assert "selectViewSpecState" in app_source
     assert "evaluateViewSpecVisibility" in app_source
@@ -246,6 +252,8 @@ def test_compile_react_app_target_writes_runnable_checked_app(tmp_path):
     assert "onAction" in app_source
     assert 'data-viewspec-app-screen="queue"' in app_source
     assert 'data-viewspec-app-screen="detail"' in app_source
+    assert 'data-viewspec-app-screen="queue" data-route-path={"/"}' in app_source
+    assert 'data-viewspec-app-screen="detail" data-route-path={"/incident"}' in app_source
     assert "data-viewspec-app-not-found" in app_source
     assert app_source.count("<main") == 1
     assert "<main" not in queue_source
@@ -399,7 +407,7 @@ def test_react_app_target_escapes_app_title_in_html_and_tsx(tmp_path):
     html = (out_dir / "index.html").read_text(encoding="utf-8")
     source = (out_dir / "src" / "ViewSpecApp.tsx").read_text(encoding="utf-8")
     assert "Incident {Console} &lt;Ops&gt;" in html
-    assert '<strong>{"Incident {Console} \\u003cOps\\u003e"}</strong>' in source
+    assert '<h1 id="vs-app-title" className="vs-app-title">{"Incident {Console} \\u003cOps\\u003e"}</h1>' in source
 
 
 def test_compile_app_cli_accepts_react_app_target(tmp_path, capsys):

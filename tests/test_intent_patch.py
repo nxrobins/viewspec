@@ -343,6 +343,39 @@ def test_preview_is_deterministic_across_patch_key_order() -> None:
     assert left.inverse_patch.to_json() == right.inverse_patch.to_json()
 
 
+def test_fixture_scalar_patch_keeps_bound_semantics_and_replay_snapshots_coherent() -> None:
+    source = _source_text(starter_react_app_bundle())
+    patch = _patch_text(
+        source,
+        [
+            {
+                "op": "replace_fixture_scalar",
+                "resource_id": "incidents",
+                "record_id": "inc_1043",
+                "field": "severity",
+                "old_value": "medium",
+                "value": "high",
+            }
+        ],
+        source_kind="app_bundle",
+    )
+
+    preview = preview_intent_patch(source, patch)
+    candidate = json.loads(preview.candidate_text)
+    incident = candidate["resources"][0]["records"][1]
+    queue = next(screen for screen in candidate["screens"] if screen["id"] == "queue")
+    replay = candidate["state_replay_assertions"][0]
+
+    assert incident["severity"] == "high"
+    assert queue["intent_bundle"]["substrate"]["nodes"]["inc_1043"]["attrs"]["severity"] == "high"
+    assert replay["expect_state"]["incidents_state"][1]["severity"] == "high"
+    assert replay["expect_selectors"]["active_incidents"][1]["severity"] == "high"
+    assert preview.compile_check["status"] == "passed"
+
+    inverse = preview_intent_patch(preview.candidate_text, preview.inverse_patch)
+    assert inverse.candidate_text == source
+
+
 def test_verified_preview_approval_uses_stable_proof_identity_not_runtime_evidence_hash(monkeypatch) -> None:
     source = _source_text(starter_intent_payload("dashboard"))
     patch = _semantic_attr_patch(source, "Starter Dashboard", "Changed")

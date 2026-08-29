@@ -412,6 +412,9 @@
     {"id":"show_review_count","screen_id":"dispatch","target_ref":"motif:review_count_panel","when":{"state":"reviewed_count","is":"truthy"}},
     {"id":"show_intake_paused","screen_id":"dispatch","target_ref":"motif:intake_paused_panel","when":{"state":"intake_paused","is":"truthy"}}
   ],
+  "state_text": [
+    {"id":"review_count_projection","screen_id":"dispatch","target_ref":"binding:review_count_text","state":"reviewed_count","template":"Review count: {value}"}
+  ],
   "state_replay_assertions": [
     {
       "id":"escalation_guide_replay",
@@ -423,7 +426,8 @@
       "id":"review_count_replay",
       "events":[{"mutation_id":"increment_reviewed_count"},{"mutation_id":"increment_reviewed_count"}],
       "expect_state":{"reviewed_count":2},
-      "expect_visibility":{"show_review_count":true}
+      "expect_visibility":{"show_review_count":true},
+      "expect_text":{"review_count_projection":"Review count: 2"}
     },
     {
       "id":"pause_intake_replay",

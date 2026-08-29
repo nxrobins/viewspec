@@ -126,6 +126,7 @@ def _write_state_artifacts(
             "reducer_conformance": _state_conformance_status(conformance),
             # v4-only keys: the v3 summary shape stays byte-stable.
             **(_visibility_summary(payload, manifest) if payload.get("schema_version") == APP_BUNDLE_VISIBILITY_SCHEMA_VERSION else {}),
+            **(_state_text_summary(payload, manifest) if "state_text" in payload else {}),
         },
         "replay": manifest.get("replay") if isinstance(manifest.get("replay"), dict) else None,
         "contract_hash": manifest.get("contract_hash"),
@@ -158,6 +159,28 @@ def _visibility_summary(payload: dict[str, Any], manifest: dict[str, Any]) -> di
         "visibility_rule_count": len(rules),
         "initial_hidden_count": initial_hidden,
         "visibility_replay_ok": visibility_replay_ok,
+    }
+
+
+def _state_text_summary(payload: dict[str, Any], manifest: dict[str, Any]) -> dict[str, Any]:
+    rules = payload.get("state_text", []) if isinstance(payload.get("state_text"), list) else []
+    assertions = (
+        payload.get("state_replay_assertions", [])
+        if isinstance(payload.get("state_replay_assertions"), list)
+        else []
+    )
+    asserted = any(
+        isinstance(item, dict) and isinstance(item.get("expect_text"), dict) and item["expect_text"]
+        for item in assertions
+    )
+    text_replay_ok: bool | None = None
+    if asserted:
+        replay = manifest.get("replay") if isinstance(manifest.get("replay"), dict) else {}
+        entries = replay.get("assertions") if isinstance(replay.get("assertions"), list) else []
+        text_replay_ok = all(entry.get("text_matches", True) for entry in entries if isinstance(entry, dict))
+    return {
+        "state_text_rule_count": len(rules),
+        "state_text_replay_ok": text_replay_ok,
     }
 
 

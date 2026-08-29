@@ -445,8 +445,9 @@ def init_intent_tool(
 def _apply_ir_props_overlay(root_node: Any, overlay: dict[str, dict[str, Any]]) -> list[str]:
     """Merge bounded props onto IR nodes by node id, between compile() and emit.
 
-    The overlay is a closed data structure used by AppBundle compilation. Only visibility
-    markers and the compiler-owned semantic embedding context are permitted, so this seam
+    The overlay is a closed data structure used by AppBundle compilation. Only visibility,
+    bounded state-text, resource identity markers, and the compiler-owned semantic embedding
+    context are permitted, so this seam
     cannot become a generic style/content side channel.
     Returns the overlay node ids that did not resolve to an IR node (fail-closed at the caller).
     """
@@ -456,6 +457,8 @@ def _apply_ir_props_overlay(root_node: Any, overlay: dict[str, dict[str, Any]]) 
         "resource_id",
         "resource_view_id",
         "semantic_context",
+        "state_text_id",
+        "state_text_initial",
         "visibility_rule_id",
         "visibility_hidden_initial",
     }
@@ -471,6 +474,11 @@ def _apply_ir_props_overlay(root_node: Any, overlay: dict[str, dict[str, Any]]) 
         for key in ("record_id", "resource_field", "resource_id", "resource_view_id"):
             if key in props and (not isinstance(props[key], str) or not props[key]):
                 raise ValueError(f"ir_props_overlay {key} must be a non-empty string for {node_id}.")
+        state_text_id = props.get("state_text_id")
+        if state_text_id is not None and (not isinstance(state_text_id, str) or not state_text_id):
+            raise ValueError(f"ir_props_overlay state_text_id must be a non-empty string for {node_id}.")
+        if "state_text_initial" in props and not isinstance(props.get("state_text_initial"), str):
+            raise ValueError(f"ir_props_overlay state_text_initial must be a string for {node_id}.")
     remaining = dict(overlay)
     stack = [root_node]
     while stack and remaining:
@@ -539,18 +547,30 @@ def compile_intent_bundle_file_tool(
         if ir_props_overlay:
             unresolved = _apply_ir_props_overlay(ast.result.root.root, ir_props_overlay)
             if unresolved:
+                unresolved_errors = []
+                for node_id in unresolved:
+                    props = ir_props_overlay.get(node_id, {})
+                    if isinstance(props.get("state_text_id"), str):
+                        unresolved_errors.append(
+                            {
+                                "code": "APP_STATE_TEXT_TARGET_UNRESOLVED",
+                                "message": f"State text target node {node_id} was not found in the compiled IR.",
+                                "fix": "Point the state_text rule at an exactly-once text binding declared by this screen.",
+                            }
+                        )
+                    else:
+                        unresolved_errors.append(
+                            {
+                                "code": "APP_VISIBILITY_TARGET_UNRESOLVED",
+                                "message": f"Visibility target node {node_id} was not found in the compiled IR.",
+                                "fix": "Point the visibility rule at a declared region, binding, or motif id.",
+                            }
+                        )
                 return tool_error_response(
                     "COMPILE_FAILED",
-                    f"Visibility target(s) did not resolve to compiled IR nodes: {', '.join(unresolved)}.",
-                    "Verify the visibility target_ref ids are declared in this screen's IntentBundle.",
-                    errors=[
-                        {
-                            "code": "APP_VISIBILITY_TARGET_UNRESOLVED",
-                            "message": f"Visibility target node {node_id} was not found in the compiled IR.",
-                            "fix": "Point the visibility rule at a declared region, binding, or motif id.",
-                        }
-                        for node_id in unresolved
-                    ],
+                    f"App compiler target(s) did not resolve to compiled IR nodes: {', '.join(unresolved)}.",
+                    "Verify every compiler-owned target id is declared in this screen's IntentBundle.",
+                    errors=unresolved_errors,
                     metadata={"cwd": str(root), "allow_outside_cwd": allow_outside_cwd, "sdk_version": __version__, "network_calls": "none"},
                 )
         if target == "react-tsx":

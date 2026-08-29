@@ -46,6 +46,12 @@ SAFE_STATE_ID_RE = re.compile(r"^[A-Za-z0-9_.-]+$")
 APP_VISIBILITY_MAX_RULES = 64
 VISIBILITY_TARGET_REF_RE = re.compile(r"^(region|binding|motif):[A-Za-z0-9_.-]+$")
 STATE_REDUCER_VISIBILITY_EXPORT = "evaluateViewSpecVisibility"
+# State Text V0 (optional in AppBundle schema_version 4): one scalar state value projected into
+# one exactly-once text binding through a literal template containing exactly one ``{value}``.
+APP_STATE_TEXT_MAX_RULES = 64
+APP_STATE_TEXT_MAX_TEMPLATE_CHARS = 256
+STATE_TEXT_TARGET_REF_RE = re.compile(r"^binding:[A-Za-z0-9_.-]+$")
+STATE_REDUCER_TEXT_EXPORT = "evaluateViewSpecText"
 
 
 @dataclass(frozen=True)
@@ -97,6 +103,7 @@ class StateReplayAssertion:
     expect_state: dict[str, Any]
     expect_selectors: dict[str, Any]
     expect_visibility: dict[str, Any] = field(default_factory=dict)
+    expect_text: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)
@@ -108,6 +115,15 @@ class VisibilityRule:
 
 
 @dataclass(frozen=True)
+class StateTextRule:
+    id: str
+    screen_id: str
+    target_ref: str
+    state: str
+    template: str
+
+
+@dataclass(frozen=True)
 class StateIR:
     profile: str
     states: tuple[StateEntry, ...]
@@ -115,6 +131,7 @@ class StateIR:
     selectors: tuple[StateSelector, ...]
     replay_assertions: tuple[StateReplayAssertion, ...]
     visibility: tuple[VisibilityRule, ...] = ()
+    state_text: tuple[StateTextRule, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -167,6 +184,8 @@ def validate_state_ir(app_payload: dict[str, Any]) -> tuple[StateIR | None, list
     selectors = _parse_selectors(selector_items, state_ids, issues)
     visibility_rules: list[VisibilityRule] = []
     visibility_ids: set[str] | None = None
+    state_text_rules: list[StateTextRule] = []
+    state_text_ids: set[str] | None = None
     if app_payload.get("schema_version") == 4:
         visibility_items = app_payload.get("visibility", [])
         if not isinstance(visibility_items, list):
@@ -183,8 +202,34 @@ def validate_state_ir(app_payload: dict[str, Any]) -> tuple[StateIR | None, list
         )
         visibility_ids = {rule.id for rule in visibility_rules}
         _validate_unique([rule.id for rule in visibility_rules], "$.visibility", "APP_VISIBILITY_DUPLICATE_ID", issues)
+        state_text_items = app_payload.get("state_text", [])
+        if not isinstance(state_text_items, list):
+            issues.append(StateValidationIssue("APP_STATE_TEXT_NOT_ARRAY", "$.state_text", "state_text must be an array of rules."))
+            state_text_items = []
+        _check_count(
+            state_text_items,
+            APP_STATE_TEXT_MAX_RULES,
+            "$.state_text",
+            "APP_STATE_TEXT_LIMIT_EXCEEDED",
+            "state text rules",
+            issues,
+        )
+        state_text_rules = _parse_state_text_rules(
+            state_text_items,
+            screen_ids,
+            {state.id: state for state in states},
+            _screen_intent_binding_contracts(app_payload),
+            issues,
+        )
+        state_text_ids = {rule.id for rule in state_text_rules}
+        _validate_unique([rule.id for rule in state_text_rules], "$.state_text", "APP_STATE_TEXT_DUPLICATE_ID", issues)
     replay_assertions = _parse_replay_assertions(
-        replay_items, state_ids, {m.id: m for m in mutations}, issues, visibility_ids=visibility_ids
+        replay_items,
+        state_ids,
+        {m.id: m for m in mutations},
+        issues,
+        visibility_ids=visibility_ids,
+        state_text_ids=state_text_ids,
     )
     _validate_unique([state.id for state in states], "$.state", "APP_STATE_DUPLICATE_ID", issues)
     _validate_unique([mutation.id for mutation in mutations], "$.mutations", "APP_STATE_DUPLICATE_MUTATION_ID", issues)
@@ -200,6 +245,7 @@ def validate_state_ir(app_payload: dict[str, Any]) -> tuple[StateIR | None, list
         selectors=tuple(selectors),
         replay_assertions=tuple(replay_assertions),
         visibility=tuple(visibility_rules),
+        state_text=tuple(state_text_rules),
     )
     return state_ir, []
 
@@ -223,6 +269,10 @@ def state_ir_summary(app_payload: dict[str, Any]) -> dict[str, Any] | None:
         summary["visibility_rule_count"] = (
             len(app_payload.get("visibility", [])) if isinstance(app_payload.get("visibility"), list) else 0
         )
+        if "state_text" in app_payload:
+            summary["state_text_rule_count"] = (
+                len(app_payload.get("state_text", [])) if isinstance(app_payload.get("state_text"), list) else 0
+            )
     return summary
 
 
@@ -277,6 +327,11 @@ def normalize_state_ir(app_payload: dict[str, Any], state_ir: StateIR | None = N
                     if app_payload.get("schema_version") == 4
                     else {}
                 ),
+                **(
+                    {"expect_text_ids": list(assertion.expect_text)}
+                    if "state_text" in app_payload
+                    else {}
+                ),
             }
             for assertion in state_ir.replay_assertions
         ],
@@ -291,6 +346,17 @@ def normalize_state_ir(app_payload: dict[str, Any], state_ir: StateIR | None = N
             }
             for rule in state_ir.visibility
         ]
+        if "state_text" in app_payload:
+            contract["state_text"] = [
+                {
+                    "id": rule.id,
+                    "screen_id": rule.screen_id,
+                    "target_ref": rule.target_ref,
+                    "state": rule.state,
+                    "template": rule.template,
+                }
+                for rule in state_ir.state_text
+            ]
     return NormalizedStateIR(contract=contract, contract_hash=_hash_json(contract))
 
 
@@ -325,6 +391,7 @@ def replay_state_assertions(app_payload: dict[str, Any]) -> dict[str, Any]:
         }
     initial = initial_state(app_payload, state_ir)
     is_v4 = app_payload.get("schema_version") == 4
+    has_state_text = is_v4 and "state_text" in app_payload
     assertions: list[dict[str, Any]] = []
     errors: list[dict[str, Any]] = []
     for assertion in state_ir.replay_assertions:
@@ -355,13 +422,24 @@ def replay_state_assertions(app_payload: dict[str, Any]) -> dict[str, Any]:
         visibility_matches = True
         visibility_values: dict[str, Any] = {}
         actual_visibility: dict[str, Any] = {}
+        text_matches = True
+        text_values: dict[str, Any] = {}
+        actual_text: dict[str, Any] = {}
         if is_v4:
             visibility_values = evaluate_visibility(current, selector_values, state_ir)
             actual_visibility = _project_expected(visibility_values, assertion.expect_visibility)
             visibility_matches = _json_values_equal(actual_visibility, assertion.expect_visibility)
+        if has_state_text:
+            text_values = evaluate_state_text(current, state_ir)
+            actual_text = _project_expected(text_values, assertion.expect_text)
+            text_matches = _json_values_equal(actual_text, assertion.expect_text)
         status = (
             "passed"
-            if state_matches and selector_matches and visibility_matches and all(result["ok"] for result in event_results)
+            if state_matches
+            and selector_matches
+            and visibility_matches
+            and text_matches
+            and all(result["ok"] for result in event_results)
             else "failed"
         )
         if status == "failed":
@@ -401,6 +479,18 @@ def replay_state_assertions(app_payload: dict[str, Any]) -> dict[str, Any]:
                         post_event_state=current,
                     )
                 )
+            if not text_matches:
+                errors.extend(
+                    _replay_value_mismatches(
+                        code="APP_STATE_TEXT_REPLAY_MISMATCH",
+                        assertion_id=assertion.id,
+                        section="expect_text",
+                        expected=assertion.expect_text,
+                        actual=actual_text,
+                        event_results=event_results,
+                        post_event_state=current,
+                    )
+                )
         entry = {
             "id": assertion.id,
             "status": status,
@@ -411,6 +501,8 @@ def replay_state_assertions(app_payload: dict[str, Any]) -> dict[str, Any]:
         if is_v4:
             # v4-only key: the v3 replay report shape must stay byte-stable.
             entry["visibility_matches"] = visibility_matches
+        if has_state_text:
+            entry["text_matches"] = text_matches
         assertions.append(entry)
     failed_count = sum(1 for assertion in assertions if assertion["status"] != "passed")
     return {
@@ -570,6 +662,36 @@ def initial_visibility(app_payload: dict[str, Any], state_ir: StateIR) -> dict[s
     return evaluate_visibility(initial, evaluate_selectors(initial, state_ir), state_ir)
 
 
+def evaluate_state_text(current_state: dict[str, Any], state_ir: StateIR) -> dict[str, str]:
+    """Render each bounded scalar state projection without interpreting markup."""
+    return {
+        rule.id: rule.template.replace("{value}", _state_text_scalar(current_state.get(rule.state)))
+        for rule in state_ir.state_text
+    }
+
+
+def initial_state_text(app_payload: dict[str, Any], state_ir: StateIR) -> dict[str, str]:
+    """State-text values at initial state, used to bake truthful checked artifacts."""
+    return evaluate_state_text(initial_state(app_payload, state_ir), state_ir)
+
+
+def _state_text_scalar(value: Any) -> str:
+    if value is None:
+        return ""
+    if value is True:
+        return "true"
+    if value is False:
+        return "false"
+    if isinstance(value, str):
+        return value
+    if type(value) is int:
+        return str(value)
+    if type(value) is float and math.isfinite(value):
+        return str(int(value)) if value.is_integer() else repr(value).replace("e+", "e")
+    # Mutation payloads remain total even if a caller violates the declared scalar shape.
+    return ""
+
+
 def state_manifest(
     app_payload: dict[str, Any],
     *,
@@ -599,6 +721,11 @@ def state_manifest(
             if app_payload.get("schema_version") == 4
             else {}
         ),
+        **(
+            {"state_text_rule_ids": [rule.id for rule in state_ir.state_text]}
+            if "state_text" in app_payload
+            else {}
+        ),
         "reducer_exports": list(state_reducer_exports(app_payload)),
         "reducer_hash": reducer_hash,
         "replay": replay_report,
@@ -608,9 +735,12 @@ def state_manifest(
 
 def state_reducer_exports(app_payload: dict[str, Any]) -> tuple[str, ...]:
     """The generated artifact's export list — visibility joins only on v4 bundles."""
+    exports = STATE_REDUCER_EXPORTS
     if app_payload.get("schema_version") == 4:
-        return (*STATE_REDUCER_EXPORTS, STATE_REDUCER_VISIBILITY_EXPORT)
-    return STATE_REDUCER_EXPORTS
+        exports = (*exports, STATE_REDUCER_VISIBILITY_EXPORT)
+    if "state_text" in app_payload:
+        exports = (*exports, STATE_REDUCER_TEXT_EXPORT)
+    return exports
 
 
 @dataclass(frozen=True)
@@ -620,6 +750,8 @@ class _ReducerSourceModel:
     mutations: tuple[dict[str, Any], ...]
     selectors: tuple[dict[str, Any], ...]
     visibility_rules: tuple[dict[str, Any], ...]
+    state_text_rules: tuple[dict[str, Any], ...]
+    state_text_enabled: bool
     numeric_imports: tuple[str, ...]
 
 
@@ -648,6 +780,11 @@ def _reducer_source_model(app_payload: dict[str, Any]) -> _ReducerSourceModel:
         visibility_rules=tuple(
             {"id": rule.id, "when": copy.deepcopy(rule.when)} for rule in state_ir.visibility
         ),
+        state_text_rules=tuple(
+            {"id": rule.id, "state": rule.state, "template": rule.template}
+            for rule in state_ir.state_text
+        ),
+        state_text_enabled="state_text" in app_payload,
         numeric_imports=numeric_import_names(app_payload),
     )
 
@@ -716,6 +853,7 @@ def _reducer_type_declarations() -> list[str]:
         "  | { state: string; is: \"truthy\" | \"falsy\" }",
         "  | { state: string; equals: unknown };",
         "type VisibilityRule = { id: string; when: VisibilityWhen };",
+        "type StateTextRule = { id: string; state: string; template: string };",
         "",
     ]
 
@@ -1040,6 +1178,37 @@ def _emit_reducer_source(model: _ReducerSourceModel, *, typescript: bool) -> str
                 "}",
             ]
         )
+    if model.state_text_enabled:
+        lines.extend(
+            [
+                "",
+                f"const stateTextRules{ann('StateTextRule[]')} = {json.dumps(model.state_text_rules, indent=2, sort_keys=True)};",
+                _function_signature(
+                    "stateTextScalar",
+                    (("value", "unknown"),),
+                    "string",
+                    typescript=typescript,
+                ),
+                '  if (value === null || value === undefined) return "";',
+                '  if (typeof value === "string") return value;',
+                '  if (typeof value === "boolean" || (typeof value === "number" && Number.isFinite(value))) return String(value);',
+                '  return "";',
+                "}",
+                _function_signature(
+                    "evaluateViewSpecText",
+                    (("state", "ViewSpecState"),),
+                    "Record<string, string>",
+                    typescript=typescript,
+                    exported=True,
+                ),
+                f"  const result{ann('Record<string, string>')} = {{}};",
+                "  for (const rule of stateTextRules) {",
+                '    result[rule.id] = rule.template.replace("{value}", stateTextScalar(state[rule.state]));',
+                "  }",
+                "  return result;",
+                "}",
+            ]
+        )
     return "\n".join(lines) + "\n"
 
 
@@ -1137,10 +1306,12 @@ def check_reducer_conformance(
     for expected in expected_replays:
         actual = node_replays.get(expected["id"])
         visibility_expected = "visibility" in expected
+        text_expected = "text" in expected
         if actual is None:
             state_matches = False
             selector_matches = False
             visibility_matches = not visibility_expected
+            text_matches = not text_expected
             event_ok = False
             errors.append(_conformance_error(f"Node reducer omitted replay assertion {expected['id']}."))
         else:
@@ -1149,6 +1320,7 @@ def check_reducer_conformance(
             visibility_matches = (
                 _json_values_equal(actual.get("visibility"), expected["visibility"]) if visibility_expected else True
             )
+            text_matches = _json_values_equal(actual.get("text"), expected["text"]) if text_expected else True
             event_ok = bool(actual.get("ok")) == bool(expected["ok"])
             actual_errors = actual.get("errors") if isinstance(actual.get("errors"), list) else []
             if not event_ok:
@@ -1159,6 +1331,8 @@ def check_reducer_conformance(
                 errors.append(_conformance_error(f"Node reducer selector values diverged for replay assertion {expected['id']}."))
             if not visibility_matches:
                 errors.append(_conformance_error(f"Node reducer visibility verdicts diverged for replay assertion {expected['id']}."))
+            if not text_matches:
+                errors.append(_conformance_error(f"Node reducer state text diverged for replay assertion {expected['id']}."))
             if not bool(expected["ok"]) and actual_errors and expected.get("error_codes"):
                 actual_codes = {str(error.get("code") or "").split(":", 1)[0] for error in actual_errors if isinstance(error, dict)}
                 if not set(expected["error_codes"]).issubset(actual_codes):
@@ -1168,7 +1342,12 @@ def check_reducer_conformance(
                 "id": expected["id"],
                 "status": (
                     "passed"
-                    if actual is not None and event_ok and state_matches and selector_matches and visibility_matches
+                    if actual is not None
+                    and event_ok
+                    and state_matches
+                    and selector_matches
+                    and visibility_matches
+                    and text_matches
                     else "failed"
                 ),
                 "event_count": expected["event_count"],
@@ -1176,6 +1355,7 @@ def check_reducer_conformance(
                 "selector_matches": selector_matches,
                 # v4-only key: v3 conformance report shape stays byte-stable.
                 **({"visibility_matches": visibility_matches} if visibility_expected else {}),
+                **({"text_matches": text_matches} if text_expected else {}),
                 "event_status_matches": event_ok,
             }
         )
@@ -1416,12 +1596,15 @@ def _parse_replay_assertions(
     issues: list[StateValidationIssue],
     *,
     visibility_ids: set[str] | None = None,
+    state_text_ids: set[str] | None = None,
 ) -> list[StateReplayAssertion]:
     # visibility_ids is None for v3 bundles: expect_visibility stays an unknown field there
     # (v3 strictness preserved); a set (possibly empty) enables the v4 key.
     allowed_keys = {"id", "events", "expect_state", "expect_selectors"}
     if visibility_ids is not None:
         allowed_keys = allowed_keys | {"expect_visibility"}
+    if state_text_ids is not None:
+        allowed_keys = allowed_keys | {"expect_text"}
     assertions: list[StateReplayAssertion] = []
     for index, item in enumerate(items):
         path = f"$.state_replay_assertions[{index}]"
@@ -1586,6 +1769,36 @@ def _parse_replay_assertions(
                                 "expect_visibility values must be booleans.",
                             )
                         )
+        expect_text: dict[str, Any] = {}
+        if state_text_ids is not None:
+            expect_text = item.get("expect_text", {})
+            if not isinstance(expect_text, dict):
+                issues.append(
+                    StateValidationIssue(
+                        "APP_STATE_TEXT_REPLAY_EXPECT_INVALID",
+                        f"{path}.expect_text",
+                        "expect_text must be an object mapping state text rule ids to strings.",
+                    )
+                )
+                expect_text = {}
+            else:
+                for rule_id, expected_value in expect_text.items():
+                    if rule_id not in state_text_ids:
+                        issues.append(
+                            StateValidationIssue(
+                                "APP_STATE_TEXT_REPLAY_RULE_MISSING",
+                                f"{path}.expect_text.{rule_id}",
+                                f"Replay expects missing state text rule {rule_id}.",
+                            )
+                        )
+                    if not isinstance(expected_value, str):
+                        issues.append(
+                            StateValidationIssue(
+                                "APP_STATE_TEXT_REPLAY_EXPECT_INVALID",
+                                f"{path}.expect_text.{rule_id}",
+                                "expect_text values must be strings.",
+                            )
+                        )
         if assertion_id:
             assertions.append(
                 StateReplayAssertion(
@@ -1594,6 +1807,7 @@ def _parse_replay_assertions(
                     expect_state=copy.deepcopy(expect_state),
                     expect_selectors=copy.deepcopy(expect_selectors),
                     expect_visibility=copy.deepcopy(expect_visibility),
+                    expect_text=copy.deepcopy(expect_text),
                 )
             )
     return assertions
@@ -1673,6 +1887,146 @@ def _parse_visibility_rules(
         if rule_id and screen_id is not None and target_ok and when_ok:
             rules.append(
                 VisibilityRule(id=rule_id, screen_id=screen_id, target_ref=str(target_ref), when=copy.deepcopy(when))
+            )
+    return rules
+
+
+def _parse_state_text_rules(
+    items: list[Any],
+    screen_ids: set[str],
+    states_by_id: dict[str, StateEntry],
+    binding_contracts: dict[str, dict[str, dict[str, str]]],
+    issues: list[StateValidationIssue],
+) -> list[StateTextRule]:
+    rules: list[StateTextRule] = []
+    seen_targets: set[tuple[str, str]] = set()
+    for index, item in enumerate(items):
+        path = f"$.state_text[{index}]"
+        if not isinstance(item, dict):
+            issues.append(StateValidationIssue("APP_STATE_TEXT_RULE_NOT_OBJECT", path, "Each state_text rule must be an object."))
+            continue
+        _reject_extra(item, {"id", "screen_id", "target_ref", "state", "template"}, path, issues)
+        rule_id = _required_string(item, "id", path, issues)
+        screen_id = _required_string(item, "screen_id", path, issues)
+        target_ref = _required_string(item, "target_ref", path, issues)
+        state_id = _required_string(item, "state", path, issues)
+        template = _required_string(item, "template", path, issues)
+        _validate_safe_id(rule_id, f"{path}.id", "state text rule id", issues)
+        if screen_id and screen_id not in screen_ids:
+            issues.append(
+                StateValidationIssue(
+                    "APP_STATE_TEXT_SCREEN_MISSING",
+                    f"{path}.screen_id",
+                    f"State text rule references missing screen {screen_id}.",
+                )
+            )
+        target_ok = isinstance(target_ref, str) and STATE_TEXT_TARGET_REF_RE.fullmatch(target_ref) is not None
+        if target_ref and not target_ok:
+            issues.append(
+                StateValidationIssue(
+                    "APP_STATE_TEXT_TARGET_REF_INVALID",
+                    f"{path}.target_ref",
+                    "state_text target_ref must be binding:<id>.",
+                )
+            )
+        if target_ok and screen_id:
+            binding_id = str(target_ref).partition(":")[2]
+            binding = binding_contracts.get(screen_id, {}).get(binding_id)
+            if binding is None:
+                issues.append(
+                    StateValidationIssue(
+                        "APP_STATE_TEXT_TARGET_MISSING",
+                        f"{path}.target_ref",
+                        f"Screen {screen_id} does not declare binding {binding_id}.",
+                    )
+                )
+            elif binding.get("present_as") not in {"badge", "label", "text", "value"}:
+                issues.append(
+                    StateValidationIssue(
+                        "APP_STATE_TEXT_TARGET_UNSUPPORTED",
+                        f"{path}.target_ref",
+                        f"Binding {binding_id} must present as badge, label, text, or value.",
+                    )
+                )
+            elif binding.get("cardinality") != "exactly_once":
+                issues.append(
+                    StateValidationIssue(
+                        "APP_STATE_TEXT_TARGET_AMBIGUOUS",
+                        f"{path}.target_ref",
+                        f"Binding {binding_id} must have cardinality exactly_once.",
+                    )
+                )
+            pair = (screen_id, str(target_ref))
+            if pair in seen_targets:
+                issues.append(
+                    StateValidationIssue(
+                        "APP_STATE_TEXT_DUPLICATE_TARGET",
+                        f"{path}.target_ref",
+                        f"Screen {screen_id} already has a state_text rule for {target_ref}.",
+                    )
+                )
+            seen_targets.add(pair)
+        state = states_by_id.get(state_id or "")
+        if state_id and state is None:
+            issues.append(
+                StateValidationIssue(
+                    "APP_STATE_TEXT_STATE_MISSING",
+                    f"{path}.state",
+                    f"State text rule references missing state {state_id}.",
+                )
+            )
+        elif state is not None:
+            if state.kind != STATE_KIND_SCALAR:
+                issues.append(
+                    StateValidationIssue(
+                        "APP_STATE_TEXT_STATE_UNSUPPORTED",
+                        f"{path}.state",
+                        f"State text rule requires scalar state; {state.id} is {state.kind}.",
+                    )
+                )
+            if state.scope == "screen" and state.screen_id != screen_id:
+                issues.append(
+                    StateValidationIssue(
+                        "APP_STATE_TEXT_STATE_SCOPE_MISMATCH",
+                        f"{path}.state",
+                        f"Screen-scoped state {state.id} belongs to {state.screen_id}, not {screen_id}.",
+                    )
+                )
+            initial_value = state.initial.get("value") if isinstance(state.initial, dict) else None
+            if isinstance(initial_value, (dict, list)):
+                issues.append(
+                    StateValidationIssue(
+                        "APP_STATE_TEXT_STATE_UNSUPPORTED",
+                        f"{path}.state",
+                        f"State text rule requires a JSON scalar initial value for {state.id}.",
+                    )
+                )
+        if template:
+            if len(template) > APP_STATE_TEXT_MAX_TEMPLATE_CHARS:
+                issues.append(
+                    StateValidationIssue(
+                        "APP_STATE_TEXT_TEMPLATE_TOO_LARGE",
+                        f"{path}.template",
+                        f"state_text template exceeds {APP_STATE_TEXT_MAX_TEMPLATE_CHARS} characters.",
+                    )
+                )
+            if template.count("{value}") != 1 or template.replace("{value}", "").find("{") >= 0 or template.replace("{value}", "").find("}") >= 0:
+                issues.append(
+                    StateValidationIssue(
+                        "APP_STATE_TEXT_TEMPLATE_INVALID",
+                        f"{path}.template",
+                        "state_text template must contain exactly one {value} placeholder and no other braces.",
+                    )
+                )
+        if rule_id and screen_id and target_ok and state is not None and template:
+            rules.append(
+                StateTextRule(
+                    id=rule_id,
+                    screen_id=screen_id,
+                    target_ref=str(target_ref),
+                    state=state.id,
+                    template=template,
+                )
             )
     return rules
 
@@ -1971,6 +2325,26 @@ def _screen_intent_target_ids(app_payload: dict[str, Any]) -> dict[str, dict[str
     return targets
 
 
+def _screen_intent_binding_contracts(app_payload: dict[str, Any]) -> dict[str, dict[str, dict[str, str]]]:
+    """Binding presentation/cardinality facts needed by the exact state-text target contract."""
+    contracts: dict[str, dict[str, dict[str, str]]] = {}
+    for screen in app_payload.get("screens", []) if isinstance(app_payload.get("screens"), list) else []:
+        if not isinstance(screen, dict) or not isinstance(screen.get("id"), str):
+            continue
+        intent = screen.get("intent_bundle") if isinstance(screen.get("intent_bundle"), dict) else {}
+        view_spec = intent.get("view_spec") if isinstance(intent.get("view_spec"), dict) else {}
+        bindings = view_spec.get("bindings") if isinstance(view_spec.get("bindings"), list) else []
+        contracts[screen["id"]] = {
+            str(binding["id"]): {
+                "present_as": str(binding.get("present_as") or ""),
+                "cardinality": str(binding.get("cardinality") or ""),
+            }
+            for binding in bindings
+            if isinstance(binding, dict) and isinstance(binding.get("id"), str)
+        }
+    return contracts
+
+
 def _op_payload_refs(op: dict[str, Any]) -> set[str]:
     refs: set[str] = set()
     for key in ("value", "item_id", "to_index", "amount"):
@@ -2082,6 +2456,8 @@ def _expected_conformance_replays(app_payload: dict[str, Any], state_ir: StateIR
         }
         if is_v4:
             entry["visibility"] = evaluate_visibility(current, selector_values, state_ir)
+        if "state_text" in app_payload:
+            entry["text"] = evaluate_state_text(current, state_ir)
         replays.append(entry)
     return replays
 
@@ -2128,7 +2504,13 @@ for (const assertion of input.assertions || []) {
   } catch (error) {
     errors.push({ code: "APP_STATE_REDUCER_CONFORMANCE_FAILED", message: String(error?.message || error) });
   }
-  replays.push({ id: assertion.id, ok: errors.length === 0, state, selectors, visibility, errors });
+  let text = null;
+  try {
+    if (typeof mod.evaluateViewSpecText === "function") text = mod.evaluateViewSpecText(state);
+  } catch (error) {
+    errors.push({ code: "APP_STATE_REDUCER_CONFORMANCE_FAILED", message: String(error?.message || error) });
+  }
+  replays.push({ id: assertion.id, ok: errors.length === 0, state, selectors, visibility, text, errors });
 }
 
 console.log(JSON.stringify({
@@ -2281,6 +2663,8 @@ def _stable_json(value: Any) -> str:
 
 
 __all__ = [
+    "APP_STATE_TEXT_MAX_RULES",
+    "APP_STATE_TEXT_MAX_TEMPLATE_CHARS",
     "APP_STATE_MAX_ENTRIES",
     "APP_STATE_MAX_EVENTS_PER_REPLAY",
     "APP_STATE_MAX_MANIFEST_BYTES",
@@ -2299,12 +2683,15 @@ __all__ = [
     "StateMutation",
     "StateReplayAssertion",
     "StateSelector",
+    "StateTextRule",
     "StateValidationIssue",
     "check_reducer_conformance",
     "evaluate_selectors",
+    "evaluate_state_text",
     "generate_javascript_reducer",
     "generate_typescript_reducer",
     "initial_state",
+    "initial_state_text",
     "normalize_state_ir",
     "replay_state_assertions",
     "state_contract_hash",

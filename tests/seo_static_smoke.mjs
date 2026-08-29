@@ -980,7 +980,7 @@ assert(openapi.components.schemas.CompileRequestPayload.properties.design.anyOf.
 assert(!('design' in openapi.components.schemas.IntentBundle.properties), 'OpenAPI IntentBundle schema should not absorb hosted design context')
 assert.deepEqual(openapi.components.securitySchemes.BearerAuth, { type: 'http', scheme: 'bearer' })
 assert.deepEqual(openapi.components.securitySchemes.ApiKeyAuth, { type: 'apiKey', in: 'header', name: 'X-API-Key' })
-assert.equal(openapi['x-viewspec-agent-artifacts'].assetSchemaVersion, 14)
+assert.equal(openapi['x-viewspec-agent-artifacts'].assetSchemaVersion, 15)
 assert.equal(openapi['x-viewspec-agent-artifacts'].assetManifest, 'https://viewspec.dev/agent-assets.json')
 assert.equal(openapi['x-viewspec-agent-artifacts'].contractProfile, 'local_v1')
 assert.equal(openapi['x-viewspec-agent-artifacts'].exportCommand, 'viewspec export-agent-assets --out .viewspec')
@@ -1027,7 +1027,7 @@ for (const publicTextPath of ['README.md', 'docs/getting-started.md', 'docs/agen
     if (!text.includes(expected)) statefulCollectionsDrift(`${publicTextPath} missing ${expected}`)
   }
 }
-assert.equal(agentManifest.schema_version, 14)
+assert.equal(agentManifest.schema_version, 15)
 assert.equal(agentManifest.contract.profile, 'local_v1')
 assert.equal(agentManifest.contract.export_command, 'viewspec export-agent-assets --out .viewspec')
 assert.equal(agentManifest.contract.check_command, 'viewspec check-agent-assets .viewspec --json')

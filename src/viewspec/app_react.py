@@ -30,6 +30,7 @@ from viewspec.app_pretext import (
 from viewspec.app_pretext_runtime import PRETEXT_RUNTIME_PATH, generate_pretext_runtime_typescript
 from viewspec.app_resource_repeat import resource_binding_address, resource_repeat_summary
 from viewspec.app_screens import _compile_screen, _screen_ir_overlays_for
+from viewspec.app_shell import _app_shell_css
 from viewspec.app_state_artifacts import _write_state_artifacts
 from viewspec.app_validation import (
     _app_schema_version,
@@ -477,9 +478,12 @@ def _react_app_source(payload: dict[str, Any]) -> str:
         f'import Screen{index} from "./screens/{screen["id"]}/ViewSpecView";' for index, screen in enumerate(screens)
     ]
     schema_version = _app_schema_version(payload) or 1
+    has_state_text = schema_version == 4 and "state_text" in payload
     state_imports = "initialState, reduceViewSpecState, selectViewSpecState"
     if schema_version == 4:
         state_imports += ", evaluateViewSpecVisibility"
+    if has_state_text:
+        state_imports += ", evaluateViewSpecText"
     fixture_resources = _fixture_resources(payload)
     resource_bindings = _resource_bindings(payload)
     state_sources = _state_resource_sources(payload)
@@ -497,6 +501,11 @@ def _react_app_source(payload: dict[str, Any]) -> str:
         "const evaluateRuntimeVisibility = evaluateViewSpecVisibility;"
         if schema_version == 4
         else "const evaluateRuntimeVisibility = (_state: ViewSpecState): Record<string, boolean> => ({});"
+    )
+    state_text_eval = (
+        "  const stateText = React.useMemo(() => evaluateViewSpecText(state), [state]);"
+        if has_state_text
+        else None
     )
     screen_renderers = _screen_renderers(payload)
     return "\n".join(
@@ -532,6 +541,7 @@ def _react_app_source(payload: dict[str, Any]) -> str:
             "  state: ViewSpecState;",
             "  selectors: Record<string, unknown>;",
             "  visibility: Record<string, boolean>;",
+            *(["  text: Record<string, string>;"] if has_state_text else []),
             "};",
             "export type ViewSpecAppProps = {",
             "  resources?: ViewSpecResources;",
@@ -549,9 +559,16 @@ def _react_app_source(payload: dict[str, Any]) -> str:
             f"const mutationTriggers = {_safe_json(triggers)} as Record<string, string[]>;",
             visibility_eval,
             "",
+            'export const viewspecAppRestoreEvent = "viewspec-app-restore" as const;',
+            'export const viewspecAppRouteEvent = "viewspec-app-route" as const;',
             "const clone = <T,>(value: T): T => JSON.parse(JSON.stringify(value)) as T;",
-            "const currentBrowserPath = (): string =>",
-            '  typeof window === "undefined" ? "/" : window.location.pathname;',
+            "const isDeclaredRoute = (value: unknown): value is string =>",
+            '  typeof value === "string" && routes.some((route) => route.path === value);',
+            "const currentBrowserPath = (): string => {",
+            '  if (typeof window === "undefined") return "/";',
+            "  const injected = (window as Window & { __viewspecInitialPath?: unknown }).__viewspecInitialPath;",
+            "  return isDeclaredRoute(injected) ? injected : window.location.pathname;",
+            "};",
             "",
             "function mergeResources(resources: ViewSpecResources | undefined): ViewSpecResources {",
             "  return { ...fixtureResources, ...(resources ?? {}) };",
@@ -593,24 +610,52 @@ def _react_app_source(payload: dict[str, Any]) -> str:
             "  const [runtimeError, setRuntimeError] = React.useState<Error | null>(null);",
             "  const selectors = React.useMemo(() => selectViewSpecState(state), [state]);",
             "  const visibility = React.useMemo(() => evaluateRuntimeVisibility(state), [state]);",
+            *([state_text_eval] if state_text_eval is not None else []),
             "  const activeRoute = routes.find((route) => route.path === path);",
             "",
             "  React.useEffect(() => {",
             '    if (typeof window === "undefined") return undefined;',
             "    const syncPath = () => setPath(window.location.pathname);",
+            "    const restorePath = (event: Event) => {",
+            "      const requested = (event as CustomEvent<{ path?: unknown }>).detail?.path;",
+            "      if (isDeclaredRoute(requested)) setPath(requested);",
+            "    };",
             '    window.addEventListener("popstate", syncPath);',
-            '    return () => window.removeEventListener("popstate", syncPath);',
+            "    window.addEventListener(viewspecAppRestoreEvent, restorePath);",
+            "    return () => {",
+            '      window.removeEventListener("popstate", syncPath);',
+            "      window.removeEventListener(viewspecAppRestoreEvent, restorePath);",
+            "    };",
             "  }, []);",
             "",
             "  React.useEffect(() => {",
-            "    onStateChange?.({ state, selectors, visibility });",
-            "  }, [onStateChange, selectors, state, visibility]);",
+            (
+                "    onStateChange?.({ state, selectors, visibility, text: stateText });"
+                if has_state_text
+                else "    onStateChange?.({ state, selectors, visibility });"
+            ),
+            (
+                "  }, [onStateChange, selectors, state, stateText, visibility]);"
+                if has_state_text
+                else "  }, [onStateChange, selectors, state, visibility]);"
+            ),
             "",
             "  const navigate = (nextPath: string) => {",
+            "    let historyUpdated = false;",
             '    if (typeof window !== "undefined" && window.location.pathname !== nextPath) {',
-            '      window.history.pushState({}, "", nextPath);',
+            "      try {",
+            '        window.history.pushState({}, "", nextPath);',
+            "        historyUpdated = true;",
+            "      } catch {",
+            "        // Opaque-origin sandboxed review frames cannot always rewrite history.",
+            "      }",
             "    }",
             "    setPath(nextPath);",
+            '    if (typeof window !== "undefined") {',
+            "      window.dispatchEvent(",
+            "        new CustomEvent(viewspecAppRouteEvent, { detail: { path: nextPath, historyUpdated } }),",
+            "      );",
+            "    }",
             "    onNavigate?.(nextPath);",
             "  };",
             "",
@@ -662,12 +707,16 @@ def _react_app_source(payload: dict[str, Any]) -> str:
             "",
             "  return (",
             '    <div className="vs-app-shell">',
-            '      <header className="vs-app-header">',
-            f"        <strong>{{{_safe_json(str(payload['app']['title']))}}}</strong>",
-            '        <nav aria-label="Application">',
+            '      <header className="vs-app-chrome">',
+            '        <div className="vs-app-title-block">',
+            '          <p className="vs-app-kicker">ViewSpec App Shell</p>',
+            f"          <h1 id=\"vs-app-title\" className=\"vs-app-title\">{{{_safe_json(str(payload['app']['title']))}}}</h1>",
+            "        </div>",
+            '        <nav className="vs-app-nav" aria-label="Application">',
             "          {routes.map((route) => (",
             "            <button",
             "              key={route.id}",
+            '              className="vs-app-route-button"',
             '              type="button"',
             '              aria-current={activeRoute?.id === route.id ? "page" : undefined}',
             "              onClick={() => navigate(route.path)}",
@@ -678,7 +727,7 @@ def _react_app_source(payload: dict[str, Any]) -> str:
             "        </nav>",
             "      </header>",
             '      {runtimeError ? <p role="alert" className="vs-app-error">{runtimeError.message}</p> : null}',
-            '      <main className="vs-app-main">{renderScreen()}</main>',
+            '      <main id="vs-app-main" className="vs-app-main">{renderScreen()}</main>',
             "    </div>",
             "  );",
             "}",
@@ -690,24 +739,38 @@ def _react_app_source(payload: dict[str, Any]) -> str:
 
 
 def _screen_renderers(payload: dict[str, Any]) -> list[str]:
+    route_by_screen = {
+        str(route["screen_id"]): str(route["path"])
+        for route in payload.get("routes", [])
+        if isinstance(route, dict)
+        and isinstance(route.get("screen_id"), str)
+        and isinstance(route.get("path"), str)
+    }
     visibility_screens = {
         rule.get("screen_id")
         for rule in payload.get("visibility", [])
+        if isinstance(rule, dict) and isinstance(rule.get("screen_id"), str)
+    }
+    state_text_screens = {
+        rule.get("screen_id")
+        for rule in payload.get("state_text", [])
         if isinstance(rule, dict) and isinstance(rule.get("screen_id"), str)
     }
     lines: list[str] = []
     for index, screen in enumerate(payload.get("screens", [])):
         screen_id = str(screen["id"])
         visibility_prop = " visibility={visibility}" if screen_id in visibility_screens else ""
+        state_text_prop = " stateText={stateText}" if screen_id in state_text_screens else ""
         lines.extend(
             [
                 f"    if (activeRoute?.screenId === {_safe_json(screen_id)}) {{",
                 "      return (",
-                f'        <section data-viewspec-app-screen="{screen_id}">',
+                f'        <section data-viewspec-app-screen="{screen_id}" data-route-path={{{_safe_json(route_by_screen[screen_id])}}}>',
                 f"          <Screen{index}",
                 f"            data={{screenData({_safe_json(screen_id)})}}",
                 f"            onAction={{(intent) => handleAction({_safe_json(screen_id)}, intent)}}",
                 f"           {visibility_prop}",
+                f"           {state_text_prop}",
                 "          />",
                 "        </section>",
                 "      );",
@@ -1075,6 +1138,7 @@ def _playwright_test_source(
         "rebound_binding_count": sum(len(case["bindings"]) for case in proof_cases),
         "selector_assertion_count": sum(case["selectorAssertionCount"] for case in proof_cases),
         "visibility_assertion_count": sum(len(case["visibility"]) for case in proof_cases),
+        "state_text_assertion_count": sum(len(case["text"]) for case in proof_cases),
         "presentation_anchor_assertion_count": sum(
             len(screen.get("anchors", []))
             for screen in (presentation_plan or {}).get("screens", [])
@@ -1090,9 +1154,11 @@ def _playwright_test_source(
         "type RuntimeProofEvent = { screenId: string; actionId: string; payloadValues: Record<string, unknown> };",
         "type RuntimeBindingAssertion = { screenId: string; bindingId: string; text: string };",
         "type RuntimeVisibilityAssertion = { screenId: string; ruleId: string; visible: boolean };",
+        "type RuntimeTextAssertion = { screenId: string; ruleId: string; text: string };",
         "type RuntimeProofCase = {",
         "  id: string; events: readonly RuntimeProofEvent[]; bindings: readonly RuntimeBindingAssertion[];",
         "  selectorAssertionCount: number; visibility: readonly RuntimeVisibilityAssertion[];",
+        "  text: readonly RuntimeTextAssertion[];",
         "};",
         "type PresentationRect = { left: number; top: number; right: number; bottom: number; width: number; height: number };",
         "type PresentationAnchor = {",
@@ -1269,6 +1335,10 @@ def _playwright_test_source(
                 "      if (assertion.visible) await expect(target).toBeVisible();",
                 "      else await expect(target).toBeHidden();",
                 "    }",
+                "    for (const assertion of proofCase.text) {",
+                "      await navigateToScreen(page, assertion.screenId);",
+                '      await expect(page.locator(`[data-state-text-id="${assertion.ruleId}"]`)).toHaveText(assertion.text);',
+                "    }",
                 "  }",
                 "});",
             ]
@@ -1387,6 +1457,11 @@ def _runtime_proof_cases(payload: dict[str, Any]) -> list[dict[str, Any]]:
         for rule in payload.get("visibility", [])
         if isinstance(rule, dict) and isinstance(rule.get("id"), str)
     }
+    text_rules = {
+        str(rule["id"]): rule
+        for rule in payload.get("state_text", [])
+        if isinstance(rule, dict) and isinstance(rule.get("id"), str)
+    }
     resource_bindings = _resource_bindings(payload)
     cases: list[dict[str, Any]] = []
     for assertion in payload.get("state_replay_assertions", []):
@@ -1415,6 +1490,15 @@ def _runtime_proof_cases(payload: dict[str, Any]) -> list[dict[str, Any]]:
             for rule_id, visible in assertion.get("expect_visibility", {}).items()
             if rule_id in rules and isinstance(visible, bool)
         ]
+        text_assertions = [
+            {
+                "ruleId": str(rule_id),
+                "screenId": str(text_rules[rule_id].get("screen_id")),
+                "text": expected,
+            }
+            for rule_id, expected in assertion.get("expect_text", {}).items()
+            if rule_id in text_rules and isinstance(expected, str)
+        ]
         cases.append(
             {
                 "id": str(assertion.get("id")),
@@ -1422,6 +1506,7 @@ def _runtime_proof_cases(payload: dict[str, Any]) -> list[dict[str, Any]]:
                 "bindings": bindings,
                 "selectorAssertionCount": len(assertion.get("expect_selectors", {})),
                 "visibility": visibility,
+                "text": text_assertions,
             }
         )
     return cases
@@ -1533,41 +1618,10 @@ html, body, #root { min-height: 100%; }
 body { margin: 0; }
 button, input { font: inherit; }
 
-.vs-app-shell { min-height: 100vh; background: #f5f7f6; }
-.vs-app-header {
-  min-height: 64px;
-  padding: 0 24px;
-  border-bottom: 1px solid #cdd8d3;
-  background: #ffffff;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 24px;
-}
-.vs-app-header nav { display: flex; align-items: center; gap: 4px; }
-.vs-app-header button {
-  min-height: 36px;
-  padding: 6px 10px;
-  border: 1px solid transparent;
-  background: transparent;
-  color: #405049;
-  cursor: pointer;
-}
-.vs-app-header button[aria-current="page"] {
-  border-color: #9bb7ab;
-  background: #e6f0ec;
-  color: #0f503b;
-}
-.vs-app-main { width: min(100%, 1240px); margin: 0 auto; }
 .vs-app-error { margin: 16px 24px 0; color: #991b1b; }
 .vs-app-not-found { padding: 48px 24px; }
-
-@media (max-width: 640px) {
-  .vs-app-header { align-items: flex-start; flex-direction: column; gap: 10px; padding: 14px 16px; }
-  .vs-app-header nav { width: 100%; overflow-x: auto; }
-}
 """
-    source = source.rstrip() + "\n\n" + OFFLINE_EMITTER_CSS + "\n"
+    source = source.rstrip() + "\n\n" + _app_shell_css() + "\n\n" + OFFLINE_EMITTER_CSS + "\n"
     if presentation_plan is not None:
         source = source.rstrip() + "\n\n" + presentation_plan_css(presentation_plan) + "\n"
     if pretext:

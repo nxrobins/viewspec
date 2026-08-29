@@ -9,6 +9,7 @@ from typing import Any
 from viewspec.app_errors import _normalize_proof_errors
 from viewspec.app_paths import _assert_under_proof_root
 from viewspec.app_resource_repeat import resource_binding_address
+from viewspec.app_state_text import check_screen_state_text_bake, screen_state_text_overlays
 from viewspec.app_visibility import check_screen_visibility_bake, screen_visibility_overlays
 from viewspec.local_tools import atomic_write, check_artifact_dir, file_hash
 from viewspec.manifest_summary import summarize_intent_manifest
@@ -25,6 +26,15 @@ def _visibility_overlays_for(payload: dict[str, Any]) -> dict[str, dict[str, dic
     return screen_visibility_overlays(payload, state_ir)
 
 
+def _state_text_overlays_for(payload: dict[str, Any]) -> dict[str, dict[str, dict[str, Any]]]:
+    if payload.get("schema_version") != 4 or "state_text" not in payload:
+        return {}
+    state_ir, issues = validate_state_ir(payload)
+    if state_ir is None or issues:
+        return {}
+    return screen_state_text_overlays(payload, state_ir)
+
+
 def _screen_ir_overlays_for(payload: dict[str, Any]) -> dict[str, dict[str, dict[str, Any]]]:
     """Return compiler-owned overlays for IntentBundles embedded inside an AppBundle.
 
@@ -37,6 +47,10 @@ def _screen_ir_overlays_for(payload: dict[str, Any]) -> dict[str, dict[str, dict
         screen_id: {node_id: dict(props) for node_id, props in screen_overlay.items()}
         for screen_id, screen_overlay in _visibility_overlays_for(payload).items()
     }
+    for screen_id, screen_overlay in _state_text_overlays_for(payload).items():
+        target_overlay = overlays.setdefault(screen_id, {})
+        for node_id, props in screen_overlay.items():
+            target_overlay.setdefault(node_id, {}).update(props)
     screens = payload.get("screens") if isinstance(payload.get("screens"), list) else []
     for screen in screens:
         if not isinstance(screen, dict):
@@ -121,6 +135,7 @@ def _prove_app_screens(
     screen_reports: list[dict[str, Any]] = []
     screens = payload.get("screens") if isinstance(payload.get("screens"), list) else []
     visibility_overlays = _visibility_overlays_for(payload)
+    state_text_overlays = _state_text_overlays_for(payload)
     screen_ir_overlays = _screen_ir_overlays_for(payload)
     for screen in screens:
         screen_id = str(screen["id"])
@@ -174,6 +189,19 @@ def _prove_app_screens(
                         "code": "APP_VISIBILITY_BAKE_MISMATCH",
                         "message": f"Screen {screen_id} visibility bake mismatch: {mismatch}.",
                         "fix": "Recompile the AppBundle; baked visibility markers must match initial_visibility exactly.",
+                    }
+                )
+        if not errors and screen_id in state_text_overlays and manifest_path.exists():
+            try:
+                screen_manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            except Exception:
+                screen_manifest = {}
+            for mismatch in check_screen_state_text_bake(screen_manifest, state_text_overlays[screen_id]):
+                errors.append(
+                    {
+                        "code": "APP_STATE_TEXT_BAKE_MISMATCH",
+                        "message": f"Screen {screen_id} state text bake mismatch: {mismatch}.",
+                        "fix": "Recompile the AppBundle; state text markers and initial values must match the state contract exactly.",
                     }
                 )
         screen_reports.append(
@@ -231,4 +259,9 @@ def _compile_screen(
     )
 
 
-__all__ = ["_prove_app_screens", "_screen_ir_overlays_for", "_visibility_overlays_for"]
+__all__ = [
+    "_prove_app_screens",
+    "_screen_ir_overlays_for",
+    "_state_text_overlays_for",
+    "_visibility_overlays_for",
+]
