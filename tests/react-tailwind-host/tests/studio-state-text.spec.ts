@@ -118,6 +118,9 @@ test("Static and React show the same review-count truth after interaction and re
   await expect(page.locator("#coherence-card")).toHaveAttribute("data-status", "aligned");
   await expect(page.locator("#coherence-summary")).toHaveText("Static + React align at Mobile");
   await page.getByLabel("Canvas", { exact: true }).selectOption("mobile");
+  const details = page.getByRole("button", { name: "Details", exact: true });
+  if ((await details.getAttribute("aria-expanded")) !== "true") await details.click();
+  await expect(page.locator("#studio-panel")).toHaveAttribute("aria-hidden", "false");
 
   const staticFrame = page.frameLocator("#artifact");
   const reactFrame = page.frameLocator("#artifact-react");
@@ -134,11 +137,8 @@ test("Static and React show the same review-count truth after interaction and re
   await expect(reactCount).toHaveText("Review count: 1");
 
   await reactCount.evaluate((element) => {
-    (element as HTMLElement).style.transform = "translateX(140px)";
+    (element as HTMLElement).style.transform = "translateX(24px)";
   });
-  const details = page.getByRole("button", { name: "Details", exact: true });
-  if ((await details.getAttribute("aria-expanded")) !== "true") await details.click();
-  await expect(page.locator("#studio-panel")).toHaveAttribute("aria-hidden", "false");
   await page.getByRole("button", { name: "Recheck targets", exact: true }).click();
   await expect(page.locator("#coherence-card")).toHaveAttribute("data-status", "mismatch");
   await expect(page.locator("#coherence-summary")).toHaveText("Targets differ at Mobile");
