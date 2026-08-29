@@ -3,18 +3,19 @@
   "goal": "Refine the existing ViewSpec core workflow until supported briefs produce desirable, traceable, shippable interfaces without editing generated output or interpreting ambiguous failures.",
   "status": "passed",
   "evaluated_on": "2026-07-21",
+  "revalidated_on": "2026-08-14",
   "same_revision_evidence": {
     "browser_corpus": {
       "path": "conformance/refinement/verification-report-v2.json",
-      "sha256": "142f048643f03489c81bceda92d778fc45c3731ee8b35a500819649feb7f49c8",
+      "sha256": "e11e1e892699f66fc44afc9a4afb8d77bff5bb406ce84427d1a5b17990ec2a3b",
       "case_count": 10,
       "conformant_count": 10,
       "sdk_version": "0.3.0b5"
     },
     "full_suite": {
       "command": ".venv/bin/pytest -q --tb=short",
-      "passed": 1129,
-      "skipped": 1
+      "passed": 1404,
+      "skipped": 9
     }
   },
   "gates": [

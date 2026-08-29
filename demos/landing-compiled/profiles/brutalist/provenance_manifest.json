@@ -4,10 +4,10 @@
   "kind": "intent_bundle_compile",
   "sdk_version": "0.3.0b7",
   "source_name": "intent_bundle.json",
-  "raw_source_hash": "5837da22633e30e2f988cf1409c3b62aa258b4da1b32bcbdfae439a59b883b1e",
-  "source_hash": "5837da22633e30e2f988cf1409c3b62aa258b4da1b32bcbdfae439a59b883b1e",
+  "raw_source_hash": "497cbfaecdc3e434989231afe5aad4454f7ad63f0ea92b3cd19a5e57848df20c",
+  "source_hash": "497cbfaecdc3e434989231afe5aad4454f7ad63f0ea92b3cd19a5e57848df20c",
   "design_hash": null,
-  "artifact_hash": "c69d766438113a5fe8b682499dfd24f22749da5bf6ed3a0182c382bbe2e801c3",
+  "artifact_hash": "21bab0bac3a1677116941541598894ee85931bef97021decdde33db7a80786f2",
   "command": "compile",
   "command_args": [
     "python",
@@ -108,7 +108,7 @@
         "tone.muted"
       ],
       "props": {
-        "text": "Agent-native app compiler",
+        "text": "Local product studio for you and your agent",
         "binding_id": "launch_hero_eyebrow",
         "hero_role": "eyebrow"
       }
@@ -130,7 +130,7 @@
         "emphasis.high"
       ],
       "props": {
-        "text": "Intent goes in. Interface comes out.",
+        "text": "Tell your agent what to build. See the real product.",
         "binding_id": "launch_hero_title",
         "hero_role": "title"
       }
@@ -151,7 +151,7 @@
         "tone.neutral"
       ],
       "props": {
-        "text": "Agents commit to meaning \u2014 nodes, bindings, motifs. ViewSpec compiles the UI, the state reducer, replay checks, and shell proof. Deterministic, and no runtime LLM.",
+        "text": "Create from a brief and reference, compare checked static and React builds, inspect declared state and fixture data, then point at the result and ask for the next change.",
         "binding_id": "launch_hero_description",
         "hero_role": "description"
       }
@@ -2098,7 +2098,7 @@
           "ir_id": "binding_launch_hero_eyebrow",
           "primitive": "label",
           "tag": "p",
-          "visible_text": "Agent-native app compiler",
+          "visible_text": "Local product studio for you and your agent",
           "binding_id": "launch_hero_eyebrow",
           "action": null,
           "accessibility_label": null
@@ -2108,7 +2108,7 @@
           "ir_id": "binding_launch_hero_title",
           "primitive": "value",
           "tag": "h1",
-          "visible_text": "Intent goes in. Interface comes out.",
+          "visible_text": "Tell your agent what to build. See the real product.",
           "binding_id": "launch_hero_title",
           "action": null,
           "accessibility_label": null
@@ -2118,7 +2118,7 @@
           "ir_id": "binding_launch_hero_description",
           "primitive": "text",
           "tag": "p",
-          "visible_text": "Agents commit to meaning \u2014 nodes, bindings, motifs. ViewSpec compiles the UI, the state reducer, replay checks, and shell proof. Deterministic, and no runtime LLM.",
+          "visible_text": "Create from a brief and reference, compare checked static and React builds, inspect declared state and fixture data, then point at the result and ask for the next change.",
           "binding_id": "launch_hero_description",
           "action": null,
           "accessibility_label": null
@@ -3108,7 +3108,7 @@
           "ir_id": "binding_launch_hero_eyebrow",
           "primitive": "label",
           "tag": "p",
-          "visible_text": "Agent-native app compiler",
+          "visible_text": "Local product studio for you and your agent",
           "binding_id": "launch_hero_eyebrow",
           "action": null,
           "accessibility_label": null
@@ -3118,7 +3118,7 @@
           "ir_id": "binding_launch_hero_title",
           "primitive": "value",
           "tag": "h1",
-          "visible_text": "Intent goes in. Interface comes out.",
+          "visible_text": "Tell your agent what to build. See the real product.",
           "binding_id": "launch_hero_title",
           "action": null,
           "accessibility_label": null
@@ -3128,7 +3128,7 @@
           "ir_id": "binding_launch_hero_description",
           "primitive": "text",
           "tag": "p",
-          "visible_text": "Agents commit to meaning \u2014 nodes, bindings, motifs. ViewSpec compiles the UI, the state reducer, replay checks, and shell proof. Deterministic, and no runtime LLM.",
+          "visible_text": "Create from a brief and reference, compare checked static and React builds, inspect declared state and fixture data, then point at the result and ask for the next change.",
           "binding_id": "launch_hero_description",
           "action": null,
           "accessibility_label": null
@@ -3985,6 +3985,6 @@
         }
       ]
     },
-    "digest": "8146a7a14f8f5490c22b86971f2b431c9d8b275e6c1497d78c2e6d6916b24443"
+    "digest": "1b7ed1e6f61b59c74a58e4d65beae31e4c263454167b926b1bce5e7110a7468f"
   }
 }

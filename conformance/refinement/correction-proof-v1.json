@@ -11,9 +11,9 @@
         "target": "html-tailwind-app"
       },
       "patch_id": "vpatch_05c71efe36af52ff2f69a735ad5d06d9",
-      "preview_id": "vpv_ce85d5d31d58b2bc88d074d63c68fa49",
+      "preview_id": "vpv_c3c268990eb438149da05bd064d88e31",
       "receipt": {
-        "approval_token": "vapprove_da2d7f8406e858e8021e0a35dd7951ac0f56d379d7500475bad7371ee752fa98",
+        "approval_token": "vapprove_93f3fddb086d5b710fe6bb6aedcb482ba4eddaa8d4892dc21d745201326913a1",
         "base_source_sha256": "d2917c0bc2f416d8ddcf6ea3b6fee56c4320e650b20d506cf2dd68d4bf946d75",
         "candidate_source_sha256": "68de21672e355886f3f8b5678b36ae42d7f85e6fef04abaf7deb04e90e3157ac",
         "inverse_patch": {
@@ -36,8 +36,8 @@
           "source_kind": "app_bundle"
         },
         "patch_id": "vpatch_05c71efe36af52ff2f69a735ad5d06d9",
-        "preview_id": "vpv_ce85d5d31d58b2bc88d074d63c68fa49",
-        "receipt_id": "vreceipt_d638f27ffb3df4db71c9f5bdfd35eac9",
+        "preview_id": "vpv_c3c268990eb438149da05bd064d88e31",
+        "receipt_id": "vreceipt_76727bd936453464a971774845fffe83",
         "schema_version": 1,
         "status": "applied"
       },
@@ -64,9 +64,9 @@
         "target": "html-tailwind-app"
       },
       "patch_id": "vpatch_d4f689f893fd41786ca70ab0bd82a88d",
-      "preview_id": "vpv_448d6fcdf060cf84ebcd0b34f121678a",
+      "preview_id": "vpv_c105d1434e4cdf80d4894ecda3e7965c",
       "receipt": {
-        "approval_token": "vapprove_145ce3a7edc128056dbcfc21a42aea33e1b7c3e3b6097fdd55f53928fe2acb5a",
+        "approval_token": "vapprove_3d4a1e0d8255f5c0076bf3c139e4f203338e2f275700c58de9b795d60ba11354",
         "base_source_sha256": "d2917c0bc2f416d8ddcf6ea3b6fee56c4320e650b20d506cf2dd68d4bf946d75",
         "candidate_source_sha256": "8111f94b3d0540d89254ba5012b0294c1c9797353a63ed1743930b7c01c98788",
         "inverse_patch": {
@@ -89,8 +89,8 @@
           "source_kind": "app_bundle"
         },
         "patch_id": "vpatch_d4f689f893fd41786ca70ab0bd82a88d",
-        "preview_id": "vpv_448d6fcdf060cf84ebcd0b34f121678a",
-        "receipt_id": "vreceipt_7a9cd9a040fed5bc749d75ec74ed9f04",
+        "preview_id": "vpv_c105d1434e4cdf80d4894ecda3e7965c",
+        "receipt_id": "vreceipt_8392f12efe59d0097f517455d0c73fd9",
         "schema_version": 1,
         "status": "applied"
       },
@@ -117,9 +117,9 @@
         "target": "html-tailwind"
       },
       "patch_id": "vpatch_42b5a1f7deacbd60ef42386df42971cb",
-      "preview_id": "vpv_b5cf82e50351f2f77a7c194de1d02164",
+      "preview_id": "vpv_450ee25470289413674a1311b6ca6158",
       "receipt": {
-        "approval_token": "vapprove_00baceb7ee50e29cc3a2f730c9d24e88c3bb43c43d93df1304027affd11b326d",
+        "approval_token": "vapprove_8e2478e913f66d1632ed89aff811c08c0a76916de151225c11e01397eb04466e",
         "base_source_sha256": "011872d9c56ea49f9f5ab1edc612f8cd238bebb2012d8972f1d1064b0beafc65",
         "candidate_source_sha256": "4b4204475bdff1d6eecbb75fc5228ec5ef908430497813d6041955155c98bb5b",
         "inverse_patch": {
@@ -141,8 +141,8 @@
           "source_kind": "intent_bundle"
         },
         "patch_id": "vpatch_42b5a1f7deacbd60ef42386df42971cb",
-        "preview_id": "vpv_b5cf82e50351f2f77a7c194de1d02164",
-        "receipt_id": "vreceipt_d39fb7ae49b6a464f20d1a0c2a7a6490",
+        "preview_id": "vpv_450ee25470289413674a1311b6ca6158",
+        "receipt_id": "vreceipt_a0ef4874944b1d3d506fd99b27d6ed5a",
         "schema_version": 1,
         "status": "applied"
       },
@@ -155,10 +155,10 @@
       },
       "verification": {
         "diagnostic_codes": [],
-        "result_sha256": "3ff06162a9001754da33556835027b64e9bd25a7019f8c03fbf60527db9a2232",
+        "result_sha256": "dee9b77bfdf9174e96476c96e3b1b66deb9abc387a95d5915f578ed81197bfc0",
         "status": "conformant",
         "target": "react-tailwind-tsx",
-        "verification_id": "vvr_a7f2e4529e3b7692e8af63dc68540d57"
+        "verification_id": "vvr_2d6032205ec9d14eb3269ac73ba24c12"
       }
     },
     {
@@ -171,9 +171,9 @@
         "target": "html-tailwind"
       },
       "patch_id": "vpatch_045930ae1c9ea52ef3d7cdd6b7bc6f52",
-      "preview_id": "vpv_6e09889b19dd740b323fd3cdc7425484",
+      "preview_id": "vpv_a8a98bd87a5f664e1e2e83337c363884",
       "receipt": {
-        "approval_token": "vapprove_0d34f4e9d8fe19ec21dcb58a55e9440c0de2a9ab0eb82e9a05e6b2fa6de3a90e",
+        "approval_token": "vapprove_1fc01d831ad8f35cdaa85ff2c3a24d3b052208395b137146d1502daa6f4bd2db",
         "base_source_sha256": "2f927effe0949f688418e477c09eab56bc3b57dbe289f301979221d723018f3f",
         "candidate_source_sha256": "f394eb049abb8e84a3552e521ed1f2512cdc0326484f9d4b25528207b3f22194",
         "inverse_patch": {
@@ -195,8 +195,8 @@
           "source_kind": "intent_bundle"
         },
         "patch_id": "vpatch_045930ae1c9ea52ef3d7cdd6b7bc6f52",
-        "preview_id": "vpv_6e09889b19dd740b323fd3cdc7425484",
-        "receipt_id": "vreceipt_0b3bc64d7ea8d402a09ec0b54019dcf4",
+        "preview_id": "vpv_a8a98bd87a5f664e1e2e83337c363884",
+        "receipt_id": "vreceipt_5aeda13c993833ce62cf97c30924744d",
         "schema_version": 1,
         "status": "applied"
       },
@@ -209,10 +209,10 @@
       },
       "verification": {
         "diagnostic_codes": [],
-        "result_sha256": "17025a6cfa09fcd59583917d7746c9b562ed69e51ea9312ba70240d585e59d34",
+        "result_sha256": "8aee1e27a2adc7583fdd398da387bbe10cdf5e261fb5cc9ae3f5a279f6e7d97c",
         "status": "conformant",
         "target": "react-tailwind-tsx",
-        "verification_id": "vvr_b8b996a379e58cbc46ae760fb5bed8df"
+        "verification_id": "vvr_96b16da1e03de36b39c55fb39c787614"
       }
     },
     {
@@ -225,9 +225,9 @@
         "target": "html-tailwind"
       },
       "patch_id": "vpatch_5f4ae646834261a887847b4a08dc8945",
-      "preview_id": "vpv_95aeb00838d4537bea08b3e5714b6252",
+      "preview_id": "vpv_95a013efcf037995e0a7704c3590e5a2",
       "receipt": {
-        "approval_token": "vapprove_ec3cadead44eac5b277a156029b94a80791e783527a91627f1df609fb34b155f",
+        "approval_token": "vapprove_b69389b07d3e9d6983ed42ab20eb6c36d4ad7e29f7fd70cc7c85f3a056543a5d",
         "base_source_sha256": "f94b55facb2652507b9797d8da38af1f995fe81f6b97cf011c86ff168ab8d62a",
         "candidate_source_sha256": "15221e70a263a0996e22552436ec7396bd3bac6427909c7d5c699fc7c6fc9099",
         "inverse_patch": {
@@ -249,8 +249,8 @@
           "source_kind": "intent_bundle"
         },
         "patch_id": "vpatch_5f4ae646834261a887847b4a08dc8945",
-        "preview_id": "vpv_95aeb00838d4537bea08b3e5714b6252",
-        "receipt_id": "vreceipt_7b676ba6575f6078dc5b435f36922a8a",
+        "preview_id": "vpv_95a013efcf037995e0a7704c3590e5a2",
+        "receipt_id": "vreceipt_90bfc133d11a9dcb27b3b05ad3e1b13f",
         "schema_version": 1,
         "status": "applied"
       },
@@ -263,10 +263,10 @@
       },
       "verification": {
         "diagnostic_codes": [],
-        "result_sha256": "4891cf5d45a0dbc5050e9972da5a466e6c5ea98c4664645145229a95efa3ca3d",
+        "result_sha256": "798a047688e324cdd09c7544d9cdf74956d500d778a53ef455cdad314687adf8",
         "status": "conformant",
         "target": "react-tailwind-tsx",
-        "verification_id": "vvr_330c4589f86d5dec270dd2a0a347c9cc"
+        "verification_id": "vvr_8ee547d856a8fc370c586ae17bf16611"
       }
     },
     {
@@ -279,9 +279,9 @@
         "target": "html-tailwind"
       },
       "patch_id": "vpatch_29563aa5c3d2dbc9fe3bcaf700e7cdfb",
-      "preview_id": "vpv_f22b1d23fcd57ec10c1ccd0e83a49a11",
+      "preview_id": "vpv_1b6ab4b4acc36c0f29148b8b19477751",
       "receipt": {
-        "approval_token": "vapprove_72eb73c6df8402a9f0045deb84a9969114f5657ef110df6d708a617b29aeca26",
+        "approval_token": "vapprove_1581c6a584a6a33c6eaa12a8bbe0b8c5224e8703b4ce09745e91b01e6115025f",
         "base_source_sha256": "16c47f6f5d01fd03135e4b0cbdfbf469bff1130adc210e544c1bc5cf8ee4dcf7",
         "candidate_source_sha256": "52ccb992448827be795feec2b1da4a2d04f8cf3e128735916fa2f91062d4f312",
         "inverse_patch": {
@@ -303,8 +303,8 @@
           "source_kind": "intent_bundle"
         },
         "patch_id": "vpatch_29563aa5c3d2dbc9fe3bcaf700e7cdfb",
-        "preview_id": "vpv_f22b1d23fcd57ec10c1ccd0e83a49a11",
-        "receipt_id": "vreceipt_239d52392f844f3f36ab4d9825afce7c",
+        "preview_id": "vpv_1b6ab4b4acc36c0f29148b8b19477751",
+        "receipt_id": "vreceipt_05de76137a93f0a7597ccec1e180d951",
         "schema_version": 1,
         "status": "applied"
       },
@@ -317,48 +317,48 @@
       },
       "verification": {
         "diagnostic_codes": [],
-        "result_sha256": "8a081ea72f8cb91983b67a9b5ed20dd461b4f8ccd7d69389314a172142b9b2a7",
+        "result_sha256": "3e53cca2ae8e9f0c2e49b9c8b31d48bf900b886d8c6dfe679c6bd6380066bac5",
         "status": "conformant",
         "target": "react-tailwind-tsx",
-        "verification_id": "vvr_0513b1ef0c0d30529561d4b012d2dca2"
+        "verification_id": "vvr_51731b787f039f4c1b78772f7e750d2d"
       }
     },
     {
-      "base_source_sha256": "add0d6cd3f4c6051e08045ef9e763d33376b6ddd8eff43dbf40ac4a34073a301",
-      "candidate_source_sha256": "2d20c3c62aabba36a6bfaeaa5ce5c72004de60eba94d61df3f33a71a9a525304",
+      "base_source_sha256": "7f110ac177987ab6af72d9ae5b6afacc76a528a37d6789063472954851d9b271",
+      "candidate_source_sha256": "eacba1cc34bb1ae5e8331484a716e78b7a717768b5e5420feaa3fe43b5a381d3",
       "case_id": "landing-intent",
       "compile_check": {
         "artifact_check": "passed",
         "status": "passed",
         "target": "html-tailwind"
       },
-      "patch_id": "vpatch_83c78556b2f0e1bc8a0bad0bed7281ac",
-      "preview_id": "vpv_68db50657a58c42ac611e84325f5a14a",
+      "patch_id": "vpatch_7c002512b52e3b5c649887e262b87d1b",
+      "preview_id": "vpv_c8bc4d4e2b07d52d1a55208f179d3c91",
       "receipt": {
-        "approval_token": "vapprove_ed0a07563bd7d5e76d4a8caaac5b93a8faa35d2119db10527d0a73bdf90a928c",
-        "base_source_sha256": "add0d6cd3f4c6051e08045ef9e763d33376b6ddd8eff43dbf40ac4a34073a301",
-        "candidate_source_sha256": "2d20c3c62aabba36a6bfaeaa5ce5c72004de60eba94d61df3f33a71a9a525304",
+        "approval_token": "vapprove_80ea85bd2ebee81979ff10303c6b1d2cb79173aa08fe847fae9ec9de5785cfd4",
+        "base_source_sha256": "7f110ac177987ab6af72d9ae5b6afacc76a528a37d6789063472954851d9b271",
+        "candidate_source_sha256": "eacba1cc34bb1ae5e8331484a716e78b7a717768b5e5420feaa3fe43b5a381d3",
         "inverse_patch": {
-          "base_source_sha256": "2d20c3c62aabba36a6bfaeaa5ce5c72004de60eba94d61df3f33a71a9a525304",
+          "base_source_sha256": "eacba1cc34bb1ae5e8331484a716e78b7a717768b5e5420feaa3fe43b5a381d3",
           "contract_profile": "local_v1",
           "evidence_refs": [
-            "patch:vpatch_83c78556b2f0e1bc8a0bad0bed7281ac"
+            "patch:vpatch_7c002512b52e3b5c649887e262b87d1b"
           ],
           "operations": [
             {
               "attr": "title",
               "node_id": "launch_hero",
-              "old_value": "Intent becomes interface.",
+              "old_value": "Build it with your agent. See the real product.",
               "op": "replace_semantic_attr",
-              "value": "Intent goes in. Interface comes out."
+              "value": "Tell your agent what to build. See the real product."
             }
           ],
           "schema_version": 1,
           "source_kind": "intent_bundle"
         },
-        "patch_id": "vpatch_83c78556b2f0e1bc8a0bad0bed7281ac",
-        "preview_id": "vpv_68db50657a58c42ac611e84325f5a14a",
-        "receipt_id": "vreceipt_2880633f50c94977eecd3f42acad5067",
+        "patch_id": "vpatch_7c002512b52e3b5c649887e262b87d1b",
+        "preview_id": "vpv_c8bc4d4e2b07d52d1a55208f179d3c91",
+        "receipt_id": "vreceipt_0a7e9d3fdbad943e57854964d8601eb1",
         "schema_version": 1,
         "status": "applied"
       },
@@ -371,10 +371,10 @@
       },
       "verification": {
         "diagnostic_codes": [],
-        "result_sha256": "2719d3a3eddb08c87e2aacee25ebdbd14f634163db817f60bf9d1dbad9def229",
+        "result_sha256": "427c81bd289b52b4eef589639868fe7267e73c9863c7da43e4acbe07c1749317",
         "status": "conformant",
         "target": "react-tailwind-tsx",
-        "verification_id": "vvr_3e35a57ed6f4252a463c96dbeb72b71b"
+        "verification_id": "vvr_53ca40632037850cf8a04d67c74f8c7f"
       }
     },
     {
@@ -387,9 +387,9 @@
         "target": "html-tailwind"
       },
       "patch_id": "vpatch_8df29442e3ae471b00da2e8f7cf9e2d2",
-      "preview_id": "vpv_91d631d519197fd3a2e9d20e84fd5bc1",
+      "preview_id": "vpv_1bb079c8f9dc7d5bbb5dd76aa5ecc1f5",
       "receipt": {
-        "approval_token": "vapprove_87b78ecd37045c1cd45855789abfe1d2a439d98969bba577b29eef13cb373941",
+        "approval_token": "vapprove_746b4a31541d31da263fe3f766bd1ab890da608b3f7fdaec038dc0f6a4fcf264",
         "base_source_sha256": "5936001fcfaf1e8e76e5cd9391c41388981835133216cd49c9af9fc8c2d91bec",
         "candidate_source_sha256": "73406acbb0414c950344019a7da21a5ac20617a19f210387fbefd62c620e41b1",
         "inverse_patch": {
@@ -411,8 +411,8 @@
           "source_kind": "intent_bundle"
         },
         "patch_id": "vpatch_8df29442e3ae471b00da2e8f7cf9e2d2",
-        "preview_id": "vpv_91d631d519197fd3a2e9d20e84fd5bc1",
-        "receipt_id": "vreceipt_b18aecd65fec83982bb50e8ba04672fe",
+        "preview_id": "vpv_1bb079c8f9dc7d5bbb5dd76aa5ecc1f5",
+        "receipt_id": "vreceipt_c1a42951ab2d8c46c9345322665c6a18",
         "schema_version": 1,
         "status": "applied"
       },
@@ -425,10 +425,10 @@
       },
       "verification": {
         "diagnostic_codes": [],
-        "result_sha256": "b0d95c1021cd3dac7898f3e06359d0125e4dd1bc52fb2fe7bda75e60437c55d4",
+        "result_sha256": "c1784b3feee04bc0f05f090c596760520d3a83d160a96f79fb71e792e99782f5",
         "status": "conformant",
         "target": "react-tailwind-tsx",
-        "verification_id": "vvr_30d666921e9fccbe0c870f27924a1030"
+        "verification_id": "vvr_efdcc293ebae9d21da61f9a867dbbd3d"
       }
     },
     {
@@ -441,9 +441,9 @@
         "target": "html-tailwind"
       },
       "patch_id": "vpatch_fa0ab8c4eabed94d9ac75db674ace122",
-      "preview_id": "vpv_84a0e235f72aeb51767e506b8a520ede",
+      "preview_id": "vpv_39f5d3b6b0938d6e75ef8e68e0030fb2",
       "receipt": {
-        "approval_token": "vapprove_0dc9aa88041c387e2dc7345f24d6cc6d24f334bc9c326d8b18bf5dd24a0802b5",
+        "approval_token": "vapprove_05dbb55abe5a30c293914ec767d22c95f7c4fa82bb91b4a774ba25721d29c347",
         "base_source_sha256": "b4fb8cd6d9815c797babba88d82423ffccb32aa28d3aa27cf6807118ed40f819",
         "candidate_source_sha256": "34c8af469c546f7ddad571afdb20d752af81e7e42de16f6a79c1ed462c012fde",
         "inverse_patch": {
@@ -465,8 +465,8 @@
           "source_kind": "intent_bundle"
         },
         "patch_id": "vpatch_fa0ab8c4eabed94d9ac75db674ace122",
-        "preview_id": "vpv_84a0e235f72aeb51767e506b8a520ede",
-        "receipt_id": "vreceipt_d4565632a7acc736df88285b418443d6",
+        "preview_id": "vpv_39f5d3b6b0938d6e75ef8e68e0030fb2",
+        "receipt_id": "vreceipt_79dfd0cb90266b7467d7ec5e3c2a6633",
         "schema_version": 1,
         "status": "applied"
       },
@@ -479,10 +479,10 @@
       },
       "verification": {
         "diagnostic_codes": [],
-        "result_sha256": "cb8b34b36419e7573e210c695f515b627a8f990d30b092a559ec573637192bda",
+        "result_sha256": "7d45dc39545dd40640a68a5d151baa7dd672d79a38c96de9de6a7963ea9b0f54",
         "status": "conformant",
         "target": "react-tailwind-tsx",
-        "verification_id": "vvr_22f9705ebcb9a9225c030ec975582624"
+        "verification_id": "vvr_0e626dcf67b595cb2144d1210b1504f7"
       }
     },
     {
@@ -495,9 +495,9 @@
         "target": "html-tailwind"
       },
       "patch_id": "vpatch_0ff3c4d114c51dd4a7ba7d31e09c5bd6",
-      "preview_id": "vpv_9f46531d0da6299b05f784b2e42bbe36",
+      "preview_id": "vpv_006423c66d4959117037903ca9ef4471",
       "receipt": {
-        "approval_token": "vapprove_4596712a3e1864c71291b3cf492a8a3eb8061391e0d503fb0591533315078276",
+        "approval_token": "vapprove_737dbb102839d783c0e36a1efab7a060c9fa3b35e268682ab51f59df4e075e0d",
         "base_source_sha256": "8f45cc5b92f046ae38d09d547ec03fbb225b3ed8fee24b2c4f70be40b747c738",
         "candidate_source_sha256": "c9874b96bb06a0dd90b3bf0c41ba880d7225c82f1a648a0b64e452c78b1a741b",
         "inverse_patch": {
@@ -519,8 +519,8 @@
           "source_kind": "intent_bundle"
         },
         "patch_id": "vpatch_0ff3c4d114c51dd4a7ba7d31e09c5bd6",
-        "preview_id": "vpv_9f46531d0da6299b05f784b2e42bbe36",
-        "receipt_id": "vreceipt_46e68c03486068710d1ebf09b27cd032",
+        "preview_id": "vpv_006423c66d4959117037903ca9ef4471",
+        "receipt_id": "vreceipt_ddb9a00cbabb08f5004df282ab6a93b8",
         "schema_version": 1,
         "status": "applied"
       },
@@ -533,10 +533,10 @@
       },
       "verification": {
         "diagnostic_codes": [],
-        "result_sha256": "d9b776a24f77f64b9b5cf89c05f7da0a09e4f2bf9acfa243d619773780c8f787",
+        "result_sha256": "6fd725e07d912d03647a6118bc6d46dce3c0cf59adafc7d24a583e76c43a6027",
         "status": "conformant",
         "target": "react-tailwind-tsx",
-        "verification_id": "vvr_7d9f4355fcf77f84fc0ef706797a68ab"
+        "verification_id": "vvr_14b008b1345e6a3bea63b58a3534ba40"
       }
     }
   ],

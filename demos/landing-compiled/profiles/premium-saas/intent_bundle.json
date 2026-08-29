@@ -134,9 +134,9 @@
       },
       "launch_hero": {
         "attrs": {
-          "description": "Agents commit to meaning \u2014 nodes, bindings, motifs. ViewSpec compiles the UI, the state reducer, replay checks, and shell proof. Deterministic, and no runtime LLM.",
-          "eyebrow": "Agent-native app compiler",
-          "title": "Intent goes in. Interface comes out."
+          "description": "Create from a brief and reference, compare checked static and React builds, inspect declared state and fixture data, then point at the result and ask for the next change.",
+          "eyebrow": "Local product studio for you and your agent",
+          "title": "Tell your agent what to build. See the real product."
         },
         "edges": {},
         "id": "launch_hero",
