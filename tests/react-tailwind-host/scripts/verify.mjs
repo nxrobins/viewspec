@@ -121,14 +121,18 @@ async function staticGuard() {
   const files = await gitFiles();
   const trackedGenerated = files.filter((file) => file.startsWith(`${generatedRel}/`));
   if (trackedGenerated.length) fail("HOST_PROOF_GENERATED_ARTIFACT_TRACKED", trackedGenerated.join(", "));
-  const nonLock = await physicalSourceFiles();
-  if (nonLock.length > 18) fail("HOST_PROOF_FIXTURE_TOO_LARGE", `non-lock fixture files: ${nonLock.length}`);
+  const nonLock = (await physicalSourceFiles()).filter((file) => !isStudioHarnessFile(file));
+  if (nonLock.length > 14) fail("HOST_PROOF_FIXTURE_TOO_LARGE", `non-lock fixture files: ${nonLock.length}`);
   const total = nonLock.reduce((size, file) => size + statSync(join(fixtureRoot, file)).size, 0);
-  if (total > 80 * 1024) fail("HOST_PROOF_FIXTURE_TOO_LARGE", `tracked non-lock fixture source is ${total} bytes`);
+  if (total > 40 * 1024) fail("HOST_PROOF_FIXTURE_TOO_LARGE", `tracked non-lock fixture source is ${total} bytes`);
   assertHostCss();
   assertImportPath();
   assertCiGate();
   assertDocs();
+}
+
+function isStudioHarnessFile(file) {
+  return /^studio-.*\.config\.ts$/.test(file) || /^tests\/studio-.*\.spec\.ts$/.test(file);
 }
 
 async function physicalSourceFiles(dir = fixtureRoot, prefix = "") {
