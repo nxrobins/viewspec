@@ -24,6 +24,7 @@ from viewspec._version import __version__
 from viewspec.app_bundle import compile_app, diff_app_text, validate_app_text
 from viewspec.intent_tools import compile_intent_bundle_file_tool, diff_intent_text, validate_intent_text
 from viewspec.local_tools import check_artifact_dir
+from viewspec.node_runtime import materialize_prebuilt_node_modules
 from viewspec.review_contract import (
     KIB,
     MIB,
@@ -34,6 +35,7 @@ from viewspec.review_contract import (
 )
 from viewspec.review_manifest import ReviewManifestIndex
 from viewspec.review_errors import make_review_error
+from viewspec.state_ir import validate_state_ir
 
 
 INTENT_SOURCE_MAX_BYTES = 256 * KIB
@@ -50,6 +52,10 @@ BUILD_STORAGE_RESERVATION_BYTES = MAX_ARTIFACT_BYTES + APP_SOURCE_MAX_BYTES + DE
 MAX_DIFF_ENTRIES = 128
 MAX_DIFF_ENTRY_BYTES = 1 * KIB
 MAX_DIFF_BYTES = 64 * KIB
+STUDIO_COMPARE_TARGET = "studio-static-react-compare"
+STUDIO_COMPARE_MANIFEST = "studio_comparison_manifest.json"
+STUDIO_INSPECTION_MANIFEST = "studio_inspection_manifest.json"
+STUDIO_INSPECTION_MAX_BYTES = 224 * KIB
 _READ_CHUNK_BYTES = 64 * KIB
 _NOFOLLOW_FLAG = getattr(os, "O" + "_NOFOLLOW", 0)
 _ARTIFACT_SET_DOMAIN = b"viewspec.review.artifact-set.v1\x00"
@@ -524,6 +530,13 @@ def load_review_revision(session_dir: str | Path, revision_number: int) -> Built
             None: ReviewManifestIndex.from_bytes(manifest_bytes, screen_id=None)
         }
         _assert_no_external_runtime_references(artifact_dir)
+    elif revision.target == STUDIO_COMPARE_TARGET:
+        indexes, manifest_path = _load_studio_comparison_indexes(
+            artifact_dir,
+            expected_source_sha256=revision.source_sha256,
+        )
+        manifest_bytes = _read_bounded_regular_file(manifest_path, maximum=MAX_ARTIFACT_BYTES)
+        _assert_no_external_runtime_references(artifact_dir)
     elif revision.target == "react-tailwind-app":
         indexes, manifest_path = _load_react_app_indexes(artifact_dir)
         manifest_bytes = _read_bounded_regular_file(manifest_path, maximum=MAX_ARTIFACT_BYTES)
@@ -599,6 +612,15 @@ def _build_app_artifact(
 ) -> tuple[dict[str | None, ReviewManifestIndex], Path, str]:
     with bounded_review_phase("REVIEW_VALIDATE_TIMEOUT", 5):
         _validate_app_snapshot(snapshot)
+    if target == STUDIO_COMPARE_TARGET:
+        return _build_studio_comparison_artifact(
+            snapshot,
+            source_copy=source_copy,
+            design_copy=design_copy,
+            artifact_dir=artifact_dir,
+            candidate_dir=candidate_dir,
+            allow_install=allow_install,
+        )
     with bounded_review_phase("REVIEW_COMPILE_TIMEOUT", 30):
         compiled = compile_app(
             source_copy.name,
@@ -634,6 +656,395 @@ def _build_app_artifact(
     return indexes, manifest_path, root_kind
 
 
+def _build_studio_comparison_artifact(
+    snapshot: ReviewSourceSnapshot,
+    *,
+    source_copy: Path,
+    design_copy: Path | None,
+    artifact_dir: Path,
+    candidate_dir: Path,
+    allow_install: bool,
+) -> tuple[dict[str | None, ReviewManifestIndex], Path, str]:
+    if not allow_install:
+        raise ReviewContractError(
+            "REVIEW_SOURCE_UNSUPPORTED",
+            "Studio static/React comparison requires the exact locked React runtime dependencies.",
+            "Retry viewspec studio --compare --install to authorize the existing npm ci --ignore-scripts flow.",
+            http_status=422,
+        )
+    static_dir = artifact_dir / "static"
+    react_dir = artifact_dir / "react"
+    with bounded_review_phase("REVIEW_COMPILE_TIMEOUT", 60):
+        static_result = compile_app(
+            source_copy.name,
+            out_dir=str(static_dir.relative_to(candidate_dir)),
+            design_path=design_copy.name if design_copy is not None else None,
+            target="html-tailwind-app",
+            cwd=candidate_dir,
+        )
+        if static_result.get("ok") is not True:
+            raise ReviewContractError(
+                "REVIEW_COMPILE_FAILED",
+                "Captured AppBundle did not compile into the static Studio comparison target.",
+                "Fix the reported AppBundle errors and retry the exact source.",
+                http_status=422,
+            )
+        react_result = compile_app(
+            source_copy.name,
+            out_dir=str(react_dir.relative_to(candidate_dir)),
+            design_path=design_copy.name if design_copy is not None else None,
+            target="react-tailwind-app",
+            cwd=candidate_dir,
+        )
+        if react_result.get("ok") is not True:
+            raise ReviewContractError(
+                "REVIEW_COMPILE_FAILED",
+                "Captured AppBundle did not compile into the React Studio comparison target.",
+                "Fix the reported AppBundle errors and retry the exact source.",
+                http_status=422,
+            )
+        _build_react_review_runtime(snapshot, react_dir, allow_install=True)
+
+    with bounded_review_phase("REVIEW_CHECK_TIMEOUT", 15):
+        static_indexes, static_manifest = _load_app_indexes(static_dir, expected_target="html-tailwind-app")
+        react_indexes, react_manifest = _load_react_app_indexes(react_dir)
+        _assert_cross_target_identity(static_indexes, react_indexes)
+        static_routes = _checked_routes(static_manifest)
+        react_routes = _checked_routes(react_manifest)
+        if static_routes != react_routes:
+            raise ReviewContractError(
+                "REVIEW_COMPARISON_IDENTITY_MISMATCH",
+                "Static and React comparison targets do not expose the same checked routes.",
+                "Fix cross-target route generation before opening Studio comparison.",
+                http_status=422,
+            )
+        source_payload = _strict_json_object(snapshot.source_bytes, code="REVIEW_SOURCE_INVALID")
+        inspection = _studio_inspection_projection(
+            source_payload,
+            source_sha256=snapshot.source_sha256,
+            static_result=static_result,
+            react_result=react_result,
+        )
+        inspection_path = artifact_dir / STUDIO_INSPECTION_MANIFEST
+        inspection_bytes = canonical_json_bytes(inspection)
+        if len(inspection_bytes) > STUDIO_INSPECTION_MAX_BYTES:
+            raise ReviewContractError(
+                "REVIEW_COMPARISON_IDENTITY_MISMATCH",
+                "Studio state and resource inspection evidence exceeds its 224 KiB response boundary.",
+                "Reduce declared replay or resource-view evidence before opening Studio comparison.",
+                http_status=422,
+            )
+        _write_private_file(inspection_path, inspection_bytes)
+        manifest_path = artifact_dir / STUDIO_COMPARE_MANIFEST
+        manifest = {
+            "schema_version": 1,
+            "kind": "studio_static_react_comparison",
+            "target": STUDIO_COMPARE_TARGET,
+            "source_sha256": snapshot.source_sha256,
+            "policy": {
+                "dependency_install": "explicit_opt_in",
+                "runtime_network_calls": "none",
+                "visual_parity": "not_proven",
+            },
+            "routes": static_routes,
+            "inspection": {
+                "path": STUDIO_INSPECTION_MANIFEST,
+                "sha256": hashlib.sha256(inspection_bytes).hexdigest(),
+                "coherence_status": inspection["coherence"]["status"],
+                "coherence_contract": inspection["coherence"]["contract"],
+                "state_status": inspection["state"]["status"],
+                "resource_status": inspection["resources"]["status"],
+            },
+            "screens": [
+                {
+                    "id": screen_id,
+                    "semantic_identity_sha256": static_indexes[screen_id].semantic_identity_sha256,
+                    "static_manifest_sha256": static_indexes[screen_id].manifest_sha256,
+                    "react_manifest_sha256": react_indexes[screen_id].manifest_sha256,
+                }
+                for screen_id in sorted(static_indexes)
+                if screen_id is not None
+            ],
+            "targets": [
+                {
+                    "id": "static",
+                    "compiler_target": "html-tailwind-app",
+                    "artifact_path": "static",
+                    "artifact_set_sha256": _artifact_set_sha256(static_dir),
+                },
+                {
+                    "id": "react",
+                    "compiler_target": "react-tailwind-app",
+                    "artifact_path": "react",
+                    "artifact_set_sha256": _artifact_set_sha256(react_dir),
+                },
+            ],
+        }
+        _write_private_file(manifest_path, canonical_json_bytes(manifest))
+        _assert_no_external_runtime_references(artifact_dir)
+    return static_indexes, manifest_path, "studio_comparison_manifest"
+
+
+def _studio_inspection_projection(
+    payload: dict[str, object],
+    *,
+    source_sha256: str,
+    static_result: dict[str, object],
+    react_result: dict[str, object],
+) -> dict[str, object]:
+    return {
+        "schema_version": 1,
+        "kind": "studio_state_resource_inspection",
+        "source_sha256": source_sha256,
+        "policy": {
+            "browser_replay": "exact_declared_action_clicks_v1",
+            "coherence_measurement": "browser_observed_semantic_geometry_v1",
+            "production_data": "not_claimed",
+            "resource_scope": "declared_fixture_views_only",
+        },
+        "coherence": {
+            "status": "browser_observed",
+            "contract": "semantic_geometry_v1",
+            "source_binding": "checked_cross_target_dom_identity",
+            "viewports": ["mobile", "tablet", "desktop"],
+            "thresholds": {
+                "position_px": 3,
+                "size_px": 3,
+                "font_size_px": 0.5,
+                "font_weight": 50,
+            },
+            "claim": "not_pixel_parity",
+        },
+        "state": _studio_state_inspection(payload, static_result=static_result, react_result=react_result),
+        "resources": _studio_resource_inspection(static_result=static_result, react_result=react_result),
+    }
+
+
+def _studio_state_inspection(
+    payload: dict[str, object],
+    *,
+    static_result: dict[str, object],
+    react_result: dict[str, object],
+) -> dict[str, object]:
+    state_ir, issues = validate_state_ir(payload)
+    if state_ir is None:
+        if payload.get("schema_version") not in {3, 4}:
+            return {"status": "not_declared", "replays": []}
+        raise ReviewContractError(
+            "REVIEW_COMPARISON_IDENTITY_MISMATCH",
+            f"Studio could not reconstruct checked state inspection: {issues[0].message if issues else 'invalid state IR'}",
+            "Fix the AppBundle state contract before opening Studio comparison.",
+            http_status=422,
+        )
+    static_hash = static_result.get("state_contract_hash")
+    react_hash = react_result.get("state_contract_hash")
+    static_replay = static_result.get("state_replay")
+    react_replay = react_result.get("state_replay")
+    static_conformance = static_result.get("state_reducer_conformance")
+    react_conformance = react_result.get("state_reducer_conformance")
+    if (
+        not isinstance(static_hash, str)
+        or static_hash != react_hash
+        or static_replay != react_replay
+        or not isinstance(static_replay, dict)
+        or static_replay.get("ok") is not True
+        or not isinstance(static_conformance, dict)
+        or static_conformance.get("ok") is not True
+        or not isinstance(react_conformance, dict)
+        or react_conformance.get("ok") is not True
+    ):
+        raise ReviewContractError(
+            "REVIEW_COMPARISON_IDENTITY_MISMATCH",
+            "Static and React state contracts or replay proof differ.",
+            "Fix cross-target state generation before opening Studio comparison.",
+            http_status=422,
+        )
+    mutations = {mutation.id: mutation for mutation in state_ir.mutations}
+    trigger_counts: dict[tuple[str, str], int] = {}
+    for mutation in state_ir.mutations:
+        key = (mutation.trigger["screen_id"], mutation.trigger["action_id"])
+        trigger_counts[key] = trigger_counts.get(key, 0) + 1
+    routes = {
+        str(route.get("screen_id")): str(route.get("path"))
+        for route in payload.get("routes", [])
+        if isinstance(route, dict) and isinstance(route.get("screen_id"), str) and isinstance(route.get("path"), str)
+    }
+    replay_proofs = {
+        str(entry.get("id")): entry
+        for entry in static_replay.get("assertions", [])
+        if isinstance(entry, dict) and isinstance(entry.get("id"), str)
+    }
+    replays: list[dict[str, object]] = []
+    for assertion in state_ir.replay_assertions:
+        checkpoints: list[dict[str, object]] = [
+            {
+                "index": 0,
+                "label": "Initial",
+                "evidence_ref": f"studio-inspection/replays/{assertion.id}/checkpoints/0",
+                "event": None,
+            }
+        ]
+        browser_replayable = True
+        for index, event in enumerate(assertion.events, start=1):
+            mutation_id = str(event.get("mutation_id"))
+            mutation = mutations.get(mutation_id)
+            if mutation is None:
+                browser_replayable = False
+                trigger = {"screen_id": "", "action_id": ""}
+            else:
+                trigger = mutation.trigger
+                browser_replayable = browser_replayable and trigger_counts.get(
+                    (trigger["screen_id"], trigger["action_id"]), 0
+                ) == 1 and trigger["screen_id"] in routes
+            checkpoints.append(
+                {
+                    "index": index,
+                    "label": f"Event {index}",
+                    "evidence_ref": f"studio-inspection/replays/{assertion.id}/checkpoints/{index}",
+                    "event": {
+                        "mutation_id": mutation_id,
+                        "screen_id": trigger["screen_id"],
+                        "route": routes.get(trigger["screen_id"]),
+                        "action_id": trigger["action_id"],
+                        "payload_values": event.get("payload_values", {}),
+                    },
+                }
+            )
+        checkpoints[-1]["expected"] = _studio_replay_expected(assertion)
+        proof = replay_proofs.get(assertion.id)
+        if not isinstance(proof, dict) or proof.get("status") != "passed":
+            raise ReviewContractError(
+                "REVIEW_COMPARISON_IDENTITY_MISMATCH",
+                f"Studio replay inspection lacks passing proof for {assertion.id!r}.",
+                "Fix the declared replay before opening Studio comparison.",
+                http_status=422,
+            )
+        replays.append(
+            {
+                "id": assertion.id,
+                "status": "passed",
+                "browser_status": "replayable" if browser_replayable else "not_replayable",
+                "checkpoints": checkpoints,
+                "expectation_counts": {
+                    "state": len(assertion.expect_state),
+                    "selectors": len(assertion.expect_selectors),
+                    "visibility": len(assertion.expect_visibility),
+                    "text": len(assertion.expect_text),
+                },
+            }
+        )
+    return {
+        "status": "ready",
+        "contract_hash": static_hash,
+        "reducer_conformance": "passed",
+        "replay_proof": "passed",
+        "replays": replays,
+    }
+
+
+def _studio_replay_expected(assertion: object) -> dict[str, object]:
+    expect_state = getattr(assertion, "expect_state", {})
+    expect_selectors = getattr(assertion, "expect_selectors", {})
+    expect_visibility = getattr(assertion, "expect_visibility", {})
+    expect_text = getattr(assertion, "expect_text", {})
+    expected: dict[str, object] = {
+        "state": [
+            {
+                "id": state_id,
+                "kind": "scalar" if value is None or isinstance(value, (bool, int, float, str)) else "checked",
+                **({"value": value} if value is None or isinstance(value, (bool, int, float, str)) else {}),
+            }
+            for state_id, value in expect_state.items()
+        ],
+        "selectors": [{"id": selector_id, "status": "checked"} for selector_id in expect_selectors],
+        "visibility": [
+            {"id": visibility_id, "visible": expected is True}
+            for visibility_id, expected in expect_visibility.items()
+        ],
+    }
+    if expect_text:
+        expected["text"] = [
+            {"id": projection_id, "value": expected}
+            for projection_id, expected in expect_text.items()
+        ]
+    return expected
+
+
+def _studio_resource_inspection(
+    *,
+    static_result: dict[str, object],
+    react_result: dict[str, object],
+) -> dict[str, object]:
+    static_report = static_result.get("resource_binding_assertions")
+    react_report = react_result.get("resource_binding_assertions")
+    if not isinstance(static_report, dict) or not isinstance(react_report, dict):
+        return {"status": "not_declared", "views": []}
+    if (
+        static_report.get("ok") is not True
+        or static_report.get("binding_scope") != "declared_resource_views_only"
+        or static_report.get("binding_digest") != react_report.get("binding_digest")
+        or static_report.get("assertion_count") != react_report.get("assertion_count")
+    ):
+        raise ReviewContractError(
+            "REVIEW_COMPARISON_IDENTITY_MISMATCH",
+            "Static and React resource-binding proof differs.",
+            "Fix cross-target resource binding before opening Studio comparison.",
+            http_status=422,
+        )
+    views: list[dict[str, object]] = []
+    raw_views = static_report.get("views")
+    if not isinstance(raw_views, list):
+        raise ReviewContractError(
+            "REVIEW_COMPARISON_IDENTITY_MISMATCH",
+            "Studio resource inspection has no checked declared views.",
+            "Recompile the exact AppBundle resource views.",
+            http_status=422,
+        )
+    allowed = {
+        "canonical_identity",
+        "expected",
+        "field",
+        "matched_binding_id",
+        "matched_dom_id",
+        "record_id",
+        "resource_id",
+        "resource_view_id",
+        "screen_id",
+        "status",
+        "target_motif_id",
+    }
+    for view in raw_views:
+        if not isinstance(view, dict) or not isinstance(view.get("assertions"), list):
+            raise ReviewContractError(
+                "REVIEW_COMPARISON_IDENTITY_MISMATCH",
+                "Studio resource inspection contains an invalid checked view.",
+                "Recompile the exact AppBundle resource views.",
+                http_status=422,
+            )
+        views.append(
+            {
+                "id": view.get("id"),
+                "screen_id": view.get("screen_id"),
+                "resource_id": view.get("resource_id"),
+                "target_motif_id": view.get("target_motif_id"),
+                "status": view.get("status"),
+                "assertions": [
+                    {key: assertion.get(key) for key in allowed if key in assertion}
+                    for assertion in view["assertions"]
+                    if isinstance(assertion, dict)
+                ],
+            }
+        )
+    return {
+        "status": "ready",
+        "proof_status": "passed",
+        "binding_scope": "declared_fixture_views_only",
+        "binding_digest": static_report.get("binding_digest"),
+        "assertion_count": static_report.get("assertion_count"),
+        "views": views,
+    }
+
+
 def _build_react_review_runtime(snapshot: ReviewSourceSnapshot, artifact_dir: Path, *, allow_install: bool) -> None:
     if not allow_install:
         raise ReviewContractError(
@@ -643,15 +1054,34 @@ def _build_react_review_runtime(snapshot: ReviewSourceSnapshot, artifact_dir: Pa
             http_status=422,
         )
     try:
+        dependency_seed = os.environ.get("VIEWSPEC_STUDIO_REVIEW_NODE_MODULES_DIR")
+        if dependency_seed:
+            seed = Path(dependency_seed)
+            if not seed.is_absolute() or not seed.is_dir() or seed.is_symlink():
+                raise OSError("configured Studio review dependency seed is not one absolute normal directory")
+            destination = artifact_dir / "node_modules"
+            if destination.exists() or destination.is_symlink():
+                raise OSError("Studio review dependency destination is not empty")
+            materialize_prebuilt_node_modules(destination, seed.resolve())
+            build_command = (
+                str(destination / ".bin/vite"),
+                "build",
+                "--base",
+                "./",
+                "--outDir",
+                "runtime-dist",
+            )
+        else:
+            subprocess.run(
+                ("npm", "ci", "--ignore-scripts", "--no-audit", "--no-fund"),
+                cwd=artifact_dir,
+                check=True,
+                capture_output=True,
+                timeout=30,
+            )
+            build_command = ("npm", "run", "build", "--", "--base", "./", "--outDir", "runtime-dist")
         subprocess.run(
-            ("npm", "ci", "--ignore-scripts", "--no-audit", "--no-fund"),
-            cwd=artifact_dir,
-            check=True,
-            capture_output=True,
-            timeout=30,
-        )
-        subprocess.run(
-            ("npm", "run", "build", "--", "--base", "./", "--outDir", "runtime-dist"),
+            build_command,
             cwd=artifact_dir,
             check=True,
             capture_output=True,
@@ -814,6 +1244,188 @@ def _load_react_app_indexes(artifact_dir: Path) -> tuple[dict[str | None, Review
             raise _ambiguous_app_manifest()
         indexes[screen_id] = index
     return indexes, manifest_path
+
+
+def _load_studio_comparison_indexes(
+    artifact_dir: Path,
+    *,
+    expected_source_sha256: str,
+) -> tuple[dict[str | None, ReviewManifestIndex], Path]:
+    manifest_path = artifact_dir / STUDIO_COMPARE_MANIFEST
+    manifest = _strict_json_object(
+        _read_bounded_regular_file(manifest_path, maximum=MAX_ARTIFACT_BYTES),
+        code="REVIEW_CHECK_FAILED",
+    )
+    if (
+        set(manifest)
+        != {
+            "schema_version",
+            "kind",
+            "target",
+            "source_sha256",
+            "policy",
+            "routes",
+            "inspection",
+            "screens",
+            "targets",
+        }
+        or manifest.get("schema_version") != 1
+        or manifest.get("kind") != "studio_static_react_comparison"
+        or manifest.get("target") != STUDIO_COMPARE_TARGET
+        or manifest.get("source_sha256") != expected_source_sha256
+        or manifest.get("policy")
+        != {
+            "dependency_install": "explicit_opt_in",
+            "runtime_network_calls": "none",
+            "visual_parity": "not_proven",
+        }
+    ):
+        raise ReviewContractError(
+            "REVIEW_COMPARISON_IDENTITY_MISMATCH",
+            "Studio comparison manifest does not match its exact source and bounded policy.",
+            "Rebuild both targets from the exact current AppBundle.",
+            http_status=422,
+        )
+
+    static_dir = artifact_dir / "static"
+    react_dir = artifact_dir / "react"
+    static_indexes, static_manifest = _load_app_indexes(static_dir, expected_target="html-tailwind-app")
+    react_indexes, react_manifest = _load_react_app_indexes(react_dir)
+    _assert_cross_target_identity(static_indexes, react_indexes)
+    routes = _checked_routes(static_manifest)
+    if routes != _checked_routes(react_manifest) or manifest.get("routes") != routes:
+        raise ReviewContractError(
+            "REVIEW_COMPARISON_IDENTITY_MISMATCH",
+            "Studio comparison routes changed or diverge across targets.",
+            "Rebuild both targets from the exact current AppBundle.",
+            http_status=422,
+        )
+
+    expected_targets = [
+        {
+            "id": "static",
+            "compiler_target": "html-tailwind-app",
+            "artifact_path": "static",
+            "artifact_set_sha256": _artifact_set_sha256(static_dir),
+        },
+        {
+            "id": "react",
+            "compiler_target": "react-tailwind-app",
+            "artifact_path": "react",
+            "artifact_set_sha256": _artifact_set_sha256(react_dir),
+        },
+    ]
+    expected_screens = [
+        {
+            "id": screen_id,
+            "semantic_identity_sha256": static_indexes[screen_id].semantic_identity_sha256,
+            "static_manifest_sha256": static_indexes[screen_id].manifest_sha256,
+            "react_manifest_sha256": react_indexes[screen_id].manifest_sha256,
+        }
+        for screen_id in sorted(static_indexes)
+        if screen_id is not None
+    ]
+    inspection_path = artifact_dir / STUDIO_INSPECTION_MANIFEST
+    inspection_bytes = _read_bounded_regular_file(inspection_path, maximum=STUDIO_INSPECTION_MAX_BYTES)
+    inspection = _strict_json_object(inspection_bytes, code="REVIEW_CHECK_FAILED")
+    state = inspection.get("state") if isinstance(inspection.get("state"), dict) else {}
+    resources = inspection.get("resources") if isinstance(inspection.get("resources"), dict) else {}
+    coherence = inspection.get("coherence") if isinstance(inspection.get("coherence"), dict) else {}
+    expected_inspection = {
+        "path": STUDIO_INSPECTION_MANIFEST,
+        "sha256": hashlib.sha256(inspection_bytes).hexdigest(),
+        "coherence_status": coherence.get("status"),
+        "coherence_contract": coherence.get("contract"),
+        "state_status": state.get("status"),
+        "resource_status": resources.get("status"),
+    }
+    if (
+        inspection.get("schema_version") != 1
+        or inspection.get("kind") != "studio_state_resource_inspection"
+        or inspection.get("source_sha256") != expected_source_sha256
+        or inspection.get("policy")
+        != {
+            "browser_replay": "exact_declared_action_clicks_v1",
+            "coherence_measurement": "browser_observed_semantic_geometry_v1",
+            "production_data": "not_claimed",
+            "resource_scope": "declared_fixture_views_only",
+        }
+        or coherence
+        != {
+            "status": "browser_observed",
+            "contract": "semantic_geometry_v1",
+            "source_binding": "checked_cross_target_dom_identity",
+            "viewports": ["mobile", "tablet", "desktop"],
+            "thresholds": {
+                "position_px": 3,
+                "size_px": 3,
+                "font_size_px": 0.5,
+                "font_weight": 50,
+            },
+            "claim": "not_pixel_parity",
+        }
+        or state.get("status") not in {"ready", "not_declared"}
+        or resources.get("status") not in {"ready", "not_declared"}
+        or manifest.get("inspection") != expected_inspection
+        or manifest.get("targets") != expected_targets
+        or manifest.get("screens") != expected_screens
+    ):
+        raise ReviewContractError(
+            "REVIEW_COMPARISON_IDENTITY_MISMATCH",
+            "Studio comparison target, screen, or inspection identity no longer matches its checked artifacts.",
+            "Rebuild the immutable static/React comparison revision.",
+            http_status=422,
+        )
+    return static_indexes, manifest_path
+
+
+def _assert_cross_target_identity(
+    static_indexes: dict[str | None, ReviewManifestIndex],
+    react_indexes: dict[str | None, ReviewManifestIndex],
+) -> None:
+    if set(static_indexes) != set(react_indexes):
+        raise ReviewContractError(
+            "REVIEW_COMPARISON_IDENTITY_MISMATCH",
+            "Static and React comparison targets do not expose the same checked screens.",
+            "Fix cross-target screen generation before opening Studio comparison.",
+            http_status=422,
+        )
+    for screen_id in static_indexes:
+        if static_indexes[screen_id].semantic_identity != react_indexes[screen_id].semantic_identity:
+            raise ReviewContractError(
+                "REVIEW_COMPARISON_IDENTITY_MISMATCH",
+                f"Static and React semantic identity differs for screen {screen_id!r}.",
+                "Fix cross-target DOM, IR, binding, action, and provenance identity before comparison.",
+                http_status=422,
+            )
+
+
+def _checked_routes(manifest_path: Path) -> list[dict[str, str]]:
+    manifest = _strict_json_object(
+        _read_bounded_regular_file(manifest_path, maximum=MAX_ARTIFACT_BYTES),
+        code="REVIEW_CHECK_FAILED",
+    )
+    raw_routes = manifest.get("routes")
+    if not isinstance(raw_routes, list) or not 1 <= len(raw_routes) <= 32:
+        raise _ambiguous_app_manifest()
+    routes: list[dict[str, str]] = []
+    seen_paths: set[str] = set()
+    for route in raw_routes:
+        if not isinstance(route, dict):
+            raise _ambiguous_app_manifest()
+        normalized = {
+            "id": route.get("id"),
+            "path": route.get("path"),
+            "screenId": route.get("screenId"),
+        }
+        if (
+            not all(isinstance(value, str) and value for value in normalized.values())
+            or normalized["path"] in seen_paths
+        ):
+            raise _ambiguous_app_manifest()
+        seen_paths.add(normalized["path"])
+        routes.append(normalized)
+    return routes
 
 
 def _assert_no_external_runtime_references(artifact_dir: Path) -> None:
@@ -1430,6 +2042,9 @@ __all__ = [
     "MAX_ARTIFACT_BYTES",
     "MAX_ARTIFACT_FILES",
     "ReviewSourceSnapshot",
+    "STUDIO_COMPARE_MANIFEST",
+    "STUDIO_COMPARE_TARGET",
+    "STUDIO_INSPECTION_MANIFEST",
     "bounded_review_phase",
     "bounded_review_operation",
     "build_review_revision",

@@ -7,6 +7,50 @@ All notable changes to ViewSpec are documented in this file. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- Studio now has a fail-closed, explicit private-review path. `studio --share` verifies a
+  short-lived Ed25519-signed production-canary release before rendering Share; the first click
+  prepares and discloses the exact package without upload, and only a second confirmation creates
+  a link through the daemon-held credential. Returned ingress and revision identities must match
+  before owner or reviewer fragment-capability links are shown.
+- The production canary verifier can emit the exact unsigned, hash-bound Share release payload for
+  the production API's separate receipt signer. Missing, incomplete, expired, tampered, or
+  differently originated releases keep the browser control and local upload endpoints unavailable.
+- Studio comparisons now include browser-observed **Target coherence**. Exact visible static/React
+  semantic pairs are checked for text, geometry, typography, and color; one deterministic mismatch
+  is explained in human language, and **Review this** carries its exact checked identity into the
+  existing Comment → proposal → Approve loop. The UI and machine contract retain
+  `visual_parity: not_proven`.
+- Dedicated Chromium coverage injects a real geometry mismatch, proves exact source-bound review
+  routing and recovery, and carries a second detected mismatch through an approved semantic source
+  change and coherent static/React rebuild.
+- AppBundle V4 can now declare bounded scalar `state_text` projections that update the same
+  exactly-once semantic binding in Static and React. The shared reducer evaluator, baked initial
+  text, stable DOM marker, replay `expect_text` assertion, generated browser proof, and Studio
+  checkpoint summary make the visible outcome—not only internal state—part of the checked contract.
+- The retained Field Dispatch Core and Deep fixtures now prove the review counter as visible text:
+  one click reveals `Review count: 1`, while the two-event replay lands both targets on
+  `Review count: 2`. The recurring Studio Chromium journey exercises both outcomes at mobile,
+  tablet, and desktop widths.
+
+### Changed
+
+- Studio is now canvas-first. Its proof, state, conversation, request, and approval rail is inert
+  and outside the layout by default, opens at the exact moment context is needed, and closes with an
+  explicit control or Escape. At 1280×720, the Desktop product now fits at least 84% instead of
+  roughly 60% without changing its checked 1440×1000 viewport.
+- Studio now keeps exact target viewports inside an automatically fitted review canvas. Mobile
+  comparisons remain side by side; Tablet and Desktop show one canonical Live surface with the
+  exact paired Static target mounted and selectable inside Details. Horizontal overflow is absent,
+  and both targets remain unchanged for interaction, replay, and Target Coherence.
+- Static and React AppBundle targets now share one app-shell markup and sizing contract. React
+  screen roots retain the declared route path, while button, badge, shell-kicker, and route-button
+  primitives use explicit inherited typography and line-height so browser defaults cannot create
+  responsive target drift.
+- Agent asset schema version 15 teaches managed agents the additive State Text V0 contract and
+  preserves the boundary that live resource rebinding remains React-only.
+
 ## [0.3.0b7] - 2026-08-13
 
 ### Added

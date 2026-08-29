@@ -13,8 +13,8 @@ import threading
 import time
 
 from viewspec.review_contract import ReviewContractError, canonical_json_bytes
-from viewspec.review_cli import DEFAULT_REVIEW_PORT
-from viewspec.review_compile import bounded_review_phase, capture_source_snapshot
+from viewspec.review_cli import DEFAULT_REVIEW_PORT, _studio_share_reference_sha256
+from viewspec.review_compile import STUDIO_COMPARE_TARGET, bounded_review_phase, capture_source_snapshot
 from viewspec.review_runtime import ReviewRuntime, review_session_dir
 from viewspec.review_server import ReviewServer
 from viewspec.review_session import ReviewStateLock
@@ -37,6 +37,8 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--reopen", action="store_true")
     parser.add_argument("--verify", action="store_true")
     parser.add_argument("--install", action="store_true")
+    parser.add_argument("--studio-share", action="store_true")
+    parser.add_argument("--studio-share-reference")
     args = parser.parse_args(argv)
     server: ReviewServer | None = None
     metadata_path: Path | None = None
@@ -66,7 +68,43 @@ def main(argv: list[str] | None = None) -> int:
             compile_lock.release()
         if args.verify:
             _run_verification(runtime, install=args.install)
-        server = ReviewServer(runtime, port=args.port)
+        share_publisher = None
+        if args.studio_share:
+            from viewspec.studio_share_publish import StudioSharePublisher, fetch_studio_share_release
+
+            api_key = os.environ.get("VIEWSPEC_STUDIO_API_KEY", "")
+            if not api_key:
+                raise ReviewContractError(
+                    "STUDIO_SHARE_AUTH_REQUIRED",
+                    "Private sharing requires one Studio API credential.",
+                    "Set VIEWSPEC_STUDIO_API_KEY, then restart Studio with --share.",
+                    http_status=401,
+                    cli_exit=2,
+                )
+            if runtime.built.revision.target != STUDIO_COMPARE_TARGET:
+                raise ReviewContractError(
+                    "STUDIO_SHARE_COMPARISON_REQUIRED",
+                    "Private Share requires one checked static/React AppBundle comparison.",
+                    "Start sharing through viewspec studio --compare --install --share.",
+                    cli_exit=2,
+                )
+            release = fetch_studio_share_release()
+            share_publisher = StudioSharePublisher(
+                release=release,
+                api_key=api_key,
+                source=args.source,
+                state_root=args.state_root,
+                cwd=Path.cwd(),
+                reference=args.studio_share_reference,
+            )
+        elif args.studio_share_reference is not None:
+            raise ReviewContractError(
+                "STUDIO_SHARE_REFERENCE_INVALID",
+                "A private-review reference requires explicit Studio Share opt-in.",
+                "Add --studio-share or remove --studio-share-reference.",
+                cli_exit=2,
+            )
+        server = ReviewServer(runtime, port=args.port, share_publisher=share_publisher)
         metadata_path = runtime.session_dir / "server.json"
         capability_path = runtime.session_dir / "agent-capability.json"
         _write_private_json(
@@ -81,6 +119,8 @@ def main(argv: list[str] | None = None) -> int:
                 "port": server.port,
                 "review_id": runtime.session.review_id,
                 "agent_capability_sha256": hashlib.sha256(server.agent_token.encode("ascii")).hexdigest(),
+                "studio_share": args.studio_share,
+                "studio_share_reference_sha256": _studio_share_reference_sha256(args.studio_share_reference),
             },
         )
         _install_signal_handlers(stop)
@@ -92,7 +132,7 @@ def main(argv: list[str] | None = None) -> int:
                     "ok": True,
                     "bootstrap_url": server.bootstrap_url,
                     "port": server.port,
-                    "review": runtime.status(),
+                    "review": server.status(),
                 },
                 separators=(",", ":"),
                 sort_keys=True,

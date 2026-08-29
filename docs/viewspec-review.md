@@ -4,7 +4,11 @@ Status: Proposed
 Date: 2026-07-14
 Product surface: local SDK and CLI
 Working product name: **ViewSpec Review**
-Reserved future name: **ViewSpec Studio**
+Human product name: **ViewSpec Studio**
+
+Product update: the V0 protocol remains ViewSpec Review for compatibility. Its opinionated human
+entry point is now `viewspec studio`, presented as Preview → Comment → Approve. This document
+continues to specify the lower-level security, delivery, and lifecycle contract.
 
 ## Summary
 
@@ -875,9 +879,9 @@ emits the alternative `cause` field.
 
 ## Agent Integration
 
-The managed ViewSpec agent instructions gain the following workflow:
+The managed ViewSpec agent instructions expose the protocol through the following workflow:
 
-1. Prefer `viewspec review` when a user asks to visually review a ViewSpec IntentBundle or
+1. Prefer `viewspec studio` when a user asks to visually review a ViewSpec IntentBundle or
    AppBundle.
 2. Keep `review-poll` attached to an active turn or a harness-native completion-aware wait.
 3. Do not use detached fire-and-forget polling.
@@ -1102,15 +1106,73 @@ the identical complete plan. Review persists an optional custom Converge state r
 configuration, and interrupted applies or post-apply verification resume from durable receipts and
 checkpoints. See [Converge Sessions V1](converge-sessions-v1.md).
 
-## Follow-On: State and Cross-Surface Review
+## Implemented Additive Contract: Static/React Studio Comparison
+
+An AppBundle may opt into `viewspec studio viewspec.app.json --compare --install`. ViewSpec captures
+one source revision, compiles and checks both the static and React targets, and promotes neither if
+either build, route set, or exact semantic-identity projection differs. The retained comparison
+manifest binds both artifact sets and every screen identity to the source hash.
+
+The Studio surface presents both targets in one revision. Viewport and route changes synchronize
+the canvases, and a comment originating from either target resolves server-side through its checked
+manifest to the same semantic source. Locked dependency installation is explicit, runtime SDK
+network calls remain absent, and `visual_parity` is reported as `not_proven`; the contract proves a
+trustworthy comparison surface, not pixel equality.
+
+Canvas presentation is independent from target layout. Mobile targets remain side by side when
+they fit at their exact 390-pixel viewport. Tablet and Desktop show one canonical Live surface and
+keep the exact paired Static frame mounted underneath; the reviewer may switch surfaces from the
+contextual Details rail. A width-only outer transform eliminates horizontal canvas overflow while
+preserving exact 768- and 1440-pixel inner viewports. The transform and surface choice do not alter
+frame measurements, semantic selection, synchronized navigation, replay, or coherence observations.
+
+The Details rail is closed, inert, and absent from the accessibility tree by default. It does not
+consume canvas width. It opens explicitly for inspection and automatically for a coherence
+mismatch, semantic selection, or pending owner decision. Close or Escape returns to the product;
+Escape restores focus to the Details control. On larger viewports, the inactive target is
+`aria-hidden`, inert, and removed from sequential focus while remaining mounted for deterministic
+proof. Mobile keeps both targets active and visible.
+
+## Implemented Additive Contract: State and Resource Inspection
+
+For comparison revisions built from AppBundle V3/V4 state or declared
+`fixture_readonly_v0` views, Studio serves one source-bound inspection manifest through its
+authenticated local session. Static and React state contract hashes, replay reports, generated
+reducer conformance, resource binding digests, and field assertion counts must agree before the
+revision is promoted.
+
+The existing side panel then exposes declared replay checkpoints and selected resource fields.
+Choosing a checkpoint resets both frames to their immutable artifact URLs and drives the exact
+declared action sequence only when each mutation maps to one unique action trigger. A selected
+field resolves to its checked resource, record, field, binding, source value, and current rendered
+text. Review accepts only checkpoint evidence refs from the exact current inspection manifest and
+derives resource evidence from the server-resolved target; forged browser provenance remains
+ignored. This is declared fixture and reducer evidence, not production data, persistence, or a
+claim that static and React implement identical live rebinding.
+
+## Implemented Additive Contract: Target Coherence
+
+For a checked static/React comparison, Studio asks each authenticated frame for a bounded
+observation of visible leaf nodes carrying exact DOM and IR identity. It compares matching pairs at
+the current canonical viewport, prioritizing missing targets, text differences, geometry and type
+threshold breaches, then color differences. The side panel shows one result in human language.
+
+**Review this** does not trust a browser-supplied source location. It asks the affected frame to
+select the exact observed DOM identity, then uses the normal checked-manifest resolution path to
+produce the Review target. The prefilled request includes the observed discrepancy; the resulting
+event still carries the server-resolved semantic source identity. An approved Converge proposal
+rebuilds both products, after which Studio observes the new revision again.
+
+This contract is `browser_observed_semantic_geometry_v1`. It is not screenshot comparison,
+reference-image fidelity, arbitrary CSS inspection, or pixel-parity certification. The comparison
+continues to report `visual_parity: not_proven`.
+
+## Follow-On: Broader Cross-Surface Review
 
 ViewSpec Studio can extend the same protocol with:
 
-- declared AppBundle state snapshots and replay checkpoints;
-- deterministic time travel through mutation events;
-- annotations anchored to `(screen, source node, replay checkpoint)`;
-- before/after visual and semantic comparison;
-- synchronized HTML, React, SwiftUI, and Flutter projections where supported;
+- richer before/after visual comparison;
+- synchronized SwiftUI and Flutter projections where supported;
 - one semantic repair recompiled and verified across selected targets;
 - hosted private review links, teams, approvals, audit retention, and signed receipts.
 

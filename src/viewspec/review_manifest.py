@@ -12,6 +12,7 @@ from viewspec.review_contract import ReviewContractError, ReviewTarget
 
 MAX_MANIFEST_NODES = 4096
 MAX_ANCESTOR_DEPTH = 32
+PRESENTATION_ONLY_BINDING_PRIMITIVES = frozenset({"text", "label", "value", "badge"})
 
 
 @dataclass(frozen=True, slots=True)
@@ -50,6 +51,34 @@ class ReviewManifestIndex:
 
     def __len__(self) -> int:
         return len(self._nodes)
+
+    @property
+    def semantic_identity_sha256(self) -> str:
+        """Hash the exact cross-emitter identity projection used by Studio comparison."""
+
+        encoded = json.dumps(
+            self.semantic_identity,
+            ensure_ascii=False,
+            separators=(",", ":"),
+        ).encode("utf-8")
+        return hashlib.sha256(encoded).hexdigest()
+
+    @property
+    def semantic_identity(self) -> tuple[tuple[object, ...], ...]:
+        return tuple(
+            sorted(
+                (
+                    node.dom_id,
+                    node.ir_id,
+                    node.primitive,
+                    node.intent_refs,
+                    node.content_refs,
+                    node.binding_id,
+                    node.action_id,
+                )
+                for node in self._nodes.values()
+            )
+        )
 
     @classmethod
     def from_bytes(cls, content: bytes, *, screen_id: str | None) -> ReviewManifestIndex:
@@ -169,7 +198,7 @@ class ReviewManifestIndex:
             current = self._by_ir_id[ir_id]
             prior = previous._by_ir_id[ir_id]
             if (
-                current.primitive != prior.primitive
+                not _compatible_primitive_change(current, prior)
                 or current.intent_ref_families != prior.intent_ref_families
                 or current.content_ref_families != prior.content_ref_families
             ):
@@ -179,6 +208,21 @@ class ReviewManifestIndex:
                     "Assign a new source identity when the semantic meaning changes.",
                     http_status=422,
                 )
+
+
+def _compatible_primitive_change(current: ReviewManifestNode, previous: ReviewManifestNode) -> bool:
+    if current.primitive == previous.primitive:
+        return True
+    return (
+        current.primitive in PRESENTATION_ONLY_BINDING_PRIMITIVES
+        and previous.primitive in PRESENTATION_ONLY_BINDING_PRIMITIVES
+        and current.binding_id is not None
+        and current.binding_id == previous.binding_id
+        and current.action_id is None
+        and previous.action_id is None
+        and current.intent_refs == previous.intent_refs
+        and current.content_refs == previous.content_refs
+    )
 
 
 def _manifest_node(dom_id: object, entry: object) -> ReviewManifestNode:

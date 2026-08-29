@@ -44,6 +44,122 @@ operation. Its outputs have distinct jobs:
 | `.viewspec-proof/proof_report.json` | Machine proof and exact hashes | The semantic source named by its diagnostic |
 | `.viewspec-proof/PROOF.md` | Human proof summary | The semantic source named by its next action |
 
+## Start from a blank workspace
+
+Tell your coding agent the product outcome and ask it to open ViewSpec Studio. The person should not
+need to author or inspect schema JSON. The agent uses the local first-creation handoff:
+
+```bash
+viewspec studio-create --brief-file product-brief.md --reference reference.png --kind app --json
+# Author the exact task-provided candidate path against its task-provided schema.
+viewspec studio-accept --json
+viewspec studio
+```
+
+Use `--kind view` only for one bounded screen; a product defaults to `app`. Creation preserves the
+normalized brief exactly and binds one optional PNG, JPEG, or WebP reference by relative path,
+media type, dimensions, byte count, and SHA-256. The SDK uploads nothing and makes no network calls.
+
+`studio-accept` rejects edited tasks, changed references, unchanged starters, invalid candidates,
+and existing canonical source. It retains a complete local proof and publishes
+`viewspec.app.json` or `viewspec.intent.json` only after validation, compilation, and artifact check
+all pass. Passing this gate does not claim that the result matches the reference image; the person
+makes that judgment in Studio and requests exact semantic changes there.
+
+## Open Studio
+
+With exactly one canonical source in the workspace, open the human-and-agent product loop:
+
+```bash
+viewspec studio
+```
+
+You can also name the source explicitly with `viewspec studio viewspec.app.json`. Studio compiles
+and checks the exact revision before showing it, then reduces the workflow to **Preview, Comment,
+Approve**:
+
+1. Preview the working interface at mobile, tablet, or desktop width.
+2. Choose Comment, point at the result, and describe one desired outcome.
+3. Let the agent receive the request with exact semantic identity and propose a bounded change.
+4. Inspect meaningful before and after values, then approve or reject the exact proposal shown.
+
+The default session is loopback-only and makes no SDK network calls. Generated HTML or React
+remains an artifact, never the editing surface. `viewspec review` and the lower-level polling and
+Converge commands remain the automation protocol underneath Studio; people should start with
+Studio. The measurable product criteria live in [ViewSpec Studio Product Goal](viewspec-studio-goal.md).
+
+For a multi-screen AppBundle, compare the static and React products in the same Studio revision:
+
+```bash
+viewspec studio viewspec.app.json --compare --install
+```
+
+Comparison is deliberately opt-in because it performs the exact locked React dependency install
+and production build. Studio opens only after both static and React targets build from the same
+source hash and expose identical routes and semantic identities. One viewport control and route
+keep both canvases synchronized, and a comment on either target resolves to the same AppBundle
+source. Visual parity is shown honestly as `not_proven`; comparison makes differences inspectable
+without pretending that shared semantics imply identical pixels.
+
+Studio's **Target coherence** card observes the visible leaf elements that share an exact checked
+DOM/IR identity at the selected viewport. It presents one prioritized text, geometry, typography,
+or color discrepancy and lets **Review this** carry that exact semantic target into the usual
+comment and approval flow. Rechecking follows viewport changes, replay, and rebuilt revisions. The
+observation is intentionally narrower than screenshot fidelity: it does not promote
+`visual_parity` beyond `not_proven`.
+
+When the AppBundle declares V3/V4 replay and `fixture_readonly_v0` resource views, comparison also
+shows **State & data** in the existing side panel. Selecting a checkpoint resets both canvases and
+replays the exact declared action clicks only when every mutation has one unambiguous rendered
+trigger. Selecting a checked field then shows its canonical resource, record, field, binding,
+fixture value, and current rendered text. A comment at that point carries the exact checked replay
+checkpoint and server-derived resource evidence to the agent. Fixture inspection is explicitly not
+a production-data or persistence claim.
+
+## Prepare private review locally
+
+After the exact AppBundle comparison is checked, an explicit user request to share can begin with a
+local-only package:
+
+```bash
+viewspec studio-share-prepare viewspec.app.json --reference reference.png
+```
+
+The optional reference is included only when named. ViewSpec resumes and revalidates the current
+static/React Studio revision, refuses stale source or `DESIGN.md`, and writes an immutable
+content-addressed directory under `.viewspec/studio-share/`. Its `envelope.json` inventories every
+allowed payload byte by role, relative archive path, size, media type, and SHA-256;
+`share-disclosure.md` states what would and would not leave the machine. A deterministic sibling
+`<package-id>.vsreview` file is the single bounded transport body a future HTTPS adapter can accept;
+creating it is not an upload.
+
+Preparation performs no upload and creates no review link or capability. Existing local comments,
+the Review journal, absolute paths, environment variables, unrelated workspace files, local
+authority, and production data are excluded. The sensitive-value check catches bounded common
+credential patterns but is not certification that the content is non-sensitive. There is
+deliberately no usable production upload until the implemented service trust core has an
+authorized HTTPS, encrypted-storage deployment. The internal transport adapter is exercised over
+real local HTTPS in Chromium, Firefox, and WebKit, including synchronized static/React navigation,
+replay, resource-aware reviewer comment, and owner approval. The full measured journey remains
+under its five-minute ceiling and retains redacted request, receipt, egress, capability-leak,
+console-error, and CSP-violation evidence. The hosted endpoint remains deliberately unavailable
+until the production gate passes.
+
+The SDK-side production seam now includes a bounded ASGI wrapper and an independent, install-free
+source rebuild that must reproduce every uploaded static/React artifact byte. It intentionally
+requires a separate attestation from the real no-network worker. Operators can follow the
+[private review deployment contract](studio-review-deployment.md). The human-facing opt-in is:
+
+```bash
+VIEWSPEC_STUDIO_API_KEY=... viewspec studio viewspec.app.json --compare --install --share
+```
+
+Studio verifies the canonical API's short-lived Ed25519-signed canary release before rendering
+Share. Its first click only prepares the local package and disclosure; a separate checkbox and
+expiry selection authorize the exact upload. The API key stays in the local daemon. Any missing,
+invalid, expired, incomplete, or differently bound release keeps the control absent. The canonical
+readiness endpoint is not deployed yet, so this path currently fails closed.
+
 On failure, follow the returned stable code, semantic path or evidence reference, and bounded next
 action. Validation results include `correction_prompt`; proof results identify the failed phase and
 evidence. Do not inspect compiler implementation code to repair a brief, and do not edit generated

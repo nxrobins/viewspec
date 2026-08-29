@@ -146,6 +146,7 @@ def test_ci_keeps_every_prevention_gate_mandatory() -> None:
         "python -m build",
         "python scripts/check_distribution.py dist",
         "npm run test:site",
+        "npm run test:studio",
         "git diff --check $(git hash-object -t tree /dev/null) HEAD",
     }
     missing = sorted(command for command in required if command not in workflow)
@@ -155,7 +156,9 @@ def test_ci_keeps_every_prevention_gate_mandatory() -> None:
 
     package = json.loads((ROOT / "tests" / "react-tailwind-host" / "package.json").read_text(encoding="utf-8"))
     assert package["scripts"]["test:site"] == "playwright test -c site-playwright.config.ts"
+    assert package["scripts"]["test:studio"] == "playwright test -c studio-playwright.config.ts"
     site_config = (ROOT / "tests" / "react-tailwind-host" / "site-playwright.config.ts").read_text(encoding="utf-8")
     assert 'testMatch: "site-regressions.spec.ts"' in site_config
     assert 'command: "python -m http.server 4178 --bind 127.0.0.1 --directory ../../demos"' in site_config
     assert workflow.index("npx playwright install --with-deps chromium") < workflow.index("npm run test:site")
+    assert workflow.index("npx playwright install --with-deps chromium") < workflow.index("npm run test:studio")

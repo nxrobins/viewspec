@@ -1,0 +1,138 @@
+{
+  "schema_version": 1,
+  "id": "viewspec-studio-product-v1",
+  "thesis": "ViewSpec earns its compute premium when a person can create, direct, trust, and share a better product faster than a code-first workflow without editing generated output.",
+  "primary_outcome": "successful_product_journey",
+  "cost_policy": "report_tokens_and_time_separately; do_not_optimize_quality_away",
+  "arms": [
+    "code-first",
+    "viewspec-studio"
+  ],
+  "mechanical_gates": {
+    "journey_id": "brief-to-three-approved-semantic-changes",
+    "maximum_creation_ready_ms": 60000,
+    "maximum_three_change_journey_ms": 180000,
+    "maximum_change_turn_ms": 60000,
+    "minimum_approved_changes": 3,
+    "allowed_change_operations": [
+      "move_region",
+      "reorder_region_children",
+      "replace_fixture_scalar",
+      "replace_semantic_attr",
+      "set_aesthetic_profile",
+      "set_binding_presentation",
+      "set_region_layout",
+      "set_style_token",
+      "set_visibility_condition"
+    ],
+    "required_viewports": [
+      390,
+      768,
+      1440
+    ],
+    "required_targets": [
+      "html-tailwind-app",
+      "react-tailwind-app"
+    ],
+    "minimum_target_pass_rate": 1.0,
+    "maximum_generated_output_edits": 0,
+    "maximum_runtime_failures": 0,
+    "minimum_distinct_source_revisions": 4
+  },
+  "human_gates": {
+    "minimum_sessions_per_arm": 18,
+    "minimum_first_value_within_one_minute_rate": 0.8,
+    "minimum_first_value_desirable_rate": 0.8,
+    "minimum_desirability_rating": 4,
+    "minimum_three_change_completion_rate": 0.8,
+    "minimum_health_comprehension_rate": 0.8,
+    "minimum_private_handoff_within_five_minutes_rate": 0.9,
+    "minimum_blinded_comparisons": 18,
+    "minimum_blinded_preference_rate": 0.65,
+    "preference_confidence_level": 0.95,
+    "preference_chance_rate": 0.5,
+    "require_blinded_preference_confidence_interval_above_chance": true
+  },
+  "human_study": {
+    "schema_version": 1,
+    "id": "viewspec-studio-human-value-v1",
+    "seed": 32452843,
+    "design": "randomized_between_subjects_with_independent_blinded_pairwise_review",
+    "primary_arm": "viewspec-studio",
+    "participant_primary_slots_per_arm": 18,
+    "participant_reserve_slots_per_arm": 4,
+    "blinded_comparisons": 18,
+    "blinded_comparison_reserve_slots": 18,
+    "pairing": "every_analyzed_session_appears_in_one_independent_comparison",
+    "new_user_definition": "no_prior_viewspec_use_or_contribution_and_recent_coding_agent_ui_use",
+    "reference": "../agent-ui-v1/tasks/field-dispatch/reference.html",
+    "task_contract": {
+      "source_protocol": "../agent-ui-v2/protocol.json",
+      "task_id": "field-dispatch-lifecycle",
+      "initial_step_id": "establish-baseline",
+      "change_step_ids": [
+        "evolve-content",
+        "evolve-hierarchy",
+        "evolve-state"
+      ],
+      "required_viewports": [
+        390,
+        768,
+        1440
+      ],
+      "required_targets": [
+        "static",
+        "react"
+      ],
+      "preference_viewports": [
+        390,
+        1440
+      ]
+    },
+    "allowed_exclusion_reasons": [
+      "consent_withdrawn",
+      "infrastructure_failure_before_first_exposure",
+      "participant_ineligible_prior_viewspec_use",
+      "protocol_deviation_before_first_exposure"
+    ],
+    "allowed_reviewer_exclusion_reasons": [
+      "arm_identity_exposed_before_rating",
+      "consent_withdrawn",
+      "infrastructure_failure_before_review",
+      "protocol_deviation_before_review"
+    ],
+    "preference_reason_codes": [
+      "content_hierarchy",
+      "interaction_clarity",
+      "responsive_quality",
+      "target_consistency",
+      "trust_and_comprehension",
+      "visual_finish"
+    ],
+    "reserve_policy": "activate_in_preregistered_arm_order_only_for_allowed_exclusions",
+    "failure_policy": "task_failure_and_low_ratings_remain_in_the_primary_analysis",
+    "blinding_policy": "review_packets_omit_arm_names_session_ids_tool_chrome_and_source_metadata"
+  },
+  "assurance_gates": {
+    "minimum_localized_repair_rate": 0.9,
+    "maximum_stable_criterion_regression_rate": 0.0,
+    "minimum_cross_target_parity": 0.95,
+    "production_private_review_canary": "required_before_share_is_visible"
+  },
+  "journey": [
+    "brief_or_reference",
+    "checked_creation",
+    "preview",
+    "semantic_comment",
+    "isolated_proposal",
+    "human_approval",
+    "three_responsive_target_checks",
+    "private_handoff"
+  ],
+  "stop_rules": [
+    "Do not claim desirability from automated acceptance.",
+    "Do not claim production sharing from a local HTTPS journey.",
+    "Do not expose Share before the deployed private-review canary passes.",
+    "Do not collapse tokens, time, quality, assurance, and preference into one score."
+  ]
+}

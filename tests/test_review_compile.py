@@ -10,6 +10,7 @@ import pytest
 
 import viewspec.review_compile as review_compile
 from viewspec.app_bundle import starter_app_bundle
+from viewspec.app_starters import starter_react_app_bundle
 from viewspec.intent_tools import starter_intent_payload
 from viewspec.review_compile import (
     DESIGN_MAX_BYTES,
@@ -19,9 +20,15 @@ from viewspec.review_compile import (
     build_review_revision,
     capture_source_snapshot,
     load_review_revision,
+    STUDIO_COMPARE_MANIFEST,
+    STUDIO_COMPARE_TARGET,
+    STUDIO_INSPECTION_MANIFEST,
 )
 from viewspec.review_contract import ReviewContractError
 from viewspec.local_tools import check_artifact_dir
+
+
+_REAL_SUBPROCESS_RUN = review_compile.subprocess.run
 
 
 def _write_json(path, payload, *, total_bytes: int | None = None) -> bytes:
@@ -31,6 +38,24 @@ def _write_json(path, payload, *, total_bytes: int | None = None) -> bytes:
         content += b" " * (total_bytes - len(content))
     path.write_bytes(content)
     return content
+
+
+def _fake_react_npm(command, *, cwd, **kwargs):
+    if tuple(command[:3]) == ("npm", "run", "build"):
+        runtime = Path(cwd) / "runtime-dist"
+        assets = runtime / "assets"
+        assets.mkdir(parents=True)
+        assets.joinpath("main.js").write_text("document.getElementById('root').textContent='ready';", encoding="utf-8")
+        assets.joinpath("main.css").write_text("body{margin:0}", encoding="utf-8")
+        runtime.joinpath("index.html").write_text(
+            '<!doctype html><html><head><link rel="stylesheet" crossorigin href="./assets/main.css"></head>'
+            '<body><div id="root"></div><script type="module" crossorigin src="./assets/main.js"></script></body></html>',
+            encoding="utf-8",
+        )
+        return object()
+    if tuple(command[:2]) == ("npm", "ci"):
+        return object()
+    return _REAL_SUBPROCESS_RUN(command, cwd=cwd, **kwargs)
 
 
 def test_capture_intent_snapshot_reads_exact_bytes_once(tmp_path) -> None:
@@ -211,22 +236,7 @@ def test_react_app_review_inlines_checked_runtime_and_survives_reload(tmp_path, 
     state = tmp_path / "review-state"
     _write_json(source, starter_app_bundle())
 
-    def fake_npm(command, *, cwd, **kwargs):
-        del kwargs
-        if tuple(command[:3]) == ("npm", "run", "build"):
-            runtime = Path(cwd) / "runtime-dist"
-            assets = runtime / "assets"
-            assets.mkdir(parents=True)
-            assets.joinpath("main.js").write_text("document.getElementById('root').textContent='ready';", encoding="utf-8")
-            assets.joinpath("main.css").write_text("body{margin:0}", encoding="utf-8")
-            runtime.joinpath("index.html").write_text(
-                '<!doctype html><html><head><link rel="stylesheet" crossorigin href="./assets/main.css"></head>'
-                '<body><div id="root"></div><script type="module" crossorigin src="./assets/main.js"></script></body></html>',
-                encoding="utf-8",
-            )
-        return object()
-
-    monkeypatch.setattr("viewspec.review_compile.subprocess.run", fake_npm)
+    monkeypatch.setattr("viewspec.review_compile.subprocess.run", _fake_react_npm)
     gate = GenerationGate()
     built = build_review_revision(
         capture_source_snapshot(source),
@@ -245,6 +255,176 @@ def test_react_app_review_inlines_checked_runtime_and_survives_reload(tmp_path, 
     assert built.revision.root_manifest_kind == "review_react_manifest"
     assert set(built.manifest_indexes) == {"queue", "detail"}
     assert load_review_revision(state, 1).revision == built.revision
+
+
+def test_studio_comparison_revision_is_atomic_source_bound_and_reloadable(tmp_path, monkeypatch) -> None:
+    source = tmp_path / "viewspec.app.json"
+    state = tmp_path / "review-state"
+    source_bytes = _write_json(source, starter_app_bundle())
+    monkeypatch.setattr("viewspec.review_compile.subprocess.run", _fake_react_npm)
+
+    gate = GenerationGate()
+    built = build_review_revision(
+        capture_source_snapshot(source),
+        session_dir=state,
+        revision_number=1,
+        generation=gate.observe(),
+        gate=gate,
+        target=STUDIO_COMPARE_TARGET,
+        allow_install=True,
+    )
+
+    assert built.revision.target == STUDIO_COMPARE_TARGET
+    assert built.revision.source_sha256 == review_compile.hashlib.sha256(source_bytes).hexdigest()
+    assert built.revision.root_manifest_kind == "studio_comparison_manifest"
+    assert set(built.manifest_indexes) == {"queue", "detail"}
+    manifest = json.loads(built.artifact_dir.joinpath(STUDIO_COMPARE_MANIFEST).read_text(encoding="utf-8"))
+    assert manifest["policy"] == {
+        "dependency_install": "explicit_opt_in",
+        "runtime_network_calls": "none",
+        "visual_parity": "not_proven",
+    }
+    assert [target["compiler_target"] for target in manifest["targets"]] == [
+        "html-tailwind-app",
+        "react-tailwind-app",
+    ]
+    assert all(len(screen["semantic_identity_sha256"]) == 64 for screen in manifest["screens"])
+    assert built.artifact_dir.joinpath("static/index.html").is_file()
+    assert built.artifact_dir.joinpath("react/index.html").is_file()
+    assert load_review_revision(state, 1).revision == built.revision
+
+
+def test_studio_comparison_retains_checked_replay_and_resource_inspection(tmp_path, monkeypatch) -> None:
+    source = tmp_path / "viewspec.app.json"
+    state = tmp_path / "review-state"
+    source_bytes = _write_json(source, starter_react_app_bundle())
+    monkeypatch.setattr("viewspec.review_compile.subprocess.run", _fake_react_npm)
+
+    gate = GenerationGate()
+    built = build_review_revision(
+        capture_source_snapshot(source),
+        session_dir=state,
+        revision_number=1,
+        generation=gate.observe(),
+        gate=gate,
+        target=STUDIO_COMPARE_TARGET,
+        allow_install=True,
+    )
+
+    inspection_bytes = built.artifact_dir.joinpath(STUDIO_INSPECTION_MANIFEST).read_bytes()
+    inspection = json.loads(inspection_bytes)
+    comparison = json.loads(built.artifact_dir.joinpath(STUDIO_COMPARE_MANIFEST).read_text(encoding="utf-8"))
+    assert inspection["source_sha256"] == review_compile.hashlib.sha256(source_bytes).hexdigest()
+    assert inspection["state"]["status"] == "ready"
+    assert inspection["coherence"] == {
+        "status": "browser_observed",
+        "contract": "semantic_geometry_v1",
+        "source_binding": "checked_cross_target_dom_identity",
+        "viewports": ["mobile", "tablet", "desktop"],
+        "thresholds": {
+            "position_px": 3,
+            "size_px": 3,
+            "font_size_px": 0.5,
+            "font_weight": 50,
+        },
+        "claim": "not_pixel_parity",
+    }
+    assert len(inspection["state"]["contract_hash"]) == 64
+    assert inspection["state"]["reducer_conformance"] == "passed"
+    replay = inspection["state"]["replays"][0]
+    assert replay["id"] == "triage_replay"
+    assert replay["browser_status"] == "replayable"
+    assert replay["checkpoints"][1]["event"] == {
+        "mutation_id": "triage_incident_state",
+        "screen_id": "queue",
+        "route": "/",
+        "action_id": "triage_incident",
+        "payload_values": {"inc_1043_id": "inc_1043"},
+    }
+    assert replay["checkpoints"][1]["evidence_ref"].endswith("/checkpoints/1")
+    assert replay["checkpoints"][1]["expected"] == {
+        "state": [
+            {"id": "incidents_state", "kind": "checked"},
+            {"id": "selected_incident", "kind": "scalar", "value": "inc_1043"},
+        ],
+        "selectors": [{"id": "active_incidents", "status": "checked"}],
+        "visibility": [{"id": "show_triaged_status", "visible": True}],
+    }
+    assert inspection["resources"]["status"] == "ready"
+    assert inspection["resources"]["assertion_count"] == 9
+    queue_assertions = inspection["resources"]["views"][0]["assertions"]
+    assert any(
+        assertion["canonical_identity"] == "incidents/inc_1043/status"
+        and assertion["expected"] == "queued"
+        and assertion["matched_binding_id"] == "inc_1043_status"
+        for assertion in queue_assertions
+    )
+    assert comparison["inspection"] == {
+        "path": STUDIO_INSPECTION_MANIFEST,
+        "sha256": review_compile.hashlib.sha256(inspection_bytes).hexdigest(),
+        "coherence_status": "browser_observed",
+        "coherence_contract": "semantic_geometry_v1",
+        "state_status": "ready",
+        "resource_status": "ready",
+    }
+    assert load_review_revision(state, 1).revision == built.revision
+
+
+def test_studio_comparison_requires_opt_in_install_and_rejects_cross_target_identity_drift(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    source = tmp_path / "viewspec.app.json"
+    state = tmp_path / "review-state"
+    _write_json(source, starter_app_bundle())
+    snapshot = capture_source_snapshot(source)
+    gate = GenerationGate()
+    with pytest.raises(ReviewContractError) as missing_install:
+        build_review_revision(
+            snapshot,
+            session_dir=state,
+            revision_number=1,
+            generation=gate.observe(),
+            gate=gate,
+            target=STUDIO_COMPARE_TARGET,
+        )
+    assert missing_install.value.code == "REVIEW_SOURCE_UNSUPPORTED"
+    assert "--compare --install" in missing_install.value.fix
+
+    original_runtime = review_compile._build_react_review_runtime
+
+    def drifted_runtime(*args, **kwargs):
+        original_runtime(*args, **kwargs)
+        artifact_dir = Path(args[1]) if len(args) > 1 else Path(kwargs["artifact_dir"])
+        manifest_path = artifact_dir / "viewspec-manifests/queue.json"
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        first = next(iter(manifest["nodes"].values()))
+        first["ir_id"] += "_react_drift"
+        content = json.dumps(manifest, sort_keys=True, separators=(",", ":")).encode("utf-8")
+        manifest_path.write_bytes(content)
+        review_manifest_path = artifact_dir / "review_manifest.json"
+        review_manifest = json.loads(review_manifest_path.read_text(encoding="utf-8"))
+        queue = next(screen for screen in review_manifest["screens"] if screen["id"] == "queue")
+        queue["manifest_hash"] = review_compile.hashlib.sha256(content).hexdigest()
+        review_manifest_path.write_text(
+            json.dumps(review_manifest, sort_keys=True, separators=(",", ":")),
+            encoding="utf-8",
+        )
+
+    monkeypatch.setattr("viewspec.review_compile.subprocess.run", _fake_react_npm)
+    monkeypatch.setattr(review_compile, "_build_react_review_runtime", drifted_runtime)
+    with pytest.raises(ReviewContractError) as drift:
+        build_review_revision(
+            snapshot,
+            session_dir=state,
+            revision_number=1,
+            generation=gate.observe(),
+            gate=gate,
+            target=STUDIO_COMPARE_TARGET,
+            allow_install=True,
+        )
+    assert drift.value.code == "REVIEW_COMPARISON_IDENTITY_MISMATCH"
+    assert not state.joinpath("revisions/1").exists()
 
 
 def test_remote_runtime_reference_prevents_candidate_promotion(tmp_path, monkeypatch) -> None:

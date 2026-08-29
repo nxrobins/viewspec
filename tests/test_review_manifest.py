@@ -114,3 +114,70 @@ def test_cross_revision_meaning_reuse_is_rejected() -> None:
         changed.assert_identity_compatible(previous)
 
     assert raised.value.code == "REVIEW_MANIFEST_AMBIGUOUS"
+
+
+def test_cross_revision_binding_presentation_change_retains_identity() -> None:
+    previous = ReviewManifestIndex.from_bytes(
+        _manifest(
+            {
+                "dom-summary": _node(
+                    "binding_summary",
+                    primitive="value",
+                    props={"binding_id": "summary"},
+                )
+            }
+        ),
+        screen_id="queue",
+    )
+    changed = ReviewManifestIndex.from_bytes(
+        _manifest(
+            {
+                "dom-summary": _node(
+                    "binding_summary",
+                    primitive="badge",
+                    props={"binding_id": "summary"},
+                )
+            }
+        ),
+        screen_id="queue",
+    )
+
+    changed.assert_identity_compatible(previous)
+
+
+@pytest.mark.parametrize(
+    ("changed_field", "changed_value"),
+    [
+        ("props", {"binding_id": "different"}),
+        ("content_refs", ["node:other#attr:value"]),
+        ("intent_refs", ["viewspec:binding:different"]),
+    ],
+)
+def test_cross_revision_binding_presentation_change_rejects_semantic_drift(
+    changed_field: str,
+    changed_value: object,
+) -> None:
+    previous_node = _node(
+        "binding_summary",
+        primitive="value",
+        props={"binding_id": "summary"},
+    )
+    changed_node = _node(
+        "binding_summary",
+        primitive="badge",
+        props={"binding_id": "summary"},
+    )
+    changed_node[changed_field] = changed_value
+    previous = ReviewManifestIndex.from_bytes(
+        _manifest({"dom-summary": previous_node}),
+        screen_id="queue",
+    )
+    changed = ReviewManifestIndex.from_bytes(
+        _manifest({"dom-summary": changed_node}),
+        screen_id="queue",
+    )
+
+    with pytest.raises(ReviewContractError) as raised:
+        changed.assert_identity_compatible(previous)
+
+    assert raised.value.code == "REVIEW_MANIFEST_AMBIGUOUS"

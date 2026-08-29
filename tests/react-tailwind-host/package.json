@@ -8,6 +8,8 @@
     "preview": "vite preview --host 127.0.0.1 --port 4177 --strictPort",
     "test": "playwright test",
     "test:site": "playwright test -c site-playwright.config.ts",
+    "test:studio": "playwright test -c studio-playwright.config.ts",
+    "test:studio-review": "playwright test -c studio-review-playwright.config.ts",
     "verify": "node scripts/verify.mjs"
   },
   "dependencies": {
