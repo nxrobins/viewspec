@@ -56,8 +56,8 @@
       "source_kind": "intent_bundle",
       "node_id": "launch_hero",
       "attr": "title",
-      "old_value": "Intent goes in. Interface comes out.",
-      "value": "Intent becomes interface."
+      "old_value": "Tell your agent what to build. See the real product.",
+      "value": "Build it with your agent. See the real product."
     },
     {
       "case_id": "multi-step-workflow",

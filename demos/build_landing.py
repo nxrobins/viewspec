@@ -75,11 +75,11 @@ def build_bundle(aesthetic_profile: str | None = None):
 
     builder.add_hero(
         "launch_hero",
-        eyebrow="Agent-native app compiler",
-        title="Intent goes in. Interface comes out.",
+        eyebrow="Local product studio for you and your agent",
+        title="Tell your agent what to build. See the real product.",
         description=(
-            "Agents commit to meaning — nodes, bindings, motifs. ViewSpec compiles the UI, "
-            "the state reducer, replay checks, and shell proof. Deterministic, and no runtime LLM."
+            "Create from a brief and reference, compare checked static and React builds, inspect "
+            "declared state and fixture data, then point at the result and ask for the next change."
         ),
         region="main",
         group_id="launch",
@@ -651,6 +651,65 @@ PAGE_CSS = r"""
   h2{ font-family:var(--mono); font-weight:var(--hw); font-size:clamp(25px,calc(3vw*var(--disp)+8px),40px); letter-spacing:-.02em; margin:0; text-wrap:balance; line-height:1.06; }
   .lead{ color:var(--muted); font-size:clamp(15.5px,.5vw+14px,17.5px); max-width:var(--measure); }
 
+  /* Studio product moment */
+  .studio-window{ overflow:hidden; border:1px solid var(--line-2); border-radius:18px; background:var(--ink-2); box-shadow:0 34px 90px -52px rgba(245,178,63,.45); }
+  .studio-bar{ min-height:50px; padding:11px 15px; display:flex; align-items:center; justify-content:space-between; gap:12px; border-bottom:1px solid var(--line); background:var(--panel-solid); }
+  .studio-brand,.studio-status,.studio-target,.studio-k,.studio-step-num,.studio-command{ font-family:var(--mono); }
+  .studio-brand{ display:flex; align-items:center; gap:9px; font-size:12px; color:var(--text); }
+  .studio-brand .mark{ width:8px; height:8px; }
+  .studio-status{ font-size:10.5px; color:var(--mint); display:flex; align-items:center; gap:7px; }
+  .studio-status::before{ content:""; width:7px; height:7px; border-radius:50%; background:var(--mint); box-shadow:0 0 0 3px rgba(87,220,169,.13); }
+  .studio-grid{ display:grid; grid-template-columns:minmax(150px,.62fr) minmax(0,2.1fr) minmax(180px,.82fr); min-height:430px; }
+  .studio-pane{ min-width:0; padding:16px; border-right:1px solid var(--line); }
+  .studio-pane:last-child{ border-right:0; }
+  .studio-k{ margin-bottom:12px; color:var(--faint); font-size:9.5px; letter-spacing:.14em; text-transform:uppercase; }
+  .studio-brief{ display:grid; gap:10px; }
+  .studio-brief-card,.studio-context-card,.studio-comment{ border:1px solid var(--line); border-radius:10px; background:var(--panel-solid); padding:12px; }
+  .studio-brief-card b,.studio-context-card b{ display:block; margin-bottom:4px; color:var(--text); font-size:12.5px; }
+  .studio-brief-card span,.studio-context-card span{ display:block; color:var(--muted); font-size:11px; line-height:1.5; overflow-wrap:anywhere; }
+  .studio-brief-card.accepted{ border-color:rgba(87,220,169,.3); }
+  .studio-brief-card.accepted span{ color:var(--mint); }
+  .studio-center{ background:linear-gradient(180deg,rgba(26,34,51,.74),rgba(12,17,28,.92)); }
+  .studio-canvas-head{ display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:10px; margin-bottom:12px; }
+  .studio-targets{ display:flex; gap:6px; }
+  .studio-target{ padding:5px 8px; border:1px solid var(--line-2); border-radius:7px; color:var(--muted); font-size:9.5px; background:var(--ink-2); }
+  .studio-target.active{ color:var(--amber-2); border-color:rgba(245,178,63,.42); }
+  .studio-canvases{ display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+  .studio-canvas{ min-width:0; overflow:hidden; border:1px solid var(--line-2); border-radius:11px; background:#f4f1e9; color:#18211d; }
+  .studio-canvas-label{ padding:7px 9px; background:var(--panel-solid); color:var(--muted); font:9.5px var(--mono); letter-spacing:.08em; text-transform:uppercase; }
+  .studio-product{ min-height:235px; padding:14px; background:linear-gradient(145deg,#f7f3e9,#e8eee8); }
+  .studio-product h3{ margin:0 0 3px; font-size:13px; letter-spacing:-.01em; }
+  .studio-product p{ margin:0 0 12px; color:#6c766f; font-size:9.5px; }
+  .studio-jobs{ display:grid; gap:7px; }
+  .studio-job{ padding:9px; display:grid; grid-template-columns:1fr auto; gap:3px 8px; border:1px solid #ccd6ce; border-radius:8px; background:rgba(255,255,255,.8); }
+  .studio-job b{ font-size:10.5px; }
+  .studio-job small{ color:#6c766f; font-size:8.5px; }
+  .studio-job em{ grid-row:1 / span 2; grid-column:2; align-self:center; padding:3px 6px; border-radius:999px; background:#d9eee3; color:#246149; font:normal 8px var(--mono); }
+  .studio-job.selected{ outline:2px solid #d49227; outline-offset:-2px; }
+  .studio-canvas.react .studio-job:last-child em{ background:#fff0c9; color:#7b5000; }
+  .studio-route{ margin-top:10px; color:#748078; font:8.5px var(--mono); }
+  .studio-context{ display:grid; gap:10px; }
+  .studio-context-card code{ color:var(--amber-2); font:10px var(--mono); overflow-wrap:anywhere; }
+  .studio-values{ display:grid; grid-template-columns:auto 1fr; gap:4px 7px; margin-top:8px; font:9.5px var(--mono); }
+  .studio-values dt{ color:var(--faint); }
+  .studio-values dd{ margin:0; color:var(--text); overflow-wrap:anywhere; }
+  .studio-values .changed{ color:var(--amber-2); }
+  .studio-comment{ margin-top:10px; border-color:rgba(245,178,63,.38); }
+  .studio-comment p{ margin:5px 0 10px; color:var(--text); font-size:11px; line-height:1.5; }
+  .studio-comment-foot{ display:flex; justify-content:space-between; gap:8px; color:var(--faint); font:9px var(--mono); }
+  .studio-comment-foot strong{ color:var(--mint); font-weight:500; }
+  .studio-flow{ display:grid; grid-template-columns:repeat(4,1fr); border-top:1px solid var(--line); background:var(--panel-solid); }
+  .studio-step{ position:relative; min-width:0; padding:14px 15px; border-right:1px solid var(--line); }
+  .studio-step:last-child{ border-right:0; }
+  .studio-step-num{ display:block; margin-bottom:4px; color:var(--amber); font-size:9px; }
+  .studio-step b{ display:block; color:var(--text); font-size:12px; }
+  .studio-step span:last-child{ display:block; color:var(--muted); font-size:10.5px; line-height:1.45; }
+  .studio-commands{ display:flex; flex-wrap:wrap; gap:8px; margin-top:16px; }
+  .studio-command{ max-width:100%; padding:8px 11px; border:1px solid var(--line); border-radius:8px; background:var(--panel-solid); color:var(--amber-2); font-size:10.5px; overflow-wrap:anywhere; }
+  .studio-honesty{ margin:13px 0 0; color:var(--faint); font:10.5px/1.55 var(--mono); }
+  @media (max-width:900px){ .studio-grid{ grid-template-columns:1fr 2fr; } .studio-context-pane{ grid-column:1 / -1; border-top:1px solid var(--line); border-right:0; } .studio-context{ grid-template-columns:1fr 1fr; } }
+  @media (max-width:650px){ .studio-grid{ display:block; } .studio-pane{ border-right:0; border-bottom:1px solid var(--line); } .studio-pane:last-child{ border-bottom:0; } .studio-canvases,.studio-context,.studio-flow{ grid-template-columns:1fr; } .studio-step{ border-right:0; border-bottom:1px solid var(--line); } .studio-step:last-child{ border-bottom:0; } }
+
   /* pillars */
   .pillars{ display:grid; grid-template-columns:repeat(3,1fr); gap:16px; }
   .pillar{ background:var(--panel); border:1px solid var(--line); border-radius:var(--rad); padding:calc(var(--u)*2.6); }
@@ -861,8 +920,7 @@ PAGE_BODY_TEMPLATE = r"""<a class="skip-link" href="#top">Skip to content</a>
     <div class="nav-in">
       <a class="logo" href="#top"><span class="mark"></span><b class="mono">viewspec</b></a>
       <div class="nav-links">
-        <a href="#shape">Product</a>
-        <a href="#under">How it works</a>
+        <a href="#studio">Studio</a>
         <a href="#proof">Proof</a>
         <a href="#pricing">Pricing</a>
         <a href="https://github.com/nxrobins/viewspec/blob/main/docs/getting-started.md" target="_blank" rel="noopener">Docs</a>
@@ -874,14 +932,14 @@ PAGE_BODY_TEMPLATE = r"""<a class="skip-link" href="#top">Skip to content</a>
   <div class="wrap" id="top">
     <!-- ================= HERO ================= -->
     <header>
-      <span class="eyebrow">Agent&#8209;native UI compiler</span>
-      <h1 data-node="node:hero#slot:title[0]" data-binding="hero_title" data-address="node:hero#slot:title[0]" data-present="text" data-raw="Intent goes in. Interface comes out.">Intent goes in.<br>Interface comes <span class="out">out.</span></h1>
-      <p class="sub" data-node="node:hero#slot:body[0]" data-binding="hero_body" data-address="node:hero#slot:body[0]" data-present="rich_text" data-raw="ViewSpec is the compiler between your agents and your UI.">
-        ViewSpec is the compiler between your agents and your UI. Agents commit to <b>meaning</b> &mdash; nodes, bindings, motifs. ViewSpec owns the <b>renderer output</b>: deterministic, with no model call at render. HTML and React compile locally; the hosted API adds SwiftUI and Flutter.
+      <span class="eyebrow">Local product studio for you and your agent</span>
+      <h1 data-node="node:hero#slot:title[0]" data-binding="hero_title" data-address="node:hero#slot:title[0]" data-present="text" data-raw="Tell your agent what to build. See the real product. Point at what should change.">Tell your agent what to build.<br>See the real product.<br><span class="out">Point at what should change.</span></h1>
+      <p class="sub" data-node="node:hero#slot:body[0]" data-binding="hero_body" data-address="node:hero#slot:body[0]" data-present="rich_text" data-raw="ViewSpec keeps you and your agent in one checked product loop.">
+        ViewSpec gives you one local room to <b>create, compare, inspect, and approve</b> an agent&#8209;built interface. One semantic source drives checked static and React builds; your feedback returns with exact element, state, and resource context.
       </p>
       <div class="hero-cta">
         <span class="cmd mono"><span class="pr">$</span> {{INSTALL_COMMAND}} <button type="button" class="cp" id="copyCmd" data-copy-text="{{INSTALL_COMMAND}}" aria-label="Copy ViewSpec beta install command">copy</button></span>
-        <a class="ghost mono" href="#shape">see it compile &#8595;</a>
+        <a class="ghost mono" href="#studio">meet ViewSpec Studio &#8595;</a>
       </div>
 
       <!-- compile composition -->
@@ -913,6 +971,77 @@ PAGE_BODY_TEMPLATE = r"""<a class="skip-link" href="#top">Skip to content</a>
         </div>
       </div>
     </header>
+
+    <!-- ================= STUDIO ================= -->
+    <section id="studio" class="reveal-on" aria-labelledby="studio-title">
+      <div class="sec-head">
+        <span class="kicker"><span class="n">/</span> ViewSpec Studio &middot; local beta</span>
+        <h2 id="studio-title">One room from first brief to final approval.</h2>
+        <p class="lead">The interface, its behavior, and your feedback stay connected. You can see what the agent built, compare both delivery targets, inspect declared state and fixture data, and point at the exact result that should change.</p>
+      </div>
+      <div class="studio-window" aria-label="ViewSpec Studio product workflow">
+        <div class="studio-bar">
+          <div class="studio-brand"><span class="mark"></span><b>Field dispatch</b><span style="color:var(--faint)">&middot; revision 7</span></div>
+          <div class="studio-status">checked &middot; local only</div>
+        </div>
+        <div class="studio-grid">
+          <aside class="studio-pane">
+            <div class="studio-k">Creation</div>
+            <div class="studio-brief">
+              <div class="studio-brief-card"><b>product-brief.md</b><span>Dispatch view for urgent field work.</span></div>
+              <div class="studio-brief-card"><b>reference.png</b><span>Exact reference hash bound.</span></div>
+              <div class="studio-brief-card accepted"><b>viewspec.app.json</b><span>Candidate accepted as canonical source.</span></div>
+            </div>
+          </aside>
+          <div class="studio-pane studio-center">
+            <div class="studio-canvas-head">
+              <div class="studio-k" style="margin:0">Same source &middot; synchronized route</div>
+              <div class="studio-targets"><span class="studio-target active">390</span><span class="studio-target">768</span><span class="studio-target">1440</span></div>
+            </div>
+            <div class="studio-canvases">
+              <article class="studio-canvas">
+                <div class="studio-canvas-label">Static &middot; checked</div>
+                <div class="studio-product">
+                  <h3>Field dispatch</h3><p>Open incidents &middot; west region</p>
+                  <div class="studio-jobs">
+                    <div class="studio-job selected"><b>J-205 &middot; Signal fault</b><small>Route crew within 20 minutes</small><em>urgent</em></div>
+                    <div class="studio-job"><b>J-207 &middot; Pump alert</b><small>Resource: crew-12</small><em>queued</em></div>
+                  </div>
+                  <div class="studio-route">/dispatch/incidents</div>
+                </div>
+              </article>
+              <article class="studio-canvas react">
+                <div class="studio-canvas-label">React &middot; checked</div>
+                <div class="studio-product">
+                  <h3>Field dispatch</h3><p>Open incidents &middot; west region</p>
+                  <div class="studio-jobs">
+                    <div class="studio-job selected"><b>J-205 &middot; Signal fault</b><small>Route crew within 20 minutes</small><em>urgent</em></div>
+                    <div class="studio-job"><b>J-207 &middot; Pump alert</b><small>Resource: crew-12</small><em>investigating</em></div>
+                  </div>
+                  <div class="studio-route">/dispatch/incidents</div>
+                </div>
+              </article>
+            </div>
+          </div>
+          <aside class="studio-pane studio-context-pane">
+            <div class="studio-k">State &amp; data</div>
+            <div class="studio-context">
+              <div class="studio-context-card"><b>Replay &middot; triage event</b><span>Exact action and payload mapping.</span><dl class="studio-values"><dt>Static</dt><dd>queued</dd><dt>React</dt><dd class="changed">investigating</dd></dl></div>
+              <div class="studio-context-card"><b>Resource</b><code>incidents &rarr; inc_1043 &rarr; status</code><dl class="studio-values"><dt>Source</dt><dd>queued</dd><dt>Target</dt><dd class="changed">investigating</dd></dl></div>
+            </div>
+            <div class="studio-comment"><span class="studio-k" style="margin:0">Pointed at J-205 status</span><p>Make the escalation state unmistakable on mobile.</p><div class="studio-comment-foot"><span>route + element + replay</span><strong>ready for agent</strong></div></div>
+          </aside>
+        </div>
+        <div class="studio-flow" aria-label="Studio workflow">
+          <div class="studio-step" data-studio-step="create"><span class="studio-step-num">01</span><b>Create</b><span>Bind the brief and reference.</span></div>
+          <div class="studio-step" data-studio-step="compare"><span class="studio-step-num">02</span><b>Compare</b><span>Static and React, side by side.</span></div>
+          <div class="studio-step" data-studio-step="inspect"><span class="studio-step-num">03</span><b>Inspect</b><span>Replay behavior and fixture data.</span></div>
+          <div class="studio-step" data-studio-step="decide"><span class="studio-step-num">04</span><b>Decide</b><span>Comment precisely, then approve.</span></div>
+        </div>
+      </div>
+      <div class="studio-commands"><code class="studio-command">viewspec studio-create --brief-file product-brief.md --reference reference.png --kind app --json</code><code class="studio-command">viewspec studio viewspec.app.json --compare --install</code></div>
+      <p class="studio-honesty">What is proven today: local creation, checked static and React builds, synchronized routes and semantic identity, declared-state replay, fixture-resource inspection, source-bound feedback, and approval. The private-review transport contract completes the exact comment-to-approval journey locally in Chromium, Firefox, and WebKit; no hosted review endpoint is deployed. Static/React visual parity is not claimed. Production data is not loaded.</p>
+    </section>
 
     <!-- ================= MODEL ================= -->
     <section id="model" class="reveal-on">
@@ -1491,8 +1620,8 @@ def _public_html(generated_html: str, profile_evidence: dict[str, Any]) -> str:
             "<head>",
             '<meta charset="utf-8">',
             '<meta name="viewport" content="width=device-width, initial-scale=1">',
-            "<title>ViewSpec - Ship agent-built apps you can prove</title>",
-            '<meta name="description" content="Agents author app intent as JSON. ViewSpec compiles UI, state reducers, replay checks, shell artifacts, and proof reports without runtime LLM calls.">',
+            "<title>ViewSpec Studio - Build with your agent, then point at what changes</title>",
+            '<meta name="description" content="Create, compare, inspect, and approve agent-built interfaces in one local Studio. One semantic source drives checked static and React builds with precise feedback context.">',
             '<meta name="robots" content="index,follow,max-snippet:-1,max-image-preview:large">',
             '<meta name="application-name" content="ViewSpec">',
             '<meta name="keywords" content="agent-native app compiler, AppBundle, State IR, IntentBundle, semantic UI compiler, AI coding agents, deterministic HTML, reducers, provenance, proof pipeline, Python SDK">',
@@ -1502,12 +1631,12 @@ def _public_html(generated_html: str, profile_evidence: dict[str, Any]) -> str:
             '<link rel="alternate" type="application/json" title="ViewSpec OpenAPI" href="https://viewspec.dev/openapi.json">',
             '<meta property="og:site_name" content="ViewSpec">',
             '<meta property="og:type" content="website">',
-            '<meta property="og:title" content="ViewSpec - Ship agent-built apps you can prove">',
-            '<meta property="og:description" content="Agents author app intent. ViewSpec compiles UI, state reducers, shell artifacts, replay assertions, and proof reports.">',
+            '<meta property="og:title" content="ViewSpec Studio - Build with your agent, then point at what changes">',
+            '<meta property="og:description" content="Create, compare, inspect, and approve agent-built interfaces in one checked local product loop.">',
             '<meta property="og:url" content="https://viewspec.dev/">',
             '<meta name="twitter:card" content="summary">',
-            '<meta name="twitter:title" content="ViewSpec - Ship agent-built apps you can prove">',
-            '<meta name="twitter:description" content="Compile agent-authored app intent into UI, State IR, reducers, replay checks, checked shells, and proof reports.">',
+            '<meta name="twitter:title" content="ViewSpec Studio - Build with your agent, then point at what changes">',
+            '<meta name="twitter:description" content="Create, compare, inspect, and approve agent-built interfaces in one checked local product loop.">',
             '<script type="application/ld+json">',
             _json_ld(),
             "</script>",

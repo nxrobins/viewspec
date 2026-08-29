@@ -2,11 +2,11 @@
   "cases": [
     {
       "artifacts": {
-        "artifact_sha256": "980491df6a645b9a7c383a5c9b02de2aeb7870bf5e6415a5bbc158bd8f752da7",
+        "artifact_sha256": "3189611ce5d8f893ed8fda37fa954c89344c847428cdb4909c336498ba03be56",
         "intent_sha256": "796b2b1979bacd87a9e494a8cf1cc26c6eac3f8038c8bc93032c0a77140fdb95",
         "plan_sha256": "6bd13fe358f52cbb7e17ea81d6f1953a5af119109254d80c0f2b8f69f312ca0c",
         "source_sha256": "d2917c0bc2f416d8ddcf6ea3b6fee56c4320e650b20d506cf2dd68d4bf946d75",
-        "verification_id": "vvr_ac2ddff870cb0bc207066e2771e59635"
+        "verification_id": "vvr_daa88d956f3c90e6be65c8b715820d7a"
       },
       "correction": {
         "after": "Incident INC-1042",
@@ -16,8 +16,8 @@
         "compile_status": "passed",
         "operation": "replace_semantic_attr",
         "patch_id": "vpatch_05c71efe36af52ff2f69a735ad5d06d9",
-        "preview_id": "vpv_ce85d5d31d58b2bc88d074d63c68fa49",
-        "receipt_id": "vreceipt_d638f27ffb3df4db71c9f5bdfd35eac9",
+        "preview_id": "vpv_c3c268990eb438149da05bd064d88e31",
+        "receipt_id": "vreceipt_76727bd936453464a971774845fffe83",
         "receipt_status": "applied",
         "source_kind": "app_bundle",
         "target": {
@@ -80,11 +80,11 @@
     },
     {
       "artifacts": {
-        "artifact_sha256": "59f8e1f82bfd243990935ee41068f8d3cad957cb1ebe59f5af114ce12cf02642",
+        "artifact_sha256": "8668a88278de309c042a7af82ed50a52a2e4c293e673076d1e87f9c3222dacd8",
         "intent_sha256": "674cd9787e83642529d5c2242eb4b0712fef5bce5cf32aef8c42e37881f33b43",
         "plan_sha256": "6bd13fe358f52cbb7e17ea81d6f1953a5af119109254d80c0f2b8f69f312ca0c",
         "source_sha256": "d2917c0bc2f416d8ddcf6ea3b6fee56c4320e650b20d506cf2dd68d4bf946d75",
-        "verification_id": "vvr_3971124a3d68813bcbd25b92eaff8fb5"
+        "verification_id": "vvr_bca6ee26d59ded95f971e6cabbc7d70d"
       },
       "correction": {
         "after": "Active Incident Queue",
@@ -94,8 +94,8 @@
         "compile_status": "passed",
         "operation": "replace_semantic_attr",
         "patch_id": "vpatch_d4f689f893fd41786ca70ab0bd82a88d",
-        "preview_id": "vpv_448d6fcdf060cf84ebcd0b34f121678a",
-        "receipt_id": "vreceipt_7a9cd9a040fed5bc749d75ec74ed9f04",
+        "preview_id": "vpv_c105d1434e4cdf80d4894ecda3e7965c",
+        "receipt_id": "vreceipt_8392f12efe59d0097f517455d0c73fd9",
         "receipt_status": "applied",
         "source_kind": "app_bundle",
         "target": {
@@ -118,27 +118,27 @@
         ],
         "screenshots": {
           "desktop": {
-            "bytes": 20275,
+            "bytes": 20271,
             "capture_kind": "viewport",
             "height": 1000,
             "path": "screenshots/app-queue/desktop.png",
-            "sha256": "a0ee56385a236fe3778b8db529c88a5c598fe04f673e1fc9aa3aaa1399b28a6f",
+            "sha256": "8b8c2279822cc262b361fd4aae1680665e2fe83a7175ab2f587aec85e4cb0eb9",
             "width": 1440
           },
           "mobile": {
-            "bytes": 15618,
+            "bytes": 15629,
             "capture_kind": "viewport",
             "height": 844,
             "path": "screenshots/app-queue/mobile.png",
-            "sha256": "44eef37ed511f2fb1a89d5bd80fa1d263e3ca03eab26c8a5e628a006d6421bc5",
+            "sha256": "eb4c7b48e9083f5d0ea46c6c9a98b8ccd42d5021259e0a4e7c1174088ecdd04e",
             "width": 390
           },
           "tablet": {
-            "bytes": 17838,
+            "bytes": 17829,
             "capture_kind": "viewport",
             "height": 1024,
             "path": "screenshots/app-queue/tablet.png",
-            "sha256": "08470596921f471efc030a9faabd50d2dc608e3ee1b2425955e78b0afa5c72a2",
+            "sha256": "5d064c3ce50bbe2e8de3c4cba2abeda6a87119284c19e11114b018fbb3eae004",
             "width": 768
           }
         }
@@ -158,11 +158,11 @@
     },
     {
       "artifacts": {
-        "artifact_sha256": "6b90e2d92bf3593089e7171f060fcf121e9af01c72b8054209f1efc27f8e09f5",
+        "artifact_sha256": "8332ebb2f3859735500c90232dcbbb86d56878c396de9c6442d005300130ff96",
         "intent_sha256": "011872d9c56ea49f9f5ab1edc612f8cd238bebb2012d8972f1d1064b0beafc65",
         "plan_sha256": "6bd13fe358f52cbb7e17ea81d6f1953a5af119109254d80c0f2b8f69f312ca0c",
         "source_sha256": "011872d9c56ea49f9f5ab1edc612f8cd238bebb2012d8972f1d1064b0beafc65",
-        "verification_id": "vvr_46fe1476af6ac34337aea56e5f7a72a5"
+        "verification_id": "vvr_12fb9ced01c0c1b455012ed76f2e2375"
       },
       "correction": {
         "after": "Filtered projects",
@@ -172,8 +172,8 @@
         "compile_status": "passed",
         "operation": "replace_semantic_attr",
         "patch_id": "vpatch_42b5a1f7deacbd60ef42386df42971cb",
-        "preview_id": "vpv_b5cf82e50351f2f77a7c194de1d02164",
-        "receipt_id": "vreceipt_d39fb7ae49b6a464f20d1a0c2a7a6490",
+        "preview_id": "vpv_450ee25470289413674a1311b6ca6158",
+        "receipt_id": "vreceipt_a0ef4874944b1d3d506fd99b27d6ed5a",
         "receipt_status": "applied",
         "source_kind": "intent_bundle",
         "target": {
@@ -196,27 +196,27 @@
         ],
         "screenshots": {
           "desktop": {
-            "bytes": 55442,
+            "bytes": 55443,
             "capture_kind": "viewport",
             "height": 1000,
             "path": "screenshots/collection-states/desktop.png",
-            "sha256": "deaf2da8aea8b2e75e331d7c177394a0634ce462c3047106a7f3d40d15bcb6bb",
+            "sha256": "17c01e1a3b20009d556a0b57ddcee5ebd09f42347fcac81368263b54b2a42ca2",
             "width": 1440
           },
           "mobile": {
-            "bytes": 49023,
+            "bytes": 49019,
             "capture_kind": "viewport",
             "height": 844,
             "path": "screenshots/collection-states/mobile.png",
-            "sha256": "6041c0c45fa9ce7c4b228da23dcfdfb8a3dfb4712095d120c32933a739c552eb",
+            "sha256": "12daf97a9dc47e99c7cb17e573f53ee2359de270071c5e667f0e43308839db3a",
             "width": 390
           },
           "tablet": {
-            "bytes": 51280,
+            "bytes": 51278,
             "capture_kind": "viewport",
             "height": 1024,
             "path": "screenshots/collection-states/tablet.png",
-            "sha256": "82e029634493888ef9e661e90d2a941168e304a68ee7d3332e20576781d94a31",
+            "sha256": "b25ddd87c55fa740c1b7b18f28dde023f7f9d425bc2afcfb40ea93350ac26d0f",
             "width": 768
           }
         }
@@ -236,11 +236,11 @@
     },
     {
       "artifacts": {
-        "artifact_sha256": "fb0c639b1e3ea3de53f92c84710fb7663bc929c51e76e5a70328a15c379fbe93",
+        "artifact_sha256": "86272a3328e880336d73abf9bd5b5047d911eef8ef104034ac22ffe3c1747b51",
         "intent_sha256": "2f927effe0949f688418e477c09eab56bc3b57dbe289f301979221d723018f3f",
         "plan_sha256": "6bd13fe358f52cbb7e17ea81d6f1953a5af119109254d80c0f2b8f69f312ca0c",
         "source_sha256": "2f927effe0949f688418e477c09eab56bc3b57dbe289f301979221d723018f3f",
-        "verification_id": "vvr_52cac9877a8d0fdb01d224f516a9963a"
+        "verification_id": "vvr_708c42abea85f5f410e63a9d3db2210e"
       },
       "correction": {
         "after": "Executive Dashboard",
@@ -250,8 +250,8 @@
         "compile_status": "passed",
         "operation": "replace_semantic_attr",
         "patch_id": "vpatch_045930ae1c9ea52ef3d7cdd6b7bc6f52",
-        "preview_id": "vpv_6e09889b19dd740b323fd3cdc7425484",
-        "receipt_id": "vreceipt_0b3bc64d7ea8d402a09ec0b54019dcf4",
+        "preview_id": "vpv_a8a98bd87a5f664e1e2e83337c363884",
+        "receipt_id": "vreceipt_5aeda13c993833ce62cf97c30924744d",
         "receipt_status": "applied",
         "source_kind": "intent_bundle",
         "target": {
@@ -314,11 +314,11 @@
     },
     {
       "artifacts": {
-        "artifact_sha256": "c250082bb6c9ea5df9fc9a439b93dfb7ece7cec33588bcf761ca3955dbd52005",
+        "artifact_sha256": "9f6396a9357105057fd719534d6088adbc710c6c04a45cd9e586ca6cb175c5b1",
         "intent_sha256": "f94b55facb2652507b9797d8da38af1f995fe81f6b97cf011c86ff168ab8d62a",
         "plan_sha256": "6bd13fe358f52cbb7e17ea81d6f1953a5af119109254d80c0f2b8f69f312ca0c",
         "source_sha256": "f94b55facb2652507b9797d8da38af1f995fe81f6b97cf011c86ff168ab8d62a",
-        "verification_id": "vvr_0c662d48382d3586a23db98ba0a93315"
+        "verification_id": "vvr_d284e76f82fbc02fcec2893b44f1041d"
       },
       "correction": {
         "after": "Deployment health",
@@ -328,8 +328,8 @@
         "compile_status": "passed",
         "operation": "replace_semantic_attr",
         "patch_id": "vpatch_5f4ae646834261a887847b4a08dc8945",
-        "preview_id": "vpv_95aeb00838d4537bea08b3e5714b6252",
-        "receipt_id": "vreceipt_7b676ba6575f6078dc5b435f36922a8a",
+        "preview_id": "vpv_95a013efcf037995e0a7704c3590e5a2",
+        "receipt_id": "vreceipt_90bfc133d11a9dcb27b3b05ad3e1b13f",
         "receipt_status": "applied",
         "source_kind": "intent_bundle",
         "target": {
@@ -352,27 +352,27 @@
         ],
         "screenshots": {
           "desktop": {
-            "bytes": 61207,
+            "bytes": 61262,
             "capture_kind": "viewport",
             "height": 1000,
             "path": "screenshots/dense-operational-console/desktop.png",
-            "sha256": "40623cbcd586b72ddffa360638089e8eb66867bf36779c0cfc56c7b3c288f1e2",
+            "sha256": "661da9f47020c3bb5aaf62131684aea6918142e0ed189ce00b3b6aa4447f932a",
             "width": 1440
           },
           "mobile": {
-            "bytes": 57045,
+            "bytes": 57098,
             "capture_kind": "full_page",
             "height": 931,
             "path": "screenshots/dense-operational-console/mobile.png",
-            "sha256": "73a8feae945ece9433e784d957dbae7e43dba29c73f48708e53830115d7dc215",
+            "sha256": "5bc53fc494d96a6ac0e9ef334ae112b2d2424fe0e894ee09d983ea2f94c02ffe",
             "width": 390
           },
           "tablet": {
-            "bytes": 57129,
+            "bytes": 57180,
             "capture_kind": "viewport",
             "height": 1024,
             "path": "screenshots/dense-operational-console/tablet.png",
-            "sha256": "94ca11e34defa58a495bedd7f1b7bd6434217feaff95af06c61eb32f2126cea3",
+            "sha256": "fac4df7a8ad4d4afafdfb5e30eda3cc68e4f6fa8b39a382ee3bb23f51e32d7a3",
             "width": 768
           }
         }
@@ -392,11 +392,11 @@
     },
     {
       "artifacts": {
-        "artifact_sha256": "e584ac5a50bb3a3adaa1aaf95ebb1e7c41c4454b590ce8612e75c3f06cbc6940",
+        "artifact_sha256": "5372b9b0d6d9011e5ed1e99b8a12ef6c7f63aa3c1d33d2be637659a73a5b057f",
         "intent_sha256": "16c47f6f5d01fd03135e4b0cbdfbf469bff1130adc210e544c1bc5cf8ee4dcf7",
         "plan_sha256": "6bd13fe358f52cbb7e17ea81d6f1953a5af119109254d80c0f2b8f69f312ca0c",
         "source_sha256": "16c47f6f5d01fd03135e4b0cbdfbf469bff1130adc210e544c1bc5cf8ee4dcf7",
-        "verification_id": "vvr_9615858b5065295e2f3beda58b1ae142"
+        "verification_id": "vvr_49e0bc511ec691c013235d4d6859781a"
       },
       "correction": {
         "after": "Contact the team",
@@ -406,8 +406,8 @@
         "compile_status": "passed",
         "operation": "replace_semantic_attr",
         "patch_id": "vpatch_29563aa5c3d2dbc9fe3bcaf700e7cdfb",
-        "preview_id": "vpv_f22b1d23fcd57ec10c1ccd0e83a49a11",
-        "receipt_id": "vreceipt_239d52392f844f3f36ab4d9825afce7c",
+        "preview_id": "vpv_1b6ab4b4acc36c0f29148b8b19477751",
+        "receipt_id": "vreceipt_05de76137a93f0a7597ccec1e180d951",
         "receipt_status": "applied",
         "source_kind": "intent_bundle",
         "target": {
@@ -470,22 +470,22 @@
     },
     {
       "artifacts": {
-        "artifact_sha256": "04b2ab0892197544a13f9d8580a8f891a4dd4b01b091a1a9c9689b774cbc9a33",
-        "intent_sha256": "add0d6cd3f4c6051e08045ef9e763d33376b6ddd8eff43dbf40ac4a34073a301",
+        "artifact_sha256": "7a5280aedbb47b16fbbda3a425490e4c3be229354749145356956c7d86a90206",
+        "intent_sha256": "7f110ac177987ab6af72d9ae5b6afacc76a528a37d6789063472954851d9b271",
         "plan_sha256": "6bd13fe358f52cbb7e17ea81d6f1953a5af119109254d80c0f2b8f69f312ca0c",
-        "source_sha256": "add0d6cd3f4c6051e08045ef9e763d33376b6ddd8eff43dbf40ac4a34073a301",
-        "verification_id": "vvr_e633f134bd4bdff3f98234be4f72f355"
+        "source_sha256": "7f110ac177987ab6af72d9ae5b6afacc76a528a37d6789063472954851d9b271",
+        "verification_id": "vvr_b213ecac692d61a5addd9bc5e46d0e86"
       },
       "correction": {
-        "after": "Intent becomes interface.",
-        "base_source_sha256": "add0d6cd3f4c6051e08045ef9e763d33376b6ddd8eff43dbf40ac4a34073a301",
-        "before": "Intent goes in. Interface comes out.",
-        "candidate_source_sha256": "2d20c3c62aabba36a6bfaeaa5ce5c72004de60eba94d61df3f33a71a9a525304",
+        "after": "Build it with your agent. See the real product.",
+        "base_source_sha256": "7f110ac177987ab6af72d9ae5b6afacc76a528a37d6789063472954851d9b271",
+        "before": "Tell your agent what to build. See the real product.",
+        "candidate_source_sha256": "eacba1cc34bb1ae5e8331484a716e78b7a717768b5e5420feaa3fe43b5a381d3",
         "compile_status": "passed",
         "operation": "replace_semantic_attr",
-        "patch_id": "vpatch_83c78556b2f0e1bc8a0bad0bed7281ac",
-        "preview_id": "vpv_68db50657a58c42ac611e84325f5a14a",
-        "receipt_id": "vreceipt_2880633f50c94977eecd3f42acad5067",
+        "patch_id": "vpatch_7c002512b52e3b5c649887e262b87d1b",
+        "preview_id": "vpv_c8bc4d4e2b07d52d1a55208f179d3c91",
+        "receipt_id": "vreceipt_0a7e9d3fdbad943e57854964d8601eb1",
         "receipt_status": "applied",
         "source_kind": "intent_bundle",
         "target": {
@@ -508,27 +508,27 @@
         ],
         "screenshots": {
           "desktop": {
-            "bytes": 202010,
+            "bytes": 204098,
             "capture_kind": "full_page",
             "height": 1776,
             "path": "screenshots/landing-intent/desktop.png",
-            "sha256": "fe4886514ead3193ec5f9ab59a680572b486a82d24eb5b1c429a0461edc60d54",
+            "sha256": "3002e236418e5a49a7b4b1c1b9e756641015f77be3e20f69f4a8ce537edb7acf",
             "width": 1440
           },
           "mobile": {
-            "bytes": 207393,
+            "bytes": 208176,
             "capture_kind": "full_page",
-            "height": 2954,
+            "height": 2991,
             "path": "screenshots/landing-intent/mobile.png",
-            "sha256": "2158facdcda1ae8b0f2a4266e65892b952f103b29e44866d23465f536a8617bd",
+            "sha256": "002cd38d23f9b37defd2d6311386b90823bafef897a5d4072b842b5d52e5838f",
             "width": 390
           },
           "tablet": {
-            "bytes": 193394,
+            "bytes": 197091,
             "capture_kind": "full_page",
-            "height": 1836,
+            "height": 1874,
             "path": "screenshots/landing-intent/tablet.png",
-            "sha256": "160592f51152839883417a711bc1aa2a622070349b6365350f6b6be04b6e69d2",
+            "sha256": "2e36d65f59ef57ad56f0439d5a391de9a1a242ed0a19690eefabb5aaf435ef7a",
             "width": 768
           }
         }
@@ -536,7 +536,7 @@
       "id": "landing-intent",
       "label": "Product landing page",
       "mean_score": 4.0,
-      "review": "The content surface preserves narrative hierarchy and traceability at all canonical viewports.",
+      "review": "The Studio-first product narrative preserves hierarchy and traceability at all canonical viewports.",
       "scores": {
         "fit_and_finish": 4,
         "information_hierarchy": 4,
@@ -548,11 +548,11 @@
     },
     {
       "artifacts": {
-        "artifact_sha256": "5fee1eb84a03ed8c647c324de06e5f1b56e3f850ff0366435d7ba1c5a7a62005",
+        "artifact_sha256": "0f80e9f2718c5fa0c3c0452463afb36cf61188dab8eac98b900fd7350afdcfc5",
         "intent_sha256": "5936001fcfaf1e8e76e5cd9391c41388981835133216cd49c9af9fc8c2d91bec",
         "plan_sha256": "6bd13fe358f52cbb7e17ea81d6f1953a5af119109254d80c0f2b8f69f312ca0c",
         "source_sha256": "5936001fcfaf1e8e76e5cd9391c41388981835133216cd49c9af9fc8c2d91bec",
-        "verification_id": "vvr_db04785a7d2009d9abb95499f33d9e53"
+        "verification_id": "vvr_6f65b26ce1c0a039536fe485a9545603"
       },
       "correction": {
         "after": "Production release 2.8.0",
@@ -562,8 +562,8 @@
         "compile_status": "passed",
         "operation": "replace_semantic_attr",
         "patch_id": "vpatch_8df29442e3ae471b00da2e8f7cf9e2d2",
-        "preview_id": "vpv_91d631d519197fd3a2e9d20e84fd5bc1",
-        "receipt_id": "vreceipt_b18aecd65fec83982bb50e8ba04672fe",
+        "preview_id": "vpv_1bb079c8f9dc7d5bbb5dd76aa5ecc1f5",
+        "receipt_id": "vreceipt_c1a42951ab2d8c46c9345322665c6a18",
         "receipt_status": "applied",
         "source_kind": "intent_bundle",
         "target": {
@@ -586,27 +586,27 @@
         ],
         "screenshots": {
           "desktop": {
-            "bytes": 49029,
+            "bytes": 48925,
             "capture_kind": "viewport",
             "height": 1000,
             "path": "screenshots/multi-step-workflow/desktop.png",
-            "sha256": "9367739f9d5a40727414290be8eb8ae8b275f06173ef4367f53abfd550178e03",
+            "sha256": "553d800d0833f45b12a8ec8b03cb35d8a2da97b8e91061bd2554f1f2a059d090",
             "width": 1440
           },
           "mobile": {
-            "bytes": 44282,
+            "bytes": 44199,
             "capture_kind": "viewport",
             "height": 844,
             "path": "screenshots/multi-step-workflow/mobile.png",
-            "sha256": "c76ff9eedf9dd61027c7515aa453e1d5cd785d07a45042bdbe18f2e500ab1e82",
+            "sha256": "ae22c8365bd23d96026e652f926f63a0dbc813db0b93639efe5a58a4ab379b04",
             "width": 390
           },
           "tablet": {
-            "bytes": 45349,
+            "bytes": 45282,
             "capture_kind": "viewport",
             "height": 1024,
             "path": "screenshots/multi-step-workflow/tablet.png",
-            "sha256": "d5da917fd56d7683bcc0a8d334f178e6341f056e7fad7ce2a591d606d249cb58",
+            "sha256": "9fab89799b956995914b76e4194eb6356259cff70d773c2b80dafb801a3a6e68",
             "width": 768
           }
         }
@@ -626,11 +626,11 @@
     },
     {
       "artifacts": {
-        "artifact_sha256": "9670bfb34e465f34462b2bbe818c751d8def88969321bc20aba508dc120e5591",
+        "artifact_sha256": "53c9d9a73cd32c9853efc9aceaf03cd986f67d8510b2270fc7efa769332ed666",
         "intent_sha256": "b4fb8cd6d9815c797babba88d82423ffccb32aa28d3aa27cf6807118ed40f819",
         "plan_sha256": "6bd13fe358f52cbb7e17ea81d6f1953a5af119109254d80c0f2b8f69f312ca0c",
         "source_sha256": "b4fb8cd6d9815c797babba88d82423ffccb32aa28d3aa27cf6807118ed40f819",
-        "verification_id": "vvr_c845b3e35cbca519380ba9cc58f65534"
+        "verification_id": "vvr_d411285faf9151731567ec492742bdff"
       },
       "correction": {
         "after": "Release 2.8.0 outcome",
@@ -640,8 +640,8 @@
         "compile_status": "passed",
         "operation": "replace_semantic_attr",
         "patch_id": "vpatch_fa0ab8c4eabed94d9ac75db674ace122",
-        "preview_id": "vpv_84a0e235f72aeb51767e506b8a520ede",
-        "receipt_id": "vreceipt_d4565632a7acc736df88285b418443d6",
+        "preview_id": "vpv_39f5d3b6b0938d6e75ef8e68e0030fb2",
+        "receipt_id": "vreceipt_79dfd0cb90266b7467d7ec5e3c2a6633",
         "receipt_status": "applied",
         "source_kind": "intent_bundle",
         "target": {
@@ -664,27 +664,27 @@
         ],
         "screenshots": {
           "desktop": {
-            "bytes": 50754,
+            "bytes": 50817,
             "capture_kind": "viewport",
             "height": 1000,
             "path": "screenshots/outcome-states/desktop.png",
-            "sha256": "c880e53b6fd2dd6b666dc5c52913c6cfa879113744deb03dba3a5d28b2c9b415",
+            "sha256": "5f46667a7411ea6dc68397603d7ed2417a54fb057139a5724dd2c8fb33691804",
             "width": 1440
           },
           "mobile": {
-            "bytes": 47022,
+            "bytes": 47083,
             "capture_kind": "viewport",
             "height": 844,
             "path": "screenshots/outcome-states/mobile.png",
-            "sha256": "73a2699bbf8a60c2aa14d90f0ec157722927a602114430b4150480fa3b1394f6",
+            "sha256": "6a6bcf81a908aedbac356fb0c1e0c6f52909ba6a2d02595071e6cfc07d1ad742",
             "width": 390
           },
           "tablet": {
-            "bytes": 48106,
+            "bytes": 48167,
             "capture_kind": "viewport",
             "height": 1024,
             "path": "screenshots/outcome-states/tablet.png",
-            "sha256": "f5861480500bbda3d8de7c5863c1e99841802305f17e55628294f3ca4faeea79",
+            "sha256": "72a4cd1b224dffd744dfdd9bc3e401e4d4496062be28783a3077d186adb75a22",
             "width": 768
           }
         }
@@ -704,11 +704,11 @@
     },
     {
       "artifacts": {
-        "artifact_sha256": "63184c34f02be0dec6f2ec61b49738ff65bfda58118d4dde585ec4bc19a4860b",
+        "artifact_sha256": "abd9a85cc696e9b0c656d146b0e8d9df4bb1ad1eca6cc55f115fe13da1dfa4fc",
         "intent_sha256": "8f45cc5b92f046ae38d09d547ec03fbb225b3ed8fee24b2c4f70be40b747c738",
         "plan_sha256": "6bd13fe358f52cbb7e17ea81d6f1953a5af119109254d80c0f2b8f69f312ca0c",
         "source_sha256": "8f45cc5b92f046ae38d09d547ec03fbb225b3ed8fee24b2c4f70be40b747c738",
-        "verification_id": "vvr_f14baee7fb3d7e4b7c925ee2f607ad21"
+        "verification_id": "vvr_d63635f68ebccedf8226ab396a5b7301"
       },
       "correction": {
         "after": "Alert preferences",
@@ -718,8 +718,8 @@
         "compile_status": "passed",
         "operation": "replace_semantic_attr",
         "patch_id": "vpatch_0ff3c4d114c51dd4a7ba7d31e09c5bd6",
-        "preview_id": "vpv_9f46531d0da6299b05f784b2e42bbe36",
-        "receipt_id": "vreceipt_46e68c03486068710d1ebf09b27cd032",
+        "preview_id": "vpv_006423c66d4959117037903ca9ef4471",
+        "receipt_id": "vreceipt_ddb9a00cbabb08f5004df282ab6a93b8",
         "receipt_status": "applied",
         "source_kind": "intent_bundle",
         "target": {
@@ -923,19 +923,19 @@
   "sources": [
     {
       "path": "conformance/refinement/verification-report-v2.json",
-      "sha256": "142f048643f03489c81bceda92d778fc45c3731ee8b35a500819649feb7f49c8"
+      "sha256": "e11e1e892699f66fc44afc9a4afb8d77bff5bb406ce84427d1a5b17990ec2a3b"
     },
     {
       "path": "conformance/refinement/scorecard-v2.json",
-      "sha256": "71c28270066a347b4dc75182ca541e434a96e49f0589edceb2b1262fa4783667"
+      "sha256": "18f3139f2a340efca594b66cf02f51968ee43e2be37327a544358f3d58feabcc"
     },
     {
       "path": "conformance/refinement/correction-proof-v1.json",
-      "sha256": "7d956f5338c4226e4c726b5a912828cd28d5d70e25f5ec93536cc7ee9e7023d9"
+      "sha256": "4a2b1802e5d4c17204de325c4a2961a667192e7daebfe894297857eb99f0587e"
     },
     {
       "path": "conformance/refinement/gate-status-v1.json",
-      "sha256": "06ac1579623a0aeff5bc94d5c8c6f4afb775efb70cfc1c062b64a23281bbb8b9"
+      "sha256": "ac0c7ba1315dd2448eab3e2928e062ef308c57731be4ca6b52291bab620ce492"
     },
     {
       "path": "conformance/refinement/negative-corpus.json",
