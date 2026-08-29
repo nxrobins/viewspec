@@ -773,8 +773,8 @@ assert.equal(landingCompiledManifest.artifact_hash, sha256(landingCompiledBytes)
 assert(Array.isArray(landingCompiledManifest.diagnostics), 'landing compiled manifest needs diagnostics array')
 assert.equal(landingCompiledManifest.external_refs.length, 0)
 for (const expected of [
-  'Agent-native app compiler',
-  'Intent goes in. Interface comes out.',
+  'Local product studio for you and your agent',
+  'Tell your agent what to build. See the real product.',
   'state_replay_assertions',
   'CompositionIR to UI and reducer',
 ]) {
@@ -830,8 +830,8 @@ assert.doesNotMatch(landing, /agent-native UI IR, agent-native UI IR/)
 assert.doesNotMatch(landing, /Your agent writes HTML/)
 assert.doesNotMatch(landing, /agent HTML governance first/)
 assert.doesNotMatch(landing, /agent HTML governance/)
-assert.match(landing, /Ship agent-built apps you can prove/)
-assert.match(landing, /Intent goes in\. Interface comes out\./)
+assert.match(landing, /ViewSpec Studio - Build with your agent, then point at what changes/)
+assert.match(landing, /Tell your agent what to build\. See the real product\. Point at what should change\./)
 for (const expected of [
   'data-viewspec-page-artifact="true"',
   'data-viewspec-profile="aesthetic.calm_ops"',
@@ -868,6 +868,19 @@ for (const expected of [
   'Try the one-minute proof',
   './proof-bundle/',
   'id="integration-proofs-title"',
+  'id="studio"',
+  'ViewSpec Studio &middot; local beta',
+  'One room from first brief to final approval.',
+  'data-studio-step="create"',
+  'data-studio-step="compare"',
+  'data-studio-step="inspect"',
+  'data-studio-step="decide"',
+  'viewspec studio-create --brief-file product-brief.md --reference reference.png --kind app --json',
+  'viewspec studio viewspec.app.json --compare --install',
+  'Chromium, Firefox, and WebKit',
+  'no hosted review endpoint is deployed',
+  'Static/React visual parity is not claimed.',
+  'Production data is not loaded.',
   'data-proof-integration="freerange"',
   'data-proof-integration="pretext"',
   '@chenglou/freerange@0.0.1',
@@ -882,9 +895,12 @@ for (const expected of [
   assertPublicText(landing, expected, 'landing page artifact controls')
 }
 assert.match(landing, /<section id="pricing"[\s\S]*?id="pricing-grid"/, 'landing pricing anchor should expose visible plan comparison')
+assert.match(landing, /<section id="studio"[\s\S]*?data-studio-step="decide"/, 'landing should expose the complete Studio workflow')
+assert.doesNotMatch(landing, /private (?:review|sharing) link/i, 'landing must not claim unimplemented hosted sharing')
 assert.doesNotMatch(landing, /<a class="ghost mono" href="#top"[^>]*>read the docs/, 'landing docs CTA must not loop back to the hero')
 assert.match(landing, /href="https:\/\/github\.com\/nxrobins\/viewspec\/blob\/main\/docs\/getting-started\.md"[^>]*>read the docs/, 'landing docs CTA points to getting-started docs')
 assert.match(landing, /<a href="#pricing">Pricing<\/a>/, 'landing primary nav includes Pricing')
+assert.match(landing, /<a href="#studio">Studio<\/a>/, 'landing primary nav leads with Studio')
 assert.doesNotMatch(landing, /@media \(max-width:720px\)\{\s*\.nav-links a:not\(\.cta-mini\)\{\s*display:none;\s*\}\s*\}/, 'mobile nav should keep core links reachable')
 assertPublicText(landing, 'Click, tap, or hover', 'landing provenance copy supports touch and keyboard users')
 assertPublicText(landing, 'data-trace-target', 'landing provenance receipts should be traceable click targets')
