@@ -321,10 +321,10 @@ localization, or formatter functions.
 ## Milestone 5: one-click private review
 
 Status: local preparation, provider-independent service core, framework-neutral HTTPS/ASGI
-contract, deterministic remote rebuild proof, local Chromium/Firefox/WebKit journey, and the
-fail-closed Studio Share release gate implemented; a separate-app production topology is
-specified, with backend integration, signed-release publication, deployment, and canary approval
-pending.
+contract, replay-safe API→review ingress, deterministic remote rebuild proof, local
+Chromium/Firefox/WebKit journey, and the fail-closed Studio Share release gate implemented; a
+separate-app production topology is specified, with API bridge wiring, worker isolation,
+signed-release publication, deployment, and canary approval pending.
 
 A person can turn the exact checked Studio revision in front of them into a private review link.
 The reviewer sees the same immutable product, routes, viewports, state/replay evidence, resource
@@ -386,8 +386,11 @@ The internal `StudioReviewASGIApp` now supplies the bounded production mount sea
 framework dependency: it intercepts only the private-review routes, streams request bodies within
 their exact limits, preserves repeated response headers, delegates existing API routes and
 lifespan events, and derives HTTPS identity from the trusted ASGI scope rather than forwarding
-headers. Blocking review persistence and verifier calls run outside the API event-loop thread. The
-independent rebuild verifier now recompiles packaged semantic source using an
+headers. Its internal creation ingress authenticates the exact allowlisted headers and archive
+hash before adapter dispatch, durably rejects request replay across restarts, strips paid and
+internal credentials, and authenticates the exact response back to the originating request nonce.
+Production mode closes direct creation. Blocking review persistence and verifier calls run outside
+the API event-loop thread. The independent rebuild verifier now recompiles packaged semantic source using an
 operator-pinned prebuilt dependency seed, invokes Vite directly without install or lifecycle-hook
 fallback, and compares the complete static/React artifact inventory byte-for-byte. It emits rebuild
 evidence without claiming network isolation; the hosted worker must bind its own real sandbox
@@ -401,6 +404,20 @@ private rebuild worker. Fly app secrets are injected into every Machine in an ap
 compiler and public SDK carry different protobuf descriptor sets. Separate apps therefore keep
 billing, receipt, Stripe, review-signing, persistence, and rebuild authority out of the wrong trust
 zones while avoiding an invalid shared Python runtime.
+
+The current production-ingress goal is precise: one paid, disclosure-accepted API request may
+create exactly one private review session through a narrow service boundary, while alteration,
+replay, direct bypass, credential propagation, and response substitution all fail closed. It is
+proved when all of these criteria hold:
+
+| Production ingress criterion | Pass condition | Authoritative evidence |
+| --- | --- | --- |
+| Exact request binding | Method, internal path, protocol, direction, the four creation headers, archive SHA-256, timestamp, and nonce are authenticated together. | Request round-trip plus body, header, method, path, secret, signature, and staleness negatives. |
+| Pre-storage rejection | A bad signature, altered body/header, stale timestamp, or reused nonce reaches neither the HTTP adapter nor review storage. | Adapter-dispatch absence assertions and durable nonce replay test across authenticator restart. |
+| No direct bypass | Production composition does not accept session creation at public `/v1/reviews`. | Direct-create 404 assertion with `allow_direct_create=False`. |
+| Least-authority forwarding | The adapter receives only the four signed creation headers and one server-generated authentication marker; no paid key or internal authentication header survives. | Exact forwarded-header equality and response/session leakage assertions. |
+| Bound response identity | Status, internal path, content type, body SHA-256, timestamp, response nonce, and originating request nonce are authenticated before API return. | Response round-trip plus body, request-nonce, signature, and replay negatives. |
+| Whole journey remains intact | The signed ingress still creates the immutable revision, exchanges separate capabilities, records a reviewer comment, and permits only exact owner approval. | Production-like ASGI integration test over the real service, adapter, package, and rebuild verifier. |
 
 | Promise | Pass condition | Authoritative evidence |
 | --- | --- | --- |

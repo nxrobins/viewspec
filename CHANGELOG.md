@@ -9,6 +9,13 @@ All notable changes to ViewSpec are documented in this file. The format follows
 
 ### Added
 
+- Private Studio review now has a concrete replay-safe API→review ingress. Its HMAC contract binds
+  the protocol, direction, method, path, exact creation headers, archive hash, timestamp, and nonce;
+  a durable bounded nonce store rejects replay across process restarts; production composition can
+  close direct creation; reserved internal headers are stripped from external routes before adapter
+  dispatch; and the authenticated response is bound back to the originating request nonce. A
+  production-like integration test proves the full create → reviewer comment → owner approval
+  journey without forwarding paid or internal credentials.
 - An empty workspace can now enter Studio with one agent-facing command: `viewspec studio
   --brief-file ...`. The local creation room preserves the existing task-bound acceptance contract,
   truthfully shows waiting, checking, and bounded repair states, retries only after candidate bytes
