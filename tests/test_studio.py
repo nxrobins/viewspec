@@ -237,6 +237,11 @@ def test_studio_chrome_prioritizes_product_loop_and_quiet_confidence(tmp_path):
     assert "<title>ViewSpec Studio</title>" in chrome
     assert "Point. Ask. Approve." in chrome
     assert "Preview mode · interactions are live" in chrome
+    assert "id=agent-presence class=agent-presence data-status='not_connected' aria-live=polite>Agent not connected" in chrome
+    assert "<span class=revision>Requests: <strong id=queued>0</strong>" in chrome
+    assert "Request saved locally · waiting for agent" in chrome
+    assert "Request delivered · agent working" in chrome
+    assert "queued++" not in chrome
     assert ">Details</button>" in chrome
     assert ">Comment</button>" in chrome
     assert "id=studio-panel class=panel aria-hidden=true inert" in chrome

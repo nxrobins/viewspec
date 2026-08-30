@@ -840,6 +840,13 @@ class ReviewServer:
                 f"<iframe id=artifact data-studio-frame data-target='{self.runtime.built.revision.target}' "
                 f"title='Checked ViewSpec interface' sandbox='allow-scripts allow-forms' data-src='{frame}'></iframe></div></div>"
             )
+        initial_agent_presence = str(self._agent_presence()["status"])
+        initial_agent_label = {
+            "ready": "Agent ready",
+            "working": "Agent working",
+            "not_connected": "Agent not connected",
+        }[initial_agent_presence]
+        initial_queued_events = self.runtime.status()["queued_events"]
         style = (
             ":root{color-scheme:dark;--ink:#080a0d;--panel:#10141a;--panel2:#151b23;--line:#29313d;"
             "--text:#f7f8fa;--muted:#98a3b3;--amber:#ffbd4a;--mint:#5fe0ad;--blue:#80aaff}"
@@ -862,8 +869,10 @@ class ReviewServer:
             ".primary,.secondary{min-height:40px;padding:0 14px;border-radius:9px;cursor:pointer;font-weight:750}.primary{border:0;"
             "background:var(--amber);color:#211400}.secondary{border:1px solid var(--line);background:transparent;color:var(--text)}"
             "button:focus-visible,select:focus-visible,textarea:focus-visible,summary:focus-visible{outline:2px solid var(--amber);outline-offset:2px}"
-            ".statusbar{height:36px;display:flex;align-items:center;justify-content:space-between;padding:0 18px;"
+            ".statusbar{height:36px;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:0 18px;"
             "border-bottom:1px solid var(--line);background:#0d1117;color:var(--muted);font-size:11px}.statusbar strong{color:var(--text)}"
+            ".status-meta{display:flex;align-items:center;gap:14px}.agent-presence{color:var(--muted);font-weight:650}.agent-presence[data-status=ready]{color:var(--mint)}"
+            ".agent-presence[data-status=working]{color:var(--amber)}"
             ".layout{position:relative;height:calc(100vh - 108px)}.canvas{height:100%;min-width:0;"
             "overflow:auto;overflow-anchor:none;padding:24px;background:#0b0e13;background-image:linear-gradient(rgba(255,255,255,.025) 1px,transparent 1px),"
             "linear-gradient(90deg,rgba(255,255,255,.025) 1px,transparent 1px);background-size:28px 28px}.stage{width:100%;"
@@ -923,6 +932,7 @@ class ReviewServer:
             "[hidden]{display:none!important}.notice{min-height:18px}.revision{color:var(--muted);font-size:11px}"
             "@media(prefers-reduced-motion:reduce){.panel{transition:none}.panel.is-open{transition:none}}"
             "@media(max-width:860px){body{overflow:auto}.toolbar{align-items:flex-start;flex-wrap:wrap}.brand{width:100%}.confidence{margin-right:auto}"
+            ".statusbar{height:auto;min-height:44px;align-items:flex-start;flex-direction:column;padding-block:7px}.status-meta{width:100%;justify-content:space-between}"
             ".layout{height:auto}.canvas{height:58vh;padding:14px}.panel{top:0;width:100%;max-width:none;border-left:0}"
             ".confidence div{left:0;right:auto;width:min(320px,calc(100vw - 36px))}}"
         )
@@ -991,7 +1001,8 @@ class ReviewServer:
             + ",frames=Array.from(document.querySelectorAll('[data-studio-frame]')),frame=frames[0],canvas=document.querySelector('.canvas'),fitShell=document.getElementById('fit-shell'),fitStage=document.getElementById('fit-stage'),mode=document.getElementById('mode'),"
             "panel=document.getElementById('studio-panel'),panelToggle=document.getElementById('panel-toggle'),panelClose=document.getElementById('panel-close'),"
             "surfaceSelect=document.getElementById('surface-preview'),surfaceTools=document.getElementById('surface-tools'),"
-            "status=document.getElementById('status'),composer=document.getElementById('composer'),trace=document.getElementById('trace'),"
+            "status=document.getElementById('status'),agentPresence=document.getElementById('agent-presence'),queuedCount=document.getElementById('queued'),"
+            "composer=document.getElementById('composer'),trace=document.getElementById('trace'),"
             "conversation=document.getElementById('conversation'),convergence=document.getElementById('convergence'),"
             "inspectionPanel=document.getElementById('inspection'),inspectionSummary=document.getElementById('inspection-summary'),"
             "replayTools=document.getElementById('replay-tools'),replaySelect=document.getElementById('replay-checkpoint'),runReplay=document.getElementById('run-replay'),"
@@ -1002,7 +1013,7 @@ class ReviewServer:
             "convergenceSummary=document.getElementById('convergence-summary'),convergenceDiff=document.getElementById('convergence-diff'),"
             "convergenceProof=document.getElementById('convergence-proof'),approveConvergence=document.getElementById('approve-convergence'),"
             "rejectConvergence=document.getElementById('reject-convergence');let pendingConvergence=null,panelOpen=false,panelSection=null;"
-            "let annotate=false,selection=null,queued=0,retainedContext=null,restoreContext=null,readyTargets=new Map(),targetContexts={},handshakeStarted=false,handshakeConfirmed=false;"
+            "let annotate=false,selection=null,retainedContext=null,restoreContext=null,readyTargets=new Map(),targetContexts={},handshakeStarted=false,handshakeConfirmed=false;"
             "let inspection=null,replayChoices=new Map(),desiredReplay=null,replayDispatched=false,replayReloading=false,replaySettled=false,activeReplayRef=null,replayResults=new Map(),replayGeneration=0;"
             "let coherenceProbe=0,coherenceResults=new Map(),coherenceMismatch=null,coherenceTimer=null,resetAfterCoherence=true,canvasOriginLocked=true;"
             "const resetCanvas=()=>{canvas.scrollLeft=0;canvas.scrollTop=0;};"
@@ -1054,9 +1065,10 @@ class ReviewServer:
             "const viewport=humanize(document.documentElement.dataset.studioViewport||'current');if(coherenceMismatch){coherenceSummary.textContent='Targets differ at '+viewport;coherenceDetail.textContent=coherenceMismatch.detail;coherenceReview.hidden=false;openPanel(coherencePanel);}"
             "else{coherenceSummary.textContent='Static + React align at '+viewport;coherenceDetail.textContent=aligned+' visible semantic elements agree within the checked geometry thresholds.';coherenceReview.hidden=true;}"
             "if(resetAfterCoherence){resetCanvas();resetAfterCoherence=false;}};"
-            "const requestCoherence=()=>{if(frames.length!==2||!handshakeConfirmed)return;clearTimeout(coherenceTimer);coherenceTimer=setTimeout(()=>{coherenceProbe++;const probeId='coherence-'+coherenceProbe;"
+            "const requestCoherence=()=>{if(frames.length!==2||!handshakeConfirmed)return;clearTimeout(coherenceTimer);coherenceProbe++;const probeId='coherence-'+coherenceProbe;"
             "coherenceResults.clear();coherenceMismatch=null;coherencePanel.hidden=false;coherenceCard.dataset.status='checking';coherenceSummary.textContent='Checking Static + React…';"
-            "coherenceDetail.textContent='Comparing visible semantic geometry at this canvas size.';coherenceReview.hidden=true;frames.forEach(item=>item.contentWindow.postMessage({type:'viewspec-studio-coherence-measure',nonce,probe_id:probeId},'*'));},120);};"
+            "coherenceDetail.textContent='Comparing visible semantic geometry at this canvas size.';coherenceReview.hidden=true;coherenceTimer=setTimeout(()=>{"
+            "frames.forEach(item=>item.contentWindow.postMessage({type:'viewspec-studio-coherence-measure',nonce,probe_id:probeId},'*'));},120);};"
             "const expectedSummary=checkpoint=>{const expected=checkpoint?.expected;if(!expected)return '';const parts=[...(expected.text||[]).map(item=>String(item.value)),...(expected.state||[]).map(item=>humanize(item.id)+(item.kind==='scalar'?' = '+JSON.stringify(item.value):' checked')),...(expected.selectors||[]).map(item=>humanize(item.id)+' checked'),...(expected.visibility||[]).map(item=>humanize(item.id)+' '+(item.visible?'visible':'hidden'))];return parts.slice(0,3).join(' · ');};"
             "const showSelection=(e,item)=>{const surface=e.surface_target==='react-tailwind-app'?'React':e.surface_target==='html-tailwind-app'?'Static':'Preview';"
             "selectionKicker.textContent='Selected in '+surface;selectionTitle.textContent=item?(item.record_id+' · '+humanize(item.field)):((e.rendered_text||e.dom_ancestors?.[0]||'Whole page').trim().slice(0,96));"
@@ -1128,7 +1140,8 @@ class ReviewServer:
             "selected_text,control_values:{},visibility:selection.visibility,evidence_refs:activeReplayRef?[activeReplayRef]:[]}};const key=hex(crypto.getRandomValues(new Uint8Array(16)));"
             "if(end)payload={actor:'human',...payload};const response=await fetch(end?endEndpoint:endpoint,{method:'POST',headers:{'Content-Type':'application/json','Idempotency-Key':key,'X-ViewSpec-Frame-Nonce':nonce},"
             "body:JSON.stringify(payload)});const result=await response.json();if(!response.ok){status.textContent=result.error?.code||'Submission failed';return;}"
-            "queued++;document.getElementById('queued').textContent=String(queued);feedback.value='';status.textContent=end?'Feedback sent; review ended':'Feedback queued';"
+            "feedback.value='';const session=await refreshSession().catch(()=>null),agentState=session?.agent_presence?.status;"
+            "status.textContent=end?'Feedback sent; review ended':agentState==='working'?'Request delivered · agent working':agentState==='ready'?'Request sent to agent':'Request saved locally · waiting for agent';"
             "if(end){document.getElementById('send').disabled=true;document.getElementById('send-end').disabled=true;}};"
             "document.getElementById('send').addEventListener('click',()=>submit(false));document.getElementById('send-end').addEventListener('click',()=>submit(true));"
             "const showValue=value=>typeof value==='string'?value:JSON.stringify(value);const renderDiff=diff=>{const direct=Array.isArray(diff?.changed_fields)?diff.changed_fields:[];"
@@ -1155,12 +1168,15 @@ class ReviewServer:
             "if(response.ok)renderConvergence(result.convergence);}catch{status.textContent='Convergence decision failed';}finally{if(pendingConvergence){"
             "approveConvergence.disabled=false;rejectConvergence.disabled=false;}}};approveConvergence.addEventListener('click',()=>decideConvergence('approve'));"
             "rejectConvergence.addEventListener('click',()=>decideConvergence('reject'));"
-            "setInterval(async()=>{try{const response=await fetch(sessionEndpoint);if(!response.ok)return;const result=await response.json();"
-            "const replies=result.review?.agent_replies||[];conversation.replaceChildren(...replies.map(reply=>{const item=document.createElement('li');"
-            "item.textContent='Agent: '+reply;return item;}));renderConvergence(result.review?.convergence);"
-            "if(result.review?.revision!==revision){if(retainedContext?.route&&result.review?.routes?.includes(retainedContext.route)){"
+            "const renderAgentPresence=review=>{const value=review?.agent_presence?.status,state=['ready','working'].includes(value)?value:'not_connected';"
+            "agentPresence.dataset.status=state;agentPresence.textContent=state==='ready'?'Agent ready':state==='working'?'Agent working':'Agent not connected';"
+            "const count=Number.isInteger(review?.queued_events)&&review.queued_events>=0?review.queued_events:0;queuedCount.textContent=String(count);};"
+            "const refreshSession=async()=>{const response=await fetch(sessionEndpoint);if(!response.ok)throw new Error('Studio session unavailable');const result=await response.json(),review=result.review;"
+            "renderAgentPresence(review);const replies=review?.agent_replies||[];conversation.replaceChildren(...replies.map(reply=>{const item=document.createElement('li');"
+            "item.textContent='Agent: '+reply;return item;}));renderConvergence(review?.convergence);"
+            "if(review?.revision!==revision){if(retainedContext?.route&&review?.routes?.includes(retainedContext.route)){"
             "sessionStorage.setItem('viewspec-context-restore',JSON.stringify(retainedContext));}else{sessionStorage.setItem('viewspec-context-reset','1');}"
-            "location.reload();}}catch{}},500);history.scrollRestoration='manual';addEventListener('pageshow',lockCanvasOrigin);loadInspection();lockCanvasOrigin();fitCanvas();if('ResizeObserver'in window)new ResizeObserver(fitCanvas).observe(canvas);else addEventListener('resize',fitCanvas);"
+            "location.reload();}return review;};setInterval(()=>{refreshSession().catch(()=>{});},500);refreshSession().catch(()=>{});history.scrollRestoration='manual';addEventListener('pageshow',lockCanvasOrigin);loadInspection();lockCanvasOrigin();fitCanvas();if('ResizeObserver'in window)new ResizeObserver(fitCanvas).observe(canvas);else addEventListener('resize',fitCanvas);"
             "frames.forEach(item=>item.addEventListener('load',fitCanvas));frames.forEach(item=>{item.src=item.dataset.src||'';});"
             + share_script
             + "})();"
@@ -1190,7 +1206,8 @@ class ReviewServer:
             + share_button_markup
             + "<button id=mode class=primary type=button>Comment</button></div></header>"
             "<div class=statusbar><span id=status class=notice aria-live=polite>Preview mode · interactions are live</span>"
-            "<span class=revision>Queued for agent: <strong id=queued>0</strong></span></div>"
+            f"<div class=status-meta><span id=agent-presence class=agent-presence data-status='{initial_agent_presence}' aria-live=polite>{initial_agent_label}</span>"
+            f"<span class=revision>Requests: <strong id=queued>{initial_queued_events}</strong></span></div></div>"
             f"<main class=layout id=studio-main><section class=canvas aria-label='Checked interface canvas'><div class=stage>{frame_markup}</div></section>"
             "<aside id=studio-panel class=panel aria-hidden=true inert><header class=panel-head><div><span class=eyebrow>One continuous loop</span>"
             "<h1>Point. Ask. Approve.</h1></div><button id=panel-close class='secondary panel-close' type=button>Close</button></header>"
@@ -1262,12 +1279,25 @@ class ReviewServer:
                 "frame_nonce": self.frame_nonce,
                 "routes": list(self.runtime.routes),
                 "inspection": _inspection_summary(self.runtime.inspection),
+                "agent_presence": self._agent_presence(),
                 "agent_replies": list(self.runtime.session.agent_replies[-4:]),
                 "convergence": convergence,
                 "share": self._share_status(),
             }
         )
         return status
+
+    def _agent_presence(self) -> dict[str, object]:
+        """Project only delivery-lease truth into the browser session."""
+
+        with self._lock:
+            if self.runtime.session.outstanding_batch is not None:
+                status = "working"
+            elif self._active_polls > 0:
+                status = "ready"
+            else:
+                status = "not_connected"
+        return {"status": status}
 
     def _agent_status(self) -> dict[str, object]:
         return {
