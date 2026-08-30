@@ -11,12 +11,21 @@ from scripts.check_studio_production_canary import (
     _canonical_bytes,
     _sha256_bytes,
     build_share_release_payload,
+    deployment_manifest_sha256,
     evaluate_canary,
 )
 
 
 RUN_ID = "vsrcan_" + "1" * 32
-DEPLOYMENT_SHA = "d" * 64
+BUILD_MANIFEST = {
+    "schema_version": 1,
+    "source_revision": "a" * 40,
+    "public_sdk_revision": "b" * 40,
+    "public_sdk_wheel_sha256": "c" * 64,
+    "api_image_digest": "sha256:" + "d" * 64,
+    "studio_image_digest": "sha256:" + "e" * 64,
+}
+DEPLOYMENT_SHA = deployment_manifest_sha256(BUILD_MANIFEST)
 
 
 def _common(kind: str) -> dict[str, object]:
@@ -33,11 +42,17 @@ def _payload(kind: str) -> dict[str, object]:
         return {
             **_common(kind),
             "origin": "https://review.viewspec.dev",
+            "build_manifest": dict(BUILD_MANIFEST),
             "apps": [
                 {
                     "app_id": app_id,
                     "machine_id_sha256": character * 64,
-                    "image_digest": "sha256:" + "e" * 64,
+                    "image_digest": BUILD_MANIFEST[
+                        "api_image_digest" if app_id == "viewspec-api" else "studio_image_digest"
+                    ],
+                    "source_revision": BUILD_MANIFEST["source_revision"],
+                    "public_sdk_revision": BUILD_MANIFEST["public_sdk_revision"],
+                    "public_sdk_wheel_sha256": BUILD_MANIFEST["public_sdk_wheel_sha256"],
                     "public_https": public,
                     "durable_volume": volume,
                     "forbidden_secret_count": 0,
@@ -223,6 +238,71 @@ def test_complete_production_canary_passes_all_conjunctive_gates(tmp_path: Path)
     assert result["passed"] is True
     assert all(result["checks"].values())
     assert list(result["stage_sha256"]) == list(STAGE_KINDS)
+
+
+def test_deployment_accepts_distinct_role_images_bound_to_one_reviewed_build(tmp_path: Path) -> None:
+    assert BUILD_MANIFEST["api_image_digest"] != BUILD_MANIFEST["studio_image_digest"]
+    assert evaluate_canary(_canary(tmp_path))["deployment_sha256"] == DEPLOYMENT_SHA
+    assert deployment_manifest_sha256(dict(reversed(list(BUILD_MANIFEST.items())))) == DEPLOYMENT_SHA
+
+
+@pytest.mark.parametrize("app_index", [0, 1, 2])
+def test_an_approved_image_cannot_be_used_in_the_wrong_role(tmp_path, app_index):
+    report = _canary(tmp_path)
+    wrong_image = BUILD_MANIFEST["studio_image_digest" if app_index == 0 else "api_image_digest"]
+    _mutate_stage(report, "deployment", lambda value: value["apps"][app_index].update({"image_digest": wrong_image}))
+    with pytest.raises(CanaryError, match="role-specific build"):
+        evaluate_canary(report)
+
+
+@pytest.mark.parametrize("app_index", [0, 1, 2])
+@pytest.mark.parametrize("field,replacement", [
+    ("image_digest", "sha256:" + "f" * 64),
+    ("source_revision", "f" * 40),
+    ("public_sdk_revision", "f" * 40),
+    ("public_sdk_wheel_sha256", "f" * 64),
+])
+def test_each_live_role_must_match_frozen_provenance(tmp_path, app_index, field, replacement):
+    report = _canary(tmp_path)
+    _mutate_stage(report, "deployment", lambda value: value["apps"][app_index].update({field: replacement}))
+    with pytest.raises(CanaryError, match="differs from its frozen"):
+        evaluate_canary(report)
+
+
+@pytest.mark.parametrize("field", [
+    "source_revision", "public_sdk_revision", "public_sdk_wheel_sha256", "api_image_digest", "studio_image_digest",
+])
+def test_rebinding_manifest_and_live_roles_cannot_replace_frozen_build(tmp_path, field):
+    report = _canary(tmp_path)
+    def mutate(value):
+        replacement = "sha256:" + "f" * 64 if field.endswith("image_digest") else "f" * len(BUILD_MANIFEST[field])
+        value["build_manifest"][field] = replacement
+        for app in value["apps"]:
+            if field in app:
+                app[field] = replacement
+            elif (field == "api_image_digest") == (app["app_id"] == "viewspec-api"):
+                app["image_digest"] = replacement
+    _mutate_stage(report, "deployment", mutate)
+    with pytest.raises(CanaryError, match="does not match the frozen deployment hash"):
+        evaluate_canary(report)
+
+
+@pytest.mark.parametrize("change", [
+    {"schema_version": True}, {"schema_version": 2}, {"source_revision": "main"},
+    {"public_sdk_revision": "latest"}, {"public_sdk_wheel_sha256": "not-a-hash"},
+    {"api_image_digest": "registry/app:latest"}, {"studio_image_digest": "sha256:" + "E" * 64},
+    {"unknown": True},
+])
+def test_build_manifest_is_closed_and_immutable(change):
+    with pytest.raises(CanaryError):
+        deployment_manifest_sha256({**BUILD_MANIFEST, **change})
+
+
+def test_legacy_same_image_evidence_without_build_manifest_cannot_pass(tmp_path):
+    report = _canary(tmp_path)
+    _mutate_stage(report, "deployment", lambda value: value.pop("build_manifest"))
+    with pytest.raises(CanaryError, match="shape mismatch"):
+        evaluate_canary(report)
 
 
 def test_passing_canary_builds_one_short_lived_hash_bound_share_release_payload(tmp_path: Path) -> None:

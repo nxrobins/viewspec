@@ -130,13 +130,16 @@ resumable runner and independently rechecked before study analysis:
 python scripts/run_studio_production_canary.py init \
   --out <canary-directory> \
   --driver <deployment-owned-stage-driver.py> \
-  --deployment-sha256 <immutable-deployment-sha256>
+  --deployment-manifest <reviewed-build.json>
 python scripts/run_studio_production_canary.py run --root <canary-directory>
 python scripts/check_studio_production_canary.py \
   <canary-directory>/production-canary-evidence.json
 ```
 
-The run binds the deployment, collector, runner, verifier, stage order, command receipts, and stage
+The reviewed build manifest binds the backend revision, SDK revision and wheel hash, plus separate
+immutable API and review/worker images. Initialization retains a canonical copy and derives the
+deployment hash; every live role must match its assigned build. The run binds this deployment,
+collector, runner, verifier, stage order, command receipts, and stage
 artifacts. It checkpoints after every valid stage, retains hashes and byte counts rather than
 secret-bearing command output, and refuses changed code or evidence on resume. The human-study
 summary invokes the same verifier; copying a report-shaped JSON object into the study does not

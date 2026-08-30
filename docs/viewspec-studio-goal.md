@@ -106,11 +106,13 @@ The production gate is likewise mechanically specified. A resumable canary runne
 the immutable deployment, deployment-owned collector, runner, verifier, nine canonical stages,
 redacted command receipts, and every promoted artifact. The independent checker rejects missing,
 reordered, changed, or semantically weak evidence, and the human-study analyzer calls that checker
-directly. The deployment-owned stage collector is also implemented locally, including deliberate
-ingress and rebuild mismatches, three real browser engines, recovery and restored-volume drills,
-receipt-key rotation proof, and exact-value leak scanning. Review into the deployment repository,
-an explicitly authorized production workflow, and the production run remain pending; therefore
-this is executable evidence infrastructure, not a production-sharing claim.
+directly. The build identity now freezes separate API and review/worker images against one backend
+revision, public SDK revision and exact wheel; every live role must match that manifest. The
+currently reviewed repositories contain local runtime probes and the three-engine browser probe,
+but not the complete deployment-owned nine-stage collector previously described here as implemented.
+That collector still needs implementation or recovery and review, an explicitly authorized production
+workflow, and a production run. This is executable evidence infrastructure, not a production-sharing
+claim.
 
 The V2 value-premium evaluator remains the measurement foundation. It must evolve from artifact
 comparison into this end-to-end human-and-agent journey; token count is cost accounting, not the
@@ -284,7 +286,7 @@ connected.
 
 ## Milestone 4.10: the request never disappears
 
-Status: implemented and locally proved; repository CI promotion is pending.
+Status: implemented, locally proved, and promoted through repository CI.
 
 Studio promises one continuous loop, so the human request must remain visible from submission
 through acknowledgement. The Conversation rail is a browser-safe projection of the durable Review
@@ -321,10 +323,11 @@ localization, or formatter functions.
 ## Milestone 5: one-click private review
 
 Status: local preparation, provider-independent service core, framework-neutral HTTPS/ASGI
-contract, replay-safe API→review ingress, deterministic remote rebuild proof, local
-Chromium/Firefox/WebKit journey, and the fail-closed Studio Share release gate implemented; a
-separate-app production topology is specified, with API bridge wiring, worker isolation,
-signed-release publication, deployment, and canary approval pending.
+contract, deterministic remote rebuild proof, local Chromium/Firefox/WebKit journey, and the
+fail-closed Studio Share release gate implemented. The API bridge is deployed; account-aware
+readiness remains a tested backend draft. Separate review/worker isolation is proved in a local
+disposable VM and remains a backend draft. Production review/worker deployment, the complete
+deployment-owned collector, signed-release publication, and canary approval remain pending.
 
 A person can turn the exact checked Studio revision in front of them into a private review link.
 The reviewer sees the same immutable product, routes, viewports, state/replay evidence, resource
@@ -466,9 +469,9 @@ canary, and publishes the short-lived signed release, Studio omits Share even wh
 3. Synchronized responsive and static/React comparison. **Implemented locally.**
 4. State replay and resource inspection inside the same canvas. **Implemented locally.**
 5. One-click private sharing and bounded hosted execution. **Local product, service, isolation,
-   recovery, operator boundaries, fail-closed canary runner/verifier/collector, and signed-release
-   client gate implemented locally; production workflow authorization, readiness signing endpoint,
-   production run, and public Share remain intentionally pending.**
+   recovery, operator boundaries, fail-closed canary runner/verifier, and signed-release client gate
+   implemented locally; the complete deployment-owned collector, production workflow authorization,
+   signed-release publication, production run, and public Share remain intentionally pending.**
 6. Deployment only after the created product, correction loop, and proof layer are excellent.
 
 Work that does not make the next unmet item observably better waits.

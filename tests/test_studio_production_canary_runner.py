@@ -6,7 +6,7 @@ import subprocess
 
 import pytest
 
-from scripts.check_studio_production_canary import STAGE_KINDS, evaluate_canary
+from scripts.check_studio_production_canary import STAGE_KINDS, deployment_manifest_sha256, evaluate_canary
 from scripts.run_studio_production_canary import (
     CanaryRunError,
     initialize_canary,
@@ -15,7 +15,15 @@ from scripts.run_studio_production_canary import (
 
 
 RUN_ID = "vsrcan_" + "2" * 32
-DEPLOYMENT_SHA = "d" * 64
+BUILD_MANIFEST = {
+    "schema_version": 1,
+    "source_revision": "a" * 40,
+    "public_sdk_revision": "b" * 40,
+    "public_sdk_wheel_sha256": "c" * 64,
+    "api_image_digest": "sha256:" + "d" * 64,
+    "studio_image_digest": "sha256:" + "e" * 64,
+}
+DEPLOYMENT_SHA = deployment_manifest_sha256(BUILD_MANIFEST)
 
 
 def _common(kind: str) -> dict[str, object]:
@@ -32,11 +40,17 @@ def _payload(kind: str) -> dict[str, object]:
         return {
             **_common(kind),
             "origin": "https://review.viewspec.dev",
+            "build_manifest": dict(BUILD_MANIFEST),
             "apps": [
                 {
                     "app_id": app_id,
                     "machine_id_sha256": marker * 64,
-                    "image_digest": "sha256:" + "e" * 64,
+                    "image_digest": BUILD_MANIFEST[
+                        "api_image_digest" if app_id == "viewspec-api" else "studio_image_digest"
+                    ],
+                    "source_revision": BUILD_MANIFEST["source_revision"],
+                    "public_sdk_revision": BUILD_MANIFEST["public_sdk_revision"],
+                    "public_sdk_wheel_sha256": BUILD_MANIFEST["public_sdk_wheel_sha256"],
                     "public_https": public,
                     "durable_volume": volume,
                     "forbidden_secret_count": 0,
@@ -162,10 +176,12 @@ def _initialized(tmp_path: Path) -> tuple[Path, Path]:
     driver = tmp_path / "driver.py"
     driver.write_text("# immutable test driver\n", encoding="utf-8")
     root = tmp_path / "canary"
+    manifest = tmp_path / "reviewed-build.json"
+    manifest.write_text(json.dumps(BUILD_MANIFEST), encoding="utf-8")
     initialize_canary(
         root,
         driver=driver,
-        deployment_sha256=DEPLOYMENT_SHA,
+        deployment_manifest=manifest,
         run_id=RUN_ID,
         now_ms=1_000_000,
     )
@@ -180,6 +196,8 @@ def _executor(*, fail_once: str | None = None, invalid: str | None = None):
         kind = command[command.index("--stage") + 1]
         output = Path(command[command.index("--out") + 1])
         assert environment["VIEWSPEC_CANARY_RUN_ID"] == RUN_ID
+        frozen = Path(command[command.index("--deployment-manifest") + 1])
+        assert json.loads(frozen.read_text()) == BUILD_MANIFEST
         calls[kind] = calls.get(kind, 0) + 1
         if fail_once == kind and calls[kind] == 1:
             return subprocess.CompletedProcess(command, 7, b"canary-secret", b"private-detail")
@@ -204,6 +222,86 @@ def test_runner_produces_a_complete_verifiable_canary_without_retaining_streams(
     retained = "".join(path.read_text(encoding="utf-8") for path in root.rglob("*.json"))
     assert "canary-secret" not in retained
     assert "private-detail" not in retained
+
+
+def test_initialization_freezes_canonical_manifest_not_a_mutable_input_path(tmp_path):
+    root, _ = _initialized(tmp_path)
+    frozen = root / "deployment-manifest.json"
+    assert frozen.read_text() == json.dumps(BUILD_MANIFEST, indent=2, sort_keys=True) + "\n"
+    (tmp_path / "reviewed-build.json").write_text("{}")
+    execute, calls = _executor()
+    assert run_canary(root, execute=execute, now_ms=lambda: 1_600_000)["passed"] is True
+    assert list(calls) == list(STAGE_KINDS)
+
+
+def test_real_stage_process_receives_frozen_manifest_and_retains_no_streams(tmp_path):
+    # Synthetic stages test process plumbing only, never production readiness.
+    driver = tmp_path / "synthetic-driver.py"
+    payloads = {kind: _payload(kind) for kind in STAGE_KINDS}
+    driver.write_text(
+        "import argparse,json\nfrom pathlib import Path\n"
+        "parser=argparse.ArgumentParser()\n"
+        "for name in ('stage','run-id','deployment-sha256','deployment-manifest','origin','out'):\n"
+        "    parser.add_argument('--'+name, required=True)\n"
+        "args=parser.parse_args()\n"
+        f"payloads={payloads!r}\n"
+        "manifest=json.loads(Path(args.deployment_manifest).read_text())\n"
+        "assert manifest==payloads['deployment']['build_manifest']\n"
+        "assert args.deployment_sha256==payloads['deployment']['deployment_sha256']\n"
+        "Path(args.out).write_text(json.dumps(payloads[args.stage]))\n"
+        "print('synthetic-private-stream')\n"
+    )
+    manifest = tmp_path / "build.json"
+    manifest.write_text(json.dumps(BUILD_MANIFEST))
+    root = tmp_path / "canary"
+    initialize_canary(root, driver=driver, deployment_manifest=manifest, run_id=RUN_ID, now_ms=1_000_000)
+    result = run_canary(root, now_ms=lambda: 1_600_000)
+    assert result["passed"] is True
+    assert result["deployment_sha256"] == DEPLOYMENT_SHA
+    assert "synthetic-private-stream" not in "".join(path.read_text() for path in root.rglob("*.json"))
+
+
+@pytest.mark.parametrize("after_checkpoint", [False, True])
+@pytest.mark.parametrize("mutation", ["bytes", "build", "missing", "symlink"])
+def test_changed_frozen_manifest_blocks_execution_and_resume(tmp_path, mutation, after_checkpoint):
+    root, _ = _initialized(tmp_path)
+    if after_checkpoint:
+        with pytest.raises(CanaryRunError, match="stopped at ingress"):
+            run_canary(root, execute=_executor(fail_once="ingress")[0])
+    frozen = root / "deployment-manifest.json"
+    if mutation == "bytes":
+        frozen.write_bytes(frozen.read_bytes() + b" ")
+    elif mutation == "build":
+        frozen.write_text(json.dumps({**BUILD_MANIFEST, "source_revision": "f" * 40}))
+    else:
+        frozen.unlink()
+        if mutation == "symlink":
+            frozen.symlink_to(tmp_path / "reviewed-build.json")
+    execute, calls = _executor()
+    with pytest.raises(CanaryRunError, match="[Mm]anifest"):
+        run_canary(root, resume=after_checkpoint, execute=execute)
+    assert calls == {}
+
+
+@pytest.mark.parametrize("mutation", ["missing", "oversize", "symlink", "mutable", "unknown"])
+def test_invalid_build_input_creates_no_run(tmp_path, mutation):
+    driver = tmp_path / "driver.py"
+    driver.write_text("# test driver")
+    manifest = tmp_path / "build.json"
+    if mutation == "oversize":
+        manifest.write_text(" " * (16 * 1024 + 1))
+    elif mutation == "symlink":
+        target = tmp_path / "target.json"
+        target.write_text(json.dumps(BUILD_MANIFEST))
+        manifest.symlink_to(target)
+    elif mutation != "missing":
+        change = {"source_revision": "main"} if mutation == "mutable" else {"unknown": True}
+        manifest.write_text(json.dumps({**BUILD_MANIFEST, **change}))
+    root = tmp_path / "canary"
+    from scripts.check_studio_production_canary import CanaryError
+    with pytest.raises((CanaryRunError, CanaryError)):
+        initialize_canary(root, driver=driver, deployment_manifest=manifest)
+    assert not root.exists()
 
 
 def test_runner_resumes_only_after_validating_every_completed_stage(tmp_path: Path) -> None:

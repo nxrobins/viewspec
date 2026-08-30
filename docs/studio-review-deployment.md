@@ -122,7 +122,10 @@ an isolation proof; the deployment must retain the runner's authoritative execut
 
 ### Recommended Fly topology
 
-Use three Fly apps in the same private organization network, built from the same reviewed source.
+Use three Fly apps in the same private organization network, built from the same reviewed source
+and exact SDK wheel. The API uses `Dockerfile`; review and worker use the separate
+`Dockerfile.studio` image. They do not need the same image digest. The frozen build manifest binds
+both immutable images to their roles and the common backend revision, SDK revision, and wheel hash.
 A single app with several process groups is not an adequate secret boundary: Fly injects an app's
 secrets into every Machine belonging to that app. The public SDK and hosted compiler also own
 different protobuf descriptors and must not be loaded into the same Python process. A narrow upload
@@ -235,17 +238,39 @@ stage only after its closed schema and product semantics pass:
 python scripts/run_studio_production_canary.py init \
   --out <canary-directory> \
   --driver <deployment-owned-stage-driver.py> \
-  --deployment-sha256 <immutable-deployment-sha256>
+  --deployment-manifest <reviewed-build.json>
 python scripts/run_studio_production_canary.py run --root <canary-directory>
 ```
+
+`reviewed-build.json` is a closed object with these fields:
+
+| Field | Frozen value |
+| --- | --- |
+| `schema_version` | Integer `1`. |
+| `source_revision` | Full 40- or 64-character lowercase backend Git revision shared by both builds. |
+| `public_sdk_revision` | Full immutable public SDK Git revision used to build the wheel. |
+| `public_sdk_wheel_sha256` | SHA-256 of the exact SDK wheel baked into both images. |
+| `api_image_digest` | Immutable `sha256:…` digest built with `Dockerfile`. |
+| `studio_image_digest` | Immutable `sha256:…` digest built with `Dockerfile.studio` for both review and worker. |
+
+Initialization validates this bounded file, retains canonical sorted/indented JSON with a trailing
+newline as `deployment-manifest.json`, and derives `deployment_sha256` from those exact bytes.
+An arbitrary hash no longer substitutes for build provenance. Every stage receives the frozen
+manifest path through `--deployment-manifest` as well as its hash. The deployment collector embeds
+the manifest and independently records each live app's image digest, backend revision, SDK revision
+and SDK wheel hash from the deployed image/build evidence. The checker compares every observed
+value to that app's assigned build and recomputes the manifest hash. A manifest is an approved
+expectation, not proof that a live service matches it; the collector must obtain those observations.
+Old plans without the frozen manifest must be reinitialized before any production probe. The
+signed Share-release wire format remains unchanged, and no previous run is promoted automatically.
 
 The stages are `deployment`, `ingress`, `rebuild`, `isolation`, `browser-chromium`,
 `browser-firefox`, `browser-webkit`, `recovery`, and `leak-audit`. Each writes one hash-bound JSON
 artifact beneath `stages/`. The final report retains one redacted command receipt per stage with
 argv, stdout, and stderr hashes, bounded byte counts, exit status, and elapsed time; it never
 retains the streams themselves. `checkpoint.json` is replaced atomically after every promoted
-stage. Resume first revalidates the plan, driver, runner, verifier, every prior stage hash, and
-every prior stage's semantics.
+stage. Resume first revalidates the plan, frozen build manifest, driver, runner, verifier, every
+prior stage hash, and every prior stage's semantics.
 
 Run the independent verifier before treating the result as production evidence:
 
@@ -273,10 +298,12 @@ and retry.
 
 The deployment repository owns the stage driver because only it can inspect the actual Fly app,
 secret, volume, worker, backup, and log boundaries. The SDK runner and verifier cannot manufacture
-those observations. That collector is implemented locally with active ingress/rebuild mismatch
-probes, three-engine browser journeys, an authorization-gated restart and restored-volume drill,
-multi-key receipt verification, aggregate telemetry checks, and exact-value log scanning. It has
-not been installed as a production workflow or run against the canonical origin. The API bridge
+those observations. The currently reviewed SDK and backend drafts contain the runner, independent
+checker, browser probe and local runtime probes, but not a complete deployment-owned nine-stage
+collector. That collector still needs implementation or recovery and review: active ingress/rebuild
+mismatch probes, three-engine browser journeys, an authorization-gated restart and restored-volume
+drill, multi-key receipt verification, aggregate telemetry checks, and exact-value log scanning.
+It has not been installed as a production workflow or run against the canonical origin. The API bridge
 and fail-closed readiness endpoint are deployed, while account-aware readiness is pending review;
 the separate review/worker runtime is locally proved in a draft deployment-repository PR. No
 signed production release is installed, so the production gate remains open and current public
