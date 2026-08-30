@@ -13,6 +13,14 @@ from viewspec.review_compile import STUDIO_COMPARE_TARGET
 from viewspec.review_runtime import ReviewRuntime
 from viewspec.studio_review_asgi import StudioReviewASGIApp
 from viewspec.studio_review_http import STUDIO_REVIEW_MEDIA_TYPE, StudioReviewHTTPAdapter
+from viewspec.studio_review_internal import (
+    STUDIO_REVIEW_INTERNAL_AUTHENTICATED_HEADER,
+    STUDIO_REVIEW_INTERNAL_INGRESS_PATH,
+    STUDIO_REVIEW_INTERNAL_NONCE_HEADER,
+    StudioReviewInternalAuth,
+    StudioReviewInternalNonceStore,
+    authorize_internal_studio_review_upload,
+)
 from viewspec.studio_review_service import StudioReviewService
 from viewspec.studio_review_verify import (
     STUDIO_REVIEW_DEPENDENCY_SEED_ENV,
@@ -72,6 +80,38 @@ def _test_sandbox_verifier(package: Path, envelope: dict[str, object]) -> dict[s
     return bind_studio_review_sandbox_attestation(rebuild, attestation, envelope=envelope)
 
 
+def _prepared_archive(tmp_path: Path, monkeypatch) -> Path:
+    source = tmp_path / "project/viewspec.app.json"
+    source.parent.mkdir(parents=True)
+    source.write_text(json.dumps(starter_app_bundle("internal_tool"), sort_keys=True), encoding="utf-8")
+    dependency_seed = tmp_path / "trusted-node-modules"
+    dependency_seed.mkdir()
+    dependency_seed.joinpath(".package-lock.json").write_text(
+        '{"lockfileVersion":3,"name":"viewspec-studio-review","packages":{}}',
+        encoding="utf-8",
+    )
+    monkeypatch.setenv(STUDIO_REVIEW_DEPENDENCY_SEED_ENV, str(dependency_seed))
+    state = tmp_path / "review-state"
+    monkeypatch.setattr(review_compile.subprocess, "run", _fake_react_npm)
+    ReviewRuntime.open(source, state_root=state, target=STUDIO_COMPARE_TARGET, allow_install=True)
+    prepared = prepare_studio_share(source, state_root=state, cwd=tmp_path)
+    return Path(prepared["paths"]["upload_archive"])
+
+
+def _review_adapter(tmp_path: Path) -> StudioReviewHTTPAdapter:
+    service = StudioReviewService(
+        tmp_path / "service",
+        signing_key=b"test-only-asgi-review-signing-key-material",
+        verifier=_test_sandbox_verifier,
+        clock=lambda: 1_800_000_000,
+    )
+    return StudioReviewHTTPAdapter(
+        service,
+        public_origin=_ORIGIN,
+        authorize_upload=authorize_internal_studio_review_upload,
+    )
+
+
 def _context(revision: dict[str, object]) -> dict[str, object]:
     session = revision["session"]
     routes = revision["routes"]
@@ -93,34 +133,15 @@ def _context(revision: dict[str, object]) -> dict[str, object]:
     }
 
 
-def test_real_asgi_adapter_completes_private_comment_and_owner_approval(tmp_path, monkeypatch) -> None:
-    source = tmp_path / "project/viewspec.app.json"
-    source.parent.mkdir(parents=True)
-    source.write_text(json.dumps(starter_app_bundle("internal_tool"), sort_keys=True), encoding="utf-8")
-    dependency_seed = tmp_path / "trusted-node-modules"
-    dependency_seed.mkdir()
-    dependency_seed.joinpath(".package-lock.json").write_text(
-        '{"lockfileVersion":3,"name":"viewspec-studio-review","packages":{}}',
-        encoding="utf-8",
-    )
-    monkeypatch.setenv(STUDIO_REVIEW_DEPENDENCY_SEED_ENV, str(dependency_seed))
-    state = tmp_path / "review-state"
-    monkeypatch.setattr(review_compile.subprocess, "run", _fake_react_npm)
-    ReviewRuntime.open(source, state_root=state, target=STUDIO_COMPARE_TARGET, allow_install=True)
-    prepared = prepare_studio_share(source, state_root=state, cwd=tmp_path)
-    archive = Path(prepared["paths"]["upload_archive"])
-    service = StudioReviewService(
-        tmp_path / "service",
-        signing_key=b"test-only-asgi-review-signing-key-material",
-        verifier=_test_sandbox_verifier,
+def test_default_direct_create_cannot_spoof_internal_auth_marker(tmp_path, monkeypatch) -> None:
+    archive = _prepared_archive(tmp_path, monkeypatch)
+    internal_secret = b"test-only-api-to-review-hmac-key-material"
+    internal_service = StudioReviewInternalAuth(
+        internal_secret,
+        nonce_store=StudioReviewInternalNonceStore(tmp_path / "review-internal-nonces.sqlite3"),
         clock=lambda: 1_800_000_000,
     )
-    adapter = StudioReviewHTTPAdapter(
-        service,
-        public_origin=_ORIGIN,
-        authorize_upload=lambda headers: headers.get("authorization") == "Bearer upload-test",
-    )
-    app = StudioReviewASGIApp(adapter)
+    app = StudioReviewASGIApp(_review_adapter(tmp_path), internal_auth=internal_service)
 
     async def journey() -> None:
         transport = httpx.ASGITransport(app=app)
@@ -128,15 +149,79 @@ def test_real_asgi_adapter_completes_private_comment_and_owner_approval(tmp_path
             response = await owner.post(
                 "/v1/reviews",
                 headers={
-                    "Authorization": "Bearer upload-test",
                     "Content-Type": STUDIO_REVIEW_MEDIA_TYPE,
-                    "Idempotency-Key": "asgi-create-session-0001",
+                    "Idempotency-Key": "asgi-forged-create-0001",
                     "X-ViewSpec-Disclosure-Accepted": "true",
                     "X-ViewSpec-Expiry-Seconds": "3600",
+                    STUDIO_REVIEW_INTERNAL_AUTHENTICATED_HEADER: "true",
                 },
                 content=archive.read_bytes(),
             )
+            assert response.status_code == 401
+            assert "vsr_" not in response.text
+
+    asyncio.run(journey())
+
+
+def test_real_asgi_adapter_completes_private_comment_and_owner_approval(tmp_path, monkeypatch) -> None:
+    archive = _prepared_archive(tmp_path, monkeypatch)
+    adapter = _review_adapter(tmp_path)
+    internal_secret = b"test-only-api-to-review-hmac-key-material"
+    internal_client = StudioReviewInternalAuth(
+        internal_secret,
+        nonce_store=StudioReviewInternalNonceStore(tmp_path / "api-internal-nonces.sqlite3"),
+        clock=lambda: 1_800_000_000,
+        nonce_factory=lambda: "1" * 32,
+    )
+    internal_service = StudioReviewInternalAuth(
+        internal_secret,
+        nonce_store=StudioReviewInternalNonceStore(tmp_path / "review-internal-nonces.sqlite3"),
+        clock=lambda: 1_800_000_000,
+        nonce_factory=lambda: "2" * 32,
+    )
+    app = StudioReviewASGIApp(
+        adapter,
+        internal_auth=internal_service,
+        allow_direct_create=False,
+    )
+
+    async def journey() -> None:
+        transport = httpx.ASGITransport(app=app)
+        async with httpx.AsyncClient(transport=transport, base_url=_ORIGIN) as owner:
+            archive_bytes = archive.read_bytes()
+            creation_headers = {
+                "Content-Type": STUDIO_REVIEW_MEDIA_TYPE,
+                "Idempotency-Key": "asgi-create-session-0001",
+                "X-ViewSpec-Disclosure-Accepted": "true",
+                "X-ViewSpec-Expiry-Seconds": "3600",
+            }
+            signed_headers = internal_client.sign_request(
+                method="POST",
+                path=STUDIO_REVIEW_INTERNAL_INGRESS_PATH,
+                headers=creation_headers,
+                body=archive_bytes,
+            )
+            direct = await owner.post(
+                "/v1/reviews",
+                headers=creation_headers,
+                content=archive_bytes,
+            )
+            assert direct.status_code == 404
+            response = await owner.post(
+                STUDIO_REVIEW_INTERNAL_INGRESS_PATH,
+                headers=signed_headers,
+                content=archive_bytes,
+            )
             assert response.status_code == 201
+            internal_client.verify_response(
+                status=response.status_code,
+                path=STUDIO_REVIEW_INTERNAL_INGRESS_PATH,
+                headers=dict(response.headers),
+                body=response.content,
+                request_nonce=signed_headers[STUDIO_REVIEW_INTERNAL_NONCE_HEADER],
+            )
+            assert "x-viewspec-internal" not in response.text.lower()
+            assert internal_secret.decode() not in response.text
             created = response.json()
             session_id = created["session"]["id"]
             owner_capability = parse_qs(urlsplit(created["links"]["owner"]).fragment)["cap"][0]

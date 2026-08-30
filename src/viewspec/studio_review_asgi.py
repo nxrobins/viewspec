@@ -20,6 +20,12 @@ from viewspec.studio_review_http import (
     STUDIO_REVIEW_HTTP_MAX_PATH_BYTES,
     StudioReviewHTTPAdapter,
 )
+from viewspec.studio_review_internal import (
+    STUDIO_REVIEW_INTERNAL_AUTHENTICATED_HEADER,
+    STUDIO_REVIEW_INTERNAL_INGRESS_PATH,
+    StudioReviewInternalAuth,
+    StudioReviewInternalAuthError,
+)
 from viewspec.studio_share import STUDIO_SHARE_ARCHIVE_MAX_BYTES
 
 
@@ -43,13 +49,21 @@ class StudioReviewASGIApp:
         adapter: StudioReviewHTTPAdapter,
         *,
         downstream: ASGIApp | None = None,
+        internal_auth: StudioReviewInternalAuth | None = None,
+        allow_direct_create: bool = True,
     ) -> None:
         if not isinstance(adapter, StudioReviewHTTPAdapter):
             raise TypeError("StudioReviewASGIApp requires a StudioReviewHTTPAdapter.")
         if downstream is not None and not callable(downstream):
             raise TypeError("StudioReviewASGIApp downstream must be callable.")
+        if internal_auth is not None and not isinstance(internal_auth, StudioReviewInternalAuth):
+            raise TypeError("StudioReviewASGIApp internal_auth must use the exact internal authentication contract.")
+        if not isinstance(allow_direct_create, bool):
+            raise TypeError("StudioReviewASGIApp allow_direct_create must be a boolean.")
         self.adapter = adapter
         self.downstream = downstream
+        self.internal_auth = internal_auth
+        self.allow_direct_create = allow_direct_create
 
     async def __call__(self, scope: ASGIScope, receive: ASGIReceive, send: ASGISend) -> None:
         if scope.get("type") != "http":
@@ -63,23 +77,25 @@ class StudioReviewASGIApp:
         if path is None:
             await _send_response(send, _invalid_request(self.adapter))
             return
+        if path == "/v1/reviews" and not self.allow_direct_create:
+            await _send_response(send, _route_not_found())
+            return
+        if path == STUDIO_REVIEW_INTERNAL_INGRESS_PATH and self.internal_auth is None:
+            await _send_response(send, _route_not_found())
+            return
         if not _is_review_path(path):
-            if self.downstream is not None:
-                await self.downstream(scope, receive, send)
-                return
-            await _send_response(
-                send,
-                self.adapter.handle(
-                    ReviewHTTPRequest(method="GET", path=path, headers={}, scheme="https")
-                ),
-            )
+            await self._delegate_or_not_found(scope, receive, send)
             return
 
         headers = _scope_headers(scope)
         if headers is None:
             await _send_response(send, _invalid_request(self.adapter))
             return
-        body_limit = STUDIO_SHARE_ARCHIVE_MAX_BYTES if path == "/v1/reviews" else STUDIO_REVIEW_HTTP_MAX_JSON_BYTES
+        body_limit = (
+            STUDIO_SHARE_ARCHIVE_MAX_BYTES
+            if path in {"/v1/reviews", STUDIO_REVIEW_INTERNAL_INGRESS_PATH}
+            else STUDIO_REVIEW_HTTP_MAX_JSON_BYTES
+        )
         content_length = headers.get("content-length")
         if content_length is not None and (not content_length.isdigit() or int(content_length) > body_limit):
             await _send_response(send, _invalid_request(self.adapter))
@@ -90,17 +106,80 @@ class StudioReviewASGIApp:
         if body is _BODY_INVALID:
             await _send_response(send, _invalid_request(self.adapter))
             return
+        if path == STUDIO_REVIEW_INTERNAL_INGRESS_PATH:
+            response = await self._handle_internal_ingress(scope, headers, body)
+        else:
+            external_headers = _external_review_headers(headers)
+            response = await asyncio.to_thread(
+                self.adapter.handle,
+                ReviewHTTPRequest(
+                    method=str(scope.get("method", "")),
+                    path=path,
+                    headers=external_headers,
+                    body=body,
+                    scheme=str(scope.get("scheme", "")),
+                ),
+            )
+        await _send_response(send, response)
+
+    async def _delegate_or_not_found(
+        self,
+        scope: ASGIScope,
+        receive: ASGIReceive,
+        send: ASGISend,
+    ) -> None:
+        if self.downstream is not None:
+            await self.downstream(scope, receive, send)
+            return
+        await _send_response(send, _route_not_found())
+
+    async def _handle_internal_ingress(
+        self,
+        scope: ASGIScope,
+        headers: Mapping[str, str],
+        body: bytes,
+    ) -> ReviewHTTPResponse:
+        assert self.internal_auth is not None
+        method = str(scope.get("method", ""))
+        try:
+            verified = self.internal_auth.verify_request(
+                method=method,
+                path=STUDIO_REVIEW_INTERNAL_INGRESS_PATH,
+                headers=headers,
+                body=body,
+            )
+        except StudioReviewInternalAuthError:
+            return _internal_authentication_failed()
+        forwarded = {
+            **dict(verified.forwarded_headers),
+            STUDIO_REVIEW_INTERNAL_AUTHENTICATED_HEADER: "true",
+        }
         response = await asyncio.to_thread(
             self.adapter.handle,
             ReviewHTTPRequest(
-                method=str(scope.get("method", "")),
-                path=path,
-                headers=headers,
+                method="POST",
+                path="/v1/reviews",
+                headers=forwarded,
                 body=body,
-                scheme=str(scope.get("scheme", "")),
+                scheme="https",
             ),
         )
-        await _send_response(send, response)
+        try:
+            content_type = _response_content_type(response)
+            authentication = self.internal_auth.sign_response(
+                status=response.status,
+                path=STUDIO_REVIEW_INTERNAL_INGRESS_PATH,
+                content_type=content_type,
+                body=response.body,
+                request_nonce=verified.request_nonce,
+            )
+        except StudioReviewInternalAuthError:
+            return _internal_response_failed()
+        return ReviewHTTPResponse(
+            status=response.status,
+            headers=(*response.headers, *tuple(authentication.items())),
+            body=response.body,
+        )
 
 
 _BODY_INVALID = object()
@@ -145,6 +224,10 @@ def _scope_headers(scope: Mapping[str, Any]) -> dict[str, str] | None:
     return headers
 
 
+def _external_review_headers(headers: Mapping[str, str]) -> dict[str, str]:
+    return {name: value for name, value in headers.items() if not name.startswith("x-viewspec-internal-")}
+
+
 async def _receive_body(receive: ASGIReceive, *, maximum: int) -> bytes | object | None:
     body = bytearray()
     while True:
@@ -165,11 +248,57 @@ async def _receive_body(receive: ASGIReceive, *, maximum: int) -> bytes | object
 
 
 def _is_review_path(path: str) -> bool:
-    return path == "/v1/reviews" or path == "/review" or path.startswith("/review/")
+    return (
+        path in {"/v1/reviews", STUDIO_REVIEW_INTERNAL_INGRESS_PATH, "/review"}
+        or path.startswith("/review/")
+    )
 
 
 def _invalid_request(adapter: StudioReviewHTTPAdapter) -> ReviewHTTPResponse:
     return adapter.handle(ReviewHTTPRequest(method="INVALID", path="/", headers={}, scheme="https"))
+
+
+def _response_content_type(response: ReviewHTTPResponse) -> str:
+    values = [value for name, value in response.headers if name.lower() == "content-type"]
+    if len(values) != 1:
+        raise StudioReviewInternalAuthError("Private review internal response has no unique content type.")
+    return values[0]
+
+
+def _internal_authentication_failed() -> ReviewHTTPResponse:
+    return ReviewHTTPResponse(
+        status=401,
+        headers=(("Content-Type", "application/json"),),
+        body=(
+            b'{"error":{"code":"STUDIO_REVIEW_UPLOAD_UNAUTHORIZED",'
+            b'"fix":"Retry through the authenticated private ingress.",'
+            b'"message":"Private review internal authentication failed."}}'
+        ),
+    )
+
+
+def _internal_response_failed() -> ReviewHTTPResponse:
+    return ReviewHTTPResponse(
+        status=500,
+        headers=(("Content-Type", "application/json"),),
+        body=(
+            b'{"error":{"code":"STUDIO_REVIEW_HTTP_INVALID",'
+            b'"fix":"Retry the same idempotent private review creation request.",'
+            b'"message":"Private review response authentication failed."}}'
+        ),
+    )
+
+
+def _route_not_found() -> ReviewHTTPResponse:
+    return ReviewHTTPResponse(
+        status=404,
+        headers=(("Content-Type", "application/json"),),
+        body=(
+            b'{"error":{"code":"STUDIO_REVIEW_ACCESS_DENIED",'
+            b'"fix":"Use a current unexpired capability or the authenticated private ingress.",'
+            b'"message":"Private review access is unavailable."}}'
+        ),
+    )
 
 
 async def _send_response(send: ASGISend, response: ReviewHTTPResponse) -> None:

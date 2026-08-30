@@ -1,7 +1,7 @@
 # Private Studio Review Deployment Contract
 
-Status: SDK boundary and fail-closed Studio release gate implemented; production mount, signing,
-deployment, and canary approval pending.
+Status: SDK boundary, replay-safe API→review ingress, and fail-closed Studio release gate
+implemented; API bridge wiring, worker isolation, signing, deployment, and canary approval pending.
 
 This is the minimum acceptance contract for adding private Studio review beside the existing
 `viewspec-api` service. It is intentionally narrower than a collaboration platform. The first
@@ -28,9 +28,18 @@ review_service = StudioReviewService(
 review_http = StudioReviewHTTPAdapter(
     review_service,
     public_origin="https://review.viewspec.dev",
-    authorize_upload=authorize_authenticated_private_ingress,
+    authorize_upload=authorize_internal_studio_review_upload,
 )
-app = StudioReviewASGIApp(review_http, downstream=health_app)
+internal_auth = StudioReviewInternalAuth(
+    load_api_to_review_hmac_key(),
+    nonce_store=StudioReviewInternalNonceStore("/data/studio-review/internal-nonces.sqlite3"),
+)
+app = StudioReviewASGIApp(
+    review_http,
+    downstream=health_app,
+    internal_auth=internal_auth,
+    allow_direct_create=False,
+)
 ```
 
 The compiler API owns a small provider-specific `/v1/reviews` upload bridge. It authenticates an
@@ -38,12 +47,24 @@ active paid key, bounds the archive, forwards only the review media type, disclo
 idempotency headers, then calls a private `/internal/v1/reviews` ingress with mutual request and
 response authentication. The raw paid key never crosses that boundary.
 
-The review wrapper intercepts only `/v1/reviews`, `/review`, and `/review/...`; health and unrelated
-protocols continue downstream. Request bodies, paths, and headers are bounded while streaming;
-ambiguous duplicate headers fail closed. The adapter trusts only the ASGI scope's `scheme` for
-HTTPS identity. The edge proxy or authenticated private ingress must therefore set the trusted
-ASGI scheme after TLS or private-transport verification; an incoming `X-Forwarded-Proto` header is
-never sufficient by itself.
+The review wrapper intercepts the signed `/internal/v1/reviews` ingress plus `/review` and
+`/review/...`; health and unrelated protocols continue downstream. Production composition closes
+direct `/v1/reviews` creation with `allow_direct_create=False`. The internal verifier binds the
+protocol version, direction, method, path, exact allowlisted creation headers, archive SHA-256,
+timestamp, and nonce before the adapter or storage sees the request. It forwards only those four
+creation headers plus a server-created authentication marker. The raw paid key and every internal
+authentication header are discarded at the boundary.
+
+Request nonces are admitted to a bounded SQLite store on the durable review volume, so a process
+restart does not reopen the active request replay window. Response nonces are admitted by the API
+bridge's own durable verifier store when it checks the review service response. The response
+signature binds the status, ingress path, content type, body SHA-256, timestamp, response nonce,
+and originating request nonce. The API bridge must verify that response before returning its body.
+Bodies, paths, and headers are bounded while streaming; ambiguous duplicate headers fail closed.
+Browser review routes still trust only the ASGI scope's `scheme` for HTTPS identity. An incoming
+`X-Forwarded-Proto` header is never sufficient by itself. The wrapper strips reserved
+`x-viewspec-internal-*` headers from every non-internal review route, so ordinary traffic cannot
+mint the server-only adapter authentication marker.
 
 The wrapper sends blocking review storage and verifier work to a worker thread after it has bounded
 the asynchronous request stream. A remote verifier therefore cannot freeze the review-service
@@ -122,11 +143,12 @@ secret: API↔review and review↔worker use independent HMAC keys. See Fly's
 [internal service](https://fly.io/docs/networking/app-services/), and
 [app-secret](https://fly.io/docs/apps/secrets/) contracts.
 
-Each internal hop has its own dedicated HMAC secret. Requests and responses bind the body hash,
-timestamp, nonce, request nonce, path, method, direction, and protocol version; stale, replayed,
-unsigned, or differently hashed messages fail before state creation or compilation. The review
-service never receives the raw paid API key. The worker receives no billing database, signing key,
-review volume, API key, receipt secret, Stripe secret, or Fly API token.
+Each internal hop has its own dedicated HMAC secret. The SDK now implements this complete contract
+for API→review requests and responses; the deployment must use an independent implementation of
+the same fail-closed properties for the still-pending review→worker hop. Stale, replayed, unsigned,
+or differently hashed API→review messages fail before state creation. The review service never
+receives the raw paid API key. The worker receives no billing database, signing key, review volume,
+API key, receipt secret, Stripe secret, or Fly API token.
 
 Inside the worker Machine, Bubblewrap runs the fixed SDK module with a read-only Python/Node runtime,
 read-only pinned dependency seed, empty temporary workspace, cleared environment, new PID/IPC/UTS

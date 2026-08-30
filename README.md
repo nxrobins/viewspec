@@ -153,7 +153,12 @@ service contracts, not a deployment: no authorized storage or live link exists y
 also contains the bounded ASGI mount and an install-free, pinned-dependency remote
 rebuild verifier that requires byte-for-byte static/React equivalence plus a separately supplied
 real sandbox attestation. Its isolated worker request contains semantic source and expected hashes,
-not executable uploaded artifacts, while blocking verification runs outside the API event loop. See the
+not executable uploaded artifacts, while blocking verification runs outside the API event loop.
+The production ingress now authenticates the exact allowlisted upload headers and archive hash,
+durably rejects replay across restarts, closes direct creation in production composition, strips
+reserved internal headers from external routes before adapter dispatch, and binds the response to
+the originating request nonce. The API bridge, isolated worker, deployment, and signed canary
+release remain pending. See the
 [private review deployment contract](docs/studio-review-deployment.md) for the remaining hosted
 canary gate.
 

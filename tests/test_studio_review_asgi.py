@@ -11,6 +11,13 @@ from viewspec.studio_review_http import (
     STUDIO_REVIEW_HTTP_MAX_JSON_BYTES,
     StudioReviewHTTPAdapter,
 )
+from viewspec.studio_review_internal import (
+    STUDIO_REVIEW_INTERNAL_AUTHENTICATED_HEADER,
+    STUDIO_REVIEW_INTERNAL_INGRESS_PATH,
+    STUDIO_REVIEW_INTERNAL_NONCE_HEADER,
+    StudioReviewInternalAuth,
+    StudioReviewInternalNonceStore,
+)
 
 
 class RecordingAdapter(StudioReviewHTTPAdapter):
@@ -120,6 +127,21 @@ def test_asgi_bridge_uses_raw_path_and_scope_scheme_without_trusting_forwarded_h
     assert request.headers == {"x-forwarded-proto": "https"}
 
 
+def test_asgi_bridge_strips_internal_transport_headers_before_external_dispatch() -> None:
+    adapter = RecordingAdapter()
+    app = StudioReviewASGIApp(adapter)
+    _invoke(
+        app,
+        headers=(
+            (b"content-type", b"text/plain"),
+            (b"x-viewspec-internal-authenticated", b"true"),
+            (b"x-viewspec-internal-signature", b"hmac-sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"),
+        ),
+    )
+
+    assert adapter.requests[0].headers == {"content-type": "text/plain"}
+
+
 def test_asgi_bridge_rejects_duplicate_or_oversized_inputs_before_dispatch() -> None:
     for headers, messages in (
         (
@@ -218,3 +240,153 @@ def test_asgi_bridge_runs_blocking_review_service_outside_the_event_loop_thread(
     assert sent[0]["status"] == 201
     assert len(observed) == 1
     assert observed[0] != main_thread
+
+
+def test_internal_ingress_binds_request_and_response_while_direct_create_stays_closed(tmp_path) -> None:
+    now = 1_800_000_000
+    secret = b"api-to-review-asgi-test-secret-0001"
+    request_nonce = "1" * 32
+    response_nonce = "2" * 32
+    client = StudioReviewInternalAuth(
+        secret,
+        nonce_store=StudioReviewInternalNonceStore(tmp_path / "client-nonces.sqlite3"),
+        clock=lambda: now,
+        nonce_factory=lambda: request_nonce,
+    )
+    service = StudioReviewInternalAuth(
+        secret,
+        nonce_store=StudioReviewInternalNonceStore(tmp_path / "service-nonces.sqlite3"),
+        clock=lambda: now,
+        nonce_factory=lambda: response_nonce,
+    )
+    body = b"abcdef"
+    request_headers = client.sign_request(
+        method="POST",
+        path=STUDIO_REVIEW_INTERNAL_INGRESS_PATH,
+        headers={
+            "content-type": "application/vnd.viewspec.review+zip",
+            "idempotency-key": "internal-asgi-create-0001",
+            "x-viewspec-disclosure-accepted": "true",
+            "x-viewspec-expiry-seconds": "3600",
+        },
+        body=body,
+    )
+    adapter = RecordingAdapter()
+    delegated: list[str] = []
+
+    async def downstream(scope, receive, send) -> None:
+        delegated.append(str(scope["path"]))
+        await receive()
+        await send({"type": "http.response.start", "status": 204, "headers": []})
+        await send({"type": "http.response.body", "body": b"", "more_body": False})
+
+    app = StudioReviewASGIApp(
+        adapter,
+        downstream=downstream,
+        internal_auth=service,
+        allow_direct_create=False,
+    )
+    sent = _invoke(
+        app,
+        path=STUDIO_REVIEW_INTERNAL_INGRESS_PATH,
+        scheme="http",
+        headers=tuple((name.encode(), value.encode()) for name, value in request_headers.items()),
+        messages=[{"type": "http.request", "body": body, "more_body": False}],
+    )
+
+    assert len(adapter.requests) == 1
+    assert adapter.requests[0] == ReviewHTTPRequest(
+        method="POST",
+        path="/v1/reviews",
+        headers={
+            "content-type": "application/vnd.viewspec.review+zip",
+            "idempotency-key": "internal-asgi-create-0001",
+            "x-viewspec-disclosure-accepted": "true",
+            "x-viewspec-expiry-seconds": "3600",
+            STUDIO_REVIEW_INTERNAL_AUTHENTICATED_HEADER: "true",
+        },
+        body=body,
+        scheme="https",
+    )
+    assert sent[0]["status"] == 201
+    response_headers = {
+        name.decode(): value.decode()
+        for name, value in sent[0]["headers"]
+        if name.decode() != "set-cookie"
+    }
+    client.verify_response(
+        status=201,
+        path=STUDIO_REVIEW_INTERNAL_INGRESS_PATH,
+        headers=response_headers,
+        body=body,
+        request_nonce=request_headers[STUDIO_REVIEW_INTERNAL_NONCE_HEADER],
+    )
+
+    direct = _invoke(
+        app,
+        path="/v1/reviews",
+        headers=((b"content-type", b"application/vnd.viewspec.review+zip"),),
+        messages=[{"type": "http.request", "body": body, "more_body": False}],
+    )
+    assert direct[0]["status"] == 404
+    assert len(adapter.requests) == 1
+    assert delegated == []
+
+
+def test_internal_ingress_is_not_delegated_without_internal_auth() -> None:
+    adapter = RecordingAdapter()
+    delegated: list[str] = []
+
+    async def downstream(scope, receive, send) -> None:
+        delegated.append(str(scope["path"]))
+        await receive()
+        await send({"type": "http.response.start", "status": 204, "headers": []})
+        await send({"type": "http.response.body", "body": b"", "more_body": False})
+
+    sent = _invoke(
+        StudioReviewASGIApp(adapter, downstream=downstream),
+        path=STUDIO_REVIEW_INTERNAL_INGRESS_PATH,
+    )
+
+    assert sent[0]["status"] == 404
+    assert adapter.requests == []
+    assert delegated == []
+
+
+def test_internal_ingress_rejects_tampering_before_adapter_dispatch(tmp_path) -> None:
+    now = 1_800_000_000
+    secret = b"api-to-review-asgi-test-secret-0002"
+    client = StudioReviewInternalAuth(
+        secret,
+        nonce_store=StudioReviewInternalNonceStore(tmp_path / "client-nonces.sqlite3"),
+        clock=lambda: now,
+        nonce_factory=lambda: "3" * 32,
+    )
+    service = StudioReviewInternalAuth(
+        secret,
+        nonce_store=StudioReviewInternalNonceStore(tmp_path / "service-nonces.sqlite3"),
+        clock=lambda: now,
+    )
+    signed = client.sign_request(
+        method="POST",
+        path=STUDIO_REVIEW_INTERNAL_INGRESS_PATH,
+        headers={
+            "content-type": "application/vnd.viewspec.review+zip",
+            "idempotency-key": "internal-asgi-create-0002",
+            "x-viewspec-disclosure-accepted": "true",
+            "x-viewspec-expiry-seconds": "3600",
+        },
+        body=b"original",
+    )
+    adapter = RecordingAdapter()
+    app = StudioReviewASGIApp(adapter, internal_auth=service, allow_direct_create=False)
+    sent = _invoke(
+        app,
+        path=STUDIO_REVIEW_INTERNAL_INGRESS_PATH,
+        headers=tuple((name.encode(), value.encode()) for name, value in signed.items()),
+        messages=[{"type": "http.request", "body": b"tampered", "more_body": False}],
+    )
+
+    assert sent[0]["status"] == 401
+    assert b"STUDIO_REVIEW_UPLOAD_UNAUTHORIZED" in sent[1]["body"]
+    assert adapter.requests == []
