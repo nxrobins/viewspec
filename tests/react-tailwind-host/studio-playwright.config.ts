@@ -2,7 +2,12 @@ import { defineConfig, devices } from "@playwright/test";
 
 export default defineConfig({
   testDir: "./tests",
-  testMatch: ["studio-moment.spec.ts", "studio-state-text.spec.ts", "studio-share.spec.ts"],
+  testMatch: [
+    "studio-creation-room.spec.ts",
+    "studio-moment.spec.ts",
+    "studio-state-text.spec.ts",
+    "studio-share.spec.ts",
+  ],
   timeout: 90_000,
   expect: {
     timeout: 8_000,

@@ -8,6 +8,8 @@ import time
 from viewspec.review_cli import DEFAULT_REVIEW_PORT, open_review
 from viewspec.review_compile import STUDIO_COMPARE_TARGET, capture_source_snapshot
 from viewspec.review_contract import ReviewContractError
+from viewspec.studio_creation import STUDIO_CREATION_TASK_DEFAULT, prepare_studio_creation
+from viewspec.studio_creation_cli import accepted_creation_handoff_port, open_studio_creation_room
 
 
 STUDIO_EXPERIENCE_VERSION = 1
@@ -29,7 +31,7 @@ def resolve_studio_source(
         raise ReviewContractError(
             "STUDIO_SOURCE_NOT_FOUND",
             "ViewSpec Studio could not find viewspec.app.json or viewspec.intent.json.",
-            "Ask your agent to create one semantic source, then run viewspec studio again.",
+            "Give your agent a brief and open one room: viewspec studio --brief-file product-brief.md.",
             cli_exit=2,
         )
     if len(candidates) > 1:
@@ -58,10 +60,99 @@ def open_studio(
     compare: bool = False,
     share: bool = False,
     share_reference: str | Path | None = None,
+    brief: str | None = None,
+    brief_file: str | Path | None = None,
+    reference: str | Path | None = None,
+    kind: str = "app",
+    task_out: str | Path = STUDIO_CREATION_TASK_DEFAULT,
 ) -> dict[str, object]:
     """Open the checked Preview → Comment → Approve experience."""
 
     started = time.perf_counter_ns()
+    creation_requested = brief is not None or brief_file is not None or reference is not None
+    if creation_requested:
+        if source is not None:
+            raise ReviewContractError(
+                "STUDIO_CREATION_OPTIONS_INVALID",
+                "Studio cannot combine an explicit semantic source with a first-creation brief.",
+                "Open the existing source, or omit SOURCE and create from the brief.",
+                cli_exit=2,
+            )
+        if share or share_reference is not None:
+            raise ReviewContractError(
+                "STUDIO_CREATION_OPTIONS_INVALID",
+                "A first-creation room cannot create a private review before its product is checked.",
+                "Open the local creation room first; choose Share only from a checked comparison.",
+                cli_exit=2,
+            )
+        prepared = prepare_studio_creation(
+            brief=brief,
+            brief_file=brief_file,
+            reference=reference,
+            kind=kind,
+            task_out=task_out,
+            cwd=cwd,
+        )
+        creation = prepared.get("creation")
+        paths = prepared.get("paths")
+        if not isinstance(creation, dict) or not isinstance(paths, dict) or not isinstance(paths.get("task"), str):
+            raise ReviewContractError(
+                "STUDIO_CREATION_ROOM_FAILED",
+                "Studio did not receive a complete deterministic creation task.",
+                "Retry the exact local brief.",
+                cli_exit=1,
+            )
+        source_kind = str(creation.get("source_kind"))
+        selected_target = _creation_target(
+            source_kind=source_kind,
+            target=target,
+            verify=verify,
+            install=install,
+            compare=compare,
+        )
+        if creation.get("task_action") == "accepted":
+            resume_port = accepted_creation_handoff_port(
+                paths["task"],
+                cwd=cwd,
+                design=design,
+                target=selected_target,
+                requested_port=port,
+                state_root=state_root,
+                convergence_state_root=convergence_state_root,
+                verify=verify,
+                install=install,
+                expected_source_sha256=str(creation["source_sha256"]),
+            )
+            resumed = open_studio(
+                paths.get("source"),
+                cwd=cwd,
+                design=design,
+                target=target,
+                port=resume_port or port,
+                state_root=state_root,
+                convergence_state_root=convergence_state_root,
+                reopen=reopen,
+                no_open=no_open,
+                verify=verify,
+                install=install,
+                compare=compare,
+            )
+            resumed["prepared_creation"] = creation
+            return resumed
+        payload = open_studio_creation_room(
+            paths["task"],
+            cwd=cwd,
+            design=design,
+            target=selected_target,
+            port=port,
+            state_root=state_root,
+            convergence_state_root=convergence_state_root,
+            no_open=no_open,
+            verify=verify,
+            install=install,
+        )
+        payload["prepared_creation"] = creation
+        return payload
     resolved = resolve_studio_source(source, cwd=cwd)
     if share_reference is not None and not share:
         raise ReviewContractError(
@@ -165,6 +256,40 @@ def open_studio(
             "Keep this task running so your agent can receive the feedback by semantic identity.",
         ],
     }
+
+
+def _creation_target(
+    *,
+    source_kind: str,
+    target: str | None,
+    verify: bool,
+    install: bool,
+    compare: bool,
+) -> str | None:
+    if not compare:
+        return target
+    if target is not None or verify:
+        raise ReviewContractError(
+            "STUDIO_COMPARISON_INVALID",
+            "Studio comparison owns both targets and cannot combine with --target or --verify.",
+            "Remove --target and --verify; use viewspec studio --compare --install.",
+            cli_exit=2,
+        )
+    if not install:
+        raise ReviewContractError(
+            "STUDIO_COMPARISON_INSTALL_REQUIRED",
+            "Studio comparison requires the exact locked React runtime dependencies.",
+            "Pass --install to authorize the bounded npm ci --ignore-scripts build flow.",
+            cli_exit=2,
+        )
+    if source_kind != "app_bundle":
+        raise ReviewContractError(
+            "STUDIO_COMPARISON_REQUIRES_APP",
+            "Static/React Studio comparison requires one AppBundle product source.",
+            "Use --kind app for a product; one-screen IntentBundle comparison is not yet supported.",
+            cli_exit=2,
+        )
+    return STUDIO_COMPARE_TARGET
 
 
 __all__ = [

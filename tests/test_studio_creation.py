@@ -14,6 +14,7 @@ from viewspec.studio_creation import (
     STUDIO_CREATION_TASK_DEFAULT,
     StudioCreationError,
     accept_studio_creation,
+    inspect_accepted_studio_creation,
     prepare_studio_creation,
 )
 
@@ -154,6 +155,18 @@ def test_creation_never_overwrites_existing_semantic_source(tmp_path) -> None:
     with pytest.raises(StudioCreationError) as raised:
         prepare_studio_creation(brief="Build a dispatch console", cwd=tmp_path)
     assert raised.value.code == "STUDIO_CREATION_SOURCE_EXISTS"
+
+
+def test_creation_reports_a_bounded_conflict_for_an_unreadable_existing_task(tmp_path) -> None:
+    task = tmp_path / STUDIO_CREATION_TASK_DEFAULT
+    task.parent.mkdir(parents=True)
+    task.write_bytes(b"\xff\xfe")
+
+    with pytest.raises(StudioCreationError) as raised:
+        prepare_studio_creation(brief="Build a dispatch console", cwd=tmp_path)
+
+    assert raised.value.code == "STUDIO_CREATION_TASK_EXISTS"
+    assert task.read_bytes() == b"\xff\xfe"
 
 
 @pytest.mark.parametrize(
@@ -298,6 +311,33 @@ def test_accept_proves_then_publishes_app_source(tmp_path) -> None:
     assert (tmp_path / "viewspec.app.json").read_bytes() == candidate.read_bytes()
     proof = Path(accepted["paths"]["proof"])
     assert json.loads((proof / "app_proof_report.json").read_text(encoding="utf-8"))["ok"] is True
+
+
+def test_accepted_creation_inspection_requires_exact_candidate_capture_and_passing_proof(tmp_path) -> None:
+    prepare_studio_creation(brief="Build a field dispatch dashboard", kind="view", cwd=tmp_path)
+    candidate = _write_candidate(tmp_path, _custom_intent(), kind="view")
+    accepted = accept_studio_creation(cwd=tmp_path)
+
+    inspected = inspect_accepted_studio_creation(cwd=tmp_path)
+
+    assert inspected["source_sha256"] == accepted["creation"]["source_sha256"]
+    assert Path(inspected["captured_candidate_path"]).read_bytes() == candidate.read_bytes()
+    assert inspected["candidate_validation"] == "passed"
+    assert inspected["artifact_check"] == "passed"
+
+    resumed = prepare_studio_creation(brief="Build a field dispatch dashboard", kind="view", cwd=tmp_path)
+    assert resumed["creation"]["task_action"] == "accepted"
+    assert resumed["creation"]["status"] == "source_ready"
+    assert resumed["creation"]["source_sha256"] == accepted["creation"]["source_sha256"]
+    assert resumed["next_actions"] == ["Open the exact checked result with viewspec studio."]
+
+    source = tmp_path / "viewspec.intent.json"
+    changed = _custom_intent()
+    changed["substrate"]["nodes"]["starter_dashboard"]["attrs"]["title"] = "Substituted"
+    source.write_text(json.dumps(changed), encoding="utf-8")
+    with pytest.raises(StudioCreationError) as raised:
+        inspect_accepted_studio_creation(cwd=tmp_path)
+    assert raised.value.code == "STUDIO_CREATION_ACCEPTANCE_INVALID"
 
 
 def test_studio_creation_cli_exposes_agent_handoff_without_compiler_vocabulary(tmp_path, monkeypatch, capsys) -> None:
