@@ -254,14 +254,16 @@ class StudioShareRelease:
 
 def fetch_studio_share_release(
     *,
+    api_key: str,
     api_origin: str = STUDIO_SHARE_API_ORIGIN,
     review_origin: str = STUDIO_SHARE_REVIEW_ORIGIN,
     public_key: ReceiptPublicKey | Mapping[str, Any] | None = None,
     now_epoch_s: int | None = None,
     transport: HTTPTransport | None = None,
 ) -> StudioShareRelease:
-    """Fetch and verify the active production Share release after explicit opt-in."""
+    """Check this account's eligibility and verify its active production release."""
 
+    _require_api_key(api_key)
     api = _canonical_origin(api_origin, "Studio Share API origin")
     request = transport or _http_transport
     if public_key is None:
@@ -275,7 +277,8 @@ def fetch_studio_share_release(
                 "Retry after the canonical API publishes a valid receipt key.",
                 http_status=502,
             ) from exc
-    readiness = _json_get(request, f"{api}{STUDIO_SHARE_READINESS_PATH}", noun="Studio Share readiness")
+    readiness = _json_get(request, f"{api}{STUDIO_SHARE_READINESS_PATH}", noun="Studio Share readiness",
+                          headers={"Authorization": f"Bearer {api_key}"})
     if set(readiness) != {"schema_version", "release"} or readiness.get("schema_version") != 1:
         raise _share_error(
             "STUDIO_SHARE_RELEASE_INVALID",
@@ -309,13 +312,7 @@ class StudioSharePublisher:
     ) -> None:
         if not isinstance(release, StudioShareRelease):
             raise TypeError("Studio Share publisher requires a verified release")
-        if not isinstance(api_key, str) or not 1 <= len(api_key) <= 512 or any(char.isspace() for char in api_key):
-            raise _share_error(
-                "STUDIO_SHARE_AUTH_REQUIRED",
-                "Private sharing requires one bounded API credential.",
-                "Set VIEWSPEC_STUDIO_API_KEY before starting Studio with --share.",
-                http_status=401,
-            )
+        _require_api_key(api_key)
         self.release = release
         self._api_key = api_key
         self._source = Path(source)
@@ -442,10 +439,27 @@ class StudioSharePublisher:
             )
 
 
-def _json_get(request: HTTPTransport, url: str, *, noun: str) -> dict[str, object]:
-    status, _headers, body = request("GET", url, {}, None, 15.0)
+def _require_api_key(api_key: object) -> None:
+    if not isinstance(api_key, str) or re.fullmatch(r"[\x21-\x7e]{1,512}", api_key) is None:
+        raise _share_error(
+            "STUDIO_SHARE_AUTH_REQUIRED",
+            "Private sharing requires one bounded API credential.",
+            "Set VIEWSPEC_STUDIO_API_KEY before starting Studio with --share.",
+            http_status=401,
+        )
+
+
+def _json_get(request: HTTPTransport, url: str, *, noun: str, headers: Mapping[str, str] | None = None) -> dict[str, object]:
+    status, _headers, body = request("GET", url, headers or {}, None, 15.0)
     payload = _json_response(status, body, noun=noun)
     if status != 200:
+        if noun == "Studio Share readiness" and status in {401, 403}:
+            raise _share_error(
+                "STUDIO_SHARE_AUTH_REQUIRED" if status == 401 else "STUDIO_SHARE_NOT_ELIGIBLE",
+                "Private sharing is not available for this account.",
+                "Use an active paid API credential admitted to the private sharing beta, or continue locally without --share.",
+                http_status=status,
+            )
         raise _remote_error(payload, status=status)
     return payload
 
@@ -635,7 +649,22 @@ def _http_transport(
             "Install viewspec[remote], then restart Studio with --share.",
         ) from None
     try:
-        response = httpx.request(method, url, headers=dict(headers), content=body, timeout=timeout)
+        with httpx.Client(trust_env=False, follow_redirects=False) as client:
+            with client.stream(method, url, headers={**headers, "Accept-Encoding": "identity"}, content=body, timeout=timeout) as response:
+                content = bytearray()
+                if response.headers.get("content-encoding", "identity") != "identity":
+                    raise _share_error("STUDIO_SHARE_REMOTE_INVALID", "Encoded private-review responses are not accepted.",
+                                       "Retry after the production service is healthy.", http_status=502)
+                for chunk in response.iter_raw():
+                    if len(content) + len(chunk) > STUDIO_SHARE_HTTP_MAX_RESPONSE_BYTES:
+                        raise _share_error(
+                            "STUDIO_SHARE_REMOTE_INVALID",
+                            "The production private-review response exceeds its bounded size.",
+                            "Keep the local package and retry when the service is healthy.",
+                            http_status=502,
+                        )
+                    content.extend(chunk)
+                return int(response.status_code), dict(response.headers), bytes(content)
     except httpx.HTTPError as exc:
         raise _share_error(
             "STUDIO_SHARE_REMOTE_UNAVAILABLE",
@@ -643,15 +672,6 @@ def _http_transport(
             "Keep the local package and retry when the service is healthy.",
             http_status=502,
         ) from exc
-    content = bytes(response.content)
-    if len(content) > STUDIO_SHARE_HTTP_MAX_RESPONSE_BYTES:
-        raise _share_error(
-            "STUDIO_SHARE_REMOTE_INVALID",
-            "The production private-review response exceeds its bounded size.",
-            "Keep the local package and retry when the service is healthy.",
-            http_status=502,
-        )
-    return int(response.status_code), dict(response.headers), content
 
 
 __all__ = [

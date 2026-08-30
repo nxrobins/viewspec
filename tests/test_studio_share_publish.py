@@ -213,12 +213,15 @@ def test_fetch_release_verifies_key_and_readiness_contract() -> None:
 
     def transport(method, url, headers, body, timeout):
         calls.append((method, url))
-        assert headers == {} and body is None and timeout == 15.0
+        assert body is None and timeout == 15.0
         if url.endswith("/v1/receipt-key"):
+            assert headers == {}
             return 200, {}, canonical_json_bytes(public_key)
+        assert headers == {"Authorization": "Bearer readiness-private-key"}
         return 200, {}, canonical_json_bytes({"schema_version": 1, "release": receipt})
 
     release = fetch_studio_share_release(
+        api_key="readiness-private-key",
         api_origin=_API_ORIGIN,
         review_origin=_REVIEW_ORIGIN,
         now_epoch_s=_NOW,
@@ -229,6 +232,105 @@ def test_fetch_release_verifies_key_and_readiness_contract() -> None:
         ("GET", f"{_API_ORIGIN}/v1/receipt-key"),
         ("GET", f"{_API_ORIGIN}/v1/studio-share-readiness"),
     ]
+    assert "readiness-private-key" not in repr(release)
+    assert "readiness-private-key" not in json.dumps(release.browser_projection())
+
+
+@pytest.mark.parametrize("api_key", ["", None, 123, "a" * 513, "has space", "line\nbreak", "control\x00", "unicode-\u200b"])
+def test_readiness_rejects_invalid_credential_before_any_network(api_key):
+    calls = []
+    with pytest.raises(ReviewContractError) as failure:
+        fetch_studio_share_release(api_key=api_key, transport=lambda *args: calls.append(args))
+    assert failure.value.code == "STUDIO_SHARE_AUTH_REQUIRED"
+    assert calls == []
+
+
+@pytest.mark.parametrize("status,code", [(401, "STUDIO_SHARE_AUTH_REQUIRED"), (403, "STUDIO_SHARE_NOT_ELIGIBLE")])
+def test_readiness_denial_does_not_expose_credential_or_remote_details(status, code):
+    _, public_key = _signed_release()
+    def transport(*args):
+        return status, {}, canonical_json_bytes({"error": {"code": "readiness-private-key", "message": "untrusted private detail"}})
+    with pytest.raises(ReviewContractError) as failure:
+        fetch_studio_share_release(api_key="readiness-private-key", public_key=public_key, transport=transport)
+    assert failure.value.code == code
+    assert "readiness-private-key" not in str(failure.value)
+    assert "untrusted private detail" not in str(failure.value)
+    assert "continue locally" in failure.value.fix
+
+
+@pytest.mark.parametrize("mode", ["success", "redirect", "encoded", "oversize"])
+def test_share_transport_refuses_proxy_redirect_and_unbounded_response(monkeypatch, mode):
+    import httpx
+    import viewspec.studio_share_publish as module
+    calls = []
+    real_client = httpx.Client
+    closed = []
+    class Stream(httpx.SyncByteStream):
+        def __iter__(self):
+            yield b"{}" if mode != "oversize" else b"x" * (module.STUDIO_SHARE_HTTP_MAX_RESPONSE_BYTES + 1)
+        def close(self):
+            closed.append(True)
+    def handler(request):
+        calls.append(str(request.url))
+        assert request.headers["authorization"] == "Bearer private-transport-key"
+        assert request.headers["accept-encoding"] == "identity"
+        headers = {"location": "https://untrusted.invalid"} if mode == "redirect" else {}
+        if mode == "encoded":
+            headers["content-encoding"] = "gzip"
+        return httpx.Response(302 if mode == "redirect" else 200, headers=headers, stream=Stream())
+    def client(**kwargs):
+        assert kwargs == {"trust_env": False, "follow_redirects": False}
+        return real_client(**kwargs, transport=httpx.MockTransport(handler))
+    monkeypatch.setattr(httpx, "Client", client)
+    args = ("GET", "https://api.viewspec.dev/v1/studio-share-readiness", {"Authorization": "Bearer private-transport-key"}, None, 15.0)
+    if mode in {"encoded", "oversize"}:
+        with pytest.raises(ReviewContractError) as failure:
+            module._http_transport(*args)
+        assert failure.value.code == "STUDIO_SHARE_REMOTE_INVALID"
+    else:
+        result = module._http_transport(*args)
+        assert result[0] == (302 if mode == "redirect" else 200)
+    assert calls == [args[1]] and closed
+
+
+@pytest.mark.parametrize("eligible", [True, False])
+def test_daemon_checks_eligibility_with_private_key_before_exposing_share(tmp_path, monkeypatch, capsys, eligible):
+    import viewspec.review_daemon as daemon
+    import viewspec.studio_share_publish as module
+    source, state, runtime = _checked_comparison(tmp_path, monkeypatch)
+    monkeypatch.setenv("VIEWSPEC_STUDIO_API_KEY", "daemon-private-key")
+    monkeypatch.setattr(daemon.ReviewRuntime, "open", lambda *args, **kwargs: runtime)
+    calls = []
+    def fetch(**kwargs):
+        calls.append(kwargs)
+        if not eligible:
+            raise ReviewContractError("STUDIO_SHARE_NOT_ELIGIBLE", "Private sharing is not available for this account.",
+                                      "Continue locally without --share.", http_status=403, cli_exit=2)
+        import time
+        now = int(time.time())
+        receipt, key = _signed_release(_release_payload(issued_at_epoch_s=now, expires_at_epoch_s=now + 900))
+        return StudioShareRelease.from_signed_receipt(receipt, key, expected_api_origin=_API_ORIGIN,
+                                                      expected_review_origin=_REVIEW_ORIGIN)
+    monkeypatch.setattr(module, "fetch_studio_share_release", fetch)
+    monkeypatch.setattr(daemon, "_install_signal_handlers", lambda stop: None)
+    inspected = []
+    def watch(runtime, server, stop, **kwargs):
+        inspected.append(True)
+        assert "daemon-private-key" not in json.dumps(server.status())
+        for name in ("server.json", "agent-capability.json"):
+            assert "daemon-private-key" not in (runtime.session_dir / name).read_text()
+    monkeypatch.setattr(daemon, "_watch_sources", watch)
+    import socket
+    with socket.socket() as probe:
+        probe.bind(("127.0.0.1", 0))
+        port = probe.getsockname()[1]
+    result = daemon.main(["--source", str(source), "--state-root", str(state), "--port", str(port), "--studio-share", "--install"])
+    captured = capsys.readouterr().out
+    assert "daemon-private-key" not in captured
+    assert calls == [{"api_key": "daemon-private-key"}]
+    assert result == (0 if eligible else 2), captured
+    assert bool(inspected) is eligible
+    assert json.loads(captured)["ok"] is eligible
 
 
 def test_publisher_prepares_without_upload_then_creates_one_exact_private_link(tmp_path, monkeypatch) -> None:

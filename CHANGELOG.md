@@ -49,6 +49,11 @@ All notable changes to ViewSpec are documented in this file. The format follows
 
 ### Changed
 
+- Private Share readiness now requires the daemon-held API credential, matching the backend's
+  active paid beta eligibility check. The public receipt-key fetch remains anonymous, credentials
+  stay out of browser state and daemon metadata, and private HTTP transport refuses redirects and
+  environment proxies while enforcing the response-size limit during streaming. Production Share
+  still requires a separately authorized signed canary release.
 - Shipped React builds, browser proof, and the active evaluation seed now share the same locked
   build dependencies, including PostCSS 8.5.26 and Nano ID 3.3.18 security fixes. CI audits all three
   locks, checks shared package integrity, exercises bounded dependency regressions, and independently
