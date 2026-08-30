@@ -21,6 +21,15 @@ SHARE_RELEASE_MAX_LIFETIME_SECONDS = 60 * 60
 RUN_ID_RE = re.compile(r"^vsrcan_[0-9a-f]{32}$")
 SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
 IMAGE_DIGEST_RE = re.compile(r"^sha256:[0-9a-f]{64}$")
+REVISION_RE = re.compile(r"^(?:[0-9a-f]{40}|[0-9a-f]{64})$")
+BUILD_MANIFEST_FIELDS = {
+    "schema_version",
+    "source_revision",
+    "public_sdk_revision",
+    "public_sdk_wheel_sha256",
+    "api_image_digest",
+    "studio_image_digest",
+}
 STAGE_KINDS = (
     "deployment",
     "ingress",
@@ -60,11 +69,14 @@ APP_FIELDS = {
     "app_id",
     "machine_id_sha256",
     "image_digest",
+    "source_revision",
+    "public_sdk_revision",
+    "public_sdk_wheel_sha256",
     "public_https",
     "durable_volume",
     "forbidden_secret_count",
 }
-DEPLOYMENT_FIELDS = COMMON_STAGE_FIELDS | {"origin", "apps", "secret_boundary_checks"}
+DEPLOYMENT_FIELDS = COMMON_STAGE_FIELDS | {"origin", "build_manifest", "apps", "secret_boundary_checks"}
 SECRET_BOUNDARY_CHECKS = {
     "api_review_hmac_separate_from_review_worker_hmac",
     "capability_and_receipt_keys_separate",
@@ -245,16 +257,37 @@ def _common(payload: Mapping[str, Any], *, kind: str, run_id: str, deployment_sh
         raise CanaryError(f"{kind} stage is not bound to this run and deployment")
 
 
+def deployment_manifest_sha256(manifest: object) -> str:
+    """Validate and identify the exact two-image build approved for one deployment."""
+    if not isinstance(manifest, dict):
+        raise CanaryError("Deployment build manifest must be an object")
+    _exact(manifest, BUILD_MANIFEST_FIELDS, "deployment build manifest")
+    if type(manifest.get("schema_version")) is not int or manifest["schema_version"] != 1:
+        raise CanaryError("Deployment build manifest version is invalid")
+    for field in ("source_revision", "public_sdk_revision"):
+        value = manifest.get(field)
+        if not isinstance(value, str) or REVISION_RE.fullmatch(value) is None:
+            raise CanaryError(f"Deployment {field} must be one immutable Git revision")
+    _sha(manifest.get("public_sdk_wheel_sha256"), "deployment SDK wheel hash")
+    for field in ("api_image_digest", "studio_image_digest"):
+        value = manifest.get(field)
+        if not isinstance(value, str) or IMAGE_DIGEST_RE.fullmatch(value) is None:
+            raise CanaryError(f"Deployment {field} must be one immutable sha256 digest")
+    return _sha256_bytes(_canonical_bytes(manifest))
+
+
 def _deployment(payload: Mapping[str, Any], *, run_id: str, deployment_sha256: str) -> None:
     _exact(payload, DEPLOYMENT_FIELDS, "deployment stage")
     _common(payload, kind="deployment", run_id=run_id, deployment_sha256=deployment_sha256)
     if payload.get("origin") != ORIGIN:
         raise CanaryError("Deployment stage must bind the canonical review origin")
+    manifest = payload.get("build_manifest")
+    if deployment_manifest_sha256(manifest) != deployment_sha256:
+        raise CanaryError("Deployment build manifest does not match the frozen deployment hash")
     apps = payload.get("apps")
     if not isinstance(apps, list) or len(apps) != 3:
         raise CanaryError("Deployment stage must record exactly three apps")
     by_id: dict[str, Mapping[str, Any]] = {}
-    image_digest: str | None = None
     for app in apps:
         if not isinstance(app, dict):
             raise CanaryError("Deployment app record must be an object")
@@ -266,10 +299,12 @@ def _deployment(payload: Mapping[str, Any], *, run_id: str, deployment_sha256: s
         digest = app.get("image_digest")
         if not isinstance(digest, str) or IMAGE_DIGEST_RE.fullmatch(digest) is None:
             raise CanaryError("Deployment image digest must be one immutable sha256 digest")
-        if image_digest is None:
-            image_digest = digest
-        elif image_digest != digest:
-            raise CanaryError("All three apps must run the same reviewed image digest")
+        expected_image = manifest["api_image_digest" if app_id == "viewspec-api" else "studio_image_digest"]
+        if digest != expected_image:
+            raise CanaryError(f"{app_id} image differs from its frozen role-specific build")
+        for field in ("source_revision", "public_sdk_revision", "public_sdk_wheel_sha256"):
+            if app.get(field) != manifest[field]:
+                raise CanaryError(f"{app_id} {field} differs from its frozen build provenance")
         _zero(app.get("forbidden_secret_count"), f"{app_id} forbidden secret count")
         by_id[str(app_id)] = app
     expected_boundaries = {

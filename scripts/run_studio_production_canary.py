@@ -23,6 +23,7 @@ else:
 SCHEMA_VERSION = 1
 RUNNER_ID = "viewspec-studio-production-canary-runner-v1"
 REPORT_NAME = "production-canary-evidence.json"
+DEPLOYMENT_MANIFEST_NAME = "deployment-manifest.json"
 PLAN_FIELDS = {
     "schema_version",
     "runner_id",
@@ -122,11 +123,18 @@ def _regular_file(path: Path, noun: str) -> Path:
     return resolved
 
 
+def _deployment_manifest(path: Path) -> tuple[dict[str, Any], str]:
+    if path.is_symlink() or not path.is_file() or path.stat().st_size > 16 * 1024:
+        raise CanaryRunError("Deployment manifest must be one bounded regular non-symlink file")
+    manifest = _read_object(path)
+    return manifest, checker.deployment_manifest_sha256(manifest)
+
+
 def initialize_canary(
     output: str | Path,
     *,
     driver: str | Path,
-    deployment_sha256: str,
+    deployment_manifest: str | Path,
     run_id: str | None = None,
     now_ms: int | None = None,
 ) -> dict[str, Any]:
@@ -135,18 +143,18 @@ def initialize_canary(
     destination = Path(output).resolve()
     if destination.exists() and (not destination.is_dir() or any(destination.iterdir())):
         raise CanaryRunError(f"Canary output must be an empty directory: {destination}")
-    if checker.SHA256_RE.fullmatch(deployment_sha256) is None:
-        raise CanaryRunError("Production deployment identity must be one lowercase SHA-256")
+    manifest, deployment_sha256 = _deployment_manifest(Path(deployment_manifest))
     selected_run_id = run_id or f"vsrcan_{secrets.token_hex(16)}"
     if checker.RUN_ID_RE.fullmatch(selected_run_id) is None:
         raise CanaryRunError("Production canary run id is invalid")
     driver_path = _regular_file(Path(driver), "Production canary stage driver")
     runner_path = _regular_file(Path(__file__), "Production canary runner")
     verifier_path = _regular_file(Path(checker.__file__), "Production canary verifier")
-    destination.mkdir(parents=True, exist_ok=True)
     created_at = int(time.time() * 1000) if now_ms is None else now_ms
     if type(created_at) is not int or created_at < 0:
         raise CanaryRunError("Production canary creation time is invalid")
+    destination.mkdir(parents=True, exist_ok=True)
+    _write_json(destination / DEPLOYMENT_MANIFEST_NAME, manifest)
     plan = {
         "schema_version": SCHEMA_VERSION,
         "runner_id": RUNNER_ID,
@@ -213,6 +221,10 @@ def _load_state(root: Path) -> tuple[dict[str, Any], dict[str, Any], dict[str, A
         raise CanaryRunError("Canary plan run id is invalid")
     if not isinstance(deployment_sha256, str) or checker.SHA256_RE.fullmatch(deployment_sha256) is None:
         raise CanaryRunError("Canary plan deployment identity is invalid")
+    manifest_path = root / DEPLOYMENT_MANIFEST_NAME
+    _, manifest_sha256 = _deployment_manifest(manifest_path)
+    if manifest_sha256 != deployment_sha256 or _sha256_file(manifest_path) != deployment_sha256:
+        raise CanaryRunError("Frozen deployment manifest hash changed")
     driver = plan.get("driver")
     inputs = plan.get("inputs")
     if not isinstance(driver, dict) or not isinstance(inputs, dict):
@@ -388,6 +400,8 @@ def run_canary(
             str(plan["run_id"]),
             "--deployment-sha256",
             str(plan["deployment_sha256"]),
+            "--deployment-manifest",
+            str(run_root / DEPLOYMENT_MANIFEST_NAME),
             "--origin",
             str(plan["origin"]),
             "--out",
@@ -475,7 +489,7 @@ def main() -> int:
     init = subparsers.add_parser("init", help="Freeze one empty production canary run.")
     init.add_argument("--out", required=True, type=Path)
     init.add_argument("--driver", required=True, type=Path)
-    init.add_argument("--deployment-sha256", required=True)
+    init.add_argument("--deployment-manifest", required=True, type=Path)
     run = subparsers.add_parser("run", help="Execute or resume the fixed canary stages.")
     run.add_argument("--root", required=True, type=Path)
     run.add_argument("--resume", action="store_true")
@@ -485,7 +499,7 @@ def main() -> int:
             result = initialize_canary(
                 args.out,
                 driver=args.driver,
-                deployment_sha256=args.deployment_sha256,
+                deployment_manifest=args.deployment_manifest,
             )
         else:
             result = run_canary(args.root, resume=args.resume)

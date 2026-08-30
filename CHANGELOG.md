@@ -49,6 +49,10 @@ All notable changes to ViewSpec are documented in this file. The format follows
 
 ### Changed
 
+- Production Share canary initialization now freezes an exact build manifest: role-specific API
+  and review/worker images, common backend and SDK revisions, and the SDK wheel hash. Live app
+  provenance must match that manifest, and altered manifests stop resume before execution. This
+  replaces the incorrect identical-image requirement; production deployment and Share remain gated.
 - Private Share readiness now requires the daemon-held API credential, matching the backend's
   active paid beta eligibility check. The public receipt-key fetch remains anonymous, credentials
   stay out of browser state and daemon metadata, and private HTTP transport refuses redirects and
