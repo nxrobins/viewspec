@@ -35,6 +35,7 @@ from viewspec.review_runtime import ReviewRuntime
 
 MAX_REQUEST_BODY_BYTES = 256 * 1024
 MAX_JSON_RESPONSE_BYTES = 256 * 1024
+MAX_BROWSER_CONVERSATION_TURNS = 4
 MAX_REQUEST_URI_BYTES = 2 * 1024
 MAX_REQUEST_HEADERS = 64
 MAX_REQUEST_HEADER_BYTES = 16 * 1024
@@ -901,8 +902,13 @@ class ReviewServer:
             "margin-top:5px;border:1px solid var(--line);border-radius:9px;background:#0b0e13;color:var(--text)}.panel select{min-height:38px;"
             "padding:0 9px}.panel textarea{min-height:120px;padding:11px;resize:vertical}.trace{white-space:pre-wrap;overflow-wrap:anywhere;"
             "border:1px solid var(--line);border-radius:9px;background:#0b0e13;padding:10px;color:#bac5d3;font:10px/1.6 ui-monospace,monospace}"
-            ".action-row{display:flex;gap:8px;margin-top:12px}.action-row button{flex:1}.conversation:empty:after{content:'Your agent’s replies will appear here.';"
-            "display:block;color:var(--muted);font-size:12px}.conversation{padding-left:20px;color:#dbe5ee}.change-list{display:grid;gap:8px}"
+            ".action-row{display:flex;gap:8px;margin-top:12px}.action-row button{flex:1}.conversation:empty:after{content:'Requests and agent replies stay visible here.';"
+            "display:block;color:var(--muted);font-size:12px}.conversation{display:grid;gap:8px;margin:0;padding:0;list-style:none;color:#dbe5ee}"
+            ".conversation-message{display:grid;gap:5px;padding:10px 11px;border:1px solid var(--line);border-radius:9px;background:#0b0e13}"
+            ".conversation-message[data-role=human]{border-color:rgba(255,189,74,.3);background:rgba(255,189,74,.05)}"
+            ".conversation-message[data-role=agent]{border-color:rgba(95,224,173,.25);background:rgba(95,224,173,.05)}"
+            ".conversation-message span{color:var(--muted);font:700 9px/1.3 ui-monospace,monospace;letter-spacing:.08em;text-transform:uppercase}"
+            ".conversation-message p{margin:0;color:#dbe5ee;font-size:12px;line-height:1.5;white-space:pre-wrap;overflow-wrap:anywhere}.change-list{display:grid;gap:8px}"
             ".change-row{display:grid;grid-template-columns:1fr auto 1fr;gap:8px;align-items:center}.change-value{min-width:0;padding:10px;"
             "border:1px solid var(--line);border-radius:8px;background:#0b0e13}.change-value span{display:block;color:var(--muted);"
             "font-size:9px;text-transform:uppercase}.change-value strong{display:block;margin-top:5px;overflow-wrap:anywhere;font:600 11px/1.4 ui-monospace,monospace}"
@@ -1143,8 +1149,7 @@ class ReviewServer:
             "selected_text,control_values:{},visibility:selection.visibility,evidence_refs:activeReplayRef?[activeReplayRef]:[]}};const key=hex(crypto.getRandomValues(new Uint8Array(16)));"
             "if(end)payload={actor:'human',...payload};const response=await fetch(end?endEndpoint:endpoint,{method:'POST',headers:{'Content-Type':'application/json','Idempotency-Key':key,'X-ViewSpec-Frame-Nonce':nonce},"
             "body:JSON.stringify(payload)});const result=await response.json();if(!response.ok){status.textContent=result.error?.code||'Submission failed';return;}"
-            "feedback.value='';const session=await refreshSession().catch(()=>null),agentState=session?.agent_presence?.status;"
-            "status.textContent=end?'Feedback sent; review ended':agentState==='working'?'Request delivered · agent working':agentState==='ready'?'Request sent to agent':'Request saved locally · waiting for agent';"
+            "feedback.value='';await refreshSession().catch(()=>null);status.textContent=end?'Feedback sent; review ended':'Request recorded in Conversation';"
             "if(end){document.getElementById('send').disabled=true;document.getElementById('send-end').disabled=true;}};"
             "document.getElementById('send').addEventListener('click',()=>submit(false));document.getElementById('send-end').addEventListener('click',()=>submit(true));"
             "const showValue=value=>typeof value==='string'?value:JSON.stringify(value);const renderDiff=diff=>{const direct=Array.isArray(diff?.changed_fields)?diff.changed_fields:[];"
@@ -1175,8 +1180,9 @@ class ReviewServer:
             "agentPresence.dataset.status=state;agentPresence.textContent=state==='ready'?'Agent ready':state==='working'?'Agent working':'Agent not connected';"
             "const count=Number.isInteger(review?.queued_events)&&review.queued_events>=0?review.queued_events:0;queuedCount.textContent=String(count);};"
             "const refreshSession=async()=>{const response=await fetch(sessionEndpoint);if(!response.ok)throw new Error('Studio session unavailable');const result=await response.json(),review=result.review;"
-            "renderAgentPresence(review);const replies=review?.agent_replies||[];conversation.replaceChildren(...replies.map(reply=>{const item=document.createElement('li');"
-            "item.textContent='Agent: '+reply;return item;}));renderConvergence(review?.convergence);"
+            "renderAgentPresence(review);const messages=Array.isArray(review?.conversation)?review.conversation:[];conversation.replaceChildren(...messages.filter(message=>message&&['human','agent'].includes(message.role)&&typeof message.body==='string').map(message=>{"
+            "const item=document.createElement('li'),meta=document.createElement('span'),body=document.createElement('p');item.className='conversation-message';item.dataset.role=message.role;"
+            "const state={queued:'Waiting for agent',working:'Agent working',acknowledged:'Acknowledged',replied:'Replied'}[message.status]||'';meta.textContent=message.role==='human'?'You'+(state?' · '+state:''):'Agent';body.textContent=message.body;item.append(meta,body);return item;}));renderConvergence(review?.convergence);"
             "if(review?.revision!==revision){if(retainedContext?.route&&review?.routes?.includes(retainedContext.route)){"
             "sessionStorage.setItem('viewspec-context-restore',JSON.stringify(retainedContext));}else{sessionStorage.setItem('viewspec-context-reset','1');}"
             "location.reload();}return review;};setInterval(()=>{refreshSession().catch(()=>{});},500);refreshSession().catch(()=>{});history.scrollRestoration='manual';addEventListener('pageshow',lockCanvasOrigin);loadInspection();lockCanvasOrigin();fitCanvas();if('ResizeObserver'in window)new ResizeObserver(fitCanvas).observe(canvas);else addEventListener('resize',fitCanvas);"
@@ -1284,6 +1290,7 @@ class ReviewServer:
                 "inspection": _inspection_summary(self.runtime.inspection),
                 "agent_presence": self._agent_presence(),
                 "agent_replies": list(self.runtime.session.agent_replies[-4:]),
+                "conversation": self._browser_conversation(),
                 "convergence": convergence,
                 "share": self._share_status(),
             }
@@ -1301,6 +1308,29 @@ class ReviewServer:
             else:
                 status = "not_connected"
         return {"status": status}
+
+    def _browser_conversation(self) -> list[dict[str, str]]:
+        """Project recent human requests and replies without protocol or source identities."""
+
+        session = self.runtime.session
+        outstanding = session.outstanding_batch
+        replies = dict(session.acknowledged_replies)
+        conversation: list[dict[str, str]] = []
+        for event in session.events[-MAX_BROWSER_CONVERSATION_TURNS:]:
+            if event.sequence <= session.cursor:
+                status = "acknowledged"
+            elif (
+                outstanding is not None
+                and outstanding.first_sequence <= event.sequence <= outstanding.last_sequence
+            ):
+                status = "working"
+            else:
+                status = "queued"
+            conversation.append({"role": "human", "body": event.body, "status": status})
+            reply = replies.get(event.sequence)
+            if reply is not None:
+                conversation.append({"role": "agent", "body": reply, "status": "replied"})
+        return conversation
 
     def _agent_status(self) -> dict[str, object]:
         return {
@@ -1485,6 +1515,8 @@ class ReviewServer:
             raise _http_error(400, "REVIEW_REQUEST_INVALID", "Browser handshake targets are incomplete or unexpected.")
         now = self._clock()
         with self._lock:
+            if self._handshake_revision == self.runtime.built.revision.number:
+                return
             if self._frame_first_served_at is None or now - self._frame_first_served_at > FRAME_HANDSHAKE_SECONDS:
                 raise make_review_error(
                     "REVIEW_BROWSER_HANDSHAKE_TIMEOUT",

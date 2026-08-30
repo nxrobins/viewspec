@@ -110,7 +110,8 @@ coherence proof.
 The product canvas is the default surface. **Details** opens proof, state, conversation, and the
 Live/Static inspection choice without shrinking the interface. The same rail appears automatically
 for a detected target mismatch, an exact semantic request, or an approval, and leaves with Close or
-Escape.
+Escape. Conversation keeps each human request visible from submission through agent acknowledgement
+and pairs it with the agent's reply, so the delivery loop never depends on a disappearing input.
 
 The comparison also includes **Target coherence**. At the current 390, 768, or 1440 canvas size,
 Studio observes visible elements that share the same checked semantic identity, reports one

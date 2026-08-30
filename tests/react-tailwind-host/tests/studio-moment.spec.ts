@@ -496,14 +496,18 @@ test("Studio carries a brief through three synchronized static/React semantic ch
   await page.getByRole("button", { name: "Send to agent", exact: true }).click();
   const firstCommentAt = Date.now();
   await expect(page.locator("#queued")).toHaveText("1");
-  await expect(page.locator("#status")).toHaveText("Request saved locally · waiting for agent");
+  await expect(page.locator("#status")).toHaveText("Request recorded in Conversation");
   await expect(page.locator("#agent-presence")).toHaveText("Agent not connected");
+  await expect(page.locator("#conversation")).toContainText("You · Waiting for agent");
+  await expect(page.locator("#conversation")).toContainText("Make this result unmistakable.");
 
   const polled = JSON.parse(
     runViewspec(["review-poll", sourcePath, "--state-dir", reviewState, "--timeout-ms", "1", "--json"]),
   );
   await expect(page.locator("#agent-presence")).toHaveText("Agent working");
   await expect(page.locator("#agent-presence")).toHaveAttribute("data-status", "working");
+  await expect(page.locator("#conversation")).toContainText("You · Agent working");
+  await expect(page.locator("#conversation")).toContainText("Make this result unmistakable.");
   const event = polled.batch.events[0];
   expect(event.body).toBe("Make this result unmistakable.");
   expect(event.context.viewport).toEqual({ name: "desktop", width: 1440, height: 1000 });
@@ -524,7 +528,9 @@ test("Studio carries a brief through three synchronized static/React semantic ch
   });
   acknowledgeReviewBatch(polled.batch.batch_id, "A checked badge proposal is ready for approval.");
   await expect(page.locator("#queued")).toHaveText("0");
-  await expect(page.locator("#conversation")).toContainText("Agent: A checked badge proposal is ready for approval.");
+  await expect(page.locator("#conversation")).toContainText("You · Acknowledged");
+  await expect(page.locator("#conversation")).toContainText("Make this result unmistakable.");
+  await expect(page.locator("#conversation")).toContainText("A checked badge proposal is ready for approval.");
   const decision = page.locator("#convergence");
   await expect(decision).toBeVisible();
   await expect(decision).toContainText("Before");
@@ -588,7 +594,9 @@ test("Studio carries a brief through three synchronized static/React semantic ch
   await expect(page.locator("#agent-presence")).toHaveAttribute("data-status", "ready");
   await page.getByRole("button", { name: "Send to agent", exact: true }).click();
   const secondCommentAt = Date.now();
-  await expect(page.locator("#status")).toHaveText("Request delivered · agent working");
+  await expect(page.locator("#status")).toHaveText("Request recorded in Conversation");
+  await expect(page.locator("#conversation")).toContainText("Raise this incident severity to high.");
+  await expect(page.locator("#conversation")).toContainText("You · Agent working");
   const secondPolled = JSON.parse(await secondPoll);
   const secondEvent = secondPolled.batch.events[0] as ReviewEvent;
   expect(secondEvent.body).toBe("Raise this incident severity to high.");

@@ -169,6 +169,7 @@ def test_poll_redelivers_byte_identical_batch_until_acknowledged(tmp_path) -> No
     assert session.poll(ack_batch_id=first.batch_id, agent_reply="Done.") is None
     assert session.cursor == 1
     assert session.agent_replies == ("Done.",)
+    assert session.acknowledged_replies == ((1, "Done."),)
 
 
 def test_acknowledgement_and_reply_survive_restart_without_duplication(tmp_path) -> None:
@@ -188,8 +189,10 @@ def test_acknowledgement_and_reply_survive_restart_without_duplication(tmp_path)
     recovered = ReviewSession(path, revision=_revision())
     assert recovered.cursor == 1
     assert recovered.agent_replies == ("Yes.",)
+    assert recovered.acknowledged_replies == ((1, "Yes."),)
     assert recovered.poll(ack_batch_id=batch.batch_id, agent_reply="Yes.") is None
     assert recovered.agent_replies == ("Yes.",)
+    assert recovered.acknowledged_replies == ((1, "Yes."),)
 
     with pytest.raises(ReviewContractError) as raised:
         recovered.poll(ack_batch_id=batch.batch_id, agent_reply="No.")
@@ -220,6 +223,7 @@ def test_acknowledgement_threshold_compacts_and_preserves_exact_recovery(tmp_pat
     recovered = ReviewSession(path, revision=_revision())
     assert recovered.cursor == 1
     assert recovered.agent_replies == ("Captured.",)
+    assert recovered.acknowledged_replies == ((1, "Captured."),)
     repeated = recovered.submit_event(
         idempotency_key="a" * 32,
         kind="note",

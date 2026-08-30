@@ -432,6 +432,17 @@ class ReviewSession:
         return tuple(self._agent_replies)
 
     @property
+    def acknowledged_replies(self) -> tuple[tuple[int, str], ...]:
+        """Return reply text with its acknowledged event cursor, without delivery identities."""
+
+        replies = (
+            (cursor, reply)
+            for _reply_hash, reply, cursor in self._acknowledgements.values()
+            if reply is not None
+        )
+        return tuple(sorted(replies, key=lambda item: item[0]))
+
+    @property
     def ended_by(self) -> str | None:
         return self._ended_by
 

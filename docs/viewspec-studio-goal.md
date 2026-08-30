@@ -246,7 +246,7 @@ agent presence from an open browser, an optimistic counter, or elapsed animation
 | Promise | Pass condition | Authoritative evidence |
 | --- | --- | --- |
 | Truthful presence | Studio says **Agent ready** only while one authenticated long poll owns the Review delivery lease. With no lease and no delivered batch it says **Agent not connected**. | Server projection tests using a controlled clock and a real concurrent poll. |
-| Durable handoff | A comment accepted without an agent remains queued and says **Request saved locally · waiting for agent**. Starting the agent later delivers that exact event without resubmission. | Browser submission plus delayed authenticated poll and exact event assertion. |
+| Durable handoff | A comment accepted without an agent remains queued and its Conversation entry says **Waiting for agent**. Starting the agent later delivers that exact event without resubmission. | Browser submission plus delayed authenticated poll and exact event assertion. |
 | Visible work | Once a batch is delivered but not acknowledged, Studio says **Agent working** even when the delivering request has returned. | At-least-once batch test and browser session projection. |
 | Server-owned queue | The visible request count always comes from the durable session cursor, falls to zero only after exact batch acknowledgement, and survives page reload. | Queue recovery, reload, and acknowledgement assertions. |
 | Calm first-use language | Presence and request state are visible beside the product; proof details and protocol vocabulary stay out of the primary message. The status is available to assistive technology without stealing focus. | Generated-chrome accessibility assertions and current-run visual review. |
@@ -258,7 +258,7 @@ being worked, or acknowledged.
 
 ## Milestone 4.9: brief to checked product in one room
 
-Status: implemented and locally proved; repository CI promotion is pending.
+Status: implemented, locally proved, and promoted through repository CI.
 
 The first ViewSpec experience must not begin with a missing-file error or a three-command protocol.
 In an empty workspace, the coding agent preserves the person's brief and optional local reference,
@@ -282,8 +282,27 @@ diagnostic interfaces, while managed-agent instructions prefer the single-room j
 never authors semantic source and a candidate's existence is not described as proof that an agent is
 connected.
 
-The next unmet promise after this first-value journey is one-click private sharing and bounded
-hosted execution.
+## Milestone 4.10: the request never disappears
+
+Status: implemented and locally proved; repository CI promotion is pending.
+
+Studio promises one continuous loop, so the human request must remain visible from submission
+through acknowledgement. The Conversation rail is a browser-safe projection of the durable Review
+journal: it pairs the last four human turns with their replies, reports each request's current
+delivery state, survives reload, and exposes none of the machinery that makes delivery exact.
+
+| Promise | Pass condition | Authoritative evidence |
+| --- | --- | --- |
+| Immediate continuity | The exact human request appears in Conversation as soon as submission succeeds and remains after the input clears. | Real-browser submission assertion before any agent poll. |
+| One coherent delivery truth | The message moves from **Waiting for agent** to **Agent working** to **Acknowledged**, while the header independently reports only authenticated agent presence. No surface simultaneously makes contradictory lifecycle claims. | Browser journey across queued, delivered, and acknowledged states. |
+| Paired history | An acknowledgement reply appears directly after its human request; reload reconstructs the same bounded order from durable session state. | Server restart/reload projection tests and real-browser history assertion. |
+| Browser-safe boundary | Each projected message contains only role, body, and status. Tokens, capabilities, batch and event identities, source hashes, paths, targets, and protocol objects remain absent. | Projection allowlist and serialized negative assertions. |
+| Calm and accessible | Conversation is an ordered list with visible text states and live-region updates. Long request text wraps without horizontal product or rail overflow at 390, 768, and 1440 pixels. | Generated-chrome assertions plus current-run desktop and mobile visual review. |
+
+This milestone changes visibility, not delivery semantics. The durable journal, authenticated lease,
+at-least-once batch, exact acknowledgement, proposal, and approval contracts remain unchanged.
+The next unmet promise after this continuity repair is one-click private sharing and bounded hosted
+execution.
 
 ### Current product checkpoint
 
