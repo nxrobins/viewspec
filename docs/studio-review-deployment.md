@@ -1,7 +1,8 @@
 # Private Studio Review Deployment Contract
 
-Status: SDK boundary, replay-safe API→review ingress, and fail-closed Studio release gate
-implemented; API bridge wiring, worker isolation, signing, deployment, and canary approval pending.
+Status: SDK boundary and replay-safe API bridge deployed; separate worker/service isolation is
+proved locally in a draft backend PR. Production review deployment, signing and canary approval
+remain pending. Account-aware readiness is implemented for review, not yet deployed.
 
 This is the minimum acceptance contract for adding private Studio review beside the existing
 `viewspec-api` service. It is intentionally narrower than a collaboration platform. The first
@@ -144,8 +145,8 @@ secret: API↔review and review↔worker use independent HMAC keys. See Fly's
 [app-secret](https://fly.io/docs/apps/secrets/) contracts.
 
 Each internal hop has its own dedicated HMAC secret. The SDK now implements this complete contract
-for API→review requests and responses; the deployment must use an independent implementation of
-the same fail-closed properties for the still-pending review→worker hop. Stale, replayed, unsigned,
+for API→review requests and responses; an independent review→worker hop is implemented and locally
+proved in the draft backend runtime, but not deployed. Stale, replayed, unsigned,
 or differently hashed API→review messages fail before state creation. The review service never
 receives the raw paid API key. The worker receives no billing database, signing key, review volume,
 API key, receipt secret, Stripe secret, or Fly API token.
@@ -198,10 +199,18 @@ may be removed in a separately audited change.
 
 Studio is network-free by default. `viewspec studio --compare --install --share` is an explicit
 private-review opt-in, but it still renders no Share control unless the canonical API returns a
-current Ed25519-signed `studio_share_release` receipt. The local daemon fetches the receipt key and
-release, verifies the exact origins, deployment/report/run hashes, bounded lifetime, and all nine
-canary checks, and retains the API credential only in daemon memory. Neither the receipt, API key,
-nor local paths reach browser HTML or status JSON.
+current Ed25519-signed `studio_share_release` receipt for an eligible caller. Readiness and upload
+apply the same current durable paid entitlement and beta-account allowlist; legacy, revoked,
+inactive, free and out-of-cohort identities cannot obtain readiness. Readiness consumes no compile
+quota, invokes no rebuild, and returns `no-store` with credential-aware `Vary` headers. Upload
+rechecks eligibility; a previously obtained receipt does not override later revocation.
+
+The local daemon fetches the public receipt key without credentials, then authenticates only its
+readiness request using the same daemon-held credential used for upload. Its HTTP transport refuses
+redirects and environment proxies, and bounds responses while streaming. It verifies the exact
+origins, deployment/report/run hashes, bounded lifetime, and all nine canary checks. Neither the
+receipt, API key, nor local paths reach browser HTML, status JSON or daemon metadata. A denied
+account receives a content-free explanation and can continue locally without `--share`.
 
 The Share control remains absent until one production canary proves all of the following against
 the deployed HTTPS origin:
@@ -249,7 +258,7 @@ python scripts/check_studio_production_canary.py \
 
 The second output is deliberately unsigned. Only the production API's existing Ed25519 receipt
 signer may sign that exact closed payload and publish it from
-`GET https://api.viewspec.dev/v1/studio-share-readiness` as
+authenticated `GET https://api.viewspec.dev/v1/studio-share-readiness` as
 `{"schema_version":1,"release":<signed-receipt>}`. The API continues publishing its public key at
 `GET /v1/receipt-key`. Release lifetime is at most one hour; the recommended beta window is 15
 minutes. Failed, incomplete, expired, differently originated, or differently signed evidence
@@ -267,10 +276,11 @@ secret, volume, worker, backup, and log boundaries. The SDK runner and verifier 
 those observations. That collector is implemented locally with active ingress/rebuild mismatch
 probes, three-engine browser journeys, an authorization-gated restart and restored-volume drill,
 multi-key receipt verification, aggregate telemetry checks, and exact-value log scanning. It has
-not been reviewed into the deployment repository, installed as a production workflow, or run
-against the canonical origin. The readiness endpoint and signing publication are likewise not
-deployed, so the production gate remains open and current public installs still show no Share
-control.
+not been installed as a production workflow or run against the canonical origin. The API bridge
+and fail-closed readiness endpoint are deployed, while account-aware readiness is pending review;
+the separate review/worker runtime is locally proved in a draft deployment-repository PR. No
+signed production release is installed, so the production gate remains open and current public
+installs still show no Share control.
 
 After this gate passes, expose Share to a bounded beta cohort first. Public galleries, mutable hosted
 source, live presence, arbitrary project execution, and production-data connectors remain out of

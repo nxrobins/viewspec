@@ -88,7 +88,7 @@ def main(argv: list[str] | None = None) -> int:
                     "Start sharing through viewspec studio --compare --install --share.",
                     cli_exit=2,
                 )
-            release = fetch_studio_share_release()
+            release = fetch_studio_share_release(api_key=api_key)
             share_publisher = StudioSharePublisher(
                 release=release,
                 api_key=api_key,
