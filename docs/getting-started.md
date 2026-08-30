@@ -47,24 +47,25 @@ operation. Its outputs have distinct jobs:
 ## Start from a blank workspace
 
 Tell your coding agent the product outcome and ask it to open ViewSpec Studio. The person should not
-need to author or inspect schema JSON. The agent uses the local first-creation handoff:
+need to author or inspect schema JSON. The agent opens one local first-creation room:
 
 ```bash
-viewspec studio-create --brief-file product-brief.md --reference reference.png --kind app --json
+viewspec studio --brief-file product-brief.md --reference reference.png --kind app --json
 # Author the exact task-provided candidate path against its task-provided schema.
-viewspec studio-accept --json
-viewspec studio
+# Studio checks it automatically and continues the same tab into Preview → Comment → Approve.
 ```
 
 Use `--kind view` only for one bounded screen; a product defaults to `app`. Creation preserves the
 normalized brief exactly and binds one optional PNG, JPEG, or WebP reference by relative path,
 media type, dimensions, byte count, and SHA-256. The SDK uploads nothing and makes no network calls.
 
-`studio-accept` rejects edited tasks, changed references, unchanged starters, invalid candidates,
-and existing canonical source. It retains a complete local proof and publishes
+The room rejects edited tasks, changed references, unchanged starters, invalid candidates, and
+conflicting canonical source. It shows the exact failure without publishing source, retries only
+after candidate bytes change, retains a complete local proof, and publishes
 `viewspec.app.json` or `viewspec.intent.json` only after validation, compilation, and artifact check
 all pass. Passing this gate does not claim that the result matches the reference image; the person
-makes that judgment in Studio and requests exact semantic changes there.
+makes that judgment in Studio and requests exact semantic changes there. `studio-create` and
+`studio-accept` remain explicit diagnostic commands.
 
 ## Open Studio
 

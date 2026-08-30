@@ -38,14 +38,16 @@ checks that candidate before publishing canonical source. An unchanged starter i
 The agent-facing handoff is:
 
 ```bash
-viewspec studio-create --brief-file product-brief.md --reference reference.png --kind app --json
+viewspec studio --brief-file product-brief.md --reference reference.png --kind app --json
 # The agent authors the exact candidate path returned by the task.
-viewspec studio-accept --json
-viewspec studio
+# Studio checks it and continues the same browser tab into Preview → Comment → Approve.
 ```
 
-Reference bytes remain local and hash-bound. This proves source and artifact health, not visual
-fidelity to the reference; fidelity remains a Studio review decision.
+Reference bytes remain local and hash-bound. The room visibly moves from Waiting for agent to
+Checking candidate, publishes nothing on failure, and enters the checked product only after local
+acceptance. This proves source and artifact health, not visual fidelity to the reference; fidelity
+remains a Studio review decision. `studio-create` and `studio-accept` remain explicit diagnostic
+commands.
 
 For an authored brief, use the canonical three-command lifecycle:
 

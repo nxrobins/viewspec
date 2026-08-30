@@ -279,18 +279,21 @@ Use `viewspec doctor` in local setup checks. It reports the available intent-fir
 ## First creation from a user brief
 
 When the user asks for a new interface and neither canonical semantic source exists, preserve their
-exact request in a local brief file and run `viewspec studio-create`. Pass a local PNG, JPEG, or WebP
-with `--reference` when the user supplied one. Default to `--kind app` for a product and choose
-`--kind view` only for one bounded screen.
+exact request in a local brief file and run `viewspec studio --brief-file product-brief.md --json`.
+Pass a local PNG, JPEG, or WebP with `--reference` when the user supplied one. Default to
+`--kind app` for a product and choose `--kind view` only for one bounded screen.
 
 Read the returned task instead of guessing paths. Author the complete candidate at its exact
-`candidate_path` against its `candidate_schema`, replacing all sample content. Then run
-`viewspec studio-accept --json`; do not copy the candidate into canonical source yourself. On
-success, run `viewspec studio` and keep the Review poll attached to the active agent turn.
+`candidate_path` against its `candidate_schema`, replacing all sample content. Do not copy the
+candidate into canonical source or run a second human-facing command. The creation room notices
+stable candidate bytes, checks them through the existing acceptance path, reports one exact fix on
+failure, and continues the same browser tab into checked Studio on success. Keep the Review poll
+attached to the active agent turn after that handoff.
 
 The task and candidate proof are no-network and reference bytes remain local. Acceptance proves
 semantic source and artifact health but deliberately reports reference fidelity as `not_proven`;
-the human judges fidelity in Studio.
+the human judges fidelity in Studio. `studio-create` and `studio-accept` remain diagnostic surfaces
+for isolated task preparation and acceptance.
 
 When the user explicitly asks to compare an AppBundle's static and React products, request or use
 their authorization for the locked local dependency install, then open the single comparison

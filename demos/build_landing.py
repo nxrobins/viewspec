@@ -1039,7 +1039,7 @@ PAGE_BODY_TEMPLATE = r"""<a class="skip-link" href="#top">Skip to content</a>
           <div class="studio-step" data-studio-step="decide"><span class="studio-step-num">04</span><b>Decide</b><span>Comment precisely, then approve.</span></div>
         </div>
       </div>
-      <div class="studio-commands"><code class="studio-command">viewspec studio-create --brief-file product-brief.md --reference reference.png --kind app --json</code><code class="studio-command">viewspec studio viewspec.app.json --compare --install</code></div>
+      <div class="studio-commands"><code class="studio-command">viewspec studio --brief-file product-brief.md --reference reference.png --kind app --json</code><code class="studio-command">viewspec studio viewspec.app.json --compare --install</code></div>
       <p class="studio-honesty">What is proven today: local creation, checked static and React builds, synchronized routes and semantic identity, declared-state replay, fixture-resource inspection, source-bound feedback, and approval. The private-review transport contract completes the exact comment-to-approval journey locally in Chromium, Firefox, and WebKit; no hosted review endpoint is deployed. Static/React visual parity is not claimed. Production data is not loaded.</p>
     </section>
 

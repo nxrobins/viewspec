@@ -875,7 +875,7 @@ for (const expected of [
   'data-studio-step="compare"',
   'data-studio-step="inspect"',
   'data-studio-step="decide"',
-  'viewspec studio-create --brief-file product-brief.md --reference reference.png --kind app --json',
+  'viewspec studio --brief-file product-brief.md --reference reference.png --kind app --json',
   'viewspec studio viewspec.app.json --compare --install',
   'Chromium, Firefox, and WebKit',
   'no hosted review endpoint is deployed',
