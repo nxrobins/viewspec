@@ -314,8 +314,10 @@ def test_studio_chrome_prioritizes_product_loop_and_quiet_confidence(tmp_path):
     assert "Preview mode · interactions are live" in chrome
     assert "id=agent-presence class=agent-presence data-status='not_connected' aria-live=polite>Agent not connected" in chrome
     assert "<span class=revision>Requests: <strong id=queued>0</strong>" in chrome
-    assert "Request saved locally · waiting for agent" in chrome
-    assert "Request delivered · agent working" in chrome
+    assert "Request recorded in Conversation" in chrome
+    assert "Requests and agent replies stay visible here." in chrome
+    assert "Waiting for agent" in chrome
+    assert "Agent working" in chrome
     assert "queued++" not in chrome
     assert ">Details</button>" in chrome
     assert ">Comment</button>" in chrome

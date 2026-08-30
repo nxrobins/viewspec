@@ -823,6 +823,7 @@ def test_browser_sees_authenticated_agent_handoff_and_server_owned_queue(tmp_pat
         initial = json.loads(content)["review"]
         assert initial["agent_presence"] == {"status": "not_connected"}
         assert initial["queued_events"] == 0
+        assert initial["conversation"] == []
 
         poll_result: dict[str, object] = {}
 
@@ -881,6 +882,10 @@ def test_browser_sees_authenticated_agent_handoff_and_server_owned_queue(tmp_pat
         working = json.loads(content)["review"]
         assert working["agent_presence"] == {"status": "working"}
         assert working["queued_events"] == 1
+        assert working["conversation"] == [
+            {"role": "human", "body": "Tighten this.", "status": "working"}
+        ]
+        assert set(working["conversation"][0]) == {"role", "body", "status"}
         assert set(working["agent_presence"]) == {"status"}
 
         reload_status, _, reload_content = _request(
@@ -926,6 +931,90 @@ def test_browser_sees_authenticated_agent_handoff_and_server_owned_queue(tmp_pat
         assert acknowledged["agent_presence"] == {"status": "not_connected"}
         assert acknowledged["queued_events"] == 0
         assert acknowledged["agent_replies"] == ["Captured."]
+        assert acknowledged["conversation"] == [
+            {"role": "human", "body": "Tighten this.", "status": "acknowledged"},
+            {"role": "agent", "body": "Captured.", "status": "replied"},
+        ]
+        assert all(set(message) == {"role", "body", "status"} for message in acknowledged["conversation"])
+        browser_projection = json.dumps(acknowledged["conversation"], separators=(",", ":"))
+        assert server.agent_token not in browser_projection
+        assert delivered["batch"]["batch_id"] not in browser_projection
+        assert str(tmp_path) not in browser_projection
+    finally:
+        server.stop()
+
+
+def test_browser_conversation_keeps_an_unpolled_request_visible(tmp_path) -> None:
+    runtime = _runtime(tmp_path)
+    server = _server(runtime)
+    server.start()
+    try:
+        cookie, _ = _bootstrap(server)
+        _handshake(server, cookie)
+        root = f"/r/{runtime.session.review_id}/api/v1"
+
+        accepted, _, _ = _request(
+            server.port,
+            "POST",
+            f"{root}/events",
+            headers={**_browser_headers(server, cookie), "Idempotency-Key": "9" * 32},
+            body=_event_payload(runtime),
+        )
+        assert accepted == 201
+
+        status, _, content = _request(
+            server.port,
+            "GET",
+            f"{root}/session",
+            headers={"Cookie": cookie},
+        )
+        assert status == 200
+        review = json.loads(content)["review"]
+        assert review["agent_presence"] == {"status": "not_connected"}
+        assert review["queued_events"] == 1
+        assert review["conversation"] == [
+            {"role": "human", "body": "Tighten this.", "status": "queued"}
+        ]
+    finally:
+        server.stop()
+
+
+def test_browser_conversation_is_bounded_to_four_human_turns(tmp_path) -> None:
+    runtime = _runtime(tmp_path)
+    server = _server(runtime)
+    server.start()
+    try:
+        cookie, _ = _bootstrap(server)
+        _handshake(server, cookie)
+        root = f"/r/{runtime.session.review_id}/api/v1"
+        payload = json.loads(_event_payload(runtime))
+
+        for index in range(1, 6):
+            payload["body"] = f"Request {index}."
+            accepted, _, _ = _request(
+                server.port,
+                "POST",
+                f"{root}/events",
+                headers={**_browser_headers(server, cookie), "Idempotency-Key": str(index) * 32},
+                body=json.dumps(payload, separators=(",", ":")).encode("utf-8"),
+            )
+            assert accepted == 201
+
+        status, _, content = _request(
+            server.port,
+            "GET",
+            f"{root}/session",
+            headers={"Cookie": cookie},
+        )
+        assert status == 200
+        conversation = json.loads(content)["review"]["conversation"]
+        assert [message["body"] for message in conversation] == [
+            "Request 2.",
+            "Request 3.",
+            "Request 4.",
+            "Request 5.",
+        ]
+        assert all(message["status"] == "queued" for message in conversation)
     finally:
         server.stop()
 
@@ -947,6 +1036,22 @@ def test_browser_events_require_a_current_revision_handshake(tmp_path) -> None:
         _handshake(server, cookie)
         accepted, _, _ = _request(server.port, "POST", endpoint, headers=headers, body=_event_payload(runtime))
         assert accepted == 201
+    finally:
+        server.stop()
+
+
+def test_completed_browser_handshake_remains_idempotent_after_reload_window(tmp_path) -> None:
+    now = [100.0]
+    server = _server(_runtime(tmp_path), clock=lambda: now[0])
+    server.start()
+    try:
+        cookie, _ = _bootstrap(server)
+        _handshake(server, cookie)
+
+        now[0] += 10
+        _handshake(server, cookie)
+
+        assert server.browser_ready is True
     finally:
         server.stop()
 
