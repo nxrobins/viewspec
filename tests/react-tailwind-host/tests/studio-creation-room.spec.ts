@@ -99,7 +99,7 @@ test("one empty-workspace command stays in one tab through failure, check, and c
     await expect(page.locator("#error-code")).toHaveText("STUDIO_CREATION_CANDIDATE_INVALID");
     expect(existsSync(sourcePath)).toBe(false);
 
-    runViewspec(["init-intent", "--out", candidatePath], workspace);
+    runViewspec(["init-intent", "--out", candidatePath, "--force"], workspace);
     const candidate = JSON.parse(readFileSync(candidatePath, "utf8"));
     candidate.substrate.nodes.starter_dashboard.attrs.title = "Field Dispatch";
     candidate.substrate.nodes.revenue.attrs = { label: "Open jobs", value: "18" };
