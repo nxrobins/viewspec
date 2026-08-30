@@ -452,8 +452,9 @@ async function main() {
     args["candidate-entry"] || "index.html",
     referencePath.split(/[\\/]/).at(-1),
   );
-  const browser = await chromium.launch({ headless: true });
+  let browser;
   try {
+    browser = await chromium.launch({ headless: true });
     const viewports = [
       { width: 390, height: 844 },
       { width: 768, height: 1024 },
@@ -496,8 +497,11 @@ async function main() {
     process.stdout.write(`${JSON.stringify(report)}\n`);
     process.exitCode = report.ok ? 0 : 2;
   } finally {
-    await browser.close();
-    await new Promise((accept) => server.close(accept));
+    try {
+      await browser?.close();
+    } finally {
+      await new Promise((accept) => server.close(accept));
+    }
   }
 }
 

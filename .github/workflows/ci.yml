@@ -43,6 +43,10 @@ jobs:
         working-directory: src/viewspec/host_verify_template
         run: npm ci --ignore-scripts
 
+      - name: Install Chromium for browser scorer regression
+        working-directory: src/viewspec/host_verify_template
+        run: npx --no-install playwright install --with-deps chromium
+
       - name: Ruff
         run: ruff check .
 
