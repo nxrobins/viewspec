@@ -86,8 +86,9 @@ def test_init_agent_creates_codex_instructions(tmp_path, capsys):
     _assert_default_edit_path_contract(text)
     assert "viewspec studio viewspec.intent.json --json" in text
     assert "human workflow is only: open Studio" in text
-    assert "viewspec studio-create --brief-file product-brief.md --reference reference.png --kind app --json" in text
-    assert "viewspec studio-accept --json" in text
+    assert "viewspec studio --brief-file product-brief.md --reference reference.png --kind app --json" in text
+    assert "Studio checks stable candidate bytes" in text
+    assert "continues the same browser tab" in text
     assert "viewspec studio-share-prepare viewspec.app.json --reference reference.png --json" in text
     assert "Preparation uploads nothing and creates no review link or capability" in text
     assert "no authorized private-review HTTPS deployment exists" in text
