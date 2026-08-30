@@ -26,6 +26,7 @@ STUDIO_CREATION_TASK_DEFAULT = ".viewspec/studio-creation-task.json"
 STUDIO_CREATION_TASK_MAX_BYTES = 128 * 1024
 STUDIO_CREATION_BRIEF_MAX_BYTES = 32 * 1024
 STUDIO_CREATION_REFERENCE_MAX_BYTES = 10 * 1024 * 1024
+STUDIO_CREATION_PROOF_REPORT_MAX_BYTES = 4 * 1024 * 1024
 STUDIO_CREATION_SOURCE_KINDS = ("app_bundle", "intent_bundle")
 STUDIO_CREATION_KIND_ALIASES = {"app": "app_bundle", "view": "intent_bundle"}
 STUDIO_CREATION_SOURCE_PATHS = {
@@ -94,7 +95,6 @@ def prepare_studio_creation(
 
     root = resolve_cwd(cwd)
     source_kind = _source_kind(kind)
-    _require_blank_workspace(root)
     normalized_brief = _load_brief(brief=brief, brief_file=brief_file, root=root)
     reference_identity = _reference_identity(reference, root=root) if reference is not None else None
     source_path = STUDIO_CREATION_SOURCE_PATHS[source_kind]
@@ -131,6 +131,25 @@ def prepare_studio_creation(
         )
     task_text = json.dumps(task, indent=2, ensure_ascii=False, sort_keys=True) + "\n"
     action = "create"
+    accepted: dict[str, object] | None = None
+    existing_task_text: str | None = None
+    if task_path.is_file() and not task_path.is_symlink():
+        try:
+            existing_task_text = task_path.read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError):
+            existing_task_text = None
+    source_exists = any(
+        (root / name).exists() or (root / name).is_symlink()
+        for name in STUDIO_CREATION_SOURCE_PATHS.values()
+    )
+    if source_exists:
+        if existing_task_text == task_text:
+            accepted = inspect_accepted_studio_creation(task_path, cwd=root)
+            action = "accepted"
+        else:
+            _require_blank_workspace(root)
+    else:
+        _require_blank_workspace(root)
     if task_path.exists():
         if not task_path.is_file() or task_path.is_symlink():
             raise StudioCreationError(
@@ -138,15 +157,27 @@ def prepare_studio_creation(
                 "The requested Studio creation task path is not a replaceable regular file.",
                 "Choose a new --task-out path under the workspace.",
             )
-        if task_path.read_text(encoding="utf-8") != task_text:
+        if existing_task_text != task_text:
             raise StudioCreationError(
                 "STUDIO_CREATION_TASK_EXISTS",
                 "A different Studio creation task already exists at the requested path.",
                 "Finish or move the existing task before preparing another first creation.",
             )
-        action = "unchanged"
+        if accepted is None:
+            action = "unchanged"
     else:
         atomic_write(task_path, task_text)
+    creation: dict[str, object] = {**task, "task_action": action}
+    if accepted is not None:
+        creation.update(
+            {
+                "status": "source_ready",
+                "source_sha256": accepted["source_sha256"],
+                "candidate_validation": "passed",
+                "artifact_check": "passed",
+                "proof_ok": True,
+            }
+        )
     return {
         "schema_version": 1,
         "ok": True,
@@ -160,12 +191,16 @@ def prepare_studio_creation(
             "source": str(root / source_path),
             "proof": str(root / proof_path),
         },
-        "creation": {**task, "task_action": action},
-        "next_actions": [
-            f"Author the exact {source_kind} candidate at {candidate_path} from this task; do not copy a starter.",
-            f"Run viewspec studio-accept {task_path.relative_to(root).as_posix()} --json.",
-            "Open the checked result with viewspec studio.",
-        ],
+        "creation": creation,
+        "next_actions": (
+            ["Open the exact checked result with viewspec studio."]
+            if accepted is not None
+            else [
+                f"Author the exact {source_kind} candidate at {candidate_path} from this task; do not copy a starter.",
+                f"Run viewspec studio-accept {task_path.relative_to(root).as_posix()} --json.",
+                "Open the checked result with viewspec studio.",
+            ]
+        ),
         "metadata": {
             "sdk_version": __version__,
             "network_calls": "none",
@@ -279,6 +314,126 @@ def accept_studio_creation(
             "network_calls": "none",
             "reference_uploaded": False,
         },
+    }
+
+
+def inspect_studio_creation(
+    task_path: str | Path = STUDIO_CREATION_TASK_DEFAULT,
+    *,
+    cwd: str | Path | None = None,
+) -> dict[str, object]:
+    """Return one validated private creation contract for the local Studio coordinator."""
+
+    root = resolve_cwd(cwd)
+    task_file = _local_path(task_path, root=root, must_exist=True)
+    task = _read_task(task_file)
+    _verify_reference(task.get("reference"), root=root)
+    candidate_path = _local_path(str(task["candidate_path"]), root=root, must_exist=False)
+    source_path = _local_path(str(task["source_path"]), root=root, must_exist=False)
+    proof_path = _local_path(str(task["proof_path"]), root=root, must_exist=False)
+    return {
+        "root": root,
+        "task_path": task_file,
+        "candidate_path": candidate_path,
+        "source_path": source_path,
+        "proof_path": proof_path,
+        "task": task,
+    }
+
+
+def inspect_accepted_studio_creation(
+    task_path: str | Path = STUDIO_CREATION_TASK_DEFAULT,
+    *,
+    cwd: str | Path | None = None,
+) -> dict[str, object]:
+    """Fail closed unless canonical source is the exact retained checked candidate."""
+
+    inspected = inspect_studio_creation(task_path, cwd=cwd)
+    task = inspected["task"]
+    assert isinstance(task, dict)
+    candidate_path = inspected["candidate_path"]
+    source_path = inspected["source_path"]
+    proof_path = inspected["proof_path"]
+    assert isinstance(candidate_path, Path)
+    assert isinstance(source_path, Path)
+    assert isinstance(proof_path, Path)
+    if not source_path.exists() and not source_path.is_symlink():
+        raise StudioCreationError(
+            "STUDIO_CREATION_SOURCE_NOT_READY",
+            "The task-bound canonical semantic source has not been published yet.",
+            f"Author {task['candidate_path']} and let Studio check it.",
+        )
+    if not candidate_path.exists() or candidate_path.is_symlink():
+        raise StudioCreationError(
+            "STUDIO_CREATION_ACCEPTANCE_INVALID",
+            "The published Studio source has no safe task-bound candidate.",
+            "Restore the exact candidate and its retained proof before opening Studio.",
+        )
+    try:
+        source_snapshot = capture_source_snapshot(source_path)
+        candidate_snapshot = capture_source_snapshot(candidate_path)
+    except ReviewContractError as exc:
+        raise StudioCreationError(
+            "STUDIO_CREATION_ACCEPTANCE_INVALID",
+            f"Accepted source inspection failed with {exc.code}: {exc.message}",
+            "Restore the exact checked candidate, proof, and canonical source.",
+        ) from exc
+    if (
+        source_snapshot.source_kind != task["source_kind"]
+        or candidate_snapshot.source_kind != task["source_kind"]
+        or source_snapshot.source_bytes != candidate_snapshot.source_bytes
+    ):
+        raise StudioCreationError(
+            "STUDIO_CREATION_ACCEPTANCE_INVALID",
+            "The canonical semantic source does not match its exact task-bound candidate.",
+            "Do not copy or edit canonical source manually; restore the accepted candidate bytes.",
+        )
+    captured_candidate = _captured_candidate_path(
+        proof_path=proof_path,
+        task_id=str(task["task_id"]),
+        source_kind=str(task["source_kind"]),
+        source_sha256=source_snapshot.source_sha256,
+    )
+    if (
+        not captured_candidate.is_file()
+        or captured_candidate.is_symlink()
+        or captured_candidate.read_bytes() != source_snapshot.source_bytes
+    ):
+        raise StudioCreationError(
+            "STUDIO_CREATION_ACCEPTANCE_INVALID",
+            "The canonical semantic source is missing its immutable accepted candidate evidence.",
+            "Rerun the bounded acceptance flow from a blank workspace.",
+        )
+    report_name = "app_proof_report.json" if task["source_kind"] == "app_bundle" else "proof_report.json"
+    report_path = proof_path / report_name
+    try:
+        report = json.loads(
+            _read_regular_file(
+                report_path,
+                maximum=STUDIO_CREATION_PROOF_REPORT_MAX_BYTES,
+                noun="proof report",
+            )
+        )
+    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise StudioCreationError(
+            "STUDIO_CREATION_ACCEPTANCE_INVALID",
+            "The retained Studio creation proof report is invalid.",
+            "Rerun the bounded acceptance flow from the exact task-bound candidate.",
+        ) from exc
+    if not isinstance(report, dict) or report.get("ok") is not True:
+        raise StudioCreationError(
+            "STUDIO_CREATION_ACCEPTANCE_INVALID",
+            "The retained Studio creation proof does not pass.",
+            "Fix the task-bound candidate and let Studio check it again before opening the source.",
+        )
+    return {
+        **inspected,
+        "captured_candidate_path": captured_candidate,
+        "proof_report_path": report_path,
+        "source_sha256": source_snapshot.source_sha256,
+        "candidate_validation": "passed",
+        "artifact_check": "passed",
+        "proof_ok": True,
     }
 
 
@@ -737,5 +892,7 @@ __all__ = [
     "STUDIO_CREATION_TASK_MAX_BYTES",
     "StudioCreationError",
     "accept_studio_creation",
+    "inspect_accepted_studio_creation",
+    "inspect_studio_creation",
     "prepare_studio_creation",
 ]

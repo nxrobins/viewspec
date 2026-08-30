@@ -9,6 +9,12 @@ All notable changes to ViewSpec are documented in this file. The format follows
 
 ### Added
 
+- An empty workspace can now enter Studio with one agent-facing command: `viewspec studio
+  --brief-file ...`. The local creation room preserves the existing task-bound acceptance contract,
+  truthfully shows waiting, checking, and bounded repair states, retries only after candidate bytes
+  change, and replaces the same browser tab with the checked Preview → Comment → Approve product.
+  It exposes no source, schema, filesystem path, or capability to the browser and retains a
+  hash-bound transition receipt with proof and timing evidence.
 - Studio now has a fail-closed, explicit private-review path. `studio --share` verifies a
   short-lived Ed25519-signed production-canary release before rendering Share; the first click
   prepares and discloses the exact package without upload, and only a second confirmation creates

@@ -256,8 +256,34 @@ This milestone deliberately does not start or impersonate an agent. It makes the
 human-agent contract legible so the reviewer never has to guess whether a request is waiting,
 being worked, or acknowledged.
 
-The next unmet promise after Target Coherence is one-click private sharing and bounded hosted
-execution.
+## Milestone 4.9: brief to checked product in one room
+
+Status: implemented and locally proved; repository CI promotion is pending.
+
+The first ViewSpec experience must not begin with a missing-file error or a three-command protocol.
+In an empty workspace, the coding agent preserves the person's brief and optional local reference,
+opens Studio once, authors only the task-bound candidate, and leaves the person in the same browser
+tab while ViewSpec moves from **Waiting for agent** to **Checking candidate** to the existing checked
+Preview → Comment → Approve product. ViewSpec remains the deterministic local contract and proof
+layer; it does not add a hidden model client or pretend that reading a task proves agent presence.
+
+| Promise | Pass condition | Authoritative evidence |
+| --- | --- | --- |
+| One opening command | `viewspec studio --brief-file BRIEF [--reference IMAGE] [--kind app\|view]` prepares the exact existing creation contract and opens its creation room. A canonical source keeps the current Studio path; creation arguments and an existing source fail closed. | CLI routing, conflict, and source-discovery tests. |
+| Exact, local handoff | The normalized brief, optional bounded reference identity, candidate path, acceptance contract, and task id are the same deterministic values produced by `studio-create`; the browser reveals no absolute path, capability, schema, source, or candidate bytes. No network request occurs. | Task-equivalence, browser-projection allowlist, loopback, CSP, and network-capture assertions. |
+| Truthful visible states | Before a candidate exists the room says **Waiting for agent**. A stable candidate produces **Checking candidate**. A failed proof says **Candidate needs one fix** with the exact bounded error and recovery action; changing that candidate retries without publishing canonical source. | State-machine unit tests and a real Chromium failure → retry journey. |
+| Checked before handoff | Only the existing task-bound acceptance path may publish canonical source. The room records candidate validation and artifact check as passed before it exposes a handoff; unchanged starters, task/reference drift, malformed candidates, and failed proof publish nothing. | Existing creation negatives plus room acceptance and tamper tests. |
+| Same-tab first value | A healthy candidate starts the normal checked Studio configuration and replaces the creation room in the same browser tab—no second command, tab, or generated-output edit. The mechanical candidate-to-checked transition completes in less than 60 seconds and retains task, candidate, proof, source, build, and measured timing evidence. | Isolated real-Chromium journey and retained transition receipt. |
+| Resumable, not theatrical | Reloading the room or rerunning the same invocation recovers the exact task and latest durable state. An externally accepted matching source also hands off safely; a conflicting source fails closed. | Reload, daemon restart, duplicate invocation, external-acceptance, and conflict tests. |
+| Existing product remains whole | Once checked, Preview, Comment, Approve, agent presence, static/React comparison, replay/resource evidence, and responsive target coherence behave exactly as before. | Existing Studio browser suites plus one creation-to-comment regression journey. |
+
+This milestone removes ceremony, not safeguards. `studio-create` and `studio-accept` remain explicit
+diagnostic interfaces, while managed-agent instructions prefer the single-room journey. The browser
+never authors semantic source and a candidate's existence is not described as proof that an agent is
+connected.
+
+The next unmet promise after this first-value journey is one-click private sharing and bounded
+hosted execution.
 
 ### Current product checkpoint
 

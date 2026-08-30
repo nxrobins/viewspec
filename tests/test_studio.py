@@ -76,7 +76,9 @@ def test_studio_missing_source_has_one_product_level_next_action(tmp_path):
         resolve_studio_source(None, cwd=tmp_path)
 
     assert missing.value.code == "STUDIO_SOURCE_NOT_FOUND"
-    assert "Ask your agent to create one semantic source" in missing.value.fix
+    assert missing.value.fix == (
+        "Give your agent a brief and open one room: viewspec studio --brief-file product-brief.md."
+    )
 
 
 def test_studio_readiness_contract_hides_machinery_behind_one_loop(tmp_path, monkeypatch):
@@ -113,6 +115,79 @@ def test_studio_readiness_contract_hides_machinery_behind_one_loop(tmp_path, mon
     assert isinstance(payload["studio"]["ready_ms"], int)
     assert payload["next_actions"][0].startswith("Preview")
     assert str(tmp_path) not in json.dumps(payload["studio"])
+
+
+def test_studio_brief_opens_one_creation_room_and_rejects_source_conflict(tmp_path, monkeypatch):
+    called: dict[str, object] = {}
+
+    def fake_prepare(**kwargs):
+        called["prepare"] = kwargs
+        return {
+            "paths": {"task": str(tmp_path / ".viewspec/studio-creation-task.json")},
+            "creation": {"source_kind": "app_bundle", "task_id": "vsct_test"},
+        }
+
+    def fake_open_room(task, **kwargs):
+        called["room"] = {"task": task, **kwargs}
+        return {
+            "schema_version": 1,
+            "ok": True,
+            "studio": {"status": "creating"},
+            "creation": {"headline": "Waiting for agent"},
+        }
+
+    monkeypatch.setattr("viewspec.studio.prepare_studio_creation", fake_prepare)
+    monkeypatch.setattr("viewspec.studio.open_studio_creation_room", fake_open_room)
+    payload = open_studio(
+        brief="Build a field dispatch product",
+        reference="reference.png",
+        cwd=tmp_path,
+        no_open=True,
+    )
+
+    assert payload["studio"]["status"] == "creating"
+    assert payload["prepared_creation"]["task_id"] == "vsct_test"
+    assert called["prepare"] == {
+        "brief": "Build a field dispatch product",
+        "brief_file": None,
+        "reference": "reference.png",
+        "kind": "app",
+        "task_out": ".viewspec/studio-creation-task.json",
+        "cwd": tmp_path,
+    }
+    assert called["room"]["target"] is None
+    assert called["room"]["no_open"] is True
+
+    with pytest.raises(ReviewContractError) as conflicting:
+        open_studio("viewspec.app.json", brief="Build something", cwd=tmp_path, no_open=True)
+    assert conflicting.value.code == "STUDIO_CREATION_OPTIONS_INVALID"
+
+
+def test_studio_creation_comparison_requires_app_and_install(tmp_path, monkeypatch):
+    def fake_prepare(**kwargs):
+        return {
+            "paths": {"task": str(tmp_path / ".viewspec/studio-creation-task.json")},
+            "creation": {
+                "source_kind": "app_bundle" if kwargs["kind"] == "app" else "intent_bundle",
+                "task_id": "vsct_test",
+            },
+        }
+
+    monkeypatch.setattr("viewspec.studio.prepare_studio_creation", fake_prepare)
+    with pytest.raises(ReviewContractError) as missing_install:
+        open_studio(brief="Build a product", compare=True, cwd=tmp_path, no_open=True)
+    assert missing_install.value.code == "STUDIO_COMPARISON_INSTALL_REQUIRED"
+
+    with pytest.raises(ReviewContractError) as wrong_kind:
+        open_studio(
+            brief="Build one view",
+            kind="view",
+            compare=True,
+            install=True,
+            cwd=tmp_path,
+            no_open=True,
+        )
+    assert wrong_kind.value.code == "STUDIO_COMPARISON_REQUIRES_APP"
 
 
 def test_studio_comparison_is_app_only_explicit_and_reports_honest_scope(tmp_path, monkeypatch):

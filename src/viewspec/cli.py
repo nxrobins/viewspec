@@ -157,6 +157,21 @@ def _build_parser() -> argparse.ArgumentParser:
         nargs="?",
         help="IntentBundle or AppBundle JSON; auto-detected when exactly one canonical source exists.",
     )
+    studio_brief = studio_parser.add_mutually_exclusive_group()
+    studio_brief.add_argument("--brief", help="Exact inline product brief for one empty-workspace creation room.")
+    studio_brief.add_argument("--brief-file", help="UTF-8 product brief file for one empty-workspace creation room.")
+    studio_parser.add_argument("--reference", help="Optional local PNG, JPEG, or WebP first-creation reference image.")
+    studio_parser.add_argument(
+        "--kind",
+        choices=("app", "view"),
+        default="app",
+        help="Create a multi-screen app by default, or one bounded view.",
+    )
+    studio_parser.add_argument(
+        "--task-out",
+        default=STUDIO_CREATION_TASK_DEFAULT,
+        help=f"Deterministic first-creation task path (default: {STUDIO_CREATION_TASK_DEFAULT}).",
+    )
     studio_parser.add_argument("--design", help="Optional DESIGN.md file to watch with the source.")
     studio_parser.add_argument(
         "--target",
@@ -646,15 +661,26 @@ def _studio_command(args: argparse.Namespace) -> int:
         compare=args.compare,
         share=args.share,
         share_reference=args.share_reference,
+        brief=args.brief,
+        brief_file=args.brief_file,
+        reference=args.reference,
+        kind=args.kind,
+        task_out=args.task_out,
     )
     if args.json:
         print(json.dumps(payload, indent=2, sort_keys=True))
     else:
         studio = payload["studio"]
-        review = payload["review"]
-        print(f"ViewSpec Studio ready in {studio['ready_ms']} ms.")
-        print(f"open: {review['url']}")
-        print("Preview → Comment → Approve")
+        if studio.get("status") == "creating":
+            creation = payload["creation"]
+            print("ViewSpec Studio creation room ready.")
+            print(f"open: {creation['url']}")
+            print("Waiting for agent → Checking candidate → Preview → Comment → Approve")
+        else:
+            review = payload["review"]
+            print(f"ViewSpec Studio ready in {studio['ready_ms']} ms.")
+            print(f"open: {review['url']}")
+            print("Preview → Comment → Approve")
     return 0
 
 
