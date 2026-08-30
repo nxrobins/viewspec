@@ -49,6 +49,9 @@ All notable changes to ViewSpec are documented in this file. The format follows
 
 ### Changed
 
+- The optional `remote` extra now requires `cryptography>=50.0.1,<51`, removing the old
+  upper bound that prevented installation of current security fixes. Signed usage, artifact,
+  verification, and Studio Share receipts retain their existing Ed25519 wire format.
 - Studio is now canvas-first. Its proof, state, conversation, request, and approval rail is inert
   and outside the layout by default, opens at the exact moment context is needed, and closes with an
   explicit control or Escape. At 1280×720, the Desktop product now fits at least 84% instead of
