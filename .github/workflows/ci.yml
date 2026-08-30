@@ -37,7 +37,11 @@ jobs:
 
       - name: Install shared React dependency seed
         working-directory: conformance/agent-ui-v2/react-dependencies
-        run: npm ci
+        run: npm ci --ignore-scripts
+
+      - name: Install shipped rebuild dependency seed
+        working-directory: src/viewspec/host_verify_template
+        run: npm ci --ignore-scripts
 
       - name: Ruff
         run: ruff check .
@@ -59,6 +63,29 @@ jobs:
 
       - name: Reject whitespace damage
         run: git diff --check $(git hash-object -t tree /dev/null) HEAD
+
+  javascript_dependencies:
+    name: Audit shared JavaScript dependencies
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Audit shipped SDK seed
+        working-directory: src/viewspec/host_verify_template
+        run: npm audit --package-lock-only --audit-level=low
+      - name: Audit browser proof seed
+        working-directory: tests/react-tailwind-host
+        run: npm audit --package-lock-only --audit-level=low
+      - name: Audit active evaluation seed
+        working-directory: conformance/agent-ui-v2/react-dependencies
+        run: npm audit --package-lock-only --audit-level=low
+      - name: Install exact patched runtime without hooks
+        working-directory: src/viewspec/host_verify_template
+        run: npm ci --ignore-scripts
+      - name: Exercise dependency security regressions
+        run: node tests/react_dependency_regressions.mjs src/viewspec/host_verify_template
 
   distribution:
     runs-on: ubuntu-latest
