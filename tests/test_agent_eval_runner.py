@@ -28,6 +28,31 @@ _RETAINED_PRODUCT_CASES = json.loads(
 )["fixtures"]
 
 
+@pytest.mark.skipif(not _NODE, reason="Node is required")
+def test_browser_scorer_exits_promptly_when_browser_launch_fails(tmp_path):
+    fake_playwright = tmp_path / "unavailable-browser.mjs"
+    fake_playwright.write_text(
+        "export const chromium = {launch: async () => {throw new Error('synthetic browser unavailable')}};\n",
+        encoding="utf-8",
+    )
+    spec = tmp_path / "spec.json"
+    spec.write_text("{}", encoding="utf-8")
+    report = tmp_path / "report.json"
+    result = subprocess.run(
+        [
+            _NODE, str(runner.BROWSER_SCORER),
+            "--candidate", str(tmp_path), "--reference", str(tmp_path / "index.html"),
+            "--spec", str(spec), "--out", str(report),
+            "--evidence", str(tmp_path / "evidence"), "--reference-step", "0",
+        ],
+        env={**os.environ, "VIEWSPEC_EVAL_PLAYWRIGHT_MODULE": str(fake_playwright)},
+        capture_output=True, text=True, timeout=10, check=False,
+    )
+    assert result.returncode == 1
+    assert "synthetic browser unavailable" in result.stderr
+    assert not report.exists()
+
+
 def _healthy_score(*, failed_criterion: str | None = None) -> dict:
     criteria = [
         {

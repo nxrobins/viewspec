@@ -300,9 +300,14 @@ def test_review_compile_rejects_unsafe_configured_seed_before_build(tmp_path, mo
     assert called == []
 
 
-def test_real_pinned_dependency_seed_reproduces_exact_static_react_package(tmp_path, monkeypatch) -> None:
+@pytest.mark.parametrize("worker_seed_path", [
+    "conformance/agent-ui-v2/react-dependencies/node_modules",
+    "src/viewspec/host_verify_template/node_modules",
+])
+def test_real_pinned_dependency_seed_reproduces_exact_static_react_package(tmp_path, monkeypatch, worker_seed_path) -> None:
     seed = Path(__file__).parents[1] / "conformance/agent-ui-v2/react-dependencies/node_modules"
-    if not seed.joinpath(".package-lock.json").is_file() or not seed.joinpath(".bin/vite").exists():
+    worker_seed = Path(__file__).parents[1] / worker_seed_path
+    if any(not item.joinpath(".package-lock.json").is_file() or not item.joinpath(".bin/vite").exists() for item in (seed, worker_seed)):
         pytest.skip("pinned local React dependency seed is not installed")
     source = tmp_path / "viewspec.app.json"
     source.write_text(json.dumps(starter_app_bundle("internal_tool"), sort_keys=True), encoding="utf-8")
@@ -320,9 +325,10 @@ def test_real_pinned_dependency_seed_reproduces_exact_static_react_package(tmp_p
     prepared = prepare_studio_share(source, state_root=state, cwd=tmp_path)
     package = Path(prepared["paths"]["package"])
     envelope = load_studio_share_package(package)
-    monkeypatch.setenv(STUDIO_REVIEW_DEPENDENCY_SEED_ENV, str(seed))
+    monkeypatch.setenv(STUDIO_REVIEW_DEPENDENCY_SEED_ENV, str(worker_seed))
     monkeypatch.setattr(review_compile.subprocess, "run", _REAL_SUBPROCESS_RUN)
     evidence = rebuild_studio_review_package(package, envelope)
 
     assert evidence["artifact_set_sha256"] == runtime.built.revision.artifact_set_sha256
     assert evidence["artifact_inventory"]["file_count"] > 1
+    assert evidence["dependency_seed"]["install_command_invoked"] is False

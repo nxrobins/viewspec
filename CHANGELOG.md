@@ -49,6 +49,11 @@ All notable changes to ViewSpec are documented in this file. The format follows
 
 ### Changed
 
+- Shipped React builds, browser proof, and the active evaluation seed now share the same locked
+  build dependencies, including PostCSS 8.5.26 and Nano ID 3.3.18 security fixes. CI audits all three
+  locks, checks shared package integrity, exercises bounded dependency regressions, and independently
+  rebuilds checked Studio packages with the shipped worker seed. Direct React/Vite/integration
+  versions and archived evaluation evidence are unchanged; new generated artifact identities change.
 - The optional `remote` extra now requires `cryptography>=50.0.1,<51`, removing the old
   upper bound that prevented installation of current security fixes. Signed usage, artifact,
   verification, and Studio Share receipts retain their existing Ed25519 wire format.
