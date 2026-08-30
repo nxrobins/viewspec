@@ -234,6 +234,28 @@ one explicit Close action or Escape.
 The rail is non-modal: it does not trap focus or resize the product. It is contextual product
 chrome, not a second application beside the application under review.
 
+## Milestone 4.8: the agent handoff is visible
+
+Status: implemented; acceptance evidence is required on every change.
+
+An exact semantic comment is only a product interaction when the reviewer can tell whether an
+agent is listening, whether the request is merely saved, and whether it has been delivered. Studio
+must derive that truth from the authenticated Review lease and durable queue. It must never infer
+agent presence from an open browser, an optimistic counter, or elapsed animation.
+
+| Promise | Pass condition | Authoritative evidence |
+| --- | --- | --- |
+| Truthful presence | Studio says **Agent ready** only while one authenticated long poll owns the Review delivery lease. With no lease and no delivered batch it says **Agent not connected**. | Server projection tests using a controlled clock and a real concurrent poll. |
+| Durable handoff | A comment accepted without an agent remains queued and says **Request saved locally · waiting for agent**. Starting the agent later delivers that exact event without resubmission. | Browser submission plus delayed authenticated poll and exact event assertion. |
+| Visible work | Once a batch is delivered but not acknowledged, Studio says **Agent working** even when the delivering request has returned. | At-least-once batch test and browser session projection. |
+| Server-owned queue | The visible request count always comes from the durable session cursor, falls to zero only after exact batch acknowledgement, and survives page reload. | Queue recovery, reload, and acknowledgement assertions. |
+| Calm first-use language | Presence and request state are visible beside the product; proof details and protocol vocabulary stay out of the primary message. The status is available to assistive technology without stealing focus. | Generated-chrome accessibility assertions and current-run visual review. |
+| No weakened boundary | Presence reveals no agent capability, batch id, token, filesystem path, or source content; one delivery lease and existing acknowledgement semantics remain unchanged. | Projection allowlist and Review security regression suite. |
+
+This milestone deliberately does not start or impersonate an agent. It makes the existing local
+human-agent contract legible so the reviewer never has to guess whether a request is waiting,
+being worked, or acknowledged.
+
 The next unmet promise after Target Coherence is one-click private sharing and bounded hosted
 execution.
 

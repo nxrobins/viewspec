@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import { spawnSync } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { createServer } from "node:net";
@@ -39,6 +39,31 @@ function runViewspec(args: string[], allowFailure = false, cwd = repoRoot): stri
     throw new Error(`viewspec ${args[0]} failed (${result.status}): ${result.stderr || result.stdout}`);
   }
   return result.stdout;
+}
+
+function runViewspecAsync(args: string[], cwd = repoRoot): Promise<string> {
+  return new Promise((resolveRun, rejectRun) => {
+    const child = spawn(python, ["-m", "viewspec", ...args], {
+      cwd,
+      env: { ...process.env, PYTHONUNBUFFERED: "1" },
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+    let stdout = "";
+    let stderr = "";
+    child.stdout.setEncoding("utf8");
+    child.stderr.setEncoding("utf8");
+    child.stdout.on("data", (chunk) => {
+      stdout += chunk;
+    });
+    child.stderr.on("data", (chunk) => {
+      stderr += chunk;
+    });
+    child.once("error", rejectRun);
+    child.once("close", (code) => {
+      if (code === 0) resolveRun(stdout);
+      else rejectRun(new Error(`viewspec ${args[0]} failed (${code}): ${stderr || stdout}`));
+    });
+  });
 }
 
 function currentSourceSha256(): string {
@@ -404,6 +429,9 @@ test("Studio carries a brief through three synchronized static/React semantic ch
   expect(response?.status()).toBe(200);
   await expect(page).toHaveTitle("ViewSpec Studio");
   await expect(page.locator("#status")).toHaveText("Checked target pair ready");
+  await expect(page.locator("#agent-presence")).toHaveText("Agent not connected");
+  await expect(page.locator("#agent-presence")).toHaveAttribute("data-status", "not_connected");
+  await expect(page.locator("#queued")).toHaveText("0");
   await expect(page.locator(".compare-stage[data-studio-comparison=true]")).toBeVisible();
   await expect(page.getByRole("button", { name: "Details", exact: true })).toHaveAttribute("aria-expanded", "false");
   await expect(page.locator("#studio-panel")).toHaveAttribute("aria-hidden", "true");
@@ -468,10 +496,14 @@ test("Studio carries a brief through three synchronized static/React semantic ch
   await page.getByRole("button", { name: "Send to agent", exact: true }).click();
   const firstCommentAt = Date.now();
   await expect(page.locator("#queued")).toHaveText("1");
+  await expect(page.locator("#status")).toHaveText("Request saved locally · waiting for agent");
+  await expect(page.locator("#agent-presence")).toHaveText("Agent not connected");
 
   const polled = JSON.parse(
     runViewspec(["review-poll", sourcePath, "--state-dir", reviewState, "--timeout-ms", "1", "--json"]),
   );
+  await expect(page.locator("#agent-presence")).toHaveText("Agent working");
+  await expect(page.locator("#agent-presence")).toHaveAttribute("data-status", "working");
   const event = polled.batch.events[0];
   expect(event.body).toBe("Make this result unmistakable.");
   expect(event.context.viewport).toEqual({ name: "desktop", width: 1440, height: 1000 });
@@ -491,6 +523,8 @@ test("Studio carries a brief through three synchronized static/React semantic ch
     },
   });
   acknowledgeReviewBatch(polled.batch.batch_id, "A checked badge proposal is ready for approval.");
+  await expect(page.locator("#queued")).toHaveText("0");
+  await expect(page.locator("#conversation")).toContainText("Agent: A checked badge proposal is ready for approval.");
   const decision = page.locator("#convergence");
   await expect(decision).toBeVisible();
   await expect(decision).toContainText("Before");
@@ -541,11 +575,21 @@ test("Studio carries a brief through three synchronized static/React semantic ch
   await secondTarget.click();
   await expect(page.getByRole("heading", { name: "Ask for one change" })).toBeVisible();
   await page.getByLabel("What should be different?", { exact: true }).fill("Raise this incident severity to high.");
+  const secondPoll = runViewspecAsync([
+    "review-poll",
+    sourcePath,
+    "--state-dir",
+    reviewState,
+    "--timeout-ms",
+    "55000",
+    "--json",
+  ]);
+  await expect(page.locator("#agent-presence")).toHaveText("Agent ready");
+  await expect(page.locator("#agent-presence")).toHaveAttribute("data-status", "ready");
   await page.getByRole("button", { name: "Send to agent", exact: true }).click();
   const secondCommentAt = Date.now();
-  const secondPolled = JSON.parse(
-    runViewspec(["review-poll", sourcePath, "--state-dir", reviewState, "--timeout-ms", "1", "--json"]),
-  );
+  await expect(page.locator("#status")).toHaveText("Request delivered · agent working");
+  const secondPolled = JSON.parse(await secondPoll);
   const secondEvent = secondPolled.batch.events[0] as ReviewEvent;
   expect(secondEvent.body).toBe("Raise this incident severity to high.");
   expect(secondEvent.target.binding_id).toBe("inc_1043_severity");

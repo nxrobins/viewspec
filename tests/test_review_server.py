@@ -8,6 +8,8 @@ import re
 import shutil
 import socket
 import subprocess
+import threading
+import time
 from pathlib import Path
 
 import pytest
@@ -798,6 +800,132 @@ def test_agent_poll_capability_preserves_at_least_once_ack_semantics(tmp_path) -
         assert ack_status == 200
         assert json.loads(ack_bytes)["status"] == "timeout"
         assert runtime.session.agent_replies == ("Captured.",)
+    finally:
+        server.stop()
+
+
+def test_browser_sees_authenticated_agent_handoff_and_server_owned_queue(tmp_path) -> None:
+    runtime = _runtime(tmp_path)
+    server = _server(runtime)
+    server.start()
+    try:
+        cookie, _ = _bootstrap(server)
+        _handshake(server, cookie)
+        root = f"/r/{runtime.session.review_id}/api/v1"
+
+        status, _, content = _request(
+            server.port,
+            "GET",
+            f"{root}/session",
+            headers={"Cookie": cookie},
+        )
+        assert status == 200
+        initial = json.loads(content)["review"]
+        assert initial["agent_presence"] == {"status": "not_connected"}
+        assert initial["queued_events"] == 0
+
+        poll_result: dict[str, object] = {}
+
+        def wait_for_feedback() -> None:
+            poll_status, _, poll_content = _request(
+                server.port,
+                "POST",
+                "/internal/v1/poll",
+                headers={
+                    "Content-Type": "application/json",
+                    "X-ViewSpec-Agent-Capability": server.agent_token,
+                },
+                body=b'{"ack_batch_id":null,"agent_reply":null,"timeout_ms":1000}',
+            )
+            poll_result.update({"status": poll_status, "payload": json.loads(poll_content)})
+
+        poll = threading.Thread(target=wait_for_feedback, daemon=True)
+        poll.start()
+        deadline = time.monotonic() + 2
+        while True:
+            status, _, content = _request(
+                server.port,
+                "GET",
+                f"{root}/session",
+                headers={"Cookie": cookie},
+            )
+            ready = json.loads(content)["review"]
+            if ready["agent_presence"] == {"status": "ready"}:
+                break
+            if time.monotonic() >= deadline:
+                raise AssertionError(f"Agent delivery lease never became visible: {ready!r}")
+            time.sleep(0.01)
+
+        accepted, _, _ = _request(
+            server.port,
+            "POST",
+            f"{root}/events",
+            headers={**_browser_headers(server, cookie), "Idempotency-Key": "8" * 32},
+            body=_event_payload(runtime),
+        )
+        assert accepted == 201
+        poll.join(timeout=2)
+        assert not poll.is_alive()
+        assert poll_result["status"] == 200
+        delivered = poll_result["payload"]
+        assert delivered["status"] == "feedback"
+        assert delivered["batch"]["events"][0]["body"] == "Tighten this."
+
+        status, _, content = _request(
+            server.port,
+            "GET",
+            f"{root}/session",
+            headers={"Cookie": cookie},
+        )
+        assert status == 200
+        working = json.loads(content)["review"]
+        assert working["agent_presence"] == {"status": "working"}
+        assert working["queued_events"] == 1
+        assert set(working["agent_presence"]) == {"status"}
+
+        reload_status, _, reload_content = _request(
+            server.port,
+            "GET",
+            f"/r/{runtime.session.review_id}/",
+            headers={"Cookie": cookie},
+        )
+        assert reload_status == 200
+        reloaded_chrome = reload_content.decode("utf-8")
+        assert "data-status='working' aria-live=polite>Agent working" in reloaded_chrome
+        assert "<span class=revision>Requests: <strong id=queued>1</strong>" in reloaded_chrome
+        assert server.agent_token not in reloaded_chrome
+        assert delivered["batch"]["batch_id"] not in reloaded_chrome
+
+        acknowledgement = json.dumps(
+            {
+                "ack_batch_id": delivered["batch"]["batch_id"],
+                "agent_reply": "Captured.",
+                "timeout_ms": 1,
+            },
+            separators=(",", ":"),
+        ).encode()
+        ack_status, _, _ = _request(
+            server.port,
+            "POST",
+            "/internal/v1/poll",
+            headers={
+                "Content-Type": "application/json",
+                "X-ViewSpec-Agent-Capability": server.agent_token,
+            },
+            body=acknowledgement,
+        )
+        assert ack_status == 200
+
+        status, _, content = _request(
+            server.port,
+            "GET",
+            f"{root}/session",
+            headers={"Cookie": cookie},
+        )
+        acknowledged = json.loads(content)["review"]
+        assert acknowledged["agent_presence"] == {"status": "not_connected"}
+        assert acknowledged["queued_events"] == 0
+        assert acknowledged["agent_replies"] == ["Captured."]
     finally:
         server.stop()
 
