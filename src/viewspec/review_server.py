@@ -30,6 +30,7 @@ from viewspec.converge_sessions import (
 from viewspec.review_contract import ReviewContext, ReviewContractError, canonical_json_bytes
 from viewspec.review_compile import STUDIO_COMPARE_TARGET
 from viewspec.review_errors import make_review_error
+from viewspec.review_frame_readiness import FRAME_RENDER_WAIT_JS
 from viewspec.review_runtime import ReviewRuntime
 
 
@@ -1874,7 +1875,9 @@ def _frame_sdk(nonce: str, *, surface_target: str) -> bytes:
         + nonce
         + "',surface='"
         + surface_target
-        + "';let annotate=false,cursor=-1,selectedElement=null;const parent=window.parent,ids=()=>Array.from(document.querySelectorAll('[id]'))"
+        + "';"
+        + FRAME_RENDER_WAIT_JS
+        + "let annotate=false,cursor=-1,selectedElement=null;const parent=window.parent,ids=()=>Array.from(document.querySelectorAll('[id]'))"
         ".filter(e=>e.id&&e.id.length<=256);const viewport=()=>{const w=innerWidth,h=innerHeight;"
         "if(Math.abs(w-390)<=1&&Math.abs(h-844)<=1)return{name:'mobile',width:390,height:844};"
         "if(Math.abs(w-768)<=1&&Math.abs(h-1024)<=1)return{name:'tablet',width:768,height:1024};"
@@ -1906,7 +1909,7 @@ def _frame_sdk(nonce: str, *, surface_target: str) -> bytes:
         "const nextFrame=()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));"
         "const applyReplay=async data=>{try{for(const event of data.events||[]){if(!event||typeof event.route!=='string'||typeof event.action_id!=='string')throw new Error('invalid declared event');"
         "if(surface==='html-tailwind-app'){restoringHash=event.route;if(location.hash.slice(1)!==event.route)location.hash=event.route;else restoringHash=null;}"
-        "else{restoringHistory=true;nativeReplace({},'',event.route);dispatchEvent(new PopStateEvent('popstate'));restoringHistory=false;}await nextFrame();"
+        "else{restoringHistory=true;nativeReplace({},'',event.route);dispatchEvent(new PopStateEvent('popstate'));restoringHistory=false;}await waitForRenderedScreen(event.route);"
         "for(const [binding,value] of Object.entries(event.payload_values||{})){const node=document.querySelector('[data-binding-id=\"'+CSS.escape(binding)+'\"]');"
         "const expected=value===null?'':(typeof value==='string'?value:JSON.stringify(value));if(!node||node.textContent.trim()!==expected)throw new Error('payload '+binding+' does not match the rendered binding');}"
         "const action=document.querySelector('[data-action-id=\"'+CSS.escape(event.action_id)+'\"]');if(!action)throw new Error('declared action '+event.action_id+' is not rendered');"
@@ -1932,15 +1935,15 @@ def _frame_sdk(nonce: str, *, surface_target: str) -> bytes:
         "parent.postMessage({type:'viewspec-review-toggle',nonce:n,surface_target:surface},'*');return;}if(!annotate)return;const list=ids();"
         "if(e.key==='ArrowDown'||e.key==='ArrowUp'){e.preventDefault();cursor=(cursor+(e.key==='ArrowDown'?1:-1)+list.length)%list.length;"
         "list[cursor]?.focus();}else if(e.key==='Enter'&&document.activeElement?.id){e.preventDefault();choose(document.activeElement);}});"
-        "let readyAnnounced=false,readyCheckPending=false;const announceReady=async()=>{if(readyAnnounced||readyCheckPending)return readyAnnounced;readyCheckPending=true;await nextFrame();"
-        "const readyScreen=document.querySelector('[data-viewspec-app-screen]:not([hidden])')||document.querySelector('[data-viewspec-app-screen]');readyCheckPending=false;"
-        "if(surface!=='html-tailwind'&&!readyScreen)return false;readyAnnounced=true;"
+        "let readinessStarted=false;const announceReady=async()=>{if(readinessStarted)return;readinessStarted=true;try{"
+        "const initialRoute=window.__viewspecInitialPath||(surface==='html-tailwind-app'?(location.hash.slice(1)||null):null);"
+        "const readyScreen=surface==='html-tailwind'?(await nextFrame(),null):await waitForRenderedScreen(initialRoute);"
         "const readyRoute=readyScreen?.dataset.routePath||(surface==='html-tailwind-app'?(location.hash.slice(1)||'/'):(window.__viewspecInitialPath||location.pathname));"
         "document.documentElement.dataset.viewspecReviewReady=surface;document.documentElement.dataset.viewspecReviewScreen=readyScreen?.dataset.viewspecAppScreen||'';"
-        "postContext('initial');parent.postMessage({type:'viewspec-review-ready',nonce:n,surface_target:surface,screen_id:readyScreen?.dataset.viewspecAppScreen||null,route:readyRoute||null},'*');return true;};"
-        "const readyObserver=new MutationObserver(()=>{announceReady().then(done=>{if(done)readyObserver.disconnect();});});readyObserver.observe(document.documentElement,{childList:true,subtree:true});"
+        "postContext('initial');parent.postMessage({type:'viewspec-review-ready',nonce:n,surface_target:surface,screen_id:readyScreen?.dataset.viewspecAppScreen||null,route:readyRoute||null},'*');}"
+        "catch{parent.postMessage({type:'viewspec-review-render-failed',nonce:n,surface_target:surface},'*');}};"
         "if(document.readyState==='loading')addEventListener('DOMContentLoaded',()=>announceReady(),{once:true});else announceReady();"
-        "setTimeout(()=>{if(!readyAnnounced){readyObserver.disconnect();parent.postMessage({type:'viewspec-review-render-failed',nonce:n,surface_target:surface},'*');}},4000);})();"
+        "})();"
     ).encode("utf-8")
 
 

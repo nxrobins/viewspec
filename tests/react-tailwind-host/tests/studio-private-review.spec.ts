@@ -18,6 +18,7 @@ let sourcePath = "";
 let origin = "";
 let ownerLink = "";
 let reviewerLink = "";
+let archivePath = "";
 let server: ChildProcessWithoutNullStreams | null = null;
 let journeyStartedAt = 0;
 
@@ -68,7 +69,7 @@ async function readyLine(process: ChildProcessWithoutNullStreams): Promise<{ ori
   });
 }
 
-async function createReview(reviewOrigin: string, archivePath: string): Promise<{ owner: string; reviewer: string }> {
+async function createReview(reviewOrigin: string, archivePath: string, requestId = "browser-create-session-0001"): Promise<{ owner: string; reviewer: string }> {
   const body = readFileSync(archivePath);
   return await new Promise((resolveReview, rejectReview) => {
     const target = new URL("/v1/reviews", reviewOrigin);
@@ -81,7 +82,7 @@ async function createReview(reviewOrigin: string, archivePath: string): Promise<
           Authorization: "Bearer e2e-upload",
           "Content-Type": "application/vnd.viewspec.review+zip",
           "Content-Length": String(body.length),
-          "Idempotency-Key": "browser-create-session-0001",
+          "Idempotency-Key": requestId,
           "X-ViewSpec-Disclosure-Accepted": "true",
           "X-ViewSpec-Expiry-Seconds": "3600",
         },
@@ -142,6 +143,7 @@ test.beforeAll(async () => {
   );
   const ready = await readyLine(server);
   origin = ready.origin;
+  archivePath = ready.archive;
   journeyStartedAt = Date.now();
   const links = await createReview(origin, ready.archive);
   ownerLink = links.owner;
@@ -151,6 +153,93 @@ test.beforeAll(async () => {
 test.afterAll(() => {
   server?.kill("SIGTERM");
   if (workspace) rmSync(workspace, { recursive: true, force: true });
+});
+
+test("private replay waits for delayed React commits on initial load and reset", async ({ page }) => {
+  const failures = runtimeFailures(page);
+  const links = await createReview(origin, archivePath, "browser-delayed-render-0001");
+  let rendererContexts = 0;
+  let delayedPosts = 0;
+  await page.exposeBinding("__viewspecTestRenderer", () => { rendererContexts++; });
+  await page.exposeBinding("__viewspecTestDelayedPost", () => { delayedPosts++; });
+  await page.addInitScript(() => {
+    if (window.top === window || !location.pathname.includes("/artifact/react/")) return;
+    const observed = window as Window & {
+      __viewspecTestRenderer: () => Promise<void>;
+      __viewspecTestDelayedPost: () => Promise<void>;
+    };
+    void observed.__viewspecTestRenderer();
+    const NativeMessageChannel = window.MessageChannel;
+    window.MessageChannel = class extends NativeMessageChannel {
+      constructor() {
+        super();
+        const post = this.port2.postMessage.bind(this.port2);
+        this.port2.postMessage = (...args: Parameters<typeof post>) => {
+          void observed.__viewspecTestDelayedPost();
+          setTimeout(() => post(...args), 250);
+        };
+      }
+    };
+  });
+  await page.goto(links.reviewer, { waitUntil: "domcontentloaded" });
+  await expect(page.locator("#surface-status")).toHaveText("Checked target pair ready");
+  const source = JSON.parse(readFileSync(sourcePath, "utf8"));
+  const secondRoute = source.routes.find((item: { path: string }) => item.path !== source.app.root_route);
+  await page.locator(".routes").getByRole("button", { name: secondRoute.id, exact: true }).click();
+  for (const title of ["Static product", "React product"]) {
+    await expect(page.frameLocator(`iframe[title="${title}"]`).locator('[data-viewspec-app-screen]:not([hidden])')).toHaveAttribute("data-route-path", secondRoute.path);
+  }
+  const values = await page.locator('[name="replay"] option').evaluateAll(options => options.map(item => (item as HTMLOptionElement).value));
+  expect(values.length).toBeGreaterThan(0);
+  await page.locator('[name="replay"]').selectOption(values.at(-1)!);
+  await expect(page.locator("#show-replay")).toBeEnabled();
+  await page.locator("#show-replay").click();
+  await expect(page.locator("#replay-status")).toContainText("Checkpoint active on both targets");
+  for (const title of ["Static product", "React product"]) {
+    await expect(page.frameLocator(`iframe[title="${title}"]`).locator('[data-binding-id="inc_1043_status"]')).toBeVisible();
+  }
+  await expect(page.frameLocator('iframe[title="React product"]').locator('[data-binding-id="inc_1043_status"]')).toHaveText("investigating");
+  expect(rendererContexts).toBe(2);
+  expect(delayedPosts).toBeGreaterThanOrEqual(2);
+  expect(failures).toEqual([]);
+});
+
+test("a failed render remains unavailable even if React commits after the deadline", async ({ page }) => {
+  const failures = runtimeFailures(page);
+  const links = await createReview(origin, archivePath, "browser-render-deadline-0001");
+  await page.addInitScript(() => {
+    if (window.top === window || !location.pathname.includes("/artifact/react/")) return;
+    const pending: (() => void)[] = [];
+    let released = false;
+    (window as Window & { __viewspecTestRelease?: () => void }).__viewspecTestRelease = () => {
+      released = true;
+      pending.splice(0).forEach(post => post());
+    };
+    const NativeMessageChannel = window.MessageChannel;
+    window.MessageChannel = class extends NativeMessageChannel {
+      constructor() {
+        super();
+        const post = this.port2.postMessage.bind(this.port2);
+        this.port2.postMessage = (...args: Parameters<typeof post>) => {
+          if (released) post(...args);
+          else pending.push(() => post(...args));
+        };
+      }
+    };
+  });
+  await page.goto(links.reviewer, { waitUntil: "domcontentloaded" });
+  await expect(page.locator("#surface-status")).toHaveText("Checked target unavailable · reload this review to retry");
+  await expect(page.locator("#show-replay")).toBeDisabled();
+  const react = page.frameLocator('iframe[title="React product"]');
+  await react.locator("html").evaluate(() => {
+    (window as Window & { __viewspecTestRelease?: () => void }).__viewspecTestRelease?.();
+  });
+  await expect(react.locator('[data-viewspec-app-screen]:not([hidden])')).toHaveCount(1);
+  const values = await page.locator('[name="replay"] option').evaluateAll(options => options.map(item => (item as HTMLOptionElement).value));
+  await page.locator('[name="replay"]').selectOption(values.at(-1)!);
+  await expect(page.locator("#show-replay")).toBeDisabled();
+  await expect(page.locator("#surface-status")).toHaveText("Checked target unavailable · reload this review to retry");
+  expect(failures).toEqual([]);
 });
 
 test("private HTTPS review carries exact targets through comment and owner approval", async ({ browser, page }, testInfo) => {
