@@ -323,6 +323,14 @@ the separate review/worker runtime is locally proved in a draft deployment-repos
 signed production release is installed, so the production gate remains open and current public
 installs still show no Share control.
 
+The standalone SDK rebuild worker returns one fixed, content-free failure envelope for both
+expected verification failures and unexpected operational exceptions. Input-stream failure uses
+the same envelope; an unavailable output pipe produces a quiet nonzero exit because no response
+can be delivered. Process-control exceptions are not converted into successful work or retried.
+This boundary does not redirect global streams inside the library or claim that all application
+and provider logs have been observed; the deployment-owned worker must still bound and validate
+its child output, and the production leak audit remains required.
+
 After this gate passes, expose Share to a bounded beta cohort first. Public galleries, mutable hosted
 source, live presence, arbitrary project execution, and production-data connectors remain out of
 scope.
