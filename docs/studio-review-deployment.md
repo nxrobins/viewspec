@@ -166,6 +166,20 @@ egress canary rather than trusting configuration text. See the
 
 ## Persistence and operations
 
+Temporary request archives and extracted packages live only in the private,
+service-owned `/data/studio-review/ingress` directory. This directory is reserved
+for SDK scratch, never user documents. Restart reconciliation preflights all
+entries before deleting any: exact temporary-name forms, private same-owner
+regular files/directories, no links or special files, and bounded entry, node,
+and byte counts. Cleanup uses the deployment's exclusive storage lease; direct
+SDK operators must provide the same no-active-creation guarantee. Dry runs retain
+only aggregate counts. `verify_storage()` refuses leftover staging.
+
+Legacy `.upload-*` or `.ingress-*` remnants at the store root, unexpected names,
+and ambiguous object-directory staging are not adopted or automatically deleted.
+They require operator inspection. A new staging directory does not migrate old
+remnants or establish ownership of arbitrary files.
+
 The reference service keeps immutable package objects plus SQLite state. On the existing single
 region deployment, the database and objects must share the durable volume and be backed up as one
 consistency unit. Before enabling Share:

@@ -155,7 +155,7 @@ class StudioReviewHTTPAdapter:
         except ValueError as exc:
             raise _http_invalid("Create requires an integer expiry header.") from exc
         key = _required_header(headers, "idempotency-key")
-        descriptor, temporary_name = tempfile.mkstemp(prefix=".upload-", suffix=".vsreview", dir=self.service.root)
+        descriptor, temporary_name = tempfile.mkstemp(prefix=".upload-", suffix=".vsreview", dir=self.service.ingress)
         temporary = Path(temporary_name)
         try:
             with os.fdopen(descriptor, "wb") as handle:

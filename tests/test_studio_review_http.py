@@ -487,3 +487,20 @@ def test_malformed_transport_inputs_fail_closed_without_reflection(private_revie
     )
     assert control_header.status == 400
     assert control_header.json()["error"]["code"] == "STUDIO_REVIEW_HTTP_INVALID"
+
+
+def test_upload_and_extraction_use_only_owned_staging(private_review, monkeypatch) -> None:
+    import viewspec.studio_review_service as service_module
+    adapter, service, archive = private_review
+    original = service_module.materialize_studio_share_archive
+    seen = []
+    def materialize(path, directory):
+        assert Path(path).parent == service.ingress
+        assert Path(directory).parent == service.ingress
+        seen.append(True)
+        return original(path, directory)
+    monkeypatch.setattr(service_module, "materialize_studio_share_archive", materialize)
+    assert _create(adapter, archive).status == 201
+    assert seen == [True] and not list(service.ingress.iterdir())
+    assert not list(service.root.glob(".upload-*")) and not list(service.root.glob(".ingress-*"))
+    assert service.verify_storage()["session_count"] == 1
