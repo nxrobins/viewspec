@@ -28,4 +28,9 @@ FRAME_RENDER_WAIT_JS = r"""
     })
     check()
   })
+  let initialRenderPromise = null
+  const waitForInitialScreen = (route) => {
+    if (!initialRenderPromise) initialRenderPromise = waitForRenderedScreen(route)
+    return initialRenderPromise
+  }
 """

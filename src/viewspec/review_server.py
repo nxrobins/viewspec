@@ -1877,6 +1877,7 @@ def _frame_sdk(nonce: str, *, surface_target: str) -> bytes:
         + surface_target
         + "';"
         + FRAME_RENDER_WAIT_JS
+        + "const initialRoute=window.__viewspecInitialPath||(surface==='html-tailwind-app'?(location.hash.slice(1)||null):null);"
         + "let annotate=false,cursor=-1,selectedElement=null;const parent=window.parent,ids=()=>Array.from(document.querySelectorAll('[id]'))"
         ".filter(e=>e.id&&e.id.length<=256);const viewport=()=>{const w=innerWidth,h=innerHeight;"
         "if(Math.abs(w-390)<=1&&Math.abs(h-844)<=1)return{name:'mobile',width:390,height:844};"
@@ -1907,7 +1908,7 @@ def _frame_sdk(nonce: str, *, surface_target: str) -> bytes:
         "scroll_x:Math.max(0,Math.min(1000000,Math.trunc(scrollX))),scroll_y:Math.max(0,Math.min(1000000,Math.trunc(scrollY)))},'*');};"
         "const nativePush=history.pushState.bind(history),nativeReplace=history.replaceState.bind(history);"
         "const nextFrame=()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));"
-        "const applyReplay=async data=>{try{for(const event of data.events||[]){if(!event||typeof event.route!=='string'||typeof event.action_id!=='string')throw new Error('invalid declared event');"
+        "const applyReplay=async data=>{try{await waitForInitialScreen(initialRoute);for(const event of data.events||[]){if(!event||typeof event.route!=='string'||typeof event.action_id!=='string')throw new Error('invalid declared event');"
         "if(surface==='html-tailwind-app'){restoringHash=event.route;if(location.hash.slice(1)!==event.route)location.hash=event.route;else restoringHash=null;}"
         "else{restoringHistory=true;nativeReplace({},'',event.route);dispatchEvent(new PopStateEvent('popstate'));restoringHistory=false;}await waitForRenderedScreen(event.route);"
         "for(const [binding,value] of Object.entries(event.payload_values||{})){const node=document.querySelector('[data-binding-id=\"'+CSS.escape(binding)+'\"]');"
@@ -1936,8 +1937,7 @@ def _frame_sdk(nonce: str, *, surface_target: str) -> bytes:
         "if(e.key==='ArrowDown'||e.key==='ArrowUp'){e.preventDefault();cursor=(cursor+(e.key==='ArrowDown'?1:-1)+list.length)%list.length;"
         "list[cursor]?.focus();}else if(e.key==='Enter'&&document.activeElement?.id){e.preventDefault();choose(document.activeElement);}});"
         "let readinessStarted=false;const announceReady=async()=>{if(readinessStarted)return;readinessStarted=true;try{"
-        "const initialRoute=window.__viewspecInitialPath||(surface==='html-tailwind-app'?(location.hash.slice(1)||null):null);"
-        "const readyScreen=surface==='html-tailwind'?(await nextFrame(),null):await waitForRenderedScreen(initialRoute);"
+        "const readyScreen=surface==='html-tailwind'?(await nextFrame(),null):await waitForInitialScreen(initialRoute);"
         "const readyRoute=readyScreen?.dataset.routePath||(surface==='html-tailwind-app'?(location.hash.slice(1)||'/'):(window.__viewspecInitialPath||location.pathname));"
         "document.documentElement.dataset.viewspecReviewReady=surface;document.documentElement.dataset.viewspecReviewScreen=readyScreen?.dataset.viewspecAppScreen||'';"
         "postContext('initial');parent.postMessage({type:'viewspec-review-ready',nonce:n,surface_target:surface,screen_id:readyScreen?.dataset.viewspecAppScreen||null,route:readyRoute||null},'*');}"

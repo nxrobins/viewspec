@@ -481,6 +481,7 @@ _HOSTED_FRAME_CLIENT = r"""(() => {
   const ownScript = document.currentScript
   const surface = ownScript?.dataset.surface || 'unknown'
   const channel = window.__viewspecHostedReviewTransportV1?.channel || ''
+  const initialRoute = window.__viewspecInitialPath || null
   const send = (value) => parent.postMessage({channel, surface, ...value}, '*')
   const currentScreen = () => document.querySelector('[data-viewspec-app-screen]:not([hidden])') || document.querySelector('[data-viewspec-app-screen]')
   const currentRoute = () => {
@@ -499,6 +500,7 @@ _HOSTED_FRAME_CLIENT = r"""(() => {
   }
   const applyReplay = async (message) => {
     try {
+      await waitForInitialScreen(initialRoute)
       for (const event of message.events || []) {
         if (!event || typeof event.route !== 'string' || typeof event.action_id !== 'string') throw new Error('invalid declared event')
         restoreRoute(event.route)
@@ -560,7 +562,7 @@ _HOSTED_FRAME_CLIENT = r"""(() => {
     if (readinessStarted) return
     readinessStarted = true
     try {
-      await waitForRenderedScreen(window.__viewspecInitialPath || null)
+      await waitForInitialScreen(initialRoute)
       sendContext('initial')
       send({type: 'viewspec-hosted-ready'})
     } catch {

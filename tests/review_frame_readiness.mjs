@@ -29,7 +29,8 @@ const document = {
 };
 const sandbox = {
   document, parent, location, console, CSS: {escape: value => value},
-  __viewspecInitialPath: '/queue', __viewspecHostedReviewTransportV1: {channel: 'test-channel'},
+  __viewspecInitialPath: input.case === 'replay_before_initial' ? '/detail' : '/queue',
+  __viewspecHostedReviewTransportV1: {channel: 'test-channel'},
   innerWidth: 390, innerHeight: 844, scrollX: 0, scrollY: 0,
   history: {pushState(_a, _b, path) {location.pathname = path;}, replaceState(_a, _b, path) {location.pathname = path;}},
   addEventListener(name, callback) {listeners.set(name, [...(listeners.get(name) || []), callback]);},
@@ -65,9 +66,24 @@ const failedType = hosted ? 'viewspec-hosted-render-failed' : 'viewspec-review-r
 const resultType = hosted ? 'viewspec-hosted-replay-result' : 'viewspec-studio-replay-result';
 const ready = () => messages.filter(message => message.type === readyType);
 const results = () => messages.filter(message => message.type === resultType);
+const replay = () => fire('message', {source: parent, data: {
+  channel: 'test-channel', nonce: 'test-nonce',
+  type: hosted ? 'viewspec-hosted-replay' : 'viewspec-studio-replay-apply', evidence_ref: 'test-checkpoint',
+  events: [{route: '/queue', screen_id: 'queue', action_id: 'review', payload_values: {record: 'record-1'}}],
+}});
 document.readyState = 'complete'; fire('DOMContentLoaded'); fire('load');
 
-if (['delayed_initial', 'wrong_initial_route', 'duplicate_screen', 'timeout_terminal'].includes(input.case)) {
+if (input.case === 'replay_before_initial') {
+  replay(); await tick();
+  assert.equal(results().length, 0); assert.equal(clicks, 0);
+  // React installs these listeners during its first commit, not document load.
+  sandbox.addEventListener('popstate', () => render(location.pathname));
+  sandbox.addEventListener('viewspec-app-restore', event => render(event.detail.path));
+  render('/detail'); await tick(8);
+  assert.equal(results().length, 1, 'replay must restore its route after the initial screen mounts');
+  assert.equal(results()[0].ok, true); assert.equal(clicks, 1);
+  assert.equal(observers.size, 0); assert.equal(timers.size, 0);
+} else if (['delayed_initial', 'wrong_initial_route', 'duplicate_screen', 'timeout_terminal'].includes(input.case)) {
   if (input.case === 'wrong_initial_route') render('/detail');
   if (input.case === 'duplicate_screen') render('/queue', true);
   await tick();
@@ -79,6 +95,10 @@ if (['delayed_initial', 'wrong_initial_route', 'duplicate_screen', 'timeout_term
     render('/queue'); await tick();
     assert.equal(ready().length, 0, 'late rendering must not reverse a failed handshake');
     assert.equal(observers.size, 0); assert.equal(frames.size, 0);
+    replay(); await tick(8);
+    assert.equal(results().length, 1);
+    assert.equal(results()[0].ok, false, 'a new replay must not bypass a failed initial render');
+    assert.equal(clicks, 0);
   } else {
     render('/queue'); await tick();
     assert.equal(ready().length, 1);
@@ -90,11 +110,7 @@ if (['delayed_initial', 'wrong_initial_route', 'duplicate_screen', 'timeout_term
   render('/queue'); await tick(); assert.equal(ready().length, 1);
   render('/detail'); await tick();
   if (input.case === 'payload_rejected') payload = 'wrong-record';
-  fire('message', {source: parent, data: {
-    channel: 'test-channel', nonce: 'test-nonce',
-    type: hosted ? 'viewspec-hosted-replay' : 'viewspec-studio-replay-apply', evidence_ref: 'test-checkpoint',
-    events: [{route: '/queue', screen_id: 'queue', action_id: 'review', payload_values: {record: 'record-1'}}],
-  }});
+  replay();
   await tick();
   assert.equal(results().length, 0, 'replay must wait for the requested route to commit');
   assert.equal(clicks, 0);

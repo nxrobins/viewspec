@@ -13,7 +13,7 @@ from viewspec.studio_review_http import _HOSTED_FRAME_CLIENT
 
 @pytest.mark.skipif(shutil.which("node") is None, reason="Node.js is unavailable")
 @pytest.mark.parametrize("surface", ["hosted", "local"])
-@pytest.mark.parametrize("case", ["delayed_initial", "wrong_initial_route", "duplicate_screen", "timeout_terminal", "replay_route", "replay_timeout", "payload_rejected"])
+@pytest.mark.parametrize("case", ["delayed_initial", "wrong_initial_route", "duplicate_screen", "timeout_terminal", "replay_before_initial", "replay_route", "replay_timeout", "payload_rejected"])
 def test_frame_waits_for_committed_screen(surface: str, case: str) -> None:
     script = _HOSTED_FRAME_CLIENT if surface == "hosted" else _frame_sdk("test-nonce", surface_target="react-tailwind-app").decode()
     result = subprocess.run(
