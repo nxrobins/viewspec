@@ -37,6 +37,105 @@ def _common(kind: str) -> dict[str, object]:
     }
 
 
+def _recovery_payload() -> dict[str, object]:
+    snapshot = {
+        "snapshot_id_sha256": "9" * 64,
+        "source_volume_id_sha256": "5" * 64,
+        "provider_observation_sha256": "a" * 64,
+        "requested_at_epoch_ms": 1_101_000,
+        "completed_at_epoch_ms": 1_120_000,
+        "size_bytes": 4096,
+        "volume_size_gb": 1,
+        "status": "completed",
+    }
+    return {
+        **_common("recovery"),
+        "source": {
+            "app_id": "viewspec-review",
+            "machine_id_sha256": "2" * 64,
+            "machine_version_sha256": "4" * 64,
+            "image_digest": BUILD_MANIFEST["studio_image_digest"],
+            "volume_id_sha256": "5" * 64,
+            "region": "sjc",
+            "zone_sha256": "7" * 64,
+            "size_gb": 1,
+            "encrypted": True,
+            "inventory_sha256": "6" * 64,
+            "provider_observation_sha256": "8" * 64,
+        },
+        "maintenance_window": {
+            "ready_at_epoch_ms": 1_100_000,
+            "completed_at_epoch_ms": 1_125_000,
+            "max_pause_seconds": 30,
+            "guard_id_sha256": "5" * 64,
+            "ready_observation_sha256": "4" * 64,
+            "request_exclusion_observation_sha256": "a" * 64,
+            "health_observation_sha256": "b" * 64,
+            "health_observed_at_epoch_ms": 1_115_000,
+            "source_inventory_sha256": "6" * 64,
+            "final_inventory_sha256": "6" * 64,
+            "completion_binding_sha256": _sha256_bytes(_canonical_bytes(snapshot)),
+            "ack_sha256": "6" * 64,
+            "result_sha256": "7" * 64,
+            "non_health_requests_excluded": True,
+            "health_available": True,
+            "source_unchanged": True,
+            "lease_released": True,
+        },
+        "snapshot": snapshot,
+        "restored_volume": {
+            "volume_id_sha256": "b" * 64,
+            "snapshot_id_sha256": "9" * 64,
+            "provider_observation_sha256": "c" * 64,
+            "requested_at_epoch_ms": 1_130_000,
+            "ready_at_epoch_ms": 1_160_000,
+            "region": "sjc",
+            "zone_sha256": "d" * 64,
+            "size_gb": 1,
+            "state": "created",
+            "encrypted": True,
+            "initially_detached": True,
+        },
+        "offline_inspection": {
+            "machine_id_sha256": "f" * 64,
+            "machine_version_sha256": "0" * 64,
+            "provider_observation_sha256": "1" * 64,
+            "image_digest": BUILD_MANIFEST["studio_image_digest"],
+            "volume_id_sha256": "b" * 64,
+            "completed_at_epoch_ms": 1_200_000,
+            "source_inventory_sha256": "6" * 64,
+            "restored_inventory_sha256": "6" * 64,
+            "build": {
+                key: BUILD_MANIFEST[key]
+                for key in ("schema_version", "source_revision", "public_sdk_revision", "public_sdk_wheel_sha256")
+            },
+            "network_service_count": 0,
+            "normal_startup_reconciliation_count": 0,
+            "storage_verified": True,
+            "receipt_key_rotation_passed": True,
+        },
+        "lifecycle": {
+            "evidence_sha256": "2" * 64,
+            "restart_recovery_passed": True,
+            "idempotent_retry_passed": True,
+            "expiry_passed": True,
+            "reviewer_rotation_passed": True,
+            "revocation_passed": True,
+            "deletion_passed": True,
+            "orphan_usable_session_count": 0,
+            "duplicate_session_count": 0,
+            "sensitive_telemetry_field_count": 0,
+        },
+        "cleanup": {
+            "provider_observation_sha256": "3" * 64,
+            "inspection_machine_destroyed": True,
+            "restored_volume_destroyed": True,
+            "source_machine_unchanged": True,
+            "source_volume_unchanged": True,
+        },
+    }
+
+
 def _payload(kind: str) -> dict[str, object]:
     if kind == "deployment":
         return {
@@ -145,21 +244,7 @@ def _payload(kind: str) -> dict[str, object]:
             "console_error_count": 0,
         }
     if kind == "recovery":
-        return {
-            **_common(kind),
-            "restart_recovery_passed": True,
-            "idempotent_retry_passed": True,
-            "expiry_passed": True,
-            "reviewer_rotation_passed": True,
-            "revocation_passed": True,
-            "deletion_passed": True,
-            "backup_restore_passed": True,
-            "receipt_key_rotation_passed": True,
-            "storage_verification_passed": True,
-            "orphan_usable_session_count": 0,
-            "duplicate_session_count": 0,
-            "sensitive_telemetry_field_count": 0,
-        }
+        return _recovery_payload()
     if kind == "leak-audit":
         return {
             **_common(kind),
@@ -378,6 +463,118 @@ def test_canary_rejects_semantically_failed_stage_evidence(
     _mutate_stage(report_path, kind, mutate)
 
     with pytest.raises(CanaryError, match=message):
+        evaluate_canary(report_path)
+
+
+@pytest.mark.parametrize(
+    ("mutate", "message"),
+    [
+        (
+            lambda value: value["source"].update({"machine_id_sha256": "e" * 64}),
+            "deployed review Machine",
+        ),
+        (
+            lambda value: value["snapshot"].update({"source_volume_id_sha256": "f" * 64}),
+            "snapshot source volume differs",
+        ),
+        (
+            lambda value: value["maintenance_window"].update({"final_inventory_sha256": "f" * 64}),
+            "maintenance inventory changed",
+        ),
+        (
+            lambda value: value["maintenance_window"].update({"health_observation_sha256": "invalid"}),
+            "health_observation_sha256",
+        ),
+        (
+            lambda value: value["maintenance_window"].update({"health_observed_at_epoch_ms": 1_126_000}),
+            "not observed inside the maintenance window",
+        ),
+        (
+            lambda value: value["snapshot"].update({"completed_at_epoch_ms": 1_126_000}),
+            "inside the held maintenance window",
+        ),
+        (
+            lambda value: value["maintenance_window"].update({"completion_binding_sha256": "f" * 64}),
+            "not bound to the snapshot evidence",
+        ),
+        (
+            lambda value: value["snapshot"].update({"status": "pending"}),
+            "snapshot is not completed",
+        ),
+        (
+            lambda value: value["restored_volume"].update({"snapshot_id_sha256": "f" * 64}),
+            "uses the wrong snapshot",
+        ),
+        (
+            lambda value: value["restored_volume"].update({"volume_id_sha256": "5" * 64}),
+            "use a new volume",
+        ),
+        (
+            lambda value: value["restored_volume"].update({"region": "iad"}),
+            "region differs",
+        ),
+        (
+            lambda value: value["restored_volume"].update({"state": "restoring"}),
+            "not ready",
+        ),
+        (
+            lambda value: value["offline_inspection"].update({"volume_id_sha256": "f" * 64}),
+            "wrong restored volume",
+        ),
+        (
+            lambda value: value["offline_inspection"].update({"restored_inventory_sha256": "f" * 64}),
+            "inventory differs",
+        ),
+        (
+            lambda value: value["offline_inspection"]["build"].update({"source_revision": "f" * 40}),
+            "frozen deployment",
+        ),
+        (
+            lambda value: value["offline_inspection"].update({"normal_startup_reconciliation_count": 1}),
+            "startup reconciliation count",
+        ),
+        (
+            lambda value: value["lifecycle"].update({"restart_recovery_passed": False}),
+            "restart_recovery_passed",
+        ),
+        (
+            lambda value: value["cleanup"].update({"restored_volume_destroyed": False}),
+            "restored_volume_destroyed",
+        ),
+    ],
+)
+def test_recovery_requires_exact_provider_lineage(tmp_path: Path, mutate, message: str) -> None:
+    report_path = _canary(tmp_path)
+    _mutate_stage(report_path, "recovery", mutate)
+
+    with pytest.raises(CanaryError, match=message):
+        evaluate_canary(report_path)
+
+
+def test_legacy_recovery_assertion_booleans_cannot_pass(tmp_path: Path) -> None:
+    report_path = _canary(tmp_path)
+
+    def legacy(value):
+        for field in (
+            "source",
+            "maintenance_window",
+            "snapshot",
+            "restored_volume",
+            "offline_inspection",
+            "lifecycle",
+            "cleanup",
+        ):
+            value.pop(field)
+        value.update(
+            {
+                "backup_restore_passed": True,
+                "receipt_key_rotation_passed": True,
+                "storage_verification_passed": True,
+            }
+        )
+
+    _mutate_stage(report_path, "recovery", legacy)
+    with pytest.raises(CanaryError, match="recovery stage shape mismatch"):
         evaluate_canary(report_path)
 
 
