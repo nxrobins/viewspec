@@ -25,6 +25,7 @@ import tempfile
 import time
 
 from viewspec.review_contract import canonical_json_bytes
+from viewspec.studio_review_staging import plan_staging, prepare_staging, remove_staging
 from viewspec.studio_share import (
     STUDIO_SHARE_ARCHIVE_MAX_BYTES,
     STUDIO_SHARE_MAX_BYTES,
@@ -135,6 +136,7 @@ class StudioReviewService:
         receipt_keys[key_id] = active_receipt_key
         self.root = Path(root).resolve()
         self.objects = self.root / "objects"
+        self.ingress = self.root / "ingress"
         self.database = self.root / "service.sqlite3"
         self._signing_key = signing_key
         self._receipt_signing_key = active_receipt_key
@@ -160,7 +162,7 @@ class StudioReviewService:
                 Path(archive_path),
                 maximum=STUDIO_SHARE_ARCHIVE_MAX_BYTES,
             )
-            with tempfile.TemporaryDirectory(prefix=".ingress-", dir=self.root) as directory:
+            with tempfile.TemporaryDirectory(prefix=".ingress-", dir=self.ingress) as directory:
                 package = materialize_studio_share_archive(archive_path, directory)
                 created = self.create_session(
                     package,
@@ -897,6 +899,10 @@ class StudioReviewService:
             raise ValueError("Studio review reconciliation dry_run must be a boolean.")
         batch_limit = _maintenance_limit(limit)
         now = self._now()
+        try:
+            staging = plan_staging(self.root)
+        except (OSError, ValueError) as exc:
+            raise _storage_failed() from exc
         with self._connect() as database:
             database.execute("BEGIN IMMEDIATE")
             sessions = {
@@ -920,9 +926,6 @@ class StudioReviewService:
                     database.rollback()
                     raise _storage_failed()
                 name = path.name
-                if name.startswith(".ingress-"):
-                    planned.append(("staging_removed", path, None))
-                    continue
                 if name.startswith(".candidate-"):
                     session_id = name.removeprefix(".candidate-")
                     if _SESSION_ID_RE.fullmatch(session_id) is None:
@@ -959,9 +962,10 @@ class StudioReviewService:
                 ):
                     database.rollback()
                     raise _storage_failed()
+            planned.extend(("staging_removed", path, None) for path, _ in staging)
             selected = planned[:batch_limit]
             counts = {
-                "scanned_entries": len(entries),
+                "scanned_entries": len(entries) + len(staging),
                 "planned_actions": len(planned),
                 "staging_removed": 0,
                 "orphan_objects_removed": 0,
@@ -972,13 +976,17 @@ class StudioReviewService:
                 counts[action] += 1
             if not dry_run:
                 try:
+                    staging_paths = dict(staging)
+                    remove_staging(self.root, [(path, staging_paths[path]) for _, path, _ in selected if path in staging_paths])
                     for action, path, destination in selected:
+                        if path in staging_paths:
+                            continue
                         if action == "deletion_rollback_completed":
                             assert destination is not None
                             os.rename(path, destination)
                         else:
                             shutil.rmtree(path)
-                except OSError as exc:
+                except (OSError, ValueError) as exc:
                     database.rollback()
                     raise _storage_failed() from exc
             run_sequence = self._record_maintenance(
@@ -1086,6 +1094,11 @@ class StudioReviewService:
     def verify_storage(self) -> dict[str, object]:
         """Verify a restored consistency unit without exposing retained review content."""
 
+        try:
+            if plan_staging(self.root):
+                raise _storage_failed()
+        except (OSError, ValueError) as exc:
+            raise _storage_failed() from exc
         object_facts: list[dict[str, object]] = []
         receipts: dict[str, dict[str, object]] = {}
         with self._connect() as database:
@@ -1293,6 +1306,7 @@ class StudioReviewService:
         self.root.chmod(0o700)
         self.objects.mkdir(mode=0o700, exist_ok=True)
         self.objects.chmod(0o700)
+        prepare_staging(self.root)
         with self._connect() as database:
             database.executescript(_SCHEMA)
             database.commit()
