@@ -237,6 +237,8 @@ def test_compile_react_app_target_writes_runnable_checked_app(tmp_path):
     assert 'from "./state_reducer"' in app_source
     assert "window.history.pushState" in app_source
     assert 'window.addEventListener("popstate"' in app_source
+    route_effect = app_source.split("React.useLayoutEffect(() => {", 1)[1].split("}, []);", 1)[0]
+    assert "window.addEventListener(viewspecAppRestoreEvent, restorePath)" in route_effect
     assert 'viewspecAppRestoreEvent = "viewspec-app-restore"' in app_source
     assert 'viewspecAppRouteEvent = "viewspec-app-route"' in app_source
     assert "__viewspecInitialPath" in app_source

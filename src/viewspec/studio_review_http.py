@@ -18,6 +18,7 @@ import tempfile
 from urllib.parse import unquote_to_bytes, urlsplit
 
 from viewspec.review_contract import canonical_json_bytes
+from viewspec.review_frame_readiness import FRAME_RENDER_WAIT_JS
 from viewspec.studio_review_service import StudioReviewService, StudioReviewServiceError
 from viewspec.studio_share import STUDIO_SHARE_ARCHIVE_MAX_BYTES
 
@@ -476,9 +477,11 @@ _HOSTED_FRAME_BOOTSTRAP = r"""(() => {
 
 _HOSTED_FRAME_CLIENT = r"""(() => {
   'use strict'
+""" + FRAME_RENDER_WAIT_JS + r"""
   const ownScript = document.currentScript
   const surface = ownScript?.dataset.surface || 'unknown'
   const channel = window.__viewspecHostedReviewTransportV1?.channel || ''
+  const initialRoute = window.__viewspecInitialPath || null
   const send = (value) => parent.postMessage({channel, surface, ...value}, '*')
   const currentScreen = () => document.querySelector('[data-viewspec-app-screen]:not([hidden])') || document.querySelector('[data-viewspec-app-screen]')
   const currentRoute = () => {
@@ -497,10 +500,11 @@ _HOSTED_FRAME_CLIENT = r"""(() => {
   }
   const applyReplay = async (message) => {
     try {
+      await waitForInitialScreen(initialRoute)
       for (const event of message.events || []) {
         if (!event || typeof event.route !== 'string' || typeof event.action_id !== 'string') throw new Error('invalid declared event')
         restoreRoute(event.route)
-        await nextFrame()
+        await waitForRenderedScreen(event.route)
         for (const [binding, value] of Object.entries(event.payload_values || {})) {
           const node = document.querySelector(`[data-binding-id="${CSS.escape(binding)}"]`)
           const expected = value === null ? '' : (typeof value === 'string' ? value : JSON.stringify(value))
@@ -553,10 +557,20 @@ _HOSTED_FRAME_CLIENT = r"""(() => {
   })
   const nativePush = history.pushState.bind(history)
   history.pushState = (...args) => { nativePush(...args); requestAnimationFrame(() => sendContext('navigation')) }
-  addEventListener('load', () => requestAnimationFrame(() => {
-    sendContext('initial')
-    send({type: 'viewspec-hosted-ready'})
-  }))
+  let readinessStarted = false
+  const announceReady = async () => {
+    if (readinessStarted) return
+    readinessStarted = true
+    try {
+      await waitForInitialScreen(initialRoute)
+      sendContext('initial')
+      send({type: 'viewspec-hosted-ready'})
+    } catch {
+      send({type: 'viewspec-hosted-render-failed'})
+    }
+  }
+  if (document.readyState === 'loading') addEventListener('DOMContentLoaded', announceReady, {once: true})
+  else announceReady()
 })()"""
 
 
@@ -606,6 +620,7 @@ _REVIEW_CLIENT = r"""(() => {
     let selectedSurface = null
     const replayResults = new Map()
     const readySurfaces = new Set()
+    const failedSurfaces = new Set()
     const frameRoutes = new Map()
     app.innerHTML = `<header><div><p class="eyebrow" id="role"></p><h1>Review the real product</h1><p>Exact revision <code id="revision"></code></p></div><div class="header-actions"><span class="status">Checked</span><button id="mode" type="button">Comment on product</button></div></header>
       <div class="toolbar"><nav class="routes" aria-label="Product routes"></nav><div class="viewports" aria-label="Viewport"><button data-width="390">Mobile</button><button data-width="768">Tablet</button><button data-width="1440">Desktop</button></div></div>
@@ -673,7 +688,7 @@ _REVIEW_CLIENT = r"""(() => {
     if (replayChoices.size) replayTools.hidden = false
     const updateReplayAvailability = () => {
       const choice = replayChoices.get(replaySelect.value)
-      const available = choice?.replay.browser_status === 'replayable'
+      const available = choice?.replay.browser_status === 'replayable' && failedSurfaces.size === 0
       app.querySelector('#show-replay').disabled = !available
       const expected = choice?.checkpoint.expected
       const humanize = (value) => String(value || '').replace(/[_-]+/g, ' ').replace(/\b\w/g, (letter) => letter.toUpperCase())
@@ -684,12 +699,13 @@ _REVIEW_CLIENT = r"""(() => {
     updateReplayAvailability()
     app.querySelector('#show-replay').onclick = () => {
       const choice = replayChoices.get(replaySelect.value)
-      if (!choice || choice.replay.browser_status !== 'replayable') return
+      if (!choice || choice.replay.browser_status !== 'replayable' || failedSurfaces.size) return
       desiredReplay = {evidence_ref: choice.checkpoint.evidence_ref, events: choice.replay.checkpoints.slice(1, choice.checkpoint.index + 1).map((item) => item.event)}
       activeReplayRef = null
       replayDispatched = false
       replayResults.clear()
       readySurfaces.clear()
+      failedSurfaces.clear()
       setStatus('Resetting both checked targets…')
       const blanked = frames.map((frame) => new Promise((resolve) => {
         frame.addEventListener('load', resolve, {once: true})
@@ -716,7 +732,18 @@ _REVIEW_CLIENT = r"""(() => {
       const sourceFrame = frames.find((frame) => event.source === frame.contentWindow)
       if (!sourceFrame || !event.data || event.data.channel !== channel || event.data.surface !== sourceFrame.dataset.surface) return
       const message = event.data
+      if (message.type === 'viewspec-hosted-render-failed') {
+        failedSurfaces.add(message.surface)
+        readySurfaces.delete(message.surface)
+        desiredReplay = null
+        activeReplayRef = null
+        app.querySelector('#show-replay').disabled = true
+        app.querySelector('#replay-status').textContent = 'Replay was not attached because a checked target did not render.'
+        setStatus('Checked target unavailable · reload this review to retry')
+        return
+      }
       if (message.type === 'viewspec-hosted-ready') {
+        if (failedSurfaces.size) return
         readySurfaces.add(message.surface)
         if (readySurfaces.size === frames.length) {
           setStatus('Checked target pair ready')
@@ -735,6 +762,7 @@ _REVIEW_CLIENT = r"""(() => {
         return
       }
       if (message.type === 'viewspec-hosted-replay-result') {
+        if (failedSurfaces.size) return
         replayResults.set(message.surface, message)
         if (replayResults.size === frames.length) {
           const passed = [...replayResults.values()].every((item) => item.ok === true)

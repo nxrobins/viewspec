@@ -613,7 +613,7 @@ def _react_app_source(payload: dict[str, Any]) -> str:
             *([state_text_eval] if state_text_eval is not None else []),
             "  const activeRoute = routes.find((route) => route.path === path);",
             "",
-            "  React.useEffect(() => {",
+            "  React.useLayoutEffect(() => {",
             '    if (typeof window === "undefined") return undefined;',
             "    const syncPath = () => setPath(window.location.pathname);",
             "    const restorePath = (event: Event) => {",
