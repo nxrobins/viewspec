@@ -30,6 +30,12 @@ BUILD_MANIFEST_FIELDS = {
     "api_image_digest",
     "studio_image_digest",
 }
+INSTALLED_BUILD_FIELDS = {
+    "schema_version",
+    "source_revision",
+    "public_sdk_revision",
+    "public_sdk_wheel_sha256",
+}
 STAGE_KINDS = (
     "deployment",
     "ingress",
@@ -148,18 +154,102 @@ BROWSER_FIELDS = COMMON_STAGE_FIELDS | {
     "console_error_count",
 }
 RECOVERY_FIELDS = COMMON_STAGE_FIELDS | {
+    "source",
+    "maintenance_window",
+    "snapshot",
+    "restored_volume",
+    "offline_inspection",
+    "lifecycle",
+    "cleanup",
+}
+RECOVERY_SOURCE_FIELDS = {
+    "app_id",
+    "machine_id_sha256",
+    "machine_version_sha256",
+    "image_digest",
+    "volume_id_sha256",
+    "region",
+    "zone_sha256",
+    "size_gb",
+    "encrypted",
+    "inventory_sha256",
+    "provider_observation_sha256",
+}
+RECOVERY_MAINTENANCE_FIELDS = {
+    "ready_at_epoch_ms",
+    "completed_at_epoch_ms",
+    "max_pause_seconds",
+    "guard_id_sha256",
+    "ready_observation_sha256",
+    "request_exclusion_observation_sha256",
+    "health_observation_sha256",
+    "health_observed_at_epoch_ms",
+    "source_inventory_sha256",
+    "final_inventory_sha256",
+    "completion_binding_sha256",
+    "ack_sha256",
+    "result_sha256",
+    "non_health_requests_excluded",
+    "health_available",
+    "source_unchanged",
+    "lease_released",
+}
+RECOVERY_SNAPSHOT_FIELDS = {
+    "snapshot_id_sha256",
+    "source_volume_id_sha256",
+    "provider_observation_sha256",
+    "requested_at_epoch_ms",
+    "completed_at_epoch_ms",
+    "size_bytes",
+    "volume_size_gb",
+    "status",
+}
+RECOVERY_RESTORED_VOLUME_FIELDS = {
+    "volume_id_sha256",
+    "snapshot_id_sha256",
+    "provider_observation_sha256",
+    "requested_at_epoch_ms",
+    "ready_at_epoch_ms",
+    "region",
+    "zone_sha256",
+    "size_gb",
+    "state",
+    "encrypted",
+    "initially_detached",
+}
+RECOVERY_OFFLINE_INSPECTION_FIELDS = {
+    "machine_id_sha256",
+    "machine_version_sha256",
+    "provider_observation_sha256",
+    "image_digest",
+    "volume_id_sha256",
+    "completed_at_epoch_ms",
+    "source_inventory_sha256",
+    "restored_inventory_sha256",
+    "build",
+    "network_service_count",
+    "normal_startup_reconciliation_count",
+    "storage_verified",
+    "receipt_key_rotation_passed",
+}
+RECOVERY_LIFECYCLE_FIELDS = {
+    "evidence_sha256",
     "restart_recovery_passed",
     "idempotent_retry_passed",
     "expiry_passed",
     "reviewer_rotation_passed",
     "revocation_passed",
     "deletion_passed",
-    "backup_restore_passed",
-    "receipt_key_rotation_passed",
-    "storage_verification_passed",
     "orphan_usable_session_count",
     "duplicate_session_count",
     "sensitive_telemetry_field_count",
+}
+RECOVERY_CLEANUP_FIELDS = {
+    "provider_observation_sha256",
+    "inspection_machine_destroyed",
+    "restored_volume_destroyed",
+    "source_machine_unchanged",
+    "source_volume_unchanged",
 }
 LEAK_FIELDS = COMMON_STAGE_FIELDS | {
     "authorization_header_hits",
@@ -212,6 +302,13 @@ def _bounded_int(value: object, noun: str, *, maximum: int | None = None) -> int
     if type(value) is not int or value < 0 or (maximum is not None and value > maximum):
         raise CanaryError(f"{noun} must be a non-negative bounded integer")
     return value
+
+
+def _positive_bounded_int(value: object, noun: str, *, maximum: int) -> int:
+    bounded = _bounded_int(value, noun, maximum=maximum)
+    if bounded == 0:
+        raise CanaryError(f"{noun} must be positive")
+    return bounded
 
 
 def _true(value: object, noun: str) -> None:
@@ -430,6 +527,173 @@ def _browser(
 def _recovery(payload: Mapping[str, Any], *, run_id: str, deployment_sha256: str) -> None:
     _exact(payload, RECOVERY_FIELDS, "recovery stage")
     _common(payload, kind="recovery", run_id=run_id, deployment_sha256=deployment_sha256)
+
+    source = payload.get("source")
+    if not isinstance(source, dict):
+        raise CanaryError("Recovery source must be an object")
+    _exact(source, RECOVERY_SOURCE_FIELDS, "recovery source")
+    if source.get("app_id") != "viewspec-review":
+        raise CanaryError("Recovery source must be the review app")
+    for field in (
+        "machine_id_sha256",
+        "machine_version_sha256",
+        "volume_id_sha256",
+        "zone_sha256",
+        "inventory_sha256",
+        "provider_observation_sha256",
+    ):
+        _sha(source.get(field), f"recovery source {field}")
+    source_image = source.get("image_digest")
+    if not isinstance(source_image, str) or IMAGE_DIGEST_RE.fullmatch(source_image) is None:
+        raise CanaryError("Recovery source image must be an immutable digest")
+    source_region = source.get("region")
+    if not isinstance(source_region, str) or re.fullmatch(r"[a-z0-9]{3}", source_region) is None:
+        raise CanaryError("Recovery source region is invalid")
+    source_size = _positive_bounded_int(source.get("size_gb"), "recovery source size_gb", maximum=1000)
+    _true(source.get("encrypted"), "recovery source volume encryption")
+
+    maintenance = payload.get("maintenance_window")
+    if not isinstance(maintenance, dict):
+        raise CanaryError("Recovery maintenance window must be an object")
+    _exact(maintenance, RECOVERY_MAINTENANCE_FIELDS, "recovery maintenance window")
+    ready_at = _bounded_int(maintenance.get("ready_at_epoch_ms"), "recovery maintenance ready time")
+    maintenance_completed = _bounded_int(
+        maintenance.get("completed_at_epoch_ms"), "recovery maintenance completion time"
+    )
+    max_pause = _positive_bounded_int(
+        maintenance.get("max_pause_seconds"), "recovery maintenance max pause", maximum=45
+    )
+    if maintenance_completed < ready_at or maintenance_completed - ready_at > max_pause * 1000:
+        raise CanaryError("Recovery maintenance window exceeded its approved bound")
+    for field in (
+        "guard_id_sha256",
+        "ready_observation_sha256",
+        "request_exclusion_observation_sha256",
+        "health_observation_sha256",
+        "source_inventory_sha256",
+        "final_inventory_sha256",
+        "completion_binding_sha256",
+        "ack_sha256",
+        "result_sha256",
+    ):
+        _sha(maintenance.get(field), f"recovery maintenance {field}")
+    health_observed = _bounded_int(
+        maintenance.get("health_observed_at_epoch_ms"),
+        "recovery maintenance health observation time",
+    )
+    if not ready_at <= health_observed <= maintenance_completed:
+        raise CanaryError("Recovery health was not observed inside the maintenance window")
+    if not (
+        maintenance["source_inventory_sha256"]
+        == maintenance["final_inventory_sha256"]
+        == source["inventory_sha256"]
+    ):
+        raise CanaryError("Recovery maintenance inventory changed")
+    for field in (
+        "non_health_requests_excluded",
+        "health_available",
+        "source_unchanged",
+        "lease_released",
+    ):
+        _true(maintenance.get(field), f"recovery maintenance {field}")
+
+    snapshot = payload.get("snapshot")
+    if not isinstance(snapshot, dict):
+        raise CanaryError("Recovery snapshot must be an object")
+    _exact(snapshot, RECOVERY_SNAPSHOT_FIELDS, "recovery snapshot")
+    for field in ("snapshot_id_sha256", "source_volume_id_sha256", "provider_observation_sha256"):
+        _sha(snapshot.get(field), f"recovery snapshot {field}")
+    if snapshot["source_volume_id_sha256"] != source["volume_id_sha256"]:
+        raise CanaryError("Recovery snapshot source volume differs")
+    snapshot_requested = _bounded_int(snapshot.get("requested_at_epoch_ms"), "recovery snapshot request time")
+    snapshot_completed = _bounded_int(snapshot.get("completed_at_epoch_ms"), "recovery snapshot completion time")
+    if not ready_at <= snapshot_requested <= snapshot_completed <= maintenance_completed:
+        raise CanaryError("Recovery snapshot is not completed inside the held maintenance window")
+    snapshot_size = _positive_bounded_int(
+        snapshot.get("size_bytes"), "recovery snapshot size_bytes", maximum=1000 * 1024 * 1024 * 1024
+    )
+    if snapshot_size > source_size * 1024 * 1024 * 1024:
+        raise CanaryError("Recovery snapshot exceeds its source volume")
+    if snapshot.get("volume_size_gb") != source_size or type(snapshot.get("volume_size_gb")) is not int:
+        raise CanaryError("Recovery snapshot volume size differs from its source")
+    if snapshot.get("status") != "completed":
+        raise CanaryError("Recovery snapshot is not completed")
+    if maintenance["completion_binding_sha256"] != _sha256_bytes(_canonical_bytes(snapshot)):
+        raise CanaryError("Recovery maintenance completion is not bound to the snapshot evidence")
+
+    restored = payload.get("restored_volume")
+    if not isinstance(restored, dict):
+        raise CanaryError("Recovery restored volume must be an object")
+    _exact(restored, RECOVERY_RESTORED_VOLUME_FIELDS, "recovery restored volume")
+    for field in ("volume_id_sha256", "snapshot_id_sha256", "provider_observation_sha256", "zone_sha256"):
+        _sha(restored.get(field), f"recovery restored volume {field}")
+    if restored["snapshot_id_sha256"] != snapshot["snapshot_id_sha256"]:
+        raise CanaryError("Recovery restored volume uses the wrong snapshot")
+    if restored["volume_id_sha256"] == source["volume_id_sha256"]:
+        raise CanaryError("Recovery must use a new volume")
+    restore_requested = _bounded_int(restored.get("requested_at_epoch_ms"), "recovery restore request time")
+    restore_ready = _bounded_int(restored.get("ready_at_epoch_ms"), "recovery restored volume ready time")
+    if not snapshot_completed <= restore_requested <= restore_ready or restore_ready - restore_requested > 10 * 60 * 1000:
+        raise CanaryError("Recovery restored volume timing is invalid")
+    if restored.get("region") != source_region:
+        raise CanaryError("Recovery restored volume region differs from its source")
+    restored_size = _positive_bounded_int(restored.get("size_gb"), "recovery restored volume size_gb", maximum=1000)
+    if restored_size < source_size:
+        raise CanaryError("Recovery restored volume is smaller than its source")
+    if restored.get("state") != "created":
+        raise CanaryError("Recovery restored volume is not ready")
+    _true(restored.get("encrypted"), "recovery restored volume encryption")
+    _true(restored.get("initially_detached"), "recovery restored volume initial detachment")
+
+    inspection = payload.get("offline_inspection")
+    if not isinstance(inspection, dict):
+        raise CanaryError("Recovery offline inspection must be an object")
+    _exact(inspection, RECOVERY_OFFLINE_INSPECTION_FIELDS, "recovery offline inspection")
+    for field in ("machine_id_sha256", "machine_version_sha256", "provider_observation_sha256", "volume_id_sha256"):
+        _sha(inspection.get(field), f"recovery offline inspection {field}")
+    if inspection["machine_id_sha256"] == source["machine_id_sha256"]:
+        raise CanaryError("Recovery inspection must use a disposable Machine")
+    if inspection["volume_id_sha256"] != restored["volume_id_sha256"]:
+        raise CanaryError("Recovery inspection uses the wrong restored volume")
+    if inspection.get("image_digest") != source_image:
+        raise CanaryError("Recovery inspection image differs from its source")
+    inspection_completed = _bounded_int(
+        inspection.get("completed_at_epoch_ms"), "recovery offline inspection completion time"
+    )
+    if inspection_completed < restore_ready or inspection_completed - restore_ready > 10 * 60 * 1000:
+        raise CanaryError("Recovery offline inspection timing is invalid")
+    for field in ("source_inventory_sha256", "restored_inventory_sha256"):
+        _sha(inspection.get(field), f"recovery offline inspection {field}")
+    if not (
+        inspection["source_inventory_sha256"]
+        == inspection["restored_inventory_sha256"]
+        == source["inventory_sha256"]
+    ):
+        raise CanaryError("Recovery restored inventory differs from its source")
+    build = inspection.get("build")
+    if not isinstance(build, dict):
+        raise CanaryError("Recovery inspection build must be an object")
+    _exact(build, INSTALLED_BUILD_FIELDS, "recovery inspection build")
+    if type(build.get("schema_version")) is not int or build["schema_version"] != 1:
+        raise CanaryError("Recovery inspection build version is invalid")
+    for field in ("source_revision", "public_sdk_revision"):
+        value = build.get(field)
+        if not isinstance(value, str) or REVISION_RE.fullmatch(value) is None:
+            raise CanaryError(f"Recovery inspection {field} is invalid")
+    _sha(build.get("public_sdk_wheel_sha256"), "recovery inspection SDK wheel hash")
+    _zero(inspection.get("network_service_count"), "recovery inspection network service count")
+    _zero(
+        inspection.get("normal_startup_reconciliation_count"),
+        "recovery inspection normal startup reconciliation count",
+    )
+    _true(inspection.get("storage_verified"), "recovery inspection storage verification")
+    _true(inspection.get("receipt_key_rotation_passed"), "recovery inspection receipt-key rotation")
+
+    lifecycle = payload.get("lifecycle")
+    if not isinstance(lifecycle, dict):
+        raise CanaryError("Recovery lifecycle evidence must be an object")
+    _exact(lifecycle, RECOVERY_LIFECYCLE_FIELDS, "recovery lifecycle evidence")
+    _sha(lifecycle.get("evidence_sha256"), "recovery lifecycle evidence hash")
     for field in (
         "restart_recovery_passed",
         "idempotent_retry_passed",
@@ -437,17 +701,27 @@ def _recovery(payload: Mapping[str, Any], *, run_id: str, deployment_sha256: str
         "reviewer_rotation_passed",
         "revocation_passed",
         "deletion_passed",
-        "backup_restore_passed",
-        "receipt_key_rotation_passed",
-        "storage_verification_passed",
     ):
-        _true(payload.get(field), f"recovery {field}")
+        _true(lifecycle.get(field), f"recovery lifecycle {field}")
     for field in (
         "orphan_usable_session_count",
         "duplicate_session_count",
         "sensitive_telemetry_field_count",
     ):
-        _zero(payload.get(field), f"recovery {field}")
+        _zero(lifecycle.get(field), f"recovery lifecycle {field}")
+
+    cleanup = payload.get("cleanup")
+    if not isinstance(cleanup, dict):
+        raise CanaryError("Recovery cleanup evidence must be an object")
+    _exact(cleanup, RECOVERY_CLEANUP_FIELDS, "recovery cleanup evidence")
+    _sha(cleanup.get("provider_observation_sha256"), "recovery cleanup provider observation hash")
+    for field in (
+        "inspection_machine_destroyed",
+        "restored_volume_destroyed",
+        "source_machine_unchanged",
+        "source_volume_unchanged",
+    ):
+        _true(cleanup.get(field), f"recovery cleanup {field}")
 
 
 def _leaks(payload: Mapping[str, Any], *, run_id: str, deployment_sha256: str) -> None:
@@ -555,6 +829,21 @@ def evaluate_canary(path: str | Path) -> dict[str, Any]:
             run_id=run_id,
             deployment_sha256=deployment_sha256,
         )
+    deployment = payloads["deployment"]
+    recovery = payloads["recovery"]
+    review_app = next(
+        app for app in deployment["apps"] if app["app_id"] == "viewspec-review"
+    )
+    recovery_source = recovery["source"]
+    if recovery_source["machine_id_sha256"] != review_app["machine_id_sha256"]:
+        raise CanaryError("Recovery source does not match the deployed review Machine")
+    if recovery_source["image_digest"] != review_app["image_digest"]:
+        raise CanaryError("Recovery source does not match the deployed review image")
+    expected_build = {
+        field: deployment["build_manifest"][field] for field in INSTALLED_BUILD_FIELDS
+    }
+    if recovery["offline_inspection"]["build"] != expected_build:
+        raise CanaryError("Recovery inspection build differs from the frozen deployment")
     checks = {
         "report_contract": True,
         "artifact_integrity": True,
