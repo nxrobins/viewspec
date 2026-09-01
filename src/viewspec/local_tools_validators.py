@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from html import unescape
 from html.parser import HTMLParser
 from pathlib import Path
 from typing import Any
@@ -151,7 +152,6 @@ def check_artifact_dir(path: str | Path) -> dict[str, Any]:
         artifact_hash = file_hash(html_path)
         if manifest.get("artifact_hash") and manifest.get("artifact_hash") != artifact_hash:
             errors.append("artifact_hash does not match index.html")
-        lowered = html.lower()
         errors.extend(_validate_no_autofetch_surfaces(html))
         scripts = re.findall(r"<script\b[^>]*>[\s\S]*?</script>", html, flags=re.IGNORECASE)
         if manifest.get("kind") == "raw_html_compile" and scripts:
@@ -160,8 +160,6 @@ def check_artifact_dir(path: str | Path) -> dict[str, Any]:
             errors.append("index.html contains an unknown inline script")
         elif scripts and not _manifest_has_action_nodes(manifest):
             errors.append("index.html contains an action runtime script without action nodes")
-        if any(marker in lowered for marker in ("@import", "url(")):
-            errors.append("index.html contains an active or auto-fetching surface")
         if manifest.get("kind") == "intent_bundle_compile":
             errors.extend(_validate_no_tailwind_scope_leak(manifest))
         errors.extend(_validate_manifest_dom_links(manifest, html))
@@ -1545,6 +1543,60 @@ _BEACON_REMOTE_URL_ATTR_RE = re.compile(
     r"(?i)(?:src|action|formaction|poster|srcset|background|manifest|data)"
     r"\s*=\s*[\"']?\s*(?:https?:)?//"
 )
+_UNSAFE_CSS_REFERENCE_RE = re.compile(r"(?i)(?:@import|url\s*\()")
+# HTMLParser intentionally drops some unfinished tags at EOF. Keep the CSS
+# backstop context-scoped so an unfinished style surface cannot hide a fetch,
+# while ordinary rendered text such as "URL(" remains valid product content.
+_BEACON_UNSAFE_STYLE_TAG_RE = re.compile(
+    r"(?is)<style\b[^>]*>(?:(?!</style\s*>).)*(?:@import|url\s*\()"
+)
+
+
+def _unfinished_tag_has_unsafe_style(html: str) -> bool:
+    """Inspect one browser-recoverable final tag without scanning attribute text as markup."""
+    start = html.rfind("<")
+    if start < 0 or ">" in html[start:]:
+        return False
+    fragment = html[start + 1 :]
+    if not fragment or not fragment[0].isalpha():
+        return False
+    position = 0
+    while position < len(fragment) and not fragment[position].isspace() and fragment[position] not in "/>":
+        position += 1
+    while position < len(fragment):
+        while position < len(fragment) and (fragment[position].isspace() or fragment[position] == "/"):
+            position += 1
+        name_start = position
+        while position < len(fragment) and not fragment[position].isspace() and fragment[position] not in "=/>":
+            position += 1
+        if name_start == position:
+            position += 1
+            continue
+        name = fragment[name_start:position].lower()
+        while position < len(fragment) and fragment[position].isspace():
+            position += 1
+        value = ""
+        if position < len(fragment) and fragment[position] == "=":
+            position += 1
+            while position < len(fragment) and fragment[position].isspace():
+                position += 1
+            if position < len(fragment) and fragment[position] in "\"'":
+                quote = fragment[position]
+                position += 1
+                value_start = position
+                while position < len(fragment) and fragment[position] != quote:
+                    position += 1
+                value = fragment[value_start:position]
+                if position < len(fragment):
+                    position += 1
+            else:
+                value_start = position
+                while position < len(fragment) and not fragment[position].isspace() and fragment[position] not in "/>":
+                    position += 1
+                value = fragment[value_start:position]
+        if name == "style" and _UNSAFE_CSS_REFERENCE_RE.search(unescape(value)):
+            return True
+    return False
 
 
 def _validate_no_autofetch_surfaces(html: str) -> list[str]:
@@ -1562,6 +1614,10 @@ def _validate_no_autofetch_surfaces(html: str) -> list[str]:
             "index.html contains an auto-fetching remote URL attribute",
             bool(_BEACON_REMOTE_URL_ATTR_RE.search(collapsed)),
         ),
+        (
+            "index.html contains an active or auto-fetching surface",
+            bool(_BEACON_UNSAFE_STYLE_TAG_RE.search(html) or _unfinished_tag_has_unsafe_style(html)),
+        ),
     )
     for message, hit in checks:
         if hit and message not in errors:
@@ -1572,6 +1628,7 @@ class _AutofetchSurfaceProbe(HTMLParser):
     def __init__(self) -> None:
         super().__init__(convert_charrefs=True)
         self.errors: list[str] = []
+        self._style_depth = 0
 
     def _append_once(self, message: str) -> None:
         if message not in self.errors:
@@ -1580,6 +1637,8 @@ class _AutofetchSurfaceProbe(HTMLParser):
     def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
         tag_name = tag.lower()
         attr_map = {name.lower(): value or "" for name, value in attrs}
+        if tag_name == "style":
+            self._style_depth += 1
         if tag_name in ACTIVE_OR_AUTOFETCH_TAGS:
             self._append_once("index.html contains an active or auto-fetching surface")
         if tag_name in ACTIVE_STRUCTURAL_TAGS:
@@ -1587,10 +1646,20 @@ class _AutofetchSurfaceProbe(HTMLParser):
         if tag_name == "meta" and attr_map.get("http-equiv", "").lower() == "refresh":
             self._append_once("index.html contains an active or auto-fetching surface")
         for attr_name, attr_value in attr_map.items():
+            if attr_name == "style" and _UNSAFE_CSS_REFERENCE_RE.search(attr_value):
+                self._append_once("index.html contains an active or auto-fetching surface")
             if attr_name in REMOTE_AUTOFETCH_ATTRS and _contains_remote_http_reference(attr_value):
                 self._append_once("index.html contains an auto-fetching remote URL attribute")
             if tag_name in REMOTE_HREF_AUTOFETCH_TAGS and attr_name in {"href", "xlink:href"} and _contains_remote_http_reference(attr_value):
                 self._append_once("index.html contains an auto-fetching remote URL attribute")
+
+    def handle_endtag(self, tag: str) -> None:
+        if tag.lower() == "style" and self._style_depth:
+            self._style_depth -= 1
+
+    def handle_data(self, data: str) -> None:
+        if self._style_depth and _UNSAFE_CSS_REFERENCE_RE.search(data):
+            self._append_once("index.html contains an active or auto-fetching surface")
 
 class _ArtifactDomProbe(HTMLParser):
     def __init__(self) -> None:

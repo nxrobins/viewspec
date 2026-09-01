@@ -841,9 +841,28 @@ def test_autofetch_backstop_is_attribute_scoped_not_text():
     from viewspec.local_tools_validators import _validate_no_autofetch_surfaces
 
     assert _validate_no_autofetch_surfaces("<html><body><p>See https://docs.example.com now</p></body></html>") == []
+    assert _validate_no_autofetch_surfaces("<html><body><p>CSS words URL( and @import are visible text</p></body></html>") == []
+    assert _validate_no_autofetch_surfaces('<html><body><p data-label="style=url(">Visible label</p></body></html>') == []
     assert _validate_no_autofetch_surfaces('<html><body><img src="logo.png" alt=""></body></html>') == []
     assert _validate_no_autofetch_surfaces('<html><body></body></html>\n<iframe src="//evil.com/x"') != []
     assert _validate_no_autofetch_surfaces('<html><head><base href="//evil.com/"></head><body></body></html>') != []
+
+
+@pytest.mark.parametrize(
+    "html",
+    [
+        '<html><head><style>.x{background:url(//evil.example/x)}</style></head></html>',
+        '<html><head><style>@import "//evil.example/x";</style></head></html>',
+        '<html><body><div style="background: URL(//evil.example/x)"></div></body></html>',
+        '<html><body><div style="background:url(//evil.example/x)"',
+        '<html><body><div data-label="safe" style="background:url(//evil.example/x)"',
+        '<html><head><style>.x{background:url(//evil.example/x)}',
+    ],
+)
+def test_autofetch_backstop_rejects_css_references_only_in_css_contexts(html):
+    from viewspec.local_tools_validators import _validate_no_autofetch_surfaces
+
+    assert "index.html contains an active or auto-fetching surface" in _validate_no_autofetch_surfaces(html)
 
 
 def test_check_rejects_unknown_manifest_kind(tmp_path):
