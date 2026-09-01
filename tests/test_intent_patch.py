@@ -589,6 +589,17 @@ def test_property_semantic_scalar_patch_and_inverse_round_trip(value: object) ->
     assert source_sha256(preview.candidate_text) == preview.candidate_source_sha256
 
 
+def test_semantic_patch_allows_css_marker_in_visible_text() -> None:
+    payload = starter_intent_payload("dashboard")
+    payload["substrate"]["nodes"]["starter_dashboard"]["attrs"]["title"] = "before"
+    source = _source_text(payload)
+
+    preview = preview_intent_patch(source, _semantic_attr_patch(source, "before", "URL("))
+    inverse = preview_intent_patch(preview.candidate_text, preview.inverse_patch.to_json())
+
+    assert json.loads(inverse.candidate_text) == json.loads(source)
+
+
 @given(suffix=st.binary(min_size=1, max_size=64))
 def test_property_every_changed_base_is_rejected_before_mutation(suffix: bytes) -> None:
     source = _source_text(starter_intent_payload("dashboard"))
