@@ -66,33 +66,30 @@ test.afterAll(() => {
 test("starter content remains readable on mobile, including long translated values", async ({ page }, testInfo) => {
   const errors: string[] = [], evidence: unknown[] = [];
   page.on("pageerror", error => errors.push(error.message));
-  const waitForScreen = async (screen: string) => {
-    for (const selector of ["#artifact", "#artifact-react"]) {
-      await expect(page.frameLocator(selector).locator(`[data-viewspec-app-screen='${screen}']`)).toBeVisible();
-    }
-    // Let both route-context messages settle before issuing another navigation.
-    await page.evaluate(() => new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
-  };
   for (const session of sessions) {
     await page.goto(session.url);
     await expect(page.locator("#status")).toHaveText("Checked target pair ready");
-    for (const viewport of ["mobile", "tablet", "desktop"]) {
-      await page.getByLabel("Canvas", { exact: true }).selectOption(viewport);
-      for (const screen of ["queue", "detail"]) {
-        if (screen === "detail") {
-          await page.frameLocator("#artifact-react").getByRole("button", { name: session.detailLabel, exact: true }).click();
-          await waitForScreen("detail");
-        }
-        for (const selector of ["#artifact", "#artifact-react"]) {
-          const frame = page.frameLocator(selector);
-          const content = frame.locator(`[data-viewspec-app-screen='${screen}']`);
+    const surfaces = [];
+    for (const selector of ["#artifact", "#artifact-react"]) {
+      const url = await page.locator(selector).getAttribute("src");
+      expect(url).toBeTruthy();
+      surfaces.push({ selector, url: new URL(url!, page.url()).href });
+    }
+    // Check each promoted renderer directly. Readability must not depend on Studio route synchronization.
+    for (const { selector, url } of surfaces) {
+      for (const [viewport, width, height] of [["mobile", 390, 844], ["tablet", 768, 1024], ["desktop", 1440, 1000]] as const) {
+        await page.setViewportSize({ width, height });
+        await page.goto(url);
+        for (const screen of ["queue", "detail"]) {
+          if (screen === "detail") await page.getByRole("button", { name: session.detailLabel, exact: true }).click();
+          const content = page.locator(`[data-viewspec-app-screen='${screen}']`);
           await expect(content).toBeVisible();
           const title = session.name === "default"
             ? screen === "queue" ? "Incident Queue" : "Incident Detail"
             : screen === "queue" ? "Warteschlange für Einsatzvorfälle" : "Details zum Einsatzvorfall";
           await expect(content.getByRole("heading", { name: title, exact: true })).toBeVisible();
-          if (viewport === "mobile") await page.locator(selector).screenshot({ path: testInfo.outputPath(`${session.name}-${screen}-${selector.slice(1)}.png`) });
-          const measured = await frame.locator(`[data-viewspec-app-screen='${screen}'] [data-binding-id]:visible, [data-viewspec-app-screen='${screen}'] h1:visible, .vs-app-header button:visible, .vs-app-chrome button:visible`).evaluateAll(elements => elements.map(element => {
+          if (viewport === "mobile") await page.screenshot({ path: testInfo.outputPath(`${session.name}-${screen}-${selector.slice(1)}.png`) });
+          const measured = await page.locator(`[data-viewspec-app-screen='${screen}'] [data-binding-id]:visible, [data-viewspec-app-screen='${screen}'] h1:visible, .vs-app-header button:visible, .vs-app-chrome button:visible`).evaluateAll(elements => elements.map(element => {
             const box = element.getBoundingClientRect(), words: { text: string; lines: number; fits: boolean }[] = [];
             const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT);
             while (walker.nextNode()) {
@@ -110,23 +107,17 @@ test("starter content remains readable on mobile, including long translated valu
             expect(word.lines, `${session.name} ${viewport} ${selector} ${target.id}: ${word.text} splits`).toBe(1);
             expect(word.fits, `${session.name} ${viewport} ${selector} ${target.id}: ${word.text} clips`).toBe(true);
           }
-          const overflow = await frame.locator("html").evaluate(element => element.scrollWidth - element.clientWidth);
+          const overflow = await page.locator("html").evaluate(element => element.scrollWidth - element.clientWidth);
           expect(overflow).toBeLessThanOrEqual(0);
           evidence.push({ scenario: session.name, screen, viewport, surface: selector, targets: measured, overflow });
         }
       }
-      // Return both synchronized renderers to the queue for the next viewport.
-      const queueLabel = session.name === "default" ? "Queue" : "Offene Einsatzvorfälle";
-      await page.frameLocator("#artifact-react").getByRole("button", { name: queueLabel, exact: true }).click();
-      await waitForScreen("queue");
-    }
-    if (session.name === "default") {
-      await page.getByLabel("Canvas", { exact: true }).selectOption("mobile");
-      for (const selector of ["#artifact", "#artifact-react"]) {
-        const frame = page.frameLocator(selector);
-        const status = frame.locator("[data-viewspec-app-screen='queue'] [data-binding-id='inc_1043_status']");
+      if (session.name === "default") {
+        await page.setViewportSize({ width: 390, height: 844 });
+        await page.goto(url);
+        const status = page.locator("[data-viewspec-app-screen='queue'] [data-binding-id='inc_1043_status']");
         await expect(status).toBeHidden();
-        await frame.getByRole("button", { name: "Triage", exact: true }).click();
+        await page.getByRole("button", { name: "Triage", exact: true }).click();
         await expect(status).toBeVisible();
         evidence.push({ scenario: "default-after-triage", surface: selector, text: await status.innerText() });
         const lines = await status.evaluate(element => {
@@ -136,6 +127,7 @@ test("starter content remains readable on mobile, including long translated valu
         expect(lines).toBe(1);
       }
     }
+    await page.setViewportSize({ width: 1440, height: 1000 });
   }
   expect(errors).toEqual([]);
   const path = testInfo.outputPath("studio-starter-mobile-evidence.json");
