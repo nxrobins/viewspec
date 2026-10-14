@@ -7,6 +7,17 @@ All notable changes to ViewSpec are documented in this file. The format follows
 
 ## [Unreleased]
 
+## [0.3.0b9] - 2026-10-14
+
+### Fixed
+
+- Studio renders the exact current and proposed interfaces side by side before approval,
+  without changing canonical source. Both versions must render and pass a source-bound
+  comparison handshake; failed previews and changed source or design block approval.
+- The approval comparison shares viewport, navigation, and scroll, supports Live or Static
+  rendering and fit or full-size inspection, and can show the initial state or active declared
+  checkpoint. Rejection stays available when the proposed result cannot render.
+
 ## [0.3.0b8] - 2026-10-13
 
 ### Added
