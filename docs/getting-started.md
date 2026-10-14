@@ -109,6 +109,11 @@ keep both canvases synchronized, and a comment on either target resolves to the 
 source. Visual parity is shown honestly as `not_proven`; comparison makes differences inspectable
 without pretending that shared semantics imply identical pixels.
 
+The `react-app` starter displays incident records as stacked fields at mobile widths and three
+columns at wider sizes. Its presentation is declared in each screen's `presentation` rules, so
+agents can change density and typography through semantic source. Long status phrases wrap
+naturally, and printable translated titles retain their source identity.
+
 Studio's **Target coherence** card observes the visible leaf elements that share an exact checked
 DOM/IR identity at the selected viewport. It presents one prioritized text, geometry, typography,
 or color discrepancy and lets **Review this** carry that exact semantic target into the usual

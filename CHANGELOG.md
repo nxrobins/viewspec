@@ -7,6 +7,20 @@ All notable changes to ViewSpec are documented in this file. The format follows
 
 ## [Unreleased]
 
+## [0.3.0b11] - 2026-10-14
+
+### Fixed
+
+- The `react-app` starter uses readable incident-record typography and stacks fields at mobile
+  widths in both Static and Live renderers. Wider layouts retain three columns, and both screens
+  have bounded content width and source-declared responsive presentation.
+- Generated implicit app titles use compact mobile sizing instead of a large title card. Titles
+  with printable Unicode characters render with their exact source provenance; one-line controls
+  and the existing byte limit remain enforced.
+- A browser release regression checks actual word geometry, clipping, navigation labels, long
+  German fixture values, and heading presence at 390, 768, and 1440 pixels independently of
+  cross-target coherence.
+
 ## [0.3.0b10] - 2026-10-14
 
 ### Fixed

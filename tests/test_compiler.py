@@ -838,8 +838,9 @@ def test_product_surface_planner_v1_applies_single_column_roles_to_local_starter
     assert nodes["action_submit_review"] in nodes["motif_review_form"].children
 
 
-def test_single_column_surface_projects_unbound_root_title_as_traceable_page_header():
-    builder = ViewSpecBuilder("incident_detail", root_attrs={"title": "Incident detail"})
+@pytest.mark.parametrize("title", ["Incident detail", "Warteschlange für Einsatzvorfälle", "Suivi des opérations", "インシデントの詳細"])
+def test_single_column_surface_projects_unbound_root_title_as_traceable_page_header(title):
+    builder = ViewSpecBuilder("incident_detail", root_attrs={"title": title})
     detail = builder.add_detail("summary", group_id="summary_group")
     detail.add_field(label="Status", value="Investigating", id="status")
 
@@ -854,7 +855,7 @@ def test_single_column_surface_projects_unbound_root_title_as_traceable_page_hea
     assert main.children[0] is page_header
     assert page_header.props["product_role"] == "page_header"
     assert page_header.provenance.content_refs == ["node:incident_detail#attr:title"]
-    assert page_title.props == {"text": "Incident detail", "hero_role": "title"}
+    assert page_title.props == {"text": title, "hero_role": "title"}
     assert page_title.provenance.content_refs == ["node:incident_detail#attr:title"]
 
 
@@ -880,6 +881,9 @@ def test_single_column_surface_does_not_duplicate_explicit_or_bound_page_title()
         "carriage\rreturn",
         "control\u0007",
         "nonbreaking\u00a0space",
+        "line\u2028break",
+        "hidden\u202econtrol",
+        "é" * 257,
         "x" * 513,
     ],
 )

@@ -366,9 +366,9 @@ def _implicit_page_title_v1(value: object) -> str | None:
     """Return a safe authored one-line title without changing semantic content."""
     if not isinstance(value, str) or not value or value.strip() != value:
         return None
-    if len(value.encode("utf-8")) > MAX_IMPLICIT_PAGE_TITLE_BYTES:
+    if len(value) > MAX_IMPLICIT_PAGE_TITLE_BYTES or any(not character.isprintable() for character in value):
         return None
-    if any(ord(character) < 32 or ord(character) > 126 for character in value):
+    if len(value.encode("utf-8")) > MAX_IMPLICIT_PAGE_TITLE_BYTES:
         return None
     return value
 
