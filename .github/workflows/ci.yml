@@ -190,6 +190,8 @@ jobs:
             tests/react-tailwind-host/test-results/**/studio-state-text-evidence.json
             tests/react-tailwind-host/test-results/**/studio-keyboard-evidence.json
             tests/react-tailwind-host/test-results/**/studio-starter-mobile-evidence.json
+            tests/react-tailwind-host/test-results/**/studio-agent-handoff-evidence.json
+            tests/react-tailwind-host/test-results/**/studio-agent-handoff-mobile.png
             tests/react-tailwind-host/test-results/studio-product-mechanical-report.json
           if-no-files-found: warn
           retention-days: 14

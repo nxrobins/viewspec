@@ -123,7 +123,7 @@ def main(argv: list[str] | None = None) -> int:
 
         controller = StudioCreationRoomController(args.task, cwd=args.cwd, handoff=handoff)
         controller_ref.append(controller)
-        server = StudioCreationRoomServer(controller, port=args.port)
+        server = StudioCreationRoomServer(controller, port=args.port, state_root=state_root)
         room_port = server.port
         metadata_path = session_dir / "server.json"
         capability_path = session_dir / "agent-capability.json"

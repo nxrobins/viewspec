@@ -45,7 +45,8 @@ async function availablePort(): Promise<number> {
 test("one empty-workspace command stays in one tab through failure, check, and checked product", async ({
   page,
   context,
-}) => {
+}, testInfo) => {
+  test.setTimeout(160_000);
   const workspace = mkdtempSync(join(tmpdir(), "viewspec-studio-creation-room-"));
   const stateRoot = join(workspace, "studio-state");
   const candidatePath = join(workspace, ".viewspec", "studio-candidate.intent.json");
@@ -94,6 +95,43 @@ test("one empty-workspace command stays in one tab through failure, check, and c
     await expect(page.getByText("nothing uploaded")).toBeVisible();
     expect(context.pages()).toHaveLength(1);
 
+    await context.grantPermissions(["clipboard-read", "clipboard-write"]);
+    await page.getByRole("button", { name: "Connect agent", exact: true }).click({ timeout: 8_000 });
+    await expect(page.getByRole("dialog")).toBeVisible();
+    await expect(page.locator("#agent-instructions")).not.toHaveValue("");
+    const instructions = await page.locator("#agent-instructions").inputValue();
+    const parsed = spawnSync(python, ["-c", "import json,shlex,sys; print(json.dumps(shlex.split(sys.stdin.read())))"],
+      { input: instructions.split("\n")[2], encoding: "utf8" });
+    expect(parsed.status).toBe(0);
+    const command: string[] = JSON.parse(parsed.stdout);
+    expect(command.slice(0, 4)).toEqual(["python", "-m", "viewspec", "studio-agent-task"]);
+    await page.getByRole("button", { name: "Copy agent instructions" }).click();
+    expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(instructions);
+    await page.getByRole("button", { name: "Close instructions" }).click();
+    await expect(page.getByRole("button", { name: "Connect agent", exact: true })).toBeFocused();
+    const task = JSON.parse(readFileSync(started.paths.task, "utf8"));
+    const checkIn = JSON.parse(runViewspec(command.slice(3), workspace));
+    expect(checkIn.task).toEqual(task);
+    await expect(page.locator("#agent-recovery")).toContainText("Agent checked in");
+    await expect(page.getByRole("button", { name: "Resume agent", exact: true })).toBeVisible({ timeout: 65_000 });
+    await expect(page.locator("#agent-recovery")).toContainText("Your brief is preserved");
+    expect(JSON.parse(readFileSync(started.paths.task, "utf8"))).toEqual(task);
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.getByRole("button", { name: "Resume agent", exact: true }).click();
+    await expect(page.locator("#agent-instructions")).toHaveValue(instructions);
+    await page.evaluate(() => {
+      Object.defineProperty(navigator, "clipboard", { configurable: true,
+        value: { writeText: async () => { throw new Error("Clipboard unavailable"); } } });
+    });
+    await page.getByRole("button", { name: "Copy agent instructions" }).click();
+    await expect(page.locator("#agent-copy-status")).toContainText("instructions are selected");
+    await expect(page.locator("#agent-instructions")).toBeFocused();
+    expect(await page.locator("html").evaluate(el => el.scrollWidth - el.clientWidth)).toBeLessThanOrEqual(0);
+    await page.screenshot({ path: testInfo.outputPath("studio-agent-handoff-mobile.png") });
+    await page.getByRole("button", { name: "Close instructions" }).click();
+    runViewspec(command.slice(3), workspace);
+    await expect(page.locator("#agent-recovery")).toContainText("Agent checked in");
+
     writeFileSync(candidatePath, "{}\n");
     await expect(page.getByRole("heading", { name: "Candidate needs one fix" })).toBeVisible({ timeout: 15_000 });
     await expect(page.locator("#error-code")).toHaveText("STUDIO_CREATION_CANDIDATE_INVALID");
@@ -123,6 +161,11 @@ test("one empty-workspace command stays in one tab through failure, check, and c
     expect(receipt.network_calls).toBe("none");
     expect(externalRequests).toEqual([]);
     expect(runtimeFailures).toEqual([]);
+    writeFileSync(testInfo.outputPath("studio-agent-handoff-evidence.json"), JSON.stringify({
+      schema_version: 1, status: "passed", initial_handoff: "copied", instruction_command: "executed",
+      inactivity: "observed_after_60_seconds", resume: "same_task", clipboard_fallback: "selected",
+      mobile_overflow: "none", checked_handoff: "same_tab", reference_uploaded: false,
+    }, null, 2));
   } finally {
     if (existsSync(sourcePath)) {
       runViewspec(["review-end", sourcePath, "--state-dir", stateRoot, "--json"], workspace, true);

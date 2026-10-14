@@ -952,7 +952,8 @@ def test_agent_poll_capability_preserves_at_least_once_ack_semantics(tmp_path) -
 
 def test_browser_sees_authenticated_agent_handoff_and_server_owned_queue(tmp_path) -> None:
     runtime = _runtime(tmp_path)
-    server = _server(runtime)
+    now = [0.0]
+    server = _server(runtime, clock=lambda: time.monotonic() + now[0])
     server.start()
     try:
         cookie, _ = _bootstrap(server)
@@ -970,6 +971,15 @@ def test_browser_sees_authenticated_agent_handoff_and_server_owned_queue(tmp_pat
         assert initial["agent_presence"] == {"status": "not_connected"}
         assert initial["queued_events"] == 0
         assert initial["conversation"] == []
+
+        assert _request(server.port, "GET", f"{root}/agent-handoff")[0] == 403
+        code, _, handoff_body = _request(server.port, "GET", f"{root}/agent-handoff", headers={"Cookie": cookie})
+        assert code == 200
+        import shlex
+        command = shlex.split(json.loads(handoff_body)["instructions"].splitlines()[2])
+        assert command == ["python", "-m", "viewspec", "review-poll", runtime.configuration.source_path,
+                           "--state-dir", str(runtime.state_root), "--timeout-ms", "30000", "--json"]
+        assert server.agent_token not in handoff_body.decode()
 
         poll_result: dict[str, object] = {}
 
@@ -1046,6 +1056,19 @@ def test_browser_sees_authenticated_agent_handoff_and_server_owned_queue(tmp_pat
         assert "<span class=revision>Requests: <strong id=queued>1</strong>" in reloaded_chrome
         assert server.agent_token not in reloaded_chrome
         assert delivered["batch"]["batch_id"] not in reloaded_chrome
+
+        now[0] += 61
+        _, _, content = _request(server.port, "GET", f"{root}/session", headers={"Cookie": cookie})
+        stopped = json.loads(content)["review"]
+        assert stopped["agent_presence"] == {"status": "inactive"}
+        assert stopped["conversation"][0]["status"] == "inactive"
+        assert stopped["queued_events"] == 1
+        resumed_code, _, resumed_body = _request(server.port, "POST", "/internal/v1/poll",
+            headers={"Content-Type": "application/json", "X-ViewSpec-Agent-Capability": server.agent_token},
+            body=b'{"ack_batch_id":null,"agent_reply":null,"timeout_ms":1}')
+        assert resumed_code == 200
+        assert json.loads(resumed_body)["batch"] == delivered["batch"]
+        assert server._agent_presence() == {"status": "working"}
 
         acknowledgement = json.dumps(
             {

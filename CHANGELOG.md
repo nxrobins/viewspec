@@ -7,6 +7,21 @@ All notable changes to ViewSpec are documented in this file. The format follows
 
 ## [Unreleased]
 
+## [0.3.0b12] - 2026-10-14
+
+### Fixed
+
+- Studio creation and review offer an accessible, copyable agent handoff with the exact local
+  project, preserved task or active session, and recovery instructions. The handoff contains no
+  access tokens and includes a manual-copy fallback when clipboard access is unavailable.
+- `studio-agent-task` validates the preserved first-creation task and reference, checks in to its
+  exact active room, and returns the agent task. Browser refreshes cannot impersonate agent
+  activity; after a minute without activity, Studio offers Resume agent with the same brief.
+- Review stops displaying Agent working after a minute without delivery activity. Resuming
+  returns the same outstanding batch without resetting feedback or approving a change.
+- Browser coverage executes the actual copied creation and review commands, verifies inactivity
+  and recovery, preserves the brief through a failed candidate, and checks mobile copy fallback.
+
 ## [0.3.0b11] - 2026-10-14
 
 ### Fixed

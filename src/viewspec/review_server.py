@@ -35,6 +35,9 @@ from viewspec.review_runtime import ReviewRuntime
 from viewspec.review_proposal import ProposalRenderer
 from viewspec.review_approval_ui import APPROVAL_CSS, APPROVAL_HTML, APPROVAL_JS
 from viewspec.review_annotation import FRAME_ANNOTATION_CSS, FRAME_ANNOTATION_JS
+from viewspec.studio_agent_handoff import (
+    AGENT_ACTIVITY_SECONDS, HANDOFF_CSS, HANDOFF_HTML, handoff_script, review_handoff,
+)
 
 
 MAX_REQUEST_BODY_BYTES = 256 * 1024
@@ -126,6 +129,7 @@ class ReviewServer:
         self._browser_connection_slots = threading.BoundedSemaphore(browser_slots)
         self._active_mutations = 0
         self._active_polls = 0
+        self._last_agent_activity: float | None = None
         self._last_authenticated_activity = clock()
         self.last_response_error: str | None = None
         self._thread: threading.Thread | None = None
@@ -337,6 +341,12 @@ class ReviewServer:
         if path == f"{review_root}api/v1/session":
             self._authorize_cookie(handler)
             return _json_response(200, {"schema_version": 1, "ok": True, "review": self._browser_status()})
+        if path == f"{review_root}api/v1/agent-handoff":
+            self._authorize_cookie(handler)
+            return _json_response(200, {"instructions": review_handoff(
+                Path(self.runtime.configuration.source_path), self.runtime.state_root,
+                self.runtime.configuration.convergence_state_root,
+            )})
         if path == f"{review_root}api/v1/inspection":
             self._authorize_cookie(handler)
             if self.runtime.inspection is None:
@@ -595,6 +605,7 @@ class ReviewServer:
         try:
             with self._lock:
                 self._active_polls += 1
+                self._last_agent_activity = self._clock()
                 self._last_authenticated_activity = self._clock()
             deadline = self._clock() + (timeout_ms / 1000)
             first = True
@@ -643,6 +654,7 @@ class ReviewServer:
         finally:
             with self._lock:
                 self._active_polls -= 1
+                self._last_agent_activity = self._clock()
                 self._last_authenticated_activity = self._clock()
             self._poll_lock.release()
 
@@ -861,6 +873,7 @@ class ReviewServer:
         initial_agent_label = {
             "ready": "Agent ready",
             "working": "Agent working",
+            "inactive": "No recent agent activity",
             "not_connected": "Agent not connected",
         }[initial_agent_presence]
         initial_queued_events = self.runtime.status()["queued_events"]
@@ -962,7 +975,7 @@ class ReviewServer:
             ".layout{height:auto}.canvas{height:58vh;padding:14px}.panel{top:0;width:100%;max-width:none;border-left:0}"
             ".confidence div{left:0;right:auto;width:min(320px,calc(100vw - 36px))}}"
         )
-        style += APPROVAL_CSS
+        style += APPROVAL_CSS + HANDOFF_CSS
         share_script = (
             "const shareToggle=document.getElementById('share-toggle'),sharePanel=document.getElementById('share-panel'),"
             "shareSummary=document.getElementById('share-summary'),shareDisclosure=document.getElementById('share-disclosure'),"
@@ -1196,18 +1209,20 @@ class ReviewServer:
             "const result=await response.json();status.textContent=response.ok?(action==='approve'?'Change approved':'Change rejected'):(result.error?.code||'Decision failed');"
             "if(response.ok)renderConvergence(result.convergence);else if(action==='approve')failApproval('This comparison cannot be approved. Reload Studio or reject the proposal.');}catch{status.textContent='Convergence decision failed';}finally{approvalBusy=false;approvalButtons();}};approveConvergence.addEventListener('click',()=>decideConvergence('approve'));"
             "rejectConvergence.addEventListener('click',()=>decideConvergence('reject'));"
-            "const renderAgentPresence=review=>{const value=review?.agent_presence?.status,state=['ready','working'].includes(value)?value:'not_connected';"
-            "agentPresence.dataset.status=state;agentPresence.textContent=state==='ready'?'Agent ready':state==='working'?'Agent working':'Agent not connected';"
+            "const renderAgentPresence=review=>{const value=review?.agent_presence?.status,state=['ready','working','inactive'].includes(value)?value:'not_connected';"
+            "agentPresence.dataset.status=state;agentPresence.textContent={ready:'Agent ready',working:'Agent working',inactive:'No recent agent activity',not_connected:'Agent not connected'}[state];"
+            "document.getElementById('agent-connect').textContent=state==='inactive'?'Resume agent':'Connect agent';"
             "const count=Number.isInteger(review?.queued_events)&&review.queued_events>=0?review.queued_events:0;queuedCount.textContent=String(count);};"
             "const refreshSession=async()=>{const response=await fetch(sessionEndpoint);if(!response.ok)throw new Error('Studio session unavailable');const result=await response.json(),review=result.review;"
             "renderAgentPresence(review);const messages=Array.isArray(review?.conversation)?review.conversation:[];conversation.replaceChildren(...messages.filter(message=>message&&['human','agent'].includes(message.role)&&typeof message.body==='string').map(message=>{"
             "const item=document.createElement('li'),meta=document.createElement('span'),body=document.createElement('p');item.className='conversation-message';item.dataset.role=message.role;"
-            "const state={queued:'Waiting for agent',working:'Agent working',acknowledged:'Acknowledged',replied:'Replied'}[message.status]||'';meta.textContent=message.role==='human'?'You'+(state?' · '+state:''):'Agent';body.textContent=message.body;item.append(meta,body);return item;}));renderConvergence(review?.convergence);"
+            "const state={queued:'Waiting for agent',working:'Agent working',inactive:'Waiting for agent to resume',acknowledged:'Acknowledged',replied:'Replied'}[message.status]||'';meta.textContent=message.role==='human'?'You'+(state?' · '+state:''):'Agent';body.textContent=message.body;item.append(meta,body);return item;}));renderConvergence(review?.convergence);"
             "if(review?.revision!==revision){if(retainedContext?.route&&review?.routes?.includes(retainedContext.route)){"
             "sessionStorage.setItem('viewspec-context-restore',JSON.stringify(retainedContext));}else{sessionStorage.setItem('viewspec-context-reset','1');}"
             "location.reload();}return review;};setInterval(()=>{refreshSession().catch(()=>{});},500);refreshSession().catch(()=>{});history.scrollRestoration='manual';addEventListener('pageshow',lockCanvasOrigin);loadInspection();lockCanvasOrigin();fitCanvas();if('ResizeObserver'in window)new ResizeObserver(fitCanvas).observe(canvas);else addEventListener('resize',fitCanvas);"
             "showSurface(surfaceSelect?.value||'react-tailwind-app');frames.forEach(item=>item.addEventListener('load',fitCanvas));frames.forEach(item=>{item.src=item.dataset.src||'';});"
             + share_script
+            + handoff_script(f"/r/{self.runtime.session.review_id}/api/v1/agent-handoff")
             + "})();"
         )
         html = (
@@ -1233,7 +1248,8 @@ class ReviewServer:
             + "</select>"
             "<button id=panel-toggle class=secondary type=button aria-controls=studio-panel aria-expanded=false>Details</button>"
             + share_button_markup
-            + "<button id=mode class=primary type=button>Comment</button></div></header>"
+            + "<button id=agent-connect type=button>Connect agent</button>"
+            "<button id=mode class=primary type=button>Comment</button></div></header>"
             "<div class=statusbar><span id=status class=notice aria-live=polite>Preview mode · interactions are live</span>"
             f"<div class=status-meta><span id=agent-presence class=agent-presence data-status='{initial_agent_presence}' aria-live=polite>{initial_agent_label}</span>"
             f"<span class=revision>Requests: <strong id=queued>{initial_queued_events}</strong></span></div></div>"
@@ -1275,7 +1291,7 @@ class ReviewServer:
             "<option value=approval>Approval</option><option value=note>Note</option></select></details>"
             "<div class=action-row><button id=send class=primary type=button>Send to agent</button>"
             "<button id=send-end class=secondary type=button>Send &amp; end</button></div></section></aside></main>"
-            f"<script>{script}</script></body></html>"
+            + HANDOFF_HTML + f"<script>{script}</script></body></html>"
         ).encode("utf-8")
         csp = (
             "default-src 'none'; "
@@ -1331,7 +1347,14 @@ class ReviewServer:
         """Project only delivery-lease truth into the browser session."""
 
         with self._lock:
-            if self.runtime.session.outstanding_batch is not None:
+            if self.runtime.session.outstanding_batch is not None and (
+                self._active_polls == 0 and (
+                    self._last_agent_activity is None
+                    or self._clock() - self._last_agent_activity >= AGENT_ACTIVITY_SECONDS
+                )
+            ):
+                status = "inactive"
+            elif self.runtime.session.outstanding_batch is not None:
                 status = "working"
             elif self._active_polls > 0:
                 status = "ready"
@@ -1353,7 +1376,7 @@ class ReviewServer:
                 outstanding is not None
                 and outstanding.first_sequence <= event.sequence <= outstanding.last_sequence
             ):
-                status = "working"
+                status = "inactive" if self._agent_presence()["status"] == "inactive" else "working"
             else:
                 status = "queued"
             conversation.append({"role": "human", "body": event.body, "status": status})

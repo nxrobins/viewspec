@@ -67,6 +67,14 @@ all pass. Passing this gate does not claim that the result matches the reference
 makes that judgment in Studio and requests exact semantic changes there. `studio-create` and
 `studio-accept` remain explicit diagnostic commands.
 
+If the room is waiting, choose **Connect agent**, then **Copy agent instructions**. Paste them into
+your coding agent with this project open. Studio does not launch an agent itself. The instructions
+include the local project location and the exact preserved task; no access token is copied. The
+agent runs `studio-agent-task` to read the validated task and check in while it works. After a minute
+without a check-in or changed candidate, Studio says **No recent agent activity** and offers
+**Resume agent**. Paste the instructions into your agent again to resume the same brief. Saving a
+corrected candidate retries its checks automatically; starting another task is unnecessary.
+
 ## Open Studio
 
 With exactly one canonical source in the workspace, open the human-and-agent product loop:
@@ -95,6 +103,12 @@ The default session is loopback-only and makes no SDK network calls. Generated H
 remains an artifact, never the editing surface. `viewspec review` and the lower-level polling and
 Converge commands remain the automation protocol underneath Studio; people should start with
 Studio. The measurable product criteria live in [ViewSpec Studio Product Goal](viewspec-studio-goal.md).
+
+**Connect agent** is also available in the review toolbar. It prepares instructions for the exact
+current source and private session, including the feedback polling command. Queued requests stay
+in the session until acknowledged. If delivery stops for a minute, Studio displays **No recent
+agent activity** rather than leaving **Agent working** indefinitely. **Resume agent** returns to the
+same outstanding request; it does not approve changes, reset the queue, or create a second session.
 
 For a multi-screen AppBundle, compare the static and React products in the same Studio revision:
 

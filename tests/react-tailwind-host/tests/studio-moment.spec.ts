@@ -501,8 +501,22 @@ test("Studio carries a brief through three synchronized static/React semantic ch
   await expect(page.locator("#conversation")).toContainText("You · Waiting for agent");
   await expect(page.locator("#conversation")).toContainText("Make this result unmistakable.");
 
+  await page.context().grantPermissions(["clipboard-read", "clipboard-write"]);
+  await page.getByRole("button", { name: "Connect agent", exact: true }).click();
+  await expect(page.locator("#agent-instructions")).not.toHaveValue("");
+  const handoff = await page.locator("#agent-instructions").inputValue();
+  const parsed = spawnSync(python, ["-c", "import json,shlex,sys; print(json.dumps(shlex.split(sys.stdin.read())))"],
+    { input: handoff.split("\n")[2], encoding: "utf8" });
+  expect(parsed.status).toBe(0);
+  const handoffCommand: string[] = JSON.parse(parsed.stdout);
+  expect(handoffCommand.slice(0, 4)).toEqual(["python", "-m", "viewspec", "review-poll"]);
+  await page.getByRole("button", { name: "Copy agent instructions" }).click();
+  expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(handoff);
+  await page.getByRole("button", { name: "Close instructions" }).click();
+  expect(currentSourceSha256()).toBe(initialSourceSha256);
+  await expect(page.locator("#queued")).toHaveText("1");
   const polled = JSON.parse(
-    runViewspec(["review-poll", sourcePath, "--state-dir", reviewState, "--timeout-ms", "1", "--json"]),
+    runViewspec(handoffCommand.slice(3)),
   );
   await expect(page.locator("#agent-presence")).toHaveText("Agent working");
   await expect(page.locator("#agent-presence")).toHaveAttribute("data-status", "working");

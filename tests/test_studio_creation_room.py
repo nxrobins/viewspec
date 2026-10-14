@@ -1,7 +1,10 @@
 from __future__ import annotations
 
 import http.client
+import hashlib
 import json
+import os
+import signal
 from pathlib import Path
 import socket
 import time
@@ -14,6 +17,7 @@ from viewspec.review_cli import end_review
 from viewspec.review_contract import ReviewContractError
 from viewspec.studio import open_studio
 from viewspec.studio_creation import StudioCreationError, prepare_studio_creation
+from viewspec.studio_creation_cli import studio_agent_task
 from viewspec.studio_creation_room import (
     StudioCreationHandoff,
     StudioCreationRoomController,
@@ -33,10 +37,11 @@ def _request(
     path: str,
     *,
     headers: dict[str, str] | None = None,
+    body: bytes | None = None,
 ) -> tuple[int, dict[str, str], bytes]:
     connection = http.client.HTTPConnection("127.0.0.1", port, timeout=3)
     try:
-        connection.request(method, path, headers=headers or {})
+        connection.request(method, path, body=body, headers=headers or {})
         response = connection.getresponse()
         body = response.read()
         return response.status, {key.lower(): value for key, value in response.getheaders()}, body
@@ -165,6 +170,7 @@ def test_creation_room_browser_projection_is_capability_scoped_and_path_free(tmp
         assert status == 200
         projection = json.loads(body)
         assert set(projection) == {
+            "agent_presence",
             "brief",
             "checks",
             "detail",
@@ -199,6 +205,78 @@ def test_creation_room_browser_projection_is_capability_scoped_and_path_free(tmp
         assert json.loads(body)["stage"] == "waiting"
     finally:
         server.stop()
+
+
+def test_creation_handoff_is_private_and_check_in_expires_without_losing_task(tmp_path) -> None:
+    prepared = prepare_studio_creation(brief="Build a field dispatch workspace", cwd=tmp_path)
+    now = [100.0]
+    controller = StudioCreationRoomController(
+        cwd=tmp_path, handoff=lambda *_: pytest.fail("No candidate"), clock=lambda: now[0],
+    )
+    server = StudioCreationRoomServer(controller, port=_available_port(), state_root=tmp_path / "state")
+    server.start()
+    try:
+        assert _request(server.port, "GET", "/v1/agent-handoff")[0] == 404
+        assert _request(server.port, "POST", "/internal/v1/agent-check-in")[0] == 404
+        _, headers, _ = _request(server.port, "GET", server.bootstrap_url.removeprefix(server.origin))
+        cookie = headers["set-cookie"].split(";", 1)[0]
+        code, _, body = _request(server.port, "GET", "/v1/agent-handoff", headers={"Cookie": cookie})
+        assert code == 200
+        instructions = json.loads(body)["instructions"]
+        import shlex
+        command = shlex.split(instructions.splitlines()[2])
+        assert command == ["python", "-m", "viewspec", "studio-agent-task", prepared["paths"]["task"],
+                           "--state-dir", str(tmp_path / "state"), "--json"]
+        assert server.agent_token not in instructions
+        assert controller.status()["agent_presence"] == {"status": "not_connected"}
+        agent_headers = {"X-ViewSpec-Agent-Capability": server.agent_token}
+        invalid, _, _ = _request(server.port, "POST", "/internal/v1/agent-check-in",
+                                headers=agent_headers, body=b'{"task_path_sha256":"wrong-project"}')
+        assert invalid == 409
+        assert controller.status()["agent_presence"] == {"status": "not_connected"}
+        identity = hashlib.sha256(str(controller.task_path).encode()).hexdigest()
+        code, _, body = _request(server.port, "POST", "/internal/v1/agent-check-in",
+                                headers=agent_headers, body=json.dumps({"task_path_sha256": identity}).encode())
+        assert code == 200
+        assert json.loads(body)["agent_presence"] == {"status": "working"}
+        now[0] += 61
+        assert controller.status()["agent_presence"] == {"status": "inactive"}
+        # Browser refresh and daemon readiness probes cannot impersonate agent activity.
+        _request(server.port, "GET", "/v1/status", headers={"Cookie": cookie})
+        _request(server.port, "GET", "/internal/v1/status",
+                 headers={"X-ViewSpec-Agent-Capability": server.agent_token})
+        assert controller.status()["agent_presence"] == {"status": "inactive"}
+        assert controller.status()["brief"] == prepared["creation"]["brief"]
+        assert not (tmp_path / "viewspec.app.json").exists()
+    finally:
+        server.stop()
+
+
+def test_agent_task_command_reuses_validated_task_and_rejects_changed_task(tmp_path) -> None:
+    # The public CLI adapter resolves the actual private daemon; no token is returned to the agent.
+    started = open_studio(brief="Build a field dispatch view", kind="view", cwd=tmp_path,
+                          port=_available_port(), state_root=tmp_path / "state", no_open=True)
+    try:
+        task_bytes = Path(started["paths"]["task"]).read_bytes()
+        result = studio_agent_task(cwd=tmp_path, state_root=tmp_path / "state")
+        assert result["task"] == json.loads(task_bytes)
+        assert result["creation"]["agent_presence"] == {"status": "working"}
+        assert Path(started["paths"]["task"]).read_bytes() == task_bytes
+        other = tmp_path / "other project"
+        other.mkdir()
+        prepare_studio_creation(brief="Build a field dispatch view", kind="view", cwd=other)
+        with pytest.raises(ReviewContractError) as mismatch:
+            studio_agent_task(cwd=other, state_root=tmp_path / "state")
+        assert mismatch.value.code == "STUDIO_CREATION_TASK_INVALID"
+        altered = json.loads(task_bytes)
+        altered["brief"] = "Replace the preserved task"
+        Path(started["paths"]["task"]).write_text(json.dumps(altered))
+        with pytest.raises(StudioCreationError):
+            studio_agent_task(cwd=tmp_path, state_root=tmp_path / "state")
+    finally:
+        # This test owns the fresh room and leaves no candidate to complete its normal handoff.
+        metadata = next((tmp_path / "state" / "creation-rooms").glob("*/server.json"))
+        os.kill(json.loads(metadata.read_text())["pid"], signal.SIGTERM)
 
 
 def test_one_studio_command_reuses_room_checks_candidate_and_hands_same_tab_to_product(tmp_path) -> None:
