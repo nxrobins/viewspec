@@ -29,6 +29,7 @@ STUDIO_RELEASE_FILES = {
     "review_cli.py",
     "review_daemon.py",
     "review_server.py",
+    "review_annotation.py",
     "host_verify_template/package.json",
     "host_verify_template/package-lock.json",
 }

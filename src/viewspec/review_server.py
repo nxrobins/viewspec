@@ -34,6 +34,7 @@ from viewspec.review_frame_readiness import FRAME_RENDER_WAIT_JS
 from viewspec.review_runtime import ReviewRuntime
 from viewspec.review_proposal import ProposalRenderer
 from viewspec.review_approval_ui import APPROVAL_CSS, APPROVAL_HTML, APPROVAL_JS
+from viewspec.review_annotation import FRAME_ANNOTATION_CSS, FRAME_ANNOTATION_JS
 
 
 MAX_REQUEST_BODY_BYTES = 256 * 1024
@@ -889,6 +890,7 @@ class ReviewServer:
             "border-bottom:1px solid var(--line);background:#0d1117;color:var(--muted);font-size:11px}.statusbar strong{color:var(--text)}"
             ".status-meta{display:flex;align-items:center;gap:14px}.agent-presence{color:var(--muted);font-weight:650}.agent-presence[data-status=ready]{color:var(--mint)}"
             ".agent-presence[data-status=working]{color:var(--amber)}"
+            "#annotation-help{margin:0 0 14px;color:var(--blue);font-size:11px;line-height:1.6}"
             ".layout{position:relative;height:calc(100vh - 108px)}.canvas{height:100%;min-width:0;"
             "overflow:auto;overflow-anchor:none;padding:24px;background:#0b0e13;background-image:linear-gradient(rgba(255,255,255,.025) 1px,transparent 1px),"
             "linear-gradient(90deg,rgba(255,255,255,.025) 1px,transparent 1px);background-size:28px 28px}.stage{width:100%;"
@@ -1050,7 +1052,8 @@ class ReviewServer:
             "const openPanel=section=>{const shouldReveal=!panelOpen||(section&&panelSection!==section);panelOpen=true;panel.classList.add('is-open');panel.removeAttribute('inert');"
             "panel.setAttribute('aria-hidden','false');panelToggle.setAttribute('aria-expanded','true');if(section)panelSection=section;if(shouldReveal&&section)requestAnimationFrame(()=>section.scrollIntoView({block:'start'}));};"
             "const closePanel=(restoreFocus=true)=>{panelOpen=false;panelSection=null;panel.classList.remove('is-open');panel.setAttribute('aria-hidden','true');panel.setAttribute('inert','');"
-            "panelToggle.setAttribute('aria-expanded','false');panel.scrollTop=0;if(restoreFocus)panelToggle.focus();};"
+            "panelToggle.setAttribute('aria-expanded','false');panel.scrollTop=0;if(restoreFocus){const target=annotate&&selection?frames.find(item=>item.dataset.target===selection.surface_target):null;"
+            "if(target){showSurface(selection.surface_target);target.focus();target.contentWindow.postMessage({type:'viewspec-review-focus-selection',nonce,dom_id:selection.dom_ancestors[0]||null},'*');}else panelToggle.focus();}};"
             "const showSurface=surface=>{if(!surfaceSelect)return;const mobile=document.documentElement.dataset.studioViewport==='mobile';surfaceSelect.value=surface;frames.forEach(item=>{"
             "const wrapper=item.closest('.target-frame'),active=mobile||item.dataset.target===surface;wrapper.dataset.studioSurfaceActive=active?'true':'false';wrapper.setAttribute('aria-hidden',active?'false':'true');"
             "wrapper.toggleAttribute('inert',!active);if(active)item.removeAttribute('tabindex');else item.setAttribute('tabindex','-1');});requestAnimationFrame(fitCanvas);};"
@@ -1119,6 +1122,7 @@ class ReviewServer:
             "document.getElementById('viewport').addEventListener('change',e=>{const d={mobile:[390,844],tablet:[768,1024],desktop:[1440,1000]}[e.target.value];"
             "if(!d)return;document.documentElement.dataset.studioViewport=e.target.value;showSurface(surfaceSelect?.value||'react-tailwind-app');resetAfterCoherence=true;lockCanvasOrigin();requestAnimationFrame(fitCanvas);status.textContent='Viewport '+e.target.value+' · all targets';requestCoherence();});"
             "const toggle=()=>{if(pendingConvergence)return;annotate=!annotate;mode.textContent=annotate?'Preview':'Comment';status.textContent=annotate?'Comment mode · choose something to change':'Preview mode · interactions are live';"
+            "document.getElementById('annotation-help').hidden=!annotate;"
             "if(!annotate){selection=null;composer.hidden=true;resourceCard.hidden=true;closePanel(false);}frames.forEach(item=>item.contentWindow.postMessage({type:'viewspec-review-mode',nonce,annotate},'*'));};mode.addEventListener('click',toggle);"
             "coherenceRecheck?.addEventListener('click',requestCoherence);coherenceReview?.addEventListener('click',()=>{if(!coherenceMismatch)return;if(!annotate)toggle();"
             "showSurface(coherenceMismatch.surface_target);const target=frames.find(item=>item.dataset.target===coherenceMismatch.surface_target)||frame;target.contentWindow.postMessage({type:'viewspec-studio-coherence-choose',nonce,dom_id:coherenceMismatch.dom_id},'*');"
@@ -1202,7 +1206,7 @@ class ReviewServer:
             "if(review?.revision!==revision){if(retainedContext?.route&&review?.routes?.includes(retainedContext.route)){"
             "sessionStorage.setItem('viewspec-context-restore',JSON.stringify(retainedContext));}else{sessionStorage.setItem('viewspec-context-reset','1');}"
             "location.reload();}return review;};setInterval(()=>{refreshSession().catch(()=>{});},500);refreshSession().catch(()=>{});history.scrollRestoration='manual';addEventListener('pageshow',lockCanvasOrigin);loadInspection();lockCanvasOrigin();fitCanvas();if('ResizeObserver'in window)new ResizeObserver(fitCanvas).observe(canvas);else addEventListener('resize',fitCanvas);"
-            "frames.forEach(item=>item.addEventListener('load',fitCanvas));frames.forEach(item=>{item.src=item.dataset.src||'';});"
+            "showSurface(surfaceSelect?.value||'react-tailwind-app');frames.forEach(item=>item.addEventListener('load',fitCanvas));frames.forEach(item=>{item.src=item.dataset.src||'';});"
             + share_script
             + "})();"
         )
@@ -1233,7 +1237,9 @@ class ReviewServer:
             "<div class=statusbar><span id=status class=notice aria-live=polite>Preview mode · interactions are live</span>"
             f"<div class=status-meta><span id=agent-presence class=agent-presence data-status='{initial_agent_presence}' aria-live=polite>{initial_agent_label}</span>"
             f"<span class=revision>Requests: <strong id=queued>{initial_queued_events}</strong></span></div></div>"
-            f"<main class=layout id=studio-main><section class=canvas aria-label='Checked interface canvas'><div class=stage>{frame_markup}</div>"
+            "<main class=layout id=studio-main><section class=canvas aria-label='Checked interface canvas'>"
+            "<p id=annotation-help hidden>In the canvas: ↑ / ↓ move between visible elements · Home / End jump · Enter / Space comment. Escape closes the request panel. Ctrl / ⌘ I switches mode.</p>"
+            f"<div class=stage>{frame_markup}</div>"
             + APPROVAL_HTML
             + "</section>"
             "<aside id=studio-panel class=panel aria-hidden=true inert><header class=panel-head><div><span class=eyebrow>One continuous loop</span>"
@@ -1932,8 +1938,9 @@ def _frame_sdk(nonce: str, *, surface_target: str) -> bytes:
         + "';"
         + FRAME_RENDER_WAIT_JS
         + "const initialRoute=window.__viewspecInitialPath||(surface==='html-tailwind-app'?(location.hash.slice(1)||null):null);"
-        + "let annotate=false,cursor=-1,selectedElement=null;const parent=window.parent,ids=()=>Array.from(document.querySelectorAll('[id]'))"
-        ".filter(e=>e.id&&e.id.length<=256);const viewport=()=>{const w=innerWidth,h=innerHeight;"
+        + "let annotate=false,selectedElement=null;const parent=window.parent;"
+        + FRAME_ANNOTATION_JS
+        + "const viewport=()=>{const w=innerWidth,h=innerHeight;"
         "if(Math.abs(w-390)<=1&&Math.abs(h-844)<=1)return{name:'mobile',width:390,height:844};"
         "if(Math.abs(w-768)<=1&&Math.abs(h-1024)<=1)return{name:'tablet',width:768,height:1024};"
         "if(Math.abs(w-1440)<=1&&Math.abs(h-1000)<=1)return{name:'desktop',width:1440,height:1000};return null;};"
@@ -1974,10 +1981,11 @@ def _frame_sdk(nonce: str, *, surface_target: str) -> bytes:
         "history.replaceState=(...args)=>{nativeReplace(...args);requestAnimationFrame(()=>postContext(restoringHistory?'restore':'navigation',location.pathname));};"
         "addEventListener('message',e=>{if(e.source!==parent||!e.data||e.data.nonce!==n)return;"
         "if(e.data.type==='viewspec-studio-coherence-measure'&&typeof e.data.probe_id==='string'&&e.data.probe_id.length<=64){measureCoherence(e.data.probe_id);return;}"
-        "if(e.data.type==='viewspec-studio-coherence-choose'){const id=e.data.dom_id;const element=typeof id==='string'&&id.length<=256?document.getElementById(id):null;if(element)choose(element);return;}"
-        "if(e.data.type==='viewspec-review-mode'){annotate=!!e.data.annotate;document.documentElement.dataset.viewspecReviewMode=annotate?'annotate':'explore';"
-        "if(!annotate)setSelected(null);return;}"
-        "if(e.data.type==='viewspec-review-selection'){const id=e.data.dom_id;setSelected(typeof id==='string'&&id.length<=256?document.getElementById(id):null);return;}"
+        "if(e.data.type==='viewspec-studio-coherence-choose'){const id=e.data.dom_id;const element=typeof id==='string'&&id.length<=256?visibleSemanticElement(id):null;if(element)choose(element);return;}"
+        "if(e.data.type==='viewspec-review-mode'){setAnnotationMode(!!e.data.annotate);return;}"
+        "if(e.data.type==='viewspec-review-focus-selection'&&annotate){const id=e.data.dom_id;const element=typeof id==='string'&&id.length<=256?visibleSemanticElement(id):null;"
+        "focusAnnotation(element||reconcileAnnotation()[0]);return;}"
+        "if(e.data.type==='viewspec-review-selection'){const id=e.data.dom_id;setSelected(typeof id==='string'&&id.length<=256?visibleSemanticElement(id):null);return;}"
         "if(e.data.type==='viewspec-studio-replay-reset'){location.reload();return;}if(e.data.type==='viewspec-studio-replay-apply'){applyReplay(e.data);return;}"
         "if(e.data.type==='viewspec-review-restore'&&typeof e.data.route==='string'&&Number.isInteger(e.data.scroll_x)&&Number.isInteger(e.data.scroll_y)){"
         "if(surface==='html-tailwind-app'){restoringHash=e.data.route;if(location.hash.slice(1)!==e.data.route)location.hash=e.data.route;else restoringHash=null;}else{restoringHistory=true;nativeReplace({},'',e.data.route);dispatchEvent(new PopStateEvent('popstate'));}"
@@ -1987,9 +1995,7 @@ def _frame_sdk(nonce: str, *, surface_target: str) -> bytes:
         "addEventListener('scroll',()=>postContext('passive'),{passive:true});"
         "addEventListener('click',e=>{if(!annotate)return;e.preventDefault();e.stopImmediatePropagation();choose(e.target);},true);"
         "addEventListener('keydown',e=>{if((e.metaKey||e.ctrlKey)&&e.key.toLowerCase()==='i'){e.preventDefault();"
-        "parent.postMessage({type:'viewspec-review-toggle',nonce:n,surface_target:surface},'*');return;}if(!annotate)return;const list=ids();"
-        "if(e.key==='ArrowDown'||e.key==='ArrowUp'){e.preventDefault();cursor=(cursor+(e.key==='ArrowDown'?1:-1)+list.length)%list.length;"
-        "list[cursor]?.focus();}else if(e.key==='Enter'&&document.activeElement?.id){e.preventDefault();choose(document.activeElement);}});"
+        "parent.postMessage({type:'viewspec-review-toggle',nonce:n,surface_target:surface},'*');}});"
         "let readinessStarted=false;const announceReady=async()=>{if(readinessStarted)return;readinessStarted=true;try{"
         "const readyScreen=surface==='html-tailwind'?(await nextFrame(),null):await waitForInitialScreen(initialRoute);"
         "const readyRoute=readyScreen?.dataset.routePath||(surface==='html-tailwind-app'?(location.hash.slice(1)||'/'):(window.__viewspecInitialPath||location.pathname));"
@@ -2007,8 +2013,8 @@ def _csp_hash(content: bytes) -> str:
 
 def _frame_annotation_style() -> bytes:
     return (
-        b"html[data-viewspec-review-mode=annotate] [id]{cursor:crosshair!important}"
-        b"[data-viewspec-review-selected=true]{outline:3px solid #ffbd4a!important;"
+        FRAME_ANNOTATION_CSS
+        + b"[data-viewspec-review-selected=true]{outline:3px solid #ffbd4a!important;"
         b"outline-offset:3px!important;box-shadow:0 0 0 6px rgba(255,189,74,.24)!important}"
     )
 

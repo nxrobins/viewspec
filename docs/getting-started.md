@@ -84,6 +84,13 @@ Approve**:
 3. Let the agent receive the request with exact semantic identity and propose a bounded change.
 4. Inspect meaningful before and after values, then approve or reject the exact proposal shown.
 
+Keyboard reviewers can switch modes with **Ctrl/⌘ I**, then Tab into the canvas. In Comment
+mode, **↑/↓** moves between visible semantic elements, **Home/End** jumps to the first or last
+element, and **Enter/Space** opens the request panel for the focused element. Selection is
+announced and the panel focuses the feedback field. Tab to **Send to agent** and press Enter;
+**Escape** or **Close** returns focus to the selected canvas element. Preview restores the
+interface's original tab order and native control behavior.
+
 The default session is loopback-only and makes no SDK network calls. Generated HTML or React
 remains an artifact, never the editing surface. `viewspec review` and the lower-level polling and
 Converge commands remain the automation protocol underneath Studio; people should start with

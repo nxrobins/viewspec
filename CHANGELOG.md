@@ -7,6 +7,18 @@ All notable changes to ViewSpec are documented in this file. The format follows
 
 ## [Unreleased]
 
+## [0.3.0b10] - 2026-10-14
+
+### Fixed
+
+- Studio keyboard annotation now reaches visible semantic headings, data fields, and actions
+  through roving focus. Up/Down and Home/End move, Enter/Space selects, and selection is announced.
+  Hidden or disabled targets leave the annotation order; Preview restores original tab order and
+  native controls.
+- Closing a request panel returns focus to the selected element in its originating preview,
+  including fields whose DOM identity also appears on an inactive screen. Both visible mobile
+  comparison frames are keyboard reachable from the initial launch.
+
 ## [0.3.0b9] - 2026-10-14
 
 ### Fixed

@@ -937,6 +937,9 @@ path-containment policy as CLI tools.
 
 - Explore mode preserves native control behavior.
 - Annotate mode supports pointer and keyboard selection.
+- In Studio Comment mode, Up/Down moves through visible semantic targets with one roving tab
+  stop; Home/End jumps, Enter/Space selects, and the selection is announced. Closing the request
+  panel returns focus to the originating element. Preview removes temporary annotation tab stops.
 - Mode, selection, queue state, diagnostic state, and stale state have accessible names and visible
   focus.
 - Mobile, tablet, and desktop review chrome have no horizontal document overflow at canonical

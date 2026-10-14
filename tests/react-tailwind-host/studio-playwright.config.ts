@@ -7,6 +7,7 @@ export default defineConfig({
     "studio-moment.spec.ts",
     "studio-state-text.spec.ts",
     "studio-share.spec.ts",
+    "studio-keyboard.spec.ts",
   ],
   timeout: 90_000,
   expect: {
