@@ -1,13 +1,14 @@
 import { expect, test, type Locator } from "@playwright/test";
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { createServer } from "node:net";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../../..");
-const python = process.env.PYTHON ?? join(repoRoot, ".venv/bin/python");
+const workspacePython = join(repoRoot, ".venv/bin/python");
+const python = process.env.PYTHON ?? (existsSync(workspacePython) ? workspacePython : "python");
 let workspace = "", source = "", state = "", url = "";
 function run(args: string[], allowFailure = false) {
   const result = spawnSync(python, ["-m", "viewspec", ...args], {
