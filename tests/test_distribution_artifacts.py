@@ -118,7 +118,7 @@ def test_distribution_audit_rejects_sdist_runtime_version_drift(tmp_path: Path) 
 
 
 @pytest.mark.parametrize("archive", ["wheel", "sdist"])
-@pytest.mark.parametrize("missing", ["studio.py", "studio_creation_daemon.py", "host_verify_template/package-lock.json"])
+@pytest.mark.parametrize("missing", ["studio.py", "studio_creation_daemon.py", "review_annotation.py", "host_verify_template/package-lock.json"])
 def test_distribution_audit_rejects_missing_studio_runtime(tmp_path: Path, archive: str, missing: str) -> None:
     dist = _safe_dist(tmp_path)
     if archive == "wheel":

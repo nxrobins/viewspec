@@ -1,3 +1,3 @@
 """Package version for local source and installed entrypoints."""
 
-__version__ = "0.3.0b9"
+__version__ = "0.3.0b10"
