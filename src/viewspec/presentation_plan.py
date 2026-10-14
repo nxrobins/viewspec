@@ -2016,6 +2016,15 @@ def _screen_plan_css(screen: dict[str, Any]) -> list[str]:
         "{ display: flex; flex-flow: row wrap; justify-content: flex-start; "
         "gap: 0.5rem; width: 100%; padding: 0; }",
     ]
+    # Synthetic titles have no authored hero layout. Keep their mobile defaults
+    # proportional without overriding an explicitly declared header motif.
+    implicit_header = f'{scope} header[data-ir-id^="planner_"][data-ir-id$="_page_header"]'
+    lines.append(_media_wrap("compact", [
+        f"{implicit_header} {{ padding: 0 !important; border: 0 !important; "
+        "border-radius: 0 !important; background: transparent !important; box-shadow: none !important; }",
+        f"{implicit_header} h1 {{ font-size: 1.6rem !important; font-weight: 700 !important; "
+        "line-height: 1.2 !important; letter-spacing: normal !important; overflow-wrap: anywhere; }",
+    ]))
     if profile == "operations_workspace":
         lines.extend(
             [

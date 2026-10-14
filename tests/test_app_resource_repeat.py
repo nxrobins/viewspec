@@ -22,6 +22,8 @@ def _write_app(path: Path, payload: dict) -> None:
 def _repeat_app() -> dict:
     app = starter_react_app_bundle("internal_tool")
     queue = app["screens"][0]
+    # This fixture exercises inferred repeat layout, replacing the authored starter fields.
+    queue.pop("presentation")
     resource_view = queue["resource_views"][0]
     resource_view["repeat"] = {
         "group_id": "incident_rows",

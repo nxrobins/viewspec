@@ -313,13 +313,13 @@ def _real_freerange_fault_scope(app_dir: Path, function_name: str) -> dict[str, 
         pytest.param(
             "pretext-standalone",
             False,
-            {"required": 36, "measured": 33, "hidden": 3, "unique_inputs": 8},
+            {"required": 36, "measured": 33, "hidden": 3, "unique_inputs": 10},
             id="pretext-standalone",
         ),
         pytest.param(
             "pretext-freerange-composed",
             True,
-            {"required": 36, "measured": 36, "hidden": 0, "unique_inputs": 9},
+            {"required": 36, "measured": 36, "hidden": 0, "unique_inputs": 11},
             id="pretext-freerange-composed",
         ),
     ],
@@ -373,7 +373,7 @@ def test_public_prove_app_real_pretext_browser_e2e(
         "rebound_binding_count": 6,
         "selector_assertion_count": 1,
         "visibility_assertion_count": 0 if freerange else 1,
-        "presentation_anchor_assertion_count": 0,
+        "presentation_anchor_assertion_count": 2,
         "presentation_viewport_count": 3,
     }
     assert host["phases"] == {
@@ -436,8 +436,12 @@ def test_real_injected_numeric_and_text_defects_are_caught(
     scenario_root = _scenario_root(tmp_path, "injected-defects")
     app_path = scenario_root / "viewspec.app.json"
     proof_dir = scenario_root / "proof"
+    payload = _numeric_v3_app_bundle()
+    # Isolate text-layout defects from presentation-anchor failures caused by clipping every node.
+    for screen in payload["screens"]:
+        screen["presentation"]["anchors"] = []
     app_path.write_text(
-        json.dumps(_numeric_v3_app_bundle(), indent=2, sort_keys=True) + "\n",
+        json.dumps(payload, indent=2, sort_keys=True) + "\n",
         encoding="utf-8",
     )
     baseline = prove_app(

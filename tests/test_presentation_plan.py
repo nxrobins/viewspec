@@ -27,6 +27,9 @@ def _write_app(path: Path, payload: dict) -> None:
 
 def _app_with_declared_presentation() -> dict:
     app = starter_react_app_bundle("internal_tool")
+    # Keep the second screen inferred to exercise mixed declared/inferred planning.
+    for screen in app["screens"]:
+        screen.pop("presentation")
     app["screens"][0]["presentation"] = {
         "profile": "operations_workspace",
         "rules": [

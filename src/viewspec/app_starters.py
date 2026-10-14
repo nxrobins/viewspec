@@ -124,6 +124,8 @@ def starter_react_app_bundle(kind: str = "internal_tool") -> dict[str, Any]:
     """Return the runnable React/Tailwind golden-path AppBundle V4 starter."""
     app = _starter_bound_app_bundle(kind)
     app["schema_version"] = APP_BUNDLE_VISIBILITY_SCHEMA_VERSION
+    for screen in app["screens"]:
+        screen["presentation"] = _starter_incident_presentation(screen)
     queue_intent = app["screens"][0]["intent_bundle"]
     queue_intent["view_spec"]["actions"].append(
         {
@@ -207,6 +209,63 @@ def starter_react_app_bundle(kind: str = "internal_tool") -> dict[str, Any]:
         }
     ]
     return app
+
+
+def _starter_incident_presentation(screen: dict[str, Any]) -> dict[str, Any]:
+    """Readable incident records, stacked at compact widths in both targets."""
+    view = screen["intent_bundle"]["view_spec"]
+    motif_id = view["motifs"][0]["id"]
+    rules = [
+        {
+            "id": "incident_content",
+            "target_ref": "region:main",
+            "base": {
+                "display": "flex", "direction": "column", "gap": "lg", "padding": "xl",
+                "width": "full", "max_width": "content_md", "min_inline_size": "zero",
+            },
+            "variants": {"compact": {"padding": "lg", "gap": "md"}},
+        },
+        {
+            "id": "incident_records",
+            "target_ref": f"motif:{motif_id}",
+            "base": {
+                "display": "block", "background": "transparent", "border": "none",
+                "padding": "none", "radius": "none", "width": "full", "min_inline_size": "zero",
+            },
+            "items": {
+                "base": {
+                    "display": "grid", "columns": ["fluid", "fluid", "fluid_wide"], "gap": "sm",
+                    "padding": "md", "background": "surface", "border": "subtle", "radius": "sm",
+                    "align": "start", "min_inline_size": "zero",
+                },
+                "variants": {"compact": {"columns": 1, "gap": "xs", "padding": "lg"}},
+            },
+        },
+    ]
+    for binding in view["bindings"]:
+        identifier = binding["id"].endswith("_id")
+        rules.append({
+            "id": f"readable_{binding['id']}",
+            "target_ref": f"binding:{binding['id']}",
+            "base": {
+                "font_size": "small" if identifier else "body",
+                "font_weight": "bold" if identifier else "semibold",
+                "font_family": "mono" if identifier else "sans",
+                "line_height": "normal", "letter_spacing": "normal", "text_wrap": "anywhere",
+                "padding": "sm", "border": "none", "width": "full", "min_inline_size": "zero",
+            },
+            "variants": {"compact": {"padding": "none"}},
+        })
+        if identifier:
+            rules[-1]["base"]["background"] = "transparent"
+    return {
+        "profile": "neutral",
+        "rules": rules,
+        "anchors": [{
+            "id": "records_inside_content", "target_ref": f"motif:{motif_id}",
+            "relation": "inside", "anchor_ref": "region:main", "viewports": ["compact", "medium", "wide"],
+        }],
+    }
 
 
 def _starter_queue_screen_intent() -> dict[str, Any]:
