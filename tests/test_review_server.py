@@ -18,6 +18,7 @@ from viewspec.app_starters import starter_app_bundle
 from viewspec.converge_sessions import start_convergence_session, submit_convergence_patch
 from viewspec.intent_patch import IntentPatchContext, source_sha256
 from viewspec.intent_tools import starter_intent_payload
+from viewspec.local_tools import init_design_file
 import viewspec.review_compile as review_compile
 from viewspec.review_compile import STUDIO_COMPARE_TARGET
 from viewspec.review_contract import ReviewContractError
@@ -104,13 +105,14 @@ def _fake_react_npm(command, *, cwd, **kwargs):
     return _REAL_SUBPROCESS_RUN(command, cwd=cwd, **kwargs)
 
 
-def _runtime(tmp_path, *, convergence_state_root=None) -> ReviewRuntime:
+def _runtime(tmp_path, *, convergence_state_root=None, design_path=None) -> ReviewRuntime:
     source = tmp_path / "viewspec.intent.json"
     source.write_text(json.dumps(starter_intent_payload(), sort_keys=True), encoding="utf-8")
     return ReviewRuntime.open(
         source,
         state_root=tmp_path / "state",
         convergence_state_root=convergence_state_root,
+        design_path=design_path,
     )
 
 
@@ -182,6 +184,36 @@ def _handshake(server: ReviewServer, cookie: str) -> None:
         ).encode("utf-8"),
     )
     assert status == 200, payload
+
+
+def _rendered_comparison(server: ReviewServer, cookie: str, *, confirm=True):
+    root = f"/r/{server.runtime.session.review_id}/api/v1"
+    deadline = time.monotonic() + 15
+    while True:
+        status, _, content = _request(server.port, "GET", f"{root}/session", headers={"Cookie": cookie})
+        assert status == 200, content
+        rendered = json.loads(content)["review"]["convergence"]["rendered_preview"]
+        assert rendered["status"] != "failed", rendered
+        if rendered["status"] == "ready":
+            break
+        assert time.monotonic() < deadline
+        time.sleep(0.01)
+    target = next(iter(rendered["surfaces"]))
+    frames = {}
+    for side, path in rendered["surfaces"][target].items():
+        status, headers, content = _request(server.port, "GET", path)
+        assert status == 200, content
+        assert "connect-src 'none'" in headers["Content-Security-Policy"]
+        frames[side] = content.decode()
+    route = next(iter(server.runtime.routes), None)
+    screen = server.runtime.screen_for_route(route) if route else None
+    payload = {"preview_id": rendered["preview_id"], "nonce": rendered["nonce"], "target": target,
+               "observations": [{"side": side, "route": route, "screen_id": screen} for side in ("current", "proposed")]}
+    if confirm:
+        status, _, content = _request(server.port, "POST", f"{root}/convergence/preview-ready",
+                                      headers=_browser_headers(server, cookie), body=json.dumps(payload).encode())
+        assert status == 200, content
+    return rendered, payload, frames
 
 
 def _event_payload(runtime: ReviewRuntime) -> bytes:
@@ -286,17 +318,21 @@ def test_bootstrap_is_single_use_and_sets_a_scoped_strict_cookie(tmp_path) -> No
         server.stop()
 
 
-def test_third_simultaneous_browser_request_fails_fast_without_queueing(tmp_path) -> None:
+def test_browser_capacity_including_comparison_frames_fails_fast_without_queueing(tmp_path) -> None:
     server = _server(_runtime(tmp_path))
     server.start()
     server._browser_connection_slots.acquire()  # noqa: SLF001 - deterministic capacity probe
     server._browser_connection_slots.acquire()  # noqa: SLF001 - deterministic capacity probe
+    server._browser_connection_slots.acquire()  # noqa: SLF001
+    server._browser_connection_slots.acquire()  # noqa: SLF001
     try:
         status, headers, payload = _request(server.port, "GET", server.bootstrap_path)
         assert status == 503
         assert headers["Retry-After"] == "1"
         assert json.loads(payload)["error"]["code"] == "REVIEW_SERVER_BUSY"
     finally:
+        server._browser_connection_slots.release()  # noqa: SLF001
+        server._browser_connection_slots.release()  # noqa: SLF001
         server._browser_connection_slots.release()  # noqa: SLF001
         server._browser_connection_slots.release()  # noqa: SLF001
         server.stop()
@@ -426,7 +462,7 @@ def test_comparison_frame_sets_route_before_react_mount_and_handshake_proves_bot
         assert "new ResizeObserver(fitCanvas).observe(canvas)" in chrome
         assert "panelToggle.setAttribute('aria-expanded','true')" in chrome
         assert "openPanel(composer)" in chrome
-        assert "openPanel(convergence)" in chrome
+        assert "Compare before approving" in chrome
         assert "document.documentElement.dataset.studioViewport=e.target.value" in chrome
         assert "overflow-anchor:none" in chrome
         assert "place-items:start center" not in chrome
@@ -631,7 +667,7 @@ def test_review_chrome_exposes_proof_not_authority_and_approves_exact_preview(tm
     preview_id, original = _pending_convergence(runtime)
     server = _server(runtime)
     chrome = server._chrome_response().body.decode("utf-8")  # noqa: SLF001
-    assert "Ready for your decision" in chrome
+    assert "Compare before approving" in chrome
     assert "Approve change" in chrome
     assert ">Reject<" in chrome
     server.start()
@@ -662,6 +698,19 @@ def test_review_chrome_exposes_proof_not_authority_and_approves_exact_preview(tm
         )
         assert forbidden == 403
         assert json.loads(content)["error"]["code"] == "REVIEW_REQUEST_FORBIDDEN"
+        assert open(runtime.configuration.source_path, encoding="utf-8").read() == original
+
+        early, _, content = _request(
+            server.port, "POST", f"{root}/convergence/approve", headers=_browser_headers(server, cookie),
+            body=json.dumps({"preview_id": preview_id}).encode(),
+        )
+        assert early == 409, content
+        assert json.loads(content)["error"]["code"] == "REVIEW_PROPOSAL_NOT_READY"
+        rendered, _, frames = _rendered_comparison(server, cookie)
+        assert rendered["nonce"] != server.frame_nonce
+        checked = server._proposal_renderer.active(preview_id)  # noqa: SLF001
+        assert checked.baseline.revision.source_sha256 != checked.candidate.revision.source_sha256
+        assert all('id="viewspec-review-sdk"' in frame for frame in frames.values())
         assert open(runtime.configuration.source_path, encoding="utf-8").read() == original
 
         accepted, _, content = _request(
@@ -698,6 +747,8 @@ def test_review_uses_configured_custom_convergence_state_root(tmp_path) -> None:
         assert status == 200
         assert json.loads(content)["review"]["convergence"]["pending_preview"]["preview_id"] == preview_id
 
+        _rendered_comparison(server, cookie)
+
         accepted, _, content = _request(
             server.port,
             "POST",
@@ -730,6 +781,101 @@ def test_review_chrome_rejects_exact_preview_without_mutating_source(tmp_path) -
         assert status == 200, content
         assert json.loads(content)["convergence"]["status"] == "rejected"
         assert open(runtime.configuration.source_path, encoding="utf-8").read() == original
+    finally:
+        server.stop()
+
+
+def test_rendered_comparison_rejects_wrong_authority_and_unobserved_pairs(tmp_path) -> None:
+    runtime = _runtime(tmp_path)
+    preview_id, original = _pending_convergence(runtime)
+    server = _server(runtime)
+    server.start()
+    try:
+        cookie, _ = _bootstrap(server)
+        _handshake(server, cookie)
+        rendered, valid, _ = _rendered_comparison(server, cookie, confirm=False)
+        root = f"/r/{runtime.session.review_id}/api/v1/convergence"
+        for invalid in (
+            {**valid, "nonce": server.frame_nonce},
+            {**valid, "preview_id": "old-proposal"},
+            {**valid, "target": []},
+            {**valid, "observations": [valid["observations"][0]] * 2},
+            {**valid, "observations": [valid["observations"][0], {"side": "proposed", "route": "/forged", "screen_id": "forged"}]},
+        ):
+            status, _, content = _request(server.port, "POST", f"{root}/preview-ready",
+                                          headers=_browser_headers(server, cookie), body=json.dumps(invalid).encode())
+            assert status == 409, content
+        status, _, content = _request(server.port, "POST", f"{root}/approve",
+                                      headers=_browser_headers(server, cookie), body=json.dumps({"preview_id": preview_id}).encode())
+        assert status == 409, content
+        assert Path(runtime.configuration.source_path).read_text() == original
+        proposed = rendered["surfaces"][valid["target"]]["proposed"]
+        for relative in ("source.json", "../source.json", "%2e%2e/source.json"):
+            status, _, _ = _request(server.port, "GET", proposed.rsplit("/", 1)[0] + "/" + relative)
+            assert status in {400, 403, 404}
+        assert "approval_token" not in json.dumps(rendered)
+    finally:
+        server.stop()
+
+
+@pytest.mark.parametrize("changed_input", ["source", "design"])
+def test_source_or_design_change_invalidates_previously_rendered_proposal(tmp_path, changed_input) -> None:
+    design = init_design_file(tmp_path / "DESIGN.md") if changed_input == "design" else None
+    runtime = _runtime(tmp_path, design_path=design)
+    preview_id, original = _pending_convergence(runtime)
+    server = _server(runtime)
+    server.start()
+    try:
+        cookie, _ = _bootstrap(server)
+        _handshake(server, cookie)
+        rendered, valid, _ = _rendered_comparison(server, cookie)
+        input_path = Path(runtime.configuration.source_path) if design is None else design
+        changed = input_path.read_text() + "\n"
+        input_path.write_text(changed)
+        root = f"/r/{runtime.session.review_id}/api/v1/convergence"
+        status, _, content = _request(server.port, "POST", f"{root}/approve",
+                                      headers=_browser_headers(server, cookie), body=json.dumps({"preview_id": preview_id}).encode())
+        assert status == 409, content
+        status, _, _ = _request(server.port, "GET", rendered["surfaces"][valid["target"]]["proposed"])
+        assert status == 409
+        assert input_path.read_text() == changed
+        if design is not None:
+            assert Path(runtime.configuration.source_path).read_text() == original
+    finally:
+        server.stop()
+
+
+def test_failed_proposed_render_blocks_approval_but_allows_rejection(tmp_path, monkeypatch) -> None:
+    runtime = _runtime(tmp_path)
+    preview_id, original = _pending_convergence(runtime)
+
+    def fail_build(*args, **kwargs):
+        raise ReviewContractError("TEST_RENDER_FAILED", "Candidate cannot build.", "Try again.")
+
+    monkeypatch.setattr("viewspec.review_proposal.build_review_revision", fail_build)
+    server = _server(runtime)
+    server.start()
+    try:
+        cookie, _ = _bootstrap(server)
+        _handshake(server, cookie)
+        root = f"/r/{runtime.session.review_id}/api/v1"
+        deadline = time.monotonic() + 5
+        while True:
+            status, _, content = _request(server.port, "GET", f"{root}/session", headers={"Cookie": cookie})
+            assert status == 200
+            rendered = json.loads(content)["review"]["convergence"]["rendered_preview"]
+            if rendered["status"] == "failed":
+                break
+            assert time.monotonic() < deadline
+            time.sleep(0.01)
+        assert "surfaces" not in rendered
+        status, _, _ = _request(server.port, "POST", f"{root}/convergence/approve",
+                                headers=_browser_headers(server, cookie), body=json.dumps({"preview_id": preview_id}).encode())
+        assert status == 409
+        status, _, content = _request(server.port, "POST", f"{root}/convergence/reject",
+                                      headers=_browser_headers(server, cookie), body=json.dumps({"preview_id": preview_id}).encode())
+        assert status == 200, content
+        assert Path(runtime.configuration.source_path).read_text() == original
     finally:
         server.stop()
 

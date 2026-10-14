@@ -32,6 +32,8 @@ from viewspec.review_compile import STUDIO_COMPARE_TARGET
 from viewspec.review_errors import make_review_error
 from viewspec.review_frame_readiness import FRAME_RENDER_WAIT_JS
 from viewspec.review_runtime import ReviewRuntime
+from viewspec.review_proposal import ProposalRenderer
+from viewspec.review_approval_ui import APPROVAL_CSS, APPROVAL_HTML, APPROVAL_JS
 
 
 MAX_REQUEST_BODY_BYTES = 256 * 1024
@@ -119,7 +121,7 @@ class ReviewServer:
         self._condition = threading.Condition(self._lock)
         self._poll_lock = threading.Lock()
         self._connection_slots = threading.BoundedSemaphore(32)
-        browser_slots = 4 if runtime.built.revision.target == STUDIO_COMPARE_TARGET else 2
+        browser_slots = 6 if runtime.built.revision.target == STUDIO_COMPARE_TARGET else 4
         self._browser_connection_slots = threading.BoundedSemaphore(browser_slots)
         self._active_mutations = 0
         self._active_polls = 0
@@ -144,6 +146,8 @@ class ReviewServer:
         self._frame_first_served_at: float | None = None
         self._handshake_revision: int | None = None
         self._allowlist: dict[str, _ArtifactEntry] = {}
+        self._proposal_renderer = ProposalRenderer(runtime)
+        self._proposal_allowlists: dict[tuple[str, str], dict[str, _ArtifactEntry]] = {}
         try:
             self._httpd = ThreadingHTTPServer((host, port), self._handler_type())
         except OSError as exc:
@@ -177,6 +181,7 @@ class ReviewServer:
         self._thread.start()
 
     def stop(self) -> None:
+        self._proposal_renderer.reset()
         if self._thread is None:
             self._httpd.server_close()
             return
@@ -322,6 +327,8 @@ class ReviewServer:
             return self._consume_bootstrap(path.removeprefix("/open/"))
         if path.startswith("/frame/"):
             return self._serve_frame(path)
+        if path.startswith("/approval-frame/"):
+            return self._serve_proposal_frame(path)
         review_root = f"/r/{self.runtime.session.review_id}/"
         if path == review_root:
             self._authorize_cookie(handler)
@@ -425,6 +432,10 @@ class ReviewServer:
                 )
                 self._condition.notify_all()
             return _json_response(201, {"schema_version": 1, "ok": True, "event": event.to_json()})
+        if path == f"{review_root}api/v1/convergence/preview-ready":
+            self._require_frame_handshake()
+            self._proposal_renderer.confirm(_json_object(body))
+            return _json_response(200, {"schema_version": 1, "ok": True})
         if path == f"{review_root}api/v1/convergence/approve":
             self._require_frame_handshake()
             preview_id = _exact_preview_request(body)
@@ -440,6 +451,7 @@ class ReviewServer:
                         "The approved preview is no longer the exact pending proposal.",
                         "Reload Review and inspect the current convergence proposal.",
                     )
+                self._proposal_renderer.require_ready(preview_id)
                 session = approve_convergence_preview(
                     self.runtime.configuration.source_path,
                     pending.approval_token,
@@ -447,6 +459,7 @@ class ReviewServer:
                 )
             except ConvergeError as exc:
                 raise _convergence_review_error(exc) from exc
+            self._proposal_renderer.reset()
             return _json_response(
                 200,
                 {
@@ -466,6 +479,7 @@ class ReviewServer:
                 )
             except ConvergeError as exc:
                 raise _convergence_review_error(exc) from exc
+            self._proposal_renderer.reset()
             return _json_response(
                 200,
                 {
@@ -946,6 +960,7 @@ class ReviewServer:
             ".layout{height:auto}.canvas{height:58vh;padding:14px}.panel{top:0;width:100%;max-width:none;border-left:0}"
             ".confidence div{left:0;right:auto;width:min(320px,calc(100vw - 36px))}}"
         )
+        style += APPROVAL_CSS
         share_script = (
             "const shareToggle=document.getElementById('share-toggle'),sharePanel=document.getElementById('share-panel'),"
             "shareSummary=document.getElementById('share-summary'),shareDisclosure=document.getElementById('share-disclosure'),"
@@ -1029,7 +1044,7 @@ class ReviewServer:
             "const resetCanvas=()=>{canvas.scrollLeft=0;canvas.scrollTop=0;};"
             "const lockCanvasOrigin=()=>{canvasOriginLocked=true;resetCanvas();};canvas.addEventListener('scroll',()=>{if(canvasOriginLocked&&(canvas.scrollLeft||canvas.scrollTop))requestAnimationFrame(resetCanvas);},{passive:true});"
             "canvas.addEventListener('wheel',()=>{canvasOriginLocked=false;},{passive:true});canvas.addEventListener('pointerdown',()=>{canvasOriginLocked=false;},{passive:true});"
-            "const fitCanvas=()=>{if(!fitShell||!fitStage)return;fitStage.style.transform='none';const width=fitStage.offsetWidth,height=fitStage.offsetHeight,style=getComputedStyle(canvas);"
+            "const fitCanvas=()=>{if(!convergence.hidden){fitApproval();return;}if(!fitShell||!fitStage)return;fitStage.style.transform='none';const width=fitStage.offsetWidth,height=fitStage.offsetHeight,style=getComputedStyle(canvas);"
             "const available=Math.max(1,canvas.clientWidth-(parseFloat(style.paddingLeft)||0)-(parseFloat(style.paddingRight)||0));const scale=Math.min(1,available/Math.max(1,width));"
             "fitStage.style.transform='scale('+scale+')';fitShell.style.width=Math.ceil(width*scale)+'px';fitShell.style.height=Math.ceil(height*scale)+'px';fitShell.dataset.fitScale=scale.toFixed(3);};"
             "const openPanel=section=>{const shouldReveal=!panelOpen||(section&&panelSection!==section);panelOpen=true;panel.classList.add('is-open');panel.removeAttribute('inert');"
@@ -1103,7 +1118,7 @@ class ReviewServer:
             "frames.forEach(item=>item.contentWindow.postMessage({type:'viewspec-studio-replay-apply',nonce,...desiredReplay},'*'));};"
             "document.getElementById('viewport').addEventListener('change',e=>{const d={mobile:[390,844],tablet:[768,1024],desktop:[1440,1000]}[e.target.value];"
             "if(!d)return;document.documentElement.dataset.studioViewport=e.target.value;showSurface(surfaceSelect?.value||'react-tailwind-app');resetAfterCoherence=true;lockCanvasOrigin();requestAnimationFrame(fitCanvas);status.textContent='Viewport '+e.target.value+' · all targets';requestCoherence();});"
-            "const toggle=()=>{annotate=!annotate;mode.textContent=annotate?'Preview':'Comment';status.textContent=annotate?'Comment mode · choose something to change':'Preview mode · interactions are live';"
+            "const toggle=()=>{if(pendingConvergence)return;annotate=!annotate;mode.textContent=annotate?'Preview':'Comment';status.textContent=annotate?'Comment mode · choose something to change':'Preview mode · interactions are live';"
             "if(!annotate){selection=null;composer.hidden=true;resourceCard.hidden=true;closePanel(false);}frames.forEach(item=>item.contentWindow.postMessage({type:'viewspec-review-mode',nonce,annotate},'*'));};mode.addEventListener('click',toggle);"
             "coherenceRecheck?.addEventListener('click',requestCoherence);coherenceReview?.addEventListener('click',()=>{if(!coherenceMismatch)return;if(!annotate)toggle();"
             "showSurface(coherenceMismatch.surface_target);const target=frames.find(item=>item.dataset.target===coherenceMismatch.surface_target)||frame;target.contentWindow.postMessage({type:'viewspec-studio-coherence-choose',nonce,dom_id:coherenceMismatch.dom_id},'*');"
@@ -1164,18 +1179,18 @@ class ReviewServer:
             "before.append(beforeLabel,left);after.append(afterLabel,right);arrow.textContent='→';"
             "target.textContent=[field.screen_id,field.section,field.id,field.field].filter(Boolean).join(' · ');row.append(before,arrow,after,target);return row;}));"
             "if(!fields.length)convergenceDiff.textContent='One bounded semantic change is ready for review.';};"
-            "const renderConvergence=value=>{pendingConvergence=value?.status==='awaiting_approval'?value:null;convergence.hidden=!pendingConvergence;"
-            "if(!pendingConvergence)return;openPanel(convergence);const preview=pendingConvergence.pending_preview,proof=preview.progress_certificate;"
-            "convergenceSummary.textContent='Your agent proposes one checked change to the current semantic source.';renderDiff(preview.semantic_diff);"
+            + APPROVAL_JS
+            + "const renderConvergence=value=>{pendingConvergence=value?.status==='awaiting_approval'?value:null;convergence.hidden=!pendingConvergence;renderApproval(pendingConvergence);"
+            "if(!pendingConvergence)return;const preview=pendingConvergence.pending_preview,proof=preview.progress_certificate;"
+            "convergenceSummary.textContent='Compare the same screen and viewport. Your interface changes only after approval.';renderDiff(preview.semantic_diff);"
             "const fixed=proof.fixed_obligations?.length||0,remaining=proof.remaining_obligations?.length||0,introduced=proof.introduced_obligations?.length||0;"
             "convergenceProof.textContent=proof.accepted?'Checked change · '+fixed+' fixed · '+remaining+' remaining · '+introduced+' introduced':'Change needs another pass · '+(proof.reason||'proof incomplete');"
-            "approveConvergence.disabled=false;rejectConvergence.disabled=false;};"
-            "const decideConvergence=async action=>{if(!pendingConvergence)return;approveConvergence.disabled=true;rejectConvergence.disabled=true;"
+            "approvalButtons();};"
+            "const decideConvergence=async action=>{if(!pendingConvergence||approvalBusy||(action==='approve'&&!approvalConfirmed))return;approvalBusy=true;approvalButtons();"
             "const previewId=pendingConvergence.pending_preview.preview_id;try{const response=await fetch(action==='approve'?convergenceApproveEndpoint:convergenceRejectEndpoint,{"
             "method:'POST',headers:{'Content-Type':'application/json','X-ViewSpec-Frame-Nonce':nonce},body:JSON.stringify({preview_id:previewId})});"
             "const result=await response.json();status.textContent=response.ok?(action==='approve'?'Change approved':'Change rejected'):(result.error?.code||'Decision failed');"
-            "if(response.ok)renderConvergence(result.convergence);}catch{status.textContent='Convergence decision failed';}finally{if(pendingConvergence){"
-            "approveConvergence.disabled=false;rejectConvergence.disabled=false;}}};approveConvergence.addEventListener('click',()=>decideConvergence('approve'));"
+            "if(response.ok)renderConvergence(result.convergence);else if(action==='approve')failApproval('This comparison cannot be approved. Reload Studio or reject the proposal.');}catch{status.textContent='Convergence decision failed';}finally{approvalBusy=false;approvalButtons();}};approveConvergence.addEventListener('click',()=>decideConvergence('approve'));"
             "rejectConvergence.addEventListener('click',()=>decideConvergence('reject'));"
             "const renderAgentPresence=review=>{const value=review?.agent_presence?.status,state=['ready','working'].includes(value)?value:'not_connected';"
             "agentPresence.dataset.status=state;agentPresence.textContent=state==='ready'?'Agent ready':state==='working'?'Agent working':'Agent not connected';"
@@ -1218,7 +1233,9 @@ class ReviewServer:
             "<div class=statusbar><span id=status class=notice aria-live=polite>Preview mode · interactions are live</span>"
             f"<div class=status-meta><span id=agent-presence class=agent-presence data-status='{initial_agent_presence}' aria-live=polite>{initial_agent_label}</span>"
             f"<span class=revision>Requests: <strong id=queued>{initial_queued_events}</strong></span></div></div>"
-            f"<main class=layout id=studio-main><section class=canvas aria-label='Checked interface canvas'><div class=stage>{frame_markup}</div></section>"
+            f"<main class=layout id=studio-main><section class=canvas aria-label='Checked interface canvas'><div class=stage>{frame_markup}</div>"
+            + APPROVAL_HTML
+            + "</section>"
             "<aside id=studio-panel class=panel aria-hidden=true inert><header class=panel-head><div><span class=eyebrow>One continuous loop</span>"
             "<h1>Point. Ask. Approve.</h1></div><button id=panel-close class='secondary panel-close' type=button>Close</button></header>"
             "<p class=panel-intro>Proof, requests, and decisions appear here when they matter.</p>"
@@ -1240,11 +1257,6 @@ class ReviewServer:
             "<div id=resource-card class=inspection-card hidden aria-live=polite></div></section>"
             + share_panel_markup
             + "<section class=panel-section><h2>Conversation</h2><ol id=conversation class=conversation aria-live=polite></ol></section>"
-            "<section id=convergence class=panel-section hidden><h2>Ready for your decision</h2><p id=convergence-summary></p>"
-            "<h3>What changes</h3><div id=convergence-diff class=change-list></div><h3>Why it is safe to review</h3>"
-            "<p id=convergence-proof class=proof-result></p><div class=action-row>"
-            "<button id=approve-convergence class=primary type=button>Approve change</button>"
-            "<button id=reject-convergence class=secondary type=button>Reject</button></div></section>"
             "<section id=composer class=panel-section hidden><h2>Ask for one change</h2>"
             "<p>Describe the outcome you want. Your agent receives this selection’s exact semantic identity.</p>"
             "<div class=selection-card aria-live=polite><span id=selection-kicker class=selection-kicker></span><strong id=selection-title></strong><span id=selection-detail></span></div>"
@@ -1268,16 +1280,27 @@ class ReviewServer:
         return _Response(200, (("Content-Type", "text/html; charset=utf-8"), ("Content-Security-Policy", csp)), html)
 
     def _browser_status(self) -> dict[str, object]:
+        self._ensure_revision_capabilities()
         status = self.runtime.status()
         comparison = self.runtime.built.revision.target == STUDIO_COMPARE_TARGET
         try:
-            convergence: dict[str, object] | None = _browser_convergence_projection(
-                get_convergence_status(
-                    self.runtime.configuration.source_path,
-                    state_root=self.runtime.configuration.convergence_state_root,
-                )
+            session = get_convergence_status(
+                self.runtime.configuration.source_path,
+                state_root=self.runtime.configuration.convergence_state_root,
             )
+            convergence: dict[str, object] | None = _browser_convergence_projection(session)
+            rendered = self._proposal_renderer.request(session)
+            convergence["rendered_preview"] = rendered
+            if rendered["status"] == "ready":
+                preview_id = rendered["preview_id"]
+                prefix = f"/approval-frame/{self._frame_ticket}/{preview_id}"
+                targets = {"html-tailwind-app": "static/index.html", "react-tailwind-app": "react/index.html"} if comparison else {self.runtime.built.revision.target: "index.html"}
+                rendered["surfaces"] = {
+                    target: {side: f"{prefix}/{side}/{relative}" for side in ("current", "proposed")}
+                    for target, relative in targets.items()
+                }
         except ConvergeError as exc:
+            self._proposal_renderer.reset()
             convergence = None if exc.code == "CONVERGE_SESSION_NOT_FOUND" else {
                 "status": "unavailable",
                 "error_code": exc.code,
@@ -1396,18 +1419,47 @@ class ReviewServer:
         entry = self._allowlist.get(relative)
         if entry is None:
             raise _artifact_not_found()
+        with self._lock:
+            if entry.content_type.startswith("text/html") and self._frame_first_served_at is None:
+                self._frame_first_served_at = self._clock()
+        target = self.runtime.built.revision.target
+        surface = ("react-tailwind-app" if relative.startswith("react/") else "html-tailwind-app") if target == STUDIO_COMPARE_TARGET else target
+        return self._frame_response(entry, surface_target=surface, nonce=self.frame_nonce, initial_route=self.runtime.initial_route)
+
+    def _serve_proposal_frame(self, path: str) -> _Response:
+        self._ensure_revision_capabilities()
+        components = path.removeprefix("/approval-frame/").split("/", 3)
+        if len(components) != 4:
+            raise _artifact_not_found()
+        ticket, preview_id, side, raw_relative = components
+        if not _compare_token(ticket, self._frame_ticket_digest) or self._clock() > self._frame_ticket_expires:
+            raise _forbidden("The comparison capability is invalid or expired.")
+        if side not in {"current", "proposed"}:
+            raise _artifact_not_found()
+        rendered = self._proposal_renderer.active(preview_id)
+        built = rendered.baseline if side == "current" else rendered.candidate
+        key = (rendered.nonce, side)
+        with self._lock:
+            if key not in self._proposal_allowlists:
+                # Bound the cache to the current proposal; old capabilities cannot be served.
+                self._proposal_allowlists = {k: v for k, v in self._proposal_allowlists.items() if k[0] == rendered.nonce}
+                self._proposal_allowlists[key] = _artifact_allowlist(built.artifact_dir)
+            relative = _canonical_frame_path(raw_relative)
+            entry = self._proposal_allowlists[key].get(relative)
+        if entry is None:
+            raise _artifact_not_found()
+        target = built.revision.target
+        surface = ("react-tailwind-app" if relative.startswith("react/") else "html-tailwind-app") if target == STUDIO_COMPARE_TARGET else target
+        response = self._frame_response(entry, surface_target=surface, nonce=rendered.nonce, initial_route=rendered.initial_route)
+        if entry.content_type.startswith("text/html"):
+            self._proposal_renderer.served(preview_id, surface, side)
+        return response
+
+    def _frame_response(self, entry: _ArtifactEntry, *, surface_target: str, nonce: str, initial_route: str | None) -> _Response:
         content = _read_exact_artifact(entry)
         headers: list[tuple[str, str]] = [("Content-Type", entry.content_type)]
         if entry.content_type.startswith("text/html"):
-            with self._lock:
-                if self._frame_first_served_at is None:
-                    self._frame_first_served_at = self._clock()
-            if self.runtime.built.revision.target == STUDIO_COMPARE_TARGET:
-                surface_target = "react-tailwind-app" if relative.startswith("react/") else "html-tailwind-app"
-            else:
-                surface_target = self.runtime.built.revision.target
             if surface_target == "react-tailwind-app":
-                initial_route = self.runtime.initial_route
                 first_script = content.find(b"<script")
                 if initial_route is None or first_script < 0:
                     raise ReviewContractError(
@@ -1430,7 +1482,7 @@ class ReviewServer:
                 if style_marker in content
                 else style_injection + content
             )
-            sdk = _frame_sdk(self.frame_nonce, surface_target=surface_target)
+            sdk = _frame_sdk(nonce, surface_target=surface_target)
             marker = b"</body>"
             injection = b'<script id="viewspec-review-sdk">' + sdk + b"</script>"
             content = content.replace(marker, injection + marker, 1) if marker in content else content + injection
@@ -1463,6 +1515,8 @@ class ReviewServer:
                 self._rotate_revision_capabilities()
 
     def _rotate_revision_capabilities(self) -> None:
+        self._proposal_renderer.reset()
+        self._proposal_allowlists.clear()
         self._capability_revision = self.runtime.built.revision.number
         self._frame_ticket = _token()
         self._frame_ticket_digest = _digest_token(self._frame_ticket)
@@ -1904,7 +1958,7 @@ def _frame_sdk(nonce: str, *, surface_target: str) -> bytes:
         "screen_id:screen?screen.dataset.viewspecAppScreen:null,route:screen?(screen.dataset.routePath||location.pathname):null,viewport:measured,selected_text,"
         "rendered_text:text.trim().slice(0,2048),visibility:element.getClientRects().length?'visible':'hidden'},'*');};"
         "let restoringHash=null,restoringHistory=false;const postContext=(cause='passive',routeOverride=null)=>{const screen=document.querySelector('[data-viewspec-app-screen]:not([hidden])')||document.querySelector('[data-viewspec-app-screen]');"
-        "parent.postMessage({type:'viewspec-review-context',nonce:n,surface_target:surface,sync_cause:cause,route:routeOverride??(screen?(screen.dataset.routePath||location.pathname):null),"
+        "parent.postMessage({type:'viewspec-review-context',nonce:n,surface_target:surface,sync_cause:cause,screen_id:screen?.dataset.viewspecAppScreen||null,route:routeOverride??(screen?(screen.dataset.routePath||location.pathname):null),"
         "scroll_x:Math.max(0,Math.min(1000000,Math.trunc(scrollX))),scroll_y:Math.max(0,Math.min(1000000,Math.trunc(scrollY)))},'*');};"
         "const nativePush=history.pushState.bind(history),nativeReplace=history.replaceState.bind(history);"
         "const nextFrame=()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));"

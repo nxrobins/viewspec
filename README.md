@@ -71,7 +71,11 @@ Studio discovers exactly one canonical `viewspec.app.json` or `viewspec.intent.j
 checked local interface, and presents the primary loop as **Preview → Comment → Approve**. Point at
 the rendered product and describe the outcome you want; the agent receives exact semantic identity,
 not a guessed selector. Generated output remains immutable, and approval applies only the exact
-source-bound proposal shown. See the [proved Studio goal](docs/viewspec-studio-goal.md) for the
+source-bound proposal shown. Before approval, Studio renders the current and proposed interfaces
+side by side at the same viewport, with synchronized navigation and scroll. You can inspect Live
+or Static, compare the initial state or active declared checkpoint, and view both at full size. Approval stays disabled
+until both exact versions render; failed or stale proposals cannot be approved.
+See the [proved Studio goal](docs/viewspec-studio-goal.md) for the
 current milestone, evidence, and deliberately deferred work.
 
 CI also exercises the complete mechanical product journey from a brief through three separately

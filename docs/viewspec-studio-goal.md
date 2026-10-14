@@ -152,7 +152,7 @@ equivalence claim.
 | One responsive canvas | One 390, 768, or 1440 selection sets both canvases to the exact same dimensions. | Real Chromium journey. |
 | Synchronized navigation | Navigation from either static or React moves the other target to the same declared route without stale restore loops. | Bidirectional browser navigation assertions. |
 | Same semantic target | A click in either canvas visibly highlights the exact matching semantic element in both Static and React, presents a human resource/field summary, and resolves the comment through the target's checked manifest to the same AppBundle screen and source identity. Exact implementation trace remains available on demand. | Browser-to-agent feedback assertion and synchronized-selection Chromium assertion. |
-| Coherent approval | An approved AppBundle change shows its exact nested before/after field, rebuilds both targets, and retains a valid route across the revision. | App diff, identity-continuity, and end-to-end approval tests. |
+| Coherent approval | Current and exact proposed interfaces render side by side before source changes, at the same viewport, screen, scroll, and active declared checkpoint. Approval requires both rendered versions; stale source/design and failed previews are blocked. An approved change rebuilds both targets and retains a valid route. | Rendered-preview server negative tests and the three-change Chromium journey, including actual badge, fixture value, and heading comparisons in both renderers and all canonical viewports. |
 | Honest scope | Locked dependency installation is explicit, runtime SDK network calls are absent, and visual parity remains `not_proven`. | Exact response and retained policy assertions. |
 
 ## Milestone 4: inspect the product in motion
