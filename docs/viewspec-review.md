@@ -1093,10 +1093,22 @@ submitting feedback.
 
 ## Implemented Additive Contract: Converge Sessions V1
 
-Review now projects a pending Converge proposal into the side panel with its semantic before/after
-and progress certificate. The browser receives no approval token: an authenticated, same-origin,
-current-frame Approve or Reject action names only the exact `preview_id`, and the server consumes
-its private authority after checking that the proposal is still current.
+Review renders a pending Converge proposal beside the current interface in the main canvas before
+approval. It builds the exact candidate in a private temporary revision without writing canonical
+source. Both sides use the same renderer, viewport, route, and scroll; an active declared checkpoint
+is replayed on both sides, with an Initial state option when that checkpoint is incompatible with
+the proposed change. The semantic before/after and progress certificate remain under
+**What changes**. Live/Static and Fit/100% controls let the reviewer inspect the result.
+
+Approval requires an authenticated comparison handshake naming both rendered sides, the exact
+proposal nonce, renderer, and matching declared screen. Candidate compile failures, render failures,
+changed source or design, and stale proposals fail closed. Rejection remains available without a
+successful proposed render. Comparison frames use separate read-only capabilities and nonces,
+checked artifact allowlists, and the ordinary sandbox/CSP; they cannot submit comments or apply
+source. The browser receives no approval token: authenticated, same-origin Approve or Reject names
+only the exact `preview_id`, and the server rechecks private authority before applying it. Temporary
+candidate artifacts and comparison readiness are discarded on rejection, apply, revision change,
+or session shutdown.
 
 Agents automatically operate the session workflow—start or resume, author from the legal-operation
 menu, submit, and re-verify—while humans express intent and grant authority. The controller is
