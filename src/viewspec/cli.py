@@ -10,6 +10,7 @@ import sys
 from pathlib import Path
 
 from viewspec._version import __version__
+from viewspec.studio_creation_cli import studio_agent_task
 from viewspec.app_bundle import (
     APP_BUNDLE_ALLOWED_KINDS,
     APP_BUNDLE_DEFAULT_OUT,
@@ -223,6 +224,14 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     studio_create_parser.add_argument("--json", action="store_true", help="Print machine-readable JSON.")
     studio_create_parser.set_defaults(func=_studio_create_command)
+
+    studio_agent_parser = subparsers.add_parser(
+        "studio-agent-task", help="Check in to an existing creation room and read its exact agent task.",
+    )
+    studio_agent_parser.add_argument("task", nargs="?", default=STUDIO_CREATION_TASK_DEFAULT)
+    studio_agent_parser.add_argument("--state-dir", help="Private Studio state root used by the creation room.")
+    studio_agent_parser.add_argument("--json", action="store_true", help="Print machine-readable JSON.")
+    studio_agent_parser.set_defaults(func=_studio_agent_task_command)
 
     studio_accept_parser = subparsers.add_parser(
         "studio-accept",
@@ -681,6 +690,12 @@ def _studio_command(args: argparse.Namespace) -> int:
             print(f"ViewSpec Studio ready in {studio['ready_ms']} ms.")
             print(f"open: {review['url']}")
             print("Preview → Comment → Approve")
+    return 0
+
+
+def _studio_agent_task_command(args: argparse.Namespace) -> int:
+    payload = studio_agent_task(args.task, state_root=args.state_dir)
+    print(json.dumps(payload, indent=2, sort_keys=True))
     return 0
 
 

@@ -26,6 +26,30 @@ from viewspec.studio_creation_daemon import creation_room_session_dir
 from viewspec.studio_creation_room import creation_room_configuration_sha256
 
 
+def studio_agent_task(
+    task_path: str | Path = STUDIO_CREATION_TASK_DEFAULT,
+    *,
+    cwd: str | Path | None = None,
+    state_root: str | Path | None = None,
+) -> dict[str, object]:
+    """Validate the retained task and explicitly check in to its existing creation room."""
+    inspected = inspect_studio_creation(task_path, cwd=cwd)
+    task = inspected["task"]
+    assert isinstance(task, dict)
+    root = Path(state_root) if state_root is not None else default_review_state_root()
+    active = _active_creation_room(str(task["task_id"]), root)
+    if active is None:
+        raise ReviewContractError(
+            "STUDIO_CREATION_ROOM_FAILED",
+            "The preserved task has no active local Studio creation room.",
+            "Reopen Studio with the original brief and options, then copy its agent instructions again.",
+            cli_exit=2,
+        )
+    identity = hashlib.sha256(str(inspected["task_path"]).encode("utf-8")).hexdigest()
+    status = _agent_request(active, "POST", "/internal/v1/agent-check-in", {"task_path_sha256": identity})
+    return {"schema_version": 1, "ok": True, "task": task, "creation": status}
+
+
 def open_studio_creation_room(
     task_path: str | Path = STUDIO_CREATION_TASK_DEFAULT,
     *,

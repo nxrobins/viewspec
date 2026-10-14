@@ -7,6 +7,7 @@ import base64
 from dataclasses import dataclass
 import hashlib
 import hmac
+import json
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import os
 from pathlib import Path
@@ -17,6 +18,10 @@ import time
 from urllib.parse import urlsplit
 
 from viewspec.review_contract import ReviewContractError, canonical_json_bytes
+from viewspec.review_runtime import default_review_state_root
+from viewspec.studio_agent_handoff import (
+    AGENT_ACTIVITY_SECONDS, HANDOFF_CSS, HANDOFF_HTML, creation_handoff, handoff_script,
+)
 from viewspec.studio_creation import (
     STUDIO_CREATION_TASK_DEFAULT,
     StudioCreationError,
@@ -116,6 +121,7 @@ class StudioCreationRoomController:
         self._condition = threading.Condition(self._lock)
         self._started_at = clock()
         self._last_activity = self._started_at
+        self._agent_activity: float | None = None
         self._stage = "waiting"
         self._detail = "Studio preserved the exact local brief. Your agent can author its task-bound candidate."
         self._error: dict[str, str] | None = None
@@ -158,10 +164,28 @@ class StudioCreationRoomController:
                 "handoff_ready": self._handoff_result is not None,
                 "elapsed_ms": max(0, round((self._clock() - self._started_at) * 1000)),
                 "network_calls": "none",
+                "agent_presence": self.agent_presence(),
             }
             if self._error is not None:
                 projection["error"] = self._browser_error(self._error)
             return projection
+
+    def agent_check_in(self) -> None:
+        """Record an explicit authenticated agent check-in, separate from browser polling."""
+        with self._lock:
+            self._agent_activity = self._clock()
+
+    def agent_presence(self) -> dict[str, str]:
+        with self._lock:
+            if self._stage == "checking":
+                status = "checking"
+            elif self._agent_activity is None:
+                status = "not_connected"
+            elif self._clock() - self._agent_activity >= AGENT_ACTIVITY_SECONDS:
+                status = "inactive"
+            else:
+                status = "working"
+            return {"status": status}
 
     def touch(self) -> None:
         with self._lock:
@@ -201,6 +225,7 @@ class StudioCreationRoomController:
                     )
                 return
             if signature != self._candidate_signature:
+                self._agent_activity = now
                 self._candidate_signature = signature
                 self._candidate_pending_since = now
                 self._accepted = None
@@ -393,6 +418,7 @@ class StudioCreationRoomServer:
         host: str = "127.0.0.1",
         port: int = 4388,
         clock: Callable[[], float] = time.monotonic,
+        state_root: Path | None = None,
     ) -> None:
         if host != "127.0.0.1":
             raise ReviewContractError(
@@ -409,6 +435,7 @@ class StudioCreationRoomServer:
                 cli_exit=2,
             )
         self.controller = controller
+        self.state_root = (state_root or default_review_state_root()).resolve()
         self.host = host
         self._clock = clock
         self._lock = threading.RLock()
@@ -527,6 +554,24 @@ class StudioCreationRoomServer:
                 return _not_found()
             if method == "GET" and path == "/internal/v1/status":
                 return _json_response(200, self.controller.status())
+            if method == "POST" and path == "/internal/v1/agent-check-in":
+                length = handler.headers.get("Content-Length", "")
+                if not length.isdecimal() or not 0 < int(length) <= 256:
+                    handler.close_connection = True
+                    return _not_found()
+                try:
+                    payload = json.loads(handler.rfile.read(int(length)))
+                except (ValueError, UnicodeDecodeError):
+                    return _not_found()
+                identity = hashlib.sha256(str(self.controller.task_path).encode("utf-8")).hexdigest()
+                if payload != {"task_path_sha256": identity}:
+                    return _json_response(409, {"ok": False, "error": {
+                        "code": "STUDIO_CREATION_TASK_INVALID",
+                        "message": "The agent handoff does not name this room's exact local task.",
+                        "fix": "Copy instructions from the creation room for this project again.",
+                    }})
+                self.controller.agent_check_in()
+                return _json_response(200, self.controller.status())
             if method == "POST" and path == "/internal/v1/bootstrap":
                 if handler.headers.get("Content-Length") not in {None, "0"}:
                     return _not_found()
@@ -562,6 +607,10 @@ class StudioCreationRoomServer:
             return _html_response(_ROOM_HTML)
         if path == "/v1/status":
             return _json_response(200, self.controller.status())
+        if path == "/v1/agent-handoff":
+            return _json_response(200, {"instructions": creation_handoff(
+                self.controller.root, self.controller.task_path, self.state_root,
+            )})
         if path == "/continue":
             handoff = self.controller.consume_handoff()
             return _redirect(handoff) if handoff is not None else _not_found()
@@ -736,7 +785,7 @@ _ROOM_STYLE = """
 """.strip()
 
 _ROOM_SCRIPT = """
-(()=>{const room=document.querySelector('.room'),headline=document.getElementById('headline'),detail=document.getElementById('detail'),brief=document.getElementById('brief'),reference=document.getElementById('reference'),referenceName=document.getElementById('reference-name'),referenceMeta=document.getElementById('reference-meta'),error=document.getElementById('error'),errorCode=document.getElementById('error-code'),errorMessage=document.getElementById('error-message'),errorFix=document.getElementById('error-fix'),stateLabel=document.getElementById('state-label'),steps=Array.from(document.querySelectorAll('.step'));let continuing=false;const render=value=>{room.dataset.stage=value.stage;headline.textContent=value.headline;detail.textContent=value.detail;brief.textContent=value.brief;stateLabel.textContent=value.headline;const order={waiting:0,checking:1,needs_fix:1,open_failed:2,checked:2},active=order[value.stage]??0;steps.forEach((step,index)=>{step.classList.toggle('active',index===active);step.classList.toggle('done',index<active)});if(value.reference){reference.hidden=false;referenceName.textContent=value.reference.name;referenceMeta.textContent=`${value.reference.width}×${value.reference.height} · ${Math.max(1,Math.round(value.reference.bytes/1024))} KB · stays local`}else reference.hidden=true;if(value.error){error.hidden=false;errorCode.textContent=value.error.code;errorMessage.textContent=value.error.message;errorFix.textContent=value.error.fix}else error.hidden=true;if(value.handoff_ready&&!continuing){continuing=true;setTimeout(()=>location.replace('/continue'),250)}};const refresh=async()=>{try{const response=await fetch('/v1/status',{cache:'no-store'});if(response.ok)render(await response.json())}catch{}if(!continuing)setTimeout(refresh,250)};refresh()})();
+(()=>{const room=document.querySelector('.room'),headline=document.getElementById('headline'),detail=document.getElementById('detail'),brief=document.getElementById('brief'),reference=document.getElementById('reference'),referenceName=document.getElementById('reference-name'),referenceMeta=document.getElementById('reference-meta'),error=document.getElementById('error'),errorCode=document.getElementById('error-code'),errorMessage=document.getElementById('error-message'),errorFix=document.getElementById('error-fix'),stateLabel=document.getElementById('state-label'),steps=Array.from(document.querySelectorAll('.step'));let continuing=false;const render=value=>{const presence=value.agent_presence?.status,recovery=document.getElementById('agent-recovery'),connect=document.getElementById('agent-connect');recovery.textContent={working:'Agent checked in or saved a candidate recently. Studio is waiting for its next update.',checking:'Studio is checking the saved candidate.',inactive:'No recent agent activity. Your brief is preserved; resume your agent with these instructions.',not_connected:'No agent has checked in. Open this project in your coding agent and paste the instructions.'}[presence]||'';connect.textContent=presence==='inactive'?'Resume agent':'Connect agent';connect.hidden=value.handoff_ready===true;room.dataset.stage=value.stage;headline.textContent=value.headline;detail.textContent=value.detail;brief.textContent=value.brief;stateLabel.textContent=value.headline;const order={waiting:0,checking:1,needs_fix:1,open_failed:2,checked:2},active=order[value.stage]??0;steps.forEach((step,index)=>{step.classList.toggle('active',index===active);step.classList.toggle('done',index<active)});if(value.reference){reference.hidden=false;referenceName.textContent=value.reference.name;referenceMeta.textContent=`${value.reference.width}×${value.reference.height} · ${Math.max(1,Math.round(value.reference.bytes/1024))} KB · stays local`}else reference.hidden=true;if(value.error){error.hidden=false;errorCode.textContent=value.error.code;errorMessage.textContent=value.error.message;errorFix.textContent=value.error.fix}else error.hidden=true;if(value.handoff_ready&&!continuing){continuing=true;setTimeout(()=>location.replace('/continue'),250)}};const refresh=async()=>{try{const response=await fetch('/v1/status',{cache:'no-store'});if(response.ok)render(await response.json())}catch{}if(!continuing)setTimeout(refresh,250)};refresh()})();
 """.strip()
 
 
@@ -744,6 +793,9 @@ def _csp_hash(value: str) -> str:
     digest = base64.b64encode(hashlib.sha256(value.encode("utf-8")).digest()).decode("ascii")
     return f"'sha256-{digest}'"
 
+
+_ROOM_STYLE += HANDOFF_CSS
+_ROOM_SCRIPT += handoff_script("/v1/agent-handoff")
 
 _ROOM_CSP = (
     "default-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'; "
@@ -759,13 +811,16 @@ _ROOM_HTML = (
     "<small>First creation · local</small></div></div></header><main class=shell><section class=room data-stage=waiting aria-labelledby=headline>"
     "<div class=room-main><span class=eyebrow>First creation</span><h1 id=headline>Waiting for agent</h1>"
     "<p id=detail>Studio preserved the exact local brief. Your agent can author its task-bound candidate.</p>"
+    "<p id=agent-recovery aria-live=polite>Connect your coding agent to start. Your brief stays here.</p>"
+    "<button id=agent-connect type=button>Connect agent</button>"
     "<div class=steps aria-hidden=true><span class='step active'></span><span class=step></span><span class=step></span></div>"
     "<div class=brief><span class=brief-label>Your brief</span><pre id=brief></pre></div>"
     "<div id=reference class=reference hidden><strong id=reference-name></strong><span id=reference-meta></span></div>"
     "<div id=error class=error hidden role=alert><strong>Candidate check did not pass</strong><p id=error-message></p><p id=error-fix></p>"
     "<details><summary>Exact error</summary><code id=error-code></code></details></div></div>"
     "<footer class=room-foot><span class=state><i class=pulse></i><span id=state-label>Waiting for agent</span></span>"
-    "<span>Brief and reference stay in this workspace · nothing uploaded</span></footer></section></main><script>"
+    "<span>Brief and reference stay in this workspace · nothing uploaded</span></footer></section></main>"
+    + HANDOFF_HTML + "<script>"
     + _ROOM_SCRIPT
     + "</script></body></html>"
 )
