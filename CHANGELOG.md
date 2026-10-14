@@ -7,6 +7,17 @@ All notable changes to ViewSpec are documented in this file. The format follows
 
 ## [Unreleased]
 
+## [0.3.0b13] - 2026-10-14
+
+### Changed
+
+- The private Studio production runbook documents separate Fly service profiles, protected TLS
+  startup, measured worker resource controls, and the four live recovery phases with retained
+  provider receipts. Private sharing still requires the complete independently verified production
+  canary and a current signed release for an eligible paid beta account.
+- The paired backend release binds its installed SDK to this exact release wheel and source
+  revision so client artifacts and the isolated server rebuild use the same compiler identity.
+
 ## [0.3.0b12] - 2026-10-14
 
 ### Fixed

@@ -1,8 +1,8 @@
 # Private Studio Review Deployment Contract
 
-Status: SDK boundary and replay-safe API bridge deployed; separate worker/service isolation is
-proved locally in a draft backend PR. Production review deployment, signing and canary approval
-remain pending. Account-aware readiness is implemented for review, not yet deployed.
+Private Studio review is enabled only for eligible paid beta accounts covered by a current signed
+production-canary release. A missing or expired release keeps Share unavailable. Local test results
+and a deployment plan are preparation, never evidence that production sharing is enabled.
 
 This is the minimum acceptance contract for adding private Studio review beside the existing
 `viewspec-api` service. It is intentionally narrower than a collaboration platform. The first
@@ -149,7 +149,7 @@ secret: API↔review and review↔worker use independent HMAC keys. See Fly's
 
 Each internal hop has its own dedicated HMAC secret. The SDK now implements this complete contract
 for API→review requests and responses; an independent review→worker hop is implemented and locally
-proved in the draft backend runtime, but not deployed. Stale, replayed, unsigned,
+proved by the backend runtime. Its production canary must verify both hops. Stale, replayed, unsigned,
 or differently hashed API→review messages fail before state creation. The review service never
 receives the raw paid API key. The worker receives no billing database, signing key, review volume,
 API key, receipt secret, Stripe secret, or Fly API token.
@@ -163,6 +163,18 @@ usage against a 30-second ceiling, and kills the sandbox at either the CPU or 12
 boundary. The canary must inspect the actual cgroup limit and prove the network namespace and an
 egress canary rather than trusting configuration text. See the
 [Bubblewrap namespace contract](https://github.com/containers/bubblewrap#sandboxing).
+
+The backend owns `fly.studio-review.toml` and `fly.studio-worker.toml`; its deployment planner parses
+and hashes those actual profiles alongside the immutable build manifest. The review listener uses
+raw TCP forwarding to port 8443 and terminates trusted TLS itself. Operator-mounted certificate
+files are locked before the existing certificate and host checks run. The private worker has no
+public service or volume, and no TLS files or operator credentials.
+
+On Fly's hybrid cgroup layout, the worker installs and reads back limits in its own native child
+groups before accepting work. It verifies actual process membership, aggregate CPU and OOM
+counters, hierarchical memory accounting, and zero host swap as well as its memory/swap budget.
+Existing v2 hosts retain their v2 checks. Missing enforcement stops startup; a VM memory setting
+alone cannot satisfy the isolation gate. The same live exhaustion and namespace probes are required.
 
 ## Persistence and operations
 
@@ -312,16 +324,14 @@ and retry.
 
 The deployment repository owns the stage driver because only it can inspect the actual Fly app,
 secret, volume, worker, backup, and log boundaries. The SDK runner and verifier cannot manufacture
-those observations. The currently reviewed SDK and backend drafts contain the runner, independent
-checker, browser probe and local runtime probes, but not a complete deployment-owned nine-stage
-collector. That collector still needs implementation or recovery and review: active ingress/rebuild
-mismatch probes, three-engine browser journeys, an authorization-gated restart and restored-volume
-drill, multi-key receipt verification, aggregate telemetry checks, and exact-value log scanning.
-It has not been installed as a production workflow or run against the canonical origin. The API bridge
-and fail-closed readiness endpoint are deployed, while account-aware readiness is pending review;
-the separate review/worker runtime is locally proved in a draft deployment-repository PR. No
-signed production release is installed, so the production gate remains open and current public
-installs still show no Share control.
+those observations. Its collectors must supply active ingress/rebuild mismatch probes,
+three-engine browser journeys, an authorization-gated restart and restored-volume drill, multi-key
+receipt verification, aggregate telemetry checks, and exact-value log scanning against the canonical
+origin. The backend's `scripts/run_studio_recovery_phase.py` executes one exactly authorized snapshot,
+restore, lifecycle or cleanup phase through its closed HTTPS adapters and retains provider-response
+custody. Offline verification accepts no credential, and neither a phase audit nor the deployment
+plan can enable Share. The complete recovery and log evidence must pass their stage projectors and
+the independent SDK checker before the existing API signer may publish the bounded release.
 
 The standalone SDK rebuild worker returns one fixed, content-free failure envelope for both
 expected verification failures and unexpected operational exceptions. Input-stream failure uses
