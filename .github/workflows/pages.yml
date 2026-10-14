@@ -15,7 +15,31 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  published_studio:
+    name: Verify advertised Studio release on PyPI
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Install Chromium for the public release check
+        run: npx --yes --package=@playwright/test@1.60.0 playwright install --with-deps chromium
+      - name: Install and launch the exact homepage flow from PyPI
+        run: python scripts/check_studio_release.py --published --out studio-public-release-check.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: studio-public-release-check
+          path: studio-public-release-check.json
+          if-no-files-found: error
+
   deploy:
+    needs: published_studio
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}

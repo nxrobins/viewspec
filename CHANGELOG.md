@@ -7,8 +7,17 @@ All notable changes to ViewSpec are documented in this file. The format follows
 
 ## [Unreleased]
 
+## [0.3.0b8] - 2026-10-13
+
 ### Added
 
+- Release checks install the exact homepage command into a clean environment outside the
+  checkout, open the brief/reference creation room, complete a checked candidate handoff,
+  and launch the advertised Static/React comparison with a cold dependency install and a
+  Chromium render check. Website deployment requires the same flow to pass against PyPI.
+- The first Studio-capable package release includes the local Preview → Comment → Approve
+  workflow and the packaged creation/review daemons. Archive checks now require those modules
+  and the locked React build resources in both wheel and source distributions.
 - Private Studio review now has a concrete replay-safe API→review ingress. Its HMAC contract binds
   the protocol, direction, method, path, exact creation headers, archive hash, timestamp, and nonce;
   a durable bounded nonce store rejects replay across process restarts; production composition can

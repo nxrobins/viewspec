@@ -8,10 +8,11 @@ from pathlib import Path
 import pytest
 from hypothesis import given, strategies as st
 
-from scripts.check_distribution import DistributionError, _validate_member_name, audit_distribution
+from scripts.check_distribution import DistributionError, STUDIO_RELEASE_FILES, _validate_member_name, audit_distribution
+from viewspec import __version__
 
 
-VERSION = "0.3.0b7"
+VERSION = __version__
 
 
 def _write_wheel(path: Path, *, extra: dict[str, bytes] | None = None) -> None:
@@ -23,6 +24,7 @@ def _write_wheel(path: Path, *, extra: dict[str, bytes] | None = None) -> None:
         f"viewspec-{VERSION}.dist-info/WHEEL": b"Wheel-Version: 1.0\n",
         f"viewspec-{VERSION}.dist-info/RECORD": b"",
     }
+    members.update({f"viewspec/{name}": b"" for name in STUDIO_RELEASE_FILES})
     members.update(extra or {})
     with zipfile.ZipFile(path, "w", compression=zipfile.ZIP_DEFLATED) as archive:
         for name, data in members.items():
@@ -40,6 +42,7 @@ def _write_sdist(path: Path, *, extra: dict[str, bytes] | None = None) -> None:
         f"{root}/src/viewspec/_version.py": f'__version__ = "{VERSION}"\n'.encode(),
         f"{root}/src/viewspec/py.typed": b"",
     }
+    members.update({f"{root}/src/viewspec/{name}": b"" for name in STUDIO_RELEASE_FILES})
     members.update(extra or {})
     with tarfile.open(path, "w:gz") as archive:
         for name, data in members.items():
@@ -111,6 +114,29 @@ def test_distribution_audit_rejects_sdist_runtime_version_drift(tmp_path: Path) 
     )
 
     with pytest.raises(DistributionError, match="runtime version"):
+        audit_distribution(dist)
+
+
+@pytest.mark.parametrize("archive", ["wheel", "sdist"])
+@pytest.mark.parametrize("missing", ["studio.py", "studio_creation_daemon.py", "host_verify_template/package-lock.json"])
+def test_distribution_audit_rejects_missing_studio_runtime(tmp_path: Path, archive: str, missing: str) -> None:
+    dist = _safe_dist(tmp_path)
+    if archive == "wheel":
+        artifact = dist / f"viewspec-{VERSION}-py3-none-any.whl"
+        with zipfile.ZipFile(artifact) as wheel:
+            members = {name: wheel.read(name) for name in wheel.namelist() if name != f"viewspec/{missing}"}
+        with zipfile.ZipFile(artifact, "w") as wheel:
+            for name, data in members.items():
+                wheel.writestr(name, data)
+    else:
+        artifact = dist / f"viewspec-{VERSION}.tar.gz"
+        with tarfile.open(artifact, "r:gz") as sdist:
+            members = [(member, sdist.extractfile(member).read()) for member in sdist.getmembers()
+                       if member.name != f"viewspec-{VERSION}/src/viewspec/{missing}"]
+        with tarfile.open(artifact, "w:gz") as sdist:
+            for member, data in members:
+                sdist.addfile(member, io.BytesIO(data))
+    with pytest.raises(DistributionError, match="missing required members"):
         audit_distribution(dist)
 
 

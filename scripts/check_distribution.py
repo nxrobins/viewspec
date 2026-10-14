@@ -18,6 +18,20 @@ MAX_ARCHIVE_BYTES = 4 * 1024 * 1024
 MAX_UNPACKED_BYTES = 8 * 1024 * 1024
 MAX_MEMBER_BYTES = 2 * 1024 * 1024
 MAX_MEMBERS = 512
+STUDIO_RELEASE_FILES = {
+    "__main__.py",
+    "cli.py",
+    "studio.py",
+    "studio_creation.py",
+    "studio_creation_cli.py",
+    "studio_creation_daemon.py",
+    "studio_creation_room.py",
+    "review_cli.py",
+    "review_daemon.py",
+    "review_server.py",
+    "host_verify_template/package.json",
+    "host_verify_template/package-lock.json",
+}
 FORBIDDEN_COMPONENTS = {
     ".git",
     ".github",
@@ -87,6 +101,7 @@ def _audit_wheel(path: Path, version: str) -> int:
         f"{dist_info}/WHEEL",
         f"{dist_info}/RECORD",
     }
+    required.update(f"viewspec/{name}" for name in STUDIO_RELEASE_FILES)
     with zipfile.ZipFile(path) as archive:
         infos = archive.infolist()
         names = [info.filename for info in infos]
@@ -126,6 +141,7 @@ def _audit_sdist(path: Path, version: str) -> int:
         f"{root}/src/viewspec/_version.py",
         f"{root}/src/viewspec/py.typed",
     }
+    required.update(f"{root}/src/viewspec/{name}" for name in STUDIO_RELEASE_FILES)
     with tarfile.open(path, "r:gz") as archive:
         members = archive.getmembers()
         names = [member.name.rstrip("/") for member in members]

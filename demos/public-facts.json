@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "product": "ViewSpec",
-  "sdk_version": "0.3.0b7",
+  "sdk_version": "0.3.0b8",
   "canonical_api_url": "https://api.viewspec.dev/v1/compile",
   "package_url": "https://pypi.org/project/viewspec/",
   "repository_url": "https://github.com/nxrobins/viewspec",
@@ -10,6 +10,10 @@
     "current_command": "python -m pip install --pre viewspec",
     "stable_command": "python -m pip install viewspec",
     "scope": "The current public SDK version is a prerelease. pip excludes prereleases unless --pre or an exact prerelease version is requested."
+  },
+  "studio": {
+    "creation_command": "viewspec studio --brief-file product-brief.md --reference reference.png --kind app --json",
+    "compare_command": "viewspec studio viewspec.app.json --compare --install"
   },
   "pricing": {
     "free": {
