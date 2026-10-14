@@ -60,9 +60,19 @@ for (const seed of seeds) {
       assert.throws(() => secure.nanoid(-1), RangeError);
       assert.equal(secure.nanoid(8).length, 8);
       assert.equal(secure.customAlphabet('abc', 6)().length, 6);
+      const {SourceMapConsumer} = load('source-map-js');
+      const flat = {version: 3, sources: ['synthetic.css'], names: [], mappings: 'AAAA'};
+      const indexed = line => ({version: 3, sections: [{offset: {line, column: 0}, map: flat}]});
+      assert.throws(() => new SourceMapConsumer(indexed(1_000_000_000)), /offset/i);
+      const valid = new SourceMapConsumer(indexed(2));
+      const mappings = [];
+      valid.eachMapping(mapping => mappings.push(mapping));
+      assert.equal(mappings.length, 1);
+      assert.equal(mappings[0].source, 'synthetic.css');
+      assert.equal(mappings[0].generatedLine, 3);
     `, directory], { timeout: 3000, maxBuffer: 8192, killSignal: "SIGKILL", stdio: "pipe" });
     console.log(JSON.stringify({ seed, status: "passed", source_map_boundaries: blocked.length,
-      same_directory_map: "passed", bounded_id_generation: "passed" }));
+      same_directory_map: "passed", bounded_id_generation: "passed", source_map_offsets: "passed" }));
   } finally {
     // This exact directory was created above and contains only our synthetic fixtures.
     fs.rmSync(root, { recursive: true, force: true });

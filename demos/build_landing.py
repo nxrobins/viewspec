@@ -32,6 +32,8 @@ PUBLIC_INDEX = DEMOS / "index.html"
 DEFAULT_PROFILE = "aesthetic.calm_ops"
 PUBLIC_FACTS = json.loads((DEMOS / "public-facts.json").read_text(encoding="utf-8"))
 INSTALL_COMMAND = PUBLIC_FACTS["installation"]["current_command"]
+STUDIO_CREATION_COMMAND = PUBLIC_FACTS["studio"]["creation_command"]
+STUDIO_COMPARE_COMMAND = PUBLIC_FACTS["studio"]["compare_command"]
 
 PROFILE_LABELS = {
     "aesthetic.calm_ops": "Calm Ops",
@@ -1039,7 +1041,7 @@ PAGE_BODY_TEMPLATE = r"""<a class="skip-link" href="#top">Skip to content</a>
           <div class="studio-step" data-studio-step="decide"><span class="studio-step-num">04</span><b>Decide</b><span>Comment precisely, then approve.</span></div>
         </div>
       </div>
-      <div class="studio-commands"><code class="studio-command">viewspec studio --brief-file product-brief.md --reference reference.png --kind app --json</code><code class="studio-command">viewspec studio viewspec.app.json --compare --install</code></div>
+      <div class="studio-commands"><code class="studio-command" data-release-command="creation">{{STUDIO_CREATION_COMMAND}}</code><code class="studio-command" data-release-command="compare">{{STUDIO_COMPARE_COMMAND}}</code></div>
       <p class="studio-honesty">What is proven today: local creation, checked static and React builds, synchronized routes and semantic identity, declared-state replay, fixture-resource inspection, source-bound feedback, and approval. The private-review transport contract completes the exact comment-to-approval journey locally in Chromium, Firefox, and WebKit; no hosted review endpoint is deployed. Static/React visual parity is not claimed. Production data is not loaded.</p>
     </section>
 
@@ -1595,6 +1597,8 @@ def _public_html(generated_html: str, profile_evidence: dict[str, Any]) -> str:
         .replace("{{CORE_REFINEMENT_EVIDENCE}}", core_evidence)
         .replace("{{CORE_EVIDENCE_URL}}", html.escape(refinement["gate_status_url"], quote=True))
         .replace("{{INSTALL_COMMAND}}", html.escape(INSTALL_COMMAND, quote=True))
+        .replace("{{STUDIO_CREATION_COMMAND}}", html.escape(STUDIO_CREATION_COMMAND, quote=True))
+        .replace("{{STUDIO_COMPARE_COMMAND}}", html.escape(STUDIO_COMPARE_COMMAND, quote=True))
     )
 
     # real data for the page script: hash the canonical IntentBundle + real profile evidence

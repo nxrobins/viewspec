@@ -875,8 +875,6 @@ for (const expected of [
   'data-studio-step="compare"',
   'data-studio-step="inspect"',
   'data-studio-step="decide"',
-  'viewspec studio --brief-file product-brief.md --reference reference.png --kind app --json',
-  'viewspec studio viewspec.app.json --compare --install',
   'Chromium, Firefox, and WebKit',
   'no hosted review endpoint is deployed',
   'Static/React visual parity is not claimed.',
@@ -894,6 +892,8 @@ for (const expected of [
 ]) {
   assertPublicText(landing, expected, 'landing page artifact controls')
 }
+assertPublicText(home, publicFacts.studio.creation_command, 'homepage Studio creation command')
+assertPublicText(home, publicFacts.studio.compare_command, 'homepage Studio comparison command')
 assert.match(landing, /<section id="pricing"[\s\S]*?id="pricing-grid"/, 'landing pricing anchor should expose visible plan comparison')
 assert.match(landing, /<section id="studio"[\s\S]*?data-studio-step="decide"/, 'landing should expose the complete Studio workflow')
 assert.doesNotMatch(landing, /private (?:review|sharing) link/i, 'landing must not claim unimplemented hosted sharing')

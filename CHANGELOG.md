@@ -7,8 +7,17 @@ All notable changes to ViewSpec are documented in this file. The format follows
 
 ## [Unreleased]
 
+## [0.3.0b8] - 2026-10-13
+
 ### Added
 
+- Release checks install the exact homepage command into a clean environment outside the
+  checkout, open the brief/reference creation room, complete a checked candidate handoff,
+  and launch the advertised Static/React comparison with a cold dependency install and a
+  Chromium render check. Website deployment requires the same flow to pass against PyPI.
+- The first Studio-capable package release includes the local Preview → Comment → Approve
+  workflow and the packaged creation/review daemons. Archive checks now require those modules
+  and the locked React build resources in both wheel and source distributions.
 - Private Studio review now has a concrete replay-safe API→review ingress. Its HMAC contract binds
   the protocol, direction, method, path, exact creation headers, archive hash, timestamp, and nonce;
   a durable bounded nonce store rejects replay across process restarts; production composition can
@@ -49,6 +58,9 @@ All notable changes to ViewSpec are documented in this file. The format follows
 
 ### Changed
 
+- The shipped React build, browser proof, and evaluation locks now use source-map-js 1.2.2,
+  fixing CVE-2026-93749. The bounded dependency regression verifies that excessive indexed
+  source-map offsets are rejected and ordinary indexed maps still resolve correctly.
 - Production Share canary initialization now freezes an exact build manifest: role-specific API
   and review/worker images, common backend and SDK revisions, and the SDK wheel hash. Live app
   provenance must match that manifest, and altered manifests stop resume before execution. This
