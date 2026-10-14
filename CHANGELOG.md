@@ -58,6 +58,9 @@ All notable changes to ViewSpec are documented in this file. The format follows
 
 ### Changed
 
+- The shipped React build, browser proof, and evaluation locks now use source-map-js 1.2.2,
+  fixing CVE-2026-93749. The bounded dependency regression verifies that excessive indexed
+  source-map offsets are rejected and ordinary indexed maps still resolve correctly.
 - Production Share canary initialization now freezes an exact build manifest: role-specific API
   and review/worker images, common backend and SDK revisions, and the SDK wheel hash. Live app
   provenance must match that manifest, and altered manifests stop resume before execution. This
