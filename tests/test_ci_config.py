@@ -168,6 +168,17 @@ def test_dependabot_opens_one_grouped_minor_and_patch_pull_request_per_ecosystem
         assert {"dependency-name": "*", "update-types": [_MAJOR]} in update["ignore"], ecosystem
 
 
+def test_dependabot_leaves_the_declared_python_ranges_alone() -> None:
+    pip = _dependabot_updates()["pip"]
+
+    # pyproject.toml declares the ranges the published package supports, and tests and the
+    # protobuf_floor job pin their floors. By default Dependabot treats this project as an
+    # application and raises every >= floor to the release it proposes (pull request #194 turned
+    # mcp>=1.9.0,<2 into mcp>=2.3.0,<3). increase-if-necessary moves the exact pins and changes a
+    # range only when it excludes the new release; lockfile-only would not move any pin.
+    assert pip.get("versioning-strategy") == "increase-if-necessary"
+
+
 def test_dependabot_updates_every_npm_seed_from_one_entry() -> None:
     npm = _dependabot_updates()["npm"]
 

@@ -170,9 +170,13 @@ the older version and rerun the test. Then run the full checks above.
 
 ### Landing the grouped pip pull request
 
-Dependabot moves each pin in `requirements-ci.txt` to its latest minor or patch release; it does
-not rerun the `uv pip compile` resolution. Install with the constraints, which fails when the new
-set conflicts:
+Dependabot moves each exact pin to its latest minor or patch release: every pin in
+`requirements-ci.txt` and the `hatchling` build requirement in `pyproject.toml`. It leaves the
+ranges in `pyproject.toml` alone while they allow the new release
+(`versioning-strategy: increase-if-necessary`): they declare what the published package supports,
+and the tests and the `protobuf_floor` CI job pin their floors, so raising a floor is a separate
+change with its own changelog entry. Dependabot does not rerun the `uv pip compile` resolution
+either. Install with the constraints, which fails when the new set conflicts:
 
 ```bash
 PIP_CONSTRAINT=requirements-ci.txt python -m pip install -e ".[dev,remote,agents]"

@@ -348,3 +348,19 @@ def test_contributing_explains_landing_dependabot_updates_and_every_hand_bump() 
             name = rule["dependency-name"]
             if name != "*":
                 assert any(f"`{name}`" in entry for entry in entries), (ecosystem, name)
+
+
+def _contributing_section(heading: str) -> str:
+    """The text under ``### heading`` in CONTRIBUTING.md, up to the next heading."""
+    after = _read("CONTRIBUTING.md").split(f"\n### {heading}\n", 1)[1]
+    return re.split(r"\n#{2,3} ", after, maxsplit=1)[0]
+
+
+def test_contributing_says_the_grouped_pip_update_leaves_the_declared_ranges_alone() -> None:
+    updates = yaml.safe_load(_read(".github/dependabot.yml"))["updates"]
+    (pip,) = [update for update in updates if update["package-ecosystem"] == "pip"]
+    section = _squash(_contributing_section("Landing the grouped pip pull request"))
+
+    # The strategy decides whether the pull request rewrites the floors in pyproject.toml, so the
+    # guide names it next to its account of what the pull request changes.
+    assert f"`versioning-strategy: {pip['versioning-strategy']}`" in section

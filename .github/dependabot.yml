@@ -18,6 +18,14 @@ updates:
     schedule:
       interval: "weekly"
     open-pull-requests-limit: 2
+    # Move the exact pins (requirements-ci.txt, the hatchling build requirement) and leave a range
+    # in pyproject.toml alone while it allows the new release. The ranges declare what the
+    # published package supports, and the tests and the protobuf_floor job in ci.yml pin their
+    # floors, so raising one is a change of its own. The default, auto, decides from the release on
+    # PyPI whether this is an application, and for an application raises every >= floor to the
+    # release it proposes (it did in pull request #194). lockfile-only would leave the
+    # requirements-ci.txt pins where they are.
+    versioning-strategy: "increase-if-necessary"
     groups:
       python:
         applies-to: version-updates
