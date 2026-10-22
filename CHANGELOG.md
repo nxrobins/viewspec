@@ -41,6 +41,14 @@ in parentheses refer to that document.
   temporary file or candidate directory disappears while the session storage is being sized:
   the size walk skips entries that vanish between listing and inspection and still rejects
   symbolic links.
+- Studio's static/React comparison no longer sends the React frame back to the route it just left,
+  in Studio or in a Private Studio review. The static frame routes by URL fragment, and a fragment
+  change fires `popstate` before the app renders the new route. Both frame clients reported that
+  event as a navigation that could name the route the frame was leaving, and the page relayed it
+  to the React frame: intermittently in Studio, where it made `studio-moment.spec.ts` fail about
+  one run in five, and on every navigation made in the React frame of a Private Studio review.
+  Both clients now report static-frame route changes only from `hashchange`, so a reviewer's
+  navigation or browser back in the static frame is also reported once instead of twice.
 
 ### Changed
 
