@@ -21,7 +21,7 @@ from viewspec.types import (
     IRNode,
 )
 from viewspec.aesthetics import profile_shape_var_css
-from viewspec.compiler import PRODUCT_SURFACE_PLANNER_V1_ROLES
+from viewspec.compiler_refs import PRODUCT_SURFACE_PLANNER_V1_ROLES
 from viewspec.emitters.base import EmitterPlugin
 
 

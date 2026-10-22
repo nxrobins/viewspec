@@ -40,20 +40,10 @@ CANONICAL_ADDRESS_RE = re.compile(
     r"))?$"
 )
 
-VIEWSPEC_REF_RE = re.compile(
-    r"^viewspec:(?P<kind>view|region|binding|group|motif|style|action):(?P<ref_id>[a-zA-Z0-9_.-]+)$"
-)
-
-TARGET_REF_RE = re.compile(
-    r"^(?P<kind>region|binding|motif|view):(?P<ref_id>[a-zA-Z0-9_.-]+)$"
-)
-
 # ---------------------------------------------------------------------------
 # Primitive sets
 # ---------------------------------------------------------------------------
 
-CONTAINER_PRIMITIVES = {"root", "stack", "grid", "cluster", "surface"}
-CONTENT_PRIMITIVES = {"text", "label", "value", "badge", "input", "image_slot", "rule", "svg", "button", "error_boundary"}
 VISIBLE_TEXT_PRIMITIVES = {"text", "label", "value", "badge", "button", "error_boundary"}
 LAYOUT_PRIMITIVES = {"stack", "grid", "cluster"}
 
@@ -940,22 +930,6 @@ def parse_canonical_address(address: str) -> dict[str, Any]:
         "slot_index": int(parts["slot_index"]) if parts["slot_index"] is not None else None,
         "edge": parts["edge"],
     }
-
-
-def parse_viewspec_ref(ref: str) -> tuple[str, str]:
-    """Parse a viewspec reference string."""
-    match = VIEWSPEC_REF_RE.match(ref)
-    if not match:
-        raise ValueError(f"Invalid ViewSpec ref: {ref}")
-    return match.group("kind"), match.group("ref_id")
-
-
-def parse_target_ref(ref: str) -> tuple[str, str]:
-    """Parse a target reference string."""
-    match = TARGET_REF_RE.match(ref)
-    if not match:
-        raise ValueError(f"Invalid target ref: {ref}")
-    return match.group("kind"), match.group("ref_id")
 
 
 def build_address_index(substrate: SemanticSubstrate) -> dict[str, Any]:

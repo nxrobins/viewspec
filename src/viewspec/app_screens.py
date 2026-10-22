@@ -6,7 +6,7 @@ import json
 from pathlib import Path
 from typing import Any
 
-from viewspec.app_errors import _normalize_proof_errors
+from viewspec.app_errors import normalize_proof_errors
 from viewspec.app_paths import _assert_under_proof_root
 from viewspec.app_resource_repeat import resource_binding_address
 from viewspec.app_state_text import check_screen_state_text_bake, screen_state_text_overlays
@@ -16,7 +16,7 @@ from viewspec.manifest_summary import summarize_intent_manifest
 from viewspec.state_ir import validate_state_ir
 
 
-def _visibility_overlays_for(payload: dict[str, Any]) -> dict[str, dict[str, dict[str, Any]]]:
+def visibility_overlays_for(payload: dict[str, Any]) -> dict[str, dict[str, dict[str, Any]]]:
     if payload.get("schema_version") != 4:
         return {}
     state_ir, issues = validate_state_ir(payload)
@@ -26,7 +26,7 @@ def _visibility_overlays_for(payload: dict[str, Any]) -> dict[str, dict[str, dic
     return screen_visibility_overlays(payload, state_ir)
 
 
-def _state_text_overlays_for(payload: dict[str, Any]) -> dict[str, dict[str, dict[str, Any]]]:
+def state_text_overlays_for(payload: dict[str, Any]) -> dict[str, dict[str, dict[str, Any]]]:
     if payload.get("schema_version") != 4 or "state_text" not in payload:
         return {}
     state_ir, issues = validate_state_ir(payload)
@@ -35,7 +35,7 @@ def _state_text_overlays_for(payload: dict[str, Any]) -> dict[str, dict[str, dic
     return screen_state_text_overlays(payload, state_ir)
 
 
-def _screen_ir_overlays_for(payload: dict[str, Any]) -> dict[str, dict[str, dict[str, Any]]]:
+def screen_ir_overlays_for(payload: dict[str, Any]) -> dict[str, dict[str, dict[str, Any]]]:
     """Return compiler-owned overlays for IntentBundles embedded inside an AppBundle.
 
     A standalone IntentBundle owns its page landmark and therefore emits a ``main`` root.
@@ -45,9 +45,9 @@ def _screen_ir_overlays_for(payload: dict[str, Any]) -> dict[str, dict[str, dict
     """
     overlays = {
         screen_id: {node_id: dict(props) for node_id, props in screen_overlay.items()}
-        for screen_id, screen_overlay in _visibility_overlays_for(payload).items()
+        for screen_id, screen_overlay in visibility_overlays_for(payload).items()
     }
-    for screen_id, screen_overlay in _state_text_overlays_for(payload).items():
+    for screen_id, screen_overlay in state_text_overlays_for(payload).items():
         target_overlay = overlays.setdefault(screen_id, {})
         for node_id, props in screen_overlay.items():
             target_overlay.setdefault(node_id, {}).update(props)
@@ -123,7 +123,7 @@ def _add_resource_identity_overlays(screen: dict[str, Any], overlay: dict[str, d
                     node_props.update(identity)
 
 
-def _prove_app_screens(
+def prove_app_screens(
     payload: dict[str, Any],
     output_dir: Path,
     *,
@@ -134,9 +134,9 @@ def _prove_app_screens(
 ) -> list[dict[str, Any]]:
     screen_reports: list[dict[str, Any]] = []
     screens = payload.get("screens") if isinstance(payload.get("screens"), list) else []
-    visibility_overlays = _visibility_overlays_for(payload)
-    state_text_overlays = _state_text_overlays_for(payload)
-    screen_ir_overlays = _screen_ir_overlays_for(payload)
+    visibility_overlays = visibility_overlays_for(payload)
+    state_text_overlays = state_text_overlays_for(payload)
+    screen_ir_overlays = screen_ir_overlays_for(payload)
     for screen in screens:
         screen_id = str(screen["id"])
         screen_dir = output_dir / "screens" / screen_id
@@ -154,7 +154,7 @@ def _prove_app_screens(
             root=root,
             ir_props_overlay=screen_ir_overlays.get(screen_id),
         )
-        errors = _normalize_proof_errors(compiled.get("errors")) if not compiled.get("ok") else []
+        errors = normalize_proof_errors(compiled.get("errors")) if not compiled.get("ok") else []
         manifest_path = artifact_dir / "provenance_manifest.json"
         diagnostics_path = artifact_dir / "diagnostics.json"
         artifact_path = artifact_dir / "index.html"
@@ -259,9 +259,15 @@ def _compile_screen(
     )
 
 
+# Backward-compatible private aliases; the un-prefixed names are canonical.
+_prove_app_screens = prove_app_screens
+_screen_ir_overlays_for = screen_ir_overlays_for
+_state_text_overlays_for = state_text_overlays_for
+_visibility_overlays_for = visibility_overlays_for
+
 __all__ = [
-    "_prove_app_screens",
-    "_screen_ir_overlays_for",
-    "_state_text_overlays_for",
-    "_visibility_overlays_for",
+    "prove_app_screens",
+    "screen_ir_overlays_for",
+    "state_text_overlays_for",
+    "visibility_overlays_for",
 ]

@@ -401,7 +401,7 @@ def _request_job(
     api_key: str | None,
     receipt_public_key: ReceiptPublicKey | Mapping[str, Any] | None,
 ) -> HostedVerificationJob:
-    from viewspec.compiler import CompilerAPIError, _compiler_api_error
+    from viewspec.hosted_compile import CompilerAPIError, _compiler_api_error
 
     try:
         import httpx

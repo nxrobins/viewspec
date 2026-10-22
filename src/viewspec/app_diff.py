@@ -6,7 +6,7 @@ import json
 from pathlib import Path
 from typing import Any
 
-from viewspec.app_validation import APP_BUNDLE_RESULT_SCHEMA_VERSION, _reject_json_constant, _stable_json, validate_app_text
+from viewspec.app_validation import APP_BUNDLE_RESULT_SCHEMA_VERSION, reject_json_constant, _stable_json, validate_app_text
 from viewspec.intent_tools import _intent_topology_similarity, diff_intent_text, intent_semantic_change_lines
 
 APP_BUNDLE_DIFF_VERSION = 1
@@ -30,8 +30,8 @@ def diff_app_text(left_text: str, right_text: str, *, compile_check: bool = True
             validation={"left": left_basic, "right": right_basic},
         )
 
-    left_payload = json.loads(left_text, parse_constant=_reject_json_constant)
-    right_payload = json.loads(right_text, parse_constant=_reject_json_constant)
+    left_payload = json.loads(left_text, parse_constant=reject_json_constant)
+    right_payload = json.loads(right_text, parse_constant=reject_json_constant)
     left_sections = {
         "app": {"app": left_payload["app"]},
         "routes": _index_by_id(left_payload["routes"]),

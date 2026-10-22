@@ -10,6 +10,26 @@ from viewspec.types import CompilerDiagnostic
 # motif_compilers imports it and compiler.py imports motif_compilers.
 MAX_COMPILE_NESTING_DEPTH = 64
 
+# Product-surface roles the planner may assign to IR nodes (product_role prop).
+# Shared by the compiler (validation) and the emitters (role class names), so it
+# lives here rather than in compiler.py to keep emitters from importing the compiler.
+PRODUCT_SURFACE_PLANNER_V1_ROLES = frozenset(
+    {
+        "app_shell",
+        "app_header",
+        "content_grid",
+        "primary_column",
+        "side_rail",
+        "page_header",
+        "metric_grid",
+        "metric_card",
+        "form_panel",
+        "field_group",
+        "detail_panel",
+        "action_row",
+    }
+)
+
 
 def region_ref(region_id: str) -> str:
     return f"viewspec:region:{region_id}"

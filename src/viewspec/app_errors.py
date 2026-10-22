@@ -13,7 +13,7 @@ class AppBundleProofFailure(ValueError):
         self.fix = fix
 
 
-def _normalize_proof_errors(errors: object) -> list[dict[str, str]]:
+def normalize_proof_errors(errors: object) -> list[dict[str, str]]:
     if not isinstance(errors, list) or not errors:
         return []
     normalized: list[dict[str, str]] = []
@@ -32,4 +32,7 @@ def _normalize_proof_errors(errors: object) -> list[dict[str, str]]:
     return normalized
 
 
-__all__ = ["AppBundleProofFailure", "_normalize_proof_errors"]
+# Backward-compatible private alias; normalize_proof_errors is the public name.
+_normalize_proof_errors = normalize_proof_errors
+
+__all__ = ["AppBundleProofFailure", "normalize_proof_errors"]

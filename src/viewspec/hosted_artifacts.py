@@ -248,7 +248,7 @@ def compile_artifact_remote(
     api_key: str | None = None,
 ) -> ArtifactResponse:
     """Compile and integrity-check one paid hosted artifact target."""
-    from viewspec.compiler import CompilerAPIError, _compiler_api_error
+    from viewspec.hosted_compile import CompilerAPIError, _compiler_api_error
 
     if target not in ARTIFACT_TARGETS:
         raise ValueError(f"target must be one of: {', '.join(ARTIFACT_TARGETS)}")

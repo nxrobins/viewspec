@@ -8,7 +8,7 @@ import json
 import re
 from typing import Any
 
-from viewspec.compiler import _derive_style_tokens
+from viewspec.compiler import derive_style_tokens
 from viewspec.types import IntentBundle
 
 PRESENTATION_PLAN_SCHEMA_VERSION = 1
@@ -2632,7 +2632,7 @@ def _screen_style_tokens(screen: dict[str, Any]) -> dict[str, str]:
         bundle = IntentBundle.from_json(intent)
     except (TypeError, ValueError, KeyError):
         return {}
-    return dict(sorted(_derive_style_tokens(bundle.substrate, bundle.view_spec).items()))
+    return dict(sorted(derive_style_tokens(bundle.substrate, bundle.view_spec).items()))
 
 
 def _important_declarations(css: str) -> list[str]:

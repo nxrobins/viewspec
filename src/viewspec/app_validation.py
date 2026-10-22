@@ -929,7 +929,7 @@ def _validate_resource_binding_string_list(values: list[Any], path: str, label: 
 def _is_resource_binding_scalar(value: Any) -> bool:
     return isinstance(value, str) or isinstance(value, bool) or value is None or type(value) in {int, float}
 
-def _route_assertions(payload: dict[str, Any]) -> dict[str, bool]:
+def route_assertions_for(payload: dict[str, Any]) -> dict[str, bool]:
     routes = payload.get("routes") if isinstance(payload.get("routes"), list) else []
     screens = payload.get("screens") if isinstance(payload.get("screens"), list) else []
     app = payload.get("app") if isinstance(payload.get("app"), dict) else {}
@@ -950,7 +950,7 @@ def _validation_payload(
     raw_bytes: int,
 ) -> dict[str, Any]:
     summary = _app_summary(payload) if isinstance(payload, dict) else None
-    route_assertions = _route_assertions(payload) if isinstance(payload, dict) else None
+    route_assertions = route_assertions_for(payload) if isinstance(payload, dict) else None
     compile_status = "skipped" if not compile_check else "passed" if not issues else "failed"
     resource_binding = _resource_binding_for_payload(payload)
     binding_validation = _resource_binding_validation_summary(payload) if isinstance(payload, dict) and resource_binding == APP_BUNDLE_RESOURCE_BINDING_READONLY else None
@@ -1284,7 +1284,7 @@ def _issue(code: str, path: str, message: str, suggestion: str | None = None) ->
         "suggestion": suggestion or "Regenerate the AppBundle using the local AppBundle contract.",
     }
 
-def _reject_json_constant(value: str) -> None:
+def reject_json_constant(value: str) -> None:
     raise ValueError(f"non-finite JSON value {value} is not allowed")
 
 def _stable_json(value: Any) -> str:
@@ -1305,7 +1305,7 @@ def validate_app_text(text: str, *, compile_check: bool = True) -> dict[str, Any
         )
         return _validation_payload(None, issues, compile_check=compile_check, raw_bytes=raw_bytes)
     try:
-        payload = json.loads(text, parse_constant=_reject_json_constant)
+        payload = json.loads(text, parse_constant=reject_json_constant)
     except ValueError as exc:
         issues.append(
             _issue(
@@ -1325,6 +1325,10 @@ def validate_app_text(text: str, *, compile_check: bool = True) -> dict[str, Any
 
 def validate_app_file(path: str | Path, *, compile_check: bool = True) -> dict[str, Any]:
     return validate_app_text(Path(path).read_text(encoding="utf-8"), compile_check=compile_check)
+
+# Backward-compatible private aliases; the un-prefixed names are canonical.
+_reject_json_constant = reject_json_constant
+_route_assertions = route_assertions_for
 
 __all__ = [
     "validate_app_text",
@@ -1384,7 +1388,7 @@ __all__ = [
     "_is_resource_binding_scalar",
     "_issue",
     "_reject_forbidden_object_keys",
-    "_reject_json_constant",
+    "reject_json_constant",
     "_reject_unknown_fields",
     "_required_array",
     "_required_object",
@@ -1394,7 +1398,7 @@ __all__ = [
     "_resource_binding_limits",
     "_resource_binding_report_fields",
     "_resource_binding_validation_summary",
-    "_route_assertions",
+    "route_assertions_for",
     "_screen_target_motif_ids",
     "_stable_json",
     "_state_ir_limits",

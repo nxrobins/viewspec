@@ -7,7 +7,7 @@ from pathlib import Path
 
 
 @dataclass(frozen=True)
-class _PreparedAppProof:
+class PreparedAppProof:
     output_dir: Path
     app_path: Path
     design_path: Path | None
@@ -17,7 +17,7 @@ class _PreparedAppProof:
 
 
 @dataclass(frozen=True)
-class _PreparedAppShell:
+class PreparedAppShell:
     output_dir: Path
     app_path: Path
     design_path: Path | None
@@ -26,4 +26,8 @@ class _PreparedAppShell:
     index_path: Path
 
 
-__all__ = ["_PreparedAppProof", "_PreparedAppShell"]
+# Backward-compatible private aliases; the un-prefixed names are canonical.
+_PreparedAppProof = PreparedAppProof
+_PreparedAppShell = PreparedAppShell
+
+__all__ = ["PreparedAppProof", "PreparedAppShell"]
