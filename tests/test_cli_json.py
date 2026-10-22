@@ -20,6 +20,8 @@ import pytest
 import viewspec.cli as cli
 import viewspec.mcp_server as mcp_server_module
 from viewspec import ERROR_CODES, __version__
+from viewspec.app_tools import init_app_tool
+from viewspec.app_validation import validate_app_file
 from viewspec.cli import main as cli_main
 from viewspec.local_tools import export_agent_assets_tool, file_hash
 from viewspec.mcp_server import MCP_INSTALL_HINT, MissingMCPDependency
@@ -308,6 +310,33 @@ def test_init_intent_and_init_app_json_record_their_options(tmp_path, capsys):
     assert app["metadata"]["kind"] == "internal_tool"
     assert app["metadata"]["template"] == "contract"
     assert app["metadata"]["resource_binding"] == "fixture_readonly_v0"
+
+
+@pytest.mark.parametrize("template", ["contract", "react-app"])
+@pytest.mark.parametrize("binding", ["unbound-v0", "fixture-readonly-v0"])
+def test_init_app_json_reports_the_binding_of_the_written_bundle(tmp_path, capsys, template, binding):
+    # The react-app template writes a fixture_readonly_v0 AppBundle V4 whatever --resource-binding
+    # says, including its unbound-v0 default, so the envelope must describe the file, as MCP
+    # init_app does for the same arguments.
+    out = tmp_path / "viewspec.app.json"
+
+    exit_code, payload, err = _run_json(
+        capsys, ["init-app", "--out", str(out), "--template", template, "--resource-binding", binding, "--json"]
+    )
+    validation = validate_app_file(out)
+    mcp_payload = init_app_tool("mcp.app.json", template=template, resource_binding=binding, cwd=tmp_path)
+
+    assert exit_code == 0
+    assert err == ""
+    _assert_envelope(payload, ok=True)
+    assert validation["ok"] is True
+    assert payload["metadata"]["resource_binding"] == validation["resource_binding"]
+    assert payload["metadata"]["binding_scope"] == validation.get("binding_scope")
+    keys = ("kind", "template", "resource_binding", "binding_scope")
+    assert {key: payload["metadata"][key] for key in keys} == {key: mcp_payload["metadata"][key] for key in keys}
+    if template == "react-app":
+        assert json.loads(out.read_text(encoding="utf-8"))["schema_version"] == 4
+        assert payload["metadata"]["resource_binding"] == "fixture_readonly_v0"
 
 
 def test_json_reports_an_internal_error_with_exit_one(tmp_path, capsys, monkeypatch):

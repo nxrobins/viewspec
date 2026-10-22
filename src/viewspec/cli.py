@@ -1549,6 +1549,10 @@ def _init_app_command(args: argparse.Namespace) -> int:
         template=args.template,
     )
     if args.json:
+        # Report the binding of the bundle that was written, read back the way MCP init_app reads
+        # it: the react-app template writes a fixture_readonly_v0 AppBundle V4 whatever
+        # --resource-binding says, so the argument alone can be wrong.
+        written = validate_app_file(path, compile_check=False)
         _print_json(
             tool_response(
                 True,
@@ -1558,7 +1562,12 @@ def _init_app_command(args: argparse.Namespace) -> int:
                     "Replace the sample labels and records with real app context.",
                     f"Run viewspec validate-app {path} --json.",
                 ],
-                metadata=_cli_metadata(kind=args.kind, template=args.template, resource_binding=binding_mode),
+                metadata=_cli_metadata(
+                    kind=args.kind,
+                    template=args.template,
+                    resource_binding=written.get("resource_binding"),
+                    binding_scope=written.get("binding_scope"),
+                ),
             )
         )
     else:
