@@ -42,7 +42,7 @@ cryptography==50.0.2
     #   pyjwt
 grpcio==1.84.0
     # via grpcio-tools
-grpcio-tools==1.80.0
+grpcio-tools==1.84.0
     # via viewspec (pyproject.toml)
 h11==0.16.0
     # via
