@@ -19,6 +19,9 @@ jobs:
     name: Verify advertised Studio release on PyPI
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    # The PyPI launch check is reported but does not block documentation and
+    # demo deploys on package release timing (audit finding R-2, approved).
+    continue-on-error: true
     permissions:
       contents: read
     steps:

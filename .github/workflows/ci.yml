@@ -83,6 +83,8 @@ jobs:
     name: Audit shared JavaScript dependencies
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    # Pull requests block on high and critical advisories (audit finding R-3,
+    # approved). The scheduled dependency-audit workflow reports every level.
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -90,13 +92,13 @@ jobs:
           node-version: "22"
       - name: Audit shipped SDK seed
         working-directory: src/viewspec/host_verify_template
-        run: npm audit --package-lock-only --audit-level=low
+        run: npm audit --package-lock-only --audit-level=high
       - name: Audit browser proof seed
         working-directory: tests/react-tailwind-host
-        run: npm audit --package-lock-only --audit-level=low
+        run: npm audit --package-lock-only --audit-level=high
       - name: Audit active evaluation seed
         working-directory: conformance/agent-ui-v2/react-dependencies
-        run: npm audit --package-lock-only --audit-level=low
+        run: npm audit --package-lock-only --audit-level=high
       - name: Install exact patched runtime without hooks
         working-directory: src/viewspec/host_verify_template
         run: npm ci --ignore-scripts
