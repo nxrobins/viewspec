@@ -189,6 +189,20 @@ in parentheses refer to that document.
   the release and corpus scripts have smoke tests (T-1, T-3, T-5).
 - Documentation tests: every error code cited in the docs exists in the registry, and the Claude
   Code skill matches the managed instructions (D-3, D-6).
+- `scripts/migrate_launch_media_to_lfs.sh` prepares the move of the six media files in
+  `demos/launch-assets/` to Git LFS; the owner runs it once from a machine that can reach GitHub's
+  LFS endpoint (H-3). Run on an up-to-date `main`, it commits the files as LFS pointers on the
+  branch `lfs/launch-media`, checks the commit against the unchanged working files, and prints the
+  push, fresh-clone and site checks. It never pushes or rewrites history, and running it again
+  changes nothing. It writes only the Git LFS filter settings into `.git/config` and leaves existing
+  Git hooks alone, so a pre-push hook of your own does not stop it; when no pre-push hook runs
+  `git lfs pre-push`, it says so, because later plain pushes of LFS content would upload no objects.
+  It reuses an existing `lfs/launch-media` only when that branch contains `main`, and otherwise
+  stops before changing anything and says how to bring the branch up to date. It finds `main` by its
+  full ref name, so a tag called `main` cannot make it commit on `main` itself. `--verify-site`
+  compares what the deployed site serves with the committed media by SHA-256. The Pages deploy
+  checks out with `lfs: true`, and the release checklist covers the quotas, the push, the site check
+  and what contributors need.
 
 ## [0.3.0b12] - 2026-10-14
 
