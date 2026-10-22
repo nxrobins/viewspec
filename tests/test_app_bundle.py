@@ -2,12 +2,15 @@ from __future__ import annotations
 
 import json
 from copy import deepcopy
+from pathlib import Path
 
 import pytest
 from hypothesis import given, settings
 from hypothesis import strategies as st
 
 import viewspec.app_bundle as app_bundle_module
+import viewspec.app_pipeline as app_pipeline_module
+import viewspec.app_reports as app_reports_module
 from viewspec.agent import AGENT_INTENT_BUNDLE_SCHEMA
 from viewspec.app_bundle import (
     AGENT_APP_BUNDLE_SCHEMA,
@@ -32,14 +35,17 @@ from viewspec.app_bundle import (
     validate_app_text,
 )
 from viewspec.app_errors import AppBundleProofFailure
+from viewspec.app_react import REACT_APP_TARGET
 from viewspec.app_reports import app_proof_report_hash
 from viewspec.app_resource_binding import _resource_binding_assertion_report
 from viewspec.app_shell import _assert_rendered_shell_static_contract
+from viewspec.app_starters import starter_react_app_bundle
 from viewspec.app_state_artifacts import _write_state_artifacts
 from viewspec.cli import _doctor_app_bundle_pipeline, _doctor_checks_ok
 from viewspec.cli import main as cli_main
 from viewspec.intent_tools import starter_intent_bundle
 from viewspec.local_tools import check_artifact_dir, file_hash
+from viewspec.local_tools_io import VIEWSPEC_OUTPUT_SENTINEL, absolute_report_paths
 from viewspec.state_ir import (
     STATE_MANIFEST_SCHEMA_VERSION,
     STATE_REDUCER_EXPORTS,
@@ -1599,6 +1605,181 @@ def test_force_replaces_previous_app_outputs_and_empty_directories(tmp_path):
     empty = tmp_path / "empty"
     empty.mkdir()
     assert compile_app(app_path, out_dir=empty, cwd=tmp_path, force=True)["ok"] is True
+
+
+def test_prove_app_force_replaces_an_interrupted_proof_directory(tmp_path, monkeypatch):
+    # F14: an app proof that stops before its report is written still leaves a directory that
+    # --force recognises, through the ownership sentinel written when the directory is created.
+    app_path = tmp_path / "viewspec.app.json"
+    app_path.write_text(_app_text(starter_app_bundle()), encoding="utf-8")
+    proof_dir = tmp_path / "app-proof"
+
+    def interrupted_screens(_payload, output_dir, **_kwargs):
+        (output_dir / "screens").mkdir(parents=True, exist_ok=True)
+        raise KeyboardInterrupt
+
+    with monkeypatch.context() as patch:
+        patch.setattr(app_pipeline_module, "prove_app_screens", interrupted_screens)
+        with pytest.raises(KeyboardInterrupt):
+            prove_app(app_path=app_path, out_dir=proof_dir, cwd=tmp_path)
+    assert sorted(path.name for path in proof_dir.iterdir()) == [VIEWSPEC_OUTPUT_SENTINEL, "screens"]
+
+    replaced = prove_app(app_path=app_path, out_dir=proof_dir, cwd=tmp_path, force=True)
+
+    assert replaced["ok"] is True, replaced["errors"]
+    assert proof_dir.joinpath(VIEWSPEC_OUTPUT_SENTINEL).is_file()
+
+
+def test_prove_app_force_replaces_a_directory_left_by_a_failed_report_write(tmp_path, monkeypatch):
+    # F14: APP_PROOF_REPORT_WRITE_FAILED leaves screen artifacts and no report.
+    app_path = tmp_path / "viewspec.app.json"
+    app_path.write_text(_app_text(starter_app_bundle()), encoding="utf-8")
+    proof_dir = tmp_path / "app-proof"
+
+    with monkeypatch.context() as patch:
+        patch.setattr(app_reports_module, "APP_BUNDLE_MAX_PROOF_REPORT_BYTES", 1000)
+        first = prove_app(app_path=app_path, out_dir=proof_dir, cwd=tmp_path)
+    assert [error["code"] for error in first["errors"]] == ["APP_PROOF_REPORT_WRITE_FAILED"]
+    assert not proof_dir.joinpath("app_proof_report.json").exists()
+
+    retried = prove_app(app_path=app_path, out_dir=proof_dir, cwd=tmp_path, force=True)
+
+    assert retried["ok"] is True, retried["errors"]
+
+
+def test_compile_app_output_carries_no_ownership_sentinel(tmp_path):
+    # compile-app output is a deployable site: it keeps its own manifest marker and no sentinel.
+    app_path = tmp_path / "viewspec.app.json"
+    app_path.write_text(_app_text(starter_app_bundle()), encoding="utf-8")
+    shell_dir = tmp_path / "app-dist"
+
+    assert compile_app(app_path, out_dir=shell_dir, cwd=tmp_path)["ok"] is True
+    assert not shell_dir.joinpath(VIEWSPEC_OUTPUT_SENTINEL).exists()
+    proof_dir = tmp_path / "app-proof"
+    assert prove_app(app_path=app_path, out_dir=proof_dir, cwd=tmp_path, with_shell=True)["ok"] is True
+    assert proof_dir.joinpath(VIEWSPEC_OUTPUT_SENTINEL).is_file()
+    assert not proof_dir.joinpath("app-shell", VIEWSPEC_OUTPUT_SENTINEL).exists()
+
+
+def test_app_proof_double_write_failure_keeps_the_report_and_identity_in_agreement(tmp_path, monkeypatch):
+    # F13: when the support bundle and APP_PROOF.md both fail, app_proof_report.json, the returned
+    # report and proof_identity.proof_report_hash must all name the same document.
+    app_path = tmp_path / "viewspec.app.json"
+    app_path.write_text(_app_text(starter_app_bundle()), encoding="utf-8")
+
+    def failing_support_bundle(*_args, **_kwargs):
+        raise OSError("support bundle unavailable")
+
+    def failing_summary(*_args, **_kwargs):
+        raise OSError("summary unavailable")
+
+    monkeypatch.setattr(app_reports_module, "_write_app_support_bundle", failing_support_bundle)
+    monkeypatch.setattr(app_reports_module, "_write_app_summary", failing_summary)
+
+    result = prove_app_tool(app_path="viewspec.app.json", out_dir="app-proof", cwd=tmp_path)
+
+    returned_codes = [error["code"] for error in result["errors"]]
+    assert returned_codes == ["APP_PROOF_SUPPORT_BUNDLE_WRITE_FAILED", "APP_PROOF_SUMMARY_WRITE_FAILED"]
+    on_disk = json.loads(tmp_path.joinpath("app-proof", "app_proof_report.json").read_text(encoding="utf-8"))
+    assert on_disk["ok"] is False
+    assert [error["code"] for error in on_disk["errors"]] == returned_codes
+    assert result["metadata"]["proof_identity"]["proof_report_hash"] == app_proof_report_hash(on_disk)
+
+
+def test_app_proof_report_hash_of_a_loaded_report_does_not_depend_on_the_working_directory(tmp_path, monkeypatch):
+    # F11: the AppBundle sits outside the proof directory's tree, so the file records it with ``..``.
+    app_path = tmp_path / "inputs" / "viewspec.app.json"
+    app_path.parent.mkdir()
+    app_path.write_text(_app_text(starter_app_bundle()), encoding="utf-8")
+    proof_dir = tmp_path / "a" / "b" / "app-proof"
+
+    report = prove_app(app_path=app_path, out_dir=proof_dir, cwd=tmp_path)
+
+    assert report["ok"] is True
+    on_disk = json.loads(proof_dir.joinpath("app_proof_report.json").read_text(encoding="utf-8"))
+    assert on_disk["paths"]["app"] == "../../../inputs/viewspec.app.json"
+    support = json.loads(proof_dir.joinpath("app_support_bundle.json").read_text(encoding="utf-8"))
+    for cwd in (Path("/"), tmp_path, proof_dir):
+        monkeypatch.chdir(cwd)
+        assert app_proof_report_hash(on_disk) == support["proof_report_hash"]
+
+
+def test_prove_app_hash_follows_the_app_position_relative_to_the_proof_directory(tmp_path):
+    # F23 pins the documented scope: the AppBundle path is part of the hashed document.
+    app_path = tmp_path / "viewspec.app.json"
+    app_path.write_text(_app_text(starter_app_bundle()), encoding="utf-8")
+
+    first = prove_app(app_path=app_path, out_dir=tmp_path / "first" / "app-proof", cwd=tmp_path)
+    deeper = prove_app(app_path=app_path, out_dir=tmp_path / "runs" / "b" / "app-proof", cwd=tmp_path)
+
+    assert first["ok"] is True
+    assert deeper["ok"] is True
+    deeper_doc = json.loads(
+        tmp_path.joinpath("runs", "b", "app-proof", "app_proof_report.json").read_text(encoding="utf-8")
+    )
+    assert deeper_doc["paths"]["app"] == "../../../viewspec.app.json"
+    assert app_proof_report_hash(first) != app_proof_report_hash(deeper)
+
+
+def test_prove_app_report_out_records_paths_relative_to_the_report_directory(tmp_path):
+    # The on-disk rule: every path is relative to the directory that holds the report file.
+    app_path = tmp_path / "viewspec.app.json"
+    app_path.write_text(_app_text(starter_app_bundle()), encoding="utf-8")
+    proof_dir = tmp_path / "app-proof"
+    report_out = proof_dir / "reports" / "app.json"
+
+    report = prove_app(app_path=app_path, out_dir=proof_dir, report_out=report_out, cwd=tmp_path)
+
+    assert report["ok"] is True
+    on_disk = json.loads(report_out.read_text(encoding="utf-8"))
+    assert on_disk["paths"]["proof_dir"] == ".."
+    assert on_disk["paths"]["report"] == "app.json"
+    assert on_disk["paths"]["app"] == "../../viewspec.app.json"
+    assert absolute_report_paths(on_disk, report_out.parent) == report
+    assert app_proof_report_hash(on_disk) == app_proof_report_hash(report)
+    summary = proof_dir.joinpath("APP_PROOF.md").read_text(encoding="utf-8")
+    assert "- app: `../viewspec.app.json`" in summary
+    assert "- report: `reports/app.json`" in summary
+
+
+def test_react_app_proof_hash_depends_on_the_proof_directory(tmp_path, monkeypatch):
+    # F10 pins the documented scope: app_analysis_evidence.json keeps the host report's absolute
+    # artifact_dir, and its hash is part of the app proof report, so react-tailwind-app proofs in
+    # two directories get two hashes.
+    def fake_verify(path, *, install, freerange=False, pretext=False):
+        app_dir = Path(path).resolve()
+        return {
+            "schema_version": 1,
+            "ok": True,
+            "target": REACT_APP_TARGET,
+            "artifact_dir": str(app_dir),
+            "app_artifact_hash": file_hash(app_dir / "src" / "ViewSpecApp.tsx"),
+            "manifest_hash": file_hash(app_dir / "viewspec_app_manifest.json"),
+            "install": install,
+            "assertions": {},
+            "policy": {"install_command": "npm ci --ignore-scripts"},
+            "duration_ms": 10,
+            "timings_ms": {"total": 10},
+            "errors": [],
+        }
+
+    monkeypatch.setattr(app_pipeline_module, "verify_react_app_artifact_dir", fake_verify)
+    app_path = tmp_path / "viewspec.app.json"
+    app_path.write_text(_app_text(starter_react_app_bundle("internal_tool")), encoding="utf-8")
+    first_dir = tmp_path / "first" / "app-proof"
+    second_dir = tmp_path / "second" / "app-proof"
+
+    first = prove_app(app_path=app_path, out_dir=first_dir, target=REACT_APP_TARGET, cwd=tmp_path)
+    second = prove_app(app_path=app_path, out_dir=second_dir, target=REACT_APP_TARGET, cwd=tmp_path)
+
+    assert first["ok"] is True, first["errors"]
+    assert second["ok"] is True, second["errors"]
+    first_evidence = json.loads(first_dir.joinpath("app_analysis_evidence.json").read_text(encoding="utf-8"))
+    assert first_evidence["host_report"]["artifact_dir"] == str(first_dir / "react-app")
+    first_doc = json.loads(first_dir.joinpath("app_proof_report.json").read_text(encoding="utf-8"))
+    second_doc = json.loads(second_dir.joinpath("app_proof_report.json").read_text(encoding="utf-8"))
+    assert first_doc["analysis_evidence"]["sha256"] != second_doc["analysis_evidence"]["sha256"]
+    assert app_proof_report_hash(first) != app_proof_report_hash(second)
 
 
 def test_compile_app_rejects_static_shell_constraints(tmp_path):

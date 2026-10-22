@@ -765,10 +765,11 @@ def _validate_pinned_react_package(package: dict[str, Any]) -> None:
 
 
 def _load_app_proof_report(report_path: Path) -> dict[str, Any]:
-    """Load ``app_proof_report.json`` and resolve its proof-directory-relative paths to absolute ones.
+    """Load ``app_proof_report.json`` and resolve its recorded paths to absolute ones.
 
-    The file records every ``paths`` entry relative to the directory it lives in; the runner opens
-    the React source and the evidence files it names, so it needs them absolute again.
+    The file records every path relative to the directory it lives in (the proof directory, at its
+    default location); the runner opens the React source and the evidence files it names, so it
+    needs them absolute again.
     """
     report = json.loads(report_path.read_text(encoding="utf-8"))
     if not isinstance(report, dict):

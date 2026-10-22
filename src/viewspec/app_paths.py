@@ -6,7 +6,7 @@ import shutil
 from pathlib import Path
 
 from viewspec.app_errors import AppBundleProofFailure
-from viewspec.local_tools_io import is_replaceable_output_dir
+from viewspec.local_tools_io import is_replaceable_output_dir, write_output_sentinel
 
 
 def _prepare_app_output_dir(output_dir: Path, *, root: Path, force: bool, raw_out: str | Path) -> None:
@@ -32,6 +32,9 @@ def _prepare_app_output_dir(output_dir: Path, *, root: Path, force: bool, raw_ou
             )
         shutil.rmtree(output_dir)
     output_dir.mkdir(parents=True, exist_ok=False)
+    # Mark the directory as ViewSpec's before writing anything else, so an interrupted app proof stays
+    # replaceable with --force.  compile-app output (below) is a deployable site and gets no sentinel.
+    write_output_sentinel(output_dir)
 
 
 def _assert_safe_app_output(output_dir: Path, *, root: Path, raw_out: str | Path) -> None:

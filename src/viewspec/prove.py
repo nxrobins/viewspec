@@ -34,7 +34,12 @@ from viewspec.local_tools import (
     tool_error_response,
     tool_response,
 )
-from viewspec.local_tools_io import is_replaceable_output_dir, portable_path, portable_report_paths
+from viewspec.local_tools_io import (
+    is_replaceable_output_dir,
+    portable_report_paths,
+    report_directory,
+    write_output_sentinel,
+)
 from viewspec.manifest_summary import manifest_root_aesthetic_profile, summarize_intent_manifest
 
 PROVE_SCHEMA_VERSION = 1
@@ -44,7 +49,8 @@ PROVE_DEFAULT_SUMMARY = "PROOF.md"
 PROVE_DEFAULT_SUPPORT_BUNDLE = "support_bundle.json"
 PROVE_SUMMARY_MAX_BYTES = 32 * 1024
 PROVE_SUPPORT_BUNDLE_MAX_BYTES = 16 * 1024
-# 2: dropped the wall-clock ``timings_ms`` section so two proofs of one input produce one bundle.
+# 2: dropped the wall-clock ``timings_ms`` section, so re-running a source-artifact proof of one input
+# in the same layout produces one bundle; ``proof_report_hash`` says where that holds and where not.
 PROVE_SUPPORT_BUNDLE_SCHEMA_VERSION = 2
 PROVE_ARTIFACT_DIR = "artifact"
 PROVE_TARGETS = INTENT_COMPILE_TARGETS
@@ -365,6 +371,9 @@ def _prepare_output_dir(output_dir: Path, *, root: Path, force: bool, raw_out: s
             )
         shutil.rmtree(output_dir)
     output_dir.mkdir(parents=True, exist_ok=False)
+    # Mark the directory as ViewSpec's before writing anything else, so an interrupted proof stays
+    # replaceable with --force.
+    write_output_sentinel(output_dir)
 
 
 def _assert_safe_output(output_dir: Path, *, root: Path, raw_out: str | Path) -> None:
@@ -573,27 +582,30 @@ def _report(
     }
 
 
-def _portable_report(report: Mapping[str, Any]) -> dict[str, Any]:
-    """Return the on-disk form of ``report``: a copy whose paths are relative to the proof directory.
+def _portable_report(report: Mapping[str, Any], *, base: str | None = None) -> dict[str, Any]:
+    """Return the on-disk form of ``report``: a copy whose paths are relative to the report's directory.
 
     The in-memory report keeps absolute paths so the CLI and the MCP tool can print and open them;
-    ``proof_report.json`` records them relative to ``paths.proof_dir`` with POSIX separators so the
-    document, and every hash over it, is the same wherever the proof was written.
+    ``proof_report.json`` records every path relative to the directory that holds it, with POSIX
+    separators.  That is the proof directory (``paths.proof_dir`` becomes ``"."``) unless
+    ``--report-out`` put the report elsewhere, in which case ``paths.proof_dir`` names the proof
+    directory from there.  ``base`` overrides the directory; ``PROOF.md`` passes the proof directory
+    it sits in.  A report that is already portable, such as one read back from disk, is returned
+    unchanged, so the conversion never depends on the current working directory.
     """
-    paths = report.get("paths")
-    base = paths.get("proof_dir") if isinstance(paths, dict) else None
-    if not isinstance(base, str) or not base:
+    base = report_directory(report) if base is None else base
+    if not base:
         return json.loads(json.dumps(report))
-    portable = portable_report_paths(report, base)
-    host_report = portable.get("host_report")
-    if isinstance(host_report, dict) and isinstance(host_report.get("artifact_dir"), str):
-        host_report["artifact_dir"] = portable_path(host_report["artifact_dir"], base)
-    return portable
+    return portable_report_paths(report, base)
 
 
 def _portable_paths(report: Mapping[str, Any]) -> dict[str, Any]:
-    paths = _portable_report(report).get("paths")
-    return paths if isinstance(paths, dict) else {}
+    """Return the report's paths relative to the proof directory, as ``PROOF.md`` records them."""
+    paths = report.get("paths")
+    proof_dir = paths.get("proof_dir") if isinstance(paths, dict) else None
+    portable = _portable_report(report, base=proof_dir if isinstance(proof_dir, str) and proof_dir else None)
+    portable_paths = portable.get("paths")
+    return portable_paths if isinstance(portable_paths, dict) else {}
 
 
 def _report_text(document: Mapping[str, Any]) -> str:
@@ -601,16 +613,28 @@ def _report_text(document: Mapping[str, Any]) -> str:
 
 
 def proof_report_hash(report: Mapping[str, Any]) -> str:
-    """Return the SHA-256 identity of a proof report, independent of where and when it was written.
+    """Return the SHA-256 identity of a proof report without its top-level ``timings_ms``.
 
-    The hash covers the portable ``proof_report.json`` document (paths relative to the proof
-    directory) with the wall-clock ``timings_ms`` section removed, serialized exactly as the file
-    is written: ``indent=2``, sorted keys, one trailing newline, UTF-8.  It is the same for the
-    in-memory report, for the document read back from disk, and for two proofs of one input in
-    different directories.  To recompute it from a file: load ``proof_report.json``, delete
-    ``timings_ms``, re-serialize with ``json.dumps(report, indent=2, sort_keys=True) + "\\n"`` and
-    hash the UTF-8 bytes.  ``PROOF.md`` and ``support_bundle.json`` record this value as the proof
-    report hash, and the ``prove`` tool exposes it as ``proof_identity.proof_report_hash``.
+    The hash covers the portable ``proof_report.json`` document (paths relative to the directory
+    that holds the report) with the top-level wall-clock ``timings_ms`` section removed, serialized
+    exactly as the file is written: ``indent=2``, sorted keys, one trailing newline, UTF-8.  It is
+    the same for the in-memory report and for the document read back from disk, from any working
+    directory.  To recompute it from a file: load ``proof_report.json``, delete ``timings_ms``,
+    re-serialize with ``json.dumps(report, indent=2, sort_keys=True) + "\\n"`` and hash the UTF-8
+    bytes.  ``PROOF.md`` and ``support_bundle.json`` record this value as the proof report hash,
+    and the ``prove`` tool exposes it as ``proof_identity.proof_report_hash``.
+
+    Removing ``timings_ms`` makes the hash independent of when the report was written only for
+    the source-artifact targets.  Two proofs of one input share the hash only when the reports
+    record the same thing:
+
+    * for the source-artifact targets (``html-tailwind``, ``react-tsx``) when each recorded path
+      has the same position relative to the report, for example a generated intent inside the proof
+      directory, or the same repository layout cloned or moved elsewhere.  An input outside the
+      proof directory is recorded as ``../x`` from one depth and ``../../x`` from another, and the
+      hashes differ;
+    * not for ``react-tailwind-tsx``, whose ``host_report`` keeps the host verifier's own
+      wall-clock ``timings_ms``, so every run gets a new hash.
     """
     document = _portable_report(report)
     document.pop("timings_ms", None)

@@ -66,6 +66,8 @@ _TASK_FIELDS = {
 }
 _REFERENCE_FIELDS = {"bytes", "height", "media_type", "path", "sha256", "width"}
 _REFERENCE_MEDIA_TYPES = {"image/jpeg", "image/png", "image/webp"}
+# Proof codes for a task-bound proof directory that --force refused to replace.
+_PROOF_OUTPUT_UNRECOGNIZED_CODES = frozenset({"PROVE_OUTPUT_UNRECOGNIZED", "APP_PROOF_OUTPUT_UNRECOGNIZED"})
 
 
 class StudioCreationError(ValueError):
@@ -269,10 +271,17 @@ def accept_studio_creation(
         first = errors[0] if errors and isinstance(errors[0], dict) else {}
         code = str(first.get("code", "STUDIO_CREATION_PROOF_FAILED"))
         message = str(first.get("message", "The candidate did not pass its local creation proof."))
+        # A task-bound proof directory that ViewSpec cannot recognise as its own is refused rather
+        # than replaced; editing the candidate cannot clear that, so name the directory instead.
+        fix = (
+            f"Remove {task['proof_path']} yourself, then rerun studio-accept; canonical source was not published."
+            if code in _PROOF_OUTPUT_UNRECOGNIZED_CODES
+            else f"Fix only {task['candidate_path']}, then rerun studio-accept; canonical source was not published."
+        )
         raise StudioCreationError(
             "STUDIO_CREATION_PROOF_FAILED",
             f"Candidate proof failed with {code}: {message}"[:2048],
-            f"Fix only {task['candidate_path']}, then rerun studio-accept; canonical source was not published.",
+            fix,
         )
 
     source_path = _local_path(str(task["source_path"]), root=root, must_exist=False)

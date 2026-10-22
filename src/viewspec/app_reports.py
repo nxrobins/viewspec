@@ -35,7 +35,7 @@ from viewspec.app_validation import (
     _resource_binding_report_fields,
 )
 from viewspec.local_tools import atomic_write, bytes_hash, file_hash
-from viewspec.local_tools_io import portable_report_paths
+from viewspec.local_tools_io import portable_report_paths, report_directory
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -421,6 +421,16 @@ def write_app_proof(report: dict[str, Any], prepared: PreparedAppProof) -> dict[
                 exc_info=summary_exc,
             )
             failed = _append_app_proof_error(failed, summary_exc, fallback_code="APP_PROOF_SUMMARY_WRITE_FAILED")
+            # Record the summary failure on disk too, so app_proof_report.json, the returned report and
+            # proof_identity.proof_report_hash keep naming the same document.
+            try:
+                _write_app_report(prepared.report_path, failed)
+            except Exception as report_exc:
+                _LOGGER.warning(
+                    "App proof report could not be rewritten after the summary failed: %s",
+                    report_exc,
+                    exc_info=report_exc,
+                )
         return failed
     try:
         _write_app_summary(
@@ -435,7 +445,7 @@ def write_app_proof(report: dict[str, Any], prepared: PreparedAppProof) -> dict[
 
 
 def _write_app_report(report_path: Path, report: dict[str, Any]) -> None:
-    """Write ``app_proof_report.json`` in its portable form: paths relative to the proof directory."""
+    """Write ``app_proof_report.json`` in its portable form: paths relative to the report's directory."""
     _write_bounded_json(
         report_path,
         _portable_app_report(report),
@@ -444,28 +454,45 @@ def _write_app_report(report_path: Path, report: dict[str, Any]) -> None:
     )
 
 
-def _portable_app_report(report: Mapping[str, Any]) -> dict[str, Any]:
-    """Return the on-disk form of an app proof report: a copy whose paths are relative to ``paths.proof_dir``.
+def _portable_app_report(report: Mapping[str, Any], *, base: str | None = None) -> dict[str, Any]:
+    """Return the on-disk form of an app proof report: a copy whose paths are relative to the report's directory.
 
     The in-memory report keeps absolute paths for the CLI and the MCP tool; the file records every
     ``paths`` mapping (the report's own, each screen's, the shell's and the React app's) relative to
-    the proof directory with POSIX separators so the document is the same wherever it was written.
+    the directory that holds it, with POSIX separators.  That is the proof directory
+    (``paths.proof_dir`` becomes ``"."``) unless ``--report-out`` put the report in a subdirectory
+    of it.  ``base`` overrides the directory; ``APP_PROOF.md`` passes the proof directory it sits
+    in.  A report that is already portable, such as one read back from disk, is returned unchanged,
+    so the conversion never depends on the current working directory.
     """
-    paths = report.get("paths") if isinstance(report.get("paths"), dict) else {}
-    base = paths.get("proof_dir")
-    if not isinstance(base, str) or not base:
+    base = report_directory(report) if base is None else base
+    if not base:
         return json.loads(json.dumps(report))
     return portable_report_paths(report, base)
 
 
 def app_proof_report_hash(report: Mapping[str, Any]) -> str:
-    """Return the SHA-256 identity of an app proof report, independent of where and when it was written.
+    """Return the SHA-256 identity of an app proof report without its top-level ``timings_ms``.
 
-    The hash covers the portable ``app_proof_report.json`` document with the wall-clock
+    The hash covers the portable ``app_proof_report.json`` document with the top-level wall-clock
     ``timings_ms`` section removed, serialized as the file is written (``indent=2``, sorted keys,
     one trailing newline, UTF-8).  It is the same for the in-memory report and for the document
-    read back from disk.  ``APP_PROOF.md`` and ``app_support_bundle.json`` record it as the proof
-    report hash, and the ``prove_app`` tool exposes it as ``proof_identity.proof_report_hash``.
+    read back from disk, from any working directory.  ``APP_PROOF.md`` and
+    ``app_support_bundle.json`` record it as the proof report hash, and the ``prove_app`` tool
+    exposes it as ``proof_identity.proof_report_hash``.
+
+    Removing ``timings_ms`` makes the hash independent of when the report was written only for
+    the ``html-tailwind`` target.  Two app proofs of one AppBundle share the hash only when the
+    reports record the same thing:
+
+    * for the ``html-tailwind`` target, with or without the static shell, when the AppBundle and
+      DESIGN.md have the same position relative to the report, for example the same repository
+      layout cloned or moved elsewhere.  An input outside the proof directory is recorded as
+      ``../x`` from one depth and ``../../x`` from another, and the hashes differ;
+    * not for ``react-tailwind-app``: the compact ``host_report`` keeps the host verifier's own
+      ``timings_ms`` and ``duration_ms``, and ``analysis_evidence.sha256`` hashes
+      ``app_analysis_evidence.json``, which records the full host report with its absolute
+      ``artifact_dir``.
     """
     document = _portable_app_report(report)
     document.pop("timings_ms", None)
@@ -1019,7 +1046,13 @@ def _render_app_proof_summary(report: dict[str, Any], *, proof_report_hash: str)
             "",
         ]
     )
-    paths = _portable_app_report(report).get("paths")
+    report_paths = report.get("paths") if isinstance(report.get("paths"), dict) else {}
+    proof_dir = report_paths.get("proof_dir")
+    # APP_PROOF.md sits in the proof directory, so its paths are relative to that directory even
+    # when --report-out put app_proof_report.json in a subdirectory.
+    paths = _portable_app_report(report, base=proof_dir if isinstance(proof_dir, str) and proof_dir else None).get(
+        "paths"
+    )
     if not isinstance(paths, dict):
         paths = {}
     lines.append("- Paths are relative to the proof directory.")
