@@ -11,6 +11,8 @@ from typing import Any
 import pytest
 import yaml
 
+from tests.test_react_dependency_seeds import SEEDS
+
 ROOT = Path(__file__).resolve().parents[1]
 WORKFLOWS = ROOT / ".github" / "workflows"
 _USES = re.compile(r"^\s*(?:-\s+)?uses:\s*(?P<action>[\w.-]+/[\w./-]+)@(?P<ref>\S+)(?:\s+#\s*(?P<comment>.*))?$")
@@ -125,3 +127,82 @@ def test_exact_dev_pins_match_the_ci_constraints() -> None:
 
     assert declared
     assert {name: constraints.get(name) for name in declared} == declared
+
+
+# --- Dependabot -------------------------------------------------------------------------------
+
+DEPENDABOT = ROOT / ".github" / "dependabot.yml"
+_MAJOR = "version-update:semver-major"
+# Packages whose exact version is a contract in code, tests, workflows or generated output.
+# Dependabot never proposes them; CONTRIBUTING.md has the hand-bump steps for each.
+_HAND_BUMPED = {
+    "pip": {"grpcio-tools", "pyright", "ruff"},
+    "npm": {"@chenglou/pretext", "@chenglou/freerange", "@playwright/test", "playwright", "typescript"},
+}
+
+
+def _dependabot_updates() -> dict[str, dict[str, Any]]:
+    updates = yaml.safe_load(DEPENDABOT.read_text(encoding="utf-8"))["updates"]
+    ecosystems = [update["package-ecosystem"] for update in updates]
+    # One entry per ecosystem: separate entries cannot share a group, so they open separate PRs.
+    assert len(ecosystems) == len(set(ecosystems)), ecosystems
+    return {update["package-ecosystem"]: update for update in updates}
+
+
+def test_dependabot_opens_one_grouped_minor_and_patch_pull_request_per_ecosystem() -> None:
+    updates = _dependabot_updates()
+
+    assert set(updates) == {"pip", "npm", "github-actions"}
+    for ecosystem, update in updates.items():
+        assert update["schedule"]["interval"] == "weekly", ecosystem
+        # A grouped run opens one pull request; a small limit caps the damage if grouping ever
+        # stops applying (the ungrouped configuration opened 24 at once).
+        assert 1 <= update["open-pull-requests-limit"] <= 3, ecosystem
+        (group,) = update["groups"].values()
+        assert group["patterns"] == ["*"], ecosystem
+        assert sorted(group["update-types"]) == ["minor", "patch"], ecosystem
+        assert group.get("applies-to", "version-updates") == "version-updates", ecosystem
+        # group-by: dependency-name would split the group into one pull request per package.
+        assert "group-by" not in group, ecosystem
+        # Majors are never proposed for any package.
+        assert {"dependency-name": "*", "update-types": [_MAJOR]} in update["ignore"], ecosystem
+
+
+def test_dependabot_updates_every_npm_seed_from_one_entry() -> None:
+    npm = _dependabot_updates()["npm"]
+
+    # One entry with `directories` lets its group update all three seeds in a single pull request,
+    # which keeps the pins the seeds must share identical.
+    assert "directory" not in npm
+    assert len(npm["directories"]) == len(set(npm["directories"]))
+    assert set(npm["directories"]) == {"/" + seed for seed in SEEDS}
+    assert all((ROOT / seed / "package-lock.json").is_file() for seed in SEEDS)
+
+
+def test_dependabot_never_proposes_the_pinned_contract_packages() -> None:
+    from viewspec.app_freerange import FREERANGE_PACKAGE
+    from viewspec.app_pretext import PRETEXT_PACKAGE
+
+    assert {PRETEXT_PACKAGE, FREERANGE_PACKAGE} <= _HAND_BUMPED["npm"]
+    updates = _dependabot_updates()
+    for ecosystem, update in updates.items():
+        ignored = {rule["dependency-name"] for rule in update["ignore"] if set(rule) == {"dependency-name"}}
+        assert ignored == _HAND_BUMPED.get(ecosystem, set()), ecosystem
+
+    # Every ignore rule says why in a comment directly above it.
+    lines = DEPENDABOT.read_text(encoding="utf-8").splitlines()
+    for number, line in enumerate(lines):
+        if line.lstrip().startswith("- dependency-name:"):
+            assert lines[number - 1].lstrip().startswith("#"), f"dependabot.yml:{number + 1} has no reason comment"
+
+
+def test_dependabot_mcp_rule_follows_the_agents_extra_cap() -> None:
+    project = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))["project"]
+    (requirement,) = project["optional-dependencies"]["agents"]
+    cap = re.search(r"<\s*(\d+)", requirement)
+    rules = [rule for rule in _dependabot_updates()["pip"]["ignore"] if rule["dependency-name"] == "mcp"]
+
+    # While the extra caps the MCP SDK below a major, Dependabot must not propose that major;
+    # once the cap goes, so must the rule.
+    expected = [{"dependency-name": "mcp", "versions": [f">={cap.group(1)}"]}] if cap else []
+    assert rules == expected
