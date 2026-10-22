@@ -217,8 +217,8 @@ string as well (`git grep -nF <old version>`): error messages, tests and root fi
   and add a changelog entry. Run `python scripts/regenerate_schema.py check` either way.
 - **`mcp` 2.x**: the `viewspec mcp` server only works with MCP SDK 1.x, so the `agents` extra
   caps `mcp<2` and Dependabot proposes only 1.x releases. Moving to SDK 2 is a code change that
-  raises the cap and drops the `mcp` rule from `dependabot.yml` (`tests/test_ci_config.py` ties
-  the rule to the cap).
+  raises the cap and moves the `mcp` rule in `dependabot.yml` to the new cap (`>=3` for `mcp<3`),
+  or removes the rule if the cap goes (`tests/test_ci_config.py` ties the rule to the cap).
 - **`@playwright/test`** (and the `playwright` runtime it pins): run
   `npm install --save-dev --save-exact --ignore-scripts @playwright/test@<version>` in each of the
   three seeds, then set the same version in `PLAYWRIGHT_VERSION` in
