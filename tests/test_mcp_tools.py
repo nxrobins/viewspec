@@ -425,8 +425,13 @@ def _registered_tool_names(monkeypatch, cwd: Path) -> set[str]:
     return names
 
 
-def test_real_stdio_mcp_server_initializes_and_lists_its_tools(monkeypatch, tmp_path) -> None:
-    """Run ``python -m viewspec mcp`` against the installed SDK (the CI legs install the agents extra)."""
+@pytest.mark.parametrize("extra_args", [[], ["--json"]], ids=["default", "json"])
+def test_real_stdio_mcp_server_initializes_and_lists_its_tools(monkeypatch, tmp_path, extra_args) -> None:
+    """Run ``python -m viewspec mcp`` against the installed SDK (the CI legs install the agents extra).
+
+    ``--json`` changes only how a startup failure is reported, so stdout still carries nothing but
+    the JSON-RPC protocol (audit C-9).
+    """
 
     if not mcp_server_module.mcp_dependency_available():
         pytest.skip("the MCP SDK with mcp.server.fastmcp (viewspec[agents]) is not installed")
@@ -440,7 +445,7 @@ def test_real_stdio_mcp_server_initializes_and_lists_its_tools(monkeypatch, tmp_
     env = {"PATH": os.defpath, "PYTHONPATH": str(ROOT / "src"), "PYTHONDONTWRITEBYTECODE": "1", "HOME": str(tmp_path)}
     with stderr_path.open("wb") as stderr:
         process = subprocess.Popen(
-            [sys.executable, "-m", "viewspec", "mcp", "--cwd", str(tmp_path)],
+            [sys.executable, "-m", "viewspec", "mcp", "--cwd", str(tmp_path), *extra_args],
             stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,
             stderr=stderr,
@@ -470,6 +475,7 @@ def test_real_stdio_mcp_server_initializes_and_lists_its_tools(monkeypatch, tmp_
             if not line:
                 pytest.fail(f"MCP server closed stdout early: {stderr_path.read_text(errors='replace')}")
             message = json.loads(line)
+            assert message.get("jsonrpc") == "2.0", message
             if message.get("id") == request_id:
                 return message
 

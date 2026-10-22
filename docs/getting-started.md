@@ -328,6 +328,45 @@ V1 local caps keep agent repair loops predictable: max 256KB JSON, 200 substrate
 
 Use `viewspec init-design --out DESIGN.md` for a starter design file when the repo does not already have one, and `viewspec doctor` to check local SDK readiness. `doctor` reports the intent-first commands, runs starter IntentBundle validation/compile/diff, aesthetic-profile diff, and semantic summary smoke checks, verifies `PyYAML`, and states the local no-network policy. It also reports Node.js availability, which is required only for AppBundle V3/V4 (`interactive_state_v0`) reducer conformance; V1/V2 and all IntentBundle flows are Python-only. Add `--freerange` for the separate read-only Bun readiness probe.
 
+### Machine-readable output
+
+Every `viewspec` subcommand accepts `--json`. For `compile`, `lift`, `doctor`, `init-intent`,
+`init-design`, `init-app`, `init-agent`, and `export-agent-assets`, `--json` prints one standard tool
+envelope on stdout, the same shape the MCP tools return:
+
+```json
+{
+  "schema_version": 1,
+  "ok": true,
+  "summary": "Compiled IntentBundle artifact.",
+  "diagnostics": [],
+  "external_refs": [],
+  "paths": {"html": "dist/index.html", "manifest": "dist/provenance_manifest.json", "diagnostics": "dist/diagnostics.json"},
+  "next_actions": ["Run viewspec check dist --json before using the artifact."],
+  "errors": [],
+  "metadata": {"sdk_version": "...", "network_calls": "none", "target": "html-tailwind", "emitter": "html_tailwind"}
+}
+```
+
+Command data sits beside those keys: `lift` adds `lift`, `doctor` adds `checks`, `init-agent` adds
+`target`, `root`, and `changes`, and `export-agent-assets` adds `assets`. A failure is the same
+envelope with `"ok": false` and `errors: [{code, message, fix}]`; an invalid IntentBundle passed to
+`compile` also carries `validation` and `correction_prompt`, and a DESIGN.md error lists its
+findings under `diagnostics`. `doctor --json` reports each failing check as a `DOCTOR_CHECK_FAILED`
+error. Exit codes match human mode: `0` on success, `2` for invalid input, an existing output
+without `--force`, or a failed readiness check, and `1` for an internal error. With `--json` these
+commands write nothing else to stdout or stderr. Only an argument the parser rejects is still
+reported as usage text on stderr, with exit `2`, before the command runs. Without `--json` the
+output is unchanged: `compile` prints the emitted paths, `doctor` prints `{ok, checks}`,
+`init-agent` and `export-agent-assets` print their result object, and `lift` and the `init-*`
+commands print the written path.
+
+`viewspec mcp` is a stdio server, so its stdout carries only the MCP protocol. `viewspec mcp --json`
+changes one thing: a failure to start, such as a missing `viewspec[agents]` extra
+(`MCP_DEPENDENCY_MISSING`) or an invalid `--cwd` (`INVALID_PATH`), is written to stderr as one line
+holding the same envelope, instead of human text, with the same exit code. Once the server runs,
+`--json` has no effect.
+
 ## AppBundle V1/V2/V3/V4
 
 For a narrow multi-screen internal-tool contract, use AppBundle JSON. It keeps app generation at the contract/proof layer: embedded screen `IntentBundle`s, static routes, fixture resources, validation, semantic diffing, and per-screen checked `html-tailwind` artifacts. `schema_version: 1` reports `resource_binding: "unbound_v0"`; `schema_version: 2` adds proof-only `resource_binding: "fixture_readonly_v0"` and declared `resource_views`; `schema_version: 3` adds bounded `interactive_state_v0` state, mutations, selectors, replay assertions, and a generated pure TypeScript reducer; `schema_version: 4` adds bounded `visibility` rules with baked initial show/hide markers, `expect_visibility` replay proof, and an `evaluateViewSpecVisibility` reducer export.

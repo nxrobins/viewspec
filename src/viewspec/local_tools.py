@@ -373,6 +373,52 @@ def init_design_tool(
         )
 
 
+_AGENT_ASSET_PATH_KEYS = {
+    "agent-assets.json": "manifest",
+    "agent-system-prompt.txt": "prompt",
+    "agent-intent-bundle.schema.json": "schema",
+    "agent-intent-example.dashboard.json": "example",
+    "agent-app-bundle.schema.json": "app_schema",
+    "agent-app-example.internal-tool.json": "app_example",
+    "intent-patch.schema.json": "patch_schema",
+    "intent-patch-example.dashboard.json": "patch_example",
+    "converge-task.schema.json": "converge_task_schema",
+    "converge-task-example.dashboard.json": "converge_task_example",
+}
+
+
+def agent_asset_export_response(
+    output: Path,
+    result: dict[str, Any],
+    *,
+    dry_run: bool,
+    metadata: dict[str, Any],
+) -> dict[str, Any]:
+    """The tool envelope for an `export_agent_assets` result, shared by MCP and `viewspec export-agent-assets --json`."""
+    paths = {"out": str(output)}
+    for item in result["files"]:
+        key = _AGENT_ASSET_PATH_KEYS.get(item["path"])
+        if key is not None:
+            paths[key] = str(output / item["path"])
+    changed = [item for item in result["files"] if item["action"] != "unchanged"]
+    return tool_response(
+        True,
+        "Exported local agent contract assets." if not dry_run else "Planned local agent contract asset export.",
+        paths=paths,
+        data={"assets": result},
+        next_actions=[
+            "Verify .viewspec/agent-assets.json when reusing exported assets.",
+            "Point schema-aware editors or agents at .viewspec/agent-intent-bundle.schema.json.",
+            "Point app-aware agents at .viewspec/agent-app-bundle.schema.json for multi-screen AppBundle V1/V2/V3.",
+            "Use .viewspec/agent-system-prompt.txt as the local ViewSpec agent contract prompt.",
+            "Use .viewspec/agent-intent-example.dashboard.json as a valid wire-shape example.",
+            "Use .viewspec/agent-app-example.internal-tool.json as a valid AppBundle wire-shape example.",
+            "Use .viewspec/intent-patch.schema.json and its example for in-place source revisions; start each one at viewspec patch-targets rather than text-editing the bundle.",
+        ],
+        metadata={**metadata, "dry_run": dry_run, "changes": len(changed)},
+    )
+
+
 def export_agent_assets_tool(
     out: str | Path = ".viewspec",
     *,
@@ -388,45 +434,8 @@ def export_agent_assets_tool(
         root = resolve_cwd(cwd)
         output = resolve_local_path(out, cwd=root, allow_outside_cwd=allow_outside_cwd)
         result = export_agent_assets(output, force=force, dry_run=dry_run)
-        paths = {"out": str(output)}
-        for item in result["files"]:
-            filename = item["path"]
-            if filename == "agent-assets.json":
-                paths["manifest"] = str(output / filename)
-            elif filename == "agent-system-prompt.txt":
-                paths["prompt"] = str(output / filename)
-            elif filename == "agent-intent-bundle.schema.json":
-                paths["schema"] = str(output / filename)
-            elif filename == "agent-intent-example.dashboard.json":
-                paths["example"] = str(output / filename)
-            elif filename == "agent-app-bundle.schema.json":
-                paths["app_schema"] = str(output / filename)
-            elif filename == "agent-app-example.internal-tool.json":
-                paths["app_example"] = str(output / filename)
-            elif filename == "intent-patch.schema.json":
-                paths["patch_schema"] = str(output / filename)
-            elif filename == "intent-patch-example.dashboard.json":
-                paths["patch_example"] = str(output / filename)
-            elif filename == "converge-task.schema.json":
-                paths["converge_task_schema"] = str(output / filename)
-            elif filename == "converge-task-example.dashboard.json":
-                paths["converge_task_example"] = str(output / filename)
-        changed = [item for item in result["files"] if item["action"] != "unchanged"]
-        return tool_response(
-            True,
-            "Exported local agent contract assets." if not dry_run else "Planned local agent contract asset export.",
-            paths=paths,
-            data={"assets": result},
-            next_actions=[
-                "Verify .viewspec/agent-assets.json when reusing exported assets.",
-                "Point schema-aware editors or agents at .viewspec/agent-intent-bundle.schema.json.",
-                "Point app-aware agents at .viewspec/agent-app-bundle.schema.json for multi-screen AppBundle V1/V2/V3.",
-                "Use .viewspec/agent-system-prompt.txt as the local ViewSpec agent contract prompt.",
-                "Use .viewspec/agent-intent-example.dashboard.json as a valid wire-shape example.",
-                "Use .viewspec/agent-app-example.internal-tool.json as a valid AppBundle wire-shape example.",
-                "Use .viewspec/intent-patch.schema.json and its example for in-place source revisions; start each one at viewspec patch-targets rather than text-editing the bundle.",
-            ],
-            metadata={**path_policy_metadata(root, allow_outside_cwd), "dry_run": dry_run, "changes": len(changed)},
+        return agent_asset_export_response(
+            output, result, dry_run=dry_run, metadata=path_policy_metadata(root, allow_outside_cwd)
         )
     except Exception as exc:
         return exception_response(
@@ -580,6 +589,7 @@ __all__ = [
     "_validate_semantic_projection_shape",
     "_validate_stateful_collection_artifact",
     "_validate_tailwind_generic_fallback",
+    "agent_asset_export_response",
     "atomic_write",
     "build_intent_semantic_digest",
     "bytes_hash",
