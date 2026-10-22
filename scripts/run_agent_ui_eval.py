@@ -697,7 +697,7 @@ def _activate_code_first_react(workspace: Path) -> dict[str, Any]:
             "react": "19.2.7",
             "react-dom": "19.2.7",
             "tailwindcss": "4.3.0",
-            "vite": "8.0.16",
+            "vite": "8.3.5",
         },
         "devDependencies": {
             "@playwright/test": "1.60.0",
