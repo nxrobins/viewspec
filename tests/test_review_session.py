@@ -1,11 +1,12 @@
 from __future__ import annotations
 
 import json
-from pathlib import Path
 import tempfile
+from pathlib import Path
 
-from hypothesis import given, settings, strategies as st
 import pytest
+from hypothesis import given, settings
+from hypothesis import strategies as st
 
 from viewspec.review_contract import ReviewContext, ReviewContractError, ReviewRevision, ReviewTarget, ReviewViewport
 from viewspec.review_session import ReviewJournal, ReviewSession, ReviewStateLock

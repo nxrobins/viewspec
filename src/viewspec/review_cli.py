@@ -2,24 +2,23 @@
 
 from __future__ import annotations
 
-import http.client
 import hashlib
 import hmac
+import http.client
 import json
 import logging
 import os
-from pathlib import Path
 import selectors
 import subprocess
 import sys
 import time
+from pathlib import Path
 from typing import Any
 
 from viewspec._version import __version__
-from viewspec.review_contract import ReviewContractError, canonical_json_bytes
 from viewspec.review_compile import STUDIO_COMPARE_TARGET
+from viewspec.review_contract import ReviewContractError, canonical_json_bytes
 from viewspec.review_runtime import ReviewRuntime, default_review_state_root, review_session_dir
-
 
 DAEMON_START_TIMEOUT_SECONDS = 190
 DEFAULT_REVIEW_PORT = 4388
@@ -70,7 +69,9 @@ def open_review(
                 "Restart the local Review server.",
                 cli_exit=1,
             )
-        expected_target = target or ("html-tailwind" if runtime.configuration.source_kind == "intent_bundle" else "html-tailwind-app")
+        expected_target = target or (
+            "html-tailwind" if runtime.configuration.source_kind == "intent_bundle" else "html-tailwind-app"
+        )
         expected_design = str(Path(os.path.abspath(Path(design).expanduser()))) if design is not None else None
         if (
             runtime.configuration.target != expected_target
@@ -81,8 +82,7 @@ def open_review(
             != (install if expected_target in {"react-tailwind-app", STUDIO_COMPARE_TARGET} else False)
             or runtime.configuration.convergence_state_root != expected_convergence_root
             or bool(info.get("studio_share", False)) != studio_share
-            or info.get("studio_share_reference_sha256")
-            != _studio_share_reference_sha256(studio_share_reference)
+            or info.get("studio_share_reference_sha256") != _studio_share_reference_sha256(studio_share_reference)
         ):
             raise ReviewContractError(
                 "REVIEW_SESSION_CONFIGURATION_CONFLICT",
@@ -344,7 +344,9 @@ def _open_browser(url: str) -> None:
         url,
     )
     try:
-        result = subprocess.run(command, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=10)
+        result = subprocess.run(
+            command, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=10
+        )
     except (OSError, subprocess.TimeoutExpired) as exc:
         raise ReviewContractError(
             "REVIEW_BROWSER_OPEN_FAILED",
@@ -522,7 +524,10 @@ def _agent_request(
         ) from exc
     if not isinstance(result, dict):
         raise ReviewContractError(
-            "REVIEW_SERVER_START_FAILED", "Review control response is invalid.", "Restart the local Review server.", cli_exit=1
+            "REVIEW_SERVER_START_FAILED",
+            "Review control response is invalid.",
+            "Restart the local Review server.",
+            cli_exit=1,
         )
     if response.status >= 400 or result.get("ok") is False:
         error = result.get("error")

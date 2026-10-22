@@ -15,6 +15,8 @@ from viewspec.app_paths import (
     _should_write_app_proof_failure,
 )
 from viewspec.app_prepared import PreparedAppProof, PreparedAppShell
+from viewspec.app_react import REACT_APP_TARGET, write_react_app
+from viewspec.app_react_verify import verify_react_app_artifact_dir
 from viewspec.app_reports import (
     APP_BUNDLE_DEFAULT_OUT,
     APP_BUNDLE_DEFAULT_REPORT,
@@ -27,8 +29,6 @@ from viewspec.app_reports import (
     app_shell_report,
     write_app_proof,
 )
-from viewspec.app_react import REACT_APP_TARGET, write_react_app
-from viewspec.app_react_verify import verify_react_app_artifact_dir
 from viewspec.app_resource_binding import resource_binding_assertion_report
 from viewspec.app_resource_repeat import materialize_resource_repeats
 from viewspec.app_screens import prove_app_screens
@@ -94,7 +94,11 @@ def prove_app(
     timings: dict[str, int] = {}
     root = resolve_cwd(cwd)
     output_dir = resolve_local_path(out_dir, cwd=root, allow_outside_cwd=True)
-    report_path = resolve_local_path(report_out, cwd=root, allow_outside_cwd=True) if report_out else output_dir / APP_BUNDLE_DEFAULT_REPORT
+    report_path = (
+        resolve_local_path(report_out, cwd=root, allow_outside_cwd=True)
+        if report_out
+        else output_dir / APP_BUNDLE_DEFAULT_REPORT
+    )
     if target not in {APP_BUNDLE_TARGET, REACT_APP_TARGET}:
         return app_proof_failure_report(
             output_dir=output_dir,
@@ -222,7 +226,9 @@ def prove_app(
         errors = [error for screen in screen_reports for error in screen.get("errors", []) if isinstance(error, dict)]
         binding_report: dict[str, Any] | None = None
         if not errors:
-            binding_report = _time_phase(timings, "resource_binding", lambda: resource_binding_assertion_report(payload, screen_reports))
+            binding_report = _time_phase(
+                timings, "resource_binding", lambda: resource_binding_assertion_report(payload, screen_reports)
+            )
             if isinstance(binding_report, dict) and not binding_report.get("ok"):
                 errors.extend(normalize_proof_errors(binding_report.get("errors")))
         shell_report: dict[str, Any] | None = None
@@ -321,7 +327,14 @@ def prove_app(
             target=target,
         )
         if _should_write_app_proof_failure(output_dir, exc.code):
-            prepared = PreparedAppProof(output_dir, Path(app_path), None, report_path, output_dir / APP_BUNDLE_DEFAULT_SUMMARY, output_dir / APP_BUNDLE_DEFAULT_SUPPORT_BUNDLE)
+            prepared = PreparedAppProof(
+                output_dir,
+                Path(app_path),
+                None,
+                report_path,
+                output_dir / APP_BUNDLE_DEFAULT_SUMMARY,
+                output_dir / APP_BUNDLE_DEFAULT_SUPPORT_BUNDLE,
+            )
             return write_app_proof(report, prepared)
         return report
     except Exception as exc:
@@ -341,7 +354,14 @@ def prove_app(
             target=target,
         )
         if output_dir.exists():
-            prepared = PreparedAppProof(output_dir, Path(app_path), None, report_path, output_dir / APP_BUNDLE_DEFAULT_SUMMARY, output_dir / APP_BUNDLE_DEFAULT_SUPPORT_BUNDLE)
+            prepared = PreparedAppProof(
+                output_dir,
+                Path(app_path),
+                None,
+                report_path,
+                output_dir / APP_BUNDLE_DEFAULT_SUMMARY,
+                output_dir / APP_BUNDLE_DEFAULT_SUPPORT_BUNDLE,
+            )
             return write_app_proof(report, prepared)
         return report
 
@@ -433,7 +453,9 @@ def compile_app(
         errors = [error for screen in screen_reports for error in screen.get("errors", []) if isinstance(error, dict)]
         binding_report: dict[str, Any] | None = None
         if not errors:
-            binding_report = _time_phase(timings, "resource_binding", lambda: resource_binding_assertion_report(payload, screen_reports))
+            binding_report = _time_phase(
+                timings, "resource_binding", lambda: resource_binding_assertion_report(payload, screen_reports)
+            )
             if isinstance(binding_report, dict) and not binding_report.get("ok"):
                 errors.extend(normalize_proof_errors(binding_report.get("errors")))
         if errors:
@@ -536,6 +558,7 @@ def compile_app(
             validation=None,
             target=target,
         )
+
 
 def _time_phase(timings: dict[str, int], phase: str, fn: Any) -> Any:
     started = time.perf_counter()

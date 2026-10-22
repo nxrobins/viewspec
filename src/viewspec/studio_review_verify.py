@@ -9,15 +9,15 @@ runner must bind its own sandbox attestation before the result is accepted by
 
 from __future__ import annotations
 
-from collections.abc import Mapping
 import base64
 import hashlib
 import json
 import os
-from pathlib import Path
 import re
 import stat
 import tempfile
+from collections.abc import Mapping
+from pathlib import Path
 
 from viewspec.review_compile import (
     APP_SOURCE_MAX_BYTES,
@@ -43,7 +43,6 @@ from viewspec.studio_share import (
     StudioShareError,
     load_studio_share_package,
 )
-
 
 STUDIO_REVIEW_REBUILD_SCHEMA_VERSION = 1
 STUDIO_REVIEW_REBUILD_VERIFIER_ID = "viewspec-studio-rebuild-v1"
@@ -127,7 +126,8 @@ def rebuild_studio_review_request(request: Mapping[str, object]) -> dict[str, ob
         raise StudioReviewVerificationError("Isolated rebuild request is missing.")
     value = dict(request)
     if (
-        set(value) != {
+        set(value)
+        != {
             "schema_version",
             "kind",
             "envelope",
@@ -297,12 +297,8 @@ def bind_studio_review_sandbox_attestation(
             "observed_inventory_sha256": evidence["artifact_inventory"]["sha256"],
             "source_only_request": True,
             "install_used": evidence["dependency_seed"]["install_command_invoked"],
-            "lifecycle_hooks_disabled": not evidence["execution_policy"][
-                "package_lifecycle_hooks_invoked"
-            ],
-            "uploaded_artifacts_executed": evidence["execution_policy"][
-                "uploaded_artifacts_executed"
-            ],
+            "lifecycle_hooks_disabled": not evidence["execution_policy"]["package_lifecycle_hooks_invoked"],
+            "uploaded_artifacts_executed": evidence["execution_policy"]["uploaded_artifacts_executed"],
         },
         "sandbox": {
             "network": "denied",
@@ -432,18 +428,24 @@ def _trusted_dependency_seed() -> tuple[Path, str]:
         )
     seed = Path(configured)
     if not seed.is_absolute():
-        raise StudioReviewVerificationError("Configured Studio review dependency seed is not one absolute normal directory.")
+        raise StudioReviewVerificationError(
+            "Configured Studio review dependency seed is not one absolute normal directory."
+        )
     try:
         seed_stat = seed.lstat()
     except OSError as exc:
         raise StudioReviewVerificationError("Configured Studio review dependency seed is unavailable.") from exc
     if seed.is_symlink() or not stat.S_ISDIR(seed_stat.st_mode):
-        raise StudioReviewVerificationError("Configured Studio review dependency seed is not one absolute normal directory.")
+        raise StudioReviewVerificationError(
+            "Configured Studio review dependency seed is not one absolute normal directory."
+        )
     lock = seed / ".package-lock.json"
     try:
         lock_stat = lock.lstat()
     except OSError as exc:
-        raise StudioReviewVerificationError("Configured Studio review dependency seed has no retained install lock.") from exc
+        raise StudioReviewVerificationError(
+            "Configured Studio review dependency seed has no retained install lock."
+        ) from exc
     if (
         lock.is_symlink()
         or not stat.S_ISREG(lock_stat.st_mode)
@@ -470,7 +472,9 @@ def _assert_revision_equivalent(
         "contract_profile",
     }
     if any(expected.get(field) != rebuilt.get(field) for field in base_fields):
-        raise StudioReviewVerificationError("Rebuilt Studio revision identity differs from the uploaded checked revision.")
+        raise StudioReviewVerificationError(
+            "Rebuilt Studio revision identity differs from the uploaded checked revision."
+        )
     inspection = comparison.get("inspection")
     screens = comparison.get("screens")
     targets = comparison.get("targets")

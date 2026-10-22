@@ -4,10 +4,10 @@ import base64
 import hashlib
 import json
 
-from hypothesis import given, strategies as st
+from hypothesis import given
+from hypothesis import strategies as st
 
 from viewspec import ReceiptPublicKey, verify_signed_receipt, verify_usage_receipt
-
 
 SECRET = "customer-verifiable-receipt-test-secret"
 

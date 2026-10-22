@@ -64,12 +64,15 @@ Python 3.11 through 3.14.
 
 ```bash
 ruff check .
+ruff format --check .
 python -m compileall -q src tests examples scripts
 python -m pytest -q --strict-markers -m "not e2e"
 node tests/seo_static_smoke.mjs
 ```
 
-`ruff format --check` is not yet a gate; do not reformat files you are not otherwise changing.
+`ruff format` is the only formatter; run `ruff format .` before committing. The lint rule set
+(`I`, `UP`, `B`, `SIM` on top of Pyflakes) and the few deliberate ignores live under
+`[tool.ruff.lint]` in `pyproject.toml`.
 Markers are strict, so a new marker must be declared in `pyproject.toml`.
 
 ### Opt-in end-to-end suites

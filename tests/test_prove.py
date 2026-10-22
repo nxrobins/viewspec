@@ -1,15 +1,19 @@
 import hashlib
-import json
 import importlib
+import json
 import re
 
 from viewspec import profile_style_facts
+from viewspec.app_react import REACT_APP_MANIFEST
+from viewspec.app_reports import (
+    APP_BUNDLE_DEFAULT_REPORT,
+    APP_BUNDLE_DEFAULT_SUMMARY,
+    APP_BUNDLE_DEFAULT_SUPPORT_BUNDLE,
+)
+from viewspec.app_shell import APP_SHELL_MANIFEST
 from viewspec.cli import main as cli_main
 from viewspec.intent_tools import init_intent_file
 from viewspec.local_tools import check_artifact_dir, file_hash
-from viewspec.app_react import REACT_APP_MANIFEST
-from viewspec.app_reports import APP_BUNDLE_DEFAULT_REPORT, APP_BUNDLE_DEFAULT_SUMMARY, APP_BUNDLE_DEFAULT_SUPPORT_BUNDLE
-from viewspec.app_shell import APP_SHELL_MANIFEST
 from viewspec.local_tools_io import VIEWSPEC_OUTPUT_MARKERS
 from viewspec.prove import (
     PROVE_DEFAULT_REPORT,
@@ -194,7 +198,9 @@ def test_prove_records_provided_inputs_relative_to_the_proof_directory(tmp_path)
 def test_prove_reports_aesthetic_profile_layout_summary(tmp_path):
     style_facts = profile_style_facts("aesthetic.data_dense")
     intent = tmp_path / "profile.intent.json"
-    intent.write_text(json.dumps(_profile_workspace_bundle("aesthetic.data_dense").to_json(), indent=2), encoding="utf-8")
+    intent.write_text(
+        json.dumps(_profile_workspace_bundle("aesthetic.data_dense").to_json(), indent=2), encoding="utf-8"
+    )
     out_dir = tmp_path / "profile-proof"
 
     report = prove(intent_path=intent, out_dir=out_dir, cwd=tmp_path)
@@ -235,7 +241,9 @@ def test_prove_existing_intent_cli_json(tmp_path, capsys):
     init_intent_file(intent)
     out_dir = tmp_path / "proof"
 
-    assert cli_main(["prove", "--intent", str(intent), "--out", str(out_dir), "--target", "html-tailwind", "--json"]) == 0
+    assert (
+        cli_main(["prove", "--intent", str(intent), "--out", str(out_dir), "--target", "html-tailwind", "--json"]) == 0
+    )
 
     payload = json.loads(capsys.readouterr().out)
     assert payload["ok"] is True

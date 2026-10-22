@@ -44,7 +44,9 @@ def test_compiler_quality_benchmark_fixtures_emit_checked_artifacts(tmp_path):
         assert summary["schema_version"] == BENCHMARK_SCHEMA_VERSION
         assert summary["baseline_role"] == "current_floor_not_quality_ceiling"
         assert len(summary["quality_categories"]) >= 4
-        assert set(summary["metrics"]["diagnostics"]["actual_codes"]) <= set(summary["metrics"]["diagnostics"]["expected_codes"])
+        assert set(summary["metrics"]["diagnostics"]["actual_codes"]) <= set(
+            summary["metrics"]["diagnostics"]["expected_codes"]
+        )
         assert summary["metrics"]["html"]["check_ok"] is True
         assert summary["metrics"]["react"]["check_ok"] is True
         assert summary["metrics"]["tailwind"]["check_ok"] is True
@@ -97,9 +99,16 @@ def test_multi_region_fixture_has_required_layout_pressure(tmp_path):
         "primary_column": 1,
         "side_rail": 1,
     }
-    assert summary["metrics"]["html"]["manifest_product_role_counts"] == summary["metrics"]["ast"]["product_role_counts"]
-    assert summary["metrics"]["react"]["manifest_product_role_counts"] == summary["metrics"]["ast"]["product_role_counts"]
-    assert summary["metrics"]["tailwind"]["manifest_product_role_counts"] == summary["metrics"]["ast"]["product_role_counts"]
+    assert (
+        summary["metrics"]["html"]["manifest_product_role_counts"] == summary["metrics"]["ast"]["product_role_counts"]
+    )
+    assert (
+        summary["metrics"]["react"]["manifest_product_role_counts"] == summary["metrics"]["ast"]["product_role_counts"]
+    )
+    assert (
+        summary["metrics"]["tailwind"]["manifest_product_role_counts"]
+        == summary["metrics"]["ast"]["product_role_counts"]
+    )
     assert summary["metrics"]["tailwind"]["recipe_pack"] == "tailwind_app_v1"
     assert "vs-role-action-row" in summary["metrics"]["html"]["role_classes"]
     assert summary["metrics"]["html"]["role_classes"] == summary["metrics"]["react"]["role_classes"]
@@ -137,7 +146,9 @@ def test_dashboard_fixture_records_planner_grid_strategy(tmp_path):
 
 
 def test_stateful_collection_fixture_records_collection_action_bar(tmp_path):
-    summary = run_benchmark_fixture(next(item for item in benchmark_fixtures() if item.id == "stateful_collection"), tmp_path)
+    summary = run_benchmark_fixture(
+        next(item for item in benchmark_fixtures() if item.id == "stateful_collection"), tmp_path
+    )
 
     assert summary["metrics"]["ast"]["motif_kinds"] == ["form", "table"]
     assert summary["metrics"]["ast"]["action_rows"] == ["planner_request_queue_collection_actions"]
@@ -343,7 +354,9 @@ def test_benchmark_rejects_nondeterministic_and_oversized_summary(tmp_path):
 def test_benchmark_rejects_full_artifact_goldens_new_deps_and_too_small_fixtures(tmp_path):
     fixture = next(item for item in benchmark_fixtures() if item.id == "hero")
     with pytest.raises(BenchmarkConstraintError) as golden_exc:
-        run_benchmark_fixture(BenchmarkFixture("golden", fixture.bundle, full_artifact_golden="<html></html>"), tmp_path)
+        run_benchmark_fixture(
+            BenchmarkFixture("golden", fixture.bundle, full_artifact_golden="<html></html>"), tmp_path
+        )
     assert golden_exc.value.code == "FULL_ARTIFACT_GOLDEN_FORBIDDEN"
 
     with pytest.raises(BenchmarkConstraintError) as dep_exc:
@@ -397,7 +410,9 @@ def test_benchmark_suite_timeout_reports_completed_fixture(monkeypatch, tmp_path
     perf_counter_values = iter((0.0, 0.1, 1.2))
     monkeypatch.setattr(compiler_benchmarks.time, "perf_counter", lambda: next(perf_counter_values))
     monkeypatch.setattr(compiler_benchmarks, "benchmark_fixtures", lambda: (FakeFixture(),))
-    monkeypatch.setattr(compiler_benchmarks, "run_benchmark_fixture", lambda fixture, output_dir: {"fixture_id": fixture.id})
+    monkeypatch.setattr(
+        compiler_benchmarks, "run_benchmark_fixture", lambda fixture, output_dir: {"fixture_id": fixture.id}
+    )
 
     with pytest.raises(BenchmarkConstraintError) as timeout_exc:
         run_benchmark_suite(tmp_path, timeout_seconds=1.0)

@@ -131,9 +131,7 @@ def compile_remote_response(
             timeout=30.0,
         )
     except httpx.HTTPError as exc:
-        raise CompilerAPIError(
-            f"Remote compilation request failed: {exc}", code="network_error"
-        ) from exc
+        raise CompilerAPIError(f"Remote compilation request failed: {exc}", code="network_error") from exc
 
     def _response_json() -> dict[str, Any]:
         try:
@@ -197,7 +195,8 @@ def compile_auto(
     # Imported lazily: viewspec.compiler re-exports this module, so a top-level
     # import would be circular. Resolving the attribute at call time also keeps
     # ``viewspec.compiler.compile`` patchable from tests, as it was before the move.
-    from viewspec.compiler import UnsupportedMotifError, compile as compile_local
+    from viewspec.compiler import UnsupportedMotifError
+    from viewspec.compiler import compile as compile_local
 
     payload = _compile_request_payload(request)
     if prefer_local:

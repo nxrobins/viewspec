@@ -2,14 +2,14 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
 import hashlib
-from pathlib import PurePosixPath
 import re
-from typing import Any, Iterable, Mapping
+from collections.abc import Iterable, Mapping
+from dataclasses import dataclass, field
+from pathlib import PurePosixPath
+from typing import Any
 
 from viewspec._canonical import canonical_json_ascii_bytes
-
 
 VERIFICATION_SCHEMA_VERSION = 1
 VERIFICATION_ID_RE = re.compile(r"^vvr_[0-9a-f]{32}$")
@@ -243,7 +243,11 @@ class EvidenceFile:
         )
 
     def verify(self, content: bytes) -> bool:
-        return isinstance(content, bytes) and len(content) == self.bytes and hashlib.sha256(content).hexdigest() == self.sha256
+        return (
+            isinstance(content, bytes)
+            and len(content) == self.bytes
+            and hashlib.sha256(content).hexdigest() == self.sha256
+        )
 
     def to_json(self) -> dict[str, Any]:
         return {

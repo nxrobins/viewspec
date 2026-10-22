@@ -8,12 +8,11 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from viewspec.app_bundle import AGENT_APP_BUNDLE_SCHEMA, starter_app_bundle
 from viewspec.agent import AGENT_INTENT_BUNDLE_SCHEMA, AGENT_SYSTEM_PROMPT
+from viewspec.app_bundle import AGENT_APP_BUNDLE_SCHEMA, starter_app_bundle
 from viewspec.converge_sessions import CONVERGENCE_TASK_JSON_SCHEMA, starter_convergence_task_payload
 from viewspec.intent_patch import INTENT_PATCH_JSON_SCHEMA, starter_intent_patch_payload
 from viewspec.local_tools import atomic_write
-
 
 AGENT_ASSET_SCHEMA_VERSION = 15
 AGENT_ASSET_CONTRACT_PROFILE = "local_v1"

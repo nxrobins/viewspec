@@ -88,9 +88,13 @@ def test_golden_file_covers_every_corpus_case_and_local_target():
     assert GOLDENS["regenerate"] == REGENERATE_COMMAND
     assert GOLDENS["intent_targets"] == list(INTENT_TARGETS) == ["html-tailwind", "react-tsx", "react-tailwind-tsx"]
     assert GOLDENS["app_targets"] == list(APP_TARGETS) == ["html-tailwind-app", "react-tailwind-app"]
-    assert sorted(GOLDENS["cases"]) == sorted(CORPUS_CASE_IDS), f"Golden cases differ from the corpus; run `{REGENERATE_COMMAND}`."
+    assert sorted(GOLDENS["cases"]) == sorted(CORPUS_CASE_IDS), (
+        f"Golden cases differ from the corpus; run `{REGENERATE_COMMAND}`."
+    )
     for case_id, case in GOLDENS["cases"].items():
-        assert sorted(case["targets"]) == sorted(INTENT_TARGETS), f"{case_id}: targets differ; run `{REGENERATE_COMMAND}`."
+        assert sorted(case["targets"]) == sorted(INTENT_TARGETS), (
+            f"{case_id}: targets differ; run `{REGENERATE_COMMAND}`."
+        )
         assert SHA256.match(case["source_hash"])
         for target, pin in case["targets"].items():
             assert set(pin) == {"artifact_file", "artifact_hash", "semantic_digest", "files"}, (case_id, target)
@@ -98,10 +102,14 @@ def test_golden_file_covers_every_corpus_case_and_local_target():
             assert set(pin["files"]) == {pin["artifact_file"], "diagnostics.json", "provenance_manifest.json"}
             # artifact_hash is the sha256 of the artifact file, so the two pins must agree.
             assert pin["files"][pin["artifact_file"]] == pin["artifact_hash"], (case_id, target)
-    assert sorted(GOLDENS["app_bundles"]) == sorted(APP_BUNDLE_SOURCES), f"Golden app bundles differ; run `{REGENERATE_COMMAND}`."
+    assert sorted(GOLDENS["app_bundles"]) == sorted(APP_BUNDLE_SOURCES), (
+        f"Golden app bundles differ; run `{REGENERATE_COMMAND}`."
+    )
     for bundle_id, bundle in GOLDENS["app_bundles"].items():
         assert bundle["source"] == APP_BUNDLE_SOURCES[bundle_id]
-        assert sorted(bundle["targets"]) == sorted(APP_TARGETS), f"{bundle_id}: targets differ; run `{REGENERATE_COMMAND}`."
+        assert sorted(bundle["targets"]) == sorted(APP_TARGETS), (
+            f"{bundle_id}: targets differ; run `{REGENERATE_COMMAND}`."
+        )
         for target, pin in bundle["targets"].items():
             assert set(pin) == {"artifact_file", "artifact_hash", "screens", "files"}, (bundle_id, target)
             assert pin["files"][pin["artifact_file"]] == pin["artifact_hash"], (bundle_id, target)
@@ -110,7 +118,9 @@ def test_golden_file_covers_every_corpus_case_and_local_target():
                 assert f"{screen_dir}/provenance_manifest.json" in pin["files"], (bundle_id, target, screen_dir)
                 assert set(screen) == {"artifact_hash", "semantic_digest"}
     hashes = _hashes(GOLDENS["cases"]) + _hashes(GOLDENS["app_bundles"])
-    assert hashes and all(SHA256.match(value) for value in hashes), "every pinned hash is a 64-character lowercase sha256"
+    assert hashes and all(SHA256.match(value) for value in hashes), (
+        "every pinned hash is a 64-character lowercase sha256"
+    )
 
 
 def test_golden_sources_match_the_checked_in_inputs(compiled):

@@ -8,10 +8,11 @@ import re
 from pathlib import Path
 from typing import Any
 
+from seo_metadata import demo_head_metadata
+
 from viewspec import IntentBundle, ViewSpecBuilder, compile
 from viewspec.emitters.html_tailwind import ACTION_EVENT_SCRIPT, _render_node
-from viewspec.types import ASTBundle, DEFAULT_STYLE_TOKEN_VALUES
-from seo_metadata import demo_head_metadata
+from viewspec.types import DEFAULT_STYLE_TOKEN_VALUES, ASTBundle
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -103,7 +104,7 @@ def highlight_line(line: str) -> str:
     escaped = re.sub(r"\b(ViewSpecBuilder)\b", lambda match: span("syntax-class", match.group(1)), escaped)
     escaped = re.sub(
         r"\.(add_table|add_row|add_style|build_bundle)\b",
-        lambda match: f'.{span("syntax-method", match.group(1))}',
+        lambda match: f".{span('syntax-method', match.group(1))}",
         escaped,
     )
     return escaped

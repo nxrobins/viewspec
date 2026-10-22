@@ -6,13 +6,27 @@ import importlib.util
 from pathlib import Path
 from typing import Any
 
-from viewspec.app_bundle import compile_app_tool, diff_app_files_tool, init_app_tool, prove_app_tool, validate_app_file_tool
+from viewspec.app_bundle import (
+    compile_app_tool,
+    diff_app_files_tool,
+    init_app_tool,
+    prove_app_tool,
+    validate_app_file_tool,
+)
 from viewspec.converge_tools import (
     approve_convergence_preview_tool,
     convergence_status_tool,
     reject_convergence_preview_tool,
     start_convergence_session_tool,
     submit_convergence_patch_tool,
+)
+from viewspec.host_verify import verify_host_tool
+from viewspec.intent_patch import INTENT_PATCH_TARGET_LIMIT_DEFAULT
+from viewspec.intent_patch_tools import (
+    apply_intent_patch_file_tool,
+    intent_patch_context_tool,
+    list_intent_patch_targets_tool,
+    preview_intent_patch_file_tool,
 )
 from viewspec.intent_tools import (
     agent_correction_prompt_file_tool,
@@ -21,17 +35,9 @@ from viewspec.intent_tools import (
     init_intent_tool,
     validate_intent_bundle_file_tool,
 )
-from viewspec.intent_patch import INTENT_PATCH_TARGET_LIMIT_DEFAULT
-from viewspec.intent_patch_tools import (
-    apply_intent_patch_file_tool,
-    intent_patch_context_tool,
-    list_intent_patch_targets_tool,
-    preview_intent_patch_file_tool,
-)
-from viewspec.host_verify import verify_host_tool
 from viewspec.local_tools import (
-    check_artifact_tool,
     check_agent_assets_tool,
+    check_artifact_tool,
     compile_html_file_tool,
     diff_html_files_tool,
     export_agent_assets_tool,
@@ -45,7 +51,6 @@ from viewspec.review_cli import end_review as end_review_cli
 from viewspec.review_cli import open_review as open_review_cli
 from viewspec.review_cli import poll_review as poll_review_cli
 from viewspec.review_cli import review_status as review_status_cli
-
 
 MCP_INSTALL_HINT = 'Install with: python -m pip install "viewspec[agents]"'
 
@@ -368,9 +373,13 @@ def run_mcp_server(*, cwd: str | Path | None = None, allow_outside_cwd: bool = F
         )
     )
     def export_agent_assets(out: str = ".viewspec", force: bool = False, dry_run: bool = False) -> dict[str, Any]:
-        return export_agent_assets_tool(out, force=force, dry_run=dry_run, cwd=root, allow_outside_cwd=allow_outside_cwd)
+        return export_agent_assets_tool(
+            out, force=force, dry_run=dry_run, cwd=root, allow_outside_cwd=allow_outside_cwd
+        )
 
-    @app.tool(description="Open or resume a checked local ViewSpec Review session without launching a browser automatically.")
+    @app.tool(
+        description="Open or resume a checked local ViewSpec Review session without launching a browser automatically."
+    )
     def open_review(
         source: str,
         design_path: str | None = None,

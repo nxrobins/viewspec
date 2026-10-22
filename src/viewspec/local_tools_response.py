@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 from typing import Any
+
 from viewspec.design_md import DesignSystemError
 from viewspec.emitters.react_tailwind_tsx import CompilerConstraintError
+from viewspec.local_tools_constants import MCP_RESERVED_RESULT_KEYS, MCP_RESULT_SCHEMA_VERSION
 from viewspec.raw_html import HtmlInputError
-from viewspec.local_tools_constants import (MCP_RESERVED_RESULT_KEYS, MCP_RESULT_SCHEMA_VERSION)
+
 
 class LocalToolError(ValueError):
     """Agent-readable local tool failure."""
@@ -17,6 +19,7 @@ class LocalToolError(ValueError):
 
     def to_json(self) -> dict[str, str]:
         return {"code": self.code, "message": self.message, "fix": self.fix}
+
 
 def tool_response(
     ok: bool,
@@ -53,6 +56,7 @@ def tool_response(
         payload.update(data)
     return payload
 
+
 def tool_error_response(
     code: str,
     message: str,
@@ -61,6 +65,7 @@ def tool_error_response(
 ) -> dict[str, Any]:
     errors = list(kwargs.pop("errors", ())) or [{"code": code, "message": message, "fix": fix}]
     return tool_response(False, message, errors=errors, next_actions=[fix], **kwargs)
+
 
 def exception_response(
     exc: Exception,
@@ -72,12 +77,15 @@ def exception_response(
     if isinstance(exc, LocalToolError):
         return tool_error_response(exc.code, exc.message, exc.fix, metadata=metadata)
     if isinstance(exc, CompilerConstraintError):
-        return tool_error_response(exc.code, str(exc), "Fix the Tailwind emitter constraint violation and retry.", metadata=metadata)
+        return tool_error_response(
+            exc.code, str(exc), "Fix the Tailwind emitter constraint violation and retry.", metadata=metadata
+        )
     if isinstance(exc, HtmlInputError):
         return tool_error_response(exc.code, str(exc), fallback_fix, metadata=metadata)
     if isinstance(exc, DesignSystemError):
         return tool_error_response("COMPILE_FAILED", str(exc), "Fix DESIGN.md and retry.", metadata=metadata)
-    if hasattr(exc, "code") and str(getattr(exc, "code")) in {
+    exc_code = getattr(exc, "code", None)
+    if exc_code is not None and str(exc_code) in {
         "AGENT_ASSET_CONFLICT",
         "AGENT_ASSET_OUTPUT_NOT_DIRECTORY",
     }:

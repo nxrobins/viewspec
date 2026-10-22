@@ -2,10 +2,9 @@
 
 from __future__ import annotations
 
-from collections.abc import Mapping
 import json
+from collections.abc import Mapping
 from typing import Any
-
 
 INTENT_BUNDLE_SCHEMA_VERSION = 1
 INTENT_BUNDLE_ROOT_FIELDS = frozenset({"schema_version", "substrate", "view_spec"})

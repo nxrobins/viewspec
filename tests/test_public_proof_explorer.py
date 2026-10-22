@@ -6,7 +6,6 @@ from pathlib import Path
 
 from demos.build_proof_explorer import build
 
-
 ROOT = Path(__file__).resolve().parents[1]
 PUBLIC_EXPLORER = ROOT / "demos" / "proof-explorer"
 
@@ -17,9 +16,7 @@ def _sha256(path: Path) -> str:
 
 def test_public_proof_explorer_is_a_deterministic_projection_of_retained_evidence(tmp_path):
     generated = build(tmp_path / "proof-explorer")
-    committed = json.loads(
-        (PUBLIC_EXPLORER / "proof-data.json").read_text(encoding="utf-8")
-    )
+    committed = json.loads((PUBLIC_EXPLORER / "proof-data.json").read_text(encoding="utf-8"))
 
     assert generated == committed
     assert committed["kind"] == "viewspec_public_proof_explorer"
@@ -41,9 +38,7 @@ def test_public_proof_explorer_is_a_deterministic_projection_of_retained_evidenc
 
 
 def test_public_proof_explorer_binds_every_image_and_source_to_its_hash():
-    contract = json.loads(
-        (PUBLIC_EXPLORER / "proof-data.json").read_text(encoding="utf-8")
-    )
+    contract = json.loads((PUBLIC_EXPLORER / "proof-data.json").read_text(encoding="utf-8"))
 
     for source in contract["sources"]:
         source_path = ROOT / source["path"]

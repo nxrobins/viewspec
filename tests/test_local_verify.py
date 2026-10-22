@@ -18,13 +18,13 @@ def _write_artifact(tmp_path: Path) -> Path:
     intent_path = tmp_path / "intent.json"
     intent_path.write_text(json.dumps(builder.build_bundle().to_json()), encoding="utf-8")
     artifact_dir = tmp_path / "artifact"
-    assert cli_main(
-        ["compile", str(intent_path), "--target", "react-tailwind-tsx", "--out", str(artifact_dir)]
-    ) == 0
+    assert cli_main(["compile", str(intent_path), "--target", "react-tailwind-tsx", "--out", str(artifact_dir)]) == 0
     return artifact_dir
 
 
-def _passing_browser(artifact_dir: Path, plan: VerificationPlan, evidence_dir: Path, *, install: bool) -> BrowserPlanOutcome:
+def _passing_browser(
+    artifact_dir: Path, plan: VerificationPlan, evidence_dir: Path, *, install: bool
+) -> BrowserPlanOutcome:
     files: list[BrowserEvidence] = []
     for viewport in plan.viewports:
         screenshot = evidence_dir / f"{viewport.name}.png"

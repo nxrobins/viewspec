@@ -8,6 +8,7 @@ findings and audit transcripts before returning proof evidence.
 
 from __future__ import annotations
 
+import contextlib
 import hashlib
 import json
 import os
@@ -18,10 +19,10 @@ import stat
 import subprocess
 import threading
 import time
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
-from typing import Any, Mapping, Sequence
-
+from typing import Any
 
 FREERANGE_PACKAGE = "@chenglou/freerange"
 FREERANGE_VERSION = "0.0.1"
@@ -76,9 +77,7 @@ _FINDINGS_COVERAGE_RE = re.compile(
     r"(?P<partial>[0-9]+) partially supported; (?P<unsupported>[0-9]+) unsupported\.$"
 )
 _AUDIT_HEADER_RE = re.compile(r"^# (?P<file>.+) \((?P<coverage>.+)\)$")
-_AUDIT_FUNCTION_COVERAGE_RE = re.compile(
-    r"^(?P<analyzed>[0-9]+)/(?P<functions>[0-9]+) functions fully analyzed$"
-)
+_AUDIT_FUNCTION_COVERAGE_RE = re.compile(r"^(?P<analyzed>[0-9]+)/(?P<functions>[0-9]+) functions fully analyzed$")
 _AUDIT_PARTIAL_RE = re.compile(r"^(?P<count>[0-9]+) partially supported$")
 _AUDIT_UNSUPPORTED_RE = re.compile(r"^(?P<count>[0-9]+) unsupported$")
 _AUDIT_SKIPPED_RE = re.compile(r"^(?P<count>[0-9]+) module (?P<word>statement|statements) skipped$")
@@ -129,7 +128,7 @@ class FreerangeFailure(ValueError):
     def to_json(self) -> dict[str, str]:
         return {"code": self.code, "message": self.message, "fix": self.fix}
 
-    def attach_report(self, report: dict[str, Any]) -> "FreerangeFailure":
+    def attach_report(self, report: dict[str, Any]) -> FreerangeFailure:
         if self.report is None:
             self.report = report
         return self
@@ -386,15 +385,15 @@ def _analyze_freerange_numeric_scope(
                 "required_functions": [
                     {
                         "name": name,
-                            "sha256": source.function_sha256.get(
-                                name,
-                                _function_identity_sha256(source.path, source.sha256, name),
-                            ),
-                            "hash_kind": (
-                                "source_declaration_sha256"
-                                if name in source.function_sha256
-                                else "file_bound_identity_sha256"
-                            ),
+                        "sha256": source.function_sha256.get(
+                            name,
+                            _function_identity_sha256(source.path, source.sha256, name),
+                        ),
+                        "hash_kind": (
+                            "source_declaration_sha256"
+                            if name in source.function_sha256
+                            else "file_bound_identity_sha256"
+                        ),
                     }
                     for name in source.required_functions
                 ],
@@ -571,9 +570,7 @@ def _preflight_failure_report(
                         _function_identity_sha256(source.path, source.sha256, name),
                     ),
                     "hash_kind": (
-                        "source_declaration_sha256"
-                        if name in source.function_sha256
-                        else "file_bound_identity_sha256"
+                        "source_declaration_sha256" if name in source.function_sha256 else "file_bound_identity_sha256"
                     ),
                 }
                 for name in source.required_functions
@@ -599,9 +596,7 @@ def _preflight_failure_report(
         "operation_coverage": _operation_coverage(scope),
         "findings": [],
         "source_hashes": {
-            "analyzed_sources": [
-                {"path": source.path, "sha256": source.sha256} for source in scope.files
-            ],
+            "analyzed_sources": [{"path": source.path, "sha256": source.sha256} for source in scope.files],
             "call_sites": call_sites,
             "configuration": [],
             "tools": [],
@@ -1139,13 +1134,7 @@ def _runtime_identity(bun_executable: str | Path | None) -> dict[str, Any]:
     version = stdout.removesuffix("\n")
     match = _SEMVER_RE.fullmatch(version)
     stable_version = ".".join(match.groups()[:3]) if match is not None else None
-    if (
-        result.returncode != 0
-        or stderr
-        or match is None
-        or "\n" in version
-        or version != stable_version
-    ):
+    if result.returncode != 0 or stderr or match is None or "\n" in version or version != stable_version:
         raise FreerangeFailure(
             "APP_FREERANGE_RUNTIME_UNSUPPORTED",
             "Bun did not return one supported semantic version line.",
@@ -1187,7 +1176,10 @@ def _validate_installation(app_dir: Path) -> _Installation:
             "Regenerate the AppBundle with the supported self-contained tsconfig.",
         )
     package_dependencies = package.get("devDependencies")
-    if not isinstance(package_dependencies, Mapping) or package_dependencies.get(FREERANGE_PACKAGE) != FREERANGE_VERSION:
+    if (
+        not isinstance(package_dependencies, Mapping)
+        or package_dependencies.get(FREERANGE_PACKAGE) != FREERANGE_VERSION
+    ):
         raise FreerangeFailure(
             "APP_FREERANGE_VERSION_MISMATCH",
             f"package.json must pin {FREERANGE_PACKAGE} exactly to {FREERANGE_VERSION}.",
@@ -1223,7 +1215,9 @@ def _validate_installation(app_dir: Path) -> _Installation:
         "resolved": FREERANGE_NPM_RESOLVED,
         "integrity": FREERANGE_NPM_INTEGRITY,
     }
-    if not isinstance(freerange_lock, Mapping) or any(freerange_lock.get(key) != value for key, value in expected_lock.items()):
+    if not isinstance(freerange_lock, Mapping) or any(
+        freerange_lock.get(key) != value for key, value in expected_lock.items()
+    ):
         raise _package_integrity_failure("The Freerange lock entry version, URL, or npm integrity is not pinned.")
     if freerange_lock.get("bin") != {"fr": FREERANGE_BIN} or freerange_lock.get("dependencies") != {
         "typescript": "^6.0.2"
@@ -1265,7 +1259,10 @@ def _validate_installation(app_dir: Path) -> _Installation:
             "Run the opt-in install step from the unchanged generated lockfile.",
         )
     typescript_package = _read_json(typescript_package_path)
-    if typescript_package.get("name") != "typescript" or typescript_package.get("version") != FREERANGE_TYPESCRIPT_VERSION:
+    if (
+        typescript_package.get("name") != "typescript"
+        or typescript_package.get("version") != FREERANGE_TYPESCRIPT_VERSION
+    ):
         raise _dependency_drift_failure("The installed TypeScript package differs from the pinned version.")
     tool_tree = _tree_hash(tool_root, FREERANGE_TOOL_TREE_MAX_BYTES)
     typescript_tree = _tree_hash(typescript_root, FREERANGE_TOOL_TREE_MAX_BYTES)
@@ -1307,7 +1304,10 @@ def _dependency_drift_failure(message: str) -> FreerangeFailure:
 
 def _parse_findings(output: str, expected_path: str) -> dict[str, Any]:
     lines = _protocol_lines(output, "findings")
-    if len(lines) < 5 or lines[-1] != "Run `fr --audit [file]` for every function's contracts and refactoring suggestions.":
+    if (
+        len(lines) < 5
+        or lines[-1] != "Run `fr --audit [file]` for every function's contracts and refactoring suggestions."
+    ):
         raise _protocol_failure("Freerange findings footer is missing or changed.")
     coverage_match = _FINDINGS_COVERAGE_RE.fullmatch(lines[-2])
     summary_match = _FINDING_SUMMARY_RE.fullmatch(lines[-3])
@@ -1373,7 +1373,9 @@ def _parse_audit(output: str, expected_path: str) -> dict[str, Any]:
     if len(lines) < 5 or lines[1:4] != ["", "## Contracts", ""]:
         raise _protocol_failure("Freerange audit Contracts section is missing or malformed.")
 
-    suggestion_index = next((index for index, line in enumerate(lines[4:], 4) if line == "## Refactoring suggestions"), None)
+    suggestion_index = next(
+        (index for index, line in enumerate(lines[4:], 4) if line == "## Refactoring suggestions"), None
+    )
     if suggestion_index is None:
         contract_lines = lines[4:]
         suggestion_lines: list[str] = []
@@ -1777,13 +1779,9 @@ def _failure_report(
             "configuration": configuration,
             "tools": tool_inputs,
         },
-        "findings_transcript_sha256": (
-            _transcript_set_sha256(findings_transcripts) if findings_transcripts else None
-        ),
+        "findings_transcript_sha256": (_transcript_set_sha256(findings_transcripts) if findings_transcripts else None),
         "audit_transcript_sha256": _transcript_set_sha256(audit_transcripts) if audit_transcripts else None,
-        "findings_transcript_hash": (
-            _transcript_set_sha256(findings_transcripts) if findings_transcripts else None
-        ),
+        "findings_transcript_hash": (_transcript_set_sha256(findings_transcripts) if findings_transcripts else None),
         "audit_transcript_hash": _transcript_set_sha256(audit_transcripts) if audit_transcripts else None,
         "timings_ms": dict(timings),
         "errors": [error.to_json()],
@@ -2082,10 +2080,8 @@ def _run_bounded_command(
         returncode = process.wait(timeout=timeout_seconds)
     except subprocess.TimeoutExpired as error:
         _terminate_process(process)
-        try:
+        with contextlib.suppress(subprocess.TimeoutExpired):
             process.wait(timeout=1)
-        except subprocess.TimeoutExpired:
-            pass
         for thread in threads:
             thread.join(timeout=1)
         raise FreerangeFailure(
@@ -2122,7 +2118,7 @@ def _terminate_process(process: subprocess.Popen[bytes]) -> None:
 
 
 def _function_identity_sha256(path: str, source_sha256: str, name: str) -> str:
-    material = f"viewspec.freerange-function-v1\0{path}\0{source_sha256}\0{name}".encode("utf-8")
+    material = f"viewspec.freerange-function-v1\0{path}\0{source_sha256}\0{name}".encode()
     return hashlib.sha256(material).hexdigest()
 
 

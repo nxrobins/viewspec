@@ -5,8 +5,8 @@ from viewspec.motif_plugins import (
     MOTIF_PLUGIN_ABI_VERSION,
     MotifBuildFn,
     MotifCompileContext,
-    MotifCompileResult,
     MotifCompiler,
+    MotifCompileResult,
     MotifPlugin,
     MotifPluginCheckIssue,
     MotifPluginCheckReport,
@@ -495,11 +495,7 @@ def _build_outline_motif(
     # Place only the bindings whose node was actually emitted in the tree; every other
     # declared member's bindings fall through to region leftovers so nothing is dropped
     # (including nodes stranded behind a partial cycle disconnected from the acyclic root).
-    placed = {
-        binding.id
-        for emitted_id in emitted_outline_nodes
-        for binding in bindings_by_node_id.get(emitted_id, [])
-    }
+    placed = {binding.id for emitted_id in emitted_outline_nodes for binding in bindings_by_node_id.get(emitted_id, [])}
     # Never-reached members had no per-node diagnostic (unlike cycle/shared/too-deep, which
     # are surfaced inside _build_outline_branch); flag them so the drop-to-leftover is loud.
     unreached = sorted(motif_node_ids - visited)

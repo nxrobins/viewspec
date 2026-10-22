@@ -2,8 +2,8 @@ from __future__ import annotations
 
 import hashlib
 import json
-from pathlib import Path
 import sys
+from pathlib import Path
 from typing import Any
 
 import pytest
@@ -23,7 +23,6 @@ from viewspec.app_freerange import (
     freerange_readiness,
 )
 from viewspec.app_numeric import generate_numeric_typescript, numeric_function_hashes, numeric_scope_for_app
-
 
 KERNEL_PATH = "src/viewspec_numeric.ts"
 CALL_SITE_PATH = "src/state_reducer.ts"
@@ -126,15 +125,12 @@ def _make_app(tmp_path: Path) -> tuple[Path, Path]:
     kernel = app_dir / KERNEL_PATH
     kernel.parent.mkdir()
     kernel.write_text(
-        "export function addFiniteNumbers(current: number, amount: number): number {\n"
-        "  return current + amount\n"
-        "}\n",
+        "export function addFiniteNumbers(current: number, amount: number): number {\n  return current + amount\n}\n",
         encoding="utf-8",
     )
     call_site = app_dir / CALL_SITE_PATH
     call_site.write_text(
-        "import {addFiniteNumbers} from './viewspec_numeric'\n"
-        "export const next = addFiniteNumbers(1, 2)\n",
+        "import {addFiniteNumbers} from './viewspec_numeric'\nexport const next = addFiniteNumbers(1, 2)\n",
         encoding="utf-8",
     )
     bun = app_dir / "bun"
@@ -201,9 +197,7 @@ def _audit(*, extra_contract_lines: tuple[str, ...] = ()) -> str:
     return (
         f"# {KERNEL_PATH} (1/1 functions fully analyzed)\n\n"
         "## Contracts\n\n"
-        f"{FUNCTION_NAME}\n"
-        + "\n".join(contract_lines)
-        + "\n"
+        f"{FUNCTION_NAME}\n" + "\n".join(contract_lines) + "\n"
     )
 
 
@@ -298,7 +292,11 @@ def test_valid_numeric_kernel_returns_complete_bounded_evidence(tmp_path, monkey
     assert report["required_functions"] == [FUNCTION_NAME]
     assert report["findings"] == []
     assert report["errors"] == []
-    assert [call[-2:] for call in calls] == [[str(bun), "--version"], [str(app_dir / "node_modules/@chenglou/freerange/fr.ts"), KERNEL_PATH], ["--audit", KERNEL_PATH]]
+    assert [call[-2:] for call in calls] == [
+        [str(bun), "--version"],
+        [str(app_dir / "node_modules/@chenglou/freerange/fr.ts"), KERNEL_PATH],
+        ["--audit", KERNEL_PATH],
+    ]
 
 
 def test_generated_manifest_scope_is_cross_checked_against_the_kernel_contract(tmp_path, monkeypatch):
@@ -306,8 +304,7 @@ def test_generated_manifest_scope_is_cross_checked_against_the_kernel_contract(t
     generated_scope = _generated_scope(app_dir)
     (app_dir / KERNEL_PATH).write_text(generate_numeric_typescript(generated_scope), encoding="utf-8")
     (app_dir / CALL_SITE_PATH).write_text(
-        f'import {{ {FUNCTION_NAME} }} from "./viewspec_numeric";\n'
-        f"export const next = {FUNCTION_NAME}(1, 2);\n",
+        f'import {{ {FUNCTION_NAME} }} from "./viewspec_numeric";\nexport const next = {FUNCTION_NAME}(1, 2);\n',
         encoding="utf-8",
     )
     generated_scope.update(
@@ -394,8 +391,7 @@ def test_generated_operation_inventory_cannot_silently_shrink(tmp_path, monkeypa
     generated_scope = _generated_scope(app_dir)
     (app_dir / KERNEL_PATH).write_text(generate_numeric_typescript(generated_scope), encoding="utf-8")
     (app_dir / CALL_SITE_PATH).write_text(
-        f'import {{ {FUNCTION_NAME} }} from "./viewspec_numeric";\n'
-        f"export const next = {FUNCTION_NAME}(1, 2);\n",
+        f'import {{ {FUNCTION_NAME} }} from "./viewspec_numeric";\nexport const next = {FUNCTION_NAME}(1, 2);\n',
         encoding="utf-8",
     )
     generated_scope.update(
@@ -561,9 +557,7 @@ def test_version_and_protocol_drift_fail_closed(tmp_path, monkeypatch):
     assert failure.report["runtime"]["version"] == "1.2.3"
     assert failure.report["scope"]["status"] == "applicable"
     assert failure.report["coverage"]["required"] == 1
-    assert failure.report["source_hashes"]["analyzed_sources"][0]["sha256"] == _sha(
-        app_dir / KERNEL_PATH
-    )
+    assert failure.report["source_hashes"]["analyzed_sources"][0]["sha256"] == _sha(app_dir / KERNEL_PATH)
 
     readiness = freerange_readiness(app_dir, bun_executable=bun)
     assert readiness["runtime"]["status"] == "ready"

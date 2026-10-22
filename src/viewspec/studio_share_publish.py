@@ -8,14 +8,14 @@ the production private-review canary passed for the active deployment.
 
 from __future__ import annotations
 
-from collections.abc import Callable, Mapping
-from dataclasses import dataclass
 import hashlib
 import json
-from pathlib import Path
 import re
 import threading
 import time
+from collections.abc import Callable, Mapping
+from dataclasses import dataclass
+from pathlib import Path
 from typing import Any
 from urllib.parse import parse_qs, urlsplit
 
@@ -23,7 +23,6 @@ from viewspec.hosted_receipts import ReceiptPublicKey, verify_signed_receipt
 from viewspec.review_contract import ReviewContractError, canonical_json_bytes
 from viewspec.studio_review_http import STUDIO_REVIEW_MEDIA_TYPE
 from viewspec.studio_share import StudioShareError, load_studio_share_package, prepare_studio_share
-
 
 STUDIO_SHARE_API_ORIGIN = "https://api.viewspec.dev"
 STUDIO_SHARE_REVIEW_ORIGIN = "https://review.viewspec.dev"
@@ -78,7 +77,9 @@ def _share_error(code: str, message: str, fix: str, *, http_status: int = 422) -
 
 def _canonical_origin(value: object, noun: str) -> str:
     if not isinstance(value, str):
-        raise _share_error("STUDIO_SHARE_RELEASE_INVALID", f"{noun} is missing.", "Retry after the production gate is healthy.")
+        raise _share_error(
+            "STUDIO_SHARE_RELEASE_INVALID", f"{noun} is missing.", "Retry after the production gate is healthy."
+        )
     parsed = urlsplit(value)
     if (
         parsed.scheme != "https"
@@ -163,8 +164,10 @@ class StudioShareRelease:
                 "Use the canonical private-review deployment that passed the canary.",
             )
         checks = payload.get("checks")
-        if not isinstance(checks, dict) or set(checks) != STUDIO_SHARE_RELEASE_CHECKS or not all(
-            value is True for value in checks.values()
+        if (
+            not isinstance(checks, dict)
+            or set(checks) != STUDIO_SHARE_RELEASE_CHECKS
+            or not all(value is True for value in checks.values())
         ):
             raise _share_error(
                 "STUDIO_SHARE_RELEASE_INVALID",
@@ -276,8 +279,12 @@ def fetch_studio_share_release(
                 "Retry after the canonical API publishes a valid receipt key.",
                 http_status=502,
             ) from exc
-    readiness = _json_get(request, f"{api}{STUDIO_SHARE_READINESS_PATH}", noun="Studio Share readiness",
-                          headers={"Authorization": f"Bearer {api_key}"})
+    readiness = _json_get(
+        request,
+        f"{api}{STUDIO_SHARE_READINESS_PATH}",
+        noun="Studio Share readiness",
+        headers={"Authorization": f"Bearer {api_key}"},
+    )
     if set(readiness) != {"schema_version", "release"} or readiness.get("schema_version") != 1:
         raise _share_error(
             "STUDIO_SHARE_RELEASE_INVALID",
@@ -458,7 +465,9 @@ def _require_api_key(api_key: object) -> None:
         )
 
 
-def _json_get(request: HTTPTransport, url: str, *, noun: str, headers: Mapping[str, str] | None = None) -> dict[str, object]:
+def _json_get(
+    request: HTTPTransport, url: str, *, noun: str, headers: Mapping[str, str] | None = None
+) -> dict[str, object]:
     status, _headers, body = request("GET", url, headers or {}, None, 15.0)
     payload = _json_response(status, body, noun=noun)
     if status != 200:
@@ -474,7 +483,11 @@ def _json_get(request: HTTPTransport, url: str, *, noun: str, headers: Mapping[s
 
 
 def _json_response(status: int, body: bytes, *, noun: str) -> dict[str, object]:
-    if type(status) is not int or not 100 <= status <= 599 or not 1 <= len(body) <= STUDIO_SHARE_HTTP_MAX_RESPONSE_BYTES:
+    if (
+        type(status) is not int
+        or not 100 <= status <= 599
+        or not 1 <= len(body) <= STUDIO_SHARE_HTTP_MAX_RESPONSE_BYTES
+    ):
         raise _share_error(
             "STUDIO_SHARE_REMOTE_INVALID",
             f"{noun} returned an invalid bounded response.",
@@ -548,7 +561,9 @@ def _validate_creation_response(
         or ingress.get("archive_sha256") != archive_sha256
         or ingress.get("archive_bytes") != archive_bytes
         or type(expires_at) is not int
-        or not now_epoch_s < expires_at <= now_epoch_s + requested_expiry_seconds + STUDIO_SHARE_RELEASE_CLOCK_SKEW_SECONDS
+        or not now_epoch_s
+        < expires_at
+        <= now_epoch_s + requested_expiry_seconds + STUDIO_SHARE_RELEASE_CLOCK_SKEW_SECONDS
     ):
         raise _share_error(
             "STUDIO_SHARE_REMOTE_INVALID",
@@ -658,11 +673,17 @@ def _http_transport(
         ) from None
     try:
         with httpx.Client(trust_env=False, follow_redirects=False) as client:
-            with client.stream(method, url, headers={**headers, "Accept-Encoding": "identity"}, content=body, timeout=timeout) as response:
+            with client.stream(
+                method, url, headers={**headers, "Accept-Encoding": "identity"}, content=body, timeout=timeout
+            ) as response:
                 content = bytearray()
                 if response.headers.get("content-encoding", "identity") != "identity":
-                    raise _share_error("STUDIO_SHARE_REMOTE_INVALID", "Encoded private-review responses are not accepted.",
-                                       "Retry after the production service is healthy.", http_status=502)
+                    raise _share_error(
+                        "STUDIO_SHARE_REMOTE_INVALID",
+                        "Encoded private-review responses are not accepted.",
+                        "Retry after the production service is healthy.",
+                        http_status=502,
+                    )
                 for chunk in response.iter_raw():
                     if len(content) + len(chunk) > STUDIO_SHARE_HTTP_MAX_RESPONSE_BYTES:
                         raise _share_error(

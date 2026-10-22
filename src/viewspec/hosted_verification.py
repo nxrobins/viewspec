@@ -3,20 +3,20 @@
 from __future__ import annotations
 
 import base64
-from dataclasses import dataclass
 import hashlib
-from pathlib import Path, PurePosixPath
 import shutil
 import tempfile
 import time
-from typing import Any, Mapping
+from collections.abc import Mapping
+from dataclasses import dataclass
+from pathlib import Path, PurePosixPath
+from typing import Any
 
 from viewspec._canonical import canonical_json_ascii_bytes
 from viewspec.convergence import ConvergenceRun, RepairAttempt, run_until_conformant
 from viewspec.hosted_receipts import ReceiptPublicKey, verify_signed_receipt
 from viewspec.repair import VerificationRepairPlan
 from viewspec.verification import EvidenceFile, RetryLineage, VerificationPlan, VerificationResult
-
 
 HOSTED_VERIFICATION_SCHEMA_VERSION = 1
 HOSTED_VERIFICATION_TARGET = "react-tailwind-app"
@@ -69,7 +69,11 @@ def verification_request_payload(
 
 
 def build_verification_job_id(input_sha256: str) -> str:
-    if not isinstance(input_sha256, str) or len(input_sha256) != 64 or any(ch not in "0123456789abcdef" for ch in input_sha256):
+    if (
+        not isinstance(input_sha256, str)
+        or len(input_sha256) != 64
+        or any(ch not in "0123456789abcdef" for ch in input_sha256)
+    ):
         raise HostedVerificationContractError("Verification input_sha256 must be a lowercase SHA-256 digest")
     material = {"input_sha256": input_sha256, "type": "viewspec_verification_job_v1"}
     return f"vvj_{hashlib.sha256(_canonical(material)).hexdigest()[:32]}"
@@ -91,7 +95,9 @@ class HostedEvidenceArtifact:
         if len(content) > MAX_HOSTED_EVIDENCE_FILE_BYTES:
             raise HostedVerificationContractError(f"Hosted evidence {metadata.path} exceeds the file size limit")
         if not metadata.verify(content):
-            raise HostedVerificationContractError(f"Hosted evidence {metadata.path} integrity metadata does not match content")
+            raise HostedVerificationContractError(
+                f"Hosted evidence {metadata.path} integrity metadata does not match content"
+            )
         return cls(metadata=metadata, content=content)
 
     def to_json(self) -> dict[str, Any]:
@@ -189,13 +195,22 @@ class HostedVerificationJob:
             raise HostedVerificationContractError("Hosted verification artifacts must be a bounded array")
 
         if state in {"queued", "running"}:
-            if any((data.get("result") is not None, raw_artifacts, data.get("receipt") is not None, data.get("error") is not None)):
+            if any(
+                (
+                    data.get("result") is not None,
+                    raw_artifacts,
+                    data.get("receipt") is not None,
+                    data.get("error") is not None,
+                )
+            ):
                 raise HostedVerificationContractError("Pending hosted verification cannot include terminal fields")
             return cls(job_id, state, input_sha, None, (), usage, None, None)
 
         if state == "failed":
             if data.get("result") is not None or raw_artifacts or data.get("receipt") is not None:
-                raise HostedVerificationContractError("Failed hosted verification cannot include a result, artifacts, or receipt")
+                raise HostedVerificationContractError(
+                    "Failed hosted verification cannot include a result, artifacts, or receipt"
+                )
             if data.get("error") is None:
                 raise HostedVerificationContractError("Failed hosted verification requires an error")
             return cls(
@@ -379,9 +394,7 @@ def compile_until_conformant_remote(
             message = job.error.message if job.error else "Hosted verification failed"
             raise HostedVerificationContractError(f"{code}: {message}")
         if job.state != "succeeded" or job.result is None:
-            raise HostedVerificationContractError(
-                "Hosted verification reached an invalid terminal state"
-            )
+            raise HostedVerificationContractError("Hosted verification reached an invalid terminal state")
         return job.result
 
     return run_until_conformant(
@@ -406,7 +419,9 @@ def _request_job(
     try:
         import httpx
     except ImportError:
-        raise ImportError("httpx is required for hosted verification. Install it: pip install viewspec[remote]") from None
+        raise ImportError(
+            "httpx is required for hosted verification. Install it: pip install viewspec[remote]"
+        ) from None
     headers = {"Authorization": f"Bearer {api_key}"} if api_key else {}
     try:
         if method == "post":

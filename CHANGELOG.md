@@ -69,6 +69,13 @@ in parentheses refer to that document.
 - `check_artifact_dir()` and the MCP check tools return structured `issues` entries
   (`{code, path, message, fix}`) in addition to the string `errors`; prefixed messages surface
   under their own registered code instead of `CHECK_FAILED`.
+- `proof_report.json`, `app_proof_report.json`, `PROOF.md` and `APP_PROOF.md` record paths
+  relative to the proof directory with `/` separators; the in-memory reports returned by
+  `prove()` and `prove_app()` keep absolute paths. `proof_identity.proof_report_hash` and the
+  hash printed in the summaries cover the on-disk report with `timings_ms` removed, so two proofs
+  of one input in different directories share one hash; `prove.proof_report_hash()` and
+  `app_reports.app_proof_report_hash()` compute it. `support_bundle.json` is at `schema_version`
+  2 and no longer carries `timings_ms` (C-7).
 - Coded compiler and validator failures raise `CompilerInternalError` and `LocalToolContractError`
   (subclasses of `RuntimeError` and `ValueError`) with `.code` and `.message` attributes; the text
   of `str(exc)` is unchanged (Q-8). Canonical JSON helpers are thin aliases of
@@ -80,7 +87,13 @@ in parentheses refer to that document.
   re-exported from `viewspec.compiler` (Q-2). `viewspec.sdk` exports `ListBuilder`,
   `FormBuilder` and `DetailBuilder` (Q-12). The HTML emitter no longer imports the compiler, and
   the app pipeline imports public helper names (Q-5). Dead code and unreferenced constants were
-  removed from `compiler.py`, `types.py` and the Tailwind recipes (C-8).
+  removed from `compiler.py`, `types.py` and the Tailwind recipes (C-8). The three emitters and
+  the raw-HTML importer write their files through one atomic writer that records the
+  `.viewspec_write_failed.json` sentinel (Q-3).
+- Every Python file is formatted with `ruff format`, which CI now checks, and the lint rule set
+  adds import order, syntax upgrades, bugbear and simplification rules (Q-7). `SECURITY.md`
+  describes what `viewspec check` does and does not establish, the `--force` rule, the MCP
+  working-directory resolution and the input size caps (S-10, S-12).
 - Internal planning notes moved to `docs/internal/`; `docs/README.md` indexes the documentation;
   README states the evaluated version of its evidence, the supported platforms and the
   compatibility horizon (D-2 to D-7, H-1). `CONTRIBUTING.md` and `CODE_OF_CONDUCT.md` were added

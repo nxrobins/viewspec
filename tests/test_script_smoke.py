@@ -9,11 +9,11 @@ from __future__ import annotations
 
 import json
 import os
-from pathlib import Path
 import shutil
 import subprocess
 import sys
 import tomllib
+from pathlib import Path
 
 import pytest
 
@@ -21,7 +21,6 @@ from scripts import check_studio_release, run_refinement_corrections, run_verifi
 from viewspec import __version__
 from viewspec.conformance import ConformanceCorpus, load_conformance_corpus
 from viewspec.intent_patch import INTENT_PATCH_CONTRACT_PROFILE, source_sha256
-
 
 ROOT = Path(__file__).resolve().parents[1]
 CORPUS_MANIFEST = ROOT / "conformance" / "verification" / "corpus.json"
@@ -35,9 +34,7 @@ SCRIPT_OPTIONS = {
 
 def _run_script(name: str, *args: str) -> subprocess.CompletedProcess[str]:
     env = dict(os.environ)
-    env["PYTHONPATH"] = os.pathsep.join(
-        entry for entry in (str(ROOT / "src"), env.get("PYTHONPATH")) if entry
-    )
+    env["PYTHONPATH"] = os.pathsep.join(entry for entry in (str(ROOT / "src"), env.get("PYTHONPATH")) if entry)
     return subprocess.run(
         [sys.executable, str(ROOT / "scripts" / name), *args],
         cwd=ROOT,
@@ -244,9 +241,12 @@ def test_refinement_corrections_main_writes_its_report_and_exits_on_the_verdict(
         "argv",
         [
             "run_refinement_corrections.py",
-            "--corpus", str(CORPUS_MANIFEST),
-            "--corrections", str(CORRECTIONS),
-            "--output", str(output),
+            "--corpus",
+            str(CORPUS_MANIFEST),
+            "--corrections",
+            str(CORRECTIONS),
+            "--output",
+            str(output),
         ],
     )
 
@@ -278,9 +278,12 @@ def test_verification_corpus_main_loads_the_manifest_and_delegates_to_the_runner
         "argv",
         [
             "run_verification_corpus.py",
-            "--manifest", str(CORPUS_MANIFEST),
-            "--output", str(output),
-            "--evidence-out", str(evidence),
+            "--manifest",
+            str(CORPUS_MANIFEST),
+            "--output",
+            str(output),
+            "--evidence-out",
+            str(evidence),
             "--install",
         ],
     )

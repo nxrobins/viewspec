@@ -2,11 +2,11 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 import hashlib
 import json
+from collections.abc import Iterable
+from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
-from typing import Iterable
 
 from viewspec.host_verify import verify_host_artifact_dir
 from viewspec.local_tools import atomic_write, check_artifact_dir
@@ -17,7 +17,6 @@ from viewspec.verification import (
     VerificationPlan,
     VerificationResult,
 )
-
 
 MAX_ARTIFACT_IDENTITY_FILES = 128
 MAX_ARTIFACT_IDENTITY_BYTES = 20_000_000
@@ -186,9 +185,7 @@ def _execute_browser_plan(
     raw_browser_diagnostics = report.get("verification_diagnostics", [])
     if isinstance(raw_browser_diagnostics, list):
         diagnostics.extend(
-            VerificationDiagnostic.from_json(item)
-            for item in raw_browser_diagnostics
-            if isinstance(item, dict)
+            VerificationDiagnostic.from_json(item) for item in raw_browser_diagnostics if isinstance(item, dict)
         )
     complete = bool(report.get("ok"))
     for error in errors:

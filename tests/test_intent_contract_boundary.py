@@ -4,8 +4,9 @@ from __future__ import annotations
 
 import json
 
-from hypothesis import given, strategies as st
 import pytest
+from hypothesis import given
+from hypothesis import strategies as st
 
 from viewspec import IntentBundle, starter_intent_payload
 from viewspec.intent_contract import (
@@ -14,7 +15,6 @@ from viewspec.intent_contract import (
     normalize_intent_bundle_payload,
     validate_intent_bundle_schema_version,
 )
-
 
 JSON_SCALARS = st.one_of(
     st.none(),

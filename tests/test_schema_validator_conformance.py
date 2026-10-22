@@ -31,8 +31,9 @@ from __future__ import annotations
 import copy
 import json
 import sys
+from collections.abc import Callable
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any
 
 import pytest
 
@@ -275,7 +276,12 @@ def _app_corpus() -> list[tuple[str, dict[str, Any]]]:
 
     def v4_over_cap(b):
         b["visibility"] = [
-            {"id": f"r{i}", "screen_id": "queue", "target_ref": "motif:incidents", "when": {"state": "selected_incident", "is": "truthy"}}
+            {
+                "id": f"r{i}",
+                "screen_id": "queue",
+                "target_ref": "motif:incidents",
+                "when": {"state": "selected_incident", "is": "truthy"},
+            }
             for i in range(65)
         ]
 

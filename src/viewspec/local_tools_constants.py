@@ -1,7 +1,8 @@
 from __future__ import annotations
 
-from viewspec.raw_html import RAW_HTML_POLICY_VERSION
 import re
+
+from viewspec.raw_html import RAW_HTML_POLICY_VERSION
 
 MCP_RESULT_SCHEMA_VERSION = 1
 

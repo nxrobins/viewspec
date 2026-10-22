@@ -4,12 +4,12 @@ from __future__ import annotations
 
 import base64
 import binascii
-from dataclasses import dataclass
 import hashlib
-from typing import Any, Mapping
+from collections.abc import Mapping
+from dataclasses import dataclass
+from typing import Any
 
 from viewspec._canonical import canonical_json_ascii_bytes
-
 
 RECEIPT_ALGORITHM = "ed25519"
 

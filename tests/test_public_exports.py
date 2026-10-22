@@ -6,11 +6,9 @@ import hashlib
 import json
 
 import viewspec
-from viewspec import DetailBuilder, FormBuilder, ListBuilder, ViewSpecBuilder, sdk
+from viewspec import DetailBuilder, FormBuilder, ListBuilder, ViewSpecBuilder, compiler_refs, hosted_compile, sdk
 from viewspec import compiler as compiler_module
-from viewspec import compiler_refs, hosted_compile
-from viewspec.emitters import html_tailwind
-from viewspec.emitters import react_tailwind_tsx
+from viewspec.emitters import html_tailwind, react_tailwind_tsx
 from viewspec.emitters.react_tailwind_tsx import recipes as tailwind_recipes
 
 

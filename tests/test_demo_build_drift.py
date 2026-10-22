@@ -2,12 +2,11 @@ import difflib
 import importlib.util
 import json
 import sys
+from collections.abc import Callable
 from pathlib import Path
 from types import ModuleType
-from typing import Callable
 
 import pytest
-
 
 ROOT = Path(__file__).resolve().parents[1]
 DEMOS = ROOT / "demos"

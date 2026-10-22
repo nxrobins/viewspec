@@ -25,7 +25,9 @@ def test_stable_code_error_shape():
     assert isinstance(exc, (StableCodeError, RuntimeError))
     assert not isinstance(exc, ValueError)
 
-    exc = LocalToolContractError("TAILWIND_IMPORT_NOT_SUPPORTED", "Raw HTML import only supports --target html-tailwind")
+    exc = LocalToolContractError(
+        "TAILWIND_IMPORT_NOT_SUPPORTED", "Raw HTML import only supports --target html-tailwind"
+    )
     assert str(exc) == "TAILWIND_IMPORT_NOT_SUPPORTED: Raw HTML import only supports --target html-tailwind"
     assert exc.code == "TAILWIND_IMPORT_NOT_SUPPORTED"
     assert isinstance(exc, (StableCodeError, ValueError))
@@ -87,7 +89,7 @@ def test_unsupported_tsx_shape_exposes_code():
     assert info.value.code == "TAILWIND_TSX_SHAPE_UNSUPPORTED"
     assert info.value.message == "ViewSpecView.tsx render shape is unsupported"
 
-    tsx = "return (\n  <div id={\"a\"} data-ir-id={bad}>x</div>\n);\n"
+    tsx = 'return (\n  <div id={"a"} data-ir-id={bad}>x</div>\n);\n'
     with pytest.raises(LocalToolContractError) as info:
         local_tools_validators._semantic_tsx_source_nodes(tsx, primitive_by_dom_id={})
     assert info.value.code == "TAILWIND_TSX_SHAPE_UNSUPPORTED"

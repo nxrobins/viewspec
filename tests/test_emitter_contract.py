@@ -4,7 +4,8 @@ import json
 import re
 
 import pytest
-from hypothesis import given, strategies as st
+from hypothesis import given
+from hypothesis import strategies as st
 
 from viewspec import (
     ASTBundle,
@@ -16,8 +17,8 @@ from viewspec import (
     ViewSpecBuilder,
     compile,
 )
-from viewspec.emitters.html_tailwind import HtmlTailwindEmitter, OFFLINE_EMITTER_CSS, _validate_style_values
 from viewspec.emitters.base import EmitterNodeContext, EmitterNodePlugin, EmitterNodeRegistry, RenderedNode
+from viewspec.emitters.html_tailwind import OFFLINE_EMITTER_CSS, HtmlTailwindEmitter, _validate_style_values
 from viewspec.emitters.react_tailwind_tsx import (
     RECIPE_BY_KEY,
     TAILWIND_AESTHETIC_RECIPE_OVERLAYS,
@@ -571,7 +572,10 @@ def test_react_tailwind_tsx_emitter_writes_static_recipe_component(tmp_path):
 
     assert paths["tsx"].endswith("ViewSpecView.tsx")
     assert 'source: "viewspec-react-tailwind-tsx"' in tsx
-    assert 'className="mx-auto min-h-screen w-full max-w-6xl bg-slate-50 px-6 py-6 text-slate-950 sm:px-8 vs-root vs-role-app-shell"' in tsx
+    assert (
+        'className="mx-auto min-h-screen w-full max-w-6xl bg-slate-50 px-6 py-6 text-slate-950 sm:px-8 vs-root vs-role-app-shell"'
+        in tsx
+    )
     assert "className={" not in tsx
     assert "style={{" not in tsx
     assert ".join(" not in tsx
@@ -657,7 +661,9 @@ def test_react_tailwind_profile_artifact_passes_public_check_path(tmp_path):
 def test_react_tailwind_profile_layout_metadata_passes_public_check_path(tmp_path):
     source = tmp_path / "viewspec.intent.json"
     output = tmp_path / "react-tailwind-output"
-    source.write_text(json.dumps(_aesthetic_workspace_bundle("aesthetic.data_dense").to_json(), indent=2), encoding="utf-8")
+    source.write_text(
+        json.dumps(_aesthetic_workspace_bundle("aesthetic.data_dense").to_json(), indent=2), encoding="utf-8"
+    )
 
     result = compile_intent_bundle_file_tool(
         source,
@@ -693,7 +699,9 @@ def test_react_tailwind_profile_layout_metadata_passes_public_check_path(tmp_pat
 def test_react_tailwind_profile_span_metadata_passes_public_check_path(tmp_path):
     source = tmp_path / "viewspec.intent.json"
     output = tmp_path / "react-tailwind-output"
-    source.write_text(json.dumps(_aesthetic_workspace_bundle("aesthetic.premium_saas").to_json(), indent=2), encoding="utf-8")
+    source.write_text(
+        json.dumps(_aesthetic_workspace_bundle("aesthetic.premium_saas").to_json(), indent=2), encoding="utf-8"
+    )
 
     result = compile_intent_bundle_file_tool(
         source,
@@ -754,7 +762,9 @@ def test_check_rejects_tampered_aesthetic_profile_metadata(tmp_path):
 def test_check_rejects_tampered_aesthetic_layout_metadata(tmp_path):
     source = tmp_path / "viewspec.intent.json"
     output = tmp_path / "react-tailwind-output"
-    source.write_text(json.dumps(_aesthetic_workspace_bundle("aesthetic.editorial_product").to_json(), indent=2), encoding="utf-8")
+    source.write_text(
+        json.dumps(_aesthetic_workspace_bundle("aesthetic.editorial_product").to_json(), indent=2), encoding="utf-8"
+    )
 
     result = compile_intent_bundle_file_tool(
         source,
@@ -781,7 +791,9 @@ def test_check_rejects_tampered_aesthetic_layout_metadata(tmp_path):
 def test_check_rejects_tampered_aesthetic_span_metadata(tmp_path):
     source = tmp_path / "viewspec.intent.json"
     output = tmp_path / "react-tailwind-output"
-    source.write_text(json.dumps(_aesthetic_workspace_bundle("aesthetic.premium_saas").to_json(), indent=2), encoding="utf-8")
+    source.write_text(
+        json.dumps(_aesthetic_workspace_bundle("aesthetic.premium_saas").to_json(), indent=2), encoding="utf-8"
+    )
 
     result = compile_intent_bundle_file_tool(
         source,
@@ -808,7 +820,9 @@ def test_check_rejects_tampered_aesthetic_span_metadata(tmp_path):
 def test_check_rejects_tampered_aesthetic_emphasis_metadata(tmp_path):
     source = tmp_path / "viewspec.intent.json"
     output = tmp_path / "react-tailwind-output"
-    source.write_text(json.dumps(_aesthetic_workspace_bundle("aesthetic.premium_saas").to_json(), indent=2), encoding="utf-8")
+    source.write_text(
+        json.dumps(_aesthetic_workspace_bundle("aesthetic.premium_saas").to_json(), indent=2), encoding="utf-8"
+    )
 
     result = compile_intent_bundle_file_tool(
         source,
@@ -835,7 +849,9 @@ def test_check_rejects_tampered_aesthetic_emphasis_metadata(tmp_path):
 def test_check_rejects_boolean_aesthetic_layout_columns(tmp_path):
     source = tmp_path / "viewspec.intent.json"
     output = tmp_path / "react-tailwind-output"
-    source.write_text(json.dumps(_aesthetic_workspace_bundle("aesthetic.editorial_product").to_json(), indent=2), encoding="utf-8")
+    source.write_text(
+        json.dumps(_aesthetic_workspace_bundle("aesthetic.editorial_product").to_json(), indent=2), encoding="utf-8"
+    )
 
     result = compile_intent_bundle_file_tool(
         source,
@@ -867,7 +883,9 @@ def test_check_rejects_boolean_aesthetic_layout_columns(tmp_path):
         ({"aesthetic.calm_ops": {"app_role:app_shell": "[color:red]"}}, "TAILWIND_AESTHETIC_UNSAFE_CLASS"),
     ],
 )
-def test_react_tailwind_rejects_missing_oversized_or_unsafe_aesthetic_recipes(tmp_path, monkeypatch, profile_overlay, expected_code):
+def test_react_tailwind_rejects_missing_oversized_or_unsafe_aesthetic_recipes(
+    tmp_path, monkeypatch, profile_overlay, expected_code
+):
     import viewspec.emitters.react_tailwind_tsx as react_tailwind
 
     overlays = {profile: dict(overlay) for profile, overlay in TAILWIND_AESTHETIC_RECIPE_OVERLAYS.items()}
@@ -1038,7 +1056,16 @@ def test_action_payload_collection_is_scoped_to_artifact_root():
     [
         ({"text": "Bad", "action_kind": "select", "payload_bindings": []}, "action_id"),
         ({"text": "Bad", "action_id": "bad", "payload_bindings": []}, "action_kind"),
-        ({"text": "Bad", "action_id": "bad", "action_kind": "select", "target_ref": "../escape", "payload_bindings": []}, "target_ref"),
+        (
+            {
+                "text": "Bad",
+                "action_id": "bad",
+                "action_kind": "select",
+                "target_ref": "../escape",
+                "payload_bindings": [],
+            },
+            "target_ref",
+        ),
         ({"text": "Bad", "action_id": "bad", "action_kind": "select", "payload_bindings": "title"}, "payload_bindings"),
     ],
 )

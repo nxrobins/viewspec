@@ -3,8 +3,8 @@ from __future__ import annotations
 import base64
 import copy
 import json
-from pathlib import Path
 import zlib
+from pathlib import Path
 
 import pytest
 
@@ -26,7 +26,6 @@ from scripts.run_studio_product_study import (
     summarize_study,
     validate_session_record,
 )
-
 
 PIXEL_PNG = base64.b64decode(
     "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII="
@@ -183,9 +182,7 @@ def test_study_plan_rejects_hash_or_schedule_tampering(tmp_path: Path) -> None:
     plan_path = root / "study-plan.json"
     plan = json.loads(plan_path.read_text(encoding="utf-8"))
     original = plan["participant_slots"][0]["arm"]
-    plan["participant_slots"][0]["arm"] = (
-        "code-first" if original == "viewspec-studio" else "viewspec-studio"
-    )
+    plan["participant_slots"][0]["arm"] = "code-first" if original == "viewspec-studio" else "viewspec-studio"
     _write_json(plan_path, plan)
 
     with pytest.raises(StudyError, match="no longer matches"):
@@ -306,9 +303,7 @@ def test_reviewer_reserve_uses_the_excluded_reviewers_exact_pair(tmp_path: Path)
     _write_preferences(root, studio_wins=14)
     plan = study["plan"]
     primary_slot = next(slot for slot in plan["reviewer_slots"] if slot["cohort"] == "primary")
-    reserve_slot = next(
-        slot for slot in plan["reviewer_slots"] if slot["reserve_for"] == primary_slot["reviewer_slot"]
-    )
+    reserve_slot = next(slot for slot in plan["reviewer_slots"] if slot["reserve_for"] == primary_slot["reviewer_slot"])
     primary_path = root / "preferences" / f"{primary_slot['reviewer_slot']}.json"
     excluded = json.loads(primary_path.read_text(encoding="utf-8"))
     excluded["status"] = "excluded"

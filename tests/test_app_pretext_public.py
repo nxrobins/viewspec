@@ -18,7 +18,6 @@ from viewspec.app_pretext import (
 from viewspec.app_tools import prove_app_tool
 from viewspec.local_tools import file_hash
 
-
 REACT_APP_TARGET = "react-tailwind-app"
 
 
@@ -335,11 +334,7 @@ def test_requested_pretext_writes_exact_pin_runtime_manifest_and_composed_report
     assert "installViewSpecPretextProbe" in runtime
     assert 'from "./viewspec_pretext"' in main
     assert 'document.documentElement.dataset.viewspecPretext = "1"' in main
-    assert (
-        'html[data-viewspec-pretext="1"] body .vs-app-shell .vs-app-main '
-        '[data-ir-id][data-ir-id]'
-        in styles
-    )
+    assert 'html[data-viewspec-pretext="1"] body .vs-app-shell .vs-app-main [data-ir-id][data-ir-id]' in styles
     assert "font-family: Arial, sans-serif !important;" in styles
     assert "white-space: normal !important;" in styles
     assert "overflow-wrap: anywhere !important;" in styles

@@ -7,12 +7,13 @@ import argparse
 import hashlib
 import json
 import os
-from pathlib import Path
 import secrets
 import subprocess
 import sys
 import time
-from typing import Any, Callable, Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
+from pathlib import Path
+from typing import Any
 
 if __package__:
     from scripts import check_studio_production_canary as checker
@@ -308,7 +309,9 @@ def _validate_checkpoint(root: Path, plan: Mapping[str, Any], checkpoint: Mappin
             raise CanaryRunError("Canary checkpoint failure names the wrong next stage")
 
 
-def _default_execute(command: Sequence[str], *, cwd: Path, environment: Mapping[str, str]) -> subprocess.CompletedProcess[bytes]:
+def _default_execute(
+    command: Sequence[str], *, cwd: Path, environment: Mapping[str, str]
+) -> subprocess.CompletedProcess[bytes]:
     return subprocess.run(
         list(command),
         cwd=cwd,

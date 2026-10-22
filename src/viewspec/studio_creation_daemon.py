@@ -7,11 +7,11 @@ import hashlib
 import json
 import logging
 import os
-from pathlib import Path
 import signal
 import socket
 import threading
 import time
+from pathlib import Path
 
 from viewspec.local_tools import atomic_write
 from viewspec.review_cli import DEFAULT_REVIEW_PORT, configure_daemon_logging, open_review
@@ -25,7 +25,6 @@ from viewspec.studio_creation_room import (
     StudioCreationRoomServer,
     creation_room_configuration_sha256,
 )
-
 
 _LOGGER = logging.getLogger(__name__)
 

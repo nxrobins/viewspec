@@ -1,9 +1,9 @@
 from __future__ import annotations
 
 import json
-from pathlib import Path
 import re
 import socket
+from pathlib import Path
 
 import pytest
 
@@ -11,9 +11,9 @@ from viewspec import cli
 from viewspec.app_starters import starter_app_bundle
 from viewspec.intent_tools import starter_intent_payload
 from viewspec.review_cli import end_review
+from viewspec.review_compile import STUDIO_COMPARE_TARGET
 from viewspec.review_contract import ReviewContractError
 from viewspec.review_runtime import ReviewRuntime
-from viewspec.review_compile import STUDIO_COMPARE_TARGET
 from viewspec.review_server import ReviewServer
 from viewspec.studio import open_studio, resolve_studio_source
 
@@ -288,9 +288,16 @@ def test_studio_private_share_is_explicit_comparison_only_and_reports_network_sc
 
 
 def test_studio_cli_is_the_single_human_facing_entry_point(monkeypatch, capsys):
-    monkeypatch.setattr(cli, "open_studio", lambda *args, **kwargs: {**_ready_review(), "studio": {
-        "ready_ms": 412,
-    }})
+    monkeypatch.setattr(
+        cli,
+        "open_studio",
+        lambda *args, **kwargs: {
+            **_ready_review(),
+            "studio": {
+                "ready_ms": 412,
+            },
+        },
+    )
 
     assert cli.main(["studio", "viewspec.intent.json", "--no-open"]) == 0
     output = capsys.readouterr().out
@@ -312,7 +319,10 @@ def test_studio_chrome_prioritizes_product_loop_and_quiet_confidence(tmp_path):
     assert "<title>ViewSpec Studio</title>" in chrome
     assert "Point. Ask. Approve." in chrome
     assert "Preview mode · interactions are live" in chrome
-    assert "id=agent-presence class=agent-presence data-status='not_connected' aria-live=polite>Agent not connected" in chrome
+    assert (
+        "id=agent-presence class=agent-presence data-status='not_connected' aria-live=polite>Agent not connected"
+        in chrome
+    )
     assert "<span class=revision>Requests: <strong id=queued>0</strong>" in chrome
     assert "Request recorded in Conversation" in chrome
     assert "Requests and agent replies stay visible here." in chrome

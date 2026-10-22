@@ -50,7 +50,10 @@ def _write_state_artifacts(
                 raise AppBundleProofFailure(
                     "APP_STATE_REDUCER_NODE_UNAVAILABLE",
                     str(message),
-                    str(first.get("fix") or "Install Node.js (>=18) on PATH for V3/V4 reducer conformance, or use a V1/V2 AppBundle."),
+                    str(
+                        first.get("fix")
+                        or "Install Node.js (>=18) on PATH for V3/V4 reducer conformance, or use a V1/V2 AppBundle."
+                    ),
                 )
             raise AppBundleProofFailure(
                 "APP_STATE_REDUCER_CONFORMANCE_FAILED",
@@ -92,7 +95,9 @@ def _write_state_artifacts(
             raise AppBundleProofFailure(
                 error_code,
                 detail,
-                str(first.get("suggestion") or "Fix the named replay assertion, mutation, or expected value and retry."),
+                str(
+                    first.get("suggestion") or "Fix the named replay assertion, mutation, or expected value and retry."
+                ),
             )
         _write_bounded_json(
             manifest_path,
@@ -121,11 +126,17 @@ def _write_state_artifacts(
             "state_count": len(payload.get("state", [])) if isinstance(payload.get("state"), list) else 0,
             "mutation_count": len(payload.get("mutations", [])) if isinstance(payload.get("mutations"), list) else 0,
             "selector_count": len(payload.get("selectors", [])) if isinstance(payload.get("selectors"), list) else 0,
-            "replay_ok": bool(manifest.get("replay", {}).get("ok")) if isinstance(manifest.get("replay"), dict) else True,
+            "replay_ok": bool(manifest.get("replay", {}).get("ok"))
+            if isinstance(manifest.get("replay"), dict)
+            else True,
             "contract_hash": manifest.get("contract_hash"),
             "reducer_conformance": _state_conformance_status(conformance),
             # v4-only keys: the v3 summary shape stays byte-stable.
-            **(_visibility_summary(payload, manifest) if payload.get("schema_version") == APP_BUNDLE_VISIBILITY_SCHEMA_VERSION else {}),
+            **(
+                _visibility_summary(payload, manifest)
+                if payload.get("schema_version") == APP_BUNDLE_VISIBILITY_SCHEMA_VERSION
+                else {}
+            ),
             **(_state_text_summary(payload, manifest) if "state_text" in payload else {}),
         },
         "replay": manifest.get("replay") if isinstance(manifest.get("replay"), dict) else None,
@@ -139,9 +150,7 @@ def _visibility_summary(payload: dict[str, Any], manifest: dict[str, Any]) -> di
     replay assertion declares expect_visibility; otherwise null — reported, never claimed."""
     rules = payload.get("visibility", []) if isinstance(payload.get("visibility"), list) else []
     assertions = (
-        payload.get("state_replay_assertions", [])
-        if isinstance(payload.get("state_replay_assertions"), list)
-        else []
+        payload.get("state_replay_assertions", []) if isinstance(payload.get("state_replay_assertions"), list) else []
     )
     asserted = any(
         isinstance(item, dict) and isinstance(item.get("expect_visibility"), dict) and item["expect_visibility"]
@@ -165,9 +174,7 @@ def _visibility_summary(payload: dict[str, Any], manifest: dict[str, Any]) -> di
 def _state_text_summary(payload: dict[str, Any], manifest: dict[str, Any]) -> dict[str, Any]:
     rules = payload.get("state_text", []) if isinstance(payload.get("state_text"), list) else []
     assertions = (
-        payload.get("state_replay_assertions", [])
-        if isinstance(payload.get("state_replay_assertions"), list)
-        else []
+        payload.get("state_replay_assertions", []) if isinstance(payload.get("state_replay_assertions"), list) else []
     )
     asserted = any(
         isinstance(item, dict) and isinstance(item.get("expect_text"), dict) and item["expect_text"]

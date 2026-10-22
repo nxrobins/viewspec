@@ -49,7 +49,10 @@ ASCII_ALIASES = {
     "verification._canonical_json": (verification._canonical_json, canonical_json_ascii_bytes),
     "repair._canonical": (repair._canonical, canonical_json_ascii_bytes),
     "presentation_plan._stable_json": (presentation_plan._stable_json, canonical_json_ascii),
-    "local_tools_validators._stable_semantic_json": (local_tools_validators._stable_semantic_json, canonical_json_ascii),
+    "local_tools_validators._stable_semantic_json": (
+        local_tools_validators._stable_semantic_json,
+        canonical_json_ascii,
+    ),
     "hosted_verification._canonical": (hosted_verification._canonical, canonical_json_ascii_bytes),
     "hosted_artifacts._canonical": (hosted_artifacts._canonical, canonical_json_ascii_bytes),
     "hosted_receipts._canonical": (hosted_receipts._canonical, canonical_json_ascii_bytes),
@@ -117,7 +120,9 @@ def test_sha256_helpers_hash_their_module_form():
 
 
 @pytest.mark.parametrize("value", NON_FINITE)
-@pytest.mark.parametrize("shared", [canonical_json_ascii, canonical_json_utf8, canonical_json_ascii_bytes, canonical_json_utf8_bytes])
+@pytest.mark.parametrize(
+    "shared", [canonical_json_ascii, canonical_json_utf8, canonical_json_ascii_bytes, canonical_json_utf8_bytes]
+)
 def test_shared_forms_reject_non_finite_floats(shared, value):
     with pytest.raises(ValueError):
         shared({"x": value})
@@ -127,7 +132,9 @@ def test_shared_forms_reject_non_finite_floats(shared, value):
 @pytest.mark.parametrize("name", sorted(ASCII_ALIASES) + sorted(UTF8_ALIASES) + ["app_pretext._canonical_sha256"])
 def test_plain_helpers_reject_non_finite_floats(name, value):
     # The hosted helpers used to emit the non-JSON token NaN here; now every helper fails closed.
-    helper = {**ASCII_ALIASES, **UTF8_ALIASES, "app_pretext._canonical_sha256": (app_pretext._canonical_sha256, None)}[name][0]
+    helper = {**ASCII_ALIASES, **UTF8_ALIASES, "app_pretext._canonical_sha256": (app_pretext._canonical_sha256, None)}[
+        name
+    ][0]
     with pytest.raises(ValueError):
         helper({"x": value})
 

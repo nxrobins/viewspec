@@ -4,6 +4,7 @@ import sqlite3
 
 import pytest
 
+from viewspec.studio_review_http import STUDIO_REVIEW_MEDIA_TYPE
 from viewspec.studio_review_internal import (
     STUDIO_REVIEW_INTERNAL_INGRESS_PATH,
     STUDIO_REVIEW_INTERNAL_SIGNATURE_HEADER,
@@ -11,8 +12,6 @@ from viewspec.studio_review_internal import (
     StudioReviewInternalAuthError,
     StudioReviewInternalNonceStore,
 )
-from viewspec.studio_review_http import STUDIO_REVIEW_MEDIA_TYPE
-
 
 _SECRET = b"api-to-review-test-secret-material-0001"
 _NOW = 1_800_000_000
@@ -124,7 +123,11 @@ def test_internal_request_rejects_wrong_secret_path_method_and_stale_time(tmp_pa
     )
 
     checks = (
-        (_auth(tmp_path, "wrong-secret", secret=b"wrong-review-secret-material-000000"), "POST", STUDIO_REVIEW_INTERNAL_INGRESS_PATH),
+        (
+            _auth(tmp_path, "wrong-secret", secret=b"wrong-review-secret-material-000000"),
+            "POST",
+            STUDIO_REVIEW_INTERNAL_INGRESS_PATH,
+        ),
         (_auth(tmp_path, "wrong-path"), "POST", "/internal/v1/other"),
         (_auth(tmp_path, "wrong-method"), "PUT", STUDIO_REVIEW_INTERNAL_INGRESS_PATH),
         (_auth(tmp_path, "stale", now=_NOW + 61), "POST", STUDIO_REVIEW_INTERNAL_INGRESS_PATH),

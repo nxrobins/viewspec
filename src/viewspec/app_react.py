@@ -5,9 +5,10 @@ from __future__ import annotations
 import html
 import json
 import re
+from collections.abc import Callable
 from importlib import resources
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any
 
 from viewspec._version import __version__
 from viewspec.app_diff import _validation_summary
@@ -49,7 +50,6 @@ from viewspec.presentation_plan import (
     presentation_plan_hash,
     presentation_plan_text,
 )
-
 
 REACT_APP_TARGET = "react-tailwind-app"
 REACT_APP_ROUTE_NAVIGATION = "browser_history_v1"
@@ -503,9 +503,7 @@ def _react_app_source(payload: dict[str, Any]) -> str:
         else "const evaluateRuntimeVisibility = (_state: ViewSpecState): Record<string, boolean> => ({});"
     )
     state_text_eval = (
-        "  const stateText = React.useMemo(() => evaluateViewSpecText(state), [state]);"
-        if has_state_text
-        else None
+        "  const stateText = React.useMemo(() => evaluateViewSpecText(state), [state]);" if has_state_text else None
     )
     screen_renderers = _screen_renderers(payload)
     return "\n".join(
@@ -710,7 +708,7 @@ def _react_app_source(payload: dict[str, Any]) -> str:
             '      <header className="vs-app-chrome">',
             '        <div className="vs-app-title-block">',
             '          <p className="vs-app-kicker">ViewSpec App Shell</p>',
-            f"          <h1 id=\"vs-app-title\" className=\"vs-app-title\">{{{_safe_json(str(payload['app']['title']))}}}</h1>",
+            f'          <h1 id="vs-app-title" className="vs-app-title">{{{_safe_json(str(payload["app"]["title"]))}}}</h1>',
             "        </div>",
             '        <nav className="vs-app-nav" aria-label="Application">',
             "          {routes.map((route) => (",
@@ -742,9 +740,7 @@ def _screen_renderers(payload: dict[str, Any]) -> list[str]:
     route_by_screen = {
         str(route["screen_id"]): str(route["path"])
         for route in payload.get("routes", [])
-        if isinstance(route, dict)
-        and isinstance(route.get("screen_id"), str)
-        and isinstance(route.get("path"), str)
+        if isinstance(route, dict) and isinstance(route.get("screen_id"), str) and isinstance(route.get("path"), str)
     }
     visibility_screens = {
         rule.get("screen_id")
@@ -1172,10 +1168,7 @@ def _playwright_test_source(
         "",
         f"const routes = {_safe_json(routes)} as const;",
         f"const proofCases: readonly RuntimeProofCase[] = {_safe_json(proof_cases)};",
-        (
-            "const presentationScreens: readonly PresentationScreen[] = "
-            f"{_safe_json(presentation_screens)};"
-        ),
+        (f"const presentationScreens: readonly PresentationScreen[] = {_safe_json(presentation_screens)};"),
         "const presentationViewports = [",
         '  { id: "compact", width: 390, height: 844 },',
         '  { id: "medium", width: 768, height: 1024 },',
@@ -1344,8 +1337,7 @@ def _playwright_test_source(
             ]
         )
     if any(
-        isinstance(screen, dict) and screen.get("anchors")
-        for screen in (presentation_plan or {}).get("screens", [])
+        isinstance(screen, dict) and screen.get("anchors") for screen in (presentation_plan or {}).get("screens", [])
     ):
         lines.extend(
             [
@@ -1625,7 +1617,9 @@ button, input { font: inherit; }
     if presentation_plan is not None:
         source = source.rstrip() + "\n\n" + presentation_plan_css(presentation_plan) + "\n"
     if pretext:
-        source = source.rstrip() + """
+        source = (
+            source.rstrip()
+            + """
 
 
 /* Measurement-only Pretext profile; production rendering remains target-neutral. */
@@ -1636,6 +1630,7 @@ html[data-viewspec-pretext="1"] body .vs-app-shell .vs-app-main [data-ir-id][dat
   word-break: normal !important;
 }
 """
+        )
     return source
 
 

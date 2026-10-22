@@ -53,8 +53,14 @@ def test_canonical_sha256_is_pinned():
     # canonical_sha256 hashes str as UTF-8 and bytes as given, with the same sha256 as bytes_hash.
     assert canonical_sha256("viewspec") == _SHA256_VIEWSPEC
     assert canonical_sha256(b"viewspec") == _SHA256_VIEWSPEC
-    assert canonical_sha256(canonical_json_ascii(_UNICODE)) == "c2a498327ba48494d7b268c8c65b9f27be2a7fed52d7589c4f7094d1f6e7729e"
-    assert canonical_sha256(canonical_json_utf8(_UNICODE)) == "d28ddbc8c25487800d9955879cb53802a33e48c08cdfcc0f8aabab765dc9f745"
+    assert (
+        canonical_sha256(canonical_json_ascii(_UNICODE))
+        == "c2a498327ba48494d7b268c8c65b9f27be2a7fed52d7589c4f7094d1f6e7729e"
+    )
+    assert (
+        canonical_sha256(canonical_json_utf8(_UNICODE))
+        == "d28ddbc8c25487800d9955879cb53802a33e48c08cdfcc0f8aabab765dc9f745"
+    )
 
 
 def test_canonical_json_ascii_form_is_pinned():

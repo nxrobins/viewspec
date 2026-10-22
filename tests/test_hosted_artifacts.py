@@ -53,9 +53,7 @@ def _artifact_payload(bundle: dict, target: str = "react-tsx") -> dict:
         }
     ]
     input_hash = hashlib.sha256(_canonical(bundle)).hexdigest()
-    artifact_set_hash = hashlib.sha256(
-        _canonical([{"path": "ViewSpecView.tsx", "sha256": content_hash}])
-    ).hexdigest()
+    artifact_set_hash = hashlib.sha256(_canonical([{"path": "ViewSpecView.tsx", "sha256": content_hash}])).hexdigest()
     material = {
         "schema_version": 1,
         "target": target,

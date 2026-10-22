@@ -4,9 +4,10 @@ import hashlib
 import json
 from pathlib import Path
 
-from hypothesis import assume, given, strategies as st
-from jsonschema import Draft202012Validator, ValidationError
 import pytest
+from hypothesis import assume, given
+from hypothesis import strategies as st
+from jsonschema import Draft202012Validator, ValidationError
 
 from viewspec.app_bundle import starter_react_app_bundle
 from viewspec.intent_patch import (
@@ -64,9 +65,7 @@ def _semantic_attr_patch(source_text: str, old_value: object, value: object) -> 
 
 def test_patch_contract_is_closed_bounded_and_identity_addressed() -> None:
     source = _source_text(starter_intent_payload("dashboard"))
-    patch = parse_intent_patch(
-        _semantic_attr_patch(source, "Starter Dashboard", "Operations Dashboard")
-    )
+    patch = parse_intent_patch(_semantic_attr_patch(source, "Starter Dashboard", "Operations Dashboard"))
 
     assert patch.patch_id.startswith("vpatch_")
     assert patch.source_kind == "intent_bundle"
@@ -242,8 +241,13 @@ def test_preview_applies_all_closed_intent_operations_and_returns_inverse() -> N
     assert styles["aesthetic_profile"]["token"] == "aesthetic.data_dense"
     assert styles["density"]["token"] == "density.compact"
     assert next(item for item in candidate["view_spec"]["regions"] if item["id"] == "main")["layout"] == "grid"
-    assert next(item for item in candidate["view_spec"]["regions"] if item["id"] == "secondary")["parent_region"] == "main"
-    assert next(item for item in candidate["view_spec"]["bindings"] if item["id"] == "revenue_value")["present_as"] == "text"
+    assert (
+        next(item for item in candidate["view_spec"]["regions"] if item["id"] == "secondary")["parent_region"] == "main"
+    )
+    assert (
+        next(item for item in candidate["view_spec"]["bindings"] if item["id"] == "revenue_value")["present_as"]
+        == "text"
+    )
 
     inverse_preview = preview_intent_patch(preview.candidate_text, preview.inverse_patch.to_json())
     assert json.loads(inverse_preview.candidate_text) == json.loads(source)

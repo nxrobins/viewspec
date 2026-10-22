@@ -8,7 +8,6 @@ from pathlib import Path
 
 import pytest
 
-
 ROOT = Path(__file__).resolve().parents[1]
 MANIFEST_PATH = ROOT / "tests" / "bug_prevention_manifest.json"
 EXPECTED_BUG_IDS = {f"VSBUG-{number:03d}" for number in range(1, 41)}

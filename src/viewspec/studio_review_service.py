@@ -9,13 +9,10 @@ source-bound reviewer comments, owner-only approval, and reversible lifecycle.
 from __future__ import annotations
 
 import base64
-from collections.abc import Callable, Mapping
-from dataclasses import dataclass
 import hashlib
 import hmac
 import json
 import os
-from pathlib import Path, PurePosixPath
 import re
 import secrets
 import shutil
@@ -23,6 +20,9 @@ import sqlite3
 import stat
 import tempfile
 import time
+from collections.abc import Callable, Mapping
+from dataclasses import dataclass
+from pathlib import Path, PurePosixPath
 
 from viewspec.review_contract import canonical_json_bytes
 from viewspec.studio_review_staging import plan_staging, prepare_staging, remove_staging
@@ -34,7 +34,6 @@ from viewspec.studio_share import (
     load_studio_share_package,
     materialize_studio_share_archive,
 )
-
 
 STUDIO_REVIEW_SERVICE_SCHEMA_VERSION = 1
 STUDIO_REVIEW_VIEWPORTS = (390, 768, 1440)
@@ -526,7 +525,12 @@ class StudioReviewService:
                 database.rollback()
                 return replay
             comment_id = "vcm_" + self._stable_token(
-                b"comment\x00" + auth["session_id"].encode() + b"\x00" + key.encode() + b"\x00" + request_sha256.encode(),
+                b"comment\x00"
+                + auth["session_id"].encode()
+                + b"\x00"
+                + key.encode()
+                + b"\x00"
+                + request_sha256.encode(),
                 length=18,
             )
             comment = {
@@ -755,7 +759,9 @@ class StudioReviewService:
             if expires_at >= int(auth["session_expires_at"]):
                 database.rollback()
                 raise _expiry_invalid()
-            database.execute("UPDATE sessions SET expires_at = ? WHERE session_id = ?", (expires_at, auth["session_id"]))
+            database.execute(
+                "UPDATE sessions SET expires_at = ? WHERE session_id = ?", (expires_at, auth["session_id"])
+            )
             database.execute(
                 "UPDATE capabilities SET expires_at = MIN(expires_at, ?) WHERE session_id = ?",
                 (expires_at, auth["session_id"]),
@@ -977,7 +983,9 @@ class StudioReviewService:
             if not dry_run:
                 try:
                     staging_paths = dict(staging)
-                    remove_staging(self.root, [(path, staging_paths[path]) for _, path, _ in selected if path in staging_paths])
+                    remove_staging(
+                        self.root, [(path, staging_paths[path]) for _, path, _ in selected if path in staging_paths]
+                    )
                     for action, path, destination in selected:
                         if path in staging_paths:
                             continue
@@ -1052,13 +1060,11 @@ class StudioReviewService:
                         renamed.append((tombstone, original))
                         database.execute("UPDATE sessions SET status = 'deleted' WHERE session_id = ?", (session_id,))
                         database.execute(
-                            "UPDATE capabilities SET revoked_at = ? "
-                            "WHERE session_id = ? AND revoked_at IS NULL",
+                            "UPDATE capabilities SET revoked_at = ? WHERE session_id = ? AND revoked_at IS NULL",
                             (now, session_id),
                         )
                         database.execute(
-                            "UPDATE browser_sessions SET revoked_at = ? "
-                            "WHERE session_id = ? AND revoked_at IS NULL",
+                            "UPDATE browser_sessions SET revoked_at = ? WHERE session_id = ? AND revoked_at IS NULL",
                             (now, session_id),
                         )
                         self._audit(database, session_id, "session_expired", {"reason": "retention"}, now)
@@ -1153,7 +1159,9 @@ class StudioReviewService:
                 _collect_receipts(stored_receipt, receipts)
             for row in database.execute("SELECT approval_json FROM approvals ORDER BY approval_id").fetchall():
                 _collect_receipts(json.loads(str(row["approval_json"])), receipts)
-            for row in database.execute("SELECT response_json FROM idempotency ORDER BY scope, operation, key").fetchall():
+            for row in database.execute(
+                "SELECT response_json FROM idempotency ORDER BY scope, operation, key"
+            ).fetchall():
                 _collect_receipts(json.loads(str(row["response_json"])), receipts)
             status_counts = {
                 str(row["status"]): int(row["count"])
@@ -1164,11 +1172,7 @@ class StudioReviewService:
         for receipt in receipts.values():
             if not self.verify_receipt(receipt):
                 raise _storage_failed()
-        expected_entries = {
-            str(row["session_id"])
-            for row in rows
-            if str(row["status"]) != "deleted"
-        }
+        expected_entries = {str(row["session_id"]) for row in rows if str(row["status"]) != "deleted"}
         try:
             actual_entries = {path.name for path in self.objects.iterdir()}
         except OSError as exc:
@@ -1292,9 +1296,7 @@ class StudioReviewService:
         expected_signature = hmac.new(receipt_key, canonical_json_bytes(value), hashlib.sha256).hexdigest()
         if not hmac.compare_digest(signature.removeprefix("hmac-sha256:"), expected_signature):
             return False
-        expected_id = "vrr_" + hashlib.sha256(
-            canonical_json_bytes({**value, "signature": signature})
-        ).hexdigest()[:32]
+        expected_id = "vrr_" + hashlib.sha256(canonical_json_bytes({**value, "signature": signature})).hexdigest()[:32]
         return isinstance(receipt_id, str) and hmac.compare_digest(receipt_id, expected_id)
 
     def _prepare_storage(self, *, reconcile_on_startup: bool) -> None:
@@ -1576,14 +1578,15 @@ class StudioReviewService:
             "issued_at": issued_at,
             "payload": payload,
         }
-        signature = "hmac-sha256:" + hmac.new(
-            self._receipt_signing_key,
-            canonical_json_bytes(body),
-            hashlib.sha256,
-        ).hexdigest()
-        receipt_id = "vrr_" + hashlib.sha256(
-            canonical_json_bytes({**body, "signature": signature})
-        ).hexdigest()[:32]
+        signature = (
+            "hmac-sha256:"
+            + hmac.new(
+                self._receipt_signing_key,
+                canonical_json_bytes(body),
+                hashlib.sha256,
+            ).hexdigest()
+        )
+        receipt_id = "vrr_" + hashlib.sha256(canonical_json_bytes({**body, "signature": signature})).hexdigest()[:32]
         return {**body, "signature": signature, "receipt_id": receipt_id}
 
 
@@ -1627,20 +1630,12 @@ def _build_projection(package: Path, envelope: dict[str, object]) -> dict[str, o
             raise _package_invalid()
         node_ids = sorted(str(key) for key in nodes if isinstance(key, str))
         authored_binding_ids = [
-            str(item["id"])
-            for item in bindings
-            if isinstance(item, dict) and isinstance(item.get("id"), str)
+            str(item["id"]) for item in bindings if isinstance(item, dict) and isinstance(item.get("id"), str)
         ]
         binding_ids = set(authored_binding_ids)
-        binding_ids.update(
-            key.split("\0", 1)[1]
-            for key in resource_refs
-            if key.startswith(f"{screen_id}\0")
-        )
+        binding_ids.update(key.split("\0", 1)[1] for key in resource_refs if key.startswith(f"{screen_id}\0"))
         action_ids = sorted(
-            str(item["id"])
-            for item in actions
-            if isinstance(item, dict) and isinstance(item.get("id"), str)
+            str(item["id"]) for item in actions if isinstance(item, dict) and isinstance(item.get("id"), str)
         )
         if (
             len(node_ids) != len(nodes)
@@ -1669,9 +1664,7 @@ def _build_projection(package: Path, envelope: dict[str, object]) -> dict[str, o
     for route in routes:
         if not isinstance(route, dict) or set(route) != {"id", "path", "screenId"}:
             raise _package_invalid()
-        normalized_routes.append(
-            {"id": route["id"], "path": route["path"], "screen_id": route["screenId"]}
-        )
+        normalized_routes.append({"id": route["id"], "path": route["path"], "screen_id": route["screenId"]})
     replay_refs = sorted(_inspection_replay_refs(inspection))
     artifacts = [
         {
@@ -1803,9 +1796,7 @@ def _inspection_resource_refs(inspection: dict[str, object]) -> dict[str, str]:
                 and isinstance(assertion.get("canonical_identity"), str)
             ):
                 key = f"{view['screen_id']}\0{assertion['matched_binding_id']}"
-                candidates.setdefault(key, set()).add(
-                    f"studio-inspection/resources/{assertion['canonical_identity']}"
-                )
+                candidates.setdefault(key, set()).add(f"studio-inspection/resources/{assertion['canonical_identity']}")
     return {key: next(iter(refs)) for key, refs in candidates.items() if len(refs) == 1}
 
 

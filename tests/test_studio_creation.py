@@ -6,8 +6,8 @@ from pathlib import Path
 
 import pytest
 
-from viewspec import cli
 import viewspec.studio_creation as studio_creation
+from viewspec import cli
 from viewspec.app_starters import starter_app_bundle
 from viewspec.intent_tools import starter_intent_payload
 from viewspec.studio_creation import (
@@ -17,7 +17,6 @@ from viewspec.studio_creation import (
     inspect_accepted_studio_creation,
     prepare_studio_creation,
 )
-
 
 _ONE_PIXEL_PNG = base64.b64decode(
     "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII="
@@ -51,13 +50,9 @@ def _custom_app() -> dict:
     payload["app"]["id"] = "field_dispatch"
     payload["app"]["title"] = "Field Dispatch"
     payload["screens"][0]["title"] = "Active jobs"
-    payload["screens"][0]["intent_bundle"]["substrate"]["nodes"]["incident_queue"]["attrs"][
-        "title"
-    ] = "Active jobs"
+    payload["screens"][0]["intent_bundle"]["substrate"]["nodes"]["incident_queue"]["attrs"]["title"] = "Active jobs"
     payload["screens"][1]["title"] = "Job detail"
-    payload["screens"][1]["intent_bundle"]["substrate"]["nodes"]["incident_detail"]["attrs"][
-        "title"
-    ] = "Job detail"
+    payload["screens"][1]["intent_bundle"]["substrate"]["nodes"]["incident_detail"]["attrs"]["title"] = "Job detail"
     return payload
 
 

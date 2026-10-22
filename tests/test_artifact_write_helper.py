@@ -6,15 +6,15 @@ from pathlib import Path
 
 import pytest
 
+from viewspec import compile as compile_bundle
 from viewspec.emitters import _write
 from viewspec.emitters._write import ARTIFACT_WRITE_FAILED_SENTINEL, write_artifact_set, write_text_atomic
 from viewspec.emitters.html_tailwind import emit_compiler_result as emit_html
-from viewspec.emitters.react_tsx import emit_compiler_result as emit_react
 from viewspec.emitters.react_tailwind_tsx import emit_compiler_result as emit_react_tailwind
+from viewspec.emitters.react_tsx import emit_compiler_result as emit_react
 from viewspec.raw_html import compile_html, write_html_compile_result
 from viewspec.sdk.builder import ViewSpecBuilder
 from viewspec.types import DEFAULT_STYLE_TOKEN_VALUES
-from viewspec import compile as compile_bundle
 
 EXPECTED_SENTINEL = {"code": "ARTIFACT_WRITE_FAILED", "message": "disk full", "severity": "error", "version": 1}
 
@@ -81,7 +81,13 @@ def test_raw_html_writer_records_the_same_sentinel(tmp_path, monkeypatch):
     with pytest.raises(OSError, match="disk full"):
         write_html_compile_result(result, tmp_path, include_lift=True)
 
-    assert order == ["index.html", "provenance_manifest.json", "diagnostics.json", "lift.json", ARTIFACT_WRITE_FAILED_SENTINEL]
+    assert order == [
+        "index.html",
+        "provenance_manifest.json",
+        "diagnostics.json",
+        "lift.json",
+        ARTIFACT_WRITE_FAILED_SENTINEL,
+    ]
     assert json.loads((tmp_path / ARTIFACT_WRITE_FAILED_SENTINEL).read_text(encoding="utf-8")) == EXPECTED_SENTINEL
     manifest = json.loads((tmp_path / "provenance_manifest.json").read_text(encoding="utf-8"))
     assert manifest["artifact_hash"]
@@ -95,7 +101,9 @@ def test_sentinel_failure_is_logged_once_under_the_callers_logger(tmp_path, monk
         with pytest.raises(OSError, match="disk full"):
             emit_html(_compiled(), dict(DEFAULT_STYLE_TOKEN_VALUES), output_dir=out)
 
-    records = [record for record in caplog.records if "Could not record the artifact write failure" in record.getMessage()]
+    records = [
+        record for record in caplog.records if "Could not record the artifact write failure" in record.getMessage()
+    ]
     assert len(records) == 1
     assert records[0].name == "viewspec.emitters.html_tailwind"
     assert records[0].exc_info is not None

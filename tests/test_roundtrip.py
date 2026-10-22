@@ -3,14 +3,15 @@
 import json
 from pathlib import Path
 
-from hypothesis import HealthCheck, given, settings, strategies as st
+from hypothesis import HealthCheck, given, settings
+from hypothesis import strategies as st
 
 from viewspec import (
     ASTBundle,
     CompilerResult,
     CompositionIR,
-    IRNode,
     IntentBundle,
+    IRNode,
     Provenance,
     ViewSpecBuilder,
     compile,
@@ -44,6 +45,7 @@ def test_builder_roundtrip_proto():
     bundle = builder.build_bundle()
     proto_bytes = bundle.to_proto().SerializeToString()
     from viewspec.schema.viewspec_pb2 import IntentBundle as PbBundle
+
     restored = IntentBundle.from_proto(PbBundle.FromString(proto_bytes))
     proto_bytes_2 = restored.to_proto().SerializeToString()
     assert proto_bytes == proto_bytes_2
@@ -61,7 +63,9 @@ def test_ast_bundle_roundtrip():
                         id="text_1",
                         primitive="text",
                         props={"text": "Hello, ViewSpec"},
-                        provenance=Provenance(content_refs=["node:doc#attr:title"], intent_refs=["viewspec:binding:b1"]),
+                        provenance=Provenance(
+                            content_refs=["node:doc#attr:title"], intent_refs=["viewspec:binding:b1"]
+                        ),
                     ),
                 ],
             )
@@ -145,7 +149,9 @@ _UNSAFE_INTEGERS = st.one_of(
 )
 _FLOATS = st.floats(allow_nan=False, allow_infinity=False)
 _TEXT = st.text(alphabet=st.characters(exclude_categories=("Cs",)), max_size=12)
-_NON_ASCII_TEXT = st.text(alphabet=st.characters(min_codepoint=0x80, exclude_categories=("Cs",)), min_size=1, max_size=8)
+_NON_ASCII_TEXT = st.text(
+    alphabet=st.characters(min_codepoint=0x80, exclude_categories=("Cs",)), min_size=1, max_size=8
+)
 _SCALARS = st.one_of(st.none(), st.booleans(), _SAFE_INTEGERS, _FLOATS, _TEXT, _NON_ASCII_TEXT)
 _JSON_VALUES = st.recursive(
     _SCALARS,
@@ -156,7 +162,9 @@ _JSON_VALUES = st.recursive(
 
 def _value_bundle(attr_value, slot_values) -> IntentBundle:
     builder = ViewSpecBuilder("roundtrip_values")
-    builder.add_node("record", "record", attrs={"label": "Record", "value": attr_value}, slots={"items": list(slot_values)})
+    builder.add_node(
+        "record", "record", attrs={"label": "Record", "value": attr_value}, slots={"items": list(slot_values)}
+    )
     builder.bind_attr("record_label", "record", "label", region="main", present_as="label")
     builder.bind_attr("record_value", "record", "value", region="main", present_as="value")
     builder.bind_slot("record_items", "record", "items", region="main")
@@ -192,9 +200,13 @@ def _binding_text(bundle: IntentBundle, node_id: str) -> str:
     return text
 
 
-@settings(max_examples=40, deadline=None, suppress_health_check=[HealthCheck.function_scoped_fixture, HealthCheck.too_slow])
+@settings(
+    max_examples=40, deadline=None, suppress_health_check=[HealthCheck.function_scoped_fixture, HealthCheck.too_slow]
+)
 @given(attr_value=_JSON_VALUES, slot_values=st.lists(_JSON_VALUES, max_size=3))
-def test_values_compile_byte_identically_in_memory_and_after_json_and_proto_round_trips(tmp_path, attr_value, slot_values):
+def test_values_compile_byte_identically_in_memory_and_after_json_and_proto_round_trips(
+    tmp_path, attr_value, slot_values
+):
     in_memory = _value_bundle(attr_value, slot_values)
 
     baseline = _compiled_bytes(in_memory, tmp_path / "memory")
@@ -286,7 +298,10 @@ def test_negative_zero_and_integral_floats_are_canonical_in_memory():
     assert node.attrs["value"] == 0 and isinstance(node.attrs["value"], int)
     assert json.dumps(node.attrs["value"]) == "0"
     assert node.slots["items"] == [100, {"nested": 2}, [3, 1.5]]
-    assert all(isinstance(v, int) for v in (node.slots["items"][0], node.slots["items"][1]["nested"], node.slots["items"][2][0]))
+    assert all(
+        isinstance(v, int)
+        for v in (node.slots["items"][0], node.slots["items"][1]["nested"], node.slots["items"][2][0])
+    )
     assert isinstance(node.slots["items"][2][1], float)
     for restored in (_json_text_roundtrip(bundle), _proto_roundtrip(bundle)):
         assert json.dumps(restored.to_json(), sort_keys=True) == json.dumps(bundle.to_json(), sort_keys=True)

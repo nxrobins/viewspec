@@ -2,18 +2,25 @@
 
 from __future__ import annotations
 
-from pathlib import Path
 import shlex
-
+from pathlib import Path
 
 AGENT_ACTIVITY_SECONDS = 60
 
 
 def creation_handoff(root: Path, task_path: Path, state_root: Path) -> str:
-    command = shlex.join([
-        "python", "-m", "viewspec", "studio-agent-task", str(task_path),
-        "--state-dir", str(state_root), "--json",
-    ])
+    command = shlex.join(
+        [
+            "python",
+            "-m",
+            "viewspec",
+            "studio-agent-task",
+            str(task_path),
+            "--state-dir",
+            str(state_root),
+            "--json",
+        ]
+    )
     return (
         "Continue this local ViewSpec Studio creation in the project below.\n"
         f"cd -- {shlex.quote(str(root))}\n{command}\n\n"
@@ -27,13 +34,24 @@ def creation_handoff(root: Path, task_path: Path, state_root: Path) -> str:
 
 
 def review_handoff(source: Path, state_root: Path, convergence_state_root: str | None) -> str:
-    command = shlex.join([
-        "python", "-m", "viewspec", "review-poll", str(source),
-        "--state-dir", str(state_root), "--timeout-ms", "30000", "--json",
-    ])
+    command = shlex.join(
+        [
+            "python",
+            "-m",
+            "viewspec",
+            "review-poll",
+            str(source),
+            "--state-dir",
+            str(state_root),
+            "--timeout-ms",
+            "30000",
+            "--json",
+        ]
+    )
     convergence = (
         f" Use {shlex.join(['--state-dir', convergence_state_root])} for Converge commands."
-        if convergence_state_root is not None else ""
+        if convergence_state_root is not None
+        else ""
     )
     return (
         "Continue this existing local ViewSpec Studio review.\n"

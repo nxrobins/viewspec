@@ -23,25 +23,78 @@ from viewspec.aesthetics import (
     profile_style_values,
     validate_aesthetic_profile_registry,
 )
+from viewspec.compiler_errors import CompilerInternalError
 from viewspec.compiler_refs import (
     MAX_COMPILE_NESTING_DEPTH,
     PRODUCT_SURFACE_PLANNER_V1_ROLES,
+)
+from viewspec.compiler_refs import (
     action_ref as _action_ref,
+)
+from viewspec.compiler_refs import (
     add_diagnostic as _add_diagnostic,
+)
+from viewspec.compiler_refs import (
     binding_ref as _binding_ref,
+)
+from viewspec.compiler_refs import (
     motif_ref as _motif_ref,
+)
+from viewspec.compiler_refs import (
     region_ref as _region_ref,
+)
+from viewspec.compiler_refs import (
     style_ref as _style_ref,
+)
+from viewspec.compiler_refs import (
     view_ref as _view_ref,
 )
+from viewspec.design_md import DesignSystemContext, load_design_system, merge_style_values
+
+# The hosted compiler client lives in viewspec.hosted_compile. Its names are
+# re-exported here (redundant-alias form) because `viewspec.compiler` was their
+# import location before the move and viewspec.__init__ still imports them here.
+from viewspec.hosted_compile import (
+    VIEWSPEC_API_URL as VIEWSPEC_API_URL,
+)
+from viewspec.hosted_compile import (
+    CompilerAPIError as CompilerAPIError,
+)
+from viewspec.hosted_compile import (
+    _compile_request_payload as _compile_request_payload,
+)
+from viewspec.hosted_compile import (
+    _compiler_api_error as _compiler_api_error,
+)
+from viewspec.hosted_compile import (
+    _response_header as _response_header,
+)
+from viewspec.hosted_compile import (
+    compile_auto as compile_auto,
+)
+from viewspec.hosted_compile import (
+    compile_remote as compile_remote,
+)
+from viewspec.hosted_compile import (
+    compile_remote_response as compile_remote_response,
+)
+from viewspec.motif_compilers import SUPPORTED_MOTIF_KINDS
+from viewspec.motif_plugins import (
+    MotifCompileContext,
+    MotifPlugin,
+    MotifPluginError,
+    MotifRegistry,
+    builtin_motif_registry,
+    create_motif_registry,
+)
 from viewspec.types import (
+    DEFAULT_STYLE_TOKEN_VALUES,
     ActionIntent,
     ASTBundle,
     BindingSpec,
     CompilerDiagnostic,
     CompilerResult,
     CompositionIR,
-    DEFAULT_STYLE_TOKEN_VALUES,
     DesignRequest,
     GroupSpec,
     IntentBundle,
@@ -53,33 +106,12 @@ from viewspec.types import (
     SemanticSubstrate,
     StyleSpec,
     ViewSpec,
+)
+from viewspec.types import (
     normalize_json_numbers as _normalize_json_numbers,
+)
+from viewspec.types import (
     parse_canonical_address as _parse_canonical_address,
-)
-from viewspec.compiler_errors import CompilerInternalError
-from viewspec.design_md import DesignSystemContext, load_design_system, merge_style_values
-
-# The hosted compiler client lives in viewspec.hosted_compile. Its names are
-# re-exported here (redundant-alias form) because `viewspec.compiler` was their
-# import location before the move and viewspec.__init__ still imports them here.
-from viewspec.hosted_compile import (
-    VIEWSPEC_API_URL as VIEWSPEC_API_URL,
-    CompilerAPIError as CompilerAPIError,
-    _compile_request_payload as _compile_request_payload,
-    _compiler_api_error as _compiler_api_error,
-    _response_header as _response_header,
-    compile_auto as compile_auto,
-    compile_remote as compile_remote,
-    compile_remote_response as compile_remote_response,
-)
-from viewspec.motif_compilers import SUPPORTED_MOTIF_KINDS
-from viewspec.motif_plugins import (
-    MotifCompileContext,
-    MotifPlugin,
-    MotifPluginError,
-    MotifRegistry,
-    builtin_motif_registry,
-    create_motif_registry,
 )
 
 # ---------------------------------------------------------------------------
@@ -124,9 +156,7 @@ SUPPORTED_AESTHETIC_PROFILES = AESTHETIC_PROFILE_TOKENS
 WORKSPACE_HEADER_ROLE_MARKERS = frozenset({"app_header", "banner", "header", "page_header"})
 WORKSPACE_CONTENT_GRID_ROLE_MARKERS = frozenset({"application", "body", "content", "main", "workspace"})
 WORKSPACE_PRIMARY_ROLE_MARKERS = frozenset({"main", "primary", "primary_column", "workspace_primary"})
-WORKSPACE_SIDE_RAIL_ROLE_MARKERS = frozenset(
-    {"aside", "complementary", "detail_rail", "rail", "side_rail", "sidebar"}
-)
+WORKSPACE_SIDE_RAIL_ROLE_MARKERS = frozenset({"aside", "complementary", "detail_rail", "rail", "side_rail", "sidebar"})
 
 
 # ---------------------------------------------------------------------------
@@ -173,7 +203,9 @@ def _utf8_size(value: Any) -> int:
     return len(_text_from_value(value).encode("utf-8"))
 
 
-def _resolved_payload_value(binding_id: str, bindings_by_id: dict[str, BindingSpec], address_index: dict[str, object]) -> object:
+def _resolved_payload_value(
+    binding_id: str, bindings_by_id: dict[str, BindingSpec], address_index: dict[str, object]
+) -> object:
     binding = bindings_by_id.get(binding_id)
     if binding is None:
         return ""
@@ -273,7 +305,9 @@ def _build_binding_node(binding: BindingSpec, address_index: dict[str, object]) 
 
 
 def _build_action_node(action: ActionIntent, bindings_by_id: dict[str, BindingSpec]) -> IRNode:
-    content_refs = [bindings_by_id[binding_id].address for binding_id in action.payload_bindings if binding_id in bindings_by_id]
+    content_refs = [
+        bindings_by_id[binding_id].address for binding_id in action.payload_bindings if binding_id in bindings_by_id
+    ]
     props: dict[str, object] = {
         "text": action.label,
         "action_id": action.id,
@@ -560,10 +594,7 @@ def _detect_single_column_surface_v1(
     main = children[0]
     if main.layout != "stack" or main.role not in WORKSPACE_PRIMARY_ROLE_MARKERS:
         return None
-    if any(
-        region.id not in {root_region, main.id}
-        for region in valid_regions
-    ):
+    if any(region.id not in {root_region, main.id} for region in valid_regions):
         return None
     return main.id
 
@@ -585,22 +616,12 @@ def _apply_single_column_surface_roles_v1(
     _assign_product_role_v1(region_nodes[main_region], "primary_column")
 
     has_explicit_page_header = any(
-        motif.kind == "hero" and motif.region == main_region
-        for motif in motif_by_id.values()
+        motif.kind == "hero" and motif.region == main_region for motif in motif_by_id.values()
     )
     root_title_address = f"node:{substrate.root_id}#attr:title"
-    root_title = _implicit_page_title_v1(
-        substrate.nodes[substrate.root_id].attrs.get("title")
-    )
-    root_title_is_bound = any(
-        binding.address == root_title_address
-        for binding in bindings_by_id.values()
-    )
-    if (
-        not has_explicit_page_header
-        and not root_title_is_bound
-        and root_title is not None
-    ):
+    root_title = _implicit_page_title_v1(substrate.nodes[substrate.root_id].attrs.get("title"))
+    root_title_is_bound = any(binding.address == root_title_address for binding in bindings_by_id.values())
+    if not has_explicit_page_header and not root_title_is_bound and root_title is not None:
         title_node = IRNode(
             id=f"planner_{view_spec.id}_page_title",
             primitive="value",
@@ -870,7 +891,8 @@ def _validate_collection_action(
     oversized = [
         binding_id
         for binding_id in action.payload_bindings
-        if _utf8_size(_resolved_payload_value(binding_id, bindings_by_id, address_index)) > COLLECTION_PAYLOAD_VALUE_MAX_BYTES
+        if _utf8_size(_resolved_payload_value(binding_id, bindings_by_id, address_index))
+        > COLLECTION_PAYLOAD_VALUE_MAX_BYTES
     ]
     if oversized:
         _add_diagnostic(
@@ -1038,11 +1060,13 @@ def _apply_product_surface_planner_v1(
 
 class UnsupportedMotifError(Exception):
     """Raised when the reference compiler encounters a motif type it can't handle."""
+
     pass
 
 
 class CompilerInputError(Exception):
     """Raised when a bundle cannot produce a root CompositionIR."""
+
     pass
 
 
@@ -1057,9 +1081,7 @@ def _validate_bundle_shape(bundle: Any) -> tuple[SemanticSubstrate, ViewSpec]:
         raise CompilerInputError("SemanticSubstrate.nodes must be a dictionary.")
     for node_key, node in bundle.substrate.nodes.items():
         if not isinstance(node, SemanticNode):
-            raise CompilerInputError(
-                f"SemanticSubstrate.nodes['{node_key}'] must be a SemanticNode."
-            )
+            raise CompilerInputError(f"SemanticSubstrate.nodes['{node_key}'] must be a SemanticNode.")
 
     list_fields: tuple[tuple[str, type[Any]], ...] = (
         ("regions", RegionSpec),
@@ -1075,9 +1097,7 @@ def _validate_bundle_shape(bundle: Any) -> tuple[SemanticSubstrate, ViewSpec]:
             raise CompilerInputError(f"ViewSpec.{field_name} must be a list.")
         for index, value in enumerate(values):
             if not isinstance(value, expected_type):
-                raise CompilerInputError(
-                    f"ViewSpec.{field_name}[{index}] must be a {expected_type.__name__}."
-                )
+                raise CompilerInputError(f"ViewSpec.{field_name}[{index}] must be a {expected_type.__name__}.")
 
     return bundle.substrate, bundle.view_spec
 
@@ -1086,18 +1106,14 @@ def _validate_roots(substrate: SemanticSubstrate, view_spec: ViewSpec) -> None:
     if not substrate.root_id:
         raise CompilerInputError("SemanticSubstrate.root_id is required.")
     if substrate.root_id not in substrate.nodes:
-        raise CompilerInputError(
-            f"SemanticSubstrate.root_id '{substrate.root_id}' is not present in substrate.nodes."
-        )
+        raise CompilerInputError(f"SemanticSubstrate.root_id '{substrate.root_id}' is not present in substrate.nodes.")
     if not view_spec.root_region:
         raise CompilerInputError("ViewSpec.root_region is required.")
 
 
 def _validate_safe_id(value: str, label: str) -> None:
     if not isinstance(value, str) or not value or not SAFE_COMPILER_ID_RE.match(value):
-        raise CompilerInputError(
-            f"{label} '{value}' must use only letters, digits, underscore, dot, and dash."
-        )
+        raise CompilerInputError(f"{label} '{value}' must use only letters, digits, underscore, dot, and dash.")
 
 
 def _validate_semantic_node_maps(node_key: str, node: Any, node_ids: set[str]) -> None:
@@ -1111,18 +1127,14 @@ def _validate_semantic_node_maps(node_key: str, node: Any, node_ids: set[str]) -
     for slot_key, values in node.slots.items():
         _validate_safe_id(slot_key, f"SemanticNode '{node_key}'.slots key")
         if not isinstance(values, list):
-            raise CompilerInputError(
-                f"SemanticNode '{node_key}'.slots['{slot_key}'] must be a list."
-            )
+            raise CompilerInputError(f"SemanticNode '{node_key}'.slots['{slot_key}'] must be a list.")
 
     if not isinstance(node.edges, dict):
         raise CompilerInputError(f"SemanticNode '{node_key}'.edges must be a dictionary.")
     for edge_key, target_ids in node.edges.items():
         _validate_safe_id(edge_key, f"SemanticNode '{node_key}'.edges key")
         if not isinstance(target_ids, list):
-            raise CompilerInputError(
-                f"SemanticNode '{node_key}'.edges['{edge_key}'] must be a list."
-            )
+            raise CompilerInputError(f"SemanticNode '{node_key}'.edges['{edge_key}'] must be a list.")
         for target_id in target_ids:
             _validate_safe_id(target_id, f"SemanticNode '{node_key}'.edges['{edge_key}'] target id")
             if target_id not in node_ids:
@@ -1145,7 +1157,11 @@ def _validate_id_list(value: Any, label: str) -> None:
 
 
 def _validate_view_spec_constraints(view_spec: ViewSpec) -> None:
-    if not isinstance(view_spec.complexity_tier, int) or isinstance(view_spec.complexity_tier, bool) or view_spec.complexity_tier < 1:
+    if (
+        not isinstance(view_spec.complexity_tier, int)
+        or isinstance(view_spec.complexity_tier, bool)
+        or view_spec.complexity_tier < 1
+    ):
         raise CompilerInputError("ViewSpec.complexity_tier must be a positive integer.")
     for region in view_spec.regions:
         if region.layout not in SUPPORTED_REGION_LAYOUTS:
@@ -1202,8 +1218,7 @@ def _validate_identifier_contract(substrate: SemanticSubstrate, view_spec: ViewS
     _validate_view_spec_constraints(view_spec)
     if view_spec.substrate_id != substrate.id:
         raise CompilerInputError(
-            f"ViewSpec.substrate_id '{view_spec.substrate_id}' must match "
-            f"SemanticSubstrate.id '{substrate.id}'."
+            f"ViewSpec.substrate_id '{view_spec.substrate_id}' must match SemanticSubstrate.id '{substrate.id}'."
         )
     _validate_safe_id(view_spec.root_region, "ViewSpec.root_region")
     for region in view_spec.regions:
@@ -1239,17 +1254,13 @@ def _validate_region_tree(valid_regions: list[Any], root_region: str) -> None:
         if region.id == root_region:
             continue
         if not region.parent_region:
-            raise CompilerInputError(
-                f"Region '{region.id}' is not the root and must declare parent_region."
-            )
+            raise CompilerInputError(f"Region '{region.id}' is not the root and must declare parent_region.")
         seen: set[str] = set()
         cursor: str | None = region.id
         depth = 0
         while cursor is not None and cursor != root_region:
             if cursor in seen:
-                raise CompilerInputError(
-                    f"Region parent_region cycle detected while walking from '{region.id}'."
-                )
+                raise CompilerInputError(f"Region parent_region cycle detected while walking from '{region.id}'.")
             depth += 1
             if depth > MAX_COMPILE_NESTING_DEPTH:
                 raise CompilerInputError(
@@ -1260,9 +1271,7 @@ def _validate_region_tree(valid_regions: list[Any], root_region: str) -> None:
             seen.add(cursor)
             cursor = parent_by_region.get(cursor)
         if cursor is None:
-            raise CompilerInputError(
-                f"Region '{region.id}' does not reach root_region '{root_region}'."
-            )
+            raise CompilerInputError(f"Region '{region.id}' does not reach root_region '{root_region}'.")
 
 
 def _build_and_validate_regions(
@@ -1276,7 +1285,8 @@ def _build_and_validate_regions(
     for region in view_spec.regions:
         if region.id in seen_region_ids:
             _add_diagnostic(
-                diagnostics, "DUPLICATE_REGION_ID",
+                diagnostics,
+                "DUPLICATE_REGION_ID",
                 f"Region id {region.id} appears more than once. The first occurrence was used.",
                 intent_ref=_region_ref(region.id),
                 region_id=region.id,
@@ -1325,7 +1335,8 @@ def _build_and_validate_bindings(
     for binding in view_spec.bindings:
         if binding.id in seen_binding_ids:
             _add_diagnostic(
-                diagnostics, "DUPLICATE_BINDING_ID",
+                diagnostics,
+                "DUPLICATE_BINDING_ID",
                 f"Binding id {binding.id} appears more than once. The first occurrence was used.",
                 intent_ref=_binding_ref(binding.id),
                 content_ref=binding.address,
@@ -1336,7 +1347,8 @@ def _build_and_validate_bindings(
         all_binding_ids.add(binding.id)
         if binding.target_region not in region_nodes:
             _add_diagnostic(
-                diagnostics, "UNKNOWN_REGION",
+                diagnostics,
+                "UNKNOWN_REGION",
                 f"Binding {binding.id} targets unknown region {binding.target_region}.",
                 intent_ref=_binding_ref(binding.id),
                 content_ref=binding.address,
@@ -1345,7 +1357,8 @@ def _build_and_validate_bindings(
             continue
         if binding.present_as not in PRESENT_AS_TO_PRIMITIVE:
             _add_diagnostic(
-                diagnostics, "UNKNOWN_PRESENT_AS",
+                diagnostics,
+                "UNKNOWN_PRESENT_AS",
                 f"Binding {binding.id} uses unknown present_as {binding.present_as}.",
                 intent_ref=_binding_ref(binding.id),
                 content_ref=binding.address,
@@ -1354,7 +1367,8 @@ def _build_and_validate_bindings(
             continue
         if binding.cardinality == "exactly_once" and binding.address in seen_exactly_once_addresses:
             _add_diagnostic(
-                diagnostics, "DUPLICATE_EXACTLY_ONCE_ADDRESS",
+                diagnostics,
+                "DUPLICATE_EXACTLY_ONCE_ADDRESS",
                 f"Binding {binding.id} duplicates exactly_once address {binding.address} "
                 f"already used by {seen_exactly_once_addresses[binding.address]}.",
                 intent_ref=_binding_ref(binding.id),
@@ -1367,7 +1381,8 @@ def _build_and_validate_bindings(
             _resolve_address(binding.address, address_index)
         except (ValueError, KeyError) as exc:
             _add_diagnostic(
-                diagnostics, "INVALID_ADDRESS",
+                diagnostics,
+                "INVALID_ADDRESS",
                 f"Binding {binding.id} has invalid address {binding.address}: {exc}",
                 intent_ref=_binding_ref(binding.id),
                 content_ref=binding.address,
@@ -1380,9 +1395,7 @@ def _build_and_validate_bindings(
             seen_exactly_once_addresses[binding.address] = binding.id
 
     bindings_by_id = {b.id: b for b in valid_bindings}
-    binding_nodes: dict[str, IRNode] = {
-        b.id: _build_binding_node(b, address_index) for b in valid_bindings
-    }
+    binding_nodes: dict[str, IRNode] = {b.id: _build_binding_node(b, address_index) for b in valid_bindings}
 
     bindings_by_region: dict[str, list[BindingSpec]] = {r.id: [] for r in valid_regions}
     for b in valid_bindings:
@@ -1421,7 +1434,8 @@ def _compile_and_place_motifs(
     for motif in view_spec.motifs:
         if motif.id in motif_by_id:
             _add_diagnostic(
-                diagnostics, "DUPLICATE_MOTIF_ID",
+                diagnostics,
+                "DUPLICATE_MOTIF_ID",
                 f"Motif id {motif.id} appears more than once. The first occurrence was used.",
                 intent_ref=_motif_ref(motif.id),
                 region_id=motif.region,
@@ -1446,11 +1460,7 @@ def _compile_and_place_motifs(
     conflicting_state_ids: set[str] = set()
     for region_id, region_motifs in motifs_by_region.items():
         has_collection = any(motif.kind in COLLECTION_MOTIF_KINDS for motif in region_motifs)
-        conflicting_states = [
-            motif
-            for motif in region_motifs
-            if motif.kind in CONFLICTING_STATE_MOTIF_KINDS
-        ]
+        conflicting_states = [motif for motif in region_motifs if motif.kind in CONFLICTING_STATE_MOTIF_KINDS]
         if has_collection and conflicting_states:
             for motif in conflicting_states:
                 conflicting_state_ids.add(motif.id)
@@ -1465,7 +1475,8 @@ def _compile_and_place_motifs(
     for group in view_spec.groups:
         if group.id in seen_group_ids:
             _add_diagnostic(
-                diagnostics, "DUPLICATE_GROUP_ID",
+                diagnostics,
+                "DUPLICATE_GROUP_ID",
                 f"Group id {group.id} appears more than once. The first occurrence was used.",
                 intent_ref=f"viewspec:group:{group.id}",
                 region_id=group.target_region,
@@ -1475,7 +1486,8 @@ def _compile_and_place_motifs(
         for member_id in group.members:
             if member_id not in all_binding_ids:
                 _add_diagnostic(
-                    diagnostics, "MISSING_GROUP_MEMBER",
+                    diagnostics,
+                    "MISSING_GROUP_MEMBER",
                     f"Group {group.id} references missing binding {member_id}.",
                     intent_ref=f"viewspec:group:{group.id}",
                     region_id=group.target_region,
@@ -1488,7 +1500,8 @@ def _compile_and_place_motifs(
             continue
         if motif.region not in region_nodes:
             _add_diagnostic(
-                diagnostics, "UNKNOWN_REGION",
+                diagnostics,
+                "UNKNOWN_REGION",
                 f"Motif {motif.id} targets unknown region {motif.region}.",
                 intent_ref=_motif_ref(motif.id),
                 region_id=motif.region,
@@ -1498,7 +1511,8 @@ def _compile_and_place_motifs(
         for member_id in motif.members:
             if member_id not in all_binding_ids:
                 _add_diagnostic(
-                    diagnostics, "MISSING_MOTIF_MEMBER",
+                    diagnostics,
+                    "MISSING_MOTIF_MEMBER",
                     f"Motif {motif.id} references missing binding {member_id}.",
                     intent_ref=_motif_ref(motif.id),
                     region_id=motif.region,
@@ -1511,7 +1525,8 @@ def _compile_and_place_motifs(
                 continue
             if mid in motif_claimed_binding_ids:
                 _add_diagnostic(
-                    diagnostics, "DUPLICATE_MOTIF_MEMBER",
+                    diagnostics,
+                    "DUPLICATE_MOTIF_MEMBER",
                     f"Binding {mid} is claimed by more than one motif. The first "
                     f"motif to place it was used; motif {motif.id} does not re-render it.",
                     intent_ref=_motif_ref(motif.id),
@@ -1533,7 +1548,8 @@ def _compile_and_place_motifs(
             # SEMANTIC_GRAPH_UNREACHED_MEMBER handling.
             if owned_member_ids:
                 _add_diagnostic(
-                    diagnostics, "SEMANTIC_MOTIF_MEMBERS_UNPLACED",
+                    diagnostics,
+                    "SEMANTIC_MOTIF_MEMBERS_UNPLACED",
                     f"Motif {motif.id} ({motif.kind}) did not satisfy its contract; its "
                     f"{len(owned_member_ids)} member binding(s) render as region leftovers instead "
                     f"of the motif ({', '.join(owned_member_ids)}).",
@@ -1577,7 +1593,8 @@ def _validate_actions(
         action_valid = True
         if action.id in seen_action_ids:
             _add_diagnostic(
-                diagnostics, "DUPLICATE_ACTION_ID",
+                diagnostics,
+                "DUPLICATE_ACTION_ID",
                 f"Action id {action.id} appears more than once. The first occurrence was used.",
                 intent_ref=_action_ref(action.id),
                 region_id=action.target_region,
@@ -1596,7 +1613,8 @@ def _validate_actions(
         if action.target_region not in region_nodes:
             action_valid = False
             _add_diagnostic(
-                diagnostics, "UNKNOWN_ACTION_TARGET",
+                diagnostics,
+                "UNKNOWN_ACTION_TARGET",
                 f"Action {action.id} targets unknown region {action.target_region}.",
                 intent_ref=_action_ref(action.id),
                 region_id=action.target_region,
@@ -1605,7 +1623,8 @@ def _validate_actions(
             if ":" not in action.target_ref:
                 action_valid = False
                 _add_diagnostic(
-                    diagnostics, "INVALID_ACTION_TARGET_REF",
+                    diagnostics,
+                    "INVALID_ACTION_TARGET_REF",
                     f"Action {action.id} target_ref must use kind:id form.",
                     intent_ref=_action_ref(action.id),
                 )
@@ -1620,7 +1639,8 @@ def _validate_actions(
                 if not target_exists:
                     action_valid = False
                     _add_diagnostic(
-                        diagnostics, "UNKNOWN_ACTION_TARGET",
+                        diagnostics,
+                        "UNKNOWN_ACTION_TARGET",
                         f"Action {action.id} targets unknown {target_kind}:{target_id}.",
                         intent_ref=_action_ref(action.id),
                     )
@@ -1628,7 +1648,8 @@ def _validate_actions(
             if binding_id not in valid_binding_ids:
                 action_valid = False
                 _add_diagnostic(
-                    diagnostics, "UNKNOWN_ACTION_PAYLOAD_BINDING",
+                    diagnostics,
+                    "UNKNOWN_ACTION_PAYLOAD_BINDING",
                     f"Action {action.id} references missing payload binding {binding_id}.",
                     intent_ref=_action_ref(action.id),
                 )
@@ -1672,7 +1693,8 @@ def _resolve_and_apply_styles(
     for style in view_spec.styles:
         if style.id in seen_style_ids:
             _add_diagnostic(
-                diagnostics, "DUPLICATE_STYLE_ID",
+                diagnostics,
+                "DUPLICATE_STYLE_ID",
                 f"Style id {style.id} appears more than once. The first occurrence was used.",
                 intent_ref=_style_ref(style.id),
             )
@@ -1728,7 +1750,8 @@ def _resolve_and_apply_styles(
                     _attach_style(region_nodes[motif_by_id[target_id].region], style)
                 else:
                     _add_diagnostic(
-                        diagnostics, "UNKNOWN_STYLE_TARGET",
+                        diagnostics,
+                        "UNKNOWN_STYLE_TARGET",
                         f"Style {style.id} targets motif {target_id}, but its region is not available.",
                         intent_ref=_style_ref(style.id),
                     )
@@ -1737,7 +1760,8 @@ def _resolve_and_apply_styles(
                 _attach_style(region_nodes[view_spec.root_region], style)
         else:
             _add_diagnostic(
-                diagnostics, "UNKNOWN_STYLE_TARGET",
+                diagnostics,
+                "UNKNOWN_STYLE_TARGET",
                 f"Style {style.id} targets unknown {target_kind}:{target_id}.",
                 intent_ref=_style_ref(style.id),
             )
@@ -1777,7 +1801,9 @@ def compile(
         if motif_plugins
         else builtin_motif_registry()
     )
-    supported_motif_kinds = active_motif_registry.kinds if motif_registry is not None or motif_plugins else SUPPORTED_MOTIF_KINDS
+    supported_motif_kinds = (
+        active_motif_registry.kinds if motif_registry is not None or motif_plugins else SUPPORTED_MOTIF_KINDS
+    )
 
     for motif in view_spec.motifs:
         if motif.kind not in active_motif_registry:
@@ -1937,17 +1963,19 @@ def derive_style_tokens(substrate: SemanticSubstrate, view_spec: ViewSpec) -> di
         regular_gap, regular_padding = "0.85rem", "0.74rem 0.9rem"
 
     style_values = dict(DEFAULT_STYLE_TOKEN_VALUES)
-    style_values.update({
-        "emphasis.high": f"font-weight: {emphasis_weight}; letter-spacing: -0.025em;",
-        "emphasis.medium": f"font-weight: {medium_weight};",
-        "tone.accent": "color: #0f766e;",
-        "action.accent": "background-color: #0f766e; color: #ffffff;",
-        "tone.muted": "color: #6b7280;",
-        "surface.subtle": "background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 14px;",
-        "surface.strong": "background: #e2e8f0; border: 1px solid #94a3b8; border-radius: 14px;",
-        "density.compact": f"gap: {compact_gap}; padding: {compact_padding};",
-        "density.regular": f"gap: {regular_gap}; padding: {regular_padding};",
-    })
+    style_values.update(
+        {
+            "emphasis.high": f"font-weight: {emphasis_weight}; letter-spacing: -0.025em;",
+            "emphasis.medium": f"font-weight: {medium_weight};",
+            "tone.accent": "color: #0f766e;",
+            "action.accent": "background-color: #0f766e; color: #ffffff;",
+            "tone.muted": "color: #6b7280;",
+            "surface.subtle": "background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 14px;",
+            "surface.strong": "background: #e2e8f0; border: 1px solid #94a3b8; border-radius: 14px;",
+            "density.compact": f"gap: {compact_gap}; padding: {compact_padding};",
+            "density.regular": f"gap: {regular_gap}; padding: {regular_padding};",
+        }
+    )
     return style_values
 
 

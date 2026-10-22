@@ -487,10 +487,13 @@ def test_browser_failure_message_retains_playwright_assertion_and_warnings():
         "",
         1,
     )
-    assert _browser_failure_message(
-        transformed,
-        code="HOST_VERIFY_PAYLOAD_VALUE_MISMATCH",
-    ) == "Error: HOST_VERIFY_PAYLOAD_VALUE_MISMATCH: binding inc_id has 0 inputs"
+    assert (
+        _browser_failure_message(
+            transformed,
+            code="HOST_VERIFY_PAYLOAD_VALUE_MISMATCH",
+        )
+        == "Error: HOST_VERIFY_PAYLOAD_VALUE_MISMATCH: binding inc_id has 0 inputs"
+    )
 
 
 def test_process_failure_surfaces_stable_code_line_from_stdout(tmp_path):
@@ -514,9 +517,7 @@ def test_process_failure_surfaces_stable_code_line_from_stdout(tmp_path):
         )
 
     assert failure.value.code == "HOST_VERIFY_STYLE_ASSERTION_TOO_WEAK"
-    assert failure.value.message == (
-        "HOST_VERIFY_STYLE_ASSERTION_TOO_WEAK: expected grid"
-    )
+    assert failure.value.message == ("HOST_VERIFY_STYLE_ASSERTION_TOO_WEAK: expected grid")
 
 
 def test_verify_host_install_runs_npm_ci_ignore_scripts(tmp_path, monkeypatch):

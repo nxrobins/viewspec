@@ -95,8 +95,12 @@ def test_allowlist_entries_are_accurate() -> None:
     for token in sorted(ALLOWED_NON_REGISTRY_TOKENS):
         assert token not in ERROR_CODES, f"{token} is now registered; remove it from the allowlist"
         assert token in tokens, f"{token} is no longer cited in the docs; remove it from the allowlist"
-        assert _looks_like_registry_code(token), f"{token} no longer looks like a registry code; the allowlist entry is unnecessary"
+        assert _looks_like_registry_code(token), (
+            f"{token} no longer looks like a registry code; the allowlist entry is unnecessary"
+        )
     for token in sorted(PUBLIC_CONSTANTS):
         assert token in viewspec.__all__, f"{token} is documented as a public constant but is not exported"
     for token, script in REPOSITORY_SCRIPT_CODES.items():
-        assert token in script.read_text(encoding="utf-8"), f"{token} is no longer emitted by {script.relative_to(ROOT)}"
+        assert token in script.read_text(encoding="utf-8"), (
+            f"{token} is no longer emitted by {script.relative_to(ROOT)}"
+        )

@@ -20,11 +20,15 @@ from viewspec.app_validation import (
 )
 
 
-def resource_binding_assertion_report(payload: dict[str, Any], screen_reports: list[dict[str, Any]]) -> dict[str, Any] | None:
+def resource_binding_assertion_report(
+    payload: dict[str, Any], screen_reports: list[dict[str, Any]]
+) -> dict[str, Any] | None:
     if _resource_binding_for_payload(payload) != APP_BUNDLE_RESOURCE_BINDING_READONLY:
         return None
     screen_reports_by_id = {screen.get("id"): screen for screen in screen_reports if isinstance(screen, dict)}
-    resources = _fixture_records_by_resource(payload.get("resources") if isinstance(payload.get("resources"), list) else [], [])
+    resources = _fixture_records_by_resource(
+        payload.get("resources") if isinstance(payload.get("resources"), list) else [], []
+    )
     views: list[dict[str, Any]] = []
     assertions: list[dict[str, Any]] = []
     errors: list[dict[str, str]] = []
@@ -126,7 +130,11 @@ def resource_binding_assertion_report(payload: dict[str, Any], screen_reports: l
                         )
                     view_assertions.append(assertion)
                     assertions.append(assertion)
-            view_status = "passed" if view_assertions and all(item.get("status") == "passed" for item in view_assertions) else "failed"
+            view_status = (
+                "passed"
+                if view_assertions and all(item.get("status") == "passed" for item in view_assertions)
+                else "failed"
+            )
             if not view_assertions:
                 errors.append(
                     {

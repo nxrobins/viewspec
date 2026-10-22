@@ -18,7 +18,6 @@ from viewspec._version import __version__
 from viewspec.design_md import DesignSystemContext
 from viewspec.emitters._write import write_artifact_set, write_text_atomic
 
-
 MAX_HTML_INPUT_BYTES = 5_000_000
 # Maximum kept-element nesting depth. The parser is stack-based, but the
 # downstream freeze/render passes recurse per DOM level, so a deeply nested (yet
@@ -172,7 +171,7 @@ class HtmlInputError(ValueError):
 class _HTMLNode:
     tag: str
     attrs: dict[str, str] = field(default_factory=dict)
-    children: list["_HTMLNode"] = field(default_factory=list)
+    children: list[_HTMLNode] = field(default_factory=list)
     text_chunks: list[str] = field(default_factory=list)
 
 
@@ -347,7 +346,9 @@ class _SanitizingHTMLParser(HTMLParser):
         if tag in TRANSPARENT_TAGS or tag in UNWRAP_TAGS:
             return
         if tag not in ALLOWED_TAGS:
-            self._diagnostic("warning", "HTML_TAG_UNWRAPPED", f"Removed unsupported <{tag}> wrapper but kept text children.")
+            self._diagnostic(
+                "warning", "HTML_TAG_UNWRAPPED", f"Removed unsupported <{tag}> wrapper but kept text children."
+            )
             return
 
         if len(self.stack) >= MAX_DOM_DEPTH:
@@ -472,7 +473,9 @@ def compile_html(
     return HtmlCompileResult(html=output_html, manifest=manifest, diagnostics=diagnostics, lift=lift)
 
 
-def diff_html(left_html: str, right_html: str, *, left_name: str | None = None, right_name: str | None = None) -> HtmlSemanticDiff:
+def diff_html(
+    left_html: str, right_html: str, *, left_name: str | None = None, right_name: str | None = None
+) -> HtmlSemanticDiff:
     left = lift_html(left_html, source_name=left_name)
     right = lift_html(right_html, source_name=right_name)
     left_nodes = _nodes_by_id(left.nodes)
@@ -484,11 +487,15 @@ def diff_html(left_html: str, right_html: str, *, left_name: str | None = None, 
     return HtmlSemanticDiff(
         left_source_hash=left.source_hash,
         right_source_hash=right.source_hash,
-        topology_similarity=round(_jaccard(left.topology_fingerprint.path_ngrams, right.topology_fingerprint.path_ngrams), 6),
+        topology_similarity=round(
+            _jaccard(left.topology_fingerprint.path_ngrams, right.topology_fingerprint.path_ngrams), 6
+        ),
         changed_headings=_changed_texts(_texts_by_role(left.roles, "heading"), _texts_by_role(right.roles, "heading")),
         changed_values=_changed_texts(_texts_by_role(left.roles, "value"), _texts_by_role(right.roles, "value")),
         changed_actions=_changed_texts(_texts_by_role(left.roles, "action"), _texts_by_role(right.roles, "action")),
-        changed_lists=_changed_sequences(_sequences_by_tag(left.nodes, "li", left_nodes), _sequences_by_tag(right.nodes, "li", right_nodes)),
+        changed_lists=_changed_sequences(
+            _sequences_by_tag(left.nodes, "li", left_nodes), _sequences_by_tag(right.nodes, "li", right_nodes)
+        ),
         changed_tables=_changed_sequences(_table_rows(left.nodes, left_nodes), _table_rows(right.nodes, right_nodes)),
         role_count_delta={role: right_role_counts.get(role, 0) - left_role_counts.get(role, 0) for role in all_roles},
         group_count_delta=len(right.group_candidates) - len(left.group_candidates),
@@ -523,7 +530,11 @@ def _sanitize_attrs(
         value = (raw_value or "").strip()
         if name.startswith("on") or name in {"style", "srcdoc", "formaction", "srcset"}:
             diagnostics.append(
-                {"severity": "warning", "code": "HTML_ATTR_STRIPPED", "message": f"Removed unsafe attribute {name} from <{tag}>."}
+                {
+                    "severity": "warning",
+                    "code": "HTML_ATTR_STRIPPED",
+                    "message": f"Removed unsafe attribute {name} from <{tag}>.",
+                }
             )
             continue
         if name not in allowed and not name.startswith("aria-"):
@@ -532,7 +543,11 @@ def _sanitize_attrs(
             normalized = _normalize_url_for_policy(value)
             if not _safe_url(normalized, attr=name):
                 diagnostics.append(
-                    {"severity": "warning", "code": "HTML_URL_STRIPPED", "message": f"Removed unsafe {name} URL from <{tag}>."}
+                    {
+                        "severity": "warning",
+                        "code": "HTML_URL_STRIPPED",
+                        "message": f"Removed unsafe {name} URL from <{tag}>.",
+                    }
                 )
                 continue
             if tag == "img" and name == "src" and _is_external_http_url(normalized):
@@ -610,7 +625,7 @@ def _normalize_url_for_policy(value: str) -> str:
         return f"https://{authority_path}" if authority_path else compacted
     parsed = urlparse(compacted)
     if parsed.scheme:
-        return f"{parsed.scheme.lower()}{compacted[len(parsed.scheme):]}"
+        return f"{parsed.scheme.lower()}{compacted[len(parsed.scheme) :]}"
     return compacted
 
 
@@ -654,7 +669,9 @@ def _render_sanitized_children(root: _HTMLNode, path: tuple[int, ...]) -> tuple[
             return "".join(pieces)
         node_id = _node_id(item_path, node.tag)
         attrs = {**node.attrs, "data-viewspec-node-id": node_id}
-        attr_html = " ".join(f'{escape(key, quote=True)}="{escape(value, quote=True)}"' for key, value in sorted(attrs.items()))
+        attr_html = " ".join(
+            f'{escape(key, quote=True)}="{escape(value, quote=True)}"' for key, value in sorted(attrs.items())
+        )
         manifest[node_id] = {
             "tag": node.tag,
             "attrs": dict(sorted(node.attrs.items())),
@@ -672,7 +689,7 @@ def _render_sanitized_children(root: _HTMLNode, path: tuple[int, ...]) -> tuple[
             link_html = " ".join(
                 f'{escape(key, quote=True)}="{escape(value, quote=True)}"' for key, value in sorted(link_attrs.items())
             )
-            return f'<a {link_html}>External image: {escape(label)}</a>'
+            return f"<a {link_html}>External image: {escape(label)}</a>"
         if node.tag in {"br", "hr", "img"}:
             return f"<{node.tag} {attr_html}>"
         pieces = [escape(text) for text in node.text_chunks if text]
@@ -761,12 +778,16 @@ def _fingerprint(nodes: list[LiftNode], *, ngram_length: int) -> HtmlTopologyFin
                 ngrams.append(" > ".join(path_tokens[index : index + ngram_length]))
     sorted_ngrams = tuple(sorted(ngrams))
     digest = hashlib.sha256("\n".join(sorted_ngrams).encode("utf-8")).hexdigest()
-    return HtmlTopologyFingerprint(hex=digest, path_ngrams=sorted_ngrams, token_count=len(sorted_ngrams), ngram_length=ngram_length)
+    return HtmlTopologyFingerprint(
+        hex=digest, path_ngrams=sorted_ngrams, token_count=len(sorted_ngrams), ngram_length=ngram_length
+    )
 
 
 def _governed_stylesheet(design: DesignSystemContext | None) -> str:
     colors = design.tokens.get("colors", {}) if design and isinstance(design.tokens.get("colors"), dict) else {}
-    typography = design.tokens.get("typography", {}) if design and isinstance(design.tokens.get("typography"), dict) else {}
+    typography = (
+        design.tokens.get("typography", {}) if design and isinstance(design.tokens.get("typography"), dict) else {}
+    )
     heading = typography.get("heading") or typography.get("h1") or {}
     body = typography.get("body") or typography.get("body-md") or {}
     spacing = design.tokens.get("spacing", {}) if design and isinstance(design.tokens.get("spacing"), dict) else {}
@@ -858,7 +879,11 @@ def _table_rows(nodes: tuple[LiftNode, ...], nodes_by_id: dict[str, LiftNode]) -
     for node in nodes:
         if node.tag != "tr":
             continue
-        cells = [nodes_by_id[child_id].text for child_id in node.child_ids if child_id in nodes_by_id and nodes_by_id[child_id].tag in {"td", "th"}]
+        cells = [
+            nodes_by_id[child_id].text
+            for child_id in node.child_ids
+            if child_id in nodes_by_id and nodes_by_id[child_id].tag in {"td", "th"}
+        ]
         if cells:
             rows.append(cells)
     return rows
@@ -873,7 +898,9 @@ def _changed_sequences(left: list[list[str]], right: list[list[str]]) -> dict[st
     }
 
 
-def write_html_compile_result(result: HtmlCompileResult, output_dir: str | Path, *, include_lift: bool = False) -> dict[str, str]:
+def write_html_compile_result(
+    result: HtmlCompileResult, output_dir: str | Path, *, include_lift: bool = False
+) -> dict[str, str]:
     output = Path(output_dir)
     output.mkdir(parents=True, exist_ok=True)
     paths = {

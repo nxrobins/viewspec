@@ -1,15 +1,11 @@
 """Local intent/artifact tools. Facade re-exporting the split submodules."""
+
 from __future__ import annotations
 
+import json
 from pathlib import Path
 from typing import Any
-from viewspec.raw_html import HtmlInputError
-from viewspec.raw_html import MAX_HTML_INPUT_BYTES
-from viewspec.raw_html import compile_html
-from viewspec.raw_html import diff_html
-from viewspec.raw_html import lift_html
-from viewspec.raw_html import write_html_compile_result
-import json
+
 from viewspec.local_tools_constants import (
     ABSOLUTE_PATH_ARG_RE,
     ACTION_TARGET_REF_RE,
@@ -44,11 +40,10 @@ from viewspec.local_tools_constants import (
     VIEWSPEC_INTENT_REF_RE,
     VOID_HTML_TAGS,
 )
-from viewspec.local_tools_response import (
-    LocalToolError,
-    exception_response,
-    tool_error_response,
-    tool_response,
+from viewspec.local_tools_hash import (
+    bytes_hash,
+    file_hash,
+    source_hash,
 )
 from viewspec.local_tools_io import (
     _is_relative_to,
@@ -60,17 +55,16 @@ from viewspec.local_tools_io import (
     resolve_cwd,
     resolve_local_path,
 )
-from viewspec.local_tools_hash import (
-    bytes_hash,
-    file_hash,
-    source_hash,
+from viewspec.local_tools_response import (
+    LocalToolError,
+    exception_response,
+    tool_error_response,
+    tool_response,
 )
 from viewspec.local_tools_validators import (
     _ArtifactDomProbe,
-    _AutofetchSurfaceProbe,
-    _SemanticHtmlParentParser,
-    _SemanticHtmlProjectionParser,
     _assert_semantic_projection_size,
+    _AutofetchSurfaceProbe,
     _collapse_artifact_text,
     _compare_json_attr,
     _compare_json_list_attr,
@@ -95,6 +89,8 @@ from viewspec.local_tools_validators import (
     _semantic_tsx_inner_text,
     _semantic_tsx_source_nodes,
     _semantic_visible_text_from_props,
+    _SemanticHtmlParentParser,
+    _SemanticHtmlProjectionParser,
     _stable_semantic_json,
     _strip_tsx_literals_and_comments,
     _tailwind_allowed_class_tokens,
@@ -138,6 +134,15 @@ from viewspec.local_tools_validators import (
     check_artifact_dir,
     check_issue_entry,
 )
+from viewspec.raw_html import (
+    MAX_HTML_INPUT_BYTES,
+    HtmlInputError,
+    compile_html,
+    diff_html,
+    lift_html,
+    write_html_compile_result,
+)
+
 
 def init_design_file(path: str | Path = "DESIGN.md", *, force: bool = False) -> Path:
     output = Path(path)
@@ -146,12 +151,16 @@ def init_design_file(path: str | Path = "DESIGN.md", *, force: bool = False) -> 
     atomic_write(output, STARTER_DESIGN)
     return output
 
+
 def _read_html_source(path: Path) -> str:
     """Read a local HTML file only after its on-disk size passes the raw HTML cap."""
     size = path.stat().st_size
     if size > MAX_HTML_INPUT_BYTES:
-        raise HtmlInputError("HTML_INPUT_TOO_LARGE", f"{path.name} is {size} bytes; the raw HTML limit is {MAX_HTML_INPUT_BYTES} bytes")
+        raise HtmlInputError(
+            "HTML_INPUT_TOO_LARGE", f"{path.name} is {size} bytes; the raw HTML limit is {MAX_HTML_INPUT_BYTES} bytes"
+        )
     return path.read_text(encoding="utf-8")
+
 
 def compile_html_file_tool(
     input_path: str | Path,
@@ -168,7 +177,9 @@ def compile_html_file_tool(
         root = resolve_cwd(cwd)
         source = resolve_local_path(input_path, cwd=root, allow_outside_cwd=allow_outside_cwd, must_exist=True)
         output = resolve_local_path(out_dir, cwd=root, allow_outside_cwd=allow_outside_cwd)
-        ensure_no_input_overwrite(source, output, ("index.html", "provenance_manifest.json", "diagnostics.json", "lift.json"))
+        ensure_no_input_overwrite(
+            source, output, ("index.html", "provenance_manifest.json", "diagnostics.json", "lift.json")
+        )
         design = _load_optional_design(design_path, cwd=root, allow_outside_cwd=allow_outside_cwd)
         html = _read_html_source(source)
         result = compile_html(
@@ -190,7 +201,9 @@ def compile_html_file_tool(
                 external_refs=external_refs,
                 paths=paths,
                 errors=[
-                    check_issue_entry(item, default_fix="Re-run viewspec compile after fixing the reported artifact issue.")
+                    check_issue_entry(
+                        item, default_fix="Re-run viewspec compile after fixing the reported artifact issue."
+                    )
                     for item in checked["errors"]
                 ],
                 metadata=path_policy_metadata(root, allow_outside_cwd),
@@ -201,7 +214,10 @@ def compile_html_file_tool(
             diagnostics=result.diagnostics,
             external_refs=external_refs,
             paths=paths,
-            next_actions=["Open the compiled index.html for review.", "Use diff_html_files before summarizing revisions."],
+            next_actions=[
+                "Open the compiled index.html for review.",
+                "Use diff_html_files before summarizing revisions.",
+            ],
             metadata=path_policy_metadata(root, allow_outside_cwd),
         )
     except Exception as exc:
@@ -211,6 +227,7 @@ def compile_html_file_tool(
             "Fix the HTML, DESIGN.md, or path issue and retry compile_html_file.",
             metadata=path_policy_metadata(root, allow_outside_cwd),
         )
+
 
 def check_artifact_tool(
     artifact_dir: str | Path,
@@ -224,7 +241,9 @@ def check_artifact_tool(
         artifact = resolve_local_path(artifact_dir, cwd=root, allow_outside_cwd=allow_outside_cwd)
         result = check_artifact_dir(artifact)
         errors = [
-            check_issue_entry(item, default_fix="Re-run viewspec compile from the source HTML, or fix the tampered artifact.")
+            check_issue_entry(
+                item, default_fix="Re-run viewspec compile from the source HTML, or fix the tampered artifact."
+            )
             for item in result["errors"]
         ]
         return tool_response(
@@ -246,6 +265,7 @@ def check_artifact_tool(
             "Fix the artifact directory path and retry check_artifact.",
             metadata=path_policy_metadata(root, allow_outside_cwd),
         )
+
 
 def diff_html_files_tool(
     left_path: str | Path,
@@ -282,6 +302,7 @@ def diff_html_files_tool(
             metadata=path_policy_metadata(root, allow_outside_cwd),
         )
 
+
 def lift_html_file_tool(
     input_path: str | Path,
     out_path: str | Path | None = None,
@@ -293,9 +314,15 @@ def lift_html_file_tool(
     try:
         root = resolve_cwd(cwd)
         source = resolve_local_path(input_path, cwd=root, allow_outside_cwd=allow_outside_cwd, must_exist=True)
-        output = resolve_local_path(out_path, cwd=root, allow_outside_cwd=allow_outside_cwd) if out_path is not None else None
+        output = (
+            resolve_local_path(out_path, cwd=root, allow_outside_cwd=allow_outside_cwd)
+            if out_path is not None
+            else None
+        )
         if output is not None and source == output:
-            raise LocalToolError("INVALID_PATH", "Refusing to overwrite input file.", "Choose a distinct output path for lift_json.")
+            raise LocalToolError(
+                "INVALID_PATH", "Refusing to overwrite input file.", "Choose a distinct output path for lift_json."
+            )
         result = lift_html(_read_html_source(source), source_name=source.name)
         paths: dict[str, str] = {"input": str(source)}
         if output is not None:
@@ -316,6 +343,7 @@ def lift_html_file_tool(
             "Fix the HTML path and retry lift_html_file.",
             metadata=path_policy_metadata(root, allow_outside_cwd),
         )
+
 
 def init_design_tool(
     out: str | Path = "DESIGN.md",
@@ -343,6 +371,7 @@ def init_design_tool(
             "Choose a writable path, or pass force=True to replace an existing DESIGN.md.",
             metadata=path_policy_metadata(root, allow_outside_cwd),
         )
+
 
 def export_agent_assets_tool(
     out: str | Path = ".viewspec",
@@ -407,6 +436,7 @@ def export_agent_assets_tool(
             metadata=path_policy_metadata(root, allow_outside_cwd),
         )
 
+
 def check_agent_assets_tool(
     asset_dir: str | Path = ".viewspec",
     *,
@@ -422,7 +452,9 @@ def check_agent_assets_tool(
         result = check_agent_assets(asset_path)
         return tool_response(
             bool(result["ok"]),
-            "Agent contract assets match the current SDK." if result["ok"] else "Agent contract assets failed verification.",
+            "Agent contract assets match the current SDK."
+            if result["ok"]
+            else "Agent contract assets failed verification.",
             paths={"assets": str(asset_path), "manifest": str(asset_path / "agent-assets.json")},
             errors=[
                 {
@@ -442,6 +474,7 @@ def check_agent_assets_tool(
             "Choose a readable agent asset directory and retry check_agent_assets.",
             metadata=path_policy_metadata(root, allow_outside_cwd),
         )
+
 
 __all__ = [
     "ABSOLUTE_PATH_ARG_RE",

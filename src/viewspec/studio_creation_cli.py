@@ -5,10 +5,10 @@ from __future__ import annotations
 import hashlib
 import hmac
 import json
-from pathlib import Path
 import selectors
 import subprocess
 import sys
+from pathlib import Path
 from typing import Any
 
 from viewspec._version import __version__
@@ -219,7 +219,11 @@ def accepted_creation_handoff_port(
     if not receipt_path.exists() and not receipt_path.is_symlink():
         return None
     try:
-        if receipt_path.is_symlink() or not receipt_path.is_file() or receipt_path.stat().st_size > MAX_SERVER_INFO_BYTES:
+        if (
+            receipt_path.is_symlink()
+            or not receipt_path.is_file()
+            or receipt_path.stat().st_size > MAX_SERVER_INFO_BYTES
+        ):
             raise ValueError("unsafe receipt")
         receipt = json.loads(receipt_path.read_text(encoding="utf-8"))
     except (OSError, UnicodeDecodeError, json.JSONDecodeError, ValueError) as exc:

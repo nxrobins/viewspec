@@ -13,6 +13,7 @@ from pathlib import Path
 from typing import Any
 
 from viewspec._version import __version__
+from viewspec.a11y import a11y_contrast_report, name_report
 from viewspec.host_verify import HOST_VERIFY_TARGET, summarize_host_verification_report, verify_host_artifact_dir
 from viewspec.intent_tools import (
     INTENT_COMPILE_TARGETS,
@@ -34,9 +35,7 @@ from viewspec.local_tools import (
     tool_response,
 )
 from viewspec.local_tools_io import is_replaceable_output_dir, portable_path, portable_report_paths
-from viewspec.a11y import a11y_contrast_report, name_report
 from viewspec.manifest_summary import manifest_root_aesthetic_profile, summarize_intent_manifest
-
 
 PROVE_SCHEMA_VERSION = 1
 PROVE_DEFAULT_OUT = ".viewspec-proof"
@@ -99,7 +98,11 @@ def prove(
     timings: dict[str, int] = {}
     root = resolve_cwd(cwd)
     output_dir = _resolve_output(out_dir, root)
-    report_path = resolve_local_path(report_out, cwd=root, allow_outside_cwd=True) if report_out else output_dir / PROVE_DEFAULT_REPORT
+    report_path = (
+        resolve_local_path(report_out, cwd=root, allow_outside_cwd=True)
+        if report_out
+        else output_dir / PROVE_DEFAULT_REPORT
+    )
     try:
         if target not in PROVE_TARGETS:
             raise ProveFailure(
@@ -324,7 +327,9 @@ def prove_tool(
         return _tool_from_report(proof, root, allow_outside_cwd)
     except Exception as exc:
         if isinstance(exc, LocalToolError):
-            return tool_error_response(exc.code, exc.message, exc.fix, metadata=path_policy_metadata(root, allow_outside_cwd))
+            return tool_error_response(
+                exc.code, exc.message, exc.fix, metadata=path_policy_metadata(root, allow_outside_cwd)
+            )
         return tool_error_response(
             "PROVE_INTERNAL_ERROR",
             str(exc),
@@ -365,7 +370,11 @@ def _prepare_output_dir(output_dir: Path, *, root: Path, force: bool, raw_out: s
 def _assert_safe_output(output_dir: Path, *, root: Path, raw_out: str | Path) -> None:
     raw_parts = [str(part) for part in Path(raw_out).parts]
     if ".." in raw_parts:
-        raise ProveFailure("PROVE_OUTPUT_UNSAFE", "Proof output path must not contain parent traversal.", "Use a direct child output path.")
+        raise ProveFailure(
+            "PROVE_OUTPUT_UNSAFE",
+            "Proof output path must not contain parent traversal.",
+            "Use a direct child output path.",
+        )
     resolved = output_dir.resolve()
     home = Path.home().resolve()
     repo_root = _repo_root(root)
@@ -529,11 +538,15 @@ def _report(
         "intent": str(prepared.intent_path) if prepared else None,
         "design": str(prepared.design_path) if prepared and prepared.design_path else None,
         "artifact_dir": str(prepared.artifact_dir) if prepared else None,
-        "artifact": str(_artifact_path(prepared.artifact_dir, target)) if prepared and target in PROVE_TARGETS else None,
+        "artifact": str(_artifact_path(prepared.artifact_dir, target))
+        if prepared and target in PROVE_TARGETS
+        else None,
         "manifest": str(prepared.artifact_dir / "provenance_manifest.json") if prepared else None,
         "diagnostics": str(prepared.artifact_dir / "diagnostics.json") if prepared else None,
         "report": str(prepared.report_path if prepared else report_path),
-        "proof_summary": str(prepared.summary_path if prepared else output_dir / PROVE_DEFAULT_SUMMARY if output_dir else None),
+        "proof_summary": str(
+            prepared.summary_path if prepared else output_dir / PROVE_DEFAULT_SUMMARY if output_dir else None
+        ),
         "support_bundle": str(
             prepared.output_dir / PROVE_DEFAULT_SUPPORT_BUNDLE
             if prepared
@@ -616,7 +629,11 @@ def _write_report(report: dict[str, Any], report_path: Path) -> dict[str, Any]:
     try:
         support_path = report.get("paths", {}).get("support_bundle")
         if support_path:
-            _write_support_bundle(Path(str(support_path)), _render_support_bundle(report, proof_report_hash=proof_report_hash(report)), report=report)
+            _write_support_bundle(
+                Path(str(support_path)),
+                _render_support_bundle(report, proof_report_hash=proof_report_hash(report)),
+                report=report,
+            )
     except Exception as exc:
         failed = _support_failure_report(report, report_path, exc)
         _write_report_file(failed, report_path)
@@ -629,7 +646,9 @@ def _write_report(report: dict[str, Any], report_path: Path) -> dict[str, Any]:
     try:
         summary_path = report.get("paths", {}).get("proof_summary")
         if summary_path:
-            _write_proof_summary(Path(str(summary_path)), _render_proof_summary(report, proof_report_hash=proof_report_hash(report)))
+            _write_proof_summary(
+                Path(str(summary_path)), _render_proof_summary(report, proof_report_hash=proof_report_hash(report))
+            )
     except Exception as exc:
         failed = _summary_failure_report(report, report_path, exc)
         _write_report_file(failed, report_path)
@@ -658,7 +677,9 @@ def _final_report(report: dict[str, Any], report_path: Path) -> dict[str, Any]:
 
 def _normalize_errors(errors: object, *, fallback_code: str) -> list[dict[str, str]]:
     if not isinstance(errors, list) or not errors:
-        return [{"code": fallback_code, "message": "ViewSpec proof failed.", "fix": "Inspect proof_report.json and retry."}]
+        return [
+            {"code": fallback_code, "message": "ViewSpec proof failed.", "fix": "Inspect proof_report.json and retry."}
+        ]
     normalized: list[dict[str, str]] = []
     for item in errors:
         if isinstance(item, dict):
@@ -670,7 +691,9 @@ def _normalize_errors(errors: object, *, fallback_code: str) -> list[dict[str, s
                 }
             )
         else:
-            normalized.append({"code": fallback_code, "message": str(item), "fix": "Inspect proof_report.json and retry."})
+            normalized.append(
+                {"code": fallback_code, "message": str(item), "fix": "Inspect proof_report.json and retry."}
+            )
     return normalized
 
 
@@ -679,7 +702,9 @@ def _summary_failure_report(report: dict[str, Any], report_path: Path, exc: Exce
     failed["ok"] = False
     failed.setdefault("checks", {})["proof_summary"] = "failed"
     message = exc.message if isinstance(exc, ProveFailure) else str(exc)
-    failed_errors = _normalize_errors(failed.get("errors"), fallback_code="PROVE_INTERNAL_ERROR") if failed.get("errors") else []
+    failed_errors = (
+        _normalize_errors(failed.get("errors"), fallback_code="PROVE_INTERNAL_ERROR") if failed.get("errors") else []
+    )
     failed_errors.append(
         {
             "code": "PROVE_SUMMARY_WRITE_FAILED",
@@ -697,7 +722,9 @@ def _support_failure_report(report: dict[str, Any], report_path: Path, exc: Exce
     failed.setdefault("checks", {})["support_bundle"] = "failed"
     code = exc.code if isinstance(exc, ProveFailure) else "PROVE_SUPPORT_BUNDLE_WRITE_FAILED"
     message = exc.message if isinstance(exc, ProveFailure) else str(exc)
-    failed_errors = _normalize_errors(failed.get("errors"), fallback_code="PROVE_INTERNAL_ERROR") if failed.get("errors") else []
+    failed_errors = (
+        _normalize_errors(failed.get("errors"), fallback_code="PROVE_INTERNAL_ERROR") if failed.get("errors") else []
+    )
     failed_errors.append(
         {
             "code": code,
@@ -712,7 +739,9 @@ def _support_failure_report(report: dict[str, Any], report_path: Path, exc: Exce
 def _write_failed_summary(report: dict[str, Any]) -> None:
     summary_path = report.get("paths", {}).get("proof_summary")
     if summary_path:
-        _write_proof_summary(Path(str(summary_path)), _render_proof_summary(report, proof_report_hash=proof_report_hash(report)))
+        _write_proof_summary(
+            Path(str(summary_path)), _render_proof_summary(report, proof_report_hash=proof_report_hash(report))
+        )
 
 
 def _write_proof_summary(summary_path: Path, markdown: str) -> None:
@@ -805,9 +834,7 @@ def _support_host_report(host_report: dict[str, Any] | None) -> dict[str, Any] |
         return None
     assertions = host_report.get("assertions") if isinstance(host_report.get("assertions"), dict) else {}
     requirements = (
-        host_report.get("assertion_requirements")
-        if isinstance(host_report.get("assertion_requirements"), dict)
-        else {}
+        host_report.get("assertion_requirements") if isinstance(host_report.get("assertion_requirements"), dict) else {}
     )
     return {
         "ok": bool(host_report.get("ok")),
@@ -823,7 +850,11 @@ def _support_host_report(host_report: dict[str, Any] | None) -> dict[str, Any] |
             str(key): int(value) for key, value in requirements.items() if isinstance(value, int)
         },
         "manifest_summary": _support_manifest_summary(host_report.get("manifest_summary")),
-        "error_codes": [str(error.get("code")) for error in host_report.get("errors", []) if isinstance(error, dict) and error.get("code")],
+        "error_codes": [
+            str(error.get("code"))
+            for error in host_report.get("errors", [])
+            if isinstance(error, dict) and error.get("code")
+        ],
     }
 
 
@@ -841,9 +872,13 @@ def _support_manifest_summary(summary: object) -> dict[str, Any] | None:
         "aesthetic_style": {
             "available": bool(style.get("available")),
             "profile": _support_scalar(style.get("profile")),
-            "changed_token_count": int(style.get("changed_token_count")) if isinstance(style.get("changed_token_count"), int) else 0,
+            "changed_token_count": int(style.get("changed_token_count"))
+            if isinstance(style.get("changed_token_count"), int)
+            else 0,
             "category_count": int(style.get("category_count")) if isinstance(style.get("category_count"), int) else 0,
-            "declaration_count": int(style.get("declaration_count")) if isinstance(style.get("declaration_count"), int) else 0,
+            "declaration_count": int(style.get("declaration_count"))
+            if isinstance(style.get("declaration_count"), int)
+            else 0,
             "categories": [str(item)[:80] for item in style.get("categories", []) if isinstance(item, str)],
         }
         if style
@@ -863,7 +898,18 @@ def _support_manifest_summary(summary: object) -> dict[str, Any] | None:
 def _support_path_hints(report: dict[str, Any]) -> dict[str, str]:
     paths = report.get("paths", {}) if isinstance(report.get("paths"), dict) else {}
     hints: dict[str, str] = {}
-    for key in ("proof_dir", "intent", "design", "artifact_dir", "artifact", "manifest", "diagnostics", "report", "proof_summary", "support_bundle"):
+    for key in (
+        "proof_dir",
+        "intent",
+        "design",
+        "artifact_dir",
+        "artifact",
+        "manifest",
+        "diagnostics",
+        "report",
+        "proof_summary",
+        "support_bundle",
+    ):
         value = paths.get(key)
         if value:
             hints[f"{key}_name"] = Path(str(value)).name
@@ -873,7 +919,9 @@ def _support_path_hints(report: dict[str, Any]) -> dict[str, str]:
 def _support_next_actions(report: dict[str, Any]) -> list[str]:
     if report.get("ok"):
         return ["Keep support_bundle.json with proof_report.json for local audit records."]
-    codes = [str(error.get("code")) for error in report.get("errors", []) if isinstance(error, dict) and error.get("code")]
+    codes = [
+        str(error.get("code")) for error in report.get("errors", []) if isinstance(error, dict) and error.get("code")
+    ]
     if codes:
         return [f"Fix {codes[0]} and rerun viewspec prove."]
     return ["Inspect proof_report.json and rerun viewspec prove."]
@@ -1040,7 +1088,12 @@ def _proof_manifest_summary_lines(summary: object) -> list[str]:
 
 def _proof_claim(report: dict[str, Any]) -> str:
     target = report.get("target")
-    if target == HOST_VERIFY_TARGET and report.get("ok") and isinstance(report.get("host_report"), dict) and report["host_report"].get("ok"):
+    if (
+        target == HOST_VERIFY_TARGET
+        and report.get("ok")
+        and isinstance(report.get("host_report"), dict)
+        and report["host_report"].get("ok")
+    ):
         return "Bounded React/Vite/Tailwind reference-host proof for this generated artifact."
     return "Source artifact integrity and provenance proof for this generated artifact."
 

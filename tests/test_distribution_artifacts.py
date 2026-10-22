@@ -6,7 +6,8 @@ import zipfile
 from pathlib import Path
 
 import pytest
-from hypothesis import given, strategies as st
+from hypothesis import given
+from hypothesis import strategies as st
 
 from scripts.check_distribution import (
     SCHEMA_RELEASE_FILES,
@@ -16,7 +17,6 @@ from scripts.check_distribution import (
     audit_distribution,
 )
 from viewspec import __version__
-
 
 VERSION = __version__
 
@@ -147,8 +147,11 @@ def test_distribution_audit_rejects_missing_studio_runtime(tmp_path: Path, archi
     else:
         artifact = dist / f"viewspec-{VERSION}.tar.gz"
         with tarfile.open(artifact, "r:gz") as sdist:
-            members = [(member, sdist.extractfile(member).read()) for member in sdist.getmembers()
-                       if member.name != f"viewspec-{VERSION}/src/viewspec/{missing}"]
+            members = [
+                (member, sdist.extractfile(member).read())
+                for member in sdist.getmembers()
+                if member.name != f"viewspec-{VERSION}/src/viewspec/{missing}"
+            ]
         with tarfile.open(artifact, "w:gz") as sdist:
             for member, data in members:
                 sdist.addfile(member, io.BytesIO(data))
@@ -160,7 +163,9 @@ def test_distribution_audit_rejects_missing_studio_runtime(tmp_path: Path, archi
 def _forbidden_distribution_component(draw: st.DrawFn) -> str:
     component = draw(st.sampled_from((".git", ".github", ".venv", "__pycache__", "demos", "node_modules")))
     uppercase = draw(st.lists(st.booleans(), min_size=len(component), max_size=len(component)))
-    return "".join(character.upper() if flag else character for character, flag in zip(component, uppercase, strict=True))
+    return "".join(
+        character.upper() if flag else character for character, flag in zip(component, uppercase, strict=True)
+    )
 
 
 @given(

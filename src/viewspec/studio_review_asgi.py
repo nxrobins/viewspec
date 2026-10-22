@@ -13,11 +13,11 @@ from collections.abc import Awaitable, Callable, Mapping, MutableMapping
 from typing import Any
 
 from viewspec.studio_review_http import (
-    ReviewHTTPRequest,
-    ReviewHTTPResponse,
     STUDIO_REVIEW_HTTP_MAX_HEADER_BYTES,
     STUDIO_REVIEW_HTTP_MAX_JSON_BYTES,
     STUDIO_REVIEW_HTTP_MAX_PATH_BYTES,
+    ReviewHTTPRequest,
+    ReviewHTTPResponse,
     StudioReviewHTTPAdapter,
 )
 from viewspec.studio_review_internal import (
@@ -27,7 +27,6 @@ from viewspec.studio_review_internal import (
     StudioReviewInternalAuthError,
 )
 from viewspec.studio_share import STUDIO_SHARE_ARCHIVE_MAX_BYTES
-
 
 ASGIScope = MutableMapping[str, Any]
 ASGIMessage = MutableMapping[str, Any]
@@ -247,10 +246,7 @@ async def _receive_body(receive: ASGIReceive, *, maximum: int) -> bytes | object
 
 
 def _is_review_path(path: str) -> bool:
-    return (
-        path in {"/v1/reviews", STUDIO_REVIEW_INTERNAL_INGRESS_PATH, "/review"}
-        or path.startswith("/review/")
-    )
+    return path in {"/v1/reviews", STUDIO_REVIEW_INTERNAL_INGRESS_PATH, "/review"} or path.startswith("/review/")
 
 
 def _invalid_request(adapter: StudioReviewHTTPAdapter) -> ReviewHTTPResponse:

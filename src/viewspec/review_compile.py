@@ -2,14 +2,11 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
-from contextlib import contextmanager
 import errno
 import functools
 import hashlib
 import json
 import os
-from pathlib import Path
 import re
 import secrets
 import shutil
@@ -18,7 +15,11 @@ import stat
 import subprocess
 import threading
 import time
-from typing import Callable, TypeVar
+from collections.abc import Callable
+from contextlib import contextmanager
+from dataclasses import dataclass
+from pathlib import Path
+from typing import TypeVar
 
 from viewspec._version import __version__
 from viewspec.app_bundle import compile_app, diff_app_text, validate_app_text
@@ -34,10 +35,9 @@ from viewspec.review_contract import (
     canonical_json_bytes,
     canonical_json_sha256,
 )
-from viewspec.review_manifest import ReviewManifestIndex
 from viewspec.review_errors import make_review_error
+from viewspec.review_manifest import ReviewManifestIndex
 from viewspec.state_ir import validate_state_ir
-
 
 INTENT_SOURCE_MAX_BYTES = 256 * KIB
 APP_SOURCE_MAX_BYTES = 1 * MIB
@@ -321,10 +321,7 @@ def build_review_revision(
             contract_profile="local_v1",
         )
         if semantic_diff is not None:
-            if (
-                semantic_diff.to_revision != revision.number
-                or semantic_diff.to_source_sha256 != revision.source_sha256
-            ):
+            if semantic_diff.to_revision != revision.number or semantic_diff.to_source_sha256 != revision.source_sha256:
                 raise ReviewContractError(
                     "REVIEW_REVISION_IDENTITY_MISMATCH",
                     "Semantic diff identity does not match the candidate revision.",
@@ -508,7 +505,9 @@ def load_review_revision(session_dir: str | Path, revision_number: int) -> Built
     revision_dir = state / "revisions" / str(revision_number)
     revision_bytes = _read_bounded_regular_file(revision_dir / "revision.json", maximum=64 * KIB)
     try:
-        revision = ReviewRevision.from_json(_strict_json_object(revision_bytes, code="REVIEW_REVISION_IDENTITY_MISMATCH"))
+        revision = ReviewRevision.from_json(
+            _strict_json_object(revision_bytes, code="REVIEW_REVISION_IDENTITY_MISMATCH")
+        )
     except ReviewContractError:
         raise
     if revision.number != revision_number:
@@ -893,9 +892,11 @@ def _studio_state_inspection(
                 trigger = {"screen_id": "", "action_id": ""}
             else:
                 trigger = mutation.trigger
-                browser_replayable = browser_replayable and trigger_counts.get(
-                    (trigger["screen_id"], trigger["action_id"]), 0
-                ) == 1 and trigger["screen_id"] in routes
+                browser_replayable = (
+                    browser_replayable
+                    and trigger_counts.get((trigger["screen_id"], trigger["action_id"]), 0) == 1
+                    and trigger["screen_id"] in routes
+                )
             checkpoints.append(
                 {
                     "index": index,
@@ -958,15 +959,11 @@ def _studio_replay_expected(assertion: object) -> dict[str, object]:
         ],
         "selectors": [{"id": selector_id, "status": "checked"} for selector_id in expect_selectors],
         "visibility": [
-            {"id": visibility_id, "visible": expected is True}
-            for visibility_id, expected in expect_visibility.items()
+            {"id": visibility_id, "visible": expected is True} for visibility_id, expected in expect_visibility.items()
         ],
     }
     if expect_text:
-        expected["text"] = [
-            {"id": projection_id, "value": expected}
-            for projection_id, expected in expect_text.items()
-        ]
+        expected["text"] = [{"id": projection_id, "value": expected} for projection_id, expected in expect_text.items()]
     return expected
 
 
@@ -1088,7 +1085,9 @@ def _build_react_review_runtime(snapshot: ReviewSourceSnapshot, artifact_dir: Pa
             timeout=30,
         )
     except subprocess.TimeoutExpired as exc:
-        raise make_review_error("REVIEW_COMPILE_TIMEOUT", "React AppBundle dependency/build command exceeded 30 seconds.") from exc
+        raise make_review_error(
+            "REVIEW_COMPILE_TIMEOUT", "React AppBundle dependency/build command exceeded 30 seconds."
+        ) from exc
     except (OSError, subprocess.CalledProcessError) as exc:
         detail = (
             (exc.stderr or b"").decode("utf-8", errors="replace")[-2048:]
@@ -1121,7 +1120,11 @@ def _build_react_review_runtime(snapshot: ReviewSourceSnapshot, artifact_dir: Pa
     _make_private_dir(manifest_dir)
     screens: list[dict[str, object]] = []
     for entry in raw_screens:
-        if not isinstance(entry, dict) or not isinstance(entry.get("id"), str) or not isinstance(entry.get("manifest"), str):
+        if (
+            not isinstance(entry, dict)
+            or not isinstance(entry.get("id"), str)
+            or not isinstance(entry.get("manifest"), str)
+        ):
             raise _ambiguous_app_manifest()
         screen_id = entry["id"]
         source_manifest = artifact_dir / entry["manifest"]
@@ -1234,7 +1237,11 @@ def _load_react_app_indexes(artifact_dir: Path) -> tuple[dict[str | None, Review
         raise _ambiguous_app_manifest()
     indexes: dict[str | None, ReviewManifestIndex] = {}
     for entry in screens:
-        if not isinstance(entry, dict) or not isinstance(entry.get("id"), str) or not isinstance(entry.get("manifest"), str):
+        if (
+            not isinstance(entry, dict)
+            or not isinstance(entry.get("id"), str)
+            or not isinstance(entry.get("manifest"), str)
+        ):
             raise _ambiguous_app_manifest()
         screen_id = entry["id"]
         path = artifact_dir / entry["manifest"]
@@ -1569,7 +1576,9 @@ def _validate_app_snapshot(snapshot: ReviewSourceSnapshot) -> None:
 
 def _strict_json_object(content: bytes, *, code: str) -> dict[str, object]:
     try:
-        value = json.loads(content.decode("utf-8"), object_pairs_hook=_unique_json_object, parse_constant=_reject_json_constant)
+        value = json.loads(
+            content.decode("utf-8"), object_pairs_hook=_unique_json_object, parse_constant=_reject_json_constant
+        )
     except ReviewContractError:
         raise
     except (UnicodeDecodeError, json.JSONDecodeError, ValueError) as exc:

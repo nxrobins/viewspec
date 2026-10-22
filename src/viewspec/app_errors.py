@@ -28,7 +28,9 @@ def normalize_proof_errors(errors: object) -> list[dict[str, str]]:
                 }
             )
         else:
-            normalized.append({"code": "APP_PROOF_FAILED", "message": str(item), "fix": "Inspect app_proof_report.json and retry."})
+            normalized.append(
+                {"code": "APP_PROOF_FAILED", "message": str(item), "fix": "Inspect app_proof_report.json and retry."}
+            )
     return normalized
 
 

@@ -2,18 +2,19 @@
 
 from __future__ import annotations
 
-from contextlib import contextmanager
-from dataclasses import dataclass
 import hashlib
 import json
 import logging
 import os
-from pathlib import Path
 import re
 import stat
 import tempfile
 import time
-from typing import Any, Mapping
+from collections.abc import Mapping
+from contextlib import contextmanager
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Any
 
 from viewspec._canonical import canonical_json_utf8_bytes, canonical_sha256
 from viewspec.aesthetics import AESTHETIC_PROFILE_TOKENS
@@ -29,7 +30,6 @@ from viewspec.intent_tools import (
 from viewspec.repair import VerificationRepairPlan
 from viewspec.review_contract import ReviewBatch
 from viewspec.types import PRESENT_AS_TO_PRIMITIVE
-
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -159,12 +159,7 @@ INTENT_PATCH_JSON_SCHEMA: dict[str, Any] = {
             "type": "array",
             "minItems": 1,
             "maxItems": INTENT_PATCH_MAX_OPERATIONS,
-            "items": {
-                "oneOf": [
-                    {"$ref": f"#/$defs/{name}"}
-                    for name in sorted(INTENT_PATCH_OPERATION_KINDS)
-                ]
-            },
+            "items": {"oneOf": [{"$ref": f"#/$defs/{name}"} for name in sorted(INTENT_PATCH_OPERATION_KINDS)]},
         },
         "evidence_refs": {
             "type": "array",
@@ -369,9 +364,7 @@ class IntentPatchContext:
                     "Patch context requests must be objects.",
                     "Regenerate context from a validated evidence contract.",
                 )
-            canonical_requests.append(
-                json.loads(_canonical_json_bytes(dict(request)).decode("utf-8"))
-            )
+            canonical_requests.append(json.loads(_canonical_json_bytes(dict(request)).decode("utf-8")))
         object.__setattr__(self, "evidence_refs", refs)
         object.__setattr__(self, "requests", tuple(canonical_requests))
         if len(_canonical_json_bytes(self.to_json())) > INTENT_PATCH_MAX_BYTES:
@@ -796,7 +789,9 @@ class IntentPatch:
 
     def __post_init__(self) -> None:
         if _PATCH_ID_RE.fullmatch(self.patch_id) is None:
-            raise IntentPatchError("PATCH_ID_INVALID", "Patch id is invalid.", "Recompute the patch id from canonical patch bytes.")
+            raise IntentPatchError(
+                "PATCH_ID_INVALID", "Patch id is invalid.", "Recompute the patch id from canonical patch bytes."
+            )
 
     def to_json(self) -> dict[str, Any]:
         return {
@@ -866,9 +861,15 @@ def _parse_operation(value: object, *, source_kind: str) -> IntentPatchOperation
         old = payload["old_value"]
         new = payload["value"]
         if old is not None and old not in AESTHETIC_PROFILE_TOKENS:
-            raise IntentPatchError("PATCH_VALUE_INVALID", "old aesthetic profile is unsupported.", "Use the exact current profile or null.")
+            raise IntentPatchError(
+                "PATCH_VALUE_INVALID", "old aesthetic profile is unsupported.", "Use the exact current profile or null."
+            )
         if new is not None and new not in AESTHETIC_PROFILE_TOKENS:
-            raise IntentPatchError("PATCH_VALUE_INVALID", "new aesthetic profile is unsupported.", "Use a published aesthetic profile or null.")
+            raise IntentPatchError(
+                "PATCH_VALUE_INVALID",
+                "new aesthetic profile is unsupported.",
+                "Use a published aesthetic profile or null.",
+            )
     elif op == "set_style_token":
         _bounded_id(payload["style_id"], "style_id")
         if payload["style_id"] == "aesthetic_profile":
@@ -877,34 +878,68 @@ def _parse_operation(value: object, *, source_kind: str) -> IntentPatchOperation
                 "aesthetic_profile must use set_aesthetic_profile.",
                 "Use the profile-specific operation so profile uniqueness stays explicit.",
             )
-        if payload["old_value"] not in SUPPORTED_AGENT_STYLE_TOKENS or payload["value"] not in SUPPORTED_AGENT_STYLE_TOKENS:
-            raise IntentPatchError("PATCH_VALUE_INVALID", "Style token is outside the local_v1 vocabulary.", "Use a supported local style token.")
+        if (
+            payload["old_value"] not in SUPPORTED_AGENT_STYLE_TOKENS
+            or payload["value"] not in SUPPORTED_AGENT_STYLE_TOKENS
+        ):
+            raise IntentPatchError(
+                "PATCH_VALUE_INVALID",
+                "Style token is outside the local_v1 vocabulary.",
+                "Use a supported local style token.",
+            )
     elif op == "set_region_layout":
         _bounded_id(payload["region_id"], "region_id")
-        if payload["old_value"] not in SUPPORTED_AGENT_REGION_LAYOUTS or payload["value"] not in SUPPORTED_AGENT_REGION_LAYOUTS:
-            raise IntentPatchError("PATCH_VALUE_INVALID", "Region layout is outside the local_v1 vocabulary.", "Use stack, grid, or cluster.")
+        if (
+            payload["old_value"] not in SUPPORTED_AGENT_REGION_LAYOUTS
+            or payload["value"] not in SUPPORTED_AGENT_REGION_LAYOUTS
+        ):
+            raise IntentPatchError(
+                "PATCH_VALUE_INVALID",
+                "Region layout is outside the local_v1 vocabulary.",
+                "Use stack, grid, or cluster.",
+            )
     elif op == "move_region":
         _bounded_id(payload["region_id"], "region_id")
         _bounded_id(payload["old_parent_id"], "old_parent_id")
         _bounded_id(payload["parent_id"], "parent_id")
         if payload["region_id"] == "root":
-            raise IntentPatchError("PATCH_TARGET_INVALID", "The root region cannot be moved.", "Move a non-root region.")
+            raise IntentPatchError(
+                "PATCH_TARGET_INVALID", "The root region cannot be moved.", "Move a non-root region."
+            )
     elif op == "reorder_region_children":
         _bounded_id(payload["region_id"], "region_id")
         for field in ("old_children", "children"):
             children = payload[field]
-            if not isinstance(children, list) or len(children) > 32 or any(not isinstance(item, str) for item in children):
-                raise IntentPatchError("PATCH_VALUE_INVALID", f"{field} must be an array of at most 32 region ids.", "Use the exact child region ids.")
+            if (
+                not isinstance(children, list)
+                or len(children) > 32
+                or any(not isinstance(item, str) for item in children)
+            ):
+                raise IntentPatchError(
+                    "PATCH_VALUE_INVALID",
+                    f"{field} must be an array of at most 32 region ids.",
+                    "Use the exact child region ids.",
+                )
             payload[field] = [_bounded_id(item, "child region id") for item in children]
             if len(set(payload[field])) != len(payload[field]):
-                raise IntentPatchError("PATCH_VALUE_INVALID", f"{field} contains duplicate region ids.", "List each child exactly once.")
+                raise IntentPatchError(
+                    "PATCH_VALUE_INVALID", f"{field} contains duplicate region ids.", "List each child exactly once."
+                )
         if set(payload["old_children"]) != set(payload["children"]):
-            raise IntentPatchError("PATCH_VALUE_INVALID", "Region reordering cannot add or remove children.", "Use identical child-id sets in old_children and children.")
+            raise IntentPatchError(
+                "PATCH_VALUE_INVALID",
+                "Region reordering cannot add or remove children.",
+                "Use identical child-id sets in old_children and children.",
+            )
     elif op == "set_binding_presentation":
         _bounded_id(payload["binding_id"], "binding_id")
         allowed = set(PRESENT_AS_TO_PRIMITIVE)
         if payload["old_value"] not in allowed or payload["value"] not in allowed:
-            raise IntentPatchError("PATCH_VALUE_INVALID", "Binding presentation is outside the local_v1 vocabulary.", "Use a supported present_as value.")
+            raise IntentPatchError(
+                "PATCH_VALUE_INVALID",
+                "Binding presentation is outside the local_v1 vocabulary.",
+                "Use a supported present_as value.",
+            )
     elif op == "replace_semantic_attr":
         _bounded_id(payload["node_id"], "node_id")
         _bounded_field(payload["attr"], "attr")
@@ -912,7 +947,11 @@ def _parse_operation(value: object, *, source_kind: str) -> IntentPatchOperation
         _json_scalar(payload["value"], "value")
     elif op == "replace_fixture_scalar":
         if source_kind != "app_bundle":
-            raise IntentPatchError("PATCH_OPERATION_INVALID", "Fixture operations require an AppBundle.", "Set source_kind to app_bundle and target a declared fixture resource.")
+            raise IntentPatchError(
+                "PATCH_OPERATION_INVALID",
+                "Fixture operations require an AppBundle.",
+                "Set source_kind to app_bundle and target a declared fixture resource.",
+            )
         _bounded_id(payload["resource_id"], "resource_id")
         _bounded_id(payload["record_id"], "record_id")
         _bounded_field(payload["field"], "field")
@@ -920,12 +959,25 @@ def _parse_operation(value: object, *, source_kind: str) -> IntentPatchOperation
         _json_scalar(payload["value"], "value")
     elif op == "set_visibility_condition":
         if source_kind != "app_bundle":
-            raise IntentPatchError("PATCH_OPERATION_INVALID", "Visibility operations require an AppBundle.", "Set source_kind to app_bundle and target a declared visibility rule.")
+            raise IntentPatchError(
+                "PATCH_OPERATION_INVALID",
+                "Visibility operations require an AppBundle.",
+                "Set source_kind to app_bundle and target a declared visibility rule.",
+            )
         _bounded_id(payload["visibility_id"], "visibility_id")
         if not isinstance(payload["old_value"], dict) or not isinstance(payload["value"], dict):
-            raise IntentPatchError("PATCH_VALUE_INVALID", "Visibility conditions must be JSON objects.", "Use a valid bounded AppBundle visibility condition.")
-        if len(_canonical_json_bytes(payload["old_value"])) > INTENT_PATCH_MAX_STRING_BYTES or len(_canonical_json_bytes(payload["value"])) > INTENT_PATCH_MAX_STRING_BYTES:
-            raise IntentPatchError("PATCH_VALUE_INVALID", "Visibility condition is too large.", "Use a bounded declarative condition.")
+            raise IntentPatchError(
+                "PATCH_VALUE_INVALID",
+                "Visibility conditions must be JSON objects.",
+                "Use a valid bounded AppBundle visibility condition.",
+            )
+        if (
+            len(_canonical_json_bytes(payload["old_value"])) > INTENT_PATCH_MAX_STRING_BYTES
+            or len(_canonical_json_bytes(payload["value"])) > INTENT_PATCH_MAX_STRING_BYTES
+        ):
+            raise IntentPatchError(
+                "PATCH_VALUE_INVALID", "Visibility condition is too large.", "Use a bounded declarative condition."
+            )
 
     if op == "move_region":
         old_value, new_value = payload["old_parent_id"], payload["parent_id"]
@@ -958,22 +1010,36 @@ def parse_intent_patch(value: str | Mapping[str, Any] | IntentPatch) -> IntentPa
     elif isinstance(value, Mapping):
         encoded = _canonical_json_bytes(value)
         if len(encoded) > INTENT_PATCH_MAX_BYTES:
-            raise IntentPatchError("PATCH_TOO_LARGE", "IntentPatch exceeds 64 KiB.", "Split the patch into smaller approved transactions.")
+            raise IntentPatchError(
+                "PATCH_TOO_LARGE", "IntentPatch exceeds 64 KiB.", "Split the patch into smaller approved transactions."
+            )
         raw = _strict_json_loads(encoded.decode("utf-8"), code="PATCH_INVALID_JSON", noun="IntentPatch")
     else:
-        raise IntentPatchError("PATCH_INVALID_JSON", "IntentPatch must be JSON text or an object.", "Pass a strict IntentPatch V1 object.")
+        raise IntentPatchError(
+            "PATCH_INVALID_JSON", "IntentPatch must be JSON text or an object.", "Pass a strict IntentPatch V1 object."
+        )
     payload = _mapping(raw, code="PATCH_INVALID_JSON", noun="IntentPatch")
     _exact_fields(payload, _TOP_LEVEL_FIELDS, noun="IntentPatch")
     if payload["schema_version"] != INTENT_PATCH_SCHEMA_VERSION:
-        raise IntentPatchError("PATCH_SCHEMA_UNSUPPORTED", "Unsupported IntentPatch schema_version.", "Use schema_version 1.")
+        raise IntentPatchError(
+            "PATCH_SCHEMA_UNSUPPORTED", "Unsupported IntentPatch schema_version.", "Use schema_version 1."
+        )
     if payload["contract_profile"] != INTENT_PATCH_CONTRACT_PROFILE:
-        raise IntentPatchError("PATCH_PROFILE_UNSUPPORTED", "Unsupported IntentPatch contract_profile.", "Use local_v1.")
+        raise IntentPatchError(
+            "PATCH_PROFILE_UNSUPPORTED", "Unsupported IntentPatch contract_profile.", "Use local_v1."
+        )
     source_kind = payload["source_kind"]
     if source_kind not in INTENT_PATCH_SOURCE_KINDS:
-        raise IntentPatchError("PATCH_SOURCE_KIND_UNSUPPORTED", "Unsupported IntentPatch source_kind.", "Use intent_bundle or app_bundle.")
+        raise IntentPatchError(
+            "PATCH_SOURCE_KIND_UNSUPPORTED", "Unsupported IntentPatch source_kind.", "Use intent_bundle or app_bundle."
+        )
     base_hash = payload["base_source_sha256"]
     if not isinstance(base_hash, str) or _SHA256_RE.fullmatch(base_hash) is None:
-        raise IntentPatchError("PATCH_BASE_HASH_INVALID", "base_source_sha256 is invalid.", "Hash the exact UTF-8 source bytes with SHA-256.")
+        raise IntentPatchError(
+            "PATCH_BASE_HASH_INVALID",
+            "base_source_sha256 is invalid.",
+            "Hash the exact UTF-8 source bytes with SHA-256.",
+        )
     raw_operations = payload["operations"]
     if not isinstance(raw_operations, list) or not 1 <= len(raw_operations) <= INTENT_PATCH_MAX_OPERATIONS:
         raise IntentPatchError(
@@ -991,7 +1057,11 @@ def parse_intent_patch(value: str | Mapping[str, Any] | IntentPatch) -> IntentPa
         )
     raw_refs = payload["evidence_refs"]
     if not isinstance(raw_refs, list) or len(raw_refs) > INTENT_PATCH_MAX_EVIDENCE_REFS:
-        raise IntentPatchError("PATCH_EVIDENCE_INVALID", "evidence_refs must contain at most 64 values.", "Use bounded Review or verifier evidence identities.")
+        raise IntentPatchError(
+            "PATCH_EVIDENCE_INVALID",
+            "evidence_refs must contain at most 64 values.",
+            "Use bounded Review or verifier evidence identities.",
+        )
     evidence_refs: list[str] = []
     for item in raw_refs:
         if (
@@ -1000,10 +1070,16 @@ def parse_intent_patch(value: str | Mapping[str, Any] | IntentPatch) -> IntentPa
             or _EVIDENCE_RE.fullmatch(item) is None
             or ".." in item
         ):
-            raise IntentPatchError("PATCH_EVIDENCE_INVALID", "Patch evidence reference is invalid.", "Use a bounded canonical Review or verifier identity.")
+            raise IntentPatchError(
+                "PATCH_EVIDENCE_INVALID",
+                "Patch evidence reference is invalid.",
+                "Use a bounded canonical Review or verifier identity.",
+            )
         evidence_refs.append(item)
     if len(set(evidence_refs)) != len(evidence_refs):
-        raise IntentPatchError("PATCH_EVIDENCE_INVALID", "Patch evidence references must be unique.", "Deduplicate evidence references.")
+        raise IntentPatchError(
+            "PATCH_EVIDENCE_INVALID", "Patch evidence references must be unique.", "Deduplicate evidence references."
+        )
     canonical_payload = {
         "schema_version": INTENT_PATCH_SCHEMA_VERSION,
         "contract_profile": INTENT_PATCH_CONTRACT_PROFILE,
@@ -1035,10 +1111,18 @@ def _validate_source_text(text: str, source_kind: str) -> dict[str, Any]:
     size = len(text.encode("utf-8"))
     maximum = 256 * 1024 if source_kind == "intent_bundle" else APP_BUNDLE_MAX_BYTES
     if size > maximum:
-        raise IntentPatchError("PATCH_SOURCE_TOO_LARGE", f"Source is {size} bytes; limit is {maximum}.", "Split the source before patching it.")
+        raise IntentPatchError(
+            "PATCH_SOURCE_TOO_LARGE",
+            f"Source is {size} bytes; limit is {maximum}.",
+            "Split the source before patching it.",
+        )
     payload = _strict_json_loads(text, code="PATCH_SOURCE_INVALID", noun="ViewSpec source")
     if not isinstance(payload, dict):
-        raise IntentPatchError("PATCH_SOURCE_INVALID", "ViewSpec source root must be an object.", "Use an IntentBundle or AppBundle object.")
+        raise IntentPatchError(
+            "PATCH_SOURCE_INVALID",
+            "ViewSpec source root must be an object.",
+            "Use an IntentBundle or AppBundle object.",
+        )
     detected = _detect_source_kind(payload)
     if detected != source_kind:
         raise IntentPatchError(
@@ -1046,7 +1130,11 @@ def _validate_source_text(text: str, source_kind: str) -> dict[str, Any]:
             f"Patch declares {source_kind}, but source shape is {detected or 'unknown'}.",
             "Regenerate the patch for the exact source kind.",
         )
-    validation = validate_intent_text(text, compile_check=True) if source_kind == "intent_bundle" else validate_app_text(text, compile_check=True)
+    validation = (
+        validate_intent_text(text, compile_check=True)
+        if source_kind == "intent_bundle"
+        else validate_app_text(text, compile_check=True)
+    )
     if not validation.get("ok"):
         issues = validation.get("issues") if isinstance(validation.get("issues"), list) else []
         first = issues[0] if issues and isinstance(issues[0], dict) else {}
@@ -1060,11 +1148,17 @@ def _validate_source_text(text: str, source_kind: str) -> dict[str, Any]:
 
 def _find_one(items: object, target_id: str, *, noun: str) -> dict[str, Any]:
     if not isinstance(items, list):
-        raise IntentPatchError("PATCH_TARGET_MISSING", f"Source has no {noun} collection.", "Patch only declared stable ids.")
+        raise IntentPatchError(
+            "PATCH_TARGET_MISSING", f"Source has no {noun} collection.", "Patch only declared stable ids."
+        )
     matches = [item for item in items if isinstance(item, dict) and item.get("id") == target_id]
     if len(matches) != 1:
         code = "PATCH_TARGET_AMBIGUOUS" if len(matches) > 1 else "PATCH_TARGET_MISSING"
-        raise IntentPatchError(code, f"Expected exactly one {noun} {target_id!r}; found {len(matches)}.", "Regenerate the patch from the current validated source.")
+        raise IntentPatchError(
+            code,
+            f"Expected exactly one {noun} {target_id!r}; found {len(matches)}.",
+            "Regenerate the patch from the current validated source.",
+        )
     return matches[0]
 
 
@@ -1075,7 +1169,11 @@ def _intent_payload(payload: dict[str, Any], operation: IntentPatchOperation, so
     screen = _find_one(payload.get("screens"), str(op.get("screen_id")), noun="screen")
     intent = screen.get("intent_bundle")
     if not isinstance(intent, dict):
-        raise IntentPatchError("PATCH_TARGET_MISSING", "Target screen has no IntentBundle.", "Choose a screen with a declared intent_bundle.")
+        raise IntentPatchError(
+            "PATCH_TARGET_MISSING",
+            "Target screen has no IntentBundle.",
+            "Choose a screen with a declared intent_bundle.",
+        )
     return intent
 
 
@@ -1096,14 +1194,27 @@ def _apply_operation(payload: dict[str, Any], operation: IntentPatchOperation, s
         view = intent.get("view_spec")
         substrate = intent.get("substrate")
         if not isinstance(view, dict) or not isinstance(substrate, dict):
-            raise IntentPatchError("PATCH_TARGET_MISSING", "Target IntentBundle is incomplete.", "Patch a validated IntentBundle.")
+            raise IntentPatchError(
+                "PATCH_TARGET_MISSING", "Target IntentBundle is incomplete.", "Patch a validated IntentBundle."
+            )
         if kind == "set_aesthetic_profile":
             styles = view.get("styles")
             if not isinstance(styles, list):
-                raise IntentPatchError("PATCH_TARGET_MISSING", "IntentBundle has no styles array.", "Patch a validated IntentBundle.")
-            matches = [item for item in styles if isinstance(item, dict) and (item.get("id") == "aesthetic_profile" or str(item.get("token", "")).startswith("aesthetic."))]
+                raise IntentPatchError(
+                    "PATCH_TARGET_MISSING", "IntentBundle has no styles array.", "Patch a validated IntentBundle."
+                )
+            matches = [
+                item
+                for item in styles
+                if isinstance(item, dict)
+                and (item.get("id") == "aesthetic_profile" or str(item.get("token", "")).startswith("aesthetic."))
+            ]
             if len(matches) > 1:
-                raise IntentPatchError("PATCH_TARGET_AMBIGUOUS", "IntentBundle contains multiple aesthetic profiles.", "Fix the invalid source before patching.")
+                raise IntentPatchError(
+                    "PATCH_TARGET_AMBIGUOUS",
+                    "IntentBundle contains multiple aesthetic profiles.",
+                    "Fix the invalid source before patching.",
+                )
             actual = matches[0].get("token") if matches else None
             _require_old(actual, op["old_value"], target=operation.target_key)
             if op["value"] is None:
@@ -1129,12 +1240,25 @@ def _apply_operation(payload: dict[str, Any], operation: IntentPatchOperation, s
         if kind == "reorder_region_children":
             regions = view.get("regions")
             if not isinstance(regions, list):
-                raise IntentPatchError("PATCH_TARGET_MISSING", "IntentBundle has no regions array.", "Patch a validated IntentBundle.")
-            actual_children = [str(item.get("id")) for item in regions if isinstance(item, dict) and item.get("parent_region") == op["region_id"]]
+                raise IntentPatchError(
+                    "PATCH_TARGET_MISSING", "IntentBundle has no regions array.", "Patch a validated IntentBundle."
+                )
+            actual_children = [
+                str(item.get("id"))
+                for item in regions
+                if isinstance(item, dict) and item.get("parent_region") == op["region_id"]
+            ]
             _require_old(actual_children, op["old_children"], target=operation.target_key)
-            children_by_id = {str(item.get("id")): item for item in regions if isinstance(item, dict) and item.get("parent_region") == op["region_id"]}
+            children_by_id = {
+                str(item.get("id")): item
+                for item in regions
+                if isinstance(item, dict) and item.get("parent_region") == op["region_id"]
+            }
             ordered = iter([children_by_id[item] for item in op["children"]])
-            regions[:] = [next(ordered) if isinstance(item, dict) and item.get("parent_region") == op["region_id"] else item for item in regions]
+            regions[:] = [
+                next(ordered) if isinstance(item, dict) and item.get("parent_region") == op["region_id"] else item
+                for item in regions
+            ]
             return
         if kind == "set_binding_presentation":
             binding = _find_one(view.get("bindings"), op["binding_id"], noun="binding")
@@ -1143,10 +1267,16 @@ def _apply_operation(payload: dict[str, Any], operation: IntentPatchOperation, s
             return
         nodes = substrate.get("nodes")
         if not isinstance(nodes, dict) or op["node_id"] not in nodes or not isinstance(nodes[op["node_id"]], dict):
-            raise IntentPatchError("PATCH_TARGET_MISSING", f"Semantic node {op['node_id']!r} is missing.", "Use a stable node id from the current source.")
+            raise IntentPatchError(
+                "PATCH_TARGET_MISSING",
+                f"Semantic node {op['node_id']!r} is missing.",
+                "Use a stable node id from the current source.",
+            )
         attrs = nodes[op["node_id"]].get("attrs")
         if not isinstance(attrs, dict):
-            raise IntentPatchError("PATCH_TARGET_MISSING", "Semantic node has no attrs object.", "Patch a declared semantic attribute.")
+            raise IntentPatchError(
+                "PATCH_TARGET_MISSING", "Semantic node has no attrs object.", "Patch a declared semantic attribute."
+            )
         if op["attr"] not in attrs:
             raise IntentPatchError(
                 "PATCH_TARGET_MISSING",
@@ -1218,7 +1348,9 @@ def _propagate_fixture_scalar(payload: dict[str, Any], op: Mapping[str, Any]) ->
             if not isinstance(nodes, dict) or not isinstance(bindings, list):
                 continue
             address = f"node:{record_id}#attr:{field}"
-            matched = [binding for binding in bindings if isinstance(binding, dict) and binding.get("address") == address]
+            matched = [
+                binding for binding in bindings if isinstance(binding, dict) and binding.get("address") == address
+            ]
             if not matched:
                 continue
             node = nodes.get(record_id)
@@ -1278,14 +1410,18 @@ def _propagate_fixture_scalar(payload: dict[str, Any], op: Mapping[str, Any]) ->
                     old_value=old_value,
                     new_value=new_value,
                 )
-    if matching_views and authored_binding_updates == 0 and not any(
-        isinstance(view.get("repeat"), dict)
-        for screen in screens
-        if isinstance(screen, dict)
-        for view in screen.get("resource_views", [])
-        if isinstance(view, dict)
-        and isinstance(screen.get("id"), str)
-        and (str(screen["id"]), str(view.get("id"))) in matching_views
+    if (
+        matching_views
+        and authored_binding_updates == 0
+        and not any(
+            isinstance(view.get("repeat"), dict)
+            for screen in screens
+            if isinstance(screen, dict)
+            for view in screen.get("resource_views", [])
+            if isinstance(view, dict)
+            and isinstance(screen.get("id"), str)
+            and (str(screen["id"]), str(view.get("id"))) in matching_views
+        )
     ):
         raise IntentPatchError(
             "PATCH_TARGET_MISSING",
@@ -1376,7 +1512,8 @@ def _intent_patch_targets(intent: Mapping[str, Any], screen_id: str | None, sour
     profiles = [
         item
         for item in styles
-        if isinstance(item, dict) and (item.get("id") == "aesthetic_profile" or str(item.get("token", "")).startswith("aesthetic."))
+        if isinstance(item, dict)
+        and (item.get("id") == "aesthetic_profile" or str(item.get("token", "")).startswith("aesthetic."))
     ]
     if len(profiles) <= 1:
         current = profiles[0].get("token") if profiles else None
@@ -1552,7 +1689,11 @@ def intent_patch_targets(
 
     payload = _strict_json_loads(source_text, code="PATCH_SOURCE_INVALID", noun="ViewSpec source")
     if not isinstance(payload, dict):
-        raise IntentPatchError("PATCH_SOURCE_INVALID", "ViewSpec source root must be an object.", "Use an IntentBundle or AppBundle object.")
+        raise IntentPatchError(
+            "PATCH_SOURCE_INVALID",
+            "ViewSpec source root must be an object.",
+            "Use an IntentBundle or AppBundle object.",
+        )
     source_kind = _detect_source_kind(payload)
     if source_kind is None:
         raise IntentPatchError(
@@ -1639,7 +1780,9 @@ def _compile_check_candidate(candidate_text: str, source_kind: str) -> dict[str,
         source.write_text(candidate_text, encoding="utf-8")
         output = root / "artifact"
         if source_kind == "intent_bundle":
-            result = compile_intent_bundle_file_tool(source, output, target="html-tailwind", cwd=root, allow_outside_cwd=False)
+            result = compile_intent_bundle_file_tool(
+                source, output, target="html-tailwind", cwd=root, allow_outside_cwd=False
+            )
             ok = result.get("ok") is True
             target = "html-tailwind"
         else:
@@ -1723,11 +1866,21 @@ def preview_intent_patch(
     candidate_text = _candidate_text(candidate_payload)
     candidate_hash = source_sha256(candidate_text)
     if _canonical_json_bytes(base_payload) == _canonical_json_bytes(candidate_payload):
-        raise IntentPatchError("PATCH_NO_EFFECT", "IntentPatch produces no semantic change.", "Remove no-op operations or choose a different value.")
+        raise IntentPatchError(
+            "PATCH_NO_EFFECT",
+            "IntentPatch produces no semantic change.",
+            "Remove no-op operations or choose a different value.",
+        )
     _validate_source_text(candidate_text, patch.source_kind)
-    semantic_diff = diff_intent_text(source_text, candidate_text, compile_check=True) if patch.source_kind == "intent_bundle" else diff_app_text(source_text, candidate_text, compile_check=True)
+    semantic_diff = (
+        diff_intent_text(source_text, candidate_text, compile_check=True)
+        if patch.source_kind == "intent_bundle"
+        else diff_app_text(source_text, candidate_text, compile_check=True)
+    )
     if semantic_diff.get("ok") is not True:
-        raise IntentPatchError("PATCH_DIFF_FAILED", "Candidate semantic diff failed.", "Fix the candidate source and retry preview.")
+        raise IntentPatchError(
+            "PATCH_DIFF_FAILED", "Candidate semantic diff failed.", "Fix the candidate source and retry preview."
+        )
     compile_check = _compile_check_candidate(candidate_text, patch.source_kind)
     verification: dict[str, Any] = {"status": "not_run"}
     if verify:
@@ -1801,7 +1954,11 @@ def _verify_candidate(candidate_text: str, source_kind: str, *, install: bool) -
         artifact = root / "artifact"
         compiled = compile_intent_bundle_file_tool(source, artifact, target="react-tailwind-tsx", cwd=root)
         if compiled.get("ok") is not True:
-            return {"status": "nonconformant", "target": "react-tailwind-tsx", "diagnostic_codes": ["PATCH_COMPILE_FAILED"]}
+            return {
+                "status": "nonconformant",
+                "target": "react-tailwind-tsx",
+                "diagnostic_codes": ["PATCH_COMPILE_FAILED"],
+            }
         from viewspec.local_verify import verify_local_artifact
 
         result = verify_local_artifact(
@@ -1859,7 +2016,9 @@ def _durable_write_bytes(path: Path, content: bytes) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     temp_path: Path | None = None
     try:
-        with tempfile.NamedTemporaryFile("wb", dir=path.parent, prefix=f".{path.name}.", suffix=".tmp", delete=False) as handle:
+        with tempfile.NamedTemporaryFile(
+            "wb", dir=path.parent, prefix=f".{path.name}.", suffix=".tmp", delete=False
+        ) as handle:
             temp_path = Path(handle.name)
             handle.write(content)
             handle.flush()
@@ -1873,11 +2032,15 @@ def _durable_write_bytes(path: Path, content: bytes) -> None:
 
 
 def _write_receipt(path: Path, payload: Mapping[str, Any]) -> None:
-    _durable_write_bytes(path, json.dumps(payload, ensure_ascii=False, allow_nan=False, indent=2, sort_keys=True).encode("utf-8") + b"\n")
+    _durable_write_bytes(
+        path, json.dumps(payload, ensure_ascii=False, allow_nan=False, indent=2, sort_keys=True).encode("utf-8") + b"\n"
+    )
 
 
 def _receipt_from_payload(path: Path, payload: Mapping[str, Any]) -> IntentPatchReceipt:
-    inverse = parse_intent_patch(_mapping(payload.get("inverse_patch"), code="PATCH_RECEIPT_INVALID", noun="inverse patch"))
+    inverse = parse_intent_patch(
+        _mapping(payload.get("inverse_patch"), code="PATCH_RECEIPT_INVALID", noun="inverse patch")
+    )
     return IntentPatchReceipt(
         status=str(payload.get("status")),
         receipt_id=str(payload.get("receipt_id")),
@@ -2097,7 +2260,7 @@ def _recover_interrupted_receipts(source_path: Path) -> None:
             "Restore the source file before retrying.",
             cli_exit=1,
         ) from exc
-    for path, payload, backup_path in records:
+    for _path, _payload, backup_path in records:
         if not backup_path.exists():
             continue
         if backup_path.is_symlink() or not backup_path.is_file():
@@ -2161,7 +2324,11 @@ def _recover_interrupted_receipts(source_path: Path) -> None:
         return
     if current_hash == base_hash:
         if backup_path.exists():
-            if backup_path.is_symlink() or not backup_path.is_file() or source_sha256(backup_path.read_bytes()) != base_hash:
+            if (
+                backup_path.is_symlink()
+                or not backup_path.is_file()
+                or source_sha256(backup_path.read_bytes()) != base_hash
+            ):
                 raise IntentPatchError(
                     "PATCH_RECOVERY_REQUIRED",
                     "Prepared patch backup does not match its recorded base hash.",
@@ -2180,7 +2347,9 @@ def _recover_interrupted_receipts(source_path: Path) -> None:
     )
 
 
-def _existing_applied_receipt(source_path: Path, patch: IntentPatch, approval_token: str, current_hash: str) -> IntentPatchReceipt | None:
+def _existing_applied_receipt(
+    source_path: Path, patch: IntentPatch, approval_token: str, current_hash: str
+) -> IntentPatchReceipt | None:
     _, paths = _receipt_paths(source_path)
     for path in paths:
         payload = _read_receipt(path)
@@ -2207,7 +2376,11 @@ def apply_intent_patch_file(
     source = Path(source_path)
     patch_file = Path(patch_path)
     if source.is_symlink() or patch_file.is_symlink() or not source.is_file() or not patch_file.is_file():
-        raise IntentPatchError("PATCH_PATH_INVALID", "Patch apply requires regular, non-symlink source and patch files.", "Use local regular files.")
+        raise IntentPatchError(
+            "PATCH_PATH_INVALID",
+            "Patch apply requires regular, non-symlink source and patch files.",
+            "Use local regular files.",
+        )
     with _source_transaction_lock(source):
         return _apply_intent_patch_file_locked(
             source,
@@ -2253,7 +2426,11 @@ def _apply_intent_patch_file_locked(
     if existing is not None:
         return existing
     preview = preview_intent_patch(source_text, patch, verify=verify, install=install)
-    if not isinstance(approval_token, str) or _APPROVAL_RE.fullmatch(approval_token) is None or approval_token != preview.approval_token:
+    if (
+        not isinstance(approval_token, str)
+        or _APPROVAL_RE.fullmatch(approval_token) is None
+        or approval_token != preview.approval_token
+    ):
         raise IntentPatchError(
             "PATCH_APPROVAL_INVALID",
             "Approval token does not authorize this exact preview.",
@@ -2267,7 +2444,12 @@ def _apply_intent_patch_file_locked(
     receipt_path = receipt_dir / f"{preview.preview_id}.json"
     backup_path = source.parent / f".{source.name}.{preview.preview_id}.backup"
     if backup_path.exists():
-        raise IntentPatchError("PATCH_RECOVERY_REQUIRED", "A patch backup already exists for this preview.", "Recover or remove the incomplete transaction before retrying.", cli_exit=1)
+        raise IntentPatchError(
+            "PATCH_RECOVERY_REQUIRED",
+            "A patch backup already exists for this preview.",
+            "Recover or remove the incomplete transaction before retrying.",
+            cli_exit=1,
+        )
     receipt_id = f"vreceipt_{_canonical_json_sha256({'type': 'viewspec_patch_receipt_v1', 'preview_id': preview.preview_id, 'approval_token': approval_token})[:32]}"
     base_receipt: dict[str, Any] = {
         "schema_version": 1,
@@ -2310,7 +2492,10 @@ def _apply_intent_patch_file_locked(
             _write_receipt(receipt_path, {**base_receipt, "status": "aborted"})
         except Exception as receipt_exc:
             _LOGGER.warning(
-                "Aborted patch receipt %s could not be written: %s", receipt_path.name, receipt_exc, exc_info=receipt_exc
+                "Aborted patch receipt %s could not be written: %s",
+                receipt_path.name,
+                receipt_exc,
+                exc_info=receipt_exc,
             )
         if rollback_error is not None:
             raise IntentPatchError(

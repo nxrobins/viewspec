@@ -5,8 +5,8 @@ from __future__ import annotations
 
 import argparse
 import json
-from pathlib import Path
 import tempfile
+from pathlib import Path
 from typing import Any
 
 from viewspec.conformance import load_conformance_corpus

@@ -55,7 +55,10 @@ def test_react_tailwind_semantic_drift_fires_on_tamper():
 
     # A matching artifact (text marker present, no actions on either side) fires nothing.
     ok_tsx = f"return <p>{_tsx_text_marker('Hello')}</p>"
-    assert _validate_react_tailwind_semantic_markers(ok_tsx, {"d1": {"primitive": "text", "props": {"text": "Hello"}}}) == []
+    assert (
+        _validate_react_tailwind_semantic_markers(ok_tsx, {"d1": {"primitive": "text", "props": {"text": "Hello"}}})
+        == []
+    )
 
 
 def test_json_values_equal_pins_comparator_both_directions():
@@ -109,7 +112,12 @@ def test_check_issue_entry_shapes_registered_prefixes_and_legacy_messages():
     assert "on*" in coded["fix"]
 
     legacy = check_issue_entry("manifest missing nodes", default_fix="Fix it.")
-    assert legacy == {"code": "CHECK_FAILED", "path": "provenance_manifest.json", "message": "manifest missing nodes", "fix": "Fix it."}
+    assert legacy == {
+        "code": "CHECK_FAILED",
+        "path": "provenance_manifest.json",
+        "message": "manifest missing nodes",
+        "fix": "Fix it.",
+    }
 
     tailwind = check_issue_entry("TAILWIND_LIMIT_EXCEEDED_NODES: react-tailwind-tsx artifact exceeds 600 IR nodes")
     assert tailwind["code"] == "TAILWIND_LIMIT_EXCEEDED_NODES"

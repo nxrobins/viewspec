@@ -5,15 +5,14 @@ from __future__ import annotations
 
 import argparse
 import json
-import tarfile
 import re
+import tarfile
 import tomllib
 import zipfile
 from email.parser import BytesParser
 from email.policy import default
 from pathlib import Path, PurePosixPath
 from typing import Any
-
 
 # The sdist carries the test suite, the conformance corpus and the schema source so that
 # downstream packagers can run the tests from the archive (audit R-8); the caps leave

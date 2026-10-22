@@ -2,12 +2,13 @@
 
 from __future__ import annotations
 
+import contextlib
 import hashlib
 import json
 import os
-from pathlib import Path
 import stat
 import tempfile
+from pathlib import Path
 from typing import Any
 
 from viewspec._version import __version__
@@ -19,7 +20,6 @@ from viewspec.local_tools import LocalToolError, atomic_write, resolve_cwd, reso
 from viewspec.prove import prove
 from viewspec.review_compile import capture_source_snapshot
 from viewspec.review_contract import ReviewContractError, canonical_json_bytes
-
 
 STUDIO_CREATION_SCHEMA_VERSION = 1
 STUDIO_CREATION_TASK_DEFAULT = ".viewspec/studio-creation-task.json"
@@ -139,8 +139,7 @@ def prepare_studio_creation(
         except (OSError, UnicodeDecodeError):
             existing_task_text = None
     source_exists = any(
-        (root / name).exists() or (root / name).is_symlink()
-        for name in STUDIO_CREATION_SOURCE_PATHS.values()
+        (root / name).exists() or (root / name).is_symlink() for name in STUDIO_CREATION_SOURCE_PATHS.values()
     )
     if source_exists:
         if existing_task_text == task_text:
@@ -619,7 +618,9 @@ def _validate_task(value: object) -> dict[str, Any]:
     return value
 
 
-def _prove_creation_candidate(*, candidate_path: Path, source_kind: str, proof_path: Path, root: Path) -> dict[str, Any]:
+def _prove_creation_candidate(
+    *, candidate_path: Path, source_kind: str, proof_path: Path, root: Path
+) -> dict[str, Any]:
     force = proof_path.exists()
     if source_kind == "intent_bundle":
         return prove(
@@ -724,17 +725,13 @@ def _publish_exclusive(path: Path, content: bytes) -> None:
         ) from exc
     finally:
         if temp_path is not None:
-            try:
+            with contextlib.suppress(OSError):
                 os.unlink(temp_path)
-            except OSError:
-                pass
 
 
 def _require_blank_workspace(root: Path) -> None:
     existing = [
-        name
-        for name in STUDIO_CREATION_SOURCE_PATHS.values()
-        if (root / name).exists() or (root / name).is_symlink()
+        name for name in STUDIO_CREATION_SOURCE_PATHS.values() if (root / name).exists() or (root / name).is_symlink()
     ]
     if existing:
         raise StudioCreationError(

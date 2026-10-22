@@ -2,19 +2,18 @@ from __future__ import annotations
 
 import hashlib
 import json
-from pathlib import Path
 import shutil
 import sqlite3
+from pathlib import Path
 
 import pytest
 
-from viewspec.app_starters import starter_app_bundle
 import viewspec.review_compile as review_compile
+from viewspec.app_starters import starter_app_bundle
 from viewspec.review_compile import STUDIO_COMPARE_TARGET
 from viewspec.review_runtime import ReviewRuntime
 from viewspec.studio_review_service import StudioReviewService, StudioReviewServiceError
 from viewspec.studio_share import prepare_studio_share
-
 
 _REAL_SUBPROCESS_RUN = review_compile.subprocess.run
 _SIGNING_KEY = b"test-only-studio-review-signing-key-material"
@@ -381,9 +380,9 @@ def test_cross_session_context_and_unchecked_replay_refs_fail_closed(tmp_path, m
 
 def test_declared_replay_and_resource_evidence_are_derived_into_the_comment(tmp_path, monkeypatch) -> None:
     payload = json.loads(
-        Path(
-            "conformance/agent-ui-v2/fixtures/shakedown-104729-2026-08-06-v5/viewspec-core.app.json"
-        ).read_text(encoding="utf-8")
+        Path("conformance/agent-ui-v2/fixtures/shakedown-104729-2026-08-06-v5/viewspec-core.app.json").read_text(
+            encoding="utf-8"
+        )
     )
     package = _prepared_package(tmp_path / "project", monkeypatch, app_payload=payload)
     service = _service(tmp_path)
@@ -447,11 +446,14 @@ def test_only_owner_can_approve_exact_revision_and_receipts_reject_tampering(tmp
         revision_identity_sha256=revision_sha256,
         idempotency_key="approve-request-0001",
     )
-    assert service.approve_revision(
-        owner,
-        revision_identity_sha256=revision_sha256,
-        idempotency_key="approve-request-0001",
-    ) == approved
+    assert (
+        service.approve_revision(
+            owner,
+            revision_identity_sha256=revision_sha256,
+            idempotency_key="approve-request-0001",
+        )
+        == approved
+    )
     assert approved["approval"]["role"] == "owner"
     assert service.verify_receipt(approved["approval"]["receipt"]) is True
     tampered = json.loads(json.dumps(approved["approval"]["receipt"]))

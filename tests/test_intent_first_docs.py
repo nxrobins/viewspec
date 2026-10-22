@@ -61,7 +61,10 @@ def test_claude_code_skill_matches_native_agent_workflow():
 
     assert "Do not write HTML, CSS, React, SwiftUI, Flutter, or CompositionIR as source." in text
     assert "viewspec compile viewspec.intent.json --design DESIGN.md --target react-tsx --out react-output/" in text
-    assert "viewspec compile viewspec.intent.json --design DESIGN.md --target react-tailwind-tsx --out react-tailwind-output/" in text
+    assert (
+        "viewspec compile viewspec.intent.json --design DESIGN.md --target react-tailwind-tsx --out react-tailwind-output/"
+        in text
+    )
     assert "viewspec check react-output/" in text
     assert "viewspec verify-host react-tailwind-output/ --target react-tailwind-tsx --install --json" in text
     assert "viewspec prove --out .viewspec-proof" in text
@@ -114,7 +117,9 @@ def test_first_proof_is_public_and_bounded():
         assert expected in proof_bundle
 
     getting_started = root.joinpath("docs/getting-started.md").read_text(encoding="utf-8")
-    assert getting_started.index("viewspec prove --out .viewspec-proof") < getting_started.index("viewspec init-intent --out viewspec.intent.json")
+    assert getting_started.index("viewspec prove --out .viewspec-proof") < getting_started.index(
+        "viewspec init-intent --out viewspec.intent.json"
+    )
 
     release = root.joinpath("docs/release-checklist.md").read_text(encoding="utf-8")
     assert "demos/public-facts.json" in release

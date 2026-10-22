@@ -2,8 +2,9 @@ from __future__ import annotations
 
 from dataclasses import replace
 
-from hypothesis import given, strategies as st
 import pytest
+from hypothesis import given
+from hypothesis import strategies as st
 
 from viewspec.review_contract import (
     MAX_BODY_BYTES,
@@ -170,4 +171,6 @@ def test_batch_round_trip_is_canonical() -> None:
     batch = ReviewBatch.create((_event(1), _event(2)))
 
     assert ReviewBatch.from_json(batch.to_json()) == batch
-    assert canonical_json_bytes(batch.to_json()) == canonical_json_bytes(ReviewBatch.from_json(batch.to_json()).to_json())
+    assert canonical_json_bytes(batch.to_json()) == canonical_json_bytes(
+        ReviewBatch.from_json(batch.to_json()).to_json()
+    )

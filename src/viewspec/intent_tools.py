@@ -27,6 +27,7 @@ from viewspec.emitters.react_tailwind_tsx import (
 )
 from viewspec.emitters.react_tsx import ReactTsxEmitter
 from viewspec.local_tools import (
+    INTENT_BUNDLE_POLICY_VERSION,
     atomic_write,
     build_intent_semantic_digest,
     check_artifact_dir,
@@ -34,10 +35,9 @@ from viewspec.local_tools import (
     ensure_no_input_overwrite,
     exception_response,
     file_hash,
-    INTENT_BUNDLE_POLICY_VERSION,
+    path_policy_metadata,
     resolve_cwd,
     resolve_local_path,
-    path_policy_metadata,
     source_hash,
     tool_error_response,
     tool_response,
@@ -46,7 +46,6 @@ from viewspec.manifest_summary import summarize_intent_manifest
 from viewspec.raw_html import MANIFEST_SCHEMA_VERSION
 from viewspec.sdk.builder import ViewSpecBuilder
 from viewspec.types import INTENT_BUNDLE_SCHEMA_VERSION, IntentBundle
-
 
 BUNDLE_POLICY_VERSION = INTENT_BUNDLE_POLICY_VERSION
 INTENT_RESULT_SCHEMA_VERSION = 1
@@ -95,7 +94,9 @@ def starter_intent_bundle(kind: str = "dashboard") -> IntentBundle:
     elif kind == "list":
         items = builder.add_list("next_steps", region="main", group_id="steps")
         items.add_item(label="Capture user intent", description="Describe the UI without writing DOM.", id="intent")
-        items.add_item(label="Compile artifact", description="Let ViewSpec produce checked renderer output.", id="compile")
+        items.add_item(
+            label="Compile artifact", description="Let ViewSpec produce checked renderer output.", id="compile"
+        )
     elif kind == "form":
         form = builder.add_form("contact", region="main", group_id="fields")
         form.add_field(label="Name", value="", id="name")
@@ -154,7 +155,9 @@ def starter_intent_payload(kind: str = "dashboard") -> dict[str, Any]:
     return {"schema_version": INTENT_BUNDLE_SCHEMA_VERSION, **starter_intent_bundle(kind).to_json()}
 
 
-def init_intent_file(path: str | Path = "viewspec.intent.json", *, kind: str = "dashboard", force: bool = False) -> Path:
+def init_intent_file(
+    path: str | Path = "viewspec.intent.json", *, kind: str = "dashboard", force: bool = False
+) -> Path:
     output = Path(path)
     if output.exists() and not force:
         raise ValueError(f"{output} already exists; pass --force to overwrite")
@@ -232,8 +235,10 @@ def diff_intent_files(left_path: str | Path, right_path: str | Path, *, compile_
 def intent_validation_payload(result: AgentValidationResult, *, compile_check: bool) -> dict[str, Any]:
     if not compile_check:
         compile_status = "skipped"
+    elif result.valid:
+        compile_status = "passed"
     else:
-        compile_status = "passed" if result.valid else "failed"
+        compile_status = "failed"
     return {
         "schema_version": INTENT_RESULT_SCHEMA_VERSION,
         "ok": result.valid,
@@ -392,7 +397,12 @@ def agent_correction_prompt_file_tool(
             errors=errors,
             data={"correction_prompt": validation["correction_prompt"], "validation": validation},
             next_actions=[] if validation["ok"] else ["Regenerate the full IntentBundle JSON from correction_prompt."],
-            metadata={"cwd": str(root), "allow_outside_cwd": allow_outside_cwd, "sdk_version": __version__, "network_calls": "none"},
+            metadata={
+                "cwd": str(root),
+                "allow_outside_cwd": allow_outside_cwd,
+                "sdk_version": __version__,
+                "network_calls": "none",
+            },
         )
     except Exception as exc:
         return exception_response(
@@ -522,7 +532,9 @@ def compile_intent_bundle_file_tool(
         source = resolve_local_path(input_path, cwd=root, allow_outside_cwd=allow_outside_cwd, must_exist=True)
         output = resolve_local_path(out_dir, cwd=root, allow_outside_cwd=allow_outside_cwd)
         if target in {"react-tsx", "react-tailwind-tsx"}:
-            ensure_no_input_overwrite(source, output, ("ViewSpecView.tsx", "provenance_manifest.json", "diagnostics.json"))
+            ensure_no_input_overwrite(
+                source, output, ("ViewSpecView.tsx", "provenance_manifest.json", "diagnostics.json")
+            )
         else:
             ensure_no_input_overwrite(source, output, ("index.html", "provenance_manifest.json", "diagnostics.json"))
         text = source.read_text(encoding="utf-8")
@@ -541,7 +553,12 @@ def compile_intent_bundle_file_tool(
                     for issue in validation["issues"]
                 ],
                 data={"validation": validation, "correction_prompt": validation["correction_prompt"]},
-                metadata={"cwd": str(root), "allow_outside_cwd": allow_outside_cwd, "sdk_version": __version__, "network_calls": "none"},
+                metadata={
+                    "cwd": str(root),
+                    "allow_outside_cwd": allow_outside_cwd,
+                    "sdk_version": __version__,
+                    "network_calls": "none",
+                },
             )
         design = _load_optional_design(design_path, cwd=root, allow_outside_cwd=allow_outside_cwd, strict=strict_design)
         bundle = IntentBundle.from_json(json.loads(text))
@@ -573,7 +590,12 @@ def compile_intent_bundle_file_tool(
                     f"App compiler target(s) did not resolve to compiled IR nodes: {', '.join(unresolved)}.",
                     "Verify every compiler-owned target id is declared in this screen's IntentBundle.",
                     errors=unresolved_errors,
-                    metadata={"cwd": str(root), "allow_outside_cwd": allow_outside_cwd, "sdk_version": __version__, "network_calls": "none"},
+                    metadata={
+                        "cwd": str(root),
+                        "allow_outside_cwd": allow_outside_cwd,
+                        "sdk_version": __version__,
+                        "network_calls": "none",
+                    },
                 )
         if target == "react-tsx":
             paths = ReactTsxEmitter().emit(ast, output)
@@ -592,7 +614,9 @@ def compile_intent_bundle_file_tool(
             source_name=source.name,
             raw_source_hash=source_hash(text),
             design=design,
-            command_args=_compile_command_args(source.name, design_path=design_path, strict_design=strict_design, target=target),
+            command_args=_compile_command_args(
+                source.name, design_path=design_path, strict_design=strict_design, target=target
+            ),
             artifact_path=artifact_path,
             emitter=emitter,
         )
@@ -614,7 +638,9 @@ def compile_intent_bundle_file_tool(
                 "Fix the reported artifact issue and retry compile_intent_bundle_file.",
                 paths=paths,
                 errors=[
-                    check_issue_entry(item, default_fix="Re-run viewspec compile after fixing the reported artifact issue.")
+                    check_issue_entry(
+                        item, default_fix="Re-run viewspec compile after fixing the reported artifact issue."
+                    )
                     for item in checked["errors"]
                 ],
                 metadata=metadata,
@@ -845,10 +871,7 @@ def _diff_intent_sections(
     left_sections: dict[str, dict[str, Any]],
     right_sections: dict[str, dict[str, Any]],
 ) -> dict[str, dict[str, list[str]]]:
-    return {
-        section: _diff_id_map(left_items, right_sections[section])
-        for section, left_items in left_sections.items()
-    }
+    return {section: _diff_id_map(left_items, right_sections[section]) for section, left_items in left_sections.items()}
 
 
 def _diff_id_map(left: dict[str, Any], right: dict[str, Any]) -> dict[str, list[str]]:
@@ -1323,7 +1346,15 @@ def _empty_intent_changes() -> dict[str, dict[str, list[str]]]:
 
 
 def _empty_intent_semantic_changes() -> dict[str, list[dict[str, Any]]]:
-    return {"regions": [], "groups": [], "motifs": [], "aesthetic_profiles": [], "styles": [], "actions": [], "bindings": []}
+    return {
+        "regions": [],
+        "groups": [],
+        "motifs": [],
+        "aesthetic_profiles": [],
+        "styles": [],
+        "actions": [],
+        "bindings": [],
+    }
 
 
 def intent_semantic_change_lines(semantic_changes: object) -> list[str]:

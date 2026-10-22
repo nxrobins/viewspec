@@ -8,10 +8,10 @@ tokens that can be ignored produce diagnostics and fall back to defaults.
 
 from __future__ import annotations
 
-import json
-import re
 import hashlib
+import json
 import math
+import re
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -19,7 +19,6 @@ from typing import Any
 import yaml
 from yaml.composer import ComposerError
 from yaml.constructor import ConstructorError
-
 
 MAX_REFERENCE_DEPTH = 32
 # DESIGN.md is size-gated before any byte is read or parsed. Review capture shares
@@ -51,7 +50,9 @@ class _UniqueKeySafeLoader(yaml.SafeLoader):
         return super().compose_node(parent, index)
 
 
-def _construct_mapping_without_duplicate_keys(loader: yaml.Loader, node: yaml.Node, deep: bool = False) -> dict[Any, Any]:
+def _construct_mapping_without_duplicate_keys(
+    loader: yaml.Loader, node: yaml.Node, deep: bool = False
+) -> dict[Any, Any]:
     loader.flatten_mapping(node)
     mapping: dict[Any, Any] = {}
     for key_node, value_node in node.value:
@@ -252,7 +253,9 @@ def load_design_system(
         mode_defaults=sorted(mode_defaults),
     )
     if report.has_errors:
-        raise DesignSystemError(f"{source} failed DESIGN.md validation with {report.summary()['errors']} error(s)", report)
+        raise DesignSystemError(
+            f"{source} failed DESIGN.md validation with {report.summary()['errors']} error(s)", report
+        )
     if strict and report.has_warnings:
         raise DesignSystemError(
             f"{source} failed strict DESIGN.md validation with {report.summary()['warnings']} warning(s)",
@@ -330,7 +333,9 @@ def _lookup(raw: Any, path: tuple[str, ...]) -> tuple[bool, Any]:
     return True, cursor
 
 
-def _resolve_token_tree(raw_tokens: dict[str, Any], report: DesignLintReport) -> tuple[dict[str, Any], set[str], set[str]]:
+def _resolve_token_tree(
+    raw_tokens: dict[str, Any], report: DesignLintReport
+) -> tuple[dict[str, Any], set[str], set[str]]:
     cache: dict[tuple[str, ...], Any] = {}
     dropped: set[tuple[str, ...]] = set()
     references: set[str] = set()
@@ -345,7 +350,9 @@ def _resolve_token_tree(raw_tokens: dict[str, Any], report: DesignLintReport) ->
             return cache[path]
         if depth > MAX_REFERENCE_DEPTH:
             dropped.add(source_path or path)
-            report.add("error", "DESIGN_TOKEN_DEPTH_ERROR", _dot_path(source_path or path), "Token reference depth exceeded")
+            report.add(
+                "error", "DESIGN_TOKEN_DEPTH_ERROR", _dot_path(source_path or path), "Token reference depth exceeded"
+            )
             return DROPPED
         if path in active:
             cycle = (*active[active.index(path) :], path)
@@ -362,13 +369,20 @@ def _resolve_token_tree(raw_tokens: dict[str, Any], report: DesignLintReport) ->
         found, value = _lookup(raw_tokens, path)
         if not found:
             dropped.add(source_path or path)
-            report.add("error", "DESIGN_TOKEN_REF_ERROR", _dot_path(source_path or path), f"Token reference not found: {_dot_path(path)}")
+            report.add(
+                "error",
+                "DESIGN_TOKEN_REF_ERROR",
+                _dot_path(source_path or path),
+                f"Token reference not found: {_dot_path(path)}",
+            )
             return DROPPED
         resolved = resolve_value(value, path, (*active, path), depth + 1)
         cache[path] = resolved
         return resolved
 
-    def resolve_value(value: Any, current_path: tuple[str, ...], active: tuple[tuple[str, ...], ...], depth: int) -> Any:
+    def resolve_value(
+        value: Any, current_path: tuple[str, ...], active: tuple[tuple[str, ...], ...], depth: int
+    ) -> Any:
         if isinstance(value, dict):
             resolved_map: dict[str, Any] = {}
             for key in value:
@@ -433,11 +447,21 @@ def _validate_tokens(
             if not isinstance(value, str) or not HEX_COLOR_RE.match(value):
                 invalid.append(str(key))
                 ignored_tokens.append(path)
-                report.add("warning", "DESIGN_COLOR_FORMAT_WARNING", path, "Color tokens must be sRGB #RRGGBB hex strings; token ignored")
+                report.add(
+                    "warning",
+                    "DESIGN_COLOR_FORMAT_WARNING",
+                    path,
+                    "Color tokens must be sRGB #RRGGBB hex strings; token ignored",
+                )
         for key in invalid:
             colors.pop(key, None)
         if colors and "primary" not in colors:
-            report.add("warning", "DESIGN_MISSING_PRIMARY", "colors.primary", "Colors are defined but no valid primary color exists")
+            report.add(
+                "warning",
+                "DESIGN_MISSING_PRIMARY",
+                "colors.primary",
+                "Colors are defined but no valid primary color exists",
+            )
     elif colors is not None:
         ignored_tokens.append("colors")
         tokens.pop("colors", None)
@@ -483,9 +507,16 @@ def _validate_tokens(
     color_paths = {f"colors.{key}" for key in colors} if isinstance(colors, dict) else set()
     for path in sorted(color_paths - mapped_color_paths - reference_paths):
         ignored_tokens.append(path)
-        report.add("warning", "DESIGN_ORPHANED_TOKEN", path, f"{path} is not used by the local SDK renderer; token ignored")
+        report.add(
+            "warning", "DESIGN_ORPHANED_TOKEN", path, f"{path} is not used by the local SDK renderer; token ignored"
+        )
 
-    if isinstance(colors, dict) and colors.get("error") and colors.get("warning") and colors["error"] != colors["warning"]:
+    if (
+        isinstance(colors, dict)
+        and colors.get("error")
+        and colors.get("warning")
+        and colors["error"] != colors["warning"]
+    ):
         report.add(
             "warning",
             "DESIGN_COLOR_COLLISION",
@@ -527,7 +558,9 @@ def _sanitize_typography(
         if not isinstance(entry, dict):
             ignored_tokens.append(entry_path)
             typography.pop(entry_name, None)
-            report.add("warning", "DESIGN_TYPOGRAPHY_WARNING", entry_path, "Typography entries must be mappings; token ignored")
+            report.add(
+                "warning", "DESIGN_TYPOGRAPHY_WARNING", entry_path, "Typography entries must be mappings; token ignored"
+            )
             continue
         if "fontFamily" in entry and _font_family_css(str(entry["fontFamily"])) is None:
             ignored_tokens.append(f"{entry_path}.fontFamily")
@@ -541,7 +574,12 @@ def _sanitize_typography(
         if "fontWeight" in entry and _valid_font_weight(entry["fontWeight"]) is None:
             ignored_tokens.append(f"{entry_path}.fontWeight")
             entry.pop("fontWeight", None)
-            report.add("warning", "DESIGN_TYPOGRAPHY_WARNING", f"{entry_path}.fontWeight", "fontWeight must be numeric 1-1000; token ignored")
+            report.add(
+                "warning",
+                "DESIGN_TYPOGRAPHY_WARNING",
+                f"{entry_path}.fontWeight",
+                "fontWeight must be numeric 1-1000; token ignored",
+            )
         for field_name in ("fontSize", "letterSpacing"):
             if field_name in entry and _valid_dimension(entry[field_name]) is None:
                 ignored_tokens.append(f"{entry_path}.{field_name}")
@@ -636,14 +674,24 @@ def _map_style_values(
     _append_typography(body, "tone.neutral", "body", append, report, ignored_tokens)
 
     spacing = tokens.get("spacing") if isinstance(tokens.get("spacing"), dict) else {}
-    for key, token in (("sm", "density.compact"), ("md", "density.regular"), ("card", "density.regular"), ("lg", "density.airy")):
+    for key, token in (
+        ("sm", "density.compact"),
+        ("md", "density.regular"),
+        ("card", "density.regular"),
+        ("lg", "density.airy"),
+    ):
         if key in spacing:
             dim = _valid_dimension(spacing[key])
             if dim:
                 append(token, f"gap: {dim}; padding: {dim};", f"spacing.{key}")
             else:
                 ignored_tokens.append(f"spacing.{key}")
-                report.add("warning", "DESIGN_DIMENSION_WARNING", f"spacing.{key}", "Spacing token must be a px/rem/em dimension; token ignored")
+                report.add(
+                    "warning",
+                    "DESIGN_DIMENSION_WARNING",
+                    f"spacing.{key}",
+                    "Spacing token must be a px/rem/em dimension; token ignored",
+                )
 
     rounded = tokens.get("rounded") if isinstance(tokens.get("rounded"), dict) else {}
     for key, token in (("sm", "surface.subtle"), ("md", "surface.strong"), ("lg", "surface.strong")):
@@ -653,7 +701,12 @@ def _map_style_values(
                 append(token, f"border-radius: {dim};", f"rounded.{key}")
             else:
                 ignored_tokens.append(f"rounded.{key}")
-                report.add("warning", "DESIGN_DIMENSION_WARNING", f"rounded.{key}", "Radius token must be a px/rem/em dimension; token ignored")
+                report.add(
+                    "warning",
+                    "DESIGN_DIMENSION_WARNING",
+                    f"rounded.{key}",
+                    "Radius token must be a px/rem/em dimension; token ignored",
+                )
 
     return style_values, applied_tokens
 
@@ -686,7 +739,12 @@ def _append_typography(
         weight = _valid_font_weight(entry["fontWeight"])
         if weight is None:
             ignored_tokens.append(f"typography.{source_prefix}.fontWeight")
-            report.add("warning", "DESIGN_TYPOGRAPHY_WARNING", f"typography.{source_prefix}.fontWeight", "fontWeight must be numeric; token ignored")
+            report.add(
+                "warning",
+                "DESIGN_TYPOGRAPHY_WARNING",
+                f"typography.{source_prefix}.fontWeight",
+                "fontWeight must be numeric; token ignored",
+            )
         else:
             append(token, f"font-weight: {weight};", f"typography.{source_prefix}.fontWeight")
             if token == "rhythm.hierarchy":
@@ -701,7 +759,12 @@ def _append_typography(
                 append("emphasis.high", f"{prop}: {dim};", f"typography.{source_prefix}.{key}")
         else:
             ignored_tokens.append(f"typography.{source_prefix}.{key}")
-            report.add("warning", "DESIGN_DIMENSION_WARNING", f"typography.{source_prefix}.{key}", f"{key} must be a dimension; token ignored")
+            report.add(
+                "warning",
+                "DESIGN_DIMENSION_WARNING",
+                f"typography.{source_prefix}.{key}",
+                f"{key} must be a dimension; token ignored",
+            )
 
 
 def _font_family_css(value: str) -> str | None:

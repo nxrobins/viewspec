@@ -11,7 +11,6 @@ from typing import Any
 from viewspec._canonical import canonical_json_ascii_bytes
 from viewspec.types import CompileRequestPayload, IntentBundle
 
-
 ARTIFACT_SCHEMA_VERSION = 1
 ARTIFACT_TARGETS = ("html-tailwind", "react-tsx", "swiftui", "flutter")
 
@@ -256,9 +255,7 @@ def compile_artifact_remote(
     try:
         import httpx
     except ImportError:
-        raise ImportError(
-            "httpx is required for remote artifacts. Install it: pip install viewspec[remote]"
-        ) from None
+        raise ImportError("httpx is required for remote artifacts. Install it: pip install viewspec[remote]") from None
     bundle = _request_payload(request)
     headers = {"Authorization": f"Bearer {api_key}"} if api_key else {}
     try:

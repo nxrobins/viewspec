@@ -4,26 +4,23 @@ import json
 from copy import deepcopy
 
 import pytest
-from hypothesis import given, settings, strategies as st
+from hypothesis import given, settings
+from hypothesis import strategies as st
 
 import viewspec.app_bundle as app_bundle_module
-from viewspec.app_errors import AppBundleProofFailure
-from viewspec.app_reports import app_proof_report_hash
-from viewspec.app_resource_binding import _resource_binding_assertion_report
-from viewspec.app_shell import _assert_rendered_shell_static_contract
-from viewspec.app_state_artifacts import _write_state_artifacts
+from viewspec.agent import AGENT_INTENT_BUNDLE_SCHEMA
 from viewspec.app_bundle import (
     AGENT_APP_BUNDLE_SCHEMA,
-    APP_BUNDLE_STATE_SCHEMA_VERSION,
+    APP_BUNDLE_BINDING_SCOPE,
     APP_BUNDLE_MAX_BYTES,
     APP_BUNDLE_MAX_EMBEDDED_INTENT_BYTES,
     APP_BUNDLE_RESOURCE_BINDING,
     APP_BUNDLE_RESOURCE_BINDING_READONLY,
-    APP_BUNDLE_BINDING_SCOPE,
-    APP_STATE_MANIFEST,
-    APP_STATE_REDUCER,
+    APP_BUNDLE_STATE_SCHEMA_VERSION,
     APP_SHELL_ROUTE_NAVIGATION,
     APP_SHELL_TARGET,
+    APP_STATE_MANIFEST,
+    APP_STATE_REDUCER,
     app_semantic_change_lines,
     compile_app,
     compile_app_tool,
@@ -34,8 +31,13 @@ from viewspec.app_bundle import (
     starter_app_bundle,
     validate_app_text,
 )
-from viewspec.agent import AGENT_INTENT_BUNDLE_SCHEMA
-from viewspec.cli import _doctor_app_bundle_pipeline, _doctor_checks_ok, main as cli_main
+from viewspec.app_errors import AppBundleProofFailure
+from viewspec.app_reports import app_proof_report_hash
+from viewspec.app_resource_binding import _resource_binding_assertion_report
+from viewspec.app_shell import _assert_rendered_shell_static_contract
+from viewspec.app_state_artifacts import _write_state_artifacts
+from viewspec.cli import _doctor_app_bundle_pipeline, _doctor_checks_ok
+from viewspec.cli import main as cli_main
 from viewspec.intent_tools import starter_intent_bundle
 from viewspec.local_tools import check_artifact_dir, file_hash
 from viewspec.state_ir import (
@@ -85,7 +87,13 @@ def _stateful_app_bundle() -> dict:
             "scope": "app",
             "initial": {"from_resource_view": {"screen_id": "queue", "view_id": "queue_incidents"}},
         },
-        {"id": "selected_incident", "kind": "scalar", "scope": "screen", "screen_id": "queue", "initial": {"value": None}},
+        {
+            "id": "selected_incident",
+            "kind": "scalar",
+            "scope": "screen",
+            "screen_id": "queue",
+            "initial": {"value": None},
+        },
         {"id": "queue_flags", "kind": "record", "scope": "app", "initial": {"value": {"urgent": False, "count": 0}}},
         {"id": "selected_ids", "kind": "selection", "scope": "app", "initial": {"value": []}},
     ]
@@ -226,7 +234,10 @@ def test_bound_starter_app_bundle_validates_and_proves_fixture_readonly(tmp_path
         assert report["resource_binding_assertions"]["binding_digest"]
         assert report["resource_binding_assertions"]["views"][0]["status"] == "passed"
 
-    assert compiled["resource_binding_assertions"]["binding_digest"] == proof["resource_binding_assertions"]["binding_digest"]
+    assert (
+        compiled["resource_binding_assertions"]["binding_digest"]
+        == proof["resource_binding_assertions"]["binding_digest"]
+    )
     assert proof["shell"]["resource_binding"] == APP_BUNDLE_RESOURCE_BINDING_READONLY
     assert proof["shell"]["app_schema_version"] == 2
     assert proof["shell"]["binding_scope"] == APP_BUNDLE_BINDING_SCOPE
@@ -373,7 +384,7 @@ def test_state_reducer_conformance_executes_generated_es_module_for_all_v0_ops()
 
     assert "export type ViewSpecState = Record<string, unknown>;" in reducer_source
     assert "state: ViewSpecState, event: ViewSpecStateEvent" in reducer_source
-    assert "from \"./viewspec_numeric\"" in reducer_source
+    assert 'from "./viewspec_numeric"' in reducer_source
     assert "export function reduceViewSpecState" in reducer_source
     assert "export function selectViewSpecState" in reducer_source
     assert "export type" not in generate_javascript_reducer(app)
@@ -578,7 +589,9 @@ def test_increment_on_non_numeric_fails_like_python_reference():
 
     state_ir, issues = validate_state_ir(app)
     assert issues == []
-    result = apply_event(initial_state(app, state_ir), state_ir, {"mutation_id": "bump", "payload_values": {"inc_1043_id": "x"}})
+    result = apply_event(
+        initial_state(app, state_ir), state_ir, {"mutation_id": "bump", "payload_values": {"inc_1043_id": "x"}}
+    )
     assert result["ok"] is False
     assert result["errors"][0]["code"] == "APP_STATE_REDUCER_OP_FAILED"
 
@@ -662,9 +675,7 @@ def _coll_state(value):
 def _reducer_scenario_app(state, ops, idval="x"):
     app = _stateful_app_bundle()
     app["state"] = state
-    app["mutations"] = [
-        {"id": "m", "trigger": {"screen_id": "queue", "action_id": "triage_incident"}, "ops": ops}
-    ]
+    app["mutations"] = [{"id": "m", "trigger": {"screen_id": "queue", "action_id": "triage_incident"}, "ops": ops}]
     app["selectors"] = []
     app["state_replay_assertions"] = [
         {
@@ -695,7 +706,10 @@ _FROM_PAYLOAD = {"from_payload": "inc_1043_id"}
         ),
         (
             _rec_state({"a": 1}),
-            [{"op": "set", "state": "rec", "value": [1, 2]}, {"op": "increment", "state": "rec", "field": "n", "amount": 1}],
+            [
+                {"op": "set", "state": "rec", "value": [1, 2]},
+                {"op": "increment", "state": "rec", "field": "n", "amount": 1},
+            ],
             "x",
         ),
         # Integer-valued float id no longer drifts (String(1.0)="1" vs str(1.0)="1.0").
@@ -703,7 +717,10 @@ _FROM_PAYLOAD = {"from_payload": "inc_1043_id"}
         # Well-formed multi-op still succeeds identically.
         (
             _coll_state([{"id": "a"}]),
-            [{"op": "append", "state": "rows", "value": {"id": "b"}}, {"op": "patch", "state": "rows", "item_id": _FROM_PAYLOAD, "value": {"v": 1}}],
+            [
+                {"op": "append", "state": "rows", "value": {"id": "b"}},
+                {"op": "patch", "state": "rows", "item_id": _FROM_PAYLOAD, "value": {"v": 1}},
+            ],
             "b",
         ),
     ],
@@ -767,15 +784,29 @@ def test_filter_eq_distinguishes_bool_from_number_like_reducer():
     # Python filter_eq now mirrors JS === : true != 1, so only the numeric row matches.
     app = _stateful_app_bundle()
     app["state"] = [
-        {"id": "rows", "kind": "collection", "scope": "app", "initial": {"value": [{"id": "t", "k": True}, {"id": "n", "k": 1}]}},
+        {
+            "id": "rows",
+            "kind": "collection",
+            "scope": "app",
+            "initial": {"value": [{"id": "t", "k": True}, {"id": "n", "k": 1}]},
+        },
         {"id": "flags", "kind": "record", "scope": "app", "initial": {"value": {"count": 0}}},
     ]
     app["mutations"] = [
-        {"id": "bump", "trigger": {"screen_id": "queue", "action_id": "triage_incident"}, "ops": [{"op": "increment", "state": "flags", "field": "count", "amount": 1}]}
+        {
+            "id": "bump",
+            "trigger": {"screen_id": "queue", "action_id": "triage_incident"},
+            "ops": [{"op": "increment", "state": "flags", "field": "count", "amount": 1}],
+        }
     ]
     app["selectors"] = [{"id": "ones", "source_state": "rows", "ops": [{"op": "filter_eq", "field": "k", "value": 1}]}]
     app["state_replay_assertions"] = [
-        {"id": "r", "events": [{"mutation_id": "bump", "payload_values": {"inc_1043_id": "x"}}], "expect_state": {}, "expect_selectors": {}}
+        {
+            "id": "r",
+            "events": [{"mutation_id": "bump", "payload_values": {"inc_1043_id": "x"}}],
+            "expect_state": {},
+            "expect_selectors": {},
+        }
     ]
 
     state_ir, issues = validate_state_ir(app)
@@ -993,8 +1024,7 @@ def test_validate_app_rejects_v3_state_constraints_and_v1_v2_mutation_fields():
 
     too_many_states = _stateful_app_bundle()
     too_many_states["state"] = [
-        {"id": f"state_{index}", "kind": "scalar", "scope": "app", "initial": {"value": index}}
-        for index in range(33)
+        {"id": f"state_{index}", "kind": "scalar", "scope": "app", "initial": {"value": index}} for index in range(33)
     ]
     cases.append(("too many states", too_many_states, "APP_STATE_LIMIT_EXCEEDED"))
 
@@ -1096,11 +1126,7 @@ def test_resource_binding_ambiguity_names_record_field_bindings_and_dom_identiti
     )
 
     assert report is not None and report["ok"] is False
-    failure = next(
-        item
-        for item in report["errors"]
-        if item["code"] == "APP_RESOURCE_BINDING_AMBIGUOUS_VALUE"
-    )
+    failure = next(item for item in report["errors"] if item["code"] == "APP_RESOURCE_BINDING_AMBIGUOUS_VALUE")
     assert f"record={record_id}" in failure["message"]
     assert f"field={field}" in failure["message"]
     assert f"binding={first_binding} dom=dom-first" in failure["message"]
@@ -1155,9 +1181,7 @@ def test_replay_artifact_failure_surfaces_complete_actionable_context(tmp_path):
             output_dir,
             generate_reducer=lambda _payload: "export const reducer = true;\n",
             check_conformance=lambda _payload, **_kwargs: {"ok": True},
-            build_manifest=lambda _payload, **_kwargs: {
-                "replay": {"ok": False, "errors": [failure]}
-            },
+            build_manifest=lambda _payload, **_kwargs: {"replay": {"ok": False, "errors": [failure]}},
         )
 
     assert caught.value.code == "APP_VISIBILITY_REPLAY_MISMATCH"
@@ -1350,7 +1374,9 @@ def test_prove_app_bundle_is_identical_across_directories(tmp_path):
     assert first_doc == second_doc
     first_support = first_dir.joinpath("app_support_bundle.json").read_bytes()
     assert first_support == second_dir.joinpath("app_support_bundle.json").read_bytes()
-    assert json.loads(first_support)["proof_report_hash"] == app_proof_report_hash(first) == app_proof_report_hash(second)
+    assert (
+        json.loads(first_support)["proof_report_hash"] == app_proof_report_hash(first) == app_proof_report_hash(second)
+    )
     first_summary = first_dir.joinpath("APP_PROOF.md").read_text(encoding="utf-8")
     assert "- Paths are relative to the proof directory." in first_summary
     assert "- app: `../../viewspec.app.json`" in first_summary
@@ -1434,7 +1460,9 @@ def test_prove_app_with_shell_writes_shell_proof_and_matches_compile_app_hash(tm
     assert proof["target"] == APP_SHELL_TARGET
     assert proof["route_navigation"] == APP_SHELL_ROUTE_NAVIGATION
     assert proof["shell_artifact_hash"] == compiled["shell_artifact_hash"]
-    assert proof["paths"]["app_shell_index"].endswith("app-shell\\index.html") or proof["paths"]["app_shell_index"].endswith("app-shell/index.html")
+    assert proof["paths"]["app_shell_index"].endswith("app-shell\\index.html") or proof["paths"][
+        "app_shell_index"
+    ].endswith("app-shell/index.html")
     assert (tmp_path / "app-proof/app-shell/index.html").exists()
     assert proof["shell"]["route_assertions"]["unknown_route_selects_no_screen_and_one_404"] is True
 

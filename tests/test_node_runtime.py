@@ -3,7 +3,8 @@ from __future__ import annotations
 import tempfile
 from pathlib import Path
 
-from hypothesis import given, strategies as st
+from hypothesis import given
+from hypothesis import strategies as st
 
 from viewspec.node_runtime import materialize_prebuilt_node_modules
 
@@ -54,9 +55,7 @@ def test_integrity_sensitive_packages_are_copied_as_regular_trees(tmp_path) -> N
     materialize_prebuilt_node_modules(
         destination,
         seed,
-        copy_packages=frozenset(
-            {"@chenglou/pretext", "@chenglou/freerange", "typescript"}
-        ),
+        copy_packages=frozenset({"@chenglou/pretext", "@chenglou/freerange", "typescript"}),
     )
 
     assert not destination.joinpath("@chenglou/pretext").is_symlink()

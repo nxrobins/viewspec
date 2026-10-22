@@ -6,11 +6,8 @@ from __future__ import annotations
 import argparse
 import base64
 import hashlib
-from html.parser import HTMLParser
-from http.cookiejar import CookieJar
 import json
 import os
-from pathlib import Path
 import re
 import shlex
 import shutil
@@ -20,9 +17,11 @@ import subprocess
 import sys
 import tempfile
 import time
-from urllib.request import HTTPCookieProcessor, ProxyHandler, build_opener
 import venv
-
+from html.parser import HTMLParser
+from http.cookiejar import CookieJar
+from pathlib import Path
+from urllib.request import HTTPCookieProcessor, ProxyHandler, build_opener
 
 ROOT = Path(__file__).resolve().parents[1]
 REFERENCE_PNG = base64.b64decode(
@@ -92,29 +91,41 @@ def run(command: list[str], *, cwd: Path, env: dict[str, str], timeout: int = 24
     if result.returncode:
         browser_error = Path(env.get("RELEASE_BROWSER_ERROR", "/nonexistent"))
         browser_detail = browser_error.read_text(encoding="utf-8")[-4000:] if browser_error.is_file() else ""
-        detail = re.sub(r"http://127\.0\.0\.1:\d+/\S+", "<private Studio URL>",
-                        result.stdout[-4000:] + "\n" + result.stderr[-4000:] + "\n" + browser_detail)
-        raise ReleaseCheckError(
-            f"command failed ({result.returncode}): {shlex.join(command)}\n{detail}"
+        detail = re.sub(
+            r"http://127\.0\.0\.1:\d+/\S+",
+            "<private Studio URL>",
+            result.stdout[-4000:] + "\n" + result.stderr[-4000:] + "\n" + browser_detail,
         )
+        raise ReleaseCheckError(f"command failed ({result.returncode}): {shlex.join(command)}\n{detail}")
     return result.stdout
 
 
 def _environment(work: Path, binary_dir: Path) -> dict[str, str]:
-    env = {key: value for key, value in os.environ.items()
-           if not key.startswith(("PIP_", "VIEWSPEC_")) and key not in {
-               "PYTHONPATH", "PYTHONHOME", "VIRTUAL_ENV", "NODE_PATH", "BROWSER",
-           }}
-    env.update({
-        "PATH": str(binary_dir) + os.pathsep + env.get("PATH", ""),
-        "PIP_CONFIG_FILE": os.devnull,
-        "PIP_DISABLE_PIP_VERSION_CHECK": "1",
-        "PIP_NO_CACHE_DIR": "1",
-        "PYTHONNOUSERSITE": "1",
-        "VIEWSPEC_REVIEW_STATE_DIR": str(work / "review-state"),
-        "VIEWSPEC_CONVERGE_STATE_DIR": str(work / "converge-state"),
-        "npm_config_cache": str(work / "npm-cache"),
-    })
+    env = {
+        key: value
+        for key, value in os.environ.items()
+        if not key.startswith(("PIP_", "VIEWSPEC_"))
+        and key
+        not in {
+            "PYTHONPATH",
+            "PYTHONHOME",
+            "VIRTUAL_ENV",
+            "NODE_PATH",
+            "BROWSER",
+        }
+    }
+    env.update(
+        {
+            "PATH": str(binary_dir) + os.pathsep + env.get("PATH", ""),
+            "PIP_CONFIG_FILE": os.devnull,
+            "PIP_DISABLE_PIP_VERSION_CHECK": "1",
+            "PIP_NO_CACHE_DIR": "1",
+            "PYTHONNOUSERSITE": "1",
+            "VIEWSPEC_REVIEW_STATE_DIR": str(work / "review-state"),
+            "VIEWSPEC_CONVERGE_STATE_DIR": str(work / "converge-state"),
+            "npm_config_cache": str(work / "npm-cache"),
+        }
+    )
     # Preserve browser-open behavior. Capture the creation entry for HTTP checks;
     # connect Chromium during comparison launch so its required handshake occurs.
     capture = work / "capture_browser.py"
@@ -206,18 +217,29 @@ def check_release(*, dist: Path | None = None, published: bool = False) -> dict[
             artifact_hash = hashlib.sha256(wheels[0].read_bytes()).hexdigest()
             wheelhouse = work / "wheelhouse"
             wheelhouse.mkdir()
-            run(["python", "-m", "pip", "download", "--only-binary=:all:",
-                 "--dest", str(wheelhouse), str(wheels[0])], cwd=work, env=env)
+            run(
+                ["python", "-m", "pip", "download", "--only-binary=:all:", "--dest", str(wheelhouse), str(wheels[0])],
+                cwd=work,
+                env=env,
+            )
             env.update({"PIP_NO_INDEX": "1", "PIP_FIND_LINKS": str(wheelhouse)})
         try:
             # Candidate mode exposes only the built wheel and its dependencies;
             # published mode uses pip's public index. The command is unchanged.
             run(shlex.split(commands["install"]), cwd=work, env=env)
-            installed = json.loads(run(["python", "-c",
-                "import importlib.metadata,json,sys,viewspec;"
-                "print(json.dumps({'version':importlib.metadata.version('viewspec'),"
-                "'runtime_version':viewspec.__version__,'module':viewspec.__file__,'prefix':sys.prefix}))"
-            ], cwd=work, env=env))
+            installed = json.loads(
+                run(
+                    [
+                        "python",
+                        "-c",
+                        "import importlib.metadata,json,sys,viewspec;"
+                        "print(json.dumps({'version':importlib.metadata.version('viewspec'),"
+                        "'runtime_version':viewspec.__version__,'module':viewspec.__file__,'prefix':sys.prefix}))",
+                    ],
+                    cwd=work,
+                    env=env,
+                )
+            )
             if installed["version"] != version or installed["runtime_version"] != version:
                 raise ReleaseCheckError(
                     f"homepage advertises {version}, but its install command resolved {installed['version']}"
@@ -236,8 +258,20 @@ def check_release(*, dist: Path | None = None, published: bool = False) -> dict[
                     raise ReleaseCheckError(f"installed agent asset differs from the website: {name}")
 
             driver = work / "browser-driver"
-            run(["npm", "install", "--prefix", str(driver), "--ignore-scripts", "--no-audit", "--no-fund",
-                 "@playwright/test@1.60.0"], cwd=work, env=env)
+            run(
+                [
+                    "npm",
+                    "install",
+                    "--prefix",
+                    str(driver),
+                    "--ignore-scripts",
+                    "--no-audit",
+                    "--no-fund",
+                    "@playwright/test@1.60.0",
+                ],
+                cwd=work,
+                env=env,
+            )
             env["RELEASE_BROWSER_RUNTIME"] = str(driver)
 
             creation = work / "creation"
@@ -287,21 +321,31 @@ def check_release(*, dist: Path | None = None, published: bool = False) -> dict[
             env["RELEASE_BROWSER_MODE"] = "check"
             run(shlex.split(commands["compare"]), cwd=comparison, env=env)
             _browser_url(env)
-            checked = json.loads(run(["viewspec", "review-status", "viewspec.app.json", "--json"],
-                                     cwd=comparison, env=env))["review"]
+            checked = json.loads(
+                run(["viewspec", "review-status", "viewspec.app.json", "--json"], cwd=comparison, env=env)
+            )["review"]
             if checked["target"] != "studio-static-react-compare" or checked["check_status"] != "passed":
                 raise ReleaseCheckError("homepage comparison did not build both checked targets")
             rendered = json.loads(Path(env["RELEASE_BROWSER_RESULT"]).read_text(encoding="utf-8"))
             if rendered.get("status") != "passed":
-                detail = re.sub(r"http://127\.0\.0\.1:\d+/\S+", "<private Studio URL>",
-                                Path(env["RELEASE_BROWSER_ERROR"]).read_text(encoding="utf-8")[-4000:])
+                detail = re.sub(
+                    r"http://127\.0\.0\.1:\d+/\S+",
+                    "<private Studio URL>",
+                    Path(env["RELEASE_BROWSER_ERROR"]).read_text(encoding="utf-8")[-4000:],
+                )
                 raise ReleaseCheckError("the comparison did not complete its browser render check: " + detail)
             run(["viewspec", "review-end", "viewspec.app.json", "--json"], cwd=comparison, env=env)
             return {
-                "status": "passed", "mode": "published" if published else "candidate",
-                "sdk_version": version, "wheel_sha256": artifact_hash, "commands": commands,
-                "isolated_install": True, "agent_assets": "matched", "creation": "checked_handoff",
-                "comparison": "checked", "browser": rendered,
+                "status": "passed",
+                "mode": "published" if published else "candidate",
+                "sdk_version": version,
+                "wheel_sha256": artifact_hash,
+                "commands": commands,
+                "isolated_install": True,
+                "agent_assets": "matched",
+                "creation": "checked_handoff",
+                "comparison": "checked",
+                "browser": rendered,
             }
         finally:
             _stop_servers(work)

@@ -1,14 +1,14 @@
 from __future__ import annotations
 
 import asyncio
-from collections.abc import Iterable
 import threading
+from collections.abc import Iterable
 
 from viewspec.studio_review_asgi import StudioReviewASGIApp
 from viewspec.studio_review_http import (
+    STUDIO_REVIEW_HTTP_MAX_JSON_BYTES,
     ReviewHTTPRequest,
     ReviewHTTPResponse,
-    STUDIO_REVIEW_HTTP_MAX_JSON_BYTES,
     StudioReviewHTTPAdapter,
 )
 from viewspec.studio_review_internal import (
@@ -134,7 +134,10 @@ def test_asgi_bridge_strips_internal_transport_headers_before_external_dispatch(
         headers=(
             (b"content-type", b"text/plain"),
             (b"x-viewspec-internal-authenticated", b"true"),
-            (b"x-viewspec-internal-signature", b"hmac-sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"),
+            (
+                b"x-viewspec-internal-signature",
+                b"hmac-sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            ),
         ),
     )
 
@@ -309,9 +312,7 @@ def test_internal_ingress_binds_request_and_response_while_direct_create_stays_c
     )
     assert sent[0]["status"] == 201
     response_headers = {
-        name.decode(): value.decode()
-        for name, value in sent[0]["headers"]
-        if name.decode() != "set-cookie"
+        name.decode(): value.decode() for name, value in sent[0]["headers"] if name.decode() != "set-cookie"
     }
     client.verify_response(
         status=201,

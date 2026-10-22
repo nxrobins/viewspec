@@ -9,9 +9,10 @@ from pathlib import Path
 from typing import Any
 
 from seo_metadata import demo_head_metadata
+
 from viewspec import AESTHETIC_PROFILE_TOKENS, IntentBundle, ViewSpecBuilder, compile, profile_style_facts
 from viewspec.emitters.html_tailwind import OFFLINE_EMITTER_CSS, _render_node
-from viewspec.types import ASTBundle, DEFAULT_STYLE_TOKEN_VALUES
+from viewspec.types import DEFAULT_STYLE_TOKEN_VALUES, ASTBundle
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -164,7 +165,9 @@ def layout_proof(manifest: dict[str, Any], profile: str) -> dict[str, dict[str, 
                 raise RuntimeError(f"{profile} generated featured metric card without integer span metadata.")
             layout_emphasis = props.get("layout_emphasis")
             if layout_emphasis != "featured":
-                raise RuntimeError(f"{profile} generated featured metric card without checked layout emphasis metadata.")
+                raise RuntimeError(
+                    f"{profile} generated featured metric card without checked layout emphasis metadata."
+                )
             proof[role] = {
                 "layoutEmphasis": layout_emphasis,
                 "profile": props.get("aesthetic_layout_profile"),
@@ -195,7 +198,9 @@ def style_signature(style_facts: dict[str, Any]) -> str:
     )
 
 
-def comparison_axis_evidence(style_facts: dict[str, Any], layout: dict[str, dict[str, Any]]) -> dict[str, dict[str, Any]]:
+def comparison_axis_evidence(
+    style_facts: dict[str, Any], layout: dict[str, dict[str, Any]]
+) -> dict[str, dict[str, Any]]:
     changed_tokens = tuple(str(token) for token in style_facts["changed_tokens"])
     axes: dict[str, dict[str, Any]] = {}
     for axis, categories in COMPARISON_AXIS_CATEGORIES.items():
@@ -256,18 +261,9 @@ def compile_profiles() -> dict[str, dict[str, Any]]:
 def profile_evidence(profiles: dict[str, dict[str, Any]]) -> dict[str, Any]:
     semantic_hashes = sorted({data["semanticHash"] for data in profiles.values()})
     node_counts = sorted({data["nodeCount"] for data in profiles.values()})
-    style_projection_hashes = {
-        profile: data["styleProjectionHash"]
-        for profile, data in profiles.items()
-    }
-    layout_signatures = {
-        profile: data["layoutSignature"]
-        for profile, data in profiles.items()
-    }
-    comparison_axes = {
-        profile: data["axisEvidence"]
-        for profile, data in profiles.items()
-    }
+    style_projection_hashes = {profile: data["styleProjectionHash"] for profile, data in profiles.items()}
+    layout_signatures = {profile: data["layoutSignature"] for profile, data in profiles.items()}
+    comparison_axes = {profile: data["axisEvidence"] for profile, data in profiles.items()}
     evidence = {
         "version": "aesthetic_profile_demo_proof.v2",
         "profileCount": len(profiles),
@@ -295,9 +291,7 @@ def profile_evidence(profiles: dict[str, dict[str, Any]]) -> dict[str, Any]:
     if any(set(axes) != expected_axis_keys for axes in comparison_axes.values()):
         raise RuntimeError("Aesthetic profile demo evidence requires every profile to cover every comparison axis.")
     if any(
-        not axes[axis]["changedTokenCount"]
-        for axes in comparison_axes.values()
-        for axis in COMPARISON_AXIS_CATEGORIES
+        not axes[axis]["changedTokenCount"] for axes in comparison_axes.values() for axis in COMPARISON_AXIS_CATEGORIES
     ):
         raise RuntimeError("Aesthetic profile demo evidence requires changed tokens for each style comparison axis.")
     return evidence

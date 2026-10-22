@@ -22,11 +22,12 @@ from google.protobuf import json_format, struct_pb2
 
 from viewspec.intent_contract import (
     INTENT_BUNDLE_SCHEMA_VERSION as INTENT_BUNDLE_SCHEMA_VERSION,
+)
+from viewspec.intent_contract import (
     MAX_SAFE_INTEGER,
     normalize_intent_bundle_payload,
 )
 from viewspec.schema import viewspec_pb2 as pb2
-
 
 # ---------------------------------------------------------------------------
 # Address grammar
@@ -359,7 +360,12 @@ class GroupSpec:
 
     @classmethod
     def from_proto(cls, message: pb2.Group) -> GroupSpec:
-        return cls(id=message.id, kind=message.kind, members=list(message.members), target_region=_optional_string(message.target_region))
+        return cls(
+            id=message.id,
+            kind=message.kind,
+            members=list(message.members),
+            target_region=_optional_string(message.target_region),
+        )
 
     def to_json(self) -> JsonDict:
         return _proto_to_json_dict(self.to_proto())
@@ -802,10 +808,7 @@ def _int_summary(value: Any) -> dict[str, int]:
     for key in summary:
         try:
             raw_value = value.get(key, 0) or 0
-            if isinstance(raw_value, bool):
-                numeric_value = 0
-            else:
-                numeric_value = int(raw_value)
+            numeric_value = 0 if isinstance(raw_value, bool) else int(raw_value)
             summary[key] = numeric_value if numeric_value >= 0 else 0
         except (TypeError, ValueError):
             summary[key] = 0
@@ -853,9 +856,7 @@ class DesignMetadata:
     def from_json(cls, payload: Any) -> DesignMetadata:
         data = _coerce_json_mapping(payload, cls.__name__)
         findings = [
-            DesignFinding.from_json(finding)
-            for finding in data.get("findings", [])
-            if isinstance(finding, dict)
+            DesignFinding.from_json(finding) for finding in data.get("findings", []) if isinstance(finding, dict)
         ]
         name = data.get("name")
         return cls(
@@ -958,7 +959,9 @@ class CompileResponse:
         return cls(
             ast=ASTBundle.from_json(data["ast"]),
             meta=CompileResponseMeta.from_json(data.get("meta", {})),
-            derivations=[dict(item) for item in derivations if isinstance(item, dict)] if isinstance(derivations, list) else [],
+            derivations=[dict(item) for item in derivations if isinstance(item, dict)]
+            if isinstance(derivations, list)
+            else [],
             quota=dict(quota) if isinstance(quota, dict) else {},
             raw=dict(data),
         )

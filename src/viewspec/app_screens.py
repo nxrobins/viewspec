@@ -158,7 +158,11 @@ def prove_app_screens(
         manifest_path = artifact_dir / "provenance_manifest.json"
         diagnostics_path = artifact_dir / "diagnostics.json"
         artifact_path = artifact_dir / "index.html"
-        check = check_artifact_dir(artifact_dir) if artifact_dir.exists() else {"ok": False, "errors": ["artifact directory missing"], "manifest_summary": None}
+        check = (
+            check_artifact_dir(artifact_dir)
+            if artifact_dir.exists()
+            else {"ok": False, "errors": ["artifact directory missing"], "manifest_summary": None}
+        )
         if not check.get("ok") and not errors:
             errors = [
                 {

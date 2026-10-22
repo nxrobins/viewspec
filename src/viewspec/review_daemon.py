@@ -7,21 +7,20 @@ import hashlib
 import json
 import logging
 import os
-from pathlib import Path
 import signal
 import sys
 import threading
 import time
+from pathlib import Path
 
-from viewspec.review_contract import ReviewContractError, canonical_json_bytes
+from viewspec.local_verify import verify_local_artifact
 from viewspec.review_cli import DEFAULT_REVIEW_PORT, _studio_share_reference_sha256, configure_daemon_logging
 from viewspec.review_compile import STUDIO_COMPARE_TARGET, bounded_review_phase, capture_source_snapshot
+from viewspec.review_contract import ReviewContractError, canonical_json_bytes
 from viewspec.review_runtime import ReviewRuntime, review_session_dir
 from viewspec.review_server import ReviewServer
 from viewspec.review_session import ReviewStateLock
-from viewspec.local_verify import verify_local_artifact
 from viewspec.verification import VerificationDiagnostic, VerificationPlan, VerificationResult
-
 
 WATCH_QUIET_SECONDS = 0.250
 WATCH_MAX_COALESCE_SECONDS = 2.0

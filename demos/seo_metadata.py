@@ -26,6 +26,6 @@ def demo_head_metadata(*, title: str, description: str, canonical_path: str) -> 
             f'  <link rel="canonical" href="{escape(canonical, quote=True)}">',
             '  <link rel="alternate" type="text/markdown" title="ViewSpec for LLMs" href="https://viewspec.dev/llms.txt">',
             '  <link rel="service" type="application/json" title="ViewSpec OpenAPI" href="https://viewspec.dev/openapi.json">',
-            f"  <script type=\"application/ld+json\">{json_ld}</script>",
+            f'  <script type="application/ld+json">{json_ld}</script>',
         ]
     )

@@ -10,7 +10,7 @@ import sys
 from pathlib import Path
 
 from viewspec._version import __version__
-from viewspec.studio_creation_cli import studio_agent_task
+from viewspec.agent_assets import AgentAssetError, agent_asset_readiness, check_agent_assets, export_agent_assets
 from viewspec.app_bundle import (
     APP_BUNDLE_ALLOWED_KINDS,
     APP_BUNDLE_DEFAULT_OUT,
@@ -29,7 +29,6 @@ from viewspec.app_bundle import (
     validate_app_file,
     validate_app_text,
 )
-from viewspec.agent_assets import AgentAssetError, agent_asset_readiness, check_agent_assets, export_agent_assets
 from viewspec.compiler import compile
 from viewspec.compiler_errors import LocalToolContractError
 from viewspec.converge_sessions import (
@@ -46,19 +45,6 @@ from viewspec.emitters.html_tailwind import HtmlTailwindEmitter
 from viewspec.emitters.react_tailwind_tsx import ReactTailwindTsxEmitter
 from viewspec.emitters.react_tsx import ReactTsxEmitter
 from viewspec.host_verify import HOST_VERIFY_TARGET, verify_host_artifact_dir, verify_host_intent_file
-from viewspec.intent_tools import (
-    STARTER_INTENT_KINDS,
-    diff_intent_files,
-    diff_intent_text,
-    init_intent_file,
-    intent_semantic_change_lines,
-    intent_diff_error_payload,
-    intent_error_payload,
-    starter_intent_bundle,
-    validate_intent_file,
-    validate_intent_text,
-    wrap_intent_bundle_manifest,
-)
 from viewspec.intent_patch import (
     INTENT_PATCH_MAX_BYTES,
     INTENT_PATCH_TARGET_LIMIT_DEFAULT,
@@ -70,6 +56,19 @@ from viewspec.intent_patch import (
     intent_patch_targets_file,
     preview_intent_patch_file,
 )
+from viewspec.intent_tools import (
+    STARTER_INTENT_KINDS,
+    diff_intent_files,
+    diff_intent_text,
+    init_intent_file,
+    intent_diff_error_payload,
+    intent_error_payload,
+    intent_semantic_change_lines,
+    starter_intent_bundle,
+    validate_intent_file,
+    validate_intent_text,
+    wrap_intent_bundle_manifest,
+)
 from viewspec.local_tools import (
     atomic_write,
     check_artifact_dir,
@@ -78,10 +77,9 @@ from viewspec.local_tools import (
     source_hash,
 )
 from viewspec.local_verify import verify_local_artifact
-from viewspec.verification import VerificationPlan, VerificationResult
-from viewspec.prove import PROVE_DEFAULT_OUT, prove
 from viewspec.mcp_server import MCP_INSTALL_HINT, MissingMCPDependency, mcp_dependency_available, run_mcp_server
-from viewspec.native_agents import NativeAgentError, VALID_TARGETS, init_agent_instructions
+from viewspec.native_agents import VALID_TARGETS, NativeAgentError, init_agent_instructions
+from viewspec.prove import PROVE_DEFAULT_OUT, prove
 from viewspec.raw_html import HtmlInputError, compile_html, diff_html, lift_html, write_html_compile_result
 from viewspec.review_cli import end_review, open_review, poll_review, review_status
 from viewspec.review_contract import ReviewContractError
@@ -92,12 +90,14 @@ from viewspec.studio_creation import (
     accept_studio_creation,
     prepare_studio_creation,
 )
+from viewspec.studio_creation_cli import studio_agent_task
 from viewspec.studio_share import (
     STUDIO_SHARE_ROOT_DEFAULT,
     StudioShareError,
     prepare_studio_share,
 )
 from viewspec.types import IntentBundle
+from viewspec.verification import VerificationPlan, VerificationResult
 
 DoctorProfileDiff = tuple[dict[str, object], str, dict[str, object], dict[str, object]]
 
@@ -180,8 +180,12 @@ def _build_parser() -> argparse.ArgumentParser:
         choices=("html-tailwind", "html-tailwind-app", "react-tailwind-app"),
         help="Explicit Studio target; defaults by detected source kind.",
     )
-    studio_parser.add_argument("--verify", action="store_true", help="Add canonical viewport verification when available.")
-    studio_parser.add_argument("--install", action="store_true", help="Allow the explicit existing verification install flow.")
+    studio_parser.add_argument(
+        "--verify", action="store_true", help="Add canonical viewport verification when available."
+    )
+    studio_parser.add_argument(
+        "--install", action="store_true", help="Allow the explicit existing verification install flow."
+    )
     studio_parser.add_argument(
         "--compare",
         action="store_true",
@@ -197,7 +201,9 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Optional exact local reference image to disclose and include in the private review.",
     )
     studio_parser.add_argument("--no-open", action="store_true", help="Start or resume without launching a browser.")
-    studio_parser.add_argument("--port", type=int, default=4388, help="Literal unprivileged 127.0.0.1 port (default: 4388).")
+    studio_parser.add_argument(
+        "--port", type=int, default=4388, help="Literal unprivileged 127.0.0.1 port (default: 4388)."
+    )
     studio_parser.add_argument("--state-dir", help="Private Studio state root.")
     studio_parser.add_argument("--convergence-state-dir", help="Private Converge state root used by Studio.")
     studio_parser.add_argument("--reopen", action="store_true", help="Explicitly reopen a human-ended session.")
@@ -227,7 +233,8 @@ def _build_parser() -> argparse.ArgumentParser:
     studio_create_parser.set_defaults(func=_studio_create_command)
 
     studio_agent_parser = subparsers.add_parser(
-        "studio-agent-task", help="Check in to an existing creation room and read its exact agent task.",
+        "studio-agent-task",
+        help="Check in to an existing creation room and read its exact agent task.",
     )
     studio_agent_parser.add_argument("task", nargs="?", default=STUDIO_CREATION_TASK_DEFAULT)
     studio_agent_parser.add_argument("--state-dir", help="Private Studio state root used by the creation room.")
@@ -282,7 +289,9 @@ def _build_parser() -> argparse.ArgumentParser:
     compile_parser = subparsers.add_parser("compile", help="Compile an IntentBundle JSON or imported raw HTML locally.")
     compile_parser.add_argument("input", help="Input .json IntentBundle, imported .html/.htm file, or '-' for stdin.")
     compile_parser.add_argument("--design", help="Optional DESIGN.md file to apply locally.")
-    compile_parser.add_argument("--strict-design", action="store_true", help="Fail on DESIGN.md warnings as well as errors.")
+    compile_parser.add_argument(
+        "--strict-design", action="store_true", help="Fail on DESIGN.md warnings as well as errors."
+    )
     compile_parser.add_argument("--out", required=True, help="Output directory.")
     compile_parser.add_argument(
         "--target",
@@ -307,7 +316,9 @@ def _build_parser() -> argparse.ArgumentParser:
     diff_parser.add_argument("--json", action="store_true", help="Print machine-readable JSON.")
     diff_parser.set_defaults(func=_diff_command)
 
-    diff_intent_parser = subparsers.add_parser("diff-intent", help="Diff two ViewSpec IntentBundle JSON files semantically.")
+    diff_intent_parser = subparsers.add_parser(
+        "diff-intent", help="Diff two ViewSpec IntentBundle JSON files semantically."
+    )
     diff_intent_parser.add_argument("left", help="Old/left IntentBundle .json file.")
     diff_intent_parser.add_argument("right", help="New/right IntentBundle .json file.")
     diff_intent_parser.add_argument("--json", action="store_true", help="Print machine-readable JSON.")
@@ -320,7 +331,9 @@ def _build_parser() -> argparse.ArgumentParser:
 
     init_app_parser = subparsers.add_parser("init-app", help="Write a starter local AppBundle JSON file.")
     init_app_parser.add_argument("--out", default="viewspec.app.json", help="Output AppBundle JSON path.")
-    init_app_parser.add_argument("--kind", default="internal_tool", choices=APP_BUNDLE_ALLOWED_KINDS, help="Starter app kind.")
+    init_app_parser.add_argument(
+        "--kind", default="internal_tool", choices=APP_BUNDLE_ALLOWED_KINDS, help="Starter app kind."
+    )
     init_app_parser.add_argument(
         "--resource-binding",
         default="unbound-v0",
@@ -363,9 +376,17 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     compile_app_parser.add_argument("input", help="Input strict AppBundle .json file.")
     compile_app_parser.add_argument("--out", default=APP_SHELL_DEFAULT_OUT, help="Static app shell output directory.")
-    compile_app_parser.add_argument("--design", help="Optional DESIGN.md file to apply to every embedded screen intent.")
-    compile_app_parser.add_argument("--strict-design", action="store_true", help="Fail on DESIGN.md warnings as well as errors.")
-    compile_app_parser.add_argument("--force", action="store_true", help="Replace an existing app shell output directory after safety checks; only an empty directory or a previous ViewSpec output is replaced.")
+    compile_app_parser.add_argument(
+        "--design", help="Optional DESIGN.md file to apply to every embedded screen intent."
+    )
+    compile_app_parser.add_argument(
+        "--strict-design", action="store_true", help="Fail on DESIGN.md warnings as well as errors."
+    )
+    compile_app_parser.add_argument(
+        "--force",
+        action="store_true",
+        help="Replace an existing app shell output directory after safety checks; only an empty directory or a previous ViewSpec output is replaced.",
+    )
     compile_app_parser.add_argument(
         "--target",
         default=APP_SHELL_TARGET,
@@ -382,7 +403,9 @@ def _build_parser() -> argparse.ArgumentParser:
 
     init_intent_parser = subparsers.add_parser("init-intent", help="Write a starter ViewSpec IntentBundle JSON file.")
     init_intent_parser.add_argument("--out", default="viewspec.intent.json", help="Output IntentBundle JSON path.")
-    init_intent_parser.add_argument("--kind", default="dashboard", choices=STARTER_INTENT_KINDS, help="Starter motif kind.")
+    init_intent_parser.add_argument(
+        "--kind", default="dashboard", choices=STARTER_INTENT_KINDS, help="Starter motif kind."
+    )
     init_intent_parser.add_argument("--force", action="store_true", help="Overwrite an existing file.")
     init_intent_parser.set_defaults(func=_init_intent_command)
 
@@ -399,28 +422,54 @@ def _build_parser() -> argparse.ArgumentParser:
     prove_parser.add_argument("--intent", help="Optional existing IntentBundle JSON file.")
     prove_parser.add_argument("--out", default=PROVE_DEFAULT_OUT, help="Proof workspace output directory.")
     prove_parser.add_argument("--design", help="Optional DESIGN.md file to apply locally.")
-    prove_parser.add_argument("--strict-design", action="store_true", help="Fail on DESIGN.md warnings as well as errors.")
+    prove_parser.add_argument(
+        "--strict-design", action="store_true", help="Fail on DESIGN.md warnings as well as errors."
+    )
     prove_parser.add_argument(
         "--target",
         default="html-tailwind",
         choices=("html-tailwind", "react-tsx", "react-tailwind-tsx"),
         help="Proof target. html-tailwind is Python-only; react-tailwind-tsx can also run the bounded host proof.",
     )
-    prove_parser.add_argument("--kind", default="dashboard", choices=STARTER_INTENT_KINDS, help="Starter motif kind when --intent is omitted.")
-    prove_parser.add_argument("--install", action="store_true", help="Allow npm ci --ignore-scripts for react-tailwind-tsx host proof.")
-    prove_parser.add_argument("--force", action="store_true", help="Replace an existing proof output directory after safety checks; only an empty directory or a previous ViewSpec output is replaced.")
-    prove_parser.add_argument("--report-out", help="Optional JSON proof report path. Defaults to <out>/proof_report.json.")
+    prove_parser.add_argument(
+        "--kind", default="dashboard", choices=STARTER_INTENT_KINDS, help="Starter motif kind when --intent is omitted."
+    )
+    prove_parser.add_argument(
+        "--install", action="store_true", help="Allow npm ci --ignore-scripts for react-tailwind-tsx host proof."
+    )
+    prove_parser.add_argument(
+        "--force",
+        action="store_true",
+        help="Replace an existing proof output directory after safety checks; only an empty directory or a previous ViewSpec output is replaced.",
+    )
+    prove_parser.add_argument(
+        "--report-out", help="Optional JSON proof report path. Defaults to <out>/proof_report.json."
+    )
     prove_parser.add_argument("--json", action="store_true", help="Print machine-readable JSON.")
     prove_parser.set_defaults(func=_prove_command)
 
-    prove_app_parser = subparsers.add_parser("prove-app", help="Run a local AppBundle proof and write an app proof bundle.")
+    prove_app_parser = subparsers.add_parser(
+        "prove-app", help="Run a local AppBundle proof and write an app proof bundle."
+    )
     prove_app_parser.add_argument("--app", required=True, help="Input AppBundle JSON file.")
     prove_app_parser.add_argument("--out", default=APP_BUNDLE_DEFAULT_OUT, help="App proof workspace output directory.")
     prove_app_parser.add_argument("--design", help="Optional DESIGN.md file to apply to every embedded screen intent.")
-    prove_app_parser.add_argument("--strict-design", action="store_true", help="Fail on DESIGN.md warnings as well as errors.")
-    prove_app_parser.add_argument("--force", action="store_true", help="Replace an existing app proof output directory after safety checks; only an empty directory or a previous ViewSpec output is replaced.")
-    prove_app_parser.add_argument("--report-out", help="Optional JSON app proof report path. Defaults to <out>/app_proof_report.json.")
-    prove_app_parser.add_argument("--with-shell", action="store_true", help="Also write and prove a Static Shell V0 artifact under <out>/app-shell/.")
+    prove_app_parser.add_argument(
+        "--strict-design", action="store_true", help="Fail on DESIGN.md warnings as well as errors."
+    )
+    prove_app_parser.add_argument(
+        "--force",
+        action="store_true",
+        help="Replace an existing app proof output directory after safety checks; only an empty directory or a previous ViewSpec output is replaced.",
+    )
+    prove_app_parser.add_argument(
+        "--report-out", help="Optional JSON app proof report path. Defaults to <out>/app_proof_report.json."
+    )
+    prove_app_parser.add_argument(
+        "--with-shell",
+        action="store_true",
+        help="Also write and prove a Static Shell V0 artifact under <out>/app-shell/.",
+    )
     prove_app_parser.add_argument(
         "--target",
         default=APP_BUNDLE_TARGET,
@@ -446,18 +495,28 @@ def _build_parser() -> argparse.ArgumentParser:
     prove_app_parser.set_defaults(func=_prove_app_command)
 
     check_parser = subparsers.add_parser("check", help="Validate a local ViewSpec artifact directory.")
-    check_parser.add_argument("artifact_dir", help="Directory containing provenance_manifest.json and generated artifact output.")
+    check_parser.add_argument(
+        "artifact_dir", help="Directory containing provenance_manifest.json and generated artifact output."
+    )
     check_parser.add_argument("--json", action="store_true", help="Print machine-readable JSON.")
     check_parser.set_defaults(func=_check_command)
 
-    verify_host_parser = subparsers.add_parser("verify-host", help="Verify a React Tailwind artifact in a bounded host app.")
+    verify_host_parser = subparsers.add_parser(
+        "verify-host", help="Verify a React Tailwind artifact in a bounded host app."
+    )
     verify_host_parser.add_argument("artifact_dir", nargs="?", help="Checked react-tailwind-tsx artifact directory.")
     verify_host_parser.add_argument("--intent", help="IntentBundle JSON file to compile before host verification.")
     verify_host_parser.add_argument("--out", help="Output artifact directory for --intent compile mode.")
     verify_host_parser.add_argument("--design", help="Optional DESIGN.md file to apply in --intent compile mode.")
-    verify_host_parser.add_argument("--strict-design", action="store_true", help="Fail on DESIGN.md warnings as well as errors.")
-    verify_host_parser.add_argument("--target", default=HOST_VERIFY_TARGET, choices=(HOST_VERIFY_TARGET,), help="Host verification target.")
-    verify_host_parser.add_argument("--install", action="store_true", help="Run npm ci --ignore-scripts in the isolated host template.")
+    verify_host_parser.add_argument(
+        "--strict-design", action="store_true", help="Fail on DESIGN.md warnings as well as errors."
+    )
+    verify_host_parser.add_argument(
+        "--target", default=HOST_VERIFY_TARGET, choices=(HOST_VERIFY_TARGET,), help="Host verification target."
+    )
+    verify_host_parser.add_argument(
+        "--install", action="store_true", help="Run npm ci --ignore-scripts in the isolated host template."
+    )
     verify_host_parser.add_argument("--report-out", help="Optional JSON proof report output path.")
     verify_host_parser.add_argument("--json", action="store_true", help="Print machine-readable JSON.")
     verify_host_parser.set_defaults(func=_verify_host_command)
@@ -483,8 +542,12 @@ def _build_parser() -> argparse.ArgumentParser:
     verify_parser.add_argument("--json", action="store_true", help="Print machine-readable JSON.")
     verify_parser.set_defaults(func=_verify_command)
 
-    init_agent_parser = subparsers.add_parser("init-agent", help="Install managed ViewSpec instructions for coding agents.")
-    init_agent_parser.add_argument("--target", required=True, choices=VALID_TARGETS, help="Agent instruction target to update.")
+    init_agent_parser = subparsers.add_parser(
+        "init-agent", help="Install managed ViewSpec instructions for coding agents."
+    )
+    init_agent_parser.add_argument(
+        "--target", required=True, choices=VALID_TARGETS, help="Agent instruction target to update."
+    )
     init_agent_parser.add_argument("--root", default=".", help="Repository root for instruction files.")
     init_agent_parser.add_argument("--dry-run", action="store_true", help="Report changes without writing files.")
     init_agent_parser.set_defaults(func=_init_agent_command)
@@ -493,7 +556,9 @@ def _build_parser() -> argparse.ArgumentParser:
         "export-agent-assets",
         help="Export the local agent prompt, semantic schemas/examples, and asset manifest.",
     )
-    agent_assets_parser.add_argument("--out", default=".viewspec", help="Output directory for local agent contract assets.")
+    agent_assets_parser.add_argument(
+        "--out", default=".viewspec", help="Output directory for local agent contract assets."
+    )
     agent_assets_parser.add_argument("--force", action="store_true", help="Replace existing generated assets.")
     agent_assets_parser.add_argument("--dry-run", action="store_true", help="Report changes without writing files.")
     agent_assets_parser.set_defaults(func=_export_agent_assets_command)
@@ -502,7 +567,9 @@ def _build_parser() -> argparse.ArgumentParser:
         "check-agent-assets",
         help="Verify exported local agent contract assets against the current SDK.",
     )
-    check_agent_assets_parser.add_argument("asset_dir", nargs="?", default=".viewspec", help="Agent asset directory to verify.")
+    check_agent_assets_parser.add_argument(
+        "asset_dir", nargs="?", default=".viewspec", help="Agent asset directory to verify."
+    )
     check_agent_assets_parser.add_argument("--json", action="store_true", help="Print machine-readable JSON.")
     check_agent_assets_parser.set_defaults(func=_check_agent_assets_command)
 
@@ -514,10 +581,16 @@ def _build_parser() -> argparse.ArgumentParser:
         choices=("html-tailwind", "html-tailwind-app", "react-tailwind-app"),
         help="Explicit review compile target; defaults by detected source kind.",
     )
-    review_parser.add_argument("--verify", action="store_true", help="Run canonical viewport verification when available.")
-    review_parser.add_argument("--install", action="store_true", help="Allow the explicit existing verification install flow.")
+    review_parser.add_argument(
+        "--verify", action="store_true", help="Run canonical viewport verification when available."
+    )
+    review_parser.add_argument(
+        "--install", action="store_true", help="Allow the explicit existing verification install flow."
+    )
     review_parser.add_argument("--no-open", action="store_true", help="Start or resume without launching a browser.")
-    review_parser.add_argument("--port", type=int, default=4388, help="Literal unprivileged 127.0.0.1 port (default: 4388).")
+    review_parser.add_argument(
+        "--port", type=int, default=4388, help="Literal unprivileged 127.0.0.1 port (default: 4388)."
+    )
     review_parser.add_argument("--state-dir", help="Private Review state root.")
     review_parser.add_argument(
         "--convergence-state-dir",
@@ -531,7 +604,9 @@ def _build_parser() -> argparse.ArgumentParser:
     review_poll_parser.add_argument("source", help="Canonical source path used to open the review.")
     review_poll_parser.add_argument("--ack", help="Exact previously returned batch id to acknowledge.")
     review_poll_parser.add_argument("--agent-reply", help="Bounded reply committed atomically with --ack.")
-    review_poll_parser.add_argument("--timeout-ms", type=int, default=55_000, help="Long-poll timeout from 1 through 55000 ms.")
+    review_poll_parser.add_argument(
+        "--timeout-ms", type=int, default=55_000, help="Long-poll timeout from 1 through 55000 ms."
+    )
     review_poll_parser.add_argument("--state-dir", help="Private Review state root.")
     review_poll_parser.add_argument("--json", action="store_true", help="Print machine-readable JSON.")
     review_poll_parser.set_defaults(func=_review_poll_command)
@@ -572,7 +647,9 @@ def _build_parser() -> argparse.ArgumentParser:
     patch_preview_parser.add_argument("patch", help="Strict IntentPatch V1 JSON file.")
     patch_preview_parser.add_argument("--candidate-out", help="Optional path for the validated candidate source.")
     patch_preview_parser.add_argument("--verify", action="store_true", help="Require canonical verification to pass.")
-    patch_preview_parser.add_argument("--install", action="store_true", help="Allow the explicit verification install flow.")
+    patch_preview_parser.add_argument(
+        "--install", action="store_true", help="Allow the explicit verification install flow."
+    )
     patch_preview_parser.add_argument("--json", action="store_true", help="Print machine-readable JSON.")
     patch_preview_parser.set_defaults(func=_patch_preview_command)
 
@@ -583,8 +660,12 @@ def _build_parser() -> argparse.ArgumentParser:
     patch_apply_parser.add_argument("source", help="Canonical local IntentBundle or AppBundle JSON file.")
     patch_apply_parser.add_argument("patch", help="Strict IntentPatch V1 JSON file.")
     patch_apply_parser.add_argument("--approval", required=True, help="Exact approval_token from patch-preview.")
-    patch_apply_parser.add_argument("--verify", action="store_true", help="Require canonical verification to pass again.")
-    patch_apply_parser.add_argument("--install", action="store_true", help="Allow the explicit verification install flow.")
+    patch_apply_parser.add_argument(
+        "--verify", action="store_true", help="Require canonical verification to pass again."
+    )
+    patch_apply_parser.add_argument(
+        "--install", action="store_true", help="Allow the explicit verification install flow."
+    )
     patch_apply_parser.add_argument("--json", action="store_true", help="Print machine-readable JSON.")
     patch_apply_parser.set_defaults(func=_patch_apply_command)
 
@@ -594,7 +675,9 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     converge_start_parser.add_argument("source", help="Canonical local IntentBundle or AppBundle JSON file.")
     converge_start_parser.add_argument("context", help="IntentPatchContext JSON from Review or verification evidence.")
-    converge_start_parser.add_argument("--baseline-result", help="Exact VerificationResult JSON for verifier-driven sessions.")
+    converge_start_parser.add_argument(
+        "--baseline-result", help="Exact VerificationResult JSON for verifier-driven sessions."
+    )
     converge_start_parser.add_argument("--state-dir", help="Private convergence state directory.")
     converge_start_parser.add_argument("--json", action="store_true", help="Print machine-readable JSON.")
     converge_start_parser.set_defaults(func=_converge_start_command)
@@ -650,7 +733,9 @@ def _build_parser() -> argparse.ArgumentParser:
 
     mcp_parser = subparsers.add_parser("mcp", help="Start the optional ViewSpec stdio MCP server.")
     mcp_parser.add_argument("--cwd", default=".", help="MCP path sandbox root.")
-    mcp_parser.add_argument("--allow-outside-cwd", action="store_true", help="Allow MCP tools to read/write outside --cwd.")
+    mcp_parser.add_argument(
+        "--allow-outside-cwd", action="store_true", help="Allow MCP tools to read/write outside --cwd."
+    )
     mcp_parser.set_defaults(func=_mcp_command)
 
     return parser
@@ -1124,7 +1209,9 @@ def _compile_command(args: argparse.Namespace) -> int:
                     "TAILWIND_IMPORT_NOT_SUPPORTED", "Raw HTML import only supports --target html-tailwind"
                 )
             raise ValueError("Raw HTML import only supports --target html-tailwind")
-        ensure_no_input_overwrite(input_path, out_dir, ("index.html", "provenance_manifest.json", "diagnostics.json", "lift.json"))
+        ensure_no_input_overwrite(
+            input_path, out_dir, ("index.html", "provenance_manifest.json", "diagnostics.json", "lift.json")
+        )
         design = _load_design(args.design, strict=args.strict_design)
         result = compile_html(
             data,
@@ -1282,9 +1369,7 @@ def _diff_intent_command(args: argparse.Namespace) -> int:
         print(f"topology_similarity: {payload['topology_similarity']}")
         for section, changes in payload["changes"].items():
             if changes["added"] or changes["removed"] or changes["changed"]:
-                print(
-                    f"{section}: +{changes['added']} -{changes['removed']} changed={changes['changed']}"
-                )
+                print(f"{section}: +{changes['added']} -{changes['removed']} changed={changes['changed']}")
         semantic_lines = intent_semantic_change_lines(payload.get("semantic_changes"))
         if semantic_lines:
             print("semantic_changes:")
@@ -1362,7 +1447,9 @@ def _validate_app_command(args: argparse.Namespace) -> int:
         print(json.dumps(payload, indent=2, sort_keys=True))
     elif payload["ok"]:
         summary = payload.get("summary") or {}
-        print(f"ok: compile_check={payload['compile_check']} screens={summary.get('screen_count')} routes={summary.get('route_count')}")
+        print(
+            f"ok: compile_check={payload['compile_check']} screens={summary.get('screen_count')} routes={summary.get('route_count')}"
+        )
     else:
         print(f"failed: compile_check={payload['compile_check']}")
         for issue in payload["issues"]:
@@ -1389,12 +1476,28 @@ def _diff_app_command(args: argparse.Namespace) -> int:
                 "screens": {"added": [], "removed": [], "changed": []},
             },
             "changed_fields": [],
-            "semantic_changes": {"app_metadata": [], "routes": [], "resources": [], "screens": [], "screen_intents": []},
+            "semantic_changes": {
+                "app_metadata": [],
+                "routes": [],
+                "resources": [],
+                "screens": [],
+                "screen_intents": [],
+            },
             "semantic_summary": [],
             "screen_intent_diffs": {},
-            "counts": {"routes": {"left": 0, "right": 0}, "resources": {"left": 0, "right": 0}, "screens": {"left": 0, "right": 0}},
+            "counts": {
+                "routes": {"left": 0, "right": 0},
+                "resources": {"left": 0, "right": 0},
+                "screens": {"left": 0, "right": 0},
+            },
             "topology_similarity": 0.0,
-            "errors": [{"code": "APP_DIFF_INPUT_READ_ERROR", "message": str(exc), "fix": "Pass two readable local AppBundle JSON files."}],
+            "errors": [
+                {
+                    "code": "APP_DIFF_INPUT_READ_ERROR",
+                    "message": str(exc),
+                    "fix": "Pass two readable local AppBundle JSON files.",
+                }
+            ],
         }
     if args.json:
         print(json.dumps(payload, indent=2, sort_keys=True))
@@ -1425,7 +1528,9 @@ def _compile_app_command(args: argparse.Namespace) -> int:
         print(json.dumps(payload, indent=2, sort_keys=True))
     elif payload["ok"]:
         app = payload.get("app") if isinstance(payload.get("app"), dict) else {}
-        print(f"ok: target={payload['target']} app={app.get('id')} routes={app.get('route_count')} screens={app.get('screen_count')}")
+        print(
+            f"ok: target={payload['target']} app={app.get('id')} routes={app.get('route_count')} screens={app.get('screen_count')}"
+        )
         artifact_hash = payload.get("shell_artifact_hash") or payload.get("app_artifact_hash")
         print(f"artifact_hash: {artifact_hash}")
     else:
@@ -1937,11 +2042,7 @@ def _verify_command(args: argparse.Namespace) -> int:
     from viewspec.repair import VerificationRepairPlan
 
     repair = VerificationRepairPlan.from_result(result)
-    repair_path = (
-        Path(args.repair_out)
-        if args.repair_out
-        else Path(args.report_out).with_name("repair.json")
-    )
+    repair_path = Path(args.repair_out) if args.repair_out else Path(args.report_out).with_name("repair.json")
     atomic_write(
         repair_path,
         json.dumps(repair.to_json(), indent=2, sort_keys=True) + "\n",
@@ -1994,7 +2095,9 @@ def _host_report_summary_lines(host_report: object) -> list[str]:
     if not isinstance(host_report, dict):
         return []
     lines = [f"host_verification: {'passed' if host_report.get('ok') else 'failed'}"]
-    lines.extend(_host_assertion_summary_lines(host_report.get("assertions"), host_report.get("assertion_requirements")))
+    lines.extend(
+        _host_assertion_summary_lines(host_report.get("assertions"), host_report.get("assertion_requirements"))
+    )
     return lines
 
 

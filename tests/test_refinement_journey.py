@@ -63,18 +63,21 @@ def test_clean_workspace_first_proof_and_bounded_second_revision(tmp_path, monke
     assert validation["ok"] is True
     assert validation["compile_check"] == "passed"
 
-    assert cli_main(
-        [
-            "prove",
-            "--intent",
-            str(intent_path),
-            "--target",
-            "react-tailwind-tsx",
-            "--out",
-            str(proof_dir),
-            "--json",
-        ]
-    ) == 0
+    assert (
+        cli_main(
+            [
+                "prove",
+                "--intent",
+                str(intent_path),
+                "--target",
+                "react-tailwind-tsx",
+                "--out",
+                str(proof_dir),
+                "--json",
+            ]
+        )
+        == 0
+    )
     first_run_commands += 1
     first_report = json.loads(capsys.readouterr().out)
 
@@ -136,19 +139,22 @@ def test_clean_workspace_first_proof_and_bounded_second_revision(tmp_path, monke
     assert semantic_diff["ok"] is True
     assert semantic_diff["changes"]["substrate_nodes"]["changed"] == [root_id]
 
-    assert cli_main(
-        [
-            "prove",
-            "--intent",
-            str(intent_path),
-            "--target",
-            "react-tailwind-tsx",
-            "--out",
-            str(proof_dir),
-            "--force",
-            "--json",
-        ]
-    ) == 0
+    assert (
+        cli_main(
+            [
+                "prove",
+                "--intent",
+                str(intent_path),
+                "--target",
+                "react-tailwind-tsx",
+                "--out",
+                str(proof_dir),
+                "--force",
+                "--json",
+            ]
+        )
+        == 0
+    )
     second_report = json.loads(capsys.readouterr().out)
 
     assert second_report["ok"] is True

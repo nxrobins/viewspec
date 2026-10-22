@@ -112,22 +112,66 @@ def test_v3_summary_shape_is_unchanged():
         ("APP_VISIBILITY_UNKNOWN_FIELD", lambda p: p["visibility"][0].update(extra=True)),
         ("APP_VISIBILITY_FIELD_REQUIRED", lambda p: p["visibility"][0].pop("when")),
         ("APP_VISIBILITY_INVALID_ID", lambda p: p["visibility"][0].update(id="bad id!")),
-        ("APP_VISIBILITY_DUPLICATE_ID", lambda p: p["visibility"].append(copy.deepcopy(p["visibility"][0]) | {"target_ref": "region:root"})),
+        (
+            "APP_VISIBILITY_DUPLICATE_ID",
+            lambda p: p["visibility"].append(copy.deepcopy(p["visibility"][0]) | {"target_ref": "region:root"}),
+        ),
         ("APP_VISIBILITY_SCREEN_MISSING", lambda p: p["visibility"][0].update(screen_id="ghost")),
         ("APP_VISIBILITY_TARGET_REF_INVALID", lambda p: p["visibility"][0].update(target_ref="view:main")),
         ("APP_VISIBILITY_TARGET_MISSING", lambda p: p["visibility"][0].update(target_ref="motif:ghost")),
-        ("APP_VISIBILITY_DUPLICATE_TARGET", lambda p: p["visibility"].append({"id": "dup_target", "screen_id": "queue", "target_ref": "motif:incidents", "when": {"state": "selected_incident", "is": "falsy"}})),
-        ("APP_VISIBILITY_CONDITION_INVALID", lambda p: p["visibility"][0].update(when={"state": "selected_incident", "is": "truthy", "equals": 1})),
-        ("APP_VISIBILITY_STATE_MISSING", lambda p: p["visibility"][0].update(when={"state": "ghost_state", "is": "truthy"})),
-        ("APP_VISIBILITY_STATE_KIND_UNSUPPORTED", lambda p: p["visibility"][0].update(when={"state": "queue_flags", "is": "truthy"})),
-        ("APP_VISIBILITY_EQUALS_NOT_SCALAR", lambda p: p["visibility"][2].update(when={"state": "selected_incident", "equals": {"nested": True}})),
-        ("APP_VISIBILITY_SELECTOR_MISSING", lambda p: p["visibility"][1].update(when={"selector": "ghost_selector", "is": "empty"})),
-        ("APP_VISIBILITY_REPLAY_RULE_MISSING", lambda p: p["state_replay_assertions"][0]["expect_visibility"].update(ghost_rule=True)),
-        ("APP_VISIBILITY_REPLAY_EXPECT_INVALID", lambda p: p["state_replay_assertions"][0]["expect_visibility"].update(incidents_when_selected="yes")),
-        ("APP_VISIBILITY_LIMIT_EXCEEDED", lambda p: p.update(visibility=[
-            {"id": f"r{i}", "screen_id": "queue", "target_ref": "motif:incidents", "when": {"state": "selected_incident", "is": "truthy"}}
-            for i in range(APP_VISIBILITY_MAX_RULES + 1)
-        ])),
+        (
+            "APP_VISIBILITY_DUPLICATE_TARGET",
+            lambda p: p["visibility"].append(
+                {
+                    "id": "dup_target",
+                    "screen_id": "queue",
+                    "target_ref": "motif:incidents",
+                    "when": {"state": "selected_incident", "is": "falsy"},
+                }
+            ),
+        ),
+        (
+            "APP_VISIBILITY_CONDITION_INVALID",
+            lambda p: p["visibility"][0].update(when={"state": "selected_incident", "is": "truthy", "equals": 1}),
+        ),
+        (
+            "APP_VISIBILITY_STATE_MISSING",
+            lambda p: p["visibility"][0].update(when={"state": "ghost_state", "is": "truthy"}),
+        ),
+        (
+            "APP_VISIBILITY_STATE_KIND_UNSUPPORTED",
+            lambda p: p["visibility"][0].update(when={"state": "queue_flags", "is": "truthy"}),
+        ),
+        (
+            "APP_VISIBILITY_EQUALS_NOT_SCALAR",
+            lambda p: p["visibility"][2].update(when={"state": "selected_incident", "equals": {"nested": True}}),
+        ),
+        (
+            "APP_VISIBILITY_SELECTOR_MISSING",
+            lambda p: p["visibility"][1].update(when={"selector": "ghost_selector", "is": "empty"}),
+        ),
+        (
+            "APP_VISIBILITY_REPLAY_RULE_MISSING",
+            lambda p: p["state_replay_assertions"][0]["expect_visibility"].update(ghost_rule=True),
+        ),
+        (
+            "APP_VISIBILITY_REPLAY_EXPECT_INVALID",
+            lambda p: p["state_replay_assertions"][0]["expect_visibility"].update(incidents_when_selected="yes"),
+        ),
+        (
+            "APP_VISIBILITY_LIMIT_EXCEEDED",
+            lambda p: p.update(
+                visibility=[
+                    {
+                        "id": f"r{i}",
+                        "screen_id": "queue",
+                        "target_ref": "motif:incidents",
+                        "when": {"state": "selected_incident", "is": "truthy"},
+                    }
+                    for i in range(APP_VISIBILITY_MAX_RULES + 1)
+                ]
+            ),
+        ),
     ],
 )
 def test_invalid_visibility_raises_expected_code(expected_code, mutate):
@@ -148,8 +192,19 @@ def test_v3_rejects_visibility_and_expect_visibility():
 @pytest.mark.parametrize(
     ("value", "truthy"),
     [
-        (0, False), (0.0, False), ("", False), ([], False), ({}, False), (None, False), (False, False),
-        (1, True), ("0", True), ([0], True), ({"k": 0}, True), (-1, True), (0.5, True),
+        (0, False),
+        (0.0, False),
+        ("", False),
+        ([], False),
+        ({}, False),
+        (None, False),
+        (False, False),
+        (1, True),
+        ("0", True),
+        ([0], True),
+        ({"k": 0}, True),
+        (-1, True),
+        (0.5, True),
     ],
 )
 def test_truthiness_parity_table(value, truthy):
@@ -231,7 +286,7 @@ def test_v3_replay_report_has_no_visibility_key():
 def test_v4_reducer_exports_visibility_and_v3_does_not():
     v4_source = generate_typescript_reducer(_visibility_app_bundle())
     assert "export function evaluateViewSpecVisibility" in v4_source
-    assert '| { state: string; equals: unknown };' in v4_source
+    assert "| { state: string; equals: unknown };" in v4_source
     assert "selector?: string; state?: string; is: string" not in v4_source
     v3_source = generate_typescript_reducer(_stateful_app_bundle())
     assert "evaluateViewSpecVisibility" not in v3_source
@@ -329,7 +384,9 @@ def test_prove_app_bakes_markers_and_cross_checks(tmp_path):
     shell_html = (tmp_path / "proof" / "app-shell" / "index.html").read_text(encoding="utf-8")
     assert "data-visibility-rule=" in shell_html
     assert "[data-visibility-rule][hidden]" in shell_html
-    state_manifest_payload = json.loads((tmp_path / "proof" / "app-shell" / "state_manifest.json").read_text(encoding="utf-8"))
+    state_manifest_payload = json.loads(
+        (tmp_path / "proof" / "app-shell" / "state_manifest.json").read_text(encoding="utf-8")
+    )
     assert state_manifest_payload["visibility_rule_ids"] == [rule["id"] for rule in payload["visibility"]]
     assert state_manifest_payload["replay"]["assertions"][0]["visibility_matches"] is True
 

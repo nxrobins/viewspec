@@ -167,7 +167,9 @@ def build_presentation_plan(payload: dict[str, Any]) -> dict[str, Any]:
         if not isinstance(screen, dict) or not isinstance(screen.get("id"), str):
             continue
         declared = screen.get("presentation")
-        screen_plan = _declared_screen_plan(screen, declared) if isinstance(declared, dict) else _inferred_screen_plan(screen)
+        screen_plan = (
+            _declared_screen_plan(screen, declared) if isinstance(declared, dict) else _inferred_screen_plan(screen)
+        )
         screens.append(screen_plan)
     profiles = {str(screen.get("profile") or "neutral") for screen in screens}
     single_route_workspace = len(payload.get("routes", [])) == 1 and profiles == {"operations_workspace"}
@@ -245,7 +247,9 @@ def validate_screen_presentation(
         return [_issue("APP_PRESENTATION_NOT_OBJECT", path, "presentation must be an object.")]
     extra = sorted(set(presentation) - {"anchors", "profile", "rules"})
     if extra:
-        issues.append(_issue("APP_PRESENTATION_UNKNOWN_FIELD", path, f"Unsupported presentation field(s): {', '.join(extra)}."))
+        issues.append(
+            _issue("APP_PRESENTATION_UNKNOWN_FIELD", path, f"Unsupported presentation field(s): {', '.join(extra)}.")
+        )
     profile = presentation.get("profile", "neutral")
     if profile not in PRESENTATION_PROFILES:
         issues.append(
@@ -262,32 +266,62 @@ def validate_screen_presentation(
         issues.append(_issue("APP_PRESENTATION_RULES_NOT_ARRAY", f"{path}.rules", "rules must be an array."))
         rules = []
     if len(rules) > PRESENTATION_MAX_RULES:
-        issues.append(_issue("APP_PRESENTATION_LIMIT_EXCEEDED", f"{path}.rules", f"rules exceeds {PRESENTATION_MAX_RULES} entries."))
+        issues.append(
+            _issue(
+                "APP_PRESENTATION_LIMIT_EXCEEDED", f"{path}.rules", f"rules exceeds {PRESENTATION_MAX_RULES} entries."
+            )
+        )
     seen_rule_ids: set[str] = set()
     seen_targets: set[str] = set()
     declared_areas = _declared_area_names(rules)
     for index, rule in enumerate(rules):
         rule_path = f"{path}.rules[{index}]"
         if not isinstance(rule, dict):
-            issues.append(_issue("APP_PRESENTATION_RULE_NOT_OBJECT", rule_path, "Each presentation rule must be an object."))
+            issues.append(
+                _issue("APP_PRESENTATION_RULE_NOT_OBJECT", rule_path, "Each presentation rule must be an object.")
+            )
             continue
         extra = sorted(set(rule) - {"base", "id", "items", "target_ref", "variants"})
         if extra:
-            issues.append(_issue("APP_PRESENTATION_UNKNOWN_FIELD", rule_path, f"Unsupported rule field(s): {', '.join(extra)}."))
+            issues.append(
+                _issue("APP_PRESENTATION_UNKNOWN_FIELD", rule_path, f"Unsupported rule field(s): {', '.join(extra)}.")
+            )
         rule_id = rule.get("id")
         if not isinstance(rule_id, str) or not rule_id:
             issues.append(_issue("APP_PRESENTATION_FIELD_REQUIRED", f"{rule_path}.id", "Rule id is required."))
         elif rule_id in seen_rule_ids:
-            issues.append(_issue("APP_PRESENTATION_DUPLICATE_RULE", f"{rule_path}.id", f"Duplicate presentation rule id {rule_id}."))
+            issues.append(
+                _issue(
+                    "APP_PRESENTATION_DUPLICATE_RULE", f"{rule_path}.id", f"Duplicate presentation rule id {rule_id}."
+                )
+            )
         else:
             seen_rule_ids.add(rule_id)
         target_ref = rule.get("target_ref")
         if not isinstance(target_ref, str) or not PRESENTATION_TARGET_RE.fullmatch(target_ref):
-            issues.append(_issue("APP_PRESENTATION_TARGET_INVALID", f"{rule_path}.target_ref", "target_ref must identify a region, motif, or binding."))
+            issues.append(
+                _issue(
+                    "APP_PRESENTATION_TARGET_INVALID",
+                    f"{rule_path}.target_ref",
+                    "target_ref must identify a region, motif, or binding.",
+                )
+            )
         elif target_ref not in target_refs:
-            issues.append(_issue("APP_PRESENTATION_TARGET_MISSING", f"{rule_path}.target_ref", f"Presentation target {target_ref} is not declared by this screen."))
+            issues.append(
+                _issue(
+                    "APP_PRESENTATION_TARGET_MISSING",
+                    f"{rule_path}.target_ref",
+                    f"Presentation target {target_ref} is not declared by this screen.",
+                )
+            )
         elif target_ref in seen_targets:
-            issues.append(_issue("APP_PRESENTATION_DUPLICATE_TARGET", f"{rule_path}.target_ref", f"Presentation target {target_ref} has more than one rule."))
+            issues.append(
+                _issue(
+                    "APP_PRESENTATION_DUPLICATE_TARGET",
+                    f"{rule_path}.target_ref",
+                    f"Presentation target {target_ref} has more than one rule.",
+                )
+            )
         else:
             seen_targets.add(target_ref)
         issues.extend(
@@ -300,11 +334,19 @@ def validate_screen_presentation(
         )
         variants = rule.get("variants", {})
         if not isinstance(variants, dict):
-            issues.append(_issue("APP_PRESENTATION_VARIANTS_INVALID", f"{rule_path}.variants", "variants must be an object."))
+            issues.append(
+                _issue("APP_PRESENTATION_VARIANTS_INVALID", f"{rule_path}.variants", "variants must be an object.")
+            )
         else:
             unknown = sorted(set(variants) - set(PRESENTATION_BREAKPOINTS))
             if unknown:
-                issues.append(_issue("APP_PRESENTATION_BREAKPOINT_INVALID", f"{rule_path}.variants", f"Unknown breakpoint(s): {', '.join(unknown)}."))
+                issues.append(
+                    _issue(
+                        "APP_PRESENTATION_BREAKPOINT_INVALID",
+                        f"{rule_path}.variants",
+                        f"Unknown breakpoint(s): {', '.join(unknown)}.",
+                    )
+                )
             for breakpoint, props in variants.items():
                 issues.extend(
                     _validate_layout_properties(
@@ -337,7 +379,13 @@ def validate_screen_presentation(
         issues.append(_issue("APP_PRESENTATION_ANCHORS_NOT_ARRAY", f"{path}.anchors", "anchors must be an array."))
         anchors = []
     if len(anchors) > PRESENTATION_MAX_ANCHORS:
-        issues.append(_issue("APP_PRESENTATION_LIMIT_EXCEEDED", f"{path}.anchors", f"anchors exceeds {PRESENTATION_MAX_ANCHORS} entries."))
+        issues.append(
+            _issue(
+                "APP_PRESENTATION_LIMIT_EXCEEDED",
+                f"{path}.anchors",
+                f"anchors exceeds {PRESENTATION_MAX_ANCHORS} entries.",
+            )
+        )
     seen_anchor_ids: set[str] = set()
     effective_rules = _effective_declared_rules(screen, presentation)
     for index, anchor in enumerate(anchors):
@@ -347,20 +395,38 @@ def validate_screen_presentation(
             continue
         extra = sorted(set(anchor) - {"anchor_ref", "id", "relation", "target_ref", "viewports"})
         if extra:
-            issues.append(_issue("APP_PRESENTATION_UNKNOWN_FIELD", anchor_path, f"Unsupported anchor field(s): {', '.join(extra)}."))
+            issues.append(
+                _issue(
+                    "APP_PRESENTATION_UNKNOWN_FIELD", anchor_path, f"Unsupported anchor field(s): {', '.join(extra)}."
+                )
+            )
         anchor_id = anchor.get("id")
         if not isinstance(anchor_id, str) or not anchor_id:
             issues.append(_issue("APP_PRESENTATION_FIELD_REQUIRED", f"{anchor_path}.id", "Anchor id is required."))
         elif anchor_id in seen_anchor_ids:
-            issues.append(_issue("APP_PRESENTATION_DUPLICATE_ANCHOR", f"{anchor_path}.id", f"Duplicate anchor id {anchor_id}."))
+            issues.append(
+                _issue("APP_PRESENTATION_DUPLICATE_ANCHOR", f"{anchor_path}.id", f"Duplicate anchor id {anchor_id}.")
+            )
         else:
             seen_anchor_ids.add(anchor_id)
         for key in ("target_ref", "anchor_ref"):
             value = anchor.get(key)
             if not isinstance(value, str) or value not in target_refs:
-                issues.append(_issue("APP_PRESENTATION_ANCHOR_TARGET_MISSING", f"{anchor_path}.{key}", f"{key} must reference a declared screen target."))
+                issues.append(
+                    _issue(
+                        "APP_PRESENTATION_ANCHOR_TARGET_MISSING",
+                        f"{anchor_path}.{key}",
+                        f"{key} must reference a declared screen target.",
+                    )
+                )
         if anchor.get("relation") not in PRESENTATION_RELATIONS:
-            issues.append(_issue("APP_PRESENTATION_ANCHOR_RELATION_INVALID", f"{anchor_path}.relation", f"relation must be one of {', '.join(PRESENTATION_RELATIONS)}."))
+            issues.append(
+                _issue(
+                    "APP_PRESENTATION_ANCHOR_RELATION_INVALID",
+                    f"{anchor_path}.relation",
+                    f"relation must be one of {', '.join(PRESENTATION_RELATIONS)}.",
+                )
+            )
         target_ref = anchor.get("target_ref")
         anchor_ref = anchor.get("anchor_ref")
         relation = anchor.get("relation")
@@ -389,14 +455,8 @@ def validate_screen_presentation(
                         "but the semantic target hierarchy does not contain it there.",
                     )
                 )
-            elif relation in {"before", "after"} and (
-                target_inside_anchor or anchor_inside_target
-            ):
-                container, descendant = (
-                    (anchor_ref, target_ref)
-                    if target_inside_anchor
-                    else (target_ref, anchor_ref)
-                )
+            elif relation in {"before", "after"} and (target_inside_anchor or anchor_inside_target):
+                container, descendant = (anchor_ref, target_ref) if target_inside_anchor else (target_ref, anchor_ref)
                 issues.append(
                     _issue(
                         "APP_PRESENTATION_ANCHOR_TOPOLOGY_INVALID",
@@ -407,8 +467,18 @@ def validate_screen_presentation(
                     )
                 )
         viewports = anchor.get("viewports", list(PRESENTATION_BREAKPOINTS))
-        if not isinstance(viewports, list) or not viewports or any(item not in PRESENTATION_BREAKPOINTS for item in viewports):
-            issues.append(_issue("APP_PRESENTATION_ANCHOR_VIEWPORT_INVALID", f"{anchor_path}.viewports", "viewports must contain compact, medium, or wide."))
+        if (
+            not isinstance(viewports, list)
+            or not viewports
+            or any(item not in PRESENTATION_BREAKPOINTS for item in viewports)
+        ):
+            issues.append(
+                _issue(
+                    "APP_PRESENTATION_ANCHOR_VIEWPORT_INVALID",
+                    f"{anchor_path}.viewports",
+                    "viewports must contain compact, medium, or wide.",
+                )
+            )
         elif (
             relation == "same_row"
             and isinstance(target_ref, str)
@@ -550,16 +620,8 @@ def _layout_places_branches_same_row(
     right_area = _grid_area_for_branch(right_branch, viewport, rules)
     if not left_area or not right_area:
         return False
-    left_rows = {
-        row_index
-        for row_index, row in enumerate(areas)
-        if isinstance(row, list) and left_area in row
-    }
-    right_rows = {
-        row_index
-        for row_index, row in enumerate(areas)
-        if isinstance(row, list) and right_area in row
-    }
+    left_rows = {row_index for row_index, row in enumerate(areas) if isinstance(row, list) and left_area in row}
+    right_rows = {row_index for row_index, row in enumerate(areas) if isinstance(row, list) and right_area in row}
     return bool(left_rows & right_rows)
 
 
@@ -596,9 +658,7 @@ def _validate_same_row_anchor_layout(
         ]
     common_rule = rules.get(common)
     uses_item_layout = bool(
-        common.startswith("motif:")
-        and isinstance(common_rule, dict)
-        and isinstance(common_rule.get("items"), dict)
+        common.startswith("motif:") and isinstance(common_rule, dict) and isinstance(common_rule.get("items"), dict)
     )
     invalid_viewports = [
         str(viewport)
@@ -702,11 +762,7 @@ def _declared_screen_plan(screen: dict[str, Any], presentation: dict[str, Any]) 
         rules.append(normalized)
         if fallback is not None and _rule_inherits_defaults(rule, fallback):
             defaulted_targets.append(target_ref)
-    declared_targets = {
-        str(rule.get("target_ref"))
-        for rule in rules
-        if isinstance(rule.get("target_ref"), str)
-    }
+    declared_targets = {str(rule.get("target_ref")) for rule in rules if isinstance(rule.get("target_ref"), str)}
     for target_ref, fallback in inferred_rules.items():
         if target_ref in declared_targets:
             continue
@@ -720,9 +776,7 @@ def _declared_screen_plan(screen: dict[str, Any], presentation: dict[str, Any]) 
     )
     diagnostics: list[dict[str, Any]] = []
     diagnostics.extend(_coordinate_direct_motif_surfaces(screen, rules))
-    diagnostics.extend(
-        _coordinate_grouped_metric_surfaces(rules, presentation.get("rules", []))
-    )
+    diagnostics.extend(_coordinate_grouped_metric_surfaces(rules, presentation.get("rules", [])))
     diagnostics.extend(
         _coordinate_dashboard_metric_surfaces(
             screen,
@@ -775,9 +829,7 @@ def _coordinate_direct_motif_surfaces(
     direct_kinds = {
         str(item.get("id")): str(item.get("kind"))
         for item in view.get("motifs", [])
-        if isinstance(item, dict)
-        and isinstance(item.get("id"), str)
-        and item.get("kind") == "hero"
+        if isinstance(item, dict) and isinstance(item.get("id"), str) and item.get("kind") == "hero"
     }
     normalized: list[str] = []
     for rule in rules:
@@ -821,11 +873,15 @@ def _coordinate_dashboard_metric_surfaces(
         and motif.get("kind") == "dashboard"
         and _infer_effective_motif_role(motif) == "metric_grid"
     }
-    declared_by_target = {
-        str(rule.get("target_ref")): rule
-        for rule in declared_rules
-        if isinstance(rule, dict) and isinstance(rule.get("target_ref"), str)
-    } if isinstance(declared_rules, list) else {}
+    declared_by_target = (
+        {
+            str(rule.get("target_ref")): rule
+            for rule in declared_rules
+            if isinstance(rule, dict) and isinstance(rule.get("target_ref"), str)
+        }
+        if isinstance(declared_rules, list)
+        else {}
+    )
     normalized: list[str] = []
     for rule in rules:
         target_ref = str(rule.get("target_ref") or "")
@@ -833,22 +889,14 @@ def _coordinate_dashboard_metric_surfaces(
             continue
         declared = declared_by_target.get(target_ref)
         declared_items = (
-            declared.get("items")
-            if isinstance(declared, dict) and isinstance(declared.get("items"), dict)
-            else None
+            declared.get("items") if isinstance(declared, dict) and isinstance(declared.get("items"), dict) else None
         )
         items = rule.get("items")
         if not isinstance(declared_items, dict) or not isinstance(items, dict):
             continue
-        declared_item_base = (
-            declared_items.get("base")
-            if isinstance(declared_items.get("base"), dict)
-            else {}
-        )
+        declared_item_base = declared_items.get("base") if isinstance(declared_items.get("base"), dict) else {}
         wrapper_layout = {
-            key: declared_item_base[key]
-            for key in ("align", "columns", "gap", "justify")
-            if key in declared_item_base
+            key: declared_item_base[key] for key in ("align", "columns", "gap", "justify") if key in declared_item_base
         }
         wrapper_layout["display"] = "grid"
         rule["base"] = _merged_layout(rule.get("base"), wrapper_layout)
@@ -862,20 +910,14 @@ def _coordinate_dashboard_metric_surfaces(
         }
 
         declared_item_variants = (
-            declared_items.get("variants")
-            if isinstance(declared_items.get("variants"), dict)
-            else {}
+            declared_items.get("variants") if isinstance(declared_items.get("variants"), dict) else {}
         )
-        wrapper_variants = (
-            rule.get("variants") if isinstance(rule.get("variants"), dict) else {}
-        )
+        wrapper_variants = rule.get("variants") if isinstance(rule.get("variants"), dict) else {}
         for breakpoint, declared_variant in declared_item_variants.items():
             if not isinstance(declared_variant, dict):
                 continue
             moved = {
-                key: declared_variant[key]
-                for key in ("align", "columns", "gap", "justify")
-                if key in declared_variant
+                key: declared_variant[key] for key in ("align", "columns", "gap", "justify") if key in declared_variant
             }
             if moved:
                 wrapper_variants[breakpoint] = _merged_layout(
@@ -904,11 +946,15 @@ def _coordinate_grouped_metric_surfaces(
 ) -> list[dict[str, Any]]:
     """Keep a list wrapper full-width while its stable summary item owns the metric grid."""
     layout_keys = {"align", "areas", "columns", "direction", "display", "gap", "justify"}
-    declared_by_target = {
-        str(rule.get("target_ref")): rule
-        for rule in declared_rules
-        if isinstance(rule, dict) and isinstance(rule.get("target_ref"), str)
-    } if isinstance(declared_rules, list) else {}
+    declared_by_target = (
+        {
+            str(rule.get("target_ref")): rule
+            for rule in declared_rules
+            if isinstance(rule, dict) and isinstance(rule.get("target_ref"), str)
+        }
+        if isinstance(declared_rules, list)
+        else {}
+    )
     normalized: list[str] = []
     for rule in rules:
         items = rule.get("items")
@@ -917,15 +963,12 @@ def _coordinate_grouped_metric_surfaces(
         base = rule.get("base") if isinstance(rule.get("base"), dict) else {}
         item_base = items.get("base") if isinstance(items.get("base"), dict) else {}
         declared = declared_by_target.get(str(rule.get("target_ref") or ""), {})
-        declared_base = (
-            declared.get("base") if isinstance(declared.get("base"), dict) else {}
-        )
+        declared_base = declared.get("base") if isinstance(declared.get("base"), dict) else {}
         preserves_semantic_areas = isinstance(item_base.get("areas"), list)
         moved_base = {
             key: declared_base[key]
             for key in layout_keys
-            if key in declared_base
-            and not (preserves_semantic_areas and key in {"areas", "columns"})
+            if key in declared_base and not (preserves_semantic_areas and key in {"areas", "columns"})
         }
         if moved_base:
             item_base = _merged_layout(item_base, moved_base)
@@ -936,14 +979,8 @@ def _coordinate_grouped_metric_surfaces(
         items["base"] = item_base
 
         variants = rule.get("variants") if isinstance(rule.get("variants"), dict) else {}
-        declared_variants = (
-            declared.get("variants")
-            if isinstance(declared.get("variants"), dict)
-            else {}
-        )
-        item_variants = (
-            items.get("variants") if isinstance(items.get("variants"), dict) else {}
-        )
+        declared_variants = declared.get("variants") if isinstance(declared.get("variants"), dict) else {}
+        item_variants = items.get("variants") if isinstance(items.get("variants"), dict) else {}
         for breakpoint in PRESENTATION_BREAKPOINTS:
             variant = variants.get(breakpoint)
             declared_variant = declared_variants.get(breakpoint)
@@ -952,7 +989,8 @@ def _coordinate_grouped_metric_surfaces(
             moved = {
                 key: declared_variant[key]
                 for key in layout_keys
-                if isinstance(declared_variant, dict) and key in declared_variant
+                if isinstance(declared_variant, dict)
+                and key in declared_variant
                 and not (preserves_semantic_areas and key in {"areas", "columns"})
             }
             if moved:
@@ -1004,9 +1042,7 @@ def _bound_semantic_text_overrides(
                 layout["padding"] = "none"
                 changed.add("padding")
         if changed:
-            bounded.append(
-                f"{rule.get('target_ref')} ({', '.join(sorted(changed))})"
-            )
+            bounded.append(f"{rule.get('target_ref')} ({', '.join(sorted(changed))})")
     if not bounded:
         return []
     return [
@@ -1026,11 +1062,15 @@ def _prune_orphan_inferred_areas(
     declared_rules: Any,
 ) -> None:
     """Do not retain inferred child areas after a declaration replaces the parent grid."""
-    declared_by_target = {
-        str(rule.get("target_ref")): rule
-        for rule in declared_rules
-        if isinstance(rule, dict) and isinstance(rule.get("target_ref"), str)
-    } if isinstance(declared_rules, list) else {}
+    declared_by_target = (
+        {
+            str(rule.get("target_ref")): rule
+            for rule in declared_rules
+            if isinstance(rule, dict) and isinstance(rule.get("target_ref"), str)
+        }
+        if isinstance(declared_rules, list)
+        else {}
+    )
     rules_by_target = {
         str(rule.get("target_ref")): rule
         for rule in rules
@@ -1043,7 +1083,9 @@ def _prune_orphan_inferred_areas(
         if not isinstance(area, str) or not area:
             continue
         declared = declared_by_target.get(target_ref)
-        declared_base = declared.get("base") if isinstance(declared, dict) and isinstance(declared.get("base"), dict) else {}
+        declared_base = (
+            declared.get("base") if isinstance(declared, dict) and isinstance(declared.get("base"), dict) else {}
+        )
         if "area" in declared_base:
             continue
         parent_ref = parents.get(target_ref)
@@ -1056,15 +1098,10 @@ def _prune_orphan_inferred_areas(
             parent_layout = _effective_rule_layout(
                 parent_rule,
                 viewport,
-                items=bool(
-                    parent_ref.startswith("motif:")
-                    and isinstance(parent_rule.get("items"), dict)
-                ),
+                items=bool(parent_ref.startswith("motif:") and isinstance(parent_rule.get("items"), dict)),
             )
             areas = parent_layout.get("areas")
-            if isinstance(areas, list) and any(
-                isinstance(row, list) and area in row for row in areas
-            ):
+            if isinstance(areas, list) and any(isinstance(row, list) and area in row for row in areas):
                 valid_viewports.append(viewport)
         if len(valid_viewports) == len(PRESENTATION_BREAKPOINTS):
             continue
@@ -1084,35 +1121,29 @@ def _coordinate_declared_shell_sidebar_stickiness(
     sidebar = next((rule for rule in rules if rule.get("role") == "sidebar"), None)
     if not isinstance(shell, dict) or not isinstance(sidebar, dict):
         return
-    declared_by_target = {
-        str(rule.get("target_ref")): rule
-        for rule in declared_rules
-        if isinstance(rule, dict) and isinstance(rule.get("target_ref"), str)
-    } if isinstance(declared_rules, list) else {}
+    declared_by_target = (
+        {
+            str(rule.get("target_ref")): rule
+            for rule in declared_rules
+            if isinstance(rule, dict) and isinstance(rule.get("target_ref"), str)
+        }
+        if isinstance(declared_rules, list)
+        else {}
+    )
     declared_sidebar = declared_by_target.get(str(sidebar.get("target_ref")), {})
     shell_base = shell.get("base") if isinstance(shell.get("base"), dict) else {}
     sidebar_base = sidebar.get("base") if isinstance(sidebar.get("base"), dict) else {}
-    declared_sidebar_base = (
-        declared_sidebar.get("base")
-        if isinstance(declared_sidebar.get("base"), dict)
-        else {}
-    )
+    declared_sidebar_base = declared_sidebar.get("base") if isinstance(declared_sidebar.get("base"), dict) else {}
 
     def desired_sticky(props: dict[str, Any]) -> bool | None:
         display = props.get("display")
         if display == "grid":
             areas = props.get("areas")
-            if isinstance(areas, list) and areas and all(
-                isinstance(row, list) and len(row) == 1 for row in areas
-            ):
+            if isinstance(areas, list) and areas and all(isinstance(row, list) and len(row) == 1 for row in areas):
                 return False
             columns = props.get("columns")
-            if columns == 1 or (isinstance(columns, list) and len(columns) == 1):
-                return False
-            return True
-        if display == "block" or (
-            display == "flex" and props.get("direction", "row") == "column"
-        ):
+            return not (columns == 1 or (isinstance(columns, list) and len(columns) == 1))
+        if display == "block" or (display == "flex" and props.get("direction", "row") == "column"):
             return False
         return None
 
@@ -1122,20 +1153,12 @@ def _coordinate_declared_shell_sidebar_stickiness(
         sidebar["base"] = sidebar_base
 
     shell_variants = shell.get("variants") if isinstance(shell.get("variants"), dict) else {}
-    sidebar_variants = (
-        sidebar.get("variants") if isinstance(sidebar.get("variants"), dict) else {}
-    )
+    sidebar_variants = sidebar.get("variants") if isinstance(sidebar.get("variants"), dict) else {}
     declared_sidebar_variants = (
-        declared_sidebar.get("variants")
-        if isinstance(declared_sidebar.get("variants"), dict)
-        else {}
+        declared_sidebar.get("variants") if isinstance(declared_sidebar.get("variants"), dict) else {}
     )
     for breakpoint in PRESENTATION_BREAKPOINTS:
-        shell_variant = (
-            shell_variants.get(breakpoint)
-            if isinstance(shell_variants.get(breakpoint), dict)
-            else {}
-        )
+        shell_variant = shell_variants.get(breakpoint) if isinstance(shell_variants.get(breakpoint), dict) else {}
         effective_shell = {**shell_base, **shell_variant}
         sticky = desired_sticky(effective_shell)
         explicit_sidebar_variant = (
@@ -1298,9 +1321,7 @@ def _inferred_screen_plan(screen: dict[str, Any]) -> dict[str, Any]:
                 # Dashboard motifs render one stable child surface per metric
                 # resource. The motif owns the card grid; each card stacks its
                 # value and label. Binding areas cannot span those child surfaces.
-                dashboard_base, dashboard_variants = _inferred_layout_for_role(
-                    "metric_grid"
-                )
+                dashboard_base, dashboard_variants = _inferred_layout_for_role("metric_grid")
                 rule["base"] = {**surface, **dashboard_base}
                 rule["variants"] = dashboard_variants
                 rule["items"] = {
@@ -1497,17 +1518,11 @@ def _infer_motif_role(kind: str, motif_id: str) -> str:
         return "brand"
     if markers & {"heading"}:
         return "section_heading"
-    if (
-        kind == "hero"
-        or markers & {"header", "topline"}
-        or {"page", "hero"} <= markers
-    ):
+    if kind == "hero" or markers & {"header", "topline"} or {"page", "hero"} <= markers:
         return "page_header"
     if "workload" in markers and kind == "dashboard":
         return "workload_summary"
-    if "workload" in markers and (
-        markers & {"row", "rows"} or kind in {"list", "table"}
-    ):
+    if "workload" in markers and (markers & {"row", "rows"} or kind in {"list", "table"}):
         return "workload_row"
     if "dashboard" in markers or markers & {"metric", "metrics", "summary", "workload"}:
         return "metric_grid"
@@ -1532,11 +1547,7 @@ def _infer_effective_motif_role(motif: dict[str, Any]) -> str:
         "record_title",
         "record_status",
     } & set(resource_areas.values()):
-        return (
-            "attention_job_row"
-            if markers & {"attention", "risk", "urgent"}
-            else "job_row"
-        )
+        return "attention_job_row" if markers & {"attention", "risk", "urgent"} else "job_row"
     if role != "job_row" and members and markers & {"lane", "queue"}:
         return "lane_header"
     return role
@@ -1719,11 +1730,7 @@ def _header_item_layout(members: list[str]) -> tuple[dict[str, Any], dict[str, s
         None,
     )
     avatar = next(
-        (
-            item
-            for item in members
-            if re.search(r"(?:^|_)(?:avatar|initials|operator)(?:_|$)", item.lower())
-        ),
+        (item for item in members if re.search(r"(?:^|_)(?:avatar|initials|operator)(?:_|$)", item.lower())),
         None,
     )
     if eyebrow and title and avatar:
@@ -1823,9 +1830,13 @@ def _metric_item_layout(members: list[str]) -> tuple[dict[str, Any], dict[str, s
                 areas[pair[0]] = value_areas[index]
                 areas[pair[1]] = label_areas[index]
             clean = [pair[0] for pair in pairs]
-    if not layout and len(members) >= 2 and re.search(
-        r"(?:^|_)(?:heading|title|label)(?:_|$)",
-        members[0].lower(),
+    if (
+        not layout
+        and len(members) >= 2
+        and re.search(
+            r"(?:^|_)(?:heading|title|label)(?:_|$)",
+            members[0].lower(),
+        )
     ):
         values = members[1 : 1 + PRESENTATION_MAX_GRID_TRACKS]
         if values:
@@ -1856,11 +1867,7 @@ def _inferred_binding_layout(
     motif_role: str,
 ) -> tuple[str, dict[str, Any], dict[str, dict[str, Any]]]:
     lowered = binding_id.lower()
-    field = (
-        lowered.rsplit("__", 1)[-1]
-        if "__" in lowered
-        else lowered.rsplit("_", 1)[-1]
-    )
+    field = lowered.rsplit("__", 1)[-1] if "__" in lowered else lowered.rsplit("_", 1)[-1]
     if (parent_role == "page_header" or motif_role == "page_header") and re.search(
         r"(?:^|_)(?:title|heading)(?:_|$)", lowered
     ):
@@ -2020,12 +2027,17 @@ def _screen_plan_css(screen: dict[str, Any]) -> list[str]:
     # Synthetic titles have no authored hero layout. Keep their mobile defaults
     # proportional without overriding an explicitly declared header motif.
     implicit_header = f'{scope} header[data-ir-id^="planner_"][data-ir-id$="_page_header"]'
-    lines.append(_media_wrap("compact", [
-        f"{implicit_header} {{ padding: 0 !important; border: 0 !important; "
-        "border-radius: 0 !important; background: transparent !important; box-shadow: none !important; }",
-        f"{implicit_header} h1 {{ font-size: 1.6rem !important; font-weight: 700 !important; "
-        "line-height: 1.2 !important; letter-spacing: normal !important; overflow-wrap: anywhere; }",
-    ]))
+    lines.append(
+        _media_wrap(
+            "compact",
+            [
+                f"{implicit_header} {{ padding: 0 !important; border: 0 !important; "
+                "border-radius: 0 !important; background: transparent !important; box-shadow: none !important; }",
+                f"{implicit_header} h1 {{ font-size: 1.6rem !important; font-weight: 700 !important; "
+                "line-height: 1.2 !important; letter-spacing: normal !important; overflow-wrap: anywhere; }",
+            ],
+        )
+    )
     if profile == "operations_workspace":
         lines.extend(
             [
@@ -2041,8 +2053,7 @@ def _screen_plan_css(screen: dict[str, Any]) -> list[str]:
             declarations = _important_declarations(css)
             if declarations:
                 lines.append(
-                    f'{scope} [data-style-tokens*="{_css_attr_token(token)}"] '
-                    f"{{ {'; '.join(declarations)}; }}"
+                    f'{scope} [data-style-tokens*="{_css_attr_token(token)}"] {{ {"; ".join(declarations)}; }}'
                 )
     for rule in screen.get("rules", []):
         if not isinstance(rule, dict):
@@ -2066,10 +2077,7 @@ def _screen_plan_css(screen: dict[str, Any]) -> list[str]:
                     "{ display: grid; gap: 0.625rem; width: 100%; min-width: 0; }",
                 ]
             )
-        item_selector = (
-            f"{selector} > [data-ir-id], "
-            f"{selector} > :is(tbody, thead, tfoot) > [data-ir-id]"
-        )
+        item_selector = f"{selector} > [data-ir-id], {selector} > :is(tbody, thead, tfoot) > [data-ir-id]"
         lines.extend(_rule_css(item_selector, items.get("base", {}), scope=scope))
         lines.extend(_role_css(item_selector if items else selector, str(rule.get("role") or ""), profile))
         item_variants = items.get("variants") if isinstance(items.get("variants"), dict) else {}
@@ -2105,8 +2113,7 @@ def _rule_css(selector: str, props: Any, *, scope: str) -> list[str]:
         declarations.append(f"grid-template-areas: {area_rows}")
         for name in dict.fromkeys(item for row in areas for item in row if item != "."):
             child_selector = ", ".join(
-                f'{part.strip()} > [data-ir-id="region_{name}"]'
-                for part in _split_css_selector_list(selector)
+                f'{part.strip()} > [data-ir-id="region_{name}"]' for part in _split_css_selector_list(selector)
             )
             child_lines.append(f"{child_selector} {{ grid-area: {name}; }}")
     area = props.get("area")
@@ -2166,7 +2173,14 @@ def _rule_css(selector: str, props: Any, *, scope: str) -> list[str]:
     elif props.get("min_inline_size") == "content":
         declarations.append("min-inline-size: min-content")
     if isinstance(props.get("max_lines"), int):
-        declarations.extend(("display: -webkit-box", "-webkit-box-orient: vertical", f"-webkit-line-clamp: {props['max_lines']}", "overflow: hidden"))
+        declarations.extend(
+            (
+                "display: -webkit-box",
+                "-webkit-box-orient: vertical",
+                f"-webkit-line-clamp: {props['max_lines']}",
+                "overflow: hidden",
+            )
+        )
     own = [f"{selector} {{ {'; '.join(declarations)}; }}"] if declarations else []
     return [*own, *child_lines]
 
@@ -2195,7 +2209,9 @@ def _role_css(selector: str, role: str, profile: str) -> list[str]:
     if role == "main":
         return [f"{selector} {{ width: 100%; max-width: 76rem; margin-inline: auto; background: #f4f6f4 !important; }}"]
     if role == "page_header":
-        return [f"{selector} {{ border: 0 !important; box-shadow: none !important; background: transparent !important; }}"]
+        return [
+            f"{selector} {{ border: 0 !important; box-shadow: none !important; background: transparent !important; }}"
+        ]
     if role == "page_title":
         return [f"{selector} {{ margin: 0 !important; }}"]
     if role == "brand":
@@ -2266,13 +2282,11 @@ def _role_css(selector: str, role: str, profile: str) -> list[str]:
     if role in {"attention_job_row", "job_row"}:
         cells = _child_selector(selector, ":is(th, td)")
         heading_rows = ", ".join(
-            f"{part.strip()}:not(:has([data-resource-id]))"
-            for part in _split_css_selector_list(selector)
+            f"{part.strip()}:not(:has([data-resource-id]))" for part in _split_css_selector_list(selector)
         )
         heading_bindings = _child_selector(heading_rows, "[data-binding-id]")
         resource_rows = ", ".join(
-            f"{part.strip()}:has([data-resource-id])"
-            for part in _split_css_selector_list(selector)
+            f"{part.strip()}:has([data-resource-id])" for part in _split_css_selector_list(selector)
         )
         lines = [
             f"{selector} {{ align-items: center; border: 1px solid #d8ddd9 !important; border-radius: 0.75rem !important; background: #ffffff !important; box-shadow: none !important; }}",
@@ -2287,9 +2301,7 @@ def _role_css(selector: str, role: str, profile: str) -> list[str]:
         ]
         if role == "attention_job_row":
             lines.append(
-                "@media (max-width: 599px) {\n"
-                f"  {resource_rows} {{ min-height: 28.75rem; align-content: start; }}\n"
-                "}"
+                f"@media (max-width: 599px) {{\n  {resource_rows} {{ min-height: 28.75rem; align-content: start; }}\n}}"
             )
         else:
             lines.append(
@@ -2395,7 +2407,9 @@ def _validate_layout_properties(
     issues: list[dict[str, str]] = []
     extra = sorted(set(props) - LAYOUT_PROPERTY_KEYS)
     if extra:
-        issues.append(_issue("APP_PRESENTATION_LAYOUT_INVALID", path, f"Unsupported layout property(s): {', '.join(extra)}."))
+        issues.append(
+            _issue("APP_PRESENTATION_LAYOUT_INVALID", path, f"Unsupported layout property(s): {', '.join(extra)}.")
+        )
     enum_fields = {
         "align": ALIGN_VALUES,
         "background": BACKGROUND_VALUES,
@@ -2421,20 +2435,28 @@ def _validate_layout_properties(
     }
     for key, allowed in enum_fields.items():
         if key in props and props[key] not in allowed:
-            issues.append(_issue("APP_PRESENTATION_LAYOUT_INVALID", f"{path}.{key}", f"{key} must be one of {', '.join(allowed)}."))
+            issues.append(
+                _issue(
+                    "APP_PRESENTATION_LAYOUT_INVALID", f"{path}.{key}", f"{key} must be one of {', '.join(allowed)}."
+                )
+            )
     columns = props.get("columns")
     if columns is not None:
         valid_columns = (
-            isinstance(columns, int)
-            and not isinstance(columns, bool)
-            and 1 <= columns <= PRESENTATION_MAX_GRID_TRACKS
+            isinstance(columns, int) and not isinstance(columns, bool) and 1 <= columns <= PRESENTATION_MAX_GRID_TRACKS
         ) or (
             isinstance(columns, list)
             and 1 <= len(columns) <= PRESENTATION_MAX_GRID_TRACKS
             and all(item in TRACK_VALUES for item in columns)
         )
         if not valid_columns:
-            issues.append(_issue("APP_PRESENTATION_LAYOUT_INVALID", f"{path}.columns", "columns must be 1-4 or a list of 1-4 bounded track tokens."))
+            issues.append(
+                _issue(
+                    "APP_PRESENTATION_LAYOUT_INVALID",
+                    f"{path}.columns",
+                    "columns must be 1-4 or a list of 1-4 bounded track tokens.",
+                )
+            )
     areas = props.get("areas")
     if areas is not None:
         valid_areas = (
@@ -2445,16 +2467,20 @@ def _validate_layout_properties(
             and all(isinstance(item, str) and re.fullmatch(r"[A-Za-z0-9_.-]+", item) for row in areas for item in row)
         )
         if not valid_areas:
-            issues.append(_issue("APP_PRESENTATION_LAYOUT_INVALID", f"{path}.areas", "areas must be a rectangular 1-4 by 1-4 matrix of region ids."))
+            issues.append(
+                _issue(
+                    "APP_PRESENTATION_LAYOUT_INVALID",
+                    f"{path}.areas",
+                    "areas must be a rectangular 1-4 by 1-4 matrix of region ids.",
+                )
+            )
         else:
             missing_regions = sorted(
                 {
                     str(item)
                     for row in areas
                     for item in row
-                    if f"region:{item}" not in target_refs
-                    and item != "."
-                    and item not in (declared_areas or set())
+                    if f"region:{item}" not in target_refs and item != "." and item not in (declared_areas or set())
                 }
             )
             if missing_regions:
@@ -2475,8 +2501,16 @@ def _validate_layout_properties(
             )
         )
     for key, minimum, maximum in (("order", -16, 16), ("span", 1, 4), ("max_lines", 1, 8)):
-        if key in props and (not isinstance(props[key], int) or isinstance(props[key], bool) or not minimum <= props[key] <= maximum):
-            issues.append(_issue("APP_PRESENTATION_LAYOUT_INVALID", f"{path}.{key}", f"{key} must be an integer from {minimum} through {maximum}."))
+        if key in props and (
+            not isinstance(props[key], int) or isinstance(props[key], bool) or not minimum <= props[key] <= maximum
+        ):
+            issues.append(
+                _issue(
+                    "APP_PRESENTATION_LAYOUT_INVALID",
+                    f"{path}.{key}",
+                    f"{key} must be an integer from {minimum} through {maximum}.",
+                )
+            )
     if "sticky" in props and not isinstance(props["sticky"], bool):
         issues.append(_issue("APP_PRESENTATION_LAYOUT_INVALID", f"{path}.sticky", "sticky must be boolean."))
     return issues

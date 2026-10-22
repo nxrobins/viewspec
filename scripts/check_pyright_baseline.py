@@ -44,7 +44,9 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
     current = pyright_error_count()
     if args.update:
-        BASELINE.write_text(json.dumps({"error_count": current, "scope": "src/viewspec"}, indent=2) + "\n", encoding="utf-8")
+        BASELINE.write_text(
+            json.dumps({"error_count": current, "scope": "src/viewspec"}, indent=2) + "\n", encoding="utf-8"
+        )
         print(f"pyright baseline set to {current} errors")
         return 0
     baseline = int(json.loads(BASELINE.read_text(encoding="utf-8"))["error_count"])

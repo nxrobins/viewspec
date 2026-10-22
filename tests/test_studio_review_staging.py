@@ -1,15 +1,17 @@
-from pathlib import Path
 import os
 import sqlite3
+from pathlib import Path
 
 import pytest
 
-from viewspec.studio_review_service import StudioReviewService, StudioReviewServiceError
 import viewspec.studio_review_staging as staging
+from viewspec.studio_review_service import StudioReviewService, StudioReviewServiceError
 
 
 def service(root: Path, *, reconcile: bool = True) -> StudioReviewService:
-    return StudioReviewService(root, signing_key=b"test-only-key" * 4, verifier=lambda *_: {}, reconcile_on_startup=reconcile)
+    return StudioReviewService(
+        root, signing_key=b"test-only-key" * 4, verifier=lambda *_: {}, reconcile_on_startup=reconcile
+    )
 
 
 def remnants(root: Path) -> tuple[Path, Path]:
@@ -42,7 +44,24 @@ def test_owned_remnants_support_bounded_dry_run_and_restart(tmp_path):
     assert restarted.reconcile_storage(dry_run=False)["counts"]["staging_removed"] == 0
 
 
-@pytest.mark.parametrize("case", ["legacy_upload", "legacy_directory", "unowned_object_ingress", "unknown_name", "symlink", "nested_symlink", "hardlink", "fifo", "public_file", "public_directory", "entry_limit", "byte_limit", "node_limit"])
+@pytest.mark.parametrize(
+    "case",
+    [
+        "legacy_upload",
+        "legacy_directory",
+        "unowned_object_ingress",
+        "unknown_name",
+        "symlink",
+        "nested_symlink",
+        "hardlink",
+        "fifo",
+        "public_file",
+        "public_directory",
+        "entry_limit",
+        "byte_limit",
+        "node_limit",
+    ],
+)
 def test_ambiguous_state_is_preserved_without_partial_cleanup(tmp_path, monkeypatch, case):
     current = service(tmp_path / "service")
     upload, extracted = remnants(current.root)

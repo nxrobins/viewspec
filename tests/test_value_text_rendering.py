@@ -61,20 +61,68 @@ def _numeric_dashboard_payload(big_value: object) -> dict:
             "complexity_tier": 1,
             "root_region": "root",
             "regions": [
-                {"id": "root", "parent_region": "", "role": "root", "layout": "stack", "min_children": 1, "max_children": None},
-                {"id": "main", "parent_region": "root", "role": "main", "layout": "stack", "min_children": 1, "max_children": None},
+                {
+                    "id": "root",
+                    "parent_region": "",
+                    "role": "root",
+                    "layout": "stack",
+                    "min_children": 1,
+                    "max_children": None,
+                },
+                {
+                    "id": "main",
+                    "parent_region": "root",
+                    "role": "main",
+                    "layout": "stack",
+                    "min_children": 1,
+                    "max_children": None,
+                },
             ],
             "bindings": [
-                {"id": "kpis_card_1_label", "address": "node:kpis_card_1#attr:label", "target_region": "main", "present_as": "label", "cardinality": "exactly_once"},
-                {"id": "kpis_card_1_value", "address": "node:kpis_card_1#attr:value", "target_region": "main", "present_as": "value", "cardinality": "exactly_once"},
-                {"id": "kpis_card_2_label", "address": "node:kpis_card_2#attr:label", "target_region": "main", "present_as": "label", "cardinality": "exactly_once"},
-                {"id": "kpis_card_2_value", "address": "node:kpis_card_2#attr:value", "target_region": "main", "present_as": "value", "cardinality": "exactly_once"},
+                {
+                    "id": "kpis_card_1_label",
+                    "address": "node:kpis_card_1#attr:label",
+                    "target_region": "main",
+                    "present_as": "label",
+                    "cardinality": "exactly_once",
+                },
+                {
+                    "id": "kpis_card_1_value",
+                    "address": "node:kpis_card_1#attr:value",
+                    "target_region": "main",
+                    "present_as": "value",
+                    "cardinality": "exactly_once",
+                },
+                {
+                    "id": "kpis_card_2_label",
+                    "address": "node:kpis_card_2#attr:label",
+                    "target_region": "main",
+                    "present_as": "label",
+                    "cardinality": "exactly_once",
+                },
+                {
+                    "id": "kpis_card_2_value",
+                    "address": "node:kpis_card_2#attr:value",
+                    "target_region": "main",
+                    "present_as": "value",
+                    "cardinality": "exactly_once",
+                },
             ],
             "groups": [
-                {"id": "metrics", "kind": "ordered", "members": ["kpis_card_1_label", "kpis_card_1_value", "kpis_card_2_label", "kpis_card_2_value"], "target_region": "main"},
+                {
+                    "id": "metrics",
+                    "kind": "ordered",
+                    "members": ["kpis_card_1_label", "kpis_card_1_value", "kpis_card_2_label", "kpis_card_2_value"],
+                    "target_region": "main",
+                },
             ],
             "motifs": [
-                {"id": "kpis", "kind": "dashboard", "region": "main", "members": ["kpis_card_1_label", "kpis_card_1_value", "kpis_card_2_label", "kpis_card_2_value"]},
+                {
+                    "id": "kpis",
+                    "kind": "dashboard",
+                    "region": "main",
+                    "members": ["kpis_card_1_label", "kpis_card_1_value", "kpis_card_2_label", "kpis_card_2_value"],
+                },
             ],
             "styles": [],
             "actions": [],
@@ -187,7 +235,20 @@ def test_builder_numbers_compile_identically_in_memory_and_after_round_trips(tmp
     dashboard.add_card(label="Nothing", value=None, id="nothing")
     in_memory = builder.build_bundle()
 
-    expected = ["Open tickets", "100", "Ratio", "0.25", "Whole", "3", "Huge", "1e+300", "Flag", "true", "Nothing", "null"]
+    expected = [
+        "Open tickets",
+        "100",
+        "Ratio",
+        "0.25",
+        "Whole",
+        "3",
+        "Huge",
+        "1e+300",
+        "Flag",
+        "true",
+        "Nothing",
+        "null",
+    ]
     assert _texts(compile(in_memory).result.root.root) == expected
 
     baseline = _compiled_bytes(in_memory, tmp_path / "memory")
@@ -213,10 +274,22 @@ def test_validate_intent_rejects_integers_above_2_pow_53_with_a_path_and_fix():
     ("mutate", "expected_path"),
     [
         (lambda node: node["attrs"].__setitem__("value", -UNSAFE_INTEGER), "$.substrate.nodes.kpis_card_2.attrs.value"),
-        (lambda node: node["attrs"].__setitem__("value", {"ids": [1, UNSAFE_INTEGER]}), "$.substrate.nodes.kpis_card_2.attrs.value.ids[1]"),
-        (lambda node: node["attrs"].__setitem__("value", [{"id": UNSAFE_INTEGER}]), "$.substrate.nodes.kpis_card_2.attrs.value[0].id"),
-        (lambda node: node["slots"].__setitem__("items", {"values": ["ok", UNSAFE_INTEGER]}), "$.substrate.nodes.kpis_card_2.slots.items.values[1]"),
-        (lambda node: node["slots"].__setitem__("items", {"values": [[2**70]]}), "$.substrate.nodes.kpis_card_2.slots.items.values[0][0]"),
+        (
+            lambda node: node["attrs"].__setitem__("value", {"ids": [1, UNSAFE_INTEGER]}),
+            "$.substrate.nodes.kpis_card_2.attrs.value.ids[1]",
+        ),
+        (
+            lambda node: node["attrs"].__setitem__("value", [{"id": UNSAFE_INTEGER}]),
+            "$.substrate.nodes.kpis_card_2.attrs.value[0].id",
+        ),
+        (
+            lambda node: node["slots"].__setitem__("items", {"values": ["ok", UNSAFE_INTEGER]}),
+            "$.substrate.nodes.kpis_card_2.slots.items.values[1]",
+        ),
+        (
+            lambda node: node["slots"].__setitem__("items", {"values": [[2**70]]}),
+            "$.substrate.nodes.kpis_card_2.slots.items.values[0][0]",
+        ),
     ],
 )
 def test_validate_intent_finds_unsafe_integers_at_any_depth(mutate, expected_path):
@@ -229,7 +302,9 @@ def test_validate_intent_finds_unsafe_integers_at_any_depth(mutate, expected_pat
     assert [issue.path for issue in result.issues if issue.code == "INTEGER_OUT_OF_SAFE_RANGE"] == [expected_path]
 
 
-@pytest.mark.parametrize("value", [MAX_SAFE_INTEGER, -MAX_SAFE_INTEGER, 0, True, 1e20, 2.5, {"ids": [MAX_SAFE_INTEGER]}])
+@pytest.mark.parametrize(
+    "value", [MAX_SAFE_INTEGER, -MAX_SAFE_INTEGER, 0, True, 1e20, 2.5, {"ids": [MAX_SAFE_INTEGER]}]
+)
 def test_validate_intent_accepts_numbers_within_the_safe_range(value):
     payload = _numeric_dashboard_payload(value)
 
@@ -274,13 +349,13 @@ def test_non_ascii_list_binding_renders_literal_text(tmp_path):
     assert '["Müller","Zoë"]' in _texts(ast.result.root.root)
 
     html = Path(HtmlTailwindEmitter().emit(ast, tmp_path / "html")["html"]).read_bytes()
-    assert "[&quot;Müller&quot;,&quot;Zoë&quot;]".encode("utf-8") in html
+    assert "[&quot;Müller&quot;,&quot;Zoë&quot;]".encode() in html
     assert b"\\u00fc" not in html and b"\\u00eb" not in html
 
     for name, emitter in (("react", ReactTsxEmitter()), ("react_tailwind", ReactTailwindTsxEmitter())):
         tsx = Path(emitter.emit(ast, tmp_path / name)["tsx"]).read_bytes()
-        assert "Müller".encode("utf-8") in tsx
-        assert "Zoë".encode("utf-8") in tsx
+        assert "Müller".encode() in tsx
+        assert "Zoë".encode() in tsx
 
     for route in (_json_text_roundtrip(bundle), _proto_roundtrip(bundle)):
         assert json.dumps(compile(route).to_json(), sort_keys=True) == json.dumps(ast.to_json(), sort_keys=True)

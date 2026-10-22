@@ -14,8 +14,7 @@ import time
 import urllib.request
 from dataclasses import dataclass
 from importlib import resources
-from pathlib import Path
-from pathlib import PurePosixPath
+from pathlib import Path, PurePosixPath
 from typing import Any
 
 from viewspec.intent_tools import compile_intent_bundle_file_tool
@@ -32,7 +31,6 @@ from viewspec.local_tools import (
 )
 from viewspec.node_runtime import materialize_prebuilt_node_modules
 from viewspec.verification import VerificationDiagnostic, VerificationPlan
-
 
 HOST_VERIFY_SCHEMA_VERSION = 1
 HOST_VERIFY_REPORT_MAX_BYTES = 64 * 1024
@@ -116,7 +114,9 @@ def verify_host_artifact_dir(
             raise HostVerifyFailure("HOST_VERIFY_UNSUPPORTED_TARGET", f"Unsupported host verification target: {target}")
 
         checked = _time_phase(timings, "check_copy", lambda: check_artifact_dir(artifact_path))
-        manifest_summary = checked.get("manifest_summary") if isinstance(checked.get("manifest_summary"), dict) else None
+        manifest_summary = (
+            checked.get("manifest_summary") if isinstance(checked.get("manifest_summary"), dict) else None
+        )
         if not checked["ok"]:
             return _finalize_report(
                 _error_report(
@@ -156,7 +156,9 @@ def verify_host_artifact_dir(
             _assert_template_guard(host_dir)
             copied_hash = _copy_artifact_files(source_files, host_dir)
             if copied_hash != artifact_hash:
-                raise HostVerifyFailure("HOST_VERIFY_ARTIFACT_HASH_MISMATCH", "Copied artifact hash does not match source artifact hash.")
+                raise HostVerifyFailure(
+                    "HOST_VERIFY_ARTIFACT_HASH_MISMATCH", "Copied artifact hash does not match source artifact hash."
+                )
             if verification_plan is None:
                 runtime = _run_host_browser_phases(host_dir, install=install, started=started, timings=timings)
             else:
@@ -233,7 +235,9 @@ def verify_host_intent_file(
     """Compile an IntentBundle through the existing tool path, then host-verify the artifact."""
     if target != HOST_VERIFY_TARGET:
         return _finalize_report(
-            _error_report("HOST_VERIFY_UNSUPPORTED_TARGET", f"Unsupported host verification target: {target}", install=install),
+            _error_report(
+                "HOST_VERIFY_UNSUPPORTED_TARGET", f"Unsupported host verification target: {target}", install=install
+            ),
             report_out,
         )
     compiled = compile_intent_bundle_file_tool(
@@ -338,7 +342,9 @@ def verify_host_tool(
         return _tool_from_report(proof, root, allow_outside_cwd)
     except Exception as exc:
         if isinstance(exc, LocalToolError):
-            return tool_error_response(exc.code, exc.message, exc.fix, metadata=path_policy_metadata(root, allow_outside_cwd))
+            return tool_error_response(
+                exc.code, exc.message, exc.fix, metadata=path_policy_metadata(root, allow_outside_cwd)
+            )
         proof = _error_report(
             "HOST_VERIFY_BROWSER_RUNTIME_ERROR",
             str(exc),
@@ -395,11 +401,7 @@ def summarize_host_verification_report(report: object) -> dict[str, Any] | None:
     errors = report.get("errors")
     error_codes: list[str] = []
     if isinstance(errors, list):
-        error_codes = [
-            str(error.get("code"))
-            for error in errors
-            if isinstance(error, dict) and error.get("code")
-        ]
+        error_codes = [str(error.get("code")) for error in errors if isinstance(error, dict) and error.get("code")]
     summary = {
         "ok": bool(report.get("ok")),
         "assertions": normalized_assertions,
@@ -429,8 +431,12 @@ def _run_host_browser_phases(
 ) -> dict[str, Any]:
     node = _require_executable("node", "HOST_VERIFY_NODE_MISSING")
     npm = _require_executable("npm", "HOST_VERIFY_NPM_MISSING")
-    node_version = _run_process([node, "--version"], cwd=host_dir, timeout_ms=5_000, code="HOST_VERIFY_NODE_MISSING").stdout.strip()
-    npm_version = _run_process([npm, "--version"], cwd=host_dir, timeout_ms=5_000, code="HOST_VERIFY_NPM_MISSING").stdout.strip()
+    node_version = _run_process(
+        [node, "--version"], cwd=host_dir, timeout_ms=5_000, code="HOST_VERIFY_NODE_MISSING"
+    ).stdout.strip()
+    npm_version = _run_process(
+        [npm, "--version"], cwd=host_dir, timeout_ms=5_000, code="HOST_VERIFY_NPM_MISSING"
+    ).stdout.strip()
 
     if install:
         seed = os.environ.get("VIEWSPEC_HOST_VERIFY_NODE_MODULES_DIR")
@@ -517,7 +523,9 @@ def _run_host_browser_phases(
             loaded = json.loads(browser_report.read_text(encoding="utf-8"))
         else:
             if evidence_dir is None:
-                raise HostVerifyFailure("HOST_VERIFY_PROOF_REPORT_INVALID", "Planned verification has no evidence output.")
+                raise HostVerifyFailure(
+                    "HOST_VERIFY_PROOF_REPORT_INVALID", "Planned verification has no evidence output."
+                )
             loaded = _collect_planned_browser_results(
                 browser_reports_dir,
                 browser_evidence_dir,
@@ -548,7 +556,9 @@ def _collect_planned_browser_results(
     missing = [f"{viewport.name}.json" for viewport in plan.viewports if f"{viewport.name}.json" not in actual_reports]
     extra = sorted(actual_reports - expected_reports)
     if missing:
-        raise HostVerifyFailure("HOST_VERIFY_PROOF_REPORT_INVALID", f"Missing browser report for viewport {missing[0][:-5]}.")
+        raise HostVerifyFailure(
+            "HOST_VERIFY_PROOF_REPORT_INVALID", f"Missing browser report for viewport {missing[0][:-5]}."
+        )
     if extra:
         raise HostVerifyFailure("HOST_VERIFY_PROOF_REPORT_INVALID", f"Unexpected browser viewport report: {extra[0]}")
 
@@ -574,7 +584,9 @@ def _collect_planned_browser_results(
             raise HostVerifyFailure("HOST_VERIFY_PROOF_REPORT_INVALID", f"Viewport {viewport.name} has no assertions.")
         for key, value in raw_assertions.items():
             if not isinstance(key, str) or not isinstance(value, int) or isinstance(value, bool) or value < 0:
-                raise HostVerifyFailure("HOST_VERIFY_PROOF_REPORT_INVALID", "Browser assertion counts must be non-negative integers.")
+                raise HostVerifyFailure(
+                    "HOST_VERIFY_PROOF_REPORT_INVALID", "Browser assertion counts must be non-negative integers."
+                )
             assertions[key] = assertions.get(key, 0) + value
         raw_diagnostics = payload.get("diagnostics", [])
         if not isinstance(raw_diagnostics, list):
@@ -595,7 +607,9 @@ def _collect_planned_browser_results(
             raise HostVerifyFailure("HOST_VERIFY_PROOF_REPORT_INVALID", f"Viewport {viewport.name} has no evidence.")
         for item in raw_evidence:
             if not isinstance(item, dict):
-                raise HostVerifyFailure("HOST_VERIFY_PROOF_REPORT_INVALID", "Browser evidence declarations must be objects.")
+                raise HostVerifyFailure(
+                    "HOST_VERIFY_PROOF_REPORT_INVALID", "Browser evidence declarations must be objects."
+                )
             path_value = item.get("path")
             role = item.get("role")
             content_type = item.get("content_type")
@@ -609,26 +623,29 @@ def _collect_planned_browser_results(
                 or path.as_posix() != path_value
                 or any(part in {"", ".", ".."} for part in path.parts)
             ):
-                raise HostVerifyFailure("HOST_VERIFY_PROOF_REPORT_INVALID", f"Unsafe browser evidence path: {path_value}")
+                raise HostVerifyFailure(
+                    "HOST_VERIFY_PROOF_REPORT_INVALID", f"Unsafe browser evidence path: {path_value}"
+                )
             if path_value in evidence_paths:
-                raise HostVerifyFailure("HOST_VERIFY_PROOF_REPORT_INVALID", f"Duplicate browser evidence path: {path_value}")
+                raise HostVerifyFailure(
+                    "HOST_VERIFY_PROOF_REPORT_INVALID", f"Duplicate browser evidence path: {path_value}"
+                )
             evidence_paths.add(path_value)
             source = source_evidence_dir.joinpath(*path.parts[1:])
             destination = output_evidence_dir.joinpath(*path.parts[1:])
             if not source.is_file() or source.is_symlink():
-                raise HostVerifyFailure("HOST_VERIFY_PROOF_REPORT_INVALID", f"Browser evidence was not written: {path_value}")
+                raise HostVerifyFailure(
+                    "HOST_VERIFY_PROOF_REPORT_INVALID", f"Browser evidence was not written: {path_value}"
+                )
             if destination.exists():
-                raise HostVerifyFailure("HOST_VERIFY_PROOF_REPORT_INVALID", f"Evidence output already exists: {path_value}")
+                raise HostVerifyFailure(
+                    "HOST_VERIFY_PROOF_REPORT_INVALID", f"Evidence output already exists: {path_value}"
+                )
             destination.parent.mkdir(parents=True, exist_ok=True)
             shutil.copyfile(source, destination)
             evidence.append({"path": path_value, "role": role, "content_type": content_type})
 
-    declared_refs = {
-        ref
-        for item in diagnostics
-        for ref in item.get("evidence_refs", [])
-        if isinstance(ref, str)
-    }
+    declared_refs = {ref for item in diagnostics for ref in item.get("evidence_refs", []) if isinstance(ref, str)}
     missing_refs = sorted(declared_refs - evidence_paths)
     if missing_refs:
         raise HostVerifyFailure(
@@ -642,7 +659,9 @@ def _collect_planned_browser_results(
     }
     undeclared = sorted(actual_evidence - evidence_paths)
     if undeclared:
-        raise HostVerifyFailure("HOST_VERIFY_PROOF_REPORT_INVALID", f"Browser wrote undeclared evidence: {undeclared[0]}")
+        raise HostVerifyFailure(
+            "HOST_VERIFY_PROOF_REPORT_INVALID", f"Browser wrote undeclared evidence: {undeclared[0]}"
+        )
     return {
         "assertions": assertions,
         "verification_diagnostics": diagnostics,
@@ -655,7 +674,9 @@ def _read_manifest(artifact_path: Path) -> dict[str, Any]:
     try:
         manifest = json.loads((artifact_path / "provenance_manifest.json").read_text(encoding="utf-8"))
     except Exception as exc:
-        raise HostVerifyFailure("HOST_VERIFY_ARTIFACT_CHECK_FAILED", f"Could not read provenance_manifest.json: {exc}") from exc
+        raise HostVerifyFailure(
+            "HOST_VERIFY_ARTIFACT_CHECK_FAILED", f"Could not read provenance_manifest.json: {exc}"
+        ) from exc
     if not isinstance(manifest, dict):
         raise HostVerifyFailure("HOST_VERIFY_ARTIFACT_CHECK_FAILED", "provenance_manifest.json must be an object.")
     return manifest
@@ -681,7 +702,9 @@ def _artifact_files(artifact_path: Path) -> dict[str, Path]:
     }
     missing = [path.name for path in files.values() if not path.exists()]
     if missing:
-        raise HostVerifyFailure("HOST_VERIFY_ARTIFACT_CHECK_FAILED", f"Artifact is missing required files: {', '.join(missing)}")
+        raise HostVerifyFailure(
+            "HOST_VERIFY_ARTIFACT_CHECK_FAILED", f"Artifact is missing required files: {', '.join(missing)}"
+        )
     return files
 
 
@@ -689,7 +712,9 @@ def _assert_workspace_safe(host_dir: Path, artifact_path: Path) -> None:
     blocked = {Path.cwd().resolve(), artifact_path.resolve(), artifact_path.resolve().parent}
     for path in blocked:
         if host_dir == path or _is_relative_to(host_dir, path):
-            raise HostVerifyFailure("HOST_VERIFY_WORKSPACE_UNSAFE", f"Temporary host resolved inside unsafe path: {path}")
+            raise HostVerifyFailure(
+                "HOST_VERIFY_WORKSPACE_UNSAFE", f"Temporary host resolved inside unsafe path: {path}"
+            )
 
 
 def _copy_template(host_dir: Path) -> None:
@@ -709,20 +734,24 @@ def _assert_template_guard(host_dir: Path) -> None:
             raise HostVerifyFailure("HOST_VERIFY_TEMPLATE_MISSING", f"Host template copy is missing {rel}")
     source_files = [host_dir / rel for rel in HOST_VERIFY_TEMPLATE_FILES if rel != "package-lock.json"]
     if len(source_files) > HOST_VERIFY_TEMPLATE_NON_LOCK_FILE_LIMIT:
-        raise HostVerifyFailure("HOST_VERIFY_FIXTURE_TOO_LARGE", f"Host template has {len(source_files)} non-lock files.")
+        raise HostVerifyFailure(
+            "HOST_VERIFY_FIXTURE_TOO_LARGE", f"Host template has {len(source_files)} non-lock files."
+        )
     total = sum(path.stat().st_size for path in source_files)
     if total > HOST_VERIFY_TEMPLATE_NON_LOCK_BYTES_LIMIT:
         raise HostVerifyFailure("HOST_VERIFY_FIXTURE_TOO_LARGE", f"Host template source is {total} bytes.")
     css_lines = [
-        line
-        for line in (host_dir / "src" / "index.css").read_text(encoding="utf-8").splitlines()
-        if line.strip()
+        line for line in (host_dir / "src" / "index.css").read_text(encoding="utf-8").splitlines() if line.strip()
     ]
     if css_lines != HOST_VERIFY_EXPECTED_CSS_LINES or len(css_lines) > 20:
-        raise HostVerifyFailure("HOST_VERIFY_FORBIDDEN_HOST_CSS", "Host CSS must be only Tailwind import/source plus root sizing/reset.")
+        raise HostVerifyFailure(
+            "HOST_VERIFY_FORBIDDEN_HOST_CSS", "Host CSS must be only Tailwind import/source plus root sizing/reset."
+        )
     app = (host_dir / "src" / "App.tsx").read_text(encoding="utf-8")
     if app.count('from "./generated/ViewSpecView"') != 1:
-        raise HostVerifyFailure("HOST_VERIFY_TEMPLATE_MISSING", "Host app must import exactly ./generated/ViewSpecView.")
+        raise HostVerifyFailure(
+            "HOST_VERIFY_TEMPLATE_MISSING", "Host app must import exactly ./generated/ViewSpecView."
+        )
 
 
 def _copy_artifact_files(source_files: dict[str, Path], host_dir: Path) -> str:
@@ -737,7 +766,9 @@ def _copy_artifact_files(source_files: dict[str, Path], host_dir: Path) -> str:
         shutil.copyfile(source, targets[key])
     copied = sorted(path.name for path in generated.iterdir() if path.is_file())
     if copied != ["ViewSpecView.tsx", "diagnostics.json", "provenance_manifest.json"]:
-        raise HostVerifyFailure("HOST_VERIFY_ARTIFACT_HASH_MISMATCH", "Generated host artifact directory contains unexpected files.")
+        raise HostVerifyFailure(
+            "HOST_VERIFY_ARTIFACT_HASH_MISMATCH", "Generated host artifact directory contains unexpected files."
+        )
     return file_hash(targets["tsx"])
 
 
@@ -841,7 +872,10 @@ def _start_preview(host_dir: Path, npm: str, port: int) -> subprocess.Popen[str]
 
 
 def _wait_for_preview(port: int, started: float) -> None:
-    deadline = time.perf_counter() + min(HOST_VERIFY_PHASE_TIMEOUTS_MS["preview_startup"] / 1000, _remaining_timeout(started, HOST_VERIFY_PHASE_TIMEOUTS_MS["preview_startup"]) / 1000)
+    deadline = time.perf_counter() + min(
+        HOST_VERIFY_PHASE_TIMEOUTS_MS["preview_startup"] / 1000,
+        _remaining_timeout(started, HOST_VERIFY_PHASE_TIMEOUTS_MS["preview_startup"]) / 1000,
+    )
     url = f"http://127.0.0.1:{port}/"
     while time.perf_counter() < deadline:
         try:
@@ -858,7 +892,12 @@ def _kill_process_tree(proc: subprocess.Popen[str]) -> None:
         return
     try:
         if os.name == "nt":
-            subprocess.run(["taskkill", "/PID", str(proc.pid), "/T", "/F"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=5)
+            subprocess.run(
+                ["taskkill", "/PID", str(proc.pid), "/T", "/F"],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                timeout=5,
+            )
         else:
             os.killpg(proc.pid, signal.SIGTERM)
             try:
@@ -890,10 +929,14 @@ def _time_phase(timings: dict[str, int], phase: str, fn: Any) -> Any:
     return result
 
 
-def _assert_runtime_report(runtime: dict[str, Any], *, manifest_summary: dict[str, Any] | None = None) -> dict[str, int]:
+def _assert_runtime_report(
+    runtime: dict[str, Any], *, manifest_summary: dict[str, Any] | None = None
+) -> dict[str, int]:
     assertions = runtime.get("assertions")
     if not isinstance(assertions, dict):
-        raise HostVerifyFailure("HOST_VERIFY_PROOF_REPORT_INVALID", "Browser assertion report has no assertions object.")
+        raise HostVerifyFailure(
+            "HOST_VERIFY_PROOF_REPORT_INVALID", "Browser assertion report has no assertions object."
+        )
     normalized = {
         "dom_count": int(assertions.get("dom_count", 0)),
         "grid_column_assertion_count": int(assertions.get("grid_column_assertion_count", 0)),
@@ -908,7 +951,9 @@ def _assert_runtime_report(runtime: dict[str, Any], *, manifest_summary: dict[st
     if normalized["dom_count"] < requirements["dom_count"]:
         raise HostVerifyFailure("HOST_VERIFY_DOM_NODE_MISSING", "Browser report did not include a DOM assertion.")
     if normalized["style_assertion_count"] < requirements["style_assertion_count"]:
-        raise HostVerifyFailure("HOST_VERIFY_STYLE_ASSERTION_TOO_WEAK", "Browser report did not include four computed style assertions.")
+        raise HostVerifyFailure(
+            "HOST_VERIFY_STYLE_ASSERTION_TOO_WEAK", "Browser report did not include four computed style assertions."
+        )
     if normalized["aesthetic_profile_assertion_count"] < requirements["aesthetic_profile_assertion_count"]:
         raise HostVerifyFailure(
             "HOST_VERIFY_AESTHETIC_PROFILE_ASSERTION_MISSING",
@@ -1018,7 +1063,8 @@ def _base_report(
         "node_version": node_version,
         "npm_version": npm_version,
         "manifest_summary": manifest_summary,
-        "assertions": assertions or {
+        "assertions": assertions
+        or {
             "action_count": 0,
             "aesthetic_layout_assertion_count": 0,
             "aesthetic_profile_assertion_count": 0,

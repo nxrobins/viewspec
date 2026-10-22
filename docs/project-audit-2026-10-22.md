@@ -328,7 +328,7 @@ Status as of the follow-up work on 2026-10-22, all on branch `claude/project-aud
 | C-4 | Partial | Output no longer depends on protobuf number formatting and the runtime is capped below 8; values still pass through `Struct` by design. |
 | C-5 | Fixed | `viewspec/_canonical.py`; every helper is an alias of one of two forms; all forms reject NaN; no digest changed. Converging the two forms is an owner decision. |
 | C-6 | Fixed | A Windows CI job compares the corpus goldens with Linux; it found and fixed backslashes in the React app manifest. |
-| C-7 | In progress | Relative paths and unhashed timings in proof reports. |
+| C-7 | Fixed | On-disk proof reports record paths relative to the proof directory; the proof report hash excludes `timings_ms`; `support_bundle.json` is at schema 2 without timings. React host reports may still carry their own timings. |
 | C-8 | Fixed | Unreachable branch, dead accumulators, duplicate digest and unreferenced constants removed. |
 | C-9 | Open | API inconsistencies (`design` string-as-content, unused `lint`, role matching, nine subcommands without `--json`) are behaviour changes left for the owner. |
 | S-1 | Fixed | Event handlers, unsafe URL schemes, unclosed `<script`, raw-HTML governance; nine bypasses are negative tests. |
@@ -340,20 +340,20 @@ Status as of the follow-up work on 2026-10-22, all on branch `claude/project-aud
 | S-7 | Fixed | Void tags added; skipped-tag stack pops to the matching tag. |
 | S-8 | Fixed | Adapter strips reserved internal headers; the verified flag lives on the request object. |
 | S-9 | Fixed | Size gates before reads. |
-| S-10 | In progress | SECURITY.md sentence on consistency versus authenticity. |
+| S-10 | Fixed | SECURITY.md states that `viewspec check` verifies consistency with an unsigned manifest, not authorship, and points to `prove` for identity. |
 | S-11 | Open | Pinned receipt key and HTTPS-only `api_url` need a hosted-side decision. |
-| S-12, S-13 | Info | Claims re-checked; SECURITY.md update in progress. |
+| S-12, S-13 | Fixed | SECURITY.md describes the resolved MCP working directory, the `--force` marker rule, the DESIGN.md cap and the HTML size gate. |
 | Q-1 | Partial | Stub and `pyrightconfig.json` added (849 to 770 errors); a baseline gate stops regressions; the remaining errors are not fixed. |
 | Q-2 | Partial | Hosted client moved out of `compiler.py`; module splits deferred by owner decision. |
-| Q-3 | Partial | Shared artifact-write helper in progress; tag and ARIA ladders deferred by owner decision. |
+| Q-3 | Partial | The three emitters and the raw-HTML importer share `viewspec.emitters._write`; tag and ARIA ladders deferred by owner decision. |
 | Q-4 | Open | Recipes module mutation deferred by owner decision (regression risk). |
 | Q-5 | Partial | Constant moved, public helper names, `derive_style_tokens` public; agent-layer and tool-layer imports remain, described in the merge notes. |
 | Q-6 | Open | API tiering is a pre-1.0 owner decision. |
-| Q-7 | In progress | `ruff format` adoption and rule set. |
+| Q-7 | Fixed | `ruff format` applied to every Python file and gated in CI; rules `I`, `UP`, `B`, `SIM` enabled with two documented ignores. |
 | Q-8 | Fixed | `CompilerInternalError` and `LocalToolContractError`; two coded raises in `app_numeric.py` and one in the HTML emitter remain. |
 | Q-9 | Fixed | Loggers with a `NullHandler`; daemons configure stderr. |
 | Q-10 | Fixed | Secondary failures logged; `raise ... from` everywhere. |
-| Q-11 | Fixed | 49 of 52 asserts replaced; the last three are in progress. |
+| Q-11 | Fixed | All 52 asserts in request and tool paths replaced with explicit checks. |
 | Q-12 | Fixed | Builder exports added; alias kept. |
 | Q-13 | Info | |
 | T-1 | Fixed | Exact skip reasons; CI still runs everything. |

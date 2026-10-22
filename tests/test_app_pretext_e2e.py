@@ -36,9 +36,8 @@ from viewspec.app_pretext import (
     PRETEXT_VERSION,
     PRETEXT_VIEWPORTS,
 )
-from viewspec.local_tools import file_hash
 from viewspec.app_react_verify import verify_react_app_artifact_dir
-
+from viewspec.local_tools import file_hash
 
 E2E_OPT_IN = "VIEWSPEC_RUN_PRETEXT_E2E"
 E2E_ARTIFACT_DIR = "VIEWSPEC_PRETEXT_E2E_ARTIFACT_DIR"
@@ -296,9 +295,7 @@ def _real_freerange_fault_scope(app_dir: Path, function_name: str) -> dict[str, 
                 "required_functions": [function_name],
             }
         ],
-        "call_sites": [
-            {"path": call_site_path, "sha256": file_hash(app_dir / call_site_path)}
-        ],
+        "call_sites": [{"path": call_site_path, "sha256": file_hash(app_dir / call_site_path)}],
     }
 
 
@@ -468,16 +465,11 @@ def test_real_injected_numeric_and_text_defects_are_caught(
 
     numeric_faults = {
         "divisionDefect": (
-            "export function divisionDefect(value: number): number {\n"
-            "  return value / 0;\n"
-            "}\n",
+            "export function divisionDefect(value: number): number {\n  return value / 0;\n}\n",
             "inferred-requirement",
         ),
         "boundsDefect": (
-            "export function boundsDefect(): number {\n"
-            "  const values = [1, 2];\n"
-            "  return values[2]!;\n"
-            "}\n",
+            "export function boundsDefect(): number {\n  const values = [1, 2];\n  return values[2]!;\n}\n",
             "out-of-bounds-read",
         ),
     }

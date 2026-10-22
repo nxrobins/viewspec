@@ -4,7 +4,8 @@ import sys
 from types import SimpleNamespace
 
 import pytest
-from hypothesis import HealthCheck, given, settings, strategies as st
+from hypothesis import HealthCheck, given, settings
+from hypothesis import strategies as st
 
 from viewspec import (
     ASTBundle,
@@ -167,10 +168,14 @@ def test_compile_remote_response_normalizes_invalid_design_metadata(monkeypatch)
 def test_compile_auto_uses_local_when_design_is_attached(monkeypatch):
     bundle = _bundle()
     ast = compile(bundle)
-    request = ViewSpecBuilder("auto_design").attach_design(
-        "---\nname: Acme\ncolors:\n  primary: \"#112233\"\n---\n",
-        is_path=False,
-    ).build_compile_request()
+    request = (
+        ViewSpecBuilder("auto_design")
+        .attach_design(
+            '---\nname: Acme\ncolors:\n  primary: "#112233"\n---\n',
+            is_path=False,
+        )
+        .build_compile_request()
+    )
     calls, _ = _install_fake_httpx(monkeypatch, FakeResponse(200, {"ast": ast.to_json()}))
 
     restored = compile_auto(request)
@@ -182,10 +187,14 @@ def test_compile_auto_uses_local_when_design_is_attached(monkeypatch):
 
 def test_compile_auto_raises_local_design_error_without_uploading_to_remote(monkeypatch):
     """C-3: a broken local DESIGN.md is the caller's error, never a reason to upload the bundle."""
-    request = ViewSpecBuilder("auto_hosted_design").attach_design(
-        "name: Acme\ncolor.primary: #FFFFFF\n",
-        is_path=False,
-    ).build_compile_request()
+    request = (
+        ViewSpecBuilder("auto_hosted_design")
+        .attach_design(
+            "name: Acme\ncolor.primary: #FFFFFF\n",
+            is_path=False,
+        )
+        .build_compile_request()
+    )
     ast = compile(request.bundle)
     calls, _ = _install_fake_httpx(monkeypatch, FakeResponse(200, {"ast": ast.to_json()}))
 

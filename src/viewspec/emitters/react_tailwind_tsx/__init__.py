@@ -8,6 +8,7 @@ import logging
 from pathlib import Path
 from typing import Any
 
+from viewspec.emitters._write import write_artifact_set
 from viewspec.emitters.base import (
     EmitterNodeContext,
     EmitterNodePlugin,
@@ -17,6 +18,8 @@ from viewspec.emitters.base import (
 )
 from viewspec.emitters.html_tailwind import (
     LAYOUT_EMPHASIS_CLASS_BY_VALUE as SEMANTIC_LAYOUT_EMPHASIS_CLASS_BY_VALUE,
+)
+from viewspec.emitters.html_tailwind import (
     LAYOUT_ROLE_CLASS_BY_ROLE,
     MOTIF_KIND_CLASS_BY_KIND,
     PRODUCT_ROLE_CLASS_BY_ROLE,
@@ -27,18 +30,6 @@ from viewspec.emitters.html_tailwind import (
     _node_classes,
     _validate_ir_contract,
     _validate_style_values,
-)
-from viewspec.emitters._write import write_artifact_set
-from viewspec.emitters.react_tsx import (
-    _action_expression,
-    _compiled_payload_values,
-    _initial_input_values,
-    _json_string_attr,
-    _node_fallback_text,
-    _safe_json_literal,
-    _tag_for_node,
-    _text_expression,
-    _tsx_string,
 )
 from viewspec.emitters.react_tailwind_tsx import recipes as _recipes
 from viewspec.emitters.react_tailwind_tsx.recipes import (
@@ -62,8 +53,18 @@ from viewspec.emitters.react_tailwind_tsx.recipes import (
     _fail,
     _walk,
 )
-from viewspec.types import ASTBundle, CompilerResult, DEFAULT_STYLE_TOKEN_VALUES, IRNode
-
+from viewspec.emitters.react_tsx import (
+    _action_expression,
+    _compiled_payload_values,
+    _initial_input_values,
+    _json_string_attr,
+    _node_fallback_text,
+    _safe_json_literal,
+    _tag_for_node,
+    _text_expression,
+    _tsx_string,
+)
+from viewspec.types import DEFAULT_STYLE_TOKEN_VALUES, ASTBundle, CompilerResult, IRNode
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -150,7 +151,6 @@ def tailwind_recipe_registry_projection() -> dict[str, Any]:
     return projection
 
 
-
 def _jsx_attr(name: str, value: object) -> str:
     return f"{name}={{{_tsx_string(value)}}}"
 
@@ -218,7 +218,7 @@ def _attrs_for_node(node: IRNode, recipe: ResolvedRecipe) -> list[str]:
             [
                 'type="text"',
                 f"name={{{_tsx_string(binding_id)}}}",
-                f"value={{String(inputValues[{_tsx_string(binding_id)}] ?? \"\")}}",
+                f'value={{String(inputValues[{_tsx_string(binding_id)}] ?? "")}}',
                 f"onChange={{(event) => setInputValue({_tsx_string(binding_id)}, event.target.value)}}",
             ]
         )
@@ -422,7 +422,6 @@ def _render_node(
     return lines
 
 
-
 def _emit_source(result: CompilerResult, title: str) -> tuple[str, dict[str, Any], dict[str, ResolvedRecipe]]:
     root = result.root.root
     recipes = _resolve_recipes(root)
@@ -447,11 +446,11 @@ def _emit_source(result: CompilerResult, title: str) -> tuple[str, dict[str, Any
     lines = [
         '"use client";',
         "",
-        "import * as React from \"react\";",
+        'import * as React from "react";',
         "",
         "export type ViewSpecActionIntent = {",
         "  schemaVersion: 1;",
-        "  source: \"viewspec-react-tailwind-tsx\";",
+        '  source: "viewspec-react-tailwind-tsx";',
         "  id: string;",
         "  kind: string;",
         "  targetRef: string;",
@@ -473,8 +472,8 @@ def _emit_source(result: CompilerResult, title: str) -> tuple[str, dict[str, Any
         "function renderValue(value: unknown, fallback: React.ReactNode): React.ReactNode {",
         "  if (value == null) return fallback;",
         "  if (React.isValidElement(value)) return value;",
-        "  if (typeof value === \"string\" || typeof value === \"number\") return value;",
-        "  if (typeof value === \"boolean\") return value ? \"true\" : \"false\";",
+        '  if (typeof value === "string" || typeof value === "number") return value;',
+        '  if (typeof value === "boolean") return value ? "true" : "false";',
         "  try {",
         "    return JSON.stringify(value);",
         "  } catch {",
@@ -488,19 +487,19 @@ def _emit_source(result: CompilerResult, title: str) -> tuple[str, dict[str, Any
         "  const setInputValue = (id: string, value: unknown) => {",
         "    setInputValues((current) => ({ ...current, [id]: value }));",
         "  };",
-        "  const utf8Bytes = (value: unknown): number => new TextEncoder().encode(String(value ?? \"\")).length;",
+        '  const utf8Bytes = (value: unknown): number => new TextEncoder().encode(String(value ?? "")).length;',
         "  const assertPayloadBounds = (kind: string, payloadBindings: string[], payloadValues: Record<string, unknown>) => {",
-        "    if (kind === \"bulk_action\") {",
-        "      const selectionBindings = payloadBindings.filter((id) => id.endsWith(\"_selection\") || id.endsWith(\"_selected_ids\"));",
-        "      if (selectionBindings.length !== 1 || payloadBindings.length !== 1) throw new Error(\"COLLECTION_BULK_SELECTION_AMBIGUOUS\");",
+        '    if (kind === "bulk_action") {',
+        '      const selectionBindings = payloadBindings.filter((id) => id.endsWith("_selection") || id.endsWith("_selected_ids"));',
+        '      if (selectionBindings.length !== 1 || payloadBindings.length !== 1) throw new Error("COLLECTION_BULK_SELECTION_AMBIGUOUS");',
         "      const value = payloadValues[selectionBindings[0]];",
-        "      if (Array.isArray(value) && value.length > 100) throw new Error(\"COLLECTION_BULK_SELECTION_TOO_LARGE\");",
-        "      if (utf8Bytes(value) > 4096) throw new Error(\"COLLECTION_BULK_SELECTION_TOO_LARGE\");",
+        '      if (Array.isArray(value) && value.length > 100) throw new Error("COLLECTION_BULK_SELECTION_TOO_LARGE");',
+        '      if (utf8Bytes(value) > 4096) throw new Error("COLLECTION_BULK_SELECTION_TOO_LARGE");',
         "      return;",
         "    }",
-        "    if ([\"search\", \"filter\", \"sort\", \"paginate\"].includes(kind)) {",
+        '    if (["search", "filter", "sort", "paginate"].includes(kind)) {',
         "      payloadBindings.forEach((bindingId) => {",
-        "        if (utf8Bytes(payloadValues[bindingId]) > 512) throw new Error(\"COLLECTION_ACTION_PAYLOAD_TOO_LARGE\");",
+        '        if (utf8Bytes(payloadValues[bindingId]) > 512) throw new Error("COLLECTION_ACTION_PAYLOAD_TOO_LARGE");',
         "      });",
         "    }",
         "  };",

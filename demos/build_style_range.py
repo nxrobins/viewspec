@@ -15,6 +15,7 @@ from typing import Any
 
 from build_aesthetic_profiles import compile_profiles
 from seo_metadata import demo_head_metadata
+
 from viewspec import AESTHETIC_PROFILE_TOKENS
 from viewspec.emitters.html_tailwind import OFFLINE_EMITTER_CSS
 
@@ -178,14 +179,10 @@ SHELL_CSS = """
 def _assert_honest(profiles: dict[str, dict[str, Any]]) -> None:
     """SC-2: exactly eight tiles, one shared semantic hash, eight distinct style hashes."""
     if len(profiles) != len(AESTHETIC_PROFILE_TOKENS):
-        raise RuntimeError(
-            f"Style range expects {len(AESTHETIC_PROFILE_TOKENS)} profiles, got {len(profiles)}."
-        )
+        raise RuntimeError(f"Style range expects {len(AESTHETIC_PROFILE_TOKENS)} profiles, got {len(profiles)}.")
     semantic_hashes = {data["semanticHash"] for data in profiles.values()}
     if len(semantic_hashes) != 1:
-        raise RuntimeError(
-            f"Style range specimens must share one semantic hash; found {len(semantic_hashes)}."
-        )
+        raise RuntimeError(f"Style range specimens must share one semantic hash; found {len(semantic_hashes)}.")
     style_hashes: dict[str, str] = {}
     for profile, data in profiles.items():
         digest = data["styleProjectionHash"]

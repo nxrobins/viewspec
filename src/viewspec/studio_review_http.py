@@ -7,14 +7,14 @@ logs requests, accepts capabilities in paths, or serves semantic source files.
 
 from __future__ import annotations
 
-from collections.abc import Callable, Mapping
-from dataclasses import dataclass
 import hashlib
 import json
 import os
-from pathlib import Path
 import re
 import tempfile
+from collections.abc import Callable, Mapping
+from dataclasses import dataclass
+from pathlib import Path
 from urllib.parse import unquote_to_bytes, urlsplit
 
 from viewspec.review_contract import canonical_json_bytes
@@ -25,7 +25,6 @@ from viewspec.studio_review_internal import (
 )
 from viewspec.studio_review_service import StudioReviewService, StudioReviewServiceError
 from viewspec.studio_share import STUDIO_SHARE_ARCHIVE_MAX_BYTES
-
 
 STUDIO_REVIEW_MEDIA_TYPE = "application/vnd.viewspec.review+zip"
 STUDIO_REVIEW_COOKIE_NAME = "__Secure-viewspec_review"
@@ -158,7 +157,10 @@ class StudioReviewHTTPAdapter:
                 "Authenticate with the configured deployment identity and retry.",
                 http_status=401,
             )
-        if headers.get("content-type") != STUDIO_REVIEW_MEDIA_TYPE or not 1 <= len(body) <= STUDIO_SHARE_ARCHIVE_MAX_BYTES:
+        if (
+            headers.get("content-type") != STUDIO_REVIEW_MEDIA_TYPE
+            or not 1 <= len(body) <= STUDIO_SHARE_ARCHIVE_MAX_BYTES
+        ):
             raise _http_invalid("Create requires one bounded deterministic .vsreview request body.")
         if headers.get("x-viewspec-disclosure-accepted") != "true":
             raise StudioReviewServiceError(
@@ -264,9 +266,7 @@ class StudioReviewHTTPAdapter:
             )
             marker = b"</body>"
             content = (
-                content.replace(marker, body_injection + marker, 1)
-                if marker in content
-                else content + body_injection
+                content.replace(marker, body_injection + marker, 1) if marker in content else content + body_injection
             )
             response_sha256 = hashlib.sha256(content).hexdigest()
             extra_headers = (
@@ -347,7 +347,11 @@ def _request_head(request: ReviewHTTPRequest) -> tuple[str, str, dict[str, str]]
     headers: dict[str, str] = {}
     total = 0
     for raw_name, raw_value in request.headers.items():
-        if not isinstance(raw_name, str) or not isinstance(raw_value, str) or _HEADER_NAME_RE.fullmatch(raw_name) is None:
+        if (
+            not isinstance(raw_name, str)
+            or not isinstance(raw_value, str)
+            or _HEADER_NAME_RE.fullmatch(raw_name) is None
+        ):
             raise _http_invalid("Private review request headers are invalid.")
         name = raw_name.lower()
         if name in headers or _HEADER_CONTROL_RE.search(raw_value) is not None or len(raw_value) > 8192:
@@ -428,8 +432,7 @@ def _json_response(
 def _asset_response(content_type: str, body: bytes) -> ReviewHTTPResponse:
     return ReviewHTTPResponse(
         status=200,
-        headers=_security_headers(shell=True)
-        + (("Content-Type", content_type), ("Content-Length", str(len(body)))),
+        headers=_security_headers(shell=True) + (("Content-Type", content_type), ("Content-Length", str(len(body)))),
         body=body,
     )
 
@@ -474,6 +477,7 @@ def _security_headers(*, shell: bool) -> tuple[tuple[str, str], ...]:
         ("X-Robots-Tag", "noindex, noarchive"),
     )
 
+
 def _http_invalid(message: str) -> StudioReviewServiceError:
     return StudioReviewServiceError(
         "STUDIO_REVIEW_HTTP_INVALID",
@@ -497,9 +501,12 @@ _HOSTED_FRAME_BOOTSTRAP = r"""(() => {
 })()"""
 
 
-_HOSTED_FRAME_CLIENT = r"""(() => {
+_HOSTED_FRAME_CLIENT = (
+    r"""(() => {
   'use strict'
-""" + FRAME_RENDER_WAIT_JS + r"""
+"""
+    + FRAME_RENDER_WAIT_JS
+    + r"""
   const ownScript = document.currentScript
   const surface = ownScript?.dataset.surface || 'unknown'
   const channel = window.__viewspecHostedReviewTransportV1?.channel || ''
@@ -594,6 +601,7 @@ _HOSTED_FRAME_CLIENT = r"""(() => {
   if (document.readyState === 'loading') addEventListener('DOMContentLoaded', announceReady, {once: true})
   else announceReady()
 })()"""
+)
 
 
 _REVIEW_HTML = """<!doctype html>

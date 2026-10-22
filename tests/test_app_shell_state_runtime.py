@@ -219,7 +219,13 @@ def test_browser_reducer_wraps_shared_javascript_emitter_only():
     inner = browser_source.removeprefix("const ViewSpecStateRuntime = (() => {\n")
     inner = inner[: inner.rindex("\nreturn { ")]
     assert inner == module_source.replace("\nexport const ", "\nconst ").replace("\nexport function ", "\nfunction ")
-    for name in ("VIEWSPEC_STATE_PROFILE", "initialState", "reduceViewSpecState", "selectViewSpecState", "evaluateViewSpecVisibility"):
+    for name in (
+        "VIEWSPEC_STATE_PROFILE",
+        "initialState",
+        "reduceViewSpecState",
+        "selectViewSpecState",
+        "evaluateViewSpecVisibility",
+    ):
         assert name in browser_source[browser_source.rindex("return {") :]
 
 

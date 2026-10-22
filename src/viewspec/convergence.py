@@ -2,16 +2,16 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 import hashlib
 import json
 import re
-from typing import Any, Callable
+from collections.abc import Callable
+from dataclasses import dataclass
+from typing import Any
 
 from viewspec._canonical import canonical_json_ascii_bytes
 from viewspec.repair import VerificationRepairPlan
 from viewspec.verification import RetryLineage, VerificationResult
-
 
 CONVERGENCE_SCHEMA_VERSION = 1
 CONVERGENCE_RUN_ID_RE = re.compile(r"^vcg_[0-9a-f]{32}$")
@@ -102,20 +102,13 @@ class ConvergenceRun:
             raise ValueError("Unsupported convergence schema_version")
         if self.status not in CONVERGENCE_STATUSES:
             raise ValueError("convergence status is invalid")
-        if (
-            type(self.max_attempts) is not int
-            or not 1 <= self.max_attempts <= MAX_CONVERGENCE_ATTEMPTS
-        ):
-            raise ValueError(
-                f"max_attempts must be between 1 and {MAX_CONVERGENCE_ATTEMPTS}"
-            )
+        if type(self.max_attempts) is not int or not 1 <= self.max_attempts <= MAX_CONVERGENCE_ATTEMPTS:
+            raise ValueError(f"max_attempts must be between 1 and {MAX_CONVERGENCE_ATTEMPTS}")
         if not self.attempts or len(self.attempts) > self.max_attempts:
             raise ValueError("convergence run has an invalid attempt count")
-        if tuple(item.attempt for item in self.attempts) != tuple(
-            range(1, len(self.attempts) + 1)
-        ):
+        if tuple(item.attempt for item in self.attempts) != tuple(range(1, len(self.attempts) + 1)):
             raise ValueError("convergence attempts must be contiguous")
-        for previous, current in zip(self.attempts, self.attempts[1:]):
+        for previous, current in zip(self.attempts, self.attempts[1:], strict=False):
             if current.result.lineage.parent_verification_id != previous.result.verification_id:
                 raise ValueError("convergence attempt lineage is not contiguous")
         if self.status == "conformant" and self.final_result.status != "conformant":
@@ -162,13 +155,8 @@ def run_until_conformant(
     max_attempts: int = 3,
 ) -> ConvergenceRun:
     """Verify, repair, and retry one AppBundle through a bounded agent loop."""
-    if (
-        type(max_attempts) is not int
-        or not 1 <= max_attempts <= MAX_CONVERGENCE_ATTEMPTS
-    ):
-        raise ValueError(
-            f"max_attempts must be between 1 and {MAX_CONVERGENCE_ATTEMPTS}"
-        )
+    if type(max_attempts) is not int or not 1 <= max_attempts <= MAX_CONVERGENCE_ATTEMPTS:
+        raise ValueError(f"max_attempts must be between 1 and {MAX_CONVERGENCE_ATTEMPTS}")
     current = _json_copy(app_bundle)
     lineage = RetryLineage.root()
     attempts: list[ConvergenceAttempt] = []

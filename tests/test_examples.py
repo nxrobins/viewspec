@@ -8,7 +8,6 @@ from pathlib import Path
 
 from viewspec import ViewSpecBuilder, compile
 
-
 ROOT = Path(__file__).resolve().parents[1]
 
 

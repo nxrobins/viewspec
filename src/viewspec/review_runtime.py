@@ -2,18 +2,22 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, replace
 import hashlib
-from html.parser import HTMLParser
 import json
 import os
-from pathlib import Path
 import shutil
 import stat
-from typing import Mapping
+from collections.abc import Mapping
+from dataclasses import dataclass, replace
+from html.parser import HTMLParser
+from pathlib import Path
 
 from viewspec._version import __version__
 from viewspec.review_compile import (
+    STUDIO_COMPARE_MANIFEST,
+    STUDIO_COMPARE_TARGET,
+    STUDIO_INSPECTION_MANIFEST,
+    STUDIO_INSPECTION_MAX_BYTES,
     BuiltReviewRevision,
     GenerationGate,
     ReviewSourceSnapshot,
@@ -23,15 +27,10 @@ from viewspec.review_compile import (
     compute_review_semantic_diff,
     load_review_revision,
     load_review_semantic_diff,
-    STUDIO_COMPARE_MANIFEST,
-    STUDIO_COMPARE_TARGET,
-    STUDIO_INSPECTION_MANIFEST,
-    STUDIO_INSPECTION_MAX_BYTES,
 )
 from viewspec.review_contract import ReviewContext, ReviewContractError, ReviewEvent, canonical_json_bytes
 from viewspec.review_session import ReviewSession, read_current_revision
 from viewspec.verification import VerificationResult
-
 
 REVIEW_CONFIG_SCHEMA_VERSION = 1
 MAX_CONFIG_BYTES = 64 * 1024
@@ -78,8 +77,7 @@ class ReviewRuntimeConfiguration:
         if self.design_path is not None and not isinstance(self.design_path, str):
             raise _configuration_conflict("Review configuration design path is invalid.")
         if self.convergence_state_root is not None and (
-            not isinstance(self.convergence_state_root, str)
-            or not os.path.isabs(self.convergence_state_root)
+            not isinstance(self.convergence_state_root, str) or not os.path.isabs(self.convergence_state_root)
         ):
             raise _configuration_conflict("Review convergence state root must be an absolute path.")
         if type(self.requested_port) is not int or not 1024 <= self.requested_port <= 65535:
@@ -202,7 +200,9 @@ class ReviewRuntime:
         reopen: bool = False,
     ) -> ReviewRuntime:
         snapshot = capture_source_snapshot(source_path, design_path=design_path)
-        selected_target = target or ("html-tailwind" if snapshot.source_kind == "intent_bundle" else "html-tailwind-app")
+        selected_target = target or (
+            "html-tailwind" if snapshot.source_kind == "intent_bundle" else "html-tailwind-app"
+        )
         root = Path(os.path.abspath(Path(state_root).expanduser()))
         convergence_root = (
             str(Path(os.path.abspath(Path(convergence_state_root).expanduser())))
@@ -253,7 +253,9 @@ class ReviewRuntime:
                 runtime._rebuild_from_snapshot(snapshot)
             return runtime
 
-        retained_sessions = sum(1 for path in sessions_dir.iterdir() if path.is_dir() and (path / "session.json").is_file())
+        retained_sessions = sum(
+            1 for path in sessions_dir.iterdir() if path.is_dir() and (path / "session.json").is_file()
+        )
         if retained_sessions >= MAX_RETAINED_SESSIONS:
             raise ReviewContractError(
                 "REVIEW_SESSION_LIMIT_EXCEEDED",
@@ -602,7 +604,9 @@ def _load_route_screens(built: BuiltReviewRevision) -> dict[str, str]:
     if built.revision.target == STUDIO_COMPARE_TARGET:
         manifest_name = STUDIO_COMPARE_MANIFEST
     else:
-        manifest_name = "review_manifest.json" if built.revision.target == "react-tailwind-app" else "shell_manifest.json"
+        manifest_name = (
+            "review_manifest.json" if built.revision.target == "react-tailwind-app" else "shell_manifest.json"
+        )
     try:
         payload = json.loads(built.artifact_dir.joinpath(manifest_name).read_text(encoding="utf-8"))
     except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
@@ -623,7 +627,11 @@ def _load_route_screens(built: BuiltReviewRevision) -> dict[str, str]:
         )
     result: dict[str, str] = {}
     for route in routes:
-        if not isinstance(route, dict) or not isinstance(route.get("path"), str) or not isinstance(route.get("screenId"), str):
+        if (
+            not isinstance(route, dict)
+            or not isinstance(route.get("path"), str)
+            or not isinstance(route.get("screenId"), str)
+        ):
             raise ReviewContractError(
                 "REVIEW_MANIFEST_AMBIGUOUS",
                 "Checked AppBundle shell contains an invalid route mapping.",
@@ -722,9 +730,7 @@ def _inspection_resource_ref(
     matches = [
         assertion
         for view in resources["views"]
-        if isinstance(view, dict)
-        and view.get("screen_id") == screen_id
-        and isinstance(view.get("assertions"), list)
+        if isinstance(view, dict) and view.get("screen_id") == screen_id and isinstance(view.get("assertions"), list)
         for assertion in view["assertions"]
         if isinstance(assertion, dict) and assertion.get("matched_binding_id") == target_binding_id
     ]
@@ -795,7 +801,22 @@ def _verification_failed(message: str) -> ReviewContractError:
 
 
 class _ElementTextParser(HTMLParser):
-    _VOID_TAGS = {"area", "base", "br", "col", "embed", "hr", "img", "input", "link", "meta", "param", "source", "track", "wbr"}
+    _VOID_TAGS = {
+        "area",
+        "base",
+        "br",
+        "col",
+        "embed",
+        "hr",
+        "img",
+        "input",
+        "link",
+        "meta",
+        "param",
+        "source",
+        "track",
+        "wbr",
+    }
 
     def __init__(self, dom_id: str) -> None:
         super().__init__(convert_charrefs=True)

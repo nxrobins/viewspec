@@ -32,8 +32,8 @@ from viewspec.intent_contract import MAX_SAFE_INTEGER
 from viewspec.types import (
     DEFAULT_STYLE_TOKEN_VALUES,
     INTENT_BUNDLE_SCHEMA_VERSION,
-    IntentBundle,
     PRESENT_AS_TO_PRIMITIVE,
+    IntentBundle,
     parse_canonical_address,
 )
 
@@ -298,7 +298,11 @@ AGENT_INTENT_BUNDLE_SCHEMA: dict[str, Any] = {
             "properties": {
                 "id": {"type": "string", "pattern": SAFE_AGENT_ID_PATTERN},
                 "kind": {"type": "string", "minLength": 1},
-                "attrs": {"type": "object", "maxProperties": MAX_AGENT_NODE_ATTRS, "propertyNames": {"pattern": SAFE_AGENT_ID_PATTERN}},
+                "attrs": {
+                    "type": "object",
+                    "maxProperties": MAX_AGENT_NODE_ATTRS,
+                    "propertyNames": {"pattern": SAFE_AGENT_ID_PATTERN},
+                },
                 "slots": {
                     "type": "object",
                     "maxProperties": MAX_AGENT_NODE_RELATIONS,
@@ -334,7 +338,9 @@ AGENT_INTENT_BUNDLE_SCHEMA: dict[str, Any] = {
             "additionalProperties": False,
             "properties": {
                 "id": {"type": "string", "pattern": SAFE_AGENT_ID_PATTERN},
-                "parent_region": {"anyOf": [{"type": "string", "pattern": SAFE_AGENT_ID_PATTERN}, {"const": ""}, {"type": "null"}]},
+                "parent_region": {
+                    "anyOf": [{"type": "string", "pattern": SAFE_AGENT_ID_PATTERN}, {"const": ""}, {"type": "null"}]
+                },
                 "role": {"type": "string", "minLength": 1},
                 "layout": {"enum": list(SUPPORTED_AGENT_REGION_LAYOUTS)},
                 "min_children": {"type": "integer", "minimum": 0},
@@ -360,8 +366,14 @@ AGENT_INTENT_BUNDLE_SCHEMA: dict[str, Any] = {
             "properties": {
                 "id": {"type": "string", "pattern": SAFE_AGENT_ID_PATTERN},
                 "kind": {"enum": list(SUPPORTED_AGENT_GROUP_KINDS)},
-                "members": {"type": "array", "maxItems": MAX_AGENT_BINDINGS, "items": {"type": "string", "pattern": SAFE_AGENT_ID_PATTERN}},
-                "target_region": {"anyOf": [{"type": "string", "pattern": SAFE_AGENT_ID_PATTERN}, {"const": ""}, {"type": "null"}]},
+                "members": {
+                    "type": "array",
+                    "maxItems": MAX_AGENT_BINDINGS,
+                    "items": {"type": "string", "pattern": SAFE_AGENT_ID_PATTERN},
+                },
+                "target_region": {
+                    "anyOf": [{"type": "string", "pattern": SAFE_AGENT_ID_PATTERN}, {"const": ""}, {"type": "null"}]
+                },
             },
         },
         "motif": {
@@ -372,7 +384,11 @@ AGENT_INTENT_BUNDLE_SCHEMA: dict[str, Any] = {
                 "id": {"type": "string", "pattern": SAFE_AGENT_ID_PATTERN},
                 "kind": {"enum": list(SUPPORTED_AGENT_MOTIFS)},
                 "region": {"type": "string", "pattern": SAFE_AGENT_ID_PATTERN},
-                "members": {"type": "array", "maxItems": MAX_AGENT_BINDINGS, "items": {"type": "string", "pattern": SAFE_AGENT_ID_PATTERN}},
+                "members": {
+                    "type": "array",
+                    "maxItems": MAX_AGENT_BINDINGS,
+                    "items": {"type": "string", "pattern": SAFE_AGENT_ID_PATTERN},
+                },
             },
         },
         "style": {
@@ -401,7 +417,11 @@ AGENT_INTENT_BUNDLE_SCHEMA: dict[str, Any] = {
                         {"type": "null"},
                     ]
                 },
-                "payload_bindings": {"type": "array", "maxItems": MAX_AGENT_ACTION_PAYLOAD_BINDINGS, "items": {"type": "string", "pattern": SAFE_AGENT_ID_PATTERN}},
+                "payload_bindings": {
+                    "type": "array",
+                    "maxItems": MAX_AGENT_ACTION_PAYLOAD_BINDINGS,
+                    "items": {"type": "string", "pattern": SAFE_AGENT_ID_PATTERN},
+                },
             },
         },
         "view_spec": {
@@ -578,7 +598,9 @@ def agent_repair_checklist(result: AgentValidationResult) -> list[str]:
             checks.append(text)
 
     if codes & {"INVALID_JSON", "INVALID_JSON_VALUE", "INVALID_PAYLOAD", "COMPOSITION_IR_INPUT"}:
-        add("Return one strict JSON object with substrate and view_spec; no markdown, arrays, CompositionIR, HTML, CSS, or React.")
+        add(
+            "Return one strict JSON object with substrate and view_spec; no markdown, arrays, CompositionIR, HTML, CSS, or React."
+        )
     if codes & {
         "MISSING_FIELD",
         "NODES_MUST_BE_OBJECT",
@@ -592,19 +614,61 @@ def agent_repair_checklist(result: AgentValidationResult) -> list[str]:
         "INTENT_BUNDLE_PARSE_ERROR",
         "COMPILER_INPUT_ERROR",
     }:
-        add("Include all required local V1 objects and arrays: substrate nodes plus view_spec regions, bindings, groups, motifs, styles, and actions.")
+        add(
+            "Include all required local V1 objects and arrays: substrate nodes plus view_spec regions, bindings, groups, motifs, styles, and actions."
+        )
     if codes & {"UNKNOWN_FIELD", "HOSTED_ONLY_FIELD"}:
-        add("Remove unknown and hosted-only fields; local V1 rejects root design, motif_library, inputs, projections, rules, and custom extensions.")
+        add(
+            "Remove unknown and hosted-only fields; local V1 rejects root design, motif_library, inputs, projections, rules, and custom extensions."
+        )
     if "UNSUPPORTED_SCHEMA_VERSION" in codes:
-        add("Use integer schema_version 1 or omit the field; local V1 is the only supported IntentBundle schema version.")
+        add(
+            "Use integer schema_version 1 or omit the field; local V1 is the only supported IntentBundle schema version."
+        )
     if "INTEGER_OUT_OF_SAFE_RANGE" in codes:
-        add(f"Keep integer attr and slot values within +/-{MAX_SAFE_INTEGER} (2^53); write larger identifiers as JSON strings.")
-    if codes & {"INVALID_ID", "NODE_KEY_MISMATCH", "DUPLICATE_BINDING_ID", "DUPLICATE_REGION_ID", "DUPLICATE_GROUP_ID", "DUPLICATE_MOTIF_ID", "DUPLICATE_STYLE_ID", "DUPLICATE_ACTION_ID"}:
-        add("Use unique safe ids and object keys with only letters, digits, underscore, dot, and dash; node map keys must match node ids.")
-    if codes & {"SUBSTRATE_ID_MISMATCH", "MISSING_SUBSTRATE_ROOT", "MISSING_ROOT_REGION", "ROOT_REGION_HAS_PARENT", "DETACHED_REGION", "REGION_PARENT_CYCLE", "UNKNOWN_REGION", "UNKNOWN_EDGE_TARGET", "UNKNOWN_STYLE_TARGET", "UNKNOWN_ACTION_TARGET", "MISSING_GROUP_MEMBER", "MISSING_MOTIF_MEMBER", "UNKNOWN_ACTION_PAYLOAD_BINDING"}:
+        add(
+            f"Keep integer attr and slot values within +/-{MAX_SAFE_INTEGER} (2^53); write larger identifiers as JSON strings."
+        )
+    if codes & {
+        "INVALID_ID",
+        "NODE_KEY_MISMATCH",
+        "DUPLICATE_BINDING_ID",
+        "DUPLICATE_REGION_ID",
+        "DUPLICATE_GROUP_ID",
+        "DUPLICATE_MOTIF_ID",
+        "DUPLICATE_STYLE_ID",
+        "DUPLICATE_ACTION_ID",
+    }:
+        add(
+            "Use unique safe ids and object keys with only letters, digits, underscore, dot, and dash; node map keys must match node ids."
+        )
+    if codes & {
+        "SUBSTRATE_ID_MISMATCH",
+        "MISSING_SUBSTRATE_ROOT",
+        "MISSING_ROOT_REGION",
+        "ROOT_REGION_HAS_PARENT",
+        "DETACHED_REGION",
+        "REGION_PARENT_CYCLE",
+        "UNKNOWN_REGION",
+        "UNKNOWN_EDGE_TARGET",
+        "UNKNOWN_STYLE_TARGET",
+        "UNKNOWN_ACTION_TARGET",
+        "MISSING_GROUP_MEMBER",
+        "MISSING_MOTIF_MEMBER",
+        "UNKNOWN_ACTION_PAYLOAD_BINDING",
+    }:
         add("Resolve every reference and keep regions as one acyclic tree rooted at view_spec.root_region.")
-    if codes & {"INVALID_ADDRESS", "DUPLICATE_EXACTLY_ONCE_ADDRESS", "UNKNOWN_PRESENT_AS", "UNSUPPORTED_CARDINALITY", "UNSUPPORTED_GROUP_KIND", "UNSUPPORTED_REGION_LAYOUT"}:
-        add("Use canonical node addresses, exactly_once cardinality, ordered groups, and stack/grid/cluster region layouts.")
+    if codes & {
+        "INVALID_ADDRESS",
+        "DUPLICATE_EXACTLY_ONCE_ADDRESS",
+        "UNKNOWN_PRESENT_AS",
+        "UNSUPPORTED_CARDINALITY",
+        "UNSUPPORTED_GROUP_KIND",
+        "UNSUPPORTED_REGION_LAYOUT",
+    }:
+        add(
+            "Use canonical node addresses, exactly_once cardinality, ordered groups, and stack/grid/cluster region layouts."
+        )
     if codes & {
         "UNSUPPORTED_MOTIF",
         "EMPTY_MOTIF",
@@ -617,7 +681,9 @@ def agent_repair_checklist(result: AgentValidationResult) -> list[str]:
         "STATE_MOTIF_TOO_MANY_DESCRIPTIONS",
         "COLLECTION_STATE_CONFLICT",
     }:
-        add("Use only supported motifs and make each motif semantically complete with the required label, value, title, input, or comparison members.")
+        add(
+            "Use only supported motifs and make each motif semantically complete with the required label, value, title, input, or comparison members."
+        )
     if codes & {
         "UNSUPPORTED_STYLE_TOKEN",
         "AMBIGUOUS_STYLE_TARGET",
@@ -631,9 +697,17 @@ def agent_repair_checklist(result: AgentValidationResult) -> list[str]:
         "AESTHETIC_PROFILE_MULTIPLE",
         "AESTHETIC_PROFILE_TARGET_INVALID",
     }:
-        add("Use only published style tokens, unambiguous style targets, supported action kinds, and explicit region/binding/motif/view target_ref values.")
-    if any(code.startswith("TOO_MANY_") for code in codes) or codes == {"INTENT_TOO_LARGE"} or "INTENT_TOO_LARGE" in codes:
-        add("Stay within local V1 caps; split larger UI surfaces into smaller IntentBundles instead of forcing one bundle.")
+        add(
+            "Use only published style tokens, unambiguous style targets, supported action kinds, and explicit region/binding/motif/view target_ref values."
+        )
+    if (
+        any(code.startswith("TOO_MANY_") for code in codes)
+        or codes == {"INTENT_TOO_LARGE"}
+        or "INTENT_TOO_LARGE" in codes
+    ):
+        add(
+            "Stay within local V1 caps; split larger UI surfaces into smaller IntentBundles instead of forcing one bundle."
+        )
     add("Regenerate the full IntentBundle, then rerun viewspec validate-intent before compiling.")
     return checks[:MAX_AGENT_REPAIR_CHECKLIST_ITEMS]
 
@@ -740,7 +814,11 @@ def _validate_intent_bundle_shape(data: dict[str, Any]) -> list[AgentValidationI
     _reject_unknown_fields(data, "$", ROOT_ALLOWED_FIELDS | set(HOSTED_ONLY_ROOT_FIELDS), issues)
     if "schema_version" in data:
         version = data["schema_version"]
-        if isinstance(version, bool) or not isinstance(version, (int, float)) or version != INTENT_BUNDLE_SCHEMA_VERSION:
+        if (
+            isinstance(version, bool)
+            or not isinstance(version, (int, float))
+            or version != INTENT_BUNDLE_SCHEMA_VERSION
+        ):
             issues.append(
                 _issue(
                     "UNSUPPORTED_SCHEMA_VERSION",
@@ -754,7 +832,9 @@ def _validate_intent_bundle_shape(data: dict[str, Any]) -> list[AgentValidationI
     if substrate is None or view_spec is None:
         return issues
     _reject_unknown_fields(substrate, "$.substrate", SUBSTRATE_ALLOWED_FIELDS, issues)
-    _reject_unknown_fields(view_spec, "$.view_spec", VIEW_SPEC_ALLOWED_FIELDS | set(HOSTED_ONLY_VIEW_SPEC_FIELDS), issues)
+    _reject_unknown_fields(
+        view_spec, "$.view_spec", VIEW_SPEC_ALLOWED_FIELDS | set(HOSTED_ONLY_VIEW_SPEC_FIELDS), issues
+    )
     hosted_only_found = _validate_hosted_only_fields(data, view_spec, issues)
 
     if isinstance(substrate.get("nodes"), list):
@@ -763,7 +843,7 @@ def _validate_intent_bundle_shape(data: dict[str, Any]) -> list[AgentValidationI
                 "NODES_MUST_BE_OBJECT",
                 "$.substrate.nodes",
                 "substrate.nodes must be an object keyed by node ID, not an array.",
-                "Use {\"node_id\": {\"id\": \"node_id\", ...}}.",
+                'Use {"node_id": {"id": "node_id", ...}}.',
             )
         )
         nodes = None
@@ -944,7 +1024,9 @@ def _validate_nodes(nodes: dict[str, Any], root_id: str | None, issues: list[Age
             issues,
         ):
             for attr_key, attr_value in attrs.items():
-                _validate_safe_id(attr_key if isinstance(attr_key, str) else None, f"{path}.attrs", "attribute key", issues)
+                _validate_safe_id(
+                    attr_key if isinstance(attr_key, str) else None, f"{path}.attrs", "attribute key", issues
+                )
                 _validate_number_precision(attr_value, f"{path}.attrs.{attr_key}", issues)
         if slots is not None and _check_count(
             slots,
@@ -990,7 +1072,7 @@ def _validate_values_map(
                 _issue(
                     code,
                     item_path,
-                    "Slot and edge values must use protobuf JSON shape {\"values\": [...]}.",
+                    'Slot and edge values must use protobuf JSON shape {"values": [...]}.',
                     "Wrap the array in an object with a values key.",
                 )
             )
@@ -1010,7 +1092,9 @@ def _validate_values_map(
         if edge_target_ids is not None:
             for index, target_id in enumerate(value["values"]):
                 target_path = f"{item_path}.values[{index}]"
-                if not _validate_safe_id(target_id if isinstance(target_id, str) else None, target_path, "edge target id", issues):
+                if not _validate_safe_id(
+                    target_id if isinstance(target_id, str) else None, target_path, "edge target id", issues
+                ):
                     continue
                 if target_id not in edge_target_ids:
                     issues.append(
@@ -1056,7 +1140,11 @@ def _validate_number_precision(value: Any, path: str, issues: list[AgentValidati
 
 
 def _validate_regions(regions: list[Any], root_region: str | None, issues: list[AgentValidationIssue]) -> None:
-    region_ids = {region["id"] for region in regions if isinstance(region, dict) and isinstance(region.get("id"), str) and region["id"]}
+    region_ids = {
+        region["id"]
+        for region in regions
+        if isinstance(region, dict) and isinstance(region.get("id"), str) and region["id"]
+    }
     parent_by_region: dict[str, str | None] = {}
     for index, region in enumerate(regions):
         path = f"$.view_spec.regions[{index}]"
@@ -1068,7 +1156,9 @@ def _validate_regions(regions: list[Any], root_region: str | None, issues: list[
         parent = region.get("parent_region")
         _validate_safe_id(region_id if isinstance(region_id, str) else None, f"{path}.id", "region id", issues)
         if parent not in (None, ""):
-            _validate_safe_id(parent if isinstance(parent, str) else None, f"{path}.parent_region", "parent region id", issues)
+            _validate_safe_id(
+                parent if isinstance(parent, str) else None, f"{path}.parent_region", "parent region id", issues
+            )
         if isinstance(region_id, str) and region_id:
             parent_by_region[region_id] = parent if isinstance(parent, str) and parent else None
         if parent not in (None, "") and parent not in region_ids:
@@ -1268,9 +1358,7 @@ def _validate_address(
     node_id = parts["node_id"]
     node = nodes.get(node_id)
     if not isinstance(node, dict):
-        issues.append(
-            _issue("INVALID_ADDRESS", path, f"Binding {binding_id} references missing node {node_id}.")
-        )
+        issues.append(_issue("INVALID_ADDRESS", path, f"Binding {binding_id} references missing node {node_id}."))
         return
     attr = parts["attr"]
     slot = parts["slot"]
@@ -1283,7 +1371,13 @@ def _validate_address(
         if not isinstance(values, list):
             issues.append(_issue("INVALID_ADDRESS", path, f"Binding {binding_id} references missing slot {slot}."))
         elif parts["slot_index"] is not None and parts["slot_index"] >= len(values):
-            issues.append(_issue("INVALID_ADDRESS", path, f"Binding {binding_id} references missing slot index {parts['slot_index']}."))
+            issues.append(
+                _issue(
+                    "INVALID_ADDRESS",
+                    path,
+                    f"Binding {binding_id} references missing slot index {parts['slot_index']}.",
+                )
+            )
     if edge and edge not in (node.get("edges") or {}):
         issues.append(_issue("INVALID_ADDRESS", path, f"Binding {binding_id} references missing edge {edge}."))
 
@@ -1381,7 +1475,9 @@ def _validate_motifs(
                 )
             )
         if region and region not in region_ids:
-            issues.append(_issue("UNKNOWN_REGION", f"{path}.region", f"Motif {motif.get('id')} targets unknown region {region}."))
+            issues.append(
+                _issue("UNKNOWN_REGION", f"{path}.region", f"Motif {motif.get('id')} targets unknown region {region}.")
+            )
         if not _check_count(
             members,
             MAX_AGENT_BINDINGS,
@@ -1405,7 +1501,9 @@ def _validate_motifs(
                     )
                 )
         if kind in SUPPORTED_AGENT_MOTIFS and not missing_member:
-            _validate_motif_completeness(kind, motif_id or str(motif.get("id") or index), members, binding_by_id, path, issues)
+            _validate_motif_completeness(
+                kind, motif_id or str(motif.get("id") or index), members, binding_by_id, path, issues
+            )
 
 
 def _validate_motif_completeness(
@@ -1417,9 +1515,7 @@ def _validate_motif_completeness(
     issues: list[AgentValidationIssue],
 ) -> None:
     member_bindings = [
-        binding_by_id[member]
-        for member in members
-        if isinstance(member, str) and member in binding_by_id
+        binding_by_id[member] for member in members if isinstance(member, str) and member in binding_by_id
     ]
     if not member_bindings:
         issues.append(
@@ -1642,7 +1738,7 @@ def _validate_styles(
             allow_bare=True,
         )
     if len(aesthetic_styles) > 1:
-        for index, style in aesthetic_styles[1:]:
+        for index, _style in aesthetic_styles[1:]:
             issues.append(
                 _issue(
                     "AESTHETIC_PROFILE_MULTIPLE",
@@ -1688,7 +1784,11 @@ def _validate_actions(
             )
         if target_region and target_region not in region_ids:
             issues.append(
-                _issue("UNKNOWN_ACTION_TARGET", f"{path}.target_region", f"Action {action.get('id')} targets unknown region {target_region}.")
+                _issue(
+                    "UNKNOWN_ACTION_TARGET",
+                    f"{path}.target_region",
+                    f"Action {action.get('id')} targets unknown region {target_region}.",
+                )
             )
         if target_ref not in (None, ""):
             _validate_target_ref(
@@ -1714,7 +1814,12 @@ def _validate_actions(
         ):
             continue
         for binding_id in payload_bindings:
-            _validate_safe_id(binding_id if isinstance(binding_id, str) else None, f"{path}.payload_bindings", "payload binding id", issues)
+            _validate_safe_id(
+                binding_id if isinstance(binding_id, str) else None,
+                f"{path}.payload_bindings",
+                "payload binding id",
+                issues,
+            )
             if binding_id not in binding_ids:
                 issues.append(
                     _issue(

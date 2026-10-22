@@ -10,18 +10,17 @@ replay window.
 
 from __future__ import annotations
 
-from collections.abc import Callable, Mapping
-from dataclasses import dataclass
 import hashlib
 import hmac
-from pathlib import Path
 import re
 import secrets
 import sqlite3
 import time
+from collections.abc import Callable, Mapping
+from dataclasses import dataclass
+from pathlib import Path
 
 from viewspec.review_contract import canonical_json_bytes
-
 
 STUDIO_REVIEW_INTERNAL_SCHEMA_VERSION = 1
 STUDIO_REVIEW_INTERNAL_PROTOCOL = "viewspec-studio-review-internal-v1"
@@ -96,7 +95,9 @@ class StudioReviewInternalNonceStore:
         try:
             self.database.chmod(0o600)
         except OSError as exc:
-            raise StudioReviewInternalAuthError("Private review nonce storage permissions could not be secured.") from exc
+            raise StudioReviewInternalAuthError(
+                "Private review nonce storage permissions could not be secured."
+            ) from exc
 
     def admit(self, *, direction: str, nonce: str, expires_at: int, now: int) -> bool:
         if direction not in {"request", "response"} or _NONCE_RE.fullmatch(nonce) is None:
@@ -108,9 +109,7 @@ class StudioReviewInternalNonceStore:
                     "DELETE FROM studio_review_internal_nonces WHERE expires_at < ?",
                     (now,),
                 )
-                active = connection.execute(
-                    "SELECT COUNT(*) FROM studio_review_internal_nonces"
-                ).fetchone()
+                active = connection.execute("SELECT COUNT(*) FROM studio_review_internal_nonces").fetchone()
                 if active is None or int(active[0]) >= STUDIO_REVIEW_INTERNAL_MAX_ACTIVE_NONCES:
                     raise StudioReviewInternalAuthError("Private review nonce storage reached its bounded capacity.")
                 try:

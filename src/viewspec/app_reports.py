@@ -307,9 +307,7 @@ def app_shell_report(
             shell_payload.get("presentation_plan_hash") if isinstance(shell_payload, dict) else None
         ),
         "presentation_plan_diagnostics": (
-            shell_payload.get("presentation_plan_diagnostics", [])
-            if isinstance(shell_payload, dict)
-            else []
+            shell_payload.get("presentation_plan_diagnostics", []) if isinstance(shell_payload, dict) else []
         ),
         **(
             {

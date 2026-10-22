@@ -131,7 +131,13 @@ def _validate_app_payload(payload: dict[str, Any], issues: list[dict[str, str]],
     schema_version = payload.get("schema_version")
     version: int | None = None
     if type(schema_version) is not int:
-        issues.append(_issue("APP_SCHEMA_VERSION_REQUIRED", "$.schema_version", "AppBundle schema_version must be integer 1, 2, 3, or 4."))
+        issues.append(
+            _issue(
+                "APP_SCHEMA_VERSION_REQUIRED",
+                "$.schema_version",
+                "AppBundle schema_version must be integer 1, 2, 3, or 4.",
+            )
+        )
     elif schema_version not in APP_BUNDLE_SUPPORTED_SCHEMA_VERSIONS:
         issues.append(
             _issue(
@@ -237,6 +243,7 @@ def _validate_app_payload(payload: dict[str, Any], issues: list[dict[str, str]],
         _state_ir, state_issues = validate_state_ir(validation_payload)
         issues.extend(issue.to_json() for issue in state_issues)
 
+
 def _validate_app_object(app: dict[str, Any], issues: list[dict[str, str]]) -> None:
     _reject_unknown_fields(app, "$.app", APP_BUNDLE_ALLOWED_APP_FIELDS, issues)
     _reject_forbidden_object_keys(app, "$.app", issues)
@@ -256,6 +263,7 @@ def _validate_app_object(app: dict[str, Any], issues: list[dict[str, str]]) -> N
         )
     root_route = _required_string(app, "root_route", "$.app", issues)
     _validate_route_path(root_route, "$.app.root_route", issues)
+
 
 def _validate_routes(routes: list[Any], issues: list[dict[str, str]]) -> list[str]:
     ids: list[str] = []
@@ -289,6 +297,7 @@ def _validate_routes(routes: list[Any], issues: list[dict[str, str]]) -> list[st
         screen_id = _required_string(route, "screen_id", path, issues)
         _validate_safe_id(screen_id, f"{path}.screen_id", "route screen id", issues)
     return ids
+
 
 def _validate_resources(resources: list[Any], issues: list[dict[str, str]]) -> list[str]:
     ids: list[str] = []
@@ -325,6 +334,7 @@ def _validate_resources(resources: list[Any], issues: list[dict[str, str]]) -> l
         _validate_fixture_records(records, f"{path}.records", issues)
     return ids
 
+
 def _validate_fixture_records(records: list[Any], path: str, issues: list[dict[str, str]]) -> None:
     for index, record in enumerate(records):
         record_path = f"{path}[{index}]"
@@ -346,6 +356,7 @@ def _validate_fixture_records(records: list[Any], path: str, issues: list[dict[s
             _validate_safe_id(key if isinstance(key, str) else None, key_path, "fixture field", issues)
             _validate_fixture_scalar(value, key_path, issues)
 
+
 def _validate_screens(
     screens: list[Any],
     issues: list[dict[str, str]],
@@ -362,11 +373,14 @@ def _validate_screens(
             continue
         allowed_fields = (
             APP_BUNDLE_ALLOWED_SCREEN_FIELDS_V2
-            if schema_version in {APP_BUNDLE_BOUND_SCHEMA_VERSION, APP_BUNDLE_STATE_SCHEMA_VERSION, APP_BUNDLE_VISIBILITY_SCHEMA_VERSION}
+            if schema_version
+            in {APP_BUNDLE_BOUND_SCHEMA_VERSION, APP_BUNDLE_STATE_SCHEMA_VERSION, APP_BUNDLE_VISIBILITY_SCHEMA_VERSION}
             else APP_BUNDLE_ALLOWED_SCREEN_FIELDS | {"resource_views"}
         )
         _reject_unknown_fields(screen, path, allowed_fields, issues)
-        _reject_forbidden_object_keys({key: value for key, value in screen.items() if key != "intent_bundle"}, path, issues)
+        _reject_forbidden_object_keys(
+            {key: value for key, value in screen.items() if key != "intent_bundle"}, path, issues
+        )
         if schema_version == APP_BUNDLE_SCHEMA_VERSION and "resource_views" in screen:
             issues.append(
                 _issue(
@@ -376,7 +390,11 @@ def _validate_screens(
                     "Remove resource_views or upgrade to schema_version 2 with fixture_readonly_v0.",
                 )
             )
-        if schema_version in {APP_BUNDLE_BOUND_SCHEMA_VERSION, APP_BUNDLE_STATE_SCHEMA_VERSION, APP_BUNDLE_VISIBILITY_SCHEMA_VERSION} and "resource_views" not in screen:
+        if (
+            schema_version
+            in {APP_BUNDLE_BOUND_SCHEMA_VERSION, APP_BUNDLE_STATE_SCHEMA_VERSION, APP_BUNDLE_VISIBILITY_SCHEMA_VERSION}
+            and "resource_views" not in screen
+        ):
             issues.append(
                 _issue(
                     "APP_RESOURCE_BINDING_VIEWS_REQUIRED",
@@ -393,7 +411,13 @@ def _validate_screens(
         _validate_app_scalar_string(title, f"{path}.title", issues)
         intent = screen.get("intent_bundle")
         if not isinstance(intent, dict):
-            issues.append(_issue("APP_SCREEN_INTENT_NOT_OBJECT", f"{path}.intent_bundle", "screen.intent_bundle must be an IntentBundle object."))
+            issues.append(
+                _issue(
+                    "APP_SCREEN_INTENT_NOT_OBJECT",
+                    f"{path}.intent_bundle",
+                    "screen.intent_bundle must be an IntentBundle object.",
+                )
+            )
             continue
         if "presentation" in screen:
             issues.extend(
@@ -430,8 +454,14 @@ def _validate_screens(
         validation = validate_intent_text(intent_text, compile_check=compile_check)
         if not validation["ok"]:
             first_issue = validation["issues"][0] if validation["issues"] else {}
-            nested_code = first_issue.get("code", "INTENT_INVALID") if isinstance(first_issue, dict) else "INTENT_INVALID"
-            nested_message = first_issue.get("message", "Embedded IntentBundle validation failed.") if isinstance(first_issue, dict) else "Embedded IntentBundle validation failed."
+            nested_code = (
+                first_issue.get("code", "INTENT_INVALID") if isinstance(first_issue, dict) else "INTENT_INVALID"
+            )
+            nested_message = (
+                first_issue.get("message", "Embedded IntentBundle validation failed.")
+                if isinstance(first_issue, dict)
+                else "Embedded IntentBundle validation failed."
+            )
             issues.append(
                 _issue(
                     "APP_SCREEN_INTENT_INVALID",
@@ -441,6 +471,7 @@ def _validate_screens(
                 )
             )
     return ids, aggregate_intent_bytes
+
 
 def _validate_route_graph(
     app: dict[str, Any] | None,
@@ -487,6 +518,7 @@ def _validate_route_graph(
             )
         )
 
+
 def _validate_resource_binding_v0(resources: list[Any], screens: list[Any], issues: list[dict[str, str]]) -> None:
     resource_records = _fixture_records_by_resource(resources, issues)
     total_views = 0
@@ -498,7 +530,13 @@ def _validate_resource_binding_v0(resources: list[Any], screens: list[Any], issu
         resource_views = screen.get("resource_views")
         if not isinstance(resource_views, list):
             if "resource_views" in screen:
-                issues.append(_issue("APP_RESOURCE_BINDING_VIEWS_NOT_ARRAY", f"{screen_path}.resource_views", "resource_views must be an array."))
+                issues.append(
+                    _issue(
+                        "APP_RESOURCE_BINDING_VIEWS_NOT_ARRAY",
+                        f"{screen_path}.resource_views",
+                        "resource_views must be an array.",
+                    )
+                )
             continue
         if len(resource_views) > APP_RESOURCE_BINDING_MAX_VIEWS_PER_SCREEN:
             issues.append(
@@ -517,7 +555,9 @@ def _validate_resource_binding_v0(resources: list[Any], screens: list[Any], issu
         for view_index, resource_view in enumerate(resource_views):
             path = f"{screen_path}.resource_views[{view_index}]"
             if not isinstance(resource_view, dict):
-                issues.append(_issue("APP_RESOURCE_BINDING_VIEW_NOT_OBJECT", path, "Each resource_view must be an object."))
+                issues.append(
+                    _issue("APP_RESOURCE_BINDING_VIEW_NOT_OBJECT", path, "Each resource_view must be an object.")
+                )
                 continue
             extra = sorted(set(resource_view) - APP_BUNDLE_ALLOWED_RESOURCE_VIEW_FIELDS)
             if extra:
@@ -547,11 +587,29 @@ def _validate_resource_binding_v0(resources: list[Any], screens: list[Any], issu
                 )
             record_ids = _required_array(resource_view, "record_ids", path, issues)
             fields = _required_array(resource_view, "fields", path, issues)
-            _check_list_count(record_ids, APP_RESOURCE_BINDING_MAX_RECORD_REFS_PER_VIEW, f"{path}.record_ids", "APP_RESOURCE_BINDING_LIMIT_EXCEEDED", "record refs per resource view", issues)
-            _check_list_count(fields, APP_RESOURCE_BINDING_MAX_FIELDS_PER_VIEW, f"{path}.fields", "APP_RESOURCE_BINDING_LIMIT_EXCEEDED", "fields per resource view", issues)
-            clean_record_ids = _validate_resource_binding_string_list(record_ids, f"{path}.record_ids", "record id", issues)
+            _check_list_count(
+                record_ids,
+                APP_RESOURCE_BINDING_MAX_RECORD_REFS_PER_VIEW,
+                f"{path}.record_ids",
+                "APP_RESOURCE_BINDING_LIMIT_EXCEEDED",
+                "record refs per resource view",
+                issues,
+            )
+            _check_list_count(
+                fields,
+                APP_RESOURCE_BINDING_MAX_FIELDS_PER_VIEW,
+                f"{path}.fields",
+                "APP_RESOURCE_BINDING_LIMIT_EXCEEDED",
+                "fields per resource view",
+                issues,
+            )
+            clean_record_ids = _validate_resource_binding_string_list(
+                record_ids, f"{path}.record_ids", "record id", issues
+            )
             clean_fields = _validate_resource_binding_string_list(fields, f"{path}.fields", "field", issues)
-            _validate_unique_ids(clean_record_ids, f"{path}.record_ids", "APP_RESOURCE_BINDING_DUPLICATE_RECORD_REF", issues)
+            _validate_unique_ids(
+                clean_record_ids, f"{path}.record_ids", "APP_RESOURCE_BINDING_DUPLICATE_RECORD_REF", issues
+            )
             _validate_unique_ids(clean_fields, f"{path}.fields", "APP_RESOURCE_BINDING_DUPLICATE_FIELD", issues)
             target_motif_id = _required_string(resource_view, "target_motif_id", path, issues)
             _validate_safe_id(target_motif_id, f"{path}.target_motif_id", "resource view target motif id", issues)
@@ -617,7 +675,9 @@ def _validate_resource_binding_v0(resources: list[Any], screens: list[Any], issu
                 claimed_generated_addresses=claimed_generated_addresses,
                 issues=issues,
             )
-        _validate_unique_ids(seen_view_ids, f"{screen_path}.resource_views", "APP_RESOURCE_BINDING_DUPLICATE_VIEW_ID", issues)
+        _validate_unique_ids(
+            seen_view_ids, f"{screen_path}.resource_views", "APP_RESOURCE_BINDING_DUPLICATE_VIEW_ID", issues
+        )
     if total_views > APP_RESOURCE_BINDING_MAX_VIEWS:
         issues.append(
             _issue(
@@ -646,7 +706,10 @@ def _validate_resource_binding_v0(resources: list[Any], screens: list[Any], issu
             )
         )
 
-def _fixture_records_by_resource(resources: list[Any], issues: list[dict[str, str]]) -> dict[str, dict[str, dict[str, Any]]]:
+
+def _fixture_records_by_resource(
+    resources: list[Any], issues: list[dict[str, str]]
+) -> dict[str, dict[str, dict[str, Any]]]:
     resources_by_id: dict[str, dict[str, dict[str, Any]]] = {}
     for resource_index, resource in enumerate(resources):
         if not isinstance(resource, dict) or not isinstance(resource.get("id"), str):
@@ -674,9 +737,12 @@ def _fixture_records_by_resource(resources: list[Any], issues: list[dict[str, st
             seen_ids.append(record_id)
             if record_id not in by_id:
                 by_id[record_id] = record
-        _validate_unique_ids(seen_ids, f"$.resources[{resource_index}].records", "APP_RESOURCE_BINDING_DUPLICATE_RECORD_ID", issues)
+        _validate_unique_ids(
+            seen_ids, f"$.resources[{resource_index}].records", "APP_RESOURCE_BINDING_DUPLICATE_RECORD_ID", issues
+        )
         resources_by_id[resource_id] = by_id
     return resources_by_id
+
 
 def _screen_target_motif_ids(screen: dict[str, Any]) -> set[str]:
     intent = screen.get("intent_bundle") if isinstance(screen.get("intent_bundle"), dict) else {}
@@ -822,11 +888,11 @@ def _validate_resource_repeat(
     resource_id = str(resource_view.get("resource_id") or "")
     target_motif_id = str(resource_view.get("target_motif_id") or "")
     target_motif = motifs.get(target_motif_id)
-    target_members = {
-        item
-        for item in target_motif.get("members", [])
-        if isinstance(item, str)
-    } if isinstance(target_motif, dict) else set()
+    target_members = (
+        {item for item in target_motif.get("members", []) if isinstance(item, str)}
+        if isinstance(target_motif, dict)
+        else set()
+    )
     authored_by_address = {
         str(binding.get("address")): str(binding.get("id"))
         for binding in bindings
@@ -909,7 +975,10 @@ def _claim_resource_repeat_identity(
         return
     claimed[generated_id] = canonical_identity
 
-def _validate_resource_binding_string_list(values: list[Any], path: str, label: str, issues: list[dict[str, str]]) -> list[str]:
+
+def _validate_resource_binding_string_list(
+    values: list[Any], path: str, label: str, issues: list[dict[str, str]]
+) -> list[str]:
     clean: list[str] = []
     for index, value in enumerate(values):
         item_path = f"{path}[{index}]"
@@ -927,8 +996,10 @@ def _validate_resource_binding_string_list(values: list[Any], path: str, label: 
         clean.append(value)
     return clean
 
+
 def _is_resource_binding_scalar(value: Any) -> bool:
-    return isinstance(value, str) or isinstance(value, bool) or value is None or type(value) in {int, float}
+    return isinstance(value, (str, bool)) or value is None or type(value) in {int, float}
+
 
 def route_assertions_for(payload: dict[str, Any]) -> dict[str, bool]:
     routes = payload.get("routes") if isinstance(payload.get("routes"), list) else []
@@ -943,6 +1014,7 @@ def route_assertions_for(payload: dict[str, Any]) -> dict[str, bool]:
         "all_screens_reachable": all(screen_id in route_screen_ids for screen_id in screen_ids),
     }
 
+
 def _validation_payload(
     payload: dict[str, Any] | None,
     issues: list[dict[str, str]],
@@ -954,7 +1026,11 @@ def _validation_payload(
     route_assertions = route_assertions_for(payload) if isinstance(payload, dict) else None
     compile_status = "skipped" if not compile_check else "passed" if not issues else "failed"
     resource_binding = _resource_binding_for_payload(payload)
-    binding_validation = _resource_binding_validation_summary(payload) if isinstance(payload, dict) and resource_binding == APP_BUNDLE_RESOURCE_BINDING_READONLY else None
+    binding_validation = (
+        _resource_binding_validation_summary(payload)
+        if isinstance(payload, dict) and resource_binding == APP_BUNDLE_RESOURCE_BINDING_READONLY
+        else None
+    )
     state_summary = state_ir_summary(payload) if isinstance(payload, dict) else None
     return {
         "schema_version": APP_BUNDLE_RESULT_SCHEMA_VERSION,
@@ -962,15 +1038,24 @@ def _validation_payload(
         "ok": not issues,
         "compile_check": compile_status,
         "resource_binding": resource_binding,
-        **({"binding_scope": APP_BUNDLE_BINDING_SCOPE} if resource_binding == APP_BUNDLE_RESOURCE_BINDING_READONLY else {}),
+        **(
+            {"binding_scope": APP_BUNDLE_BINDING_SCOPE}
+            if resource_binding == APP_BUNDLE_RESOURCE_BINDING_READONLY
+            else {}
+        ),
         **({"resource_binding_validation": binding_validation} if binding_validation is not None else {}),
-        **({"interactive_state": INTERACTIVE_STATE_PROFILE, "state_ir": state_summary} if state_summary is not None else {}),
+        **(
+            {"interactive_state": INTERACTIVE_STATE_PROFILE, "state_ir": state_summary}
+            if state_summary is not None
+            else {}
+        ),
         "summary": summary,
         "route_assertions": route_assertions,
         "raw_bytes": raw_bytes,
         "limits": _app_limits(),
         "issues": issues,
     }
+
 
 def _app_summary(payload: dict[str, Any] | None) -> dict[str, Any] | None:
     if not isinstance(payload, dict):
@@ -991,11 +1076,13 @@ def _app_summary(payload: dict[str, Any] | None) -> dict[str, Any] | None:
         **({"state_ir": state_ir_summary(payload)} if state_ir_summary(payload) is not None else {}),
     }
 
+
 def _app_schema_version(payload: dict[str, Any] | None) -> int | None:
     if not isinstance(payload, dict):
         return None
     schema_version = payload.get("schema_version")
     return schema_version if type(schema_version) is int else None
+
 
 def _resource_binding_for_payload(payload: dict[str, Any] | None) -> str:
     if isinstance(payload, dict) and payload.get("schema_version") in {
@@ -1005,6 +1092,7 @@ def _resource_binding_for_payload(payload: dict[str, Any] | None) -> str:
     }:
         return APP_BUNDLE_RESOURCE_BINDING_READONLY
     return APP_BUNDLE_RESOURCE_BINDING
+
 
 def _resource_binding_report_fields(
     payload: dict[str, Any] | None,
@@ -1019,6 +1107,7 @@ def _resource_binding_report_fields(
         fields["resource_binding_assertions"] = resource_binding_report
     return fields
 
+
 def _resource_binding_fields_from_validation(validation: dict[str, Any] | None) -> dict[str, Any]:
     if not isinstance(validation, dict):
         return {"resource_binding": APP_BUNDLE_RESOURCE_BINDING}
@@ -1031,14 +1120,22 @@ def _resource_binding_fields_from_validation(validation: dict[str, Any] | None) 
             fields["resource_binding_validation"] = binding_validation
     return fields
 
+
 def _resource_binding_validation_summary(payload: dict[str, Any] | None) -> dict[str, Any]:
     resource_view_count = 0
     assertion_count = 0
     screen_count = 0
     if not isinstance(payload, dict):
-        return {"binding_scope": APP_BUNDLE_BINDING_SCOPE, "resource_view_count": 0, "assertion_count": 0, "bound_screen_count": 0}
+        return {
+            "binding_scope": APP_BUNDLE_BINDING_SCOPE,
+            "resource_view_count": 0,
+            "assertion_count": 0,
+            "bound_screen_count": 0,
+        }
     screens = payload.get("screens") if isinstance(payload.get("screens"), list) else []
-    resources = _fixture_records_by_resource(payload.get("resources") if isinstance(payload.get("resources"), list) else [], [])
+    resources = _fixture_records_by_resource(
+        payload.get("resources") if isinstance(payload.get("resources"), list) else [], []
+    )
     for screen in screens:
         if not isinstance(screen, dict):
             continue
@@ -1065,6 +1162,7 @@ def _resource_binding_validation_summary(payload: dict[str, Any] | None) -> dict
         "limits": _resource_binding_limits(),
     }
 
+
 def _app_limits() -> dict[str, int]:
     return {
         "max_raw_json_bytes": APP_BUNDLE_MAX_BYTES,
@@ -1085,6 +1183,7 @@ def _app_limits() -> dict[str, int]:
         **_resource_binding_limits(),
     }
 
+
 def _resource_binding_limits() -> dict[str, int]:
     return {
         "max_resource_views": APP_RESOURCE_BINDING_MAX_VIEWS,
@@ -1094,6 +1193,7 @@ def _resource_binding_limits() -> dict[str, int]:
         "max_resource_binding_assertions": APP_RESOURCE_BINDING_MAX_ASSERTIONS,
         "max_resource_binding_report_bytes": APP_RESOURCE_BINDING_MAX_REPORT_BYTES,
     }
+
 
 def _state_ir_limits() -> dict[str, int]:
     return {
@@ -1111,6 +1211,7 @@ def _state_ir_limits() -> dict[str, int]:
         "max_state_text_template_chars": APP_STATE_TEXT_MAX_TEMPLATE_CHARS,
     }
 
+
 def _reject_unknown_fields(
     obj: dict[str, Any],
     path: str,
@@ -1127,6 +1228,7 @@ def _reject_unknown_fields(
             )
         )
 
+
 def _reject_forbidden_object_keys(obj: dict[str, Any], path: str, issues: list[dict[str, str]]) -> None:
     for key in obj:
         lowered = str(key).lower()
@@ -1139,6 +1241,7 @@ def _reject_forbidden_object_keys(obj: dict[str, Any], path: str, issues: list[d
                     "Remove URL, env, credential, adapter, fetch, mutation, package install, or hosted compiler config.",
                 )
             )
+
 
 def _validate_safe_id(value: str | None, path: str, label: str, issues: list[dict[str, str]]) -> bool:
     if not value:
@@ -1164,6 +1267,7 @@ def _validate_safe_id(value: str | None, path: str, label: str, issues: list[dic
         )
     )
     return False
+
 
 def _validate_route_path(value: str | None, path: str, issues: list[dict[str, str]]) -> None:
     if not isinstance(value, str) or value == "":
@@ -1192,6 +1296,7 @@ def _validate_route_path(value: str | None, path: str, issues: list[dict[str, st
             )
         )
 
+
 def _validate_app_scalar_string(value: str | None, path: str, issues: list[dict[str, str]]) -> None:
     if value is None:
         return
@@ -1214,6 +1319,7 @@ def _validate_app_scalar_string(value: str | None, path: str, issues: list[dict[
             )
         )
 
+
 def _validate_fixture_scalar(value: Any, path: str, issues: list[dict[str, str]]) -> None:
     if value is None or isinstance(value, bool) or type(value) in {int, float}:
         return
@@ -1229,12 +1335,14 @@ def _validate_fixture_scalar(value: Any, path: str, issues: list[dict[str, str]]
         )
     )
 
+
 def _required_object(obj: dict[str, Any], key: str, path: str, issues: list[dict[str, str]]) -> dict[str, Any] | None:
     value = obj.get(key)
     if not isinstance(value, dict):
         issues.append(_issue("APP_MISSING_FIELD", f"{path}.{key}", f"Missing required object field {key}."))
         return None
     return value
+
 
 def _required_array(obj: dict[str, Any], key: str, path: str, issues: list[dict[str, str]]) -> list[Any]:
     value = obj.get(key)
@@ -1243,12 +1351,14 @@ def _required_array(obj: dict[str, Any], key: str, path: str, issues: list[dict[
         return []
     return value
 
+
 def _required_string(obj: dict[str, Any], key: str, path: str, issues: list[dict[str, str]]) -> str | None:
     value = obj.get(key)
     if not isinstance(value, str) or value == "":
         issues.append(_issue("APP_MISSING_FIELD", f"{path}.{key}", f"Missing required string field {key}."))
         return None
     return value
+
 
 def _check_list_count(
     values: list[Any],
@@ -1269,12 +1379,14 @@ def _check_list_count(
         )
     )
 
+
 def _validate_unique_ids(ids: list[str], path: str, code: str, issues: list[dict[str, str]]) -> None:
     seen: set[str] = set()
     for item_id in ids:
         if item_id in seen:
             issues.append(_issue(code, path, f"Duplicate id {item_id}.", "Use unique stable ids."))
         seen.add(item_id)
+
 
 def _issue(code: str, path: str, message: str, suggestion: str | None = None) -> dict[str, str]:
     return {
@@ -1285,8 +1397,10 @@ def _issue(code: str, path: str, message: str, suggestion: str | None = None) ->
         "suggestion": suggestion or "Regenerate the AppBundle using the local AppBundle contract.",
     }
 
+
 def reject_json_constant(value: str) -> None:
     raise ValueError(f"non-finite JSON value {value} is not allowed")
+
 
 # UTF-8 canonical form, shared through viewspec._canonical (see its docstring).
 _stable_json = canonical_json_utf8
@@ -1324,8 +1438,10 @@ def validate_app_text(text: str, *, compile_check: bool = True) -> dict[str, Any
     _validate_app_payload(payload, issues, compile_check=compile_check)
     return _validation_payload(payload, issues, compile_check=compile_check, raw_bytes=raw_bytes)
 
+
 def validate_app_file(path: str | Path, *, compile_check: bool = True) -> dict[str, Any]:
     return validate_app_text(Path(path).read_text(encoding="utf-8"), compile_check=compile_check)
+
 
 # Backward-compatible private aliases; the un-prefixed names are canonical.
 _reject_json_constant = reject_json_constant

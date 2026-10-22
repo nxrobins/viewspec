@@ -110,7 +110,7 @@ def _assert_rejected(result: dict, expected: str) -> None:
         ('<p style="background:\\75rl(https://evil.example/x)">x</p>', AUTOFETCH),
         ('<p style="background:u\\72 l(https://evil.example/x)">x</p>', AUTOFETCH),
         ('<p style="background:url/**/(https://evil.example/x)">x</p>', AUTOFETCH),
-        ('<p style="background:image-set(\'https://evil.example/x\' 1x)">x</p>', AUTOFETCH),
+        ("<p style=\"background:image-set('https://evil.example/x' 1x)\">x</p>", AUTOFETCH),
         ('<p style="background:-webkit-image-set(url(x) 1x)">x</p>', AUTOFETCH),
         ('<p style="background:image(https://evil.example/x)">x</p>', AUTOFETCH),
         ('<p style="background:src(https://evil.example/x)">x</p>', AUTOFETCH),
@@ -171,7 +171,10 @@ def test_check_tool_surfaces_registered_code_path_and_fix(tmp_path):
     assert all(set(error) == {"code", "path", "message", "fix"} for error in checked["errors"])
     # Legacy (unprefixed) messages keep the generic code and the tool's own fix text.
     legacy = [error for error in checked["errors"] if error["code"] == "CHECK_FAILED"]
-    assert all(error["fix"] == "Re-run viewspec compile from the source HTML, or fix the tampered artifact." for error in legacy)
+    assert all(
+        error["fix"] == "Re-run viewspec compile from the source HTML, or fix the tampered artifact."
+        for error in legacy
+    )
 
 
 RAW_HTML_SOURCE = """
@@ -249,7 +252,9 @@ def test_check_holds_tampered_raw_html_manifest_to_the_sanitizer_allowlist(tmp_p
     artifact_dir = _compile_raw_html_artifact(tmp_path)
 
     def add_handler_to_dom(html: str, node_id: str) -> str:
-        return html.replace(f'<h1 data-viewspec-node-id="{node_id}"', f'<h1 data-viewspec-node-id="{node_id}" onclick="alert(1)"', 1)
+        return html.replace(
+            f'<h1 data-viewspec-node-id="{node_id}"', f'<h1 data-viewspec-node-id="{node_id}" onclick="alert(1)"', 1
+        )
 
     _tamper_raw_html_consistently(
         artifact_dir,
@@ -270,7 +275,11 @@ def test_check_holds_tampered_raw_html_manifest_to_the_sanitizer_allowlist(tmp_p
 
     manifest_path = artifact_dir / "provenance_manifest.json"
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-    link_id = next(node_id for node_id, entry in manifest["nodes"].items() if entry["attrs"].get("href") == "mailto:ops@example.com")
+    link_id = next(
+        node_id
+        for node_id, entry in manifest["nodes"].items()
+        if entry["attrs"].get("href") == "mailto:ops@example.com"
+    )
     manifest["nodes"][link_id]["attrs"]["href"] = "javascript:alert(1)"
     manifest_path.write_text(json.dumps(manifest, indent=2, sort_keys=True), encoding="utf-8")
     _tamper(artifact_dir, lambda html: retarget_link(html, link_id))
@@ -287,17 +296,32 @@ def test_committed_demo_artifacts_pass_check():
 
 
 @given(
-    function=st.sampled_from(("url", "URL", "u\\72l", "\\75rl", "ur\\6c", "u/**/rl", "image-set", "-webkit-image-set", "image", "src")),
+    function=st.sampled_from(
+        ("url", "URL", "u\\72l", "\\75rl", "ur\\6c", "u/**/rl", "image-set", "-webkit-image-set", "image", "src")
+    ),
     whitespace=st.text(alphabet=" \t\n\r\f", min_size=0, max_size=8),
 )
 def test_css_gate_rejects_escape_comment_and_function_variants(function, whitespace):
-    assert css_has_unsafe_reference(f"background-image: {function}{whitespace}(https://evil.example/pixel.png);") is True
+    assert (
+        css_has_unsafe_reference(f"background-image: {function}{whitespace}(https://evil.example/pixel.png);") is True
+    )
 
 
 def test_css_gate_accepts_emitter_shaped_css():
-    assert css_has_unsafe_reference("color: #1f2937; font: 14px/1.4 ui-sans-serif; background: rgb(15 118 110 / 0.06);") is False
-    assert css_has_unsafe_reference("/* ViewSpec PresentationPlan v1: shared by static and React AppBundle targets. */ .x{gap:1rem}") is False
-    assert css_has_unsafe_reference("--vs-radius: 12px; filter: saturate(var(--vs-saturation)); aspect-ratio: 16 / 9;") is False
+    assert (
+        css_has_unsafe_reference("color: #1f2937; font: 14px/1.4 ui-sans-serif; background: rgb(15 118 110 / 0.06);")
+        is False
+    )
+    assert (
+        css_has_unsafe_reference(
+            "/* ViewSpec PresentationPlan v1: shared by static and React AppBundle targets. */ .x{gap:1rem}"
+        )
+        is False
+    )
+    assert (
+        css_has_unsafe_reference("--vs-radius: 12px; filter: saturate(var(--vs-saturation)); aspect-ratio: 16 / 9;")
+        is False
+    )
 
 
 def test_autofetch_gate_rejects_unclosed_style_and_many_openers_in_linear_time():
@@ -333,12 +357,22 @@ def test_app_shell_screen_scan_is_linear_and_normalizes_css():
     assert unclosed.value.code == "APP_SHELL_EMBEDDING_UNSUPPORTED"
 
     started = time.perf_counter()
-    _assert_screen_artifact_shell_safe("<html><body>" + "<script>" * 20_000 + "</script>" * 20_000 + "</body></html>", "s1")
+    _assert_screen_artifact_shell_safe(
+        "<html><body>" + "<script>" * 20_000 + "</script>" * 20_000 + "</body></html>", "s1"
+    )
     assert time.perf_counter() - started < 2.0
 
-    for css in ("\\75rl(https://evil.example/x)", "u\\72 l(x)", "url/**/(x)", "image-set('https://evil.example/x' 1x)", "@\\69mport 'x'"):
+    for css in (
+        "\\75rl(https://evil.example/x)",
+        "u\\72 l(x)",
+        "url/**/(x)",
+        "image-set('https://evil.example/x' 1x)",
+        "@\\69mport 'x'",
+    ):
         with pytest.raises(AppBundleProofFailure) as rejected:
-            _assert_screen_artifact_shell_safe(f"<html><head><style>.x{{background:{css}}}</style></head><body><p>x</p></body></html>", "s1")
+            _assert_screen_artifact_shell_safe(
+                f"<html><head><style>.x{{background:{css}}}</style></head><body><p>x</p></body></html>", "s1"
+            )
         assert rejected.value.code == "APP_SHELL_NETWORK_SURFACE_REJECTED"
 
     body = _extract_screen_body_fragment("<html><body>\n<p>a</p><script>x</script><p>b</p>\n</body></html>", "s1")

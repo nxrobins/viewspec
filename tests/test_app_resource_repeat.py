@@ -11,7 +11,6 @@ from viewspec.app_resource_repeat import (
     resource_repeat_node_id,
 )
 
-
 REACT_APP_TARGET = "react-tailwind-app"
 
 
@@ -45,9 +44,7 @@ def _repeat_app() -> dict:
     intent["view_spec"]["actions"][0]["payload_bindings"] = [generated_payload_binding]
     app["mutations"][0]["ops"][0]["item_id"]["from_payload"] = generated_payload_binding
     app["mutations"][0]["ops"][1]["value"]["from_payload"] = generated_payload_binding
-    app["state_replay_assertions"][0]["events"][0]["payload_values"] = {
-        generated_payload_binding: "inc_1043"
-    }
+    app["state_replay_assertions"][0]["events"][0]["payload_values"] = {generated_payload_binding: "inc_1043"}
     app["visibility"][0]["target_ref"] = (
         f"binding:{resource_repeat_binding_id('queue_incidents', 'inc_1043', 'status')}"
     )
@@ -97,9 +94,7 @@ def test_repeat_materializes_stable_record_field_bindings_without_authored_dupli
         assert proof["assertion_count"] == 9
         assert proof["resource_repeat"]["view_count"] == 1
         assert proof["resource_repeat"]["generated_binding_count"] == 6
-        queue_assertions = next(view for view in proof["views"] if view["id"] == "queue_incidents")[
-            "assertions"
-        ]
+        queue_assertions = next(view for view in proof["views"] if view["id"] == "queue_incidents")["assertions"]
         severity = [item for item in queue_assertions if item["field"] == "severity"]
         assert {item["expected"] for item in severity} == {"high"}
         assert len({item["canonical_identity"] for item in severity}) == 2
@@ -109,11 +104,7 @@ def test_repeat_materializes_stable_record_field_bindings_without_authored_dupli
     assert resource_repeat_binding_id("queue_incidents", "inc_1043", "id") in react_source
 
     plan = json.loads((react_dir / "presentation_plan.json").read_text(encoding="utf-8"))
-    queue_rule = next(
-        rule
-        for rule in plan["screens"][0]["rules"]
-        if rule["target_ref"] == "motif:incidents"
-    )
+    queue_rule = next(rule for rule in plan["screens"][0]["rules"] if rule["target_ref"] == "motif:incidents")
     assert queue_rule["role"] == "job_row"
     assert queue_rule["items"]["variants"]["compact"]["columns"] == [
         "identity_sm",
@@ -125,9 +116,7 @@ def test_repeat_materializes_stable_record_field_bindings_without_authored_dupli
         "record_title",
         "record_title",
     ]
-    queue_tsx = (react_dir / "src" / "screens" / "queue" / "ViewSpecView.tsx").read_text(
-        encoding="utf-8"
-    )
+    queue_tsx = (react_dir / "src" / "screens" / "queue" / "ViewSpecView.tsx").read_text(encoding="utf-8")
     assert 'data-resource-id={"incidents"}' in queue_tsx
     assert 'data-record-id={"inc_1042"}' in queue_tsx
     assert 'data-resource-field={"severity"}' in queue_tsx
@@ -138,9 +127,7 @@ def test_repeat_rejects_missing_field_coverage_and_authored_identity_collision()
     payload["screens"][0]["resource_views"][0]["repeat"]["field_presentations"].pop()
     missing = validate_app_text(json.dumps(payload))
     assert missing["ok"] is False
-    assert "APP_RESOURCE_REPEAT_FIELD_COVERAGE_INVALID" in {
-        issue["code"] for issue in missing["issues"]
-    }
+    assert "APP_RESOURCE_REPEAT_FIELD_COVERAGE_INVALID" in {issue["code"] for issue in missing["issues"]}
 
     payload = _repeat_app()
     queue = payload["screens"][0]
@@ -156,9 +143,7 @@ def test_repeat_rejects_missing_field_coverage_and_authored_identity_collision()
     )
     collision = validate_app_text(json.dumps(payload))
     assert collision["ok"] is False
-    matching = [
-        issue for issue in collision["issues"] if issue["code"] == "APP_RESOURCE_REPEAT_ID_COLLISION"
-    ]
+    matching = [issue for issue in collision["issues"] if issue["code"] == "APP_RESOURCE_REPEAT_ID_COLLISION"]
     assert matching
     assert "incidents/inc_1042/severity" in matching[0]["message"]
     assert generated_id in matching[0]["message"]
@@ -187,11 +172,7 @@ def test_repeat_rejects_hand_authored_prototype_fields_in_its_target_motif():
     intent["view_spec"]["motifs"][0]["members"].append("authored_incident_severity")
 
     invalid = validate_app_text(json.dumps(payload))
-    issue = next(
-        item
-        for item in invalid["issues"]
-        if item["code"] == "APP_RESOURCE_REPEAT_AUTHORED_DUPLICATE"
-    )
+    issue = next(item for item in invalid["issues"] if item["code"] == "APP_RESOURCE_REPEAT_AUTHORED_DUPLICATE")
     assert "incidents/inc_1042/severity" in issue["message"]
     assert "authored_incident_severity" in issue["message"]
     assert "Remove the hand-authored prototype binding" in issue["suggestion"]

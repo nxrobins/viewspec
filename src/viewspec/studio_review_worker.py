@@ -13,18 +13,19 @@ from viewspec.studio_review_verify import (
     rebuild_studio_review_request,
 )
 
-
 _LOGGER = logging.getLogger(__name__)
 
 STUDIO_REVIEW_WORKER_SCHEMA_VERSION = 1
-_FAILURE_RESPONSE = canonical_json_bytes({
-    "schema_version": STUDIO_REVIEW_WORKER_SCHEMA_VERSION,
-    "ok": False,
-    "error": {
-        "code": "STUDIO_REVIEW_VERIFICATION_FAILED",
-        "message": "Isolated Studio review rebuild failed closed.",
-    },
-})
+_FAILURE_RESPONSE = canonical_json_bytes(
+    {
+        "schema_version": STUDIO_REVIEW_WORKER_SCHEMA_VERSION,
+        "ok": False,
+        "error": {
+            "code": "STUDIO_REVIEW_VERIFICATION_FAILED",
+            "message": "Isolated Studio review rebuild failed closed.",
+        },
+    }
+)
 
 
 def run_studio_review_worker(input_bytes: bytes) -> tuple[int, bytes]:

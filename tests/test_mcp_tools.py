@@ -9,6 +9,7 @@ from pathlib import Path
 
 import pytest
 
+import viewspec.mcp_server as mcp_server_module
 from viewspec import (
     AGENT_ASSET_CHECK_COMMAND,
     AGENT_ASSET_CONTRACT_PROFILE,
@@ -18,8 +19,8 @@ from viewspec import (
     ViewSpecBuilder,
     profile_style_facts,
 )
-from viewspec.app_bundle import AGENT_APP_BUNDLE_SCHEMA, starter_app_bundle
 from viewspec.agent import AGENT_INTENT_BUNDLE_SCHEMA, AGENT_SYSTEM_PROMPT
+from viewspec.app_bundle import AGENT_APP_BUNDLE_SCHEMA, starter_app_bundle
 from viewspec.cli import main as cli_main
 from viewspec.emitters.html_tailwind import ACTION_EVENT_SCRIPT
 from viewspec.intent_tools import (
@@ -31,10 +32,10 @@ from viewspec.intent_tools import (
     validate_intent_bundle_file_tool,
 )
 from viewspec.local_tools import (
-    LocalToolError,
     MCP_RESULT_SCHEMA_VERSION,
-    check_artifact_tool,
+    LocalToolError,
     check_agent_assets_tool,
+    check_artifact_tool,
     compile_html_file_tool,
     diff_html_files_tool,
     export_agent_assets_tool,
@@ -43,7 +44,6 @@ from viewspec.local_tools import (
     lift_html_file_tool,
     tool_response,
 )
-import viewspec.mcp_server as mcp_server_module
 from viewspec.mcp_server import MCP_INSTALL_HINT, MissingMCPDependency
 from viewspec.raw_html import MAX_HTML_INPUT_BYTES
 
@@ -437,10 +437,20 @@ def test_export_agent_assets_tool_writes_prompt_and_schema(tmp_path):
     assert manifest["contract"]["check_command"] == AGENT_ASSET_CHECK_COMMAND
     assert exported["assets"]["contract_profile"] == AGENT_ASSET_CONTRACT_PROFILE
     assert exported["assets"]["check_command"] == AGENT_ASSET_CHECK_COMMAND
-    assert json.loads((tmp_path / ".viewspec/agent-intent-bundle.schema.json").read_text(encoding="utf-8")) == AGENT_INTENT_BUNDLE_SCHEMA
-    assert json.loads((tmp_path / ".viewspec/agent-intent-example.dashboard.json").read_text(encoding="utf-8")) == starter_intent_payload("dashboard")
-    assert json.loads((tmp_path / ".viewspec/agent-app-bundle.schema.json").read_text(encoding="utf-8")) == AGENT_APP_BUNDLE_SCHEMA
-    assert json.loads((tmp_path / ".viewspec/agent-app-example.internal-tool.json").read_text(encoding="utf-8")) == starter_app_bundle("internal_tool")
+    assert (
+        json.loads((tmp_path / ".viewspec/agent-intent-bundle.schema.json").read_text(encoding="utf-8"))
+        == AGENT_INTENT_BUNDLE_SCHEMA
+    )
+    assert json.loads(
+        (tmp_path / ".viewspec/agent-intent-example.dashboard.json").read_text(encoding="utf-8")
+    ) == starter_intent_payload("dashboard")
+    assert (
+        json.loads((tmp_path / ".viewspec/agent-app-bundle.schema.json").read_text(encoding="utf-8"))
+        == AGENT_APP_BUNDLE_SCHEMA
+    )
+    assert json.loads(
+        (tmp_path / ".viewspec/agent-app-example.internal-tool.json").read_text(encoding="utf-8")
+    ) == starter_app_bundle("internal_tool")
     assert {item["path"]: item["action"] for item in exported["assets"]["files"]} == {
         "agent-assets.json": "create",
         "agent-system-prompt.txt": "create",
@@ -650,10 +660,7 @@ def test_intent_mcp_compile_metadata_summarizes_checked_profile_layout(tmp_path)
     checked = check_artifact_tool("react-tailwind-dist", cwd=tmp_path)
     assert checked["ok"] is True
     assert checked["metadata"]["manifest_summary"]["aesthetic_profile"] == "aesthetic.editorial_product"
-    assert (
-        checked["metadata"]["manifest_summary"]["aesthetic_style"]["category_count"]
-        == style_facts["category_count"]
-    )
+    assert checked["metadata"]["manifest_summary"]["aesthetic_style"]["category_count"] == style_facts["category_count"]
     assert checked["metadata"]["manifest_summary"]["aesthetic_layout"]["metric_grid"]["columns"] == 1
 
 
@@ -811,7 +818,9 @@ def test_intent_mcp_refuses_input_overwrite_before_design_load(tmp_path):
     intent_path = tmp_path / "provenance_manifest.json"
     intent_path.write_text(json.dumps(_bundle_json()), encoding="utf-8")
 
-    result = compile_intent_bundle_file_tool("provenance_manifest.json", ".", design_path="missing-DESIGN.md", cwd=tmp_path)
+    result = compile_intent_bundle_file_tool(
+        "provenance_manifest.json", ".", design_path="missing-DESIGN.md", cwd=tmp_path
+    )
 
     assert_tool_schema(result)
     assert result["ok"] is False
@@ -876,10 +885,19 @@ def test_check_rejects_action_runtime_script_without_action_nodes(tmp_path):
 @pytest.mark.parametrize(
     ("snippet", "expected"),
     [
-        ('<img srcset="https://example.com/a.png 1x, https://example.com/b.png 2x" alt="">', "index.html contains an auto-fetching remote URL attribute"),
+        (
+            '<img srcset="https://example.com/a.png 1x, https://example.com/b.png 2x" alt="">',
+            "index.html contains an auto-fetching remote URL attribute",
+        ),
         ('<source srcset="//example.com/a.webp 1x">', "index.html contains an auto-fetching remote URL attribute"),
-        ('<meta http-equiv="refresh" content="0;url=https://example.com">', "index.html contains an active or auto-fetching surface"),
-        ('<svg><image href="https://example.com/chart.svg"></image></svg>', "index.html contains an auto-fetching remote URL attribute"),
+        (
+            '<meta http-equiv="refresh" content="0;url=https://example.com">',
+            "index.html contains an active or auto-fetching surface",
+        ),
+        (
+            '<svg><image href="https://example.com/chart.svg"></image></svg>',
+            "index.html contains an auto-fetching remote URL attribute",
+        ),
     ],
 )
 def test_check_rejects_tampered_autofetch_surfaces(tmp_path, snippet, expected):
@@ -906,12 +924,18 @@ def test_check_rejects_tampered_autofetch_surfaces(tmp_path, snippet, expected):
     ("mutate", "expected"),
     [
         # <base> re-roots every relative URL cross-origin; it was in no checked tag set.
-        (lambda h: h.replace("<head>", '<head><base href="//evil.com/">', 1), "index.html contains an auto-fetching remote URL attribute"),
+        (
+            lambda h: h.replace("<head>", '<head><base href="//evil.com/">', 1),
+            "index.html contains an auto-fetching remote URL attribute",
+        ),
         # Unterminated final tags at EOF: the HTMLParser probe drops them, but a browser
         # completes the tag at EOF and fetches. The whole-file backstop catches them.
         (lambda h: h + '\n<iframe src="//evil.com/x"', "index.html contains an active or auto-fetching surface"),
         (lambda h: h + '\n<script src="//evil.com/b.js"', "index.html contains an auto-fetching remote URL attribute"),
-        (lambda h: h + '\n<meta http-equiv="refresh" content="0;url=//evil.com/"', "index.html contains an active or auto-fetching surface"),
+        (
+            lambda h: h + '\n<meta http-equiv="refresh" content="0;url=//evil.com/"',
+            "index.html contains an active or auto-fetching surface",
+        ),
         # Forbidden tag with no remote URL (srcdoc) -- caught by the tag marker, not the URL scan.
         (lambda h: h + '\n<iframe srcdoc="<b>x"', "index.html contains an active or auto-fetching surface"),
     ],
@@ -943,8 +967,13 @@ def test_autofetch_backstop_is_attribute_scoped_not_text():
     from viewspec.local_tools_validators import _validate_no_autofetch_surfaces
 
     assert _validate_no_autofetch_surfaces("<html><body><p>See https://docs.example.com now</p></body></html>") == []
-    assert _validate_no_autofetch_surfaces("<html><body><p>CSS words URL( and @import are visible text</p></body></html>") == []
-    assert _validate_no_autofetch_surfaces('<html><body><p data-label="style=url(">Visible label</p></body></html>') == []
+    assert (
+        _validate_no_autofetch_surfaces("<html><body><p>CSS words URL( and @import are visible text</p></body></html>")
+        == []
+    )
+    assert (
+        _validate_no_autofetch_surfaces('<html><body><p data-label="style=url(">Visible label</p></body></html>') == []
+    )
     assert _validate_no_autofetch_surfaces('<html><body><img src="logo.png" alt=""></body></html>') == []
     assert _validate_no_autofetch_surfaces('<html><body></body></html>\n<iframe src="//evil.com/x"') != []
     assert _validate_no_autofetch_surfaces('<html><head><base href="//evil.com/"></head><body></body></html>') != []
@@ -953,12 +982,12 @@ def test_autofetch_backstop_is_attribute_scoped_not_text():
 @pytest.mark.parametrize(
     "html",
     [
-        '<html><head><style>.x{background:url(//evil.example/x)}</style></head></html>',
+        "<html><head><style>.x{background:url(//evil.example/x)}</style></head></html>",
         '<html><head><style>@import "//evil.example/x";</style></head></html>',
         '<html><body><div style="background: URL(//evil.example/x)"></div></body></html>',
         '<html><body><div style="background:url(//evil.example/x)"',
         '<html><body><div data-label="safe" style="background:url(//evil.example/x)"',
-        '<html><head><style>.x{background:url(//evil.example/x)}',
+        "<html><head><style>.x{background:url(//evil.example/x)}",
     ],
 )
 def test_autofetch_backstop_rejects_css_references_only_in_css_contexts(html):
@@ -981,7 +1010,10 @@ def test_check_rejects_unknown_manifest_kind(tmp_path):
 
     assert_tool_schema(checked)
     assert checked["ok"] is False
-    assert any(error["message"] == "manifest kind must be one of: intent_bundle_compile, raw_html_compile" for error in checked["errors"])
+    assert any(
+        error["message"] == "manifest kind must be one of: intent_bundle_compile, raw_html_compile"
+        for error in checked["errors"]
+    )
 
 
 def test_check_rejects_intent_manifest_envelope_mismatch(tmp_path):
@@ -1179,7 +1211,10 @@ def test_check_rejects_missing_intent_manifest_node(tmp_path):
 
     assert_tool_schema(checked)
     assert checked["ok"] is False
-    assert any(error["message"] == f"DOM element {removed_dom_id} with data-ir-id is missing from manifest nodes" for error in checked["errors"])
+    assert any(
+        error["message"] == f"DOM element {removed_dom_id} with data-ir-id is missing from manifest nodes"
+        for error in checked["errors"]
+    )
 
 
 def test_check_rejects_intent_dom_ir_mismatch(tmp_path):
@@ -1202,7 +1237,9 @@ def test_check_rejects_intent_dom_ir_mismatch(tmp_path):
 
     assert_tool_schema(checked)
     assert checked["ok"] is False
-    assert any(error["message"] == f"manifest node {dom_id} ir_id does not match DOM data-ir-id" for error in checked["errors"])
+    assert any(
+        error["message"] == f"manifest node {dom_id} ir_id does not match DOM data-ir-id" for error in checked["errors"]
+    )
 
 
 def test_check_rejects_duplicate_binding_identity_in_dom(tmp_path):
@@ -1223,7 +1260,9 @@ def test_check_rejects_duplicate_binding_identity_in_dom(tmp_path):
 
     assert_tool_schema(checked)
     assert checked["ok"] is False
-    assert any(error["message"] == "index.html contains duplicate data-binding-id alpha_label" for error in checked["errors"])
+    assert any(
+        error["message"] == "index.html contains duplicate data-binding-id alpha_label" for error in checked["errors"]
+    )
 
 
 def test_check_rejects_binding_manifest_without_source_provenance(tmp_path):
@@ -1244,7 +1283,9 @@ def test_check_rejects_binding_manifest_without_source_provenance(tmp_path):
     assert checked["ok"] is False
     assert "manifest nodes.dom-binding_alpha_label.intent_refs must not be empty" in messages
     assert "manifest nodes.dom-binding_alpha_label.intent_refs must include viewspec:binding:alpha_label" in messages
-    assert "manifest nodes.dom-binding_alpha_label.content_refs must not be empty for binding_id alpha_label" in messages
+    assert (
+        "manifest nodes.dom-binding_alpha_label.content_refs must not be empty for binding_id alpha_label" in messages
+    )
 
 
 def test_check_rejects_intent_style_token_mismatch(tmp_path):
@@ -1261,7 +1302,7 @@ def test_check_rejects_intent_style_token_mismatch(tmp_path):
     attr_start = html.index('data-style-tokens="', node_start)
     attr_value_start = attr_start + len('data-style-tokens="')
     attr_end = html.index('"', attr_value_start)
-    tampered_html = f'{html[:attr_value_start]}[&quot;tampered&quot;]{html[attr_end:]}'
+    tampered_html = f"{html[:attr_value_start]}[&quot;tampered&quot;]{html[attr_end:]}"
     html_path.write_text(tampered_html, encoding="utf-8")
     manifest["artifact_hash"] = file_hash(html_path)
     manifest_path.write_text(json.dumps(manifest, indent=2, sort_keys=True), encoding="utf-8")
@@ -1299,7 +1340,9 @@ def test_check_rejects_intent_visible_text_mismatch(tmp_path):
 
     assert_tool_schema(checked)
     assert checked["ok"] is False
-    assert any(error["message"] == f"DOM element {dom_id} text does not match manifest props" for error in checked["errors"])
+    assert any(
+        error["message"] == f"DOM element {dom_id} text does not match manifest props" for error in checked["errors"]
+    )
 
 
 def test_check_rejects_tampered_action_button_semantics(tmp_path):
@@ -1309,7 +1352,9 @@ def test_check_rejects_tampered_action_button_semantics(tmp_path):
 
     html_path = tmp_path / "dist/index.html"
     tampered_html = html_path.read_text(encoding="utf-8").replace('type="button"', 'type="submit"', 1)
-    tampered_html = tampered_html.replace('data-action-target-ref="binding:alpha_label"', 'data-action-target-ref="binding:alpha_value"', 1)
+    tampered_html = tampered_html.replace(
+        'data-action-target-ref="binding:alpha_label"', 'data-action-target-ref="binding:alpha_value"', 1
+    )
     tampered_html = tampered_html.replace(
         'data-payload-bindings="[&quot;alpha_label&quot;, &quot;alpha_value&quot;]"',
         'data-payload-bindings="not-json"',
@@ -1376,7 +1421,10 @@ def test_check_rejects_tampered_image_slot_semantics(tmp_path):
 
     assert_tool_schema(checked)
     assert checked["ok"] is False
-    assert any(error["message"] == "DOM element dom-binding_hero_image image_slot aria-label does not match manifest props" for error in checked["errors"])
+    assert any(
+        error["message"] == "DOM element dom-binding_hero_image image_slot aria-label does not match manifest props"
+        for error in checked["errors"]
+    )
 
 
 def test_check_rejects_tampered_list_semantic_tags(tmp_path):
@@ -1396,7 +1444,10 @@ def test_check_rejects_tampered_list_semantic_tags(tmp_path):
 
     assert_tool_schema(checked)
     assert checked["ok"] is False
-    assert any(error["message"] == "manifest node dom-motif_tasks list stack must render as <ul>" for error in checked["errors"])
+    assert any(
+        error["message"] == "manifest node dom-motif_tasks list stack must render as <ul>"
+        for error in checked["errors"]
+    )
 
 
 def test_check_rejects_tampered_form_semantic_tags(tmp_path):
@@ -1524,20 +1575,18 @@ def test_check_rejects_tampered_table_semantic_tags(tmp_path):
         if entry["primitive"] == "cluster" and entry["props"].get("motif_kind") == "table"
     )
     header_dom_id = next(
-        dom_id
-        for dom_id, entry in manifest["nodes"].items()
-        if entry["props"].get("table_cell_role") == "row_header"
+        dom_id for dom_id, entry in manifest["nodes"].items() if entry["props"].get("table_cell_role") == "row_header"
     )
     cell_dom_id = next(
-        dom_id
-        for dom_id, entry in manifest["nodes"].items()
-        if entry["props"].get("table_cell_role") == "cell"
+        dom_id for dom_id, entry in manifest["nodes"].items() if entry["props"].get("table_cell_role") == "cell"
     )
     html = html_path.read_text(encoding="utf-8")
     tampered_html = html.replace("<table ", "<div ", 1).replace("</table>", "</div>", 1)
     tampered_html = tampered_html.replace("<tr ", "<section ", 1).replace("</tr>", "</section>", 1)
     tampered_html = tampered_html.replace('scope="row"', 'scope="col"', 1)
-    tampered_html = tampered_html.replace(f'<td id="{cell_dom_id}"', f'<span id="{cell_dom_id}"', 1).replace("</td>", "</span>", 1)
+    tampered_html = tampered_html.replace(f'<td id="{cell_dom_id}"', f'<span id="{cell_dom_id}"', 1).replace(
+        "</td>", "</span>", 1
+    )
     html_path.write_text(tampered_html, encoding="utf-8")
     manifest["artifact_hash"] = file_hash(html_path)
     manifest_path.write_text(json.dumps(manifest, indent=2, sort_keys=True), encoding="utf-8")
@@ -1678,14 +1727,18 @@ def test_mcp_path_sandbox_rejects_windows_drive_relative_tricks(tmp_path):
     assert_tool_schema(drive_relative)
     assert drive_relative["ok"] is False
     assert drive_relative["errors"][0]["code"] == "INVALID_PATH"
-    assert "drive-relative" in drive_relative["errors"][0]["message"] or drive_relative["errors"][0]["message"].startswith("Path does not exist")
+    assert "drive-relative" in drive_relative["errors"][0]["message"] or drive_relative["errors"][0][
+        "message"
+    ].startswith("Path does not exist")
     assert drive_relative["metadata"]["allow_outside_cwd"] is True
 
     rooted_current_drive = lift_html_file_tool("\\viewspec-rooted-trick.html", cwd=root, allow_outside_cwd=True)
     assert_tool_schema(rooted_current_drive)
     assert rooted_current_drive["ok"] is False
     assert rooted_current_drive["errors"][0]["code"] == "INVALID_PATH"
-    assert "rooted paths without a drive" in rooted_current_drive["errors"][0]["message"] or rooted_current_drive["errors"][0]["message"].startswith("Path does not exist")
+    assert "rooted paths without a drive" in rooted_current_drive["errors"][0]["message"] or rooted_current_drive[
+        "errors"
+    ][0]["message"].startswith("Path does not exist")
     assert rooted_current_drive["metadata"]["allow_outside_cwd"] is True
 
 

@@ -13,9 +13,7 @@ from viewspec.intent_patch import (
 
 
 def _corrections() -> list[dict[str, object]]:
-    return json.loads(
-        Path("conformance/refinement/corrections.json").read_text(encoding="utf-8")
-    )["corrections"]
+    return json.loads(Path("conformance/refinement/corrections.json").read_text(encoding="utf-8"))["corrections"]
 
 
 def _patch(source_text: str, correction: dict[str, object]) -> dict[str, object]:
@@ -38,9 +36,7 @@ def _patch(source_text: str, correction: dict[str, object]) -> dict[str, object]
     }
 
 
-def _assert_only_target_node_changed(
-    semantic_diff: dict[str, object], correction: dict[str, object]
-) -> None:
+def _assert_only_target_node_changed(semantic_diff: dict[str, object], correction: dict[str, object]) -> None:
     expected_node = correction["node_id"]
     if correction["source_kind"] == "intent_bundle":
         changes = semantic_diff["changes"]
@@ -104,9 +100,7 @@ def test_every_refinement_brief_has_a_bounded_semantic_correction_and_receipt(tm
 
         candidate = json.loads(source_path.read_text(encoding="utf-8"))
         if correction["source_kind"] == "app_bundle":
-            screen = next(
-                item for item in candidate["screens"] if item["id"] == correction["screen_id"]
-            )
+            screen = next(item for item in candidate["screens"] if item["id"] == correction["screen_id"])
             nodes = screen["intent_bundle"]["substrate"]["nodes"]
         else:
             nodes = candidate["substrate"]["nodes"]
@@ -117,15 +111,11 @@ def test_checked_in_correction_proof_covers_verified_previews_and_applied_receip
     corpus = load_conformance_corpus("conformance/verification/corpus.json")
     cases = {case.id: case for case in corpus.cases}
     corrections = _corrections()
-    report = json.loads(
-        Path("conformance/refinement/correction-proof-v1.json").read_text(encoding="utf-8")
-    )
+    report = json.loads(Path("conformance/refinement/correction-proof-v1.json").read_text(encoding="utf-8"))
 
     assert report["ok"] is True
     assert report["case_count"] == 10
-    assert [case["case_id"] for case in report["cases"]] == [
-        correction["case_id"] for correction in corrections
-    ]
+    assert [case["case_id"] for case in report["cases"]] == [correction["case_id"] for correction in corrections]
     for case, correction in zip(report["cases"], corrections, strict=True):
         source_text = cases[case["case_id"]].source_path.read_text(encoding="utf-8")
         assert case["base_source_sha256"] == source_sha256(source_text)

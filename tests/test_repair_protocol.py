@@ -2,8 +2,9 @@ from __future__ import annotations
 
 import hashlib
 
-from hypothesis import given, strategies as st
 import pytest
+from hypothesis import given
+from hypothesis import strategies as st
 
 from viewspec.repair import SourceNodePath, VerificationRepairPlan
 from viewspec.verification import (
@@ -29,10 +30,7 @@ def _result(
         plan=VerificationPlan.default(),
         complete=complete,
         diagnostics=diagnostics,
-        evidence=tuple(
-            EvidenceFile.from_content(ref, "screenshot", ref.encode())
-            for ref in refs
-        ),
+        evidence=tuple(EvidenceFile.from_content(ref, "screenshot", ref.encode()) for ref in refs),
     )
 
 
@@ -164,6 +162,4 @@ def test_recurrence_fingerprint_ignores_prose_and_evidence_churn():
     first_plan = VerificationRepairPlan.from_result(_result((first,)))
     second_plan = VerificationRepairPlan.from_result(_result((second,)))
 
-    assert first_plan.directives[0].recurrence_fingerprint == (
-        second_plan.directives[0].recurrence_fingerprint
-    )
+    assert first_plan.directives[0].recurrence_fingerprint == (second_plan.directives[0].recurrence_fingerprint)

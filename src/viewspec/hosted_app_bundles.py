@@ -2,17 +2,17 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 import hashlib
 import json
-from pathlib import Path, PurePosixPath
 import shutil
 import tempfile
-from typing import Any, Mapping
+from collections.abc import Mapping
+from dataclasses import dataclass
+from pathlib import Path, PurePosixPath
+from typing import Any
 
 from viewspec._canonical import canonical_json_ascii_bytes
 from viewspec.hosted_receipts import ReceiptPublicKey, verify_signed_receipt
-
 
 APP_BUILD_SCHEMA_VERSION = 1
 APP_BUILD_TARGET = "react-tailwind-app"
@@ -262,7 +262,9 @@ def compile_app_remote(
     try:
         import httpx
     except ImportError:
-        raise ImportError("httpx is required for hosted AppBundle builds. Install it: pip install viewspec[remote]") from None
+        raise ImportError(
+            "httpx is required for hosted AppBundle builds. Install it: pip install viewspec[remote]"
+        ) from None
     base_url = api_url.rstrip("/")
     headers = {"Authorization": f"Bearer {api_key}"} if api_key else {}
     try:

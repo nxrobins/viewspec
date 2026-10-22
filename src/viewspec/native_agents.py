@@ -14,7 +14,6 @@ from viewspec.agent_assets import (
 )
 from viewspec.local_tools import atomic_write
 
-
 BEGIN_MARKER = "<!-- BEGIN VIEWSPEC AGENT INSTRUCTIONS v1 -->"
 END_MARKER = "<!-- END VIEWSPEC AGENT INSTRUCTIONS v1 -->"
 TARGET_PATHS = {
@@ -164,7 +163,7 @@ def agent_instruction_block(target: str) -> str:
         "```\n\n"
         "Review `semantic_changes` before inspecting generated artifacts. For concise summaries, use the human "
         "`diff-intent` output, MCP `semantic_summary`, or Python "
-        "`intent_semantic_change_lines(diff[\"semantic_changes\"])`.\n\n"
+        '`intent_semantic_change_lines(diff["semantic_changes"])`.\n\n'
         "For a first narrow multi-screen internal tool contract, use AppBundle JSON instead of writing an app scaffold "
         "or router by hand:\n\n"
         "```bash\n"
@@ -231,7 +230,7 @@ def agent_instruction_block(target: str) -> str:
         "```bash\n"
         "viewspec studio viewspec.intent.json --json\n"
         "viewspec review-poll viewspec.intent.json --json\n"
-        "viewspec review-poll viewspec.intent.json --ack <batch-id> --agent-reply \"Applied.\" --json\n"
+        'viewspec review-poll viewspec.intent.json --ack <batch-id> --agent-reply "Applied." --json\n'
         "viewspec review-end viewspec.intent.json --json\n"
         "```\n\n"
         "Keep the poll attached to the active turn or a completion-aware harness wait; never launch detached "
