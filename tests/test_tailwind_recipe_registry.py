@@ -5,7 +5,8 @@ that tests could swap recipes by monkeypatching the package. That shared state m
 emits race, made the registry digest depend on what ran before it, and left wrappers with the same
 names in two modules. These tests pin the replacement: a frozen registry passed down the call
 chain, module attributes that emitting never writes, a digest that is a pure function of the
-registry, and emits with different registries that can run at the same time.
+registry and covers every field of it, fixed grid classes that no registry can replace, and emits
+with different registries that can run at the same time.
 """
 
 from __future__ import annotations
@@ -20,6 +21,7 @@ import subprocess
 import sys
 import threading
 import types
+from collections.abc import Mapping
 from contextlib import contextmanager
 from pathlib import Path
 
@@ -69,10 +71,32 @@ def _ast():
     return compile(builder.build_bundle())
 
 
+def _grid_ast():
+    """A dashboard whose profile lays the cards out on a two-column grid, the first spanning both."""
+    builder = ViewSpecBuilder("grid_registry_probe")
+    builder.set_aesthetic_profile("aesthetic.premium_saas")
+    dashboard = builder.add_dashboard("metrics", region="main", group_id="cards")
+    dashboard.add_card(label="Revenue", value="$2.4M", id="revenue")
+    dashboard.add_card(label="Open risks", value="4", id="open_risks")
+    return compile(builder.build_bundle())
+
+
 def _marked_registry(marker: str) -> TailwindRecipeRegistry:
     """A valid registry whose every base recipe also carries ``marker``, a closed class token."""
     recipes = {key: f"{classes} {marker}" for key, classes in DEFAULT_TAILWIND_RECIPE_REGISTRY.recipes.items()}
     return dataclasses.replace(DEFAULT_TAILWIND_RECIPE_REGISTRY, recipes=recipes)
+
+
+def _varied(value: object) -> object:
+    """``value`` with one entry changed, for every kind of table a registry field holds."""
+    if isinstance(value, str):
+        return f"{value} accent-rose-500"
+    if isinstance(value, tuple):
+        return (*value, "accent-rose-500")
+    if isinstance(value, Mapping):
+        first = next(iter(value))
+        return {**value, first: _varied(value[first])}
+    raise AssertionError(f"no variant for a registry table of type {type(value).__name__}")
 
 
 def _read_artifact(output: Path) -> tuple[str, str]:
@@ -131,8 +155,9 @@ def test_default_registry_digest_matches_main_and_the_module_tables():
         tailwind_recipes.TAILWIND_AESTHETIC_RECIPE_OVERLAYS
     )
     assert dict(registry.layout_emphasis_classes) == tailwind_recipes.LAYOUT_EMPHASIS_CLASS_BY_VALUE
-    assert dict(registry.grid_classes) == tailwind_recipes.GRID_CLASS_BY_COLUMNS
-    assert dict(registry.grid_span_classes) == tailwind_recipes.GRID_SPAN_CLASS_BY_COLUMNS
+    # The grid tables are fixed rather than registry fields; the resolver reads copies of them.
+    assert dict(tailwind_recipes._GRID_CLASSES) == tailwind_recipes.GRID_CLASS_BY_COLUMNS
+    assert dict(tailwind_recipes._GRID_SPAN_CLASSES) == tailwind_recipes.GRID_SPAN_CLASS_BY_COLUMNS
     assert {role: dict(contract) for role, contract in registry.app_role_contracts.items()} == (
         tailwind_recipes.TAILWIND_APP_V1_APP_ROLE_CONTRACTS
     )
@@ -419,3 +444,86 @@ def test_package_keeps_no_same_named_wrappers_of_recipe_functions():
     assert react_tailwind._validate_tailwind_contract is tailwind_recipes._validate_tailwind_contract
     assert react_tailwind.TailwindRecipeRegistry is tailwind_recipes.TailwindRecipeRegistry
     assert react_tailwind.DEFAULT_TAILWIND_RECIPE_REGISTRY is tailwind_recipes.DEFAULT_TAILWIND_RECIPE_REGISTRY
+
+
+@pytest.mark.parametrize(
+    ("table_name", "table"),
+    [
+        ("grid_classes", {**tailwind_recipes.GRID_CLASS_BY_COLUMNS, 2: "grid-cols-1 sm:grid-cols-2 [color:red]"}),
+        ("grid_classes", {**tailwind_recipes.GRID_CLASS_BY_COLUMNS, 2: "grid-cols-1 bg-[var(--brand)]"}),
+        ("grid_classes", {1: "grid-cols-1"}),
+        ("grid_span_classes", {**tailwind_recipes.GRID_SPAN_CLASS_BY_COLUMNS, 2: "sm:col-span-2 [color:red]"}),
+    ],
+    ids=["grid-arbitrary-value", "grid-css-variable", "grid-incomplete", "span-arbitrary-value"],
+)
+def test_grid_classes_cannot_be_injected_through_a_registry(tmp_path, table_name, table):
+    # Review of Q-4: the registry briefly had grid_classes and grid_span_classes fields that no
+    # registry check read. A variant put host-config classes such as [color:red] on a grid or on a
+    # node spanning grid columns, an incomplete grid table failed with a bare KeyError, and either
+    # kind of variant kept the default digest. The grid classes are fixed again, as they were before
+    # the registry, so no registry can carry them.
+    with pytest.raises(TypeError, match=table_name):
+        variant = dataclasses.replace(DEFAULT_TAILWIND_RECIPE_REGISTRY, **{table_name: table})
+        ReactTailwindTsxEmitter(recipe_registry=variant).emit(_grid_ast(), tmp_path / "variant")
+    assert not (tmp_path / "variant").exists()
+
+
+def test_every_registry_emits_the_grid_classes_checked_in_at_import(tmp_path, monkeypatch):
+    # Every registry puts the checked-in grid classes on grids and on spanning nodes. They are read
+    # from copies taken at import, so, as with the tables the default registry was built from,
+    # reassigning or mutating the module tables afterwards reaches no emit and no digest.
+    ast = _grid_ast()
+    nodes = tailwind_recipes._walk(ast.result.root.root)
+    grid_id = next(node.id for node in nodes if node.primitive == "grid" and node.props.get("columns") == 2)
+    span_id = next(node.id for node in nodes if node.props.get("span_columns") == 2)
+    grid_classes = set(tailwind_recipes.GRID_CLASS_BY_COLUMNS[2].split())
+    span_classes = set(tailwind_recipes.GRID_SPAN_CLASS_BY_COLUMNS[2].split())
+    registries = (None, _marked_registry("accent-rose-500"))
+    for index, registry in enumerate(registries):
+        ReactTailwindTsxEmitter(recipe_registry=registry).emit(ast, tmp_path / f"before-{index}")
+
+    monkeypatch.setitem(tailwind_recipes.GRID_CLASS_BY_COLUMNS, 2, "grid-cols-1 sm:grid-cols-2 [color:red]")
+    monkeypatch.setattr(tailwind_recipes, "GRID_SPAN_CLASS_BY_COLUMNS", {2: "[color:red]", 3: "[color:red]"})
+    monkeypatch.setattr(react_tailwind, "GRID_CLASS_BY_COLUMNS", dict.fromkeys((1, 2, 3), "[color:red]"))
+
+    for index, registry in enumerate(registries):
+        output = tmp_path / f"after-{index}"
+        ReactTailwindTsxEmitter(recipe_registry=registry).emit(ast, output)
+        tsx, manifest = _read_artifact(output)
+        assert (tsx, manifest) == _read_artifact(tmp_path / f"before-{index}")
+        assert "[color:red]" not in tsx
+        entries = {entry["ir_id"]: entry for entry in json.loads(manifest).values()}
+        assert grid_classes <= set(entries[grid_id]["classes"])
+        assert span_classes <= set(entries[span_id]["classes"])
+    assert tailwind_recipe_registry_digest() == MAIN_REGISTRY_DIGEST
+
+
+def test_fixed_grid_tables_are_complete_closed_literal_classes():
+    # No registry check reads the fixed grid tables, so this test is what keeps them closed.
+    assert set(tailwind_recipes.GRID_CLASS_BY_COLUMNS) == tailwind_recipes.TAILWIND_GRID_COLUMNS
+    assert set(tailwind_recipes.GRID_SPAN_CLASS_BY_COLUMNS) == {2, 3}
+    for table in (tailwind_recipes.GRID_CLASS_BY_COLUMNS, tailwind_recipes.GRID_SPAN_CLASS_BY_COLUMNS):
+        for classes in table.values():
+            tailwind_recipes._validate_class_string(classes, code="TAILWIND_HOST_CONFIG_DEPENDENCY")
+
+
+def test_every_registry_field_feeds_the_digest():
+    # Review of Q-4: two registries that differed only in their grid tables emitted different
+    # classes under the same digest, the default one, because the projection left those tables out.
+    # Changing any entry of any field a registry has must give it a digest of its own.
+    seen = {MAIN_REGISTRY_DIGEST}
+    shared_digest: list[tuple[str, object]] = []
+    for field in dataclasses.fields(TailwindRecipeRegistry):
+        table = getattr(DEFAULT_TAILWIND_RECIPE_REGISTRY, field.name)
+        if isinstance(table, Mapping):
+            variants = [(key, {**table, key: _varied(table[key])}) for key in table]
+        else:
+            variants = [(None, _varied(table))]
+        for key, varied in variants:
+            variant = dataclasses.replace(DEFAULT_TAILWIND_RECIPE_REGISTRY, **{field.name: varied})
+            digest = tailwind_recipe_registry_digest(recipe_registry=variant)
+            if digest in seen:
+                shared_digest.append((field.name, key))
+            seen.add(digest)
+    assert shared_digest == []
+    assert len(seen) > 100  # every recipe, overlay, contract and rule id was varied

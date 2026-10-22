@@ -1,10 +1,12 @@
 """Closed Tailwind recipe registry for the React Tailwind TSX emitter.
 
 The module-level tables below are the checked-in source. ``DEFAULT_TAILWIND_RECIPE_REGISTRY`` is a
-read-only snapshot of them, built once at import, and every resolver in this module takes the
-registry it reads as an argument. Nothing here reads a table through a module global at call time,
-and nothing assigns to this module's attributes, so emits that use different registries can run at
-the same time without seeing each other's tables.
+read-only snapshot of the recipe tables, built once at import, and every resolver in this module
+takes the registry it reads as an argument. The grid tables (``GRID_CLASS_BY_COLUMNS`` and
+``GRID_SPAN_CLASS_BY_COLUMNS``) are fixed, like the caps, so they are not part of a registry: the
+resolver reads read-only copies of them, also taken at import. Nothing here reads a recipe or grid
+table through its module name at call time, and nothing assigns to this module's attributes, so
+emits that use different registries can run at the same time without seeing each other's tables.
 """
 
 from __future__ import annotations
@@ -375,6 +377,15 @@ def _read_only(table: Mapping[Any, Any]) -> Mapping[Any, Any]:
     return MappingProxyType(dict(table))
 
 
+# The grid classes are fixed, like the caps, rather than registry fields. No registry check reads
+# them and the registry digest records only their column and span counts, so a registry that could
+# replace them could put unchecked classes on a grid under the default digest. The resolver reads
+# these copies, taken at import, so reassigning or mutating the module tables later changes nothing
+# it emits.
+_GRID_CLASSES: Mapping[int, str] = _read_only(GRID_CLASS_BY_COLUMNS)
+_GRID_SPAN_CLASSES: Mapping[int, str] = _read_only(GRID_SPAN_CLASS_BY_COLUMNS)
+
+
 def _read_only_nested(tables: Mapping[str, Any]) -> Mapping[str, Any]:
     # A value that is not a mapping is kept as given, so the registry check (not the constructor)
     # reports it with its stable constraint code.
@@ -413,15 +424,18 @@ class TailwindRecipeRegistry:
     read-only mappings and tuples, so a registry never changes after it is built and shares no
     mutable state with the dicts it came from. Build a variant with ``dataclasses.replace``, for
     example ``replace(DEFAULT_TAILWIND_RECIPE_REGISTRY, aesthetic_overlays={...})``. The tables are
-    checked when an emit uses the registry, not on construction, so a broken variant fails the emit
-    with its stable constraint code.
+    checked when an emit uses the registry, not on construction, so a variant with unsafe classes
+    or a missing recipe or overlay fails the emit with its stable constraint code before anything is
+    written. The registry projection and digest cover every field.
+
+    The grid classes are not a field. They are fixed, like the caps, so every registry puts the
+    checked-in ``GRID_CLASS_BY_COLUMNS`` and ``GRID_SPAN_CLASS_BY_COLUMNS`` classes on grids and on
+    the nodes that span grid columns.
     """
 
     recipes: Mapping[str, str]
     aesthetic_overlays: Mapping[str, Mapping[str, str]]
     layout_emphasis_classes: Mapping[str, str]
-    grid_classes: Mapping[int, str]
-    grid_span_classes: Mapping[int, str]
     app_role_contracts: Mapping[str, Mapping[str, tuple[str, ...]]]
     product_rule_ids: Mapping[str, str]
     structural_rule_ids: Mapping[str, str]
@@ -431,8 +445,6 @@ class TailwindRecipeRegistry:
         object.__setattr__(self, "recipes", _read_only(self.recipes))
         object.__setattr__(self, "aesthetic_overlays", _read_only_nested(self.aesthetic_overlays))
         object.__setattr__(self, "layout_emphasis_classes", _read_only(self.layout_emphasis_classes))
-        object.__setattr__(self, "grid_classes", _read_only(self.grid_classes))
-        object.__setattr__(self, "grid_span_classes", _read_only(self.grid_span_classes))
         object.__setattr__(self, "app_role_contracts", _read_only_contracts(self.app_role_contracts))
         object.__setattr__(self, "product_rule_ids", _read_only(self.product_rule_ids))
         object.__setattr__(self, "structural_rule_ids", _read_only(self.structural_rule_ids))
@@ -449,8 +461,6 @@ DEFAULT_TAILWIND_RECIPE_REGISTRY = TailwindRecipeRegistry(
     recipes=RECIPE_BY_KEY,
     aesthetic_overlays=TAILWIND_AESTHETIC_RECIPE_OVERLAYS,
     layout_emphasis_classes=LAYOUT_EMPHASIS_CLASS_BY_VALUE,
-    grid_classes=GRID_CLASS_BY_COLUMNS,
-    grid_span_classes=GRID_SPAN_CLASS_BY_COLUMNS,
     app_role_contracts=TAILWIND_APP_V1_APP_ROLE_CONTRACTS,
     product_rule_ids=TAILWIND_PRODUCT_APP_ROLE_RULE_IDS,
     structural_rule_ids=TAILWIND_STRUCTURAL_APP_ROLE_RULE_IDS,
@@ -578,17 +588,13 @@ def _grid_columns(node: IRNode) -> int:
     return columns
 
 
-def _grid_span_classes(node: IRNode, registry: TailwindRecipeRegistry) -> list[str]:
+def _grid_span_classes(node: IRNode) -> list[str]:
     span_columns = node.props.get("span_columns")
     if span_columns is None:
         return []
-    if (
-        not isinstance(span_columns, int)
-        or isinstance(span_columns, bool)
-        or span_columns not in registry.grid_span_classes
-    ):
+    if not isinstance(span_columns, int) or isinstance(span_columns, bool) or span_columns not in _GRID_SPAN_CLASSES:
         _fail("TAILWIND_LIMIT_EXCEEDED_GRID_COLUMNS", f"IRNode '{node.id}' span_columns must be 2 or 3.")
-    return registry.grid_span_classes[span_columns].split()
+    return _GRID_SPAN_CLASSES[span_columns].split()
 
 
 def _layout_emphasis_classes(node: IRNode, registry: TailwindRecipeRegistry) -> list[str]:
@@ -824,8 +830,8 @@ def _resolve_recipe(
     app_role, recipe_key = _recipe_key_for_node(node, parent, registry)
     classes = _classes_for_recipe(recipe_key, aesthetic_profile, registry)
     if node.primitive == "grid":
-        classes.extend(registry.grid_classes[_grid_columns(node)].split())
-    classes.extend(_grid_span_classes(node, registry))
+        classes.extend(_GRID_CLASSES[_grid_columns(node)].split())
+    classes.extend(_grid_span_classes(node))
     classes.extend(_layout_emphasis_classes(node, registry))
     return ResolvedRecipe(
         app_role=app_role.app_role if app_role is not None else None,
@@ -939,7 +945,8 @@ def _base_registry_projection(recipe_registry: TailwindRecipeRegistry | None = N
     The public ``tailwind_recipe_registry_projection`` / ``tailwind_recipe_registry_digest``
     live in ``viewspec.emitters.react_tailwind_tsx``; this is their input. It is a pure function
     of the registry it is given (the default registry when none is), so it cannot depend on
-    what ran before it.
+    what ran before it, and it records every field of that registry. The fixed grid tables are
+    not registry fields; like the other caps, only their column and span counts are recorded.
     """
     registry = _registry_or_default(recipe_registry)
     return {
@@ -963,7 +970,7 @@ def _base_registry_projection(recipe_registry: TailwindRecipeRegistry | None = N
             "artifact_bytes": TAILWIND_MAX_ARTIFACT_BYTES,
             "class_tokens": TAILWIND_MAX_CLASS_TOKENS,
             "grid_columns": sorted(TAILWIND_GRID_COLUMNS),
-            "grid_spans": sorted(registry.grid_span_classes),
+            "grid_spans": sorted(_GRID_SPAN_CLASSES),
             "ir_depth": TAILWIND_MAX_IR_DEPTH,
             "ir_nodes": TAILWIND_MAX_IR_NODES,
             "actions": TAILWIND_MAX_ACTIONS,

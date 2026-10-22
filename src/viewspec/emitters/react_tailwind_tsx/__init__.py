@@ -5,8 +5,10 @@ The emitter reads its recipe tables from an explicit, read-only ``TailwindRecipe
 passes another one to ``ReactTailwindTsxEmitter`` or ``emit_compiler_result``. The registry is
 passed down every call that resolves or checks a recipe, so emitting never assigns attributes on
 this package or on ``recipes``, and emits with different registries can run at the same time. The
-table names re-exported here (``RECIPE_BY_KEY`` and the rest) are the source the default registry
-was built from; reassigning or mutating them later does not change what the emitter does.
+grid classes (``GRID_CLASS_BY_COLUMNS``) are fixed rather than part of a registry. The table names
+re-exported here (``RECIPE_BY_KEY`` and the rest) are the source that the default registry and the
+fixed grid classes were copied from at import; reassigning or mutating them later does not change
+what the emitter does.
 """
 
 from __future__ import annotations
@@ -145,7 +147,11 @@ def tailwind_recipe_registry_digest(*, recipe_registry: TailwindRecipeRegistry |
 
 
 def tailwind_recipe_registry_projection(*, recipe_registry: TailwindRecipeRegistry | None = None) -> dict[str, Any]:
-    """The registry's tables, caps and semantic parity classes as plain sorted JSON data."""
+    """Every table of the registry, the caps and the semantic parity classes as plain sorted JSON data.
+
+    The fixed grid classes are not registry tables; like the other caps, only their column and span
+    counts are recorded.
+    """
     projection = _recipes._base_registry_projection(recipe_registry)
     projection["semantic_parity_classes"] = sorted(TAILWIND_PARITY_CLASS_TOKENS)
     return projection
