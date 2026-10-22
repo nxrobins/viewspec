@@ -317,7 +317,7 @@ def _analyze_freerange_numeric_scope(
             "name": "bun",
             "status": "unsupported" if error.code == "APP_FREERANGE_RUNTIME_UNSUPPORTED" else "unavailable",
         }
-        raise error.attach_report(
+        error.attach_report(
             _preflight_failure_report(
                 engine=engine,
                 runtime=unavailable_runtime,
@@ -326,13 +326,14 @@ def _analyze_freerange_numeric_scope(
                 error=error,
             )
         )
+        raise
     runtime_ms = _elapsed_ms(runtime_started)
     install_started = time.perf_counter()
     try:
         installation = _validate_installation(app_path)
     except FreerangeFailure as error:
         installation_ms = _elapsed_ms(install_started)
-        raise error.attach_report(
+        error.attach_report(
             _preflight_failure_report(
                 engine=engine,
                 runtime=runtime,
@@ -345,6 +346,7 @@ def _analyze_freerange_numeric_scope(
                 error=error,
             )
         )
+        raise
     installation_ms = _elapsed_ms(install_started)
     snapshots = _capture_snapshots(validated_scope, installation, Path(runtime["executable"]))
 
@@ -420,7 +422,7 @@ def _analyze_freerange_numeric_scope(
             _assert_snapshots_unchanged(snapshots)
         except FreerangeFailure as changed:
             error = changed
-        raise error.attach_report(
+        error.attach_report(
             _failure_report(
                 engine=engine,
                 runtime=runtime,
@@ -441,11 +443,14 @@ def _analyze_freerange_numeric_scope(
                 error=error,
             )
         )
+        if error is not caught:
+            raise error from caught
+        raise
 
     try:
         _assert_snapshots_unchanged(snapshots)
     except FreerangeFailure as error:
-        raise error.attach_report(
+        error.attach_report(
             _failure_report(
                 engine=engine,
                 runtime=runtime,
@@ -466,6 +471,7 @@ def _analyze_freerange_numeric_scope(
                 error=error,
             )
         )
+        raise
     if deferred_error is not None:
         raise deferred_error.attach_report(
             _failure_report(

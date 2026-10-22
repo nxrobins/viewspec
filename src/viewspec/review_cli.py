@@ -6,6 +6,7 @@ import http.client
 import hashlib
 import hmac
 import json
+import logging
 import os
 from pathlib import Path
 import selectors
@@ -285,7 +286,14 @@ def _spawn_daemon(
         text=True,
         start_new_session=True,
     )
-    assert process.stdout is not None
+    if process.stdout is None:
+        process.terminate()
+        raise ReviewContractError(
+            "REVIEW_SERVER_START_FAILED",
+            "Review daemon did not expose a readiness pipe.",
+            "Restart the local review daemon.",
+            cli_exit=1,
+        )
     selector = selectors.DefaultSelector()
     selector.register(process.stdout, selectors.EVENT_READ)
     ready = selector.select(timeout=DAEMON_START_TIMEOUT_SECONDS)
@@ -547,6 +555,18 @@ def _tool_envelope(
         "metadata": {"sdk_version": __version__, "network_calls": network_calls},
         "review": review,
     }
+
+
+def configure_daemon_logging(level: int = logging.INFO) -> None:
+    """Send ``viewspec`` diagnostics to stderr for a daemon started from the command line.
+
+    Library importers never see this: ``import viewspec`` only installs a ``NullHandler``.
+    """
+    handler = logging.StreamHandler(sys.stderr)
+    handler.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(name)s: %(message)s"))
+    package_logger = logging.getLogger("viewspec")
+    package_logger.addHandler(handler)
+    package_logger.setLevel(level)
 
 
 __all__ = ["DEFAULT_REVIEW_PORT", "end_review", "open_review", "poll_review", "review_status"]

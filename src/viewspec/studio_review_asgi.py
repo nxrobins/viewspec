@@ -139,10 +139,12 @@ class StudioReviewASGIApp:
         headers: Mapping[str, str],
         body: bytes,
     ) -> ReviewHTTPResponse:
-        assert self.internal_auth is not None
+        internal_auth = self.internal_auth
+        if internal_auth is None:
+            raise TypeError("Private review internal ingress requires configured internal authentication.")
         method = str(scope.get("method", ""))
         try:
-            verified = self.internal_auth.verify_request(
+            verified = internal_auth.verify_request(
                 method=method,
                 path=STUDIO_REVIEW_INTERNAL_INGRESS_PATH,
                 headers=headers,
@@ -166,7 +168,7 @@ class StudioReviewASGIApp:
         )
         try:
             content_type = _response_content_type(response)
-            authentication = self.internal_auth.sign_response(
+            authentication = internal_auth.sign_response(
                 status=response.status,
                 path=STUDIO_REVIEW_INTERNAL_INGRESS_PATH,
                 content_type=content_type,

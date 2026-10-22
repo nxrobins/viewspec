@@ -6,6 +6,7 @@ from contextlib import contextmanager
 from dataclasses import dataclass
 import hashlib
 import json
+import logging
 import os
 from pathlib import Path
 import re
@@ -28,6 +29,8 @@ from viewspec.repair import VerificationRepairPlan
 from viewspec.review_contract import ReviewBatch
 from viewspec.types import PRESENT_AS_TO_PRIMITIVE
 
+
+_LOGGER = logging.getLogger(__name__)
 
 INTENT_PATCH_SCHEMA_VERSION = 1
 INTENT_PATCH_CONTRACT_PROFILE = "local_v1"
@@ -2310,8 +2313,10 @@ def _apply_intent_patch_file_locked(
             backup_path.unlink(missing_ok=True)
         try:
             _write_receipt(receipt_path, {**base_receipt, "status": "aborted"})
-        except Exception:
-            pass
+        except Exception as receipt_exc:
+            _LOGGER.warning(
+                "Aborted patch receipt %s could not be written: %s", receipt_path.name, receipt_exc, exc_info=receipt_exc
+            )
         if rollback_error is not None:
             raise IntentPatchError(
                 "PATCH_RECOVERY_REQUIRED",

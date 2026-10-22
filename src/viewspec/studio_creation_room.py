@@ -8,6 +8,7 @@ from dataclasses import dataclass
 import hashlib
 import hmac
 import json
+import logging
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import os
 from pathlib import Path
@@ -28,8 +29,12 @@ from viewspec.studio_creation import (
     accept_studio_creation,
     inspect_accepted_studio_creation,
     inspect_studio_creation,
+    inspected_path,
+    inspected_task,
 )
 
+
+_LOGGER = logging.getLogger(__name__)
 
 CREATION_ROOM_SCHEMA_VERSION = 1
 CREATION_ROOM_BOOTSTRAP_SECONDS = 60
@@ -103,18 +108,12 @@ class StudioCreationRoomController:
         clock: Callable[[], float] = time.monotonic,
     ) -> None:
         inspected = inspect_studio_creation(task_path, cwd=cwd)
-        self.root = inspected["root"]
-        self.task_path = inspected["task_path"]
-        self.candidate_path = inspected["candidate_path"]
-        self.source_path = inspected["source_path"]
-        self.proof_path = inspected["proof_path"]
-        self.task = inspected["task"]
-        assert isinstance(self.root, Path)
-        assert isinstance(self.task_path, Path)
-        assert isinstance(self.candidate_path, Path)
-        assert isinstance(self.source_path, Path)
-        assert isinstance(self.proof_path, Path)
-        assert isinstance(self.task, dict)
+        self.root = inspected_path(inspected, "root")
+        self.task_path = inspected_path(inspected, "task_path")
+        self.candidate_path = inspected_path(inspected, "candidate_path")
+        self.source_path = inspected_path(inspected, "source_path")
+        self.proof_path = inspected_path(inspected, "proof_path")
+        self.task = inspected_task(inspected)
         self._handoff = handoff
         self._clock = clock
         self._lock = threading.RLock()
@@ -248,6 +247,7 @@ class StudioCreationRoomController:
             try:
                 accepted = accept_studio_creation(self.task_path, cwd=self.root)
             except StudioCreationError as exc:
+                _LOGGER.info("Studio creation candidate was rejected: %s: %s", exc.code, exc.message)
                 with self._lock:
                     self._candidate_pending_since = None
                     self._candidate_validation = "failed"
@@ -301,6 +301,9 @@ class StudioCreationRoomController:
         try:
             inspected = inspect_accepted_studio_creation(self.task_path, cwd=self.root)
         except StudioCreationError as exc:
+            _LOGGER.warning(
+                "Existing canonical source is not the retained checked candidate: %s: %s", exc.code, exc.message
+            )
             with self._lock:
                 self._candidate_validation = "failed"
                 self._artifact_check = "failed"
@@ -334,6 +337,7 @@ class StudioCreationRoomController:
             result = self._handoff(self.source_path, accepted)
             _validate_handoff(result)
         except (ReviewContractError, StudioCreationError) as exc:
+            _LOGGER.warning("Studio creation handoff failed: %s: %s", exc.code, exc.message)
             error = exc.to_json()
             with self._lock:
                 self._error = {key: str(value) for key, value in error.items() if key in {"code", "message", "fix"}}
@@ -516,7 +520,7 @@ class StudioCreationRoomServer:
                 outer._dispatch(self)
 
             def log_message(self, format: str, *args: object) -> None:
-                del format, args
+                _LOGGER.debug(format, *args)
 
         return Handler
 
@@ -524,6 +528,7 @@ class StudioCreationRoomServer:
         try:
             response = self._handle(handler)
         except Exception:
+            _LOGGER.exception("Studio creation room failed while handling a local request")
             response = _json_response(
                 500,
                 {

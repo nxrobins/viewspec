@@ -9,6 +9,7 @@ import hmac
 from html.parser import HTMLParser
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
+import logging
 import mimetypes
 import os
 from pathlib import Path
@@ -39,6 +40,8 @@ from viewspec.studio_agent_handoff import (
     AGENT_ACTIVITY_SECONDS, HANDOFF_CSS, HANDOFF_HTML, handoff_script, review_handoff,
 )
 
+
+_LOGGER = logging.getLogger(__name__)
 
 MAX_REQUEST_BODY_BYTES = 256 * 1024
 MAX_JSON_RESPONSE_BYTES = 256 * 1024
@@ -260,7 +263,7 @@ class ReviewServer:
                 outer._dispatch(self, mutation=True)
 
             def log_message(self, format: str, *args: object) -> None:
-                del format, args
+                _LOGGER.debug(format, *args)
 
         return Handler
 
@@ -280,6 +283,7 @@ class ReviewServer:
             except ReviewContractError as exc:
                 response = _error_response(exc)
             except Exception:
+                _LOGGER.exception("Review server failed while handling a bounded local request")
                 response = _error_response(
                     ReviewContractError(
                         "REVIEW_SERVER_START_FAILED",
@@ -854,8 +858,7 @@ class ReviewServer:
                 if verification_status == "conformant"
                 else "This exact revision passed semantic compilation and artifact integrity checks. Viewport verification was not run."
             )
-        if comparison:
-            assert react_frame is not None
+        if react_frame is not None:
             frame_markup = (
                 "<div id=fit-shell class=fit-shell><div id=fit-stage class=compare-stage data-studio-comparison=true>"
                 f"<div class=target-frame data-studio-surface='html-tailwind-app' data-studio-surface-active=false aria-hidden=true inert><span>Static</span><iframe id=artifact tabindex=-1 data-studio-frame data-target='html-tailwind-app' "
@@ -1640,6 +1643,7 @@ class ReviewServer:
                 handler.wfile.write(response.body[offset : offset + STREAM_CHUNK_BYTES])
             handler.close_connection = True
         except (OSError, TimeoutError):
+            _LOGGER.debug("Review response aborted: the client disconnected or the 30-second deadline passed")
             self.last_response_error = "REVIEW_RESPONSE_TIMEOUT"
             handler.close_connection = True
 

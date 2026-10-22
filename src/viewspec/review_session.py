@@ -86,7 +86,7 @@ class ReviewStateLock:
                 fcntl.flock(descriptor, fcntl.LOCK_EX | fcntl.LOCK_NB)
                 self._descriptor = descriptor
                 return
-            except BlockingIOError:
+            except BlockingIOError as exc:
                 if time.monotonic() >= deadline:
                     os.close(descriptor)
                     raise ReviewContractError(
@@ -95,7 +95,7 @@ class ReviewStateLock:
                         "Wait for the active local Review server to exit and retry.",
                         http_status=409,
                         cli_exit=2,
-                    )
+                    ) from exc
                 time.sleep(min(0.01, max(0.0, deadline - time.monotonic())))
             except OSError as exc:
                 os.close(descriptor)

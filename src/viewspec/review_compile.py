@@ -277,10 +277,10 @@ def build_review_revision(
         _make_private_dir(candidate_root)
         _make_private_dir(candidate_dir)
         source_copy = candidate_dir / "source.json"
-        design_copy = candidate_dir / "DESIGN.md" if snapshot.design_bytes is not None else None
+        design_copy: Path | None = None
         _write_private_file(source_copy, snapshot.source_bytes)
-        if design_copy is not None:
-            assert snapshot.design_bytes is not None
+        if snapshot.design_bytes is not None:
+            design_copy = candidate_dir / "DESIGN.md"
             _write_private_file(design_copy, snapshot.design_bytes)
 
         if snapshot.source_kind == "intent_bundle":

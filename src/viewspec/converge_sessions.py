@@ -1886,7 +1886,12 @@ def submit_convergence_patch(
         attempt_number = session.attempt_count + 1
         candidate_result: VerificationResult | None = None
         if session.mode == "verification":
-            assert session.baseline_result is not None
+            if session.baseline_result is None:
+                raise ConvergeError(
+                    "CONVERGE_BASELINE_REQUIRED",
+                    "Verifier-driven convergence session has no recorded baseline VerificationResult.",
+                    "Start the session again from the exact repair plan and its baseline result.",
+                )
             candidate_result = _run_candidate_verifier(
                 verifier,
                 intent_preview.candidate_text,

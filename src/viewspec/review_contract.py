@@ -7,7 +7,7 @@ import hashlib
 import json
 import re
 import secrets
-from typing import Any, Mapping
+from typing import Any, Literal, Mapping, overload
 
 
 REVIEW_SCHEMA_VERSION = 1
@@ -158,6 +158,26 @@ def _validate_hash(value: object, name: str, *, optional: bool = False) -> str |
     return value
 
 
+@overload
+def _bounded_text(value: object, name: str, maximum: int, code: str) -> str:
+    ...
+
+
+@overload
+def _bounded_text(value: object, name: str, maximum: int, code: str, *, allow_none: Literal[False]) -> str:
+    ...
+
+
+@overload
+def _bounded_text(value: object, name: str, maximum: int, code: str, *, allow_none: Literal[True]) -> str | None:
+    ...
+
+
+@overload
+def _bounded_text(value: object, name: str, maximum: int, code: str, *, allow_none: bool) -> str | None:
+    ...
+
+
 def _bounded_text(value: object, name: str, maximum: int, code: str, *, allow_none: bool = False) -> str | None:
     if value is None and allow_none:
         return None
@@ -303,7 +323,6 @@ class ReviewContext:
                 )
             key = _bounded_text(item[0], "control id", MAX_SCREEN_ID_BYTES, "REVIEW_CONTEXT_FORBIDDEN")
             value = _bounded_text(item[1], "control value", MAX_CONTROL_VALUE_BYTES, "REVIEW_CONTEXT_FORBIDDEN")
-            assert key is not None and value is not None
             if key in seen:
                 raise ReviewContractError(
                     "REVIEW_CONTEXT_FORBIDDEN", f"Duplicate control id: {key}", "Send each review-safe control once.", http_status=422
@@ -336,7 +355,6 @@ class ReviewContext:
         ref_bytes = 0
         for ref in refs:
             checked = _bounded_text(ref, "evidence ref", MAX_EVIDENCE_REF_BYTES, "REVIEW_CONTEXT_FORBIDDEN")
-            assert checked is not None
             if _SAFE_EVIDENCE_RE.fullmatch(checked) is None or checked.startswith("/") or ".." in checked.split("/"):
                 raise ReviewContractError(
                     "REVIEW_CONTEXT_FORBIDDEN",
@@ -515,7 +533,6 @@ class ReviewTarget:
         total = 0
         for ref in (*intents, *contents):
             checked = _bounded_text(ref, "target ref", MAX_TARGET_REF_BYTES, "REVIEW_TARGET_LIMIT_EXCEEDED")
-            assert checked is not None
             total += len(checked.encode("utf-8"))
         if total > MAX_TARGET_REFS_BYTES:
             raise ReviewContractError(

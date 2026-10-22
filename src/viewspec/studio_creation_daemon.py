@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import logging
 import os
 from pathlib import Path
 import signal
@@ -13,17 +14,20 @@ import threading
 import time
 
 from viewspec.local_tools import atomic_write
-from viewspec.review_cli import DEFAULT_REVIEW_PORT, open_review
+from viewspec.review_cli import DEFAULT_REVIEW_PORT, configure_daemon_logging, open_review
 from viewspec.review_contract import ReviewContractError
 from viewspec.review_runtime import default_review_state_root
 from viewspec.review_session import ReviewStateLock
-from viewspec.studio_creation import StudioCreationError, inspect_studio_creation
+from viewspec.studio_creation import StudioCreationError, inspect_studio_creation, inspected_path, inspected_task
 from viewspec.studio_creation_room import (
     StudioCreationHandoff,
     StudioCreationRoomController,
     StudioCreationRoomServer,
     creation_room_configuration_sha256,
 )
+
+
+_LOGGER = logging.getLogger(__name__)
 
 
 def creation_room_session_dir(task_id: str, state_root: str | Path) -> Path:
@@ -53,10 +57,8 @@ def main(argv: list[str] | None = None) -> int:
     room_port = args.port
     try:
         inspected = inspect_studio_creation(args.task, cwd=args.cwd)
-        task = inspected["task"]
-        proof_path = inspected["proof_path"]
-        assert isinstance(task, dict)
-        assert isinstance(proof_path, Path)
+        task = inspected_task(inspected)
+        proof_path = inspected_path(inspected, "proof_path")
         configuration_sha256 = creation_room_configuration_sha256(
             task_id=str(task["task_id"]),
             cwd=args.cwd,
@@ -119,6 +121,7 @@ def main(argv: list[str] | None = None) -> int:
             }
             receipt_path = proof_path / "room-transition.json"
             atomic_write(receipt_path, json.dumps(receipt, indent=2, sort_keys=True) + "\n")
+            _LOGGER.info("Studio creation handoff opened the checked review on port %s", review.get("port"))
             return StudioCreationHandoff(url=str(review["url"]), source_sha256=source_sha256, review=review)
 
         controller = StudioCreationRoomController(args.task, cwd=args.cwd, handoff=handoff)
@@ -144,6 +147,7 @@ def main(argv: list[str] | None = None) -> int:
         )
         _install_signal_handlers(stop)
         server.start()
+        _LOGGER.info("Studio creation room listening on port %s for task %s", server.port, task["task_id"])
         print(
             json.dumps(
                 {
@@ -165,6 +169,7 @@ def main(argv: list[str] | None = None) -> int:
                 break
         return 0
     except (ReviewContractError, StudioCreationError) as exc:
+        _LOGGER.error("Studio creation room failed to start: %s: %s", exc.code, exc.message)
         print(
             json.dumps(
                 {
@@ -180,6 +185,7 @@ def main(argv: list[str] | None = None) -> int:
         )
         return exc.cli_exit
     except Exception as exc:
+        _LOGGER.exception("Studio creation room failed to start")
         print(
             json.dumps(
                 {
@@ -200,6 +206,7 @@ def main(argv: list[str] | None = None) -> int:
         return 1
     finally:
         if server is not None:
+            _LOGGER.info("Studio creation room on port %s stopping", server.port)
             server.stop()
         if metadata_path is not None:
             metadata_path.unlink(missing_ok=True)
@@ -239,6 +246,7 @@ def _install_signal_handlers(stop: threading.Event) -> None:
 
 
 if __name__ == "__main__":
+    configure_daemon_logging()
     raise SystemExit(main())
 
 
