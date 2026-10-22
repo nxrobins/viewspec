@@ -403,12 +403,27 @@ def test_links_into_the_repository_name_files_that_exist() -> None:
     assert [target for target in sorted(targets) if not (ROOT / target).is_file()] == []
 
 
+def codeowners_rules(text: str) -> list[tuple[str, list[str]]]:
+    """Each rule of a CODEOWNERS file as (pattern, owners).
+
+    A ``#`` at the start of a line or after whitespace starts a comment, as in GitHub's example
+    ``*.js    @js-owner #This is an inline comment.``
+    """
+    rules: list[tuple[str, list[str]]] = []
+    for line in text.splitlines():
+        words = re.split(r"(?:^|\s)#", line, maxsplit=1)[0].split()
+        if words:
+            rules.append((words[0], words[1:]))
+    return rules
+
+
+def test_codeowners_rules_leave_out_comments() -> None:
+    text = "# Owners\n* @nxrobins\n\n  # An indented comment\ndocs/ @nxrobins # documentation owner\n*.js @a #note\n"
+    assert codeowners_rules(text) == [("*", ["@nxrobins"]), ("docs/", ["@nxrobins"]), ("*.js", ["@a"])]
+
+
 def test_codeowners_names_an_owner_for_every_path() -> None:
-    rules = []
-    for line in CODEOWNERS.read_text(encoding="utf-8").splitlines():
-        if line.strip() and not line.lstrip().startswith("#"):
-            pattern, *owners = line.split()
-            rules.append((pattern, owners))
+    rules = codeowners_rules(CODEOWNERS.read_text(encoding="utf-8"))
     assert rules, "CODEOWNERS has no rules"
     owner = re.compile(r"@[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?(?:/[A-Za-z0-9._-]+)?|[^@\s]+@[^@\s]+\.[^@\s]+")
     for pattern, owners in rules:
