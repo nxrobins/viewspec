@@ -2,12 +2,12 @@
 
 GitHub reports a broken issue form only in its web interface, never as a failing check, so these
 tests apply the documented form schema here (audit finding H-2): the required top-level keys, the
-permitted keys and attributes for each element type, ids and labels that are unique within a form,
-and options that YAML does not turn into booleans or the reserved word ``None``. They also pin the
-facts the bug report must ask for, the code fences that keep pasted input readable in the issue,
-the deliberate blank-issue setting and the security route in ``config.yml``, an owner for every
-path in CODEOWNERS, and a pull request checklist that repeats every command and repository rule in
-CONTRIBUTING.md.
+permitted keys and attributes for each element type, unique ids, labels that are unique unless an
+id tells them apart, and options that YAML does not turn into booleans or the reserved word
+``None``. They also pin the facts the bug report must ask for, the code fences that keep pasted
+input readable in the issue, the deliberate blank-issue setting and the security route in
+``config.yml``, an owner for every path in CODEOWNERS, and a pull request checklist that repeats
+every command and repository rule in CONTRIBUTING.md.
 
 Schema reference: https://docs.github.com/en/communities/using-templates-to-encourage-useful-issues-and-pull-requests/syntax-for-issue-forms
 and the "Syntax for GitHub's form schema" and "Common validation errors" pages next to it.
@@ -116,6 +116,10 @@ def _element_problems(index: int, element: Any) -> list[str]:
         for key in sorted(STRING_ATTRIBUTES & set(attributes))
         if not _is_text(attributes[key])
     ]
+    # GitHub refuses words that ask for credentials in the label of a text field.
+    label = attributes.get("label")
+    if kind in {"input", "textarea"} and _is_text(label) and "password" in label.lower():
+        problems.append(f"{where}: label contains the forbidden word 'password'")
     if "id" in element:
         if kind == "markdown":
             problems.append(f"{where}: a markdown element takes no id")
@@ -146,6 +150,8 @@ def _element_problems(index: int, element: Any) -> list[str]:
                 isinstance(default, int) and not isinstance(default, bool) and 0 <= default < len(options)
             ):
                 problems.append(f"{where}: default must be an index into options")
+            if default is not None and any(str(option).strip().lower() == "n/a" for option in options):
+                problems.append(f"{where}: options cannot include n/a when a default is set")
         if "multiple" in attributes and not isinstance(attributes["multiple"], bool):
             problems.append(f"{where}: multiple must be a boolean")
     if kind == "checkboxes":
@@ -163,7 +169,12 @@ def _element_problems(index: int, element: Any) -> list[str]:
 
 
 def issue_form_problems(form: Any) -> list[str]:
-    """Every way ``form`` breaks GitHub's issue-form schema; empty when GitHub would accept it."""
+    """The documented issue-form rules ``form`` breaks; empty when it breaks none.
+
+    The rules come from GitHub's form-schema and "Common validation errors" pages. GitHub does not
+    publish its whole list of forbidden label words, so only the documented one, "password", is
+    checked, and an empty result is not proof that GitHub accepts the form.
+    """
     if not isinstance(form, dict):
         return ["the form is not a mapping"]
     problems = _non_string_keys(form)
@@ -189,19 +200,29 @@ def issue_form_problems(form: Any) -> list[str]:
     problems += [
         f"body must have unique ids: {item!r} repeats" for item in sorted({i for i in ids if ids.count(i) > 1})
     ]
-    labels_seen: list[str] = []
+    # Two elements may share a label when at least one has an id to tell them apart, so only the
+    # labels of elements without an id must be unique, together with checkbox options, which
+    # cannot have an id.
+    field_labels: list[str] = []
+    option_labels: list[str] = []
     references: list[str] = []
     for element in inputs:
         attributes = element.get("attributes") or {}
+        if element["type"] == "checkboxes":
+            option_labels += [
+                option["label"]
+                for option in attributes.get("options") or []
+                if isinstance(option, dict) and _is_text(option.get("label"))
+            ]
         label = attributes.get("label")
         if not _is_text(label):
             continue
-        labels_seen.append(label)
+        if "id" not in element:
+            field_labels.append(label)
         references.append(element["id"] if "id" in element else _parameterize(label))
-        if element["type"] == "checkboxes":
-            labels_seen += [option["label"] for option in attributes.get("options") or [] if isinstance(option, dict)]
+    labels_seen = field_labels + option_labels
     problems += [
-        f"body must have unique labels: {item!r} repeats"
+        f"{'checkboxes' if item in option_labels else 'body'} must have unique labels: {item!r} repeats"
         for item in sorted({x for x in labels_seen if labels_seen.count(x) > 1})
     ]
     problems += [
@@ -236,7 +257,8 @@ def test_issue_form_names_are_unique() -> None:
     assert len(names) == len(set(names)), names
 
 
-# Each case breaks one rule from GitHub's "Common validation errors when creating issue forms" page.
+# Each case breaks one rule from GitHub's "Common validation errors when creating issue forms" page
+# or its form schema.
 _HEADER = "name: n\ndescription: d\n"
 _INVALID_FORMS = [
     ("description: d\nbody: [{type: input, attributes: {label: A}}]", "'name' is missing"),
@@ -251,8 +273,18 @@ _INVALID_FORMS = [
         "unique labels",
     ),
     (
+        _HEADER + "body: [{type: textarea, attributes: {label: Name}},"
+        " {type: checkboxes, attributes: {label: C, options: [{label: Name}]}}]",
+        "checkboxes must have unique labels",
+    ),
+    (
         _HEADER + "body: [{type: input, attributes: {label: 'Name?'}}, {type: input, attributes: {label: 'Name???'}}]",
         "too similar",
+    ),
+    (
+        _HEADER + "body: [{type: input, attributes: {label: 'Name?'}},"
+        " {type: input, id: name, attributes: {label: 'Name???'}}]",
+        "labels are too similar: 'name'",
     ),
     (_HEADER + "body: [{type: input, id: a b, attributes: {label: A}}]", "can only contain"),
     (_HEADER + "body: [{type: markdown, id: m, attributes: {value: x}}]", "takes no id"),
@@ -262,6 +294,8 @@ _INVALID_FORMS = [
     (_HEADER + "body: [{type: text, attributes: {label: A}}]", "not a valid input type"),
     (_HEADER + "body: [{type: dropdown, attributes: {label: A, options: [None, x]}}]", "reserved word"),
     (_HEADER + "body: [{type: dropdown, attributes: {label: A, options: [yes, no]}}]", "must be strings"),
+    (_HEADER + "body: [{type: dropdown, attributes: {label: A, options: [x, n/a], default: 0}}]", "n/a"),
+    (_HEADER + "body: [{type: input, attributes: {label: Password}}]", "forbidden word"),
     (_HEADER + "body: [{type: input, attributes: {label: ' '}}]", "non-empty string"),
     (_HEADER + "labels: [triage]\nbody: [{type: input, attributes: {label: A}}]", "default label"),
     (_HEADER + "on: x\nbody: [{type: input, attributes: {label: A}}]", "not a string"),
@@ -272,6 +306,30 @@ _INVALID_FORMS = [
 def test_issue_form_checker_rejects_what_github_rejects(text: str, expected: str) -> None:
     problems = issue_form_problems(yaml.safe_load(text))
     assert any(expected in problem for problem in problems), problems
+
+
+# The fixes GitHub's "Common validation errors" page gives for those errors, and its form-schema
+# examples. The checkboxes element gets the label the schema requires, which the page's example leaves out.
+_VALID_FORMS = [
+    # Two elements with the same label, told apart by their ids.
+    "body: [{type: textarea, id: name_1, attributes: {label: Name}},"
+    " {type: textarea, id: name_2, attributes: {label: Name}}]",
+    # One id is enough.
+    "body: [{type: textarea, id: name_1, attributes: {label: Name}}, {type: textarea, attributes: {label: Name}}]",
+    # A checkbox option may repeat the label of an element that has an id.
+    "body: [{type: textarea, id: name_1, attributes: {label: Name}},"
+    " {type: checkboxes, attributes: {label: C, options: [{label: Name}]}}]",
+    # Labels that parameterize alike, told apart by an id.
+    "body: [{type: input, attributes: {label: 'Name?'}}, {type: input, id: your-name, attributes: {label: 'Name???'}}]",
+    # A dropdown with a default option.
+    "body: [{type: dropdown, id: download, attributes: {label: 'How did you download the software?',"
+    " options: [Built from source, Homebrew, MacPorts, apt-get], default: 0}, validations: {required: true}}]",
+]
+
+
+@pytest.mark.parametrize("text", _VALID_FORMS)
+def test_issue_form_checker_accepts_what_github_accepts(text: str) -> None:
+    assert issue_form_problems(yaml.safe_load(_HEADER + text)) == []
 
 
 def test_bug_report_requires_the_facts_a_maintainer_needs() -> None:
