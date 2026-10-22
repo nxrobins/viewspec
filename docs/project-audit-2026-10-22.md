@@ -309,32 +309,32 @@ Three parallel focused reviews (security surfaces; compiler core; documentation,
 
 ## 13. Resolution status
 
-Status as of the follow-up work on 2026-10-22, all on branch `claude/project-audit-uv9ohi` (pull request #171). "Fixed" means the change is merged on that branch with tests. "Partial" names what remains. "Open" names the reason.
+Status as of the follow-up work on 2026-10-22, all on branch `claude/project-audit-uv9ohi` (pull request #171). "Fixed" means the change is merged on that branch with tests. "Partial" names what remains. "Open" names the reason. The rows were revised after the review of the pull request: where a fix holds only within a boundary, the row states the boundary.
 
 | Id | Status | Resolution |
 |---|---|---|
 | P-1 | Fixed | `protobuf>=6.31.1,<8`; CI job imports the package at the floor; a test ties the floor to the gencode version. |
 | P-2 | Fixed | vite 8.3.5 in all three seeds; `npm audit` reports zero advisories. |
-| P-3 | Fixed | `proto/universal_ui.proto`, `scripts/regenerate_schema.py`, `.pyi` stub; CI checks source against gencode. |
-| P-4 | Fixed | `requirements-ci.txt` used as pip constraints in every CI install. |
+| P-3 | Fixed | `proto/universal_ui.proto`, `scripts/regenerate_schema.py`, `.pyi` stub; CI checks source against gencode. The `dev` extra pins `grpcio-tools` 1.80.0 (protoc 31.1, wheels for Python 3.11 to 3.14). |
+| P-4 | Fixed | `requirements-ci.txt` used as pip constraints in every CI install; the Pretext workflow also runs when it changes. |
 | P-5 | Fixed | `.github/dependabot.yml` for pip, three npm seeds and Actions. |
-| P-6 | Fixed | `cryptography<53`, `mcp<3`. |
+| P-6 | Fixed | `cryptography<53`, `mcp<2`: MCP SDK 2.x removed `mcp.server.fastmcp`, which `viewspec mcp` imports, and `doctor --agents` now checks that module, reporting any import failure as unavailable. |
 | P-7 | Fixed | `overrides` for `source-map-js` in the three manifests. |
 | P-8 | Fixed | `.pre-commit-config.yaml` pinned to ruff 0.15.22. |
 | P-9 | Info | No action; caps raised with R-8. |
-| C-1 | Fixed | Integral doubles become ints at `SemanticNode` construction and after round trips; `INTEGER_OUT_OF_SAFE_RANGE` rejects magnitudes above 2^53. |
-| C-2 | Fixed | `ensure_ascii=False` in text rendering. |
+| C-1 | Fixed | Integral doubles become ints at `SemanticNode` construction (a snapshot: caller data is not modified, nested tuples become lists) and after round trips, so integers within 2^53 compile identically in memory and after JSON or proto round trips. `validate-intent`, `viewspec compile` and the agent/MCP tools reject magnitudes above 2^53 with `INTEGER_OUT_OF_SAFE_RANGE`. The Python `compile()` API does not check magnitudes; Python callers run `validate_agent_intent_bundle` on the JSON payload first. |
+| C-2 | Fixed | `ensure_ascii=False` in text rendering. Lists and dicts also render with compact separators, which changes page text and hashes for every bundle that binds one. |
 | C-3 | Fixed | `compile_auto` falls back only on `UnsupportedMotifError`. |
 | C-4 | Partial | Output no longer depends on protobuf number formatting and the runtime is capped below 8; values still pass through `Struct` by design. |
-| C-5 | Fixed | `viewspec/_canonical.py`; every helper is an alias of one of two forms; all forms reject NaN; no digest changed. Converging the two forms is an owner decision. |
+| C-5 | Fixed | `viewspec/_canonical.py`; the helpers pinned in `tests/test_canonical.py` (verification, repair, convergence, presentation plan, semantic digest, Pretext coverage and the hosted contracts on the ASCII form; state IR, intent tools, AppBundle validation, intent patches, converge sessions and the Review V0 contract on the UTF-8 form) are aliases or thin wrappers of its two forms, and both forms reject NaN; no digest changed. Digests that keep their own serialization, none with `allow_nan=False`: `agent_eval_value.canonical_bytes` (agent-eval manifest and checkpoint digests), `prove.proof_report_hash` and `app_reports.app_proof_report_hash` (indented report text), and the inline `json.dumps` digests in `local_verify.py` (artifact identity), `tailwind_recipe_registry_digest`, `app_numeric.numeric_operation_inventory_sha256`, `compiler_benchmarks.py` and `review_manifest.ReviewManifestIndex.semantic_identity_sha256`, whose inputs hold no non-finite numbers. `agent_eval.canonical_json` writes indented agent-eval output and rejects NaN. Converging the forms is an owner decision. |
 | C-6 | Fixed | A Windows CI job compares the corpus goldens with Linux; it found and fixed backslashes in the React app manifest. |
-| C-7 | Fixed | On-disk proof reports record paths relative to the proof directory; the proof report hash excludes `timings_ms`; `support_bundle.json` is at schema 2 without timings. React host reports may still carry their own timings. |
+| C-7 | Partial | On-disk proof reports record paths relative to the report's directory; the proof report hash excludes the top-level `timings_ms` and is the same for a report read back from disk from any working directory; `support_bundle.json` is at schema 2 without timings. The hash is shared across runs and directories for `html-tailwind`, `react-tsx` and `prove-app --target html-tailwind` when inputs keep their position relative to the report; an input outside the proof directory at a different depth changes it. Remaining: `react-tailwind-tsx` and `react-tailwind-app` hashes change on every run (host report timings), and `react-tailwind-app` hashes also change by directory because `app_analysis_evidence.json` records the absolute `artifact_dir`. |
 | C-8 | Fixed | Unreachable branch, dead accumulators, duplicate digest and unreferenced constants removed. |
 | C-9 | Open | API inconsistencies (`design` string-as-content, unused `lint`, role matching, nine subcommands without `--json`) are behaviour changes left for the owner. |
-| S-1 | Fixed | Event handlers, unsafe URL schemes, unclosed `<script`, raw-HTML governance; nine bypasses are negative tests. |
-| S-2 | Fixed | CSS escapes and comments decoded; `image-set()`, `feImage`, `ping` covered. |
+| S-1 | Fixed | Event handlers, unsafe URL schemes, unclosed `<script`, raw-HTML governance; markup that browsers and `html.parser` parse differently (comments, CDATA and other `<![` sections, processing instructions, raw-text elements inside SVG or MathML) fails with `CHECK_AMBIGUOUS_MARKUP`; nine bypasses are negative tests. |
+| S-2 | Fixed | CSS escapes and comments decoded; `image-set()`, `feImage`, `ping` covered; `http:` and `https:` URLs written without `//` count as remote. |
 | S-3 | Fixed | Linear tag scans with a block cap; timing tests. |
-| S-4 | Fixed | `--force` replaces only empty or ViewSpec-marked directories. |
+| S-4 | Fixed | `--force` replaces only empty or ViewSpec-marked directories; `prove` and `prove-app` write a `.viewspec-output` marker when they create the directory, so an interrupted proof can be replaced. |
 | S-5 | Fixed | MCP server resolves its working directory. |
 | S-6 | Fixed | DESIGN.md capped at 64 KiB; YAML aliases rejected. |
 | S-7 | Fixed | Void tags added; skipped-tag stack pops to the matching tag. |
@@ -344,38 +344,38 @@ Status as of the follow-up work on 2026-10-22, all on branch `claude/project-aud
 | S-11 | Open | Pinned receipt key and HTTPS-only `api_url` need a hosted-side decision. |
 | S-12, S-13 | Fixed | SECURITY.md describes the resolved MCP working directory, the `--force` marker rule, the DESIGN.md cap and the HTML size gate. |
 | Q-1 | Partial | Stub and `pyrightconfig.json` added (849 to 770 errors); a baseline gate stops regressions; the remaining errors are not fixed. |
-| Q-2 | Partial | Hosted client moved out of `compiler.py`; module splits deferred by owner decision. |
+| Q-2 | Partial | Hosted client moved out of `compiler.py` and re-exported from it; `viewspec.compiler` keeps every public name it had on `main`. Module splits deferred by owner decision. |
 | Q-3 | Partial | The three emitters and the raw-HTML importer share `viewspec.emitters._write`; tag and ARIA ladders deferred by owner decision. |
 | Q-4 | Open | Recipes module mutation deferred by owner decision (regression risk). |
 | Q-5 | Partial | Constant moved, public helper names, `derive_style_tokens` public; agent-layer and tool-layer imports remain, described in the merge notes. |
 | Q-6 | Open | API tiering is a pre-1.0 owner decision. |
-| Q-7 | Fixed | `ruff format` applied to every Python file and gated in CI; rules `I`, `UP`, `B`, `SIM` enabled with two documented ignores. |
-| Q-8 | Fixed | `CompilerInternalError` and `LocalToolContractError`; two coded raises in `app_numeric.py` and one in the HTML emitter remain. |
-| Q-9 | Fixed | Loggers with a `NullHandler`; daemons configure stderr. |
-| Q-10 | Fixed | Secondary failures logged; `raise ... from` everywhere. |
+| Q-7 | Fixed | `ruff format` applied to every Python file and gated in CI; rules `I`, `UP`, `B`, `SIM` enabled with two documented ignores. The hand edits the rules required were compared by AST with the previous code; the one that changed behaviour (interrupted IntentPatch recovery read another transaction's receipt) is reverted with a regression test. |
+| Q-8 | Fixed | `CompilerInternalError` and `LocalToolContractError`, which survive pickle and copy, as `ConvergeError`, `IntentPatchError` and the Tailwind emitter's `CompilerConstraintError` now do; two coded raises in `app_numeric.py` and one in the HTML emitter remain. |
+| Q-9 | Fixed | Loggers with a `NullHandler`. Daemons run with `python -m` log under `viewspec.<module>` through a formatted stderr handler; `viewspec review` and Studio start them with stderr sent to `/dev/null`, so their logs are visible only when a daemon is run directly. The review server and the Studio creation room redact request targets in their DEBUG request logs. |
+| Q-10 | Fixed | Secondary failures logged; `raise ... from` everywhere; when the app support bundle and `APP_PROOF.md` both fail to write, `app_proof_report.json` is rewritten to match the returned report. |
 | Q-11 | Fixed | All 52 asserts in request and tool paths replaced with explicit checks. |
 | Q-12 | Fixed | Builder exports added; alias kept. |
 | Q-13 | Info | |
-| T-1 | Fixed | Exact skip reasons; CI still runs everything. |
+| T-1 | Fixed | Exact skip reasons; CI still runs everything; CONTRIBUTING.md describes the skips. |
 | T-2 | Fixed | 32 pinned outputs; regeneration script; checked on Linux and Windows. |
 | T-3 | Fixed | Landing page and proof explorer in the drift test; cross-platform dashboard pinned as a hosted fixture. |
 | T-4 | Fixed | Property tests over scalar types. |
 | T-5 | Fixed | Smoke tests for three scripts. |
 | T-6 | Info | |
-| R-1 | Fixed | Every action pinned to a commit. |
-| R-2 | Fixed | Approved by the owner; PyPI check no longer blocks the docs deploy. |
+| R-1 | Fixed | Every action pinned to a commit, at the major version each workflow used before. |
+| R-2 | Fixed | Approved by the owner; PyPI check no longer blocks the docs deploy; the release checklist describes the resulting order of merge, upload and deploy. |
 | R-3 | Fixed | Approved by the owner; PRs block on high and critical; weekly audit at every level. |
 | R-4 | Fixed | Missing reference fonts fail the Pretext gate loudly. |
 | R-5 | Open | The exact test count and npm patch assertions stay; relaxing them was judged a gate change for the owner. |
-| R-6 | Fixed | Caching, timeouts, concurrency, `agents` extra, lockfile-based Playwright. |
+| R-6 | Fixed | Caching, timeouts, concurrency that supersedes only pull request runs (every push to `main` runs to completion), the `agents` extra in every test leg with a test that starts the real stdio MCP server, lockfile-based Playwright. |
 | R-7 | Fixed | Version single-sourced; tag and release step in the checklist. |
-| R-8 | Fixed | sdist ships tests, conformance, schema source, changelog and policy. |
+| R-8 | Partial | sdist ships tests, conformance, schema source, changelog and policy. The full suite still needs a git checkout: some tests import or read `scripts/`, `demos/`, `docs/`, `examples/`, `integrations/` and `.github/`, and the root file `requirements-ci.txt`, none of which the sdist carries. |
 | R-9 | Fixed | One legal name. |
 | R-10 | Fixed | Seed installed before the host proof; verifier reuses it. |
 | R-11 | Info | |
 | D-1 | Info | |
 | D-2 to D-7 | Fixed | README and docs corrected; index added; internal notes moved; tests guard codes and the skill file. |
-| H-1 | Fixed | Classifiers and README state Linux and macOS. |
+| H-1 | Fixed | Classifiers and README state Linux and macOS. CI runs on Linux plus a Windows goldens job; macOS is declared but not exercised in CI, as README and CONTRIBUTING.md say. |
 | H-2 | Partial | CONTRIBUTING.md and CODE_OF_CONDUCT.md added; issue and PR templates and CODEOWNERS not added. |
 | H-3 | Open | Git LFS migration was prepared, but this environment cannot reach `lfs.github.com`; run `git lfs track "demos/launch-assets/*.{gif,mp4,png}"`, re-add the files and push from a machine with LFS access, and set `lfs: true` on the checkout steps. |
 | H-4 | Open by design | Git stores identical blobs once, and the drift test pins the copies; a deploy-time copy would remove the duplicates at the cost of building during the Pages deploy. |

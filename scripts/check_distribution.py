@@ -14,9 +14,10 @@ from email.policy import default
 from pathlib import Path, PurePosixPath
 from typing import Any
 
-# The sdist carries the test suite, the conformance corpus and the schema source so that
-# downstream packagers can run the tests from the archive (audit R-8); the caps leave
-# headroom for that without admitting build output or dependency trees.
+# The sdist carries the library tests, the conformance corpus and the schema source (audit
+# R-8). It does not carry scripts/, demos/, docs/, examples/, integrations/, .github/ or
+# requirements-ci.txt, which some tests import or read, so the full suite still needs a git checkout. The caps
+# leave headroom for the shipped tests without admitting build output or dependency trees.
 ROOT = Path(__file__).resolve().parents[1]
 MAX_ARCHIVE_BYTES = 6 * 1024 * 1024
 MAX_UNPACKED_BYTES = 12 * 1024 * 1024

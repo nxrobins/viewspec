@@ -261,8 +261,9 @@ Pretext native-DOM text proof uses the React app's npm/Chromium toolchain and do
 **Supported platforms:** Linux and macOS. Review (`viewspec studio` and the `review-*` commands),
 Converge Sessions, IntentPatch apply, and host verification (`verify-host`, `prove --install`,
 `prove-app`) use POSIX file locks and process groups (`fcntl`, `os.setsid`) and are not supported on
-Windows. The pure-Python validate, compile, `check`, and `diff` path has no POSIX-only dependency,
-but it is not tested on Windows; CI runs on Ubuntu only.
+Windows. The pure-Python validate, compile, `check`, and `diff` path has no POSIX-only dependency.
+CI runs the test suite on Ubuntu; a Windows job compiles the whole conformance corpus and checks
+the output against the pinned goldens. macOS is supported but not exercised in CI.
 
 Python package: <https://pypi.org/project/viewspec/>
 

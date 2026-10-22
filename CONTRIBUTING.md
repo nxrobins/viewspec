@@ -8,16 +8,19 @@ error-code registry and the changelog. Security reports go through
 
 ## Supported platforms
 
-Development and CI run on Linux (Ubuntu) and macOS. Review, Converge Sessions, IntentPatch apply,
-and host verification use POSIX file locks and process groups (`fcntl`, `os.setsid`), so the full
-test suite does not run on Windows.
+Development is supported on Linux and macOS. CI runs the test suite on Linux (Ubuntu), plus a
+Windows job that compiles the conformance corpus and checks it against the pinned goldens; macOS is
+supported but not exercised in CI. Review, Converge Sessions, IntentPatch apply, and host
+verification use POSIX file locks and process groups (`fcntl`, `os.setsid`), so the full test suite
+does not run on Windows.
 
 ## Development setup
 
 1. **Clone with full history.** `tests/test_bug_prevention_manifest.py` walks the git history to
-   verify the fix commits recorded in `tests/bug_prevention_manifest.json`, so a shallow clone
-   fails that test (CI checks out with `fetch-depth: 0`). Use a plain `git clone`; if you already
-   have a shallow clone, run `git fetch --unshallow`.
+   verify the fix commits recorded in `tests/bug_prevention_manifest.json`. In a shallow clone, or
+   a copy without `.git`, that check skips and prints the reason; CI checks out with
+   `fetch-depth: 0`, so it always runs there. Use a plain `git clone`; if you already have a
+   shallow clone, run `git fetch --unshallow`.
 
 2. **Python 3.11 or newer.** Create a virtual environment and install the package editable with the
    development, hosted-fallback, and MCP extras:
@@ -29,9 +32,10 @@ test suite does not run on Windows.
    python -m pip install -e ".[dev,remote,agents]"
    ```
 
-   `dev` brings `pytest`, `hypothesis`, `ruff` (pinned to the exact version CI uses), `build`,
-   `httpx`, and `jsonschema`; `remote` adds the hosted-compiler client dependencies; `agents` adds
-   `mcp` so the real `viewspec mcp` path is exercised instead of its missing-dependency branch.
+   `dev` brings `pytest`, `hypothesis`, `ruff` and `pyright` (pinned to the exact versions CI
+   uses), `build`, `httpx`, `jsonschema`, and `grpcio-tools` for schema regeneration; `remote` adds
+   the hosted-compiler client dependencies; `agents` adds the MCP SDK (1.x; `mcp<2`) so the real
+   `viewspec mcp` server starts in the tests instead of its missing-dependency branch.
 
 3. **Node.js 22 and npm.** Two npm dependency seeds are committed as lockfiles and installed with
    `npm ci --ignore-scripts`; several tests and the host verifier look for them in place:
@@ -41,8 +45,8 @@ test suite does not run on Windows.
    (cd src/viewspec/host_verify_template && npm ci --ignore-scripts)
    ```
 
-   Both `node_modules/` directories are gitignored. Without the seeds, a handful of tests fail with
-   dependency-missing errors rather than skipping.
+   Both `node_modules/` directories are gitignored. Without the seeds, the tests that need them skip
+   and print the reason.
 
 4. **Playwright Chromium (one test).** The browser scorer regression test
    (`tests/test_agent_eval_runner.py::test_browser_scorer_records_runtime_screenshot_and_text_geometry_fault`)
@@ -52,23 +56,35 @@ test suite does not run on Windows.
    (cd src/viewspec/host_verify_template && npx --no-install playwright install --with-deps chromium)
    ```
 
-   Omit `--with-deps` on macOS. Everything else in the default suite runs without a browser.
+   Omit `--with-deps` on macOS. Without that browser the test skips with its reason; everything
+   else in the default suite runs without a browser.
+
+   CI installs the seeds and the browser and checks out full history, so nothing in the default
+   suite skips for these reasons there. A local run with these skips is not full coverage; add
+   `-rs` to the pytest command to list every skip and its reason.
 
 5. **Optional runtimes.** Bun 1.x is only needed for the opt-in Freerange proof and its e2e
    scenarios; ViewSpec never installs it. Nothing in the default suite needs network access.
 
 ## Running the checks
 
-Run these from the repository root before opening a pull request; CI runs the same commands on
-Python 3.11 through 3.14.
+Run these from the repository root before opening a pull request; CI runs the same commands, the
+test suite on Python 3.11 through 3.14.
 
 ```bash
 ruff check .
 ruff format --check .
 python -m compileall -q src tests examples scripts
 python -m pytest -q --strict-markers -m "not e2e"
+python scripts/regenerate_schema.py check
+python scripts/update_corpus_goldens.py --check
+python scripts/check_pyright_baseline.py
 node tests/seo_static_smoke.mjs
 ```
+
+`update_corpus_goldens.py --check` fails when compiled output changes; if the change is
+intended, run it without `--check` and commit the regenerated `tests/fixtures/corpus_goldens.json`.
+`check_pyright_baseline.py` fails when the pyright error count grows above `pyright-baseline.json`.
 
 `ruff format` is the only formatter; run `ruff format .` before committing. The lint rule set
 (`I`, `UP`, `B`, `SIM` on top of Pyflakes) and the few deliberate ignores live under
@@ -93,10 +109,20 @@ version pinned.
 
 CI resolves Python dependencies through the pinned `requirements-ci.txt` at the repository root,
 passed to pip as a constraints file, so every matrix leg installs identical versions. If you change
-a dependency floor in `pyproject.toml`, regenerate the pins in the same pull request (for example
-with `uv pip compile pyproject.toml --all-extras -o requirements-ci.txt`) and say so in the pull
-request description. Local development is not required to use the constraints file, but
-reproducing a CI failure usually means installing with it:
+a dependency range in `pyproject.toml`, regenerate the pins in the same pull request with the exact
+command from the file's header:
+
+```bash
+uv pip compile pyproject.toml --all-extras --universal --python-version 3.11 \
+    --no-header -o requirements-ci.txt
+```
+
+`--universal` keeps the platform-specific pins the Windows job needs, and `--python-version 3.11`
+resolves for the oldest supported Python rather than your interpreter. uv rewrites the whole file,
+so copy the explanatory comment block back to the top afterwards (`--no-header` only stops uv from
+adding its own). Say in the pull request description that the pins changed. Local development is
+not required to use the constraints file, but reproducing a CI failure usually means installing
+with it:
 
 ```bash
 PIP_CONSTRAINT=requirements-ci.txt python -m pip install -e ".[dev,remote,agents]"

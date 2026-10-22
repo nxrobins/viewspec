@@ -19,4 +19,4 @@ ViewSpec treated every confirmed repository regression through pull request 135 
 - Ruff, byte-compilation of `src`, `tests`, `examples`, and `scripts`, and whitespace-damage checks fail the build.
 - Static landing, configuration, commerce, checkout, and SEO contracts run under Node.js.
 - Chromium executes the generated React host proof and every public demo at desktop and mobile widths, including clipboard rejection and checkout-key copy fallback.
-- A clean PEP 517 build must produce exactly one wheel and one source archive. `scripts/check_distribution.py` rejects version drift, traversal or link entries, repository/dependency bloat, unexpected files, more than 512 members, compressed archives over 4 MiB, expanded archives over 8 MiB, or any member over 2 MiB.
+- A clean PEP 517 build must produce exactly one wheel and one source archive. `scripts/check_distribution.py` rejects version drift, traversal or link entries, repository/dependency bloat, unexpected files, more than 768 members, compressed archives over 6 MiB, expanded archives over 12 MiB, or any member over 2 MiB.
