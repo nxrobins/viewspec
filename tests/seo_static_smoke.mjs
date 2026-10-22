@@ -395,10 +395,8 @@ assert.deepEqual(
 )
 
 const pyproject = await readFile('pyproject.toml', 'utf8')
-const runtimeVersion = await readFile('src/viewspec/_version.py', 'utf8')
 const versionModule = await readFile('src/viewspec/_version.py', 'utf8')
 assertPublicText(pyproject, 'dynamic = ["version"]', 'pyproject dynamic version declaration')
-assertPublicText(runtimeVersion, `__version__ = "${publicFacts.sdk_version}"`, 'runtime version')
 assertPublicText(versionModule, `__version__ = "${publicFacts.sdk_version}"`, 'runtime version')
 
 for (const publicTextPath of ['README.md', 'docs/getting-started.md', 'demos/llms.txt', 'demos/llms-full.txt']) {
