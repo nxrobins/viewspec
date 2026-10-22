@@ -142,6 +142,19 @@ in parentheses refer to that document.
   compatibility horizon (D-2 to D-7, H-1). `CONTRIBUTING.md` and `CODE_OF_CONDUCT.md` were added
   (H-2); the release checklist tags and publishes each release (R-7) and says that the site
   deploy does not wait for the PyPI check (R-2).
+- The single-column product surface detector matches its primary role the way the workspace
+  detector does: case-insensitively, with `-` read as `_` and other separators splitting the role
+  into tokens. Roles such as `Main`, `primary-column` or `main_content` now make a primary column
+  in a `root -> main` stack, as they already did inside a workspace; no corpus output changes
+  (C-9).
+
+### Deprecated
+
+- `load_design_system(lint=...)`. The argument never had a local effect, because local DESIGN.md
+  validation always runs; passing it now emits a `DeprecationWarning`, and it will be removed in
+  the next major version. `DesignRequest(lint=...)` is still sent to the hosted compiler, which
+  reads it; `compile()` no longer passes a `DesignRequest`'s `lint` flag to the local loader, so a
+  hosted request compiled locally does not warn (C-9).
 
 ### Security
 
@@ -189,6 +202,33 @@ in parentheses refer to that document.
   the release and corpus scripts have smoke tests (T-1, T-3, T-5).
 - Documentation tests: every error code cited in the docs exists in the registry, and the Claude
   Code skill matches the managed instructions (D-3, D-6).
+- Every CLI subcommand accepts `--json` (C-9). The nine that did not, `compile`, `lift`, `doctor`,
+  `init-intent`, `init-design`, `init-app`, `init-agent`, `export-agent-assets` and `mcp`, now do.
+  The first eight print the standard tool envelope that the MCP tools return (`schema_version`,
+  `ok`, `summary`, `diagnostics`, `external_refs`, `paths`, `next_actions`, `errors`, `metadata`),
+  with command data beside it: `lift` adds `lift`, `doctor` adds `checks`, `init-agent` adds
+  `target`, `root` and `changes`, and `export-agent-assets` adds `assets`. A failure is the same
+  envelope on stdout with `ok: false` and `{code, message, fix}` errors, and the exit code human
+  mode uses (`2` for input and contract errors, `1` for internal ones); a coded exception's message
+  does not repeat its code. An invalid IntentBundle passed to `compile --json` carries `validation`
+  and `correction_prompt`, and a DESIGN.md error lists its findings under `diagnostics`.
+  `doctor --json` names each failing check as a `DOCTOR_CHECK_FAILED` error whose `fix` repairs
+  that check: the Freerange probe's own fix for `--freerange`, whose coded errors such as
+  `APP_FREERANGE_RUNTIME_MISSING` follow, a re-export or an SDK upgrade for stale `.viewspec` or
+  `demos` agent assets, and the install hint for a missing MCP SDK. `init-app --json` reports the
+  `resource_binding` and `binding_scope` of the bundle it wrote, as the MCP `init_app` tool does,
+  so the `react-app` template reports `fixture_readonly_v0`. `viewspec mcp --json` leaves stdout
+  to the protocol and writes a failure that stops the server, at startup (`MCP_DEPENDENCY_MISSING`,
+  `INVALID_PATH`) or later (`MCP_SERVER_FAILED`), to stderr as one line of JSON. Output without
+  `--json`, exit codes and compiled artifact bytes are unchanged. New registry codes:
+  `DOCTOR_CHECK_FAILED`, `MCP_DEPENDENCY_MISSING` and `MCP_SERVER_FAILED`.
+- `compile(bundle, design=...)` accepts an `os.PathLike`, such as `pathlib.Path("DESIGN.md")`, and
+  reads it as a DESIGN.md file with `strict_design` applied (C-9). A `str` is still DESIGN.md
+  content and is never opened as a file, so a `str` taken from a request cannot make `compile()`
+  read a local file, and `compile(bundle, design="DESIGN.md")` still fails with `DesignSystemError`
+  ("must begin with YAML front matter"). That error now carries an exception note that says to
+  pass `pathlib.Path`, and a one-line `str` that names an existing file also emits a
+  `DeprecationWarning` that says the same.
 
 ## [0.3.0b12] - 2026-10-14
 
