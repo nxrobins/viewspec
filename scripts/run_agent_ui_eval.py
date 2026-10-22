@@ -39,6 +39,7 @@ from viewspec.agent_eval_value import (
 )
 from viewspec.app_freerange import FREERANGE_PACKAGE, FREERANGE_VERSION
 from viewspec.app_pretext import PRETEXT_PACKAGE, PRETEXT_VERSION
+from viewspec.local_tools_io import absolute_report_paths
 from viewspec.native_agents import agent_instruction_block
 from viewspec.node_runtime import materialize_prebuilt_node_modules
 
@@ -763,6 +764,18 @@ def _validate_pinned_react_package(package: dict[str, Any]) -> None:
             raise ValueError(f"package.json {key} does not match the pinned shared target contract")
 
 
+def _load_app_proof_report(report_path: Path) -> dict[str, Any]:
+    """Load ``app_proof_report.json`` and resolve its proof-directory-relative paths to absolute ones.
+
+    The file records every ``paths`` entry relative to the directory it lives in; the runner opens
+    the React source and the evidence files it names, so it needs them absolute again.
+    """
+    report = json.loads(report_path.read_text(encoding="utf-8"))
+    if not isinstance(report, dict):
+        return {}
+    return absolute_report_paths(report, report_path.parent)
+
+
 def _react_source_from_proof(proof: dict[str, Any] | None, artifact: Path) -> Path:
     paths = proof.get("paths") if isinstance(proof, dict) else None
     react_app = paths.get("react_app") if isinstance(paths, dict) else None
@@ -1399,10 +1412,7 @@ def _evaluate_turn(
         _write(artifact / "proof.log", proof_result.stdout)
         logs.append(proof_result.stdout)
         report_path = proof_dir / "app_proof_report.json"
-        if report_path.is_file():
-            proof = json.loads(report_path.read_text(encoding="utf-8"))
-        else:
-            proof = _read_json_output(proof_result.stdout)
+        proof = _load_app_proof_report(report_path) if report_path.is_file() else _read_json_output(proof_result.stdout)
         if compile_result.returncode or not (candidate / "index.html").is_file():
             score = {
                 "schema_version": 1,

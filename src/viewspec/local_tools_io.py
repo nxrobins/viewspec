@@ -181,6 +181,45 @@ def _portable_paths_mapping(paths: Mapping[str, Any], base: str) -> dict[str, An
     return {key: portable_path(item, base) if isinstance(item, str) else item for key, item in paths.items()}
 
 
+def absolute_path(value: str, base: str | Path) -> str:
+    """Return ``value`` joined onto ``base`` when it is relative; an absolute ``value`` is kept.
+
+    This is the inverse of :func:`portable_path` for the paths a proof report records: ``"."``
+    becomes ``base`` itself and ``../x`` climbs out of it.  The empty string is returned unchanged.
+    """
+    if not value or os.path.isabs(value):
+        return value
+    return os.path.normpath(os.path.join(str(base), value))
+
+
+def absolute_report_paths(report: Mapping[str, Any], base: str | Path) -> dict[str, Any]:
+    """Deep-copy ``report`` with every ``paths`` mapping resolved against ``base``.
+
+    ``proof_report.json`` and ``app_proof_report.json`` record their paths relative to the proof
+    directory (see :func:`portable_report_paths`).  A reader that loads one of those files passes the
+    proof directory as ``base`` and gets back the absolute paths the in-memory report carried, so
+    the result can be used exactly like the dict ``prove()`` or ``prove_app()`` returned.
+    """
+    return _absolute_value(dict(report), str(base))
+
+
+def _absolute_value(value: Any, base: str) -> Any:
+    if isinstance(value, dict):
+        return {
+            key: _absolute_paths_mapping(item, base)
+            if key == "paths" and isinstance(item, dict)
+            else _absolute_value(item, base)
+            for key, item in value.items()
+        }
+    if isinstance(value, list):
+        return [_absolute_value(item, base) for item in value]
+    return value
+
+
+def _absolute_paths_mapping(paths: Mapping[str, Any], base: str) -> dict[str, Any]:
+    return {key: absolute_path(item, base) if isinstance(item, str) else item for key, item in paths.items()}
+
+
 def _load_optional_design(
     design_path: str | Path | None,
     *,

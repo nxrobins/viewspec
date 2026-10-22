@@ -74,8 +74,9 @@ in parentheses refer to that document.
   `prove()` and `prove_app()` keep absolute paths. `proof_identity.proof_report_hash` and the
   hash printed in the summaries cover the on-disk report with `timings_ms` removed, so two proofs
   of one input in different directories share one hash; `prove.proof_report_hash()` and
-  `app_reports.app_proof_report_hash()` compute it. `support_bundle.json` is at `schema_version`
-  2 and no longer carries `timings_ms` (C-7).
+  `app_reports.app_proof_report_hash()` compute it, and `local_tools_io.absolute_report_paths()`
+  turns a report read from disk back into one with absolute paths. `support_bundle.json` is at
+  `schema_version` 2 and no longer carries `timings_ms` (C-7).
 - Coded compiler and validator failures raise `CompilerInternalError` and `LocalToolContractError`
   (subclasses of `RuntimeError` and `ValueError`) with `.code` and `.message` attributes; the text
   of `str(exc)` is unchanged (Q-8). Canonical JSON helpers are thin aliases of

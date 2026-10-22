@@ -17,7 +17,7 @@ ViewSpec proof bundles are not pixel-perfect visual regression, accessibility ce
 - `Status` is the first pass/fail signal. A failed proof is still useful because it records the exact failure code and next fix.
 - `Proof level` tells you whether the proof is `source_artifact` or `react_tailwind_reference_host`.
 - `Claim` states the strongest result the proof is allowed to claim for this run.
-- `Inputs And Outputs` shows the IntentBundle, DESIGN.md, generated artifact, manifest, diagnostics, JSON report, and human summary paths. `PROOF.md` and `proof_report.json` record every path relative to the proof directory with `/` separators; join them with the proof directory before opening a file.
+- `Inputs And Outputs` shows the IntentBundle, DESIGN.md, generated artifact, manifest, diagnostics, JSON report, and human summary paths. `PROOF.md` and `proof_report.json` record every path relative to the proof directory with `/` separators; join them with the proof directory before opening a file, or pass the loaded report and the proof directory to `viewspec.local_tools_io.absolute_report_paths()` to get the absolute paths back.
 - `Hashes` lets reviewers compare the checked artifact, manifest, and report with the files on disk. The proof report hash covers `proof_report.json` with the wall-clock `timings_ms` section removed, so two proofs of one input in different directories share one hash.
 - `Manifest Summary` records bounded manifest facts such as emitter, node count, root aesthetic profile, compact style-delta counts, and checked aesthetic layout columns/spans.
 - `Checks` shows whether intent setup, compile, artifact check, host verification, summary writing, and support bundle writing ran.

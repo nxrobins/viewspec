@@ -687,7 +687,22 @@ def test_viewspec_react_source_uses_proof_paths_and_core_target_builds(tmp_path)
         target="react-tailwind-app",
         cwd=tmp_path,
     )
-    proof = {"paths": {"react_app": str(generated)}}
+    proof_dir = generated.parent
+    report_path = proof_dir / "app_proof_report.json"
+    report_path.write_text(
+        json.dumps(
+            {
+                "ok": True,
+                "paths": {"proof_dir": ".", "report": "app_proof_report.json", "react_app": "react-app"},
+                "react_app": {"paths": {"app": "react-app/package.json"}},
+            }
+        ),
+        encoding="utf-8",
+    )
+    proof = runner._load_app_proof_report(report_path)
+    assert proof["paths"]["proof_dir"] == str(proof_dir)
+    assert proof["paths"]["report"] == str(report_path)
+    assert proof["react_app"]["paths"]["app"] == str(generated / "package.json")
 
     source = runner._react_source_from_proof(proof, tmp_path / "artifact")
     build, _elapsed, log = runner._build_react_target(source, tmp_path / "artifact")

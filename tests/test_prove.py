@@ -2,6 +2,7 @@ import hashlib
 import importlib
 import json
 import re
+from pathlib import Path
 
 from viewspec import profile_style_facts
 from viewspec.app_react import REACT_APP_MANIFEST
@@ -14,7 +15,7 @@ from viewspec.app_shell import APP_SHELL_MANIFEST
 from viewspec.cli import main as cli_main
 from viewspec.intent_tools import init_intent_file
 from viewspec.local_tools import check_artifact_dir, file_hash
-from viewspec.local_tools_io import VIEWSPEC_OUTPUT_MARKERS
+from viewspec.local_tools_io import VIEWSPEC_OUTPUT_MARKERS, absolute_report_paths, portable_report_paths
 from viewspec.prove import (
     PROVE_DEFAULT_REPORT,
     PROVE_DEFAULT_SUMMARY,
@@ -121,6 +122,29 @@ def test_prove_default_writes_checked_source_report(tmp_path):
 
 def _without_timing_lines(markdown: str) -> list[str]:
     return [line for line in markdown.splitlines() if not re.fullmatch(r"- [a-z_]+: `\d+ms`", line)]
+
+
+def test_proof_report_read_back_from_disk_resolves_to_the_in_memory_paths(tmp_path):
+    # C-7 follow-up: a reader of the on-disk report joins its relative paths with the proof directory
+    # and gets back exactly the absolute paths the in-memory report carried.
+    proof_dir = tmp_path / "proof"
+    report = prove(out_dir=proof_dir, cwd=tmp_path)
+    assert report["ok"] is True
+
+    on_disk = json.loads(proof_dir.joinpath("proof_report.json").read_text(encoding="utf-8"))
+    resolved = absolute_report_paths(on_disk, proof_dir)
+
+    assert on_disk["paths"]["proof_dir"] == "."
+    assert resolved["paths"] == report["paths"]
+    assert resolved["paths"]["proof_dir"] == str(proof_dir)
+    assert all(Path(value).is_absolute() for value in resolved["paths"].values())
+    # The two conversions are inverses on every ``paths`` mapping, including nested ones.
+    nested = {
+        "paths": {"proof_dir": str(proof_dir), "report": str(proof_dir / "proof_report.json"), "design": None},
+        "screens": [{"paths": {"artifact": str(proof_dir / "artifact" / "index.html")}}],
+        "inputs": {"paths": {"intent": str(tmp_path / "viewspec.intent.json")}},
+    }
+    assert absolute_report_paths(portable_report_paths(nested, proof_dir), proof_dir) == nested
 
 
 def test_prove_bundle_is_identical_across_directories(tmp_path):
