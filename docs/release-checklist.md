@@ -98,7 +98,10 @@ history stay there, and later re-encodes go to LFS storage instead of growing ev
 - Migrate from a clean, up-to-date checkout of `main`: `sh scripts/migrate_launch_media_to_lfs.sh`.
   It creates the branch `lfs/launch-media`, appends the LFS patterns to `.gitattributes`, commits
   the six files as LFS pointers, checks the commit, and prints the push steps. It never pushes,
-  and running it again changes nothing.
+  and running it again changes nothing. It writes only the LFS filter settings into `.git/config`
+  and leaves existing Git hooks alone. When no pre-push hook runs `git lfs pre-push`, it says so:
+  the printed `git lfs push` still uploads this migration, but a plain `git push` of later LFS
+  content would upload no objects.
 - Push as printed (`git lfs push origin lfs/launch-media`, then
   `git push --set-upstream origin lfs/launch-media`) and run the printed fresh-clone check, which
   fails if GitHub lacks any of the objects. Then open and merge the pull request.

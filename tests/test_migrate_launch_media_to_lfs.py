@@ -3,8 +3,8 @@
 ``scripts/migrate_launch_media_to_lfs.sh`` runs here against a throwaway repository built from
 copies of the files in ``demos/launch-assets/``; Git LFS needs no server for local commits. The
 script must commit the media as canonical LFS pointers on a new branch, keep the working files
-byte-identical, leave ``main`` and the remote alone, and change nothing when it runs again. The
-Pages deploy publishes those files, so its checkout must fetch the LFS content.
+byte-identical, leave ``main``, the remote and existing Git hooks alone, and change nothing when it
+runs again. The Pages deploy publishes those files, so its checkout must fetch the LFS content.
 """
 
 from __future__ import annotations
@@ -28,6 +28,8 @@ MEDIA_DIR = "demos/launch-assets"
 BRANCH = "lfs/launch-media"
 POINTER_VERSION = b"version https://git-lfs.github.com/spec/v1\n"
 EXTENSIONS = ("gif", "mp4", "png")
+# Printed with the push steps when no pre-push hook uploads LFS objects.
+NO_LFS_HOOK_NOTE = "no pre-push hook runs git lfs pre-push here"
 SH = shutil.which("sh")
 GIT = shutil.which("git")
 
@@ -235,6 +237,46 @@ def test_running_the_migration_again_changes_nothing(checkout: Checkout) -> None
     assert checkout.git("for-each-ref", "--format=%(refname:short)", "refs/heads").split() == [BRANCH, "main"]
     assert (checkout.path / ".gitattributes").read_bytes() == attributes
     assert checkout.git("status", "--porcelain") == ""
+
+
+@needs_git_lfs
+@pytest.mark.parametrize("calls_lfs", [True, False], ids=["merged-hook", "own-hook"])
+@pytest.mark.parametrize("shared", [False, True], ids=["git-dir", "core.hooksPath"])
+def test_an_existing_pre_push_hook_neither_stops_the_migration_nor_changes(
+    checkout: Checkout, tmp_path: Path, calls_lfs: bool, shared: bool
+) -> None:
+    # git lfs install refuses to replace a hook it did not write, even one merged the way
+    # git lfs update --manual shows, so it must not stand between the owner and the commit.
+    hooks = tmp_path / "shared-hooks" if shared else checkout.path / ".git" / "hooks"
+    hooks.mkdir(exist_ok=True)
+    if shared:
+        checkout.git("config", "--global", "core.hooksPath", str(hooks))
+    hook = hooks / "pre-push"
+    body = "#!/bin/sh\necho 'my own pre-push checks'\n" + ('git lfs pre-push "$@"\n' if calls_lfs else "")
+    hook.write_text(body, encoding="utf-8")
+    hook.chmod(0o755)
+
+    first = checkout.migrate()
+    again = checkout.migrate()
+    checkout.git("switch", "-q", "main")
+    from_main = checkout.migrate()
+
+    assert first.returncode == 0, first.stderr + first.stdout
+    assert f"Committed {checkout.git('rev-parse', '--short', BRANCH).strip()} on {BRANCH}" in first.stdout
+    for result in (again, from_main):
+        assert result.returncode == 0, result.stderr + result.stdout
+        assert f"{BRANCH} already stores the launch media as Git LFS pointers" in result.stdout
+    for name in checkout.media:
+        assert checkout.blob(f"{BRANCH}:{name}") == _canonical_pointer(checkout.originals[name]), name
+    assert hook.read_text(encoding="utf-8") == body
+    # The push steps upload the objects themselves and say when a plain push would not.
+    shown = str(hook) if shared else ".git/hooks/pre-push"
+    for result in (first, again, from_main):
+        assert f"git lfs push origin {BRANCH}\n" in result.stdout
+        if calls_lfs:
+            assert NO_LFS_HOOK_NOTE not in result.stdout, result.stdout
+        else:
+            assert f"{NO_LFS_HOOK_NOTE} ({shown})" in result.stdout, result.stdout
 
 
 @needs_git_lfs

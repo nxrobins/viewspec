@@ -12,7 +12,9 @@
 # holds LFS pointers, checks every staged blob against the pointer git-lfs computes for
 # the working file, commits, checks the commit, and prints the push and verification
 # steps. It never pushes and never rewrites history: the migration is one new commit and
-# the working files stay byte-identical. Running it again changes nothing.
+# the working files stay byte-identical. Running it again changes nothing. It writes only
+# the Git LFS filter settings into .git/config and leaves existing Git hooks alone; the
+# printed git lfs push uploads the objects whatever the pre-push hook does.
 #
 # --verify-site downloads each media file from a deployed site (default: https:// plus
 # demos/CNAME) and compares its SHA-256 and size with the media committed at HEAD. A file
@@ -215,16 +217,35 @@ serves the media and not LFS pointer files:
 EOF
 }
 
+# True when $1 is a hook that git runs and that calls git lfs pre-push, which uploads the
+# LFS objects of each push.
+hook_runs_lfs_pre_push() {
+    [ -f "$1" ] && [ -x "$1" ] && grep -Eq '^[^#]*git(-| +)lfs +pre-push' "$1"
+}
+
 print_next_steps() {
+    # git rev-parse follows core.hooksPath, as git does when it runs the hook.
+    hook="$(git rev-parse --git-path hooks)/pre-push"
     cat <<EOF
 
 Next steps. Nothing has been pushed; run these yourself:
 
   1. Upload the LFS objects, then push the branch. It is a new branch, so a plain push
-     is enough (the pre-push hook that git lfs install added would upload them too):
+     is enough:
 
        git lfs push origin $1
        git push --set-upstream origin $1
+EOF
+    if ! hook_runs_lfs_pre_push "$hook"; then
+        cat <<EOF
+
+     Note: no pre-push hook runs git lfs pre-push here ($hook), so git push
+     alone uploads no LFS objects; the git lfs push above does. Before you push other LFS
+     content from this clone, add the Git LFS hooks: git lfs update installs them, and
+     git lfs update --manual shows how to merge them into hooks you already have.
+EOF
+    fi
+    cat <<EOF
 
   2. Check that GitHub holds every object. A fresh clone downloads them from GitHub and
      git lfs fsck re-hashes them against their pointers:
@@ -277,12 +298,6 @@ migrate() {
         check_inventory
     fi
 
-    if ! run git lfs install --local; then
-        die "git lfs install --local failed. If it reports an existing pre-push hook, merge the
-hooks (git lfs update --manual shows how) and run this script again: that hook uploads the
-LFS objects when you push."
-    fi
-
     if head_is_migrated; then
         check_head
         say "$branch already stores the launch media as Git LFS pointers ($(git rev-parse --short HEAD)); nothing to commit."
@@ -291,6 +306,15 @@ LFS objects when you push."
     fi
 
     require_media_contents
+    # The filter.lfs settings that the renormalizing add needs, in .git/config. --skip-repo
+    # leaves the hooks alone: git lfs install refuses to replace a hook it did not write,
+    # even one that already calls git lfs pre-push, and the push needs no hook because the
+    # next steps upload the objects with git lfs push. (The LFS filter still installs its
+    # hooks where none are in the way, as it does in any clone.)
+    if ! run git lfs install --local --skip-repo; then
+        die "git lfs install --local --skip-repo failed (see its message above). It only writes the
+filter.lfs settings that git add needs into .git/config, so check those settings there."
+    fi
     base=$(git rev-parse HEAD)
     # shellcheck disable=SC2086 # MEDIA_FILES is a word list; globbing is off (set -f)
     before=$(git hash-object --no-filters -- $MEDIA_FILES)
