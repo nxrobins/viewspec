@@ -921,13 +921,13 @@ def _react_app_manifest(
         numeric_analysis.update(
             {
                 "state_contract": {
-                    "path": str(state_manifest_path.relative_to(output_dir)),
+                    "path": state_manifest_path.relative_to(output_dir).as_posix(),
                     "sha256": file_hash(state_manifest_path),
                     "contract_hash": state_artifacts["contract_hash"],
                 },
                 "files": [
                     {
-                        "path": str(numeric_path.relative_to(output_dir)),
+                        "path": numeric_path.relative_to(output_dir).as_posix(),
                         "sha256": file_hash(numeric_path),
                         "required_functions": list(numeric_scope["required_functions"]),
                         "function_sha256": numeric_function_hashes(numeric_scope),
@@ -937,7 +937,7 @@ def _react_app_manifest(
                 ],
                 "call_sites": [
                     {
-                        "path": str(reducer_path.relative_to(output_dir)),
+                        "path": reducer_path.relative_to(output_dir).as_posix(),
                         "sha256": file_hash(reducer_path),
                         "required_functions": list(numeric_scope["required_functions"]),
                         "connection": "generated_import_and_call_v1",
@@ -955,7 +955,7 @@ def _react_app_manifest(
         "route_count": len(payload.get("routes", [])),
         "screen_count": len(react_screens),
         "presentation_plan": {
-            "path": str(presentation_path.relative_to(output_dir)),
+            "path": presentation_path.relative_to(output_dir).as_posix(),
             "plan_hash": presentation_plan_hash(presentation_plan),
             "screen_count": len(presentation_plan.get("screens", [])),
             "diagnostics": presentation_plan_diagnostics(presentation_plan),
@@ -979,7 +979,7 @@ def _react_app_manifest(
                     "package_tree": dict(PRETEXT_PACKAGE_TREE),
                     "license": "MIT",
                     "font_family": "Arial",
-                    "runtime_path": str(pretext_runtime_path.relative_to(output_dir)),
+                    "runtime_path": pretext_runtime_path.relative_to(output_dir).as_posix(),
                     "runtime_sha256": file_hash(pretext_runtime_path),
                 }
             }
@@ -989,8 +989,8 @@ def _react_app_manifest(
         "screen_artifacts": [
             {
                 "id": report["id"],
-                "tsx": str(Path(report["paths"]["tsx"]).relative_to(output_dir)),
-                "manifest": str(Path(report["paths"]["manifest"]).relative_to(output_dir)),
+                "tsx": Path(report["paths"]["tsx"]).relative_to(output_dir).as_posix(),
+                "manifest": Path(report["paths"]["manifest"]).relative_to(output_dir).as_posix(),
                 "artifact_hash": report["artifact_hash"],
                 "manifest_hash": report["manifest_hash"],
             }
@@ -1005,7 +1005,7 @@ def _react_app_manifest(
             "side_effects": "typed_callbacks_v1",
             **({"text_layout": PRETEXT_PROFILE} if pretext_runtime_path is not None else {}),
         },
-        "files": [{"path": str(path.relative_to(output_dir)), "sha256": file_hash(path)} for path in file_paths],
+        "files": [{"path": path.relative_to(output_dir).as_posix(), "sha256": file_hash(path)} for path in file_paths],
     }
 
 
