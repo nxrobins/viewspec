@@ -33,6 +33,21 @@ STUDIO_RELEASE_FILES = {
     "host_verify_template/package.json",
     "host_verify_template/package-lock.json",
 }
+# The package ships py.typed, so the generated protobuf module must travel with its stub.
+SCHEMA_RELEASE_FILES = {
+    "schema/__init__.py",
+    "schema/viewspec_pb2.py",
+    "schema/viewspec_pb2.pyi",
+}
+SDIST_TOP_LEVEL_PATHS = {
+    ".gitignore",
+    "LICENSE",
+    "README.md",
+    "pyproject.toml",
+    "PKG-INFO",
+    "proto",  # schema source for src/viewspec/schema/viewspec_pb2.py, when the sdist includes it
+    "src",
+}
 FORBIDDEN_COMPONENTS = {
     ".git",
     ".github",
@@ -102,7 +117,7 @@ def _audit_wheel(path: Path, version: str) -> int:
         f"{dist_info}/WHEEL",
         f"{dist_info}/RECORD",
     }
-    required.update(f"viewspec/{name}" for name in STUDIO_RELEASE_FILES)
+    required.update(f"viewspec/{name}" for name in STUDIO_RELEASE_FILES | SCHEMA_RELEASE_FILES)
     with zipfile.ZipFile(path) as archive:
         infos = archive.infolist()
         names = [info.filename for info in infos]
@@ -142,7 +157,7 @@ def _audit_sdist(path: Path, version: str) -> int:
         f"{root}/src/viewspec/_version.py",
         f"{root}/src/viewspec/py.typed",
     }
-    required.update(f"{root}/src/viewspec/{name}" for name in STUDIO_RELEASE_FILES)
+    required.update(f"{root}/src/viewspec/{name}" for name in STUDIO_RELEASE_FILES | SCHEMA_RELEASE_FILES)
     with tarfile.open(path, "r:gz") as archive:
         members = archive.getmembers()
         names = [member.name.rstrip("/") for member in members]
@@ -155,14 +170,7 @@ def _audit_sdist(path: Path, version: str) -> int:
             if member_path.parts[0] != root:
                 raise DistributionError(f"sdist has forbidden top-level path: {member.name}")
             relative = member_path.parts[1:]
-            if relative and relative[0] not in {
-                ".gitignore",
-                "LICENSE",
-                "README.md",
-                "pyproject.toml",
-                "PKG-INFO",
-                "src",
-            }:
+            if relative and relative[0] not in SDIST_TOP_LEVEL_PATHS:
                 raise DistributionError(f"sdist has forbidden repository path: {member.name}")
             if relative and relative[0] == "src" and relative[:2] != ("src", "viewspec"):
                 raise DistributionError(f"sdist has forbidden source package: {member.name}")

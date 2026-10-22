@@ -66,6 +66,13 @@ def test_react_tailwind_host_fixture_uses_span_aware_layout_language():
     assert "aesthetic layout grid assertions" not in script
 
 
+def test_schema_stub_is_packaged_next_to_py_typed():
+    assert resources.files("viewspec").joinpath("py.typed").is_file()
+    schema = resources.files("viewspec.schema")
+    for name in ("__init__.py", "viewspec_pb2.py", "viewspec_pb2.pyi"):
+        assert schema.joinpath(name).is_file(), name
+
+
 def test_top_level_package_exports_summary_helpers():
     for name in (
         "manifest_aesthetic_layout_summary",

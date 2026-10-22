@@ -1,0 +1,10 @@
+{
+  "include": ["src/viewspec"],
+  "exclude": [
+    "**/node_modules",
+    "**/__pycache__",
+    "src/viewspec/host_verify_template"
+  ],
+  "typeCheckingMode": "basic",
+  "pythonVersion": "3.11"
+}
