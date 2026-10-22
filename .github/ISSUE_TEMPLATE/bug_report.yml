@@ -91,8 +91,10 @@ body:
       label: Output
       description: |
         The complete output of the command. If the command accepts `--json` (`viewspec <command> --help`
-        lists it), run it with `--json` and paste that output, which names each error code and the
-        path it applies to. For a Python exception, include the full traceback.
+        lists it), run it with `--json` and paste that output, which lists each error code. For an
+        IntentBundle or AppBundle that fails validation, also paste the output of
+        `viewspec validate-intent <file> --json` or `viewspec validate-app <file> --json`, which
+        gives the JSON path of each error. For a Python exception, include the full traceback.
       render: text
     validations:
       required: true

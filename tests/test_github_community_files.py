@@ -15,6 +15,7 @@ and the "Syntax for GitHub's form schema" and "Common validation errors" pages n
 
 from __future__ import annotations
 
+import json
 import re
 import tomllib
 from pathlib import Path
@@ -22,6 +23,8 @@ from typing import Any
 
 import pytest
 import yaml
+
+from viewspec.cli import main as cli_main
 
 ROOT = Path(__file__).resolve().parents[1]
 GITHUB = ROOT / ".github"
@@ -366,6 +369,24 @@ def test_text_fields_that_take_code_keep_it_readable_in_the_issue(path: Path) ->
             assert "```" in description, where
             # A description line that starts with a fence would turn the rest of it into a code block.
             assert not any(line.lstrip().startswith("```") for line in description.splitlines()), where
+
+
+def test_bug_report_promises_error_paths_only_from_commands_that_report_them(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """``viewspec prove --json``, the form's example command, lists error codes without paths, so
+    the output field points to the validate commands for paths, and their JSON has to give them."""
+    body = _load(ISSUE_TEMPLATES / "bug_report.yml")["body"]
+    output = next(element for element in body if element.get("id") == "output")
+    description = " ".join(output["attributes"]["description"].split())
+    bundle = tmp_path / "bad.json"
+    bundle.write_text('{"bogus": 1}', encoding="utf-8")
+    for command in ("validate-intent", "validate-app"):
+        assert f"`viewspec {command} <file> --json`" in description, command
+        assert cli_main([command, str(bundle), "--json"]) == 2
+        issues = json.loads(capsys.readouterr().out)["issues"]
+        assert issues, command
+        assert all(issue["path"].startswith("$") for issue in issues), issues
 
 
 def test_issue_forms_apply_the_bug_and_enhancement_labels() -> None:
