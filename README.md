@@ -23,7 +23,7 @@ python -m pip install --pre viewspec
 viewspec prove --out .viewspec-proof
 ```
 
-`0.3.0b12` is a beta release, so `--pre` is required to install the current SDK. Plain
+`0.3.0b13` is a beta release, so `--pre` is required to install the current SDK. Plain
 `python -m pip install viewspec` follows the stable channel instead.
 
 Start with `.viewspec-proof/PROOF.md`. The same directory contains the machine-readable
@@ -194,7 +194,7 @@ and [correction proof](https://github.com/nxrobins/viewspec/blob/main/conformanc
 That retained evidence was evaluated against SDK `0.3.0b5` on 2026-07-21 (the `sdk_version` and
 `evaluated_on` fields in `gate-status-v1.json`; `scorecard-v2.json` records the same
 `sdk_version`). It has not been re-run for each later beta, so it shows the checked workflow at
-that revision rather than certifying the current `0.3.0b12` release.
+that revision rather than certifying the current `0.3.0b13` release.
 This is fixed-corpus evidence for supported brief families, not a guarantee that every arbitrary
 product brief is desirable, accessible, or production-ready.
 
