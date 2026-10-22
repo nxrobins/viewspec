@@ -978,20 +978,40 @@ def _journal_invalid(message: str) -> ReviewContractError:
 
 
 def _session_tree_size(root: Path, *, stop_after: int) -> int:
+    """Sum the regular files under ``root``, stopping early once ``stop_after`` is exceeded.
+
+    The review daemon writes temporary files and renames them into place from other threads
+    (proposal candidates, compaction) while a request thread sizes the session, so a name listed
+    a moment ago may be gone by the time it is inspected.  Such entries are skipped instead of
+    failing the request; a symbolic link anywhere in the tree still fails closed.
+    """
     total = 0
-    for path in root.rglob("*"):
-        value = path.lstat()
-        if stat.S_ISLNK(value.st_mode):
-            raise ReviewContractError(
-                "REVIEW_FILESYSTEM_UNSAFE",
-                "Review session storage contains a symbolic link.",
-                "Use only owner-controlled regular files and directories.",
-                cli_exit=2,
-            )
-        if stat.S_ISREG(value.st_mode):
-            total += value.st_size
-            if total > stop_after:
-                return total
+    pending = [root]
+    while pending:
+        directory = pending.pop()
+        try:
+            with os.scandir(directory) as listing:
+                entries = list(listing)
+        except FileNotFoundError:
+            continue
+        for entry in entries:
+            try:
+                value = entry.stat(follow_symlinks=False)
+            except FileNotFoundError:
+                continue
+            if stat.S_ISLNK(value.st_mode):
+                raise ReviewContractError(
+                    "REVIEW_FILESYSTEM_UNSAFE",
+                    "Review session storage contains a symbolic link.",
+                    "Use only owner-controlled regular files and directories.",
+                    cli_exit=2,
+                )
+            if stat.S_ISDIR(value.st_mode):
+                pending.append(Path(entry.path))
+            elif stat.S_ISREG(value.st_mode):
+                total += value.st_size
+                if total > stop_after:
+                    return total
     return total
 
 

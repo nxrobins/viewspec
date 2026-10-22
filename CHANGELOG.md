@@ -21,6 +21,10 @@ in parentheses refer to that document.
   `DESIGN.md` error no longer uploads the bundle (C-3).
 - The declared protobuf requirement matches the generated schema: `protobuf>=6.31.1,<8`. The
   package did not import with protobuf 5.x (P-1).
+- The local review daemon no longer answers an agent poll with `REVIEW_SERVER_START_FAILED` when a
+  temporary file or candidate directory disappears while the session storage is being sized:
+  the size walk skips entries that vanish between listing and inspection and still rejects
+  symbolic links.
 
 ### Changed
 
