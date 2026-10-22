@@ -19,9 +19,14 @@ What the local SDK does — and deliberately does not do:
   zero network calls; every provenance manifest records `guarantees.sdk_network_calls: "none"`.
   Only the optional hosted client (`viewspec[remote]`) talks to the hosted compiler endpoint.
 - **Static, sanitized artifacts.** Emitters produce static output and `viewspec check` rejects
-  active surfaces: unknown inline scripts, inline event handlers, `@import`/`url(` auto-fetch,
-  and remote embed surfaces. Raw HTML import sanitizes active content under the published
-  allowlist policy (`viewspec-raw-html-allowlist@1`).
+  active surfaces: unknown or unclosed inline scripts, every `on*` attribute, `javascript:`,
+  `vbscript:` and `data:` URLs (raster image `data:` URLs on `<img src>` excepted) after entity,
+  whitespace and backslash decoding, CSS that imports or loads a URL (`@import`, `url(`,
+  `image-set(`, `image(`, `src(`, remote schemes) after CSS escapes and comments are normalized,
+  and remote embed, `feImage`, and `ping` surfaces. A raw-HTML artifact may contain only the fixed
+  document wrapper plus manifest-governed elements whose attributes match the manifest and the
+  sanitizer allowlist. Raw HTML import sanitizes active content under the published allowlist
+  policy (`viewspec-raw-html-allowlist@1`).
 - **Bounded static shells.** AppBundle Static Shell V0 rejects external network, embed, and
   script surfaces; the full shell HTML is scanned for inline handlers, `http:` URLs, `url(`,
   worker construction, and import maps before a proof can pass.

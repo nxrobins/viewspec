@@ -134,6 +134,7 @@ from viewspec.local_tools_validators import (
     _validate_tailwind_generic_fallback,
     build_intent_semantic_digest,
     check_artifact_dir,
+    check_issue_entry,
 )
 
 def init_design_file(path: str | Path = "DESIGN.md", *, force: bool = False) -> Path:
@@ -179,7 +180,10 @@ def compile_html_file_tool(
                 diagnostics=result.diagnostics,
                 external_refs=external_refs,
                 paths=paths,
-                errors=[{"code": "CHECK_FAILED", "message": item, "fix": "Re-run viewspec compile after fixing the reported artifact issue."} for item in checked["errors"]],
+                errors=[
+                    check_issue_entry(item, default_fix="Re-run viewspec compile after fixing the reported artifact issue.")
+                    for item in checked["errors"]
+                ],
                 metadata=path_policy_metadata(root, allow_outside_cwd),
             )
         return tool_response(
@@ -211,7 +215,7 @@ def check_artifact_tool(
         artifact = resolve_local_path(artifact_dir, cwd=root, allow_outside_cwd=allow_outside_cwd)
         result = check_artifact_dir(artifact)
         errors = [
-            {"code": "CHECK_FAILED", "message": item, "fix": "Re-run viewspec compile from the source HTML, or fix the tampered artifact."}
+            check_issue_entry(item, default_fix="Re-run viewspec compile from the source HTML, or fix the tampered artifact.")
             for item in result["errors"]
         ]
         return tool_response(
@@ -540,6 +544,7 @@ __all__ = [
     "check_agent_assets_tool",
     "check_artifact_dir",
     "check_artifact_tool",
+    "check_issue_entry",
     "compile_html_file_tool",
     "diff_html_files_tool",
     "ensure_no_input_overwrite",

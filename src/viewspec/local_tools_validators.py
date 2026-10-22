@@ -3,7 +3,7 @@ from __future__ import annotations
 from html import unescape
 from html.parser import HTMLParser
 from pathlib import Path
-from typing import Any
+from typing import Any, Iterator, NamedTuple
 from urllib.parse import urlparse
 from viewspec.aesthetics import AESTHETIC_PROFILE_LAYOUT_ROLES
 from viewspec.aesthetics import AESTHETIC_PROFILE_TOKENS
@@ -29,10 +29,18 @@ from viewspec.emitters.react_tailwind_tsx import tailwind_recipe_registry_digest
 from viewspec.emitters.react_tsx import react_tsx_manifest_node_markers
 from viewspec.manifest_summary import manifest_root_aesthetic_profile
 from viewspec.manifest_summary import summarize_intent_manifest
-from viewspec.raw_html import MANIFEST_SCHEMA_VERSION, MAX_HTML_INPUT_BYTES, collapse_url_obfuscation
+from viewspec.error_codes import ERROR_CODES
+from viewspec.raw_html import ALLOWED_TAGS as RAW_HTML_ALLOWED_TAGS
+from viewspec.raw_html import DATA_IMAGE_SRC_PREFIXES, MANIFEST_SCHEMA_VERSION, MAX_HTML_INPUT_BYTES, collapse_url_obfuscation
+from viewspec.raw_html import SAFE_ATTRS_BY_TAG as RAW_HTML_SAFE_ATTRS_BY_TAG
+from viewspec.raw_html import SAFE_GLOBAL_ATTRS as RAW_HTML_SAFE_GLOBAL_ATTRS
+from viewspec.raw_html import URL_ATTRS as RAW_HTML_URL_ATTRS
+from viewspec.raw_html import _is_external_http_url as raw_html_is_external_http_url
+from viewspec.raw_html import _normalize_url_for_policy as raw_html_normalize_url
+from viewspec.raw_html import _safe_url as raw_html_safe_url
 import json
 import re
-from viewspec.local_tools_constants import (ACTION_TARGET_REF_RE, ACTIVE_OR_AUTOFETCH_TAGS, ACTIVE_STRUCTURAL_TAGS, CANONICAL_CONTENT_REF_RE, DIAGNOSTIC_SEVERITIES, EMITTER_ARTIFACT_FILES, EXPECTED_MANIFEST_ENVELOPES, EXTERNAL_REF_POLICIES, HASH_RE, KNOWN_EMITTERS, REACT_TSX_ACTION_REQUIRED_MARKERS, REACT_TSX_FORBIDDEN_SURFACES, REACT_TSX_REQUIRED_MARKERS, REACT_TSX_REQUIRED_MARKERS_BY_EMITTER, REMOTE_AUTOFETCH_ATTRS, REMOTE_HREF_AUTOFETCH_TAGS, SAFE_ID_RE, SEMANTIC_ACTION_KEYS, SEMANTIC_DIGEST_KEYS, SEMANTIC_DIGEST_MAX_PROJECTION_BYTES, SEMANTIC_DIGEST_VERSION, SEMANTIC_NODE_KEYS, SEMANTIC_PROJECTION_KEYS, STATEFUL_COLLECTION_ACTION_KINDS, TEXT_PROP_PRIMITIVES, VIEWSPEC_INTENT_REF_RE, VOID_HTML_TAGS)
+from viewspec.local_tools_constants import (ACTION_TARGET_REF_RE, ACTIVE_OR_AUTOFETCH_TAGS, ACTIVE_STRUCTURAL_TAGS, CANONICAL_CONTENT_REF_RE, DIAGNOSTIC_SEVERITIES, EMITTER_ARTIFACT_FILES, EXPECTED_MANIFEST_ENVELOPES, EXTERNAL_REF_POLICIES, HASH_RE, KNOWN_EMITTERS, MAX_SCANNED_TAG_BLOCKS, REACT_TSX_ACTION_REQUIRED_MARKERS, REACT_TSX_FORBIDDEN_SURFACES, REACT_TSX_REQUIRED_MARKERS, REACT_TSX_REQUIRED_MARKERS_BY_EMITTER, REMOTE_AUTOFETCH_ATTRS, REMOTE_HREF_AUTOFETCH_TAGS, SAFE_ID_RE, SEMANTIC_ACTION_KEYS, SEMANTIC_DIGEST_KEYS, SEMANTIC_DIGEST_MAX_PROJECTION_BYTES, SEMANTIC_DIGEST_VERSION, SEMANTIC_NODE_KEYS, SEMANTIC_PROJECTION_KEYS, STATEFUL_COLLECTION_ACTION_KINDS, TEXT_PROP_PRIMITIVES, UNSAFE_URL_SCHEMES, URL_SCHEME_POLICY_ATTRS, VIEWSPEC_INTENT_REF_RE, VOID_HTML_TAGS)
 from viewspec.local_tools_io import (looks_absolute_path_arg)
 from viewspec.local_tools_hash import (bytes_hash, file_hash)
 
@@ -153,7 +161,14 @@ def check_artifact_dir(path: str | Path) -> dict[str, Any]:
         if manifest.get("artifact_hash") and manifest.get("artifact_hash") != artifact_hash:
             errors.append("artifact_hash does not match index.html")
         errors.extend(_validate_no_autofetch_surfaces(html))
-        scripts = re.findall(r"<script\b[^>]*>[\s\S]*?</script>", html, flags=re.IGNORECASE)
+        # Linear block scan (S-3): one pass, never re-scanned from every unclosed opener. A
+        # `<script` opener with no closer is rejected outright instead of being ignored.
+        script_scan = find_tag_blocks(html, "script")
+        scripts = [html[start:end] for start, _, _, end in script_scan.blocks]
+        if script_scan.unclosed_content_start is not None:
+            errors.append(_UNCLOSED_SCRIPT_ERROR)
+        if script_scan.truncated and _SCAN_LIMIT_ERROR not in errors:
+            errors.append(_SCAN_LIMIT_ERROR)
         if manifest.get("kind") == "raw_html_compile" and scripts:
             errors.append("index.html contains an active raw-HTML surface")
         elif scripts and [script.strip() for script in scripts] != [ACTION_EVENT_SCRIPT]:
@@ -189,9 +204,57 @@ def check_artifact_dir(path: str | Path) -> dict[str, Any]:
     return {
         "ok": not errors,
         "errors": errors,
+        "issues": [check_issue_entry(item) for item in errors],
         "warnings": warnings,
         "manifest_summary": summarize_intent_manifest(manifest_path),
     }
+
+DEFAULT_CHECK_FIX = "Re-run viewspec compile from the source, or fix the tampered artifact."
+
+# Fixes for the rejection classes `check` raises with a code prefix. Any other error string is
+# surfaced under the generic CHECK_FAILED code with the caller's default fix.
+_CHECK_ISSUE_FIXES = {
+    "CHECK_INLINE_EVENT_HANDLER": "Remove every on* attribute from index.html, or re-run viewspec compile from the source.",
+    "CHECK_UNSAFE_URL_SCHEME": (
+        "Replace javascript:, vbscript:, and data: URLs (other than raster image data URLs on <img src>) "
+        "with safe links, or re-run viewspec compile from the source."
+    ),
+    "CHECK_UNCLOSED_SCRIPT": "Remove the unclosed <script tag from index.html, or re-run viewspec compile from the source.",
+    "CHECK_SCAN_LIMIT_EXCEEDED": (
+        "Reduce index.html to the compiler-emitted style and script blocks, or re-run viewspec compile from the source."
+    ),
+    "CHECK_RAW_HTML_DOM_UNGOVERNED": (
+        "Re-run viewspec compile from the source HTML; a raw-HTML artifact may only contain the document "
+        "wrapper plus manifest-governed elements whose attributes match the manifest and the sanitizer allowlist."
+    ),
+}
+
+_CHECK_ISSUE_PATH_HINTS = (
+    ("index.html", "index.html"),
+    ("DOM", "index.html"),
+    ("ViewSpecView.tsx", "ViewSpecView.tsx"),
+    ("diagnostics.json", "diagnostics.json"),
+)
+
+
+def check_issue_entry(message: str, *, default_fix: str = DEFAULT_CHECK_FIX) -> dict[str, str]:
+    """Shape one `check_artifact_dir` error string as {code, path, message, fix}.
+
+    Error strings that start with a registered code (``CODE: detail``) surface under that code;
+    everything else is the generic CHECK_FAILED. The path names the artifact file the message is about.
+    """
+    code = "CHECK_FAILED"
+    text = message
+    prefix, separator, remainder = message.partition(": ")
+    if separator and remainder and prefix in ERROR_CODES:
+        code = prefix
+        text = remainder
+    path = "provenance_manifest.json"
+    for needle, candidate in _CHECK_ISSUE_PATH_HINTS:
+        if needle in message:
+            path = candidate
+            break
+    return {"code": code, "path": path, "message": text, "fix": _CHECK_ISSUE_FIXES.get(code, default_fix)}
 
 def build_intent_semantic_digest(
     manifest: dict[str, Any],
@@ -1535,34 +1598,228 @@ def _contains_remote_http_reference(value: str) -> bool:
 # scheme. The URL scan is ATTRIBUTE-SCOPED (never a raw `http` substring) so a rendered
 # URL in visible text is not mistaken for a beacon.
 _BEACON_FORBIDDEN_TAG_RE = re.compile(r"(?i)<(?:iframe|embed|object|base|link)\b")
-_BEACON_META_REFRESH_RE = re.compile(r"(?i)<meta\b[^>]*http-equiv\s*=\s*[\"']?\s*refresh")
+# Applied to each `<meta` tag region from the linear region scan, never as `<meta\b[^>]*...`
+# over the whole document (that shape re-scans to EOF from every unterminated opener).
+_META_REFRESH_ATTR_RE = re.compile(r"(?i)http-equiv\s*=\s*[\"']?\s*refresh")
 # Only AUTO-FETCHING attributes -- NOT href/xlink:href, which are navigation (a plain
 # <a href="https://...">) and are governed per-tag by the probe + external_refs policy;
 # a flat scan can't see the owning tag, so including href would reject legitimate links.
 _BEACON_REMOTE_URL_ATTR_RE = re.compile(
-    r"(?i)(?:src|action|formaction|poster|srcset|background|manifest|data)"
+    r"(?i)(?:src|action|formaction|poster|srcset|background|manifest|data|ping)"
     r"\s*=\s*[\"']?\s*(?:https?:)?//"
 )
-_UNSAFE_CSS_REFERENCE_RE = re.compile(r"(?i)(?:@import|url\s*\()")
-# HTMLParser intentionally drops some unfinished tags at EOF. Keep the CSS
-# backstop context-scoped so an unfinished style surface cannot hide a fetch,
-# while ordinary rendered text such as "URL(" remains valid product content.
-_BEACON_UNSAFE_STYLE_TAG_RE = re.compile(
-    r"(?is)<style\b[^>]*>(?:(?!</style\s*>).)*(?:@import|url\s*\()"
+
+_AUTOFETCH_SURFACE_ERROR = "index.html contains an active or auto-fetching surface"
+_FORM_SURFACE_ERROR = "index.html contains an active form surface"
+_REMOTE_URL_ATTR_ERROR = "index.html contains an auto-fetching remote URL attribute"
+_INLINE_EVENT_HANDLER_ERROR = "CHECK_INLINE_EVENT_HANDLER: index.html contains an inline event handler attribute"
+_UNSAFE_URL_SCHEME_ERROR = "CHECK_UNSAFE_URL_SCHEME: index.html contains a javascript:, vbscript:, or data: URL attribute"
+_UNCLOSED_SCRIPT_ERROR = "CHECK_UNCLOSED_SCRIPT: index.html contains an unclosed script tag"
+_SCAN_LIMIT_ERROR = f"CHECK_SCAN_LIMIT_EXCEEDED: index.html contains more than {MAX_SCANNED_TAG_BLOCKS} style or script blocks"
+
+
+class TagBlockScan(NamedTuple):
+    """Result of `find_tag_blocks`.
+
+    `blocks` holds (start, content_start, content_end, end) offsets per closed block;
+    `unclosed_content_start` is where the content of a never-closed block begins (None when
+    every block closes); `truncated` is set when more than the limit of blocks were present.
+    """
+
+    blocks: tuple[tuple[int, int, int, int], ...]
+    unclosed_content_start: int | None
+    truncated: bool
+
+
+_TAG_SCAN_PATTERNS: dict[str, tuple[re.Pattern[str], re.Pattern[str]]] = {}
+
+
+def _tag_scan_patterns(tag: str) -> tuple[re.Pattern[str], re.Pattern[str]]:
+    patterns = _TAG_SCAN_PATTERNS.get(tag)
+    if patterns is None:
+        escaped = re.escape(tag)
+        # An end tag name ends at whitespace, "/", or ">" in the HTML tokenizer, so `</style>`
+        # and `</style >` both close a block while `</styles>` or `</style` at EOF do not.
+        patterns = (re.compile(rf"(?i)<{escaped}\b"), re.compile(rf"(?i)</{escaped}(?=[\s/>])"))
+        _TAG_SCAN_PATTERNS[tag] = patterns
+    return patterns
+
+
+def find_tag_blocks(html: str, tag: str, *, limit: int = MAX_SCANNED_TAG_BLOCKS) -> TagBlockScan:
+    """Locate `<tag ...>content</tag>` blocks in one linear pass.
+
+    Every search resumes where the previous one stopped, so unclosed openers cost one scan to
+    EOF in total instead of one per opener (the quadratic shape of
+    `<tag\\b[^>]*>[\\s\\S]*?</tag>` that S-3 measured at ~4x per doubling). A block whose
+    opener or closer never terminates is reported through `unclosed_content_start`; a browser
+    treats the rest of the document as that block's content, so callers check that tail too.
+    More than `limit` closed blocks sets `truncated` so callers can fail closed.
+    """
+    opener_re, closer_re = _tag_scan_patterns(tag)
+    blocks: list[tuple[int, int, int, int]] = []
+    position = 0
+    unclosed_content_start: int | None = None
+    truncated = False
+    while True:
+        opener = opener_re.search(html, position)
+        if opener is None:
+            break
+        opener_end = html.find(">", opener.end())
+        if opener_end < 0:
+            unclosed_content_start = opener.end()
+            break
+        content_start = opener_end + 1
+        closer = closer_re.search(html, content_start)
+        closer_end = html.find(">", closer.end()) if closer is not None else -1
+        if closer is None or closer_end < 0:
+            unclosed_content_start = content_start
+            break
+        if len(blocks) >= limit:
+            truncated = True
+            break
+        blocks.append((opener.start(), content_start, closer.start(), closer_end + 1))
+        position = closer_end + 1
+    return TagBlockScan(tuple(blocks), unclosed_content_start, truncated)
+
+
+def iter_tag_regions(html: str, tag: str) -> Iterator[tuple[int, str]]:
+    """Yield (opener_start, attribute_text) for each `<tag` opener in one linear pass.
+
+    The attribute text runs to the first ">" after the opener. An opener with no ">" at all
+    yields the rest of the document once and ends the scan, since no later "<" can start a
+    separate tag inside it.
+    """
+    opener_re, _closer_re = _tag_scan_patterns(tag)
+    position = 0
+    while True:
+        opener = opener_re.search(html, position)
+        if opener is None:
+            return
+        end = html.find(">", opener.end())
+        if end < 0:
+            yield opener.start(), html[opener.end() :]
+            return
+        yield opener.start(), html[opener.end() : end]
+        position = end + 1
+
+
+# CSS escapes the tokenizer decodes before an ident is recognised: `\75rl(`, `\75 rl(` and
+# `u\rl(` are all `url(`; `@\69mport` is `@import`. Decoded before any name matching.
+_CSS_HEX_ESCAPE_RE = re.compile(r"\\([0-9a-fA-F]{1,6})[ \t\n\r\f]?")
+_CSS_CHAR_ESCAPE_RE = re.compile(r"\\(.)", re.DOTALL)
+# Matched against normalised CSS (see `normalize_css_text`): escapes decoded, comments removed,
+# every ASCII control/whitespace character stripped, backslashes collapsed to "/", lower-cased.
+# Covers the @import rule, every URL-loading function, and any remote scheme or scheme-relative
+# authority anywhere in the text, so an unlisted function cannot smuggle a fetch.
+UNSAFE_CSS_REFERENCE_RE = re.compile(
+    r"@import|url\(|image-set\(|-webkit-image-set\(|image\(|src\(|expression\(|javascript:|vbscript:|https?:|//"
 )
 
 
-def _unfinished_tag_has_unsafe_style(html: str) -> bool:
-    """Inspect one browser-recoverable final tag without scanning attribute text as markup."""
+def _decode_css_hex_escape(match: re.Match[str]) -> str:
+    code_point = int(match.group(1), 16)
+    if code_point == 0 or code_point > 0x10FFFF or 0xD800 <= code_point <= 0xDFFF:
+        return "�"
+    return chr(code_point)
+
+
+def _strip_css_comments(css: str) -> str:
+    """Remove well-formed `/* ... */` comments in one pass; an unterminated `/*` is kept."""
+    pieces: list[str] = []
+    position = 0
+    while True:
+        start = css.find("/*", position)
+        end = css.find("*/", start + 2) if start >= 0 else -1
+        if start < 0 or end < 0:
+            pieces.append(css[position:])
+            return "".join(pieces)
+        pieces.append(css[position:start])
+        position = end + 2
+
+
+def normalize_css_text(css: str) -> tuple[str, str]:
+    """Return the two browser-equivalent views of a CSS fragment used for policy matching.
+
+    Both have CSS escapes decoded, control and whitespace characters removed, backslashes
+    collapsed to "/" (shared URL helper) and ASCII lower-casing; the second also has `/* */`
+    comments removed. Callers match both so the gate fails closed either way: a comment must
+    not split a function name (`url/**/(`), and a comment opener inside a CSS string must not
+    hide a live `url(` that follows it.
+    """
+    decoded = _CSS_CHAR_ESCAPE_RE.sub(r"\1", _CSS_HEX_ESCAPE_RE.sub(_decode_css_hex_escape, css))
+    with_comments = collapse_url_obfuscation(decoded).lower()
+    without_comments = collapse_url_obfuscation(_strip_css_comments(decoded)).lower()
+    return with_comments, without_comments
+
+
+def css_has_unsafe_reference(css: str, pattern: re.Pattern[str] = UNSAFE_CSS_REFERENCE_RE) -> bool:
+    """True when a CSS fragment carries an @import, a URL-loading function, or a remote scheme."""
+    return any(pattern.search(variant) for variant in normalize_css_text(css))
+
+
+_URL_SCHEME_PREFIX_RE = re.compile(r"^([a-z][a-z0-9+.\-]*):")
+
+
+def _url_attribute_has_unsafe_scheme(tag_name: str, attr_name: str, attr_value: str) -> bool:
+    """javascript:, vbscript:, or data: after the decoding a browser applies before scheme detection.
+
+    Entity decoding happens upstream (HTMLParser, or `unescape` on the raw tail); here every
+    ASCII control and whitespace character is removed and backslashes collapse, so
+    `java\\tscript:`, `\\x01javascript:` and `JAVA\\nSCRIPT:` all resolve. The only inert data:
+    URLs are the raster image forms the raw-HTML sanitizer keeps on <img src>.
+    """
+    candidates = attr_value.split(",") if attr_name == "srcset" else (attr_value,)
+    for candidate in candidates:
+        normalized = collapse_url_obfuscation(candidate).lower()
+        match = _URL_SCHEME_PREFIX_RE.match(normalized)
+        if match is None:
+            continue
+        scheme = match.group(1)
+        if scheme in UNSAFE_URL_SCHEMES:
+            return True
+        if scheme == "data" and not (tag_name == "img" and attr_name == "src" and normalized.startswith(DATA_IMAGE_SRC_PREFIXES)):
+            return True
+    return False
+
+
+def _attribute_surface_errors(tag_name: str, attrs: list[tuple[str, str]]) -> list[str]:
+    """Attribute policy for one start tag: (lower-cased name, entity-decoded value) pairs.
+
+    Every pair is checked, including duplicates, since browsers keep the first occurrence and
+    HTMLParser reports all of them.
+    """
+    errors: list[str] = []
+    for attr_name, attr_value in attrs:
+        if attr_name.startswith("on"):
+            errors.append(_INLINE_EVENT_HANDLER_ERROR)
+        if attr_name == "style" and css_has_unsafe_reference(attr_value):
+            errors.append(_AUTOFETCH_SURFACE_ERROR)
+        if attr_name in URL_SCHEME_POLICY_ATTRS and _url_attribute_has_unsafe_scheme(tag_name, attr_name, attr_value):
+            errors.append(_UNSAFE_URL_SCHEME_ERROR)
+        if attr_name in REMOTE_AUTOFETCH_ATTRS and _contains_remote_http_reference(attr_value):
+            errors.append(_REMOTE_URL_ATTR_ERROR)
+        if tag_name in REMOTE_HREF_AUTOFETCH_TAGS and attr_name in {"href", "xlink:href"} and _contains_remote_http_reference(attr_value):
+            errors.append(_REMOTE_URL_ATTR_ERROR)
+    return errors
+
+
+def _unfinished_tag_surface_errors(html: str) -> list[str]:
+    """Apply the start-tag attribute policy to one browser-recoverable final tag.
+
+    HTMLParser drops an unterminated final tag; this walks its attributes without scanning
+    attribute text as markup and runs the same handler, URL-scheme, CSS and remote-URL policy.
+    """
     start = html.rfind("<")
     if start < 0 or ">" in html[start:]:
-        return False
+        return []
     fragment = html[start + 1 :]
     if not fragment or not fragment[0].isalpha():
-        return False
+        return []
     position = 0
     while position < len(fragment) and not fragment[position].isspace() and fragment[position] not in "/>":
         position += 1
+    tag_name = fragment[:position].lower()
+    attrs: list[tuple[str, str]] = []
     while position < len(fragment):
         while position < len(fragment) and (fragment[position].isspace() or fragment[position] == "/"):
             position += 1
@@ -1594,9 +1851,20 @@ def _unfinished_tag_has_unsafe_style(html: str) -> bool:
                 while position < len(fragment) and not fragment[position].isspace() and fragment[position] not in "/>":
                     position += 1
                 value = fragment[value_start:position]
-        if name == "style" and _UNSAFE_CSS_REFERENCE_RE.search(unescape(value)):
+        attrs.append((name, unescape(value)))
+    return _attribute_surface_errors(tag_name, attrs)
+
+
+def _meta_refresh_present(html: str) -> bool:
+    return any(_META_REFRESH_ATTR_RE.search(attrs) for _start, attrs in iter_tag_regions(html, "meta"))
+
+
+def _style_blocks_have_unsafe_css(html: str, scan: TagBlockScan) -> bool:
+    """Check every `<style>` block, including one whose closer never arrives (content runs to EOF)."""
+    for _start, content_start, content_end, _end in scan.blocks:
+        if css_has_unsafe_reference(html[content_start:content_end]):
             return True
-    return False
+    return scan.unclosed_content_start is not None and css_has_unsafe_reference(html[scan.unclosed_content_start :])
 
 
 def _validate_no_autofetch_surfaces(html: str) -> list[str]:
@@ -1605,22 +1873,19 @@ def _validate_no_autofetch_surfaces(html: str) -> list[str]:
     probe.close()
     errors = list(probe.errors)
     collapsed = collapse_url_obfuscation(html)
-    checks = (
-        (
-            "index.html contains an active or auto-fetching surface",
-            bool(_BEACON_FORBIDDEN_TAG_RE.search(html) or _BEACON_META_REFRESH_RE.search(html)),
-        ),
-        (
-            "index.html contains an auto-fetching remote URL attribute",
-            bool(_BEACON_REMOTE_URL_ATTR_RE.search(collapsed)),
-        ),
-        (
-            "index.html contains an active or auto-fetching surface",
-            bool(_BEACON_UNSAFE_STYLE_TAG_RE.search(html) or _unfinished_tag_has_unsafe_style(html)),
-        ),
-    )
-    for message, hit in checks:
-        if hit and message not in errors:
+    style_scan = find_tag_blocks(html, "style")
+    backstops: list[str] = []
+    if _BEACON_FORBIDDEN_TAG_RE.search(html) or _meta_refresh_present(html):
+        backstops.append(_AUTOFETCH_SURFACE_ERROR)
+    if _BEACON_REMOTE_URL_ATTR_RE.search(collapsed):
+        backstops.append(_REMOTE_URL_ATTR_ERROR)
+    if _style_blocks_have_unsafe_css(html, style_scan):
+        backstops.append(_AUTOFETCH_SURFACE_ERROR)
+    if style_scan.truncated:
+        backstops.append(_SCAN_LIMIT_ERROR)
+    backstops.extend(_unfinished_tag_surface_errors(html))
+    for message in backstops:
+        if message not in errors:
             errors.append(message)
     return errors
 
@@ -1636,33 +1901,28 @@ class _AutofetchSurfaceProbe(HTMLParser):
 
     def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
         tag_name = tag.lower()
-        attr_map = {name.lower(): value or "" for name, value in attrs}
+        pairs = [(name.lower(), value or "") for name, value in attrs]
         if tag_name == "style":
             self._style_depth += 1
         if tag_name in ACTIVE_OR_AUTOFETCH_TAGS:
-            self._append_once("index.html contains an active or auto-fetching surface")
+            self._append_once(_AUTOFETCH_SURFACE_ERROR)
         if tag_name in ACTIVE_STRUCTURAL_TAGS:
-            self._append_once("index.html contains an active form surface")
-        if tag_name == "meta" and attr_map.get("http-equiv", "").lower() == "refresh":
-            self._append_once("index.html contains an active or auto-fetching surface")
-        for attr_name, attr_value in attr_map.items():
-            if attr_name == "style" and _UNSAFE_CSS_REFERENCE_RE.search(attr_value):
-                self._append_once("index.html contains an active or auto-fetching surface")
-            if attr_name in REMOTE_AUTOFETCH_ATTRS and _contains_remote_http_reference(attr_value):
-                self._append_once("index.html contains an auto-fetching remote URL attribute")
-            if tag_name in REMOTE_HREF_AUTOFETCH_TAGS and attr_name in {"href", "xlink:href"} and _contains_remote_http_reference(attr_value):
-                self._append_once("index.html contains an auto-fetching remote URL attribute")
+            self._append_once(_FORM_SURFACE_ERROR)
+        if tag_name == "meta" and any(name == "http-equiv" and value.lower() == "refresh" for name, value in pairs):
+            self._append_once(_AUTOFETCH_SURFACE_ERROR)
+        for message in _attribute_surface_errors(tag_name, pairs):
+            self._append_once(message)
 
     def handle_endtag(self, tag: str) -> None:
         if tag.lower() == "style" and self._style_depth:
             self._style_depth -= 1
 
     def handle_data(self, data: str) -> None:
-        if self._style_depth and _UNSAFE_CSS_REFERENCE_RE.search(data):
-            self._append_once("index.html contains an active or auto-fetching surface")
+        if self._style_depth and css_has_unsafe_reference(data):
+            self._append_once(_AUTOFETCH_SURFACE_ERROR)
 
 class _ArtifactDomProbe(HTMLParser):
-    def __init__(self) -> None:
+    def __init__(self, *, record_ungoverned: bool = False) -> None:
         super().__init__(convert_charrefs=True)
         self.ids: dict[str, dict[str, str]] = {}
         self.node_ids: dict[str, dict[str, str]] = {}
@@ -1673,6 +1933,10 @@ class _ArtifactDomProbe(HTMLParser):
         self.text_by_node_id: dict[str, list[str]] = {}
         self._node_stack: list[str | None] = []
         self.errors: list[str] = []
+        # Raw-HTML artifacts: every element without a data-viewspec-node-id, as (tag, sorted attrs),
+        # so the validator can require them to be exactly the fixed document wrapper.
+        self._record_ungoverned = record_ungoverned
+        self.ungoverned_elements: list[tuple[str, tuple[tuple[str, str], ...]]] = []
 
     def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
         tag_name = tag.lower()
@@ -1684,6 +1948,10 @@ class _ArtifactDomProbe(HTMLParser):
         binding_id = attr_map.get("data-binding-id")
         action_id = attr_map.get("data-action-id")
 
+        if self._record_ungoverned and not node_id:
+            self.ungoverned_elements.append(
+                (tag_name, tuple(sorted((name, value) for name, value in attr_map.items() if name != "__tag__")))
+            )
         if dom_id:
             if dom_id in self.ids:
                 self.errors.append(f"index.html contains duplicate id {dom_id}")
@@ -1733,15 +2001,16 @@ def _validate_manifest_dom_links(manifest: dict[str, Any], html: str) -> list[st
     nodes = manifest.get("nodes")
     if not isinstance(nodes, dict):
         return []
-    probe = _ArtifactDomProbe()
+    kind = manifest.get("kind")
+    probe = _ArtifactDomProbe(record_ungoverned=kind == "raw_html_compile")
     probe.feed(html)
     probe.close()
 
     errors = list(probe.errors)
-    if manifest.get("kind") == "intent_bundle_compile":
+    if kind == "intent_bundle_compile":
         errors.extend(_validate_intent_dom_links(nodes, probe))
-    elif manifest.get("kind") == "raw_html_compile":
-        errors.extend(_validate_raw_html_dom_links(nodes, probe))
+    elif kind == "raw_html_compile":
+        errors.extend(_validate_raw_html_dom_links(nodes, probe, manifest))
     return errors
 
 def _manifest_has_action_nodes(manifest: dict[str, Any]) -> bool:
@@ -1793,12 +2062,16 @@ def _validate_intent_dom_links(nodes: dict[str, Any], probe: _ArtifactDomProbe) 
             errors.append(f"DOM element {dom_id} with data-ir-id is missing from manifest nodes")
     return errors
 
-def _validate_raw_html_dom_links(nodes: dict[str, Any], probe: _ArtifactDomProbe) -> list[str]:
+_RAW_HTML_UNGOVERNED_PREFIX = "CHECK_RAW_HTML_DOM_UNGOVERNED"
+
+
+def _validate_raw_html_dom_links(nodes: dict[str, Any], probe: _ArtifactDomProbe, manifest: dict[str, Any]) -> list[str]:
     errors: list[str] = []
     for node_id, entry in sorted(nodes.items()):
         if not isinstance(entry, dict):
             errors.append(f"manifest nodes.{node_id} must be an object")
             continue
+        _validate_raw_html_manifest_node_policy(node_id, entry, errors)
         attrs = probe.node_ids.get(node_id)
         if attrs is None:
             errors.append(f"manifest node {node_id} has no matching data-viewspec-node-id")
@@ -1807,7 +2080,84 @@ def _validate_raw_html_dom_links(nodes: dict[str, Any], probe: _ArtifactDomProbe
     for node_id in sorted(probe.node_ids):
         if node_id not in nodes:
             errors.append(f"DOM element {node_id} with data-viewspec-node-id is missing from manifest nodes")
+    errors.extend(_validate_raw_html_document_wrapper(probe, manifest))
     return errors
+
+
+def _raw_html_document_wrapper(source_hash: str) -> list[tuple[str, tuple[tuple[str, str], ...]]]:
+    """The fixed elements `viewspec.raw_html.compile_html` writes around the governed body."""
+    return sorted(
+        [
+            ("html", (("lang", "en"),)),
+            ("head", ()),
+            ("meta", (("charset", "utf-8"),)),
+            ("meta", (("content", "width=device-width, initial-scale=1"), ("name", "viewport"))),
+            ("title", ()),
+            ("style", ()),
+            ("body", ()),
+            ("div", (("class", "vs-artifact"), ("data-source-hash", source_hash), ("data-viewspec-root", "true"))),
+        ]
+    )
+
+
+def _validate_raw_html_document_wrapper(probe: _ArtifactDomProbe, manifest: dict[str, Any]) -> list[str]:
+    """Fail closed: every raw-HTML DOM element carries a manifest node id or is the fixed wrapper.
+
+    The manifest nodes govern the sanitized body; anything else a tampered index.html adds
+    (an extra <p onclick>, a second <style>, an <svg>) has no manifest entry and is rejected here
+    even before its attributes are judged.
+    """
+    source_hash = manifest.get("source_hash")
+    expected = _raw_html_document_wrapper(source_hash if isinstance(source_hash, str) else "")
+    actual = sorted(probe.ungoverned_elements)
+    if actual == expected:
+        return []
+    remaining = list(expected)
+    extra_tags: set[str] = set()
+    for element in actual:
+        if element in remaining:
+            remaining.remove(element)
+        else:
+            extra_tags.add(element[0])
+    if extra_tags:
+        shown = sorted(extra_tags)
+        listed = ", ".join(f"<{tag}>" for tag in shown[:8])
+        if len(shown) > 8:
+            listed += f" (+{len(shown) - 8} more)"
+        return [f"{_RAW_HTML_UNGOVERNED_PREFIX}: index.html contains DOM elements without a manifest node id: {listed}"]
+    return [f"{_RAW_HTML_UNGOVERNED_PREFIX}: index.html document wrapper does not match the raw-HTML compile template"]
+
+
+def _validate_raw_html_manifest_node_policy(node_id: str, entry: dict[str, Any], errors: list[str]) -> None:
+    """Hold the (unsigned) manifest's nodes to the raw-HTML sanitizer allowlist.
+
+    DOM attributes must equal the manifest's, so the manifest itself must only name tags,
+    attributes and URLs the sanitizer could have produced; otherwise a tampered manifest would
+    legitimise whatever the tampered DOM mirrors.
+    """
+    tag = entry.get("tag")
+    attrs = entry.get("attrs")
+    if not isinstance(tag, str) or not isinstance(attrs, dict):
+        return  # shape errors are reported by _validate_raw_html_manifest_node
+    if tag not in RAW_HTML_ALLOWED_TAGS:
+        errors.append(f"{_RAW_HTML_UNGOVERNED_PREFIX}: manifest node {node_id} tag <{tag}> is outside the raw-HTML allowlist")
+    allowed = RAW_HTML_SAFE_GLOBAL_ATTRS | RAW_HTML_SAFE_ATTRS_BY_TAG.get(tag, set())
+    for name, value in sorted(attrs.items()):
+        if not isinstance(name, str) or not isinstance(value, str):
+            continue
+        if name == "data-viewspec-external-src" and tag == "img":
+            if not raw_html_is_external_http_url(raw_html_normalize_url(value)):
+                errors.append(f"{_RAW_HTML_UNGOVERNED_PREFIX}: manifest node {node_id} attr {name} URL violates the raw-HTML URL policy")
+            continue
+        if name not in allowed and not name.startswith("aria-"):
+            errors.append(f"{_RAW_HTML_UNGOVERNED_PREFIX}: manifest node {node_id} attr {name} is outside the raw-HTML allowlist")
+            continue
+        if name in RAW_HTML_URL_ATTRS:
+            normalized = raw_html_normalize_url(value)
+            inert_remote_image = tag == "img" and name == "src" and raw_html_is_external_http_url(normalized)
+            if inert_remote_image or not raw_html_safe_url(normalized, attr=name):
+                errors.append(f"{_RAW_HTML_UNGOVERNED_PREFIX}: manifest node {node_id} attr {name} URL violates the raw-HTML URL policy")
+
 
 def _validate_raw_html_dom_node(
     errors: list[str],
@@ -1824,15 +2174,27 @@ def _validate_raw_html_dom_node(
     expected_tag = "a" if manifest_tag == "img" and isinstance(external_image_url, str) else manifest_tag
     if attrs.get("__tag__") != expected_tag:
         errors.append(f"manifest node {node_id} tag does not match DOM tag")
+    dom_attrs = {name: value for name, value in attrs.items() if name not in {"__tag__", "data-viewspec-node-id"}}
     if isinstance(external_image_url, str):
         if attrs.get("href") != external_image_url:
             errors.append(f"manifest node {node_id} external image href does not match manifest attrs")
+        expected_link_attrs = {"class": "vs-external-image", "href": external_image_url, "rel": "noopener noreferrer"}
+        if dom_attrs != expected_link_attrs:
+            errors.append(
+                f"{_RAW_HTML_UNGOVERNED_PREFIX}: manifest node {node_id} external image link attributes do not match the raw-HTML template"
+            )
         return
     for attr_name, attr_value in sorted(manifest_attrs.items()):
         if not isinstance(attr_name, str) or not isinstance(attr_value, str):
             continue
         if attrs.get(attr_name) != attr_value:
             errors.append(f"manifest node {node_id} attr {attr_name} does not match DOM")
+    extra_attrs = sorted(name for name in dom_attrs if name not in manifest_attrs)
+    if extra_attrs:
+        listed = ", ".join(extra_attrs[:8])
+        if len(extra_attrs) > 8:
+            listed += f" (+{len(extra_attrs) - 8} more)"
+        errors.append(f"{_RAW_HTML_UNGOVERNED_PREFIX}: manifest node {node_id} carries DOM attributes missing from manifest attrs: {listed}")
     manifest_text = entry.get("text")
     if isinstance(manifest_text, str):
         dom_text = _collapse_artifact_text(" ".join(probe.text_by_node_id.get(node_id, [])))[:160]

@@ -122,6 +122,9 @@ SAFE_SCHEMES_BY_ATTR = {
     "href": {"http", "https", "mailto"},
     "src": {"data", "http", "https"},
 }
+# The only data: URLs the sanitizer keeps (inline raster images on <img src>). Shared with the
+# `check` URL-scheme gate so the two cannot drift on which data: payloads count as inert.
+DATA_IMAGE_SRC_PREFIXES = ("data:image/png", "data:image/jpeg", "data:image/gif", "data:image/webp", "data:image/avif")
 SANITIZER_POLICY = {
     "allowed_tags": sorted(ALLOWED_TAGS),
     "allowed_attrs": {tag: sorted(set(SAFE_GLOBAL_ATTRS) | attrs) for tag, attrs in sorted(SAFE_ATTRS_BY_TAG.items())},
@@ -551,7 +554,7 @@ def _safe_url(value: str, *, attr: str) -> bool:
         return not lowered.startswith("//")
     if lowered.startswith("\\"):
         return False
-    if attr == "src" and lowered.startswith(("data:image/png", "data:image/jpeg", "data:image/gif", "data:image/webp", "data:image/avif")):
+    if attr == "src" and lowered.startswith(DATA_IMAGE_SRC_PREFIXES):
         return True
     parsed = urlparse(value)
     if not parsed.scheme:
@@ -560,7 +563,7 @@ def _safe_url(value: str, *, attr: str) -> bool:
     if scheme in {"http", "https"}:
         return bool(parsed.netloc) and scheme in SAFE_SCHEMES_BY_ATTR.get(attr, set())
     if attr == "src" and scheme == "data":
-        return lowered.startswith(("data:image/png", "data:image/jpeg", "data:image/gif", "data:image/webp", "data:image/avif"))
+        return lowered.startswith(DATA_IMAGE_SRC_PREFIXES)
     return scheme in SAFE_SCHEMES_BY_ATTR.get(attr, set())
 
 

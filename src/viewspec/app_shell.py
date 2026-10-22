@@ -22,6 +22,8 @@ from viewspec.app_validation import (
     _state_ir_limits,
 )
 from viewspec.local_tools import source_hash
+from viewspec.local_tools_constants import MAX_SCANNED_TAG_BLOCKS
+from viewspec.local_tools_validators import TagBlockScan, css_has_unsafe_reference, find_tag_blocks, iter_tag_regions
 from viewspec.presentation_plan import (
     build_presentation_plan,
     presentation_plan_css,
@@ -44,17 +46,20 @@ APP_SHELL_MAX_STATE_JS_BYTES = 96 * 1024
 APP_SHELL_STATE_DATA_ID = "viewspec-app-state-data"
 APP_SHELL_MAX_AGGREGATE_SCREEN_HTML_BYTES = 8 * 1024 * 1024
 APP_SHELL_MAX_MANIFEST_BYTES = 256 * 1024
-HTML_BODY_RE = re.compile(r"<body\b[^>]*>(?P<body>[\s\S]*?)</body>", re.IGNORECASE)
-HTML_STYLE_RE = re.compile(r"<style\b[^>]*>(?P<style>[\s\S]*?)</style>", re.IGNORECASE)
-HTML_SCRIPT_RE = re.compile(r"<script\b[\s\S]*?</script>", re.IGNORECASE)
-HTML_SCRIPT_OPEN_RE = re.compile(r"<script\b(?P<attrs>[^>]*)>", re.IGNORECASE)
+# <body>, <style> and <script> blocks are located with the linear block scanner shared with
+# `viewspec check` (find_tag_blocks / iter_tag_regions), never with `<tag\b[^>]*>[\s\S]*?</tag>`
+# regexes that re-scan to EOF from every unclosed opener.
 HTML_FORBIDDEN_EMBED_RE = re.compile(r"<\s*(?:iframe|object|embed)\b", re.IGNORECASE)
 HTML_FORBIDDEN_LINK_RE = re.compile(r"<\s*link\b", re.IGNORECASE)
 HTML_INLINE_HANDLER_RE = re.compile(r"\son[a-z]+\s*=", re.IGNORECASE)
 HTML_WORKER_IMPORT_RE = re.compile(r"\b(?:Worker|SharedWorker|importScripts)\s*\(", re.IGNORECASE)
 HTML_IMPORT_MAP_RE = re.compile(r"<script\b[^>]*type\s*=\s*['\"]importmap['\"]", re.IGNORECASE)
 HTML_PROTOCOL_RELATIVE_RE = re.compile(r"(?i)(?:src|href|action|formaction|poster|srcset)\s*=\s*['\"]//")
-CSS_FORBIDDEN_RE = re.compile(r"(?i)(@import|url\s*\(|expression\s*\(|javascript:|vbscript:|data:)")
+# Matched against CSS normalised by `css_has_unsafe_reference`: escapes decoded, comments removed,
+# whitespace stripped, lower-cased. Lists every URL-loading function plus remote schemes.
+CSS_FORBIDDEN_RE = re.compile(
+    r"@import|url\(|image-set\(|-webkit-image-set\(|image\(|src\(|expression\(|javascript:|vbscript:|data:|https?:|//"
+)
 
 def _build_static_app_shell(
     payload: dict[str, Any],
@@ -201,14 +206,16 @@ def _collect_shell_screens(screen_reports: list[dict[str, Any]]) -> list[dict[st
     return screens
 
 def _assert_screen_artifact_shell_safe(html: str, screen_id: str) -> None:
-    for script in HTML_SCRIPT_OPEN_RE.finditer(html):
-        if script.group("attrs").strip():
+    # Any attributed <script> (including an import map, which needs type="importmap") is rejected here;
+    # the regions come from the linear scan, not from `<script\b[^>]*>` over the whole document.
+    for _start, attrs in iter_tag_regions(html, "script"):
+        if attrs.strip():
             raise AppBundleProofFailure(
                 "APP_SHELL_EMBEDDING_UNSUPPORTED",
                 f"Screen {screen_id} contains an attributed script tag; Static Shell V0 embeds inert fragments only.",
                 "Remove import maps, external script references, or typed script surfaces before compiling the shell.",
             )
-    if HTML_FORBIDDEN_EMBED_RE.search(html) or HTML_IMPORT_MAP_RE.search(html) or HTML_WORKER_IMPORT_RE.search(html):
+    if HTML_FORBIDDEN_EMBED_RE.search(html) or HTML_WORKER_IMPORT_RE.search(html):
         raise AppBundleProofFailure(
             "APP_SHELL_EMBEDDING_UNSUPPORTED",
             f"Screen {screen_id} contains an unsupported embed, frame, import map, or worker surface.",
@@ -226,23 +233,49 @@ def _assert_screen_artifact_shell_safe(html: str, screen_id: str) -> None:
             f"Screen {screen_id} contains inline event handlers.",
             "Remove inline event handlers before compiling the static shell.",
         )
-    for style in HTML_STYLE_RE.findall(html):
-        if CSS_FORBIDDEN_RE.search(style):
+    for style in _extract_screen_styles(html, screen_id):
+        if css_has_unsafe_reference(style, CSS_FORBIDDEN_RE):
             raise AppBundleProofFailure(
                 "APP_SHELL_NETWORK_SURFACE_REJECTED",
                 f"Screen {screen_id} CSS contains an import, URL, expression, or script-like value.",
                 "Remove external or executable CSS surfaces before compiling the static shell.",
             )
 
+def _scan_screen_blocks(html: str, tag: str, screen_id: str) -> TagBlockScan:
+    """Linear `<tag>` block scan over a screen artifact that fails closed on unclosed or excess blocks."""
+    scan = find_tag_blocks(html, tag)
+    if scan.unclosed_content_start is not None:
+        raise AppBundleProofFailure(
+            "APP_SHELL_EMBEDDING_UNSUPPORTED",
+            f"Screen {screen_id} contains an unclosed <{tag}> block; Static Shell V0 embeds inert fragments only.",
+            "Regenerate the screen through the html-tailwind compiler.",
+        )
+    if scan.truncated:
+        raise AppBundleProofFailure(
+            "APP_SHELL_SIZE_LIMIT_EXCEEDED",
+            f"Screen {screen_id} contains more than {MAX_SCANNED_TAG_BLOCKS} <{tag}> blocks.",
+            "Regenerate the screen through the html-tailwind compiler.",
+        )
+    return scan
+
 def _extract_screen_body_fragment(html: str, screen_id: str) -> str:
-    match = HTML_BODY_RE.search(html)
-    if not match:
+    body_scan = find_tag_blocks(html, "body", limit=1)
+    if not body_scan.blocks:
         raise AppBundleProofFailure(
             "APP_SHELL_EMBEDDING_UNSUPPORTED",
             f"Screen {screen_id} artifact does not contain a body element.",
             "Regenerate the screen through the html-tailwind compiler.",
         )
-    fragment = HTML_SCRIPT_RE.sub("", match.group("body")).strip()
+    _start, content_start, content_end, _end = body_scan.blocks[0]
+    body = html[content_start:content_end]
+    script_scan = _scan_screen_blocks(body, "script", screen_id)
+    pieces: list[str] = []
+    position = 0
+    for start, _content_start, _content_end, end in script_scan.blocks:
+        pieces.append(body[position:start])
+        position = end
+    pieces.append(body[position:])
+    fragment = "".join(pieces).strip()
     if not fragment:
         raise AppBundleProofFailure(
             "APP_SHELL_EMBEDDING_UNSUPPORTED",
@@ -252,8 +285,9 @@ def _extract_screen_body_fragment(html: str, screen_id: str) -> str:
     return fragment
 
 def _extract_screen_styles(html: str, screen_id: str) -> list[str]:
-    del screen_id
-    return [style.strip() for style in HTML_STYLE_RE.findall(html) if style.strip()]
+    scan = _scan_screen_blocks(html, "style", screen_id)
+    styles = [html[content_start:content_end].strip() for _start, content_start, content_end, _end in scan.blocks]
+    return [style for style in styles if style]
 
 def _dedupe_styles(screen_payloads: list[dict[str, Any]]) -> list[str]:
     seen: set[str] = set()
@@ -731,15 +765,11 @@ __all__ = [
     "APP_SHELL_ROUTE_NAVIGATION",
     "APP_SHELL_TARGET",
     "CSS_FORBIDDEN_RE",
-    "HTML_BODY_RE",
     "HTML_FORBIDDEN_EMBED_RE",
     "HTML_FORBIDDEN_LINK_RE",
     "HTML_IMPORT_MAP_RE",
     "HTML_INLINE_HANDLER_RE",
     "HTML_PROTOCOL_RELATIVE_RE",
-    "HTML_SCRIPT_OPEN_RE",
-    "HTML_SCRIPT_RE",
-    "HTML_STYLE_RE",
     "HTML_WORKER_IMPORT_RE",
     "_app_shell_css",
     "_app_shell_limits",
