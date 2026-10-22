@@ -277,3 +277,16 @@ def test_unsafe_integers_are_rejected_at_the_intent_boundary_wherever_they_appea
         result = validate_agent_intent_bundle(route)
         assert not result.valid
         assert [issue.path for issue in result.issues if issue.code == "INTEGER_OUT_OF_SAFE_RANGE"] == [expected_path]
+
+
+def test_negative_zero_and_integral_floats_are_canonical_in_memory():
+    """-0.0 and 100.0 must serialize like 0 and 100 before any round trip (audit C-1)."""
+    bundle = _value_bundle(-0.0, [100.0, {"nested": 2.0}, [3.0, 1.5]])
+    node = bundle.substrate.nodes["record"]
+    assert node.attrs["value"] == 0 and isinstance(node.attrs["value"], int)
+    assert json.dumps(node.attrs["value"]) == "0"
+    assert node.slots["items"] == [100, {"nested": 2}, [3, 1.5]]
+    assert all(isinstance(v, int) for v in (node.slots["items"][0], node.slots["items"][1]["nested"], node.slots["items"][2][0]))
+    assert isinstance(node.slots["items"][2][1], float)
+    for restored in (_json_text_roundtrip(bundle), _proto_roundtrip(bundle)):
+        assert json.dumps(restored.to_json(), sort_keys=True) == json.dumps(bundle.to_json(), sort_keys=True)

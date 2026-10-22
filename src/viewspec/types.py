@@ -138,6 +138,28 @@ def normalize_json_numbers(value: Any) -> Any:
     return value
 
 
+def normalize_json_numbers_in_place(container: Any) -> None:
+    """Apply :func:`normalize_json_numbers` to a dict or list without replacing it.
+
+    In-memory bundles built with the SDK must serialize to the same bytes as bundles read
+    back from JSON or proto, so :class:`SemanticNode` canonicalizes its ``attrs`` and
+    ``slots`` on construction. The containers are updated in place so callers that keep a
+    reference to the dict they passed in still observe the node's values.
+    """
+    if isinstance(container, dict):
+        for key, item in list(container.items()):
+            if isinstance(item, (dict, list)):
+                normalize_json_numbers_in_place(item)
+            else:
+                container[key] = normalize_json_numbers(item)
+    elif isinstance(container, list):
+        for index, item in enumerate(container):
+            if isinstance(item, (dict, list)):
+                normalize_json_numbers_in_place(item)
+            else:
+                container[index] = normalize_json_numbers(item)
+
+
 def _to_struct(value: dict[str, Any] | None) -> struct_pb2.Struct:
     message = struct_pb2.Struct()
     message.update(dict(value or {}))
@@ -174,6 +196,12 @@ class SemanticNode:
     attrs: dict[str, Any] = field(default_factory=dict)
     slots: dict[str, list[Any]] = field(default_factory=dict)
     edges: dict[str, list[str]] = field(default_factory=dict)
+
+    def __post_init__(self) -> None:
+        # Integral doubles (including -0.0) become ints at construction so an in-memory
+        # bundle and its JSON or proto round trip serialize identically (audit C-1).
+        normalize_json_numbers_in_place(self.attrs)
+        normalize_json_numbers_in_place(self.slots)
 
     def to_proto(self) -> pb2.SemanticNode:
         message = pb2.SemanticNode(id=self.id, kind=self.kind, attrs=_to_struct(self.attrs))
