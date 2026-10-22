@@ -3,7 +3,8 @@
 GitHub reports a broken issue form only in its web interface, never as a failing check, so these
 tests apply the documented form schema here (audit finding H-2): the required top-level keys, the
 permitted keys and attributes for each element type, ids and labels that are unique within a form,
-and options that YAML does not turn into booleans or the reserved word ``None``. They also pin the facts the bug report must ask for,
+and options that YAML does not turn into booleans or the reserved word ``None``. They also pin the
+facts the bug report must ask for, the code fences that keep pasted input readable in the issue,
 the deliberate blank-issue setting and the security route in ``config.yml``, an owner for every
 path in CODEOWNERS, and a pull request checklist that names every command CONTRIBUTING.md runs.
 
@@ -57,6 +58,11 @@ DEFAULT_LABELS = {
 }
 # The facts a maintainer needs to reproduce a bug: every one is a required field of the bug form.
 BUG_REPORT_FACTS = {"viewspec-version", "python-version", "os", "command", "reproduction", "output"}
+# The text fields whose answers are code or data (JSON, HTML, DESIGN.md, scripts, command output).
+CODE_FIELDS = {
+    "bug_report.yml": {"environment", "command", "reproduction", "output"},
+    "feature_request.yml": {"proposal"},
+}
 
 
 def _issue_forms() -> list[Path]:
@@ -276,6 +282,31 @@ def test_bug_report_requires_the_facts_a_maintainer_needs() -> None:
     assert "`--json`" in output["attributes"]["description"]
     reproduction = next(element for element in body if element.get("id") == "reproduction")
     assert "IntentBundle" in reproduction["attributes"]["label"]
+
+
+@pytest.mark.parametrize("path", _issue_forms(), ids=lambda path: path.name)
+def test_text_fields_that_take_code_keep_it_readable_in_the_issue(path: Path) -> None:
+    """GitHub puts a textarea answer into the issue as Markdown unless ``render`` is set, and
+    ``render`` turns off attachments. Unfenced, pasted HTML loses its tags and the front matter of a
+    ``DESIGN.md`` becomes a heading. So a field that takes code, or asks for pasted text, either sets
+    ``render`` or shows how to fence the text, and a field that offers attachments does not set
+    ``render``."""
+    textareas = [
+        (element.get("id"), element["attributes"])
+        for element in _load(path)["body"]
+        if element.get("type") == "textarea"
+    ]
+    code_fields = CODE_FIELDS.get(path.name, set())
+    assert code_fields <= {field_id for field_id, _ in textareas}, code_fields
+    for field_id, attributes in textareas:
+        description = attributes.get("description", "")
+        where = (path.name, field_id)
+        if "attach" in description.lower():
+            assert "render" not in attributes, where
+        if (field_id in code_fields or "paste" in description.lower()) and "render" not in attributes:
+            assert "```" in description, where
+            # A description line that starts with a fence would turn the rest of it into a code block.
+            assert not any(line.lstrip().startswith("```") for line in description.splitlines()), where
 
 
 def test_issue_forms_apply_the_bug_and_enhancement_labels() -> None:

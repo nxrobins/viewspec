@@ -24,7 +24,8 @@ body:
       description: |
         What you would like ViewSpec to do: the command, option, Python API, motif, emitter target,
         or IntentBundle field involved, and an example of the input you would write and the output
-        you would expect.
+        you would expect. Paste examples in a fenced code block, with a line such as `` ```json ``
+        or `` ```html `` above it and `` ``` `` below it, so GitHub shows them as written.
     validations:
       required: true
   - type: dropdown

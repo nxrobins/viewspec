@@ -55,7 +55,8 @@ body:
         (pip, uv, an editable checkout) and with which extras (`remote`, `agents`), the Node.js
         version (`node --version`) for React output and host verification, and the coding agent or
         MCP client if one was involved. For an installation or setup problem, paste the output of
-        `viewspec doctor`.
+        `viewspec doctor` in a fenced code block, with a line `` ```json `` above it and `` ``` ``
+        below it.
       placeholder: Ubuntu 24.04, pip install "viewspec[agents]", Node.js 22.22.0
     validations:
       required: false
@@ -78,7 +79,10 @@ body:
         Paste or attach the input that triggers the problem: the IntentBundle JSON, AppBundle,
         IntentPatch, `DESIGN.md`, or raw HTML. Cut it down to the smallest input that still shows
         the problem, and remove anything private first, because issues are public. For a Python
-        API problem, a short self-contained script is best.
+        API problem, a short self-contained script is best. Put pasted text in a fenced code block,
+        with a line such as `` ```json ``, `` ```html ``, `` ```markdown `` or `` ```python `` above
+        it and `` ``` `` below it. Unfenced, GitHub renders it as Markdown: HTML tags disappear and
+        the front matter of a `DESIGN.md` turns into a heading.
     validations:
       required: true
   - type: textarea
