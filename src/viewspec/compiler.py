@@ -12,7 +12,10 @@ with full provenance for every motif type the SDK builders generate.
 from __future__ import annotations
 
 import json
+import os
 import re
+import warnings
+from pathlib import Path
 from typing import Any
 
 from viewspec.aesthetics import (
@@ -1677,7 +1680,7 @@ def _validate_actions(
 def _resolve_and_apply_styles(
     view_spec: ViewSpec,
     substrate: SemanticSubstrate,
-    design: DesignSystemContext | DesignRequest | str | None,
+    design: DesignSystemContext | DesignRequest | str | os.PathLike[str] | None,
     strict_design: bool,
     region_nodes: dict[str, IRNode],
     binding_nodes: dict[str, IRNode],
@@ -1786,7 +1789,7 @@ def _resolve_and_apply_styles(
 
 def compile(
     bundle: IntentBundle,
-    design: DesignSystemContext | DesignRequest | str | None = None,
+    design: DesignSystemContext | DesignRequest | str | os.PathLike[str] | None = None,
     *,
     strict_design: bool = False,
     motif_plugins: tuple[MotifPlugin, ...] = (),
@@ -1799,9 +1802,22 @@ def compile(
     empty_state, loading_state, error_state, hero.
     Raises UnsupportedMotifError for motif kinds not in the reference set.
 
+    ``design`` applies a local DESIGN.md and takes one of:
+
+    * a ``DesignSystemContext`` from ``load_design_system()``;
+    * an ``os.PathLike`` such as ``pathlib.Path("DESIGN.md")``, read as a file path;
+    * a ``str``, parsed as DESIGN.md *content*, not as a path;
+    * a hosted ``DesignRequest``, whose ``content`` is parsed locally (its ``lint`` flag is
+      read only by the hosted compiler).
+
+    A ``str`` that contains no line break and names an existing file is still read as a path,
+    with a ``DeprecationWarning``: pass ``pathlib.Path(...)`` instead. DESIGN.md content always
+    spans several lines, so no valid content string is affected.
+
     For full compilation (arbitrary data shapes, OOD generalization),
     use the hosted compiler at api.viewspec.dev.
     """
+    design = _normalize_design_argument(design)
     substrate, view_spec = _validate_bundle_shape(bundle)
     diagnostics: list[CompilerDiagnostic] = []
     _validate_roots(substrate, view_spec)
@@ -1916,8 +1932,31 @@ def _associate_field_labels(node: IRNode) -> None:
         _associate_field_labels(child)
 
 
+def _normalize_design_argument(
+    design: DesignSystemContext | DesignRequest | str | os.PathLike[str] | None,
+) -> DesignSystemContext | DesignRequest | str | os.PathLike[str] | None:
+    """Turn the deprecated path-as-``str`` form of ``compile(design=...)`` into a ``Path`` (audit C-9).
+
+    A ``str`` is DESIGN.md content. Content needs YAML front matter between two ``---`` lines, so a
+    ``str`` without a line break (in the ``str.splitlines`` sense the parser uses) can never be valid
+    content; when such a ``str`` names an existing file, it is read as that file with a
+    ``DeprecationWarning`` instead of failing to parse.
+    """
+    if isinstance(design, str) and len(design.splitlines()) < 2 and os.path.isfile(design):
+        warnings.warn(
+            f"compile(design={design!r}): a str is DESIGN.md content, so passing a DESIGN.md path as a str "
+            "is deprecated. Pass pathlib.Path(...) for a file, or a DesignSystemContext from "
+            "load_design_system(path=...). This str is read as a path for now because it names an "
+            "existing file and contains no line break.",
+            DeprecationWarning,
+            stacklevel=3,
+        )
+        return Path(design)
+    return design
+
+
 def _coerce_design_context(
-    design: DesignSystemContext | DesignRequest | str | None,
+    design: DesignSystemContext | DesignRequest | str | os.PathLike[str] | None,
     *,
     strict_design: bool = False,
 ) -> DesignSystemContext | None:
@@ -1926,10 +1965,14 @@ def _coerce_design_context(
     if isinstance(design, DesignSystemContext):
         return design
     if isinstance(design, DesignRequest):
-        return load_design_system(content=design.content, lint=design.lint, strict=strict_design)
+        # DesignRequest.lint is a hosted-compiler knob; local validation always runs, so it is not
+        # passed on (load_design_system's lint argument is deprecated and has no effect).
+        return load_design_system(content=design.content, strict=strict_design)
+    if isinstance(design, os.PathLike):
+        return load_design_system(path=Path(design), strict=strict_design)
     if isinstance(design, str):
         return load_design_system(content=design, strict=strict_design)
-    raise TypeError("design must be a DesignSystemContext, DesignRequest, DESIGN.md string, or None")
+    raise TypeError("design must be a DesignSystemContext, DesignRequest, DESIGN.md string, os.PathLike path, or None")
 
 
 PRIMITIVE_DEFAULT_TOKENS: dict[str, list[str]] = {

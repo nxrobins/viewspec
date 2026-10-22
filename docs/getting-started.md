@@ -456,12 +456,26 @@ viewspec prove --target react-tailwind-tsx --install --out .viewspec-proof --jso
 For local compilation, parse a strict `DESIGN.md` subset and pass it to IntentBundle or raw HTML import compilation:
 
 ```python
+from pathlib import Path
+
 from viewspec import compile, compile_html, load_design_system
 
 design = load_design_system(path="DESIGN.md")
 html_result = compile_html("<h1>Report</h1>", design=design)
 ast = compile(builder.build_bundle(), design=design)
+ast = compile(builder.build_bundle(), design=Path("DESIGN.md"))  # the same file, read by compile
 ```
+
+`compile(bundle, design=...)` takes a `DesignSystemContext` from `load_design_system()`, a path as
+an `os.PathLike` such as `Path("DESIGN.md")`, or a `str` holding DESIGN.md *content*. A `str` is
+never meant as a path: `compile(bundle, design="DESIGN.md")` still reads the file when the string
+names an existing file and contains no line break, but that fallback is deprecated and emits a
+`DeprecationWarning`; pass `Path("DESIGN.md")` instead. A `DesignRequest` is parsed locally from
+its `content`; its `lint` flag is read only by the hosted compiler.
+
+`load_design_system()` always validates. Its `lint` argument never had a local effect, is
+deprecated, and emits a `DeprecationWarning` when passed; drop it. Findings are in
+`context.lint_report`, or in `DesignSystemError.report` when loading fails.
 
 From the CLI:
 
