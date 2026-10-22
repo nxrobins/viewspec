@@ -3,8 +3,9 @@
 ``scripts/migrate_launch_media_to_lfs.sh`` runs here against a throwaway repository built from
 copies of the files in ``demos/launch-assets/``; Git LFS needs no server for local commits. The
 script must commit the media as canonical LFS pointers on a new branch, keep the working files
-byte-identical, leave ``main``, the remote and existing Git hooks alone, and change nothing when it
-runs again. The Pages deploy publishes those files, so its checkout must fetch the LFS content.
+byte-identical, leave ``main``, the remote and existing Git hooks alone, never build on a leftover
+branch that lacks commits of ``main``, and change nothing when it runs again. The Pages deploy
+publishes those files, so its checkout must fetch the LFS content.
 """
 
 from __future__ import annotations
@@ -277,6 +278,45 @@ def test_an_existing_pre_push_hook_neither_stops_the_migration_nor_changes(
             assert NO_LFS_HOOK_NOTE not in result.stdout, result.stdout
         else:
             assert f"{NO_LFS_HOOK_NOTE} ({shown})" in result.stdout, result.stdout
+
+
+@needs_git_lfs
+@pytest.mark.parametrize("left_by", ["a-stopped-run", "an-unpushed-migration"])
+def test_a_branch_that_lacks_commits_of_main_is_not_reused(checkout: Checkout, left_by: str) -> None:
+    if left_by == "an-unpushed-migration":
+        assert checkout.migrate().returncode == 0
+        checkout.git("switch", "-q", "main")
+    else:
+        # A run that stops after creating the branch leaves it at main as it was then.
+        checkout.git("branch", BRANCH)
+    stale = checkout.git("rev-parse", BRANCH).strip()
+    # Then main moves on with a re-encode of a launch asset.
+    gif = f"{MEDIA_DIR}/hn-launch-demo.gif"
+    reencoded = checkout.originals[gif] + b"\0"
+    (checkout.path / gif).write_bytes(reencoded)
+    checkout.git("commit", "-q", "-am", "Re-encode the HN demo GIF")
+    head = checkout.git("rev-parse", "HEAD").strip()
+
+    refused = checkout.migrate()
+
+    assert refused.returncode == 1, refused.stdout
+    assert f"error: {BRANCH} " in refused.stderr
+    assert checkout.git("symbolic-ref", "--short", "HEAD").strip() == "main"
+    assert checkout.git("rev-parse", "HEAD").strip() == head
+    assert checkout.git("rev-parse", BRANCH).strip() == stale
+    assert checkout.git("status", "--porcelain") == ""
+
+    # The way out that the error names ends in a migration of main as it is now.
+    delete = "-D" if left_by == "an-unpushed-migration" else "-d"
+    assert f"git branch {delete} {BRANCH}" in refused.stderr
+    if left_by == "an-unpushed-migration":
+        assert "Store the launch media in Git LFS (audit H-3)" in refused.stderr
+    checkout.git("branch", delete, BRANCH)
+    migrated = checkout.migrate()
+    assert migrated.returncode == 0, migrated.stderr + migrated.stdout
+    assert checkout.git("rev-list", "--parents", "-n", "1", "HEAD").split()[1:] == [head]
+    assert checkout.blob(f"HEAD:{gif}") == _canonical_pointer(reencoded)
+    assert (checkout.path / gif).read_bytes() == reencoded
 
 
 @needs_git_lfs

@@ -7,14 +7,16 @@
 #
 # Run the migration once, from a clean, up-to-date checkout of main, on a machine with
 # git-lfs installed that can reach GitHub's LFS endpoint (the push uploads the objects
-# there). On main it creates the branch lfs/launch-media; on any other branch it commits
-# there. It routes the media through Git LFS in .gitattributes, re-adds them so the index
-# holds LFS pointers, checks every staged blob against the pointer git-lfs computes for
-# the working file, commits, checks the commit, and prints the push and verification
-# steps. It never pushes and never rewrites history: the migration is one new commit and
-# the working files stay byte-identical. Running it again changes nothing. It writes only
-# the Git LFS filter settings into .git/config and leaves existing Git hooks alone; the
-# printed git lfs push uploads the objects whatever the pre-push hook does.
+# there). On main it creates the branch lfs/launch-media, or reuses it when it contains
+# main (a branch that lacks commits of main stops the script before it changes anything);
+# on any other branch it commits there. It routes the media through Git LFS in
+# .gitattributes, re-adds them so the index holds LFS pointers, checks every staged blob
+# against the pointer git-lfs computes for the working file, commits, checks the commit,
+# and prints the push and verification steps. It never pushes and never rewrites
+# history: the migration is one new commit and the working files stay byte-identical.
+# Running it again changes nothing. It writes only the Git LFS filter settings into
+# .git/config and leaves existing Git hooks alone; the printed git lfs push uploads the
+# objects whatever the pre-push hook does.
 #
 # --verify-site downloads each media file from a deployed site (default: https:// plus
 # demos/CNAME) and compares its SHA-256 and size with the media committed at HEAD. A file
@@ -278,6 +280,26 @@ media. Made with scripts/migrate_launch_media_to_lfs.sh.
 EOF
 }
 
+# Run on main before reusing an existing $BRANCH. A run that stopped after creating the
+# branch, or a migration that was never pushed, leaves it behind once main moves on, and a
+# commit there would hold the media of that older main (and conflict with any re-encode).
+require_branch_contains_main() {
+    if git merge-base --is-ancestor HEAD "refs/heads/$BRANCH"; then
+        return 0
+    fi
+    if git merge-base --is-ancestor "refs/heads/$BRANCH" HEAD; then
+        die "$BRANCH is behind main and has no commits of its own: an earlier run
+probably stopped after creating it. Delete it, then run this script again:
+    git branch -d $BRANCH"
+    fi
+    die "$BRANCH does not contain main, so a migration there would hold the media
+of an older main. These are its own commits:
+$(git log --oneline --no-decorate "HEAD..refs/heads/$BRANCH" | sed 's/^/    /')
+If they are an earlier run of this script that you have not pushed, delete the branch
+with 'git branch -D $BRANCH' and run this script again. Otherwise merge main
+into it first, then run this script again."
+}
+
 migrate() {
     branch=$(git symbolic-ref --quiet --short HEAD) || die "HEAD is detached; check out main first"
     require_clean_tree
@@ -290,6 +312,7 @@ migrate() {
             return 0
         fi
         if git show-ref --verify --quiet "refs/heads/$BRANCH"; then
+            require_branch_contains_main
             run git switch "$BRANCH"
         else
             run git switch -c "$BRANCH"
