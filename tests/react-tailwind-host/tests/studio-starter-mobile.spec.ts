@@ -61,7 +61,7 @@ test.beforeAll(async () => {
 });
 test.afterAll(() => {
   for (const session of sessions) run(["review-end", session.source, "--state-dir", session.state, "--json"], true);
-  if (workspace) rmSync(workspace, { recursive: true, force: true });
+  if (workspace) rmSync(workspace, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 });
 });
 test("starter content remains readable on mobile, including long translated values", async ({ page }, testInfo) => {
   const errors: string[] = [], evidence: unknown[] = [];

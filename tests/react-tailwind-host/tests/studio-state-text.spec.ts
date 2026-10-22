@@ -105,7 +105,7 @@ test.afterAll(() => {
   if (sourcePath && reviewState) {
     runViewspec(["review-end", sourcePath, "--state-dir", reviewState, "--json"], true);
   }
-  if (workspace) rmSync(workspace, { recursive: true, force: true });
+  if (workspace) rmSync(workspace, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 });
 });
 
 test("Static and React show the same review-count truth after interaction and replay", async ({ page }, testInfo) => {
