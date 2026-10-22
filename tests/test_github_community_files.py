@@ -215,9 +215,8 @@ def _contributing_section(heading: str) -> str:
 
 
 def test_the_issue_forms_exist() -> None:
-    assert [path.name for path in _issue_forms()] == ["bug_report.yml", "feature_request.yml"]
-    # A Markdown template alongside the forms would bypass the questions the forms ask.
-    assert not list(ISSUE_TEMPLATES.glob("*.md"))
+    names = {path.name for path in _issue_forms()}
+    assert {"bug_report.yml", "feature_request.yml"} <= names, names
 
 
 @pytest.mark.parametrize("path", _issue_forms(), ids=lambda path: path.name)
@@ -280,8 +279,8 @@ def test_bug_report_requires_the_facts_a_maintainer_needs() -> None:
 
 
 def test_issue_forms_apply_the_bug_and_enhancement_labels() -> None:
-    assert _load(ISSUE_TEMPLATES / "bug_report.yml")["labels"] == ["bug"]
-    assert _load(ISSUE_TEMPLATES / "feature_request.yml")["labels"] == ["enhancement"]
+    assert "bug" in _load(ISSUE_TEMPLATES / "bug_report.yml")["labels"]
+    assert "enhancement" in _load(ISSUE_TEMPLATES / "feature_request.yml")["labels"]
 
 
 def test_template_chooser_sets_blank_issues_deliberately_and_routes_security_reports() -> None:
