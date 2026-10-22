@@ -1,9 +1,16 @@
 from __future__ import annotations
 
+import importlib
 import json
+import os
+import queue
 import socket
+import subprocess
 import sys
+import threading
+import tomllib
 import types
+from collections.abc import Iterator
 from html import escape
 from pathlib import Path
 
@@ -288,6 +295,216 @@ def test_html_file_tools_refuse_oversized_files_before_reading(tmp_path, monkeyp
     diffed = diff_html_files_tool("big.html", "small.html", cwd=tmp_path)
     assert diffed["ok"] is False
     assert diffed["errors"][0]["code"] == "HTML_INPUT_TOO_LARGE"
+
+
+ROOT = Path(__file__).resolve().parents[1]
+
+
+@pytest.fixture
+def isolated_mcp_modules() -> Iterator[None]:
+    """Let a test import stand-in ``mcp`` packages, then restore whatever was imported before."""
+
+    def owned() -> list[str]:
+        return [name for name in sys.modules if name == "mcp" or name.startswith("mcp.")]
+
+    saved = {name: sys.modules[name] for name in owned()}
+    for name in saved:
+        del sys.modules[name]
+    try:
+        yield
+    finally:
+        for name in owned():
+            del sys.modules[name]
+        sys.modules.update(saved)
+        importlib.invalidate_caches()
+
+
+# What mcp.server.fastmcp contains in each stand-in SDK; None leaves the module out.
+_FASTMCP_V1 = "class FastMCP:\n    pass\n"
+# MCP SDK 2.x keeps a mcp/server/fastmcp.py whose import fails with a migration hint.
+_FASTMCP_V2_STUB = "raise ModuleNotFoundError('This is mcp 2.x, where FastMCP was renamed', name=__name__)\n"
+
+
+def _write_stub_mcp(root: Path, fastmcp_source: str | None) -> None:
+    server = root / "mcp" / "server"
+    server.mkdir(parents=True)
+    (root / "mcp" / "__init__.py").write_text("", encoding="utf-8")
+    (server / "__init__.py").write_text("", encoding="utf-8")
+    if fastmcp_source is not None:
+        (server / "fastmcp.py").write_text(fastmcp_source, encoding="utf-8")
+
+
+@pytest.mark.parametrize("fastmcp_source", [_FASTMCP_V2_STUB, None], ids=["mcp2_stub", "module_absent"])
+def test_mcp_dependency_check_requires_the_module_the_server_imports(
+    monkeypatch, tmp_path, isolated_mcp_modules, fastmcp_source
+) -> None:
+    # An installed ``mcp`` whose mcp.server.fastmcp cannot be imported (MCP SDK 2.x) must not
+    # count as usable: the doctor would report it ready while the server cannot start.
+    _write_stub_mcp(tmp_path / "sdk", fastmcp_source)
+    monkeypatch.syspath_prepend(str(tmp_path / "sdk"))
+
+    assert mcp_server_module.mcp_dependency_available() is False
+    with pytest.raises(MissingMCPDependency):
+        mcp_server_module.run_mcp_server(cwd=tmp_path)
+
+
+def test_mcp_dependency_check_finds_the_server_module(monkeypatch, tmp_path, isolated_mcp_modules) -> None:
+    _write_stub_mcp(tmp_path / "sdk", _FASTMCP_V1)
+    monkeypatch.syspath_prepend(str(tmp_path / "sdk"))
+
+    assert mcp_server_module.mcp_dependency_available() is True
+
+
+def test_mcp_dependency_check_reports_a_missing_sdk_without_raising(isolated_mcp_modules) -> None:
+    sys.modules["mcp"] = None  # type: ignore[assignment]  # makes ``import mcp`` fail
+
+    assert mcp_server_module.mcp_dependency_available() is False
+
+
+# Stand-in SDKs whose mcp.server.fastmcp fails at import with something other than ImportError,
+# as a broken or partly upgraded install can (a pydantic model error, a syntax error).
+_FASTMCP_BROKEN_SOURCES = {
+    "runtime_error": "raise RuntimeError('pydantic could not build the FastMCP settings model')\n",
+    "syntax_error": "class FastMCP(\n",
+}
+
+
+@pytest.mark.parametrize("fastmcp_source", _FASTMCP_BROKEN_SOURCES.values(), ids=_FASTMCP_BROKEN_SOURCES.keys())
+def test_doctor_agents_reports_a_broken_mcp_sdk_instead_of_raising(
+    monkeypatch, tmp_path, capsys, isolated_mcp_modules, fastmcp_source
+) -> None:
+    _write_stub_mcp(tmp_path / "sdk", fastmcp_source)
+    monkeypatch.syspath_prepend(str(tmp_path / "sdk"))
+
+    assert mcp_server_module.mcp_dependency_available() is False
+    with pytest.raises(MissingMCPDependency):
+        mcp_server_module.run_mcp_server(cwd=tmp_path)
+
+    exit_code = cli_main(["doctor", "--agents"])
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["checks"]["mcp_dependency"] is False
+    assert payload["checks"]["mcp_install_hint"] == MCP_INSTALL_HINT
+    assert payload["ok"] is False
+    assert exit_code == 2
+
+
+def test_agents_extra_and_ci_pins_stay_on_the_mcp_1_api() -> None:
+    pyproject = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
+    (requirement,) = [dep for dep in pyproject["project"]["optional-dependencies"]["agents"] if dep.startswith("mcp")]
+    assert requirement.replace(" ", "") == "mcp>=1.9.0,<2"
+    pins = [
+        line.split("==", 1)[1].split(";", 1)[0].strip()
+        for line in (ROOT / "requirements-ci.txt").read_text(encoding="utf-8").splitlines()
+        if line.startswith("mcp==")
+    ]
+    assert len(pins) == 1 and pins[0].split(".")[0] == "1", pins
+
+
+def _registered_tool_names(monkeypatch, cwd: Path) -> set[str]:
+    names: set[str] = set()
+
+    class RecordingFastMCP:
+        def __init__(self, _name: str) -> None:
+            pass
+
+        def tool(self, **_kwargs):
+            def register(func):
+                names.add(func.__name__)
+                return func
+
+            return register
+
+        def run(self) -> None:
+            return None
+
+    fake_fastmcp = types.ModuleType("mcp.server.fastmcp")
+    fake_fastmcp.FastMCP = RecordingFastMCP
+    monkeypatch.setitem(sys.modules, "mcp.server.fastmcp", fake_fastmcp)
+    monkeypatch.setattr(mcp_server_module, "mcp_dependency_available", lambda: True)
+    mcp_server_module.run_mcp_server(cwd=cwd)
+    return names
+
+
+def test_real_stdio_mcp_server_initializes_and_lists_its_tools(monkeypatch, tmp_path) -> None:
+    """Run ``python -m viewspec mcp`` against the installed SDK (the CI legs install the agents extra)."""
+
+    if not mcp_server_module.mcp_dependency_available():
+        pytest.skip("the MCP SDK with mcp.server.fastmcp (viewspec[agents]) is not installed")
+    from mcp.types import LATEST_PROTOCOL_VERSION  # type: ignore[import-not-found]
+
+    expected_tools = _registered_tool_names(monkeypatch, tmp_path)
+    monkeypatch.undo()
+    assert len(expected_tools) > 20
+
+    stderr_path = tmp_path / "server.stderr"
+    env = {"PATH": os.defpath, "PYTHONPATH": str(ROOT / "src"), "PYTHONDONTWRITEBYTECODE": "1", "HOME": str(tmp_path)}
+    with stderr_path.open("wb") as stderr:
+        process = subprocess.Popen(
+            [sys.executable, "-m", "viewspec", "mcp", "--cwd", str(tmp_path)],
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            stderr=stderr,
+            cwd=tmp_path,
+            env=env,
+        )
+    assert process.stdin is not None and process.stdout is not None
+    lines: queue.Queue[bytes] = queue.Queue()
+
+    def pump(stream) -> None:
+        for line in iter(stream.readline, b""):
+            lines.put(line)
+        lines.put(b"")
+
+    threading.Thread(target=pump, args=(process.stdout,), daemon=True).start()
+
+    def send(message: dict[str, object]) -> None:
+        process.stdin.write(json.dumps(message).encode("utf-8") + b"\n")
+        process.stdin.flush()
+
+    def response(request_id: int) -> dict[str, object]:
+        while True:
+            try:
+                line = lines.get(timeout=60)
+            except queue.Empty:
+                pytest.fail(f"no MCP response {request_id} within 60s: {stderr_path.read_text(errors='replace')}")
+            if not line:
+                pytest.fail(f"MCP server closed stdout early: {stderr_path.read_text(errors='replace')}")
+            message = json.loads(line)
+            if message.get("id") == request_id:
+                return message
+
+    try:
+        send(
+            {
+                "jsonrpc": "2.0",
+                "id": 1,
+                "method": "initialize",
+                "params": {
+                    "protocolVersion": LATEST_PROTOCOL_VERSION,
+                    "capabilities": {},
+                    "clientInfo": {"name": "viewspec-tests", "version": "0"},
+                },
+            }
+        )
+        initialized = response(1)
+        assert "error" not in initialized, initialized
+        assert initialized["result"]["serverInfo"]["name"] == "viewspec"
+
+        send({"jsonrpc": "2.0", "method": "notifications/initialized"})
+        send({"jsonrpc": "2.0", "id": 2, "method": "tools/list", "params": {}})
+        listed = response(2)
+        assert "error" not in listed, listed
+        tools = listed["result"]["tools"]
+        assert {tool["name"] for tool in tools} == expected_tools
+        assert all(tool["description"] and tool["inputSchema"]["type"] == "object" for tool in tools)
+
+        process.stdin.close()
+        assert process.wait(timeout=30) == 0, stderr_path.read_text(errors="replace")
+    finally:
+        if process.poll() is None:
+            process.kill()
+            process.wait(timeout=30)
+        process.stdout.close()
 
 
 def test_mcp_missing_dependency_cli_hint(monkeypatch, capsys):

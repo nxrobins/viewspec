@@ -25,7 +25,10 @@ from viewspec.verification import VerificationDiagnostic, VerificationPlan, Veri
 WATCH_QUIET_SECONDS = 0.250
 WATCH_MAX_COALESCE_SECONDS = 2.0
 
-_LOGGER = logging.getLogger(__name__)
+# A fixed name, not __name__: run with `python -m` this module is __main__, outside the
+# viewspec logger tree, so its records would skip the package NullHandler and the handler
+# configure_daemon_logging installs, and fall through to logging.lastResort.
+_LOGGER = logging.getLogger("viewspec.review_daemon")
 
 
 def main(argv: list[str] | None = None) -> int:

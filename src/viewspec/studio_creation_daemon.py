@@ -26,7 +26,10 @@ from viewspec.studio_creation_room import (
     creation_room_configuration_sha256,
 )
 
-_LOGGER = logging.getLogger(__name__)
+# A fixed name, not __name__: run with `python -m` this module is __main__, outside the
+# viewspec logger tree, so its records would skip the package NullHandler and the handler
+# configure_daemon_logging installs, and fall through to logging.lastResort.
+_LOGGER = logging.getLogger("viewspec.studio_creation_daemon")
 
 
 def creation_room_session_dir(task_id: str, state_root: str | Path) -> Path:

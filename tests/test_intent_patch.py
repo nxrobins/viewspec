@@ -571,6 +571,93 @@ def test_recovery_refuses_to_overwrite_a_third_source_state(tmp_path: Path, monk
     assert source_path.read_text(encoding="utf-8") == third_state
 
 
+@pytest.mark.parametrize("completed_source_name", ["viewspec.intent.json", "sibling.intent.json"])
+@pytest.mark.parametrize("completed_reads_last", [True, False])
+def test_recovery_checks_each_receipt_against_its_own_payload(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    completed_source_name: str,
+    completed_reads_last: bool,
+) -> None:
+    # A completed receipt (same source or a sibling sharing the receipt directory) read after
+    # the interrupted one must not stand in for the interrupted receipt during recovery.
+    from viewspec import intent_patch as module
+
+    source_path = tmp_path / "viewspec.intent.json"
+    completed_source_path = tmp_path / completed_source_name
+    source = _source_text(starter_intent_payload("dashboard"))
+    source_path.write_text(source, encoding="utf-8")
+    completed_source_path.write_text(source, encoding="utf-8")
+
+    first_patch_path = tmp_path / "first.intentpatch.json"
+    first_patch_path.write_text(_semantic_attr_patch(source, "Starter Dashboard", "First"), encoding="utf-8")
+    first_preview = preview_intent_patch(source, first_patch_path.read_text(encoding="utf-8"))
+    completed = apply_intent_patch_file(
+        completed_source_path, first_patch_path, approval_token=first_preview.approval_token
+    )
+    assert completed.status == "applied"
+
+    interrupted_base = source_path.read_text(encoding="utf-8")
+    second_patch_path = tmp_path / "second.intentpatch.json"
+    second_patch_path.write_text(
+        _semantic_attr_patch(
+            interrupted_base,
+            json.loads(interrupted_base)["substrate"]["nodes"]["starter_dashboard"]["attrs"]["title"],
+            "Second",
+        ),
+        encoding="utf-8",
+    )
+    second_preview = preview_intent_patch(interrupted_base, second_patch_path.read_text(encoding="utf-8"))
+    original_write = module._write_receipt
+
+    def interrupt_applied(path, payload):
+        if payload.get("status") == "applied":
+            raise KeyboardInterrupt("simulated process death")
+        return original_write(path, payload)
+
+    monkeypatch.setattr(module, "_write_receipt", interrupt_applied)
+    with pytest.raises(KeyboardInterrupt):
+        apply_intent_patch_file(source_path, second_patch_path, approval_token=second_preview.approval_token)
+    monkeypatch.setattr(module, "_write_receipt", original_write)
+    assert source_sha256(source_path.read_text(encoding="utf-8")) == second_preview.candidate_source_sha256
+
+    original_paths = module._receipt_paths
+
+    def completed_receipt_in_requested_order(path: Path) -> tuple[Path, list[Path]]:
+        receipt_dir, paths = original_paths(path)
+        others = [item for item in paths if item != completed.receipt_path]
+        assert len(others) == len(paths) - 1
+        ordered = [*others, completed.receipt_path] if completed_reads_last else [completed.receipt_path, *others]
+        return receipt_dir, ordered
+
+    monkeypatch.setattr(module, "_receipt_paths", completed_receipt_in_requested_order)
+    receipt = apply_intent_patch_file(source_path, second_patch_path, approval_token=second_preview.approval_token)
+
+    assert receipt.status == "applied"
+    assert receipt.preview_id == second_preview.preview_id
+    assert source_sha256(source_path.read_text(encoding="utf-8")) == second_preview.candidate_source_sha256
+    assert json.loads(completed.receipt_path.read_text(encoding="utf-8"))["status"] == "applied"
+    assert not list(tmp_path.glob(".*.backup"))
+
+
+def test_intent_patch_error_survives_pickle_and_copy() -> None:
+    import copy
+    import pickle
+
+    error = IntentPatchError("PATCH_RECOVERY_REQUIRED", "State is unprovable.", "Inspect it.", cli_exit=1)
+    error.add_note("context note")
+
+    for clone in (pickle.loads(pickle.dumps(error)), copy.copy(error), copy.deepcopy(error)):
+        assert type(clone) is IntentPatchError
+        assert clone.code == "PATCH_RECOVERY_REQUIRED"
+        assert clone.message == "State is unprovable."
+        assert clone.fix == "Inspect it."
+        assert clone.cli_exit == 1
+        assert str(clone) == "State is unprovable."
+        assert clone.to_json() == error.to_json()
+        assert clone.__notes__ == ["context note"]
+
+
 _JSON_SCALARS = st.one_of(
     st.none(),
     st.booleans(),

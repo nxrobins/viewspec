@@ -303,6 +303,12 @@ class IntentPatchError(ValueError):
         self.fix = fix
         self.cli_exit = cli_exit
 
+    def __reduce__(self) -> tuple[Any, ...]:
+        # ``args`` holds only the message, so the default ``cls(*args)`` rebuild would fail.
+        # Rebuild from code, message and fix; the instance dict restores cli_exit and any other
+        # attribute, so the error survives pickle, copy.copy and copy.deepcopy.
+        return (type(self), (self.code, self.message, self.fix), self.__dict__)
+
     def to_json(self) -> dict[str, str]:
         return {"code": self.code, "message": self.message, "fix": self.fix}
 
@@ -2260,7 +2266,7 @@ def _recover_interrupted_receipts(source_path: Path) -> None:
             "Restore the source file before retrying.",
             cli_exit=1,
         ) from exc
-    for _path, _payload, backup_path in records:
+    for _path, payload, backup_path in records:
         if not backup_path.exists():
             continue
         if backup_path.is_symlink() or not backup_path.is_file():

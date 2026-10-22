@@ -102,6 +102,25 @@ raise SystemExit(worker.main())
     assert json.loads(result.stdout) == expected
 
 
+@pytest.mark.parametrize("content", [b"{}", b'{"nested":', b"[]"], ids=["invalid", "malformed", "not_object"])
+def test_module_worker_failure_keeps_stderr_empty(content):
+    # The hosted service runs `python -m viewspec.studio_review_worker`; the module is then
+    # __main__, and its failure diagnostics must still stay off stderr.
+    result = subprocess.run(
+        [sys.executable, "-m", "viewspec.studio_review_worker"],
+        input=content,
+        capture_output=True,
+        timeout=30,
+        check=False,
+        env={"PATH": os.defpath, "PYTHONPATH": str(Path(__file__).parents[1] / "src"), "PYTHONDONTWRITEBYTECODE": "1"},
+    )
+
+    assert result.returncode == 1
+    assert result.stderr == b"", "Worker diagnostics must not reach stderr under python -m."
+    assert result.stdout.count(b"\n") == 1
+    assert json.loads(result.stdout) == FAILURE
+
+
 @pytest.mark.parametrize("exception", [KeyboardInterrupt, SystemExit])
 def test_worker_preserves_process_control_exceptions(monkeypatch, exception):
     def interrupted(_request):

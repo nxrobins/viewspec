@@ -1,6 +1,7 @@
 // ViewSpec protobuf schema (package universal_ui.v1).
 //
-// Source for src/viewspec/schema/viewspec_pb2.py and viewspec_pb2.pyi. Regenerate both with
+// Source for src/viewspec/schema/viewspec_pb2.py and viewspec_pb2.pyi. The regeneration script
+// runs from a git checkout (the source archive does not ship scripts/). Regenerate both with
 //   python scripts/regenerate_schema.py generate
 // and confirm this file still matches the descriptor embedded in viewspec_pb2.py with
 //   python scripts/regenerate_schema.py check

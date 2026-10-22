@@ -9,9 +9,12 @@ on:
 permissions:
   contents: read
 
+# Supersede only pull request runs. Every other run (each push to main, manual runs) gets a
+# group of its own, so it is neither cancelled nor dropped from the pending slot by a later
+# push, and each merged revision keeps its own status and distribution artifacts.
 concurrency:
-  group: ci-${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  group: ci-${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.ref || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   test:

@@ -13,7 +13,10 @@ from viewspec.studio_review_verify import (
     rebuild_studio_review_request,
 )
 
-_LOGGER = logging.getLogger(__name__)
+# A fixed name, not __name__: run with `python -m` this module is __main__, outside the
+# viewspec logger tree, so its records would skip the package NullHandler and fall through
+# to logging.lastResort, which writes them to stderr.
+_LOGGER = logging.getLogger("viewspec.studio_review_worker")
 
 STUDIO_REVIEW_WORKER_SCHEMA_VERSION = 1
 _FAILURE_RESPONSE = canonical_json_bytes(
