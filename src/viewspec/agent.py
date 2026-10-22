@@ -28,6 +28,7 @@ from viewspec.compiler import (
     UnsupportedMotifError,
     compile,
 )
+from viewspec.intent_contract import MAX_SAFE_INTEGER
 from viewspec.types import (
     DEFAULT_STYLE_TOKEN_VALUES,
     INTENT_BUNDLE_SCHEMA_VERSION,
@@ -596,6 +597,8 @@ def agent_repair_checklist(result: AgentValidationResult) -> list[str]:
         add("Remove unknown and hosted-only fields; local V1 rejects root design, motif_library, inputs, projections, rules, and custom extensions.")
     if "UNSUPPORTED_SCHEMA_VERSION" in codes:
         add("Use integer schema_version 1 or omit the field; local V1 is the only supported IntentBundle schema version.")
+    if "INTEGER_OUT_OF_SAFE_RANGE" in codes:
+        add(f"Keep integer attr and slot values within +/-{MAX_SAFE_INTEGER} (2^53); write larger identifiers as JSON strings.")
     if codes & {"INVALID_ID", "NODE_KEY_MISMATCH", "DUPLICATE_BINDING_ID", "DUPLICATE_REGION_ID", "DUPLICATE_GROUP_ID", "DUPLICATE_MOTIF_ID", "DUPLICATE_STYLE_ID", "DUPLICATE_ACTION_ID"}:
         add("Use unique safe ids and object keys with only letters, digits, underscore, dot, and dash; node map keys must match node ids.")
     if codes & {"SUBSTRATE_ID_MISMATCH", "MISSING_SUBSTRATE_ROOT", "MISSING_ROOT_REGION", "ROOT_REGION_HAS_PARENT", "DETACHED_REGION", "REGION_PARENT_CYCLE", "UNKNOWN_REGION", "UNKNOWN_EDGE_TARGET", "UNKNOWN_STYLE_TARGET", "UNKNOWN_ACTION_TARGET", "MISSING_GROUP_MEMBER", "MISSING_MOTIF_MEMBER", "UNKNOWN_ACTION_PAYLOAD_BINDING"}:
@@ -940,8 +943,9 @@ def _validate_nodes(nodes: dict[str, Any], root_id: str | None, issues: list[Age
             "node attrs",
             issues,
         ):
-            for attr_key in attrs:
+            for attr_key, attr_value in attrs.items():
                 _validate_safe_id(attr_key if isinstance(attr_key, str) else None, f"{path}.attrs", "attribute key", issues)
+                _validate_number_precision(attr_value, f"{path}.attrs.{attr_key}", issues)
         if slots is not None and _check_count(
             slots,
             MAX_AGENT_NODE_RELATIONS,
@@ -1000,6 +1004,9 @@ def _validate_values_map(
             "slot or edge values",
             issues,
         )
+        if edge_target_ids is None:
+            for index, slot_value in enumerate(value["values"]):
+                _validate_number_precision(slot_value, f"{item_path}.values[{index}]", issues)
         if edge_target_ids is not None:
             for index, target_id in enumerate(value["values"]):
                 target_path = f"{item_path}.values[{index}]"
@@ -1014,6 +1021,38 @@ def _validate_values_map(
                             "Use only declared substrate node ids in semantic edges.",
                         )
                     )
+
+
+def _validate_number_precision(value: Any, path: str, issues: list[AgentValidationIssue]) -> None:
+    """Reject integers that a protobuf Struct double cannot hold exactly, at any nesting depth.
+
+    JSON integers are parsed exactly by Python, but every attribute and slot value is stored as
+    an IEEE-754 double, so a magnitude above 2**53 would be rounded silently (9007199254740993
+    renders as 9007199254740992). Floats are already doubles and pass through; bools are ints in
+    Python but never numbers here.
+    """
+    if isinstance(value, bool):
+        return
+    if isinstance(value, int):
+        if abs(value) > MAX_SAFE_INTEGER:
+            issues.append(
+                _issue(
+                    "INTEGER_OUT_OF_SAFE_RANGE",
+                    path,
+                    f"Integer {value} exceeds the exactly representable range of +/-{MAX_SAFE_INTEGER} (2^53); "
+                    "attribute and slot values are stored as 64-bit doubles, so it would be rounded silently.",
+                    f"Write integers with magnitude above {MAX_SAFE_INTEGER} as JSON strings (for example identifiers), "
+                    "or use a smaller number.",
+                )
+            )
+        return
+    if isinstance(value, dict):
+        for key, item in value.items():
+            _validate_number_precision(item, f"{path}.{key}", issues)
+        return
+    if isinstance(value, list):
+        for index, item in enumerate(value):
+            _validate_number_precision(item, f"{path}[{index}]", issues)
 
 
 def _validate_regions(regions: list[Any], root_region: str | None, issues: list[AgentValidationIssue]) -> None:

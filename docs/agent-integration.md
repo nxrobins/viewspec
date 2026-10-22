@@ -199,6 +199,8 @@ Local V1 also rejects unknown extension fields instead of ignoring them. If vali
 
 IntentBundle documents may declare an optional root `schema_version` with integer value `1`. A document without `schema_version` is schema version 1; any other value fails closed with `UNSUPPORTED_SCHEMA_VERSION`. Include the field in new documents so files stay self-describing on disk — any future intent schema revision will require it, so versionless documents remain unambiguously version 1.
 
+Attribute and slot values may be any JSON value. Non-string values render as compact JSON text: integral numbers render as integers (`100`, never `100.0`), non-ASCII text renders as itself, and the output is byte-identical whether the bundle was built in memory or read back from a file. Numbers are stored as 64-bit doubles, so an integer with magnitude above `9007199254740992` (2^53) fails closed with `INTEGER_OUT_OF_SAFE_RANGE` instead of being rounded silently; write such identifiers as JSON strings.
+
 Validation issues share one JSON shape across intent and AppBundle paths: `code`, `path` (a `$.`-rooted location), `message`, and `fix`. Tool-level failures (file IO, proof orchestration, asset checks) carry `code`, `message`, and `fix` without `path`.
 
 Region topology must be one tree rooted at `view_spec.root_region`: the root region has no parent, every non-root region has exactly one parent chain to the root, and parent links must be acyclic.
