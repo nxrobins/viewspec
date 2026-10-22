@@ -16,6 +16,8 @@ keywords = ["ui", "compiler", "semantic", "viewspec", "composition-ir", "protobu
 classifiers = [
     "Development Status :: 4 - Beta",
     "Intended Audience :: Developers",
+    "Operating System :: POSIX :: Linux",
+    "Operating System :: MacOS",
     "License :: OSI Approved :: MIT License",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.11",
@@ -27,7 +29,7 @@ classifiers = [
     "Topic :: Software Development :: User Interfaces",
 ]
 dependencies = [
-    "protobuf>=5.0",
+    "protobuf>=6.31.1,<8",
     "PyYAML>=6.0",
 ]
 
@@ -45,10 +47,10 @@ dev = [
 ]
 remote = [
     "httpx>=0.27.0",
-    "cryptography>=50.0.1,<51",
+    "cryptography>=50.0.1,<53",
 ]
 agents = [
-    "mcp>=1.9.0",
+    "mcp>=1.9.0,<3",
 ]
 
 [project.urls]

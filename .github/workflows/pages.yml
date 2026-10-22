@@ -18,6 +18,7 @@ jobs:
   published_studio:
     name: Verify advertised Studio release on PyPI
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     permissions:
       contents: read
     steps:
@@ -28,8 +29,12 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
+      - name: Install the pinned Playwright package without hooks
+        working-directory: src/viewspec/host_verify_template
+        run: npm ci --ignore-scripts
       - name: Install Chromium for the public release check
-        run: npx --yes --package=@playwright/test@1.60.0 playwright install --with-deps chromium
+        working-directory: src/viewspec/host_verify_template
+        run: ./node_modules/.bin/playwright install --with-deps chromium
       - name: Install and launch the exact homepage flow from PyPI
         run: python scripts/check_studio_release.py --published --out studio-public-release-check.json
       - uses: actions/upload-artifact@v4
@@ -40,6 +45,7 @@ jobs:
 
   deploy:
     needs: published_studio
+    timeout-minutes: 15
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
