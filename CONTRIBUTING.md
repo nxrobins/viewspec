@@ -128,6 +128,126 @@ with it:
 PIP_CONSTRAINT=requirements-ci.txt python -m pip install -e ".[dev,remote,agents]"
 ```
 
+## Dependency updates
+
+Dependabot (`.github/dependabot.yml`) checks once a week and opens at most one grouped version-update
+pull request per ecosystem: `pip` (`pyproject.toml` and `requirements-ci.txt`), `npm` (the three
+React dependency seeds `src/viewspec/host_verify_template`, `tests/react-tailwind-host` and
+`conformance/agent-ui-v2/react-dependencies`, all in the same pull request), and GitHub Actions.
+A grouped pull request carries only minor and patch updates. Dependabot never proposes a
+semver-major update, and never proposes the packages whose exact version is a contract in the code,
+the tests or the workflows; a maintainer bumps those by hand (see below).
+
+Dependabot cannot run the repository's generators, so its pull requests usually need one follow-up
+commit, pushed to the Dependabot branch, before CI passes. Once that commit is there Dependabot
+stops rebasing the pull request, so rebase it yourself if `main` moves; `@dependabot recreate`
+discards the commit, so redo it after a recreate. When one package in a group breaks the build and
+cannot be fixed in the pull request, comment `@dependabot ignore <package> minor version` (or
+`patch version`): Dependabot closes the pull request and the next weekly run groups the remaining
+updates without that version.
+
+### Landing the grouped npm pull request
+
+The React target copies `src/viewspec/host_verify_template/package.json` and its lockfile into every
+generated app, and `tests/fixtures/corpus_goldens.json` pins their hashes, so every npm update
+changes the goldens. Check out the Dependabot branch, then:
+
+```bash
+for seed in src/viewspec/host_verify_template tests/react-tailwind-host conformance/agent-ui-v2/react-dependencies; do
+    (cd "$seed" && npm ci --ignore-scripts && npm audit --package-lock-only --audit-level=high)
+done
+python scripts/update_corpus_goldens.py
+python -m pytest -q tests/test_react_dependency_seeds.py tests/test_agent_eval_runner.py tests/test_corpus_goldens.py
+```
+
+Commit the regenerated `tests/fixtures/corpus_goldens.json` to the pull request. Nothing else
+hard-codes the shared versions: the eval runner's pinned target contract reads the template's
+`package.json`. `tests/test_react_dependency_seeds.py` checks that the seeds still agree: one version
+for every package two seeds declare, identical `overrides`, and identical lockfile entries
+(version, resolved URL and integrity) for every package the lockfiles share. If a seed resolved a
+shared transitive package differently, run `npm update <package> --ignore-scripts` in the seed with
+the older version and rerun the test. Then run the full checks above.
+
+### Landing the grouped pip pull request
+
+Dependabot moves each pin in `requirements-ci.txt` to its latest minor or patch release; it does
+not rerun the `uv pip compile` resolution. Install with the constraints, which fails when the new
+set conflicts:
+
+```bash
+PIP_CONSTRAINT=requirements-ci.txt python -m pip install -e ".[dev,remote,agents]"
+```
+
+On a conflict, regenerate the file with the command from its header plus
+`--upgrade-package <name>` for each package the pull request updates, copy the header back, and
+push the result. Then run the full checks; `pretext-e2e.yml` also runs, because the pins changed.
+
+### Landing the GitHub Actions pull request
+
+Every action is pinned to a commit with a `# vN` comment naming its major version
+(`tests/test_ci_config.py` enforces that form). When Dependabot moves a pin within a major it can
+rewrite the comment to the full release, for example `# v4.5.0`; change it back to `# v4` in every
+workflow before merging.
+
+### Packages Dependabot never proposes
+
+Bump these by hand, each in its own pull request. Search `src`, `tests`, `scripts`, `docs` and
+`.github` for the old version string as well: several error messages quote it.
+
+- **`ruff`**: change the pin in the `dev` extra of `pyproject.toml` and in `requirements-ci.txt`
+  (`tests/test_ci_config.py` keeps the two equal), reinstall, run `ruff format .` and
+  `ruff check .`, and commit the reformatting and lint fixes with the bump.
+- **`pyright`**: change both pins the same way and run `python scripts/check_pyright_baseline.py`.
+  If the count dropped, ratchet the baseline down with `--update`; if it grew, fix the new errors,
+  or record the new count with `--update` and say why in the pull request.
+- **`grpcio-tools`**: change both pins (`tests/test_ci_config.py` also requires wheels for every
+  supported Python), reinstall, and run `python scripts/regenerate_schema.py generate`. It has to
+  report `viewspec_pb2.py` and `viewspec_pb2.pyi` unchanged. If it warns that the protoc version
+  differs, the new protoc changed the generated module. Either keep the old pin (and restore the
+  module with `git checkout src/viewspec/schema`), or keep the new module on purpose: move the
+  `protobuf` floor in `pyproject.toml` to the new gencode version (`tests/test_schema_source.py`
+  checks it), regenerate `requirements-ci.txt`, and add a changelog entry. Run
+  `python scripts/regenerate_schema.py check` either way.
+- **`mcp` 2.x**: the `viewspec mcp` server only works with MCP SDK 1.x, so the `agents` extra
+  caps `mcp<2` and Dependabot proposes only 1.x releases. Moving to SDK 2 is a code change that
+  raises the cap and drops the `mcp` rule from `dependabot.yml` (`tests/test_ci_config.py` ties
+  the rule to the cap).
+- **`@playwright/test`** (and the `playwright` runtime it pins): run
+  `npm install --save-dev --save-exact --ignore-scripts @playwright/test@<version>` in each of the
+  three seeds, then set the same version in `PLAYWRIGHT_VERSION` in
+  `.github/workflows/pretext-e2e.yml`, in `scripts/check_studio_release.py` and in
+  `docs/release-checklist.md` (`tests/test_react_dependency_seeds.py` checks all three). The new
+  release usually expects a new Chromium build: reinstall it as in the development setup, refresh
+  the goldens, and run the full suite; `pretext-e2e.yml` runs on the pull request.
+- **`typescript`**: `FREERANGE_TYPESCRIPT_VERSION` in `src/viewspec/app_freerange.py` must equal
+  the seeds' pin, together with the `_RESOLVED` URL and `_INTEGRITY` from the new lockfile entry
+  and the `_TREE` hash of the installed package (the script below prints it). Update the seeds as
+  for Playwright (`typescript@<version>`), refresh the goldens, and run the opt-in end-to-end
+  suites.
+- **`@chenglou/pretext`** and **`@chenglou/freerange`**: pinned only in
+  `conformance/agent-ui-v2/react-dependencies`, and as exact artifacts in the code:
+  `PRETEXT_VERSION`, `PRETEXT_NPM_RESOLVED`, `PRETEXT_NPM_INTEGRITY` and `PRETEXT_PACKAGE_TREE` in
+  `src/viewspec/app_pretext.py` and the version in `src/viewspec/app_pretext_runtime.py`; the
+  `FREERANGE_*` constants in `src/viewspec/app_freerange.py` and the lockfile entry
+  `src/viewspec/app_react.py` writes. Install the new version in that seed with
+  `npm install --save-exact --ignore-scripts <package>@<version>` (add `--save-dev` for
+  Freerange), update the constants, refresh the goldens, and run both opt-in end-to-end suites.
+
+This prints the package-tree hashes the code pins, for the versions installed in the conformance
+seed:
+
+```bash
+python - <<'EOF'
+from pathlib import Path
+from viewspec import app_freerange, app_pretext
+seed = Path("conformance/agent-ui-v2/react-dependencies/node_modules")
+limit = app_freerange.FREERANGE_TOOL_TREE_MAX_BYTES
+print("PRETEXT_PACKAGE_TREE", app_pretext._tree_hash(seed / "@chenglou/pretext"))
+print("FREERANGE_PACKAGE_TREE", app_freerange._tree_hash(seed / "@chenglou/freerange", limit))
+print("FREERANGE_TYPESCRIPT_TREE", app_freerange._tree_hash(seed / "typescript", limit))
+EOF
+```
+
 ## Repository rules
 
 ### The error-code registry is closed

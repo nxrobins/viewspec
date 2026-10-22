@@ -321,3 +321,30 @@ def test_canonical_json_claim_names_every_digest_that_keeps_its_own_form() -> No
         assert "json.dumps(" in source and "canonical_json_" not in source, (module_name, attribute)
         assert name in bullet, (name, bullet)
         assert name in resolution, (name, resolution)
+
+
+def test_contributing_explains_landing_dependabot_updates_and_every_hand_bump() -> None:
+    contributing = _read("CONTRIBUTING.md")
+    commands = {
+        line.strip()
+        for block in re.findall(r"```(?:bash|sh|console)?\n(.*?)```", contributing, flags=re.DOTALL)
+        for line in block.splitlines()
+    }
+    updates = {
+        update["package-ecosystem"]: update for update in yaml.safe_load(_read(".github/dependabot.yml"))["updates"]
+    }
+
+    # A grouped npm update changes the template's package files, whose hashes the goldens pin, so
+    # landing it takes a goldens refresh, and that is the refresh command.
+    assert "npm" in updates
+    goldens = _read("tests/fixtures/corpus_goldens.json")
+    assert '"package.json"' in goldens and '"package-lock.json"' in goldens
+    assert "python scripts/update_corpus_goldens.py" in commands
+    # Every package the configuration never proposes has a hand-bump entry: a bullet that opens
+    # with a bold package name and names this one.
+    entries = [item for item in re.split(r"\n(?=- )", contributing) if item.startswith("- **`")]
+    for ecosystem, update in updates.items():
+        for rule in update.get("ignore", []):
+            name = rule["dependency-name"]
+            if name != "*":
+                assert any(f"`{name}`" in entry for entry in entries), (ecosystem, name)
