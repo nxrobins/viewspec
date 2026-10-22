@@ -13,7 +13,7 @@
     "verify": "node scripts/verify.mjs"
   },
   "dependencies": {
-    "@tailwindcss/vite": "4.3.0",
+    "@tailwindcss/vite": "4.3.3",
     "@vitejs/plugin-react": "6.0.2",
     "react": "19.2.7",
     "react-dom": "19.2.7",
