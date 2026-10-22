@@ -7,8 +7,9 @@ body:
       value: |
         Thanks for the suggestion. Before you write it up, check the
         [documentation index](https://github.com/nxrobins/viewspec/blob/main/docs/README.md):
-        the known-limits pages list behaviour that is out of scope on purpose, and some capabilities
-        are hosted-only.
+        the known-limits pages describe the current boundaries of each target, and some
+        capabilities, such as the SwiftUI and Flutter emitters, are available only through the
+        hosted compiler.
   - type: textarea
     id: problem
     attributes:
