@@ -133,6 +133,10 @@ def compile_app_bundle(bundle_id: str, source: Path, target: str, *, work_dir: P
 
 def build_goldens(work_dir: Path, *, root: Path = ROOT) -> dict[str, Any]:
     """Compile every corpus case and AppBundle under ``work_dir`` and return the golden document."""
+    # Resolve once so every derived path shares one spelling. On Windows a temporary directory
+    # can be handed out in 8.3 short form (RUNNER~1) while the compiler returns the long form,
+    # which makes relative_to() fail although both name the same directory.
+    work_dir = Path(work_dir).resolve()
     corpus = load_conformance_corpus(str(root / CORPUS_MANIFEST))
     cases: dict[str, Any] = {}
     for case in corpus.cases:
