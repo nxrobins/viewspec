@@ -623,7 +623,7 @@ def test_code_first_react_scaffold_builds_off_the_shared_local_seed(tmp_path):
     assert package["devDependencies"] == shared_package["devDependencies"]
     assert package["dependencies"]["react"] == "19.2.7"
     assert package["dependencies"]["react-dom"] == "19.2.7"
-    assert package["dependencies"]["vite"] == "8.0.16"
+    assert package["dependencies"]["vite"] == "8.3.5"
     assert package["dependencies"]["tailwindcss"] == "4.3.0"
     assert package["devDependencies"]["@playwright/test"] == "1.60.0"
     assert package["devDependencies"]["typescript"] == "6.0.3"
