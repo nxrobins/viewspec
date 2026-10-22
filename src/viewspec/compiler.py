@@ -606,7 +606,9 @@ def _detect_single_column_surface_v1(
     if len(children) != 1:
         return None
     main = children[0]
-    if main.layout != "stack" or main.role not in WORKSPACE_PRIMARY_ROLE_MARKERS:
+    # Same tokenised role matching as the workspace detector, so a role such as "Main" or
+    # "primary-column" means the same thing to both surface detectors.
+    if main.layout != "stack" or not _region_role_matches(main, WORKSPACE_PRIMARY_ROLE_MARKERS):
         return None
     if any(region.id not in {root_region, main.id} for region in valid_regions):
         return None
