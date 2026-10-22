@@ -19,6 +19,59 @@ from viewspec.native_agents import BEGIN_MARKER, agent_instruction_block
 _NODE = shutil.which("node")
 _BUN = shutil.which("bun")
 _PLAYWRIGHT = Path("src/viewspec/host_verify_template/node_modules/playwright/index.mjs")
+# The React target builds materialize node_modules from this seed; CI installs it with
+# `npm ci --ignore-scripts` in conformance/agent-ui-v2/react-dependencies.
+_REACT_SEED_VITE = runner.NODE_MODULE_SEED / ".bin" / "vite"
+_REACT_SEED_VALUE_PACKAGES = tuple(
+    runner.NODE_MODULE_SEED.joinpath(*name.split("/"), "package.json")
+    for name in (runner.PRETEXT_PACKAGE, runner.FREERANGE_PACKAGE)
+)
+_requires_react_seed = pytest.mark.skipif(
+    not _NODE or not _REACT_SEED_VITE.is_file(),
+    reason="Node and the installed react-dependencies seed are required "
+    "(npm ci --ignore-scripts in conformance/agent-ui-v2/react-dependencies)",
+)
+_requires_react_value_seed = pytest.mark.skipif(
+    not _NODE or not _REACT_SEED_VITE.is_file() or not all(path.is_file() for path in _REACT_SEED_VALUE_PACKAGES),
+    reason="Node and the installed react-dependencies seed with the pinned Pretext and Freerange packages are "
+    "required (npm ci --ignore-scripts in conformance/agent-ui-v2/react-dependencies)",
+)
+
+
+def _pinned_chromium_executable() -> Path | None:
+    """Ask the pinned Playwright module where its Chromium must live; None when it cannot be asked."""
+    if not _NODE or not _PLAYWRIGHT.is_file():
+        return None
+    probe = subprocess.run(
+        [
+            _NODE,
+            "--input-type=module",
+            "-e",
+            "import {pathToFileURL} from 'node:url';"
+            "const {chromium} = await import(pathToFileURL(process.argv[1]).href);"
+            "process.stdout.write(chromium.executablePath());",
+            str(_PLAYWRIGHT.resolve()),
+        ],
+        capture_output=True,
+        text=True,
+        timeout=60,
+        check=False,
+    )
+    if probe.returncode != 0 or not probe.stdout.strip():
+        return None
+    return Path(probe.stdout.strip())
+
+
+_CHROMIUM = _pinned_chromium_executable()
+_requires_pinned_chromium = pytest.mark.skipif(
+    _CHROMIUM is None or not _CHROMIUM.is_file(),
+    reason=(
+        "Pinned browser runtime is required"
+        if _CHROMIUM is None
+        else f"Pinned Playwright Chromium is not installed at {_CHROMIUM} "
+        "(npx --no-install playwright install chromium in src/viewspec/host_verify_template)"
+    ),
+)
 _PRODUCT_E2E_OPT_IN = "VIEWSPEC_RUN_AGENT_UI_V2_PRODUCT_E2E"
 _RETAINED_PRODUCT_FIXTURES = Path(
     "conformance/agent-ui-v2/retained-product-fixtures.json"
@@ -599,6 +652,7 @@ def test_session_resumes_from_lifecycle_checkpoint_without_replaying_prior_turns
     assert checkpoint["stage"] == "complete"
 
 
+@_requires_react_seed
 def test_code_first_react_scaffold_builds_off_the_shared_local_seed(tmp_path):
     workspace = tmp_path / "workspace"
     workspace.joinpath("submission").mkdir(parents=True)
@@ -629,6 +683,7 @@ def test_code_first_react_scaffold_builds_off_the_shared_local_seed(tmp_path):
     assert package["devDependencies"]["typescript"] == "6.0.3"
 
 
+@_requires_react_seed
 def test_viewspec_react_source_uses_proof_paths_and_core_target_builds(tmp_path):
     app_path = tmp_path / "viewspec.app.json"
     generated = tmp_path / "proof" / "react-app"
@@ -653,6 +708,7 @@ def test_viewspec_react_source_uses_proof_paths_and_core_target_builds(tmp_path)
     assert (tmp_path / "artifact/react-dist/index.html").is_file()
 
 
+@_requires_react_value_seed
 def test_deep_dependency_profile_builds_pretext_import_without_network(tmp_path):
     workspace = tmp_path / "workspace"
     workspace.joinpath("submission").mkdir(parents=True)
@@ -712,6 +768,7 @@ def test_value_trials_are_rejected_for_archived_v1_before_workspace_creation(tmp
 
 
 @pytest.mark.skipif(not _BUN, reason="The pinned Deep proof requires Bun on PATH")
+@_requires_react_value_seed
 def test_run_pair_records_seeded_arm_order_before_dispatch(tmp_path, monkeypatch):
     observed: list[str] = []
 
@@ -2030,6 +2087,7 @@ def test_retained_viewspec_arms_clear_v2_product_gates(tmp_path, fixture):
 
 
 @pytest.mark.skipif(not _NODE or not _PLAYWRIGHT.is_file(), reason="Pinned browser runtime is required")
+@_requires_pinned_chromium
 def test_browser_scorer_records_runtime_screenshot_and_text_geometry_fault(tmp_path):
     html = """<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><style>h1{width:200px;font-size:20px}</style></head>
