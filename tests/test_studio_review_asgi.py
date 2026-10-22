@@ -12,7 +12,6 @@ from viewspec.studio_review_http import (
     StudioReviewHTTPAdapter,
 )
 from viewspec.studio_review_internal import (
-    STUDIO_REVIEW_INTERNAL_AUTHENTICATED_HEADER,
     STUDIO_REVIEW_INTERNAL_INGRESS_PATH,
     STUDIO_REVIEW_INTERNAL_NONCE_HEADER,
     StudioReviewInternalAuth,
@@ -303,10 +302,10 @@ def test_internal_ingress_binds_request_and_response_while_direct_create_stays_c
             "idempotency-key": "internal-asgi-create-0001",
             "x-viewspec-disclosure-accepted": "true",
             "x-viewspec-expiry-seconds": "3600",
-            STUDIO_REVIEW_INTERNAL_AUTHENTICATED_HEADER: "true",
         },
         body=body,
         scheme="https",
+        internal_authenticated=True,
     )
     assert sent[0]["status"] == 201
     response_headers = {

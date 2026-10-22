@@ -29,6 +29,9 @@ STUDIO_REVIEW_INTERNAL_INGRESS_PATH = "/internal/v1/reviews"
 STUDIO_REVIEW_INTERNAL_MAX_CLOCK_SKEW_SECONDS = 60
 STUDIO_REVIEW_INTERNAL_MAX_ACTIVE_NONCES = 4096
 STUDIO_REVIEW_INTERNAL_AUTHENTICATED_HEADER = "x-viewspec-internal-authenticated"
+# Every header under this prefix is a transport-internal marker. The HTTP adapter
+# discards client copies before authorization on every transport.
+STUDIO_REVIEW_INTERNAL_HEADER_PREFIX = "x-viewspec-internal-"
 
 STUDIO_REVIEW_INTERNAL_PROTOCOL_HEADER = "x-viewspec-internal-protocol"
 STUDIO_REVIEW_INTERNAL_TIMESTAMP_HEADER = "x-viewspec-internal-timestamp"
@@ -341,8 +344,10 @@ class StudioReviewInternalAuth:
 def authorize_internal_studio_review_upload(headers: Mapping[str, str]) -> bool:
     """Authorize only the marker added after successful internal verification.
 
-    Use this behind a transport that strips reserved ``x-viewspec-internal-*``
-    headers from every external request before adapter dispatch.
+    :class:`viewspec.studio_review_http.StudioReviewHTTPAdapter` discards every
+    client-supplied ``x-viewspec-internal-*`` header and sets this marker only for a
+    request flagged ``internal_authenticated`` by a transport that verified the
+    internal hop, so the check holds on any transport, not just the ASGI bridge.
     """
 
     return headers.get(STUDIO_REVIEW_INTERNAL_AUTHENTICATED_HEADER) == "true"
@@ -458,6 +463,7 @@ def _response_payload(
 
 __all__ = [
     "STUDIO_REVIEW_INTERNAL_AUTHENTICATED_HEADER",
+    "STUDIO_REVIEW_INTERNAL_HEADER_PREFIX",
     "STUDIO_REVIEW_INTERNAL_FORWARDED_HEADERS",
     "STUDIO_REVIEW_INTERNAL_INGRESS_PATH",
     "STUDIO_REVIEW_INTERNAL_PROTOCOL",

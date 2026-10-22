@@ -22,6 +22,7 @@ from typing import Callable, TypeVar
 
 from viewspec._version import __version__
 from viewspec.app_bundle import compile_app, diff_app_text, validate_app_text
+from viewspec.design_md import DESIGN_MAX_BYTES
 from viewspec.intent_tools import compile_intent_bundle_file_tool, diff_intent_text, validate_intent_text
 from viewspec.local_tools import check_artifact_dir
 from viewspec.node_runtime import materialize_prebuilt_node_modules
@@ -40,7 +41,6 @@ from viewspec.state_ir import validate_state_ir
 
 INTENT_SOURCE_MAX_BYTES = 256 * KIB
 APP_SOURCE_MAX_BYTES = 1 * MIB
-DESIGN_MAX_BYTES = 64 * KIB
 AGGREGATE_CAPTURE_MAX_BYTES = APP_SOURCE_MAX_BYTES + DESIGN_MAX_BYTES
 MAX_GENERATION = (2**64) - 1
 MAX_ARTIFACT_BYTES = 24 * MIB

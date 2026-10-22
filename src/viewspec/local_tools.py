@@ -3,6 +3,8 @@ from __future__ import annotations
 
 from pathlib import Path
 from typing import Any
+from viewspec.raw_html import HtmlInputError
+from viewspec.raw_html import MAX_HTML_INPUT_BYTES
 from viewspec.raw_html import compile_html
 from viewspec.raw_html import diff_html
 from viewspec.raw_html import lift_html
@@ -143,6 +145,13 @@ def init_design_file(path: str | Path = "DESIGN.md", *, force: bool = False) -> 
     atomic_write(output, STARTER_DESIGN)
     return output
 
+def _read_html_source(path: Path) -> str:
+    """Read a local HTML file only after its on-disk size passes the raw HTML cap."""
+    size = path.stat().st_size
+    if size > MAX_HTML_INPUT_BYTES:
+        raise HtmlInputError("HTML_INPUT_TOO_LARGE", f"{path.name} is {size} bytes; the raw HTML limit is {MAX_HTML_INPUT_BYTES} bytes")
+    return path.read_text(encoding="utf-8")
+
 def compile_html_file_tool(
     input_path: str | Path,
     out_dir: str | Path,
@@ -160,7 +169,7 @@ def compile_html_file_tool(
         output = resolve_local_path(out_dir, cwd=root, allow_outside_cwd=allow_outside_cwd)
         ensure_no_input_overwrite(source, output, ("index.html", "provenance_manifest.json", "diagnostics.json", "lift.json"))
         design = _load_optional_design(design_path, cwd=root, allow_outside_cwd=allow_outside_cwd)
-        html = source.read_text(encoding="utf-8")
+        html = _read_html_source(source)
         result = compile_html(
             html,
             design=design,
@@ -247,8 +256,8 @@ def diff_html_files_tool(
         left = resolve_local_path(left_path, cwd=root, allow_outside_cwd=allow_outside_cwd, must_exist=True)
         right = resolve_local_path(right_path, cwd=root, allow_outside_cwd=allow_outside_cwd, must_exist=True)
         result = diff_html(
-            left.read_text(encoding="utf-8"),
-            right.read_text(encoding="utf-8"),
+            _read_html_source(left),
+            _read_html_source(right),
             left_name=left.name,
             right_name=right.name,
         )
@@ -283,7 +292,7 @@ def lift_html_file_tool(
         output = resolve_local_path(out_path, cwd=root, allow_outside_cwd=allow_outside_cwd) if out_path is not None else None
         if output is not None and source == output:
             raise LocalToolError("INVALID_PATH", "Refusing to overwrite input file.", "Choose a distinct output path for lift_json.")
-        result = lift_html(source.read_text(encoding="utf-8"), source_name=source.name)
+        result = lift_html(_read_html_source(source), source_name=source.name)
         paths: dict[str, str] = {"input": str(source)}
         if output is not None:
             atomic_write(output, json.dumps(result.to_json(), indent=2, sort_keys=True))

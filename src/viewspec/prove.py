@@ -31,6 +31,7 @@ from viewspec.local_tools import (
     tool_error_response,
     tool_response,
 )
+from viewspec.local_tools_io import is_replaceable_output_dir
 from viewspec.a11y import a11y_contrast_report, name_report
 from viewspec.manifest_summary import manifest_root_aesthetic_profile, summarize_intent_manifest
 
@@ -223,7 +224,7 @@ def prove(
             errors=[{"code": exc.code, "message": exc.message, "fix": exc.fix}],
             metadata={"sdk_version": __version__, "network_calls": "none"},
         )
-        if report_out is None and exc.code == "PROVE_OUTPUT_UNSAFE":
+        if report_out is None and exc.code in {"PROVE_OUTPUT_UNSAFE", "PROVE_OUTPUT_UNRECOGNIZED"}:
             return _final_report(report, report_path)
         return _write_report(report, report_path)
     except LocalToolError as exc:
@@ -346,6 +347,12 @@ def _prepare_output_dir(output_dir: Path, *, root: Path, force: bool, raw_out: s
                 "PROVE_OUTPUT_UNSAFE",
                 f"Proof output is not a directory: {output_dir}",
                 "Choose a dedicated proof output directory.",
+            )
+        if not is_replaceable_output_dir(output_dir):
+            raise ProveFailure(
+                "PROVE_OUTPUT_UNRECOGNIZED",
+                f"Refusing to replace a directory that ViewSpec did not write: {output_dir}",
+                "Use --force only on an empty directory or a previous prove output; remove other directories yourself.",
             )
         shutil.rmtree(output_dir)
     output_dir.mkdir(parents=True, exist_ok=False)

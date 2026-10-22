@@ -19,6 +19,10 @@ from urllib.parse import unquote_to_bytes, urlsplit
 
 from viewspec.review_contract import canonical_json_bytes
 from viewspec.review_frame_readiness import FRAME_RENDER_WAIT_JS
+from viewspec.studio_review_internal import (
+    STUDIO_REVIEW_INTERNAL_AUTHENTICATED_HEADER,
+    STUDIO_REVIEW_INTERNAL_HEADER_PREFIX,
+)
 from viewspec.studio_review_service import StudioReviewService, StudioReviewServiceError
 from viewspec.studio_share import STUDIO_SHARE_ARCHIVE_MAX_BYTES
 
@@ -38,11 +42,20 @@ UploadAuthorizer = Callable[[Mapping[str, str]], bool]
 
 @dataclass(frozen=True, slots=True)
 class ReviewHTTPRequest:
+    """One bounded deployment request.
+
+    ``internal_authenticated`` is set only by a transport that has itself verified
+    the internal API hop (the ASGI bridge after HMAC verification). Client-supplied
+    ``x-viewspec-internal-*`` headers are discarded by the adapter, so this flag is
+    the only way the authenticated marker reaches an upload authorizer.
+    """
+
     method: str
     path: str
     headers: Mapping[str, str]
     body: bytes = b""
     scheme: str = "https"
+    internal_authenticated: bool = False
 
 
 @dataclass(frozen=True, slots=True)
@@ -90,6 +103,8 @@ class StudioReviewHTTPAdapter:
 
         try:
             method, path, headers = _request_head(request)
+            if request.internal_authenticated is True:
+                headers[STUDIO_REVIEW_INTERNAL_AUTHENTICATED_HEADER] = "true"
             if request.scheme != "https":
                 raise StudioReviewServiceError(
                     "STUDIO_REVIEW_HTTPS_REQUIRED",
@@ -334,8 +349,12 @@ def _request_head(request: ReviewHTTPRequest) -> tuple[str, str, dict[str, str]]
         name = raw_name.lower()
         if name in headers or _HEADER_CONTROL_RE.search(raw_value) is not None or len(raw_value) > 8192:
             raise _http_invalid("Private review request headers are ambiguous.")
-        headers[name] = raw_value
         total += len(name) + len(raw_value)
+        if name.startswith(STUDIO_REVIEW_INTERNAL_HEADER_PREFIX):
+            # Reserved transport markers never come from a client on any transport;
+            # only the verified ``internal_authenticated`` request flag can set one.
+            continue
+        headers[name] = raw_value
     if total > STUDIO_REVIEW_HTTP_MAX_HEADER_BYTES:
         raise _http_invalid("Private review request headers exceed their bound.")
     return request.method.upper(), request.path, headers

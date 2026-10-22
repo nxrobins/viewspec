@@ -28,7 +28,23 @@ MANIFEST_SCHEMA_VERSION = 1
 RAW_HTML_POLICY_VERSION = "viewspec-raw-html-allowlist@1"
 DIFF_VERSION = 1
 DIFF_BASIS = "lift_v1"
-VOID_TAGS = {"area", "br", "col", "hr", "img", "input", "link", "meta", "source", "track", "wbr"}
+VOID_TAGS = {
+    "area",
+    "base",
+    "br",
+    "col",
+    "embed",
+    "hr",
+    "img",
+    "input",
+    "keygen",
+    "link",
+    "meta",
+    "param",
+    "source",
+    "track",
+    "wbr",
+}
 TRANSPARENT_TAGS = {"html", "body"}
 ALLOWED_TAGS = {
     "a",
@@ -292,8 +308,12 @@ class _SanitizingHTMLParser(HTMLParser):
     def handle_endtag(self, tag: str) -> None:
         tag = tag.lower()
         if self.skipped_tags:
-            if tag == self.skipped_tags[-1]:
-                self.skipped_tags.pop()
+            # Pop back to the matching open tag so one unclosed descendant inside
+            # stripped content cannot swallow the rest of the document.
+            for index in range(len(self.skipped_tags) - 1, -1, -1):
+                if self.skipped_tags[index] == tag:
+                    del self.skipped_tags[index:]
+                    break
             return
         for index in range(len(self.stack) - 1, 0, -1):
             if self.stack[index].tag == tag:

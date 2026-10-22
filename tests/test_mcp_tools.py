@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import json
 import socket
+import sys
+import types
 from html import escape
 from pathlib import Path
 
@@ -41,7 +43,9 @@ from viewspec.local_tools import (
     lift_html_file_tool,
     tool_response,
 )
+import viewspec.mcp_server as mcp_server_module
 from viewspec.mcp_server import MCP_INSTALL_HINT, MissingMCPDependency
+from viewspec.raw_html import MAX_HTML_INPUT_BYTES
 
 
 def _bundle_json() -> dict:
@@ -186,6 +190,104 @@ def _html_json_attr(value: object) -> str:
 def test_tool_response_rejects_reserved_data_key_shadowing():
     with pytest.raises(LocalToolError, match="reserved MCP result keys"):
         tool_response(True, "bad extension", data={"ok": False})
+
+
+def test_mcp_server_resolves_relative_and_symlinked_cwd_for_review_tools(monkeypatch, tmp_path):
+    instances: list[object] = []
+
+    class FakeFastMCP:
+        def __init__(self, name: str) -> None:
+            self.name = name
+            self.tools: dict[str, object] = {}
+            instances.append(self)
+
+        def tool(self, **_kwargs):
+            def register(func):
+                self.tools[func.__name__] = func
+                return func
+
+            return register
+
+        def run(self) -> None:
+            return None
+
+    fake_fastmcp = types.ModuleType("mcp.server.fastmcp")
+    fake_fastmcp.FastMCP = FakeFastMCP
+    monkeypatch.setitem(sys.modules, "mcp", types.ModuleType("mcp"))
+    monkeypatch.setitem(sys.modules, "mcp.server", types.ModuleType("mcp.server"))
+    monkeypatch.setitem(sys.modules, "mcp.server.fastmcp", fake_fastmcp)
+    monkeypatch.setattr(mcp_server_module, "mcp_dependency_available", lambda: True)
+    calls: list[tuple[str, object, object]] = []
+    monkeypatch.setattr(
+        mcp_server_module,
+        "review_status_cli",
+        lambda source, *, state_root: calls.append(("status", source, state_root)) or {"ok": True},
+    )
+    monkeypatch.setattr(
+        mcp_server_module,
+        "end_review_cli",
+        lambda source, *, state_root: calls.append(("end", source, state_root)) or {"ok": True},
+    )
+    monkeypatch.setattr(
+        mcp_server_module,
+        "poll_review_cli",
+        lambda source, **kwargs: calls.append(("poll", source, kwargs["state_root"])) or {"ok": True},
+    )
+    monkeypatch.setattr(
+        mcp_server_module,
+        "open_review_cli",
+        lambda source, **kwargs: calls.append(("open", source, kwargs["state_root"])) or {"ok": True},
+    )
+
+    project = tmp_path / "project"
+    project.mkdir()
+    (project / "viewspec.intent.json").write_text("{}", encoding="utf-8")
+    link = tmp_path / "link"
+    link.symlink_to(project, target_is_directory=True)
+    expected_state = project.resolve() / ".viewspec-review"
+    expected_source = project.resolve() / "viewspec.intent.json"
+
+    for cwd in (".", str(link)):
+        calls.clear()
+        monkeypatch.chdir(project)
+        mcp_server_module.run_mcp_server(cwd=cwd)
+        tools = instances[-1].tools
+
+        assert tools["get_review_status"](source=None)["ok"] is True
+        assert tools["get_review_status"](source="viewspec.intent.json")["ok"] is True
+        assert tools["end_review"]("viewspec.intent.json")["ok"] is True
+        assert tools["poll_review"]("viewspec.intent.json")["ok"] is True
+        assert tools["open_review"]("viewspec.intent.json")["ok"] is True
+
+        assert [call[0] for call in calls] == ["status", "status", "end", "poll", "open"]
+        assert calls[0][1] is None
+        assert all(call[1] == expected_source for call in calls[1:])
+        assert all(call[2] == expected_state for call in calls)
+
+
+def test_html_file_tools_refuse_oversized_files_before_reading(tmp_path, monkeypatch):
+    big = tmp_path / "big.html"
+    with big.open("wb") as handle:
+        handle.truncate(MAX_HTML_INPUT_BYTES + 1)
+    (tmp_path / "small.html").write_text("<h1>Small</h1>", encoding="utf-8")
+
+    def refuse_read_text(self, *args, **kwargs):
+        raise AssertionError(f"{self.name} must not be read before the size gate")
+
+    monkeypatch.setattr(Path, "read_text", refuse_read_text)
+
+    compiled = compile_html_file_tool("big.html", "out", cwd=tmp_path)
+    assert compiled["ok"] is False
+    assert compiled["errors"][0]["code"] == "HTML_INPUT_TOO_LARGE"
+    assert not (tmp_path / "out").exists()
+
+    lifted = lift_html_file_tool("big.html", cwd=tmp_path)
+    assert lifted["ok"] is False
+    assert lifted["errors"][0]["code"] == "HTML_INPUT_TOO_LARGE"
+
+    diffed = diff_html_files_tool("big.html", "small.html", cwd=tmp_path)
+    assert diffed["ok"] is False
+    assert diffed["errors"][0]["code"] == "HTML_INPUT_TOO_LARGE"
 
 
 def test_mcp_missing_dependency_cli_hint(monkeypatch, capsys):

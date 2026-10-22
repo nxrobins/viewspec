@@ -53,6 +53,34 @@ def resolve_local_path(
         raise LocalToolError("PATH_OUTSIDE_CWD", f"Path resolves outside MCP cwd: {raw}", "Move the file under the cwd or restart with --allow-outside-cwd.")
     return resolved
 
+# Top-level files that prove, prove-app, compile, and compile-app write into their
+# output directories. ``force`` may replace an existing directory only when it is
+# empty or carries one of these markers, so a stray ``force=True`` cannot wipe an
+# unrelated directory such as ``src/``.
+VIEWSPEC_OUTPUT_MARKERS: frozenset[str] = frozenset(
+    {
+        "proof_report.json",
+        "PROOF.md",
+        "support_bundle.json",
+        "app_proof_report.json",
+        "APP_PROOF.md",
+        "app_support_bundle.json",
+        "shell_manifest.json",
+        "provenance_manifest.json",
+        "viewspec_app_manifest.json",
+    }
+)
+
+def is_replaceable_output_dir(output_dir: Path) -> bool:
+    """Return True when ``output_dir`` is empty or holds a file ViewSpec itself writes."""
+    try:
+        entries = list(output_dir.iterdir())
+    except OSError:
+        return False
+    if not entries:
+        return True
+    return any(entry.name in VIEWSPEC_OUTPUT_MARKERS and entry.is_file() and not entry.is_symlink() for entry in entries)
+
 def ensure_no_input_overwrite(input_path: Path | None, out_dir: Path, output_names: tuple[str, ...]) -> None:
     if input_path is None:
         return

@@ -37,6 +37,7 @@ from viewspec.local_tools import (
     export_agent_assets_tool,
     init_design_tool,
     lift_html_file_tool,
+    resolve_cwd,
     resolve_local_path,
 )
 from viewspec.prove import prove_tool
@@ -65,7 +66,7 @@ def run_mcp_server(*, cwd: str | Path | None = None, allow_outside_cwd: bool = F
     except ImportError as exc:
         raise MissingMCPDependency(MCP_INSTALL_HINT) from exc
 
-    root = Path.cwd() if cwd is None else Path(cwd)
+    root = resolve_cwd(cwd)
     app = FastMCP("viewspec")
 
     @app.tool(
