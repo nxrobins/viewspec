@@ -5,13 +5,13 @@ from __future__ import annotations
 import base64
 from dataclasses import dataclass
 import hashlib
-import json
 from pathlib import Path, PurePosixPath
 import shutil
 import tempfile
 import time
 from typing import Any, Mapping
 
+from viewspec._canonical import canonical_json_ascii_bytes
 from viewspec.convergence import ConvergenceRun, RepairAttempt, run_until_conformant
 from viewspec.hosted_receipts import ReceiptPublicKey, verify_signed_receipt
 from viewspec.repair import VerificationRepairPlan
@@ -30,8 +30,8 @@ class HostedVerificationContractError(ValueError):
     """Raised when a hosted verification response cannot be trusted."""
 
 
-def _canonical(value: object) -> bytes:
-    return json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=True).encode("utf-8")
+# ASCII-escaped canonical form, shared through viewspec._canonical (see its docstring).
+_canonical = canonical_json_ascii_bytes
 
 
 def _mapping(value: Any, name: str) -> Mapping[str, Any]:

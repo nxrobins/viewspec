@@ -11,6 +11,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
+from viewspec._canonical import canonical_json_utf8
 from viewspec.app_numeric import generate_numeric_javascript, numeric_import_names
 
 
@@ -2658,8 +2659,8 @@ def _hash_json(value: Any) -> str:
     return _hash_text(_stable_json(value))
 
 
-def _stable_json(value: Any) -> str:
-    return json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=False, allow_nan=False)
+# UTF-8 canonical form, shared through viewspec._canonical (see its docstring).
+_stable_json = canonical_json_utf8
 
 
 __all__ = [

@@ -4,10 +4,11 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 import hashlib
-import json
 import re
 import secrets
 from typing import Any, Literal, Mapping, overload
+
+from viewspec._canonical import canonical_json_utf8_bytes
 
 
 REVIEW_SCHEMA_VERSION = 1
@@ -77,13 +78,7 @@ class ReviewContractError(ValueError):
 def canonical_json_bytes(value: object) -> bytes:
     """Return the compact, stable UTF-8 encoding used for byte limits and hashes."""
     try:
-        return json.dumps(
-            value,
-            ensure_ascii=False,
-            allow_nan=False,
-            separators=(",", ":"),
-            sort_keys=True,
-        ).encode("utf-8")
+        return canonical_json_utf8_bytes(value)
     except (TypeError, ValueError) as exc:
         raise ReviewContractError(
             "REVIEW_EVENT_INVALID",

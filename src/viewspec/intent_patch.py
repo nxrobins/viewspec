@@ -15,6 +15,7 @@ import tempfile
 import time
 from typing import Any, Mapping
 
+from viewspec._canonical import canonical_json_utf8_bytes, canonical_sha256
 from viewspec.aesthetics import AESTHETIC_PROFILE_TOKENS
 from viewspec.agent import SUPPORTED_AGENT_REGION_LAYOUTS, SUPPORTED_AGENT_STYLE_TOKENS
 from viewspec.app_bundle import compile_app, diff_app_text
@@ -510,13 +511,7 @@ def patch_context_from_repair_plan(
 
 def _canonical_json_bytes(value: object) -> bytes:
     try:
-        return json.dumps(
-            value,
-            ensure_ascii=False,
-            allow_nan=False,
-            separators=(",", ":"),
-            sort_keys=True,
-        ).encode("utf-8")
+        return canonical_json_utf8_bytes(value)
     except (TypeError, ValueError) as exc:
         raise IntentPatchError(
             "PATCH_VALUE_INVALID",
@@ -526,7 +521,7 @@ def _canonical_json_bytes(value: object) -> bytes:
 
 
 def _canonical_json_sha256(value: object) -> str:
-    return hashlib.sha256(_canonical_json_bytes(value)).hexdigest()
+    return canonical_sha256(_canonical_json_bytes(value))
 
 
 def source_sha256(value: str | bytes) -> str:

@@ -6,6 +6,7 @@ import json
 from pathlib import Path
 from typing import Any
 
+from viewspec._canonical import canonical_json_utf8
 from viewspec._version import __version__
 from viewspec.aesthetics import AestheticProfileError, profile_layout_props, profile_style_facts
 from viewspec.agent import (
@@ -1513,8 +1514,8 @@ def _intent_topology_similarity(
     return round(max(0.0, 1.0 - (changed / total)), 4)
 
 
-def _stable_json(value: Any) -> str:
-    return json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+# UTF-8 canonical form, shared through viewspec._canonical (see its docstring).
+_stable_json = canonical_json_utf8
 
 
 __all__ = [

@@ -4,11 +4,11 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 import hashlib
-import json
 from pathlib import PurePosixPath
 import re
 from typing import Any, Mapping
 
+from viewspec._canonical import canonical_json_ascii_bytes
 from viewspec.verification import (
     RetryLineage,
     SHA256_RE,
@@ -26,8 +26,8 @@ ALLOWED_DISPOSITIONS = frozenset({"done", "repair", "retry"})
 MAX_REPAIR_DIRECTIVES = 256
 
 
-def _canonical(value: object) -> bytes:
-    return json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=True).encode("utf-8")
+# ASCII-escaped canonical form, shared through viewspec._canonical (see its docstring).
+_canonical = canonical_json_ascii_bytes
 
 
 def _mapping(value: Any, name: str) -> Mapping[str, Any]:

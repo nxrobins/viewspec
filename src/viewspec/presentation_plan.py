@@ -8,6 +8,7 @@ import json
 import re
 from typing import Any
 
+from viewspec._canonical import canonical_json_ascii
 from viewspec.compiler import derive_style_tokens
 from viewspec.types import IntentBundle
 
@@ -2653,8 +2654,8 @@ def _css_attr_token(token: str) -> str:
     return token.replace("\\", "\\\\").replace('"', '\\"')
 
 
-def _stable_json(value: Any) -> str:
-    return json.dumps(value, ensure_ascii=True, separators=(",", ":"), sort_keys=True)
+# ASCII-escaped canonical form, shared through viewspec._canonical (see its docstring).
+_stable_json = canonical_json_ascii
 
 
 def _issue(code: str, path: str, message: str) -> dict[str, str]:

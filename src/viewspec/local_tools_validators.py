@@ -5,6 +5,8 @@ from html.parser import HTMLParser
 from pathlib import Path
 from typing import Any, Iterator, NamedTuple
 from urllib.parse import urlparse
+from viewspec._canonical import canonical_json_ascii
+from viewspec.compiler_errors import LocalToolContractError
 from viewspec.aesthetics import AESTHETIC_PROFILE_LAYOUT_ROLES
 from viewspec.aesthetics import AESTHETIC_PROFILE_TOKENS
 from viewspec.aesthetics import is_aesthetic_profile_token
@@ -680,13 +682,13 @@ def _strip_tsx_literals_and_comments(source: str) -> str:
         index += 1
     return "".join(output)
 
-def _stable_semantic_json(value: Any) -> str:
-    return json.dumps(value, ensure_ascii=True, separators=(",", ":"), sort_keys=True)
+# ASCII-escaped canonical form, shared through viewspec._canonical (see its docstring).
+_stable_semantic_json = canonical_json_ascii
 
 def _assert_semantic_projection_size(projection: dict[str, Any], label: str) -> None:
     size = len(_stable_semantic_json(projection).encode("utf-8"))
     if size > SEMANTIC_DIGEST_MAX_PROJECTION_BYTES:
-        raise ValueError(f"SEMANTIC_DIGEST_FIELD_FORBIDDEN: {label} exceeds 128 KiB")
+        raise LocalToolContractError("SEMANTIC_DIGEST_FIELD_FORBIDDEN", f"{label} exceeds 128 KiB")
 
 def _diagnostic_codes(value: Any) -> list[str]:
     if not isinstance(value, list):
@@ -960,7 +962,7 @@ def _semantic_action_from_attrs(attrs: dict[str, str]) -> dict[str, Any] | None:
 def _semantic_tsx_source_nodes(tsx: str, *, primitive_by_dom_id: dict[str, str]) -> list[dict[str, Any]]:
     render_lines = _tsx_render_block_lines(tsx)
     if render_lines is None:
-        raise ValueError("TAILWIND_TSX_SHAPE_UNSUPPORTED: ViewSpecView.tsx render shape is unsupported")
+        raise LocalToolContractError("TAILWIND_TSX_SHAPE_UNSUPPORTED", "ViewSpecView.tsx render shape is unsupported")
     nodes: list[dict[str, Any]] = []
     stack: list[str | None] = []
     for raw_line in render_lines:
@@ -976,16 +978,20 @@ def _semantic_tsx_source_nodes(tsx: str, *, primitive_by_dom_id: dict[str, str])
         if not line.startswith("<"):
             continue
         if "id={" not in line:
-            raise ValueError("TAILWIND_TSX_SHAPE_UNSUPPORTED: ViewSpecView.tsx contains an unsupported JSX node")
+            raise LocalToolContractError(
+                "TAILWIND_TSX_SHAPE_UNSUPPORTED", "ViewSpecView.tsx contains an unsupported JSX node"
+            )
         tag_match = re.match(r"<([A-Za-z][A-Za-z0-9]*)\b", line)
         if tag_match is None:
-            raise ValueError("TAILWIND_TSX_SHAPE_UNSUPPORTED: ViewSpecView.tsx contains an unsupported JSX tag")
+            raise LocalToolContractError("TAILWIND_TSX_SHAPE_UNSUPPORTED", "ViewSpecView.tsx contains an unsupported JSX tag")
         tag = tag_match.group(1).lower()
         attrs = _semantic_tsx_attrs(line)
         dom_id = attrs.get("id")
         ir_id = attrs.get("data-ir-id")
         if not dom_id or not ir_id:
-            raise ValueError("TAILWIND_TSX_SHAPE_UNSUPPORTED: ViewSpecView.tsx node is missing semantic identity attrs")
+            raise LocalToolContractError(
+                "TAILWIND_TSX_SHAPE_UNSUPPORTED", "ViewSpecView.tsx node is missing semantic identity attrs"
+            )
         node = {
             "dom_id": dom_id,
             "ir_id": ir_id,
@@ -1142,7 +1148,9 @@ def _semantic_tsx_attrs(line: str) -> dict[str, str]:
         try:
             attrs[name] = str(json.loads(encoded))
         except json.JSONDecodeError as exc:
-            raise ValueError("TAILWIND_TSX_SHAPE_UNSUPPORTED: ViewSpecView.tsx contains an unsupported attr literal") from exc
+            raise LocalToolContractError(
+                "TAILWIND_TSX_SHAPE_UNSUPPORTED", "ViewSpecView.tsx contains an unsupported attr literal"
+            ) from exc
     for name, value in re.findall(r'([A-Za-z][-A-Za-z0-9]*)="([^"]*)"', line):
         attrs.setdefault(name, value)
     return attrs

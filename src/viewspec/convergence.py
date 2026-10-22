@@ -8,6 +8,7 @@ import json
 import re
 from typing import Any, Callable
 
+from viewspec._canonical import canonical_json_ascii_bytes
 from viewspec.repair import VerificationRepairPlan
 from viewspec.verification import RetryLineage, VerificationResult
 
@@ -23,12 +24,7 @@ RepairAttempt = Callable[[dict, VerificationRepairPlan], dict]
 
 def _canonical(value: object) -> bytes:
     try:
-        return json.dumps(
-            value,
-            sort_keys=True,
-            separators=(",", ":"),
-            ensure_ascii=True,
-        ).encode("utf-8")
+        return canonical_json_ascii_bytes(value)
     except (TypeError, ValueError) as exc:
         raise ValueError("AppBundle must be finite JSON data") from exc
 
