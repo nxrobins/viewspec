@@ -61,15 +61,19 @@ in parentheses refer to that document.
   high and critical npm advisories while a weekly workflow reports every level (R-3); and reports
   the PyPI launch check without blocking the documentation deploy, so a push to `main` deploys
   the site even while that check fails (R-2).
-- Dependabot watches pip, the three npm seeds and GitHub Actions (P-5). `cryptography` allows up
-  to 52.x (P-6). The classifiers declare Linux and macOS; CI runs on Linux plus a Windows job
-  that checks the corpus goldens, and does not exercise macOS (H-1).
+- Dependabot opens one grouped minor-and-patch pull request a week for pip, the three npm seeds
+  and GitHub Actions. Semver-major updates and the packages pinned as contracts in the code,
+  tests or workflows are bumped by hand, as `CONTRIBUTING.md` describes. Pip updates move only
+  exact pins (`versioning-strategy: increase-if-necessary`) and leave the dependency ranges in
+  `pyproject.toml`, the minimum versions the package asks of its users, as they are (P-5).
+  `cryptography` allows up to 52.x (P-6). The classifiers declare Linux and macOS; CI runs on
+  Linux plus a Windows job that checks the corpus goldens, and does not exercise macOS (H-1).
 - The source archive ships `tests/`, `conformance/`, `proto/`, the changelog, the contributing
   guide and the security policy, so it carries the library tests, the conformance corpus and the
   schema source. The full suite still needs a git checkout: some tests import or read
-  `scripts/`, `demos/`, `docs/`, `examples/`, `integrations/` or `.github/`, or the root file
-  `requirements-ci.txt`, none of which the archive includes (R-8). The package version is read
-  from `src/viewspec/_version.py` alone (R-7).
+  `scripts/`, `demos/`, `docs/`, `examples/`, `integrations/` or `.github/`, or the root files
+  `requirements-ci.txt` and `.pre-commit-config.yaml`, none of which the archive includes (R-8).
+  The package version is read from `src/viewspec/_version.py` alone (R-7).
 - The protobuf schema source is committed as `proto/universal_ui.proto` with a regeneration
   script and a typed `.pyi` stub next to `py.typed`; CI checks the source against the generated
   code (P-3, Q-1). The `dev` extra pins `grpcio-tools` 1.80.0, which bundles protoc 31.1 and

@@ -313,14 +313,14 @@ Status as of the follow-up work on 2026-10-22, all on branch `claude/project-aud
 
 | Id | Status | Resolution |
 |---|---|---|
-| P-1 | Fixed | `protobuf>=6.31.1,<8`; CI job imports the package at the floor; a test ties the floor to the gencode version. |
+| P-1 | Fixed | `protobuf>=6.31.1,<8`; CI job imports the package at the floor; tests tie the floor to the gencode version and the job's pin to the floor. |
 | P-2 | Fixed | vite 8.3.5 in all three seeds; `npm audit` reports zero advisories. |
 | P-3 | Fixed | `proto/universal_ui.proto`, `scripts/regenerate_schema.py`, `.pyi` stub; CI checks source against gencode. The `dev` extra pins `grpcio-tools` 1.80.0 (protoc 31.1, wheels for Python 3.11 to 3.14). |
 | P-4 | Fixed | `requirements-ci.txt` used as pip constraints in every CI install; the Pretext workflow also runs when it changes. |
-| P-5 | Fixed | `.github/dependabot.yml` for pip, three npm seeds and Actions. |
+| P-5 | Fixed | `.github/dependabot.yml`: one grouped minor-and-patch pull request a week for pip, the three npm seeds (one entry) and Actions. Semver-major updates and the contract-pinned packages (grpcio-tools, pyright, ruff, Pretext, Freerange, TypeScript, Playwright, mcp 2.x) are ignored and bumped by hand, as CONTRIBUTING.md describes. The pip entry uses `versioning-strategy: increase-if-necessary`, so it moves exact pins and leaves the ranges in `pyproject.toml` alone; the default treated the project as an application and raised `>=` floors, as in pull request #194. `tests/test_ci_config.py` checks the configuration. |
 | P-6 | Fixed | `cryptography<53`, `mcp<2`: MCP SDK 2.x removed `mcp.server.fastmcp`, which `viewspec mcp` imports, and `doctor --agents` now checks that module, reporting any import failure as unavailable. |
 | P-7 | Fixed | `overrides` for `source-map-js` in the three manifests. |
-| P-8 | Fixed | `.pre-commit-config.yaml` pinned to ruff 0.15.22. |
+| P-8 | Fixed | `.pre-commit-config.yaml` pinned to ruff 0.15.22; `tests/test_ci_config.py` keeps its `rev` equal to the `ruff` pin, and the ruff hand-bump steps in CONTRIBUTING.md name the file. |
 | P-9 | Info | No action; caps raised with R-8. |
 | C-1 | Fixed | Integral doubles become ints at `SemanticNode` construction (a snapshot: caller data is not modified, nested tuples become lists) and after round trips, so integers within 2^53 compile identically in memory and after JSON or proto round trips. `validate-intent`, `viewspec compile` and the agent/MCP tools reject magnitudes above 2^53 with `INTEGER_OUT_OF_SAFE_RANGE`. The Python `compile()` API does not check magnitudes; Python callers run `validate_agent_intent_bundle` on the JSON payload first. |
 | C-2 | Fixed | `ensure_ascii=False` in text rendering. Lists and dicts also render with compact separators, which changes page text and hashes for every bundle that binds one. |
@@ -369,7 +369,7 @@ Status as of the follow-up work on 2026-10-22, all on branch `claude/project-aud
 | R-5 | Open | The exact test count and npm patch assertions stay; relaxing them was judged a gate change for the owner. |
 | R-6 | Fixed | Caching, timeouts, concurrency that supersedes only pull request runs (every push to `main` runs to completion), the `agents` extra in every test leg with a test that starts the real stdio MCP server, lockfile-based Playwright. |
 | R-7 | Fixed | Version single-sourced; tag and release step in the checklist. |
-| R-8 | Partial | sdist ships tests, conformance, schema source, changelog and policy. The full suite still needs a git checkout: some tests import or read `scripts/`, `demos/`, `docs/`, `examples/`, `integrations/` and `.github/`, and the root file `requirements-ci.txt`, none of which the sdist carries. |
+| R-8 | Partial | sdist ships tests, conformance, schema source, changelog and policy. The full suite still needs a git checkout: some tests import or read `scripts/`, `demos/`, `docs/`, `examples/`, `integrations/` and `.github/`, and the root files `requirements-ci.txt` and `.pre-commit-config.yaml`, none of which the sdist carries. |
 | R-9 | Fixed | One legal name. |
 | R-10 | Fixed | Seed installed before the host proof; verifier reuses it. |
 | R-11 | Info | |
