@@ -2058,7 +2058,12 @@ def _frame_sdk(nonce: str, *, surface_target: str) -> bytes:
         "if(e.data.type==='viewspec-review-restore'&&typeof e.data.route==='string'&&Number.isInteger(e.data.scroll_x)&&Number.isInteger(e.data.scroll_y)){"
         "if(surface==='html-tailwind-app'){restoringHash=e.data.route;if(location.hash.slice(1)!==e.data.route)location.hash=e.data.route;else restoringHash=null;}else{restoringHistory=true;nativeReplace({},'',e.data.route);dispatchEvent(new PopStateEvent('popstate'));}"
         "requestAnimationFrame(()=>{scrollTo(e.data.scroll_x,e.data.scroll_y);postContext('restore');restoringHistory=false;});}});"
-        "addEventListener('popstate',()=>requestAnimationFrame(()=>postContext(restoringHistory?'restore':'navigation')));"
+        # On the hash-routed static surface every route change is a fragment change. That fires popstate
+        # synchronously, before the app renders the new route, and queues hashchange, so popstate would
+        # report a Studio restore as a navigation (sometimes to the old route) and a reviewer's
+        # navigation twice. The hashchange listener reports each change once, with the right cause.
+        "addEventListener('popstate',()=>{if(surface==='html-tailwind-app')return;"
+        "requestAnimationFrame(()=>postContext(restoringHistory?'restore':'navigation'));});"
         "addEventListener('hashchange',()=>requestAnimationFrame(()=>{const route=location.hash.slice(1)||'/';const cause=restoringHash===route?'restore':'navigation';restoringHash=null;postContext(cause);}));"
         "addEventListener('scroll',()=>postContext('passive'),{passive:true});"
         "addEventListener('click',e=>{if(!annotate)return;e.preventDefault();e.stopImmediatePropagation();choose(e.target);},true);"
