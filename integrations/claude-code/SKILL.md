@@ -1,5 +1,12 @@
 # ViewSpec Agent-Native UI Intent
 
+> **Maintained by hand.** This skill is a curated copy of the managed instructions that
+> `viewspec init-agent --target claude-code` writes into `CLAUDE.md` from
+> `src/viewspec/native_agents.py`; it is not generated from that source. When the managed block
+> changes, update this file in the same change. `tests/test_claude_code_skill_sync.py` checks that
+> every fenced `viewspec ...` command here also appears in the managed instructions, apart from the
+> opt-in proof variants it lists with a reason.
+
 Use this skill when an agent creates a new human-facing UI artifact, report, dashboard, explainer, or product surface.
 
 ## Rules

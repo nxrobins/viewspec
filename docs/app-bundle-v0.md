@@ -1,5 +1,10 @@
 # AppBundle V1/V2/V3/V4
 
+> **Naming note.** This file keeps the name `app-bundle-v0.md` for link stability, but it documents
+> AppBundle `schema_version` 1 through 4 (V1 to V4). "V0" survives only in the Static Shell V0 proof
+> target and in the `unbound_v0`, `fixture_readonly_v0`, `interactive_state_v0`, and `visibility_v0`
+> contract names used below.
+
 AppBundle is the bounded app-generation contract for local multi-screen internal tools. Its default Static Shell V0 target remains a proof artifact. The additive `react-tailwind-app` target emits a complete runnable Vite/React/Tailwind package with browser-history routes, host resource props, generated state reducers, selectors, conditional visibility, scalar state text, typed host callbacks, and exact-artifact browser verification. `schema_version: 1` keeps fixtures unbound; `schema_version: 2` adds proof-only read-only fixture binding; `schema_version: 3` adds bounded declarative state, mutations, selectors, replay assertions, and a generated pure TypeScript reducer artifact. `schema_version: 4` adds bounded visibility and optional scalar-to-text rules and is the golden-path runtime contract.
 
 ## Runnable React App Golden Path

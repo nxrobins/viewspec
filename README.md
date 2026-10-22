@@ -75,7 +75,7 @@ source-bound proposal shown. Before approval, Studio renders the current and pro
 side by side at the same viewport, with synchronized navigation and scroll. You can inspect Live
 or Static, compare the initial state or active declared checkpoint, and view both at full size. Approval stays disabled
 until both exact versions render; failed or stale proposals cannot be approved.
-See the [proved Studio goal](docs/viewspec-studio-goal.md) for the
+See the [proved Studio goal](docs/internal/viewspec-studio-goal.md) for the
 current milestone, evidence, and deliberately deferred work.
 
 CI also exercises the complete mechanical product journey from a brief through three separately
@@ -163,7 +163,7 @@ durably rejects replay across restarts, closes direct creation in production com
 reserved internal headers from external routes before adapter dispatch, and binds the response to
 the originating request nonce. The API bridge, isolated worker, deployment, and signed canary
 release remain pending. See the
-[private review deployment contract](docs/studio-review-deployment.md) for the remaining hosted
+[private review deployment contract](docs/internal/studio-review-deployment.md) for the remaining hosted
 canary gate.
 
 The human-facing path is implemented behind that gate:
@@ -191,6 +191,10 @@ correction with a verified preview and applied receipt.
 See the [eight-gate result](https://github.com/nxrobins/viewspec/blob/main/conformance/refinement/gate-status-v1.json),
 [product-quality scorecard](https://github.com/nxrobins/viewspec/blob/main/conformance/refinement/scorecard-v2.json),
 and [correction proof](https://github.com/nxrobins/viewspec/blob/main/conformance/refinement/correction-proof-v1.json).
+That retained evidence was evaluated against SDK `0.3.0b5` on 2026-07-21 (the `sdk_version` and
+`evaluated_on` fields in `gate-status-v1.json`; `scorecard-v2.json` records the same
+`sdk_version`). It has not been re-run for each later beta, so it shows the checked workflow at
+that revision rather than certifying the current `0.3.0b12` release.
 This is fixed-corpus evidence for supported brief families, not a guarantee that every arbitrary
 product brief is desirable, accessible, or production-ready.
 
@@ -233,11 +237,13 @@ AppBundle V3 introduced bounded interactive state; V4 adds replay-proved visibil
 
 ## New: Custom Motif Plugins
 
-Extend the local compiler securely with a microkernel architecture:
+Extend the local compiler with a microkernel plugin architecture. Plugins are trusted, in-process
+Python: the registry checks each plugin's manifest and validates its lowered output, but it does not
+sandbox plugin code, so load only plugins you trust as you would any other Python dependency.
 
 * **MotifPluginManifest**: Define strict input slots, ABI versions, and output guarantees for enterprise motifs (e.g., `financial_candlestick_chart`).
 * **IR Portability**: Custom plugins lower directly into standard `CompositionIR`. You don't need to write custom HTML/React emitters for your new motifs!
-* **Registry Support**: Pass a `motif_registry` to the `compile` pipeline for reusable, safe plugin execution.
+* **Registry Support**: Pass a `motif_registry` to the `compile` pipeline for reusable plugin execution with manifest-checked inputs and outputs.
 
 ## Install
 
@@ -251,6 +257,12 @@ additionally requires Node.js (>=18) on `PATH`; V1/V2 and all IntentBundle flows
 and no-network. The optional Freerange proof for an applicable generated numeric scope additionally
 requires a stable Bun 1.x or newer executable on `PATH`; ViewSpec never installs Bun. The separate
 Pretext native-DOM text proof uses the React app's npm/Chromium toolchain and does not require Bun.
+
+**Supported platforms:** Linux and macOS. Review (`viewspec studio` and the `review-*` commands),
+Converge Sessions, IntentPatch apply, and host verification (`verify-host`, `prove --install`,
+`prove-app`) use POSIX file locks and process groups (`fcntl`, `os.setsid`) and are not supported on
+Windows. The pure-Python validate, compile, `check`, and `diff` path has no POSIX-only dependency,
+but it is not tested on Windows; CI runs on Ubuntu only.
 
 Python package: <https://pypi.org/project/viewspec/>
 
@@ -566,7 +578,7 @@ The declarative intent layer. Regions (WHERE), bindings (WHICH data goes WHERE),
 The compiler's output. A strict hierarchical tree of UI primitives with full provenance tracking.
 
 ### Emitters
-Pluggable renderers that turn CompositionIR into concrete output. The local SDK ships `HtmlTailwindEmitter`, `ReactTsxEmitter`, and `ReactTailwindTsxEmitter`. Because custom local plugins lower into portable `CompositionIR`, emitters **do not** need custom code paths to support new motifs.
+Pluggable renderers that turn CompositionIR into concrete output. The local SDK ships three emitter targets, selected with `--target`: `html-tailwind` (the default standalone HTML), `react-tsx`, and `react-tailwind-tsx`; SwiftUI and Flutter are hosted-only. The emitter classes under `viewspec.emitters` are internal implementation and not part of the stable `viewspec.__all__` surface. Because custom local plugins lower into portable `CompositionIR`, emitters **do not** need custom code paths to support new motifs.
 
 ## Motif Types
 
@@ -591,6 +603,13 @@ Pluggable renderers that turn CompositionIR into concrete output. The local SDK 
 Handles the local V1 motifs and bounded collection action events locally. No API, no network, no LLM. Deterministic.
 
 ```python
+from viewspec import ViewSpecBuilder, compile
+
+builder = ViewSpecBuilder("invoice")
+table = builder.add_table("items", region="main", group_id="rows")
+table.add_row(label="Design System Audit", value="$4,200")
+table.add_row(label="Component Library", value="$8,500")
+
 ast = compile(builder.build_bundle())
 ```
 
@@ -601,7 +620,12 @@ For complex layouts, novel data shapes, advanced derivation, and the SwiftUI/Flu
 *   **Derivation tokens** — data-aware emphasis, narrative routing, palette energy.
 
 ```python
-from viewspec import compile_auto
+from viewspec import ViewSpecBuilder, compile_auto
+
+builder = ViewSpecBuilder("invoice")
+table = builder.add_table("items", region="main", group_id="rows")
+table.add_row(label="Design System Audit", value="$4,200")
+
 # Try local first, fall back to hosted for unsupported motifs
 ast = compile_auto(builder.build_bundle())
 ```
@@ -621,7 +645,7 @@ The local SDK uses a strict YAML-front-matter `DESIGN.md` for offline HTML and I
 
 ## Compatibility & Versioning
 
-The local contract is anchored by the `local_v1` profile: document schemas (IntentBundle V1, AppBundle V1-V4), the closed error-code registry (`viewspec.ERROR_CODES`), the CLI surface, every name in `viewspec.__all__`, and per-version determinism. Within a major version those surfaces evolve additively only — caps only rise, codes are never repurposed, commands are never removed — and anything breaking waits for a new major version with a new contract profile and migration notes. Cross-version artifact bytes and hashes are explicitly *not* promised; determinism is a within-version guarantee. The full policy, including what is deliberately out of scope, is in [docs/compatibility.md](https://github.com/nxrobins/viewspec/blob/main/docs/compatibility.md); changes ship documented in [CHANGELOG.md](https://github.com/nxrobins/viewspec/blob/main/CHANGELOG.md).
+The local contract is anchored by the `local_v1` profile: document schemas (IntentBundle V1, AppBundle V1-V4), the closed error-code registry (`viewspec.ERROR_CODES`), the CLI surface, every name in `viewspec.__all__`, and per-version determinism. Once 1.0 ships, those surfaces evolve additively only within a major version — caps only rise, codes are never repurposed, commands are never removed — and anything breaking waits for a new major version with a new contract profile and migration notes. The current `0.3.0` betas follow the same rules in practice, but the promise binds from `v1.0.0` onward and pre-1.0 releases may still change without a deprecation cycle. Cross-version artifact bytes and hashes are explicitly *not* promised; determinism is a within-version guarantee. The full policy, including what is deliberately out of scope, is in [docs/compatibility.md](https://github.com/nxrobins/viewspec/blob/main/docs/compatibility.md); changes ship documented in [CHANGELOG.md](https://github.com/nxrobins/viewspec/blob/main/CHANGELOG.md).
 
 ## License
 MIT

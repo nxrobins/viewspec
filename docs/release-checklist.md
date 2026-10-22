@@ -46,6 +46,11 @@ Use this checklist before publishing a new ViewSpec package or public-site updat
 - Upload the exact artifacts retained by the successful SDK Reliability distribution job.
   PyPI artifacts are immutable: a Studio-capable package must have a new version, never reuse
   `0.3.0b7`, which predates Studio.
+- Tag `v<version>` on the merged release revision (`git tag -a v<version> <merged-sha>`, then
+  `git push origin v<version>`) and create a GitHub Release for that tag pointing at the retained
+  CI artifacts: the SDK Reliability distribution job's wheel and sdist plus its
+  `studio-release-check.json` report. Every published version needs both the tag and the Release;
+  the compare links at the bottom of `CHANGELOG.md` depend on the tags.
 - Run `python scripts/check_studio_release.py --published --out studio-public-release-check.json`
   after upload. This executes the same install and launch flow against public PyPI and requires
   the version and agent assets advertised by this checkout. A package with missing Studio,
