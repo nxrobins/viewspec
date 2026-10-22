@@ -70,7 +70,7 @@ jsonschema==4.26.0
     #   mcp
 jsonschema-specifications==2025.9.1
     # via jsonschema
-mcp==1.30.0
+mcp==2.3.0
     # via viewspec (pyproject.toml)
 nodeenv==1.11.0
     # via pyright
