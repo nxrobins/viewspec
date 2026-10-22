@@ -9,31 +9,45 @@ on:
 permissions:
   contents: read
 
+# Supersede only pull request runs. Every other run (each push to main, manual runs) gets a
+# group of its own, so it is neither cancelled nor dropped from the pending slot by a later
+# push, and each merged revision keeps its own status and distribution artifacts.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.ref || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   test:
     runs-on: ubuntu-latest
+    timeout-minutes: 45
     strategy:
       fail-fast: false
       matrix:
         python-version: ["3.11", "3.12", "3.13", "3.14"]
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           fetch-depth: 0
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
         with:
           python-version: ${{ matrix.python-version }}
+          cache: pip
+          cache-dependency-path: pyproject.toml
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: "22"
+          cache: npm
+          cache-dependency-path: |
+            src/viewspec/host_verify_template/package-lock.json
+            conformance/agent-ui-v2/react-dependencies/package-lock.json
 
       - name: Install package
         run: |
           python -m pip install --upgrade pip
-          python -m pip install ".[dev,remote]"
+          python -m pip install -c requirements-ci.txt ".[dev,remote,agents]"
 
       - name: Install shared React dependency seed
         working-directory: conformance/agent-ui-v2/react-dependencies
@@ -48,13 +62,21 @@ jobs:
         run: npx --no-install playwright install --with-deps chromium
 
       - name: Ruff
-        run: ruff check .
+        run: |
+          ruff check .
+          ruff format --check .
 
       - name: Compile Python sources
         run: python -m compileall src tests examples scripts
 
       - name: Pytest
         run: python -m pytest -q --strict-markers -m "not e2e"
+
+      - name: Schema source matches the generated code
+        run: python scripts/regenerate_schema.py check
+
+      - name: Corpus goldens are current
+        run: python scripts/update_corpus_goldens.py --check
 
       - name: Landing payload smoke test
         run: |
@@ -71,46 +93,100 @@ jobs:
   javascript_dependencies:
     name: Audit shared JavaScript dependencies
     runs-on: ubuntu-latest
+    timeout-minutes: 20
+    # Pull requests block on high and critical advisories (audit finding R-3,
+    # approved). The scheduled dependency-audit workflow reports every level.
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: "22"
       - name: Audit shipped SDK seed
         working-directory: src/viewspec/host_verify_template
-        run: npm audit --package-lock-only --audit-level=low
+        run: npm audit --package-lock-only --audit-level=high
       - name: Audit browser proof seed
         working-directory: tests/react-tailwind-host
-        run: npm audit --package-lock-only --audit-level=low
+        run: npm audit --package-lock-only --audit-level=high
       - name: Audit active evaluation seed
         working-directory: conformance/agent-ui-v2/react-dependencies
-        run: npm audit --package-lock-only --audit-level=low
+        run: npm audit --package-lock-only --audit-level=high
       - name: Install exact patched runtime without hooks
         working-directory: src/viewspec/host_verify_template
         run: npm ci --ignore-scripts
       - name: Exercise dependency security regressions
         run: node tests/react_dependency_regressions.mjs src/viewspec/host_verify_template
 
+  goldens_windows:
+    name: Corpus goldens on Windows
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: "3.11"
+      - name: Install the package
+        run: python -m pip install -c requirements-ci.txt .
+      - name: Compiled bytes match the Linux goldens
+        run: python scripts/update_corpus_goldens.py --check
+
+  pyright_baseline:
+    name: Pyright error count does not grow
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: pyproject.toml
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: "22"
+      - name: Install the package with the dev extras
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -c requirements-ci.txt ".[dev,remote,agents]"
+      - name: Compare the pyright error count with the committed baseline
+        run: python scripts/check_pyright_baseline.py
+
+  protobuf_floor:
+    name: Import at the declared protobuf floor
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: "3.11"
+      - name: Install the package with the oldest allowed protobuf
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install "protobuf==6.31.1" .
+      - name: Import the package and its schema
+        run: python -c "import viewspec, viewspec.schema; print(viewspec.__version__)"
+
   distribution:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
         python-version: ["3.11", "3.14"]
 
     steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
         with:
           python-version: ${{ matrix.python-version }}
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: "22"
 
       - name: Install build tooling
-        run: python -m pip install --upgrade build
+        run: python -m pip install -c requirements-ci.txt build
 
       - name: Build wheel and source archive
         run: python -m build
@@ -118,14 +194,19 @@ jobs:
       - name: Audit release contents and size
         run: python scripts/check_distribution.py dist
 
+      - name: Install the pinned Playwright package without hooks
+        working-directory: src/viewspec/host_verify_template
+        run: npm ci --ignore-scripts
+
       - name: Install Chromium for the release launch check
-        run: npx --yes --package=@playwright/test@1.60.0 playwright install --with-deps chromium
+        working-directory: src/viewspec/host_verify_template
+        run: ./node_modules/.bin/playwright install --with-deps chromium
 
       - name: Verify the homepage install and Studio launch flow from the wheel
         run: python scripts/check_studio_release.py --dist dist --out studio-release-check.json
 
       - name: Retain verified release artifacts and launch evidence
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: studio-release-python-${{ matrix.python-version }}
           path: |
@@ -136,22 +217,22 @@ jobs:
 
   react_tailwind_host:
     runs-on: ubuntu-latest
+    timeout-minutes: 60
 
     steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
         with:
           python-version: "3.11"
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: "22"
 
       - name: Install package
         run: |
           python -m pip install --upgrade pip
-          python -m pip install ".[dev,remote]"
+          python -m pip install -c requirements-ci.txt ".[dev,remote]"
 
       - name: Install host proof dependencies
         working-directory: tests/react-tailwind-host
@@ -161,8 +242,16 @@ jobs:
         working-directory: tests/react-tailwind-host
         run: npx playwright install --with-deps chromium firefox webkit
 
+      - name: Install the host-verify dependency seed without hooks
+        working-directory: src/viewspec/host_verify_template
+        run: npm ci --ignore-scripts
+
       - name: React Tailwind host proof
         working-directory: tests/react-tailwind-host
+        env:
+          # Reuse the seed installed above instead of a cold npm ci under the
+          # verifier's 90 s install budget (audit finding R-10).
+          VIEWSPEC_HOST_VERIFY_NODE_MODULES_DIR: ${{ github.workspace }}/src/viewspec/host_verify_template/node_modules
         run: npm run verify
 
       - name: Public demo browser regressions
@@ -182,7 +271,7 @@ jobs:
 
       - name: Retain Studio product-journey evidence
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: studio-product-journey-evidence
           path: |
@@ -202,16 +291,12 @@ jobs:
 
       - name: Retain private-review browser evidence
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: studio-private-review-browser-evidence
           path: tests/react-tailwind-host/test-results/**/studio-private-review-evidence.json
           if-no-files-found: warn
           retention-days: 14
-
-      - name: Install verification corpus host dependencies
-        working-directory: src/viewspec/host_verify_template
-        run: npm ci --ignore-scripts
 
       - name: Verification conformance corpus
         env:

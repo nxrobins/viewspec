@@ -3,29 +3,77 @@ from __future__ import annotations
 import hashlib
 import json
 import os
-from pathlib import Path
 import shutil
 import subprocess
+from pathlib import Path
 
 import pytest
 
 from scripts import run_agent_ui_eval as runner
-from viewspec.app_bundle import compile_app
 from viewspec.agent_eval_value import STABLE_HOOKS
+from viewspec.app_bundle import compile_app
 from viewspec.app_starters import starter_react_app_bundle
 from viewspec.native_agents import BEGIN_MARKER, agent_instruction_block
-
 
 _NODE = shutil.which("node")
 _BUN = shutil.which("bun")
 _PLAYWRIGHT = Path("src/viewspec/host_verify_template/node_modules/playwright/index.mjs")
-_PRODUCT_E2E_OPT_IN = "VIEWSPEC_RUN_AGENT_UI_V2_PRODUCT_E2E"
-_RETAINED_PRODUCT_FIXTURES = Path(
-    "conformance/agent-ui-v2/retained-product-fixtures.json"
+# The React target builds materialize node_modules from this seed; CI installs it with
+# `npm ci --ignore-scripts` in conformance/agent-ui-v2/react-dependencies.
+_REACT_SEED_VITE = runner.NODE_MODULE_SEED / ".bin" / "vite"
+_REACT_SEED_VALUE_PACKAGES = tuple(
+    runner.NODE_MODULE_SEED.joinpath(*name.split("/"), "package.json")
+    for name in (runner.PRETEXT_PACKAGE, runner.FREERANGE_PACKAGE)
 )
-_RETAINED_PRODUCT_CASES = json.loads(
-    _RETAINED_PRODUCT_FIXTURES.read_text(encoding="utf-8")
-)["fixtures"]
+_requires_react_seed = pytest.mark.skipif(
+    not _NODE or not _REACT_SEED_VITE.is_file(),
+    reason="Node and the installed react-dependencies seed are required "
+    "(npm ci --ignore-scripts in conformance/agent-ui-v2/react-dependencies)",
+)
+_requires_react_value_seed = pytest.mark.skipif(
+    not _NODE or not _REACT_SEED_VITE.is_file() or not all(path.is_file() for path in _REACT_SEED_VALUE_PACKAGES),
+    reason="Node and the installed react-dependencies seed with the pinned Pretext and Freerange packages are "
+    "required (npm ci --ignore-scripts in conformance/agent-ui-v2/react-dependencies)",
+)
+
+
+def _pinned_chromium_executable() -> Path | None:
+    """Ask the pinned Playwright module where its Chromium must live; None when it cannot be asked."""
+    if not _NODE or not _PLAYWRIGHT.is_file():
+        return None
+    probe = subprocess.run(
+        [
+            _NODE,
+            "--input-type=module",
+            "-e",
+            "import {pathToFileURL} from 'node:url';"
+            "const {chromium} = await import(pathToFileURL(process.argv[1]).href);"
+            "process.stdout.write(chromium.executablePath());",
+            str(_PLAYWRIGHT.resolve()),
+        ],
+        capture_output=True,
+        text=True,
+        timeout=60,
+        check=False,
+    )
+    if probe.returncode != 0 or not probe.stdout.strip():
+        return None
+    return Path(probe.stdout.strip())
+
+
+_CHROMIUM = _pinned_chromium_executable()
+_requires_pinned_chromium = pytest.mark.skipif(
+    _CHROMIUM is None or not _CHROMIUM.is_file(),
+    reason=(
+        "Pinned browser runtime is required"
+        if _CHROMIUM is None
+        else f"Pinned Playwright Chromium is not installed at {_CHROMIUM} "
+        "(npx --no-install playwright install chromium in src/viewspec/host_verify_template)"
+    ),
+)
+_PRODUCT_E2E_OPT_IN = "VIEWSPEC_RUN_AGENT_UI_V2_PRODUCT_E2E"
+_RETAINED_PRODUCT_FIXTURES = Path("conformance/agent-ui-v2/retained-product-fixtures.json")
+_RETAINED_PRODUCT_CASES = json.loads(_RETAINED_PRODUCT_FIXTURES.read_text(encoding="utf-8"))["fixtures"]
 
 
 @pytest.mark.skipif(not _NODE, reason="Node is required")
@@ -40,13 +88,26 @@ def test_browser_scorer_exits_promptly_when_browser_launch_fails(tmp_path):
     report = tmp_path / "report.json"
     result = subprocess.run(
         [
-            _NODE, str(runner.BROWSER_SCORER),
-            "--candidate", str(tmp_path), "--reference", str(tmp_path / "index.html"),
-            "--spec", str(spec), "--out", str(report),
-            "--evidence", str(tmp_path / "evidence"), "--reference-step", "0",
+            _NODE,
+            str(runner.BROWSER_SCORER),
+            "--candidate",
+            str(tmp_path),
+            "--reference",
+            str(tmp_path / "index.html"),
+            "--spec",
+            str(spec),
+            "--out",
+            str(report),
+            "--evidence",
+            str(tmp_path / "evidence"),
+            "--reference-step",
+            "0",
         ],
         env={**os.environ, "VIEWSPEC_EVAL_PLAYWRIGHT_MODULE": str(fake_playwright)},
-        capture_output=True, text=True, timeout=10, check=False,
+        capture_output=True,
+        text=True,
+        timeout=10,
+        check=False,
     )
     assert result.returncode == 1
     assert "synthetic browser unavailable" in result.stderr
@@ -113,11 +174,7 @@ def _healthy_targets_with_artifacts(root: Path) -> list[dict]:
 
 
 def _fake_evaluation_targets(kwargs: dict) -> list[dict]:
-    artifact = (
-        kwargs["output"]
-        / "artifacts"
-        / f"{kwargs['step_index'] + 1:02d}-{kwargs['step'].id}"
-    )
+    artifact = kwargs["output"] / "artifacts" / f"{kwargs['step_index'] + 1:02d}-{kwargs['step'].id}"
     return _healthy_targets_with_artifacts(artifact)
 
 
@@ -253,16 +310,10 @@ def test_evidence_migration_rewrites_legacy_trials_and_regenerates_reports(tmp_p
     for arm in protocol.arms:
         arm_root = run_root / arm
         early_root = arm_root / "value-trials/01-early"
-        early_score = (
-            early_root
-            / "attempt-1/artifacts/10-repair-and-finalize/browser-score.json"
-        )
+        early_score = early_root / "attempt-1/artifacts/10-repair-and-finalize/browser-score.json"
         runner._write(early_score.parent / "compile.log", "detected\n")
         control_root = arm_root / "value-trials/02-control"
-        control_score = (
-            control_root
-            / "attempt-1/artifacts/10-repair-and-finalize/browser-score.json"
-        )
+        control_score = control_root / "attempt-1/artifacts/10-repair-and-finalize/browser-score.json"
         runner._write(control_score, "{}\n")
         targets = _healthy_targets_with_artifacts(arm_root / "final-targets")
         session = {
@@ -346,9 +397,7 @@ def test_evidence_migration_rewrites_legacy_trials_and_regenerates_reports(tmp_p
     )
 
     assert result == 0
-    migration = json.loads(
-        (run_root / "evidence-migration.json").read_text(encoding="utf-8")
-    )
+    migration = json.loads((run_root / "evidence-migration.json").read_text(encoding="utf-8"))
     assert migration["model_calls_added"] == 0
     assert migration["status_counts_across_migrated_files"] == {
         "not_run_early_detector": 6,
@@ -365,9 +414,7 @@ def test_evidence_migration_rewrites_legacy_trials_and_regenerates_reports(tmp_p
             )
         )
     for arm in protocol.arms:
-        migrated = json.loads(
-            (run_root / arm / "session.json").read_text(encoding="utf-8")
-        )
+        migrated = json.loads((run_root / arm / "session.json").read_text(encoding="utf-8"))
         runner._require_value_evidence_integrity(migrated)
         artifacts = migrated["value_evidence"]["mutation_trials"][0]["artifacts"]
         assert artifacts["score_status"] == "not_run_early_detector"
@@ -470,7 +517,7 @@ def test_resumed_codex_turn_explicitly_restores_workspace_write(tmp_path, monkey
     def fake_run(command, *, cwd, timeout, env=None, merge_stderr=True):
         del cwd, timeout, env, merge_stderr
         commands.append(command)
-        payload = 'stdin preamble\n' + '\n'.join(
+        payload = "stdin preamble\n" + "\n".join(
             [
                 '{"type":"thread.started","thread_id":"thread-1"}',
                 '{"type":"turn.completed","usage":{}}',
@@ -491,7 +538,7 @@ def test_resumed_codex_turn_explicitly_restores_workspace_write(tmp_path, monkey
         timeout=30,
     )
 
-    assert ["-c", 'sandbox_mode="workspace-write"'] == commands[0][6:8]
+    assert commands[0][6:8] == ["-c", 'sandbox_mode="workspace-write"']
     event_lines = (tmp_path / "events.jsonl").read_text(encoding="utf-8").splitlines()
     assert len(event_lines) == 2
     assert all(isinstance(json.loads(line), dict) for line in event_lines)
@@ -599,6 +646,7 @@ def test_session_resumes_from_lifecycle_checkpoint_without_replaying_prior_turns
     assert checkpoint["stage"] == "complete"
 
 
+@_requires_react_seed
 def test_code_first_react_scaffold_builds_off_the_shared_local_seed(tmp_path):
     workspace = tmp_path / "workspace"
     workspace.joinpath("submission").mkdir(parents=True)
@@ -613,22 +661,19 @@ def test_code_first_react_scaffold_builds_off_the_shared_local_seed(tmp_path):
     assert build["ok"] is True, log
     assert (tmp_path / "artifact/react-dist/index.html").is_file()
     assert build["dist"]["files"]
-    package = json.loads(
-        (workspace / "submission/react/package.json").read_text(encoding="utf-8")
-    )
-    shared_package = json.loads(
-        Path("src/viewspec/host_verify_template/package.json").read_text(encoding="utf-8")
-    )
+    package = json.loads((workspace / "submission/react/package.json").read_text(encoding="utf-8"))
+    shared_package = json.loads(Path("src/viewspec/host_verify_template/package.json").read_text(encoding="utf-8"))
     assert package["dependencies"] == shared_package["dependencies"]
     assert package["devDependencies"] == shared_package["devDependencies"]
     assert package["dependencies"]["react"] == "19.2.7"
     assert package["dependencies"]["react-dom"] == "19.2.7"
-    assert package["dependencies"]["vite"] == "8.0.16"
+    assert package["dependencies"]["vite"] == "8.3.5"
     assert package["dependencies"]["tailwindcss"] == "4.3.0"
     assert package["devDependencies"]["@playwright/test"] == "1.60.0"
     assert package["devDependencies"]["typescript"] == "6.0.3"
 
 
+@_requires_react_seed
 def test_viewspec_react_source_uses_proof_paths_and_core_target_builds(tmp_path):
     app_path = tmp_path / "viewspec.app.json"
     generated = tmp_path / "proof" / "react-app"
@@ -642,7 +687,22 @@ def test_viewspec_react_source_uses_proof_paths_and_core_target_builds(tmp_path)
         target="react-tailwind-app",
         cwd=tmp_path,
     )
-    proof = {"paths": {"react_app": str(generated)}}
+    proof_dir = generated.parent
+    report_path = proof_dir / "app_proof_report.json"
+    report_path.write_text(
+        json.dumps(
+            {
+                "ok": True,
+                "paths": {"proof_dir": ".", "report": "app_proof_report.json", "react_app": "react-app"},
+                "react_app": {"paths": {"app": "react-app/package.json"}},
+            }
+        ),
+        encoding="utf-8",
+    )
+    proof = runner._load_app_proof_report(report_path)
+    assert proof["paths"]["proof_dir"] == str(proof_dir)
+    assert proof["paths"]["report"] == str(report_path)
+    assert proof["react_app"]["paths"]["app"] == str(generated / "package.json")
 
     source = runner._react_source_from_proof(proof, tmp_path / "artifact")
     build, _elapsed, log = runner._build_react_target(source, tmp_path / "artifact")
@@ -653,6 +713,7 @@ def test_viewspec_react_source_uses_proof_paths_and_core_target_builds(tmp_path)
     assert (tmp_path / "artifact/react-dist/index.html").is_file()
 
 
+@_requires_react_value_seed
 def test_deep_dependency_profile_builds_pretext_import_without_network(tmp_path):
     workspace = tmp_path / "workspace"
     workspace.joinpath("submission").mkdir(parents=True)
@@ -712,13 +773,12 @@ def test_value_trials_are_rejected_for_archived_v1_before_workspace_creation(tmp
 
 
 @pytest.mark.skipif(not _BUN, reason="The pinned Deep proof requires Bun on PATH")
+@_requires_react_value_seed
 def test_run_pair_records_seeded_arm_order_before_dispatch(tmp_path, monkeypatch):
     observed: list[str] = []
 
     def fake_session(args):
-        manifest = json.loads(
-            (tmp_path / "pair/pair-manifest.json").read_text(encoding="utf-8")
-        )
+        manifest = json.loads((tmp_path / "pair/pair-manifest.json").read_text(encoding="utf-8"))
         assert manifest["arm_order"]
         observed.append(args.arm)
         return 0
@@ -738,9 +798,7 @@ def test_run_pair_records_seeded_arm_order_before_dispatch(tmp_path, monkeypatch
     )
 
     assert runner._run_pair(args) == 0
-    manifest = json.loads(
-        (tmp_path / "pair/pair-manifest.json").read_text(encoding="utf-8")
-    )
+    manifest = json.loads((tmp_path / "pair/pair-manifest.json").read_text(encoding="utf-8"))
     assert observed == manifest["arm_order"]
     assert observed == ["viewspec-deep", "code-first", "viewspec-core"]
     assert manifest["model_call_budget"] == {
@@ -806,12 +864,17 @@ def test_baseline_qualification_rolls_back_non_layout_regression(
         if calls == 1:
             workspace.joinpath("submission/extra.html").write_text("transient", encoding="utf-8")
         runner._write(kwargs["events_path"], '{"type":"turn.completed","usage":{}}\n')
-        return {
-            "thread_id": "thread-lifecycle",
-            "completed": True,
-            "usage": {},
-            "telemetry": {},
-        }, 1, 0, ""
+        return (
+            {
+                "thread_id": "thread-lifecycle",
+                "completed": True,
+                "usage": {},
+                "telemetry": {},
+            },
+            1,
+            0,
+            "",
+        )
 
     monkeypatch.setattr(runner, "_codex_turn", fake_codex_turn)
     monkeypatch.setattr(
@@ -832,7 +895,12 @@ def test_baseline_qualification_rolls_back_non_layout_regression(
         turn_timeout=10,
         no_install=False,
     )
-    initial = {"step_id": "repair-and-finalize", "score": initial_score, "proof": None, "target_trials": _healthy_targets()}
+    initial = {
+        "step_id": "repair-and-finalize",
+        "score": initial_score,
+        "proof": None,
+        "target_trials": _healthy_targets(),
+    }
     sources = runner._source_texts(workspace, "code-first")
     session = {"turns": [initial], "qualification_turns": [], "thread_id": "thread-lifecycle"}
 
@@ -930,12 +998,15 @@ def test_native_detector_credit_requires_attributable_failure_evidence():
         "duplicate-j207-resource",
         "break-j205-mobile-geometry",
     ):
-        assert runner._observed_detectors(
-            trial_id,
-            arm="viewspec-deep",
-            score=unrelated_score,
-            proof=unrelated_proof,
-        ) == []
+        assert (
+            runner._observed_detectors(
+                trial_id,
+                arm="viewspec-deep",
+                score=unrelated_score,
+                proof=unrelated_proof,
+            )
+            == []
+        )
 
     compile_observed = runner._observed_detectors(
         "break-escalation-action",
@@ -946,21 +1017,21 @@ def test_native_detector_credit_requires_attributable_failure_evidence():
             "errors": [
                 {
                     "code": "APP_STATE_TRIGGER_ACTION_MISSING",
-                    "message": (
-                        "Mutation trigger references missing action "
-                        "dispatch.broken_escalation_action."
-                    ),
+                    "message": ("Mutation trigger references missing action dispatch.broken_escalation_action."),
                 }
             ],
         },
     )
     assert compile_observed == ["compile-or-replay:reveal_escalation_guide"]
     no_viewports = ({"viewports": []}, unrelated_proof, {}, "failed", [])
-    assert runner._evaluation_infrastructure_error(
-        arm="viewspec-core",
-        trial_id="break-escalation-action",
-        evaluation=no_viewports,
-    ) == "browser_or_scorer_did_not_produce_viewports"
+    assert (
+        runner._evaluation_infrastructure_error(
+            arm="viewspec-core",
+            trial_id="break-escalation-action",
+            evaluation=no_viewports,
+        )
+        == "browser_or_scorer_did_not_produce_viewports"
+    )
     attributed_compile = (
         {"viewports": []},
         {
@@ -968,10 +1039,7 @@ def test_native_detector_credit_requires_attributable_failure_evidence():
             "errors": [
                 {
                     "code": "APP_STATE_TRIGGER_ACTION_MISSING",
-                    "message": (
-                        "Mutation trigger references missing action "
-                        "dispatch.broken_escalation_action."
-                    ),
+                    "message": ("Mutation trigger references missing action dispatch.broken_escalation_action."),
                 }
             ],
         },
@@ -979,11 +1047,14 @@ def test_native_detector_credit_requires_attributable_failure_evidence():
         "failed",
         [],
     )
-    assert runner._evaluation_infrastructure_error(
-        arm="viewspec-core",
-        trial_id="break-escalation-action",
-        evaluation=attributed_compile,
-    ) is None
+    assert (
+        runner._evaluation_infrastructure_error(
+            arm="viewspec-core",
+            trial_id="break-escalation-action",
+            evaluation=attributed_compile,
+        )
+        is None
+    )
 
     generic_replay_without_matching_browser = runner._observed_detectors(
         "corrupt-reviewed-count",
@@ -1079,11 +1150,14 @@ def test_precise_replay_detector_completes_without_browser_output(
         score=evaluation[0],
         proof=evaluation[1],
     ) == [expected]
-    assert runner._evaluation_infrastructure_error(
-        arm="viewspec-core",
-        trial_id=trial_id,
-        evaluation=evaluation,
-    ) is None
+    assert (
+        runner._evaluation_infrastructure_error(
+            arm="viewspec-core",
+            trial_id=trial_id,
+            evaluation=evaluation,
+        )
+        is None
+    )
 
 
 def test_precise_replay_detector_requires_trial_identity_markers():
@@ -1092,20 +1166,20 @@ def test_precise_replay_detector_requires_trial_identity_markers():
         "errors": [
             {
                 "code": "APP_STATE_REPLAY_STATE_MISMATCH",
-                "message": (
-                    "assertion=unrelated mutation=unrelated path=$.state.unrelated "
-                    "expected=2 actual=4"
-                ),
+                "message": ("assertion=unrelated mutation=unrelated path=$.state.unrelated expected=2 actual=4"),
             }
         ],
     }
 
-    assert runner._observed_detectors(
-        "corrupt-reviewed-count",
-        arm="viewspec-core",
-        score={"viewports": []},
-        proof=proof,
-    ) == []
+    assert (
+        runner._observed_detectors(
+            "corrupt-reviewed-count",
+            arm="viewspec-core",
+            score={"viewports": []},
+            proof=proof,
+        )
+        == []
+    )
 
 
 def test_baseline_eligibility_rejects_build_and_scorer_failures():
@@ -1150,10 +1224,7 @@ def test_value_trials_retry_infrastructure_once_then_mark_invalid(
     protocol, protocol_path = runner._protocol("conformance/agent-ui-v2/protocol.json")
     task = protocol.task("field-dispatch-lifecycle")
     workspace = tmp_path / "workspace"
-    static = "".join(
-        f'<div data-eval-id="{hook}"></div>'
-        for hook in STABLE_HOOKS
-    )
+    static = "".join(f'<div data-eval-id="{hook}"></div>' for hook in STABLE_HOOKS)
     workspace.joinpath("submission/react/src").mkdir(parents=True)
     workspace.joinpath("submission/index.html").write_text(
         f"<body>{static}</body>",
@@ -1184,15 +1255,7 @@ def test_value_trials_retry_infrastructure_once_then_mark_invalid(
         "parity": 1.0,
     }
     final_turn = {
-        "score": {
-            "viewports": [
-                {
-                    "criteria": [
-                        {"id": "functional", "dimension": "semantics", "passed": True}
-                    ]
-                }
-            ]
-        },
+        "score": {"viewports": [{"criteria": [{"id": "functional", "dimension": "semantics", "passed": True}]}]},
         "proof": None,
         "target_trials": [
             {**target, "id": "static-shell"},
@@ -1240,9 +1303,7 @@ def test_bounded_baseline_qualification_stops_after_becoming_eligible(
     workspace = tmp_path / "workspace"
     hooks = "".join(f'<div data-eval-id="{hook}"></div>' for hook in STABLE_HOOKS)
     workspace.joinpath("submission/react/src").mkdir(parents=True)
-    workspace.joinpath("submission/index.html").write_text(
-        f"<body>{hooks}</body>", encoding="utf-8"
-    )
+    workspace.joinpath("submission/index.html").write_text(f"<body>{hooks}</body>", encoding="utf-8")
     workspace.joinpath("submission/react/src/App.jsx").write_text(
         f"export default()=> <main>{hooks}</main>", encoding="utf-8"
     )
@@ -1257,8 +1318,7 @@ def test_bounded_baseline_qualification_stops_after_becoming_eligible(
         prompts.append(kwargs["prompt"])
         runner._write(
             kwargs["events_path"],
-            '{"type":"thread.started","thread_id":"thread-qualification"}\n'
-            '{"type":"turn.completed","usage":{}}\n',
+            '{"type":"thread.started","thread_id":"thread-qualification"}\n{"type":"turn.completed","usage":{}}\n',
         )
         return (
             {
@@ -1336,9 +1396,7 @@ def test_baseline_qualification_runs_for_layout_only_miss_and_stops_at_target(
     workspace = tmp_path / "workspace"
     hooks = "".join(f'<div data-eval-id="{hook}"></div>' for hook in STABLE_HOOKS)
     workspace.joinpath("submission/react/src").mkdir(parents=True)
-    workspace.joinpath("submission/index.html").write_text(
-        f"<body>{hooks}</body>", encoding="utf-8"
-    )
+    workspace.joinpath("submission/index.html").write_text(f"<body>{hooks}</body>", encoding="utf-8")
     workspace.joinpath("submission/react/src/App.jsx").write_text(
         f"export default()=> <main>{hooks}</main>", encoding="utf-8"
     )
@@ -1359,12 +1417,17 @@ def test_baseline_qualification_runs_for_layout_only_miss_and_stops_at_target(
     def fake_codex_turn(**kwargs):
         prompts.append(kwargs["prompt"])
         runner._write(kwargs["events_path"], '{"type":"turn.completed","usage":{}}\n')
-        return {
-            "thread_id": "thread-lifecycle",
-            "completed": True,
-            "usage": {},
-            "telemetry": {},
-        }, 1, 0, ""
+        return (
+            {
+                "thread_id": "thread-lifecycle",
+                "completed": True,
+                "usage": {},
+                "telemetry": {},
+            },
+            1,
+            0,
+            "",
+        )
 
     monkeypatch.setattr(runner, "_codex_turn", fake_codex_turn)
     monkeypatch.setattr(
@@ -1438,9 +1501,7 @@ def test_baseline_qualification_resumes_at_the_next_bounded_attempt(
     workspace = tmp_path / "workspace"
     hooks = "".join(f'<div data-eval-id="{hook}"></div>' for hook in STABLE_HOOKS)
     workspace.joinpath("submission/react/src").mkdir(parents=True)
-    workspace.joinpath("submission/index.html").write_text(
-        f"<body>{hooks}</body>", encoding="utf-8"
-    )
+    workspace.joinpath("submission/index.html").write_text(f"<body>{hooks}</body>", encoding="utf-8")
     workspace.joinpath("submission/react/src/App.jsx").write_text(
         f"export default()=> <main>{hooks}</main>", encoding="utf-8"
     )
@@ -1539,9 +1600,7 @@ def test_baseline_qualification_exhausts_after_two_unhealthy_attempts(
     workspace = tmp_path / "workspace"
     hooks = "".join(f'<div data-eval-id="{hook}"></div>' for hook in STABLE_HOOKS)
     workspace.joinpath("submission/react/src").mkdir(parents=True)
-    workspace.joinpath("submission/index.html").write_text(
-        f"<body>{hooks}</body>", encoding="utf-8"
-    )
+    workspace.joinpath("submission/index.html").write_text(f"<body>{hooks}</body>", encoding="utf-8")
     workspace.joinpath("submission/react/src/App.jsx").write_text(
         f"export default()=> <main>{hooks}</main>", encoding="utf-8"
     )
@@ -1636,13 +1695,10 @@ def test_golden_eligible_value_pipeline_executes_all_trials_and_repairs(
     def fake_repair(**kwargs):
         assert kwargs["thread_id"] is None
         repair_calls.append(kwargs["workspace"])
-        kwargs["workspace"].joinpath("submission/index.html").write_text(
-            healthy_static, encoding="utf-8"
-        )
+        kwargs["workspace"].joinpath("submission/index.html").write_text(healthy_static, encoding="utf-8")
         runner._write(
             kwargs["events_path"],
-            '{"type":"thread.started","thread_id":"isolated-repair"}\n'
-            '{"type":"turn.completed","usage":{}}\n',
+            '{"type":"thread.started","thread_id":"isolated-repair"}\n{"type":"turn.completed","usage":{}}\n',
         )
         return (
             {
@@ -1753,6 +1809,7 @@ def test_interrupted_repair_turn_is_checkpointed_and_never_retried(
     workspace.joinpath("submission/react/src").mkdir(parents=True)
     workspace.joinpath("submission/index.html").write_text(healthy_static, encoding="utf-8")
     workspace.joinpath("submission/react/src/App.jsx").write_text(healthy_react, encoding="utf-8")
+
     def fake_evaluate(**kwargs):
         text = (kwargs["workspace"] / "submission/index.html").read_text(encoding="utf-8")
         failed = _injected_failure_criterion(text)
@@ -1844,12 +1901,10 @@ def test_value_trial_repair_rejects_unfixed_faults_and_new_regressions(
     workspace.joinpath("submission/react/src").mkdir(parents=True)
     workspace.joinpath("submission/index.html").write_text(healthy_static, encoding="utf-8")
     workspace.joinpath("submission/react/src/App.jsx").write_text(healthy_react, encoding="utf-8")
+
     def fake_evaluate(**kwargs):
         text = (kwargs["workspace"] / "submission/index.html").read_text(encoding="utf-8")
-        if "repair-regression" in text:
-            failed = "interaction:Pause intake"
-        else:
-            failed = _injected_failure_criterion(text)
+        failed = "interaction:Pause intake" if "repair-regression" in text else _injected_failure_criterion(text)
         return (
             _healthy_score(failed_criterion=failed),
             None,
@@ -1912,14 +1967,8 @@ def test_repair_feedback_includes_stable_hook_eligibility_failure(
     protocol, protocol_path = runner._protocol("conformance/agent-ui-v2/protocol.json")
     task = protocol.task("field-dispatch-lifecycle")
     final_step = task.steps[-1]
-    static_hooks = "".join(
-        f'<div data-eval-id="{hook}"></div>' for hook in STABLE_HOOKS
-    )
-    react_hooks = "".join(
-        f'<div data-eval-id="{hook}"></div>'
-        for hook in STABLE_HOOKS
-        if hook != "job-j207"
-    )
+    static_hooks = "".join(f'<div data-eval-id="{hook}"></div>' for hook in STABLE_HOOKS)
+    react_hooks = "".join(f'<div data-eval-id="{hook}"></div>' for hook in STABLE_HOOKS if hook != "job-j207")
     repaired_sources = {
         "submission/index.html": f"<body>{static_hooks}</body>",
         "submission/react/src/App.jsx": (
@@ -1966,10 +2015,7 @@ def test_repair_feedback_includes_stable_hook_eligibility_failure(
 
     assert record["repaired"] is False
     assert record["repair_eligibility"]["eligible"] is False
-    assert any(
-        "react:job-j207" in reason
-        for reason in record["repair_eligibility"]["reasons"]
-    )
+    assert any("react:job-j207" in reason for reason in record["repair_eligibility"]["reasons"])
     assert "Repair eligibility failed" in record["repair_feedback"]
     assert "react:job-j207" in record["repair_feedback"]
 
@@ -2013,23 +2059,20 @@ def test_retained_viewspec_arms_clear_v2_product_gates(tmp_path, fixture):
         install=True,
     )
 
-    assert runner._dimension_score(score, excluded={"layout_fidelity"}) == gates[
-        "functional_acceptance"
-    ]
+    assert runner._dimension_score(score, excluded={"layout_fidelity"}) == gates["functional_acceptance"]
     assert runner._layout_fidelity(score) >= gates["layout_fidelity_minimum"]
     assert proof and proof["ok"] is gates["native_proof_required"]
     assert [trial["id"] for trial in targets] == gates["required_target_trials"]
     assert all(trial["passed"] is True for trial in targets)
     react = next(trial for trial in targets if trial["id"] == "native-react")
-    assert min(react["parity_by_viewport"].values()) >= gates[
-        "parity_minimum_per_viewport"
-    ]
+    assert min(react["parity_by_viewport"].values()) >= gates["parity_minimum_per_viewport"]
     if arm == "viewspec-deep":
         assert proof["static_analysis"]["status"] == "passed"
         assert proof["text_layout"]["status"] == "passed"
 
 
 @pytest.mark.skipif(not _NODE or not _PLAYWRIGHT.is_file(), reason="Pinned browser runtime is required")
+@_requires_pinned_chromium
 def test_browser_scorer_records_runtime_screenshot_and_text_geometry_fault(tmp_path):
     html = """<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><style>h1{width:200px;font-size:20px}</style></head>
@@ -2113,9 +2156,7 @@ document.querySelector("#review").onclick=()=>{const el=document.querySelector("
     report = json.loads(report_path.read_text(encoding="utf-8"))
     mobile = next(item for item in report["viewports"] if item["viewport"]["width"] == 390)
     geometry = next(item for item in mobile["criteria"] if item["id"].startswith("text-geometry:"))
-    interactions = [
-        item for item in mobile["criteria"] if item["id"].startswith("interaction:")
-    ]
+    interactions = [item for item in mobile["criteria"] if item["id"].startswith("interaction:")]
     assert geometry["passed"] is True
     assert geometry["observed"]["line_count"] >= 2
     assert geometry["observed"]["text_matches"] is True
@@ -2166,14 +2207,8 @@ document.querySelector("#review").onclick=()=>{const el=document.querySelector("
     )
     assert fault_result.returncode == 2, fault_result.stdout
     fault = json.loads(fault_report.read_text(encoding="utf-8"))
-    fault_mobile = next(
-        item for item in fault["viewports"] if item["viewport"]["width"] == 390
-    )
-    fault_geometry = next(
-        item
-        for item in fault_mobile["criteria"]
-        if item["id"].startswith("text-geometry:")
-    )
+    fault_mobile = next(item for item in fault["viewports"] if item["viewport"]["width"] == 390)
+    fault_geometry = next(item for item in fault_mobile["criteria"] if item["id"].startswith("text-geometry:"))
     assert fault_geometry["passed"] is False
     assert fault_geometry["observed"]["text_matches"] is False
 

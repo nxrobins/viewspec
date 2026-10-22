@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from pathlib import Path
-from typing import Any, Mapping
+from typing import Any
 
 from viewspec.converge_sessions import (
     ConvergeError,
@@ -83,7 +84,9 @@ def _next_actions(session: ConvergenceSession) -> tuple[str, ...]:
     if session.status in {"applied", "conformant"}:
         return ("Retain the convergence and IntentPatch receipts as audit evidence.",)
     if session.status == "full_revision_required":
-        return ("Propose a separately reviewed full semantic source revision; never escape through arbitrary JSON patching.",)
+        return (
+            "Propose a separately reviewed full semantic source revision; never escape through arbitrary JSON patching.",
+        )
     return ("Stop this bounded session and report its terminal_reason.",)
 
 
@@ -128,11 +131,7 @@ def start_convergence_session_tool(
             root=root,
             allow_outside_cwd=allow_outside_cwd,
         )
-        baseline = (
-            VerificationResult.from_json(baseline_result)
-            if baseline_result is not None
-            else None
-        )
+        baseline = VerificationResult.from_json(baseline_result) if baseline_result is not None else None
         session = start_convergence_session(
             source_path,
             _context(context),

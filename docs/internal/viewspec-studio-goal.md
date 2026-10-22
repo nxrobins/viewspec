@@ -96,7 +96,7 @@ acceptance is not evidence of desirability, and the local private-review service
 sharing product.
 
 The remaining human gate is now executable rather than aspirational. The
-[Studio Human-Value Study V1](../conformance/studio-product-v1/HUMAN_STUDY.md) preregisters balanced
+[Studio Human-Value Study V1](../../conformance/studio-product-v1/HUMAN_STUDY.md) preregisters balanced
 between-subjects allocation, reserve activation, the same three-change task, anonymous records,
 artifact-bound blinded packets, production-only handoff evidence, conservative tie handling, and a
 95% Wilson confidence interval. Its runner refuses optional stopping, changed packets, invalid

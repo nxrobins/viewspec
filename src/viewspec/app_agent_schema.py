@@ -52,8 +52,8 @@ from viewspec.presentation_plan import (
     RADIUS_VALUES,
     SIZE_VALUES,
     SPACING_VALUES,
-    TEXT_WRAP_VALUES,
     TEXT_TRANSFORM_VALUES,
+    TEXT_WRAP_VALUES,
     TRACK_VALUES,
     VISIBILITY_VALUES,
 )
@@ -265,7 +265,11 @@ AGENT_APP_BUNDLE_SCHEMA: dict[str, Any] = {
                 "id": {"$ref": "#/$defs/safe_id"},
                 "title": {"$ref": "#/$defs/safe_string"},
                 "kind": {"enum": list(APP_BUNDLE_ALLOWED_KINDS)},
-                "root_route": {"type": "string", "maxLength": APP_BUNDLE_MAX_ROUTE_CHARS, "pattern": "^/[A-Za-z0-9_.~\\-/]*$"},
+                "root_route": {
+                    "type": "string",
+                    "maxLength": APP_BUNDLE_MAX_ROUTE_CHARS,
+                    "pattern": "^/[A-Za-z0-9_.~\\-/]*$",
+                },
             },
         },
         "routes": {
@@ -280,7 +284,11 @@ AGENT_APP_BUNDLE_SCHEMA: dict[str, Any] = {
             "additionalProperties": False,
             "properties": {
                 "id": {"$ref": "#/$defs/safe_id"},
-                "path": {"type": "string", "maxLength": APP_BUNDLE_MAX_ROUTE_CHARS, "pattern": "^/[A-Za-z0-9_.~\\-/]*$"},
+                "path": {
+                    "type": "string",
+                    "maxLength": APP_BUNDLE_MAX_ROUTE_CHARS,
+                    "pattern": "^/[A-Za-z0-9_.~\\-/]*$",
+                },
                 "label": {"$ref": "#/$defs/safe_string"},
                 "screen_id": {"$ref": "#/$defs/safe_id"},
             },
@@ -375,8 +383,7 @@ AGENT_APP_BUNDLE_SCHEMA: dict[str, Any] = {
                     "type": "object",
                     "additionalProperties": False,
                     "properties": {
-                        breakpoint: {"$ref": "#/$defs/presentation_layout"}
-                        for breakpoint in PRESENTATION_BREAKPOINTS
+                        breakpoint: {"$ref": "#/$defs/presentation_layout"} for breakpoint in PRESENTATION_BREAKPOINTS
                     },
                 },
             },
@@ -390,8 +397,7 @@ AGENT_APP_BUNDLE_SCHEMA: dict[str, Any] = {
                     "type": "object",
                     "additionalProperties": False,
                     "properties": {
-                        breakpoint: {"$ref": "#/$defs/presentation_layout"}
-                        for breakpoint in PRESENTATION_BREAKPOINTS
+                        breakpoint: {"$ref": "#/$defs/presentation_layout"} for breakpoint in PRESENTATION_BREAKPOINTS
                     },
                 },
             },

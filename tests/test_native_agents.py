@@ -5,28 +5,28 @@ import json
 import pytest
 
 from viewspec import (
+    AGENT_APP_EXAMPLE_FILE,
+    AGENT_APP_SCHEMA_FILE,
     AGENT_ASSET_CHECK_COMMAND,
     AGENT_ASSET_CONTRACT_PROFILE,
     AGENT_ASSET_EXPORT_COMMAND,
     AGENT_ASSET_NETWORK_POLICY,
     AGENT_ASSET_SCHEMA_VERSION,
-    AGENT_APP_EXAMPLE_FILE,
-    AGENT_APP_SCHEMA_FILE,
     AGENT_CONVERGE_TASK_EXAMPLE_FILE,
     AGENT_CONVERGE_TASK_SCHEMA_FILE,
     AGENT_PATCH_EXAMPLE_FILE,
     AGENT_PATCH_SCHEMA_FILE,
-    INTENT_PATCH_JSON_SCHEMA,
     CONVERGENCE_TASK_JSON_SCHEMA,
+    INTENT_PATCH_JSON_SCHEMA,
     agent_asset_readiness,
     check_agent_assets,
     starter_app_bundle,
-    starter_intent_payload,
-    starter_intent_patch_payload,
     starter_convergence_task_payload,
+    starter_intent_patch_payload,
+    starter_intent_payload,
 )
-from viewspec.app_bundle import AGENT_APP_BUNDLE_SCHEMA
 from viewspec.agent import AGENT_INTENT_BUNDLE_SCHEMA, AGENT_SYSTEM_PROMPT
+from viewspec.app_bundle import AGENT_APP_BUNDLE_SCHEMA
 from viewspec.cli import main as cli_main
 from viewspec.native_agents import BEGIN_MARKER, END_MARKER, TARGET_PATHS
 
@@ -97,7 +97,10 @@ def test_init_agent_creates_codex_instructions(tmp_path, capsys):
     assert "never use `--show-authority`" in text
     assert "Use raw HTML tools only when importing existing HTML" in text
     assert "compiled output directories such as `dist/` or `react-output/` contain generated artifacts" in text
-    assert "Never patch or recursively compile generated artifacts such as `dist/index.html` or `react-output/ViewSpecView.tsx`" in text
+    assert (
+        "Never patch or recursively compile generated artifacts such as `dist/index.html` or `react-output/ViewSpecView.tsx`"
+        in text
+    )
     assert "Do not upload, share, call hosted APIs" in text
     assert "compile_html_file" not in text
     assert "lift_html_file" not in text
@@ -395,14 +398,29 @@ def test_export_agent_assets_refuses_conflict_without_partial_writes(tmp_path, c
 
     assert cli_main(["export-agent-assets", "--out", str(out_dir), "--force"]) == 0
     assert (out_dir / "agent-system-prompt.txt").read_text(encoding="utf-8") == AGENT_SYSTEM_PROMPT
-    assert json.loads((out_dir / "agent-intent-bundle.schema.json").read_text(encoding="utf-8")) == AGENT_INTENT_BUNDLE_SCHEMA
-    assert json.loads((out_dir / "agent-intent-example.dashboard.json").read_text(encoding="utf-8")) == starter_intent_payload("dashboard")
+    assert (
+        json.loads((out_dir / "agent-intent-bundle.schema.json").read_text(encoding="utf-8"))
+        == AGENT_INTENT_BUNDLE_SCHEMA
+    )
+    assert json.loads(
+        (out_dir / "agent-intent-example.dashboard.json").read_text(encoding="utf-8")
+    ) == starter_intent_payload("dashboard")
     assert json.loads((out_dir / AGENT_APP_SCHEMA_FILE).read_text(encoding="utf-8")) == AGENT_APP_BUNDLE_SCHEMA
-    assert json.loads((out_dir / AGENT_APP_EXAMPLE_FILE).read_text(encoding="utf-8")) == starter_app_bundle("internal_tool")
+    assert json.loads((out_dir / AGENT_APP_EXAMPLE_FILE).read_text(encoding="utf-8")) == starter_app_bundle(
+        "internal_tool"
+    )
     assert json.loads((out_dir / AGENT_PATCH_SCHEMA_FILE).read_text(encoding="utf-8")) == INTENT_PATCH_JSON_SCHEMA
-    assert json.loads((out_dir / AGENT_PATCH_EXAMPLE_FILE).read_text(encoding="utf-8")) == starter_intent_patch_payload()
-    assert json.loads((out_dir / AGENT_CONVERGE_TASK_SCHEMA_FILE).read_text(encoding="utf-8")) == CONVERGENCE_TASK_JSON_SCHEMA
-    assert json.loads((out_dir / AGENT_CONVERGE_TASK_EXAMPLE_FILE).read_text(encoding="utf-8")) == starter_convergence_task_payload()
+    assert (
+        json.loads((out_dir / AGENT_PATCH_EXAMPLE_FILE).read_text(encoding="utf-8")) == starter_intent_patch_payload()
+    )
+    assert (
+        json.loads((out_dir / AGENT_CONVERGE_TASK_SCHEMA_FILE).read_text(encoding="utf-8"))
+        == CONVERGENCE_TASK_JSON_SCHEMA
+    )
+    assert (
+        json.loads((out_dir / AGENT_CONVERGE_TASK_EXAMPLE_FILE).read_text(encoding="utf-8"))
+        == starter_convergence_task_payload()
+    )
 
 
 def test_agent_asset_readiness_reports_local_contract_identity():

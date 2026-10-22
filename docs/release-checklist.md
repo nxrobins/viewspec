@@ -5,7 +5,7 @@ Use this checklist before publishing a new ViewSpec package or public-site updat
 ## Public Facts
 
 - Update `demos/public-facts.json` with the current SDK version, pricing, hosted-call limits, canonical API URL, package URL, proof-scope wording, proof identity metadata contract, host assertion requirement contract, and agent asset contract metadata.
-- Confirm `pyproject.toml`, `src/viewspec/_version.py`, README, Getting Started, `demos/index.html`, `demos/llms.txt`, `demos/llms-full.txt`, and `demos/agent-assets.json` agree with `demos/public-facts.json`.
+- Confirm `src/viewspec/_version.py` (the only version source; `pyproject.toml` declares the version dynamic and reads it from that file), README, Getting Started, `demos/index.html`, `demos/llms.txt`, `demos/llms-full.txt`, and `demos/agent-assets.json` agree with `demos/public-facts.json`.
 - Regenerate `demos/openapi.json` from the running `viewspec-api` contract. Do not hand-edit it; the API deployment gate compares the complete document byte-for-structure.
 - Refresh the hosted `compiler/intent_contract.py` mirror from
   `src/viewspec/intent_contract.py`; the deployment gate requires byte-for-byte identity.
@@ -42,16 +42,38 @@ Use this checklist before publishing a new ViewSpec package or public-site updat
 
 ## Manual Publish
 
+- Know what the merge deploys. **Deploy to GitHub Pages** runs on every push to `main` and
+  deploys `demos/` even when its `published_studio` job fails: that job reports the PyPI check as
+  a non-blocking status (audit R-2). Merging the release branch therefore publishes the
+  new-version homepage at once, and until the package is on PyPI its
+  `python -m pip install --pre viewspec` command installs the previous version. Keep that window
+  short by uploading as soon as the merged commit's distribution artifacts exist. If the site
+  must not run ahead of PyPI, disable the workflow before merging
+  (`gh workflow disable "Deploy to GitHub Pages"`) and enable it again once the published check
+  below passes.
 - Publish to PyPI manually after the release branch is merged and the package artifacts are verified.
-- Upload the exact artifacts retained by the successful SDK Reliability distribution job.
+- Upload the exact artifacts retained by the successful SDK Reliability `distribution` job of the
+  push-to-`main` run for the merged release commit: the wheel and sdist in one
+  `studio-release-python-*` artifact. CI supersedes only pull request runs, so every merged commit
+  gets its own complete run; do not use a pull request run, which builds a different commit.
   PyPI artifacts are immutable: a Studio-capable package must have a new version, never reuse
   `0.3.0b7`, which predates Studio.
+- Tag `v<version>` on the merged release revision (`git tag -a v<version> <merged-sha>`, then
+  `git push origin v<version>`) and create a GitHub Release for that tag pointing at the retained
+  CI artifacts: the SDK Reliability distribution job's wheel and sdist plus its
+  `studio-release-check.json` report. Every published version needs both the tag and the Release;
+  the compare links at the bottom of `CHANGELOG.md` depend on the tags.
 - Run `python scripts/check_studio_release.py --published --out studio-public-release-check.json`
   after upload. This executes the same install and launch flow against public PyPI and requires
   the version and agent assets advertised by this checkout. A package with missing Studio,
-  stale version, failed browser entry, or broken React build blocks website deployment.
+  stale version, failed browser entry, or broken React build fails this check. The site deploy
+  does not wait for it, so a failure here means the homepage may already advertise that package:
+  publish a fixed version.
 - After the published check passes, dispatch **Deploy to GitHub Pages** on the merged release
-  revision. Its `published_studio` job runs the public check again before deploying. A new-version
-  site update may initially fail this gate while manual publication is pending; the previous
-  site remains deployed until the public package is ready.
+  revision (enabling the workflow first if you disabled it). Its `published_studio` job runs the
+  public check again; confirm that job passed, since a failure there does not stop the deploy.
+  Only a passing check uploads the `studio-public-release-check` artifact. A failing check exits
+  before it writes its report, so no artifact is uploaded: the failure shows as the job's failed
+  status and as the `Studio release check failed: ...` line in the job log, while the workflow run
+  itself still succeeds because the job is allowed to fail.
 - Do not add automated PyPI upload in this checklist; release credentials and publish approval remain outside the SDK Reliability CI workflow.

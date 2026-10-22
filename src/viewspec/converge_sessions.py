@@ -2,19 +2,21 @@
 
 from __future__ import annotations
 
-from contextlib import contextmanager
-from dataclasses import dataclass
 import hashlib
 import json
 import os
-from pathlib import Path
 import re
 import secrets
 import stat
 import tempfile
 import time
-from typing import Any, Callable, Mapping
+from collections.abc import Callable, Mapping
+from contextlib import contextmanager
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Any
 
+from viewspec._canonical import canonical_json_utf8_bytes
 from viewspec.aesthetics import AESTHETIC_PROFILE_TOKENS
 from viewspec.agent import SUPPORTED_AGENT_REGION_LAYOUTS, SUPPORTED_AGENT_STYLE_TOKENS
 from viewspec.intent_patch import (
@@ -43,7 +45,6 @@ from viewspec.verification import (
     VerificationPlan,
     VerificationResult,
 )
-
 
 CONVERGE_SESSION_SCHEMA_VERSION = 1
 CONVERGE_MAX_ATTEMPTS = 3
@@ -163,19 +164,19 @@ class ConvergeError(ValueError):
         self.fix = fix
         self.cli_exit = cli_exit
 
+    def __reduce__(self) -> tuple[Any, ...]:
+        # ``args`` holds only the message, so the default ``cls(*args)`` rebuild would fail.
+        # Rebuild from code, message and fix; the instance dict restores cli_exit and any other
+        # attribute, so the error survives pickle, copy.copy and copy.deepcopy.
+        return (type(self), (self.code, self.message, self.fix), self.__dict__)
+
     def to_json(self) -> dict[str, str]:
         return {"code": self.code, "message": self.message, "fix": self.fix}
 
 
 def _canonical(value: object) -> bytes:
     try:
-        return json.dumps(
-            value,
-            ensure_ascii=False,
-            allow_nan=False,
-            sort_keys=True,
-            separators=(",", ":"),
-        ).encode("utf-8")
+        return canonical_json_utf8_bytes(value)
     except (TypeError, ValueError) as exc:
         raise ConvergeError(
             "CONVERGE_STATE_INVALID",
@@ -250,11 +251,7 @@ class VerificationObligation:
 def _error_obligations(result: VerificationResult) -> tuple[VerificationObligation, ...]:
     return tuple(
         sorted(
-            (
-                VerificationObligation.from_diagnostic(item)
-                for item in result.diagnostics
-                if item.severity == "error"
-            ),
+            (VerificationObligation.from_diagnostic(item) for item in result.diagnostics if item.severity == "error"),
             key=lambda item: item.obligation_id,
         )
     )
@@ -388,16 +385,13 @@ class ProgressCertificate:
             baseline_result_sha256=value.get("baseline_result_sha256"),
             candidate_result_sha256=value.get("candidate_result_sha256"),
             fixed_obligations=tuple(
-                VerificationObligation.from_json(item)
-                for item in value.get("fixed_obligations", [])
+                VerificationObligation.from_json(item) for item in value.get("fixed_obligations", [])
             ),
             remaining_obligations=tuple(
-                VerificationObligation.from_json(item)
-                for item in value.get("remaining_obligations", [])
+                VerificationObligation.from_json(item) for item in value.get("remaining_obligations", [])
             ),
             introduced_obligations=tuple(
-                VerificationObligation.from_json(item)
-                for item in value.get("introduced_obligations", [])
+                VerificationObligation.from_json(item) for item in value.get("introduced_obligations", [])
             ),
         )
         if CONVERGE_CERTIFICATE_ID_RE.fullmatch(certificate.certificate_id) is None:
@@ -486,7 +480,9 @@ class ConvergenceAuthoringTask:
             base_source_sha256=str(value.get("base_source_sha256")),
             requests=tuple(json.loads(_canonical(item)) for item in value.get("requests", [])),
             targets=tuple(ConvergenceTarget.from_json(item) for item in value.get("targets", [])),
-            allowed_target_keys=tuple(tuple(str(part) for part in item) for item in value.get("allowed_target_keys", [])),
+            allowed_target_keys=tuple(
+                tuple(str(part) for part in item) for item in value.get("allowed_target_keys", [])
+            ),
         )
         material = {
             "source_kind": task.source_kind,
@@ -495,17 +491,17 @@ class ConvergenceAuthoringTask:
             "targets": [item.to_json() for item in task.targets],
             "allowed_target_keys": [list(item) for item in task.allowed_target_keys],
         }
-        if (
-            CONVERGE_TASK_ID_RE.fullmatch(task.task_id) is None
-            or task.task_id != _identity("vctask_", "viewspec_convergence_authoring_task_v1", material)
+        if CONVERGE_TASK_ID_RE.fullmatch(task.task_id) is None or task.task_id != _identity(
+            "vctask_", "viewspec_convergence_authoring_task_v1", material
         ):
             raise ValueError("convergence task identity mismatch")
-        if task.source_kind not in {"intent_bundle", "app_bundle"} or SHA256_RE.fullmatch(task.base_source_sha256) is None:
+        if (
+            task.source_kind not in {"intent_bundle", "app_bundle"}
+            or SHA256_RE.fullmatch(task.base_source_sha256) is None
+        ):
             raise ValueError("convergence task source identity is invalid")
         target_keys = {
-            tuple(operation["target_key"])
-            for target in task.targets
-            for operation in target.legal_operations
+            tuple(operation["target_key"]) for target in task.targets for operation in target.legal_operations
         }
         if tuple(sorted(target_keys)) != task.allowed_target_keys:
             raise ValueError("convergence task target-key index mismatch")
@@ -817,10 +813,7 @@ def _build_authoring_task(
             item
             for item in styles
             if isinstance(item, dict)
-            and (
-                item.get("id") == "aesthetic_profile"
-                or str(item.get("token", "")).startswith("aesthetic.")
-            )
+            and (item.get("id") == "aesthetic_profile" or str(item.get("token", "")).startswith("aesthetic."))
         ]
         profile_requested = "aesthetic_profile" in candidates["style"] or any(
             item.get("id") in candidates["style"] for item in profile_matches
@@ -846,11 +839,7 @@ def _build_authoring_task(
                     ],
                 )
 
-        profile_ids = {
-            str(item.get("id"))
-            for item in profile_matches
-            if isinstance(item.get("id"), str)
-        }
+        profile_ids = {str(item.get("id")) for item in profile_matches if isinstance(item.get("id"), str)}
         for style_id in sorted(candidates["style"]):
             style = _item_by_id(view.get("styles"), style_id)
             if (
@@ -1114,7 +1103,10 @@ class ConvergenceSession:
             for value in (self.source_path_sha256, self.current_source_sha256, *self.seen_source_hashes)
         ):
             raise ValueError("convergence session hash is invalid")
-        if not all(isinstance(value, (int, float)) and not isinstance(value, bool) for value in (self.created_at, self.expires_at)):
+        if not all(
+            isinstance(value, (int, float)) and not isinstance(value, bool)
+            for value in (self.created_at, self.expires_at)
+        ):
             raise ValueError("convergence timestamps are invalid")
         if self.expires_at - self.created_at != CONVERGE_MAX_SECONDS:
             raise ValueError("convergence deadline does not match the V1 limit")
@@ -1418,7 +1410,9 @@ def _encoded_state(session: ConvergenceSession) -> bytes:
         "payload": payload,
         "payload_sha256": hashlib.sha256(payload_bytes).hexdigest(),
     }
-    encoded = json.dumps(envelope, ensure_ascii=False, allow_nan=False, indent=2, sort_keys=True).encode("utf-8") + b"\n"
+    encoded = (
+        json.dumps(envelope, ensure_ascii=False, allow_nan=False, indent=2, sort_keys=True).encode("utf-8") + b"\n"
+    )
     if len(encoded) > CONVERGE_MAX_STATE_BYTES:
         raise ConvergeError(
             "CONVERGE_STATE_TOO_LARGE",
@@ -1850,7 +1844,10 @@ def submit_convergence_patch(
             patch = parse_intent_patch(patch_value)
         except IntentPatchError as exc:
             raise _convert_patch_error(exc) from exc
-        if patch.source_kind != session.context.source_kind or patch.base_source_sha256 != session.current_source_sha256:
+        if (
+            patch.source_kind != session.context.source_kind
+            or patch.base_source_sha256 != session.current_source_sha256
+        ):
             raise ConvergeError(
                 "CONVERGE_SOURCE_CHANGED",
                 "Patch is not bound to the session's exact current source.",
@@ -1886,7 +1883,12 @@ def submit_convergence_patch(
         attempt_number = session.attempt_count + 1
         candidate_result: VerificationResult | None = None
         if session.mode == "verification":
-            assert session.baseline_result is not None
+            if session.baseline_result is None:
+                raise ConvergeError(
+                    "CONVERGE_BASELINE_REQUIRED",
+                    "Verifier-driven convergence session has no recorded baseline VerificationResult.",
+                    "Start the session again from the exact repair plan and its baseline result.",
+                )
             candidate_result = _run_candidate_verifier(
                 verifier,
                 intent_preview.candidate_text,
@@ -1962,7 +1964,12 @@ def _patch_file_for_preview(
 ) -> Path:
     root, _, _ = _state_paths(source, state_root)
     path = root / f"{preview.preview_id}.intentpatch.json"
-    content = json.dumps(preview.patch.to_json(), ensure_ascii=False, allow_nan=False, indent=2, sort_keys=True).encode("utf-8") + b"\n"
+    content = (
+        json.dumps(preview.patch.to_json(), ensure_ascii=False, allow_nan=False, indent=2, sort_keys=True).encode(
+            "utf-8"
+        )
+        + b"\n"
+    )
     if path.exists():
         if path.is_symlink() or not path.is_file() or path.read_bytes() != content:
             raise ConvergeError(

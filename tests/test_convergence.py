@@ -3,8 +3,9 @@ from __future__ import annotations
 import hashlib
 import json
 
-from hypothesis import given, strategies as st
 import pytest
+from hypothesis import given
+from hypothesis import strategies as st
 
 from viewspec.convergence import run_until_conformant
 from viewspec.verification import (
@@ -16,9 +17,7 @@ from viewspec.verification import (
 
 
 def _sha(value: object) -> str:
-    return hashlib.sha256(
-        json.dumps(value, sort_keys=True, separators=(",", ":")).encode()
-    ).hexdigest()
+    return hashlib.sha256(json.dumps(value, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
 
 
 def _result(
@@ -87,9 +86,7 @@ def test_compile_until_conformant_repairs_with_exact_lineage():
     assert len(run.attempts) == 2
     assert seen_lineage[0] == RetryLineage.root()
     assert seen_lineage[1].attempt == 2
-    assert seen_lineage[1].parent_verification_id == (
-        run.attempts[0].result.verification_id
-    )
+    assert seen_lineage[1].parent_verification_id == (run.attempts[0].result.verification_id)
     assert run.final_result.status == "conformant"
     assert run.to_json()["attempts"][0]["repair_plan"]["disposition"] == "repair"
 
@@ -155,11 +152,7 @@ def test_compile_until_conformant_rejects_plan_drift():
     def verify(bundle, lineage):
         nonlocal calls
         calls += 1
-        plan = (
-            VerificationPlan.default()
-            if calls == 1
-            else VerificationPlan(checks=("layout",))
-        )
+        plan = VerificationPlan.default() if calls == 1 else VerificationPlan(checks=("layout",))
         return _result(bundle, lineage, mode="retry", plan=plan)
 
     with pytest.raises(ValueError, match="plan changed"):

@@ -1,12 +1,22 @@
 from __future__ import annotations
 
+import importlib
 import json
+import os
+import queue
 import socket
+import subprocess
+import sys
+import threading
+import tomllib
+import types
+from collections.abc import Iterator
 from html import escape
 from pathlib import Path
 
 import pytest
 
+import viewspec.mcp_server as mcp_server_module
 from viewspec import (
     AGENT_ASSET_CHECK_COMMAND,
     AGENT_ASSET_CONTRACT_PROFILE,
@@ -16,8 +26,8 @@ from viewspec import (
     ViewSpecBuilder,
     profile_style_facts,
 )
-from viewspec.app_bundle import AGENT_APP_BUNDLE_SCHEMA, starter_app_bundle
 from viewspec.agent import AGENT_INTENT_BUNDLE_SCHEMA, AGENT_SYSTEM_PROMPT
+from viewspec.app_bundle import AGENT_APP_BUNDLE_SCHEMA, starter_app_bundle
 from viewspec.cli import main as cli_main
 from viewspec.emitters.html_tailwind import ACTION_EVENT_SCRIPT
 from viewspec.intent_tools import (
@@ -29,10 +39,10 @@ from viewspec.intent_tools import (
     validate_intent_bundle_file_tool,
 )
 from viewspec.local_tools import (
-    LocalToolError,
     MCP_RESULT_SCHEMA_VERSION,
-    check_artifact_tool,
+    LocalToolError,
     check_agent_assets_tool,
+    check_artifact_tool,
     compile_html_file_tool,
     diff_html_files_tool,
     export_agent_assets_tool,
@@ -42,6 +52,7 @@ from viewspec.local_tools import (
     tool_response,
 )
 from viewspec.mcp_server import MCP_INSTALL_HINT, MissingMCPDependency
+from viewspec.raw_html import MAX_HTML_INPUT_BYTES
 
 
 def _bundle_json() -> dict:
@@ -186,6 +197,314 @@ def _html_json_attr(value: object) -> str:
 def test_tool_response_rejects_reserved_data_key_shadowing():
     with pytest.raises(LocalToolError, match="reserved MCP result keys"):
         tool_response(True, "bad extension", data={"ok": False})
+
+
+def test_mcp_server_resolves_relative_and_symlinked_cwd_for_review_tools(monkeypatch, tmp_path):
+    instances: list[object] = []
+
+    class FakeFastMCP:
+        def __init__(self, name: str) -> None:
+            self.name = name
+            self.tools: dict[str, object] = {}
+            instances.append(self)
+
+        def tool(self, **_kwargs):
+            def register(func):
+                self.tools[func.__name__] = func
+                return func
+
+            return register
+
+        def run(self) -> None:
+            return None
+
+    fake_fastmcp = types.ModuleType("mcp.server.fastmcp")
+    fake_fastmcp.FastMCP = FakeFastMCP
+    monkeypatch.setitem(sys.modules, "mcp", types.ModuleType("mcp"))
+    monkeypatch.setitem(sys.modules, "mcp.server", types.ModuleType("mcp.server"))
+    monkeypatch.setitem(sys.modules, "mcp.server.fastmcp", fake_fastmcp)
+    monkeypatch.setattr(mcp_server_module, "mcp_dependency_available", lambda: True)
+    calls: list[tuple[str, object, object]] = []
+    monkeypatch.setattr(
+        mcp_server_module,
+        "review_status_cli",
+        lambda source, *, state_root: calls.append(("status", source, state_root)) or {"ok": True},
+    )
+    monkeypatch.setattr(
+        mcp_server_module,
+        "end_review_cli",
+        lambda source, *, state_root: calls.append(("end", source, state_root)) or {"ok": True},
+    )
+    monkeypatch.setattr(
+        mcp_server_module,
+        "poll_review_cli",
+        lambda source, **kwargs: calls.append(("poll", source, kwargs["state_root"])) or {"ok": True},
+    )
+    monkeypatch.setattr(
+        mcp_server_module,
+        "open_review_cli",
+        lambda source, **kwargs: calls.append(("open", source, kwargs["state_root"])) or {"ok": True},
+    )
+
+    project = tmp_path / "project"
+    project.mkdir()
+    (project / "viewspec.intent.json").write_text("{}", encoding="utf-8")
+    link = tmp_path / "link"
+    link.symlink_to(project, target_is_directory=True)
+    expected_state = project.resolve() / ".viewspec-review"
+    expected_source = project.resolve() / "viewspec.intent.json"
+
+    for cwd in (".", str(link)):
+        calls.clear()
+        monkeypatch.chdir(project)
+        mcp_server_module.run_mcp_server(cwd=cwd)
+        tools = instances[-1].tools
+
+        assert tools["get_review_status"](source=None)["ok"] is True
+        assert tools["get_review_status"](source="viewspec.intent.json")["ok"] is True
+        assert tools["end_review"]("viewspec.intent.json")["ok"] is True
+        assert tools["poll_review"]("viewspec.intent.json")["ok"] is True
+        assert tools["open_review"]("viewspec.intent.json")["ok"] is True
+
+        assert [call[0] for call in calls] == ["status", "status", "end", "poll", "open"]
+        assert calls[0][1] is None
+        assert all(call[1] == expected_source for call in calls[1:])
+        assert all(call[2] == expected_state for call in calls)
+
+
+def test_html_file_tools_refuse_oversized_files_before_reading(tmp_path, monkeypatch):
+    big = tmp_path / "big.html"
+    with big.open("wb") as handle:
+        handle.truncate(MAX_HTML_INPUT_BYTES + 1)
+    (tmp_path / "small.html").write_text("<h1>Small</h1>", encoding="utf-8")
+
+    def refuse_read_text(self, *args, **kwargs):
+        raise AssertionError(f"{self.name} must not be read before the size gate")
+
+    monkeypatch.setattr(Path, "read_text", refuse_read_text)
+
+    compiled = compile_html_file_tool("big.html", "out", cwd=tmp_path)
+    assert compiled["ok"] is False
+    assert compiled["errors"][0]["code"] == "HTML_INPUT_TOO_LARGE"
+    assert not (tmp_path / "out").exists()
+
+    lifted = lift_html_file_tool("big.html", cwd=tmp_path)
+    assert lifted["ok"] is False
+    assert lifted["errors"][0]["code"] == "HTML_INPUT_TOO_LARGE"
+
+    diffed = diff_html_files_tool("big.html", "small.html", cwd=tmp_path)
+    assert diffed["ok"] is False
+    assert diffed["errors"][0]["code"] == "HTML_INPUT_TOO_LARGE"
+
+
+ROOT = Path(__file__).resolve().parents[1]
+
+
+@pytest.fixture
+def isolated_mcp_modules() -> Iterator[None]:
+    """Let a test import stand-in ``mcp`` packages, then restore whatever was imported before."""
+
+    def owned() -> list[str]:
+        return [name for name in sys.modules if name == "mcp" or name.startswith("mcp.")]
+
+    saved = {name: sys.modules[name] for name in owned()}
+    for name in saved:
+        del sys.modules[name]
+    try:
+        yield
+    finally:
+        for name in owned():
+            del sys.modules[name]
+        sys.modules.update(saved)
+        importlib.invalidate_caches()
+
+
+# What mcp.server.fastmcp contains in each stand-in SDK; None leaves the module out.
+_FASTMCP_V1 = "class FastMCP:\n    pass\n"
+# MCP SDK 2.x keeps a mcp/server/fastmcp.py whose import fails with a migration hint.
+_FASTMCP_V2_STUB = "raise ModuleNotFoundError('This is mcp 2.x, where FastMCP was renamed', name=__name__)\n"
+
+
+def _write_stub_mcp(root: Path, fastmcp_source: str | None) -> None:
+    server = root / "mcp" / "server"
+    server.mkdir(parents=True)
+    (root / "mcp" / "__init__.py").write_text("", encoding="utf-8")
+    (server / "__init__.py").write_text("", encoding="utf-8")
+    if fastmcp_source is not None:
+        (server / "fastmcp.py").write_text(fastmcp_source, encoding="utf-8")
+
+
+@pytest.mark.parametrize("fastmcp_source", [_FASTMCP_V2_STUB, None], ids=["mcp2_stub", "module_absent"])
+def test_mcp_dependency_check_requires_the_module_the_server_imports(
+    monkeypatch, tmp_path, isolated_mcp_modules, fastmcp_source
+) -> None:
+    # An installed ``mcp`` whose mcp.server.fastmcp cannot be imported (MCP SDK 2.x) must not
+    # count as usable: the doctor would report it ready while the server cannot start.
+    _write_stub_mcp(tmp_path / "sdk", fastmcp_source)
+    monkeypatch.syspath_prepend(str(tmp_path / "sdk"))
+
+    assert mcp_server_module.mcp_dependency_available() is False
+    with pytest.raises(MissingMCPDependency):
+        mcp_server_module.run_mcp_server(cwd=tmp_path)
+
+
+def test_mcp_dependency_check_finds_the_server_module(monkeypatch, tmp_path, isolated_mcp_modules) -> None:
+    _write_stub_mcp(tmp_path / "sdk", _FASTMCP_V1)
+    monkeypatch.syspath_prepend(str(tmp_path / "sdk"))
+
+    assert mcp_server_module.mcp_dependency_available() is True
+
+
+def test_mcp_dependency_check_reports_a_missing_sdk_without_raising(isolated_mcp_modules) -> None:
+    sys.modules["mcp"] = None  # type: ignore[assignment]  # makes ``import mcp`` fail
+
+    assert mcp_server_module.mcp_dependency_available() is False
+
+
+# Stand-in SDKs whose mcp.server.fastmcp fails at import with something other than ImportError,
+# as a broken or partly upgraded install can (a pydantic model error, a syntax error).
+_FASTMCP_BROKEN_SOURCES = {
+    "runtime_error": "raise RuntimeError('pydantic could not build the FastMCP settings model')\n",
+    "syntax_error": "class FastMCP(\n",
+}
+
+
+@pytest.mark.parametrize("fastmcp_source", _FASTMCP_BROKEN_SOURCES.values(), ids=_FASTMCP_BROKEN_SOURCES.keys())
+def test_doctor_agents_reports_a_broken_mcp_sdk_instead_of_raising(
+    monkeypatch, tmp_path, capsys, isolated_mcp_modules, fastmcp_source
+) -> None:
+    _write_stub_mcp(tmp_path / "sdk", fastmcp_source)
+    monkeypatch.syspath_prepend(str(tmp_path / "sdk"))
+
+    assert mcp_server_module.mcp_dependency_available() is False
+    with pytest.raises(MissingMCPDependency):
+        mcp_server_module.run_mcp_server(cwd=tmp_path)
+
+    exit_code = cli_main(["doctor", "--agents"])
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["checks"]["mcp_dependency"] is False
+    assert payload["checks"]["mcp_install_hint"] == MCP_INSTALL_HINT
+    assert payload["ok"] is False
+    assert exit_code == 2
+
+
+def test_agents_extra_and_ci_pins_stay_on_the_mcp_1_api() -> None:
+    pyproject = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
+    (requirement,) = [dep for dep in pyproject["project"]["optional-dependencies"]["agents"] if dep.startswith("mcp")]
+    assert requirement.replace(" ", "") == "mcp>=1.9.0,<2"
+    pins = [
+        line.split("==", 1)[1].split(";", 1)[0].strip()
+        for line in (ROOT / "requirements-ci.txt").read_text(encoding="utf-8").splitlines()
+        if line.startswith("mcp==")
+    ]
+    assert len(pins) == 1 and pins[0].split(".")[0] == "1", pins
+
+
+def _registered_tool_names(monkeypatch, cwd: Path) -> set[str]:
+    names: set[str] = set()
+
+    class RecordingFastMCP:
+        def __init__(self, _name: str) -> None:
+            pass
+
+        def tool(self, **_kwargs):
+            def register(func):
+                names.add(func.__name__)
+                return func
+
+            return register
+
+        def run(self) -> None:
+            return None
+
+    fake_fastmcp = types.ModuleType("mcp.server.fastmcp")
+    fake_fastmcp.FastMCP = RecordingFastMCP
+    monkeypatch.setitem(sys.modules, "mcp.server.fastmcp", fake_fastmcp)
+    monkeypatch.setattr(mcp_server_module, "mcp_dependency_available", lambda: True)
+    mcp_server_module.run_mcp_server(cwd=cwd)
+    return names
+
+
+def test_real_stdio_mcp_server_initializes_and_lists_its_tools(monkeypatch, tmp_path) -> None:
+    """Run ``python -m viewspec mcp`` against the installed SDK (the CI legs install the agents extra)."""
+
+    if not mcp_server_module.mcp_dependency_available():
+        pytest.skip("the MCP SDK with mcp.server.fastmcp (viewspec[agents]) is not installed")
+    from mcp.types import LATEST_PROTOCOL_VERSION  # type: ignore[import-not-found]
+
+    expected_tools = _registered_tool_names(monkeypatch, tmp_path)
+    monkeypatch.undo()
+    assert len(expected_tools) > 20
+
+    stderr_path = tmp_path / "server.stderr"
+    env = {"PATH": os.defpath, "PYTHONPATH": str(ROOT / "src"), "PYTHONDONTWRITEBYTECODE": "1", "HOME": str(tmp_path)}
+    with stderr_path.open("wb") as stderr:
+        process = subprocess.Popen(
+            [sys.executable, "-m", "viewspec", "mcp", "--cwd", str(tmp_path)],
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            stderr=stderr,
+            cwd=tmp_path,
+            env=env,
+        )
+    assert process.stdin is not None and process.stdout is not None
+    lines: queue.Queue[bytes] = queue.Queue()
+
+    def pump(stream) -> None:
+        for line in iter(stream.readline, b""):
+            lines.put(line)
+        lines.put(b"")
+
+    threading.Thread(target=pump, args=(process.stdout,), daemon=True).start()
+
+    def send(message: dict[str, object]) -> None:
+        process.stdin.write(json.dumps(message).encode("utf-8") + b"\n")
+        process.stdin.flush()
+
+    def response(request_id: int) -> dict[str, object]:
+        while True:
+            try:
+                line = lines.get(timeout=60)
+            except queue.Empty:
+                pytest.fail(f"no MCP response {request_id} within 60s: {stderr_path.read_text(errors='replace')}")
+            if not line:
+                pytest.fail(f"MCP server closed stdout early: {stderr_path.read_text(errors='replace')}")
+            message = json.loads(line)
+            if message.get("id") == request_id:
+                return message
+
+    try:
+        send(
+            {
+                "jsonrpc": "2.0",
+                "id": 1,
+                "method": "initialize",
+                "params": {
+                    "protocolVersion": LATEST_PROTOCOL_VERSION,
+                    "capabilities": {},
+                    "clientInfo": {"name": "viewspec-tests", "version": "0"},
+                },
+            }
+        )
+        initialized = response(1)
+        assert "error" not in initialized, initialized
+        assert initialized["result"]["serverInfo"]["name"] == "viewspec"
+
+        send({"jsonrpc": "2.0", "method": "notifications/initialized"})
+        send({"jsonrpc": "2.0", "id": 2, "method": "tools/list", "params": {}})
+        listed = response(2)
+        assert "error" not in listed, listed
+        tools = listed["result"]["tools"]
+        assert {tool["name"] for tool in tools} == expected_tools
+        assert all(tool["description"] and tool["inputSchema"]["type"] == "object" for tool in tools)
+
+        process.stdin.close()
+        assert process.wait(timeout=30) == 0, stderr_path.read_text(errors="replace")
+    finally:
+        if process.poll() is None:
+            process.kill()
+            process.wait(timeout=30)
+        process.stdout.close()
 
 
 def test_mcp_missing_dependency_cli_hint(monkeypatch, capsys):
@@ -335,10 +654,20 @@ def test_export_agent_assets_tool_writes_prompt_and_schema(tmp_path):
     assert manifest["contract"]["check_command"] == AGENT_ASSET_CHECK_COMMAND
     assert exported["assets"]["contract_profile"] == AGENT_ASSET_CONTRACT_PROFILE
     assert exported["assets"]["check_command"] == AGENT_ASSET_CHECK_COMMAND
-    assert json.loads((tmp_path / ".viewspec/agent-intent-bundle.schema.json").read_text(encoding="utf-8")) == AGENT_INTENT_BUNDLE_SCHEMA
-    assert json.loads((tmp_path / ".viewspec/agent-intent-example.dashboard.json").read_text(encoding="utf-8")) == starter_intent_payload("dashboard")
-    assert json.loads((tmp_path / ".viewspec/agent-app-bundle.schema.json").read_text(encoding="utf-8")) == AGENT_APP_BUNDLE_SCHEMA
-    assert json.loads((tmp_path / ".viewspec/agent-app-example.internal-tool.json").read_text(encoding="utf-8")) == starter_app_bundle("internal_tool")
+    assert (
+        json.loads((tmp_path / ".viewspec/agent-intent-bundle.schema.json").read_text(encoding="utf-8"))
+        == AGENT_INTENT_BUNDLE_SCHEMA
+    )
+    assert json.loads(
+        (tmp_path / ".viewspec/agent-intent-example.dashboard.json").read_text(encoding="utf-8")
+    ) == starter_intent_payload("dashboard")
+    assert (
+        json.loads((tmp_path / ".viewspec/agent-app-bundle.schema.json").read_text(encoding="utf-8"))
+        == AGENT_APP_BUNDLE_SCHEMA
+    )
+    assert json.loads(
+        (tmp_path / ".viewspec/agent-app-example.internal-tool.json").read_text(encoding="utf-8")
+    ) == starter_app_bundle("internal_tool")
     assert {item["path"]: item["action"] for item in exported["assets"]["files"]} == {
         "agent-assets.json": "create",
         "agent-system-prompt.txt": "create",
@@ -548,10 +877,7 @@ def test_intent_mcp_compile_metadata_summarizes_checked_profile_layout(tmp_path)
     checked = check_artifact_tool("react-tailwind-dist", cwd=tmp_path)
     assert checked["ok"] is True
     assert checked["metadata"]["manifest_summary"]["aesthetic_profile"] == "aesthetic.editorial_product"
-    assert (
-        checked["metadata"]["manifest_summary"]["aesthetic_style"]["category_count"]
-        == style_facts["category_count"]
-    )
+    assert checked["metadata"]["manifest_summary"]["aesthetic_style"]["category_count"] == style_facts["category_count"]
     assert checked["metadata"]["manifest_summary"]["aesthetic_layout"]["metric_grid"]["columns"] == 1
 
 
@@ -709,7 +1035,9 @@ def test_intent_mcp_refuses_input_overwrite_before_design_load(tmp_path):
     intent_path = tmp_path / "provenance_manifest.json"
     intent_path.write_text(json.dumps(_bundle_json()), encoding="utf-8")
 
-    result = compile_intent_bundle_file_tool("provenance_manifest.json", ".", design_path="missing-DESIGN.md", cwd=tmp_path)
+    result = compile_intent_bundle_file_tool(
+        "provenance_manifest.json", ".", design_path="missing-DESIGN.md", cwd=tmp_path
+    )
 
     assert_tool_schema(result)
     assert result["ok"] is False
@@ -774,10 +1102,19 @@ def test_check_rejects_action_runtime_script_without_action_nodes(tmp_path):
 @pytest.mark.parametrize(
     ("snippet", "expected"),
     [
-        ('<img srcset="https://example.com/a.png 1x, https://example.com/b.png 2x" alt="">', "index.html contains an auto-fetching remote URL attribute"),
+        (
+            '<img srcset="https://example.com/a.png 1x, https://example.com/b.png 2x" alt="">',
+            "index.html contains an auto-fetching remote URL attribute",
+        ),
         ('<source srcset="//example.com/a.webp 1x">', "index.html contains an auto-fetching remote URL attribute"),
-        ('<meta http-equiv="refresh" content="0;url=https://example.com">', "index.html contains an active or auto-fetching surface"),
-        ('<svg><image href="https://example.com/chart.svg"></image></svg>', "index.html contains an auto-fetching remote URL attribute"),
+        (
+            '<meta http-equiv="refresh" content="0;url=https://example.com">',
+            "index.html contains an active or auto-fetching surface",
+        ),
+        (
+            '<svg><image href="https://example.com/chart.svg"></image></svg>',
+            "index.html contains an auto-fetching remote URL attribute",
+        ),
     ],
 )
 def test_check_rejects_tampered_autofetch_surfaces(tmp_path, snippet, expected):
@@ -804,12 +1141,18 @@ def test_check_rejects_tampered_autofetch_surfaces(tmp_path, snippet, expected):
     ("mutate", "expected"),
     [
         # <base> re-roots every relative URL cross-origin; it was in no checked tag set.
-        (lambda h: h.replace("<head>", '<head><base href="//evil.com/">', 1), "index.html contains an auto-fetching remote URL attribute"),
+        (
+            lambda h: h.replace("<head>", '<head><base href="//evil.com/">', 1),
+            "index.html contains an auto-fetching remote URL attribute",
+        ),
         # Unterminated final tags at EOF: the HTMLParser probe drops them, but a browser
         # completes the tag at EOF and fetches. The whole-file backstop catches them.
         (lambda h: h + '\n<iframe src="//evil.com/x"', "index.html contains an active or auto-fetching surface"),
         (lambda h: h + '\n<script src="//evil.com/b.js"', "index.html contains an auto-fetching remote URL attribute"),
-        (lambda h: h + '\n<meta http-equiv="refresh" content="0;url=//evil.com/"', "index.html contains an active or auto-fetching surface"),
+        (
+            lambda h: h + '\n<meta http-equiv="refresh" content="0;url=//evil.com/"',
+            "index.html contains an active or auto-fetching surface",
+        ),
         # Forbidden tag with no remote URL (srcdoc) -- caught by the tag marker, not the URL scan.
         (lambda h: h + '\n<iframe srcdoc="<b>x"', "index.html contains an active or auto-fetching surface"),
     ],
@@ -841,8 +1184,13 @@ def test_autofetch_backstop_is_attribute_scoped_not_text():
     from viewspec.local_tools_validators import _validate_no_autofetch_surfaces
 
     assert _validate_no_autofetch_surfaces("<html><body><p>See https://docs.example.com now</p></body></html>") == []
-    assert _validate_no_autofetch_surfaces("<html><body><p>CSS words URL( and @import are visible text</p></body></html>") == []
-    assert _validate_no_autofetch_surfaces('<html><body><p data-label="style=url(">Visible label</p></body></html>') == []
+    assert (
+        _validate_no_autofetch_surfaces("<html><body><p>CSS words URL( and @import are visible text</p></body></html>")
+        == []
+    )
+    assert (
+        _validate_no_autofetch_surfaces('<html><body><p data-label="style=url(">Visible label</p></body></html>') == []
+    )
     assert _validate_no_autofetch_surfaces('<html><body><img src="logo.png" alt=""></body></html>') == []
     assert _validate_no_autofetch_surfaces('<html><body></body></html>\n<iframe src="//evil.com/x"') != []
     assert _validate_no_autofetch_surfaces('<html><head><base href="//evil.com/"></head><body></body></html>') != []
@@ -851,12 +1199,12 @@ def test_autofetch_backstop_is_attribute_scoped_not_text():
 @pytest.mark.parametrize(
     "html",
     [
-        '<html><head><style>.x{background:url(//evil.example/x)}</style></head></html>',
+        "<html><head><style>.x{background:url(//evil.example/x)}</style></head></html>",
         '<html><head><style>@import "//evil.example/x";</style></head></html>',
         '<html><body><div style="background: URL(//evil.example/x)"></div></body></html>',
         '<html><body><div style="background:url(//evil.example/x)"',
         '<html><body><div data-label="safe" style="background:url(//evil.example/x)"',
-        '<html><head><style>.x{background:url(//evil.example/x)}',
+        "<html><head><style>.x{background:url(//evil.example/x)}",
     ],
 )
 def test_autofetch_backstop_rejects_css_references_only_in_css_contexts(html):
@@ -879,7 +1227,10 @@ def test_check_rejects_unknown_manifest_kind(tmp_path):
 
     assert_tool_schema(checked)
     assert checked["ok"] is False
-    assert any(error["message"] == "manifest kind must be one of: intent_bundle_compile, raw_html_compile" for error in checked["errors"])
+    assert any(
+        error["message"] == "manifest kind must be one of: intent_bundle_compile, raw_html_compile"
+        for error in checked["errors"]
+    )
 
 
 def test_check_rejects_intent_manifest_envelope_mismatch(tmp_path):
@@ -1077,7 +1428,10 @@ def test_check_rejects_missing_intent_manifest_node(tmp_path):
 
     assert_tool_schema(checked)
     assert checked["ok"] is False
-    assert any(error["message"] == f"DOM element {removed_dom_id} with data-ir-id is missing from manifest nodes" for error in checked["errors"])
+    assert any(
+        error["message"] == f"DOM element {removed_dom_id} with data-ir-id is missing from manifest nodes"
+        for error in checked["errors"]
+    )
 
 
 def test_check_rejects_intent_dom_ir_mismatch(tmp_path):
@@ -1100,7 +1454,9 @@ def test_check_rejects_intent_dom_ir_mismatch(tmp_path):
 
     assert_tool_schema(checked)
     assert checked["ok"] is False
-    assert any(error["message"] == f"manifest node {dom_id} ir_id does not match DOM data-ir-id" for error in checked["errors"])
+    assert any(
+        error["message"] == f"manifest node {dom_id} ir_id does not match DOM data-ir-id" for error in checked["errors"]
+    )
 
 
 def test_check_rejects_duplicate_binding_identity_in_dom(tmp_path):
@@ -1121,7 +1477,9 @@ def test_check_rejects_duplicate_binding_identity_in_dom(tmp_path):
 
     assert_tool_schema(checked)
     assert checked["ok"] is False
-    assert any(error["message"] == "index.html contains duplicate data-binding-id alpha_label" for error in checked["errors"])
+    assert any(
+        error["message"] == "index.html contains duplicate data-binding-id alpha_label" for error in checked["errors"]
+    )
 
 
 def test_check_rejects_binding_manifest_without_source_provenance(tmp_path):
@@ -1142,7 +1500,9 @@ def test_check_rejects_binding_manifest_without_source_provenance(tmp_path):
     assert checked["ok"] is False
     assert "manifest nodes.dom-binding_alpha_label.intent_refs must not be empty" in messages
     assert "manifest nodes.dom-binding_alpha_label.intent_refs must include viewspec:binding:alpha_label" in messages
-    assert "manifest nodes.dom-binding_alpha_label.content_refs must not be empty for binding_id alpha_label" in messages
+    assert (
+        "manifest nodes.dom-binding_alpha_label.content_refs must not be empty for binding_id alpha_label" in messages
+    )
 
 
 def test_check_rejects_intent_style_token_mismatch(tmp_path):
@@ -1159,7 +1519,7 @@ def test_check_rejects_intent_style_token_mismatch(tmp_path):
     attr_start = html.index('data-style-tokens="', node_start)
     attr_value_start = attr_start + len('data-style-tokens="')
     attr_end = html.index('"', attr_value_start)
-    tampered_html = f'{html[:attr_value_start]}[&quot;tampered&quot;]{html[attr_end:]}'
+    tampered_html = f"{html[:attr_value_start]}[&quot;tampered&quot;]{html[attr_end:]}"
     html_path.write_text(tampered_html, encoding="utf-8")
     manifest["artifact_hash"] = file_hash(html_path)
     manifest_path.write_text(json.dumps(manifest, indent=2, sort_keys=True), encoding="utf-8")
@@ -1197,7 +1557,9 @@ def test_check_rejects_intent_visible_text_mismatch(tmp_path):
 
     assert_tool_schema(checked)
     assert checked["ok"] is False
-    assert any(error["message"] == f"DOM element {dom_id} text does not match manifest props" for error in checked["errors"])
+    assert any(
+        error["message"] == f"DOM element {dom_id} text does not match manifest props" for error in checked["errors"]
+    )
 
 
 def test_check_rejects_tampered_action_button_semantics(tmp_path):
@@ -1207,7 +1569,9 @@ def test_check_rejects_tampered_action_button_semantics(tmp_path):
 
     html_path = tmp_path / "dist/index.html"
     tampered_html = html_path.read_text(encoding="utf-8").replace('type="button"', 'type="submit"', 1)
-    tampered_html = tampered_html.replace('data-action-target-ref="binding:alpha_label"', 'data-action-target-ref="binding:alpha_value"', 1)
+    tampered_html = tampered_html.replace(
+        'data-action-target-ref="binding:alpha_label"', 'data-action-target-ref="binding:alpha_value"', 1
+    )
     tampered_html = tampered_html.replace(
         'data-payload-bindings="[&quot;alpha_label&quot;, &quot;alpha_value&quot;]"',
         'data-payload-bindings="not-json"',
@@ -1274,7 +1638,10 @@ def test_check_rejects_tampered_image_slot_semantics(tmp_path):
 
     assert_tool_schema(checked)
     assert checked["ok"] is False
-    assert any(error["message"] == "DOM element dom-binding_hero_image image_slot aria-label does not match manifest props" for error in checked["errors"])
+    assert any(
+        error["message"] == "DOM element dom-binding_hero_image image_slot aria-label does not match manifest props"
+        for error in checked["errors"]
+    )
 
 
 def test_check_rejects_tampered_list_semantic_tags(tmp_path):
@@ -1294,7 +1661,10 @@ def test_check_rejects_tampered_list_semantic_tags(tmp_path):
 
     assert_tool_schema(checked)
     assert checked["ok"] is False
-    assert any(error["message"] == "manifest node dom-motif_tasks list stack must render as <ul>" for error in checked["errors"])
+    assert any(
+        error["message"] == "manifest node dom-motif_tasks list stack must render as <ul>"
+        for error in checked["errors"]
+    )
 
 
 def test_check_rejects_tampered_form_semantic_tags(tmp_path):
@@ -1422,20 +1792,18 @@ def test_check_rejects_tampered_table_semantic_tags(tmp_path):
         if entry["primitive"] == "cluster" and entry["props"].get("motif_kind") == "table"
     )
     header_dom_id = next(
-        dom_id
-        for dom_id, entry in manifest["nodes"].items()
-        if entry["props"].get("table_cell_role") == "row_header"
+        dom_id for dom_id, entry in manifest["nodes"].items() if entry["props"].get("table_cell_role") == "row_header"
     )
     cell_dom_id = next(
-        dom_id
-        for dom_id, entry in manifest["nodes"].items()
-        if entry["props"].get("table_cell_role") == "cell"
+        dom_id for dom_id, entry in manifest["nodes"].items() if entry["props"].get("table_cell_role") == "cell"
     )
     html = html_path.read_text(encoding="utf-8")
     tampered_html = html.replace("<table ", "<div ", 1).replace("</table>", "</div>", 1)
     tampered_html = tampered_html.replace("<tr ", "<section ", 1).replace("</tr>", "</section>", 1)
     tampered_html = tampered_html.replace('scope="row"', 'scope="col"', 1)
-    tampered_html = tampered_html.replace(f'<td id="{cell_dom_id}"', f'<span id="{cell_dom_id}"', 1).replace("</td>", "</span>", 1)
+    tampered_html = tampered_html.replace(f'<td id="{cell_dom_id}"', f'<span id="{cell_dom_id}"', 1).replace(
+        "</td>", "</span>", 1
+    )
     html_path.write_text(tampered_html, encoding="utf-8")
     manifest["artifact_hash"] = file_hash(html_path)
     manifest_path.write_text(json.dumps(manifest, indent=2, sort_keys=True), encoding="utf-8")
@@ -1576,14 +1944,18 @@ def test_mcp_path_sandbox_rejects_windows_drive_relative_tricks(tmp_path):
     assert_tool_schema(drive_relative)
     assert drive_relative["ok"] is False
     assert drive_relative["errors"][0]["code"] == "INVALID_PATH"
-    assert "drive-relative" in drive_relative["errors"][0]["message"] or drive_relative["errors"][0]["message"].startswith("Path does not exist")
+    assert "drive-relative" in drive_relative["errors"][0]["message"] or drive_relative["errors"][0][
+        "message"
+    ].startswith("Path does not exist")
     assert drive_relative["metadata"]["allow_outside_cwd"] is True
 
     rooted_current_drive = lift_html_file_tool("\\viewspec-rooted-trick.html", cwd=root, allow_outside_cwd=True)
     assert_tool_schema(rooted_current_drive)
     assert rooted_current_drive["ok"] is False
     assert rooted_current_drive["errors"][0]["code"] == "INVALID_PATH"
-    assert "rooted paths without a drive" in rooted_current_drive["errors"][0]["message"] or rooted_current_drive["errors"][0]["message"].startswith("Path does not exist")
+    assert "rooted paths without a drive" in rooted_current_drive["errors"][0]["message"] or rooted_current_drive[
+        "errors"
+    ][0]["message"].startswith("Path does not exist")
     assert rooted_current_drive["metadata"]["allow_outside_cwd"] is True
 
 

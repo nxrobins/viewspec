@@ -416,7 +416,7 @@ test.afterAll(() => {
   if (sourcePath && reviewState) {
     runViewspec(["review-end", sourcePath, "--state-dir", reviewState, "--json"], true);
   }
-  if (workspace) rmSync(workspace, { recursive: true, force: true });
+  if (workspace) rmSync(workspace, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 });
 });
 
 test("Studio carries a brief through three synchronized static/React semantic changes", async ({ page }, testInfo) => {

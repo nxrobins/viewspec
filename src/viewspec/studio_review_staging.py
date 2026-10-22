@@ -8,10 +8,10 @@ reserved entirely for SDK-created temporary uploads and extraction directories.
 from __future__ import annotations
 
 import os
-from pathlib import Path
 import re
 import shutil
 import stat
+from pathlib import Path
 
 from viewspec.studio_share import STUDIO_SHARE_ARCHIVE_MAX_BYTES, STUDIO_SHARE_MAX_FILES
 
@@ -29,9 +29,12 @@ def _check(value: bool) -> None:
 
 def _private(path: Path, *, directory: bool) -> os.stat_result:
     value = path.lstat()
-    _check((stat.S_ISDIR(value.st_mode) if directory else stat.S_ISREG(value.st_mode))
-           and value.st_uid == os.getuid() and not value.st_mode & 0o077
-           and (directory or value.st_nlink == 1))
+    _check(
+        (stat.S_ISDIR(value.st_mode) if directory else stat.S_ISREG(value.st_mode))
+        and value.st_uid == os.getuid()
+        and not value.st_mode & 0o077
+        and (directory or value.st_nlink == 1)
+    )
     return value
 
 

@@ -1,0 +1,486 @@
+{
+  "app_bundles": {
+    "agent-app-example.internal-tool": {
+      "source": "demos/agent-app-example.internal-tool.json",
+      "source_hash": "d2917c0bc2f416d8ddcf6ea3b6fee56c4320e650b20d506cf2dd68d4bf946d75",
+      "targets": {
+        "html-tailwind-app": {
+          "artifact_file": "index.html",
+          "artifact_hash": "aef5dc0a49652c7fd025bbce847863fb0a6a44eced9807086d22a0834b9dea61",
+          "files": {
+            "diagnostics.json": "d918b95ba598b0d34784670c6d53c1b2b9e01a4c1a2990aafa03436558c32203",
+            "index.html": "aef5dc0a49652c7fd025bbce847863fb0a6a44eced9807086d22a0834b9dea61",
+            "presentation_plan.json": "1df6b7a17ef5917769ede26afddae2d3575baafa1970cba5b7f6fde09afffbad",
+            "screens/detail/artifact/diagnostics.json": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "screens/detail/artifact/index.html": "c5e26c327e45f3cffaf4f2b8cd0327e3a839a6f372271688976a636f1adbedd7",
+            "screens/detail/artifact/provenance_manifest.json": "07a29ebe8f02b28078bc06bd472356393d862aea17e8469fc9e4b20a9a8c5cc6",
+            "screens/detail/viewspec.intent.json": "796b2b1979bacd87a9e494a8cf1cc26c6eac3f8038c8bc93032c0a77140fdb95",
+            "screens/queue/artifact/diagnostics.json": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "screens/queue/artifact/index.html": "5767e741e15683d81ebc97be4355eb50a9eb6f379246384a1ff8190c6555c6fe",
+            "screens/queue/artifact/provenance_manifest.json": "1f08bf0c726b597bffac18d7873c51b6fe6a878de366d84358f7340ea4a98203",
+            "screens/queue/viewspec.intent.json": "674cd9787e83642529d5c2242eb4b0712fef5bce5cf32aef8c42e37881f33b43",
+            "shell_manifest.json": "9337e6fd6260defe5cc0dd72bae0c7989e5ab6eb8cb36d9bfcd4960c4719f2cf"
+          },
+          "screens": {
+            "screens/detail/artifact": {
+              "artifact_hash": "c5e26c327e45f3cffaf4f2b8cd0327e3a839a6f372271688976a636f1adbedd7",
+              "semantic_digest": "9537f015efd07c8309082d6877ad837f8a9171986ad935f6959b2ccbf9988a21"
+            },
+            "screens/queue/artifact": {
+              "artifact_hash": "5767e741e15683d81ebc97be4355eb50a9eb6f379246384a1ff8190c6555c6fe",
+              "semantic_digest": "325f28aadd12f52e451a0ad48f93e8c9853cfb79406324f1f97ae9e376ad935f"
+            }
+          }
+        },
+        "react-tailwind-app": {
+          "artifact_file": "src/ViewSpecApp.tsx",
+          "artifact_hash": "a9890095383d1a4cc89829f2b30071a8bb22b2cf63c375fbde9a2a7fb670cc84",
+          "files": {
+            "diagnostics.json": "96ed8c224b2ef8d3152c57239714139438dde49693a25b307274aec4fa543044",
+            "index.html": "c08c6d6989a3f1e747a5c789142c524ac08bd2032978b4fa4d7fe385b61a9488",
+            "package-lock.json": "e02d181f7efe75ec3e5687cc98e989e3c81fa7a6ebe14c3a5e6ee772ad689965",
+            "package.json": "cd5c69f3fe6c23ff891bf2543f20930f78358407bc152208cc93c4e9274ec640",
+            "playwright.config.ts": "9f59ba4a903ce6c2140920fd0bf31b45d60ebdc6e052fef7d727eec7fedb165a",
+            "presentation_plan.json": "1df6b7a17ef5917769ede26afddae2d3575baafa1970cba5b7f6fde09afffbad",
+            "screens/detail/artifact/diagnostics.json": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "screens/detail/artifact/index.html": "c5e26c327e45f3cffaf4f2b8cd0327e3a839a6f372271688976a636f1adbedd7",
+            "screens/detail/artifact/provenance_manifest.json": "07a29ebe8f02b28078bc06bd472356393d862aea17e8469fc9e4b20a9a8c5cc6",
+            "screens/detail/viewspec.intent.json": "796b2b1979bacd87a9e494a8cf1cc26c6eac3f8038c8bc93032c0a77140fdb95",
+            "screens/queue/artifact/diagnostics.json": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "screens/queue/artifact/index.html": "5767e741e15683d81ebc97be4355eb50a9eb6f379246384a1ff8190c6555c6fe",
+            "screens/queue/artifact/provenance_manifest.json": "1f08bf0c726b597bffac18d7873c51b6fe6a878de366d84358f7340ea4a98203",
+            "screens/queue/viewspec.intent.json": "674cd9787e83642529d5c2242eb4b0712fef5bce5cf32aef8c42e37881f33b43",
+            "src/ViewSpecApp.tsx": "a9890095383d1a4cc89829f2b30071a8bb22b2cf63c375fbde9a2a7fb670cc84",
+            "src/index.css": "f7d84b1561a8974d8e02c334e2befde8e56e36f0b68eb42761f669dc61aef6ee",
+            "src/main.tsx": "54601a9ec4b1c402d839b8530fa85ff6f117fe970b36bd27682cb79c89bcf4f4",
+            "src/screens/detail/ViewSpecView.tsx": "93aac9a204bd8b8ba0a47e5722eadfa26f17e644ab6635d3f1b34a197fef1bc3",
+            "src/screens/detail/diagnostics.json": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "src/screens/detail/provenance_manifest.json": "5fa805a0a8af57919426dda3dd4e2d885912ed58df08ba191a0f607135cd17a2",
+            "src/screens/queue/ViewSpecView.tsx": "c7c6035e52ac01856b52195fe6b17a8ee987634cfe1837c60dcefbd9fb776bb0",
+            "src/screens/queue/diagnostics.json": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "src/screens/queue/provenance_manifest.json": "f5688c23f11f37b068db75ce9852a7f66209d28baa7044f2442513d04a5d1a07",
+            "src/state_reducer.ts": "19174c12312fc2210b53d84ab6921b85041708b044592265db9d96bd0b3546e4",
+            "src/vite-env.d.ts": "65996936fbb042915f7b74a200fcdde7e410f32a669b1ab9597cfaa4b0faddb5",
+            "tests/viewspec-app.spec.ts": "aeb0103be8bd8aa6fc8a2ea6e6b6d8a8f1f23cd27bdc571bca2d63c278ce44f8",
+            "tsconfig.json": "bc49a3c492c8d77c5fb8750be0f97982c4bd861dbbcc91d4573cdc2c758cf841",
+            "viewspec_app_manifest.json": "1e74947acd36b3719d3260e6960d80ae01ec08efcb3e02bfad10d7bf1fbbeed2",
+            "vite.config.ts": "bb86efeb11e83afcc5bf8a83127418024746b107a60ba6c7ccc187dca9cd1b5d"
+          },
+          "screens": {
+            "screens/detail/artifact": {
+              "artifact_hash": "c5e26c327e45f3cffaf4f2b8cd0327e3a839a6f372271688976a636f1adbedd7",
+              "semantic_digest": "9537f015efd07c8309082d6877ad837f8a9171986ad935f6959b2ccbf9988a21"
+            },
+            "screens/queue/artifact": {
+              "artifact_hash": "5767e741e15683d81ebc97be4355eb50a9eb6f379246384a1ff8190c6555c6fe",
+              "semantic_digest": "325f28aadd12f52e451a0ad48f93e8c9853cfb79406324f1f97ae9e376ad935f"
+            },
+            "src/screens/detail": {
+              "artifact_hash": "93aac9a204bd8b8ba0a47e5722eadfa26f17e644ab6635d3f1b34a197fef1bc3",
+              "semantic_digest": "9537f015efd07c8309082d6877ad837f8a9171986ad935f6959b2ccbf9988a21"
+            },
+            "src/screens/queue": {
+              "artifact_hash": "c7c6035e52ac01856b52195fe6b17a8ee987634cfe1837c60dcefbd9fb776bb0",
+              "semantic_digest": "325f28aadd12f52e451a0ad48f93e8c9853cfb79406324f1f97ae9e376ad935f"
+            }
+          }
+        }
+      }
+    }
+  },
+  "app_targets": [
+    "html-tailwind-app",
+    "react-tailwind-app"
+  ],
+  "cases": {
+    "app-detail": {
+      "kind": "app_screen",
+      "screen_id": "detail",
+      "source": "demos/agent-app-example.internal-tool.json",
+      "source_hash": "796b2b1979bacd87a9e494a8cf1cc26c6eac3f8038c8bc93032c0a77140fdb95",
+      "targets": {
+        "html-tailwind": {
+          "artifact_file": "index.html",
+          "artifact_hash": "f46ae745be5fec04c2fd7b41c6ad62c180d76b98c64775d855b323ea5e9aa4dc",
+          "files": {
+            "diagnostics.json": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "index.html": "f46ae745be5fec04c2fd7b41c6ad62c180d76b98c64775d855b323ea5e9aa4dc",
+            "provenance_manifest.json": "299ab60475d986f9c7de3baa1b3e9c72ef90563d3774238a9432728eab4971a0"
+          },
+          "semantic_digest": "68129cd6ed88c91d78f9bd7b1151e2ddb7c09874d6895d0f9282a36a2cc6ac01"
+        },
+        "react-tailwind-tsx": {
+          "artifact_file": "ViewSpecView.tsx",
+          "artifact_hash": "a2617acffbbd493943471c6bd400e11798594826e96b7ceb10d48b5876f31ee4",
+          "files": {
+            "ViewSpecView.tsx": "a2617acffbbd493943471c6bd400e11798594826e96b7ceb10d48b5876f31ee4",
+            "diagnostics.json": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "provenance_manifest.json": "da638d59c71de002c74c7d34d6f09bb528d8645c9a2cbc396ff12350a8a56771"
+          },
+          "semantic_digest": "68129cd6ed88c91d78f9bd7b1151e2ddb7c09874d6895d0f9282a36a2cc6ac01"
+        },
+        "react-tsx": {
+          "artifact_file": "ViewSpecView.tsx",
+          "artifact_hash": "fe6b6067c98f49b064a426badac90f4270d2c0546ebca4044fb2d244a12be1e8",
+          "files": {
+            "ViewSpecView.tsx": "fe6b6067c98f49b064a426badac90f4270d2c0546ebca4044fb2d244a12be1e8",
+            "diagnostics.json": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "provenance_manifest.json": "b3961db9bc33b95b521a0c2ec22d0aa279399b7cf26bfd2be160b23f6cbe89cb"
+          },
+          "semantic_digest": "68129cd6ed88c91d78f9bd7b1151e2ddb7c09874d6895d0f9282a36a2cc6ac01"
+        }
+      }
+    },
+    "app-queue": {
+      "kind": "app_screen",
+      "screen_id": "queue",
+      "source": "demos/agent-app-example.internal-tool.json",
+      "source_hash": "674cd9787e83642529d5c2242eb4b0712fef5bce5cf32aef8c42e37881f33b43",
+      "targets": {
+        "html-tailwind": {
+          "artifact_file": "index.html",
+          "artifact_hash": "1bcca72c3576879d6519f805a894db237d43a16ce3b504f6c1630c2e69882797",
+          "files": {
+            "diagnostics.json": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "index.html": "1bcca72c3576879d6519f805a894db237d43a16ce3b504f6c1630c2e69882797",
+            "provenance_manifest.json": "15f4664834637df90f4be85edc89877d20d1802a7c7426865739ecf7c42c8101"
+          },
+          "semantic_digest": "5199f6f5d35c7c3fa63c337e3602899386af3bf9ddfd051326188e777be8935c"
+        },
+        "react-tailwind-tsx": {
+          "artifact_file": "ViewSpecView.tsx",
+          "artifact_hash": "5e70ed8213772e3a5a059bcd073c49d25bc20c430664b5d22f6a8eb27558c37a",
+          "files": {
+            "ViewSpecView.tsx": "5e70ed8213772e3a5a059bcd073c49d25bc20c430664b5d22f6a8eb27558c37a",
+            "diagnostics.json": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "provenance_manifest.json": "36f277024b901f62242deae69e4971376c6e9bca5d66db12113bcd00baad39dc"
+          },
+          "semantic_digest": "5199f6f5d35c7c3fa63c337e3602899386af3bf9ddfd051326188e777be8935c"
+        },
+        "react-tsx": {
+          "artifact_file": "ViewSpecView.tsx",
+          "artifact_hash": "78a1f7c96331fb3c3d2b7c67e61b1507554b4731cd3cb48a34acaa29c34c5017",
+          "files": {
+            "ViewSpecView.tsx": "78a1f7c96331fb3c3d2b7c67e61b1507554b4731cd3cb48a34acaa29c34c5017",
+            "diagnostics.json": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "provenance_manifest.json": "d3fc49851116e5b1426337529911381ee1a064776f6ecaecf72f1856768dd276"
+          },
+          "semantic_digest": "5199f6f5d35c7c3fa63c337e3602899386af3bf9ddfd051326188e777be8935c"
+        }
+      }
+    },
+    "collection-states": {
+      "kind": "intent",
+      "screen_id": null,
+      "source": "conformance/verification/fixtures/collection-states.intent.json",
+      "source_hash": "011872d9c56ea49f9f5ab1edc612f8cd238bebb2012d8972f1d1064b0beafc65",
+      "targets": {
+        "html-tailwind": {
+          "artifact_file": "index.html",
+          "artifact_hash": "c1dc47ffc9c5ca9a2c5ad0a1106daf6f6ede518a77f431e02147b26af4be2552",
+          "files": {
+            "diagnostics.json": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "index.html": "c1dc47ffc9c5ca9a2c5ad0a1106daf6f6ede518a77f431e02147b26af4be2552",
+            "provenance_manifest.json": "1abca891e873a896a770f49b6ee7467bcc8b6ff2253c75703b066d80f7be2539"
+          },
+          "semantic_digest": "061a7d0b37722bbbadd0d67709be8fee0b19cdece4c58904db5bc452b2668fbf"
+        },
+        "react-tailwind-tsx": {
+          "artifact_file": "ViewSpecView.tsx",
+          "artifact_hash": "9c261d702374461a7f780ba7e57e43cc4d575a3aaad1cc4330e92b12da59c844",
+          "files": {
+            "ViewSpecView.tsx": "9c261d702374461a7f780ba7e57e43cc4d575a3aaad1cc4330e92b12da59c844",
+            "diagnostics.json": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "provenance_manifest.json": "5fa90ddf4a8dfd814a101812ce537999a6a8a84aff2bbc1866cf727d71934d57"
+          },
+          "semantic_digest": "061a7d0b37722bbbadd0d67709be8fee0b19cdece4c58904db5bc452b2668fbf"
+        },
+        "react-tsx": {
+          "artifact_file": "ViewSpecView.tsx",
+          "artifact_hash": "cb8d757574c93ca29ac1ab4171d54b8893f31337fe1a028990f3e5a9a3ed69d3",
+          "files": {
+            "ViewSpecView.tsx": "cb8d757574c93ca29ac1ab4171d54b8893f31337fe1a028990f3e5a9a3ed69d3",
+            "diagnostics.json": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "provenance_manifest.json": "566fcf80e24b2ea8d10091fe488de74b7f3abb27e546112151daf62fe988cce5"
+          },
+          "semantic_digest": "061a7d0b37722bbbadd0d67709be8fee0b19cdece4c58904db5bc452b2668fbf"
+        }
+      }
+    },
+    "data-dense-dashboard": {
+      "kind": "intent",
+      "screen_id": null,
+      "source": "demos/agent-intent-example.dashboard.json",
+      "source_hash": "2f927effe0949f688418e477c09eab56bc3b57dbe289f301979221d723018f3f",
+      "targets": {
+        "html-tailwind": {
+          "artifact_file": "index.html",
+          "artifact_hash": "80e497884b0e3eac47126612ab01f3e2cf484e128610f61562f9a3d417250f27",
+          "files": {
+            "diagnostics.json": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "index.html": "80e497884b0e3eac47126612ab01f3e2cf484e128610f61562f9a3d417250f27",
+            "provenance_manifest.json": "d44280da76f45af705509f7315b96e8521dbf2b5af85628131a5d38875db3acd"
+          },
+          "semantic_digest": "4231ad86844a2780468914af751eb46a5e95a4398feec2b150b39f89aeeb1b72"
+        },
+        "react-tailwind-tsx": {
+          "artifact_file": "ViewSpecView.tsx",
+          "artifact_hash": "4bd08083f1a946c3e2ce7c69a8d6d9c8fdd0b1d48c3dc6d4f79dbbd1c77c2e0f",
+          "files": {
+            "ViewSpecView.tsx": "4bd08083f1a946c3e2ce7c69a8d6d9c8fdd0b1d48c3dc6d4f79dbbd1c77c2e0f",
+            "diagnostics.json": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "provenance_manifest.json": "60b11abf1dc759a55b96dfc4822dbc76624a7ad67b26aa6a57bf80a68cb318c8"
+          },
+          "semantic_digest": "4231ad86844a2780468914af751eb46a5e95a4398feec2b150b39f89aeeb1b72"
+        },
+        "react-tsx": {
+          "artifact_file": "ViewSpecView.tsx",
+          "artifact_hash": "964a77c840d5f53304bd0f6b83818b7750beeceb7dd8cd8da11812cad54febd1",
+          "files": {
+            "ViewSpecView.tsx": "964a77c840d5f53304bd0f6b83818b7750beeceb7dd8cd8da11812cad54febd1",
+            "diagnostics.json": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "provenance_manifest.json": "5d3523fb20ca6a6fda263bedbe233ca9c201d9d2ef69724d2a96711f45ddf19b"
+          },
+          "semantic_digest": "4231ad86844a2780468914af751eb46a5e95a4398feec2b150b39f89aeeb1b72"
+        }
+      }
+    },
+    "dense-operational-console": {
+      "kind": "intent",
+      "screen_id": null,
+      "source": "conformance/verification/fixtures/dense-operational-console.intent.json",
+      "source_hash": "f94b55facb2652507b9797d8da38af1f995fe81f6b97cf011c86ff168ab8d62a",
+      "targets": {
+        "html-tailwind": {
+          "artifact_file": "index.html",
+          "artifact_hash": "91c7bc29038d3e3effac5e2b5adaf7dce99d0f394c950761f3cd08fdf9f1271f",
+          "files": {
+            "diagnostics.json": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "index.html": "91c7bc29038d3e3effac5e2b5adaf7dce99d0f394c950761f3cd08fdf9f1271f",
+            "provenance_manifest.json": "06dd7f68909403bf304d370d931ba0afed1d1f1421b1d548659a5fcc46f47930"
+          },
+          "semantic_digest": "7205637a1e5be8df4413877b51d552e530c956af2338c29c0105f31fbfea8df7"
+        },
+        "react-tailwind-tsx": {
+          "artifact_file": "ViewSpecView.tsx",
+          "artifact_hash": "3a8c3f161c2b785e606a0cb0ef99b4af485dee8987450d79eb5c38b46294216b",
+          "files": {
+            "ViewSpecView.tsx": "3a8c3f161c2b785e606a0cb0ef99b4af485dee8987450d79eb5c38b46294216b",
+            "diagnostics.json": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "provenance_manifest.json": "fa1fd8ea368787476f1aaa274886ac70c048a68fef63a77421b95b707e5902c6"
+          },
+          "semantic_digest": "7205637a1e5be8df4413877b51d552e530c956af2338c29c0105f31fbfea8df7"
+        },
+        "react-tsx": {
+          "artifact_file": "ViewSpecView.tsx",
+          "artifact_hash": "a27efd40ab90832d5448a0aa5e08f2c22a56dde0885fbb2e49be0ab51ebed10a",
+          "files": {
+            "ViewSpecView.tsx": "a27efd40ab90832d5448a0aa5e08f2c22a56dde0885fbb2e49be0ab51ebed10a",
+            "diagnostics.json": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "provenance_manifest.json": "873b9406f90afecdefcb1961080513936596743343038ed044bef2b682c34df0"
+          },
+          "semantic_digest": "7205637a1e5be8df4413877b51d552e530c956af2338c29c0105f31fbfea8df7"
+        }
+      }
+    },
+    "interactive-form": {
+      "kind": "intent",
+      "screen_id": null,
+      "source": "conformance/verification/fixtures/interactive-form.intent.json",
+      "source_hash": "16c47f6f5d01fd03135e4b0cbdfbf469bff1130adc210e544c1bc5cf8ee4dcf7",
+      "targets": {
+        "html-tailwind": {
+          "artifact_file": "index.html",
+          "artifact_hash": "b5ef3b0fa89bd0e08d0bd52b43c4b52357b1cd3b6a67f6252ead4e4474e620c1",
+          "files": {
+            "diagnostics.json": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "index.html": "b5ef3b0fa89bd0e08d0bd52b43c4b52357b1cd3b6a67f6252ead4e4474e620c1",
+            "provenance_manifest.json": "efc4c0165d09ab92dcec8df04f9f1202fcb8e836c03e70ac39d2ae0019f5af3e"
+          },
+          "semantic_digest": "9b931eab8463cd880c6eefd3aabf9171e501e3afb7528a06cef55af78b6afa4d"
+        },
+        "react-tailwind-tsx": {
+          "artifact_file": "ViewSpecView.tsx",
+          "artifact_hash": "5b26e5bf49b6a5208f81d36e2aad8d8b70214a915b592b5dea847adb6c9d8639",
+          "files": {
+            "ViewSpecView.tsx": "5b26e5bf49b6a5208f81d36e2aad8d8b70214a915b592b5dea847adb6c9d8639",
+            "diagnostics.json": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "provenance_manifest.json": "1f5ab94c35e3946ab8fd3eab63705aa753fd236bcfb105fb1fbaf85521b05fc6"
+          },
+          "semantic_digest": "9b931eab8463cd880c6eefd3aabf9171e501e3afb7528a06cef55af78b6afa4d"
+        },
+        "react-tsx": {
+          "artifact_file": "ViewSpecView.tsx",
+          "artifact_hash": "1706d1972108c4d7f7ca763bd47fd5c47f6396e5684d19aea63b74cf2ed23629",
+          "files": {
+            "ViewSpecView.tsx": "1706d1972108c4d7f7ca763bd47fd5c47f6396e5684d19aea63b74cf2ed23629",
+            "diagnostics.json": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "provenance_manifest.json": "591c0e27337f8e32fd8ea277bffaca3e0cae74d8cfb4a58c4af0ea5e779593a0"
+          },
+          "semantic_digest": "9b931eab8463cd880c6eefd3aabf9171e501e3afb7528a06cef55af78b6afa4d"
+        }
+      }
+    },
+    "landing-intent": {
+      "kind": "intent",
+      "screen_id": null,
+      "source": "demos/landing-compiled/intent_bundle.json",
+      "source_hash": "7f110ac177987ab6af72d9ae5b6afacc76a528a37d6789063472954851d9b271",
+      "targets": {
+        "html-tailwind": {
+          "artifact_file": "index.html",
+          "artifact_hash": "1af10c2dfc48bd9b2a62788f9eb5bc97cc836b2390df2f6f62d41756d2ac5ed9",
+          "files": {
+            "diagnostics.json": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "index.html": "1af10c2dfc48bd9b2a62788f9eb5bc97cc836b2390df2f6f62d41756d2ac5ed9",
+            "provenance_manifest.json": "3847783382a02a2c2c94cd05071b3336b0e237e0158e02a620fcbd83082d783c"
+          },
+          "semantic_digest": "1b7ed1e6f61b59c74a58e4d65beae31e4c263454167b926b1bce5e7110a7468f"
+        },
+        "react-tailwind-tsx": {
+          "artifact_file": "ViewSpecView.tsx",
+          "artifact_hash": "65a880eff051bc72481494c454cf8add91a6728882dd80dfc8b4626f100baeab",
+          "files": {
+            "ViewSpecView.tsx": "65a880eff051bc72481494c454cf8add91a6728882dd80dfc8b4626f100baeab",
+            "diagnostics.json": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "provenance_manifest.json": "194dbd302b0331d19429b622d9de7ba671c4a6909ec68c33da6f50b0612b17b6"
+          },
+          "semantic_digest": "1b7ed1e6f61b59c74a58e4d65beae31e4c263454167b926b1bce5e7110a7468f"
+        },
+        "react-tsx": {
+          "artifact_file": "ViewSpecView.tsx",
+          "artifact_hash": "019c9178dfe3cfa6b63d039ea5922e55103d2c2e67ed7409ef2d1703ef5bda0b",
+          "files": {
+            "ViewSpecView.tsx": "019c9178dfe3cfa6b63d039ea5922e55103d2c2e67ed7409ef2d1703ef5bda0b",
+            "diagnostics.json": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "provenance_manifest.json": "670ebeb91f219c5e44a4c9cf0649a5915e126bf45389266dd5aba7bb195cdaf3"
+          },
+          "semantic_digest": "1b7ed1e6f61b59c74a58e4d65beae31e4c263454167b926b1bce5e7110a7468f"
+        }
+      }
+    },
+    "multi-step-workflow": {
+      "kind": "intent",
+      "screen_id": null,
+      "source": "conformance/verification/fixtures/multi-step-workflow.intent.json",
+      "source_hash": "5936001fcfaf1e8e76e5cd9391c41388981835133216cd49c9af9fc8c2d91bec",
+      "targets": {
+        "html-tailwind": {
+          "artifact_file": "index.html",
+          "artifact_hash": "c3db9777836b6d2a87bacb2c13efee9d939885dd30cc20006c2a6f8ac97d0985",
+          "files": {
+            "diagnostics.json": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "index.html": "c3db9777836b6d2a87bacb2c13efee9d939885dd30cc20006c2a6f8ac97d0985",
+            "provenance_manifest.json": "b92cbf7a85c609ac140c295c9a1e5cfe430934fe6733eed7af957e279bcca0a7"
+          },
+          "semantic_digest": "ff8629ca06d9cf44f57435951576c61700c0da25b948d81a45de13a7e06c2107"
+        },
+        "react-tailwind-tsx": {
+          "artifact_file": "ViewSpecView.tsx",
+          "artifact_hash": "0ec6a73c964b0c71f719f0a610c55c5e7095d372ee73d4f12871c5809eb94279",
+          "files": {
+            "ViewSpecView.tsx": "0ec6a73c964b0c71f719f0a610c55c5e7095d372ee73d4f12871c5809eb94279",
+            "diagnostics.json": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "provenance_manifest.json": "891e1fb9e2772fa3e6f59666352fc37686175cb6c41fc9dba7e29e5f79786f27"
+          },
+          "semantic_digest": "ff8629ca06d9cf44f57435951576c61700c0da25b948d81a45de13a7e06c2107"
+        },
+        "react-tsx": {
+          "artifact_file": "ViewSpecView.tsx",
+          "artifact_hash": "8c0312a296e2c0310dcf819f5564859648d812728694c4c9cc6f559abe00c210",
+          "files": {
+            "ViewSpecView.tsx": "8c0312a296e2c0310dcf819f5564859648d812728694c4c9cc6f559abe00c210",
+            "diagnostics.json": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "provenance_manifest.json": "b6f100c27d652b133bfcdfd15a47b516f3e4fef84d0038e22e8a0e14c92dfcbc"
+          },
+          "semantic_digest": "ff8629ca06d9cf44f57435951576c61700c0da25b948d81a45de13a7e06c2107"
+        }
+      }
+    },
+    "outcome-states": {
+      "kind": "intent",
+      "screen_id": null,
+      "source": "conformance/verification/fixtures/outcome-states.intent.json",
+      "source_hash": "b4fb8cd6d9815c797babba88d82423ffccb32aa28d3aa27cf6807118ed40f819",
+      "targets": {
+        "html-tailwind": {
+          "artifact_file": "index.html",
+          "artifact_hash": "047122548c70ccc48678a5f4517a81b8b81fd16a50204b703b17449e9290d943",
+          "files": {
+            "diagnostics.json": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "index.html": "047122548c70ccc48678a5f4517a81b8b81fd16a50204b703b17449e9290d943",
+            "provenance_manifest.json": "4ce2188d7b944c6fed900e6edb82881e600415f01476c9d2dc40ccf8f32d3605"
+          },
+          "semantic_digest": "38b1e8977a5e3909266652aa0bb3df027902826a10054218bbf0769ea9fdd0ae"
+        },
+        "react-tailwind-tsx": {
+          "artifact_file": "ViewSpecView.tsx",
+          "artifact_hash": "6b7e666e13efb9432798aec5c123dee5302861811c014c931b6f755ddd2411d8",
+          "files": {
+            "ViewSpecView.tsx": "6b7e666e13efb9432798aec5c123dee5302861811c014c931b6f755ddd2411d8",
+            "diagnostics.json": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "provenance_manifest.json": "df31e9d1cb9c0851b1241f5d7e5d091892f0022450cbd993fcba1c2182086fcf"
+          },
+          "semantic_digest": "38b1e8977a5e3909266652aa0bb3df027902826a10054218bbf0769ea9fdd0ae"
+        },
+        "react-tsx": {
+          "artifact_file": "ViewSpecView.tsx",
+          "artifact_hash": "40ab745d53a3c1b88add5ed61b242c8f9c6b38bca84464f76c0965e44208f673",
+          "files": {
+            "ViewSpecView.tsx": "40ab745d53a3c1b88add5ed61b242c8f9c6b38bca84464f76c0965e44208f673",
+            "diagnostics.json": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "provenance_manifest.json": "03c06b36c148db627a98b4c5d531ed7c0aca23cf46b061ee1fcec50bf80a7cfd"
+          },
+          "semantic_digest": "38b1e8977a5e3909266652aa0bb3df027902826a10054218bbf0769ea9fdd0ae"
+        }
+      }
+    },
+    "settings": {
+      "kind": "intent",
+      "screen_id": null,
+      "source": "conformance/verification/fixtures/settings.intent.json",
+      "source_hash": "8f45cc5b92f046ae38d09d547ec03fbb225b3ed8fee24b2c4f70be40b747c738",
+      "targets": {
+        "html-tailwind": {
+          "artifact_file": "index.html",
+          "artifact_hash": "382ad0ce29b86b8201ceffbe08a58e5d5e87186a6fdedd150921dacd3b7de938",
+          "files": {
+            "diagnostics.json": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "index.html": "382ad0ce29b86b8201ceffbe08a58e5d5e87186a6fdedd150921dacd3b7de938",
+            "provenance_manifest.json": "616b73d673e15523cdf6b27ac30c3faef9c78b2b0a47e0e1763d183176b4813b"
+          },
+          "semantic_digest": "4ddd0b85d42edd222d0b787404dc0ca4e87cdfdcd731eebb4c0c0d72cbc54c24"
+        },
+        "react-tailwind-tsx": {
+          "artifact_file": "ViewSpecView.tsx",
+          "artifact_hash": "256dfe714ea5eaf9d9006f867d276a93e483e28394910d33549b3f01cb3e686d",
+          "files": {
+            "ViewSpecView.tsx": "256dfe714ea5eaf9d9006f867d276a93e483e28394910d33549b3f01cb3e686d",
+            "diagnostics.json": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "provenance_manifest.json": "6f8efc2120a8e0484cbfe9c69b922a0d1b6e9be34ffd141e9a45220ced5395b8"
+          },
+          "semantic_digest": "4ddd0b85d42edd222d0b787404dc0ca4e87cdfdcd731eebb4c0c0d72cbc54c24"
+        },
+        "react-tsx": {
+          "artifact_file": "ViewSpecView.tsx",
+          "artifact_hash": "a7e0ccc57849ccb3f7003c6a0b178ea5c6a890f0dfdfc4bd95553ea80f3fda50",
+          "files": {
+            "ViewSpecView.tsx": "a7e0ccc57849ccb3f7003c6a0b178ea5c6a890f0dfdfc4bd95553ea80f3fda50",
+            "diagnostics.json": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "provenance_manifest.json": "cabb89d59fbee430a673034a59864e65301c245c670a070726ab1d3a11028952"
+          },
+          "semantic_digest": "4ddd0b85d42edd222d0b787404dc0ca4e87cdfdcd731eebb4c0c0d72cbc54c24"
+        }
+      }
+    }
+  },
+  "corpus": "conformance/verification/corpus.json",
+  "intent_targets": [
+    "html-tailwind",
+    "react-tsx",
+    "react-tailwind-tsx"
+  ],
+  "regenerate": "python scripts/update_corpus_goldens.py",
+  "schema_version": 1,
+  "sdk_version": "0.3.0b12"
+}

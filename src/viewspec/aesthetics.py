@@ -7,7 +7,6 @@ import re
 
 from viewspec.types import DEFAULT_STYLE_TOKEN_VALUES
 
-
 AESTHETIC_PROFILE_PREFIX = "aesthetic."
 AESTHETIC_PROFILE_TOKENS = (
     "aesthetic.calm_ops",
@@ -365,9 +364,7 @@ def profile_shape_var_css(profile: str) -> str:
 def profile_style_facts(profile: str) -> dict[str, object]:
     values = profile_style_values(profile)
     changed_tokens = sorted(
-        token
-        for token, css in values.items()
-        if DEFAULT_STYLE_TOKEN_VALUES.get(token, "").strip() != css.strip()
+        token for token, css in values.items() if DEFAULT_STYLE_TOKEN_VALUES.get(token, "").strip() != css.strip()
     )
     categories = sorted({token.split(".", 1)[0] for token in changed_tokens if "." in token})
     changed_values = {token: values[token] for token in changed_tokens}
@@ -460,7 +457,9 @@ def profile_projection_axes(profile: str) -> dict[str, object]:
 
     background = _last_css_value(values.get("palette.temperature", ""), "background-color") or _BASE_BACKGROUND
     if not _HEX_RE.match(background):
-        raise AestheticProfileError("AESTHETIC_PROFILE_UNSAFE_STYLE", f"{profile} ground: cannot measure {background!r}")
+        raise AestheticProfileError(
+            "AESTHETIC_PROFILE_UNSAFE_STYLE", f"{profile} ground: cannot measure {background!r}"
+        )
     luminance = _srgb_luminance(background)
 
     font_family = _last_css_value(values.get("tone.neutral", ""), "font-family")
@@ -529,16 +528,16 @@ def validate_aesthetic_profile_registry() -> None:
         _validate_profile_style_values(profile, values)
         layout_props = AESTHETIC_PROFILE_LAYOUT_PROPS.get(profile)
         if layout_props is None:
-            raise AestheticProfileError("AESTHETIC_DEFAULT_REGRESSION", f"Missing profile layout defaults for {profile}.")
+            raise AestheticProfileError(
+                "AESTHETIC_DEFAULT_REGRESSION", f"Missing profile layout defaults for {profile}."
+            )
         _validate_profile_layout_props(profile, layout_props)
         shape_vars = AESTHETIC_PROFILE_SHAPE_VARS.get(profile)
         if shape_vars is None:
             raise AestheticProfileError("AESTHETIC_DEFAULT_REGRESSION", f"Missing profile shape vars for {profile}.")
         _validate_profile_shape_vars(profile, shape_vars)
         changed_tokens = {
-            token
-            for token, css in values.items()
-            if DEFAULT_STYLE_TOKEN_VALUES.get(token, "").strip() != css.strip()
+            token for token, css in values.items() if DEFAULT_STYLE_TOKEN_VALUES.get(token, "").strip() != css.strip()
         }
         categories = {token.split(".", 1)[0] for token in changed_tokens if "." in token}
         if (
@@ -558,19 +557,30 @@ def _validate_profile_layout_props(profile: str, values: dict[str, dict[str, int
         raise AestheticProfileError("AESTHETIC_PROFILE_LAYOUT_UNSAFE", f"{profile} must declare closed layout props.")
     for role, props in values.items():
         if role not in AESTHETIC_PROFILE_LAYOUT_ROLES:
-            raise AestheticProfileError("AESTHETIC_PROFILE_LAYOUT_UNSAFE", f"{profile} targets unsupported layout role {role}.")
+            raise AestheticProfileError(
+                "AESTHETIC_PROFILE_LAYOUT_UNSAFE", f"{profile} targets unsupported layout role {role}."
+            )
         if role in {"content_grid", "metric_grid"}:
             if set(props) != {"columns"}:
-                raise AestheticProfileError("AESTHETIC_PROFILE_LAYOUT_UNSAFE", f"{profile} may only set grid layout columns.")
+                raise AestheticProfileError(
+                    "AESTHETIC_PROFILE_LAYOUT_UNSAFE", f"{profile} may only set grid layout columns."
+                )
             columns = props["columns"]
-            if not isinstance(columns, int) or isinstance(columns, bool) or not 1 <= columns <= MAX_AESTHETIC_PROFILE_LAYOUT_COLUMNS:
+            if (
+                not isinstance(columns, int)
+                or isinstance(columns, bool)
+                or not 1 <= columns <= MAX_AESTHETIC_PROFILE_LAYOUT_COLUMNS
+            ):
                 raise AestheticProfileError(
                     "AESTHETIC_PROFILE_LAYOUT_UNSAFE",
                     f"{profile} layout columns must be between 1 and {MAX_AESTHETIC_PROFILE_LAYOUT_COLUMNS}.",
                 )
         elif role == "metric_card":
             if not set(props).issubset({"span_columns", "layout_emphasis"}) or not props:
-                raise AestheticProfileError("AESTHETIC_PROFILE_LAYOUT_UNSAFE", f"{profile} may only set metric card span columns and layout emphasis.")
+                raise AestheticProfileError(
+                    "AESTHETIC_PROFILE_LAYOUT_UNSAFE",
+                    f"{profile} may only set metric card span columns and layout emphasis.",
+                )
             span_columns = props.get("span_columns")
             if span_columns is not None and (
                 not isinstance(span_columns, int)
@@ -604,9 +614,13 @@ def _validate_profile_shape_vars(profile: str, values: dict[str, str]) -> None:
         if name not in AESTHETIC_SHAPE_VAR_NAMES:
             raise AestheticProfileError("AESTHETIC_PROFILE_SHAPE_UNSAFE", f"{profile} sets unknown shape var {name}.")
         if not isinstance(value, str):
-            raise AestheticProfileError("AESTHETIC_PROFILE_SHAPE_UNSAFE", f"{profile} shape var {name} must be CSS text.")
+            raise AestheticProfileError(
+                "AESTHETIC_PROFILE_SHAPE_UNSAFE", f"{profile} shape var {name} must be CSS text."
+            )
         if "<" in value or ">" in value or UNSAFE_AESTHETIC_CSS_RE.search(value):
-            raise AestheticProfileError("AESTHETIC_PROFILE_SHAPE_UNSAFE", f"{profile} shape var {name} has unsafe value.")
+            raise AestheticProfileError(
+                "AESTHETIC_PROFILE_SHAPE_UNSAFE", f"{profile} shape var {name} has unsafe value."
+            )
 
 
 def _validate_profile_style_values(profile: str, values: dict[str, str]) -> None:
@@ -614,7 +628,9 @@ def _validate_profile_style_values(profile: str, values: dict[str, str]) -> None
         raise AestheticProfileError("AESTHETIC_PROFILE_UNKNOWN", f"Unknown aesthetic profile {profile}.")
     total_css = " ".join(values.values())
     if len(total_css.encode("utf-8")) > MAX_AESTHETIC_PROFILE_CSS_BYTES:
-        raise AestheticProfileError("AESTHETIC_PROFILE_UNSAFE_STYLE", f"{profile} exceeds {MAX_AESTHETIC_PROFILE_CSS_BYTES} CSS bytes.")
+        raise AestheticProfileError(
+            "AESTHETIC_PROFILE_UNSAFE_STYLE", f"{profile} exceeds {MAX_AESTHETIC_PROFILE_CSS_BYTES} CSS bytes."
+        )
     declarations = _css_declarations(values)
     if len(declarations) > MAX_AESTHETIC_PROFILE_DECLARATIONS:
         raise AestheticProfileError(
@@ -623,24 +639,35 @@ def _validate_profile_style_values(profile: str, values: dict[str, str]) -> None
         )
     for prop, value in declarations:
         if prop not in AESTHETIC_ALLOWED_CSS_PROPERTIES:
-            raise AestheticProfileError("AESTHETIC_PROFILE_UNSAFE_STYLE", f"{profile} uses unsupported CSS property {prop}.")
+            raise AestheticProfileError(
+                "AESTHETIC_PROFILE_UNSAFE_STYLE", f"{profile} uses unsupported CSS property {prop}."
+            )
         if "<" in value or ">" in value or UNSAFE_AESTHETIC_CSS_RE.search(value):
-            raise AestheticProfileError("AESTHETIC_PROFILE_UNSAFE_STYLE", f"{profile} uses unsafe CSS value for {prop}.")
+            raise AestheticProfileError(
+                "AESTHETIC_PROFILE_UNSAFE_STYLE", f"{profile} uses unsafe CSS value for {prop}."
+            )
 
 
 def _css_declarations(values: dict[str, str]) -> list[tuple[str, str]]:
     declarations: list[tuple[str, str]] = []
     for token, css in values.items():
         if token not in DEFAULT_STYLE_TOKEN_VALUES:
-            raise AestheticProfileError("AESTHETIC_PROFILE_UNSAFE_STYLE", f"Aesthetic profile token override {token} is not a local V1 style token.")
+            raise AestheticProfileError(
+                "AESTHETIC_PROFILE_UNSAFE_STYLE",
+                f"Aesthetic profile token override {token} is not a local V1 style token.",
+            )
         if not isinstance(css, str):
-            raise AestheticProfileError("AESTHETIC_PROFILE_UNSAFE_STYLE", f"Aesthetic profile value for {token} must be CSS text.")
+            raise AestheticProfileError(
+                "AESTHETIC_PROFILE_UNSAFE_STYLE", f"Aesthetic profile value for {token} must be CSS text."
+            )
         for raw in css.split(";"):
             declaration = raw.strip()
             if not declaration:
                 continue
             if ":" not in declaration:
-                raise AestheticProfileError("AESTHETIC_PROFILE_UNSAFE_STYLE", f"Aesthetic profile declaration {declaration} is malformed.")
+                raise AestheticProfileError(
+                    "AESTHETIC_PROFILE_UNSAFE_STYLE", f"Aesthetic profile declaration {declaration} is malformed."
+                )
             prop, value = declaration.split(":", 1)
             declarations.append((prop.strip().lower(), value.strip()))
     return declarations

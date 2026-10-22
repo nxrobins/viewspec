@@ -6,10 +6,9 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
-from pathlib import Path
 import re
+from pathlib import Path
 from typing import Any
-
 
 PROTOCOL = Path(__file__).resolve().parents[1] / "conformance/studio-product-v1/protocol.json"
 SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
@@ -118,8 +117,7 @@ def evaluate(path: Path, protocol: dict[str, Any]) -> dict[str, Any]:
         "source_revision_continuity": all(isinstance(value, str) and SHA256_RE.fullmatch(value) for value in hashes)
         and len(set(hashes)) >= gates["minimum_distinct_source_revisions"]
         and evidence.get("final_source_sha256") == hashes[-1],
-        "generated_output_untouched": evidence.get("generated_output_edits")
-        == gates["maximum_generated_output_edits"],
+        "generated_output_untouched": evidence.get("generated_output_edits") == gates["maximum_generated_output_edits"],
         "runtime_clean": isinstance(evidence.get("runtime_failures"), list)
         and len(evidence["runtime_failures"]) <= gates["maximum_runtime_failures"],
         "human_scope_honest": evidence.get("human_desirability") == "not_measured",

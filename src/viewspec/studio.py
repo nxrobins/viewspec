@@ -2,15 +2,14 @@
 
 from __future__ import annotations
 
-from pathlib import Path
 import time
+from pathlib import Path
 
 from viewspec.review_cli import DEFAULT_REVIEW_PORT, open_review
 from viewspec.review_compile import STUDIO_COMPARE_TARGET, capture_source_snapshot
 from viewspec.review_contract import ReviewContractError
 from viewspec.studio_creation import STUDIO_CREATION_TASK_DEFAULT, prepare_studio_creation
 from viewspec.studio_creation_cli import accepted_creation_handoff_port, open_studio_creation_room
-
 
 STUDIO_EXPERIENCE_VERSION = 1
 STUDIO_SOURCE_NAMES = ("viewspec.app.json", "viewspec.intent.json")
@@ -252,7 +251,7 @@ def open_studio(
         "next_actions": [
             "Preview the interface in the local Studio canvas.",
             "Choose Comment, point at the result, and describe one desired change.",
-            *( ["Choose Share to inspect the exact disclosure before creating a private link."] if share else [] ),
+            *(["Choose Share to inspect the exact disclosure before creating a private link."] if share else []),
             "Keep this task running so your agent can receive the feedback by semantic identity.",
         ],
     }

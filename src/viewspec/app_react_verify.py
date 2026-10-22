@@ -17,7 +17,6 @@ from viewspec.app_react import REACT_APP_MANIFEST, REACT_APP_TARGET
 from viewspec.local_tools import file_hash
 from viewspec.node_runtime import materialize_prebuilt_node_modules
 
-
 APP_REACT_VERIFY_SCHEMA_VERSION = 1
 APP_REACT_VERIFY_INSTALL_TIMEOUT_SECONDS = 120
 APP_REACT_VERIFY_TYPECHECK_TIMEOUT_SECONDS = 90
@@ -639,9 +638,7 @@ def _pretext_scope(manifest: dict[str, Any]) -> dict[str, Any]:
         inventory_hashes = {
             item.get("path"): item.get("sha256")
             for item in inventory
-            if isinstance(item, dict)
-            and isinstance(item.get("path"), str)
-            and isinstance(item.get("sha256"), str)
+            if isinstance(item, dict) and isinstance(item.get("path"), str) and isinstance(item.get("sha256"), str)
         }
         inventory_hashes.update(
             {

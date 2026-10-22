@@ -7,7 +7,6 @@ small browser proof protocol for the generated Playwright harness.
 
 from __future__ import annotations
 
-
 PRETEXT_RUNTIME_PATH = "src/viewspec_pretext.ts"
 
 

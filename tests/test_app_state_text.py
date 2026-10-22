@@ -18,7 +18,6 @@ from viewspec.state_ir import (
     validate_state_ir,
 )
 
-
 _NODE_AVAILABLE = shutil.which("node") is not None
 
 
@@ -33,9 +32,7 @@ def _state_text_app_bundle() -> dict:
             "template": "Selected: {value}",
         }
     ]
-    payload["state_replay_assertions"][0]["expect_text"] = {
-        "selected_incident_text": "Selected: inc_1043"
-    }
+    payload["state_replay_assertions"][0]["expect_text"] = {"selected_incident_text": "Selected: inc_1043"}
     return payload
 
 
@@ -53,9 +50,7 @@ def test_state_text_contract_validates_evaluates_and_replays() -> None:
     state_ir, issues = validate_state_ir(payload)
     assert state_ir is not None
     assert not issues
-    assert evaluate_state_text(initial_state(payload, state_ir), state_ir) == {
-        "selected_incident_text": "Selected: "
-    }
+    assert evaluate_state_text(initial_state(payload, state_ir), state_ir) == {"selected_incident_text": "Selected: "}
     replay = replay_state_assertions(payload)
     assert replay["ok"] is True
     assert replay["assertions"][0]["text_matches"] is True
@@ -70,15 +65,30 @@ def test_state_text_contract_validates_evaluates_and_replays() -> None:
         ("APP_STATE_TEXT_RULE_NOT_OBJECT", lambda p: p["state_text"].append("bad")),
         ("APP_STATE_TEXT_TARGET_REF_INVALID", lambda p: p["state_text"][0].update(target_ref="motif:incidents")),
         ("APP_STATE_TEXT_TARGET_MISSING", lambda p: p["state_text"][0].update(target_ref="binding:ghost")),
-        ("APP_STATE_TEXT_DUPLICATE_TARGET", lambda p: p["state_text"].append({**p["state_text"][0], "id": "duplicate"})),
-        ("APP_STATE_TEXT_DUPLICATE_ID", lambda p: p["state_text"].append({**p["state_text"][0], "target_ref": "binding:inc_1042_status"})),
+        (
+            "APP_STATE_TEXT_DUPLICATE_TARGET",
+            lambda p: p["state_text"].append({**p["state_text"][0], "id": "duplicate"}),
+        ),
+        (
+            "APP_STATE_TEXT_DUPLICATE_ID",
+            lambda p: p["state_text"].append({**p["state_text"][0], "target_ref": "binding:inc_1042_status"}),
+        ),
         ("APP_STATE_TEXT_STATE_MISSING", lambda p: p["state_text"][0].update(state="ghost")),
         ("APP_STATE_TEXT_STATE_UNSUPPORTED", lambda p: p["state_text"][0].update(state="incidents_state")),
-        ("APP_STATE_TEXT_STATE_SCOPE_MISMATCH", lambda p: p["state_text"][0].update(screen_id="detail", target_ref="binding:inc_1042_status")),
+        (
+            "APP_STATE_TEXT_STATE_SCOPE_MISMATCH",
+            lambda p: p["state_text"][0].update(screen_id="detail", target_ref="binding:inc_1042_status"),
+        ),
         ("APP_STATE_TEXT_TEMPLATE_INVALID", lambda p: p["state_text"][0].update(template="Selected")),
         ("APP_STATE_TEXT_TEMPLATE_INVALID", lambda p: p["state_text"][0].update(template="{value} / {value}")),
-        ("APP_STATE_TEXT_REPLAY_RULE_MISSING", lambda p: p["state_replay_assertions"][0]["expect_text"].update(ghost="x")),
-        ("APP_STATE_TEXT_REPLAY_EXPECT_INVALID", lambda p: p["state_replay_assertions"][0]["expect_text"].update(selected_incident_text=1)),
+        (
+            "APP_STATE_TEXT_REPLAY_RULE_MISSING",
+            lambda p: p["state_replay_assertions"][0]["expect_text"].update(ghost="x"),
+        ),
+        (
+            "APP_STATE_TEXT_REPLAY_EXPECT_INVALID",
+            lambda p: p["state_replay_assertions"][0]["expect_text"].update(selected_incident_text=1),
+        ),
         (
             "APP_STATE_TEXT_LIMIT_EXCEEDED",
             lambda p: p.update(

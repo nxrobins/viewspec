@@ -8,14 +8,15 @@ from io import StringIO
 from pathlib import Path
 
 import pytest
-from hypothesis import given, strategies as st
+from hypothesis import given
+from hypothesis import strategies as st
 
-from viewspec import __version__, DesignSystemError, ViewSpecBuilder, compile, load_design_system
+from viewspec import DesignSystemError, ViewSpecBuilder, __version__, compile, load_design_system
 from viewspec.cli import main as cli_main
 from viewspec.compiler_benchmarks import benchmark_fixtures
+from viewspec.design_md import DESIGN_MAX_BYTES
 from viewspec.emitters.react_tailwind_tsx import tailwind_recipe_registry_digest
 from viewspec.local_tools import file_hash
-
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -104,7 +105,10 @@ colors:
 
     assert "action.accent" in ast.style_values
     assert "background-color: #CC5500;" in ast.style_values["action.accent"]
-    assert 'style="background-color: #0f766e; color: #ffffff; background-color: #111111; background-color: #CC5500;"' in html
+    assert (
+        'style="background-color: #0f766e; color: #ffffff; background-color: #111111; background-color: #CC5500;"'
+        in html
+    )
 
 
 def test_local_design_rejects_broken_refs_and_cycles_but_warns_on_bad_colors():
@@ -148,12 +152,7 @@ colors:
 )
 def test_design_yaml_duplicate_keys_fail_closed_for_arbitrary_nested_tokens(key: str, first: int, second: int):
     duplicate = (
-        "---\n"
-        "name: Duplicate property probe\n"
-        "colors:\n"
-        f'  {key}: "#{first:06X}"\n'
-        f'  {key}: "#{second:06X}"\n'
-        "---\n"
+        f'---\nname: Duplicate property probe\ncolors:\n  {key}: "#{first:06X}"\n  {key}: "#{second:06X}"\n---\n'
     )
 
     with pytest.raises(DesignSystemError) as exc_info:
@@ -164,6 +163,72 @@ def test_design_yaml_duplicate_keys_fail_closed_for_arbitrary_nested_tokens(key:
     assert "duplicate key" in exc_info.value.report.findings[0].message
 
 
+def test_design_yaml_aliases_are_rejected_before_expansion():
+    bomb = "\n".join(
+        [
+            "a: &a [x, x, x, x, x, x, x, x, x, x]",
+            "b: &b [*a, *a, *a, *a, *a, *a, *a, *a, *a, *a]",
+            "c: &c [*b, *b, *b, *b, *b, *b, *b, *b, *b, *b]",
+            "d: &d [*c, *c, *c, *c, *c, *c, *c, *c, *c, *c]",
+            "e: &e [*d, *d, *d, *d, *d, *d, *d, *d, *d, *d]",
+            "f: [*e, *e, *e, *e, *e, *e, *e, *e, *e, *e]",
+        ]
+    )
+
+    with pytest.raises(DesignSystemError) as exc_info:
+        load_design_system(content=f"---\nname: Bomb\n{bomb}\n---\n")
+
+    findings = exc_info.value.report.findings
+    assert findings[0].code == "DESIGN_YAML_ERROR"
+    assert "alias" in findings[0].message
+
+    with pytest.raises(DesignSystemError) as merge_info:
+        load_design_system(content="---\nbase: &base {primary: '#112233'}\ncolor:\n  <<: *base\n---\n")
+    assert merge_info.value.report.findings[0].code == "DESIGN_YAML_ERROR"
+
+    anchor_only = load_design_system(content="---\nname: Anchored\ncolor:\n  primary: &p '#112233'\n---\n")
+    assert anchor_only.name == "Anchored"
+
+
+def test_design_yaml_nesting_depth_fails_closed():
+    deep = "---\nname: Deep\nx: " + "[" * 5000 + "]" * 5000 + "\n---\n"
+
+    with pytest.raises(DesignSystemError) as exc_info:
+        load_design_system(content=deep)
+
+    assert exc_info.value.report.findings[0].code == "DESIGN_YAML_ERROR"
+
+
+def test_design_file_size_is_gated_before_reading(tmp_path, monkeypatch):
+    from viewspec.review_compile import DESIGN_MAX_BYTES as REVIEW_DESIGN_MAX_BYTES
+
+    assert REVIEW_DESIGN_MAX_BYTES == DESIGN_MAX_BYTES
+
+    head = "---\nname: Fits\ncolor:\n  primary: '#112233'\n---\n"
+    fits = head + "x" * (DESIGN_MAX_BYTES - len(head.encode("utf-8")))
+    assert len(fits.encode("utf-8")) == DESIGN_MAX_BYTES
+    assert load_design_system(content=fits).name == "Fits"
+
+    with pytest.raises(DesignSystemError) as content_info:
+        load_design_system(content=fits + "x")
+    assert content_info.value.report.findings[0].code == "DESIGN_FILE_TOO_LARGE"
+
+    oversized = tmp_path / "DESIGN.md"
+    with oversized.open("wb") as handle:
+        handle.truncate(DESIGN_MAX_BYTES + 1)
+
+    def refuse_open(self, *args, **kwargs):
+        raise AssertionError(f"{self.name} must not be opened before the size gate")
+
+    monkeypatch.setattr(Path, "open", refuse_open)
+
+    with pytest.raises(DesignSystemError) as file_info:
+        load_design_system(path=oversized)
+
+    assert file_info.value.report.findings[0].code == "DESIGN_FILE_TOO_LARGE"
+    assert str(DESIGN_MAX_BYTES) in file_info.value.report.findings[0].message
+
+
 def test_cli_compile_lift_and_diff_stay_local(tmp_path, capsys):
     design_path = tmp_path / "DESIGN.md"
     design_path.write_text(_design(), encoding="utf-8")
@@ -171,7 +236,9 @@ def test_cli_compile_lift_and_diff_stay_local(tmp_path, capsys):
     html_path.write_text("<h1>Report</h1><p>$1</p><button onclick='x()'>Open</button>", encoding="utf-8")
     out_dir = tmp_path / "dist"
 
-    assert cli_main(["compile", str(html_path), "--design", str(design_path), "--out", str(out_dir), "--lift-json"]) == 0
+    assert (
+        cli_main(["compile", str(html_path), "--design", str(design_path), "--out", str(out_dir), "--lift-json"]) == 0
+    )
     assert html_path.read_text(encoding="utf-8").startswith("<h1>Report</h1>")
     assert out_dir.joinpath("index.html").exists()
     manifest = json.loads(out_dir.joinpath("provenance_manifest.json").read_text(encoding="utf-8"))
@@ -179,7 +246,16 @@ def test_cli_compile_lift_and_diff_stay_local(tmp_path, capsys):
     assert manifest["manifest_schema_version"] == 1
     assert manifest["design_hash"]
     assert manifest["artifact_hash"]
-    assert manifest["command_args"] == ["viewspec", "compile", "report.html", "--design", "DESIGN.md", "--out", "<out>", "--lift-json"]
+    assert manifest["command_args"] == [
+        "viewspec",
+        "compile",
+        "report.html",
+        "--design",
+        "DESIGN.md",
+        "--out",
+        "<out>",
+        "--lift-json",
+    ]
     assert manifest["guarantees"]["network_calls"] == "none"
     assert cli_main(["check", str(out_dir)]) == 0
 
@@ -326,7 +402,7 @@ def test_cli_check_verifies_react_tailwind_static_class_inventory(tmp_path, caps
     tsx_path = out_dir / "ViewSpecView.tsx"
     manifest_path = out_dir / "provenance_manifest.json"
     original = tsx_path.read_text(encoding="utf-8")
-    tsx_path.write_text(original.replace('className="', 'className={'), encoding="utf-8")
+    tsx_path.write_text(original.replace('className="', "className={"), encoding="utf-8")
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     manifest["artifact_hash"] = file_hash(tsx_path)
     manifest_path.write_text(json.dumps(manifest, indent=2, sort_keys=True), encoding="utf-8")
@@ -364,7 +440,9 @@ def test_cli_check_verifies_semantic_digest_for_react_tailwind(tmp_path, capsys)
 
     manifest_path.write_text(json.dumps(manifest, indent=2), encoding="utf-8")
     tsx_path.write_text(
-        tsx_path.read_text(encoding="utf-8").replace('renderValue(data["open_label"], "Open")', 'renderValue(data["open_label"], "Closed")'),
+        tsx_path.read_text(encoding="utf-8").replace(
+            'renderValue(data["open_label"], "Open")', 'renderValue(data["open_label"], "Closed")'
+        ),
         encoding="utf-8",
     )
     manifest["artifact_hash"] = file_hash(tsx_path)
@@ -412,14 +490,19 @@ def test_cli_check_recomputes_tailwind_app_role_derivation(tmp_path, capsys):
     filter_bar_dom_id = next(
         dom_id for dom_id, entry in manifest["nodes"].items() if entry.get("app_role") == "filter_bar"
     )
-    assert manifest["nodes"][filter_bar_dom_id]["app_role_source"] == "tailwind_app_v1.structural.filter_bar_from_form_action_row"
+    assert (
+        manifest["nodes"][filter_bar_dom_id]["app_role_source"]
+        == "tailwind_app_v1.structural.filter_bar_from_form_action_row"
+    )
 
     manifest["nodes"][filter_bar_dom_id]["app_role_source"] = "tailwind_app_v1.structural.toolbar_from_action_row"
     manifest_path.write_text(json.dumps(manifest, indent=2), encoding="utf-8")
     assert cli_main(["check", str(out_dir)]) == 2
     assert "APP_ROLE_DERIVATION_MISMATCH" in capsys.readouterr().out
 
-    manifest["nodes"][filter_bar_dom_id]["app_role_source"] = "tailwind_app_v1.structural.filter_bar_from_form_action_row"
+    manifest["nodes"][filter_bar_dom_id]["app_role_source"] = (
+        "tailwind_app_v1.structural.filter_bar_from_form_action_row"
+    )
     manifest["nodes"][filter_bar_dom_id]["props"]["app_role"] = "filter_bar"
     manifest_path.write_text(json.dumps(manifest, indent=2), encoding="utf-8")
     assert cli_main(["check", str(out_dir)]) == 2
@@ -711,7 +794,9 @@ def test_cli_version_and_design_lint_errors_are_stable(tmp_path, capsys):
     html_path = tmp_path / "input.html"
     html_path.write_text("<h1>Report</h1>", encoding="utf-8")
 
-    exit_code = cli_main(["compile", str(html_path), "--design", str(bad_design), "--strict-design", "--out", str(tmp_path / "dist")])
+    exit_code = cli_main(
+        ["compile", str(html_path), "--design", str(bad_design), "--strict-design", "--out", str(tmp_path / "dist")]
+    )
 
     assert exit_code == 2
     stderr = capsys.readouterr().err
@@ -733,7 +818,9 @@ def test_cli_refuses_html_input_overwrite_before_design_load(tmp_path, capsys):
     html_path = tmp_path / "index.html"
     html_path.write_text("<h1>Report</h1>", encoding="utf-8")
 
-    exit_code = cli_main(["compile", str(html_path), "--design", str(tmp_path / "missing-DESIGN.md"), "--out", str(tmp_path)])
+    exit_code = cli_main(
+        ["compile", str(html_path), "--design", str(tmp_path / "missing-DESIGN.md"), "--out", str(tmp_path)]
+    )
 
     assert exit_code == 2
     stderr = capsys.readouterr().err
@@ -747,7 +834,9 @@ def test_cli_refuses_json_input_overwrite_before_design_load(tmp_path, capsys):
     bundle_path = tmp_path / "provenance_manifest.json"
     bundle_path.write_text(json.dumps(builder.build_bundle().to_json()), encoding="utf-8")
 
-    exit_code = cli_main(["compile", str(bundle_path), "--design", str(tmp_path / "missing-DESIGN.md"), "--out", str(tmp_path)])
+    exit_code = cli_main(
+        ["compile", str(bundle_path), "--design", str(tmp_path / "missing-DESIGN.md"), "--out", str(tmp_path)]
+    )
 
     assert exit_code == 2
     stderr = capsys.readouterr().err
@@ -767,7 +856,10 @@ def test_cli_accepts_explicit_stdin_formats(tmp_path, monkeypatch):
     json_out = tmp_path / "json-out"
     monkeypatch.setattr(sys, "stdin", StringIO(json.dumps(builder.build_bundle().to_json())))
     assert cli_main(["compile", "-", "--stdin-format", "json", "--out", str(json_out)]) == 0
-    assert json.loads(json_out.joinpath("provenance_manifest.json").read_text(encoding="utf-8"))["source_name"] == "<stdin>"
+    assert (
+        json.loads(json_out.joinpath("provenance_manifest.json").read_text(encoding="utf-8"))["source_name"]
+        == "<stdin>"
+    )
 
 
 def test_claude_code_integration_mentions_only_local_commands():

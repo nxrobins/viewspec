@@ -4,18 +4,18 @@
 from __future__ import annotations
 
 import argparse
-from collections.abc import Iterable, Mapping
 import hashlib
 import html
 import json
-from pathlib import Path
 import random
 import shutil
 import statistics
 import struct
 import tempfile
-from typing import Any
 import zlib
+from collections.abc import Iterable, Mapping
+from pathlib import Path
+from typing import Any
 
 if __package__:
     from scripts.check_studio_production_canary import CanaryError, evaluate_canary
@@ -267,9 +267,7 @@ def build_study_plan(protocol: dict[str, Any], protocol_path: Path) -> tuple[dic
         reviewer_slot = f"R{review_count + index:03d}"
         primary_slot = primary_entry["reviewer_slot"]
         mapping = {label: dict(candidate) for label, candidate in primary_entry["candidates"].items()}
-        reviewers.append(
-            {"reviewer_slot": reviewer_slot, "cohort": "reserve", "reserve_for": primary_slot}
-        )
+        reviewers.append({"reviewer_slot": reviewer_slot, "cohort": "reserve", "reserve_for": primary_slot})
         key_entries.append({"reviewer_slot": reviewer_slot, "candidates": mapping})
 
     primary_key = key_entries[:review_count]
@@ -475,9 +473,7 @@ def validate_session_record(
         _exact(change, CHANGE_FIELDS, "session change")
         if change.get("id") != expected_id or type(change.get("completed")) is not bool:
             raise StudyError("Session changes must preserve preregistered order and boolean completion")
-        if change["completed"]:
-            _bounded_int(change.get("elapsed_ms"), f"change {expected_id} elapsed_ms")
-        elif change.get("elapsed_ms") is not None:
+        if change["completed"] or change.get("elapsed_ms") is not None:
             _bounded_int(change.get("elapsed_ms"), f"change {expected_id} elapsed_ms")
         _bounded_int(change.get("stable_criterion_regressions"), "stable criterion regressions")
 
@@ -693,7 +689,7 @@ def _packet_html(packet: dict[str, Any]) -> str:
                 f'<figure><img src="{html.escape(image["path"])}" '
                 f'alt="Candidate {label}, {html.escape(image["target"])}, '
                 f'{image["viewport"]} pixel viewport"><figcaption>'
-                f'{html.escape(image["target"].title())} · {image["viewport"]}px</figcaption></figure>'
+                f"{html.escape(image['target'].title())} · {image['viewport']}px</figcaption></figure>"
                 for image in candidate["images"]
             )
             body = f"<div class=images>{images}</div>"
@@ -740,9 +736,7 @@ def build_review_packets(study_root: str | Path, protocol_path: str | Path = DEF
                 artifacts = session["artifacts"]
                 images: list[dict[str, Any]] = []
                 if artifacts["render_status"] == "complete":
-                    screenshots = {
-                        (item["target"], item["viewport"]): item for item in artifacts["screenshots"]
-                    }
+                    screenshots = {(item["target"], item["viewport"]): item for item in artifacts["screenshots"]}
                     for target in study["protocol"]["human_study"]["task_contract"]["required_targets"]:
                         for viewport in preference_viewports:
                             source_ref = screenshots[(target, viewport)]
@@ -791,9 +785,7 @@ def build_review_packets(study_root: str | Path, protocol_path: str | Path = DEF
     except Exception:
         shutil.rmtree(temporary, ignore_errors=True)
         raise
-    analysis_binding = {
-        arm: [record["slot_id"] for record in records] for arm, records in selected.items()
-    }
+    analysis_binding = {arm: [record["slot_id"] for record in records] for arm, records in selected.items()}
     key = {
         "schema_version": STUDY_SCHEMA_VERSION,
         "study_id": study["plan"]["study_id"],
@@ -819,9 +811,7 @@ def validate_preference_record(record: Mapping[str, Any], *, study: dict[str, An
     if status not in {"completed", "excluded"}:
         raise StudyError("Preference status must be completed or excluded")
     if status == "excluded":
-        if record.get("exclusion_reason") not in study["protocol"]["human_study"][
-            "allowed_reviewer_exclusion_reasons"
-        ]:
+        if record.get("exclusion_reason") not in study["protocol"]["human_study"]["allowed_reviewer_exclusion_reasons"]:
             raise StudyError("Reviewer exclusion reason was not preregistered")
         return dict(record)
     if record.get("exclusion_reason") is not None:
@@ -866,9 +856,7 @@ def _analysis_preferences(study: dict[str, Any]) -> tuple[list[dict[str, Any]], 
     records = _read_records(study["root"] / "preferences")
     slots = study["plan"]["reviewer_slots"]
     primary = [slot for slot in slots if slot["cohort"] == "primary"]
-    reserve = {
-        slot["reserve_for"]: slot for slot in slots if slot["cohort"] == "reserve"
-    }
+    reserve = {slot["reserve_for"]: slot for slot in slots if slot["cohort"] == "reserve"}
     selected: list[dict[str, Any]] = []
     used: set[str] = set()
     errors: list[str] = []
@@ -914,11 +902,7 @@ def _wilson_interval(successes: int, total: int, confidence: float) -> tuple[flo
     proportion = successes / total
     denominator = 1 + z * z / total
     center = (proportion + z * z / (2 * total)) / denominator
-    margin = (
-        z
-        * ((proportion * (1 - proportion) / total + z * z / (4 * total * total)) ** 0.5)
-        / denominator
-    )
+    margin = z * ((proportion * (1 - proportion) / total + z * z / (4 * total * total)) ** 0.5) / denominator
     return max(0.0, center - margin), min(1.0, center + margin)
 
 
@@ -933,9 +917,7 @@ def _session_metrics(records: list[dict[str, Any]], protocol: dict[str, Any], ar
     checked_answer = "source_artifact_and_declared_contract_health"
     unproven_answer = "human_desirability_visual_parity_and_production_behavior"
     metrics = {
-        "first_value_within_one_minute": _rate(
-            record["timing_ms"]["first_value"] < 60_000 for record in records
-        ),
+        "first_value_within_one_minute": _rate(record["timing_ms"]["first_value"] < 60_000 for record in records),
         "first_value_desirable": _rate(
             record["desirability_rating"] >= gates["minimum_desirability_rating"] for record in records
         ),
@@ -945,8 +927,7 @@ def _session_metrics(records: list[dict[str, Any]], protocol: dict[str, Any], ar
             for record in records
         ),
         "health_comprehension": _rate(
-            record["health_comprehension"]
-            == {"checked_scope": checked_answer, "unproven_scope": unproven_answer}
+            record["health_comprehension"] == {"checked_scope": checked_answer, "unproven_scope": unproven_answer}
             for record in records
         ),
         "private_handoff_within_five_minutes": _rate(
@@ -958,13 +939,8 @@ def _session_metrics(records: list[dict[str, Any]], protocol: dict[str, Any], ar
         "runtime_clean": _rate(not record["runtime_failures"] for record in records),
     }
     if arm == "viewspec-studio":
-        metrics["generated_output_untouched"] = _rate(
-            record["generated_output_edits"] == 0 for record in records
-        )
-    return {
-        name: {"passed": value[0], "total": value[1], "rate": value[2]}
-        for name, value in metrics.items()
-    }
+        metrics["generated_output_untouched"] = _rate(record["generated_output_edits"] == 0 for record in records)
+    return {name: {"passed": value[0], "total": value[1], "rate": value[2]} for name, value in metrics.items()}
 
 
 def _canary_status(study: dict[str, Any]) -> tuple[bool, list[str]]:
@@ -1028,28 +1004,22 @@ def summarize_study(study_root: str | Path, protocol_path: str | Path = DEFAULT_
     confidence = study["protocol"]["human_gates"]["preference_confidence_level"]
     lower, upper = _wilson_interval(preferred, len(preferences), confidence)
     preference_rate = preferred / len(preferences) if preferences else None
-    arm_metrics = {
-        arm: _session_metrics(records, study["protocol"], arm) for arm, records in sessions.items()
-    }
+    arm_metrics = {arm: _session_metrics(records, study["protocol"], arm) for arm, records in sessions.items()}
     gates = study["protocol"]["human_gates"]
     primary = arm_metrics.get("viewspec-studio", {})
     canary_pass, canary_errors = _canary_status(study)
     gate_results = {
         "data_integrity": not integrity_errors,
         "minimum_sessions": all(len(value) >= gates["minimum_sessions_per_arm"] for value in sessions.values()),
-        "first_value_within_one_minute": primary.get("first_value_within_one_minute", {}).get("rate")
-        is not None
-        and primary["first_value_within_one_minute"]["rate"]
-        >= gates["minimum_first_value_within_one_minute_rate"],
+        "first_value_within_one_minute": primary.get("first_value_within_one_minute", {}).get("rate") is not None
+        and primary["first_value_within_one_minute"]["rate"] >= gates["minimum_first_value_within_one_minute_rate"],
         "first_value_desirable": primary.get("first_value_desirable", {}).get("rate") is not None
         and primary["first_value_desirable"]["rate"] >= gates["minimum_first_value_desirable_rate"],
         "three_change_completion": primary.get("three_change_completion", {}).get("rate") is not None
         and primary["three_change_completion"]["rate"] >= gates["minimum_three_change_completion_rate"],
         "health_comprehension": primary.get("health_comprehension", {}).get("rate") is not None
         and primary["health_comprehension"]["rate"] >= gates["minimum_health_comprehension_rate"],
-        "private_handoff_within_five_minutes": primary.get(
-            "private_handoff_within_five_minutes", {}
-        ).get("rate")
+        "private_handoff_within_five_minutes": primary.get("private_handoff_within_five_minutes", {}).get("rate")
         is not None
         and primary["private_handoff_within_five_minutes"]["rate"]
         >= gates["minimum_private_handoff_within_five_minutes_rate"],
@@ -1057,8 +1027,7 @@ def summarize_study(study_root: str | Path, protocol_path: str | Path = DEFAULT_
         "minimum_blinded_comparisons": len(preferences) >= gates["minimum_blinded_comparisons"],
         "blinded_preference_rate": preference_rate is not None
         and preference_rate >= gates["minimum_blinded_preference_rate"],
-        "blinded_preference_confidence_above_chance": lower is not None
-        and lower > gates["preference_chance_rate"],
+        "blinded_preference_confidence_above_chance": lower is not None and lower > gates["preference_chance_rate"],
         "production_private_review_canary": canary_pass,
     }
     human_gate_pass = all(gate_results.values())

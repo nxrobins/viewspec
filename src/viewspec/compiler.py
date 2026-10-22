@@ -23,26 +23,86 @@ from viewspec.aesthetics import (
     profile_style_values,
     validate_aesthetic_profile_registry,
 )
+from viewspec.compiler_errors import CompilerInternalError
 from viewspec.compiler_refs import (
     MAX_COMPILE_NESTING_DEPTH,
+    PRODUCT_SURFACE_PLANNER_V1_ROLES,
+)
+from viewspec.compiler_refs import (
     action_ref as _action_ref,
+)
+from viewspec.compiler_refs import (
     add_diagnostic as _add_diagnostic,
+)
+from viewspec.compiler_refs import (
     binding_ref as _binding_ref,
+)
+from viewspec.compiler_refs import (
     motif_ref as _motif_ref,
+)
+from viewspec.compiler_refs import (
     region_ref as _region_ref,
+)
+from viewspec.compiler_refs import (
     style_ref as _style_ref,
+)
+from viewspec.compiler_refs import (
     view_ref as _view_ref,
 )
+from viewspec.design_md import DesignSystemContext, load_design_system, merge_style_values
+
+# Names that were importable from `viewspec.compiler` before the hosted client moved
+# out stay importable from here (redundant-alias re-exports): the hosted client's
+# request and response types and the DESIGN.md error that compile() and
+# compile_auto() raise.
+from viewspec.design_md import (
+    DesignSystemError as DesignSystemError,
+)
+
+# The hosted compiler client lives in viewspec.hosted_compile. Its names are
+# re-exported here (redundant-alias form) because `viewspec.compiler` was their
+# import location before the move and viewspec.__init__ still imports them here.
+from viewspec.hosted_compile import (
+    VIEWSPEC_API_URL as VIEWSPEC_API_URL,
+)
+from viewspec.hosted_compile import (
+    CompilerAPIError as CompilerAPIError,
+)
+from viewspec.hosted_compile import (
+    _compile_request_payload as _compile_request_payload,
+)
+from viewspec.hosted_compile import (
+    _compiler_api_error as _compiler_api_error,
+)
+from viewspec.hosted_compile import (
+    _response_header as _response_header,
+)
+from viewspec.hosted_compile import (
+    compile_auto as compile_auto,
+)
+from viewspec.hosted_compile import (
+    compile_remote as compile_remote,
+)
+from viewspec.hosted_compile import (
+    compile_remote_response as compile_remote_response,
+)
+from viewspec.motif_compilers import SUPPORTED_MOTIF_KINDS
+from viewspec.motif_plugins import (
+    MotifCompileContext,
+    MotifPlugin,
+    MotifPluginError,
+    MotifRegistry,
+    builtin_motif_registry,
+    create_motif_registry,
+)
 from viewspec.types import (
+    DEFAULT_STYLE_TOKEN_VALUES,
     ActionIntent,
     ASTBundle,
     BindingSpec,
-    CompileRequestPayload,
-    CompileResponse,
     CompilerDiagnostic,
     CompilerResult,
     CompositionIR,
-    DEFAULT_STYLE_TOKEN_VALUES,
     DesignRequest,
     GroupSpec,
     IntentBundle,
@@ -54,17 +114,18 @@ from viewspec.types import (
     SemanticSubstrate,
     StyleSpec,
     ViewSpec,
-    parse_canonical_address as _parse_canonical_address,
 )
-from viewspec.design_md import DesignSystemContext, DesignSystemError, load_design_system, merge_style_values
-from viewspec.motif_compilers import SUPPORTED_MOTIF_KINDS
-from viewspec.motif_plugins import (
-    MotifCompileContext,
-    MotifPlugin,
-    MotifPluginError,
-    MotifRegistry,
-    builtin_motif_registry,
-    create_motif_registry,
+from viewspec.types import (
+    CompileRequestPayload as CompileRequestPayload,
+)
+from viewspec.types import (
+    CompileResponse as CompileResponse,
+)
+from viewspec.types import (
+    normalize_json_numbers as _normalize_json_numbers,
+)
+from viewspec.types import (
+    parse_canonical_address as _parse_canonical_address,
 )
 
 # ---------------------------------------------------------------------------
@@ -102,30 +163,14 @@ SAFE_COMPILER_ID_RE = re.compile(r"^[A-Za-z0-9_.-]+$")
 PRODUCT_SURFACE_PLANNER_V1_SURFACE = "workspace_dashboard_v1"
 PRODUCT_SINGLE_COLUMN_SURFACE_V1 = "single_column_v1"
 MAX_IMPLICIT_PAGE_TITLE_BYTES = 512
-PRODUCT_SURFACE_PLANNER_V1_ROLES = frozenset(
-    {
-        "app_shell",
-        "app_header",
-        "content_grid",
-        "primary_column",
-        "side_rail",
-        "page_header",
-        "metric_grid",
-        "metric_card",
-        "form_panel",
-        "field_group",
-        "detail_panel",
-        "action_row",
-    }
-)
+# PRODUCT_SURFACE_PLANNER_V1_ROLES is owned by viewspec.compiler_refs (imported
+# above) so emitters can consume it without importing the compiler.
 
 SUPPORTED_AESTHETIC_PROFILES = AESTHETIC_PROFILE_TOKENS
 WORKSPACE_HEADER_ROLE_MARKERS = frozenset({"app_header", "banner", "header", "page_header"})
 WORKSPACE_CONTENT_GRID_ROLE_MARKERS = frozenset({"application", "body", "content", "main", "workspace"})
 WORKSPACE_PRIMARY_ROLE_MARKERS = frozenset({"main", "primary", "primary_column", "workspace_primary"})
-WORKSPACE_SIDE_RAIL_ROLE_MARKERS = frozenset(
-    {"aside", "complementary", "detail_rail", "rail", "side_rail", "sidebar"}
-)
+WORKSPACE_SIDE_RAIL_ROLE_MARKERS = frozenset({"aside", "complementary", "detail_rail", "rail", "side_rail", "sidebar"})
 
 
 # ---------------------------------------------------------------------------
@@ -155,16 +200,26 @@ def _resolve_address(address: str, address_index: dict[str, Any]) -> Any:
 
 
 def _text_from_value(value: Any) -> str:
+    """Render a resolved substrate value as visible text.
+
+    Strings pass through unchanged. Every other JSON value is rendered as compact, key-sorted
+    JSON with the text itself (not ``\\uXXXX`` escapes) for non-ASCII characters, and with
+    integral numbers rendered as integers (``100``, never ``100.0``) so that the same bundle
+    yields the same bytes whether it was built in memory or read back through a JSON or proto
+    round trip, where protobuf turns every number into a double.
+    """
     if isinstance(value, str):
         return value
-    return json.dumps(value, sort_keys=True)
+    return json.dumps(_normalize_json_numbers(value), sort_keys=True, ensure_ascii=False, separators=(",", ":"))
 
 
 def _utf8_size(value: Any) -> int:
     return len(_text_from_value(value).encode("utf-8"))
 
 
-def _resolved_payload_value(binding_id: str, bindings_by_id: dict[str, BindingSpec], address_index: dict[str, object]) -> object:
+def _resolved_payload_value(
+    binding_id: str, bindings_by_id: dict[str, BindingSpec], address_index: dict[str, object]
+) -> object:
     binding = bindings_by_id.get(binding_id)
     if binding is None:
         return ""
@@ -264,7 +319,9 @@ def _build_binding_node(binding: BindingSpec, address_index: dict[str, object]) 
 
 
 def _build_action_node(action: ActionIntent, bindings_by_id: dict[str, BindingSpec]) -> IRNode:
-    content_refs = [bindings_by_id[binding_id].address for binding_id in action.payload_bindings if binding_id in bindings_by_id]
+    content_refs = [
+        bindings_by_id[binding_id].address for binding_id in action.payload_bindings if binding_id in bindings_by_id
+    ]
     props: dict[str, object] = {
         "text": action.label,
         "action_id": action.id,
@@ -426,7 +483,7 @@ def _detect_workspace_surface_shape_v1(
 
 def _assign_product_role_v1(node: IRNode, role: str) -> None:
     if role not in PRODUCT_SURFACE_PLANNER_V1_ROLES:
-        raise RuntimeError(f"PLANNER_ROLE_METADATA_ONLY: unsupported product role {role!r}.")
+        raise CompilerInternalError("PLANNER_ROLE_METADATA_ONLY", f"unsupported product role {role!r}.")
     node.props["product_role"] = role
 
 
@@ -461,19 +518,23 @@ def _apply_aesthetic_profile_layout_v1(root: IRNode, profile: str) -> None:
             continue
         if "columns" in layout_props:
             if node.primitive != "grid":
-                raise RuntimeError(
-                    f"AESTHETIC_PROFILE_LAYOUT_ROLE_DRIFT: product role {product_role!r} no longer maps to a grid node."
+                raise CompilerInternalError(
+                    "AESTHETIC_PROFILE_LAYOUT_ROLE_DRIFT",
+                    f"product role {product_role!r} no longer maps to a grid node.",
                 )
             node.props["columns"] = layout_props["columns"]
             node.props["aesthetic_layout_profile"] = profile
         if "span_columns" in layout_props:
             if node.primitive != "surface" or product_role != "metric_card":
-                raise RuntimeError(
-                    f"AESTHETIC_PROFILE_LAYOUT_ROLE_DRIFT: product role {product_role!r} no longer maps to a metric card surface."
+                raise CompilerInternalError(
+                    "AESTHETIC_PROFILE_LAYOUT_ROLE_DRIFT",
+                    f"product role {product_role!r} no longer maps to a metric card surface.",
                 )
             parent = parents.get(node.id)
             if parent is None or parent.props.get("product_role") != "metric_grid" or parent.primitive != "grid":
-                raise RuntimeError("AESTHETIC_PROFILE_LAYOUT_ROLE_DRIFT: metric card span no longer targets a metric grid child.")
+                raise CompilerInternalError(
+                    "AESTHETIC_PROFILE_LAYOUT_ROLE_DRIFT", "metric card span no longer targets a metric grid child."
+                )
             if parent.children[:1] != [node]:
                 continue
             parent_columns = int(parent.props.get("columns") or 1)
@@ -483,12 +544,15 @@ def _apply_aesthetic_profile_layout_v1(root: IRNode, profile: str) -> None:
                 node.props["aesthetic_layout_profile"] = profile
         if "layout_emphasis" in layout_props:
             if node.primitive != "surface" or product_role != "metric_card":
-                raise RuntimeError(
-                    f"AESTHETIC_PROFILE_LAYOUT_ROLE_DRIFT: product role {product_role!r} no longer maps to a metric card surface."
+                raise CompilerInternalError(
+                    "AESTHETIC_PROFILE_LAYOUT_ROLE_DRIFT",
+                    f"product role {product_role!r} no longer maps to a metric card surface.",
                 )
             parent = parents.get(node.id)
             if parent is None or parent.props.get("product_role") != "metric_grid" or parent.primitive != "grid":
-                raise RuntimeError("AESTHETIC_PROFILE_LAYOUT_ROLE_DRIFT: metric card emphasis no longer targets a metric grid child.")
+                raise CompilerInternalError(
+                    "AESTHETIC_PROFILE_LAYOUT_ROLE_DRIFT", "metric card emphasis no longer targets a metric grid child."
+                )
             if parent.children[:1] != [node]:
                 continue
             node.props["layout_emphasis"] = layout_props["layout_emphasis"]
@@ -544,10 +608,7 @@ def _detect_single_column_surface_v1(
     main = children[0]
     if main.layout != "stack" or main.role not in WORKSPACE_PRIMARY_ROLE_MARKERS:
         return None
-    if any(
-        region.id not in {root_region, main.id}
-        for region in valid_regions
-    ):
+    if any(region.id not in {root_region, main.id} for region in valid_regions):
         return None
     return main.id
 
@@ -569,22 +630,12 @@ def _apply_single_column_surface_roles_v1(
     _assign_product_role_v1(region_nodes[main_region], "primary_column")
 
     has_explicit_page_header = any(
-        motif.kind == "hero" and motif.region == main_region
-        for motif in motif_by_id.values()
+        motif.kind == "hero" and motif.region == main_region for motif in motif_by_id.values()
     )
     root_title_address = f"node:{substrate.root_id}#attr:title"
-    root_title = _implicit_page_title_v1(
-        substrate.nodes[substrate.root_id].attrs.get("title")
-    )
-    root_title_is_bound = any(
-        binding.address == root_title_address
-        for binding in bindings_by_id.values()
-    )
-    if (
-        not has_explicit_page_header
-        and not root_title_is_bound
-        and root_title is not None
-    ):
+    root_title = _implicit_page_title_v1(substrate.nodes[substrate.root_id].attrs.get("title"))
+    root_title_is_bound = any(binding.address == root_title_address for binding in bindings_by_id.values())
+    if not has_explicit_page_header and not root_title_is_bound and root_title is not None:
         title_node = IRNode(
             id=f"planner_{view_spec.id}_page_title",
             primitive="value",
@@ -725,7 +776,9 @@ def _collection_action_bar_for_motif_v1(parent: IRNode, wrapper: IRNode, motif_i
     row_id = f"planner_{motif_id}_collection_actions"
     existing = [child for child in parent.children if child.id == row_id]
     if len(existing) > 1:
-        raise RuntimeError(f"COLLECTION_ACTION_BAR_DUPLICATE: duplicate action bar for collection motif {motif_id}.")
+        raise CompilerInternalError(
+            "COLLECTION_ACTION_BAR_DUPLICATE", f"duplicate action bar for collection motif {motif_id}."
+        )
     if existing:
         row = existing[0]
         wrapper_index = parent.children.index(wrapper)
@@ -852,7 +905,8 @@ def _validate_collection_action(
     oversized = [
         binding_id
         for binding_id in action.payload_bindings
-        if _utf8_size(_resolved_payload_value(binding_id, bindings_by_id, address_index)) > COLLECTION_PAYLOAD_VALUE_MAX_BYTES
+        if _utf8_size(_resolved_payload_value(binding_id, bindings_by_id, address_index))
+        > COLLECTION_PAYLOAD_VALUE_MAX_BYTES
     ]
     if oversized:
         _add_diagnostic(
@@ -1020,11 +1074,13 @@ def _apply_product_surface_planner_v1(
 
 class UnsupportedMotifError(Exception):
     """Raised when the reference compiler encounters a motif type it can't handle."""
+
     pass
 
 
 class CompilerInputError(Exception):
     """Raised when a bundle cannot produce a root CompositionIR."""
+
     pass
 
 
@@ -1039,9 +1095,7 @@ def _validate_bundle_shape(bundle: Any) -> tuple[SemanticSubstrate, ViewSpec]:
         raise CompilerInputError("SemanticSubstrate.nodes must be a dictionary.")
     for node_key, node in bundle.substrate.nodes.items():
         if not isinstance(node, SemanticNode):
-            raise CompilerInputError(
-                f"SemanticSubstrate.nodes['{node_key}'] must be a SemanticNode."
-            )
+            raise CompilerInputError(f"SemanticSubstrate.nodes['{node_key}'] must be a SemanticNode.")
 
     list_fields: tuple[tuple[str, type[Any]], ...] = (
         ("regions", RegionSpec),
@@ -1057,9 +1111,7 @@ def _validate_bundle_shape(bundle: Any) -> tuple[SemanticSubstrate, ViewSpec]:
             raise CompilerInputError(f"ViewSpec.{field_name} must be a list.")
         for index, value in enumerate(values):
             if not isinstance(value, expected_type):
-                raise CompilerInputError(
-                    f"ViewSpec.{field_name}[{index}] must be a {expected_type.__name__}."
-                )
+                raise CompilerInputError(f"ViewSpec.{field_name}[{index}] must be a {expected_type.__name__}.")
 
     return bundle.substrate, bundle.view_spec
 
@@ -1068,18 +1120,14 @@ def _validate_roots(substrate: SemanticSubstrate, view_spec: ViewSpec) -> None:
     if not substrate.root_id:
         raise CompilerInputError("SemanticSubstrate.root_id is required.")
     if substrate.root_id not in substrate.nodes:
-        raise CompilerInputError(
-            f"SemanticSubstrate.root_id '{substrate.root_id}' is not present in substrate.nodes."
-        )
+        raise CompilerInputError(f"SemanticSubstrate.root_id '{substrate.root_id}' is not present in substrate.nodes.")
     if not view_spec.root_region:
         raise CompilerInputError("ViewSpec.root_region is required.")
 
 
 def _validate_safe_id(value: str, label: str) -> None:
     if not isinstance(value, str) or not value or not SAFE_COMPILER_ID_RE.match(value):
-        raise CompilerInputError(
-            f"{label} '{value}' must use only letters, digits, underscore, dot, and dash."
-        )
+        raise CompilerInputError(f"{label} '{value}' must use only letters, digits, underscore, dot, and dash.")
 
 
 def _validate_semantic_node_maps(node_key: str, node: Any, node_ids: set[str]) -> None:
@@ -1093,18 +1141,14 @@ def _validate_semantic_node_maps(node_key: str, node: Any, node_ids: set[str]) -
     for slot_key, values in node.slots.items():
         _validate_safe_id(slot_key, f"SemanticNode '{node_key}'.slots key")
         if not isinstance(values, list):
-            raise CompilerInputError(
-                f"SemanticNode '{node_key}'.slots['{slot_key}'] must be a list."
-            )
+            raise CompilerInputError(f"SemanticNode '{node_key}'.slots['{slot_key}'] must be a list.")
 
     if not isinstance(node.edges, dict):
         raise CompilerInputError(f"SemanticNode '{node_key}'.edges must be a dictionary.")
     for edge_key, target_ids in node.edges.items():
         _validate_safe_id(edge_key, f"SemanticNode '{node_key}'.edges key")
         if not isinstance(target_ids, list):
-            raise CompilerInputError(
-                f"SemanticNode '{node_key}'.edges['{edge_key}'] must be a list."
-            )
+            raise CompilerInputError(f"SemanticNode '{node_key}'.edges['{edge_key}'] must be a list.")
         for target_id in target_ids:
             _validate_safe_id(target_id, f"SemanticNode '{node_key}'.edges['{edge_key}'] target id")
             if target_id not in node_ids:
@@ -1127,7 +1171,11 @@ def _validate_id_list(value: Any, label: str) -> None:
 
 
 def _validate_view_spec_constraints(view_spec: ViewSpec) -> None:
-    if not isinstance(view_spec.complexity_tier, int) or isinstance(view_spec.complexity_tier, bool) or view_spec.complexity_tier < 1:
+    if (
+        not isinstance(view_spec.complexity_tier, int)
+        or isinstance(view_spec.complexity_tier, bool)
+        or view_spec.complexity_tier < 1
+    ):
         raise CompilerInputError("ViewSpec.complexity_tier must be a positive integer.")
     for region in view_spec.regions:
         if region.layout not in SUPPORTED_REGION_LAYOUTS:
@@ -1184,8 +1232,7 @@ def _validate_identifier_contract(substrate: SemanticSubstrate, view_spec: ViewS
     _validate_view_spec_constraints(view_spec)
     if view_spec.substrate_id != substrate.id:
         raise CompilerInputError(
-            f"ViewSpec.substrate_id '{view_spec.substrate_id}' must match "
-            f"SemanticSubstrate.id '{substrate.id}'."
+            f"ViewSpec.substrate_id '{view_spec.substrate_id}' must match SemanticSubstrate.id '{substrate.id}'."
         )
     _validate_safe_id(view_spec.root_region, "ViewSpec.root_region")
     for region in view_spec.regions:
@@ -1221,17 +1268,13 @@ def _validate_region_tree(valid_regions: list[Any], root_region: str) -> None:
         if region.id == root_region:
             continue
         if not region.parent_region:
-            raise CompilerInputError(
-                f"Region '{region.id}' is not the root and must declare parent_region."
-            )
+            raise CompilerInputError(f"Region '{region.id}' is not the root and must declare parent_region.")
         seen: set[str] = set()
         cursor: str | None = region.id
         depth = 0
         while cursor is not None and cursor != root_region:
             if cursor in seen:
-                raise CompilerInputError(
-                    f"Region parent_region cycle detected while walking from '{region.id}'."
-                )
+                raise CompilerInputError(f"Region parent_region cycle detected while walking from '{region.id}'.")
             depth += 1
             if depth > MAX_COMPILE_NESTING_DEPTH:
                 raise CompilerInputError(
@@ -1242,9 +1285,7 @@ def _validate_region_tree(valid_regions: list[Any], root_region: str) -> None:
             seen.add(cursor)
             cursor = parent_by_region.get(cursor)
         if cursor is None:
-            raise CompilerInputError(
-                f"Region '{region.id}' does not reach root_region '{root_region}'."
-            )
+            raise CompilerInputError(f"Region '{region.id}' does not reach root_region '{root_region}'.")
 
 
 def _build_and_validate_regions(
@@ -1258,7 +1299,8 @@ def _build_and_validate_regions(
     for region in view_spec.regions:
         if region.id in seen_region_ids:
             _add_diagnostic(
-                diagnostics, "DUPLICATE_REGION_ID",
+                diagnostics,
+                "DUPLICATE_REGION_ID",
                 f"Region id {region.id} appears more than once. The first occurrence was used.",
                 intent_ref=_region_ref(region.id),
                 region_id=region.id,
@@ -1282,16 +1324,11 @@ def _build_and_validate_regions(
         raise CompilerInputError(f"ViewSpec.root_region '{view_spec.root_region}' is not present in view_spec.regions.")
     _validate_region_tree(valid_regions, view_spec.root_region)
 
+    # _validate_region_tree has already raised CompilerInputError for any region
+    # whose parent_region is not a declared region, so every parent resolves here.
     for region in valid_regions:
-        if region.parent_region and region.parent_region in region_nodes:
+        if region.parent_region:
             region_nodes[region.parent_region].children.append(region_nodes[region.id])
-        elif region.parent_region:
-            _add_diagnostic(
-                diagnostics, "UNKNOWN_REGION",
-                f"Region {region.id} declares unknown parent region {region.parent_region}.",
-                intent_ref=_region_ref(region.id),
-                region_id=region.parent_region,
-            )
     return region_nodes, valid_regions
 
 
@@ -1312,7 +1349,8 @@ def _build_and_validate_bindings(
     for binding in view_spec.bindings:
         if binding.id in seen_binding_ids:
             _add_diagnostic(
-                diagnostics, "DUPLICATE_BINDING_ID",
+                diagnostics,
+                "DUPLICATE_BINDING_ID",
                 f"Binding id {binding.id} appears more than once. The first occurrence was used.",
                 intent_ref=_binding_ref(binding.id),
                 content_ref=binding.address,
@@ -1323,7 +1361,8 @@ def _build_and_validate_bindings(
         all_binding_ids.add(binding.id)
         if binding.target_region not in region_nodes:
             _add_diagnostic(
-                diagnostics, "UNKNOWN_REGION",
+                diagnostics,
+                "UNKNOWN_REGION",
                 f"Binding {binding.id} targets unknown region {binding.target_region}.",
                 intent_ref=_binding_ref(binding.id),
                 content_ref=binding.address,
@@ -1332,7 +1371,8 @@ def _build_and_validate_bindings(
             continue
         if binding.present_as not in PRESENT_AS_TO_PRIMITIVE:
             _add_diagnostic(
-                diagnostics, "UNKNOWN_PRESENT_AS",
+                diagnostics,
+                "UNKNOWN_PRESENT_AS",
                 f"Binding {binding.id} uses unknown present_as {binding.present_as}.",
                 intent_ref=_binding_ref(binding.id),
                 content_ref=binding.address,
@@ -1341,7 +1381,8 @@ def _build_and_validate_bindings(
             continue
         if binding.cardinality == "exactly_once" and binding.address in seen_exactly_once_addresses:
             _add_diagnostic(
-                diagnostics, "DUPLICATE_EXACTLY_ONCE_ADDRESS",
+                diagnostics,
+                "DUPLICATE_EXACTLY_ONCE_ADDRESS",
                 f"Binding {binding.id} duplicates exactly_once address {binding.address} "
                 f"already used by {seen_exactly_once_addresses[binding.address]}.",
                 intent_ref=_binding_ref(binding.id),
@@ -1354,7 +1395,8 @@ def _build_and_validate_bindings(
             _resolve_address(binding.address, address_index)
         except (ValueError, KeyError) as exc:
             _add_diagnostic(
-                diagnostics, "INVALID_ADDRESS",
+                diagnostics,
+                "INVALID_ADDRESS",
                 f"Binding {binding.id} has invalid address {binding.address}: {exc}",
                 intent_ref=_binding_ref(binding.id),
                 content_ref=binding.address,
@@ -1367,9 +1409,7 @@ def _build_and_validate_bindings(
             seen_exactly_once_addresses[binding.address] = binding.id
 
     bindings_by_id = {b.id: b for b in valid_bindings}
-    binding_nodes: dict[str, IRNode] = {
-        b.id: _build_binding_node(b, address_index) for b in valid_bindings
-    }
+    binding_nodes: dict[str, IRNode] = {b.id: _build_binding_node(b, address_index) for b in valid_bindings}
 
     bindings_by_region: dict[str, list[BindingSpec]] = {r.id: [] for r in valid_regions}
     for b in valid_bindings:
@@ -1408,7 +1448,8 @@ def _compile_and_place_motifs(
     for motif in view_spec.motifs:
         if motif.id in motif_by_id:
             _add_diagnostic(
-                diagnostics, "DUPLICATE_MOTIF_ID",
+                diagnostics,
+                "DUPLICATE_MOTIF_ID",
                 f"Motif id {motif.id} appears more than once. The first occurrence was used.",
                 intent_ref=_motif_ref(motif.id),
                 region_id=motif.region,
@@ -1433,11 +1474,7 @@ def _compile_and_place_motifs(
     conflicting_state_ids: set[str] = set()
     for region_id, region_motifs in motifs_by_region.items():
         has_collection = any(motif.kind in COLLECTION_MOTIF_KINDS for motif in region_motifs)
-        conflicting_states = [
-            motif
-            for motif in region_motifs
-            if motif.kind in CONFLICTING_STATE_MOTIF_KINDS
-        ]
+        conflicting_states = [motif for motif in region_motifs if motif.kind in CONFLICTING_STATE_MOTIF_KINDS]
         if has_collection and conflicting_states:
             for motif in conflicting_states:
                 conflicting_state_ids.add(motif.id)
@@ -1452,7 +1489,8 @@ def _compile_and_place_motifs(
     for group in view_spec.groups:
         if group.id in seen_group_ids:
             _add_diagnostic(
-                diagnostics, "DUPLICATE_GROUP_ID",
+                diagnostics,
+                "DUPLICATE_GROUP_ID",
                 f"Group id {group.id} appears more than once. The first occurrence was used.",
                 intent_ref=f"viewspec:group:{group.id}",
                 region_id=group.target_region,
@@ -1462,7 +1500,8 @@ def _compile_and_place_motifs(
         for member_id in group.members:
             if member_id not in all_binding_ids:
                 _add_diagnostic(
-                    diagnostics, "MISSING_GROUP_MEMBER",
+                    diagnostics,
+                    "MISSING_GROUP_MEMBER",
                     f"Group {group.id} references missing binding {member_id}.",
                     intent_ref=f"viewspec:group:{group.id}",
                     region_id=group.target_region,
@@ -1475,7 +1514,8 @@ def _compile_and_place_motifs(
             continue
         if motif.region not in region_nodes:
             _add_diagnostic(
-                diagnostics, "UNKNOWN_REGION",
+                diagnostics,
+                "UNKNOWN_REGION",
                 f"Motif {motif.id} targets unknown region {motif.region}.",
                 intent_ref=_motif_ref(motif.id),
                 region_id=motif.region,
@@ -1485,7 +1525,8 @@ def _compile_and_place_motifs(
         for member_id in motif.members:
             if member_id not in all_binding_ids:
                 _add_diagnostic(
-                    diagnostics, "MISSING_MOTIF_MEMBER",
+                    diagnostics,
+                    "MISSING_MOTIF_MEMBER",
                     f"Motif {motif.id} references missing binding {member_id}.",
                     intent_ref=_motif_ref(motif.id),
                     region_id=motif.region,
@@ -1498,7 +1539,8 @@ def _compile_and_place_motifs(
                 continue
             if mid in motif_claimed_binding_ids:
                 _add_diagnostic(
-                    diagnostics, "DUPLICATE_MOTIF_MEMBER",
+                    diagnostics,
+                    "DUPLICATE_MOTIF_MEMBER",
                     f"Binding {mid} is claimed by more than one motif. The first "
                     f"motif to place it was used; motif {motif.id} does not re-render it.",
                     intent_ref=_motif_ref(motif.id),
@@ -1520,7 +1562,8 @@ def _compile_and_place_motifs(
             # SEMANTIC_GRAPH_UNREACHED_MEMBER handling.
             if owned_member_ids:
                 _add_diagnostic(
-                    diagnostics, "SEMANTIC_MOTIF_MEMBERS_UNPLACED",
+                    diagnostics,
+                    "SEMANTIC_MOTIF_MEMBERS_UNPLACED",
                     f"Motif {motif.id} ({motif.kind}) did not satisfy its contract; its "
                     f"{len(owned_member_ids)} member binding(s) render as region leftovers instead "
                     f"of the motif ({', '.join(owned_member_ids)}).",
@@ -1564,7 +1607,8 @@ def _validate_actions(
         action_valid = True
         if action.id in seen_action_ids:
             _add_diagnostic(
-                diagnostics, "DUPLICATE_ACTION_ID",
+                diagnostics,
+                "DUPLICATE_ACTION_ID",
                 f"Action id {action.id} appears more than once. The first occurrence was used.",
                 intent_ref=_action_ref(action.id),
                 region_id=action.target_region,
@@ -1583,7 +1627,8 @@ def _validate_actions(
         if action.target_region not in region_nodes:
             action_valid = False
             _add_diagnostic(
-                diagnostics, "UNKNOWN_ACTION_TARGET",
+                diagnostics,
+                "UNKNOWN_ACTION_TARGET",
                 f"Action {action.id} targets unknown region {action.target_region}.",
                 intent_ref=_action_ref(action.id),
                 region_id=action.target_region,
@@ -1592,7 +1637,8 @@ def _validate_actions(
             if ":" not in action.target_ref:
                 action_valid = False
                 _add_diagnostic(
-                    diagnostics, "INVALID_ACTION_TARGET_REF",
+                    diagnostics,
+                    "INVALID_ACTION_TARGET_REF",
                     f"Action {action.id} target_ref must use kind:id form.",
                     intent_ref=_action_ref(action.id),
                 )
@@ -1607,7 +1653,8 @@ def _validate_actions(
                 if not target_exists:
                     action_valid = False
                     _add_diagnostic(
-                        diagnostics, "UNKNOWN_ACTION_TARGET",
+                        diagnostics,
+                        "UNKNOWN_ACTION_TARGET",
                         f"Action {action.id} targets unknown {target_kind}:{target_id}.",
                         intent_ref=_action_ref(action.id),
                     )
@@ -1615,7 +1662,8 @@ def _validate_actions(
             if binding_id not in valid_binding_ids:
                 action_valid = False
                 _add_diagnostic(
-                    diagnostics, "UNKNOWN_ACTION_PAYLOAD_BINDING",
+                    diagnostics,
+                    "UNKNOWN_ACTION_PAYLOAD_BINDING",
                     f"Action {action.id} references missing payload binding {binding_id}.",
                     intent_ref=_action_ref(action.id),
                 )
@@ -1637,7 +1685,7 @@ def _resolve_and_apply_styles(
 ) -> dict[str, str]:
     """Resolve the aesthetic profile + design tokens and attach styles to IR nodes."""
     profile_style = _resolve_aesthetic_profile(view_spec, diagnostics)
-    style_values = _derive_style_tokens(substrate, view_spec)
+    style_values = derive_style_tokens(substrate, view_spec)
     if profile_style is not None:
         selected_profile_values = profile_style_values(profile_style.token)
         if all(style_values.get(token, "").strip() == css.strip() for token, css in selected_profile_values.items()):
@@ -1659,7 +1707,8 @@ def _resolve_and_apply_styles(
     for style in view_spec.styles:
         if style.id in seen_style_ids:
             _add_diagnostic(
-                diagnostics, "DUPLICATE_STYLE_ID",
+                diagnostics,
+                "DUPLICATE_STYLE_ID",
                 f"Style id {style.id} appears more than once. The first occurrence was used.",
                 intent_ref=_style_ref(style.id),
             )
@@ -1708,24 +1757,25 @@ def _resolve_and_apply_styles(
             if style_token_known:
                 _attach_style(binding_nodes[target_id], style)
         elif target_kind == "motif" and target_id in motif_by_id:
-            if not style_token_known:
-                pass
-            elif target_id in motif_wrappers:
-                _attach_style(motif_wrappers[target_id], style)
-            elif motif_by_id[target_id].region in region_nodes:
-                _attach_style(region_nodes[motif_by_id[target_id].region], style)
-            else:
-                _add_diagnostic(
-                    diagnostics, "UNKNOWN_STYLE_TARGET",
-                    f"Style {style.id} targets motif {target_id}, but its region is not available.",
-                    intent_ref=_style_ref(style.id),
-                )
+            if style_token_known:
+                if target_id in motif_wrappers:
+                    _attach_style(motif_wrappers[target_id], style)
+                elif motif_by_id[target_id].region in region_nodes:
+                    _attach_style(region_nodes[motif_by_id[target_id].region], style)
+                else:
+                    _add_diagnostic(
+                        diagnostics,
+                        "UNKNOWN_STYLE_TARGET",
+                        f"Style {style.id} targets motif {target_id}, but its region is not available.",
+                        intent_ref=_style_ref(style.id),
+                    )
         elif target_kind == "view" and target_id == view_spec.id:
             if style_token_known:
                 _attach_style(region_nodes[view_spec.root_region], style)
         else:
             _add_diagnostic(
-                diagnostics, "UNKNOWN_STYLE_TARGET",
+                diagnostics,
+                "UNKNOWN_STYLE_TARGET",
                 f"Style {style.id} targets unknown {target_kind}:{target_id}.",
                 intent_ref=_style_ref(style.id),
             )
@@ -1765,7 +1815,9 @@ def compile(
         if motif_plugins
         else builtin_motif_registry()
     )
-    supported_motif_kinds = active_motif_registry.kinds if motif_registry is not None or motif_plugins else SUPPORTED_MOTIF_KINDS
+    supported_motif_kinds = (
+        active_motif_registry.kinds if motif_registry is not None or motif_plugins else SUPPORTED_MOTIF_KINDS
+    )
 
     for motif in view_spec.motifs:
         if motif.kind not in active_motif_registry:
@@ -1902,22 +1954,13 @@ def _assign_default_style_tokens(node: IRNode) -> None:
         _assign_default_style_tokens(child)
 
 
-def _derive_style_tokens(substrate: SemanticSubstrate, view_spec: ViewSpec) -> dict[str, str]:
-    """Simple style token derivation for the reference compiler."""
-    numeric_values: list[float] = []
-    total_text_len = 0
-    attr_count = 0
+def derive_style_tokens(substrate: SemanticSubstrate, view_spec: ViewSpec) -> dict[str, str]:
+    """Derive the reference compiler's style token values for a bundle.
 
-    for node in substrate.nodes.values():
-        for attr_value in node.attrs.values():
-            attr_count += 1
-            text = str(attr_value).strip()
-            total_text_len += len(text)
-            try:
-                numeric_values.append(float(text))
-            except ValueError:
-                pass
-
+    Public so presentation planning (viewspec.presentation_plan) can reuse the
+    exact derivation without importing a private compiler helper. The substrate
+    is accepted for signature stability; today only the ViewSpec shapes the result.
+    """
     value_bindings = sum(1 for b in view_spec.bindings if b.present_as in {"value", "metric", "number"})
     value_heavy = len(view_spec.bindings) > 0 and value_bindings * 2 >= len(view_spec.bindings)
     dashboard_like = any(m.kind in {"dashboard", "table"} for m in view_spec.motifs)
@@ -1934,209 +1977,21 @@ def _derive_style_tokens(substrate: SemanticSubstrate, view_spec: ViewSpec) -> d
         regular_gap, regular_padding = "0.85rem", "0.74rem 0.9rem"
 
     style_values = dict(DEFAULT_STYLE_TOKEN_VALUES)
-    style_values.update({
-        "emphasis.high": f"font-weight: {emphasis_weight}; letter-spacing: -0.025em;",
-        "emphasis.medium": f"font-weight: {medium_weight};",
-        "tone.accent": "color: #0f766e;",
-        "action.accent": "background-color: #0f766e; color: #ffffff;",
-        "tone.muted": "color: #6b7280;",
-        "surface.subtle": "background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 14px;",
-        "surface.strong": "background: #e2e8f0; border: 1px solid #94a3b8; border-radius: 14px;",
-        "density.compact": f"gap: {compact_gap}; padding: {compact_padding};",
-        "density.regular": f"gap: {regular_gap}; padding: {regular_padding};",
-    })
+    style_values.update(
+        {
+            "emphasis.high": f"font-weight: {emphasis_weight}; letter-spacing: -0.025em;",
+            "emphasis.medium": f"font-weight: {medium_weight};",
+            "tone.accent": "color: #0f766e;",
+            "action.accent": "background-color: #0f766e; color: #ffffff;",
+            "tone.muted": "color: #6b7280;",
+            "surface.subtle": "background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 14px;",
+            "surface.strong": "background: #e2e8f0; border: 1px solid #94a3b8; border-radius: 14px;",
+            "density.compact": f"gap: {compact_gap}; padding: {compact_padding};",
+            "density.regular": f"gap: {regular_gap}; padding: {regular_padding};",
+        }
+    )
     return style_values
 
 
-# ---------------------------------------------------------------------------
-# Hosted compiler client
-# ---------------------------------------------------------------------------
-
-VIEWSPEC_API_URL = "https://api.viewspec.dev"
-
-
-class CompilerAPIError(Exception):
-    """Structured failure returned by the hosted compiler API."""
-
-    def __init__(
-        self,
-        message: str,
-        *,
-        code: str = "remote_error",
-        path: str | None = None,
-        status_code: int | None = None,
-        request_id: str | None = None,
-        retry_after: str | None = None,
-    ) -> None:
-        super().__init__(message)
-        self.code = code
-        self.path = path
-        self.status_code = status_code
-        self.request_id = request_id
-        self.retry_after = retry_after
-
-
-def _response_header(response: Any, name: str) -> str | None:
-    headers = getattr(response, "headers", {})
-    value = headers.get(name) if hasattr(headers, "get") else None
-    if value is None and hasattr(headers, "items"):
-        value = next((item for key, item in headers.items() if str(key).lower() == name.lower()), None)
-    return None if value is None else str(value)
-
-
-def _compiler_api_error(response: Any, data: Any = None) -> CompilerAPIError:
-    status_code = int(getattr(response, "status_code", 0)) or None
-    if data is None:
-        try:
-            data = response.json()
-        except ValueError:
-            data = None
-    error = data.get("error") if isinstance(data, dict) else None
-    structured = error if isinstance(error, dict) else {}
-    message = str(structured.get("message") or "")
-    code = str(structured.get("code") or "remote_error")
-    path = structured.get("path") if isinstance(structured.get("path"), str) else None
-    if not message and isinstance(data, dict) and isinstance(data.get("message"), str):
-        message = data["message"]
-    if status_code == 401 and not structured:
-        message = "Invalid API key"
-        code = "invalid_api_key"
-    elif status_code == 429 and not structured:
-        message = f"Rate limit exceeded: {message or 'Upgrade at viewspec.dev'}"
-        code = "rate_limit_exceeded"
-    elif not message:
-        message = f"Compilation failed (HTTP {status_code})"
-    request_id = data.get("request_id") if isinstance(data, dict) and isinstance(data.get("request_id"), str) else None
-    request_id = request_id or _response_header(response, "X-Request-ID")
-    return CompilerAPIError(
-        message,
-        code=code,
-        path=path,
-        status_code=status_code,
-        request_id=request_id,
-        retry_after=_response_header(response, "Retry-After"),
-    )
-
-
-def _compile_request_payload(request: IntentBundle | CompileRequestPayload) -> CompileRequestPayload:
-    if isinstance(request, CompileRequestPayload):
-        return request
-    if isinstance(request, IntentBundle):
-        return CompileRequestPayload(bundle=request)
-    raise TypeError("Expected IntentBundle or CompileRequestPayload")
-
-
-def compile_remote_response(
-    request: IntentBundle | CompileRequestPayload,
-    *,
-    api_url: str = VIEWSPEC_API_URL,
-    api_key: str | None = None,
-) -> CompileResponse:
-    """
-    Compile an IntentBundle or CompileRequestPayload using the hosted ViewSpec compiler API.
-
-    Requires the `httpx` package (`pip install viewspec[remote]`).
-
-    Args:
-        request: The IntentBundle or hosted compiler request to compile.
-        api_url: Base URL of the ViewSpec API (default: https://api.viewspec.dev).
-        api_key: Optional API key for authenticated access (higher rate limits).
-
-    Returns:
-        CompileResponse with the compiled AST and response metadata.
-
-    Raises:
-        CompilerAPIError: If the API returns an error.
-        ImportError: If httpx is not installed.
-    """
-    try:
-        import httpx
-    except ImportError:
-        raise ImportError(
-            "httpx is required for remote compilation. Install it: pip install viewspec[remote]"
-        ) from None
-
-    headers: dict[str, str] = {}
-    if api_key:
-        headers["Authorization"] = f"Bearer {api_key}"
-
-    payload = _compile_request_payload(request)
-
-    try:
-        response = httpx.post(
-            f"{api_url.rstrip('/')}/v1/compile",
-            json=payload.to_json(),
-            headers=headers,
-            timeout=30.0,
-        )
-    except httpx.HTTPError as exc:
-        raise CompilerAPIError(
-            f"Remote compilation request failed: {exc}", code="network_error"
-        ) from exc
-
-    def _response_json() -> dict[str, Any]:
-        try:
-            data = response.json()
-        except ValueError as exc:
-            raise CompilerAPIError("Compilation failed: response was not valid JSON") from exc
-        if not isinstance(data, dict):
-            raise CompilerAPIError("Compilation failed: response JSON was not an object")
-        return data
-
-    if response.status_code != 200:
-        raise _compiler_api_error(response, _response_json())
-
-    data = _response_json()
-    if "ast" not in data:
-        raise CompilerAPIError("Compilation failed: response missing ast")
-    try:
-        return CompileResponse.from_json(data)
-    except Exception as exc:
-        raise CompilerAPIError("Compilation failed: response ast was invalid") from exc
-
-
-def compile_remote(
-    request: IntentBundle | CompileRequestPayload,
-    *,
-    api_url: str = VIEWSPEC_API_URL,
-    api_key: str | None = None,
-) -> ASTBundle:
-    """
-    Compile an IntentBundle or CompileRequestPayload using the hosted compiler API.
-
-    Returns only the ASTBundle for backward compatibility. Use
-    compile_remote_response() to access response metadata such as meta.design.
-    """
-    return compile_remote_response(request, api_url=api_url, api_key=api_key).ast
-
-
-def compile_auto(
-    request: IntentBundle | CompileRequestPayload,
-    *,
-    api_url: str = VIEWSPEC_API_URL,
-    api_key: str | None = None,
-    prefer_local: bool = True,
-) -> ASTBundle:
-    """
-    Compile with automatic local→remote fallback.
-
-    Tries the local reference compiler first. If the ViewSpec contains
-    unsupported motif types, falls back to the hosted API (if api_key
-    is provided or the free tier is available).
-
-    Args:
-        request: The IntentBundle or hosted compiler request to compile.
-        api_url: Base URL of the ViewSpec API.
-        api_key: Optional API key for higher rate limits.
-        prefer_local: If True (default), try local compilation first.
-
-    Returns:
-        ASTBundle with the compiled result.
-    """
-    payload = _compile_request_payload(request)
-    if prefer_local:
-        try:
-            return compile(payload.bundle, design=payload.design)
-        except (UnsupportedMotifError, DesignSystemError):
-            return compile_remote(payload, api_url=api_url, api_key=api_key)
-    return compile_remote(payload, api_url=api_url, api_key=api_key)
+# Backward-compatible private alias; derive_style_tokens is the public name.
+_derive_style_tokens = derive_style_tokens

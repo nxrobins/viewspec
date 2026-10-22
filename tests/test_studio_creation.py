@@ -1,13 +1,15 @@
 from __future__ import annotations
 
 import base64
+import importlib
 import json
 from pathlib import Path
 
 import pytest
 
-from viewspec import cli
+import viewspec.app_pipeline as app_pipeline_module
 import viewspec.studio_creation as studio_creation
+from viewspec import cli
 from viewspec.app_starters import starter_app_bundle
 from viewspec.intent_tools import starter_intent_payload
 from viewspec.studio_creation import (
@@ -18,6 +20,8 @@ from viewspec.studio_creation import (
     prepare_studio_creation,
 )
 
+# ``viewspec.prove`` is also the name of the re-exported function, so import the module by name.
+prove_module = importlib.import_module("viewspec.prove")
 
 _ONE_PIXEL_PNG = base64.b64decode(
     "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII="
@@ -51,13 +55,9 @@ def _custom_app() -> dict:
     payload["app"]["id"] = "field_dispatch"
     payload["app"]["title"] = "Field Dispatch"
     payload["screens"][0]["title"] = "Active jobs"
-    payload["screens"][0]["intent_bundle"]["substrate"]["nodes"]["incident_queue"]["attrs"][
-        "title"
-    ] = "Active jobs"
+    payload["screens"][0]["intent_bundle"]["substrate"]["nodes"]["incident_queue"]["attrs"]["title"] = "Active jobs"
     payload["screens"][1]["title"] = "Job detail"
-    payload["screens"][1]["intent_bundle"]["substrate"]["nodes"]["incident_detail"]["attrs"][
-        "title"
-    ] = "Job detail"
+    payload["screens"][1]["intent_bundle"]["substrate"]["nodes"]["incident_detail"]["attrs"]["title"] = "Job detail"
     return payload
 
 
@@ -311,6 +311,70 @@ def test_accept_proves_then_publishes_app_source(tmp_path) -> None:
     assert (tmp_path / "viewspec.app.json").read_bytes() == candidate.read_bytes()
     proof = Path(accepted["paths"]["proof"])
     assert json.loads((proof / "app_proof_report.json").read_text(encoding="utf-8"))["ok"] is True
+
+
+def test_accept_reproves_its_task_bound_proof_after_an_interrupted_intent_proof(tmp_path, monkeypatch) -> None:
+    # F14: an interrupted studio-accept leaves the task-bound proof directory without a report; the
+    # next studio-accept must still be able to replace it.
+    prepare_studio_creation(brief="Build a field dispatch dashboard", kind="view", cwd=tmp_path)
+    candidate = _write_candidate(tmp_path, _custom_intent(), kind="view")
+
+    def interrupted(*_args, **_kwargs):
+        raise KeyboardInterrupt
+
+    with monkeypatch.context() as patch:
+        patch.setattr(prove_module, "compile_intent_bundle_file_tool", interrupted)
+        with pytest.raises(KeyboardInterrupt):
+            accept_studio_creation(cwd=tmp_path)
+    (proof_dir,) = [path for path in (tmp_path / ".viewspec/studio-creation").iterdir() if path.is_dir()]
+    assert not (proof_dir / "proof_report.json").exists()
+
+    accepted = accept_studio_creation(cwd=tmp_path)
+
+    assert accepted["ok"] is True
+    assert Path(accepted["paths"]["proof"]) == proof_dir
+    assert (tmp_path / "viewspec.intent.json").read_bytes() == candidate.read_bytes()
+
+
+def test_accept_reproves_its_task_bound_proof_after_an_interrupted_app_proof(tmp_path, monkeypatch) -> None:
+    prepare_studio_creation(brief="Build the field dispatch application", kind="app", cwd=tmp_path)
+    candidate = _write_candidate(tmp_path, _custom_app(), kind="app")
+
+    def interrupted_screens(_payload, output_dir, **_kwargs):
+        (output_dir / "screens").mkdir(parents=True, exist_ok=True)
+        raise KeyboardInterrupt
+
+    with monkeypatch.context() as patch:
+        patch.setattr(app_pipeline_module, "prove_app_screens", interrupted_screens)
+        with pytest.raises(KeyboardInterrupt):
+            accept_studio_creation(cwd=tmp_path)
+
+    accepted = accept_studio_creation(cwd=tmp_path)
+
+    assert accepted["ok"] is True
+    assert (tmp_path / "viewspec.app.json").read_bytes() == candidate.read_bytes()
+    proof = Path(accepted["paths"]["proof"])
+    assert json.loads((proof / "app_proof_report.json").read_text(encoding="utf-8"))["ok"] is True
+
+
+def test_accept_names_the_proof_directory_when_it_cannot_replace_it(tmp_path) -> None:
+    # A task-bound proof directory ViewSpec cannot recognise is not fixed by editing the candidate.
+    prepared = prepare_studio_creation(brief="Build a field dispatch dashboard", kind="view", cwd=tmp_path)
+    _write_candidate(tmp_path, _custom_intent(), kind="view")
+    proof_dir = tmp_path / prepared["creation"]["proof_path"]
+    proof_dir.mkdir(parents=True)
+    (proof_dir / "notes.txt").write_text("not ViewSpec output\n", encoding="utf-8")
+
+    with pytest.raises(StudioCreationError) as raised:
+        accept_studio_creation(cwd=tmp_path)
+
+    assert raised.value.code == "STUDIO_CREATION_PROOF_FAILED"
+    assert "PROVE_OUTPUT_UNRECOGNIZED" in raised.value.message
+    assert prepared["creation"]["proof_path"] in raised.value.fix
+    assert "canonical source was not published" in raised.value.fix
+    assert "Fix only" not in raised.value.fix
+    assert (proof_dir / "notes.txt").is_file()
+    assert not (tmp_path / "viewspec.intent.json").exists()
 
 
 def test_accepted_creation_inspection_requires_exact_candidate_capture_and_passing_proof(tmp_path) -> None:

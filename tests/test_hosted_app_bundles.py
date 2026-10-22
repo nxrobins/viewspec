@@ -1,14 +1,15 @@
 from __future__ import annotations
 
 import base64
-from copy import deepcopy
 import hashlib
 import json
 import sys
+from copy import deepcopy
 from types import SimpleNamespace
 
-from hypothesis import given, strategies as st
 import pytest
+from hypothesis import given
+from hypothesis import strategies as st
 
 import viewspec.hosted_app_bundles as hosted_app_bundles
 from viewspec import (
@@ -78,7 +79,9 @@ def _payload(bundle: dict) -> tuple[dict, dict]:
             }
         ],
     }
-    manifest = _file("hosted_app_manifest.json", "manifest", json.dumps(manifest_payload, indent=2, sort_keys=True) + "\n")
+    manifest = _file(
+        "hosted_app_manifest.json", "manifest", json.dumps(manifest_payload, indent=2, sort_keys=True) + "\n"
+    )
     files = [manifest, source]
     artifact_set_hash = hashlib.sha256(
         _canonical([{"path": item["path"], "sha256": item["sha256"]} for item in files])

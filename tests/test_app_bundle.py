@@ -2,27 +2,28 @@ from __future__ import annotations
 
 import json
 from copy import deepcopy
+from pathlib import Path
 
 import pytest
-from hypothesis import given, settings, strategies as st
+from hypothesis import given, settings
+from hypothesis import strategies as st
 
 import viewspec.app_bundle as app_bundle_module
-from viewspec.app_errors import AppBundleProofFailure
-from viewspec.app_resource_binding import _resource_binding_assertion_report
-from viewspec.app_shell import _assert_rendered_shell_static_contract
-from viewspec.app_state_artifacts import _write_state_artifacts
+import viewspec.app_pipeline as app_pipeline_module
+import viewspec.app_reports as app_reports_module
+from viewspec.agent import AGENT_INTENT_BUNDLE_SCHEMA
 from viewspec.app_bundle import (
     AGENT_APP_BUNDLE_SCHEMA,
-    APP_BUNDLE_STATE_SCHEMA_VERSION,
+    APP_BUNDLE_BINDING_SCOPE,
     APP_BUNDLE_MAX_BYTES,
     APP_BUNDLE_MAX_EMBEDDED_INTENT_BYTES,
     APP_BUNDLE_RESOURCE_BINDING,
     APP_BUNDLE_RESOURCE_BINDING_READONLY,
-    APP_BUNDLE_BINDING_SCOPE,
-    APP_STATE_MANIFEST,
-    APP_STATE_REDUCER,
+    APP_BUNDLE_STATE_SCHEMA_VERSION,
     APP_SHELL_ROUTE_NAVIGATION,
     APP_SHELL_TARGET,
+    APP_STATE_MANIFEST,
+    APP_STATE_REDUCER,
     app_semantic_change_lines,
     compile_app,
     compile_app_tool,
@@ -33,10 +34,18 @@ from viewspec.app_bundle import (
     starter_app_bundle,
     validate_app_text,
 )
-from viewspec.agent import AGENT_INTENT_BUNDLE_SCHEMA
-from viewspec.cli import _doctor_app_bundle_pipeline, _doctor_checks_ok, main as cli_main
+from viewspec.app_errors import AppBundleProofFailure
+from viewspec.app_react import REACT_APP_TARGET
+from viewspec.app_reports import app_proof_report_hash
+from viewspec.app_resource_binding import _resource_binding_assertion_report
+from viewspec.app_shell import _assert_rendered_shell_static_contract
+from viewspec.app_starters import starter_react_app_bundle
+from viewspec.app_state_artifacts import _write_state_artifacts
+from viewspec.cli import _doctor_app_bundle_pipeline, _doctor_checks_ok
+from viewspec.cli import main as cli_main
 from viewspec.intent_tools import starter_intent_bundle
 from viewspec.local_tools import check_artifact_dir, file_hash
+from viewspec.local_tools_io import VIEWSPEC_OUTPUT_SENTINEL, absolute_report_paths
 from viewspec.state_ir import (
     STATE_MANIFEST_SCHEMA_VERSION,
     STATE_REDUCER_EXPORTS,
@@ -84,7 +93,13 @@ def _stateful_app_bundle() -> dict:
             "scope": "app",
             "initial": {"from_resource_view": {"screen_id": "queue", "view_id": "queue_incidents"}},
         },
-        {"id": "selected_incident", "kind": "scalar", "scope": "screen", "screen_id": "queue", "initial": {"value": None}},
+        {
+            "id": "selected_incident",
+            "kind": "scalar",
+            "scope": "screen",
+            "screen_id": "queue",
+            "initial": {"value": None},
+        },
         {"id": "queue_flags", "kind": "record", "scope": "app", "initial": {"value": {"urgent": False, "count": 0}}},
         {"id": "selected_ids", "kind": "selection", "scope": "app", "initial": {"value": []}},
     ]
@@ -225,7 +240,10 @@ def test_bound_starter_app_bundle_validates_and_proves_fixture_readonly(tmp_path
         assert report["resource_binding_assertions"]["binding_digest"]
         assert report["resource_binding_assertions"]["views"][0]["status"] == "passed"
 
-    assert compiled["resource_binding_assertions"]["binding_digest"] == proof["resource_binding_assertions"]["binding_digest"]
+    assert (
+        compiled["resource_binding_assertions"]["binding_digest"]
+        == proof["resource_binding_assertions"]["binding_digest"]
+    )
     assert proof["shell"]["resource_binding"] == APP_BUNDLE_RESOURCE_BINDING_READONLY
     assert proof["shell"]["app_schema_version"] == 2
     assert proof["shell"]["binding_scope"] == APP_BUNDLE_BINDING_SCOPE
@@ -372,7 +390,7 @@ def test_state_reducer_conformance_executes_generated_es_module_for_all_v0_ops()
 
     assert "export type ViewSpecState = Record<string, unknown>;" in reducer_source
     assert "state: ViewSpecState, event: ViewSpecStateEvent" in reducer_source
-    assert "from \"./viewspec_numeric\"" in reducer_source
+    assert 'from "./viewspec_numeric"' in reducer_source
     assert "export function reduceViewSpecState" in reducer_source
     assert "export function selectViewSpecState" in reducer_source
     assert "export type" not in generate_javascript_reducer(app)
@@ -577,7 +595,9 @@ def test_increment_on_non_numeric_fails_like_python_reference():
 
     state_ir, issues = validate_state_ir(app)
     assert issues == []
-    result = apply_event(initial_state(app, state_ir), state_ir, {"mutation_id": "bump", "payload_values": {"inc_1043_id": "x"}})
+    result = apply_event(
+        initial_state(app, state_ir), state_ir, {"mutation_id": "bump", "payload_values": {"inc_1043_id": "x"}}
+    )
     assert result["ok"] is False
     assert result["errors"][0]["code"] == "APP_STATE_REDUCER_OP_FAILED"
 
@@ -661,9 +681,7 @@ def _coll_state(value):
 def _reducer_scenario_app(state, ops, idval="x"):
     app = _stateful_app_bundle()
     app["state"] = state
-    app["mutations"] = [
-        {"id": "m", "trigger": {"screen_id": "queue", "action_id": "triage_incident"}, "ops": ops}
-    ]
+    app["mutations"] = [{"id": "m", "trigger": {"screen_id": "queue", "action_id": "triage_incident"}, "ops": ops}]
     app["selectors"] = []
     app["state_replay_assertions"] = [
         {
@@ -694,7 +712,10 @@ _FROM_PAYLOAD = {"from_payload": "inc_1043_id"}
         ),
         (
             _rec_state({"a": 1}),
-            [{"op": "set", "state": "rec", "value": [1, 2]}, {"op": "increment", "state": "rec", "field": "n", "amount": 1}],
+            [
+                {"op": "set", "state": "rec", "value": [1, 2]},
+                {"op": "increment", "state": "rec", "field": "n", "amount": 1},
+            ],
             "x",
         ),
         # Integer-valued float id no longer drifts (String(1.0)="1" vs str(1.0)="1.0").
@@ -702,7 +723,10 @@ _FROM_PAYLOAD = {"from_payload": "inc_1043_id"}
         # Well-formed multi-op still succeeds identically.
         (
             _coll_state([{"id": "a"}]),
-            [{"op": "append", "state": "rows", "value": {"id": "b"}}, {"op": "patch", "state": "rows", "item_id": _FROM_PAYLOAD, "value": {"v": 1}}],
+            [
+                {"op": "append", "state": "rows", "value": {"id": "b"}},
+                {"op": "patch", "state": "rows", "item_id": _FROM_PAYLOAD, "value": {"v": 1}},
+            ],
             "b",
         ),
     ],
@@ -766,15 +790,29 @@ def test_filter_eq_distinguishes_bool_from_number_like_reducer():
     # Python filter_eq now mirrors JS === : true != 1, so only the numeric row matches.
     app = _stateful_app_bundle()
     app["state"] = [
-        {"id": "rows", "kind": "collection", "scope": "app", "initial": {"value": [{"id": "t", "k": True}, {"id": "n", "k": 1}]}},
+        {
+            "id": "rows",
+            "kind": "collection",
+            "scope": "app",
+            "initial": {"value": [{"id": "t", "k": True}, {"id": "n", "k": 1}]},
+        },
         {"id": "flags", "kind": "record", "scope": "app", "initial": {"value": {"count": 0}}},
     ]
     app["mutations"] = [
-        {"id": "bump", "trigger": {"screen_id": "queue", "action_id": "triage_incident"}, "ops": [{"op": "increment", "state": "flags", "field": "count", "amount": 1}]}
+        {
+            "id": "bump",
+            "trigger": {"screen_id": "queue", "action_id": "triage_incident"},
+            "ops": [{"op": "increment", "state": "flags", "field": "count", "amount": 1}],
+        }
     ]
     app["selectors"] = [{"id": "ones", "source_state": "rows", "ops": [{"op": "filter_eq", "field": "k", "value": 1}]}]
     app["state_replay_assertions"] = [
-        {"id": "r", "events": [{"mutation_id": "bump", "payload_values": {"inc_1043_id": "x"}}], "expect_state": {}, "expect_selectors": {}}
+        {
+            "id": "r",
+            "events": [{"mutation_id": "bump", "payload_values": {"inc_1043_id": "x"}}],
+            "expect_state": {},
+            "expect_selectors": {},
+        }
     ]
 
     state_ir, issues = validate_state_ir(app)
@@ -992,8 +1030,7 @@ def test_validate_app_rejects_v3_state_constraints_and_v1_v2_mutation_fields():
 
     too_many_states = _stateful_app_bundle()
     too_many_states["state"] = [
-        {"id": f"state_{index}", "kind": "scalar", "scope": "app", "initial": {"value": index}}
-        for index in range(33)
+        {"id": f"state_{index}", "kind": "scalar", "scope": "app", "initial": {"value": index}} for index in range(33)
     ]
     cases.append(("too many states", too_many_states, "APP_STATE_LIMIT_EXCEEDED"))
 
@@ -1095,11 +1132,7 @@ def test_resource_binding_ambiguity_names_record_field_bindings_and_dom_identiti
     )
 
     assert report is not None and report["ok"] is False
-    failure = next(
-        item
-        for item in report["errors"]
-        if item["code"] == "APP_RESOURCE_BINDING_AMBIGUOUS_VALUE"
-    )
+    failure = next(item for item in report["errors"] if item["code"] == "APP_RESOURCE_BINDING_AMBIGUOUS_VALUE")
     assert f"record={record_id}" in failure["message"]
     assert f"field={field}" in failure["message"]
     assert f"binding={first_binding} dom=dom-first" in failure["message"]
@@ -1154,9 +1187,7 @@ def test_replay_artifact_failure_surfaces_complete_actionable_context(tmp_path):
             output_dir,
             generate_reducer=lambda _payload: "export const reducer = true;\n",
             check_conformance=lambda _payload, **_kwargs: {"ok": True},
-            build_manifest=lambda _payload, **_kwargs: {
-                "replay": {"ok": False, "errors": [failure]}
-            },
+            build_manifest=lambda _payload, **_kwargs: {"replay": {"ok": False, "errors": [failure]}},
         )
 
     assert caught.value.code == "APP_VISIBILITY_REPLAY_MISMATCH"
@@ -1296,7 +1327,19 @@ def test_prove_app_writes_checked_screen_artifacts_and_redacted_support(tmp_path
     assert out_dir.joinpath("APP_PROOF.md").exists()
     assert out_dir.joinpath("app_proof_report.json").exists()
     assert out_dir.joinpath("app_support_bundle.json").exists()
-    assert json.loads(out_dir.joinpath("app_proof_report.json").read_text(encoding="utf-8")) == report
+    # The file is the portable form of the returned report: paths relative to the proof directory.
+    report_text = out_dir.joinpath("app_proof_report.json").read_text(encoding="utf-8")
+    assert str(tmp_path) not in report_text
+    on_disk = json.loads(report_text)
+    assert {key: value for key, value in on_disk.items() if key not in {"paths", "screens"}} == {
+        key: value for key, value in report.items() if key not in {"paths", "screens"}
+    }
+    assert on_disk["paths"]["proof_dir"] == "."
+    assert on_disk["paths"]["app"] == "../viewspec.app.json"
+    assert on_disk["paths"]["report"] == "app_proof_report.json"
+    assert [screen["paths"]["artifact"] for screen in on_disk["screens"]] == [
+        f"screens/{screen['id']}/artifact/index.html" for screen in report["screens"]
+    ]
     assert len(report["screens"]) == 2
     for screen in report["screens"]:
         screen_root = out_dir / "screens" / screen["id"]
@@ -1313,7 +1356,37 @@ def test_prove_app_writes_checked_screen_artifacts_and_redacted_support(tmp_path
     assert support["kind"] == "viewspec_app_proof_support_bundle"
     assert support["privacy"]["contains_raw_app"] is False
     assert support["privacy"]["contains_absolute_paths"] is False
+    assert support["proof_report_hash"] == app_proof_report_hash(report) == app_proof_report_hash(on_disk)
     assert str(tmp_path) not in support_text
+
+
+def test_prove_app_bundle_is_identical_across_directories(tmp_path):
+    # C-7: two app proofs of one AppBundle in different directories differ only in wall-clock timings.
+    app_path = tmp_path / "viewspec.app.json"
+    app_path.write_text(_app_text(starter_app_bundle()), encoding="utf-8")
+    first_dir = tmp_path / "first" / "app-proof"
+    second_dir = tmp_path / "second" / "app-proof"
+
+    first = prove_app(app_path=app_path, out_dir=first_dir, cwd=tmp_path)
+    second = prove_app(app_path=app_path, out_dir=second_dir, cwd=tmp_path)
+
+    assert first["ok"] is True
+    assert second["ok"] is True
+    first_doc = json.loads(first_dir.joinpath("app_proof_report.json").read_text(encoding="utf-8"))
+    second_doc = json.loads(second_dir.joinpath("app_proof_report.json").read_text(encoding="utf-8"))
+    assert first_doc["paths"]["app"] == "../../viewspec.app.json"
+    first_doc.pop("timings_ms")
+    second_doc.pop("timings_ms")
+    assert first_doc == second_doc
+    first_support = first_dir.joinpath("app_support_bundle.json").read_bytes()
+    assert first_support == second_dir.joinpath("app_support_bundle.json").read_bytes()
+    assert (
+        json.loads(first_support)["proof_report_hash"] == app_proof_report_hash(first) == app_proof_report_hash(second)
+    )
+    first_summary = first_dir.joinpath("APP_PROOF.md").read_text(encoding="utf-8")
+    assert "- Paths are relative to the proof directory." in first_summary
+    assert "- app: `../../viewspec.app.json`" in first_summary
+    assert str(tmp_path) not in first_summary
 
 
 def test_compile_app_writes_static_shell_artifact_and_cli_report(tmp_path, capsys):
@@ -1393,7 +1466,9 @@ def test_prove_app_with_shell_writes_shell_proof_and_matches_compile_app_hash(tm
     assert proof["target"] == APP_SHELL_TARGET
     assert proof["route_navigation"] == APP_SHELL_ROUTE_NAVIGATION
     assert proof["shell_artifact_hash"] == compiled["shell_artifact_hash"]
-    assert proof["paths"]["app_shell_index"].endswith("app-shell\\index.html") or proof["paths"]["app_shell_index"].endswith("app-shell/index.html")
+    assert proof["paths"]["app_shell_index"].endswith("app-shell\\index.html") or proof["paths"][
+        "app_shell_index"
+    ].endswith("app-shell/index.html")
     assert (tmp_path / "app-proof/app-shell/index.html").exists()
     assert proof["shell"]["route_assertions"]["unknown_route_selects_no_screen_and_one_404"] is True
 
@@ -1483,6 +1558,228 @@ def test_compile_app_fails_when_state_reducer_conformance_fails(tmp_path, monkey
     assert compiled["ok"] is False
     assert compiled["errors"][0]["code"] == "APP_STATE_REDUCER_CONFORMANCE_FAILED"
     assert "forced reducer divergence" in compiled["errors"][0]["message"]
+
+
+def test_force_refuses_unrelated_non_empty_directory_for_app_outputs(tmp_path):
+    app_path = tmp_path / "viewspec.app.json"
+    app_path.write_text(_app_text(starter_app_bundle()), encoding="utf-8")
+    unrelated = tmp_path / "src"
+    unrelated.mkdir()
+    (unrelated / "main.py").write_text("print('keep me')\n", encoding="utf-8")
+
+    proof = prove_app(app_path=app_path, out_dir=unrelated, cwd=tmp_path, force=True)
+    assert proof["ok"] is False
+    assert proof["errors"][0]["code"] == "APP_PROOF_OUTPUT_UNRECOGNIZED"
+    assert sorted(path.name for path in unrelated.iterdir()) == ["main.py"]
+
+    proof_tool = prove_app_tool(app_path="viewspec.app.json", out_dir="src", cwd=tmp_path, force=True)
+    assert proof_tool["ok"] is False
+    assert proof_tool["errors"][0]["code"] == "APP_PROOF_OUTPUT_UNRECOGNIZED"
+
+    compiled = compile_app(app_path, out_dir=unrelated, cwd=tmp_path, force=True)
+    assert compiled["ok"] is False
+    assert compiled["errors"][0]["code"] == "APP_SHELL_OUTPUT_UNRECOGNIZED"
+
+    compiled_tool = compile_app_tool("viewspec.app.json", "src", cwd=tmp_path, force=True)
+    assert compiled_tool["ok"] is False
+    assert compiled_tool["errors"][0]["code"] == "APP_SHELL_OUTPUT_UNRECOGNIZED"
+    assert sorted(path.name for path in unrelated.iterdir()) == ["main.py"]
+
+
+def test_force_replaces_previous_app_outputs_and_empty_directories(tmp_path):
+    app_path = tmp_path / "viewspec.app.json"
+    app_path.write_text(_app_text(starter_app_bundle()), encoding="utf-8")
+
+    proof_dir = tmp_path / "app-proof"
+    assert prove_app(app_path=app_path, out_dir=proof_dir, cwd=tmp_path)["ok"] is True
+    (proof_dir / "stale.txt").write_text("left over", encoding="utf-8")
+    assert prove_app(app_path=app_path, out_dir=proof_dir, cwd=tmp_path, force=True)["ok"] is True
+    assert not (proof_dir / "stale.txt").exists()
+
+    shell_dir = tmp_path / "app-dist"
+    assert compile_app(app_path, out_dir=shell_dir, cwd=tmp_path)["ok"] is True
+    (shell_dir / "stale.txt").write_text("left over", encoding="utf-8")
+    assert compile_app(app_path, out_dir=shell_dir, cwd=tmp_path, force=True)["ok"] is True
+    assert not (shell_dir / "stale.txt").exists()
+
+    empty = tmp_path / "empty"
+    empty.mkdir()
+    assert compile_app(app_path, out_dir=empty, cwd=tmp_path, force=True)["ok"] is True
+
+
+def test_prove_app_force_replaces_an_interrupted_proof_directory(tmp_path, monkeypatch):
+    # F14: an app proof that stops before its report is written still leaves a directory that
+    # --force recognises, through the ownership sentinel written when the directory is created.
+    app_path = tmp_path / "viewspec.app.json"
+    app_path.write_text(_app_text(starter_app_bundle()), encoding="utf-8")
+    proof_dir = tmp_path / "app-proof"
+
+    def interrupted_screens(_payload, output_dir, **_kwargs):
+        (output_dir / "screens").mkdir(parents=True, exist_ok=True)
+        raise KeyboardInterrupt
+
+    with monkeypatch.context() as patch:
+        patch.setattr(app_pipeline_module, "prove_app_screens", interrupted_screens)
+        with pytest.raises(KeyboardInterrupt):
+            prove_app(app_path=app_path, out_dir=proof_dir, cwd=tmp_path)
+    assert sorted(path.name for path in proof_dir.iterdir()) == [VIEWSPEC_OUTPUT_SENTINEL, "screens"]
+
+    replaced = prove_app(app_path=app_path, out_dir=proof_dir, cwd=tmp_path, force=True)
+
+    assert replaced["ok"] is True, replaced["errors"]
+    assert proof_dir.joinpath(VIEWSPEC_OUTPUT_SENTINEL).is_file()
+
+
+def test_prove_app_force_replaces_a_directory_left_by_a_failed_report_write(tmp_path, monkeypatch):
+    # F14: APP_PROOF_REPORT_WRITE_FAILED leaves screen artifacts and no report.
+    app_path = tmp_path / "viewspec.app.json"
+    app_path.write_text(_app_text(starter_app_bundle()), encoding="utf-8")
+    proof_dir = tmp_path / "app-proof"
+
+    with monkeypatch.context() as patch:
+        patch.setattr(app_reports_module, "APP_BUNDLE_MAX_PROOF_REPORT_BYTES", 1000)
+        first = prove_app(app_path=app_path, out_dir=proof_dir, cwd=tmp_path)
+    assert [error["code"] for error in first["errors"]] == ["APP_PROOF_REPORT_WRITE_FAILED"]
+    assert not proof_dir.joinpath("app_proof_report.json").exists()
+
+    retried = prove_app(app_path=app_path, out_dir=proof_dir, cwd=tmp_path, force=True)
+
+    assert retried["ok"] is True, retried["errors"]
+
+
+def test_compile_app_output_carries_no_ownership_sentinel(tmp_path):
+    # compile-app output is a deployable site: it keeps its own manifest marker and no sentinel.
+    app_path = tmp_path / "viewspec.app.json"
+    app_path.write_text(_app_text(starter_app_bundle()), encoding="utf-8")
+    shell_dir = tmp_path / "app-dist"
+
+    assert compile_app(app_path, out_dir=shell_dir, cwd=tmp_path)["ok"] is True
+    assert not shell_dir.joinpath(VIEWSPEC_OUTPUT_SENTINEL).exists()
+    proof_dir = tmp_path / "app-proof"
+    assert prove_app(app_path=app_path, out_dir=proof_dir, cwd=tmp_path, with_shell=True)["ok"] is True
+    assert proof_dir.joinpath(VIEWSPEC_OUTPUT_SENTINEL).is_file()
+    assert not proof_dir.joinpath("app-shell", VIEWSPEC_OUTPUT_SENTINEL).exists()
+
+
+def test_app_proof_double_write_failure_keeps_the_report_and_identity_in_agreement(tmp_path, monkeypatch):
+    # F13: when the support bundle and APP_PROOF.md both fail, app_proof_report.json, the returned
+    # report and proof_identity.proof_report_hash must all name the same document.
+    app_path = tmp_path / "viewspec.app.json"
+    app_path.write_text(_app_text(starter_app_bundle()), encoding="utf-8")
+
+    def failing_support_bundle(*_args, **_kwargs):
+        raise OSError("support bundle unavailable")
+
+    def failing_summary(*_args, **_kwargs):
+        raise OSError("summary unavailable")
+
+    monkeypatch.setattr(app_reports_module, "_write_app_support_bundle", failing_support_bundle)
+    monkeypatch.setattr(app_reports_module, "_write_app_summary", failing_summary)
+
+    result = prove_app_tool(app_path="viewspec.app.json", out_dir="app-proof", cwd=tmp_path)
+
+    returned_codes = [error["code"] for error in result["errors"]]
+    assert returned_codes == ["APP_PROOF_SUPPORT_BUNDLE_WRITE_FAILED", "APP_PROOF_SUMMARY_WRITE_FAILED"]
+    on_disk = json.loads(tmp_path.joinpath("app-proof", "app_proof_report.json").read_text(encoding="utf-8"))
+    assert on_disk["ok"] is False
+    assert [error["code"] for error in on_disk["errors"]] == returned_codes
+    assert result["metadata"]["proof_identity"]["proof_report_hash"] == app_proof_report_hash(on_disk)
+
+
+def test_app_proof_report_hash_of_a_loaded_report_does_not_depend_on_the_working_directory(tmp_path, monkeypatch):
+    # F11: the AppBundle sits outside the proof directory's tree, so the file records it with ``..``.
+    app_path = tmp_path / "inputs" / "viewspec.app.json"
+    app_path.parent.mkdir()
+    app_path.write_text(_app_text(starter_app_bundle()), encoding="utf-8")
+    proof_dir = tmp_path / "a" / "b" / "app-proof"
+
+    report = prove_app(app_path=app_path, out_dir=proof_dir, cwd=tmp_path)
+
+    assert report["ok"] is True
+    on_disk = json.loads(proof_dir.joinpath("app_proof_report.json").read_text(encoding="utf-8"))
+    assert on_disk["paths"]["app"] == "../../../inputs/viewspec.app.json"
+    support = json.loads(proof_dir.joinpath("app_support_bundle.json").read_text(encoding="utf-8"))
+    for cwd in (Path("/"), tmp_path, proof_dir):
+        monkeypatch.chdir(cwd)
+        assert app_proof_report_hash(on_disk) == support["proof_report_hash"]
+
+
+def test_prove_app_hash_follows_the_app_position_relative_to_the_proof_directory(tmp_path):
+    # F23 pins the documented scope: the AppBundle path is part of the hashed document.
+    app_path = tmp_path / "viewspec.app.json"
+    app_path.write_text(_app_text(starter_app_bundle()), encoding="utf-8")
+
+    first = prove_app(app_path=app_path, out_dir=tmp_path / "first" / "app-proof", cwd=tmp_path)
+    deeper = prove_app(app_path=app_path, out_dir=tmp_path / "runs" / "b" / "app-proof", cwd=tmp_path)
+
+    assert first["ok"] is True
+    assert deeper["ok"] is True
+    deeper_doc = json.loads(
+        tmp_path.joinpath("runs", "b", "app-proof", "app_proof_report.json").read_text(encoding="utf-8")
+    )
+    assert deeper_doc["paths"]["app"] == "../../../viewspec.app.json"
+    assert app_proof_report_hash(first) != app_proof_report_hash(deeper)
+
+
+def test_prove_app_report_out_records_paths_relative_to_the_report_directory(tmp_path):
+    # The on-disk rule: every path is relative to the directory that holds the report file.
+    app_path = tmp_path / "viewspec.app.json"
+    app_path.write_text(_app_text(starter_app_bundle()), encoding="utf-8")
+    proof_dir = tmp_path / "app-proof"
+    report_out = proof_dir / "reports" / "app.json"
+
+    report = prove_app(app_path=app_path, out_dir=proof_dir, report_out=report_out, cwd=tmp_path)
+
+    assert report["ok"] is True
+    on_disk = json.loads(report_out.read_text(encoding="utf-8"))
+    assert on_disk["paths"]["proof_dir"] == ".."
+    assert on_disk["paths"]["report"] == "app.json"
+    assert on_disk["paths"]["app"] == "../../viewspec.app.json"
+    assert absolute_report_paths(on_disk, report_out.parent) == report
+    assert app_proof_report_hash(on_disk) == app_proof_report_hash(report)
+    summary = proof_dir.joinpath("APP_PROOF.md").read_text(encoding="utf-8")
+    assert "- app: `../viewspec.app.json`" in summary
+    assert "- report: `reports/app.json`" in summary
+
+
+def test_react_app_proof_hash_depends_on_the_proof_directory(tmp_path, monkeypatch):
+    # F10 pins the documented scope: app_analysis_evidence.json keeps the host report's absolute
+    # artifact_dir, and its hash is part of the app proof report, so react-tailwind-app proofs in
+    # two directories get two hashes.
+    def fake_verify(path, *, install, freerange=False, pretext=False):
+        app_dir = Path(path).resolve()
+        return {
+            "schema_version": 1,
+            "ok": True,
+            "target": REACT_APP_TARGET,
+            "artifact_dir": str(app_dir),
+            "app_artifact_hash": file_hash(app_dir / "src" / "ViewSpecApp.tsx"),
+            "manifest_hash": file_hash(app_dir / "viewspec_app_manifest.json"),
+            "install": install,
+            "assertions": {},
+            "policy": {"install_command": "npm ci --ignore-scripts"},
+            "duration_ms": 10,
+            "timings_ms": {"total": 10},
+            "errors": [],
+        }
+
+    monkeypatch.setattr(app_pipeline_module, "verify_react_app_artifact_dir", fake_verify)
+    app_path = tmp_path / "viewspec.app.json"
+    app_path.write_text(_app_text(starter_react_app_bundle("internal_tool")), encoding="utf-8")
+    first_dir = tmp_path / "first" / "app-proof"
+    second_dir = tmp_path / "second" / "app-proof"
+
+    first = prove_app(app_path=app_path, out_dir=first_dir, target=REACT_APP_TARGET, cwd=tmp_path)
+    second = prove_app(app_path=app_path, out_dir=second_dir, target=REACT_APP_TARGET, cwd=tmp_path)
+
+    assert first["ok"] is True, first["errors"]
+    assert second["ok"] is True, second["errors"]
+    first_evidence = json.loads(first_dir.joinpath("app_analysis_evidence.json").read_text(encoding="utf-8"))
+    assert first_evidence["host_report"]["artifact_dir"] == str(first_dir / "react-app")
+    first_doc = json.loads(first_dir.joinpath("app_proof_report.json").read_text(encoding="utf-8"))
+    second_doc = json.loads(second_dir.joinpath("app_proof_report.json").read_text(encoding="utf-8"))
+    assert first_doc["analysis_evidence"]["sha256"] != second_doc["analysis_evidence"]["sha256"]
+    assert app_proof_report_hash(first) != app_proof_report_hash(second)
 
 
 def test_compile_app_rejects_static_shell_constraints(tmp_path):

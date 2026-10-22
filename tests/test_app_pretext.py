@@ -19,8 +19,8 @@ from viewspec.app_pretext import (
     PretextFailure,
     build_pretext_scope,
     validate_pretext_installation,
-    validate_pretext_scope,
     validate_pretext_runtime_report,
+    validate_pretext_scope,
 )
 
 
@@ -575,6 +575,7 @@ def test_pretext_scope_rejects_surface_inventory_digest_drift() -> None:
     scope["required_observation_count"] = 3
 
     _assert_failure("APP_PRETEXT_SCOPE_INVALID", lambda: validate_pretext_scope(scope))
+
 
 @pytest.mark.parametrize(
     "mutation",

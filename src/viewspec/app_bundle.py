@@ -8,12 +8,29 @@ from typing import Any
 import viewspec.app_pipeline as _app_pipeline
 import viewspec.app_tools as _app_tools
 from viewspec.app_agent_schema import AGENT_APP_BUNDLE_SCHEMA
+from viewspec.app_diff import (
+    APP_BUNDLE_DIFF_BASIS,
+    APP_BUNDLE_DIFF_VERSION,
+    app_semantic_change_lines,
+    diff_app_files,
+    diff_app_text,
+)
+from viewspec.app_react import REACT_APP_ROUTE_NAVIGATION, REACT_APP_TARGET
 from viewspec.app_reports import (
     APP_BUNDLE_DEFAULT_OUT,
     APP_BUNDLE_PROOF_LEVEL,
     APP_BUNDLE_TARGET,
 )
-from viewspec.app_react import REACT_APP_ROUTE_NAVIGATION, REACT_APP_TARGET
+from viewspec.app_shell import (
+    APP_SHELL_DEFAULT_OUT,
+    APP_SHELL_ROUTE_NAVIGATION,
+    APP_SHELL_TARGET,
+)
+from viewspec.app_starters import starter_app_bundle, starter_react_app_bundle
+from viewspec.app_state_artifacts import (
+    APP_STATE_MANIFEST,
+    APP_STATE_REDUCER,
+)
 from viewspec.app_validation import (
     APP_BUNDLE_ALLOWED_KINDS,
     APP_BUNDLE_BINDING_SCOPE,
@@ -28,23 +45,6 @@ from viewspec.app_validation import (
     APP_BUNDLE_VISIBILITY_SCHEMA_VERSION,
     validate_app_file,
     validate_app_text,
-)
-from viewspec.app_diff import (
-    APP_BUNDLE_DIFF_BASIS,
-    APP_BUNDLE_DIFF_VERSION,
-    app_semantic_change_lines,
-    diff_app_files,
-    diff_app_text,
-)
-from viewspec.app_shell import (
-    APP_SHELL_DEFAULT_OUT,
-    APP_SHELL_ROUTE_NAVIGATION,
-    APP_SHELL_TARGET,
-)
-from viewspec.app_starters import starter_app_bundle, starter_react_app_bundle
-from viewspec.app_state_artifacts import (
-    APP_STATE_MANIFEST,
-    APP_STATE_REDUCER,
 )
 from viewspec.state_ir import (
     check_reducer_conformance,
@@ -238,7 +238,6 @@ def prove_app_tool(
         allow_outside_cwd=allow_outside_cwd,
         _prove_app=prove_app,
     )
-
 
 
 __all__ = [

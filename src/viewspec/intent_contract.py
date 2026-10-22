@@ -2,13 +2,17 @@
 
 from __future__ import annotations
 
-from collections.abc import Mapping
 import json
+from collections.abc import Mapping
 from typing import Any
-
 
 INTENT_BUNDLE_SCHEMA_VERSION = 1
 INTENT_BUNDLE_ROOT_FIELDS = frozenset({"schema_version", "substrate", "view_spec"})
+
+# Every attribute and slot value is stored as a protobuf Struct number, i.e. an IEEE-754 double.
+# Integers whose magnitude exceeds 2**53 are not exactly representable there, so the intent
+# contract rejects them instead of silently rounding ids and counters.
+MAX_SAFE_INTEGER = 2**53
 
 
 class IntentBundleContractError(ValueError):
@@ -56,6 +60,7 @@ def normalize_intent_bundle_payload(payload: Any) -> dict[str, Any]:
 __all__ = [
     "INTENT_BUNDLE_ROOT_FIELDS",
     "INTENT_BUNDLE_SCHEMA_VERSION",
+    "MAX_SAFE_INTEGER",
     "IntentBundleContractError",
     "normalize_intent_bundle_payload",
     "validate_intent_bundle_schema_version",

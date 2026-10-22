@@ -20,3 +20,15 @@ viewspec_output/
 node_modules/
 demos/server.*.log
 .agent-eval-runs/
+.hypothesis/
+.mypy_cache/
+.viewspec-proof/
+.viewspec-app-proof/
+.viewspec/
+test-results/
+playwright-report/
+.coverage
+htmlcov/
+.DS_Store
+.idea/
+.vscode/

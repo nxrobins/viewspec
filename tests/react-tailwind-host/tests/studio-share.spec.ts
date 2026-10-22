@@ -77,7 +77,7 @@ test.afterAll(async () => {
     serverProcess.kill("SIGTERM");
     await Promise.race([exited, new Promise<void>((resolveWait) => setTimeout(resolveWait, 5_000))]);
   }
-  rmSync(workspace, { recursive: true, force: true });
+  rmSync(workspace, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 });
 });
 
 test("attested Share prepares before and publishes only after exact confirmation", async ({ page }) => {

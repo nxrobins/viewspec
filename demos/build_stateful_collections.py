@@ -7,10 +7,11 @@ import json
 from pathlib import Path
 from typing import Any
 
+from seo_metadata import demo_head_metadata
+
 from viewspec import IntentBundle, ViewSpecBuilder, compile
 from viewspec.emitters.html_tailwind import ACTION_EVENT_SCRIPT, OFFLINE_EMITTER_CSS, _render_node
-from viewspec.types import ASTBundle, DEFAULT_STYLE_TOKEN_VALUES, IRNode
-from seo_metadata import demo_head_metadata
+from viewspec.types import DEFAULT_STYLE_TOKEN_VALUES, ASTBundle, IRNode
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -64,7 +65,9 @@ def build_loaded_bundle() -> IntentBundle:
     controls.add_field(label="Sort order", value="severity_desc", id="sort_order")
     controls.add_field(label="Page cursor", value="cursor:next", id="page_cursor")
 
-    builder.add_node("selection_state", "selection_state", attrs={"label": "Selected ids", "selected_ids": "INC-1042,INC-1057"})
+    builder.add_node(
+        "selection_state", "selection_state", attrs={"label": "Selected ids", "selected_ids": "INC-1042,INC-1057"}
+    )
     selection_members = [
         builder.bind_attr("selection_label", "selection_state", "label", region="main", present_as="label"),
         builder.bind_attr("queue_selected_ids", "selection_state", "selected_ids", region="main", present_as="input"),
@@ -239,7 +242,7 @@ def build_page(states: dict[str, dict[str, Any]]) -> str:
     }
     tabs = "\n".join(tab_button(key, state_meta[key]["label"], active=key == "loaded") for key in states)
     views = "\n".join(
-        f'''          <section class="artifact-view{' active' if key == 'loaded' else ''}" data-artifact-state="{html.escape(key)}" aria-label="{html.escape(state_meta[key]["label"])} artifact">
+        f'''          <section class="artifact-view{" active" if key == "loaded" else ""}" data-artifact-state="{html.escape(key)}" aria-label="{html.escape(state_meta[key]["label"])} artifact">
             {states[key]["fragment"]}
           </section>'''
         for key in states

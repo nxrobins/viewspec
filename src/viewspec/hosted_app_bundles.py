@@ -2,16 +2,17 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 import hashlib
 import json
-from pathlib import Path, PurePosixPath
 import shutil
 import tempfile
-from typing import Any, Mapping
+from collections.abc import Mapping
+from dataclasses import dataclass
+from pathlib import Path, PurePosixPath
+from typing import Any
 
+from viewspec._canonical import canonical_json_ascii_bytes
 from viewspec.hosted_receipts import ReceiptPublicKey, verify_signed_receipt
-
 
 APP_BUILD_SCHEMA_VERSION = 1
 APP_BUILD_TARGET = "react-tailwind-app"
@@ -26,8 +27,8 @@ class AppBundleBuildContractError(ValueError):
     """Raised when a hosted AppBundle build fails integrity verification."""
 
 
-def _canonical(value: object) -> bytes:
-    return json.dumps(value, sort_keys=True, separators=(",", ":")).encode("utf-8")
+# ASCII-escaped canonical form, shared through viewspec._canonical (see its docstring).
+_canonical = canonical_json_ascii_bytes
 
 
 def _mapping(payload: Any, name: str) -> Mapping[str, Any]:
@@ -254,14 +255,16 @@ def compile_app_remote(
     receipt_public_key: ReceiptPublicKey | Mapping[str, Any] | None = None,
 ) -> AppBundleBuildResponse:
     """Build and fully verify one runnable hosted AppBundle project."""
-    from viewspec.compiler import CompilerAPIError, _compiler_api_error
+    from viewspec.hosted_compile import CompilerAPIError, _compiler_api_error
 
     if not isinstance(app_bundle, dict):
         raise TypeError("app_bundle must be a JSON object")
     try:
         import httpx
     except ImportError:
-        raise ImportError("httpx is required for hosted AppBundle builds. Install it: pip install viewspec[remote]") from None
+        raise ImportError(
+            "httpx is required for hosted AppBundle builds. Install it: pip install viewspec[remote]"
+        ) from None
     base_url = api_url.rstrip("/")
     headers = {"Authorization": f"Bearer {api_key}"} if api_key else {}
     try:

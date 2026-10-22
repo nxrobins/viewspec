@@ -13,9 +13,11 @@ import math
 import os
 import re
 import stat
+from collections.abc import Mapping, Sequence
 from pathlib import Path
-from typing import Any, Mapping, Sequence
+from typing import Any
 
+from viewspec._canonical import canonical_json_ascii, canonical_sha256
 
 PRETEXT_PACKAGE = "@chenglou/pretext"
 PRETEXT_VERSION = "0.0.8"
@@ -149,7 +151,7 @@ class PretextFailure(ValueError):
     def to_json(self) -> dict[str, str]:
         return {"code": self.code, "message": self.message, "fix": self.fix}
 
-    def attach_report(self, report: dict[str, Any]) -> "PretextFailure":
+    def attach_report(self, report: dict[str, Any]) -> PretextFailure:
         if self.report is None:
             self.report = report
         return self
@@ -253,7 +255,8 @@ def validate_pretext_installation(app_dir: str | Path) -> dict[str, Any]:
             "errors": [],
         }
     except PretextFailure as error:
-        raise error.attach_report(_failure_evidence(error))
+        error.attach_report(_failure_evidence(error))
+        raise
 
 
 def build_pretext_scope(
@@ -372,7 +375,8 @@ def build_pretext_scope(
         _validate_scope(scope)
         return scope
     except PretextFailure as error:
-        raise error.attach_report(_failure_evidence(error))
+        error.attach_report(_failure_evidence(error))
+        raise
 
 
 def validate_pretext_scope(scope: Mapping[str, Any]) -> dict[str, Any]:
@@ -405,7 +409,8 @@ def validate_pretext_scope(scope: Mapping[str, Any]) -> dict[str, Any]:
             "coverage_contract_sha256": scope["coverage_contract_sha256"],
         }
     except PretextFailure as error:
-        raise error.attach_report(_failure_evidence(error))
+        error.attach_report(_failure_evidence(error))
+        raise
 
 
 def validate_pretext_runtime_report(
@@ -601,7 +606,8 @@ def validate_pretext_runtime_report(
             "errors": [],
         }
     except PretextFailure as error:
-        raise error.attach_report(_failure_evidence(error, file_evidence=file_evidence, coverage=counts))
+        error.attach_report(_failure_evidence(error, file_evidence=file_evidence, coverage=counts))
+        raise
 
 
 def _validate_scope(scope: Mapping[str, Any]) -> dict[str, Any]:
@@ -665,10 +671,9 @@ def _validate_scope(scope: Mapping[str, Any]) -> dict[str, Any]:
             surface_ids.add(surface_id)
             for viewport in viewports:
                 expected[(screen_id, route_id, viewport["id"], surface_id)] = ir_id
-        if (
-            screen.get("eligible_surface_count") != len(surfaces)
-            or screen.get("eligible_surface_sha256") != _surface_inventory_sha256(surfaces)
-        ):
+        if screen.get("eligible_surface_count") != len(surfaces) or screen.get(
+            "eligible_surface_sha256"
+        ) != _surface_inventory_sha256(surfaces):
             raise _scope_failure("Scope screen eligible-surface inventory is inconsistent.")
         for viewport in viewports:
             expected_inventories[(screen_id, route_id, viewport["id"])] = (
@@ -676,10 +681,9 @@ def _validate_scope(scope: Mapping[str, Any]) -> dict[str, Any]:
                 screen["eligible_surface_sha256"],
             )
         eligible_surface_count += len(surfaces)
-    if (
-        scope.get("eligible_surface_count") != eligible_surface_count
-        or scope.get("eligible_surface_sha256") != _routed_surface_inventory_sha256(screens)
-    ):
+    if scope.get("eligible_surface_count") != eligible_surface_count or scope.get(
+        "eligible_surface_sha256"
+    ) != _routed_surface_inventory_sha256(screens):
         raise _scope_failure("Top-level eligible-surface inventory is inconsistent.")
     coverage_contract = {
         "eligible_primitives": sorted(PRETEXT_VISIBLE_PRIMITIVES),
@@ -855,8 +859,7 @@ def _validate_runtime_item(
                 "Measure the visible surface after fonts load and emit bounded numeric metrics.",
             )
         line_count_matches = predicted == observed or (
-            min(predicted, observed) >= _LONG_WRAP_MIN_LINES
-            and abs(predicted - observed) <= _LONG_WRAP_LINE_TOLERANCE
+            min(predicted, observed) >= _LONG_WRAP_MIN_LINES and abs(predicted - observed) <= _LONG_WRAP_LINE_TOLERANCE
         )
         horizontal_overflow = value.get("horizontal_overflow")
         vertical_overflow = value.get("vertical_overflow")
@@ -867,12 +870,7 @@ def _validate_runtime_item(
             for item in (horizontal_overflow, vertical_overflow, horizontal_clipped, vertical_clipped)
         ):
             raise _protocol_failure("Runtime item overflow and clipping metrics must be booleans.")
-        if (
-            not line_count_matches
-            or horizontal_overflow
-            or horizontal_clipped
-            or vertical_clipped
-        ):
+        if not line_count_matches or horizontal_overflow or horizontal_clipped or vertical_clipped:
             raise PretextFailure(
                 "APP_PRETEXT_LAYOUT_MISMATCH",
                 "Pretext prediction exceeds the bounded line-count contract or the surface overflows.",
@@ -1138,8 +1136,8 @@ def _rounded_number(value: int | float) -> int | float:
 
 
 def _canonical_sha256(value: object) -> str:
-    encoded = json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=True).encode("utf-8")
-    return hashlib.sha256(encoded).hexdigest()
+    # ASCII-escaped canonical form, shared through viewspec._canonical (see its docstring).
+    return canonical_sha256(canonical_json_ascii(value))
 
 
 def _surface_inventory_sha256(surfaces: Sequence[Mapping[str, Any]]) -> str:

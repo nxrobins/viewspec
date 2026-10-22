@@ -1,14 +1,17 @@
 # ViewSpec Review V0
 
-Status: Proposed
-Date: 2026-07-14
+Status: Implemented (Review shipped in `0.3.0b5`; see `CHANGELOG.md`)
+Date: 2026-07-14 (original proposal); revised 2026-10-22
 Product surface: local SDK and CLI
 Working product name: **ViewSpec Review**
 Human product name: **ViewSpec Studio**
 
 Product update: the V0 protocol remains ViewSpec Review for compatibility. Its opinionated human
 entry point is now `viewspec studio`, presented as Preview → Comment → Approve. This document
-continues to specify the lower-level security, delivery, and lifecycle contract.
+continues to specify the lower-level security, delivery, and lifecycle contract. The JSON payloads
+shown below are illustrative examples captured on `0.3.0b5`; fields such as `sdk_version`,
+`package_version`, and `compiler_version` report whatever release is installed and are not pinned
+to that value.
 
 ## Summary
 

@@ -2,31 +2,31 @@ from __future__ import annotations
 
 import json
 import os
-from pathlib import Path
 import time
+from pathlib import Path
 
-from hypothesis import given, strategies as st
 import pytest
+from hypothesis import given
+from hypothesis import strategies as st
 
 import viewspec.review_compile as review_compile
 from viewspec.app_bundle import starter_app_bundle
 from viewspec.app_starters import starter_react_app_bundle
 from viewspec.intent_tools import starter_intent_payload
+from viewspec.local_tools import check_artifact_dir
 from viewspec.review_compile import (
     DESIGN_MAX_BYTES,
     INTENT_SOURCE_MAX_BYTES,
+    STUDIO_COMPARE_MANIFEST,
+    STUDIO_COMPARE_TARGET,
+    STUDIO_INSPECTION_MANIFEST,
     GenerationGate,
     bounded_review_phase,
     build_review_revision,
     capture_source_snapshot,
     load_review_revision,
-    STUDIO_COMPARE_MANIFEST,
-    STUDIO_COMPARE_TARGET,
-    STUDIO_INSPECTION_MANIFEST,
 )
 from viewspec.review_contract import ReviewContractError
-from viewspec.local_tools import check_artifact_dir
-
 
 _REAL_SUBPROCESS_RUN = review_compile.subprocess.run
 
@@ -249,7 +249,7 @@ def test_react_app_review_inlines_checked_runtime_and_survives_reload(tmp_path, 
     )
 
     html = built.artifact_dir.joinpath("index.html").read_text(encoding="utf-8")
-    assert "<script type=\"module\">" in html
+    assert '<script type="module">' in html
     assert "<style>body{margin:0}</style>" in html
     assert not built.artifact_dir.joinpath("assets").exists()
     assert built.revision.root_manifest_kind == "review_react_manifest"

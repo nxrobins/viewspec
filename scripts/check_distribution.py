@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import tarfile
 import tomllib
 import zipfile
@@ -13,11 +14,15 @@ from email.policy import default
 from pathlib import Path, PurePosixPath
 from typing import Any
 
-
-MAX_ARCHIVE_BYTES = 4 * 1024 * 1024
-MAX_UNPACKED_BYTES = 8 * 1024 * 1024
+# The sdist carries the library tests, the conformance corpus and the schema source (audit
+# R-8). It does not carry scripts/, demos/, docs/, examples/, integrations/, .github/ or
+# requirements-ci.txt, which some tests import or read, so the full suite still needs a git checkout. The caps
+# leave headroom for the shipped tests without admitting build output or dependency trees.
+ROOT = Path(__file__).resolve().parents[1]
+MAX_ARCHIVE_BYTES = 6 * 1024 * 1024
+MAX_UNPACKED_BYTES = 12 * 1024 * 1024
 MAX_MEMBER_BYTES = 2 * 1024 * 1024
-MAX_MEMBERS = 512
+MAX_MEMBERS = 768
 STUDIO_RELEASE_FILES = {
     "__main__.py",
     "cli.py",
@@ -32,6 +37,26 @@ STUDIO_RELEASE_FILES = {
     "review_annotation.py",
     "host_verify_template/package.json",
     "host_verify_template/package-lock.json",
+}
+# The package ships py.typed, so the generated protobuf module must travel with its stub.
+SCHEMA_RELEASE_FILES = {
+    "schema/__init__.py",
+    "schema/viewspec_pb2.py",
+    "schema/viewspec_pb2.pyi",
+}
+SDIST_TOP_LEVEL_PATHS = {
+    ".gitignore",
+    "LICENSE",
+    "README.md",
+    "pyproject.toml",
+    "PKG-INFO",
+    "proto",  # schema source for src/viewspec/schema/viewspec_pb2.py
+    "src",
+    "tests",
+    "conformance",
+    "CHANGELOG.md",
+    "SECURITY.md",
+    "CONTRIBUTING.md",
 }
 FORBIDDEN_COMPONENTS = {
     ".git",
@@ -54,11 +79,21 @@ class DistributionError(RuntimeError):
 
 
 def _project_version() -> str:
-    project = tomllib.loads((Path(__file__).resolve().parents[1] / "pyproject.toml").read_text(encoding="utf-8"))
-    version = project.get("project", {}).get("version")
-    if not isinstance(version, str) or not version:
-        raise DistributionError("project version is missing")
-    return version
+    """Return the single-sourced package version from the file hatch reads (audit R-7)."""
+    project = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
+    if "version" not in project.get("project", {}).get("dynamic", []):
+        raise DistributionError("project version must be dynamic and sourced from src/viewspec/_version.py")
+    version_path = project.get("tool", {}).get("hatch", {}).get("version", {}).get("path")
+    if version_path != "src/viewspec/_version.py":
+        raise DistributionError("tool.hatch.version.path must be src/viewspec/_version.py")
+    return _runtime_version_from_source((ROOT / version_path).read_text(encoding="utf-8"))
+
+
+def _runtime_version_from_source(source: str) -> str:
+    match = re.search(r'^__version__ = "([^"\n]+)"$', source, re.M)
+    if match is None:
+        raise DistributionError("src/viewspec/_version.py does not define __version__")
+    return match.group(1)
 
 
 def _validate_member_name(name: str, *, archive: str) -> PurePosixPath:
@@ -102,7 +137,7 @@ def _audit_wheel(path: Path, version: str) -> int:
         f"{dist_info}/WHEEL",
         f"{dist_info}/RECORD",
     }
-    required.update(f"viewspec/{name}" for name in STUDIO_RELEASE_FILES)
+    required.update(f"viewspec/{name}" for name in STUDIO_RELEASE_FILES | SCHEMA_RELEASE_FILES)
     with zipfile.ZipFile(path) as archive:
         infos = archive.infolist()
         names = [info.filename for info in infos]
@@ -142,7 +177,7 @@ def _audit_sdist(path: Path, version: str) -> int:
         f"{root}/src/viewspec/_version.py",
         f"{root}/src/viewspec/py.typed",
     }
-    required.update(f"{root}/src/viewspec/{name}" for name in STUDIO_RELEASE_FILES)
+    required.update(f"{root}/src/viewspec/{name}" for name in STUDIO_RELEASE_FILES | SCHEMA_RELEASE_FILES)
     with tarfile.open(path, "r:gz") as archive:
         members = archive.getmembers()
         names = [member.name.rstrip("/") for member in members]
@@ -155,14 +190,7 @@ def _audit_sdist(path: Path, version: str) -> int:
             if member_path.parts[0] != root:
                 raise DistributionError(f"sdist has forbidden top-level path: {member.name}")
             relative = member_path.parts[1:]
-            if relative and relative[0] not in {
-                ".gitignore",
-                "LICENSE",
-                "README.md",
-                "pyproject.toml",
-                "PKG-INFO",
-                "src",
-            }:
+            if relative and relative[0] not in SDIST_TOP_LEVEL_PATHS:
                 raise DistributionError(f"sdist has forbidden repository path: {member.name}")
             if relative and relative[0] == "src" and relative[:2] != ("src", "viewspec"):
                 raise DistributionError(f"sdist has forbidden source package: {member.name}")
@@ -186,8 +214,8 @@ def _audit_sdist(path: Path, version: str) -> int:
         packaged_project = tomllib.loads(packaged_project_bytes.decode("utf-8"))
     except (UnicodeDecodeError, tomllib.TOMLDecodeError) as error:
         raise DistributionError(f"sdist pyproject.toml is invalid: {error}") from error
-    if packaged_project.get("project", {}).get("version") != version:
-        raise DistributionError("sdist project version does not match repository pyproject.toml")
+    if "version" not in packaged_project.get("project", {}).get("dynamic", []):
+        raise DistributionError("sdist pyproject.toml must source the version from src/viewspec/_version.py")
     if f'__version__ = "{version}"' not in runtime_version:
         raise DistributionError("sdist runtime version does not match pyproject.toml")
     return len(members)

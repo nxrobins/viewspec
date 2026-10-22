@@ -15,7 +15,6 @@ from viewspec.presentation_plan import (
     presentation_plan_hash,
 )
 
-
 ROOT = Path(__file__).resolve().parents[1]
 REACT_APP_TARGET = "react-tailwind-app"
 PRESENTATION_E2E_OPT_IN = "VIEWSPEC_RUN_PRESENTATION_E2E"
@@ -107,31 +106,23 @@ def test_presentation_plan_is_deterministic_and_target_neutral(tmp_path):
     assert static["ok"] is True, static.get("errors")
     assert react["ok"] is True, react.get("errors")
     assert static["presentation_plan_hash"] == react["presentation_plan_hash"]
-    assert (static_dir / "presentation_plan.json").read_bytes() == (
-        react_dir / "presentation_plan.json"
-    ).read_bytes()
+    assert (static_dir / "presentation_plan.json").read_bytes() == (react_dir / "presentation_plan.json").read_bytes()
 
     plan = build_presentation_plan(payload)
     assert presentation_plan_hash(plan) == static["presentation_plan_hash"]
     assert plan["screens"][0]["source"] == "declared"
     assert plan["screens"][1]["source"] == "inferred"
     assert static["presentation_plan_diagnostics"] == react["presentation_plan_diagnostics"]
-    assert "APP_PRESENTATION_INFERRED" in {
-        item["code"] for item in static["presentation_plan_diagnostics"]
-    }
+    assert "APP_PRESENTATION_INFERRED" in {item["code"] for item in static["presentation_plan_diagnostics"]}
 
     shared_css = presentation_plan_css(plan)
     assert shared_css in (static_dir / "index.html").read_text(encoding="utf-8")
     assert shared_css in (react_dir / "src" / "index.css").read_text(encoding="utf-8")
     assert '[data-ir-id="motif_incidents"] > [data-ir-id]' in shared_css
-    assert (
-        '[data-ir-id="motif_incidents"] > :is(tbody, thead, tfoot) > [data-ir-id]'
-        in shared_css
-    )
+    assert '[data-ir-id="motif_incidents"] > :is(tbody, thead, tfoot) > [data-ir-id]' in shared_css
     assert (
         '[data-ir-id="motif_incidents"] > :is(tbody, thead, tfoot) '
-        "{ display: grid; gap: 0.625rem; width: 100%; min-width: 0; }"
-        in shared_css
+        "{ display: grid; gap: 0.625rem; width: 100%; min-width: 0; }" in shared_css
     )
 
     static_manifest = json.loads((static_dir / "shell_manifest.json").read_text(encoding="utf-8"))
@@ -151,26 +142,20 @@ def test_declared_presentation_validates_targets_areas_and_anchors():
             "base": {"area": "primary"},
         }
     )
-    payload["screens"][0]["presentation"]["rules"][2]["items"]["base"].update(
-        {"columns": 1, "areas": [["primary"]]}
-    )
+    payload["screens"][0]["presentation"]["rules"][2]["items"]["base"].update({"columns": 1, "areas": [["primary"]]})
     assert validate_app_text(json.dumps(payload))["ok"] is True
 
     payload = _app_with_declared_presentation()
     payload["screens"][0]["presentation"]["rules"][0]["base"]["areas"] = [["missing"]]
     invalid_area = validate_app_text(json.dumps(payload))
     assert invalid_area["ok"] is False
-    assert "APP_PRESENTATION_AREA_TARGET_MISSING" in {
-        issue["code"] for issue in invalid_area["issues"]
-    }
+    assert "APP_PRESENTATION_AREA_TARGET_MISSING" in {issue["code"] for issue in invalid_area["issues"]}
 
     payload = _app_with_declared_presentation()
     payload["screens"][0]["presentation"]["anchors"][0]["target_ref"] = "binding:missing"
     invalid_anchor = validate_app_text(json.dumps(payload))
     assert invalid_anchor["ok"] is False
-    assert "APP_PRESENTATION_ANCHOR_TARGET_MISSING" in {
-        issue["code"] for issue in invalid_anchor["issues"]
-    }
+    assert "APP_PRESENTATION_ANCHOR_TARGET_MISSING" in {issue["code"] for issue in invalid_anchor["issues"]}
 
     payload = _app_with_declared_presentation()
     binding_id = payload["screens"][0]["intent_bundle"]["view_spec"]["bindings"][0]["id"]
@@ -183,23 +168,15 @@ def test_declared_presentation_validates_targets_areas_and_anchors():
     )
     contradictory = validate_app_text(json.dumps(payload))
     assert contradictory["ok"] is False
-    issue = next(
-        item
-        for item in contradictory["issues"]
-        if item["code"] == "APP_PRESENTATION_ANCHOR_TOPOLOGY_INVALID"
-    )
+    issue = next(item for item in contradictory["issues"] if item["code"] == "APP_PRESENTATION_ANCHOR_TOPOLOGY_INVALID")
     assert f"binding:{binding_id}" in issue["message"]
     assert "semantically contained by motif:incidents" in issue["message"]
 
     payload = _app_with_declared_presentation()
-    payload["screens"][0]["presentation"]["rules"][0]["items"] = {
-        "base": {"display": "grid", "columns": 2}
-    }
+    payload["screens"][0]["presentation"]["rules"][0]["items"] = {"base": {"display": "grid", "columns": 2}}
     invalid_items = validate_app_text(json.dumps(payload))
     assert invalid_items["ok"] is False
-    assert "APP_PRESENTATION_ITEMS_TARGET_INVALID" in {
-        issue["code"] for issue in invalid_items["issues"]
-    }
+    assert "APP_PRESENTATION_ITEMS_TARGET_INVALID" in {issue["code"] for issue in invalid_items["issues"]}
 
 
 def test_inferred_workspace_grid_requires_sidebar_and_main_to_be_siblings():
@@ -232,16 +209,13 @@ def test_inferred_workspace_grid_requires_sidebar_and_main_to_be_siblings():
     sidebar["parent_region"] = view["root_region"]
     siblings = build_presentation_plan(payload)
     sibling_rules = {rule["target_ref"]: rule for rule in siblings["screens"][0]["rules"]}
-    assert sibling_rules[f'region:{view["root_region"]}']["base"]["areas"] == [["sidebar", "main"]]
-    assert sibling_rules[f'region:{view["root_region"]}']["variants"]["medium"] == {
+    assert sibling_rules[f"region:{view['root_region']}"]["base"]["areas"] == [["sidebar", "main"]]
+    assert sibling_rules[f"region:{view['root_region']}"]["variants"]["medium"] == {
         "columns": 1,
         "areas": [["sidebar"], ["main"]],
     }
     css = presentation_plan_css(siblings)
-    assert (
-        '[data-ir-id="region_root"] > [data-ir-id="region_sidebar"] { grid-area: sidebar; }'
-        in css
-    )
+    assert '[data-ir-id="region_root"] > [data-ir-id="region_sidebar"] { grid-area: sidebar; }' in css
     assert '[data-ir-id="region_root"] > [data-ir-id="region_main"] { grid-area: main; }' in css
 
 
@@ -287,11 +261,7 @@ def test_same_row_anchor_must_match_effective_breakpoint_layout():
 
     invalid = validate_app_text(json.dumps(payload))
     assert invalid["ok"] is False
-    issue = next(
-        item
-        for item in invalid["issues"]
-        if item["code"] == "APP_PRESENTATION_ANCHOR_TOPOLOGY_INVALID"
-    )
+    issue = next(item for item in invalid["issues"] if item["code"] == "APP_PRESENTATION_ANCHOR_TOPOLOGY_INVALID")
     assert "compact, medium" in issue["message"]
     assert "region:root stacks" in issue["message"]
 
@@ -330,11 +300,7 @@ def test_operations_workspace_requires_visible_wide_rail_and_content_row():
     )
 
     invalid = validate_app_text(json.dumps(payload))
-    matching = [
-        item
-        for item in invalid["issues"]
-        if item["code"] == "APP_PRESENTATION_PROFILE_INVARIANT_INVALID"
-    ]
+    matching = [item for item in invalid["issues"] if item["code"] == "APP_PRESENTATION_PROFILE_INVARIANT_INVALID"]
     assert len(matching) == 2
     assert any("wide rail/content row" in item["message"] for item in matching)
     assert any("cannot hide" in item["message"] for item in matching)
@@ -462,9 +428,7 @@ def test_declared_item_grid_drops_inferred_child_areas_it_no_longer_defines():
         "binding:owen_workload",
     ):
         assert "area" not in rules[target]["base"]
-        assert all(
-            "area" not in variant for variant in rules[target]["variants"].values()
-        )
+        assert all("area" not in variant for variant in rules[target]["variants"].values())
 
     css = presentation_plan_css(plan)
     assert ":is(tbody, thead, tfoot) > [data-ir-id] > .vs-value" in css
@@ -482,9 +446,7 @@ def test_inferred_job_rows_use_readable_semantic_tracks_at_each_width():
     motif["members"] = ["incident_title"]
 
     plan = build_presentation_plan(payload)
-    rule = next(
-        item for item in plan["screens"][0]["rules"] if item["target_ref"] == "motif:job_queue"
-    )
+    rule = next(item for item in plan["screens"][0]["rules"] if item["target_ref"] == "motif:job_queue")
     assert rule["items"]["base"]["columns"] == [
         "identity_lg",
         "fluid_wide",
@@ -522,11 +484,7 @@ def test_inferred_job_rows_use_readable_semantic_tracks_at_each_width():
             ],
         },
     }
-    title_rule = next(
-        item
-        for item in plan["screens"][0]["rules"]
-        if item["target_ref"] == "binding:incident_title"
-    )
+    title_rule = next(item for item in plan["screens"][0]["rules"] if item["target_ref"] == "binding:incident_title")
     assert title_rule["base"] == {
         "area": "record_title",
         "font_size": "body",
@@ -539,17 +497,12 @@ def test_inferred_job_rows_use_readable_semantic_tracks_at_each_width():
     assert title_rule["variants"] == {}
 
     css = presentation_plan_css(plan)
-    title_css = next(
-        line for line in css.splitlines() if '[data-ir-id="binding_incident_title"] {' in line
-    )
+    title_css = next(line for line in css.splitlines() if '[data-ir-id="binding_incident_title"] {' in line)
     assert "font-size: 0.95rem !important" in title_css
     assert "grid-area: record_title !important" in title_css
-    assert 'grid-column: span 2 / span 2' not in css
+    assert "grid-column: span 2 / span 2" not in css
     assert "; }}" not in css
-    assert (
-        ":is(tbody, thead, tfoot) > [data-ir-id]:not(:has([data-resource-id]))"
-        in css
-    )
+    assert ":is(tbody, thead, tfoot) > [data-ir-id]:not(:has([data-resource-id]))" in css
     assert ":has([data-resource-id]) { min-height: 11.75rem; align-content: center; }" in css
     assert ":is(tbody > [data-ir-id" not in css
 
@@ -602,7 +555,7 @@ def test_resource_repeat_job_aliases_receive_semantic_areas_and_typography():
 
     css = presentation_plan_css(plan)
     assert '[data-ir-id="binding_rvb_dispatch_jobs__J-204__time"] { grid-area: record_time !important' in css
-    assert 'font-size: 0.82rem !important' in css
+    assert "font-size: 0.82rem !important" in css
 
 
 def test_brand_section_headings_and_empty_workload_tables_avoid_generic_surfaces():
@@ -656,10 +609,7 @@ def test_brand_section_headings_and_empty_workload_tables_avoid_generic_surfaces
     css = presentation_plan_css(plan)
     assert '[data-ir-id="motif_brand_motif"] > [data-binding-id="brand_mark"]' in css
     assert '[data-ir-id="motif_attention_heading_motif"] { border: 0 !important' in css
-    assert (
-        '[data-ir-id="motif_technician_workload"] > [data-ir-id] > .vs-value '
-        "{ border-top:"
-    ) not in css
+    assert ('[data-ir-id="motif_technician_workload"] > [data-ir-id] > .vs-value { border-top:') not in css
     assert "; }}" not in css
 
 
@@ -721,11 +671,7 @@ def test_lane_headers_are_flat_shared_rows_instead_of_nested_cards():
     ]
 
     plan = build_presentation_plan(payload)
-    rule = next(
-        item
-        for item in plan["screens"][0]["rules"]
-        if item["target_ref"] == "motif:attention_lane"
-    )
+    rule = next(item for item in plan["screens"][0]["rules"] if item["target_ref"] == "motif:attention_lane")
     assert rule["role"] == "lane_header"
     assert rule["base"]["justify"] == "between"
 
@@ -825,21 +771,15 @@ def test_page_hero_in_main_region_still_gets_page_header_typography():
         "text_wrap": "normal",
         "width": "intrinsic",
     }
-    assert rules["binding:hero_title"]["variants"]["compact"] == {
-        "font_size": "display_sm"
-    }
+    assert rules["binding:hero_title"]["variants"]["compact"] == {"font_size": "display_sm"}
     css = presentation_plan_css(plan)
     assert '[data-ir-id="binding_hero_title"] { margin: 0 !important; }' in css
 
 
 def test_retained_v5_plans_normalize_direct_semantic_surfaces_and_action_slots():
     retained = ROOT / "conformance" / "agent-ui-v2" / "fixtures" / "shakedown-104729-2026-08-06-v5"
-    core = json.loads(
-        (retained / "viewspec-core.app.json").read_text(encoding="utf-8")
-    )
-    deep = json.loads(
-        (retained / "viewspec-deep.app.json").read_text(encoding="utf-8")
-    )
+    core = json.loads((retained / "viewspec-core.app.json").read_text(encoding="utf-8"))
+    deep = json.loads((retained / "viewspec-deep.app.json").read_text(encoding="utf-8"))
 
     core_plan = build_presentation_plan(core)
     core_screen = core_plan["screens"][0]
@@ -865,12 +805,7 @@ def test_retained_v5_plans_normalize_direct_semantic_surfaces_and_action_slots()
     ]
     assert deep_rules["motif:sidebar_motif"]["base"]["display"] == "block"
     assert deep_rules["motif:sidebar_motif"]["items"]["base"]["display"] == "flex"
-    assert (
-        deep_rules["motif:sidebar_motif"]["items"]["variants"]["compact"][
-            "direction"
-        ]
-        == "row"
-    )
+    assert deep_rules["motif:sidebar_motif"]["items"]["variants"]["compact"]["direction"] == "row"
     assert deep_rules["motif:metrics_motif"]["base"]["display"] == "grid"
     assert deep_rules["motif:metrics_motif"]["base"]["columns"] == 3
     assert deep_rules["motif:metrics_motif"]["items"]["base"] == {
@@ -888,9 +823,7 @@ def test_retained_v5_plans_normalize_direct_semantic_surfaces_and_action_slots()
     ]
     assert deep_rules["binding:page_title"]["base"]["width"] == "intrinsic"
     assert deep_rules["binding:page_title"]["base"]["padding"] == "none"
-    assert {
-        item["code"] for item in deep_screen["diagnostics"]
-    } >= {
+    assert {item["code"] for item in deep_screen["diagnostics"]} >= {
         "APP_PRESENTATION_DASHBOARD_GRID_NORMALIZED",
         "APP_PRESENTATION_SEMANTIC_OVERRIDE_BOUNDED",
     }
@@ -923,23 +856,14 @@ def test_workload_resource_rows_are_not_styled_as_metric_strips():
     ]
 
     plan = build_presentation_plan(payload)
-    rule = next(
-        item
-        for item in plan["screens"][0]["rules"]
-        if item["target_ref"] == "motif:technician_workload_rows"
-    )
+    rule = next(item for item in plan["screens"][0]["rules"] if item["target_ref"] == "motif:technician_workload_rows")
     assert rule["role"] == "workload_row"
     assert rule["items"]["base"]["columns"] == ["fluid", "auto"]
 
     css = presentation_plan_css(plan)
-    assert (
-        '[data-ir-id="motif_technician_workload_rows"] > [data-ir-id], '
-    ) in css
+    assert ('[data-ir-id="motif_technician_workload_rows"] > [data-ir-id], ') in css
     assert "{ align-items: center; border: 1px solid #d8ddd9" in css
-    assert (
-        '[data-ir-id="motif_technician_workload_rows"] > [data-ir-id] > .vs-value '
-        "{ border-top:"
-    ) not in css
+    assert ('[data-ir-id="motif_technician_workload_rows"] > [data-ir-id] > .vs-value { border-top:') not in css
 
 
 def test_inferred_navigation_rail_uses_a_vertical_item_flow():
@@ -949,11 +873,7 @@ def test_inferred_navigation_rail_uses_a_vertical_item_flow():
     motif["id"] = "navigation_rail"
 
     plan = build_presentation_plan(payload)
-    rule = next(
-        item
-        for item in plan["screens"][0]["rules"]
-        if item["target_ref"] == "motif:navigation_rail"
-    )
+    rule = next(item for item in plan["screens"][0]["rules"] if item["target_ref"] == "motif:navigation_rail")
 
     assert rule["role"] == "navigation"
     assert rule["base"]["display"] == "block"
@@ -966,8 +886,7 @@ def test_inferred_navigation_rail_uses_a_vertical_item_flow():
     css = presentation_plan_css(plan)
     assert (
         '[data-ir-id="motif_navigation_rail"] > :is(tbody, thead, tfoot) > [data-ir-id] '
-        "{ display: flex !important; flex-direction: column"
-        in css
+        "{ display: flex !important; flex-direction: column" in css
     )
     assert "flex-wrap: wrap" in css
     assert "flex: 0 0 auto" in css

@@ -7,12 +7,12 @@ import socket
 from pathlib import Path
 
 import pytest
-from hypothesis import given, strategies as st
+from hypothesis import given
+from hypothesis import strategies as st
 
 from viewspec import ViewSpecBuilder, compile, compile_html, diff_html, lift_html, load_design_system
 from viewspec.cli import main as cli_main
 from viewspec.raw_html import MAX_DOM_DEPTH, MAX_HTML_INPUT_BYTES, HtmlInputError, write_html_compile_result
-
 
 DESIGN = """---
 name: Acme
@@ -220,10 +220,7 @@ def test_backslash_protocol_relative_urls_are_treated_as_cross_origin(tmp_path_f
     # Browsers resolve "/\\host", "\\/host", "\\\\host" and percent-encoded
     # "%5c" the same as "//host" (protocol-relative / cross-origin). They must be
     # caught like "//host" instead of slipping through as same-origin relative.
-    result = compile_html(
-        '<img src="/\\evil.com/chart.png" alt="Chart">'
-        '<a href="/%5Cevil.com/report">Report</a>'
-    )
+    result = compile_html('<img src="/\\evil.com/chart.png" alt="Chart"><a href="/%5Cevil.com/report">Report</a>')
     lowered = result.html.lower()
 
     assert 'src="/\\' not in result.html
@@ -311,6 +308,40 @@ def test_check_certifies_no_beacon_but_rejects_tampered_control_whitespace_artif
     assert cli_main(["check", str(tmp_path)]) == 2  # tampered beacon is rejected
 
 
+def test_void_base_embed_param_keygen_do_not_swallow_following_content():
+    with_base = compile_html('<base href="https://evil.example/"><a href="/x">Open</a><p>Body</p>')
+    assert "Open" in with_base.html
+    assert "Body" in with_base.html
+    assert "<base" not in with_base.html.lower()
+    assert "evil.example" not in with_base.html
+
+    with_embed = compile_html('<object></object><embed src="https://evil.example/e.swf"><p>Visible</p>')
+    assert "Visible" in with_embed.html
+    assert "<embed" not in with_embed.html.lower()
+    assert "<object" not in with_embed.html.lower()
+    assert "evil.example" not in with_embed.html
+
+    with_param = compile_html('<object><param name="movie" value="x"></object><p>After</p><keygen><p>Tail</p>')
+    assert "After" in with_param.html
+    assert "Tail" in with_param.html
+    assert "<param" not in with_param.html.lower()
+    assert "<keygen" not in with_param.html.lower()
+
+
+def test_unclosed_child_inside_stripped_content_pops_back_to_matching_tag():
+    result = compile_html(
+        "<iframe><div><span>hidden</span></iframe><p>After</p>"
+        "<object><div><script>alert(1)</script></object><p>Tail</p>"
+    )
+
+    assert "hidden" not in result.html
+    assert "After" in result.html
+    assert "Tail" in result.html
+    assert "<script" not in result.html.lower()
+    assert "alert(1)" not in result.html
+    assert "<iframe" not in result.html.lower()
+
+
 def test_nested_void_tags_inside_stripped_content_do_not_swallow_document():
     result = compile_html("<script><img src=x></script><h1>Still Here</h1><p>$4</p>")
 
@@ -343,11 +374,16 @@ def test_manifest_contract_is_stable_and_diagnostics_are_deduped():
     assert all({"severity", "code", "message"}.issubset(item) for item in manifest["diagnostics"])
     assert manifest["manifest_schema_version"] == 1
     assert manifest["artifact_hash"] == hashlib.sha256(result.html.encode("utf-8")).hexdigest()
-    assert manifest["raw_source_hash"] == hashlib.sha256(
-        '<p onclick="x()" onmouseover="y()">Hello</p><a href="javascript:bad()">Open</a>'.encode("utf-8")
-    ).hexdigest()
+    assert (
+        manifest["raw_source_hash"]
+        == hashlib.sha256(
+            b'<p onclick="x()" onmouseover="y()">Hello</p><a href="javascript:bad()">Open</a>'
+        ).hexdigest()
+    )
     assert manifest["command_args"] == ["compile_html"]
-    keys = {(item["code"], item.get("node_id", ""), item.get("path", ""), item["message"]) for item in result.diagnostics}
+    keys = {
+        (item["code"], item.get("node_id", ""), item.get("path", ""), item["message"]) for item in result.diagnostics
+    }
     assert len(keys) == len(result.diagnostics)
     assert result.lift.source_hash == lift_html('<p onclick="other()">Hello</p><a>Open</a>').source_hash
 
@@ -371,8 +407,12 @@ def test_manifest_v1_schema_and_golden_fixture_match_generated_shape():
         "network_calls",
         "decompilation",
     ]
-    raw_clause = next(item for item in schema["allOf"] if item["if"]["properties"]["kind"]["const"] == "raw_html_compile")
-    intent_clause = next(item for item in schema["allOf"] if item["if"]["properties"]["kind"]["const"] == "intent_bundle_compile")
+    raw_clause = next(
+        item for item in schema["allOf"] if item["if"]["properties"]["kind"]["const"] == "raw_html_compile"
+    )
+    intent_clause = next(
+        item for item in schema["allOf"] if item["if"]["properties"]["kind"]["const"] == "intent_bundle_compile"
+    )
     assert raw_clause["then"]["properties"]["command"]["const"] == "compile_html"
     assert raw_clause["then"]["properties"]["policy_version"]["const"] == "viewspec-raw-html-allowlist@1"
     assert raw_clause["then"]["properties"]["nodes"]["propertyNames"]["$ref"] == "#/$defs/safeId"
@@ -408,15 +448,29 @@ def test_manifest_v1_schema_documents_intent_trust_boundary(tmp_path):
     intent_node_schema = schema["$defs"]["intentBundleNode"]
 
     assert schema["$defs"]["safeId"]["pattern"] == "^[A-Za-z0-9_.-]+$"
-    assert schema["$defs"]["viewspecIntentRef"]["pattern"] == "^viewspec:(view|region|binding|group|motif|style|action):[A-Za-z0-9_.-]+$"
+    assert (
+        schema["$defs"]["viewspecIntentRef"]["pattern"]
+        == "^viewspec:(view|region|binding|group|motif|style|action):[A-Za-z0-9_.-]+$"
+    )
     assert intent_node_schema["properties"]["ir_id"]["$ref"] == "#/$defs/safeId"
     assert intent_node_schema["properties"]["intent_refs"]["minItems"] == 1
     assert intent_node_schema["properties"]["props"]["properties"]["binding_id"]["$ref"] == "#/$defs/safeId"
     assert intent_node_schema["properties"]["props"]["properties"]["action_id"]["$ref"] == "#/$defs/safeId"
-    assert intent_node_schema["properties"]["props"]["properties"]["target_ref"]["pattern"] == "^(region|binding|motif|view):[A-Za-z0-9_.-]+$"
+    assert (
+        intent_node_schema["properties"]["props"]["properties"]["target_ref"]["pattern"]
+        == "^(region|binding|motif|view):[A-Za-z0-9_.-]+$"
+    )
     assert intent_node_schema["properties"]["props"]["properties"]["detail_role"]["enum"] == ["term", "description"]
-    assert intent_node_schema["properties"]["props"]["properties"]["empty_state_role"]["enum"] == ["title", "description", "detail"]
-    assert intent_node_schema["properties"]["props"]["properties"]["state_motif_role"]["enum"] == ["title", "description", "detail"]
+    assert intent_node_schema["properties"]["props"]["properties"]["empty_state_role"]["enum"] == [
+        "title",
+        "description",
+        "detail",
+    ]
+    assert intent_node_schema["properties"]["props"]["properties"]["state_motif_role"]["enum"] == [
+        "title",
+        "description",
+        "detail",
+    ]
     assert intent_node_schema["properties"]["props"]["properties"]["state_role"]["enum"] == ["loading", "error"]
     assert intent_node_schema["allOf"][0]["then"]["properties"]["content_refs"]["$ref"] == "#/$defs/nonEmptyStringList"
     assert intent_node_schema["allOf"][1]["then"]["properties"]["props"]["required"] == [

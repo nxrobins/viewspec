@@ -3,7 +3,8 @@ from __future__ import annotations
 from dataclasses import replace
 
 import pytest
-from hypothesis import given, strategies as st
+from hypothesis import given
+from hypothesis import strategies as st
 
 from viewspec import (
     CompilerInputError,
@@ -252,6 +253,23 @@ def test_detached_region_is_fatal():
     )
 
     with pytest.raises(CompilerInputError, match="must declare parent_region"):
+        compile(bad_bundle)
+
+
+def test_unknown_parent_region_is_fatal():
+    # A parent_region that names no declared region is a hard CompilerInputError
+    # (raised by the region-tree walk), not an UNKNOWN_REGION diagnostic. That
+    # diagnostic code is reserved for bindings, motifs and actions that target a
+    # missing region while the region tree itself is sound.
+    bundle = ViewSpecBuilder("bad_parent_region").build_bundle()
+    regions = list(bundle.view_spec.regions)
+    regions[1] = replace(regions[1], parent_region="missing")
+    bad_bundle = IntentBundle(
+        substrate=bundle.substrate,
+        view_spec=replace(bundle.view_spec, regions=regions),
+    )
+
+    with pytest.raises(CompilerInputError, match="does not reach root_region"):
         compile(bad_bundle)
 
 

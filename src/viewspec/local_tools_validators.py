@@ -1,40 +1,92 @@
 from __future__ import annotations
 
+import json
+import re
+from collections.abc import Iterator
 from html import unescape
 from html.parser import HTMLParser
 from pathlib import Path
-from typing import Any
+from typing import Any, NamedTuple
 from urllib.parse import urlparse
-from viewspec.aesthetics import AESTHETIC_PROFILE_LAYOUT_ROLES
-from viewspec.aesthetics import AESTHETIC_PROFILE_TOKENS
-from viewspec.aesthetics import is_aesthetic_profile_token
-from viewspec.aesthetics import profile_layout_props
+
+from viewspec._canonical import canonical_json_ascii
+from viewspec.aesthetics import (
+    AESTHETIC_PROFILE_LAYOUT_ROLES,
+    AESTHETIC_PROFILE_TOKENS,
+    is_aesthetic_profile_token,
+    profile_layout_props,
+)
+from viewspec.compiler_errors import LocalToolContractError
 from viewspec.emitters.html_tailwind import ACTION_EVENT_SCRIPT
-from viewspec.emitters.react_tailwind_tsx import CompilerConstraintError
-from viewspec.emitters.react_tailwind_tsx import GRID_CLASS_BY_COLUMNS
-from viewspec.emitters.react_tailwind_tsx import LAYOUT_EMPHASIS_CLASS_BY_VALUE
-from viewspec.emitters.react_tailwind_tsx import RECIPE_BY_KEY
-from viewspec.emitters.react_tailwind_tsx import TAILWIND_AESTHETIC_RECIPE_OVERLAYS
-from viewspec.emitters.react_tailwind_tsx import TAILWIND_APP_V1_APP_ROLE_CONTRACTS
-from viewspec.emitters.react_tailwind_tsx import TAILWIND_MAX_ACTIONS
-from viewspec.emitters.react_tailwind_tsx import TAILWIND_MAX_ARTIFACT_BYTES
-from viewspec.emitters.react_tailwind_tsx import TAILWIND_MAX_CLASS_TOKENS
-from viewspec.emitters.react_tailwind_tsx import TAILWIND_MAX_IR_NODES
-from viewspec.emitters.react_tailwind_tsx import TAILWIND_MAX_RECIPES
-from viewspec.emitters.react_tailwind_tsx import TAILWIND_PARITY_CLASS_TOKENS
-from viewspec.emitters.react_tailwind_tsx import TAILWIND_RECIPE_PACK
-from viewspec.emitters.react_tailwind_tsx import TAILWIND_RECIPE_REGISTRY_VERSION
-from viewspec.emitters.react_tailwind_tsx import resolve_manifest_recipe_metadata
-from viewspec.emitters.react_tailwind_tsx import tailwind_recipe_registry_digest
+from viewspec.emitters.react_tailwind_tsx import (
+    GRID_CLASS_BY_COLUMNS,
+    LAYOUT_EMPHASIS_CLASS_BY_VALUE,
+    RECIPE_BY_KEY,
+    TAILWIND_AESTHETIC_RECIPE_OVERLAYS,
+    TAILWIND_APP_V1_APP_ROLE_CONTRACTS,
+    TAILWIND_MAX_ACTIONS,
+    TAILWIND_MAX_ARTIFACT_BYTES,
+    TAILWIND_MAX_CLASS_TOKENS,
+    TAILWIND_MAX_IR_NODES,
+    TAILWIND_MAX_RECIPES,
+    TAILWIND_PARITY_CLASS_TOKENS,
+    TAILWIND_RECIPE_PACK,
+    TAILWIND_RECIPE_REGISTRY_VERSION,
+    CompilerConstraintError,
+    resolve_manifest_recipe_metadata,
+    tailwind_recipe_registry_digest,
+)
 from viewspec.emitters.react_tsx import react_tsx_manifest_node_markers
-from viewspec.manifest_summary import manifest_root_aesthetic_profile
-from viewspec.manifest_summary import summarize_intent_manifest
-from viewspec.raw_html import MANIFEST_SCHEMA_VERSION, MAX_HTML_INPUT_BYTES, collapse_url_obfuscation
-import json
-import re
-from viewspec.local_tools_constants import (ACTION_TARGET_REF_RE, ACTIVE_OR_AUTOFETCH_TAGS, ACTIVE_STRUCTURAL_TAGS, CANONICAL_CONTENT_REF_RE, DIAGNOSTIC_SEVERITIES, EMITTER_ARTIFACT_FILES, EXPECTED_MANIFEST_ENVELOPES, EXTERNAL_REF_POLICIES, HASH_RE, KNOWN_EMITTERS, REACT_TSX_ACTION_REQUIRED_MARKERS, REACT_TSX_FORBIDDEN_SURFACES, REACT_TSX_REQUIRED_MARKERS, REACT_TSX_REQUIRED_MARKERS_BY_EMITTER, REMOTE_AUTOFETCH_ATTRS, REMOTE_HREF_AUTOFETCH_TAGS, SAFE_ID_RE, SEMANTIC_ACTION_KEYS, SEMANTIC_DIGEST_KEYS, SEMANTIC_DIGEST_MAX_PROJECTION_BYTES, SEMANTIC_DIGEST_VERSION, SEMANTIC_NODE_KEYS, SEMANTIC_PROJECTION_KEYS, STATEFUL_COLLECTION_ACTION_KINDS, TEXT_PROP_PRIMITIVES, VIEWSPEC_INTENT_REF_RE, VOID_HTML_TAGS)
-from viewspec.local_tools_io import (looks_absolute_path_arg)
-from viewspec.local_tools_hash import (bytes_hash, file_hash)
+from viewspec.error_codes import ERROR_CODES
+from viewspec.local_tools_constants import (
+    ACTION_TARGET_REF_RE,
+    ACTIVE_OR_AUTOFETCH_TAGS,
+    ACTIVE_STRUCTURAL_TAGS,
+    CANONICAL_CONTENT_REF_RE,
+    DIAGNOSTIC_SEVERITIES,
+    EMITTER_ARTIFACT_FILES,
+    EXPECTED_MANIFEST_ENVELOPES,
+    EXTERNAL_REF_POLICIES,
+    HASH_RE,
+    KNOWN_EMITTERS,
+    MAX_SCANNED_TAG_BLOCKS,
+    REACT_TSX_ACTION_REQUIRED_MARKERS,
+    REACT_TSX_FORBIDDEN_SURFACES,
+    REACT_TSX_REQUIRED_MARKERS,
+    REACT_TSX_REQUIRED_MARKERS_BY_EMITTER,
+    REMOTE_AUTOFETCH_ATTRS,
+    REMOTE_HREF_AUTOFETCH_TAGS,
+    SAFE_ID_RE,
+    SEMANTIC_ACTION_KEYS,
+    SEMANTIC_DIGEST_KEYS,
+    SEMANTIC_DIGEST_MAX_PROJECTION_BYTES,
+    SEMANTIC_DIGEST_VERSION,
+    SEMANTIC_NODE_KEYS,
+    SEMANTIC_PROJECTION_KEYS,
+    STATEFUL_COLLECTION_ACTION_KINDS,
+    TEXT_PROP_PRIMITIVES,
+    UNSAFE_URL_SCHEMES,
+    URL_SCHEME_POLICY_ATTRS,
+    VIEWSPEC_INTENT_REF_RE,
+    VOID_HTML_TAGS,
+)
+from viewspec.local_tools_hash import bytes_hash, file_hash
+from viewspec.local_tools_io import looks_absolute_path_arg
+from viewspec.manifest_summary import manifest_root_aesthetic_profile, summarize_intent_manifest
+from viewspec.raw_html import ALLOWED_TAGS as RAW_HTML_ALLOWED_TAGS
+from viewspec.raw_html import (
+    DATA_IMAGE_SRC_PREFIXES,
+    MANIFEST_SCHEMA_VERSION,
+    MAX_HTML_INPUT_BYTES,
+    collapse_url_obfuscation,
+)
+from viewspec.raw_html import SAFE_ATTRS_BY_TAG as RAW_HTML_SAFE_ATTRS_BY_TAG
+from viewspec.raw_html import SAFE_GLOBAL_ATTRS as RAW_HTML_SAFE_GLOBAL_ATTRS
+from viewspec.raw_html import URL_ATTRS as RAW_HTML_URL_ATTRS
+from viewspec.raw_html import _is_external_http_url as raw_html_is_external_http_url
+from viewspec.raw_html import _normalize_url_for_policy as raw_html_normalize_url
+from viewspec.raw_html import _safe_url as raw_html_safe_url
+
 
 def check_artifact_dir(path: str | Path) -> dict[str, Any]:
     artifact_path = Path(path)
@@ -90,7 +142,9 @@ def check_artifact_dir(path: str | Path) -> dict[str, Any]:
     design_hash = manifest.get("design_hash")
     if design_hash is not None and (not isinstance(design_hash, str) or not HASH_RE.match(design_hash)):
         errors.append("manifest design_hash must be null or a sha256 hex string")
-    if not isinstance(manifest.get("command_args"), list) or not all(isinstance(item, str) for item in manifest.get("command_args", [])):
+    if not isinstance(manifest.get("command_args"), list) or not all(
+        isinstance(item, str) for item in manifest.get("command_args", [])
+    ):
         errors.append("manifest command_args must be a list of strings")
     else:
         absolute_args = [item for item in manifest["command_args"] if looks_absolute_path_arg(item)]
@@ -130,7 +184,11 @@ def check_artifact_dir(path: str | Path) -> dict[str, Any]:
                 )
             )
             errors.extend(_validate_react_tsx_manifest_links(tsx, manifest))
-            errors.extend(_validate_stateful_collection_artifact(tsx, manifest, emitter=emitter if isinstance(emitter, str) else "react_tsx"))
+            errors.extend(
+                _validate_stateful_collection_artifact(
+                    tsx, manifest, emitter=emitter if isinstance(emitter, str) else "react_tsx"
+                )
+            )
             errors.extend(
                 _validate_intent_semantic_digest(
                     tsx,
@@ -153,7 +211,14 @@ def check_artifact_dir(path: str | Path) -> dict[str, Any]:
         if manifest.get("artifact_hash") and manifest.get("artifact_hash") != artifact_hash:
             errors.append("artifact_hash does not match index.html")
         errors.extend(_validate_no_autofetch_surfaces(html))
-        scripts = re.findall(r"<script\b[^>]*>[\s\S]*?</script>", html, flags=re.IGNORECASE)
+        # Linear block scan (S-3): one pass, never re-scanned from every unclosed opener. A
+        # `<script` opener with no closer is rejected outright instead of being ignored.
+        script_scan = find_tag_blocks(html, "script")
+        scripts = [html[start:end] for start, _, _, end in script_scan.blocks]
+        if script_scan.unclosed_content_start is not None:
+            errors.append(_UNCLOSED_SCRIPT_ERROR)
+        if script_scan.truncated and _SCAN_LIMIT_ERROR not in errors:
+            errors.append(_SCAN_LIMIT_ERROR)
         if manifest.get("kind") == "raw_html_compile" and scripts:
             errors.append("index.html contains an active raw-HTML surface")
         elif scripts and [script.strip() for script in scripts] != [ACTION_EVENT_SCRIPT]:
@@ -163,7 +228,11 @@ def check_artifact_dir(path: str | Path) -> dict[str, Any]:
         if manifest.get("kind") == "intent_bundle_compile":
             errors.extend(_validate_no_tailwind_scope_leak(manifest))
         errors.extend(_validate_manifest_dom_links(manifest, html))
-        errors.extend(_validate_stateful_collection_artifact(html, manifest, emitter=emitter if isinstance(emitter, str) else "html_tailwind"))
+        errors.extend(
+            _validate_stateful_collection_artifact(
+                html, manifest, emitter=emitter if isinstance(emitter, str) else "html_tailwind"
+            )
+        )
         errors.extend(
             _validate_intent_semantic_digest(
                 html,
@@ -189,9 +258,65 @@ def check_artifact_dir(path: str | Path) -> dict[str, Any]:
     return {
         "ok": not errors,
         "errors": errors,
+        "issues": [check_issue_entry(item) for item in errors],
         "warnings": warnings,
         "manifest_summary": summarize_intent_manifest(manifest_path),
     }
+
+
+DEFAULT_CHECK_FIX = "Re-run viewspec compile from the source, or fix the tampered artifact."
+
+# Fixes for the rejection classes `check` raises with a code prefix. Any other error string is
+# surfaced under the generic CHECK_FAILED code with the caller's default fix.
+_CHECK_ISSUE_FIXES = {
+    "CHECK_INLINE_EVENT_HANDLER": "Remove every on* attribute from index.html, or re-run viewspec compile from the source.",
+    "CHECK_UNSAFE_URL_SCHEME": (
+        "Replace javascript:, vbscript:, and data: URLs (other than raster image data URLs on <img src>) "
+        "with safe links, or re-run viewspec compile from the source."
+    ),
+    "CHECK_UNCLOSED_SCRIPT": "Remove the unclosed <script tag from index.html, or re-run viewspec compile from the source.",
+    "CHECK_AMBIGUOUS_MARKUP": (
+        "Remove comments, <![...]> sections, processing instructions, declarations other than <!DOCTYPE html>, "
+        "raw-text elements (noscript, textarea, xmp, noembed, noframes, plaintext, iframe, or <style>/<title> "
+        "inside <svg>/<math>), non-plain </title>, </style> and </script> closers, and NUL bytes from "
+        "index.html, or re-run viewspec compile from the source."
+    ),
+    "CHECK_SCAN_LIMIT_EXCEEDED": (
+        "Reduce index.html to the compiler-emitted style and script blocks, or re-run viewspec compile from the source."
+    ),
+    "CHECK_RAW_HTML_DOM_UNGOVERNED": (
+        "Re-run viewspec compile from the source HTML; a raw-HTML artifact may only contain the document "
+        "wrapper plus manifest-governed elements whose attributes match the manifest and the sanitizer allowlist."
+    ),
+}
+
+_CHECK_ISSUE_PATH_HINTS = (
+    ("index.html", "index.html"),
+    ("DOM", "index.html"),
+    ("ViewSpecView.tsx", "ViewSpecView.tsx"),
+    ("diagnostics.json", "diagnostics.json"),
+)
+
+
+def check_issue_entry(message: str, *, default_fix: str = DEFAULT_CHECK_FIX) -> dict[str, str]:
+    """Shape one `check_artifact_dir` error string as {code, path, message, fix}.
+
+    Error strings that start with a registered code (``CODE: detail``) surface under that code;
+    everything else is the generic CHECK_FAILED. The path names the artifact file the message is about.
+    """
+    code = "CHECK_FAILED"
+    text = message
+    prefix, separator, remainder = message.partition(": ")
+    if separator and remainder and prefix in ERROR_CODES:
+        code = prefix
+        text = remainder
+    path = "provenance_manifest.json"
+    for needle, candidate in _CHECK_ISSUE_PATH_HINTS:
+        if needle in message:
+            path = candidate
+            break
+    return {"code": code, "path": path, "message": text, "fix": _CHECK_ISSUE_FIXES.get(code, default_fix)}
+
 
 def build_intent_semantic_digest(
     manifest: dict[str, Any],
@@ -220,6 +345,7 @@ def build_intent_semantic_digest(
         "digest": bytes_hash(_stable_semantic_json(digest_payload).encode("utf-8")),
     }
 
+
 def _validate_manifest_envelope(manifest: dict[str, Any], errors: list[str]) -> None:
     kind = manifest.get("kind")
     if not isinstance(kind, str):
@@ -236,6 +362,7 @@ def _validate_manifest_envelope(manifest: dict[str, Any], errors: list[str]) -> 
     guarantees = manifest.get("guarantees")
     if isinstance(guarantees, dict) and guarantees.get("decompilation") != expected["decompilation"]:
         errors.append(f"manifest guarantees.decompilation must be {expected['decompilation']} for {kind}")
+
 
 def _validate_manifest_artifact_file(manifest: dict[str, Any], errors: list[str]) -> str:
     kind = manifest.get("kind")
@@ -276,6 +403,7 @@ def _validate_manifest_artifact_file(manifest: dict[str, Any], errors: list[str]
 
     return "index.html"
 
+
 def _validate_react_tsx_source(
     tsx: str,
     *,
@@ -300,6 +428,7 @@ def _validate_react_tsx_source(
                 errors.append(message)
     return errors
 
+
 def _validate_react_tsx_manifest_links(tsx: str, manifest: dict[str, Any]) -> list[str]:
     nodes = manifest.get("nodes")
     if not isinstance(nodes, dict):
@@ -313,6 +442,7 @@ def _validate_react_tsx_manifest_links(tsx: str, manifest: dict[str, Any]) -> li
                 errors.append(f"ViewSpecView.tsx missing {name} for manifest node {dom_id}")
     return errors
 
+
 def _validate_react_tailwind_tsx_artifact(tsx: str, manifest: dict[str, Any], artifact_path: Path) -> list[str]:
     errors: list[str] = []
     nodes = manifest.get("nodes")
@@ -324,6 +454,7 @@ def _validate_react_tailwind_tsx_artifact(tsx: str, manifest: dict[str, Any], ar
     errors.extend(_validate_react_tailwind_semantic_markers(tsx, nodes))
     errors.extend(_validate_react_tailwind_limits(tsx, nodes))
     return errors
+
 
 def _validate_react_tailwind_static_source(tsx: str, artifact_path: Path) -> list[str]:
     errors: list[str] = []
@@ -340,6 +471,7 @@ def _validate_react_tailwind_static_source(tsx: str, artifact_path: Path) -> lis
     if artifact_path.stat().st_size > TAILWIND_MAX_ARTIFACT_BYTES:
         errors.append("TAILWIND_LIMIT_EXCEEDED_ARTIFACT_BYTES: ViewSpecView.tsx exceeds 256 KiB")
     return errors
+
 
 def _validate_react_tailwind_manifest(tsx: str, nodes: dict[str, Any], manifest: dict[str, Any]) -> list[str]:
     errors: list[str] = []
@@ -376,12 +508,16 @@ def _validate_react_tailwind_manifest(tsx: str, nodes: dict[str, Any], manifest:
                 "classes": [],
             }
         if entry.get("recipe_pack") != expected["recipe_pack"]:
-            errors.append(f"APP_ROLE_DERIVATION_MISMATCH: manifest node {dom_id} recipe_pack does not match recomputed Tailwind recipe")
+            errors.append(
+                f"APP_ROLE_DERIVATION_MISMATCH: manifest node {dom_id} recipe_pack does not match recomputed Tailwind recipe"
+            )
         recipe_key = entry.get("recipe_key")
         if not isinstance(recipe_key, str) or recipe_key not in RECIPE_BY_KEY:
             errors.append(f"TAILWIND_RECIPE_CONFLICT: manifest node {dom_id} has an unknown recipe_key")
         elif recipe_key != expected["recipe_key"]:
-            errors.append(f"APP_ROLE_DERIVATION_MISMATCH: manifest node {dom_id} recipe_key does not match recomputed Tailwind recipe")
+            errors.append(
+                f"APP_ROLE_DERIVATION_MISMATCH: manifest node {dom_id} recipe_key does not match recomputed Tailwind recipe"
+            )
         else:
             recipe_keys.add(recipe_key)
         app_role = entry.get("app_role")
@@ -390,10 +526,14 @@ def _validate_react_tailwind_manifest(tsx: str, nodes: dict[str, Any], manifest:
             errors.append(f"APP_ROLE_UNDECLARED_CONTRACT: manifest node {dom_id} has an undeclared app_role")
         if expected["app_role"] is None:
             if app_role is not None or app_role_source is not None:
-                errors.append(f"APP_ROLE_UNDECLARED_SIGNAL: manifest node {dom_id} declares app-role metadata without a structural rule")
+                errors.append(
+                    f"APP_ROLE_UNDECLARED_SIGNAL: manifest node {dom_id} declares app-role metadata without a structural rule"
+                )
         else:
             if app_role != expected["app_role"] or app_role_source != expected["app_role_source"]:
-                errors.append(f"APP_ROLE_DERIVATION_MISMATCH: manifest node {dom_id} app_role/app_role_source does not match recomputed rule")
+                errors.append(
+                    f"APP_ROLE_DERIVATION_MISMATCH: manifest node {dom_id} app_role/app_role_source does not match recomputed rule"
+                )
             if isinstance(app_role, str):
                 app_roles.add(app_role)
             if isinstance(app_role_source, str):
@@ -406,7 +546,9 @@ def _validate_react_tailwind_manifest(tsx: str, nodes: dict[str, Any], manifest:
             errors.append(f"TAILWIND_INVENTORY_MISMATCH: manifest node {dom_id}.classes do not match recomputed recipe")
         for class_name in classes:
             if class_name not in allowed_class_tokens:
-                errors.append(f"TAILWIND_UNSAFE_CLASS_SOURCE: manifest node {dom_id} class {class_name} is not registry-owned")
+                errors.append(
+                    f"TAILWIND_UNSAFE_CLASS_SOURCE: manifest node {dom_id} class {class_name} is not registry-owned"
+                )
             class_tokens.add(class_name)
     inventory = manifest.get("tailwind_recipe_inventory")
     if not isinstance(inventory, dict):
@@ -424,25 +566,38 @@ def _validate_react_tailwind_manifest(tsx: str, nodes: dict[str, Any], manifest:
             "app_roles": sorted(app_roles),
             "app_role_sources": sorted(app_role_sources),
         }
-        extra_recipes = sorted(set(inventory.get("recipes", [])) - recipe_keys) if isinstance(inventory.get("recipes"), list) else []
+        extra_recipes = (
+            sorted(set(inventory.get("recipes", [])) - recipe_keys)
+            if isinstance(inventory.get("recipes"), list)
+            else []
+        )
         extra_rule_ids = (
             sorted(set(inventory.get("app_role_sources", [])) - app_role_sources)
             if isinstance(inventory.get("app_role_sources"), list)
             else []
         )
         if extra_recipes or extra_rule_ids:
-            errors.append("TAILWIND_RECIPE_UNREACHABLE: tailwind_recipe_inventory declares recipe/rule entries not reached by manifest nodes")
+            errors.append(
+                "TAILWIND_RECIPE_UNREACHABLE: tailwind_recipe_inventory declares recipe/rule entries not reached by manifest nodes"
+            )
         if inventory.get("recipe_registry_digest") != expected_inventory["recipe_registry_digest"]:
-            errors.append("TAILWIND_RECIPE_REGISTRY_DIGEST_MISMATCH: tailwind_recipe_inventory.recipe_registry_digest does not match registry")
+            errors.append(
+                "TAILWIND_RECIPE_REGISTRY_DIGEST_MISMATCH: tailwind_recipe_inventory.recipe_registry_digest does not match registry"
+            )
         for key, expected_value in expected_inventory.items():
             if inventory.get(key) != expected_value:
-                errors.append(f"TAILWIND_INVENTORY_MISMATCH: tailwind_recipe_inventory.{key} does not match manifest nodes")
+                errors.append(
+                    f"TAILWIND_INVENTORY_MISMATCH: tailwind_recipe_inventory.{key} does not match manifest nodes"
+                )
     if len(recipe_keys) > TAILWIND_MAX_RECIPES:
         errors.append("TAILWIND_LIMIT_EXCEEDED_RECIPES: react-tailwind-tsx artifact uses more than 96 recipes")
     if len(class_tokens) > TAILWIND_MAX_CLASS_TOKENS:
-        errors.append("TAILWIND_LIMIT_EXCEEDED_CLASS_TOKENS: react-tailwind-tsx artifact uses more than 512 class tokens")
+        errors.append(
+            "TAILWIND_LIMIT_EXCEEDED_CLASS_TOKENS: react-tailwind-tsx artifact uses more than 512 class tokens"
+        )
     errors.extend(_validate_tailwind_generic_fallback(nodes))
     return errors
+
 
 def _validate_react_tailwind_class_inventory(tsx: str, nodes: dict[str, Any]) -> list[str]:
     source_tokens = _tailwind_source_class_tokens(tsx)
@@ -456,6 +611,7 @@ def _validate_react_tailwind_class_inventory(tsx: str, nodes: dict[str, Any]) ->
     if source_tokens != manifest_tokens:
         return ["TAILWIND_INVENTORY_MISMATCH: source class inventory does not match manifest class inventory"]
     return []
+
 
 def _validate_react_tailwind_semantic_markers(tsx: str, nodes: dict[str, Any]) -> list[str]:
     errors: list[str] = []
@@ -481,6 +637,7 @@ def _validate_react_tailwind_semantic_markers(tsx: str, nodes: dict[str, Any]) -
         errors.append("TAILWIND_SEMANTIC_DRIFT: source action IDs do not match manifest action IDs")
     return errors
 
+
 def _validate_react_tailwind_limits(tsx: str, nodes: dict[str, Any]) -> list[str]:
     errors: list[str] = []
     if len(nodes) > TAILWIND_MAX_IR_NODES:
@@ -498,6 +655,7 @@ def _validate_react_tailwind_limits(tsx: str, nodes: dict[str, Any]) -> list[str
         errors.append("TAILWIND_LIMIT_EXCEEDED_ARTIFACT_BYTES: react-tailwind-tsx artifact exceeds 256 KiB")
     return errors
 
+
 def _validate_no_tailwind_scope_leak(manifest: dict[str, Any]) -> list[str]:
     if manifest.get("emitter") == "react_tailwind_tsx":
         return []
@@ -507,10 +665,13 @@ def _validate_no_tailwind_scope_leak(manifest: dict[str, Any]) -> list[str]:
     tailwind_keys = {"app_role", "recipe_key", "recipe_pack"}
     for entry in nodes.values():
         if isinstance(entry, dict) and any(key in entry for key in tailwind_keys):
-            return ["TAILWIND_PLANNER_SCOPE_LEAK: Tailwind-only role or recipe metadata leaked into a non-Tailwind target"]
+            return [
+                "TAILWIND_PLANNER_SCOPE_LEAK: Tailwind-only role or recipe metadata leaked into a non-Tailwind target"
+            ]
     if "tailwind_recipe_inventory" in manifest:
         return ["TAILWIND_PLANNER_SCOPE_LEAK: Tailwind recipe inventory leaked into a non-Tailwind target"]
     return []
+
 
 def _validate_tailwind_generic_fallback(nodes: dict[str, Any]) -> list[str]:
     role_bearing = []
@@ -537,8 +698,11 @@ def _validate_tailwind_generic_fallback(nodes: dict[str, Any]) -> list[str]:
             if entry.get("recipe_key", "").startswith("primitive:"):
                 generic.append(entry)
     if role_bearing and (len(generic) / len(role_bearing)) > 0.25:
-        return ["TAILWIND_GENERIC_FALLBACK_EXCEEDED: more than 25% of role-bearing nodes used generic Tailwind fallback"]
+        return [
+            "TAILWIND_GENERIC_FALLBACK_EXCEEDED: more than 25% of role-bearing nodes used generic Tailwind fallback"
+        ]
     return []
+
 
 def _tailwind_allowed_class_tokens() -> set[str]:
     tokens = set(TAILWIND_PARITY_CLASS_TOKENS)
@@ -552,11 +716,13 @@ def _tailwind_allowed_class_tokens() -> set[str]:
         tokens.update(classes.split())
     return tokens
 
+
 def _tailwind_source_class_tokens(tsx: str) -> set[str]:
     tokens: set[str] = set()
     for value in re.findall(r'className="([^"]*)"', tsx):
         tokens.update(value.split())
     return tokens
+
 
 def _tsx_text_marker(value: str) -> str:
     return (
@@ -567,6 +733,7 @@ def _tsx_text_marker(value: str) -> str:
         .replace("\u2028", "\\u2028")
         .replace("\u2029", "\\u2029")
     )
+
 
 def _strip_tsx_literals_and_comments(source: str) -> str:
     output: list[str] = []
@@ -617,13 +784,16 @@ def _strip_tsx_literals_and_comments(source: str) -> str:
         index += 1
     return "".join(output)
 
-def _stable_semantic_json(value: Any) -> str:
-    return json.dumps(value, ensure_ascii=True, separators=(",", ":"), sort_keys=True)
+
+# ASCII-escaped canonical form, shared through viewspec._canonical (see its docstring).
+_stable_semantic_json = canonical_json_ascii
+
 
 def _assert_semantic_projection_size(projection: dict[str, Any], label: str) -> None:
     size = len(_stable_semantic_json(projection).encode("utf-8"))
     if size > SEMANTIC_DIGEST_MAX_PROJECTION_BYTES:
-        raise ValueError(f"SEMANTIC_DIGEST_FIELD_FORBIDDEN: {label} exceeds 128 KiB")
+        raise LocalToolContractError("SEMANTIC_DIGEST_FIELD_FORBIDDEN", f"{label} exceeds 128 KiB")
+
 
 def _diagnostic_codes(value: Any) -> list[str]:
     if not isinstance(value, list):
@@ -633,6 +803,7 @@ def _diagnostic_codes(value: Any) -> list[str]:
         for item in value
         if isinstance(item, dict) and isinstance(item.get("code"), str) and item.get("code")
     ]
+
 
 def _semantic_manifest_projection(manifest: dict[str, Any], *, emitter: str) -> dict[str, Any]:
     nodes = manifest.get("nodes")
@@ -657,6 +828,7 @@ def _semantic_manifest_projection(manifest: dict[str, Any], *, emitter: str) -> 
         "nodes": semantic_nodes,
     }
 
+
 def _semantic_projection_uses_stateful_collections(projection: Any) -> bool:
     if not isinstance(projection, dict):
         return False
@@ -672,6 +844,7 @@ def _semantic_projection_uses_stateful_collections(projection: Any) -> bool:
         if node.get("accessibility_label") in {"Loading state", "Error state"}:
             return True
     return False
+
 
 def _semantic_manifest_node(dom_id: str, entry: dict[str, Any], *, emitter: str) -> dict[str, Any]:
     props = entry.get("props") if isinstance(entry.get("props"), dict) else {}
@@ -696,6 +869,7 @@ def _semantic_manifest_node(dom_id: str, entry: dict[str, Any], *, emitter: str)
         "action": action,
         "accessibility_label": _semantic_accessibility_label(primitive, props, ir_id=ir_id),
     }
+
 
 def _semantic_tag_for_manifest_node(entry: dict[str, Any]) -> str:
     primitive = entry.get("primitive")
@@ -748,6 +922,7 @@ def _semantic_tag_for_manifest_node(entry: dict[str, Any]) -> str:
         return "input"
     return "div"
 
+
 def _semantic_visible_text_from_props(primitive: str, props: dict[str, Any], *, emitter: str) -> str:
     if isinstance(props.get("state_text_id"), str):
         return str(props.get("state_text_initial") or "")
@@ -764,6 +939,7 @@ def _semantic_visible_text_from_props(primitive: str, props: dict[str, Any], *, 
     if primitive in TEXT_PROP_PRIMITIVES and "text" in props:
         return str(props["text"])
     return ""
+
 
 def _semantic_accessibility_label(primitive: str, props: dict[str, Any], *, ir_id: str) -> str | None:
     if primitive == "input":
@@ -783,6 +959,7 @@ def _semantic_accessibility_label(primitive: str, props: dict[str, Any], *, ir_i
     if props.get("motif_kind") == "hero" and primitive == "surface":
         return str(props.get("aria_label", "Hero"))
     return None
+
 
 def _semantic_source_projection(
     artifact_text: str,
@@ -805,9 +982,7 @@ def _semantic_source_projection(
     else:
         nodes = []
     action_order = [
-        str(node["action"]["id"])
-        for node in nodes
-        if isinstance(node.get("action"), dict) and node["action"].get("id")
+        str(node["action"]["id"]) for node in nodes if isinstance(node.get("action"), dict) and node["action"].get("id")
     ]
     return {
         "version": SEMANTIC_DIGEST_VERSION,
@@ -817,11 +992,13 @@ def _semantic_source_projection(
         "nodes": nodes,
     }
 
+
 def _semantic_html_source_nodes(html: str, *, primitive_by_dom_id: dict[str, str]) -> list[dict[str, Any]]:
     parser = _SemanticHtmlProjectionParser(primitive_by_dom_id)
     parser.feed(html)
     parser.close()
     return parser.semantic_nodes()
+
 
 class _SemanticHtmlProjectionParser(HTMLParser):
     def __init__(self, primitive_by_dom_id: dict[str, str]) -> None:
@@ -867,13 +1044,16 @@ class _SemanticHtmlProjectionParser(HTMLParser):
             self.nodes.append(node)
             self.node_by_dom_id[semantic_dom_id] = node
         if not self_closing and tag.lower() not in VOID_HTML_TAGS:
-            self.stack.append(semantic_dom_id if semantic_dom_id is not None else (self.stack[-1] if self.stack else None))
+            self.stack.append(
+                semantic_dom_id if semantic_dom_id is not None else (self.stack[-1] if self.stack else None)
+            )
 
     def semantic_nodes(self) -> list[dict[str, Any]]:
         for node in self.nodes:
             parts = node.pop("_text_parts", [])
             node["visible_text"] = _normalize_visible_text(" ".join(str(part) for part in parts))
         return self.nodes
+
 
 def _semantic_action_from_attrs(attrs: dict[str, str]) -> dict[str, Any] | None:
     action_id = attrs.get("data-action-id")
@@ -894,10 +1074,11 @@ def _semantic_action_from_attrs(attrs: dict[str, str]) -> dict[str, Any] | None:
         "payload_bindings": payload_bindings,
     }
 
+
 def _semantic_tsx_source_nodes(tsx: str, *, primitive_by_dom_id: dict[str, str]) -> list[dict[str, Any]]:
     render_lines = _tsx_render_block_lines(tsx)
     if render_lines is None:
-        raise ValueError("TAILWIND_TSX_SHAPE_UNSUPPORTED: ViewSpecView.tsx render shape is unsupported")
+        raise LocalToolContractError("TAILWIND_TSX_SHAPE_UNSUPPORTED", "ViewSpecView.tsx render shape is unsupported")
     nodes: list[dict[str, Any]] = []
     stack: list[str | None] = []
     for raw_line in render_lines:
@@ -913,16 +1094,22 @@ def _semantic_tsx_source_nodes(tsx: str, *, primitive_by_dom_id: dict[str, str])
         if not line.startswith("<"):
             continue
         if "id={" not in line:
-            raise ValueError("TAILWIND_TSX_SHAPE_UNSUPPORTED: ViewSpecView.tsx contains an unsupported JSX node")
+            raise LocalToolContractError(
+                "TAILWIND_TSX_SHAPE_UNSUPPORTED", "ViewSpecView.tsx contains an unsupported JSX node"
+            )
         tag_match = re.match(r"<([A-Za-z][A-Za-z0-9]*)\b", line)
         if tag_match is None:
-            raise ValueError("TAILWIND_TSX_SHAPE_UNSUPPORTED: ViewSpecView.tsx contains an unsupported JSX tag")
+            raise LocalToolContractError(
+                "TAILWIND_TSX_SHAPE_UNSUPPORTED", "ViewSpecView.tsx contains an unsupported JSX tag"
+            )
         tag = tag_match.group(1).lower()
         attrs = _semantic_tsx_attrs(line)
         dom_id = attrs.get("id")
         ir_id = attrs.get("data-ir-id")
         if not dom_id or not ir_id:
-            raise ValueError("TAILWIND_TSX_SHAPE_UNSUPPORTED: ViewSpecView.tsx node is missing semantic identity attrs")
+            raise LocalToolContractError(
+                "TAILWIND_TSX_SHAPE_UNSUPPORTED", "ViewSpecView.tsx node is missing semantic identity attrs"
+            )
         node = {
             "dom_id": dom_id,
             "ir_id": ir_id,
@@ -937,6 +1124,7 @@ def _semantic_tsx_source_nodes(tsx: str, *, primitive_by_dom_id: dict[str, str])
         if not line.endswith("/>") and f"</{tag}>" not in line:
             stack.append(dom_id)
     return nodes
+
 
 def _tsx_semantic_parent_map(tsx: str) -> dict[str, str | None]:
     render_lines = _tsx_render_block_lines(tsx)
@@ -964,11 +1152,13 @@ def _tsx_semantic_parent_map(tsx: str) -> dict[str, str | None]:
                 stack.append(dom_id)
     return parent_by_dom_id
 
+
 def _html_semantic_parent_map(html: str) -> dict[str, str | None]:
     parser = _SemanticHtmlParentParser()
     parser.feed(html)
     parser.close()
     return parser.parent_by_dom_id
+
 
 class _SemanticHtmlParentParser(HTMLParser):
     def __init__(self) -> None:
@@ -995,6 +1185,7 @@ class _SemanticHtmlParentParser(HTMLParser):
             self.parent_by_dom_id[semantic_dom_id] = self.stack[-1] if self.stack else None
         if not self_closing and tag.lower() not in VOID_HTML_TAGS:
             self.stack.append(semantic_dom_id or (self.stack[-1] if self.stack else ""))
+
 
 def _validate_stateful_collection_artifact(artifact_text: str, manifest: dict[str, Any], *, emitter: str) -> list[str]:
     nodes = manifest.get("nodes")
@@ -1032,7 +1223,9 @@ def _validate_stateful_collection_artifact(artifact_text: str, manifest: dict[st
         prefix = "planner_"
         suffix = "_collection_actions"
         if not (ir_id.startswith(prefix) and ir_id.endswith(suffix)):
-            errors.append("COLLECTION_ACTION_BAR_PLACEMENT_INVALID: action bar id must use planner_<motif_id>_collection_actions.")
+            errors.append(
+                "COLLECTION_ACTION_BAR_PLACEMENT_INVALID: action bar id must use planner_<motif_id>_collection_actions."
+            )
             continue
         motif_id = ir_id[len(prefix) : -len(suffix)]
         previous = collection_bar_by_motif.setdefault(motif_id, dom_id)
@@ -1041,23 +1234,36 @@ def _validate_stateful_collection_artifact(artifact_text: str, manifest: dict[st
             continue
         wrapper_dom_id = f"dom-motif_{motif_id}"
         wrapper_entry = nodes.get(wrapper_dom_id)
-        wrapper_props = wrapper_entry.get("props") if isinstance(wrapper_entry, dict) and isinstance(wrapper_entry.get("props"), dict) else {}
+        wrapper_props = (
+            wrapper_entry.get("props")
+            if isinstance(wrapper_entry, dict) and isinstance(wrapper_entry.get("props"), dict)
+            else {}
+        )
         if wrapper_props.get("motif_kind") not in {"table", "list"}:
-            errors.append(f"COLLECTION_ACTION_TARGET_INVALID: action bar {dom_id} does not target a table or list motif.")
+            errors.append(
+                f"COLLECTION_ACTION_TARGET_INVALID: action bar {dom_id} does not target a table or list motif."
+            )
             continue
         parent = parent_by_dom_id.get(wrapper_dom_id)
         if parent_by_dom_id.get(dom_id) != parent:
-            errors.append(f"COLLECTION_ACTION_BAR_PLACEMENT_INVALID: action bar {dom_id} is not a sibling of {wrapper_dom_id}.")
+            errors.append(
+                f"COLLECTION_ACTION_BAR_PLACEMENT_INVALID: action bar {dom_id} is not a sibling of {wrapper_dom_id}."
+            )
             continue
         siblings = siblings_by_parent.get(parent, [])
         try:
             wrapper_index = siblings.index(wrapper_dom_id)
         except ValueError:
-            errors.append(f"COLLECTION_ACTION_BAR_PLACEMENT_INVALID: collection wrapper {wrapper_dom_id} is missing from source order.")
+            errors.append(
+                f"COLLECTION_ACTION_BAR_PLACEMENT_INVALID: collection wrapper {wrapper_dom_id} is missing from source order."
+            )
             continue
         if wrapper_index == 0 or siblings[wrapper_index - 1] != dom_id:
-            errors.append(f"COLLECTION_ACTION_BAR_PLACEMENT_INVALID: action bar {dom_id} must be the direct previous sibling of {wrapper_dom_id}.")
+            errors.append(
+                f"COLLECTION_ACTION_BAR_PLACEMENT_INVALID: action bar {dom_id} must be the direct previous sibling of {wrapper_dom_id}."
+            )
     return errors
+
 
 def _tsx_render_block_lines(tsx: str) -> list[str] | None:
     lines = tsx.splitlines()
@@ -1073,16 +1279,20 @@ def _tsx_render_block_lines(tsx: str) -> list[str] | None:
             return lines[start:end]
     return None
 
+
 def _semantic_tsx_attrs(line: str) -> dict[str, str]:
     attrs: dict[str, str] = {}
     for name, encoded in re.findall(r'([A-Za-z][-A-Za-z0-9]*)=\{("(?:\\.|[^"\\])*")\}', line):
         try:
             attrs[name] = str(json.loads(encoded))
         except json.JSONDecodeError as exc:
-            raise ValueError("TAILWIND_TSX_SHAPE_UNSUPPORTED: ViewSpecView.tsx contains an unsupported attr literal") from exc
+            raise LocalToolContractError(
+                "TAILWIND_TSX_SHAPE_UNSUPPORTED", "ViewSpecView.tsx contains an unsupported attr literal"
+            ) from exc
     for name, value in re.findall(r'([A-Za-z][-A-Za-z0-9]*)="([^"]*)"', line):
         attrs.setdefault(name, value)
     return attrs
+
 
 def _semantic_tsx_action(attrs: dict[str, str]) -> dict[str, Any] | None:
     action_id = attrs.get("data-action-id")
@@ -1102,6 +1312,7 @@ def _semantic_tsx_action(attrs: dict[str, str]) -> dict[str, Any] | None:
         "target_ref": attrs.get("data-action-target-ref", ""),
         "payload_bindings": payload_bindings,
     }
+
 
 def _semantic_tsx_inner_text(line: str, tag: str) -> str:
     if f"</{tag}>" not in line:
@@ -1132,8 +1343,10 @@ def _semantic_tsx_inner_text(line: str, tag: str) -> str:
             return ""
     return ""
 
+
 def _normalize_visible_text(value: str) -> str:
     return " ".join(str(value).split())
+
 
 def _validate_intent_semantic_digest(
     artifact_text: str,
@@ -1173,23 +1386,27 @@ def _validate_intent_semantic_digest(
             errors.append(f"SEMANTIC_DIGEST_MISMATCH: semantic_digest.{key} does not match current artifact")
     if recomputed["manifest_projection"] != recomputed["source_projection"]:
         errors.append("SEMANTIC_DIGEST_MISMATCH: manifest_projection does not match source_projection")
-        if (
-            _semantic_projection_uses_stateful_collections(recomputed["manifest_projection"])
-            or _semantic_projection_uses_stateful_collections(recomputed["source_projection"])
-        ):
+        if _semantic_projection_uses_stateful_collections(
+            recomputed["manifest_projection"]
+        ) or _semantic_projection_uses_stateful_collections(recomputed["source_projection"]):
             errors.append(
                 "STATEFUL_COLLECTIONS_EMITTER_PARITY_FAILED: manifest_projection does not match source_projection for stateful collection semantics"
             )
     return errors
 
+
 def _validate_semantic_digest_shape(value: dict[str, Any]) -> list[str]:
     errors: list[str] = []
-    if _contains_semantic_digest_key(value.get("manifest_projection")) or _contains_semantic_digest_key(value.get("source_projection")):
+    if _contains_semantic_digest_key(value.get("manifest_projection")) or _contains_semantic_digest_key(
+        value.get("source_projection")
+    ):
         return ["SEMANTIC_DIGEST_CIRCULAR: semantic_digest projections must not contain semantic_digest"]
     extra = sorted(set(value) - SEMANTIC_DIGEST_KEYS)
     missing = sorted(SEMANTIC_DIGEST_KEYS - set(value))
     if extra:
-        errors.append(f"SEMANTIC_DIGEST_FIELD_FORBIDDEN: semantic_digest contains forbidden field(s): {', '.join(extra)}")
+        errors.append(
+            f"SEMANTIC_DIGEST_FIELD_FORBIDDEN: semantic_digest contains forbidden field(s): {', '.join(extra)}"
+        )
     if missing:
         errors.append(f"SEMANTIC_DIGEST_FIELD_FORBIDDEN: semantic_digest missing field(s): {', '.join(missing)}")
     if value.get("version") != SEMANTIC_DIGEST_VERSION:
@@ -1208,12 +1425,14 @@ def _validate_semantic_digest_shape(value: dict[str, Any]) -> list[str]:
             errors.append(str(exc))
     return errors
 
+
 def _contains_semantic_digest_key(value: Any) -> bool:
     if isinstance(value, dict):
         return "semantic_digest" in value or any(_contains_semantic_digest_key(item) for item in value.values())
     if isinstance(value, list):
         return any(_contains_semantic_digest_key(item) for item in value)
     return False
+
 
 def _validate_semantic_projection_shape(projection: dict[str, Any], label: str) -> list[str]:
     errors: list[str] = []
@@ -1259,12 +1478,15 @@ def _validate_semantic_projection_shape(projection: dict[str, Any], label: str) 
                     )
                 for key in ("id", "kind", "target_ref"):
                     if not isinstance(action.get(key), str):
-                        errors.append(f"SEMANTIC_DIGEST_FIELD_FORBIDDEN: {label}.nodes[{index}].action.{key} must be a string")
+                        errors.append(
+                            f"SEMANTIC_DIGEST_FIELD_FORBIDDEN: {label}.nodes[{index}].action.{key} must be a string"
+                        )
                 if not _is_string_list(action.get("payload_bindings")):
                     errors.append(
                         f"SEMANTIC_DIGEST_FIELD_FORBIDDEN: {label}.nodes[{index}].action.payload_bindings must be a list of strings"
                     )
     return errors
+
 
 def _validate_manifest_diagnostics(value: Any, errors: list[str], *, label: str = "manifest diagnostics") -> None:
     if not isinstance(value, list):
@@ -1283,6 +1505,7 @@ def _validate_manifest_diagnostics(value: Any, errors: list[str], *, label: str 
             if key in item and not isinstance(item[key], str):
                 errors.append(f"{label}[{index}].{key} must be a string")
 
+
 def _validate_manifest_external_refs(value: Any, errors: list[str]) -> None:
     if not isinstance(value, list):
         errors.append("manifest external_refs must be a list")
@@ -1299,6 +1522,7 @@ def _validate_manifest_external_refs(value: Any, errors: list[str]) -> None:
         url = item["url"]
         if not isinstance(url, str) or not _is_remote_http_url(url):
             errors.append(f"manifest external_refs[{index}].url must be an http(s) URL")
+
 
 def _validate_manifest_design(value: Any, design_hash: Any, errors: list[str]) -> None:
     if not isinstance(value, dict):
@@ -1336,11 +1560,14 @@ def _validate_manifest_design(value: Any, design_hash: Any, errors: list[str]) -
     else:
         _validate_manifest_diagnostics(findings, errors, label="manifest design.findings")
     applied_tokens = value.get("applied_tokens")
-    if not isinstance(applied_tokens, dict) or not all(isinstance(key, str) and _is_string_list(item) for key, item in applied_tokens.items()):
+    if not isinstance(applied_tokens, dict) or not all(
+        isinstance(key, str) and _is_string_list(item) for key, item in applied_tokens.items()
+    ):
         errors.append("manifest design.applied_tokens must be an object of string arrays")
     for key in ("ignored_tokens", "dropped_tokens", "mode_defaults"):
         if not _is_string_list(value.get(key)):
             errors.append(f"manifest design.{key} must be a list of strings")
+
 
 def _validate_manifest_nodes(manifest: dict[str, Any], errors: list[str]) -> None:
     nodes = manifest.get("nodes")
@@ -1359,6 +1586,7 @@ def _validate_manifest_nodes(manifest: dict[str, Any], errors: list[str]) -> Non
             _validate_intent_manifest_node(node_id, entry, root_aesthetic_profile, errors)
         elif kind == "raw_html_compile":
             _validate_raw_html_manifest_node(node_id, entry, errors)
+
 
 def _validate_intent_manifest_node(
     node_id: str,
@@ -1419,8 +1647,12 @@ def _validate_intent_manifest_node(
         elif any(not SAFE_ID_RE.match(item) for item in payload_bindings):
             errors.append(f"manifest nodes.{node_id}.props.payload_bindings must contain only safe ids")
         target_ref = props.get("target_ref")
-        if target_ref not in (None, "") and (not isinstance(target_ref, str) or not ACTION_TARGET_REF_RE.match(target_ref)):
-            errors.append(f"manifest nodes.{node_id}.props.target_ref must be region:id, binding:id, motif:id, or view:id")
+        if target_ref not in (None, "") and (
+            not isinstance(target_ref, str) or not ACTION_TARGET_REF_RE.match(target_ref)
+        ):
+            errors.append(
+                f"manifest nodes.{node_id}.props.target_ref must be region:id, binding:id, motif:id, or view:id"
+            )
     detail_role = props.get("detail_role")
     if detail_role is not None and detail_role not in {"term", "description"}:
         errors.append(f"manifest nodes.{node_id}.props.detail_role must be term or description")
@@ -1439,6 +1671,7 @@ def _validate_intent_manifest_node(
     _validate_aesthetic_profile_manifest_node(node_id, entry, props, errors)
     _validate_aesthetic_layout_manifest_node(node_id, entry, props, root_aesthetic_profile, errors)
 
+
 def _validate_aesthetic_profile_manifest_node(
     node_id: str,
     entry: dict[str, Any],
@@ -1446,12 +1679,16 @@ def _validate_aesthetic_profile_manifest_node(
     errors: list[str],
 ) -> None:
     style_tokens = entry.get("style_tokens")
-    profile_tokens = [token for token in style_tokens if is_aesthetic_profile_token(token)] if _is_string_list(style_tokens) else []
+    profile_tokens = (
+        [token for token in style_tokens if is_aesthetic_profile_token(token)] if _is_string_list(style_tokens) else []
+    )
     profile = props.get("aesthetic_profile")
     if profile is None and not profile_tokens:
         return
     if entry.get("primitive") != "root":
-        errors.append(f"AESTHETIC_PROFILE_TARGET_INVALID: manifest node {node_id} aesthetic profile must be on the root node")
+        errors.append(
+            f"AESTHETIC_PROFILE_TARGET_INVALID: manifest node {node_id} aesthetic profile must be on the root node"
+        )
     if profile is not None and (not isinstance(profile, str) or profile not in AESTHETIC_PROFILE_TOKENS):
         errors.append(f"AESTHETIC_PROFILE_UNKNOWN: manifest node {node_id} declares unknown aesthetic_profile")
     if len(profile_tokens) > 1:
@@ -1459,7 +1696,10 @@ def _validate_aesthetic_profile_manifest_node(
     if profile_tokens and any(token not in AESTHETIC_PROFILE_TOKENS for token in profile_tokens):
         errors.append(f"AESTHETIC_PROFILE_UNKNOWN: manifest node {node_id} uses unknown aesthetic style token")
     if isinstance(profile, str) and profile_tokens and profile_tokens[0] != profile:
-        errors.append(f"AESTHETIC_PROFILE_TARGET_INVALID: manifest node {node_id} aesthetic_profile does not match root style token")
+        errors.append(
+            f"AESTHETIC_PROFILE_TARGET_INVALID: manifest node {node_id} aesthetic_profile does not match root style token"
+        )
+
 
 def _validate_aesthetic_layout_manifest_node(
     node_id: str,
@@ -1472,51 +1712,84 @@ def _validate_aesthetic_layout_manifest_node(
     if layout_profile is None:
         return
     if not isinstance(layout_profile, str) or layout_profile not in AESTHETIC_PROFILE_TOKENS:
-        errors.append(f"AESTHETIC_PROFILE_LAYOUT_UNKNOWN: manifest node {node_id} declares unknown aesthetic_layout_profile")
+        errors.append(
+            f"AESTHETIC_PROFILE_LAYOUT_UNKNOWN: manifest node {node_id} declares unknown aesthetic_layout_profile"
+        )
         return
     if root_aesthetic_profile != layout_profile:
-        errors.append(f"AESTHETIC_PROFILE_LAYOUT_MISMATCH: manifest node {node_id} aesthetic_layout_profile does not match root profile")
+        errors.append(
+            f"AESTHETIC_PROFILE_LAYOUT_MISMATCH: manifest node {node_id} aesthetic_layout_profile does not match root profile"
+        )
         return
 
     product_role = props.get("product_role")
     expected = profile_layout_props(layout_profile).get(product_role) if isinstance(product_role, str) else None
     if product_role not in AESTHETIC_PROFILE_LAYOUT_ROLES or expected is None:
-        errors.append(f"AESTHETIC_PROFILE_LAYOUT_TARGET_INVALID: manifest node {node_id} targets unsupported aesthetic layout role")
+        errors.append(
+            f"AESTHETIC_PROFILE_LAYOUT_TARGET_INVALID: manifest node {node_id} targets unsupported aesthetic layout role"
+        )
         return
     if "columns" in expected:
         columns = props.get("columns")
         if entry.get("primitive") != "grid":
-            errors.append(f"AESTHETIC_PROFILE_LAYOUT_TARGET_INVALID: manifest node {node_id} layout columns must target a grid")
+            errors.append(
+                f"AESTHETIC_PROFILE_LAYOUT_TARGET_INVALID: manifest node {node_id} layout columns must target a grid"
+            )
         if not isinstance(columns, int) or isinstance(columns, bool) or columns != expected["columns"]:
-            errors.append(f"AESTHETIC_PROFILE_LAYOUT_MISMATCH: manifest node {node_id} columns do not match aesthetic layout profile")
+            errors.append(
+                f"AESTHETIC_PROFILE_LAYOUT_MISMATCH: manifest node {node_id} columns do not match aesthetic layout profile"
+            )
     if "span_columns" in expected:
         span_columns = props.get("span_columns")
         if entry.get("primitive") != "surface" or product_role != "metric_card":
-            errors.append(f"AESTHETIC_PROFILE_LAYOUT_TARGET_INVALID: manifest node {node_id} span columns must target a metric card surface")
-        if not isinstance(span_columns, int) or isinstance(span_columns, bool) or span_columns != expected["span_columns"]:
-            errors.append(f"AESTHETIC_PROFILE_LAYOUT_MISMATCH: manifest node {node_id} span_columns do not match aesthetic layout profile")
+            errors.append(
+                f"AESTHETIC_PROFILE_LAYOUT_TARGET_INVALID: manifest node {node_id} span columns must target a metric card surface"
+            )
+        if (
+            not isinstance(span_columns, int)
+            or isinstance(span_columns, bool)
+            or span_columns != expected["span_columns"]
+        ):
+            errors.append(
+                f"AESTHETIC_PROFILE_LAYOUT_MISMATCH: manifest node {node_id} span_columns do not match aesthetic layout profile"
+            )
     if "layout_emphasis" in expected:
         layout_emphasis = props.get("layout_emphasis")
         if entry.get("primitive") != "surface" or product_role != "metric_card":
-            errors.append(f"AESTHETIC_PROFILE_LAYOUT_TARGET_INVALID: manifest node {node_id} layout emphasis must target a metric card surface")
+            errors.append(
+                f"AESTHETIC_PROFILE_LAYOUT_TARGET_INVALID: manifest node {node_id} layout emphasis must target a metric card surface"
+            )
         if layout_emphasis != expected["layout_emphasis"]:
-            errors.append(f"AESTHETIC_PROFILE_LAYOUT_MISMATCH: manifest node {node_id} layout_emphasis does not match aesthetic layout profile")
+            errors.append(
+                f"AESTHETIC_PROFILE_LAYOUT_MISMATCH: manifest node {node_id} layout_emphasis does not match aesthetic layout profile"
+            )
+
 
 def _validate_raw_html_manifest_node(node_id: str, entry: dict[str, Any], errors: list[str]) -> None:
     if not isinstance(entry.get("tag"), str) or not entry.get("tag"):
         errors.append(f"manifest nodes.{node_id}.tag must be a non-empty string")
     attrs = entry.get("attrs")
-    if not isinstance(attrs, dict) or not all(isinstance(key, str) and isinstance(value, str) for key, value in attrs.items()):
+    if not isinstance(attrs, dict) or not all(
+        isinstance(key, str) and isinstance(value, str) for key, value in attrs.items()
+    ):
         errors.append(f"manifest nodes.{node_id}.attrs must be an object of strings")
     if not isinstance(entry.get("text"), str):
         errors.append(f"manifest nodes.{node_id}.text must be a string")
 
+
 def _is_string_list(value: Any) -> bool:
     return isinstance(value, list) and all(isinstance(item, str) for item in value)
+
 
 def _is_remote_http_url(value: str) -> bool:
     parsed = urlparse(value)
     return parsed.scheme.lower() in {"http", "https"} and bool(parsed.netloc)
+
+
+_SCHEME_RELATIVE_OR_HTTP_AUTHORITY_RE = re.compile(r"(?i)(?:https?:)?//")
+_HTTP_SCHEME_PREFIX_RE = re.compile(r"(?i)https?:")
+_URL_LIST_SEPARATOR_RE = re.compile(r"[\s,]+")
+
 
 def _contains_remote_http_reference(value: str) -> bool:
     # Browsers resolve backslashes (incl. %5c) AND strip control whitespace
@@ -1525,7 +1798,40 @@ def _contains_remote_http_reference(value: str) -> bool:
     # same way the compiler-side URL policy does (shared helper), so the two
     # sanitizers cannot drift on obfuscation handling.
     collapsed = collapse_url_obfuscation(value)
-    return bool(re.search(r"(?i)(?:https?:)?//", collapsed))
+    if _SCHEME_RELATIVE_OR_HTTP_AUTHORITY_RE.search(collapsed):
+        return True
+    # http and https need no slashes at all: the WHATWG URL parser resolves "https:evil.example/x"
+    # and "http:/evil.example/x" to that remote host whenever the document's scheme differs (a
+    # file: artifact, or the other of http/https). So an http(s) scheme opening the value, or any
+    # whitespace- or comma-separated candidate in it (srcset, the ping URL list), is remote too,
+    # as raw_html._safe_url already holds for the sanitizer.
+    candidates = (collapsed, *(collapse_url_obfuscation(token) for token in _URL_LIST_SEPARATOR_RE.split(value)))
+    return any(_HTTP_SCHEME_PREFIX_RE.match(candidate) for candidate in candidates)
+
+
+def _tag_source(html: str) -> str:
+    """Concatenate the source of every `<...>` tag (markup only), dropping text nodes.
+
+    The flat beacon URL backstop runs on this, never on the whole document, so a remote-looking
+    `attr=https:` token in visible prose (an intent value label, a raw-HTML paragraph) is not
+    mistaken for an attribute value. Attribute content inside a tag is kept; a never-terminated
+    final tag yields its tail once. A `>` inside a quoted attribute value can end a span early, as
+    elsewhere in the flat backstops, which only drops coverage onto the HTMLParser probe.
+    """
+    spans: list[str] = []
+    position = 0
+    while True:
+        start = html.find("<", position)
+        if start < 0:
+            break
+        end = html.find(">", start + 1)
+        if end < 0:
+            spans.append(html[start:])
+            break
+        spans.append(html[start : end + 1])
+        position = end + 1
+    return "".join(spans)
+
 
 # Beacon backstop. The HTMLParser probe below drops a tag a browser's error-recovery
 # parser still acts on: an unterminated final tag at EOF (`<iframe src="//evil"` with no
@@ -1535,34 +1841,277 @@ def _contains_remote_http_reference(value: str) -> bool:
 # scheme. The URL scan is ATTRIBUTE-SCOPED (never a raw `http` substring) so a rendered
 # URL in visible text is not mistaken for a beacon.
 _BEACON_FORBIDDEN_TAG_RE = re.compile(r"(?i)<(?:iframe|embed|object|base|link)\b")
-_BEACON_META_REFRESH_RE = re.compile(r"(?i)<meta\b[^>]*http-equiv\s*=\s*[\"']?\s*refresh")
+# Applied to each `<meta` tag region from the linear region scan, never as `<meta\b[^>]*...`
+# over the whole document (that shape re-scans to EOF from every unterminated opener).
+_META_REFRESH_ATTR_RE = re.compile(r"(?i)http-equiv\s*=\s*[\"']?\s*refresh")
 # Only AUTO-FETCHING attributes -- NOT href/xlink:href, which are navigation (a plain
 # <a href="https://...">) and are governed per-tag by the probe + external_refs policy;
 # a flat scan can't see the owning tag, so including href would reject legitimate links.
+# Like _contains_remote_http_reference, an http(s) scheme counts as remote with or without "//".
 _BEACON_REMOTE_URL_ATTR_RE = re.compile(
-    r"(?i)(?:src|action|formaction|poster|srcset|background|manifest|data)"
-    r"\s*=\s*[\"']?\s*(?:https?:)?//"
+    r"(?i)(?:src|action|formaction|poster|srcset|background|manifest|data|ping)"
+    r"\s*=\s*[\"']?\s*(?:https?:|//)"
 )
-_UNSAFE_CSS_REFERENCE_RE = re.compile(r"(?i)(?:@import|url\s*\()")
-# HTMLParser intentionally drops some unfinished tags at EOF. Keep the CSS
-# backstop context-scoped so an unfinished style surface cannot hide a fetch,
-# while ordinary rendered text such as "URL(" remains valid product content.
-_BEACON_UNSAFE_STYLE_TAG_RE = re.compile(
-    r"(?is)<style\b[^>]*>(?:(?!</style\s*>).)*(?:@import|url\s*\()"
+
+# Markup that Python's HTMLParser and a browser tokenize differently, so a start tag the browser
+# runs never reaches the probes below. HTMLParser runs `<![CDATA[` and other `<![` sections to
+# `]]>` or `]>`, while a browser in HTML content ends that bogus comment at the first `>`; abrupt
+# comments (`<!-->`, `<!--->`) and `--!>` closers end a browser comment earlier than HTMLParser
+# does on some 3.11-3.14 releases. The emitters and the raw-HTML sanitizer write none of these
+# (only `<!DOCTYPE html>` and escaped text), so `check` rejects them outright instead of modelling
+# each parser's error recovery: any `<!` other than that doctype, and any `<?`.
+_MARKUP_DECLARATION_RE = re.compile(r"(?i)<(?:!(?!doctype\s+html\s*>)|\?)")
+_FOREIGN_CONTENT_OPENER_RE = re.compile(r"(?i)<(?:svg|math)(?=[\s/>])")
+# Raw-text / RCDATA / scripting elements a browser parses as a text container but at least one
+# supported html.parser release parses as ordinary markup, so content a browser runs as a live
+# element (reached by closing the text run, or smuggled past the parser inside an attribute) never
+# reaches the start-tag probes. `noscript` always differs (the probes parse with scripting off, a
+# browser runs scripts on); `textarea`, `title`, `xmp`, `iframe`, `noembed`, `noframes` are raw
+# text/RCDATA only on newer 3.11-3.14 patch releases (older ones, e.g. 3.12.4, parse them as
+# markup); `plaintext` is never a text element for html.parser. None of these are emitter output,
+# so an opener anywhere is rejected. (`iframe` is also a beacon-forbidden tag.)
+_FORBIDDEN_RAW_TEXT_OPENER_RE = re.compile(
+    r"(?i)<(?:noscript|textarea|xmp|noembed|noframes|plaintext|iframe)(?=[\s/>])"
+)
+# The text elements the emitters DO write (one `<title>`, one `<style>`, the pinned `<script>`
+# blocks). A browser parses their content as raw text/RCDATA up to `</tag` followed by whitespace,
+# `/` or `>`. Scanned with _emitted_raw_text_is_ambiguous below: emitter content is escaped and
+# closed by a plain `</tag>`, so a `<` inside the browser text run, or a closer carrying a solidus
+# or attributes (which older html.parser does not honour, ending the run in a different place),
+# marks a parser disagreement.
+_EMITTED_RAW_TEXT_OPENER_RE = re.compile(r"(?i)<(style|script|title)(?=[\s/>])")
+# Used by the foreign-content rule: any raw-text opener after an `<svg>`/`<math>` opener. In foreign
+# content a browser parses these as markup while HTMLParser keeps them as raw text.
+_RAW_TEXT_ELEMENT_OPENER_RE = re.compile(
+    r"(?i)<(?:style|script|title|textarea|xmp|iframe|noembed|noframes|noscript|plaintext)(?=[\s/>])"
+)
+
+_AUTOFETCH_SURFACE_ERROR = "index.html contains an active or auto-fetching surface"
+_FORM_SURFACE_ERROR = "index.html contains an active form surface"
+_REMOTE_URL_ATTR_ERROR = "index.html contains an auto-fetching remote URL attribute"
+_INLINE_EVENT_HANDLER_ERROR = "CHECK_INLINE_EVENT_HANDLER: index.html contains an inline event handler attribute"
+_UNSAFE_URL_SCHEME_ERROR = (
+    "CHECK_UNSAFE_URL_SCHEME: index.html contains a javascript:, vbscript:, or data: URL attribute"
+)
+_UNCLOSED_SCRIPT_ERROR = "CHECK_UNCLOSED_SCRIPT: index.html contains an unclosed script tag"
+_AMBIGUOUS_MARKUP_ERROR = (
+    "CHECK_AMBIGUOUS_MARKUP: index.html contains markup that browsers and the check parser read "
+    "differently (a comment, <![...]> section, declaration other than the doctype, processing "
+    "instruction, or raw-text element inside <svg> or <math>)"
+)
+_SCAN_LIMIT_ERROR = (
+    f"CHECK_SCAN_LIMIT_EXCEEDED: index.html contains more than {MAX_SCANNED_TAG_BLOCKS} style or script blocks"
 )
 
 
-def _unfinished_tag_has_unsafe_style(html: str) -> bool:
-    """Inspect one browser-recoverable final tag without scanning attribute text as markup."""
+class TagBlockScan(NamedTuple):
+    """Result of `find_tag_blocks`.
+
+    `blocks` holds (start, content_start, content_end, end) offsets per closed block;
+    `unclosed_content_start` is where the content of a never-closed block begins (None when
+    every block closes); `truncated` is set when more than the limit of blocks were present.
+    """
+
+    blocks: tuple[tuple[int, int, int, int], ...]
+    unclosed_content_start: int | None
+    truncated: bool
+
+
+_TAG_SCAN_PATTERNS: dict[str, tuple[re.Pattern[str], re.Pattern[str]]] = {}
+
+
+def _tag_scan_patterns(tag: str) -> tuple[re.Pattern[str], re.Pattern[str]]:
+    patterns = _TAG_SCAN_PATTERNS.get(tag)
+    if patterns is None:
+        escaped = re.escape(tag)
+        # An end tag name ends at whitespace, "/", or ">" in the HTML tokenizer, so `</style>`
+        # and `</style >` both close a block while `</styles>` or `</style` at EOF do not.
+        patterns = (re.compile(rf"(?i)<{escaped}\b"), re.compile(rf"(?i)</{escaped}(?=[\s/>])"))
+        _TAG_SCAN_PATTERNS[tag] = patterns
+    return patterns
+
+
+def find_tag_blocks(html: str, tag: str, *, limit: int = MAX_SCANNED_TAG_BLOCKS) -> TagBlockScan:
+    """Locate `<tag ...>content</tag>` blocks in one linear pass.
+
+    Every search resumes where the previous one stopped, so unclosed openers cost one scan to
+    EOF in total instead of one per opener (the quadratic shape of
+    `<tag\\b[^>]*>[\\s\\S]*?</tag>` that S-3 measured at ~4x per doubling). A block whose
+    opener or closer never terminates is reported through `unclosed_content_start`; a browser
+    treats the rest of the document as that block's content, so callers check that tail too.
+    More than `limit` closed blocks sets `truncated` so callers can fail closed.
+    """
+    opener_re, closer_re = _tag_scan_patterns(tag)
+    blocks: list[tuple[int, int, int, int]] = []
+    position = 0
+    unclosed_content_start: int | None = None
+    truncated = False
+    while True:
+        opener = opener_re.search(html, position)
+        if opener is None:
+            break
+        opener_end = html.find(">", opener.end())
+        if opener_end < 0:
+            unclosed_content_start = opener.end()
+            break
+        content_start = opener_end + 1
+        closer = closer_re.search(html, content_start)
+        closer_end = html.find(">", closer.end()) if closer is not None else -1
+        if closer is None or closer_end < 0:
+            unclosed_content_start = content_start
+            break
+        if len(blocks) >= limit:
+            truncated = True
+            break
+        blocks.append((opener.start(), content_start, closer.start(), closer_end + 1))
+        position = closer_end + 1
+    return TagBlockScan(tuple(blocks), unclosed_content_start, truncated)
+
+
+def iter_tag_regions(html: str, tag: str) -> Iterator[tuple[int, str]]:
+    """Yield (opener_start, attribute_text) for each `<tag` opener in one linear pass.
+
+    The attribute text runs to the first ">" after the opener. An opener with no ">" at all
+    yields the rest of the document once and ends the scan, since no later "<" can start a
+    separate tag inside it.
+    """
+    opener_re, _closer_re = _tag_scan_patterns(tag)
+    position = 0
+    while True:
+        opener = opener_re.search(html, position)
+        if opener is None:
+            return
+        end = html.find(">", opener.end())
+        if end < 0:
+            yield opener.start(), html[opener.end() :]
+            return
+        yield opener.start(), html[opener.end() : end]
+        position = end + 1
+
+
+# CSS escapes the tokenizer decodes before an ident is recognised: `\75rl(`, `\75 rl(` and
+# `u\rl(` are all `url(`; `@\69mport` is `@import`. Decoded before any name matching.
+_CSS_HEX_ESCAPE_RE = re.compile(r"\\([0-9a-fA-F]{1,6})[ \t\n\r\f]?")
+_CSS_CHAR_ESCAPE_RE = re.compile(r"\\(.)", re.DOTALL)
+# Matched against normalised CSS (see `normalize_css_text`): escapes decoded, comments removed,
+# every ASCII control/whitespace character stripped, backslashes collapsed to "/", lower-cased.
+# Covers the @import rule, every URL-loading function, and any remote scheme or scheme-relative
+# authority anywhere in the text, so an unlisted function cannot smuggle a fetch.
+UNSAFE_CSS_REFERENCE_RE = re.compile(
+    r"@import|url\(|image-set\(|-webkit-image-set\(|image\(|src\(|expression\(|javascript:|vbscript:|https?:|//"
+)
+
+
+def _decode_css_hex_escape(match: re.Match[str]) -> str:
+    code_point = int(match.group(1), 16)
+    if code_point == 0 or code_point > 0x10FFFF or 0xD800 <= code_point <= 0xDFFF:
+        return "�"
+    return chr(code_point)
+
+
+def _strip_css_comments(css: str) -> str:
+    """Remove well-formed `/* ... */` comments in one pass; an unterminated `/*` is kept."""
+    pieces: list[str] = []
+    position = 0
+    while True:
+        start = css.find("/*", position)
+        end = css.find("*/", start + 2) if start >= 0 else -1
+        if start < 0 or end < 0:
+            pieces.append(css[position:])
+            return "".join(pieces)
+        pieces.append(css[position:start])
+        position = end + 2
+
+
+def normalize_css_text(css: str) -> tuple[str, str]:
+    """Return the two browser-equivalent views of a CSS fragment used for policy matching.
+
+    Both have CSS escapes decoded, control and whitespace characters removed, backslashes
+    collapsed to "/" (shared URL helper) and ASCII lower-casing; the second also has `/* */`
+    comments removed. Callers match both so the gate fails closed either way: a comment must
+    not split a function name (`url/**/(`), and a comment opener inside a CSS string must not
+    hide a live `url(` that follows it.
+    """
+    decoded = _CSS_CHAR_ESCAPE_RE.sub(r"\1", _CSS_HEX_ESCAPE_RE.sub(_decode_css_hex_escape, css))
+    with_comments = collapse_url_obfuscation(decoded).lower()
+    without_comments = collapse_url_obfuscation(_strip_css_comments(decoded)).lower()
+    return with_comments, without_comments
+
+
+def css_has_unsafe_reference(css: str, pattern: re.Pattern[str] = UNSAFE_CSS_REFERENCE_RE) -> bool:
+    """True when a CSS fragment carries an @import, a URL-loading function, or a remote scheme."""
+    return any(pattern.search(variant) for variant in normalize_css_text(css))
+
+
+_URL_SCHEME_PREFIX_RE = re.compile(r"^([a-z][a-z0-9+.\-]*):")
+
+
+def _url_attribute_has_unsafe_scheme(tag_name: str, attr_name: str, attr_value: str) -> bool:
+    """javascript:, vbscript:, or data: after the decoding a browser applies before scheme detection.
+
+    Entity decoding happens upstream (HTMLParser, or `unescape` on the raw tail); here every
+    ASCII control and whitespace character is removed and backslashes collapse, so
+    `java\\tscript:`, `\\x01javascript:` and `JAVA\\nSCRIPT:` all resolve. The only inert data:
+    URLs are the raster image forms the raw-HTML sanitizer keeps on <img src>.
+    """
+    candidates = attr_value.split(",") if attr_name == "srcset" else (attr_value,)
+    for candidate in candidates:
+        normalized = collapse_url_obfuscation(candidate).lower()
+        match = _URL_SCHEME_PREFIX_RE.match(normalized)
+        if match is None:
+            continue
+        scheme = match.group(1)
+        if scheme in UNSAFE_URL_SCHEMES:
+            return True
+        if scheme == "data" and not (
+            tag_name == "img" and attr_name == "src" and normalized.startswith(DATA_IMAGE_SRC_PREFIXES)
+        ):
+            return True
+    return False
+
+
+def _attribute_surface_errors(tag_name: str, attrs: list[tuple[str, str]]) -> list[str]:
+    """Attribute policy for one start tag: (lower-cased name, entity-decoded value) pairs.
+
+    Every pair is checked, including duplicates, since browsers keep the first occurrence and
+    HTMLParser reports all of them.
+    """
+    errors: list[str] = []
+    for attr_name, attr_value in attrs:
+        if attr_name.startswith("on"):
+            errors.append(_INLINE_EVENT_HANDLER_ERROR)
+        if attr_name == "style" and css_has_unsafe_reference(attr_value):
+            errors.append(_AUTOFETCH_SURFACE_ERROR)
+        if attr_name in URL_SCHEME_POLICY_ATTRS and _url_attribute_has_unsafe_scheme(tag_name, attr_name, attr_value):
+            errors.append(_UNSAFE_URL_SCHEME_ERROR)
+        if attr_name in REMOTE_AUTOFETCH_ATTRS and _contains_remote_http_reference(attr_value):
+            errors.append(_REMOTE_URL_ATTR_ERROR)
+        if (
+            tag_name in REMOTE_HREF_AUTOFETCH_TAGS
+            and attr_name in {"href", "xlink:href"}
+            and _contains_remote_http_reference(attr_value)
+        ):
+            errors.append(_REMOTE_URL_ATTR_ERROR)
+    return errors
+
+
+def _unfinished_tag_surface_errors(html: str) -> list[str]:
+    """Apply the start-tag attribute policy to one browser-recoverable final tag.
+
+    HTMLParser drops an unterminated final tag; this walks its attributes without scanning
+    attribute text as markup and runs the same handler, URL-scheme, CSS and remote-URL policy.
+    """
     start = html.rfind("<")
     if start < 0 or ">" in html[start:]:
-        return False
+        return []
     fragment = html[start + 1 :]
     if not fragment or not fragment[0].isalpha():
-        return False
+        return []
     position = 0
     while position < len(fragment) and not fragment[position].isspace() and fragment[position] not in "/>":
         position += 1
+    tag_name = fragment[:position].lower()
+    attrs: list[tuple[str, str]] = []
     while position < len(fragment):
         while position < len(fragment) and (fragment[position].isspace() or fragment[position] == "/"):
             position += 1
@@ -1594,9 +2143,86 @@ def _unfinished_tag_has_unsafe_style(html: str) -> bool:
                 while position < len(fragment) and not fragment[position].isspace() and fragment[position] not in "/>":
                     position += 1
                 value = fragment[value_start:position]
-        if name == "style" and _UNSAFE_CSS_REFERENCE_RE.search(unescape(value)):
+        attrs.append((name, unescape(value)))
+    return _attribute_surface_errors(tag_name, attrs)
+
+
+def _emitted_raw_text_is_ambiguous(html: str) -> bool:
+    """True when a `<title>`/`<style>`/`<script>` text run disagrees between a browser and HTMLParser.
+
+    One linear pass (position resumes past each closed run). A browser parses the content of these
+    elements as raw text/RCDATA up to `</tag` followed by whitespace, `/` or `>`. The emitters write
+    these with escaped content (no `<`) and a plain `</tag>` closer, so a `<` inside the browser text
+    run -- markup a browser hides as text but HTMLParser, treating the element as ordinary markup on
+    an older release, exposes as live, or vice versa -- or a closer carrying a solidus or attributes
+    (which ends the run in a browser but not on older html.parser) is a parser disagreement. An
+    unterminated opener, or a browser text run reaching EOF while holding `<`, is ambiguous too.
+    """
+    position = 0
+    while True:
+        opener = _EMITTED_RAW_TEXT_OPENER_RE.search(html, position)
+        if opener is None:
+            return False
+        tag = opener.group(1).lower()
+        opener_end = html.find(">", opener.end())
+        if opener_end < 0:
             return True
-    return False
+        content_start = opener_end + 1
+        _opener_re, closer_re = _tag_scan_patterns(tag)
+        closer = closer_re.search(html, content_start)
+        if closer is None:
+            return "<" in html[content_start:]
+        if "<" in html[content_start : closer.start()]:
+            return True
+        closer_tag_end = closer.end()
+        close_bracket = html.find(">", closer_tag_end)
+        if close_bracket < 0:
+            return True
+        if html[closer_tag_end:close_bracket].strip():
+            return True
+        position = close_bracket + 1
+
+
+def _has_ambiguous_markup(html: str) -> bool:
+    """True when html holds markup that HTMLParser and a browser tokenize differently.
+
+    Parser-independent raw-text rules, not one payload at a time:
+    - A NUL byte: a browser replaces U+0000 (and re-tokenizes around it); HTMLParser keeps it, so a
+      `<x\\x00 onerror=...>` start tag one parser sees and the other does not.
+    - A declaration other than `<!DOCTYPE html>` or a processing instruction (`<?`): a browser runs
+      `<![CDATA[`/`<!...` as a bogus comment ending at the first `>` and ends abrupt comments
+      (`<!-->`, `<!--->`) / `--!>` closers earlier than some html.parser releases, so markup the
+      browser runs lives on past where HTMLParser stops.
+    - A raw-text/RCDATA/scripting element HTMLParser and a browser disagree about (`noscript` always;
+      `textarea`, `xmp`, `iframe`, `noembed`, `noframes`, `plaintext` and RCDATA `title`/`textarea`
+      version-dependently): rejected outright, since no emitter writes them.
+    - The emitted text elements `<title>`/`<style>`/`<script>` in any non-emitter shape (see
+      _emitted_raw_text_is_ambiguous).
+    - A raw-text opener anywhere after an `<svg>`/`<math>` opener: in foreign content a browser parses
+      it as markup, HTMLParser as raw text (fail closed on the foreign element's parser-dependent end).
+    """
+    if "\x00" in html:
+        return True
+    if _MARKUP_DECLARATION_RE.search(html):
+        return True
+    if _FORBIDDEN_RAW_TEXT_OPENER_RE.search(html):
+        return True
+    if _emitted_raw_text_is_ambiguous(html):
+        return True
+    foreign = _FOREIGN_CONTENT_OPENER_RE.search(html)
+    return foreign is not None and _RAW_TEXT_ELEMENT_OPENER_RE.search(html, foreign.end()) is not None
+
+
+def _meta_refresh_present(html: str) -> bool:
+    return any(_META_REFRESH_ATTR_RE.search(attrs) for _start, attrs in iter_tag_regions(html, "meta"))
+
+
+def _style_blocks_have_unsafe_css(html: str, scan: TagBlockScan) -> bool:
+    """Check every `<style>` block, including one whose closer never arrives (content runs to EOF)."""
+    for _start, content_start, content_end, _end in scan.blocks:
+        if css_has_unsafe_reference(html[content_start:content_end]):
+            return True
+    return scan.unclosed_content_start is not None and css_has_unsafe_reference(html[scan.unclosed_content_start :])
 
 
 def _validate_no_autofetch_surfaces(html: str) -> list[str]:
@@ -1604,25 +2230,29 @@ def _validate_no_autofetch_surfaces(html: str) -> list[str]:
     probe.feed(html)
     probe.close()
     errors = list(probe.errors)
-    collapsed = collapse_url_obfuscation(html)
-    checks = (
-        (
-            "index.html contains an active or auto-fetching surface",
-            bool(_BEACON_FORBIDDEN_TAG_RE.search(html) or _BEACON_META_REFRESH_RE.search(html)),
-        ),
-        (
-            "index.html contains an auto-fetching remote URL attribute",
-            bool(_BEACON_REMOTE_URL_ATTR_RE.search(collapsed)),
-        ),
-        (
-            "index.html contains an active or auto-fetching surface",
-            bool(_BEACON_UNSAFE_STYLE_TAG_RE.search(html) or _unfinished_tag_has_unsafe_style(html)),
-        ),
-    )
-    for message, hit in checks:
-        if hit and message not in errors:
+    # The flat remote-URL backstop scans tag source only (not text nodes), so a scheme written in
+    # prose -- `data=https:` or `ping=http:` in a paragraph or an intent label -- is never read as
+    # an attribute value. Obfuscation is collapsed after the tags are isolated so a scheme split by
+    # whitespace or backslashes inside an attribute still matches.
+    tag_source_collapsed = collapse_url_obfuscation(_tag_source(html))
+    style_scan = find_tag_blocks(html, "style")
+    backstops: list[str] = []
+    if _has_ambiguous_markup(html):
+        backstops.append(_AMBIGUOUS_MARKUP_ERROR)
+    if _BEACON_FORBIDDEN_TAG_RE.search(html) or _meta_refresh_present(html):
+        backstops.append(_AUTOFETCH_SURFACE_ERROR)
+    if _BEACON_REMOTE_URL_ATTR_RE.search(tag_source_collapsed):
+        backstops.append(_REMOTE_URL_ATTR_ERROR)
+    if _style_blocks_have_unsafe_css(html, style_scan):
+        backstops.append(_AUTOFETCH_SURFACE_ERROR)
+    if style_scan.truncated:
+        backstops.append(_SCAN_LIMIT_ERROR)
+    backstops.extend(_unfinished_tag_surface_errors(html))
+    for message in backstops:
+        if message not in errors:
             errors.append(message)
     return errors
+
 
 class _AutofetchSurfaceProbe(HTMLParser):
     def __init__(self) -> None:
@@ -1636,33 +2266,29 @@ class _AutofetchSurfaceProbe(HTMLParser):
 
     def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
         tag_name = tag.lower()
-        attr_map = {name.lower(): value or "" for name, value in attrs}
+        pairs = [(name.lower(), value or "") for name, value in attrs]
         if tag_name == "style":
             self._style_depth += 1
         if tag_name in ACTIVE_OR_AUTOFETCH_TAGS:
-            self._append_once("index.html contains an active or auto-fetching surface")
+            self._append_once(_AUTOFETCH_SURFACE_ERROR)
         if tag_name in ACTIVE_STRUCTURAL_TAGS:
-            self._append_once("index.html contains an active form surface")
-        if tag_name == "meta" and attr_map.get("http-equiv", "").lower() == "refresh":
-            self._append_once("index.html contains an active or auto-fetching surface")
-        for attr_name, attr_value in attr_map.items():
-            if attr_name == "style" and _UNSAFE_CSS_REFERENCE_RE.search(attr_value):
-                self._append_once("index.html contains an active or auto-fetching surface")
-            if attr_name in REMOTE_AUTOFETCH_ATTRS and _contains_remote_http_reference(attr_value):
-                self._append_once("index.html contains an auto-fetching remote URL attribute")
-            if tag_name in REMOTE_HREF_AUTOFETCH_TAGS and attr_name in {"href", "xlink:href"} and _contains_remote_http_reference(attr_value):
-                self._append_once("index.html contains an auto-fetching remote URL attribute")
+            self._append_once(_FORM_SURFACE_ERROR)
+        if tag_name == "meta" and any(name == "http-equiv" and value.lower() == "refresh" for name, value in pairs):
+            self._append_once(_AUTOFETCH_SURFACE_ERROR)
+        for message in _attribute_surface_errors(tag_name, pairs):
+            self._append_once(message)
 
     def handle_endtag(self, tag: str) -> None:
         if tag.lower() == "style" and self._style_depth:
             self._style_depth -= 1
 
     def handle_data(self, data: str) -> None:
-        if self._style_depth and _UNSAFE_CSS_REFERENCE_RE.search(data):
-            self._append_once("index.html contains an active or auto-fetching surface")
+        if self._style_depth and css_has_unsafe_reference(data):
+            self._append_once(_AUTOFETCH_SURFACE_ERROR)
+
 
 class _ArtifactDomProbe(HTMLParser):
-    def __init__(self) -> None:
+    def __init__(self, *, record_ungoverned: bool = False) -> None:
         super().__init__(convert_charrefs=True)
         self.ids: dict[str, dict[str, str]] = {}
         self.node_ids: dict[str, dict[str, str]] = {}
@@ -1673,6 +2299,10 @@ class _ArtifactDomProbe(HTMLParser):
         self.text_by_node_id: dict[str, list[str]] = {}
         self._node_stack: list[str | None] = []
         self.errors: list[str] = []
+        # Raw-HTML artifacts: every element without a data-viewspec-node-id, as (tag, sorted attrs),
+        # so the validator can require them to be exactly the fixed document wrapper.
+        self._record_ungoverned = record_ungoverned
+        self.ungoverned_elements: list[tuple[str, tuple[tuple[str, str], ...]]] = []
 
     def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
         tag_name = tag.lower()
@@ -1684,6 +2314,10 @@ class _ArtifactDomProbe(HTMLParser):
         binding_id = attr_map.get("data-binding-id")
         action_id = attr_map.get("data-action-id")
 
+        if self._record_ungoverned and not node_id:
+            self.ungoverned_elements.append(
+                (tag_name, tuple(sorted((name, value) for name, value in attr_map.items() if name != "__tag__")))
+            )
         if dom_id:
             if dom_id in self.ids:
                 self.errors.append(f"index.html contains duplicate id {dom_id}")
@@ -1729,20 +2363,26 @@ class _ArtifactDomProbe(HTMLParser):
         if node_id is not None:
             self.text_by_node_id.setdefault(node_id, []).append(data)
 
+
 def _validate_manifest_dom_links(manifest: dict[str, Any], html: str) -> list[str]:
     nodes = manifest.get("nodes")
     if not isinstance(nodes, dict):
         return []
-    probe = _ArtifactDomProbe()
+    kind = manifest.get("kind")
+    probe = _ArtifactDomProbe(record_ungoverned=kind == "raw_html_compile")
     probe.feed(html)
     probe.close()
 
     errors = list(probe.errors)
-    if manifest.get("kind") == "intent_bundle_compile":
+    if kind == "intent_bundle_compile":
         errors.extend(_validate_intent_dom_links(nodes, probe))
-    elif manifest.get("kind") == "raw_html_compile":
-        errors.extend(_validate_raw_html_dom_links(nodes, probe))
+    elif kind == "raw_html_compile":
+        errors.extend(_validate_raw_html_dom_links(nodes, probe, manifest))
+        if _has_ambiguous_markup(html):
+            # The probe's element list is only complete when HTMLParser saw every element a browser builds.
+            errors.append(_RAW_HTML_AMBIGUOUS_MARKUP_ERROR)
     return errors
+
 
 def _manifest_has_action_nodes(manifest: dict[str, Any]) -> bool:
     nodes = manifest.get("nodes")
@@ -1755,6 +2395,7 @@ def _manifest_has_action_nodes(manifest: dict[str, Any]) -> bool:
         if entry.get("primitive") == "button" and isinstance(props, dict) and props.get("action_id"):
             return True
     return False
+
 
 def _validate_intent_dom_links(nodes: dict[str, Any], probe: _ArtifactDomProbe) -> list[str]:
     errors: list[str] = []
@@ -1793,12 +2434,23 @@ def _validate_intent_dom_links(nodes: dict[str, Any], probe: _ArtifactDomProbe) 
             errors.append(f"DOM element {dom_id} with data-ir-id is missing from manifest nodes")
     return errors
 
-def _validate_raw_html_dom_links(nodes: dict[str, Any], probe: _ArtifactDomProbe) -> list[str]:
+
+_RAW_HTML_UNGOVERNED_PREFIX = "CHECK_RAW_HTML_DOM_UNGOVERNED"
+_RAW_HTML_AMBIGUOUS_MARKUP_ERROR = (
+    f"{_RAW_HTML_UNGOVERNED_PREFIX}: index.html contains markup the DOM probe cannot attribute to manifest "
+    "nodes (a comment, declaration, processing instruction, or raw-text element inside <svg> or <math>)"
+)
+
+
+def _validate_raw_html_dom_links(
+    nodes: dict[str, Any], probe: _ArtifactDomProbe, manifest: dict[str, Any]
+) -> list[str]:
     errors: list[str] = []
     for node_id, entry in sorted(nodes.items()):
         if not isinstance(entry, dict):
             errors.append(f"manifest nodes.{node_id} must be an object")
             continue
+        _validate_raw_html_manifest_node_policy(node_id, entry, errors)
         attrs = probe.node_ids.get(node_id)
         if attrs is None:
             errors.append(f"manifest node {node_id} has no matching data-viewspec-node-id")
@@ -1807,7 +2459,92 @@ def _validate_raw_html_dom_links(nodes: dict[str, Any], probe: _ArtifactDomProbe
     for node_id in sorted(probe.node_ids):
         if node_id not in nodes:
             errors.append(f"DOM element {node_id} with data-viewspec-node-id is missing from manifest nodes")
+    errors.extend(_validate_raw_html_document_wrapper(probe, manifest))
     return errors
+
+
+def _raw_html_document_wrapper(source_hash: str) -> list[tuple[str, tuple[tuple[str, str], ...]]]:
+    """The fixed elements `viewspec.raw_html.compile_html` writes around the governed body."""
+    return sorted(
+        [
+            ("html", (("lang", "en"),)),
+            ("head", ()),
+            ("meta", (("charset", "utf-8"),)),
+            ("meta", (("content", "width=device-width, initial-scale=1"), ("name", "viewport"))),
+            ("title", ()),
+            ("style", ()),
+            ("body", ()),
+            ("div", (("class", "vs-artifact"), ("data-source-hash", source_hash), ("data-viewspec-root", "true"))),
+        ]
+    )
+
+
+def _validate_raw_html_document_wrapper(probe: _ArtifactDomProbe, manifest: dict[str, Any]) -> list[str]:
+    """Fail closed: every raw-HTML DOM element carries a manifest node id or is the fixed wrapper.
+
+    The manifest nodes govern the sanitized body; anything else a tampered index.html adds
+    (an extra <p onclick>, a second <style>, an <svg>) has no manifest entry and is rejected here
+    even before its attributes are judged.
+    """
+    source_hash = manifest.get("source_hash")
+    expected = _raw_html_document_wrapper(source_hash if isinstance(source_hash, str) else "")
+    actual = sorted(probe.ungoverned_elements)
+    if actual == expected:
+        return []
+    remaining = list(expected)
+    extra_tags: set[str] = set()
+    for element in actual:
+        if element in remaining:
+            remaining.remove(element)
+        else:
+            extra_tags.add(element[0])
+    if extra_tags:
+        shown = sorted(extra_tags)
+        listed = ", ".join(f"<{tag}>" for tag in shown[:8])
+        if len(shown) > 8:
+            listed += f" (+{len(shown) - 8} more)"
+        return [f"{_RAW_HTML_UNGOVERNED_PREFIX}: index.html contains DOM elements without a manifest node id: {listed}"]
+    return [f"{_RAW_HTML_UNGOVERNED_PREFIX}: index.html document wrapper does not match the raw-HTML compile template"]
+
+
+def _validate_raw_html_manifest_node_policy(node_id: str, entry: dict[str, Any], errors: list[str]) -> None:
+    """Hold the (unsigned) manifest's nodes to the raw-HTML sanitizer allowlist.
+
+    DOM attributes must equal the manifest's, so the manifest itself must only name tags,
+    attributes and URLs the sanitizer could have produced; otherwise a tampered manifest would
+    legitimise whatever the tampered DOM mirrors.
+    """
+    tag = entry.get("tag")
+    attrs = entry.get("attrs")
+    if not isinstance(tag, str) or not isinstance(attrs, dict):
+        return  # shape errors are reported by _validate_raw_html_manifest_node
+    if tag not in RAW_HTML_ALLOWED_TAGS:
+        errors.append(
+            f"{_RAW_HTML_UNGOVERNED_PREFIX}: manifest node {node_id} tag <{tag}> is outside the raw-HTML allowlist"
+        )
+    allowed = RAW_HTML_SAFE_GLOBAL_ATTRS | RAW_HTML_SAFE_ATTRS_BY_TAG.get(tag, set())
+    for name, value in sorted(attrs.items()):
+        if not isinstance(name, str) or not isinstance(value, str):
+            continue
+        if name == "data-viewspec-external-src" and tag == "img":
+            if not raw_html_is_external_http_url(raw_html_normalize_url(value)):
+                errors.append(
+                    f"{_RAW_HTML_UNGOVERNED_PREFIX}: manifest node {node_id} attr {name} URL violates the raw-HTML URL policy"
+                )
+            continue
+        if name not in allowed and not name.startswith("aria-"):
+            errors.append(
+                f"{_RAW_HTML_UNGOVERNED_PREFIX}: manifest node {node_id} attr {name} is outside the raw-HTML allowlist"
+            )
+            continue
+        if name in RAW_HTML_URL_ATTRS:
+            normalized = raw_html_normalize_url(value)
+            inert_remote_image = tag == "img" and name == "src" and raw_html_is_external_http_url(normalized)
+            if inert_remote_image or not raw_html_safe_url(normalized, attr=name):
+                errors.append(
+                    f"{_RAW_HTML_UNGOVERNED_PREFIX}: manifest node {node_id} attr {name} URL violates the raw-HTML URL policy"
+                )
+
 
 def _validate_raw_html_dom_node(
     errors: list[str],
@@ -1824,20 +2561,35 @@ def _validate_raw_html_dom_node(
     expected_tag = "a" if manifest_tag == "img" and isinstance(external_image_url, str) else manifest_tag
     if attrs.get("__tag__") != expected_tag:
         errors.append(f"manifest node {node_id} tag does not match DOM tag")
+    dom_attrs = {name: value for name, value in attrs.items() if name not in {"__tag__", "data-viewspec-node-id"}}
     if isinstance(external_image_url, str):
         if attrs.get("href") != external_image_url:
             errors.append(f"manifest node {node_id} external image href does not match manifest attrs")
+        expected_link_attrs = {"class": "vs-external-image", "href": external_image_url, "rel": "noopener noreferrer"}
+        if dom_attrs != expected_link_attrs:
+            errors.append(
+                f"{_RAW_HTML_UNGOVERNED_PREFIX}: manifest node {node_id} external image link attributes do not match the raw-HTML template"
+            )
         return
     for attr_name, attr_value in sorted(manifest_attrs.items()):
         if not isinstance(attr_name, str) or not isinstance(attr_value, str):
             continue
         if attrs.get(attr_name) != attr_value:
             errors.append(f"manifest node {node_id} attr {attr_name} does not match DOM")
+    extra_attrs = sorted(name for name in dom_attrs if name not in manifest_attrs)
+    if extra_attrs:
+        listed = ", ".join(extra_attrs[:8])
+        if len(extra_attrs) > 8:
+            listed += f" (+{len(extra_attrs) - 8} more)"
+        errors.append(
+            f"{_RAW_HTML_UNGOVERNED_PREFIX}: manifest node {node_id} carries DOM attributes missing from manifest attrs: {listed}"
+        )
     manifest_text = entry.get("text")
     if isinstance(manifest_text, str):
         dom_text = _collapse_artifact_text(" ".join(probe.text_by_node_id.get(node_id, [])))[:160]
         if dom_text != manifest_text:
             errors.append(f"manifest node {node_id} text does not match DOM text")
+
 
 def _compare_json_list_attr(
     errors: list[str],
@@ -1860,8 +2612,10 @@ def _compare_json_list_attr(
     if parsed != manifest_value:
         errors.append(f"manifest node {dom_id} {manifest_key} does not match DOM {attr_name}")
 
+
 def _collapse_artifact_text(value: str) -> str:
     return " ".join(value.split())
+
 
 def _validate_intent_semantic_attrs(
     errors: list[str],
@@ -1883,7 +2637,7 @@ def _validate_intent_semantic_attrs(
         if tag != "button":
             errors.append(f"manifest node {dom_id} button primitive must render as <button>")
         if attrs.get("type") != "button":
-            errors.append(f"DOM element {dom_id} button missing type=\"button\"")
+            errors.append(f'DOM element {dom_id} button missing type="button"')
         if props.get("action_id") and attrs.get("data-action-id") != str(props["action_id"]):
             errors.append(f"DOM element {dom_id} data-action-id does not match manifest props")
         if props.get("action_kind") and attrs.get("data-action-kind") != str(props["action_kind"]):
@@ -1904,7 +2658,7 @@ def _validate_intent_semantic_attrs(
         if tag != "input":
             errors.append(f"manifest node {dom_id} input primitive must render as <input>")
         if attrs.get("type") != "text":
-            errors.append(f"DOM element {dom_id} input missing type=\"text\"")
+            errors.append(f'DOM element {dom_id} input missing type="text"')
         if attrs.get("value") != str(props.get("value", "")):
             errors.append(f"DOM element {dom_id} input value does not match manifest props")
         expected_label = str(props.get("aria_label", props.get("binding_id", "input")))
@@ -1915,7 +2669,7 @@ def _validate_intent_semantic_attrs(
     elif primitive == "svg":
         _validate_image_like_attrs(errors, attrs, props, dom_id, "svg", "label")
     elif primitive == "error_boundary" and attrs.get("role") != "alert":
-        errors.append(f"DOM element {dom_id} error_boundary missing role=\"alert\"")
+        errors.append(f'DOM element {dom_id} error_boundary missing role="alert"')
 
     if props.get("motif_kind") == "list" and primitive == "stack" and tag != "ul":
         errors.append(f"manifest node {dom_id} list stack must render as <ul>")
@@ -1925,10 +2679,10 @@ def _validate_intent_semantic_attrs(
         if tag != "section":
             errors.append(f"manifest node {dom_id} form stack must render as <section>")
         if attrs.get("role") != "form":
-            errors.append(f"DOM element {dom_id} form stack missing role=\"form\"")
+            errors.append(f'DOM element {dom_id} form stack missing role="form"')
     if props.get("motif_kind") == "form" and primitive == "surface":
         if attrs.get("role") != "group":
-            errors.append(f"DOM element {dom_id} form field missing role=\"group\"")
+            errors.append(f'DOM element {dom_id} form field missing role="group"')
     if props.get("motif_kind") == "detail" and primitive == "stack" and tag != "dl":
         errors.append(f"manifest node {dom_id} detail stack must render as <dl>")
     if props.get("motif_kind") == "detail" and primitive == "cluster" and tag != "div":
@@ -1960,16 +2714,16 @@ def _validate_intent_semantic_attrs(
         if tag != "section":
             errors.append(f"manifest node {dom_id} loading_state surface must render as <section>")
         if attrs.get("role") != "status":
-            errors.append(f"DOM element {dom_id} loading_state surface missing role=\"status\"")
+            errors.append(f'DOM element {dom_id} loading_state surface missing role="status"')
         if attrs.get("aria-busy") != "true":
-            errors.append(f"DOM element {dom_id} loading_state surface missing aria-busy=\"true\"")
+            errors.append(f'DOM element {dom_id} loading_state surface missing aria-busy="true"')
         if attrs.get("aria-label") != str(props.get("aria_label", "Loading state")):
             errors.append(f"DOM element {dom_id} loading_state surface aria-label does not match manifest props")
     if props.get("motif_kind") == "error_state" and primitive == "surface":
         if tag != "section":
             errors.append(f"manifest node {dom_id} error_state surface must render as <section>")
         if attrs.get("role") != "alert":
-            errors.append(f"DOM element {dom_id} error_state surface missing role=\"alert\"")
+            errors.append(f'DOM element {dom_id} error_state surface missing role="alert"')
         if attrs.get("aria-label") != str(props.get("aria_label", "Error state")):
             errors.append(f"DOM element {dom_id} error_state surface aria-label does not match manifest props")
     state_motif_role = props.get("state_motif_role")
@@ -2004,12 +2758,13 @@ def _validate_intent_semantic_attrs(
         if tag != "th":
             errors.append(f"manifest node {dom_id} table row_header must render as <th>")
         if attrs.get("scope") != "row":
-            errors.append(f"DOM element {dom_id} table row_header missing scope=\"row\"")
+            errors.append(f'DOM element {dom_id} table row_header missing scope="row"')
     elif table_cell_role == "cell":
         if tag != "td":
             errors.append(f"manifest node {dom_id} table cell must render as <td>")
     elif table_cell_role is not None:
         errors.append(f"manifest node {dom_id} table_cell_role must be row_header or cell")
+
 
 def _validate_intent_visible_text(
     errors: list[str],
@@ -2029,6 +2784,7 @@ def _validate_intent_visible_text(
         if dom_text != str(props["label"]):
             errors.append(f"DOM element {dom_id} text does not match manifest props")
 
+
 def _validate_image_like_attrs(
     errors: list[str],
     attrs: dict[str, str],
@@ -2038,10 +2794,11 @@ def _validate_image_like_attrs(
     label_key: str,
 ) -> None:
     if attrs.get("role") != "img":
-        errors.append(f"DOM element {dom_id} {primitive} missing role=\"img\"")
+        errors.append(f'DOM element {dom_id} {primitive} missing role="img"')
     label = str(props.get(label_key, primitive.replace("_", " ")))
     if attrs.get("aria-label") != label:
         errors.append(f"DOM element {dom_id} {primitive} aria-label does not match manifest props")
+
 
 def _compare_json_attr(
     errors: list[str],

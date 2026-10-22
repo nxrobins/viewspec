@@ -2,21 +2,21 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 import hashlib
-import json
-from pathlib import PurePosixPath
 import re
-from typing import Any, Mapping
+from collections.abc import Mapping
+from dataclasses import dataclass
+from pathlib import PurePosixPath
+from typing import Any
 
+from viewspec._canonical import canonical_json_ascii_bytes
 from viewspec.verification import (
-    RetryLineage,
     SHA256_RE,
     VERIFICATION_ID_RE,
+    RetryLineage,
     VerificationDiagnostic,
     VerificationResult,
 )
-
 
 REPAIR_SCHEMA_VERSION = 1
 REPAIR_PLAN_ID_RE = re.compile(r"^vrp_[0-9a-f]{32}$")
@@ -26,8 +26,8 @@ ALLOWED_DISPOSITIONS = frozenset({"done", "repair", "retry"})
 MAX_REPAIR_DIRECTIVES = 256
 
 
-def _canonical(value: object) -> bytes:
-    return json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=True).encode("utf-8")
+# ASCII-escaped canonical form, shared through viewspec._canonical (see its docstring).
+_canonical = canonical_json_ascii_bytes
 
 
 def _mapping(value: Any, name: str) -> Mapping[str, Any]:
@@ -86,11 +86,7 @@ class SourceNodePath:
             return cls(None, parts[0][3:])
         if len(parts) == 1 and parts[0].startswith("screen:"):
             return cls(parts[0][7:], None)
-        if (
-            len(parts) == 2
-            and parts[0].startswith("screen:")
-            and parts[1].startswith("ir:")
-        ):
+        if len(parts) == 2 and parts[0].startswith("screen:") and parts[1].startswith("ir:"):
             return cls(parts[0][7:], parts[1][3:])
         raise ValueError("source node path must be ir:<id> or screen:<id>[/ir:<id>]")
 
@@ -160,9 +156,7 @@ class RepairDirective:
         data = _mapping(payload, "repair directive")
         raw_viewports = data.get("viewports")
         raw_refs = data.get("evidence_refs")
-        if not isinstance(raw_viewports, list) or not all(
-            isinstance(item, str) for item in raw_viewports
-        ):
+        if not isinstance(raw_viewports, list) or not all(isinstance(item, str) for item in raw_viewports):
             raise ValueError("repair directive viewports must be an array of strings")
         if not isinstance(raw_refs, list) or not all(isinstance(item, str) for item in raw_refs):
             raise ValueError("repair directive evidence_refs must be an array of paths")
@@ -195,11 +189,7 @@ def _group_directives(result: VerificationResult) -> tuple[RepairDirective, ...]
     for diagnostic in result.diagnostics:
         if diagnostic.severity != "error":
             continue
-        source = (
-            SourceNodePath.from_text(diagnostic.source_ref)
-            if diagnostic.source_ref is not None
-            else None
-        )
+        source = SourceNodePath.from_text(diagnostic.source_ref) if diagnostic.source_ref is not None else None
         grouped.setdefault(
             (diagnostic.code, source.to_text() if source else None),
             [],
@@ -214,9 +204,7 @@ def _group_directives(result: VerificationResult) -> tuple[RepairDirective, ...]
         if unknown:
             raise ValueError(f"repair diagnostic references unknown viewport: {unknown[0]}")
         viewports = tuple(sorted(raw_viewports, key=viewport_order.__getitem__))
-        evidence_refs = tuple(
-            sorted({ref for item in diagnostics for ref in item.evidence_refs})
-        )
+        evidence_refs = tuple(sorted({ref for item in diagnostics for ref in item.evidence_refs}))
         instructions = sorted({item.fix for item in diagnostics})
         repair_id, fingerprint = _directive_identity(code, source)
         directives.append(
@@ -249,9 +237,7 @@ class VerificationRepairPlan:
     def __post_init__(self) -> None:
         if self.schema_version != REPAIR_SCHEMA_VERSION:
             raise ValueError("Unsupported repair plan schema_version")
-        if not isinstance(self.repair_plan_id, str) or not REPAIR_PLAN_ID_RE.fullmatch(
-            self.repair_plan_id
-        ):
+        if not isinstance(self.repair_plan_id, str) or not REPAIR_PLAN_ID_RE.fullmatch(self.repair_plan_id):
             raise ValueError("repair_plan_id is invalid")
         if self.repair_plan_id != _repair_plan_id(self.previous_result_sha256):
             raise ValueError("repair_plan_id does not match previous_result_sha256")

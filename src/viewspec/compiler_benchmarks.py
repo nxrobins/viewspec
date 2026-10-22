@@ -29,7 +29,6 @@ from viewspec.local_tools import check_artifact_dir, file_hash, source_hash
 from viewspec.sdk.builder import ViewSpecBuilder
 from viewspec.types import ASTBundle, IntentBundle, IRNode
 
-
 BENCHMARK_SCHEMA_VERSION = 1
 BENCHMARK_SUMMARY_MAX_BYTES = 16 * 1024
 BENCHMARK_TIMEOUT_SECONDS = 5.0
@@ -107,9 +106,7 @@ NETWORK_SURFACE_RE = re.compile(r"(?i)(https?://|url\s*\(|fetch\s*\(|XMLHttpRequ
 ABSOLUTE_PATH_RE = re.compile(r"^(?:[A-Za-z]:[\\/]|[\\/]{1,2}|/)")
 ISO_TIMESTAMP_RE = re.compile(r"\b\d{4}-\d{2}-\d{2}(?:[T ][0-9]{2}:[0-9]{2}(?::[0-9]{2})?)?")
 TEMP_NAME_RE = re.compile(r"(?i)(?:^|[\\/])(?:tmp|temp|pytest-|viewspec-benchmark-)")
-UUID_RE = re.compile(
-    r"\b[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}\b"
-)
+UUID_RE = re.compile(r"\b[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}\b")
 HTML_TAG_RE = re.compile(r"<(?!/)([A-Za-z][A-Za-z0-9]*)\b")
 ROLE_CLASS_RE = re.compile(r"\bvs-role-[a-z0-9-]+\b")
 REQUIRED_TAGS_BY_MOTIF = {
@@ -281,7 +278,9 @@ def run_benchmark_fixture(fixture: BenchmarkFixture, output_dir: str | Path) -> 
     return summary
 
 
-def assert_no_new_benchmark_dependencies(dependency_names: tuple[str, ...] | list[str], *, fixture_id: str = "suite") -> None:
+def assert_no_new_benchmark_dependencies(
+    dependency_names: tuple[str, ...] | list[str], *, fixture_id: str = "suite"
+) -> None:
     if dependency_names:
         raise BenchmarkConstraintError(
             "BENCHMARK_NEW_DEPENDENCY_FORBIDDEN",
@@ -312,7 +311,9 @@ def assert_benchmark_timeout(
         )
 
 
-def assert_expected_diagnostics(fixture_id: str, *, actual_codes: tuple[str, ...], expected_codes: tuple[str, ...]) -> None:
+def assert_expected_diagnostics(
+    fixture_id: str, *, actual_codes: tuple[str, ...], expected_codes: tuple[str, ...]
+) -> None:
     unexpected = sorted(set(actual_codes) - set(expected_codes))
     if unexpected:
         raise BenchmarkConstraintError(
@@ -322,7 +323,9 @@ def assert_expected_diagnostics(fixture_id: str, *, actual_codes: tuple[str, ...
         )
 
 
-def assert_emitter_parity(fixture_id: str, html_inventory: SemanticInventory, react_inventory: SemanticInventory) -> None:
+def assert_emitter_parity(
+    fixture_id: str, html_inventory: SemanticInventory, react_inventory: SemanticInventory
+) -> None:
     html_json = html_inventory.to_json()
     react_json = react_inventory.to_json()
     compared_keys = (
@@ -375,7 +378,9 @@ def assert_benchmark_summary(summary: dict[str, Any]) -> None:
     fixture_id = str(summary.get("fixture_id") or "")
     sources = summary.get("metric_sources")
     if not isinstance(sources, dict) or not sources:
-        raise BenchmarkConstraintError("BENCHMARK_METRIC_NOT_DERIVED", fixture_id, "Benchmark metric sources are missing.")
+        raise BenchmarkConstraintError(
+            "BENCHMARK_METRIC_NOT_DERIVED", fixture_id, "Benchmark metric sources are missing."
+        )
     for name, source in sources.items():
         if not isinstance(name, str) or source not in ALLOWED_METRIC_SOURCES:
             raise BenchmarkConstraintError(
@@ -435,11 +440,7 @@ def _assert_planner_metrics_are_derived(summary: dict[str, Any], sources: dict[s
         "tailwind_manifest_product_role_counts": "manifest",
         "tailwind_recipe_inventory": "manifest",
     }
-    missing = [
-        metric_name
-        for metric_name, source in required_sources.items()
-        if sources.get(metric_name) != source
-    ]
+    missing = [metric_name for metric_name, source in required_sources.items() if sources.get(metric_name) != source]
     if missing:
         raise BenchmarkConstraintError(
             "PLANNER_METRIC_NOT_DERIVED",
@@ -523,7 +524,9 @@ def _stateful_collection_fixture() -> IntentBundle:
         ("queue_selection_control", "Selected rows", "selected_ids", "request_a,request_b", "queue_selected_ids"),
     ):
         builder.add_node(node_id, "collection_control", attrs={"label": label, attr: value})
-        control_members.append(builder.bind_attr(f"{node_id}_label", node_id, "label", region="main", present_as="label"))
+        control_members.append(
+            builder.bind_attr(f"{node_id}_label", node_id, "label", region="main", present_as="label")
+        )
         control_members.append(builder.bind_attr(binding_id, node_id, attr, region="main", present_as="input"))
     builder.add_group("queue_control_fields", "ordered", control_members, target_region="main")
     builder.add_motif("queue_controls", "form", "main", control_members)
@@ -772,7 +775,11 @@ def _validate_multi_region_pressure(fixture: BenchmarkFixture) -> None:
     for region in view_spec.regions:
         sibling_counts[region.parent_region or None] = sibling_counts.get(region.parent_region or None, 0) + 1
     non_primary_motif = any(motif.region != "main" for motif in view_spec.motifs)
-    if max(depth_by_region.values(), default=0) < 2 or max(sibling_counts.values(), default=0) < 2 or not non_primary_motif:
+    if (
+        max(depth_by_region.values(), default=0) < 2
+        or max(sibling_counts.values(), default=0) < 2
+        or not non_primary_motif
+    ):
         raise BenchmarkConstraintError(
             "BENCHMARK_LAYOUT_PRESSURE_MISSING",
             fixture.id,
@@ -860,14 +867,16 @@ def _benchmark_summary(
     react_tags = _react_tags(react_artifact.artifact_text)
     tailwind_tags = _react_tags(tailwind_artifact.artifact_text)
     required_tags = _required_tags(fixture.bundle)
-    semantic_tags_ok = required_tags.issubset(html_tags) and required_tags.issubset(react_tags) and required_tags.issubset(
-        tailwind_tags
+    semantic_tags_ok = (
+        required_tags.issubset(html_tags)
+        and required_tags.issubset(react_tags)
+        and required_tags.issubset(tailwind_tags)
     )
     check_ok = html_artifact.check_ok and react_artifact.check_ok and tailwind_artifact.check_ok
-    no_network_surfaces = not NETWORK_SURFACE_RE.search(html_artifact.artifact_text) and not NETWORK_SURFACE_RE.search(
-        react_artifact.artifact_text
-    ) and not NETWORK_SURFACE_RE.search(
-        tailwind_artifact.artifact_text
+    no_network_surfaces = (
+        not NETWORK_SURFACE_RE.search(html_artifact.artifact_text)
+        and not NETWORK_SURFACE_RE.search(react_artifact.artifact_text)
+        and not NETWORK_SURFACE_RE.search(tailwind_artifact.artifact_text)
     )
     style_tokens = sorted(html_inventory.style_tokens | react_inventory.style_tokens | tailwind_inventory.style_tokens)
     style_values = set(ast.style_values)

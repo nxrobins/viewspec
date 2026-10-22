@@ -6,13 +6,15 @@ import hashlib
 import hmac
 import json
 import os
-from pathlib import Path
 import secrets
-import struct
 import stat
+import struct
 import time
-from typing import Any, Mapping
+from collections.abc import Mapping
+from pathlib import Path
+from typing import Any
 
+from viewspec.review_compile import bounded_review_phase
 from viewspec.review_contract import (
     MAX_BATCH_EVENTS,
     MAX_BODY_BYTES,
@@ -32,9 +34,7 @@ from viewspec.review_contract import (
     new_review_id,
     validate_idempotency_key,
 )
-from viewspec.review_compile import bounded_review_phase
 from viewspec.review_errors import make_review_error
-
 
 MAX_FRAME_BYTES = 24 * 1024
 MAX_JOURNAL_BYTES = 16 * MIB
@@ -86,7 +86,7 @@ class ReviewStateLock:
                 fcntl.flock(descriptor, fcntl.LOCK_EX | fcntl.LOCK_NB)
                 self._descriptor = descriptor
                 return
-            except BlockingIOError:
+            except BlockingIOError as exc:
                 if time.monotonic() >= deadline:
                     os.close(descriptor)
                     raise ReviewContractError(
@@ -95,7 +95,7 @@ class ReviewStateLock:
                         "Wait for the active local Review server to exit and retry.",
                         http_status=409,
                         cli_exit=2,
-                    )
+                    ) from exc
                 time.sleep(min(0.01, max(0.0, deadline - time.monotonic())))
             except OSError as exc:
                 os.close(descriptor)
@@ -194,7 +194,10 @@ class ReviewJournal:
                 "Compact or end the review session before accepting more feedback.",
                 http_status=507,
             )
-        if _session_tree_size(self.path.parent, stop_after=MAX_SESSION_STORAGE_BYTES) + len(frame) > MAX_SESSION_STORAGE_BYTES:
+        if (
+            _session_tree_size(self.path.parent, stop_after=MAX_SESSION_STORAGE_BYTES) + len(frame)
+            > MAX_SESSION_STORAGE_BYTES
+        ):
             raise ReviewContractError(
                 "REVIEW_STORAGE_LIMIT_EXCEEDED",
                 "Review session cannot reserve this journal frame within its 256 MiB budget.",
@@ -237,7 +240,9 @@ class ReviewJournal:
         except OSError as exc:
             raise make_review_error("REVIEW_COMPACTION_FAILED", f"Could not inspect the active journal: {exc}") from exc
 
-    def compact(self, records: tuple[dict[str, Any], ...], *, timeout_seconds: float = COMPACTION_TIMEOUT_SECONDS) -> None:
+    def compact(
+        self, records: tuple[dict[str, Any], ...], *, timeout_seconds: float = COMPACTION_TIMEOUT_SECONDS
+    ) -> None:
         """Atomically replace the journal only after a complete bounded rewrite is durable."""
         started = time.monotonic()
         frames: list[bytes] = []
@@ -253,8 +258,13 @@ class ReviewJournal:
         except ReviewContractError as exc:
             if exc.code == "REVIEW_COMPACTION_FAILED":
                 raise
-            raise make_review_error("REVIEW_COMPACTION_FAILED", f"Could not encode compacted journal: {exc.message}") from exc
-        if _session_tree_size(self.path.parent, stop_after=MAX_SESSION_STORAGE_BYTES) + total > MAX_SESSION_STORAGE_BYTES:
+            raise make_review_error(
+                "REVIEW_COMPACTION_FAILED", f"Could not encode compacted journal: {exc.message}"
+            ) from exc
+        if (
+            _session_tree_size(self.path.parent, stop_after=MAX_SESSION_STORAGE_BYTES) + total
+            > MAX_SESSION_STORAGE_BYTES
+        ):
             raise make_review_error(
                 "REVIEW_COMPACTION_FAILED",
                 "Review session cannot reserve the compacted journal within 256 MiB.",
@@ -286,7 +296,9 @@ class ReviewJournal:
         except ReviewContractError:
             raise
         except OSError as exc:
-            raise make_review_error("REVIEW_COMPACTION_FAILED", f"Could not durably compact the Review journal: {exc}") from exc
+            raise make_review_error(
+                "REVIEW_COMPACTION_FAILED", f"Could not durably compact the Review journal: {exc}"
+            ) from exc
         finally:
             if descriptor is not None:
                 os.close(descriptor)
@@ -436,9 +448,7 @@ class ReviewSession:
         """Return reply text with its acknowledged event cursor, without delivery identities."""
 
         replies = (
-            (cursor, reply)
-            for _reply_hash, reply, cursor in self._acknowledgements.values()
-            if reply is not None
+            (cursor, reply) for _reply_hash, reply, cursor in self._acknowledgements.values() if reply is not None
         )
         return tuple(sorted(replies, key=lambda item: item[0]))
 
@@ -656,7 +666,10 @@ class ReviewSession:
     def end(self, *, actor: str, idempotency_key: str | None = None) -> None:
         if actor not in {"human", "agent"}:
             raise ReviewContractError(
-                "REVIEW_EVENT_INVALID", "Review end actor must be human or agent.", "Use a supported ending actor.", http_status=422
+                "REVIEW_EVENT_INVALID",
+                "Review end actor must be human or agent.",
+                "Use a supported ending actor.",
+                http_status=422,
             )
         if actor == "human":
             if idempotency_key is None:
@@ -775,7 +788,11 @@ class ReviewSession:
                 request_hash = record.get("request_sha256")
                 if not isinstance(key, str) or not isinstance(request_hash, str):
                     raise _journal_invalid("Event record lacks idempotency identity.")
-                if event.sequence != len(self._events) + 1 or key in self._idempotency or event.revision != self.revision:
+                if (
+                    event.sequence != len(self._events) + 1
+                    or key in self._idempotency
+                    or event.revision != self.revision
+                ):
                     raise _journal_invalid("Event sequence or idempotency identity is duplicated.")
                 self._events.append(event)
                 self._idempotency[key] = (request_hash, event)
@@ -961,20 +978,40 @@ def _journal_invalid(message: str) -> ReviewContractError:
 
 
 def _session_tree_size(root: Path, *, stop_after: int) -> int:
+    """Sum the regular files under ``root``, stopping early once ``stop_after`` is exceeded.
+
+    The review daemon writes temporary files and renames them into place from other threads
+    (proposal candidates, compaction) while a request thread sizes the session, so a name listed
+    a moment ago may be gone by the time it is inspected.  Such entries are skipped instead of
+    failing the request; a symbolic link anywhere in the tree still fails closed.
+    """
     total = 0
-    for path in root.rglob("*"):
-        value = path.lstat()
-        if stat.S_ISLNK(value.st_mode):
-            raise ReviewContractError(
-                "REVIEW_FILESYSTEM_UNSAFE",
-                "Review session storage contains a symbolic link.",
-                "Use only owner-controlled regular files and directories.",
-                cli_exit=2,
-            )
-        if stat.S_ISREG(value.st_mode):
-            total += value.st_size
-            if total > stop_after:
-                return total
+    pending = [root]
+    while pending:
+        directory = pending.pop()
+        try:
+            with os.scandir(directory) as listing:
+                entries = list(listing)
+        except FileNotFoundError:
+            continue
+        for entry in entries:
+            try:
+                value = entry.stat(follow_symlinks=False)
+            except FileNotFoundError:
+                continue
+            if stat.S_ISLNK(value.st_mode):
+                raise ReviewContractError(
+                    "REVIEW_FILESYSTEM_UNSAFE",
+                    "Review session storage contains a symbolic link.",
+                    "Use only owner-controlled regular files and directories.",
+                    cli_exit=2,
+                )
+            if stat.S_ISDIR(value.st_mode):
+                pending.append(Path(entry.path))
+            elif stat.S_ISREG(value.st_mode):
+                total += value.st_size
+                if total > stop_after:
+                    return total
     return total
 
 

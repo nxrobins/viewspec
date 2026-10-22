@@ -1,22 +1,21 @@
 from __future__ import annotations
 
 import re
-from collections.abc import Iterable, Mapping
+from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass
 from types import MappingProxyType
-from typing import Callable, Any
+from typing import Any
 
 from viewspec.compiler_refs import add_diagnostic
 from viewspec.types import (
     BindingSpec,
     CompilerDiagnostic,
-    IRNode,
     IntentBundle,
+    IRNode,
     MotifSpec,
     SemanticSubstrate,
     parse_canonical_address,
 )
-
 
 MOTIF_PLUGIN_ABI_VERSION = "motif_plugin_abi_v1"
 SAFE_MOTIF_KIND_RE = re.compile(r"^[A-Za-z0-9_.-]+$")
@@ -140,6 +139,7 @@ class MotifCompiler:
         return result
 
 
+# Compatibility alias kept for the public API promise; MotifCompiler is the canonical name.
 MotifPlugin = MotifCompiler
 
 
@@ -261,9 +261,7 @@ def _validate_motif_manifest(compiler: MotifCompiler) -> None:
             f"'{manifest.abi_version}'. Expected '{MOTIF_PLUGIN_ABI_VERSION}'."
         )
     if manifest.kinds != compiler.kinds:
-        raise MotifPluginError(
-            f"Motif plugin manifest '{manifest.plugin_id}' kinds must exactly match plugin kinds."
-        )
+        raise MotifPluginError(f"Motif plugin manifest '{manifest.plugin_id}' kinds must exactly match plugin kinds.")
     for kind in manifest.kinds:
         _require_safe_id("kind", kind)
     for slot in manifest.input_slots:
@@ -302,9 +300,7 @@ def _register_motif_compilers(
         _validate_motif_manifest(compiler)
         if compiler.manifest is not None:
             if compiler.manifest.plugin_id in plugin_ids:
-                raise MotifPluginError(
-                    f"Duplicate motif plugin manifest id '{compiler.manifest.plugin_id}'."
-                )
+                raise MotifPluginError(f"Duplicate motif plugin manifest id '{compiler.manifest.plugin_id}'.")
             plugin_ids.add(compiler.manifest.plugin_id)
         for kind in compiler.kinds:
             if not _is_safe_id(kind):

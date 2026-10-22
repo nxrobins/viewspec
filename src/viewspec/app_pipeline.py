@@ -7,31 +7,31 @@ import time
 from pathlib import Path
 from typing import Any
 
-from viewspec.app_errors import AppBundleProofFailure, _normalize_proof_errors
+from viewspec.app_errors import AppBundleProofFailure, normalize_proof_errors
 from viewspec.app_paths import (
     _assert_report_under_output,
     _prepare_app_output_dir,
     _prepare_app_shell_output_dir,
     _should_write_app_proof_failure,
 )
-from viewspec.app_prepared import _PreparedAppProof, _PreparedAppShell
+from viewspec.app_prepared import PreparedAppProof, PreparedAppShell
+from viewspec.app_react import REACT_APP_TARGET, write_react_app
+from viewspec.app_react_verify import verify_react_app_artifact_dir
 from viewspec.app_reports import (
     APP_BUNDLE_DEFAULT_OUT,
     APP_BUNDLE_DEFAULT_REPORT,
     APP_BUNDLE_DEFAULT_SUMMARY,
     APP_BUNDLE_DEFAULT_SUPPORT_BUNDLE,
     APP_BUNDLE_TARGET,
-    _app_proof_failure_report,
-    _app_proof_report,
-    _app_shell_failure_report,
-    _app_shell_report,
-    _write_app_proof,
+    app_proof_failure_report,
+    app_proof_report,
+    app_shell_failure_report,
+    app_shell_report,
+    write_app_proof,
 )
-from viewspec.app_react import REACT_APP_TARGET, _write_react_app
-from viewspec.app_react_verify import verify_react_app_artifact_dir
-from viewspec.app_resource_binding import _resource_binding_assertion_report
+from viewspec.app_resource_binding import resource_binding_assertion_report
 from viewspec.app_resource_repeat import materialize_resource_repeats
-from viewspec.app_screens import _prove_app_screens
+from viewspec.app_screens import prove_app_screens
 from viewspec.app_shell import (
     APP_SHELL_DEFAULT_OUT,
     APP_SHELL_DIAGNOSTICS,
@@ -40,12 +40,12 @@ from viewspec.app_shell import (
     APP_SHELL_MANIFEST,
     APP_SHELL_TARGET,
 )
-from viewspec.app_shell_writer import _write_static_app_shell
+from viewspec.app_shell_writer import write_static_app_shell
 from viewspec.app_starters import starter_app_bundle, starter_react_app_bundle
 from viewspec.app_validation import (
     APP_BUNDLE_RESOURCE_BINDING,
-    _reject_json_constant,
-    _route_assertions,
+    reject_json_constant,
+    route_assertions_for,
     validate_app_text,
 )
 from viewspec.local_tools import atomic_write, resolve_cwd, resolve_local_path
@@ -94,9 +94,13 @@ def prove_app(
     timings: dict[str, int] = {}
     root = resolve_cwd(cwd)
     output_dir = resolve_local_path(out_dir, cwd=root, allow_outside_cwd=True)
-    report_path = resolve_local_path(report_out, cwd=root, allow_outside_cwd=True) if report_out else output_dir / APP_BUNDLE_DEFAULT_REPORT
+    report_path = (
+        resolve_local_path(report_out, cwd=root, allow_outside_cwd=True)
+        if report_out
+        else output_dir / APP_BUNDLE_DEFAULT_REPORT
+    )
     if target not in {APP_BUNDLE_TARGET, REACT_APP_TARGET}:
-        return _app_proof_failure_report(
+        return app_proof_failure_report(
             output_dir=output_dir,
             report_path=report_path,
             errors=[
@@ -112,7 +116,7 @@ def prove_app(
             target=target,
         )
     if freerange and target != REACT_APP_TARGET:
-        return _app_proof_failure_report(
+        return app_proof_failure_report(
             output_dir=output_dir,
             report_path=report_path,
             errors=[
@@ -128,7 +132,7 @@ def prove_app(
             target=target,
         )
     if pretext and target != REACT_APP_TARGET:
-        return _app_proof_failure_report(
+        return app_proof_failure_report(
             output_dir=output_dir,
             report_path=report_path,
             errors=[
@@ -144,7 +148,7 @@ def prove_app(
             target=target,
         )
     if target == REACT_APP_TARGET and with_shell:
-        return _app_proof_failure_report(
+        return app_proof_failure_report(
             output_dir=output_dir,
             report_path=report_path,
             errors=[
@@ -180,7 +184,7 @@ def prove_app(
             ) from exc
         validation = _time_phase(timings, "validate_app", lambda: validate_app_text(app_text, compile_check=True))
         if not validation["ok"]:
-            return _app_proof_failure_report(
+            return app_proof_failure_report(
                 output_dir=output_dir,
                 report_path=report_path,
                 errors=[
@@ -196,10 +200,10 @@ def prove_app(
                 target=target,
                 write=False,
             )
-        payload = materialize_resource_repeats(json.loads(app_text, parse_constant=_reject_json_constant))
+        payload = materialize_resource_repeats(json.loads(app_text, parse_constant=reject_json_constant))
         _assert_report_under_output(report_path, output_dir)
         _prepare_app_output_dir(output_dir, root=root, force=force, raw_out=out_dir)
-        prepared = _PreparedAppProof(
+        prepared = PreparedAppProof(
             output_dir=output_dir,
             app_path=source,
             design_path=design,
@@ -210,7 +214,7 @@ def prove_app(
         screen_reports = _time_phase(
             timings,
             "screens",
-            lambda: _prove_app_screens(
+            lambda: prove_app_screens(
                 payload,
                 prepared.output_dir,
                 design_path=prepared.design_path,
@@ -222,18 +226,20 @@ def prove_app(
         errors = [error for screen in screen_reports for error in screen.get("errors", []) if isinstance(error, dict)]
         binding_report: dict[str, Any] | None = None
         if not errors:
-            binding_report = _time_phase(timings, "resource_binding", lambda: _resource_binding_assertion_report(payload, screen_reports))
+            binding_report = _time_phase(
+                timings, "resource_binding", lambda: resource_binding_assertion_report(payload, screen_reports)
+            )
             if isinstance(binding_report, dict) and not binding_report.get("ok"):
-                errors.extend(_normalize_proof_errors(binding_report.get("errors")))
+                errors.extend(normalize_proof_errors(binding_report.get("errors")))
         shell_report: dict[str, Any] | None = None
         if with_shell and not errors:
             shell_report = _time_phase(
                 timings,
                 "shell",
-                lambda: _write_static_app_shell(
+                lambda: write_static_app_shell(
                     payload,
                     screen_reports,
-                    _PreparedAppShell(
+                    PreparedAppShell(
                         output_dir=prepared.output_dir / APP_SHELL_DIR_NAME,
                         app_path=source,
                         design_path=design,
@@ -254,14 +260,14 @@ def prove_app(
                 ),
             )
             if not shell_report.get("ok"):
-                errors.extend(_normalize_proof_errors(shell_report.get("errors")))
+                errors.extend(normalize_proof_errors(shell_report.get("errors")))
         react_app_report: dict[str, Any] | None = None
         host_report: dict[str, Any] | None = None
         if target == REACT_APP_TARGET and not errors:
             react_app_report = _time_phase(
                 timings,
                 "react_app",
-                lambda: _write_react_app(
+                lambda: write_react_app(
                     payload,
                     prepared.output_dir / "react-app",
                     screen_reports,
@@ -289,16 +295,16 @@ def prove_app(
                 ),
             )
             if not host_report.get("ok"):
-                errors.extend(_normalize_proof_errors(host_report.get("errors")))
-        route_assertions = _route_assertions(payload)
-        report = _app_proof_report(
+                errors.extend(normalize_proof_errors(host_report.get("errors")))
+        route_assertions = route_assertions_for(payload)
+        report = app_proof_report(
             ok=not errors,
             prepared=prepared,
             app_payload=payload,
             validation=validation,
             route_assertions=route_assertions,
             screen_reports=screen_reports,
-            errors=_normalize_proof_errors(errors),
+            errors=normalize_proof_errors(errors),
             timings=timings,
             strict_design=strict_design,
             shell=shell_report,
@@ -309,9 +315,9 @@ def prove_app(
             pretext=pretext,
             resource_binding_report=binding_report,
         )
-        return _write_app_proof(report, prepared)
+        return write_app_proof(report, prepared)
     except AppBundleProofFailure as exc:
-        report = _app_proof_failure_report(
+        report = app_proof_failure_report(
             output_dir=output_dir,
             report_path=report_path,
             errors=[{"code": exc.code, "message": exc.message, "fix": exc.fix}],
@@ -321,11 +327,18 @@ def prove_app(
             target=target,
         )
         if _should_write_app_proof_failure(output_dir, exc.code):
-            prepared = _PreparedAppProof(output_dir, Path(app_path), None, report_path, output_dir / APP_BUNDLE_DEFAULT_SUMMARY, output_dir / APP_BUNDLE_DEFAULT_SUPPORT_BUNDLE)
-            return _write_app_proof(report, prepared)
+            prepared = PreparedAppProof(
+                output_dir,
+                Path(app_path),
+                None,
+                report_path,
+                output_dir / APP_BUNDLE_DEFAULT_SUMMARY,
+                output_dir / APP_BUNDLE_DEFAULT_SUPPORT_BUNDLE,
+            )
+            return write_app_proof(report, prepared)
         return report
     except Exception as exc:
-        report = _app_proof_failure_report(
+        report = app_proof_failure_report(
             output_dir=output_dir,
             report_path=report_path,
             errors=[
@@ -341,8 +354,15 @@ def prove_app(
             target=target,
         )
         if output_dir.exists():
-            prepared = _PreparedAppProof(output_dir, Path(app_path), None, report_path, output_dir / APP_BUNDLE_DEFAULT_SUMMARY, output_dir / APP_BUNDLE_DEFAULT_SUPPORT_BUNDLE)
-            return _write_app_proof(report, prepared)
+            prepared = PreparedAppProof(
+                output_dir,
+                Path(app_path),
+                None,
+                report_path,
+                output_dir / APP_BUNDLE_DEFAULT_SUMMARY,
+                output_dir / APP_BUNDLE_DEFAULT_SUPPORT_BUNDLE,
+            )
+            return write_app_proof(report, prepared)
         return report
 
 
@@ -363,7 +383,7 @@ def compile_app(
     root = resolve_cwd(cwd)
     output_dir = resolve_local_path(out_dir, cwd=root, allow_outside_cwd=True)
     if target not in {APP_SHELL_TARGET, REACT_APP_TARGET}:
-        return _app_shell_failure_report(
+        return app_shell_failure_report(
             output_dir=output_dir,
             errors=[
                 {
@@ -386,7 +406,7 @@ def compile_app(
         app_text = source.read_text(encoding="utf-8")
         validation = _time_phase(timings, "validate_app", lambda: validate_app_text(app_text, compile_check=True))
         if not validation["ok"]:
-            return _app_shell_failure_report(
+            return app_shell_failure_report(
                 output_dir=output_dir,
                 errors=[
                     {
@@ -400,8 +420,8 @@ def compile_app(
                 validation=validation,
                 target=target,
             )
-        payload = materialize_resource_repeats(json.loads(app_text, parse_constant=_reject_json_constant))
-        prepared_shell = _PreparedAppShell(
+        payload = materialize_resource_repeats(json.loads(app_text, parse_constant=reject_json_constant))
+        prepared_shell = PreparedAppShell(
             output_dir=output_dir,
             app_path=source,
             design_path=design,
@@ -410,7 +430,7 @@ def compile_app(
             index_path=output_dir / APP_SHELL_INDEX,
         )
         _prepare_app_shell_output_dir(output_dir, root=root, force=force, raw_out=out_dir)
-        prepared_proof = _PreparedAppProof(
+        prepared_proof = PreparedAppProof(
             output_dir=output_dir,
             app_path=source,
             design_path=design,
@@ -421,7 +441,7 @@ def compile_app(
         screen_reports = _time_phase(
             timings,
             "screens",
-            lambda: _prove_app_screens(
+            lambda: prove_app_screens(
                 payload,
                 prepared_proof.output_dir,
                 design_path=prepared_proof.design_path,
@@ -433,17 +453,19 @@ def compile_app(
         errors = [error for screen in screen_reports for error in screen.get("errors", []) if isinstance(error, dict)]
         binding_report: dict[str, Any] | None = None
         if not errors:
-            binding_report = _time_phase(timings, "resource_binding", lambda: _resource_binding_assertion_report(payload, screen_reports))
+            binding_report = _time_phase(
+                timings, "resource_binding", lambda: resource_binding_assertion_report(payload, screen_reports)
+            )
             if isinstance(binding_report, dict) and not binding_report.get("ok"):
-                errors.extend(_normalize_proof_errors(binding_report.get("errors")))
+                errors.extend(normalize_proof_errors(binding_report.get("errors")))
         if errors:
-            return _app_shell_report(
+            return app_shell_report(
                 ok=False,
                 prepared=prepared_shell,
                 app_payload=payload,
                 validation=validation,
                 screen_reports=screen_reports,
-                errors=_normalize_proof_errors(errors),
+                errors=normalize_proof_errors(errors),
                 timings=timings,
                 strict_design=strict_design,
                 shell_payload=None,
@@ -454,7 +476,7 @@ def compile_app(
             return _time_phase(
                 timings,
                 "react_app",
-                lambda: _write_react_app(
+                lambda: write_react_app(
                     payload,
                     output_dir,
                     screen_reports,
@@ -471,7 +493,7 @@ def compile_app(
         shell_report = _time_phase(
             timings,
             "shell",
-            lambda: _write_static_app_shell(
+            lambda: write_static_app_shell(
                 payload,
                 screen_reports,
                 prepared_shell,
@@ -488,20 +510,20 @@ def compile_app(
             ),
         )
         if not shell_report.get("ok"):
-            return _app_shell_report(
+            return app_shell_report(
                 ok=False,
                 prepared=prepared_shell,
                 app_payload=payload,
                 validation=validation,
                 screen_reports=screen_reports,
-                errors=_normalize_proof_errors(shell_report.get("errors")),
+                errors=normalize_proof_errors(shell_report.get("errors")),
                 timings=timings,
                 strict_design=strict_design,
                 shell_payload=shell_report,
                 resource_binding_report=binding_report,
                 target=target,
             )
-        return _app_shell_report(
+        return app_shell_report(
             ok=True,
             prepared=prepared_shell,
             app_payload=payload,
@@ -515,7 +537,7 @@ def compile_app(
             target=target,
         )
     except AppBundleProofFailure as exc:
-        return _app_shell_failure_report(
+        return app_shell_failure_report(
             output_dir=output_dir,
             errors=[{"code": exc.code, "message": exc.message, "fix": exc.fix}],
             timings=timings,
@@ -523,7 +545,7 @@ def compile_app(
             target=target,
         )
     except Exception as exc:
-        return _app_shell_failure_report(
+        return app_shell_failure_report(
             output_dir=output_dir,
             errors=[
                 {
@@ -536,6 +558,7 @@ def compile_app(
             validation=None,
             target=target,
         )
+
 
 def _time_phase(timings: dict[str, int], phase: str, fn: Any) -> Any:
     started = time.perf_counter()

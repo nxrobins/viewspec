@@ -2,9 +2,8 @@
 
 from __future__ import annotations
 
-from pathlib import Path
 import shutil
-
+from pathlib import Path
 
 _WRITABLE_CACHE_DIRS = frozenset({".cache", ".vite", ".vite-temp"})
 
@@ -48,9 +47,7 @@ def _materialize_dependency(
 ) -> None:
     if qualified_name in copy_packages:
         if not source.is_dir() or source.is_symlink():
-            raise ValueError(
-                f"integrity-sensitive dependency seed must be a regular directory: {qualified_name}"
-            )
+            raise ValueError(f"integrity-sensitive dependency seed must be a regular directory: {qualified_name}")
         shutil.copytree(source, target, symlinks=False)
     else:
         _link_dependency(source, target)

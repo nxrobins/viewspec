@@ -2,13 +2,13 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, replace
 import hashlib
 import json
-from typing import Any, Mapping
+from collections.abc import Mapping
+from dataclasses import dataclass, replace
+from typing import Any
 
 from viewspec.review_contract import ReviewContractError, ReviewTarget
-
 
 MAX_MANIFEST_NODES = 4096
 MAX_ANCESTOR_DEPTH = 32

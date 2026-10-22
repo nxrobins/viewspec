@@ -33,7 +33,7 @@ test.beforeAll(async () => {
 });
 test.afterAll(() => {
   if (source && state) run(["review-end", source, "--state-dir", state, "--json"], true);
-  if (workspace) rmSync(workspace, { recursive: true, force: true });
+  if (workspace) rmSync(workspace, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 });
 });
 test("keyboard reviewers select ordinary content, send exact requests, and return to the canvas", async ({ page }, testInfo) => {
   const errors: string[] = [];

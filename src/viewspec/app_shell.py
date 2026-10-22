@@ -22,6 +22,8 @@ from viewspec.app_validation import (
     _state_ir_limits,
 )
 from viewspec.local_tools import source_hash
+from viewspec.local_tools_constants import MAX_SCANNED_TAG_BLOCKS
+from viewspec.local_tools_validators import TagBlockScan, css_has_unsafe_reference, find_tag_blocks, iter_tag_regions
 from viewspec.presentation_plan import (
     build_presentation_plan,
     presentation_plan_css,
@@ -44,17 +46,21 @@ APP_SHELL_MAX_STATE_JS_BYTES = 96 * 1024
 APP_SHELL_STATE_DATA_ID = "viewspec-app-state-data"
 APP_SHELL_MAX_AGGREGATE_SCREEN_HTML_BYTES = 8 * 1024 * 1024
 APP_SHELL_MAX_MANIFEST_BYTES = 256 * 1024
-HTML_BODY_RE = re.compile(r"<body\b[^>]*>(?P<body>[\s\S]*?)</body>", re.IGNORECASE)
-HTML_STYLE_RE = re.compile(r"<style\b[^>]*>(?P<style>[\s\S]*?)</style>", re.IGNORECASE)
-HTML_SCRIPT_RE = re.compile(r"<script\b[\s\S]*?</script>", re.IGNORECASE)
-HTML_SCRIPT_OPEN_RE = re.compile(r"<script\b(?P<attrs>[^>]*)>", re.IGNORECASE)
+# <body>, <style> and <script> blocks are located with the linear block scanner shared with
+# `viewspec check` (find_tag_blocks / iter_tag_regions), never with `<tag\b[^>]*>[\s\S]*?</tag>`
+# regexes that re-scan to EOF from every unclosed opener.
 HTML_FORBIDDEN_EMBED_RE = re.compile(r"<\s*(?:iframe|object|embed)\b", re.IGNORECASE)
 HTML_FORBIDDEN_LINK_RE = re.compile(r"<\s*link\b", re.IGNORECASE)
 HTML_INLINE_HANDLER_RE = re.compile(r"\son[a-z]+\s*=", re.IGNORECASE)
 HTML_WORKER_IMPORT_RE = re.compile(r"\b(?:Worker|SharedWorker|importScripts)\s*\(", re.IGNORECASE)
 HTML_IMPORT_MAP_RE = re.compile(r"<script\b[^>]*type\s*=\s*['\"]importmap['\"]", re.IGNORECASE)
 HTML_PROTOCOL_RELATIVE_RE = re.compile(r"(?i)(?:src|href|action|formaction|poster|srcset)\s*=\s*['\"]//")
-CSS_FORBIDDEN_RE = re.compile(r"(?i)(@import|url\s*\(|expression\s*\(|javascript:|vbscript:|data:)")
+# Matched against CSS normalised by `css_has_unsafe_reference`: escapes decoded, comments removed,
+# whitespace stripped, lower-cased. Lists every URL-loading function plus remote schemes.
+CSS_FORBIDDEN_RE = re.compile(
+    r"@import|url\(|image-set\(|-webkit-image-set\(|image\(|src\(|expression\(|javascript:|vbscript:|data:|https?:|//"
+)
+
 
 def _build_static_app_shell(
     payload: dict[str, Any],
@@ -166,6 +172,7 @@ def _build_static_app_shell(
         "route_assertions": route_assertions,
     }
 
+
 def _collect_shell_screens(screen_reports: list[dict[str, Any]]) -> list[dict[str, Any]]:
     screens: list[dict[str, Any]] = []
     for screen in screen_reports:
@@ -200,15 +207,18 @@ def _collect_shell_screens(screen_reports: list[dict[str, Any]]) -> list[dict[st
         )
     return screens
 
+
 def _assert_screen_artifact_shell_safe(html: str, screen_id: str) -> None:
-    for script in HTML_SCRIPT_OPEN_RE.finditer(html):
-        if script.group("attrs").strip():
+    # Any attributed <script> (including an import map, which needs type="importmap") is rejected here;
+    # the regions come from the linear scan, not from `<script\b[^>]*>` over the whole document.
+    for _start, attrs in iter_tag_regions(html, "script"):
+        if attrs.strip():
             raise AppBundleProofFailure(
                 "APP_SHELL_EMBEDDING_UNSUPPORTED",
                 f"Screen {screen_id} contains an attributed script tag; Static Shell V0 embeds inert fragments only.",
                 "Remove import maps, external script references, or typed script surfaces before compiling the shell.",
             )
-    if HTML_FORBIDDEN_EMBED_RE.search(html) or HTML_IMPORT_MAP_RE.search(html) or HTML_WORKER_IMPORT_RE.search(html):
+    if HTML_FORBIDDEN_EMBED_RE.search(html) or HTML_WORKER_IMPORT_RE.search(html):
         raise AppBundleProofFailure(
             "APP_SHELL_EMBEDDING_UNSUPPORTED",
             f"Screen {screen_id} contains an unsupported embed, frame, import map, or worker surface.",
@@ -226,23 +236,51 @@ def _assert_screen_artifact_shell_safe(html: str, screen_id: str) -> None:
             f"Screen {screen_id} contains inline event handlers.",
             "Remove inline event handlers before compiling the static shell.",
         )
-    for style in HTML_STYLE_RE.findall(html):
-        if CSS_FORBIDDEN_RE.search(style):
+    for style in _extract_screen_styles(html, screen_id):
+        if css_has_unsafe_reference(style, CSS_FORBIDDEN_RE):
             raise AppBundleProofFailure(
                 "APP_SHELL_NETWORK_SURFACE_REJECTED",
                 f"Screen {screen_id} CSS contains an import, URL, expression, or script-like value.",
                 "Remove external or executable CSS surfaces before compiling the static shell.",
             )
 
+
+def _scan_screen_blocks(html: str, tag: str, screen_id: str) -> TagBlockScan:
+    """Linear `<tag>` block scan over a screen artifact that fails closed on unclosed or excess blocks."""
+    scan = find_tag_blocks(html, tag)
+    if scan.unclosed_content_start is not None:
+        raise AppBundleProofFailure(
+            "APP_SHELL_EMBEDDING_UNSUPPORTED",
+            f"Screen {screen_id} contains an unclosed <{tag}> block; Static Shell V0 embeds inert fragments only.",
+            "Regenerate the screen through the html-tailwind compiler.",
+        )
+    if scan.truncated:
+        raise AppBundleProofFailure(
+            "APP_SHELL_SIZE_LIMIT_EXCEEDED",
+            f"Screen {screen_id} contains more than {MAX_SCANNED_TAG_BLOCKS} <{tag}> blocks.",
+            "Regenerate the screen through the html-tailwind compiler.",
+        )
+    return scan
+
+
 def _extract_screen_body_fragment(html: str, screen_id: str) -> str:
-    match = HTML_BODY_RE.search(html)
-    if not match:
+    body_scan = find_tag_blocks(html, "body", limit=1)
+    if not body_scan.blocks:
         raise AppBundleProofFailure(
             "APP_SHELL_EMBEDDING_UNSUPPORTED",
             f"Screen {screen_id} artifact does not contain a body element.",
             "Regenerate the screen through the html-tailwind compiler.",
         )
-    fragment = HTML_SCRIPT_RE.sub("", match.group("body")).strip()
+    _start, content_start, content_end, _end = body_scan.blocks[0]
+    body = html[content_start:content_end]
+    script_scan = _scan_screen_blocks(body, "script", screen_id)
+    pieces: list[str] = []
+    position = 0
+    for start, _content_start, _content_end, end in script_scan.blocks:
+        pieces.append(body[position:start])
+        position = end
+    pieces.append(body[position:])
+    fragment = "".join(pieces).strip()
     if not fragment:
         raise AppBundleProofFailure(
             "APP_SHELL_EMBEDDING_UNSUPPORTED",
@@ -251,9 +289,12 @@ def _extract_screen_body_fragment(html: str, screen_id: str) -> str:
         )
     return fragment
 
+
 def _extract_screen_styles(html: str, screen_id: str) -> list[str]:
-    del screen_id
-    return [style.strip() for style in HTML_STYLE_RE.findall(html) if style.strip()]
+    scan = _scan_screen_blocks(html, "style", screen_id)
+    styles = [html[content_start:content_end].strip() for _start, content_start, content_end, _end in scan.blocks]
+    return [style for style in styles if style]
+
 
 def _dedupe_styles(screen_payloads: list[dict[str, Any]]) -> list[str]:
     seen: set[str] = set()
@@ -266,6 +307,7 @@ def _dedupe_styles(screen_payloads: list[dict[str, Any]]) -> list[str]:
             styles.append(style)
     return styles
 
+
 def _shell_route_table(payload: dict[str, Any]) -> list[dict[str, str]]:
     return [
         {
@@ -277,6 +319,7 @@ def _shell_route_table(payload: dict[str, Any]) -> list[dict[str, str]]:
         for route in payload["routes"]
     ]
 
+
 def _shell_route_assertions(payload: dict[str, Any]) -> dict[str, bool]:
     routes = payload.get("routes") if isinstance(payload.get("routes"), list) else []
     screens = payload.get("screens") if isinstance(payload.get("screens"), list) else []
@@ -285,11 +328,14 @@ def _shell_route_assertions(payload: dict[str, Any]) -> dict[str, bool]:
     route_screen_ids = [route.get("screen_id") for route in routes if isinstance(route, dict)]
     root_route = payload.get("app", {}).get("root_route") if isinstance(payload.get("app"), dict) else None
     return {
-        "every_route_maps_exactly_one_screen": all(route_screen_ids.count(screen_id) >= 1 and screen_id in screen_ids for screen_id in route_screen_ids),
+        "every_route_maps_exactly_one_screen": all(
+            route_screen_ids.count(screen_id) >= 1 and screen_id in screen_ids for screen_id in route_screen_ids
+        ),
         "every_screen_has_route": all(screen_id in route_screen_ids for screen_id in screen_ids),
         "root_route_selects_exactly_one_screen": route_paths.count(root_route) == 1,
         "unknown_route_selects_no_screen_and_one_404": True,
     }
+
 
 def _render_static_app_shell_html(
     payload: dict[str, Any],
@@ -314,7 +360,7 @@ def _render_static_app_shell_html(
                     f'<section class="vs-app-screen" data-viewspec-app-screen="{escape(screen_id, quote=True)}" '
                     f'data-route-path="{escape(str(route_by_screen.get(screen_id, "")), quote=True)}" '
                     f'data-selected="{"true" if selected else "false"}"'
-                    f'{" hidden" if not selected else ""}>'
+                    f"{' hidden' if not selected else ''}>"
                 ),
                 screen["fragment"],
                 "</section>",
@@ -346,8 +392,8 @@ def _render_static_app_shell_html(
             *screen_sections,
             '<section class="vs-app-404" data-viewspec-app-404 hidden>',
             '<p class="vs-app-kicker">Route unavailable</p>',
-            '<h2>Unknown route</h2>',
-            '<p>The selected local route is not declared in this AppBundle.</p>',
+            "<h2>Unknown route</h2>",
+            "<p>The selected local route is not declared in this AppBundle.</p>",
             "</section>",
             "</main>",
             "</div>",
@@ -366,6 +412,7 @@ def _render_static_app_shell_html(
             "",
         ]
     )
+
 
 def _app_shell_css() -> str:
     return """
@@ -442,6 +489,7 @@ def _app_shell_css() -> str:
 }
 """.strip()
 
+
 def _app_shell_route_script() -> str:
     return """
 (() => {
@@ -500,6 +548,7 @@ def _app_shell_route_script() -> str:
   setRoute(hashPath());
 })();
 """.strip()
+
 
 def _shell_state_trigger_table(payload: dict[str, Any]) -> list[dict[str, Any]]:
     """(screenId, actionId) -> declared-order mutation ids, mirroring the replay's event order."""
@@ -597,6 +646,7 @@ def _safe_json_for_script(payload: dict[str, Any]) -> str:
     text = json.dumps(payload, sort_keys=True, separators=(",", ":"))
     return text.replace("&", "\\u0026").replace("<", "\\u003c").replace(">", "\\u003e")
 
+
 def _assert_rendered_shell_static_contract(html: str) -> None:
     main_count = len(re.findall(r"<main\b", html, flags=re.IGNORECASE))
     embedded_root_count = len(re.findall(r"\bdata-viewspec-screen-root=[\"']embedded[\"']", html, flags=re.IGNORECASE))
@@ -633,6 +683,7 @@ def _assert_rendered_shell_static_contract(html: str) -> None:
             "Rendered shell contains inline event handlers.",
             "Use the compiler-owned static route script only.",
         )
+
 
 def _static_shell_manifest(
     payload: dict[str, Any],
@@ -682,6 +733,7 @@ def _static_shell_manifest(
         **({"state_runtime": state_runtime} if state_runtime is not None else {}),
     }
 
+
 def _screen_shell_summaries(screen_reports: list[dict[str, Any]]) -> list[dict[str, Any]]:
     summaries: list[dict[str, Any]] = []
     for screen in screen_reports:
@@ -701,6 +753,7 @@ def _screen_shell_summaries(screen_reports: list[dict[str, Any]]) -> list[dict[s
         )
     return summaries
 
+
 def _app_shell_limits() -> dict[str, int]:
     return {
         "max_screens": APP_BUNDLE_MAX_SCREENS,
@@ -717,6 +770,7 @@ def _app_shell_limits() -> dict[str, int]:
         **_resource_binding_limits(),
     }
 
+
 __all__ = [
     "APP_SHELL_DEFAULT_OUT",
     "APP_SHELL_DIAGNOSTICS",
@@ -731,15 +785,11 @@ __all__ = [
     "APP_SHELL_ROUTE_NAVIGATION",
     "APP_SHELL_TARGET",
     "CSS_FORBIDDEN_RE",
-    "HTML_BODY_RE",
     "HTML_FORBIDDEN_EMBED_RE",
     "HTML_FORBIDDEN_LINK_RE",
     "HTML_IMPORT_MAP_RE",
     "HTML_INLINE_HANDLER_RE",
     "HTML_PROTOCOL_RELATIVE_RE",
-    "HTML_SCRIPT_OPEN_RE",
-    "HTML_SCRIPT_RE",
-    "HTML_STYLE_RE",
     "HTML_WORKER_IMPORT_RE",
     "_app_shell_css",
     "_app_shell_limits",

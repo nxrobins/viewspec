@@ -6,7 +6,6 @@ from typing import Any
 
 from viewspec.state_ir import StateIR, initial_state_text
 
-
 STATE_TEXT_OVERLAY_KEYS = frozenset({"state_text_id", "state_text_initial"})
 
 

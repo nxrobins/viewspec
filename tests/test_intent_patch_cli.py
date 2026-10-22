@@ -60,7 +60,12 @@ def test_patch_preview_cli_writes_candidate_without_mutating_source(tmp_path: Pa
     assert payload["ok"] is True
     assert payload["preview"]["approval_token"].startswith("vapprove_")
     assert payload["paths"]["candidate"] == str(candidate_path)
-    assert json.loads(candidate_path.read_text(encoding="utf-8"))["substrate"]["nodes"]["starter_dashboard"]["attrs"]["title"] == "Converged Dashboard"
+    assert (
+        json.loads(candidate_path.read_text(encoding="utf-8"))["substrate"]["nodes"]["starter_dashboard"]["attrs"][
+            "title"
+        ]
+        == "Converged Dashboard"
+    )
     assert source_path.read_text(encoding="utf-8") == original
 
 
@@ -89,4 +94,7 @@ def test_patch_apply_cli_requires_exact_approval_and_returns_receipt(tmp_path: P
     assert payload["ok"] is True
     assert payload["receipt"]["status"] == "applied"
     assert Path(payload["paths"]["receipt"]).is_file()
-    assert json.loads(source_path.read_text(encoding="utf-8"))["substrate"]["nodes"]["starter_dashboard"]["attrs"]["title"] == "Converged Dashboard"
+    assert (
+        json.loads(source_path.read_text(encoding="utf-8"))["substrate"]["nodes"]["starter_dashboard"]["attrs"]["title"]
+        == "Converged Dashboard"
+    )

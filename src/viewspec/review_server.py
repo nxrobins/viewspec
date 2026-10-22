@@ -2,22 +2,24 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 import base64
 import hashlib
 import hmac
-from html.parser import HTMLParser
-from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
+import logging
 import mimetypes
 import os
-from pathlib import Path
 import re
 import secrets
 import stat
 import threading
 import time
-from typing import Callable, Protocol
+from collections.abc import Callable
+from dataclasses import dataclass
+from html.parser import HTMLParser
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from pathlib import Path
+from typing import Protocol
 from urllib.parse import unquote_to_bytes, urlsplit
 
 from viewspec.converge_sessions import (
@@ -27,18 +29,23 @@ from viewspec.converge_sessions import (
     get_convergence_status,
     reject_convergence_preview,
 )
-from viewspec.review_contract import ReviewContext, ReviewContractError, canonical_json_bytes
+from viewspec.review_annotation import FRAME_ANNOTATION_CSS, FRAME_ANNOTATION_JS
+from viewspec.review_approval_ui import APPROVAL_CSS, APPROVAL_HTML, APPROVAL_JS
 from viewspec.review_compile import STUDIO_COMPARE_TARGET
+from viewspec.review_contract import ReviewContext, ReviewContractError, canonical_json_bytes
 from viewspec.review_errors import make_review_error
 from viewspec.review_frame_readiness import FRAME_RENDER_WAIT_JS
-from viewspec.review_runtime import ReviewRuntime
 from viewspec.review_proposal import ProposalRenderer
-from viewspec.review_approval_ui import APPROVAL_CSS, APPROVAL_HTML, APPROVAL_JS
-from viewspec.review_annotation import FRAME_ANNOTATION_CSS, FRAME_ANNOTATION_JS
+from viewspec.review_runtime import ReviewRuntime
 from viewspec.studio_agent_handoff import (
-    AGENT_ACTIVITY_SECONDS, HANDOFF_CSS, HANDOFF_HTML, handoff_script, review_handoff,
+    AGENT_ACTIVITY_SECONDS,
+    HANDOFF_CSS,
+    HANDOFF_HTML,
+    handoff_script,
+    review_handoff,
 )
 
+_LOGGER = logging.getLogger(__name__)
 
 MAX_REQUEST_BODY_BYTES = 256 * 1024
 MAX_JSON_RESPONSE_BYTES = 256 * 1024
@@ -260,7 +267,22 @@ class ReviewServer:
                 outer._dispatch(self, mutation=True)
 
             def log_message(self, format: str, *args: object) -> None:
-                del format, args
+                # Request targets carry bearer capabilities (the /open/<token> bootstrap, frame and
+                # approval-frame tickets). BaseHTTPRequestHandler passes the request line to
+                # log_request and quotes it in parse errors, so every request-line word after the
+                # method, and any path- or URL-like token, is redacted before the message is logged.
+                message = format % args if args else format
+                for word in str(getattr(self, "requestline", "") or "").split()[1:]:
+                    if len(word) >= 8 and not re.fullmatch(r"HTTP/\d+(?:\.\d+)?", word):
+                        message = message.replace(word, "<redacted>")
+                message = re.sub(
+                    r"[^\s'\"]*/[^\s'\"]*",
+                    lambda match: (
+                        match.group(0) if re.fullmatch(r"HTTP/\d+(?:\.\d+)?", match.group(0)) else "<redacted>"
+                    ),
+                    message,
+                )
+                _LOGGER.debug("%s", message)
 
         return Handler
 
@@ -280,6 +302,7 @@ class ReviewServer:
             except ReviewContractError as exc:
                 response = _error_response(exc)
             except Exception:
+                _LOGGER.exception("Review server failed while handling a bounded local request")
                 response = _error_response(
                     ReviewContractError(
                         "REVIEW_SERVER_START_FAILED",
@@ -343,10 +366,16 @@ class ReviewServer:
             return _json_response(200, {"schema_version": 1, "ok": True, "review": self._browser_status()})
         if path == f"{review_root}api/v1/agent-handoff":
             self._authorize_cookie(handler)
-            return _json_response(200, {"instructions": review_handoff(
-                Path(self.runtime.configuration.source_path), self.runtime.state_root,
-                self.runtime.configuration.convergence_state_root,
-            )})
+            return _json_response(
+                200,
+                {
+                    "instructions": review_handoff(
+                        Path(self.runtime.configuration.source_path),
+                        self.runtime.state_root,
+                        self.runtime.configuration.convergence_state_root,
+                    )
+                },
+            )
         if path == f"{review_root}api/v1/inspection":
             self._authorize_cookie(handler)
             if self.runtime.inspection is None:
@@ -804,19 +833,13 @@ class ReviewServer:
         handshake_endpoint = f"/r/{self.runtime.session.review_id}/api/v1/handshake"
         session_endpoint = f"/r/{self.runtime.session.review_id}/api/v1/session"
         inspection_endpoint = (
-            f"/r/{self.runtime.session.review_id}/api/v1/inspection"
-            if self.runtime.inspection is not None
-            else ""
+            f"/r/{self.runtime.session.review_id}/api/v1/inspection" if self.runtime.inspection is not None else ""
         )
         convergence_approve_endpoint = f"/r/{self.runtime.session.review_id}/api/v1/convergence/approve"
         convergence_reject_endpoint = f"/r/{self.runtime.session.review_id}/api/v1/convergence/reject"
         share_available = comparison and self._share_status().get("status") == "available"
-        share_prepare_endpoint = (
-            f"/r/{self.runtime.session.review_id}/api/v1/share/prepare" if share_available else ""
-        )
-        share_publish_endpoint = (
-            f"/r/{self.runtime.session.review_id}/api/v1/share/publish" if share_available else ""
-        )
+        share_prepare_endpoint = f"/r/{self.runtime.session.review_id}/api/v1/share/prepare" if share_available else ""
+        share_publish_endpoint = f"/r/{self.runtime.session.review_id}/api/v1/share/publish" if share_available else ""
         share_button_markup = (
             "<button id=share-toggle class=secondary type=button aria-controls=studio-panel>Share</button>"
             if share_available
@@ -854,8 +877,7 @@ class ReviewServer:
                 if verification_status == "conformant"
                 else "This exact revision passed semantic compilation and artifact integrity checks. Viewport verification was not run."
             )
-        if comparison:
-            assert react_frame is not None
+        if react_frame is not None:
             frame_markup = (
                 "<div id=fit-shell class=fit-shell><div id=fit-stage class=compare-stage data-studio-comparison=true>"
                 f"<div class=target-frame data-studio-surface='html-tailwind-app' data-studio-surface-active=false aria-hidden=true inert><span>Static</span><iframe id=artifact tabindex=-1 data-studio-frame data-target='html-tailwind-app' "
@@ -1255,9 +1277,7 @@ class ReviewServer:
             f"<span class=revision>Requests: <strong id=queued>{initial_queued_events}</strong></span></div></div>"
             "<main class=layout id=studio-main><section class=canvas aria-label='Checked interface canvas'>"
             "<p id=annotation-help hidden>In the canvas: ↑ / ↓ move between visible elements · Home / End jump · Enter / Space comment. Escape closes the request panel. Ctrl / ⌘ I switches mode.</p>"
-            f"<div class=stage>{frame_markup}</div>"
-            + APPROVAL_HTML
-            + "</section>"
+            f"<div class=stage>{frame_markup}</div>" + APPROVAL_HTML + "</section>"
             "<aside id=studio-panel class=panel aria-hidden=true inert><header class=panel-head><div><span class=eyebrow>One continuous loop</span>"
             "<h1>Point. Ask. Approve.</h1></div><button id=panel-close class='secondary panel-close' type=button>Close</button></header>"
             "<p class=panel-intro>Proof, requests, and decisions appear here when they matter.</p>"
@@ -1291,7 +1311,8 @@ class ReviewServer:
             "<option value=approval>Approval</option><option value=note>Note</option></select></details>"
             "<div class=action-row><button id=send class=primary type=button>Send to agent</button>"
             "<button id=send-end class=secondary type=button>Send &amp; end</button></div></section></aside></main>"
-            + HANDOFF_HTML + f"<script>{script}</script></body></html>"
+            + HANDOFF_HTML
+            + f"<script>{script}</script></body></html>"
         ).encode("utf-8")
         csp = (
             "default-src 'none'; "
@@ -1316,17 +1337,25 @@ class ReviewServer:
             if rendered["status"] == "ready":
                 preview_id = rendered["preview_id"]
                 prefix = f"/approval-frame/{self._frame_ticket}/{preview_id}"
-                targets = {"html-tailwind-app": "static/index.html", "react-tailwind-app": "react/index.html"} if comparison else {self.runtime.built.revision.target: "index.html"}
+                targets = (
+                    {"html-tailwind-app": "static/index.html", "react-tailwind-app": "react/index.html"}
+                    if comparison
+                    else {self.runtime.built.revision.target: "index.html"}
+                )
                 rendered["surfaces"] = {
                     target: {side: f"{prefix}/{side}/{relative}" for side in ("current", "proposed")}
                     for target, relative in targets.items()
                 }
         except ConvergeError as exc:
             self._proposal_renderer.reset()
-            convergence = None if exc.code == "CONVERGE_SESSION_NOT_FOUND" else {
-                "status": "unavailable",
-                "error_code": exc.code,
-            }
+            convergence = (
+                None
+                if exc.code == "CONVERGE_SESSION_NOT_FOUND"
+                else {
+                    "status": "unavailable",
+                    "error_code": exc.code,
+                }
+            )
         status.update(
             {
                 "frame_path": self.frame_path("static/index.html" if comparison else "index.html"),
@@ -1348,7 +1377,8 @@ class ReviewServer:
 
         with self._lock:
             if self.runtime.session.outstanding_batch is not None and (
-                self._active_polls == 0 and (
+                self._active_polls == 0
+                and (
                     self._last_agent_activity is None
                     or self._clock() - self._last_agent_activity >= AGENT_ACTIVITY_SECONDS
                 )
@@ -1372,10 +1402,7 @@ class ReviewServer:
         for event in session.events[-MAX_BROWSER_CONVERSATION_TURNS:]:
             if event.sequence <= session.cursor:
                 status = "acknowledged"
-            elif (
-                outstanding is not None
-                and outstanding.first_sequence <= event.sequence <= outstanding.last_sequence
-            ):
+            elif outstanding is not None and outstanding.first_sequence <= event.sequence <= outstanding.last_sequence:
                 status = "inactive" if self._agent_presence()["status"] == "inactive" else "working"
             else:
                 status = "queued"
@@ -1452,8 +1479,14 @@ class ReviewServer:
             if entry.content_type.startswith("text/html") and self._frame_first_served_at is None:
                 self._frame_first_served_at = self._clock()
         target = self.runtime.built.revision.target
-        surface = ("react-tailwind-app" if relative.startswith("react/") else "html-tailwind-app") if target == STUDIO_COMPARE_TARGET else target
-        return self._frame_response(entry, surface_target=surface, nonce=self.frame_nonce, initial_route=self.runtime.initial_route)
+        surface = (
+            ("react-tailwind-app" if relative.startswith("react/") else "html-tailwind-app")
+            if target == STUDIO_COMPARE_TARGET
+            else target
+        )
+        return self._frame_response(
+            entry, surface_target=surface, nonce=self.frame_nonce, initial_route=self.runtime.initial_route
+        )
 
     def _serve_proposal_frame(self, path: str) -> _Response:
         self._ensure_revision_capabilities()
@@ -1471,20 +1504,30 @@ class ReviewServer:
         with self._lock:
             if key not in self._proposal_allowlists:
                 # Bound the cache to the current proposal; old capabilities cannot be served.
-                self._proposal_allowlists = {k: v for k, v in self._proposal_allowlists.items() if k[0] == rendered.nonce}
+                self._proposal_allowlists = {
+                    k: v for k, v in self._proposal_allowlists.items() if k[0] == rendered.nonce
+                }
                 self._proposal_allowlists[key] = _artifact_allowlist(built.artifact_dir)
             relative = _canonical_frame_path(raw_relative)
             entry = self._proposal_allowlists[key].get(relative)
         if entry is None:
             raise _artifact_not_found()
         target = built.revision.target
-        surface = ("react-tailwind-app" if relative.startswith("react/") else "html-tailwind-app") if target == STUDIO_COMPARE_TARGET else target
-        response = self._frame_response(entry, surface_target=surface, nonce=rendered.nonce, initial_route=rendered.initial_route)
+        surface = (
+            ("react-tailwind-app" if relative.startswith("react/") else "html-tailwind-app")
+            if target == STUDIO_COMPARE_TARGET
+            else target
+        )
+        response = self._frame_response(
+            entry, surface_target=surface, nonce=rendered.nonce, initial_route=rendered.initial_route
+        )
         if entry.content_type.startswith("text/html"):
             self._proposal_renderer.served(preview_id, surface, side)
         return response
 
-    def _frame_response(self, entry: _ArtifactEntry, *, surface_target: str, nonce: str, initial_route: str | None) -> _Response:
+    def _frame_response(
+        self, entry: _ArtifactEntry, *, surface_target: str, nonce: str, initial_route: str | None
+    ) -> _Response:
         content = _read_exact_artifact(entry)
         headers: list[tuple[str, str]] = [("Content-Type", entry.content_type)]
         if entry.content_type.startswith("text/html"):
@@ -1575,10 +1618,7 @@ class ReviewServer:
                 or len(target) > 64
                 or target in observed_targets
                 or (route is not None and (not isinstance(route, str) or len(route.encode("utf-8")) > 512))
-                or (
-                    screen_id is not None
-                    and (not isinstance(screen_id, str) or len(screen_id.encode("utf-8")) > 256)
-                )
+                or (screen_id is not None and (not isinstance(screen_id, str) or len(screen_id.encode("utf-8")) > 256))
             ):
                 raise _http_error(400, "REVIEW_REQUEST_INVALID", "Browser handshake target value is invalid.")
             observed_targets.add(target)
@@ -1640,6 +1680,7 @@ class ReviewServer:
                 handler.wfile.write(response.body[offset : offset + STREAM_CHUNK_BYTES])
             handler.close_connection = True
         except (OSError, TimeoutError):
+            _LOGGER.debug("Review response aborted: the client disconnected or the 30-second deadline passed")
             self.last_response_error = "REVIEW_RESPONSE_TIMEOUT"
             handler.close_connection = True
 
@@ -1817,13 +1858,17 @@ def _validate_json_shape(root: dict[str, object]) -> None:
                 stack.append((child, depth + 1 if isinstance(child, (dict, list)) else depth))
         elif isinstance(value, list):
             if depth > 16 or len(value) > 256:
-                raise _http_error(400, "REVIEW_REQUEST_INVALID", "Review request JSON array or depth exceeds V0 bounds.")
+                raise _http_error(
+                    400, "REVIEW_REQUEST_INVALID", "Review request JSON array or depth exceeds V0 bounds."
+                )
             stack.extend((child, depth + 1 if isinstance(child, (dict, list)) else depth) for child in value)
         elif isinstance(value, str):
             if len(value.encode("utf-8")) > 8 * 1024:
                 raise _http_error(400, "REVIEW_REQUEST_INVALID", "Review request JSON string exceeds 8 KiB.")
         elif type(value) is int and not -(2**63) <= value <= (2**63 - 1):
-            raise _http_error(400, "REVIEW_REQUEST_INVALID", "Review request JSON integer is outside signed 64-bit range.")
+            raise _http_error(
+                400, "REVIEW_REQUEST_INVALID", "Review request JSON integer is outside signed 64-bit range."
+            )
 
 
 def _json_response(status: int, payload: dict[str, object]) -> _Response:
@@ -2036,8 +2081,7 @@ def _csp_hash(content: bytes) -> str:
 
 def _frame_annotation_style() -> bytes:
     return (
-        FRAME_ANNOTATION_CSS
-        + b"[data-viewspec-review-selected=true]{outline:3px solid #ffbd4a!important;"
+        FRAME_ANNOTATION_CSS + b"[data-viewspec-review-selected=true]{outline:3px solid #ffbd4a!important;"
         b"outline-offset:3px!important;box-shadow:0 0 0 6px rgba(255,189,74,.24)!important}"
     )
 

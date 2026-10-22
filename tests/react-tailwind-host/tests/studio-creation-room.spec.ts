@@ -170,6 +170,6 @@ test("one empty-workspace command stays in one tab through failure, check, and c
     if (existsSync(sourcePath)) {
       runViewspec(["review-end", sourcePath, "--state-dir", stateRoot, "--json"], workspace, true);
     }
-    rmSync(workspace, { recursive: true, force: true });
+    rmSync(workspace, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 });
   }
 });

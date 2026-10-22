@@ -13,21 +13,20 @@ from collections.abc import Awaitable, Callable, Mapping, MutableMapping
 from typing import Any
 
 from viewspec.studio_review_http import (
-    ReviewHTTPRequest,
-    ReviewHTTPResponse,
     STUDIO_REVIEW_HTTP_MAX_HEADER_BYTES,
     STUDIO_REVIEW_HTTP_MAX_JSON_BYTES,
     STUDIO_REVIEW_HTTP_MAX_PATH_BYTES,
+    ReviewHTTPRequest,
+    ReviewHTTPResponse,
     StudioReviewHTTPAdapter,
 )
 from viewspec.studio_review_internal import (
-    STUDIO_REVIEW_INTERNAL_AUTHENTICATED_HEADER,
+    STUDIO_REVIEW_INTERNAL_HEADER_PREFIX,
     STUDIO_REVIEW_INTERNAL_INGRESS_PATH,
     StudioReviewInternalAuth,
     StudioReviewInternalAuthError,
 )
 from viewspec.studio_share import STUDIO_SHARE_ARCHIVE_MAX_BYTES
-
 
 ASGIScope = MutableMapping[str, Any]
 ASGIMessage = MutableMapping[str, Any]
@@ -139,10 +138,12 @@ class StudioReviewASGIApp:
         headers: Mapping[str, str],
         body: bytes,
     ) -> ReviewHTTPResponse:
-        assert self.internal_auth is not None
+        internal_auth = self.internal_auth
+        if internal_auth is None:
+            raise TypeError("Private review internal ingress requires configured internal authentication.")
         method = str(scope.get("method", ""))
         try:
-            verified = self.internal_auth.verify_request(
+            verified = internal_auth.verify_request(
                 method=method,
                 path=STUDIO_REVIEW_INTERNAL_INGRESS_PATH,
                 headers=headers,
@@ -150,23 +151,20 @@ class StudioReviewASGIApp:
             )
         except StudioReviewInternalAuthError:
             return _internal_authentication_failed()
-        forwarded = {
-            **dict(verified.forwarded_headers),
-            STUDIO_REVIEW_INTERNAL_AUTHENTICATED_HEADER: "true",
-        }
         response = await asyncio.to_thread(
             self.adapter.handle,
             ReviewHTTPRequest(
                 method="POST",
                 path="/v1/reviews",
-                headers=forwarded,
+                headers=dict(verified.forwarded_headers),
                 body=body,
                 scheme="https",
+                internal_authenticated=True,
             ),
         )
         try:
             content_type = _response_content_type(response)
-            authentication = self.internal_auth.sign_response(
+            authentication = internal_auth.sign_response(
                 status=response.status,
                 path=STUDIO_REVIEW_INTERNAL_INGRESS_PATH,
                 content_type=content_type,
@@ -225,7 +223,7 @@ def _scope_headers(scope: Mapping[str, Any]) -> dict[str, str] | None:
 
 
 def _external_review_headers(headers: Mapping[str, str]) -> dict[str, str]:
-    return {name: value for name, value in headers.items() if not name.startswith("x-viewspec-internal-")}
+    return {name: value for name, value in headers.items() if not name.startswith(STUDIO_REVIEW_INTERNAL_HEADER_PREFIX)}
 
 
 async def _receive_body(receive: ASGIReceive, *, maximum: int) -> bytes | object | None:
@@ -248,10 +246,7 @@ async def _receive_body(receive: ASGIReceive, *, maximum: int) -> bytes | object
 
 
 def _is_review_path(path: str) -> bool:
-    return (
-        path in {"/v1/reviews", STUDIO_REVIEW_INTERNAL_INGRESS_PATH, "/review"}
-        or path.startswith("/review/")
-    )
+    return path in {"/v1/reviews", STUDIO_REVIEW_INTERNAL_INGRESS_PATH, "/review"} or path.startswith("/review/")
 
 
 def _invalid_request(adapter: StudioReviewHTTPAdapter) -> ReviewHTTPResponse:

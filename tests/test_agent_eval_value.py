@@ -1,14 +1,12 @@
 from __future__ import annotations
 
 import json
-from pathlib import Path
 from copy import deepcopy
+from pathlib import Path
 
 import pytest
 
 from viewspec.agent_eval import summarize_agent_eval_session
-from viewspec.app_starters import starter_react_app_bundle
-from viewspec.app_validation import validate_app_text
 from viewspec.agent_eval_value import (
     STABLE_HOOKS,
     apply_value_trial,
@@ -21,7 +19,8 @@ from viewspec.agent_eval_value import (
     validate_mutation_manifest,
     validate_stable_hooks,
 )
-
+from viewspec.app_starters import starter_react_app_bundle
+from viewspec.app_validation import validate_app_text
 
 MANIFEST = Path("conformance/agent-ui-v2/mutations/field-dispatch-lifecycle.json")
 
@@ -236,9 +235,7 @@ def test_stable_hook_validation_is_target_specific_and_rejects_missing_or_duplic
     app = _app_sources()
     assert validate_stable_hooks("viewspec-deep", app)["ok"] is True
     wrong_action = json.loads(app["viewspec.app.json"])
-    wrong_action["screens"][0]["intent_bundle"]["view_spec"]["actions"][0]["id"] = (
-        "reveal_escalation_guide"
-    )
+    wrong_action["screens"][0]["intent_bundle"]["view_spec"]["actions"][0]["id"] = "reveal_escalation_guide"
     wrong_report = validate_stable_hooks(
         "viewspec-core",
         {"viewspec.app.json": json.dumps(wrong_action)},
@@ -265,9 +262,7 @@ def test_appbundle_mutations_trigger_preregistered_native_boundaries():
         sources=sources,
     )
     numeric_payload = json.loads(numeric["viewspec.app.json"])
-    increment = next(
-        item for item in numeric_payload["mutations"] if item["id"] == "increment_reviewed_count"
-    )
+    increment = next(item for item in numeric_payload["mutations"] if item["id"] == "increment_reviewed_count")
     assert increment["ops"][0]["amount"] == 2
     assert validate_app_text(numeric["viewspec.app.json"], compile_check=True)["ok"] is True
     visibility, _fact = apply_value_trial(
@@ -276,9 +271,7 @@ def test_appbundle_mutations_trigger_preregistered_native_boundaries():
         sources=sources,
     )
     visibility_payload = json.loads(visibility["viewspec.app.json"])
-    guide = next(
-        item for item in visibility_payload["visibility"] if item["id"] == "show_escalation_panel"
-    )
+    guide = next(item for item in visibility_payload["visibility"] if item["id"] == "show_escalation_panel")
     assert guide["when"]["is"] == "falsy"
     assert validate_app_text(visibility["viewspec.app.json"], compile_check=True)["ok"] is True
     layout_mutated, _fact = apply_value_trial(

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import sys
 
 from viewspec.review_contract import canonical_json_bytes
@@ -12,16 +13,22 @@ from viewspec.studio_review_verify import (
     rebuild_studio_review_request,
 )
 
+# A fixed name, not __name__: run with `python -m` this module is __main__, outside the
+# viewspec logger tree, so its records would skip the package NullHandler and fall through
+# to logging.lastResort, which writes them to stderr.
+_LOGGER = logging.getLogger("viewspec.studio_review_worker")
 
 STUDIO_REVIEW_WORKER_SCHEMA_VERSION = 1
-_FAILURE_RESPONSE = canonical_json_bytes({
-    "schema_version": STUDIO_REVIEW_WORKER_SCHEMA_VERSION,
-    "ok": False,
-    "error": {
-        "code": "STUDIO_REVIEW_VERIFICATION_FAILED",
-        "message": "Isolated Studio review rebuild failed closed.",
-    },
-})
+_FAILURE_RESPONSE = canonical_json_bytes(
+    {
+        "schema_version": STUDIO_REVIEW_WORKER_SCHEMA_VERSION,
+        "ok": False,
+        "error": {
+            "code": "STUDIO_REVIEW_VERIFICATION_FAILED",
+            "message": "Isolated Studio review rebuild failed closed.",
+        },
+    }
+)
 
 
 def run_studio_review_worker(input_bytes: bytes) -> tuple[int, bytes]:
@@ -40,30 +47,37 @@ def run_studio_review_worker(input_bytes: bytes) -> tuple[int, bytes]:
             "evidence": evidence,
         }
         return 0, canonical_json_bytes(response)
-    except Exception:
+    except Exception as exc:
         # This is a machine-response boundary. Unexpected operational failures
-        # must not export request-derived messages or traceback paths. Process
-        # control exceptions (KeyboardInterrupt/SystemExit) still propagate.
+        # must not export request-derived messages or traceback paths, so only the
+        # exception type reaches the logger (which has no handler unless the host
+        # configures one). Process control exceptions (KeyboardInterrupt/SystemExit)
+        # still propagate.
+        _LOGGER.warning("Isolated Studio review rebuild failed closed (%s).", type(exc).__name__)
         return 1, _FAILURE_RESPONSE
 
 
 def main() -> int:
     try:
         content = sys.stdin.buffer.read(STUDIO_REVIEW_REBUILD_REQUEST_MAX_BYTES + 1)
-    except Exception:
+    except Exception as exc:
+        _LOGGER.warning("Isolated Studio review worker could not read its request (%s).", type(exc).__name__)
         status, response = 1, _FAILURE_RESPONSE
     else:
         status, response = run_studio_review_worker(content)
     try:
         sys.stdout.buffer.write(response + b"\n")
         sys.stdout.buffer.flush()
-    except Exception:
+    except Exception as exc:
         # There is no response channel left. Close the failed stream so Python
         # cannot print an ignored flush exception during interpreter shutdown.
+        _LOGGER.warning("Isolated Studio review worker could not write its response (%s).", type(exc).__name__)
         try:
             sys.stdout.close()
-        except Exception:
-            pass
+        except Exception as close_exc:
+            _LOGGER.warning(
+                "Isolated Studio review worker could not close its response stream (%s).", type(close_exc).__name__
+            )
         return 1
     return status
 

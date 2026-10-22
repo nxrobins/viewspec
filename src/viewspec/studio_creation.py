@@ -2,12 +2,13 @@
 
 from __future__ import annotations
 
+import contextlib
 import hashlib
 import json
 import os
-from pathlib import Path
 import stat
 import tempfile
+from pathlib import Path
 from typing import Any
 
 from viewspec._version import __version__
@@ -19,7 +20,6 @@ from viewspec.local_tools import LocalToolError, atomic_write, resolve_cwd, reso
 from viewspec.prove import prove
 from viewspec.review_compile import capture_source_snapshot
 from viewspec.review_contract import ReviewContractError, canonical_json_bytes
-
 
 STUDIO_CREATION_SCHEMA_VERSION = 1
 STUDIO_CREATION_TASK_DEFAULT = ".viewspec/studio-creation-task.json"
@@ -66,6 +66,8 @@ _TASK_FIELDS = {
 }
 _REFERENCE_FIELDS = {"bytes", "height", "media_type", "path", "sha256", "width"}
 _REFERENCE_MEDIA_TYPES = {"image/jpeg", "image/png", "image/webp"}
+# Proof codes for a task-bound proof directory that --force refused to replace.
+_PROOF_OUTPUT_UNRECOGNIZED_CODES = frozenset({"PROVE_OUTPUT_UNRECOGNIZED", "APP_PROOF_OUTPUT_UNRECOGNIZED"})
 
 
 class StudioCreationError(ValueError):
@@ -139,8 +141,7 @@ def prepare_studio_creation(
         except (OSError, UnicodeDecodeError):
             existing_task_text = None
     source_exists = any(
-        (root / name).exists() or (root / name).is_symlink()
-        for name in STUDIO_CREATION_SOURCE_PATHS.values()
+        (root / name).exists() or (root / name).is_symlink() for name in STUDIO_CREATION_SOURCE_PATHS.values()
     )
     if source_exists:
         if existing_task_text == task_text:
@@ -270,10 +271,17 @@ def accept_studio_creation(
         first = errors[0] if errors and isinstance(errors[0], dict) else {}
         code = str(first.get("code", "STUDIO_CREATION_PROOF_FAILED"))
         message = str(first.get("message", "The candidate did not pass its local creation proof."))
+        # A task-bound proof directory that ViewSpec cannot recognise as its own is refused rather
+        # than replaced; editing the candidate cannot clear that, so name the directory instead.
+        fix = (
+            f"Remove {task['proof_path']} yourself, then rerun studio-accept; canonical source was not published."
+            if code in _PROOF_OUTPUT_UNRECOGNIZED_CODES
+            else f"Fix only {task['candidate_path']}, then rerun studio-accept; canonical source was not published."
+        )
         raise StudioCreationError(
             "STUDIO_CREATION_PROOF_FAILED",
             f"Candidate proof failed with {code}: {message}"[:2048],
-            f"Fix only {task['candidate_path']}, then rerun studio-accept; canonical source was not published.",
+            fix,
         )
 
     source_path = _local_path(str(task["source_path"]), root=root, must_exist=False)
@@ -341,6 +349,22 @@ def inspect_studio_creation(
     }
 
 
+def inspected_task(inspected: dict[str, object]) -> dict[str, object]:
+    """Return the ``task`` mapping from :func:`inspect_studio_creation`, failing loudly on drift."""
+    task = inspected.get("task")
+    if not isinstance(task, dict):
+        raise TypeError(f"Studio creation inspection task must be a mapping, got {type(task).__name__}.")
+    return task
+
+
+def inspected_path(inspected: dict[str, object], key: str) -> Path:
+    """Return one filesystem path from :func:`inspect_studio_creation`, failing loudly on drift."""
+    value = inspected.get(key)
+    if not isinstance(value, Path):
+        raise TypeError(f"Studio creation inspection {key} must be a Path, got {type(value).__name__}.")
+    return value
+
+
 def inspect_accepted_studio_creation(
     task_path: str | Path = STUDIO_CREATION_TASK_DEFAULT,
     *,
@@ -349,14 +373,10 @@ def inspect_accepted_studio_creation(
     """Fail closed unless canonical source is the exact retained checked candidate."""
 
     inspected = inspect_studio_creation(task_path, cwd=cwd)
-    task = inspected["task"]
-    assert isinstance(task, dict)
-    candidate_path = inspected["candidate_path"]
-    source_path = inspected["source_path"]
-    proof_path = inspected["proof_path"]
-    assert isinstance(candidate_path, Path)
-    assert isinstance(source_path, Path)
-    assert isinstance(proof_path, Path)
+    task = inspected_task(inspected)
+    candidate_path = inspected_path(inspected, "candidate_path")
+    source_path = inspected_path(inspected, "source_path")
+    proof_path = inspected_path(inspected, "proof_path")
     if not source_path.exists() and not source_path.is_symlink():
         raise StudioCreationError(
             "STUDIO_CREATION_SOURCE_NOT_READY",
@@ -466,8 +486,9 @@ def _load_brief(*, brief: str | None, brief_file: str | Path | None, root: Path)
                 "The Studio creation brief is not strict UTF-8 text.",
                 "Save the brief as UTF-8 plain text.",
             ) from exc
+    elif brief is None:  # unreachable: the exclusive-input check above already failed closed
+        raise TypeError("Studio creation brief must be text when no brief file is given.")
     else:
-        assert brief is not None
         value = brief
         if len(value.encode("utf-8")) > STUDIO_CREATION_BRIEF_MAX_BYTES:
             raise StudioCreationError(
@@ -606,7 +627,9 @@ def _validate_task(value: object) -> dict[str, Any]:
     return value
 
 
-def _prove_creation_candidate(*, candidate_path: Path, source_kind: str, proof_path: Path, root: Path) -> dict[str, Any]:
+def _prove_creation_candidate(
+    *, candidate_path: Path, source_kind: str, proof_path: Path, root: Path
+) -> dict[str, Any]:
     force = proof_path.exists()
     if source_kind == "intent_bundle":
         return prove(
@@ -711,17 +734,13 @@ def _publish_exclusive(path: Path, content: bytes) -> None:
         ) from exc
     finally:
         if temp_path is not None:
-            try:
+            with contextlib.suppress(OSError):
                 os.unlink(temp_path)
-            except OSError:
-                pass
 
 
 def _require_blank_workspace(root: Path) -> None:
     existing = [
-        name
-        for name in STUDIO_CREATION_SOURCE_PATHS.values()
-        if (root / name).exists() or (root / name).is_symlink()
+        name for name in STUDIO_CREATION_SOURCE_PATHS.values() if (root / name).exists() or (root / name).is_symlink()
     ]
     if existing:
         raise StudioCreationError(

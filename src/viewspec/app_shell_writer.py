@@ -9,8 +9,9 @@ from typing import Any
 from viewspec._version import __version__
 from viewspec.app_diff import _validation_summary
 from viewspec.app_paths import _assert_under_proof_root, _prepare_app_shell_output_dir
-from viewspec.app_prepared import _PreparedAppShell
+from viewspec.app_prepared import PreparedAppShell
 from viewspec.app_reports import _write_bounded_json
+from viewspec.app_resource_repeat import resource_repeat_summary
 from viewspec.app_shell import (
     APP_SHELL_MAX_MANIFEST_BYTES,
     APP_SHELL_ROUTE_NAVIGATION,
@@ -20,7 +21,6 @@ from viewspec.app_shell import (
     _screen_shell_summaries,
 )
 from viewspec.app_state_artifacts import _write_state_artifacts
-from viewspec.app_resource_repeat import resource_repeat_summary
 from viewspec.app_validation import _app_schema_version, _app_summary, _resource_binding_report_fields
 from viewspec.local_tools import atomic_write, file_hash
 from viewspec.presentation_plan import (
@@ -30,10 +30,10 @@ from viewspec.presentation_plan import (
 )
 
 
-def _write_static_app_shell(
+def write_static_app_shell(
     payload: dict[str, Any],
     screen_reports: list[dict[str, Any]],
-    prepared: _PreparedAppShell,
+    prepared: PreparedAppShell,
     *,
     root: Path,
     force: bool,
@@ -71,7 +71,9 @@ def _write_static_app_shell(
     )
     if state_artifacts is not None:
         manifest["state_ir"] = state_artifacts["manifest_summary"]
-    _write_bounded_json(prepared.manifest_path, manifest, limit=APP_SHELL_MAX_MANIFEST_BYTES, code="APP_SHELL_MANIFEST_WRITE_FAILED")
+    _write_bounded_json(
+        prepared.manifest_path, manifest, limit=APP_SHELL_MAX_MANIFEST_BYTES, code="APP_SHELL_MANIFEST_WRITE_FAILED"
+    )
     shell_manifest_hash = file_hash(prepared.manifest_path)
     diagnostics = {
         "schema_version": 1,
@@ -91,7 +93,12 @@ def _write_static_app_shell(
         **({"state_contract_hash": state_artifacts["contract_hash"]} if state_artifacts is not None else {}),
         **({"state_reducer_conformance": state_artifacts["conformance"]} if state_artifacts is not None else {}),
     }
-    _write_bounded_json(prepared.diagnostics_path, diagnostics, limit=APP_SHELL_MAX_MANIFEST_BYTES, code="APP_SHELL_DIAGNOSTICS_WRITE_FAILED")
+    _write_bounded_json(
+        prepared.diagnostics_path,
+        diagnostics,
+        limit=APP_SHELL_MAX_MANIFEST_BYTES,
+        code="APP_SHELL_DIAGNOSTICS_WRITE_FAILED",
+    )
     return {
         "ok": True,
         "target": APP_SHELL_TARGET,
@@ -144,4 +151,7 @@ def _write_static_app_shell(
     }
 
 
-__all__ = ["_write_static_app_shell"]
+# Backward-compatible private alias; write_static_app_shell is the public name.
+_write_static_app_shell = write_static_app_shell
+
+__all__ = ["write_static_app_shell"]

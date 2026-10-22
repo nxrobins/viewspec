@@ -1,11 +1,12 @@
 from __future__ import annotations
 
-from dataclasses import replace
 import hashlib
 import json
+from dataclasses import replace
 
-from hypothesis import given, strategies as st
 import pytest
+from hypothesis import given
+from hypothesis import strategies as st
 
 from viewspec.verification import (
     DEFAULT_VIEWPORTS,
@@ -16,7 +17,6 @@ from viewspec.verification import (
     VerificationResult,
     build_verification_id,
 )
-
 
 SHA256 = "a" * 64
 

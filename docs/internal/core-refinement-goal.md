@@ -138,7 +138,7 @@ evidence that the generated interface is desirable or shippable.
 ## Exit evidence
 
 The first complete evaluation passed on 2026-07-21. The canonical record is
-[`conformance/refinement/gate-status-v1.json`](../conformance/refinement/gate-status-v1.json). It
+[`conformance/refinement/gate-status-v1.json`](../../conformance/refinement/gate-status-v1.json). It
 binds all eight gates to the checked-in ten-case browser report, responsive screenshots, product
 quality scorecard, correction proof, negative corpus, clean-workspace journey, determinism tests,
 and full-suite result from the same working revision.

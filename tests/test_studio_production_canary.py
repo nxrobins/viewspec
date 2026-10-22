@@ -6,15 +6,14 @@ from pathlib import Path
 import pytest
 
 from scripts.check_studio_production_canary import (
-    CanaryError,
     STAGE_KINDS,
+    CanaryError,
     _canonical_bytes,
     _sha256_bytes,
     build_share_release_payload,
     deployment_manifest_sha256,
     evaluate_canary,
 )
-
 
 RUN_ID = "vsrcan_" + "1" * 32
 BUILD_MANIFEST = {
@@ -341,12 +340,15 @@ def test_an_approved_image_cannot_be_used_in_the_wrong_role(tmp_path, app_index)
 
 
 @pytest.mark.parametrize("app_index", [0, 1, 2])
-@pytest.mark.parametrize("field,replacement", [
-    ("image_digest", "sha256:" + "f" * 64),
-    ("source_revision", "f" * 40),
-    ("public_sdk_revision", "f" * 40),
-    ("public_sdk_wheel_sha256", "f" * 64),
-])
+@pytest.mark.parametrize(
+    "field,replacement",
+    [
+        ("image_digest", "sha256:" + "f" * 64),
+        ("source_revision", "f" * 40),
+        ("public_sdk_revision", "f" * 40),
+        ("public_sdk_wheel_sha256", "f" * 64),
+    ],
+)
 def test_each_live_role_must_match_frozen_provenance(tmp_path, app_index, field, replacement):
     report = _canary(tmp_path)
     _mutate_stage(report, "deployment", lambda value: value["apps"][app_index].update({field: replacement}))
@@ -354,11 +356,19 @@ def test_each_live_role_must_match_frozen_provenance(tmp_path, app_index, field,
         evaluate_canary(report)
 
 
-@pytest.mark.parametrize("field", [
-    "source_revision", "public_sdk_revision", "public_sdk_wheel_sha256", "api_image_digest", "studio_image_digest",
-])
+@pytest.mark.parametrize(
+    "field",
+    [
+        "source_revision",
+        "public_sdk_revision",
+        "public_sdk_wheel_sha256",
+        "api_image_digest",
+        "studio_image_digest",
+    ],
+)
 def test_rebinding_manifest_and_live_roles_cannot_replace_frozen_build(tmp_path, field):
     report = _canary(tmp_path)
+
     def mutate(value):
         replacement = "sha256:" + "f" * 64 if field.endswith("image_digest") else "f" * len(BUILD_MANIFEST[field])
         value["build_manifest"][field] = replacement
@@ -367,17 +377,25 @@ def test_rebinding_manifest_and_live_roles_cannot_replace_frozen_build(tmp_path,
                 app[field] = replacement
             elif (field == "api_image_digest") == (app["app_id"] == "viewspec-api"):
                 app["image_digest"] = replacement
+
     _mutate_stage(report, "deployment", mutate)
     with pytest.raises(CanaryError, match="does not match the frozen deployment hash"):
         evaluate_canary(report)
 
 
-@pytest.mark.parametrize("change", [
-    {"schema_version": True}, {"schema_version": 2}, {"source_revision": "main"},
-    {"public_sdk_revision": "latest"}, {"public_sdk_wheel_sha256": "not-a-hash"},
-    {"api_image_digest": "registry/app:latest"}, {"studio_image_digest": "sha256:" + "E" * 64},
-    {"unknown": True},
-])
+@pytest.mark.parametrize(
+    "change",
+    [
+        {"schema_version": True},
+        {"schema_version": 2},
+        {"source_revision": "main"},
+        {"public_sdk_revision": "latest"},
+        {"public_sdk_wheel_sha256": "not-a-hash"},
+        {"api_image_digest": "registry/app:latest"},
+        {"studio_image_digest": "sha256:" + "E" * 64},
+        {"unknown": True},
+    ],
+)
 def test_build_manifest_is_closed_and_immutable(change):
     with pytest.raises(CanaryError):
         deployment_manifest_sha256({**BUILD_MANIFEST, **change})

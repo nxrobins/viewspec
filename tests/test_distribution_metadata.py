@@ -6,7 +6,6 @@ from pathlib import Path
 
 import viewspec
 
-
 ROOT = Path(__file__).resolve().parents[1]
 
 
@@ -19,9 +18,9 @@ def test_package_metadata_exposes_expected_cli_and_optional_extras():
 
     assert pyproject["project"]["scripts"]["viewspec"] == "viewspec.cli:main"
     extras = pyproject["project"]["optional-dependencies"]
-    assert "mcp>=1.9.0" in extras["agents"]
+    assert "mcp>=1.9.0,<2" in extras["agents"]
     assert "httpx>=0.27.0" in extras["remote"]
-    assert "cryptography>=50.0.1,<51" in extras["remote"]
+    assert "cryptography>=50.0.1,<53" in extras["remote"]
     assert "build>=1.2" in extras["dev"]
     assert "pytest>=8.0" in extras["dev"]
     assert "hypothesis>=6.100,<7" in extras["dev"]
@@ -64,6 +63,13 @@ def test_react_tailwind_host_fixture_uses_span_aware_layout_language():
 
     assert "aesthetic layout assertions" in script
     assert "aesthetic layout grid assertions" not in script
+
+
+def test_schema_stub_is_packaged_next_to_py_typed():
+    assert resources.files("viewspec").joinpath("py.typed").is_file()
+    schema = resources.files("viewspec.schema")
+    for name in ("__init__.py", "viewspec_pb2.py", "viewspec_pb2.pyi"):
+        assert schema.joinpath(name).is_file(), name
 
 
 def test_top_level_package_exports_summary_helpers():

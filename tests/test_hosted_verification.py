@@ -1,9 +1,9 @@
 from __future__ import annotations
 
 import base64
-from copy import deepcopy
 import hashlib
 import json
+from copy import deepcopy
 from types import SimpleNamespace
 
 import pytest

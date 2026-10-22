@@ -2,8 +2,9 @@ from __future__ import annotations
 
 import json
 
-from hypothesis import given, strategies as st
 import pytest
+from hypothesis import given
+from hypothesis import strategies as st
 
 from viewspec.review_contract import ReviewContractError
 from viewspec.review_manifest import MAX_ANCESTOR_DEPTH, MAX_MANIFEST_NODES, ReviewManifestIndex

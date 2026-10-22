@@ -9,11 +9,11 @@ IntentBundle assembled below.
 
 from __future__ import annotations
 
+import html
 import json
 import re
 import shutil
 import sys
-import html
 from pathlib import Path
 from typing import Any
 
@@ -22,7 +22,6 @@ from viewspec.aesthetics import profile_layout_props, profile_style_values
 from viewspec.emitters.html_tailwind import HtmlTailwindEmitter
 from viewspec.intent_tools import wrap_intent_bundle_manifest
 from viewspec.local_tools import source_hash
-
 
 ROOT = Path(__file__).resolve().parents[1]
 DEMOS = ROOT / "demos"
@@ -65,7 +64,7 @@ def _profile_slug(profile: str) -> str:
 def _human_list(values: list[str]) -> str:
     if len(values) < 2:
         return "".join(values)
-    return f'{", ".join(values[:-1])}, and {values[-1]}'
+    return f"{', '.join(values[:-1])}, and {values[-1]}"
 
 
 def build_bundle(aesthetic_profile: str | None = None):
@@ -99,7 +98,7 @@ def build_bundle(aesthetic_profile: str | None = None):
     quality_evidence = builder.add_dashboard("quality_evidence", region="main", group_id="quality_evidence")
     quality_evidence.add_card(
         label="browser corpus",
-        value=f'{corpus["conformant_count"]}/{corpus["case_count"]} conformant',
+        value=f"{corpus['conformant_count']}/{corpus['case_count']} conformant",
     )
     quality_evidence.add_card(
         label="viewports",
@@ -108,20 +107,20 @@ def build_bundle(aesthetic_profile: str | None = None):
     quality_evidence.add_card(
         label="product quality",
         value=(
-            f'{quality["first_compile_pass_count"]}/{corpus["case_count"]} first-compile passes · '
-            f'{quality["critical_issue_count"]} critical issues'
+            f"{quality['first_compile_pass_count']}/{corpus['case_count']} first-compile passes · "
+            f"{quality['critical_issue_count']} critical issues"
         ),
     )
     quality_evidence.add_card(
         label="semantic corrections",
         value=(
-            f'{corrections["verified_preview_count"]}/{corrections["case_count"]} verified previews · '
-            f'{corrections["applied_receipt_count"]} applied receipts'
+            f"{corrections['verified_preview_count']}/{corrections['case_count']} verified previews · "
+            f"{corrections['applied_receipt_count']} applied receipts"
         ),
     )
     quality_evidence.add_card(
         label="refinement gates",
-        value=f'{refinement["gate_count"]}/{refinement["gate_count"]} passed',
+        value=f"{refinement['gate_count']}/{refinement['gate_count']} passed",
     )
 
     compile_flow = builder.add_dashboard("compile_flow", region="main", group_id="compile_flow")
@@ -154,7 +153,9 @@ def build_bundle(aesthetic_profile: str | None = None):
     agent_workflow = builder.add_table("agent_workflow", region="main", group_id="agent_workflow")
     agent_workflow.add_row(label="describe", value="Author IntentBundle or AppBundle JSON.")
     agent_workflow.add_row(label="validate", value="viewspec validate-intent fails closed on drift.")
-    agent_workflow.add_row(label="prove", value="viewspec prove --intent compiles, checks, and renders the exact artifact.")
+    agent_workflow.add_row(
+        label="prove", value="viewspec prove --intent compiles, checks, and renders the exact artifact."
+    )
 
     pricing = builder.add_table("pricing", region="main", group_id="pricing")
     pricing.add_row(label="Free", value="Local SDK. Unlimited compiles, proofs, and surfaces.")
@@ -163,7 +164,9 @@ def build_bundle(aesthetic_profile: str | None = None):
 
     artifact_identity = builder.add_dashboard("artifact_identity", region="main", group_id="artifact_identity")
     artifact_identity.add_card(label="provenance", value="Every element traces to its address.")
-    artifact_identity.add_card(label="determinism", value="Same source, design, and compiler version; same bytes and hash.")
+    artifact_identity.add_card(
+        label="determinism", value="Same source, design, and compiler version; same bytes and hash."
+    )
 
     builder.add_style("s_launch_hero", "launch_hero", "emphasis.high")
     builder.add_style("s_proof_badges", "proof_badges", "surface.subtle")
@@ -375,9 +378,27 @@ def _json_ld() -> str:
                     "Hosted compiler API at api.viewspec.dev for IntentBundle workflows",
                 ],
                 "offers": [
-                    {"@type": "Offer", "name": "Free", "price": "0", "priceCurrency": "USD", "url": "https://viewspec.dev/#pricing"},
-                    {"@type": "Offer", "name": "Pro", "price": "149", "priceCurrency": "USD", "url": "https://viewspec.dev/#pricing"},
-                    {"@type": "Offer", "name": "Enterprise", "price": "Custom", "priceCurrency": "USD", "url": "https://viewspec.dev/#pricing"},
+                    {
+                        "@type": "Offer",
+                        "name": "Free",
+                        "price": "0",
+                        "priceCurrency": "USD",
+                        "url": "https://viewspec.dev/#pricing",
+                    },
+                    {
+                        "@type": "Offer",
+                        "name": "Pro",
+                        "price": "149",
+                        "priceCurrency": "USD",
+                        "url": "https://viewspec.dev/#pricing",
+                    },
+                    {
+                        "@type": "Offer",
+                        "name": "Enterprise",
+                        "price": "Custom",
+                        "priceCurrency": "USD",
+                        "url": "https://viewspec.dev/#pricing",
+                    },
                 ],
                 "publisher": {"@id": "https://viewspec.dev/#organization"},
             },
@@ -424,17 +445,15 @@ def _profile_buttons(profile_evidence: dict[str, Any]) -> str:
         data = profile_evidence["profiles"][profile]
         active = profile == default_profile
         buttons.append(
-            (
-                '<button type="button" class="artifact-button artifact-profile-button" '
-                f'data-profile-token="{html.escape(profile, quote=True)}" '
-                f'data-profile-slug="{html.escape(data["slug"], quote=True)}" '
-                f'data-active="{"true" if active else "false"}" '
-                f'aria-pressed="{"true" if active else "false"}" '
-                f'aria-label="Use {html.escape(data["label"], quote=True)} compiled aesthetic profile">'
-                f'<span>{html.escape(data["label"])}</span>'
-                f'<code>{html.escape(profile)}</code>'
-                "</button>"
-            )
+            '<button type="button" class="artifact-button artifact-profile-button" '
+            f'data-profile-token="{html.escape(profile, quote=True)}" '
+            f'data-profile-slug="{html.escape(data["slug"], quote=True)}" '
+            f'data-active="{"true" if active else "false"}" '
+            f'aria-pressed="{"true" if active else "false"}" '
+            f'aria-label="Use {html.escape(data["label"], quote=True)} compiled aesthetic profile">'
+            f"<span>{html.escape(data['label'])}</span>"
+            f"<code>{html.escape(profile)}</code>"
+            "</button>"
         )
     return "".join(buttons)
 
@@ -464,7 +483,9 @@ def _profile_projection(style_values: dict[str, Any], artifact_body: str, profil
     match = re.search(r'id="dom-binding_launch_hero_title"[^>]*?font-family:\s*([^;"]+)', artifact_body)
     font_family = match.group(1).strip() if match else "ui-sans-serif, system-ui, sans-serif"
     first = font_family.split(",")[0]
-    font_label = "mono" if "mono" in first else ("sans" if "sans" in first else ("serif" if "serif" in first else "sans"))
+    font_label = (
+        "mono" if "mono" in first else ("sans" if "sans" in first else ("serif" if "serif" in first else "sans"))
+    )
     layout = profile_layout_props(profile)
     cols = int(layout.get("metric_grid", {}).get("columns", 2) or 2)
     metric_card = layout.get("metric_card") or {}
@@ -501,24 +522,26 @@ def _projection_viewport_css() -> str:
         gap = _css_last_value(sv.get("density.regular", ""), "gap") or "0.8rem"
         pad = _css_last_value(sv.get("density.regular", ""), "padding") or "0.8rem"
         accent = _css_last_value(sv.get("tone.accent", ""), "color") or "#0f766e"
-        rules.append(f'{sel}{{ {sv["palette.temperature"]} {sv["tone.neutral"]} }}')
-        rules.append(f'{sel} .dvcard{{ {sv["surface.subtle"]} padding: calc({pad.split()[0]} * 1.6) calc({pad.split()[-1]} * 1.4); }}')
-        rules.append(f'{sel} .dvgrid{{ grid-template-columns: repeat({cols}, minmax(0, 1fr)); gap: {gap}; }}')
-        rules.append(f'{sel} .dvh{{ {sv["rhythm.hierarchy"]} }}')
-        rules.append(f'{sel} .dvlabel{{ {sv["tone.muted"]} }}')
-        rules.append(f'{sel} .dvdelta{{ {sv["tone.accent"]} }}')
-        rules.append(f'{sel} .dvnum{{ {sv["emphasis.high"]} }}')
-        rules.append(f'{sel} .dvbtn{{ {sv["action.accent"]} }}')
-        rules.append(f'{sel} .dvflow{{ {sv["narrative.flow"]} }}')
+        rules.append(f"{sel}{{ {sv['palette.temperature']} {sv['tone.neutral']} }}")
         rules.append(
-            f'{sel} .spark-line{{ stroke: {accent}; }} '
-            f'{sel} .spark-dot{{ fill: {accent}; }} '
-            f'{sel} .spark-fill{{ fill: {_rgba(accent, 0.14)}; }}'
+            f"{sel} .dvcard{{ {sv['surface.subtle']} padding: calc({pad.split()[0]} * 1.6) calc({pad.split()[-1]} * 1.4); }}"
+        )
+        rules.append(f"{sel} .dvgrid{{ grid-template-columns: repeat({cols}, minmax(0, 1fr)); gap: {gap}; }}")
+        rules.append(f"{sel} .dvh{{ {sv['rhythm.hierarchy']} }}")
+        rules.append(f"{sel} .dvlabel{{ {sv['tone.muted']} }}")
+        rules.append(f"{sel} .dvdelta{{ {sv['tone.accent']} }}")
+        rules.append(f"{sel} .dvnum{{ {sv['emphasis.high']} }}")
+        rules.append(f"{sel} .dvbtn{{ {sv['action.accent']} }}")
+        rules.append(f"{sel} .dvflow{{ {sv['narrative.flow']} }}")
+        rules.append(
+            f"{sel} .spark-line{{ stroke: {accent}; }} "
+            f"{sel} .spark-dot{{ fill: {accent}; }} "
+            f"{sel} .spark-fill{{ fill: {_rgba(accent, 0.14)}; }}"
         )
         metric_card = layout.get("metric_card") or {}
         span = metric_card.get("span_columns")
         if span:
-            rules.append(f'{sel} .dvcard.featured{{ grid-column: span {span}; }}')
+            rules.append(f"{sel} .dvcard.featured{{ grid-column: span {span}; }}")
     return "\n".join(rules)
 
 
@@ -1535,19 +1558,19 @@ def _public_html(generated_html: str, profile_evidence: dict[str, Any]) -> str:
     evidence_role_text = _human_list(["DOM" if role == "dom" else role for role in corpus["evidence_roles"]])
     core_evidence = (
         '<div class="core-evidence" id="core-evidence" data-public-fact="core-refinement">'
-        f'<h3>Checked core workflow &middot; {corpus["conformant_count"]}/{corpus["case_count"]} conformant</h3>'
-        f'<p>All {quality["first_compile_pass_count"]} fixed cases passed product quality on first compile '
-        f'with {quality["critical_issue_count"]} critical issues, rendered at {html.escape(viewport_text)} '
-        f'with {html.escape(evidence_role_text)} evidence, and completed '
-        f'{corrections["verified_preview_count"]}/{corrections["case_count"]} verified semantic corrections '
-        f'with {corrections["applied_receipt_count"]} applied receipts. '
+        f"<h3>Checked core workflow &middot; {corpus['conformant_count']}/{corpus['case_count']} conformant</h3>"
+        f"<p>All {quality['first_compile_pass_count']} fixed cases passed product quality on first compile "
+        f"with {quality['critical_issue_count']} critical issues, rendered at {html.escape(viewport_text)} "
+        f"with {html.escape(evidence_role_text)} evidence, and completed "
+        f"{corrections['verified_preview_count']}/{corrections['case_count']} verified semantic corrections "
+        f"with {corrections['applied_receipt_count']} applied receipts. "
         '<a href="./proof-explorer/"><strong>Explore the retained evidence</strong></a> &middot; '
         f'<a href="{html.escape(refinement["gate_status_url"], quote=True)}" target="_blank" rel="noopener">'
-        'Eight-gate result</a> &middot; '
+        "Eight-gate result</a> &middot; "
         f'<a href="{html.escape(refinement["scorecard_url"], quote=True)}" target="_blank" rel="noopener">'
-        'Scorecard</a> &middot; '
+        "Scorecard</a> &middot; "
         f'<a href="{html.escape(corrections["proof_url"], quote=True)}" target="_blank" rel="noopener">'
-        'Correction proof</a>. Fixed-corpus evidence is not certification of arbitrary briefs or host apps.</p>'
+        "Correction proof</a>. Fixed-corpus evidence is not certification of arbitrary briefs or host apps.</p>"
         "</div>"
     )
 
@@ -1559,7 +1582,7 @@ def _public_html(generated_html: str, profile_evidence: dict[str, Any]) -> str:
         '<span class="dots"><i></i><i></i><i></i></span></div>'
         f'<section id="viewspec-artifact-slot" class="viewspec-artifact-slot" '
         f'data-active-profile="{html.escape(DEFAULT_PROFILE, quote=True)}">' + body + "</section>"
-        '</div>'
+        "</div>"
         '<div class="artifact-window-foot">the entire homepage artifact, embedded live &middot; '
         '<a href="./landing-compiled/" target="_blank" rel="noopener">open it full-page &#8599;</a></div>'
     )
@@ -1576,7 +1599,7 @@ def _public_html(generated_html: str, profile_evidence: dict[str, Any]) -> str:
             f'data-profile-slug="{html.escape(data["slug"], quote=True)}" '
             f'aria-pressed="{"true" if active else "false"}" '
             f'aria-label="Use {html.escape(data["label"], quote=True)} compiled aesthetic profile">'
-            f'{html.escape(short)}</button>'
+            f"{html.escape(short)}</button>"
         )
     profile_buttons = "".join(pills)
 
@@ -1590,8 +1613,7 @@ def _public_html(generated_html: str, profile_evidence: dict[str, Any]) -> str:
     )
 
     page_body = (
-        PAGE_BODY_TEMPLATE
-        .replace("{{REAL_ARTIFACT}}", real_artifact)
+        PAGE_BODY_TEMPLATE.replace("{{REAL_ARTIFACT}}", real_artifact)
         .replace("{{PROFILE_BUTTONS}}", profile_buttons)
         .replace("{{PRICING_ACTIONS}}", pricing_actions)
         .replace("{{CORE_REFINEMENT_EVIDENCE}}", core_evidence)
@@ -1661,7 +1683,7 @@ def _public_html(generated_html: str, profile_evidence: dict[str, Any]) -> str:
             _projection_viewport_css(),
             "</style>",
             "</head>",
-            "<body data-profile=\"calm_ops\">",
+            '<body data-profile="calm_ops">',
             page_body,
             '<script type="module">',
             COMMERCE_SCRIPT,

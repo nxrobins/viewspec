@@ -6,10 +6,11 @@ import dataclasses
 import json
 from pathlib import Path
 
+from seo_metadata import demo_head_metadata
+
 from viewspec import IntentBundle, ViewSpecBuilder, compile
 from viewspec.emitters.html_tailwind import ACTION_EVENT_SCRIPT, _render_node
-from viewspec.types import ASTBundle, DEFAULT_STYLE_TOKEN_VALUES
-from seo_metadata import demo_head_metadata
+from viewspec.types import DEFAULT_STYLE_TOKEN_VALUES, ASTBundle
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -162,11 +163,11 @@ def build_page(variants: dict[str, dict[str, object]]) -> str:
     variants_json = json.dumps(variant_data, indent=2, sort_keys=True)
 
     toggles = "\n".join(
-        f'''          <button type="button" data-motif="{kind}" class="motif-toggle{' active' if kind == 'table' else ''}">{meta["label"]}</button>'''
+        f'''          <button type="button" data-motif="{kind}" class="motif-toggle{" active" if kind == "table" else ""}">{meta["label"]}</button>'''
         for kind, meta in MOTIFS.items()
     )
     views = "\n".join(
-        f'''        <section id="view-{kind}" class="motif-view{' active' if kind == 'table' else ''}" data-view="{kind}" aria-label="{MOTIFS[kind]["label"]} view">
+        f'''        <section id="view-{kind}" class="motif-view{" active" if kind == "table" else ""}" data-view="{kind}" aria-label="{MOTIFS[kind]["label"]} view">
           {data["fragment"]}
         </section>'''
         for kind, data in variants.items()

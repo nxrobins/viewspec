@@ -9,15 +9,15 @@ runner must bind its own sandbox attestation before the result is accepted by
 
 from __future__ import annotations
 
-from collections.abc import Mapping
 import base64
 import hashlib
 import json
 import os
-from pathlib import Path
 import re
 import stat
 import tempfile
+from collections.abc import Mapping
+from pathlib import Path
 
 from viewspec.review_compile import (
     APP_SOURCE_MAX_BYTES,
@@ -43,7 +43,6 @@ from viewspec.studio_share import (
     StudioShareError,
     load_studio_share_package,
 )
-
 
 STUDIO_REVIEW_REBUILD_SCHEMA_VERSION = 1
 STUDIO_REVIEW_REBUILD_VERIFIER_ID = "viewspec-studio-rebuild-v1"
@@ -101,7 +100,8 @@ def make_studio_review_rebuild_request(
     payload = package / STUDIO_SHARE_PAYLOAD_DIR
     source = _read_bounded_file(payload / "source/viewspec.app.json", maximum=APP_SOURCE_MAX_BYTES)
     revision = checked.get("revision")
-    assert isinstance(revision, dict)
+    if not isinstance(revision, dict):
+        raise StudioReviewVerificationError("Uploaded Studio review package has no revision record.")
     design = (
         _read_bounded_file(payload / "design/DESIGN.md", maximum=DESIGN_MAX_BYTES)
         if revision.get("design_sha256") is not None
@@ -126,7 +126,8 @@ def rebuild_studio_review_request(request: Mapping[str, object]) -> dict[str, ob
         raise StudioReviewVerificationError("Isolated rebuild request is missing.")
     value = dict(request)
     if (
-        set(value) != {
+        set(value)
+        != {
             "schema_version",
             "kind",
             "envelope",
@@ -141,7 +142,8 @@ def rebuild_studio_review_request(request: Mapping[str, object]) -> dict[str, ob
     checked = _validated_rebuild_envelope(value.get("envelope"))
     source = _decode_base64(value.get("semantic_source_base64"), maximum=APP_SOURCE_MAX_BYTES)
     revision = checked["revision"]
-    assert isinstance(revision, dict)
+    if not isinstance(revision, dict):
+        raise StudioReviewVerificationError("Isolated rebuild envelope has no revision record.")
     design_value = value.get("design_system_base64")
     design = None if design_value is None else _decode_base64(design_value, maximum=DESIGN_MAX_BYTES)
     _assert_rebuild_input_identity(checked, source=source, design=design)
@@ -163,7 +165,8 @@ def _rebuild_studio_review_inputs(
             source_copy.write_bytes(source)
             design_copy: Path | None = None
             revision = checked.get("revision")
-            assert isinstance(revision, dict)
+            if not isinstance(revision, dict):
+                raise StudioReviewVerificationError("Isolated rebuild envelope has no revision record.")
             if design is not None:
                 design_copy = workspace / "DESIGN.md"
                 design_copy.write_bytes(design)
@@ -294,12 +297,8 @@ def bind_studio_review_sandbox_attestation(
             "observed_inventory_sha256": evidence["artifact_inventory"]["sha256"],
             "source_only_request": True,
             "install_used": evidence["dependency_seed"]["install_command_invoked"],
-            "lifecycle_hooks_disabled": not evidence["execution_policy"][
-                "package_lifecycle_hooks_invoked"
-            ],
-            "uploaded_artifacts_executed": evidence["execution_policy"][
-                "uploaded_artifacts_executed"
-            ],
+            "lifecycle_hooks_disabled": not evidence["execution_policy"]["package_lifecycle_hooks_invoked"],
+            "uploaded_artifacts_executed": evidence["execution_policy"]["uploaded_artifacts_executed"],
         },
         "sandbox": {
             "network": "denied",
@@ -393,7 +392,8 @@ def _assert_rebuild_input_identity(
 ) -> None:
     revision = envelope.get("revision")
     files = envelope.get("files")
-    assert isinstance(revision, dict) and isinstance(files, list)
+    if not isinstance(revision, dict) or not isinstance(files, list):
+        raise StudioReviewVerificationError("Isolated rebuild envelope revision or files are malformed.")
     source_entries = [item for item in files if isinstance(item, dict) and item.get("role") == "semantic_source"]
     design_entries = [item for item in files if isinstance(item, dict) and item.get("role") == "design_system"]
     source_sha256 = hashlib.sha256(source).hexdigest()
@@ -428,18 +428,24 @@ def _trusted_dependency_seed() -> tuple[Path, str]:
         )
     seed = Path(configured)
     if not seed.is_absolute():
-        raise StudioReviewVerificationError("Configured Studio review dependency seed is not one absolute normal directory.")
+        raise StudioReviewVerificationError(
+            "Configured Studio review dependency seed is not one absolute normal directory."
+        )
     try:
         seed_stat = seed.lstat()
     except OSError as exc:
         raise StudioReviewVerificationError("Configured Studio review dependency seed is unavailable.") from exc
     if seed.is_symlink() or not stat.S_ISDIR(seed_stat.st_mode):
-        raise StudioReviewVerificationError("Configured Studio review dependency seed is not one absolute normal directory.")
+        raise StudioReviewVerificationError(
+            "Configured Studio review dependency seed is not one absolute normal directory."
+        )
     lock = seed / ".package-lock.json"
     try:
         lock_stat = lock.lstat()
     except OSError as exc:
-        raise StudioReviewVerificationError("Configured Studio review dependency seed has no retained install lock.") from exc
+        raise StudioReviewVerificationError(
+            "Configured Studio review dependency seed has no retained install lock."
+        ) from exc
     if (
         lock.is_symlink()
         or not stat.S_ISREG(lock_stat.st_mode)
@@ -466,7 +472,9 @@ def _assert_revision_equivalent(
         "contract_profile",
     }
     if any(expected.get(field) != rebuilt.get(field) for field in base_fields):
-        raise StudioReviewVerificationError("Rebuilt Studio revision identity differs from the uploaded checked revision.")
+        raise StudioReviewVerificationError(
+            "Rebuilt Studio revision identity differs from the uploaded checked revision."
+        )
     inspection = comparison.get("inspection")
     screens = comparison.get("screens")
     targets = comparison.get("targets")

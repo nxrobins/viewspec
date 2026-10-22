@@ -7,21 +7,24 @@ logs requests, accepts capabilities in paths, or serves semantic source files.
 
 from __future__ import annotations
 
-from collections.abc import Callable, Mapping
-from dataclasses import dataclass
 import hashlib
 import json
 import os
-from pathlib import Path
 import re
 import tempfile
+from collections.abc import Callable, Mapping
+from dataclasses import dataclass
+from pathlib import Path
 from urllib.parse import unquote_to_bytes, urlsplit
 
 from viewspec.review_contract import canonical_json_bytes
 from viewspec.review_frame_readiness import FRAME_RENDER_WAIT_JS
+from viewspec.studio_review_internal import (
+    STUDIO_REVIEW_INTERNAL_AUTHENTICATED_HEADER,
+    STUDIO_REVIEW_INTERNAL_HEADER_PREFIX,
+)
 from viewspec.studio_review_service import StudioReviewService, StudioReviewServiceError
 from viewspec.studio_share import STUDIO_SHARE_ARCHIVE_MAX_BYTES
-
 
 STUDIO_REVIEW_MEDIA_TYPE = "application/vnd.viewspec.review+zip"
 STUDIO_REVIEW_COOKIE_NAME = "__Secure-viewspec_review"
@@ -38,11 +41,20 @@ UploadAuthorizer = Callable[[Mapping[str, str]], bool]
 
 @dataclass(frozen=True, slots=True)
 class ReviewHTTPRequest:
+    """One bounded deployment request.
+
+    ``internal_authenticated`` is set only by a transport that has itself verified
+    the internal API hop (the ASGI bridge after HMAC verification). Client-supplied
+    ``x-viewspec-internal-*`` headers are discarded by the adapter, so this flag is
+    the only way the authenticated marker reaches an upload authorizer.
+    """
+
     method: str
     path: str
     headers: Mapping[str, str]
     body: bytes = b""
     scheme: str = "https"
+    internal_authenticated: bool = False
 
 
 @dataclass(frozen=True, slots=True)
@@ -90,6 +102,8 @@ class StudioReviewHTTPAdapter:
 
         try:
             method, path, headers = _request_head(request)
+            if request.internal_authenticated is True:
+                headers[STUDIO_REVIEW_INTERNAL_AUTHENTICATED_HEADER] = "true"
             if request.scheme != "https":
                 raise StudioReviewServiceError(
                     "STUDIO_REVIEW_HTTPS_REQUIRED",
@@ -143,7 +157,10 @@ class StudioReviewHTTPAdapter:
                 "Authenticate with the configured deployment identity and retry.",
                 http_status=401,
             )
-        if headers.get("content-type") != STUDIO_REVIEW_MEDIA_TYPE or not 1 <= len(body) <= STUDIO_SHARE_ARCHIVE_MAX_BYTES:
+        if (
+            headers.get("content-type") != STUDIO_REVIEW_MEDIA_TYPE
+            or not 1 <= len(body) <= STUDIO_SHARE_ARCHIVE_MAX_BYTES
+        ):
             raise _http_invalid("Create requires one bounded deterministic .vsreview request body.")
         if headers.get("x-viewspec-disclosure-accepted") != "true":
             raise StudioReviewServiceError(
@@ -174,9 +191,11 @@ class StudioReviewHTTPAdapter:
             if temporary.exists():
                 temporary.unlink()
         capabilities = created.pop("fragment_capabilities")
-        assert isinstance(capabilities, dict)
+        if not isinstance(capabilities, dict):
+            raise TypeError("Private review create response fragment_capabilities must be a mapping.")
         session = created["session"]
-        assert isinstance(session, dict)
+        if not isinstance(session, dict):
+            raise TypeError("Private review create response session must be a mapping.")
         session_path = f"/review/{session['id']}/"
         payload = {
             **created,
@@ -198,7 +217,8 @@ class StudioReviewHTTPAdapter:
         exchanged = self.service.exchange_capability(session_id, payload["capability"])
         cookie_value = exchanged.pop("cookie_value")
         policy = exchanged["cookie_policy"]
-        assert isinstance(policy, dict)
+        if not isinstance(policy, dict):
+            raise TypeError("Private review exchange response cookie_policy must be a mapping.")
         max_age = int(policy["max_age"])
         cookie = (
             f"{STUDIO_REVIEW_COOKIE_NAME}={cookie_value}; Path={policy['path']}; Max-Age={max_age}; "
@@ -246,9 +266,7 @@ class StudioReviewHTTPAdapter:
             )
             marker = b"</body>"
             content = (
-                content.replace(marker, body_injection + marker, 1)
-                if marker in content
-                else content + body_injection
+                content.replace(marker, body_injection + marker, 1) if marker in content else content + body_injection
             )
             response_sha256 = hashlib.sha256(content).hexdigest()
             extra_headers = (
@@ -329,13 +347,21 @@ def _request_head(request: ReviewHTTPRequest) -> tuple[str, str, dict[str, str]]
     headers: dict[str, str] = {}
     total = 0
     for raw_name, raw_value in request.headers.items():
-        if not isinstance(raw_name, str) or not isinstance(raw_value, str) or _HEADER_NAME_RE.fullmatch(raw_name) is None:
+        if (
+            not isinstance(raw_name, str)
+            or not isinstance(raw_value, str)
+            or _HEADER_NAME_RE.fullmatch(raw_name) is None
+        ):
             raise _http_invalid("Private review request headers are invalid.")
         name = raw_name.lower()
         if name in headers or _HEADER_CONTROL_RE.search(raw_value) is not None or len(raw_value) > 8192:
             raise _http_invalid("Private review request headers are ambiguous.")
-        headers[name] = raw_value
         total += len(name) + len(raw_value)
+        if name.startswith(STUDIO_REVIEW_INTERNAL_HEADER_PREFIX):
+            # Reserved transport markers never come from a client on any transport;
+            # only the verified ``internal_authenticated`` request flag can set one.
+            continue
+        headers[name] = raw_value
     if total > STUDIO_REVIEW_HTTP_MAX_HEADER_BYTES:
         raise _http_invalid("Private review request headers exceed their bound.")
     return request.method.upper(), request.path, headers
@@ -406,8 +432,7 @@ def _json_response(
 def _asset_response(content_type: str, body: bytes) -> ReviewHTTPResponse:
     return ReviewHTTPResponse(
         status=200,
-        headers=_security_headers(shell=True)
-        + (("Content-Type", content_type), ("Content-Length", str(len(body)))),
+        headers=_security_headers(shell=True) + (("Content-Type", content_type), ("Content-Length", str(len(body)))),
         body=body,
     )
 
@@ -452,6 +477,7 @@ def _security_headers(*, shell: bool) -> tuple[tuple[str, str], ...]:
         ("X-Robots-Tag", "noindex, noarchive"),
     )
 
+
 def _http_invalid(message: str) -> StudioReviewServiceError:
     return StudioReviewServiceError(
         "STUDIO_REVIEW_HTTP_INVALID",
@@ -475,9 +501,12 @@ _HOSTED_FRAME_BOOTSTRAP = r"""(() => {
 })()"""
 
 
-_HOSTED_FRAME_CLIENT = r"""(() => {
+_HOSTED_FRAME_CLIENT = (
+    r"""(() => {
   'use strict'
-""" + FRAME_RENDER_WAIT_JS + r"""
+"""
+    + FRAME_RENDER_WAIT_JS
+    + r"""
   const ownScript = document.currentScript
   const surface = ownScript?.dataset.surface || 'unknown'
   const channel = window.__viewspecHostedReviewTransportV1?.channel || ''
@@ -572,6 +601,7 @@ _HOSTED_FRAME_CLIENT = r"""(() => {
   if (document.readyState === 'loading') addEventListener('DOMContentLoaded', announceReady, {once: true})
   else announceReady()
 })()"""
+)
 
 
 _REVIEW_HTML = """<!doctype html>

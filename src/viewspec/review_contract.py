@@ -2,13 +2,14 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 import hashlib
-import json
 import re
 import secrets
-from typing import Any, Mapping
+from collections.abc import Mapping
+from dataclasses import dataclass
+from typing import Any, Literal, overload
 
+from viewspec._canonical import canonical_json_utf8_bytes
 
 REVIEW_SCHEMA_VERSION = 1
 
@@ -77,13 +78,7 @@ class ReviewContractError(ValueError):
 def canonical_json_bytes(value: object) -> bytes:
     """Return the compact, stable UTF-8 encoding used for byte limits and hashes."""
     try:
-        return json.dumps(
-            value,
-            ensure_ascii=False,
-            allow_nan=False,
-            separators=(",", ":"),
-            sort_keys=True,
-        ).encode("utf-8")
+        return canonical_json_utf8_bytes(value)
     except (TypeError, ValueError) as exc:
         raise ReviewContractError(
             "REVIEW_EVENT_INVALID",
@@ -158,6 +153,22 @@ def _validate_hash(value: object, name: str, *, optional: bool = False) -> str |
     return value
 
 
+@overload
+def _bounded_text(value: object, name: str, maximum: int, code: str) -> str: ...
+
+
+@overload
+def _bounded_text(value: object, name: str, maximum: int, code: str, *, allow_none: Literal[False]) -> str: ...
+
+
+@overload
+def _bounded_text(value: object, name: str, maximum: int, code: str, *, allow_none: Literal[True]) -> str | None: ...
+
+
+@overload
+def _bounded_text(value: object, name: str, maximum: int, code: str, *, allow_none: bool) -> str | None: ...
+
+
 def _bounded_text(value: object, name: str, maximum: int, code: str, *, allow_none: bool = False) -> str | None:
     if value is None and allow_none:
         return None
@@ -192,7 +203,12 @@ class ReviewViewport:
 
     def __post_init__(self) -> None:
         expected = CANONICAL_VIEWPORTS.get(self.name)
-        if expected is None or type(self.width) is not int or type(self.height) is not int or expected != (self.width, self.height):
+        if (
+            expected is None
+            or type(self.width) is not int
+            or type(self.height) is not int
+            or expected != (self.width, self.height)
+        ):
             raise ReviewContractError(
                 "REVIEW_VIEWPORT_MISMATCH",
                 "Review viewport does not match a canonical V0 viewport.",
@@ -276,7 +292,10 @@ class ReviewContext:
         _bounded_text(self.screen_id, "screen id", MAX_SCREEN_ID_BYTES, "REVIEW_CONTEXT_FORBIDDEN", allow_none=True)
         if not isinstance(self.viewport, ReviewViewport):
             raise ReviewContractError(
-                "REVIEW_CONTEXT_FORBIDDEN", "Context viewport is invalid.", "Use one canonical Review viewport.", http_status=422
+                "REVIEW_CONTEXT_FORBIDDEN",
+                "Context viewport is invalid.",
+                "Use one canonical Review viewport.",
+                http_status=422,
             )
         if self.selected_text is not None and not isinstance(self.selected_text, ReviewSelectedText):
             raise ReviewContractError(
@@ -299,14 +318,19 @@ class ReviewContext:
         for item in controls:
             if not isinstance(item, tuple) or len(item) != 2:
                 raise ReviewContractError(
-                    "REVIEW_CONTEXT_FORBIDDEN", "Control context must contain key/value pairs.", "Send bounded text pairs.", http_status=422
+                    "REVIEW_CONTEXT_FORBIDDEN",
+                    "Control context must contain key/value pairs.",
+                    "Send bounded text pairs.",
+                    http_status=422,
                 )
             key = _bounded_text(item[0], "control id", MAX_SCREEN_ID_BYTES, "REVIEW_CONTEXT_FORBIDDEN")
             value = _bounded_text(item[1], "control value", MAX_CONTROL_VALUE_BYTES, "REVIEW_CONTEXT_FORBIDDEN")
-            assert key is not None and value is not None
             if key in seen:
                 raise ReviewContractError(
-                    "REVIEW_CONTEXT_FORBIDDEN", f"Duplicate control id: {key}", "Send each review-safe control once.", http_status=422
+                    "REVIEW_CONTEXT_FORBIDDEN",
+                    f"Duplicate control id: {key}",
+                    "Send each review-safe control once.",
+                    http_status=422,
                 )
             seen.add(key)
             aggregate += len(value.encode("utf-8"))
@@ -336,7 +360,6 @@ class ReviewContext:
         ref_bytes = 0
         for ref in refs:
             checked = _bounded_text(ref, "evidence ref", MAX_EVIDENCE_REF_BYTES, "REVIEW_CONTEXT_FORBIDDEN")
-            assert checked is not None
             if _SAFE_EVIDENCE_RE.fullmatch(checked) is None or checked.startswith("/") or ".." in checked.split("/"):
                 raise ReviewContractError(
                     "REVIEW_CONTEXT_FORBIDDEN",
@@ -361,12 +384,18 @@ class ReviewContext:
         allowed = {"route", "screen_id", "viewport", "selected_text", "control_values", "visibility", "evidence_refs"}
         if set(data) - allowed:
             raise ReviewContractError(
-                "REVIEW_CONTEXT_FORBIDDEN", "Context contains unknown fields.", "Remove fields outside the V0 context schema.", http_status=422
+                "REVIEW_CONTEXT_FORBIDDEN",
+                "Context contains unknown fields.",
+                "Remove fields outside the V0 context schema.",
+                http_status=422,
             )
         controls = data.get("control_values", {})
         if not isinstance(controls, Mapping):
             raise ReviewContractError(
-                "REVIEW_CONTEXT_FORBIDDEN", "control_values must be an object.", "Send bounded control key/value pairs.", http_status=422
+                "REVIEW_CONTEXT_FORBIDDEN",
+                "control_values must be an object.",
+                "Send bounded control key/value pairs.",
+                http_status=422,
             )
         selected = data.get("selected_text")
         return cls(
@@ -415,7 +444,10 @@ class ReviewRevision:
             )
         if self.source_kind not in {"intent_bundle", "app_bundle"}:
             raise ReviewContractError(
-                "REVIEW_SOURCE_UNSUPPORTED", "Review source kind is unsupported.", "Use an IntentBundle or AppBundle.", cli_exit=2
+                "REVIEW_SOURCE_UNSUPPORTED",
+                "Review source kind is unsupported.",
+                "Use an IntentBundle or AppBundle.",
+                cli_exit=2,
             )
         _validate_hash(self.source_sha256, "source_sha256")
         _validate_hash(self.design_sha256, "design_sha256", optional=True)
@@ -474,17 +506,25 @@ class ReviewTarget:
     def __post_init__(self) -> None:
         if self.kind not in {"source_node", "page"}:
             raise ReviewContractError(
-                "REVIEW_TARGET_INVALID", "Target kind must be source_node or page.", "Use a manifest-backed or page target.", http_status=422
+                "REVIEW_TARGET_INVALID",
+                "Target kind must be source_node or page.",
+                "Use a manifest-backed or page target.",
+                http_status=422,
             )
         _bounded_text(self.screen_id, "target screen id", MAX_SCREEN_ID_BYTES, "REVIEW_TARGET_INVALID", allow_none=True)
         _bounded_text(self.ir_id, "target ir id", 128, "REVIEW_TARGET_INVALID", allow_none=True)
-        _bounded_text(self.source_ref, "target source ref", MAX_TARGET_REF_BYTES, "REVIEW_TARGET_INVALID", allow_none=True)
+        _bounded_text(
+            self.source_ref, "target source ref", MAX_TARGET_REF_BYTES, "REVIEW_TARGET_INVALID", allow_none=True
+        )
         _bounded_text(self.dom_id, "target DOM id", MAX_TARGET_REF_BYTES, "REVIEW_TARGET_INVALID", allow_none=True)
         _bounded_text(self.binding_id, "target binding id", 128, "REVIEW_TARGET_INVALID", allow_none=True)
         _bounded_text(self.action_id, "target action id", 128, "REVIEW_TARGET_INVALID", allow_none=True)
         if self.target_resolution not in {"exact", "ancestor", "page", "changed", "stale"}:
             raise ReviewContractError(
-                "REVIEW_TARGET_INVALID", "Target resolution is unsupported.", "Use an exact V0 target resolution.", http_status=422
+                "REVIEW_TARGET_INVALID",
+                "Target resolution is unsupported.",
+                "Use an exact V0 target resolution.",
+                http_status=422,
             )
         if self.kind == "source_node":
             if not self.ir_id or not self.source_ref or not self.dom_id:
@@ -515,7 +555,6 @@ class ReviewTarget:
         total = 0
         for ref in (*intents, *contents):
             checked = _bounded_text(ref, "target ref", MAX_TARGET_REF_BYTES, "REVIEW_TARGET_LIMIT_EXCEEDED")
-            assert checked is not None
             total += len(checked.encode("utf-8"))
         if total > MAX_TARGET_REFS_BYTES:
             raise ReviewContractError(
@@ -575,7 +614,10 @@ class ReviewEvent:
     def __post_init__(self) -> None:
         if self.schema_version != REVIEW_SCHEMA_VERSION:
             raise ReviewContractError(
-                "REVIEW_EVENT_INVALID", "Unsupported ReviewEvent schema_version.", "Use ReviewEvent schema_version 1.", http_status=400
+                "REVIEW_EVENT_INVALID",
+                "Unsupported ReviewEvent schema_version.",
+                "Use ReviewEvent schema_version 1.",
+                http_status=400,
             )
         _validate_id(self.event_id, "event")
         if type(self.sequence) is not int or not 1 <= self.sequence <= MAX_SESSION_EVENTS:
@@ -593,7 +635,11 @@ class ReviewEvent:
                 http_status=422,
             )
         _bounded_text(self.body, "event body", MAX_BODY_BYTES, "REVIEW_EVENT_TOO_LARGE")
-        if not isinstance(self.revision, ReviewRevision) or not isinstance(self.target, ReviewTarget) or not isinstance(self.context, ReviewContext):
+        if (
+            not isinstance(self.revision, ReviewRevision)
+            or not isinstance(self.target, ReviewTarget)
+            or not isinstance(self.context, ReviewContext)
+        ):
             raise ReviewContractError(
                 "REVIEW_EVENT_INVALID",
                 "Review event revision, target, or context is invalid.",
@@ -653,7 +699,10 @@ class ReviewBatch:
     def __post_init__(self) -> None:
         if self.schema_version != REVIEW_SCHEMA_VERSION:
             raise ReviewContractError(
-                "REVIEW_BATCH_TOO_LARGE", "Unsupported ReviewBatch schema_version.", "Use ReviewBatch schema_version 1.", http_status=500
+                "REVIEW_BATCH_TOO_LARGE",
+                "Unsupported ReviewBatch schema_version.",
+                "Use ReviewBatch schema_version 1.",
+                http_status=500,
             )
         _validate_id(self.review_id, "review")
         _validate_id(self.batch_id, "batch")
@@ -667,7 +716,10 @@ class ReviewBatch:
             )
         if type(self.requires_ack) is not bool or type(self.redelivered) is not bool:
             raise ReviewContractError(
-                "REVIEW_BATCH_TOO_LARGE", "Batch delivery flags must be boolean.", "Use canonical delivery flags.", http_status=500
+                "REVIEW_BATCH_TOO_LARGE",
+                "Batch delivery flags must be boolean.",
+                "Use canonical delivery flags.",
+                http_status=500,
             )
         expected_sequences = list(range(self.first_sequence, self.last_sequence + 1))
         actual_sequences = [event.sequence for event in self.events]
@@ -707,7 +759,10 @@ class ReviewBatch:
         bounded = tuple(events)
         if not bounded:
             raise ReviewContractError(
-                "REVIEW_BATCH_TOO_LARGE", "Cannot create an empty feedback batch.", "Wait until feedback is available.", http_status=500
+                "REVIEW_BATCH_TOO_LARGE",
+                "Cannot create an empty feedback batch.",
+                "Wait until feedback is available.",
+                http_status=500,
             )
         revision = bounded[0].revision
         return cls(

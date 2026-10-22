@@ -6,11 +6,11 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
-from pathlib import Path
 import re
 import time
-from typing import Any, Mapping
-
+from collections.abc import Mapping
+from pathlib import Path
+from typing import Any
 
 SCHEMA_VERSION = 1
 VERIFIER_ID = "viewspec-studio-production-canary-v1"
@@ -584,9 +584,7 @@ def _recovery(payload: Mapping[str, Any], *, run_id: str, deployment_sha256: str
     if not ready_at <= health_observed <= maintenance_completed:
         raise CanaryError("Recovery health was not observed inside the maintenance window")
     if not (
-        maintenance["source_inventory_sha256"]
-        == maintenance["final_inventory_sha256"]
-        == source["inventory_sha256"]
+        maintenance["source_inventory_sha256"] == maintenance["final_inventory_sha256"] == source["inventory_sha256"]
     ):
         raise CanaryError("Recovery maintenance inventory changed")
     for field in (
@@ -633,7 +631,10 @@ def _recovery(payload: Mapping[str, Any], *, run_id: str, deployment_sha256: str
         raise CanaryError("Recovery must use a new volume")
     restore_requested = _bounded_int(restored.get("requested_at_epoch_ms"), "recovery restore request time")
     restore_ready = _bounded_int(restored.get("ready_at_epoch_ms"), "recovery restored volume ready time")
-    if not snapshot_completed <= restore_requested <= restore_ready or restore_ready - restore_requested > 10 * 60 * 1000:
+    if (
+        not snapshot_completed <= restore_requested <= restore_ready
+        or restore_ready - restore_requested > 10 * 60 * 1000
+    ):
         raise CanaryError("Recovery restored volume timing is invalid")
     if restored.get("region") != source_region:
         raise CanaryError("Recovery restored volume region differs from its source")
@@ -665,9 +666,7 @@ def _recovery(payload: Mapping[str, Any], *, run_id: str, deployment_sha256: str
     for field in ("source_inventory_sha256", "restored_inventory_sha256"):
         _sha(inspection.get(field), f"recovery offline inspection {field}")
     if not (
-        inspection["source_inventory_sha256"]
-        == inspection["restored_inventory_sha256"]
-        == source["inventory_sha256"]
+        inspection["source_inventory_sha256"] == inspection["restored_inventory_sha256"] == source["inventory_sha256"]
     ):
         raise CanaryError("Recovery restored inventory differs from its source")
     build = inspection.get("build")
@@ -831,17 +830,13 @@ def evaluate_canary(path: str | Path) -> dict[str, Any]:
         )
     deployment = payloads["deployment"]
     recovery = payloads["recovery"]
-    review_app = next(
-        app for app in deployment["apps"] if app["app_id"] == "viewspec-review"
-    )
+    review_app = next(app for app in deployment["apps"] if app["app_id"] == "viewspec-review")
     recovery_source = recovery["source"]
     if recovery_source["machine_id_sha256"] != review_app["machine_id_sha256"]:
         raise CanaryError("Recovery source does not match the deployed review Machine")
     if recovery_source["image_digest"] != review_app["image_digest"]:
         raise CanaryError("Recovery source does not match the deployed review image")
-    expected_build = {
-        field: deployment["build_manifest"][field] for field in INSTALLED_BUILD_FIELDS
-    }
+    expected_build = {field: deployment["build_manifest"][field] for field in INSTALLED_BUILD_FIELDS}
     if recovery["offline_inspection"]["build"] != expected_build:
         raise CanaryError("Recovery inspection build differs from the frozen deployment")
     checks = {
@@ -899,7 +894,11 @@ def build_share_release_payload(
         "recovery_and_rotation",
         "zero_sensitive_leaks",
     }
-    if not isinstance(checks, dict) or set(checks) != expected_checks or not all(value is True for value in checks.values()):
+    if (
+        not isinstance(checks, dict)
+        or set(checks) != expected_checks
+        or not all(value is True for value in checks.values())
+    ):
         raise CanaryError("Studio Share release requires every production canary gate")
     if canary_result.get("verifier_id") != VERIFIER_ID:
         raise CanaryError("Studio Share release verifier identity is invalid")

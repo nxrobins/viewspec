@@ -7,11 +7,13 @@ import platform
 import shutil
 import sys
 import time
+from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
 from viewspec._version import __version__
+from viewspec.a11y import a11y_contrast_report, name_report
 from viewspec.host_verify import HOST_VERIFY_TARGET, summarize_host_verification_report, verify_host_artifact_dir
 from viewspec.intent_tools import (
     INTENT_COMPILE_TARGETS,
@@ -23,6 +25,7 @@ from viewspec.local_tools import (
     MCP_RESULT_SCHEMA_VERSION,
     LocalToolError,
     atomic_write,
+    bytes_hash,
     file_hash,
     init_design_file,
     path_policy_metadata,
@@ -31,9 +34,13 @@ from viewspec.local_tools import (
     tool_error_response,
     tool_response,
 )
-from viewspec.a11y import a11y_contrast_report, name_report
+from viewspec.local_tools_io import (
+    is_replaceable_output_dir,
+    portable_report_paths,
+    report_directory,
+    write_output_sentinel,
+)
 from viewspec.manifest_summary import manifest_root_aesthetic_profile, summarize_intent_manifest
-
 
 PROVE_SCHEMA_VERSION = 1
 PROVE_DEFAULT_OUT = ".viewspec-proof"
@@ -42,6 +49,9 @@ PROVE_DEFAULT_SUMMARY = "PROOF.md"
 PROVE_DEFAULT_SUPPORT_BUNDLE = "support_bundle.json"
 PROVE_SUMMARY_MAX_BYTES = 32 * 1024
 PROVE_SUPPORT_BUNDLE_MAX_BYTES = 16 * 1024
+# 2: dropped the wall-clock ``timings_ms`` section, so re-running a source-artifact proof of one input
+# in the same layout produces one bundle; ``proof_report_hash`` says where that holds and where not.
+PROVE_SUPPORT_BUNDLE_SCHEMA_VERSION = 2
 PROVE_ARTIFACT_DIR = "artifact"
 PROVE_TARGETS = INTENT_COMPILE_TARGETS
 PROOF_LEVEL_BY_TARGET = {
@@ -94,7 +104,11 @@ def prove(
     timings: dict[str, int] = {}
     root = resolve_cwd(cwd)
     output_dir = _resolve_output(out_dir, root)
-    report_path = resolve_local_path(report_out, cwd=root, allow_outside_cwd=True) if report_out else output_dir / PROVE_DEFAULT_REPORT
+    report_path = (
+        resolve_local_path(report_out, cwd=root, allow_outside_cwd=True)
+        if report_out
+        else output_dir / PROVE_DEFAULT_REPORT
+    )
     try:
         if target not in PROVE_TARGETS:
             raise ProveFailure(
@@ -223,7 +237,7 @@ def prove(
             errors=[{"code": exc.code, "message": exc.message, "fix": exc.fix}],
             metadata={"sdk_version": __version__, "network_calls": "none"},
         )
-        if report_out is None and exc.code == "PROVE_OUTPUT_UNSAFE":
+        if report_out is None and exc.code in {"PROVE_OUTPUT_UNSAFE", "PROVE_OUTPUT_UNRECOGNIZED"}:
             return _final_report(report, report_path)
         return _write_report(report, report_path)
     except LocalToolError as exc:
@@ -319,7 +333,9 @@ def prove_tool(
         return _tool_from_report(proof, root, allow_outside_cwd)
     except Exception as exc:
         if isinstance(exc, LocalToolError):
-            return tool_error_response(exc.code, exc.message, exc.fix, metadata=path_policy_metadata(root, allow_outside_cwd))
+            return tool_error_response(
+                exc.code, exc.message, exc.fix, metadata=path_policy_metadata(root, allow_outside_cwd)
+            )
         return tool_error_response(
             "PROVE_INTERNAL_ERROR",
             str(exc),
@@ -347,14 +363,27 @@ def _prepare_output_dir(output_dir: Path, *, root: Path, force: bool, raw_out: s
                 f"Proof output is not a directory: {output_dir}",
                 "Choose a dedicated proof output directory.",
             )
+        if not is_replaceable_output_dir(output_dir):
+            raise ProveFailure(
+                "PROVE_OUTPUT_UNRECOGNIZED",
+                f"Refusing to replace a directory that ViewSpec did not write: {output_dir}",
+                "Use --force only on an empty directory or a previous prove output; remove other directories yourself.",
+            )
         shutil.rmtree(output_dir)
     output_dir.mkdir(parents=True, exist_ok=False)
+    # Mark the directory as ViewSpec's before writing anything else, so an interrupted proof stays
+    # replaceable with --force.
+    write_output_sentinel(output_dir)
 
 
 def _assert_safe_output(output_dir: Path, *, root: Path, raw_out: str | Path) -> None:
     raw_parts = [str(part) for part in Path(raw_out).parts]
     if ".." in raw_parts:
-        raise ProveFailure("PROVE_OUTPUT_UNSAFE", "Proof output path must not contain parent traversal.", "Use a direct child output path.")
+        raise ProveFailure(
+            "PROVE_OUTPUT_UNSAFE",
+            "Proof output path must not contain parent traversal.",
+            "Use a direct child output path.",
+        )
     resolved = output_dir.resolve()
     home = Path.home().resolve()
     repo_root = _repo_root(root)
@@ -518,11 +547,15 @@ def _report(
         "intent": str(prepared.intent_path) if prepared else None,
         "design": str(prepared.design_path) if prepared and prepared.design_path else None,
         "artifact_dir": str(prepared.artifact_dir) if prepared else None,
-        "artifact": str(_artifact_path(prepared.artifact_dir, target)) if prepared and target in PROVE_TARGETS else None,
+        "artifact": str(_artifact_path(prepared.artifact_dir, target))
+        if prepared and target in PROVE_TARGETS
+        else None,
         "manifest": str(prepared.artifact_dir / "provenance_manifest.json") if prepared else None,
         "diagnostics": str(prepared.artifact_dir / "diagnostics.json") if prepared else None,
         "report": str(prepared.report_path if prepared else report_path),
-        "proof_summary": str(prepared.summary_path if prepared else output_dir / PROVE_DEFAULT_SUMMARY if output_dir else None),
+        "proof_summary": str(
+            prepared.summary_path if prepared else output_dir / PROVE_DEFAULT_SUMMARY if output_dir else None
+        ),
         "support_bundle": str(
             prepared.output_dir / PROVE_DEFAULT_SUPPORT_BUNDLE
             if prepared
@@ -549,43 +582,111 @@ def _report(
     }
 
 
+def _portable_report(report: Mapping[str, Any], *, base: str | None = None) -> dict[str, Any]:
+    """Return the on-disk form of ``report``: a copy whose paths are relative to the report's directory.
+
+    The in-memory report keeps absolute paths so the CLI and the MCP tool can print and open them;
+    ``proof_report.json`` records every path relative to the directory that holds it, with POSIX
+    separators.  That is the proof directory (``paths.proof_dir`` becomes ``"."``) unless
+    ``--report-out`` put the report elsewhere, in which case ``paths.proof_dir`` names the proof
+    directory from there.  ``base`` overrides the directory; ``PROOF.md`` passes the proof directory
+    it sits in.  A report that is already portable, such as one read back from disk, is returned
+    unchanged, so the conversion never depends on the current working directory.
+    """
+    base = report_directory(report) if base is None else base
+    if not base:
+        return json.loads(json.dumps(report))
+    return portable_report_paths(report, base)
+
+
+def _portable_paths(report: Mapping[str, Any]) -> dict[str, Any]:
+    """Return the report's paths relative to the proof directory, as ``PROOF.md`` records them."""
+    paths = report.get("paths")
+    proof_dir = paths.get("proof_dir") if isinstance(paths, dict) else None
+    portable = _portable_report(report, base=proof_dir if isinstance(proof_dir, str) and proof_dir else None)
+    portable_paths = portable.get("paths")
+    return portable_paths if isinstance(portable_paths, dict) else {}
+
+
+def _report_text(document: Mapping[str, Any]) -> str:
+    return json.dumps(document, indent=2, sort_keys=True) + "\n"
+
+
+def proof_report_hash(report: Mapping[str, Any]) -> str:
+    """Return the SHA-256 identity of a proof report without its top-level ``timings_ms``.
+
+    The hash covers the portable ``proof_report.json`` document (paths relative to the directory
+    that holds the report) with the top-level wall-clock ``timings_ms`` section removed, serialized
+    exactly as the file is written: ``indent=2``, sorted keys, one trailing newline, UTF-8.  It is
+    the same for the in-memory report and for the document read back from disk, from any working
+    directory.  To recompute it from a file: load ``proof_report.json``, delete ``timings_ms``,
+    re-serialize with ``json.dumps(report, indent=2, sort_keys=True) + "\\n"`` and hash the UTF-8
+    bytes.  ``PROOF.md`` and ``support_bundle.json`` record this value as the proof report hash,
+    and the ``prove`` tool exposes it as ``proof_identity.proof_report_hash``.
+
+    Removing ``timings_ms`` makes the hash independent of when the report was written only for
+    the source-artifact targets.  Two proofs of one input share the hash only when the reports
+    record the same thing:
+
+    * for the source-artifact targets (``html-tailwind``, ``react-tsx``) when each recorded path
+      has the same position relative to the report, for example a generated intent inside the proof
+      directory, or the same repository layout cloned or moved elsewhere.  An input outside the
+      proof directory is recorded as ``../x`` from one depth and ``../../x`` from another, and the
+      hashes differ;
+    * not for ``react-tailwind-tsx``, whose ``host_report`` keeps the host verifier's own
+      wall-clock ``timings_ms``, so every run gets a new hash.
+    """
+    document = _portable_report(report)
+    document.pop("timings_ms", None)
+    return bytes_hash(_report_text(document).encode("utf-8"))
+
+
+def _write_report_file(report: dict[str, Any], report_path: Path) -> None:
+    atomic_write(report_path, _report_text(_portable_report(report)))
+
+
 def _write_report(report: dict[str, Any], report_path: Path) -> dict[str, Any]:
     report = _final_report(report, report_path)
     report.setdefault("checks", {})["support_bundle"] = "written"
     report.setdefault("checks", {})["proof_summary"] = "written"
-    atomic_write(report_path, json.dumps(report, indent=2, sort_keys=True) + "\n")
+    _write_report_file(report, report_path)
     try:
         support_path = report.get("paths", {}).get("support_bundle")
         if support_path:
-            _write_support_bundle(Path(str(support_path)), _render_support_bundle(report, proof_report_hash=file_hash(report_path)), report=report)
+            _write_support_bundle(
+                Path(str(support_path)),
+                _render_support_bundle(report, proof_report_hash=proof_report_hash(report)),
+                report=report,
+            )
     except Exception as exc:
         failed = _support_failure_report(report, report_path, exc)
-        atomic_write(report_path, json.dumps(failed, indent=2, sort_keys=True) + "\n")
+        _write_report_file(failed, report_path)
         try:
-            _write_failed_summary(failed, report_path)
+            _write_failed_summary(failed)
         except Exception as summary_exc:
             failed = _summary_failure_report(failed, report_path, summary_exc)
-            atomic_write(report_path, json.dumps(failed, indent=2, sort_keys=True) + "\n")
+            _write_report_file(failed, report_path)
         return failed
     try:
         summary_path = report.get("paths", {}).get("proof_summary")
         if summary_path:
-            report_hash = file_hash(report_path)
-            _write_proof_summary(Path(str(summary_path)), _render_proof_summary(report, proof_report_hash=report_hash))
+            _write_proof_summary(
+                Path(str(summary_path)), _render_proof_summary(report, proof_report_hash=proof_report_hash(report))
+            )
     except Exception as exc:
         failed = _summary_failure_report(report, report_path, exc)
-        atomic_write(report_path, json.dumps(failed, indent=2, sort_keys=True) + "\n")
+        _write_report_file(failed, report_path)
         try:
             support_path = failed.get("paths", {}).get("support_bundle")
             if support_path:
                 _write_support_bundle(
                     Path(str(support_path)),
-                    _render_support_bundle(failed, proof_report_hash=file_hash(report_path)),
+                    _render_support_bundle(failed, proof_report_hash=proof_report_hash(failed)),
                     report=failed,
                 )
         except Exception as support_exc:
             failed = _support_failure_report(failed, report_path, support_exc)
-            atomic_write(report_path, json.dumps(failed, indent=2, sort_keys=True) + "\n")
+            _write_report_file(failed, report_path)
         return failed
     return report
 
@@ -600,7 +701,9 @@ def _final_report(report: dict[str, Any], report_path: Path) -> dict[str, Any]:
 
 def _normalize_errors(errors: object, *, fallback_code: str) -> list[dict[str, str]]:
     if not isinstance(errors, list) or not errors:
-        return [{"code": fallback_code, "message": "ViewSpec proof failed.", "fix": "Inspect proof_report.json and retry."}]
+        return [
+            {"code": fallback_code, "message": "ViewSpec proof failed.", "fix": "Inspect proof_report.json and retry."}
+        ]
     normalized: list[dict[str, str]] = []
     for item in errors:
         if isinstance(item, dict):
@@ -612,7 +715,9 @@ def _normalize_errors(errors: object, *, fallback_code: str) -> list[dict[str, s
                 }
             )
         else:
-            normalized.append({"code": fallback_code, "message": str(item), "fix": "Inspect proof_report.json and retry."})
+            normalized.append(
+                {"code": fallback_code, "message": str(item), "fix": "Inspect proof_report.json and retry."}
+            )
     return normalized
 
 
@@ -621,7 +726,9 @@ def _summary_failure_report(report: dict[str, Any], report_path: Path, exc: Exce
     failed["ok"] = False
     failed.setdefault("checks", {})["proof_summary"] = "failed"
     message = exc.message if isinstance(exc, ProveFailure) else str(exc)
-    failed_errors = _normalize_errors(failed.get("errors"), fallback_code="PROVE_INTERNAL_ERROR") if failed.get("errors") else []
+    failed_errors = (
+        _normalize_errors(failed.get("errors"), fallback_code="PROVE_INTERNAL_ERROR") if failed.get("errors") else []
+    )
     failed_errors.append(
         {
             "code": "PROVE_SUMMARY_WRITE_FAILED",
@@ -639,7 +746,9 @@ def _support_failure_report(report: dict[str, Any], report_path: Path, exc: Exce
     failed.setdefault("checks", {})["support_bundle"] = "failed"
     code = exc.code if isinstance(exc, ProveFailure) else "PROVE_SUPPORT_BUNDLE_WRITE_FAILED"
     message = exc.message if isinstance(exc, ProveFailure) else str(exc)
-    failed_errors = _normalize_errors(failed.get("errors"), fallback_code="PROVE_INTERNAL_ERROR") if failed.get("errors") else []
+    failed_errors = (
+        _normalize_errors(failed.get("errors"), fallback_code="PROVE_INTERNAL_ERROR") if failed.get("errors") else []
+    )
     failed_errors.append(
         {
             "code": code,
@@ -651,10 +760,12 @@ def _support_failure_report(report: dict[str, Any], report_path: Path, exc: Exce
     return _final_report(failed, report_path)
 
 
-def _write_failed_summary(report: dict[str, Any], report_path: Path) -> None:
+def _write_failed_summary(report: dict[str, Any]) -> None:
     summary_path = report.get("paths", {}).get("proof_summary")
     if summary_path:
-        _write_proof_summary(Path(str(summary_path)), _render_proof_summary(report, proof_report_hash=file_hash(report_path)))
+        _write_proof_summary(
+            Path(str(summary_path)), _render_proof_summary(report, proof_report_hash=proof_report_hash(report))
+        )
 
 
 def _write_proof_summary(summary_path: Path, markdown: str) -> None:
@@ -689,10 +800,9 @@ def _support_bundle_payload(report: dict[str, Any], *, proof_report_hash: str) -
     checks = report.get("checks", {}) if isinstance(report.get("checks"), dict) else {}
     errors = report.get("errors", []) if isinstance(report.get("errors"), list) else []
     metadata = report.get("metadata", {}) if isinstance(report.get("metadata"), dict) else {}
-    timings = report.get("timings_ms", {}) if isinstance(report.get("timings_ms"), dict) else {}
     host_report = report.get("host_report") if isinstance(report.get("host_report"), dict) else None
     return {
-        "schema_version": 1,
+        "schema_version": PROVE_SUPPORT_BUNDLE_SCHEMA_VERSION,
         "kind": "viewspec_proof_support_bundle",
         "ok": bool(report.get("ok")),
         "target": report.get("target"),
@@ -714,7 +824,6 @@ def _support_bundle_payload(report: dict[str, Any], *, proof_report_hash: str) -
         "paths": _support_path_hints(report),
         "manifest_summary": _support_manifest_summary(report.get("manifest_summary")),
         "host_report": _support_host_report(host_report),
-        "timings_ms": {str(key): int(value) for key, value in timings.items() if isinstance(value, int)},
         "privacy": {
             "local_only": True,
             "contains_raw_intent": False,
@@ -749,9 +858,7 @@ def _support_host_report(host_report: dict[str, Any] | None) -> dict[str, Any] |
         return None
     assertions = host_report.get("assertions") if isinstance(host_report.get("assertions"), dict) else {}
     requirements = (
-        host_report.get("assertion_requirements")
-        if isinstance(host_report.get("assertion_requirements"), dict)
-        else {}
+        host_report.get("assertion_requirements") if isinstance(host_report.get("assertion_requirements"), dict) else {}
     )
     return {
         "ok": bool(host_report.get("ok")),
@@ -767,7 +874,11 @@ def _support_host_report(host_report: dict[str, Any] | None) -> dict[str, Any] |
             str(key): int(value) for key, value in requirements.items() if isinstance(value, int)
         },
         "manifest_summary": _support_manifest_summary(host_report.get("manifest_summary")),
-        "error_codes": [str(error.get("code")) for error in host_report.get("errors", []) if isinstance(error, dict) and error.get("code")],
+        "error_codes": [
+            str(error.get("code"))
+            for error in host_report.get("errors", [])
+            if isinstance(error, dict) and error.get("code")
+        ],
     }
 
 
@@ -785,9 +896,13 @@ def _support_manifest_summary(summary: object) -> dict[str, Any] | None:
         "aesthetic_style": {
             "available": bool(style.get("available")),
             "profile": _support_scalar(style.get("profile")),
-            "changed_token_count": int(style.get("changed_token_count")) if isinstance(style.get("changed_token_count"), int) else 0,
+            "changed_token_count": int(style.get("changed_token_count"))
+            if isinstance(style.get("changed_token_count"), int)
+            else 0,
             "category_count": int(style.get("category_count")) if isinstance(style.get("category_count"), int) else 0,
-            "declaration_count": int(style.get("declaration_count")) if isinstance(style.get("declaration_count"), int) else 0,
+            "declaration_count": int(style.get("declaration_count"))
+            if isinstance(style.get("declaration_count"), int)
+            else 0,
             "categories": [str(item)[:80] for item in style.get("categories", []) if isinstance(item, str)],
         }
         if style
@@ -807,7 +922,18 @@ def _support_manifest_summary(summary: object) -> dict[str, Any] | None:
 def _support_path_hints(report: dict[str, Any]) -> dict[str, str]:
     paths = report.get("paths", {}) if isinstance(report.get("paths"), dict) else {}
     hints: dict[str, str] = {}
-    for key in ("proof_dir", "intent", "design", "artifact_dir", "artifact", "manifest", "diagnostics", "report", "proof_summary", "support_bundle"):
+    for key in (
+        "proof_dir",
+        "intent",
+        "design",
+        "artifact_dir",
+        "artifact",
+        "manifest",
+        "diagnostics",
+        "report",
+        "proof_summary",
+        "support_bundle",
+    ):
         value = paths.get(key)
         if value:
             hints[f"{key}_name"] = Path(str(value)).name
@@ -817,7 +943,9 @@ def _support_path_hints(report: dict[str, Any]) -> dict[str, str]:
 def _support_next_actions(report: dict[str, Any]) -> list[str]:
     if report.get("ok"):
         return ["Keep support_bundle.json with proof_report.json for local audit records."]
-    codes = [str(error.get("code")) for error in report.get("errors", []) if isinstance(error, dict) and error.get("code")]
+    codes = [
+        str(error.get("code")) for error in report.get("errors", []) if isinstance(error, dict) and error.get("code")
+    ]
     if codes:
         return [f"Fix {codes[0]} and rerun viewspec prove."]
     return ["Inspect proof_report.json and rerun viewspec prove."]
@@ -845,7 +973,7 @@ def _assert_support_bundle_redacted(payload: str, report: dict[str, Any]) -> Non
 
 
 def _render_proof_summary(report: dict[str, Any], *, proof_report_hash: str) -> str:
-    paths = report.get("paths", {}) if isinstance(report.get("paths"), dict) else {}
+    paths = _portable_paths(report)
     checks = report.get("checks", {}) if isinstance(report.get("checks"), dict) else {}
     metadata = report.get("metadata", {}) if isinstance(report.get("metadata"), dict) else {}
     timings = report.get("timings_ms", {}) if isinstance(report.get("timings_ms"), dict) else {}
@@ -866,6 +994,7 @@ def _render_proof_summary(report: dict[str, Any], *, proof_report_hash: str) -> 
         "",
         "## Inputs And Outputs",
         "",
+        "- Paths are relative to the proof directory.",
         f"- Intent source: `{_summary_value(checks.get('intent'))}`",
         f"- Intent path: `{_summary_value(paths.get('intent'))}`",
         f"- Design source: `{_summary_value(checks.get('design'))}`",
@@ -881,6 +1010,7 @@ def _render_proof_summary(report: dict[str, Any], *, proof_report_hash: str) -> 
         f"- Artifact SHA-256: `{_summary_value(report.get('artifact_hash'))}`",
         f"- Manifest SHA-256: `{_summary_value(report.get('manifest_hash'))}`",
         f"- Proof report SHA-256: `{_summary_value(proof_report_hash)}`",
+        "- Proof report SHA-256 scope: `proof_report.json` with `timings_ms` removed",
     ]
     lines.extend(_proof_manifest_summary_lines(report.get("manifest_summary")))
     lines.extend(["", "## Checks", ""])
@@ -982,7 +1112,12 @@ def _proof_manifest_summary_lines(summary: object) -> list[str]:
 
 def _proof_claim(report: dict[str, Any]) -> str:
     target = report.get("target")
-    if target == HOST_VERIFY_TARGET and report.get("ok") and isinstance(report.get("host_report"), dict) and report["host_report"].get("ok"):
+    if (
+        target == HOST_VERIFY_TARGET
+        and report.get("ok")
+        and isinstance(report.get("host_report"), dict)
+        and report["host_report"].get("ok")
+    ):
         return "Bounded React/Vite/Tailwind reference-host proof for this generated artifact."
     return "Source artifact integrity and provenance proof for this generated artifact."
 
@@ -1029,19 +1164,23 @@ def _tool_proof_identity(proof: dict[str, Any]) -> dict[str, str | None]:
     return {
         "artifact_hash": proof.get("artifact_hash") if isinstance(proof.get("artifact_hash"), str) else None,
         "manifest_hash": proof.get("manifest_hash") if isinstance(proof.get("manifest_hash"), str) else None,
-        "proof_report_hash": _hash_path_if_present(paths.get("report")),
+        "proof_report_hash": proof_report_hash(proof) if _is_present_file(paths.get("report")) else None,
         "proof_summary_hash": _hash_path_if_present(paths.get("proof_summary")),
         "support_bundle_hash": _hash_path_if_present(paths.get("support_bundle")),
     }
 
 
-def _hash_path_if_present(path: object) -> str | None:
+def _is_present_file(path: object) -> bool:
     if not path:
-        return None
+        return False
     candidate = Path(str(path))
-    if not candidate.exists() or not candidate.is_file():
+    return candidate.exists() and candidate.is_file()
+
+
+def _hash_path_if_present(path: object) -> str | None:
+    if not _is_present_file(path):
         return None
-    return file_hash(candidate)
+    return file_hash(Path(str(path)))
 
 
 def _tool_checks(checks: object) -> dict[str, str]:
@@ -1053,8 +1192,10 @@ def _tool_checks(checks: object) -> dict[str, str]:
 __all__ = [
     "PROVE_DEFAULT_OUT",
     "PROVE_SCHEMA_VERSION",
+    "PROVE_SUPPORT_BUNDLE_SCHEMA_VERSION",
     "PROVE_TARGETS",
     "ProveFailure",
+    "proof_report_hash",
     "prove",
     "prove_tool",
 ]

@@ -2,13 +2,14 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
 import hashlib
-import json
-from pathlib import PurePosixPath
 import re
-from typing import Any, Iterable, Mapping
+from collections.abc import Iterable, Mapping
+from dataclasses import dataclass, field
+from pathlib import PurePosixPath
+from typing import Any
 
+from viewspec._canonical import canonical_json_ascii_bytes
 
 VERIFICATION_SCHEMA_VERSION = 1
 VERIFICATION_ID_RE = re.compile(r"^vvr_[0-9a-f]{32}$")
@@ -36,8 +37,8 @@ MAX_EVIDENCE_FILES = 128
 MAX_DIAGNOSTICS = 1024
 
 
-def _canonical_json(value: object) -> bytes:
-    return json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=True).encode("utf-8")
+# ASCII-escaped canonical form, shared through viewspec._canonical (see its docstring).
+_canonical_json = canonical_json_ascii_bytes
 
 
 def _mapping(value: Any, name: str) -> Mapping[str, Any]:
@@ -242,7 +243,11 @@ class EvidenceFile:
         )
 
     def verify(self, content: bytes) -> bool:
-        return isinstance(content, bytes) and len(content) == self.bytes and hashlib.sha256(content).hexdigest() == self.sha256
+        return (
+            isinstance(content, bytes)
+            and len(content) == self.bytes
+            and hashlib.sha256(content).hexdigest() == self.sha256
+        )
 
     def to_json(self) -> dict[str, Any]:
         return {

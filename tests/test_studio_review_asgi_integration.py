@@ -7,8 +7,8 @@ from urllib.parse import parse_qs, urlsplit
 
 import httpx
 
-from viewspec.app_starters import starter_app_bundle
 import viewspec.review_compile as review_compile
+from viewspec.app_starters import starter_app_bundle
 from viewspec.review_compile import STUDIO_COMPARE_TARGET
 from viewspec.review_runtime import ReviewRuntime
 from viewspec.studio_review_asgi import StudioReviewASGIApp
@@ -29,7 +29,6 @@ from viewspec.studio_review_verify import (
     studio_review_rebuild_evidence_sha256,
 )
 from viewspec.studio_share import prepare_studio_share
-
 
 _REAL_SUBPROCESS_RUN = review_compile.subprocess.run
 _ORIGIN = "https://review.viewspec.test"
@@ -258,8 +257,9 @@ def test_real_asgi_adapter_completes_private_comment_and_owner_approval(tmp_path
                 json={"revision_identity_sha256": created["session"]["revision_identity_sha256"]},
             )
             assert approved.status_code == 201
-            assert approved.json()["approval"]["revision_identity_sha256"] == created["session"][
-                "revision_identity_sha256"
-            ]
+            assert (
+                approved.json()["approval"]["revision_identity_sha256"]
+                == created["session"]["revision_identity_sha256"]
+            )
 
     asyncio.run(journey())

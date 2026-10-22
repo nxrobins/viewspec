@@ -8,22 +8,24 @@ standalone HTML, a provenance manifest, and a diagnostics JSON file.
 from __future__ import annotations
 
 import json
+import logging
 import re
-import tempfile
 from html import escape
 from pathlib import Path
 from typing import Any
 
+from viewspec.aesthetics import profile_shape_var_css
+from viewspec.compiler_refs import PRODUCT_SURFACE_PLANNER_V1_ROLES
+from viewspec.emitters._write import write_artifact_set, write_text_atomic
+from viewspec.emitters.base import EmitterPlugin
 from viewspec.types import (
+    DEFAULT_STYLE_TOKEN_VALUES,
     ASTBundle,
     CompilerResult,
-    DEFAULT_STYLE_TOKEN_VALUES,
     IRNode,
 )
-from viewspec.aesthetics import profile_shape_var_css
-from viewspec.compiler import PRODUCT_SURFACE_PLANNER_V1_ROLES
-from viewspec.emitters.base import EmitterPlugin
 
+_LOGGER = logging.getLogger(__name__)
 
 TAILWIND_BY_PRIMITIVE = {
     "root": "vs-root",
@@ -272,33 +274,13 @@ def _style_attr(css: str) -> str:
     return f' style="{escape(css, quote=True)}"' if css else ""
 
 
-def _write_text_atomic(path: Path, text: str) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    temp_name: str | None = None
-    try:
-        with tempfile.NamedTemporaryFile(
-            "w",
-            encoding="utf-8",
-            newline="",
-            dir=path.parent,
-            prefix=f".{path.name}.",
-            suffix=".tmp",
-            delete=False,
-        ) as handle:
-            temp_name = handle.name
-            handle.write(text)
-        Path(temp_name).replace(path)
-    except Exception:
-        if temp_name:
-            Path(temp_name).unlink(missing_ok=True)
-        raise
+# The atomic writer lives in viewspec.emitters._write; this name stays for callers that imported it here.
+_write_text_atomic = write_text_atomic
 
 
 def _validate_ir_contract(node: IRNode, seen_ids: set[str]) -> None:
     if not node.id or not SAFE_IR_ID_RE.match(node.id):
-        raise ValueError(
-            f"IRNode.id '{node.id}' must use only letters, digits, underscore, dot, and dash."
-        )
+        raise ValueError(f"IRNode.id '{node.id}' must use only letters, digits, underscore, dot, and dash.")
     if node.id in seen_ids:
         raise ValueError(f"Duplicate IRNode.id '{node.id}' would produce duplicate DOM artifact identity.")
     seen_ids.add(node.id)
@@ -309,11 +291,11 @@ def _validate_ir_contract(node: IRNode, seen_ids: set[str]) -> None:
     if visibility_rule_id is not None and (
         not isinstance(visibility_rule_id, str) or not SAFE_IR_ID_RE.match(visibility_rule_id)
     ):
-        raise ValueError(f"visibility_rule_id '{visibility_rule_id}' must use only letters, digits, underscore, dot, and dash.")
+        raise ValueError(
+            f"visibility_rule_id '{visibility_rule_id}' must use only letters, digits, underscore, dot, and dash."
+        )
     state_text_id = node.props.get("state_text_id")
-    if state_text_id is not None and (
-        not isinstance(state_text_id, str) or not SAFE_IR_ID_RE.match(state_text_id)
-    ):
+    if state_text_id is not None and (not isinstance(state_text_id, str) or not SAFE_IR_ID_RE.match(state_text_id)):
         raise ValueError(f"state_text_id '{state_text_id}' must use only letters, digits, underscore, dot, and dash.")
     if "state_text_initial" in node.props and not isinstance(node.props.get("state_text_initial"), str):
         raise ValueError(f"state_text_initial on '{node.id}' must be a string.")
@@ -342,7 +324,9 @@ def _validate_action_props(node: IRNode) -> None:
     if target_ref not in (None, "") and (not isinstance(target_ref, str) or not ACTION_TARGET_REF_RE.match(target_ref)):
         raise ValueError(f"Button IRNode '{node.id}' target_ref must be region:id, binding:id, motif:id, or view:id.")
     payload_bindings = node.props.get("payload_bindings", [])
-    if not isinstance(payload_bindings, list) or any(not isinstance(item, str) or not SAFE_IR_ID_RE.match(item) for item in payload_bindings):
+    if not isinstance(payload_bindings, list) or any(
+        not isinstance(item, str) or not SAFE_IR_ID_RE.match(item) for item in payload_bindings
+    ):
         raise ValueError(f"Button IRNode '{node.id}' payload_bindings must be a list of safe ids.")
 
 
@@ -352,9 +336,7 @@ def _closed_prop_class(node: IRNode, prop_name: str, classes_by_value: dict[str,
         return None
     if not isinstance(value, str) or value not in classes_by_value:
         allowed = ", ".join(sorted(classes_by_value))
-        raise ValueError(
-            f"UNSAFE_ROLE_CLASS: IRNode '{node.id}' prop '{prop_name}' must use one of: {allowed}."
-        )
+        raise ValueError(f"UNSAFE_ROLE_CLASS: IRNode '{node.id}' prop '{prop_name}' must use one of: {allowed}.")
     return classes_by_value[value]
 
 
@@ -571,7 +553,7 @@ def _render_node(node: IRNode, manifest: dict[str, Any], style_values: dict[str,
     elif node.primitive == "error_boundary":
         code = escape(str(node.props.get("diagnostic_code", "COMPILER_ERROR")))
         message = escape(str(node.props.get("message", "Compiler diagnostic")))
-        inner_html = f"<div class=\"font-bold\">{code}</div><div class=\"mt-1\">{message}</div>"
+        inner_html = f'<div class="font-bold">{code}</div><div class="mt-1">{message}</div>'
     else:
         pieces: list[str] = []
         if isinstance(node.props.get("state_text_id"), str):
@@ -645,28 +627,15 @@ def emit_compiler_result(
     html_path = output_path / "index.html"
     manifest_path = output_path / "provenance_manifest.json"
     diagnostics_path = output_path / "diagnostics.json"
-    try:
-        _write_text_atomic(html_path, html)
-        _write_text_atomic(manifest_path, json.dumps(manifest, indent=2))
-        _write_text_atomic(diagnostics_path, json.dumps([d.to_json() for d in result.diagnostics], indent=2, sort_keys=True))
-    except Exception as exc:
-        try:
-            _write_text_atomic(
-                output_path / ".viewspec_write_failed.json",
-                json.dumps(
-                    {
-                        "version": 1,
-                        "severity": "error",
-                        "code": "ARTIFACT_WRITE_FAILED",
-                        "message": str(exc),
-                    },
-                    indent=2,
-                    sort_keys=True,
-                ),
-            )
-        except Exception:
-            pass
-        raise
+    write_artifact_set(
+        output_path,
+        [
+            (html_path, html),
+            (manifest_path, json.dumps(manifest, indent=2)),
+            (diagnostics_path, json.dumps([d.to_json() for d in result.diagnostics], indent=2, sort_keys=True)),
+        ],
+        logger=_LOGGER,
+    )
     return {
         "html": str(html_path),
         "manifest": str(manifest_path),

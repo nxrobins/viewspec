@@ -2,17 +2,31 @@
 
 from __future__ import annotations
 
-import importlib.util
+import importlib
 from pathlib import Path
 from typing import Any
 
-from viewspec.app_bundle import compile_app_tool, diff_app_files_tool, init_app_tool, prove_app_tool, validate_app_file_tool
+from viewspec.app_bundle import (
+    compile_app_tool,
+    diff_app_files_tool,
+    init_app_tool,
+    prove_app_tool,
+    validate_app_file_tool,
+)
 from viewspec.converge_tools import (
     approve_convergence_preview_tool,
     convergence_status_tool,
     reject_convergence_preview_tool,
     start_convergence_session_tool,
     submit_convergence_patch_tool,
+)
+from viewspec.host_verify import verify_host_tool
+from viewspec.intent_patch import INTENT_PATCH_TARGET_LIMIT_DEFAULT
+from viewspec.intent_patch_tools import (
+    apply_intent_patch_file_tool,
+    intent_patch_context_tool,
+    list_intent_patch_targets_tool,
+    preview_intent_patch_file_tool,
 )
 from viewspec.intent_tools import (
     agent_correction_prompt_file_tool,
@@ -21,22 +35,15 @@ from viewspec.intent_tools import (
     init_intent_tool,
     validate_intent_bundle_file_tool,
 )
-from viewspec.intent_patch import INTENT_PATCH_TARGET_LIMIT_DEFAULT
-from viewspec.intent_patch_tools import (
-    apply_intent_patch_file_tool,
-    intent_patch_context_tool,
-    list_intent_patch_targets_tool,
-    preview_intent_patch_file_tool,
-)
-from viewspec.host_verify import verify_host_tool
 from viewspec.local_tools import (
-    check_artifact_tool,
     check_agent_assets_tool,
+    check_artifact_tool,
     compile_html_file_tool,
     diff_html_files_tool,
     export_agent_assets_tool,
     init_design_tool,
     lift_html_file_tool,
+    resolve_cwd,
     resolve_local_path,
 )
 from viewspec.prove import prove_tool
@@ -45,8 +52,10 @@ from viewspec.review_cli import open_review as open_review_cli
 from viewspec.review_cli import poll_review as poll_review_cli
 from viewspec.review_cli import review_status as review_status_cli
 
-
 MCP_INSTALL_HINT = 'Install with: python -m pip install "viewspec[agents]"'
+# The module run_mcp_server imports. MCP SDK 2.x removed it, which is why the agents extra
+# caps mcp below 2.
+_MCP_SERVER_MODULE = "mcp.server.fastmcp"
 
 
 class MissingMCPDependency(RuntimeError):
@@ -54,7 +63,22 @@ class MissingMCPDependency(RuntimeError):
 
 
 def mcp_dependency_available() -> bool:
-    return importlib.util.find_spec("mcp") is not None
+    """Report whether the MCP SDK module the server imports actually imports.
+
+    Finding the top-level ``mcp`` package is not enough: MCP 2.x keeps a
+    ``mcp.server.fastmcp`` stub that raises ModuleNotFoundError on import, so the
+    server could not start although a spec lookup would succeed.
+
+    Any exception the import raises counts as "not available", not only ImportError: a
+    broken or partly installed SDK can fail at import time with, for example, a TypeError
+    or a pydantic error, and ``viewspec doctor --agents`` must still print its report.
+    """
+
+    try:
+        module = importlib.import_module(_MCP_SERVER_MODULE)
+    except Exception:
+        return False
+    return hasattr(module, "FastMCP")
 
 
 def run_mcp_server(*, cwd: str | Path | None = None, allow_outside_cwd: bool = False) -> None:
@@ -65,7 +89,7 @@ def run_mcp_server(*, cwd: str | Path | None = None, allow_outside_cwd: bool = F
     except ImportError as exc:
         raise MissingMCPDependency(MCP_INSTALL_HINT) from exc
 
-    root = Path.cwd() if cwd is None else Path(cwd)
+    root = resolve_cwd(cwd)
     app = FastMCP("viewspec")
 
     @app.tool(
@@ -367,9 +391,13 @@ def run_mcp_server(*, cwd: str | Path | None = None, allow_outside_cwd: bool = F
         )
     )
     def export_agent_assets(out: str = ".viewspec", force: bool = False, dry_run: bool = False) -> dict[str, Any]:
-        return export_agent_assets_tool(out, force=force, dry_run=dry_run, cwd=root, allow_outside_cwd=allow_outside_cwd)
+        return export_agent_assets_tool(
+            out, force=force, dry_run=dry_run, cwd=root, allow_outside_cwd=allow_outside_cwd
+        )
 
-    @app.tool(description="Open or resume a checked local ViewSpec Review session without launching a browser automatically.")
+    @app.tool(
+        description="Open or resume a checked local ViewSpec Review session without launching a browser automatically."
+    )
     def open_review(
         source: str,
         design_path: str | None = None,
