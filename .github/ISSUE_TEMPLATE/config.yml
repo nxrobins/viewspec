@@ -1,0 +1,11 @@
+# Blank issues are off on purpose: the bug report form asks for the facts a maintainer needs
+# (version, Python, OS, command, reproduction, --json output), and a blank issue skips all of
+# them. Users with write access still see a "Blank issue" option for maintainer notes.
+blank_issues_enabled: false
+contact_links:
+  - name: Report a security vulnerability
+    url: https://github.com/nxrobins/viewspec/blob/main/SECURITY.md
+    about: Do not open a public issue. SECURITY.md explains how to report a vulnerability privately.
+  - name: Documentation
+    url: https://github.com/nxrobins/viewspec/blob/main/docs/README.md
+    about: Usage questions are usually answered in the guides and reference pages indexed here.

@@ -1,10 +1,10 @@
 # Contributing to ViewSpec
 
 Thanks for helping. This page covers the development setup the test suite expects, how to run the
-checks CI runs, and the two repository rules that trip up most first contributions: the closed
-error-code registry and the changelog. Security reports go through
-[`SECURITY.md`](SECURITY.md), not issues or pull requests. All participation is covered by the
-[Code of Conduct](CODE_OF_CONDUCT.md).
+checks CI runs, the two repository rules that trip up most first contributions (the closed
+error-code registry and the changelog), and the issue and pull request templates. Security reports
+go through [`SECURITY.md`](SECURITY.md), not issues or pull requests. All participation is covered
+by the [Code of Conduct](CODE_OF_CONDUCT.md).
 
 ## Supported platforms
 
@@ -168,3 +168,19 @@ have already shipped except to fix factual errors.
   run the suite after editing them.
 - Do not add network calls, telemetry, or automatic installs to the local SDK. The no-network
   posture described in `SECURITY.md` is part of the product.
+
+## Issues and pull requests
+
+New issues start from the forms in `.github/ISSUE_TEMPLATE/`. The bug report asks for the facts a
+maintainer needs to reproduce a problem: the ViewSpec version, the Python version and operating
+system, the exact command, the IntentBundle or a minimal reproduction, and the output, run with
+`--json` when the command accepts it. The feature request asks for the problem first and the
+proposed behaviour second. Blank issues are turned off for everyone without write access, so the
+template chooser offers these two forms plus links to the security policy and the documentation
+index.
+
+A new pull request opens with `.github/PULL_REQUEST_TEMPLATE.md`. Its checklist repeats the
+commands under [Running the checks](#running-the-checks) and the
+[repository rules](#repository-rules) above, so tick each item or say in the description why it
+does not apply. `.github/CODEOWNERS` assigns every path to @nxrobins, who is asked to review each
+pull request.
