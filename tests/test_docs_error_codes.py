@@ -18,7 +18,12 @@ import viewspec
 from viewspec.error_codes import ERROR_CODES
 
 ROOT = Path(__file__).resolve().parents[1]
-DOC_FILES = [ROOT / "README.md", *sorted((ROOT / "docs").glob("*.md"))]
+# Audit reports (docs/project-audit-*.md) are excluded: they quote unregistered identifiers on
+# purpose, for example to report a code that documentation cites but the registry lacks.
+DOC_FILES = [
+    ROOT / "README.md",
+    *sorted(path for path in (ROOT / "docs").glob("*.md") if not path.name.startswith("project-audit-")),
+]
 BACKTICKED_UPPER_SNAKE_RE = re.compile(r"`([A-Z][A-Z0-9]*(?:_[A-Z0-9]+)+)`")
 
 # Environment variables follow the VIEWSPEC_* convention and are never registry codes.
