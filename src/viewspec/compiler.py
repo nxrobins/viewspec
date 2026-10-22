@@ -54,9 +54,10 @@ from viewspec.types import (
     SemanticSubstrate,
     StyleSpec,
     ViewSpec,
+    normalize_json_numbers as _normalize_json_numbers,
     parse_canonical_address as _parse_canonical_address,
 )
-from viewspec.design_md import DesignSystemContext, DesignSystemError, load_design_system, merge_style_values
+from viewspec.design_md import DesignSystemContext, load_design_system, merge_style_values
 from viewspec.motif_compilers import SUPPORTED_MOTIF_KINDS
 from viewspec.motif_plugins import (
     MotifCompileContext,
@@ -155,9 +156,17 @@ def _resolve_address(address: str, address_index: dict[str, Any]) -> Any:
 
 
 def _text_from_value(value: Any) -> str:
+    """Render a resolved substrate value as visible text.
+
+    Strings pass through unchanged. Every other JSON value is rendered as compact, key-sorted
+    JSON with the text itself (not ``\\uXXXX`` escapes) for non-ASCII characters, and with
+    integral numbers rendered as integers (``100``, never ``100.0``) so that the same bundle
+    yields the same bytes whether it was built in memory or read back through a JSON or proto
+    round trip, where protobuf turns every number into a double.
+    """
     if isinstance(value, str):
         return value
-    return json.dumps(value, sort_keys=True)
+    return json.dumps(_normalize_json_numbers(value), sort_keys=True, ensure_ascii=False, separators=(",", ":"))
 
 
 def _utf8_size(value: Any) -> int:
@@ -2121,8 +2130,13 @@ def compile_auto(
     Compile with automatic local→remote fallback.
 
     Tries the local reference compiler first. If the ViewSpec contains
-    unsupported motif types, falls back to the hosted API (if api_key
-    is provided or the free tier is available).
+    unsupported motif types (UnsupportedMotifError), falls back to the
+    hosted API (if api_key is provided or the free tier is available).
+
+    Only that one failure triggers the fallback. A local DESIGN.md failure
+    (DesignSystemError) is raised to the caller instead of being retried
+    remotely, so a typo in DESIGN.md never uploads the bundle and the design
+    file to the hosted API without the caller asking for a network call.
 
     Args:
         request: The IntentBundle or hosted compiler request to compile.
@@ -2137,6 +2151,6 @@ def compile_auto(
     if prefer_local:
         try:
             return compile(payload.bundle, design=payload.design)
-        except (UnsupportedMotifError, DesignSystemError):
+        except UnsupportedMotifError:
             return compile_remote(payload, api_url=api_url, api_key=api_key)
     return compile_remote(payload, api_url=api_url, api_key=api_key)

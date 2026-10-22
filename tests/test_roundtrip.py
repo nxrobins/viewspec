@@ -1,8 +1,25 @@
 """Test ViewSpec type round-tripping through JSON and protobuf."""
 
 import json
+from pathlib import Path
 
-from viewspec import ViewSpecBuilder, IntentBundle, ASTBundle, CompilerResult, CompositionIR, IRNode, Provenance
+from hypothesis import HealthCheck, given, settings, strategies as st
+
+from viewspec import (
+    ASTBundle,
+    CompilerResult,
+    CompositionIR,
+    IRNode,
+    IntentBundle,
+    Provenance,
+    ViewSpecBuilder,
+    compile,
+    validate_agent_intent_bundle,
+)
+from viewspec.emitters.html_tailwind import HtmlTailwindEmitter
+from viewspec.intent_contract import MAX_SAFE_INTEGER
+from viewspec.schema.viewspec_pb2 import IntentBundle as PbIntentBundle
+from viewspec.types import normalize_json_numbers
 
 
 def test_builder_roundtrip_json():
@@ -109,3 +126,154 @@ def test_slots_edges_actions_roundtrip_json_and_proto():
     assert json_restored.substrate.nodes["graph_view"].edges["next"] == ["child"]
     assert json_restored.view_spec.actions[0].target_ref == "binding:child_title"
     assert proto_restored.to_json() == json_restored.to_json()
+
+
+# ---------------------------------------------------------------------------
+# T-4: property tests over scalar and nested values (audit finding T-4, guarding C-1 and C-2)
+#
+# Every attribute and slot value crosses google.protobuf.Struct, whose numbers are doubles. These
+# properties pin the contract that a bundle built in memory compiles to the same bytes as the same
+# bundle read back from JSON text or proto bytes, for ints inside the 2**53 safe range, floats,
+# bools, null, non-ASCII strings, and nested lists and dicts, and that ints beyond 2**53 are
+# rejected at the intent validation boundary instead of being rounded silently.
+# ---------------------------------------------------------------------------
+
+_SAFE_INTEGERS = st.integers(min_value=-MAX_SAFE_INTEGER, max_value=MAX_SAFE_INTEGER)
+_UNSAFE_INTEGERS = st.one_of(
+    st.integers(min_value=MAX_SAFE_INTEGER + 1, max_value=2**80),
+    st.integers(min_value=-(2**80), max_value=-MAX_SAFE_INTEGER - 1),
+)
+_FLOATS = st.floats(allow_nan=False, allow_infinity=False)
+_TEXT = st.text(alphabet=st.characters(exclude_categories=("Cs",)), max_size=12)
+_NON_ASCII_TEXT = st.text(alphabet=st.characters(min_codepoint=0x80, exclude_categories=("Cs",)), min_size=1, max_size=8)
+_SCALARS = st.one_of(st.none(), st.booleans(), _SAFE_INTEGERS, _FLOATS, _TEXT, _NON_ASCII_TEXT)
+_JSON_VALUES = st.recursive(
+    _SCALARS,
+    lambda children: st.one_of(st.lists(children, max_size=4), st.dictionaries(_TEXT, children, max_size=4)),
+    max_leaves=12,
+)
+
+
+def _value_bundle(attr_value, slot_values) -> IntentBundle:
+    builder = ViewSpecBuilder("roundtrip_values")
+    builder.add_node("record", "record", attrs={"label": "Record", "value": attr_value}, slots={"items": list(slot_values)})
+    builder.bind_attr("record_label", "record", "label", region="main", present_as="label")
+    builder.bind_attr("record_value", "record", "value", region="main", present_as="value")
+    builder.bind_slot("record_items", "record", "items", region="main")
+    return builder.build_bundle()
+
+
+def _json_text_roundtrip(bundle: IntentBundle) -> IntentBundle:
+    return IntentBundle.from_json(json.loads(json.dumps(bundle.to_json(), sort_keys=True)))
+
+
+def _proto_roundtrip(bundle: IntentBundle) -> IntentBundle:
+    return IntentBundle.from_proto(PbIntentBundle.FromString(bundle.to_proto().SerializeToString()))
+
+
+def _compiled_bytes(bundle: IntentBundle, out_dir: Path) -> tuple[bytes, bytes]:
+    ast = compile(bundle)
+    paths = HtmlTailwindEmitter().emit(ast, out_dir)
+    return json.dumps(ast.to_json(), sort_keys=True).encode("utf-8"), Path(paths["html"]).read_bytes()
+
+
+def _binding_text(bundle: IntentBundle, node_id: str) -> str:
+    def walk(node):
+        if node.id == node_id:
+            return node.props["text"]
+        for child in node.children:
+            found = walk(child)
+            if found is not None:
+                return found
+        return None
+
+    text = walk(compile(bundle).result.root.root)
+    assert text is not None, f"{node_id} was not compiled"
+    return text
+
+
+@settings(max_examples=40, deadline=None, suppress_health_check=[HealthCheck.function_scoped_fixture, HealthCheck.too_slow])
+@given(attr_value=_JSON_VALUES, slot_values=st.lists(_JSON_VALUES, max_size=3))
+def test_values_compile_byte_identically_in_memory_and_after_json_and_proto_round_trips(tmp_path, attr_value, slot_values):
+    in_memory = _value_bundle(attr_value, slot_values)
+
+    baseline = _compiled_bytes(in_memory, tmp_path / "memory")
+    assert _compiled_bytes(_json_text_roundtrip(in_memory), tmp_path / "json") == baseline
+    assert _compiled_bytes(_proto_roundtrip(in_memory), tmp_path / "proto") == baseline
+    assert _compiled_bytes(_proto_roundtrip(_json_text_roundtrip(in_memory)), tmp_path / "json_proto") == baseline
+
+
+@settings(max_examples=40, deadline=None, suppress_health_check=[HealthCheck.too_slow])
+@given(attr_value=_JSON_VALUES, slot_values=st.lists(_JSON_VALUES, max_size=3))
+def test_values_survive_json_and_proto_round_trips_up_to_integral_double_normalization(attr_value, slot_values):
+    in_memory = _value_bundle(attr_value, slot_values)
+    expected_attrs = normalize_json_numbers({"label": "Record", "value": attr_value})
+    expected_slots = normalize_json_numbers(list(slot_values))
+
+    for restored in (_json_text_roundtrip(in_memory), _proto_roundtrip(in_memory)):
+        node = restored.substrate.nodes["record"]
+        assert node.attrs == expected_attrs
+        assert node.slots["items"] == expected_slots
+        assert json.dumps(restored.to_json(), sort_keys=True) == json.dumps(in_memory.to_json(), sort_keys=True)
+
+
+@settings(max_examples=60, deadline=None)
+@given(value=_SAFE_INTEGERS)
+def test_safe_integers_render_exactly_and_validate(value):
+    bundle = _value_bundle(value, [value])
+
+    assert _binding_text(bundle, "binding_record_value") == str(value)
+    assert _binding_text(bundle, "binding_record_items") == f"[{value}]"
+    assert _binding_text(_json_text_roundtrip(bundle), "binding_record_value") == str(value)
+    assert _binding_text(_proto_roundtrip(bundle), "binding_record_items") == f"[{value}]"
+    assert validate_agent_intent_bundle(bundle.to_json()).valid
+
+
+@settings(max_examples=40, deadline=None)
+@given(value=_FLOATS)
+def test_floats_render_identically_in_memory_and_after_round_trips(value):
+    bundle = _value_bundle(value, [])
+
+    text = _binding_text(bundle, "binding_record_value")
+    assert _binding_text(_json_text_roundtrip(bundle), "binding_record_value") == text
+    assert _binding_text(_proto_roundtrip(bundle), "binding_record_value") == text
+    if value.is_integer() and abs(value) <= MAX_SAFE_INTEGER:
+        assert text == str(int(value))
+    else:
+        assert text == json.dumps(value)
+
+
+@settings(max_examples=40, deadline=None)
+@given(words=st.lists(_NON_ASCII_TEXT, min_size=1, max_size=4))
+def test_non_ascii_list_bindings_render_literal_text_in_memory_and_after_round_trips(words):
+    bundle = _value_bundle("x", words)
+    expected = json.dumps(words, ensure_ascii=False, separators=(",", ":"))
+
+    assert _binding_text(bundle, "binding_record_items") == expected
+    assert _binding_text(_json_text_roundtrip(bundle), "binding_record_items") == expected
+    assert _binding_text(_proto_roundtrip(bundle), "binding_record_items") == expected
+    assert "\\u" not in expected.replace("\\\\", "")
+
+
+@settings(max_examples=40, deadline=None)
+@given(value=_UNSAFE_INTEGERS, placement=st.sampled_from(["attr", "nested_attr", "slot", "nested_slot"]))
+def test_unsafe_integers_are_rejected_at_the_intent_boundary_wherever_they_appear(value, placement):
+    payload = _value_bundle("placeholder", ["placeholder"]).to_json()
+    node = payload["substrate"]["nodes"]["record"]
+    if placement == "attr":
+        node["attrs"]["value"] = value
+        expected_path = "$.substrate.nodes.record.attrs.value"
+    elif placement == "nested_attr":
+        node["attrs"]["value"] = {"ids": ["ok", value]}
+        expected_path = "$.substrate.nodes.record.attrs.value.ids[1]"
+    elif placement == "slot":
+        node["slots"]["items"]["values"] = [value]
+        expected_path = "$.substrate.nodes.record.slots.items.values[0]"
+    else:
+        node["slots"]["items"]["values"] = [["ok", {"id": value}]]
+        expected_path = "$.substrate.nodes.record.slots.items.values[0][1].id"
+
+    for route in (payload, json.dumps(payload)):
+        result = validate_agent_intent_bundle(route)
+        assert not result.valid
+        assert [issue.path for issue in result.issues if issue.code == "INTEGER_OUT_OF_SAFE_RANGE"] == [expected_path]

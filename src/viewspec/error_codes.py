@@ -439,6 +439,7 @@ ERROR_CODES: frozenset[str] = frozenset(
         "HTML_TAG_STRIPPED",
         "HTML_TAG_UNWRAPPED",
         "HTML_URL_STRIPPED",
+        "INTEGER_OUT_OF_SAFE_RANGE",
         "INTENT_BUNDLE_PARSE_ERROR",
         "INTENT_FILE_NOT_FOUND",
         "INTENT_FILE_READ_ERROR",

@@ -22,6 +22,7 @@ from google.protobuf import json_format, struct_pb2
 
 from viewspec.intent_contract import (
     INTENT_BUNDLE_SCHEMA_VERSION as INTENT_BUNDLE_SCHEMA_VERSION,
+    MAX_SAFE_INTEGER,
     normalize_intent_bundle_payload,
 )
 from viewspec.schema import viewspec_pb2 as pb2
@@ -124,6 +125,29 @@ def _coerce_json_mapping(payload: Any, type_name: str) -> JsonDict:
     return payload
 
 
+def normalize_json_numbers(value: Any) -> Any:
+    """Return ``value`` with every integral double in the safe range turned back into an int.
+
+    ``google.protobuf.Struct`` stores every number as an IEEE-754 double, so an attribute
+    written as ``100`` comes back from a proto or JSON round trip as ``100.0`` (and whether the
+    protobuf runtime returns ``int`` or ``float`` for it is a runtime detail ViewSpec must not
+    depend on). Integral values with magnitude at most 2**53 are exactly representable, so they
+    are restored to ``int``; non-integral floats and larger magnitudes are returned unchanged.
+    Lists and dicts are normalized recursively; every other value is returned as is.
+    """
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, float):
+        if value.is_integer() and abs(value) <= MAX_SAFE_INTEGER:
+            return int(value)
+        return value
+    if isinstance(value, dict):
+        return {key: normalize_json_numbers(item) for key, item in value.items()}
+    if isinstance(value, list):
+        return [normalize_json_numbers(item) for item in value]
+    return value
+
+
 def _to_struct(value: dict[str, Any] | None) -> struct_pb2.Struct:
     message = struct_pb2.Struct()
     message.update(dict(value or {}))
@@ -131,7 +155,7 @@ def _to_struct(value: dict[str, Any] | None) -> struct_pb2.Struct:
 
 
 def _from_struct(value: struct_pb2.Struct) -> JsonDict:
-    return dict(json_format.MessageToDict(value, preserving_proto_field_name=True))
+    return normalize_json_numbers(dict(json_format.MessageToDict(value, preserving_proto_field_name=True)))
 
 
 def _to_value(value: Any) -> struct_pb2.Value:
@@ -139,7 +163,7 @@ def _to_value(value: Any) -> struct_pb2.Value:
 
 
 def _from_value(value: struct_pb2.Value) -> Any:
-    return json_format.MessageToDict(value, preserving_proto_field_name=True)
+    return normalize_json_numbers(json_format.MessageToDict(value, preserving_proto_field_name=True))
 
 
 def _optional_string(value: str) -> str | None:

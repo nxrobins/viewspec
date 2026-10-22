@@ -9,6 +9,8 @@ from hypothesis import HealthCheck, given, settings, strategies as st
 from viewspec import (
     ASTBundle,
     CompilerAPIError,
+    DesignSystemError,
+    UnsupportedMotifError,
     ViewSpecBuilder,
     compile,
     compile_auto,
@@ -178,7 +180,8 @@ def test_compile_auto_uses_local_when_design_is_attached(monkeypatch):
     assert "#112233" in restored.style_values["tone.neutral"]
 
 
-def test_compile_auto_falls_back_when_attached_design_is_hosted_only(monkeypatch):
+def test_compile_auto_raises_local_design_error_without_uploading_to_remote(monkeypatch):
+    """C-3: a broken local DESIGN.md is the caller's error, never a reason to upload the bundle."""
     request = ViewSpecBuilder("auto_hosted_design").attach_design(
         "name: Acme\ncolor.primary: #FFFFFF\n",
         is_path=False,
@@ -186,15 +189,28 @@ def test_compile_auto_falls_back_when_attached_design_is_hosted_only(monkeypatch
     ast = compile(request.bundle)
     calls, _ = _install_fake_httpx(monkeypatch, FakeResponse(200, {"ast": ast.to_json()}))
 
-    restored = compile_auto(request)
+    with pytest.raises(DesignSystemError):
+        compile_auto(request)
 
-    assert restored.title == ast.title
+    assert calls == []
+
+
+def test_compile_auto_still_falls_back_to_remote_for_unsupported_motifs(monkeypatch):
+    builder = ViewSpecBuilder("auto_unsupported_motif")
+    table = builder.add_table("items", region="main", group_id="rows")
+    table.add_row(label="Alpha", value="1", id="alpha")
+    builder.add_motif("timeline", "timeline", region="main", members=["alpha_label"])
+    bundle = builder.build_bundle()
+    with pytest.raises(UnsupportedMotifError):
+        compile(bundle)
+    remote_ast = compile(_bundle())
+    calls, _ = _install_fake_httpx(monkeypatch, FakeResponse(200, {"ast": remote_ast.to_json()}))
+
+    restored = compile_auto(bundle)
+
+    assert restored.title == remote_ast.title
     assert len(calls) == 1
-    assert calls[0]["kwargs"]["json"]["design"] == {
-        "format": "design.md",
-        "content": "name: Acme\ncolor.primary: #FFFFFF\n",
-        "lint": True,
-    }
+    assert calls[0]["kwargs"]["json"]["view_spec"]["id"] == "auto_unsupported_motif"
 
 
 def test_compile_remote_import_error_guides_remote_extra(monkeypatch):
