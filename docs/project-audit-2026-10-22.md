@@ -21,7 +21,7 @@ The main structural risks are: no type checking despite shipping `py.typed` (850
 |---|---|---|
 | Critical | 0 | |
 | High | 4 | P-1, P-2, C-1, S-1 |
-| Medium | 30 | P-3, P-4, P-5, C-2, C-3, C-4, C-5, C-6, S-2, S-3, S-4, Q-1 to Q-7, T-1, T-2, T-3, R-1 to R-4, D-2, D-3, D-4, H-1, H-2 |
+| Medium | 31 | P-3, P-4, P-5, C-2, C-3, C-4, C-5, C-6, S-2, S-3, S-4, Q-1 to Q-7, T-1, T-2, T-3, R-1 to R-4, R-10, D-2, D-3, D-4, H-1, H-2 |
 | Low | 29 | P-6 to P-8, C-7 to C-9, S-5 to S-9, Q-8 to Q-12, T-4, T-5, R-5 to R-9, D-5 to D-7, H-3 to H-5 |
 
 Section 11 gives a prioritised action plan. Section 12 lists what was verified by execution, what was verified by reading, and what was not verified.
@@ -172,7 +172,9 @@ Severity scale: **Critical** means exploitable or data-destroying. **High** mean
 
 **R-9 (Low) `LICENSE` says "nxrobins", `pyproject.toml` says "Nigel Robinson".** Use one legal name in both.
 
-**R-10 (Info) Strengths.** `permissions: contents: read` in all workflows; no `secrets.` reference anywhere, so fork pull requests carry only a read-only token; `persist-credentials: false` in the e2e job; the matrix matches the classifiers exactly; `--strict-markers`, `compileall`, and a whitespace-damage gate; a fail-closed distribution check; an isolated-venv wheel install plus Chromium Studio launch on 3.11 and 3.14 with retained evidence; patch-level pins for Python, Node, npm, Bun, and Playwright in the e2e job; the last run on `main` succeeded.
+**R-10 (Medium) The host proof step installs dependencies cold under a 90 s budget, and it failed twice on a documentation-only change.** In the `react_tailwind_host` job, "React Tailwind host proof" runs the verifier with `--install`, so the verifier performs `npm ci --ignore-scripts` in a temporary copy of `host_verify_template` under its 90 s install budget (`host_verify.py:47,446-450`). The same job installs the identical seed later ("Install verification corpus host dependencies") and passes it through `VIEWSPEC_HOST_VERIFY_NODE_MODULES_DIR` only to the corpus step (`ci.yml:212-218`); when that variable is set the verifier links the seed instead of installing (`host_verify.py:436-441`). Observed on 2026-10-22: run 402 for this audit (one Markdown file changed) failed in that step on attempt 1 and on the re-run with the identical `HOST_VERIFY_TIMEOUT` while the npm registry was slow; the test matrix passed. Fix: move the seed install before the host proof step, set `VIEWSPEC_HOST_VERIFY_NODE_MODULES_DIR` for it, and enable `cache: npm` on `setup-node`.
+
+**R-11 (Info) Strengths.** `permissions: contents: read` in all workflows; no `secrets.` reference anywhere, so fork pull requests carry only a read-only token; `persist-credentials: false` in the e2e job; the matrix matches the classifiers exactly; `--strict-markers`, `compileall`, and a whitespace-damage gate; a fail-closed distribution check; an isolated-venv wheel install plus Chromium Studio launch on 3.11 and 3.14 with retained evidence; patch-level pins for Python, Node, npm, Bun, and Playwright in the e2e job; the last run on `main` succeeded.
 
 ## 8. Documentation
 
@@ -252,7 +254,7 @@ The servers, token handling, filesystem hygiene, and subprocess use are careful.
 9. Add a Python lockfile or constraints file, `dependabot.yml`, and SHA-pinned actions (P-4, P-5, R-1).
 10. Make the default test suite self-contained, or give the seeded tests a marker. Write `CONTRIBUTING.md` (T-1, H-2).
 11. Pin one golden `artifact_hash` and `semantic_digest` per corpus case per target. Add a Windows CI leg or document "Linux and macOS only" (T-2, C-6, H-1).
-12. Decouple the documentation deploy from the PyPI check. Block `npm audit` on `high` and run the full audit on a schedule. Assert the font census in the Pretext job (R-2, R-3, R-4).
+12. Decouple the documentation deploy from the PyPI check. Block `npm audit` on `high` and run the full audit on a schedule. Assert the font census in the Pretext job. Install the host-verify seed before the host proof step and point the verifier at it (R-2, R-3, R-4, R-10).
 13. Decide the formatter policy: either adopt `ruff format` with one reformat commit and a CI check, or remove the unused `line-length`. Enable `E,F,I,UP,B,SIM,C90` with a baseline (Q-7).
 
 **Later**
