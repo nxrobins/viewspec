@@ -65,7 +65,13 @@ packages = ["src/viewspec"]
 [tool.hatch.build.targets.sdist]
 include = [
     "/src",
+    "/proto",
+    "/tests",
+    "/conformance",
     "/README.md",
+    "/CHANGELOG.md",
+    "/SECURITY.md",
+    "/CONTRIBUTING.md",
     "/LICENSE",
     "/pyproject.toml",
 ]

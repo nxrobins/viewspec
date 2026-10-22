@@ -14,10 +14,13 @@ from pathlib import Path, PurePosixPath
 from typing import Any
 
 
-MAX_ARCHIVE_BYTES = 4 * 1024 * 1024
-MAX_UNPACKED_BYTES = 8 * 1024 * 1024
+# The sdist carries the test suite, the conformance corpus and the schema source so that
+# downstream packagers can run the tests from the archive (audit R-8); the caps leave
+# headroom for that without admitting build output or dependency trees.
+MAX_ARCHIVE_BYTES = 6 * 1024 * 1024
+MAX_UNPACKED_BYTES = 12 * 1024 * 1024
 MAX_MEMBER_BYTES = 2 * 1024 * 1024
-MAX_MEMBERS = 512
+MAX_MEMBERS = 768
 STUDIO_RELEASE_FILES = {
     "__main__.py",
     "cli.py",
@@ -45,8 +48,13 @@ SDIST_TOP_LEVEL_PATHS = {
     "README.md",
     "pyproject.toml",
     "PKG-INFO",
-    "proto",  # schema source for src/viewspec/schema/viewspec_pb2.py, when the sdist includes it
+    "proto",  # schema source for src/viewspec/schema/viewspec_pb2.py
     "src",
+    "tests",
+    "conformance",
+    "CHANGELOG.md",
+    "SECURITY.md",
+    "CONTRIBUTING.md",
 }
 FORBIDDEN_COMPONENTS = {
     ".git",

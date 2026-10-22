@@ -41,6 +41,10 @@ cryptography==50.0.2
     # via
     #   viewspec (pyproject.toml)
     #   pyjwt
+grpcio==1.84.0
+    # via grpcio-tools
+grpcio-tools==1.74.0
+    # via viewspec (pyproject.toml)
 h11==0.16.0
     # via
     #   httpcore
@@ -83,8 +87,10 @@ packaging==26.3
     #   pytest
 pluggy==1.7.0
     # via pytest
-protobuf==7.36.2
-    # via viewspec (pyproject.toml)
+protobuf==6.33.6
+    # via
+    #   viewspec (pyproject.toml)
+    #   grpcio-tools
 pycparser==3.11 ; implementation_name != 'PyPy' and platform_python_implementation != 'PyPy'
     # via cffi
 pydantic==2.14.1
@@ -117,6 +123,8 @@ rpds-py==2026.9.1
     #   referencing
 ruff==0.15.22
     # via viewspec (pyproject.toml)
+setuptools==84.2.1
+    # via grpcio-tools
 sortedcontainers==2.4.0
     # via hypothesis
 sse-starlette==3.5.0
@@ -132,6 +140,7 @@ truststore==0.10.5 ; sys_platform != 'emscripten'
 typing-extensions==4.16.0
     # via
     #   anyio
+    #   grpcio
     #   httpx2
     #   mcp
     #   mcp-types

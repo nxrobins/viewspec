@@ -77,7 +77,8 @@ def test_distribution_audit_accepts_one_bounded_wheel_and_sdist(tmp_path: Path) 
     [
         ("wheel", "../outside.py"),
         ("wheel", "viewspec/node_modules/evil.js"),
-        ("sdist", f"viewspec-{VERSION}/tests/secret.py"),
+        ("sdist", f"viewspec-{VERSION}/demos/index.html"),
+        ("sdist", f"viewspec-{VERSION}/.github/workflows/ci.yml"),
         ("sdist", f"viewspec-{VERSION}/src/viewspec/.git/config"),
     ],
 )
