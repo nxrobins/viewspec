@@ -306,3 +306,78 @@ Windows behaviour; the hosted API; the opt-in `e2e` tests and the Playwright sui
 ### Method note
 
 Three parallel focused reviews (security surfaces; compiler core; documentation, CI, and distribution) produced candidate findings. Every High finding and the determinism claims were reproduced or re-read independently before inclusion. One candidate finding ("no tags or releases exist") was wrong because of the shallow clone and was corrected against the remote.
+
+## 13. Resolution status
+
+Status as of the follow-up work on 2026-10-22, all on branch `claude/project-audit-uv9ohi` (pull request #171). "Fixed" means the change is merged on that branch with tests. "Partial" names what remains. "Open" names the reason.
+
+| Id | Status | Resolution |
+|---|---|---|
+| P-1 | Fixed | `protobuf>=6.31.1,<8`; CI job imports the package at the floor; a test ties the floor to the gencode version. |
+| P-2 | Fixed | vite 8.3.5 in all three seeds; `npm audit` reports zero advisories. |
+| P-3 | Fixed | `proto/universal_ui.proto`, `scripts/regenerate_schema.py`, `.pyi` stub; CI checks source against gencode. |
+| P-4 | Fixed | `requirements-ci.txt` used as pip constraints in every CI install. |
+| P-5 | Fixed | `.github/dependabot.yml` for pip, three npm seeds and Actions. |
+| P-6 | Fixed | `cryptography<53`, `mcp<3`. |
+| P-7 | Fixed | `overrides` for `source-map-js` in the three manifests. |
+| P-8 | Fixed | `.pre-commit-config.yaml` pinned to ruff 0.15.22. |
+| P-9 | Info | No action; caps raised with R-8. |
+| C-1 | Fixed | Integral doubles become ints at `SemanticNode` construction and after round trips; `INTEGER_OUT_OF_SAFE_RANGE` rejects magnitudes above 2^53. |
+| C-2 | Fixed | `ensure_ascii=False` in text rendering. |
+| C-3 | Fixed | `compile_auto` falls back only on `UnsupportedMotifError`. |
+| C-4 | Partial | Output no longer depends on protobuf number formatting and the runtime is capped below 8; values still pass through `Struct` by design. |
+| C-5 | Fixed | `viewspec/_canonical.py`; every helper is an alias of one of two forms; all forms reject NaN; no digest changed. Converging the two forms is an owner decision. |
+| C-6 | Fixed | A Windows CI job compares the corpus goldens with Linux; it found and fixed backslashes in the React app manifest. |
+| C-7 | In progress | Relative paths and unhashed timings in proof reports. |
+| C-8 | Fixed | Unreachable branch, dead accumulators, duplicate digest and unreferenced constants removed. |
+| C-9 | Open | API inconsistencies (`design` string-as-content, unused `lint`, role matching, nine subcommands without `--json`) are behaviour changes left for the owner. |
+| S-1 | Fixed | Event handlers, unsafe URL schemes, unclosed `<script`, raw-HTML governance; nine bypasses are negative tests. |
+| S-2 | Fixed | CSS escapes and comments decoded; `image-set()`, `feImage`, `ping` covered. |
+| S-3 | Fixed | Linear tag scans with a block cap; timing tests. |
+| S-4 | Fixed | `--force` replaces only empty or ViewSpec-marked directories. |
+| S-5 | Fixed | MCP server resolves its working directory. |
+| S-6 | Fixed | DESIGN.md capped at 64 KiB; YAML aliases rejected. |
+| S-7 | Fixed | Void tags added; skipped-tag stack pops to the matching tag. |
+| S-8 | Fixed | Adapter strips reserved internal headers; the verified flag lives on the request object. |
+| S-9 | Fixed | Size gates before reads. |
+| S-10 | In progress | SECURITY.md sentence on consistency versus authenticity. |
+| S-11 | Open | Pinned receipt key and HTTPS-only `api_url` need a hosted-side decision. |
+| S-12, S-13 | Info | Claims re-checked; SECURITY.md update in progress. |
+| Q-1 | Partial | Stub and `pyrightconfig.json` added (849 to 770 errors); a baseline gate stops regressions; the remaining errors are not fixed. |
+| Q-2 | Partial | Hosted client moved out of `compiler.py`; module splits deferred by owner decision. |
+| Q-3 | Partial | Shared artifact-write helper in progress; tag and ARIA ladders deferred by owner decision. |
+| Q-4 | Open | Recipes module mutation deferred by owner decision (regression risk). |
+| Q-5 | Partial | Constant moved, public helper names, `derive_style_tokens` public; agent-layer and tool-layer imports remain, described in the merge notes. |
+| Q-6 | Open | API tiering is a pre-1.0 owner decision. |
+| Q-7 | In progress | `ruff format` adoption and rule set. |
+| Q-8 | Fixed | `CompilerInternalError` and `LocalToolContractError`; two coded raises in `app_numeric.py` and one in the HTML emitter remain. |
+| Q-9 | Fixed | Loggers with a `NullHandler`; daemons configure stderr. |
+| Q-10 | Fixed | Secondary failures logged; `raise ... from` everywhere. |
+| Q-11 | Fixed | 49 of 52 asserts replaced; the last three are in progress. |
+| Q-12 | Fixed | Builder exports added; alias kept. |
+| Q-13 | Info | |
+| T-1 | Fixed | Exact skip reasons; CI still runs everything. |
+| T-2 | Fixed | 32 pinned outputs; regeneration script; checked on Linux and Windows. |
+| T-3 | Fixed | Landing page and proof explorer in the drift test; cross-platform dashboard pinned as a hosted fixture. |
+| T-4 | Fixed | Property tests over scalar types. |
+| T-5 | Fixed | Smoke tests for three scripts. |
+| T-6 | Info | |
+| R-1 | Fixed | Every action pinned to a commit. |
+| R-2 | Fixed | Approved by the owner; PyPI check no longer blocks the docs deploy. |
+| R-3 | Fixed | Approved by the owner; PRs block on high and critical; weekly audit at every level. |
+| R-4 | Fixed | Missing reference fonts fail the Pretext gate loudly. |
+| R-5 | Open | The exact test count and npm patch assertions stay; relaxing them was judged a gate change for the owner. |
+| R-6 | Fixed | Caching, timeouts, concurrency, `agents` extra, lockfile-based Playwright. |
+| R-7 | Fixed | Version single-sourced; tag and release step in the checklist. |
+| R-8 | Fixed | sdist ships tests, conformance, schema source, changelog and policy. |
+| R-9 | Fixed | One legal name. |
+| R-10 | Fixed | Seed installed before the host proof; verifier reuses it. |
+| R-11 | Info | |
+| D-1 | Info | |
+| D-2 to D-7 | Fixed | README and docs corrected; index added; internal notes moved; tests guard codes and the skill file. |
+| H-1 | Fixed | Classifiers and README state Linux and macOS. |
+| H-2 | Partial | CONTRIBUTING.md and CODE_OF_CONDUCT.md added; issue and PR templates and CODEOWNERS not added. |
+| H-3 | Open | Git LFS migration was prepared, but this environment cannot reach `lfs.github.com`; run `git lfs track "demos/launch-assets/*.{gif,mp4,png}"`, re-add the files and push from a machine with LFS access, and set `lfs: true` on the checkout steps. |
+| H-4 | Open by design | Git stores identical blobs once, and the drift test pins the copies; a deploy-time copy would remove the duplicates at the cost of building during the Pages deploy. |
+| H-5 | Fixed | `.gitignore` extended. |
+| H-6 | Info | |
