@@ -29,6 +29,7 @@ from viewspec.local_tools import (
     atomic_write,
     build_intent_semantic_digest,
     check_artifact_dir,
+    check_issue_entry,
     ensure_no_input_overwrite,
     exception_response,
     file_hash,
@@ -612,11 +613,7 @@ def compile_intent_bundle_file_tool(
                 "Fix the reported artifact issue and retry compile_intent_bundle_file.",
                 paths=paths,
                 errors=[
-                    {
-                        "code": "CHECK_FAILED",
-                        "message": item,
-                        "fix": "Re-run viewspec compile after fixing the reported artifact issue.",
-                    }
+                    check_issue_entry(item, default_fix="Re-run viewspec compile after fixing the reported artifact issue.")
                     for item in checked["errors"]
                 ],
                 metadata=metadata,
