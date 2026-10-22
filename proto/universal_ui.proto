@@ -1,0 +1,137 @@
+// ViewSpec protobuf schema (package universal_ui.v1).
+//
+// Source for src/viewspec/schema/viewspec_pb2.py and viewspec_pb2.pyi. Regenerate both with
+//   python scripts/regenerate_schema.py generate
+// and confirm this file still matches the descriptor embedded in viewspec_pb2.py with
+//   python scripts/regenerate_schema.py check
+
+syntax = "proto3";
+
+package universal_ui.v1;
+
+import "google/protobuf/struct.proto";
+
+message ValueList {
+  repeated google.protobuf.Value values = 1;
+}
+
+message StringList {
+  repeated string values = 1;
+}
+
+message SemanticNode {
+  string id = 1;
+  string kind = 2;
+  google.protobuf.Struct attrs = 3;
+  map<string, ValueList> slots = 4;
+  map<string, StringList> edges = 5;
+}
+
+message SemanticSubstrate {
+  string id = 1;
+  string root_id = 2;
+  map<string, SemanticNode> nodes = 3;
+}
+
+message Region {
+  string id = 1;
+  string parent_region = 2;
+  string role = 3;
+  string layout = 4;
+  int32 min_children = 5;
+  google.protobuf.Value max_children = 6;
+}
+
+message Binding {
+  string id = 1;
+  string address = 2;
+  string target_region = 3;
+  string present_as = 4;
+  string cardinality = 5;
+}
+
+message Group {
+  string id = 1;
+  string kind = 2;
+  repeated string members = 3;
+  string target_region = 4;
+}
+
+message Motif {
+  string id = 1;
+  string kind = 2;
+  string region = 3;
+  repeated string members = 4;
+}
+
+message Style {
+  string id = 1;
+  string target = 2;
+  string token = 3;
+}
+
+message ActionIntent {
+  string id = 1;
+  string kind = 2;
+  string label = 3;
+  string target_region = 4;
+  string target_ref = 5;
+  repeated string payload_bindings = 6;
+}
+
+message ViewSpec {
+  string id = 1;
+  string substrate_id = 2;
+  int32 complexity_tier = 3;
+  string root_region = 4;
+  repeated Region regions = 5;
+  repeated Binding bindings = 6;
+  repeated Group groups = 7;
+  repeated Motif motifs = 8;
+  repeated Style styles = 9;
+  repeated ActionIntent actions = 10;
+}
+
+message Provenance {
+  repeated string content_refs = 1;
+  repeated string intent_refs = 2;
+}
+
+message IRNode {
+  string id = 1;
+  string primitive = 2;
+  google.protobuf.Struct props = 3;
+  repeated IRNode children = 4;
+  Provenance provenance = 5;
+  repeated string style_tokens = 6;
+}
+
+message CompositionIR {
+  IRNode root = 1;
+}
+
+message CompilerDiagnostic {
+  string severity = 1;
+  string code = 2;
+  string message = 3;
+  string intent_ref = 4;
+  string content_ref = 5;
+  string region_id = 6;
+  string node_id = 7;
+}
+
+message CompilerResult {
+  CompositionIR root = 1;
+  repeated CompilerDiagnostic diagnostics = 2;
+}
+
+message IntentBundle {
+  SemanticSubstrate substrate = 1;
+  ViewSpec view_spec = 2;
+}
+
+message ASTBundle {
+  CompilerResult result = 1;
+  map<string, string> style_values = 2;
+  string title = 3;
+}
