@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
 from viewspec._version import __version__
@@ -114,6 +115,45 @@ def atomic_write(path: Path, text: str) -> None:
         if temp_name:
             Path(temp_name).unlink(missing_ok=True)
         raise
+
+def portable_path(value: str, base: str | Path) -> str:
+    """Return ``value`` relative to ``base`` with POSIX separators.
+
+    ``base`` itself becomes ``"."``.  A path on another Windows drive has no relative form and keeps
+    its absolute spelling in POSIX form.  The empty string is returned unchanged.
+    """
+    if not value:
+        return value
+    try:
+        relative = os.path.relpath(value, str(base))
+    except ValueError:
+        return Path(value).as_posix()
+    return Path(relative).as_posix()
+
+def portable_report_paths(report: Mapping[str, Any], base: str | Path) -> dict[str, Any]:
+    """Deep-copy ``report`` with every ``paths`` mapping rewritten relative to ``base``.
+
+    Proof reports record where their files were written.  Written as absolute paths, two proofs of
+    the same input in different directories, or one proof after a move, would differ and so would
+    every hash over them.  The copy rewrites each string value under a key named ``paths`` (at any
+    depth) through :func:`portable_path`; ``None`` and non-string values are kept.  Applied to an
+    already portable report with ``base`` ``"."`` it is the identity, so a document read back from
+    disk hashes the same as the in-memory report it was written from.
+    """
+    return _portable_value(dict(report), str(base))
+
+def _portable_value(value: Any, base: str) -> Any:
+    if isinstance(value, dict):
+        return {
+            key: _portable_paths_mapping(item, base) if key == "paths" and isinstance(item, dict) else _portable_value(item, base)
+            for key, item in value.items()
+        }
+    if isinstance(value, list):
+        return [_portable_value(item, base) for item in value]
+    return value
+
+def _portable_paths_mapping(paths: Mapping[str, Any], base: str) -> dict[str, Any]:
+    return {key: portable_path(item, base) if isinstance(item, str) else item for key, item in paths.items()}
 
 def _load_optional_design(
     design_path: str | Path | None,

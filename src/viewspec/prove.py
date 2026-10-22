@@ -7,6 +7,7 @@ import platform
 import shutil
 import sys
 import time
+from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -23,6 +24,7 @@ from viewspec.local_tools import (
     MCP_RESULT_SCHEMA_VERSION,
     LocalToolError,
     atomic_write,
+    bytes_hash,
     file_hash,
     init_design_file,
     path_policy_metadata,
@@ -31,7 +33,7 @@ from viewspec.local_tools import (
     tool_error_response,
     tool_response,
 )
-from viewspec.local_tools_io import is_replaceable_output_dir
+from viewspec.local_tools_io import is_replaceable_output_dir, portable_path, portable_report_paths
 from viewspec.a11y import a11y_contrast_report, name_report
 from viewspec.manifest_summary import manifest_root_aesthetic_profile, summarize_intent_manifest
 
@@ -43,6 +45,8 @@ PROVE_DEFAULT_SUMMARY = "PROOF.md"
 PROVE_DEFAULT_SUPPORT_BUNDLE = "support_bundle.json"
 PROVE_SUMMARY_MAX_BYTES = 32 * 1024
 PROVE_SUPPORT_BUNDLE_MAX_BYTES = 16 * 1024
+# 2: dropped the wall-clock ``timings_ms`` section so two proofs of one input produce one bundle.
+PROVE_SUPPORT_BUNDLE_SCHEMA_VERSION = 2
 PROVE_ARTIFACT_DIR = "artifact"
 PROVE_TARGETS = INTENT_COMPILE_TARGETS
 PROOF_LEVEL_BY_TARGET = {
@@ -556,43 +560,90 @@ def _report(
     }
 
 
+def _portable_report(report: Mapping[str, Any]) -> dict[str, Any]:
+    """Return the on-disk form of ``report``: a copy whose paths are relative to the proof directory.
+
+    The in-memory report keeps absolute paths so the CLI and the MCP tool can print and open them;
+    ``proof_report.json`` records them relative to ``paths.proof_dir`` with POSIX separators so the
+    document, and every hash over it, is the same wherever the proof was written.
+    """
+    paths = report.get("paths") if isinstance(report.get("paths"), dict) else {}
+    base = paths.get("proof_dir")
+    if not isinstance(base, str) or not base:
+        return json.loads(json.dumps(report))
+    portable = portable_report_paths(report, base)
+    host_report = portable.get("host_report")
+    if isinstance(host_report, dict) and isinstance(host_report.get("artifact_dir"), str):
+        host_report["artifact_dir"] = portable_path(host_report["artifact_dir"], base)
+    return portable
+
+
+def _portable_paths(report: Mapping[str, Any]) -> dict[str, Any]:
+    paths = _portable_report(report).get("paths")
+    return paths if isinstance(paths, dict) else {}
+
+
+def _report_text(document: Mapping[str, Any]) -> str:
+    return json.dumps(document, indent=2, sort_keys=True) + "\n"
+
+
+def proof_report_hash(report: Mapping[str, Any]) -> str:
+    """Return the SHA-256 identity of a proof report, independent of where and when it was written.
+
+    The hash covers the portable ``proof_report.json`` document (paths relative to the proof
+    directory) with the wall-clock ``timings_ms`` section removed, serialized exactly as the file
+    is written: ``indent=2``, sorted keys, one trailing newline, UTF-8.  It is the same for the
+    in-memory report, for the document read back from disk, and for two proofs of one input in
+    different directories.  To recompute it from a file: load ``proof_report.json``, delete
+    ``timings_ms``, re-serialize with ``json.dumps(report, indent=2, sort_keys=True) + "\\n"`` and
+    hash the UTF-8 bytes.  ``PROOF.md`` and ``support_bundle.json`` record this value as the proof
+    report hash, and the ``prove`` tool exposes it as ``proof_identity.proof_report_hash``.
+    """
+    document = _portable_report(report)
+    document.pop("timings_ms", None)
+    return bytes_hash(_report_text(document).encode("utf-8"))
+
+
+def _write_report_file(report: dict[str, Any], report_path: Path) -> None:
+    atomic_write(report_path, _report_text(_portable_report(report)))
+
+
 def _write_report(report: dict[str, Any], report_path: Path) -> dict[str, Any]:
     report = _final_report(report, report_path)
     report.setdefault("checks", {})["support_bundle"] = "written"
     report.setdefault("checks", {})["proof_summary"] = "written"
-    atomic_write(report_path, json.dumps(report, indent=2, sort_keys=True) + "\n")
+    _write_report_file(report, report_path)
     try:
         support_path = report.get("paths", {}).get("support_bundle")
         if support_path:
-            _write_support_bundle(Path(str(support_path)), _render_support_bundle(report, proof_report_hash=file_hash(report_path)), report=report)
+            _write_support_bundle(Path(str(support_path)), _render_support_bundle(report, proof_report_hash=proof_report_hash(report)), report=report)
     except Exception as exc:
         failed = _support_failure_report(report, report_path, exc)
-        atomic_write(report_path, json.dumps(failed, indent=2, sort_keys=True) + "\n")
+        _write_report_file(failed, report_path)
         try:
-            _write_failed_summary(failed, report_path)
+            _write_failed_summary(failed)
         except Exception as summary_exc:
             failed = _summary_failure_report(failed, report_path, summary_exc)
-            atomic_write(report_path, json.dumps(failed, indent=2, sort_keys=True) + "\n")
+            _write_report_file(failed, report_path)
         return failed
     try:
         summary_path = report.get("paths", {}).get("proof_summary")
         if summary_path:
-            report_hash = file_hash(report_path)
-            _write_proof_summary(Path(str(summary_path)), _render_proof_summary(report, proof_report_hash=report_hash))
+            _write_proof_summary(Path(str(summary_path)), _render_proof_summary(report, proof_report_hash=proof_report_hash(report)))
     except Exception as exc:
         failed = _summary_failure_report(report, report_path, exc)
-        atomic_write(report_path, json.dumps(failed, indent=2, sort_keys=True) + "\n")
+        _write_report_file(failed, report_path)
         try:
             support_path = failed.get("paths", {}).get("support_bundle")
             if support_path:
                 _write_support_bundle(
                     Path(str(support_path)),
-                    _render_support_bundle(failed, proof_report_hash=file_hash(report_path)),
+                    _render_support_bundle(failed, proof_report_hash=proof_report_hash(failed)),
                     report=failed,
                 )
         except Exception as support_exc:
             failed = _support_failure_report(failed, report_path, support_exc)
-            atomic_write(report_path, json.dumps(failed, indent=2, sort_keys=True) + "\n")
+            _write_report_file(failed, report_path)
         return failed
     return report
 
@@ -658,10 +709,10 @@ def _support_failure_report(report: dict[str, Any], report_path: Path, exc: Exce
     return _final_report(failed, report_path)
 
 
-def _write_failed_summary(report: dict[str, Any], report_path: Path) -> None:
+def _write_failed_summary(report: dict[str, Any]) -> None:
     summary_path = report.get("paths", {}).get("proof_summary")
     if summary_path:
-        _write_proof_summary(Path(str(summary_path)), _render_proof_summary(report, proof_report_hash=file_hash(report_path)))
+        _write_proof_summary(Path(str(summary_path)), _render_proof_summary(report, proof_report_hash=proof_report_hash(report)))
 
 
 def _write_proof_summary(summary_path: Path, markdown: str) -> None:
@@ -696,10 +747,9 @@ def _support_bundle_payload(report: dict[str, Any], *, proof_report_hash: str) -
     checks = report.get("checks", {}) if isinstance(report.get("checks"), dict) else {}
     errors = report.get("errors", []) if isinstance(report.get("errors"), list) else []
     metadata = report.get("metadata", {}) if isinstance(report.get("metadata"), dict) else {}
-    timings = report.get("timings_ms", {}) if isinstance(report.get("timings_ms"), dict) else {}
     host_report = report.get("host_report") if isinstance(report.get("host_report"), dict) else None
     return {
-        "schema_version": 1,
+        "schema_version": PROVE_SUPPORT_BUNDLE_SCHEMA_VERSION,
         "kind": "viewspec_proof_support_bundle",
         "ok": bool(report.get("ok")),
         "target": report.get("target"),
@@ -721,7 +771,6 @@ def _support_bundle_payload(report: dict[str, Any], *, proof_report_hash: str) -
         "paths": _support_path_hints(report),
         "manifest_summary": _support_manifest_summary(report.get("manifest_summary")),
         "host_report": _support_host_report(host_report),
-        "timings_ms": {str(key): int(value) for key, value in timings.items() if isinstance(value, int)},
         "privacy": {
             "local_only": True,
             "contains_raw_intent": False,
@@ -852,7 +901,7 @@ def _assert_support_bundle_redacted(payload: str, report: dict[str, Any]) -> Non
 
 
 def _render_proof_summary(report: dict[str, Any], *, proof_report_hash: str) -> str:
-    paths = report.get("paths", {}) if isinstance(report.get("paths"), dict) else {}
+    paths = _portable_paths(report)
     checks = report.get("checks", {}) if isinstance(report.get("checks"), dict) else {}
     metadata = report.get("metadata", {}) if isinstance(report.get("metadata"), dict) else {}
     timings = report.get("timings_ms", {}) if isinstance(report.get("timings_ms"), dict) else {}
@@ -873,6 +922,7 @@ def _render_proof_summary(report: dict[str, Any], *, proof_report_hash: str) -> 
         "",
         "## Inputs And Outputs",
         "",
+        "- Paths are relative to the proof directory.",
         f"- Intent source: `{_summary_value(checks.get('intent'))}`",
         f"- Intent path: `{_summary_value(paths.get('intent'))}`",
         f"- Design source: `{_summary_value(checks.get('design'))}`",
@@ -888,6 +938,7 @@ def _render_proof_summary(report: dict[str, Any], *, proof_report_hash: str) -> 
         f"- Artifact SHA-256: `{_summary_value(report.get('artifact_hash'))}`",
         f"- Manifest SHA-256: `{_summary_value(report.get('manifest_hash'))}`",
         f"- Proof report SHA-256: `{_summary_value(proof_report_hash)}`",
+        "- Proof report SHA-256 scope: `proof_report.json` with `timings_ms` removed",
     ]
     lines.extend(_proof_manifest_summary_lines(report.get("manifest_summary")))
     lines.extend(["", "## Checks", ""])
@@ -1036,19 +1087,23 @@ def _tool_proof_identity(proof: dict[str, Any]) -> dict[str, str | None]:
     return {
         "artifact_hash": proof.get("artifact_hash") if isinstance(proof.get("artifact_hash"), str) else None,
         "manifest_hash": proof.get("manifest_hash") if isinstance(proof.get("manifest_hash"), str) else None,
-        "proof_report_hash": _hash_path_if_present(paths.get("report")),
+        "proof_report_hash": proof_report_hash(proof) if _is_present_file(paths.get("report")) else None,
         "proof_summary_hash": _hash_path_if_present(paths.get("proof_summary")),
         "support_bundle_hash": _hash_path_if_present(paths.get("support_bundle")),
     }
 
 
-def _hash_path_if_present(path: object) -> str | None:
+def _is_present_file(path: object) -> bool:
     if not path:
-        return None
+        return False
     candidate = Path(str(path))
-    if not candidate.exists() or not candidate.is_file():
+    return candidate.exists() and candidate.is_file()
+
+
+def _hash_path_if_present(path: object) -> str | None:
+    if not _is_present_file(path):
         return None
-    return file_hash(candidate)
+    return file_hash(Path(str(path)))
 
 
 def _tool_checks(checks: object) -> dict[str, str]:
@@ -1060,8 +1115,10 @@ def _tool_checks(checks: object) -> dict[str, str]:
 __all__ = [
     "PROVE_DEFAULT_OUT",
     "PROVE_SCHEMA_VERSION",
+    "PROVE_SUPPORT_BUNDLE_SCHEMA_VERSION",
     "PROVE_TARGETS",
     "ProveFailure",
+    "proof_report_hash",
     "prove",
     "prove_tool",
 ]

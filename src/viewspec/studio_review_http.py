@@ -189,9 +189,11 @@ class StudioReviewHTTPAdapter:
             if temporary.exists():
                 temporary.unlink()
         capabilities = created.pop("fragment_capabilities")
-        assert isinstance(capabilities, dict)
+        if not isinstance(capabilities, dict):
+            raise TypeError("Private review create response fragment_capabilities must be a mapping.")
         session = created["session"]
-        assert isinstance(session, dict)
+        if not isinstance(session, dict):
+            raise TypeError("Private review create response session must be a mapping.")
         session_path = f"/review/{session['id']}/"
         payload = {
             **created,
@@ -213,7 +215,8 @@ class StudioReviewHTTPAdapter:
         exchanged = self.service.exchange_capability(session_id, payload["capability"])
         cookie_value = exchanged.pop("cookie_value")
         policy = exchanged["cookie_policy"]
-        assert isinstance(policy, dict)
+        if not isinstance(policy, dict):
+            raise TypeError("Private review exchange response cookie_policy must be a mapping.")
         max_age = int(policy["max_age"])
         cookie = (
             f"{STUDIO_REVIEW_COOKIE_NAME}={cookie_value}; Path={policy['path']}; Max-Age={max_age}; "

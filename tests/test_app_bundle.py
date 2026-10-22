@@ -8,6 +8,7 @@ from hypothesis import given, settings, strategies as st
 
 import viewspec.app_bundle as app_bundle_module
 from viewspec.app_errors import AppBundleProofFailure
+from viewspec.app_reports import app_proof_report_hash
 from viewspec.app_resource_binding import _resource_binding_assertion_report
 from viewspec.app_shell import _assert_rendered_shell_static_contract
 from viewspec.app_state_artifacts import _write_state_artifacts
@@ -1296,7 +1297,19 @@ def test_prove_app_writes_checked_screen_artifacts_and_redacted_support(tmp_path
     assert out_dir.joinpath("APP_PROOF.md").exists()
     assert out_dir.joinpath("app_proof_report.json").exists()
     assert out_dir.joinpath("app_support_bundle.json").exists()
-    assert json.loads(out_dir.joinpath("app_proof_report.json").read_text(encoding="utf-8")) == report
+    # The file is the portable form of the returned report: paths relative to the proof directory.
+    report_text = out_dir.joinpath("app_proof_report.json").read_text(encoding="utf-8")
+    assert str(tmp_path) not in report_text
+    on_disk = json.loads(report_text)
+    assert {key: value for key, value in on_disk.items() if key not in {"paths", "screens"}} == {
+        key: value for key, value in report.items() if key not in {"paths", "screens"}
+    }
+    assert on_disk["paths"]["proof_dir"] == "."
+    assert on_disk["paths"]["app"] == "../viewspec.app.json"
+    assert on_disk["paths"]["report"] == "app_proof_report.json"
+    assert [screen["paths"]["artifact"] for screen in on_disk["screens"]] == [
+        f"screens/{screen['id']}/artifact/index.html" for screen in report["screens"]
+    ]
     assert len(report["screens"]) == 2
     for screen in report["screens"]:
         screen_root = out_dir / "screens" / screen["id"]
@@ -1313,7 +1326,35 @@ def test_prove_app_writes_checked_screen_artifacts_and_redacted_support(tmp_path
     assert support["kind"] == "viewspec_app_proof_support_bundle"
     assert support["privacy"]["contains_raw_app"] is False
     assert support["privacy"]["contains_absolute_paths"] is False
+    assert support["proof_report_hash"] == app_proof_report_hash(report) == app_proof_report_hash(on_disk)
     assert str(tmp_path) not in support_text
+
+
+def test_prove_app_bundle_is_identical_across_directories(tmp_path):
+    # C-7: two app proofs of one AppBundle in different directories differ only in wall-clock timings.
+    app_path = tmp_path / "viewspec.app.json"
+    app_path.write_text(_app_text(starter_app_bundle()), encoding="utf-8")
+    first_dir = tmp_path / "first" / "app-proof"
+    second_dir = tmp_path / "second" / "app-proof"
+
+    first = prove_app(app_path=app_path, out_dir=first_dir, cwd=tmp_path)
+    second = prove_app(app_path=app_path, out_dir=second_dir, cwd=tmp_path)
+
+    assert first["ok"] is True
+    assert second["ok"] is True
+    first_doc = json.loads(first_dir.joinpath("app_proof_report.json").read_text(encoding="utf-8"))
+    second_doc = json.loads(second_dir.joinpath("app_proof_report.json").read_text(encoding="utf-8"))
+    assert first_doc["paths"]["app"] == "../../viewspec.app.json"
+    first_doc.pop("timings_ms")
+    second_doc.pop("timings_ms")
+    assert first_doc == second_doc
+    first_support = first_dir.joinpath("app_support_bundle.json").read_bytes()
+    assert first_support == second_dir.joinpath("app_support_bundle.json").read_bytes()
+    assert json.loads(first_support)["proof_report_hash"] == app_proof_report_hash(first) == app_proof_report_hash(second)
+    first_summary = first_dir.joinpath("APP_PROOF.md").read_text(encoding="utf-8")
+    assert "- Paths are relative to the proof directory." in first_summary
+    assert "- app: `../../viewspec.app.json`" in first_summary
+    assert str(tmp_path) not in first_summary
 
 
 def test_compile_app_writes_static_shell_artifact_and_cli_report(tmp_path, capsys):
