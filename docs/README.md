@@ -63,6 +63,10 @@ Contributor process (development setup, test commands, the error-code registry r
 changelog rule) lives in [`CONTRIBUTING.md`](../CONTRIBUTING.md) at the repository root, next to
 [`CODE_OF_CONDUCT.md`](../CODE_OF_CONDUCT.md) and [`SECURITY.md`](../SECURITY.md).
 
+## Audit reports
+
+- [project-audit-2026-10-22.md](project-audit-2026-10-22.md): the 2026-10-22 engineering audit, its findings, and the resolution status of each finding.
+
 ## Internal notes (`internal/`)
 
 Status, planning, and asset-production notes kept for the record. They describe goals and
