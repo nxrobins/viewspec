@@ -142,6 +142,13 @@ in parentheses refer to that document.
   compatibility horizon (D-2 to D-7, H-1). `CONTRIBUTING.md` and `CODE_OF_CONDUCT.md` were added
   (H-2); the release checklist tags and publishes each release (R-7) and says that the site
   deploy does not wait for the PyPI check (R-2).
+- New issues start from a bug report or a feature request form, and blank issues are off. The bug
+  report asks for the ViewSpec and Python versions, the operating system, the exact command, a
+  minimal reproduction and the `--json` output. It tells reporters to put pasted JSON, HTML and
+  `DESIGN.md` in a fenced code block so the issue shows them as written, and the template chooser
+  sends vulnerability reports to `SECURITY.md`. The pull request template's checklist repeats
+  every check and repository rule in `CONTRIBUTING.md`, including the no-network rule, and
+  `CODEOWNERS` asks @nxrobins to review every pull request (H-2).
 
 ### Security
 
