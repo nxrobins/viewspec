@@ -26,7 +26,7 @@ from viewspec.emitters.react_tsx import ReactTsxEmitter
 from viewspec.intent_contract import MAX_SAFE_INTEGER
 from viewspec.intent_tools import validate_intent_bundle_file_tool
 from viewspec.schema.viewspec_pb2 import IntentBundle as PbIntentBundle
-from viewspec.types import normalize_json_numbers
+from viewspec.types import normalize_json_numbers, normalize_json_numbers_in_place
 
 UNSAFE_INTEGER = MAX_SAFE_INTEGER + 1  # 9007199254740993, the audit's reproduction value
 
@@ -190,6 +190,22 @@ def test_normalize_json_numbers_restores_safe_integers_only():
     assert isinstance(normalize_json_numbers(1.0), int)
     assert isinstance(normalize_json_numbers(True), bool)
     assert isinstance(normalize_json_numbers(1e300), float)
+
+
+def test_normalize_json_numbers_treats_tuples_like_lists():
+    """protobuf Struct and JSON turn a tuple into a list, so normalization must too (audit C-1)."""
+    value = {"pair": (1.0, 2.0), "rows": [(3.0, 2.5), {"nested": (4.0,)}]}
+    normalized = normalize_json_numbers(value)
+    assert json.dumps(normalized) == '{"pair": [1, 2], "rows": [[3, 2.5], {"nested": [4]}]}'
+    assert normalize_json_numbers((5.0, (6.0, 1.5))) == [5, [6, 1.5]]
+    # The argument is never modified.
+    assert value == {"pair": (1.0, 2.0), "rows": [(3.0, 2.5), {"nested": (4.0,)}]}
+    assert isinstance(value["pair"][0], float)
+    assert _text_from_value((1.0, 2.0)) == _text_from_value([1.0, 2.0]) == "[1,2]"
+
+    in_place = {"pair": (1.0, 2.0), "rows": [(3.0, 2.5), {"nested": (4.0,)}]}
+    normalize_json_numbers_in_place(in_place)
+    assert json.dumps(in_place) == '{"pair": [1, 2], "rows": [[3, 2.5], {"nested": [4]}]}'
 
 
 def test_from_json_restores_integer_attribute_values():

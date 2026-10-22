@@ -164,6 +164,12 @@ class ConvergeError(ValueError):
         self.fix = fix
         self.cli_exit = cli_exit
 
+    def __reduce__(self) -> tuple[Any, ...]:
+        # ``args`` holds only the message, so the default ``cls(*args)`` rebuild would fail.
+        # Rebuild from code, message and fix; the instance dict restores cli_exit and any other
+        # attribute, so the error survives pickle, copy.copy and copy.deepcopy.
+        return (type(self), (self.code, self.message, self.fix), self.__dict__)
+
     def to_json(self) -> dict[str, str]:
         return {"code": self.code, "message": self.message, "fix": self.fix}
 

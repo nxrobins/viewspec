@@ -1,4 +1,4 @@
-"""Every canonical-JSON helper is a thin alias of one of the two shared forms (audit C-5).
+"""The canonical-JSON helpers pinned here are thin aliases of one of the two shared forms (audit C-5).
 
 Both an ASCII-escaped and a UTF-8 canonical form are in use. Which module uses which is part of
 that module's digest contract (switching a module's form rotates every digest it computes), so

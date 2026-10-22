@@ -51,6 +51,14 @@ from viewspec.compiler_refs import (
 )
 from viewspec.design_md import DesignSystemContext, load_design_system, merge_style_values
 
+# Names that were importable from `viewspec.compiler` before the hosted client moved
+# out stay importable from here (redundant-alias re-exports): the hosted client's
+# request and response types and the DESIGN.md error that compile() and
+# compile_auto() raise.
+from viewspec.design_md import (
+    DesignSystemError as DesignSystemError,
+)
+
 # The hosted compiler client lives in viewspec.hosted_compile. Its names are
 # re-exported here (redundant-alias form) because `viewspec.compiler` was their
 # import location before the move and viewspec.__init__ still imports them here.
@@ -106,6 +114,12 @@ from viewspec.types import (
     SemanticSubstrate,
     StyleSpec,
     ViewSpec,
+)
+from viewspec.types import (
+    CompileRequestPayload as CompileRequestPayload,
+)
+from viewspec.types import (
+    CompileResponse as CompileResponse,
 )
 from viewspec.types import (
     normalize_json_numbers as _normalize_json_numbers,

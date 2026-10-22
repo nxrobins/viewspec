@@ -8,6 +8,9 @@ change.
 
 from __future__ import annotations
 
+import copy
+import pickle
+
 import pytest
 
 from viewspec import cli, compiler, local_tools_validators
@@ -32,6 +35,28 @@ def test_stable_code_error_shape():
     assert exc.code == "TAILWIND_IMPORT_NOT_SUPPORTED"
     assert isinstance(exc, (StableCodeError, ValueError))
     assert not isinstance(exc, RuntimeError)
+
+
+@pytest.mark.parametrize(
+    "exc",
+    [
+        CompilerInternalError("PLANNER_ROLE_METADATA_ONLY", "unsupported product role 'x'."),
+        LocalToolContractError("TAILWIND_TSX_SHAPE_UNSUPPORTED", "ViewSpecView.tsx render shape is unsupported"),
+    ],
+    ids=["internal", "contract"],
+)
+def test_stable_code_errors_survive_pickle_and_copy(exc):
+    """A coded error must cross a process boundary (pickle) and be copyable, as ValueError was."""
+    exc.add_note("raised in a worker")
+    clones = [pickle.loads(pickle.dumps(exc, protocol)) for protocol in range(pickle.HIGHEST_PROTOCOL + 1)]
+    clones += [copy.copy(exc), copy.deepcopy(exc)]
+    for clone in clones:
+        assert type(clone) is type(exc)
+        assert clone.code == exc.code
+        assert clone.message == exc.message
+        assert str(clone) == str(exc) == f"{exc.code}: {exc.message}"
+        assert clone.args == exc.args
+        assert clone.__notes__ == ["raised in a worker"]
 
 
 def test_compiler_internal_error_is_reachable_from_compiler_module():

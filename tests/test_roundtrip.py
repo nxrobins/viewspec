@@ -3,6 +3,7 @@
 import json
 from pathlib import Path
 
+import pytest
 from hypothesis import HealthCheck, given, settings
 from hypothesis import strategies as st
 
@@ -13,10 +14,12 @@ from viewspec import (
     IntentBundle,
     IRNode,
     Provenance,
+    SemanticNode,
     ViewSpecBuilder,
     compile,
     validate_agent_intent_bundle,
 )
+from viewspec.compiler import CompilerInputError
 from viewspec.emitters.html_tailwind import HtmlTailwindEmitter
 from viewspec.intent_contract import MAX_SAFE_INTEGER
 from viewspec.schema.viewspec_pb2 import IntentBundle as PbIntentBundle
@@ -153,9 +156,14 @@ _NON_ASCII_TEXT = st.text(
     alphabet=st.characters(min_codepoint=0x80, exclude_categories=("Cs",)), min_size=1, max_size=8
 )
 _SCALARS = st.one_of(st.none(), st.booleans(), _SAFE_INTEGERS, _FLOATS, _TEXT, _NON_ASCII_TEXT)
+# Tuples are included because the Python SDK accepts them; JSON and proto turn them into lists.
 _JSON_VALUES = st.recursive(
     _SCALARS,
-    lambda children: st.one_of(st.lists(children, max_size=4), st.dictionaries(_TEXT, children, max_size=4)),
+    lambda children: st.one_of(
+        st.lists(children, max_size=4),
+        st.lists(children, max_size=4).map(tuple),
+        st.dictionaries(_TEXT, children, max_size=4),
+    ),
     max_leaves=12,
 )
 
@@ -305,3 +313,70 @@ def test_negative_zero_and_integral_floats_are_canonical_in_memory():
     assert isinstance(node.slots["items"][2][1], float)
     for restored in (_json_text_roundtrip(bundle), _proto_roundtrip(bundle)):
         assert json.dumps(restored.to_json(), sort_keys=True) == json.dumps(bundle.to_json(), sort_keys=True)
+
+
+def test_tuples_render_like_lists_in_memory_and_after_json_and_proto_round_trips(tmp_path):
+    """A tuple of integral floats renders like the list JSON and proto turn it into (audit C-1)."""
+    bundle = _value_bundle((1.0, 2.0), [(3.0, 4.5), {"pair": (5.0, 6.0)}])
+    node = bundle.substrate.nodes["record"]
+    assert node.attrs["value"] == [1, 2]
+    assert node.slots["items"] == [[3, 4.5], {"pair": [5, 6]}]
+    assert json.dumps(node.attrs["value"]) == "[1, 2]"
+
+    assert _binding_text(bundle, "binding_record_value") == "[1,2]"
+    assert _binding_text(bundle, "binding_record_items") == '[[3,4.5],{"pair":[5,6]}]'
+    for restored in (_json_text_roundtrip(bundle), _proto_roundtrip(bundle)):
+        assert _binding_text(restored, "binding_record_value") == "[1,2]"
+        assert _binding_text(restored, "binding_record_items") == '[[3,4.5],{"pair":[5,6]}]'
+
+    baseline = _compiled_bytes(bundle, tmp_path / "memory")
+    assert _compiled_bytes(_json_text_roundtrip(bundle), tmp_path / "json") == baseline
+    assert _compiled_bytes(_proto_roundtrip(bundle), tmp_path / "proto") == baseline
+
+
+def test_semantic_node_does_not_rewrite_caller_owned_data():
+    """Normalizing integral doubles must not change the dicts and lists the caller passed in."""
+    row = {"price": 10.0, "tags": [1.0, 2.5]}
+    slot_item = {"qty": 7.0}
+    slot_list = [3.0, [4.0]]
+    appended = {"q": 8.0}
+    builder = ViewSpecBuilder("caller_data")
+    builder.add_node("record", "record", attrs={"meta": row}, slots={"items": [slot_item, slot_list]})
+    builder.append_slot("record", "items", appended)
+    top_attrs = {"a": 5.0, "pair": (6.0, 7.0)}
+    top_slots = {"s": [9.0, {"n": 10.0}]}
+    direct = SemanticNode(id="direct", kind="record", attrs=top_attrs, slots=top_slots)
+
+    assert json.dumps(row) == '{"price": 10.0, "tags": [1.0, 2.5]}'
+    assert json.dumps(slot_item) == '{"qty": 7.0}'
+    assert json.dumps(slot_list) == "[3.0, [4.0]]"
+    assert json.dumps(appended) == '{"q": 8.0}'
+    assert top_attrs == {"a": 5.0, "pair": (6.0, 7.0)} and isinstance(top_attrs["a"], float)
+    assert json.dumps(top_slots) == '{"s": [9.0, {"n": 10.0}]}'
+
+    # The nodes themselves hold the normalized values.
+    node = builder.build_bundle().substrate.nodes["record"]
+    assert json.dumps(node.attrs) == '{"meta": {"price": 10, "tags": [1, 2.5]}}'
+    assert json.dumps(node.slots) == '{"items": [{"qty": 7}, [3, [4]], {"q": 8}]}'
+    assert json.dumps(direct.attrs) == '{"a": 5, "pair": [6, 7]}'
+    assert json.dumps(direct.slots) == '{"s": [9, {"n": 10}]}'
+
+
+def test_semantic_node_keeps_wrongly_shaped_containers_for_compile_to_reject():
+    """Normalization must not turn a malformed attrs or slots value into an accepted one."""
+    builder = ViewSpecBuilder("shapes")
+    bundle = builder.build_bundle()
+    root_id = bundle.substrate.root_id
+    root = bundle.substrate.nodes[root_id]
+
+    tuple_slot = SemanticNode(id=root.id, kind=root.kind, attrs=dict(root.attrs), slots={"items": (1.0, 2.0)})
+    assert tuple_slot.slots["items"] == (1.0, 2.0)
+    bundle.substrate.nodes[root_id] = tuple_slot
+    with pytest.raises(CompilerInputError, match=r"slots\['items'\] must be a list"):
+        compile(bundle)
+
+    list_attrs = SemanticNode(id=root.id, kind=root.kind, attrs=[1.0])  # type: ignore[arg-type]
+    assert list_attrs.attrs == [1.0]
+    bundle.substrate.nodes[root_id] = list_attrs
+    with pytest.raises(CompilerInputError, match=r"attrs must be a dictionary"):
+        compile(bundle)

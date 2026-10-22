@@ -124,7 +124,9 @@ def normalize_json_numbers(value: Any) -> Any:
     protobuf runtime returns ``int`` or ``float`` for it is a runtime detail ViewSpec must not
     depend on). Integral values with magnitude at most 2**53 are exactly representable, so they
     are restored to ``int``; non-integral floats and larger magnitudes are returned unchanged.
-    Lists and dicts are normalized recursively; every other value is returned as is.
+    Lists and dicts are normalized recursively into new containers, and a tuple becomes a list,
+    which is what JSON and ``google.protobuf.Struct`` turn it into. The argument is never
+    modified. Every other value is returned as is.
     """
     if isinstance(value, bool):
         return value
@@ -134,7 +136,7 @@ def normalize_json_numbers(value: Any) -> Any:
         return value
     if isinstance(value, dict):
         return {key: normalize_json_numbers(item) for key, item in value.items()}
-    if isinstance(value, list):
+    if isinstance(value, (list, tuple)):
         return [normalize_json_numbers(item) for item in value]
     return value
 
@@ -142,10 +144,11 @@ def normalize_json_numbers(value: Any) -> Any:
 def normalize_json_numbers_in_place(container: Any) -> None:
     """Apply :func:`normalize_json_numbers` to a dict or list without replacing it.
 
-    In-memory bundles built with the SDK must serialize to the same bytes as bundles read
-    back from JSON or proto, so :class:`SemanticNode` canonicalizes its ``attrs`` and
-    ``slots`` on construction. The containers are updated in place so callers that keep a
-    reference to the dict they passed in still observe the node's values.
+    Every nested dict and list is updated in place, and a tuple held by the container is
+    replaced by a normalized list, as :func:`normalize_json_numbers` does. Any other
+    ``container`` (a tuple included, since it cannot change) is left as is. :class:`SemanticNode`
+    does not use this function: it normalizes into new containers so that caller-owned data is
+    never rewritten.
     """
     if isinstance(container, dict):
         for key, item in list(container.items()):
@@ -199,10 +202,22 @@ class SemanticNode:
     edges: dict[str, list[str]] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
-        # Integral doubles (including -0.0) become ints at construction so an in-memory
-        # bundle and its JSON or proto round trip serialize identically (audit C-1).
-        normalize_json_numbers_in_place(self.attrs)
-        normalize_json_numbers_in_place(self.slots)
+        # Integral doubles (including -0.0) become ints, and tuples become lists, at
+        # construction so an in-memory bundle and its JSON or proto round trip serialize
+        # identically (audit C-1). The node keeps normalized copies: the dicts and lists the
+        # caller passed in, nested ones included, are never rewritten. Values of the wrong
+        # shape are kept as they are so that compile() still reports them.
+        if isinstance(self.attrs, dict):
+            object.__setattr__(self, "attrs", normalize_json_numbers(self.attrs))
+        if isinstance(self.slots, dict):
+            object.__setattr__(
+                self,
+                "slots",
+                {
+                    key: normalize_json_numbers(values) if isinstance(values, list) else values
+                    for key, values in self.slots.items()
+                },
+            )
 
     def to_proto(self) -> pb2.SemanticNode:
         message = pb2.SemanticNode(id=self.id, kind=self.kind, attrs=_to_struct(self.attrs))

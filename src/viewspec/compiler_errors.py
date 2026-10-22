@@ -16,6 +16,8 @@ CLI exit codes and the validator's error collection keep working unchanged:
 
 from __future__ import annotations
 
+from typing import Any
+
 
 class StableCodeError(Exception):
     """Base class for exceptions that carry a registry code beside a human-readable message."""
@@ -27,6 +29,13 @@ class StableCodeError(Exception):
         super().__init__(f"{code}: {message}")
         self.code = code
         self.message = message
+
+    def __reduce__(self) -> tuple[Any, ...]:
+        # ``args`` holds only the formatted "CODE: message" text, so the default
+        # ``cls(*args)`` rebuild would fail. Rebuild from the two halves instead, so the
+        # exception survives pickle (for example across a ProcessPoolExecutor), copy.copy and
+        # copy.deepcopy. The instance dict carries any other attribute, such as __notes__.
+        return (type(self), (self.code, self.message), self.__dict__ or None)
 
 
 class CompilerInternalError(StableCodeError, RuntimeError):

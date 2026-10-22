@@ -1,4 +1,4 @@
-"""Canonical JSON encodings shared by every digest, byte limit and signature check.
+"""Canonical JSON encodings shared by the contract digests, byte limits and signature checks.
 
 Two canonical forms are in use across the package. Both sort keys at every level, use compact
 ``(",", ":")`` separators and reject NaN and Infinity (``allow_nan=False``), so a non-finite float
@@ -14,7 +14,8 @@ only in how non-ASCII text is written:
   sessions and the Review V0 contract.
 
 Each consuming module keeps a thin alias of the form it already used, so every existing digest
-stays byte-identical. Both forms are pinned against literals in tests/test_hash_goldens.py, and
+stays byte-identical. A few digests keep their own serialization (the agent-eval checkpoints,
+the proof report hashes, and some inline identity digests); CHANGELOG.md lists them under C-5. Both forms are pinned against literals in tests/test_hash_goldens.py, and
 tests/test_canonical.py pins which module uses which form. Converging the two forms would rotate
 digests and is a deliberate canonical-form change, not a consolidation; it is not done here.
 """

@@ -6,7 +6,17 @@ import hashlib
 import json
 
 import viewspec
-from viewspec import DetailBuilder, FormBuilder, ListBuilder, ViewSpecBuilder, compiler_refs, hosted_compile, sdk
+from viewspec import (
+    DetailBuilder,
+    FormBuilder,
+    ListBuilder,
+    ViewSpecBuilder,
+    compiler_refs,
+    design_md,
+    hosted_compile,
+    sdk,
+    types,
+)
 from viewspec import compiler as compiler_module
 from viewspec.emitters import html_tailwind, react_tailwind_tsx
 from viewspec.emitters.react_tailwind_tsx import recipes as tailwind_recipes
@@ -43,6 +53,98 @@ def test_hosted_client_names_stay_importable_from_compiler():
         assert getattr(viewspec, name) is getattr(hosted_compile, name)
     # Private helpers the hosted_* siblings consume are still reachable through the old path.
     assert compiler_module._compiler_api_error is hosted_compile._compiler_api_error
+
+
+# Every public name `viewspec.compiler` exposed on main before the hosted client moved to
+# `viewspec.hosted_compile` (modules and typing helpers it merely imported left out).
+MAIN_COMPILER_PUBLIC_NAMES = (
+    "AESTHETIC_PROFILE_TOKENS",
+    "ASTBundle",
+    "ActionIntent",
+    "AestheticProfileError",
+    "BULK_SELECTION_MAX_IDS",
+    "BULK_SELECTION_VALUE_MAX_BYTES",
+    "BindingSpec",
+    "COLLECTION_ACTION_KINDS",
+    "COLLECTION_MOTIF_KINDS",
+    "COLLECTION_PAYLOAD_VALUE_MAX_BYTES",
+    "CONFLICTING_STATE_MOTIF_KINDS",
+    "CompileRequestPayload",
+    "CompileResponse",
+    "CompilerAPIError",
+    "CompilerDiagnostic",
+    "CompilerInputError",
+    "CompilerResult",
+    "CompositionIR",
+    "DEFAULT_STYLE_TOKEN_VALUES",
+    "DesignRequest",
+    "DesignSystemContext",
+    "DesignSystemError",
+    "GroupSpec",
+    "IRNode",
+    "IntentBundle",
+    "MAX_COLLECTION_ACTIONS_PER_COLLECTION",
+    "MAX_COLLECTION_ACTION_PAYLOAD_BINDINGS",
+    "MAX_COMPILE_NESTING_DEPTH",
+    "MAX_IMPLICIT_PAGE_TITLE_BYTES",
+    "MAX_STATE_MOTIFS",
+    "MotifCompileContext",
+    "MotifPlugin",
+    "MotifPluginError",
+    "MotifRegistry",
+    "MotifSpec",
+    "PRESENT_AS_TO_PRIMITIVE",
+    "PRIMITIVE_DEFAULT_TOKENS",
+    "PRODUCT_SINGLE_COLUMN_SURFACE_V1",
+    "PRODUCT_SURFACE_PLANNER_V1_ROLES",
+    "PRODUCT_SURFACE_PLANNER_V1_SURFACE",
+    "Provenance",
+    "RegionSpec",
+    "SAFE_COMPILER_ID_RE",
+    "SAFE_MOTIF_LOCAL_ACTION_KINDS",
+    "SAFE_MOTIF_LOCAL_ACTION_ROOT_TAGS",
+    "STATE_MOTIF_KINDS",
+    "SUPPORTED_ACTION_KINDS",
+    "SUPPORTED_AESTHETIC_PROFILES",
+    "SUPPORTED_BINDING_CARDINALITIES",
+    "SUPPORTED_GROUP_KINDS",
+    "SUPPORTED_MOTIF_KINDS",
+    "SUPPORTED_REGION_LAYOUTS",
+    "SemanticNode",
+    "SemanticSubstrate",
+    "StyleSpec",
+    "UnsupportedMotifError",
+    "VIEWSPEC_API_URL",
+    "ViewSpec",
+    "WORKSPACE_CONTENT_GRID_ROLE_MARKERS",
+    "WORKSPACE_HEADER_ROLE_MARKERS",
+    "WORKSPACE_PRIMARY_ROLE_MARKERS",
+    "WORKSPACE_SIDE_RAIL_ROLE_MARKERS",
+    "builtin_motif_registry",
+    "compile",
+    "compile_auto",
+    "compile_remote",
+    "compile_remote_response",
+    "create_motif_registry",
+    "is_aesthetic_profile_token",
+    "load_design_system",
+    "merge_style_values",
+    "profile_layout_props",
+    "profile_style_values",
+    "validate_aesthetic_profile_registry",
+)
+
+
+def test_compiler_module_keeps_every_public_name_it_exposed_on_main():
+    missing = [name for name in MAIN_COMPILER_PUBLIC_NAMES if not hasattr(compiler_module, name)]
+    assert missing == []
+
+    from viewspec.compiler import CompileRequestPayload, CompileResponse, DesignSystemError
+
+    # The hosted client's request and response types and the DESIGN.md error stay the same objects.
+    assert CompileRequestPayload is types.CompileRequestPayload is viewspec.CompileRequestPayload
+    assert CompileResponse is types.CompileResponse is viewspec.CompileResponse
+    assert DesignSystemError is design_md.DesignSystemError is viewspec.DesignSystemError
 
 
 def test_compile_auto_resolves_local_compiler_at_call_time(monkeypatch):

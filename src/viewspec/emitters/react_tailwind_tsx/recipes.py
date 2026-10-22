@@ -69,6 +69,15 @@ class CompilerConstraintError(ValueError):
         self.code = code
         self.message = message
 
+    def __reduce__(self) -> tuple[Any, ...]:
+        # Same rule as viewspec.compiler_errors.StableCodeError: ``args`` holds only the
+        # formatted "CODE: message" text, so the default ``cls(*args)`` rebuild would fail.
+        # Rebuild from the two halves, so the error survives pickle (for example across a
+        # ProcessPoolExecutor), copy.copy and copy.deepcopy. The code is already a checked-in
+        # one, so __init__ keeps it unchanged. The instance dict carries any other attribute,
+        # such as __notes__.
+        return (type(self), (self.code, self.message), self.__dict__ or None)
+
 
 TAILWIND_APP_V1_APP_ROLE_CONTRACTS: dict[str, dict[str, tuple[str, ...]]] = {
     "app_shell": {"primitives": ("root",), "product_roles": ("app_shell",)},
