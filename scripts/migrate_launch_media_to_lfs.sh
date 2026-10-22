@@ -301,11 +301,14 @@ into it first, then run this script again."
 }
 
 migrate() {
-    branch=$(git symbolic-ref --quiet --short HEAD) || die "HEAD is detached; check out main first"
+    # The full ref name: with a tag called main, --short prints heads/main, and main would
+    # pass for an ordinary branch to commit the migration on.
+    ref=$(git symbolic-ref --quiet HEAD) || die "HEAD is detached; check out main first"
+    branch=${ref#refs/heads/}
     require_clean_tree
     check_inventory
 
-    if [ "$branch" = main ]; then
+    if [ "$ref" = refs/heads/main ]; then
         if head_is_migrated; then
             say "main already stores the launch media in Git LFS ($(git rev-parse --short HEAD)); nothing to migrate."
             print_site_check

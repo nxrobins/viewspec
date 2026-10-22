@@ -320,6 +320,33 @@ def test_a_branch_that_lacks_commits_of_main_is_not_reused(checkout: Checkout, l
 
 
 @needs_git_lfs
+def test_a_tag_named_main_does_not_turn_main_into_an_ordinary_branch(checkout: Checkout) -> None:
+    # The tag makes "main" ambiguous: git symbolic-ref --short HEAD then prints heads/main.
+    checkout.git("tag", "main")
+
+    result = checkout.migrate()
+
+    assert result.returncode == 0, result.stderr + result.stdout
+    assert checkout.git("symbolic-ref", "HEAD").strip() == f"refs/heads/{BRANCH}"
+    assert checkout.git("rev-parse", "refs/heads/main").strip() == checkout.base
+    assert f"git push --set-upstream origin {BRANCH}\n" in result.stdout
+    assert "heads/main" not in result.stdout
+
+    # The branch main moves on and the tag stays behind: the branch must be compared with
+    # the branch main.
+    checkout.git("switch", "-q", "main")
+    (checkout.path / "NOTES.md").write_text("Later work.\n", encoding="utf-8")
+    checkout.git("add", "NOTES.md")
+    checkout.git("commit", "-q", "-m", "Later work")
+
+    again = checkout.migrate()
+
+    assert again.returncode == 1, again.stdout
+    assert f"error: {BRANCH} does not contain main" in again.stderr
+    assert checkout.git("symbolic-ref", "HEAD").strip() == "refs/heads/main"
+
+
+@needs_git_lfs
 def test_migration_on_a_migrated_main_only_points_at_the_site_check(checkout: Checkout) -> None:
     assert checkout.migrate().returncode == 0
     checkout.git("switch", "-q", "main")
