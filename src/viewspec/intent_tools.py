@@ -1096,11 +1096,9 @@ def _semantic_style_changes(left: dict[str, Any], right: dict[str, Any]) -> list
 def _semantic_aesthetic_profile_changes(left: dict[str, Any], right: dict[str, Any]) -> list[dict[str, Any]]:
     left_profile = _aesthetic_profile_style(left)
     right_profile = _aesthetic_profile_style(right)
-    if left_profile is None and right_profile is None:
-        return []
-    if left_profile == right_profile:
-        return []
-    if left_profile is None and right_profile is not None:
+    if left_profile is None:
+        if right_profile is None:
+            return []
         return [
             {
                 "change": "added",
@@ -1110,7 +1108,7 @@ def _semantic_aesthetic_profile_changes(left: dict[str, Any], right: dict[str, A
                 "impact": _aesthetic_profile_impact(right_profile["token"]),
             }
         ]
-    if left_profile is not None and right_profile is None:
+    if right_profile is None:
         return [
             {
                 "change": "removed",
@@ -1120,7 +1118,8 @@ def _semantic_aesthetic_profile_changes(left: dict[str, Any], right: dict[str, A
                 "impact": _aesthetic_profile_impact(left_profile["token"]),
             }
         ]
-    assert left_profile is not None and right_profile is not None
+    if left_profile == right_profile:
+        return []
     left_impact = _aesthetic_profile_impact(left_profile["token"])
     right_impact = _aesthetic_profile_impact(right_profile["token"])
     return [

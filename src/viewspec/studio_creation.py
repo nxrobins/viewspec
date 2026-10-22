@@ -341,6 +341,22 @@ def inspect_studio_creation(
     }
 
 
+def inspected_task(inspected: dict[str, object]) -> dict[str, object]:
+    """Return the ``task`` mapping from :func:`inspect_studio_creation`, failing loudly on drift."""
+    task = inspected.get("task")
+    if not isinstance(task, dict):
+        raise TypeError(f"Studio creation inspection task must be a mapping, got {type(task).__name__}.")
+    return task
+
+
+def inspected_path(inspected: dict[str, object], key: str) -> Path:
+    """Return one filesystem path from :func:`inspect_studio_creation`, failing loudly on drift."""
+    value = inspected.get(key)
+    if not isinstance(value, Path):
+        raise TypeError(f"Studio creation inspection {key} must be a Path, got {type(value).__name__}.")
+    return value
+
+
 def inspect_accepted_studio_creation(
     task_path: str | Path = STUDIO_CREATION_TASK_DEFAULT,
     *,
@@ -349,14 +365,10 @@ def inspect_accepted_studio_creation(
     """Fail closed unless canonical source is the exact retained checked candidate."""
 
     inspected = inspect_studio_creation(task_path, cwd=cwd)
-    task = inspected["task"]
-    assert isinstance(task, dict)
-    candidate_path = inspected["candidate_path"]
-    source_path = inspected["source_path"]
-    proof_path = inspected["proof_path"]
-    assert isinstance(candidate_path, Path)
-    assert isinstance(source_path, Path)
-    assert isinstance(proof_path, Path)
+    task = inspected_task(inspected)
+    candidate_path = inspected_path(inspected, "candidate_path")
+    source_path = inspected_path(inspected, "source_path")
+    proof_path = inspected_path(inspected, "proof_path")
     if not source_path.exists() and not source_path.is_symlink():
         raise StudioCreationError(
             "STUDIO_CREATION_SOURCE_NOT_READY",
@@ -466,8 +478,9 @@ def _load_brief(*, brief: str | None, brief_file: str | Path | None, root: Path)
                 "The Studio creation brief is not strict UTF-8 text.",
                 "Save the brief as UTF-8 plain text.",
             ) from exc
+    elif brief is None:  # unreachable: the exclusive-input check above already failed closed
+        raise TypeError("Studio creation brief must be text when no brief file is given.")
     else:
-        assert brief is not None
         value = brief
         if len(value.encode("utf-8")) > STUDIO_CREATION_BRIEF_MAX_BYTES:
             raise StudioCreationError(

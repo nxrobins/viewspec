@@ -1,5 +1,7 @@
 """ViewSpec — Universal UI from semantic data."""
 
+import logging
+
 from viewspec._version import __version__
 from viewspec.types import (
     ActionIntent,
@@ -303,6 +305,9 @@ from viewspec.verification import (
     build_verification_id,
 )
 from viewspec.prove import prove, prove_tool
+
+# Library code logs through ``logging``; the application decides where records go.
+logging.getLogger(__name__).addHandler(logging.NullHandler())
 
 __all__ = [
     "__version__",

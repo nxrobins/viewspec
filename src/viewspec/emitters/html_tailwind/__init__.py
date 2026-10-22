@@ -8,6 +8,7 @@ standalone HTML, a provenance manifest, and a diagnostics JSON file.
 from __future__ import annotations
 
 import json
+import logging
 import re
 import tempfile
 from html import escape
@@ -24,6 +25,8 @@ from viewspec.aesthetics import profile_shape_var_css
 from viewspec.compiler_refs import PRODUCT_SURFACE_PLANNER_V1_ROLES
 from viewspec.emitters.base import EmitterPlugin
 
+
+_LOGGER = logging.getLogger(__name__)
 
 TAILWIND_BY_PRIMITIVE = {
     "root": "vs-root",
@@ -650,9 +653,10 @@ def emit_compiler_result(
         _write_text_atomic(manifest_path, json.dumps(manifest, indent=2))
         _write_text_atomic(diagnostics_path, json.dumps([d.to_json() for d in result.diagnostics], indent=2, sort_keys=True))
     except Exception as exc:
+        sentinel_path = output_path / ".viewspec_write_failed.json"
         try:
             _write_text_atomic(
-                output_path / ".viewspec_write_failed.json",
+                sentinel_path,
                 json.dumps(
                     {
                         "version": 1,
@@ -664,8 +668,10 @@ def emit_compiler_result(
                     sort_keys=True,
                 ),
             )
-        except Exception:
-            pass
+        except Exception as sentinel_exc:
+            _LOGGER.warning(
+                "Could not record the artifact write failure in %s: %s", sentinel_path, sentinel_exc, exc_info=sentinel_exc
+            )
         raise
     return {
         "html": str(html_path),

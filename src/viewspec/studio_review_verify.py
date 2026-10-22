@@ -101,7 +101,8 @@ def make_studio_review_rebuild_request(
     payload = package / STUDIO_SHARE_PAYLOAD_DIR
     source = _read_bounded_file(payload / "source/viewspec.app.json", maximum=APP_SOURCE_MAX_BYTES)
     revision = checked.get("revision")
-    assert isinstance(revision, dict)
+    if not isinstance(revision, dict):
+        raise StudioReviewVerificationError("Uploaded Studio review package has no revision record.")
     design = (
         _read_bounded_file(payload / "design/DESIGN.md", maximum=DESIGN_MAX_BYTES)
         if revision.get("design_sha256") is not None
@@ -141,7 +142,8 @@ def rebuild_studio_review_request(request: Mapping[str, object]) -> dict[str, ob
     checked = _validated_rebuild_envelope(value.get("envelope"))
     source = _decode_base64(value.get("semantic_source_base64"), maximum=APP_SOURCE_MAX_BYTES)
     revision = checked["revision"]
-    assert isinstance(revision, dict)
+    if not isinstance(revision, dict):
+        raise StudioReviewVerificationError("Isolated rebuild envelope has no revision record.")
     design_value = value.get("design_system_base64")
     design = None if design_value is None else _decode_base64(design_value, maximum=DESIGN_MAX_BYTES)
     _assert_rebuild_input_identity(checked, source=source, design=design)
@@ -163,7 +165,8 @@ def _rebuild_studio_review_inputs(
             source_copy.write_bytes(source)
             design_copy: Path | None = None
             revision = checked.get("revision")
-            assert isinstance(revision, dict)
+            if not isinstance(revision, dict):
+                raise StudioReviewVerificationError("Isolated rebuild envelope has no revision record.")
             if design is not None:
                 design_copy = workspace / "DESIGN.md"
                 design_copy.write_bytes(design)
@@ -393,7 +396,8 @@ def _assert_rebuild_input_identity(
 ) -> None:
     revision = envelope.get("revision")
     files = envelope.get("files")
-    assert isinstance(revision, dict) and isinstance(files, list)
+    if not isinstance(revision, dict) or not isinstance(files, list):
+        raise StudioReviewVerificationError("Isolated rebuild envelope revision or files are malformed.")
     source_entries = [item for item in files if isinstance(item, dict) and item.get("role") == "semantic_source"]
     design_entries = [item for item in files if isinstance(item, dict) and item.get("role") == "design_system"]
     source_sha256 = hashlib.sha256(source).hexdigest()

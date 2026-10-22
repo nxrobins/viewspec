@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import logging
 import os
 from pathlib import Path
 import signal
@@ -13,7 +14,7 @@ import threading
 import time
 
 from viewspec.review_contract import ReviewContractError, canonical_json_bytes
-from viewspec.review_cli import DEFAULT_REVIEW_PORT, _studio_share_reference_sha256
+from viewspec.review_cli import DEFAULT_REVIEW_PORT, _studio_share_reference_sha256, configure_daemon_logging
 from viewspec.review_compile import STUDIO_COMPARE_TARGET, bounded_review_phase, capture_source_snapshot
 from viewspec.review_runtime import ReviewRuntime, review_session_dir
 from viewspec.review_server import ReviewServer
@@ -24,6 +25,8 @@ from viewspec.verification import VerificationDiagnostic, VerificationPlan, Veri
 
 WATCH_QUIET_SECONDS = 0.250
 WATCH_MAX_COALESCE_SECONDS = 2.0
+
+_LOGGER = logging.getLogger(__name__)
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -125,6 +128,7 @@ def main(argv: list[str] | None = None) -> int:
         )
         _install_signal_handlers(stop)
         server.start()
+        _LOGGER.info("Review server listening on port %s for review %s", server.port, runtime.session.review_id)
         print(
             json.dumps(
                 {
@@ -142,6 +146,7 @@ def main(argv: list[str] | None = None) -> int:
         _watch_sources(runtime, server, stop, verify=args.verify, install=args.install)
         return 0
     except ReviewContractError as exc:
+        _LOGGER.error("Review daemon failed to start: %s: %s", exc.code, exc.message)
         print(
             json.dumps(
                 {
@@ -157,6 +162,7 @@ def main(argv: list[str] | None = None) -> int:
         )
         return exc.cli_exit
     except Exception as exc:
+        _LOGGER.exception("Review daemon failed to start")
         print(
             json.dumps(
                 {
@@ -177,6 +183,7 @@ def main(argv: list[str] | None = None) -> int:
         return 1
     finally:
         if server is not None:
+            _LOGGER.info("Review server on port %s stopping", server.port)
             server.stop()
         if metadata_path is not None:
             metadata_path.unlink(missing_ok=True)
@@ -214,6 +221,7 @@ def _watch_sources(
             continue
         if now - last_change < WATCH_QUIET_SECONDS and now - pending_since < WATCH_MAX_COALESCE_SECONDS:
             continue
+        _LOGGER.info("Source change detected; rebuilding the review revision")
         try:
             compile_lock = _acquire_resource_slot(runtime.state_root, "compile", count=2)
             try:
@@ -222,8 +230,8 @@ def _watch_sources(
                 compile_lock.release()
             if verify:
                 _run_verification(runtime, install=install)
-        except ReviewContractError:
-            pass
+        except ReviewContractError as exc:
+            _LOGGER.warning("Review rebuild did not complete: %s: %s", exc.code, exc.message)
         finally:
             server.notify_state_changed()
         pending_since = None
@@ -257,6 +265,7 @@ def _run_verification(runtime: ReviewRuntime, *, install: bool) -> None:
         except ReviewContractError as exc:
             if exc.code == "REVIEW_VERIFICATION_TIMEOUT":
                 raise
+            _LOGGER.warning("Canonical viewport verification was unavailable: %s: %s", exc.code, exc.message)
             diagnostic = VerificationDiagnostic(
                 code="VERIFY_BROWSER_EXECUTION_FAILED",
                 severity="warning",
@@ -270,6 +279,7 @@ def _run_verification(runtime: ReviewRuntime, *, install: bool) -> None:
                 diagnostics=(diagnostic,),
             )
         except Exception as exc:
+            _LOGGER.warning("Canonical viewport verification failed unexpectedly", exc_info=exc)
             diagnostic = VerificationDiagnostic(
                 code="VERIFY_BROWSER_EXECUTION_FAILED",
                 severity="warning",
@@ -386,4 +396,5 @@ def _enforce_active_session_limit(state_root: Path, current_session: Path) -> No
 
 
 if __name__ == "__main__":
+    configure_daemon_logging()
     sys.exit(main())

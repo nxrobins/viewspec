@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import re
 from pathlib import Path
 from typing import Any
@@ -19,6 +20,8 @@ from viewspec.emitters.html_tailwind import (
 )
 from viewspec.types import ASTBundle, CompilerResult, DEFAULT_STYLE_TOKEN_VALUES, IRNode
 
+
+_LOGGER = logging.getLogger(__name__)
 
 BASE_STYLE_BY_PRIMITIVE: dict[str, dict[str, str]] = {
     "root": {
@@ -604,9 +607,10 @@ def emit_compiler_result(
         _write_text_atomic(manifest_path, json.dumps(manifest, indent=2))
         _write_text_atomic(diagnostics_path, json.dumps([d.to_json() for d in result.diagnostics], indent=2, sort_keys=True))
     except Exception as exc:
+        sentinel_path = output_path / ".viewspec_write_failed.json"
         try:
             _write_text_atomic(
-                output_path / ".viewspec_write_failed.json",
+                sentinel_path,
                 json.dumps(
                     {
                         "version": 1,
@@ -618,8 +622,10 @@ def emit_compiler_result(
                     sort_keys=True,
                 ),
             )
-        except Exception:
-            pass
+        except Exception as sentinel_exc:
+            _LOGGER.warning(
+                "Could not record the artifact write failure in %s: %s", sentinel_path, sentinel_exc, exc_info=sentinel_exc
+            )
         raise
     return {
         "tsx": str(tsx_path),

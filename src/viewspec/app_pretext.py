@@ -253,7 +253,8 @@ def validate_pretext_installation(app_dir: str | Path) -> dict[str, Any]:
             "errors": [],
         }
     except PretextFailure as error:
-        raise error.attach_report(_failure_evidence(error))
+        error.attach_report(_failure_evidence(error))
+        raise
 
 
 def build_pretext_scope(
@@ -372,7 +373,8 @@ def build_pretext_scope(
         _validate_scope(scope)
         return scope
     except PretextFailure as error:
-        raise error.attach_report(_failure_evidence(error))
+        error.attach_report(_failure_evidence(error))
+        raise
 
 
 def validate_pretext_scope(scope: Mapping[str, Any]) -> dict[str, Any]:
@@ -405,7 +407,8 @@ def validate_pretext_scope(scope: Mapping[str, Any]) -> dict[str, Any]:
             "coverage_contract_sha256": scope["coverage_contract_sha256"],
         }
     except PretextFailure as error:
-        raise error.attach_report(_failure_evidence(error))
+        error.attach_report(_failure_evidence(error))
+        raise
 
 
 def validate_pretext_runtime_report(
@@ -601,7 +604,8 @@ def validate_pretext_runtime_report(
             "errors": [],
         }
     except PretextFailure as error:
-        raise error.attach_report(_failure_evidence(error, file_evidence=file_evidence, coverage=counts))
+        error.attach_report(_failure_evidence(error, file_evidence=file_evidence, coverage=counts))
+        raise
 
 
 def _validate_scope(scope: Mapping[str, Any]) -> dict[str, Any]:

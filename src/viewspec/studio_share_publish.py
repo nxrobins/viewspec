@@ -135,14 +135,13 @@ class StudioShareRelease:
                 "The Studio Share release receipt is unsigned or invalid.",
                 "Wait for a valid production canary release receipt.",
             )
-        if not isinstance(receipt, Mapping) or not isinstance(receipt.get("payload"), dict):
+        payload = receipt.get("payload") if isinstance(receipt, Mapping) else None
+        if not isinstance(receipt, Mapping) or not isinstance(payload, dict):
             raise _share_error(
                 "STUDIO_SHARE_RELEASE_INVALID",
                 "The Studio Share release receipt is malformed.",
                 "Wait for a valid production canary release receipt.",
             )
-        payload = receipt["payload"]
-        assert isinstance(payload, dict)
         if set(payload) != _RELEASE_FIELDS:
             raise _share_error(
                 "STUDIO_SHARE_RELEASE_INVALID",
@@ -324,7 +323,7 @@ class StudioSharePublisher:
         # Publishing refreshes the exact package under the same critical section
         # before it uploads, so the lock must permit that deliberate re-entry.
         self._lock = threading.RLock()
-        self._prepared: dict[str, object] | None = None
+        self._prepared: tuple[dict[str, object], dict[str, object]] | None = None
 
     def status(self) -> dict[str, object]:
         self.release.require_current(now_epoch_s=self._now())
@@ -352,9 +351,15 @@ class StudioSharePublisher:
                 ) from exc
             package = Path(str(prepared["paths"]["package"]))
             envelope = load_studio_share_package(package)
-            self._prepared = {"result": prepared, "envelope": envelope}
+            self._prepared = (prepared, envelope)
             disclosure = envelope["disclosure"]
-            assert isinstance(disclosure, dict)
+            if not isinstance(disclosure, dict):
+                raise _share_error(
+                    "STUDIO_SHARE_PACKAGE_INVALID",
+                    "The prepared private-review package has no disclosure inventory.",
+                    "Prepare the package again from the exact checked Studio revision.",
+                    http_status=409,
+                )
             return {
                 "schema_version": 1,
                 "status": "awaiting_confirmation",
@@ -399,10 +404,14 @@ class StudioSharePublisher:
                     "Review the refreshed disclosure before creating a link.",
                     http_status=409,
                 )
-            assert self._prepared is not None
-            prepared = self._prepared["result"]
-            envelope = self._prepared["envelope"]
-            assert isinstance(prepared, dict) and isinstance(envelope, dict)
+            if self._prepared is None:
+                raise _share_error(
+                    "STUDIO_SHARE_REVISION_STALE",
+                    "No prepared private-review package is available to confirm.",
+                    "Review the refreshed disclosure before creating a link.",
+                    http_status=409,
+                )
+            prepared, envelope = self._prepared
             archive = Path(str(prepared["paths"]["upload_archive"]))
             archive_bytes = archive.read_bytes()
             archive_sha256 = hashlib.sha256(archive_bytes).hexdigest()
@@ -502,6 +511,17 @@ def _remote_error(payload: Mapping[str, object], *, status: int) -> ReviewContra
     )
 
 
+def _creation_object(value: object) -> dict[str, object]:
+    if not isinstance(value, dict):
+        raise _share_error(
+            "STUDIO_SHARE_REMOTE_INVALID",
+            "Private-review creation omitted its exact session, verification, ingress, or links.",
+            "Retry after the production private-review service is healthy.",
+            http_status=502,
+        )
+    return value
+
+
 def _validate_creation_response(
     payload: Mapping[str, object],
     *,
@@ -512,23 +532,11 @@ def _validate_creation_response(
     requested_expiry_seconds: int,
     now_epoch_s: int,
 ) -> dict[str, object]:
-    session = payload.get("session")
-    verification = payload.get("verification")
-    ingress = payload.get("ingress")
-    links = payload.get("links")
-    revision = envelope.get("revision")
-    if not all(isinstance(item, dict) for item in (session, verification, ingress, links, revision)):
-        raise _share_error(
-            "STUDIO_SHARE_REMOTE_INVALID",
-            "Private-review creation omitted its exact session, verification, ingress, or links.",
-            "Retry after the production private-review service is healthy.",
-            http_status=502,
-        )
-    assert isinstance(session, dict)
-    assert isinstance(verification, dict)
-    assert isinstance(ingress, dict)
-    assert isinstance(links, dict)
-    assert isinstance(revision, dict)
+    session = _creation_object(payload.get("session"))
+    verification = _creation_object(payload.get("verification"))
+    ingress = _creation_object(payload.get("ingress"))
+    links = _creation_object(payload.get("links"))
+    revision = _creation_object(envelope.get("revision"))
     session_id = session.get("id")
     expires_at = session.get("expires_at")
     if (

@@ -982,7 +982,8 @@ class StudioReviewService:
                         if path in staging_paths:
                             continue
                         if action == "deletion_rollback_completed":
-                            assert destination is not None
+                            if destination is None:
+                                raise ValueError("Deletion rollback requires a destination path.")
                             os.rename(path, destination)
                         else:
                             shutil.rmtree(path)
@@ -1381,7 +1382,8 @@ class StudioReviewService:
 
     def _create_response_with_capabilities(self, safe_response: dict[str, object]) -> dict[str, object]:
         session = safe_response["session"]
-        assert isinstance(session, dict)
+        if not isinstance(session, dict):
+            raise TypeError("Private review safe response session must be a mapping.")
         session_id = str(session["id"])
         with self._connect() as database:
             row = database.execute(
@@ -1594,7 +1596,8 @@ def _build_projection(package: Path, envelope: dict[str, object]) -> dict[str, o
         raise _package_invalid()
     inspection = _read_json(payload / "artifacts" / str(inspection_entry["path"]))
     revision = envelope["revision"]
-    assert isinstance(revision, dict)
+    if not isinstance(revision, dict):
+        raise _package_invalid()
 
     source_screens = source.get("screens")
     if not isinstance(source_screens, list):
@@ -1823,7 +1826,8 @@ def _validated_verification(value: object, *, envelope: dict[str, object]) -> di
         "sandbox",
     }
     revision = envelope["revision"]
-    assert isinstance(revision, dict)
+    if not isinstance(revision, dict):
+        raise _package_invalid()
     if (
         set(value) != expected
         or value.get("schema_version") != STUDIO_REVIEW_SERVICE_SCHEMA_VERSION

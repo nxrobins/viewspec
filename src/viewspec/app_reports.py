@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import platform
 import sys
 from pathlib import Path
@@ -33,6 +34,8 @@ from viewspec.app_validation import (
     _resource_binding_report_fields,
 )
 from viewspec.local_tools import atomic_write, file_hash
+
+_LOGGER = logging.getLogger(__name__)
 
 APP_BUNDLE_PROOF_SCHEMA_VERSION = 1
 APP_BUNDLE_DEFAULT_OUT = ".viewspec-app-proof"
@@ -415,8 +418,13 @@ def write_app_proof(report: dict[str, Any], prepared: PreparedAppProof) -> dict[
                 prepared.summary_path,
                 _render_app_proof_summary(failed, proof_report_hash=file_hash(prepared.report_path)),
             )
-        except Exception:
-            pass
+        except Exception as summary_exc:
+            _LOGGER.warning(
+                "App proof summary could not be written after the support bundle failed: %s",
+                summary_exc,
+                exc_info=summary_exc,
+            )
+            failed = _append_app_proof_error(failed, summary_exc, fallback_code="APP_PROOF_SUMMARY_WRITE_FAILED")
         return failed
     try:
         _write_app_summary(
