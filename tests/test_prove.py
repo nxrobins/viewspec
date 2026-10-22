@@ -5,7 +5,11 @@ from viewspec import profile_style_facts
 from viewspec.cli import main as cli_main
 from viewspec.intent_tools import init_intent_file
 from viewspec.local_tools import check_artifact_dir, file_hash
-from viewspec.prove import prove, prove_tool
+from viewspec.app_react import REACT_APP_MANIFEST
+from viewspec.app_reports import APP_BUNDLE_DEFAULT_REPORT, APP_BUNDLE_DEFAULT_SUMMARY, APP_BUNDLE_DEFAULT_SUPPORT_BUNDLE
+from viewspec.app_shell import APP_SHELL_MANIFEST
+from viewspec.local_tools_io import VIEWSPEC_OUTPUT_MARKERS
+from viewspec.prove import PROVE_DEFAULT_REPORT, PROVE_DEFAULT_SUMMARY, PROVE_DEFAULT_SUPPORT_BUNDLE, prove, prove_tool
 from viewspec.sdk.builder import ViewSpecBuilder
 
 
@@ -239,6 +243,59 @@ def test_prove_existing_output_requires_force(tmp_path):
     assert "PROVE_OUTPUT_EXISTS" in support_text
     assert str(tmp_path) not in support_text
     assert prove(out_dir=out_dir, cwd=tmp_path, force=True)["ok"] is True
+
+
+def test_prove_force_refuses_unrelated_non_empty_directory(tmp_path):
+    unrelated = tmp_path / "src"
+    unrelated.mkdir()
+    keep = unrelated / "main.py"
+    keep.write_text("print('keep me')\n", encoding="utf-8")
+
+    report = prove(out_dir=unrelated, cwd=tmp_path, force=True)
+
+    assert report["ok"] is False
+    assert report["errors"][0]["code"] == "PROVE_OUTPUT_UNRECOGNIZED"
+    assert sorted(path.name for path in unrelated.iterdir()) == ["main.py"]
+    assert keep.read_text(encoding="utf-8") == "print('keep me')\n"
+
+    tool = prove_tool(out_dir="src", force=True, cwd=tmp_path)
+
+    assert tool["ok"] is False
+    assert tool["errors"][0]["code"] == "PROVE_OUTPUT_UNRECOGNIZED"
+    assert sorted(path.name for path in unrelated.iterdir()) == ["main.py"]
+
+
+def test_prove_force_replaces_previous_proof_or_empty_directory(tmp_path):
+    out_dir = tmp_path / "proof"
+    assert prove(out_dir=out_dir, cwd=tmp_path)["ok"] is True
+    stale = out_dir / "stale.txt"
+    stale.write_text("left over", encoding="utf-8")
+
+    replaced = prove(out_dir=out_dir, cwd=tmp_path, force=True)
+
+    assert replaced["ok"] is True
+    assert not stale.exists()
+    assert out_dir.joinpath(PROVE_DEFAULT_REPORT).exists()
+
+    empty = tmp_path / "empty"
+    empty.mkdir()
+    assert prove(out_dir=empty, cwd=tmp_path, force=True)["ok"] is True
+
+
+def test_output_markers_cover_every_viewspec_report_filename():
+    expected = {
+        PROVE_DEFAULT_REPORT,
+        PROVE_DEFAULT_SUMMARY,
+        PROVE_DEFAULT_SUPPORT_BUNDLE,
+        APP_BUNDLE_DEFAULT_REPORT,
+        APP_BUNDLE_DEFAULT_SUMMARY,
+        APP_BUNDLE_DEFAULT_SUPPORT_BUNDLE,
+        APP_SHELL_MANIFEST,
+        REACT_APP_MANIFEST,
+        "provenance_manifest.json",
+    }
+
+    assert expected <= VIEWSPEC_OUTPUT_MARKERS
 
 
 def test_prove_rejects_unsafe_output_without_writing_report(tmp_path):

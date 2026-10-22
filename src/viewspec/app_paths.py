@@ -6,6 +6,7 @@ import shutil
 from pathlib import Path
 
 from viewspec.app_errors import AppBundleProofFailure
+from viewspec.local_tools_io import is_replaceable_output_dir
 
 
 def _prepare_app_output_dir(output_dir: Path, *, root: Path, force: bool, raw_out: str | Path) -> None:
@@ -22,6 +23,12 @@ def _prepare_app_output_dir(output_dir: Path, *, root: Path, force: bool, raw_ou
                 "APP_PROOF_OUTPUT_UNSAFE",
                 f"App proof output is not a directory: {output_dir}",
                 "Choose a dedicated app proof output directory.",
+            )
+        if not is_replaceable_output_dir(output_dir):
+            raise AppBundleProofFailure(
+                "APP_PROOF_OUTPUT_UNRECOGNIZED",
+                f"Refusing to replace a directory that ViewSpec did not write: {output_dir}",
+                "Use --force only on an empty directory or a previous prove-app output; remove other directories yourself.",
             )
         shutil.rmtree(output_dir)
     output_dir.mkdir(parents=True, exist_ok=False)
@@ -67,6 +74,7 @@ def _assert_report_under_output(report_path: Path, output_dir: Path) -> None:
 def _should_write_app_proof_failure(output_dir: Path, code: str) -> bool:
     no_write_codes = {
         "APP_PROOF_OUTPUT_EXISTS",
+        "APP_PROOF_OUTPUT_UNRECOGNIZED",
         "APP_PROOF_OUTPUT_UNSAFE",
         "APP_PROOF_REPORT_PATH_UNSAFE",
     }
@@ -87,6 +95,12 @@ def _prepare_app_shell_output_dir(output_dir: Path, *, root: Path, force: bool, 
                 "APP_SHELL_OUTPUT_PATH_UNSAFE",
                 f"Static shell output is not a directory: {output_dir}",
                 "Choose a dedicated app shell output directory.",
+            )
+        if not is_replaceable_output_dir(output_dir):
+            raise AppBundleProofFailure(
+                "APP_SHELL_OUTPUT_UNRECOGNIZED",
+                f"Refusing to replace a directory that ViewSpec did not write: {output_dir}",
+                "Use --force only on an empty directory or a previous compile-app output; remove other directories yourself.",
             )
         shutil.rmtree(output_dir)
     output_dir.mkdir(parents=True, exist_ok=False)

@@ -20,6 +20,7 @@ from viewspec.studio_review_http import (
     STUDIO_REVIEW_MEDIA_TYPE,
     StudioReviewHTTPAdapter,
 )
+from viewspec.studio_review_internal import authorize_internal_studio_review_upload
 from viewspec.studio_review_service import StudioReviewService
 from viewspec.studio_share import prepare_studio_share
 
@@ -184,6 +185,46 @@ def _comment_context(revision: dict[str, object]) -> dict[str, object]:
         "target": {"kind": "node", "id": targets["node"][0]},
         "replay_evidence_ref": None,
     }
+
+
+def test_adapter_discards_client_internal_markers_on_any_transport(private_review) -> None:
+    _adapter, service, archive = private_review
+    adapter = StudioReviewHTTPAdapter(
+        service,
+        public_origin=_ORIGIN,
+        authorize_upload=authorize_internal_studio_review_upload,
+    )
+    create_headers = {
+        "Content-Type": STUDIO_REVIEW_MEDIA_TYPE,
+        "Idempotency-Key": "internal-marker-create-0001",
+        "X-ViewSpec-Disclosure-Accepted": "true",
+        "X-ViewSpec-Expiry-Seconds": "3600",
+    }
+
+    # A raw transport (plain HTTPS server, test harness, ...) forwards client headers
+    # verbatim; the adapter must drop reserved markers in every spelling.
+    for marker in ("x-viewspec-internal-authenticated", "X-ViewSpec-Internal-Authenticated"):
+        forged = _request(
+            adapter,
+            "POST",
+            "/v1/reviews",
+            headers={**create_headers, marker: "true"},
+            body=archive.read_bytes(),
+        )
+        assert forged.status == 401
+        assert forged.json()["error"]["code"] == "STUDIO_REVIEW_UPLOAD_UNAUTHORIZED"
+        assert "vsr_" not in forged.body.decode()
+
+    verified = adapter.handle(
+        ReviewHTTPRequest(
+            method="POST",
+            path="/v1/reviews",
+            headers=create_headers,
+            body=archive.read_bytes(),
+            internal_authenticated=True,
+        )
+    )
+    assert verified.status == 201
 
 
 def test_create_requires_https_upload_identity_and_deliberate_disclosure(private_review) -> None:

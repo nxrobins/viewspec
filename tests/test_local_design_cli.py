@@ -13,6 +13,7 @@ from hypothesis import given, strategies as st
 from viewspec import __version__, DesignSystemError, ViewSpecBuilder, compile, load_design_system
 from viewspec.cli import main as cli_main
 from viewspec.compiler_benchmarks import benchmark_fixtures
+from viewspec.design_md import DESIGN_MAX_BYTES
 from viewspec.emitters.react_tailwind_tsx import tailwind_recipe_registry_digest
 from viewspec.local_tools import file_hash
 
@@ -162,6 +163,72 @@ def test_design_yaml_duplicate_keys_fail_closed_for_arbitrary_nested_tokens(key:
     assert exc_info.value.report is not None
     assert exc_info.value.report.findings[0].code == "DESIGN_YAML_ERROR"
     assert "duplicate key" in exc_info.value.report.findings[0].message
+
+
+def test_design_yaml_aliases_are_rejected_before_expansion():
+    bomb = "\n".join(
+        [
+            "a: &a [x, x, x, x, x, x, x, x, x, x]",
+            "b: &b [*a, *a, *a, *a, *a, *a, *a, *a, *a, *a]",
+            "c: &c [*b, *b, *b, *b, *b, *b, *b, *b, *b, *b]",
+            "d: &d [*c, *c, *c, *c, *c, *c, *c, *c, *c, *c]",
+            "e: &e [*d, *d, *d, *d, *d, *d, *d, *d, *d, *d]",
+            "f: [*e, *e, *e, *e, *e, *e, *e, *e, *e, *e]",
+        ]
+    )
+
+    with pytest.raises(DesignSystemError) as exc_info:
+        load_design_system(content=f"---\nname: Bomb\n{bomb}\n---\n")
+
+    findings = exc_info.value.report.findings
+    assert findings[0].code == "DESIGN_YAML_ERROR"
+    assert "alias" in findings[0].message
+
+    with pytest.raises(DesignSystemError) as merge_info:
+        load_design_system(content="---\nbase: &base {primary: '#112233'}\ncolor:\n  <<: *base\n---\n")
+    assert merge_info.value.report.findings[0].code == "DESIGN_YAML_ERROR"
+
+    anchor_only = load_design_system(content="---\nname: Anchored\ncolor:\n  primary: &p '#112233'\n---\n")
+    assert anchor_only.name == "Anchored"
+
+
+def test_design_yaml_nesting_depth_fails_closed():
+    deep = "---\nname: Deep\nx: " + "[" * 5000 + "]" * 5000 + "\n---\n"
+
+    with pytest.raises(DesignSystemError) as exc_info:
+        load_design_system(content=deep)
+
+    assert exc_info.value.report.findings[0].code == "DESIGN_YAML_ERROR"
+
+
+def test_design_file_size_is_gated_before_reading(tmp_path, monkeypatch):
+    from viewspec.review_compile import DESIGN_MAX_BYTES as REVIEW_DESIGN_MAX_BYTES
+
+    assert REVIEW_DESIGN_MAX_BYTES == DESIGN_MAX_BYTES
+
+    head = "---\nname: Fits\ncolor:\n  primary: '#112233'\n---\n"
+    fits = head + "x" * (DESIGN_MAX_BYTES - len(head.encode("utf-8")))
+    assert len(fits.encode("utf-8")) == DESIGN_MAX_BYTES
+    assert load_design_system(content=fits).name == "Fits"
+
+    with pytest.raises(DesignSystemError) as content_info:
+        load_design_system(content=fits + "x")
+    assert content_info.value.report.findings[0].code == "DESIGN_FILE_TOO_LARGE"
+
+    oversized = tmp_path / "DESIGN.md"
+    with oversized.open("wb") as handle:
+        handle.truncate(DESIGN_MAX_BYTES + 1)
+
+    def refuse_open(self, *args, **kwargs):
+        raise AssertionError(f"{self.name} must not be opened before the size gate")
+
+    monkeypatch.setattr(Path, "open", refuse_open)
+
+    with pytest.raises(DesignSystemError) as file_info:
+        load_design_system(path=oversized)
+
+    assert file_info.value.report.findings[0].code == "DESIGN_FILE_TOO_LARGE"
+    assert str(DESIGN_MAX_BYTES) in file_info.value.report.findings[0].message
 
 
 def test_cli_compile_lift_and_diff_stay_local(tmp_path, capsys):

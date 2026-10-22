@@ -1485,6 +1485,53 @@ def test_compile_app_fails_when_state_reducer_conformance_fails(tmp_path, monkey
     assert "forced reducer divergence" in compiled["errors"][0]["message"]
 
 
+def test_force_refuses_unrelated_non_empty_directory_for_app_outputs(tmp_path):
+    app_path = tmp_path / "viewspec.app.json"
+    app_path.write_text(_app_text(starter_app_bundle()), encoding="utf-8")
+    unrelated = tmp_path / "src"
+    unrelated.mkdir()
+    (unrelated / "main.py").write_text("print('keep me')\n", encoding="utf-8")
+
+    proof = prove_app(app_path=app_path, out_dir=unrelated, cwd=tmp_path, force=True)
+    assert proof["ok"] is False
+    assert proof["errors"][0]["code"] == "APP_PROOF_OUTPUT_UNRECOGNIZED"
+    assert sorted(path.name for path in unrelated.iterdir()) == ["main.py"]
+
+    proof_tool = prove_app_tool(app_path="viewspec.app.json", out_dir="src", cwd=tmp_path, force=True)
+    assert proof_tool["ok"] is False
+    assert proof_tool["errors"][0]["code"] == "APP_PROOF_OUTPUT_UNRECOGNIZED"
+
+    compiled = compile_app(app_path, out_dir=unrelated, cwd=tmp_path, force=True)
+    assert compiled["ok"] is False
+    assert compiled["errors"][0]["code"] == "APP_SHELL_OUTPUT_UNRECOGNIZED"
+
+    compiled_tool = compile_app_tool("viewspec.app.json", "src", cwd=tmp_path, force=True)
+    assert compiled_tool["ok"] is False
+    assert compiled_tool["errors"][0]["code"] == "APP_SHELL_OUTPUT_UNRECOGNIZED"
+    assert sorted(path.name for path in unrelated.iterdir()) == ["main.py"]
+
+
+def test_force_replaces_previous_app_outputs_and_empty_directories(tmp_path):
+    app_path = tmp_path / "viewspec.app.json"
+    app_path.write_text(_app_text(starter_app_bundle()), encoding="utf-8")
+
+    proof_dir = tmp_path / "app-proof"
+    assert prove_app(app_path=app_path, out_dir=proof_dir, cwd=tmp_path)["ok"] is True
+    (proof_dir / "stale.txt").write_text("left over", encoding="utf-8")
+    assert prove_app(app_path=app_path, out_dir=proof_dir, cwd=tmp_path, force=True)["ok"] is True
+    assert not (proof_dir / "stale.txt").exists()
+
+    shell_dir = tmp_path / "app-dist"
+    assert compile_app(app_path, out_dir=shell_dir, cwd=tmp_path)["ok"] is True
+    (shell_dir / "stale.txt").write_text("left over", encoding="utf-8")
+    assert compile_app(app_path, out_dir=shell_dir, cwd=tmp_path, force=True)["ok"] is True
+    assert not (shell_dir / "stale.txt").exists()
+
+    empty = tmp_path / "empty"
+    empty.mkdir()
+    assert compile_app(app_path, out_dir=empty, cwd=tmp_path, force=True)["ok"] is True
+
+
 def test_compile_app_rejects_static_shell_constraints(tmp_path):
     app_path = tmp_path / "viewspec.app.json"
     app_path.write_text(_app_text(starter_app_bundle()), encoding="utf-8")

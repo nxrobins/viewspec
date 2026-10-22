@@ -17,10 +17,14 @@ from pathlib import Path
 from typing import Any
 
 import yaml
+from yaml.composer import ComposerError
 from yaml.constructor import ConstructorError
 
 
 MAX_REFERENCE_DEPTH = 32
+# DESIGN.md is size-gated before any byte is read or parsed. Review capture shares
+# this bound; review_compile re-exports it.
+DESIGN_MAX_BYTES = 64 * 1024
 HEX_COLOR_RE = re.compile(r"^#[0-9A-Fa-f]{6}$")
 DIMENSION_RE = re.compile(r"^(?:0|(?:\d+(?:\.\d+)?|\.\d+)(?:px|rem|em))$")
 TOKEN_REF_RE = re.compile(r"^\{([A-Za-z0-9_.-]+)\}$")
@@ -28,7 +32,23 @@ EMBEDDED_TOKEN_REF_RE = re.compile(r"\{([A-Za-z0-9_.-]+)\}")
 
 
 class _UniqueKeySafeLoader(yaml.SafeLoader):
-    pass
+    """SafeLoader that rejects duplicate keys and YAML aliases.
+
+    Aliases let a few hundred bytes of front matter expand into millions of
+    nodes, so DESIGN.md spells every value out; shared values use ``{token.path}``
+    references, which are depth-bounded, instead of anchors.
+    """
+
+    def compose_node(self, parent: yaml.Node | None, index: Any) -> yaml.Node:
+        if self.check_event(yaml.AliasEvent):
+            event = self.peek_event()
+            raise ComposerError(
+                None,
+                None,
+                f"found alias *{event.anchor}; YAML anchors and aliases are not supported in DESIGN.md front matter",
+                event.start_mark,
+            )
+        return super().compose_node(parent, index)
 
 
 def _construct_mapping_without_duplicate_keys(loader: yaml.Loader, node: yaml.Node, deep: bool = False) -> dict[Any, Any]:
@@ -158,6 +178,37 @@ _MODE_DARK_DEFAULTS = {
 }
 
 
+def _design_too_large(report: DesignLintReport, size: int) -> DesignSystemError:
+    report.add(
+        "error",
+        "DESIGN_FILE_TOO_LARGE",
+        "$",
+        f"DESIGN.md is {size} bytes; the local limit is {DESIGN_MAX_BYTES} bytes",
+    )
+    return DesignSystemError(f"DESIGN.md exceeds the {DESIGN_MAX_BYTES} byte limit", report)
+
+
+def _read_design_text(path: Path, report: DesignLintReport) -> str:
+    """Read DESIGN.md only after its on-disk size passes the cap, and never past it."""
+
+    size = path.stat().st_size
+    if size > DESIGN_MAX_BYTES:
+        raise _design_too_large(report, size)
+    with path.open("r", encoding="utf-8") as handle:
+        text = handle.read(DESIGN_MAX_BYTES + 1)
+    encoded_size = len(text.encode("utf-8"))
+    if encoded_size > DESIGN_MAX_BYTES:
+        raise _design_too_large(report, encoded_size)
+    return text
+
+
+def _bounded_design_content(content: str, report: DesignLintReport) -> str:
+    size = len(content.encode("utf-8"))
+    if size > DESIGN_MAX_BYTES:
+        raise _design_too_large(report, size)
+    return content
+
+
 def load_design_system(
     path: str | Path | None = None,
     *,
@@ -178,8 +229,8 @@ def load_design_system(
         raise ValueError("Provide path or content, not both")
 
     source = str(path) if path is not None else "<content>"
-    text = Path(path).read_text(encoding="utf-8") if path is not None else str(content)
     report = DesignLintReport(source=source)
+    text = _read_design_text(Path(path), report) if path is not None else _bounded_design_content(str(content), report)
 
     raw_tokens = _parse_design_markdown(text, report)
     tokens, dropped_tokens, reference_paths = _resolve_token_tree(raw_tokens, report)
@@ -249,6 +300,9 @@ def _parse_design_markdown(text: str, report: DesignLintReport) -> dict[str, Any
         payload = yaml.load("\n".join(lines[1:end_index]), Loader=_UniqueKeySafeLoader) or {}
     except yaml.YAMLError as exc:
         report.add("error", "DESIGN_YAML_ERROR", "$", f"Invalid YAML front matter: {exc}")
+        raise DesignSystemError("Invalid YAML front matter", report) from exc
+    except RecursionError as exc:
+        report.add("error", "DESIGN_YAML_ERROR", "$", "Invalid YAML front matter: nesting is too deep")
         raise DesignSystemError("Invalid YAML front matter", report) from exc
     if not isinstance(payload, dict):
         report.add("error", "DESIGN_YAML_ERROR", "$", "YAML front matter must be a mapping")

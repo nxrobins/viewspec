@@ -311,6 +311,40 @@ def test_check_certifies_no_beacon_but_rejects_tampered_control_whitespace_artif
     assert cli_main(["check", str(tmp_path)]) == 2  # tampered beacon is rejected
 
 
+def test_void_base_embed_param_keygen_do_not_swallow_following_content():
+    with_base = compile_html('<base href="https://evil.example/"><a href="/x">Open</a><p>Body</p>')
+    assert "Open" in with_base.html
+    assert "Body" in with_base.html
+    assert "<base" not in with_base.html.lower()
+    assert "evil.example" not in with_base.html
+
+    with_embed = compile_html('<object></object><embed src="https://evil.example/e.swf"><p>Visible</p>')
+    assert "Visible" in with_embed.html
+    assert "<embed" not in with_embed.html.lower()
+    assert "<object" not in with_embed.html.lower()
+    assert "evil.example" not in with_embed.html
+
+    with_param = compile_html('<object><param name="movie" value="x"></object><p>After</p><keygen><p>Tail</p>')
+    assert "After" in with_param.html
+    assert "Tail" in with_param.html
+    assert "<param" not in with_param.html.lower()
+    assert "<keygen" not in with_param.html.lower()
+
+
+def test_unclosed_child_inside_stripped_content_pops_back_to_matching_tag():
+    result = compile_html(
+        "<iframe><div><span>hidden</span></iframe><p>After</p>"
+        "<object><div><script>alert(1)</script></object><p>Tail</p>"
+    )
+
+    assert "hidden" not in result.html
+    assert "After" in result.html
+    assert "Tail" in result.html
+    assert "<script" not in result.html.lower()
+    assert "alert(1)" not in result.html
+    assert "<iframe" not in result.html.lower()
+
+
 def test_nested_void_tags_inside_stripped_content_do_not_swallow_document():
     result = compile_html("<script><img src=x></script><h1>Still Here</h1><p>$4</p>")
 

@@ -21,7 +21,7 @@ from viewspec.studio_review_http import (
     StudioReviewHTTPAdapter,
 )
 from viewspec.studio_review_internal import (
-    STUDIO_REVIEW_INTERNAL_AUTHENTICATED_HEADER,
+    STUDIO_REVIEW_INTERNAL_HEADER_PREFIX,
     STUDIO_REVIEW_INTERNAL_INGRESS_PATH,
     StudioReviewInternalAuth,
     StudioReviewInternalAuthError,
@@ -152,18 +152,15 @@ class StudioReviewASGIApp:
             )
         except StudioReviewInternalAuthError:
             return _internal_authentication_failed()
-        forwarded = {
-            **dict(verified.forwarded_headers),
-            STUDIO_REVIEW_INTERNAL_AUTHENTICATED_HEADER: "true",
-        }
         response = await asyncio.to_thread(
             self.adapter.handle,
             ReviewHTTPRequest(
                 method="POST",
                 path="/v1/reviews",
-                headers=forwarded,
+                headers=dict(verified.forwarded_headers),
                 body=body,
                 scheme="https",
+                internal_authenticated=True,
             ),
         )
         try:
@@ -227,7 +224,7 @@ def _scope_headers(scope: Mapping[str, Any]) -> dict[str, str] | None:
 
 
 def _external_review_headers(headers: Mapping[str, str]) -> dict[str, str]:
-    return {name: value for name, value in headers.items() if not name.startswith("x-viewspec-internal-")}
+    return {name: value for name, value in headers.items() if not name.startswith(STUDIO_REVIEW_INTERNAL_HEADER_PREFIX)}
 
 
 async def _receive_body(receive: ASGIReceive, *, maximum: int) -> bytes | object | None:

@@ -364,7 +364,7 @@ def _build_parser() -> argparse.ArgumentParser:
     compile_app_parser.add_argument("--out", default=APP_SHELL_DEFAULT_OUT, help="Static app shell output directory.")
     compile_app_parser.add_argument("--design", help="Optional DESIGN.md file to apply to every embedded screen intent.")
     compile_app_parser.add_argument("--strict-design", action="store_true", help="Fail on DESIGN.md warnings as well as errors.")
-    compile_app_parser.add_argument("--force", action="store_true", help="Replace an existing app shell output directory after safety checks.")
+    compile_app_parser.add_argument("--force", action="store_true", help="Replace an existing app shell output directory after safety checks; only an empty directory or a previous ViewSpec output is replaced.")
     compile_app_parser.add_argument(
         "--target",
         default=APP_SHELL_TARGET,
@@ -407,7 +407,7 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     prove_parser.add_argument("--kind", default="dashboard", choices=STARTER_INTENT_KINDS, help="Starter motif kind when --intent is omitted.")
     prove_parser.add_argument("--install", action="store_true", help="Allow npm ci --ignore-scripts for react-tailwind-tsx host proof.")
-    prove_parser.add_argument("--force", action="store_true", help="Replace an existing proof output directory after safety checks.")
+    prove_parser.add_argument("--force", action="store_true", help="Replace an existing proof output directory after safety checks; only an empty directory or a previous ViewSpec output is replaced.")
     prove_parser.add_argument("--report-out", help="Optional JSON proof report path. Defaults to <out>/proof_report.json.")
     prove_parser.add_argument("--json", action="store_true", help="Print machine-readable JSON.")
     prove_parser.set_defaults(func=_prove_command)
@@ -417,7 +417,7 @@ def _build_parser() -> argparse.ArgumentParser:
     prove_app_parser.add_argument("--out", default=APP_BUNDLE_DEFAULT_OUT, help="App proof workspace output directory.")
     prove_app_parser.add_argument("--design", help="Optional DESIGN.md file to apply to every embedded screen intent.")
     prove_app_parser.add_argument("--strict-design", action="store_true", help="Fail on DESIGN.md warnings as well as errors.")
-    prove_app_parser.add_argument("--force", action="store_true", help="Replace an existing app proof output directory after safety checks.")
+    prove_app_parser.add_argument("--force", action="store_true", help="Replace an existing app proof output directory after safety checks; only an empty directory or a previous ViewSpec output is replaced.")
     prove_app_parser.add_argument("--report-out", help="Optional JSON app proof report path. Defaults to <out>/app_proof_report.json.")
     prove_app_parser.add_argument("--with-shell", action="store_true", help="Also write and prove a Static Shell V0 artifact under <out>/app-shell/.")
     prove_app_parser.add_argument(
