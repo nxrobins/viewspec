@@ -1,9 +1,11 @@
 """How compile(design=...) and load_design_system() take a DESIGN.md (audit C-9).
 
-A ``str`` passed as ``design`` is DESIGN.md content. File paths are an explicit input as an
-``os.PathLike``; a single-line ``str`` that names an existing file still reads that file, but warns
-because it relies on guessing. ``load_design_system(lint=...)`` never had a local effect, so passing it
-warns too.
+A ``str`` passed as ``design`` is DESIGN.md content and is never opened as a file, so a ``str`` from
+an untrusted source cannot make compile() read a local file. File paths are an explicit input as an
+``os.PathLike``. A single-line ``str`` can never be valid content: it fails with the same
+``DesignSystemError`` it always raised, now with a note that says to pass ``pathlib.Path``, and when
+it names an existing file a ``DeprecationWarning`` says so as well. ``load_design_system(lint=...)``
+never had a local effect, so passing it warns too.
 """
 
 from __future__ import annotations
@@ -13,8 +15,13 @@ from pathlib import Path
 
 import pytest
 
-from viewspec import DesignRequest, DesignSystemError, ViewSpecBuilder, compile, load_design_system
+from viewspec import DesignRequest, DesignSystemError, ViewSpecBuilder, compile, design_md, load_design_system
+from viewspec.design_md import DESIGN_MAX_BYTES
 
+PATH_NOTE = (
+    "compile(design=...) parses a str as DESIGN.md content, never as a file path. "
+    "Pass pathlib.Path(...) for a file, or a DesignSystemContext from load_design_system(path=...)."
+)
 DESIGN = """---
 name: Path Or Content
 colors:
@@ -68,18 +75,95 @@ def test_compile_reads_a_pathlike_design_as_a_file_without_warning(design_file):
     assert from_path.result.root == from_content.result.root
 
 
-def test_compile_str_naming_an_existing_file_is_read_as_a_path_with_a_deprecation_warning(design_file, monkeypatch):
+def test_compile_str_naming_an_existing_file_warns_but_is_still_parsed_as_content(design_file, monkeypatch):
     monkeypatch.chdir(design_file.parent)
-    expected = compile(_bundle(), design=design_file)
 
-    # The exact call from the audit: a relative path in a str.
-    with pytest.warns(DeprecationWarning, match=r"Pass pathlib\.Path\(\.\.\.\) for a file") as caught:
-        ast = compile(_bundle(), design="DESIGN.md")
+    # The exact call from the audit: a relative path in a str. It fails as it always did, because
+    # the str is content; the warning only says how to pass a path.
+    with pytest.warns(
+        DeprecationWarning, match=r"the file is not read\. Pass pathlib\.Path\(\.\.\.\) for a file"
+    ) as caught:
+        with pytest.raises(DesignSystemError, match="must begin with YAML front matter") as info:
+            compile(_bundle(), design="DESIGN.md")
 
-    assert ast.style_values == expected.style_values
     assert len(caught) == 1
     # stacklevel points the warning at the caller of compile(), not at the compiler internals.
     assert caught[0].filename == __file__
+    assert info.value.report is not None
+    assert info.value.report.source == "<content>"
+    assert info.value.__notes__ == [PATH_NOTE]
+
+
+def _binary_file(tmp_path: Path) -> Path:
+    path = tmp_path / "binary.md"
+    path.write_bytes(bytes(range(256)) * 2)
+    return path
+
+
+def _oversized_file(tmp_path: Path) -> Path:
+    path = tmp_path / "huge.md"
+    path.write_text(DESIGN + "x" * (DESIGN_MAX_BYTES + 1), encoding="utf-8")
+    return path
+
+
+def _readable_design_file(tmp_path: Path) -> Path:
+    path = tmp_path / "other-tenant" / "DESIGN.md"
+    path.parent.mkdir()
+    path.write_text(DESIGN, encoding="utf-8")
+    return path
+
+
+@pytest.mark.parametrize("make_file", [_binary_file, _oversized_file, _readable_design_file])
+def test_compile_never_reads_a_file_named_by_a_str(make_file, tmp_path, monkeypatch):
+    # A service that forwards a request's DESIGN.md text to compile() and catches
+    # DesignSystemError must get that error for any str: never a decode or OS error from reading
+    # the named file, never the file's size, and never the file's tokens in the output.
+    path = make_file(tmp_path)
+
+    def no_file_reads(*_args, **_kwargs):
+        raise AssertionError("compile() read a file named by a str design")
+
+    monkeypatch.setattr(design_md, "_read_design_text", no_file_reads)
+    with pytest.warns(DeprecationWarning):
+        with pytest.raises(DesignSystemError) as info:
+            compile(_bundle(), design=str(path))
+
+    assert str(info.value) == "DESIGN.md must begin with YAML front matter"
+    assert info.value.report is not None
+    assert info.value.report.to_json() == {
+        "source": "<content>",
+        "summary": {"errors": 1, "warnings": 0, "info": 0},
+        "findings": [
+            {
+                "severity": "error",
+                "code": "DESIGN_FRONTMATTER_ERROR",
+                "path": "$",
+                "message": "DESIGN.md must begin with YAML front matter",
+            }
+        ],
+    }
+
+
+def test_compile_str_error_does_not_reveal_whether_the_file_exists(design_file, monkeypatch):
+    monkeypatch.chdir(design_file.parent)
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", DeprecationWarning)
+        with pytest.raises(DesignSystemError) as existing:
+            compile(_bundle(), design="DESIGN.md")
+        with pytest.raises(DesignSystemError) as missing:
+            compile(_bundle(), design="MISSING.md")
+
+    assert str(existing.value) == str(missing.value)
+    assert existing.value.report is not None and missing.value.report is not None
+    assert existing.value.report.to_json() == missing.value.report.to_json()
+    assert existing.value.__notes__ == missing.value.__notes__ == [PATH_NOTE]
+
+
+def test_compile_multi_line_content_error_has_no_path_note():
+    with pytest.raises(DesignSystemError, match="must begin with YAML front matter") as info:
+        compile(_bundle(), design="name: Broken\ncolors: {}\n")
+
+    assert not hasattr(info.value, "__notes__")
 
 
 def test_compile_str_with_line_breaks_stays_content_without_warning(design_file, monkeypatch):

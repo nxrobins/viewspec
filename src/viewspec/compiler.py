@@ -1806,18 +1806,20 @@ def compile(
 
     * a ``DesignSystemContext`` from ``load_design_system()``;
     * an ``os.PathLike`` such as ``pathlib.Path("DESIGN.md")``, read as a file path;
-    * a ``str``, parsed as DESIGN.md *content*, not as a path;
+    * a ``str``, parsed as DESIGN.md *content* and never opened as a file;
     * a hosted ``DesignRequest``, whose ``content`` is parsed locally (its ``lint`` flag is
       read only by the hosted compiler).
 
-    A ``str`` that contains no line break and names an existing file is still read as a path,
-    with a ``DeprecationWarning``: pass ``pathlib.Path(...)`` instead. DESIGN.md content always
-    spans several lines, so no valid content string is affected.
+    DESIGN.md content always spans several lines, so a ``str`` without a line break, such as
+    ``"DESIGN.md"``, fails with ``DesignSystemError`` whose note says to pass
+    ``pathlib.Path(...)``. When that ``str`` names an existing file, a ``DeprecationWarning`` says
+    the same, but the file is not read: a ``str`` from an untrusted source never makes
+    ``compile()`` open a local file.
 
     For full compilation (arbitrary data shapes, OOD generalization),
     use the hosted compiler at api.viewspec.dev.
     """
-    design = _normalize_design_argument(design)
+    _warn_about_design_path_str(design)
     substrate, view_spec = _validate_bundle_shape(bundle)
     diagnostics: list[CompilerDiagnostic] = []
     _validate_roots(substrate, view_spec)
@@ -1932,27 +1934,32 @@ def _associate_field_labels(node: IRNode) -> None:
         _associate_field_labels(child)
 
 
-def _normalize_design_argument(
+_DESIGN_PATH_HINT = "Pass pathlib.Path(...) for a file, or a DesignSystemContext from load_design_system(path=...)."
+
+
+def _is_single_line(text: str) -> bool:
+    """True when ``text`` has no line break in the ``str.splitlines`` sense the DESIGN.md parser uses."""
+    return len(text.splitlines()) < 2
+
+
+def _warn_about_design_path_str(
     design: DesignSystemContext | DesignRequest | str | os.PathLike[str] | None,
-) -> DesignSystemContext | DesignRequest | str | os.PathLike[str] | None:
-    """Turn the deprecated path-as-``str`` form of ``compile(design=...)`` into a ``Path`` (audit C-9).
+) -> None:
+    """Warn when ``compile(design=...)`` gets what looks like a DESIGN.md path as a ``str`` (audit C-9).
 
     A ``str`` is DESIGN.md content. Content needs YAML front matter between two ``---`` lines, so a
-    ``str`` without a line break (in the ``str.splitlines`` sense the parser uses) can never be valid
-    content; when such a ``str`` names an existing file, it is read as that file with a
-    ``DeprecationWarning`` instead of failing to parse.
+    single-line ``str`` can never be valid content; when it names an existing file, the caller most
+    likely meant a path. The warning only points at ``pathlib.Path``: the ``str`` is still parsed as
+    content and fails with the same ``DesignSystemError`` as one that names no file, and the file is
+    never opened, so a ``str`` from an untrusted source cannot make ``compile()`` read a local file.
     """
-    if isinstance(design, str) and len(design.splitlines()) < 2 and os.path.isfile(design):
+    if isinstance(design, str) and _is_single_line(design) and os.path.isfile(design):
         warnings.warn(
-            f"compile(design={design!r}): a str is DESIGN.md content, so passing a DESIGN.md path as a str "
-            "is deprecated. Pass pathlib.Path(...) for a file, or a DesignSystemContext from "
-            "load_design_system(path=...). This str is read as a path for now because it names an "
-            "existing file and contains no line break.",
+            f"compile(design={design!r}) names an existing file, but a str is parsed as DESIGN.md content, "
+            f"never as a file path, so the file is not read. {_DESIGN_PATH_HINT}",
             DeprecationWarning,
             stacklevel=3,
         )
-        return Path(design)
-    return design
 
 
 def _coerce_design_context(
@@ -1971,7 +1978,16 @@ def _coerce_design_context(
     if isinstance(design, os.PathLike):
         return load_design_system(path=Path(design), strict=strict_design)
     if isinstance(design, str):
-        return load_design_system(content=design, strict=strict_design)
+        try:
+            return load_design_system(content=design, strict=strict_design)
+        except DesignSystemError as exc:
+            # The same note for every single-line str, whether or not it names a file, so the
+            # error does not reveal which local paths exist.
+            if _is_single_line(design):
+                exc.add_note(
+                    f"compile(design=...) parses a str as DESIGN.md content, never as a file path. {_DESIGN_PATH_HINT}"
+                )
+            raise
     raise TypeError("design must be a DesignSystemContext, DesignRequest, DESIGN.md string, os.PathLike path, or None")
 
 
