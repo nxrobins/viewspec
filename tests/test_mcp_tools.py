@@ -429,8 +429,8 @@ def _registered_tool_names(monkeypatch, cwd: Path) -> set[str]:
 def test_real_stdio_mcp_server_initializes_and_lists_its_tools(monkeypatch, tmp_path, extra_args) -> None:
     """Run ``python -m viewspec mcp`` against the installed SDK (the CI legs install the agents extra).
 
-    ``--json`` changes only how a startup failure is reported, so stdout still carries nothing but
-    the JSON-RPC protocol (audit C-9).
+    ``--json`` changes only how a failure that stops the server is reported, so stdout still
+    carries nothing but the JSON-RPC protocol (audit C-9).
     """
 
     if not mcp_server_module.mcp_dependency_available():

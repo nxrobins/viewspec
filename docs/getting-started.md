@@ -362,11 +362,12 @@ command runs. Without `--json` the output is unchanged: `compile` prints the emi
 `doctor` prints `{ok, checks}`, `init-agent` and `export-agent-assets` print their result object,
 and `lift` and the `init-*` commands print the written path.
 
-`viewspec mcp` is a stdio server, so its stdout carries only the MCP protocol. `viewspec mcp --json`
-changes one thing: a failure to start, such as a missing `viewspec[agents]` extra
-(`MCP_DEPENDENCY_MISSING`) or an invalid `--cwd` (`INVALID_PATH`), is written to stderr as one line
-holding the same envelope, instead of human text, with the same exit code. Once the server runs,
-`--json` has no effect.
+`viewspec mcp` is a stdio server, so its stdout carries only the MCP protocol, with or without
+`--json`. `viewspec mcp --json` changes how a failure that ends the command is reported: a failure to
+start, such as a missing `viewspec[agents]` extra (`MCP_DEPENDENCY_MISSING`) or an invalid `--cwd`
+(`INVALID_PATH`), and an unexpected error that stops a running server (`MCP_SERVER_FAILED`, exit
+`1`) are written to stderr as one line holding the same envelope, instead of human text, with the
+same exit code.
 
 ## AppBundle V1/V2/V3/V4
 

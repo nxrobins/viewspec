@@ -3,8 +3,8 @@
 compile, lift, doctor, init-app, init-design, init-intent, init-agent and export-agent-assets print
 the standard tool envelope on stdout under --json, for success and for failure, with the exit code
 their human mode uses (0 success, 2 input or contract error, 1 internal error) and nothing else on
-stdout or stderr. `mcp` is a stdio server: --json only turns a startup failure into one line of
-JSON on stderr, and stdout stays reserved for the protocol.
+stdout or stderr. `mcp` is a stdio server: --json turns a failure that stops it, at startup or
+later, into one line of JSON on stderr, and stdout stays reserved for the protocol.
 """
 
 from __future__ import annotations

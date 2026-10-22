@@ -830,7 +830,10 @@ def _build_parser() -> argparse.ArgumentParser:
     mcp_parser.add_argument(
         "--json",
         action="store_true",
-        help="Report a startup failure as one line of JSON on stderr; stdout stays reserved for the MCP protocol.",
+        help=(
+            "Report a failure that stops the server, at startup or later, as one line of JSON on stderr; "
+            "stdout stays reserved for the MCP protocol."
+        ),
     )
     mcp_parser.set_defaults(func=_mcp_command)
 
