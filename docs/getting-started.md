@@ -511,10 +511,11 @@ ast = compile(builder.build_bundle(), design=Path("DESIGN.md"))  # the same file
 an `os.PathLike` such as `Path("DESIGN.md")`, or a `str` holding DESIGN.md *content*. A `str` is
 never opened as a file, so passing request text straight through cannot make `compile()` read a
 local file. `compile(bundle, design="DESIGN.md")` therefore parses the text `DESIGN.md` as content
-and fails with `DesignSystemError` ("must begin with YAML front matter"), as in earlier releases;
-the error carries a note that says to pass `Path("DESIGN.md")`, and when the string names an
-existing file, `compile()` also emits a `DeprecationWarning` saying the same. A `DesignRequest` is
-parsed locally from its `content`; its `lint` flag is read only by the hosted compiler.
+and fails with `DesignSystemError` ("must begin with YAML front matter"), as in earlier releases.
+The error carries an exception note, shown in tracebacks, that says to pass `Path("DESIGN.md")`,
+and when the string names an existing file, `compile()` also emits a `DeprecationWarning` saying
+the same. A `DesignRequest` is parsed locally from its `content`; its `lint` flag is read only by
+the hosted compiler.
 
 `load_design_system()` always validates. Its `lint` argument never had a local effect, is
 deprecated, and emits a `DeprecationWarning` when passed; drop it. Findings are in
