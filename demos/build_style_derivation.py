@@ -7,10 +7,11 @@ import json
 from pathlib import Path
 from typing import Any
 
+from seo_metadata import demo_head_metadata
+
 from viewspec import IntentBundle, ViewSpecBuilder, compile
 from viewspec.emitters.html_tailwind import ACTION_EVENT_SCRIPT, _render_node
-from viewspec.types import ASTBundle, DEFAULT_STYLE_TOKEN_VALUES, IRNode
-from seo_metadata import demo_head_metadata
+from viewspec.types import DEFAULT_STYLE_TOKEN_VALUES, ASTBundle, IRNode
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -160,7 +161,7 @@ def safe_json_for_script(value: Any) -> str:
 
 def preset_buttons() -> str:
     return "\n".join(
-        f'''        <button type="button" class="preset-toggle{' active' if key == 'default' else ''}" data-preset="{html.escape(key)}" aria-pressed="{'true' if key == 'default' else 'false'}">
+        f'''        <button type="button" class="preset-toggle{" active" if key == "default" else ""}" data-preset="{html.escape(key)}" aria-pressed="{"true" if key == "default" else "false"}">
           <span class="preset-label">{html.escape(preset["label"])}</span>
           <span class="preset-feel">{html.escape(preset["feel"])}</span>
         </button>'''
@@ -171,11 +172,7 @@ def preset_buttons() -> str:
 def preset_css() -> str:
     blocks: list[str] = []
     for key, preset in STYLE_PRESETS.items():
-        variables = "\n".join(
-            f"      {name}: {value};"
-            for name, value in preset.items()
-            if name.startswith("--")
-        )
+        variables = "\n".join(f"      {name}: {value};" for name, value in preset.items() if name.startswith("--"))
         blocks.append(f'    #artifact-wrapper[data-style-preset="{key}"] {{\n{variables}\n    }}')
     return "\n\n".join(blocks)
 

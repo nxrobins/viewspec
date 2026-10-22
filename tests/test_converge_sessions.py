@@ -4,9 +4,10 @@ import hashlib
 import json
 from pathlib import Path
 
-from hypothesis import HealthCheck, given, settings, strategies as st
-from jsonschema import Draft202012Validator, ValidationError
 import pytest
+from hypothesis import HealthCheck, given, settings
+from hypothesis import strategies as st
+from jsonschema import Draft202012Validator, ValidationError
 
 from viewspec.app_bundle import starter_app_bundle, starter_react_app_bundle
 from viewspec.converge_sessions import (
@@ -18,8 +19,8 @@ from viewspec.converge_sessions import (
     get_convergence_status,
     reject_convergence_preview,
     start_convergence_session,
-    submit_convergence_patch,
     starter_convergence_task_payload,
+    submit_convergence_patch,
 )
 from viewspec.intent_patch import IntentPatchContext, source_sha256
 from viewspec.intent_tools import starter_intent_payload
@@ -32,9 +33,7 @@ from viewspec.verification import (
 
 
 def _sha(value: object) -> str:
-    return hashlib.sha256(
-        json.dumps(value, sort_keys=True, separators=(",", ":")).encode()
-    ).hexdigest()
+    return hashlib.sha256(json.dumps(value, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
 
 
 def _source(tmp_path: Path) -> tuple[Path, str]:
@@ -210,13 +209,9 @@ def test_verifier_start_rejects_fabricated_requests_under_real_plan_id(tmp_path:
     baseline_keys=st.sets(st.integers(min_value=0, max_value=12), min_size=1),
     candidate_keys=st.sets(st.integers(min_value=0, max_value=12)),
 )
-def test_property_progress_acceptance_is_exact_proper_subset(
-    baseline_keys: set[int], candidate_keys: set[int]
-) -> None:
+def test_property_progress_acceptance_is_exact_proper_subset(baseline_keys: set[int], candidate_keys: set[int]) -> None:
     def diagnostics(keys: set[int]) -> tuple[VerificationDiagnostic, ...]:
-        return tuple(
-            _error("VERIFY_LAYOUT_OVERFLOW", f"ir:region_{key}") for key in sorted(keys)
-        )
+        return tuple(_error("VERIFY_LAYOUT_OVERFLOW", f"ir:region_{key}") for key in sorted(keys))
 
     plan = VerificationPlan.default()
     certificate = ProgressCertificate.compare(
@@ -247,9 +242,7 @@ def test_start_builds_exact_old_value_authoring_task_without_mutating_source(tmp
     assert binding["replacement_field"] == "value"
     assert "badge" in binding["allowed_values"]
     scalar = next(
-        item
-        for item in operations
-        if item["op"] == "replace_semantic_attr" and item["fixed_fields"]["attr"] == "value"
+        item for item in operations if item["op"] == "replace_semantic_attr" and item["fixed_fields"]["attr"] == "value"
     )
     assert scalar["fixed_fields"]["node_id"] == "revenue"
     assert scalar["fixed_fields"]["attr"] == "value"
@@ -332,11 +325,7 @@ def test_app_session_scopes_legal_operation_and_apply_to_exact_screen(tmp_path: 
     assert applied.status == "applied"
     payload = json.loads(source.read_text(encoding="utf-8"))
     queue = next(screen for screen in payload["screens"] if screen["id"] == "queue")
-    binding = next(
-        item
-        for item in queue["intent_bundle"]["view_spec"]["bindings"]
-        if item["id"] == "inc_1042_value"
-    )
+    binding = next(item for item in queue["intent_bundle"]["view_spec"]["bindings"] if item["id"] == "inc_1042_value")
     assert binding["present_as"] == "badge"
 
 
@@ -383,11 +372,7 @@ def test_app_task_exposes_aesthetic_fixture_and_visibility_operations(tmp_path: 
     )
 
     session = start_convergence_session(source, context, state_root=tmp_path / "state")
-    operations = {
-        operation["op"]
-        for target in session.task.targets
-        for operation in target.legal_operations
-    }
+    operations = {operation["op"] for target in session.task.targets for operation in target.legal_operations}
     assert {
         "set_aesthetic_profile",
         "replace_fixture_scalar",
@@ -689,15 +674,18 @@ def test_start_archives_complete_terminal_session_before_replacement(tmp_path: P
     assert envelope["payload"]["session_id"] == first.session_id
     assert envelope["payload"]["status"] == "rejected"
     assert envelope["payload"]["terminal_reason"] == "human_rejected"
-    assert envelope["payload_sha256"] == hashlib.sha256(
-        json.dumps(
-            envelope["payload"],
-            ensure_ascii=False,
-            allow_nan=False,
-            sort_keys=True,
-            separators=(",", ":"),
-        ).encode("utf-8")
-    ).hexdigest()
+    assert (
+        envelope["payload_sha256"]
+        == hashlib.sha256(
+            json.dumps(
+                envelope["payload"],
+                ensure_ascii=False,
+                allow_nan=False,
+                sort_keys=True,
+                separators=(",", ":"),
+            ).encode("utf-8")
+        ).hexdigest()
+    )
     assert rejected.session_id != second.session_id
     assert get_convergence_status(source, state_root=state).session_id == second.session_id
 

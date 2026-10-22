@@ -6,11 +6,17 @@ import json
 from pathlib import Path
 from typing import Any
 
-from viewspec.app_validation import APP_BUNDLE_RESULT_SCHEMA_VERSION, _reject_json_constant, _stable_json, validate_app_text
+from viewspec.app_validation import (
+    APP_BUNDLE_RESULT_SCHEMA_VERSION,
+    _stable_json,
+    reject_json_constant,
+    validate_app_text,
+)
 from viewspec.intent_tools import _intent_topology_similarity, diff_intent_text, intent_semantic_change_lines
 
 APP_BUNDLE_DIFF_VERSION = 1
 APP_BUNDLE_DIFF_BASIS = "app_bundle_v0_v3"
+
 
 def diff_app_text(left_text: str, right_text: str, *, compile_check: bool = True) -> dict[str, Any]:
     left_basic = validate_app_text(left_text, compile_check=False)
@@ -30,8 +36,8 @@ def diff_app_text(left_text: str, right_text: str, *, compile_check: bool = True
             validation={"left": left_basic, "right": right_basic},
         )
 
-    left_payload = json.loads(left_text, parse_constant=_reject_json_constant)
-    right_payload = json.loads(right_text, parse_constant=_reject_json_constant)
+    left_payload = json.loads(left_text, parse_constant=reject_json_constant)
+    right_payload = json.loads(right_text, parse_constant=reject_json_constant)
     left_sections = {
         "app": {"app": left_payload["app"]},
         "routes": _index_by_id(left_payload["routes"]),
@@ -122,10 +128,12 @@ def diff_app_text(left_text: str, right_text: str, *, compile_check: bool = True
         "errors": [],
     }
 
+
 def diff_app_files(left_path: str | Path, right_path: str | Path, *, compile_check: bool = True) -> dict[str, Any]:
     left_text = Path(left_path).read_text(encoding="utf-8")
     right_text = Path(right_path).read_text(encoding="utf-8")
     return diff_app_text(left_text, right_text, compile_check=compile_check)
+
 
 def app_semantic_change_lines(semantic_changes: object) -> list[str]:
     if not isinstance(semantic_changes, dict):
@@ -138,7 +146,17 @@ def app_semantic_change_lines(semantic_changes: object) -> list[str]:
                 f"{_diff_value(item.get('field'))} "
                 f"{_diff_value(item.get('left'))} -> {_diff_value(item.get('right'))}"
             )
-    for section in ("routes", "resources", "screens", "state", "mutations", "selectors", "visibility", "state_text", "state_replay_assertions"):
+    for section in (
+        "routes",
+        "resources",
+        "screens",
+        "state",
+        "mutations",
+        "selectors",
+        "visibility",
+        "state_text",
+        "state_replay_assertions",
+    ):
         entries = semantic_changes.get(section)
         if not isinstance(entries, list):
             continue
@@ -167,6 +185,7 @@ def app_semantic_change_lines(semantic_changes: object) -> list[str]:
             lines.append(f"screen_intents.{screen_id}: intent_changed")
     return lines
 
+
 def _index_by_id(items: list[Any]) -> dict[str, dict[str, Any]]:
     indexed: dict[str, dict[str, Any]] = {}
     for item in items:
@@ -176,6 +195,7 @@ def _index_by_id(items: list[Any]) -> dict[str, dict[str, Any]]:
         if isinstance(item_id, str) and item_id not in indexed:
             indexed[item_id] = item
     return indexed
+
 
 def _resource_sections(resources: list[Any]) -> dict[str, dict[str, Any]]:
     sections: dict[str, dict[str, Any]] = {}
@@ -191,6 +211,7 @@ def _resource_sections(resources: list[Any]) -> dict[str, dict[str, Any]]:
         }
     return sections
 
+
 def _screen_sections(screens: list[Any]) -> dict[str, dict[str, Any]]:
     sections: dict[str, dict[str, Any]] = {}
     for screen in screens:
@@ -199,11 +220,14 @@ def _screen_sections(screens: list[Any]) -> dict[str, dict[str, Any]]:
         sections[screen["id"]] = {
             "id": screen.get("id"),
             "title": screen.get("title"),
-            "resource_view_count": len(screen.get("resource_views")) if isinstance(screen.get("resource_views"), list) else 0,
+            "resource_view_count": len(screen.get("resource_views"))
+            if isinstance(screen.get("resource_views"), list)
+            else 0,
             "resource_views_hash": _stable_json(screen.get("resource_views", [])),
             "intent_hash": _stable_json(screen.get("intent_bundle")),
         }
     return sections
+
 
 def _state_sections(payload: dict[str, Any], field: str) -> dict[str, dict[str, Any]]:
     items = payload.get(field) if isinstance(payload.get(field), list) else []
@@ -214,16 +238,16 @@ def _state_sections(payload: dict[str, Any], field: str) -> dict[str, dict[str, 
         sections[item["id"]] = {"id": item["id"], "definition_hash": _stable_json(item)}
     return sections
 
+
 def _diff_named_items(left: dict[str, dict[str, Any]], right: dict[str, dict[str, Any]]) -> dict[str, list[str]]:
     return {
         "added": sorted(set(right) - set(left)),
         "removed": sorted(set(left) - set(right)),
         "changed": sorted(
-            item_id
-            for item_id in set(left) & set(right)
-            if _stable_json(left[item_id]) != _stable_json(right[item_id])
+            item_id for item_id in set(left) & set(right) if _stable_json(left[item_id]) != _stable_json(right[item_id])
         ),
     }
+
 
 def _app_semantic_changes(left: dict[str, Any], right: dict[str, Any]) -> dict[str, list[dict[str, Any]]]:
     changes: dict[str, list[dict[str, Any]]] = {
@@ -288,9 +312,17 @@ def _app_semantic_changes(left: dict[str, Any], right: dict[str, Any]) -> dict[s
                 changes[section].append({"id": item_id, "change": "intent_changed"})
             if section == "screens" and left_item.get("resource_views_hash") != right_item.get("resource_views_hash"):
                 changes[section].append({"id": item_id, "change": "resource_views_changed"})
-            if section in {"state", "mutations", "selectors", "visibility", "state_text", "state_replay_assertions"} and left_item.get("definition_hash") != right_item.get("definition_hash"):
+            if section in {
+                "state",
+                "mutations",
+                "selectors",
+                "visibility",
+                "state_text",
+                "state_replay_assertions",
+            } and left_item.get("definition_hash") != right_item.get("definition_hash"):
                 changes[section].append({"id": item_id, "change": "definition_changed"})
     return changes
+
 
 def _app_changed_fields(left: dict[str, Any], right: dict[str, Any]) -> list[dict[str, Any]]:
     fields: list[dict[str, Any]] = []
@@ -300,22 +332,43 @@ def _app_changed_fields(left: dict[str, Any], right: dict[str, Any]) -> list[dic
         fields.append({"path": path, "left": item.get("left"), "right": item.get("right")})
     return fields
 
+
 def _app_counts(left: dict[str, Any], right: dict[str, Any]) -> dict[str, dict[str, int]]:
     return {
         "routes": {"left": len(left.get("routes", [])), "right": len(right.get("routes", []))},
         "resources": {"left": len(left.get("resources", [])), "right": len(right.get("resources", []))},
         "screens": {"left": len(left.get("screens", [])), "right": len(right.get("screens", []))},
         "resource_views": {"left": _resource_view_count(left), "right": _resource_view_count(right)},
-        "state": {"left": len(left.get("state", [])) if isinstance(left.get("state"), list) else 0, "right": len(right.get("state", [])) if isinstance(right.get("state"), list) else 0},
-        "mutations": {"left": len(left.get("mutations", [])) if isinstance(left.get("mutations"), list) else 0, "right": len(right.get("mutations", [])) if isinstance(right.get("mutations"), list) else 0},
-        "selectors": {"left": len(left.get("selectors", [])) if isinstance(left.get("selectors"), list) else 0, "right": len(right.get("selectors", [])) if isinstance(right.get("selectors"), list) else 0},
-        "visibility": {"left": len(left.get("visibility", [])) if isinstance(left.get("visibility"), list) else 0, "right": len(right.get("visibility", [])) if isinstance(right.get("visibility"), list) else 0},
-        "state_text": {"left": len(left.get("state_text", [])) if isinstance(left.get("state_text"), list) else 0, "right": len(right.get("state_text", [])) if isinstance(right.get("state_text"), list) else 0},
+        "state": {
+            "left": len(left.get("state", [])) if isinstance(left.get("state"), list) else 0,
+            "right": len(right.get("state", [])) if isinstance(right.get("state"), list) else 0,
+        },
+        "mutations": {
+            "left": len(left.get("mutations", [])) if isinstance(left.get("mutations"), list) else 0,
+            "right": len(right.get("mutations", [])) if isinstance(right.get("mutations"), list) else 0,
+        },
+        "selectors": {
+            "left": len(left.get("selectors", [])) if isinstance(left.get("selectors"), list) else 0,
+            "right": len(right.get("selectors", [])) if isinstance(right.get("selectors"), list) else 0,
+        },
+        "visibility": {
+            "left": len(left.get("visibility", [])) if isinstance(left.get("visibility"), list) else 0,
+            "right": len(right.get("visibility", [])) if isinstance(right.get("visibility"), list) else 0,
+        },
+        "state_text": {
+            "left": len(left.get("state_text", [])) if isinstance(left.get("state_text"), list) else 0,
+            "right": len(right.get("state_text", [])) if isinstance(right.get("state_text"), list) else 0,
+        },
         "state_replay_assertions": {
-            "left": len(left.get("state_replay_assertions", [])) if isinstance(left.get("state_replay_assertions"), list) else 0,
-            "right": len(right.get("state_replay_assertions", [])) if isinstance(right.get("state_replay_assertions"), list) else 0,
+            "left": len(left.get("state_replay_assertions", []))
+            if isinstance(left.get("state_replay_assertions"), list)
+            else 0,
+            "right": len(right.get("state_replay_assertions", []))
+            if isinstance(right.get("state_replay_assertions"), list)
+            else 0,
         },
     }
+
 
 def _resource_view_count(payload: dict[str, Any]) -> int:
     total = 0
@@ -323,6 +376,7 @@ def _resource_view_count(payload: dict[str, Any]) -> int:
         if isinstance(screen, dict) and isinstance(screen.get("resource_views"), list):
             total += len(screen["resource_views"])
     return total
+
 
 def _validation_summary(validation: dict[str, Any]) -> dict[str, Any]:
     return {
@@ -333,11 +387,15 @@ def _validation_summary(validation: dict[str, Any]) -> dict[str, Any]:
         "issue_count": len(validation.get("issues", [])) if isinstance(validation.get("issues"), list) else 0,
     }
 
+
 def _validation_has_screen_intent_issue(validation: dict[str, Any]) -> bool:
     issues = validation.get("issues")
     if not isinstance(issues, list):
         return False
-    return any(isinstance(issue, dict) and str(issue.get("code", "")).startswith("APP_SCREEN_INTENT") for issue in issues)
+    return any(
+        isinstance(issue, dict) and str(issue.get("code", "")).startswith("APP_SCREEN_INTENT") for issue in issues
+    )
+
 
 def _app_diff_error_payload(
     code: str,
@@ -397,8 +455,10 @@ def _app_diff_error_payload(
         "errors": errors or [{"code": code, "message": message, "fix": fix}],
     }
 
+
 def _empty_change_set() -> dict[str, list[str]]:
     return {"added": [], "removed": [], "changed": []}
+
 
 def _normalize_diff_errors(errors: object, *, screen_id: str) -> list[dict[str, str]]:
     normalized: list[dict[str, str]] = []
@@ -416,6 +476,7 @@ def _normalize_diff_errors(errors: object, *, screen_id: str) -> list[dict[str, 
         )
     return normalized
 
+
 def _diff_value(value: object) -> str:
     if value is None:
         return "null"
@@ -424,6 +485,7 @@ def _diff_value(value: object) -> str:
     if isinstance(value, bool):
         return "true" if value else "false"
     return str(value)
+
 
 __all__ = [
     "APP_BUNDLE_DIFF_BASIS",

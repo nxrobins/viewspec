@@ -7,11 +7,11 @@ analyzed React implementation and reducer-conformance implementation cannot drif
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 import hashlib
 import json
-from typing import Any, Iterable, Mapping
-
+from collections.abc import Iterable, Mapping
+from dataclasses import dataclass
+from typing import Any
 
 NUMERIC_KERNEL_PROFILE = "viewspec_numeric_kernel_v2"
 NUMERIC_KERNEL_PATH = "src/viewspec_numeric.ts"
@@ -159,11 +159,7 @@ def numeric_operation_inventory_sha256(inventory: Iterable[Mapping[str, Any]]) -
 def numeric_scope_for_app(app_payload: Mapping[str, Any]) -> dict[str, Any]:
     """Return the deterministic numeric proof scope implied by runtime operations."""
     operation_inventory = numeric_operation_inventory(app_payload)
-    required = {
-        name
-        for operation in operation_inventory
-        for name in operation["required_functions"]
-    }
+    required = {name for operation in operation_inventory for name in operation["required_functions"]}
     ordered = tuple(name for name in _FUNCTION_ORDER if name in required)
     inventory_fields = {
         "operation_count": len(operation_inventory),
@@ -216,7 +212,9 @@ def numeric_import_names(app_payload: Mapping[str, Any]) -> tuple[str, ...]:
 def numeric_function_hashes(scope_or_payload: Mapping[str, Any]) -> dict[str, str]:
     """Hash each exact TypeScript function declaration independently of file ordering."""
     return {
-        name: hashlib.sha256(_render_numeric_function(_FUNCTIONS[name], typescript=True, exports=True).encode("utf-8")).hexdigest()
+        name: hashlib.sha256(
+            _render_numeric_function(_FUNCTIONS[name], typescript=True, exports=True).encode("utf-8")
+        ).hexdigest()
         for name in _scope_names(scope_or_payload)
     }
 
@@ -253,10 +251,7 @@ def _render_numeric_source(names: Iterable[str], *, typescript: bool, exports: b
 
 
 def _render_numeric_function(spec: _NumericFunction, *, typescript: bool, exports: bool) -> str:
-    parameters = ", ".join(
-        f"{parameter}: number" if typescript else parameter
-        for parameter in spec.parameter_names
-    )
+    parameters = ", ".join(f"{parameter}: number" if typescript else parameter for parameter in spec.parameter_names)
     prefix = "export " if exports else ""
     return_type = ": number" if typescript else ""
     lines = [f"{prefix}function {spec.name}({parameters}){return_type} {{"]

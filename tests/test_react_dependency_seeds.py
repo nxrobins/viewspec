@@ -1,9 +1,8 @@
 """Shipped builds, browser proof, and active evals share exact dependency bytes."""
 
 import json
-from pathlib import Path
 import re
-
+from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 SEEDS = (
@@ -14,8 +13,14 @@ SEEDS = (
 
 
 def _seeds():
-    return [(name, json.loads((ROOT / name / "package.json").read_text()),
-             json.loads((ROOT / name / "package-lock.json").read_text())) for name in SEEDS]
+    return [
+        (
+            name,
+            json.loads((ROOT / name / "package.json").read_text()),
+            json.loads((ROOT / name / "package-lock.json").read_text()),
+        )
+        for name in SEEDS
+    ]
 
 
 def test_shared_dependency_versions_and_integrities_are_identical():
@@ -51,8 +56,7 @@ def test_dependency_security_floors_cannot_regress():
     floors = {"postcss": (8, 5, 26), "nanoid": (3, 3, 18)}
     for seed, _, lock in _seeds():
         for name, minimum in floors.items():
-            matches = [package for path, package in lock["packages"].items()
-                       if path.endswith("node_modules/" + name)]
+            matches = [package for path, package in lock["packages"].items() if path.endswith("node_modules/" + name)]
             assert matches, (seed, name)
             for package in matches:
                 assert tuple(map(int, package["version"].split("."))) >= minimum, (seed, name)

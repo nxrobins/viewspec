@@ -4,15 +4,15 @@ import base64
 import hashlib
 import json
 import os
-from pathlib import Path
 import stat
 import zipfile
+from pathlib import Path
 
 import pytest
 
+import viewspec.review_compile as review_compile
 from viewspec import cli
 from viewspec.app_starters import starter_app_bundle
-import viewspec.review_compile as review_compile
 from viewspec.review_compile import STUDIO_COMPARE_TARGET
 from viewspec.review_contract import canonical_json_bytes
 from viewspec.review_runtime import ReviewRuntime
@@ -23,7 +23,6 @@ from viewspec.studio_share import (
     materialize_studio_share_archive,
     prepare_studio_share,
 )
-
 
 _REAL_SUBPROCESS_RUN = review_compile.subprocess.run
 _ONE_PIXEL_PNG = base64.b64decode(

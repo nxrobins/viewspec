@@ -5,7 +5,8 @@ import subprocess
 import sys
 
 import pytest
-from hypothesis import given, strategies as st
+from hypothesis import given
+from hypothesis import strategies as st
 
 from viewspec import (
     STARTER_INTENT_KINDS,
@@ -18,8 +19,8 @@ from viewspec import (
     validate_intent_file,
     validate_intent_text,
 )
-from viewspec.cli import main as cli_main
 from viewspec.agent import _strict_json_loads
+from viewspec.cli import main as cli_main
 
 
 def _valid_bundle_json() -> dict:
@@ -109,7 +110,10 @@ def test_validate_intent_rejects_non_intent_payloads(tmp_path, capsys, text, cod
     [
         ('{"substrate":{},"substrate":{},"view_spec":{}}', "duplicate object key 'substrate'"),
         (lambda: json.dumps(_valid_bundle_json()).replace('"$12"', "NaN", 1), "non-standard JSON constant 'NaN'"),
-        (lambda: json.dumps(_valid_bundle_json()).replace('"$12"', "Infinity", 1), "non-standard JSON constant 'Infinity'"),
+        (
+            lambda: json.dumps(_valid_bundle_json()).replace('"$12"', "Infinity", 1),
+            "non-standard JSON constant 'Infinity'",
+        ),
     ],
 )
 def test_validate_intent_rejects_non_strict_json(tmp_path, capsys, text, expected_message):
@@ -196,7 +200,9 @@ def test_validate_intent_reports_hosted_only_fields_before_cascading_errors(tmp_
     payload = json.loads(capsys.readouterr().out)
 
     assert payload["ok"] is False
-    assert any(issue["code"] == "HOSTED_ONLY_FIELD" and issue["path"] == "$.view_spec.inputs" for issue in payload["issues"])
+    assert any(
+        issue["code"] == "HOSTED_ONLY_FIELD" and issue["path"] == "$.view_spec.inputs" for issue in payload["issues"]
+    )
     assert not any(issue["code"] == "UNKNOWN_ACTION_PAYLOAD_BINDING" for issue in payload["issues"])
 
 
@@ -366,7 +372,10 @@ def test_diff_intent_reports_motif_and_binding_semantic_changes(tmp_path, capsys
         "left": "value",
         "right": "badge",
     } in payload["semantic_changes"]["bindings"]
-    assert any(change["id"] == "conversion_label" and change["change"] == "added" for change in payload["semantic_changes"]["bindings"])
+    assert any(
+        change["id"] == "conversion_label" and change["change"] == "added"
+        for change in payload["semantic_changes"]["bindings"]
+    )
 
 
 def test_diff_intent_reports_region_group_and_style_semantic_changes(tmp_path, capsys):
@@ -498,9 +507,7 @@ def test_diff_intent_human_output_prints_semantic_changes(tmp_path, capsys):
         "target=view:validate_cli_profile_workspace style_delta=declarations 28 -> 30 "
         "layout_delta=metric_card added layout_emphasis=featured span_columns=2"
     ) in output
-    assert (
-        "styles.aesthetic_profile: token_changed aesthetic.calm_ops -> aesthetic.executive_review"
-    ) in output
+    assert ("styles.aesthetic_profile: token_changed aesthetic.calm_ops -> aesthetic.executive_review") in output
 
 
 def test_diff_intent_reports_top_level_bundle_metadata_changes(tmp_path, capsys):
@@ -611,19 +618,14 @@ def test_check_human_output_prints_manifest_summary_for_aesthetic_artifact(tmp_p
     )
     out_dir = tmp_path / "react-tailwind-dist"
 
-    assert cli_main(
-        ["compile", str(intent_path), "--target", "react-tailwind-tsx", "--out", str(out_dir)]
-    ) == 0
+    assert cli_main(["compile", str(intent_path), "--target", "react-tailwind-tsx", "--out", str(out_dir)]) == 0
     capsys.readouterr()
 
     assert cli_main(["check", str(out_dir)]) == 0
     output = capsys.readouterr().out
 
     assert output.startswith("ok\n")
-    assert (
-        "manifest: kind=intent_bundle_compile emitter=react_tailwind_tsx artifact=ViewSpecView.tsx nodes="
-        in output
-    )
+    assert "manifest: kind=intent_bundle_compile emitter=react_tailwind_tsx artifact=ViewSpecView.tsx nodes=" in output
     assert "aesthetic_profile: aesthetic.editorial_product" in output
     assert (
         "aesthetic_style: "
@@ -646,9 +648,7 @@ def test_check_human_output_prints_aesthetic_span_layout_summary(tmp_path, capsy
     )
     out_dir = tmp_path / "react-tailwind-dist"
 
-    assert cli_main(
-        ["compile", str(intent_path), "--target", "react-tailwind-tsx", "--out", str(out_dir)]
-    ) == 0
+    assert cli_main(["compile", str(intent_path), "--target", "react-tailwind-tsx", "--out", str(out_dir)]) == 0
     capsys.readouterr()
 
     assert cli_main(["check", str(out_dir)]) == 0

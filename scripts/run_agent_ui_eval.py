@@ -8,11 +8,11 @@ import difflib
 import hashlib
 import json
 import os
-from pathlib import Path
-import subprocess
 import shutil
+import subprocess
 import sys
 import time
+from pathlib import Path
 from typing import Any
 
 from viewspec.agent_eval import (
@@ -39,9 +39,9 @@ from viewspec.agent_eval_value import (
 )
 from viewspec.app_freerange import FREERANGE_PACKAGE, FREERANGE_VERSION
 from viewspec.app_pretext import PRETEXT_PACKAGE, PRETEXT_VERSION
+from viewspec.local_tools_io import absolute_report_paths
 from viewspec.native_agents import agent_instruction_block
 from viewspec.node_runtime import materialize_prebuilt_node_modules
-
 
 ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_PROTOCOL = ROOT / "conformance" / "agent-ui-v2" / "protocol.json"
@@ -64,9 +64,7 @@ def _resolve_viewspec_cli() -> Path:
 VIEWSPEC = _resolve_viewspec_cli()
 BROWSER_SCORER = ROOT / "scripts" / "agent_ui_browser_score.mjs"
 NODE_MODULE_SEED = ROOT / "conformance" / "agent-ui-v2" / "react-dependencies" / "node_modules"
-MUTATION_MANIFEST = (
-    ROOT / "conformance" / "agent-ui-v2" / "mutations" / "field-dispatch-lifecycle.json"
-)
+MUTATION_MANIFEST = ROOT / "conformance" / "agent-ui-v2" / "mutations" / "field-dispatch-lifecycle.json"
 REFERENCE_IMAGE_WIDTH = 1440
 REFERENCE_IMAGE_HEIGHT = 1000
 
@@ -188,31 +186,20 @@ def _trial_artifact_manifest(
     final_step_id: str,
     phase_timings_ms: dict[str, int],
 ) -> dict[str, Any]:
-    artifact_root = (
-        trial_root
-        / f"attempt-{attempt_used}"
-        / "artifacts"
-        / f"10-{final_step_id}"
-    )
+    artifact_root = trial_root / f"attempt-{attempt_used}" / "artifacts" / f"10-{final_step_id}"
     score = artifact_root / "browser-score.json"
     manifest: dict[str, Any] = {"root": str(trial_root)}
     if score.is_file():
         manifest.update(score_status="recorded", score=str(score))
         return manifest
     if "browser_score" in phase_timings_ms:
-        raise RuntimeError(
-            "browser scoring completed without its declared score artifact: "
-            f"{score}"
-        )
+        raise RuntimeError(f"browser scoring completed without its declared score artifact: {score}")
     detector_evidence = [
-        str(path)
-        for path in (artifact_root / "compile.log", artifact_root / "proof.log")
-        if path.is_file()
+        str(path) for path in (artifact_root / "compile.log", artifact_root / "proof.log") if path.is_file()
     ]
     if not detector_evidence:
         raise RuntimeError(
-            "evaluation stopped before browser scoring without retained compile/proof evidence: "
-            f"{artifact_root}"
+            f"evaluation stopped before browser scoring without retained compile/proof evidence: {artifact_root}"
         )
     manifest.update(
         score_status="not_run_early_detector",
@@ -257,14 +244,10 @@ def _value_evidence_artifact_integrity(
                 add(f"{prefix}.artifacts.score", artifacts.get("score"))
             elif score_status == "not_run_early_detector":
                 if "score" in artifacts:
-                    errors.append(
-                        f"{prefix}.artifacts.score must be absent when browser scoring did not run"
-                    )
+                    errors.append(f"{prefix}.artifacts.score must be absent when browser scoring did not run")
                 detector_evidence = artifacts.get("detector_evidence")
                 if not isinstance(detector_evidence, list) or not detector_evidence:
-                    errors.append(
-                        f"{prefix}.artifacts.detector_evidence must retain at least one artifact"
-                    )
+                    errors.append(f"{prefix}.artifacts.detector_evidence must retain at least one artifact")
                 else:
                     for evidence_index, path in enumerate(detector_evidence):
                         add(
@@ -332,10 +315,7 @@ def _require_value_evidence_integrity(session: dict[str, Any]) -> None:
         raise ValueError("value evidence artifact-integrity record is stale or missing")
     if actual["complete"] is not True:
         details = [*actual["errors"], *(item["path"] for item in actual["missing"])]
-        raise ValueError(
-            "value evidence contains invalid or dangling artifact references: "
-            + "; ".join(details)
-        )
+        raise ValueError("value evidence contains invalid or dangling artifact references: " + "; ".join(details))
 
 
 def _prompt_fact(prompt: str, path: Path) -> dict[str, Any]:
@@ -485,10 +465,7 @@ def _source_files(workspace: Path, arm: str) -> list[Path]:
             path
             for path in root.rglob("*")
             if path.is_file()
-            and not any(
-                part.startswith(".") or part in excluded
-                for part in path.relative_to(root).parts
-            )
+            and not any(part.startswith(".") or part in excluded for part in path.relative_to(root).parts)
         )
     source = workspace / "viewspec.app.json"
     return [source] if source.is_file() else []
@@ -537,7 +514,11 @@ def _capture_source(
     added = sum(line.startswith("+") and not line.startswith("+++") for line in diff_lines)
     removed = sum(line.startswith("-") and not line.startswith("---") for line in diff_lines)
     semantic: dict[str, Any] | None = None
-    if arm != "code-first" and previous.get("viewspec.app.json") is not None and current.get("viewspec.app.json") is not None:
+    if (
+        arm != "code-first"
+        and previous.get("viewspec.app.json") is not None
+        and current.get("viewspec.app.json") is not None
+    ):
         previous_path = artifact / "previous-viewspec.app.json"
         current_path = snapshot_root / "viewspec.app.json"
         _write(previous_path, previous["viewspec.app.json"])
@@ -596,10 +577,7 @@ def _restore_source_texts(
     prune: bool = False,
 ) -> None:
     expected = set(sources)
-    current = {
-        path.relative_to(workspace).as_posix(): path
-        for path in _source_files(workspace, arm)
-    }
+    current = {path.relative_to(workspace).as_posix(): path for path in _source_files(workspace, arm)}
     unexpected = sorted(set(current) - expected)
     if unexpected:
         if not prune:
@@ -697,7 +675,7 @@ def _activate_code_first_react(workspace: Path) -> dict[str, Any]:
             "react": "19.2.7",
             "react-dom": "19.2.7",
             "tailwindcss": "4.3.0",
-            "vite": "8.0.16",
+            "vite": "8.3.5",
         },
         "devDependencies": {
             "@playwright/test": "1.60.0",
@@ -717,7 +695,7 @@ def _activate_code_first_react(workspace: Path) -> dict[str, Any]:
     )
     _write(
         react / "src" / "App.jsx",
-        'export default function App(){return <main><p>Implement the matched React target.</p></main>}\n',
+        "export default function App(){return <main><p>Implement the matched React target.</p></main>}\n",
     )
     _write(react / "src" / "style.css", "html{font-family:system-ui,sans-serif}\nbody{margin:0}\n")
     return {
@@ -784,6 +762,19 @@ def _validate_pinned_react_package(package: dict[str, Any]) -> None:
         extras = {name: version for name, version in actual.items() if name not in expected}
         if extras not in ({}, optional[key]):
             raise ValueError(f"package.json {key} does not match the pinned shared target contract")
+
+
+def _load_app_proof_report(report_path: Path) -> dict[str, Any]:
+    """Load ``app_proof_report.json`` and resolve its recorded paths to absolute ones.
+
+    The file records every path relative to the directory it lives in (the proof directory, at its
+    default location); the runner opens the React source and the evidence files it names, so it
+    needs them absolute again.
+    """
+    report = json.loads(report_path.read_text(encoding="utf-8"))
+    if not isinstance(report, dict):
+        return {}
+    return absolute_report_paths(report, report_path.parent)
 
 
 def _react_source_from_proof(proof: dict[str, Any] | None, artifact: Path) -> Path:
@@ -1099,9 +1090,7 @@ def _proof_feedback(proof: dict[str, Any] | None) -> str:
         representative = matching[0]
         context = f" at {path}" if path else ""
         remainder = f" (+{len(matching) - 1} similar)" if len(matching) > 1 else ""
-        rendered.append(
-            f"{code}{context}: {representative.get('message')}{remainder}"
-        )
+        rendered.append(f"{code}{context}: {representative.get('message')}{remainder}")
     return "Native proof failed: " + " | ".join(rendered)
 
 
@@ -1176,9 +1165,7 @@ def _eligibility_rank(eligibility: dict[str, Any]) -> tuple[int, float, int, int
         hook_count = 0
     targets = eligibility.get("targets") if isinstance(eligibility.get("targets"), list) else []
     healthy_targets = sum(
-        item.get("build_ok") is True and item.get("passed") is True
-        for item in targets
-        if isinstance(item, dict)
+        item.get("build_ok") is True and item.get("passed") is True for item in targets if isinstance(item, dict)
     )
     return (
         int(eligibility.get("eligible") is True),
@@ -1236,22 +1223,12 @@ def _score_feedback(
     }
     layout_feedback = ""
     if layout_by_viewport:
-        values = ", ".join(
-            f"{width}px={value:.6f}"
-            for width, value in sorted(layout_by_viewport.items())
-        )
+        values = ", ".join(f"{width}px={value:.6f}" for width, value in sorted(layout_by_viewport.items()))
         floor = min(layout_by_viewport.values())
-        target = (
-            f", target={layout_target:.6f}, met={floor >= layout_target}"
-            if layout_target is not None
-            else ""
-        )
+        target = f", target={layout_target:.6f}, met={floor >= layout_target}" if layout_target is not None else ""
         layout_feedback = f" Reference layout by viewport: {values}; floor={floor:.6f}{target}."
     if score.get("ok") is True:
-        return (
-            f"Browser acceptance passed {score.get('passed')}/{score.get('total')}."
-            + layout_feedback
-        )
+        return f"Browser acceptance passed {score.get('passed')}/{score.get('total')}." + layout_feedback
     failures: list[str] = []
     viewports = score.get("viewports")
     if isinstance(viewports, list):
@@ -1270,10 +1247,7 @@ def _score_feedback(
                         def geometry(value: Any) -> str:
                             if not isinstance(value, dict):
                                 return "missing"
-                            return "/".join(
-                                f"{float(value.get(key, 0)):.2f}"
-                                for key in ("x", "y", "width", "height")
-                            )
+                            return "/".join(f"{float(value.get(key, 0)):.2f}" for key in ("x", "y", "width", "height"))
 
                         similarity = item.get("similarity")
                         detail = (
@@ -1321,19 +1295,14 @@ def _dimension_score(score: dict[str, Any], *, excluded: set[str] | None = None)
         for item in viewport.get("criteria", [])
         if isinstance(item, dict) and item.get("dimension") not in excluded
     ]
-    return (
-        sum(item.get("passed") is True for item in criteria) / len(criteria)
-        if criteria
-        else 0.0
-    )
+    return sum(item.get("passed") is True for item in criteria) / len(criteria) if criteria else 0.0
 
 
 def _layout_fidelity(score: dict[str, Any]) -> float | None:
     values = [
         viewport.get("layout_fidelity")
         for viewport in score.get("viewports", [])
-        if isinstance(viewport, dict)
-        and isinstance(viewport.get("layout_fidelity"), (int, float))
+        if isinstance(viewport, dict) and isinstance(viewport.get("layout_fidelity"), (int, float))
     ]
     return min(values) if values else None
 
@@ -1376,7 +1345,14 @@ def _evaluate_turn(
     if arm == "code-first":
         candidate = workspace / "submission"
         if not (candidate / "index.html").is_file():
-            score = {"schema_version": 1, "ok": False, "passed": 0, "total": 1, "dimensions": {}, "errors": ["submission/index.html is missing"]}
+            score = {
+                "schema_version": 1,
+                "ok": False,
+                "passed": 0,
+                "total": 1,
+                "dimensions": {},
+                "errors": ["submission/index.html is missing"],
+            }
             return score, proof, phases_ms, "submission/index.html is missing.", target_trials
     else:
         source = workspace / "viewspec.app.json"
@@ -1400,15 +1376,11 @@ def _evaluate_turn(
         logs.append(compile_result.stdout)
         compile_payload = _read_json_output(compile_result.stdout)
         diagnostics = (
-            compile_payload.get("presentation_plan_diagnostics")
-            if isinstance(compile_payload, dict)
-            else None
+            compile_payload.get("presentation_plan_diagnostics") if isinstance(compile_payload, dict) else None
         )
         if isinstance(diagnostics, list) and diagnostics:
             rendered = [
-                f"{item.get('code')}: {item.get('message')}"
-                for item in diagnostics[:4]
-                if isinstance(item, dict)
+                f"{item.get('code')}: {item.get('message')}" for item in diagnostics[:4] if isinstance(item, dict)
             ]
             if rendered:
                 presentation_feedback = " PresentationPlan: " + " | ".join(rendered)
@@ -1441,10 +1413,7 @@ def _evaluate_turn(
         _write(artifact / "proof.log", proof_result.stdout)
         logs.append(proof_result.stdout)
         report_path = proof_dir / "app_proof_report.json"
-        if report_path.is_file():
-            proof = json.loads(report_path.read_text(encoding="utf-8"))
-        else:
-            proof = _read_json_output(proof_result.stdout)
+        proof = _load_app_proof_report(report_path) if report_path.is_file() else _read_json_output(proof_result.stdout)
         if compile_result.returncode or not (candidate / "index.html").is_file():
             score = {
                 "schema_version": 1,
@@ -1475,9 +1444,7 @@ def _evaluate_turn(
         "build": {
             "ok": True,
             "entry": str(candidate / "index.html"),
-            "command": "authored-static"
-            if arm == "code-first"
-            else "viewspec compile-app --target html-tailwind-app",
+            "command": "authored-static" if arm == "code-first" else "viewspec compile-app --target html-tailwind-app",
             "duration_ms": phases_ms.get("compile", 0),
             "entry_sha256": _sha256(candidate / "index.html"),
         },
@@ -1492,9 +1459,7 @@ def _evaluate_turn(
     target_trials.append(static_trial)
     if step.phase in {"leverage", "assurance", "repair"}:
         react_source = (
-            workspace / "submission" / "react"
-            if arm == "code-first"
-            else _react_source_from_proof(proof, artifact)
+            workspace / "submission" / "react" if arm == "code-first" else _react_source_from_proof(proof, artifact)
         )
         build, react_build_ms, react_build_log = _build_react_target(
             react_source,
@@ -1547,14 +1512,10 @@ def _evaluate_turn(
                 "build": build,
                 "functional_acceptance": react_functional,
                 "layout_fidelity": _layout_fidelity(react_score),
-                "layout_by_viewport": (
-                    _parity_by_viewport(react_score) if build["ok"] else {}
-                ),
+                "layout_by_viewport": (_parity_by_viewport(react_score) if build["ok"] else {}),
                 "passed": build["ok"] and react_functional == 1.0,
                 "parity": parity,
-                "parity_by_viewport": (
-                    _parity_by_viewport(parity_score) if build["ok"] else {}
-                ),
+                "parity_by_viewport": (_parity_by_viewport(parity_score) if build["ok"] else {}),
                 "commands": [
                     "node_modules/.bin/vite build",
                     "local Chromium target score",
@@ -1565,9 +1526,7 @@ def _evaluate_turn(
             }
         )
     protocol = load_agent_eval_protocol(protocol_path)
-    layout_target = float(
-        protocol.success_criteria.get("minimum_layout_fidelity", 0.0)
-    )
+    layout_target = float(protocol.success_criteria.get("minimum_layout_fidelity", 0.0))
     feedback = _score_feedback(score, layout_target=layout_target)
     if arm != "code-first":
         feedback += " " + _proof_feedback(proof) + presentation_feedback
@@ -1590,9 +1549,7 @@ def _failed_criterion_ids(score: dict[str, Any]) -> list[str]:
             for viewport in score.get("viewports", [])
             if isinstance(viewport, dict)
             for item in viewport.get("criteria", [])
-            if isinstance(item, dict)
-            and isinstance(item.get("id"), str)
-            and item.get("passed") is False
+            if isinstance(item, dict) and isinstance(item.get("id"), str) and item.get("passed") is False
         }
     )
 
@@ -1623,53 +1580,34 @@ def _observed_detectors(
 
     observed: list[str] = []
     if trial_id in {"break-escalation-action", "break-escalation-visibility"}:
-        browser_detected = any(
-            item.startswith("interaction:Show escalation guide") for item in failed
-        )
+        browser_detected = any(item.startswith("interaction:Show escalation guide") for item in failed)
         if browser_detected:
             observed.append("browser:interaction:Show escalation guide")
-        if (
-            trial_id == "break-escalation-action"
-            and has_proof_error(
-                "APP_STATE_TRIGGER_ACTION_MISSING",
-                "broken_escalation_action",
-            )
+        if trial_id == "break-escalation-action" and has_proof_error(
+            "APP_STATE_TRIGGER_ACTION_MISSING",
+            "broken_escalation_action",
         ):
             observed.append("compile-or-replay:reveal_escalation_guide")
-        elif (
-            trial_id == "break-escalation-visibility"
-            and (
-                has_proof_error(
-                    "APP_VISIBILITY_REPLAY_MISMATCH",
-                    "show_escalation_panel",
-                )
-                or (
-                    browser_detected
-                    and has_proof_error("APP_STATE_REPLAY_ASSERTION_FAILED")
-                )
+        elif trial_id == "break-escalation-visibility" and (
+            has_proof_error(
+                "APP_VISIBILITY_REPLAY_MISMATCH",
+                "show_escalation_panel",
             )
+            or (browser_detected and has_proof_error("APP_STATE_REPLAY_ASSERTION_FAILED"))
         ):
             observed.append("replay-or-browser:show_escalation_panel")
     elif trial_id == "corrupt-reviewed-count":
-        browser_detected = any(
-            item.startswith("interaction:Record review") for item in failed
-        )
+        browser_detected = any(item.startswith("interaction:Record review") for item in failed)
         if browser_detected:
             observed.append("browser:interaction:Record review")
         if has_proof_error(
             "APP_STATE_REPLAY_STATE_MISMATCH",
             "increment_reviewed_count",
             "reviewed_count",
-        ) or (
-            browser_detected
-            and has_proof_error("APP_STATE_REPLAY_ASSERTION_FAILED")
-        ):
+        ) or (browser_detected and has_proof_error("APP_STATE_REPLAY_ASSERTION_FAILED")):
             observed.append("replay:increment_reviewed_count")
     elif trial_id == "duplicate-j207-resource":
-        if any(
-            item in {"resource:job-j207", "unique-text:J-207"}
-            for item in failed
-        ):
+        if any(item in {"resource:job-j207", "unique-text:J-207"} for item in failed):
             observed.append("browser:unique-hook:job-j207")
         if has_proof_error("APP_RESOURCE_BINDING_DUPLICATE_RECORD_ID"):
             observed.append("compile:resource-identity")
@@ -1706,11 +1644,7 @@ def _eligibility_feedback(
 ) -> str:
     status = "passed" if eligibility.get("eligible") is True else "failed"
     reasons = eligibility.get("reasons")
-    rendered_reasons = (
-        "; ".join(str(item) for item in reasons[:8])
-        if isinstance(reasons, list) and reasons
-        else "none"
-    )
+    rendered_reasons = "; ".join(str(item) for item in reasons[:8]) if isinstance(reasons, list) and reasons else "none"
     return f"{feedback} {label} {status}; reasons: {rendered_reasons}.".strip()
 
 
@@ -1724,22 +1658,17 @@ def _eligibility_report(
 ) -> dict[str, Any]:
     functional_acceptance = _dimension_score(score, excluded={"layout_fidelity"})
     layout_fidelity = _layout_fidelity(score)
-    proof_healthy = arm == "code-first" or (
-        isinstance(proof, dict) and proof.get("ok") is True
-    )
+    proof_healthy = arm == "code-first" or (isinstance(proof, dict) and proof.get("ok") is True)
     target_facts = [
         {
             "id": item.get("id"),
-            "build_ok": isinstance(item.get("build"), dict)
-            and item["build"].get("ok") is True,
+            "build_ok": isinstance(item.get("build"), dict) and item["build"].get("ok") is True,
             "functional_acceptance": item.get("functional_acceptance"),
             "passed": item.get("passed") is True,
         }
         for item in targets
     ]
-    targets_healthy = len(targets) == 2 and all(
-        item["build_ok"] and item["passed"] for item in target_facts
-    )
+    targets_healthy = len(targets) == 2 and all(item["build_ok"] and item["passed"] for item in target_facts)
     reasons: list[str] = []
     if functional_acceptance != 1.0:
         reasons.append(f"functional acceptance was {functional_acceptance:.6f}, expected 1.0")
@@ -1758,16 +1687,10 @@ def _eligibility_report(
             reasons.append(f"target {target['id']} build was unhealthy")
         elif not target["passed"]:
             reasons.append(
-                f"target {target['id']} functional acceptance was "
-                f"{target['functional_acceptance']}, expected 1.0"
+                f"target {target['id']} functional acceptance was {target['functional_acceptance']}, expected 1.0"
             )
     return {
-        "eligible": (
-            functional_acceptance == 1.0
-            and hooks.get("ok") is True
-            and proof_healthy
-            and targets_healthy
-        ),
+        "eligible": (functional_acceptance == 1.0 and hooks.get("ok") is True and proof_healthy and targets_healthy),
         "functional_acceptance": functional_acceptance,
         "layout_fidelity": layout_fidelity,
         "stable_hooks": hooks,
@@ -2036,9 +1959,7 @@ def _run_baseline_qualification(
         )
         selection_reason = (
             "candidate met eligibility and reference-layout target"
-            if selected
-            and next_eligibility["eligible"]
-            and candidate_layout >= layout_target
+            if selected and next_eligibility["eligible"] and candidate_layout >= layout_target
             else "non-regressing reference-layout refinement"
             if selected and refining_layout
             else "eligible candidate"
@@ -2087,11 +2008,7 @@ def _run_baseline_qualification(
             "layout_regressed_against_selected": layout_regressed,
             "artifact_root": str(artifact),
             "browser_target": {
-                "kind": (
-                    "authored_static_site"
-                    if args.arm == "code-first"
-                    else "compiled_static_shell"
-                ),
+                "kind": ("authored_static_site" if args.arm == "code-first" else "compiled_static_shell"),
                 "entry": "index.html",
             },
         }
@@ -2133,15 +2050,9 @@ def _run_baseline_qualification(
         feedback = selected_feedback
         qualification["final_eligibility"] = eligibility
         qualification["turn_count"] = len(qualification_turns)
-        qualification["layout_target_met"] = (
-            float(eligibility.get("layout_fidelity") or 0.0) >= layout_target
-        )
+        qualification["layout_target_met"] = float(eligibility.get("layout_fidelity") or 0.0) >= layout_target
         qualification["exhausted"] = (
-            not (
-                eligibility["eligible"]
-                and float(eligibility.get("layout_fidelity") or 0.0)
-                >= layout_target
-            )
+            not (eligibility["eligible"] and float(eligibility.get("layout_fidelity") or 0.0) >= layout_target)
             and len(qualification_turns) >= maximum
         )
         session["thread_id"] = thread_id
@@ -2166,9 +2077,7 @@ def _run_baseline_qualification(
             break
     qualification["final_eligibility"] = eligibility
     qualification.setdefault("turn_count", len(qualification_turns))
-    qualification["layout_target_met"] = (
-        float(eligibility.get("layout_fidelity") or 0.0) >= layout_target
-    )
+    qualification["layout_target_met"] = float(eligibility.get("layout_fidelity") or 0.0) >= layout_target
     qualification.setdefault("exhausted", False)
     return (
         final_turn,
@@ -2360,11 +2269,7 @@ def _run_value_trials(
                 "invalid_reason": reason,
                 "baseline_sha256": baseline_hash,
             }
-            destination = (
-                evidence["negative_control_trials"]
-                if trial_id in controls
-                else evidence["mutation_trials"]
-            )
+            destination = evidence["negative_control_trials"] if trial_id in controls else evidence["mutation_trials"]
             destination.append(item)
         return evidence
     final_step = task.steps[-1]
@@ -2404,10 +2309,7 @@ def _run_value_trials(
             checkpoint_repaired_hash = None
             if repair_result.is_file():
                 result_checkpoint = json.loads(repair_result.read_text(encoding="utf-8"))
-                if (
-                    result_checkpoint.get("trial_id") != trial_id
-                    or result_checkpoint.get("model") != args.model
-                ):
+                if result_checkpoint.get("trial_id") != trial_id or result_checkpoint.get("model") != args.model:
                     raise ValueError("pending repair result provenance mismatch")
                 parsed = dict(result_checkpoint.get("parsed", {}))
                 model_ms = int(result_checkpoint.get("model_wall_time_ms", 0))
@@ -2423,10 +2325,7 @@ def _run_value_trials(
             if repair_workspace.is_dir():
                 repaired_sources = _source_texts(repair_workspace, args.arm)
                 repaired_hash = source_snapshot_hash(repaired_sources)
-                if (
-                    isinstance(checkpoint_repaired_hash, str)
-                    and checkpoint_repaired_hash != repaired_hash
-                ):
+                if isinstance(checkpoint_repaired_hash, str) and checkpoint_repaired_hash != repaired_hash:
                     raise ValueError("pending repair source hash mismatch")
                 for relative, text in repaired_sources.items():
                     _write(repair_root / "repaired-source" / relative, text)
@@ -2501,13 +2400,16 @@ def _run_value_trials(
         _restore_source_texts(workspace, args.arm, mutated_sources)
         for relative, text in mutated_sources.items():
             _write(trial_root / "mutated-source" / relative, text)
-        evaluation: tuple[
-            dict[str, Any],
-            dict[str, Any] | None,
-            dict[str, int],
-            str,
-            list[dict[str, Any]],
-        ] | None = None
+        evaluation: (
+            tuple[
+                dict[str, Any],
+                dict[str, Any] | None,
+                dict[str, int],
+                str,
+                list[dict[str, Any]],
+            ]
+            | None
+        ) = None
         infrastructure_errors: list[str] = []
         attempt_used = 0
         for attempt in range(2):
@@ -2544,7 +2446,9 @@ def _run_value_trials(
                 "infrastructure_errors": infrastructure_errors,
                 **mutation_fact,
             }
-            (evidence["mutation_trials"] if trial_id in mutations else evidence["negative_control_trials"]).append(record)
+            (evidence["mutation_trials"] if trial_id in mutations else evidence["negative_control_trials"]).append(
+                record
+            )
             _restore_source_texts(workspace, args.arm, healthy_sources)
             session["value_evidence"] = evidence
             _write_checkpoint(
@@ -2573,11 +2477,7 @@ def _run_value_trials(
             if trial_id in mutations
             else []
         )
-        expected = (
-            list(trial["expected_detectors"][args.arm])
-            if trial_id in mutations
-            else []
-        )
+        expected = list(trial["expected_detectors"][args.arm]) if trial_id in mutations else []
         if trial_id in mutations:
             detected = bool(set(observed) & set(expected))
         else:
@@ -2761,21 +2661,12 @@ def _run_session(args: argparse.Namespace) -> int:
         feedback = checkpoint.get("feedback", "")
         previous_criteria = dict(checkpoint.get("previous_criteria", {}))
         previous_source = current_sources
-        start_index = (
-            int(checkpoint["next_index"])
-            if checkpoint.get("stage") == "lifecycle"
-            else len(task.steps)
-        )
+        start_index = int(checkpoint["next_index"]) if checkpoint.get("stage") == "lifecycle" else len(task.steps)
         reference_image = (
-            output
-            / "reference-render"
-            / "browser-evidence"
-            / f"{REFERENCE_IMAGE_WIDTH}x{REFERENCE_IMAGE_HEIGHT}.png"
+            output / "reference-render" / "browser-evidence" / f"{REFERENCE_IMAGE_WIDTH}x{REFERENCE_IMAGE_HEIGHT}.png"
         )
         if checkpoint.get("stage") == "complete" and (output / "session.json").is_file():
-            completed_session = json.loads(
-                (output / "session.json").read_text(encoding="utf-8")
-            )
+            completed_session = json.loads((output / "session.json").read_text(encoding="utf-8"))
             _require_value_evidence_integrity(completed_session)
             summary = summarize_agent_eval_session(completed_session)
             print(canonical_json(summary), end="", flush=True)
@@ -2830,9 +2721,7 @@ def _run_session(args: argparse.Namespace) -> int:
         if args.arm == "code-first" and step.phase == "leverage":
             activation_started = time.perf_counter()
             react_activation = _activate_code_first_react(workspace)
-            react_activation["duration_ms"] = round(
-                (time.perf_counter() - activation_started) * 1000
-            )
+            react_activation["duration_ms"] = round((time.perf_counter() - activation_started) * 1000)
         prompt = (
             _initial_prompt(task, args.arm, step)
             if index == 0
@@ -3006,10 +2895,7 @@ def _build_review_packet(
         root = (
             Path(artifact_root)
             if isinstance(artifact_root, str) and artifact_root
-            else output
-            / arm
-            / "artifacts"
-            / f"{len(task.steps):02d}-{task.steps[-1].id}"
+            else output / arm / "artifacts" / f"{len(task.steps):02d}-{task.steps[-1].id}"
         )
         for target, source_root in (
             ("static", root / "browser-evidence"),
@@ -3048,7 +2934,7 @@ def _build_review_packet(
         "Blinded V2 exploratory review</h1>"
         + "".join(
             f"<article><h2>{item['candidate']} · {item['target']} · {item['viewport']}px</h2>"
-            f"<img src=\"{item['image']}\" alt=\"Blinded interface screenshot\"></article>"
+            f'<img src="{item["image"]}" alt="Blinded interface screenshot"></article>'
             for item in samples
         )
         + "</main>",
@@ -3070,11 +2956,7 @@ def _run_pair(args: argparse.Namespace) -> int:
     output = Path(args.out).resolve()
     arm_order = seeded_arm_order(args.seed, protocol.arms)
     product_tree = _product_tree_fact()
-    mutation_count = (
-        len(load_mutation_manifest(MUTATION_MANIFEST)["mutations"])
-        if args.with_value_trials
-        else 0
-    )
+    mutation_count = len(load_mutation_manifest(MUTATION_MANIFEST)["mutations"]) if args.with_value_trials else 0
     model_call_budget = {
         "lifecycle_per_arm": len(task.steps),
         "lifecycle_total": len(task.steps) * len(protocol.arms),
@@ -3125,9 +3007,7 @@ def _run_pair(args: argparse.Namespace) -> int:
         arm_out = output / arm
         arm_resume = args.resume and (arm_out / "checkpoint.json").is_file()
         if arm_resume:
-            arm_checkpoint = json.loads(
-                (arm_out / "checkpoint.json").read_text(encoding="utf-8")
-            )
+            arm_checkpoint = json.loads((arm_out / "checkpoint.json").read_text(encoding="utf-8"))
             if arm_checkpoint.get("stage") == "complete" and (arm_out / "session.json").is_file():
                 continue
         child = argparse.Namespace(
@@ -3194,12 +3074,8 @@ def _plan(args: argparse.Namespace) -> int:
                 "primary_arm": protocol.primary_arm,
                 "minimum_sessions_per_arm": protocol.minimum_sessions_per_arm,
                 "session_count": len(sessions),
-                "lifecycle_turn_count": sum(
-                    item["lifecycle_turn_count"] for item in sessions
-                ),
-                "maximum_qualification_turn_count": sum(
-                    item["qualification_turn_budget"] for item in sessions
-                ),
+                "lifecycle_turn_count": sum(item["lifecycle_turn_count"] for item in sessions),
+                "maximum_qualification_turn_count": sum(item["qualification_turn_budget"] for item in sessions),
                 "success_criteria": dict(protocol.success_criteria),
                 "study_design": protocol.study_design,
                 "qualification": protocol.qualification,
@@ -3256,18 +3132,12 @@ def _migrate_trial_artifact_record(record: dict[str, Any]) -> str | None:
         return "recorded"
     phase_timings = record.get("phase_timings_ms", {})
     if isinstance(phase_timings, dict) and "browser_score" in phase_timings:
-        raise ValueError(
-            f"trial {record.get('id')} ran browser scoring but its score artifact is missing"
-        )
+        raise ValueError(f"trial {record.get('id')} ran browser scoring but its score artifact is missing")
     detector_evidence = [
-        str(path)
-        for path in (score.parent / "compile.log", score.parent / "proof.log")
-        if path.is_file()
+        str(path) for path in (score.parent / "compile.log", score.parent / "proof.log") if path.is_file()
     ]
     if not detector_evidence:
-        raise ValueError(
-            f"trial {record.get('id')} has a dangling score and no early-detector evidence"
-        )
+        raise ValueError(f"trial {record.get('id')} has a dangling score and no early-detector evidence")
     artifacts.pop("score", None)
     artifacts["score_status"] = "not_run_early_detector"
     artifacts["detector_evidence"] = detector_evidence
@@ -3292,12 +3162,8 @@ def _migrate_evidence(args: argparse.Namespace) -> int:
     source_hashes: dict[str, str] = {}
     migrated_files: list[dict[str, Any]] = []
     status_counts = {"recorded": 0, "not_run_early_detector": 0}
-    evidence_paths = sorted(run_root.glob("*/session.json")) + sorted(
-        run_root.glob("*/session.partial.json")
-    )
-    checkpoint_paths = sorted(
-        run_root.glob("*/value-trials/*/repair/repair-attempt-checkpoint.json")
-    )
+    evidence_paths = sorted(run_root.glob("*/session.json")) + sorted(run_root.glob("*/session.partial.json"))
+    checkpoint_paths = sorted(run_root.glob("*/value-trials/*/repair/repair-attempt-checkpoint.json"))
     if len(list(run_root.glob("*/session.json"))) != len(protocol.arms):
         raise ValueError("migration requires one completed session for every protocol arm")
 
@@ -3365,11 +3231,7 @@ def _migrate_evidence(args: argparse.Namespace) -> int:
             }
         )
     report_path = run_root / "study-report.json"
-    previous_report = (
-        json.loads(report_path.read_text(encoding="utf-8"))
-        if report_path.is_file()
-        else {}
-    )
+    previous_report = json.loads(report_path.read_text(encoding="utf-8")) if report_path.is_file() else {}
     report_before = _sha256(report_path) if report_path.is_file() else None
     report = summarize_agent_eval_study(
         sessions,
@@ -3395,10 +3257,7 @@ def _migrate_evidence(args: argparse.Namespace) -> int:
         }
     )
 
-    original_runner_hashes = {
-        session["environment"]["inputs"]["runner"]["sha256"]
-        for session in sessions
-    }
+    original_runner_hashes = {session["environment"]["inputs"]["runner"]["sha256"] for session in sessions}
     migration = {
         "schema_version": 1,
         "id": "v2.2-artifact-integrity-v1",
@@ -3415,9 +3274,7 @@ def _migrate_evidence(args: argparse.Namespace) -> int:
         "model_calls_added": 0,
         "source_sha256_by_arm": source_hashes,
         "original_runner_sha256": (
-            next(iter(original_runner_hashes))
-            if len(original_runner_hashes) == 1
-            else sorted(original_runner_hashes)
+            next(iter(original_runner_hashes)) if len(original_runner_hashes) == 1 else sorted(original_runner_hashes)
         ),
         "migration_runner_sha256": _sha256(Path(__file__)),
         "migration_summary_sha256": _sha256(ROOT / "src" / "viewspec" / "agent_eval.py"),
@@ -3443,9 +3300,7 @@ def _freeze_evidence(args: argparse.Namespace) -> int:
     for label, path in required_paths.items():
         if not path.is_file():
             raise FileNotFoundError(f"{label} is missing: {path}")
-    pair_manifest = json.loads(
-        required_paths["pair_manifest"].read_text(encoding="utf-8")
-    )
+    pair_manifest = json.loads(required_paths["pair_manifest"].read_text(encoding="utf-8"))
     migration = json.loads(required_paths["migration"].read_text(encoding="utf-8"))
     report = json.loads(required_paths["study_report"].read_text(encoding="utf-8"))
     if report.get("shakedown_exit", {}).get("pass") is not True:
@@ -3468,21 +3323,19 @@ def _freeze_evidence(args: argparse.Namespace) -> int:
                 "path": str(path),
                 "sha256": _sha256(path),
             }
-        session = json.loads(
-            (run_root / arm / "session.json").read_text(encoding="utf-8")
-        )
+        session = json.loads((run_root / arm / "session.json").read_text(encoding="utf-8"))
         _require_value_evidence_integrity(session)
         baseline = session.get("value_evidence", {}).get("baseline", {})
         source_hash = baseline.get("source_sha256")
         if not isinstance(source_hash, str) or len(source_hash) != 64:
             raise ValueError(f"{arm} selected source hash is missing")
         source_hashes[arm] = source_hash
-    for label, path in required_paths.items():
+    for path in required_paths.values():
         evidence_files[path.name] = {"path": str(path), "sha256": _sha256(path)}
 
-    original_inputs = json.loads(
-        (run_root / protocol.arms[0] / "environment.json").read_text(encoding="utf-8")
-    ).get("inputs", {})
+    original_inputs = json.loads((run_root / protocol.arms[0] / "environment.json").read_text(encoding="utf-8")).get(
+        "inputs", {}
+    )
     original_hashes = {
         name: value.get("sha256")
         for name, value in original_inputs.items()

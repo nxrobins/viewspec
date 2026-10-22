@@ -11,8 +11,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
+from viewspec._canonical import canonical_json_utf8
 from viewspec.app_numeric import generate_numeric_javascript, numeric_import_names
-
 
 INTERACTIVE_STATE_PROFILE = "interactive_state_v0"
 STATE_KIND_COLLECTION = "collection"
@@ -160,12 +160,20 @@ def validate_state_ir(app_payload: dict[str, Any]) -> tuple[StateIR | None, list
     selector_items = _required_array(app_payload, "selectors", "$", issues)
     replay_items = app_payload.get("state_replay_assertions", [])
     if not isinstance(replay_items, list):
-        issues.append(StateValidationIssue("APP_STATE_REPLAY_NOT_ARRAY", "$.state_replay_assertions", "state_replay_assertions must be an array."))
+        issues.append(
+            StateValidationIssue(
+                "APP_STATE_REPLAY_NOT_ARRAY", "$.state_replay_assertions", "state_replay_assertions must be an array."
+            )
+        )
         replay_items = []
 
     _check_count(state_items, APP_STATE_MAX_ENTRIES, "$.state", "APP_STATE_LIMIT_EXCEEDED", "state entries", issues)
-    _check_count(mutation_items, APP_STATE_MAX_MUTATIONS, "$.mutations", "APP_STATE_LIMIT_EXCEEDED", "mutations", issues)
-    _check_count(selector_items, APP_STATE_MAX_SELECTORS, "$.selectors", "APP_STATE_LIMIT_EXCEEDED", "selectors", issues)
+    _check_count(
+        mutation_items, APP_STATE_MAX_MUTATIONS, "$.mutations", "APP_STATE_LIMIT_EXCEEDED", "mutations", issues
+    )
+    _check_count(
+        selector_items, APP_STATE_MAX_SELECTORS, "$.selectors", "APP_STATE_LIMIT_EXCEEDED", "selectors", issues
+    )
     _check_count(
         replay_items,
         APP_STATE_MAX_REPLAY_ASSERTIONS,
@@ -189,9 +197,20 @@ def validate_state_ir(app_payload: dict[str, Any]) -> tuple[StateIR | None, list
     if app_payload.get("schema_version") == 4:
         visibility_items = app_payload.get("visibility", [])
         if not isinstance(visibility_items, list):
-            issues.append(StateValidationIssue("APP_VISIBILITY_NOT_ARRAY", "$.visibility", "visibility must be an array of rules."))
+            issues.append(
+                StateValidationIssue(
+                    "APP_VISIBILITY_NOT_ARRAY", "$.visibility", "visibility must be an array of rules."
+                )
+            )
             visibility_items = []
-        _check_count(visibility_items, APP_VISIBILITY_MAX_RULES, "$.visibility", "APP_VISIBILITY_LIMIT_EXCEEDED", "visibility rules", issues)
+        _check_count(
+            visibility_items,
+            APP_VISIBILITY_MAX_RULES,
+            "$.visibility",
+            "APP_VISIBILITY_LIMIT_EXCEEDED",
+            "visibility rules",
+            issues,
+        )
         visibility_rules = _parse_visibility_rules(
             visibility_items,
             screen_ids,
@@ -204,7 +223,11 @@ def validate_state_ir(app_payload: dict[str, Any]) -> tuple[StateIR | None, list
         _validate_unique([rule.id for rule in visibility_rules], "$.visibility", "APP_VISIBILITY_DUPLICATE_ID", issues)
         state_text_items = app_payload.get("state_text", [])
         if not isinstance(state_text_items, list):
-            issues.append(StateValidationIssue("APP_STATE_TEXT_NOT_ARRAY", "$.state_text", "state_text must be an array of rules."))
+            issues.append(
+                StateValidationIssue(
+                    "APP_STATE_TEXT_NOT_ARRAY", "$.state_text", "state_text must be an array of rules."
+                )
+            )
             state_text_items = []
         _check_count(
             state_text_items,
@@ -234,7 +257,12 @@ def validate_state_ir(app_payload: dict[str, Any]) -> tuple[StateIR | None, list
     _validate_unique([state.id for state in states], "$.state", "APP_STATE_DUPLICATE_ID", issues)
     _validate_unique([mutation.id for mutation in mutations], "$.mutations", "APP_STATE_DUPLICATE_MUTATION_ID", issues)
     _validate_unique([selector.id for selector in selectors], "$.selectors", "APP_STATE_DUPLICATE_SELECTOR_ID", issues)
-    _validate_unique([assertion.id for assertion in replay_assertions], "$.state_replay_assertions", "APP_STATE_DUPLICATE_REPLAY_ID", issues)
+    _validate_unique(
+        [assertion.id for assertion in replay_assertions],
+        "$.state_replay_assertions",
+        "APP_STATE_DUPLICATE_REPLAY_ID",
+        issues,
+    )
 
     if issues:
         return None, issues
@@ -256,8 +284,12 @@ def state_ir_summary(app_payload: dict[str, Any]) -> dict[str, Any] | None:
     summary = {
         "profile": app_payload.get("interactive_state"),
         "state_count": len(app_payload.get("state", [])) if isinstance(app_payload.get("state"), list) else 0,
-        "mutation_count": len(app_payload.get("mutations", [])) if isinstance(app_payload.get("mutations"), list) else 0,
-        "selector_count": len(app_payload.get("selectors", [])) if isinstance(app_payload.get("selectors"), list) else 0,
+        "mutation_count": len(app_payload.get("mutations", []))
+        if isinstance(app_payload.get("mutations"), list)
+        else 0,
+        "selector_count": len(app_payload.get("selectors", []))
+        if isinstance(app_payload.get("selectors"), list)
+        else 0,
         "replay_assertion_count": (
             len(app_payload.get("state_replay_assertions", []))
             if isinstance(app_payload.get("state_replay_assertions"), list)
@@ -327,11 +359,7 @@ def normalize_state_ir(app_payload: dict[str, Any], state_ir: StateIR | None = N
                     if app_payload.get("schema_version") == 4
                     else {}
                 ),
-                **(
-                    {"expect_text_ids": list(assertion.expect_text)}
-                    if "state_text" in app_payload
-                    else {}
-                ),
+                **({"expect_text_ids": list(assertion.expect_text)} if "state_text" in app_payload else {}),
             }
             for assertion in state_ir.replay_assertions
         ],
@@ -561,7 +589,9 @@ def initial_state(app_payload: dict[str, Any], state_ir: StateIR) -> dict[str, A
         elif "from_resource_view" in initial:
             ref = initial["from_resource_view"]
             if isinstance(ref, dict):
-                values[state.id] = copy.deepcopy(resource_views.get((str(ref.get("screen_id")), str(ref.get("view_id"))), []))
+                values[state.id] = copy.deepcopy(
+                    resource_views.get((str(ref.get("screen_id")), str(ref.get("view_id"))), [])
+                )
             else:
                 values[state.id] = []
         else:
@@ -575,7 +605,9 @@ def apply_event(current_state: dict[str, Any], state_ir: StateIR, event: dict[st
         return _event_error("APP_STATE_EVENT_MUTATION_REQUIRED", "State replay events must declare mutation_id.")
     mutation = next((item for item in state_ir.mutations if item.id == mutation_id), None)
     if mutation is None:
-        return _event_error("APP_STATE_EVENT_MUTATION_MISSING", f"State replay event references missing mutation {mutation_id}.")
+        return _event_error(
+            "APP_STATE_EVENT_MUTATION_MISSING", f"State replay event references missing mutation {mutation_id}."
+        )
     payload_values = event.get("payload_values", {})
     if not isinstance(payload_values, dict):
         return _event_error("APP_STATE_EVENT_PAYLOAD_INVALID", "State replay event payload_values must be an object.")
@@ -592,7 +624,9 @@ def apply_event(current_state: dict[str, Any], state_ir: StateIR, event: dict[st
         try:
             _apply_op(working, op, payload_values)
         except (TypeError, ValueError) as exc:
-            errors.append({"code": "APP_STATE_REDUCER_OP_FAILED", "path": f"$.mutations.{mutation.id}.ops", "message": str(exc)})
+            errors.append(
+                {"code": "APP_STATE_REDUCER_OP_FAILED", "path": f"$.mutations.{mutation.id}.ops", "message": str(exc)}
+            )
             break
     if not errors:
         current_state.clear()
@@ -609,7 +643,11 @@ def evaluate_selectors(current_state: dict[str, Any], state_ir: StateIR) -> dict
             if kind == "filter_eq":
                 field = str(op.get("field"))
                 expected = op.get("value")
-                value = [item for item in value if isinstance(item, dict) and _js_strict_eq(item.get(field), expected)] if isinstance(value, list) else []
+                value = (
+                    [item for item in value if isinstance(item, dict) and _js_strict_eq(item.get(field), expected)]
+                    if isinstance(value, list)
+                    else []
+                )
             elif kind == "sort_by":
                 field = str(op.get("field"))
                 direction = str(op.get("direction", "asc"))
@@ -621,7 +659,13 @@ def evaluate_selectors(current_state: dict[str, Any], state_ir: StateIR) -> dict
             elif kind == "slice":
                 start = int(op.get("start", 0))
                 end = op.get("end")
-                value = value[start : int(end)] if isinstance(value, list) and end is not None else value[start:] if isinstance(value, list) else []
+                value = (
+                    value[start : int(end)]
+                    if isinstance(value, list) and end is not None
+                    else value[start:]
+                    if isinstance(value, list)
+                    else []
+                )
         values[selector.id] = value
     return values
 
@@ -638,7 +682,9 @@ def evaluate_visibility(
     primitives here (Python truthiness, ``_js_strict_eq``, list length) must stay total and
     exactly mirror the generated ``evaluateViewSpecVisibility``.
     """
-    return {rule.id: _visibility_condition_holds(rule.when, current_state, selector_values) for rule in state_ir.visibility}
+    return {
+        rule.id: _visibility_condition_holds(rule.when, current_state, selector_values) for rule in state_ir.visibility
+    }
 
 
 def _visibility_condition_holds(
@@ -721,11 +767,7 @@ def state_manifest(
             if app_payload.get("schema_version") == 4
             else {}
         ),
-        **(
-            {"state_text_rule_ids": [rule.id for rule in state_ir.state_text]}
-            if "state_text" in app_payload
-            else {}
-        ),
+        **({"state_text_rule_ids": [rule.id for rule in state_ir.state_text]} if "state_text" in app_payload else {}),
         "reducer_exports": list(state_reducer_exports(app_payload)),
         "reducer_hash": reducer_hash,
         "replay": replay_report,
@@ -777,12 +819,9 @@ def _reducer_source_model(app_payload: dict[str, Any]) -> _ReducerSourceModel:
             }
             for mutation in state_ir.mutations
         ),
-        visibility_rules=tuple(
-            {"id": rule.id, "when": copy.deepcopy(rule.when)} for rule in state_ir.visibility
-        ),
+        visibility_rules=tuple({"id": rule.id, "when": copy.deepcopy(rule.when)} for rule in state_ir.visibility),
         state_text_rules=tuple(
-            {"id": rule.id, "state": rule.state, "template": rule.template}
-            for rule in state_ir.state_text
+            {"id": rule.id, "state": rule.state, "template": rule.template} for rule in state_ir.state_text
         ),
         state_text_enabled="state_text" in app_payload,
         numeric_imports=numeric_import_names(app_payload),
@@ -803,13 +842,9 @@ def _function_signature(
 ) -> str:
     prefix = "export " if exported else ""
     rendered_parameters = ", ".join(
-        f"{parameter}{_type_annotation(annotation, typescript=typescript)}"
-        for parameter, annotation in parameters
+        f"{parameter}{_type_annotation(annotation, typescript=typescript)}" for parameter, annotation in parameters
     )
-    return (
-        f"{prefix}function {name}({rendered_parameters})"
-        f"{_type_annotation(return_type, typescript=typescript)} {{"
-    )
+    return f"{prefix}function {name}({rendered_parameters}){_type_annotation(return_type, typescript=typescript)} {{"
 
 
 def _reducer_type_declarations() -> list[str]:
@@ -821,13 +856,13 @@ def _reducer_type_declarations() -> list[str]:
         "};",
         "type ViewSpecRecord = Record<string, unknown>;",
         "type ViewSpecEventError = Error & { code: string; values: string[] };",
-        "type SetMutationOp = { op: \"set\"; state: string; value: unknown };",
-        "type AppendMutationOp = { op: \"append\"; state: string; value: unknown };",
-        "type RemoveMutationOp = { op: \"remove\"; state: string; item_id: unknown };",
-        "type MoveMutationOp = { op: \"move\"; state: string; item_id: unknown; to_index: unknown };",
-        "type PatchMutationOp = { op: \"patch\"; state: string; value: unknown; item_id?: unknown };",
-        "type ToggleMutationOp = { op: \"toggle\"; state: string; field?: string; item_id?: unknown };",
-        "type IncrementMutationOp = { op: \"increment\"; state: string; field?: string; item_id?: unknown; amount?: unknown };",
+        'type SetMutationOp = { op: "set"; state: string; value: unknown };',
+        'type AppendMutationOp = { op: "append"; state: string; value: unknown };',
+        'type RemoveMutationOp = { op: "remove"; state: string; item_id: unknown };',
+        'type MoveMutationOp = { op: "move"; state: string; item_id: unknown; to_index: unknown };',
+        'type PatchMutationOp = { op: "patch"; state: string; value: unknown; item_id?: unknown };',
+        'type ToggleMutationOp = { op: "toggle"; state: string; field?: string; item_id?: unknown };',
+        'type IncrementMutationOp = { op: "increment"; state: string; field?: string; item_id?: unknown; amount?: unknown };',
         "type MutationOp =",
         "  | SetMutationOp",
         "  | AppendMutationOp",
@@ -843,14 +878,14 @@ def _reducer_type_declarations() -> list[str]:
         "  allowedPayloadBindings: string[];",
         "  requiredPayloadBindings: string[];",
         "};",
-        "type FilterSelectorOp = { op: \"filter_eq\"; field: string; value: unknown };",
-        "type SortSelectorOp = { op: \"sort_by\"; field: string; direction: \"asc\" | \"desc\" };",
-        "type SliceSelectorOp = { op: \"slice\"; start?: number; end?: number };",
+        'type FilterSelectorOp = { op: "filter_eq"; field: string; value: unknown };',
+        'type SortSelectorOp = { op: "sort_by"; field: string; direction: "asc" | "desc" };',
+        'type SliceSelectorOp = { op: "slice"; start?: number; end?: number };',
         "type SelectorOp = FilterSelectorOp | SortSelectorOp | SliceSelectorOp;",
         "type Selector = { id: string; sourceState: string; ops: SelectorOp[] };",
         "type VisibilityWhen =",
-        "  | { selector: string; is: \"non_empty\" | \"empty\" }",
-        "  | { state: string; is: \"truthy\" | \"falsy\" }",
+        '  | { selector: string; is: "non_empty" | "empty" }',
+        '  | { state: string; is: "truthy" | "falsy" }',
         "  | { state: string; equals: unknown };",
         "type VisibilityRule = { id: string; when: VisibilityWhen };",
         "type StateTextRule = { id: string; state: string; template: string };",
@@ -898,28 +933,20 @@ def _emit_reducer_source(model: _ReducerSourceModel, *, typescript: bool) -> str
         if "compareFiniteNumbers" in numeric_names
         else "vsTypeRank(va) - vsTypeRank(vb)"
     )
-    directed_comparison = (
-        "applySortDirection(cmp, vsDir)"
-        if "applySortDirection" in numeric_names
-        else "cmp * vsDir"
-    )
+    directed_comparison = "applySortDirection(cmp, vsDir)" if "applySortDirection" in numeric_names else "cmp * vsDir"
     stable_index_comparison = (
-        "stableSortIndexDelta(a.index, b.index)"
-        if "stableSortIndexDelta" in numeric_names
-        else "a.index - b.index"
+        "stableSortIndexDelta(a.index, b.index)" if "stableSortIndexDelta" in numeric_names else "a.index - b.index"
     )
     slice_lines = (
         [
-            "      if (op.op === \"slice\" && Array.isArray(value)) {",
+            '      if (op.op === "slice" && Array.isArray(value)) {',
             "        const start = normalizeSliceIndex(op.start ?? 0);",
             "        const end = op.end === undefined ? undefined : normalizeSliceIndex(op.end);",
             "        value = value.slice(start, end);",
             "      }",
         ]
         if "normalizeSliceIndex" in numeric_names
-        else [
-            "      if (op.op === \"slice\" && Array.isArray(value)) value = value.slice(op.start ?? 0, op.end);"
-        ]
+        else ['      if (op.op === "slice" && Array.isArray(value)) value = value.slice(op.start ?? 0, op.end);']
     )
     lines = ["// Generated by ViewSpec AppBundle interactive_state_v0. Do not edit."]
     if typescript and model.numeric_imports:
@@ -953,7 +980,7 @@ def _emit_reducer_source(model: _ReducerSourceModel, *, typescript: bool) -> str
             "  return value === undefined ? value : JSON.parse(JSON.stringify(value));",
             "}",
             _function_signature("isRecord", (("value", "unknown"),), "value is ViewSpecRecord", typescript=typescript),
-            "  return value !== null && typeof value === \"object\" && !Array.isArray(value);",
+            '  return value !== null && typeof value === "object" && !Array.isArray(value);',
             "}",
             _function_signature(
                 "hasOwn",
@@ -977,7 +1004,7 @@ def _emit_reducer_source(model: _ReducerSourceModel, *, typescript: bool) -> str
                 "unknown",
                 typescript=typescript,
             ),
-            "  if (isRecord(value) && Object.keys(value).length === 1 && \"from_payload\" in value) {",
+            '  if (isRecord(value) && Object.keys(value).length === 1 && "from_payload" in value) {',
             "    return payload(values, String(value.from_payload));",
             "  }",
             "  return clone(value);",
@@ -989,19 +1016,19 @@ def _emit_reducer_source(model: _ReducerSourceModel, *, typescript: bool) -> str
                 "ViewSpecEventError",
                 typescript=typescript,
             ),
-            "  const suffix = values.length ? `:${values.join(\",\")}` : \"\";",
+            '  const suffix = values.length ? `:${values.join(",")}` : "";',
             "  return Object.assign(new Error(`${code}${suffix}`), { code, values });",
             "}",
             "",
             _function_signature("pyTruthy", (("x", "unknown"),), "boolean", typescript=typescript),
-            "  if (x === null || x === undefined || x === false || x === 0 || x === \"\") return false;",
+            '  if (x === null || x === undefined || x === false || x === 0 || x === "") return false;',
             "  if (Array.isArray(x)) return x.length > 0;",
-            "  if (typeof x === \"object\") return Object.keys(x).length > 0;",
+            '  if (typeof x === "object") return Object.keys(x).length > 0;',
             "  return Boolean(x);",
             "}",
             _function_signature("toFiniteNumber", (("x", "unknown"),), "number", typescript=typescript),
             "  const n = x === undefined ? 0 : x;",
-            "  if (typeof n !== \"number\" || !Number.isFinite(n)) throw eventError(\"APP_STATE_REDUCER_OP_FAILED\", []);",
+            '  if (typeof n !== "number" || !Number.isFinite(n)) throw eventError("APP_STATE_REDUCER_OP_FAILED", []);',
             "  return n;",
             "}",
             "",
@@ -1011,13 +1038,13 @@ def _emit_reducer_source(model: _ReducerSourceModel, *, typescript: bool) -> str
                 "void",
                 typescript=typescript,
             ),
-            "  if (!values || typeof values !== \"object\" || Array.isArray(values)) throw eventError(\"APP_STATE_EVENT_PAYLOAD_INVALID\", []);",
+            '  if (!values || typeof values !== "object" || Array.isArray(values)) throw eventError("APP_STATE_EVENT_PAYLOAD_INVALID", []);',
             "  const allowed = new Set(mutation.allowedPayloadBindings || []);",
             "  const required = mutation.requiredPayloadBindings || [];",
             "  const unknown = Object.keys(values).filter((key) => !allowed.has(key)).sort();",
-            "  if (unknown.length) throw eventError(\"APP_STATE_EVENT_PAYLOAD_UNKNOWN\", unknown);",
+            '  if (unknown.length) throw eventError("APP_STATE_EVENT_PAYLOAD_UNKNOWN", unknown);',
             "  const missing = required.filter((key) => !hasOwn(values, key)).sort();",
-            "  if (missing.length) throw eventError(\"APP_STATE_EVENT_PAYLOAD_MISSING\", missing);",
+            '  if (missing.length) throw eventError("APP_STATE_EVENT_PAYLOAD_MISSING", missing);',
             "}",
             "",
             _function_signature(
@@ -1033,23 +1060,23 @@ def _emit_reducer_source(model: _ReducerSourceModel, *, typescript: bool) -> str
             "  const values = event.payload_values ?? {};",
             "  assertPayload(mutation, values);",
             "  for (const op of mutation.ops) {",
-            "    const key = String(op.state ?? \"\");",
+            '    const key = String(op.state ?? "");',
             "    const current = next[key];",
-            "    if (op.op === \"set\") next[key] = valueOf(op.value, values);",
-            "    if (op.op === \"append\") { if (!Array.isArray(current)) throw eventError(\"APP_STATE_REDUCER_OP_FAILED\", []); next[key] = [...current, valueOf(op.value, values)]; }",
-            "    if (op.op === \"remove\") { if (!Array.isArray(current)) throw eventError(\"APP_STATE_REDUCER_OP_FAILED\", []); const rid = String(valueOf(op.item_id, values)); next[key] = current.filter((item) => !(isRecord(item) && String(item.id) === rid)); }",
-            "    if (op.op === \"move\") {",
-            "      if (!Array.isArray(current)) throw eventError(\"APP_STATE_REDUCER_OP_FAILED\", []);",
+            '    if (op.op === "set") next[key] = valueOf(op.value, values);',
+            '    if (op.op === "append") { if (!Array.isArray(current)) throw eventError("APP_STATE_REDUCER_OP_FAILED", []); next[key] = [...current, valueOf(op.value, values)]; }',
+            '    if (op.op === "remove") { if (!Array.isArray(current)) throw eventError("APP_STATE_REDUCER_OP_FAILED", []); const rid = String(valueOf(op.item_id, values)); next[key] = current.filter((item) => !(isRecord(item) && String(item.id) === rid)); }',
+            '    if (op.op === "move") {',
+            '      if (!Array.isArray(current)) throw eventError("APP_STATE_REDUCER_OP_FAILED", []);',
             "      const id = String(valueOf(op.item_id, values));",
             "      const from = current.findIndex((item) => isRecord(item) && String(item.id) === id);",
             "      const rawTo = valueOf(op.to_index, values);",
-            "      const toNum = typeof rawTo === \"number\" ? rawTo : (typeof rawTo === \"string\" ? Number(rawTo) : NaN);",
-            "      if (!Number.isFinite(toNum)) throw eventError(\"APP_STATE_REDUCER_OP_FAILED\", []);",
+            '      const toNum = typeof rawTo === "number" ? rawTo : (typeof rawTo === "string" ? Number(rawTo) : NaN);',
+            '      if (!Number.isFinite(toNum)) throw eventError("APP_STATE_REDUCER_OP_FAILED", []);',
             *move_lines,
             "    }",
-            "    if (op.op === \"patch\") next[key] = patchValue(current, op, values);",
-            "    if (op.op === \"toggle\") next[key] = toggleValue(current, op, values);",
-            "    if (op.op === \"increment\") next[key] = incrementValue(current, op, values);",
+            '    if (op.op === "patch") next[key] = patchValue(current, op, values);',
+            '    if (op.op === "toggle") next[key] = toggleValue(current, op, values);',
+            '    if (op.op === "increment") next[key] = incrementValue(current, op, values);',
             "  }",
             "  return next;",
             "}",
@@ -1061,15 +1088,15 @@ def _emit_reducer_source(model: _ReducerSourceModel, *, typescript: bool) -> str
                 typescript=typescript,
             ),
             "  const patch = valueOf(op.value, values);",
-            "  if (!isRecord(patch)) throw eventError(\"APP_STATE_REDUCER_OP_FAILED\", []);",
+            '  if (!isRecord(patch)) throw eventError("APP_STATE_REDUCER_OP_FAILED", []);',
             "  const idExpr = op.item_id;",
             "  if (idExpr !== undefined) {",
-            "    if (!Array.isArray(current)) throw eventError(\"APP_STATE_REDUCER_OP_FAILED\", []);",
+            '    if (!Array.isArray(current)) throw eventError("APP_STATE_REDUCER_OP_FAILED", []);',
             "    const id = String(valueOf(idExpr, values));",
             "    return current.map((item) => isRecord(item) && String(item.id) === id ? { ...item, ...patch } : item);",
             "  }",
             "  if (isRecord(current)) return { ...current, ...patch };",
-            "  throw eventError(\"APP_STATE_REDUCER_OP_FAILED\", []);",
+            '  throw eventError("APP_STATE_REDUCER_OP_FAILED", []);',
             "}",
             "",
             _function_signature(
@@ -1080,12 +1107,12 @@ def _emit_reducer_source(model: _ReducerSourceModel, *, typescript: bool) -> str
             ),
             "  const field = op.field;",
             "  const idExpr = op.item_id;",
-            "  if (idExpr !== undefined && typeof field === \"string\") {",
-            "    if (!Array.isArray(current)) throw eventError(\"APP_STATE_REDUCER_OP_FAILED\", []);",
+            '  if (idExpr !== undefined && typeof field === "string") {',
+            '    if (!Array.isArray(current)) throw eventError("APP_STATE_REDUCER_OP_FAILED", []);',
             "    const id = String(valueOf(idExpr, values));",
             "    return current.map((item) => isRecord(item) && String(item.id) === id ? { ...item, [field]: !pyTruthy(item[field]) } : item);",
             "  }",
-            "  if (typeof field === \"string\" && isRecord(current)) return { ...current, [field]: !pyTruthy(current[field]) };",
+            '  if (typeof field === "string" && isRecord(current)) return { ...current, [field]: !pyTruthy(current[field]) };',
             "  return !pyTruthy(current);",
             "}",
             "",
@@ -1098,12 +1125,12 @@ def _emit_reducer_source(model: _ReducerSourceModel, *, typescript: bool) -> str
             "  const amount = toFiniteNumber(valueOf(op.amount ?? 1, values));",
             "  const field = op.field;",
             "  const idExpr = op.item_id;",
-            "  if (idExpr !== undefined && typeof field === \"string\") {",
-            "    if (!Array.isArray(current)) throw eventError(\"APP_STATE_REDUCER_OP_FAILED\", []);",
+            '  if (idExpr !== undefined && typeof field === "string") {',
+            '    if (!Array.isArray(current)) throw eventError("APP_STATE_REDUCER_OP_FAILED", []);',
             "    const id = String(valueOf(idExpr, values));",
             f"    return current.map((item) => isRecord(item) && String(item.id) === id ? {{ ...item, [field]: {add_item} }} : item);",
             "  }",
-            f"  if (typeof field === \"string\" && isRecord(current)) return {{ ...current, [field]: {add_field} }};",
+            f'  if (typeof field === "string" && isRecord(current)) return {{ ...current, [field]: {add_field} }};',
             f"  return {add_scalar};",
             "}",
             "",
@@ -1118,14 +1145,14 @@ def _emit_reducer_source(model: _ReducerSourceModel, *, typescript: bool) -> str
             "  for (const selector of selectors) {",
             "    let value = clone(state[selector.sourceState]);",
             "    for (const op of selector.ops) {",
-            "      if (op.op === \"filter_eq\" && Array.isArray(value)) value = value.filter((item) => isRecord(item) && item[op.field] === op.value);",
-            "      if (op.op === \"sort_by\" && Array.isArray(value)) {",
+            '      if (op.op === "filter_eq" && Array.isArray(value)) value = value.filter((item) => isRecord(item) && item[op.field] === op.value);',
+            '      if (op.op === "sort_by" && Array.isArray(value)) {',
             f"        const vsElemRank = (x{ann('unknown')}){ann('number')} => isRecord(x) ? 0 : 1;",
             f"        const vsField = (x{ann('unknown')}){ann('unknown')} => isRecord(x) ? x[op.field] : undefined;",
-            f"        const vsTypeRank = (v{ann('unknown')}){ann('number')} => (v === null || v === undefined) ? 0 : typeof v === \"boolean\" ? 1 : typeof v === \"number\" ? 2 : typeof v === \"string\" ? 3 : 4;",
-            f"        const vsNum = (v{ann('unknown')}){ann('number')} => typeof v === \"boolean\" ? (v ? 1 : 0) : typeof v === \"number\" ? v : 0;",
-            f"        const vsStr = (v{ann('unknown')}){ann('string')} => typeof v === \"string\" ? v : \"\";",
-            "        const vsDir = op.direction === \"desc\" ? -1 : 1;",
+            f'        const vsTypeRank = (v{ann("unknown")}){ann("number")} => (v === null || v === undefined) ? 0 : typeof v === "boolean" ? 1 : typeof v === "number" ? 2 : typeof v === "string" ? 3 : 4;',
+            f'        const vsNum = (v{ann("unknown")}){ann("number")} => typeof v === "boolean" ? (v ? 1 : 0) : typeof v === "number" ? v : 0;',
+            f'        const vsStr = (v{ann("unknown")}){ann("string")} => typeof v === "string" ? v : "";',
+            '        const vsDir = op.direction === "desc" ? -1 : 1;',
             "        value = value.map((item, index) => ({ item, index })).sort((a, b) => {",
             f"          let cmp = {elem_rank_comparison};",
             "          if (cmp === 0) {",
@@ -1162,15 +1189,15 @@ def _emit_reducer_source(model: _ReducerSourceModel, *, typescript: bool) -> str
                 "  for (const rule of visibilityRules) {",
                 "    const w = rule.when;",
                 "    let visible = false;",
-                "    if (\"selector\" in w) {",
+                '    if ("selector" in w) {',
                 "      const v = selectorValues[w.selector];",
                 "      const filled = Array.isArray(v) && v.length > 0;",
-                "      visible = w.is === \"empty\" ? !filled : filled;",
-                "    } else if (\"equals\" in w) {",
+                '      visible = w.is === "empty" ? !filled : filled;',
+                '    } else if ("equals" in w) {',
                 "      visible = state[String(w.state)] === w.equals;",
                 "    } else {",
                 "      const t = pyTruthy(state[String(w.state)]);",
-                "      visible = w.is === \"falsy\" ? !t : t;",
+                '      visible = w.is === "falsy" ? !t : t;',
                 "    }",
                 "    result[rule.id] = visible;",
                 "  }",
@@ -1287,7 +1314,9 @@ def check_reducer_conformance(
             "passed_count": 0,
             "failed_count": len(expected_replays) or 1,
             "reducer_source_hash": _hash_text(source),
-            "export_names": node_report.get("export_names") if isinstance(node_report.get("export_names"), list) else [],
+            "export_names": node_report.get("export_names")
+            if isinstance(node_report.get("export_names"), list)
+            else [],
             "errors": errors or [_conformance_error("Node reducer conformance failed before replay.")],
             "replays": [],
         }
@@ -1324,19 +1353,35 @@ def check_reducer_conformance(
             event_ok = bool(actual.get("ok")) == bool(expected["ok"])
             actual_errors = actual.get("errors") if isinstance(actual.get("errors"), list) else []
             if not event_ok:
-                errors.append(_conformance_error(f"Node reducer event status diverged for replay assertion {expected['id']}."))
+                errors.append(
+                    _conformance_error(f"Node reducer event status diverged for replay assertion {expected['id']}.")
+                )
             if not state_matches:
-                errors.append(_conformance_error(f"Node reducer final state diverged for replay assertion {expected['id']}."))
+                errors.append(
+                    _conformance_error(f"Node reducer final state diverged for replay assertion {expected['id']}.")
+                )
             if not selector_matches:
-                errors.append(_conformance_error(f"Node reducer selector values diverged for replay assertion {expected['id']}."))
+                errors.append(
+                    _conformance_error(f"Node reducer selector values diverged for replay assertion {expected['id']}.")
+                )
             if not visibility_matches:
-                errors.append(_conformance_error(f"Node reducer visibility verdicts diverged for replay assertion {expected['id']}."))
+                errors.append(
+                    _conformance_error(
+                        f"Node reducer visibility verdicts diverged for replay assertion {expected['id']}."
+                    )
+                )
             if not text_matches:
-                errors.append(_conformance_error(f"Node reducer state text diverged for replay assertion {expected['id']}."))
+                errors.append(
+                    _conformance_error(f"Node reducer state text diverged for replay assertion {expected['id']}.")
+                )
             if not bool(expected["ok"]) and actual_errors and expected.get("error_codes"):
-                actual_codes = {str(error.get("code") or "").split(":", 1)[0] for error in actual_errors if isinstance(error, dict)}
+                actual_codes = {
+                    str(error.get("code") or "").split(":", 1)[0] for error in actual_errors if isinstance(error, dict)
+                }
                 if not set(expected["error_codes"]).issubset(actual_codes):
-                    errors.append(_conformance_error(f"Node reducer error codes diverged for replay assertion {expected['id']}."))
+                    errors.append(
+                        _conformance_error(f"Node reducer error codes diverged for replay assertion {expected['id']}.")
+                    )
         replay_reports.append(
             {
                 "id": expected["id"],
@@ -1384,7 +1429,9 @@ def _parse_state_entries(
     for index, item in enumerate(items):
         path = f"$.state[{index}]"
         if not isinstance(item, dict):
-            issues.append(StateValidationIssue("APP_STATE_ENTRY_NOT_OBJECT", path, "Each state entry must be an object."))
+            issues.append(
+                StateValidationIssue("APP_STATE_ENTRY_NOT_OBJECT", path, "Each state entry must be an object.")
+            )
             continue
         _reject_extra(item, {"id", "kind", "scope", "screen_id", "initial"}, path, issues)
         state_id = _required_string(item, "id", path, issues)
@@ -1394,18 +1441,40 @@ def _parse_state_entries(
         initial = item.get("initial")
         _validate_safe_id(state_id, f"{path}.id", "state id", issues)
         if kind and kind not in STATE_KINDS:
-            issues.append(StateValidationIssue("APP_STATE_KIND_UNSUPPORTED", f"{path}.kind", f"Unsupported state kind {kind}."))
+            issues.append(
+                StateValidationIssue("APP_STATE_KIND_UNSUPPORTED", f"{path}.kind", f"Unsupported state kind {kind}.")
+            )
         if scope and scope not in STATE_SCOPES:
-            issues.append(StateValidationIssue("APP_STATE_SCOPE_UNSUPPORTED", f"{path}.scope", f"Unsupported state scope {scope}."))
+            issues.append(
+                StateValidationIssue(
+                    "APP_STATE_SCOPE_UNSUPPORTED", f"{path}.scope", f"Unsupported state scope {scope}."
+                )
+            )
         if scope == "screen":
             if not isinstance(screen_id, str):
-                issues.append(StateValidationIssue("APP_STATE_SCREEN_REQUIRED", f"{path}.screen_id", "screen-scoped state requires screen_id."))
+                issues.append(
+                    StateValidationIssue(
+                        "APP_STATE_SCREEN_REQUIRED", f"{path}.screen_id", "screen-scoped state requires screen_id."
+                    )
+                )
             elif screen_id not in screen_ids:
-                issues.append(StateValidationIssue("APP_STATE_SCREEN_MISSING", f"{path}.screen_id", f"State references missing screen {screen_id}."))
+                issues.append(
+                    StateValidationIssue(
+                        "APP_STATE_SCREEN_MISSING", f"{path}.screen_id", f"State references missing screen {screen_id}."
+                    )
+                )
         elif "screen_id" in item:
-            issues.append(StateValidationIssue("APP_STATE_SCREEN_SCOPE_MISMATCH", f"{path}.screen_id", "Only screen-scoped state may declare screen_id."))
+            issues.append(
+                StateValidationIssue(
+                    "APP_STATE_SCREEN_SCOPE_MISMATCH",
+                    f"{path}.screen_id",
+                    "Only screen-scoped state may declare screen_id.",
+                )
+            )
         if not isinstance(initial, dict):
-            issues.append(StateValidationIssue("APP_STATE_INITIAL_INVALID", f"{path}.initial", "state.initial must be an object."))
+            issues.append(
+                StateValidationIssue("APP_STATE_INITIAL_INVALID", f"{path}.initial", "state.initial must be an object.")
+            )
             initial = {}
         else:
             keys = set(initial)
@@ -1440,7 +1509,15 @@ def _parse_state_entries(
                             )
                         )
         if state_id and kind and scope and isinstance(initial, dict):
-            states.append(StateEntry(id=state_id, kind=kind, scope=scope, initial=copy.deepcopy(initial), screen_id=screen_id if isinstance(screen_id, str) else None))
+            states.append(
+                StateEntry(
+                    id=state_id,
+                    kind=kind,
+                    scope=scope,
+                    initial=copy.deepcopy(initial),
+                    screen_id=screen_id if isinstance(screen_id, str) else None,
+                )
+            )
     return states
 
 
@@ -1454,14 +1531,20 @@ def _parse_mutations(
     for index, item in enumerate(items):
         path = f"$.mutations[{index}]"
         if not isinstance(item, dict):
-            issues.append(StateValidationIssue("APP_STATE_MUTATION_NOT_OBJECT", path, "Each mutation must be an object."))
+            issues.append(
+                StateValidationIssue("APP_STATE_MUTATION_NOT_OBJECT", path, "Each mutation must be an object.")
+            )
             continue
         _reject_extra(item, {"id", "trigger", "ops"}, path, issues)
         mutation_id = _required_string(item, "id", path, issues)
         _validate_safe_id(mutation_id, f"{path}.id", "mutation id", issues)
         trigger = item.get("trigger")
         if not isinstance(trigger, dict):
-            issues.append(StateValidationIssue("APP_STATE_TRIGGER_INVALID", f"{path}.trigger", "mutation.trigger must be an object."))
+            issues.append(
+                StateValidationIssue(
+                    "APP_STATE_TRIGGER_INVALID", f"{path}.trigger", "mutation.trigger must be an object."
+                )
+            )
             trigger = {}
         else:
             _reject_extra(trigger, {"screen_id", "action_id"}, f"{path}.trigger", issues)
@@ -1478,7 +1561,9 @@ def _parse_mutations(
             )
         payload_bindings = action_payload_bindings.get(trigger_key, set()) if trigger_key is not None else set()
         ops = _required_array(item, "ops", path, issues)
-        _check_count(ops, APP_STATE_MAX_OPS_PER_MUTATION, f"{path}.ops", "APP_STATE_LIMIT_EXCEEDED", "ops per mutation", issues)
+        _check_count(
+            ops, APP_STATE_MAX_OPS_PER_MUTATION, f"{path}.ops", "APP_STATE_LIMIT_EXCEEDED", "ops per mutation", issues
+        )
         parsed_ops: list[dict[str, Any]] = []
         required_payload_bindings: set[str] = set()
         for op_index, op in enumerate(ops):
@@ -1488,10 +1573,18 @@ def _parse_mutations(
                 continue
             kind = _required_string(op, "op", op_path, issues)
             if kind and kind not in MUTATION_OPS:
-                issues.append(StateValidationIssue("APP_STATE_OP_UNSUPPORTED", f"{op_path}.op", f"Unsupported mutation op {kind}."))
+                issues.append(
+                    StateValidationIssue(
+                        "APP_STATE_OP_UNSUPPORTED", f"{op_path}.op", f"Unsupported mutation op {kind}."
+                    )
+                )
             state_id = _required_string(op, "state", op_path, issues)
             if state_id and state_id not in state_ids:
-                issues.append(StateValidationIssue("APP_STATE_OP_STATE_MISSING", f"{op_path}.state", f"Operation targets missing state {state_id}."))
+                issues.append(
+                    StateValidationIssue(
+                        "APP_STATE_OP_STATE_MISSING", f"{op_path}.state", f"Operation targets missing state {state_id}."
+                    )
+                )
             _validate_op_shape(op, op_path, kind, issues)
             for payload_id in _op_payload_refs(op):
                 required_payload_bindings.add(payload_id)
@@ -1537,7 +1630,11 @@ def _validate_op_shape(op: dict[str, Any], path: str, kind: str | None, issues: 
     }
     for key in required_by_op.get(kind or "", ()):
         if key not in op:
-            issues.append(StateValidationIssue("APP_STATE_OP_FIELD_REQUIRED", f"{path}.{key}", f"Operation {kind} requires {key}."))
+            issues.append(
+                StateValidationIssue(
+                    "APP_STATE_OP_FIELD_REQUIRED", f"{path}.{key}", f"Operation {kind} requires {key}."
+                )
+            )
 
 
 def _parse_selectors(items: list[Any], state_ids: set[str], issues: list[StateValidationIssue]) -> list[StateSelector]:
@@ -1545,25 +1642,39 @@ def _parse_selectors(items: list[Any], state_ids: set[str], issues: list[StateVa
     for index, item in enumerate(items):
         path = f"$.selectors[{index}]"
         if not isinstance(item, dict):
-            issues.append(StateValidationIssue("APP_STATE_SELECTOR_NOT_OBJECT", path, "Each selector must be an object."))
+            issues.append(
+                StateValidationIssue("APP_STATE_SELECTOR_NOT_OBJECT", path, "Each selector must be an object.")
+            )
             continue
         _reject_extra(item, {"id", "source_state", "ops"}, path, issues)
         selector_id = _required_string(item, "id", path, issues)
         _validate_safe_id(selector_id, f"{path}.id", "selector id", issues)
         source_state = _required_string(item, "source_state", path, issues)
         if source_state and source_state not in state_ids:
-            issues.append(StateValidationIssue("APP_STATE_SELECTOR_SOURCE_MISSING", f"{path}.source_state", f"Selector source state {source_state} is missing."))
+            issues.append(
+                StateValidationIssue(
+                    "APP_STATE_SELECTOR_SOURCE_MISSING",
+                    f"{path}.source_state",
+                    f"Selector source state {source_state} is missing.",
+                )
+            )
         ops = _required_array(item, "ops", path, issues)
         _check_count(ops, APP_STATE_MAX_SELECTOR_OPS, f"{path}.ops", "APP_STATE_LIMIT_EXCEEDED", "selector ops", issues)
         parsed_ops: list[dict[str, Any]] = []
         for op_index, op in enumerate(ops):
             op_path = f"{path}.ops[{op_index}]"
             if not isinstance(op, dict):
-                issues.append(StateValidationIssue("APP_STATE_SELECTOR_OP_NOT_OBJECT", op_path, "Selector ops must be objects."))
+                issues.append(
+                    StateValidationIssue("APP_STATE_SELECTOR_OP_NOT_OBJECT", op_path, "Selector ops must be objects.")
+                )
                 continue
             kind = _required_string(op, "op", op_path, issues)
             if kind and kind not in SELECTOR_OPS:
-                issues.append(StateValidationIssue("APP_STATE_SELECTOR_OP_UNSUPPORTED", f"{op_path}.op", f"Unsupported selector op {kind}."))
+                issues.append(
+                    StateValidationIssue(
+                        "APP_STATE_SELECTOR_OP_UNSUPPORTED", f"{op_path}.op", f"Unsupported selector op {kind}."
+                    )
+                )
             allowed = {
                 "filter_eq": {"op", "field", "value"},
                 "sort_by": {"op", "field", "direction"},
@@ -1573,7 +1684,13 @@ def _parse_selectors(items: list[Any], state_ids: set[str], issues: list[StateVa
             if kind in {"filter_eq", "sort_by"}:
                 _required_string(op, "field", op_path, issues)
             if kind == "sort_by" and op.get("direction", "asc") not in {"asc", "desc"}:
-                issues.append(StateValidationIssue("APP_STATE_SELECTOR_DIRECTION_INVALID", f"{op_path}.direction", "sort_by direction must be asc or desc."))
+                issues.append(
+                    StateValidationIssue(
+                        "APP_STATE_SELECTOR_DIRECTION_INVALID",
+                        f"{op_path}.direction",
+                        "sort_by direction must be asc or desc.",
+                    )
+                )
             if kind == "slice":
                 for bound_key in ("start", "end"):
                     if bound_key not in op:
@@ -1582,7 +1699,13 @@ def _parse_selectors(items: list[Any], state_ids: set[str], issues: list[StateVa
                     if bound_key == "end" and bound_value is None:
                         continue
                     if not isinstance(bound_value, int) or isinstance(bound_value, bool) or bound_value < 0:
-                        issues.append(StateValidationIssue("APP_STATE_SELECTOR_SLICE_INVALID", f"{op_path}.{bound_key}", "slice start/end must be non-negative integers."))
+                        issues.append(
+                            StateValidationIssue(
+                                "APP_STATE_SELECTOR_SLICE_INVALID",
+                                f"{op_path}.{bound_key}",
+                                "slice start/end must be non-negative integers.",
+                            )
+                        )
             parsed_ops.append(copy.deepcopy(op))
         if selector_id and source_state:
             selectors.append(StateSelector(id=selector_id, source_state=source_state, ops=tuple(parsed_ops)))
@@ -1609,7 +1732,9 @@ def _parse_replay_assertions(
     for index, item in enumerate(items):
         path = f"$.state_replay_assertions[{index}]"
         if not isinstance(item, dict):
-            issues.append(StateValidationIssue("APP_STATE_REPLAY_NOT_OBJECT", path, "Each replay assertion must be an object."))
+            issues.append(
+                StateValidationIssue("APP_STATE_REPLAY_NOT_OBJECT", path, "Each replay assertion must be an object.")
+            )
             continue
         _reject_extra(item, allowed_keys, path, issues)
         assertion_id = _required_string(item, "id", path, issues)
@@ -1619,9 +1744,15 @@ def _parse_replay_assertions(
         for event_index, event in enumerate(events):
             event_path = f"{path}.events[{event_index}]"
             if not isinstance(event, dict):
-                issues.append(StateValidationIssue("APP_STATE_REPLAY_EVENT_NOT_OBJECT", event_path, "Replay events must be objects."))
+                issues.append(
+                    StateValidationIssue(
+                        "APP_STATE_REPLAY_EVENT_NOT_OBJECT", event_path, "Replay events must be objects."
+                    )
+                )
                 continue
-            _reject_extra(event, {"action_id", "mutation_id", "payload_values", "repeat", "screen_id"}, event_path, issues)
+            _reject_extra(
+                event, {"action_id", "mutation_id", "payload_values", "repeat", "screen_id"}, event_path, issues
+            )
             mutation_id = event.get("mutation_id")
             action_id = event.get("action_id")
             if (isinstance(mutation_id, str) and mutation_id) == (isinstance(action_id, str) and action_id):
@@ -1635,7 +1766,11 @@ def _parse_replay_assertions(
                 )
                 continue
             repeat = event.get("repeat", 1)
-            if not isinstance(repeat, int) or isinstance(repeat, bool) or not 1 <= repeat <= APP_STATE_MAX_EVENTS_PER_REPLAY:
+            if (
+                not isinstance(repeat, int)
+                or isinstance(repeat, bool)
+                or not 1 <= repeat <= APP_STATE_MAX_EVENTS_PER_REPLAY
+            ):
                 issues.append(
                     StateValidationIssue(
                         "APP_STATE_REPLAY_REPEAT_INVALID",
@@ -1704,7 +1839,13 @@ def _parse_replay_assertions(
                     mutations = matches
             payload_values = event.get("payload_values", {})
             if not isinstance(payload_values, dict):
-                issues.append(StateValidationIssue("APP_STATE_REPLAY_PAYLOAD_INVALID", f"{event_path}.payload_values", "payload_values must be an object."))
+                issues.append(
+                    StateValidationIssue(
+                        "APP_STATE_REPLAY_PAYLOAD_INVALID",
+                        f"{event_path}.payload_values",
+                        "payload_values must be an object.",
+                    )
+                )
                 payload_values = {}
             for mutation in mutations:
                 for payload_error in _validate_event_payload(mutation, payload_values):
@@ -1731,14 +1872,30 @@ def _parse_replay_assertions(
         expect_state = item.get("expect_state", {})
         expect_selectors = item.get("expect_selectors", {})
         if not isinstance(expect_state, dict):
-            issues.append(StateValidationIssue("APP_STATE_REPLAY_EXPECT_STATE_INVALID", f"{path}.expect_state", "expect_state must be an object."))
+            issues.append(
+                StateValidationIssue(
+                    "APP_STATE_REPLAY_EXPECT_STATE_INVALID", f"{path}.expect_state", "expect_state must be an object."
+                )
+            )
             expect_state = {}
         if not isinstance(expect_selectors, dict):
-            issues.append(StateValidationIssue("APP_STATE_REPLAY_EXPECT_SELECTORS_INVALID", f"{path}.expect_selectors", "expect_selectors must be an object."))
+            issues.append(
+                StateValidationIssue(
+                    "APP_STATE_REPLAY_EXPECT_SELECTORS_INVALID",
+                    f"{path}.expect_selectors",
+                    "expect_selectors must be an object.",
+                )
+            )
             expect_selectors = {}
         for state_id in expect_state:
             if state_id not in state_ids:
-                issues.append(StateValidationIssue("APP_STATE_REPLAY_STATE_MISSING", f"{path}.expect_state.{state_id}", f"Replay expects missing state {state_id}."))
+                issues.append(
+                    StateValidationIssue(
+                        "APP_STATE_REPLAY_STATE_MISSING",
+                        f"{path}.expect_state.{state_id}",
+                        f"Replay expects missing state {state_id}.",
+                    )
+                )
         expect_visibility: dict[str, Any] = {}
         if visibility_ids is not None:
             expect_visibility = item.get("expect_visibility", {})
@@ -1833,22 +1990,42 @@ def _parse_visibility_rules(
     for index, item in enumerate(items):
         path = f"$.visibility[{index}]"
         if not isinstance(item, dict):
-            issues.append(StateValidationIssue("APP_VISIBILITY_RULE_NOT_OBJECT", path, "Each visibility rule must be an object."))
+            issues.append(
+                StateValidationIssue("APP_VISIBILITY_RULE_NOT_OBJECT", path, "Each visibility rule must be an object.")
+            )
             continue
         extra = sorted(set(item) - {"id", "screen_id", "target_ref", "when"})
         if extra:
-            issues.append(StateValidationIssue("APP_VISIBILITY_UNKNOWN_FIELD", path, f"Unsupported visibility field(s): {', '.join(extra)}."))
+            issues.append(
+                StateValidationIssue(
+                    "APP_VISIBILITY_UNKNOWN_FIELD", path, f"Unsupported visibility field(s): {', '.join(extra)}."
+                )
+            )
         missing = [key for key in ("id", "screen_id", "target_ref", "when") if key not in item]
         if missing:
-            issues.append(StateValidationIssue("APP_VISIBILITY_FIELD_REQUIRED", path, f"Visibility rules require field(s): {', '.join(missing)}."))
+            issues.append(
+                StateValidationIssue(
+                    "APP_VISIBILITY_FIELD_REQUIRED", path, f"Visibility rules require field(s): {', '.join(missing)}."
+                )
+            )
         rule_id = item.get("id")
         if not isinstance(rule_id, str) or SAFE_STATE_ID_RE.fullmatch(rule_id) is None:
             if "id" in item:
-                issues.append(StateValidationIssue("APP_VISIBILITY_INVALID_ID", f"{path}.id", f"Invalid visibility rule id {item.get('id')!r}."))
+                issues.append(
+                    StateValidationIssue(
+                        "APP_VISIBILITY_INVALID_ID", f"{path}.id", f"Invalid visibility rule id {item.get('id')!r}."
+                    )
+                )
             rule_id = None
         screen_id = item.get("screen_id")
         if isinstance(screen_id, str) and screen_id not in screen_ids:
-            issues.append(StateValidationIssue("APP_VISIBILITY_SCREEN_MISSING", f"{path}.screen_id", f"Visibility rule references missing screen {screen_id}."))
+            issues.append(
+                StateValidationIssue(
+                    "APP_VISIBILITY_SCREEN_MISSING",
+                    f"{path}.screen_id",
+                    f"Visibility rule references missing screen {screen_id}.",
+                )
+            )
             screen_id = None
         elif not isinstance(screen_id, str):
             screen_id = None
@@ -1903,7 +2080,9 @@ def _parse_state_text_rules(
     for index, item in enumerate(items):
         path = f"$.state_text[{index}]"
         if not isinstance(item, dict):
-            issues.append(StateValidationIssue("APP_STATE_TEXT_RULE_NOT_OBJECT", path, "Each state_text rule must be an object."))
+            issues.append(
+                StateValidationIssue("APP_STATE_TEXT_RULE_NOT_OBJECT", path, "Each state_text rule must be an object.")
+            )
             continue
         _reject_extra(item, {"id", "screen_id", "target_ref", "state", "template"}, path, issues)
         rule_id = _required_string(item, "id", path, issues)
@@ -2010,7 +2189,11 @@ def _parse_state_text_rules(
                         f"state_text template exceeds {APP_STATE_TEXT_MAX_TEMPLATE_CHARS} characters.",
                     )
                 )
-            if template.count("{value}") != 1 or template.replace("{value}", "").find("{") >= 0 or template.replace("{value}", "").find("}") >= 0:
+            if (
+                template.count("{value}") != 1
+                or template.replace("{value}", "").find("{") >= 0
+                or template.replace("{value}", "").find("}") >= 0
+            ):
                 issues.append(
                     StateValidationIssue(
                         "APP_STATE_TEXT_TEMPLATE_INVALID",
@@ -2149,12 +2332,23 @@ def _apply_op(current_state: dict[str, Any], op: dict[str, Any], payload_values:
         current_state[state_id] = [*current, _resolve_expr(op.get("value"), payload_values)]
     elif kind == "remove":
         item_id = _js_id_string(_resolve_expr(op.get("item_id"), payload_values))
-        current_state[state_id] = [item for item in _require_list(current, "remove") if not (isinstance(item, dict) and _js_id_string(item.get("id")) == item_id)]
+        current_state[state_id] = [
+            item
+            for item in _require_list(current, "remove")
+            if not (isinstance(item, dict) and _js_id_string(item.get("id")) == item_id)
+        ]
     elif kind == "move":
         item_id = _js_id_string(_resolve_expr(op.get("item_id"), payload_values))
         to_index = int(_resolve_expr(op.get("to_index"), payload_values))
         items = list(_require_list(current, "move"))
-        from_index = next((index for index, item in enumerate(items) if isinstance(item, dict) and _js_id_string(item.get("id")) == item_id), -1)
+        from_index = next(
+            (
+                index
+                for index, item in enumerate(items)
+                if isinstance(item, dict) and _js_id_string(item.get("id")) == item_id
+            ),
+            -1,
+        )
         if from_index < 0:
             return
         item = items.pop(from_index)
@@ -2187,7 +2381,9 @@ def _toggle(current: Any, op: dict[str, Any], payload_values: dict[str, Any]) ->
     if "item_id" in op and isinstance(field, str):
         item_id = _js_id_string(_resolve_expr(op.get("item_id"), payload_values))
         return [
-            {**item, field: not bool(item.get(field))} if isinstance(item, dict) and _js_id_string(item.get("id")) == item_id else item
+            {**item, field: not bool(item.get(field))}
+            if isinstance(item, dict) and _js_id_string(item.get("id")) == item_id
+            else item
             for item in _require_list(current, "toggle")
         ]
     if isinstance(field, str) and isinstance(current, dict):
@@ -2212,7 +2408,9 @@ def _increment(current: Any, op: dict[str, Any], payload_values: dict[str, Any])
     if "item_id" in op and isinstance(field, str):
         item_id = _js_id_string(_resolve_expr(op.get("item_id"), payload_values))
         return [
-            {**item, field: _incr_number(item.get(field, 0)) + amount} if isinstance(item, dict) and _js_id_string(item.get("id")) == item_id else item
+            {**item, field: _incr_number(item.get(field, 0)) + amount}
+            if isinstance(item, dict) and _js_id_string(item.get("id")) == item_id
+            else item
             for item in _require_list(current, "increment")
         ]
     if isinstance(field, str) and isinstance(current, dict):
@@ -2281,7 +2479,9 @@ def _resource_view_values(app_payload: dict[str, Any]) -> dict[tuple[str, str], 
             for record_id in view.get("record_ids", []) if isinstance(view.get("record_ids"), list) else []:
                 record = records.get(str(record_id))
                 if isinstance(record, dict):
-                    view_records.append({field: copy.deepcopy(record.get(field)) for field in fields if field in record})
+                    view_records.append(
+                        {field: copy.deepcopy(record.get(field)) for field in fields if field in record}
+                    )
             values[(screen_id, view["id"])] = view_records
     return values
 
@@ -2299,8 +2499,14 @@ def _screen_action_payload_bindings(app_payload: dict[str, Any]) -> dict[tuple[s
     for screen in app_payload.get("screens", []) if isinstance(app_payload.get("screens"), list) else []:
         if not isinstance(screen, dict) or not isinstance(screen.get("id"), str):
             continue
-        view_spec = screen.get("intent_bundle", {}).get("view_spec") if isinstance(screen.get("intent_bundle"), dict) else {}
-        actions = view_spec.get("actions") if isinstance(view_spec, dict) and isinstance(view_spec.get("actions"), list) else []
+        view_spec = (
+            screen.get("intent_bundle", {}).get("view_spec") if isinstance(screen.get("intent_bundle"), dict) else {}
+        )
+        actions = (
+            view_spec.get("actions")
+            if isinstance(view_spec, dict) and isinstance(view_spec.get("actions"), list)
+            else []
+        )
         for action in actions:
             if isinstance(action, dict) and isinstance(action.get("id"), str):
                 bindings = action.get("payload_bindings") if isinstance(action.get("payload_bindings"), list) else []
@@ -2314,13 +2520,17 @@ def _screen_intent_target_ids(app_payload: dict[str, Any]) -> dict[str, dict[str
     for screen in app_payload.get("screens", []) if isinstance(app_payload.get("screens"), list) else []:
         if not isinstance(screen, dict) or not isinstance(screen.get("id"), str):
             continue
-        view_spec = screen.get("intent_bundle", {}).get("view_spec") if isinstance(screen.get("intent_bundle"), dict) else {}
+        view_spec = (
+            screen.get("intent_bundle", {}).get("view_spec") if isinstance(screen.get("intent_bundle"), dict) else {}
+        )
         if not isinstance(view_spec, dict):
             view_spec = {}
         declared: dict[str, set[str]] = {}
         for kind, field_name in (("region", "regions"), ("binding", "bindings"), ("motif", "motifs")):
             items = view_spec.get(field_name) if isinstance(view_spec.get(field_name), list) else []
-            declared[kind] = {item["id"] for item in items if isinstance(item, dict) and isinstance(item.get("id"), str)}
+            declared[kind] = {
+                item["id"] for item in items if isinstance(item, dict) and isinstance(item.get("id"), str)
+            }
         targets[screen["id"]] = declared
     return targets
 
@@ -2369,7 +2579,9 @@ def _required_array(obj: dict[str, Any], key: str, path: str, issues: list[State
     value = obj.get(key)
     if isinstance(value, list):
         return value
-    issues.append(StateValidationIssue("APP_STATE_FIELD_REQUIRED", f"{path}.{key}", f"Missing required array field {key}."))
+    issues.append(
+        StateValidationIssue("APP_STATE_FIELD_REQUIRED", f"{path}.{key}", f"Missing required array field {key}.")
+    )
     return []
 
 
@@ -2377,7 +2589,9 @@ def _required_string(obj: dict[str, Any], key: str, path: str, issues: list[Stat
     value = obj.get(key)
     if isinstance(value, str) and value:
         return value
-    issues.append(StateValidationIssue("APP_STATE_FIELD_REQUIRED", f"{path}.{key}", f"Missing required string field {key}."))
+    issues.append(
+        StateValidationIssue("APP_STATE_FIELD_REQUIRED", f"{path}.{key}", f"Missing required string field {key}.")
+    )
     return None
 
 
@@ -2390,13 +2604,17 @@ def _check_count(
     issues: list[StateValidationIssue],
 ) -> None:
     if len(values) > limit:
-        issues.append(StateValidationIssue(code, path, f"AppBundle declares {len(values)} {label}; the V3 limit is {limit}."))
+        issues.append(
+            StateValidationIssue(code, path, f"AppBundle declares {len(values)} {label}; the V3 limit is {limit}.")
+        )
 
 
 def _reject_extra(obj: dict[str, Any], allowed: set[str], path: str, issues: list[StateValidationIssue]) -> None:
     extra = sorted(set(obj) - allowed)
     if extra:
-        issues.append(StateValidationIssue("APP_STATE_UNKNOWN_FIELD", path, f"Unsupported state field(s): {', '.join(extra)}."))
+        issues.append(
+            StateValidationIssue("APP_STATE_UNKNOWN_FIELD", path, f"Unsupported state field(s): {', '.join(extra)}.")
+        )
 
 
 def _validate_safe_id(value: str | None, path: str, label: str, issues: list[StateValidationIssue]) -> None:
@@ -2572,13 +2790,19 @@ console.log(JSON.stringify({
             "export_names": [],
             "errors": [_conformance_error(f"Node reducer conformance returned invalid JSON: {exc}")],
         }
-    return parsed if isinstance(parsed, dict) else {"ok": False, "errors": [_conformance_error("Node reducer conformance returned a non-object report.")]}
+    return (
+        parsed
+        if isinstance(parsed, dict)
+        else {"ok": False, "errors": [_conformance_error("Node reducer conformance returned a non-object report.")]}
+    )
 
 
 def _validate_event_payload(mutation: StateMutation, payload_values: dict[str, Any]) -> list[dict[str, str]]:
     errors: list[dict[str, str]] = []
     unknown = sorted(set(payload_values) - set(mutation.allowed_payload_bindings))
-    missing = sorted(payload_id for payload_id in mutation.required_payload_bindings if payload_id not in payload_values)
+    missing = sorted(
+        payload_id for payload_id in mutation.required_payload_bindings if payload_id not in payload_values
+    )
     if unknown:
         errors.append(
             {
@@ -2628,7 +2852,9 @@ def _json_values_equal(left: Any, right: Any) -> bool:
             return False
         return all(_json_values_equal(left[key], right[key]) for key in left)
     if isinstance(left, list) and isinstance(right, list):
-        return len(left) == len(right) and all(_json_values_equal(left_item, right_item) for left_item, right_item in zip(left, right))
+        return len(left) == len(right) and all(
+            _json_values_equal(left_item, right_item) for left_item, right_item in zip(left, right, strict=True)
+        )
     if _is_json_number(left) and _is_json_number(right):
         return float(left) == float(right)
     return left == right
@@ -2658,8 +2884,8 @@ def _hash_json(value: Any) -> str:
     return _hash_text(_stable_json(value))
 
 
-def _stable_json(value: Any) -> str:
-    return json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=False, allow_nan=False)
+# UTF-8 canonical form, shared through viewspec._canonical (see its docstring).
+_stable_json = canonical_json_utf8
 
 
 __all__ = [

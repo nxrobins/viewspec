@@ -2,14 +2,15 @@
 
 from __future__ import annotations
 
-from contextlib import contextmanager
-from dataclasses import dataclass
 import hashlib
 import json
-from pathlib import Path, PurePosixPath
 import re
 import tempfile
-from typing import Any, Iterator, Mapping
+from collections.abc import Iterator, Mapping
+from contextlib import contextmanager
+from dataclasses import dataclass
+from pathlib import Path, PurePosixPath
+from typing import Any
 
 from viewspec.intent_tools import compile_intent_bundle_file_tool
 from viewspec.local_verify import verify_local_artifact
@@ -19,7 +20,6 @@ from viewspec.verification import (
     RetryLineage,
     VerificationPlan,
 )
-
 
 CONFORMANCE_CORPUS_SCHEMA_VERSION = 1
 ALLOWED_CASE_KINDS = frozenset({"app_screen", "intent"})
@@ -38,11 +38,7 @@ def _safe_source(value: Any) -> str:
     if not isinstance(value, str) or not value or value.strip() != value or "\\" in value:
         raise ValueError("conformance case source must be canonical relative text")
     path = PurePosixPath(value)
-    if (
-        path.is_absolute()
-        or path.as_posix() != value
-        or any(part in {"", ".", ".."} for part in path.parts)
-    ):
+    if path.is_absolute() or path.as_posix() != value or any(part in {"", ".", ".."} for part in path.parts):
         raise ValueError("conformance case source must be a canonical relative path")
     return value
 
@@ -108,9 +104,7 @@ class ConformanceCorpus:
         root = self.root.resolve()
         cases = tuple(sorted(self.cases, key=lambda item: item.id))
         if not cases or len(cases) > MAX_CORPUS_CASES:
-            raise ValueError(
-                f"conformance corpus requires between 1 and {MAX_CORPUS_CASES} cases"
-            )
+            raise ValueError(f"conformance corpus requires between 1 and {MAX_CORPUS_CASES} cases")
         if len({case.id for case in cases}) != len(cases):
             raise ValueError("conformance corpus case ids must be unique")
         if any(case.root != root for case in cases):
@@ -135,12 +129,8 @@ class ConformanceCorpus:
         for raw_case in raw_cases:
             item = _mapping(raw_case, "conformance case")
             raw_roles = item.get("required_evidence_roles")
-            if not isinstance(raw_roles, list) or not all(
-                isinstance(role, str) for role in raw_roles
-            ):
-                raise ValueError(
-                    "conformance case required_evidence_roles must be an array of strings"
-                )
+            if not isinstance(raw_roles, list) or not all(isinstance(role, str) for role in raw_roles):
+                raise ValueError("conformance case required_evidence_roles must be an array of strings")
             case = ConformanceCase(
                 id=item.get("id"),
                 kind=item.get("kind"),
@@ -187,11 +177,7 @@ def _case_intent(case: ConformanceCase, workspace: Path) -> Path:
     screens = payload.get("screens") if isinstance(payload, dict) else None
     if not isinstance(screens, list):
         raise ValueError(f"AppBundle corpus source has no screens array: {case.source}")
-    matches = [
-        screen
-        for screen in screens
-        if isinstance(screen, dict) and screen.get("id") == case.screen_id
-    ]
+    matches = [screen for screen in screens if isinstance(screen, dict) and screen.get("id") == case.screen_id]
     if len(matches) != 1 or not isinstance(matches[0].get("intent_bundle"), dict):
         raise ValueError(f"AppBundle corpus screen is missing or ambiguous: {case.screen_id}")
     path = workspace / "intent.json"
@@ -218,9 +204,7 @@ def _prepare_persistent_workspace(path: Path) -> Path:
     workspace = path.resolve()
     if workspace.exists():
         if workspace.is_symlink() or not workspace.is_dir() or any(workspace.iterdir()):
-            raise FileExistsError(
-                f"Conformance evidence output must be an empty directory: {workspace}"
-            )
+            raise FileExistsError(f"Conformance evidence output must be an empty directory: {workspace}")
     else:
         workspace.mkdir(parents=True)
     return workspace
@@ -293,10 +277,7 @@ def run_conformance_corpus(
                 lineage=RetryLineage.root(),
             )
             evidence_roles = tuple(sorted({item.role for item in result.evidence}))
-            ok = (
-                result.status == case.expected_status
-                and set(case.required_evidence_roles).issubset(evidence_roles)
-            )
+            ok = result.status == case.expected_status and set(case.required_evidence_roles).issubset(evidence_roles)
             case_reports.append(
                 {
                     "id": case.id,

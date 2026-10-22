@@ -3,10 +3,10 @@
 from __future__ import annotations
 
 import argparse
-from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
-from pathlib import Path
 import ssl
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from pathlib import Path
 
 from viewspec.review_compile import STUDIO_COMPARE_TARGET
 from viewspec.review_runtime import ReviewRuntime

@@ -1,0 +1,46 @@
+name: Dependency Audit
+
+on:
+  schedule:
+    - cron: "23 6 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  npm_audit_all_levels:
+    name: Report every npm advisory level
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        seed:
+          - src/viewspec/host_verify_template
+          - tests/react-tailwind-host
+          - conformance/agent-ui-v2/react-dependencies
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: "22"
+      - name: Audit ${{ matrix.seed }} at every level
+        working-directory: ${{ matrix.seed }}
+        run: npm audit --package-lock-only --audit-level=low
+
+  pip_audit:
+    name: Audit resolved Python dependencies
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: "3.11"
+      - name: Install the package with every extra
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install ".[dev,remote,agents]" pip-audit
+      - name: Run pip-audit
+        run: pip-audit --progress-spinner off

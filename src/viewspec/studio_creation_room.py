@@ -2,25 +2,31 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable
 import base64
-from dataclasses import dataclass
 import hashlib
 import hmac
 import json
-from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+import logging
 import os
-from pathlib import Path
+import re
 import secrets
 import stat
 import threading
 import time
+from collections.abc import Callable
+from dataclasses import dataclass
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from pathlib import Path
 from urllib.parse import urlsplit
 
 from viewspec.review_contract import ReviewContractError, canonical_json_bytes
 from viewspec.review_runtime import default_review_state_root
 from viewspec.studio_agent_handoff import (
-    AGENT_ACTIVITY_SECONDS, HANDOFF_CSS, HANDOFF_HTML, creation_handoff, handoff_script,
+    AGENT_ACTIVITY_SECONDS,
+    HANDOFF_CSS,
+    HANDOFF_HTML,
+    creation_handoff,
+    handoff_script,
 )
 from viewspec.studio_creation import (
     STUDIO_CREATION_TASK_DEFAULT,
@@ -28,8 +34,11 @@ from viewspec.studio_creation import (
     accept_studio_creation,
     inspect_accepted_studio_creation,
     inspect_studio_creation,
+    inspected_path,
+    inspected_task,
 )
 
+_LOGGER = logging.getLogger(__name__)
 
 CREATION_ROOM_SCHEMA_VERSION = 1
 CREATION_ROOM_BOOTSTRAP_SECONDS = 60
@@ -79,7 +88,9 @@ def creation_room_configuration_sha256(
         "verify": verify,
         "install": install,
     }
-    return hashlib.sha256(b"viewspec.studio.creation-room-configuration.v1\x00" + canonical_json_bytes(identity)).hexdigest()
+    return hashlib.sha256(
+        b"viewspec.studio.creation-room-configuration.v1\x00" + canonical_json_bytes(identity)
+    ).hexdigest()
 
 
 @dataclass(frozen=True, slots=True)
@@ -103,18 +114,12 @@ class StudioCreationRoomController:
         clock: Callable[[], float] = time.monotonic,
     ) -> None:
         inspected = inspect_studio_creation(task_path, cwd=cwd)
-        self.root = inspected["root"]
-        self.task_path = inspected["task_path"]
-        self.candidate_path = inspected["candidate_path"]
-        self.source_path = inspected["source_path"]
-        self.proof_path = inspected["proof_path"]
-        self.task = inspected["task"]
-        assert isinstance(self.root, Path)
-        assert isinstance(self.task_path, Path)
-        assert isinstance(self.candidate_path, Path)
-        assert isinstance(self.source_path, Path)
-        assert isinstance(self.proof_path, Path)
-        assert isinstance(self.task, dict)
+        self.root = inspected_path(inspected, "root")
+        self.task_path = inspected_path(inspected, "task_path")
+        self.candidate_path = inspected_path(inspected, "candidate_path")
+        self.source_path = inspected_path(inspected, "source_path")
+        self.proof_path = inspected_path(inspected, "proof_path")
+        self.task = inspected_task(inspected)
         self._handoff = handoff
         self._clock = clock
         self._lock = threading.RLock()
@@ -237,7 +242,11 @@ class StudioCreationRoomController:
                 )
                 return
             pending_since = self._candidate_pending_since
-            if self._accepted is None and pending_since is not None and now - pending_since < CREATION_ROOM_QUIET_SECONDS:
+            if (
+                self._accepted is None
+                and pending_since is not None
+                and now - pending_since < CREATION_ROOM_QUIET_SECONDS
+            ):
                 return
             if self._accepted is None:
                 self._set_stage(
@@ -248,12 +257,15 @@ class StudioCreationRoomController:
             try:
                 accepted = accept_studio_creation(self.task_path, cwd=self.root)
             except StudioCreationError as exc:
+                _LOGGER.info("Studio creation candidate was rejected: %s: %s", exc.code, exc.message)
                 with self._lock:
                     self._candidate_pending_since = None
                     self._candidate_validation = "failed"
                     self._artifact_check = "not_run"
                     self._error = exc.to_json()
-                    self._set_stage("needs_fix", "The candidate did not pass. Canonical semantic source was not published.")
+                    self._set_stage(
+                        "needs_fix", "The candidate did not pass. Canonical semantic source was not published."
+                    )
                 return
             with self._lock:
                 self._accepted = accepted
@@ -301,6 +313,9 @@ class StudioCreationRoomController:
         try:
             inspected = inspect_accepted_studio_creation(self.task_path, cwd=self.root)
         except StudioCreationError as exc:
+            _LOGGER.warning(
+                "Existing canonical source is not the retained checked candidate: %s: %s", exc.code, exc.message
+            )
             with self._lock:
                 self._candidate_validation = "failed"
                 self._artifact_check = "failed"
@@ -334,10 +349,13 @@ class StudioCreationRoomController:
             result = self._handoff(self.source_path, accepted)
             _validate_handoff(result)
         except (ReviewContractError, StudioCreationError) as exc:
+            _LOGGER.warning("Studio creation handoff failed: %s: %s", exc.code, exc.message)
             error = exc.to_json()
             with self._lock:
                 self._error = {key: str(value) for key, value in error.items() if key in {"code", "message", "fix"}}
-                self._set_stage("open_failed", "The semantic source is checked, but the Studio product could not open yet.")
+                self._set_stage(
+                    "open_failed", "The semantic source is checked, but the Studio product could not open yet."
+                )
             return
         with self._lock:
             self._handoff_result = result
@@ -516,7 +534,23 @@ class StudioCreationRoomServer:
                 outer._dispatch(self)
 
             def log_message(self, format: str, *args: object) -> None:
-                del format, args
+                # The /open/<token> bootstrap path carries a single-use bearer capability.
+                # BaseHTTPRequestHandler passes the request line to log_request and quotes it in
+                # parse errors, so every request-line word after the method, and any path- or
+                # URL-like token, is redacted before the message reaches the logger (mirrors
+                # ReviewServer.log_message).
+                message = format % args if args else format
+                for word in str(getattr(self, "requestline", "") or "").split()[1:]:
+                    if len(word) >= 8 and not re.fullmatch(r"HTTP/\d+(?:\.\d+)?", word):
+                        message = message.replace(word, "<redacted>")
+                message = re.sub(
+                    r"[^\s'\"]*/[^\s'\"]*",
+                    lambda match: (
+                        match.group(0) if re.fullmatch(r"HTTP/\d+(?:\.\d+)?", match.group(0)) else "<redacted>"
+                    ),
+                    message,
+                )
+                _LOGGER.debug("%s", message)
 
         return Handler
 
@@ -524,6 +558,7 @@ class StudioCreationRoomServer:
         try:
             response = self._handle(handler)
         except Exception:
+            _LOGGER.exception("Studio creation room failed while handling a local request")
             response = _json_response(
                 500,
                 {
@@ -538,7 +573,7 @@ class StudioCreationRoomServer:
             )
         _send(handler, response)
 
-    def _handle(self, handler: BaseHTTPRequestHandler) -> "_RoomResponse":
+    def _handle(self, handler: BaseHTTPRequestHandler) -> _RoomResponse:
         if handler.headers.get("Host") != f"127.0.0.1:{self.port}" or not _headers_are_bounded(handler):
             handler.close_connection = True
             return _not_found()
@@ -565,11 +600,17 @@ class StudioCreationRoomServer:
                     return _not_found()
                 identity = hashlib.sha256(str(self.controller.task_path).encode("utf-8")).hexdigest()
                 if payload != {"task_path_sha256": identity}:
-                    return _json_response(409, {"ok": False, "error": {
-                        "code": "STUDIO_CREATION_TASK_INVALID",
-                        "message": "The agent handoff does not name this room's exact local task.",
-                        "fix": "Copy instructions from the creation room for this project again.",
-                    }})
+                    return _json_response(
+                        409,
+                        {
+                            "ok": False,
+                            "error": {
+                                "code": "STUDIO_CREATION_TASK_INVALID",
+                                "message": "The agent handoff does not name this room's exact local task.",
+                                "fix": "Copy instructions from the creation room for this project again.",
+                            },
+                        },
+                    )
                 self.controller.agent_check_in()
                 return _json_response(200, self.controller.status())
             if method == "POST" and path == "/internal/v1/bootstrap":
@@ -608,9 +649,16 @@ class StudioCreationRoomServer:
         if path == "/v1/status":
             return _json_response(200, self.controller.status())
         if path == "/v1/agent-handoff":
-            return _json_response(200, {"instructions": creation_handoff(
-                self.controller.root, self.controller.task_path, self.state_root,
-            )})
+            return _json_response(
+                200,
+                {
+                    "instructions": creation_handoff(
+                        self.controller.root,
+                        self.controller.task_path,
+                        self.state_root,
+                    )
+                },
+            )
         if path == "/continue":
             handoff = self.controller.consume_handoff()
             return _redirect(handoff) if handoff is not None else _not_found()
@@ -820,7 +868,8 @@ _ROOM_HTML = (
     "<details><summary>Exact error</summary><code id=error-code></code></details></div></div>"
     "<footer class=room-foot><span class=state><i class=pulse></i><span id=state-label>Waiting for agent</span></span>"
     "<span>Brief and reference stay in this workspace · nothing uploaded</span></footer></section></main>"
-    + HANDOFF_HTML + "<script>"
+    + HANDOFF_HTML
+    + "<script>"
     + _ROOM_SCRIPT
     + "</script></body></html>"
 )

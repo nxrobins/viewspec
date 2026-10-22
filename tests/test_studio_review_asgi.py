@@ -1,18 +1,17 @@
 from __future__ import annotations
 
 import asyncio
-from collections.abc import Iterable
 import threading
+from collections.abc import Iterable
 
 from viewspec.studio_review_asgi import StudioReviewASGIApp
 from viewspec.studio_review_http import (
+    STUDIO_REVIEW_HTTP_MAX_JSON_BYTES,
     ReviewHTTPRequest,
     ReviewHTTPResponse,
-    STUDIO_REVIEW_HTTP_MAX_JSON_BYTES,
     StudioReviewHTTPAdapter,
 )
 from viewspec.studio_review_internal import (
-    STUDIO_REVIEW_INTERNAL_AUTHENTICATED_HEADER,
     STUDIO_REVIEW_INTERNAL_INGRESS_PATH,
     STUDIO_REVIEW_INTERNAL_NONCE_HEADER,
     StudioReviewInternalAuth,
@@ -135,7 +134,10 @@ def test_asgi_bridge_strips_internal_transport_headers_before_external_dispatch(
         headers=(
             (b"content-type", b"text/plain"),
             (b"x-viewspec-internal-authenticated", b"true"),
-            (b"x-viewspec-internal-signature", b"hmac-sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"),
+            (
+                b"x-viewspec-internal-signature",
+                b"hmac-sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            ),
         ),
     )
 
@@ -303,16 +305,14 @@ def test_internal_ingress_binds_request_and_response_while_direct_create_stays_c
             "idempotency-key": "internal-asgi-create-0001",
             "x-viewspec-disclosure-accepted": "true",
             "x-viewspec-expiry-seconds": "3600",
-            STUDIO_REVIEW_INTERNAL_AUTHENTICATED_HEADER: "true",
         },
         body=body,
         scheme="https",
+        internal_authenticated=True,
     )
     assert sent[0]["status"] == 201
     response_headers = {
-        name.decode(): value.decode()
-        for name, value in sent[0]["headers"]
-        if name.decode() != "set-cookie"
+        name.decode(): value.decode() for name, value in sent[0]["headers"] if name.decode() != "set-cookie"
     }
     client.verify_response(
         status=201,

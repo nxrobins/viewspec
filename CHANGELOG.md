@@ -7,7 +7,42 @@ All notable changes to ViewSpec are documented in this file. The format follows
 
 ## [Unreleased]
 
-## [0.3.0b13] - 2026-10-14
+## [0.3.0b13] - 2026-10-22
+
+Follow-up to the 2026-10-22 project audit (`docs/project-audit-2026-10-22.md`). Finding ids
+in parentheses refer to that document.
+
+### Fixed
+
+- Integer attribute and slot values render as integers after JSON and protobuf round trips:
+  `100` no longer renders as `100.0`, and for integers within +/-2^53 the same bundle compiles to
+  identical bytes from an in-memory dict, a JSON file, or proto bytes. `SemanticNode` takes a
+  normalized snapshot of `attrs` and slot lists when it is built (tuples inside them become lists,
+  as JSON and protobuf would make them); the caller's dicts and lists are left untouched, and
+  later changes to them no longer reach the node. `viewspec validate-intent`, `viewspec compile`
+  and the agent and MCP tools reject integers beyond +/-2^53 with `INTEGER_OUT_OF_SAFE_RANGE`
+  instead of rounding them silently. The Python `compile()` API does not validate: run
+  `validate_agent_intent_bundle()` on the JSON payload first, and keep larger identifiers as
+  strings in bundles built in Python, which hold doubles once they pass through `to_json()` or
+  `to_proto()` (C-1).
+- Non-ASCII text in list and dict bindings renders as UTF-8 instead of `\u` escapes (C-2).
+- `compile_auto` falls back to the hosted compiler only for unsupported motifs; a local
+  `DESIGN.md` error no longer uploads the bundle (C-3).
+- The declared protobuf requirement matches the generated schema: `protobuf>=6.31.1,<8`. The
+  package did not import with protobuf 5.x (P-1).
+- The `agents` extra requires `mcp>=1.9.0,<2`. MCP SDK 2.x removed the `mcp.server.fastmcp`
+  module that `viewspec mcp` imports, so the server could not start with it, and
+  `viewspec doctor --agents` now reports `mcp_dependency: true` only when that module imports
+  (P-6). An SDK whose import fails with any exception, not only `ImportError`, is reported as
+  `mcp_dependency: false`, and the doctor still prints its report.
+- `ConvergeError` and `IntentPatchError` survive `pickle`, `copy.copy` and `copy.deepcopy` with
+  `code`, `message`, `fix` and `cli_exit` intact, and the React Tailwind emitter's
+  `CompilerConstraintError` with `code` and `message` intact. Rebuilding them used to raise
+  `TypeError`, so a `ProcessPoolExecutor` worker that raised one broke the pool.
+- The local review daemon no longer answers an agent poll with `REVIEW_SERVER_START_FAILED` when a
+  temporary file or candidate directory disappears while the session storage is being sized:
+  the size walk skips entries that vanish between listing and inspection and still rejects
+  symbolic links.
 
 ### Changed
 
@@ -17,6 +52,151 @@ All notable changes to ViewSpec are documented in this file. The format follows
   canary and a current signed release for an eligible paid beta account.
 - The paired backend release binds its installed SDK to this exact release wheel and source
   revision so client artifacts and the isolated server rebuild use the same compiler identity.
+- The three React dependency seeds pin `vite` 8.3.5, replacing 8.0.16, which carried a HIGH
+  advisory, and declare the `source-map-js>=1.2.2` floor as an npm override (P-2, P-7).
+- Lists and dicts rendered as text use compact JSON separators, `["Ann","Bob"]` and `{"a":1}`
+  instead of `["Ann", "Bob"]` and `{"a": 1}`, so page text and artifact hashes change for every
+  bundle that binds such a value (C-2).
+- CI installs the host-verify dependency seed before the host proof and points the verifier at
+  it (R-10); pins every GitHub Action to a commit at the major version each workflow already used
+  (R-1); resolves Python dependencies through the pinned `requirements-ci.txt` and runs the
+  Pretext workflow when the pins change (P-4); caches pip and npm, sets job timeouts, installs
+  Playwright from the lockfile, installs the `agents` extra in every test leg and starts the real
+  stdio MCP server there (`initialize` and `tools/list`), and cancels superseded runs only for pull
+  requests, so every push to `main` runs to completion and each merged commit keeps its own
+  status and distribution artifacts (R-6); imports the package at the protobuf floor (P-1); fails
+  the Pretext fidelity gate when the reference fonts are missing (R-4); blocks pull requests on
+  high and critical npm advisories while a weekly workflow reports every level (R-3); and reports
+  the PyPI launch check without blocking the documentation deploy, so a push to `main` deploys
+  the site even while that check fails (R-2).
+- Dependabot watches pip, the three npm seeds and GitHub Actions (P-5). `cryptography` allows up
+  to 52.x (P-6). The classifiers declare Linux and macOS; CI runs on Linux plus a Windows job
+  that checks the corpus goldens, and does not exercise macOS (H-1).
+- The source archive ships `tests/`, `conformance/`, `proto/`, the changelog, the contributing
+  guide and the security policy, so it carries the library tests, the conformance corpus and the
+  schema source. The full suite still needs a git checkout: some tests import or read
+  `scripts/`, `demos/`, `docs/`, `examples/`, `integrations/` or `.github/`, or the root file
+  `requirements-ci.txt`, none of which the archive includes (R-8). The package version is read
+  from `src/viewspec/_version.py` alone (R-7).
+- The protobuf schema source is committed as `proto/universal_ui.proto` with a regeneration
+  script and a typed `.pyi` stub next to `py.typed`; CI checks the source against the generated
+  code (P-3, Q-1). The `dev` extra pins `grpcio-tools` 1.80.0, which bundles protoc 31.1 and
+  ships wheels for Python 3.11 through 3.14.
+- `check_artifact_dir()` and the MCP check tools return structured `issues` entries
+  (`{code, path, message, fix}`) in addition to the string `errors`; prefixed messages surface
+  under their own registered code instead of `CHECK_FAILED`.
+- `proof_report.json` and `app_proof_report.json` record every path relative to the directory
+  that holds the report file, with `/` separators. At the default location that is the proof
+  directory and `paths.proof_dir` is `.`; when `--report-out` puts the report elsewhere,
+  `paths.proof_dir` names the proof directory from the report's directory. `PROOF.md` and
+  `APP_PROOF.md` record paths relative to the proof directory they sit in. The in-memory reports
+  returned by `prove()` and `prove_app()` keep absolute paths. `proof_identity.proof_report_hash`
+  and the hash printed in the summaries cover the on-disk report with the top-level `timings_ms`
+  removed; `prove.proof_report_hash()` and `app_reports.app_proof_report_hash()` compute it and
+  return the same value for a report read back from disk, from any working directory.
+  `local_tools_io.absolute_report_paths()` turns such a report back into the absolute paths the
+  proof returned, `host_report.artifact_dir` included; pass it the report's directory, whose
+  symlinks it resolves first. Two proofs of one input share the hash for the source-artifact
+  targets (`html-tailwind`, `react-tsx`, and `prove-app --target html-tailwind`) when every
+  recorded input keeps its position relative to the report, for example the same repository
+  layout cloned elsewhere; an input outside the proof directory at a different depth changes the
+  hash. `react-tailwind-tsx` and `react-tailwind-app` proofs get a new hash on every run because
+  the host reports keep their own timings, and `react-tailwind-app` proofs also get a new hash in
+  every directory because `app_analysis_evidence.json` names the absolute React app directory.
+  `support_bundle.json` is at `schema_version` 2 and no longer carries `timings_ms` (C-7).
+- Coded compiler and validator failures raise `CompilerInternalError` and `LocalToolContractError`
+  (subclasses of `RuntimeError` and `ValueError`) with `.code` and `.message` attributes; the text
+  of `str(exc)` is unchanged, and both survive `pickle` and `copy` with those attributes intact
+  (Q-8). The canonical JSON helpers pinned in `tests/test_canonical.py` are aliases or thin
+  wrappers of the two forms in `viewspec._canonical`, both of which reject NaN and infinity: the
+  verification, repair, convergence, presentation-plan, semantic-digest, Pretext coverage and
+  hosted contract helpers use the ASCII form, and the state-IR, intent-tool, AppBundle
+  validation, intent-patch, converge-session and Review V0 contract helpers (and the review and
+  Studio modules that reuse the Review V0 one) use the UTF-8 form. Other digests keep their own
+  serialization and do not pass `allow_nan=False`: the agent-eval manifest and checkpoint digests
+  (`agent_eval_value.canonical_bytes`, compact JSON plus a trailing newline), the proof report
+  hashes (`prove.proof_report_hash` and `app_reports.app_proof_report_hash`, over the indented
+  report text), and the inline `json.dumps` digests, whose inputs hold no non-finite numbers,
+  for the verified-artifact identity in `local_verify.py`, `tailwind_recipe_registry_digest`,
+  `numeric_operation_inventory_sha256`, the `compiler_benchmarks.py` summaries and the Studio
+  comparison digest `ReviewManifestIndex.semantic_identity_sha256`.
+  `agent_eval.canonical_json`, which writes the agent-eval output files, is indented and rejects
+  NaN. No digest changed (C-5).
+- Library modules log through `logging` with a `NullHandler`. `python -m viewspec.review_daemon`
+  and `python -m viewspec.studio_creation_daemon` log their lifecycle and errors through a
+  formatted stderr handler (`<time> LEVEL viewspec.<module>: ...`); when `viewspec review` or
+  Studio starts a daemon, its stderr goes to `/dev/null`, so these logs are visible only when the
+  daemon is run directly. The review server and the Studio creation room log requests at DEBUG
+  with the request target redacted, so bootstrap tokens, frame tickets and the creation room's
+  `/open/` token never reach their logs (Q-9). Best-effort writes that fail are logged instead
+  of silently ignored; when both the app support bundle and `APP_PROOF.md` fail to write,
+  `app_proof_report.json` is rewritten so that it also lists `APP_PROOF_SUMMARY_WRITE_FAILED`,
+  matching the returned report and `proof_identity.proof_report_hash` (Q-10). `raise` inside
+  `except` chains its cause, and `assert` statements in request and tool paths are explicit
+  checks (Q-10, Q-11). The hosted compiler client lives in `viewspec.hosted_compile` and is
+  re-exported from `viewspec.compiler`, which still exports every public name it had in 0.3.0b12, including `CompileRequestPayload`,
+  `CompileResponse` and `DesignSystemError` (Q-2). `viewspec.sdk` exports `ListBuilder`,
+  `FormBuilder` and `DetailBuilder` (Q-12). The HTML emitter no longer imports the compiler, and
+  the app pipeline imports public helper names (Q-5). Dead code and unreferenced constants were
+  removed from `compiler.py`, `types.py` and the Tailwind recipes (C-8). The three emitters and
+  the raw-HTML importer write their files through one atomic writer that records the
+  `.viewspec_write_failed.json` sentinel (Q-3).
+- Every Python file is formatted with `ruff format`, which CI now checks, and the lint rule set
+  adds import order, syntax upgrades, bugbear and simplification rules (Q-7). `SECURITY.md`
+  describes what `viewspec check` does and does not establish, the `--force` rule, the MCP
+  working-directory resolution and the input size caps (S-10, S-12).
+- Internal planning notes moved to `docs/internal/`; `docs/README.md` indexes the documentation;
+  README states the evaluated version of its evidence, the supported platforms and the
+  compatibility horizon (D-2 to D-7, H-1). `CONTRIBUTING.md` and `CODE_OF_CONDUCT.md` were added
+  (H-2); the release checklist tags and publishes each release (R-7) and says that the site
+  deploy does not wait for the PyPI check (R-2).
+
+### Security
+
+- `viewspec check` rejects inline event handlers (`CHECK_INLINE_EVENT_HANDLER`), `javascript:`,
+  `vbscript:` and non-image `data:` URL schemes on every URL-bearing attribute
+  (`CHECK_UNSAFE_URL_SCHEME`), unclosed `<script` openers (`CHECK_UNCLOSED_SCRIPT`), remote
+  `feImage` and `ping` targets, auto-fetch URLs written as `http:` or `https:` without `//`
+  (`src="https:evil.example/x"`), and CSS auto-fetch references hidden behind CSS escapes,
+  comments or `image-set()`. It also rejects markup that browsers and Python's `html.parser` parse
+  differently, where active content could hide from the scan (`CHECK_AMBIGUOUS_MARKUP`):
+  comments, `<![CDATA[` and other `<![` sections, declarations other than `<!DOCTYPE html>`,
+  processing instructions, raw-text elements such as `<style>` or `<title>` inside `<svg>` or
+  `<math>`, the elements `noscript`, `textarea`, `xmp`, `noembed`, `noframes`, `plaintext` and
+  `iframe`, a `<title>`, `<style>` or `<script>` whose text holds nested markup or whose end tag
+  carries a solidus or attributes, and NUL characters. The rules scan the raw text, so they do
+  not depend on how a given Python release recovers from malformed HTML. Compiler and raw-HTML
+  import output never contains these constructs. Raw-HTML
+  artifacts fail closed unless every element carries a manifest node id with the exact attribute
+  set (`CHECK_RAW_HTML_DOM_UNGOVERNED`). The `<style>`, `<script>` and `<meta>` scans are linear
+  with a block cap (`CHECK_SCAN_LIMIT_EXCEEDED`) instead of quadratic (S-1, S-2, S-3).
+- `--force` on `prove`, `prove-app` and `compile-app` replaces an existing directory only when it
+  is empty or holds a file ViewSpec itself writes; anything else fails closed with
+  `PROVE_OUTPUT_UNRECOGNIZED`, `APP_PROOF_OUTPUT_UNRECOGNIZED` or `APP_SHELL_OUTPUT_UNRECOGNIZED`.
+  `prove` and `prove-app` write a `.viewspec-output` file into their output directory as soon as
+  they create it, so a proof interrupted before it wrote its report, including Studio creation's
+  task-bound proof directory, can be replaced with `--force`; `compile-app` output gets no such
+  file. When Studio creation still cannot replace its proof directory, the error's fix names
+  that directory instead of the candidate (S-4).
+- `DESIGN.md` is capped at 64 KiB (`DESIGN_FILE_TOO_LARGE`) and its front matter rejects YAML
+  aliases before expansion; HTML inputs are size-gated before they are read; the MCP server
+  resolves its working directory so the review tools work under the default `--cwd .`; the raw-HTML
+  importer no longer drops the rest of a document after an unclosed `<base>` or `<embed>`; the
+  Studio review adapter strips reserved internal headers itself instead of trusting the transport
+  (S-5 to S-9).
+
+### Added
+
+- Hypothesis property tests over scalar value types through JSON, protobuf and compile round
+  trips (T-4), and regression tests for the value rendering and hosted fallback fixes.
+- Golden `artifact_hash`, `semantic_digest` and file hashes for every conformance corpus case and
+  local target in `tests/fixtures/corpus_goldens.json`, checked on Linux and Windows in CI; the
+  React app manifest writes POSIX paths on every platform (T-2, C-6).
+- The default test suite skips, with exact reasons, the tests that need installed Node seeds, full
+  git history or a Playwright browser; drift tests cover the landing page and proof explorer;
+  the release and corpus scripts have smoke tests (T-1, T-3, T-5).
+- Documentation tests: every error code cited in the docs exists in the registry, and the Claude
+  Code skill matches the managed instructions (D-3, D-6).
 
 ## [0.3.0b12] - 2026-10-14
 
@@ -445,7 +625,25 @@ All notable changes to ViewSpec are documented in this file. The format follows
 - Demo and public-site copy now aligns pricing, provenance language, and the Pro checkout link
   with `demos/public-facts.json`.
 
-## [0.2.0] - earlier release
+## [0.3.0b1] - 2026-07-11
 
-Pre-changelog release line. The public surfaces as of this release are described in the README,
-`docs/`, and `demos/public-facts.json` at the corresponding tag.
+- Rolled in commit `42d4c8e` ("Roll changelog for 0.3.0b1 beta"); the version string itself was set in `d8d0d3b` on 2026-05-10, its entries were carried forward unchanged into `0.3.0b2`, and the release was never tagged.
+
+## [0.2.0] - 2026-05-03
+
+Pre-changelog release line, dated from the version bump in commit `ac0c2a3`; it was never tagged.
+The public surfaces as of this release are described in the README, `docs/`, and
+`demos/public-facts.json` at that commit.
+
+Versions `0.3.0b8`, `0.3.0b6`, `0.3.0b4`, `0.3.0b2`, `0.3.0b1`, and `0.2.0` were not tagged on
+the remote, so they have no compare links below; the `0.3.0b9` and `0.3.0b7` links therefore each
+span two betas.
+
+[Unreleased]: https://github.com/nxrobins/viewspec/compare/v0.3.0b12...HEAD
+[0.3.0b12]: https://github.com/nxrobins/viewspec/compare/v0.3.0b11...v0.3.0b12
+[0.3.0b11]: https://github.com/nxrobins/viewspec/compare/v0.3.0b10...v0.3.0b11
+[0.3.0b10]: https://github.com/nxrobins/viewspec/compare/v0.3.0b9...v0.3.0b10
+[0.3.0b9]: https://github.com/nxrobins/viewspec/compare/v0.3.0b7...v0.3.0b9
+[0.3.0b7]: https://github.com/nxrobins/viewspec/compare/v0.3.0b5...v0.3.0b7
+[0.3.0b5]: https://github.com/nxrobins/viewspec/compare/v0.3.0b3...v0.3.0b5
+[0.3.0b3]: https://github.com/nxrobins/viewspec/releases/tag/v0.3.0b3

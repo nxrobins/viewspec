@@ -152,7 +152,7 @@ test.beforeAll(async () => {
 
 test.afterAll(() => {
   server?.kill("SIGTERM");
-  if (workspace) rmSync(workspace, { recursive: true, force: true });
+  if (workspace) rmSync(workspace, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 });
 });
 
 test("private replay waits for delayed React commits on initial load and reset", async ({ page }) => {

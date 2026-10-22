@@ -102,7 +102,7 @@ interface's original tab order and native control behavior.
 The default session is loopback-only and makes no SDK network calls. Generated HTML or React
 remains an artifact, never the editing surface. `viewspec review` and the lower-level polling and
 Converge commands remain the automation protocol underneath Studio; people should start with
-Studio. The measurable product criteria live in [ViewSpec Studio Product Goal](viewspec-studio-goal.md).
+Studio. The measurable product criteria live in [ViewSpec Studio Product Goal](internal/viewspec-studio-goal.md).
 
 **Connect agent** is also available in the review toolbar. It prepares instructions for the exact
 current source and private session, including the feedback polling command. Queued requests stay
@@ -175,7 +175,7 @@ until the production gate passes.
 The SDK-side production seam now includes a bounded ASGI wrapper and an independent, install-free
 source rebuild that must reproduce every uploaded static/React artifact byte. It intentionally
 requires a separate attestation from the real no-network worker. Operators can follow the
-[private review deployment contract](studio-review-deployment.md). The human-facing opt-in is:
+[private review deployment contract](internal/studio-review-deployment.md). The human-facing opt-in is:
 
 ```bash
 VIEWSPEC_STUDIO_API_KEY=... viewspec studio viewspec.app.json --compare --install --share

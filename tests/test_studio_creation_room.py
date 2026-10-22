@@ -1,13 +1,13 @@
 from __future__ import annotations
 
-import http.client
 import hashlib
+import http.client
 import json
 import os
 import signal
-from pathlib import Path
 import socket
 import time
+from pathlib import Path
 from urllib.parse import urlsplit
 
 import pytest
@@ -106,10 +106,7 @@ def test_creation_room_controller_exposes_truthful_failure_retry_and_checked_han
     assert failed["error"] == {
         "code": "STUDIO_CREATION_CANDIDATE_INVALID",
         "message": "Studio could not check this candidate as the required product source.",
-        "fix": (
-            "Ask the agent to update the task-bound candidate and save it again. "
-            "Studio will retry automatically."
-        ),
+        "fix": ("Ask the agent to update the task-bound candidate and save it again. Studio will retry automatically."),
     }
     assert not (tmp_path / "viewspec.app.json").exists()
 
@@ -211,7 +208,9 @@ def test_creation_handoff_is_private_and_check_in_expires_without_losing_task(tm
     prepared = prepare_studio_creation(brief="Build a field dispatch workspace", cwd=tmp_path)
     now = [100.0]
     controller = StudioCreationRoomController(
-        cwd=tmp_path, handoff=lambda *_: pytest.fail("No candidate"), clock=lambda: now[0],
+        cwd=tmp_path,
+        handoff=lambda *_: pytest.fail("No candidate"),
+        clock=lambda: now[0],
     )
     server = StudioCreationRoomServer(controller, port=_available_port(), state_root=tmp_path / "state")
     server.start()
@@ -224,27 +223,45 @@ def test_creation_handoff_is_private_and_check_in_expires_without_losing_task(tm
         assert code == 200
         instructions = json.loads(body)["instructions"]
         import shlex
+
         command = shlex.split(instructions.splitlines()[2])
-        assert command == ["python", "-m", "viewspec", "studio-agent-task", prepared["paths"]["task"],
-                           "--state-dir", str(tmp_path / "state"), "--json"]
+        assert command == [
+            "python",
+            "-m",
+            "viewspec",
+            "studio-agent-task",
+            prepared["paths"]["task"],
+            "--state-dir",
+            str(tmp_path / "state"),
+            "--json",
+        ]
         assert server.agent_token not in instructions
         assert controller.status()["agent_presence"] == {"status": "not_connected"}
         agent_headers = {"X-ViewSpec-Agent-Capability": server.agent_token}
-        invalid, _, _ = _request(server.port, "POST", "/internal/v1/agent-check-in",
-                                headers=agent_headers, body=b'{"task_path_sha256":"wrong-project"}')
+        invalid, _, _ = _request(
+            server.port,
+            "POST",
+            "/internal/v1/agent-check-in",
+            headers=agent_headers,
+            body=b'{"task_path_sha256":"wrong-project"}',
+        )
         assert invalid == 409
         assert controller.status()["agent_presence"] == {"status": "not_connected"}
         identity = hashlib.sha256(str(controller.task_path).encode()).hexdigest()
-        code, _, body = _request(server.port, "POST", "/internal/v1/agent-check-in",
-                                headers=agent_headers, body=json.dumps({"task_path_sha256": identity}).encode())
+        code, _, body = _request(
+            server.port,
+            "POST",
+            "/internal/v1/agent-check-in",
+            headers=agent_headers,
+            body=json.dumps({"task_path_sha256": identity}).encode(),
+        )
         assert code == 200
         assert json.loads(body)["agent_presence"] == {"status": "working"}
         now[0] += 61
         assert controller.status()["agent_presence"] == {"status": "inactive"}
         # Browser refresh and daemon readiness probes cannot impersonate agent activity.
         _request(server.port, "GET", "/v1/status", headers={"Cookie": cookie})
-        _request(server.port, "GET", "/internal/v1/status",
-                 headers={"X-ViewSpec-Agent-Capability": server.agent_token})
+        _request(server.port, "GET", "/internal/v1/status", headers={"X-ViewSpec-Agent-Capability": server.agent_token})
         assert controller.status()["agent_presence"] == {"status": "inactive"}
         assert controller.status()["brief"] == prepared["creation"]["brief"]
         assert not (tmp_path / "viewspec.app.json").exists()
@@ -254,8 +271,14 @@ def test_creation_handoff_is_private_and_check_in_expires_without_losing_task(tm
 
 def test_agent_task_command_reuses_validated_task_and_rejects_changed_task(tmp_path) -> None:
     # The public CLI adapter resolves the actual private daemon; no token is returned to the agent.
-    started = open_studio(brief="Build a field dispatch view", kind="view", cwd=tmp_path,
-                          port=_available_port(), state_root=tmp_path / "state", no_open=True)
+    started = open_studio(
+        brief="Build a field dispatch view",
+        kind="view",
+        cwd=tmp_path,
+        port=_available_port(),
+        state_root=tmp_path / "state",
+        no_open=True,
+    )
     try:
         task_bytes = Path(started["paths"]["task"]).read_bytes()
         result = studio_agent_task(cwd=tmp_path, state_root=tmp_path / "state")

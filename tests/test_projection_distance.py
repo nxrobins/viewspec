@@ -41,16 +41,15 @@ _EXPECTED_AXIS_KEYS = {
 
 
 def _all_pairwise() -> dict[tuple[str, str], int]:
-    return {
-        (a, b): profile_projection_distance(a, b)
-        for a, b in combinations(AESTHETIC_PROFILE_TOKENS, 2)
-    }
+    return {(a, b): profile_projection_distance(a, b) for a, b in combinations(AESTHETIC_PROFILE_TOKENS, 2)}
 
 
 def test_every_profile_pair_clears_the_floor():
     for (a, b), dist in _all_pairwise().items():
         if dist < PROJECTION_DISTANCE_FLOOR:
-            same = [k for k in profile_projection_axes(a) if profile_projection_axes(a)[k] == profile_projection_axes(b)[k]]
+            same = [
+                k for k in profile_projection_axes(a) if profile_projection_axes(a)[k] == profile_projection_axes(b)[k]
+            ]
             raise AssertionError(
                 f"{a} <-> {b} distance {dist} < floor {PROJECTION_DISTANCE_FLOOR}; shared axes: {same}"
             )

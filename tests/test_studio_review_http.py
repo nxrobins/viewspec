@@ -2,27 +2,27 @@ from __future__ import annotations
 
 import hashlib
 import json
-from pathlib import Path
 import shutil
 import subprocess
+from pathlib import Path
 from urllib.parse import parse_qs, urlsplit
 
 import pytest
 
-from viewspec.app_starters import starter_app_bundle
 import viewspec.review_compile as review_compile
+import viewspec.studio_review_http as review_http
+from viewspec.app_starters import starter_app_bundle
 from viewspec.review_compile import STUDIO_COMPARE_TARGET
 from viewspec.review_runtime import ReviewRuntime
-import viewspec.studio_review_http as review_http
 from viewspec.studio_review_http import (
-    ReviewHTTPRequest,
     STUDIO_REVIEW_COOKIE_NAME,
     STUDIO_REVIEW_MEDIA_TYPE,
+    ReviewHTTPRequest,
     StudioReviewHTTPAdapter,
 )
+from viewspec.studio_review_internal import authorize_internal_studio_review_upload
 from viewspec.studio_review_service import StudioReviewService
 from viewspec.studio_share import prepare_studio_share
-
 
 _REAL_SUBPROCESS_RUN = review_compile.subprocess.run
 _SIGNING_KEY = b"test-only-studio-review-http-signing-key"
@@ -122,9 +122,7 @@ def _request(
     body: bytes = b"",
     scheme: str = "https",
 ):
-    return adapter.handle(
-        ReviewHTTPRequest(method=method, path=path, headers=headers or {}, body=body, scheme=scheme)
-    )
+    return adapter.handle(ReviewHTTPRequest(method=method, path=path, headers=headers or {}, body=body, scheme=scheme))
 
 
 def _headers(response) -> dict[str, list[str]]:
@@ -184,6 +182,46 @@ def _comment_context(revision: dict[str, object]) -> dict[str, object]:
         "target": {"kind": "node", "id": targets["node"][0]},
         "replay_evidence_ref": None,
     }
+
+
+def test_adapter_discards_client_internal_markers_on_any_transport(private_review) -> None:
+    _adapter, service, archive = private_review
+    adapter = StudioReviewHTTPAdapter(
+        service,
+        public_origin=_ORIGIN,
+        authorize_upload=authorize_internal_studio_review_upload,
+    )
+    create_headers = {
+        "Content-Type": STUDIO_REVIEW_MEDIA_TYPE,
+        "Idempotency-Key": "internal-marker-create-0001",
+        "X-ViewSpec-Disclosure-Accepted": "true",
+        "X-ViewSpec-Expiry-Seconds": "3600",
+    }
+
+    # A raw transport (plain HTTPS server, test harness, ...) forwards client headers
+    # verbatim; the adapter must drop reserved markers in every spelling.
+    for marker in ("x-viewspec-internal-authenticated", "X-ViewSpec-Internal-Authenticated"):
+        forged = _request(
+            adapter,
+            "POST",
+            "/v1/reviews",
+            headers={**create_headers, marker: "true"},
+            body=archive.read_bytes(),
+        )
+        assert forged.status == 401
+        assert forged.json()["error"]["code"] == "STUDIO_REVIEW_UPLOAD_UNAUTHORIZED"
+        assert "vsr_" not in forged.body.decode()
+
+    verified = adapter.handle(
+        ReviewHTTPRequest(
+            method="POST",
+            path="/v1/reviews",
+            headers=create_headers,
+            body=archive.read_bytes(),
+            internal_authenticated=True,
+        )
+    )
+    assert verified.status == 201
 
 
 def test_create_requires_https_upload_identity_and_deliberate_disclosure(private_review) -> None:
@@ -266,9 +304,7 @@ def test_fragment_exchange_is_one_time_and_mints_only_a_scoped_hardened_cookie(p
             "POST",
             f"{urlsplit(created['links']['owner']).path}exchange",
             headers={"Content-Type": "application/json", "Origin": _ORIGIN},
-            body=json.dumps(
-                {"capability": parse_qs(urlsplit(created["links"]["owner"]).fragment)["cap"][0]}
-            ).encode(),
+            body=json.dumps({"capability": parse_qs(urlsplit(created["links"]["owner"]).fragment)["cap"][0]}).encode(),
         )
     )["set-cookie"][0]
     assert exchanged["role"] == "reviewer"
@@ -388,9 +424,7 @@ def test_review_comment_and_owner_approval_keep_roles_and_origin_separate(privat
             "Idempotency-Key": "approve-request-0001",
             "Origin": _ORIGIN,
         },
-        body=json.dumps(
-            {"revision_identity_sha256": revision["session"]["revision_identity_sha256"]}
-        ).encode(),
+        body=json.dumps({"revision_identity_sha256": revision["session"]["revision_identity_sha256"]}).encode(),
     )
     assert reviewer_approval.status == 403
     assert reviewer_approval.json()["error"]["code"] == "STUDIO_REVIEW_ROLE_FORBIDDEN"
@@ -405,9 +439,7 @@ def test_review_comment_and_owner_approval_keep_roles_and_origin_separate(privat
             "Idempotency-Key": "approve-request-0001",
             "Origin": _ORIGIN,
         },
-        body=json.dumps(
-            {"revision_identity_sha256": revision["session"]["revision_identity_sha256"]}
-        ).encode(),
+        body=json.dumps({"revision_identity_sha256": revision["session"]["revision_identity_sha256"]}).encode(),
     )
     assert approval.status == 201
     assert approval.json()["status"] == "approved"
@@ -491,14 +523,17 @@ def test_malformed_transport_inputs_fail_closed_without_reflection(private_revie
 
 def test_upload_and_extraction_use_only_owned_staging(private_review, monkeypatch) -> None:
     import viewspec.studio_review_service as service_module
+
     adapter, service, archive = private_review
     original = service_module.materialize_studio_share_archive
     seen = []
+
     def materialize(path, directory):
         assert Path(path).parent == service.ingress
         assert Path(directory).parent == service.ingress
         seen.append(True)
         return original(path, directory)
+
     monkeypatch.setattr(service_module, "materialize_studio_share_archive", materialize)
     assert _create(adapter, archive).status == 201
     assert seen == [True] and not list(service.ingress.iterdir())

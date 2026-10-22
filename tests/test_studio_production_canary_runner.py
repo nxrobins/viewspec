@@ -1,8 +1,8 @@
 from __future__ import annotations
 
 import json
-from pathlib import Path
 import subprocess
+from pathlib import Path
 
 import pytest
 
@@ -18,7 +18,6 @@ from scripts.run_studio_production_canary import (
     initialize_canary,
     run_canary,
 )
-
 
 RUN_ID = "vsrcan_" + "2" * 32
 BUILD_MANIFEST = {
@@ -390,6 +389,7 @@ def test_invalid_build_input_creates_no_run(tmp_path, mutation):
         manifest.write_text(json.dumps({**BUILD_MANIFEST, **change}))
     root = tmp_path / "canary"
     from scripts.check_studio_production_canary import CanaryError
+
     with pytest.raises((CanaryRunError, CanaryError)):
         initialize_canary(root, driver=driver, deployment_manifest=manifest)
     assert not root.exists()

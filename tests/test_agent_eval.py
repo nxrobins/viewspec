@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-import json
 import hashlib
+import json
 from pathlib import Path
 
 import pytest
@@ -15,7 +15,6 @@ from viewspec.agent_eval import (
     summarize_agent_eval_shakedown_exit,
     summarize_agent_eval_study,
 )
-
 
 PROTOCOL_PATH = Path("conformance/agent-ui-v1/protocol.json")
 VALUE_PROTOCOL_PATH = Path("conformance/agent-ui-v2/protocol.json")
@@ -104,9 +103,7 @@ def test_protocol_rejects_arm_order_drift():
 
 
 def test_checked_in_pilot_result_is_bound_to_the_protocol_and_scoped_as_pilot():
-    result = json.loads(
-        Path("conformance/agent-ui-v1/pilot-result-2026-07-22.json").read_text(encoding="utf-8")
-    )
+    result = json.loads(Path("conformance/agent-ui-v1/pilot-result-2026-07-22.json").read_text(encoding="utf-8"))
 
     assert result["schema_version"] == 1
     assert result["status"] == "pilot_only"
@@ -166,9 +163,7 @@ def test_codex_jsonl_parser_ignores_warnings_and_accounts_for_cache():
                     "id": "cmd-1",
                     "status": "completed",
                     "exit_code": 0,
-                    "command_sha256": hashlib.sha256(
-                        b"sed -n 1,20p /tmp/sites-building/SKILL.md"
-                    ).hexdigest(),
+                    "command_sha256": hashlib.sha256(b"sed -n 1,20p /tmp/sites-building/SKILL.md").hexdigest(),
                     "command_bytes": 41,
                     "output_bytes": 3,
                 }
@@ -259,9 +254,7 @@ def test_value_protocol_rejects_click_and_interactions_in_the_same_step():
         "button": "One",
         "reveals": "First",
     }
-    payload["tasks"][0]["steps"][0]["acceptance"]["interactions"] = [
-        {"button": "Two", "reveals": "Second"}
-    ]
+    payload["tasks"][0]["steps"][0]["acceptance"]["interactions"] = [{"button": "Two", "reveals": "Second"}]
 
     with pytest.raises(ValueError, match="both click and interactions"):
         AgentEvalProtocol.from_json(payload)
@@ -301,9 +294,7 @@ def test_session_summary_records_lifecycle_and_value_evidence():
                 "repaired": True,
             }
         ],
-        "negative_control_trials": [
-            {"id": "control", "applicable": True, "detected": False}
-        ],
+        "negative_control_trials": [{"id": "control", "applicable": True, "detected": False}],
         "target_trials": [
             _target("static", parity=1.0),
             _target("react", parity=0.98),
@@ -586,7 +577,9 @@ def test_value_premium_study_requires_more_value_with_bounded_cost():
     assert proof_failure_report["arms"]["viewspec-deep"]["median_native_proof_pass_rate"] == 1.0
     assert proof_failure_report["arms"]["viewspec-deep"]["pooled_native_proof_pass_rate"] == pytest.approx(5 / 6)
     assert proof_failure_report["arms"]["viewspec-deep"]["pooled_selected_native_proof_pass_rate"] == 1.0
-    assert proof_failure_report["arms"]["viewspec-deep"]["pooled_intermediate_native_proof_detection_rate"] == pytest.approx(1 / 3)
+    assert proof_failure_report["arms"]["viewspec-deep"][
+        "pooled_intermediate_native_proof_detection_rate"
+    ] == pytest.approx(1 / 3)
     assert proof_failure_report["gates"]["results"]["native_proof_health"] is True
     assert proof_failure_report["gates"]["pass"] is True
 
@@ -647,8 +640,7 @@ def test_one_seed_shakedown_exit_is_independent_from_population_value_gates():
             "interaction": {"passed": 3, "total": 3},
         },
         "viewports": [
-            {"viewport": {"width": width}, "layout_fidelity": 0.8, "criteria": []}
-            for width in (390, 768, 1440)
+            {"viewport": {"width": width}, "layout_fidelity": 0.8, "criteria": []} for width in (390, 768, 1440)
         ],
     }
     sessions = []

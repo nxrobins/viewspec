@@ -10,12 +10,12 @@ from __future__ import annotations
 import hashlib
 import json
 import os
-from pathlib import Path, PurePosixPath
 import re
 import shutil
 import stat
 import tempfile
 import zipfile
+from pathlib import Path, PurePosixPath
 
 from viewspec._version import __version__
 from viewspec.local_tools import LocalToolError, resolve_cwd, resolve_local_path
@@ -29,7 +29,6 @@ from viewspec.review_compile import (
 from viewspec.review_contract import ReviewContractError, canonical_json_bytes
 from viewspec.review_runtime import ReviewRuntime, default_review_state_root
 from viewspec.studio import resolve_studio_source
-
 
 STUDIO_SHARE_SCHEMA_VERSION = 1
 STUDIO_SHARE_ROOT_DEFAULT = ".viewspec/studio-share"
@@ -260,7 +259,7 @@ def prepare_studio_share(
             os.rename(candidate, final)
             created_final = final
             candidate = None
-        except OSError:
+        except OSError as exc:
             if not final.exists() and not final.is_symlink():
                 raise
             existing = load_studio_share_package(final)
@@ -270,12 +269,18 @@ def prepare_studio_share(
                     "A different package already occupies this content-addressed share path.",
                     "Inspect or move the conflicting private package; do not overwrite it.",
                     cli_exit=1,
-                )
+                ) from exc
             action = "unchanged"
             shutil.rmtree(candidate)
             candidate = None
         checked = load_studio_share_package(final)
-        assert checked == envelope
+        if checked != envelope:
+            raise StudioShareError(
+                "STUDIO_SHARE_PACKAGE_CONFLICT",
+                "The content-addressed share path does not hold the exact prepared package.",
+                "Inspect or move the conflicting private package; do not overwrite it.",
+                cli_exit=1,
+            )
         archive_path, archive_action = _ensure_share_archive(final)
         if archive_action == "create":
             created_archive = archive_path
@@ -317,7 +322,12 @@ def prepare_studio_share(
             "metadata": {"sdk_version": __version__, "network_calls": "none"},
         }
     except Exception:
-        if candidate is not None and candidate.exists() and candidate.parent == output and candidate.name.startswith(".candidate-"):
+        if (
+            candidate is not None
+            and candidate.exists()
+            and candidate.parent == output
+            and candidate.name.startswith(".candidate-")
+        ):
             shutil.rmtree(candidate)
         if (
             created_final is not None
@@ -439,7 +449,9 @@ def load_studio_share_package(package_dir: str | Path) -> dict[str, object]:
     }
     if actual_payload != expected_payload:
         raise _invalid_package("Prepared package contains an unlisted or missing payload file.")
-    source_payload = _read_json_object(package / STUDIO_SHARE_PAYLOAD_DIR / "source/viewspec.app.json", maximum=MAX_ARTIFACT_BYTES)
+    source_payload = _read_json_object(
+        package / STUDIO_SHARE_PAYLOAD_DIR / "source/viewspec.app.json", maximum=MAX_ARTIFACT_BYTES
+    )
     comparison = _read_json_object(
         package / STUDIO_SHARE_PAYLOAD_DIR / f"artifacts/{STUDIO_COMPARE_MANIFEST}",
         maximum=MAX_ARTIFACT_BYTES,
@@ -447,7 +459,9 @@ def load_studio_share_package(package_dir: str | Path) -> dict[str, object]:
     expected_comparison_identity = _comparison_identity(comparison)
     if any(revision.get(key) != value for key, value in expected_comparison_identity.items()):
         raise _invalid_package("Packaged comparison identities do not match the share revision projection.")
-    inspection_path = comparison.get("inspection", {}).get("path") if isinstance(comparison.get("inspection"), dict) else None
+    inspection_path = (
+        comparison.get("inspection", {}).get("path") if isinstance(comparison.get("inspection"), dict) else None
+    )
     if not isinstance(inspection_path, str):
         raise _invalid_package("Packaged comparison does not declare an inspection path.")
     inspection_entry = next(
@@ -628,11 +642,15 @@ def _ensure_share_archive(package: Path) -> tuple[Path, str]:
 
 def _workspace_path(value: str | Path | None, *, root: Path, must_exist: bool) -> Path:
     if value is None:
-        raise StudioShareError("STUDIO_SHARE_PATH_INVALID", "Required local path is missing.", "Pass a path under the workspace.")
+        raise StudioShareError(
+            "STUDIO_SHARE_PATH_INVALID", "Required local path is missing.", "Pass a path under the workspace."
+        )
     try:
         return resolve_local_path(value, cwd=root, must_exist=must_exist)
     except LocalToolError as exc:
-        raise StudioShareError("STUDIO_SHARE_PATH_INVALID", str(exc), "Use one normal path under the workspace.") from exc
+        raise StudioShareError(
+            "STUDIO_SHARE_PATH_INVALID", str(exc), "Use one normal path under the workspace."
+        ) from exc
 
 
 def _prepare_private_output_root(path: Path, *, workspace: Path) -> None:
@@ -668,7 +686,12 @@ def _copy_payload_file(
 ) -> dict[str, object]:
     safe_path = _safe_archive_path(archive_path)
     before = source.lstat()
-    if source.is_symlink() or not stat.S_ISREG(before.st_mode) or before.st_nlink != 1 or not 0 < before.st_size <= maximum:
+    if (
+        source.is_symlink()
+        or not stat.S_ISREG(before.st_mode)
+        or before.st_nlink != 1
+        or not 0 < before.st_size <= maximum
+    ):
         raise StudioShareError(
             "STUDIO_SHARE_FILE_UNSAFE",
             f"Share input is linked, non-regular, empty, or exceeds {maximum} bytes: {source.name}.",
@@ -781,7 +804,12 @@ def _comparison_identity(comparison: dict[str, object]) -> dict[str, object]:
     routes = comparison.get("routes")
     inspection = comparison.get("inspection")
     targets = comparison.get("targets")
-    if not isinstance(screens, list) or not isinstance(routes, list) or not isinstance(inspection, dict) or not isinstance(targets, list):
+    if (
+        not isinstance(screens, list)
+        or not isinstance(routes, list)
+        or not isinstance(inspection, dict)
+        or not isinstance(targets, list)
+    ):
         raise StudioShareError(
             "STUDIO_SHARE_REVISION_INVALID",
             "Checked Studio comparison identity is incomplete.",
@@ -885,7 +913,11 @@ def _assert_role_path(role: str, path: str, *, media_type: str) -> None:
     elif role == "design_system":
         valid = path == "design/DESIGN.md" and media_type == "text/markdown"
     elif role == "reference_image":
-        valid = path in {"reference/reference.png", "reference/reference.jpg", "reference/reference.webp"} and media_type in {
+        valid = path in {
+            "reference/reference.png",
+            "reference/reference.jpg",
+            "reference/reference.webp",
+        } and media_type in {
             "image/png",
             "image/jpeg",
             "image/webp",
@@ -958,7 +990,8 @@ def _disclosure(files: list[dict[str, object]], *, fixture_field_count: int) -> 
 
 def _disclosure_markdown(envelope: dict[str, object]) -> str:
     disclosure = envelope["disclosure"]
-    assert isinstance(disclosure, dict)
+    if not isinstance(disclosure, dict):
+        raise TypeError("Studio share envelope disclosure must be a mapping.")
     leaving = disclosure["will_leave_machine"]
     excluded = disclosure["will_not_leave_machine"]
     lines = [
@@ -974,7 +1007,8 @@ def _disclosure_markdown(envelope: dict[str, object]) -> str:
         "",
     ]
     for item in leaving:
-        assert isinstance(item, dict)
+        if not isinstance(item, dict):
+            raise TypeError("Studio share disclosure inventory entries must be mappings.")
         details = []
         for key in ("file_count", "field_count", "current_count", "bytes"):
             if key in item:
@@ -1025,7 +1059,9 @@ def _safe_archive_path(value: object) -> str:
     if not isinstance(value, str) or not value or "\x00" in value or "\\" in value:
         raise _invalid_package("Share archive path is invalid.")
     path = PurePosixPath(value)
-    if path.is_absolute() or any(part in {"", ".", ".."} or _SAFE_ARCHIVE_SEGMENT_RE.fullmatch(part) is None for part in path.parts):
+    if path.is_absolute() or any(
+        part in {"", ".", ".."} or _SAFE_ARCHIVE_SEGMENT_RE.fullmatch(part) is None for part in path.parts
+    ):
         raise _invalid_package("Share archive path escapes its bounded payload namespace.")
     return path.as_posix()
 

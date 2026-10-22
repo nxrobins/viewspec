@@ -5,9 +5,10 @@ from __future__ import annotations
 import html
 import json
 import re
+from collections.abc import Callable
 from importlib import resources
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any
 
 from viewspec._version import __version__
 from viewspec.app_diff import _validation_summary
@@ -29,14 +30,14 @@ from viewspec.app_pretext import (
 )
 from viewspec.app_pretext_runtime import PRETEXT_RUNTIME_PATH, generate_pretext_runtime_typescript
 from viewspec.app_resource_repeat import resource_binding_address, resource_repeat_summary
-from viewspec.app_screens import _compile_screen, _screen_ir_overlays_for
+from viewspec.app_screens import _compile_screen, screen_ir_overlays_for
 from viewspec.app_shell import _app_shell_css
 from viewspec.app_state_artifacts import _write_state_artifacts
 from viewspec.app_validation import (
     _app_schema_version,
     _app_summary,
     _resource_binding_report_fields,
-    _route_assertions,
+    route_assertions_for,
 )
 from viewspec.emitters.html_tailwind import OFFLINE_EMITTER_CSS
 from viewspec.local_tools import atomic_write, check_artifact_dir, file_hash
@@ -50,7 +51,6 @@ from viewspec.presentation_plan import (
     presentation_plan_text,
 )
 
-
 REACT_APP_TARGET = "react-tailwind-app"
 REACT_APP_ROUTE_NAVIGATION = "browser_history_v1"
 REACT_APP_MANIFEST = "viewspec_app_manifest.json"
@@ -60,7 +60,7 @@ REACT_APP_MAX_SOURCE_BYTES = 512 * 1024
 REACT_APP_TEMPLATE_PACKAGE = "viewspec.host_verify_template"
 
 
-def _write_react_app(
+def write_react_app(
     payload: dict[str, Any],
     output_dir: Path,
     screen_reports: list[dict[str, Any]],
@@ -184,7 +184,7 @@ def _write_react_app(
         presentation_path=presentation_path,
     )
     route_assertions = {
-        **_route_assertions(payload),
+        **route_assertions_for(payload),
         "browser_history_navigation": True,
         "unknown_route_fallback": True,
     }
@@ -246,7 +246,7 @@ def _compile_react_screens(
     strict_design: bool,
     screen_proof_dir: Path,
 ) -> list[dict[str, Any]]:
-    overlays = _screen_ir_overlays_for(payload)
+    overlays = screen_ir_overlays_for(payload)
     reports: list[dict[str, Any]] = []
     for screen in payload.get("screens", []):
         screen_id = str(screen["id"])
@@ -503,9 +503,7 @@ def _react_app_source(payload: dict[str, Any]) -> str:
         else "const evaluateRuntimeVisibility = (_state: ViewSpecState): Record<string, boolean> => ({});"
     )
     state_text_eval = (
-        "  const stateText = React.useMemo(() => evaluateViewSpecText(state), [state]);"
-        if has_state_text
-        else None
+        "  const stateText = React.useMemo(() => evaluateViewSpecText(state), [state]);" if has_state_text else None
     )
     screen_renderers = _screen_renderers(payload)
     return "\n".join(
@@ -710,7 +708,7 @@ def _react_app_source(payload: dict[str, Any]) -> str:
             '      <header className="vs-app-chrome">',
             '        <div className="vs-app-title-block">',
             '          <p className="vs-app-kicker">ViewSpec App Shell</p>',
-            f"          <h1 id=\"vs-app-title\" className=\"vs-app-title\">{{{_safe_json(str(payload['app']['title']))}}}</h1>",
+            f'          <h1 id="vs-app-title" className="vs-app-title">{{{_safe_json(str(payload["app"]["title"]))}}}</h1>',
             "        </div>",
             '        <nav className="vs-app-nav" aria-label="Application">',
             "          {routes.map((route) => (",
@@ -742,9 +740,7 @@ def _screen_renderers(payload: dict[str, Any]) -> list[str]:
     route_by_screen = {
         str(route["screen_id"]): str(route["path"])
         for route in payload.get("routes", [])
-        if isinstance(route, dict)
-        and isinstance(route.get("screen_id"), str)
-        and isinstance(route.get("path"), str)
+        if isinstance(route, dict) and isinstance(route.get("screen_id"), str) and isinstance(route.get("path"), str)
     }
     visibility_screens = {
         rule.get("screen_id")
@@ -921,13 +917,13 @@ def _react_app_manifest(
         numeric_analysis.update(
             {
                 "state_contract": {
-                    "path": str(state_manifest_path.relative_to(output_dir)),
+                    "path": state_manifest_path.relative_to(output_dir).as_posix(),
                     "sha256": file_hash(state_manifest_path),
                     "contract_hash": state_artifacts["contract_hash"],
                 },
                 "files": [
                     {
-                        "path": str(numeric_path.relative_to(output_dir)),
+                        "path": numeric_path.relative_to(output_dir).as_posix(),
                         "sha256": file_hash(numeric_path),
                         "required_functions": list(numeric_scope["required_functions"]),
                         "function_sha256": numeric_function_hashes(numeric_scope),
@@ -937,7 +933,7 @@ def _react_app_manifest(
                 ],
                 "call_sites": [
                     {
-                        "path": str(reducer_path.relative_to(output_dir)),
+                        "path": reducer_path.relative_to(output_dir).as_posix(),
                         "sha256": file_hash(reducer_path),
                         "required_functions": list(numeric_scope["required_functions"]),
                         "connection": "generated_import_and_call_v1",
@@ -955,7 +951,7 @@ def _react_app_manifest(
         "route_count": len(payload.get("routes", [])),
         "screen_count": len(react_screens),
         "presentation_plan": {
-            "path": str(presentation_path.relative_to(output_dir)),
+            "path": presentation_path.relative_to(output_dir).as_posix(),
             "plan_hash": presentation_plan_hash(presentation_plan),
             "screen_count": len(presentation_plan.get("screens", [])),
             "diagnostics": presentation_plan_diagnostics(presentation_plan),
@@ -979,7 +975,7 @@ def _react_app_manifest(
                     "package_tree": dict(PRETEXT_PACKAGE_TREE),
                     "license": "MIT",
                     "font_family": "Arial",
-                    "runtime_path": str(pretext_runtime_path.relative_to(output_dir)),
+                    "runtime_path": pretext_runtime_path.relative_to(output_dir).as_posix(),
                     "runtime_sha256": file_hash(pretext_runtime_path),
                 }
             }
@@ -989,8 +985,8 @@ def _react_app_manifest(
         "screen_artifacts": [
             {
                 "id": report["id"],
-                "tsx": str(Path(report["paths"]["tsx"]).relative_to(output_dir)),
-                "manifest": str(Path(report["paths"]["manifest"]).relative_to(output_dir)),
+                "tsx": Path(report["paths"]["tsx"]).relative_to(output_dir).as_posix(),
+                "manifest": Path(report["paths"]["manifest"]).relative_to(output_dir).as_posix(),
                 "artifact_hash": report["artifact_hash"],
                 "manifest_hash": report["manifest_hash"],
             }
@@ -1005,7 +1001,7 @@ def _react_app_manifest(
             "side_effects": "typed_callbacks_v1",
             **({"text_layout": PRETEXT_PROFILE} if pretext_runtime_path is not None else {}),
         },
-        "files": [{"path": str(path.relative_to(output_dir)), "sha256": file_hash(path)} for path in file_paths],
+        "files": [{"path": path.relative_to(output_dir).as_posix(), "sha256": file_hash(path)} for path in file_paths],
     }
 
 
@@ -1172,10 +1168,7 @@ def _playwright_test_source(
         "",
         f"const routes = {_safe_json(routes)} as const;",
         f"const proofCases: readonly RuntimeProofCase[] = {_safe_json(proof_cases)};",
-        (
-            "const presentationScreens: readonly PresentationScreen[] = "
-            f"{_safe_json(presentation_screens)};"
-        ),
+        (f"const presentationScreens: readonly PresentationScreen[] = {_safe_json(presentation_screens)};"),
         "const presentationViewports = [",
         '  { id: "compact", width: 390, height: 844 },',
         '  { id: "medium", width: 768, height: 1024 },',
@@ -1344,8 +1337,7 @@ def _playwright_test_source(
             ]
         )
     if any(
-        isinstance(screen, dict) and screen.get("anchors")
-        for screen in (presentation_plan or {}).get("screens", [])
+        isinstance(screen, dict) and screen.get("anchors") for screen in (presentation_plan or {}).get("screens", [])
     ):
         lines.extend(
             [
@@ -1625,7 +1617,9 @@ button, input { font: inherit; }
     if presentation_plan is not None:
         source = source.rstrip() + "\n\n" + presentation_plan_css(presentation_plan) + "\n"
     if pretext:
-        source = source.rstrip() + """
+        source = (
+            source.rstrip()
+            + """
 
 
 /* Measurement-only Pretext profile; production rendering remains target-neutral. */
@@ -1636,6 +1630,7 @@ html[data-viewspec-pretext="1"] body .vs-app-shell .vs-app-main [data-ir-id][dat
   word-break: normal !important;
 }
 """
+        )
     return source
 
 
@@ -1648,11 +1643,14 @@ def _safe_json(value: Any) -> str:
     )
 
 
+# Backward-compatible private alias; write_react_app is the public name.
+_write_react_app = write_react_app
+
 __all__ = [
     "REACT_APP_DIAGNOSTICS",
     "REACT_APP_ENTRY",
     "REACT_APP_MANIFEST",
     "REACT_APP_ROUTE_NAVIGATION",
     "REACT_APP_TARGET",
-    "_write_react_app",
+    "write_react_app",
 ]

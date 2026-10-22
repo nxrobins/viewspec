@@ -7,15 +7,15 @@ so records can be validated and summarized without network access.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 import hashlib
 import json
 import math
-from pathlib import Path
 import re
 import statistics
-from typing import Any, Iterable, Mapping
-
+from collections.abc import Iterable, Mapping
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Any
 
 AGENT_UI_EVAL_SCHEMA_VERSION = 1
 AGENT_UI_EVAL_PROTOCOL_SCHEMA_VERSIONS = (1, 2)
@@ -156,18 +156,14 @@ class AgentEvalStep:
                 raise ValueError(f"text_geometry[{index}].minimum_lines must be a positive integer")
             maximum_lines = item.get("maximum_lines")
             if maximum_lines is not None and (
-                isinstance(maximum_lines, bool)
-                or not isinstance(maximum_lines, int)
-                or maximum_lines < minimum_lines
+                isinstance(maximum_lines, bool) or not isinstance(maximum_lines, int) or maximum_lines < minimum_lines
             ):
                 raise ValueError(
                     f"text_geometry[{index}].maximum_lines must be an integer greater than or equal to minimum_lines"
                 )
             minimum_width_px = item.get("minimum_width_px")
             if minimum_width_px is not None and (
-                isinstance(minimum_width_px, bool)
-                or not isinstance(minimum_width_px, int)
-                or minimum_width_px < 1
+                isinstance(minimum_width_px, bool) or not isinstance(minimum_width_px, int) or minimum_width_px < 1
             ):
                 raise ValueError(f"text_geometry[{index}].minimum_width_px must be a positive integer")
             viewport_width = item.get("viewport_width")
@@ -188,11 +184,7 @@ class AgentEvalStep:
                 **({"viewport_width": viewport_width} if viewport_width is not None else {}),
                 **({"maximum_lines": maximum_lines} if maximum_lines is not None else {}),
                 **({"minimum_width_px": minimum_width_px} if minimum_width_px is not None else {}),
-                **(
-                    {"no_word_fragmentation": no_word_fragmentation}
-                    if "no_word_fragmentation" in item
-                    else {}
-                ),
+                **({"no_word_fragmentation": no_word_fragmentation} if "no_word_fragmentation" in item else {}),
             }
             identity = item.get("identity")
             if identity is not None:
@@ -204,9 +196,7 @@ class AgentEvalStep:
             if resource is not None:
                 resource_data = _mapping(resource, f"text_geometry[{index}].resource")
                 if set(resource_data) != {"field", "record_id"}:
-                    raise ValueError(
-                        f"text_geometry[{index}].resource must contain exactly field and record_id"
-                    )
+                    raise ValueError(f"text_geometry[{index}].resource must contain exactly field and record_id")
                 rendered_geometry["resource"] = {
                     "field": _nonempty_text(
                         resource_data.get("field"),
@@ -407,16 +397,12 @@ class AgentEvalProtocol:
         }
         unexpected_criteria = sorted(set(raw_criteria) - set(expected_criteria))
         if unexpected_criteria:
-            raise ValueError(
-                f"agent eval success_criteria has unexpected keys: {unexpected_criteria}"
-            )
+            raise ValueError(f"agent eval success_criteria has unexpected keys: {unexpected_criteria}")
         for key in expected_criteria:
             value = raw_criteria.get(key)
             maximum = 100 if key in count_keys else (10 if key in premium_keys else 1)
             if isinstance(value, bool) or not isinstance(value, (int, float)) or not 0 <= value <= maximum:
-                raise ValueError(
-                    f"agent eval success_criteria.{key} must be between 0 and {maximum}"
-                )
+                raise ValueError(f"agent eval success_criteria.{key} must be between 0 and {maximum}")
             criteria[key] = float(value)
         primary_arm = data.get("primary_arm", "viewspec-deep")
         if primary_arm not in AGENT_UI_EVAL_ARMS or primary_arm == "code-first":
@@ -426,9 +412,7 @@ class AgentEvalProtocol:
             raise ValueError("agent eval minimum_sessions_per_arm must be a positive integer")
         raw_study_design = data.get("study_design")
         study_design = (
-            dict(_mapping(raw_study_design, "agent eval study_design"))
-            if raw_study_design is not None
-            else None
+            dict(_mapping(raw_study_design, "agent eval study_design")) if raw_study_design is not None else None
         )
         raw_qualification = data.get("qualification")
         if schema_version == 1:
@@ -436,9 +420,7 @@ class AgentEvalProtocol:
                 raise ValueError("agent eval protocol schema_version 1 cannot define qualification")
             qualification = None
         else:
-            qualification = dict(
-                _mapping(raw_qualification, "agent eval qualification")
-            )
+            qualification = dict(_mapping(raw_qualification, "agent eval qualification"))
             expected_qualification_keys = {
                 "max_turns_per_arm",
                 "trigger",
@@ -447,18 +429,10 @@ class AgentEvalProtocol:
                 "cost_accounting",
             }
             if set(qualification) != expected_qualification_keys:
-                raise ValueError(
-                    "agent eval qualification must define the exact V2.2 contract"
-                )
+                raise ValueError("agent eval qualification must define the exact V2.2 contract")
             max_turns = qualification.get("max_turns_per_arm")
-            if (
-                isinstance(max_turns, bool)
-                or not isinstance(max_turns, int)
-                or not 1 <= max_turns <= 5
-            ):
-                raise ValueError(
-                    "agent eval qualification.max_turns_per_arm must be between 1 and 5"
-                )
+            if isinstance(max_turns, bool) or not isinstance(max_turns, int) or not 1 <= max_turns <= 5:
+                raise ValueError("agent eval qualification.max_turns_per_arm must be between 1 and 5")
             expected_values = {
                 "trigger": "post-lifecycle-ineligible-or-layout-miss",
                 "feedback": "compact-evaluator-only",
@@ -566,14 +540,10 @@ def parse_codex_jsonl(text: str) -> dict[str, Any]:
         elif event["type"] == "turn.completed":
             raw_usage = event.get("usage")
             if isinstance(raw_usage, dict):
-                usage = {
-                    key: _nonnegative_int(raw_usage.get(key, 0), f"Codex usage.{key}")
-                    for key in TOKEN_KEYS
-                }
+                usage = {key: _nonnegative_int(raw_usage.get(key, 0), f"Codex usage.{key}") for key in TOKEN_KEYS}
             completed = True
     command_failures = sum(
-        command.get("status") != "completed" or command.get("exit_code") not in (0, None)
-        for command in commands
+        command.get("status") != "completed" or command.get("exit_code") not in (0, None) for command in commands
     )
     return {
         "thread_id": thread_id,
@@ -628,14 +598,18 @@ def _functional_fraction(score: Mapping[str, Any]) -> float:
 
 def _layout_fidelity_value(score: Mapping[str, Any]) -> float:
     viewports = score.get("viewports")
-    values = [
-        float(viewport["layout_fidelity"])
-        for viewport in viewports
-        if isinstance(viewport, Mapping)
-        and isinstance(viewport.get("layout_fidelity"), (int, float))
-        and not isinstance(viewport.get("layout_fidelity"), bool)
-        and math.isfinite(viewport["layout_fidelity"])
-    ] if isinstance(viewports, list) else []
+    values = (
+        [
+            float(viewport["layout_fidelity"])
+            for viewport in viewports
+            if isinstance(viewport, Mapping)
+            and isinstance(viewport.get("layout_fidelity"), (int, float))
+            and not isinstance(viewport.get("layout_fidelity"), bool)
+            and math.isfinite(viewport["layout_fidelity"])
+        ]
+        if isinstance(viewports, list)
+        else []
+    )
     if values:
         return min(values)
     value = _dimension_facts(score).get("layout_fidelity", {}).get("score")
@@ -724,11 +698,7 @@ def _value_evidence_summary(payload: Any) -> dict[str, Any]:
     targets = [dict(item) for item in raw_targets]
     applicable_mutations = [item for item in mutations if item.get("applicable", True) is True]
     detected_mutations = [item for item in applicable_mutations if item.get("detected") is True]
-    repairable_mutations = [
-        item
-        for item in detected_mutations
-        if item.get("repair_applicable", True) is True
-    ]
+    repairable_mutations = [item for item in detected_mutations if item.get("repair_applicable", True) is True]
     repaired_values = [item.get("repaired") for item in repairable_mutations]
     repair_rate = (
         sum(value is True for value in repaired_values) / len(repaired_values)
@@ -737,11 +707,7 @@ def _value_evidence_summary(payload: Any) -> dict[str, Any]:
     )
     applicable_targets = [item for item in targets if item.get("applicable", True) is True]
     raw_artifact_integrity = data.get("artifact_integrity", {})
-    artifact_integrity = (
-        dict(raw_artifact_integrity)
-        if isinstance(raw_artifact_integrity, Mapping)
-        else {}
-    )
+    artifact_integrity = dict(raw_artifact_integrity) if isinstance(raw_artifact_integrity, Mapping) else {}
     missing_artifacts = artifact_integrity.get("missing", [])
     artifact_errors = artifact_integrity.get("errors", [])
     artifact_integrity_complete = (
@@ -758,10 +724,7 @@ def _value_evidence_summary(payload: Any) -> dict[str, Any]:
 
     def unit_interval(value: Any) -> bool:
         return (
-            isinstance(value, (int, float))
-            and not isinstance(value, bool)
-            and math.isfinite(value)
-            and 0 <= value <= 1
+            isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(value) and 0 <= value <= 1
         )
 
     mutation_fields = {
@@ -826,23 +789,15 @@ def _value_evidence_summary(payload: Any) -> dict[str, Any]:
             )
         return False
 
-    mutation_records_complete = all(
-        structurally_complete(item, mutation_fields) for item in mutations
-    )
-    control_records_complete = all(
-        structurally_complete(item, control_fields) for item in controls
-    )
-    target_records_complete = all(
-        target_fields <= set(item) for item in applicable_targets
-    )
+    mutation_records_complete = all(structurally_complete(item, mutation_fields) for item in mutations)
+    control_records_complete = all(structurally_complete(item, control_fields) for item in controls)
+    target_records_complete = all(target_fields <= set(item) for item in applicable_targets)
     repair_records_complete = all(
         not item.get("repair_applicable")
         or {"repaired", "repaired_sha256", "repair_usage", "repair_wall_time_ms"} <= set(item)
         for item in applicable_mutations
     )
-    trial_artifact_manifests_complete = all(
-        artifact_manifest_complete(item) for item in [*mutations, *controls]
-    )
+    trial_artifact_manifests_complete = all(artifact_manifest_complete(item) for item in [*mutations, *controls])
     structural_complete = (
         bool(mutations or controls or targets)
         and mutation_records_complete
@@ -886,25 +841,17 @@ def _value_evidence_summary(payload: Any) -> dict[str, Any]:
 
     complete_targets = [item for item in applicable_targets if target_evidence_complete(item)]
     cross_target_evidence_complete = (
-        bool(targets)
-        and len(applicable_targets) == len(targets)
-        and len(complete_targets) == len(targets)
+        bool(targets) and len(applicable_targets) == len(targets) and len(complete_targets) == len(targets)
     )
     parity_values = [float(item["parity"]) for item in complete_targets]
-    substantive_complete = (
-        structural_complete
-        and mutation_evidence_complete
-        and cross_target_evidence_complete
-    )
+    substantive_complete = structural_complete and mutation_evidence_complete and cross_target_evidence_complete
     return {
         "structural_evidence_complete": structural_complete,
         "evidence_complete": substantive_complete,
         "artifact_integrity": {
             "checked": artifact_integrity.get("checked") is True,
             "complete": artifact_integrity_complete,
-            "declared_reference_count": artifact_integrity.get(
-                "declared_reference_count", 0
-            ),
+            "declared_reference_count": artifact_integrity.get("declared_reference_count", 0),
             "missing": missing_artifacts if isinstance(missing_artifacts, list) else [],
             "errors": artifact_errors if isinstance(artifact_errors, list) else [],
         },
@@ -922,9 +869,7 @@ def _value_evidence_summary(payload: Any) -> dict[str, Any]:
                 [item for item in controls if item.get("applicable", True) is True]
             ),
             "false_positive_count": sum(
-                item.get("detected") is True
-                for item in controls
-                if item.get("applicable", True) is True
+                item.get("detected") is True for item in controls if item.get("applicable", True) is True
             ),
             "false_positive_rate": _trial_rate(controls, "detected"),
         },
@@ -935,9 +880,7 @@ def _value_evidence_summary(payload: Any) -> dict[str, Any]:
             "complete_count": len(complete_targets),
             "passed_count": sum(item.get("passed") is True for item in applicable_targets),
             "pass_rate": _trial_rate(targets, "passed"),
-            "minimum_parity": (
-                min(parity_values) if cross_target_evidence_complete else None
-            ),
+            "minimum_parity": (min(parity_values) if cross_target_evidence_complete else None),
         },
     }
 
@@ -956,9 +899,7 @@ def summarize_agent_eval_session(payload: Any) -> dict[str, Any]:
     if not isinstance(raw_qualification_turns, list):
         raise ValueError("agent eval session qualification_turns must be an array")
     raw_turns = [*raw_lifecycle_turns, *raw_qualification_turns]
-    selected_turn: Mapping[str, Any] = _mapping(
-        raw_turns[-1], "agent eval selected turn"
-    )
+    selected_turn: Mapping[str, Any] = _mapping(raw_turns[-1], "agent eval selected turn")
     selected_turn_ref: dict[str, Any] | None = None
     qualification = data.get("qualification")
     if isinstance(qualification, Mapping):
@@ -1033,9 +974,8 @@ def summarize_agent_eval_session(payload: Any) -> dict[str, Any]:
             totals[key] += value
             if key in lifecycle:
                 lifecycle[key] += value
-        lifecycle["total_tokens"] += (
-            _nonnegative_int(usage.get("input_tokens", 0), "input_tokens")
-            + _nonnegative_int(usage.get("output_tokens", 0), "output_tokens")
+        lifecycle["total_tokens"] += _nonnegative_int(usage.get("input_tokens", 0), "input_tokens") + _nonnegative_int(
+            usage.get("output_tokens", 0), "output_tokens"
         )
         wall_ms = _nonnegative_int(turn.get("wall_time_ms", 0), f"agent eval turn {index} wall_time_ms")
         proof_ms = _nonnegative_int(turn.get("deterministic_ms", 0), f"agent eval turn {index} deterministic_ms")
@@ -1105,11 +1045,7 @@ def summarize_agent_eval_session(payload: Any) -> dict[str, Any]:
                 regression_repair_turns.append(index - started)
         previous_states = current_states
     raw_value_evidence = data.get("value_evidence")
-    value_evidence = (
-        _mapping(raw_value_evidence, "agent eval value_evidence")
-        if raw_value_evidence is not None
-        else {}
-    )
+    value_evidence = _mapping(raw_value_evidence, "agent eval value_evidence") if raw_value_evidence is not None else {}
     raw_repair_turns = value_evidence.get("repair_turns", [])
     if not isinstance(raw_repair_turns, list):
         raise ValueError("agent eval value_evidence.repair_turns must be an array")
@@ -1142,9 +1078,8 @@ def summarize_agent_eval_session(payload: Any) -> dict[str, Any]:
             repair_totals[key] += value
             if key in repair_activity:
                 repair_activity[key] += value
-        repair_tokens = (
-            _nonnegative_int(usage.get("input_tokens", 0), "repair input_tokens")
-            + _nonnegative_int(usage.get("output_tokens", 0), "repair output_tokens")
+        repair_tokens = _nonnegative_int(usage.get("input_tokens", 0), "repair input_tokens") + _nonnegative_int(
+            usage.get("output_tokens", 0), "repair output_tokens"
         )
         repair_activity["total_tokens"] += repair_tokens
         repair_wall = _nonnegative_int(
@@ -1181,50 +1116,46 @@ def summarize_agent_eval_session(payload: Any) -> dict[str, Any]:
     uncached = max(0, totals["input_tokens"] - totals["cached_input_tokens"])
     billable = uncached + totals["cache_write_input_tokens"]
     repair_token_count = repair_totals["input_tokens"] + repair_totals["output_tokens"]
-    iteration_tokens = sum(
-        _nonnegative_int(_mapping(turn.get("usage"), "turn usage").get("input_tokens", 0), "input_tokens")
-        + _nonnegative_int(_mapping(turn.get("usage"), "turn usage").get("output_tokens", 0), "output_tokens")
-        for turn in raw_turns[1:]
-    ) + repair_token_count
-    iteration_model_wall_ms = sum(
-        _nonnegative_int(turn.get("wall_time_ms", 0), "iteration wall_time_ms")
-        for turn in parsed_turns[1:]
-    ) + repair_model_wall_ms
-    iteration_deterministic_ms = sum(
-        _nonnegative_int(turn.get("deterministic_ms", 0), "iteration deterministic_ms")
-        for turn in parsed_turns[1:]
-    ) + deterministic_overhead_ms
+    iteration_tokens = (
+        sum(
+            _nonnegative_int(_mapping(turn.get("usage"), "turn usage").get("input_tokens", 0), "input_tokens")
+            + _nonnegative_int(_mapping(turn.get("usage"), "turn usage").get("output_tokens", 0), "output_tokens")
+            for turn in raw_turns[1:]
+        )
+        + repair_token_count
+    )
+    iteration_model_wall_ms = (
+        sum(_nonnegative_int(turn.get("wall_time_ms", 0), "iteration wall_time_ms") for turn in parsed_turns[1:])
+        + repair_model_wall_ms
+    )
+    iteration_deterministic_ms = (
+        sum(
+            _nonnegative_int(turn.get("deterministic_ms", 0), "iteration deterministic_ms") for turn in parsed_turns[1:]
+        )
+        + deterministic_overhead_ms
+    )
     selected_score = _mapping(selected_turn.get("score", {}), "final selected score")
     final_dimensions = _dimension_facts(selected_score)
-    final_layout_fidelity = _layout_fidelity_value(
-        selected_score
+    final_layout_fidelity = _layout_fidelity_value(selected_score)
+    evolution_phases = {name: values for name, values in lifecycle_totals.items() if name != "establishment"}
+    evolution_tokens = (
+        sum(values["total_tokens"] for name, values in evolution_phases.items() if name != "repair_trials")
+        + repair_token_count
     )
-    evolution_phases = {
-        name: values for name, values in lifecycle_totals.items() if name != "establishment"
-    }
-    evolution_tokens = sum(
-        values["total_tokens"]
-        for name, values in evolution_phases.items()
-        if name != "repair_trials"
-    ) + repair_token_count
-    evolution_model_wall_ms = sum(
-        values["model_wall_ms"]
-        for name, values in evolution_phases.items()
-        if name != "repair_trials"
-    ) + repair_model_wall_ms
-    evolution_deterministic_ms = sum(
-        values["deterministic_ms"]
-        for name, values in evolution_phases.items()
-        if name != "repair_trials"
-    ) + deterministic_overhead_ms
+    evolution_model_wall_ms = (
+        sum(values["model_wall_ms"] for name, values in evolution_phases.items() if name != "repair_trials")
+        + repair_model_wall_ms
+    )
+    evolution_deterministic_ms = (
+        sum(values["deterministic_ms"] for name, values in evolution_phases.items() if name != "repair_trials")
+        + deterministic_overhead_ms
+    )
     qualification_activity = lifecycle_totals.get("qualification", {})
     qualification_tokens = qualification_activity.get("total_tokens", 0)
     qualification_model_wall_ms = qualification_activity.get("model_wall_ms", 0)
     qualification_deterministic_ms = qualification_activity.get("deterministic_ms", 0)
     selected_native_proof = _proof_summary([selected_turn])
-    intermediate_native_proof = _proof_summary(
-        [turn for turn in parsed_turns if turn is not selected_turn]
-    )
+    intermediate_native_proof = _proof_summary([turn for turn in parsed_turns if turn is not selected_turn])
     return {
         "schema_version": AGENT_UI_EVAL_SCHEMA_VERSION,
         "protocol_id": data.get("protocol_id"),
@@ -1330,10 +1261,8 @@ def summarize_agent_eval_shakedown_exit(
 ) -> dict[str, Any]:
     payloads = [_mapping(item, "agent eval shakedown session") for item in sessions]
     summaries = [summarize_agent_eval_session(item) for item in payloads]
-    by_arm = {summary["arm_id"]: (payload, summary) for payload, summary in zip(payloads, summaries)}
-    exact_arm_set = len(payloads) == len(AGENT_UI_EVAL_ARMS) and set(by_arm) == set(
-        AGENT_UI_EVAL_ARMS
-    )
+    by_arm = {summary["arm_id"]: (payload, summary) for payload, summary in zip(payloads, summaries, strict=True)}
+    exact_arm_set = len(payloads) == len(AGENT_UI_EVAL_ARMS) and set(by_arm) == set(AGENT_UI_EVAL_ARMS)
     seeds = {summary.get("seed") for summary in summaries}
     models = {summary.get("model") for summary in summaries}
     protocols = {summary.get("protocol_id") for summary in summaries}
@@ -1355,21 +1284,15 @@ def summarize_agent_eval_shakedown_exit(
         targets = evidence.get("target_trials")
         targets = targets if isinstance(targets, list) else []
         target_by_id = {
-            item.get("id"): item
-            for item in targets
-            if isinstance(item, Mapping) and isinstance(item.get("id"), str)
+            item.get("id"): item for item in targets if isinstance(item, Mapping) and isinstance(item.get("id"), str)
         }
         required_targets = [target_by_id.get("static-shell"), target_by_id.get("native-react")]
         target_builds = all(
-            isinstance(item, Mapping)
-            and isinstance(item.get("build"), Mapping)
-            and item["build"].get("ok") is True
+            isinstance(item, Mapping) and isinstance(item.get("build"), Mapping) and item["build"].get("ok") is True
             for item in required_targets
         )
         target_functional = all(
-            isinstance(item, Mapping)
-            and item.get("functional_acceptance") == 1.0
-            and item.get("passed") is True
+            isinstance(item, Mapping) and item.get("functional_acceptance") == 1.0 and item.get("passed") is True
             for item in required_targets
         )
         layout_minimum = success_criteria["minimum_layout_fidelity"]
@@ -1384,35 +1307,24 @@ def summarize_agent_eval_shakedown_exit(
             isinstance(item, Mapping)
             and isinstance(item.get("parity_by_viewport"), Mapping)
             and set(item["parity_by_viewport"]) == {"390", "768", "1440"}
-            and all(
-                finite_number(value) and value >= parity_minimum
-                for value in item["parity_by_viewport"].values()
-            )
+            and all(finite_number(value) and value >= parity_minimum for value in item["parity_by_viewport"].values())
             for item in required_targets
         )
         selected_proof = summary["selected_native_proof"]
-        selected_proof_healthy = (
-            selected_proof["proof_turn_count"] == 1
-            and selected_proof["passed_turn_count"] == 1
-        )
+        selected_proof_healthy = selected_proof["proof_turn_count"] == 1 and selected_proof["passed_turn_count"] == 1
         deep_integrations_healthy = True
         if arm == "viewspec-deep":
             deep_integrations_healthy = all(
-                selected_proof["analyses"][name].get("passed") == 1
-                for name in ("freerange", "pretext")
+                selected_proof["analyses"][name].get("passed") == 1 for name in ("freerange", "pretext")
             )
         mutation_hashes_complete = all(
             isinstance(item, Mapping)
             and all(
-                isinstance(item.get(key), str) and len(item[key]) == 64
-                for key in ("baseline_sha256", "mutated_sha256")
+                isinstance(item.get(key), str) and len(item[key]) == 64 for key in ("baseline_sha256", "mutated_sha256")
             )
             and (
                 item.get("repair_applicable") is not True
-                or (
-                    isinstance(item.get("repaired_sha256"), str)
-                    and len(item["repaired_sha256"]) == 64
-                )
+                or (isinstance(item.get("repaired_sha256"), str) and len(item["repaired_sha256"]) == 64)
             )
             for item in mutations
         )
@@ -1420,13 +1332,9 @@ def summarize_agent_eval_shakedown_exit(
             "session_present": True,
             "final_functional_acceptance": summary["final_functional_acceptance"] == 1.0,
             "final_reference_layout": (
-                finite_number(summary["final_layout_fidelity"])
-                and summary["final_layout_fidelity"] >= layout_minimum
+                finite_number(summary["final_layout_fidelity"]) and summary["final_layout_fidelity"] >= layout_minimum
             ),
-            "target_count_and_identity": (
-                len(targets) == 2
-                and set(target_by_id) == {"static-shell", "native-react"}
-            ),
+            "target_count_and_identity": (len(targets) == 2 and set(target_by_id) == {"static-shell", "native-react"}),
             "target_builds": target_builds,
             "target_functional_acceptance": target_functional,
             "target_reference_layout": target_layout,
@@ -1483,9 +1391,7 @@ def summarize_agent_eval_study(
     evaluation_mode: str | None = None,
     primary_arm: str = "viewspec-deep",
 ) -> dict[str, Any]:
-    mode = evaluation_mode or (
-        "value_premium" if "maximum_total_token_premium" in success_criteria else "efficiency"
-    )
+    mode = evaluation_mode or ("value_premium" if "maximum_total_token_premium" in success_criteria else "efficiency")
     if mode not in AGENT_UI_EVAL_MODES:
         raise ValueError(f"agent eval evaluation_mode must be one of {list(AGENT_UI_EVAL_MODES)}")
     if primary_arm not in AGENT_UI_EVAL_ARMS or primary_arm == "code-first":
@@ -1503,103 +1409,61 @@ def summarize_agent_eval_study(
             if item["native_proof"]["proof_turn_count"]
         ]
         selected_proof_rates = [
-            item["selected_native_proof"]["passed_turn_count"]
-            / item["selected_native_proof"]["proof_turn_count"]
+            item["selected_native_proof"]["passed_turn_count"] / item["selected_native_proof"]["proof_turn_count"]
             for item in items
             if item["selected_native_proof"]["proof_turn_count"]
         ]
         mutation_detection_rates = [
-            value
-            for item in items
-            if (value := item["value_evidence"]["mutation"]["detection_rate"]) is not None
+            value for item in items if (value := item["value_evidence"]["mutation"]["detection_rate"]) is not None
         ]
         mutation_repair_rates = [
-            value
-            for item in items
-            if (value := item["value_evidence"]["mutation"]["repair_rate"]) is not None
+            value for item in items if (value := item["value_evidence"]["mutation"]["repair_rate"]) is not None
         ]
         mutation_false_positive_rates = [
-            value
-            for item in items
-            if (value := item["value_evidence"]["mutation"]["false_positive_rate"]) is not None
+            value for item in items if (value := item["value_evidence"]["mutation"]["false_positive_rate"]) is not None
         ]
         cross_target_pass_rates = [
-            value
-            for item in items
-            if (value := item["value_evidence"]["cross_target"]["pass_rate"]) is not None
+            value for item in items if (value := item["value_evidence"]["cross_target"]["pass_rate"]) is not None
         ]
         cross_target_evidence_complete = bool(items) and all(
-            item["value_evidence"]["cross_target"]["evidence_complete"]
-            for item in items
+            item["value_evidence"]["cross_target"]["evidence_complete"] for item in items
         )
         cross_target_parities = (
-            [
-                item["value_evidence"]["cross_target"]["minimum_parity"]
-                for item in items
-            ]
+            [item["value_evidence"]["cross_target"]["minimum_parity"] for item in items]
             if cross_target_evidence_complete
             else []
         )
         proof_passed = sum(item["native_proof"]["passed_turn_count"] for item in items)
         proof_total = sum(item["native_proof"]["proof_turn_count"] for item in items)
-        selected_proof_passed = sum(
-            item["selected_native_proof"]["passed_turn_count"] for item in items
-        )
-        selected_proof_total = sum(
-            item["selected_native_proof"]["proof_turn_count"] for item in items
-        )
+        selected_proof_passed = sum(item["selected_native_proof"]["passed_turn_count"] for item in items)
+        selected_proof_total = sum(item["selected_native_proof"]["proof_turn_count"] for item in items)
         intermediate_proof_failed = sum(
-            item["intermediate_native_proof_activity"]["failed_turn_count"]
-            for item in items
+            item["intermediate_native_proof_activity"]["failed_turn_count"] for item in items
         )
-        intermediate_proof_total = sum(
-            item["intermediate_native_proof_activity"]["proof_turn_count"]
-            for item in items
-        )
-        mutation_applicable = sum(
-            item["value_evidence"]["mutation"]["applicable_count"] for item in items
-        )
-        mutation_detected = sum(
-            item["value_evidence"]["mutation"]["detected_count"] for item in items
-        )
-        mutation_repaired = sum(
-            item["value_evidence"]["mutation"]["repaired_count"] for item in items
-        )
+        intermediate_proof_total = sum(item["intermediate_native_proof_activity"]["proof_turn_count"] for item in items)
+        mutation_applicable = sum(item["value_evidence"]["mutation"]["applicable_count"] for item in items)
+        mutation_detected = sum(item["value_evidence"]["mutation"]["detected_count"] for item in items)
+        mutation_repaired = sum(item["value_evidence"]["mutation"]["repaired_count"] for item in items)
         mutation_repair_applicable = sum(
             item["value_evidence"]["mutation"]["repair_applicable_count"] for item in items
         )
         negative_controls = sum(
-            item["value_evidence"]["mutation"]["applicable_negative_control_count"]
-            for item in items
+            item["value_evidence"]["mutation"]["applicable_negative_control_count"] for item in items
         )
-        false_positives = sum(
-            item["value_evidence"]["mutation"]["false_positive_count"] for item in items
-        )
-        target_applicable = sum(
-            item["value_evidence"]["cross_target"]["applicable_count"] for item in items
-        )
-        target_passed = sum(
-            item["value_evidence"]["cross_target"]["passed_count"] for item in items
-        )
+        false_positives = sum(item["value_evidence"]["mutation"]["false_positive_count"] for item in items)
+        target_applicable = sum(item["value_evidence"]["cross_target"]["applicable_count"] for item in items)
+        target_passed = sum(item["value_evidence"]["cross_target"]["passed_count"] for item in items)
         arms[arm] = {
             "session_count": len(items),
             "median_final_acceptance": _median(item["final_acceptance"] for item in items),
-            "median_final_functional_acceptance": _median(
-                item["final_functional_acceptance"] for item in items
-            ),
-            "median_final_layout_fidelity": _median(
-                item["final_layout_fidelity"] for item in items
-            ),
+            "median_final_functional_acceptance": _median(item["final_functional_acceptance"] for item in items),
+            "median_final_layout_fidelity": _median(item["final_layout_fidelity"] for item in items),
             "median_total_tokens": _median(item["tokens"]["total_tokens"] for item in items),
             "median_iteration_tokens": _median(item["tokens"]["iteration_tokens"] for item in items),
             "median_evolution_tokens": _median(item["tokens"]["evolution_tokens"] for item in items),
             "median_total_wall_ms": _median(item["timing"]["total_wall_ms"] for item in items),
-            "median_iteration_wall_ms": _median(
-                item["timing"]["iteration_total_wall_ms"] for item in items
-            ),
-            "median_evolution_wall_ms": _median(
-                item["timing"]["evolution_total_wall_ms"] for item in items
-            ),
+            "median_iteration_wall_ms": _median(item["timing"]["iteration_total_wall_ms"] for item in items),
+            "median_evolution_wall_ms": _median(item["timing"]["evolution_total_wall_ms"] for item in items),
             "median_regressions": _median(item["regression_count"] for item in items),
             "median_unresolved_regressions": _median(
                 item["durability"]["unresolved_regression_count"] for item in items
@@ -1614,14 +1478,10 @@ def summarize_agent_eval_study(
             "pooled_native_proof_pass_rate": proof_passed / proof_total if proof_total else None,
             "median_selected_native_proof_pass_rate": _median(selected_proof_rates),
             "pooled_selected_native_proof_pass_rate": (
-                selected_proof_passed / selected_proof_total
-                if selected_proof_total
-                else None
+                selected_proof_passed / selected_proof_total if selected_proof_total else None
             ),
             "pooled_intermediate_native_proof_detection_rate": (
-                intermediate_proof_failed / intermediate_proof_total
-                if intermediate_proof_total
-                else None
+                intermediate_proof_failed / intermediate_proof_total if intermediate_proof_total else None
             ),
             "median_mutation_detection_rate": _median(mutation_detection_rates),
             "median_mutation_repair_rate": _median(mutation_repair_rates),
@@ -1630,59 +1490,36 @@ def summarize_agent_eval_study(
                 mutation_detected / mutation_applicable if mutation_applicable else None
             ),
             "pooled_mutation_repair_rate": (
-                mutation_repaired / mutation_repair_applicable
-                if mutation_repair_applicable
-                else None
+                mutation_repaired / mutation_repair_applicable if mutation_repair_applicable else None
             ),
-            "evidence_complete": all(
-                item["value_evidence"]["evidence_complete"] for item in items
-            ) if items else False,
+            "evidence_complete": all(item["value_evidence"]["evidence_complete"] for item in items) if items else False,
             "structural_evidence_complete": all(
                 item["value_evidence"]["structural_evidence_complete"] for item in items
-            ) if items else False,
-            "mutation_evidence_complete": all(
-                item["value_evidence"]["mutation"]["evidence_complete"] for item in items
-            ) if items else False,
+            )
+            if items
+            else False,
+            "mutation_evidence_complete": all(item["value_evidence"]["mutation"]["evidence_complete"] for item in items)
+            if items
+            else False,
             "cross_target_evidence_complete": cross_target_evidence_complete,
-            "pooled_mutation_false_positive_rate": (
-                false_positives / negative_controls if negative_controls else None
-            ),
+            "pooled_mutation_false_positive_rate": (false_positives / negative_controls if negative_controls else None),
             "minimum_mutation_trials_per_session": (
-                min(
-                    item["value_evidence"]["mutation"]["applicable_count"]
-                    for item in items
-                )
-                if items
-                else None
+                min(item["value_evidence"]["mutation"]["applicable_count"] for item in items) if items else None
             ),
             "minimum_negative_control_trials_per_session": (
-                min(
-                    item["value_evidence"]["mutation"]["applicable_negative_control_count"]
-                    for item in items
-                )
+                min(item["value_evidence"]["mutation"]["applicable_negative_control_count"] for item in items)
                 if items
                 else None
             ),
             "median_cross_target_pass_rate": _median(cross_target_pass_rates),
             "median_cross_target_minimum_parity": _median(cross_target_parities),
-            "pooled_cross_target_pass_rate": (
-                target_passed / target_applicable if target_applicable else None
-            ),
-            "minimum_cross_target_parity": (
-                min(cross_target_parities) if cross_target_parities else None
-            ),
+            "pooled_cross_target_pass_rate": (target_passed / target_applicable if target_applicable else None),
+            "minimum_cross_target_parity": (min(cross_target_parities) if cross_target_parities else None),
             "minimum_target_trials_per_session": (
-                min(
-                    item["value_evidence"]["cross_target"]["complete_count"]
-                    for item in items
-                )
-                if items
-                else None
+                min(item["value_evidence"]["cross_target"]["complete_count"] for item in items) if items else None
             ),
             "median_command_count": _median(item["tool_activity"]["command_count"] for item in items),
-            "median_command_output_bytes": _median(
-                item["tool_activity"]["command_output_bytes"] for item in items
-            ),
+            "median_command_output_bytes": _median(item["tool_activity"]["command_output_bytes"] for item in items),
             "median_source_added_lines": _median(item["source_activity"]["added_lines"] for item in items),
         }
     baseline = arms["code-first"]
@@ -1692,8 +1529,7 @@ def summarize_agent_eval_study(
         comparisons[arm] = {
             "acceptance_delta": (
                 candidate["median_final_acceptance"] - baseline["median_final_acceptance"]
-                if candidate["median_final_acceptance"] is not None
-                and baseline["median_final_acceptance"] is not None
+                if candidate["median_final_acceptance"] is not None and baseline["median_final_acceptance"] is not None
                 else None
             ),
             "token_reduction": _reduction(baseline["median_total_tokens"], candidate["median_total_tokens"]),
@@ -1705,9 +1541,7 @@ def summarize_agent_eval_study(
             ),
             "iteration_speedup": _reduction(baseline["median_total_wall_ms"], candidate["median_total_wall_ms"]),
             "regression_reduction": _reduction(baseline["median_regressions"], candidate["median_regressions"]),
-            "total_token_premium": _premium(
-                baseline["median_total_tokens"], candidate["median_total_tokens"]
-            ),
+            "total_token_premium": _premium(baseline["median_total_tokens"], candidate["median_total_tokens"]),
             "evolution_token_premium": _premium(
                 baseline["median_evolution_tokens"], candidate["median_evolution_tokens"]
             ),
@@ -1731,9 +1565,7 @@ def summarize_agent_eval_study(
             else None
         )
     enough = all(arms[arm]["session_count"] > 0 for arm in AGENT_UI_EVAL_ARMS)
-    full_sample = all(
-        arms[arm]["session_count"] >= minimum_sessions_per_arm for arm in AGENT_UI_EVAL_ARMS
-    )
+    full_sample = all(arms[arm]["session_count"] >= minimum_sessions_per_arm for arm in AGENT_UI_EVAL_ARMS)
     primary = comparisons[primary_arm]
     primary_summary = arms[primary_arm]
     provenance: list[tuple[str, str, bool, str]] = []
@@ -1764,21 +1596,18 @@ def summarize_agent_eval_study(
         gate_values: dict[str, bool | None] = {
             "provenance_complete": provenance_complete,
             "provenance_consistent": provenance_consistent,
-            "acceptance_not_lower": primary["acceptance_delta"] is not None
-            and primary["acceptance_delta"] >= 0,
+            "acceptance_not_lower": primary["acceptance_delta"] is not None and primary["acceptance_delta"] >= 0,
             "total_tokens": primary["token_reduction"] is not None
             and primary["token_reduction"] >= success_criteria["minimum_token_reduction"],
             "iteration_tokens": primary["iteration_token_reduction"] is not None
-            and primary["iteration_token_reduction"]
-            >= success_criteria["minimum_iteration_token_reduction"],
+            and primary["iteration_token_reduction"] >= success_criteria["minimum_iteration_token_reduction"],
             "iteration_speed": primary["iteration_speedup"] is not None
             and primary["iteration_speedup"] >= success_criteria["minimum_iteration_speedup"],
             "regressions": primary["regression_reduction"] is not None
             and primary["regression_reduction"] >= success_criteria["minimum_regression_reduction"],
             "proof_overhead": primary_summary["median_native_proof_pass_rate"] == 1.0
             and primary_summary["median_proof_overhead_ratio"] is not None
-            and primary_summary["median_proof_overhead_ratio"]
-            <= success_criteria["maximum_proof_overhead"],
+            and primary_summary["median_proof_overhead_ratio"] <= success_criteria["maximum_proof_overhead"],
             "deep_mutation_detection": None,
         }
         note = (
@@ -1799,21 +1628,17 @@ def summarize_agent_eval_study(
                 and primary_summary["median_final_functional_acceptance"]
                 >= success_criteria["minimum_functional_acceptance"]
                 and primary["functional_acceptance_delta"] is not None
-                and primary["functional_acceptance_delta"]
-                >= -success_criteria["maximum_functional_acceptance_loss"]
+                and primary["functional_acceptance_delta"] >= -success_criteria["maximum_functional_acceptance_loss"]
             ),
             "visual_quality": (
                 primary_summary["median_final_layout_fidelity"] is not None
-                and primary_summary["median_final_layout_fidelity"]
-                >= success_criteria["minimum_layout_fidelity"]
+                and primary_summary["median_final_layout_fidelity"] >= success_criteria["minimum_layout_fidelity"]
                 and primary["layout_fidelity_delta"] is not None
-                and primary["layout_fidelity_delta"]
-                >= -success_criteria["maximum_layout_fidelity_loss"]
+                and primary["layout_fidelity_delta"] >= -success_criteria["maximum_layout_fidelity_loss"]
             ),
             "regression_prevention": (
                 primary["regression_reduction"] is not None
-                and primary["regression_reduction"]
-                >= success_criteria["minimum_regression_reduction"]
+                and primary["regression_reduction"] >= success_criteria["minimum_regression_reduction"]
             ),
             "native_proof_health": (
                 primary_summary["pooled_selected_native_proof_pass_rate"] is not None
@@ -1822,8 +1647,7 @@ def summarize_agent_eval_study(
             ),
             "assurance_evidence_complete": (
                 primary_summary["mutation_evidence_complete"]
-                and
-                primary_summary["minimum_mutation_trials_per_session"] is not None
+                and primary_summary["minimum_mutation_trials_per_session"] is not None
                 and primary_summary["minimum_mutation_trials_per_session"]
                 >= success_criteria["minimum_mutation_trials_per_session"]
                 and primary_summary["minimum_negative_control_trials_per_session"] is not None
@@ -1836,15 +1660,12 @@ def summarize_agent_eval_study(
                 else mutation_detection >= success_criteria["minimum_mutation_detection_rate"]
             ),
             "mutation_repair": (
-                None
-                if mutation_repair is None
-                else mutation_repair >= success_criteria["minimum_mutation_repair_rate"]
+                None if mutation_repair is None else mutation_repair >= success_criteria["minimum_mutation_repair_rate"]
             ),
             "mutation_false_positives": (
                 None
                 if mutation_false_positive is None
-                else mutation_false_positive
-                <= success_criteria["maximum_mutation_false_positive_rate"]
+                else mutation_false_positive <= success_criteria["maximum_mutation_false_positive_rate"]
             ),
             "cross_target_pass": (
                 None
@@ -1864,23 +1685,19 @@ def summarize_agent_eval_study(
             ),
             "total_token_premium": (
                 primary["total_token_premium"] is not None
-                and primary["total_token_premium"]
-                <= success_criteria["maximum_total_token_premium"]
+                and primary["total_token_premium"] <= success_criteria["maximum_total_token_premium"]
             ),
             "evolution_token_premium": (
                 primary["evolution_token_premium"] is not None
-                and primary["evolution_token_premium"]
-                <= success_criteria["maximum_evolution_token_premium"]
+                and primary["evolution_token_premium"] <= success_criteria["maximum_evolution_token_premium"]
             ),
             "evolution_wall_time_premium": (
                 primary["evolution_wall_time_premium"] is not None
-                and primary["evolution_wall_time_premium"]
-                <= success_criteria["maximum_evolution_wall_time_premium"]
+                and primary["evolution_wall_time_premium"] <= success_criteria["maximum_evolution_wall_time_premium"]
             ),
             "proof_overhead": (
                 primary_summary["median_proof_overhead_ratio"] is not None
-                and primary_summary["median_proof_overhead_ratio"]
-                <= success_criteria["maximum_proof_overhead"]
+                and primary_summary["median_proof_overhead_ratio"] <= success_criteria["maximum_proof_overhead"]
             ),
         }
         note = (

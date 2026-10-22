@@ -4,8 +4,9 @@ import hashlib
 import json
 from pathlib import Path
 
-from hypothesis import given, strategies as st
 import pytest
+from hypothesis import given
+from hypothesis import strategies as st
 
 from viewspec.conformance import ConformanceCorpus, load_conformance_corpus, run_conformance_corpus
 from viewspec.verification import EvidenceFile, RetryLineage, VerificationPlan, VerificationResult
@@ -48,9 +49,7 @@ def test_public_verification_corpus_has_unique_executable_semantic_cases():
 @pytest.mark.parametrize("version", ["v1", "v2"])
 def test_core_refinement_scorecard_is_bound_to_the_fixed_corpus(version):
     corpus = load_conformance_corpus("conformance/verification/corpus.json")
-    scorecard = json.loads(
-        Path(f"conformance/refinement/scorecard-{version}.json").read_text(encoding="utf-8")
-    )
+    scorecard = json.loads(Path(f"conformance/refinement/scorecard-{version}.json").read_text(encoding="utf-8"))
 
     assert scorecard["schema_version"] == 1
     assert scorecard["verification"]["case_count"] == 10
@@ -73,9 +72,7 @@ def test_core_refinement_scorecard_is_bound_to_the_fixed_corpus(version):
 def test_passing_refinement_scorecard_binds_checked_in_canonical_screenshots():
     corpus = load_conformance_corpus("conformance/verification/corpus.json")
     corpus_cases = {case.id: case for case in corpus.cases}
-    scorecard = json.loads(
-        Path("conformance/refinement/scorecard-v2.json").read_text(encoding="utf-8")
-    )
+    scorecard = json.loads(Path("conformance/refinement/scorecard-v2.json").read_text(encoding="utf-8"))
     report_path = Path(scorecard["verification"]["report_path"])
     report = json.loads(report_path.read_text(encoding="utf-8"))
 
@@ -105,9 +102,7 @@ def test_passing_refinement_scorecard_binds_checked_in_canonical_screenshots():
         else:
             app = json.loads(corpus_case.source_path.read_text(encoding="utf-8"))
             screen = next(item for item in app["screens"] if item["id"] == corpus_case.screen_id)
-            expected_intent = (
-                json.dumps(screen["intent_bundle"], indent=2, sort_keys=True) + "\n"
-            ).encode()
+            expected_intent = (json.dumps(screen["intent_bundle"], indent=2, sort_keys=True) + "\n").encode()
         assert hashlib.sha256(expected_intent).hexdigest() == reported_case["intent_sha256"]
         screenshot_dir = Path(case["screenshot_directory"])
         assert {path.name for path in screenshot_dir.glob("*.png")} == {
@@ -118,9 +113,7 @@ def test_passing_refinement_scorecard_binds_checked_in_canonical_screenshots():
         desktop = screenshot_dir / "desktop.png"
         assert hashlib.sha256(desktop.read_bytes()).hexdigest() == case["desktop_screenshot_sha256"]
         reported_screenshots = {
-            Path(item["path"]).name: item
-            for item in reported_case["evidence"]
-            if item["role"] == "screenshot"
+            Path(item["path"]).name: item for item in reported_case["evidence"] if item["role"] == "screenshot"
         }
         assert set(reported_screenshots) == {"desktop.png", "mobile.png", "tablet.png"}
         for name, evidence in reported_screenshots.items():

@@ -141,7 +141,9 @@ class ViewSpecBuilder:
         node = self._nodes[node_id]
         slots = {key: list(values) for key, values in node.slots.items()}
         slots.setdefault(slot, []).append(value)
-        self._nodes[node_id] = SemanticNode(id=node.id, kind=node.kind, attrs=dict(node.attrs), slots=slots, edges=dict(node.edges))
+        self._nodes[node_id] = SemanticNode(
+            id=node.id, kind=node.kind, attrs=dict(node.attrs), slots=slots, edges=dict(node.edges)
+        )
         return self
 
     def add_region(
@@ -175,7 +177,9 @@ class ViewSpecBuilder:
         present_as: str = "text",
         cardinality: str = "exactly_once",
     ) -> str:
-        return self.add_binding(id, f"node:{node_id}#attr:{attr}", region=region, present_as=present_as, cardinality=cardinality)
+        return self.add_binding(
+            id, f"node:{node_id}#attr:{attr}", region=region, present_as=present_as, cardinality=cardinality
+        )
 
     def bind_slot(
         self,
@@ -189,7 +193,9 @@ class ViewSpecBuilder:
         cardinality: str = "exactly_once",
     ) -> str:
         suffix = f"#slot:{slot}" if index is None else f"#slot:{slot}[{index}]"
-        return self.add_binding(id, f"node:{node_id}{suffix}", region=region, present_as=present_as, cardinality=cardinality)
+        return self.add_binding(
+            id, f"node:{node_id}{suffix}", region=region, present_as=present_as, cardinality=cardinality
+        )
 
     def add_binding(
         self,
@@ -200,10 +206,14 @@ class ViewSpecBuilder:
         present_as: str = "text",
         cardinality: str = "exactly_once",
     ) -> str:
-        self._bindings.append(BindingSpec(id=id, address=address, target_region=region, present_as=present_as, cardinality=cardinality))
+        self._bindings.append(
+            BindingSpec(id=id, address=address, target_region=region, present_as=present_as, cardinality=cardinality)
+        )
         return id
 
-    def add_group(self, id: str, kind: str, members: list[str], *, target_region: str | None = "main") -> ViewSpecBuilder:
+    def add_group(
+        self, id: str, kind: str, members: list[str], *, target_region: str | None = "main"
+    ) -> ViewSpecBuilder:
         self._groups.append(GroupSpec(id=id, kind=kind, members=list(members), target_region=target_region))
         return self
 
@@ -524,7 +534,9 @@ class TableBuilder(_MotifBuilder):
         for attr in attrs:
             if attr == "label":
                 continue
-            members.append(self.builder.bind_attr(f"{row_id}_{attr}", row_id, attr, region=self.region, present_as="value"))
+            members.append(
+                self.builder.bind_attr(f"{row_id}_{attr}", row_id, attr, region=self.region, present_as="value")
+            )
         self._append_members(members)
         return self
 
@@ -532,13 +544,17 @@ class TableBuilder(_MotifBuilder):
 class DashboardBuilder(_MotifBuilder):
     """Fluent builder for dashboard motifs."""
 
-    def add_card(self, *, label: Any, value: Any, id: str | None = None, value_present_as: str = "value") -> DashboardBuilder:
+    def add_card(
+        self, *, label: Any, value: Any, id: str | None = None, value_present_as: str = "value"
+    ) -> DashboardBuilder:
         self._count += 1
         card_id = id or f"{self.motif_id}_card_{self._count}"
         self.builder.add_node(card_id, "dashboard_card", attrs={"label": label, "value": value})
         members = [
             self.builder.bind_attr(f"{card_id}_label", card_id, "label", region=self.region, present_as="label"),
-            self.builder.bind_attr(f"{card_id}_value", card_id, "value", region=self.region, present_as=value_present_as),
+            self.builder.bind_attr(
+                f"{card_id}_value", card_id, "value", region=self.region, present_as=value_present_as
+            ),
         ]
         self._append_members(members)
         return self
@@ -551,7 +567,9 @@ class OutlineBuilder(_MotifBuilder):
         self._count += 1
         branch_id = id or f"{self.motif_id}_branch_{self._count}"
         self.builder.add_node(branch_id, kind, attrs={"label": label})
-        members = [self.builder.bind_attr(f"{branch_id}_label", branch_id, "label", region=self.region, present_as="label")]
+        members = [
+            self.builder.bind_attr(f"{branch_id}_label", branch_id, "label", region=self.region, present_as="label")
+        ]
         self._append_members(members)
         return self
 
@@ -597,7 +615,9 @@ class ListBuilder(_MotifBuilder):
         for attr in attrs:
             if attr == "label":
                 continue
-            members.append(self.builder.bind_attr(f"{item_id}_{attr}", item_id, attr, region=self.region, present_as="text"))
+            members.append(
+                self.builder.bind_attr(f"{item_id}_{attr}", item_id, attr, region=self.region, present_as="text")
+            )
         self._append_members(members)
         return self
 
@@ -619,7 +639,9 @@ class FormBuilder(_MotifBuilder):
         self.builder.add_node(field_id, node_kind, attrs={"label": label, "value": value})
         members = [
             self.builder.bind_attr(f"{field_id}_label", field_id, "label", region=self.region, present_as="label"),
-            self.builder.bind_attr(f"{field_id}_value", field_id, "value", region=self.region, present_as=input_present_as),
+            self.builder.bind_attr(
+                f"{field_id}_value", field_id, "value", region=self.region, present_as=input_present_as
+            ),
         ]
         self._append_members(members)
         return self
@@ -645,10 +667,16 @@ class DetailBuilder(_MotifBuilder):
             attrs["value"] = value
         attrs.update(values or {})
         self.builder.add_node(field_id, node_kind, attrs=attrs)
-        members = [self.builder.bind_attr(f"{field_id}_label", field_id, "label", region=self.region, present_as="label")]
+        members = [
+            self.builder.bind_attr(f"{field_id}_label", field_id, "label", region=self.region, present_as="label")
+        ]
         for attr in attrs:
             if attr == "label":
                 continue
-            members.append(self.builder.bind_attr(f"{field_id}_{attr}", field_id, attr, region=self.region, present_as=value_present_as))
+            members.append(
+                self.builder.bind_attr(
+                    f"{field_id}_{attr}", field_id, attr, region=self.region, present_as=value_present_as
+                )
+            )
         self._append_members(members)
         return self

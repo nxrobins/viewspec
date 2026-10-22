@@ -21,26 +21,68 @@ from viewspec.emitters.react_tailwind_tsx.recipes import RECIPE_BY_KEY, TAILWIND
 # Browser-grounded (Blink-rasterized) Tailwind v4.3 sRGB hex for every class the recipes/overlays use.
 TAILWIND_PALETTE: dict[str, str] = {
     "white": "#ffffff",
-    "slate-50": "#f8fafc", "slate-100": "#f1f5f9", "slate-200": "#e2e8f0", "slate-300": "#cad5e2",
-    "slate-400": "#90a1b9", "slate-500": "#62748e", "slate-600": "#45556c", "slate-700": "#314158",
-    "slate-900": "#0f172b", "slate-950": "#020618",
-    "teal-50": "#f0fdfa", "teal-100": "#cbfbf1", "teal-700": "#00786f", "teal-800": "#005f5a",
-    "violet-50": "#f5f3ff", "violet-200": "#ddd6ff",
-    "indigo-50": "#eef2ff", "indigo-100": "#e0e7ff", "indigo-200": "#c6d2ff", "indigo-600": "#4f39f6",
-    "indigo-700": "#432dd7", "indigo-800": "#372aac",
-    "blue-50": "#eff6ff", "blue-100": "#dbeafe", "blue-700": "#1447e6", "blue-800": "#193cb8",
-    "rose-50": "#fff1f2", "rose-100": "#ffe4e6", "rose-200": "#ffccd3", "rose-300": "#ffa1ad",
-    "rose-700": "#c70036", "rose-800": "#a50036",
-    "neutral-200": "#e5e5e5", "neutral-300": "#d4d4d4", "neutral-700": "#404040",
-    "neutral-800": "#262626", "neutral-950": "#0a0a0a",
-    "cyan-50": "#ecfeff", "cyan-100": "#cefafe", "cyan-200": "#a2f4fd", "cyan-300": "#53eafd",
-    "cyan-400": "#00d3f3", "cyan-900": "#104e64",
-    "stone-50": "#fafaf9", "stone-100": "#f5f5f4", "stone-500": "#79716b", "stone-700": "#44403b",
+    "slate-50": "#f8fafc",
+    "slate-100": "#f1f5f9",
+    "slate-200": "#e2e8f0",
+    "slate-300": "#cad5e2",
+    "slate-400": "#90a1b9",
+    "slate-500": "#62748e",
+    "slate-600": "#45556c",
+    "slate-700": "#314158",
+    "slate-900": "#0f172b",
+    "slate-950": "#020618",
+    "teal-50": "#f0fdfa",
+    "teal-100": "#cbfbf1",
+    "teal-700": "#00786f",
+    "teal-800": "#005f5a",
+    "violet-50": "#f5f3ff",
+    "violet-200": "#ddd6ff",
+    "indigo-50": "#eef2ff",
+    "indigo-100": "#e0e7ff",
+    "indigo-200": "#c6d2ff",
+    "indigo-600": "#4f39f6",
+    "indigo-700": "#432dd7",
+    "indigo-800": "#372aac",
+    "blue-50": "#eff6ff",
+    "blue-100": "#dbeafe",
+    "blue-700": "#1447e6",
+    "blue-800": "#193cb8",
+    "rose-50": "#fff1f2",
+    "rose-100": "#ffe4e6",
+    "rose-200": "#ffccd3",
+    "rose-300": "#ffa1ad",
+    "rose-700": "#c70036",
+    "rose-800": "#a50036",
+    "neutral-200": "#e5e5e5",
+    "neutral-300": "#d4d4d4",
+    "neutral-700": "#404040",
+    "neutral-800": "#262626",
+    "neutral-950": "#0a0a0a",
+    "cyan-50": "#ecfeff",
+    "cyan-100": "#cefafe",
+    "cyan-200": "#a2f4fd",
+    "cyan-300": "#53eafd",
+    "cyan-400": "#00d3f3",
+    "cyan-900": "#104e64",
+    "stone-50": "#fafaf9",
+    "stone-100": "#f5f5f4",
+    "stone-500": "#79716b",
+    "stone-700": "#44403b",
     "stone-900": "#1c1917",
-    "amber-50": "#fffbeb", "amber-100": "#fef3c6", "amber-200": "#fee685", "amber-300": "#ffd230",
-    "amber-700": "#bb4d00", "amber-800": "#973c00", "amber-900": "#7b3306",
-    "red-100": "#ffe2e2", "red-300": "#ffa2a2", "red-600": "#e7000b", "red-800": "#9f0712",
-    "fuchsia-200": "#f6cfff", "fuchsia-400": "#ed6aff", "fuchsia-500": "#e12afb",
+    "amber-50": "#fffbeb",
+    "amber-100": "#fef3c6",
+    "amber-200": "#fee685",
+    "amber-300": "#ffd230",
+    "amber-700": "#bb4d00",
+    "amber-800": "#973c00",
+    "amber-900": "#7b3306",
+    "red-100": "#ffe2e2",
+    "red-300": "#ffa2a2",
+    "red-600": "#e7000b",
+    "red-800": "#9f0712",
+    "fuchsia-200": "#f6cfff",
+    "fuchsia-400": "#ed6aff",
+    "fuchsia-500": "#e12afb",
 }
 
 _BG_RE = re.compile(r"bg-(white|black|transparent|[a-z]+-\d+)(?:/(\d+))?")
@@ -86,7 +128,7 @@ def _last_text(classes: str) -> str | None:
 def _composite(top_hex: str, alpha: float, bottom_hex: str) -> str:
     t = [int(top_hex[i : i + 2], 16) for i in (1, 3, 5)]
     b = [int(bottom_hex[i : i + 2], 16) for i in (1, 3, 5)]
-    return "#%02x%02x%02x" % tuple(round(alpha * t[i] + (1 - alpha) * b[i]) for i in range(3))
+    return "#" + "".join(f"{round(alpha * t[i] + (1 - alpha) * b[i]):02x}" for i in range(3))
 
 
 def _bg_hex(bg: tuple[str, float] | None, *, over: str, fallback: str) -> str:
@@ -152,8 +194,13 @@ def react_contrast_report(profile: str | None = None) -> dict[str, Any]:
         ratio = wcag_contrast_ratio(fg_hex, bg_hex)
         threshold = threshold_for(kind)
         entry = {
-            "label": label, "fg": fg_hex, "bg": bg_hex, "kind": kind,
-            "ratio": ratio, "threshold": threshold, "passes": ratio >= threshold,
+            "label": label,
+            "fg": fg_hex,
+            "bg": bg_hex,
+            "kind": kind,
+            "ratio": ratio,
+            "threshold": threshold,
+            "passes": ratio >= threshold,
         }
         checked.append(entry)
         if not entry["passes"]:

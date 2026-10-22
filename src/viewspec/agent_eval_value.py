@@ -2,14 +2,14 @@
 
 from __future__ import annotations
 
-from copy import deepcopy
 import hashlib
 import json
-from pathlib import Path
 import random
 import re
-from typing import Any, Mapping
-
+from collections.abc import Mapping
+from copy import deepcopy
+from pathlib import Path
+from typing import Any
 
 VALUE_TRIAL_SCHEMA_VERSION = 1
 TRIAL_CLASSES = (
@@ -82,10 +82,7 @@ def validate_mutation_manifest(payload: Any) -> None:
     identity_contract = payload.get("identity_contract")
     expected_contract = {
         "code-first": {hook: f'data-eval-id="{hook}"' for hook in STABLE_HOOKS},
-        "viewspec": {
-            hook: {"kind": kind, "id": identity}
-            for hook, (kind, identity) in VIEWSPEC_IDENTITIES.items()
-        },
+        "viewspec": {hook: {"kind": kind, "id": identity} for hook, (kind, identity) in VIEWSPEC_IDENTITIES.items()},
     }
     if identity_contract != expected_contract:
         raise ValueError("mutation manifest identity_contract does not match the V2 mapping")
@@ -120,9 +117,7 @@ def validate_mutation_manifest(payload: Any) -> None:
                 not isinstance(detectors, Mapping)
                 or set(detectors) != {"code-first", "viewspec-core", "viewspec-deep"}
                 or not all(
-                    isinstance(value, list)
-                    and value
-                    and all(isinstance(item, str) and item for item in value)
+                    isinstance(value, list) and value and all(isinstance(item, str) and item for item in value)
                     for value in detectors.values()
                 )
             ):
@@ -144,11 +139,7 @@ def validate_stable_hooks(arm: str, sources: Mapping[str, str]) -> dict[str, Any
     if arm == "code-first":
         target_sources = {
             "static": sources.get("submission/index.html", ""),
-            "react": "\n".join(
-                text
-                for path, text in sources.items()
-                if path.startswith("submission/react/src/")
-            ),
+            "react": "\n".join(text for path, text in sources.items() if path.startswith("submission/react/src/")),
         }
         target_counts = {
             target: {
@@ -172,8 +163,7 @@ def validate_stable_hooks(arm: str, sources: Mapping[str, str]) -> dict[str, Any
             "ok": not errors,
             "counts": target_counts,
             "expected": {
-                target: {hook: f'data-eval-id="{hook}"' for hook in STABLE_HOOKS}
-                for target in target_sources
+                target: {hook: f'data-eval-id="{hook}"' for hook in STABLE_HOOKS} for target in target_sources
             },
             "errors": errors,
         }
@@ -224,10 +214,7 @@ def validate_stable_hooks(arm: str, sources: Mapping[str, str]) -> dict[str, Any
     return {
         "ok": not errors,
         "counts": counts,
-        "expected": {
-            hook: {"kind": kind, "id": identity}
-            for hook, (kind, identity) in VIEWSPEC_IDENTITIES.items()
-        },
+        "expected": {hook: {"kind": kind, "id": identity} for hook, (kind, identity) in VIEWSPEC_IDENTITIES.items()},
         "discovered": discovered,
         "errors": errors,
     }
@@ -263,10 +250,7 @@ def _action_definition_count(payload: Any, identity: str) -> int:
         if isinstance(value, Mapping):
             actions = value.get("actions")
             if isinstance(actions, list):
-                count += sum(
-                    isinstance(item, Mapping) and item.get("id") == identity
-                    for item in actions
-                )
+                count += sum(isinstance(item, Mapping) and item.get("id") == identity for item in actions)
             for child in value.values():
                 visit(child)
         elif isinstance(value, list):
@@ -316,17 +300,11 @@ def apply_value_trial(
         path = "submission/index.html"
         if path not in result:
             raise ValueError("code-first trial requires submission/index.html")
-        marker = (
-            "<!-- "
-            + hashlib.sha256(f"viewspec-v2-fault:{trial_id}".encode()).hexdigest()[:16]
-            + " -->"
-        )
+        marker = "<!-- " + hashlib.sha256(f"viewspec-v2-fault:{trial_id}".encode()).hexdigest()[:16] + " -->"
         if marker in result[path]:
             raise ValueError(f"trial {trial_id} was already applied")
         scripts = {
-            "break-escalation-action": _intercept_script(
-                marker, "action-show-guide"
-            ),
+            "break-escalation-action": _intercept_script(marker, "action-show-guide"),
             "corrupt-reviewed-count": _intercept_script(
                 marker,
                 "action-record-review",
@@ -334,8 +312,7 @@ def apply_value_trial(
                 replacement_text="Review count: 2",
             ),
             "break-escalation-visibility": (
-                f"\n{marker}\n<style>[data-eval-id=\"panel-escalation-guide\"]"
-                "{display:none!important}</style>\n"
+                f'\n{marker}\n<style>[data-eval-id="panel-escalation-guide"]{{display:none!important}}</style>\n'
             ),
             "duplicate-j207-resource": _dom_mutation_script(
                 marker,
@@ -345,9 +322,7 @@ def apply_value_trial(
             "break-j205-mobile-geometry": _dom_mutation_script(
                 marker,
                 """const n=document.querySelector('[data-eval-id="job-j205-title"]');"""
-                """if(n){n.textContent+='__unbroken_eval_suffix_"""
-                + "X" * 96
-                + """';}""",
+                """if(n){n.textContent+='__unbroken_eval_suffix_""" + "X" * 96 + """';}""",
             ),
         }
         if trial_id not in scripts:
@@ -399,10 +374,7 @@ def _intercept_script(
 
 
 def _dom_mutation_script(marker: str, body: str) -> str:
-    return (
-        f"\n{marker}\n<script>document.addEventListener('DOMContentLoaded',()=>{{"
-        f"{body}}});</script>\n"
-    )
+    return f"\n{marker}\n<script>document.addEventListener('DOMContentLoaded',()=>{{{body}}});</script>\n"
 
 
 def _append_before_body(text: str, addition: str) -> str:
@@ -418,9 +390,7 @@ def _mutate_app_bundle(payload: dict[str, Any], trial_id: str) -> dict[str, Any]
     elif trial_id == "corrupt-reviewed-count":
         mutation = _one_by_id(result.get("mutations"), "increment_reviewed_count", "mutation")
         operations = [
-            item
-            for item in mutation.get("ops", [])
-            if isinstance(item, dict) and item.get("op") == "increment"
+            item for item in mutation.get("ops", []) if isinstance(item, dict) and item.get("op") == "increment"
         ]
         if len(operations) != 1:
             raise ValueError("increment_reviewed_count must contain exactly one increment")
@@ -446,10 +416,11 @@ def _mutate_app_bundle(payload: dict[str, Any], trial_id: str) -> dict[str, Any]
 
 
 def _one_by_id(value: Any, identity: str, noun: str) -> dict[str, Any]:
-    matches = [
-        item
-        for item in value if isinstance(item, dict) and item.get("id") == identity
-    ] if isinstance(value, list) else []
+    matches = (
+        [item for item in value if isinstance(item, dict) and item.get("id") == identity]
+        if isinstance(value, list)
+        else []
+    )
     if len(matches) != 1:
         raise ValueError(f"{noun} {identity} count was {len(matches)}, expected 1")
     return matches[0]
@@ -460,9 +431,7 @@ def _resource_record(payload: Mapping[str, Any], identity: str) -> dict[str, Any
     for resource in payload.get("resources", []):
         if isinstance(resource, Mapping):
             matches.extend(
-                item
-                for item in resource.get("records", [])
-                if isinstance(item, dict) and item.get("id") == identity
+                item for item in resource.get("records", []) if isinstance(item, dict) and item.get("id") == identity
             )
     if len(matches) != 1:
         raise ValueError(f"resource record {identity} count was {len(matches)}, expected 1")
@@ -476,8 +445,7 @@ def _resource_records(payload: Mapping[str, Any], identity: str) -> list[dict[st
             continue
         records = resource.get("records")
         if isinstance(records, list) and any(
-            isinstance(item, Mapping) and item.get("id") == identity
-            for item in records
+            isinstance(item, Mapping) and item.get("id") == identity for item in records
         ):
             owners.append(records)
     if len(owners) != 1:

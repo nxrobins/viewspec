@@ -3,15 +3,17 @@
 from __future__ import annotations
 
 import json
+import logging
 import platform
 import sys
+from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
 
 from viewspec._version import __version__
 from viewspec.app_diff import _validation_summary
-from viewspec.app_errors import AppBundleProofFailure, _normalize_proof_errors
-from viewspec.app_prepared import _PreparedAppProof, _PreparedAppShell
+from viewspec.app_errors import AppBundleProofFailure, normalize_proof_errors
+from viewspec.app_prepared import PreparedAppProof, PreparedAppShell
 from viewspec.app_react import REACT_APP_ROUTE_NAVIGATION, REACT_APP_TARGET
 from viewspec.app_shell import (
     APP_SHELL_DIAGNOSTICS,
@@ -32,7 +34,10 @@ from viewspec.app_validation import (
     _resource_binding_fields_from_validation,
     _resource_binding_report_fields,
 )
-from viewspec.local_tools import atomic_write, file_hash
+from viewspec.local_tools import atomic_write, bytes_hash, file_hash
+from viewspec.local_tools_io import portable_report_paths, report_directory
+
+_LOGGER = logging.getLogger(__name__)
 
 APP_BUNDLE_PROOF_SCHEMA_VERSION = 1
 APP_BUNDLE_DEFAULT_OUT = ".viewspec-app-proof"
@@ -46,10 +51,10 @@ APP_BUNDLE_TARGET = "html-tailwind"
 APP_BUNDLE_MAX_SUMMARY_BYTES = 32 * 1024
 
 
-def _app_proof_report(
+def app_proof_report(
     *,
     ok: bool,
-    prepared: _PreparedAppProof,
+    prepared: PreparedAppProof,
     app_payload: dict[str, Any],
     validation: dict[str, Any],
     route_assertions: dict[str, bool],
@@ -211,7 +216,7 @@ def _app_proof_report(
     }
 
 
-def _app_proof_failure_report(
+def app_proof_failure_report(
     *,
     output_dir: Path,
     report_path: Path,
@@ -244,15 +249,15 @@ def _app_proof_failure_report(
         "validation": _validation_summary(validation) if isinstance(validation, dict) else None,
         "policy": {"network_calls": "none"},
         "metadata": {"sdk_version": __version__, "strict_design": False, "screen_source": "embedded_intents"},
-        "errors": _normalize_proof_errors(errors),
+        "errors": normalize_proof_errors(errors),
         "timings_ms": _final_timings(timings),
     }
 
 
-def _app_shell_report(
+def app_shell_report(
     *,
     ok: bool,
-    prepared: _PreparedAppShell,
+    prepared: PreparedAppShell,
     app_payload: dict[str, Any],
     validation: dict[str, Any],
     screen_reports: list[dict[str, Any]],
@@ -302,9 +307,7 @@ def _app_shell_report(
             shell_payload.get("presentation_plan_hash") if isinstance(shell_payload, dict) else None
         ),
         "presentation_plan_diagnostics": (
-            shell_payload.get("presentation_plan_diagnostics", [])
-            if isinstance(shell_payload, dict)
-            else []
+            shell_payload.get("presentation_plan_diagnostics", []) if isinstance(shell_payload, dict) else []
         ),
         **(
             {
@@ -325,12 +328,12 @@ def _app_shell_report(
             "screen_source": "embedded_intents",
             "shell_kind": "static_local_hash_shell",
         },
-        "errors": _normalize_proof_errors(errors),
+        "errors": normalize_proof_errors(errors),
         "timings_ms": _final_timings(timings),
     }
 
 
-def _app_shell_failure_report(
+def app_shell_failure_report(
     *,
     output_dir: Path,
     errors: list[dict[str, str]],
@@ -360,12 +363,12 @@ def _app_shell_failure_report(
         "screens": [],
         "validation": _validation_summary(validation) if isinstance(validation, dict) else None,
         "metadata": {"sdk_version": __version__, "strict_design": False, "screen_source": "embedded_intents"},
-        "errors": _normalize_proof_errors(errors),
+        "errors": normalize_proof_errors(errors),
         "timings_ms": _final_timings(timings),
     }
 
 
-def _write_app_proof(report: dict[str, Any], prepared: _PreparedAppProof) -> dict[str, Any]:
+def write_app_proof(report: dict[str, Any], prepared: PreparedAppProof) -> dict[str, Any]:
     report = _finalize_report_paths(report, prepared)
     analysis_evidence = report.pop("_analysis_evidence", None)
     if isinstance(analysis_evidence, dict):
@@ -394,45 +397,109 @@ def _write_app_proof(report: dict[str, Any], prepared: _PreparedAppProof) -> dic
         value for key, value in report.get("timings_ms", {}).items() if key != "total" and isinstance(value, int)
     )
     try:
-        _write_bounded_json(
-            prepared.report_path, report, limit=APP_BUNDLE_MAX_PROOF_REPORT_BYTES, code="APP_PROOF_REPORT_WRITE_FAILED"
-        )
+        _write_app_report(prepared.report_path, report)
     except Exception as exc:
         failed = _append_app_proof_error(report, exc, fallback_code="APP_PROOF_REPORT_WRITE_FAILED")
         failed["ok"] = False
         return failed
     try:
-        support_text = _render_app_support_bundle(report, proof_report_hash=file_hash(prepared.report_path))
+        support_text = _render_app_support_bundle(report, proof_report_hash=app_proof_report_hash(report))
         _write_app_support_bundle(prepared.support_path, support_text, report=report)
     except Exception as exc:
         failed = _append_app_proof_error(report, exc, fallback_code="APP_PROOF_SUPPORT_BUNDLE_WRITE_FAILED")
         failed["ok"] = False
-        _write_bounded_json(
-            prepared.report_path, failed, limit=APP_BUNDLE_MAX_PROOF_REPORT_BYTES, code="APP_PROOF_REPORT_WRITE_FAILED"
-        )
+        _write_app_report(prepared.report_path, failed)
         try:
             _write_app_summary(
                 prepared.summary_path,
-                _render_app_proof_summary(failed, proof_report_hash=file_hash(prepared.report_path)),
+                _render_app_proof_summary(failed, proof_report_hash=app_proof_report_hash(failed)),
             )
-        except Exception:
-            pass
+        except Exception as summary_exc:
+            _LOGGER.warning(
+                "App proof summary could not be written after the support bundle failed: %s",
+                summary_exc,
+                exc_info=summary_exc,
+            )
+            failed = _append_app_proof_error(failed, summary_exc, fallback_code="APP_PROOF_SUMMARY_WRITE_FAILED")
+            # Record the summary failure on disk too, so app_proof_report.json, the returned report and
+            # proof_identity.proof_report_hash keep naming the same document.
+            try:
+                _write_app_report(prepared.report_path, failed)
+            except Exception as report_exc:
+                _LOGGER.warning(
+                    "App proof report could not be rewritten after the summary failed: %s",
+                    report_exc,
+                    exc_info=report_exc,
+                )
         return failed
     try:
         _write_app_summary(
-            prepared.summary_path, _render_app_proof_summary(report, proof_report_hash=file_hash(prepared.report_path))
+            prepared.summary_path, _render_app_proof_summary(report, proof_report_hash=app_proof_report_hash(report))
         )
     except Exception as exc:
         failed = _append_app_proof_error(report, exc, fallback_code="APP_PROOF_SUMMARY_WRITE_FAILED")
         failed["ok"] = False
-        _write_bounded_json(
-            prepared.report_path, failed, limit=APP_BUNDLE_MAX_PROOF_REPORT_BYTES, code="APP_PROOF_REPORT_WRITE_FAILED"
-        )
+        _write_app_report(prepared.report_path, failed)
         return failed
     return report
 
 
-def _finalize_report_paths(report: dict[str, Any], prepared: _PreparedAppProof) -> dict[str, Any]:
+def _write_app_report(report_path: Path, report: dict[str, Any]) -> None:
+    """Write ``app_proof_report.json`` in its portable form: paths relative to the report's directory."""
+    _write_bounded_json(
+        report_path,
+        _portable_app_report(report),
+        limit=APP_BUNDLE_MAX_PROOF_REPORT_BYTES,
+        code="APP_PROOF_REPORT_WRITE_FAILED",
+    )
+
+
+def _portable_app_report(report: Mapping[str, Any], *, base: str | None = None) -> dict[str, Any]:
+    """Return the on-disk form of an app proof report: a copy whose paths are relative to the report's directory.
+
+    The in-memory report keeps absolute paths for the CLI and the MCP tool; the file records every
+    ``paths`` mapping (the report's own, each screen's, the shell's and the React app's) relative to
+    the directory that holds it, with POSIX separators.  That is the proof directory
+    (``paths.proof_dir`` becomes ``"."``) unless ``--report-out`` put the report in a subdirectory
+    of it.  ``base`` overrides the directory; ``APP_PROOF.md`` passes the proof directory it sits
+    in.  A report that is already portable, such as one read back from disk, is returned unchanged,
+    so the conversion never depends on the current working directory.
+    """
+    base = report_directory(report) if base is None else base
+    if not base:
+        return json.loads(json.dumps(report))
+    return portable_report_paths(report, base)
+
+
+def app_proof_report_hash(report: Mapping[str, Any]) -> str:
+    """Return the SHA-256 identity of an app proof report without its top-level ``timings_ms``.
+
+    The hash covers the portable ``app_proof_report.json`` document with the top-level wall-clock
+    ``timings_ms`` section removed, serialized as the file is written (``indent=2``, sorted keys,
+    one trailing newline, UTF-8).  It is the same for the in-memory report and for the document
+    read back from disk, from any working directory.  ``APP_PROOF.md`` and
+    ``app_support_bundle.json`` record it as the proof report hash, and the ``prove_app`` tool
+    exposes it as ``proof_identity.proof_report_hash``.
+
+    Removing ``timings_ms`` makes the hash independent of when the report was written only for
+    the ``html-tailwind`` target.  Two app proofs of one AppBundle share the hash only when the
+    reports record the same thing:
+
+    * for the ``html-tailwind`` target, with or without the static shell, when the AppBundle and
+      DESIGN.md have the same position relative to the report, for example the same repository
+      layout cloned or moved elsewhere.  An input outside the proof directory is recorded as
+      ``../x`` from one depth and ``../../x`` from another, and the hashes differ;
+    * not for ``react-tailwind-app``: the compact ``host_report`` keeps the host verifier's own
+      ``timings_ms`` and ``duration_ms``, and ``analysis_evidence.sha256`` hashes
+      ``app_analysis_evidence.json``, which records the full host report with its absolute
+      ``artifact_dir``.
+    """
+    document = _portable_app_report(report)
+    document.pop("timings_ms", None)
+    return bytes_hash((json.dumps(document, indent=2, sort_keys=True) + "\n").encode("utf-8"))
+
+
+def _finalize_report_paths(report: dict[str, Any], prepared: PreparedAppProof) -> dict[str, Any]:
     report.setdefault("paths", {})["report"] = str(prepared.report_path)
     report["paths"]["proof_summary"] = str(prepared.summary_path)
     report["paths"]["support_bundle"] = str(prepared.support_path)
@@ -593,7 +660,7 @@ def _compact_shell_report(shell: dict[str, Any] | None) -> dict[str, Any]:
         "state_reducer_conformance": shell.get("state_reducer_conformance"),
         "binding_scope": shell.get("binding_scope"),
         "resource_binding_assertions": _compact_resource_binding_report(shell.get("resource_binding_assertions")),
-        "errors": _normalize_proof_errors(shell.get("errors")),
+        "errors": normalize_proof_errors(shell.get("errors")),
     }
 
 
@@ -618,7 +685,7 @@ def _compact_react_app_report(report: dict[str, Any] | None) -> dict[str, Any]:
         "state_contract_hash": report.get("state_contract_hash"),
         "state_replay": report.get("state_replay"),
         "state_reducer_conformance": report.get("state_reducer_conformance"),
-        "errors": _normalize_proof_errors(report.get("errors")),
+        "errors": normalize_proof_errors(report.get("errors")),
     }
 
 
@@ -647,7 +714,7 @@ def _compact_host_report(report: dict[str, Any] | None) -> dict[str, Any]:
         **({"static_analysis": static_analysis} if static_analysis is not None else {}),
         **({"text_layout": text_layout} if text_layout is not None else {}),
         **({"analyses": analyses} if analyses else {}),
-        "errors": _normalize_proof_errors(report.get("errors")),
+        "errors": normalize_proof_errors(report.get("errors")),
     }
 
 
@@ -678,7 +745,7 @@ def _compact_resource_binding_report(report: object) -> dict[str, Any] | None:
             for view in views
             if isinstance(view, dict)
         ],
-        "errors": _normalize_proof_errors(report.get("errors")),
+        "errors": normalize_proof_errors(report.get("errors")),
     }
 
 
@@ -979,7 +1046,16 @@ def _render_app_proof_summary(report: dict[str, Any], *, proof_report_hash: str)
             "",
         ]
     )
-    paths = report.get("paths") if isinstance(report.get("paths"), dict) else {}
+    report_paths = report.get("paths") if isinstance(report.get("paths"), dict) else {}
+    proof_dir = report_paths.get("proof_dir")
+    # APP_PROOF.md sits in the proof directory, so its paths are relative to that directory even
+    # when --report-out put app_proof_report.json in a subdirectory.
+    paths = _portable_app_report(report, base=proof_dir if isinstance(proof_dir, str) and proof_dir else None).get(
+        "paths"
+    )
+    if not isinstance(paths, dict):
+        paths = {}
+    lines.append("- Paths are relative to the proof directory.")
     for key in (
         "app",
         "design",
@@ -995,7 +1071,15 @@ def _render_app_proof_summary(report: dict[str, Any], *, proof_report_hash: str)
         "react_app_diagnostics",
     ):
         lines.append(f"- {key}: `{_summary_value(paths.get(key))}`")
-    lines.extend(["", "## Hashes", "", f"- App proof report SHA-256: `{_summary_value(proof_report_hash)}`"])
+    lines.extend(
+        [
+            "",
+            "## Hashes",
+            "",
+            f"- App proof report SHA-256: `{_summary_value(proof_report_hash)}`",
+            "- App proof report SHA-256 scope: `app_proof_report.json` with `timings_ms` removed",
+        ]
+    )
     lines.extend(["", "## Errors", ""])
     errors = report.get("errors") if isinstance(report.get("errors"), list) else []
     if errors:
@@ -1125,7 +1209,7 @@ def _app_tool_proof_identity(proof: dict[str, Any]) -> dict[str, str | None]:
     static_analysis = proof.get("static_analysis") if isinstance(proof.get("static_analysis"), dict) else {}
     text_layout = proof.get("text_layout") if isinstance(proof.get("text_layout"), dict) else {}
     return {
-        "proof_report_hash": _hash_path_if_present(paths.get("report")),
+        "proof_report_hash": app_proof_report_hash(proof) if _is_present_file(paths.get("report")) else None,
         "proof_summary_hash": _hash_path_if_present(paths.get("proof_summary")),
         "support_bundle_hash": _hash_path_if_present(paths.get("support_bundle")),
         "analysis_evidence_hash": _hash_path_if_present(paths.get("analysis_evidence")),
@@ -1170,14 +1254,25 @@ def _app_tool_proof_identity(proof: dict[str, Any]) -> dict[str, str | None]:
     }
 
 
-def _hash_path_if_present(path: object) -> str | None:
+def _is_present_file(path: object) -> bool:
     if not path:
-        return None
+        return False
     candidate = Path(str(path))
-    if not candidate.exists() or not candidate.is_file():
-        return None
-    return file_hash(candidate)
+    return candidate.exists() and candidate.is_file()
 
+
+def _hash_path_if_present(path: object) -> str | None:
+    if not _is_present_file(path):
+        return None
+    return file_hash(Path(str(path)))
+
+
+# Backward-compatible private aliases; the un-prefixed names are canonical.
+_app_proof_failure_report = app_proof_failure_report
+_app_proof_report = app_proof_report
+_app_shell_failure_report = app_shell_failure_report
+_app_shell_report = app_shell_report
+_write_app_proof = write_app_proof
 
 __all__ = [
     "APP_BUNDLE_DEFAULT_OUT",
@@ -1188,11 +1283,12 @@ __all__ = [
     "APP_BUNDLE_PROOF_LEVEL",
     "APP_BUNDLE_PROOF_SCHEMA_VERSION",
     "APP_BUNDLE_TARGET",
-    "_app_proof_failure_report",
-    "_app_proof_report",
-    "_app_shell_failure_report",
-    "_app_shell_report",
+    "app_proof_failure_report",
+    "app_proof_report",
+    "app_proof_report_hash",
+    "app_shell_failure_report",
+    "app_shell_report",
     "_app_tool_proof_identity",
-    "_write_app_proof",
+    "write_app_proof",
     "_write_bounded_json",
 ]

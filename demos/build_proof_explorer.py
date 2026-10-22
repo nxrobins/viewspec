@@ -9,7 +9,6 @@ import struct
 from pathlib import Path
 from typing import Any
 
-
 ROOT = Path(__file__).resolve().parents[1]
 SOURCE = ROOT / "conformance" / "refinement"
 DEFAULT_OUTPUT = ROOT / "demos" / "proof-explorer"
@@ -68,12 +67,7 @@ def build(output_dir: Path = DEFAULT_OUTPUT) -> dict[str, Any]:
     scorecard_by_id = {case["id"]: case for case in scorecard["cases"]}
     corrections_by_id = {case["case_id"]: case for case in corrections["cases"]}
     case_ids = tuple(scorecard_by_id)
-    if not (
-        set(case_ids)
-        == set(verification_by_id)
-        == set(corrections_by_id)
-        == set(CASE_COPY)
-    ):
+    if not (set(case_ids) == set(verification_by_id) == set(corrections_by_id) == set(CASE_COPY)):
         raise ValueError("Proof Explorer source case sets do not match")
     if verification["case_count"] != len(case_ids) or not verification["ok"]:
         raise ValueError("Proof Explorer requires a complete healthy verification report")
@@ -93,8 +87,7 @@ def build(output_dir: Path = DEFAULT_OUTPUT) -> dict[str, Any]:
         if not (verified["ok"] and scored["pass"] and corrected["semantic_diff_ok"]):
             raise ValueError(f"Proof Explorer case {case_id!r} is not healthy")
         if not (
-            verified["artifact_sha256"]
-            == scored["artifact_sha256"]
+            verified["artifact_sha256"] == scored["artifact_sha256"]
             and verified["verification_id"] == scored["verification_id"]
         ):
             raise ValueError(f"Proof Explorer case {case_id!r} has evidence identity drift")
@@ -120,9 +113,7 @@ def build(output_dir: Path = DEFAULT_OUTPUT) -> dict[str, Any]:
                 "bytes": evidence_item["bytes"],
                 "width": image_width,
                 "height": image_height,
-                "capture_kind": (
-                    "viewport" if image_height == viewport["height"] else "full_page"
-                ),
+                "capture_kind": ("viewport" if image_height == viewport["height"] else "full_page"),
             }
 
         inverse_operations = corrected["receipt"]["inverse_patch"]["operations"]

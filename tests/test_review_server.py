@@ -14,17 +14,16 @@ from pathlib import Path
 
 import pytest
 
+import viewspec.review_compile as review_compile
 from viewspec.app_starters import starter_app_bundle
 from viewspec.converge_sessions import start_convergence_session, submit_convergence_patch
 from viewspec.intent_patch import IntentPatchContext, source_sha256
 from viewspec.intent_tools import starter_intent_payload
 from viewspec.local_tools import init_design_file
-import viewspec.review_compile as review_compile
 from viewspec.review_compile import STUDIO_COMPARE_TARGET
 from viewspec.review_contract import ReviewContractError
 from viewspec.review_runtime import ReviewRuntime
 from viewspec.review_server import ReviewServer, _json_object
-
 
 _REAL_SUBPROCESS_RUN = review_compile.subprocess.run
 
@@ -207,11 +206,20 @@ def _rendered_comparison(server: ReviewServer, cookie: str, *, confirm=True):
         frames[side] = content.decode()
     route = next(iter(server.runtime.routes), None)
     screen = server.runtime.screen_for_route(route) if route else None
-    payload = {"preview_id": rendered["preview_id"], "nonce": rendered["nonce"], "target": target,
-               "observations": [{"side": side, "route": route, "screen_id": screen} for side in ("current", "proposed")]}
+    payload = {
+        "preview_id": rendered["preview_id"],
+        "nonce": rendered["nonce"],
+        "target": target,
+        "observations": [{"side": side, "route": route, "screen_id": screen} for side in ("current", "proposed")],
+    }
     if confirm:
-        status, _, content = _request(server.port, "POST", f"{root}/convergence/preview-ready",
-                                      headers=_browser_headers(server, cookie), body=json.dumps(payload).encode())
+        status, _, content = _request(
+            server.port,
+            "POST",
+            f"{root}/convergence/preview-ready",
+            headers=_browser_headers(server, cookie),
+            body=json.dumps(payload).encode(),
+        )
         assert status == 200, content
     return rendered, payload, frames
 
@@ -701,7 +709,10 @@ def test_review_chrome_exposes_proof_not_authority_and_approves_exact_preview(tm
         assert open(runtime.configuration.source_path, encoding="utf-8").read() == original
 
         early, _, content = _request(
-            server.port, "POST", f"{root}/convergence/approve", headers=_browser_headers(server, cookie),
+            server.port,
+            "POST",
+            f"{root}/convergence/approve",
+            headers=_browser_headers(server, cookie),
             body=json.dumps({"preview_id": preview_id}).encode(),
         )
         assert early == 409, content
@@ -800,13 +811,29 @@ def test_rendered_comparison_rejects_wrong_authority_and_unobserved_pairs(tmp_pa
             {**valid, "preview_id": "old-proposal"},
             {**valid, "target": []},
             {**valid, "observations": [valid["observations"][0]] * 2},
-            {**valid, "observations": [valid["observations"][0], {"side": "proposed", "route": "/forged", "screen_id": "forged"}]},
+            {
+                **valid,
+                "observations": [
+                    valid["observations"][0],
+                    {"side": "proposed", "route": "/forged", "screen_id": "forged"},
+                ],
+            },
         ):
-            status, _, content = _request(server.port, "POST", f"{root}/preview-ready",
-                                          headers=_browser_headers(server, cookie), body=json.dumps(invalid).encode())
+            status, _, content = _request(
+                server.port,
+                "POST",
+                f"{root}/preview-ready",
+                headers=_browser_headers(server, cookie),
+                body=json.dumps(invalid).encode(),
+            )
             assert status == 409, content
-        status, _, content = _request(server.port, "POST", f"{root}/approve",
-                                      headers=_browser_headers(server, cookie), body=json.dumps({"preview_id": preview_id}).encode())
+        status, _, content = _request(
+            server.port,
+            "POST",
+            f"{root}/approve",
+            headers=_browser_headers(server, cookie),
+            body=json.dumps({"preview_id": preview_id}).encode(),
+        )
         assert status == 409, content
         assert Path(runtime.configuration.source_path).read_text() == original
         proposed = rendered["surfaces"][valid["target"]]["proposed"]
@@ -833,8 +860,13 @@ def test_source_or_design_change_invalidates_previously_rendered_proposal(tmp_pa
         changed = input_path.read_text() + "\n"
         input_path.write_text(changed)
         root = f"/r/{runtime.session.review_id}/api/v1/convergence"
-        status, _, content = _request(server.port, "POST", f"{root}/approve",
-                                      headers=_browser_headers(server, cookie), body=json.dumps({"preview_id": preview_id}).encode())
+        status, _, content = _request(
+            server.port,
+            "POST",
+            f"{root}/approve",
+            headers=_browser_headers(server, cookie),
+            body=json.dumps({"preview_id": preview_id}).encode(),
+        )
         assert status == 409, content
         status, _, _ = _request(server.port, "GET", rendered["surfaces"][valid["target"]]["proposed"])
         assert status == 409
@@ -869,11 +901,21 @@ def test_failed_proposed_render_blocks_approval_but_allows_rejection(tmp_path, m
             assert time.monotonic() < deadline
             time.sleep(0.01)
         assert "surfaces" not in rendered
-        status, _, _ = _request(server.port, "POST", f"{root}/convergence/approve",
-                                headers=_browser_headers(server, cookie), body=json.dumps({"preview_id": preview_id}).encode())
+        status, _, _ = _request(
+            server.port,
+            "POST",
+            f"{root}/convergence/approve",
+            headers=_browser_headers(server, cookie),
+            body=json.dumps({"preview_id": preview_id}).encode(),
+        )
         assert status == 409
-        status, _, content = _request(server.port, "POST", f"{root}/convergence/reject",
-                                      headers=_browser_headers(server, cookie), body=json.dumps({"preview_id": preview_id}).encode())
+        status, _, content = _request(
+            server.port,
+            "POST",
+            f"{root}/convergence/reject",
+            headers=_browser_headers(server, cookie),
+            body=json.dumps({"preview_id": preview_id}).encode(),
+        )
         assert status == 200, content
         assert Path(runtime.configuration.source_path).read_text() == original
     finally:
@@ -976,9 +1018,20 @@ def test_browser_sees_authenticated_agent_handoff_and_server_owned_queue(tmp_pat
         code, _, handoff_body = _request(server.port, "GET", f"{root}/agent-handoff", headers={"Cookie": cookie})
         assert code == 200
         import shlex
+
         command = shlex.split(json.loads(handoff_body)["instructions"].splitlines()[2])
-        assert command == ["python", "-m", "viewspec", "review-poll", runtime.configuration.source_path,
-                           "--state-dir", str(runtime.state_root), "--timeout-ms", "30000", "--json"]
+        assert command == [
+            "python",
+            "-m",
+            "viewspec",
+            "review-poll",
+            runtime.configuration.source_path,
+            "--state-dir",
+            str(runtime.state_root),
+            "--timeout-ms",
+            "30000",
+            "--json",
+        ]
         assert server.agent_token not in handoff_body.decode()
 
         poll_result: dict[str, object] = {}
@@ -1038,9 +1091,7 @@ def test_browser_sees_authenticated_agent_handoff_and_server_owned_queue(tmp_pat
         working = json.loads(content)["review"]
         assert working["agent_presence"] == {"status": "working"}
         assert working["queued_events"] == 1
-        assert working["conversation"] == [
-            {"role": "human", "body": "Tighten this.", "status": "working"}
-        ]
+        assert working["conversation"] == [{"role": "human", "body": "Tighten this.", "status": "working"}]
         assert set(working["conversation"][0]) == {"role", "body", "status"}
         assert set(working["agent_presence"]) == {"status"}
 
@@ -1063,9 +1114,13 @@ def test_browser_sees_authenticated_agent_handoff_and_server_owned_queue(tmp_pat
         assert stopped["agent_presence"] == {"status": "inactive"}
         assert stopped["conversation"][0]["status"] == "inactive"
         assert stopped["queued_events"] == 1
-        resumed_code, _, resumed_body = _request(server.port, "POST", "/internal/v1/poll",
+        resumed_code, _, resumed_body = _request(
+            server.port,
+            "POST",
+            "/internal/v1/poll",
             headers={"Content-Type": "application/json", "X-ViewSpec-Agent-Capability": server.agent_token},
-            body=b'{"ack_batch_id":null,"agent_reply":null,"timeout_ms":1}')
+            body=b'{"ack_batch_id":null,"agent_reply":null,"timeout_ms":1}',
+        )
         assert resumed_code == 200
         assert json.loads(resumed_body)["batch"] == delivered["batch"]
         assert server._agent_presence() == {"status": "working"}
@@ -1141,9 +1196,7 @@ def test_browser_conversation_keeps_an_unpolled_request_visible(tmp_path) -> Non
         review = json.loads(content)["review"]
         assert review["agent_presence"] == {"status": "not_connected"}
         assert review["queued_events"] == 1
-        assert review["conversation"] == [
-            {"role": "human", "body": "Tighten this.", "status": "queued"}
-        ]
+        assert review["conversation"] == [{"role": "human", "body": "Tighten this.", "status": "queued"}]
     finally:
         server.stop()
 
@@ -1278,7 +1331,7 @@ def test_browser_send_and_end_is_atomic_retryable_and_invalidates_normal_cookie_
         b'{"value":1.5}',
         b'{"value":9223372036854775808}',
         json.dumps({"value": list(range(257))}).encode(),
-        (b'{"value":' + b'[' * 17 + b'0' + b']' * 17 + b'}'),
+        (b'{"value":' + b"[" * 17 + b"0" + b"]" * 17 + b"}"),
     ),
 )
 def test_json_parser_rejects_values_outside_physical_shape_bounds(body) -> None:

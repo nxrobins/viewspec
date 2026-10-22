@@ -6,6 +6,7 @@ import re
 import subprocess
 from pathlib import Path
 
+import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
 MANIFEST_PATH = ROOT / "tests" / "bug_prevention_manifest.json"
@@ -58,6 +59,35 @@ def _is_hypothesis_property(node: ast.FunctionDef | ast.AsyncFunctionDef) -> boo
     )
 
 
+def _git(*args: str) -> subprocess.CompletedProcess[str] | None:
+    try:
+        return subprocess.run(["git", *args], cwd=ROOT, check=False, capture_output=True, text=True)
+    except OSError:
+        return None
+
+
+def _history_skip_reason() -> str | None:
+    """Explain why the fix-commit ancestry check cannot run in this checkout, or None when it can.
+
+    Only an incomplete checkout skips: a shallow clone, or one that lacks the declared history tip
+    object (CI checks out with ``fetch-depth: 0``). A full checkout that is missing a fixing commit
+    is a genuine failure and must not be skipped.
+    """
+    tip = _load_manifest()["history_tip"]
+    shallow = _git("rev-parse", "--is-shallow-repository")
+    if shallow is None or shallow.returncode != 0:
+        return "git history is unavailable: git is not on PATH or the checkout is not a git repository"
+    if shallow.stdout.strip() == "true":
+        return "shallow clone: the fixing-commit ancestry check needs full history (git fetch --unshallow)"
+    tip_object = _git("cat-file", "-e", f"{tip}^{{commit}}")
+    if tip_object is None or tip_object.returncode != 0:
+        return f"declared history tip {tip} is not present in this checkout; fetch the main history to check ancestry"
+    return None
+
+
+_HISTORY_SKIP_REASON = _history_skip_reason()
+
+
 def test_historical_bug_prevention_manifest_is_closed_and_machine_checked() -> None:
     manifest = _load_manifest()
     assert manifest["schema_version"] == 1
@@ -74,6 +104,7 @@ def test_historical_bug_prevention_manifest_is_closed_and_machine_checked() -> N
         assert entry["guards"], f"{entry['id']} has no executable prevention guard"
 
 
+@pytest.mark.skipif(_HISTORY_SKIP_REASON is not None, reason=_HISTORY_SKIP_REASON or "")
 def test_historical_fix_evidence_resolves_inside_the_declared_history_boundary() -> None:
     manifest = _load_manifest()
     tip = manifest["history_tip"]

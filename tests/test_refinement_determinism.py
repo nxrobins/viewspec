@@ -17,11 +17,7 @@ def _intent_text(case: ConformanceCase) -> str:
 
 
 def _files(root: Path) -> dict[str, bytes]:
-    return {
-        path.relative_to(root).as_posix(): path.read_bytes()
-        for path in sorted(root.rglob("*"))
-        if path.is_file()
-    }
+    return {path.relative_to(root).as_posix(): path.read_bytes() for path in sorted(root.rglob("*")) if path.is_file()}
 
 
 def test_fixed_refinement_corpus_compiles_byte_identically_with_traceable_manifest_nodes(tmp_path):
@@ -56,8 +52,4 @@ def test_fixed_refinement_corpus_compiles_byte_identically_with_traceable_manife
         assert manifest["semantic_digest"]
         assert manifest["nodes"]
         assert all(node["intent_refs"] for node in manifest["nodes"].values())
-        assert all(
-            ref.startswith("node:")
-            for node in manifest["nodes"].values()
-            for ref in node["content_refs"]
-        )
+        assert all(ref.startswith("node:") for node in manifest["nodes"].values() for ref in node["content_refs"])

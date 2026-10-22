@@ -1,11 +1,14 @@
 from __future__ import annotations
 
 import json
-from pathlib import Path
+import os
+import shutil
 import tempfile
+from pathlib import Path
 
-from hypothesis import given, settings, strategies as st
 import pytest
+from hypothesis import given, settings
+from hypothesis import strategies as st
 
 from viewspec.review_contract import ReviewContext, ReviewContractError, ReviewRevision, ReviewTarget, ReviewViewport
 from viewspec.review_session import ReviewJournal, ReviewSession, ReviewStateLock
@@ -469,3 +472,58 @@ def test_session_state_machine_preserves_sequence_and_at_least_once_delivery(ope
             assert [event.sequence for event in session.events] == list(range(1, len(session.events) + 1))
             assert len({event.event_id for event in session.events}) == len(session.events)
             assert session.cursor == acknowledged
+
+
+def test_session_tree_size_skips_entries_that_vanish_during_the_walk(tmp_path, monkeypatch) -> None:
+    # The review daemon renames temporary files and removes candidate directories from other
+    # threads while a request sizes the session; a name listed a moment ago may be gone when it
+    # is inspected. The walk must skip it instead of failing the request with a 500.
+    from viewspec import review_session
+
+    root = tmp_path / "session"
+    (root / "kept").mkdir(parents=True)
+    (root / "kept" / "events.vrj").write_bytes(b"x" * 10)
+    (root / "kept" / "vanishing.tmp").write_bytes(b"y" * 1000)
+    (root / "doomed").mkdir()
+    (root / "doomed" / "candidate.json").write_bytes(b"z" * 1000)
+
+    real_scandir = os.scandir
+
+    class _Listing:
+        def __init__(self, entries):
+            self._entries = entries
+
+        def __enter__(self):
+            return iter(self._entries)
+
+        def __exit__(self, *_exc_info):
+            return False
+
+    def racing_scandir(path):
+        with real_scandir(path) as listing:
+            entries = list(listing)
+        for entry in entries:
+            if entry.name == "vanishing.tmp":
+                os.unlink(entry.path)  # renamed away after it was listed
+            if entry.name == "doomed":
+                shutil.rmtree(entry.path)  # candidate directory removed after it was listed
+        return _Listing(entries)
+
+    monkeypatch.setattr(review_session.os, "scandir", racing_scandir)
+
+    assert review_session._session_tree_size(root, stop_after=10**6) == 10
+
+
+@pytest.mark.skipif(not hasattr(os, "symlink"), reason="platform has no symlink support")
+def test_session_tree_size_still_rejects_symbolic_links(tmp_path) -> None:
+    from viewspec import review_session
+
+    root = tmp_path / "session"
+    root.mkdir()
+    (root / "events.vrj").write_bytes(b"x" * 10)
+    (root / "alias").symlink_to(root / "events.vrj")
+
+    with pytest.raises(ReviewContractError) as raised:
+        review_session._session_tree_size(root, stop_after=10**6)
+
+    assert raised.value.code == "REVIEW_FILESYSTEM_UNSAFE"

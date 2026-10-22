@@ -2,16 +2,15 @@
 
 from __future__ import annotations
 
+import re
 from abc import ABC, abstractmethod
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
 from pathlib import Path
 from types import MappingProxyType
 from typing import Any
-import re
 
 from viewspec.types import ASTBundle, IRNode
-
 
 SAFE_EMITTER_PLUGIN_ID_RE = re.compile(r"^[A-Za-z0-9_.-]+$")
 
@@ -105,7 +104,9 @@ class EmitterNodeRegistry:
     def select(self, node: IRNode, context: EmitterNodeContext) -> EmitterNodePlugin:
         matches = [plugin for plugin in self.plugins if plugin.matches(node, context)]
         if not matches:
-            raise ValueError(f"No emitter node plugin matched primitive {node.primitive!r} for target {context.target}.")
+            raise ValueError(
+                f"No emitter node plugin matched primitive {node.primitive!r} for target {context.target}."
+            )
         matches.sort(key=lambda plugin: (-plugin.priority, plugin.plugin_id))
         best = matches[0]
         conflicts = [plugin.plugin_id for plugin in matches[1:] if plugin.priority == best.priority]

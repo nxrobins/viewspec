@@ -1,15 +1,25 @@
 import difflib
 import importlib.util
+import json
 import sys
+from collections.abc import Callable
 from pathlib import Path
 from types import ModuleType
-from typing import Callable
 
 import pytest
 
-
 ROOT = Path(__file__).resolve().parents[1]
 DEMOS = ROOT / "demos"
+
+# Files under demos/proof-explorer that are authored by hand next to the builder output.
+PROOF_EXPLORER_HAND_AUTHORED = frozenset({"index.html", "proof-explorer.css", "proof-explorer.js"})
+
+# demos/cross-platform-dashboard/artifacts/** is a hosted fixture, not a local build product.
+# The hosted compiler emitted it under the ``hosted_extended_v1`` contract profile (inputs, rules,
+# projections) and it includes SwiftUI and Flutter targets that the local SDK has no emitter for,
+# so no builder in this repository can regenerate it. It is therefore excluded from the byte-level
+# drift checks below and only its self-consistency is pinned.
+HOSTED_FIXTURES = ("demos/cross-platform-dashboard/artifacts",)
 
 
 def _load_demo_builder(module_name: str) -> ModuleType:
@@ -38,6 +48,46 @@ def _assert_demo_page_current(relative_path: str, generated: str) -> None:
     )
     preview = "\n".join(list(diff)[:80])
     raise AssertionError(f"{relative_path} is out of date. Regenerate its demo builder output.\n{preview}")
+
+
+def _assert_demo_bytes_current(relative_path: str, generated: bytes) -> None:
+    output_path = ROOT / relative_path
+    expected = output_path.read_bytes()
+    if expected == generated:
+        return
+    diff = difflib.unified_diff(
+        expected.decode("utf-8", errors="replace").splitlines(),
+        generated.decode("utf-8", errors="replace").splitlines(),
+        fromfile=f"checked-in {relative_path}",
+        tofile=f"generated {relative_path}",
+        lineterm="",
+    )
+    preview = "\n".join(list(diff)[:80])
+    raise AssertionError(f"{relative_path} is out of date. Regenerate its demo builder output.\n{preview}")
+
+
+def _relative_files(root: Path) -> set[str]:
+    return {path.relative_to(root).as_posix() for path in root.rglob("*") if path.is_file()}
+
+
+def _assert_demo_tree_current(
+    relative_dir: str,
+    generated_root: Path,
+    *,
+    hand_authored: frozenset[str] = frozenset(),
+) -> None:
+    """Every builder output must be checked in byte-for-byte, and nothing else may be checked in."""
+    checked_in_files = _relative_files(ROOT / relative_dir)
+    generated_files = _relative_files(generated_root)
+    assert generated_files, f"{relative_dir} builder produced no files"
+    lost = sorted(hand_authored - checked_in_files)
+    assert not lost, f"{relative_dir} lost hand-authored files: {lost}"
+    stale = sorted(checked_in_files - generated_files - hand_authored)
+    assert not stale, f"{relative_dir} contains files its builder no longer produces: {stale}"
+    missing = sorted(generated_files - checked_in_files)
+    assert not missing, f"{relative_dir} is missing builder outputs: {missing}"
+    for name in sorted(generated_files):
+        _assert_demo_bytes_current(f"{relative_dir}/{name}", (generated_root / name).read_bytes())
 
 
 def _aesthetic_profiles_page() -> str:
@@ -143,3 +193,50 @@ DETERMINISTIC_DEMO_PAGES: tuple[tuple[str, Callable[[], str]], ...] = (
 @pytest.mark.parametrize(("relative_path", "generate"), DETERMINISTIC_DEMO_PAGES)
 def test_generated_demo_matches_builder_output(relative_path: str, generate: Callable[[], str]):
     _assert_demo_page_current(relative_path, generate())
+
+
+def test_landing_page_and_compiled_mirror_match_builder_output(tmp_path, monkeypatch):
+    # build_landing.build() writes to fixed module-level locations, so point them at a temporary
+    # copy. Its only inputs are the compiler and demos/public-facts.json; two builds are identical.
+    builder = _load_demo_builder("build_landing")
+    compiled = tmp_path / "landing-compiled"
+    public_index = tmp_path / "index.html"
+    monkeypatch.setattr(builder, "COMPILED_DIR", compiled)
+    monkeypatch.setattr(builder, "PROFILE_DIR", compiled / "profiles")
+    monkeypatch.setattr(builder, "PUBLIC_INDEX", public_index)
+
+    builder.build()
+
+    _assert_demo_bytes_current("demos/index.html", public_index.read_bytes())
+    _assert_demo_tree_current("demos/landing-compiled", compiled)
+
+
+def test_proof_explorer_data_and_screenshots_match_builder_output(tmp_path):
+    # build_proof_explorer.build() projects conformance/refinement/** into proof-data.json and a
+    # screenshots/ tree; the page shell next to them is hand-authored.
+    builder = _load_demo_builder("build_proof_explorer")
+    generated = tmp_path / "proof-explorer"
+
+    builder.build(generated)
+
+    _assert_demo_tree_current("demos/proof-explorer", generated, hand_authored=PROOF_EXPLORER_HAND_AUTHORED)
+
+
+def test_cross_platform_dashboard_artifacts_are_a_self_consistent_hosted_fixture():
+    (relative_dir,) = HOSTED_FIXTURES
+    artifacts = ROOT / relative_dir
+    index = json.loads((artifacts / "artifact_index.json").read_text(encoding="utf-8"))
+
+    assert index["contract_profile"] == "hosted_extended_v1"
+    targets = {name: index[name] for name in ("html", "react_tsx", "swiftui", "flutter")}
+    listed = {index["ast_bundle"], index["intent_bundle"], index["prompt"]}
+    listed.update(path for target in targets.values() for path in target.values())
+    for relative_path in sorted(listed):
+        assert (artifacts / relative_path).is_file(), f"{relative_dir} index names a missing file: {relative_path}"
+    assert _relative_files(artifacts) == listed | {"artifact_index.json"}, (
+        f"{relative_dir} holds files its artifact index does not describe"
+    )
+    # The local SDK ships no SwiftUI or Flutter emitter. If one lands, this fixture can be
+    # regenerated locally and belongs in the byte-level drift checks above instead.
+    assert importlib.util.find_spec("viewspec.emitters.swiftui") is None
+    assert importlib.util.find_spec("viewspec.emitters.flutter") is None

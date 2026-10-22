@@ -6,7 +6,6 @@ import copy
 import hashlib
 from typing import Any
 
-
 RESOURCE_REPEAT_ALLOWED_FIELDS = frozenset({"field_presentations", "group_id"})
 RESOURCE_REPEAT_FIELD_PRESENTATION_ALLOWED_FIELDS = frozenset({"field", "present_as"})
 
@@ -54,7 +53,9 @@ def materialize_resource_repeats(payload: dict[str, Any]) -> dict[str, Any]:
             motif_members = motif.get("members") if isinstance(motif.get("members"), list) else []
             group_id = resource_view["repeat"].get("group_id")
             group = groups.get(str(group_id)) if isinstance(group_id, str) else None
-            group_members = group.get("members") if isinstance(group, dict) and isinstance(group.get("members"), list) else None
+            group_members = (
+                group.get("members") if isinstance(group, dict) and isinstance(group.get("members"), list) else None
+            )
             presentations = {
                 str(item.get("field")): str(item.get("present_as"))
                 for item in resource_view["repeat"].get("field_presentations", [])

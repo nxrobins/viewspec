@@ -6,12 +6,12 @@ from pathlib import Path
 
 import pytest
 
-from viewspec.app_starters import starter_app_bundle
 import viewspec.review_compile as review_compile
+from viewspec.app_starters import starter_app_bundle
+from viewspec.node_runtime import materialize_prebuilt_node_modules
 from viewspec.review_compile import STUDIO_COMPARE_TARGET
 from viewspec.review_contract import ReviewContractError, canonical_json_bytes
 from viewspec.review_runtime import ReviewRuntime
-from viewspec.node_runtime import materialize_prebuilt_node_modules
 from viewspec.studio_review_verify import (
     STUDIO_REVIEW_DEPENDENCY_SEED_ENV,
     StudioReviewVerificationError,
@@ -23,7 +23,6 @@ from viewspec.studio_review_verify import (
 )
 from viewspec.studio_review_worker import run_studio_review_worker
 from viewspec.studio_share import load_studio_share_package, prepare_studio_share
-
 
 _REAL_SUBPROCESS_RUN = review_compile.subprocess.run
 
@@ -300,14 +299,22 @@ def test_review_compile_rejects_unsafe_configured_seed_before_build(tmp_path, mo
     assert called == []
 
 
-@pytest.mark.parametrize("worker_seed_path", [
-    "conformance/agent-ui-v2/react-dependencies/node_modules",
-    "src/viewspec/host_verify_template/node_modules",
-])
-def test_real_pinned_dependency_seed_reproduces_exact_static_react_package(tmp_path, monkeypatch, worker_seed_path) -> None:
+@pytest.mark.parametrize(
+    "worker_seed_path",
+    [
+        "conformance/agent-ui-v2/react-dependencies/node_modules",
+        "src/viewspec/host_verify_template/node_modules",
+    ],
+)
+def test_real_pinned_dependency_seed_reproduces_exact_static_react_package(
+    tmp_path, monkeypatch, worker_seed_path
+) -> None:
     seed = Path(__file__).parents[1] / "conformance/agent-ui-v2/react-dependencies/node_modules"
     worker_seed = Path(__file__).parents[1] / worker_seed_path
-    if any(not item.joinpath(".package-lock.json").is_file() or not item.joinpath(".bin/vite").exists() for item in (seed, worker_seed)):
+    if any(
+        not item.joinpath(".package-lock.json").is_file() or not item.joinpath(".bin/vite").exists()
+        for item in (seed, worker_seed)
+    ):
         pytest.skip("pinned local React dependency seed is not installed")
     source = tmp_path / "viewspec.app.json"
     source.write_text(json.dumps(starter_app_bundle("internal_tool"), sort_keys=True), encoding="utf-8")

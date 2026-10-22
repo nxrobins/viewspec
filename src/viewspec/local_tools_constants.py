@@ -1,7 +1,8 @@
 from __future__ import annotations
 
-from viewspec.raw_html import RAW_HTML_POLICY_VERSION
 import re
+
+from viewspec.raw_html import RAW_HTML_POLICY_VERSION
 
 MCP_RESULT_SCHEMA_VERSION = 1
 
@@ -98,9 +99,38 @@ REACT_TSX_FORBIDDEN_SURFACES = (
     (re.compile(r"(?i)<script\b"), "ViewSpecView.tsx contains a script tag"),
 )
 
-REMOTE_AUTOFETCH_ATTRS = {"action", "background", "formaction", "manifest", "poster", "src", "srcset"}
+REMOTE_AUTOFETCH_ATTRS = {"action", "background", "formaction", "manifest", "ping", "poster", "src", "srcset"}
 
-REMOTE_HREF_AUTOFETCH_TAGS = {"image", "use", "base"}
+# SVG <feImage> fetches its href like <image>; HTMLParser lowercases tag names.
+REMOTE_HREF_AUTOFETCH_TAGS = {"image", "use", "base", "feimage"}
+
+# Attributes whose value a browser resolves as a URL, so javascript:, vbscript:, and data: schemes
+# are active content there. Checked after entity decoding, control/whitespace stripping, and
+# backslash collapsing; data:image/* is allowed only on <img src> (what the raw-HTML sanitizer keeps).
+URL_SCHEME_POLICY_ATTRS = {
+    "action",
+    "background",
+    "cite",
+    "codebase",
+    "data",
+    "dynsrc",
+    "formaction",
+    "href",
+    "longdesc",
+    "lowsrc",
+    "manifest",
+    "ping",
+    "poster",
+    "src",
+    "srcset",
+    "xlink:href",
+}
+
+UNSAFE_URL_SCHEMES = {"javascript", "vbscript"}
+
+# Upper bound on <style>/<script> blocks the linear block scanner will walk before failing closed.
+# Compiler output carries at most a handful; the bound keeps per-block CSS normalisation cheap.
+MAX_SCANNED_TAG_BLOCKS = 256
 
 ACTIVE_OR_AUTOFETCH_TAGS = {"embed", "iframe", "link", "object"}
 

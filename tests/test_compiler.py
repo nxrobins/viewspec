@@ -9,28 +9,27 @@ from pathlib import Path
 import pytest
 
 from viewspec import (
-    AGENT_INTENT_BUNDLE_SCHEMA,
     AESTHETIC_PROFILE_TOKENS,
-    IRNode,
+    AGENT_INTENT_BUNDLE_SCHEMA,
     MOTIF_PLUGIN_ABI_VERSION,
+    SUPPORTED_AGENT_MOTIFS,
+    IRNode,
     MotifCompileContext,
-    MotifCompileResult,
     MotifCompiler,
+    MotifCompileResult,
     MotifPlugin,
     MotifPluginError,
     MotifPluginFixture,
     MotifPluginManifest,
     MotifPluginSlot,
-    builtin_motif_registry,
-    check_motif_plugin,
-    create_motif_registry,
     Provenance,
-    SUPPORTED_AGENT_MOTIFS,
     UnsupportedMotifError,
     ViewSpecBuilder,
+    builtin_motif_registry,
+    check_motif_plugin,
     compile,
+    create_motif_registry,
 )
-from viewspec.agent import SUPPORTED_AGENT_ACTION_KINDS, SUPPORTED_AGENT_STYLE_TOKENS
 from viewspec.aesthetics import (
     AESTHETIC_PROFILE_LAYOUT_ROLES,
     MIN_AESTHETIC_PROFILE_CATEGORIES,
@@ -39,6 +38,7 @@ from viewspec.aesthetics import (
     profile_style_facts,
     profile_style_values,
 )
+from viewspec.agent import SUPPORTED_AGENT_ACTION_KINDS, SUPPORTED_AGENT_STYLE_TOKENS
 from viewspec.compiler import (
     PRODUCT_SINGLE_COLUMN_SURFACE_V1,
     PRODUCT_SURFACE_PLANNER_V1_SURFACE,
@@ -208,7 +208,9 @@ def test_table_compile_emits_semantic_table_contract(tmp_path):
 
     HtmlTailwindEmitter().emit(ast, tmp_path)
     html = tmp_path.joinpath("index.html").read_text(encoding="utf-8")
-    header_tag = html[html.index('id="dom-binding_widget_a_label"') : html.index(">", html.index('id="dom-binding_widget_a_label"'))]
+    header_tag = html[
+        html.index('id="dom-binding_widget_a_label"') : html.index(">", html.index('id="dom-binding_widget_a_label"'))
+    ]
 
     assert '<table id="dom-motif_items"' in html
     assert "<tbody><tr " in html
@@ -382,7 +384,9 @@ def test_empty_state_compile_emits_section_heading_contract(tmp_path):
         ("error_state", "add_error_state", "error_results", 'role="alert"', None),
     ],
 )
-def test_state_motifs_compile_to_checked_status_or_alert_sections(tmp_path, kind, method_name, motif_id, role_attr, aria_busy):
+def test_state_motifs_compile_to_checked_status_or_alert_sections(
+    tmp_path, kind, method_name, motif_id, role_attr, aria_busy
+):
     builder = ViewSpecBuilder(f"{kind}_view")
     getattr(builder, method_name)(
         motif_id,
@@ -527,7 +531,9 @@ def test_aesthetic_profile_compiles_to_root_metadata_and_style_projection():
     assert root.props["aesthetic_profile"] == "aesthetic.premium_saas"
     assert "aesthetic.premium_saas" in root.style_tokens
     assert "viewspec:style:aesthetic_profile" in root.provenance.intent_refs
-    assert ast.style_values["action.accent"].endswith("background-color: #4f46e5; color: #ffffff; border-radius: 999px;")
+    assert ast.style_values["action.accent"].endswith(
+        "background-color: #4f46e5; color: #ffffff; border-radius: 999px;"
+    )
     assert ast.style_values["surface.subtle"].endswith(
         "border-radius: 20px; box-shadow: 0 24px 60px rgb(79 70 229 / 0.22);"
     )
@@ -572,9 +578,7 @@ def test_aesthetic_profiles_change_minimum_checked_style_projection():
     for profile in AESTHETIC_PROFILE_TOKENS:
         values = profile_style_values(profile)
         changed = {
-            token
-            for token, css in values.items()
-            if DEFAULT_STYLE_TOKEN_VALUES.get(token, "").strip() != css.strip()
+            token for token, css in values.items() if DEFAULT_STYLE_TOKEN_VALUES.get(token, "").strip() != css.strip()
         }
         categories = {token.split(".", 1)[0] for token in changed if "." in token}
 
@@ -838,7 +842,9 @@ def test_product_surface_planner_v1_applies_single_column_roles_to_local_starter
     assert nodes["action_submit_review"] in nodes["motif_review_form"].children
 
 
-@pytest.mark.parametrize("title", ["Incident detail", "Warteschlange für Einsatzvorfälle", "Suivi des opérations", "インシデントの詳細"])
+@pytest.mark.parametrize(
+    "title", ["Incident detail", "Warteschlange für Einsatzvorfälle", "Suivi des opérations", "インシデントの詳細"]
+)
 def test_single_column_surface_projects_unbound_root_title_as_traceable_page_header(title):
     builder = ViewSpecBuilder("incident_detail", root_attrs={"title": title})
     detail = builder.add_detail("summary", group_id="summary_group")
@@ -953,10 +959,7 @@ def test_product_surface_planner_v1_action_row_preserves_action_contract():
 def test_product_surface_planner_v1_adds_no_synthetic_visible_content_or_actions():
     bundle = _product_workspace_bundle()
     allowed_text = {
-        str(value)
-        for node in bundle.substrate.nodes.values()
-        for value in node.attrs.values()
-        if value is not None
+        str(value) for node in bundle.substrate.nodes.values() for value in node.attrs.values() if value is not None
     }
     allowed_text.update(action.label for action in bundle.view_spec.actions)
 
@@ -980,7 +983,13 @@ def test_product_surface_planner_v1_adds_no_synthetic_visible_content_or_actions
 
 
 @pytest.mark.parametrize(
-    ("profile", "expected_content_columns", "expected_metric_columns", "expected_featured_span", "expected_layout_emphasis"),
+    (
+        "profile",
+        "expected_content_columns",
+        "expected_metric_columns",
+        "expected_featured_span",
+        "expected_layout_emphasis",
+    ),
     [
         ("aesthetic.data_dense", 3, 3, None, None),
         ("aesthetic.editorial_product", 2, 1, None, None),
@@ -1015,7 +1024,9 @@ def test_aesthetic_profile_layout_props_adjust_columns_and_spans_without_semanti
     assert [child.id for child in metric_cards] == ["motif_numbers_fixtures", "motif_numbers_emitters"]
     assert metric_cards[0].props.get("span_columns") == expected_featured_span
     assert metric_cards[0].props.get("layout_emphasis") == expected_layout_emphasis
-    assert metric_cards[0].props.get("aesthetic_layout_profile") == (profile if expected_featured_span or expected_layout_emphasis else None)
+    assert metric_cards[0].props.get("aesthetic_layout_profile") == (
+        profile if expected_featured_span or expected_layout_emphasis else None
+    )
     assert "span_columns" not in metric_cards[1].props
     assert "layout_emphasis" not in metric_cards[1].props
     assert "aesthetic_layout_profile" not in metric_cards[1].props
@@ -1038,7 +1049,13 @@ def test_layout_planner_region_grid_columns_use_rendered_children_and_cap():
     assert len(ast.result.diagnostics) == 0
     assert body is not None
     assert body.primitive == "grid"
-    assert [child.id for child in body.children] == ["region_main", "region_side", "region_aux", "region_extra", "motif_metrics"]
+    assert [child.id for child in body.children] == [
+        "region_main",
+        "region_side",
+        "region_aux",
+        "region_extra",
+        "motif_metrics",
+    ]
     assert body.props["columns"] == 3
     assert body.props["layout_strategy"] == "region_grid_v0"
 
@@ -1078,10 +1095,16 @@ def test_collection_actions_compile_to_single_previous_sibling_action_bar(tmp_pa
     table = builder.add_table("items", region="main", group_id="rows")
     table.add_row(label="Alpha", value="Ready", id="alpha")
     table.add_row(label="Beta", value="Waiting", id="beta")
-    builder.add_collection_action("search_items", "search", "Search", collection_id="items", payload_bindings=["query_value"])
-    builder.add_collection_action("filter_items", "filter", "Filter", collection_id="items", payload_bindings=["status_value"])
+    builder.add_collection_action(
+        "search_items", "search", "Search", collection_id="items", payload_bindings=["query_value"]
+    )
+    builder.add_collection_action(
+        "filter_items", "filter", "Filter", collection_id="items", payload_bindings=["status_value"]
+    )
     builder.add_collection_action("sort_items", "sort", "Sort", collection_id="items", payload_bindings=["sort_value"])
-    builder.add_collection_action("paginate_items", "paginate", "Next", collection_id="items", payload_bindings=["page_value"])
+    builder.add_collection_action(
+        "paginate_items", "paginate", "Next", collection_id="items", payload_bindings=["page_value"]
+    )
     builder.add_collection_action(
         "bulk_items",
         "bulk_action",
@@ -1157,7 +1180,9 @@ def test_collection_action_target_and_size_constraints_fail_closed():
     query = builder.add_text_input("query", label="Search", value="x" * 513, group_id="controls")
     dashboard = builder.add_dashboard("metrics", region="main", group_id="cards")
     dashboard.add_card(label="Open", value="18", id="open")
-    builder.add_action("bad_target", "search", "Search", target_region="main", target_ref="motif:metrics", payload_bindings=[query])
+    builder.add_action(
+        "bad_target", "search", "Search", target_region="main", target_ref="motif:metrics", payload_bindings=[query]
+    )
 
     ast = compile(builder.build_bundle())
     codes = {diagnostic.code for diagnostic in ast.result.diagnostics}
@@ -1168,7 +1193,9 @@ def test_collection_action_target_and_size_constraints_fail_closed():
     oversized = builder.add_text_input("query", label="Search", value="x" * 513, group_id="controls")
     table = builder.add_table("items", region="main", group_id="rows")
     table.add_row(label="Alpha", value="Ready", id="alpha")
-    builder.add_action("too_large", "search", "Search", target_region="main", target_ref="motif:items", payload_bindings=[oversized])
+    builder.add_action(
+        "too_large", "search", "Search", target_region="main", target_ref="motif:items", payload_bindings=[oversized]
+    )
 
     ast = compile(builder.build_bundle())
     codes = {diagnostic.code for diagnostic in ast.result.diagnostics}
@@ -1460,9 +1487,8 @@ def test_unsupported_motif_raises():
     bundle = builder.build_bundle()
     # Manually inject an unsupported motif
     from viewspec.types import MotifSpec
-    bundle.view_spec.motifs.append(MotifSpec(
-        id="fancy", kind="neural_layout", region="main", members=[]
-    ))
+
+    bundle.view_spec.motifs.append(MotifSpec(id="fancy", kind="neural_layout", region="main", members=[]))
 
     with pytest.raises(UnsupportedMotifError, match="neural_layout"):
         compile(bundle)
@@ -1629,9 +1655,7 @@ def test_manifestless_custom_motif_still_compiles_but_fails_public_harness_requi
 
 def test_custom_motif_harness_reports_missing_required_manifest_slots():
     bundle = _summary_strip_bundle()
-    plugin = _summary_strip_plugin(
-        plugin_manifest=_summary_strip_manifest(input_slots=(MotifPluginSlot("sparkline"),))
-    )
+    plugin = _summary_strip_plugin(plugin_manifest=_summary_strip_manifest(input_slots=(MotifPluginSlot("sparkline"),)))
     fixture = MotifPluginFixture(id="summary_strip.missing_sparkline", bundle=bundle)
 
     report = check_motif_plugin(plugin, fixtures=(fixture,))

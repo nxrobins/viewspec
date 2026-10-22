@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import hashlib
-import json
 import re
 from dataclasses import dataclass
 from typing import Any
@@ -70,6 +68,15 @@ class CompilerConstraintError(ValueError):
         super().__init__(f"{code}: {message}")
         self.code = code
         self.message = message
+
+    def __reduce__(self) -> tuple[Any, ...]:
+        # Same rule as viewspec.compiler_errors.StableCodeError: ``args`` holds only the
+        # formatted "CODE: message" text, so the default ``cls(*args)`` rebuild would fail.
+        # Rebuild from the two halves, so the error survives pickle (for example across a
+        # ProcessPoolExecutor), copy.copy and copy.deepcopy. The code is already a checked-in
+        # one, so __init__ keeps it unchanged. The instance dict carries any other attribute,
+        # such as __notes__.
+        return (type(self), (self.code, self.message), self.__dict__ or None)
 
 
 TAILWIND_APP_V1_APP_ROLE_CONTRACTS: dict[str, dict[str, tuple[str, ...]]] = {
@@ -348,7 +355,9 @@ GRID_SPAN_CLASS_BY_COLUMNS = {
 LAYOUT_EMPHASIS_CLASS_BY_VALUE = {
     "featured": "ring-2 ring-teal-300",
 }
-TEXT_SIZE_CLASSES = frozenset({"text-xs", "text-sm", "text-base", "text-lg", "text-xl", "text-2xl", "text-3xl", "text-4xl"})
+TEXT_SIZE_CLASSES = frozenset(
+    {"text-xs", "text-sm", "text-base", "text-lg", "text-xl", "text-2xl", "text-3xl", "text-4xl"}
+)
 FONT_FAMILY_CLASSES = frozenset({"font-mono", "font-sans", "font-serif"})
 FONT_WEIGHT_CLASSES = frozenset({"font-bold", "font-extrabold", "font-black", "font-semibold"})
 
@@ -386,16 +395,24 @@ def _depth(node: IRNode) -> int:
 
 def _validate_recipe_registry() -> None:
     if len(TAILWIND_APP_V1_APP_ROLE_CONTRACTS) > TAILWIND_MAX_APP_ROLES:
-        _fail("APP_ROLE_UNDECLARED_CONTRACT", f"tailwind_app_v1 app-role registry exceeds {TAILWIND_MAX_APP_ROLES} roles.")
+        _fail(
+            "APP_ROLE_UNDECLARED_CONTRACT", f"tailwind_app_v1 app-role registry exceeds {TAILWIND_MAX_APP_ROLES} roles."
+        )
     for role in TAILWIND_APP_V1_APP_ROLE_CONTRACTS:
         if f"app_role:{role}" not in RECIPE_BY_KEY:
             _fail("APP_ROLE_UNDECLARED_CONTRACT", f"App role {role} has no checked-in recipe.")
     for role, rule_id in TAILWIND_PRODUCT_APP_ROLE_RULE_IDS.items():
         if role not in TAILWIND_APP_V1_APP_ROLE_CONTRACTS or rule_id not in TAILWIND_APP_ROLE_RULE_PRECEDENCE:
-            _fail("APP_ROLE_UNDECLARED_CONTRACT", f"Product app-role rule {rule_id} is not declared in registry precedence.")
+            _fail(
+                "APP_ROLE_UNDECLARED_CONTRACT",
+                f"Product app-role rule {rule_id} is not declared in registry precedence.",
+            )
     for role, rule_id in TAILWIND_STRUCTURAL_APP_ROLE_RULE_IDS.items():
         if role not in TAILWIND_APP_V1_APP_ROLE_CONTRACTS or rule_id not in TAILWIND_APP_ROLE_RULE_PRECEDENCE:
-            _fail("APP_ROLE_UNDECLARED_CONTRACT", f"Structural app-role rule {rule_id} is not declared in registry precedence.")
+            _fail(
+                "APP_ROLE_UNDECLARED_CONTRACT",
+                f"Structural app-role rule {rule_id} is not declared in registry precedence.",
+            )
     for key in (
         "app_role:collection_action_bar",
         "app_role:loading_state",
@@ -406,7 +423,10 @@ def _validate_recipe_registry() -> None:
         "role:state:description",
     ):
         if key not in RECIPE_BY_KEY:
-            _fail("TAILWIND_STATEFUL_COLLECTION_RECIPE_MISSING", f"Missing checked Stateful Collections Tailwind recipe: {key}.")
+            _fail(
+                "TAILWIND_STATEFUL_COLLECTION_RECIPE_MISSING",
+                f"Missing checked Stateful Collections Tailwind recipe: {key}.",
+            )
     if len(RECIPE_BY_KEY) > TAILWIND_MAX_RECIPES:
         _fail("TAILWIND_LIMIT_EXCEEDED_RECIPES", "tailwind_app_v1 recipe registry exceeds 96 recipes.")
     for key, value in RECIPE_BY_KEY.items():
@@ -445,7 +465,9 @@ def _grid_columns(node: IRNode) -> int:
     try:
         columns = int(node.props.get("columns") or 1)
     except (TypeError, ValueError) as exc:
-        raise CompilerConstraintError("TAILWIND_LIMIT_EXCEEDED_GRID_COLUMNS", f"Grid IRNode '{node.id}' columns must be 1, 2, or 3.") from exc
+        raise CompilerConstraintError(
+            "TAILWIND_LIMIT_EXCEEDED_GRID_COLUMNS", f"Grid IRNode '{node.id}' columns must be 1, 2, or 3."
+        ) from exc
     if columns not in TAILWIND_GRID_COLUMNS:
         _fail("TAILWIND_LIMIT_EXCEEDED_GRID_COLUMNS", f"Grid IRNode '{node.id}' columns must be 1, 2, or 3.")
     return columns
@@ -455,7 +477,11 @@ def _grid_span_classes(node: IRNode) -> list[str]:
     span_columns = node.props.get("span_columns")
     if span_columns is None:
         return []
-    if not isinstance(span_columns, int) or isinstance(span_columns, bool) or span_columns not in GRID_SPAN_CLASS_BY_COLUMNS:
+    if (
+        not isinstance(span_columns, int)
+        or isinstance(span_columns, bool)
+        or span_columns not in GRID_SPAN_CLASS_BY_COLUMNS
+    ):
         _fail("TAILWIND_LIMIT_EXCEEDED_GRID_COLUMNS", f"IRNode '{node.id}' span_columns must be 2 or 3.")
     return GRID_SPAN_CLASS_BY_COLUMNS[span_columns].split()
 
@@ -491,12 +517,18 @@ def _role_contract_matches(node: IRNode, app_role: str) -> bool:
 
 def _derive_app_role(node: IRNode, parent: IRNode | None) -> AppRoleDerivation | None:
     if node.props.get("app_role") is not None or node.props.get("app_role_source") is not None:
-        _fail("APP_ROLE_LEXICAL_SOURCE", f"IRNode '{node.id}' declares Tailwind app-role metadata; roles are emitter-derived only.")
+        _fail(
+            "APP_ROLE_LEXICAL_SOURCE",
+            f"IRNode '{node.id}' declares Tailwind app-role metadata; roles are emitter-derived only.",
+        )
     product_role = node.props.get("product_role")
     if isinstance(product_role, str) and product_role in TAILWIND_PRODUCT_APP_ROLE_RULE_IDS:
         derivation = AppRoleDerivation(product_role, TAILWIND_PRODUCT_APP_ROLE_RULE_IDS[product_role])
         if not _role_contract_matches(node, derivation.app_role):
-            _fail("APP_ROLE_DERIVATION_MISMATCH", f"IRNode '{node.id}' product role {product_role} violates its app-role contract.")
+            _fail(
+                "APP_ROLE_DERIVATION_MISMATCH",
+                f"IRNode '{node.id}' product role {product_role} violates its app-role contract.",
+            )
         return derivation
     structural = _derive_structural_app_role(node, parent)
     if structural is not None and not _role_contract_matches(node, structural.app_role):
@@ -510,7 +542,9 @@ def _derive_structural_app_role(node: IRNode, parent: IRNode | None) -> AppRoleD
         and node.props.get("product_role") == "action_row"
         and node.props.get("layout_strategy") == "collection_action_bar_v1"
     ):
-        return AppRoleDerivation("collection_action_bar", TAILWIND_STRUCTURAL_APP_ROLE_RULE_IDS["collection_action_bar"])
+        return AppRoleDerivation(
+            "collection_action_bar", TAILWIND_STRUCTURAL_APP_ROLE_RULE_IDS["collection_action_bar"]
+        )
     if (
         node.primitive == "cluster"
         and node.props.get("product_role") == "action_row"
@@ -608,7 +642,10 @@ def _classes_for_recipe(recipe_key: str, aesthetic_profile: str | None) -> list[
     if aesthetic_profile is not None:
         overlay = TAILWIND_AESTHETIC_RECIPE_OVERLAYS.get(aesthetic_profile)
         if overlay is None:
-            _fail("TAILWIND_AESTHETIC_RECIPE_MISSING", f"Missing checked Tailwind aesthetic recipes for {aesthetic_profile}.")
+            _fail(
+                "TAILWIND_AESTHETIC_RECIPE_MISSING",
+                f"Missing checked Tailwind aesthetic recipes for {aesthetic_profile}.",
+            )
         overlay_classes = overlay.get(recipe_key)
         if overlay_classes:
             classes = _merge_tailwind_overlay_classes(classes, overlay_classes.split())
@@ -735,11 +772,12 @@ def _validate_tailwind_contract(root: IRNode, recipes: dict[str, ResolvedRecipe]
     if len(source.encode("utf-8")) > TAILWIND_MAX_ARTIFACT_BYTES:
         _fail("TAILWIND_LIMIT_EXCEEDED_ARTIFACT_BYTES", "react-tailwind-tsx output is capped at 256 KiB.")
     role_bearing = [node for node in nodes if _is_role_bearing(node)]
-    generic_fallbacks = [
-        node for node in role_bearing if recipes[node.id].recipe_key.startswith("primitive:")
-    ]
+    generic_fallbacks = [node for node in role_bearing if recipes[node.id].recipe_key.startswith("primitive:")]
     if role_bearing and (len(generic_fallbacks) / len(role_bearing)) > TAILWIND_GENERIC_FALLBACK_RATIO:
-        _fail("TAILWIND_GENERIC_FALLBACK_EXCEEDED", "More than 25% of role-bearing nodes used generic Tailwind fallback.")
+        _fail(
+            "TAILWIND_GENERIC_FALLBACK_EXCEEDED", "More than 25% of role-bearing nodes used generic Tailwind fallback."
+        )
+
 
 def _resolve_recipes(root: IRNode) -> dict[str, ResolvedRecipe]:
     parents = _node_parent_map(root)
@@ -778,13 +816,12 @@ def _manifest_entry_to_ir_node(entry: dict[str, Any] | None) -> IRNode:
     )
 
 
-def tailwind_recipe_registry_digest() -> str:
-    payload = tailwind_recipe_registry_projection()
-    encoded = json.dumps(payload, ensure_ascii=True, separators=(",", ":"), sort_keys=True).encode("utf-8")
-    return hashlib.sha256(encoded).hexdigest()
+def _base_registry_projection() -> dict[str, Any]:
+    """Registry projection without the emitter's semantic parity classes.
 
-
-def tailwind_recipe_registry_projection() -> dict[str, Any]:
+    The public ``tailwind_recipe_registry_projection`` / ``tailwind_recipe_registry_digest``
+    live in ``viewspec.emitters.react_tailwind_tsx``; this is their input.
+    """
     return {
         "recipe_pack": TAILWIND_RECIPE_PACK,
         "registry_version": TAILWIND_RECIPE_REGISTRY_VERSION,
@@ -854,6 +891,4 @@ __all__ = [
     "_validate_tailwind_contract",
     "_walk",
     "resolve_manifest_recipe_metadata",
-    "tailwind_recipe_registry_digest",
-    "tailwind_recipe_registry_projection",
 ]

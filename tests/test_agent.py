@@ -7,18 +7,18 @@ from pathlib import Path
 import pytest
 
 from viewspec import (
+    AESTHETIC_PROFILE_TOKENS,
+    AGENT_APP_BUNDLE_SCHEMA,
     AGENT_ASSET_CHECK_COMMAND,
     AGENT_ASSET_CONTRACT_PROFILE,
     AGENT_ASSET_EXPORT_COMMAND,
     AGENT_ASSET_MANIFEST_FILE,
     AGENT_ASSET_NETWORK_POLICY,
     AGENT_ASSET_SCHEMA_VERSION,
-    AGENT_APP_BUNDLE_SCHEMA,
     AGENT_INTENT_BUNDLE_SCHEMA,
+    AGENT_SYSTEM_PROMPT,
     CONVERGENCE_TASK_JSON_SCHEMA,
     INTENT_PATCH_JSON_SCHEMA,
-    AGENT_SYSTEM_PROMPT,
-    AESTHETIC_PROFILE_TOKENS,
     SUPPORTED_AGENT_ACTION_KINDS,
     SUPPORTED_AGENT_CARDINALITIES,
     SUPPORTED_AGENT_GROUP_KINDS,
@@ -30,11 +30,12 @@ from viewspec import (
     agent_repair_checklist,
     export_agent_assets,
     starter_app_bundle,
-    starter_intent_payload,
-    starter_intent_patch_payload,
     starter_convergence_task_payload,
+    starter_intent_patch_payload,
+    starter_intent_payload,
     validate_agent_intent_bundle,
 )
+from viewspec.aesthetics import AESTHETIC_PROFILE_LAYOUT_PROPS, AESTHETIC_PROFILE_LAYOUT_ROLES, profile_style_facts
 from viewspec.agent import (
     MAX_AGENT_ACTION_PAYLOAD_BINDINGS,
     MAX_AGENT_CORRECTION_PROMPT_ISSUES,
@@ -42,9 +43,7 @@ from viewspec.agent import (
     MAX_AGENT_NODES,
     MAX_AGENT_RELATION_VALUES,
 )
-from viewspec.aesthetics import AESTHETIC_PROFILE_LAYOUT_PROPS, AESTHETIC_PROFILE_LAYOUT_ROLES, profile_style_facts
 from viewspec.cli import main as cli_main
-
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -144,7 +143,10 @@ def test_agent_prompt_and_schema_preserve_intent_bundle_contract():
     assert "Use stable ids and object keys matching this pattern only" in AGENT_SYSTEM_PROMPT
     assert "substrate.nodes as an object keyed by node ID, never an array" in AGENT_SYSTEM_PROMPT
     assert "Stay inside the v1 local contract caps" in AGENT_SYSTEM_PROMPT
-    assert "Use only these action kinds: select, submit, navigate, search, filter, sort, paginate, bulk_action." in AGENT_SYSTEM_PROMPT
+    assert (
+        "Use only these action kinds: select, submit, navigate, search, filter, sort, paginate, bulk_action."
+        in AGENT_SYSTEM_PROMPT
+    )
     assert "input" in AGENT_SYSTEM_PROMPT
     assert "Use only this v1 binding cardinality: exactly_once." in AGENT_SYSTEM_PROMPT
     assert "Use only these v1 region layouts: stack, grid, cluster." in AGENT_SYSTEM_PROMPT
@@ -184,8 +186,13 @@ def test_agent_prompt_and_schema_preserve_intent_bundle_contract():
     assert "resource_views" in AGENT_SYSTEM_PROMPT
     assert "viewspec validate-app viewspec.app.json --json" in AGENT_SYSTEM_PROMPT
     assert "viewspec diff-app old.app.json new.app.json --json" in AGENT_SYSTEM_PROMPT
-    assert "viewspec compile-app viewspec.app.json --out app-dist --target html-tailwind-app --json" in AGENT_SYSTEM_PROMPT
-    assert "viewspec prove-app --app viewspec.app.json --out .viewspec-app-proof --with-shell --json" in AGENT_SYSTEM_PROMPT
+    assert (
+        "viewspec compile-app viewspec.app.json --out app-dist --target html-tailwind-app --json" in AGENT_SYSTEM_PROMPT
+    )
+    assert (
+        "viewspec prove-app --app viewspec.app.json --out .viewspec-app-proof --with-shell --json"
+        in AGENT_SYSTEM_PROMPT
+    )
     assert "Static Shell V0" in AGENT_SYSTEM_PROMPT
     # V4 wording (deliberate pin move): both targets perform the same bounded
     # scalar state-text projection; live resource rebinding remains React-only.
@@ -197,22 +204,47 @@ def test_agent_prompt_and_schema_preserve_intent_bundle_contract():
     assert "Do not call remote reference libraries by default" in AGENT_SYSTEM_PROMPT
     assert "query an MCP-accessible UI reference library" not in AGENT_SYSTEM_PROMPT
     assert AGENT_INTENT_BUNDLE_SCHEMA["$id"] == "https://viewspec.dev/agent-intent-bundle.schema.json"
-    assert AGENT_INTENT_BUNDLE_SCHEMA["not"] == {
-        "anyOf": [{"required": ["design"]}, {"required": ["motif_library"]}]
-    }
+    assert AGENT_INTENT_BUNDLE_SCHEMA["not"] == {"anyOf": [{"required": ["design"]}, {"required": ["motif_library"]}]}
     assert AGENT_INTENT_BUNDLE_SCHEMA["$defs"]["motif"]["properties"]["kind"]["enum"] == list(SUPPORTED_AGENT_MOTIFS)
-    assert AGENT_INTENT_BUNDLE_SCHEMA["$defs"]["action"]["properties"]["kind"]["enum"] == list(SUPPORTED_AGENT_ACTION_KINDS)
-    assert AGENT_INTENT_BUNDLE_SCHEMA["$defs"]["binding"]["properties"]["cardinality"]["enum"] == list(SUPPORTED_AGENT_CARDINALITIES)
+    assert AGENT_INTENT_BUNDLE_SCHEMA["$defs"]["action"]["properties"]["kind"]["enum"] == list(
+        SUPPORTED_AGENT_ACTION_KINDS
+    )
+    assert AGENT_INTENT_BUNDLE_SCHEMA["$defs"]["binding"]["properties"]["cardinality"]["enum"] == list(
+        SUPPORTED_AGENT_CARDINALITIES
+    )
     assert "input" in AGENT_INTENT_BUNDLE_SCHEMA["$defs"]["binding"]["properties"]["present_as"]["enum"]
-    assert AGENT_INTENT_BUNDLE_SCHEMA["$defs"]["group"]["properties"]["kind"]["enum"] == list(SUPPORTED_AGENT_GROUP_KINDS)
-    assert AGENT_INTENT_BUNDLE_SCHEMA["$defs"]["region"]["properties"]["layout"]["enum"] == list(SUPPORTED_AGENT_REGION_LAYOUTS)
+    assert AGENT_INTENT_BUNDLE_SCHEMA["$defs"]["group"]["properties"]["kind"]["enum"] == list(
+        SUPPORTED_AGENT_GROUP_KINDS
+    )
+    assert AGENT_INTENT_BUNDLE_SCHEMA["$defs"]["region"]["properties"]["layout"]["enum"] == list(
+        SUPPORTED_AGENT_REGION_LAYOUTS
+    )
     assert AGENT_INTENT_BUNDLE_SCHEMA["$defs"]["region"]["properties"]["role"]["minLength"] == 1
     assert AGENT_INTENT_BUNDLE_SCHEMA["$defs"]["region"]["properties"]["min_children"]["minimum"] == 0
     assert AGENT_INTENT_BUNDLE_SCHEMA["$defs"]["region"]["properties"]["max_children"]["anyOf"][0]["minimum"] == 0
-    assert AGENT_INTENT_BUNDLE_SCHEMA["$defs"]["substrate_node"]["properties"]["attrs"]["propertyNames"]["pattern"] == "^[A-Za-z0-9_.-]+$"
-    assert AGENT_INTENT_BUNDLE_SCHEMA["$defs"]["substrate_node"]["properties"]["edges"]["additionalProperties"]["$ref"] == "#/$defs/edge_values"
-    assert AGENT_INTENT_BUNDLE_SCHEMA["$defs"]["edge_values"]["properties"]["values"]["items"]["pattern"] == "^[A-Za-z0-9_.-]+$"
-    for definition in ("substrate", "substrate_node", "region", "binding", "group", "motif", "style", "action", "view_spec"):
+    assert (
+        AGENT_INTENT_BUNDLE_SCHEMA["$defs"]["substrate_node"]["properties"]["attrs"]["propertyNames"]["pattern"]
+        == "^[A-Za-z0-9_.-]+$"
+    )
+    assert (
+        AGENT_INTENT_BUNDLE_SCHEMA["$defs"]["substrate_node"]["properties"]["edges"]["additionalProperties"]["$ref"]
+        == "#/$defs/edge_values"
+    )
+    assert (
+        AGENT_INTENT_BUNDLE_SCHEMA["$defs"]["edge_values"]["properties"]["values"]["items"]["pattern"]
+        == "^[A-Za-z0-9_.-]+$"
+    )
+    for definition in (
+        "substrate",
+        "substrate_node",
+        "region",
+        "binding",
+        "group",
+        "motif",
+        "style",
+        "action",
+        "view_spec",
+    ):
         assert AGENT_INTENT_BUNDLE_SCHEMA["$defs"][definition]["additionalProperties"] is False
     assert AGENT_INTENT_BUNDLE_SCHEMA["$defs"]["view_spec"]["not"] == {
         "anyOf": [
@@ -226,8 +258,13 @@ def test_agent_prompt_and_schema_preserve_intent_bundle_contract():
     assert {"type": "null"} in target_ref_schema
     assert target_ref_schema[0]["pattern"] == "^(region|binding|motif|view):[A-Za-z0-9_.-]+$"
     assert AGENT_INTENT_BUNDLE_SCHEMA["$defs"]["action"]["properties"]["label"]["minLength"] == 1
-    assert AGENT_INTENT_BUNDLE_SCHEMA["$defs"]["style"]["properties"]["target"]["pattern"] == "^(?:(?:region|binding|motif|view):)?[A-Za-z0-9_.-]+$"
-    assert AGENT_INTENT_BUNDLE_SCHEMA["$defs"]["style"]["properties"]["token"]["enum"] == list(SUPPORTED_AGENT_STYLE_TOKENS)
+    assert (
+        AGENT_INTENT_BUNDLE_SCHEMA["$defs"]["style"]["properties"]["target"]["pattern"]
+        == "^(?:(?:region|binding|motif|view):)?[A-Za-z0-9_.-]+$"
+    )
+    assert AGENT_INTENT_BUNDLE_SCHEMA["$defs"]["style"]["properties"]["token"]["enum"] == list(
+        SUPPORTED_AGENT_STYLE_TOKENS
+    )
     profile_contract = AGENT_INTENT_BUNDLE_SCHEMA["x-viewspec-aesthetic-profiles"]
     assert profile_contract["tokens"] == list(AESTHETIC_PROFILE_TOKENS)
     assert profile_contract["style_token_prefix"] == "aesthetic."
@@ -238,21 +275,30 @@ def test_agent_prompt_and_schema_preserve_intent_bundle_contract():
         profile: {role: dict(props) for role, props in role_props.items()}
         for profile, role_props in AESTHETIC_PROFILE_LAYOUT_PROPS.items()
     }
-    assert profile_contract["style_facts"] == {profile: profile_style_facts(profile) for profile in AESTHETIC_PROFILE_TOKENS}
+    assert profile_contract["style_facts"] == {
+        profile: profile_style_facts(profile) for profile in AESTHETIC_PROFILE_TOKENS
+    }
     assert "not_css" in profile_contract["non_claims"]
     assert AGENT_INTENT_BUNDLE_SCHEMA["$defs"]["substrate"]["properties"]["nodes"]["maxProperties"] == MAX_AGENT_NODES
-    assert AGENT_INTENT_BUNDLE_SCHEMA["$defs"]["substrate_node"]["properties"]["kind"] == {"type": "string", "minLength": 1}
+    assert AGENT_INTENT_BUNDLE_SCHEMA["$defs"]["substrate_node"]["properties"]["kind"] == {
+        "type": "string",
+        "minLength": 1,
+    }
     invariants = AGENT_INTENT_BUNDLE_SCHEMA["x-viewspec-invariants"]
     assert "view_spec.substrate_id must equal substrate.id." in invariants
     assert "Each substrate.nodes object key must equal that node object's id." in invariants
     assert "Semantic node edges must reference declared substrate node ids." in invariants
     assert any(
-        "Hosted-only fields design, motif_library, view_spec.inputs, view_spec.projections, and view_spec.rules are rejected by the local schema" in item
+        "Hosted-only fields design, motif_library, view_spec.inputs, view_spec.projections, and view_spec.rules are rejected by the local schema"
+        in item
         for item in invariants
     )
     assert "IntentBundle may declare at most one aesthetic.* style token." in invariants
     assert "Aesthetic profile style token must target exactly view:{view_spec.id}." in invariants
-    assert any("bounded layout metadata for content_grid, metric_grid, and featured metric_card roles" in item for item in invariants)
+    assert any(
+        "bounded layout metadata for content_grid, metric_grid, and featured metric_card roles" in item
+        for item in invariants
+    )
     assert "Unknown extension fields are rejected instead of silently ignored." in invariants
     assert "viewspec validate-intent enforces cross-reference invariants." in invariants[-1]
 
@@ -350,7 +396,9 @@ def test_published_openapi_agent_artifacts_match_runtime_contract():
     openapi = json.loads(ROOT.joinpath("demos/openapi.json").read_text(encoding="utf-8"))
     artifacts = openapi["x-viewspec-agent-artifacts"]
     schemas = openapi["components"]["schemas"]
-    compile_request_ref = openapi["paths"]["/v1/compile"]["post"]["requestBody"]["content"]["application/json"]["schema"]["$ref"]
+    compile_request_ref = openapi["paths"]["/v1/compile"]["post"]["requestBody"]["content"]["application/json"][
+        "schema"
+    ]["$ref"]
 
     assert artifacts["assetSchemaVersion"] == AGENT_ASSET_SCHEMA_VERSION
     assert artifacts["assetManifest"] == "https://viewspec.dev/agent-assets.json"
@@ -431,8 +479,7 @@ def test_rejects_action_missing_required_target_ref_key():
     result = validate_agent_intent_bundle(payload, require_reference_compiler_support=False)
 
     assert any(
-        issue.code == "MISSING_FIELD" and issue.path == "$.view_spec.actions[0].target_ref"
-        for issue in result.issues
+        issue.code == "MISSING_FIELD" and issue.path == "$.view_spec.actions[0].target_ref" for issue in result.issues
     )
 
 
@@ -452,8 +499,7 @@ def test_rejects_action_target_ref_with_invalid_type():
     result = validate_agent_intent_bundle(payload, require_reference_compiler_support=False)
 
     assert any(
-        issue.code == "MISSING_FIELD" and issue.path == "$.view_spec.actions[0].target_ref"
-        for issue in result.issues
+        issue.code == "MISSING_FIELD" and issue.path == "$.view_spec.actions[0].target_ref" for issue in result.issues
     )
 
 
@@ -513,7 +559,9 @@ def test_rejects_non_integer_region_child_bounds_before_proto_parse():
     result = validate_agent_intent_bundle(payload, require_reference_compiler_support=False)
 
     assert any(issue.code == "MISSING_FIELD" and issue.path == "$.view_spec.complexity_tier" for issue in result.issues)
-    assert any(issue.code == "MISSING_FIELD" and issue.path == "$.view_spec.regions[0].max_children" for issue in result.issues)
+    assert any(
+        issue.code == "MISSING_FIELD" and issue.path == "$.view_spec.regions[0].max_children" for issue in result.issues
+    )
     assert not any(issue.code == "INTENT_BUNDLE_PARSE_ERROR" for issue in result.issues)
 
 
@@ -676,9 +724,7 @@ def test_rejects_empty_motif_before_empty_artifact_compile():
 def test_rejects_title_required_motifs_without_title_binding(motif):
     payload = _bundle_for_motif(motif)
     payload["view_spec"]["motifs"][0]["members"] = [
-        member
-        for member in payload["view_spec"]["motifs"][0]["members"]
-        if not member.endswith("_title")
+        member for member in payload["view_spec"]["motifs"][0]["members"] if not member.endswith("_title")
     ]
 
     result = validate_agent_intent_bundle(payload)
@@ -691,9 +737,7 @@ def test_rejects_title_required_motifs_without_title_binding(motif):
 def test_rejects_state_motifs_without_exactly_one_title_binding(motif):
     payload = _bundle_for_motif(motif)
     payload["view_spec"]["motifs"][0]["members"] = [
-        member
-        for member in payload["view_spec"]["motifs"][0]["members"]
-        if not member.endswith("_title")
+        member for member in payload["view_spec"]["motifs"][0]["members"] if not member.endswith("_title")
     ]
 
     result = validate_agent_intent_bundle(payload)
@@ -789,9 +833,7 @@ def test_rejects_too_many_collection_actions_and_state_conflicts():
 def test_rejects_form_motif_without_input_binding():
     payload = _bundle_for_motif("form")
     payload["view_spec"]["motifs"][0]["members"] = [
-        member
-        for member in payload["view_spec"]["motifs"][0]["members"]
-        if not member.endswith("_value")
+        member for member in payload["view_spec"]["motifs"][0]["members"] if not member.endswith("_value")
     ]
 
     result = validate_agent_intent_bundle(payload)
@@ -804,9 +846,7 @@ def test_rejects_form_motif_without_input_binding():
 def test_rejects_label_value_motifs_without_value_binding(motif):
     payload = _bundle_for_motif(motif)
     payload["view_spec"]["motifs"][0]["members"] = [
-        member
-        for member in payload["view_spec"]["motifs"][0]["members"]
-        if member.endswith("_label")
+        member for member in payload["view_spec"]["motifs"][0]["members"] if member.endswith("_label")
     ]
 
     result = validate_agent_intent_bundle(payload)
@@ -818,9 +858,7 @@ def test_rejects_label_value_motifs_without_value_binding(motif):
 def test_rejects_comparison_with_one_semantic_item():
     payload = _bundle_for_motif("comparison")
     payload["view_spec"]["motifs"][0]["members"] = [
-        member
-        for member in payload["view_spec"]["motifs"][0]["members"]
-        if member.startswith("free_")
+        member for member in payload["view_spec"]["motifs"][0]["members"] if member.startswith("free_")
     ]
 
     result = validate_agent_intent_bundle(payload)
@@ -875,7 +913,9 @@ def test_rejects_ambiguous_bare_style_target():
 
 def test_rejects_unsupported_style_token():
     payload = _bundle_for_motif("dashboard")
-    payload["view_spec"]["styles"].append({"id": "bad_style", "target": "binding:revenue_value", "token": "css.position.fixed"})
+    payload["view_spec"]["styles"].append(
+        {"id": "bad_style", "target": "binding:revenue_value", "token": "css.position.fixed"}
+    )
 
     assert "UNSUPPORTED_STYLE_TOKEN" in _issue_codes(payload)
 
@@ -974,7 +1014,9 @@ def test_rejects_unknown_extension_fields_before_proto_parse():
     payload["view_spec"]["bindings"][0]["formatter"] = "currency"
     payload["view_spec"]["groups"][0]["layout_hint"] = "masonry"
     payload["view_spec"]["motifs"][0]["renderer"] = "custom"
-    payload["view_spec"]["styles"].append({"id": "style", "target": "binding:revenue_value", "token": "tone.muted", "css": "color:red"})
+    payload["view_spec"]["styles"].append(
+        {"id": "style", "target": "binding:revenue_value", "token": "tone.muted", "css": "color:red"}
+    )
     payload["view_spec"]["actions"].append(
         {
             "id": "save",

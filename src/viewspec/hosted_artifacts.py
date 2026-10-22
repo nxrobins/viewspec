@@ -8,8 +8,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from viewspec._canonical import canonical_json_ascii_bytes
 from viewspec.types import CompileRequestPayload, IntentBundle
-
 
 ARTIFACT_SCHEMA_VERSION = 1
 ARTIFACT_TARGETS = ("html-tailwind", "react-tsx", "swiftui", "flutter")
@@ -19,8 +19,8 @@ class ArtifactContractError(ValueError):
     """Raised when a hosted artifact response fails integrity validation."""
 
 
-def _canonical(value: object) -> bytes:
-    return json.dumps(value, sort_keys=True, separators=(",", ":")).encode("utf-8")
+# ASCII-escaped canonical form, shared through viewspec._canonical (see its docstring).
+_canonical = canonical_json_ascii_bytes
 
 
 def _mapping(payload: Any, name: str) -> dict:
@@ -248,16 +248,14 @@ def compile_artifact_remote(
     api_key: str | None = None,
 ) -> ArtifactResponse:
     """Compile and integrity-check one paid hosted artifact target."""
-    from viewspec.compiler import CompilerAPIError, _compiler_api_error
+    from viewspec.hosted_compile import CompilerAPIError, _compiler_api_error
 
     if target not in ARTIFACT_TARGETS:
         raise ValueError(f"target must be one of: {', '.join(ARTIFACT_TARGETS)}")
     try:
         import httpx
     except ImportError:
-        raise ImportError(
-            "httpx is required for remote artifacts. Install it: pip install viewspec[remote]"
-        ) from None
+        raise ImportError("httpx is required for remote artifacts. Install it: pip install viewspec[remote]") from None
     bundle = _request_payload(request)
     headers = {"Authorization": f"Bearer {api_key}"} if api_key else {}
     try:

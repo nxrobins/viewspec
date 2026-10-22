@@ -24,6 +24,7 @@ from viewspec.local_tools import (
     tool_response,
 )
 
+
 def init_app_tool(
     out: str | Path = "viewspec.app.json",
     *,
@@ -240,7 +241,9 @@ def compile_app_tool(
         )
     except Exception as exc:
         if isinstance(exc, LocalToolError):
-            return tool_error_response(exc.code, exc.message, exc.fix, metadata=path_policy_metadata(root, allow_outside_cwd))
+            return tool_error_response(
+                exc.code, exc.message, exc.fix, metadata=path_policy_metadata(root, allow_outside_cwd)
+            )
         return tool_error_response(
             "APP_SHELL_INTERNAL_ERROR",
             str(exc),
@@ -310,7 +313,9 @@ def prove_app_tool(
                 "network_calls": proof.get("policy", {}).get("network_calls", "none"),
                 "freerange_requested": bool(freerange),
                 "pretext_requested": bool(pretext),
-                "static_analysis": proof.get("static_analysis") if isinstance(proof.get("static_analysis"), dict) else None,
+                "static_analysis": proof.get("static_analysis")
+                if isinstance(proof.get("static_analysis"), dict)
+                else None,
                 "text_layout": proof.get("text_layout") if isinstance(proof.get("text_layout"), dict) else None,
                 "analyses": proof.get("analyses") if isinstance(proof.get("analyses"), dict) else {},
                 "resource_binding": proof.get("resource_binding"),
@@ -343,14 +348,15 @@ def prove_app_tool(
         )
     except Exception as exc:
         if isinstance(exc, LocalToolError):
-            return tool_error_response(exc.code, exc.message, exc.fix, metadata=path_policy_metadata(root, allow_outside_cwd))
+            return tool_error_response(
+                exc.code, exc.message, exc.fix, metadata=path_policy_metadata(root, allow_outside_cwd)
+            )
         return tool_error_response(
             "APP_PROOF_INTERNAL_ERROR",
             str(exc),
             "Fix the app proof paths or local environment and retry prove_app.",
             metadata=path_policy_metadata(root, allow_outside_cwd),
         )
-
 
 
 __all__ = [

@@ -5,10 +5,10 @@ from __future__ import annotations
 import hashlib
 import hmac
 import json
-from pathlib import Path
 import selectors
 import subprocess
 import sys
+from pathlib import Path
 from typing import Any
 
 from viewspec._version import __version__
@@ -21,7 +21,12 @@ from viewspec.review_cli import (
 )
 from viewspec.review_contract import ReviewContractError
 from viewspec.review_runtime import default_review_state_root
-from viewspec.studio_creation import STUDIO_CREATION_TASK_DEFAULT, inspect_studio_creation
+from viewspec.studio_creation import (
+    STUDIO_CREATION_TASK_DEFAULT,
+    inspect_studio_creation,
+    inspected_path,
+    inspected_task,
+)
 from viewspec.studio_creation_daemon import creation_room_session_dir
 from viewspec.studio_creation_room import creation_room_configuration_sha256
 
@@ -34,8 +39,7 @@ def studio_agent_task(
 ) -> dict[str, object]:
     """Validate the retained task and explicitly check in to its existing creation room."""
     inspected = inspect_studio_creation(task_path, cwd=cwd)
-    task = inspected["task"]
-    assert isinstance(task, dict)
+    task = inspected_task(inspected)
     root = Path(state_root) if state_root is not None else default_review_state_root()
     active = _active_creation_room(str(task["task_id"]), root)
     if active is None:
@@ -73,10 +77,8 @@ def open_studio_creation_room(
             cli_exit=2,
         )
     inspected = inspect_studio_creation(task_path, cwd=cwd)
-    root = inspected["root"]
-    task = inspected["task"]
-    assert isinstance(root, Path)
-    assert isinstance(task, dict)
+    root = inspected_path(inspected, "root")
+    task = inspected_task(inspected)
     effective_state_root = Path(state_root) if state_root is not None else default_review_state_root()
     configuration_sha256 = creation_room_configuration_sha256(
         task_id=str(task["task_id"]),
@@ -210,17 +212,18 @@ def accepted_creation_handoff_port(
     """Return the exact retained review port for a completed room, if one exists."""
 
     inspected = inspect_studio_creation(task_path, cwd=cwd)
-    root = inspected["root"]
-    task = inspected["task"]
-    proof_path = inspected["proof_path"]
-    assert isinstance(root, Path)
-    assert isinstance(task, dict)
-    assert isinstance(proof_path, Path)
+    root = inspected_path(inspected, "root")
+    task = inspected_task(inspected)
+    proof_path = inspected_path(inspected, "proof_path")
     receipt_path = proof_path / "room-transition.json"
     if not receipt_path.exists() and not receipt_path.is_symlink():
         return None
     try:
-        if receipt_path.is_symlink() or not receipt_path.is_file() or receipt_path.stat().st_size > MAX_SERVER_INFO_BYTES:
+        if (
+            receipt_path.is_symlink()
+            or not receipt_path.is_file()
+            or receipt_path.stat().st_size > MAX_SERVER_INFO_BYTES
+        ):
             raise ValueError("unsafe receipt")
         receipt = json.loads(receipt_path.read_text(encoding="utf-8"))
     except (OSError, UnicodeDecodeError, json.JSONDecodeError, ValueError) as exc:
@@ -305,7 +308,14 @@ def _spawn_creation_daemon(command: list[str]) -> dict[str, Any]:
         text=True,
         start_new_session=True,
     )
-    assert process.stdout is not None
+    if process.stdout is None:
+        process.terminate()
+        raise ReviewContractError(
+            "STUDIO_CREATION_ROOM_FAILED",
+            "Studio creation daemon did not expose a readiness pipe.",
+            "Restart the exact local Studio creation task.",
+            cli_exit=1,
+        )
     selector = selectors.DefaultSelector()
     selector.register(process.stdout, selectors.EVENT_READ)
     ready = selector.select(timeout=DAEMON_START_TIMEOUT_SECONDS)

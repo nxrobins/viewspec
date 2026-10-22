@@ -5,9 +5,9 @@ from __future__ import annotations
 
 import argparse
 import json
-from pathlib import Path
 import signal
 import threading
+from pathlib import Path
 
 from viewspec.app_starters import starter_app_bundle
 from viewspec.review_compile import STUDIO_COMPARE_TARGET
@@ -61,11 +61,16 @@ class BrowserSharePublisher:
         }
 
     def publish(self, *, package_id, disclosure_accepted, expires_in_seconds) -> dict[str, object]:
-        if package_id != "d" * 64 or disclosure_accepted is not True or expires_in_seconds not in {
-            3600,
-            86400,
-            604800,
-        }:
+        if (
+            package_id != "d" * 64
+            or disclosure_accepted is not True
+            or expires_in_seconds
+            not in {
+                3600,
+                86400,
+                604800,
+            }
+        ):
             raise ValueError("invalid test-only Share confirmation")
         self._record("publish")
         session_id = "vsr_" + ("A" * 24)

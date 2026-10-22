@@ -15,7 +15,6 @@ from viewspec.local_verify import BrowserEvidence, BrowserPlanOutcome, verify_lo
 from viewspec.prove import prove
 from viewspec.verification import VerificationDiagnostic
 
-
 NEGATIVE_CORPUS_PATH = Path("conformance/refinement/negative-corpus.json")
 
 

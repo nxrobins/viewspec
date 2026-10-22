@@ -27,8 +27,14 @@ on contrast. This documents exactly what is and is not proven, so reviewers can 
 
 ## Explicitly out of scope (no fallback owed)
 
-- **Text on gradient / image / video backgrounds** — the compiler never emits text on them; an
-  unresolvable background fails loudly (`A11Y_UNRESOLVABLE_BACKGROUND`), never silently.
+- **Text on gradient / image / video backgrounds** — the compiler never emits text on them. Every
+  governed background is a flat 6-digit sRGB hex value from the closed aesthetic registry (plus the
+  emitter's fixed base-CSS pairs), so there is no "unresolvable background" case at proof time: the
+  contrast enumeration in `viewspec.a11y` always has a concrete `#rrggbb` pair to measure. A profile
+  whose ground or accent is not measurable hex is rejected when the registry itself is validated
+  (`AESTHETIC_PROFILE_UNSAFE_STYLE`), and agent-supplied style values outside the closed vocabulary
+  are rejected upstream by the style validator (`UNSUPPORTED_STYLE_TOKEN`). A pair below its
+  threshold fails `prove` loudly with `A11Y_CONTRAST_BELOW_AA`, never silently.
 - **Focus / tab order, ARIA-state truthfulness, keyboard operability, heading hierarchy, target
   size (WCAG 2.5.8), reduced-motion, live-region politeness, and screen-reader runtime behavior** —
   not statically decidable and/or later slices.
