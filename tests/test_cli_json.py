@@ -23,6 +23,7 @@ from viewspec import ERROR_CODES, __version__
 from viewspec.app_tools import init_app_tool
 from viewspec.app_validation import validate_app_file
 from viewspec.cli import main as cli_main
+from viewspec.compiler_errors import CompilerInternalError
 from viewspec.local_tools import export_agent_assets_tool, file_hash
 from viewspec.mcp_server import MCP_INSTALL_HINT, MissingMCPDependency
 from viewspec.native_agents import BEGIN_MARKER, END_MARKER
@@ -221,6 +222,36 @@ def test_compile_json_keeps_a_coded_contract_error_code(tmp_path, capsys):
     assert payload["errors"][0]["code"] == "TAILWIND_IMPORT_NOT_SUPPORTED"
 
 
+def test_compile_json_does_not_repeat_the_error_code_in_the_message(tmp_path, capsys):
+    # LocalToolContractError formats str(exc) as "CODE: message"; the envelope carries the code in
+    # its own field and the bare message beside it.
+    html = tmp_path / "input.html"
+    html.write_text("<main><h1>Hello</h1></main>", encoding="utf-8")
+    argv = ["compile", str(html), "--target", "react-tailwind-tsx", "--out", str(tmp_path / "o")]
+
+    exit_code, payload, err = _run_json(capsys, [*argv, "--json"])
+
+    assert exit_code == 2
+    assert err == ""
+    _assert_envelope(payload, ok=False)
+    assert payload["errors"] == [
+        {
+            "code": "TAILWIND_IMPORT_NOT_SUPPORTED",
+            "message": "Raw HTML import only supports --target html-tailwind",
+            "fix": cli._JSON_FAILURE_DEFAULTS["compile"].fix,
+        }
+    ]
+    assert payload["summary"] == "Raw HTML import only supports --target html-tailwind"
+
+    # Human mode keeps the code in its text.
+    assert cli_main(argv) == 2
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert (
+        captured.err == "error: TAILWIND_IMPORT_NOT_SUPPORTED: Raw HTML import only supports --target html-tailwind\n"
+    )
+
+
 # lift ----------------------------------------------------------------------------------------
 
 
@@ -357,6 +388,46 @@ def test_json_reports_an_internal_error_with_exit_one(tmp_path, capsys, monkeypa
     captured = capsys.readouterr()
     assert captured.out == ""
     assert captured.err == "internal error: disk on fire\n"
+
+
+class _MessageWithoutCodeError(RuntimeError):
+    """An exception with a .message attribute but no code: its full str() stays the message."""
+
+    def __init__(self) -> None:
+        super().__init__("full text with details")
+        self.message = "short text"
+
+
+@pytest.mark.parametrize(
+    ("raised", "code", "message"),
+    [
+        (
+            CompilerInternalError("PLANNER_ROLE_METADATA_ONLY", "unsupported product role 'x'."),
+            "PLANNER_ROLE_METADATA_ONLY",
+            "unsupported product role 'x'.",
+        ),
+        (_MessageWithoutCodeError(), "IO_ERROR", "full text with details"),
+    ],
+    ids=["coded", "uncoded"],
+)
+def test_json_reports_a_coded_error_by_its_bare_message(tmp_path, capsys, monkeypatch, raised, code, message):
+    def broken(*_args, **_kwargs):
+        raise raised
+
+    monkeypatch.setattr(cli, "init_design_file", broken)
+
+    exit_code, payload, err = _run_json(capsys, ["init-design", "--out", str(tmp_path / "D.md"), "--json"])
+
+    assert exit_code == 1
+    assert err == ""
+    _assert_envelope(payload, ok=False)
+    assert payload["errors"] == [
+        {"code": code, "message": message, "fix": cli._JSON_FAILURE_DEFAULTS["init-design"].fix}
+    ]
+    assert payload["summary"] == message
+
+    assert cli_main(["init-design", "--out", str(tmp_path / "D.md")]) == 1
+    assert capsys.readouterr().err == f"internal error: {raised}\n"
 
 
 # doctor --------------------------------------------------------------------------------------

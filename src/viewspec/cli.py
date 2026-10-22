@@ -190,6 +190,7 @@ def _cli_failure(exc: Exception) -> _CliFailure:
         )
     code = getattr(exc, "code", None)
     fix = getattr(exc, "fix", None)
+    message = getattr(exc, "message", None)
     if isinstance(exc, (FileNotFoundError, ValueError, TypeError, json.JSONDecodeError)):
         exit_code, text = 2, f"error: {exc}"
     else:
@@ -197,7 +198,9 @@ def _cli_failure(exc: Exception) -> _CliFailure:
     return _CliFailure(
         exit_code,
         text,
-        str(exc),
+        # Coded exceptions such as StableCodeError format str(exc) as "CODE: message" and expose the
+        # bare text as .message; the code has its own JSON field, so it is not repeated in the message.
+        message if isinstance(code, str) and isinstance(message, str) and message else str(exc),
         code=code if isinstance(code, str) else None,
         fix=fix if isinstance(fix, str) else None,
     )
