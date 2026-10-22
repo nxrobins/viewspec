@@ -1,5 +1,7 @@
+import hashlib
 import json
 import importlib
+import re
 
 from viewspec import profile_style_facts
 from viewspec.cli import main as cli_main
@@ -9,7 +11,15 @@ from viewspec.app_react import REACT_APP_MANIFEST
 from viewspec.app_reports import APP_BUNDLE_DEFAULT_REPORT, APP_BUNDLE_DEFAULT_SUMMARY, APP_BUNDLE_DEFAULT_SUPPORT_BUNDLE
 from viewspec.app_shell import APP_SHELL_MANIFEST
 from viewspec.local_tools_io import VIEWSPEC_OUTPUT_MARKERS
-from viewspec.prove import PROVE_DEFAULT_REPORT, PROVE_DEFAULT_SUMMARY, PROVE_DEFAULT_SUPPORT_BUNDLE, prove, prove_tool
+from viewspec.prove import (
+    PROVE_DEFAULT_REPORT,
+    PROVE_DEFAULT_SUMMARY,
+    PROVE_DEFAULT_SUPPORT_BUNDLE,
+    PROVE_SUPPORT_BUNDLE_SCHEMA_VERSION,
+    proof_report_hash,
+    prove,
+    prove_tool,
+)
 from viewspec.sdk.builder import ViewSpecBuilder
 
 
@@ -67,7 +77,15 @@ def test_prove_default_writes_checked_source_report(tmp_path):
     assert report["paths"]["proof_summary"] == str(out_dir / "PROOF.md")
     assert report["paths"]["support_bundle"] == str(out_dir / "support_bundle.json")
     assert check_artifact_dir(out_dir / "artifact")["ok"] is True
-    assert json.loads(out_dir.joinpath("proof_report.json").read_text(encoding="utf-8")) == report
+    # The file is the portable form of the returned report: same document, paths relative to the proof dir.
+    on_disk = json.loads(out_dir.joinpath("proof_report.json").read_text(encoding="utf-8"))
+    assert {key: value for key, value in on_disk.items() if key != "paths"} == {
+        key: value for key, value in report.items() if key != "paths"
+    }
+    assert on_disk["paths"]["proof_dir"] == "."
+    assert on_disk["paths"]["artifact"] == "artifact/index.html"
+    assert on_disk["paths"]["proof_summary"] == "PROOF.md"
+    assert str(out_dir) not in out_dir.joinpath("proof_report.json").read_text(encoding="utf-8")
     proof_text = out_dir.joinpath("PROOF.md").read_text(encoding="utf-8")
     assert "Status: **PASSED**" in proof_text
     assert "Proof level: `source_artifact`" in proof_text
@@ -75,6 +93,8 @@ def test_prove_default_writes_checked_source_report(tmp_path):
     assert "Artifact SHA-256:" in proof_text
     assert "Manifest SHA-256:" in proof_text
     assert "Proof report SHA-256:" in proof_text
+    assert "- Paths are relative to the proof directory." in proof_text
+    assert "- Artifact path: `artifact/index.html`" in proof_text
     assert "Manifest Summary" in proof_text
     assert "Emitter: `html_tailwind`" in proof_text
     assert "Redacted support bundle path:" in proof_text
@@ -86,11 +106,89 @@ def test_prove_default_writes_checked_source_report(tmp_path):
     assert support["ok"] is True
     assert support["privacy"]["contains_raw_intent"] is False
     assert support["privacy"]["contains_absolute_paths"] is False
-    assert support["proof_report_hash"] == file_hash(out_dir / "proof_report.json")
+    assert support["schema_version"] == PROVE_SUPPORT_BUNDLE_SCHEMA_VERSION
+    assert "timings_ms" not in support
+    assert support["proof_report_hash"] == proof_report_hash(report) == proof_report_hash(on_disk)
     assert support["manifest_summary"]["available"] is True
     assert support["manifest_summary"]["emitter"] == "html_tailwind"
     assert support["paths"]["proof_dir_name"] == "proof"
     assert str(tmp_path) not in support_text
+
+
+def _without_timing_lines(markdown: str) -> list[str]:
+    return [line for line in markdown.splitlines() if not re.fullmatch(r"- [a-z_]+: `\d+ms`", line)]
+
+
+def test_prove_bundle_is_identical_across_directories(tmp_path):
+    # C-7: the proof record must not depend on where or when it was written. Only the wall-clock
+    # timings may differ between two proofs of one input; paths are relative to the proof directory.
+    first_dir = tmp_path / "first" / "proof"
+    second_dir = tmp_path / "second" / "proof"
+
+    first = prove(out_dir=first_dir, cwd=tmp_path)
+    second = prove(out_dir=second_dir, cwd=tmp_path)
+
+    assert first["ok"] is True
+    assert second["ok"] is True
+    first_text = first_dir.joinpath("proof_report.json").read_text(encoding="utf-8")
+    second_text = second_dir.joinpath("proof_report.json").read_text(encoding="utf-8")
+    assert str(tmp_path) not in first_text
+    first_doc = json.loads(first_text)
+    second_doc = json.loads(second_text)
+    assert first_doc["paths"] == {
+        "proof_dir": ".",
+        "intent": "viewspec.intent.json",
+        "design": "DESIGN.md",
+        "artifact_dir": "artifact",
+        "artifact": "artifact/index.html",
+        "manifest": "artifact/provenance_manifest.json",
+        "diagnostics": "artifact/diagnostics.json",
+        "report": "proof_report.json",
+        "proof_summary": "PROOF.md",
+        "support_bundle": "support_bundle.json",
+    }
+    assert first_doc["timings_ms"]["total"] >= 0
+    first_timed = dict(first_doc)
+    first_doc.pop("timings_ms")
+    second_doc.pop("timings_ms")
+    assert first_doc == second_doc
+
+    first_support = first_dir.joinpath("support_bundle.json").read_bytes()
+    assert first_support == second_dir.joinpath("support_bundle.json").read_bytes()
+    support = json.loads(first_support)
+    expected_hash = proof_report_hash(first)
+    assert support["proof_report_hash"] == expected_hash == proof_report_hash(second) == proof_report_hash(first_timed)
+    # The documented recipe: delete timings_ms, re-serialize like the file, hash the UTF-8 bytes.
+    recipe = hashlib.sha256((json.dumps(first_doc, indent=2, sort_keys=True) + "\n").encode("utf-8")).hexdigest()
+    assert recipe == expected_hash
+
+    first_summary = first_dir.joinpath("PROOF.md").read_text(encoding="utf-8")
+    second_summary = second_dir.joinpath("PROOF.md").read_text(encoding="utf-8")
+    assert _without_timing_lines(first_summary) == _without_timing_lines(second_summary)
+    assert f"- Proof report SHA-256: `{expected_hash}`" in first_summary
+    assert "- Intent path: `viewspec.intent.json`" in first_summary
+    assert str(tmp_path) not in first_summary
+
+
+def test_prove_records_provided_inputs_relative_to_the_proof_directory(tmp_path):
+    intent = tmp_path / "inputs" / "viewspec.intent.json"
+    intent.parent.mkdir()
+    init_intent_file(intent)
+    out_dir = tmp_path / "proof"
+
+    report = prove(intent_path=intent, out_dir=out_dir, report_out=tmp_path / "custom-report.json", cwd=tmp_path)
+
+    assert report["ok"] is True
+    assert report["paths"]["intent"] == str(intent.resolve())
+    assert report["paths"]["report"] == str((tmp_path / "custom-report.json").resolve())
+    on_disk = json.loads(tmp_path.joinpath("custom-report.json").read_text(encoding="utf-8"))
+    assert on_disk["paths"]["intent"] == "../inputs/viewspec.intent.json"
+    assert on_disk["paths"]["report"] == "../custom-report.json"
+    assert on_disk["paths"]["artifact"] == "artifact/index.html"
+    assert proof_report_hash(on_disk) == proof_report_hash(report)
+    support = json.loads(out_dir.joinpath("support_bundle.json").read_text(encoding="utf-8"))
+    assert support["proof_report_hash"] == proof_report_hash(report)
+    assert support["paths"]["intent_name"] == "viewspec.intent.json"
 
 
 def test_prove_reports_aesthetic_profile_layout_summary(tmp_path):
@@ -405,7 +503,10 @@ def test_prove_tool_returns_standard_envelope_and_respects_cwd(tmp_path):
     identity = result["metadata"]["proof_identity"]
     assert identity["artifact_hash"] == result["proof_report"]["artifact_hash"]
     assert identity["manifest_hash"] == result["proof_report"]["manifest_hash"]
-    assert identity["proof_report_hash"] == file_hash(tmp_path / "proof/proof_report.json")
+    assert identity["proof_report_hash"] == proof_report_hash(result["proof_report"])
+    assert identity["proof_report_hash"] == proof_report_hash(
+        json.loads(tmp_path.joinpath("proof/proof_report.json").read_text(encoding="utf-8"))
+    )
     assert identity["proof_summary_hash"] == file_hash(tmp_path / "proof/PROOF.md")
     assert identity["support_bundle_hash"] == file_hash(tmp_path / "proof/support_bundle.json")
 
@@ -444,7 +545,10 @@ def test_prove_tool_metadata_exposes_react_tailwind_host_summary(tmp_path, monke
     assert result["metadata"]["manifest_summary"]["artifact_file"] == "ViewSpecView.tsx"
     assert result["metadata"]["proof_identity"]["artifact_hash"] == result["proof_report"]["artifact_hash"]
     assert result["metadata"]["proof_identity"]["manifest_hash"] == result["proof_report"]["manifest_hash"]
-    assert result["metadata"]["proof_identity"]["proof_report_hash"] == file_hash(tmp_path / "react-proof/proof_report.json")
+    assert result["metadata"]["proof_identity"]["proof_report_hash"] == proof_report_hash(result["proof_report"])
+    assert result["metadata"]["proof_identity"]["proof_report_hash"] == proof_report_hash(
+        json.loads(tmp_path.joinpath("react-proof/proof_report.json").read_text(encoding="utf-8"))
+    )
     assert result["metadata"]["host_verification"] == {
         "ok": True,
         "assertions": {

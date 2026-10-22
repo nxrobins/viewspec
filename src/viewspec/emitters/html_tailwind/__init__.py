@@ -10,7 +10,6 @@ from __future__ import annotations
 import json
 import logging
 import re
-import tempfile
 from html import escape
 from pathlib import Path
 from typing import Any
@@ -23,6 +22,7 @@ from viewspec.types import (
 )
 from viewspec.aesthetics import profile_shape_var_css
 from viewspec.compiler_refs import PRODUCT_SURFACE_PLANNER_V1_ROLES
+from viewspec.emitters._write import write_artifact_set, write_text_atomic
 from viewspec.emitters.base import EmitterPlugin
 
 
@@ -275,26 +275,8 @@ def _style_attr(css: str) -> str:
     return f' style="{escape(css, quote=True)}"' if css else ""
 
 
-def _write_text_atomic(path: Path, text: str) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    temp_name: str | None = None
-    try:
-        with tempfile.NamedTemporaryFile(
-            "w",
-            encoding="utf-8",
-            newline="",
-            dir=path.parent,
-            prefix=f".{path.name}.",
-            suffix=".tmp",
-            delete=False,
-        ) as handle:
-            temp_name = handle.name
-            handle.write(text)
-        Path(temp_name).replace(path)
-    except Exception:
-        if temp_name:
-            Path(temp_name).unlink(missing_ok=True)
-        raise
+# The atomic writer lives in viewspec.emitters._write; this name stays for callers that imported it here.
+_write_text_atomic = write_text_atomic
 
 
 def _validate_ir_contract(node: IRNode, seen_ids: set[str]) -> None:
@@ -648,31 +630,15 @@ def emit_compiler_result(
     html_path = output_path / "index.html"
     manifest_path = output_path / "provenance_manifest.json"
     diagnostics_path = output_path / "diagnostics.json"
-    try:
-        _write_text_atomic(html_path, html)
-        _write_text_atomic(manifest_path, json.dumps(manifest, indent=2))
-        _write_text_atomic(diagnostics_path, json.dumps([d.to_json() for d in result.diagnostics], indent=2, sort_keys=True))
-    except Exception as exc:
-        sentinel_path = output_path / ".viewspec_write_failed.json"
-        try:
-            _write_text_atomic(
-                sentinel_path,
-                json.dumps(
-                    {
-                        "version": 1,
-                        "severity": "error",
-                        "code": "ARTIFACT_WRITE_FAILED",
-                        "message": str(exc),
-                    },
-                    indent=2,
-                    sort_keys=True,
-                ),
-            )
-        except Exception as sentinel_exc:
-            _LOGGER.warning(
-                "Could not record the artifact write failure in %s: %s", sentinel_path, sentinel_exc, exc_info=sentinel_exc
-            )
-        raise
+    write_artifact_set(
+        output_path,
+        [
+            (html_path, html),
+            (manifest_path, json.dumps(manifest, indent=2)),
+            (diagnostics_path, json.dumps([d.to_json() for d in result.diagnostics], indent=2, sort_keys=True)),
+        ],
+        logger=_LOGGER,
+    )
     return {
         "html": str(html_path),
         "manifest": str(manifest_path),

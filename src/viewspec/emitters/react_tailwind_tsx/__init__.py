@@ -27,8 +27,8 @@ from viewspec.emitters.html_tailwind import (
     _node_classes,
     _validate_ir_contract,
     _validate_style_values,
-    _write_text_atomic,
 )
+from viewspec.emitters._write import write_artifact_set
 from viewspec.emitters.react_tsx import (
     _action_expression,
     _compiled_payload_values,
@@ -559,31 +559,15 @@ def emit_compiler_result(
     tsx_path = output_path / "ViewSpecView.tsx"
     manifest_path = output_path / "provenance_manifest.json"
     diagnostics_path = output_path / "diagnostics.json"
-    try:
-        _write_text_atomic(tsx_path, tsx)
-        _write_text_atomic(manifest_path, json.dumps(manifest, indent=2))
-        _write_text_atomic(diagnostics_path, json.dumps([d.to_json() for d in result.diagnostics], indent=2, sort_keys=True))
-    except Exception as exc:
-        sentinel_path = output_path / ".viewspec_write_failed.json"
-        try:
-            _write_text_atomic(
-                sentinel_path,
-                json.dumps(
-                    {
-                        "version": 1,
-                        "severity": "error",
-                        "code": "ARTIFACT_WRITE_FAILED",
-                        "message": str(exc),
-                    },
-                    indent=2,
-                    sort_keys=True,
-                ),
-            )
-        except Exception as sentinel_exc:
-            _LOGGER.warning(
-                "Could not record the artifact write failure in %s: %s", sentinel_path, sentinel_exc, exc_info=sentinel_exc
-            )
-        raise
+    write_artifact_set(
+        output_path,
+        [
+            (tsx_path, tsx),
+            (manifest_path, json.dumps(manifest, indent=2)),
+            (diagnostics_path, json.dumps([d.to_json() for d in result.diagnostics], indent=2, sort_keys=True)),
+        ],
+        logger=_LOGGER,
+    )
     return {
         "tsx": str(tsx_path),
         "manifest": str(manifest_path),

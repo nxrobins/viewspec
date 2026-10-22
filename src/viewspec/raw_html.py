@@ -6,7 +6,7 @@ import hashlib
 import html as html_lib
 import json
 import re
-import tempfile
+from collections.abc import Iterator
 from dataclasses import dataclass, field
 from html import escape
 from html.parser import HTMLParser
@@ -16,6 +16,7 @@ from urllib.parse import urlparse
 
 from viewspec._version import __version__
 from viewspec.design_md import DesignSystemContext
+from viewspec.emitters._write import write_artifact_set, write_text_atomic
 
 
 MAX_HTML_INPUT_BYTES = 5_000_000
@@ -880,62 +881,25 @@ def write_html_compile_result(result: HtmlCompileResult, output_dir: str | Path,
         "manifest": output / "provenance_manifest.json",
         "diagnostics": output / "diagnostics.json",
     }
-    try:
-        _atomic_write(paths["html"], result.html)
-        manifest = dict(result.manifest)
-        manifest["artifact_hash"] = _sha256_bytes(paths["html"].read_bytes())
-        _atomic_write(paths["manifest"], json.dumps(manifest, indent=2, sort_keys=True))
-        _atomic_write(paths["diagnostics"], json.dumps([dict(item) for item in result.diagnostics], indent=2, sort_keys=True))
-        if include_lift:
-            lift_path = output / "lift.json"
-            _atomic_write(lift_path, json.dumps(result.lift.to_json(), indent=2, sort_keys=True))
-            paths["lift"] = lift_path
-    except Exception as exc:
-        _write_failure_marker(output, exc)
-        raise
+    if include_lift:
+        paths["lift"] = output / "lift.json"
+    write_artifact_set(output, _html_compile_files(result, paths))
     return {key: str(value) for key, value in paths.items()}
 
 
-def _atomic_write(path: Path, text: str) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    temp_name: str | None = None
-    try:
-        with tempfile.NamedTemporaryFile(
-            "w",
-            encoding="utf-8",
-            newline="",
-            dir=path.parent,
-            prefix=f".{path.name}.",
-            suffix=".tmp",
-            delete=False,
-        ) as handle:
-            temp_name = handle.name
-            handle.write(text)
-        Path(temp_name).replace(path)
-    except Exception:
-        if temp_name:
-            Path(temp_name).unlink(missing_ok=True)
-        raise
+def _html_compile_files(result: HtmlCompileResult, paths: dict[str, Path]) -> Iterator[tuple[Path, str]]:
+    """Yield the artifact files in write order; the manifest hashes index.html once it is on disk."""
+    yield paths["html"], result.html
+    manifest = dict(result.manifest)
+    manifest["artifact_hash"] = _sha256_bytes(paths["html"].read_bytes())
+    yield paths["manifest"], json.dumps(manifest, indent=2, sort_keys=True)
+    yield paths["diagnostics"], json.dumps([dict(item) for item in result.diagnostics], indent=2, sort_keys=True)
+    if "lift" in paths:
+        yield paths["lift"], json.dumps(result.lift.to_json(), indent=2, sort_keys=True)
 
 
-def _write_failure_marker(output: Path, exc: Exception) -> None:
-    marker = output / ".viewspec_write_failed.json"
-    try:
-        _atomic_write(
-            marker,
-            json.dumps(
-                {
-                    "version": 1,
-                    "severity": "error",
-                    "code": "ARTIFACT_WRITE_FAILED",
-                    "message": str(exc),
-                },
-                indent=2,
-                sort_keys=True,
-            ),
-        )
-    except Exception:
-        return
+# The atomic writer lives in viewspec.emitters._write; this name stays for callers that imported it here.
+_atomic_write = write_text_atomic
 
 
 def _dedupe_diagnostics(items: list[dict[str, str]] | tuple[dict[str, str], ...]) -> tuple[dict[str, str], ...]:

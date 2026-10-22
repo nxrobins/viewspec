@@ -6,6 +6,7 @@ import json
 import logging
 import platform
 import sys
+from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
 
@@ -33,7 +34,8 @@ from viewspec.app_validation import (
     _resource_binding_fields_from_validation,
     _resource_binding_report_fields,
 )
-from viewspec.local_tools import atomic_write, file_hash
+from viewspec.local_tools import atomic_write, bytes_hash, file_hash
+from viewspec.local_tools_io import portable_report_paths
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -397,26 +399,22 @@ def write_app_proof(report: dict[str, Any], prepared: PreparedAppProof) -> dict[
         value for key, value in report.get("timings_ms", {}).items() if key != "total" and isinstance(value, int)
     )
     try:
-        _write_bounded_json(
-            prepared.report_path, report, limit=APP_BUNDLE_MAX_PROOF_REPORT_BYTES, code="APP_PROOF_REPORT_WRITE_FAILED"
-        )
+        _write_app_report(prepared.report_path, report)
     except Exception as exc:
         failed = _append_app_proof_error(report, exc, fallback_code="APP_PROOF_REPORT_WRITE_FAILED")
         failed["ok"] = False
         return failed
     try:
-        support_text = _render_app_support_bundle(report, proof_report_hash=file_hash(prepared.report_path))
+        support_text = _render_app_support_bundle(report, proof_report_hash=app_proof_report_hash(report))
         _write_app_support_bundle(prepared.support_path, support_text, report=report)
     except Exception as exc:
         failed = _append_app_proof_error(report, exc, fallback_code="APP_PROOF_SUPPORT_BUNDLE_WRITE_FAILED")
         failed["ok"] = False
-        _write_bounded_json(
-            prepared.report_path, failed, limit=APP_BUNDLE_MAX_PROOF_REPORT_BYTES, code="APP_PROOF_REPORT_WRITE_FAILED"
-        )
+        _write_app_report(prepared.report_path, failed)
         try:
             _write_app_summary(
                 prepared.summary_path,
-                _render_app_proof_summary(failed, proof_report_hash=file_hash(prepared.report_path)),
+                _render_app_proof_summary(failed, proof_report_hash=app_proof_report_hash(failed)),
             )
         except Exception as summary_exc:
             _LOGGER.warning(
@@ -428,16 +426,52 @@ def write_app_proof(report: dict[str, Any], prepared: PreparedAppProof) -> dict[
         return failed
     try:
         _write_app_summary(
-            prepared.summary_path, _render_app_proof_summary(report, proof_report_hash=file_hash(prepared.report_path))
+            prepared.summary_path, _render_app_proof_summary(report, proof_report_hash=app_proof_report_hash(report))
         )
     except Exception as exc:
         failed = _append_app_proof_error(report, exc, fallback_code="APP_PROOF_SUMMARY_WRITE_FAILED")
         failed["ok"] = False
-        _write_bounded_json(
-            prepared.report_path, failed, limit=APP_BUNDLE_MAX_PROOF_REPORT_BYTES, code="APP_PROOF_REPORT_WRITE_FAILED"
-        )
+        _write_app_report(prepared.report_path, failed)
         return failed
     return report
+
+
+def _write_app_report(report_path: Path, report: dict[str, Any]) -> None:
+    """Write ``app_proof_report.json`` in its portable form: paths relative to the proof directory."""
+    _write_bounded_json(
+        report_path,
+        _portable_app_report(report),
+        limit=APP_BUNDLE_MAX_PROOF_REPORT_BYTES,
+        code="APP_PROOF_REPORT_WRITE_FAILED",
+    )
+
+
+def _portable_app_report(report: Mapping[str, Any]) -> dict[str, Any]:
+    """Return the on-disk form of an app proof report: a copy whose paths are relative to ``paths.proof_dir``.
+
+    The in-memory report keeps absolute paths for the CLI and the MCP tool; the file records every
+    ``paths`` mapping (the report's own, each screen's, the shell's and the React app's) relative to
+    the proof directory with POSIX separators so the document is the same wherever it was written.
+    """
+    paths = report.get("paths") if isinstance(report.get("paths"), dict) else {}
+    base = paths.get("proof_dir")
+    if not isinstance(base, str) or not base:
+        return json.loads(json.dumps(report))
+    return portable_report_paths(report, base)
+
+
+def app_proof_report_hash(report: Mapping[str, Any]) -> str:
+    """Return the SHA-256 identity of an app proof report, independent of where and when it was written.
+
+    The hash covers the portable ``app_proof_report.json`` document with the wall-clock
+    ``timings_ms`` section removed, serialized as the file is written (``indent=2``, sorted keys,
+    one trailing newline, UTF-8).  It is the same for the in-memory report and for the document
+    read back from disk.  ``APP_PROOF.md`` and ``app_support_bundle.json`` record it as the proof
+    report hash, and the ``prove_app`` tool exposes it as ``proof_identity.proof_report_hash``.
+    """
+    document = _portable_app_report(report)
+    document.pop("timings_ms", None)
+    return bytes_hash((json.dumps(document, indent=2, sort_keys=True) + "\n").encode("utf-8"))
 
 
 def _finalize_report_paths(report: dict[str, Any], prepared: PreparedAppProof) -> dict[str, Any]:
@@ -987,7 +1021,10 @@ def _render_app_proof_summary(report: dict[str, Any], *, proof_report_hash: str)
             "",
         ]
     )
-    paths = report.get("paths") if isinstance(report.get("paths"), dict) else {}
+    paths = _portable_app_report(report).get("paths")
+    if not isinstance(paths, dict):
+        paths = {}
+    lines.append("- Paths are relative to the proof directory.")
     for key in (
         "app",
         "design",
@@ -1003,7 +1040,15 @@ def _render_app_proof_summary(report: dict[str, Any], *, proof_report_hash: str)
         "react_app_diagnostics",
     ):
         lines.append(f"- {key}: `{_summary_value(paths.get(key))}`")
-    lines.extend(["", "## Hashes", "", f"- App proof report SHA-256: `{_summary_value(proof_report_hash)}`"])
+    lines.extend(
+        [
+            "",
+            "## Hashes",
+            "",
+            f"- App proof report SHA-256: `{_summary_value(proof_report_hash)}`",
+            "- App proof report SHA-256 scope: `app_proof_report.json` with `timings_ms` removed",
+        ]
+    )
     lines.extend(["", "## Errors", ""])
     errors = report.get("errors") if isinstance(report.get("errors"), list) else []
     if errors:
@@ -1133,7 +1178,7 @@ def _app_tool_proof_identity(proof: dict[str, Any]) -> dict[str, str | None]:
     static_analysis = proof.get("static_analysis") if isinstance(proof.get("static_analysis"), dict) else {}
     text_layout = proof.get("text_layout") if isinstance(proof.get("text_layout"), dict) else {}
     return {
-        "proof_report_hash": _hash_path_if_present(paths.get("report")),
+        "proof_report_hash": app_proof_report_hash(proof) if _is_present_file(paths.get("report")) else None,
         "proof_summary_hash": _hash_path_if_present(paths.get("proof_summary")),
         "support_bundle_hash": _hash_path_if_present(paths.get("support_bundle")),
         "analysis_evidence_hash": _hash_path_if_present(paths.get("analysis_evidence")),
@@ -1178,13 +1223,17 @@ def _app_tool_proof_identity(proof: dict[str, Any]) -> dict[str, str | None]:
     }
 
 
-def _hash_path_if_present(path: object) -> str | None:
+def _is_present_file(path: object) -> bool:
     if not path:
-        return None
+        return False
     candidate = Path(str(path))
-    if not candidate.exists() or not candidate.is_file():
+    return candidate.exists() and candidate.is_file()
+
+
+def _hash_path_if_present(path: object) -> str | None:
+    if not _is_present_file(path):
         return None
-    return file_hash(candidate)
+    return file_hash(Path(str(path)))
 
 
 # Backward-compatible private aliases; the un-prefixed names are canonical.
@@ -1205,6 +1254,7 @@ __all__ = [
     "APP_BUNDLE_TARGET",
     "app_proof_failure_report",
     "app_proof_report",
+    "app_proof_report_hash",
     "app_shell_failure_report",
     "app_shell_report",
     "_app_tool_proof_identity",
