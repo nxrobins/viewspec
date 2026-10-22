@@ -24,11 +24,17 @@ The checks CI runs, from the repository root (see "Running the checks" in CONTRI
 - [ ] `python scripts/check_pyright_baseline.py`
 - [ ] `node tests/seo_static_smoke.mjs`
 
-The repository rules:
+When they apply (also under "Running the checks"):
 
-- [ ] New behaviour comes with tests; a bug fix comes with a test that fails without the fix.
-- [ ] A user-visible change has a bullet under `## [Unreleased]` in `CHANGELOG.md`.
-- [ ] An error code this change starts or stops emitting is added to or removed from `src/viewspec/error_codes.py`.
 - [ ] If a dependency range in `pyproject.toml` changed, `requirements-ci.txt` is regenerated with the command in its header and the description says the pins changed.
-- [ ] No generated artifact (`dist/`, `react-output/`, generated React, lockfiles, manifests, proof reports) is edited by hand.
 - [ ] If the change touches what the opt-in `e2e` suites cover, they were run, or the description says why not.
+
+The repository rules (see "Repository rules" in CONTRIBUTING.md):
+
+- [ ] **The error-code registry is closed.** An error code this change starts or stops emitting is added to or removed from `src/viewspec/error_codes.py`.
+- [ ] **Every user-visible change gets a changelog entry**, a bullet under `## [Unreleased]` in `CHANGELOG.md`.
+- [ ] **Generated artifacts are compiler output.** Nothing in `dist/`, `react-output/`, generated React, lockfiles, manifests or proof reports is edited by hand.
+- [ ] **Keep pull requests focused.** Reformatting and renames are not mixed into a behaviour change.
+- [ ] **New behaviour comes with tests.** A bug fix comes with a test that fails without the fix.
+- [ ] **Documentation you touch must stay true.** The pages this changes still match the code, and the test suite ran after the edit, because tests pin wording in several of them.
+- [ ] **Do not add network calls, telemetry, or automatic installs to the local SDK.** This change adds none; `SECURITY.md` describes the no-network posture.

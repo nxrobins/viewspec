@@ -6,7 +6,8 @@ permitted keys and attributes for each element type, ids and labels that are uni
 and options that YAML does not turn into booleans or the reserved word ``None``. They also pin the
 facts the bug report must ask for, the code fences that keep pasted input readable in the issue,
 the deliberate blank-issue setting and the security route in ``config.yml``, an owner for every
-path in CODEOWNERS, and a pull request checklist that names every command CONTRIBUTING.md runs.
+path in CODEOWNERS, and a pull request checklist that repeats every command and repository rule in
+CONTRIBUTING.md.
 
 Schema reference: https://docs.github.com/en/communities/using-templates-to-encourage-useful-issues-and-pull-requests/syntax-for-issue-forms
 and the "Syntax for GitHub's form schema" and "Common validation errors" pages next to it.
@@ -359,19 +360,52 @@ def test_codeowners_names_an_owner_for_every_path() -> None:
     assert "@nxrobins" in rules[0][1]
 
 
+def _pull_request_checklist() -> list[str]:
+    return [
+        line for line in PULL_REQUEST_TEMPLATE.read_text(encoding="utf-8").splitlines() if line.startswith("- [ ] ")
+    ]
+
+
+def _repository_rules() -> list[str]:
+    """The rules under "Repository rules" in CONTRIBUTING.md.
+
+    A ``###`` subsection of prose states one rule, its heading. A subsection of bullets states one
+    rule per bullet, the bullet's first sentence.
+    """
+    rules: list[str] = []
+    subsections = re.findall(
+        r"^### ([^\n]+)\n(.*?)(?=^### |\Z)", _contributing_section("Repository rules"), flags=re.MULTILINE | re.DOTALL
+    )
+    for heading, text in subsections:
+        bullets = [" ".join(item.split()) for item in re.split(r"^- ", text, flags=re.MULTILINE)[1:]]
+        rules += [re.split(r"\.\s", bullet, maxsplit=1)[0].rstrip(".") for bullet in bullets] or [heading]
+    return rules
+
+
 def test_pull_request_checklist_names_every_check_in_contributing() -> None:
     blocks = re.findall(r"```bash\n(.*?)```", _contributing_section("Running the checks"), flags=re.DOTALL)
     assert blocks, "CONTRIBUTING.md has no command block under 'Running the checks'"
     commands = [line.strip() for line in blocks[0].splitlines() if line.strip()]
     assert "ruff check ." in commands, commands
     template = PULL_REQUEST_TEMPLATE.read_text(encoding="utf-8")
-    checklist = [line for line in template.splitlines() if line.startswith("- [ ] ")]
+    checklist = _pull_request_checklist()
     for command in commands:
         assert any(line.startswith(f"- [ ] `{command}`") for line in checklist), command
     for rule in ("CHANGELOG.md", "src/viewspec/error_codes.py", "requirements-ci.txt"):
         assert any(f"`{rule}`" in line for line in checklist), rule
     named_files = re.findall(r"`([\w./-]+\.(?:md|py|json|txt|toml|yml))`", template)
     assert [name for name in named_files if not (ROOT / name).is_file()] == []
+
+
+def test_pull_request_checklist_repeats_every_repository_rule() -> None:
+    """CONTRIBUTING.md says the checklist repeats the repository rules, so each rule appears, in its
+    own words, in a checklist item; a rule added to CONTRIBUTING.md needs an item too."""
+    rules = _repository_rules()
+    # Both kinds of rule are found: the ### subsections and the bullets, the no-network rule among them.
+    assert "The error-code registry is closed" in rules, rules
+    assert any("network calls" in rule for rule in rules), rules
+    checklist = _pull_request_checklist()
+    assert [rule for rule in rules if not any(rule in line for line in checklist)] == []
 
 
 def test_contributing_points_to_the_templates() -> None:
