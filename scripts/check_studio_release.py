@@ -20,7 +20,6 @@ import subprocess
 import sys
 import tempfile
 import time
-import tomllib
 from urllib.request import HTTPCookieProcessor, ProxyHandler, build_opener
 import venv
 
@@ -63,9 +62,9 @@ class HomepageCommands(HTMLParser):
 
 def homepage_contract(root: Path = ROOT) -> tuple[str, dict[str, str]]:
     facts = json.loads((root / "demos/public-facts.json").read_text(encoding="utf-8"))
-    project = tomllib.loads((root / "pyproject.toml").read_text(encoding="utf-8"))
+    runtime_version = (root / "src/viewspec/_version.py").read_text(encoding="utf-8")
     version = facts["sdk_version"]
-    if project["project"]["version"] != version:
+    if f'__version__ = "{version}"' not in runtime_version:
         raise ReleaseCheckError("homepage and package versions differ")
     parser = HomepageCommands()
     parser.feed((root / "demos/index.html").read_text(encoding="utf-8"))

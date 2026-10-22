@@ -42,7 +42,7 @@ def _write_sdist(path: Path, *, extra: dict[str, bytes] | None = None) -> None:
     members = {
         f"{root}/LICENSE": b"MIT\n",
         f"{root}/README.md": b"# ViewSpec\n",
-        f"{root}/pyproject.toml": f'[project]\nname = "viewspec"\nversion = "{VERSION}"\n'.encode(),
+        f"{root}/pyproject.toml": b'[project]\nname = "viewspec"\ndynamic = ["version"]\n\n[tool.hatch.version]\npath = "src/viewspec/_version.py"\n',
         f"{root}/PKG-INFO": f"Name: viewspec\nVersion: {VERSION}\n".encode(),
         f"{root}/src/viewspec/__init__.py": b"",
         f"{root}/src/viewspec/_version.py": f'__version__ = "{VERSION}"\n'.encode(),

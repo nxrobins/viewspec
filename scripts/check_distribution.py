@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 import json
 import tarfile
+import re
 import tomllib
 import zipfile
 from email.parser import BytesParser
@@ -17,6 +18,7 @@ from typing import Any
 # The sdist carries the test suite, the conformance corpus and the schema source so that
 # downstream packagers can run the tests from the archive (audit R-8); the caps leave
 # headroom for that without admitting build output or dependency trees.
+ROOT = Path(__file__).resolve().parents[1]
 MAX_ARCHIVE_BYTES = 6 * 1024 * 1024
 MAX_UNPACKED_BYTES = 12 * 1024 * 1024
 MAX_MEMBER_BYTES = 2 * 1024 * 1024
@@ -77,11 +79,21 @@ class DistributionError(RuntimeError):
 
 
 def _project_version() -> str:
-    project = tomllib.loads((Path(__file__).resolve().parents[1] / "pyproject.toml").read_text(encoding="utf-8"))
-    version = project.get("project", {}).get("version")
-    if not isinstance(version, str) or not version:
-        raise DistributionError("project version is missing")
-    return version
+    """Return the single-sourced package version from the file hatch reads (audit R-7)."""
+    project = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
+    if "version" not in project.get("project", {}).get("dynamic", []):
+        raise DistributionError("project version must be dynamic and sourced from src/viewspec/_version.py")
+    version_path = project.get("tool", {}).get("hatch", {}).get("version", {}).get("path")
+    if version_path != "src/viewspec/_version.py":
+        raise DistributionError("tool.hatch.version.path must be src/viewspec/_version.py")
+    return _runtime_version_from_source((ROOT / version_path).read_text(encoding="utf-8"))
+
+
+def _runtime_version_from_source(source: str) -> str:
+    match = re.search(r'^__version__ = "([^"\n]+)"$', source, re.M)
+    if match is None:
+        raise DistributionError("src/viewspec/_version.py does not define __version__")
+    return match.group(1)
 
 
 def _validate_member_name(name: str, *, archive: str) -> PurePosixPath:
@@ -202,8 +214,8 @@ def _audit_sdist(path: Path, version: str) -> int:
         packaged_project = tomllib.loads(packaged_project_bytes.decode("utf-8"))
     except (UnicodeDecodeError, tomllib.TOMLDecodeError) as error:
         raise DistributionError(f"sdist pyproject.toml is invalid: {error}") from error
-    if packaged_project.get("project", {}).get("version") != version:
-        raise DistributionError("sdist project version does not match repository pyproject.toml")
+    if "version" not in packaged_project.get("project", {}).get("dynamic", []):
+        raise DistributionError("sdist pyproject.toml must source the version from src/viewspec/_version.py")
     if f'__version__ = "{version}"' not in runtime_version:
         raise DistributionError("sdist runtime version does not match pyproject.toml")
     return len(members)

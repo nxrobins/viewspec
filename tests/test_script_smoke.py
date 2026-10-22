@@ -18,6 +18,7 @@ import tomllib
 import pytest
 
 from scripts import check_studio_release, run_refinement_corrections, run_verification_corpus
+from viewspec import __version__
 from viewspec.conformance import ConformanceCorpus, load_conformance_corpus
 from viewspec.intent_patch import INTENT_PATCH_CONTRACT_PROFILE, source_sha256
 
@@ -76,7 +77,8 @@ def test_homepage_contract_binds_the_public_facts_to_the_package_version():
 
     version, commands = check_studio_release.homepage_contract()
 
-    assert version == facts["sdk_version"] == project["project"]["version"]
+    assert "version" in project["project"]["dynamic"]
+    assert version == facts["sdk_version"] == __version__
     assert commands == {
         "install": facts["installation"]["current_command"],
         "creation": facts["studio"]["creation_command"],
@@ -91,7 +93,8 @@ def test_homepage_contract_rejects_a_homepage_that_advertises_another_version(tm
     (tmp_path / "demos").mkdir()
     shutil.copyfile(ROOT / "demos" / "public-facts.json", tmp_path / "demos" / "public-facts.json")
     shutil.copyfile(ROOT / "demos" / "index.html", tmp_path / "demos" / "index.html")
-    (tmp_path / "pyproject.toml").write_text('[project]\nname = "viewspec"\nversion = "0.0.0"\n', encoding="utf-8")
+    (tmp_path / "src" / "viewspec").mkdir(parents=True)
+    (tmp_path / "src" / "viewspec" / "_version.py").write_text('__version__ = "0.0.0"\n', encoding="utf-8")
 
     with pytest.raises(check_studio_release.ReleaseCheckError, match="versions differ"):
         check_studio_release.homepage_contract(tmp_path)

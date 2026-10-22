@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "viewspec"
-version = "0.3.0b12"
+dynamic = ["version"]
 description = "Agent-native UI compiler. Agents describe intent; ViewSpec compiles concrete UI."
 readme = "README.md"
 license = "MIT"
@@ -58,6 +58,9 @@ agents = [
 Homepage = "https://github.com/nxrobins/viewspec"
 Repository = "https://github.com/nxrobins/viewspec"
 Issues = "https://github.com/nxrobins/viewspec/issues"
+
+[tool.hatch.version]
+path = "src/viewspec/_version.py"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/viewspec"]
