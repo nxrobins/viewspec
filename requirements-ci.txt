@@ -79,6 +79,8 @@ mcp==2.3.0
     # via viewspec (pyproject.toml)
 mcp-types==2.3.0
     # via mcp
+nodeenv==1.11.0
+    # via pyright
 opentelemetry-api==1.45.1
     # via mcp
 packaging==26.3
@@ -105,6 +107,8 @@ pyjwt==2.15.1
     # via mcp
 pyproject-hooks==1.3.3
     # via build
+pyright==1.1.414
+    # via viewspec (pyproject.toml)
 pytest==9.1.1
     # via viewspec (pyproject.toml)
 python-multipart==0.0.32
@@ -147,6 +151,7 @@ typing-extensions==4.16.0
     #   opentelemetry-api
     #   pydantic
     #   pydantic-core
+    #   pyright
     #   referencing
     #   starlette
     #   typing-inspection

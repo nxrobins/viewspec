@@ -45,6 +45,7 @@ dev = [
     "httpx>=0.27.0",
     "jsonschema>=4.18",
     "grpcio-tools==1.74.0",
+    "pyright==1.1.414",
 ]
 remote = [
     "httpx>=0.27.0",
