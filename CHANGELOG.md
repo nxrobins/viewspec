@@ -7,6 +7,41 @@ All notable changes to ViewSpec are documented in this file. The format follows
 
 ## [Unreleased]
 
+Follow-up to the 2026-10-22 project audit (`docs/project-audit-2026-10-22.md`). Finding ids
+in parentheses refer to that document.
+
+### Fixed
+
+- Integer attribute and slot values render as integers after JSON and protobuf round trips:
+  `100` no longer renders as `100.0`, and the same bundle compiles to identical bytes from an
+  in-memory dict, a JSON file, or proto bytes. Integers beyond +/-2^53 are rejected at the
+  validation boundary with `INTEGER_OUT_OF_SAFE_RANGE` instead of being rounded silently (C-1).
+- Non-ASCII text in list and dict bindings renders as UTF-8 instead of `\u` escapes (C-2).
+- `compile_auto` falls back to the hosted compiler only for unsupported motifs; a local
+  `DESIGN.md` error no longer uploads the bundle (C-3).
+- The declared protobuf requirement matches the generated schema: `protobuf>=6.31.1,<8`. The
+  package did not import with protobuf 5.x (P-1).
+
+### Changed
+
+- The three React dependency seeds pin `vite` 8.3.5, replacing 8.0.16, which carried a HIGH
+  advisory, and declare the `source-map-js>=1.2.2` floor as an npm override (P-2, P-7).
+- CI installs the host-verify dependency seed before the host proof and points the verifier at
+  it (R-10); pins every GitHub Action to a commit (R-1); resolves Python dependencies through the
+  pinned `requirements-ci.txt` (P-4); caches pip and npm, sets job timeouts and a concurrency
+  group, installs Playwright from the lockfile and exercises the `agents` extra (R-6); imports the
+  package at the protobuf floor (P-1); fails the Pretext fidelity gate when the reference fonts
+  are missing (R-4); blocks pull requests on high and critical npm advisories while a weekly
+  workflow reports every level (R-3); and reports the PyPI launch check without blocking the
+  documentation deploy (R-2).
+- Dependabot watches pip, the three npm seeds and GitHub Actions (P-5). `cryptography` allows up
+  to 52.x and `mcp` is capped below 3 (P-6). The classifiers declare Linux and macOS (H-1).
+
+### Added
+
+- Hypothesis property tests over scalar value types through JSON, protobuf and compile round
+  trips (T-4), and regression tests for the value rendering and hosted fallback fixes.
+
 ## [0.3.0b12] - 2026-10-14
 
 ### Fixed
