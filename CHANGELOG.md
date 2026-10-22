@@ -434,7 +434,25 @@ All notable changes to ViewSpec are documented in this file. The format follows
 - Demo and public-site copy now aligns pricing, provenance language, and the Pro checkout link
   with `demos/public-facts.json`.
 
-## [0.2.0] - earlier release
+## [0.3.0b1] - 2026-07-11
 
-Pre-changelog release line. The public surfaces as of this release are described in the README,
-`docs/`, and `demos/public-facts.json` at the corresponding tag.
+- Rolled in commit `42d4c8e` ("Roll changelog for 0.3.0b1 beta"); the version string itself was set in `d8d0d3b` on 2026-05-10, its entries were carried forward unchanged into `0.3.0b2`, and the release was never tagged.
+
+## [0.2.0] - 2026-05-03
+
+Pre-changelog release line, dated from the version bump in commit `ac0c2a3`; it was never tagged.
+The public surfaces as of this release are described in the README, `docs/`, and
+`demos/public-facts.json` at that commit.
+
+Versions `0.3.0b8`, `0.3.0b6`, `0.3.0b4`, `0.3.0b2`, `0.3.0b1`, and `0.2.0` were not tagged on
+the remote, so they have no compare links below; the `0.3.0b9` and `0.3.0b7` links therefore each
+span two betas.
+
+[Unreleased]: https://github.com/nxrobins/viewspec/compare/v0.3.0b12...HEAD
+[0.3.0b12]: https://github.com/nxrobins/viewspec/compare/v0.3.0b11...v0.3.0b12
+[0.3.0b11]: https://github.com/nxrobins/viewspec/compare/v0.3.0b10...v0.3.0b11
+[0.3.0b10]: https://github.com/nxrobins/viewspec/compare/v0.3.0b9...v0.3.0b10
+[0.3.0b9]: https://github.com/nxrobins/viewspec/compare/v0.3.0b7...v0.3.0b9
+[0.3.0b7]: https://github.com/nxrobins/viewspec/compare/v0.3.0b5...v0.3.0b7
+[0.3.0b5]: https://github.com/nxrobins/viewspec/compare/v0.3.0b3...v0.3.0b5
+[0.3.0b3]: https://github.com/nxrobins/viewspec/releases/tag/v0.3.0b3
