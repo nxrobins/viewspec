@@ -37,10 +37,67 @@ in parentheses refer to that document.
 - Dependabot watches pip, the three npm seeds and GitHub Actions (P-5). `cryptography` allows up
   to 52.x and `mcp` is capped below 3 (P-6). The classifiers declare Linux and macOS (H-1).
 
+### Security
+
+- `viewspec check` rejects inline event handlers (`CHECK_INLINE_EVENT_HANDLER`), `javascript:`,
+  `vbscript:` and non-image `data:` URL schemes on every URL-bearing attribute
+  (`CHECK_UNSAFE_URL_SCHEME`), unclosed `<script` openers (`CHECK_UNCLOSED_SCRIPT`), remote
+  `feImage` and `ping` targets, and CSS auto-fetch references hidden behind CSS escapes, comments
+  or `image-set()`; raw-HTML artifacts fail closed unless every element carries a manifest node id
+  with the exact attribute set (`CHECK_RAW_HTML_DOM_UNGOVERNED`). The `<style>`, `<script>` and
+  `<meta>` scans are linear with a block cap (`CHECK_SCAN_LIMIT_EXCEEDED`) instead of quadratic
+  (S-1, S-2, S-3).
+- `--force` on `prove`, `prove-app` and `compile-app` replaces an existing directory only when it
+  is empty or holds a file ViewSpec itself writes; anything else fails closed with
+  `PROVE_OUTPUT_UNRECOGNIZED`, `APP_PROOF_OUTPUT_UNRECOGNIZED` or `APP_SHELL_OUTPUT_UNRECOGNIZED`
+  (S-4).
+- `DESIGN.md` is capped at 64 KiB (`DESIGN_FILE_TOO_LARGE`) and its front matter rejects YAML
+  aliases before expansion; HTML inputs are size-gated before they are read; the MCP server
+  resolves its working directory so the review tools work under the default `--cwd .`; the raw-HTML
+  importer no longer drops the rest of a document after an unclosed `<base>` or `<embed>`; the
+  Studio review adapter strips reserved internal headers itself instead of trusting the transport
+  (S-5 to S-9).
+
+### Changed
+
+- The source archive ships `tests/`, `conformance/`, `proto/`, the changelog and the security
+  policy so downstream packagers can run the suite (R-8). The package version is read from
+  `src/viewspec/_version.py` alone (R-7).
+- The protobuf schema source is committed as `proto/universal_ui.proto` with a regeneration
+  script and a typed `.pyi` stub next to `py.typed`; CI checks the source against the generated
+  code (P-3, Q-1).
+- `check_artifact_dir()` and the MCP check tools return structured `issues` entries
+  (`{code, path, message, fix}`) in addition to the string `errors`; prefixed messages surface
+  under their own registered code instead of `CHECK_FAILED`.
+- Coded compiler and validator failures raise `CompilerInternalError` and `LocalToolContractError`
+  (subclasses of `RuntimeError` and `ValueError`) with `.code` and `.message` attributes; the text
+  of `str(exc)` is unchanged (Q-8). Canonical JSON helpers are thin aliases of
+  `viewspec._canonical`, every form now rejects NaN and infinity, and no digest changed (C-5).
+- Library modules log through `logging` with a `NullHandler`; daemons configure a stderr handler.
+  Best-effort writes that fail are logged instead of silently ignored, `raise` inside `except`
+  chains its cause, and `assert` statements in request and tool paths are explicit checks
+  (Q-9, Q-10, Q-11). The hosted compiler client lives in `viewspec.hosted_compile` and is
+  re-exported from `viewspec.compiler` (Q-2). `viewspec.sdk` exports `ListBuilder`,
+  `FormBuilder` and `DetailBuilder` (Q-12). The HTML emitter no longer imports the compiler, and
+  the app pipeline imports public helper names (Q-5). Dead code and unreferenced constants were
+  removed from `compiler.py`, `types.py` and the Tailwind recipes (C-8).
+- Internal planning notes moved to `docs/internal/`; `docs/README.md` indexes the documentation;
+  README states the evaluated version of its evidence, the supported platforms and the
+  compatibility horizon (D-2 to D-7, H-1). `CONTRIBUTING.md` and `CODE_OF_CONDUCT.md` were added
+  (H-2); the release checklist tags and publishes each release (R-7).
+
 ### Added
 
 - Hypothesis property tests over scalar value types through JSON, protobuf and compile round
   trips (T-4), and regression tests for the value rendering and hosted fallback fixes.
+- Golden `artifact_hash`, `semantic_digest` and file hashes for every conformance corpus case and
+  local target in `tests/fixtures/corpus_goldens.json`, checked on Linux and Windows in CI; the
+  React app manifest writes POSIX paths on every platform (T-2, C-6).
+- The default test suite skips, with exact reasons, the tests that need installed Node seeds, full
+  git history or a Playwright browser; drift tests cover the landing page and proof explorer;
+  the release and corpus scripts have smoke tests (T-1, T-3, T-5).
+- Documentation tests: every error code cited in the docs exists in the registry, and the Claude
+  Code skill matches the managed instructions (D-3, D-6).
 
 ## [0.3.0b12] - 2026-10-14
 
