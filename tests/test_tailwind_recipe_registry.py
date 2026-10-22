@@ -41,6 +41,7 @@ from viewspec.emitters.react_tailwind_tsx import (
 )
 from viewspec.emitters.react_tailwind_tsx import a11y as tailwind_a11y
 from viewspec.emitters.react_tailwind_tsx import recipes as tailwind_recipes
+from viewspec.types import IRNode
 
 SRC = Path(__file__).resolve().parents[1] / "src"
 
@@ -192,6 +193,66 @@ def test_registry_is_read_only_and_detached_from_the_tables_it_was_built_from():
     )
     with pytest.raises(TypeError):
         variant.recipes["primitive:text"] = "text-red-700"  # type: ignore[index]
+
+
+def test_registry_freezes_contract_values_given_as_sets():
+    # Review of Q-4: a contract value given as a set was kept by reference, so a caller who changed
+    # the set afterwards changed a built registry, its digest and the roles it derives. A set is now
+    # frozen into a sorted tuple, so a registry built from sets equals one built from the same tuples.
+    contracts = {role: dict(contract) for role, contract in DEFAULT_TAILWIND_RECIPE_REGISTRY.app_role_contracts.items()}
+    primitives = {"root"}
+    contracts["app_shell"]["primitives"] = primitives
+    contracts["app_header"]["primitives"] = frozenset({"surface", "stack"})
+    contracts["tab_panel"]["motif_kinds"] = {"form", "detail"}
+    registry = dataclasses.replace(DEFAULT_TAILWIND_RECIPE_REGISTRY, app_role_contracts=contracts)
+    primitives.add("stack")
+
+    assert registry.app_role_contracts["app_shell"]["primitives"] == ("root",)
+    assert registry.app_role_contracts["app_header"]["primitives"] == ("stack", "surface")
+    assert registry == DEFAULT_TAILWIND_RECIPE_REGISTRY
+    assert tailwind_recipe_registry_digest(recipe_registry=registry) == MAIN_REGISTRY_DIGEST
+    stack = IRNode(id="shell", primitive="stack", props={"product_role": "app_shell"})
+    assert not tailwind_recipes._role_contract_matches(stack, "app_shell", registry)
+
+    # Members that do not sort are still copied into a tuple of their own.
+    mixed: set[object] = {"root", 1}
+    contracts["app_shell"]["primitives"] = mixed
+    registry = dataclasses.replace(DEFAULT_TAILWIND_RECIPE_REGISTRY, app_role_contracts=contracts)
+    mixed.add("stack")
+    frozen = registry.app_role_contracts["app_shell"]["primitives"]
+    assert isinstance(frozen, tuple)
+    assert set(frozen) == {"root", 1}
+
+
+_SET_CONTRACTS_DIGEST_PROBE = r"""
+import dataclasses
+from viewspec.emitters.react_tailwind_tsx import DEFAULT_TAILWIND_RECIPE_REGISTRY, tailwind_recipe_registry_digest
+contracts = {
+    role: {key: set(values) for key, values in contract.items()}
+    for role, contract in DEFAULT_TAILWIND_RECIPE_REGISTRY.app_role_contracts.items()
+}
+registry = dataclasses.replace(DEFAULT_TAILWIND_RECIPE_REGISTRY, app_role_contracts=contracts)
+print(tailwind_recipe_registry_digest(recipe_registry=registry))
+"""
+
+
+def test_registry_built_from_set_contracts_has_one_digest_in_every_process():
+    # A set of strings iterates in an order that depends on PYTHONHASHSEED. Frozen in sorted order,
+    # contracts given as sets give the same digest in every process: the default one, since every
+    # checked-in contract lists its members in sorted order.
+    digests = set()
+    for seed in ("0", "1", "2", "3"):
+        completed = subprocess.run(
+            [sys.executable, "-c", _SET_CONTRACTS_DIGEST_PROBE],
+            capture_output=True,
+            text=True,
+            timeout=180,
+            check=False,
+            env={"PATH": os.defpath, "PYTHONPATH": str(SRC), "PYTHONDONTWRITEBYTECODE": "1", "PYTHONHASHSEED": seed},
+        )
+        assert completed.returncode == 0, completed.stderr
+        digests.add(completed.stdout.strip())
+    assert digests == {MAIN_REGISTRY_DIGEST}
 
 
 def test_registries_and_emitters_holding_one_survive_pickle_and_copy(tmp_path):

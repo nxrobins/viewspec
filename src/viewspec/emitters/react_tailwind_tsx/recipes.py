@@ -394,16 +394,25 @@ def _read_only_nested(tables: Mapping[str, Any]) -> Mapping[str, Any]:
     )
 
 
+def _frozen_contract_values(values: Any) -> Any:
+    # A contract value is only ever tested with ``in``. A list or tuple keeps its order. A set has
+    # none, so it becomes a sorted tuple, which projects and digests the same in every process;
+    # members that do not sort keep the set's own order.
+    if isinstance(values, (set, frozenset)):
+        try:
+            return tuple(sorted(values))
+        except TypeError:
+            return tuple(values)
+    if isinstance(values, (list, tuple)):
+        return tuple(values)
+    return values
+
+
 def _read_only_contracts(contracts: Mapping[str, Any]) -> Mapping[str, Any]:
     frozen: dict[str, Any] = {}
     for role, contract in contracts.items():
         if isinstance(contract, Mapping):
-            contract = MappingProxyType(
-                {
-                    key: tuple(values) if isinstance(values, (list, tuple)) else values
-                    for key, values in contract.items()
-                }
-            )
+            contract = MappingProxyType({key: _frozen_contract_values(values) for key, values in contract.items()})
         frozen[role] = contract
     return MappingProxyType(frozen)
 
