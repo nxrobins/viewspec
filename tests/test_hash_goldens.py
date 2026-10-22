@@ -6,9 +6,12 @@ contract/artifact identity that downstream consumers pin. These frozen literals 
 net: a deliberate change to sha256, `sort_keys`/`separators`, or the contract normalization must
 UPDATE the literal here -- that update is the intended human signal.
 
-Only byte-stable, content-controlled surfaces are pinned. No file-read/artifact hash is pinned --
-those are CRLF-sensitive on Windows vs LF on CI; `bytes_hash` (which `file_hash` calls on the raw
-bytes) pins the algorithm they share.
+Only byte-stable, content-controlled surfaces are pinned here; `bytes_hash` (which `file_hash` calls
+on the raw bytes) pins the algorithm they share. The emitter output itself -- `artifact_hash`,
+`semantic_digest` and the sha256 of every emitted file for the conformance corpus -- is pinned in
+tests/test_corpus_goldens.py against tests/fixtures/corpus_goldens.json (the writers emit LF on
+every platform, so those hashes are not CRLF-sensitive); regenerate that file with
+`python scripts/update_corpus_goldens.py`.
 """
 
 from __future__ import annotations
