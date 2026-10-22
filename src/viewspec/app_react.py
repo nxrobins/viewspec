@@ -29,14 +29,14 @@ from viewspec.app_pretext import (
 )
 from viewspec.app_pretext_runtime import PRETEXT_RUNTIME_PATH, generate_pretext_runtime_typescript
 from viewspec.app_resource_repeat import resource_binding_address, resource_repeat_summary
-from viewspec.app_screens import _compile_screen, _screen_ir_overlays_for
+from viewspec.app_screens import _compile_screen, screen_ir_overlays_for
 from viewspec.app_shell import _app_shell_css
 from viewspec.app_state_artifacts import _write_state_artifacts
 from viewspec.app_validation import (
     _app_schema_version,
     _app_summary,
     _resource_binding_report_fields,
-    _route_assertions,
+    route_assertions_for,
 )
 from viewspec.emitters.html_tailwind import OFFLINE_EMITTER_CSS
 from viewspec.local_tools import atomic_write, check_artifact_dir, file_hash
@@ -60,7 +60,7 @@ REACT_APP_MAX_SOURCE_BYTES = 512 * 1024
 REACT_APP_TEMPLATE_PACKAGE = "viewspec.host_verify_template"
 
 
-def _write_react_app(
+def write_react_app(
     payload: dict[str, Any],
     output_dir: Path,
     screen_reports: list[dict[str, Any]],
@@ -184,7 +184,7 @@ def _write_react_app(
         presentation_path=presentation_path,
     )
     route_assertions = {
-        **_route_assertions(payload),
+        **route_assertions_for(payload),
         "browser_history_navigation": True,
         "unknown_route_fallback": True,
     }
@@ -246,7 +246,7 @@ def _compile_react_screens(
     strict_design: bool,
     screen_proof_dir: Path,
 ) -> list[dict[str, Any]]:
-    overlays = _screen_ir_overlays_for(payload)
+    overlays = screen_ir_overlays_for(payload)
     reports: list[dict[str, Any]] = []
     for screen in payload.get("screens", []):
         screen_id = str(screen["id"])
@@ -1648,11 +1648,14 @@ def _safe_json(value: Any) -> str:
     )
 
 
+# Backward-compatible private alias; write_react_app is the public name.
+_write_react_app = write_react_app
+
 __all__ = [
     "REACT_APP_DIAGNOSTICS",
     "REACT_APP_ENTRY",
     "REACT_APP_MANIFEST",
     "REACT_APP_ROUTE_NAVIGATION",
     "REACT_APP_TARGET",
-    "_write_react_app",
+    "write_react_app",
 ]

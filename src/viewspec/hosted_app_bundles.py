@@ -254,7 +254,7 @@ def compile_app_remote(
     receipt_public_key: ReceiptPublicKey | Mapping[str, Any] | None = None,
 ) -> AppBundleBuildResponse:
     """Build and fully verify one runnable hosted AppBundle project."""
-    from viewspec.compiler import CompilerAPIError, _compiler_api_error
+    from viewspec.hosted_compile import CompilerAPIError, _compiler_api_error
 
     if not isinstance(app_bundle, dict):
         raise TypeError("app_bundle must be a JSON object")

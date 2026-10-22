@@ -25,6 +25,7 @@ from viewspec.aesthetics import (
 )
 from viewspec.compiler_refs import (
     MAX_COMPILE_NESTING_DEPTH,
+    PRODUCT_SURFACE_PLANNER_V1_ROLES,
     action_ref as _action_ref,
     add_diagnostic as _add_diagnostic,
     binding_ref as _binding_ref,
@@ -37,8 +38,6 @@ from viewspec.types import (
     ActionIntent,
     ASTBundle,
     BindingSpec,
-    CompileRequestPayload,
-    CompileResponse,
     CompilerDiagnostic,
     CompilerResult,
     CompositionIR,
@@ -58,6 +57,20 @@ from viewspec.types import (
     parse_canonical_address as _parse_canonical_address,
 )
 from viewspec.design_md import DesignSystemContext, load_design_system, merge_style_values
+
+# The hosted compiler client lives in viewspec.hosted_compile. Its names are
+# re-exported here (redundant-alias form) because `viewspec.compiler` was their
+# import location before the move and viewspec.__init__ still imports them here.
+from viewspec.hosted_compile import (
+    VIEWSPEC_API_URL as VIEWSPEC_API_URL,
+    CompilerAPIError as CompilerAPIError,
+    _compile_request_payload as _compile_request_payload,
+    _compiler_api_error as _compiler_api_error,
+    _response_header as _response_header,
+    compile_auto as compile_auto,
+    compile_remote as compile_remote,
+    compile_remote_response as compile_remote_response,
+)
 from viewspec.motif_compilers import SUPPORTED_MOTIF_KINDS
 from viewspec.motif_plugins import (
     MotifCompileContext,
@@ -103,22 +116,8 @@ SAFE_COMPILER_ID_RE = re.compile(r"^[A-Za-z0-9_.-]+$")
 PRODUCT_SURFACE_PLANNER_V1_SURFACE = "workspace_dashboard_v1"
 PRODUCT_SINGLE_COLUMN_SURFACE_V1 = "single_column_v1"
 MAX_IMPLICIT_PAGE_TITLE_BYTES = 512
-PRODUCT_SURFACE_PLANNER_V1_ROLES = frozenset(
-    {
-        "app_shell",
-        "app_header",
-        "content_grid",
-        "primary_column",
-        "side_rail",
-        "page_header",
-        "metric_grid",
-        "metric_card",
-        "form_panel",
-        "field_group",
-        "detail_panel",
-        "action_row",
-    }
-)
+# PRODUCT_SURFACE_PLANNER_V1_ROLES is owned by viewspec.compiler_refs (imported
+# above) so emitters can consume it without importing the compiler.
 
 SUPPORTED_AESTHETIC_PROFILES = AESTHETIC_PROFILE_TOKENS
 WORKSPACE_HEADER_ROLE_MARKERS = frozenset({"app_header", "banner", "header", "page_header"})
@@ -1291,16 +1290,11 @@ def _build_and_validate_regions(
         raise CompilerInputError(f"ViewSpec.root_region '{view_spec.root_region}' is not present in view_spec.regions.")
     _validate_region_tree(valid_regions, view_spec.root_region)
 
+    # _validate_region_tree has already raised CompilerInputError for any region
+    # whose parent_region is not a declared region, so every parent resolves here.
     for region in valid_regions:
-        if region.parent_region and region.parent_region in region_nodes:
+        if region.parent_region:
             region_nodes[region.parent_region].children.append(region_nodes[region.id])
-        elif region.parent_region:
-            _add_diagnostic(
-                diagnostics, "UNKNOWN_REGION",
-                f"Region {region.id} declares unknown parent region {region.parent_region}.",
-                intent_ref=_region_ref(region.id),
-                region_id=region.parent_region,
-            )
     return region_nodes, valid_regions
 
 
@@ -1646,7 +1640,7 @@ def _resolve_and_apply_styles(
 ) -> dict[str, str]:
     """Resolve the aesthetic profile + design tokens and attach styles to IR nodes."""
     profile_style = _resolve_aesthetic_profile(view_spec, diagnostics)
-    style_values = _derive_style_tokens(substrate, view_spec)
+    style_values = derive_style_tokens(substrate, view_spec)
     if profile_style is not None:
         selected_profile_values = profile_style_values(profile_style.token)
         if all(style_values.get(token, "").strip() == css.strip() for token, css in selected_profile_values.items()):
@@ -1717,18 +1711,17 @@ def _resolve_and_apply_styles(
             if style_token_known:
                 _attach_style(binding_nodes[target_id], style)
         elif target_kind == "motif" and target_id in motif_by_id:
-            if not style_token_known:
-                pass
-            elif target_id in motif_wrappers:
-                _attach_style(motif_wrappers[target_id], style)
-            elif motif_by_id[target_id].region in region_nodes:
-                _attach_style(region_nodes[motif_by_id[target_id].region], style)
-            else:
-                _add_diagnostic(
-                    diagnostics, "UNKNOWN_STYLE_TARGET",
-                    f"Style {style.id} targets motif {target_id}, but its region is not available.",
-                    intent_ref=_style_ref(style.id),
-                )
+            if style_token_known:
+                if target_id in motif_wrappers:
+                    _attach_style(motif_wrappers[target_id], style)
+                elif motif_by_id[target_id].region in region_nodes:
+                    _attach_style(region_nodes[motif_by_id[target_id].region], style)
+                else:
+                    _add_diagnostic(
+                        diagnostics, "UNKNOWN_STYLE_TARGET",
+                        f"Style {style.id} targets motif {target_id}, but its region is not available.",
+                        intent_ref=_style_ref(style.id),
+                    )
         elif target_kind == "view" and target_id == view_spec.id:
             if style_token_known:
                 _attach_style(region_nodes[view_spec.root_region], style)
@@ -1911,22 +1904,13 @@ def _assign_default_style_tokens(node: IRNode) -> None:
         _assign_default_style_tokens(child)
 
 
-def _derive_style_tokens(substrate: SemanticSubstrate, view_spec: ViewSpec) -> dict[str, str]:
-    """Simple style token derivation for the reference compiler."""
-    numeric_values: list[float] = []
-    total_text_len = 0
-    attr_count = 0
+def derive_style_tokens(substrate: SemanticSubstrate, view_spec: ViewSpec) -> dict[str, str]:
+    """Derive the reference compiler's style token values for a bundle.
 
-    for node in substrate.nodes.values():
-        for attr_value in node.attrs.values():
-            attr_count += 1
-            text = str(attr_value).strip()
-            total_text_len += len(text)
-            try:
-                numeric_values.append(float(text))
-            except ValueError:
-                pass
-
+    Public so presentation planning (viewspec.presentation_plan) can reuse the
+    exact derivation without importing a private compiler helper. The substrate
+    is accepted for signature stability; today only the ViewSpec shapes the result.
+    """
     value_bindings = sum(1 for b in view_spec.bindings if b.present_as in {"value", "metric", "number"})
     value_heavy = len(view_spec.bindings) > 0 and value_bindings * 2 >= len(view_spec.bindings)
     dashboard_like = any(m.kind in {"dashboard", "table"} for m in view_spec.motifs)
@@ -1957,200 +1941,5 @@ def _derive_style_tokens(substrate: SemanticSubstrate, view_spec: ViewSpec) -> d
     return style_values
 
 
-# ---------------------------------------------------------------------------
-# Hosted compiler client
-# ---------------------------------------------------------------------------
-
-VIEWSPEC_API_URL = "https://api.viewspec.dev"
-
-
-class CompilerAPIError(Exception):
-    """Structured failure returned by the hosted compiler API."""
-
-    def __init__(
-        self,
-        message: str,
-        *,
-        code: str = "remote_error",
-        path: str | None = None,
-        status_code: int | None = None,
-        request_id: str | None = None,
-        retry_after: str | None = None,
-    ) -> None:
-        super().__init__(message)
-        self.code = code
-        self.path = path
-        self.status_code = status_code
-        self.request_id = request_id
-        self.retry_after = retry_after
-
-
-def _response_header(response: Any, name: str) -> str | None:
-    headers = getattr(response, "headers", {})
-    value = headers.get(name) if hasattr(headers, "get") else None
-    if value is None and hasattr(headers, "items"):
-        value = next((item for key, item in headers.items() if str(key).lower() == name.lower()), None)
-    return None if value is None else str(value)
-
-
-def _compiler_api_error(response: Any, data: Any = None) -> CompilerAPIError:
-    status_code = int(getattr(response, "status_code", 0)) or None
-    if data is None:
-        try:
-            data = response.json()
-        except ValueError:
-            data = None
-    error = data.get("error") if isinstance(data, dict) else None
-    structured = error if isinstance(error, dict) else {}
-    message = str(structured.get("message") or "")
-    code = str(structured.get("code") or "remote_error")
-    path = structured.get("path") if isinstance(structured.get("path"), str) else None
-    if not message and isinstance(data, dict) and isinstance(data.get("message"), str):
-        message = data["message"]
-    if status_code == 401 and not structured:
-        message = "Invalid API key"
-        code = "invalid_api_key"
-    elif status_code == 429 and not structured:
-        message = f"Rate limit exceeded: {message or 'Upgrade at viewspec.dev'}"
-        code = "rate_limit_exceeded"
-    elif not message:
-        message = f"Compilation failed (HTTP {status_code})"
-    request_id = data.get("request_id") if isinstance(data, dict) and isinstance(data.get("request_id"), str) else None
-    request_id = request_id or _response_header(response, "X-Request-ID")
-    return CompilerAPIError(
-        message,
-        code=code,
-        path=path,
-        status_code=status_code,
-        request_id=request_id,
-        retry_after=_response_header(response, "Retry-After"),
-    )
-
-
-def _compile_request_payload(request: IntentBundle | CompileRequestPayload) -> CompileRequestPayload:
-    if isinstance(request, CompileRequestPayload):
-        return request
-    if isinstance(request, IntentBundle):
-        return CompileRequestPayload(bundle=request)
-    raise TypeError("Expected IntentBundle or CompileRequestPayload")
-
-
-def compile_remote_response(
-    request: IntentBundle | CompileRequestPayload,
-    *,
-    api_url: str = VIEWSPEC_API_URL,
-    api_key: str | None = None,
-) -> CompileResponse:
-    """
-    Compile an IntentBundle or CompileRequestPayload using the hosted ViewSpec compiler API.
-
-    Requires the `httpx` package (`pip install viewspec[remote]`).
-
-    Args:
-        request: The IntentBundle or hosted compiler request to compile.
-        api_url: Base URL of the ViewSpec API (default: https://api.viewspec.dev).
-        api_key: Optional API key for authenticated access (higher rate limits).
-
-    Returns:
-        CompileResponse with the compiled AST and response metadata.
-
-    Raises:
-        CompilerAPIError: If the API returns an error.
-        ImportError: If httpx is not installed.
-    """
-    try:
-        import httpx
-    except ImportError:
-        raise ImportError(
-            "httpx is required for remote compilation. Install it: pip install viewspec[remote]"
-        ) from None
-
-    headers: dict[str, str] = {}
-    if api_key:
-        headers["Authorization"] = f"Bearer {api_key}"
-
-    payload = _compile_request_payload(request)
-
-    try:
-        response = httpx.post(
-            f"{api_url.rstrip('/')}/v1/compile",
-            json=payload.to_json(),
-            headers=headers,
-            timeout=30.0,
-        )
-    except httpx.HTTPError as exc:
-        raise CompilerAPIError(
-            f"Remote compilation request failed: {exc}", code="network_error"
-        ) from exc
-
-    def _response_json() -> dict[str, Any]:
-        try:
-            data = response.json()
-        except ValueError as exc:
-            raise CompilerAPIError("Compilation failed: response was not valid JSON") from exc
-        if not isinstance(data, dict):
-            raise CompilerAPIError("Compilation failed: response JSON was not an object")
-        return data
-
-    if response.status_code != 200:
-        raise _compiler_api_error(response, _response_json())
-
-    data = _response_json()
-    if "ast" not in data:
-        raise CompilerAPIError("Compilation failed: response missing ast")
-    try:
-        return CompileResponse.from_json(data)
-    except Exception as exc:
-        raise CompilerAPIError("Compilation failed: response ast was invalid") from exc
-
-
-def compile_remote(
-    request: IntentBundle | CompileRequestPayload,
-    *,
-    api_url: str = VIEWSPEC_API_URL,
-    api_key: str | None = None,
-) -> ASTBundle:
-    """
-    Compile an IntentBundle or CompileRequestPayload using the hosted compiler API.
-
-    Returns only the ASTBundle for backward compatibility. Use
-    compile_remote_response() to access response metadata such as meta.design.
-    """
-    return compile_remote_response(request, api_url=api_url, api_key=api_key).ast
-
-
-def compile_auto(
-    request: IntentBundle | CompileRequestPayload,
-    *,
-    api_url: str = VIEWSPEC_API_URL,
-    api_key: str | None = None,
-    prefer_local: bool = True,
-) -> ASTBundle:
-    """
-    Compile with automatic local→remote fallback.
-
-    Tries the local reference compiler first. If the ViewSpec contains
-    unsupported motif types (UnsupportedMotifError), falls back to the
-    hosted API (if api_key is provided or the free tier is available).
-
-    Only that one failure triggers the fallback. A local DESIGN.md failure
-    (DesignSystemError) is raised to the caller instead of being retried
-    remotely, so a typo in DESIGN.md never uploads the bundle and the design
-    file to the hosted API without the caller asking for a network call.
-
-    Args:
-        request: The IntentBundle or hosted compiler request to compile.
-        api_url: Base URL of the ViewSpec API.
-        api_key: Optional API key for higher rate limits.
-        prefer_local: If True (default), try local compilation first.
-
-    Returns:
-        ASTBundle with the compiled result.
-    """
-    payload = _compile_request_payload(request)
-    if prefer_local:
-        try:
-            return compile(payload.bundle, design=payload.design)
-        except UnsupportedMotifError:
-            return compile_remote(payload, api_url=api_url, api_key=api_key)
-    return compile_remote(payload, api_url=api_url, api_key=api_key)
+# Backward-compatible private alias; derive_style_tokens is the public name.
+_derive_style_tokens = derive_style_tokens

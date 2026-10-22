@@ -20,7 +20,7 @@ from viewspec.app_validation import (
 )
 
 
-def _resource_binding_assertion_report(payload: dict[str, Any], screen_reports: list[dict[str, Any]]) -> dict[str, Any] | None:
+def resource_binding_assertion_report(payload: dict[str, Any], screen_reports: list[dict[str, Any]]) -> dict[str, Any] | None:
     if _resource_binding_for_payload(payload) != APP_BUNDLE_RESOURCE_BINDING_READONLY:
         return None
     screen_reports_by_id = {screen.get("id"): screen for screen in screen_reports if isinstance(screen, dict)}
@@ -315,4 +315,7 @@ def _sha256_text(value: str) -> str:
     return hashlib.sha256(value.encode("utf-8")).hexdigest()
 
 
-__all__ = ["_resource_binding_assertion_report"]
+# Backward-compatible private alias; resource_binding_assertion_report is the public name.
+_resource_binding_assertion_report = resource_binding_assertion_report
+
+__all__ = ["resource_binding_assertion_report"]

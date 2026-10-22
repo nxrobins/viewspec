@@ -3,6 +3,9 @@
 from viewspec.sdk.builder import (
     ComparisonBuilder,
     DashboardBuilder,
+    DetailBuilder,
+    FormBuilder,
+    ListBuilder,
     OutlineBuilder,
     TableBuilder,
     ViewSpecBuilder,
@@ -11,6 +14,9 @@ from viewspec.sdk.builder import (
 __all__ = [
     "ComparisonBuilder",
     "DashboardBuilder",
+    "DetailBuilder",
+    "FormBuilder",
+    "ListBuilder",
     "OutlineBuilder",
     "TableBuilder",
     "ViewSpecBuilder",

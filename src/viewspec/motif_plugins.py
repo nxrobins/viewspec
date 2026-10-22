@@ -140,6 +140,7 @@ class MotifCompiler:
         return result
 
 
+# Compatibility alias kept for the public API promise; MotifCompiler is the canonical name.
 MotifPlugin = MotifCompiler
 
 

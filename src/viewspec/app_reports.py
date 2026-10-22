@@ -10,8 +10,8 @@ from typing import Any
 
 from viewspec._version import __version__
 from viewspec.app_diff import _validation_summary
-from viewspec.app_errors import AppBundleProofFailure, _normalize_proof_errors
-from viewspec.app_prepared import _PreparedAppProof, _PreparedAppShell
+from viewspec.app_errors import AppBundleProofFailure, normalize_proof_errors
+from viewspec.app_prepared import PreparedAppProof, PreparedAppShell
 from viewspec.app_react import REACT_APP_ROUTE_NAVIGATION, REACT_APP_TARGET
 from viewspec.app_shell import (
     APP_SHELL_DIAGNOSTICS,
@@ -46,10 +46,10 @@ APP_BUNDLE_TARGET = "html-tailwind"
 APP_BUNDLE_MAX_SUMMARY_BYTES = 32 * 1024
 
 
-def _app_proof_report(
+def app_proof_report(
     *,
     ok: bool,
-    prepared: _PreparedAppProof,
+    prepared: PreparedAppProof,
     app_payload: dict[str, Any],
     validation: dict[str, Any],
     route_assertions: dict[str, bool],
@@ -211,7 +211,7 @@ def _app_proof_report(
     }
 
 
-def _app_proof_failure_report(
+def app_proof_failure_report(
     *,
     output_dir: Path,
     report_path: Path,
@@ -244,15 +244,15 @@ def _app_proof_failure_report(
         "validation": _validation_summary(validation) if isinstance(validation, dict) else None,
         "policy": {"network_calls": "none"},
         "metadata": {"sdk_version": __version__, "strict_design": False, "screen_source": "embedded_intents"},
-        "errors": _normalize_proof_errors(errors),
+        "errors": normalize_proof_errors(errors),
         "timings_ms": _final_timings(timings),
     }
 
 
-def _app_shell_report(
+def app_shell_report(
     *,
     ok: bool,
-    prepared: _PreparedAppShell,
+    prepared: PreparedAppShell,
     app_payload: dict[str, Any],
     validation: dict[str, Any],
     screen_reports: list[dict[str, Any]],
@@ -325,12 +325,12 @@ def _app_shell_report(
             "screen_source": "embedded_intents",
             "shell_kind": "static_local_hash_shell",
         },
-        "errors": _normalize_proof_errors(errors),
+        "errors": normalize_proof_errors(errors),
         "timings_ms": _final_timings(timings),
     }
 
 
-def _app_shell_failure_report(
+def app_shell_failure_report(
     *,
     output_dir: Path,
     errors: list[dict[str, str]],
@@ -360,12 +360,12 @@ def _app_shell_failure_report(
         "screens": [],
         "validation": _validation_summary(validation) if isinstance(validation, dict) else None,
         "metadata": {"sdk_version": __version__, "strict_design": False, "screen_source": "embedded_intents"},
-        "errors": _normalize_proof_errors(errors),
+        "errors": normalize_proof_errors(errors),
         "timings_ms": _final_timings(timings),
     }
 
 
-def _write_app_proof(report: dict[str, Any], prepared: _PreparedAppProof) -> dict[str, Any]:
+def write_app_proof(report: dict[str, Any], prepared: PreparedAppProof) -> dict[str, Any]:
     report = _finalize_report_paths(report, prepared)
     analysis_evidence = report.pop("_analysis_evidence", None)
     if isinstance(analysis_evidence, dict):
@@ -432,7 +432,7 @@ def _write_app_proof(report: dict[str, Any], prepared: _PreparedAppProof) -> dic
     return report
 
 
-def _finalize_report_paths(report: dict[str, Any], prepared: _PreparedAppProof) -> dict[str, Any]:
+def _finalize_report_paths(report: dict[str, Any], prepared: PreparedAppProof) -> dict[str, Any]:
     report.setdefault("paths", {})["report"] = str(prepared.report_path)
     report["paths"]["proof_summary"] = str(prepared.summary_path)
     report["paths"]["support_bundle"] = str(prepared.support_path)
@@ -593,7 +593,7 @@ def _compact_shell_report(shell: dict[str, Any] | None) -> dict[str, Any]:
         "state_reducer_conformance": shell.get("state_reducer_conformance"),
         "binding_scope": shell.get("binding_scope"),
         "resource_binding_assertions": _compact_resource_binding_report(shell.get("resource_binding_assertions")),
-        "errors": _normalize_proof_errors(shell.get("errors")),
+        "errors": normalize_proof_errors(shell.get("errors")),
     }
 
 
@@ -618,7 +618,7 @@ def _compact_react_app_report(report: dict[str, Any] | None) -> dict[str, Any]:
         "state_contract_hash": report.get("state_contract_hash"),
         "state_replay": report.get("state_replay"),
         "state_reducer_conformance": report.get("state_reducer_conformance"),
-        "errors": _normalize_proof_errors(report.get("errors")),
+        "errors": normalize_proof_errors(report.get("errors")),
     }
 
 
@@ -647,7 +647,7 @@ def _compact_host_report(report: dict[str, Any] | None) -> dict[str, Any]:
         **({"static_analysis": static_analysis} if static_analysis is not None else {}),
         **({"text_layout": text_layout} if text_layout is not None else {}),
         **({"analyses": analyses} if analyses else {}),
-        "errors": _normalize_proof_errors(report.get("errors")),
+        "errors": normalize_proof_errors(report.get("errors")),
     }
 
 
@@ -678,7 +678,7 @@ def _compact_resource_binding_report(report: object) -> dict[str, Any] | None:
             for view in views
             if isinstance(view, dict)
         ],
-        "errors": _normalize_proof_errors(report.get("errors")),
+        "errors": normalize_proof_errors(report.get("errors")),
     }
 
 
@@ -1179,6 +1179,13 @@ def _hash_path_if_present(path: object) -> str | None:
     return file_hash(candidate)
 
 
+# Backward-compatible private aliases; the un-prefixed names are canonical.
+_app_proof_failure_report = app_proof_failure_report
+_app_proof_report = app_proof_report
+_app_shell_failure_report = app_shell_failure_report
+_app_shell_report = app_shell_report
+_write_app_proof = write_app_proof
+
 __all__ = [
     "APP_BUNDLE_DEFAULT_OUT",
     "APP_BUNDLE_DEFAULT_ANALYSIS_EVIDENCE",
@@ -1188,11 +1195,11 @@ __all__ = [
     "APP_BUNDLE_PROOF_LEVEL",
     "APP_BUNDLE_PROOF_SCHEMA_VERSION",
     "APP_BUNDLE_TARGET",
-    "_app_proof_failure_report",
-    "_app_proof_report",
-    "_app_shell_failure_report",
-    "_app_shell_report",
+    "app_proof_failure_report",
+    "app_proof_report",
+    "app_shell_failure_report",
+    "app_shell_report",
     "_app_tool_proof_identity",
-    "_write_app_proof",
+    "write_app_proof",
     "_write_bounded_json",
 ]

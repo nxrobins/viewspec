@@ -9,7 +9,7 @@ from typing import Any
 from viewspec._version import __version__
 from viewspec.app_diff import _validation_summary
 from viewspec.app_paths import _assert_under_proof_root, _prepare_app_shell_output_dir
-from viewspec.app_prepared import _PreparedAppShell
+from viewspec.app_prepared import PreparedAppShell
 from viewspec.app_reports import _write_bounded_json
 from viewspec.app_shell import (
     APP_SHELL_MAX_MANIFEST_BYTES,
@@ -30,10 +30,10 @@ from viewspec.presentation_plan import (
 )
 
 
-def _write_static_app_shell(
+def write_static_app_shell(
     payload: dict[str, Any],
     screen_reports: list[dict[str, Any]],
-    prepared: _PreparedAppShell,
+    prepared: PreparedAppShell,
     *,
     root: Path,
     force: bool,
@@ -144,4 +144,7 @@ def _write_static_app_shell(
     }
 
 
-__all__ = ["_write_static_app_shell"]
+# Backward-compatible private alias; write_static_app_shell is the public name.
+_write_static_app_shell = write_static_app_shell
+
+__all__ = ["write_static_app_shell"]

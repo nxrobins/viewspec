@@ -142,7 +142,7 @@ def tailwind_recipe_registry_digest() -> str:
 
 def tailwind_recipe_registry_projection() -> dict[str, Any]:
     _sync_recipe_module()
-    projection = _recipes.tailwind_recipe_registry_projection()
+    projection = _recipes._base_registry_projection()
     projection["semantic_parity_classes"] = sorted(TAILWIND_PARITY_CLASS_TOKENS)
     return projection
 

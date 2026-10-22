@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import hashlib
-import json
 import re
 from dataclasses import dataclass
 from typing import Any
@@ -778,13 +776,12 @@ def _manifest_entry_to_ir_node(entry: dict[str, Any] | None) -> IRNode:
     )
 
 
-def tailwind_recipe_registry_digest() -> str:
-    payload = tailwind_recipe_registry_projection()
-    encoded = json.dumps(payload, ensure_ascii=True, separators=(",", ":"), sort_keys=True).encode("utf-8")
-    return hashlib.sha256(encoded).hexdigest()
+def _base_registry_projection() -> dict[str, Any]:
+    """Registry projection without the emitter's semantic parity classes.
 
-
-def tailwind_recipe_registry_projection() -> dict[str, Any]:
+    The public ``tailwind_recipe_registry_projection`` / ``tailwind_recipe_registry_digest``
+    live in ``viewspec.emitters.react_tailwind_tsx``; this is their input.
+    """
     return {
         "recipe_pack": TAILWIND_RECIPE_PACK,
         "registry_version": TAILWIND_RECIPE_REGISTRY_VERSION,
@@ -854,6 +851,4 @@ __all__ = [
     "_validate_tailwind_contract",
     "_walk",
     "resolve_manifest_recipe_metadata",
-    "tailwind_recipe_registry_digest",
-    "tailwind_recipe_registry_projection",
 ]
