@@ -23,9 +23,19 @@ What the local SDK does — and deliberately does not do:
   `vbscript:` and `data:` URLs (raster image `data:` URLs on `<img src>` excepted) after entity,
   whitespace and backslash decoding, CSS that imports or loads a URL (`@import`, `url(`,
   `image-set(`, `image(`, `src(`, remote schemes) after CSS escapes and comments are normalized,
-  and remote embed, `feImage`, and `ping` surfaces. A raw-HTML artifact may contain only the fixed
-  document wrapper plus manifest-governed elements whose attributes match the manifest and the
-  sanitizer allowlist. Raw HTML import sanitizes active content under the published allowlist
+  remote embed, `feImage`, and `ping` surfaces, and auto-fetching `http:`/`https:` URLs written
+  with or without `//` (detected inside tags, not in visible prose). It also rejects, with
+  parser-independent raw-text rules, markup that browsers and Python's `html.parser` tokenize
+  differently (`CHECK_AMBIGUOUS_MARKUP`), since a browser can run as a live element what the check
+  parser reads as inert: comments, `<![CDATA[` and other `<![` sections, declarations other than
+  `<!DOCTYPE html>`, and processing instructions; the raw-text, RCDATA and scripting elements
+  `noscript`, `textarea`, `xmp`, `noembed`, `noframes`, `plaintext` and `iframe` (`noscript`
+  differs on every version; the rest are text elements only on newer 3.11-3.14 patch releases);
+  `<title>`, `<style>` or `<script>` carrying nested markup or a closer with a solidus or
+  attributes (which older `html.parser` ends in a different place); a `<style>`/`<title>`/raw-text
+  element inside `<svg>` or `<math>`; and a NUL byte. No emitter writes any of these. A raw-HTML
+  artifact may contain only the fixed document wrapper plus manifest-governed elements whose
+  attributes match the manifest and the sanitizer allowlist. Raw HTML import sanitizes active content under the published allowlist
   policy (`viewspec-raw-html-allowlist@1`). `viewspec check` verifies that an artifact is
   consistent with its own unsigned `provenance_manifest.json`; it does not establish who produced
   either file, because whoever edits the artifact can re-hash the manifest. `viewspec prove` adds

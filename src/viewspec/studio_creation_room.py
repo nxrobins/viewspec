@@ -8,6 +8,7 @@ import hmac
 import json
 import logging
 import os
+import re
 import secrets
 import stat
 import threading
@@ -533,7 +534,23 @@ class StudioCreationRoomServer:
                 outer._dispatch(self)
 
             def log_message(self, format: str, *args: object) -> None:
-                _LOGGER.debug(format, *args)
+                # The /open/<token> bootstrap path carries a single-use bearer capability.
+                # BaseHTTPRequestHandler passes the request line to log_request and quotes it in
+                # parse errors, so every request-line word after the method, and any path- or
+                # URL-like token, is redacted before the message reaches the logger (mirrors
+                # ReviewServer.log_message).
+                message = format % args if args else format
+                for word in str(getattr(self, "requestline", "") or "").split()[1:]:
+                    if len(word) >= 8 and not re.fullmatch(r"HTTP/\d+(?:\.\d+)?", word):
+                        message = message.replace(word, "<redacted>")
+                message = re.sub(
+                    r"[^\s'\"]*/[^\s'\"]*",
+                    lambda match: (
+                        match.group(0) if re.fullmatch(r"HTTP/\d+(?:\.\d+)?", match.group(0)) else "<redacted>"
+                    ),
+                    message,
+                )
+                _LOGGER.debug("%s", message)
 
         return Handler
 

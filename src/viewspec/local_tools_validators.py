@@ -275,6 +275,12 @@ _CHECK_ISSUE_FIXES = {
         "with safe links, or re-run viewspec compile from the source."
     ),
     "CHECK_UNCLOSED_SCRIPT": "Remove the unclosed <script tag from index.html, or re-run viewspec compile from the source.",
+    "CHECK_AMBIGUOUS_MARKUP": (
+        "Remove comments, <![...]> sections, processing instructions, declarations other than <!DOCTYPE html>, "
+        "raw-text elements (noscript, textarea, xmp, noembed, noframes, plaintext, iframe, or <style>/<title> "
+        "inside <svg>/<math>), non-plain </title>, </style> and </script> closers, and NUL bytes from "
+        "index.html, or re-run viewspec compile from the source."
+    ),
     "CHECK_SCAN_LIMIT_EXCEEDED": (
         "Reduce index.html to the compiler-emitted style and script blocks, or re-run viewspec compile from the source."
     ),
@@ -1780,6 +1786,11 @@ def _is_remote_http_url(value: str) -> bool:
     return parsed.scheme.lower() in {"http", "https"} and bool(parsed.netloc)
 
 
+_SCHEME_RELATIVE_OR_HTTP_AUTHORITY_RE = re.compile(r"(?i)(?:https?:)?//")
+_HTTP_SCHEME_PREFIX_RE = re.compile(r"(?i)https?:")
+_URL_LIST_SEPARATOR_RE = re.compile(r"[\s,]+")
+
+
 def _contains_remote_http_reference(value: str) -> bool:
     # Browsers resolve backslashes (incl. %5c) AND strip control whitespace
     # (tab/LF/CR) when parsing URLs, so "/\\evil.com" or "https:/<tab>/evil.com"
@@ -1787,7 +1798,39 @@ def _contains_remote_http_reference(value: str) -> bool:
     # same way the compiler-side URL policy does (shared helper), so the two
     # sanitizers cannot drift on obfuscation handling.
     collapsed = collapse_url_obfuscation(value)
-    return bool(re.search(r"(?i)(?:https?:)?//", collapsed))
+    if _SCHEME_RELATIVE_OR_HTTP_AUTHORITY_RE.search(collapsed):
+        return True
+    # http and https need no slashes at all: the WHATWG URL parser resolves "https:evil.example/x"
+    # and "http:/evil.example/x" to that remote host whenever the document's scheme differs (a
+    # file: artifact, or the other of http/https). So an http(s) scheme opening the value, or any
+    # whitespace- or comma-separated candidate in it (srcset, the ping URL list), is remote too,
+    # as raw_html._safe_url already holds for the sanitizer.
+    candidates = (collapsed, *(collapse_url_obfuscation(token) for token in _URL_LIST_SEPARATOR_RE.split(value)))
+    return any(_HTTP_SCHEME_PREFIX_RE.match(candidate) for candidate in candidates)
+
+
+def _tag_source(html: str) -> str:
+    """Concatenate the source of every `<...>` tag (markup only), dropping text nodes.
+
+    The flat beacon URL backstop runs on this, never on the whole document, so a remote-looking
+    `attr=https:` token in visible prose (an intent value label, a raw-HTML paragraph) is not
+    mistaken for an attribute value. Attribute content inside a tag is kept; a never-terminated
+    final tag yields its tail once. A `>` inside a quoted attribute value can end a span early, as
+    elsewhere in the flat backstops, which only drops coverage onto the HTMLParser probe.
+    """
+    spans: list[str] = []
+    position = 0
+    while True:
+        start = html.find("<", position)
+        if start < 0:
+            break
+        end = html.find(">", start + 1)
+        if end < 0:
+            spans.append(html[start:])
+            break
+        spans.append(html[start : end + 1])
+        position = end + 1
+    return "".join(spans)
 
 
 # Beacon backstop. The HTMLParser probe below drops a tag a browser's error-recovery
@@ -1804,9 +1847,43 @@ _META_REFRESH_ATTR_RE = re.compile(r"(?i)http-equiv\s*=\s*[\"']?\s*refresh")
 # Only AUTO-FETCHING attributes -- NOT href/xlink:href, which are navigation (a plain
 # <a href="https://...">) and are governed per-tag by the probe + external_refs policy;
 # a flat scan can't see the owning tag, so including href would reject legitimate links.
+# Like _contains_remote_http_reference, an http(s) scheme counts as remote with or without "//".
 _BEACON_REMOTE_URL_ATTR_RE = re.compile(
     r"(?i)(?:src|action|formaction|poster|srcset|background|manifest|data|ping)"
-    r"\s*=\s*[\"']?\s*(?:https?:)?//"
+    r"\s*=\s*[\"']?\s*(?:https?:|//)"
+)
+
+# Markup that Python's HTMLParser and a browser tokenize differently, so a start tag the browser
+# runs never reaches the probes below. HTMLParser runs `<![CDATA[` and other `<![` sections to
+# `]]>` or `]>`, while a browser in HTML content ends that bogus comment at the first `>`; abrupt
+# comments (`<!-->`, `<!--->`) and `--!>` closers end a browser comment earlier than HTMLParser
+# does on some 3.11-3.14 releases. The emitters and the raw-HTML sanitizer write none of these
+# (only `<!DOCTYPE html>` and escaped text), so `check` rejects them outright instead of modelling
+# each parser's error recovery: any `<!` other than that doctype, and any `<?`.
+_MARKUP_DECLARATION_RE = re.compile(r"(?i)<(?:!(?!doctype\s+html\s*>)|\?)")
+_FOREIGN_CONTENT_OPENER_RE = re.compile(r"(?i)<(?:svg|math)(?=[\s/>])")
+# Raw-text / RCDATA / scripting elements a browser parses as a text container but at least one
+# supported html.parser release parses as ordinary markup, so content a browser runs as a live
+# element (reached by closing the text run, or smuggled past the parser inside an attribute) never
+# reaches the start-tag probes. `noscript` always differs (the probes parse with scripting off, a
+# browser runs scripts on); `textarea`, `title`, `xmp`, `iframe`, `noembed`, `noframes` are raw
+# text/RCDATA only on newer 3.11-3.14 patch releases (older ones, e.g. 3.12.4, parse them as
+# markup); `plaintext` is never a text element for html.parser. None of these are emitter output,
+# so an opener anywhere is rejected. (`iframe` is also a beacon-forbidden tag.)
+_FORBIDDEN_RAW_TEXT_OPENER_RE = re.compile(
+    r"(?i)<(?:noscript|textarea|xmp|noembed|noframes|plaintext|iframe)(?=[\s/>])"
+)
+# The text elements the emitters DO write (one `<title>`, one `<style>`, the pinned `<script>`
+# blocks). A browser parses their content as raw text/RCDATA up to `</tag` followed by whitespace,
+# `/` or `>`. Scanned with _emitted_raw_text_is_ambiguous below: emitter content is escaped and
+# closed by a plain `</tag>`, so a `<` inside the browser text run, or a closer carrying a solidus
+# or attributes (which older html.parser does not honour, ending the run in a different place),
+# marks a parser disagreement.
+_EMITTED_RAW_TEXT_OPENER_RE = re.compile(r"(?i)<(style|script|title)(?=[\s/>])")
+# Used by the foreign-content rule: any raw-text opener after an `<svg>`/`<math>` opener. In foreign
+# content a browser parses these as markup while HTMLParser keeps them as raw text.
+_RAW_TEXT_ELEMENT_OPENER_RE = re.compile(
+    r"(?i)<(?:style|script|title|textarea|xmp|iframe|noembed|noframes|noscript|plaintext)(?=[\s/>])"
 )
 
 _AUTOFETCH_SURFACE_ERROR = "index.html contains an active or auto-fetching surface"
@@ -1817,6 +1894,11 @@ _UNSAFE_URL_SCHEME_ERROR = (
     "CHECK_UNSAFE_URL_SCHEME: index.html contains a javascript:, vbscript:, or data: URL attribute"
 )
 _UNCLOSED_SCRIPT_ERROR = "CHECK_UNCLOSED_SCRIPT: index.html contains an unclosed script tag"
+_AMBIGUOUS_MARKUP_ERROR = (
+    "CHECK_AMBIGUOUS_MARKUP: index.html contains markup that browsers and the check parser read "
+    "differently (a comment, <![...]> section, declaration other than the doctype, processing "
+    "instruction, or raw-text element inside <svg> or <math>)"
+)
 _SCAN_LIMIT_ERROR = (
     f"CHECK_SCAN_LIMIT_EXCEEDED: index.html contains more than {MAX_SCANNED_TAG_BLOCKS} style or script blocks"
 )
@@ -2065,6 +2147,72 @@ def _unfinished_tag_surface_errors(html: str) -> list[str]:
     return _attribute_surface_errors(tag_name, attrs)
 
 
+def _emitted_raw_text_is_ambiguous(html: str) -> bool:
+    """True when a `<title>`/`<style>`/`<script>` text run disagrees between a browser and HTMLParser.
+
+    One linear pass (position resumes past each closed run). A browser parses the content of these
+    elements as raw text/RCDATA up to `</tag` followed by whitespace, `/` or `>`. The emitters write
+    these with escaped content (no `<`) and a plain `</tag>` closer, so a `<` inside the browser text
+    run -- markup a browser hides as text but HTMLParser, treating the element as ordinary markup on
+    an older release, exposes as live, or vice versa -- or a closer carrying a solidus or attributes
+    (which ends the run in a browser but not on older html.parser) is a parser disagreement. An
+    unterminated opener, or a browser text run reaching EOF while holding `<`, is ambiguous too.
+    """
+    position = 0
+    while True:
+        opener = _EMITTED_RAW_TEXT_OPENER_RE.search(html, position)
+        if opener is None:
+            return False
+        tag = opener.group(1).lower()
+        opener_end = html.find(">", opener.end())
+        if opener_end < 0:
+            return True
+        content_start = opener_end + 1
+        _opener_re, closer_re = _tag_scan_patterns(tag)
+        closer = closer_re.search(html, content_start)
+        if closer is None:
+            return "<" in html[content_start:]
+        if "<" in html[content_start : closer.start()]:
+            return True
+        closer_tag_end = closer.end()
+        close_bracket = html.find(">", closer_tag_end)
+        if close_bracket < 0:
+            return True
+        if html[closer_tag_end:close_bracket].strip():
+            return True
+        position = close_bracket + 1
+
+
+def _has_ambiguous_markup(html: str) -> bool:
+    """True when html holds markup that HTMLParser and a browser tokenize differently.
+
+    Parser-independent raw-text rules, not one payload at a time:
+    - A NUL byte: a browser replaces U+0000 (and re-tokenizes around it); HTMLParser keeps it, so a
+      `<x\\x00 onerror=...>` start tag one parser sees and the other does not.
+    - A declaration other than `<!DOCTYPE html>` or a processing instruction (`<?`): a browser runs
+      `<![CDATA[`/`<!...` as a bogus comment ending at the first `>` and ends abrupt comments
+      (`<!-->`, `<!--->`) / `--!>` closers earlier than some html.parser releases, so markup the
+      browser runs lives on past where HTMLParser stops.
+    - A raw-text/RCDATA/scripting element HTMLParser and a browser disagree about (`noscript` always;
+      `textarea`, `xmp`, `iframe`, `noembed`, `noframes`, `plaintext` and RCDATA `title`/`textarea`
+      version-dependently): rejected outright, since no emitter writes them.
+    - The emitted text elements `<title>`/`<style>`/`<script>` in any non-emitter shape (see
+      _emitted_raw_text_is_ambiguous).
+    - A raw-text opener anywhere after an `<svg>`/`<math>` opener: in foreign content a browser parses
+      it as markup, HTMLParser as raw text (fail closed on the foreign element's parser-dependent end).
+    """
+    if "\x00" in html:
+        return True
+    if _MARKUP_DECLARATION_RE.search(html):
+        return True
+    if _FORBIDDEN_RAW_TEXT_OPENER_RE.search(html):
+        return True
+    if _emitted_raw_text_is_ambiguous(html):
+        return True
+    foreign = _FOREIGN_CONTENT_OPENER_RE.search(html)
+    return foreign is not None and _RAW_TEXT_ELEMENT_OPENER_RE.search(html, foreign.end()) is not None
+
+
 def _meta_refresh_present(html: str) -> bool:
     return any(_META_REFRESH_ATTR_RE.search(attrs) for _start, attrs in iter_tag_regions(html, "meta"))
 
@@ -2082,12 +2230,18 @@ def _validate_no_autofetch_surfaces(html: str) -> list[str]:
     probe.feed(html)
     probe.close()
     errors = list(probe.errors)
-    collapsed = collapse_url_obfuscation(html)
+    # The flat remote-URL backstop scans tag source only (not text nodes), so a scheme written in
+    # prose -- `data=https:` or `ping=http:` in a paragraph or an intent label -- is never read as
+    # an attribute value. Obfuscation is collapsed after the tags are isolated so a scheme split by
+    # whitespace or backslashes inside an attribute still matches.
+    tag_source_collapsed = collapse_url_obfuscation(_tag_source(html))
     style_scan = find_tag_blocks(html, "style")
     backstops: list[str] = []
+    if _has_ambiguous_markup(html):
+        backstops.append(_AMBIGUOUS_MARKUP_ERROR)
     if _BEACON_FORBIDDEN_TAG_RE.search(html) or _meta_refresh_present(html):
         backstops.append(_AUTOFETCH_SURFACE_ERROR)
-    if _BEACON_REMOTE_URL_ATTR_RE.search(collapsed):
+    if _BEACON_REMOTE_URL_ATTR_RE.search(tag_source_collapsed):
         backstops.append(_REMOTE_URL_ATTR_ERROR)
     if _style_blocks_have_unsafe_css(html, style_scan):
         backstops.append(_AUTOFETCH_SURFACE_ERROR)
@@ -2224,6 +2378,9 @@ def _validate_manifest_dom_links(manifest: dict[str, Any], html: str) -> list[st
         errors.extend(_validate_intent_dom_links(nodes, probe))
     elif kind == "raw_html_compile":
         errors.extend(_validate_raw_html_dom_links(nodes, probe, manifest))
+        if _has_ambiguous_markup(html):
+            # The probe's element list is only complete when HTMLParser saw every element a browser builds.
+            errors.append(_RAW_HTML_AMBIGUOUS_MARKUP_ERROR)
     return errors
 
 
@@ -2279,6 +2436,10 @@ def _validate_intent_dom_links(nodes: dict[str, Any], probe: _ArtifactDomProbe) 
 
 
 _RAW_HTML_UNGOVERNED_PREFIX = "CHECK_RAW_HTML_DOM_UNGOVERNED"
+_RAW_HTML_AMBIGUOUS_MARKUP_ERROR = (
+    f"{_RAW_HTML_UNGOVERNED_PREFIX}: index.html contains markup the DOM probe cannot attribute to manifest "
+    "nodes (a comment, declaration, processing instruction, or raw-text element inside <svg> or <math>)"
+)
 
 
 def _validate_raw_html_dom_links(

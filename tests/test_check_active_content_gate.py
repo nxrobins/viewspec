@@ -22,14 +22,22 @@ from viewspec.app_shell import (
     _extract_screen_body_fragment,
     _extract_screen_styles,
 )
-from viewspec.intent_tools import compile_intent_bundle_file_tool, init_intent_file
+from viewspec.intent_tools import compile_intent_bundle_file_tool, init_intent_file, starter_intent_payload
 from viewspec.local_tools import check_artifact_dir, check_artifact_tool, compile_html_file_tool, file_hash
-from viewspec.local_tools_validators import _validate_no_autofetch_surfaces, css_has_unsafe_reference, find_tag_blocks
+from viewspec.local_tools_validators import (
+    _BEACON_REMOTE_URL_ATTR_RE,
+    _contains_remote_http_reference,
+    _has_ambiguous_markup,
+    _validate_no_autofetch_surfaces,
+    css_has_unsafe_reference,
+    find_tag_blocks,
+)
 
 HANDLER = "CHECK_INLINE_EVENT_HANDLER"
 SCHEME = "CHECK_UNSAFE_URL_SCHEME"
 UNCLOSED_SCRIPT = "CHECK_UNCLOSED_SCRIPT"
 UNGOVERNED = "CHECK_RAW_HTML_DOM_UNGOVERNED"
+AMBIGUOUS = "CHECK_AMBIGUOUS_MARKUP"
 AUTOFETCH = "index.html contains an active or auto-fetching surface"
 REMOTE_ATTR = "index.html contains an auto-fetching remote URL attribute"
 
@@ -127,6 +135,19 @@ def _assert_rejected(result: dict, expected: str) -> None:
         ("<svg><filter><feImage xlink:href='//evil.example/x'/></filter></svg>", REMOTE_ATTR),
         ("<a href='/x' ping='https://evil.example/x'>x</a>", REMOTE_ATTR),
         ("<a href='/x' ping='//evil.example/x'>x</a>", REMOTE_ATTR),
+        # http(s) URLs need no "//": browsers resolve these to the remote host (finding F9).
+        ("<img src='https:evil.example/beacon'>", REMOTE_ATTR),
+        ("<img src='http:evil.example/beacon'>", REMOTE_ATTR),
+        ("<img src='https:/evil.example/beacon'>", REMOTE_ATTR),
+        ("<img src=HTTPS:evil.example/beacon>", REMOTE_ATTR),
+        ("<img src=' h&#09;ttps:evil.example/beacon'>", REMOTE_ATTR),
+        ("<video poster='http:evil.example/p'></video>", REMOTE_ATTR),
+        ("<img srcset='http:evil.example/a 1x'>", REMOTE_ATTR),
+        ("<img srcset='x.png 1x, https:evil.example/a 2x'>", REMOTE_ATTR),
+        ("<a href='/x' ping='http:evil.example/p'>x</a>", REMOTE_ATTR),
+        ("<a href='/x' ping='/local https:evil.example/p'>x</a>", REMOTE_ATTR),
+        ("<svg><filter><feImage href='https:evil.example/x'/></filter></svg>", REMOTE_ATTR),
+        ("<svg><image href='https:evil.example/i'/></svg>", REMOTE_ATTR),
     ],
 )
 def test_check_rejects_active_content_bypasses_in_intent_artifact(tmp_path, snippet, expected):
@@ -146,6 +167,8 @@ def test_check_rejects_active_content_bypasses_in_intent_artifact(tmp_path, snip
         (lambda html: html + "\n<img src=x onerror=alert(1)", HANDLER),
         (lambda html: html + "\n<a href='javascript:alert(1)'", SCHEME),
         (lambda html: html + "\n<a href='/x' ping='https://evil.example/x'", REMOTE_ATTR),
+        (lambda html: html + "\n<img src='https:evil.example/x'", REMOTE_ATTR),
+        (lambda html: html + "\n<img srcset='x.png 1x, http:evil.example/x 2x'", REMOTE_ATTR),
         (lambda html: html + '\n<p style="background:\\75rl(https://evil.example/x)"', AUTOFETCH),
         (lambda html: html + "\n<script>alert(1)", UNCLOSED_SCRIPT),
     ],
@@ -234,6 +257,237 @@ def test_check_rejects_ungoverned_raw_html_dom(tmp_path, mutate, expected):
     _tamper(artifact_dir, mutate)
 
     _assert_rejected(check_artifact_dir(artifact_dir), expected)
+
+
+# Markup that Python's HTMLParser and a browser tokenize differently (finding F1). In each payload the
+# element after the construct is live in a browser, but HTMLParser (on at least one 3.11-3.14 release)
+# folds it into a declaration, comment or raw-text run, so the start-tag probes never see it.
+AMBIGUOUS_MARKUP_PAYLOADS = [
+    # A browser ends `<![CDATA[` in HTML content at the first ">"; HTMLParser runs it to "]]>".
+    "<![CDATA[><img src=x onerror=alert(1)>]]>",
+    "<![CDATA[><a href='javascript:alert(1)'>x</a>]]>",
+    "<![CDATA[><div>ungoverned</div>]]>",
+    "<![CDATA[><svg onload=alert(1)>]]>",
+    # Other `<![` sections end at "]>" for HTMLParser.
+    "<![if x><img src=x onerror=alert(1)>]>",
+    # Abrupt comments and the `--!>` closer end a browser comment earlier than some HTMLParser releases.
+    "<!--><img src=x onerror=alert(1)>-->",
+    "<!---><img src=x onerror=alert(1)>-->",
+    "<!-- x --!><img src=x onerror=alert(1)>-->",
+    # The rest of the family is rejected too: no emitter writes any of it.
+    "<!-- x --><p>well-formed comment</p>",
+    "<!x><p>bogus declaration</p>",
+    "<?x><p>processing instruction</p>",
+    # Raw-text elements are markup containers inside <svg>/<math>, raw text for HTMLParser.
+    "<svg><style><img src=x onerror=alert(1)></style></svg>",
+    "<svg><title><img src=x onerror=alert(1)></title></svg>",
+    "<math><style><img src=x onerror=alert(1)></style></math>",
+    # Round 2 (finding F1 remainder): the whole parser-differential raw-text class, closed with
+    # parser-independent rules rather than one payload at a time. `<noscript>` is raw text in every
+    # browser (scripting on) but markup for HTMLParser (scripting off), so an attribute-quote smuggle
+    # hides the live element on ALL supported versions.
+    "<noscript><p title='</noscript><img src=x onerror=alert(1)>'></noscript>",
+    "<noscript><p title='</noscript><a href=javascript:alert(1)>x</a>'></noscript>",
+    "<NOSCRIPT><p title='</noscript\n><img src=x onerror=alert(1)>'></NOSCRIPT>",
+    # RCDATA/raw-text elements a browser always treats as text but older 3.11-3.14 html.parser
+    # releases (e.g. 3.12.4, which has no RCDATA set) parse as markup.
+    "<title><p title='</title><img src=x onerror=alert(1)>'>",
+    "<textarea><p title='</textarea><img src=x onerror=alert(1)>'></textarea>",
+    "<xmp><p title='</xmp><img src=x onerror=alert(1)>'></xmp>",
+    "<noembed><p title='</noembed><img src=x onerror=alert(1)>'></noembed>",
+    "<noframes><p title='</noframes><img src=x onerror=alert(1)>'></noframes>",
+    # <plaintext> is never a text element for HTMLParser; a browser runs everything after it as text.
+    "<plaintext><img src=x onerror=alert(1)>",
+    # End tags a browser accepts but older html.parser does not, ending raw text early.
+    "<style></style/><img src=x onerror=alert(1)>",
+    "<style></style foo><img src=x onerror=alert(1)>",
+    "<script></script/><img src=x onerror=alert(1)>",
+    "<script></script foo><img src=x onerror=alert(1)>",
+    # NUL: a browser replaces U+0000 and re-tokenizes; HTMLParser keeps it, so a start tag one
+    # parser sees and the other does not.
+    "\x00<img src=x onerror=alert(1)>",
+    "<x\x00 onerror=alert(1) autofocus>payload</x>",
+]
+
+
+@pytest.mark.parametrize("snippet", AMBIGUOUS_MARKUP_PAYLOADS)
+def test_check_rejects_parser_differential_markup_in_intent_artifact(tmp_path, snippet):
+    artifact_dir = _compile_intent_artifact(tmp_path)
+    _tamper(artifact_dir, lambda html: html.replace("</body>", f"{snippet}</body>", 1))
+
+    _assert_rejected(check_artifact_dir(artifact_dir), AMBIGUOUS)
+
+
+@pytest.mark.parametrize("snippet", AMBIGUOUS_MARKUP_PAYLOADS)
+def test_check_rejects_parser_differential_markup_in_raw_html_artifact(tmp_path, snippet):
+    artifact_dir = _compile_raw_html_artifact(tmp_path)
+    _tamper(artifact_dir, lambda html: html.replace("</body>", f"{snippet}</body>", 1))
+
+    checked = check_artifact_dir(artifact_dir)
+
+    _assert_rejected(checked, AMBIGUOUS)
+    # The raw-HTML DOM probe refuses to vouch for an element list HTMLParser may have under-counted.
+    assert any(
+        error.startswith(f"{UNGOVERNED}: index.html contains markup the DOM probe") for error in checked["errors"]
+    )
+
+
+def test_check_tool_rejects_cdata_hidden_content_in_raw_html_artifact(tmp_path):
+    artifact_dir = _compile_raw_html_artifact(tmp_path)
+    _tamper(
+        artifact_dir,
+        lambda html: html.replace(
+            "</body>",
+            "<![CDATA[><div><a href='javascript:alert(1)'>x</a><img src=x onerror=alert(1)></div>]]></body>",
+            1,
+        ),
+    )
+
+    checked = check_artifact_tool("dist", cwd=tmp_path)
+
+    assert checked["ok"] is False
+    ambiguous = next(error for error in checked["errors"] if error["code"] == AMBIGUOUS)
+    assert ambiguous["path"] == "index.html"
+    assert ambiguous["fix"].startswith("Remove comments, <![...]> sections")
+
+
+def test_ambiguous_markup_rule_accepts_what_the_sdk_writes():
+    # The emitters and the raw-HTML sanitizer write only the doctype; text and attribute values are escaped.
+    assert _has_ambiguous_markup("<!DOCTYPE html>\n<html><body><p>&lt;!-- note --&gt;</p></body></html>") is False
+    assert _has_ambiguous_markup("<!doctype html><title>t</title><style>a{}</style><script>x</script>") is False
+    assert _has_ambiguous_markup('<p title="&lt;![CDATA[ x ]]&gt;">&lt;?x?&gt;</p>') is False
+    # A doctype carrying anything else, or a second construct after it, is rejected.
+    assert _has_ambiguous_markup("<!DOCTYPE html><!-- x -->") is True
+    assert _has_ambiguous_markup("<!DOCTYPE html SYSTEM 'x'>") is True
+    # Raw-text openers are fine before foreign content, rejected after it.
+    assert _has_ambiguous_markup("<style>a{}</style><svg></svg>") is False
+    assert _has_ambiguous_markup("<svg></svg><style>a{}</style>") is True
+
+
+def test_ambiguous_markup_closes_the_raw_text_class(tmp_path):
+    # Elements no emitter writes, rejected wherever they open (finding F1 remainder).
+    for tag in ("noscript", "textarea", "xmp", "noembed", "noframes", "plaintext", "iframe"):
+        assert _has_ambiguous_markup(f"<{tag}>x</{tag}>") is True, tag
+        assert _has_ambiguous_markup(f"<{tag.upper()} foo>x") is True, tag
+    # The attribute-quote smuggle a browser runs and HTMLParser folds into a <p> attribute.
+    assert _has_ambiguous_markup("<noscript><p title='</noscript><img src=x onerror=alert(1)>'>") is True
+    # Emitted text elements: a "<" inside the browser text run, or a closer carrying a solidus or
+    # attributes (which older html.parser does not honour), is a parser disagreement.
+    assert _has_ambiguous_markup("<title><p title='</title><img onerror=alert(1)>'>") is True
+    assert _has_ambiguous_markup("<style></style/><img onerror=alert(1)>") is True
+    assert _has_ambiguous_markup("<script></script foo><img onerror=alert(1)>") is True
+    # A NUL anywhere.
+    assert _has_ambiguous_markup("<p>ok</p>\x00") is True
+    assert _has_ambiguous_markup("<x\x00 onerror=alert(1)>") is True
+    # What the emitters actually write stays accepted: one escaped <title>, one <style>, the pinned
+    # <script>, each closed by a plain </tag> with no markup inside.
+    assert _has_ambiguous_markup("<title>Quarterly Report</title>") is False
+    assert _has_ambiguous_markup("<style>body{color:red}</style>") is False
+    assert _has_ambiguous_markup("<script>var a = 1;\nreturn a;</script >") is False
+    assert _has_ambiguous_markup("<title>t</title><p>body</p><title>t2</title>") is False
+
+
+def test_remote_url_backstop_ignores_scheme_like_prose(tmp_path):
+    # Finding F9 remainder: the flat backstop scans tag source, so a scheme-looking token in visible
+    # text (an intent value label, a raw-HTML paragraph) is not read as an attribute value, while a
+    # real auto-fetch attribute still is.
+    assert _validate_no_autofetch_surfaces("<p>Set the data=https: and ping=http: prefixes.</p>") == []
+    assert _validate_no_autofetch_surfaces("<p>Visit https://docs.example for the guide.</p>") == []
+    assert _validate_no_autofetch_surfaces("<img src='https:evil.example/x'>") == [REMOTE_ATTR]
+    assert _validate_no_autofetch_surfaces("<a ping='http:evil.example/p'>x</a>") == [REMOTE_ATTR]
+
+    # End to end: an intent value label full of scheme-like prose compiles and passes check.
+    payload = starter_intent_payload()
+    payload["substrate"]["nodes"]["revenue"]["attrs"]["label"] = "Endpoint data=https: and ping=http: prefixes"
+    (tmp_path / "viewspec.intent.json").write_text(json.dumps(payload), encoding="utf-8")
+    compiled = compile_intent_bundle_file_tool("viewspec.intent.json", "dist", cwd=tmp_path)
+    assert compiled["ok"] is True, compiled
+    assert check_artifact_dir(tmp_path / "dist")["ok"] is True
+
+
+def test_raw_html_paragraph_with_scheme_like_prose_passes_check(tmp_path):
+    (tmp_path / "report.html").write_text(
+        "<h1>API</h1><p>Set the data=https: prefix and the ping=http: value in prose.</p>",
+        encoding="utf-8",
+    )
+    compiled = compile_html_file_tool("report.html", "dist", cwd=tmp_path)
+    assert compiled["ok"] is True, compiled["errors"]
+    html = (tmp_path / "dist" / "index.html").read_text(encoding="utf-8")
+    assert "data=https:" in html  # the prose survived into the artifact
+    assert check_artifact_dir(tmp_path / "dist")["ok"] is True
+
+
+def test_intent_text_with_markup_like_content_still_passes_check(tmp_path):
+    payload = starter_intent_payload()
+    attrs = payload["substrate"]["nodes"]["revenue"]["attrs"]
+    attrs["value"] = "<!-- a --> <![CDATA[ b ]]> <?c?> <!-->"
+    attrs["label"] = "<svg><style>d</style></svg>"
+    (tmp_path / "viewspec.intent.json").write_text(json.dumps(payload), encoding="utf-8")
+    compiled = compile_intent_bundle_file_tool("viewspec.intent.json", "dist", cwd=tmp_path)
+    assert compiled["ok"] is True, compiled
+
+    html = (tmp_path / "dist" / "index.html").read_text(encoding="utf-8")
+    assert "&lt;![CDATA[ b ]]&gt;" in html
+    checked = check_artifact_dir(tmp_path / "dist")
+    assert checked["ok"] is True, checked["errors"]
+
+
+def test_raw_html_source_with_comments_and_cdata_compiles_to_a_passing_artifact(tmp_path):
+    (tmp_path / "report.html").write_text(
+        "<h1>Report</h1><!-- note --><p>a <![CDATA[ b ]]> c <?pi x?> d</p><!--><p>e</p><svg><style>x</style></svg>",
+        encoding="utf-8",
+    )
+    compiled = compile_html_file_tool("report.html", "dist", cwd=tmp_path)
+    assert compiled["ok"] is True, compiled["errors"]
+
+    html = (tmp_path / "dist" / "index.html").read_text(encoding="utf-8")
+    assert "<!--" not in html and "<![" not in html and "<?" not in html and "<svg" not in html
+    checked = check_artifact_dir(tmp_path / "dist")
+    assert checked["ok"] is True, checked["errors"]
+
+
+@pytest.mark.parametrize(
+    "value",
+    [
+        "https:evil.example/x",
+        "http:evil.example/x",
+        "https:/evil.example/x",
+        "HTTP:evil.example/x",
+        " \thttps:evil.example/x",
+        "h\nttps:evil.example/x",
+        "x.png 1x, http:evil.example/a 2x",
+        "x.png 1x,https:evil.example/a 2x",
+        "/local https:evil.example/p",
+        "https://evil.example/x",
+        "//evil.example/x",
+        "/\\evil.example/x",
+    ],
+)
+def test_remote_reference_detects_http_urls_with_or_without_slashes(value):
+    assert _contains_remote_http_reference(value) is True
+
+
+@pytest.mark.parametrize(
+    "value",
+    [
+        "./local.png",
+        "/relative/path",
+        "#top",
+        "x.png 1x, y.png 2x",
+        "mailto:ops@example.com",
+        "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==",
+        "/docs/http-guide.png",
+        "httpsfoo.png",
+    ],
+)
+def test_remote_reference_accepts_local_urls(value):
+    assert _contains_remote_http_reference(value) is False
+
+
+def test_flat_remote_url_backstop_matches_slashless_http_schemes():
+    for html in ("<img src=https:evil.example/x", "<img src='http:evil.example/x'", '<video poster="https:/e/x"'):
+        assert _BEACON_REMOTE_URL_ATTR_RE.search(html), html
+    assert _BEACON_REMOTE_URL_ATTR_RE.search('<img src="./http:local.png"') is None
 
 
 def _tamper_raw_html_consistently(artifact_dir: Path, *, node_tag: str, dom_mutation, manifest_mutation) -> None:
