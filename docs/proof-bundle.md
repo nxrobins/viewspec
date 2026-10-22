@@ -17,8 +17,8 @@ ViewSpec proof bundles are not pixel-perfect visual regression, accessibility ce
 - `Status` is the first pass/fail signal. A failed proof is still useful because it records the exact failure code and next fix.
 - `Proof level` tells you whether the proof is `source_artifact` or `react_tailwind_reference_host`.
 - `Claim` states the strongest result the proof is allowed to claim for this run.
-- `Inputs And Outputs` shows the IntentBundle, DESIGN.md, generated artifact, manifest, diagnostics, JSON report, and human summary paths.
-- `Hashes` lets reviewers compare the checked artifact, manifest, and report with the files on disk.
+- `Inputs And Outputs` shows the IntentBundle, DESIGN.md, generated artifact, manifest, diagnostics, JSON report, and human summary paths. `PROOF.md` and `proof_report.json` record every path relative to the proof directory with `/` separators; join them with the proof directory before opening a file.
+- `Hashes` lets reviewers compare the checked artifact, manifest, and report with the files on disk. The proof report hash covers `proof_report.json` with the wall-clock `timings_ms` section removed, so two proofs of one input in different directories share one hash.
 - `Manifest Summary` records bounded manifest facts such as emitter, node count, root aesthetic profile, compact style-delta counts, and checked aesthetic layout columns/spans.
 - `Checks` shows whether intent setup, compile, artifact check, host verification, summary writing, and support bundle writing ran.
 - `Host Verification` appears for React Tailwind runs and summarizes observed browser assertions, including profiled aesthetic marker/layout counters when applicable, when the reference host was used. The machine report also records `assertion_requirements` for expected `dom_count`, `style_assertion_count`, and manifest-derived `aesthetic_layout_assertion_count`, `aesthetic_profile_assertion_count`, and `grid_span_assertion_count`.
@@ -29,7 +29,7 @@ ViewSpec proof bundles are not pixel-perfect visual regression, accessibility ce
 
 `support_bundle.json` is a local-only triage artifact for failed first proofs. It is generated from observed proof report data, capped at 16 KiB, and must not include raw IntentBundle JSON, DESIGN.md content, generated artifact content, diagnostics content, absolute paths, environment variables, credentials, or automatic telemetry/upload behavior.
 
-If the support bundle cannot be written or would include forbidden path content, `viewspec prove` fails closed with `PROVE_SUPPORT_BUNDLE_WRITE_FAILED` or `PROVE_SUPPORT_BUNDLE_CONTENT_FORBIDDEN`. Share `support_bundle.json` before sharing `PROOF.md` or `proof_report.json`, because those full proof files may contain local absolute paths.
+If the support bundle cannot be written or would include forbidden path content, `viewspec prove` fails closed with `PROVE_SUPPORT_BUNDLE_WRITE_FAILED` or `PROVE_SUPPORT_BUNDLE_CONTENT_FORBIDDEN`. Share `support_bundle.json` before sharing `PROOF.md` or `proof_report.json`: the full proof files name every input and output file, while the support bundle keeps only path hints. The support bundle is at `schema_version` 2 and carries no `timings_ms` section.
 
 ## Review Workflow
 

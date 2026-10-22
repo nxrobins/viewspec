@@ -567,8 +567,8 @@ def _portable_report(report: Mapping[str, Any]) -> dict[str, Any]:
     ``proof_report.json`` records them relative to ``paths.proof_dir`` with POSIX separators so the
     document, and every hash over it, is the same wherever the proof was written.
     """
-    paths = report.get("paths") if isinstance(report.get("paths"), dict) else {}
-    base = paths.get("proof_dir")
+    paths = report.get("paths")
+    base = paths.get("proof_dir") if isinstance(paths, dict) else None
     if not isinstance(base, str) or not base:
         return json.loads(json.dumps(report))
     portable = portable_report_paths(report, base)
