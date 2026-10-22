@@ -373,7 +373,12 @@ def test_hand_bump_entries_name_the_pins_outside_the_package_files() -> None:
         if (match := re.match(r"- \*\*`([^`]+)`", entry))
     }
     hooks = {hook["id"] for repo in yaml.safe_load(_read(".pre-commit-config.yaml"))["repos"] for hook in repo["hooks"]}
+    floor_job = _steps_text(_workflow("ci.yml")["jobs"]["protobuf_floor"])
 
     # The pre-commit hooks run ruff at their own rev, so a ruff bump moves that rev as well.
     assert "ruff" in hooks
     assert "`.pre-commit-config.yaml`" in entries["ruff"]
+    # The protobuf_floor job installs the protobuf floor by its exact version, so a grpcio-tools bump
+    # that moves the floor moves that pin as well; a search for the old grpcio-tools version misses it.
+    assert "protobuf==" in floor_job
+    assert "`protobuf_floor`" in entries["grpcio-tools"]

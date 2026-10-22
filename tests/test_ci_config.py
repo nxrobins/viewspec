@@ -140,6 +140,19 @@ def test_pre_commit_runs_the_ruff_release_ci_pins() -> None:
     assert ruff["rev"] == f"v{pinned}"
 
 
+def test_protobuf_floor_job_installs_the_declared_floor() -> None:
+    project = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))["project"]
+    (requirement,) = [dependency for dependency in project["dependencies"] if re.match(r"protobuf\b", dependency)]
+    floor = re.search(r">=\s*([0-9][0-9A-Za-z.]*)", requirement)
+    commands = "\n".join(step.get("run", "") for step in _load("ci.yml")["jobs"]["protobuf_floor"]["steps"])
+
+    # The job imports the package with the oldest protobuf it declares. A new protoc moves the floor
+    # (tests/test_schema_source.py ties it to the gencode version), and the job's exact pin has to
+    # move with it: a pin below the new floor makes the job's install unresolvable.
+    assert floor is not None, requirement
+    assert re.findall(r"protobuf==([0-9][0-9A-Za-z.]*)", commands) == [floor.group(1)]
+
+
 # --- Dependabot -------------------------------------------------------------------------------
 
 DEPENDABOT = ROOT / ".github" / "dependabot.yml"

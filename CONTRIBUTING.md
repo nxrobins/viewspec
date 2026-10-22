@@ -212,8 +212,9 @@ string as well (`git grep -nF <old version>`): error messages, tests and root fi
   differs, the new protoc changed the generated module. Either keep the old pin (and restore the
   module with `git checkout src/viewspec/schema`), or keep the new module on purpose: move the
   `protobuf` floor in `pyproject.toml` to the new gencode version (`tests/test_schema_source.py`
-  checks it), regenerate `requirements-ci.txt`, and add a changelog entry. Run
-  `python scripts/regenerate_schema.py check` either way.
+  checks it) and the `protobuf==` pin of the `protobuf_floor` job in `.github/workflows/ci.yml`
+  to the same version (`tests/test_ci_config.py` checks that), regenerate `requirements-ci.txt`,
+  and add a changelog entry. Run `python scripts/regenerate_schema.py check` either way.
 - **`mcp` 2.x**: the `viewspec mcp` server only works with MCP SDK 1.x, so the `agents` extra
   caps `mcp<2` and Dependabot proposes only 1.x releases. Moving to SDK 2 is a code change that
   raises the cap and drops the `mcp` rule from `dependabot.yml` (`tests/test_ci_config.py` ties
