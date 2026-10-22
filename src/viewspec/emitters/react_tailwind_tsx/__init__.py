@@ -1,4 +1,13 @@
-"""Deterministic React TSX emitter using closed Tailwind utility recipes."""
+"""Deterministic React TSX emitter using closed Tailwind utility recipes.
+
+The emitter reads its recipe tables from an explicit, read-only ``TailwindRecipeRegistry``:
+``DEFAULT_TAILWIND_RECIPE_REGISTRY``, built once from the tables in ``recipes``, unless a caller
+passes another one to ``ReactTailwindTsxEmitter`` or ``emit_compiler_result``. The registry is
+passed down every call that resolves or checks a recipe, so emitting never assigns attributes on
+this package or on ``recipes``, and emits with different registries can run at the same time. The
+table names re-exported here (``RECIPE_BY_KEY`` and the rest) are the source the default registry
+was built from; reassigning or mutating them later does not change what the emitter does.
+"""
 
 from __future__ import annotations
 
@@ -33,8 +42,9 @@ from viewspec.emitters.html_tailwind import (
 )
 from viewspec.emitters.react_tailwind_tsx import recipes as _recipes
 from viewspec.emitters.react_tailwind_tsx.recipes import (
+    DEFAULT_TAILWIND_RECIPE_REGISTRY,
     GRID_CLASS_BY_COLUMNS,
-    LAYOUT_EMPHASIS_CLASS_BY_VALUE,
+    LAYOUT_EMPHASIS_CLASS_BY_VALUE,  # noqa: F401 - re-exported; local_tools_validators imports it from here
     RECIPE_BY_KEY,
     TAILWIND_AESTHETIC_RECIPE_OVERLAYS,
     TAILWIND_APP_ROLE_RULE_PRECEDENCE,
@@ -50,7 +60,11 @@ from viewspec.emitters.react_tailwind_tsx.recipes import (
     TAILWIND_STRUCTURAL_APP_ROLE_RULE_IDS,
     CompilerConstraintError,
     ResolvedRecipe,
+    TailwindRecipeRegistry,
     _fail,
+    _registry_or_default,
+    _validate_recipe_registry,
+    _validate_tailwind_contract,
     _walk,
 )
 from viewspec.emitters.react_tsx import (
@@ -80,24 +94,9 @@ TAILWIND_PARITY_CLASS_TOKENS = frozenset(
 )
 
 
-def _sync_recipe_module() -> None:
-    _recipes.RECIPE_BY_KEY = RECIPE_BY_KEY
-    _recipes.TAILWIND_AESTHETIC_RECIPE_OVERLAYS = TAILWIND_AESTHETIC_RECIPE_OVERLAYS
-    _recipes.LAYOUT_EMPHASIS_CLASS_BY_VALUE = LAYOUT_EMPHASIS_CLASS_BY_VALUE
-    _recipes.TAILWIND_APP_V1_APP_ROLE_CONTRACTS = TAILWIND_APP_V1_APP_ROLE_CONTRACTS
-    _recipes.TAILWIND_APP_ROLE_RULE_PRECEDENCE = TAILWIND_APP_ROLE_RULE_PRECEDENCE
-    _recipes.TAILWIND_PRODUCT_APP_ROLE_RULE_IDS = TAILWIND_PRODUCT_APP_ROLE_RULE_IDS
-    _recipes.TAILWIND_STRUCTURAL_APP_ROLE_RULE_IDS = TAILWIND_STRUCTURAL_APP_ROLE_RULE_IDS
-
-
-def _validate_recipe_registry() -> None:
-    _sync_recipe_module()
-    _recipes._validate_recipe_registry()
-
-
-def _resolve_recipes(root: IRNode) -> dict[str, ResolvedRecipe]:
-    _sync_recipe_module()
-    recipes = _recipes._resolve_recipes(root)
+def _resolve_emitted_recipes(root: IRNode, registry: TailwindRecipeRegistry) -> dict[str, ResolvedRecipe]:
+    """Resolve every node's recipe, then append its semantic ``vs-*`` classes as emitted."""
+    recipes = _recipes._resolve_recipes(root, registry)
     nodes = {node.id: node for node in _walk(root)}
     return {
         node_id: ResolvedRecipe(
@@ -110,23 +109,23 @@ def _resolve_recipes(root: IRNode) -> dict[str, ResolvedRecipe]:
     }
 
 
-def _validate_tailwind_contract(root: IRNode, recipes: dict[str, ResolvedRecipe], source: str) -> None:
-    _sync_recipe_module()
-    _recipes._validate_tailwind_contract(root, recipes, source)
-
-
 def resolve_manifest_recipe_metadata(
     entry: dict[str, Any],
     parent_entry: dict[str, Any] | None = None,
     *,
     aesthetic_profile: str | None = None,
+    recipe_registry: TailwindRecipeRegistry | None = None,
 ) -> dict[str, Any]:
-    """Recompute Tailwind recipe metadata from manifest node shape for artifact checks."""
-    _sync_recipe_module()
+    """Recompute Tailwind recipe metadata from manifest node shape for artifact checks.
+
+    The classes match the emitted ``className``: the recipe's classes followed by the node's
+    semantic ``vs-*`` classes. ``recipes.resolve_manifest_recipe_metadata`` returns the recipe alone.
+    """
     metadata = _recipes.resolve_manifest_recipe_metadata(
         entry,
         parent_entry,
         aesthetic_profile=aesthetic_profile,
+        recipe_registry=recipe_registry,
     )
     props = entry.get("props") if isinstance(entry.get("props"), dict) else {}
     node = IRNode(
@@ -138,15 +137,16 @@ def resolve_manifest_recipe_metadata(
     return metadata
 
 
-def tailwind_recipe_registry_digest() -> str:
-    payload = tailwind_recipe_registry_projection()
+def tailwind_recipe_registry_digest(*, recipe_registry: TailwindRecipeRegistry | None = None) -> str:
+    """SHA-256 of the registry projection; the default registry's digest is fixed at import."""
+    payload = tailwind_recipe_registry_projection(recipe_registry=recipe_registry)
     encoded = json.dumps(payload, ensure_ascii=True, separators=(",", ":"), sort_keys=True).encode("utf-8")
     return hashlib.sha256(encoded).hexdigest()
 
 
-def tailwind_recipe_registry_projection() -> dict[str, Any]:
-    _sync_recipe_module()
-    projection = _recipes._base_registry_projection()
+def tailwind_recipe_registry_projection(*, recipe_registry: TailwindRecipeRegistry | None = None) -> dict[str, Any]:
+    """The registry's tables, caps and semantic parity classes as plain sorted JSON data."""
+    projection = _recipes._base_registry_projection(recipe_registry)
     projection["semantic_parity_classes"] = sorted(TAILWIND_PARITY_CLASS_TOKENS)
     return projection
 
@@ -422,9 +422,14 @@ def _render_node(
     return lines
 
 
-def _emit_source(result: CompilerResult, title: str) -> tuple[str, dict[str, Any], dict[str, ResolvedRecipe]]:
+def _emit_source(
+    result: CompilerResult,
+    title: str,
+    *,
+    recipe_registry: TailwindRecipeRegistry | None = None,
+) -> tuple[str, dict[str, Any], dict[str, ResolvedRecipe]]:
     root = result.root.root
-    recipes = _resolve_recipes(root)
+    recipes = _resolve_emitted_recipes(root, _registry_or_default(recipe_registry))
     manifest: dict[str, Any] = {}
     rendered = _render_node(root, manifest=manifest, recipes=recipes, root=root)
     input_values = _safe_json_literal(_initial_input_values(root))
@@ -535,9 +540,15 @@ def emit_compiler_result(
     *,
     output_dir: str | Path = "viewspec_react_tailwind_output",
     title: str = "ViewSpec Artifact",
+    recipe_registry: TailwindRecipeRegistry | None = None,
 ) -> dict[str, str]:
-    """Emit a CompilerResult as deterministic React TSX with closed Tailwind recipes."""
-    _validate_recipe_registry()
+    """Emit a CompilerResult as deterministic React TSX with closed Tailwind recipes.
+
+    ``recipe_registry`` selects the recipe tables (``DEFAULT_TAILWIND_RECIPE_REGISTRY`` when
+    omitted). It is checked before anything is written.
+    """
+    registry = _registry_or_default(recipe_registry)
+    _validate_recipe_registry(registry)
     output_path = Path(output_dir)
     try:
         _validate_ir_contract(result.root.root, set())
@@ -553,7 +564,7 @@ def emit_compiler_result(
             "TAILWIND_UNSUPPORTED_PRIMITIVE",
             f"Unsupported IR primitive(s) for React Tailwind TSX emitter: {', '.join(sorted(unsupported))}.",
         )
-    tsx, manifest, _recipes = _emit_source(result, title)
+    tsx, manifest, _resolved = _emit_source(result, title, recipe_registry=registry)
     output_path.mkdir(parents=True, exist_ok=True)
     tsx_path = output_path / "ViewSpecView.tsx"
     manifest_path = output_path / "provenance_manifest.json"
@@ -575,17 +586,35 @@ def emit_compiler_result(
 
 
 class ReactTailwindTsxEmitter(EmitterPlugin):
-    """Deterministic React Tailwind TSX emitter plugin."""
+    """Deterministic React Tailwind TSX emitter plugin.
+
+    ``recipe_registry`` selects the recipe tables this instance emits with; the default is the
+    checked-in ``DEFAULT_TAILWIND_RECIPE_REGISTRY``.
+    """
+
+    def __init__(self, *, recipe_registry: TailwindRecipeRegistry | None = None) -> None:
+        self._recipe_registry = _registry_or_default(recipe_registry)
+
+    @property
+    def recipe_registry(self) -> TailwindRecipeRegistry:
+        return self._recipe_registry
 
     def emit(self, ast_bundle: ASTBundle, output_dir: str | Path) -> dict[str, str]:
         style_values = dict(ast_bundle.style_values or DEFAULT_STYLE_TOKEN_VALUES)
-        return emit_compiler_result(ast_bundle.result, style_values, output_dir=output_dir, title=ast_bundle.title)
+        return emit_compiler_result(
+            ast_bundle.result,
+            style_values,
+            output_dir=output_dir,
+            title=ast_bundle.title,
+            recipe_registry=self._recipe_registry,
+        )
 
 
 PLUGIN_CLASS = ReactTailwindTsxEmitter
 
 
 __all__ = [
+    "DEFAULT_TAILWIND_RECIPE_REGISTRY",
     "GRID_CLASS_BY_COLUMNS",
     "CompilerConstraintError",
     "RECIPE_BY_KEY",
@@ -603,6 +632,7 @@ __all__ = [
     "TAILWIND_RECIPE_PACK",
     "TAILWIND_STRUCTURAL_APP_ROLE_RULE_IDS",
     "ReactTailwindTsxEmitter",
+    "TailwindRecipeRegistry",
     "emit_compiler_result",
     "resolve_manifest_recipe_metadata",
     "tailwind_recipe_registry_digest",

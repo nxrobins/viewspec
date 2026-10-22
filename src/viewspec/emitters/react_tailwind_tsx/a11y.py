@@ -13,10 +13,16 @@ i.e. the exact sRGB the `react_tailwind_host` (Playwright/Chromium) actually pai
 from __future__ import annotations
 
 import re
+from collections.abc import Mapping
 from typing import Any
 
 from viewspec.a11y import threshold_for, wcag_contrast_ratio
-from viewspec.emitters.react_tailwind_tsx.recipes import RECIPE_BY_KEY, TAILWIND_AESTHETIC_RECIPE_OVERLAYS
+from viewspec.emitters.react_tailwind_tsx.recipes import (
+    RECIPE_BY_KEY,  # noqa: F401 - still importable from here; the report reads its registry
+    TAILWIND_AESTHETIC_RECIPE_OVERLAYS,  # noqa: F401
+    TailwindRecipeRegistry,
+    _registry_or_default,
+)
 
 # Browser-grounded (Blink-rasterized) Tailwind v4.3 sRGB hex for every class the recipes/overlays use.
 TAILWIND_PALETTE: dict[str, str] = {
@@ -142,26 +148,30 @@ def _bg_hex(bg: tuple[str, float] | None, *, over: str, fallback: str) -> str:
     return _composite(base, alpha, over) if alpha < 1 else base
 
 
-def _effective_classes(key: str, overlay: dict[str, str] | None) -> str:
+def _effective_classes(key: str, overlay: Mapping[str, str] | None, registry: TailwindRecipeRegistry) -> str:
     # Base recipe classes merged with the profile overlay (later class wins in _last_*). overlay is
     # None for the no-profile base recipe.
-    base = RECIPE_BY_KEY.get(key, "")
+    base = registry.recipes.get(key, "")
     over = overlay.get(key, "") if overlay else ""
     return f"{base} {over}".strip()
 
 
-def react_contrast_report(profile: str | None = None) -> dict[str, Any]:
+def react_contrast_report(
+    profile: str | None = None, *, recipe_registry: TailwindRecipeRegistry | None = None
+) -> dict[str, Any]:
     """Scoped-WCAG contrast enumeration for the React Tailwind recipes.
 
     Resolves each color-bearing element's effective fg/bg classes (base recipe merged with the
     profile overlay; `profile=None` = the no-profile base recipe) to grounded hex, composites alpha
     backgrounds, and checks the shared scoped thresholds. Returns compact, deterministic facts;
-    `failures` is the fail-closed signal for the React proof.
+    `failures` is the fail-closed signal for the React proof. `recipe_registry` selects the recipe
+    tables; when omitted it is the default registry, which the emitter also uses unless given another.
     """
-    overlay = TAILWIND_AESTHETIC_RECIPE_OVERLAYS.get(profile) if profile else None
+    registry = _registry_or_default(recipe_registry)
+    overlay = registry.aesthetic_overlays.get(profile) if profile else None
 
     def cls(key: str) -> str:
-        return _effective_classes(key, overlay)
+        return _effective_classes(key, overlay, registry)
 
     ground = _bg_hex(_last_bg(cls("app_role:app_shell")), over="#ffffff", fallback="#ffffff")
     surface = _bg_hex(_last_bg(cls("app_role:metric_card")), over=ground, fallback=ground)
