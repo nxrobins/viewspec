@@ -364,3 +364,16 @@ def test_contributing_says_the_grouped_pip_update_leaves_the_declared_ranges_alo
     # The strategy decides whether the pull request rewrites the floors in pyproject.toml, so the
     # guide names it next to its account of what the pull request changes.
     assert f"`versioning-strategy: {pip['versioning-strategy']}`" in section
+
+
+def test_hand_bump_entries_name_the_pins_outside_the_package_files() -> None:
+    entries = {
+        match.group(1): _squash(entry)
+        for entry in re.split(r"\n(?=- )", _contributing_section("Packages Dependabot never proposes"))
+        if (match := re.match(r"- \*\*`([^`]+)`", entry))
+    }
+    hooks = {hook["id"] for repo in yaml.safe_load(_read(".pre-commit-config.yaml"))["repos"] for hook in repo["hooks"]}
+
+    # The pre-commit hooks run ruff at their own rev, so a ruff bump moves that rev as well.
+    assert "ruff" in hooks
+    assert "`.pre-commit-config.yaml`" in entries["ruff"]

@@ -129,6 +129,17 @@ def test_exact_dev_pins_match_the_ci_constraints() -> None:
     assert {name: constraints.get(name) for name in declared} == declared
 
 
+def test_pre_commit_runs_the_ruff_release_ci_pins() -> None:
+    project = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))["project"]
+    pinned = _exact_pins(project["optional-dependencies"]["dev"])["ruff"]
+    config = yaml.safe_load((ROOT / ".pre-commit-config.yaml").read_text(encoding="utf-8"))
+    (ruff,) = [repo for repo in config["repos"] if repo["repo"] == "https://github.com/astral-sh/ruff-pre-commit"]
+
+    # The hooks are the local copy of CI's `ruff check .` and `ruff format --check .` (audit P-8).
+    # Another ruff release formats and lints differently, so code its hooks accept can fail CI.
+    assert ruff["rev"] == f"v{pinned}"
+
+
 # --- Dependabot -------------------------------------------------------------------------------
 
 DEPENDABOT = ROOT / ".github" / "dependabot.yml"

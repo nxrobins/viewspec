@@ -195,12 +195,14 @@ workflow before merging.
 
 ### Packages Dependabot never proposes
 
-Bump these by hand, each in its own pull request. Search `src`, `tests`, `scripts`, `docs` and
-`.github` for the old version string as well: several error messages quote it.
+Bump these by hand, each in its own pull request. Search the whole repository for the old version
+string as well (`git grep -nF <old version>`): error messages, tests and root files such as
+`.pre-commit-config.yaml` can quote it. Leave dated records, such as the audit, as they are.
 
-- **`ruff`**: change the pin in the `dev` extra of `pyproject.toml` and in `requirements-ci.txt`
-  (`tests/test_ci_config.py` keeps the two equal), reinstall, run `ruff format .` and
-  `ruff check .`, and commit the reformatting and lint fixes with the bump.
+- **`ruff`**: change the pin in the `dev` extra of `pyproject.toml`, in `requirements-ci.txt`, and
+  the `rev` of the ruff hooks in `.pre-commit-config.yaml` (`v<version>`); `tests/test_ci_config.py`
+  keeps the three equal. Reinstall, run `ruff format .` and `ruff check .`, and commit the
+  reformatting and lint fixes with the bump.
 - **`pyright`**: change both pins the same way and run `python scripts/check_pyright_baseline.py`.
   If the count dropped, ratchet the baseline down with `--update`; if it grew, fix the new errors,
   or record the new count with `--update` and say why in the pull request.
