@@ -41,6 +41,19 @@ in parentheses refer to that document.
   temporary file or candidate directory disappears while the session storage is being sized:
   the size walk skips entries that vanish between listing and inspection and still rejects
   symbolic links.
+- The React Tailwind emitter reads its recipe tables from an explicit, read-only
+  `TailwindRecipeRegistry` instead of copying seven package-level names onto `recipes.py` on
+  every call, so emits with different registries can run at the same time and
+  `tailwind_recipe_registry_digest()` no longer depends on what ran before it.
+  `ReactTailwindTsxEmitter`, `emit_compiler_result`, both `resolve_manifest_recipe_metadata`
+  functions, `tailwind_recipe_registry_projection`, `tailwind_recipe_registry_digest` and
+  `react_contrast_report` take an optional `recipe_registry` (default
+  `DEFAULT_TAILWIND_RECIPE_REGISTRY`); build a variant with `dataclasses.replace`. A registry
+  copies its tables into read-only mappings and tuples (contract values given as sets in sorted
+  order), and its digest covers every field. The grid classes (`GRID_CLASS_BY_COLUMNS`,
+  `GRID_SPAN_CLASS_BY_COLUMNS`) are not registry fields and stay fixed. Reassigning or mutating
+  `RECIPE_BY_KEY` or the other module tables after import no longer changes what the emitter
+  does. Compiled output and the default registry digest are unchanged (Q-4).
 
 ### Changed
 
