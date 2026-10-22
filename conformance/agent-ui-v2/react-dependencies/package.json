@@ -4,7 +4,7 @@
   "version": "0.0.0",
   "description": "Pinned network-free dependency seed shared by every V2.1 React target.",
   "dependencies": {
-    "@chenglou/pretext": "0.0.8",
+    "@chenglou/pretext": "1.0.0",
     "@tailwindcss/vite": "4.3.0",
     "@vitejs/plugin-react": "6.0.2",
     "react": "19.2.7",
