@@ -96,7 +96,7 @@ jobs:
           test "$(bun --version)" = "$BUN_VERSION"
 
       - name: Install ViewSpec test dependencies
-        run: python -m pip install ".[dev,remote]"
+        run: python -m pip install -c requirements-ci.txt ".[dev,remote]"
 
       - name: Install shared React dependency seed
         working-directory: conformance/agent-ui-v2/react-dependencies
