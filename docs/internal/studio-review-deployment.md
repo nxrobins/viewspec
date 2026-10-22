@@ -1,8 +1,9 @@
 # Private Studio Review Deployment Contract
 
-Private Studio review is enabled only for eligible paid beta accounts covered by a current signed
-production-canary release. A missing or expired release keeps Share unavailable. Local test results
-and a deployment plan are preparation, never evidence that production sharing is enabled.
+Private Studio review is enabled only for eligible paid beta accounts, and only while a current
+signed production-canary release covers the deployment. The release is not bound to one account.
+A missing or expired release keeps Share unavailable. Local test results and a deployment plan are
+preparation, never evidence that production sharing is enabled.
 
 This is the minimum acceptance contract for adding private Studio review beside the existing
 `viewspec-api` service. It is intentionally narrower than a collaboration platform. The first
@@ -149,32 +150,38 @@ secret: API↔review and review↔worker use independent HMAC keys. See Fly's
 
 Each internal hop has its own dedicated HMAC secret. The SDK now implements this complete contract
 for API→review requests and responses; an independent review→worker hop is implemented and locally
-proved by the backend runtime. Its production canary must verify both hops. Stale, replayed, unsigned,
-or differently hashed API→review messages fail before state creation. The review service never
-receives the raw paid API key. The worker receives no billing database, signing key, review volume,
-API key, receipt secret, Stripe secret, or Fly API token.
+proved by the backend runtime. Its production canary must verify both hops. The independent SDK
+checker records authenticated API→review requests and responses; for the review→worker hop it
+checks only key separation, so the backend's stage driver must prove that hop's authentication.
+Stale, replayed, unsigned, or differently hashed API→review messages fail before state creation.
+The review service never receives the raw paid API key. The worker receives no billing database,
+signing key, review volume, API key, receipt secret, Stripe secret, or Fly API token.
 
 Inside the worker Machine, Bubblewrap runs the fixed SDK module with a read-only Python/Node runtime,
 read-only pinned dependency seed, empty temporary workspace, cleared environment, new PID/IPC/UTS
 namespaces, and `--unshare-net`. Bubblewrap documents that the new network namespace cannot see the
-host network. CPU and wall time are bounded by the runner; the dedicated Machine's cgroup is the
-hard 512 MiB memory boundary. The worker admits one rebuild at a time, samples aggregate cgroup CPU
-usage against a 30-second ceiling, and kills the sandbox at either the CPU or 120-second wall
-boundary. The canary must inspect the actual cgroup limit and prove the network namespace and an
-egress canary rather than trusting configuration text. See the
+host network. CPU and wall time are bounded by the runner. Memory is bounded by a cgroup limit that
+the worker service verifies before it accepts work (see the cgroup checks below); the 512 MiB
+Machine size alone is not that boundary. The worker admits one rebuild at a time, samples aggregate
+cgroup CPU usage against a 30-second ceiling, and kills the sandbox at either the CPU or 120-second
+wall boundary. The canary must inspect the actual cgroup limit and prove the network namespace and
+an egress canary rather than trusting configuration text. See the
 [Bubblewrap namespace contract](https://github.com/containers/bubblewrap#sandboxing).
 
 The backend owns `fly.studio-review.toml` and `fly.studio-worker.toml`; its deployment planner parses
-and hashes those actual profiles alongside the immutable build manifest. The review listener uses
-raw TCP forwarding to port 8443 and terminates trusted TLS itself. Operator-mounted certificate
-files are locked before the existing certificate and host checks run. The private worker has no
-public service or volume, and no TLS files or operator credentials.
+and hashes those actual profiles alongside the immutable build manifest. The public
+`review.viewspec.dev` listener uses raw TCP forwarding to port 8443 and terminates trusted TLS
+itself; it is separate from the private `:8080` ingress that the API reaches. Operator-mounted
+certificate files are locked before the existing certificate and host checks run. The private
+worker has no public service or volume, and no TLS files or operator credentials.
 
-On Fly's hybrid cgroup layout, the worker installs and reads back limits in its own native child
-groups before accepting work. It verifies actual process membership, aggregate CPU and OOM
-counters, hierarchical memory accounting, and zero host swap as well as its memory/swap budget.
-Existing v2 hosts retain their v2 checks. Missing enforcement stops startup; a VM memory setting
-alone cannot satisfy the isolation gate. The same live exhaustion and namespace probes are required.
+On Fly's hybrid cgroup layout, the deployment-owned worker service installs and reads back limits in
+its own native child groups before accepting work. It verifies actual process membership, aggregate
+CPU and OOM counters, hierarchical memory accounting, and zero host swap as well as its memory/swap
+budget. Existing v2 hosts retain their v2 checks. Missing enforcement stops startup; a VM memory
+setting alone cannot satisfy the isolation gate. These startup checks do not replace the live
+canary probes: the canary must still exercise the CPU, wall-time, file and byte limits, inspect the
+actual cgroup memory limit, and prove the network namespace and egress denial.
 
 ## Persistence and operations
 

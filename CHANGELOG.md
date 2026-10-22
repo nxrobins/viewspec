@@ -9,47 +9,29 @@ All notable changes to ViewSpec are documented in this file. The format follows
 
 ## [0.3.0b13] - 2026-10-22
 
-Follow-up to the 2026-10-22 project audit (`docs/project-audit-2026-10-22.md`). Finding ids
-in parentheses refer to that document.
+Pairs the SDK with the private Studio production review backend and carries the follow-up to the
+2026-10-22 project audit (`docs/project-audit-2026-10-22.md`). Finding ids in parentheses refer
+to that document.
 
-### Fixed
+### Added
 
-- Integer attribute and slot values render as integers after JSON and protobuf round trips:
-  `100` no longer renders as `100.0`, and for integers within +/-2^53 the same bundle compiles to
-  identical bytes from an in-memory dict, a JSON file, or proto bytes. `SemanticNode` takes a
-  normalized snapshot of `attrs` and slot lists when it is built (tuples inside them become lists,
-  as JSON and protobuf would make them); the caller's dicts and lists are left untouched, and
-  later changes to them no longer reach the node. `viewspec validate-intent`, `viewspec compile`
-  and the agent and MCP tools reject integers beyond +/-2^53 with `INTEGER_OUT_OF_SAFE_RANGE`
-  instead of rounding them silently. The Python `compile()` API does not validate: run
-  `validate_agent_intent_bundle()` on the JSON payload first, and keep larger identifiers as
-  strings in bundles built in Python, which hold doubles once they pass through `to_json()` or
-  `to_proto()` (C-1).
-- Non-ASCII text in list and dict bindings renders as UTF-8 instead of `\u` escapes (C-2).
-- `compile_auto` falls back to the hosted compiler only for unsupported motifs; a local
-  `DESIGN.md` error no longer uploads the bundle (C-3).
-- The declared protobuf requirement matches the generated schema: `protobuf>=6.31.1,<8`. The
-  package did not import with protobuf 5.x (P-1).
-- The `agents` extra requires `mcp>=1.9.0,<2`. MCP SDK 2.x removed the `mcp.server.fastmcp`
-  module that `viewspec mcp` imports, so the server could not start with it, and
-  `viewspec doctor --agents` now reports `mcp_dependency: true` only when that module imports
-  (P-6). An SDK whose import fails with any exception, not only `ImportError`, is reported as
-  `mcp_dependency: false`, and the doctor still prints its report.
-- `ConvergeError` and `IntentPatchError` survive `pickle`, `copy.copy` and `copy.deepcopy` with
-  `code`, `message`, `fix` and `cli_exit` intact, and the React Tailwind emitter's
-  `CompilerConstraintError` with `code` and `message` intact. Rebuilding them used to raise
-  `TypeError`, so a `ProcessPoolExecutor` worker that raised one broke the pool.
-- The local review daemon no longer answers an agent poll with `REVIEW_SERVER_START_FAILED` when a
-  temporary file or candidate directory disappears while the session storage is being sized:
-  the size walk skips entries that vanish between listing and inspection and still rejects
-  symbolic links.
+- Hypothesis property tests over scalar value types through JSON, protobuf and compile round
+  trips (T-4), and regression tests for the value rendering and hosted fallback fixes.
+- Golden `artifact_hash`, `semantic_digest` and file hashes for every conformance corpus case and
+  local target in `tests/fixtures/corpus_goldens.json`, checked on Linux and Windows in CI; the
+  React app manifest writes POSIX paths on every platform (T-2, C-6).
+- The default test suite skips, with exact reasons, the tests that need installed Node seeds, full
+  git history or a Playwright browser; drift tests cover the landing page and proof explorer;
+  the release and corpus scripts have smoke tests (T-1, T-3, T-5).
+- Documentation tests: every error code cited in the docs exists in the registry, and the Claude
+  Code skill matches the managed instructions (D-3, D-6).
 
 ### Changed
 
 - The private Studio production runbook documents separate Fly service profiles, protected TLS
   startup, measured worker resource controls, and the four live recovery phases with retained
   provider receipts. Private sharing still requires the complete independently verified production
-  canary and a current signed release for an eligible paid beta account.
+  canary, a current signed release for the deployment, and an eligible paid beta account.
 - The paired backend release binds its installed SDK to this exact release wheel and source
   revision so client artifacts and the isolated server rebuild use the same compiler identity.
 - The three React dependency seeds pin `vite` 8.3.5, replacing 8.0.16, which carried a HIGH
@@ -151,6 +133,38 @@ in parentheses refer to that document.
   (H-2); the release checklist tags and publishes each release (R-7) and says that the site
   deploy does not wait for the PyPI check (R-2).
 
+### Fixed
+
+- Integer attribute and slot values render as integers after JSON and protobuf round trips:
+  `100` no longer renders as `100.0`, and for integers within +/-2^53 the same bundle compiles to
+  identical bytes from an in-memory dict, a JSON file, or proto bytes. `SemanticNode` takes a
+  normalized snapshot of `attrs` and slot lists when it is built (tuples inside them become lists,
+  as JSON and protobuf would make them); the caller's dicts and lists are left untouched, and
+  later changes to them no longer reach the node. `viewspec validate-intent`, `viewspec compile`
+  and the agent and MCP tools reject integers beyond +/-2^53 with `INTEGER_OUT_OF_SAFE_RANGE`
+  instead of rounding them silently. The Python `compile()` API does not validate: run
+  `validate_agent_intent_bundle()` on the JSON payload first, and keep larger identifiers as
+  strings in bundles built in Python, which hold doubles once they pass through `to_json()` or
+  `to_proto()` (C-1).
+- Non-ASCII text in list and dict bindings renders as UTF-8 instead of `\u` escapes (C-2).
+- `compile_auto` falls back to the hosted compiler only for unsupported motifs; a local
+  `DESIGN.md` error no longer uploads the bundle (C-3).
+- The declared protobuf requirement matches the generated schema: `protobuf>=6.31.1,<8`. The
+  package did not import with protobuf 5.x (P-1).
+- The `agents` extra requires `mcp>=1.9.0,<2`. MCP SDK 2.x removed the `mcp.server.fastmcp`
+  module that `viewspec mcp` imports, so the server could not start with it, and
+  `viewspec doctor --agents` now reports `mcp_dependency: true` only when that module imports
+  (P-6). An SDK whose import fails with any exception, not only `ImportError`, is reported as
+  `mcp_dependency: false`, and the doctor still prints its report.
+- `ConvergeError` and `IntentPatchError` survive `pickle`, `copy.copy` and `copy.deepcopy` with
+  `code`, `message`, `fix` and `cli_exit` intact, and the React Tailwind emitter's
+  `CompilerConstraintError` with `code` and `message` intact. Rebuilding them used to raise
+  `TypeError`, so a `ProcessPoolExecutor` worker that raised one broke the pool.
+- The local review daemon no longer answers an agent poll with `REVIEW_SERVER_START_FAILED` when a
+  temporary file or candidate directory disappears while the session storage is being sized:
+  the size walk skips entries that vanish between listing and inspection and still rejects
+  symbolic links.
+
 ### Security
 
 - `viewspec check` rejects inline event handlers (`CHECK_INLINE_EVENT_HANDLER`), `javascript:`,
@@ -184,19 +198,6 @@ in parentheses refer to that document.
   importer no longer drops the rest of a document after an unclosed `<base>` or `<embed>`; the
   Studio review adapter strips reserved internal headers itself instead of trusting the transport
   (S-5 to S-9).
-
-### Added
-
-- Hypothesis property tests over scalar value types through JSON, protobuf and compile round
-  trips (T-4), and regression tests for the value rendering and hosted fallback fixes.
-- Golden `artifact_hash`, `semantic_digest` and file hashes for every conformance corpus case and
-  local target in `tests/fixtures/corpus_goldens.json`, checked on Linux and Windows in CI; the
-  React app manifest writes POSIX paths on every platform (T-2, C-6).
-- The default test suite skips, with exact reasons, the tests that need installed Node seeds, full
-  git history or a Playwright browser; drift tests cover the landing page and proof explorer;
-  the release and corpus scripts have smoke tests (T-1, T-3, T-5).
-- Documentation tests: every error code cited in the docs exists in the registry, and the Claude
-  Code skill matches the managed instructions (D-3, D-6).
 
 ## [0.3.0b12] - 2026-10-14
 
@@ -639,7 +640,8 @@ Versions `0.3.0b8`, `0.3.0b6`, `0.3.0b4`, `0.3.0b2`, `0.3.0b1`, and `0.2.0` were
 the remote, so they have no compare links below; the `0.3.0b9` and `0.3.0b7` links therefore each
 span two betas.
 
-[Unreleased]: https://github.com/nxrobins/viewspec/compare/v0.3.0b12...HEAD
+[Unreleased]: https://github.com/nxrobins/viewspec/compare/v0.3.0b13...HEAD
+[0.3.0b13]: https://github.com/nxrobins/viewspec/compare/v0.3.0b12...v0.3.0b13
 [0.3.0b12]: https://github.com/nxrobins/viewspec/compare/v0.3.0b11...v0.3.0b12
 [0.3.0b11]: https://github.com/nxrobins/viewspec/compare/v0.3.0b10...v0.3.0b11
 [0.3.0b10]: https://github.com/nxrobins/viewspec/compare/v0.3.0b9...v0.3.0b10
