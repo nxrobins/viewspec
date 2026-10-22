@@ -6,8 +6,9 @@ import base64
 import binascii
 from dataclasses import dataclass
 import hashlib
-import json
 from typing import Any, Mapping
+
+from viewspec._canonical import canonical_json_ascii_bytes
 
 
 RECEIPT_ALGORITHM = "ed25519"
@@ -17,8 +18,8 @@ def _decode(value: str) -> bytes:
     return base64.urlsafe_b64decode(value + "=" * (-len(value) % 4))
 
 
-def _canonical(value: object) -> bytes:
-    return json.dumps(value, sort_keys=True, separators=(",", ":")).encode("utf-8")
+# ASCII-escaped canonical form, shared through viewspec._canonical (see its docstring).
+_canonical = canonical_json_ascii_bytes
 
 
 @dataclass(frozen=True)

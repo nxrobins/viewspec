@@ -10,6 +10,7 @@ import shutil
 import tempfile
 from typing import Any, Mapping
 
+from viewspec._canonical import canonical_json_ascii_bytes
 from viewspec.hosted_receipts import ReceiptPublicKey, verify_signed_receipt
 
 
@@ -26,8 +27,8 @@ class AppBundleBuildContractError(ValueError):
     """Raised when a hosted AppBundle build fails integrity verification."""
 
 
-def _canonical(value: object) -> bytes:
-    return json.dumps(value, sort_keys=True, separators=(",", ":")).encode("utf-8")
+# ASCII-escaped canonical form, shared through viewspec._canonical (see its docstring).
+_canonical = canonical_json_ascii_bytes
 
 
 def _mapping(payload: Any, name: str) -> Mapping[str, Any]:

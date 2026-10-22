@@ -31,6 +31,7 @@ from viewspec.app_bundle import (
 )
 from viewspec.agent_assets import AgentAssetError, agent_asset_readiness, check_agent_assets, export_agent_assets
 from viewspec.compiler import compile
+from viewspec.compiler_errors import LocalToolContractError
 from viewspec.converge_sessions import (
     CONVERGE_MAX_STATE_BYTES,
     ConvergeError,
@@ -1119,7 +1120,9 @@ def _compile_command(args: argparse.Namespace) -> int:
     if input_format == "html":
         if args.target != "html-tailwind":
             if args.target == "react-tailwind-tsx":
-                raise ValueError("TAILWIND_IMPORT_NOT_SUPPORTED: Raw HTML import only supports --target html-tailwind")
+                raise LocalToolContractError(
+                    "TAILWIND_IMPORT_NOT_SUPPORTED", "Raw HTML import only supports --target html-tailwind"
+                )
             raise ValueError("Raw HTML import only supports --target html-tailwind")
         ensure_no_input_overwrite(input_path, out_dir, ("index.html", "provenance_manifest.json", "diagnostics.json", "lift.json"))
         design = _load_design(args.design, strict=args.strict_design)

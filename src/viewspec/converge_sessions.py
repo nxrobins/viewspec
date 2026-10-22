@@ -15,6 +15,7 @@ import tempfile
 import time
 from typing import Any, Callable, Mapping
 
+from viewspec._canonical import canonical_json_utf8_bytes
 from viewspec.aesthetics import AESTHETIC_PROFILE_TOKENS
 from viewspec.agent import SUPPORTED_AGENT_REGION_LAYOUTS, SUPPORTED_AGENT_STYLE_TOKENS
 from viewspec.intent_patch import (
@@ -169,13 +170,7 @@ class ConvergeError(ValueError):
 
 def _canonical(value: object) -> bytes:
     try:
-        return json.dumps(
-            value,
-            ensure_ascii=False,
-            allow_nan=False,
-            sort_keys=True,
-            separators=(",", ":"),
-        ).encode("utf-8")
+        return canonical_json_utf8_bytes(value)
     except (TypeError, ValueError) as exc:
         raise ConvergeError(
             "CONVERGE_STATE_INVALID",

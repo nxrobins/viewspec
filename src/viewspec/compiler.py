@@ -56,6 +56,7 @@ from viewspec.types import (
     normalize_json_numbers as _normalize_json_numbers,
     parse_canonical_address as _parse_canonical_address,
 )
+from viewspec.compiler_errors import CompilerInternalError
 from viewspec.design_md import DesignSystemContext, load_design_system, merge_style_values
 
 # The hosted compiler client lives in viewspec.hosted_compile. Its names are
@@ -434,7 +435,7 @@ def _detect_workspace_surface_shape_v1(
 
 def _assign_product_role_v1(node: IRNode, role: str) -> None:
     if role not in PRODUCT_SURFACE_PLANNER_V1_ROLES:
-        raise RuntimeError(f"PLANNER_ROLE_METADATA_ONLY: unsupported product role {role!r}.")
+        raise CompilerInternalError("PLANNER_ROLE_METADATA_ONLY", f"unsupported product role {role!r}.")
     node.props["product_role"] = role
 
 
@@ -469,19 +470,23 @@ def _apply_aesthetic_profile_layout_v1(root: IRNode, profile: str) -> None:
             continue
         if "columns" in layout_props:
             if node.primitive != "grid":
-                raise RuntimeError(
-                    f"AESTHETIC_PROFILE_LAYOUT_ROLE_DRIFT: product role {product_role!r} no longer maps to a grid node."
+                raise CompilerInternalError(
+                    "AESTHETIC_PROFILE_LAYOUT_ROLE_DRIFT",
+                    f"product role {product_role!r} no longer maps to a grid node.",
                 )
             node.props["columns"] = layout_props["columns"]
             node.props["aesthetic_layout_profile"] = profile
         if "span_columns" in layout_props:
             if node.primitive != "surface" or product_role != "metric_card":
-                raise RuntimeError(
-                    f"AESTHETIC_PROFILE_LAYOUT_ROLE_DRIFT: product role {product_role!r} no longer maps to a metric card surface."
+                raise CompilerInternalError(
+                    "AESTHETIC_PROFILE_LAYOUT_ROLE_DRIFT",
+                    f"product role {product_role!r} no longer maps to a metric card surface.",
                 )
             parent = parents.get(node.id)
             if parent is None or parent.props.get("product_role") != "metric_grid" or parent.primitive != "grid":
-                raise RuntimeError("AESTHETIC_PROFILE_LAYOUT_ROLE_DRIFT: metric card span no longer targets a metric grid child.")
+                raise CompilerInternalError(
+                    "AESTHETIC_PROFILE_LAYOUT_ROLE_DRIFT", "metric card span no longer targets a metric grid child."
+                )
             if parent.children[:1] != [node]:
                 continue
             parent_columns = int(parent.props.get("columns") or 1)
@@ -491,12 +496,15 @@ def _apply_aesthetic_profile_layout_v1(root: IRNode, profile: str) -> None:
                 node.props["aesthetic_layout_profile"] = profile
         if "layout_emphasis" in layout_props:
             if node.primitive != "surface" or product_role != "metric_card":
-                raise RuntimeError(
-                    f"AESTHETIC_PROFILE_LAYOUT_ROLE_DRIFT: product role {product_role!r} no longer maps to a metric card surface."
+                raise CompilerInternalError(
+                    "AESTHETIC_PROFILE_LAYOUT_ROLE_DRIFT",
+                    f"product role {product_role!r} no longer maps to a metric card surface.",
                 )
             parent = parents.get(node.id)
             if parent is None or parent.props.get("product_role") != "metric_grid" or parent.primitive != "grid":
-                raise RuntimeError("AESTHETIC_PROFILE_LAYOUT_ROLE_DRIFT: metric card emphasis no longer targets a metric grid child.")
+                raise CompilerInternalError(
+                    "AESTHETIC_PROFILE_LAYOUT_ROLE_DRIFT", "metric card emphasis no longer targets a metric grid child."
+                )
             if parent.children[:1] != [node]:
                 continue
             node.props["layout_emphasis"] = layout_props["layout_emphasis"]
@@ -733,7 +741,9 @@ def _collection_action_bar_for_motif_v1(parent: IRNode, wrapper: IRNode, motif_i
     row_id = f"planner_{motif_id}_collection_actions"
     existing = [child for child in parent.children if child.id == row_id]
     if len(existing) > 1:
-        raise RuntimeError(f"COLLECTION_ACTION_BAR_DUPLICATE: duplicate action bar for collection motif {motif_id}.")
+        raise CompilerInternalError(
+            "COLLECTION_ACTION_BAR_DUPLICATE", f"duplicate action bar for collection motif {motif_id}."
+        )
     if existing:
         row = existing[0]
         wrapper_index = parent.children.index(wrapper)

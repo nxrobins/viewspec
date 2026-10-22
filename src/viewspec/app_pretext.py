@@ -16,6 +16,8 @@ import stat
 from pathlib import Path
 from typing import Any, Mapping, Sequence
 
+from viewspec._canonical import canonical_json_ascii, canonical_sha256
+
 
 PRETEXT_PACKAGE = "@chenglou/pretext"
 PRETEXT_VERSION = "0.0.8"
@@ -1138,8 +1140,8 @@ def _rounded_number(value: int | float) -> int | float:
 
 
 def _canonical_sha256(value: object) -> str:
-    encoded = json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=True).encode("utf-8")
-    return hashlib.sha256(encoded).hexdigest()
+    # ASCII-escaped canonical form, shared through viewspec._canonical (see its docstring).
+    return canonical_sha256(canonical_json_ascii(value))
 
 
 def _surface_inventory_sha256(surfaces: Sequence[Mapping[str, Any]]) -> str:

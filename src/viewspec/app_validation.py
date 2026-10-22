@@ -7,6 +7,7 @@ import re
 from pathlib import Path
 from typing import Any
 
+from viewspec._canonical import canonical_json_utf8
 from viewspec.agent import SAFE_AGENT_ID_PATTERN
 from viewspec.app_resource_repeat import (
     RESOURCE_REPEAT_ALLOWED_FIELDS,
@@ -1287,8 +1288,8 @@ def _issue(code: str, path: str, message: str, suggestion: str | None = None) ->
 def reject_json_constant(value: str) -> None:
     raise ValueError(f"non-finite JSON value {value} is not allowed")
 
-def _stable_json(value: Any) -> str:
-    return json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=False, allow_nan=False)
+# UTF-8 canonical form, shared through viewspec._canonical (see its docstring).
+_stable_json = canonical_json_utf8
 
 
 def validate_app_text(text: str, *, compile_check: bool = True) -> dict[str, Any]:
