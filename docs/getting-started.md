@@ -353,13 +353,14 @@ Command data sits beside those keys: `lift` adds `lift`, `doctor` adds `checks`,
 envelope with `"ok": false` and `errors: [{code, message, fix}]`; an invalid IntentBundle passed to
 `compile` also carries `validation` and `correction_prompt`, and a DESIGN.md error lists its
 findings under `diagnostics`. `doctor --json` reports each failing check as a `DOCTOR_CHECK_FAILED`
-error. Exit codes match human mode: `0` on success, `2` for invalid input, an existing output
-without `--force`, or a failed readiness check, and `1` for an internal error. With `--json` these
-commands write nothing else to stdout or stderr. Only an argument the parser rejects is still
-reported as usage text on stderr, with exit `2`, before the command runs. Without `--json` the
-output is unchanged: `compile` prints the emitted paths, `doctor` prints `{ok, checks}`,
-`init-agent` and `export-agent-assets` print their result object, and `lift` and the `init-*`
-commands print the written path.
+error whose `fix` repairs that check, and a failed `--freerange` probe also adds its own coded
+errors, such as `APP_FREERANGE_RUNTIME_MISSING`. Exit codes match human mode: `0` on success, `2`
+for invalid input, an existing output without `--force`, or a failed readiness check, and `1` for
+an internal error. With `--json` these commands write nothing else to stdout or stderr. Only an
+argument the parser rejects is still reported as usage text on stderr, with exit `2`, before the
+command runs. Without `--json` the output is unchanged: `compile` prints the emitted paths,
+`doctor` prints `{ok, checks}`, `init-agent` and `export-agent-assets` print their result object,
+and `lift` and the `init-*` commands print the written path.
 
 `viewspec mcp` is a stdio server, so its stdout carries only the MCP protocol. `viewspec mcp --json`
 changes one thing: a failure to start, such as a missing `viewspec[agents]` extra

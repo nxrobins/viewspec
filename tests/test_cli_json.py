@@ -404,6 +404,86 @@ def test_doctor_failing_checks_walks_nested_reports():
     assert cli._doctor_failing_checks({"ok": True, "items": []}) == []
 
 
+def test_doctor_json_reports_a_missing_bun_with_the_probe_error_and_fix(tmp_path, capsys, monkeypatch):
+    # Bun is not a viewspec dependency, so reinstalling viewspec can never fix the Freerange probe:
+    # the envelope carries the probe's own coded error and its fix.
+    monkeypatch.setenv("PATH", str(tmp_path))
+
+    exit_code, payload, err = _run_json(capsys, ["doctor", "--freerange", "--json"])
+
+    assert exit_code == 2
+    assert err == ""
+    _assert_envelope(payload, ok=False)
+    probe_errors = payload["checks"]["freerange"]["errors"]
+    assert [error["code"] for error in probe_errors] == ["APP_FREERANGE_RUNTIME_MISSING"]
+    assert payload["errors"] == [
+        {
+            "code": "DOCTOR_CHECK_FAILED",
+            "message": "Readiness check failed: freerange.ok.",
+            "fix": "Install Bun explicitly, then rerun viewspec doctor --freerange.",
+        },
+        {
+            "code": "APP_FREERANGE_RUNTIME_MISSING",
+            "message": "Bun is required for the pinned Freerange analyzer but was not found.",
+            "fix": "Install Bun explicitly, then rerun viewspec doctor --freerange.",
+        },
+    ]
+
+
+def test_doctor_json_falls_back_to_a_bun_fix_when_the_probe_names_no_error(capsys, monkeypatch):
+    monkeypatch.setattr(
+        "viewspec.app_freerange.freerange_readiness", lambda: {"ok": False, "status": "unavailable", "errors": []}
+    )
+
+    exit_code, payload, _err = _run_json(capsys, ["doctor", "--freerange", "--json"])
+
+    assert exit_code == 2
+    assert payload["errors"] == [
+        {
+            "code": "DOCTOR_CHECK_FAILED",
+            "message": "Readiness check failed: freerange.ok.",
+            "fix": "Install or upgrade Bun explicitly (ViewSpec never installs it), then rerun viewspec doctor --freerange.",
+        }
+    ]
+
+
+@pytest.mark.parametrize(
+    ("directory", "check"), [("demos", "published_agent_assets"), (".viewspec", "local_agent_assets")]
+)
+def test_doctor_json_says_how_to_refresh_stale_agent_assets(tmp_path, capsys, monkeypatch, directory, check):
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(cli, "mcp_dependency_available", lambda: True)
+    assert cli_main(["export-agent-assets", "--out", directory]) == 0
+    capsys.readouterr()
+    with (tmp_path / directory / "agent-system-prompt.txt").open("a", encoding="utf-8") as handle:
+        handle.write("A local edit.\n")
+
+    exit_code, payload, err = _run_json(capsys, ["doctor", "--agents", "--json"])
+
+    assert exit_code == 2
+    assert err == ""
+    _assert_envelope(payload, ok=False)
+    assert payload["checks"][check]["ok"] is False
+    assert payload["errors"] == [
+        {
+            "code": "DOCTOR_CHECK_FAILED",
+            "message": f"Readiness check failed: {check}.ok.",
+            "fix": (
+                f"Re-export the agent assets with viewspec export-agent-assets --out {directory} --force, or "
+                f"upgrade viewspec instead if a newer ViewSpec release exported {directory}; then rerun "
+                "viewspec doctor --agents."
+            ),
+        }
+    ]
+
+    # The re-export that the fix names repairs the check.
+    assert cli_main(["export-agent-assets", "--out", directory, "--force"]) == 0
+    capsys.readouterr()
+    exit_code, payload, _err = _run_json(capsys, ["doctor", "--agents", "--json"])
+    assert exit_code == 0
+    assert payload["errors"] == []
+
+
 # init-agent and export-agent-assets ----------------------------------------------------------
 
 

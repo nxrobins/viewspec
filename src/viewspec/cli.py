@@ -7,6 +7,7 @@ import importlib.util
 import json
 import shutil
 import sys
+from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -1816,19 +1817,11 @@ def _doctor_command(args: argparse.Namespace) -> int:
         checks["freerange"] = freerange_readiness()
     ok = _doctor_checks_ok(checks)
     if args.json:
-        failing = _doctor_failing_checks(checks)
         _print_json(
             tool_response(
                 ok,
                 "Local ViewSpec SDK is ready." if ok else "Local ViewSpec SDK readiness checks failed.",
-                errors=[
-                    {
-                        "code": "DOCTOR_CHECK_FAILED",
-                        "message": f"Readiness check failed: {name}.",
-                        "fix": _doctor_check_fix(name),
-                    }
-                    for name in failing
-                ],
+                errors=_doctor_errors(checks),
                 next_actions=[] if ok else ["Fix the failing checks listed in errors, then rerun viewspec doctor."],
                 data={"checks": checks},
                 metadata=_cli_metadata(),
@@ -2036,12 +2029,58 @@ def _doctor_checks_ok(value: object) -> bool:
     return True
 
 
-def _doctor_check_fix(name: str) -> str:
+def _doctor_errors(checks: Mapping[str, object]) -> list[dict[str, str]]:
+    """The doctor --json errors: one DOCTOR_CHECK_FAILED per failing check, with the fix that repairs
+    it, followed by the Freerange probe's own coded errors when that probe failed."""
+    errors = [
+        {
+            "code": "DOCTOR_CHECK_FAILED",
+            "message": f"Readiness check failed: {name}.",
+            "fix": _doctor_check_fix(name, checks),
+        }
+        for name in _doctor_failing_checks(checks)
+    ]
+    errors.extend(error for error in _doctor_freerange_errors(checks.get("freerange")) if error not in errors)
+    return errors
+
+
+def _doctor_check_fix(name: str, checks: Mapping[str, object]) -> str:
     if name == "mcp_dependency":
         return MCP_INSTALL_HINT
     if name.startswith("local_agent_assets."):
-        return "Re-export the assets with viewspec export-agent-assets --out .viewspec --force."
+        return _doctor_agent_asset_fix(".viewspec")
+    if name.startswith("published_agent_assets."):
+        return _doctor_agent_asset_fix("demos")
+    if name.startswith("freerange."):
+        # Bun is not a viewspec dependency, so reinstalling viewspec never fixes this probe; the
+        # probe's own coded error says what to change.
+        fixes = dict.fromkeys(error["fix"] for error in _doctor_freerange_errors(checks.get("freerange")))
+        return " ".join(fixes) or (
+            "Install or upgrade Bun explicitly (ViewSpec never installs it), then rerun viewspec doctor --freerange."
+        )
     return _JSON_FAILURE_DEFAULTS["doctor"].fix
+
+
+def _doctor_agent_asset_fix(directory: str) -> str:
+    # The assets fail the check when they differ from this SDK's contract in either direction, so a
+    # forced re-export is right only when the installed SDK is the newer one.
+    return (
+        f"Re-export the agent assets with viewspec export-agent-assets --out {directory} --force, or upgrade "
+        f"viewspec instead if a newer ViewSpec release exported {directory}; then rerun viewspec doctor --agents."
+    )
+
+
+def _doctor_freerange_errors(report: object) -> list[dict[str, str]]:
+    """The coded {code, message, fix} errors that a failed Freerange readiness report carries."""
+    if not isinstance(report, dict) or report.get("ok") is not False:
+        return []
+    items = report.get("errors")
+    return [
+        {"code": item["code"], "message": item["message"], "fix": item["fix"]}
+        for item in (items if isinstance(items, list) else [])
+        if isinstance(item, dict)
+        and all(isinstance(item.get(key), str) and item[key] for key in ("code", "message", "fix"))
+    ]
 
 
 def _doctor_failing_checks(value: object, prefix: str = "") -> list[str]:
