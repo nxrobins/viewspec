@@ -169,7 +169,9 @@ def test_pretext_e2e_toolchain_accepts_any_npm_patch_of_the_pinned_line(tmp_path
     assert f"{env['NPM_MAJOR_MINOR']}.{patch}" in (tmp_path / "artifacts" / "toolchain.txt").read_text(encoding="utf-8")
 
 
-# Each case builds an npm version outside the pinned major.minor line from its two numbers.
+# Each case builds, from the pinned line's two numbers, an npm version that is outside that
+# line or is not a plain X.Y.Z. Only the regex's ``$`` anchor rejects the last two cases: the
+# text after their patch has no dot, so stripping the patch still leaves the pinned line.
 _REJECTED_NPM_VERSIONS = {
     "next-minor": lambda major, minor: f"{major}.{minor + 1}.0",
     "previous-minor": lambda major, minor: f"{major}.{minor - 1}.0",
@@ -182,6 +184,8 @@ _REJECTED_NPM_VERSIONS = {
     "non-numeric-patch": lambda major, minor: f"{major}.{minor}.x",
     "v-prefix": lambda major, minor: f"v{major}.{minor}.8",
     "empty": lambda major, minor: "",
+    "build-metadata": lambda major, minor: f"{major}.{minor}.8+build",
+    "trailing-space": lambda major, minor: f"{major}.{minor}.8 ",
 }
 
 
@@ -263,6 +267,8 @@ def test_pretext_e2e_result_contract_accepts_at_least_seven_clean_tests(tmp_path
         _junit({**_passing(7), "skipped": 1}),
         _junit({**_passing(23), "skipped": 16}),
         _junit(_passing(7), {**_passing(1), "failures": 1}),
+        # Equal non-zero counts pass the chained comparison; only its trailing ``== 0`` fails them.
+        _junit({**_passing(9), "failures": 1, "errors": 1, "skipped": 1}),
     ],
     ids=[
         "six",
@@ -275,6 +281,7 @@ def test_pretext_e2e_result_contract_accepts_at_least_seven_clean_tests(tmp_path
         "skip",
         "skips-in-larger-run",
         "failure-in-second-suite",
+        "one-of-each",
     ],
 )
 def test_pretext_e2e_result_contract_rejects_too_few_or_unclean_tests(tmp_path: Path, junit: str) -> None:
