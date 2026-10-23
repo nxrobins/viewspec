@@ -112,7 +112,7 @@ VIEWSPEC_RUN_AGENT_UI_V2_PRODUCT_E2E=1 python -m pytest -q --strict-markers -m e
 
 Set `VIEWSPEC_PRETEXT_E2E_ARTIFACT_DIR` to a fresh directory to retain the generated apps, proof
 reports, and support bundles. The weekly `pretext-e2e.yml` workflow runs both with every toolchain
-version pinned.
+version pinned (npm to its major.minor line).
 
 ### Pinned CI dependencies
 

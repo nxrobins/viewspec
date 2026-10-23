@@ -41,6 +41,14 @@ in parentheses refer to that document.
   temporary file or candidate directory disappears while the session storage is being sized:
   the size walk skips entries that vanish between listing and inspection and still rejects
   symbolic links.
+- Studio's static/React comparison no longer sends the React frame back to the route it just left,
+  in Studio or in a Private Studio review. The static frame routes by URL fragment, and a fragment
+  change fires `popstate` before the app renders the new route. Both frame clients reported that
+  event as a navigation that could name the route the frame was leaving, and the page relayed it
+  to the React frame: intermittently in Studio, where it made `studio-moment.spec.ts` fail about
+  one run in five, and on every navigation made in the React frame of a Private Studio review.
+  Both clients now report static-frame route changes only from `hashchange`, so a reviewer's
+  navigation or browser back in the static frame is also reported once instead of twice.
 
 ### Changed
 
@@ -142,6 +150,12 @@ in parentheses refer to that document.
   compatibility horizon (D-2 to D-7, H-1). `CONTRIBUTING.md` and `CODE_OF_CONDUCT.md` were added
   (H-2); the release checklist tags and publishes each release (R-7) and says that the site
   deploy does not wait for the PyPI check (R-2).
+- The Pretext E2E workflow now pins npm to its major.minor line (10.9) instead of the exact patch
+  release 10.9.8. Each Node release bundles one npm version, so a later Node patch bump that moves
+  npm within 10.9 no longer needs a separate npm edit. The job still requires a plain
+  major.minor.patch npm version, and Python, Node, Bun and Playwright stay pinned exactly (R-5).
+- The Pretext E2E result contract now requires at least seven tests with none failed, errored or
+  skipped, instead of exactly seven, so adding an e2e test no longer fails the gate (R-5).
 - New issues start from a bug report or a feature request form, and blank issues are off. The bug
   report asks for the ViewSpec and Python versions, the operating system, the exact command, a
   minimal reproduction and the `--json` output. It tells reporters to put pasted JSON, HTML and
