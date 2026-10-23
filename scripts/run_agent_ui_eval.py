@@ -64,6 +64,9 @@ def _resolve_viewspec_cli() -> Path:
 VIEWSPEC = _resolve_viewspec_cli()
 BROWSER_SCORER = ROOT / "scripts" / "agent_ui_browser_score.mjs"
 NODE_MODULE_SEED = ROOT / "conformance" / "agent-ui-v2" / "react-dependencies" / "node_modules"
+# The shipped React template's manifest is the single source of the pinned shared target
+# contract: its exact `dependencies` and `devDependencies` are what every React target pins.
+SHARED_REACT_PACKAGE = ROOT / "src" / "viewspec" / "host_verify_template" / "package.json"
 MUTATION_MANIFEST = ROOT / "conformance" / "agent-ui-v2" / "mutations" / "field-dispatch-lifecycle.json"
 REFERENCE_IMAGE_WIDTH = 1440
 REFERENCE_IMAGE_HEIGHT = 1000
@@ -663,27 +666,15 @@ def _activate_code_first_react(workspace: Path) -> dict[str, Any]:
     react = workspace / "submission" / "react"
     if react.exists():
         return {"activated": False, "reason": "already_present"}
+    contract = _shared_react_contract()
     package = {
         "name": "viewspec-eval-code-first-react",
         "private": True,
         "version": "0.0.0",
         "type": "module",
         "scripts": {"build": "vite build"},
-        "dependencies": {
-            "@tailwindcss/vite": "4.3.0",
-            "@vitejs/plugin-react": "6.0.2",
-            "react": "19.2.7",
-            "react-dom": "19.2.7",
-            "tailwindcss": "4.3.0",
-            "vite": "8.3.5",
-        },
-        "devDependencies": {
-            "@playwright/test": "1.60.0",
-            "@types/node": "25.5.0",
-            "@types/react": "19.2.16",
-            "@types/react-dom": "19.2.3",
-            "typescript": "6.0.3",
-        },
+        "dependencies": contract["dependencies"],
+        "devDependencies": contract["devDependencies"],
     }
     _write(react / "package.json", json.dumps(package, indent=2, sort_keys=True) + "\n")
     _write(react / "index.html", '<div id="root"></div><script type="module" src="/src/main.jsx"></script>\n')
@@ -745,17 +736,32 @@ def _validate_value_runtime() -> dict[str, Any]:
     }
 
 
+def _shared_react_contract() -> dict[str, dict[str, Any]]:
+    """The pinned shared target contract: the shipped template's exact direct dependencies.
+
+    Read on every call, so a dependency bump in the template (which the three npm seeds share)
+    moves the scaffold the code-first arm starts from and the versions every target must pin.
+    """
+    template_package = json.loads(SHARED_REACT_PACKAGE.read_text(encoding="utf-8"))
+    contract: dict[str, dict[str, Any]] = {}
+    for key in ("dependencies", "devDependencies"):
+        group = template_package.get(key)
+        if not isinstance(group, dict):
+            raise ValueError(f"the shared React template's {key} do not define the pinned shared target contract")
+        contract[key] = dict(group)
+    return contract
+
+
 def _validate_pinned_react_package(package: dict[str, Any]) -> None:
-    template_package_path = ROOT / "src" / "viewspec" / "host_verify_template" / "package.json"
-    template_package = json.loads(template_package_path.read_text(encoding="utf-8"))
+    contract = _shared_react_contract()
     optional = {
         "dependencies": {PRETEXT_PACKAGE: PRETEXT_VERSION},
         "devDependencies": {FREERANGE_PACKAGE: FREERANGE_VERSION},
     }
     for key in ("dependencies", "devDependencies"):
-        expected = template_package.get(key)
+        expected = contract[key]
         actual = package.get(key)
-        if not isinstance(expected, dict) or not isinstance(actual, dict):
+        if not isinstance(actual, dict):
             raise ValueError(f"package.json {key} does not match the pinned shared target contract")
         if any(actual.get(name) != version for name, version in expected.items()):
             raise ValueError(f"package.json {key} does not match the pinned shared target contract")

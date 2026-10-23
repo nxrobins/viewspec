@@ -35,6 +35,12 @@ _requires_react_value_seed = pytest.mark.skipif(
     reason="Node and the installed react-dependencies seed with the pinned Pretext and Freerange packages are "
     "required (npm ci --ignore-scripts in conformance/agent-ui-v2/react-dependencies)",
 )
+# The seeds moved off vite 8.0.16 (HIGH advisories up to 8.1.5) to 8.3.5; never back below it (audit P-2).
+_VITE_SECURITY_FLOOR = (8, 3, 5)
+
+
+def _release(version: str) -> tuple[int, ...]:
+    return tuple(int(part) for part in version.split("."))
 
 
 def _pinned_chromium_executable() -> Path | None:
@@ -665,12 +671,41 @@ def test_code_first_react_scaffold_builds_off_the_shared_local_seed(tmp_path):
     shared_package = json.loads(Path("src/viewspec/host_verify_template/package.json").read_text(encoding="utf-8"))
     assert package["dependencies"] == shared_package["dependencies"]
     assert package["devDependencies"] == shared_package["devDependencies"]
-    assert package["dependencies"]["react"] == "19.2.7"
-    assert package["dependencies"]["react-dom"] == "19.2.7"
-    assert package["dependencies"]["vite"] == "8.3.5"
-    assert package["dependencies"]["tailwindcss"] == "4.3.0"
-    assert package["devDependencies"]["@playwright/test"] == "1.60.0"
-    assert package["devDependencies"]["typescript"] == "6.0.3"
+    # The versions follow the template (a grouped Dependabot bump moves all of them at once);
+    # what must hold is the package set, React and ReactDOM in lockstep, and the vite security
+    # floor.
+    assert {"react", "react-dom", "vite", "tailwindcss"} <= package["dependencies"].keys()
+    assert {"@playwright/test", "typescript"} <= package["devDependencies"].keys()
+    assert package["dependencies"]["react"] == package["dependencies"]["react-dom"]
+    assert _release(package["dependencies"]["vite"]) >= _VITE_SECURITY_FLOOR
+
+
+def test_code_first_scaffold_and_target_contract_follow_the_shared_template(tmp_path, monkeypatch):
+    # A grouped Dependabot npm pull request bumps the template and the other two seeds together.
+    # The scaffold the code-first arm starts from and the pinned shared target contract must move
+    # with the template; hard-coded versions would make every such bump fail the React build.
+    template = json.loads(runner.SHARED_REACT_PACKAGE.read_text(encoding="utf-8"))
+    assert _release(template["dependencies"]["vite"]) >= _VITE_SECURITY_FLOOR
+    bumped = json.loads(json.dumps(template))
+    for group in ("dependencies", "devDependencies"):
+        for name, version in bumped[group].items():
+            major, minor, patch = _release(version)
+            bumped[group][name] = f"{major}.{minor}.{patch + 1}"
+    bumped_path = tmp_path / "template" / "package.json"
+    bumped_path.parent.mkdir()
+    bumped_path.write_text(json.dumps(bumped), encoding="utf-8")
+    monkeypatch.setattr(runner, "SHARED_REACT_PACKAGE", bumped_path)
+    workspace = tmp_path / "workspace"
+    workspace.joinpath("submission").mkdir(parents=True)
+
+    runner._activate_code_first_react(workspace)
+
+    package = json.loads((workspace / "submission/react/package.json").read_text(encoding="utf-8"))
+    assert package["dependencies"] == bumped["dependencies"]
+    assert package["devDependencies"] == bumped["devDependencies"]
+    runner._validate_pinned_react_package(package)
+    with pytest.raises(ValueError, match="pinned shared target contract"):
+        runner._validate_pinned_react_package({**package, "dependencies": template["dependencies"]})
 
 
 @_requires_react_seed

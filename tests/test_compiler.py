@@ -132,7 +132,9 @@ def _summary_strip_plugin(
     return MotifPlugin(kinds=("summary_strip",), build=build_summary_strip, manifest=plugin_manifest)
 
 
-def _product_workspace_bundle(*, duplicate_header=False, missing_header=False, extra_body_child=False, profile=None):
+def _product_workspace_bundle(
+    *, duplicate_header=False, missing_header=False, extra_body_child=False, profile=None, primary_role="primary"
+):
     builder = ViewSpecBuilder(
         "product_surface_shape",
         root_attrs={"title": "Surface"},
@@ -146,7 +148,7 @@ def _product_workspace_bundle(*, duplicate_header=False, missing_header=False, e
     if duplicate_header:
         builder.add_region("north_alt", parent_region="root", role="page_header", layout="stack", min_children=0)
     builder.add_region("canvas", parent_region="root", role="application", layout="grid", min_children=2)
-    builder.add_region("focus", parent_region="canvas", role="primary", layout="stack", min_children=2)
+    builder.add_region("focus", parent_region="canvas", role=primary_role, layout="stack", min_children=2)
     builder.add_region("assist", parent_region="canvas", role="complementary", layout="stack", min_children=1)
     if extra_body_child:
         builder.add_region("overflow", parent_region="canvas", role="secondary", layout="stack", min_children=0)
@@ -840,6 +842,70 @@ def test_product_surface_planner_v1_applies_single_column_roles_to_local_starter
     assert nodes["motif_summary"].props["product_role"] == "detail_panel"
     assert "planner_review_form_actions" not in nodes
     assert nodes["action_submit_review"] in nodes["motif_review_form"].children
+
+
+def _single_column_role_bundle(role):
+    builder = ViewSpecBuilder("role_spelling", root_attrs={"title": "Roles"}, default_main_region=False)
+    builder.add_region("body", parent_region="root", role=role, layout="stack", min_children=1)
+    detail = builder.add_detail("summary", region="body", group_id="summary_group")
+    detail.add_field(label="Status", value="Ready", id="status")
+    return builder.build_bundle()
+
+
+@pytest.mark.parametrize(
+    "role",
+    [
+        "main",
+        "Main",
+        "primary-column",
+        "Primary Column",
+        "main_content",
+        "workspace-primary",
+        # Any word "main" or "primary" matches, as the CHANGELOG says, even where the role means
+        # something else; the workspace detector has always matched these.
+        "not_main",
+        "non-primary",
+        "main-nav",
+        "main_navigation",
+        "primary-footer",
+    ],
+)
+def test_single_column_surface_matches_primary_roles_like_the_workspace_detector(role):
+    # Audit C-9: the single-column detector compared the role exactly, while the workspace detector
+    # tokenised it, so "Main" or "primary-column" made a primary column in a workspace only.
+    single = compile(_single_column_role_bundle(role))
+    workspace = compile(_product_workspace_bundle(primary_role=role))
+    single_nodes = {node.id: node for node in _walk_nodes(single.result.root.root)}
+    workspace_nodes = {node.id: node for node in _walk_nodes(workspace.result.root.root)}
+
+    assert single.result.root.root.props["planner_surface"] == PRODUCT_SINGLE_COLUMN_SURFACE_V1
+    assert single_nodes["region_body"].props["product_role"] == "primary_column"
+    assert workspace.result.root.root.props["planner_surface"] == PRODUCT_SURFACE_PLANNER_V1_SURFACE
+    assert workspace_nodes["region_focus"].props["product_role"] == "primary_column"
+
+
+@pytest.mark.parametrize("role", ["sidebar", "mainstream", "content", "primaryish", "domain", "remain"])
+def test_single_column_surface_rejects_non_primary_roles_like_the_workspace_detector(role):
+    single = compile(_single_column_role_bundle(role))
+    workspace = compile(_product_workspace_bundle(primary_role=role))
+
+    assert "planner_surface" not in single.result.root.root.props
+    assert all("product_role" not in node.props for node in _walk_nodes(single.result.root.root))
+    assert "planner_surface" not in workspace.result.root.root.props
+
+
+def test_newly_matching_single_column_role_changes_the_compiled_output():
+    # The output change the CHANGELOG asks users to review: a "Main" stack under the root compiled
+    # to a plain stack before; now it is a single-column surface, so the root title becomes an
+    # implicit page header and the shell and column carry product roles.
+    root = compile(_single_column_role_bundle("Main")).result.root.root
+    nodes = {node.id: node for node in _walk_nodes(root)}
+    header = nodes["region_body"].children[0]
+
+    assert root.props["product_role"] == "app_shell"
+    assert header.props["product_role"] == "page_header"
+    assert [child.props["text"] for child in header.children] == ["Roles"]
+    assert header.provenance.content_refs == ["node:role_spelling#attr:title"]
 
 
 @pytest.mark.parametrize(

@@ -483,11 +483,15 @@ def _a11y_report(manifest_path: Path) -> dict[str, Any]:
         # React colors are Tailwind classes, not the profile hex — use the emitter's own grounded
         # enumeration. Lazy import so plain prove does not pull in the React emitter.
         from viewspec.emitters.react_tailwind_tsx.a11y import react_contrast_report
-        from viewspec.emitters.react_tailwind_tsx.recipes import TAILWIND_AESTHETIC_RECIPE_OVERLAYS
+        from viewspec.emitters.react_tailwind_tsx.recipes import DEFAULT_TAILWIND_RECIPE_REGISTRY
 
         # profile overlay when set, else the base recipe (profile=None) — React contrast is always
-        # checked now.
-        contrast = react_contrast_report(profile if profile in TAILWIND_AESTHETIC_RECIPE_OVERLAYS else None)
+        # checked now. Like viewspec check, the proof reads the default registry, the snapshot a
+        # default emit reads, not the module tables it was built from.
+        registry = DEFAULT_TAILWIND_RECIPE_REGISTRY
+        contrast = react_contrast_report(
+            profile if profile in registry.aesthetic_overlays else None, recipe_registry=registry
+        )
     else:
         contrast = a11y_contrast_report(profile)
     report: dict[str, Any] = {

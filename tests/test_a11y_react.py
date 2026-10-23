@@ -7,7 +7,7 @@ palette entry fails closed.
 
 from __future__ import annotations
 
-from unittest.mock import patch
+from dataclasses import replace
 
 import pytest
 
@@ -20,7 +20,7 @@ from viewspec.emitters.react_tailwind_tsx.a11y import (
     _palette,
     react_contrast_report,
 )
-from viewspec.emitters.react_tailwind_tsx.recipes import TAILWIND_AESTHETIC_RECIPE_OVERLAYS
+from viewspec.emitters.react_tailwind_tsx.recipes import DEFAULT_TAILWIND_RECIPE_REGISTRY
 
 
 def test_palette_is_browser_grounded_v4_not_v3():
@@ -89,9 +89,24 @@ def test_missing_palette_color_fails_closed():
 
 
 def test_contrast_failure_is_flagged():
-    overlay = dict(TAILWIND_AESTHETIC_RECIPE_OVERLAYS["aesthetic.calm_ops"])
+    overlays = dict(DEFAULT_TAILWIND_RECIPE_REGISTRY.aesthetic_overlays)
+    overlay = dict(overlays["aesthetic.calm_ops"])
     overlay["primitive:label"] = "text-xs uppercase text-slate-300"  # pale label on white surface
-    with patch.dict(TAILWIND_AESTHETIC_RECIPE_OVERLAYS, {"aesthetic.calm_ops": overlay}):
-        report = react_contrast_report("aesthetic.calm_ops")
+    overlays["aesthetic.calm_ops"] = overlay
+    registry = replace(DEFAULT_TAILWIND_RECIPE_REGISTRY, aesthetic_overlays=overlays)
+    report = react_contrast_report("aesthetic.calm_ops", recipe_registry=registry)
     assert report["contrast_failures"] > 0
     assert any("label" in failure["label"] for failure in report["failures"])
+    # The pale label lives only in the injected registry; the default report is unaffected.
+    assert react_contrast_report("aesthetic.calm_ops")["contrast_failures"] == 0
+
+
+def test_base_recipe_contrast_reads_the_injected_registry():
+    # Review of Q-4: with no profile the report checks the base recipes alone, and no test failed
+    # when that read used the default registry instead of the injected one.
+    recipes = dict(DEFAULT_TAILWIND_RECIPE_REGISTRY.recipes)
+    recipes["primitive:label"] = "text-xs font-bold uppercase text-slate-300"  # pale label on white surface
+    registry = replace(DEFAULT_TAILWIND_RECIPE_REGISTRY, recipes=recipes)
+    report = react_contrast_report(None, recipe_registry=registry)
+    assert [failure["label"] for failure in report["failures"]] == ["label / surface"]
+    assert react_contrast_report(None)["contrast_failures"] == 0

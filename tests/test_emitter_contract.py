@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import re
+from dataclasses import replace
 
 import pytest
 from hypothesis import given
@@ -20,6 +21,7 @@ from viewspec import (
 from viewspec.emitters.base import EmitterNodeContext, EmitterNodePlugin, EmitterNodeRegistry, RenderedNode
 from viewspec.emitters.html_tailwind import OFFLINE_EMITTER_CSS, HtmlTailwindEmitter, _validate_style_values
 from viewspec.emitters.react_tailwind_tsx import (
+    DEFAULT_TAILWIND_RECIPE_REGISTRY,
     RECIPE_BY_KEY,
     TAILWIND_AESTHETIC_RECIPE_OVERLAYS,
     TAILWIND_RECIPE_PACK,
@@ -883,18 +885,15 @@ def test_check_rejects_boolean_aesthetic_layout_columns(tmp_path):
         ({"aesthetic.calm_ops": {"app_role:app_shell": "[color:red]"}}, "TAILWIND_AESTHETIC_UNSAFE_CLASS"),
     ],
 )
-def test_react_tailwind_rejects_missing_oversized_or_unsafe_aesthetic_recipes(
-    tmp_path, monkeypatch, profile_overlay, expected_code
-):
-    import viewspec.emitters.react_tailwind_tsx as react_tailwind
-
+def test_react_tailwind_rejects_missing_oversized_or_unsafe_aesthetic_recipes(tmp_path, profile_overlay, expected_code):
     overlays = {profile: dict(overlay) for profile, overlay in TAILWIND_AESTHETIC_RECIPE_OVERLAYS.items()}
     if not profile_overlay:
         overlays.pop("aesthetic.calm_ops")
     else:
         for profile, overlay in profile_overlay.items():
             overlays[profile] = overlay
-    monkeypatch.setattr(react_tailwind, "TAILWIND_AESTHETIC_RECIPE_OVERLAYS", overlays)
+    # The broken overlays go in through an injected registry, not by reassigning module globals.
+    broken_registry = replace(DEFAULT_TAILWIND_RECIPE_REGISTRY, aesthetic_overlays=overlays)
     ast = ASTBundle(
         result=CompilerResult(
             root=CompositionIR(
@@ -913,10 +912,13 @@ def test_react_tailwind_rejects_missing_oversized_or_unsafe_aesthetic_recipes(
     )
 
     with pytest.raises(CompilerConstraintError) as exc_info:
-        ReactTailwindTsxEmitter().emit(ast, tmp_path)
+        ReactTailwindTsxEmitter(recipe_registry=broken_registry).emit(ast, tmp_path)
 
     assert exc_info.value.code == expected_code
     assert not tmp_path.joinpath("ViewSpecView.tsx").exists()
+    # The broken registry stays with the emitter it was given: the default one still emits.
+    ReactTailwindTsxEmitter().emit(ast, tmp_path / "default")
+    assert tmp_path.joinpath("default", "ViewSpecView.tsx").exists()
 
 
 def test_react_tailwind_tsx_emitter_rejects_user_app_role_before_writing(tmp_path):
