@@ -366,7 +366,7 @@ Status as of the follow-up work on 2026-10-22, all on branch `claude/project-aud
 | R-2 | Fixed | Approved by the owner; PyPI check no longer blocks the docs deploy; the release checklist describes the resulting order of merge, upload and deploy. |
 | R-3 | Fixed | Approved by the owner; PRs block on high and critical; weekly audit at every level. |
 | R-4 | Fixed | Missing reference fonts fail the Pretext gate loudly. |
-| R-5 | Open | The exact test count and npm patch assertions stay; relaxing them was judged a gate change for the owner. |
+| R-5 | Fixed | Approved by the owner. The JUnit contract requires failures == errors == skipped == 0 and tests >= 7. npm is pinned to its 10.9 major.minor line and must still print a plain X.Y.Z version. Python, Node, Bun and Playwright stay exact. tests/test_ci_config.py runs both steps' shell code against stub tools and synthetic JUnit files. |
 | R-6 | Fixed | Caching, timeouts, concurrency that supersedes only pull request runs (every push to `main` runs to completion), the `agents` extra in every test leg with a test that starts the real stdio MCP server, lockfile-based Playwright. |
 | R-7 | Fixed | Version single-sourced; tag and release step in the checklist. |
 | R-8 | Partial | sdist ships tests, conformance, schema source, changelog and policy. The full suite still needs a git checkout: some tests import or read `scripts/`, `demos/`, `docs/`, `examples/`, `integrations/` and `.github/`, and the root file `requirements-ci.txt`, none of which the sdist carries. |
