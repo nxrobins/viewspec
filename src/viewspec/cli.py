@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 import argparse
+import contextlib
 import importlib.util
 import json
+import os
 import shutil
 import sys
 from collections.abc import Mapping
@@ -178,12 +180,12 @@ def _cli_failure(exc: Exception) -> _CliFailure:
         return _CliFailure(
             2,
             "\n".join(_design_error_lines(exc)),
-            str(exc),
+            _failure_message(exc),
             fix="Fix DESIGN.md and retry.",
             diagnostics=tuple(finding.to_json() for finding in exc.report.findings) if exc.report is not None else (),
         )
     if isinstance(exc, (HtmlInputError, AgentAssetError, NativeAgentError)):
-        return _CliFailure(2, f"error: {exc.code}: {exc}", str(exc), code=exc.code)
+        return _CliFailure(2, f"error: {exc.code}: {exc}", _failure_message(exc), code=exc.code)
     if isinstance(exc, (ReviewContractError, StudioCreationError, StudioShareError, IntentPatchError, ConvergeError)):
         return _CliFailure(
             exc.cli_exit, f"error: {exc.code}: {exc.message}\nfix: {exc.fix}", exc.message, code=exc.code, fix=exc.fix
@@ -200,10 +202,24 @@ def _cli_failure(exc: Exception) -> _CliFailure:
         text,
         # Coded exceptions such as StableCodeError format str(exc) as "CODE: message" and expose the
         # bare text as .message; the code has its own JSON field, so it is not repeated in the message.
-        message if isinstance(code, str) and isinstance(message, str) and message else str(exc),
+        message if isinstance(code, str) and isinstance(message, str) and message else _failure_message(exc),
         code=code if isinstance(code, str) else None,
         fix=fix if isinstance(fix, str) else None,
     )
+
+
+def _failure_message(exc: BaseException) -> str:
+    """The JSON error message for ``exc``: text that names what failed, never an empty string.
+
+    An exception group stands for its first leaf exception. anyio wraps an error that stops the
+    MCP server, such as a BrokenPipeError when the client goes away, in a group whose own text,
+    "unhandled errors in a TaskGroup (1 sub-exception)", names nothing. An exception whose str()
+    is empty, such as a bare ``RuntimeError()``, is named by its type. The exit code and the
+    human text still come from ``exc`` itself, so they stay as they were.
+    """
+    while isinstance(exc, BaseExceptionGroup):
+        exc = exc.exceptions[0]
+    return str(exc) or type(exc).__name__
 
 
 def _print_json_failure(failure: _CliFailure, defaults: _JsonFailureDefaults) -> None:
@@ -831,8 +847,8 @@ def _build_parser() -> argparse.ArgumentParser:
         "--json",
         action="store_true",
         help=(
-            "Report a failure that stops the server, at startup or later, as one line of JSON on stderr; "
-            "stdout stays reserved for the MCP protocol."
+            "Report a failure that stops the server, at startup or later, as one line of JSON on stderr, "
+            "and keep the MCP SDK's per-request INFO logs off stderr; stdout stays reserved for the MCP protocol."
         ),
     )
     mcp_parser.set_defaults(func=_mcp_command)
@@ -2444,7 +2460,9 @@ def _check_agent_assets_command(args: argparse.Namespace) -> int:
 
 def _mcp_command(args: argparse.Namespace) -> int:
     try:
-        run_mcp_server(cwd=args.cwd, allow_outside_cwd=args.allow_outside_cwd)
+        # Under --json, keep the SDK's per-request INFO logs off stderr, where a failure that
+        # stops the server is reported as one JSON line.
+        run_mcp_server(cwd=args.cwd, allow_outside_cwd=args.allow_outside_cwd, log_level="ERROR" if args.json else None)
     except MissingMCPDependency:
         if args.json:
             # stdout belongs to the MCP protocol even when the server never starts.
@@ -2458,7 +2476,37 @@ def _mcp_command(args: argparse.Namespace) -> int:
         else:
             print(MCP_INSTALL_HINT, file=sys.stderr)
         return 2
+    finally:
+        _release_broken_stdout()
     return 0
+
+
+def _release_broken_stdout() -> None:
+    """Point stdout at the null device when it is a broken pipe, so the flush at exit cannot fail.
+
+    The MCP server writes the protocol to stdout, so a client that goes away leaves a broken pipe
+    that can still hold unwritten bytes. Python flushes them at exit, and on Python 3.14 each failed
+    flush adds a BrokenPipeError report to stderr and turns the exit status into 120, which would
+    break the one-line --json failure report and the exit code both modes share.
+    """
+    stdout = sys.stdout
+    if stdout is None:
+        # fd 1 was closed when Python started, so there is nothing to flush at exit, and the server's
+        # own failure must not be replaced by this one.
+        return
+    try:
+        stdout.flush()
+    except BrokenPipeError:
+        with contextlib.suppress(OSError, ValueError):
+            devnull = os.open(os.devnull, os.O_WRONLY)
+            try:
+                os.dup2(devnull, stdout.fileno())
+            finally:
+                os.close(devnull)
+    except (OSError, ValueError):
+        # Another write error, or a closed stdout, which Python skips at exit: nothing to release,
+        # and the server's own failure must not be replaced by this one.
+        return
 
 
 def _load_design(path: str | None, *, strict: bool) -> DesignSystemContext | None:

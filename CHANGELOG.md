@@ -26,6 +26,9 @@ in parentheses refer to that document.
 - Non-ASCII text in list and dict bindings renders as UTF-8 instead of `\u` escapes (C-2).
 - `compile_auto` falls back to the hosted compiler only for unsupported motifs; a local
   `DESIGN.md` error no longer uploads the bundle (C-3).
+- `viewspec mcp` exits `1`, not `120`, when its client goes away on Python 3.14. It points the
+  broken stdout at the null device before it exits, so Python's exit-time flush no longer fails
+  and adds two `BrokenPipeError` reports to stderr (C-9).
 - The declared protobuf requirement matches the generated schema: `protobuf>=6.31.1,<8`. The
   package did not import with protobuf 5.x (P-1).
 - The `agents` extra requires `mcp>=1.9.0,<2`. MCP SDK 2.x removed the `mcp.server.fastmcp`
@@ -227,7 +230,11 @@ in parentheses refer to that document.
   `resource_binding` and `binding_scope` of the bundle it wrote, as the MCP `init_app` tool does,
   so the `react-app` template reports `fixture_readonly_v0`. `viewspec mcp --json` leaves stdout
   to the protocol and writes a failure that stops the server, at startup (`MCP_DEPENDENCY_MISSING`,
-  `INVALID_PATH`) or later (`MCP_SERVER_FAILED`), to stderr as one line of JSON. Adding `--json`
+  `INVALID_PATH`) or later (`MCP_SERVER_FAILED`), to stderr as one line of JSON whose message names
+  the underlying error, such as `[Errno 32] Broken pipe`, rather than the task group that wrapped
+  it; it also lowers the MCP SDK's log level to `ERROR`, so the SDK's line for every request stays
+  off stderr (`run_mcp_server()` takes the matching `log_level`). A failure's JSON message is
+  never empty: an exception without text is named by its type. Adding `--json`
   leaves output without it and exit codes unchanged, and `compile --json` writes the same artifact
   bytes as `compile`; compiled output itself changes only where the single-column role matching
   under Changed applies. New registry codes: `DOCTOR_CHECK_FAILED`, `MCP_DEPENDENCY_MISSING` and

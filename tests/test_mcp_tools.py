@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import contextlib
+import errno
 import importlib
 import json
 import os
@@ -8,6 +10,7 @@ import socket
 import subprocess
 import sys
 import threading
+import time
 import tomllib
 import types
 from collections.abc import Iterator
@@ -506,11 +509,93 @@ def test_real_stdio_mcp_server_initializes_and_lists_its_tools(monkeypatch, tmp_
 
         process.stdin.close()
         assert process.wait(timeout=30) == 0, stderr_path.read_text(errors="replace")
+        if extra_args:
+            # --json keeps the SDK's per-request INFO logs off stderr, which it reserves for the
+            # one-line failure report.
+            assert stderr_path.read_text(errors="replace") == ""
     finally:
         if process.poll() is None:
             process.kill()
             process.wait(timeout=30)
         process.stdout.close()
+
+
+def test_real_stdio_mcp_server_json_reports_a_lost_client_as_one_stderr_line(tmp_path) -> None:
+    """A client that goes away breaks the server's stdout; ``mcp --json`` reports that as one line.
+
+    The SDK wraps the BrokenPipeError in an exception group whose own text names nothing, logs each
+    request at INFO, and on Python 3.14 the exit-time flush of the broken stdout adds its own
+    reports and exit status 120. The envelope must be the only stderr line, name the real error and
+    keep exit 1 (audit C-9).
+    """
+
+    if not mcp_server_module.mcp_dependency_available():
+        pytest.skip("the MCP SDK with mcp.server.fastmcp (viewspec[agents]) is not installed")
+    from mcp.types import LATEST_PROTOCOL_VERSION  # type: ignore[import-not-found]
+
+    stderr_path = tmp_path / "server.stderr"
+    env = {"PATH": os.defpath, "PYTHONPATH": str(ROOT / "src"), "PYTHONDONTWRITEBYTECODE": "1", "HOME": str(tmp_path)}
+    with stderr_path.open("wb") as stderr:
+        process = subprocess.Popen(
+            [sys.executable, "-m", "viewspec", "mcp", "--cwd", str(tmp_path), "--json"],
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            stderr=stderr,
+            cwd=tmp_path,
+            env=env,
+        )
+    assert process.stdin is not None and process.stdout is not None
+
+    def send(message: dict[str, object]) -> None:
+        process.stdin.write(json.dumps(message).encode("utf-8") + b"\n")
+        process.stdin.flush()
+
+    try:
+        send(
+            {
+                "jsonrpc": "2.0",
+                "id": 1,
+                "method": "initialize",
+                "params": {
+                    "protocolVersion": LATEST_PROTOCOL_VERSION,
+                    "capabilities": {},
+                    "clientInfo": {"name": "viewspec-tests", "version": "0"},
+                },
+            }
+        )
+        assert json.loads(process.stdout.readline())["id"] == 1
+        send({"jsonrpc": "2.0", "method": "notifications/initialized"})
+        # The client goes away: the server's next response hits a closed pipe.
+        process.stdout.close()
+        deadline = time.monotonic() + 60
+        request_id = 2
+        while process.poll() is None and time.monotonic() < deadline:
+            try:
+                send({"jsonrpc": "2.0", "id": request_id, "method": "tools/list", "params": {}})
+            except BrokenPipeError:
+                break  # the server stopped and its stdin closed with it
+            request_id += 1
+            time.sleep(0.1)
+        exit_code = process.wait(timeout=60)
+    finally:
+        if process.poll() is None:
+            process.kill()
+            process.wait(timeout=30)
+        with contextlib.suppress(BrokenPipeError):
+            process.stdin.close()
+
+    stderr_text = stderr_path.read_text(errors="replace")
+    assert exit_code == 1, stderr_text
+    assert stderr_text.endswith("\n") and stderr_text.count("\n") == 1, stderr_text
+    payload = json.loads(stderr_text)
+    assert payload["ok"] is False
+    assert payload["errors"] == [
+        {
+            "code": "MCP_SERVER_FAILED",
+            "message": f"[Errno {errno.EPIPE}] {os.strerror(errno.EPIPE)}",
+            "fix": "Fix the reported problem and restart viewspec mcp.",
+        }
+    ]
 
 
 def test_mcp_missing_dependency_cli_hint(monkeypatch, capsys):

@@ -367,7 +367,9 @@ and `lift` and the `init-*` commands print the written path.
 start, such as a missing `viewspec[agents]` extra (`MCP_DEPENDENCY_MISSING`) or an invalid `--cwd`
 (`INVALID_PATH`), and an unexpected error that stops a running server (`MCP_SERVER_FAILED`, exit
 `1`) are written to stderr as one line holding the same envelope, instead of human text, with the
-same exit code.
+same exit code. The message names the error itself, such as `[Errno 32] Broken pipe` when the
+client goes away, not the task group that wrapped it. `--json` also lowers the MCP SDK's log level
+from `INFO` to `ERROR`, so the line for every request it serves stays off stderr.
 
 ## AppBundle V1/V2/V3/V4
 

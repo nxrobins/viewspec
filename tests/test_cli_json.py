@@ -10,7 +10,9 @@ later, into one line of JSON on stderr, and stdout stays reserved for the protoc
 from __future__ import annotations
 
 import argparse
+import errno
 import json
+import os
 import sys
 import types
 from pathlib import Path
@@ -430,6 +432,25 @@ def test_json_reports_a_coded_error_by_its_bare_message(tmp_path, capsys, monkey
     assert capsys.readouterr().err == f"internal error: {raised}\n"
 
 
+def test_json_names_an_exception_without_text_by_its_type(tmp_path, capsys, monkeypatch):
+    def broken(*_args, **_kwargs):
+        raise RuntimeError()
+
+    monkeypatch.setattr(cli, "init_design_file", broken)
+
+    exit_code, payload, err = _run_json(capsys, ["init-design", "--out", str(tmp_path / "D.md"), "--json"])
+
+    assert exit_code == 1
+    assert err == ""
+    _assert_envelope(payload, ok=False)
+    assert payload["summary"] == "RuntimeError"
+    assert payload["errors"][0]["message"] == "RuntimeError"
+
+    # Human mode is unchanged.
+    assert cli_main(["init-design", "--out", str(tmp_path / "D.md")]) == 1
+    assert capsys.readouterr().err == "internal error: \n"
+
+
 # doctor --------------------------------------------------------------------------------------
 
 
@@ -689,3 +710,104 @@ def test_mcp_json_reports_an_unexpected_server_failure_with_exit_one(capsys, mon
         "message": "transport closed",
         "fix": "Fix the reported problem and restart viewspec mcp.",
     }
+
+
+def test_mcp_json_names_the_error_inside_an_exception_group(capsys, monkeypatch):
+    # anyio stops the server with an exception group whose own text, "unhandled errors in a
+    # TaskGroup (N sub-exceptions)", names nothing; the envelope names its first leaf exception.
+    def crashing(**_kwargs):
+        raise ExceptionGroup(
+            "unhandled errors in a TaskGroup",
+            [ExceptionGroup("nested", [BrokenPipeError(errno.EPIPE, "Broken pipe")]), RuntimeError("second")],
+        )
+
+    monkeypatch.setattr(cli, "run_mcp_server", crashing)
+
+    assert cli_main(["mcp", "--json"]) == 1
+    captured = capsys.readouterr()
+
+    assert captured.out == ""
+    payload = _stderr_envelope(captured.err)
+    _assert_envelope(payload, ok=False)
+    assert payload["summary"] == f"[Errno {errno.EPIPE}] Broken pipe"
+    assert payload["errors"][0]["message"] == f"[Errno {errno.EPIPE}] Broken pipe"
+
+    # The exit code and the human text still come from the group itself, as before.
+    assert cli_main(["mcp"]) == 1
+    assert capsys.readouterr().err == "internal error: unhandled errors in a TaskGroup (2 sub-exceptions)\n"
+
+
+def test_mcp_json_turns_off_the_sdk_request_logs(capsys, monkeypatch):
+    # FastMCP logs every request at INFO on stderr, where --json reports a failure as one line.
+    calls: list[dict[str, object]] = []
+    monkeypatch.setattr(cli, "run_mcp_server", lambda **kwargs: calls.append(kwargs))
+
+    assert cli_main(["mcp", "--json"]) == 0
+    assert cli_main(["mcp"]) == 0
+
+    assert [call["log_level"] for call in calls] == ["ERROR", None]
+    captured = capsys.readouterr()
+    assert (captured.out, captured.err) == ("", "")
+
+
+@pytest.mark.parametrize(("log_level", "settings"), [(None, {}), ("ERROR", {"log_level": "ERROR"})])
+def test_run_mcp_server_passes_its_log_level_to_fastmcp(monkeypatch, tmp_path, log_level, settings):
+    created: list[tuple[str, dict[str, object]]] = []
+
+    class RecordingFastMCP:
+        def __init__(self, name: str, **kwargs: object) -> None:
+            created.append((name, kwargs))
+
+        def tool(self, **_kwargs):
+            return lambda func: func
+
+        def run(self) -> None:
+            return None
+
+    fake_fastmcp = types.ModuleType("mcp.server.fastmcp")
+    fake_fastmcp.FastMCP = RecordingFastMCP  # type: ignore[attr-defined]
+    monkeypatch.setitem(sys.modules, "mcp.server.fastmcp", fake_fastmcp)
+    monkeypatch.setattr(mcp_server_module, "mcp_dependency_available", lambda: True)
+
+    mcp_server_module.run_mcp_server(cwd=tmp_path, log_level=log_level)
+
+    # Without a log level, FastMCP keeps its own default, as before.
+    assert created == [("viewspec", settings)]
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="checks the POSIX null device")
+@pytest.mark.parametrize("json_flag", [["--json"], []], ids=["json", "human"])
+def test_mcp_points_a_broken_stdout_at_the_null_device(monkeypatch, json_flag):
+    # A client that goes away leaves stdout a broken pipe with unwritten bytes. Python 3.14 reports
+    # each failed flush at exit on stderr and exits 120, so the command releases it first.
+    read_end, write_end = os.pipe()
+    os.close(read_end)
+
+    class BrokenStdout:
+        def flush(self) -> None:
+            raise BrokenPipeError(errno.EPIPE, "Broken pipe")
+
+        def fileno(self) -> int:
+            return write_end
+
+    monkeypatch.setattr(sys, "stdout", BrokenStdout())
+    monkeypatch.setattr(cli, "run_mcp_server", lambda **_kwargs: None)
+    try:
+        assert cli_main(["mcp", *json_flag]) == 0
+        assert os.path.samestat(os.fstat(write_end), os.stat(os.devnull))
+    finally:
+        os.close(write_end)
+
+
+def test_mcp_json_reports_the_server_failure_when_python_has_no_stdout(capsys, monkeypatch):
+    # With fd 1 closed at startup, sys.stdout is None: releasing it must not replace the server's
+    # own failure in the report.
+    def crashing(**_kwargs):
+        raise RuntimeError("the server needs stdout")
+
+    monkeypatch.setattr(cli, "run_mcp_server", crashing)
+    monkeypatch.setattr(sys, "stdout", None)
+
+    assert cli_main(["mcp", "--json"]) == 1
+    payload = _stderr_envelope(capsys.readouterr().err)
+    assert payload["errors"][0]["message"] == "the server needs stdout"
