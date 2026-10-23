@@ -405,9 +405,13 @@ This generates a starter IntentBundle and DESIGN.md inside `.viewspec-proof/`, c
 * `check`: Verifies the provenance manifest against the generated DOM.
 * `doctor`: Reports the intent-first command surface and local agent prompt status.
 
-Every subcommand accepts `--json` for machine-readable output on stdout, with the same exit codes as
-its human output. `viewspec mcp --json` reports a failure that stops the server, at startup or
-later, as one line of JSON on stderr, because stdout carries the MCP protocol. See
+Every subcommand accepts `--json`. For `compile`, `lift`, `doctor`, `init-intent`, `init-design`,
+`init-app`, `init-agent` and `export-agent-assets`, `--json` prints the standard tool envelope on
+stdout once the arguments parse, for a failure as well as for success, with the exit code of the
+human output. `viewspec mcp --json` reports a failure that stops the server, at startup or later,
+as one line of JSON on stderr, because stdout carries the MCP protocol. The other subcommands keep
+the `--json` output they already had, and some of them still report a failure as text on stderr,
+for example `viewspec patch-targets missing.json --json`. See
 [Machine-readable output](https://github.com/nxrobins/viewspec/blob/main/docs/getting-started.md#machine-readable-output).
 
 **The Bounded Local Agent Contract**: The local schema enforces strict bounds to prevent agent hallucinations and infinite loops (e.g., max 256KB JSON, 32 regions, 400 bindings, 64 actions). Split larger products into smaller IntentBundles.

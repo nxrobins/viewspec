@@ -432,6 +432,41 @@ def test_json_reports_a_coded_error_by_its_bare_message(tmp_path, capsys, monkey
     assert capsys.readouterr().err == f"internal error: {raised}\n"
 
 
+@pytest.mark.parametrize(
+    "argv",
+    [
+        ["compile", "{intent}", "--design", "{directory}", "--out", "{tmp}/dist"],
+        ["compile", "{intent}", "--out", "{file}"],
+        ["lift", "{html}", "--out", "{directory}"],
+        ["init-agent", "--target", "codex", "--root", "{file}"],
+    ],
+    ids=["compile-design-directory", "compile-out-file", "lift-out-directory", "init-agent-root-file"],
+)
+def test_json_keeps_exit_one_for_a_path_the_operating_system_rejects(tmp_path, capsys, argv):
+    # docs/getting-started.md lists these invalid paths as exiting 1, in both modes, as they always
+    # have: the operating system rejects them, and the CLI classifies that OSError as internal.
+    places = {
+        "tmp": str(tmp_path),
+        "intent": str(_intent_file(tmp_path, capsys)),
+        "html": str(tmp_path / "input.html"),
+        "directory": str(tmp_path / "a-directory"),
+        "file": str(tmp_path / "a-file"),
+    }
+    Path(places["html"]).write_text("<main><h1>Report</h1></main>", encoding="utf-8")
+    Path(places["directory"]).mkdir()
+    Path(places["file"]).write_text("x", encoding="utf-8")
+    command = [part.format(**places) for part in argv]
+
+    exit_code, payload, err = _run_json(capsys, [*command, "--json"])
+
+    assert exit_code == 1
+    assert err == ""
+    _assert_envelope(payload, ok=False)
+
+    assert cli_main(command) == 1
+    assert capsys.readouterr().err.startswith("internal error: ")
+
+
 def test_json_names_an_exception_without_text_by_its_type(tmp_path, capsys, monkeypatch):
     def broken(*_args, **_kwargs):
         raise RuntimeError()

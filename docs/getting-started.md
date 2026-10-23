@@ -354,13 +354,17 @@ envelope with `"ok": false` and `errors: [{code, message, fix}]`; an invalid Int
 `compile` also carries `validation` and `correction_prompt`, and a DESIGN.md error lists its
 findings under `diagnostics`. `doctor --json` reports each failing check as a `DOCTOR_CHECK_FAILED`
 error whose `fix` repairs that check, and a failed `--freerange` probe also adds its own coded
-errors, such as `APP_FREERANGE_RUNTIME_MISSING`. Exit codes match human mode: `0` on success, `2`
-for invalid input, an existing output without `--force`, or a failed readiness check, and `1` for
-an internal error. With `--json` these commands write nothing else to stdout or stderr. Only an
-argument the parser rejects is still reported as usage text on stderr, with exit `2`, before the
-command runs. Without `--json` the output is unchanged: `compile` prints the emitted paths,
-`doctor` prints `{ok, checks}`, `init-agent` and `export-agent-assets` print their result object,
-and `lift` and the `init-*` commands print the written path.
+errors, such as `APP_FREERANGE_RUNTIME_MISSING`. Exit codes match human mode and are the same as in
+earlier releases: `0` on success; `2` for most invalid input, including a missing input file,
+invalid JSON, an invalid IntentBundle or DESIGN.md, an existing output without `--force`, and a
+failed readiness check; and `1` for an internal error. Some invalid paths exit `1` as well, as they
+always have: a directory where a file is expected (`compile --design`, `lift --out`), a file where
+a directory is expected (`compile --out`, `init-agent --root`), and a permission error. With
+`--json` these commands write nothing else to stdout or stderr. Only an argument the parser rejects
+is still reported as usage text on stderr, with exit `2`, before the command runs. Without `--json`
+the output is unchanged: `compile` prints the emitted paths, `doctor` prints `{ok, checks}`,
+`init-agent` and `export-agent-assets` print their result object, and `lift` and the `init-*`
+commands print the written path.
 
 `viewspec mcp` is a stdio server, so its stdout carries only the MCP protocol, with or without
 `--json`. `viewspec mcp --json` changes how a failure that ends the command is reported: a failure to
