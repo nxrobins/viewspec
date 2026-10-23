@@ -36,10 +36,10 @@
           "artifact_file": "src/ViewSpecApp.tsx",
           "artifact_hash": "a9890095383d1a4cc89829f2b30071a8bb22b2cf63c375fbde9a2a7fb670cc84",
           "files": {
-            "diagnostics.json": "96ed8c224b2ef8d3152c57239714139438dde49693a25b307274aec4fa543044",
+            "diagnostics.json": "73d57410018d3c0a88f397fe6d4154cfaddcba5f72d272824bedef846876eb0e",
             "index.html": "c08c6d6989a3f1e747a5c789142c524ac08bd2032978b4fa4d7fe385b61a9488",
-            "package-lock.json": "e02d181f7efe75ec3e5687cc98e989e3c81fa7a6ebe14c3a5e6ee772ad689965",
-            "package.json": "cd5c69f3fe6c23ff891bf2543f20930f78358407bc152208cc93c4e9274ec640",
+            "package-lock.json": "8defb4ba1b6e8099ff78a7d18f03de5a9548b4d2abd117d2001f5677314d38d8",
+            "package.json": "fdfa17d6c65b17ac2813f6a06a0e58ec5a6ac80227a7a3161e1994edf643a959",
             "playwright.config.ts": "9f59ba4a903ce6c2140920fd0bf31b45d60ebdc6e052fef7d727eec7fedb165a",
             "presentation_plan.json": "1df6b7a17ef5917769ede26afddae2d3575baafa1970cba5b7f6fde09afffbad",
             "screens/detail/artifact/diagnostics.json": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
@@ -63,7 +63,7 @@
             "src/vite-env.d.ts": "65996936fbb042915f7b74a200fcdde7e410f32a669b1ab9597cfaa4b0faddb5",
             "tests/viewspec-app.spec.ts": "aeb0103be8bd8aa6fc8a2ea6e6b6d8a8f1f23cd27bdc571bca2d63c278ce44f8",
             "tsconfig.json": "bc49a3c492c8d77c5fb8750be0f97982c4bd861dbbcc91d4573cdc2c758cf841",
-            "viewspec_app_manifest.json": "1e74947acd36b3719d3260e6960d80ae01ec08efcb3e02bfad10d7bf1fbbeed2",
+            "viewspec_app_manifest.json": "9e01cfdc31a1efa2a0ca45b1b981ea8fd556d1266c03943133b84cdcef34a184",
             "vite.config.ts": "bb86efeb11e83afcc5bf8a83127418024746b107a60ba6c7ccc187dca9cd1b5d"
           },
           "screens": {
