@@ -600,6 +600,11 @@ class ReactTailwindTsxEmitter(EmitterPlugin):
     checked-in ``DEFAULT_TAILWIND_RECIPE_REGISTRY``.
     """
 
+    # The default for an instance that never ran __init__: a subclass whose own __init__ does not
+    # call super().__init__(), an object.__new__ instance, or one unpickled from a release whose
+    # emitter held no state.
+    _recipe_registry: TailwindRecipeRegistry = DEFAULT_TAILWIND_RECIPE_REGISTRY
+
     def __init__(self, *, recipe_registry: TailwindRecipeRegistry | None = None) -> None:
         self._recipe_registry = _registry_or_default(recipe_registry)
 

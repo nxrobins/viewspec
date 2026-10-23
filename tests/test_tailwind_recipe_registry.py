@@ -624,6 +624,13 @@ def test_every_registry_field_feeds_the_digest():
     assert len(seen) > 100  # every recipe, overlay, contract and rule id was varied
 
 
+# pickle.dumps(ReactTailwindTsxEmitter()) on main (64e77eb), when the emitter held no state.
+_MAIN_PICKLED_EMITTER = (
+    b"\x80\x04\x95G\x00\x00\x00\x00\x00\x00\x00\x8c$viewspec.emitters.react_tailwind_tsx\x94"
+    b"\x8c\x17ReactTailwindTsxEmitter\x94\x93\x94)\x81\x94."
+)
+
+
 def test_in_place_edits_of_the_module_tables_reach_neither_the_emitter_nor_the_check(tmp_path, monkeypatch):
     # Review of Q-4: the emitter read the import-time snapshot while viewspec check and prove read
     # the module tables, so editing RECIPE_BY_KEY in place made compile reject the emitter's own
@@ -700,3 +707,25 @@ def test_artifacts_emitted_with_another_registry_do_not_pass_viewspec_check(tmp_
     assert results["default"]["ok"], results["default"]["errors"]
     assert not results["recolored"]["ok"]
     assert {error.split(":")[0] for error in results["recolored"]["errors"]} == {"TAILWIND_INVENTORY_MISMATCH"}
+
+
+def test_emitters_that_never_ran_init_emit_with_the_default_registry(tmp_path):
+    # Review of Q-4: the registry lived only on the instance, so a subclass whose own __init__ does
+    # not call super().__init__() (fine on main, where the emitter had no __init__), an instance made
+    # with object.__new__ and an emitter pickled by main raised AttributeError: _recipe_registry.
+    class LabelledEmitter(ReactTailwindTsxEmitter):
+        def __init__(self, label: str) -> None:
+            self.label = label
+
+    ast = _ast()
+    ReactTailwindTsxEmitter().emit(ast, tmp_path / "default")
+    expected = _read_artifact(tmp_path / "default")
+    emitters = {
+        "subclass": LabelledEmitter("audit"),
+        "new": object.__new__(ReactTailwindTsxEmitter),
+        "main-pickle": pickle.loads(_MAIN_PICKLED_EMITTER),
+    }
+    for name, emitter in emitters.items():
+        assert emitter.recipe_registry is DEFAULT_TAILWIND_RECIPE_REGISTRY, name
+        emitter.emit(ast, tmp_path / name)
+        assert _read_artifact(tmp_path / name) == expected, name
