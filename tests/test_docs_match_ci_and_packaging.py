@@ -13,6 +13,7 @@ from __future__ import annotations
 import importlib
 import importlib.util
 import inspect
+import json
 import re
 import tomllib
 from pathlib import Path
@@ -352,8 +353,9 @@ def test_contributing_explains_landing_dependabot_updates_and_every_hand_bump() 
 
 def _contributing_section(heading: str) -> str:
     """The text under ``### heading`` in CONTRIBUTING.md, up to the next heading."""
-    after = _read("CONTRIBUTING.md").split(f"\n### {heading}\n", 1)[1]
-    return re.split(r"\n#{2,3} ", after, maxsplit=1)[0]
+    parts = _read("CONTRIBUTING.md").split(f"\n### {heading}\n", 1)
+    assert len(parts) == 2, f"CONTRIBUTING.md has no '### {heading}' section"
+    return re.split(r"\n#{2,3} ", parts[1], maxsplit=1)[0]
 
 
 def test_contributing_says_the_grouped_pip_update_leaves_the_declared_ranges_alone() -> None:
@@ -366,12 +368,17 @@ def test_contributing_says_the_grouped_pip_update_leaves_the_declared_ranges_alo
     assert f"`versioning-strategy: {pip['versioning-strategy']}`" in section
 
 
-def test_hand_bump_entries_name_the_pins_outside_the_package_files() -> None:
-    entries = {
+def _hand_bump_entries() -> dict[str, str]:
+    """The squashed bullets under "Packages Dependabot never proposes", by the package each opens with."""
+    return {
         match.group(1): _squash(entry)
         for entry in re.split(r"\n(?=- )", _contributing_section("Packages Dependabot never proposes"))
         if (match := re.match(r"- \*\*`([^`]+)`", entry))
     }
+
+
+def test_hand_bump_entries_name_the_pins_outside_the_package_files() -> None:
+    entries = _hand_bump_entries()
     hooks = {hook["id"] for repo in yaml.safe_load(_read(".pre-commit-config.yaml"))["repos"] for hook in repo["hooks"]}
     floor_job = _steps_text(_workflow("ci.yml")["jobs"]["protobuf_floor"])
 
@@ -382,3 +389,30 @@ def test_hand_bump_entries_name_the_pins_outside_the_package_files() -> None:
     # that moves the floor moves that pin as well; a search for the old grpcio-tools version misses it.
     assert "protobuf==" in floor_job
     assert "`protobuf_floor`" in entries["grpcio-tools"]
+
+
+def _dependabot_updates() -> dict[str, dict[str, Any]]:
+    updates = yaml.safe_load(_read(".github/dependabot.yml"))["updates"]
+    return {update["package-ecosystem"]: update for update in updates}
+
+
+def test_contributing_logs_every_update_of_the_shipped_template_in_the_changelog() -> None:
+    from viewspec.app_react import REACT_APP_TEMPLATE_PACKAGE
+
+    template = "src/" + REACT_APP_TEMPLATE_PACKAGE.replace(".", "/")
+    wheel = tomllib.loads(_read("pyproject.toml"))["tool"]["hatch"]["build"]["targets"]["wheel"]["packages"]
+    manifest = json.loads(_read(f"{template}/package.json"))
+    shipped = {name for group in ("dependencies", "devDependencies") for name in manifest.get(group, {})}
+
+    npm = _dependabot_updates()["npm"]
+    hand_bumped = {rule["dependency-name"] for rule in npm["ignore"] if set(rule) == {"dependency-name"}} & shipped
+
+    # The wheel carries the template that every generated React app copies its package files from,
+    # so changing a version it pins is user-visible and needs a changelog entry, however it lands:
+    # through the grouped npm pull request or a hand bump.
+    assert "/" + template in npm["directories"]
+    assert any(f"{template}/".startswith(f"{package.rstrip('/')}/") for package in wheel), wheel
+    assert "`CHANGELOG.md`" in _contributing_section("Landing the grouped npm pull request")
+    assert hand_bumped
+    for name in hand_bumped:
+        assert any(f"`{name}`" in entry and "changelog" in entry for entry in _hand_bump_entries().values()), name

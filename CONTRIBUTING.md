@@ -168,6 +168,9 @@ for every package two seeds declare, identical `overrides`, and identical lockfi
 shared transitive package differently, run `npm update <package> --ignore-scripts` in the seed with
 the older version and rerun the test. Then run the full checks above.
 
+The template ships in the wheel and every generated app starts from its package files, so the update
+is user-visible: add a bullet under `### Changed` in `CHANGELOG.md` that names the new versions.
+
 ### Landing the grouped pip pull request
 
 Dependabot moves each exact pin to its latest minor or patch release: every pin in
@@ -225,12 +228,13 @@ string as well (`git grep -nF <old version>`): error messages, tests and root fi
   `.github/workflows/pretext-e2e.yml`, in `scripts/check_studio_release.py` and in
   `docs/release-checklist.md` (`tests/test_react_dependency_seeds.py` checks all three). The new
   release usually expects a new Chromium build: reinstall it as in the development setup, refresh
-  the goldens, and run the full suite; `pretext-e2e.yml` runs on the pull request.
+  the goldens, and run the full suite; `pretext-e2e.yml` runs on the pull request. The template
+  ships the pin to every generated app, so add a changelog entry.
 - **`typescript`**: `FREERANGE_TYPESCRIPT_VERSION` in `src/viewspec/app_freerange.py` must equal
   the seeds' pin, together with the `_RESOLVED` URL and `_INTEGRITY` from the new lockfile entry
   and the `_TREE` hash of the installed package (the script below prints it). Update the seeds as
-  for Playwright (`typescript@<version>`), refresh the goldens, and run the opt-in end-to-end
-  suites.
+  for Playwright (`typescript@<version>`), refresh the goldens, run the opt-in end-to-end suites,
+  and add a changelog entry.
 - **`@chenglou/pretext`** and **`@chenglou/freerange`**: pinned only in
   `conformance/agent-ui-v2/react-dependencies`, and as exact artifacts in the code:
   `PRETEXT_VERSION`, `PRETEXT_NPM_RESOLVED`, `PRETEXT_NPM_INTEGRITY` and `PRETEXT_PACKAGE_TREE` in
@@ -238,7 +242,8 @@ string as well (`git grep -nF <old version>`): error messages, tests and root fi
   `FREERANGE_*` constants in `src/viewspec/app_freerange.py` and the lockfile entry
   `src/viewspec/app_react.py` writes. Install the new version in that seed with
   `npm install --save-exact --ignore-scripts <package>@<version>` (add `--save-dev` for
-  Freerange), update the constants, refresh the goldens, and run both opt-in end-to-end suites.
+  Freerange), update the constants, refresh the goldens, run both opt-in end-to-end suites, and add
+  a changelog entry.
 
 This prints the package-tree hashes the code pins, for the versions installed in the conformance
 seed:
