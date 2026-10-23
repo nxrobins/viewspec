@@ -98,7 +98,7 @@ history stay there, and later re-encodes go to LFS storage instead of growing ev
 - Migrate from a clean, up-to-date checkout of `main`: `sh scripts/migrate_launch_media_to_lfs.sh`.
   It creates the branch `lfs/launch-media`, appends the LFS patterns to `.gitattributes`, commits
   the six files as LFS pointers, checks the commit, and prints the push steps. It never pushes, and
-  running it again changes nothing. If `lfs/launch-media` already exists but lacks commits of
+  running it again makes no new commit. If `lfs/launch-media` already exists but lacks commits of
   `main`, for example after an earlier run stopped part-way, it stops before changing anything,
   whether you run it on `main` or on that branch, and says how to bring the branch up to date. A run
   that stops part-way leaves `lfs/launch-media` checked out and says how to start again from `main`.
@@ -131,3 +131,7 @@ history stay there, and later re-encodes go to LFS storage instead of growing ev
   committed without git-lfs goes back into the history as a plain blob.
 - To undo after the merge, revert the migration commit. The plain blobs come back from history,
   so the repository does not grow.
+- Future work, not covered yet: no CI job checks that a pull request's LFS objects reached GitHub,
+  so a later pull request whose objects were never uploaded passes CI and fails only at deploy, and
+  `.gitattributes` routes only `*.gif`, `*.mp4` and `*.png` in `demos/launch-assets/` through LFS,
+  so a new media format there (for example `.webm`, `.jpg` or `.webp`) needs a pattern of its own.

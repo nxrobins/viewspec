@@ -10,12 +10,12 @@
 # there). On main it creates the branch lfs/launch-media, or reuses it when it contains
 # main; on any other branch it commits there. Whether it starts on main or on
 # lfs/launch-media, a lfs/launch-media that lacks commits of main stops the script before
-# it changes anything. It routes the media through Git LFS in
-# .gitattributes, re-adds them so the index holds LFS pointers, checks every staged blob
-# against the pointer git-lfs computes for the working file, commits, checks the commit,
-# and prints the push and verification steps. It never pushes and never rewrites
-# history: the migration is one new commit and the working files stay byte-identical.
-# Running it again changes nothing.
+# it changes anything. It routes the media through Git LFS in .gitattributes, re-adds
+# them so the index holds LFS pointers, checks every staged blob against the pointer
+# git-lfs computes for the working file, commits, checks the commit, and prints the push
+# and verification steps. It never pushes and never rewrites history: the migration is
+# one new commit and the working files stay byte-identical. Running it again makes no new
+# commit; run from main, it switches to lfs/launch-media.
 #
 # It writes the Git LFS filter settings into .git/config. The LFS filter that converts the
 # files may then add the Git LFS pre-push, post-checkout, post-commit and post-merge hooks
@@ -456,10 +456,6 @@ script again:
         in_list "$path" ".gitattributes $MEDIA_FILES" || die "unexpected staged change: $path"
     done
     check_blobs ":"
-
-    if git diff --cached --quiet; then
-        die "nothing was staged, although HEAD does not hold LFS pointers for every media file"
-    fi
     say "+ git commit (message: Store the launch media in Git LFS (audit H-3))"
     commit_migration || die "git commit failed (see its message above)"
     RECOVERY=

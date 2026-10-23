@@ -4,7 +4,7 @@
 copies of the files in ``demos/launch-assets/``; Git LFS needs no server for local commits. The
 script must commit the media as canonical LFS pointers on a new branch, keep the working files
 byte-identical, leave ``main``, the remote and existing Git hooks alone, never build on a leftover
-branch that lacks commits of ``main``, and change nothing when it runs again. The Pages deploy
+branch that lacks commits of ``main``, and make no new commit when it runs again. The Pages deploy
 publishes those files, so its checkout must fetch the LFS content.
 """
 
@@ -245,7 +245,7 @@ def test_migration_commits_canonical_pointers_and_keeps_the_media(checkout: Chec
 
 
 @needs_git_lfs
-def test_running_the_migration_again_changes_nothing(checkout: Checkout) -> None:
+def test_running_the_migration_again_makes_no_new_commit(checkout: Checkout) -> None:
     assert checkout.migrate().returncode == 0
     head = checkout.git("rev-parse", "HEAD").strip()
     attributes = (checkout.path / ".gitattributes").read_bytes()
