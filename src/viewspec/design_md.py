@@ -12,6 +12,7 @@ import hashlib
 import json
 import math
 import re
+import warnings
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -214,16 +215,31 @@ def load_design_system(
     path: str | Path | None = None,
     *,
     content: str | None = None,
-    lint: bool = True,
+    lint: bool | None = None,
     strict: bool = False,
 ) -> DesignSystemContext:
     """Load, validate, and map a DESIGN.md file or string.
 
-    `lint=False` preserves the hosted request shape, but fatal parse/reference
-    errors still fail locally because the SDK cannot safely theme around them.
-    `strict=True` escalates warnings to failure for CLI `--strict-design`.
+    Pass exactly one of `path` (a `str` or `Path` naming the file) or `content` (the DESIGN.md
+    text). Validation always runs: parse errors, broken references and cycles raise
+    `DesignSystemError` (its `report` holds the findings); otherwise every finding is kept in the
+    returned context's `lint_report`. `strict=True` escalates warnings to failure for CLI
+    `--strict-design`.
+
+    `lint` is deprecated and has no effect. It mirrored the hosted request's `DesignRequest.lint`
+    field, which only the hosted compiler reads; the local SDK cannot skip validation because it
+    cannot safely theme around invalid tokens. Passing `lint` (either value) emits a
+    `DeprecationWarning`; the parameter will be removed in the next major version.
     """
 
+    if lint is not None:
+        warnings.warn(
+            "load_design_system(lint=...) is deprecated and has no effect: local DESIGN.md validation always "
+            "runs and its findings are in DesignSystemContext.lint_report. Remove the argument; "
+            "DesignRequest(lint=...) is still sent to the hosted compiler, which reads it.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
     if path is None and content is None:
         raise ValueError("Either path or content is required")
     if path is not None and content is not None:
@@ -261,7 +277,6 @@ def load_design_system(
             f"{source} failed strict DESIGN.md validation with {report.summary()['warnings']} warning(s)",
             report,
         )
-    _ = lint
     return context
 
 

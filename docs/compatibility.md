@@ -33,6 +33,8 @@ waits for the next major version.
    `{code, message, fix}` (no `path`). Codes are stable identifiers: they are never renamed and
    never repurposed to mean something else.
 4. **The CLI.** Every documented subcommand, its flags, and the shape of its `--json` output.
+   Every subcommand accepts `--json`; the shared envelope and exit codes are described in
+   [getting-started](getting-started.md#machine-readable-output).
    Emitted reports and manifests each carry their own `schema_version` (or
    `manifest_schema_version`) field, as do MCP tool response envelopes.
 5. **The Python API.** Every name in `viewspec.__all__`, importable from the top-level package

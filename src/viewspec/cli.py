@@ -3,11 +3,16 @@
 from __future__ import annotations
 
 import argparse
+import contextlib
 import importlib.util
 import json
+import os
 import shutil
 import sys
+from collections.abc import Mapping
+from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 
 from viewspec._version import __version__
 from viewspec.agent_assets import AgentAssetError, agent_asset_readiness, check_agent_assets, export_agent_assets
@@ -70,11 +75,14 @@ from viewspec.intent_tools import (
     wrap_intent_bundle_manifest,
 )
 from viewspec.local_tools import (
+    agent_asset_export_response,
     atomic_write,
     check_artifact_dir,
     ensure_no_input_overwrite,
     init_design_file,
     source_hash,
+    tool_error_response,
+    tool_response,
 )
 from viewspec.local_verify import verify_local_artifact
 from viewspec.mcp_server import MCP_INSTALL_HINT, MissingMCPDependency, mcp_dependency_available, run_mcp_server
@@ -102,47 +110,138 @@ from viewspec.verification import VerificationPlan, VerificationResult
 DoctorProfileDiff = tuple[dict[str, object], str, dict[str, object], dict[str, object]]
 
 
+@dataclass(frozen=True)
+class _JsonFailureDefaults:
+    """How one subcommand reports a raised failure under --json (audit C-9)."""
+
+    code: str
+    fix: str
+    to_stderr: bool = False
+
+
+# Subcommands that gained --json for audit C-9 report every failure as a standard tool envelope
+# (`ok: false`, `errors: [{code, message, fix}]`) instead of stderr text, with the same exit code
+# as their human mode. The code and fix here apply when the exception carries none of its own.
+# `mcp` writes that envelope to stderr: its stdout is reserved for the MCP protocol.
+_JSON_FAILURE_DEFAULTS: dict[str, _JsonFailureDefaults] = {
+    "compile": _JsonFailureDefaults(
+        "COMPILE_FAILED", "Fix the input, DESIGN.md, or path issue and rerun viewspec compile."
+    ),
+    "lift": _JsonFailureDefaults("COMPILE_FAILED", "Fix the HTML input or output path and rerun viewspec lift."),
+    "init-app": _JsonFailureDefaults("IO_ERROR", "Choose a writable path, or pass --force to replace the file."),
+    "init-design": _JsonFailureDefaults("IO_ERROR", "Choose a writable path, or pass --force to replace the file."),
+    "init-intent": _JsonFailureDefaults("IO_ERROR", "Choose a writable path, or pass --force to replace the file."),
+    "doctor": _JsonFailureDefaults(
+        "DOCTOR_CHECK_FAILED", "Reinstall viewspec with its dependencies and rerun viewspec doctor."
+    ),
+    "init-agent": _JsonFailureDefaults(
+        "IO_ERROR", "Fix the reported instruction file under --root and rerun viewspec init-agent."
+    ),
+    "export-agent-assets": _JsonFailureDefaults(
+        "IO_ERROR",
+        "Choose a writable asset output directory, or pass --force to replace existing generated assets.",
+    ),
+    "mcp": _JsonFailureDefaults(
+        "MCP_SERVER_FAILED", "Fix the reported problem and restart viewspec mcp.", to_stderr=True
+    ),
+}
+
+
+@dataclass(frozen=True)
+class _CliFailure:
+    """One raised failure: its exit code, its human stderr text, and its JSON error fields."""
+
+    exit_code: int
+    text: str
+    message: str
+    code: str | None = None
+    fix: str | None = None
+    diagnostics: tuple[dict[str, str], ...] = ()
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = _build_parser()
     args = parser.parse_args(argv)
     try:
         return int(args.func(args) or 0)
-    except DesignSystemError as exc:
-        _print_design_error(exc)
-        return 2
-    except HtmlInputError as exc:
-        print(f"error: {exc.code}: {exc}", file=sys.stderr)
-        return 2
-    except AgentAssetError as exc:
-        print(f"error: {exc.code}: {exc}", file=sys.stderr)
-        return 2
-    except NativeAgentError as exc:
-        print(f"error: {exc.code}: {exc}", file=sys.stderr)
-        return 2
-    except ReviewContractError as exc:
-        print(f"error: {exc.code}: {exc.message}\nfix: {exc.fix}", file=sys.stderr)
-        return exc.cli_exit
-    except StudioCreationError as exc:
-        print(f"error: {exc.code}: {exc.message}\nfix: {exc.fix}", file=sys.stderr)
-        return exc.cli_exit
-    except StudioShareError as exc:
-        print(f"error: {exc.code}: {exc.message}\nfix: {exc.fix}", file=sys.stderr)
-        return exc.cli_exit
-    except IntentPatchError as exc:
-        print(f"error: {exc.code}: {exc.message}\nfix: {exc.fix}", file=sys.stderr)
-        return exc.cli_exit
-    except ConvergeError as exc:
-        print(f"error: {exc.code}: {exc.message}\nfix: {exc.fix}", file=sys.stderr)
-        return exc.cli_exit
-    except (FileNotFoundError, ValueError, TypeError, json.JSONDecodeError) as exc:
-        print(f"error: {exc}", file=sys.stderr)
-        return 2
-    except OSError as exc:
-        print(f"internal error: {exc}", file=sys.stderr)
-        return 1
     except Exception as exc:
-        print(f"internal error: {exc}", file=sys.stderr)
-        return 1
+        failure = _cli_failure(exc)
+        defaults = _JSON_FAILURE_DEFAULTS.get(args.command) if getattr(args, "json", False) else None
+        if defaults is None:
+            print(failure.text, file=sys.stderr)
+        else:
+            _print_json_failure(failure, defaults)
+        return failure.exit_code
+
+
+def _cli_failure(exc: Exception) -> _CliFailure:
+    """Classify a raised exception; exit codes: 2 for input or contract errors, 1 for internal ones."""
+    if isinstance(exc, DesignSystemError):
+        return _CliFailure(
+            2,
+            "\n".join(_design_error_lines(exc)),
+            _failure_message(exc),
+            fix="Fix DESIGN.md and retry.",
+            diagnostics=tuple(finding.to_json() for finding in exc.report.findings) if exc.report is not None else (),
+        )
+    if isinstance(exc, (HtmlInputError, AgentAssetError, NativeAgentError)):
+        return _CliFailure(2, f"error: {exc.code}: {exc}", _failure_message(exc), code=exc.code)
+    if isinstance(exc, (ReviewContractError, StudioCreationError, StudioShareError, IntentPatchError, ConvergeError)):
+        return _CliFailure(
+            exc.cli_exit, f"error: {exc.code}: {exc.message}\nfix: {exc.fix}", exc.message, code=exc.code, fix=exc.fix
+        )
+    code = getattr(exc, "code", None)
+    fix = getattr(exc, "fix", None)
+    message = getattr(exc, "message", None)
+    if isinstance(exc, (FileNotFoundError, ValueError, TypeError, json.JSONDecodeError)):
+        exit_code, text = 2, f"error: {exc}"
+    else:
+        exit_code, text = 1, f"internal error: {exc}"
+    return _CliFailure(
+        exit_code,
+        text,
+        # Coded exceptions such as StableCodeError format str(exc) as "CODE: message" and expose the
+        # bare text as .message; the code has its own JSON field, so it is not repeated in the message.
+        message if isinstance(code, str) and isinstance(message, str) and message else _failure_message(exc),
+        code=code if isinstance(code, str) else None,
+        fix=fix if isinstance(fix, str) else None,
+    )
+
+
+def _failure_message(exc: BaseException) -> str:
+    """The JSON error message for ``exc``: text that names what failed, never an empty string.
+
+    An exception group stands for its first leaf exception. anyio wraps an error that stops the
+    MCP server, such as a BrokenPipeError when the client goes away, in a group whose own text,
+    "unhandled errors in a TaskGroup (1 sub-exception)", names nothing. An exception whose str()
+    is empty, such as a bare ``RuntimeError()``, is named by its type. The exit code and the
+    human text still come from ``exc`` itself, so they stay as they were.
+    """
+    while isinstance(exc, BaseExceptionGroup):
+        exc = exc.exceptions[0]
+    return str(exc) or type(exc).__name__
+
+
+def _print_json_failure(failure: _CliFailure, defaults: _JsonFailureDefaults) -> None:
+    payload = tool_error_response(
+        failure.code or defaults.code,
+        failure.message,
+        failure.fix or defaults.fix,
+        diagnostics=failure.diagnostics,
+        metadata=_cli_metadata(),
+    )
+    if defaults.to_stderr:
+        print(json.dumps(payload, sort_keys=True), file=sys.stderr)
+    else:
+        _print_json(payload)
+
+
+def _cli_metadata(**extra: object) -> dict[str, object]:
+    return {"sdk_version": __version__, "network_calls": "none", **extra}
+
+
+def _print_json(payload: dict[str, object]) -> None:
+    print(json.dumps(payload, indent=2, sort_keys=True))
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -302,12 +401,14 @@ def _build_parser() -> argparse.ArgumentParser:
     compile_parser.add_argument("--stdin-format", choices=("html", "json"), help="Required when input is '-'.")
     compile_parser.add_argument("--title", help="Optional HTML document title for raw HTML input.")
     compile_parser.add_argument("--lift-json", action="store_true", help="Also write lift.json for raw HTML input.")
+    compile_parser.add_argument("--json", action="store_true", help="Print machine-readable JSON.")
     compile_parser.set_defaults(func=_compile_command)
 
     lift_parser = subparsers.add_parser("lift", help="Lift raw HTML into local semantic signals.")
     lift_parser.add_argument("input", help="Input .html/.htm file, or '-' for stdin.")
     lift_parser.add_argument("--out", required=True, help="Output lift.json file.")
     lift_parser.add_argument("--stdin-format", choices=("html",), help="Required when input is '-'.")
+    lift_parser.add_argument("--json", action="store_true", help="Print machine-readable JSON.")
     lift_parser.set_defaults(func=_lift_command)
 
     diff_parser = subparsers.add_parser("diff", help="Diff two raw HTML files semantically.")
@@ -347,6 +448,7 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Starter shape. react-app writes the runnable AppBundle V4 golden path.",
     )
     init_app_parser.add_argument("--force", action="store_true", help="Overwrite an existing file.")
+    init_app_parser.add_argument("--json", action="store_true", help="Print machine-readable JSON.")
     init_app_parser.set_defaults(func=_init_app_command)
 
     validate_app_parser = subparsers.add_parser("validate-app", help="Validate a local AppBundle JSON file.")
@@ -399,6 +501,7 @@ def _build_parser() -> argparse.ArgumentParser:
     init_parser = subparsers.add_parser("init-design", help="Write a starter strict DESIGN.md file.")
     init_parser.add_argument("--out", default="DESIGN.md", help="Output DESIGN.md path.")
     init_parser.add_argument("--force", action="store_true", help="Overwrite an existing file.")
+    init_parser.add_argument("--json", action="store_true", help="Print machine-readable JSON.")
     init_parser.set_defaults(func=_init_design_command)
 
     init_intent_parser = subparsers.add_parser("init-intent", help="Write a starter ViewSpec IntentBundle JSON file.")
@@ -407,6 +510,7 @@ def _build_parser() -> argparse.ArgumentParser:
         "--kind", default="dashboard", choices=STARTER_INTENT_KINDS, help="Starter motif kind."
     )
     init_intent_parser.add_argument("--force", action="store_true", help="Overwrite an existing file.")
+    init_intent_parser.add_argument("--json", action="store_true", help="Print machine-readable JSON.")
     init_intent_parser.set_defaults(func=_init_intent_command)
 
     doctor_parser = subparsers.add_parser("doctor", help="Check local ViewSpec SDK readiness.")
@@ -416,6 +520,7 @@ def _build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Also run the read-only Bun/Freerange readiness probe; nothing is installed.",
     )
+    doctor_parser.add_argument("--json", action="store_true", help="Print machine-readable JSON.")
     doctor_parser.set_defaults(func=_doctor_command)
 
     prove_parser = subparsers.add_parser("prove", help="Run a first ViewSpec proof and write a proof bundle.")
@@ -550,6 +655,7 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     init_agent_parser.add_argument("--root", default=".", help="Repository root for instruction files.")
     init_agent_parser.add_argument("--dry-run", action="store_true", help="Report changes without writing files.")
+    init_agent_parser.add_argument("--json", action="store_true", help="Print machine-readable JSON.")
     init_agent_parser.set_defaults(func=_init_agent_command)
 
     agent_assets_parser = subparsers.add_parser(
@@ -561,6 +667,7 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     agent_assets_parser.add_argument("--force", action="store_true", help="Replace existing generated assets.")
     agent_assets_parser.add_argument("--dry-run", action="store_true", help="Report changes without writing files.")
+    agent_assets_parser.add_argument("--json", action="store_true", help="Print machine-readable JSON.")
     agent_assets_parser.set_defaults(func=_export_agent_assets_command)
 
     check_agent_assets_parser = subparsers.add_parser(
@@ -735,6 +842,14 @@ def _build_parser() -> argparse.ArgumentParser:
     mcp_parser.add_argument("--cwd", default=".", help="MCP path sandbox root.")
     mcp_parser.add_argument(
         "--allow-outside-cwd", action="store_true", help="Allow MCP tools to read/write outside --cwd."
+    )
+    mcp_parser.add_argument(
+        "--json",
+        action="store_true",
+        help=(
+            "Report a failure that stops the server, at startup or later, as one line of JSON on stderr, "
+            "and keep the MCP SDK's per-request INFO logs off stderr; stdout stays reserved for the MCP protocol."
+        ),
     )
     mcp_parser.set_defaults(func=_mcp_command)
 
@@ -1221,12 +1336,28 @@ def _compile_command(args: argparse.Namespace) -> int:
             command_args=_compile_command_args(args, source_name),
         )
         paths = write_html_compile_result(result, out_dir, include_lift=bool(args.lift_json))
-        print(json.dumps(paths, indent=2, sort_keys=True))
+        if args.json:
+            _print_json(
+                tool_response(
+                    True,
+                    "Compiled imported HTML artifact.",
+                    diagnostics=result.diagnostics,
+                    external_refs=result.manifest.get("external_refs", []),
+                    paths=paths,
+                    next_actions=[f"Run viewspec check {out_dir} --json before using the artifact."],
+                    metadata=_cli_metadata(input_format="html", target=args.target),
+                )
+            )
+        else:
+            print(json.dumps(paths, indent=2, sort_keys=True))
         return 0
 
     validation = validate_intent_text(data, compile_check=True)
     if not validation["ok"]:
-        _print_intent_validation_failure(validation)
+        if args.json:
+            _print_json(_intent_validation_failure_response(validation))
+        else:
+            _print_intent_validation_failure(validation)
         return 2
     output_names = (
         ("ViewSpecView.tsx", "provenance_manifest.json", "diagnostics.json")
@@ -1259,7 +1390,18 @@ def _compile_command(args: argparse.Namespace) -> int:
         artifact_path=artifact_path,
         emitter=emitter,
     )
-    print(json.dumps(paths, indent=2, sort_keys=True))
+    if args.json:
+        _print_json(
+            tool_response(
+                True,
+                "Compiled IntentBundle artifact.",
+                paths=paths,
+                next_actions=[f"Run viewspec check {out_dir} --json before using the artifact."],
+                metadata=_cli_metadata(input_format="json", target=args.target, emitter=emitter),
+            )
+        )
+    else:
+        print(json.dumps(paths, indent=2, sort_keys=True))
     return 0
 
 
@@ -1300,6 +1442,25 @@ def _print_intent_validation_failure(payload: dict[str, object]) -> None:
     print(json.dumps(payload, indent=2, sort_keys=True), file=sys.stderr)
 
 
+def _intent_validation_failure_response(validation: dict[str, Any]) -> dict[str, Any]:
+    """The compile --json failure for an invalid IntentBundle, shaped like MCP compile_intent_bundle_file's."""
+    return tool_error_response(
+        "COMPILE_FAILED",
+        "IntentBundle validation failed.",
+        "Regenerate the IntentBundle using correction_prompt, then rerun viewspec compile.",
+        errors=[
+            {
+                "code": issue["code"],
+                "message": issue["message"],
+                "fix": issue.get("suggestion") or "Regenerate the full IntentBundle JSON.",
+            }
+            for issue in validation["issues"]
+        ],
+        data={"validation": validation, "correction_prompt": validation["correction_prompt"]},
+        metadata=_cli_metadata(),
+    )
+
+
 def _lift_command(args: argparse.Namespace) -> int:
     data, source_name, input_path = _read_input(args.input, stdin_format=args.stdin_format)
     output_path = Path(args.out)
@@ -1308,7 +1469,22 @@ def _lift_command(args: argparse.Namespace) -> int:
     result = lift_html(data, source_name=source_name)
     output_path.parent.mkdir(parents=True, exist_ok=True)
     atomic_write(output_path, json.dumps(result.to_json(), indent=2, sort_keys=True))
-    print(str(output_path))
+    if args.json:
+        paths = {"lift": str(output_path)}
+        if input_path is not None:
+            paths["input"] = str(input_path)
+        _print_json(
+            tool_response(
+                True,
+                "Lifted local HTML into semantic signals.",
+                diagnostics=result.diagnostics,
+                paths=paths,
+                data={"lift": result.to_json()},
+                metadata=_cli_metadata(),
+            )
+        )
+    else:
+        print(str(output_path))
     return 0
 
 
@@ -1395,7 +1571,30 @@ def _init_app_command(args: argparse.Namespace) -> int:
         resource_binding=binding_mode,
         template=args.template,
     )
-    print(str(path))
+    if args.json:
+        # Report the binding of the bundle that was written, read back the way MCP init_app reads
+        # it: the react-app template writes a fixture_readonly_v0 AppBundle V4 whatever
+        # --resource-binding says, so the argument alone can be wrong.
+        written = validate_app_file(path, compile_check=False)
+        _print_json(
+            tool_response(
+                True,
+                "Wrote starter AppBundle.",
+                paths={"app": str(path)},
+                next_actions=[
+                    "Replace the sample labels and records with real app context.",
+                    f"Run viewspec validate-app {path} --json.",
+                ],
+                metadata=_cli_metadata(
+                    kind=args.kind,
+                    template=args.template,
+                    resource_binding=written.get("resource_binding"),
+                    binding_scope=written.get("binding_scope"),
+                ),
+            )
+        )
+    else:
+        print(str(path))
     return 0
 
 
@@ -1542,13 +1741,38 @@ def _compile_app_command(args: argparse.Namespace) -> int:
 
 def _init_design_command(args: argparse.Namespace) -> int:
     path = init_design_file(args.out, force=args.force)
-    print(str(path))
+    if args.json:
+        _print_json(
+            tool_response(
+                True,
+                "Wrote starter DESIGN.md.",
+                paths={"design": str(path)},
+                next_actions=[f"Compile with --design {path}."],
+                metadata=_cli_metadata(),
+            )
+        )
+    else:
+        print(str(path))
     return 0
 
 
 def _init_intent_command(args: argparse.Namespace) -> int:
     path = init_intent_file(args.out, kind=args.kind, force=args.force)
-    print(str(path))
+    if args.json:
+        _print_json(
+            tool_response(
+                True,
+                "Wrote starter IntentBundle.",
+                paths={"intent": str(path)},
+                next_actions=[
+                    "Replace sample labels and values with real user intent.",
+                    f"Run viewspec validate-intent {path} --json.",
+                ],
+                metadata=_cli_metadata(kind=args.kind),
+            )
+        )
+    else:
+        print(str(path))
     return 0
 
 
@@ -1614,7 +1838,19 @@ def _doctor_command(args: argparse.Namespace) -> int:
 
         checks["freerange"] = freerange_readiness()
     ok = _doctor_checks_ok(checks)
-    print(json.dumps({"ok": ok, "checks": checks}, indent=2, sort_keys=True))
+    if args.json:
+        _print_json(
+            tool_response(
+                ok,
+                "Local ViewSpec SDK is ready." if ok else "Local ViewSpec SDK readiness checks failed.",
+                errors=_doctor_errors(checks),
+                next_actions=[] if ok else ["Fix the failing checks listed in errors, then rerun viewspec doctor."],
+                data={"checks": checks},
+                metadata=_cli_metadata(),
+            )
+        )
+    else:
+        print(json.dumps({"ok": ok, "checks": checks}, indent=2, sort_keys=True))
     return 0 if ok else 2
 
 
@@ -1813,6 +2049,79 @@ def _doctor_checks_ok(value: object) -> bool:
     if isinstance(value, list):
         return all(_doctor_checks_ok(item) for item in value)
     return True
+
+
+def _doctor_errors(checks: Mapping[str, object]) -> list[dict[str, str]]:
+    """The doctor --json errors: one DOCTOR_CHECK_FAILED per failing check, with the fix that repairs
+    it, followed by the Freerange probe's own coded errors when that probe failed."""
+    errors = [
+        {
+            "code": "DOCTOR_CHECK_FAILED",
+            "message": f"Readiness check failed: {name}.",
+            "fix": _doctor_check_fix(name, checks),
+        }
+        for name in _doctor_failing_checks(checks)
+    ]
+    errors.extend(error for error in _doctor_freerange_errors(checks.get("freerange")) if error not in errors)
+    return errors
+
+
+def _doctor_check_fix(name: str, checks: Mapping[str, object]) -> str:
+    if name == "mcp_dependency":
+        return MCP_INSTALL_HINT
+    if name.startswith("local_agent_assets."):
+        return _doctor_agent_asset_fix(".viewspec")
+    if name.startswith("published_agent_assets."):
+        return _doctor_agent_asset_fix("demos")
+    if name.startswith("freerange."):
+        # Bun is not a viewspec dependency, so reinstalling viewspec never fixes this probe; the
+        # probe's own coded error says what to change.
+        fixes = dict.fromkeys(error["fix"] for error in _doctor_freerange_errors(checks.get("freerange")))
+        return " ".join(fixes) or (
+            "Install or upgrade Bun explicitly (ViewSpec never installs it), then rerun viewspec doctor --freerange."
+        )
+    return _JSON_FAILURE_DEFAULTS["doctor"].fix
+
+
+def _doctor_agent_asset_fix(directory: str) -> str:
+    # The assets fail the check when they differ from this SDK's contract in either direction, so a
+    # forced re-export is right only when the installed SDK is the newer one.
+    return (
+        f"Re-export the agent assets with viewspec export-agent-assets --out {directory} --force, or upgrade "
+        f"viewspec instead if a newer ViewSpec release exported {directory}; then rerun viewspec doctor --agents."
+    )
+
+
+def _doctor_freerange_errors(report: object) -> list[dict[str, str]]:
+    """The coded {code, message, fix} errors that a failed Freerange readiness report carries."""
+    if not isinstance(report, dict) or report.get("ok") is not False:
+        return []
+    items = report.get("errors")
+    return [
+        {"code": item["code"], "message": item["message"], "fix": item["fix"]}
+        for item in (items if isinstance(items, list) else [])
+        if isinstance(item, dict)
+        and all(isinstance(item.get(key), str) and item[key] for key in ("code", "message", "fix"))
+    ]
+
+
+def _doctor_failing_checks(value: object, prefix: str = "") -> list[str]:
+    """Dotted paths of the `false` leaves that make `_doctor_checks_ok` fail, in sorted key order."""
+    if isinstance(value, bool):
+        return [] if value else [prefix or "checks"]
+    if isinstance(value, dict):
+        return [
+            path
+            for key in sorted(value, key=str)
+            for path in _doctor_failing_checks(value[key], f"{prefix}.{key}" if prefix else str(key))
+        ]
+    if isinstance(value, list):
+        return [
+            path
+            for index, item in enumerate(value)
+            for path in _doctor_failing_checks(item, f"{prefix}[{index}]" if prefix else f"[{index}]")
+        ]
+    return []
 
 
 def _prove_command(args: argparse.Namespace) -> int:
@@ -2103,13 +2412,38 @@ def _host_report_summary_lines(host_report: object) -> list[str]:
 
 def _init_agent_command(args: argparse.Namespace) -> int:
     result = init_agent_instructions(args.root, args.target, dry_run=args.dry_run)
-    print(json.dumps(result, indent=2, sort_keys=True))
+    if args.json:
+        if not result["changes"]:
+            summary = "Managed agent instructions are already current."
+        elif args.dry_run:
+            summary = "Planned managed agent instruction changes; nothing was written."
+        else:
+            summary = "Updated managed agent instructions."
+        _print_json(
+            tool_response(
+                True,
+                summary,
+                paths={"root": result["root"]},
+                # The same keys the default output prints, so --json is a superset of it.
+                data={"target": result["target"], "root": result["root"], "changes": result["changes"]},
+                metadata=_cli_metadata(dry_run=bool(args.dry_run)),
+            )
+        )
+    else:
+        print(json.dumps(result, indent=2, sort_keys=True))
     return 0
 
 
 def _export_agent_assets_command(args: argparse.Namespace) -> int:
     result = export_agent_assets(args.out, force=args.force, dry_run=args.dry_run)
-    print(json.dumps(result, indent=2, sort_keys=True))
+    if args.json:
+        _print_json(
+            agent_asset_export_response(
+                Path(result["out"]), result, dry_run=bool(args.dry_run), metadata=_cli_metadata()
+            )
+        )
+    else:
+        print(json.dumps(result, indent=2, sort_keys=True))
     return 0
 
 
@@ -2126,11 +2460,53 @@ def _check_agent_assets_command(args: argparse.Namespace) -> int:
 
 def _mcp_command(args: argparse.Namespace) -> int:
     try:
-        run_mcp_server(cwd=args.cwd, allow_outside_cwd=args.allow_outside_cwd)
+        # Under --json, keep the SDK's per-request INFO logs off stderr, where a failure that
+        # stops the server is reported as one JSON line.
+        run_mcp_server(cwd=args.cwd, allow_outside_cwd=args.allow_outside_cwd, log_level="ERROR" if args.json else None)
     except MissingMCPDependency:
-        print(MCP_INSTALL_HINT, file=sys.stderr)
+        if args.json:
+            # stdout belongs to the MCP protocol even when the server never starts.
+            payload = tool_error_response(
+                "MCP_DEPENDENCY_MISSING",
+                "The optional MCP SDK is not installed, or its mcp.server.fastmcp module does not import.",
+                MCP_INSTALL_HINT,
+                metadata=_cli_metadata(),
+            )
+            print(json.dumps(payload, sort_keys=True), file=sys.stderr)
+        else:
+            print(MCP_INSTALL_HINT, file=sys.stderr)
         return 2
+    finally:
+        _release_broken_stdout()
     return 0
+
+
+def _release_broken_stdout() -> None:
+    """Point stdout at the null device when it is a broken pipe, so the flush at exit cannot fail.
+
+    The MCP server writes the protocol to stdout, so a client that goes away leaves a broken pipe
+    that can still hold unwritten bytes. Python flushes them at exit, and on Python 3.14 each failed
+    flush adds a BrokenPipeError report to stderr and turns the exit status into 120, which would
+    break the one-line --json failure report and the exit code both modes share.
+    """
+    stdout = sys.stdout
+    if stdout is None:
+        # fd 1 was closed when Python started, so there is nothing to flush at exit, and the server's
+        # own failure must not be replaced by this one.
+        return
+    try:
+        stdout.flush()
+    except BrokenPipeError:
+        with contextlib.suppress(OSError, ValueError):
+            devnull = os.open(os.devnull, os.O_WRONLY)
+            try:
+                os.dup2(devnull, stdout.fileno())
+            finally:
+                os.close(devnull)
+    except (OSError, ValueError):
+        # Another write error, or a closed stdout, which Python skips at exit: nothing to release,
+        # and the server's own failure must not be replaced by this one.
+        return
 
 
 def _load_design(path: str | None, *, strict: bool) -> DesignSystemContext | None:
@@ -2179,17 +2555,18 @@ def _compile_command_args(args: argparse.Namespace, source_name: str | None) -> 
     return command
 
 
-def _print_design_error(exc: DesignSystemError) -> None:
-    print(f"error: {exc}", file=sys.stderr)
+def _design_error_lines(exc: DesignSystemError) -> list[str]:
+    lines = [f"error: {exc}"]
     if exc.report is None:
-        return
+        return lines
     summary = exc.report.summary()
-    print(
-        f"DESIGN.md lint: {summary['errors']} error(s), {summary['warnings']} warning(s), {summary['info']} info",
-        file=sys.stderr,
+    lines.append(
+        f"DESIGN.md lint: {summary['errors']} error(s), {summary['warnings']} warning(s), {summary['info']} info"
     )
-    for finding in exc.report.findings:
-        print(f"{finding.severity}: {finding.code} at {finding.path}: {finding.message}", file=sys.stderr)
+    lines.extend(
+        f"{finding.severity}: {finding.code} at {finding.path}: {finding.message}" for finding in exc.report.findings
+    )
+    return lines
 
 
 if __name__ == "__main__":

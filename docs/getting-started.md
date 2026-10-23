@@ -328,6 +328,53 @@ V1 local caps keep agent repair loops predictable: max 256KB JSON, 200 substrate
 
 Use `viewspec init-design --out DESIGN.md` for a starter design file when the repo does not already have one, and `viewspec doctor` to check local SDK readiness. `doctor` reports the intent-first commands, runs starter IntentBundle validation/compile/diff, aesthetic-profile diff, and semantic summary smoke checks, verifies `PyYAML`, and states the local no-network policy. It also reports Node.js availability, which is required only for AppBundle V3/V4 (`interactive_state_v0`) reducer conformance; V1/V2 and all IntentBundle flows are Python-only. Add `--freerange` for the separate read-only Bun readiness probe.
 
+### Machine-readable output
+
+Every `viewspec` subcommand accepts `--json`. For `compile`, `lift`, `doctor`, `init-intent`,
+`init-design`, `init-app`, `init-agent`, and `export-agent-assets`, `--json` prints one standard tool
+envelope on stdout, the same shape the MCP tools return:
+
+```json
+{
+  "schema_version": 1,
+  "ok": true,
+  "summary": "Compiled IntentBundle artifact.",
+  "diagnostics": [],
+  "external_refs": [],
+  "paths": {"html": "dist/index.html", "manifest": "dist/provenance_manifest.json", "diagnostics": "dist/diagnostics.json"},
+  "next_actions": ["Run viewspec check dist --json before using the artifact."],
+  "errors": [],
+  "metadata": {"sdk_version": "...", "network_calls": "none", "target": "html-tailwind", "emitter": "html_tailwind"}
+}
+```
+
+Command data sits beside those keys: `lift` adds `lift`, `doctor` adds `checks`, `init-agent` adds
+`target`, `root`, and `changes`, and `export-agent-assets` adds `assets`. A failure is the same
+envelope with `"ok": false` and `errors: [{code, message, fix}]`; an invalid IntentBundle passed to
+`compile` also carries `validation` and `correction_prompt`, and a DESIGN.md error lists its
+findings under `diagnostics`. `doctor --json` reports each failing check as a `DOCTOR_CHECK_FAILED`
+error whose `fix` repairs that check, and a failed `--freerange` probe also adds its own coded
+errors, such as `APP_FREERANGE_RUNTIME_MISSING`. Exit codes match human mode and are the same as in
+earlier releases: `0` on success; `2` for most invalid input, including a missing input file,
+invalid JSON, an invalid IntentBundle or DESIGN.md, an existing output without `--force`, and a
+failed readiness check; and `1` for an internal error. Some invalid paths exit `1` as well, as they
+always have: a directory where a file is expected (`compile --design`, `lift --out`), a file where
+a directory is expected (`compile --out`, `init-agent --root`), and a permission error. With
+`--json` these commands write nothing else to stdout or stderr. Only an argument the parser rejects
+is still reported as usage text on stderr, with exit `2`, before the command runs. Without `--json`
+the output is unchanged: `compile` prints the emitted paths, `doctor` prints `{ok, checks}`,
+`init-agent` and `export-agent-assets` print their result object, and `lift` and the `init-*`
+commands print the written path.
+
+`viewspec mcp` is a stdio server, so its stdout carries only the MCP protocol, with or without
+`--json`. `viewspec mcp --json` changes how a failure that ends the command is reported: a failure to
+start, such as a missing `viewspec[agents]` extra (`MCP_DEPENDENCY_MISSING`) or an invalid `--cwd`
+(`INVALID_PATH`), and an unexpected error that stops a running server (`MCP_SERVER_FAILED`, exit
+`1`) are written to stderr as one line holding the same envelope, instead of human text, with the
+same exit code. The message names the error itself, such as `[Errno 32] Broken pipe` when the
+client goes away, not the task group that wrapped it. `--json` also lowers the MCP SDK's log level
+from `INFO` to `ERROR`, so the line for every request it serves stays off stderr.
+
 ## AppBundle V1/V2/V3/V4
 
 For a narrow multi-screen internal-tool contract, use AppBundle JSON. It keeps app generation at the contract/proof layer: embedded screen `IntentBundle`s, static routes, fixture resources, validation, semantic diffing, and per-screen checked `html-tailwind` artifacts. `schema_version: 1` reports `resource_binding: "unbound_v0"`; `schema_version: 2` adds proof-only `resource_binding: "fixture_readonly_v0"` and declared `resource_views`; `schema_version: 3` adds bounded `interactive_state_v0` state, mutations, selectors, replay assertions, and a generated pure TypeScript reducer; `schema_version: 4` adds bounded `visibility` rules with baked initial show/hide markers, `expect_visibility` replay proof, and an `evaluateViewSpecVisibility` reducer export.
@@ -456,12 +503,33 @@ viewspec prove --target react-tailwind-tsx --install --out .viewspec-proof --jso
 For local compilation, parse a strict `DESIGN.md` subset and pass it to IntentBundle or raw HTML import compilation:
 
 ```python
+from pathlib import Path
+
 from viewspec import compile, compile_html, load_design_system
 
 design = load_design_system(path="DESIGN.md")
 html_result = compile_html("<h1>Report</h1>", design=design)
 ast = compile(builder.build_bundle(), design=design)
+# The same file, read by compile_html and compile themselves:
+html_result = compile_html("<h1>Report</h1>", design=Path("DESIGN.md"))
+ast = compile(builder.build_bundle(), design=Path("DESIGN.md"))
 ```
+
+`compile(bundle, design=...)` takes a `DesignSystemContext` from `load_design_system()`, a path as
+an `os.PathLike` such as `Path("DESIGN.md")`, or a `str` holding DESIGN.md *content*. A `str` never
+touches the filesystem: `compile()` does not open it, read it or check whether a file by that name
+exists, so passing request text straight through can neither make `compile()` read a local file
+nor reveal which local paths exist. `compile(bundle, design="DESIGN.md")` therefore parses the
+text `DESIGN.md` as content and fails with `DesignSystemError` ("must begin with YAML front
+matter"), as in earlier releases. The error carries an exception note, shown in tracebacks, that
+says to pass `Path("DESIGN.md")`; the error and its note are the same for every one-line `str`,
+whether or not a file by that name exists. A `DesignRequest` is parsed locally from its `content`;
+its `lint` flag is read only by the hosted compiler. `compile_html(html, design=...)` takes a
+`DesignSystemContext` or an `os.PathLike` path the same way, but no `str` or `DesignRequest`.
+
+`load_design_system()` always validates. Its `lint` argument never had a local effect, is
+deprecated, and emits a `DeprecationWarning` when passed; drop it. Findings are in
+`context.lint_report`, or in `DesignSystemError.report` when loading fails.
 
 From the CLI:
 
