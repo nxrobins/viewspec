@@ -48,8 +48,8 @@ jobs:
       LANG: "en_US.UTF-8"
       LC_ALL: "en_US.UTF-8"
       NODE_VERSION: "22.23.1"
-      # npm is pinned to its major.minor line only: setup-node can change the npm patch
-      # release independently of this repository.
+      # npm is pinned to its major.minor line only. Each Node release bundles one npm version,
+      # so a NODE_VERSION patch bump that moves npm within this line needs no npm edit here.
       NPM_MAJOR_MINOR: "10.9"
       PIP_DISABLE_PIP_VERSION_CHECK: "1"
       PLAYWRIGHT_VERSION: "1.60.0"

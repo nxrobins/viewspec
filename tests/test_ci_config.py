@@ -97,8 +97,11 @@ _RUNS_LIKE_THE_E2E_JOB = pytest.mark.skipif(
 def _browser_proof_step(name: str) -> tuple[str, dict[str, str]]:
     job = _load("pretext-e2e.yml")["jobs"]["browser-proof"]
     (step,) = [step for step in job["steps"] if step.get("name") == name]
-    # Without a ``shell`` key, GitHub runs the step as ``bash -e {0}``, as _run_step does.
+    # Without a ``shell`` key at the step, job or workflow level, GitHub runs the step as
+    # ``bash -e {0}``, as _run_step does.
+    workflow_defaults = _load("pretext-e2e.yml").get("defaults", {}).get("run", {})
     assert "shell" not in step and "shell" not in job.get("defaults", {}).get("run", {})
+    assert "shell" not in workflow_defaults
     env = {key: str(value) for key, value in job["env"].items() if "${{" not in str(value)}
     return step["run"], env
 
