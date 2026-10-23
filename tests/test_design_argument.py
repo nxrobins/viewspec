@@ -1,16 +1,23 @@
 """How compile(design=...) and load_design_system() take a DESIGN.md (audit C-9).
 
-A ``str`` passed as ``design`` is DESIGN.md content and is never opened as a file, so a ``str`` from
-an untrusted source cannot make compile() read a local file. File paths are an explicit input as an
-``os.PathLike``. A single-line ``str`` can never be valid content: it fails with the same
-``DesignSystemError`` it always raised, now with a note that says to pass ``pathlib.Path``, and when
-it names an existing file a ``DeprecationWarning`` says so as well. ``load_design_system(lint=...)``
-never had a local effect, so passing it warns too.
+A ``str`` passed as ``design`` is DESIGN.md content and never touches the filesystem: compile() does
+not open it, read it or check whether a file by that name exists, so a ``str`` from an untrusted
+source can neither make compile() read a local file nor reveal which local paths exist. File paths
+are an explicit input as an ``os.PathLike``. A single-line ``str`` can never be valid content: it
+fails with the same ``DesignSystemError`` it always raised, now with a note that says to pass
+``pathlib.Path``, and the error is the same whether or not a file by that name exists.
+``load_design_system(lint=...)`` never had a local effect, so passing it emits a
+``DeprecationWarning``.
 """
 
 from __future__ import annotations
 
+import builtins
+import contextlib
+import io
+import os
 import warnings
+from collections.abc import Callable, Iterator
 from pathlib import Path
 
 import pytest
@@ -62,6 +69,39 @@ def design_file(tmp_path: Path) -> Path:
     return path
 
 
+# Every way compile() could stat, test for or open a path named by a str.
+_FILESYSTEM_FUNCTIONS = (
+    (os, ("stat", "lstat", "open", "access", "listdir", "scandir")),
+    (os.path, ("exists", "lexists", "isfile", "isdir", "islink", "getsize")),
+    (builtins, ("open",)),
+    (io, ("open", "open_code")),
+    (Path, ("stat", "lstat", "open", "exists", "is_file", "is_dir", "read_text", "read_bytes")),
+)
+
+
+@contextlib.contextmanager
+def _no_filesystem_access() -> Iterator[list[str]]:
+    """Fail on, and record, every stat, existence check or open of a path.
+
+    It covers os, os.path, io, builtins and pathlib. Recording as well as raising catches a call
+    whose AssertionError the code under test swallows.
+    """
+    touched: list[str] = []
+
+    def forbidden(name: str) -> Callable[..., object]:
+        def call(*args: object, **_kwargs: object) -> object:
+            touched.append(f"{name}{args!r}")
+            raise AssertionError(f"compile() touched the filesystem: {name}{args!r}")
+
+        return call
+
+    with pytest.MonkeyPatch.context() as patch:
+        for owner, names in _FILESYSTEM_FUNCTIONS:
+            for name in names:
+                patch.setattr(owner, name, forbidden(f"{owner.__name__}.{name}"))
+        yield touched
+
+
 def test_compile_reads_a_pathlike_design_as_a_file_without_warning(design_file):
     from_content = compile(_bundle(), design=DESIGN)
     with warnings.catch_warnings():
@@ -75,20 +115,17 @@ def test_compile_reads_a_pathlike_design_as_a_file_without_warning(design_file):
     assert from_path.result.root == from_content.result.root
 
 
-def test_compile_str_naming_an_existing_file_warns_but_is_still_parsed_as_content(design_file, monkeypatch):
+def test_compile_str_naming_an_existing_file_is_still_parsed_as_content(design_file, monkeypatch):
     monkeypatch.chdir(design_file.parent)
 
     # The exact call from the audit: a relative path in a str. It fails as it always did, because
-    # the str is content; the warning only says how to pass a path.
-    with pytest.warns(
-        DeprecationWarning, match=r"the file is not read\. Pass pathlib\.Path\(\.\.\.\) for a file"
-    ) as caught:
+    # the str is content. Only the exception note points at pathlib.Path; there is no warning,
+    # because telling an existing file apart would mean checking the filesystem.
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
         with pytest.raises(DesignSystemError, match="must begin with YAML front matter") as info:
             compile(_bundle(), design="DESIGN.md")
 
-    assert len(caught) == 1
-    # stacklevel points the warning at the caller of compile(), not at the compiler internals.
-    assert caught[0].filename == __file__
     assert info.value.report is not None
     assert info.value.report.source == "<content>"
     assert info.value.__notes__ == [PATH_NOTE]
@@ -124,10 +161,13 @@ def test_compile_never_reads_a_file_named_by_a_str(make_file, tmp_path, monkeypa
         raise AssertionError("compile() read a file named by a str design")
 
     monkeypatch.setattr(design_md, "_read_design_text", no_file_reads)
-    with pytest.warns(DeprecationWarning):
-        with pytest.raises(DesignSystemError) as info:
-            compile(_bundle(), design=str(path))
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        with _no_filesystem_access() as touched:
+            with pytest.raises(DesignSystemError) as info:
+                compile(_bundle(), design=str(path))
 
+    assert touched == []
     assert str(info.value) == "DESIGN.md must begin with YAML front matter"
     assert info.value.report is not None
     assert info.value.report.to_json() == {
@@ -146,13 +186,18 @@ def test_compile_never_reads_a_file_named_by_a_str(make_file, tmp_path, monkeypa
 
 def test_compile_str_error_does_not_reveal_whether_the_file_exists(design_file, monkeypatch):
     monkeypatch.chdir(design_file.parent)
+    # Warnings are errors here, as under `python -W error`: a warning raised only for a str that
+    # names an existing file would turn compile() into an existence oracle for any path, even an
+    # unreadable one, because stat() needs no read permission.
     with warnings.catch_warnings():
-        warnings.simplefilter("ignore", DeprecationWarning)
-        with pytest.raises(DesignSystemError) as existing:
-            compile(_bundle(), design="DESIGN.md")
-        with pytest.raises(DesignSystemError) as missing:
-            compile(_bundle(), design="MISSING.md")
+        warnings.simplefilter("error")
+        with _no_filesystem_access() as touched:
+            with pytest.raises(DesignSystemError) as existing:
+                compile(_bundle(), design="DESIGN.md")
+            with pytest.raises(DesignSystemError) as missing:
+                compile(_bundle(), design="MISSING.md")
 
+    assert touched == []
     assert str(existing.value) == str(missing.value)
     assert existing.value.report is not None and missing.value.report is not None
     assert existing.value.report.to_json() == missing.value.report.to_json()
@@ -170,8 +215,10 @@ def test_compile_str_with_line_breaks_stays_content_without_warning(design_file,
     monkeypatch.chdir(design_file.parent)
     with warnings.catch_warnings():
         warnings.simplefilter("error")
-        ast = compile(_bundle(), design=DESIGN)
+        with _no_filesystem_access() as touched:
+            ast = compile(_bundle(), design=DESIGN)
 
+    assert touched == []
     assert "#123456" in ast.style_values["tone.neutral"]
 
 
@@ -182,6 +229,28 @@ def test_compile_single_line_str_that_names_no_file_is_still_parsed_as_content(d
         warnings.simplefilter("error")
         with pytest.raises(DesignSystemError, match="YAML front matter"):
             compile(_bundle(), design=design)
+
+
+@pytest.mark.parametrize(
+    "design",
+    [
+        "DESIGN.md",
+        "/etc/shadow",  # stat() needs no read permission, so even an unreadable file would show
+        r"\\fileserver\share\DESIGN.md",  # stat() on a UNC path opens an SMB session on Windows
+        "/net/fileserver/DESIGN.md",  # stat() on an autofs path triggers a mount on Linux
+        "DESIGN.md\n",  # one line: splitlines() drops a trailing line break
+    ],
+)
+def test_compile_str_never_touches_the_filesystem(design, design_file, monkeypatch):
+    monkeypatch.chdir(design_file.parent)
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        with _no_filesystem_access() as touched:
+            with pytest.raises(DesignSystemError, match="must begin with YAML front matter") as info:
+                compile(_bundle(), design=design)
+
+    assert touched == []
+    assert info.value.__notes__ == [PATH_NOTE]
 
 
 def test_compile_str_naming_a_directory_is_still_parsed_as_content(tmp_path, monkeypatch):
