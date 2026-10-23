@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import importlib
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 from viewspec.app_bundle import (
     compile_app_tool,
@@ -81,7 +81,18 @@ def mcp_dependency_available() -> bool:
     return hasattr(module, "FastMCP")
 
 
-def run_mcp_server(*, cwd: str | Path | None = None, allow_outside_cwd: bool = False) -> None:
+def run_mcp_server(
+    *,
+    cwd: str | Path | None = None,
+    allow_outside_cwd: bool = False,
+    log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"] | None = None,
+) -> None:
+    """Serve the ViewSpec tools over stdio until the client disconnects.
+
+    ``log_level`` is passed to FastMCP, which logs to stderr; ``None`` leaves the level to the SDK,
+    whose default, ``INFO``, logs a line for every request. ``viewspec mcp --json`` passes
+    ``"ERROR"`` so that those lines do not mix with its one-line JSON failure report on stderr.
+    """
     if not mcp_dependency_available():
         raise MissingMCPDependency(MCP_INSTALL_HINT)
     try:
@@ -90,7 +101,7 @@ def run_mcp_server(*, cwd: str | Path | None = None, allow_outside_cwd: bool = F
         raise MissingMCPDependency(MCP_INSTALL_HINT) from exc
 
     root = resolve_cwd(cwd)
-    app = FastMCP("viewspec")
+    app = FastMCP("viewspec") if log_level is None else FastMCP("viewspec", log_level=log_level)
 
     @app.tool(
         description=(

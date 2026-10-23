@@ -12,7 +12,9 @@ with full provenance for every motif type the SDK builders generate.
 from __future__ import annotations
 
 import json
+import os
 import re
+from pathlib import Path
 from typing import Any
 
 from viewspec.aesthetics import (
@@ -606,7 +608,9 @@ def _detect_single_column_surface_v1(
     if len(children) != 1:
         return None
     main = children[0]
-    if main.layout != "stack" or main.role not in WORKSPACE_PRIMARY_ROLE_MARKERS:
+    # Same tokenised role matching as the workspace detector, so a role such as "Main" or
+    # "primary-column" means the same thing to both surface detectors.
+    if main.layout != "stack" or not _region_role_matches(main, WORKSPACE_PRIMARY_ROLE_MARKERS):
         return None
     if any(region.id not in {root_region, main.id} for region in valid_regions):
         return None
@@ -1675,7 +1679,7 @@ def _validate_actions(
 def _resolve_and_apply_styles(
     view_spec: ViewSpec,
     substrate: SemanticSubstrate,
-    design: DesignSystemContext | DesignRequest | str | None,
+    design: DesignSystemContext | DesignRequest | str | os.PathLike[str] | None,
     strict_design: bool,
     region_nodes: dict[str, IRNode],
     binding_nodes: dict[str, IRNode],
@@ -1784,7 +1788,7 @@ def _resolve_and_apply_styles(
 
 def compile(
     bundle: IntentBundle,
-    design: DesignSystemContext | DesignRequest | str | None = None,
+    design: DesignSystemContext | DesignRequest | str | os.PathLike[str] | None = None,
     *,
     strict_design: bool = False,
     motif_plugins: tuple[MotifPlugin, ...] = (),
@@ -1796,6 +1800,21 @@ def compile(
     Supports motif kinds: table, dashboard, outline, comparison, list, form, detail,
     empty_state, loading_state, error_state, hero.
     Raises UnsupportedMotifError for motif kinds not in the reference set.
+
+    ``design`` applies a local DESIGN.md and takes one of:
+
+    * a ``DesignSystemContext`` from ``load_design_system()``;
+    * an ``os.PathLike`` such as ``pathlib.Path("DESIGN.md")``, read as a file path;
+    * a ``str``, parsed as DESIGN.md *content*;
+    * a hosted ``DesignRequest``, whose ``content`` is parsed locally (its ``lint`` flag is
+      read only by the hosted compiler).
+
+    A ``str`` never touches the filesystem: ``compile()`` does not open it, read it or check
+    whether a file by that name exists, so a ``str`` from an untrusted source cannot make
+    ``compile()`` read a local file or reveal which local paths exist. DESIGN.md content always
+    spans several lines, so a ``str`` without a line break, such as ``"DESIGN.md"``, fails with
+    ``DesignSystemError`` whose note says to pass ``pathlib.Path(...)``; the error and its note are
+    the same whether or not a file by that name exists.
 
     For full compilation (arbitrary data shapes, OOD generalization),
     use the hosted compiler at api.viewspec.dev.
@@ -1914,8 +1933,27 @@ def _associate_field_labels(node: IRNode) -> None:
         _associate_field_labels(child)
 
 
+_DESIGN_PATH_HINT = "Pass pathlib.Path(...) for a file, or a DesignSystemContext from load_design_system(path=...)."
+
+
+# The line boundaries str.splitlines() recognises, with "\r\n" as a single boundary.
+_LINE_BOUNDARY = re.compile("\r\n|[\n\r\v\f\x1c\x1d\x1e\x85\u2028\u2029]")
+
+
+def _is_single_line(text: str) -> bool:
+    """Return ``len(text.splitlines()) <= 1`` without splitting ``text``.
+
+    ``splitlines()`` is how the DESIGN.md parser counts lines, but ``text`` is caller input that the
+    64 KiB DESIGN.md limit has not bounded yet, so the check finds the first line boundary instead
+    of building a list of every line: ``text`` is a single line when it has no boundary, or only
+    one boundary, at its very end.
+    """
+    boundary = _LINE_BOUNDARY.search(text)
+    return boundary is None or boundary.end() == len(text)
+
+
 def _coerce_design_context(
-    design: DesignSystemContext | DesignRequest | str | None,
+    design: DesignSystemContext | DesignRequest | str | os.PathLike[str] | None,
     *,
     strict_design: bool = False,
 ) -> DesignSystemContext | None:
@@ -1924,10 +1962,24 @@ def _coerce_design_context(
     if isinstance(design, DesignSystemContext):
         return design
     if isinstance(design, DesignRequest):
-        return load_design_system(content=design.content, lint=design.lint, strict=strict_design)
+        # DesignRequest.lint is a hosted-compiler knob; local validation always runs, so it is not
+        # passed on (load_design_system's lint argument is deprecated and has no effect).
+        return load_design_system(content=design.content, strict=strict_design)
+    if isinstance(design, os.PathLike):
+        return load_design_system(path=Path(design), strict=strict_design)
     if isinstance(design, str):
-        return load_design_system(content=design, strict=strict_design)
-    raise TypeError("design must be a DesignSystemContext, DesignRequest, DESIGN.md string, or None")
+        try:
+            return load_design_system(content=design, strict=strict_design)
+        except DesignSystemError as exc:
+            # The same note for every single-line str: the str is never checked against the
+            # filesystem (audit C-9), so neither the error nor the note can reveal which local
+            # paths exist.
+            if _is_single_line(design):
+                exc.add_note(
+                    f"compile(design=...) parses a str as DESIGN.md content, never as a file path. {_DESIGN_PATH_HINT}"
+                )
+            raise
+    raise TypeError("design must be a DesignSystemContext, DesignRequest, DESIGN.md string, os.PathLike path, or None")
 
 
 PRIMITIVE_DEFAULT_TOKENS: dict[str, list[str]] = {
