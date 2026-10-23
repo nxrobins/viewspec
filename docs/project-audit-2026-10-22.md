@@ -377,7 +377,7 @@ Status as of the follow-up work on 2026-10-22, all on branch `claude/project-aud
 | D-2 to D-7 | Fixed | README and docs corrected; index added; internal notes moved; tests guard codes and the skill file. |
 | H-1 | Fixed | Classifiers and README state Linux and macOS. CI runs on Linux plus a Windows goldens job; macOS is declared but not exercised in CI, as README and CONTRIBUTING.md say. |
 | H-2 | Partial | CONTRIBUTING.md and CODE_OF_CONDUCT.md added; issue and PR templates and CODEOWNERS not added. |
-| H-3 | Open | Git LFS migration was prepared, but this environment cannot reach `lfs.github.com`; run `git lfs track "demos/launch-assets/*.{gif,mp4,png}"`, re-add the files and push from a machine with LFS access, and set `lfs: true` on the checkout steps. |
+| H-3 | Open | Migration prepared, not run: this environment cannot reach `lfs.github.com`. From a machine with LFS access, run `sh scripts/migrate_launch_media_to_lfs.sh` on an up-to-date `main` and follow the steps it prints (push, fresh-clone check, pull request, then `--verify-site` once the deploy has finished). The Pages deploy already checks out with `lfs: true`. The script leaves existing Git hooks alone and refuses a leftover `lfs/launch-media` that lacks commits of `main`. |
 | H-4 | Open by design | Git stores identical blobs once, and the drift test pins the copies; a deploy-time copy would remove the duplicates at the cost of building during the Pages deploy. |
 | H-5 | Fixed | `.gitignore` extended. |
 | H-6 | Info | |

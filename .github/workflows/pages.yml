@@ -55,6 +55,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          # The demos/launch-assets/ media move to Git LFS (audit H-3,
+          # scripts/migrate_launch_media_to_lfs.sh). Without lfs: true the checkout would
+          # hold LFS pointer files and the site would publish those instead of the media.
+          lfs: true
       - uses: actions/configure-pages@983d7736d9b0ae728b81ab479565c72886d7745b # v5
       - uses: actions/upload-pages-artifact@56afc609e74202658d3ffba0e8f6dda462b719fa # v3
         with:

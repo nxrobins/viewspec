@@ -66,6 +66,14 @@ does not run on Windows.
 5. **Optional runtimes.** Bun 1.x is only needed for the opt-in Freerange proof and its e2e
    scenarios; ViewSpec never installs it. Nothing in the default suite needs network access.
 
+6. **Git LFS for the launch media.** Once the media in `demos/launch-assets/` move to Git LFS
+   (the "Launch Media in Git LFS" section of `docs/release-checklist.md`), install git-lfs and run
+   `git lfs install` once per machine. Clones made after that fetch the media; in an older clone,
+   run `git lfs pull`. Without git-lfs those six files are pointer files of about 130 bytes: the
+   default suite still passes, because the migration tests in
+   `tests/test_migrate_launch_media_to_lfs.py` skip (add `-rs` to see why), but adding or
+   re-encoding launch media needs git-lfs, or the commit puts the raw file back into the history.
+
 ## Running the checks
 
 Run these from the repository root before opening a pull request; CI runs the same commands, the
