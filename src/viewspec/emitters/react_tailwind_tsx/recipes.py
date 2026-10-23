@@ -1,10 +1,24 @@
-"""Closed Tailwind recipe registry for the React Tailwind TSX emitter."""
+"""Closed Tailwind recipe registry for the React Tailwind TSX emitter.
+
+The module-level tables below are the checked-in source. ``DEFAULT_TAILWIND_RECIPE_REGISTRY`` is a
+read-only snapshot of the recipe tables, built once at import, and every resolver in this module
+takes the registry it reads as an argument. The grid tables (``GRID_CLASS_BY_COLUMNS`` and
+``GRID_SPAN_CLASS_BY_COLUMNS``) are fixed, like the caps, so they are not part of a registry: the
+resolver reads read-only copies of them, also taken at import. Nothing here reads a recipe or grid
+table through its module name at call time, and nothing assigns to this module's attributes, so
+emits that use different registries can run at the same time without seeing each other's tables.
+The artifact check (``viewspec check``) and ``viewspec prove`` read the same snapshots, so editing
+a module table after import changes neither what is emitted nor what is checked.
+"""
 
 from __future__ import annotations
 
 import re
-from dataclasses import dataclass
-from typing import Any
+from collections.abc import Iterable, Mapping
+from collections.abc import Set as AbstractSet
+from dataclasses import dataclass, fields
+from types import MappingProxyType
+from typing import Any, ClassVar
 
 from viewspec.aesthetics import (
     AESTHETIC_PROFILE_TOKENS,
@@ -362,6 +376,150 @@ FONT_FAMILY_CLASSES = frozenset({"font-mono", "font-sans", "font-serif"})
 FONT_WEIGHT_CLASSES = frozenset({"font-bold", "font-extrabold", "font-black", "font-semibold"})
 
 
+def _read_only(table: Mapping[Any, Any]) -> Mapping[Any, Any]:
+    return MappingProxyType(dict(table))
+
+
+# The grid classes are fixed, like the caps, rather than registry fields. No registry check reads
+# them and the registry digest records only their column and span counts, so a registry that could
+# replace them could put unchecked classes on a grid under the default digest. The resolver reads
+# these copies, taken at import, so reassigning or mutating the module tables later changes nothing
+# it emits.
+_GRID_CLASSES: Mapping[int, str] = _read_only(GRID_CLASS_BY_COLUMNS)
+_GRID_SPAN_CLASSES: Mapping[int, str] = _read_only(GRID_SPAN_CLASS_BY_COLUMNS)
+
+
+def _read_only_nested(tables: Mapping[str, Any]) -> Mapping[str, Any]:
+    # A value that is not a mapping is kept as given, so the registry check (not the constructor)
+    # reports it with its stable constraint code.
+    return MappingProxyType(
+        {key: _read_only(value) if isinstance(value, Mapping) else value for key, value in tables.items()}
+    )
+
+
+def _kept_for_the_check(values: Any) -> bool:
+    # A str, bytes or mapping is iterable but is never a valid sequence of names: ``in`` would match
+    # a substring of a str or a key of a mapping. It is kept as given, so the registry check rejects
+    # it with its stable code instead of the constructor reshaping it into something that passes.
+    return isinstance(values, (str, bytes, Mapping))
+
+
+def _frozen_contract_values(values: Any) -> Any:
+    # A contract value is only ever tested with ``in``. Any set (a set, a frozenset, a dict keys
+    # view) has no order, so it becomes a sorted tuple, which projects and digests the same in every
+    # process; members that do not sort keep the set's own order (the check rejects them anyway,
+    # since every member must be a str). Any other iterable (a list, a deque, a generator) becomes a
+    # tuple in its own order, so nothing the caller still holds can change the registry later.
+    if _kept_for_the_check(values):
+        return values
+    if isinstance(values, AbstractSet):
+        try:
+            return tuple(sorted(values))
+        except TypeError:
+            return tuple(values)
+    if isinstance(values, Iterable):
+        return tuple(values)
+    return values
+
+
+def _frozen_rule_precedence(values: Any) -> Any:
+    # Precedence is an order, and a set has none: turned into a tuple, it would take an order that
+    # depends on the hash seed, and so would the digest. A set is kept as given, like a str, bytes or
+    # mapping, so the registry check rejects it. Any other iterable becomes a tuple in its own order.
+    if _kept_for_the_check(values) or isinstance(values, AbstractSet):
+        return values
+    if isinstance(values, Iterable):
+        return tuple(values)
+    return values
+
+
+def _read_only_contracts(contracts: Mapping[str, Any]) -> Mapping[str, Any]:
+    frozen: dict[str, Any] = {}
+    for role, contract in contracts.items():
+        if isinstance(contract, Mapping):
+            contract = MappingProxyType({key: _frozen_contract_values(values) for key, values in contract.items()})
+        frozen[role] = contract
+    return MappingProxyType(frozen)
+
+
+def _plain(value: Any) -> Any:
+    if isinstance(value, Mapping):
+        return {key: _plain(item) for key, item in value.items()}
+    return value
+
+
+@dataclass(frozen=True)
+class TailwindRecipeRegistry:
+    """Read-only tables that the Tailwind recipe resolver and its checks read.
+
+    The emitter, ``resolve_manifest_recipe_metadata``, the registry projection and digest, and the
+    React contrast report read recipe tables only from the registry they are given
+    (``DEFAULT_TAILWIND_RECIPE_REGISTRY`` when none is). Construction copies each table into
+    read-only mappings and tuples, so a registry never changes after it is built and shares no
+    mutable state with the dicts it came from. Build a variant with ``dataclasses.replace``, for
+    example ``replace(DEFAULT_TAILWIND_RECIPE_REGISTRY, aesthetic_overlays={...})``. The tables are
+    checked when an emit uses the registry, not on construction, so a variant with unsafe classes,
+    a missing recipe, overlay or rule id, or a value of the wrong type (a contract value that is not
+    a sequence of names, a ``rule_precedence`` given as a set) fails the emit with its stable
+    constraint code before anything is written. The registry projection and digest cover every
+    field and run the same check first, so a registry that cannot emit has no digest.
+
+    The grid classes are not a field. They are fixed, like the caps, so every registry puts the
+    checked-in ``GRID_CLASS_BY_COLUMNS`` and ``GRID_SPAN_CLASS_BY_COLUMNS`` classes on grids and on
+    the nodes that span grid columns.
+
+    ``viewspec check`` and ``check_artifact_dir`` verify an artifact against
+    ``DEFAULT_TAILWIND_RECIPE_REGISTRY``: they recompute every node's classes and recipe from it and
+    expect its digest. An artifact whose classes came from another registry does not pass them; it
+    fails with ``TAILWIND_INVENTORY_MISMATCH``.
+    """
+
+    recipes: Mapping[str, str]
+    aesthetic_overlays: Mapping[str, Mapping[str, str]]
+    layout_emphasis_classes: Mapping[str, str]
+    app_role_contracts: Mapping[str, Mapping[str, tuple[str, ...]]]
+    product_rule_ids: Mapping[str, str]
+    structural_rule_ids: Mapping[str, str]
+    rule_precedence: tuple[str, ...]
+
+    # The fields are read-only mappings, which cannot be hashed; say so instead of failing on them.
+    __hash__: ClassVar[None] = None
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "recipes", _read_only(self.recipes))
+        object.__setattr__(self, "aesthetic_overlays", _read_only_nested(self.aesthetic_overlays))
+        object.__setattr__(self, "layout_emphasis_classes", _read_only(self.layout_emphasis_classes))
+        object.__setattr__(self, "app_role_contracts", _read_only_contracts(self.app_role_contracts))
+        object.__setattr__(self, "product_rule_ids", _read_only(self.product_rule_ids))
+        object.__setattr__(self, "structural_rule_ids", _read_only(self.structural_rule_ids))
+        object.__setattr__(self, "rule_precedence", _frozen_rule_precedence(self.rule_precedence))
+
+    def __reduce__(self) -> tuple[Any, ...]:
+        # mappingproxy does not pickle. Rebuild from plain copies of the tables, which
+        # __post_init__ makes read-only again, so a registry (and an emitter holding one) survives
+        # pickle, copy.copy and copy.deepcopy as it did before the emitter held a registry.
+        return (type(self), tuple(_plain(getattr(self, field.name)) for field in fields(self)))
+
+
+DEFAULT_TAILWIND_RECIPE_REGISTRY = TailwindRecipeRegistry(
+    recipes=RECIPE_BY_KEY,
+    aesthetic_overlays=TAILWIND_AESTHETIC_RECIPE_OVERLAYS,
+    layout_emphasis_classes=LAYOUT_EMPHASIS_CLASS_BY_VALUE,
+    app_role_contracts=TAILWIND_APP_V1_APP_ROLE_CONTRACTS,
+    product_rule_ids=TAILWIND_PRODUCT_APP_ROLE_RULE_IDS,
+    structural_rule_ids=TAILWIND_STRUCTURAL_APP_ROLE_RULE_IDS,
+    rule_precedence=TAILWIND_APP_ROLE_RULE_PRECEDENCE,
+)
+
+
+def _registry_or_default(registry: TailwindRecipeRegistry | None) -> TailwindRecipeRegistry:
+    if registry is None:
+        return DEFAULT_TAILWIND_RECIPE_REGISTRY
+    if not isinstance(registry, TailwindRecipeRegistry):
+        raise TypeError(f"recipe_registry must be a TailwindRecipeRegistry, not {type(registry).__name__}.")
+    return registry
+
+
 @dataclass(frozen=True)
 class ResolvedRecipe:
     app_role: str | None
@@ -393,26 +551,67 @@ def _depth(node: IRNode) -> int:
     return 1 + max(_depth(child) for child in node.children)
 
 
-def _validate_recipe_registry() -> None:
-    if len(TAILWIND_APP_V1_APP_ROLE_CONTRACTS) > TAILWIND_MAX_APP_ROLES:
+def _is_str_tuple(values: Any) -> bool:
+    return isinstance(values, tuple) and all(isinstance(value, str) for value in values)
+
+
+def _validate_role_table_shapes(registry: TailwindRecipeRegistry) -> None:
+    # Types and shapes come first. The checks below and every derivation test these values with
+    # ``in`` or record them as rule ids, so a value of the wrong type must fail here with the stable
+    # code, not later as a bare TypeError or AttributeError, or as a substring match on a str.
+    for role, contract in registry.app_role_contracts.items():
+        if not isinstance(role, str) or not isinstance(contract, Mapping):
+            _fail("APP_ROLE_UNDECLARED_CONTRACT", f"App role {role!r} must map to a contract mapping.")
+        for key, values in contract.items():
+            if not isinstance(key, str) or not _is_str_tuple(values):
+                _fail(
+                    "APP_ROLE_UNDECLARED_CONTRACT",
+                    f"App role {role} contract entry {key!r} must hold name strings in a tuple, list or set, "
+                    "not a str, bytes or mapping.",
+                )
+    for kind, rule_ids in (("Product", registry.product_rule_ids), ("Structural", registry.structural_rule_ids)):
+        for role, rule_id in rule_ids.items():
+            if not isinstance(role, str) or not isinstance(rule_id, str):
+                _fail(
+                    "APP_ROLE_UNDECLARED_CONTRACT",
+                    f"{kind} app-role rule ids must map role names to rule id strings, not {role!r}: {rule_id!r}.",
+                )
+    if not _is_str_tuple(registry.rule_precedence):
+        _fail(
+            "APP_ROLE_UNDECLARED_CONTRACT",
+            "App-role rule precedence must hold rule id strings in order, in a tuple or list; "
+            "a set has no order, and a str, bytes or mapping is not a sequence of rule ids.",
+        )
+
+
+def _validate_recipe_registry(recipe_registry: TailwindRecipeRegistry | None = None) -> None:
+    registry = _registry_or_default(recipe_registry)
+    _validate_role_table_shapes(registry)
+    if len(registry.app_role_contracts) > TAILWIND_MAX_APP_ROLES:
         _fail(
             "APP_ROLE_UNDECLARED_CONTRACT", f"tailwind_app_v1 app-role registry exceeds {TAILWIND_MAX_APP_ROLES} roles."
         )
-    for role in TAILWIND_APP_V1_APP_ROLE_CONTRACTS:
-        if f"app_role:{role}" not in RECIPE_BY_KEY:
+    for role in registry.app_role_contracts:
+        if f"app_role:{role}" not in registry.recipes:
             _fail("APP_ROLE_UNDECLARED_CONTRACT", f"App role {role} has no checked-in recipe.")
-    for role, rule_id in TAILWIND_PRODUCT_APP_ROLE_RULE_IDS.items():
-        if role not in TAILWIND_APP_V1_APP_ROLE_CONTRACTS or rule_id not in TAILWIND_APP_ROLE_RULE_PRECEDENCE:
+    for role, rule_id in registry.product_rule_ids.items():
+        if role not in registry.app_role_contracts or rule_id not in registry.rule_precedence:
             _fail(
                 "APP_ROLE_UNDECLARED_CONTRACT",
                 f"Product app-role rule {rule_id} is not declared in registry precedence.",
             )
-    for role, rule_id in TAILWIND_STRUCTURAL_APP_ROLE_RULE_IDS.items():
-        if role not in TAILWIND_APP_V1_APP_ROLE_CONTRACTS or rule_id not in TAILWIND_APP_ROLE_RULE_PRECEDENCE:
+    for role, rule_id in registry.structural_rule_ids.items():
+        if role not in registry.app_role_contracts or rule_id not in registry.rule_precedence:
             _fail(
                 "APP_ROLE_UNDECLARED_CONTRACT",
                 f"Structural app-role rule {rule_id} is not declared in registry precedence.",
             )
+    # The structural derivation returns these roles whatever the registry holds, so each needs a
+    # rule id, and through the loop above a contract and a recipe. A product role is derived only
+    # when the registry has a rule id for it, and the loops above require its contract and recipe.
+    for role in _STRUCTURAL_APP_ROLES:
+        if role not in registry.structural_rule_ids:
+            _fail("APP_ROLE_UNDECLARED_CONTRACT", f"Structural app role {role} has no derivation rule id.")
     for key in (
         "app_role:collection_action_bar",
         "app_role:loading_state",
@@ -422,38 +621,53 @@ def _validate_recipe_registry() -> None:
         "role:state:title",
         "role:state:description",
     ):
-        if key not in RECIPE_BY_KEY:
+        if key not in registry.recipes:
             _fail(
                 "TAILWIND_STATEFUL_COLLECTION_RECIPE_MISSING",
                 f"Missing checked Stateful Collections Tailwind recipe: {key}.",
             )
-    if len(RECIPE_BY_KEY) > TAILWIND_MAX_RECIPES:
+    if len(registry.recipes) > TAILWIND_MAX_RECIPES:
         _fail("TAILWIND_LIMIT_EXCEEDED_RECIPES", "tailwind_app_v1 recipe registry exceeds 96 recipes.")
-    for key, value in RECIPE_BY_KEY.items():
+    for key, value in registry.recipes.items():
         if not isinstance(key, str) or not key:
             _fail("TAILWIND_RECIPE_CONFLICT", "Tailwind recipe keys must be non-empty strings.")
         _validate_class_string(value, code="TAILWIND_HOST_CONFIG_DEPENDENCY")
-    for classes in LAYOUT_EMPHASIS_CLASS_BY_VALUE.values():
+    for value, classes in registry.layout_emphasis_classes.items():
+        if not isinstance(value, str):
+            _fail("TAILWIND_AESTHETIC_UNSAFE_CLASS", f"Tailwind layout emphasis values must be strings ({value!r}).")
         _validate_class_string(classes, code="TAILWIND_AESTHETIC_UNSAFE_CLASS")
-    _validate_aesthetic_recipe_overlays()
+    _validate_aesthetic_recipe_overlays(registry)
 
 
-def _validate_aesthetic_recipe_overlays() -> None:
+def _validate_aesthetic_recipe_overlays(registry: TailwindRecipeRegistry) -> None:
     for profile in AESTHETIC_PROFILE_TOKENS:
-        overlay = TAILWIND_AESTHETIC_RECIPE_OVERLAYS.get(profile)
-        if not isinstance(overlay, dict) or not overlay:
+        overlay = registry.aesthetic_overlays.get(profile)
+        if not isinstance(overlay, Mapping) or not overlay:
             _fail("TAILWIND_AESTHETIC_RECIPE_MISSING", f"Missing checked Tailwind aesthetic recipes for {profile}.")
+    # Every overlay is checked, including one for a profile no root can select, because the registry
+    # projection and digest record them all. Its shape comes before the size check, which joins the
+    # classes as strings.
+    for profile, overlay in registry.aesthetic_overlays.items():
+        if (
+            not isinstance(profile, str)
+            or not isinstance(overlay, Mapping)
+            or not all(isinstance(key, str) and isinstance(classes, str) for key, classes in overlay.items())
+        ):
+            raise CompilerConstraintError(
+                "TAILWIND_AESTHETIC_RECIPE_MISSING",
+                f"Tailwind aesthetic recipes for {profile!r} must map recipe keys to class strings.",
+            )
         if len(" ".join(overlay.values()).encode("utf-8")) > MAX_AESTHETIC_PROFILE_CSS_BYTES:
             _fail("TAILWIND_AESTHETIC_RECIPE_TOO_LARGE", f"Tailwind aesthetic recipes for {profile} exceed 2KB.")
         for key, classes in overlay.items():
-            if key not in RECIPE_BY_KEY:
+            if key not in registry.recipes:
                 _fail("TAILWIND_AESTHETIC_RECIPE_MISSING", f"{profile} overlays unknown recipe {key}.")
             _validate_class_string(classes, code="TAILWIND_AESTHETIC_UNSAFE_CLASS")
 
 
-def _validate_class_string(classes: str, *, code: str) -> None:
-    if not classes or classes != " ".join(classes.split()):
-        _fail(code, "Tailwind recipe classes must be non-empty normalized literal strings.")
+def _validate_class_string(classes: object, *, code: str) -> None:
+    if not isinstance(classes, str) or not classes or classes != " ".join(classes.split()):
+        raise CompilerConstraintError(code, "Tailwind recipe classes must be non-empty normalized literal strings.")
     for token in classes.split():
         if not CLASS_TOKEN_RE.match(token):
             _fail(code, f"Tailwind class token is not closed and literal: {token}.")
@@ -477,27 +691,23 @@ def _grid_span_classes(node: IRNode) -> list[str]:
     span_columns = node.props.get("span_columns")
     if span_columns is None:
         return []
-    if (
-        not isinstance(span_columns, int)
-        or isinstance(span_columns, bool)
-        or span_columns not in GRID_SPAN_CLASS_BY_COLUMNS
-    ):
+    if not isinstance(span_columns, int) or isinstance(span_columns, bool) or span_columns not in _GRID_SPAN_CLASSES:
         _fail("TAILWIND_LIMIT_EXCEEDED_GRID_COLUMNS", f"IRNode '{node.id}' span_columns must be 2 or 3.")
-    return GRID_SPAN_CLASS_BY_COLUMNS[span_columns].split()
+    return _GRID_SPAN_CLASSES[span_columns].split()
 
 
-def _layout_emphasis_classes(node: IRNode) -> list[str]:
+def _layout_emphasis_classes(node: IRNode, registry: TailwindRecipeRegistry) -> list[str]:
     value = node.props.get("layout_emphasis")
     if value is None:
         return []
-    if not isinstance(value, str) or value not in LAYOUT_EMPHASIS_CLASS_BY_VALUE:
-        allowed = ", ".join(sorted(LAYOUT_EMPHASIS_CLASS_BY_VALUE))
+    if not isinstance(value, str) or value not in registry.layout_emphasis_classes:
+        allowed = ", ".join(sorted(registry.layout_emphasis_classes))
         _fail("TAILWIND_AESTHETIC_UNSAFE_CLASS", f"IRNode '{node.id}' layout_emphasis must be one of: {allowed}.")
-    return LAYOUT_EMPHASIS_CLASS_BY_VALUE[value].split()
+    return registry.layout_emphasis_classes[value].split()
 
 
-def _role_contract_matches(node: IRNode, app_role: str) -> bool:
-    contract = TAILWIND_APP_V1_APP_ROLE_CONTRACTS[app_role]
+def _role_contract_matches(node: IRNode, app_role: str, registry: TailwindRecipeRegistry) -> bool:
+    contract = registry.app_role_contracts[app_role]
     primitives = contract.get("primitives", ())
     if primitives and node.primitive not in primitives:
         return False
@@ -515,36 +725,53 @@ def _role_contract_matches(node: IRNode, app_role: str) -> bool:
     return True
 
 
-def _derive_app_role(node: IRNode, parent: IRNode | None) -> AppRoleDerivation | None:
+def _derive_app_role(node: IRNode, parent: IRNode | None, registry: TailwindRecipeRegistry) -> AppRoleDerivation | None:
     if node.props.get("app_role") is not None or node.props.get("app_role_source") is not None:
         _fail(
             "APP_ROLE_LEXICAL_SOURCE",
             f"IRNode '{node.id}' declares Tailwind app-role metadata; roles are emitter-derived only.",
         )
     product_role = node.props.get("product_role")
-    if isinstance(product_role, str) and product_role in TAILWIND_PRODUCT_APP_ROLE_RULE_IDS:
-        derivation = AppRoleDerivation(product_role, TAILWIND_PRODUCT_APP_ROLE_RULE_IDS[product_role])
-        if not _role_contract_matches(node, derivation.app_role):
+    if isinstance(product_role, str) and product_role in registry.product_rule_ids:
+        derivation = AppRoleDerivation(product_role, registry.product_rule_ids[product_role])
+        if not _role_contract_matches(node, derivation.app_role, registry):
             _fail(
                 "APP_ROLE_DERIVATION_MISMATCH",
                 f"IRNode '{node.id}' product role {product_role} violates its app-role contract.",
             )
         return derivation
-    structural = _derive_structural_app_role(node, parent)
-    if structural is not None and not _role_contract_matches(node, structural.app_role):
+    structural = _derive_structural_app_role(node, parent, registry)
+    if structural is not None and not _role_contract_matches(node, structural.app_role, registry):
         _fail("APP_ROLE_DERIVATION_MISMATCH", f"IRNode '{node.id}' violates app-role contract {structural.app_role}.")
     return structural
 
 
-def _derive_structural_app_role(node: IRNode, parent: IRNode | None) -> AppRoleDerivation | None:
+# Every app role that _derive_structural_app_role can return, in the order it tests them. The registry
+# check requires a structural rule id for each, so a derivation never looks up one the registry lacks.
+_STRUCTURAL_APP_ROLES = (
+    "collection_action_bar",
+    "filter_bar",
+    "toolbar",
+    "sidebar_nav",
+    "top_nav",
+    "data_table",
+    "data_row",
+    "empty_state",
+    "loading_state",
+    "error_state",
+)
+
+
+def _derive_structural_app_role(
+    node: IRNode, parent: IRNode | None, registry: TailwindRecipeRegistry
+) -> AppRoleDerivation | None:
+    rule_ids = registry.structural_rule_ids
     if (
         node.primitive == "cluster"
         and node.props.get("product_role") == "action_row"
         and node.props.get("layout_strategy") == "collection_action_bar_v1"
     ):
-        return AppRoleDerivation(
-            "collection_action_bar", TAILWIND_STRUCTURAL_APP_ROLE_RULE_IDS["collection_action_bar"]
-        )
+        return AppRoleDerivation("collection_action_bar", rule_ids["collection_action_bar"])
     if (
         node.primitive == "cluster"
         and node.props.get("product_role") == "action_row"
@@ -552,37 +779,37 @@ def _derive_structural_app_role(node: IRNode, parent: IRNode | None) -> AppRoleD
         and parent is not None
         and parent.props.get("motif_kind") == "form"
     ):
-        return AppRoleDerivation("filter_bar", TAILWIND_STRUCTURAL_APP_ROLE_RULE_IDS["filter_bar"])
+        return AppRoleDerivation("filter_bar", rule_ids["filter_bar"])
     if node.primitive == "cluster" and node.props.get("product_role") == "action_row":
-        return AppRoleDerivation("toolbar", TAILWIND_STRUCTURAL_APP_ROLE_RULE_IDS["toolbar"])
+        return AppRoleDerivation("toolbar", rule_ids["toolbar"])
     if (
         node.props.get("motif_kind") == "list"
         and node.primitive == "stack"
         and parent is not None
         and parent.props.get("product_role") == "side_rail"
     ):
-        return AppRoleDerivation("sidebar_nav", TAILWIND_STRUCTURAL_APP_ROLE_RULE_IDS["sidebar_nav"])
+        return AppRoleDerivation("sidebar_nav", rule_ids["sidebar_nav"])
     if (
         node.props.get("motif_kind") == "list"
         and node.primitive == "stack"
         and parent is not None
         and parent.props.get("product_role") == "app_header"
     ):
-        return AppRoleDerivation("top_nav", TAILWIND_STRUCTURAL_APP_ROLE_RULE_IDS["top_nav"])
+        return AppRoleDerivation("top_nav", rule_ids["top_nav"])
     if node.props.get("motif_kind") == "table" and node.primitive == "stack":
-        return AppRoleDerivation("data_table", TAILWIND_STRUCTURAL_APP_ROLE_RULE_IDS["data_table"])
+        return AppRoleDerivation("data_table", rule_ids["data_table"])
     if node.props.get("motif_kind") == "table" and node.primitive == "cluster":
-        return AppRoleDerivation("data_row", TAILWIND_STRUCTURAL_APP_ROLE_RULE_IDS["data_row"])
+        return AppRoleDerivation("data_row", rule_ids["data_row"])
     if node.props.get("motif_kind") == "empty_state" and node.primitive == "surface":
-        return AppRoleDerivation("empty_state", TAILWIND_STRUCTURAL_APP_ROLE_RULE_IDS["empty_state"])
+        return AppRoleDerivation("empty_state", rule_ids["empty_state"])
     if node.props.get("state_role") == "loading" and node.primitive == "surface":
-        return AppRoleDerivation("loading_state", TAILWIND_STRUCTURAL_APP_ROLE_RULE_IDS["loading_state"])
+        return AppRoleDerivation("loading_state", rule_ids["loading_state"])
     if node.props.get("state_role") == "error" and node.primitive == "surface":
-        return AppRoleDerivation("error_state", TAILWIND_STRUCTURAL_APP_ROLE_RULE_IDS["error_state"])
+        return AppRoleDerivation("error_state", rule_ids["error_state"])
     return None
 
 
-def _role_key(node: IRNode) -> str | None:
+def _role_key(node: IRNode, registry: TailwindRecipeRegistry) -> str | None:
     for prop_name, prefix in (
         ("detail_role", "role:detail"),
         ("empty_state_role", "role:empty_state"),
@@ -594,35 +821,37 @@ def _role_key(node: IRNode) -> str | None:
         if not isinstance(value, str):
             continue
         key = f"{prefix}:{value}"
-        if key in RECIPE_BY_KEY:
+        if key in registry.recipes:
             return key
     return None
 
 
-def _recipe_key_for_node(node: IRNode, parent: IRNode | None) -> tuple[AppRoleDerivation | None, str]:
-    app_role = _derive_app_role(node, parent)
+def _recipe_key_for_node(
+    node: IRNode, parent: IRNode | None, registry: TailwindRecipeRegistry
+) -> tuple[AppRoleDerivation | None, str]:
+    app_role = _derive_app_role(node, parent, registry)
     if app_role is not None:
         return app_role, f"app_role:{app_role.app_role}"
     product_role = node.props.get("product_role")
     if isinstance(product_role, str):
         key = f"product_role:{product_role}"
-        if key in RECIPE_BY_KEY:
+        if key in registry.recipes:
             return None, key
-    role_key = _role_key(node)
+    role_key = _role_key(node, registry)
     if role_key is not None:
         return None, role_key
     motif_kind = node.props.get("motif_kind")
     if isinstance(motif_kind, str):
         key = f"motif:{motif_kind}:{node.primitive}"
-        if key in RECIPE_BY_KEY:
+        if key in registry.recipes:
             return None, key
     layout_role = node.props.get("layout_role")
     if isinstance(layout_role, str):
         key = f"layout:{layout_role}"
-        if key in RECIPE_BY_KEY:
+        if key in registry.recipes:
             return None, key
     key = f"primitive:{node.primitive}"
-    if key in RECIPE_BY_KEY:
+    if key in registry.recipes:
         return None, key
     _fail("TAILWIND_RECIPE_CONFLICT", f"IRNode '{node.id}' has no total Tailwind recipe.")
     raise AssertionError("unreachable")
@@ -637,10 +866,10 @@ def _aesthetic_profile_for_root(root: IRNode) -> str | None:
     return profile
 
 
-def _classes_for_recipe(recipe_key: str, aesthetic_profile: str | None) -> list[str]:
-    classes = RECIPE_BY_KEY[recipe_key].split()
+def _classes_for_recipe(recipe_key: str, aesthetic_profile: str | None, registry: TailwindRecipeRegistry) -> list[str]:
+    classes = registry.recipes[recipe_key].split()
     if aesthetic_profile is not None:
-        overlay = TAILWIND_AESTHETIC_RECIPE_OVERLAYS.get(aesthetic_profile)
+        overlay = registry.aesthetic_overlays.get(aesthetic_profile)
         if overlay is None:
             _fail(
                 "TAILWIND_AESTHETIC_RECIPE_MISSING",
@@ -710,13 +939,15 @@ def _tailwind_utility_group(utility: str) -> str | None:
     return None
 
 
-def _resolve_recipe(node: IRNode, parent: IRNode | None, aesthetic_profile: str | None = None) -> ResolvedRecipe:
-    app_role, recipe_key = _recipe_key_for_node(node, parent)
-    classes = _classes_for_recipe(recipe_key, aesthetic_profile)
+def _resolve_recipe(
+    node: IRNode, parent: IRNode | None, aesthetic_profile: str | None, registry: TailwindRecipeRegistry
+) -> ResolvedRecipe:
+    app_role, recipe_key = _recipe_key_for_node(node, parent, registry)
+    classes = _classes_for_recipe(recipe_key, aesthetic_profile, registry)
     if node.primitive == "grid":
-        classes.extend(GRID_CLASS_BY_COLUMNS[_grid_columns(node)].split())
+        classes.extend(_GRID_CLASSES[_grid_columns(node)].split())
     classes.extend(_grid_span_classes(node))
-    classes.extend(_layout_emphasis_classes(node))
+    classes.extend(_layout_emphasis_classes(node, registry))
     return ResolvedRecipe(
         app_role=app_role.app_role if app_role is not None else None,
         app_role_source=app_role.rule_id if app_role is not None else None,
@@ -779,10 +1010,11 @@ def _validate_tailwind_contract(root: IRNode, recipes: dict[str, ResolvedRecipe]
         )
 
 
-def _resolve_recipes(root: IRNode) -> dict[str, ResolvedRecipe]:
+def _resolve_recipes(root: IRNode, recipe_registry: TailwindRecipeRegistry | None = None) -> dict[str, ResolvedRecipe]:
+    registry = _registry_or_default(recipe_registry)
     parents = _node_parent_map(root)
     aesthetic_profile = _aesthetic_profile_for_root(root)
-    return {node.id: _resolve_recipe(node, parents[node.id], aesthetic_profile) for node in _walk(root)}
+    return {node.id: _resolve_recipe(node, parents[node.id], aesthetic_profile, registry) for node in _walk(root)}
 
 
 def resolve_manifest_recipe_metadata(
@@ -790,11 +1022,17 @@ def resolve_manifest_recipe_metadata(
     parent_entry: dict[str, Any] | None = None,
     *,
     aesthetic_profile: str | None = None,
+    recipe_registry: TailwindRecipeRegistry | None = None,
 ) -> dict[str, Any]:
-    """Recompute Tailwind recipe metadata from manifest node shape for artifact checks."""
+    """Recompute Tailwind recipe metadata from manifest node shape for artifact checks.
+
+    This is the recipe alone. The emitter package's function of the same name also appends the
+    node's semantic ``vs-*`` classes, as the emitted ``className`` does.
+    """
+    registry = _registry_or_default(recipe_registry)
     node = _manifest_entry_to_ir_node(entry)
     parent = _manifest_entry_to_ir_node(parent_entry) if parent_entry is not None else None
-    recipe = _resolve_recipe(node, parent, aesthetic_profile)
+    recipe = _resolve_recipe(node, parent, aesthetic_profile, registry)
     return {
         "app_role": recipe.app_role,
         "app_role_source": recipe.app_role_source,
@@ -816,35 +1054,42 @@ def _manifest_entry_to_ir_node(entry: dict[str, Any] | None) -> IRNode:
     )
 
 
-def _base_registry_projection() -> dict[str, Any]:
+def _base_registry_projection(recipe_registry: TailwindRecipeRegistry | None = None) -> dict[str, Any]:
     """Registry projection without the emitter's semantic parity classes.
 
     The public ``tailwind_recipe_registry_projection`` / ``tailwind_recipe_registry_digest``
-    live in ``viewspec.emitters.react_tailwind_tsx``; this is their input.
+    live in ``viewspec.emitters.react_tailwind_tsx``; this is their input. It is a pure function
+    of the registry it is given (the default registry when none is), so it cannot depend on
+    what ran before it, and it records every field of that registry. The fixed grid tables are
+    not registry fields; like the other caps, only their column and span counts are recorded.
+    The registry is checked first, as an emit checks it, so a registry that cannot emit (one whose
+    precedence is a set, for example, which has no order to record) has no projection and no
+    digest: it fails with the same stable constraint code.
     """
+    registry = _registry_or_default(recipe_registry)
+    _validate_recipe_registry(registry)
     return {
         "recipe_pack": TAILWIND_RECIPE_PACK,
         "registry_version": TAILWIND_RECIPE_REGISTRY_VERSION,
-        "recipes": dict(sorted(RECIPE_BY_KEY.items())),
+        "recipes": dict(sorted(registry.recipes.items())),
         "aesthetic_recipe_overlays": {
-            profile: dict(sorted(overlay.items()))
-            for profile, overlay in sorted(TAILWIND_AESTHETIC_RECIPE_OVERLAYS.items())
+            profile: dict(sorted(overlay.items())) for profile, overlay in sorted(registry.aesthetic_overlays.items())
         },
-        "layout_emphasis_classes": dict(sorted(LAYOUT_EMPHASIS_CLASS_BY_VALUE.items())),
+        "layout_emphasis_classes": dict(sorted(registry.layout_emphasis_classes.items())),
         "app_role_contracts": {
             role: {key: list(values) for key, values in sorted(contract.items())}
-            for role, contract in sorted(TAILWIND_APP_V1_APP_ROLE_CONTRACTS.items())
+            for role, contract in sorted(registry.app_role_contracts.items())
         },
         "derivation_rule_ids": {
-            "product": dict(sorted(TAILWIND_PRODUCT_APP_ROLE_RULE_IDS.items())),
-            "structural": dict(sorted(TAILWIND_STRUCTURAL_APP_ROLE_RULE_IDS.items())),
+            "product": dict(sorted(registry.product_rule_ids.items())),
+            "structural": dict(sorted(registry.structural_rule_ids.items())),
         },
-        "precedence_order": list(TAILWIND_APP_ROLE_RULE_PRECEDENCE),
+        "precedence_order": list(registry.rule_precedence),
         "caps": {
             "artifact_bytes": TAILWIND_MAX_ARTIFACT_BYTES,
             "class_tokens": TAILWIND_MAX_CLASS_TOKENS,
             "grid_columns": sorted(TAILWIND_GRID_COLUMNS),
-            "grid_spans": sorted(GRID_SPAN_CLASS_BY_COLUMNS),
+            "grid_spans": sorted(_GRID_SPAN_CLASSES),
             "ir_depth": TAILWIND_MAX_IR_DEPTH,
             "ir_nodes": TAILWIND_MAX_IR_NODES,
             "actions": TAILWIND_MAX_ACTIONS,
@@ -859,6 +1104,7 @@ __all__ = [
     "AppRoleDerivation",
     "CLASS_TOKEN_RE",
     "CompilerConstraintError",
+    "DEFAULT_TAILWIND_RECIPE_REGISTRY",
     "FONT_FAMILY_CLASSES",
     "FONT_WEIGHT_CLASSES",
     "GRID_CLASS_BY_COLUMNS",
@@ -886,6 +1132,7 @@ __all__ = [
     "TAILWIND_RECIPE_REGISTRY_VERSION",
     "TAILWIND_STRUCTURAL_APP_ROLE_RULE_IDS",
     "TEXT_SIZE_CLASSES",
+    "TailwindRecipeRegistry",
     "_resolve_recipes",
     "_validate_recipe_registry",
     "_validate_tailwind_contract",

@@ -11,6 +11,7 @@
 *.md text eol=lf
 *.mjs text eol=lf
 *.py text eol=lf
+*.sh text eol=lf
 *.swift text eol=lf
 *.toml text eol=lf
 *.ts text eol=lf

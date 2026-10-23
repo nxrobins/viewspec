@@ -52,6 +52,10 @@ in parentheses refer to that document.
   one run in five, and on every navigation made in the React frame of a Private Studio review.
   Both clients now report static-frame route changes only from `hashchange`, so a reviewer's
   navigation or browser back in the static frame is also reported once instead of twice.
+- The React Tailwind emitter no longer writes to another module's globals: it assigned seven
+  attributes on `recipes.py` on every call. Emits with different recipe registries can run at the
+  same time, and `tailwind_recipe_registry_digest()` no longer depends on names that earlier code
+  reassigned. Compiled output and the default registry digest are unchanged (Q-4).
 
 ### Changed
 
@@ -180,6 +184,12 @@ in parentheses refer to that document.
   detail and hero motifs in it, and, when the root has a one-line `title` that no binding shows
   and the column holds no `hero`, an implicit page header that shows that title. Recompile such
   bundles and review the output. No corpus output changes.
+- The React Tailwind recipe tables (`RECIPE_BY_KEY` and the rest) are read once, at import, into
+  `DEFAULT_TAILWIND_RECIPE_REGISTRY`. Reassigning or editing them afterwards changes neither what
+  the emitter writes nor what `viewspec check` accepts or `viewspec prove` reports.
+  `viewspec check` and `check_artifact_dir()` verify React Tailwind artifacts against the default
+  registry, so an artifact whose classes came from another registry fails them with
+  `TAILWIND_INVENTORY_MISMATCH` (Q-4).
 
 ### Deprecated
 
@@ -269,6 +279,39 @@ in parentheses refer to that document.
   reveal which local paths exist. `compile(bundle, design="DESIGN.md")` still fails with
   `DesignSystemError` ("must begin with YAML front matter"); that error now carries an exception
   note that says to pass `pathlib.Path`, the same note for every one-line `str`.
+- `scripts/migrate_launch_media_to_lfs.sh` prepares the move of the six media files in
+  `demos/launch-assets/` to Git LFS; the owner runs it once from a machine that can reach GitHub's
+  LFS endpoint (H-3). Run on an up-to-date `main`, it commits the files as LFS pointers on the
+  branch `lfs/launch-media`, checks the commit against the unchanged working files, and prints the
+  push, fresh-clone and site checks. It never pushes or rewrites history, and running it again makes
+  no new commit. It writes the Git LFS filter settings into `.git/config`, and the LFS filter it
+  runs may add the Git LFS `pre-push`, `post-checkout`, `post-commit` and `post-merge` hooks where
+  no hook of that name exists, as in any clone with LFS content. Hooks of your own stay as they are,
+  and an existing pre-push hook does not stop it. When `core.hooksPath` is set, the script prints a
+  note that names that directory and says whether the setting is global, because every repository
+  that uses the directory then runs those hooks. When no pre-push hook runs `git lfs pre-push`, it
+  says so, because later plain pushes of LFS content would upload no objects. It builds on an
+  existing `lfs/launch-media` only when that branch contains `main`, whether it starts on `main` or
+  on that branch, and otherwise stops before changing anything and says how to bring the branch up
+  to date; a run that stops part-way says that the branch is left checked out and to start again
+  from `main`. It finds `main` by its full ref name, so a tag called `main` cannot make it commit on
+  `main` itself. `--verify-site` compares what the deployed site serves with the committed media by
+  SHA-256, and reports the files that it could not download apart from the files that differ. The
+  Pages deploy checks out with `lfs: true`, and the release checklist covers the quotas, the push,
+  the site check and what contributors need.
+- `TailwindRecipeRegistry`, a read-only set of the React Tailwind emitter's recipe tables, and
+  `DEFAULT_TAILWIND_RECIPE_REGISTRY`, the checked-in one. `ReactTailwindTsxEmitter`,
+  `emit_compiler_result`, both `resolve_manifest_recipe_metadata` functions,
+  `tailwind_recipe_registry_projection`, `tailwind_recipe_registry_digest` and
+  `react_contrast_report` take an optional `recipe_registry=` keyword (default
+  `DEFAULT_TAILWIND_RECIPE_REGISTRY`); build a variant with `dataclasses.replace`. A registry
+  copies its tables into read-only mappings and tuples when it is built (contract values given as
+  a set in sorted order), and its digest covers every field. It is checked before an emit writes
+  anything and before it has a projection or digest: unsafe classes, a missing recipe, overlay or
+  rule id, or a value of the wrong type, such as a contract value given as a string or a
+  `rule_precedence` given as a set, fail with the emitter's stable constraint codes. The grid
+  classes (`GRID_CLASS_BY_COLUMNS`, `GRID_SPAN_CLASS_BY_COLUMNS`) are not registry fields and stay
+  fixed (Q-4).
 
 ## [0.3.0b12] - 2026-10-14
 

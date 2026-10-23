@@ -346,7 +346,7 @@ Status as of the follow-up work on 2026-10-22, all on branch `claude/project-aud
 | Q-1 | Partial | Stub and `pyrightconfig.json` added (849 to 770 errors); a baseline gate stops regressions; the remaining errors are not fixed. |
 | Q-2 | Partial | Hosted client moved out of `compiler.py` and re-exported from it; `viewspec.compiler` keeps every public name it had on `main`. Module splits deferred by owner decision. |
 | Q-3 | Partial | The three emitters and the raw-HTML importer share `viewspec.emitters._write`; tag and ARIA ladders deferred by owner decision. |
-| Q-4 | Open | Recipes module mutation deferred by owner decision (regression risk). |
+| Q-4 | Fixed | The React Tailwind emitter reads a frozen `TailwindRecipeRegistry`, which it passes to every call that resolves a recipe and to the registry check; `viewspec check` and `prove` read the default registry, the same snapshot taken at import, so editing the module tables moves neither path. No module attributes are assigned, and tests inject a registry instead of monkeypatching. Artifacts emitted with another registry do not pass `viewspec check`. Grid classes stay fixed. Compiled output and the default registry digest are unchanged. |
 | Q-5 | Partial | Constant moved, public helper names, `derive_style_tokens` public; agent-layer and tool-layer imports remain, described in the merge notes. |
 | Q-6 | Open | API tiering is a pre-1.0 owner decision. |
 | Q-7 | Fixed | `ruff format` applied to every Python file and gated in CI; rules `I`, `UP`, `B`, `SIM` enabled with two documented ignores. The hand edits the rules required were compared by AST with the previous code; the one that changed behaviour (interrupted IntentPatch recovery read another transaction's receipt) is reverted with a regression test. |
@@ -377,7 +377,7 @@ Status as of the follow-up work on 2026-10-22, all on branch `claude/project-aud
 | D-2 to D-7 | Fixed | README and docs corrected; index added; internal notes moved; tests guard codes and the skill file. |
 | H-1 | Fixed | Classifiers and README state Linux and macOS. CI runs on Linux plus a Windows goldens job; macOS is declared but not exercised in CI, as README and CONTRIBUTING.md say. |
 | H-2 | Partial | CONTRIBUTING.md and CODE_OF_CONDUCT.md added; issue and PR templates and CODEOWNERS not added. |
-| H-3 | Open | Git LFS migration was prepared, but this environment cannot reach `lfs.github.com`; run `git lfs track "demos/launch-assets/*.{gif,mp4,png}"`, re-add the files and push from a machine with LFS access, and set `lfs: true` on the checkout steps. |
+| H-3 | Open | Migration prepared, not run: this environment cannot reach `lfs.github.com`. From a machine with LFS access, run `sh scripts/migrate_launch_media_to_lfs.sh` on an up-to-date `main` and follow the steps it prints (push, fresh-clone check, pull request, then `--verify-site` once the deploy has finished). The Pages deploy already checks out with `lfs: true`. The script leaves existing Git hooks alone and refuses a leftover `lfs/launch-media` that lacks commits of `main`. |
 | H-4 | Open by design | Git stores identical blobs once, and the drift test pins the copies; a deploy-time copy would remove the duplicates at the cost of building during the Pages deploy. |
 | H-5 | Fixed | `.gitignore` extended. |
 | H-6 | Info | |

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 import re
-from collections.abc import Iterator
+from collections.abc import Iterator, Mapping
 from html import unescape
 from html.parser import HTMLParser
 from pathlib import Path
@@ -19,11 +19,7 @@ from viewspec.aesthetics import (
 from viewspec.compiler_errors import LocalToolContractError
 from viewspec.emitters.html_tailwind import ACTION_EVENT_SCRIPT
 from viewspec.emitters.react_tailwind_tsx import (
-    GRID_CLASS_BY_COLUMNS,
-    LAYOUT_EMPHASIS_CLASS_BY_VALUE,
-    RECIPE_BY_KEY,
-    TAILWIND_AESTHETIC_RECIPE_OVERLAYS,
-    TAILWIND_APP_V1_APP_ROLE_CONTRACTS,
+    DEFAULT_TAILWIND_RECIPE_REGISTRY,
     TAILWIND_MAX_ACTIONS,
     TAILWIND_MAX_ARTIFACT_BYTES,
     TAILWIND_MAX_CLASS_TOKENS,
@@ -36,6 +32,7 @@ from viewspec.emitters.react_tailwind_tsx import (
     resolve_manifest_recipe_metadata,
     tailwind_recipe_registry_digest,
 )
+from viewspec.emitters.react_tailwind_tsx.recipes import _GRID_CLASSES, _GRID_SPAN_CLASSES
 from viewspec.emitters.react_tsx import react_tsx_manifest_node_markers
 from viewspec.error_codes import ERROR_CODES
 from viewspec.local_tools_constants import (
@@ -474,8 +471,12 @@ def _validate_react_tailwind_static_source(tsx: str, artifact_path: Path) -> lis
 
 
 def _validate_react_tailwind_manifest(tsx: str, nodes: dict[str, Any], manifest: dict[str, Any]) -> list[str]:
+    # The check verifies against the default registry, the snapshot a default emit reads, never
+    # against the module tables it was built from: editing those after import must move neither
+    # path. Artifacts emitted with another registry fail here with TAILWIND_INVENTORY_MISMATCH.
     errors: list[str] = []
-    allowed_app_roles = set(TAILWIND_APP_V1_APP_ROLE_CONTRACTS)
+    registry = DEFAULT_TAILWIND_RECIPE_REGISTRY
+    allowed_app_roles = set(registry.app_role_contracts)
     allowed_class_tokens = _tailwind_allowed_class_tokens()
     parent_by_dom_id = _tsx_semantic_parent_map(tsx)
     aesthetic_profile = manifest_root_aesthetic_profile(nodes)
@@ -497,7 +498,9 @@ def _validate_react_tailwind_manifest(tsx: str, nodes: dict[str, Any], manifest:
         if parent_dom_id is not None and isinstance(nodes.get(parent_dom_id), dict):
             parent_entry = nodes[parent_dom_id]
         try:
-            expected = resolve_manifest_recipe_metadata(entry, parent_entry, aesthetic_profile=aesthetic_profile)
+            expected = resolve_manifest_recipe_metadata(
+                entry, parent_entry, aesthetic_profile=aesthetic_profile, recipe_registry=registry
+            )
         except CompilerConstraintError as exc:
             errors.append(str(exc))
             expected = {
@@ -512,7 +515,7 @@ def _validate_react_tailwind_manifest(tsx: str, nodes: dict[str, Any], manifest:
                 f"APP_ROLE_DERIVATION_MISMATCH: manifest node {dom_id} recipe_pack does not match recomputed Tailwind recipe"
             )
         recipe_key = entry.get("recipe_key")
-        if not isinstance(recipe_key, str) or recipe_key not in RECIPE_BY_KEY:
+        if not isinstance(recipe_key, str) or recipe_key not in registry.recipes:
             errors.append(f"TAILWIND_RECIPE_CONFLICT: manifest node {dom_id} has an unknown recipe_key")
         elif recipe_key != expected["recipe_key"]:
             errors.append(
@@ -557,7 +560,7 @@ def _validate_react_tailwind_manifest(tsx: str, nodes: dict[str, Any], manifest:
         expected_inventory = {
             "recipe_pack": TAILWIND_RECIPE_PACK,
             "registry_version": TAILWIND_RECIPE_REGISTRY_VERSION,
-            "recipe_registry_digest": tailwind_recipe_registry_digest(),
+            "recipe_registry_digest": tailwind_recipe_registry_digest(recipe_registry=registry),
             "aesthetic_profile": aesthetic_profile,
             "recipe_count": len(recipe_keys),
             "recipes": sorted(recipe_keys),
@@ -705,15 +708,20 @@ def _validate_tailwind_generic_fallback(nodes: dict[str, Any]) -> list[str]:
 
 
 def _tailwind_allowed_class_tokens() -> set[str]:
+    # Every class a default-registry emit can write, read from the same import-time snapshots the
+    # emitter reads: the default registry and the fixed grid and span classes.
+    registry = DEFAULT_TAILWIND_RECIPE_REGISTRY
     tokens = set(TAILWIND_PARITY_CLASS_TOKENS)
-    tokens.update(token for classes in RECIPE_BY_KEY.values() for token in classes.split())
-    for overlay in TAILWIND_AESTHETIC_RECIPE_OVERLAYS.values():
-        for classes in overlay.values():
+    tables: list[Mapping[Any, str]] = [
+        registry.recipes,
+        *registry.aesthetic_overlays.values(),
+        registry.layout_emphasis_classes,
+        _GRID_CLASSES,
+        _GRID_SPAN_CLASSES,
+    ]
+    for table in tables:
+        for classes in table.values():
             tokens.update(classes.split())
-    for classes in GRID_CLASS_BY_COLUMNS.values():
-        tokens.update(classes.split())
-    for classes in LAYOUT_EMPHASIS_CLASS_BY_VALUE.values():
-        tokens.update(classes.split())
     return tokens
 
 
