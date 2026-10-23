@@ -34,6 +34,7 @@ ISSUE_TEMPLATES = GITHUB / "ISSUE_TEMPLATE"
 CONFIG = ISSUE_TEMPLATES / "config.yml"
 PULL_REQUEST_TEMPLATE = GITHUB / "PULL_REQUEST_TEMPLATE.md"
 CODEOWNERS = GITHUB / "CODEOWNERS"
+CI_WORKFLOW = GITHUB / "workflows" / "ci.yml"
 
 TOP_LEVEL_REQUIRED = ("name", "description", "body")
 TOP_LEVEL_KEYS = {*TOP_LEVEL_REQUIRED, "assignees", "labels", "title", "type", "projects"}
@@ -685,11 +686,46 @@ def _repository_rules() -> list[str]:
     return rules
 
 
-def test_pull_request_checklist_names_every_check_in_contributing() -> None:
+def _contributing_commands() -> list[str]:
+    """The commands in the block under "Running the checks" in CONTRIBUTING.md."""
     blocks = re.findall(r"```bash\n(.*?)```", _contributing_section("Running the checks"), flags=re.DOTALL)
     assert blocks, "CONTRIBUTING.md has no command block under 'Running the checks'"
-    commands = [line.strip() for line in blocks[0].splitlines() if line.strip()]
-    assert "ruff check ." in commands, commands
+    return [line.strip() for line in blocks[0].splitlines() if line.strip()]
+
+
+def _ci_commands(job: str | None = None) -> list[str]:
+    """The commands ``ci.yml`` runs from the repository root, in ``job`` or in every job.
+
+    Each line of a ``run`` step is one command. Steps that install something, or that run in another
+    directory, are left out.
+    """
+    jobs = _load(CI_WORKFLOW)["jobs"]
+    steps = [step for name, body in jobs.items() if job in (None, name) for step in body.get("steps", [])]
+    return [
+        line.strip()
+        for step in steps
+        if "run" in step and "working-directory" not in step and not str(step.get("name", "")).startswith("Install")
+        for line in str(step["run"]).splitlines()
+        if line.strip()
+    ]
+
+
+def _without_quiet_flag(command: str) -> str:
+    """``command`` without ``-q``, which changes how much a command prints, not what it checks."""
+    return " ".join(word for word in command.split() if word != "-q")
+
+
+def test_pull_request_checklist_names_every_check_ci_runs() -> None:
+    """CONTRIBUTING.md says CI runs the same commands as its "Running the checks" block, and the
+    checklist repeats that block. So the block holds every command CI's test job runs from the
+    repository root, CI runs every command in the block, and each one has a checklist item."""
+    commands = _contributing_commands()
+    documented = {_without_quiet_flag(command) for command in commands}
+    test_job = [_without_quiet_flag(command) for command in _ci_commands("test")]
+    assert "ruff check ." in test_job, test_job
+    assert [command for command in test_job if command not in documented] == []
+    every_job = {_without_quiet_flag(command) for command in _ci_commands()}
+    assert [command for command in commands if _without_quiet_flag(command) not in every_job] == []
     template = PULL_REQUEST_TEMPLATE.read_text(encoding="utf-8")
     checklist = _pull_request_checklist()
     for command in commands:

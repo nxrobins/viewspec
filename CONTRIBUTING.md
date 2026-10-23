@@ -79,12 +79,21 @@ python -m pytest -q --strict-markers -m "not e2e"
 python scripts/regenerate_schema.py check
 python scripts/update_corpus_goldens.py --check
 python scripts/check_pyright_baseline.py
+node tests/landing_payload_smoke.mjs
+node tests/landing_config_smoke.mjs
+node tests/landing_compile_smoke.mjs
+node tests/commercial_contract_smoke.mjs
+node tests/checkout_claim_smoke.mjs
 node tests/seo_static_smoke.mjs
+git diff --check $(git hash-object -t tree /dev/null) HEAD
 ```
 
 `update_corpus_goldens.py --check` fails when compiled output changes; if the change is
 intended, run it without `--check` and commit the regenerated `tests/fixtures/corpus_goldens.json`.
 `check_pyright_baseline.py` fails when the pyright error count grows above `pyright-baseline.json`.
+The last command compares `HEAD` with the empty tree, so it reports trailing whitespace, blank
+lines at the end of a file and leftover conflict markers in every committed file. It does not see
+uncommitted changes, so run it after committing.
 
 `ruff format` is the only formatter; run `ruff format .` before committing. The lint rule set
 (`I`, `UP`, `B`, `SIM` on top of Pyflakes) and the few deliberate ignores live under
