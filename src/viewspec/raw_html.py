@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import html as html_lib
 import json
+import os
 import re
 from collections.abc import Iterator
 from dataclasses import dataclass, field
@@ -15,7 +16,7 @@ from typing import Any
 from urllib.parse import urlparse
 
 from viewspec._version import __version__
-from viewspec.design_md import DesignSystemContext
+from viewspec.design_md import DesignSystemContext, load_design_system
 from viewspec.emitters._write import write_artifact_set, write_text_atomic
 
 MAX_HTML_INPUT_BYTES = 5_000_000
@@ -397,15 +398,21 @@ def lift_html(html: str, source_name: str | None = None, *, ngram_length: int = 
 
 def compile_html(
     html: str,
-    design: DesignSystemContext | None = None,
+    design: DesignSystemContext | os.PathLike[str] | None = None,
     title: str | None = None,
     *,
     source_name: str | None = None,
     command_args: list[str] | tuple[str, ...] | None = None,
 ) -> HtmlCompileResult:
-    """Compile raw HTML into a governed standalone HTML artifact."""
+    """Compile raw HTML into a governed standalone HTML artifact.
+
+    ``design`` is a ``DesignSystemContext`` from ``load_design_system()`` or, as for ``compile()``,
+    an ``os.PathLike`` such as ``pathlib.Path("DESIGN.md")``, read as a DESIGN.md file.
+    """
 
     _check_html_size(html)
+    if isinstance(design, os.PathLike):
+        design = load_design_system(path=Path(design))
     raw_source_hash = _sha256_text(html)
     parser = _SanitizingHTMLParser()
     parser.feed(html)

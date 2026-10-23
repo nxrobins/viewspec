@@ -239,13 +239,14 @@ in parentheses refer to that document.
   bytes as `compile`; compiled output itself changes only where the single-column role matching
   under Changed applies. New registry codes: `DOCTOR_CHECK_FAILED`, `MCP_DEPENDENCY_MISSING` and
   `MCP_SERVER_FAILED`.
-- `compile(bundle, design=...)` accepts an `os.PathLike`, such as `pathlib.Path("DESIGN.md")`, and
-  reads it as a DESIGN.md file with `strict_design` applied (C-9). A `str` is still DESIGN.md
-  content and never touches the filesystem: `compile()` does not open it, read it or check whether
-  a file by that name exists, so a `str` taken from a request can neither make `compile()` read a
-  local file nor reveal which local paths exist. `compile(bundle, design="DESIGN.md")` still fails
-  with `DesignSystemError` ("must begin with YAML front matter"); that error now carries an
-  exception note that says to pass `pathlib.Path`, the same note for every one-line `str`.
+- `compile(bundle, design=...)` and `compile_html(html, design=...)` accept an `os.PathLike`, such
+  as `pathlib.Path("DESIGN.md")`, and read it as a DESIGN.md file; `compile()` applies
+  `strict_design` to it (C-9). For `compile()`, a `str` is still DESIGN.md content and never
+  touches the filesystem: `compile()` does not open it, read it or check whether a file by that
+  name exists, so a `str` taken from a request can neither make `compile()` read a local file nor
+  reveal which local paths exist. `compile(bundle, design="DESIGN.md")` still fails with
+  `DesignSystemError` ("must begin with YAML front matter"); that error now carries an exception
+  note that says to pass `pathlib.Path`, the same note for every one-line `str`.
 
 ## [0.3.0b12] - 2026-10-14
 

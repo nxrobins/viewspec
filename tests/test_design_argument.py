@@ -1,13 +1,13 @@
-"""How compile(design=...) and load_design_system() take a DESIGN.md (audit C-9).
+"""How compile(), compile_html() and load_design_system() take a DESIGN.md (audit C-9).
 
-A ``str`` passed as ``design`` is DESIGN.md content and never touches the filesystem: compile() does
-not open it, read it or check whether a file by that name exists, so a ``str`` from an untrusted
-source can neither make compile() read a local file nor reveal which local paths exist. File paths
-are an explicit input as an ``os.PathLike``. A single-line ``str`` can never be valid content: it
-fails with the same ``DesignSystemError`` it always raised, now with a note that says to pass
-``pathlib.Path``, and the error is the same whether or not a file by that name exists.
-``load_design_system(lint=...)`` never had a local effect, so passing it emits a
-``DeprecationWarning``.
+A ``str`` passed to compile() as ``design`` is DESIGN.md content and never touches the filesystem:
+compile() does not open it, read it or check whether a file by that name exists, so a ``str`` from
+an untrusted source can neither make compile() read a local file nor reveal which local paths
+exist. File paths are an explicit input as an ``os.PathLike``, to compile() and compile_html()
+alike. A single-line ``str`` can never be valid content: it fails with the same
+``DesignSystemError`` it always raised, now with a note that says to pass ``pathlib.Path``, and the
+error is the same whether or not a file by that name exists. ``load_design_system(lint=...)``
+never had a local effect, so passing it emits a ``DeprecationWarning``.
 """
 
 from __future__ import annotations
@@ -26,7 +26,15 @@ import pytest
 from hypothesis import example, given, settings
 from hypothesis import strategies as st
 
-from viewspec import DesignRequest, DesignSystemError, ViewSpecBuilder, compile, design_md, load_design_system
+from viewspec import (
+    DesignRequest,
+    DesignSystemError,
+    ViewSpecBuilder,
+    compile,
+    compile_html,
+    design_md,
+    load_design_system,
+)
 from viewspec.compiler import _is_single_line
 from viewspec.design_md import DESIGN_MAX_BYTES
 
@@ -118,6 +126,24 @@ def test_compile_reads_a_pathlike_design_as_a_file_without_warning(design_file):
     assert from_path.style_values == from_content.style_values
     assert from_pathlike.style_values == from_content.style_values
     assert from_path.result.root == from_content.result.root
+
+
+def test_compile_html_reads_a_pathlike_design_like_compile(design_file):
+    # The guide shows compile_html() next to compile(design=Path(...)); both take a path.
+    expected = compile_html("<h1>Report</h1>", design=load_design_system(path=design_file))
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        from_path = compile_html("<h1>Report</h1>", design=design_file)
+        from_pathlike = compile_html("<h1>Report</h1>", design=_StrPathLike(design_file))
+
+    assert "#123456" in from_path.html
+    assert from_path.html == from_pathlike.html == expected.html
+    assert from_path.manifest == from_pathlike.manifest == expected.manifest
+
+
+def test_compile_html_missing_pathlike_design_raises_file_not_found(tmp_path):
+    with pytest.raises(FileNotFoundError):
+        compile_html("<h1>Report</h1>", design=tmp_path / "missing.md")
 
 
 def test_compile_str_naming_an_existing_file_is_still_parsed_as_content(design_file, monkeypatch):

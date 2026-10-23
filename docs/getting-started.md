@@ -506,7 +506,9 @@ from viewspec import compile, compile_html, load_design_system
 design = load_design_system(path="DESIGN.md")
 html_result = compile_html("<h1>Report</h1>", design=design)
 ast = compile(builder.build_bundle(), design=design)
-ast = compile(builder.build_bundle(), design=Path("DESIGN.md"))  # the same file, read by compile
+# The same file, read by compile_html and compile themselves:
+html_result = compile_html("<h1>Report</h1>", design=Path("DESIGN.md"))
+ast = compile(builder.build_bundle(), design=Path("DESIGN.md"))
 ```
 
 `compile(bundle, design=...)` takes a `DesignSystemContext` from `load_design_system()`, a path as
@@ -518,7 +520,8 @@ text `DESIGN.md` as content and fails with `DesignSystemError` ("must begin with
 matter"), as in earlier releases. The error carries an exception note, shown in tracebacks, that
 says to pass `Path("DESIGN.md")`; the error and its note are the same for every one-line `str`,
 whether or not a file by that name exists. A `DesignRequest` is parsed locally from its `content`;
-its `lint` flag is read only by the hosted compiler.
+its `lint` flag is read only by the hosted compiler. `compile_html(html, design=...)` takes a
+`DesignSystemContext` or an `os.PathLike` path the same way, but no `str` or `DesignRequest`.
 
 `load_design_system()` always validates. Its `lint` argument never had a local effect, is
 deprecated, and emits a `DeprecationWarning` when passed; drop it. Findings are in
