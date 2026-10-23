@@ -143,10 +143,18 @@ in parentheses refer to that document.
   (H-2); the release checklist tags and publishes each release (R-7) and says that the site
   deploy does not wait for the PyPI check (R-2).
 - The single-column product surface detector matches its primary role the way the workspace
-  detector does: case-insensitively, with `-` read as `_` and other separators splitting the role
-  into tokens. Roles such as `Main`, `primary-column` or `main_content` now make a primary column
-  in a `root -> main` stack, as they already did inside a workspace; no corpus output changes
-  (C-9).
+  detector does (C-9). A role now counts as primary when any of its words is `main` or `primary`,
+  ignoring case, where every character other than an ASCII letter or digit separates words;
+  before, only the exact roles `main`, `primary`, `primary_column` and `workspace_primary` did.
+  `Main`, `Primary Column`, `primary-column` and `main_content` now match, and so do `not_main`,
+  `non-primary`, `main-nav`, `main_navigation` and `primary-footer`, as they already did inside a
+  workspace; `domain`, `remain` and `mainstream` do not. This changes compiled output: a bundle
+  whose root has a single child region, a `stack` whose role newly matches, and no other regions
+  now compiles to the `single_column_v1` product surface. Its HTML and TSX output, on all three
+  targets, gains product-role styling for the page shell, the column and the dashboard, form,
+  detail and hero motifs in it, and, when the root has a one-line `title` that no binding shows
+  and the column holds no `hero`, an implicit page header that shows that title. Recompile such
+  bundles and review the output. No corpus output changes.
 
 ### Deprecated
 
@@ -219,9 +227,11 @@ in parentheses refer to that document.
   `resource_binding` and `binding_scope` of the bundle it wrote, as the MCP `init_app` tool does,
   so the `react-app` template reports `fixture_readonly_v0`. `viewspec mcp --json` leaves stdout
   to the protocol and writes a failure that stops the server, at startup (`MCP_DEPENDENCY_MISSING`,
-  `INVALID_PATH`) or later (`MCP_SERVER_FAILED`), to stderr as one line of JSON. Output without
-  `--json`, exit codes and compiled artifact bytes are unchanged. New registry codes:
-  `DOCTOR_CHECK_FAILED`, `MCP_DEPENDENCY_MISSING` and `MCP_SERVER_FAILED`.
+  `INVALID_PATH`) or later (`MCP_SERVER_FAILED`), to stderr as one line of JSON. Adding `--json`
+  leaves output without it and exit codes unchanged, and `compile --json` writes the same artifact
+  bytes as `compile`; compiled output itself changes only where the single-column role matching
+  under Changed applies. New registry codes: `DOCTOR_CHECK_FAILED`, `MCP_DEPENDENCY_MISSING` and
+  `MCP_SERVER_FAILED`.
 - `compile(bundle, design=...)` accepts an `os.PathLike`, such as `pathlib.Path("DESIGN.md")`, and
   reads it as a DESIGN.md file with `strict_design` applied (C-9). A `str` is still DESIGN.md
   content and never touches the filesystem: `compile()` does not open it, read it or check whether

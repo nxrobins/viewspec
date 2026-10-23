@@ -853,7 +853,22 @@ def _single_column_role_bundle(role):
 
 
 @pytest.mark.parametrize(
-    "role", ["main", "Main", "primary-column", "Primary Column", "main_content", "workspace-primary"]
+    "role",
+    [
+        "main",
+        "Main",
+        "primary-column",
+        "Primary Column",
+        "main_content",
+        "workspace-primary",
+        # Any word "main" or "primary" matches, as the CHANGELOG says, even where the role means
+        # something else; the workspace detector has always matched these.
+        "not_main",
+        "non-primary",
+        "main-nav",
+        "main_navigation",
+        "primary-footer",
+    ],
 )
 def test_single_column_surface_matches_primary_roles_like_the_workspace_detector(role):
     # Audit C-9: the single-column detector compared the role exactly, while the workspace detector
@@ -869,7 +884,7 @@ def test_single_column_surface_matches_primary_roles_like_the_workspace_detector
     assert workspace_nodes["region_focus"].props["product_role"] == "primary_column"
 
 
-@pytest.mark.parametrize("role", ["sidebar", "mainstream", "content", "primaryish"])
+@pytest.mark.parametrize("role", ["sidebar", "mainstream", "content", "primaryish", "domain", "remain"])
 def test_single_column_surface_rejects_non_primary_roles_like_the_workspace_detector(role):
     single = compile(_single_column_role_bundle(role))
     workspace = compile(_product_workspace_bundle(primary_role=role))
@@ -877,6 +892,20 @@ def test_single_column_surface_rejects_non_primary_roles_like_the_workspace_dete
     assert "planner_surface" not in single.result.root.root.props
     assert all("product_role" not in node.props for node in _walk_nodes(single.result.root.root))
     assert "planner_surface" not in workspace.result.root.root.props
+
+
+def test_newly_matching_single_column_role_changes_the_compiled_output():
+    # The output change the CHANGELOG asks users to review: a "Main" stack under the root compiled
+    # to a plain stack before; now it is a single-column surface, so the root title becomes an
+    # implicit page header and the shell and column carry product roles.
+    root = compile(_single_column_role_bundle("Main")).result.root.root
+    nodes = {node.id: node for node in _walk_nodes(root)}
+    header = nodes["region_body"].children[0]
+
+    assert root.props["product_role"] == "app_shell"
+    assert header.props["product_role"] == "page_header"
+    assert [child.props["text"] for child in header.children] == ["Roles"]
+    assert header.provenance.content_refs == ["node:role_spelling#attr:title"]
 
 
 @pytest.mark.parametrize(
