@@ -26,6 +26,9 @@ in parentheses refer to that document.
 - Non-ASCII text in list and dict bindings renders as UTF-8 instead of `\u` escapes (C-2).
 - `compile_auto` falls back to the hosted compiler only for unsupported motifs; a local
   `DESIGN.md` error no longer uploads the bundle (C-3).
+- `viewspec mcp` exits `1`, not `120`, when its client goes away on Python 3.14. It points the
+  broken stdout at the null device before it exits, so Python's exit-time flush no longer fails
+  and adds two `BrokenPipeError` reports to stderr (C-9).
 - The declared protobuf requirement matches the generated schema: `protobuf>=6.31.1,<8`. The
   package did not import with protobuf 5.x (P-1).
 - The `agents` extra requires `mcp>=1.9.0,<2`. MCP SDK 2.x removed the `mcp.server.fastmcp`
@@ -156,6 +159,27 @@ in parentheses refer to that document.
   major.minor.patch npm version, and Python, Node, Bun and Playwright stay pinned exactly (R-5).
 - The Pretext E2E result contract now requires at least seven tests with none failed, errored or
   skipped, instead of exactly seven, so adding an e2e test no longer fails the gate (R-5).
+- The single-column product surface detector matches its primary role the way the workspace
+  detector does (C-9). A role now counts as primary when any of its words is `main` or `primary`,
+  ignoring case, where every character other than an ASCII letter or digit separates words;
+  before, only the exact roles `main`, `primary`, `primary_column` and `workspace_primary` did.
+  `Main`, `Primary Column`, `primary-column` and `main_content` now match, and so do `not_main`,
+  `non-primary`, `main-nav`, `main_navigation` and `primary-footer`, as they already did inside a
+  workspace; `domain`, `remain` and `mainstream` do not. This changes compiled output: a bundle
+  whose root has a single child region, a `stack` whose role newly matches, and no other regions
+  now compiles to the `single_column_v1` product surface. Its HTML and TSX output, on all three
+  targets, gains product-role styling for the page shell, the column and the dashboard, form,
+  detail and hero motifs in it, and, when the root has a one-line `title` that no binding shows
+  and the column holds no `hero`, an implicit page header that shows that title. Recompile such
+  bundles and review the output. No corpus output changes.
+
+### Deprecated
+
+- `load_design_system(lint=...)`. The argument never had a local effect, because local DESIGN.md
+  validation always runs; passing it now emits a `DeprecationWarning`, and it will be removed in
+  the next major version. `DesignRequest(lint=...)` is still sent to the hosted compiler, which
+  reads it; `compile()` no longer passes a `DesignRequest`'s `lint` flag to the local loader, so a
+  hosted request compiled locally does not warn (C-9).
 
 ### Security
 
@@ -203,6 +227,40 @@ in parentheses refer to that document.
   the release and corpus scripts have smoke tests (T-1, T-3, T-5).
 - Documentation tests: every error code cited in the docs exists in the registry, and the Claude
   Code skill matches the managed instructions (D-3, D-6).
+- Every CLI subcommand accepts `--json` (C-9). The nine that did not, `compile`, `lift`, `doctor`,
+  `init-intent`, `init-design`, `init-app`, `init-agent`, `export-agent-assets` and `mcp`, now do.
+  The first eight print the standard tool envelope that the MCP tools return (`schema_version`,
+  `ok`, `summary`, `diagnostics`, `external_refs`, `paths`, `next_actions`, `errors`, `metadata`),
+  with command data beside it: `lift` adds `lift`, `doctor` adds `checks`, `init-agent` adds
+  `target`, `root` and `changes`, and `export-agent-assets` adds `assets`. A failure is the same
+  envelope on stdout with `ok: false` and `{code, message, fix}` errors, and the exit code human
+  mode uses (`2` for input and contract errors, `1` for internal ones); a coded exception's message
+  does not repeat its code. An invalid IntentBundle passed to `compile --json` carries `validation`
+  and `correction_prompt`, and a DESIGN.md error lists its findings under `diagnostics`.
+  `doctor --json` names each failing check as a `DOCTOR_CHECK_FAILED` error whose `fix` repairs
+  that check: the Freerange probe's own fix for `--freerange`, whose coded errors such as
+  `APP_FREERANGE_RUNTIME_MISSING` follow, a re-export or an SDK upgrade for stale `.viewspec` or
+  `demos` agent assets, and the install hint for a missing MCP SDK. `init-app --json` reports the
+  `resource_binding` and `binding_scope` of the bundle it wrote, as the MCP `init_app` tool does,
+  so the `react-app` template reports `fixture_readonly_v0`. `viewspec mcp --json` leaves stdout
+  to the protocol and writes a failure that stops the server, at startup (`MCP_DEPENDENCY_MISSING`,
+  `INVALID_PATH`) or later (`MCP_SERVER_FAILED`), to stderr as one line of JSON whose message names
+  the underlying error, such as `[Errno 32] Broken pipe`, rather than the task group that wrapped
+  it; it also lowers the MCP SDK's log level to `ERROR`, so the SDK's line for every request stays
+  off stderr (`run_mcp_server()` takes the matching `log_level`). A failure's JSON message is
+  never empty: an exception without text is named by its type. Adding `--json`
+  leaves output without it and exit codes unchanged, and `compile --json` writes the same artifact
+  bytes as `compile`; compiled output itself changes only where the single-column role matching
+  under Changed applies. New registry codes: `DOCTOR_CHECK_FAILED`, `MCP_DEPENDENCY_MISSING` and
+  `MCP_SERVER_FAILED`.
+- `compile(bundle, design=...)` and `compile_html(html, design=...)` accept an `os.PathLike`, such
+  as `pathlib.Path("DESIGN.md")`, and read it as a DESIGN.md file; `compile()` applies
+  `strict_design` to it (C-9). For `compile()`, a `str` is still DESIGN.md content and never
+  touches the filesystem: `compile()` does not open it, read it or check whether a file by that
+  name exists, so a `str` taken from a request can neither make `compile()` read a local file nor
+  reveal which local paths exist. `compile(bundle, design="DESIGN.md")` still fails with
+  `DesignSystemError` ("must begin with YAML front matter"); that error now carries an exception
+  note that says to pass `pathlib.Path`, the same note for every one-line `str`.
 
 ## [0.3.0b12] - 2026-10-14
 

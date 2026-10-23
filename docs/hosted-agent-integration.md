@@ -100,6 +100,8 @@ SDK clients may send optional root-level `design` context in the hosted `Compile
 
 The SDK treats `content` as an opaque string. The hosted API owns parsing, linting, cycle detection, style mapping, and `meta.design` validation results.
 
+`lint` is a hosted-only switch. A `DesignRequest` passed to the local `compile(bundle, design=...)` is parsed from its `content` and always validated, whatever `lint` says; `load_design_system(lint=...)` is deprecated and has no effect.
+
 Every successful compile includes `meta.compiler`, and paid artifact responses expose the same
 identity as `response.compiler`. Record its `build_id` and `source_revision` with generated output
 when exact hosted reproducibility matters. The identity also binds the contract profile, API and
