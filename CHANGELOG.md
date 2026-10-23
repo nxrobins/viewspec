@@ -194,16 +194,20 @@ in parentheses refer to that document.
   LFS endpoint (H-3). Run on an up-to-date `main`, it commits the files as LFS pointers on the
   branch `lfs/launch-media`, checks the commit against the unchanged working files, and prints the
   push, fresh-clone and site checks. It never pushes or rewrites history, and running it again
-  changes nothing. It writes only the Git LFS filter settings into `.git/config` and leaves existing
-  Git hooks alone, so a pre-push hook of your own does not stop it; when no pre-push hook runs
-  `git lfs pre-push`, it says so, because later plain pushes of LFS content would upload no objects.
-  It builds on an existing `lfs/launch-media` only when that branch contains `main`, whether it
-  starts on `main` or on that branch, and otherwise stops before changing anything and says how to
-  bring the branch up to date; a run that stops part-way says that the branch is left checked out
-  and to start again from `main`. It finds `main` by its full ref name, so a tag called `main`
-  cannot make it commit on `main` itself. `--verify-site` compares what the deployed site serves
-  with the committed media by SHA-256. The Pages deploy checks out with `lfs: true`, and the release
-  checklist covers the quotas, the push, the site check and what contributors need.
+  changes nothing. It writes the Git LFS filter settings into `.git/config`, and the LFS filter it
+  runs may add the Git LFS `pre-push`, `post-checkout`, `post-commit` and `post-merge` hooks where
+  no hook of that name exists, as in any clone with LFS content. Hooks of your own stay as they are,
+  and an existing pre-push hook does not stop it. When `core.hooksPath` is set, the script prints a
+  note that names that directory and says whether the setting is global, because every repository
+  that uses the directory then runs those hooks. When no pre-push hook runs `git lfs pre-push`, it
+  says so, because later plain pushes of LFS content would upload no objects. It builds on an
+  existing `lfs/launch-media` only when that branch contains `main`, whether it starts on `main` or
+  on that branch, and otherwise stops before changing anything and says how to bring the branch up
+  to date; a run that stops part-way says that the branch is left checked out and to start again
+  from `main`. It finds `main` by its full ref name, so a tag called `main` cannot make it commit on
+  `main` itself. `--verify-site` compares what the deployed site serves with the committed media by
+  SHA-256. The Pages deploy checks out with `lfs: true`, and the release checklist covers the
+  quotas, the push, the site check and what contributors need.
 
 ## [0.3.0b12] - 2026-10-14
 

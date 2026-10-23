@@ -102,9 +102,15 @@ history stay there, and later re-encodes go to LFS storage instead of growing ev
   `main`, for example after an earlier run stopped part-way, it stops before changing anything,
   whether you run it on `main` or on that branch, and says how to bring the branch up to date. A run
   that stops part-way leaves `lfs/launch-media` checked out and says how to start again from `main`.
-  It writes only the LFS filter settings into `.git/config` and leaves existing Git hooks alone.
-  When no pre-push hook runs `git lfs pre-push`, it says so: the printed `git lfs push` still
-  uploads this migration, but a plain `git push` of later LFS content would upload no objects.
+  It writes the LFS filter settings into `.git/config`, and the LFS filter that converts the files
+  may add the Git LFS `pre-push`, `post-checkout`, `post-commit` and `post-merge` hooks where no
+  hook of that name exists, as it does in any clone with LFS content; hooks of your own stay as they
+  are. The hooks go into `core.hooksPath` when that is set, even in your global Git config: every
+  repository that uses that directory then runs them, and `git push` fails in each one whenever
+  git-lfs is not on PATH. Before the filter runs, the script prints a note that names the directory
+  and says whether the setting is global. When no pre-push hook runs `git lfs pre-push`, it says so:
+  the printed `git lfs push` still uploads this migration, but a plain `git push` of later LFS
+  content would upload no objects.
 - Push as printed (`git lfs push origin lfs/launch-media`, then
   `git push --set-upstream origin lfs/launch-media`) and run the printed fresh-clone check, which
   fails if GitHub lacks any of the objects. Then open and merge the pull request.

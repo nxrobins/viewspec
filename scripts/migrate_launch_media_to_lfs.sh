@@ -15,9 +15,15 @@
 # against the pointer git-lfs computes for the working file, commits, checks the commit,
 # and prints the push and verification steps. It never pushes and never rewrites
 # history: the migration is one new commit and the working files stay byte-identical.
-# Running it again changes nothing. It writes only the Git LFS filter settings into
-# .git/config and leaves existing Git hooks alone; the printed git lfs push uploads the
-# objects whatever the pre-push hook does.
+# Running it again changes nothing.
+#
+# It writes the Git LFS filter settings into .git/config. The LFS filter that converts the
+# files may then add the Git LFS pre-push, post-checkout, post-commit and post-merge hooks
+# where no hook of that name exists, as it does in any clone with LFS content: in
+# .git/hooks, or in core.hooksPath when that is set, even globally, and every repository
+# that uses that directory then runs them. The script prints a note when core.hooksPath is
+# set. Hooks of your own stay as they are, and the printed git lfs push uploads the objects
+# whatever the pre-push hook does.
 #
 # --verify-site downloads each media file from a deployed site (default: https:// plus
 # demos/CNAME) and compares its SHA-256 and size with the media committed at HEAD. A file
@@ -220,6 +226,33 @@ serves the media and not LFS pointer files:
 EOF
 }
 
+# Git takes the hooks from core.hooksPath when that is set, and the LFS filter adds the Git
+# LFS hooks there as well. A global or system setting shares that directory with every
+# repository that does not set its own, so say where the hooks may go, and who runs them.
+note_hooks_path() {
+    [ -n "$(git config --get core.hooksPath)" ] || return 0
+    # Scope, origin and value, separated by tabs; --show-scope needs Git 2.26.
+    setting=$(git config --show-scope --show-origin --get core.hooksPath 2>/dev/null) || setting=
+    scope=$(printf '%s\n' "$setting" | cut -f1)
+    origin=$(printf '%s\n' "$setting" | cut -f2 | sed 's/^file://')
+    shared=
+    case $scope in
+        global | system)
+            where="your $scope Git config ($origin)"
+            shared=", and of every other repository that does not set its
+own core.hooksPath,"
+            ;;
+        local | worktree) where="this repository's Git config ($origin)" ;;
+        *) where="your Git configuration" ;;
+    esac
+    say "Note: core.hooksPath is set in $where.
+Git runs the hooks of this repository$shared from
+    $(git rev-parse --git-path hooks)
+The Git LFS filter may add its pre-push, post-checkout, post-commit and post-merge hooks
+there, where no hook of that name exists. Every repository that uses that directory then
+runs them, and git push fails in each one whenever git-lfs is not on PATH."
+}
+
 # True when $1 is a hook that git runs and that calls git lfs pre-push, which uploads the
 # LFS objects of each push.
 hook_runs_lfs_pre_push() {
@@ -331,6 +364,9 @@ migrate() {
         { [ "$ref" = refs/heads/main ] && git show-ref --verify --quiet "refs/heads/$BRANCH"; }; then
         require_branch_contains_main "$ref"
     fi
+    # Before the first command that can run the LFS filter: switching to a migrated branch
+    # smudges its pointers, and the renormalizing add cleans the media.
+    note_hooks_path
 
     if [ "$ref" = refs/heads/main ]; then
         if git show-ref --verify --quiet "refs/heads/$BRANCH"; then
@@ -359,8 +395,9 @@ switch back to main and run this script from there:
     # The filter.lfs settings that the renormalizing add needs, in .git/config. --skip-repo
     # leaves the hooks alone: git lfs install refuses to replace a hook it did not write,
     # even one that already calls git lfs pre-push, and the push needs no hook because the
-    # next steps upload the objects with git lfs push. (The LFS filter still installs its
-    # hooks where none are in the way, as it does in any clone.)
+    # next steps upload the objects with git lfs push. (The LFS filter that the add runs
+    # still adds the Git LFS hooks where no hook of that name exists, as it does in any
+    # clone; note_hooks_path says where when core.hooksPath is set.)
     if ! run git lfs install --local --skip-repo; then
         die "git lfs install --local --skip-repo failed (see its message above). It only writes the
 filter.lfs settings that git add needs into .git/config, so check those settings there."

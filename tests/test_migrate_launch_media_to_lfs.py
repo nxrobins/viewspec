@@ -31,6 +31,10 @@ POINTER_VERSION = b"version https://git-lfs.github.com/spec/v1\n"
 EXTENSIONS = ("gif", "mp4", "png")
 # Printed with the push steps when no pre-push hook uploads LFS objects.
 NO_LFS_HOOK_NOTE = "no pre-push hook runs git lfs pre-push here"
+# The hooks that the Git LFS filter adds where no hook of that name exists.
+LFS_HOOKS = ("pre-push", "post-checkout", "post-commit", "post-merge")
+# Printed before the filter runs when core.hooksPath is set.
+HOOKS_PATH_NOTE = "Note: core.hooksPath is set in"
 SH = shutil.which("sh")
 GIT = shutil.which("git")
 
@@ -188,6 +192,21 @@ def _commands(message: str) -> list[str]:
     return [line.strip() for line in message.splitlines() if line.startswith(("    git ", "    sh "))]
 
 
+def _hooks(directory: Path) -> dict[str, str]:
+    return {path.name: path.read_text(encoding="utf-8") for path in directory.iterdir()}
+
+
+def _added_lfs_hooks(directory: Path, before: dict[str, str]) -> list[str]:
+    """The hooks that appeared in ``directory`` since ``before``; each must be a Git LFS hook,
+    and every hook in ``before`` must be unchanged."""
+    after = _hooks(directory)
+    assert {name: after.get(name) for name in before} == before, "a hook that was there changed or went away"
+    added = sorted(set(after) - set(before))
+    for name in added:
+        assert name in LFS_HOOKS and f'git lfs {name} "$@"' in after[name], (name, after[name])
+    return added
+
+
 @needs_git_lfs
 def test_migration_commits_canonical_pointers_and_keeps_the_media(checkout: Checkout) -> None:
     attributes_before = (checkout.path / ".gitattributes").read_bytes()
@@ -261,6 +280,7 @@ def test_an_existing_pre_push_hook_neither_stops_the_migration_nor_changes(
     body = "#!/bin/sh\necho 'my own pre-push checks'\n" + ('git lfs pre-push "$@"\n' if calls_lfs else "")
     hook.write_text(body, encoding="utf-8")
     hook.chmod(0o755)
+    before = _hooks(hooks)
 
     first = checkout.migrate()
     again = checkout.migrate()
@@ -274,15 +294,60 @@ def test_an_existing_pre_push_hook_neither_stops_the_migration_nor_changes(
         assert f"{BRANCH} already stores the launch media as Git LFS pointers" in result.stdout
     for name in checkout.media:
         assert checkout.blob(f"{BRANCH}:{name}") == _canonical_pointer(checkout.originals[name]), name
+    # The pre-push hook is as it was, and anything new in its directory is a Git LFS hook.
     assert hook.read_text(encoding="utf-8") == body
+    _added_lfs_hooks(hooks, before)
     # The push steps upload the objects themselves and say when a plain push would not.
     shown = str(hook) if shared else ".git/hooks/pre-push"
     for result in (first, again, from_main):
         assert f"git lfs push origin {BRANCH}\n" in result.stdout
+        if shared:
+            assert f"{HOOKS_PATH_NOTE} your global Git config" in result.stdout, result.stdout
+            assert f"\n    {hooks}\n" in result.stdout, result.stdout
+        else:
+            assert HOOKS_PATH_NOTE not in result.stdout, result.stdout
         if calls_lfs:
             assert NO_LFS_HOOK_NOTE not in result.stdout, result.stdout
         else:
             assert f"{NO_LFS_HOOK_NOTE} ({shown})" in result.stdout, result.stdout
+
+
+@needs_git_lfs
+@pytest.mark.parametrize("scope", ["global", "local"])
+def test_git_lfs_hooks_that_go_into_core_hooks_path_are_announced(
+    checkout: Checkout, tmp_path: Path, scope: str
+) -> None:
+    # The LFS filter that converts the files adds the Git LFS hooks where no hook of that name
+    # exists, in core.hooksPath when that is set. A global setting shares that directory with
+    # every repository that does not set its own.
+    hooks = tmp_path / "shared-hooks"
+    hooks.mkdir()
+    pre_commit = hooks / "pre-commit"
+    pre_commit.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+    pre_commit.chmod(0o755)
+    checkout.git("config", f"--{scope}", "core.hooksPath", str(hooks))
+    before = _hooks(hooks)
+    own_hooks = _hooks(checkout.path / ".git" / "hooks")
+
+    result = checkout.migrate()
+
+    assert result.returncode == 0, result.stderr + result.stdout
+    # The note comes before the first command that can run the filter.
+    note = result.stdout[: result.stdout.index("+ git switch -c")]
+    assert note.startswith(HOOKS_PATH_NOTE), result.stdout
+    assert f"\n    {hooks}\n" in note, note
+    flat = " ".join(note.split())
+    if scope == "global":
+        assert f"{HOOKS_PATH_NOTE} your global Git config ({checkout.env['GIT_CONFIG_GLOBAL']})." in flat, note
+        assert "and of every other repository that does not set its own core.hooksPath" in flat, note
+    else:
+        assert f"{HOOKS_PATH_NOTE} this repository's Git config (.git/config)." in flat, note
+        assert "every other repository" not in flat, note
+    assert "may add its pre-push, post-checkout, post-commit and post-merge hooks there" in flat, note
+    # No hook of those names was in the way, so all four are now in that directory, next to
+    # the pre-commit hook, which is unchanged; .git/hooks gets none.
+    assert _added_lfs_hooks(hooks, before) == sorted(LFS_HOOKS)
+    assert _hooks(checkout.path / ".git" / "hooks") == own_hooks
 
 
 @needs_git_lfs
