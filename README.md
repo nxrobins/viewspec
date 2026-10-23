@@ -376,8 +376,9 @@ VIEWSPEC_RUN_PRETEXT_E2E=1 \
 Set `VIEWSPEC_PRETEXT_E2E_ARTIFACT_DIR` to a fresh directory to retain the generated inputs, apps,
 proof reports, summaries, and support bundles. The dedicated
 [Pretext E2E workflow](.github/workflows/pretext-e2e.yml) runs on relevant pull requests and pushes,
-every Monday at 10:17 UTC, and by manual dispatch. It pins Python, Node/npm, Bun, Playwright, and
-Chromium, rejects an all-skipped run, and retains the three scenario trees plus JUnit and toolchain evidence
+every Monday at 10:17 UTC, and by manual dispatch. It pins Python, Node, Bun, Playwright, and
+Chromium exactly and npm to its major.minor line, fails unless at least seven tests ran with none
+failed, errored, or skipped, and retains the three scenario trees plus JUnit and toolchain evidence
 for 30 days. In addition to healthy standalone and composed proofs, the suite injects and rejects
 division, bounds, font, wrapping, and overflow defects through real Bun and Chromium runtimes.
 Ordinary CI explicitly excludes the `e2e` marker.
