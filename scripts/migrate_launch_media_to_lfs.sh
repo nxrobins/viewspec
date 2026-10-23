@@ -8,8 +8,9 @@
 # Run the migration once, from a clean, up-to-date checkout of main, on a machine with
 # git-lfs installed that can reach GitHub's LFS endpoint (the push uploads the objects
 # there). On main it creates the branch lfs/launch-media, or reuses it when it contains
-# main (a branch that lacks commits of main stops the script before it changes anything);
-# on any other branch it commits there. It routes the media through Git LFS in
+# main; on any other branch it commits there. Whether it starts on main or on
+# lfs/launch-media, a lfs/launch-media that lacks commits of main stops the script before
+# it changes anything. It routes the media through Git LFS in
 # .gitattributes, re-adds them so the index holds LFS pointers, checks every staged blob
 # against the pointer git-lfs computes for the working file, commits, checks the commit,
 # and prints the push and verification steps. It never pushes and never rewrites
@@ -280,24 +281,35 @@ media. Made with scripts/migrate_launch_media_to_lfs.sh.
 EOF
 }
 
-# Run on main before reusing an existing $BRANCH. A run that stopped after creating the
-# branch, or a migration that was never pushed, leaves it behind once main moves on, and a
-# commit there would hold the media of that older main (and conflict with any re-encode).
+# require_branch_contains_main REF: $BRANCH must contain main before the script builds on
+# it, both when it switches there from main and when it starts there (REF is the ref HEAD
+# names). A run that stopped after creating the branch, or a migration that was never
+# pushed, leaves it behind once main moves on, and a commit there would hold the media of
+# that older main (and conflict with any re-encode).
 require_branch_contains_main() {
-    if git merge-base --is-ancestor HEAD "refs/heads/$BRANCH"; then
+    git show-ref --verify --quiet refs/heads/main ||
+        die "there is no branch main here to check $BRANCH against; run this script from an up-to-date main"
+    if git merge-base --is-ancestor refs/heads/main "refs/heads/$BRANCH"; then
         return 0
     fi
-    if git merge-base --is-ancestor "refs/heads/$BRANCH" HEAD; then
+    # git branch -d and -D refuse to delete the branch that is checked out.
+    leave=
+    if [ "$1" = "refs/heads/$BRANCH" ]; then
+        leave="
+    git switch main"
+    fi
+    if git merge-base --is-ancestor "refs/heads/$BRANCH" refs/heads/main; then
         die "$BRANCH is behind main and has no commits of its own: an earlier run
-probably stopped after creating it. Delete it, then run this script again:
+probably stopped after creating it. Delete it, then run this script again from main:$leave
     git branch -d $BRANCH"
     fi
     die "$BRANCH does not contain main, so a migration there would hold the media
 of an older main. These are its own commits:
-$(git log --oneline --no-decorate "HEAD..refs/heads/$BRANCH" | sed 's/^/    /')
-If they are an earlier run of this script that you have not pushed, delete the branch
-with 'git branch -D $BRANCH' and run this script again. Otherwise merge main
-into it first, then run this script again."
+$(git log --oneline --no-decorate "refs/heads/main..refs/heads/$BRANCH" | sed 's/^/    /')
+If they are an earlier run of this script that you have not pushed, delete the branch,
+then run this script again from main:$leave
+    git branch -D $BRANCH
+Otherwise merge main into it first, then run this script again."
 }
 
 migrate() {
@@ -308,20 +320,32 @@ migrate() {
     require_clean_tree
     check_inventory
 
+    if [ "$ref" = refs/heads/main ] && head_is_migrated; then
+        say "main already stores the launch media in Git LFS ($(git rev-parse --short HEAD)); nothing to migrate."
+        print_site_check
+        return 0
+    fi
+    # Whether the run starts on $BRANCH or is about to switch there from main, the branch
+    # must contain main.
+    if [ "$ref" = "refs/heads/$BRANCH" ] ||
+        { [ "$ref" = refs/heads/main ] && git show-ref --verify --quiet "refs/heads/$BRANCH"; }; then
+        require_branch_contains_main "$ref"
+    fi
+
     if [ "$ref" = refs/heads/main ]; then
-        if head_is_migrated; then
-            say "main already stores the launch media in Git LFS ($(git rev-parse --short HEAD)); nothing to migrate."
-            print_site_check
-            return 0
-        fi
         if git show-ref --verify --quiet "refs/heads/$BRANCH"; then
-            require_branch_contains_main
             run git switch "$BRANCH"
         else
             run git switch -c "$BRANCH"
         fi
         branch=$BRANCH
         check_inventory
+    fi
+    if [ "$branch" = "$BRANCH" ]; then
+        RECOVERY="Nothing was committed, and $BRANCH is left checked out. To start again,
+switch back to main and run this script from there:
+    git switch main
+    sh $SELF"
     fi
 
     if head_is_migrated; then
@@ -345,8 +369,19 @@ filter.lfs settings that git add needs into .git/config, so check those settings
     # shellcheck disable=SC2086 # MEDIA_FILES is a word list; globbing is off (set -f)
     before=$(git hash-object --no-filters -- $MEDIA_FILES)
 
-    RECOVERY="Nothing was committed. To return to a clean tree and start again:
-    git restore --staged --worktree -- .gitattributes $MEDIA_DIR"
+    restore="git restore --staged --worktree -- .gitattributes $MEDIA_DIR"
+    if [ "$branch" = "$BRANCH" ]; then
+        RECOVERY="Nothing was committed, and $BRANCH is left checked out. To start again,
+return to a clean tree, switch back to main and run this script from there:
+    $restore
+    git switch main
+    sh $SELF"
+    else
+        RECOVERY="Nothing was committed. To start again, return to a clean tree and run this
+script again:
+    $restore
+    sh $SELF"
+    fi
     needs_tracking=
     for f in $MEDIA_FILES; do
         if ! routed_through_lfs "$f"; then

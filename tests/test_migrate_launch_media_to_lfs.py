@@ -183,6 +183,11 @@ def _remote_state(checkout: Checkout) -> tuple[str, bool]:
     return refs, (checkout.origin / "lfs").exists()
 
 
+def _commands(message: str) -> list[str]:
+    """The commands that an error or recovery message tells the owner to run, in order."""
+    return [line.strip() for line in message.splitlines() if line.startswith(("    git ", "    sh "))]
+
+
 @needs_git_lfs
 def test_migration_commits_canonical_pointers_and_keeps_the_media(checkout: Checkout) -> None:
     attributes_before = (checkout.path / ".gitattributes").read_bytes()
@@ -281,8 +286,9 @@ def test_an_existing_pre_push_hook_neither_stops_the_migration_nor_changes(
 
 
 @needs_git_lfs
+@pytest.mark.parametrize("rerun_on", ["main", BRANCH])
 @pytest.mark.parametrize("left_by", ["a-stopped-run", "an-unpushed-migration"])
-def test_a_branch_that_lacks_commits_of_main_is_not_reused(checkout: Checkout, left_by: str) -> None:
+def test_a_branch_that_lacks_commits_of_main_is_not_reused(checkout: Checkout, left_by: str, rerun_on: str) -> None:
     if left_by == "an-unpushed-migration":
         assert checkout.migrate().returncode == 0
         checkout.git("switch", "-q", "main")
@@ -290,33 +296,83 @@ def test_a_branch_that_lacks_commits_of_main_is_not_reused(checkout: Checkout, l
         # A run that stops after creating the branch leaves it at main as it was then.
         checkout.git("branch", BRANCH)
     stale = checkout.git("rev-parse", BRANCH).strip()
-    # Then main moves on with a re-encode of a launch asset.
+    # Then main moves on with a re-encode of a launch asset, and the next run starts on main
+    # or on the branch, where a stopped run leaves the owner.
     gif = f"{MEDIA_DIR}/hn-launch-demo.gif"
     reencoded = checkout.originals[gif] + b"\0"
     (checkout.path / gif).write_bytes(reencoded)
     checkout.git("commit", "-q", "-am", "Re-encode the HN demo GIF")
     head = checkout.git("rev-parse", "HEAD").strip()
+    checkout.git("switch", "-q", rerun_on)
 
     refused = checkout.migrate()
 
     assert refused.returncode == 1, refused.stdout
     assert f"error: {BRANCH} " in refused.stderr
-    assert checkout.git("symbolic-ref", "--short", "HEAD").strip() == "main"
-    assert checkout.git("rev-parse", "HEAD").strip() == head
+    assert checkout.git("symbolic-ref", "--short", "HEAD").strip() == rerun_on
+    assert checkout.git("rev-parse", "main").strip() == head
     assert checkout.git("rev-parse", BRANCH).strip() == stale
     assert checkout.git("status", "--porcelain") == ""
 
     # The way out that the error names ends in a migration of main as it is now.
     delete = "-D" if left_by == "an-unpushed-migration" else "-d"
-    assert f"git branch {delete} {BRANCH}" in refused.stderr
+    way_out = [f"git branch {delete} {BRANCH}"]
+    if rerun_on == BRANCH:
+        way_out.insert(0, "git switch main")
+    assert _commands(refused.stderr) == way_out, refused.stderr
     if left_by == "an-unpushed-migration":
         assert "Store the launch media in Git LFS (audit H-3)" in refused.stderr
-    checkout.git("branch", delete, BRANCH)
+    for command in way_out:
+        checkout.git(*command.split()[1:])
     migrated = checkout.migrate()
     assert migrated.returncode == 0, migrated.stderr + migrated.stdout
     assert checkout.git("rev-list", "--parents", "-n", "1", "HEAD").split()[1:] == [head]
     assert checkout.blob(f"HEAD:{gif}") == _canonical_pointer(reencoded)
     assert (checkout.path / gif).read_bytes() == reencoded
+
+
+@needs_git_lfs
+def test_a_run_that_stopped_on_its_branch_is_not_resumed_there_once_main_moves_on(checkout: Checkout) -> None:
+    # A pre-commit hook that fails stops the run after it created the branch and staged the
+    # pointers, and the branch stays checked out.
+    hook = checkout.path / ".git" / "hooks" / "pre-commit"
+    hook.write_text("#!/bin/sh\necho 'pre-commit: not now' >&2\nexit 1\n", encoding="utf-8")
+    hook.chmod(0o755)
+
+    stopped = checkout.migrate()
+
+    assert stopped.returncode == 1, stopped.stdout
+    assert "pre-commit: not now" in stopped.stderr
+    assert f"Nothing was committed, and {BRANCH} is left checked out." in stopped.stderr
+    assert _commands(stopped.stderr) == [
+        f"git restore --staged --worktree -- .gitattributes {MEDIA_DIR}",
+        "git switch main",
+        f"sh scripts/{SCRIPT.name}",
+    ]
+    assert checkout.git("symbolic-ref", "--short", "HEAD").strip() == BRANCH
+    assert checkout.git("rev-parse", "HEAD").strip() == checkout.base
+
+    # The owner returns to a clean tree and removes the hook, but stays on the branch while
+    # main moves on with a re-encode of a launch asset.
+    checkout.git("restore", "--staged", "--worktree", "--", ".gitattributes", MEDIA_DIR)
+    hook.unlink()
+    checkout.git("switch", "-q", "main")
+    gif = f"{MEDIA_DIR}/hn-launch-demo.gif"
+    (checkout.path / gif).write_bytes(checkout.originals[gif] + b"\0")
+    checkout.git("commit", "-q", "-am", "Re-encode the HN demo GIF")
+    head = checkout.git("rev-parse", "HEAD").strip()
+    checkout.git("switch", "-q", BRANCH)
+
+    # Run again on the branch, it must not commit the media of the older main there.
+    refused = checkout.migrate()
+
+    assert refused.returncode == 1, refused.stdout
+    assert f"error: {BRANCH} is behind main and has no commits of its own" in refused.stderr
+    assert _commands(refused.stderr) == ["git switch main", f"git branch -d {BRANCH}"]
+    assert checkout.git("symbolic-ref", "--short", "HEAD").strip() == BRANCH
+    assert checkout.git("rev-parse", BRANCH).strip() == checkout.base
+    assert checkout.git("rev-parse", "main").strip() == head
+    assert checkout.git("status", "--porcelain") == ""
 
 
 @needs_git_lfs
