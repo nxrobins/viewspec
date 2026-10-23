@@ -142,6 +142,12 @@ in parentheses refer to that document.
   compatibility horizon (D-2 to D-7, H-1). `CONTRIBUTING.md` and `CODE_OF_CONDUCT.md` were added
   (H-2); the release checklist tags and publishes each release (R-7) and says that the site
   deploy does not wait for the PyPI check (R-2).
+- The Pretext E2E workflow now pins npm to its major.minor line (10.9) instead of the exact patch
+  release 10.9.8. Each Node release bundles one npm version, so a later Node patch bump that moves
+  npm within 10.9 no longer needs a separate npm edit. The job still requires a plain
+  major.minor.patch npm version, and Python, Node, Bun and Playwright stay pinned exactly (R-5).
+- The Pretext E2E result contract now requires at least seven tests with none failed, errored or
+  skipped, instead of exactly seven, so adding an e2e test no longer fails the gate (R-5).
 
 ### Security
 
