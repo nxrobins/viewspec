@@ -2,13 +2,15 @@
 
 The emitter reads its recipe tables from an explicit, read-only ``TailwindRecipeRegistry``:
 ``DEFAULT_TAILWIND_RECIPE_REGISTRY``, built once from the tables in ``recipes``, unless a caller
-passes another one to ``ReactTailwindTsxEmitter`` or ``emit_compiler_result``. The registry is
-passed down every call that resolves or checks a recipe, so emitting never assigns attributes on
-this package or on ``recipes``, and emits with different registries can run at the same time. The
-grid classes (``GRID_CLASS_BY_COLUMNS``) are fixed rather than part of a registry. The table names
-re-exported here (``RECIPE_BY_KEY`` and the rest) are the source that the default registry and the
-fixed grid classes were copied from at import; reassigning or mutating them later does not change
-what the emitter does.
+passes another one to ``ReactTailwindTsxEmitter`` or ``emit_compiler_result``. The emitter passes
+its registry to every call that resolves a recipe or checks the registry, so emitting never
+assigns attributes on this package or on ``recipes``, and emits with different registries can run
+at the same time. The grid classes (``GRID_CLASS_BY_COLUMNS``) are fixed rather than part of a
+registry. The table names re-exported here (``RECIPE_BY_KEY`` and the rest) are the source that the
+default registry and the fixed grid classes were copied from at import; reassigning or mutating
+them later changes neither what the emitter writes nor what ``viewspec check`` accepts, since the
+check reads the default registry too. Artifacts emitted with another registry do not pass
+``viewspec check``.
 """
 
 from __future__ import annotations
@@ -46,7 +48,7 @@ from viewspec.emitters.react_tailwind_tsx import recipes as _recipes
 from viewspec.emitters.react_tailwind_tsx.recipes import (
     DEFAULT_TAILWIND_RECIPE_REGISTRY,
     GRID_CLASS_BY_COLUMNS,
-    LAYOUT_EMPHASIS_CLASS_BY_VALUE,  # noqa: F401 - re-exported; local_tools_validators imports it from here
+    LAYOUT_EMPHASIS_CLASS_BY_VALUE,  # noqa: F401 - still importable from here; nothing reads it at call time
     RECIPE_BY_KEY,
     TAILWIND_AESTHETIC_RECIPE_OVERLAYS,
     TAILWIND_APP_ROLE_RULE_PRECEDENCE,

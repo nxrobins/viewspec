@@ -7,6 +7,8 @@ takes the registry it reads as an argument. The grid tables (``GRID_CLASS_BY_COL
 resolver reads read-only copies of them, also taken at import. Nothing here reads a recipe or grid
 table through its module name at call time, and nothing assigns to this module's attributes, so
 emits that use different registries can run at the same time without seeing each other's tables.
+The artifact check (``viewspec check``) and ``viewspec prove`` read the same snapshots, so editing
+a module table after import changes neither what is emitted nor what is checked.
 """
 
 from __future__ import annotations
@@ -440,6 +442,11 @@ class TailwindRecipeRegistry:
     The grid classes are not a field. They are fixed, like the caps, so every registry puts the
     checked-in ``GRID_CLASS_BY_COLUMNS`` and ``GRID_SPAN_CLASS_BY_COLUMNS`` classes on grids and on
     the nodes that span grid columns.
+
+    ``viewspec check`` and ``check_artifact_dir`` verify an artifact against
+    ``DEFAULT_TAILWIND_RECIPE_REGISTRY``: they recompute every node's classes and recipe from it and
+    expect its digest. An artifact whose classes came from another registry does not pass them; it
+    fails with ``TAILWIND_INVENTORY_MISMATCH``.
     """
 
     recipes: Mapping[str, str]

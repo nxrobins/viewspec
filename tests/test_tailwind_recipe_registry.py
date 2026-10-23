@@ -6,7 +6,8 @@ emits race, made the registry digest depend on what ran before it, and left wrap
 names in two modules. These tests pin the replacement: a frozen registry passed down the call
 chain, module attributes that emitting never writes, a digest that is a pure function of the
 registry and covers every field of it, fixed grid classes that no registry can replace, and emits
-with different registries that can run at the same time.
+with different registries that can run at the same time. ``viewspec check`` and ``prove`` read the
+same import-time snapshot as a default emit, so the two paths cannot disagree.
 """
 
 from __future__ import annotations
@@ -24,6 +25,7 @@ import types
 from collections.abc import Mapping
 from contextlib import contextmanager
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -41,6 +43,10 @@ from viewspec.emitters.react_tailwind_tsx import (
 )
 from viewspec.emitters.react_tailwind_tsx import a11y as tailwind_a11y
 from viewspec.emitters.react_tailwind_tsx import recipes as tailwind_recipes
+from viewspec.intent_tools import compile_intent_bundle_file_tool, wrap_intent_bundle_manifest
+from viewspec.local_tools import check_artifact_dir
+from viewspec.local_tools_validators import _tailwind_allowed_class_tokens
+from viewspec.prove import _a11y_report
 from viewspec.types import IRNode
 
 SRC = Path(__file__).resolve().parents[1] / "src"
@@ -105,6 +111,34 @@ def _read_artifact(output: Path) -> tuple[str, str]:
         output.joinpath("ViewSpecView.tsx").read_text(encoding="utf-8"),
         output.joinpath("provenance_manifest.json").read_text(encoding="utf-8"),
     )
+
+
+def _rich_builder() -> ViewSpecBuilder:
+    """An executive_review page whose emit reaches every registry field.
+
+    A hero (role recipes), a three-column dashboard whose first card is featured and spans two
+    columns (product roles, layout emphasis, the grid classes and the profile overlay) and a table
+    (structural roles and more role recipes). The profile's contrast facts differ from the base
+    recipes' (minimum 7.58 against 4.76), so a proof that dropped the profile would show.
+    """
+    builder = ViewSpecBuilder("rich_registry_probe")
+    builder.set_aesthetic_profile("aesthetic.executive_review")
+    builder.add_hero("intro", title="Operations", eyebrow="Today", description="Deploy health")
+    dashboard = builder.add_dashboard("metrics", region="main", group_id="cards")
+    dashboard.add_card(label="Revenue", value="$2.4M", id="revenue")
+    dashboard.add_card(label="Open risks", value="4", id="open_risks")
+    table = builder.add_table("deploys", region="main")
+    table.add_row(label="payments", value="failed", id="payments")
+    table.add_row(label="search", value="ok", id="search")
+    return builder
+
+
+def _rich_ast():
+    return compile(_rich_builder().build_bundle())
+
+
+def _variant(**fields: object) -> TailwindRecipeRegistry:
+    return dataclasses.replace(DEFAULT_TAILWIND_RECIPE_REGISTRY, **fields)
 
 
 @contextmanager
@@ -588,3 +622,81 @@ def test_every_registry_field_feeds_the_digest():
             seen.add(digest)
     assert shared_digest == []
     assert len(seen) > 100  # every recipe, overlay, contract and rule id was varied
+
+
+def test_in_place_edits_of_the_module_tables_reach_neither_the_emitter_nor_the_check(tmp_path, monkeypatch):
+    # Review of Q-4: the emitter read the import-time snapshot while viewspec check and prove read
+    # the module tables, so editing RECIPE_BY_KEY in place made compile reject the emitter's own
+    # output (TAILWIND_UNSAFE_CLASS_SOURCE). On main both moved together; now neither moves.
+    bundle = _rich_builder().export_json(tmp_path / "probe.intent.json")
+
+    def compile_and_check(name: str) -> tuple[tuple[str, str], dict[str, Any]]:
+        response = compile_intent_bundle_file_tool(bundle, tmp_path / name, target="react-tailwind-tsx", cwd=tmp_path)
+        assert response["ok"], response.get("errors")
+        assert response["metadata"]["artifact_check"] == "passed"
+        return _read_artifact(tmp_path / name), _a11y_report(tmp_path / name / "provenance_manifest.json")
+
+    before = compile_and_check("before")
+    for key in list(tailwind_recipes.RECIPE_BY_KEY):
+        monkeypatch.setitem(tailwind_recipes.RECIPE_BY_KEY, key, "hidden")
+    monkeypatch.delitem(tailwind_recipes.RECIPE_BY_KEY, "primitive:value")
+    for overlay in tailwind_recipes.TAILWIND_AESTHETIC_RECIPE_OVERLAYS.values():
+        for key in list(overlay):
+            monkeypatch.setitem(overlay, key, "hidden")
+    monkeypatch.delitem(tailwind_recipes.TAILWIND_AESTHETIC_RECIPE_OVERLAYS, "aesthetic.executive_review")
+    for table in (
+        tailwind_recipes.LAYOUT_EMPHASIS_CLASS_BY_VALUE,
+        tailwind_recipes.GRID_CLASS_BY_COLUMNS,
+        tailwind_recipes.GRID_SPAN_CLASS_BY_COLUMNS,
+    ):
+        for key in list(table):
+            monkeypatch.setitem(table, key, "hidden")
+    for contract in tailwind_recipes.TAILWIND_APP_V1_APP_ROLE_CONTRACTS.values():
+        monkeypatch.setitem(contract, "primitives", ("rule",))
+    monkeypatch.delitem(tailwind_recipes.TAILWIND_APP_V1_APP_ROLE_CONTRACTS, "metric_card")
+    for rule_ids in (
+        tailwind_recipes.TAILWIND_PRODUCT_APP_ROLE_RULE_IDS,
+        tailwind_recipes.TAILWIND_STRUCTURAL_APP_ROLE_RULE_IDS,
+    ):
+        for role in list(rule_ids):
+            monkeypatch.setitem(rule_ids, role, "edited")
+
+    # The same TSX and manifest (whose inventory records the default digest), still checked, and the
+    # same proof contrast facts.
+    assert compile_and_check("after") == before
+    assert tailwind_recipe_registry_digest() == MAIN_REGISTRY_DIGEST
+
+
+def test_check_allows_every_class_the_fixed_grid_tables_emit():
+    # The check reads the fixed grid copies the resolver reads, span classes included, so it accepts
+    # a node spanning three columns (lg:col-span-3), which no recipe table holds.
+    allowed = _tailwind_allowed_class_tokens()
+    for table in (tailwind_recipes._GRID_CLASSES, tailwind_recipes._GRID_SPAN_CLASSES):
+        for classes in table.values():
+            assert set(classes.split()) <= allowed, classes
+
+
+def test_artifacts_emitted_with_another_registry_do_not_pass_viewspec_check(tmp_path):
+    # viewspec check verifies against the default registry. A registry that recolors a table cell
+    # with a class the default registry also owns still fails it, on the recomputed classes.
+    ast = _rich_ast()
+    cell = DEFAULT_TAILWIND_RECIPE_REGISTRY.recipes["role:table:cell"]
+    recolored = _variant(
+        recipes={**DEFAULT_TAILWIND_RECIPE_REGISTRY.recipes, "role:table:cell": cell.replace("-700", "-600")}
+    )
+    results = {}
+    for name, registry in (("default", None), ("recolored", recolored)):
+        paths = ReactTailwindTsxEmitter(recipe_registry=registry).emit(ast, tmp_path / name)
+        wrap_intent_bundle_manifest(
+            Path(paths["manifest"]),
+            source_name="probe.intent.json",
+            raw_source_hash="0" * 64,
+            design=None,
+            command_args=["viewspec", "compile", "probe.intent.json", "--target", "react-tailwind-tsx"],
+            artifact_path=Path(paths["tsx"]),
+            emitter="react_tailwind_tsx",
+        )
+        results[name] = check_artifact_dir(tmp_path / name)
+    assert results["default"]["ok"], results["default"]["errors"]
+    assert not results["recolored"]["ok"]
+    assert {error.split(":")[0] for error in results["recolored"]["errors"]} == {"TAILWIND_INVENTORY_MISMATCH"}
