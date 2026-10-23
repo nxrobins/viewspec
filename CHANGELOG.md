@@ -41,26 +41,10 @@ in parentheses refer to that document.
   temporary file or candidate directory disappears while the session storage is being sized:
   the size walk skips entries that vanish between listing and inspection and still rejects
   symbolic links.
-- The React Tailwind emitter reads its recipe tables from an explicit, read-only
-  `TailwindRecipeRegistry` instead of copying seven package-level names onto `recipes.py` on
-  every call, so emits with different registries can run at the same time and
-  `tailwind_recipe_registry_digest()` no longer depends on what ran before it.
-  `ReactTailwindTsxEmitter`, `emit_compiler_result`, both `resolve_manifest_recipe_metadata`
-  functions, `tailwind_recipe_registry_projection`, `tailwind_recipe_registry_digest` and
-  `react_contrast_report` take an optional `recipe_registry` (default
-  `DEFAULT_TAILWIND_RECIPE_REGISTRY`); build a variant with `dataclasses.replace`. A registry
-  copies its tables into read-only mappings and tuples (contract values given as a set in sorted
-  order), and its digest covers every field. A registry is checked before an emit writes
-  anything and before it has a projection or digest: unsafe classes, a missing recipe, overlay or
-  rule id, or a value of the wrong type, such as a contract value given as a string or a
-  `rule_precedence` given as a set, fail with the emitter's stable constraint codes. The grid
-  classes (`GRID_CLASS_BY_COLUMNS`, `GRID_SPAN_CLASS_BY_COLUMNS`) are not registry fields and
-  stay fixed. Reassigning or mutating `RECIPE_BY_KEY` or the other module tables after import
-  changes neither what the emitter writes nor what `viewspec check` accepts or `viewspec prove`
-  reports, since both read the default registry too. `viewspec check` and `check_artifact_dir()`
-  verify React Tailwind artifacts against the default registry, so an artifact whose classes came
-  from another registry fails them with `TAILWIND_INVENTORY_MISMATCH`. Compiled output and the
-  default registry digest are unchanged (Q-4).
+- The React Tailwind emitter no longer writes to another module's globals: it assigned seven
+  attributes on `recipes.py` on every call. Emits with different recipe registries can run at the
+  same time, and `tailwind_recipe_registry_digest()` no longer depends on names that earlier code
+  reassigned. Compiled output and the default registry digest are unchanged (Q-4).
 
 ### Changed
 
@@ -162,6 +146,12 @@ in parentheses refer to that document.
   compatibility horizon (D-2 to D-7, H-1). `CONTRIBUTING.md` and `CODE_OF_CONDUCT.md` were added
   (H-2); the release checklist tags and publishes each release (R-7) and says that the site
   deploy does not wait for the PyPI check (R-2).
+- The React Tailwind recipe tables (`RECIPE_BY_KEY` and the rest) are read once, at import, into
+  `DEFAULT_TAILWIND_RECIPE_REGISTRY`. Reassigning or editing them afterwards changes neither what
+  the emitter writes nor what `viewspec check` accepts or `viewspec prove` reports.
+  `viewspec check` and `check_artifact_dir()` verify React Tailwind artifacts against the default
+  registry, so an artifact whose classes came from another registry fails them with
+  `TAILWIND_INVENTORY_MISMATCH` (Q-4).
 
 ### Security
 
@@ -209,6 +199,19 @@ in parentheses refer to that document.
   the release and corpus scripts have smoke tests (T-1, T-3, T-5).
 - Documentation tests: every error code cited in the docs exists in the registry, and the Claude
   Code skill matches the managed instructions (D-3, D-6).
+- `TailwindRecipeRegistry`, a read-only set of the React Tailwind emitter's recipe tables, and
+  `DEFAULT_TAILWIND_RECIPE_REGISTRY`, the checked-in one. `ReactTailwindTsxEmitter`,
+  `emit_compiler_result`, both `resolve_manifest_recipe_metadata` functions,
+  `tailwind_recipe_registry_projection`, `tailwind_recipe_registry_digest` and
+  `react_contrast_report` take an optional `recipe_registry=` keyword (default
+  `DEFAULT_TAILWIND_RECIPE_REGISTRY`); build a variant with `dataclasses.replace`. A registry
+  copies its tables into read-only mappings and tuples when it is built (contract values given as
+  a set in sorted order), and its digest covers every field. It is checked before an emit writes
+  anything and before it has a projection or digest: unsafe classes, a missing recipe, overlay or
+  rule id, or a value of the wrong type, such as a contract value given as a string or a
+  `rule_precedence` given as a set, fail with the emitter's stable constraint codes. The grid
+  classes (`GRID_CLASS_BY_COLUMNS`, `GRID_SPAN_CLASS_BY_COLUMNS`) are not registry fields and stay
+  fixed (Q-4).
 
 ## [0.3.0b12] - 2026-10-14
 

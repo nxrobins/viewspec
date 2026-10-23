@@ -18,7 +18,7 @@ from collections.abc import Iterable, Mapping
 from collections.abc import Set as AbstractSet
 from dataclasses import dataclass, fields
 from types import MappingProxyType
-from typing import Any
+from typing import Any, ClassVar
 
 from viewspec.aesthetics import (
     AESTHETIC_PROFILE_TOKENS,
@@ -481,6 +481,9 @@ class TailwindRecipeRegistry:
     product_rule_ids: Mapping[str, str]
     structural_rule_ids: Mapping[str, str]
     rule_precedence: tuple[str, ...]
+
+    # The fields are read-only mappings, which cannot be hashed; say so instead of failing on them.
+    __hash__: ClassVar[None] = None
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "recipes", _read_only(self.recipes))

@@ -1173,3 +1173,11 @@ def test_emit_reads_rule_precedence_from_the_injected_registry(tmp_path):
     precedence = tuple(rule for rule in DEFAULT_TAILWIND_RECIPE_REGISTRY.rule_precedence if rule != metric_card)
     error = _assert_emit_fails(tmp_path, _variant(rule_precedence=precedence), "APP_ROLE_UNDECLARED_CONTRACT")
     assert metric_card in error.message
+
+
+def test_registry_is_explicitly_unhashable():
+    # Its fields are read-only mappings, so the generated __hash__ failed on them with "unhashable
+    # type: 'mappingproxy'"; the registry now says that it is the unhashable one.
+    assert TailwindRecipeRegistry.__hash__ is None
+    with pytest.raises(TypeError, match="unhashable type: 'TailwindRecipeRegistry'"):
+        hash(DEFAULT_TAILWIND_RECIPE_REGISTRY)
