@@ -4,10 +4,11 @@ GitHub reports a broken issue form only in its web interface, never as a failing
 tests apply the documented form schema here (audit finding H-2): the required top-level keys, the
 permitted keys and attributes for each element type, unique ids, labels that are unique unless an
 id tells them apart, and options that YAML does not turn into booleans or the reserved word
-``None``. They also pin the facts the bug report must ask for, the code fences that keep pasted
-input readable in the issue, the deliberate blank-issue setting and the security route in
-``config.yml``, an owner for every path in CODEOWNERS, and a pull request checklist that repeats
-every command and repository rule in CONTRIBUTING.md.
+``None``. They also pin the repository's own choices: labels the repository has, the facts the
+bug report must ask for, the code fences that keep pasted code readable in the issue, the
+deliberate blank-issue setting and the security route in ``config.yml``, a catch-all CODEOWNERS
+rule that names an owner, and a pull request checklist that repeats every command and repository
+rule in CONTRIBUTING.md.
 
 Schema reference: https://docs.github.com/en/communities/using-templates-to-encourage-useful-issues-and-pull-requests/syntax-for-issue-forms
 and the "Syntax for GitHub's form schema" and "Common validation errors" pages next to it.
@@ -48,16 +49,22 @@ ELEMENT_SCHEMA: dict[str, tuple[set[str], set[str], set[str]]] = {
 }
 STRING_ATTRIBUTES = {"value", "label", "description", "placeholder", "render"}
 ID_RE = re.compile(r"[A-Za-z0-9_-]+")
-# GitHub silently skips a label the repository does not have, so the forms may only apply labels
-# that GitHub creates in every new repository (and that nxrobins/viewspec has).
-DEFAULT_LABELS = {
+# The labels nxrobins/viewspec has: GitHub's defaults and the ones Dependabot puts on its pull
+# requests. GitHub's schema allows any label, but GitHub skips one the repository does not have, so
+# the repository's rule is that a template applies only labels from this list. Add a label here
+# when you create it in the repository.
+REPOSITORY_LABELS = {
     "bug",
+    "dependencies",
     "documentation",
     "duplicate",
     "enhancement",
+    "github_actions",
     "good first issue",
     "help wanted",
     "invalid",
+    "javascript",
+    "python",
     "question",
     "wontfix",
 }
@@ -100,6 +107,16 @@ def _template_settings(directory: Path = ISSUE_TEMPLATES) -> dict[str, Any]:
     for path in _markdown_templates(directory):
         settings[path.name] = _front_matter(path.read_text(encoding="utf-8"))
     return settings
+
+
+def _template_labels(settings: Any) -> list[Any]:
+    """The labels a template applies, given as a list or as a comma-delimited string."""
+    labels = settings.get("labels") if isinstance(settings, dict) else None
+    if labels is None:
+        return []
+    if isinstance(labels, str):
+        return [label.strip() for label in labels.split(",") if label.strip()]
+    return labels if isinstance(labels, list) else [labels]
 
 
 def _is_text(value: Any) -> bool:
@@ -225,10 +242,6 @@ def issue_form_problems(form: Any) -> list[str]:
     name = form.get("name")
     if _is_text(name) and len(name.strip()) <= 3:
         problems.append(f"name {name!r} must be more than 3 characters, or GitHub does not show the template")
-    labels = form.get("labels", [])
-    if isinstance(labels, str):
-        labels = [label.strip() for label in labels.split(",")]
-    problems += [f"label {label!r} is not a GitHub default label" for label in labels if label not in DEFAULT_LABELS]
     body = form.get("body")
     if not isinstance(body, list) or not body:
         return [*problems, "body cannot be empty"]
@@ -385,7 +398,6 @@ _INVALID_FORMS = [
     (_HEADER + "body: [{type: dropdown, attributes: {label: A, options: [x, n/a], default: 0}}]", "n/a"),
     (_HEADER + "body: [{type: input, attributes: {label: Password}}]", "forbidden word"),
     (_HEADER + "body: [{type: input, attributes: {label: ' '}}]", "non-empty string"),
-    (_HEADER + "labels: [triage]\nbody: [{type: input, attributes: {label: A}}]", "default label"),
     (_HEADER + "on: x\nbody: [{type: input, attributes: {label: A}}]", "not a string"),
 ]
 
@@ -414,6 +426,12 @@ _VALID_FORMS = [
     " options: [Built from source, Homebrew, MacPorts, apt-get], default: 0}, validations: {required: true}}]",
     # Rails keeps underscores, so these labels parameterize apart, to name_1 and name-1.
     "body: [{type: input, attributes: {label: Name_1}}, {type: input, attributes: {label: Name 1}}]",
+    # The top-level keys of the sample form on the "Syntax for issue forms" page, whose labels this
+    # repository does not have: GitHub skips such a label, it does not reject the form.
+    'title: "[Bug]: "\nlabels: ["bug", "triage"]\nprojects: ["octo-org/1", "octo-org/44"]\nassignees: [octocat]\n'
+    "type: bug\nbody: [{type: input, attributes: {label: A}}]",
+    # The labels of the page's example of a Markdown template converted to a form.
+    'labels: ["Bug", "Needs Triage"]\nbody: [{type: input, attributes: {label: A}}]',
 ]
 
 
@@ -452,29 +470,48 @@ def test_bug_report_requires_the_facts_a_maintainer_needs() -> None:
     assert "IntentBundle" in reproduction["attributes"]["label"]
 
 
-@pytest.mark.parametrize("path", _issue_forms(), ids=lambda path: path.name)
-def test_text_fields_that_take_code_keep_it_readable_in_the_issue(path: Path) -> None:
-    """GitHub puts a textarea answer into the issue as Markdown unless ``render`` is set, and
+def code_field_problems(body: list[Any], code_fields: set[str]) -> list[str]:
+    """How the textareas in ``body`` break the repository's rules for fields that take code.
+
+    GitHub puts a textarea answer into the issue as Markdown unless ``render`` is set, and
     ``render`` turns off attachments. Unfenced, pasted HTML loses its tags and the front matter of a
-    ``DESIGN.md`` becomes a heading. So a field that takes code, or asks for pasted text, either sets
-    ``render`` or shows how to fence the text, and a field that offers attachments does not set
-    ``render``."""
+    ``DESIGN.md`` becomes a heading. So each field in ``code_fields`` either sets ``render`` or
+    shows how to fence the text, without starting a description line with a fence, and a field
+    whose description offers attachments does not set ``render``. GitHub requires none of this, and
+    other textareas, such as one that asks for pasted links, need no fence.
+    """
     textareas = [
-        (element.get("id"), element["attributes"])
-        for element in _load(path)["body"]
-        if element.get("type") == "textarea"
+        (element.get("id"), element.get("attributes") or {}) for element in body if element.get("type") == "textarea"
     ]
-    code_fields = CODE_FIELDS.get(path.name, set())
-    assert code_fields <= {field_id for field_id, _ in textareas}, code_fields
+    problems = [f"{field_id}: no textarea has this id" for field_id in sorted(code_fields - {i for i, _ in textareas})]
     for field_id, attributes in textareas:
         description = attributes.get("description", "")
-        where = (path.name, field_id)
-        if "attach" in description.lower():
-            assert "render" not in attributes, where
-        if (field_id in code_fields or "paste" in description.lower()) and "render" not in attributes:
-            assert "```" in description, where
+        if "attach" in description.lower() and "render" in attributes:
+            problems.append(f"{field_id}: render turns off the attachments the description offers")
+        if field_id in code_fields and "render" not in attributes:
+            if "```" not in description:
+                problems.append(f"{field_id}: takes code but neither sets render nor shows how to fence it")
             # A description line that starts with a fence would turn the rest of it into a code block.
-            assert not any(line.lstrip().startswith("```") for line in description.splitlines()), where
+            if any(line.lstrip().startswith("```") for line in description.splitlines()):
+                problems.append(f"{field_id}: a description line starts with a fence")
+    return problems
+
+
+@pytest.mark.parametrize("path", _issue_forms(), ids=lambda path: path.name)
+def test_text_fields_that_take_code_keep_it_readable_in_the_issue(path: Path) -> None:
+    assert code_field_problems(_load(path)["body"], CODE_FIELDS.get(path.name, set())) == []
+
+
+def test_only_the_fields_that_take_code_must_show_a_fence() -> None:
+    links = {
+        "type": "textarea",
+        "id": "links",
+        "attributes": {"label": "Related links", "description": "Paste links to related issues or pull requests."},
+    }
+    assert code_field_problems([links], set()) == []
+    assert code_field_problems([links], {"links"}) == [
+        "links: takes code but neither sets render nor shows how to fence it"
+    ]
 
 
 def test_bug_report_promises_error_paths_only_from_commands_that_report_them(
@@ -498,6 +535,19 @@ def test_bug_report_promises_error_paths_only_from_commands_that_report_them(
 def test_issue_forms_apply_the_bug_and_enhancement_labels() -> None:
     assert "bug" in _load(ISSUE_TEMPLATES / "bug_report.yml")["labels"]
     assert "enhancement" in _load(ISSUE_TEMPLATES / "feature_request.yml")["labels"]
+
+
+def test_issue_templates_apply_only_labels_the_repository_has() -> None:
+    """The repository's rule, not GitHub's: every label a template applies is in ``REPOSITORY_LABELS``."""
+    # A template may also give its labels as a comma-delimited string, as a Markdown template does.
+    assert _template_labels({"labels": "bug, Needs Triage"}) == ["bug", "Needs Triage"]
+    unknown = [
+        (file_name, label)
+        for file_name, settings in _template_settings().items()
+        for label in _template_labels(settings)
+        if label not in REPOSITORY_LABELS
+    ]
+    assert unknown == []
 
 
 def test_template_chooser_sets_blank_issues_deliberately_and_routes_security_reports() -> None:
@@ -549,15 +599,68 @@ def test_codeowners_rules_leave_out_comments() -> None:
     assert codeowners_rules(text) == [("*", ["@nxrobins"]), ("docs/", ["@nxrobins"]), ("*.js", ["@a"])]
 
 
-def test_codeowners_names_an_owner_for_every_path() -> None:
-    rules = codeowners_rules(CODEOWNERS.read_text(encoding="utf-8"))
-    assert rules, "CODEOWNERS has no rules"
-    owner = re.compile(r"@[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?(?:/[A-Za-z0-9._-]+)?|[^@\s]+@[^@\s]+\.[^@\s]+")
-    for pattern, owners in rules:
-        assert owners and all(owner.fullmatch(name) for name in owners), (pattern, owners)
-    # The last matching rule wins, so the catch-all comes first or it would override every other rule.
-    assert rules[0][0] == "*", rules
-    assert "@nxrobins" in rules[0][1]
+_OWNER = re.compile(r"@[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?(?:/[A-Za-z0-9._-]+)?|[^@\s]+@[^@\s]+\.[^@\s]+")
+
+
+def codeowners_problems(text: str) -> list[str]:
+    """How a CODEOWNERS file breaks GitHub's owner syntax or the repository's catch-all rule.
+
+    Each owner is a username, a team (``@org/team``) or an email address. A rule may name no owner:
+    GitHub documents that as leaving the paths it matches without one, as in its ``/apps/github``
+    example. The repository's own rule is that the file starts with the catch-all ``*`` and that
+    the catch-all names an owner: the last matching rule wins, so a catch-all further down would
+    override every rule above it, and a path no later rule matches keeps the catch-all's owner.
+    """
+    rules = codeowners_rules(text)
+    if not rules:
+        return ["the file has no rules"]
+    problems = [
+        f"{pattern}: {name!r} is not a username, team or email address"
+        for pattern, owners in rules
+        for name in owners
+        if not _OWNER.fullmatch(name)
+    ]
+    pattern, owners = rules[0]
+    if pattern != "*":
+        problems.append(f"the first rule is {pattern!r}, not the catch-all *")
+    elif not owners:
+        problems.append("the catch-all rule * names no owner")
+    return problems
+
+
+def test_codeowners_starts_with_a_catch_all_rule_that_names_the_maintainer() -> None:
+    text = CODEOWNERS.read_text(encoding="utf-8")
+    assert codeowners_problems(text) == []
+    assert "@nxrobins" in codeowners_rules(text)[0][1]
+
+
+# The rules of the example CODEOWNERS file on GitHub's "About code owners" page. /apps/github names
+# no owner, so anyone with write access can approve a change to it.
+_GITHUB_CODEOWNERS_EXAMPLE = """\
+*       @global-owner1 @global-owner2
+*.js    @js-owner #This is an inline comment.
+*.go docs@example.com
+*.txt @octo-org/octocats
+/build/logs/ @doctocat
+docs/* docs@example.com
+apps/ @octocat
+/docs/ @doctocat
+/scripts/ @doctocat @octocat
+**/logs @octocat
+/apps/ @octocat
+/apps/github
+/apps/ @octocat
+/apps/github @doctocat
+"""
+
+
+def test_codeowners_check_allows_rules_without_owners() -> None:
+    assert codeowners_problems(_GITHUB_CODEOWNERS_EXAMPLE) == []
+    assert codeowners_problems("*\n/apps/ @octocat\n") == ["the catch-all rule * names no owner"]
+    assert codeowners_problems("/apps/github\n* @nxrobins\n") == [
+        "the first rule is '/apps/github', not the catch-all *"
+    ]
+    assert codeowners_problems("* nxrobins\n") == ["*: 'nxrobins' is not a username, team or email address"]
 
 
 def _pull_request_checklist() -> list[str]:
