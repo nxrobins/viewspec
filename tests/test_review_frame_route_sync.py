@@ -207,6 +207,17 @@ def test_reviewer_navigation_is_reported_once(observed, surface: str) -> None:
     assert observed[surface]["errors"] == []
 
 
+def test_repeated_studio_restore_is_reported_only_as_restores(observed) -> None:
+    # A second restore to the same route can arrive before the first one's hashchange. It must not
+    # clear the pending restore, or that hashchange is reported as a reviewer navigation.
+    observed_static = observed["html-tailwind-app"]
+    contexts = _causes(observed_static["repeated_restore"])
+    assert contexts, "the repeated restore posted no context"
+    assert {cause for cause, _ in contexts} == {"restore"}, contexts
+    assert contexts[-1] == ("restore", "/")
+    assert observed_static["errors"] == []
+
+
 def test_private_review_restore_names_no_other_route(hosted_observed) -> None:
     # The hosted client reports the fragment change behind a restore from hashchange, as a
     # navigation to the restored route, which the review page already shows and so does not relay.
@@ -224,3 +235,11 @@ def test_private_review_navigation_is_reported_once(hosted_observed) -> None:
     assert _causes(observed["navigation"]) == [("navigation", "/")]
     assert _causes(observed["back"]) == [("navigation", "/incident")]
     assert observed["errors"] == []
+
+
+def test_private_review_repeated_restore_names_no_other_route(hosted_observed) -> None:
+    contexts = _causes(hosted_observed["html-tailwind-app"]["repeated_restore"])
+    assert contexts, "the repeated restore posted no context"
+    assert {route for cause, route in contexts if cause == "navigation"} <= {"/"}, contexts
+    assert contexts[-1][1] == "/", contexts
+    assert hosted_observed["html-tailwind-app"]["errors"] == []

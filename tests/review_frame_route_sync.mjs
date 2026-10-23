@@ -81,6 +81,12 @@ const observeSurface = async (browser, name, frameUrl) => {
   };
   // Studio restores the frame to the route the other surface navigated to, exactly as its page does.
   const restore = route => () => page.evaluate(message => document.getElementById('frame').contentWindow.postMessage(message, '*'), protocol.restore(route));
+  // Studio can send the same restore again before the frame's first hashchange has fired.
+  const restoreTwice = route => () => page.evaluate(message => {
+    const target = document.getElementById('frame').contentWindow;
+    target.postMessage(message, '*');
+    target.postMessage(message, '*');
+  }, protocol.restore(route));
   const click = label => () => frame.getByRole('button', {name: label, exact: true}).click();
   const back = () => frame.evaluate(() => history.back());
   const result = {
@@ -90,6 +96,7 @@ const observeSurface = async (browser, name, frameUrl) => {
     // The reviewer uses the app's own navigation, then the browser's back button.
     navigation: await step(click('Queue'), {cause: 'navigation', route: '/'}),
     back: await step(back, {cause: 'navigation', route: '/incident'}),
+    repeated_restore: await step(restoreTwice('/'), {cause: 'restore', route: input.protocol === 'local' ? '/' : null}),
     errors,
   };
   await page.close();

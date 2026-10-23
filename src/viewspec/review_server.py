@@ -2038,7 +2038,7 @@ def _frame_sdk(nonce: str, *, surface_target: str) -> bytes:
         "const nativePush=history.pushState.bind(history),nativeReplace=history.replaceState.bind(history);"
         "const nextFrame=()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));"
         "const applyReplay=async data=>{try{await waitForInitialScreen(initialRoute);for(const event of data.events||[]){if(!event||typeof event.route!=='string'||typeof event.action_id!=='string')throw new Error('invalid declared event');"
-        "if(surface==='html-tailwind-app'){restoringHash=event.route;if(location.hash.slice(1)!==event.route)location.hash=event.route;else restoringHash=null;}"
+        "if(surface==='html-tailwind-app'){if(location.hash.slice(1)!==event.route){restoringHash=event.route;location.hash=event.route;}}"
         "else{restoringHistory=true;nativeReplace({},'',event.route);dispatchEvent(new PopStateEvent('popstate'));restoringHistory=false;}await waitForRenderedScreen(event.route);"
         "for(const [binding,value] of Object.entries(event.payload_values||{})){const node=document.querySelector('[data-binding-id=\"'+CSS.escape(binding)+'\"]');"
         "const expected=value===null?'':(typeof value==='string'?value:JSON.stringify(value));if(!node||node.textContent.trim()!==expected)throw new Error('payload '+binding+' does not match the rendered binding');}"
@@ -2056,7 +2056,7 @@ def _frame_sdk(nonce: str, *, surface_target: str) -> bytes:
         "if(e.data.type==='viewspec-review-selection'){const id=e.data.dom_id;setSelected(typeof id==='string'&&id.length<=256?visibleSemanticElement(id):null);return;}"
         "if(e.data.type==='viewspec-studio-replay-reset'){location.reload();return;}if(e.data.type==='viewspec-studio-replay-apply'){applyReplay(e.data);return;}"
         "if(e.data.type==='viewspec-review-restore'&&typeof e.data.route==='string'&&Number.isInteger(e.data.scroll_x)&&Number.isInteger(e.data.scroll_y)){"
-        "if(surface==='html-tailwind-app'){restoringHash=e.data.route;if(location.hash.slice(1)!==e.data.route)location.hash=e.data.route;else restoringHash=null;}else{restoringHistory=true;nativeReplace({},'',e.data.route);dispatchEvent(new PopStateEvent('popstate'));}"
+        "if(surface==='html-tailwind-app'){if(location.hash.slice(1)!==e.data.route){restoringHash=e.data.route;location.hash=e.data.route;}}else{restoringHistory=true;nativeReplace({},'',e.data.route);dispatchEvent(new PopStateEvent('popstate'));}"
         "requestAnimationFrame(()=>{scrollTo(e.data.scroll_x,e.data.scroll_y);postContext('restore');restoringHistory=false;});}});"
         # On the hash-routed static surface every route change is a fragment change. That fires popstate
         # synchronously, before the app renders the new route, and queues hashchange, so popstate would
