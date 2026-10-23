@@ -399,6 +399,41 @@ def _dependabot_updates() -> dict[str, dict[str, Any]]:
     return {update["package-ecosystem"]: update for update in updates}
 
 
+def test_contributing_explains_grouped_security_updates_and_the_audit_fallback() -> None:
+    updates = _dependabot_updates()
+    section = _squash(_contributing_section("Security updates"))
+    audit = _workflow("dependency-audit.yml")
+    steps = "\n".join(_steps_text(job) for job in audit["jobs"].values())
+    audited_seeds = {
+        seed for job in audit["jobs"].values() for seed in (job.get("strategy") or {}).get("matrix", {}).get("seed", [])
+    }
+
+    # Every ecosystem groups its security updates, and the npm group spans the three seeds.
+    for ecosystem, update in updates.items():
+        assert any(group.get("applies-to") == "security-updates" for group in update["groups"].values()), ecosystem
+    assert len(updates["npm"]["directories"]) == 3 and "all three seeds" in section
+    # The update-types ignores do not hold security updates back, so one can be a major, and an npm
+    # one changes the shipped seeds, which a Security changelog bullet records.
+    assert "semver-major" in section
+    assert "`### Security`" in section
+    # Packages ignored by name may get no security pull request, so the guide points at the weekly
+    # audit, which has to run on a schedule over every npm seed and every pip package ignored by name.
+    assert "`.github/workflows/dependency-audit.yml`" in section
+    assert "schedule" in audit.get("on", audit.get(True))
+    assert audited_seeds == {directory.lstrip("/") for directory in updates["npm"]["directories"]}
+    assert "npm audit" in steps and "pip-audit" in steps
+    installed = re.search(r'pip install [^\n]*?"\.\[([\w,-]+)\]"', steps)
+    assert installed is not None, steps
+    extras = tomllib.loads(_read("pyproject.toml"))["project"]["optional-dependencies"]
+    audited = {
+        re.split(r"[^A-Za-z0-9_.-]", requirement, maxsplit=1)[0].lower()
+        for extra in installed.group(1).split(",")
+        for requirement in extras[extra]
+    }
+    by_name = {rule["dependency-name"] for rule in updates["pip"]["ignore"] if set(rule) == {"dependency-name"}}
+    assert by_name and by_name <= audited, by_name - audited
+
+
 def test_contributing_logs_every_update_of_the_shipped_template_in_the_changelog() -> None:
     from viewspec.app_react import REACT_APP_TEMPLATE_PACKAGE
 

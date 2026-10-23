@@ -1,4 +1,4 @@
-# Dependabot version updates (audit finding P-5).
+# Dependabot version and security updates (audit finding P-5).
 #
 # Each ecosystem gets one grouped pull request a week with every available minor and patch
 # update. Semver-major version updates are never proposed: they need a deliberate migration.
@@ -6,6 +6,11 @@
 # never proposed either; a maintainer bumps them by hand. CONTRIBUTING.md ("Dependency updates")
 # says how to land each grouped pull request, how to make a major update in each ecosystem and how
 # to bump every package ignored here, and tests/test_ci_config.py checks the shape of this file.
+#
+# Security updates (opened only while Dependabot security updates are enabled in the repository
+# settings) get a group of their own in each ecosystem, so one pull request carries all of an
+# ecosystem's security fixes. The update-types ignores do not apply to security updates, so that
+# pull request can carry a major update.
 #
 # One grouped pull request is expected per ecosystem and run. The low open-pull-requests-limit
 # values only cap the damage if grouping ever stops applying (the first version of this file had
@@ -36,6 +41,12 @@ updates:
         update-types:
           - "minor"
           - "patch"
+      # A security update can be a major (the update-types ignore below does not apply to it), so
+      # this group filters nothing and takes every one.
+      python-security:
+        applies-to: security-updates
+        patterns:
+          - "*"
     ignore:
       # Major releases change APIs and need a migration; bump them by hand.
       - dependency-name: "*"
@@ -75,6 +86,13 @@ updates:
         update-types:
           - "minor"
           - "patch"
+      # Ungrouped, a security fix for a package the seeds share opens one pull request per seed,
+      # and each fails tests/test_react_dependency_seeds.py. This group moves every seed in one
+      # pull request; it takes every security update, majors included.
+      react-seeds-security:
+        applies-to: security-updates
+        patterns:
+          - "*"
     ignore:
       # Major releases change APIs and need a migration; bump them by hand.
       - dependency-name: "*"
@@ -109,6 +127,10 @@ updates:
         update-types:
           - "minor"
           - "patch"
+      actions-security:
+        applies-to: security-updates
+        patterns:
+          - "*"
     ignore:
       # Every action is pinned to a commit at the major version its workflow uses; moving to a
       # new major is a deliberate change made by hand.

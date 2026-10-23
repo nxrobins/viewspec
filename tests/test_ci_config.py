@@ -173,6 +173,11 @@ def _dependabot_updates() -> dict[str, dict[str, Any]]:
     return {update["package-ecosystem"]: update for update in updates}
 
 
+def _groups(update: dict[str, Any], applies_to: str) -> list[dict[str, Any]]:
+    """The groups of a Dependabot entry for one kind of update; ``applies-to`` defaults to version updates."""
+    return [group for group in update["groups"].values() if group.get("applies-to", "version-updates") == applies_to]
+
+
 def test_dependabot_opens_one_grouped_minor_and_patch_pull_request_per_ecosystem() -> None:
     updates = _dependabot_updates()
 
@@ -182,14 +187,22 @@ def test_dependabot_opens_one_grouped_minor_and_patch_pull_request_per_ecosystem
         # A grouped run opens one pull request; a small limit caps the damage if grouping ever
         # stops applying (the ungrouped configuration opened 24 at once).
         assert 1 <= update["open-pull-requests-limit"] <= 3, ecosystem
-        (group,) = update["groups"].values()
+        # One group for version updates and at most one for security updates, nothing else.
+        (group,) = _groups(update, "version-updates")
+        security = _groups(update, "security-updates")
+        assert len(security) <= 1, ecosystem
+        assert len(update["groups"]) == 1 + len(security), ecosystem
         assert group["patterns"] == ["*"], ecosystem
         assert sorted(group["update-types"]) == ["minor", "patch"], ecosystem
-        assert group.get("applies-to", "version-updates") == "version-updates", ecosystem
         # group-by: dependency-name would split the group into one pull request per package.
         assert "group-by" not in group, ecosystem
-        # Majors are never proposed for any package.
+        # Majors are never proposed as version updates for any package.
         assert {"dependency-name": "*", "update-types": [_MAJOR]} in update["ignore"], ecosystem
+        # The update-types ignores do not apply to security updates, so a security update can be a
+        # major. A security group takes every one of them: any filter (update-types, exclude-patterns,
+        # dependency-type, group-by) would send the updates it leaves out to pull requests of their own.
+        for security_group in security:
+            assert security_group == {"applies-to": "security-updates", "patterns": ["*"]}, ecosystem
 
 
 def test_dependabot_leaves_the_declared_python_ranges_alone() -> None:
@@ -215,6 +228,10 @@ def test_dependabot_updates_every_npm_seed_from_one_entry() -> None:
     assert len(npm["directories"]) == len(set(npm["directories"]))
     assert set(npm["directories"]) == {"/" + seed for seed in SEEDS}
     assert all((ROOT / seed / "package-lock.json").is_file() for seed in SEEDS)
+    # Security updates need a group too. Without one, a fix for a package the seeds share opens one
+    # pull request per seed, and each fails tests/test_react_dependency_seeds.py because it moves
+    # a single seed. The test above checks that the group takes every security update.
+    assert _groups(npm, "security-updates"), "npm security updates are not grouped across the seeds"
 
 
 def test_dependabot_never_proposes_the_pinned_contract_packages() -> None:

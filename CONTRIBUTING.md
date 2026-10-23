@@ -137,7 +137,8 @@ React dependency seeds `src/viewspec/host_verify_template`, `tests/react-tailwin
 A grouped pull request carries only minor and patch updates. Dependabot never proposes a
 semver-major version update, and never proposes the packages whose exact version is a contract in
 the code, the tests or the workflows; a maintainer makes those updates by hand, as "Major updates"
-and "Packages Dependabot never proposes" below describe.
+and "Packages Dependabot never proposes" below describe. Security fixes come in pull requests of
+their own (see "Security updates").
 
 Dependabot cannot run the repository's generators, so its pull requests usually need one follow-up
 commit, pushed to the Dependabot branch, before CI passes. Once that commit is there Dependabot
@@ -196,6 +197,22 @@ Every action is pinned to a commit with a `# vN` comment naming its major versio
 (`tests/test_ci_config.py` enforces that form). When Dependabot moves a pin within a major it can
 rewrite the comment to the full release, for example `# v4.5.0`; change it back to `# v4` in every
 workflow before merging.
+
+### Security updates
+
+Dependabot opens security pull requests only while Dependabot security updates are enabled in the
+repository settings, and they do not follow the weekly schedule. Each ecosystem has a
+`security-updates` group, so one pull request carries all of an ecosystem's security fixes; the npm
+group covers all three seeds, so its pull request moves every seed that has the vulnerable package
+and the seeds keep matching. The `update-types` ignores do not apply to security updates, so a
+security pull request may be a semver-major update; review it as one (see "Major updates"). Land it
+like the grouped pull request of its ecosystem. For npm that means refreshing the goldens, and the
+changelog bullet goes under `### Security`.
+
+The packages ignored by name in `dependabot.yml` may get no security pull requests at all. Their
+Dependabot alerts, and the weekly `.github/workflows/dependency-audit.yml` run (`npm audit` of every
+seed at every level, `pip-audit` of the package with every extra), are the signal to bump them by
+hand.
 
 ### Major updates
 
