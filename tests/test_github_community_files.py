@@ -1,17 +1,26 @@
 """The issue forms, the pull request template and CODEOWNERS are valid and match CONTRIBUTING.md.
 
 GitHub reports a broken issue form only in its web interface, never as a failing check, so these
-tests apply the documented form schema here (audit finding H-2): the required top-level keys, the
-permitted keys and attributes for each element type, unique ids, labels that are unique unless an
-id tells them apart, and options that YAML does not turn into booleans or the reserved word
-``None``. They also pin the repository's own choices: labels the repository has, the facts the
-bug report must ask for, the code fences that keep pasted code readable in the issue, the
-deliberate blank-issue setting and the security route in ``config.yml``, a catch-all CODEOWNERS
-rule that names an owner, and a pull request checklist that repeats every command and repository
-rule in CONTRIBUTING.md.
+tests apply GitHub's documented issue-form rules here (audit finding H-2). ``issue_form_problems``
+checks a subset of them, such as the required and permitted top-level keys, a ``name`` of more
+than 3 characters, the permitted keys, attributes and validations of each element type, non-empty
+strings where a string is expected, unique ids, labels that are unique unless an id tells them
+apart and that do not produce the same reference, and dropdown options that YAML does not turn
+into booleans or the reserved word ``None``. ``template_name_problems`` checks that each
+template's name, Markdown templates included, is long enough for GitHub to show the template and
+differs from every other template's. Passing these checks does not prove that GitHub accepts a
+form; ``issue_form_problems`` says what they leave out.
+
+The other tests pin choices of this repository that GitHub does not require: the templates apply
+only labels the repository has, the bug report asks for the facts a maintainer needs, the fields
+that take code keep it readable in the issue, ``config.yml`` sets blank issues deliberately and
+routes security reports, CODEOWNERS starts with a catch-all rule that names an owner,
+CONTRIBUTING.md lists every command CI's test job runs, and the pull request checklist repeats
+every command and repository rule in CONTRIBUTING.md.
 
 Schema reference: https://docs.github.com/en/communities/using-templates-to-encourage-useful-issues-and-pull-requests/syntax-for-issue-forms
-and the "Syntax for GitHub's form schema" and "Common validation errors" pages next to it.
+and the "Syntax for GitHub's form schema", "Common validation errors" and "Configuring issue
+templates" pages next to it.
 """
 
 from __future__ import annotations
@@ -103,7 +112,7 @@ def _front_matter(text: str) -> Any:
 
 
 def _template_settings(directory: Path = ISSUE_TEMPLATES) -> dict[str, Any]:
-    """Each issue template in ``directory`` by file name: an issue form's YAML, or a Markdown template's front matter."""
+    """Each issue template in ``directory`` by file name: a form's YAML, or a Markdown template's front matter."""
     settings = {path.name: _load(path) for path in _issue_forms(directory)}
     for path in _markdown_templates(directory):
         settings[path.name] = _front_matter(path.read_text(encoding="utf-8"))
@@ -226,11 +235,16 @@ def _element_problems(index: int, element: Any) -> list[str]:
 
 
 def issue_form_problems(form: Any) -> list[str]:
-    """The documented issue-form rules ``form`` breaks; empty when it breaks none.
+    """The documented issue-form rules ``form`` breaks, of those checked here; empty when it breaks none.
 
-    The rules come from GitHub's form-schema and "Common validation errors" pages. GitHub does not
-    publish its whole list of forbidden label words, so only the documented one, "password", is
-    checked, and an empty result is not proof that GitHub accepts the form.
+    The rules come from GitHub's "Syntax for issue forms", form-schema, "Common validation errors"
+    and "Configuring issue templates" pages. Not all of them are checked: the uniqueness of the name
+    across templates is left to ``template_name_problems``, and nothing checks the values
+    ``render``, ``min_length`` and ``accept`` take or the types of ``assignees``, ``labels``,
+    ``projects``, ``title`` and ``type``. GitHub does not publish its whole list of forbidden label
+    words, so only the documented one, "password", is checked, and ``_parameterize`` only
+    approximates the references GitHub derives from labels. An empty result is not proof that
+    GitHub accepts the form.
     """
     if not isinstance(form, dict):
         return ["the form is not a mapping"]
@@ -409,8 +423,10 @@ def test_issue_form_checker_rejects_what_github_rejects(text: str, expected: str
     assert any(expected in problem for problem in problems), problems
 
 
-# The fixes GitHub's "Common validation errors" page gives for those errors, and its form-schema
-# examples. The checkboxes element gets the label the schema requires, which the page's example leaves out.
+# Forms GitHub documents as valid: the fixes its "Common validation errors" page gives for those
+# errors, the examples on its form-schema page, and the top-level keys of its sample forms. The
+# checkboxes element gets the label the schema requires, which the page's example leaves out.
+# Accepting these does not show that the checker accepts every form GitHub accepts.
 _VALID_FORMS = [
     # Two elements with the same label, told apart by their ids.
     "body: [{type: textarea, id: name_1, attributes: {label: Name}},"
@@ -437,7 +453,7 @@ _VALID_FORMS = [
 
 
 @pytest.mark.parametrize("text", _VALID_FORMS)
-def test_issue_form_checker_accepts_what_github_accepts(text: str) -> None:
+def test_issue_form_checker_accepts_githubs_examples(text: str) -> None:
     assert issue_form_problems(yaml.safe_load(_HEADER + text)) == []
 
 
