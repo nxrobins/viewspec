@@ -579,7 +579,12 @@ _HOSTED_FRAME_CLIENT = (
     })
   }, true)
   addEventListener('hashchange', () => sendContext('navigation'))
-  addEventListener('popstate', () => sendContext('navigation'))
+"""
+    # On the hash-routed static surface every route change is a fragment change. That fires popstate
+    # synchronously, before the app renders the new route, so popstate would report the route the
+    # frame is leaving, and the review page would send the other frame back to it. The hashchange
+    # listener reports each change once, after the app's own listener (registered first) renders it.
+    + r"""  addEventListener('popstate', () => { if (surface !== 'html-tailwind-app') sendContext('navigation') })
   addEventListener('viewspec-app-route', (event) => {
     const route = event instanceof CustomEvent ? event.detail?.path : null
     if (typeof route === 'string') requestAnimationFrame(() => sendContext('navigation', route))
