@@ -49,15 +49,18 @@ in parentheses refer to that document.
   functions, `tailwind_recipe_registry_projection`, `tailwind_recipe_registry_digest` and
   `react_contrast_report` take an optional `recipe_registry` (default
   `DEFAULT_TAILWIND_RECIPE_REGISTRY`); build a variant with `dataclasses.replace`. A registry
-  copies its tables into read-only mappings and tuples (contract values given as sets in sorted
-  order), and its digest covers every field. The grid classes (`GRID_CLASS_BY_COLUMNS`,
-  `GRID_SPAN_CLASS_BY_COLUMNS`) are not registry fields and stay fixed. Reassigning or mutating
-  `RECIPE_BY_KEY` or the other module tables after import changes neither what the emitter
-  writes nor what `viewspec check` accepts or `viewspec prove` reports, since both read the
-  default registry too. `viewspec check` and `check_artifact_dir()` verify React Tailwind
-  artifacts against the default registry, so an artifact whose classes came from another
-  registry fails them with `TAILWIND_INVENTORY_MISMATCH`. Compiled output and the default
-  registry digest are unchanged (Q-4).
+  copies its tables into read-only mappings and tuples (contract values given as a set in sorted
+  order), and its digest covers every field. A registry is checked before an emit writes
+  anything and before it has a projection or digest: unsafe classes, a missing recipe, overlay or
+  rule id, or a value of the wrong type, such as a contract value given as a string or a
+  `rule_precedence` given as a set, fail with the emitter's stable constraint codes. The grid
+  classes (`GRID_CLASS_BY_COLUMNS`, `GRID_SPAN_CLASS_BY_COLUMNS`) are not registry fields and
+  stay fixed. Reassigning or mutating `RECIPE_BY_KEY` or the other module tables after import
+  changes neither what the emitter writes nor what `viewspec check` accepts or `viewspec prove`
+  reports, since both read the default registry too. `viewspec check` and `check_artifact_dir()`
+  verify React Tailwind artifacts against the default registry, so an artifact whose classes came
+  from another registry fails them with `TAILWIND_INVENTORY_MISMATCH`. Compiled output and the
+  default registry digest are unchanged (Q-4).
 
 ### Changed
 

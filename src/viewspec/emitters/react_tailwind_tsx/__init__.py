@@ -142,7 +142,11 @@ def resolve_manifest_recipe_metadata(
 
 
 def tailwind_recipe_registry_digest(*, recipe_registry: TailwindRecipeRegistry | None = None) -> str:
-    """SHA-256 of the registry projection; the default registry's digest is fixed at import."""
+    """SHA-256 of the registry projection; the default registry's digest is fixed at import.
+
+    A registry that fails the registry check has no digest: this raises its stable
+    ``CompilerConstraintError``, as an emit with it would.
+    """
     payload = tailwind_recipe_registry_projection(recipe_registry=recipe_registry)
     encoded = json.dumps(payload, ensure_ascii=True, separators=(",", ":"), sort_keys=True).encode("utf-8")
     return hashlib.sha256(encoded).hexdigest()
@@ -152,7 +156,8 @@ def tailwind_recipe_registry_projection(*, recipe_registry: TailwindRecipeRegist
     """Every table of the registry, the caps and the semantic parity classes as plain sorted JSON data.
 
     The fixed grid classes are not registry tables; like the other caps, only their column and span
-    counts are recorded.
+    counts are recorded. The registry is checked first and a registry that fails the check raises
+    its stable ``CompilerConstraintError``.
     """
     projection = _recipes._base_registry_projection(recipe_registry)
     projection["semantic_parity_classes"] = sorted(TAILWIND_PARITY_CLASS_TOKENS)

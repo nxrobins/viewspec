@@ -7,11 +7,15 @@ names in two modules. These tests pin the replacement: a frozen registry passed 
 chain, module attributes that emitting never writes, a digest that is a pure function of the
 registry and covers every field of it, fixed grid classes that no registry can replace, and emits
 with different registries that can run at the same time. ``viewspec check`` and ``prove`` read the
-same import-time snapshot as a default emit, so the two paths cannot disagree.
+same import-time snapshot as a default emit, so the two paths cannot disagree, and a registry of
+the wrong shape fails with a stable code, before anything is written and before it can have a
+digest.
 """
 
 from __future__ import annotations
 
+import ast as python_ast
+import collections
 import copy
 import dataclasses
 import inspect
@@ -20,6 +24,7 @@ import os
 import pickle
 import subprocess
 import sys
+import textwrap
 import threading
 import types
 from collections.abc import Mapping
@@ -139,6 +144,19 @@ def _rich_ast():
 
 def _variant(**fields: object) -> TailwindRecipeRegistry:
     return dataclasses.replace(DEFAULT_TAILWIND_RECIPE_REGISTRY, **fields)
+
+
+def _without(table: Mapping[Any, Any], *keys: object) -> dict[Any, Any]:
+    return {key: value for key, value in table.items() if key not in keys}
+
+
+def _assert_emit_fails(tmp_path: Path, registry: TailwindRecipeRegistry, code: str) -> CompilerConstraintError:
+    output = tmp_path / "rejected"
+    with pytest.raises(CompilerConstraintError) as exc_info:
+        ReactTailwindTsxEmitter(recipe_registry=registry).emit(_rich_ast(), output)
+    assert exc_info.value.code == code, exc_info.value
+    assert not output.exists()
+    return exc_info.value
 
 
 @contextmanager
@@ -602,6 +620,20 @@ def test_fixed_grid_tables_are_complete_closed_literal_classes():
             tailwind_recipes._validate_class_string(classes, code="TAILWIND_HOST_CONFIG_DEPENDENCY")
 
 
+def _field_variants(name: str, table: object) -> list[tuple[object, object]]:
+    """Every one-entry change of a registry field that leaves the registry valid."""
+    if name in {"product_rule_ids", "structural_rule_ids"} and isinstance(table, Mapping):
+        # A rule id must stay declared in the precedence, so these swap two roles' rule ids.
+        roles = list(table)
+        return [
+            (role, {**table, role: table[following], following: table[role]})
+            for role, following in zip(roles, [*roles[1:], roles[0]], strict=True)
+        ]
+    if isinstance(table, Mapping):
+        return [(key, {**table, key: _varied(table[key])}) for key in table]
+    return [(None, _varied(table))]
+
+
 def test_every_registry_field_feeds_the_digest():
     # Review of Q-4: two registries that differed only in their grid tables emitted different
     # classes under the same digest, the default one, because the projection left those tables out.
@@ -610,11 +642,7 @@ def test_every_registry_field_feeds_the_digest():
     shared_digest: list[tuple[str, object]] = []
     for field in dataclasses.fields(TailwindRecipeRegistry):
         table = getattr(DEFAULT_TAILWIND_RECIPE_REGISTRY, field.name)
-        if isinstance(table, Mapping):
-            variants = [(key, {**table, key: _varied(table[key])}) for key in table]
-        else:
-            variants = [(None, _varied(table))]
-        for key, varied in variants:
+        for key, varied in _field_variants(field.name, table):
             variant = dataclasses.replace(DEFAULT_TAILWIND_RECIPE_REGISTRY, **{field.name: varied})
             digest = tailwind_recipe_registry_digest(recipe_registry=variant)
             if digest in seen:
@@ -623,6 +651,20 @@ def test_every_registry_field_feeds_the_digest():
     assert shared_digest == []
     assert len(seen) > 100  # every recipe, overlay, contract and rule id was varied
 
+
+# The roles the structural derivation can return, listed here independently of recipes.py.
+_STRUCTURAL_ROLES = (
+    "collection_action_bar",
+    "filter_bar",
+    "toolbar",
+    "sidebar_nav",
+    "top_nav",
+    "data_table",
+    "data_row",
+    "empty_state",
+    "loading_state",
+    "error_state",
+)
 
 # pickle.dumps(ReactTailwindTsxEmitter()) on main (64e77eb), when the emitter held no state.
 _MAIN_PICKLED_EMITTER = (
@@ -729,3 +771,287 @@ def test_emitters_that_never_ran_init_emit_with_the_default_registry(tmp_path):
         assert emitter.recipe_registry is DEFAULT_TAILWIND_RECIPE_REGISTRY, name
         emitter.emit(ast, tmp_path / name)
         assert _read_artifact(tmp_path / name) == expected, name
+
+
+def _with_recipe(key: object, classes: object) -> dict[str, object]:
+    return {"recipes": {**DEFAULT_TAILWIND_RECIPE_REGISTRY.recipes, key: classes}}
+
+
+def _with_contract(role: object, contract: object) -> dict[str, object]:
+    return {"app_role_contracts": {**DEFAULT_TAILWIND_RECIPE_REGISTRY.app_role_contracts, role: contract}}
+
+
+def _with_overlay(profile: object, overlay: object) -> dict[str, object]:
+    return {"aesthetic_overlays": {**DEFAULT_TAILWIND_RECIPE_REGISTRY.aesthetic_overlays, profile: overlay}}
+
+
+def _with_overlay_entry(key: object, classes: object) -> dict[str, object]:
+    profile = "aesthetic.executive_review"
+    return _with_overlay(profile, {**DEFAULT_TAILWIND_RECIPE_REGISTRY.aesthetic_overlays[profile], key: classes})
+
+
+def _invalid_registries() -> list[Any]:
+    registry = DEFAULT_TAILWIND_RECIPE_REGISTRY
+    recipes, contracts, precedence = registry.recipes, registry.app_role_contracts, registry.rule_precedence
+    product, structural = registry.product_rule_ids, registry.structural_rule_ids
+    extra_role = {"primitives": ("stack",)}
+    contract = "APP_ROLE_UNDECLARED_CONTRACT"
+    cases: list[tuple[str, dict[str, object], str]] = [
+        # Base recipes.
+        (
+            "recipe-unsafe-class",
+            _with_recipe("primitive:text", "text-base [color:red]"),
+            "TAILWIND_HOST_CONFIG_DEPENDENCY",
+        ),
+        (
+            "recipe-not-normalized",
+            _with_recipe("primitive:text", "text-base  text-sm"),
+            "TAILWIND_HOST_CONFIG_DEPENDENCY",
+        ),
+        ("recipe-a-list", _with_recipe("primitive:text", ["text-sm"]), "TAILWIND_HOST_CONFIG_DEPENDENCY"),
+        ("recipe-an-int", _with_recipe("primitive:text", 5), "TAILWIND_HOST_CONFIG_DEPENDENCY"),
+        ("recipe-key-empty", _with_recipe("", "flex"), "TAILWIND_RECIPE_CONFLICT"),
+        (
+            "too-many-recipes",
+            {"recipes": {**recipes, **{f"layout:extra_{index}": "flex" for index in range(14)}}},
+            "TAILWIND_LIMIT_EXCEEDED_RECIPES",
+        ),
+        (
+            "stateful-recipe-missing",
+            {"recipes": _without(recipes, "role:state:title")},
+            "TAILWIND_STATEFUL_COLLECTION_RECIPE_MISSING",
+        ),
+        # Layout emphasis.
+        (
+            "emphasis-unsafe-class",
+            {"layout_emphasis_classes": {"featured": "ring-2 [color:red]"}},
+            "TAILWIND_AESTHETIC_UNSAFE_CLASS",
+        ),
+        ("emphasis-an-int", {"layout_emphasis_classes": {"featured": 2}}, "TAILWIND_AESTHETIC_UNSAFE_CLASS"),
+        (
+            "emphasis-key-an-int",
+            {"layout_emphasis_classes": {"featured": "ring-2", 2: "ring-4"}},
+            "TAILWIND_AESTHETIC_UNSAFE_CLASS",
+        ),
+        # Contracts and their cross-references.
+        ("contract-not-a-mapping", _with_contract("toolbar", ["cluster"]), contract),
+        ("contract-value-a-str", _with_contract("toolbar", {"primitives": "cluster"}), contract),
+        ("contract-value-bytes", _with_contract("toolbar", {"primitives": b"cluster"}), contract),
+        ("contract-value-a-mapping", _with_contract("toolbar", {"primitives": {"cluster": True}}), contract),
+        ("contract-value-an-int", _with_contract("toolbar", {"primitives": 1}), contract),
+        ("contract-value-holds-an-int", _with_contract("toolbar", {"primitives": ("cluster", 1)}), contract),
+        ("contract-key-an-int", _with_contract("toolbar", {1: ("cluster",)}), contract),
+        ("role-an-int", {"app_role_contracts": {**_without(contracts, "tab_list"), 7: extra_role}}, contract),
+        ("role-without-recipe", {"recipes": _without(recipes, "app_role:metric_card")}, contract),
+        (
+            "new-role-without-recipe",
+            {"app_role_contracts": {**_without(contracts, "tab_list"), "extra": extra_role}},
+            contract,
+        ),
+        (
+            "too-many-roles",
+            {
+                "app_role_contracts": {**contracts, "extra": extra_role},
+                "recipes": {**recipes, "app_role:extra": "flex"},
+            },
+            contract,
+        ),
+        # Product rule ids.
+        ("product-role-without-contract", {"app_role_contracts": _without(contracts, "metric_card")}, contract),
+        (
+            "product-rule-not-in-precedence",
+            {"rule_precedence": tuple(rule for rule in precedence if rule != product["metric_card"])},
+            contract,
+        ),
+        ("product-rule-renamed", {"product_rule_ids": {**product, "metric_card": "custom.metric_card"}}, contract),
+        ("product-rule-an-int", {"product_rule_ids": {**product, "metric_card": 7}}, contract),
+        # Structural rule ids, which must name every role the structural derivation returns.
+        ("structural-role-without-contract", {"app_role_contracts": _without(contracts, "data_table")}, contract),
+        (
+            "structural-rule-renamed",
+            {"structural_rule_ids": {**structural, "data_table": "custom.data_table"}},
+            contract,
+        ),
+        ("structural-rule-none", {"structural_rule_ids": {**structural, "toolbar": None}}, contract),
+        (
+            "structural-rule-not-in-precedence",
+            {"rule_precedence": tuple(rule for rule in precedence if rule != structural["data_table"])},
+            contract,
+        ),
+        *(
+            (f"structural-rule-missing-{role}", {"structural_rule_ids": _without(structural, role)}, contract)
+            for role in _STRUCTURAL_ROLES
+        ),
+        # Precedence, an ordered sequence of rule ids.
+        ("precedence-a-set", {"rule_precedence": set(precedence)}, contract),
+        ("precedence-keys-view", {"rule_precedence": dict.fromkeys(precedence).keys()}, contract),
+        ("precedence-a-mapping", {"rule_precedence": dict.fromkeys(precedence)}, contract),
+        ("precedence-a-str", {"rule_precedence": " ".join(precedence)}, contract),
+        ("precedence-holds-an-int", {"rule_precedence": (*precedence, 3)}, contract),
+        # Aesthetic overlays.
+        (
+            "overlay-profile-missing",
+            {"aesthetic_overlays": _without(registry.aesthetic_overlays, "aesthetic.brutalist")},
+            "TAILWIND_AESTHETIC_RECIPE_MISSING",
+        ),
+        (
+            "overlay-class-a-list",
+            _with_overlay_entry("primitive:text", ["text-sm"]),
+            "TAILWIND_AESTHETIC_RECIPE_MISSING",
+        ),
+        ("overlay-class-an-int", _with_overlay_entry("primitive:text", 5), "TAILWIND_AESTHETIC_RECIPE_MISSING"),
+        ("overlay-key-an-int", _with_overlay_entry(5, "text-sm"), "TAILWIND_AESTHETIC_RECIPE_MISSING"),
+        (
+            "overlay-unknown-recipe",
+            _with_overlay_entry("primitive:missing", "text-sm"),
+            "TAILWIND_AESTHETIC_RECIPE_MISSING",
+        ),
+        (
+            "overlay-recipe-dropped",
+            {"recipes": _without(recipes, "primitive:badge")},
+            "TAILWIND_AESTHETIC_RECIPE_MISSING",
+        ),
+        (
+            "overlay-other-profile-a-list",
+            _with_overlay("aesthetic.custom", ["text-sm"]),
+            "TAILWIND_AESTHETIC_RECIPE_MISSING",
+        ),
+        (
+            "overlay-profile-an-int",
+            _with_overlay(7, {"primitive:text": "text-sm"}),
+            "TAILWIND_AESTHETIC_RECIPE_MISSING",
+        ),
+        (
+            "overlay-unsafe-class",
+            _with_overlay_entry("primitive:text", "text-sm [color:red]"),
+            "TAILWIND_AESTHETIC_UNSAFE_CLASS",
+        ),
+    ]
+    return [pytest.param(fields, code, id=case_id) for case_id, fields, code in cases]
+
+
+@pytest.mark.parametrize(("fields", "code"), _invalid_registries())
+def test_invalid_registries_fail_with_a_stable_code_before_anything_is_written(tmp_path, fields, code):
+    # Review of Q-4: some registries passed the registry check and then failed the emit with a bare
+    # KeyError (a structural role without a rule id), AttributeError (a class string that is a list
+    # or an int, a contract that is no mapping) or TypeError (an overlay class that is no str). Each
+    # case here also stands for one read of the registry check: had it read the default registry
+    # instead of the injected one, the case would pass the check. The emit, the check, the
+    # projection and the digest all fail with the same stable code, and nothing is written.
+    registry = _variant(**fields)
+    _assert_emit_fails(tmp_path, registry, code)
+    for call in (
+        tailwind_recipes._validate_recipe_registry,
+        lambda registry: tailwind_recipe_registry_projection(recipe_registry=registry),
+        lambda registry: tailwind_recipe_registry_digest(recipe_registry=registry),
+    ):
+        with pytest.raises(CompilerConstraintError) as exc_info:
+            call(registry)
+        assert exc_info.value.code == code
+
+
+@pytest.mark.parametrize("field", ["product_rule_ids", "structural_rule_ids"])
+def test_a_rule_id_that_is_not_a_string_is_reported_as_one(tmp_path, field):
+    # A valid precedence holds only strings, so it could not declare such a rule id either; the
+    # check reports the type, not that the rule is undeclared.
+    table = getattr(DEFAULT_TAILWIND_RECIPE_REGISTRY, field)
+    role = next(iter(table))
+    error = _assert_emit_fails(tmp_path, _variant(**{field: {**table, role: 7}}), "APP_ROLE_UNDECLARED_CONTRACT")
+    assert error.message.endswith(f"must map role names to rule id strings, not {role!r}: 7.")
+
+
+def test_structural_app_roles_name_every_role_the_structural_derivation_returns():
+    # The registry check requires a rule id for each of these roles, so the constant must list every
+    # role the function can return, including one added to it later.
+    source = textwrap.dedent(inspect.getsource(tailwind_recipes._derive_structural_app_role))
+    returned = [
+        node.args[0].value
+        for node in python_ast.walk(python_ast.parse(source))
+        if isinstance(node, python_ast.Call)
+        and isinstance(node.func, python_ast.Name)
+        and node.func.id == "AppRoleDerivation"
+    ]
+    assert sorted(returned) == sorted(tailwind_recipes._STRUCTURAL_APP_ROLES) == sorted(_STRUCTURAL_ROLES)
+
+
+def test_registry_freezes_contract_values_given_as_any_iterable():
+    # Review of Q-4: only sets, lists and tuples were copied. A dict keys view or a deque was kept by
+    # reference, so changing it later changed matching and the digest, and a keys view stopped the
+    # registry from pickling or deep-copying.
+    names = {"stack": None}
+    kinds = collections.deque(["detail", "form"])
+    contracts = {role: dict(contract) for role, contract in DEFAULT_TAILWIND_RECIPE_REGISTRY.app_role_contracts.items()}
+    contracts["primary_column"]["primitives"] = names.keys()
+    contracts["tab_panel"]["motif_kinds"] = kinds
+    contracts["page_header"]["primitives"] = (name for name in ("surface",))
+    registry = _variant(app_role_contracts=contracts)
+    names["surface"] = None
+    kinds.append("list")
+
+    assert registry.app_role_contracts["primary_column"]["primitives"] == ("stack",)
+    assert registry.app_role_contracts["tab_panel"]["motif_kinds"] == ("detail", "form")
+    assert registry.app_role_contracts["page_header"]["primitives"] == ("surface",)
+    assert registry == DEFAULT_TAILWIND_RECIPE_REGISTRY
+    assert tailwind_recipe_registry_digest(recipe_registry=registry) == MAIN_REGISTRY_DIGEST
+    column = IRNode(id="column", primitive="surface", props={"product_role": "primary_column"})
+    assert not tailwind_recipes._role_contract_matches(column, "primary_column", registry)
+    for clone in (pickle.loads(pickle.dumps(registry)), copy.deepcopy(registry)):
+        assert clone == registry
+
+    # A str, bytes or mapping is kept as given, for the registry check to reject (see the invalid
+    # registries above): frozen into a tuple, "stack" would have become one-letter names.
+    for value in ("stack", b"stack", {"stack": True}):
+        contracts["primary_column"]["primitives"] = value
+        kept = _variant(app_role_contracts=contracts)
+        assert kept.app_role_contracts["primary_column"]["primitives"] is value
+
+
+def test_rule_precedence_keeps_its_order_and_a_set_has_none_to_keep():
+    # Review of Q-4: tuple(rule_precedence) gave a set the order its hash seed happened to give, and
+    # the digest followed it. An ordered iterable still becomes a tuple in its own order. A set, str,
+    # bytes or mapping is kept as given, and the registry check rejects it, so it has no digest.
+    precedence = DEFAULT_TAILWIND_RECIPE_REGISTRY.rule_precedence
+    for value in (list(precedence), collections.deque(precedence), iter(precedence)):
+        registry = _variant(rule_precedence=value)
+        assert registry.rule_precedence == precedence
+        assert tailwind_recipe_registry_digest(recipe_registry=registry) == MAIN_REGISTRY_DIGEST
+    joined = " ".join(precedence)
+    for value in (set(precedence), frozenset(precedence), dict.fromkeys(precedence), joined, joined.encode()):
+        registry = _variant(rule_precedence=value)
+        assert registry.rule_precedence is value
+        with pytest.raises(CompilerConstraintError) as exc_info:
+            tailwind_recipe_registry_digest(recipe_registry=registry)
+        assert exc_info.value.code == "APP_ROLE_UNDECLARED_CONTRACT"
+
+
+_SET_PRECEDENCE_PROBE = r"""
+import dataclasses
+from viewspec.emitters.react_tailwind_tsx import (
+    DEFAULT_TAILWIND_RECIPE_REGISTRY as DEFAULT,
+    CompilerConstraintError,
+    tailwind_recipe_registry_digest,
+)
+for precedence in (set(DEFAULT.rule_precedence), list(DEFAULT.rule_precedence)):
+    registry = dataclasses.replace(DEFAULT, rule_precedence=precedence)
+    try:
+        print(tailwind_recipe_registry_digest(recipe_registry=registry))
+    except CompilerConstraintError as exc:
+        print(exc.code)
+"""
+
+
+def test_a_registry_whose_precedence_is_a_set_has_no_digest_under_any_hash_seed():
+    # Each hash seed iterates the set in its own order; that order must not reach a digest.
+    outputs = []
+    for seed in ("1", "2"):
+        completed = subprocess.run(
+            [sys.executable, "-c", _SET_PRECEDENCE_PROBE],
+            capture_output=True,
+            text=True,
+            timeout=180,
+            check=False,
+            env={"PATH": os.defpath, "PYTHONPATH": str(SRC), "PYTHONDONTWRITEBYTECODE": "1", "PYTHONHASHSEED": seed},
+        )
+        assert completed.returncode == 0, completed.stderr
+        outputs.append(completed.stdout.split())
+    assert outputs == [["APP_ROLE_UNDECLARED_CONTRACT", MAIN_REGISTRY_DIGEST]] * 2
