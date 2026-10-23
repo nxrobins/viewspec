@@ -18,6 +18,7 @@ from __future__ import annotations
 import json
 import re
 import tomllib
+import unicodedata
 from pathlib import Path
 from typing import Any
 
@@ -120,8 +121,19 @@ def _non_string_keys(node: Any, where: str = "") -> list[str]:
 
 
 def _parameterize(label: str) -> str:
-    """The reference GitHub derives from a label without an id (Rails ``parameterize``)."""
-    return re.sub(r"[^a-z0-9_-]+", "-", label.lower()).strip("-")
+    """The reference GitHub derives from a label without an id, following Rails ``parameterize``.
+
+    Rails transliterates the label to ASCII, turns each run of characters other than letters,
+    digits, ``-`` and ``_`` into ``-``, collapses repeated ``-``, strips ``-`` from both ends and
+    lowercases the result, so "A - B" and "A B" both become ``a-b`` and "Café" becomes ``cafe``.
+    Here the transliteration is NFKD decomposition with the combining marks dropped, which agrees
+    with Rails on accented Latin letters. It does not agree on letters that have no decomposition,
+    such as "ß", "æ" and "ø", which Rails spells "ss", "ae" and "o" and this turns into ``-``, or on
+    compatibility characters such as ligatures and full-width letters, which this expands and Rails
+    drops.
+    """
+    decomposed = "".join(char for char in unicodedata.normalize("NFKD", label) if not unicodedata.combining(char))
+    return re.sub(r"-{2,}", "-", re.sub(r"[^a-z0-9_-]+", "-", decomposed.lower())).strip("-")
 
 
 def _element_problems(index: int, element: Any) -> list[str]:
@@ -354,6 +366,14 @@ _INVALID_FORMS = [
         " {type: input, id: name, attributes: {label: 'Name???'}}]",
         "labels are too similar: 'name'",
     ),
+    (
+        _HEADER + "body: [{type: input, attributes: {label: 'A - B'}}, {type: input, attributes: {label: 'A B'}}]",
+        "labels are too similar: 'a-b'",
+    ),
+    (
+        _HEADER + "body: [{type: input, attributes: {label: Café}}, {type: input, attributes: {label: Cafe}}]",
+        "labels are too similar: 'cafe'",
+    ),
     (_HEADER + "body: [{type: input, id: a b, attributes: {label: A}}]", "can only contain"),
     (_HEADER + "body: [{type: markdown, id: m, attributes: {value: x}}]", "takes no id"),
     (_HEADER + "body: [{type: input, attributes: {description: x}}]", "'label' is missing"),
@@ -392,12 +412,33 @@ _VALID_FORMS = [
     # A dropdown with a default option.
     "body: [{type: dropdown, id: download, attributes: {label: 'How did you download the software?',"
     " options: [Built from source, Homebrew, MacPorts, apt-get], default: 0}, validations: {required: true}}]",
+    # Rails keeps underscores, so these labels parameterize apart, to name_1 and name-1.
+    "body: [{type: input, attributes: {label: Name_1}}, {type: input, attributes: {label: Name 1}}]",
 ]
 
 
 @pytest.mark.parametrize("text", _VALID_FORMS)
 def test_issue_form_checker_accepts_what_github_accepts(text: str) -> None:
     assert issue_form_problems(yaml.safe_load(_HEADER + text)) == []
+
+
+# The references ActiveSupport 7.2's ``parameterize`` gives: its documented examples, the label of
+# GitHub's "Labels are too similar" example, separators around a hyphen, an accented letter, and an
+# underscore, which Rails keeps.
+@pytest.mark.parametrize(
+    ("label", "reference"),
+    [
+        ("Donald E. Knuth", "donald-e-knuth"),
+        ("^très|Jolie-- ", "tres-jolie"),
+        ("Name???????", "name"),
+        ("A - B", "a-b"),
+        ("A B", "a-b"),
+        ("Café", "cafe"),
+        ("Name_1", "name_1"),
+    ],
+)
+def test_parameterize_gives_the_reference_rails_gives(label: str, reference: str) -> None:
+    assert _parameterize(label) == reference
 
 
 def test_bug_report_requires_the_facts_a_maintainer_needs() -> None:
