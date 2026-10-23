@@ -190,6 +190,12 @@ in parentheses refer to that document.
   `viewspec check` and `check_artifact_dir()` verify React Tailwind artifacts against the default
   registry, so an artifact whose classes came from another registry fails them with
   `TAILWIND_INVENTORY_MISMATCH` (Q-4).
+- Generated React apps start from React and React DOM 19.3.1 (was 19.2.7), Tailwind CSS and
+  `@tailwindcss/vite` 4.3.3 (was 4.3.0), `@vitejs/plugin-react` 6.1.2 (was 6.0.2), `@types/react`
+  and `@types/react-dom` 19.3.0 (was 19.2.16 and 19.2.3), and `@types/node` 25.9.9 (was 25.5.0).
+  The shipped template's `package.json` and lockfile change, so the hashes of every generated
+  React app's package files change too. The other two React dependency seeds move to the same
+  versions of the packages they declare.
 - New issues start from a bug report or a feature request form, and blank issues are off. The bug
   report asks for the ViewSpec and Python versions, the operating system, the exact command, a
   minimal reproduction and the `--json` output. It tells reporters to put pasted JSON, HTML and
