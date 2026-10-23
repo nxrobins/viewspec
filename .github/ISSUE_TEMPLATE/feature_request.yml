@@ -1,0 +1,78 @@
+name: Feature request
+description: Propose a new capability or a change to existing behaviour.
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for the suggestion. Before you write it up, check the
+        [documentation index](https://github.com/nxrobins/viewspec/blob/main/docs/README.md):
+        the known-limits pages describe the current boundaries of each target, and some
+        capabilities, such as the SwiftUI and Flutter emitters, are available only through the
+        hosted compiler.
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What are you trying to do, and what stops you today? Describe the use case, not only the solution.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: |
+        What you would like ViewSpec to do: the command, option, Python API, motif, emitter target,
+        or IntentBundle field involved, and an example of the input you would write and the output
+        you would expect. Paste examples in a fenced code block, with a line such as `` ```json ``
+        or `` ```html `` above it and `` ``` `` below it, so GitHub shows them as written.
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      description: Which parts of ViewSpec does this touch? Pick all that apply.
+      multiple: true
+      options:
+        - IntentBundle schema and validation
+        - Compiler and emitters
+        - AppBundle and compile-app
+        - prove, check and verify
+        - Studio and Review
+        - IntentPatch and Converge Sessions
+        - Agent integration and MCP server
+        - Hosted compiler client
+        - Documentation
+        - Other
+    validations:
+      required: false
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives and workarounds
+      description: Other approaches you considered, and how you work around the gap today.
+    validations:
+      required: false
+  - type: input
+    id: viewspec-version
+    attributes:
+      label: ViewSpec version
+      description: The output of `viewspec --version`, so we know which behaviour you are starting from.
+      placeholder: viewspec 0.3.0b12
+    validations:
+      required: false
+  - type: textarea
+    id: context
+    attributes:
+      label: Additional context
+      description: Links, sketches, example bundles, or anything else that explains the request.
+    validations:
+      required: false
+  - type: checkboxes
+    id: confirmations
+    attributes:
+      label: Before you submit
+      options:
+        - label: I searched the existing issues and this request is not already open.
+          required: true

@@ -1,0 +1,123 @@
+name: Bug report
+description: Report a crash, a wrong result, or behaviour that contradicts the documentation.
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report a problem. The facts below are what a maintainer
+        needs to reproduce it, so please fill in every required field.
+
+        **Do not report security vulnerabilities here.** Issues are public; follow
+        [SECURITY.md](https://github.com/nxrobins/viewspec/blob/main/SECURITY.md) to report
+        them privately.
+  - type: textarea
+    id: summary
+    attributes:
+      label: What happened
+      description: A sentence or two on the problem, such as the error you got, the crash, or which part of the result is wrong.
+    validations:
+      required: true
+  - type: input
+    id: viewspec-version
+    attributes:
+      label: ViewSpec version
+      description: The output of `viewspec --version`, or the commit hash if you run from a checkout.
+      placeholder: viewspec 0.3.0b12
+    validations:
+      required: true
+  - type: input
+    id: python-version
+    attributes:
+      label: Python version
+      description: The output of `python --version` for the interpreter that runs ViewSpec (3.11 to 3.14 are supported).
+      placeholder: Python 3.13.1
+    validations:
+      required: true
+  - type: dropdown
+    id: os
+    attributes:
+      label: Operating system
+      description: ViewSpec supports Linux and macOS. Name the version under "Environment details".
+      options:
+        - Linux
+        - macOS
+        - Windows
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment details
+      description: |
+        Anything else about the setup that might matter: the OS version, how ViewSpec was installed
+        (pip, uv, an editable checkout) and with which extras (`remote`, `agents`), the Node.js
+        version (`node --version`) for React output and host verification, and the coding agent or
+        MCP client if one was involved. For an installation or setup problem, paste the output of
+        `viewspec doctor` in a fenced code block, with a line `` ```json `` above it and `` ``` ``
+        below it.
+      placeholder: Ubuntu 24.04, pip install "viewspec[agents]", Node.js 22.22.0
+    validations:
+      required: false
+  - type: textarea
+    id: command
+    attributes:
+      label: Command
+      description: |
+        The exact `viewspec` command you ran, with every argument, or the Python call that failed
+        (for example `viewspec.compile(bundle)`). For an MCP tool, give the tool name and its arguments.
+      placeholder: viewspec prove --intent intent.json --out .viewspec-proof --json
+      render: shell
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: IntentBundle or minimal reproduction
+      description: |
+        Paste or attach the input that triggers the problem: the IntentBundle JSON, AppBundle,
+        IntentPatch, `DESIGN.md`, or raw HTML. Cut it down to the smallest input that still shows
+        the problem, and remove anything private first, because issues are public. For a Python
+        API problem, a short self-contained script is best. Put pasted text in a fenced code block,
+        with a line such as `` ```json ``, `` ```html ``, `` ```markdown `` or `` ```python `` above
+        it and `` ``` `` below it. Unfenced, GitHub renders it as Markdown: HTML tags disappear and
+        the front matter of a `DESIGN.md` turns into a heading.
+    validations:
+      required: true
+  - type: textarea
+    id: output
+    attributes:
+      label: Output
+      description: |
+        The complete output of the command. If the command accepts `--json` (`viewspec <command> --help`
+        lists it), run it with `--json` and paste that output, which lists each error code. For an
+        IntentBundle or AppBundle that fails validation, also paste the output of
+        `viewspec validate-intent <file> --json` or `viewspec validate-app <file> --json`, which
+        gives the JSON path of each error. For a Python exception, include the full traceback.
+      render: text
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behaviour
+      description: What you expected to happen instead, and where that expectation comes from (a document, an earlier version, another target).
+    validations:
+      required: true
+  - type: textarea
+    id: context
+    attributes:
+      label: Additional context
+      description: Anything else that helps, such as a proof bundle, a screenshot of the rendered output, or the last version that worked.
+    validations:
+      required: false
+  - type: checkboxes
+    id: confirmations
+    attributes:
+      label: Before you submit
+      options:
+        - label: I searched the existing issues and this problem is not already reported.
+          required: true
+        - label: This report contains no security vulnerability and nothing private.
+          required: true

@@ -1,10 +1,10 @@
 # Contributing to ViewSpec
 
 Thanks for helping. This page covers the development setup the test suite expects, how to run the
-checks CI runs, and the two repository rules that trip up most first contributions: the closed
-error-code registry and the changelog. Security reports go through
-[`SECURITY.md`](SECURITY.md), not issues or pull requests. All participation is covered by the
-[Code of Conduct](CODE_OF_CONDUCT.md).
+checks CI runs, the two repository rules that trip up most first contributions (the closed
+error-code registry and the changelog), and the issue and pull request templates. Security reports
+go through [`SECURITY.md`](SECURITY.md), not issues or pull requests. All participation is covered
+by the [Code of Conduct](CODE_OF_CONDUCT.md).
 
 ## Supported platforms
 
@@ -87,12 +87,21 @@ python -m pytest -q --strict-markers -m "not e2e"
 python scripts/regenerate_schema.py check
 python scripts/update_corpus_goldens.py --check
 python scripts/check_pyright_baseline.py
+node tests/landing_payload_smoke.mjs
+node tests/landing_config_smoke.mjs
+node tests/landing_compile_smoke.mjs
+node tests/commercial_contract_smoke.mjs
+node tests/checkout_claim_smoke.mjs
 node tests/seo_static_smoke.mjs
+git diff --check $(git hash-object -t tree /dev/null) HEAD
 ```
 
 `update_corpus_goldens.py --check` fails when compiled output changes; if the change is
 intended, run it without `--check` and commit the regenerated `tests/fixtures/corpus_goldens.json`.
 `check_pyright_baseline.py` fails when the pyright error count grows above `pyright-baseline.json`.
+The last command compares `HEAD` with the empty tree, so it reports trailing whitespace, blank
+lines at the end of a file and leftover conflict markers in every committed file. It does not see
+uncommitted changes, so run it after committing.
 
 `ruff format` is the only formatter; run `ruff format .` before committing. The lint rule set
 (`I`, `UP`, `B`, `SIM` on top of Pyflakes) and the few deliberate ignores live under
@@ -357,3 +366,19 @@ have already shipped except to fix factual errors.
   run the suite after editing them.
 - Do not add network calls, telemetry, or automatic installs to the local SDK. The no-network
   posture described in `SECURITY.md` is part of the product.
+
+## Issues and pull requests
+
+New issues start from the forms in `.github/ISSUE_TEMPLATE/`. The bug report asks for the facts a
+maintainer needs to reproduce a problem: the ViewSpec version, the Python version and operating
+system, the exact command, the IntentBundle or a minimal reproduction, and the output, run with
+`--json` when the command accepts it. The feature request asks for the problem first and the
+proposed behaviour second. Blank issues are turned off for everyone without write access, so the
+template chooser offers these two forms plus links to the security policy and the documentation
+index.
+
+A new pull request opens with `.github/PULL_REQUEST_TEMPLATE.md`. Its checklist repeats the
+commands under [Running the checks](#running-the-checks) and the
+[repository rules](#repository-rules) above, so tick each item or say in the description why it
+does not apply. `.github/CODEOWNERS` assigns every path to @nxrobins, who is asked to review each
+pull request.
