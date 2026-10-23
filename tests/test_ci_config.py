@@ -16,6 +16,8 @@ from typing import Any
 import pytest
 import yaml
 
+from tests.test_react_dependency_seeds import SEEDS
+
 ROOT = Path(__file__).resolve().parents[1]
 WORKFLOWS = ROOT / ".github" / "workflows"
 _USES = re.compile(r"^\s*(?:-\s+)?uses:\s*(?P<action>[\w.-]+/[\w./-]+)@(?P<ref>\S+)(?:\s+#\s*(?P<comment>.*))?$")
@@ -338,3 +340,137 @@ def test_exact_dev_pins_match_the_ci_constraints() -> None:
 
     assert declared
     assert {name: constraints.get(name) for name in declared} == declared
+
+
+def test_pre_commit_runs_the_ruff_release_ci_pins() -> None:
+    project = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))["project"]
+    pinned = _exact_pins(project["optional-dependencies"]["dev"])["ruff"]
+    config = yaml.safe_load((ROOT / ".pre-commit-config.yaml").read_text(encoding="utf-8"))
+    (ruff,) = [repo for repo in config["repos"] if repo["repo"] == "https://github.com/astral-sh/ruff-pre-commit"]
+
+    # The hooks are the local copy of CI's `ruff check .` and `ruff format --check .` (audit P-8).
+    # Another ruff release formats and lints differently, so code its hooks accept can fail CI.
+    assert ruff["rev"] == f"v{pinned}"
+
+
+def test_protobuf_floor_job_installs_the_declared_floor() -> None:
+    project = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))["project"]
+    (requirement,) = [dependency for dependency in project["dependencies"] if re.match(r"protobuf\b", dependency)]
+    floor = re.search(r">=\s*([0-9][0-9A-Za-z.]*)", requirement)
+    commands = "\n".join(step.get("run", "") for step in _load("ci.yml")["jobs"]["protobuf_floor"]["steps"])
+
+    # The job imports the package with the oldest protobuf it declares. A new protoc moves the floor
+    # (tests/test_schema_source.py ties it to the gencode version), and the job's exact pin has to
+    # move with it: a pin below the new floor makes the job's install unresolvable.
+    assert floor is not None, requirement
+    assert re.findall(r"protobuf==([0-9][0-9A-Za-z.]*)", commands) == [floor.group(1)]
+
+
+# --- Dependabot -------------------------------------------------------------------------------
+
+DEPENDABOT = ROOT / ".github" / "dependabot.yml"
+_MAJOR = "version-update:semver-major"
+# Packages whose exact version is a contract in code, tests, workflows or generated output.
+# Dependabot never proposes them; CONTRIBUTING.md has the hand-bump steps for each.
+_HAND_BUMPED = {
+    "pip": {"grpcio-tools", "pyright", "ruff"},
+    "npm": {"@chenglou/pretext", "@chenglou/freerange", "@playwright/test", "playwright", "typescript"},
+}
+
+
+def _dependabot_updates() -> dict[str, dict[str, Any]]:
+    updates = yaml.safe_load(DEPENDABOT.read_text(encoding="utf-8"))["updates"]
+    ecosystems = [update["package-ecosystem"] for update in updates]
+    # One entry per ecosystem: separate entries cannot share a group, so they open separate PRs.
+    assert len(ecosystems) == len(set(ecosystems)), ecosystems
+    return {update["package-ecosystem"]: update for update in updates}
+
+
+def _groups(update: dict[str, Any], applies_to: str) -> list[dict[str, Any]]:
+    """The groups of a Dependabot entry for one kind of update; ``applies-to`` defaults to version updates."""
+    return [group for group in update["groups"].values() if group.get("applies-to", "version-updates") == applies_to]
+
+
+def test_dependabot_opens_one_grouped_minor_and_patch_pull_request_per_ecosystem() -> None:
+    updates = _dependabot_updates()
+
+    assert set(updates) == {"pip", "npm", "github-actions"}
+    for ecosystem, update in updates.items():
+        assert update["schedule"]["interval"] == "weekly", ecosystem
+        # A grouped run opens one pull request; a small limit caps the damage if grouping ever
+        # stops applying (the ungrouped configuration opened 24 at once).
+        assert 1 <= update["open-pull-requests-limit"] <= 3, ecosystem
+        # One group for version updates and at most one for security updates, nothing else.
+        (group,) = _groups(update, "version-updates")
+        security = _groups(update, "security-updates")
+        assert len(security) <= 1, ecosystem
+        assert len(update["groups"]) == 1 + len(security), ecosystem
+        assert group["patterns"] == ["*"], ecosystem
+        assert sorted(group["update-types"]) == ["minor", "patch"], ecosystem
+        # group-by: dependency-name would split the group into one pull request per package.
+        assert "group-by" not in group, ecosystem
+        # Majors are never proposed as version updates for any package.
+        assert {"dependency-name": "*", "update-types": [_MAJOR]} in update["ignore"], ecosystem
+        # The update-types ignores do not apply to security updates, so a security update can be a
+        # major. A security group takes every one of them: any filter (update-types, exclude-patterns,
+        # dependency-type, group-by) would send the updates it leaves out to pull requests of their own.
+        for security_group in security:
+            assert security_group == {"applies-to": "security-updates", "patterns": ["*"]}, ecosystem
+
+
+def test_dependabot_leaves_the_declared_python_ranges_alone() -> None:
+    pip = _dependabot_updates()["pip"]
+
+    # pyproject.toml declares the ranges the published package supports, and tests and the
+    # protobuf_floor job pin their floors. The default strategy acts as increase for this project
+    # and raises a floor to every release it proposes, so a PyYAML 6.0.4 would turn PyYAML>=6.0 into
+    # PyYAML>=6.0.4. increase-if-necessary moves the exact pins and changes a range only when it
+    # excludes the new release; lockfile-only would not move any pin. Pull request #194 (mcp
+    # 1.30.0 to 2.3.0, which turned mcp>=1.9.0,<2 into mcp>=2.3.0,<3) proposed a release the range
+    # excludes, which either strategy rewrites: the semver-major and mcp ignore rules keep it out,
+    # and other tests in this file check both rules.
+    assert pip.get("versioning-strategy") == "increase-if-necessary"
+
+
+def test_dependabot_updates_every_npm_seed_from_one_entry() -> None:
+    npm = _dependabot_updates()["npm"]
+
+    # One entry with `directories` lets its group update all three seeds in a single pull request,
+    # which keeps the pins the seeds must share identical.
+    assert "directory" not in npm
+    assert len(npm["directories"]) == len(set(npm["directories"]))
+    assert set(npm["directories"]) == {"/" + seed for seed in SEEDS}
+    assert all((ROOT / seed / "package-lock.json").is_file() for seed in SEEDS)
+    # Security updates need a group too. Without one, a fix for a package the seeds share opens one
+    # pull request per seed, and each fails tests/test_react_dependency_seeds.py because it moves
+    # a single seed. The test above checks that the group takes every security update.
+    assert _groups(npm, "security-updates"), "npm security updates are not grouped across the seeds"
+
+
+def test_dependabot_never_proposes_the_pinned_contract_packages() -> None:
+    from viewspec.app_freerange import FREERANGE_PACKAGE
+    from viewspec.app_pretext import PRETEXT_PACKAGE
+
+    assert {PRETEXT_PACKAGE, FREERANGE_PACKAGE} <= _HAND_BUMPED["npm"]
+    updates = _dependabot_updates()
+    for ecosystem, update in updates.items():
+        ignored = {rule["dependency-name"] for rule in update["ignore"] if set(rule) == {"dependency-name"}}
+        assert ignored == _HAND_BUMPED.get(ecosystem, set()), ecosystem
+
+    # Every ignore rule says why in a comment directly above it.
+    lines = DEPENDABOT.read_text(encoding="utf-8").splitlines()
+    for number, line in enumerate(lines):
+        if line.lstrip().startswith("- dependency-name:"):
+            assert lines[number - 1].lstrip().startswith("#"), f"dependabot.yml:{number + 1} has no reason comment"
+
+
+def test_dependabot_mcp_rule_follows_the_agents_extra_cap() -> None:
+    project = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))["project"]
+    (requirement,) = project["optional-dependencies"]["agents"]
+    cap = re.search(r"<\s*(\d+)", requirement)
+    rules = [rule for rule in _dependabot_updates()["pip"]["ignore"] if rule["dependency-name"] == "mcp"]
+
+    # While the extra caps the MCP SDK below a major, Dependabot must not propose that major;
+    # once the cap goes, so must the rule.
+    expected = [{"dependency-name": "mcp", "versions": [f">={cap.group(1)}"]}] if cap else []
+    assert rules == expected

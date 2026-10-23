@@ -313,14 +313,14 @@ Status as of the follow-up work on 2026-10-22, all on branch `claude/project-aud
 
 | Id | Status | Resolution |
 |---|---|---|
-| P-1 | Fixed | `protobuf>=6.31.1,<8`; CI job imports the package at the floor; a test ties the floor to the gencode version. |
+| P-1 | Fixed | `protobuf>=6.31.1,<8`; CI job imports the package at the floor; tests tie the floor to the gencode version and the job's pin to the floor. |
 | P-2 | Fixed | vite 8.3.5 in all three seeds; `npm audit` reports zero advisories. |
 | P-3 | Fixed | `proto/universal_ui.proto`, `scripts/regenerate_schema.py`, `.pyi` stub; CI checks source against gencode. The `dev` extra pins `grpcio-tools` 1.80.0 (protoc 31.1, wheels for Python 3.11 to 3.14). |
 | P-4 | Fixed | `requirements-ci.txt` used as pip constraints in every CI install; the Pretext workflow also runs when it changes. |
-| P-5 | Fixed | `.github/dependabot.yml` for pip, three npm seeds and Actions. |
+| P-5 | Fixed | `.github/dependabot.yml`: one grouped minor-and-patch pull request a week for pip, the three npm seeds (one entry) and Actions, plus one security-updates group per ecosystem, so an npm security fix updates the three seeds in one pull request (security pull requests need Dependabot security updates enabled in the repository settings). Semver-major version updates and the contract-pinned packages (grpcio-tools, pyright, ruff, Pretext, Freerange, TypeScript, Playwright, mcp 2.x) are ignored; CONTRIBUTING.md has the hand-bump steps for a major update in each ecosystem and for each of those packages. These ignores keep out proposals like pull request #194 (mcp 1.30.0 to 2.3.0, which rewrote `mcp>=1.9.0,<2` as `mcp>=2.3.0,<3`). The pip entry uses `versioning-strategy: increase-if-necessary`, so it moves exact pins and leaves a range in `pyproject.toml` alone while it allows the new release; the default acts as `increase` here and would raise a floor such as `PyYAML>=6.0` to every new release. `tests/test_ci_config.py` checks the configuration. |
 | P-6 | Fixed | `cryptography<53`, `mcp<2`: MCP SDK 2.x removed `mcp.server.fastmcp`, which `viewspec mcp` imports, and `doctor --agents` now checks that module, reporting any import failure as unavailable. |
 | P-7 | Fixed | `overrides` for `source-map-js` in the three manifests. |
-| P-8 | Fixed | `.pre-commit-config.yaml` pinned to ruff 0.15.22. |
+| P-8 | Fixed | `.pre-commit-config.yaml` pinned to ruff 0.15.22; `tests/test_ci_config.py` keeps its `rev` equal to the `ruff` pin, and the ruff hand-bump steps in CONTRIBUTING.md name the file. |
 | P-9 | Info | No action; caps raised with R-8. |
 | C-1 | Fixed | Integral doubles become ints at `SemanticNode` construction (a snapshot: caller data is not modified, nested tuples become lists) and after round trips, so integers within 2^53 compile identically in memory and after JSON or proto round trips. `validate-intent`, `viewspec compile` and the agent/MCP tools reject magnitudes above 2^53 with `INTEGER_OUT_OF_SAFE_RANGE`. The Python `compile()` API does not check magnitudes; Python callers run `validate_agent_intent_bundle` on the JSON payload first. |
 | C-2 | Fixed | `ensure_ascii=False` in text rendering. Lists and dicts also render with compact separators, which changes page text and hashes for every bundle that binds one. |
@@ -369,7 +369,7 @@ Status as of the follow-up work on 2026-10-22, all on branch `claude/project-aud
 | R-5 | Fixed | Approved by the owner. The JUnit contract requires failures == errors == skipped == 0 and tests >= 7. npm is pinned to its 10.9 major.minor line and must still print a plain X.Y.Z version. Python, Node, Bun and Playwright stay exact. tests/test_ci_config.py runs both steps' shell code against stub tools and synthetic JUnit files. |
 | R-6 | Fixed | Caching, timeouts, concurrency that supersedes only pull request runs (every push to `main` runs to completion), the `agents` extra in every test leg with a test that starts the real stdio MCP server, lockfile-based Playwright. |
 | R-7 | Fixed | Version single-sourced; tag and release step in the checklist. |
-| R-8 | Partial | sdist ships tests, conformance, schema source, changelog and policy. The full suite still needs a git checkout: some tests import or read `scripts/`, `demos/`, `docs/`, `examples/`, `integrations/` and `.github/`, and the root file `requirements-ci.txt`, none of which the sdist carries. |
+| R-8 | Partial | sdist ships tests, conformance, schema source, changelog and policy. The full suite still needs a git checkout: some tests import or read `scripts/`, `demos/`, `docs/`, `examples/`, `integrations/` and `.github/`, and the root files `requirements-ci.txt` and `.pre-commit-config.yaml`, none of which the sdist carries. |
 | R-9 | Fixed | One legal name. |
 | R-10 | Fixed | Seed installed before the host proof; verifier reuses it. |
 | R-11 | Info | |

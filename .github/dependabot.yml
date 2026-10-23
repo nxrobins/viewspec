@@ -1,27 +1,139 @@
+# Dependabot version and security updates (audit finding P-5).
+#
+# Each ecosystem gets one grouped pull request a week with every available minor and patch
+# update. Semver-major version updates are never proposed: they need a deliberate migration.
+# Packages whose exact version is a contract in code, tests, workflows or generated output are
+# never proposed either; a maintainer bumps them by hand. CONTRIBUTING.md ("Dependency updates")
+# says how to land each grouped pull request, how to make a major update in each ecosystem and how
+# to bump every package ignored here, and tests/test_ci_config.py checks the shape of this file.
+#
+# Security updates (opened only while Dependabot security updates are enabled in the repository
+# settings) get a group of their own in each ecosystem, so one pull request carries all of an
+# ecosystem's security fixes. The update-types ignores do not apply to security updates, so that
+# pull request can carry a major update.
+#
+# One grouped pull request is expected per ecosystem and run. The low open-pull-requests-limit
+# values only cap the damage if grouping ever stops applying (the first version of this file had
+# no groups and opened 24 pull requests at once).
 version: 2
 updates:
   - package-ecosystem: "pip"
+    # pyproject.toml and the requirements-ci.txt constraints compiled from it.
     directory: "/"
     schedule:
       interval: "weekly"
-    open-pull-requests-limit: 5
+    open-pull-requests-limit: 2
+    # Move the exact pins (requirements-ci.txt, the hatchling build requirement) and leave a range
+    # in pyproject.toml alone while it allows the new release. The ranges declare what the
+    # published package supports, and the tests and the protobuf_floor job in ci.yml pin their
+    # floors, so raising one is a change of its own. The default, auto, acts as increase for this
+    # project (pull request #194 raised the mcp floor along with the cap) and raises a floor to
+    # every release it proposes: a PyYAML 6.0.4 would turn PyYAML>=6.0 into PyYAML>=6.0.4.
+    # increase-if-necessary still rewrites a range that excludes the new release, as auto did to
+    # mcp>=1.9.0,<2 in #194; the semver-major and mcp ignore rules below are what keep such
+    # releases out. lockfile-only would leave the requirements-ci.txt pins where they are.
+    versioning-strategy: "increase-if-necessary"
+    groups:
+      python:
+        applies-to: version-updates
+        patterns:
+          - "*"
+        update-types:
+          - "minor"
+          - "patch"
+      # A security update can be a major (the update-types ignore below does not apply to it), so
+      # this group filters nothing and takes every one.
+      python-security:
+        applies-to: security-updates
+        patterns:
+          - "*"
+    ignore:
+      # Major releases change APIs and need a migration; bump them by hand.
+      - dependency-name: "*"
+        update-types:
+          - "version-update:semver-major"
+      # grpcio-tools bundles the protoc that generated src/viewspec/schema/viewspec_pb2.py. A new
+      # protoc changes the generated module and the protobuf floor, so bumps go through
+      # scripts/regenerate_schema.py.
+      - dependency-name: "grpcio-tools"
+      # pyright-baseline.json counts the errors of one pyright release; a new release changes the
+      # count and fails scripts/check_pyright_baseline.py.
+      - dependency-name: "pyright"
+      # ruff is the formatter and linter CI enforces; new releases reformat files and add rules.
+      - dependency-name: "ruff"
+      # The MCP server only works with MCP SDK 1.x, and the agents extra caps mcp<2. With the
+      # semver-major rule, this keeps out proposals like pull request #194 (mcp 2.3.0).
+      - dependency-name: "mcp"
+        versions:
+          - ">=2"
+
   - package-ecosystem: "npm"
-    directory: "/src/viewspec/host_verify_template"
+    # The three React dependency seeds must pin identical versions
+    # (tests/test_react_dependency_seeds.py), so one entry covers all of them and its group
+    # updates them together in one pull request.
+    directories:
+      - "/src/viewspec/host_verify_template"
+      - "/tests/react-tailwind-host"
+      - "/conformance/agent-ui-v2/react-dependencies"
     schedule:
       interval: "weekly"
-    open-pull-requests-limit: 5
-  - package-ecosystem: "npm"
-    directory: "/tests/react-tailwind-host"
-    schedule:
-      interval: "weekly"
-    open-pull-requests-limit: 5
-  - package-ecosystem: "npm"
-    directory: "/conformance/agent-ui-v2/react-dependencies"
-    schedule:
-      interval: "weekly"
-    open-pull-requests-limit: 5
+    open-pull-requests-limit: 2
+    groups:
+      react-seeds:
+        applies-to: version-updates
+        patterns:
+          - "*"
+        update-types:
+          - "minor"
+          - "patch"
+      # Ungrouped, a security fix for a package the seeds share opens one pull request per seed,
+      # and each fails tests/test_react_dependency_seeds.py. This group moves every seed in one
+      # pull request; it takes every security update, majors included.
+      react-seeds-security:
+        applies-to: security-updates
+        patterns:
+          - "*"
+    ignore:
+      # Major releases change APIs and need a migration; bump them by hand.
+      - dependency-name: "*"
+        update-types:
+          - "version-update:semver-major"
+      # src/viewspec/app_pretext.py pins the exact Pretext artifact (PRETEXT_VERSION, its npm
+      # integrity and package-tree hash), and app_pretext_runtime.py embeds the version.
+      - dependency-name: "@chenglou/pretext"
+      # src/viewspec/app_freerange.py pins the exact Freerange artifact (FREERANGE_VERSION, its
+      # integrity and tree hash), and app_react.py writes the version into generated apps.
+      - dependency-name: "@chenglou/freerange"
+      # The Freerange proof requires exactly FREERANGE_TYPESCRIPT_VERSION, with its integrity and
+      # tree hash, in src/viewspec/app_freerange.py.
+      - dependency-name: "typescript"
+      # PLAYWRIGHT_VERSION in .github/workflows/pretext-e2e.yml, the pin in
+      # scripts/check_studio_release.py and docs/release-checklist.md, and the Chromium revision
+      # every CI job and contributor installs all follow this version.
+      - dependency-name: "@playwright/test"
+      # The Playwright runtime that @playwright/test pins exactly; it moves only with it.
+      - dependency-name: "playwright"
+
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
       interval: "weekly"
-    open-pull-requests-limit: 5
+    open-pull-requests-limit: 2
+    groups:
+      actions:
+        applies-to: version-updates
+        patterns:
+          - "*"
+        update-types:
+          - "minor"
+          - "patch"
+      actions-security:
+        applies-to: security-updates
+        patterns:
+          - "*"
+    ignore:
+      # Every action is pinned to a commit at the major version its workflow uses; moving to a
+      # new major is a deliberate change made by hand.
+      - dependency-name: "*"
+        update-types:
+          - "version-update:semver-major"
