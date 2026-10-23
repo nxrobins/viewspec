@@ -99,3 +99,14 @@ def test_contrast_failure_is_flagged():
     assert any("label" in failure["label"] for failure in report["failures"])
     # The pale label lives only in the injected registry; the default report is unaffected.
     assert react_contrast_report("aesthetic.calm_ops")["contrast_failures"] == 0
+
+
+def test_base_recipe_contrast_reads_the_injected_registry():
+    # Review of Q-4: with no profile the report checks the base recipes alone, and no test failed
+    # when that read used the default registry instead of the injected one.
+    recipes = dict(DEFAULT_TAILWIND_RECIPE_REGISTRY.recipes)
+    recipes["primitive:label"] = "text-xs font-bold uppercase text-slate-300"  # pale label on white surface
+    registry = replace(DEFAULT_TAILWIND_RECIPE_REGISTRY, recipes=recipes)
+    report = react_contrast_report(None, recipe_registry=registry)
+    assert [failure["label"] for failure in report["failures"]] == ["label / surface"]
+    assert react_contrast_report(None)["contrast_failures"] == 0

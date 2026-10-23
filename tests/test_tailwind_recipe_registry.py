@@ -7,9 +7,9 @@ names in two modules. These tests pin the replacement: a frozen registry passed 
 chain, module attributes that emitting never writes, a digest that is a pure function of the
 registry and covers every field of it, fixed grid classes that no registry can replace, and emits
 with different registries that can run at the same time. ``viewspec check`` and ``prove`` read the
-same import-time snapshot as a default emit, so the two paths cannot disagree, and a registry of
-the wrong shape fails with a stable code, before anything is written and before it can have a
-digest.
+same import-time snapshot as a default emit, so the two paths cannot disagree; every field of an
+injected registry reaches the emit; and a registry of the wrong shape fails with a stable code,
+before anything is written and before it can have a digest.
 """
 
 from __future__ import annotations
@@ -142,12 +142,30 @@ def _rich_ast():
     return compile(_rich_builder().build_bundle())
 
 
+def _emitted_nodes(output: Path, registry: TailwindRecipeRegistry | None = None) -> dict[str, dict[str, Any]]:
+    """Emit the rich page with ``registry`` and return its manifest entries by IR id."""
+    ReactTailwindTsxEmitter(recipe_registry=registry).emit(_rich_ast(), output)
+    manifest = json.loads(output.joinpath("provenance_manifest.json").read_text(encoding="utf-8"))
+    return {entry["ir_id"]: entry for entry in manifest.values()}
+
+
 def _variant(**fields: object) -> TailwindRecipeRegistry:
     return dataclasses.replace(DEFAULT_TAILWIND_RECIPE_REGISTRY, **fields)
 
 
 def _without(table: Mapping[Any, Any], *keys: object) -> dict[Any, Any]:
     return {key: value for key, value in table.items() if key not in keys}
+
+
+def _renamed_rule(registry: TailwindRecipeRegistry, field: str, role: str, rule_id: str) -> TailwindRecipeRegistry:
+    """``registry`` with ``role``'s rule id in ``field`` renamed, in the precedence too."""
+    table = getattr(registry, field)
+    old = table[role]
+    return dataclasses.replace(
+        registry,
+        **{field: {**table, role: rule_id}},
+        rule_precedence=tuple(rule_id if entry == old else entry for entry in registry.rule_precedence),
+    )
 
 
 def _assert_emit_fails(tmp_path: Path, registry: TailwindRecipeRegistry, code: str) -> CompilerConstraintError:
@@ -1055,3 +1073,103 @@ def test_a_registry_whose_precedence_is_a_set_has_no_digest_under_any_hash_seed(
         assert completed.returncode == 0, completed.stderr
         outputs.append(completed.stdout.split())
     assert outputs == [["APP_ROLE_UNDECLARED_CONTRACT", MAIN_REGISTRY_DIGEST]] * 2
+
+
+# One emit-level test per registry field. Review of Q-4: switching any single read of the injected
+# registry to DEFAULT_TAILWIND_RECIPE_REGISTRY broke no test. In each test below the emitted classes,
+# the recorded rule ids or the error code come from the injected registry alone.
+
+
+@pytest.mark.parametrize(
+    ("dropped", "expected"),
+    [
+        ((), "product_role:metric_grid"),
+        (("product_role:metric_grid",), "motif:dashboard:grid"),
+        (("product_role:metric_grid", "motif:dashboard:grid"), "layout:grid"),
+        (("product_role:metric_grid", "motif:dashboard:grid", "layout:grid"), "primitive:grid"),
+        (("product_role:metric_grid", "motif:dashboard:grid", "layout:grid", "primitive:grid"), None),
+    ],
+    ids=["product-role", "motif", "layout", "primitive", "no-recipe"],
+)
+def test_emit_looks_recipe_keys_up_in_the_injected_registry(tmp_path, dropped, expected):
+    # Without its product rule id the metrics grid derives no app role, and each recipe the registry
+    # lacks sends it one step further down the lookup, until it has no recipe at all.
+    registry = _variant(
+        product_rule_ids=_without(DEFAULT_TAILWIND_RECIPE_REGISTRY.product_rule_ids, "metric_grid"),
+        recipes=_without(DEFAULT_TAILWIND_RECIPE_REGISTRY.recipes, *dropped),
+    )
+    if expected is None:
+        _assert_emit_fails(tmp_path, registry, "TAILWIND_RECIPE_CONFLICT")
+        return
+    grid = _emitted_nodes(tmp_path / "out", registry)["motif_metrics"]
+    assert grid["recipe_key"] == expected
+    assert "app_role" not in grid
+    recipe = registry.recipes[expected].split()
+    assert grid["classes"][: len(recipe)] == recipe
+
+
+def test_emit_looks_role_recipes_up_in_the_injected_registry(tmp_path):
+    registry = _variant(recipes=_without(DEFAULT_TAILWIND_RECIPE_REGISTRY.recipes, "role:table:cell"))
+    assert _emitted_nodes(tmp_path / "default")["binding_payments_value"]["recipe_key"] == "role:table:cell"
+    assert _emitted_nodes(tmp_path / "out", registry)["binding_payments_value"]["recipe_key"] == "primitive:value"
+
+
+def test_emit_reads_aesthetic_overlays_from_the_injected_registry(tmp_path):
+    fields = _with_overlay_entry("primitive:value", "text-2xl font-extrabold leading-tight text-rose-700")
+    value = _emitted_nodes(tmp_path / "out", _variant(**fields))["binding_revenue_value"]["classes"]
+    assert "text-rose-700" in value
+    assert "text-slate-950" not in value
+    assert "text-slate-950" in _emitted_nodes(tmp_path / "default")["binding_revenue_value"]["classes"]
+
+
+def test_emit_reads_layout_emphasis_from_the_injected_registry(tmp_path):
+    registry = _variant(layout_emphasis_classes={"featured": "ring-4 ring-rose-300"})
+    featured = _emitted_nodes(tmp_path / "out", registry)["motif_metrics_revenue"]["classes"]
+    assert {"ring-4", "ring-rose-300"} <= set(featured)
+    assert "ring-teal-300" not in featured
+    # A registry that names the emphasis differently has no classes for the one the compiler sets.
+    renamed = _variant(layout_emphasis_classes={"spotlight": "ring-2 ring-rose-300"})
+    error = _assert_emit_fails(tmp_path, renamed, "TAILWIND_AESTHETIC_UNSAFE_CLASS")
+    assert error.message.endswith("layout_emphasis must be one of: spotlight.")
+
+
+@pytest.mark.parametrize(
+    ("role", "primitives"),
+    [("metric_card", ("stack",)), ("data_table", ("surface",))],
+    ids=["product-role", "structural-role"],
+)
+def test_emit_reads_app_role_contracts_from_the_injected_registry(tmp_path, role, primitives):
+    contracts = {name: dict(contract) for name, contract in DEFAULT_TAILWIND_RECIPE_REGISTRY.app_role_contracts.items()}
+    contracts[role]["primitives"] = primitives
+    _assert_emit_fails(tmp_path, _variant(app_role_contracts=contracts), "APP_ROLE_DERIVATION_MISMATCH")
+
+
+def test_emit_reads_product_rule_ids_from_the_injected_registry(tmp_path):
+    renamed = _renamed_rule(DEFAULT_TAILWIND_RECIPE_REGISTRY, "product_rule_ids", "metric_card", "custom.metric_card")
+    card = _emitted_nodes(tmp_path / "renamed", renamed)["motif_metrics_revenue"]
+    assert (card["app_role"], card["app_role_source"]) == ("metric_card", "custom.metric_card")
+    # Without a rule id for the role, the card derives no app role and takes its product-role recipe.
+    dropped = _variant(product_rule_ids=_without(DEFAULT_TAILWIND_RECIPE_REGISTRY.product_rule_ids, "metric_card"))
+    card = _emitted_nodes(tmp_path / "dropped", dropped)["motif_metrics_revenue"]
+    assert card["recipe_key"] == "product_role:metric_card"
+    assert "app_role" not in card
+
+
+def test_emit_reads_structural_rule_ids_from_the_injected_registry(tmp_path):
+    registry = _renamed_rule(DEFAULT_TAILWIND_RECIPE_REGISTRY, "structural_rule_ids", "data_table", "custom.table")
+    registry = _renamed_rule(registry, "structural_rule_ids", "data_row", "custom.row")
+    nodes = _emitted_nodes(tmp_path / "out", registry)
+    assert (nodes["motif_deploys"]["app_role"], nodes["motif_deploys"]["app_role_source"]) == (
+        "data_table",
+        "custom.table",
+    )
+    assert nodes["motif_deploys_payments"]["app_role_source"] == "custom.row"
+
+
+def test_emit_reads_rule_precedence_from_the_injected_registry(tmp_path):
+    # A rule id missing from the registry's own precedence fails the emit, though the default
+    # precedence declares it.
+    metric_card = DEFAULT_TAILWIND_RECIPE_REGISTRY.product_rule_ids["metric_card"]
+    precedence = tuple(rule for rule in DEFAULT_TAILWIND_RECIPE_REGISTRY.rule_precedence if rule != metric_card)
+    error = _assert_emit_fails(tmp_path, _variant(rule_precedence=precedence), "APP_ROLE_UNDECLARED_CONTRACT")
+    assert metric_card in error.message
