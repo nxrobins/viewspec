@@ -196,10 +196,13 @@ def test_dependabot_leaves_the_declared_python_ranges_alone() -> None:
     pip = _dependabot_updates()["pip"]
 
     # pyproject.toml declares the ranges the published package supports, and tests and the
-    # protobuf_floor job pin their floors. By default Dependabot treats this project as an
-    # application and raises every >= floor to the release it proposes (pull request #194 turned
-    # mcp>=1.9.0,<2 into mcp>=2.3.0,<3). increase-if-necessary moves the exact pins and changes a
-    # range only when it excludes the new release; lockfile-only would not move any pin.
+    # protobuf_floor job pin their floors. The default strategy acts as increase for this project
+    # and raises a floor to every release it proposes, so a PyYAML 6.0.4 would turn PyYAML>=6.0 into
+    # PyYAML>=6.0.4. increase-if-necessary moves the exact pins and changes a range only when it
+    # excludes the new release; lockfile-only would not move any pin. Pull request #194 (mcp
+    # 1.30.0 to 2.3.0, which turned mcp>=1.9.0,<2 into mcp>=2.3.0,<3) proposed a release the range
+    # excludes, which either strategy rewrites: the semver-major and mcp ignore rules keep it out,
+    # and other tests in this file check both rules.
     assert pip.get("versioning-strategy") == "increase-if-necessary"
 
 

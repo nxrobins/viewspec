@@ -135,8 +135,9 @@ pull request per ecosystem: `pip` (`pyproject.toml` and `requirements-ci.txt`), 
 React dependency seeds `src/viewspec/host_verify_template`, `tests/react-tailwind-host` and
 `conformance/agent-ui-v2/react-dependencies`, all in the same pull request), and GitHub Actions.
 A grouped pull request carries only minor and patch updates. Dependabot never proposes a
-semver-major update, and never proposes the packages whose exact version is a contract in the code,
-the tests or the workflows; a maintainer bumps those by hand (see below).
+semver-major version update, and never proposes the packages whose exact version is a contract in
+the code, the tests or the workflows; a maintainer makes those updates by hand, as "Major updates"
+and "Packages Dependabot never proposes" below describe.
 
 Dependabot cannot run the repository's generators, so its pull requests usually need one follow-up
 commit, pushed to the Dependabot branch, before CI passes. Once that commit is there Dependabot
@@ -195,6 +196,24 @@ Every action is pinned to a commit with a `# vN` comment naming its major versio
 (`tests/test_ci_config.py` enforces that form). When Dependabot moves a pin within a major it can
 rewrite the comment to the full release, for example `# v4.5.0`; change it back to `# v4` in every
 workflow before merging.
+
+### Major updates
+
+Dependabot proposes no semver-major version update, so a maintainer moves a package to a new major
+on purpose, in a pull request of its own, after reading its release notes:
+
+- **pip**: when the range in `pyproject.toml` already allows the new major, users can install it
+  while CI still tests the old one. Regenerate `requirements-ci.txt` with the command from its
+  header plus `--upgrade-package <name>`, copy the header back, and run the full checks. When the
+  range excludes the new major, widen the range (`tests/test_distribution_metadata.py` quotes
+  several declared ranges), regenerate the pins the same way, and add a changelog entry.
+- **npm**: install the new version in every seed that declares the package
+  (`npm install --save-exact --ignore-scripts <package>@<version>`, with `--save-dev` for a
+  development dependency), refresh the goldens as for the grouped npm pull request, run the full
+  checks, and add a changelog entry.
+- **GitHub Actions**: move the commit and its `# vN` comment together in every workflow that uses
+  the action. For `actions/upload-artifact`, also update the `pretext-e2e.yml` commit that
+  `tests/test_ci_config.py` pins.
 
 ### Packages Dependabot never proposes
 

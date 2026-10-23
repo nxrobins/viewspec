@@ -62,10 +62,12 @@ in parentheses refer to that document.
   the PyPI launch check without blocking the documentation deploy, so a push to `main` deploys
   the site even while that check fails (R-2).
 - Dependabot opens one grouped minor-and-patch pull request a week for pip, the three npm seeds
-  and GitHub Actions. Semver-major updates and the packages pinned as contracts in the code,
-  tests or workflows are bumped by hand, as `CONTRIBUTING.md` describes. Pip updates move only
-  exact pins (`versioning-strategy: increase-if-necessary`) and leave the dependency ranges in
-  `pyproject.toml`, the minimum versions the package asks of its users, as they are (P-5).
+  and GitHub Actions. It proposes no semver-major version update and never proposes the
+  packages pinned as contracts in the code, tests or workflows; `CONTRIBUTING.md` gives the
+  hand-bump steps for a major update in each ecosystem and for each of those packages. Pip
+  version updates move the exact pins (`versioning-strategy: increase-if-necessary`) and leave
+  the dependency ranges in `pyproject.toml`, the minimum versions the package asks of its users,
+  alone while they allow the new release (P-5).
   `cryptography` allows up to 52.x (P-6). The classifiers declare Linux and macOS; CI runs on
   Linux plus a Windows job that checks the corpus goldens, and does not exercise macOS (H-1).
 - The source archive ships `tests/`, `conformance/`, `proto/`, the changelog, the contributing

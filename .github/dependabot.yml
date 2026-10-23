@@ -1,11 +1,11 @@
 # Dependabot version updates (audit finding P-5).
 #
 # Each ecosystem gets one grouped pull request a week with every available minor and patch
-# update. Semver-major updates are never proposed: they need a deliberate migration. Packages
-# whose exact version is a contract in code, tests, workflows or generated output are never
-# proposed either; a maintainer bumps them by hand. CONTRIBUTING.md ("Dependency updates") says
-# how to land each grouped pull request and how to bump every package ignored here, and
-# tests/test_ci_config.py checks the shape of this file.
+# update. Semver-major version updates are never proposed: they need a deliberate migration.
+# Packages whose exact version is a contract in code, tests, workflows or generated output are
+# never proposed either; a maintainer bumps them by hand. CONTRIBUTING.md ("Dependency updates")
+# says how to land each grouped pull request, how to make a major update in each ecosystem and how
+# to bump every package ignored here, and tests/test_ci_config.py checks the shape of this file.
 #
 # One grouped pull request is expected per ecosystem and run. The low open-pull-requests-limit
 # values only cap the damage if grouping ever stops applying (the first version of this file had
@@ -21,10 +21,12 @@ updates:
     # Move the exact pins (requirements-ci.txt, the hatchling build requirement) and leave a range
     # in pyproject.toml alone while it allows the new release. The ranges declare what the
     # published package supports, and the tests and the protobuf_floor job in ci.yml pin their
-    # floors, so raising one is a change of its own. The default, auto, decides from the release on
-    # PyPI whether this is an application, and for an application raises every >= floor to the
-    # release it proposes (it did in pull request #194). lockfile-only would leave the
-    # requirements-ci.txt pins where they are.
+    # floors, so raising one is a change of its own. The default, auto, acts as increase for this
+    # project (pull request #194 raised the mcp floor along with the cap) and raises a floor to
+    # every release it proposes: a PyYAML 6.0.4 would turn PyYAML>=6.0 into PyYAML>=6.0.4.
+    # increase-if-necessary still rewrites a range that excludes the new release, as auto did to
+    # mcp>=1.9.0,<2 in #194; the semver-major and mcp ignore rules below are what keep such
+    # releases out. lockfile-only would leave the requirements-ci.txt pins where they are.
     versioning-strategy: "increase-if-necessary"
     groups:
       python:
@@ -48,7 +50,8 @@ updates:
       - dependency-name: "pyright"
       # ruff is the formatter and linter CI enforces; new releases reformat files and add rules.
       - dependency-name: "ruff"
-      # The MCP server only works with MCP SDK 1.x, and the agents extra caps mcp<2.
+      # The MCP server only works with MCP SDK 1.x, and the agents extra caps mcp<2. With the
+      # semver-major rule, this keeps out proposals like pull request #194 (mcp 2.3.0).
       - dependency-name: "mcp"
         versions:
           - ">=2"

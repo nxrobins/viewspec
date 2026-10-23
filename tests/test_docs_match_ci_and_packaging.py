@@ -391,6 +391,9 @@ def test_hand_bump_entries_name_the_pins_outside_the_package_files() -> None:
     assert "`protobuf_floor`" in entries["grpcio-tools"]
 
 
+_SEMVER_MAJOR = {"dependency-name": "*", "update-types": ["version-update:semver-major"]}
+
+
 def _dependabot_updates() -> dict[str, dict[str, Any]]:
     updates = yaml.safe_load(_read(".github/dependabot.yml"))["updates"]
     return {update["package-ecosystem"]: update for update in updates}
@@ -416,3 +419,35 @@ def test_contributing_logs_every_update_of_the_shipped_template_in_the_changelog
     assert hand_bumped
     for name in hand_bumped:
         assert any(f"`{name}`" in entry and "changelog" in entry for entry in _hand_bump_entries().values()), name
+
+
+def test_contributing_says_how_to_make_each_major_update_by_hand() -> None:
+    labels = {"pip": "pip", "npm": "npm", "github-actions": "GitHub Actions"}
+    steps = {
+        match.group(1): _squash(item)
+        for item in re.split(r"\n(?=- )", _contributing_section("Major updates"))
+        if (match := re.match(r"- \*\*([^*]+)\*\*", item))
+    }
+    skipped = [ecosystem for ecosystem, update in _dependabot_updates().items() if _SEMVER_MAJOR in update["ignore"]]
+
+    # Dependabot never proposes a major in these ecosystems, so the guide says how to make one.
+    assert skipped
+    for ecosystem in skipped:
+        assert labels[ecosystem] in steps, ecosystem
+    # A range can allow a major that the CI pins never reach; --upgrade-package moves the pins.
+    assert "--upgrade-package" in steps["pip"]
+    assert "goldens" in steps["npm"] and "changelog" in steps["npm"]
+    assert "`# vN`" in steps["GitHub Actions"]
+
+
+def test_p5_records_point_at_the_major_update_steps_and_credit_the_ignores_for_194() -> None:
+    resolution = _audit_row("P-5")[2]
+
+    # Both records say that CONTRIBUTING.md has the steps for a major update, which it now does.
+    assert "\n### Major updates\n" in _read("CONTRIBUTING.md")
+    for text in (_changelog_bullets("(P-5)"), resolution):
+        assert "CONTRIBUTING.md" in text and "major update" in text, text
+    # Pull request #194 proposed mcp 2.3.0, which mcp>=1.9.0,<2 excludes, and increase-if-necessary
+    # rewrites such a range too: the ignore rules keep it out, not the versioning strategy.
+    assert "the default treated the project as an application and raised" not in resolution
+    assert all("ignore" in clause for clause in _clauses(resolution) if "#194" in clause), resolution
