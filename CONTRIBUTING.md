@@ -178,9 +178,10 @@ is user-visible: add a bullet under `### Changed` in `CHANGELOG.md` that names t
 
 ### Landing the grouped pip pull request
 
-Dependabot moves each exact pin to its latest minor or patch release: every pin in
-`requirements-ci.txt` and the `hatchling` build requirement in `pyproject.toml`. It leaves the
-ranges in `pyproject.toml` alone while they allow the new release
+Dependabot moves each exact pin to its latest minor or patch release: the `hatchling` build
+requirement in `pyproject.toml` and the pins in `requirements-ci.txt`, except `ruff`, `pyright` and
+`grpcio-tools`, which are bumped by hand (`mcp` moves only within 1.x). It leaves the ranges in
+`pyproject.toml` alone while they allow the new release
 (`versioning-strategy: increase-if-necessary`): they declare what the published package supports,
 and the tests and the `protobuf_floor` CI job pin their floors, so raising a floor is a separate
 change with its own changelog entry. Dependabot does not rerun the `uv pip compile` resolution
@@ -200,6 +201,12 @@ Every action is pinned to a commit with a `# vN` comment naming its major versio
 (`tests/test_ci_config.py` enforces that form). When Dependabot moves a pin within a major it can
 rewrite the comment to the full release, for example `# v4.5.0`; change it back to `# v4` in every
 workflow before merging.
+
+Dependabot treats every use of an action as one dependency, whatever major each workflow pins.
+`actions/upload-artifact` is at v4 in `ci.yml` and `pages.yml` and at v5 in `pretext-e2e.yml`, so a
+v4 release may move the `pretext-e2e.yml` pin back to v4. `tests/test_ci_config.py`
+(`test_pretext_e2e_keeps_upload_artifact_v5`) pins that v5 commit and fails when the pin moves:
+restore the v5 commit if it went back to v4, or put the new commit in the test if it stayed on v5.
 
 ### Security updates
 
@@ -261,6 +268,9 @@ string as well (`git grep -nF <old version>`): error messages, tests and root fi
   caps `mcp<2` and Dependabot proposes only 1.x releases. Moving to SDK 2 is a code change that
   raises the cap and moves the `mcp` rule in `dependabot.yml` to the new cap (`>=3` for `mcp<3`),
   or removes the rule if the cap goes (`tests/test_ci_config.py` ties the rule to the cap).
+  `tests/test_mcp_tools.py` and `tests/test_distribution_metadata.py` hard-code the `agents`
+  requirement, and the first also expects a 1.x `mcp` pin in `requirements-ci.txt`; update them
+  with the code, regenerate the pins, and add a changelog entry.
 - **`@playwright/test`** (and the `playwright` runtime it pins): run
   `npm install --save-dev --save-exact --ignore-scripts @playwright/test@<version>` in each of the
   three seeds, then set the same version in `PLAYWRIGHT_VERSION` in

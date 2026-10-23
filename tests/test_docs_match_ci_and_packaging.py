@@ -16,6 +16,7 @@ import inspect
 import json
 import re
 import tomllib
+from collections import defaultdict
 from pathlib import Path
 from typing import Any
 
@@ -399,6 +400,15 @@ def _dependabot_updates() -> dict[str, dict[str, Any]]:
     return {update["package-ecosystem"]: update for update in updates}
 
 
+def _tests_quoting(text: str) -> list[str]:
+    """The test modules that hold ``text`` as a string literal, as repository paths."""
+    return [
+        path.relative_to(ROOT).as_posix()
+        for path in sorted((ROOT / "tests").glob("*.py"))
+        if f'"{text}"' in path.read_text(encoding="utf-8")
+    ]
+
+
 def test_contributing_explains_grouped_security_updates_and_the_audit_fallback() -> None:
     updates = _dependabot_updates()
     section = _squash(_contributing_section("Security updates"))
@@ -498,3 +508,36 @@ def test_p5_records_point_at_the_major_update_steps_and_credit_the_ignores_for_1
     # rewrites such a range too: the ignore rules keep it out, not the versioning strategy.
     assert "the default treated the project as an application and raised" not in resolution
     assert all("ignore" in clause for clause in _clauses(resolution) if "#194" in clause), resolution
+
+
+def test_contributing_names_the_pins_and_tests_a_dependency_update_must_keep() -> None:
+    updates = _dependabot_updates()
+    pip_landing = _squash(_contributing_section("Landing the grouped pip pull request"))
+    actions_landing = _squash(_contributing_section("Landing the GitHub Actions pull request"))
+
+    # The grouped pip pull request skips every package ignored by name; the guide lists them.
+    for rule in updates["pip"]["ignore"]:
+        if rule["dependency-name"] != "*":
+            assert f"`{rule['dependency-name']}`" in pip_landing, rule
+
+    # Dependabot treats every use of an action as one dependency, so a release on one major can
+    # move a pin on another; the guide names each action pinned at two majors, and the test that
+    # pins one of their commits.
+    workflows = "\n".join(path.read_text(encoding="utf-8") for path in sorted(WORKFLOWS.glob("*.yml")))
+    pins = re.findall(r"uses:\s*([\w.-]+/[\w./-]+)@([0-9a-f]{40})\s+#\s*(v\d+)", workflows)
+    majors: dict[str, set[str]] = defaultdict(set)
+    for action, _commit, major in pins:
+        majors[action].add(major)
+    assert pins
+    for action, labels in majors.items():
+        if len(labels) > 1:
+            assert f"`{action}`" in actions_landing, (action, labels)
+    if any(commit in _read("tests/test_ci_config.py") for _action, commit, _major in pins):
+        assert "`tests/test_ci_config.py`" in actions_landing
+
+    # A move to MCP SDK 2 changes the agents requirement; the steps name every test that quotes it.
+    (requirement,) = tomllib.loads(_read("pyproject.toml"))["project"]["optional-dependencies"]["agents"]
+    quoting = _tests_quoting(requirement)
+    assert quoting, "no test quotes the agents requirement any more; drop that from the mcp 2.x steps"
+    for path in quoting:
+        assert f"`{path}`" in _hand_bump_entries()["mcp"], path
