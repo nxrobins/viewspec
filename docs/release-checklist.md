@@ -117,8 +117,10 @@ history stay there, and later re-encodes go to LFS storage instead of growing ev
 - Verify the site. Once **Deploy to GitHub Pages** has finished on the merge commit, run
   `sh scripts/migrate_launch_media_to_lfs.sh --verify-site`. It downloads each file from
   `https://viewspec.dev` with a cache-busting query string and compares its SHA-256 and size with
-  the committed pointer. `POINTER` means the deploy checked out without `lfs: true`; `MISMATCH` or
-  `FAILED` means the site serves something else, or nothing, at that path.
+  the committed pointer. `POINTER` means the deploy checked out without `lfs: true`, and `MISMATCH`
+  that the site serves other bytes at that path. `FAILED` means the download failed, for example
+  with a 404, or did not finish within two minutes; the summary counts those files apart from the
+  ones that differ. The check exits 1 if any file differs or could not be downloaded.
 - Only the `deploy` job needs the files themselves, so only its checkout sets `lfs: true`. The SDK
   Reliability `test` job runs `tests/seo_static_smoke.mjs`, which reads the two JSON manifests
   (plain Git files) and checks that each media file is non-empty; a pointer passes that check, and

@@ -206,8 +206,9 @@ in parentheses refer to that document.
   to date; a run that stops part-way says that the branch is left checked out and to start again
   from `main`. It finds `main` by its full ref name, so a tag called `main` cannot make it commit on
   `main` itself. `--verify-site` compares what the deployed site serves with the committed media by
-  SHA-256. The Pages deploy checks out with `lfs: true`, and the release checklist covers the
-  quotas, the push, the site check and what contributors need.
+  SHA-256, and reports the files that it could not download apart from the files that differ. The
+  Pages deploy checks out with `lfs: true`, and the release checklist covers the quotas, the push,
+  the site check and what contributors need.
 
 ## [0.3.0b12] - 2026-10-14
 

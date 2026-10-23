@@ -11,9 +11,11 @@ publishes those files, so its checkout must fetch the LFS content.
 from __future__ import annotations
 
 import hashlib
+import http.server
 import os
 import shutil
 import subprocess
+import threading
 import time
 from dataclasses import dataclass
 from pathlib import Path
@@ -527,19 +529,21 @@ def test_an_unlisted_launch_asset_stops_the_migration(checkout: Checkout) -> Non
     checkout.assert_untouched(head)
 
 
+def _publish(site: Path, name: str, data: bytes) -> None:
+    """Put ``data`` where the Pages site serves the repository file ``name``."""
+    target = site / name.removeprefix("demos/")
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_bytes(data)
+
+
 @needs_git_lfs
 @pytest.mark.skipif(shutil.which("curl") is None, reason="--verify-site downloads with curl")
 def test_verify_site_accepts_the_media_and_names_pointer_files(checkout: Checkout, tmp_path: Path) -> None:
     site = tmp_path / "site"
-
-    def publish(name: str, data: bytes) -> None:
-        target = site / name.removeprefix("demos/")
-        target.parent.mkdir(parents=True, exist_ok=True)
-        target.write_bytes(data)
-
     for name, data in checkout.originals.items():
-        publish(name, data)
+        _publish(site, name, data)
     url = site.as_uri()
+    total = len(checkout.media)
 
     # Before and after the migration HEAD holds the files or their pointers; both verify.
     before = checkout.migrate("--verify-site", url)
@@ -547,27 +551,110 @@ def test_verify_site_accepts_the_media_and_names_pointer_files(checkout: Checkou
     after = checkout.migrate("--verify-site", url + "/")
     for result in (before, after):
         assert result.returncode == 0, result.stderr + result.stdout
-        assert f"All {len(checkout.media)} launch media files on {url} match HEAD." in result.stdout
+        assert f"All {total} launch media files on {url} match HEAD." in result.stdout
 
     # A deploy without lfs: true publishes the pointers; a broken upload truncates, corrupts
     # (same size, other bytes) or loses files.
     served_pointer, truncated, corrupted, missing = sorted(checkout.media)[:4]
-    publish(served_pointer, _canonical_pointer(checkout.originals[served_pointer]))
-    publish(truncated, checkout.originals[truncated][:1000])
+    _publish(site, served_pointer, _canonical_pointer(checkout.originals[served_pointer]))
+    _publish(site, truncated, checkout.originals[truncated][:1000])
     data = checkout.originals[corrupted]
-    publish(corrupted, data[:-1] + bytes([data[-1] ^ 0xFF]))
+    _publish(site, corrupted, data[:-1] + bytes([data[-1] ^ 0xFF]))
     (site / missing.removeprefix("demos/")).unlink()
 
     broken = checkout.migrate("--verify-site", url)
 
     assert broken.returncode == 1
-    assert f"error: 4 of {len(checkout.media)} launch media files" in broken.stderr
+    # The files that differ and the one that could not be downloaded are counted apart.
+    summary = f"error: 3 of {total} launch media files on {url} differ from HEAD, and 1 could not be downloaded\n"
+    assert summary in broken.stderr, broken.stderr
     lines = broken.stdout.splitlines()
     verdicts = {served_pointer: "POINTER", truncated: "MISMATCH", corrupted: "MISMATCH", missing: "FAILED"}
     for name, verdict in verdicts.items():
         published = name.removeprefix("demos/")
         assert any(line.split()[:2] == [verdict, f"{published}:"] for line in lines), (name, broken.stdout)
-    assert sum(line.split()[0] == "ok" for line in lines if line.startswith("  ")) == len(checkout.media) - 4
+    assert sum(line.split()[0] == "ok" for line in lines if line.startswith("  ")) == total - 4
+
+    # A site that serves none of the files has nothing that differs: none could be downloaded.
+    shutil.rmtree(site)
+
+    gone = checkout.migrate("--verify-site", url)
+
+    assert gone.returncode == 1
+    assert f"error: {total} of {total} launch media files could not be downloaded from {url}\n" in gone.stderr
+    assert "differ" not in gone.stderr, gone.stderr
+    assert [line.split()[0] for line in gone.stdout.splitlines() if line.startswith("  ")] == ["FAILED"] * total
+
+
+@needs_git_lfs
+@pytest.mark.skipif(shutil.which("curl") is None, reason="--verify-site downloads with curl")
+def test_verify_site_takes_http_in_any_case_and_limits_each_download(checkout: Checkout, tmp_path: Path) -> None:
+    site = tmp_path / "site"
+    for name, data in checkout.originals.items():
+        _publish(site, name, data)
+    requested: list[str] = []
+
+    class Site(http.server.SimpleHTTPRequestHandler):
+        def __init__(self, *args: Any, **kwargs: Any) -> None:
+            super().__init__(*args, directory=str(site), **kwargs)
+
+        def do_GET(self) -> None:
+            requested.append(self.path)
+            super().do_GET()
+
+        def log_message(self, format: str, *args: Any) -> None:
+            pass
+
+    # A curl that writes down its arguments, then downloads as usual.
+    calls = tmp_path / "curl-calls"
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    (bin_dir / "curl").write_text(
+        f'#!/bin/sh\nprintf \'%s\\n\' "$*" >>"{calls}"\nexec "{shutil.which("curl")}" "$@"\n', encoding="utf-8"
+    )
+    (bin_dir / "curl").chmod(0o755)
+    # curl must reach the local site directly, past any proxy that the environment names.
+    env = {**checkout.env, "PATH": f"{bin_dir}{os.pathsep}{checkout.env['PATH']}"}
+    env.update({"no_proxy": "127.0.0.1", "NO_PROXY": "127.0.0.1"})
+    server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), Site)
+    serving = threading.Thread(target=server.serve_forever, daemon=True)
+    serving.start()
+    try:
+        result = checkout.migrate("--verify-site", f"HTTP://127.0.0.1:{server.server_port}", env=env)
+    finally:
+        server.shutdown()
+        server.server_close()
+
+    assert result.returncode == 0, result.stderr + result.stdout
+    assert sorted(path.split("?")[0] for path in requested) == sorted(
+        "/" + name.removeprefix("demos/") for name in checkout.media
+    )
+    # HTTP:// is http://, so each request carries the query string that skips the CDN copy.
+    assert all("?lfs-verify=" in path for path in requested), requested
+    # Each download has a time limit, so a stalled one cannot hang the check.
+    downloads = calls.read_text(encoding="utf-8").splitlines()
+    assert len(downloads) == len(checkout.media)
+    for arguments in downloads:
+        assert "--max-time 120 " in arguments and "--retry-max-time 120 " in arguments, arguments
+
+
+@needs_git_lfs
+@pytest.mark.skipif(shutil.which("curl") is None, reason="--verify-site downloads with curl")
+def test_verify_site_refuses_a_url_that_is_not_http(checkout: Checkout) -> None:
+    # Only http and https URLs are checked (and file URLs, for a copy on disk). Given no scheme,
+    # curl would guess one, so each of these stops before any download.
+    for url in ("127.0.0.1:9/site", "viewspec.dev", "ftp://127.0.0.1:9"):
+        result = checkout.migrate("--verify-site", url)
+
+        assert result.returncode == 1, (url, result.stdout)
+        expected = f"error: --verify-site needs an http:// or https:// URL such as https://viewspec.dev, not '{url}'"
+        assert expected in result.stderr, result.stderr
+        assert result.stdout == "", result.stdout
+
+    # More than one URL is a usage error, which exits with a status of its own.
+    usage = checkout.migrate("--verify-site", "https://viewspec.dev", "https://example.invalid")
+    assert usage.returncode == 2, usage.stdout
+    assert usage.stderr.startswith(f"usage: sh scripts/{SCRIPT.name} [--verify-site [URL]]\n"), usage.stderr
 
 
 def _workflow_jobs() -> dict[str, dict[str, Any]]:

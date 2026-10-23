@@ -28,6 +28,8 @@
 # --verify-site downloads each media file from a deployed site (default: https:// plus
 # demos/CNAME) and compares its SHA-256 and size with the media committed at HEAD. A file
 # that arrives as an LFS pointer means the Pages deploy checked out without lfs: true.
+# Files that differ and files that could not be downloaded are counted apart, and either
+# makes it exit 1.
 #
 # docs/release-checklist.md ("Launch Media in Git LFS") covers quotas and contributors.
 
@@ -495,13 +497,15 @@ verify_site() {
     base=${1:-$(site_url)}
     base=${base%/}
     command -v curl >/dev/null 2>&1 || die "--verify-site needs curl"
+    # Schemes are case-insensitive. Without one, curl would guess one, so refuse that.
     case $base in
-        http://* | https://*)
+        [Hh][Tt][Tt][Pp]://?* | [Hh][Tt][Tt][Pp][Ss]://?*)
             # A fresh query string skips the CDN copy, which may predate the deploy.
             query="?lfs-verify=$(date -u +%Y%m%d%H%M%S)"
             ;;
-        *:*) query= ;;
-        *) die "--verify-site needs a URL such as https://viewspec.dev, not '$base'" ;;
+        # A copy of the site on disk, as the tests publish it.
+        [Ff][Ii][Ll][Ee]://?*) query= ;;
+        *) die "--verify-site needs an http:// or https:// URL such as https://viewspec.dev, not '$base'" ;;
     esac
     scratch=$(mktemp -d "${TMPDIR:-/tmp}/viewspec-lfs-verify.XXXXXX")
     trap 'rm -rf "$scratch"' EXIT
@@ -509,17 +513,21 @@ verify_site() {
 
     say "Comparing $base with the launch media committed at HEAD ($(git rev-parse --short HEAD)):"
     total=0
-    failures=0
+    different=0
+    unavailable=0
     for f in $MEDIA_FILES; do
         total=$((total + 1))
         published=${f#demos/}
         expected=$(committed_pointer "$f" "$scratch/expected")
-        if ! curl -fsSL --retry 2 --connect-timeout 20 -o "$scratch/download" "$base/$published$query" 2>"$scratch/error"; then
+        # --max-time ends an attempt after two minutes, and --retry-max-time starts no retry
+        # after that, so a stalled download cannot hang the check.
+        if ! curl -fsSL --retry 2 --connect-timeout 20 --max-time 120 --retry-max-time 120 \
+            -o "$scratch/download" "$base/$published$query" 2>"$scratch/error"; then
             say "  FAILED    $published: $(head -n 1 "$scratch/error")"
-            failures=$((failures + 1))
+            unavailable=$((unavailable + 1))
         elif file_is_pointer "$scratch/download"; then
             say "  POINTER   $published: the site serves the LFS pointer, not the file; the deploy checked out without lfs: true"
-            failures=$((failures + 1))
+            different=$((different + 1))
         else
             actual=$(git lfs pointer --file="$scratch/download" 2>/dev/null) || die "git lfs pointer failed on $published"
             want="$(pointer_field size "$expected") bytes, sha256 $(pointer_field oid "$expected")"
@@ -528,12 +536,21 @@ verify_site() {
             else
                 got="$(pointer_field size "$actual") bytes, sha256 $(pointer_field oid "$actual")"
                 say "  MISMATCH  $published: $got; expected $want"
-                failures=$((failures + 1))
+                different=$((different + 1))
             fi
         fi
     done
-    if [ "$failures" -ne 0 ]; then
-        die "$failures of $total launch media files on $base differ from HEAD"
+    problems=
+    if [ "$different" -ne 0 ]; then
+        problems="$different of $total launch media files on $base differ from HEAD"
+    fi
+    if [ "$unavailable" -ne 0 ] && [ -n "$problems" ]; then
+        problems="$problems, and $unavailable could not be downloaded"
+    elif [ "$unavailable" -ne 0 ]; then
+        problems="$unavailable of $total launch media files could not be downloaded from $base"
+    fi
+    if [ -n "$problems" ]; then
+        die "$problems"
     fi
     say "All $total launch media files on $base match HEAD."
 }
