@@ -1936,9 +1936,20 @@ def _associate_field_labels(node: IRNode) -> None:
 _DESIGN_PATH_HINT = "Pass pathlib.Path(...) for a file, or a DesignSystemContext from load_design_system(path=...)."
 
 
+# The line boundaries str.splitlines() recognises, with "\r\n" as a single boundary.
+_LINE_BOUNDARY = re.compile("\r\n|[\n\r\v\f\x1c\x1d\x1e\x85\u2028\u2029]")
+
+
 def _is_single_line(text: str) -> bool:
-    """True when ``text`` has no line break in the ``str.splitlines`` sense the DESIGN.md parser uses."""
-    return len(text.splitlines()) < 2
+    """Return ``len(text.splitlines()) <= 1`` without splitting ``text``.
+
+    ``splitlines()`` is how the DESIGN.md parser counts lines, but ``text`` is caller input that the
+    64 KiB DESIGN.md limit has not bounded yet, so the check finds the first line boundary instead
+    of building a list of every line: ``text`` is a single line when it has no boundary, or only
+    one boundary, at its very end.
+    """
+    boundary = _LINE_BOUNDARY.search(text)
+    return boundary is None or boundary.end() == len(text)
 
 
 def _coerce_design_context(

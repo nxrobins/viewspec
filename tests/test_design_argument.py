@@ -16,13 +16,18 @@ import builtins
 import contextlib
 import io
 import os
+import sys
+import tracemalloc
 import warnings
 from collections.abc import Callable, Iterator
 from pathlib import Path
 
 import pytest
+from hypothesis import example, given, settings
+from hypothesis import strategies as st
 
 from viewspec import DesignRequest, DesignSystemError, ViewSpecBuilder, compile, design_md, load_design_system
+from viewspec.compiler import _is_single_line
 from viewspec.design_md import DESIGN_MAX_BYTES
 
 PATH_NOTE = (
@@ -251,6 +256,60 @@ def test_compile_str_never_touches_the_filesystem(design, design_file, monkeypat
 
     assert touched == []
     assert info.value.__notes__ == [PATH_NOTE]
+
+
+# Every line boundary str.splitlines() recognises ("\r\n" counts as one).
+LINE_BREAKS = "\n\r\v\f\x1c\x1d\x1e\x85\u2028\u2029"
+
+
+@settings(max_examples=500, deadline=None)
+@given(st.text(alphabet=LINE_BREAKS + "a -", max_size=8))
+@example("")
+@example("DESIGN.md")
+@example("DESIGN.md\n")  # a trailing line break still leaves one line
+@example("DESIGN.md\r\n")
+@example("\r\n")
+@example("\n\r")  # two line breaks, so two (empty) lines
+@example("a\nb")
+@example("a\u2028")
+@example("a\u2029b")
+def test_single_line_check_matches_splitlines(text):
+    assert _is_single_line(text) == (len(text.splitlines()) <= 1)
+
+
+def test_single_line_check_knows_every_line_boundary_splitlines_does():
+    # Every code point in order ("\r" is followed by "\x0e", so no "\r\n"): each line that
+    # splitlines(keepends=True) returns ends with one boundary character, except the last.
+    every_character = "".join(map(chr, range(sys.maxunicode + 1)))
+    boundaries = {line[-1] for line in every_character.splitlines(keepends=True)[:-1]}
+
+    assert boundaries == set(LINE_BREAKS)
+    for boundary in sorted(boundaries):
+        assert not _is_single_line(f"a{boundary}b"), repr(boundary)
+        assert _is_single_line(f"a{boundary}"), repr(boundary)
+
+
+def test_compile_rejects_a_huge_str_design_without_splitting_it():
+    # The single-line check runs on a str that the 64 KiB DESIGN.md limit has not bounded yet. It
+    # used to split the whole str: 20 MB of line breaks peaked at about 160 MB, a list entry per
+    # line. Now the only copy is the UTF-8 encoding the size check makes.
+    design = "\n" * 4_000_000
+    bundle = _bundle()
+    started = not tracemalloc.is_tracing()
+    if started:
+        tracemalloc.start()
+    try:
+        before, _peak = tracemalloc.get_traced_memory()
+        tracemalloc.reset_peak()
+        with pytest.raises(DesignSystemError, match=f"exceeds the {DESIGN_MAX_BYTES} byte limit") as info:
+            compile(bundle, design=design)
+        _current, peak = tracemalloc.get_traced_memory()
+    finally:
+        if started:
+            tracemalloc.stop()
+
+    assert peak - before < 2 * len(design)
+    assert not hasattr(info.value, "__notes__")
 
 
 def test_compile_str_naming_a_directory_is_still_parsed_as_content(tmp_path, monkeypatch):
