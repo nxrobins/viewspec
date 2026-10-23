@@ -145,8 +145,11 @@ commit, pushed to the Dependabot branch, before CI passes. Once that commit is t
 stops rebasing the pull request, so rebase it yourself if `main` moves; `@dependabot recreate`
 discards the commit, so redo it after a recreate. When one package in a group breaks the build and
 cannot be fixed in the pull request, comment `@dependabot ignore <package> minor version` (or
-`patch version`): Dependabot closes the pull request and the next weekly run groups the remaining
-updates without that version.
+`patch version`). Dependabot closes the pull request and stores an ignore condition for that
+package's minor (or patch) updates, so it stops proposing them until someone comments
+`@dependabot unignore <package>` on one of its pull requests. The condition is stored outside
+`dependabot.yml`; `@dependabot show <package> ignore conditions` lists it. Unignore the package
+once the problem is fixed.
 
 ### Landing the grouped npm pull request
 

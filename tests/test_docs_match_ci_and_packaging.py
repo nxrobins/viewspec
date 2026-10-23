@@ -434,6 +434,18 @@ def test_contributing_explains_grouped_security_updates_and_the_audit_fallback()
     assert by_name and by_name <= audited, by_name - audited
 
 
+def test_contributing_says_a_stored_ignore_lasts_until_unignore() -> None:
+    contributing = _squash(_read("CONTRIBUTING.md"))
+
+    # On a grouped pull request `@dependabot ignore <package> minor version` closes the pull request
+    # and stores an ignore condition, outside dependabot.yml, until `@dependabot unignore <package>`.
+    # It does not skip one version for one run (the claim the review of pull request #202 found).
+    assert "groups the remaining updates without that version" not in contributing
+    assert "@dependabot ignore <package> minor version" in contributing
+    assert "@dependabot unignore <package>" in contributing
+    assert "@dependabot show <package> ignore conditions" in contributing
+
+
 def test_contributing_logs_every_update_of_the_shipped_template_in_the_changelog() -> None:
     from viewspec.app_react import REACT_APP_TEMPLATE_PACKAGE
 
