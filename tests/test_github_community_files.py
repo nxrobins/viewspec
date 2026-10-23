@@ -69,12 +69,36 @@ CODE_FIELDS = {
 }
 
 
-def _issue_forms() -> list[Path]:
-    return sorted(path for path in ISSUE_TEMPLATES.glob("*.y*ml") if path.name not in {"config.yml", "config.yaml"})
+def _issue_forms(directory: Path = ISSUE_TEMPLATES) -> list[Path]:
+    return sorted(path for path in directory.glob("*.y*ml") if path.name not in {"config.yml", "config.yaml"})
+
+
+def _markdown_templates(directory: Path = ISSUE_TEMPLATES) -> list[Path]:
+    # GitHub reads issue template file names without regard to case.
+    return sorted(path for path in directory.iterdir() if path.is_file() and path.suffix.lower() == ".md")
 
 
 def _load(path: Path) -> Any:
     return yaml.safe_load(path.read_text(encoding="utf-8"))
+
+
+def _front_matter(text: str) -> Any:
+    """The YAML between the ``---`` lines that open a Markdown issue template; None without them."""
+    lines = text.splitlines()
+    if not lines or lines[0].rstrip() != "---":
+        return None
+    for end in range(1, len(lines)):
+        if lines[end].rstrip() == "---":
+            return yaml.safe_load("\n".join(lines[1:end]))
+    return None
+
+
+def _template_settings(directory: Path = ISSUE_TEMPLATES) -> dict[str, Any]:
+    """Each issue template in ``directory`` by file name: an issue form's YAML, or a Markdown template's front matter."""
+    settings = {path.name: _load(path) for path in _issue_forms(directory)}
+    for path in _markdown_templates(directory):
+        settings[path.name] = _front_matter(path.read_text(encoding="utf-8"))
+    return settings
 
 
 def _is_text(value: Any) -> bool:
@@ -186,6 +210,9 @@ def issue_form_problems(form: Any) -> list[str]:
     problems += [f"required top level key {key!r} is missing" for key in TOP_LEVEL_REQUIRED if key not in form]
     problems += [f"{key!r} is not a permitted key" for key in form if key not in TOP_LEVEL_KEYS]
     problems += [f"{key} must be a non-empty string" for key in ("name", "description") if not _is_text(form.get(key))]
+    name = form.get("name")
+    if _is_text(name) and len(name.strip()) <= 3:
+        problems.append(f"name {name!r} must be more than 3 characters, or GitHub does not show the template")
     labels = form.get("labels", [])
     if isinstance(labels, str):
         labels = [label.strip() for label in labels.split(",")]
@@ -234,6 +261,27 @@ def issue_form_problems(form: Any) -> list[str]:
     return problems
 
 
+def template_name_problems(directory: Path = ISSUE_TEMPLATES) -> list[str]:
+    """How the names of the issue templates in ``directory`` break GitHub's rules; empty when they break none.
+
+    Every template, issue form or Markdown template, needs a name of more than 3 characters, or
+    GitHub does not show it, and the name must differ from every other template's. A Markdown
+    template sets its name in its front matter.
+    """
+    problems: list[str] = []
+    names: list[str] = []
+    for file_name, settings in _template_settings(directory).items():
+        name = settings.get("name") if isinstance(settings, dict) else None
+        if not _is_text(name):
+            problems.append(f"{file_name}: the template has no name")
+        elif len(name.strip()) <= 3:
+            problems.append(f"{file_name}: name {name!r} must be more than 3 characters")
+        else:
+            names.append(name.strip())
+    repeated = sorted({name for name in names if names.count(name) > 1})
+    return problems + [f"name {name!r} is used by more than one template" for name in repeated]
+
+
 def _repository_url() -> str:
     return tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))["project"]["urls"]["Repository"]
 
@@ -255,14 +303,31 @@ def test_issue_form_follows_the_github_form_schema(path: Path) -> None:
     assert issue_form_problems(_load(path)) == []
 
 
-def test_issue_form_names_are_unique() -> None:
-    names = [_load(path)["name"] for path in _issue_forms()]
-    assert len(names) == len(set(names)), names
+def test_issue_template_names_are_shown_and_unique() -> None:
+    assert template_name_problems() == []
+
+
+def test_template_names_are_read_from_markdown_templates_too(tmp_path: Path) -> None:
+    (tmp_path / "config.yml").write_text("blank_issues_enabled: false\n", encoding="utf-8")
+    (tmp_path / "bug_report.yml").write_text("name: Bug report\ndescription: d\nbody: []\n", encoding="utf-8")
+    (tmp_path / "bug.md").write_text("---\nname: Bug report\nabout: Report a bug.\n---\n\nSteps:\n", encoding="utf-8")
+    (tmp_path / "Ask.MD").write_text("---\nname: Ask\nabout: Ask a question.\n---\n", encoding="utf-8")
+    assert template_name_problems(tmp_path) == [
+        "Ask.MD: name 'Ask' must be more than 3 characters",
+        "name 'Bug report' is used by more than one template",
+    ]
+
+
+@pytest.mark.parametrize(("name", "shown"), [("Bugs", True), ("Bug", False), ("  Bug  ", False)])
+def test_issue_form_name_needs_more_than_3_characters(name: str, shown: bool) -> None:
+    form = {"name": name, "description": "d", "body": [{"type": "input", "attributes": {"label": "A"}}]}
+    problems = issue_form_problems(form)
+    assert (problems == []) is shown, problems
 
 
 # Each case breaks one rule from GitHub's "Common validation errors when creating issue forms" page
 # or its form schema.
-_HEADER = "name: n\ndescription: d\n"
+_HEADER = "name: Bug report\ndescription: d\n"
 _INVALID_FORMS = [
     ("description: d\nbody: [{type: input, attributes: {label: A}}]", "'name' is missing"),
     (_HEADER + "body: []", "body cannot be empty"),
