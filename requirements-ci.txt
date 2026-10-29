@@ -24,7 +24,7 @@ attrs==26.1.0
     #   referencing
 build==1.6.1
     # via viewspec (pyproject.toml)
-certifi==2026.10.19
+certifi==2026.10.23
     # via
     #   httpcore
     #   httpx
@@ -40,7 +40,7 @@ cryptography==50.0.2
     # via
     #   viewspec (pyproject.toml)
     #   pyjwt
-grpcio==1.84.0
+grpcio==1.84.1
     # via grpcio-tools
 grpcio-tools==1.80.0
     # via viewspec (pyproject.toml)
@@ -56,7 +56,7 @@ httpx==0.28.1
     #   mcp
 httpx-sse==0.4.3
     # via mcp
-hypothesis==6.170.5
+hypothesis==6.170.11
     # via viewspec (pyproject.toml)
 idna==3.20
     # via
@@ -84,7 +84,7 @@ protobuf==6.33.6
     # via
     #   viewspec (pyproject.toml)
     #   grpcio-tools
-pycparser==3.11 ; implementation_name != 'PyPy' and platform_python_implementation != 'PyPy'
+pycparser==3.12 ; implementation_name != 'PyPy' and platform_python_implementation != 'PyPy'
     # via cffi
 pydantic==2.14.1
     # via
@@ -126,9 +126,9 @@ setuptools==84.2.1
     # via grpcio-tools
 sortedcontainers==2.4.0
     # via hypothesis
-sse-starlette==3.5.0
+sse-starlette==3.6.0
     # via mcp
-starlette==1.9.0
+starlette==1.10.0
     # via
     #   mcp
     #   sse-starlette
