@@ -17,8 +17,13 @@ import sys
 from pathlib import Path
 from typing import Any
 
-from viewspec import AESTHETIC_PROFILE_TOKENS, ViewSpecBuilder, compile, profile_style_facts
-from viewspec.aesthetics import profile_layout_props, profile_style_values
+from viewspec import ViewSpecBuilder, compile
+from viewspec.aesthetics import (
+    AESTHETIC_PROFILE_TOKENS,
+    profile_layout_props,
+    profile_style_facts,
+    profile_style_values,
+)
 from viewspec.emitters.html_tailwind import HtmlTailwindEmitter
 from viewspec.intent_tools import wrap_intent_bundle_manifest
 from viewspec.local_tools import source_hash
@@ -31,8 +36,14 @@ PUBLIC_INDEX = DEMOS / "index.html"
 DEFAULT_PROFILE = "aesthetic.calm_ops"
 PUBLIC_FACTS = json.loads((DEMOS / "public-facts.json").read_text(encoding="utf-8"))
 INSTALL_COMMAND = PUBLIC_FACTS["installation"]["current_command"]
-STUDIO_CREATION_COMMAND = PUBLIC_FACTS["studio"]["creation_command"]
-STUDIO_COMPARE_COMMAND = PUBLIC_FACTS["studio"]["compare_command"]
+FIRST_PROOF_COMMAND = PUBLIC_FACTS["proof"]["first_proof_command"]
+STUDIO_COMMAND = PUBLIC_FACTS["studio"]["command"]
+STUDIO_NOTE = f"{PUBLIC_FACTS['studio']['scope']} {PUBLIC_FACTS['studio']['non_claim']}"
+PAGE_TITLE = "ViewSpec - Free, local UI compiler for coding agents"
+PAGE_DESCRIPTION = (
+    "ViewSpec compiles agent-written IntentBundle and AppBundle JSON into checked static HTML and React, "
+    "with provenance and proof bundles. Free, MIT licensed, and local, with no hosted service."
+)
 
 PROFILE_LABELS = {
     "aesthetic.calm_ops": "Calm Ops",
@@ -61,26 +72,16 @@ def _profile_slug(profile: str) -> str:
     return profile.replace("aesthetic.", "").replace("_", "-")
 
 
-def _human_list(values: list[str]) -> str:
-    if len(values) < 2:
-        return "".join(values)
-    return f"{', '.join(values[:-1])}, and {values[-1]}"
-
-
 def build_bundle(aesthetic_profile: str | None = None):
     builder = ViewSpecBuilder("viewspec_landing")
-    refinement = PUBLIC_FACTS["core_refinement"]
-    corpus = refinement["browser_corpus"]
-    quality = refinement["product_quality"]
-    corrections = refinement["semantic_corrections"]
 
     builder.add_hero(
         "launch_hero",
-        eyebrow="Local product studio for you and your agent",
+        eyebrow="Local UI compiler for you and your agent",
         title="Tell your agent what to build. See the real product.",
         description=(
-            "Create from a brief and reference, compare checked static and React builds, inspect "
-            "declared state and fixture data, then point at the result and ask for the next change."
+            "Your agent writes a semantic source. ViewSpec compiles it locally into checked static "
+            "HTML or React, with provenance and a proof bundle. Free and MIT licensed, with no hosted service."
         ),
         region="main",
         group_id="launch",
@@ -94,34 +95,6 @@ def build_bundle(aesthetic_profile: str | None = None):
     proof_badges.add_card(label="manifest", value="manifest checked")
     proof_badges.add_card(label="shell", value="shell hash matched")
     proof_badges.add_card(label="runtime", value="No runtime LLM")
-
-    quality_evidence = builder.add_dashboard("quality_evidence", region="main", group_id="quality_evidence")
-    quality_evidence.add_card(
-        label="browser corpus",
-        value=f"{corpus['conformant_count']}/{corpus['case_count']} conformant",
-    )
-    quality_evidence.add_card(
-        label="viewports",
-        value=" · ".join(corpus["canonical_viewports"]),
-    )
-    quality_evidence.add_card(
-        label="product quality",
-        value=(
-            f"{quality['first_compile_pass_count']}/{corpus['case_count']} first-compile passes · "
-            f"{quality['critical_issue_count']} critical issues"
-        ),
-    )
-    quality_evidence.add_card(
-        label="semantic corrections",
-        value=(
-            f"{corrections['verified_preview_count']}/{corrections['case_count']} verified previews · "
-            f"{corrections['applied_receipt_count']} applied receipts"
-        ),
-    )
-    quality_evidence.add_card(
-        label="refinement gates",
-        value=f"{refinement['gate_count']}/{refinement['gate_count']} passed",
-    )
 
     compile_flow = builder.add_dashboard("compile_flow", region="main", group_id="compile_flow")
     compile_flow.add_card(label="1 · intent", value="Agent writes IntentBundle JSON.")
@@ -139,28 +112,22 @@ def build_bundle(aesthetic_profile: str | None = None):
     )
     capabilities.add_row(
         label="Proof Pipeline",
-        value="state_replay_assertions plus viewspec prove-app --with-shell.",
-    )
-    capabilities.add_row(
-        label="Semantic Correction",
-        value="Source-bound previews and applied receipts keep changes traceable.",
+        value="state_replay_assertions plus viewspec prove viewspec.app.json --with-shell.",
     )
     capabilities.add_row(
         label="Portable Surfaces",
-        value="html-tailwind and React locally; four integrity-checked targets through the paid API.",
+        value="html-tailwind and React, compiled locally.",
     )
 
     agent_workflow = builder.add_table("agent_workflow", region="main", group_id="agent_workflow")
     agent_workflow.add_row(label="describe", value="Author IntentBundle or AppBundle JSON.")
-    agent_workflow.add_row(label="validate", value="viewspec validate-intent fails closed on drift.")
-    agent_workflow.add_row(
-        label="prove", value="viewspec prove --intent compiles, checks, and renders the exact artifact."
-    )
+    agent_workflow.add_row(label="check", value="viewspec check fails closed on drift.")
+    agent_workflow.add_row(label="prove", value="viewspec prove compiles, checks, and renders the exact artifact.")
 
-    pricing = builder.add_table("pricing", region="main", group_id="pricing")
-    pricing.add_row(label="Free", value="Local SDK. Unlimited compiles, proofs, and surfaces.")
-    pricing.add_row(label="Pro", value="149/mo. Hosted compiler API, 10k calls per day.")
-    pricing.add_row(label="Enterprise", value="Custom volume, organization sharing, and support.")
+    open_source = builder.add_table("open_source", region="main", group_id="open_source")
+    open_source.add_row(label="Cost", value="Free. Unlimited compiles, proofs, and surfaces.")
+    open_source.add_row(label="License", value="MIT.")
+    open_source.add_row(label="Hosting", value="Runs locally. No hosted service, account, or API key.")
 
     artifact_identity = builder.add_dashboard("artifact_identity", region="main", group_id="artifact_identity")
     artifact_identity.add_card(label="provenance", value="Every element traces to its address.")
@@ -170,7 +137,6 @@ def build_bundle(aesthetic_profile: str | None = None):
 
     builder.add_style("s_launch_hero", "launch_hero", "emphasis.high")
     builder.add_style("s_proof_badges", "proof_badges", "surface.subtle")
-    builder.add_style("s_quality_evidence", "quality_evidence", "surface.subtle")
     builder.add_style("s_capabilities", "capabilities", "density.compact")
     if aesthetic_profile is not None:
         builder.set_aesthetic_profile(aesthetic_profile)
@@ -344,7 +310,7 @@ def _json_ld() -> str:
                 "@id": "https://viewspec.dev/#website",
                 "url": "https://viewspec.dev/",
                 "name": "ViewSpec",
-                "description": "Agent-native app compiler, hosted compiler API, and Python SDK for deterministic UI, state, reducers, and proof bundles.",
+                "description": "Free, local, MIT-licensed agent-native app compiler and Python SDK for deterministic UI, state, reducers, and proof bundles.",
                 "publisher": {"@id": "https://viewspec.dev/#organization"},
                 "inLanguage": "en",
             },
@@ -354,62 +320,30 @@ def _json_ld() -> str:
                 "name": "ViewSpec",
                 "applicationCategory": "DeveloperApplication",
                 "applicationSubCategory": "Agent-native app compiler",
-                "operatingSystem": "Python 3.11+ and Web API",
+                "operatingSystem": "Python 3.11+",
+                "license": "https://opensource.org/licenses/MIT",
+                "isAccessibleForFree": True,
                 "url": "https://viewspec.dev/",
                 "downloadUrl": "https://pypi.org/project/viewspec/",
                 "softwareVersion": PUBLIC_FACTS["sdk_version"],
                 "codeRepository": "https://github.com/nxrobins/viewspec",
                 "programmingLanguage": ["Python", "JSON", "Protocol Buffers"],
-                "description": "ViewSpec validates agent-authored IntentBundle and AppBundle JSON, proves first artifacts with viewspec prove and prove-app --with-shell, writes PROOF.md, proof_report.json, support_bundle.json, APP_PROOF.md, app_proof_report.json, state_reducer.ts, and state_manifest.json, records compact style-delta counts, offers opt-in bounded Freerange numeric-kernel and Pretext native-DOM line-count/overflow proofs, applies DESIGN.md, writes provenance, and compiles deterministic UI outputs.",
+                "description": "ViewSpec validates agent-authored IntentBundle and AppBundle JSON, proves first artifacts with viewspec prove and viewspec prove viewspec.app.json --with-shell, writes PROOF.md, proof_report.json, support_bundle.json, APP_PROOF.md, app_proof_report.json, state_reducer.ts, and state_manifest.json, records compact style-delta counts, offers opt-in bounded Freerange numeric-kernel and Pretext native-DOM line-count/overflow proofs, applies DESIGN.md, writes provenance, and compiles deterministic UI outputs.",
                 "keywords": "agent-native app compiler, AppBundle, interactive_state_v0, reduceViewSpecState, state_replay_assertions, IntentBundle, compiled aesthetic profiles, Freerange numeric kernel proof, Pretext native DOM text proof, semantic UI compiler, agentic engineering, AI coding agents, deterministic HTML, semantic diff, provenance",
                 "featureList": [
-                    "Local viewspec init-intent and validate-intent for agent-authored IntentBundles",
+                    "Local viewspec init and viewspec check for agent-authored IntentBundles",
                     "Local AppBundle V3/V4 interactive_state_v0 proof with generated state_reducer.ts",
                     "Pure TypeScript reduceViewSpecState reducer generation with state_replay_assertions",
-                    "viewspec prove-app --with-shell for shell hash and replay proof",
-                    "Ten-case core workflow evidence across mobile, tablet, and desktop",
-                    "Receipt-backed semantic correction previews and applies",
+                    "viewspec prove viewspec.app.json --with-shell for shell hash and replay proof",
                     "Compiled aesthetic profile homepage artifacts with stable semantic ids and distinct style projection hashes",
                     "Opt-in @chenglou/freerange@0.0.1 proof for the manifest-described generated numeric kernel",
                     "Opt-in @chenglou/pretext@0.0.8 native-DOM line-count and overflow proof at three canonical viewports",
                     "Local viewspec compile for deterministic UI artifacts",
                     "Auditable provenance_manifest.json with stable hashes",
                     "DESIGN.md theming without arbitrary CSS or script",
-                    "Hosted compiler API at api.viewspec.dev for IntentBundle workflows",
-                ],
-                "offers": [
-                    {
-                        "@type": "Offer",
-                        "name": "Free",
-                        "price": "0",
-                        "priceCurrency": "USD",
-                        "url": "https://viewspec.dev/#pricing",
-                    },
-                    {
-                        "@type": "Offer",
-                        "name": "Pro",
-                        "price": "149",
-                        "priceCurrency": "USD",
-                        "url": "https://viewspec.dev/#pricing",
-                    },
-                    {
-                        "@type": "Offer",
-                        "name": "Enterprise",
-                        "price": "Custom",
-                        "priceCurrency": "USD",
-                        "url": "https://viewspec.dev/#pricing",
-                    },
+                    "viewspec studio live-reloading local preview",
                 ],
                 "publisher": {"@id": "https://viewspec.dev/#organization"},
-            },
-            {
-                "@type": "WebAPI",
-                "@id": "https://viewspec.dev/#api",
-                "name": "ViewSpec Hosted Compiler API",
-                "url": "https://api.viewspec.dev/v1/compile",
-                "documentation": "https://viewspec.dev/openapi.json",
-                "description": "HTTP API for advanced ViewSpec IntentBundle compilation into CompositionIR, diagnostics, timing metadata, and provenance.",
-                "provider": {"@id": "https://viewspec.dev/#organization"},
             },
             {
                 "@type": "FAQPage",
@@ -429,6 +363,14 @@ def _json_ld() -> str:
                         "acceptedAnswer": {
                             "@type": "Answer",
                             "text": "No. The local compiler and generated artifacts are deterministic and do not call a runtime LLM.",
+                        },
+                    },
+                    {
+                        "@type": "Question",
+                        "name": "Is ViewSpec free?",
+                        "acceptedAnswer": {
+                            "@type": "Answer",
+                            "text": "Yes. ViewSpec is MIT licensed and runs locally. There is no hosted service, account, API key, or paid tier.",
                         },
                     },
                 ],
@@ -620,7 +562,7 @@ PAGE_CSS = r"""
   h1{ font-family:var(--mono); font-weight:var(--hw); letter-spacing:-.025em; line-height:1; margin:20px 0 0;
     font-size:clamp(38px, calc(6.6vw*var(--disp)), 76px); text-wrap:balance; }
   h1 .out{ color:var(--amber); position:relative; }
-  .sub{ font-size:clamp(16.5px,calc(.7vw+14px),20px); color:var(--muted); max-width:60ch; margin:24px 0 0; }
+  .sub{ color:var(--muted); max-width:60ch; margin:24px 0 0; }
   .sub b{ color:var(--text); font-weight:600; }
   .hero-cta{ display:flex; flex-wrap:wrap; align-items:center; gap:14px; margin-top:30px; }
   .cmd{ font-family:var(--mono); font-size:13.5px; color:var(--text); background:var(--panel-solid); border:1px solid var(--line-2);
@@ -673,67 +615,26 @@ PAGE_CSS = r"""
   .sec-head{ display:flex; flex-direction:column; gap:14px; margin-bottom:clamp(30px,5vh,50px); }
   .kicker{ font-family:var(--mono); font-size:11.5px; letter-spacing:.2em; text-transform:uppercase; color:var(--faint); }
   .kicker .n{ color:var(--amber); }
-  h2{ font-family:var(--mono); font-weight:var(--hw); font-size:clamp(25px,calc(3vw*var(--disp)+8px),40px); letter-spacing:-.02em; margin:0; text-wrap:balance; line-height:1.06; }
-  .lead{ color:var(--muted); font-size:clamp(15.5px,.5vw+14px,17.5px); max-width:var(--measure); }
+  h2{ font-family:var(--mono); font-weight:var(--hw); font-size:16px; letter-spacing:-.02em; margin:0; text-wrap:balance; line-height:1.06; }
+  .lead{ color:var(--muted); max-width:var(--measure); }
 
-  /* Studio product moment */
-  .studio-window{ overflow:hidden; border:1px solid var(--line-2); border-radius:18px; background:var(--ink-2); box-shadow:0 34px 90px -52px rgba(245,178,63,.45); }
-  .studio-bar{ min-height:50px; padding:11px 15px; display:flex; align-items:center; justify-content:space-between; gap:12px; border-bottom:1px solid var(--line); background:var(--panel-solid); }
-  .studio-brand,.studio-status,.studio-target,.studio-k,.studio-step-num,.studio-command{ font-family:var(--mono); }
-  .studio-brand{ display:flex; align-items:center; gap:9px; font-size:12px; color:var(--text); }
-  .studio-brand .mark{ width:8px; height:8px; }
-  .studio-status{ font-size:10.5px; color:var(--mint); display:flex; align-items:center; gap:7px; }
-  .studio-status::before{ content:""; width:7px; height:7px; border-radius:50%; background:var(--mint); box-shadow:0 0 0 3px rgba(87,220,169,.13); }
-  .studio-grid{ display:grid; grid-template-columns:minmax(150px,.62fr) minmax(0,2.1fr) minmax(180px,.82fr); min-height:430px; }
-  .studio-pane{ min-width:0; padding:16px; border-right:1px solid var(--line); }
-  .studio-pane:last-child{ border-right:0; }
-  .studio-k{ margin-bottom:12px; color:var(--faint); font-size:9.5px; letter-spacing:.14em; text-transform:uppercase; }
-  .studio-brief{ display:grid; gap:10px; }
-  .studio-brief-card,.studio-context-card,.studio-comment{ border:1px solid var(--line); border-radius:10px; background:var(--panel-solid); padding:12px; }
-  .studio-brief-card b,.studio-context-card b{ display:block; margin-bottom:4px; color:var(--text); font-size:12.5px; }
-  .studio-brief-card span,.studio-context-card span{ display:block; color:var(--muted); font-size:11px; line-height:1.5; overflow-wrap:anywhere; }
-  .studio-brief-card.accepted{ border-color:rgba(87,220,169,.3); }
-  .studio-brief-card.accepted span{ color:var(--mint); }
-  .studio-center{ background:linear-gradient(180deg,rgba(26,34,51,.74),rgba(12,17,28,.92)); }
-  .studio-canvas-head{ display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:10px; margin-bottom:12px; }
-  .studio-targets{ display:flex; gap:6px; }
-  .studio-target{ padding:5px 8px; border:1px solid var(--line-2); border-radius:7px; color:var(--muted); font-size:9.5px; background:var(--ink-2); }
-  .studio-target.active{ color:var(--amber-2); border-color:rgba(245,178,63,.42); }
-  .studio-canvases{ display:grid; grid-template-columns:1fr 1fr; gap:10px; }
-  .studio-canvas{ min-width:0; overflow:hidden; border:1px solid var(--line-2); border-radius:11px; background:#f4f1e9; color:#18211d; }
-  .studio-canvas-label{ padding:7px 9px; background:var(--panel-solid); color:var(--muted); font:9.5px var(--mono); letter-spacing:.08em; text-transform:uppercase; }
-  .studio-product{ min-height:235px; padding:14px; background:linear-gradient(145deg,#f7f3e9,#e8eee8); }
-  .studio-product h3{ margin:0 0 3px; font-size:13px; letter-spacing:-.01em; }
-  .studio-product p{ margin:0 0 12px; color:#6c766f; font-size:9.5px; }
-  .studio-jobs{ display:grid; gap:7px; }
-  .studio-job{ padding:9px; display:grid; grid-template-columns:1fr auto; gap:3px 8px; border:1px solid #ccd6ce; border-radius:8px; background:rgba(255,255,255,.8); }
-  .studio-job b{ font-size:10.5px; }
-  .studio-job small{ color:#6c766f; font-size:8.5px; }
-  .studio-job em{ grid-row:1 / span 2; grid-column:2; align-self:center; padding:3px 6px; border-radius:999px; background:#d9eee3; color:#246149; font:normal 8px var(--mono); }
-  .studio-job.selected{ outline:2px solid #d49227; outline-offset:-2px; }
-  .studio-canvas.react .studio-job:last-child em{ background:#fff0c9; color:#7b5000; }
-  .studio-route{ margin-top:10px; color:#748078; font:8.5px var(--mono); }
-  .studio-context{ display:grid; gap:10px; }
-  .studio-context-card code{ color:var(--amber-2); font:10px var(--mono); overflow-wrap:anywhere; }
-  .studio-values{ display:grid; grid-template-columns:auto 1fr; gap:4px 7px; margin-top:8px; font:9.5px var(--mono); }
-  .studio-values dt{ color:var(--faint); }
-  .studio-values dd{ margin:0; color:var(--text); overflow-wrap:anywhere; }
-  .studio-values .changed{ color:var(--amber-2); }
-  .studio-comment{ margin-top:10px; border-color:rgba(245,178,63,.38); }
-  .studio-comment p{ margin:5px 0 10px; color:var(--text); font-size:11px; line-height:1.5; }
-  .studio-comment-foot{ display:flex; justify-content:space-between; gap:8px; color:var(--faint); font:9px var(--mono); }
-  .studio-comment-foot strong{ color:var(--mint); font-weight:500; }
-  .studio-flow{ display:grid; grid-template-columns:repeat(4,1fr); border-top:1px solid var(--line); background:var(--panel-solid); }
-  .studio-step{ position:relative; min-width:0; padding:14px 15px; border-right:1px solid var(--line); }
-  .studio-step:last-child{ border-right:0; }
-  .studio-step-num{ display:block; margin-bottom:4px; color:var(--amber); font-size:9px; }
-  .studio-step b{ display:block; color:var(--text); font-size:12px; }
-  .studio-step span:last-child{ display:block; color:var(--muted); font-size:10.5px; line-height:1.45; }
-  .studio-commands{ display:flex; flex-wrap:wrap; gap:8px; margin-top:16px; }
-  .studio-command{ max-width:100%; padding:8px 11px; border:1px solid var(--line); border-radius:8px; background:var(--panel-solid); color:var(--amber-2); font-size:10.5px; overflow-wrap:anywhere; }
-  .studio-honesty{ margin:13px 0 0; color:var(--faint); font:10.5px/1.55 var(--mono); }
-  @media (max-width:900px){ .studio-grid{ grid-template-columns:1fr 2fr; } .studio-context-pane{ grid-column:1 / -1; border-top:1px solid var(--line); border-right:0; } .studio-context{ grid-template-columns:1fr 1fr; } }
-  @media (max-width:650px){ .studio-grid{ display:block; } .studio-pane{ border-right:0; border-bottom:1px solid var(--line); } .studio-pane:last-child{ border-bottom:0; } .studio-canvases,.studio-context,.studio-flow{ grid-template-columns:1fr; } .studio-step{ border-right:0; border-bottom:1px solid var(--line); } .studio-step:last-child{ border-bottom:0; } }
+  /* CLI workflow */
+  .cli-window{ overflow:hidden; border:1px solid var(--line-2); border-radius:18px; background:var(--ink-2); box-shadow:0 34px 90px -52px rgba(245,178,63,.45); }
+  .cli-bar{ min-height:50px; padding:11px 15px; display:flex; align-items:center; justify-content:space-between; gap:12px; border-bottom:1px solid var(--line); background:var(--panel-solid); }
+  .cli-brand,.cli-status,.cli-step-num,.cli-step b,.cli-command{ font-family:var(--mono); }
+  .cli-brand{ font-size:12px; color:var(--text); }
+  .cli-status{ font-size:10.5px; color:var(--mint); display:flex; align-items:center; gap:7px; }
+  .cli-status::before{ content:""; width:7px; height:7px; border-radius:50%; background:var(--mint); box-shadow:0 0 0 3px rgba(87,220,169,.13); }
+  .cli-flow{ display:grid; grid-template-columns:repeat(6,minmax(0,1fr)); background:var(--panel-solid); }
+  .cli-step{ min-width:0; padding:16px 15px; border-right:1px solid var(--line); }
+  .cli-step:last-child{ border-right:0; }
+  .cli-step-num{ display:block; margin-bottom:6px; color:var(--amber); font-size:9px; }
+  .cli-step b{ display:block; color:var(--text); font-size:12.5px; font-weight:600; }
+  .cli-step span:last-child{ display:block; margin-top:6px; color:var(--muted); font-size:11.5px; line-height:1.5; }
+  .cli-commands{ display:flex; flex-wrap:wrap; gap:8px; margin-top:16px; }
+  .cli-command{ max-width:100%; padding:8px 11px; border:1px solid var(--line); border-radius:8px; background:var(--panel-solid); color:var(--amber-2); font-size:10.5px; overflow-wrap:anywhere; }
+  .cli-note{ margin:13px 0 0; color:var(--faint); font:10.5px/1.55 var(--mono); }
+  @media (max-width:900px){ .cli-flow{ grid-template-columns:1fr; } .cli-step{ border-right:0; border-bottom:1px solid var(--line); } .cli-step:last-child{ border-bottom:0; } }
 
   /* pillars */
   .pillars{ display:grid; grid-template-columns:repeat(3,1fr); gap:16px; }
@@ -849,10 +750,6 @@ PAGE_CSS = r"""
   .pbtn{ font-family:var(--mono); font-size:12px; color:var(--ink); background:var(--amber); border:0; border-radius:8px; padding:9px 15px; cursor:pointer; font-weight:600; }
   .pbtn:hover{ background:var(--amber-2); }
   .verdict{ font-family:var(--mono); font-size:12px; color:var(--mint); display:none; align-items:center; gap:7px; }
-  .core-evidence{ margin-top:18px; padding:18px 20px; border:1px solid var(--line); border-radius:16px; background:var(--panel-solid); }
-  .core-evidence h3{ margin:0 0 8px; color:var(--text); font-size:17px; }
-  .core-evidence p{ margin:0; color:var(--muted); font-size:14px; line-height:1.6; }
-  .core-evidence a{ color:var(--amber-2); }
   .integration-proofs{ margin-top:18px; padding-top:24px; border-top:1px solid var(--line); }
   .integration-proofs-head{ max-width:var(--measure); margin-bottom:18px; }
   .integration-proofs-head h3{ margin:8px 0; color:var(--text); font-size:22px; }
@@ -868,20 +765,6 @@ PAGE_CSS = r"""
   .bignum small{ font-size:15px; color:var(--muted); font-weight:500; letter-spacing:.02em; margin-left:8px; }
 
   /* cta */
-  .pricing-section{ border-top:1px solid var(--line); }
-  .pricing-grid{ display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:16px; margin-top:26px; }
-  .pricing-plan{ background:linear-gradient(180deg,var(--panel-solid),rgba(20,26,40,.72)); border:1px solid var(--line); border-radius:16px; padding:20px; display:flex; flex-direction:column; min-height:260px; }
-  .pricing-plan.featured{ border-color:rgba(245,178,63,.62); box-shadow:0 24px 64px -42px rgba(245,178,63,.8); }
-  .pricing-plan .plan-kicker{ font-family:var(--mono); font-size:10.5px; letter-spacing:.14em; text-transform:uppercase; color:var(--amber); margin-bottom:10px; }
-  .pricing-plan h3{ margin:0; font-size:19px; line-height:1.2; letter-spacing:-.01em; }
-  .pricing-plan .price{ margin:12px 0 4px; font-family:var(--mono); font-size:28px; color:var(--text); }
-  .pricing-plan .price small{ color:var(--muted); font-size:13px; font-weight:500; }
-  .pricing-plan p{ color:var(--muted); margin:0; font-size:14px; line-height:1.55; }
-  .pricing-list{ display:grid; gap:9px; margin:18px 0 0; padding:0; list-style:none; }
-  .pricing-list li{ color:var(--text); font-size:13.5px; display:flex; gap:8px; }
-  .pricing-list li::before{ content:""; width:7px; height:7px; margin-top:8px; border-radius:50%; background:var(--mint); box-shadow:0 0 0 3px rgba(87,220,169,.12); flex:0 0 auto; }
-  .pricing-note{ margin-top:22px; color:var(--muted); font-size:14px; max-width:68ch; }
-  @media (max-width:860px){ .pricing-grid{ grid-template-columns:1fr; } .pricing-plan{ min-height:0; } }
   .cta{ text-align:center; padding-top:48px; }
   .cta h2{ margin:0 auto; max-width:20ch; }
   .cta .lead{ margin:16px auto 0; }
@@ -923,7 +806,7 @@ PAGE_CSS = r"""
 body.inspect #viewspec-artifact-slot [data-ir-id]{ position:relative; outline:1px dashed rgba(245,178,63,.4); outline-offset:2px; }
 body.inspect #viewspec-artifact-slot [data-ir-id]::after{ content:attr(data-ir-id); position:absolute; left:-1px; top:-2px; transform:translateY(-100%); font-family:var(--mono); font-size:9px; line-height:1.5; color:var(--ink); background:var(--amber); padding:1px 5px; border-radius:3px 3px 3px 0; white-space:nowrap; pointer-events:none; z-index:6; }
 .anchor-target{ display:block; height:0; }
-.pricing-actions{ display:flex; flex-wrap:wrap; gap:12px; justify-content:center; margin-top:20px; }
+.cta-actions{ display:flex; flex-wrap:wrap; gap:12px; justify-content:center; margin-top:20px; }
 .pact{ font-family:var(--mono); font-size:12.5px; padding:10px 16px; border-radius:9px; border:1px solid var(--line-2); color:var(--text); background:var(--panel-solid); cursor:pointer; }
 .pact.primary{ background:var(--amber); color:var(--ink); border-color:var(--amber); font-weight:600; }
 .pact:hover{ border-color:var(--amber); }
@@ -945,10 +828,11 @@ PAGE_BODY_TEMPLATE = r"""<a class="skip-link" href="#top">Skip to content</a>
     <div class="nav-in">
       <a class="logo" href="#top"><span class="mark"></span><b class="mono">viewspec</b></a>
       <div class="nav-links">
-        <a href="#studio">Studio</a>
+        <a href="#commands">Commands</a>
         <a href="#proof">Proof</a>
-        <a href="#pricing">Pricing</a>
+        <a href="#start">Start</a>
         <a href="https://github.com/nxrobins/viewspec/blob/main/docs/getting-started.md" target="_blank" rel="noopener">Docs</a>
+        <a href="https://github.com/nxrobins/viewspec" target="_blank" rel="noopener">GitHub</a>
         <button class="inspect-btn" id="inspectBtn" aria-pressed="false" title="Overlay every element with its IR address (press i)"><span class="d"></span>Inspect</button>
       </div>
     </div>
@@ -957,14 +841,14 @@ PAGE_BODY_TEMPLATE = r"""<a class="skip-link" href="#top">Skip to content</a>
   <div class="wrap" id="top">
     <!-- ================= HERO ================= -->
     <header>
-      <span class="eyebrow">Local product studio for you and your agent</span>
-      <h1 data-node="node:hero#slot:title[0]" data-binding="hero_title" data-address="node:hero#slot:title[0]" data-present="text" data-raw="Tell your agent what to build. See the real product. Point at what should change.">Tell your agent what to build.<br>See the real product.<br><span class="out">Point at what should change.</span></h1>
-      <p class="sub" data-node="node:hero#slot:body[0]" data-binding="hero_body" data-address="node:hero#slot:body[0]" data-present="rich_text" data-raw="ViewSpec keeps you and your agent in one checked product loop.">
-        ViewSpec gives you one local room to <b>create, compare, inspect, and approve</b> an agent&#8209;built interface. One semantic source drives checked static and React builds; your feedback returns with exact element, state, and resource context.
+      <span class="eyebrow">Local UI compiler for you and your agent</span>
+      <h1 data-node="node:hero#slot:title[0]" data-binding="hero_title" data-address="node:hero#slot:title[0]" data-present="text" data-raw="Tell your agent what to build. See the real product. Prove what compiled.">Tell your agent what to build.<br>See the real product.<br><span class="out">Prove what compiled.</span></h1>
+      <p class="sub" data-node="node:hero#slot:body[0]" data-binding="hero_body" data-address="node:hero#slot:body[0]" data-present="rich_text" data-raw="ViewSpec is a free, local compiler for agent-written interfaces.">
+        ViewSpec is a free, local, MIT&#8209;licensed compiler. Your agent writes <b>one semantic source</b>; ViewSpec compiles it into checked static HTML or React, with provenance and a proof bundle. No account, no API key, no hosted service.
       </p>
       <div class="hero-cta">
         <span class="cmd mono"><span class="pr">$</span> {{INSTALL_COMMAND}} <button type="button" class="cp" id="copyCmd" data-copy-text="{{INSTALL_COMMAND}}" aria-label="Copy ViewSpec beta install command">copy</button></span>
-        <a class="ghost mono" href="#studio">meet ViewSpec Studio &#8595;</a>
+        <a class="ghost mono" href="#commands">see the six commands &#8595;</a>
       </div>
 
       <!-- compile composition -->
@@ -997,75 +881,29 @@ PAGE_BODY_TEMPLATE = r"""<a class="skip-link" href="#top">Skip to content</a>
       </div>
     </header>
 
-    <!-- ================= STUDIO ================= -->
-    <section id="studio" class="reveal-on" aria-labelledby="studio-title">
+    <!-- ================= COMMANDS ================= -->
+    <section id="commands" class="reveal-on" aria-labelledby="commands-title">
       <div class="sec-head">
-        <span class="kicker"><span class="n">/</span> ViewSpec Studio &middot; local beta</span>
-        <h2 id="studio-title">One room from first brief to final approval.</h2>
-        <p class="lead">The interface, its behavior, and your feedback stay connected. You can see what the agent built, compare both delivery targets, inspect declared state and fixture data, and point at the exact result that should change.</p>
+        <span class="kicker"><span class="n">/</span> the cli &middot; free and local</span>
+        <h2 id="commands-title">Six commands. No account.</h2>
+        <p class="lead">Everything runs on your machine. ViewSpec is MIT licensed, with no hosted service, API key, or paid tier. Your agent writes the source; these commands do the rest.</p>
       </div>
-      <div class="studio-window" aria-label="ViewSpec Studio product workflow">
-        <div class="studio-bar">
-          <div class="studio-brand"><span class="mark"></span><b>Field dispatch</b><span style="color:var(--faint)">&middot; revision 7</span></div>
-          <div class="studio-status">checked &middot; local only</div>
+      <div class="cli-window" aria-label="ViewSpec command line workflow">
+        <div class="cli-bar">
+          <b class="cli-brand">viewspec</b>
+          <div class="cli-status">local only</div>
         </div>
-        <div class="studio-grid">
-          <aside class="studio-pane">
-            <div class="studio-k">Creation</div>
-            <div class="studio-brief">
-              <div class="studio-brief-card"><b>product-brief.md</b><span>Dispatch view for urgent field work.</span></div>
-              <div class="studio-brief-card"><b>reference.png</b><span>Exact reference hash bound.</span></div>
-              <div class="studio-brief-card accepted"><b>viewspec.app.json</b><span>Candidate accepted as canonical source.</span></div>
-            </div>
-          </aside>
-          <div class="studio-pane studio-center">
-            <div class="studio-canvas-head">
-              <div class="studio-k" style="margin:0">Same source &middot; synchronized route</div>
-              <div class="studio-targets"><span class="studio-target active">390</span><span class="studio-target">768</span><span class="studio-target">1440</span></div>
-            </div>
-            <div class="studio-canvases">
-              <article class="studio-canvas">
-                <div class="studio-canvas-label">Static &middot; checked</div>
-                <div class="studio-product">
-                  <h3>Field dispatch</h3><p>Open incidents &middot; west region</p>
-                  <div class="studio-jobs">
-                    <div class="studio-job selected"><b>J-205 &middot; Signal fault</b><small>Route crew within 20 minutes</small><em>urgent</em></div>
-                    <div class="studio-job"><b>J-207 &middot; Pump alert</b><small>Resource: crew-12</small><em>queued</em></div>
-                  </div>
-                  <div class="studio-route">/dispatch/incidents</div>
-                </div>
-              </article>
-              <article class="studio-canvas react">
-                <div class="studio-canvas-label">React &middot; checked</div>
-                <div class="studio-product">
-                  <h3>Field dispatch</h3><p>Open incidents &middot; west region</p>
-                  <div class="studio-jobs">
-                    <div class="studio-job selected"><b>J-205 &middot; Signal fault</b><small>Route crew within 20 minutes</small><em>urgent</em></div>
-                    <div class="studio-job"><b>J-207 &middot; Pump alert</b><small>Resource: crew-12</small><em>investigating</em></div>
-                  </div>
-                  <div class="studio-route">/dispatch/incidents</div>
-                </div>
-              </article>
-            </div>
-          </div>
-          <aside class="studio-pane studio-context-pane">
-            <div class="studio-k">State &amp; data</div>
-            <div class="studio-context">
-              <div class="studio-context-card"><b>Replay &middot; triage event</b><span>Exact action and payload mapping.</span><dl class="studio-values"><dt>Static</dt><dd>queued</dd><dt>React</dt><dd class="changed">investigating</dd></dl></div>
-              <div class="studio-context-card"><b>Resource</b><code>incidents &rarr; inc_1043 &rarr; status</code><dl class="studio-values"><dt>Source</dt><dd>queued</dd><dt>Target</dt><dd class="changed">investigating</dd></dl></div>
-            </div>
-            <div class="studio-comment"><span class="studio-k" style="margin:0">Pointed at J-205 status</span><p>Make the escalation state unmistakable on mobile.</p><div class="studio-comment-foot"><span>route + element + replay</span><strong>ready for agent</strong></div></div>
-          </aside>
-        </div>
-        <div class="studio-flow" aria-label="Studio workflow">
-          <div class="studio-step" data-studio-step="create"><span class="studio-step-num">01</span><b>Create</b><span>Bind the brief and reference.</span></div>
-          <div class="studio-step" data-studio-step="compare"><span class="studio-step-num">02</span><b>Compare</b><span>Static and React, side by side.</span></div>
-          <div class="studio-step" data-studio-step="inspect"><span class="studio-step-num">03</span><b>Inspect</b><span>Replay behavior and fixture data.</span></div>
-          <div class="studio-step" data-studio-step="decide"><span class="studio-step-num">04</span><b>Decide</b><span>Comment precisely, then approve.</span></div>
+        <div class="cli-flow" aria-label="ViewSpec commands">
+          <div class="cli-step" data-cli-step="init"><span class="cli-step-num">01</span><b>viewspec init</b><span>Write a starter IntentBundle, AppBundle, or DESIGN.md.</span></div>
+          <div class="cli-step" data-cli-step="compile"><span class="cli-step-num">02</span><b>viewspec compile</b><span>Compile an IntentBundle, AppBundle, or imported raw HTML.</span></div>
+          <div class="cli-step" data-cli-step="check"><span class="cli-step-num">03</span><b>viewspec check</b><span>Run fast static, provenance, and security checks.</span></div>
+          <div class="cli-step" data-cli-step="prove"><span class="cli-step-num">04</span><b>viewspec prove</b><span>Compile and verify a source, and write a proof bundle.</span></div>
+          <div class="cli-step" data-cli-step="studio"><span class="cli-step-num">05</span><b>viewspec studio</b><span>Serve a live-reloading local preview of a source file.</span></div>
+          <div class="cli-step" data-cli-step="mcp"><span class="cli-step-num">06</span><b>viewspec mcp</b><span>Give an agent the other five as MCP tools over stdio.</span></div>
         </div>
       </div>
-      <div class="studio-commands"><code class="studio-command" data-release-command="creation">{{STUDIO_CREATION_COMMAND}}</code><code class="studio-command" data-release-command="compare">{{STUDIO_COMPARE_COMMAND}}</code></div>
-      <p class="studio-honesty">What is proven today: local creation, checked static and React builds, synchronized routes and semantic identity, declared-state replay, fixture-resource inspection, source-bound feedback, and approval. The private-review transport contract completes the exact comment-to-approval journey locally in Chromium, Firefox, and WebKit; no hosted review endpoint is deployed. Static/React visual parity is not claimed. Production data is not loaded.</p>
+      <div class="cli-commands"><code class="cli-command" data-release-command="studio">{{STUDIO_COMMAND}}</code></div>
+      <p class="cli-note">{{STUDIO_NOTE}}</p>
     </section>
 
     <!-- ================= MODEL ================= -->
@@ -1084,7 +922,7 @@ PAGE_BODY_TEMPLATE = r"""<a class="skip-link" href="#top">Skip to content</a>
         <div class="pillar">
           <div class="pi"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/></svg></div>
           <h3>Portable</h3>
-          <p>One bundle emits html&#8209;tailwind and React locally; the paid API delivers four targets with hashes, provenance, and diagnostics.</p>
+          <p>One bundle emits html&#8209;tailwind and React locally, with hashes, provenance, and diagnostics.</p>
         </div>
         <div class="pillar">
           <div class="pi"><svg viewBox="0 0 24 24"><path d="M12 3l7 3v5c0 4.5-3 8-7 10-4-2-7-5.5-7-10V6l7-3z"/><path d="M9 12l2 2 4-4"/></svg></div>
@@ -1147,7 +985,7 @@ PAGE_BODY_TEMPLATE = r"""<a class="skip-link" href="#top">Skip to content</a>
         <div class="trace" aria-live="polite">
           <div class="receipts trace-receipts" aria-label="Trace compiled receipts">
             <button type="button" data-trace-target="viewspec:view:viewspec_landing" data-node="viewspec:view:viewspec_landing" data-binding="view root" data-address="viewspec:view:viewspec_landing" data-present="artifact" data-raw="IntentBundle root">Click/tap intent</button>
-            <button type="button" data-trace-target="viewspec:motif:pricing" data-node="viewspec:motif:pricing" data-binding="pricing" data-address="viewspec:motif:pricing" data-present="table" data-raw="Pricing rows">Click/tap pricing</button>
+            <button type="button" data-trace-target="viewspec:motif:capabilities" data-node="viewspec:motif:capabilities" data-binding="capabilities" data-address="viewspec:motif:capabilities" data-present="table" data-raw="Capability rows">Click/tap capabilities</button>
             <button type="button" data-trace-target="viewspec:style:aesthetic_profile" data-node="viewspec:style:aesthetic_profile" data-binding="aesthetic.calm_ops" data-address="viewspec:style:aesthetic_profile" data-present="style projection" data-raw="Calm Ops profile">Click/tap style</button>
           </div>
           <div class="flow">DOM &rarr; binding &rarr; address &rarr; data</div>
@@ -1183,7 +1021,6 @@ PAGE_BODY_TEMPLATE = r"""<a class="skip-link" href="#top">Skip to content</a>
           </div>
         </div>
       </div>
-      {{CORE_REFINEMENT_EVIDENCE}}
       <div class="integration-proofs" aria-labelledby="integration-proofs-title">
         <div class="integration-proofs-head">
           <span class="kicker"><span class="n">/</span> exact-versioned proof integrations</span>
@@ -1195,7 +1032,7 @@ PAGE_BODY_TEMPLATE = r"""<a class="skip-link" href="#top">Skip to content</a>
             <div class="pcard-h"><span class="ok"></span><span class="tt"><a href="https://github.com/chenglou/freerange" target="_blank" rel="noopener">Freerange</a> numeric proof</span></div>
             <div class="pcard-b">
               <p><code>@chenglou/freerange@0.0.1</code> binds every eligible state-operation occurrence to the emitted state contract, exact generated helpers, 100% function analysis, and runtime call sites.</p>
-              <code class="integration-proof-command">viewspec prove-app --app viewspec.app.json --target react-tailwind-app --install --freerange --json</code>
+              <code class="integration-proof-command">viewspec prove viewspec.app.json --target react-tailwind-app --install --freerange --json</code>
               <p class="integration-proof-meta">Requires a user-installed stable Bun 1.x on PATH. ViewSpec never installs Bun.</p>
               <p>It does not analyze CSS, prove rendered geometry, certify arbitrary math, or certify arbitrary host apps.</p>
             </div>
@@ -1204,79 +1041,38 @@ PAGE_BODY_TEMPLATE = r"""<a class="skip-link" href="#top">Skip to content</a>
             <div class="pcard-h"><span class="ok"></span><span class="tt"><a href="https://github.com/chenglou/pretext" target="_blank" rel="noopener">Pretext</a> text proof</span></div>
             <div class="pcard-b">
               <p><code>@chenglou/pretext@0.0.8</code> preserves native DOM semantics, independently inventories every eligible text surface per route and viewport, and checks native-DOM versus Pretext line count and overflow with named <code>Arial, sans-serif</code>.</p>
-              <code class="integration-proof-command">viewspec prove-app --app viewspec.app.json --target react-tailwind-app --install --pretext --json</code>
+              <code class="integration-proof-command">viewspec prove viewspec.app.json --target react-tailwind-app --install --pretext --json</code>
               <p class="integration-proof-meta">Runs at 390&times;844, 768&times;1024, and 1440&times;1000 in Chromium. No Bun required.</p>
               <p>It is not general typography proof, canvas-rendering proof, pixel-perfect visual regression, accessibility certification, or arbitrary-host certification.</p>
             </div>
           </article>
         </div>
-        <p class="integration-proof-compose"><b>Compose the proofs:</b> <code>viewspec prove-app --app viewspec.app.json --target react-tailwind-app --install --freerange --pretext --json</code> runs both independently reported analyses and does not broaden either guarantee. Dedicated hosted E2E is configured to cover healthy proofs plus division, bounds, font, wrapping, and overflow mutation rejection on relevant changes, weekly, and by manual dispatch; this does not claim that a hosted run has completed.</p>
+        <p class="integration-proof-compose"><b>Compose the proofs:</b> <code>viewspec prove viewspec.app.json --target react-tailwind-app --install --freerange --pretext --json</code> runs both independently reported analyses and does not broaden either guarantee. A dedicated CI workflow is configured to cover healthy proofs plus division, bounds, font, wrapping, and overflow mutation rejection on relevant changes, weekly, and by manual dispatch; this does not claim that a CI run has completed.</p>
       </div>
     </section>
 
-    <!-- ================= PRICING + CTA ================= -->
-    <section id="pricing" class="pricing-section reveal-on">
-      <div class="sec-head">
-        <span class="kicker"><span class="n">/</span> pricing</span>
-        <h2>Start local. Add the hosted compiler when teams need it.</h2>
-        <p class="lead">The free SDK stays offline and deterministic. Hosted plans add shared compilation capacity, organization controls, and support around the same proof pipeline.</p>
-      </div>
-      <div class="pricing-grid" id="pricing-grid" aria-label="ViewSpec pricing plans">
-        <article class="pricing-plan">
-          <span class="plan-kicker">Free</span>
-          <h3>Free local SDK</h3>
-          <div class="price">$0 <small>/ forever</small></div>
-          <p>Build, compile, and prove ViewSpec artifacts locally without an account.</p>
-          <ul class="pricing-list">
-            <li>Unlimited local compile runs</li>
-            <li>HTML and React emitters</li>
-            <li>Proof bundle and shell checks</li>
-            <li>500 hosted compile calls/day trial</li>
-          </ul>
-        </article>
-        <article class="pricing-plan featured">
-          <span class="plan-kicker">Pro</span>
-          <h3>Pro hosted compiler</h3>
-          <div class="price">$149 <small>/ month</small></div>
-          <p>Hosted compile API for production agent workflows and shared team demos.</p>
-          <ul class="pricing-list">
-            <li>10,000 hosted compile calls/day</li>
-            <li>Level 2 derivation and DESIGN.md context</li>
-            <li>Up to 5 custom motifs per compile</li>
-            <li>HTML, React, SwiftUI, and Flutter artifacts</li>
-            <li>Signed team usage receipts</li>
-            <li>Email support</li>
-          </ul>
-        </article>
-        <article class="pricing-plan">
-          <span class="plan-kicker">Enterprise</span>
-          <h3>Enterprise support</h3>
-          <div class="price">Custom</div>
-          <p>Scale ViewSpec across internal agent products with support and controls.</p>
-          <ul class="pricing-list">
-            <li>Custom compile volume</li>
-            <li>Organization sharing and policy gates</li>
-            <li>Private deployment support</li>
-            <li>Launch and migration help</li>
-          </ul>
-        </article>
-      </div>
-      <p class="pricing-note">Pricing is intentionally simple: the compiler remains useful locally, while hosted capacity adds API volume, richer derivation, custom motifs, portable artifacts, receipts, and support.</p>
+    <!-- ================= START ================= -->
+    <section id="start" class="reveal-on">
       <div class="cta">
         <h2>Compile your first interface in a minute.</h2>
-        <p class="lead">No account, no network, no LLM key. Install the SDK, write intent, prove the output.</p>
-      <div class="cta-row">
-        <span class="cmd mono"><span class="pr">$</span> viewspec prove --intent viewspec.intent.json --target react-tailwind-tsx --install</span>
-        <a class="ghost mono" href="https://github.com/nxrobins/viewspec/blob/main/docs/getting-started.md" target="_blank" rel="noopener" style="color:var(--amber)">read the docs &#8594;</a>
-        <a class="ghost mono" href="./proof-bundle/" style="color:var(--amber)">Try the one-minute proof &#8594;</a>
-      {{PRICING_ACTIONS}}</div></div>
+        <p class="lead">No account, no network, no LLM key. Install the SDK, write intent, prove the output. Free and MIT licensed.</p>
+        <div class="cta-row">
+          <span class="cmd mono"><span class="pr">$</span> {{FIRST_PROOF_COMMAND}}</span>
+          <a class="ghost mono" href="https://github.com/nxrobins/viewspec/blob/main/docs/getting-started.md" target="_blank" rel="noopener" style="color:var(--amber)">read the docs &#8594;</a>
+          <a class="ghost mono" href="./proof-bundle/" style="color:var(--amber)">Try the one-minute proof &#8594;</a>
+        </div>
+        <div class="cta-actions" id="cta-actions">
+          <a class="pact primary" href="https://github.com/nxrobins/viewspec" target="_blank" rel="noopener">View on GitHub</a>
+          <button type="button" class="pact" data-copy-text="{{INSTALL_COMMAND}}" aria-label="Copy ViewSpec beta install command">copy install</button>
+        </div>
+      </div>
     </section>
   </div>
 
   <footer>
     <div class="foot-in">
-      <span>viewspec &middot; agent&#8209;native UI compiler</span>
-      <span class="foot-links"><a href="./proof-explorer/">Proof explorer</a> &middot; <a href="{{CORE_EVIDENCE_URL}}" target="_blank" rel="noopener">Core evidence</a> &middot; <a href="./appbundle-state-ir/">State IR</a> &middot; <a href="./proof-bundle/">Proof bundle</a> &middot; <a href="./custom-motifs/">Motifs</a> &middot; <a href="./openapi.json">OpenAPI</a></span>
+      <span>viewspec &middot; agent&#8209;native UI compiler &middot; MIT</span>
+      <span class="foot-links"><a href="./appbundle-state-ir/">State IR</a> &middot; <a href="./proof-bundle/">Proof bundle</a> &middot; <a href="./custom-motifs/">Motifs</a> &middot; <a href="https://github.com/nxrobins/viewspec" target="_blank" rel="noopener">GitHub</a></span>
       <span id="footState">profile: aesthetic.calm_ops &middot; network: none</span>
     </div>
   </footer>
@@ -1295,7 +1091,7 @@ PAGE_SCRIPT = r"""
     {k:"provenance",  ab:"PV", name:"Traceable provenance", desc:"Every node maps back through binding, address, and raw data."},
     {k:"determinism", ab:"DT", name:"Deterministic render", desc:"No LLM at render. Same intent compiles to identical bytes."},
     {k:"no_network",  ab:"NW", name:"Provable no-network",  desc:"The check gate certifies zero cross-origin requests."},
-    {k:"surfaces",    ab:"SF", name:"One intent, N surfaces", desc:"Emits HTML, React, SwiftUI, and Flutter with verified build identity."}
+    {k:"surfaces",    ab:"SF", name:"One intent, N surfaces", desc:"Emits static HTML and React from one semantic source."}
   ];
   var PROFILES={
     calm_ops:{density:"regular",emphasis:"medium",columns:3},
@@ -1308,10 +1104,10 @@ PAGE_SCRIPT = r"""
     warm_organic:{density:"airy",emphasis:"medium",columns:3}
   };
   var METRICS=[
-    {ml:"Compiles / day", mv:"12,480", seed:0.2},
-    {ml:"runtime LLM",    mv:"none",   seed:1.1},
-    {ml:"Proof pass rate",mv:"100%",   seed:2.0},
-    {ml:"Surfaces",       mv:"4",      seed:0.7}
+    {ml:"Monthly recurring", mv:"$48,210", seed:0.2},
+    {ml:"Active seats",      mv:"1,284",   seed:1.1},
+    {ml:"Net retention",     mv:"112%",    seed:2.0},
+    {ml:"Churn",             mv:"0.9%",    seed:0.7}
   ];
   var INTENT={
     substrate:{ id:"card", root_id:"card",
@@ -1526,53 +1322,12 @@ PAGE_SCRIPT = r"""
 """
 
 
-COMMERCE_SCRIPT = r"""
-import { LANDING_CONFIG, hasProductionCommerceConfig } from './shared/landing-config.js?v=20260505-launch'
-
-const links = {
-  pro: LANDING_CONFIG.proStripeUrl,
-  enterprise: LANDING_CONFIG.enterpriseUrl,
-}
-
-document.querySelectorAll('[data-config-link]').forEach((link) => {
-  const key = link.getAttribute('data-config-link')
-  link.href = links[key] || '#pricing'
-  if (!hasProductionCommerceConfig()) {
-    link.title = 'Production Stripe/API-key URL must be configured before launch.'
-  }
-})
-"""
-
-
 def _public_html(generated_html: str, profile_evidence: dict[str, Any]) -> str:
     body = _extract_body(generated_html)
     emitter_css = _extract_emitter_css(generated_html)
     intent_json = (COMPILED_DIR / "intent_bundle.json").read_text(encoding="utf-8")
     manifest = json.loads((COMPILED_DIR / "provenance_manifest.json").read_text(encoding="utf-8"))
     semantic_hash = _semantic_hash(manifest)
-    refinement = PUBLIC_FACTS["core_refinement"]
-    corpus = refinement["browser_corpus"]
-    quality = refinement["product_quality"]
-    corrections = refinement["semantic_corrections"]
-    viewport_text = _human_list(corpus["canonical_viewports"])
-    evidence_role_text = _human_list(["DOM" if role == "dom" else role for role in corpus["evidence_roles"]])
-    core_evidence = (
-        '<div class="core-evidence" id="core-evidence" data-public-fact="core-refinement">'
-        f"<h3>Checked core workflow &middot; {corpus['conformant_count']}/{corpus['case_count']} conformant</h3>"
-        f"<p>All {quality['first_compile_pass_count']} fixed cases passed product quality on first compile "
-        f"with {quality['critical_issue_count']} critical issues, rendered at {html.escape(viewport_text)} "
-        f"with {html.escape(evidence_role_text)} evidence, and completed "
-        f"{corrections['verified_preview_count']}/{corrections['case_count']} verified semantic corrections "
-        f"with {corrections['applied_receipt_count']} applied receipts. "
-        '<a href="./proof-explorer/"><strong>Explore the retained evidence</strong></a> &middot; '
-        f'<a href="{html.escape(refinement["gate_status_url"], quote=True)}" target="_blank" rel="noopener">'
-        "Eight-gate result</a> &middot; "
-        f'<a href="{html.escape(refinement["scorecard_url"], quote=True)}" target="_blank" rel="noopener">'
-        "Scorecard</a> &middot; "
-        f'<a href="{html.escape(corrections["proof_url"], quote=True)}" target="_blank" rel="noopener">'
-        "Correction proof</a>. Fixed-corpus evidence is not certification of arbitrary briefs or host apps.</p>"
-        "</div>"
-    )
 
     # The full compiled artifact, presented as a contained "artifact window" (browser-frame
     # header + bounded scroll) instead of raw inline flow — the whole page in a viewport.
@@ -1603,24 +1358,13 @@ def _public_html(generated_html: str, profile_evidence: dict[str, Any]) -> str:
         )
     profile_buttons = "".join(pills)
 
-    pricing_actions = (
-        '<div class="pricing-actions" id="pricing-actions">'
-        '<a class="pact primary" href="https://buy.stripe.com/6oU4gA6PqcM9afq6gq2ZO00" data-config-link="pro" target="_blank" rel="noopener">Get Pro</a>'
-        '<a class="pact" href="mailto:hello@viewspec.dev?subject=ViewSpec%20Enterprise" data-config-link="enterprise" target="_blank" rel="noopener">Talk to us</a>'
-        f'<button type="button" class="pact" data-copy-text="{html.escape(INSTALL_COMMAND, quote=True)}" aria-label="Copy ViewSpec beta install command">{html.escape(INSTALL_COMMAND)}</button>'
-        f'<button type="button" class="pact" data-copy-text="{html.escape(INSTALL_COMMAND, quote=True)}" aria-label="Copy ViewSpec beta install command">copy install</button>'
-        "</div>"
-    )
-
     page_body = (
         PAGE_BODY_TEMPLATE.replace("{{REAL_ARTIFACT}}", real_artifact)
         .replace("{{PROFILE_BUTTONS}}", profile_buttons)
-        .replace("{{PRICING_ACTIONS}}", pricing_actions)
-        .replace("{{CORE_REFINEMENT_EVIDENCE}}", core_evidence)
-        .replace("{{CORE_EVIDENCE_URL}}", html.escape(refinement["gate_status_url"], quote=True))
         .replace("{{INSTALL_COMMAND}}", html.escape(INSTALL_COMMAND, quote=True))
-        .replace("{{STUDIO_CREATION_COMMAND}}", html.escape(STUDIO_CREATION_COMMAND, quote=True))
-        .replace("{{STUDIO_COMPARE_COMMAND}}", html.escape(STUDIO_COMPARE_COMMAND, quote=True))
+        .replace("{{FIRST_PROOF_COMMAND}}", html.escape(FIRST_PROOF_COMMAND, quote=True))
+        .replace("{{STUDIO_COMMAND}}", html.escape(STUDIO_COMMAND, quote=True))
+        .replace("{{STUDIO_NOTE}}", html.escape(STUDIO_NOTE))
     )
 
     # real data for the page script: hash the canonical IntentBundle + real profile evidence
@@ -1646,23 +1390,22 @@ def _public_html(generated_html: str, profile_evidence: dict[str, Any]) -> str:
             "<head>",
             '<meta charset="utf-8">',
             '<meta name="viewport" content="width=device-width, initial-scale=1">',
-            "<title>ViewSpec Studio - Build with your agent, then point at what changes</title>",
-            '<meta name="description" content="Create, compare, inspect, and approve agent-built interfaces in one local Studio. One semantic source drives checked static and React builds with precise feedback context.">',
+            f"<title>{PAGE_TITLE}</title>",
+            f'<meta name="description" content="{PAGE_DESCRIPTION}">',
             '<meta name="robots" content="index,follow,max-snippet:-1,max-image-preview:large">',
             '<meta name="application-name" content="ViewSpec">',
             '<meta name="keywords" content="agent-native app compiler, AppBundle, State IR, IntentBundle, semantic UI compiler, AI coding agents, deterministic HTML, reducers, provenance, proof pipeline, Python SDK">',
             '<link rel="canonical" href="https://viewspec.dev/">',
             '<link rel="sitemap" type="application/xml" href="https://viewspec.dev/sitemap.xml">',
             '<link rel="alternate" type="text/markdown" title="ViewSpec for LLMs" href="https://viewspec.dev/llms.txt">',
-            '<link rel="alternate" type="application/json" title="ViewSpec OpenAPI" href="https://viewspec.dev/openapi.json">',
             '<meta property="og:site_name" content="ViewSpec">',
             '<meta property="og:type" content="website">',
-            '<meta property="og:title" content="ViewSpec Studio - Build with your agent, then point at what changes">',
-            '<meta property="og:description" content="Create, compare, inspect, and approve agent-built interfaces in one checked local product loop.">',
+            f'<meta property="og:title" content="{PAGE_TITLE}">',
+            f'<meta property="og:description" content="{PAGE_DESCRIPTION}">',
             '<meta property="og:url" content="https://viewspec.dev/">',
             '<meta name="twitter:card" content="summary">',
-            '<meta name="twitter:title" content="ViewSpec Studio - Build with your agent, then point at what changes">',
-            '<meta name="twitter:description" content="Create, compare, inspect, and approve agent-built interfaces in one checked local product loop.">',
+            f'<meta name="twitter:title" content="{PAGE_TITLE}">',
+            f'<meta name="twitter:description" content="{PAGE_DESCRIPTION}">',
             '<script type="application/ld+json">',
             _json_ld(),
             "</script>",
@@ -1685,9 +1428,6 @@ def _public_html(generated_html: str, profile_evidence: dict[str, Any]) -> str:
             "</head>",
             '<body data-profile="calm_ops">',
             page_body,
-            '<script type="module">',
-            COMMERCE_SCRIPT,
-            "</script>",
             "<script>",
             'window.__VIEWSPEC__ = JSON.parse(document.getElementById("viewspec-real-data").textContent);',
             PAGE_SCRIPT,

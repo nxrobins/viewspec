@@ -1,8 +1,8 @@
-# Pinned constraints for CI and release checks (audit finding P-4).
+# Pinned constraints for CI and release checks.
 #
-# This file pins every resolved dependency of ".[dev,remote,agents]" for Python 3.11
+# This file pins every resolved dependency of ".[dev,agents]" for Python 3.11
 # to 3.14 so that CI resolves the same versions on every run. It is used as a pip
-# constraints file (`pip install -c requirements-ci.txt ".[dev,remote,agents]"`),
+# constraints file (`pip install -c requirements-ci.txt ".[dev,agents]"`),
 # so it never widens the ranges declared in pyproject.toml; it only fixes the choice
 # inside them. Regenerate with:
 #
@@ -37,9 +37,7 @@ colorama==0.4.6 ; os_name == 'nt' or sys_platform == 'win32'
     #   build
     #   pytest
 cryptography==50.0.2
-    # via
-    #   viewspec (pyproject.toml)
-    #   pyjwt
+    # via pyjwt
 grpcio==1.84.0
     # via grpcio-tools
 grpcio-tools==1.80.0
@@ -51,9 +49,7 @@ h11==0.16.0
 httpcore==1.0.9
     # via httpx
 httpx==0.28.1
-    # via
-    #   viewspec (pyproject.toml)
-    #   mcp
+    # via mcp
 httpx-sse==0.4.3
     # via mcp
 hypothesis==6.170.5

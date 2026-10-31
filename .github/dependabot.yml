@@ -1,4 +1,4 @@
-# Dependabot version and security updates (audit finding P-5).
+# Dependabot version and security updates.
 #
 # Each ecosystem gets one grouped pull request a week with every available minor and patch
 # update. Semver-major version updates are never proposed: they need a deliberate migration.
@@ -27,11 +27,8 @@ updates:
     # in pyproject.toml alone while it allows the new release. The ranges declare what the
     # published package supports, and the tests and the protobuf_floor job in ci.yml pin their
     # floors, so raising one is a change of its own. The default, auto, acts as increase for this
-    # project (pull request #194 raised the mcp floor along with the cap) and raises a floor to
-    # every release it proposes: a PyYAML 6.0.4 would turn PyYAML>=6.0 into PyYAML>=6.0.4.
-    # increase-if-necessary still rewrites a range that excludes the new release, as auto did to
-    # mcp>=1.9.0,<2 in #194; the semver-major and mcp ignore rules below are what keep such
-    # releases out. lockfile-only would leave the requirements-ci.txt pins where they are.
+    # project and raises a floor to every release it proposes: a PyYAML 6.0.4 would turn PyYAML>=6.0
+    # into PyYAML>=6.0.4. lockfile-only would leave the requirements-ci.txt pins where they are.
     versioning-strategy: "increase-if-necessary"
     groups:
       python:
@@ -62,7 +59,7 @@ updates:
       # ruff is the formatter and linter CI enforces; new releases reformat files and add rules.
       - dependency-name: "ruff"
       # The MCP server only works with MCP SDK 1.x, and the agents extra caps mcp<2. With the
-      # semver-major rule, this keeps out proposals like pull request #194 (mcp 2.3.0).
+      # semver-major rule, this keeps out proposals that would rewrite that cap.
       - dependency-name: "mcp"
         versions:
           - ">=2"
@@ -74,7 +71,7 @@ updates:
     directories:
       - "/src/viewspec/host_verify_template"
       - "/tests/react-tailwind-host"
-      - "/conformance/agent-ui-v2/react-dependencies"
+      - "/tests/react-app-dependencies"
     schedule:
       interval: "weekly"
     open-pull-requests-limit: 2
@@ -108,7 +105,7 @@ updates:
       # tree hash, in src/viewspec/app_freerange.py.
       - dependency-name: "typescript"
       # PLAYWRIGHT_VERSION in .github/workflows/pretext-e2e.yml, the pin in
-      # scripts/check_studio_release.py and docs/release-checklist.md, and the Chromium revision
+      # docs/release-checklist.md, and the Chromium revision
       # every CI job and contributor installs all follow this version.
       - dependency-name: "@playwright/test"
       # The Playwright runtime that @playwright/test pins exactly; it moves only with it.

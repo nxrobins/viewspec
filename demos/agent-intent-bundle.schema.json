@@ -407,25 +407,6 @@
     },
     "view_spec": {
       "additionalProperties": false,
-      "not": {
-        "anyOf": [
-          {
-            "required": [
-              "inputs"
-            ]
-          },
-          {
-            "required": [
-              "projections"
-            ]
-          },
-          {
-            "required": [
-              "rules"
-            ]
-          }
-        ]
-      },
       "properties": {
         "actions": {
           "items": {
@@ -505,20 +486,6 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
   "description": "Agent-authored ViewSpec compiler input. Agents output IntentBundle JSON, never CompositionIR.",
-  "not": {
-    "anyOf": [
-      {
-        "required": [
-          "design"
-        ]
-      },
-      {
-        "required": [
-          "motif_library"
-        ]
-      }
-    ]
-  },
   "properties": {
     "schema_version": {
       "const": 1,
@@ -899,8 +866,7 @@
     "IntentBundle may declare at most one aesthetic.* style token.",
     "Aesthetic profile style token must target exactly view:{view_spec.id}.",
     "Aesthetic profile tokens derive governed style projection and bounded layout metadata for content_grid, metric_grid, and featured metric_card roles.",
-    "Hosted-only fields design, motif_library, view_spec.inputs, view_spec.projections, and view_spec.rules are rejected by the local schema and validate-intent.",
     "Unknown extension fields are rejected instead of silently ignored.",
-    "JSON Schema enforces shape and caps; viewspec validate-intent enforces cross-reference invariants."
+    "JSON Schema enforces shape and caps; viewspec check enforces cross-reference invariants."
   ]
 }

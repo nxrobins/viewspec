@@ -8,16 +8,7 @@ import pytest
 from hypothesis import given
 from hypothesis import strategies as st
 
-from viewspec import (
-    ASTBundle,
-    CompilerDiagnostic,
-    CompilerResult,
-    CompositionIR,
-    IRNode,
-    Provenance,
-    ViewSpecBuilder,
-    compile,
-)
+from viewspec import ASTBundle, ViewSpecBuilder, compile
 from viewspec.emitters.base import EmitterNodeContext, EmitterNodePlugin, EmitterNodeRegistry, RenderedNode
 from viewspec.emitters.html_tailwind import OFFLINE_EMITTER_CSS, HtmlTailwindEmitter, _validate_style_values
 from viewspec.emitters.react_tailwind_tsx import (
@@ -31,6 +22,7 @@ from viewspec.emitters.react_tailwind_tsx import (
 from viewspec.emitters.react_tsx import BASE_STYLE_BY_PRODUCT_ROLE, ReactTsxEmitter
 from viewspec.intent_tools import compile_intent_bundle_file_tool
 from viewspec.local_tools import check_artifact_dir
+from viewspec.types import CompilerDiagnostic, CompilerResult, CompositionIR, IRNode, Provenance
 
 
 def _manifest_entry_by_primitive(manifest_nodes: dict[str, object], primitive: str) -> dict[str, object]:

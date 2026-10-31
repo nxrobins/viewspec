@@ -472,6 +472,7 @@ def _check_fixture_determinism(
 
 
 __all__ = [
+    "motif_compiler_registry",
     "MOTIF_PLUGIN_ABI_VERSION",
     "MotifBuildFn",
     "MotifCompileContext",
@@ -489,5 +490,4 @@ __all__ = [
     "builtin_motif_registry",
     "check_motif_plugin",
     "create_motif_registry",
-    "motif_compiler_registry",
 ]

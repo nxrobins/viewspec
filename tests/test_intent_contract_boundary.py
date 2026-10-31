@@ -1,4 +1,4 @@
-"""Canonical IntentBundle envelope behavior shared with the hosted compiler."""
+"""Canonical IntentBundle envelope behavior."""
 
 from __future__ import annotations
 
@@ -8,13 +8,14 @@ import pytest
 from hypothesis import given
 from hypothesis import strategies as st
 
-from viewspec import IntentBundle, starter_intent_payload
+from viewspec import IntentBundle
 from viewspec.intent_contract import (
     INTENT_BUNDLE_SCHEMA_VERSION,
     IntentBundleContractError,
     normalize_intent_bundle_payload,
     validate_intent_bundle_schema_version,
 )
+from viewspec.intent_tools import starter_intent_payload
 
 JSON_SCALARS = st.one_of(
     st.none(),

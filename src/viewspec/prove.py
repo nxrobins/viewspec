@@ -14,7 +14,7 @@ from typing import Any
 
 from viewspec._version import __version__
 from viewspec.a11y import a11y_contrast_report, name_report
-from viewspec.host_verify import HOST_VERIFY_TARGET, summarize_host_verification_report, verify_host_artifact_dir
+from viewspec.host_verify import HOST_VERIFY_TARGET, verify_host_artifact_dir
 from viewspec.intent_tools import (
     INTENT_COMPILE_TARGETS,
     STARTER_INTENT_KINDS,
@@ -22,17 +22,13 @@ from viewspec.intent_tools import (
     init_intent_file,
 )
 from viewspec.local_tools import (
-    MCP_RESULT_SCHEMA_VERSION,
     LocalToolError,
     atomic_write,
     bytes_hash,
     file_hash,
     init_design_file,
-    path_policy_metadata,
     resolve_cwd,
     resolve_local_path,
-    tool_error_response,
-    tool_response,
 )
 from viewspec.local_tools_io import (
     is_replaceable_output_dir,
@@ -61,7 +57,7 @@ PROOF_LEVEL_BY_TARGET = {
 }
 PROVE_NON_CLAIM = (
     "ViewSpec prove is not pixel-perfect visual regression, accessibility certification, "
-    "arbitrary host-app certification, or hosted compiler publish automation."
+    "or arbitrary host-app certification."
 )
 
 
@@ -242,7 +238,7 @@ def prove(
         return _write_report(report, report_path)
     except LocalToolError as exc:
         # A missing/unreadable/unsafe input path is USER error, not an internal crash:
-        # stamp a non-internal code so the CLI returns exit 2 (like diff/compile-app), not 1.
+        # stamp a non-internal code so the CLI returns exit 2 (like compile), not 1.
         report = _report(
             ok=False,
             target=target if target in PROVE_TARGETS else "unknown",
@@ -282,66 +278,6 @@ def prove(
         if report_out is None and not output_dir.exists():
             return _final_report(report, report_path)
         return _write_report(report, report_path)
-
-
-def prove_tool(
-    *,
-    intent_path: str | Path | None = None,
-    out_dir: str | Path = PROVE_DEFAULT_OUT,
-    design_path: str | Path | None = None,
-    strict_design: bool = False,
-    target: str = "html-tailwind",
-    kind: str = "dashboard",
-    install: bool = False,
-    force: bool = False,
-    report_out: str | Path | None = None,
-    cwd: str | Path | None = None,
-    allow_outside_cwd: bool = False,
-) -> dict[str, Any]:
-    """MCP/native tool wrapper for first-run proof orchestration."""
-    root: Path | None = None
-    try:
-        root = resolve_cwd(cwd)
-        resolved_intent = (
-            resolve_local_path(intent_path, cwd=root, allow_outside_cwd=allow_outside_cwd, must_exist=True)
-            if intent_path is not None
-            else None
-        )
-        resolved_design = (
-            resolve_local_path(design_path, cwd=root, allow_outside_cwd=allow_outside_cwd, must_exist=True)
-            if design_path is not None
-            else None
-        )
-        resolved_out = resolve_local_path(out_dir, cwd=root, allow_outside_cwd=allow_outside_cwd)
-        resolved_report = (
-            resolve_local_path(report_out, cwd=root, allow_outside_cwd=allow_outside_cwd)
-            if report_out is not None
-            else None
-        )
-        proof = prove(
-            intent_path=resolved_intent,
-            out_dir=resolved_out,
-            design_path=resolved_design,
-            strict_design=strict_design,
-            target=target,
-            kind=kind,
-            install=install,
-            force=force,
-            report_out=resolved_report,
-            cwd=root,
-        )
-        return _tool_from_report(proof, root, allow_outside_cwd)
-    except Exception as exc:
-        if isinstance(exc, LocalToolError):
-            return tool_error_response(
-                exc.code, exc.message, exc.fix, metadata=path_policy_metadata(root, allow_outside_cwd)
-            )
-        return tool_error_response(
-            "PROVE_INTERNAL_ERROR",
-            str(exc),
-            "Fix the first proof paths or local environment and retry prove.",
-            metadata=path_policy_metadata(root, allow_outside_cwd),
-        )
 
 
 def _resolve_output(out_dir: str | Path, root: Path) -> Path:
@@ -589,7 +525,7 @@ def _report(
 def _portable_report(report: Mapping[str, Any], *, base: str | None = None) -> dict[str, Any]:
     """Return the on-disk form of ``report``: a copy whose paths are relative to the report's directory.
 
-    The in-memory report keeps absolute paths so the CLI and the MCP tool can print and open them;
+    The in-memory report keeps absolute paths so the CLI can print and open them;
     ``proof_report.json`` records every path relative to the directory that holds it, with POSIX
     separators.  That is the proof directory (``paths.proof_dir`` becomes ``"."``) unless
     ``--report-out`` put the report elsewhere, in which case ``paths.proof_dir`` names the proof
@@ -626,7 +562,6 @@ def proof_report_hash(report: Mapping[str, Any]) -> str:
     directory.  To recompute it from a file: load ``proof_report.json``, delete ``timings_ms``,
     re-serialize with ``json.dumps(report, indent=2, sort_keys=True) + "\\n"`` and hash the UTF-8
     bytes.  ``PROOF.md`` and ``support_bundle.json`` record this value as the proof report hash,
-    and the ``prove`` tool exposes it as ``proof_identity.proof_report_hash``.
 
     Removing ``timings_ms`` makes the hash independent of when the report was written only for
     the source-artifact targets.  Two proofs of one input share the hash only when the reports
@@ -1140,59 +1075,6 @@ def _time_phase(timings: dict[str, int], phase: str, fn: Any) -> Any:
         timings[phase] = timings.get(phase, 0) + int((time.perf_counter() - started) * 1000)
 
 
-def _tool_from_report(proof: dict[str, Any], root: Path | None, allow_outside_cwd: bool) -> dict[str, Any]:
-    errors = _normalize_errors(proof.get("errors"), fallback_code="PROVE_INTERNAL_ERROR") if not proof.get("ok") else []
-    return tool_response(
-        bool(proof.get("ok")),
-        "ViewSpec proof passed." if proof.get("ok") else "ViewSpec proof failed.",
-        paths={key: str(value) for key, value in proof.get("paths", {}).items() if value},
-        errors=errors,
-        next_actions=[] if proof.get("ok") else ["Fix the reported proof issue and retry prove."],
-        metadata={
-            **path_policy_metadata(root, allow_outside_cwd),
-            "schema_version": MCP_RESULT_SCHEMA_VERSION,
-            "target": proof.get("target"),
-            "proof_level": proof.get("proof_level"),
-            "network_calls": proof.get("metadata", {}).get("network_calls", "none"),
-            "checks": _tool_checks(proof.get("checks")),
-            "proof_identity": _tool_proof_identity(proof),
-            "manifest_summary": proof.get("manifest_summary"),
-            "host_verification": summarize_host_verification_report(proof.get("host_report")),
-        },
-        data={"proof_report": proof},
-    )
-
-
-def _tool_proof_identity(proof: dict[str, Any]) -> dict[str, str | None]:
-    paths = proof.get("paths") if isinstance(proof.get("paths"), dict) else {}
-    return {
-        "artifact_hash": proof.get("artifact_hash") if isinstance(proof.get("artifact_hash"), str) else None,
-        "manifest_hash": proof.get("manifest_hash") if isinstance(proof.get("manifest_hash"), str) else None,
-        "proof_report_hash": proof_report_hash(proof) if _is_present_file(paths.get("report")) else None,
-        "proof_summary_hash": _hash_path_if_present(paths.get("proof_summary")),
-        "support_bundle_hash": _hash_path_if_present(paths.get("support_bundle")),
-    }
-
-
-def _is_present_file(path: object) -> bool:
-    if not path:
-        return False
-    candidate = Path(str(path))
-    return candidate.exists() and candidate.is_file()
-
-
-def _hash_path_if_present(path: object) -> str | None:
-    if not _is_present_file(path):
-        return None
-    return file_hash(Path(str(path)))
-
-
-def _tool_checks(checks: object) -> dict[str, str]:
-    if not isinstance(checks, dict):
-        return {}
-    return {str(key): str(value) for key, value in checks.items() if value is not None}
-
-
 __all__ = [
     "PROVE_DEFAULT_OUT",
     "PROVE_SCHEMA_VERSION",
@@ -1201,5 +1083,4 @@ __all__ = [
     "ProveFailure",
     "proof_report_hash",
     "prove",
-    "prove_tool",
 ]

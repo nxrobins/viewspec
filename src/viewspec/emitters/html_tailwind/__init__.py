@@ -16,7 +16,7 @@ from typing import Any
 
 from viewspec.aesthetics import profile_shape_var_css
 from viewspec.compiler_refs import PRODUCT_SURFACE_PLANNER_V1_ROLES
-from viewspec.emitters._write import write_artifact_set, write_text_atomic
+from viewspec.emitters._write import write_artifact_set
 from viewspec.emitters.base import EmitterPlugin
 from viewspec.types import (
     DEFAULT_STYLE_TOKEN_VALUES,
@@ -272,10 +272,6 @@ def _validate_style_values(style_values: dict[str, str]) -> None:
 
 def _style_attr(css: str) -> str:
     return f' style="{escape(css, quote=True)}"' if css else ""
-
-
-# The atomic writer lives in viewspec.emitters._write; this name stays for callers that imported it here.
-_write_text_atomic = write_text_atomic
 
 
 def _validate_ir_contract(node: IRNode, seen_ids: set[str]) -> None:

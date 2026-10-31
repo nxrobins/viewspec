@@ -26,8 +26,4 @@ class PreparedAppShell:
     index_path: Path
 
 
-# Backward-compatible private aliases; the un-prefixed names are canonical.
-_PreparedAppProof = PreparedAppProof
-_PreparedAppShell = PreparedAppShell
-
 __all__ = ["PreparedAppProof", "PreparedAppShell"]

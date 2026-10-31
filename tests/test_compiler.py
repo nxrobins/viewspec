@@ -8,12 +8,30 @@ from pathlib import Path
 
 import pytest
 
-from viewspec import (
+from viewspec import UnsupportedMotifError, ViewSpecBuilder, compile
+from viewspec.aesthetics import (
+    AESTHETIC_PROFILE_LAYOUT_ROLES,
     AESTHETIC_PROFILE_TOKENS,
+    MIN_AESTHETIC_PROFILE_CATEGORIES,
+    MIN_AESTHETIC_PROFILE_STYLE_CHANGES,
+    profile_layout_props,
+    profile_style_facts,
+    profile_style_values,
+)
+from viewspec.agent import (
     AGENT_INTENT_BUNDLE_SCHEMA,
-    MOTIF_PLUGIN_ABI_VERSION,
+    SUPPORTED_AGENT_ACTION_KINDS,
     SUPPORTED_AGENT_MOTIFS,
-    IRNode,
+    SUPPORTED_AGENT_STYLE_TOKENS,
+)
+from viewspec.compiler import (
+    PRODUCT_SINGLE_COLUMN_SURFACE_V1,
+    PRODUCT_SURFACE_PLANNER_V1_SURFACE,
+    SUPPORTED_ACTION_KINDS,
+)
+from viewspec.emitters.html_tailwind import ACTION_EVENT_SCRIPT, HtmlTailwindEmitter
+from viewspec.motif_plugins import (
+    MOTIF_PLUGIN_ABI_VERSION,
     MotifCompileContext,
     MotifCompiler,
     MotifCompileResult,
@@ -22,30 +40,11 @@ from viewspec import (
     MotifPluginFixture,
     MotifPluginManifest,
     MotifPluginSlot,
-    Provenance,
-    UnsupportedMotifError,
-    ViewSpecBuilder,
     builtin_motif_registry,
     check_motif_plugin,
-    compile,
     create_motif_registry,
 )
-from viewspec.aesthetics import (
-    AESTHETIC_PROFILE_LAYOUT_ROLES,
-    MIN_AESTHETIC_PROFILE_CATEGORIES,
-    MIN_AESTHETIC_PROFILE_STYLE_CHANGES,
-    profile_layout_props,
-    profile_style_facts,
-    profile_style_values,
-)
-from viewspec.agent import SUPPORTED_AGENT_ACTION_KINDS, SUPPORTED_AGENT_STYLE_TOKENS
-from viewspec.compiler import (
-    PRODUCT_SINGLE_COLUMN_SURFACE_V1,
-    PRODUCT_SURFACE_PLANNER_V1_SURFACE,
-    SUPPORTED_ACTION_KINDS,
-)
-from viewspec.emitters.html_tailwind import ACTION_EVENT_SCRIPT, HtmlTailwindEmitter
-from viewspec.types import DEFAULT_STYLE_TOKEN_VALUES
+from viewspec.types import DEFAULT_STYLE_TOKEN_VALUES, IRNode, Provenance
 
 
 def _count_nodes(node):
@@ -871,7 +870,7 @@ def _single_column_role_bundle(role):
     ],
 )
 def test_single_column_surface_matches_primary_roles_like_the_workspace_detector(role):
-    # Audit C-9: the single-column detector compared the role exactly, while the workspace detector
+    # the single-column detector compared the role exactly, while the workspace detector
     # tokenised it, so "Main" or "primary-column" made a primary column in a workspace only.
     single = compile(_single_column_role_bundle(role))
     workspace = compile(_product_workspace_bundle(primary_role=role))

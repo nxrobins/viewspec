@@ -20,8 +20,7 @@ def test_primary_docs_are_intent_first():
         assert "IntentBundle" in text, path
         assert "viewspec.intent.json" in text or path.name == "agent-system-prompt.txt", path
         if path.name != "agent-system-prompt.txt":
-            assert "diff-intent" in text, path
-            assert "viewspec init-design --out DESIGN.md" in text, path
+            assert "viewspec init design --out DESIGN.md" in text, path
         assert "Your agent writes HTML" not in text, path
         assert "agent HTML governance first" not in text, path
         assert "agent output governance" not in text, path
@@ -66,16 +65,13 @@ def test_claude_code_skill_matches_native_agent_workflow():
         in text
     )
     assert "viewspec check react-output/" in text
-    assert "viewspec verify-host react-tailwind-output/ --target react-tailwind-tsx --install --json" in text
+    assert "viewspec prove react-tailwind-output/ --install --json" in text
     assert "viewspec prove --out .viewspec-proof" in text
-    assert "viewspec prove --target react-tailwind-tsx --install --out .viewspec-proof --json" in text
-    assert "viewspec doctor --agents" in text
-    assert "viewspec export-agent-assets --out .viewspec" in text
-    assert "viewspec check-agent-assets .viewspec --json" in text
+    assert (
+        "viewspec prove viewspec.intent.json --target react-tailwind-tsx --install --out .viewspec-proof --json" in text
+    )
     assert "Do not upload, share, call hosted APIs" in text
     assert "Never patch or recursively compile generated artifacts" in text
-    assert "compile_html_file" not in text
-    assert "lift_html_file" not in text
 
 
 def test_first_proof_is_public_and_bounded():
@@ -93,7 +89,7 @@ def test_first_proof_is_public_and_bounded():
 
     for path in docs:
         text = path.read_text(encoding="utf-8")
-        assert "viewspec prove --out .viewspec-proof" in text, path
+        assert "--out .viewspec-proof" in text, path
         assert "PROOF.md" in text, path
         assert "support_bundle.json" in text, path
         assert "pixel-perfect visual" in text, path
@@ -118,32 +114,13 @@ def test_first_proof_is_public_and_bounded():
 
     getting_started = root.joinpath("docs/getting-started.md").read_text(encoding="utf-8")
     assert getting_started.index("viewspec prove --out .viewspec-proof") < getting_started.index(
-        "viewspec init-intent --out viewspec.intent.json"
+        "viewspec init --out viewspec.intent.json"
     )
 
     release = root.joinpath("docs/release-checklist.md").read_text(encoding="utf-8")
     assert "demos/public-facts.json" in release
     assert "Publish to PyPI manually" in release
     assert "Do not add automated PyPI upload" in release
-
-
-def test_public_mcp_tool_lists_include_proof_tools():
-    root = Path(__file__).resolve().parents[1]
-    docs = [
-        root / "README.md",
-        root / "demos/llms.txt",
-    ]
-
-    for path in docs:
-        text = path.read_text(encoding="utf-8")
-        assert "validate_intent_bundle_file" in text, path
-        assert "compile_intent_bundle_file" in text, path
-        assert "verify_host" in text, path
-        assert "prove" in text, path
-        assert "validate_app_file" in text, path
-        assert "diff_app_files" in text, path
-        assert "compile_app" in text, path
-        assert "prove_app" in text, path
 
 
 def test_public_docs_include_app_bundle_v0_contract():
@@ -161,10 +138,10 @@ def test_public_docs_include_app_bundle_v0_contract():
     for path in docs:
         text = path.read_text(encoding="utf-8")
         assert "AppBundle" in text, path
-        assert "viewspec validate-app" in text, path
-        assert "viewspec diff-app" in text, path
-        assert "viewspec compile-app" in text, path
-        assert "viewspec prove-app" in text, path
+        assert "viewspec init app" in text, path
+        assert "viewspec check viewspec.app.json" in text, path
+        assert "viewspec compile viewspec.app.json" in text, path
+        assert "viewspec prove viewspec.app.json" in text, path
         assert "unbound_v0" in text, path
         assert "fixture_readonly_v0" in text, path
         assert "Static Shell V0" in text, path

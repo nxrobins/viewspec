@@ -1,9 +1,7 @@
 """Local DESIGN.md parsing and style-token mapping.
 
-The SDK owns the local/offline subset of DESIGN.md behavior. The hosted API may
-support more derivation intelligence, but shared token vocabulary should behave
-the same here: parse errors, broken references, and cycles are fatal; malformed
-tokens that can be ignored produce diagnostics and fall back to defaults.
+Parse errors, broken references, and cycles are fatal; malformed tokens that can
+be ignored produce diagnostics and fall back to defaults.
 """
 
 from __future__ import annotations
@@ -12,7 +10,6 @@ import hashlib
 import json
 import math
 import re
-import warnings
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -215,7 +212,6 @@ def load_design_system(
     path: str | Path | None = None,
     *,
     content: str | None = None,
-    lint: bool | None = None,
     strict: bool = False,
 ) -> DesignSystemContext:
     """Load, validate, and map a DESIGN.md file or string.
@@ -225,21 +221,8 @@ def load_design_system(
     `DesignSystemError` (its `report` holds the findings); otherwise every finding is kept in the
     returned context's `lint_report`. `strict=True` escalates warnings to failure for CLI
     `--strict-design`.
-
-    `lint` is deprecated and has no effect. It mirrored the hosted request's `DesignRequest.lint`
-    field, which only the hosted compiler reads; the local SDK cannot skip validation because it
-    cannot safely theme around invalid tokens. Passing `lint` (either value) emits a
-    `DeprecationWarning`; the parameter will be removed in the next major version.
     """
 
-    if lint is not None:
-        warnings.warn(
-            "load_design_system(lint=...) is deprecated and has no effect: local DESIGN.md validation always "
-            "runs and its findings are in DesignSystemContext.lint_report. Remove the argument; "
-            "DesignRequest(lint=...) is still sent to the hosted compiler, which reads it.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
     if path is None and content is None:
         raise ValueError("Either path or content is required")
     if path is not None and content is not None:

@@ -17,17 +17,10 @@ from importlib import resources
 from pathlib import Path, PurePosixPath
 from typing import Any
 
-from viewspec.intent_tools import compile_intent_bundle_file_tool
 from viewspec.local_tools import (
-    LocalToolError,
     atomic_write,
     check_artifact_dir,
     file_hash,
-    path_policy_metadata,
-    resolve_cwd,
-    resolve_local_path,
-    tool_error_response,
-    tool_response,
 )
 from viewspec.node_runtime import materialize_prebuilt_node_modules
 from viewspec.verification import VerificationDiagnostic, VerificationPlan
@@ -220,204 +213,6 @@ def verify_host_artifact_dir(
             ),
             report_out,
         )
-
-
-def verify_host_intent_file(
-    intent_path: str | Path,
-    out_dir: str | Path,
-    *,
-    design_path: str | Path | None = None,
-    strict_design: bool = False,
-    target: str = HOST_VERIFY_TARGET,
-    install: bool = False,
-    report_out: str | Path | None = None,
-) -> dict[str, Any]:
-    """Compile an IntentBundle through the existing tool path, then host-verify the artifact."""
-    if target != HOST_VERIFY_TARGET:
-        return _finalize_report(
-            _error_report(
-                "HOST_VERIFY_UNSUPPORTED_TARGET", f"Unsupported host verification target: {target}", install=install
-            ),
-            report_out,
-        )
-    compiled = compile_intent_bundle_file_tool(
-        intent_path,
-        out_dir,
-        design_path=design_path,
-        strict_design=strict_design,
-        target=target,
-        cwd=Path.cwd(),
-        allow_outside_cwd=True,
-    )
-    if not compiled["ok"]:
-        errors = [
-            {
-                "code": "HOST_VERIFY_ARTIFACT_CHECK_FAILED",
-                "message": error.get("message", "Compile/check failed."),
-                "fix": error.get("fix", "Fix the IntentBundle or generated artifact and retry."),
-            }
-            for error in compiled.get("errors", [])
-        ]
-        return _finalize_report(
-            _error_report(
-                "HOST_VERIFY_ARTIFACT_CHECK_FAILED",
-                "Compile mode failed before host verification.",
-                artifact_dir=Path(out_dir).resolve(),
-                install=install,
-                manifest_summary=_manifest_summary_from_tool_result(compiled),
-                errors=errors,
-            ),
-            report_out,
-        )
-    return verify_host_artifact_dir(out_dir, target=target, install=install, report_out=report_out)
-
-
-def verify_host_tool(
-    artifact_dir: str | Path | None = None,
-    *,
-    intent_path: str | Path | None = None,
-    out_dir: str | Path | None = None,
-    design_path: str | Path | None = None,
-    strict_design: bool = False,
-    target: str = HOST_VERIFY_TARGET,
-    install: bool = False,
-    report_out: str | Path | None = None,
-    cwd: str | Path | None = None,
-    allow_outside_cwd: bool = False,
-) -> dict[str, Any]:
-    """MCP/native tool wrapper for bounded host verification."""
-    root: Path | None = None
-    try:
-        root = resolve_cwd(cwd)
-        resolved_report = (
-            resolve_local_path(report_out, cwd=root, allow_outside_cwd=allow_outside_cwd)
-            if report_out is not None
-            else None
-        )
-        if intent_path is not None or out_dir is not None:
-            if intent_path is None or out_dir is None or artifact_dir is not None:
-                return tool_error_response(
-                    "HOST_VERIFY_UNSUPPORTED_TARGET",
-                    "Pass either artifact_dir or both intent_path and out_dir for verify_host.",
-                    "Use artifact mode or compile mode, not both.",
-                    metadata=path_policy_metadata(root, allow_outside_cwd),
-                )
-            compiled = compile_intent_bundle_file_tool(
-                intent_path,
-                out_dir,
-                design_path=design_path,
-                strict_design=strict_design,
-                target=target,
-                cwd=root,
-                allow_outside_cwd=allow_outside_cwd,
-            )
-            if not compiled["ok"]:
-                proof = _error_report(
-                    "HOST_VERIFY_ARTIFACT_CHECK_FAILED",
-                    "Compile mode failed before host verification.",
-                    artifact_dir=resolve_local_path(out_dir, cwd=root, allow_outside_cwd=allow_outside_cwd),
-                    install=install,
-                    manifest_summary=_manifest_summary_from_tool_result(compiled),
-                    errors=[
-                        {
-                            "code": "HOST_VERIFY_ARTIFACT_CHECK_FAILED",
-                            "message": error.get("message", "Compile/check failed."),
-                            "fix": error.get("fix", "Fix the IntentBundle or generated artifact and retry."),
-                        }
-                        for error in compiled.get("errors", [])
-                    ],
-                )
-                return _tool_from_report(proof, root, allow_outside_cwd)
-            artifact = resolve_local_path(out_dir, cwd=root, allow_outside_cwd=allow_outside_cwd, must_exist=True)
-        else:
-            if artifact_dir is None:
-                return tool_error_response(
-                    "INVALID_PATH",
-                    "artifact_dir is required for verify_host artifact mode.",
-                    "Pass a compiled React Tailwind artifact directory.",
-                    metadata=path_policy_metadata(root, allow_outside_cwd),
-                )
-            artifact = resolve_local_path(artifact_dir, cwd=root, allow_outside_cwd=allow_outside_cwd, must_exist=True)
-        proof = verify_host_artifact_dir(artifact, target=target, install=install, report_out=resolved_report)
-        return _tool_from_report(proof, root, allow_outside_cwd)
-    except Exception as exc:
-        if isinstance(exc, LocalToolError):
-            return tool_error_response(
-                exc.code, exc.message, exc.fix, metadata=path_policy_metadata(root, allow_outside_cwd)
-            )
-        proof = _error_report(
-            "HOST_VERIFY_BROWSER_RUNTIME_ERROR",
-            str(exc),
-            install=install,
-        )
-        return _tool_from_report(proof, root, allow_outside_cwd)
-
-
-def _tool_from_report(proof: dict[str, Any], root: Path | None, allow_outside_cwd: bool) -> dict[str, Any]:
-    errors = [
-        {
-            "code": str(error.get("code", "HOST_VERIFY_BROWSER_RUNTIME_ERROR")),
-            "message": str(error.get("message", "Host verification failed.")),
-            "fix": str(error.get("fix", "Fix the artifact or host environment and retry.")),
-        }
-        for error in proof.get("errors", [])
-    ]
-    return tool_response(
-        bool(proof.get("ok")),
-        "Host verification passed." if proof.get("ok") else "Host verification failed.",
-        paths={"artifact_dir": str(proof.get("artifact_dir") or "")},
-        errors=errors,
-        next_actions=[] if proof.get("ok") else ["Fix the reported host verification issue and retry verify_host."],
-        metadata={
-            **path_policy_metadata(root, allow_outside_cwd),
-            "network_calls": "npm_ci_opt_in" if proof.get("install_used") else "none",
-            "target": proof.get("target"),
-            "manifest_summary": proof.get("manifest_summary"),
-            "host_verification": summarize_host_verification_report(proof),
-        },
-        data={"proof_report": proof},
-    )
-
-
-def summarize_host_verification_report(report: object) -> dict[str, Any] | None:
-    if not isinstance(report, dict):
-        return None
-    assertions = report.get("assertions")
-    normalized_assertions: dict[str, int] = {}
-    if isinstance(assertions, dict):
-        normalized_assertions = {
-            str(key): int(value)
-            for key, value in assertions.items()
-            if isinstance(value, int) and not isinstance(value, bool)
-        }
-    requirements = report.get("assertion_requirements")
-    normalized_requirements: dict[str, int] = {}
-    if isinstance(requirements, dict):
-        normalized_requirements = {
-            str(key): int(value)
-            for key, value in requirements.items()
-            if isinstance(value, int) and not isinstance(value, bool)
-        }
-    errors = report.get("errors")
-    error_codes: list[str] = []
-    if isinstance(errors, list):
-        error_codes = [str(error.get("code")) for error in errors if isinstance(error, dict) and error.get("code")]
-    summary = {
-        "ok": bool(report.get("ok")),
-        "assertions": normalized_assertions,
-        "error_codes": error_codes,
-    }
-    if normalized_requirements:
-        summary["assertion_requirements"] = normalized_requirements
-    return summary
-
-
-def _manifest_summary_from_tool_result(result: dict[str, Any]) -> dict[str, Any] | None:
-    metadata = result.get("metadata")
-    if not isinstance(metadata, dict):
-        return None
-    summary = metadata.get("manifest_summary")
-    return summary if isinstance(summary, dict) else None
 
 
 def _run_host_browser_phases(
@@ -1157,8 +952,5 @@ __all__ = [
     "HOST_VERIFY_SCHEMA_VERSION",
     "HOST_VERIFY_TARGET",
     "HostVerifyFailure",
-    "summarize_host_verification_report",
     "verify_host_artifact_dir",
-    "verify_host_intent_file",
-    "verify_host_tool",
 ]

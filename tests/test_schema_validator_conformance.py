@@ -135,11 +135,11 @@ def _intent_corpus() -> list[tuple[str, dict[str, Any]]]:
     def bad_binding_address(b):
         b["view_spec"]["bindings"][0]["address"] = "not-an-address"
 
-    # --- broadened: hosted-only-field not/anyOf guard (top-level + view_spec) ---
-    def hosted_field_design(b):
+    # --- broadened: fields outside the local contract (top-level + view_spec) ---
+    def extra_field_design(b):
         b["design"] = {"x": 1}
 
-    def hosted_field_motif_library(b):
+    def extra_field_motif_library(b):
         b["motif_library"] = {"x": 1}
 
     def view_spec_inputs(b):
@@ -176,8 +176,8 @@ def _intent_corpus() -> list[tuple[str, dict[str, Any]]]:
             ("too_many_regions", too_many_regions),
             ("bad_binding_id_pattern", bad_binding_id),
             ("bad_binding_address_pattern", bad_binding_address),
-            ("hosted_field_design_not_guard", hosted_field_design),
-            ("hosted_field_motif_library_not_guard", hosted_field_motif_library),
+            ("extra_field_design", extra_field_design),
+            ("extra_field_motif_library", extra_field_motif_library),
             ("view_spec_inputs_not_guard", view_spec_inputs),
             ("nested_extra_key_binding", nested_extra_key_binding),
             ("nested_extra_key_region", nested_extra_key_region),

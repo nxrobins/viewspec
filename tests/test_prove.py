@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from viewspec import profile_style_facts
+from viewspec.aesthetics import profile_style_facts
 from viewspec.app_react import REACT_APP_MANIFEST
 from viewspec.app_reports import (
     APP_BUNDLE_DEFAULT_REPORT,
@@ -17,7 +17,7 @@ from viewspec.app_reports import (
 from viewspec.app_shell import APP_SHELL_MANIFEST
 from viewspec.cli import main as cli_main
 from viewspec.intent_tools import init_intent_file
-from viewspec.local_tools import check_artifact_dir, file_hash
+from viewspec.local_tools import check_artifact_dir
 from viewspec.local_tools_io import (
     VIEWSPEC_OUTPUT_MARKERS,
     VIEWSPEC_OUTPUT_SENTINEL,
@@ -31,7 +31,6 @@ from viewspec.prove import (
     PROVE_SUPPORT_BUNDLE_SCHEMA_VERSION,
     proof_report_hash,
     prove,
-    prove_tool,
 )
 from viewspec.sdk.builder import ViewSpecBuilder
 
@@ -436,9 +435,7 @@ def test_prove_existing_intent_cli_json(tmp_path, capsys):
     init_intent_file(intent)
     out_dir = tmp_path / "proof"
 
-    assert (
-        cli_main(["prove", "--intent", str(intent), "--out", str(out_dir), "--target", "html-tailwind", "--json"]) == 0
-    )
+    assert cli_main(["prove", str(intent), "--out", str(out_dir), "--target", "html-tailwind", "--json"]) == 0
 
     payload = json.loads(capsys.readouterr().out)
     assert payload["ok"] is True
@@ -454,7 +451,7 @@ def test_prove_existing_intent_cli_json(tmp_path, capsys):
 
 def test_prove_missing_intent_input_is_user_error_not_internal(tmp_path):
     # A missing/unreadable input path is USER error -> a coded PROVE_INPUT_READ_ERROR and CLI
-    # exit 2, not an internal crash (PROVE_INTERNAL_ERROR / exit 1). Matches the diff/compile-app
+    # exit 2, not an internal crash (PROVE_INTERNAL_ERROR / exit 1). Matches the compile
     # convention; the catch is scoped so a real internal failure still surfaces as exit 1.
     missing = tmp_path / "no_such_intent.json"
 
@@ -464,7 +461,7 @@ def test_prove_missing_intent_input_is_user_error_not_internal(tmp_path):
     assert codes == {"PROVE_INPUT_READ_ERROR"}
     assert "PROVE_INTERNAL_ERROR" not in codes
 
-    assert cli_main(["prove", "--intent", str(missing), "--out", str(tmp_path / "proof_cli"), "--json"]) == 2
+    assert cli_main(["prove", str(missing), "--out", str(tmp_path / "proof_cli"), "--json"]) == 2
 
 
 def test_prove_cli_human_output_prints_manifest_summary(tmp_path, capsys):
@@ -558,12 +555,6 @@ def test_prove_force_refuses_unrelated_non_empty_directory(tmp_path):
     assert report["errors"][0]["code"] == "PROVE_OUTPUT_UNRECOGNIZED"
     assert sorted(path.name for path in unrelated.iterdir()) == ["main.py"]
     assert keep.read_text(encoding="utf-8") == "print('keep me')\n"
-
-    tool = prove_tool(out_dir="src", force=True, cwd=tmp_path)
-
-    assert tool["ok"] is False
-    assert tool["errors"][0]["code"] == "PROVE_OUTPUT_UNRECOGNIZED"
-    assert sorted(path.name for path in unrelated.iterdir()) == ["main.py"]
 
 
 def test_prove_force_replaces_previous_proof_or_empty_directory(tmp_path):
@@ -709,94 +700,3 @@ def test_prove_support_bundle_rejects_full_path_content(tmp_path, monkeypatch):
     assert tmp_path.joinpath("proof/proof_report.json").exists()
     assert tmp_path.joinpath("proof/PROOF.md").exists()
     assert not tmp_path.joinpath("proof/support_bundle.json").exists()
-
-
-def test_prove_tool_returns_standard_envelope_and_respects_cwd(tmp_path):
-    outside = tmp_path.parent / f"{tmp_path.name}-outside"
-
-    blocked = prove_tool(out_dir=outside, cwd=tmp_path)
-    assert blocked["ok"] is False
-    assert blocked["errors"][0]["code"] == "PATH_OUTSIDE_CWD"
-
-    result = prove_tool(out_dir="proof", cwd=tmp_path)
-    assert result["schema_version"] == 1
-    assert result["ok"] is True
-    assert result["proof_report"]["ok"] is True
-    assert result["proof_report"]["paths"]["proof_dir"].endswith("proof")
-    assert result["paths"]["proof_summary"].endswith("PROOF.md")
-    assert result["paths"]["support_bundle"].endswith("support_bundle.json")
-    assert result["metadata"]["checks"]["artifact_check"] == "passed"
-    assert result["metadata"]["checks"]["host_verify"] == "not_applicable"
-    assert result["metadata"]["manifest_summary"]["available"] is True
-    assert result["metadata"]["manifest_summary"]["emitter"] == "html_tailwind"
-    assert result["metadata"]["host_verification"] is None
-    identity = result["metadata"]["proof_identity"]
-    assert identity["artifact_hash"] == result["proof_report"]["artifact_hash"]
-    assert identity["manifest_hash"] == result["proof_report"]["manifest_hash"]
-    assert identity["proof_report_hash"] == proof_report_hash(result["proof_report"])
-    assert identity["proof_report_hash"] == proof_report_hash(
-        json.loads(tmp_path.joinpath("proof/proof_report.json").read_text(encoding="utf-8"))
-    )
-    assert identity["proof_summary_hash"] == file_hash(tmp_path / "proof/PROOF.md")
-    assert identity["support_bundle_hash"] == file_hash(tmp_path / "proof/support_bundle.json")
-
-
-def test_prove_tool_metadata_exposes_react_tailwind_host_summary(tmp_path, monkeypatch):
-    def fake_verify_host_artifact_dir(*_args, **_kwargs):
-        return {
-            "ok": True,
-            "assertions": {
-                "action_count": 1,
-                "aesthetic_layout_assertion_count": 2,
-                "aesthetic_profile_assertion_count": 1,
-                "dom_count": 5,
-                "grid_column_assertion_count": 1,
-                "payload_binding_count": 1,
-                "style_assertion_count": 6,
-            },
-            "assertion_requirements": {
-                "aesthetic_layout_assertion_count": 2,
-                "aesthetic_profile_assertion_count": 1,
-                "dom_count": 1,
-                "grid_span_assertion_count": 0,
-                "style_assertion_count": 4,
-            },
-            "errors": [],
-        }
-
-    prove_module = importlib.import_module("viewspec.prove")
-    monkeypatch.setattr(prove_module, "verify_host_artifact_dir", fake_verify_host_artifact_dir)
-
-    result = prove_tool(out_dir="react-proof", target="react-tailwind-tsx", cwd=tmp_path)
-
-    assert result["ok"] is True
-    assert result["metadata"]["checks"]["host_verify"] == "passed"
-    assert result["metadata"]["manifest_summary"]["emitter"] == "react_tailwind_tsx"
-    assert result["metadata"]["manifest_summary"]["artifact_file"] == "ViewSpecView.tsx"
-    assert result["metadata"]["proof_identity"]["artifact_hash"] == result["proof_report"]["artifact_hash"]
-    assert result["metadata"]["proof_identity"]["manifest_hash"] == result["proof_report"]["manifest_hash"]
-    assert result["metadata"]["proof_identity"]["proof_report_hash"] == proof_report_hash(result["proof_report"])
-    assert result["metadata"]["proof_identity"]["proof_report_hash"] == proof_report_hash(
-        json.loads(tmp_path.joinpath("react-proof/proof_report.json").read_text(encoding="utf-8"))
-    )
-    assert result["metadata"]["host_verification"] == {
-        "ok": True,
-        "assertions": {
-            "action_count": 1,
-            "aesthetic_layout_assertion_count": 2,
-            "aesthetic_profile_assertion_count": 1,
-            "dom_count": 5,
-            "grid_column_assertion_count": 1,
-            "payload_binding_count": 1,
-            "style_assertion_count": 6,
-        },
-        "assertion_requirements": {
-            "aesthetic_layout_assertion_count": 2,
-            "aesthetic_profile_assertion_count": 1,
-            "dom_count": 1,
-            "grid_span_assertion_count": 0,
-            "style_assertion_count": 4,
-        },
-        "error_codes": [],
-    }
-    assert result["proof_report"]["host_report"]["assertions"]["style_assertion_count"] == 6

@@ -28,7 +28,7 @@ Three-panel layout (horizontal on desktop, stacked on mobile):
 **The flow:** User picks a preset → IntentBundle JSON, IR tree, and rendered output update together. The three panels are always in sync.
 
 ### Important Constraint
-Since the compiler is private, this demo uses pre-built IR trees for each preset. The JSON editor is read-only in v1 (users can browse presets but not free-edit). The middle and right panels update when presets change. Future versions will hit the hosted compiler API for live editing.
+This is a static page, so the demo uses pre-built IR trees for each preset. The JSON editor is read-only (users can browse presets but not free-edit). The middle and right panels update when presets change. To edit a source live, run `viewspec studio` locally.
 
 ## Implementation
 
@@ -45,7 +45,7 @@ Write a Python script (`demos/build_live_builder.py`) that:
 1. **Invoice** — table motif, 5 line items
 2. **Sales Dashboard** — dashboard motif, 4 KPI cards
 3. **Team Roster** — table motif, 5 team members with multiple columns
-4. **Pricing Comparison** — comparison motif, 3 tiers
+4. **Laptop Comparison** — comparison motif, 3 configurations
 
 ### IR Tree Visualization
 Recursive tree using nested `<details>` elements (HTML native, no JS framework needed):

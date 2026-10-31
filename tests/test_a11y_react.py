@@ -11,7 +11,7 @@ from dataclasses import replace
 
 import pytest
 
-from viewspec import AESTHETIC_PROFILE_TOKENS
+from viewspec.aesthetics import AESTHETIC_PROFILE_TOKENS
 from viewspec.emitters.react_tailwind_tsx.a11y import (
     TAILWIND_PALETTE,
     ReactA11yError,

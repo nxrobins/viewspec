@@ -1,4 +1,4 @@
-"""Regression tests for audit findings C-1 and C-2.
+"""Regression tests for value text rendering.
 
 C-1: every attribute and slot value travels through google.protobuf.Struct, whose numbers are
 doubles, so the JSON integer 100 used to render as the visible text "100.0" after a file round
@@ -17,22 +17,22 @@ from pathlib import Path
 
 import pytest
 
-from viewspec import IntentBundle, ViewSpecBuilder, agent_repair_checklist, compile, validate_agent_intent_bundle
+from viewspec import IntentBundle, ViewSpecBuilder, compile
+from viewspec.agent import agent_repair_checklist, validate_agent_intent_bundle
 from viewspec.cli import main as cli_main
 from viewspec.compiler import _text_from_value
 from viewspec.emitters.html_tailwind import HtmlTailwindEmitter
 from viewspec.emitters.react_tailwind_tsx import ReactTailwindTsxEmitter
 from viewspec.emitters.react_tsx import ReactTsxEmitter
 from viewspec.intent_contract import MAX_SAFE_INTEGER
-from viewspec.intent_tools import validate_intent_bundle_file_tool
 from viewspec.schema.viewspec_pb2 import IntentBundle as PbIntentBundle
 from viewspec.types import normalize_json_numbers, normalize_json_numbers_in_place
 
-UNSAFE_INTEGER = MAX_SAFE_INTEGER + 1  # 9007199254740993, the audit's reproduction value
+UNSAFE_INTEGER = MAX_SAFE_INTEGER + 1  # 9007199254740993, just past the safe range
 
 
 def _numeric_dashboard_payload(big_value: object) -> dict:
-    """The audit's C-1 reproduction bundle: a dashboard whose values are JSON numbers."""
+    """A dashboard whose values are JSON numbers."""
     return {
         "substrate": {
             "id": "numeric_view_substrate",
@@ -193,7 +193,7 @@ def test_normalize_json_numbers_restores_safe_integers_only():
 
 
 def test_normalize_json_numbers_treats_tuples_like_lists():
-    """protobuf Struct and JSON turn a tuple into a list, so normalization must too (audit C-1)."""
+    """protobuf Struct and JSON turn a tuple into a list, so normalization must too."""
     value = {"pair": (1.0, 2.0), "rows": [(3.0, 2.5), {"nested": (4.0,)}]}
     normalized = normalize_json_numbers(value)
     assert json.dumps(normalized) == '{"pair": [1, 2], "rows": [[3, 2.5], {"nested": [4]}]}'
@@ -329,20 +329,15 @@ def test_validate_intent_accepts_numbers_within_the_safe_range(value):
     assert result.valid, [issue.to_json() for issue in result.issues]
 
 
-def test_validate_intent_cli_and_tool_surface_the_unsafe_integer_error(tmp_path, capsys):
+def test_check_and_compile_surface_the_unsafe_integer_error(tmp_path, capsys):
     path = tmp_path / "viewspec.intent.json"
     path.write_text(json.dumps(_numeric_dashboard_payload(UNSAFE_INTEGER), indent=2), encoding="utf-8")
 
-    assert cli_main(["validate-intent", str(path), "--json"]) == 2
+    assert cli_main(["check", str(path), "--json"]) == 2
     cli_payload = json.loads(capsys.readouterr().out)
     assert cli_payload["ok"] is False
     assert [issue["code"] for issue in cli_payload["issues"]] == ["INTEGER_OUT_OF_SAFE_RANGE"]
     assert cli_payload["issues"][0]["path"] == "$.substrate.nodes.kpis_card_2.attrs.value"
-
-    tool_payload = validate_intent_bundle_file_tool(path, cwd=tmp_path)
-    assert tool_payload["ok"] is False
-    assert [error["code"] for error in tool_payload["errors"]] == ["INTEGER_OUT_OF_SAFE_RANGE"]
-    assert "JSON strings" in tool_payload["errors"][0]["fix"]
 
     out_dir = tmp_path / "out"
     assert cli_main(["compile", str(path), "--out", str(out_dir)]) == 2

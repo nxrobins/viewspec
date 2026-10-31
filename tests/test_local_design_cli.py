@@ -11,10 +11,9 @@ import pytest
 from hypothesis import given
 from hypothesis import strategies as st
 
-from viewspec import DesignSystemError, ViewSpecBuilder, __version__, compile, load_design_system
+from viewspec import DesignSystemError, IntentBundle, ViewSpecBuilder, __version__, compile
 from viewspec.cli import main as cli_main
-from viewspec.compiler_benchmarks import benchmark_fixtures
-from viewspec.design_md import DESIGN_MAX_BYTES
+from viewspec.design_md import DESIGN_MAX_BYTES, load_design_system
 from viewspec.emitters.react_tailwind_tsx import tailwind_recipe_registry_digest
 from viewspec.local_tools import file_hash
 
@@ -200,10 +199,6 @@ def test_design_yaml_nesting_depth_fails_closed():
 
 
 def test_design_file_size_is_gated_before_reading(tmp_path, monkeypatch):
-    from viewspec.review_compile import DESIGN_MAX_BYTES as REVIEW_DESIGN_MAX_BYTES
-
-    assert REVIEW_DESIGN_MAX_BYTES == DESIGN_MAX_BYTES
-
     head = "---\nname: Fits\ncolor:\n  primary: '#112233'\n---\n"
     fits = head + "x" * (DESIGN_MAX_BYTES - len(head.encode("utf-8")))
     assert len(fits.encode("utf-8")) == DESIGN_MAX_BYTES
@@ -229,7 +224,7 @@ def test_design_file_size_is_gated_before_reading(tmp_path, monkeypatch):
     assert str(DESIGN_MAX_BYTES) in file_info.value.report.findings[0].message
 
 
-def test_cli_compile_lift_and_diff_stay_local(tmp_path, capsys):
+def test_cli_compile_stays_local(tmp_path):
     design_path = tmp_path / "DESIGN.md"
     design_path.write_text(_design(), encoding="utf-8")
     html_path = tmp_path / "report.html"
@@ -258,32 +253,6 @@ def test_cli_compile_lift_and_diff_stay_local(tmp_path, capsys):
     ]
     assert manifest["guarantees"]["network_calls"] == "none"
     assert cli_main(["check", str(out_dir)]) == 0
-
-    lift_path = tmp_path / "lift.json"
-    assert cli_main(["lift", str(html_path), "--out", str(lift_path)]) == 0
-    assert json.loads(lift_path.read_text(encoding="utf-8"))["source_name"] == "report.html"
-
-    right_path = tmp_path / "report-new.html"
-    right_path.write_text("<h1>Report Updated</h1><p>$2</p><button>Open</button>", encoding="utf-8")
-    assert cli_main(["diff", str(html_path), str(right_path), "--json"]) == 0
-    stdout = capsys.readouterr().out
-    assert "Report Updated" in stdout
-
-
-def test_cli_diff_json_read_error_stays_machine_readable(tmp_path, capsys):
-    left = tmp_path / "left.html"
-    missing = tmp_path / "missing.html"
-    left.write_text("<h1>Left</h1>", encoding="utf-8")
-
-    assert cli_main(["diff", str(left), str(missing), "--json"]) == 2
-    captured = capsys.readouterr()
-    payload = json.loads(captured.out)
-
-    assert captured.err == ""
-    assert payload["diff_version"] == 1
-    assert payload["basis"] == "lift_v1"
-    assert payload["ok"] is False
-    assert payload["errors"][0]["code"] == "DIFF_INPUT_READ_ERROR"
 
 
 def test_cli_compile_json_wraps_stable_manifest(tmp_path):
@@ -477,10 +446,50 @@ def test_cli_check_rejects_forbidden_and_circular_semantic_digest_fields(tmp_pat
     assert "SEMANTIC_DIGEST_CIRCULAR" in capsys.readouterr().out
 
 
+def _multi_region_bundle() -> IntentBundle:
+    builder = ViewSpecBuilder(
+        "multi_region_workspace",
+        root_attrs={"title": "Workspace"},
+        default_main_region=False,
+        root_min_children=2,
+    )
+    builder.add_region("header", parent_region="root", role="banner", layout="stack", min_children=1)
+    builder.add_region("body", parent_region="root", role="main", layout="grid", min_children=2)
+    builder.add_region("main", parent_region="body", role="main", layout="stack", min_children=2)
+    builder.add_region("side", parent_region="body", role="complementary", layout="stack", min_children=1)
+    builder.add_hero(
+        "workspace_intro",
+        eyebrow="Quality",
+        title="Benchmark the floor",
+        description="Measure structural quality before changing layout behavior.",
+        region="header",
+        group_id="intro_message",
+    )
+    dashboard = builder.add_dashboard("workspace_metrics", region="main", group_id="metrics")
+    dashboard.add_card(label="Fixtures", value="6", id="fixtures")
+    dashboard.add_card(label="Emitters", value="2", id="emitters")
+    form = builder.add_form("review_form", region="main", group_id="review_fields")
+    form.add_field(label="Reviewer", value="", id="reviewer")
+    form.add_field(label="Decision", value="approve", id="decision")
+    detail = builder.add_detail("artifact_identity", region="side", group_id="identity_fields")
+    detail.add_field(label="Manifest", value="checked", id="manifest")
+    detail.add_field(label="Network", value="none", id="network")
+    builder.add_action(
+        "submit_review",
+        "submit",
+        "Submit review",
+        target_region="main",
+        target_ref="motif:review_form",
+        payload_bindings=["reviewer_value", "decision_value"],
+    )
+    builder.add_style("workspace_body_density", "region:body", "density.regular")
+    builder.add_style("workspace_identity_surface", "motif:artifact_identity", "surface.strong")
+    return builder.build_bundle()
+
+
 def test_cli_check_recomputes_tailwind_app_role_derivation(tmp_path, capsys):
-    fixture = next(item for item in benchmark_fixtures() if item.id == "multi_region_product")
     bundle_path = tmp_path / "bundle.json"
-    bundle_path.write_text(json.dumps(fixture.bundle.to_json()), encoding="utf-8")
+    bundle_path.write_text(json.dumps(_multi_region_bundle().to_json()), encoding="utf-8")
     out_dir = tmp_path / "react-tailwind-dist"
 
     assert cli_main(["compile", str(bundle_path), "--target", "react-tailwind-tsx", "--out", str(out_dir)]) == 0
@@ -635,66 +644,10 @@ def test_cli_check_uses_byte_exact_artifact_hash(tmp_path, capsys):
     assert "artifact_hash does not match" in capsys.readouterr().out
 
 
-def test_cli_init_design_doctor_and_check_tamper(tmp_path, capsys):
+def test_cli_init_design_and_check_tamper(tmp_path, capsys):
     design_path = tmp_path / "DESIGN.md"
-    assert cli_main(["init-design", "--out", str(design_path)]) == 0
+    assert cli_main(["init", "design", "--out", str(design_path)]) == 0
     assert "colors:" in design_path.read_text(encoding="utf-8")
-    capsys.readouterr()
-    assert cli_main(["doctor"]) == 0
-    doctor_payload = json.loads(capsys.readouterr().out)
-    checks = doctor_payload["checks"]
-    assert checks["pyyaml"] is True
-    assert checks["intent_first_commands"]["validate_intent"] is True
-    assert checks["intent_first_commands"]["diff_intent"] is True
-    assert checks["intent_first_commands"]["validate_app"] is True
-    assert checks["intent_first_commands"]["diff_app"] is True
-    assert checks["intent_first_commands"]["compile_app"] is True
-    assert checks["intent_first_commands"]["prove_app"] is True
-    assert checks["intent_first_commands"]["export_agent_assets"] is True
-    assert checks["intent_first_commands"]["patch_preview"] is True
-    assert checks["intent_first_commands"]["patch_apply"] is True
-    assert checks["intent_first_commands"]["studio"] is True
-    assert checks["intent_first_commands"]["studio_create"] is True
-    assert checks["intent_first_commands"]["studio_accept"] is True
-    assert checks["intent_first_commands"]["studio_share_prepare"] is True
-    assert checks["intent_pipeline"]["ok"] is True
-    assert checks["intent_pipeline"]["compile_check"] == "passed"
-    assert checks["intent_pipeline"]["aesthetic_profile_diff"] is True
-    assert checks["intent_pipeline"]["semantic_summary"]["ok"] is True
-    assert checks["intent_pipeline"]["semantic_summary"]["semantic_changes_key"] == "semantic_changes"
-    assert checks["intent_pipeline"]["semantic_summary"]["mcp_result_key"] == "semantic_summary"
-    assert checks["intent_pipeline"]["semantic_summary"]["python_helper"] == "intent_semantic_change_lines"
-    assert checks["intent_pipeline"]["semantic_summary"]["semantic_change_count"] == 2
-    assert checks["intent_pipeline"]["semantic_summary"]["summary_lines"] == [
-        (
-            "aesthetic_profiles: profile_changed aesthetic.calm_ops -> aesthetic.executive_review "
-            "target=view:starter_dashboard style_delta=declarations 28 -> 30 "
-            "layout_delta=metric_card added layout_emphasis=featured span_columns=2; "
-            "metric_grid columns=2 -> columns=3"
-        ),
-        "styles.aesthetic_profile: token_changed aesthetic.calm_ops -> aesthetic.executive_review",
-    ]
-    assert checks["app_bundle_pipeline"]["ok"] is True
-    assert checks["app_bundle_pipeline"]["validate_app"] is True
-    assert checks["app_bundle_pipeline"]["diff_app"] is True
-    assert checks["app_bundle_pipeline"]["compile_app"] is True
-    assert checks["app_bundle_pipeline"]["static_shell_target"] == "html-tailwind-app"
-    assert checks["app_bundle_pipeline"]["route_navigation"] == "static_shell_v0"
-    assert checks["app_bundle_pipeline"]["resource_binding"] == "unbound_v0"
-    assert checks["app_bundle_pipeline"]["route_assertions"]["all_routes_resolve"] is True
-    assert checks["app_bundle_pipeline"]["semantic_summary"]["python_helper"] == "app_semantic_change_lines"
-    assert "validate-intent" in checks["local_network_policy"]
-    assert "validate-app" in checks["local_network_policy"]
-    assert "compile-app" in checks["local_network_policy"]
-    assert "diff-intent" in checks["local_network_policy"]
-    assert "diff-app" in checks["local_network_policy"]
-    assert "prove-app" in checks["local_network_policy"]
-    assert "export-agent-assets" in checks["local_network_policy"]
-    assert "check" in checks["local_network_policy"]
-    assert "studio-create" in checks["local_network_policy"]
-    assert "studio-accept" in checks["local_network_policy"]
-    assert "studio-share-prepare" in checks["local_network_policy"]
-
     html_path = tmp_path / "report.html"
     html_path.write_text("<h1>Report</h1>", encoding="utf-8")
     out_dir = tmp_path / "dist"
@@ -704,36 +657,6 @@ def test_cli_init_design_doctor_and_check_tamper(tmp_path, capsys):
     out_dir.joinpath("index.html").write_text("<h1>Tampered</h1>", encoding="utf-8")
     assert cli_main(["check", str(out_dir)]) == 2
     assert "artifact_hash does not match" in capsys.readouterr().out
-
-
-def test_doctor_freerange_is_opt_in_and_read_only(tmp_path, monkeypatch, capsys):
-    calls: list[str] = []
-
-    def fake_readiness():
-        calls.append("readiness")
-        return {
-            "ok": True,
-            "status": "ready",
-            "engine": {"name": "freerange", "version": "0.0.1"},
-            "runtime": {"name": "bun", "version": "1.2.0"},
-            "package": {"status": "not_checked"},
-            "errors": [],
-        }
-
-    monkeypatch.setattr("viewspec.app_freerange.freerange_readiness", fake_readiness)
-    monkeypatch.chdir(tmp_path)
-
-    assert cli_main(["doctor"]) == 0
-    plain = json.loads(capsys.readouterr().out)
-    assert "freerange" not in plain["checks"]
-    assert calls == []
-    assert list(tmp_path.iterdir()) == []
-
-    assert cli_main(["doctor", "--freerange"]) == 0
-    opted_in = json.loads(capsys.readouterr().out)
-    assert opted_in["checks"]["freerange"]["status"] == "ready"
-    assert calls == ["readiness"]
-    assert list(tmp_path.iterdir()) == []
 
 
 def test_python_module_entrypoint_runs_cli(tmp_path):
@@ -753,8 +676,8 @@ def test_python_module_entrypoint_runs_cli(tmp_path):
     assert help_result.returncode == 0
     assert "viewspec prove" in help_result.stdout or "prove" in help_result.stdout
 
-    doctor_result = subprocess.run(
-        [sys.executable, "-m", "viewspec", "doctor"],
+    version_result = subprocess.run(
+        [sys.executable, "-m", "viewspec", "--version"],
         cwd=tmp_path,
         env=env,
         capture_output=True,
@@ -762,10 +685,8 @@ def test_python_module_entrypoint_runs_cli(tmp_path):
         timeout=30,
         check=False,
     )
-    assert doctor_result.returncode == 0
-    payload = json.loads(doctor_result.stdout)
-    assert payload["checks"]["intent_pipeline"]["ok"] is True
-    assert payload["checks"]["intent_pipeline"]["aesthetic_profile_diff"] is True
+    assert version_result.returncode == 0
+    assert version_result.stdout.startswith("viewspec ")
 
 
 def test_cli_check_rejects_machine_local_command_args(tmp_path, capsys):
@@ -866,10 +787,8 @@ def test_claude_code_integration_mentions_only_local_commands():
     root = Path(__file__).resolve().parents[1]
     text = root.joinpath("integrations/claude-code/SKILL.md").read_text(encoding="utf-8")
 
-    assert "viewspec init-intent" in text
-    assert "viewspec validate-intent" in text
+    assert "viewspec init" in text
     assert "viewspec compile" in text
-    assert "viewspec diff" in text
     assert "viewspec check" in text
     assert "viewspec.intent.json" in text
     assert "viewspec share" not in text

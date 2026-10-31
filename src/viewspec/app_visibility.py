@@ -16,8 +16,6 @@ from viewspec.state_ir import StateIR, initial_visibility
 # region:x -> region_x, binding:x -> binding_x, motif:x -> motif_x.
 _TARGET_NODE_PREFIXES = {"region": "region_", "binding": "binding_", "motif": "motif_"}
 
-VISIBILITY_OVERLAY_KEYS = frozenset({"visibility_rule_id", "visibility_hidden_initial"})
-
 
 def visibility_target_node_id(target_ref: str) -> str:
     kind, _, target_id = target_ref.partition(":")
@@ -84,7 +82,6 @@ def check_screen_visibility_bake(
 
 
 __all__ = [
-    "VISIBILITY_OVERLAY_KEYS",
     "check_screen_visibility_bake",
     "screen_visibility_overlays",
     "visibility_target_node_id",

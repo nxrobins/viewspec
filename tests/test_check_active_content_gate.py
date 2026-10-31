@@ -1,4 +1,4 @@
-"""`viewspec check` active-content gate: the audit bypasses (S-1, S-2) and the scan cost bound (S-3).
+"""`viewspec check` active-content gate: known bypasses and the scan cost bound.
 
 Every payload here passed `check` with ``"ok": true`` once the unsigned manifest's artifact_hash was
 re-computed, so each case tampers a freshly compiled artifact, re-hashes it, and asserts the rejection
@@ -22,8 +22,9 @@ from viewspec.app_shell import (
     _extract_screen_body_fragment,
     _extract_screen_styles,
 )
+from viewspec.cli import main as cli_main
 from viewspec.intent_tools import compile_intent_bundle_file_tool, init_intent_file, starter_intent_payload
-from viewspec.local_tools import check_artifact_dir, check_artifact_tool, compile_html_file_tool, file_hash
+from viewspec.local_tools import check_artifact_dir, file_hash
 from viewspec.local_tools_validators import (
     _BEACON_REMOTE_URL_ATTR_RE,
     _contains_remote_http_reference,
@@ -49,7 +50,7 @@ def _compile_intent_artifact(tmp_path: Path) -> Path:
 
 
 def _tamper(artifact_dir: Path, mutate) -> None:
-    """Rewrite index.html and re-hash the (unsigned) manifest exactly as the audit reproductions did."""
+    """Rewrite index.html and re-hash the (unsigned) manifest exactly as an attacker would did."""
     html_path = artifact_dir / "index.html"
     html_path.write_text(mutate(html_path.read_text(encoding="utf-8")), encoding="utf-8")
     manifest_path = artifact_dir / "provenance_manifest.json"
@@ -180,24 +181,18 @@ def test_check_rejects_handlers_on_existing_nodes_and_unterminated_tags(tmp_path
     _assert_rejected(check_artifact_dir(artifact_dir), expected)
 
 
-def test_check_tool_surfaces_registered_code_path_and_fix(tmp_path):
+def test_check_surfaces_registered_code_path_and_fix(tmp_path):
     artifact_dir = _compile_intent_artifact(tmp_path)
     _tamper(artifact_dir, lambda html: html.replace("</body>", "<img src=x onerror=alert(1)></body>", 1))
 
-    checked = check_artifact_tool("dist", cwd=tmp_path)
+    checked = check_artifact_dir(artifact_dir)
 
     assert checked["ok"] is False
-    handler = next(error for error in checked["errors"] if error["code"] == HANDLER)
+    handler = next(issue for issue in checked["issues"] if issue["code"] == HANDLER)
     assert handler["path"] == "index.html"
     assert handler["message"] == "index.html contains an inline event handler attribute"
     assert handler["fix"].startswith("Remove every on* attribute")
-    assert all(set(error) == {"code", "path", "message", "fix"} for error in checked["errors"])
-    # Legacy (unprefixed) messages keep the generic code and the tool's own fix text.
-    legacy = [error for error in checked["errors"] if error["code"] == "CHECK_FAILED"]
-    assert all(
-        error["fix"] == "Re-run viewspec compile from the source HTML, or fix the tampered artifact."
-        for error in legacy
-    )
+    assert all(set(issue) == {"code", "path", "message", "fix"} for issue in checked["issues"])
 
 
 RAW_HTML_SOURCE = """
@@ -214,8 +209,7 @@ RAW_HTML_SOURCE = """
 
 def _compile_raw_html_artifact(tmp_path: Path) -> Path:
     (tmp_path / "report.html").write_text(RAW_HTML_SOURCE, encoding="utf-8")
-    result = compile_html_file_tool("report.html", "dist", cwd=tmp_path)
-    assert result["ok"] is True, result["errors"]
+    assert cli_main(["compile", str(tmp_path / "report.html"), "--out", str(tmp_path / "dist")]) == 0
     return tmp_path / "dist"
 
 
@@ -332,7 +326,7 @@ def test_check_rejects_parser_differential_markup_in_raw_html_artifact(tmp_path,
     )
 
 
-def test_check_tool_rejects_cdata_hidden_content_in_raw_html_artifact(tmp_path):
+def test_check_rejects_cdata_hidden_content_in_raw_html_artifact(tmp_path):
     artifact_dir = _compile_raw_html_artifact(tmp_path)
     _tamper(
         artifact_dir,
@@ -343,10 +337,10 @@ def test_check_tool_rejects_cdata_hidden_content_in_raw_html_artifact(tmp_path):
         ),
     )
 
-    checked = check_artifact_tool("dist", cwd=tmp_path)
+    checked = check_artifact_dir(artifact_dir)
 
     assert checked["ok"] is False
-    ambiguous = next(error for error in checked["errors"] if error["code"] == AMBIGUOUS)
+    ambiguous = next(issue for issue in checked["issues"] if issue["code"] == AMBIGUOUS)
     assert ambiguous["path"] == "index.html"
     assert ambiguous["fix"].startswith("Remove comments, <![...]> sections")
 
@@ -410,8 +404,7 @@ def test_raw_html_paragraph_with_scheme_like_prose_passes_check(tmp_path):
         "<h1>API</h1><p>Set the data=https: prefix and the ping=http: value in prose.</p>",
         encoding="utf-8",
     )
-    compiled = compile_html_file_tool("report.html", "dist", cwd=tmp_path)
-    assert compiled["ok"] is True, compiled["errors"]
+    assert cli_main(["compile", str(tmp_path / "report.html"), "--out", str(tmp_path / "dist")]) == 0
     html = (tmp_path / "dist" / "index.html").read_text(encoding="utf-8")
     assert "data=https:" in html  # the prose survived into the artifact
     assert check_artifact_dir(tmp_path / "dist")["ok"] is True
@@ -437,8 +430,7 @@ def test_raw_html_source_with_comments_and_cdata_compiles_to_a_passing_artifact(
         "<h1>Report</h1><!-- note --><p>a <![CDATA[ b ]]> c <?pi x?> d</p><!--><p>e</p><svg><style>x</style></svg>",
         encoding="utf-8",
     )
-    compiled = compile_html_file_tool("report.html", "dist", cwd=tmp_path)
-    assert compiled["ok"] is True, compiled["errors"]
+    assert cli_main(["compile", str(tmp_path / "report.html"), "--out", str(tmp_path / "dist")]) == 0
 
     html = (tmp_path / "dist" / "index.html").read_text(encoding="utf-8")
     assert "<!--" not in html and "<![" not in html and "<?" not in html and "<svg" not in html

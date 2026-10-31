@@ -208,7 +208,7 @@ def check_artifact_dir(path: str | Path) -> dict[str, Any]:
         if manifest.get("artifact_hash") and manifest.get("artifact_hash") != artifact_hash:
             errors.append("artifact_hash does not match index.html")
         errors.extend(_validate_no_autofetch_surfaces(html))
-        # Linear block scan (S-3): one pass, never re-scanned from every unclosed opener. A
+        # Linear block scan: one pass, never re-scanned from every unclosed opener. A
         # `<script` opener with no closer is rejected outright instead of being ignored.
         script_scan = find_tag_blocks(html, "script")
         scripts = [html[start:end] for start, _, _, end in script_scan.blocks]

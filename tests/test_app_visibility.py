@@ -346,7 +346,7 @@ def test_node_conformance_catches_tampered_visibility():
 # --- baked markers e2e (SC-V1) ----------------------------------------------------------------------
 
 
-@pytest.mark.skipif(not _NODE_AVAILABLE, reason="prove-app V4 requires Node.js for conformance")
+@pytest.mark.skipif(not _NODE_AVAILABLE, reason="AppBundle V4 proof requires Node.js for conformance")
 def test_prove_app_bakes_markers_and_cross_checks(tmp_path):
     from viewspec.app_bundle import prove_app
 
@@ -391,7 +391,7 @@ def test_prove_app_bakes_markers_and_cross_checks(tmp_path):
     assert state_manifest_payload["replay"]["assertions"][0]["visibility_matches"] is True
 
 
-@pytest.mark.skipif(not _NODE_AVAILABLE, reason="prove-app V4 requires Node.js for conformance")
+@pytest.mark.skipif(not _NODE_AVAILABLE, reason="AppBundle V4 proof requires Node.js for conformance")
 def test_prove_app_is_deterministic_for_v4(tmp_path):
     from viewspec.app_bundle import prove_app
 
@@ -430,7 +430,7 @@ def test_overlay_unresolved_target_fails_closed(tmp_path):
 # --- honest reporting (SC-V2) ------------------------------------------------------------------------
 
 
-@pytest.mark.skipif(not _NODE_AVAILABLE, reason="prove-app V4 requires Node.js for conformance")
+@pytest.mark.skipif(not _NODE_AVAILABLE, reason="AppBundle V4 proof requires Node.js for conformance")
 def test_visibility_replay_ok_is_null_when_unasserted(tmp_path):
     from viewspec.app_bundle import prove_app
 
@@ -446,7 +446,7 @@ def test_visibility_replay_ok_is_null_when_unasserted(tmp_path):
     assert state_summary["visibility_replay_ok"] is None  # reported, never claimed
 
 
-@pytest.mark.skipif(not _NODE_AVAILABLE, reason="prove-app V4 requires Node.js for conformance")
+@pytest.mark.skipif(not _NODE_AVAILABLE, reason="AppBundle V4 proof requires Node.js for conformance")
 def test_visibility_replay_ok_is_true_when_asserted(tmp_path):
     from viewspec.app_bundle import prove_app
 

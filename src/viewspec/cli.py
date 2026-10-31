@@ -4,143 +4,78 @@ from __future__ import annotations
 
 import argparse
 import contextlib
-import importlib.util
 import json
 import os
-import shutil
 import sys
-from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
 from viewspec._version import __version__
-from viewspec.agent_assets import AgentAssetError, agent_asset_readiness, check_agent_assets, export_agent_assets
+from viewspec.api import check, source_kind
+from viewspec.api import prove as prove_source
 from viewspec.app_bundle import (
     APP_BUNDLE_ALLOWED_KINDS,
-    APP_BUNDLE_DEFAULT_OUT,
     APP_BUNDLE_RESOURCE_BINDING,
     APP_BUNDLE_RESOURCE_BINDING_READONLY,
-    APP_BUNDLE_TARGET,
-    APP_SHELL_DEFAULT_OUT,
     APP_SHELL_TARGET,
-    app_semantic_change_lines,
+    REACT_APP_TARGET,
     compile_app,
-    diff_app_files,
-    diff_app_text,
     init_app_file,
-    prove_app,
-    starter_app_bundle,
     validate_app_file,
-    validate_app_text,
 )
-from viewspec.compiler import compile
+from viewspec.compiler import compile as compile_intent
 from viewspec.compiler_errors import LocalToolContractError
-from viewspec.converge_sessions import (
-    CONVERGE_MAX_STATE_BYTES,
-    ConvergeError,
-    approve_convergence_preview,
-    get_convergence_status,
-    reject_convergence_preview,
-    start_convergence_session,
-    submit_convergence_patch,
-)
 from viewspec.design_md import DesignSystemContext, DesignSystemError, load_design_system
 from viewspec.emitters.html_tailwind import HtmlTailwindEmitter
 from viewspec.emitters.react_tailwind_tsx import ReactTailwindTsxEmitter
 from viewspec.emitters.react_tsx import ReactTsxEmitter
-from viewspec.host_verify import HOST_VERIFY_TARGET, verify_host_artifact_dir, verify_host_intent_file
-from viewspec.intent_patch import (
-    INTENT_PATCH_MAX_BYTES,
-    INTENT_PATCH_TARGET_LIMIT_DEFAULT,
-    IntentPatchContext,
-    IntentPatchError,
-    _read_bounded_utf8_file,
-    _strict_json_loads,
-    apply_intent_patch_file,
-    intent_patch_targets_file,
-    preview_intent_patch_file,
-)
 from viewspec.intent_tools import (
+    INTENT_COMPILE_TARGETS,
     STARTER_INTENT_KINDS,
-    diff_intent_files,
-    diff_intent_text,
     init_intent_file,
-    intent_diff_error_payload,
-    intent_error_payload,
-    intent_semantic_change_lines,
-    starter_intent_bundle,
-    validate_intent_file,
     validate_intent_text,
     wrap_intent_bundle_manifest,
 )
 from viewspec.local_tools import (
-    agent_asset_export_response,
-    atomic_write,
-    check_artifact_dir,
     ensure_no_input_overwrite,
     init_design_file,
     source_hash,
     tool_error_response,
     tool_response,
 )
-from viewspec.local_verify import verify_local_artifact
-from viewspec.mcp_server import MCP_INSTALL_HINT, MissingMCPDependency, mcp_dependency_available, run_mcp_server
-from viewspec.native_agents import VALID_TARGETS, NativeAgentError, init_agent_instructions
-from viewspec.prove import PROVE_DEFAULT_OUT, prove
-from viewspec.raw_html import HtmlInputError, compile_html, diff_html, lift_html, write_html_compile_result
-from viewspec.review_cli import end_review, open_review, poll_review, review_status
-from viewspec.review_contract import ReviewContractError
-from viewspec.studio import open_studio
-from viewspec.studio_creation import (
-    STUDIO_CREATION_TASK_DEFAULT,
-    StudioCreationError,
-    accept_studio_creation,
-    prepare_studio_creation,
-)
-from viewspec.studio_creation_cli import studio_agent_task
-from viewspec.studio_share import (
-    STUDIO_SHARE_ROOT_DEFAULT,
-    StudioShareError,
-    prepare_studio_share,
-)
+from viewspec.mcp_server import MCP_INSTALL_HINT, MissingMCPDependency, run_mcp_server
+from viewspec.raw_html import HtmlInputError, compile_html, write_html_compile_result
+from viewspec.studio import STUDIO_DEFAULT_PORT, Studio, open_studio
 from viewspec.types import IntentBundle
-from viewspec.verification import VerificationPlan, VerificationResult
+from viewspec.verification import VerificationPlan
 
-DoctorProfileDiff = tuple[dict[str, object], str, dict[str, object], dict[str, object]]
+INIT_DEFAULT_OUT = {"intent": "viewspec.intent.json", "app": "viewspec.app.json", "design": "DESIGN.md"}
+COMPILE_TARGETS = (*INTENT_COMPILE_TARGETS, APP_SHELL_TARGET, REACT_APP_TARGET)
+PROVE_TARGETS = (*INTENT_COMPILE_TARGETS, REACT_APP_TARGET)
 
 
 @dataclass(frozen=True)
 class _JsonFailureDefaults:
-    """How one subcommand reports a raised failure under --json (audit C-9)."""
+    """How one subcommand reports a raised failure under --json."""
 
     code: str
     fix: str
     to_stderr: bool = False
 
 
-# Subcommands that gained --json for audit C-9 report every failure as a standard tool envelope
-# (`ok: false`, `errors: [{code, message, fix}]`) instead of stderr text, with the same exit code
-# as their human mode. The code and fix here apply when the exception carries none of its own.
-# `mcp` writes that envelope to stderr: its stdout is reserved for the MCP protocol.
+# With --json every raised failure is a standard tool envelope (`ok: false`,
+# `errors: [{code, message, fix}]`) instead of stderr text, with the same exit code as human mode.
+# The code and fix here apply when the exception carries none of its own.
 _JSON_FAILURE_DEFAULTS: dict[str, _JsonFailureDefaults] = {
+    "init": _JsonFailureDefaults("IO_ERROR", "Choose a writable path, or pass --force to replace the file."),
     "compile": _JsonFailureDefaults(
         "COMPILE_FAILED", "Fix the input, DESIGN.md, or path issue and rerun viewspec compile."
     ),
-    "lift": _JsonFailureDefaults("COMPILE_FAILED", "Fix the HTML input or output path and rerun viewspec lift."),
-    "init-app": _JsonFailureDefaults("IO_ERROR", "Choose a writable path, or pass --force to replace the file."),
-    "init-design": _JsonFailureDefaults("IO_ERROR", "Choose a writable path, or pass --force to replace the file."),
-    "init-intent": _JsonFailureDefaults("IO_ERROR", "Choose a writable path, or pass --force to replace the file."),
-    "doctor": _JsonFailureDefaults(
-        "DOCTOR_CHECK_FAILED", "Reinstall viewspec with its dependencies and rerun viewspec doctor."
-    ),
-    "init-agent": _JsonFailureDefaults(
-        "IO_ERROR", "Fix the reported instruction file under --root and rerun viewspec init-agent."
-    ),
-    "export-agent-assets": _JsonFailureDefaults(
-        "IO_ERROR",
-        "Choose a writable asset output directory, or pass --force to replace existing generated assets.",
-    ),
+    "check": _JsonFailureDefaults("CHECK_FAILED", "Fix the reported path and rerun viewspec check."),
+    "prove": _JsonFailureDefaults("PROVE_INVALID_REQUEST", "Fix the reported option and rerun viewspec prove."),
+    "studio": _JsonFailureDefaults("STUDIO_START_FAILED", "Fix the reported problem and rerun viewspec studio."),
+    # stdout belongs to the MCP protocol.
     "mcp": _JsonFailureDefaults(
         "MCP_SERVER_FAILED", "Fix the reported problem and restart viewspec mcp.", to_stderr=True
     ),
@@ -184,12 +119,8 @@ def _cli_failure(exc: Exception) -> _CliFailure:
             fix="Fix DESIGN.md and retry.",
             diagnostics=tuple(finding.to_json() for finding in exc.report.findings) if exc.report is not None else (),
         )
-    if isinstance(exc, (HtmlInputError, AgentAssetError, NativeAgentError)):
+    if isinstance(exc, HtmlInputError):
         return _CliFailure(2, f"error: {exc.code}: {exc}", _failure_message(exc), code=exc.code)
-    if isinstance(exc, (ReviewContractError, StudioCreationError, StudioShareError, IntentPatchError, ConvergeError)):
-        return _CliFailure(
-            exc.cli_exit, f"error: {exc.code}: {exc.message}\nfix: {exc.fix}", exc.message, code=exc.code, fix=exc.fix
-        )
     code = getattr(exc, "code", None)
     fix = getattr(exc, "fix", None)
     message = getattr(exc, "message", None)
@@ -213,9 +144,7 @@ def _failure_message(exc: BaseException) -> str:
 
     An exception group stands for its first leaf exception. anyio wraps an error that stops the
     MCP server, such as a BrokenPipeError when the client goes away, in a group whose own text,
-    "unhandled errors in a TaskGroup (1 sub-exception)", names nothing. An exception whose str()
-    is empty, such as a bare ``RuntimeError()``, is named by its type. The exit code and the
-    human text still come from ``exc`` itself, so they stay as they were.
+    "unhandled errors in a TaskGroup (1 sub-exception)", names nothing.
     """
     while isinstance(exc, BaseExceptionGroup):
         exc = exc.exceptions[0]
@@ -249,154 +178,50 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--version", action="version", version=f"viewspec {__version__}")
     subparsers = parser.add_subparsers(dest="command", required=True)
 
-    studio_parser = subparsers.add_parser(
-        "studio",
-        help="Open the checked ViewSpec Preview, Comment, Approve experience.",
+    init_parser = subparsers.add_parser("init", help="Write a starter IntentBundle, AppBundle, or DESIGN.md.")
+    init_parser.add_argument(
+        "what", nargs="?", default="intent", choices=tuple(INIT_DEFAULT_OUT), help="What to write (default: intent)."
     )
-    studio_parser.add_argument(
-        "source",
-        nargs="?",
-        help="IntentBundle or AppBundle JSON; auto-detected when exactly one canonical source exists.",
-    )
-    studio_brief = studio_parser.add_mutually_exclusive_group()
-    studio_brief.add_argument("--brief", help="Exact inline product brief for one empty-workspace creation room.")
-    studio_brief.add_argument("--brief-file", help="UTF-8 product brief file for one empty-workspace creation room.")
-    studio_parser.add_argument("--reference", help="Optional local PNG, JPEG, or WebP first-creation reference image.")
-    studio_parser.add_argument(
+    init_parser.add_argument("--out", help="Output path (default: viewspec.intent.json, viewspec.app.json, DESIGN.md).")
+    init_parser.add_argument(
         "--kind",
-        choices=("app", "view"),
-        default="app",
-        help="Create a multi-screen app by default, or one bounded view.",
+        choices=(*STARTER_INTENT_KINDS, *APP_BUNDLE_ALLOWED_KINDS),
+        help="Starter kind: a motif for intent (default: dashboard), an app kind for app (default: internal_tool).",
     )
-    studio_parser.add_argument(
-        "--task-out",
-        default=STUDIO_CREATION_TASK_DEFAULT,
-        help=f"Deterministic first-creation task path (default: {STUDIO_CREATION_TASK_DEFAULT}).",
+    init_parser.add_argument(
+        "--resource-binding",
+        default="unbound-v0",
+        choices=("unbound-v0", "fixture-readonly-v0"),
+        help="App resource binding mode. fixture-readonly-v0 writes schema_version 2.",
     )
-    studio_parser.add_argument("--design", help="Optional DESIGN.md file to watch with the source.")
-    studio_parser.add_argument(
+    init_parser.add_argument(
+        "--template",
+        default="contract",
+        choices=("contract", "react-app"),
+        help="App starter shape. react-app writes the runnable AppBundle V4 golden path.",
+    )
+    init_parser.add_argument("--force", action="store_true", help="Overwrite an existing file.")
+    init_parser.add_argument("--json", action="store_true", help="Print machine-readable JSON.")
+    init_parser.set_defaults(func=_init_command)
+
+    compile_parser = subparsers.add_parser(
+        "compile", help="Compile an IntentBundle, AppBundle, or imported raw HTML locally."
+    )
+    compile_parser.add_argument("input", help="Input .json bundle, imported .html/.htm file, or '-' for stdin.")
+    compile_parser.add_argument("--out", required=True, help="Output directory.")
+    compile_parser.add_argument(
         "--target",
-        choices=("html-tailwind", "html-tailwind-app", "react-tailwind-app"),
-        help="Explicit Studio target; defaults by detected source kind.",
+        choices=COMPILE_TARGETS,
+        help=f"Renderer target (default: html-tailwind, or {APP_SHELL_TARGET} for an AppBundle).",
     )
-    studio_parser.add_argument(
-        "--verify", action="store_true", help="Add canonical viewport verification when available."
-    )
-    studio_parser.add_argument(
-        "--install", action="store_true", help="Allow the explicit existing verification install flow."
-    )
-    studio_parser.add_argument(
-        "--compare",
-        action="store_true",
-        help="Open an AppBundle in synchronized static/React comparison (requires --install).",
-    )
-    studio_parser.add_argument(
-        "--share",
-        action="store_true",
-        help="Opt in to the canary-gated private-review service (requires --compare --install).",
-    )
-    studio_parser.add_argument(
-        "--share-reference",
-        help="Optional exact local reference image to disclose and include in the private review.",
-    )
-    studio_parser.add_argument("--no-open", action="store_true", help="Start or resume without launching a browser.")
-    studio_parser.add_argument(
-        "--port", type=int, default=4388, help="Literal unprivileged 127.0.0.1 port (default: 4388)."
-    )
-    studio_parser.add_argument("--state-dir", help="Private Studio state root.")
-    studio_parser.add_argument("--convergence-state-dir", help="Private Converge state root used by Studio.")
-    studio_parser.add_argument("--reopen", action="store_true", help="Explicitly reopen a human-ended session.")
-    studio_parser.add_argument("--json", action="store_true", help="Print machine-readable JSON.")
-    studio_parser.set_defaults(func=_studio_command)
-
-    studio_create_parser = subparsers.add_parser(
-        "studio-create",
-        help="Prepare a brief-bound first-creation task for a coding agent.",
-    )
-    studio_create_brief = studio_create_parser.add_mutually_exclusive_group(required=True)
-    studio_create_brief.add_argument("--brief", help="Exact inline product brief.")
-    studio_create_brief.add_argument("--brief-file", help="UTF-8 product brief file under the workspace.")
-    studio_create_parser.add_argument("--reference", help="Optional local PNG, JPEG, or WebP reference image.")
-    studio_create_parser.add_argument(
-        "--kind",
-        choices=("app", "view"),
-        default="app",
-        help="Create a multi-screen app by default, or one bounded view.",
-    )
-    studio_create_parser.add_argument(
-        "--task-out",
-        default=STUDIO_CREATION_TASK_DEFAULT,
-        help=f"Deterministic creation task path (default: {STUDIO_CREATION_TASK_DEFAULT}).",
-    )
-    studio_create_parser.add_argument("--json", action="store_true", help="Print machine-readable JSON.")
-    studio_create_parser.set_defaults(func=_studio_create_command)
-
-    studio_agent_parser = subparsers.add_parser(
-        "studio-agent-task",
-        help="Check in to an existing creation room and read its exact agent task.",
-    )
-    studio_agent_parser.add_argument("task", nargs="?", default=STUDIO_CREATION_TASK_DEFAULT)
-    studio_agent_parser.add_argument("--state-dir", help="Private Studio state root used by the creation room.")
-    studio_agent_parser.add_argument("--json", action="store_true", help="Print machine-readable JSON.")
-    studio_agent_parser.set_defaults(func=_studio_agent_task_command)
-
-    studio_accept_parser = subparsers.add_parser(
-        "studio-accept",
-        help="Prove an agent-authored first-creation candidate and publish semantic source.",
-    )
-    studio_accept_parser.add_argument(
-        "task",
-        nargs="?",
-        default=STUDIO_CREATION_TASK_DEFAULT,
-        help=f"Creation task path (default: {STUDIO_CREATION_TASK_DEFAULT}).",
-    )
-    studio_accept_parser.add_argument("--json", action="store_true", help="Print machine-readable JSON.")
-    studio_accept_parser.set_defaults(func=_studio_accept_command)
-
-    studio_share_parser = subparsers.add_parser(
-        "studio-share-prepare",
-        help="Prepare and disclose an exact private-review package without uploading it.",
-    )
-    studio_share_parser.add_argument(
-        "source",
-        nargs="?",
-        help="Checked AppBundle source; auto-detected when exactly one canonical source exists.",
-    )
-    studio_share_parser.add_argument(
-        "--reference",
-        help="Optional exact local PNG, JPEG, or WebP reference image to include and disclose.",
-    )
-    studio_share_parser.add_argument("--state-dir", help="Private Studio state root containing the checked comparison.")
-    studio_share_parser.add_argument(
-        "--out-dir",
-        default=STUDIO_SHARE_ROOT_DEFAULT,
-        help=f"Private content-addressed package root (default: {STUDIO_SHARE_ROOT_DEFAULT}).",
-    )
-    studio_share_parser.add_argument("--json", action="store_true", help="Print machine-readable JSON.")
-    studio_share_parser.set_defaults(func=_studio_share_prepare_command)
-
-    validate_parser = subparsers.add_parser("validate-intent", help="Validate a ViewSpec IntentBundle JSON file.")
-    validate_parser.add_argument("input", help="Input strict IntentBundle .json file.")
-    validate_parser.add_argument("--json", action="store_true", help="Print machine-readable JSON.")
-    validate_parser.add_argument(
-        "--no-compile-check",
-        action="store_true",
-        help="Skip local compiler support validation and only validate the agent contract.",
-    )
-    validate_parser.set_defaults(func=_validate_intent_command)
-
-    compile_parser = subparsers.add_parser("compile", help="Compile an IntentBundle JSON or imported raw HTML locally.")
-    compile_parser.add_argument("input", help="Input .json IntentBundle, imported .html/.htm file, or '-' for stdin.")
     compile_parser.add_argument("--design", help="Optional DESIGN.md file to apply locally.")
     compile_parser.add_argument(
         "--strict-design", action="store_true", help="Fail on DESIGN.md warnings as well as errors."
     )
-    compile_parser.add_argument("--out", required=True, help="Output directory.")
     compile_parser.add_argument(
-        "--target",
-        default="html-tailwind",
-        choices=("html-tailwind", "react-tsx", "react-tailwind-tsx"),
-        help="Renderer target for IntentBundle JSON input. Raw HTML import supports html-tailwind only.",
+        "--force",
+        action="store_true",
+        help="Replace an existing AppBundle output directory after safety checks.",
     )
     compile_parser.add_argument("--stdin-format", choices=("html", "json"), help="Required when input is '-'.")
     compile_parser.add_argument("--title", help="Optional HTML document title for raw HTML input.")
@@ -404,444 +229,88 @@ def _build_parser() -> argparse.ArgumentParser:
     compile_parser.add_argument("--json", action="store_true", help="Print machine-readable JSON.")
     compile_parser.set_defaults(func=_compile_command)
 
-    lift_parser = subparsers.add_parser("lift", help="Lift raw HTML into local semantic signals.")
-    lift_parser.add_argument("input", help="Input .html/.htm file, or '-' for stdin.")
-    lift_parser.add_argument("--out", required=True, help="Output lift.json file.")
-    lift_parser.add_argument("--stdin-format", choices=("html",), help="Required when input is '-'.")
-    lift_parser.add_argument("--json", action="store_true", help="Print machine-readable JSON.")
-    lift_parser.set_defaults(func=_lift_command)
-
-    diff_parser = subparsers.add_parser("diff", help="Diff two raw HTML files semantically.")
-    diff_parser.add_argument("left", help="Old/left HTML file.")
-    diff_parser.add_argument("right", help="New/right HTML file.")
-    diff_parser.add_argument("--json", action="store_true", help="Print machine-readable JSON.")
-    diff_parser.set_defaults(func=_diff_command)
-
-    diff_intent_parser = subparsers.add_parser(
-        "diff-intent", help="Diff two ViewSpec IntentBundle JSON files semantically."
+    check_parser = subparsers.add_parser(
+        "check", help="Run fast static, provenance, and security checks on a source file or artifact directory."
     )
-    diff_intent_parser.add_argument("left", help="Old/left IntentBundle .json file.")
-    diff_intent_parser.add_argument("right", help="New/right IntentBundle .json file.")
-    diff_intent_parser.add_argument("--json", action="store_true", help="Print machine-readable JSON.")
-    diff_intent_parser.add_argument(
+    check_parser.add_argument("path", help="IntentBundle or AppBundle .json file, or a compiled artifact directory.")
+    check_parser.add_argument(
         "--no-compile-check",
         action="store_true",
-        help="Skip local compiler support validation and only validate the agent contract before diffing.",
+        help="For a source file, skip local compiler support validation.",
     )
-    diff_intent_parser.set_defaults(func=_diff_intent_command)
+    check_parser.add_argument("--json", action="store_true", help="Print machine-readable JSON.")
+    check_parser.set_defaults(func=_check_command)
 
-    init_app_parser = subparsers.add_parser("init-app", help="Write a starter local AppBundle JSON file.")
-    init_app_parser.add_argument("--out", default="viewspec.app.json", help="Output AppBundle JSON path.")
-    init_app_parser.add_argument(
-        "--kind", default="internal_tool", choices=APP_BUNDLE_ALLOWED_KINDS, help="Starter app kind."
+    prove_parser = subparsers.add_parser(
+        "prove", help="Compile and verify a source, or browser-verify a compiled artifact, and write a proof bundle."
     )
-    init_app_parser.add_argument(
-        "--resource-binding",
-        default="unbound-v0",
-        choices=("unbound-v0", "fixture-readonly-v0"),
-        help="Starter resource binding mode. fixture-readonly-v0 writes schema_version 2.",
+    prove_parser.add_argument(
+        "source",
+        nargs="?",
+        help="IntentBundle or AppBundle .json file, or a compiled artifact directory (default: a starter).",
     )
-    init_app_parser.add_argument(
-        "--template",
-        default="contract",
-        choices=("contract", "react-app"),
-        help="Starter shape. react-app writes the runnable AppBundle V4 golden path.",
-    )
-    init_app_parser.add_argument("--force", action="store_true", help="Overwrite an existing file.")
-    init_app_parser.add_argument("--json", action="store_true", help="Print machine-readable JSON.")
-    init_app_parser.set_defaults(func=_init_app_command)
-
-    validate_app_parser = subparsers.add_parser("validate-app", help="Validate a local AppBundle JSON file.")
-    validate_app_parser.add_argument("input", help="Input strict AppBundle .json file.")
-    validate_app_parser.add_argument("--json", action="store_true", help="Print machine-readable JSON.")
-    validate_app_parser.add_argument(
-        "--no-compile-check",
-        action="store_true",
-        help="Skip local compiler support validation for embedded screen intents.",
-    )
-    validate_app_parser.set_defaults(func=_validate_app_command)
-
-    diff_app_parser = subparsers.add_parser("diff-app", help="Diff two local AppBundle JSON files semantically.")
-    diff_app_parser.add_argument("left", help="Old/left AppBundle .json file.")
-    diff_app_parser.add_argument("right", help="New/right AppBundle .json file.")
-    diff_app_parser.add_argument("--json", action="store_true", help="Print machine-readable JSON.")
-    diff_app_parser.add_argument(
-        "--no-compile-check",
-        action="store_true",
-        help="Skip local compiler support validation for changed embedded screen intents.",
-    )
-    diff_app_parser.set_defaults(func=_diff_app_command)
-
-    compile_app_parser = subparsers.add_parser(
-        "compile-app",
-        help="Compile a local AppBundle into a static HTML shell or runnable React/Tailwind app.",
-    )
-    compile_app_parser.add_argument("input", help="Input strict AppBundle .json file.")
-    compile_app_parser.add_argument("--out", default=APP_SHELL_DEFAULT_OUT, help="Static app shell output directory.")
-    compile_app_parser.add_argument(
-        "--design", help="Optional DESIGN.md file to apply to every embedded screen intent."
-    )
-    compile_app_parser.add_argument(
-        "--strict-design", action="store_true", help="Fail on DESIGN.md warnings as well as errors."
-    )
-    compile_app_parser.add_argument(
-        "--force",
-        action="store_true",
-        help="Replace an existing app shell output directory after safety checks; only an empty directory or a previous ViewSpec output is replaced.",
-    )
-    compile_app_parser.add_argument(
+    prove_parser.add_argument("--out", help="Proof workspace output directory.")
+    prove_parser.add_argument(
         "--target",
-        default=APP_SHELL_TARGET,
-        choices=(APP_SHELL_TARGET, "react-tailwind-app"),
-        help="App output target.",
+        choices=PROVE_TARGETS,
+        help="Proof target. react-tailwind-tsx and react-tailwind-app add a browser proof with --install.",
     )
-    compile_app_parser.add_argument("--json", action="store_true", help="Print machine-readable JSON.")
-    compile_app_parser.set_defaults(func=_compile_app_command)
-
-    init_parser = subparsers.add_parser("init-design", help="Write a starter strict DESIGN.md file.")
-    init_parser.add_argument("--out", default="DESIGN.md", help="Output DESIGN.md path.")
-    init_parser.add_argument("--force", action="store_true", help="Overwrite an existing file.")
-    init_parser.add_argument("--json", action="store_true", help="Print machine-readable JSON.")
-    init_parser.set_defaults(func=_init_design_command)
-
-    init_intent_parser = subparsers.add_parser("init-intent", help="Write a starter ViewSpec IntentBundle JSON file.")
-    init_intent_parser.add_argument("--out", default="viewspec.intent.json", help="Output IntentBundle JSON path.")
-    init_intent_parser.add_argument(
-        "--kind", default="dashboard", choices=STARTER_INTENT_KINDS, help="Starter motif kind."
-    )
-    init_intent_parser.add_argument("--force", action="store_true", help="Overwrite an existing file.")
-    init_intent_parser.add_argument("--json", action="store_true", help="Print machine-readable JSON.")
-    init_intent_parser.set_defaults(func=_init_intent_command)
-
-    doctor_parser = subparsers.add_parser("doctor", help="Check local ViewSpec SDK readiness.")
-    doctor_parser.add_argument("--agents", action="store_true", help="Also check native agent integration readiness.")
-    doctor_parser.add_argument(
-        "--freerange",
-        action="store_true",
-        help="Also run the read-only Bun/Freerange readiness probe; nothing is installed.",
-    )
-    doctor_parser.add_argument("--json", action="store_true", help="Print machine-readable JSON.")
-    doctor_parser.set_defaults(func=_doctor_command)
-
-    prove_parser = subparsers.add_parser("prove", help="Run a first ViewSpec proof and write a proof bundle.")
-    prove_parser.add_argument("--intent", help="Optional existing IntentBundle JSON file.")
-    prove_parser.add_argument("--out", default=PROVE_DEFAULT_OUT, help="Proof workspace output directory.")
     prove_parser.add_argument("--design", help="Optional DESIGN.md file to apply locally.")
     prove_parser.add_argument(
         "--strict-design", action="store_true", help="Fail on DESIGN.md warnings as well as errors."
     )
     prove_parser.add_argument(
-        "--target",
-        default="html-tailwind",
-        choices=("html-tailwind", "react-tsx", "react-tailwind-tsx"),
-        help="Proof target. html-tailwind is Python-only; react-tailwind-tsx can also run the bounded host proof.",
+        "--kind", default="dashboard", choices=STARTER_INTENT_KINDS, help="Starter motif kind when SOURCE is omitted."
     )
     prove_parser.add_argument(
-        "--kind", default="dashboard", choices=STARTER_INTENT_KINDS, help="Starter motif kind when --intent is omitted."
-    )
-    prove_parser.add_argument(
-        "--install", action="store_true", help="Allow npm ci --ignore-scripts for react-tailwind-tsx host proof."
+        "--install", action="store_true", help="Allow npm ci --ignore-scripts for the browser proof."
     )
     prove_parser.add_argument(
         "--force",
         action="store_true",
-        help="Replace an existing proof output directory after safety checks; only an empty directory or a previous ViewSpec output is replaced.",
+        help="Replace an existing proof output directory after safety checks.",
+    )
+    prove_parser.add_argument("--report-out", help="Optional JSON proof report path.")
+    prove_parser.add_argument(
+        "--with-shell", action="store_true", help="AppBundle: also write and prove a Static Shell V0 artifact."
     )
     prove_parser.add_argument(
-        "--report-out", help="Optional JSON proof report path. Defaults to <out>/proof_report.json."
+        "--freerange",
+        action="store_true",
+        help="AppBundle: opt in to the pinned Bun/Freerange proof of runtime-connected numeric helpers.",
     )
+    prove_parser.add_argument(
+        "--pretext",
+        action="store_true",
+        help="AppBundle: opt in to pinned Pretext text-layout evidence for compiler-owned native DOM text.",
+    )
+    prove_parser.add_argument("--plan", help="Artifact directory: optional verification plan JSON file.")
     prove_parser.add_argument("--json", action="store_true", help="Print machine-readable JSON.")
     prove_parser.set_defaults(func=_prove_command)
 
-    prove_app_parser = subparsers.add_parser(
-        "prove-app", help="Run a local AppBundle proof and write an app proof bundle."
+    studio_parser = subparsers.add_parser("studio", help="Serve a live-reloading local preview of a source file.")
+    studio_parser.add_argument(
+        "source",
+        nargs="?",
+        help="IntentBundle or AppBundle JSON; auto-detected when exactly one canonical source exists.",
     )
-    prove_app_parser.add_argument("--app", required=True, help="Input AppBundle JSON file.")
-    prove_app_parser.add_argument("--out", default=APP_BUNDLE_DEFAULT_OUT, help="App proof workspace output directory.")
-    prove_app_parser.add_argument("--design", help="Optional DESIGN.md file to apply to every embedded screen intent.")
-    prove_app_parser.add_argument(
-        "--strict-design", action="store_true", help="Fail on DESIGN.md warnings as well as errors."
-    )
-    prove_app_parser.add_argument(
-        "--force",
-        action="store_true",
-        help="Replace an existing app proof output directory after safety checks; only an empty directory or a previous ViewSpec output is replaced.",
-    )
-    prove_app_parser.add_argument(
-        "--report-out", help="Optional JSON app proof report path. Defaults to <out>/app_proof_report.json."
-    )
-    prove_app_parser.add_argument(
-        "--with-shell",
-        action="store_true",
-        help="Also write and prove a Static Shell V0 artifact under <out>/app-shell/.",
-    )
-    prove_app_parser.add_argument(
-        "--target",
-        default=APP_BUNDLE_TARGET,
-        choices=(APP_BUNDLE_TARGET, "react-tailwind-app"),
-        help="App proof target.",
-    )
-    prove_app_parser.add_argument(
-        "--install",
-        action="store_true",
-        help="Allow npm ci --ignore-scripts for react-tailwind-app host proof.",
-    )
-    prove_app_parser.add_argument(
-        "--freerange",
-        action="store_true",
-        help="Opt in to the pinned Bun/Freerange proof of runtime-connected numeric helpers.",
-    )
-    prove_app_parser.add_argument(
-        "--pretext",
-        action="store_true",
-        help="Opt in to pinned Pretext text-layout evidence for compiler-owned native DOM text.",
-    )
-    prove_app_parser.add_argument("--json", action="store_true", help="Print machine-readable JSON.")
-    prove_app_parser.set_defaults(func=_prove_app_command)
-
-    check_parser = subparsers.add_parser("check", help="Validate a local ViewSpec artifact directory.")
-    check_parser.add_argument(
-        "artifact_dir", help="Directory containing provenance_manifest.json and generated artifact output."
-    )
-    check_parser.add_argument("--json", action="store_true", help="Print machine-readable JSON.")
-    check_parser.set_defaults(func=_check_command)
-
-    verify_host_parser = subparsers.add_parser(
-        "verify-host", help="Verify a React Tailwind artifact in a bounded host app."
-    )
-    verify_host_parser.add_argument("artifact_dir", nargs="?", help="Checked react-tailwind-tsx artifact directory.")
-    verify_host_parser.add_argument("--intent", help="IntentBundle JSON file to compile before host verification.")
-    verify_host_parser.add_argument("--out", help="Output artifact directory for --intent compile mode.")
-    verify_host_parser.add_argument("--design", help="Optional DESIGN.md file to apply in --intent compile mode.")
-    verify_host_parser.add_argument(
-        "--strict-design", action="store_true", help="Fail on DESIGN.md warnings as well as errors."
-    )
-    verify_host_parser.add_argument(
-        "--target", default=HOST_VERIFY_TARGET, choices=(HOST_VERIFY_TARGET,), help="Host verification target."
-    )
-    verify_host_parser.add_argument(
-        "--install", action="store_true", help="Run npm ci --ignore-scripts in the isolated host template."
-    )
-    verify_host_parser.add_argument("--report-out", help="Optional JSON proof report output path.")
-    verify_host_parser.add_argument("--json", action="store_true", help="Print machine-readable JSON.")
-    verify_host_parser.set_defaults(func=_verify_host_command)
-
-    verify_parser = subparsers.add_parser("verify", help="Verify rendered UI conformance across canonical viewports.")
-    verify_parser.add_argument("artifact_dir", help="Checked react-tailwind-tsx artifact directory.")
-    verify_parser.add_argument("--plan", help="Optional verification plan JSON file.")
-    verify_parser.add_argument(
-        "--evidence-out",
-        default=".viewspec-verification/evidence",
-        help="Empty directory where browser evidence will be written.",
-    )
-    verify_parser.add_argument(
-        "--report-out",
-        default=".viewspec-verification/result.json",
-        help="Canonical verification result JSON path.",
-    )
-    verify_parser.add_argument(
-        "--repair-out",
-        help="Repair plan JSON path. Defaults to repair.json beside --report-out.",
-    )
-    verify_parser.add_argument("--install", action="store_true", help="Allow npm ci in the isolated browser host.")
-    verify_parser.add_argument("--json", action="store_true", help="Print machine-readable JSON.")
-    verify_parser.set_defaults(func=_verify_command)
-
-    init_agent_parser = subparsers.add_parser(
-        "init-agent", help="Install managed ViewSpec instructions for coding agents."
-    )
-    init_agent_parser.add_argument(
-        "--target", required=True, choices=VALID_TARGETS, help="Agent instruction target to update."
-    )
-    init_agent_parser.add_argument("--root", default=".", help="Repository root for instruction files.")
-    init_agent_parser.add_argument("--dry-run", action="store_true", help="Report changes without writing files.")
-    init_agent_parser.add_argument("--json", action="store_true", help="Print machine-readable JSON.")
-    init_agent_parser.set_defaults(func=_init_agent_command)
-
-    agent_assets_parser = subparsers.add_parser(
-        "export-agent-assets",
-        help="Export the local agent prompt, semantic schemas/examples, and asset manifest.",
-    )
-    agent_assets_parser.add_argument(
-        "--out", default=".viewspec", help="Output directory for local agent contract assets."
-    )
-    agent_assets_parser.add_argument("--force", action="store_true", help="Replace existing generated assets.")
-    agent_assets_parser.add_argument("--dry-run", action="store_true", help="Report changes without writing files.")
-    agent_assets_parser.add_argument("--json", action="store_true", help="Print machine-readable JSON.")
-    agent_assets_parser.set_defaults(func=_export_agent_assets_command)
-
-    check_agent_assets_parser = subparsers.add_parser(
-        "check-agent-assets",
-        help="Verify exported local agent contract assets against the current SDK.",
-    )
-    check_agent_assets_parser.add_argument(
-        "asset_dir", nargs="?", default=".viewspec", help="Agent asset directory to verify."
-    )
-    check_agent_assets_parser.add_argument("--json", action="store_true", help="Print machine-readable JSON.")
-    check_agent_assets_parser.set_defaults(func=_check_agent_assets_command)
-
-    review_parser = subparsers.add_parser("review", help="Open a checked local ViewSpec review session.")
-    review_parser.add_argument("source", help="Canonical local IntentBundle or AppBundle JSON file.")
-    review_parser.add_argument("--design", help="Optional DESIGN.md file to watch with the source.")
-    review_parser.add_argument(
-        "--target",
-        choices=("html-tailwind", "html-tailwind-app", "react-tailwind-app"),
-        help="Explicit review compile target; defaults by detected source kind.",
-    )
-    review_parser.add_argument(
-        "--verify", action="store_true", help="Run canonical viewport verification when available."
-    )
-    review_parser.add_argument(
-        "--install", action="store_true", help="Allow the explicit existing verification install flow."
-    )
-    review_parser.add_argument("--no-open", action="store_true", help="Start or resume without launching a browser.")
-    review_parser.add_argument(
-        "--port", type=int, default=4388, help="Literal unprivileged 127.0.0.1 port (default: 4388)."
-    )
-    review_parser.add_argument("--state-dir", help="Private Review state root.")
-    review_parser.add_argument(
-        "--convergence-state-dir",
-        help="Private Converge state root used by this Review session.",
-    )
-    review_parser.add_argument("--reopen", action="store_true", help="Explicitly reopen a human-ended session.")
-    review_parser.add_argument("--json", action="store_true", help="Print machine-readable JSON.")
-    review_parser.set_defaults(func=_review_command)
-
-    review_poll_parser = subparsers.add_parser("review-poll", help="Wait for durable human Review feedback.")
-    review_poll_parser.add_argument("source", help="Canonical source path used to open the review.")
-    review_poll_parser.add_argument("--ack", help="Exact previously returned batch id to acknowledge.")
-    review_poll_parser.add_argument("--agent-reply", help="Bounded reply committed atomically with --ack.")
-    review_poll_parser.add_argument(
-        "--timeout-ms", type=int, default=55_000, help="Long-poll timeout from 1 through 55000 ms."
-    )
-    review_poll_parser.add_argument("--state-dir", help="Private Review state root.")
-    review_poll_parser.add_argument("--json", action="store_true", help="Print machine-readable JSON.")
-    review_poll_parser.set_defaults(func=_review_poll_command)
-
-    review_end_parser = subparsers.add_parser("review-end", help="End an active Review session as the agent.")
-    review_end_parser.add_argument("source", help="Canonical source path used to open the review.")
-    review_end_parser.add_argument("--state-dir", help="Private Review state root.")
-    review_end_parser.add_argument("--json", action="store_true", help="Print machine-readable JSON.")
-    review_end_parser.set_defaults(func=_review_end_command)
-
-    review_status_parser = subparsers.add_parser("review-status", help="Inspect active or durable local Review status.")
-    review_status_parser.add_argument("source", nargs="?", help="Optional canonical source path.")
-    review_status_parser.add_argument("--state-dir", help="Private Review state root.")
-    review_status_parser.add_argument("--json", action="store_true", help="Print machine-readable JSON.")
-    review_status_parser.set_defaults(func=_review_status_command)
-
-    patch_targets_parser = subparsers.add_parser(
-        "patch-targets",
-        help="List the applicable IntentPatch V1 operation stubs and exact base hash for one source.",
-    )
-    patch_targets_parser.add_argument("source", help="Canonical local IntentBundle or AppBundle JSON file.")
-    patch_targets_parser.add_argument("--op", help="Only list targets for one IntentPatch V1 operation.")
-    patch_targets_parser.add_argument("--screen", help="Only list targets for one declared AppBundle screen id.")
-    patch_targets_parser.add_argument(
-        "--limit",
+    studio_parser.add_argument("--design", help="Optional DESIGN.md file to watch with the source.")
+    studio_parser.add_argument(
+        "--port",
         type=int,
-        default=INTENT_PATCH_TARGET_LIMIT_DEFAULT,
-        help=f"Maximum targets to return (default {INTENT_PATCH_TARGET_LIMIT_DEFAULT}).",
+        default=STUDIO_DEFAULT_PORT,
+        help=f"Unprivileged 127.0.0.1 port (default: {STUDIO_DEFAULT_PORT}).",
     )
-    patch_targets_parser.add_argument("--json", action="store_true", help="Print machine-readable JSON.")
-    patch_targets_parser.set_defaults(func=_patch_targets_command)
+    studio_parser.add_argument("--no-open", action="store_true", help="Do not launch a browser.")
+    studio_parser.add_argument("--json", action="store_true", help="Print one JSON line once the preview is serving.")
+    studio_parser.set_defaults(func=_studio_command)
 
-    patch_preview_parser = subparsers.add_parser(
-        "patch-preview",
-        help="Validate and preview an exact source-bound IntentPatch without mutating its source.",
+    mcp_parser = subparsers.add_parser(
+        "mcp", help="Serve init, compile, check, prove, and studio to an agent over stdio (needs viewspec[agents])."
     )
-    patch_preview_parser.add_argument("source", help="Canonical local IntentBundle or AppBundle JSON file.")
-    patch_preview_parser.add_argument("patch", help="Strict IntentPatch V1 JSON file.")
-    patch_preview_parser.add_argument("--candidate-out", help="Optional path for the validated candidate source.")
-    patch_preview_parser.add_argument("--verify", action="store_true", help="Require canonical verification to pass.")
-    patch_preview_parser.add_argument(
-        "--install", action="store_true", help="Allow the explicit verification install flow."
-    )
-    patch_preview_parser.add_argument("--json", action="store_true", help="Print machine-readable JSON.")
-    patch_preview_parser.set_defaults(func=_patch_preview_command)
-
-    patch_apply_parser = subparsers.add_parser(
-        "patch-apply",
-        help="Atomically apply an exact preview-approved IntentPatch and write a rollback receipt.",
-    )
-    patch_apply_parser.add_argument("source", help="Canonical local IntentBundle or AppBundle JSON file.")
-    patch_apply_parser.add_argument("patch", help="Strict IntentPatch V1 JSON file.")
-    patch_apply_parser.add_argument("--approval", required=True, help="Exact approval_token from patch-preview.")
-    patch_apply_parser.add_argument(
-        "--verify", action="store_true", help="Require canonical verification to pass again."
-    )
-    patch_apply_parser.add_argument(
-        "--install", action="store_true", help="Allow the explicit verification install flow."
-    )
-    patch_apply_parser.add_argument("--json", action="store_true", help="Print machine-readable JSON.")
-    patch_apply_parser.set_defaults(func=_patch_apply_command)
-
-    converge_start_parser = subparsers.add_parser(
-        "converge-start",
-        help="Start a bounded source-bound Converge Session V1 from IntentPatch proposal context.",
-    )
-    converge_start_parser.add_argument("source", help="Canonical local IntentBundle or AppBundle JSON file.")
-    converge_start_parser.add_argument("context", help="IntentPatchContext JSON from Review or verification evidence.")
-    converge_start_parser.add_argument(
-        "--baseline-result", help="Exact VerificationResult JSON for verifier-driven sessions."
-    )
-    converge_start_parser.add_argument("--state-dir", help="Private convergence state directory.")
-    converge_start_parser.add_argument("--json", action="store_true", help="Print machine-readable JSON.")
-    converge_start_parser.set_defaults(func=_converge_start_command)
-
-    converge_submit_parser = subparsers.add_parser(
-        "converge-submit",
-        help="Submit one legal IntentPatch proposal to the active convergence session.",
-    )
-    converge_submit_parser.add_argument("source", help="Canonical source path used to start convergence.")
-    converge_submit_parser.add_argument("patch", help="Strict IntentPatch V1 JSON file.")
-    converge_submit_parser.add_argument("--state-dir", help="Private convergence state directory.")
-    converge_submit_parser.add_argument(
-        "--show-authority",
-        action="store_true",
-        help="Expert-only: print the outer approval token; normal approval occurs in Review.",
-    )
-    converge_submit_parser.add_argument("--json", action="store_true", help="Print machine-readable JSON.")
-    converge_submit_parser.set_defaults(func=_converge_submit_command)
-
-    converge_status_parser = subparsers.add_parser(
-        "converge-status",
-        help="Inspect the active or terminal convergence session for one source.",
-    )
-    converge_status_parser.add_argument("source", help="Canonical source path used to start convergence.")
-    converge_status_parser.add_argument("--state-dir", help="Private convergence state directory.")
-    converge_status_parser.add_argument(
-        "--show-authority",
-        action="store_true",
-        help="Expert-only: print the outer approval token; normal approval occurs in Review.",
-    )
-    converge_status_parser.add_argument("--json", action="store_true", help="Print machine-readable JSON.")
-    converge_status_parser.set_defaults(func=_converge_status_command)
-
-    converge_approve_parser = subparsers.add_parser(
-        "converge-approve",
-        help="Apply an exact operator-approved convergence preview.",
-    )
-    converge_approve_parser.add_argument("source", help="Canonical source path used to start convergence.")
-    converge_approve_parser.add_argument("--approval", required=True, help="Exact outer convergence approval token.")
-    converge_approve_parser.add_argument("--state-dir", help="Private convergence state directory.")
-    converge_approve_parser.add_argument("--json", action="store_true", help="Print machine-readable JSON.")
-    converge_approve_parser.set_defaults(func=_converge_approve_command)
-
-    converge_reject_parser = subparsers.add_parser(
-        "converge-reject",
-        help="Reject the exact pending convergence preview without mutating source.",
-    )
-    converge_reject_parser.add_argument("source", help="Canonical source path used to start convergence.")
-    converge_reject_parser.add_argument("--preview", required=True, help="Exact pending convergence preview id.")
-    converge_reject_parser.add_argument("--state-dir", help="Private convergence state directory.")
-    converge_reject_parser.add_argument("--json", action="store_true", help="Print machine-readable JSON.")
-    converge_reject_parser.set_defaults(func=_converge_reject_command)
-
-    mcp_parser = subparsers.add_parser("mcp", help="Start the optional ViewSpec stdio MCP server.")
-    mcp_parser.add_argument("--cwd", default=".", help="MCP path sandbox root.")
+    mcp_parser.add_argument("--cwd", default=".", help="Workspace root; tools cannot reach paths outside it.")
     mcp_parser.add_argument(
-        "--allow-outside-cwd", action="store_true", help="Allow MCP tools to read/write outside --cwd."
+        "--allow-outside-cwd", action="store_true", help="Allow tools to read and write outside --cwd."
     )
     mcp_parser.add_argument(
         "--json",
@@ -856,470 +325,108 @@ def _build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def _studio_command(args: argparse.Namespace) -> int:
-    payload = open_studio(
-        args.source,
-        design=args.design,
-        target=args.target,
-        port=args.port,
-        state_root=args.state_dir,
-        convergence_state_root=args.convergence_state_dir,
-        reopen=args.reopen,
-        no_open=args.no_open,
-        verify=args.verify,
-        install=args.install,
-        compare=args.compare,
-        share=args.share,
-        share_reference=args.share_reference,
-        brief=args.brief,
-        brief_file=args.brief_file,
-        reference=args.reference,
-        kind=args.kind,
-        task_out=args.task_out,
+def _init_command(args: argparse.Namespace) -> int:
+    out = args.out or INIT_DEFAULT_OUT[args.what]
+    if args.what == "app":
+        return _init_app(args, out)
+    if args.what == "design":
+        return _init_design(args, out)
+    return _init_intent(args, out)
+
+
+def _init_app(args: argparse.Namespace, out: str) -> int:
+    kind = args.kind or "internal_tool"
+    if kind not in APP_BUNDLE_ALLOWED_KINDS:
+        raise ValueError(f"Unknown app kind: {kind}")
+    binding_mode = {
+        "unbound-v0": APP_BUNDLE_RESOURCE_BINDING,
+        "fixture-readonly-v0": APP_BUNDLE_RESOURCE_BINDING_READONLY,
+    }[args.resource_binding]
+    path = init_app_file(
+        out,
+        kind=kind,
+        force=args.force,
+        resource_binding=binding_mode,
+        template=args.template,
     )
     if args.json:
-        print(json.dumps(payload, indent=2, sort_keys=True))
-    else:
-        studio = payload["studio"]
-        if studio.get("status") == "creating":
-            creation = payload["creation"]
-            print("ViewSpec Studio creation room ready.")
-            print(f"open: {creation['url']}")
-            print("Waiting for agent → Checking candidate → Preview → Comment → Approve")
-        else:
-            review = payload["review"]
-            print(f"ViewSpec Studio ready in {studio['ready_ms']} ms.")
-            print(f"open: {review['url']}")
-            print("Preview → Comment → Approve")
-    return 0
-
-
-def _studio_agent_task_command(args: argparse.Namespace) -> int:
-    payload = studio_agent_task(args.task, state_root=args.state_dir)
-    print(json.dumps(payload, indent=2, sort_keys=True))
-    return 0
-
-
-def _studio_create_command(args: argparse.Namespace) -> int:
-    payload = prepare_studio_creation(
-        brief=args.brief,
-        brief_file=args.brief_file,
-        reference=args.reference,
-        kind=args.kind,
-        task_out=args.task_out,
-    )
-    if args.json:
-        print(json.dumps(payload, indent=2, sort_keys=True))
-    else:
-        print("Studio creation task ready for your agent.")
-        print(f"candidate: {payload['creation']['candidate_path']}")
-        print(f"accept: viewspec studio-accept {args.task_out}")
-    return 0
-
-
-def _studio_accept_command(args: argparse.Namespace) -> int:
-    payload = accept_studio_creation(args.task)
-    if args.json:
-        print(json.dumps(payload, indent=2, sort_keys=True))
-    else:
-        print("Studio semantic source is checked and ready.")
-        print(f"source: {payload['creation']['source_name']}")
-        print("open: viewspec studio")
-    return 0
-
-
-def _studio_share_prepare_command(args: argparse.Namespace) -> int:
-    payload = prepare_studio_share(
-        args.source,
-        reference=args.reference,
-        state_root=args.state_dir,
-        out_root=args.out_dir,
-    )
-    if args.json:
-        print(json.dumps(payload, indent=2, sort_keys=True))
-    else:
-        print("Private review package prepared locally. Nothing was uploaded.")
-        print(f"disclosure: {payload['paths']['disclosure']}")
-        print(f"transport archive: {payload['paths']['upload_archive']}")
-        print("No review link or capability was created.")
-    return 0
-
-
-def _review_command(args: argparse.Namespace) -> int:
-    payload = open_review(
-        args.source,
-        design=args.design,
-        target=args.target,
-        port=args.port,
-        state_root=args.state_dir,
-        convergence_state_root=args.convergence_state_dir,
-        reopen=args.reopen,
-        no_open=args.no_open,
-        verify=args.verify,
-        install=args.install,
-    )
-    if args.json:
-        print(json.dumps(payload, indent=2, sort_keys=True))
-    else:
-        review = payload["review"]
-        print(f"ready: {review['url']}")
-        print(f"source_kind={review['source_kind']} target={review['target']} revision={review['revision']}")
-        print(payload["next_actions"][-1])
-    return 0
-
-
-def _review_poll_command(args: argparse.Namespace) -> int:
-    payload = poll_review(
-        args.source,
-        ack=args.ack,
-        agent_reply=args.agent_reply,
-        timeout_ms=args.timeout_ms,
-        state_root=args.state_dir,
-    )
-    if args.json:
-        print(json.dumps(payload, indent=2, sort_keys=True))
-    else:
-        print(f"status: {payload.get('status')}")
-        batch = payload.get("batch")
-        if isinstance(batch, dict):
-            print(f"batch: {batch.get('batch_id')} events={len(batch.get('events', []))}")
-    return 0
-
-
-def _review_end_command(args: argparse.Namespace) -> int:
-    payload = end_review(args.source, state_root=args.state_dir)
-    if args.json:
-        print(json.dumps(payload, indent=2, sort_keys=True))
-    else:
-        print("ended_by: agent")
-    return 0
-
-
-def _review_status_command(args: argparse.Namespace) -> int:
-    payload = review_status(args.source, state_root=args.state_dir)
-    if args.json:
-        print(json.dumps(payload, indent=2, sort_keys=True))
-    else:
-        if "review" in payload:
-            review = payload["review"]
-            print(f"status={review['status']} revision={review['revision']} queued={review['queued_events']}")
-        else:
-            print(f"reviews: {len(payload.get('reviews', []))}")
-    return 0
-
-
-def _patch_targets_command(args: argparse.Namespace) -> int:
-    source_path = Path(args.source)
-    targets = intent_patch_targets_file(
-        source_path,
-        op=args.op,
-        screen_id=args.screen,
-        limit=args.limit,
-    )
-    counts = targets["counts"]
-    empty = counts["total"] == 0
-    next_actions = (
-        ["IntentPatch V1 cannot add or delete declared elements; rewrite the whole bundle file and revalidate it."]
-        if empty
-        else [
-            "Build one operation per change: copy op and fixed_fields verbatim, then add only replacement_field.",
-            "Bind the patch to this exact base_source_sha256 and preview it before applying.",
-        ]
-    )
-    if targets["truncated"]:
-        next_actions.append("Narrow with --op or --screen; this response is truncated and is not full coverage.")
-    payload = {
-        "schema_version": 1,
-        "ok": True,
-        "summary": (
-            "No IntentPatch V1 target matches this source and filter; use a full source revision instead."
-            if empty
-            else f"Listed {counts['returned']} of {counts['total']} applicable IntentPatch V1 targets; source was not changed."
-        ),
-        "paths": {"source": str(source_path)},
-        "targets": targets,
-        "next_actions": next_actions,
-    }
-    if args.json:
-        print(json.dumps(payload, indent=2, sort_keys=True))
-    else:
-        print(f"source_kind: {targets['source_kind']}")
-        print(f"base_source_sha256: {targets['base_source_sha256']}")
-        print(f"targets: {counts['returned']} of {counts['total']}{' (truncated)' if targets['truncated'] else ''}")
-        for op_name, count in counts["by_op"].items():
-            print(f"  {op_name}: {count}")
-        if empty:
-            print("no patchable target; rewrite the whole bundle file instead")
-    return 0
-
-
-def _patch_preview_command(args: argparse.Namespace) -> int:
-    source_path = Path(args.source)
-    patch_path = Path(args.patch)
-    preview = preview_intent_patch_file(
-        source_path,
-        patch_path,
-        verify=args.verify,
-        install=args.install,
-    )
-    candidate_path: Path | None = None
-    if args.candidate_out is not None:
-        candidate_path = Path(args.candidate_out)
-        resolved_candidate = candidate_path.resolve(strict=False)
-        if resolved_candidate in {source_path.resolve(), patch_path.resolve()}:
-            raise IntentPatchError(
-                "PATCH_PATH_INVALID",
-                "Candidate output cannot overwrite the source or patch file.",
-                "Choose a separate candidate output path.",
+        # Report the binding of the bundle that was written, read back from the file: the react-app
+        # template writes a fixture_readonly_v0 AppBundle V4 whatever
+        # --resource-binding says, so the argument alone can be wrong.
+        written = validate_app_file(path, compile_check=False)
+        _print_json(
+            tool_response(
+                True,
+                "Wrote starter AppBundle.",
+                paths={"app": str(path)},
+                next_actions=[
+                    "Replace the sample labels and records with real app context.",
+                    f"Run viewspec check {path} --json.",
+                ],
+                metadata=_cli_metadata(
+                    kind=kind,
+                    template=args.template,
+                    resource_binding=written.get("resource_binding"),
+                    binding_scope=written.get("binding_scope"),
+                ),
             )
-        atomic_write(candidate_path, preview.candidate_text)
-    payload = {
-        "schema_version": 1,
-        "ok": True,
-        "summary": "IntentPatch preview is valid; source was not changed.",
-        "paths": {
-            "source": str(source_path),
-            "patch": str(patch_path),
-            "candidate": str(candidate_path) if candidate_path is not None else None,
-        },
-        "preview": preview.to_json(),
-        "next_actions": [
-            "Inspect semantic_diff and candidate output.",
-            "Apply only with this exact approval_token while the source remains unchanged.",
-        ],
-    }
-    if args.json:
-        print(json.dumps(payload, indent=2, sort_keys=True))
+        )
     else:
-        print(f"preview_id: {preview.preview_id}")
-        print(f"candidate_source_sha256: {preview.candidate_source_sha256}")
-        print(f"approval_token: {preview.approval_token}")
-        if candidate_path is not None:
-            print(f"candidate: {candidate_path}")
+        print(str(path))
     return 0
 
 
-def _patch_apply_command(args: argparse.Namespace) -> int:
-    source_path = Path(args.source)
-    patch_path = Path(args.patch)
-    receipt = apply_intent_patch_file(
-        source_path,
-        patch_path,
-        approval_token=args.approval,
-        verify=args.verify,
-        install=args.install,
-    )
-    payload = {
-        "schema_version": 1,
-        "ok": True,
-        "summary": "IntentPatch applied atomically; inverse patch is recorded in the receipt.",
-        "paths": {
-            "source": str(source_path),
-            "patch": str(patch_path),
-            "receipt": str(receipt.receipt_path),
-        },
-        "receipt": receipt.to_json(),
-        "next_actions": ["Retain the receipt to audit or explicitly apply its source-bound inverse patch."],
-    }
+def _init_design(args: argparse.Namespace, out: str) -> int:
+    path = init_design_file(out, force=args.force)
     if args.json:
-        print(json.dumps(payload, indent=2, sort_keys=True))
+        _print_json(
+            tool_response(
+                True,
+                "Wrote starter DESIGN.md.",
+                paths={"design": str(path)},
+                next_actions=[f"Compile with --design {path}."],
+                metadata=_cli_metadata(),
+            )
+        )
     else:
-        print(f"applied: {receipt.receipt_id}")
-        print(f"receipt: {receipt.receipt_path}")
+        print(str(path))
     return 0
 
 
-def _converge_json_file(
-    path: str,
-    *,
-    code: str,
-    too_large_code: str,
-    noun: str,
-    maximum: int,
-) -> dict[str, object]:
-    try:
-        text = _read_bounded_utf8_file(
-            Path(path),
-            maximum=maximum,
-            too_large_code=too_large_code,
-            noun=noun,
-            changed_code=code,
+def _init_intent(args: argparse.Namespace, out: str) -> int:
+    kind = args.kind or "dashboard"
+    path = init_intent_file(out, kind=kind, force=args.force)
+    if args.json:
+        _print_json(
+            tool_response(
+                True,
+                "Wrote starter IntentBundle.",
+                paths={"intent": str(path)},
+                next_actions=[
+                    "Replace sample labels and values with real user intent.",
+                    f"Run viewspec check {path} --json.",
+                ],
+                metadata=_cli_metadata(kind=kind),
+            )
         )
-    except IntentPatchError as exc:
-        raise ConvergeError(exc.code, exc.message, exc.fix, cli_exit=exc.cli_exit) from exc
-    value = _strict_json_loads(text, code=code, noun=noun)
-    if not isinstance(value, dict):
-        raise ConvergeError(
-            code,
-            f"{noun} must be a JSON object.",
-            f"Use the documented {noun} object shape.",
-        )
-    return value
-
-
-def _converge_context_from_file(path: str) -> IntentPatchContext:
-    value = _converge_json_file(
-        path,
-        code="CONVERGE_CONTEXT_INVALID",
-        too_large_code="CONVERGE_CONTEXT_TOO_LARGE",
-        noun="convergence context",
-        maximum=INTENT_PATCH_MAX_BYTES,
-    )
-    try:
-        return IntentPatchContext(
-            origin=value.get("origin"),
-            source_kind=value.get("source_kind"),
-            base_source_sha256=value.get("base_source_sha256"),
-            contract_profile=value.get("contract_profile"),
-            evidence_refs=tuple(value.get("evidence_refs", [])),
-            requests=tuple(value.get("requests", [])),
-        )
-    except Exception as exc:
-        raise ConvergeError(
-            "CONVERGE_CONTEXT_INVALID",
-            f"Convergence context is invalid: {exc}",
-            "Regenerate exact proposal context from Review or a verification repair plan.",
-        ) from exc
-
-
-def _converge_result_from_file(path: str) -> VerificationResult:
-    value = _converge_json_file(
-        path,
-        code="CONVERGE_BASELINE_INVALID",
-        too_large_code="CONVERGE_BASELINE_TOO_LARGE",
-        noun="baseline verification result",
-        maximum=CONVERGE_MAX_STATE_BYTES,
-    )
-    try:
-        return VerificationResult.from_json(value)
-    except Exception as exc:
-        raise ConvergeError(
-            "CONVERGE_BASELINE_INVALID",
-            f"Baseline verification result is invalid: {exc}",
-            "Use the exact canonical VerificationResult that produced the repair context.",
-        ) from exc
-
-
-def _converge_cli_session(session: object, *, show_authority: bool = False) -> dict[str, object]:
-    payload = session.to_json(include_approval_token=show_authority)
-    pending = payload.get("pending_preview")
-    if isinstance(pending, dict):
-        pending.pop("intent_approval_token", None)
-        pending["approval"] = {
-            "required": True,
-            "channel": "expert_cli" if show_authority else "viewspec_review",
-        }
-    return payload
-
-
-def _print_converge(
-    session: object,
-    *,
-    summary: str,
-    as_json: bool,
-    show_authority: bool = False,
-) -> None:
-    convergence = _converge_cli_session(session, show_authority=show_authority)
-    payload = {
-        "schema_version": 1,
-        "ok": True,
-        "summary": summary,
-        "convergence": convergence,
-    }
-    if as_json:
-        print(json.dumps(payload, indent=2, sort_keys=True))
-        return
-    print(f"status: {convergence['status']}")
-    print(f"session: {convergence['session_id']}")
-    pending = convergence.get("pending_preview")
-    if isinstance(pending, dict):
-        print(f"preview: {pending['preview_id']}")
-        if show_authority and isinstance(pending.get("approval_token"), str):
-            print(f"approval_token: {pending['approval_token']}")
-
-
-def _converge_start_command(args: argparse.Namespace) -> int:
-    context = _converge_context_from_file(args.context)
-    baseline = _converge_result_from_file(args.baseline_result) if args.baseline_result else None
-    session = start_convergence_session(
-        args.source,
-        context,
-        baseline_result=baseline,
-        state_root=args.state_dir,
-    )
-    _print_converge(
-        session,
-        summary="Started a source-bound convergence session; source was not changed.",
-        as_json=bool(args.json),
-    )
-    return 0
-
-
-def _converge_submit_command(args: argparse.Namespace) -> int:
-    patch = _converge_json_file(
-        args.patch,
-        code="CONVERGE_PATCH_INVALID",
-        too_large_code="CONVERGE_PATCH_TOO_LARGE",
-        noun="convergence IntentPatch",
-        maximum=INTENT_PATCH_MAX_BYTES,
-    )
-    session = submit_convergence_patch(args.source, patch, state_root=args.state_dir)
-    _print_converge(
-        session,
-        summary="Submitted one bounded proposal; source-write authority remains operator-gated.",
-        as_json=bool(args.json),
-        show_authority=bool(args.show_authority),
-    )
-    return 0
-
-
-def _converge_status_command(args: argparse.Namespace) -> int:
-    session = get_convergence_status(args.source, state_root=args.state_dir)
-    _print_converge(
-        session,
-        summary=f"Convergence session status is {session.status}.",
-        as_json=bool(args.json),
-        show_authority=bool(args.show_authority),
-    )
-    return 0
-
-
-def _converge_approve_command(args: argparse.Namespace) -> int:
-    session = approve_convergence_preview(
-        args.source,
-        args.approval,
-        state_root=args.state_dir,
-    )
-    _print_converge(
-        session,
-        summary=f"Explicit approval completed with status {session.status}.",
-        as_json=bool(args.json),
-    )
-    return 0
-
-
-def _converge_reject_command(args: argparse.Namespace) -> int:
-    session = reject_convergence_preview(
-        args.source,
-        args.preview,
-        state_root=args.state_dir,
-    )
-    _print_converge(
-        session,
-        summary="Rejected the exact pending preview; source was not changed.",
-        as_json=bool(args.json),
-    )
+    else:
+        print(str(path))
     return 0
 
 
 def _compile_command(args: argparse.Namespace) -> int:
-    data, source_name, input_path = _read_input(args.input, stdin_format=args.stdin_format)
     input_format = _input_format(args.input, args.stdin_format)
+    if input_format == "json" and args.input != "-" and source_kind(args.input) == "app_bundle":
+        return _compile_app(args)
+    target = args.target or "html-tailwind"
+    if target not in INTENT_COMPILE_TARGETS:
+        raise ValueError(f"--target {target} requires an AppBundle source")
+    data, source_name, input_path = _read_input(args.input, stdin_format=args.stdin_format)
     out_dir = Path(args.out)
 
     if input_format == "html":
-        if args.target != "html-tailwind":
-            if args.target == "react-tailwind-tsx":
+        if target != "html-tailwind":
+            if target == "react-tailwind-tsx":
                 raise LocalToolContractError(
                     "TAILWIND_IMPORT_NOT_SUPPORTED", "Raw HTML import only supports --target html-tailwind"
                 )
@@ -1333,7 +440,7 @@ def _compile_command(args: argparse.Namespace) -> int:
             design=design,
             title=args.title,
             source_name=source_name,
-            command_args=_compile_command_args(args, source_name),
+            command_args=_compile_command_args(args, source_name, target),
         )
         paths = write_html_compile_result(result, out_dir, include_lift=bool(args.lift_json))
         if args.json:
@@ -1345,7 +452,7 @@ def _compile_command(args: argparse.Namespace) -> int:
                     external_refs=result.manifest.get("external_refs", []),
                     paths=paths,
                     next_actions=[f"Run viewspec check {out_dir} --json before using the artifact."],
-                    metadata=_cli_metadata(input_format="html", target=args.target),
+                    metadata=_cli_metadata(input_format="html", target=target),
                 )
             )
         else:
@@ -1361,19 +468,19 @@ def _compile_command(args: argparse.Namespace) -> int:
         return 2
     output_names = (
         ("ViewSpecView.tsx", "provenance_manifest.json", "diagnostics.json")
-        if args.target in {"react-tsx", "react-tailwind-tsx"}
+        if target in {"react-tsx", "react-tailwind-tsx"}
         else ("index.html", "provenance_manifest.json", "diagnostics.json")
     )
     ensure_no_input_overwrite(input_path, out_dir, output_names)
     design = _load_design(args.design, strict=args.strict_design)
     payload = json.loads(data)
     bundle = IntentBundle.from_json(payload)
-    ast = compile(bundle, design=design, strict_design=args.strict_design)
-    if args.target == "react-tsx":
+    ast = compile_intent(bundle, design=design, strict_design=args.strict_design)
+    if target == "react-tsx":
         paths = ReactTsxEmitter().emit(ast, out_dir)
         artifact_path = Path(paths["tsx"])
         emitter = "react_tsx"
-    elif args.target == "react-tailwind-tsx":
+    elif target == "react-tailwind-tsx":
         paths = ReactTailwindTsxEmitter().emit(ast, out_dir)
         artifact_path = Path(paths["tsx"])
         emitter = "react_tailwind_tsx"
@@ -1386,7 +493,7 @@ def _compile_command(args: argparse.Namespace) -> int:
         source_name=source_name,
         raw_source_hash=source_hash(data),
         design=design,
-        command_args=_compile_command_args(args, source_name),
+        command_args=_compile_command_args(args, source_name, target),
         artifact_path=artifact_path,
         emitter=emitter,
     )
@@ -1397,7 +504,7 @@ def _compile_command(args: argparse.Namespace) -> int:
                 "Compiled IntentBundle artifact.",
                 paths=paths,
                 next_actions=[f"Run viewspec check {out_dir} --json before using the artifact."],
-                metadata=_cli_metadata(input_format="json", target=args.target, emitter=emitter),
+                metadata=_cli_metadata(input_format="json", target=target, emitter=emitter),
             )
         )
     else:
@@ -1405,323 +512,17 @@ def _compile_command(args: argparse.Namespace) -> int:
     return 0
 
 
-def _validate_intent_command(args: argparse.Namespace) -> int:
-    compile_check = not args.no_compile_check
-    try:
-        payload = validate_intent_file(args.input, compile_check=compile_check)
-    except FileNotFoundError:
-        payload = intent_error_payload(
-            "INTENT_FILE_NOT_FOUND",
-            f"Intent file not found: {args.input}",
-            "Create viewspec.intent.json or pass the correct intent file path.",
-            compile_check=compile_check,
-        )
-    except OSError as exc:
-        payload = intent_error_payload(
-            "INTENT_FILE_READ_ERROR",
-            f"Could not read intent file {args.input}: {exc}",
-            "Use a readable local IntentBundle JSON file.",
-            compile_check=compile_check,
-        )
-    if args.json:
-        print(json.dumps(payload, indent=2, sort_keys=True))
-    elif payload["ok"]:
-        print(f"ok: compile_check={payload['compile_check']}")
-    else:
-        print(f"failed: compile_check={payload['compile_check']}")
-        for issue in payload["issues"]:
-            print(f"{issue['severity']}: {issue['code']} at {issue['path']}: {issue['message']}")
-        if payload["correction_prompt"]:
-            print("correction_prompt:")
-            print(payload["correction_prompt"])
-    return 0 if payload["ok"] else 2
-
-
-def _print_intent_validation_failure(payload: dict[str, object]) -> None:
-    print("error: IntentBundle validation failed", file=sys.stderr)
-    print(json.dumps(payload, indent=2, sort_keys=True), file=sys.stderr)
-
-
-def _intent_validation_failure_response(validation: dict[str, Any]) -> dict[str, Any]:
-    """The compile --json failure for an invalid IntentBundle, shaped like MCP compile_intent_bundle_file's."""
-    return tool_error_response(
-        "COMPILE_FAILED",
-        "IntentBundle validation failed.",
-        "Regenerate the IntentBundle using correction_prompt, then rerun viewspec compile.",
-        errors=[
-            {
-                "code": issue["code"],
-                "message": issue["message"],
-                "fix": issue.get("suggestion") or "Regenerate the full IntentBundle JSON.",
-            }
-            for issue in validation["issues"]
-        ],
-        data={"validation": validation, "correction_prompt": validation["correction_prompt"]},
-        metadata=_cli_metadata(),
-    )
-
-
-def _lift_command(args: argparse.Namespace) -> int:
-    data, source_name, input_path = _read_input(args.input, stdin_format=args.stdin_format)
-    output_path = Path(args.out)
-    if input_path is not None and input_path.resolve() == output_path.resolve():
-        raise ValueError("Refusing to overwrite input file")
-    result = lift_html(data, source_name=source_name)
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-    atomic_write(output_path, json.dumps(result.to_json(), indent=2, sort_keys=True))
-    if args.json:
-        paths = {"lift": str(output_path)}
-        if input_path is not None:
-            paths["input"] = str(input_path)
-        _print_json(
-            tool_response(
-                True,
-                "Lifted local HTML into semantic signals.",
-                diagnostics=result.diagnostics,
-                paths=paths,
-                data={"lift": result.to_json()},
-                metadata=_cli_metadata(),
-            )
-        )
-    else:
-        print(str(output_path))
-    return 0
-
-
-def _diff_command(args: argparse.Namespace) -> int:
-    left = Path(args.left)
-    right = Path(args.right)
-    try:
-        left_html = left.read_text(encoding="utf-8")
-        right_html = right.read_text(encoding="utf-8")
-    except OSError as exc:
-        if args.json:
-            print(
-                json.dumps(
-                    {
-                        "diff_version": 1,
-                        "basis": "lift_v1",
-                        "ok": False,
-                        "errors": [
-                            {
-                                "code": "DIFF_INPUT_READ_ERROR",
-                                "message": str(exc),
-                                "fix": "Pass two readable local HTML files.",
-                            }
-                        ],
-                    },
-                    indent=2,
-                    sort_keys=True,
-                )
-            )
-            return 2
-        raise
-    result = diff_html(left_html, right_html, left_name=str(left), right_name=str(right))
-    payload = result.to_json()
-    if args.json:
-        print(json.dumps(payload, indent=2, sort_keys=True))
-    else:
-        print(f"topology_similarity: {payload['topology_similarity']}")
-        for key in ("changed_headings", "changed_values", "changed_actions"):
-            section = payload[key]
-            if section["added"] or section["removed"]:
-                print(f"{key}: +{section['added']} -{section['removed']}")
-    return 0
-
-
-def _diff_intent_command(args: argparse.Namespace) -> int:
-    compile_check = not args.no_compile_check
-    try:
-        payload = diff_intent_files(args.left, args.right, compile_check=compile_check)
-    except OSError as exc:
-        payload = intent_diff_error_payload(
-            "DIFF_INPUT_READ_ERROR",
-            str(exc),
-            "Pass two readable local IntentBundle JSON files.",
-        )
-    if args.json:
-        print(json.dumps(payload, indent=2, sort_keys=True))
-    elif payload["ok"]:
-        print(f"topology_similarity: {payload['topology_similarity']}")
-        for section, changes in payload["changes"].items():
-            if changes["added"] or changes["removed"] or changes["changed"]:
-                print(f"{section}: +{changes['added']} -{changes['removed']} changed={changes['changed']}")
-        semantic_lines = intent_semantic_change_lines(payload.get("semantic_changes"))
-        if semantic_lines:
-            print("semantic_changes:")
-            for line in semantic_lines:
-                print(f"  {line}")
-    else:
-        print("failed: IntentBundle diff could not be computed")
-        for error in payload["errors"]:
-            side = f"{error['side']}: " if "side" in error else ""
-            print(f"{side}{error['code']}: {error['message']}")
-    return 0 if payload["ok"] else 2
-
-
-def _init_app_command(args: argparse.Namespace) -> int:
-    binding_mode = {
-        "unbound-v0": APP_BUNDLE_RESOURCE_BINDING,
-        "fixture-readonly-v0": APP_BUNDLE_RESOURCE_BINDING_READONLY,
-    }[args.resource_binding]
-    path = init_app_file(
-        args.out,
-        kind=args.kind,
-        force=args.force,
-        resource_binding=binding_mode,
-        template=args.template,
-    )
-    if args.json:
-        # Report the binding of the bundle that was written, read back the way MCP init_app reads
-        # it: the react-app template writes a fixture_readonly_v0 AppBundle V4 whatever
-        # --resource-binding says, so the argument alone can be wrong.
-        written = validate_app_file(path, compile_check=False)
-        _print_json(
-            tool_response(
-                True,
-                "Wrote starter AppBundle.",
-                paths={"app": str(path)},
-                next_actions=[
-                    "Replace the sample labels and records with real app context.",
-                    f"Run viewspec validate-app {path} --json.",
-                ],
-                metadata=_cli_metadata(
-                    kind=args.kind,
-                    template=args.template,
-                    resource_binding=written.get("resource_binding"),
-                    binding_scope=written.get("binding_scope"),
-                ),
-            )
-        )
-    else:
-        print(str(path))
-    return 0
-
-
-def _validate_app_command(args: argparse.Namespace) -> int:
-    compile_check = not args.no_compile_check
-    try:
-        payload = validate_app_file(args.input, compile_check=compile_check)
-    except FileNotFoundError:
-        payload = {
-            "schema_version": 1,
-            "ok": False,
-            "compile_check": "skipped" if not compile_check else "failed",
-            "resource_binding": "unknown",
-            "summary": None,
-            "route_assertions": None,
-            "raw_bytes": 0,
-            "limits": {},
-            "issues": [
-                {
-                    "severity": "error",
-                    "code": "APP_FILE_NOT_FOUND",
-                    "path": "$",
-                    "message": f"AppBundle file not found: {args.input}",
-                    "suggestion": "Create viewspec.app.json or pass the correct AppBundle file path.",
-                }
-            ],
-        }
-    except OSError as exc:
-        payload = {
-            "schema_version": 1,
-            "ok": False,
-            "compile_check": "skipped" if not compile_check else "failed",
-            "resource_binding": "unknown",
-            "summary": None,
-            "route_assertions": None,
-            "raw_bytes": 0,
-            "limits": {},
-            "issues": [
-                {
-                    "severity": "error",
-                    "code": "APP_FILE_READ_ERROR",
-                    "path": "$",
-                    "message": f"Could not read AppBundle file {args.input}: {exc}",
-                    "suggestion": "Use a readable local AppBundle JSON file.",
-                }
-            ],
-        }
-    if args.json:
-        print(json.dumps(payload, indent=2, sort_keys=True))
-    elif payload["ok"]:
-        summary = payload.get("summary") or {}
-        print(
-            f"ok: compile_check={payload['compile_check']} screens={summary.get('screen_count')} routes={summary.get('route_count')}"
-        )
-    else:
-        print(f"failed: compile_check={payload['compile_check']}")
-        for issue in payload["issues"]:
-            print(f"{issue['severity']}: {issue['code']} at {issue['path']}: {issue['message']}")
-    return 0 if payload["ok"] else 2
-
-
-def _diff_app_command(args: argparse.Namespace) -> int:
-    compile_check = not args.no_compile_check
-    try:
-        payload = diff_app_files(args.left, args.right, compile_check=compile_check)
-    except OSError as exc:
-        payload = {
-            "schema_version": 1,
-            "diff_version": 1,
-            "basis": "app_bundle_v0",
-            "ok": False,
-            "compile_check": "failed",
-            "validation": {"left": None, "right": None},
-            "changes": {
-                "app": {"added": [], "removed": [], "changed": []},
-                "routes": {"added": [], "removed": [], "changed": []},
-                "resources": {"added": [], "removed": [], "changed": []},
-                "screens": {"added": [], "removed": [], "changed": []},
-            },
-            "changed_fields": [],
-            "semantic_changes": {
-                "app_metadata": [],
-                "routes": [],
-                "resources": [],
-                "screens": [],
-                "screen_intents": [],
-            },
-            "semantic_summary": [],
-            "screen_intent_diffs": {},
-            "counts": {
-                "routes": {"left": 0, "right": 0},
-                "resources": {"left": 0, "right": 0},
-                "screens": {"left": 0, "right": 0},
-            },
-            "topology_similarity": 0.0,
-            "errors": [
-                {
-                    "code": "APP_DIFF_INPUT_READ_ERROR",
-                    "message": str(exc),
-                    "fix": "Pass two readable local AppBundle JSON files.",
-                }
-            ],
-        }
-    if args.json:
-        print(json.dumps(payload, indent=2, sort_keys=True))
-    elif payload["ok"]:
-        print(f"topology_similarity: {payload['topology_similarity']}")
-        for section, changes in payload["changes"].items():
-            if changes["added"] or changes["removed"] or changes["changed"]:
-                print(f"{section}: +{changes['added']} -{changes['removed']} ~{changes['changed']}")
-        for line in app_semantic_change_lines(payload.get("semantic_changes")):
-            print(f"  {line}")
-    else:
-        print("failed: AppBundle diff could not be computed")
-        for error in payload["errors"]:
-            print(f"{error['code']}: {error['message']}")
-    return 0 if payload["ok"] else 2
-
-
-def _compile_app_command(args: argparse.Namespace) -> int:
+def _compile_app(args: argparse.Namespace) -> int:
+    target = args.target or APP_SHELL_TARGET
+    if target not in {APP_SHELL_TARGET, REACT_APP_TARGET}:
+        raise ValueError(f"--target {target} requires an IntentBundle source")
     payload = compile_app(
         args.input,
         out_dir=args.out,
         design_path=args.design,
         strict_design=args.strict_design,
         force=args.force,
-        target=args.target,
+        target=target,
     )
     if args.json:
         print(json.dumps(payload, indent=2, sort_keys=True))
@@ -1739,497 +540,36 @@ def _compile_app_command(args: argparse.Namespace) -> int:
     return 0 if payload["ok"] else 2
 
 
-def _init_design_command(args: argparse.Namespace) -> int:
-    path = init_design_file(args.out, force=args.force)
-    if args.json:
-        _print_json(
-            tool_response(
-                True,
-                "Wrote starter DESIGN.md.",
-                paths={"design": str(path)},
-                next_actions=[f"Compile with --design {path}."],
-                metadata=_cli_metadata(),
-            )
-        )
-    else:
-        print(str(path))
-    return 0
+def _print_intent_validation_failure(payload: dict[str, object]) -> None:
+    print("error: IntentBundle validation failed", file=sys.stderr)
+    print(json.dumps(payload, indent=2, sort_keys=True), file=sys.stderr)
 
 
-def _init_intent_command(args: argparse.Namespace) -> int:
-    path = init_intent_file(args.out, kind=args.kind, force=args.force)
-    if args.json:
-        _print_json(
-            tool_response(
-                True,
-                "Wrote starter IntentBundle.",
-                paths={"intent": str(path)},
-                next_actions=[
-                    "Replace sample labels and values with real user intent.",
-                    f"Run viewspec validate-intent {path} --json.",
-                ],
-                metadata=_cli_metadata(kind=args.kind),
-            )
-        )
-    else:
-        print(str(path))
-    return 0
-
-
-def _doctor_command(args: argparse.Namespace) -> int:
-    intent_pipeline = _doctor_intent_pipeline()
-    app_bundle_pipeline = _doctor_app_bundle_pipeline()
-    checks = {
-        "viewspec": True,
-        "version": __version__,
-        "pyyaml": importlib.util.find_spec("yaml") is not None,
-        "cli": callable(main),
-        "intent_first_commands": {
-            "init_intent": True,
-            "validate_intent": True,
-            "diff_intent": True,
-            "init_app": True,
-            "validate_app": True,
-            "diff_app": True,
-            "compile_app": True,
-            "prove_app": True,
-            "compile": True,
-            "check": True,
-            "prove": True,
-            "studio": True,
-            "studio_create": True,
-            "studio_accept": True,
-            "studio_share_prepare": True,
-            "review": True,
-            "review_poll": True,
-            "review_end": True,
-            "review_status": True,
-            "patch_targets": True,
-            "patch_preview": True,
-            "patch_apply": True,
-            "check_agent_assets": True,
-            "init_design": True,
-            "export_agent_assets": True,
-        },
-        "intent_pipeline": intent_pipeline,
-        "app_bundle_pipeline": app_bundle_pipeline,
-        "local_network_policy": (
-            "no network calls for studio by default or for studio-create/studio-accept/studio-share-prepare/validate-intent/validate-app/"
-            "compile-app/compile/lift/diff/diff-intent/diff-app/check/prove/prove-app/patch-targets/"
-            "patch-preview/patch-apply/check-agent-assets/init-intent/init-app/init-design/"
-            "export-agent-assets; studio --share explicitly enables the canary-gated private-review service, and explicit "
-            "verification install flags retain their documented behavior"
-        ),
-    }
-    if args.agents:
-        checks.update(
+def _intent_validation_failure_response(validation: dict[str, Any]) -> dict[str, Any]:
+    """The compile --json failure for an invalid IntentBundle."""
+    return tool_error_response(
+        "COMPILE_FAILED",
+        "IntentBundle validation failed.",
+        "Regenerate the IntentBundle using correction_prompt, then rerun viewspec compile.",
+        errors=[
             {
-                "agent_instruction_templates": True,
-                "agent_contract_assets": agent_asset_readiness(),
-                "local_agent_assets": _doctor_local_agent_assets(Path(".viewspec")),
-                "published_agent_assets": _doctor_published_agent_assets(Path("demos")),
-                "mcp_dependency": mcp_dependency_available(),
-                "mcp_install_hint": MCP_INSTALL_HINT,
-                "path_policy": "cwd containment by default",
+                "code": issue["code"],
+                "message": issue["message"],
+                "fix": issue.get("suggestion") or "Regenerate the full IntentBundle JSON.",
             }
-        )
-    if bool(getattr(args, "freerange", False)):
-        from viewspec.app_freerange import freerange_readiness
-
-        checks["freerange"] = freerange_readiness()
-    ok = _doctor_checks_ok(checks)
-    if args.json:
-        _print_json(
-            tool_response(
-                ok,
-                "Local ViewSpec SDK is ready." if ok else "Local ViewSpec SDK readiness checks failed.",
-                errors=_doctor_errors(checks),
-                next_actions=[] if ok else ["Fix the failing checks listed in errors, then rerun viewspec doctor."],
-                data={"checks": checks},
-                metadata=_cli_metadata(),
-            )
-        )
-    else:
-        print(json.dumps({"ok": ok, "checks": checks}, indent=2, sort_keys=True))
-    return 0 if ok else 2
-
-
-def _doctor_intent_pipeline() -> dict[str, object]:
-    try:
-        bundle = starter_intent_bundle("dashboard")
-        text = json.dumps(bundle.to_json(), sort_keys=True)
-        validation = validate_intent_text(text, compile_check=True)
-        if not validation["ok"]:
-            return {
-                "ok": False,
-                "validate_intent": False,
-                "compile_check": validation["compile_check"],
-                "diff_intent": False,
-                "aesthetic_profile_diff": False,
-                "message": "starter IntentBundle failed validation",
-            }
-        diff = diff_intent_text(text, text, compile_check=False)
-        profile_diff = _doctor_profile_diff_smoke()
-        aesthetic_profile_diff = _doctor_aesthetic_profile_diff_smoke(profile_diff)
-        semantic_summary = _doctor_semantic_summary_smoke(profile_diff)
-        ast = compile(bundle)
-        return {
-            "ok": bool(diff["ok"] and aesthetic_profile_diff and semantic_summary["ok"] and ast.result.root.root.id),
-            "validate_intent": True,
-            "compile_check": validation["compile_check"],
-            "diff_intent": bool(diff["ok"]),
-            "aesthetic_profile_diff": aesthetic_profile_diff,
-            "semantic_summary": semantic_summary,
-            "reference_compile": bool(ast.result.root.root.id),
-        }
-    except Exception as exc:
-        return {
-            "ok": False,
-            "validate_intent": False,
-            "compile_check": "failed",
-            "diff_intent": False,
-            "aesthetic_profile_diff": False,
-            "semantic_summary": {"ok": False, "helper": "intent_semantic_change_lines", "message": str(exc)},
-            "reference_compile": False,
-            "message": str(exc),
-        }
-
-
-def _doctor_app_bundle_pipeline() -> dict[str, object]:
-    try:
-        bundle = starter_app_bundle("internal_tool")
-        text = json.dumps(bundle, sort_keys=True)
-        validation = validate_app_text(text, compile_check=True)
-        bound_bundle = starter_app_bundle("internal_tool", resource_binding=APP_BUNDLE_RESOURCE_BINDING_READONLY)
-        bound_validation = validate_app_text(json.dumps(bound_bundle, sort_keys=True), compile_check=True)
-        if not validation["ok"]:
-            return {
-                "ok": False,
-                "validate_app": False,
-                "compile_check": validation["compile_check"],
-                "diff_app": False,
-                "message": "starter AppBundle failed validation",
-            }
-        diff = diff_app_text(text, text, compile_check=False)
-        semantic_summary = app_semantic_change_lines(diff.get("semantic_changes"))
-        return {
-            "ok": bool(diff["ok"] and semantic_summary == [] and bound_validation["ok"]),
-            # String, not bool: node absence must NOT hard-fail doctor (V1/V2 and all IntentBundle
-            # flows are Python-only). Node is required only for V3 interactive_state conformance.
-            "node_available": "yes" if shutil.which("node") is not None else "no",
-            "node_requirement": "Node.js (>=18) is required only for V3/V4 interactive_state reducer conformance; V1/V2 are Python-only",
-            "validate_app": True,
-            "validate_bound_app": bool(bound_validation["ok"]),
-            "compile_check": validation["compile_check"],
-            "bound_compile_check": bound_validation["compile_check"],
-            "diff_app": bool(diff["ok"]),
-            "compile_app": True,
-            "static_shell_target": APP_SHELL_TARGET,
-            "route_navigation": "static_shell_v0",
-            "semantic_summary": {
-                "ok": semantic_summary == [],
-                "semantic_changes_key": "semantic_changes",
-                "mcp_result_key": "semantic_summary",
-                "python_helper": "app_semantic_change_lines",
-                "semantic_change_count": len(semantic_summary),
-                "summary_lines": semantic_summary,
-            },
-            "resource_binding": validation["resource_binding"],
-            "fixture_readonly_resource_binding": bound_validation["resource_binding"],
-            "binding_scope": bound_validation.get("binding_scope"),
-            "binding_assertion_count": (
-                bound_validation.get("resource_binding_validation", {}).get("assertion_count")
-                if isinstance(bound_validation.get("resource_binding_validation"), dict)
-                else 0
-            ),
-            "route_assertions": validation["route_assertions"],
-            "screen_count": validation["summary"]["screen_count"] if isinstance(validation.get("summary"), dict) else 0,
-        }
-    except Exception as exc:
-        return {
-            "ok": False,
-            "validate_app": False,
-            "compile_check": "failed",
-            "diff_app": False,
-            "semantic_summary": {"ok": False, "helper": "app_semantic_change_lines", "message": str(exc)},
-            "message": str(exc),
-        }
-
-
-def _doctor_aesthetic_profile_diff_smoke(profile_diff: DoctorProfileDiff | None = None) -> bool:
-    diff, _view_id, expected_profile_change, expected_style_change = profile_diff or _doctor_profile_diff_smoke()
-    semantic_changes = diff.get("semantic_changes", {})
-    profile_changes = semantic_changes.get("aesthetic_profiles")
-    profile_change = profile_changes[0] if isinstance(profile_changes, list) and len(profile_changes) == 1 else {}
-    impact_delta = profile_change.get("impact_delta") if isinstance(profile_change, dict) else {}
-    layout_delta = impact_delta.get("layout") if isinstance(impact_delta, dict) else None
-    style_delta = impact_delta.get("style") if isinstance(impact_delta, dict) else {}
-    return bool(
-        diff.get("ok")
-        and isinstance(profile_change, dict)
-        and all(profile_change.get(key) == value for key, value in expected_profile_change.items())
-        and style_delta.get("declaration_count") == {"left": 28, "right": 30}
-        and {"role": "metric_card", "change": "added", "right": {"span_columns": 2, "layout_emphasis": "featured"}}
-        in (layout_delta if isinstance(layout_delta, list) else [])
-        and expected_style_change in semantic_changes.get("styles", [])
+            for issue in validation["issues"]
+        ],
+        data={"validation": validation, "correction_prompt": validation["correction_prompt"]},
+        metadata=_cli_metadata(),
     )
-
-
-def _doctor_semantic_summary_smoke(profile_diff: DoctorProfileDiff | None = None) -> dict[str, object]:
-    try:
-        diff, view_id, _expected_profile_change, _expected_style_change = profile_diff or _doctor_profile_diff_smoke()
-        summary = intent_semantic_change_lines(diff.get("semantic_changes"))
-        expected_summary = [
-            (
-                "aesthetic_profiles: profile_changed aesthetic.calm_ops -> aesthetic.executive_review "
-                f"target=view:{view_id} style_delta=declarations 28 -> 30 "
-                "layout_delta=metric_card added layout_emphasis=featured span_columns=2; "
-                "metric_grid columns=2 -> columns=3"
-            ),
-            "styles.aesthetic_profile: token_changed aesthetic.calm_ops -> aesthetic.executive_review",
-        ]
-        return {
-            "ok": bool(diff.get("ok") and summary == expected_summary),
-            "semantic_changes_key": "semantic_changes",
-            "mcp_result_key": "semantic_summary",
-            "python_helper": "intent_semantic_change_lines",
-            "semantic_change_count": len(summary),
-            "summary_lines": summary,
-        }
-    except Exception as exc:
-        return {
-            "ok": False,
-            "semantic_changes_key": "semantic_changes",
-            "mcp_result_key": "semantic_summary",
-            "python_helper": "intent_semantic_change_lines",
-            "semantic_change_count": 0,
-            "summary_lines": [],
-            "message": str(exc),
-        }
-
-
-def _doctor_profile_diff_smoke() -> DoctorProfileDiff:
-    left = starter_intent_bundle("dashboard").to_json()
-    right = starter_intent_bundle("dashboard").to_json()
-    view_id = left["view_spec"]["id"]
-    left["view_spec"]["styles"] = [
-        {"id": "aesthetic_profile", "target": f"view:{view_id}", "token": "aesthetic.calm_ops"}
-    ]
-    right["view_spec"]["styles"] = [
-        {"id": "aesthetic_profile", "target": f"view:{view_id}", "token": "aesthetic.executive_review"}
-    ]
-    diff = diff_intent_text(
-        json.dumps(left, sort_keys=True),
-        json.dumps(right, sort_keys=True),
-        compile_check=False,
-    )
-    expected_profile_change = {
-        "change": "profile_changed",
-        "left": "aesthetic.calm_ops",
-        "right": "aesthetic.executive_review",
-        "left_style_id": "aesthetic_profile",
-        "right_style_id": "aesthetic_profile",
-        "left_target": f"view:{view_id}",
-        "right_target": f"view:{view_id}",
-    }
-    expected_style_change = {
-        "id": "aesthetic_profile",
-        "change": "token_changed",
-        "left": "aesthetic.calm_ops",
-        "right": "aesthetic.executive_review",
-    }
-    return diff, view_id, expected_profile_change, expected_style_change
-
-
-def _doctor_checks_ok(value: object) -> bool:
-    if isinstance(value, bool):
-        return value
-    if isinstance(value, dict):
-        return all(_doctor_checks_ok(item) for item in value.values())
-    if isinstance(value, list):
-        return all(_doctor_checks_ok(item) for item in value)
-    return True
-
-
-def _doctor_errors(checks: Mapping[str, object]) -> list[dict[str, str]]:
-    """The doctor --json errors: one DOCTOR_CHECK_FAILED per failing check, with the fix that repairs
-    it, followed by the Freerange probe's own coded errors when that probe failed."""
-    errors = [
-        {
-            "code": "DOCTOR_CHECK_FAILED",
-            "message": f"Readiness check failed: {name}.",
-            "fix": _doctor_check_fix(name, checks),
-        }
-        for name in _doctor_failing_checks(checks)
-    ]
-    errors.extend(error for error in _doctor_freerange_errors(checks.get("freerange")) if error not in errors)
-    return errors
-
-
-def _doctor_check_fix(name: str, checks: Mapping[str, object]) -> str:
-    if name == "mcp_dependency":
-        return MCP_INSTALL_HINT
-    if name.startswith("local_agent_assets."):
-        return _doctor_agent_asset_fix(".viewspec")
-    if name.startswith("published_agent_assets."):
-        return _doctor_agent_asset_fix("demos")
-    if name.startswith("freerange."):
-        # Bun is not a viewspec dependency, so reinstalling viewspec never fixes this probe; the
-        # probe's own coded error says what to change.
-        fixes = dict.fromkeys(error["fix"] for error in _doctor_freerange_errors(checks.get("freerange")))
-        return " ".join(fixes) or (
-            "Install or upgrade Bun explicitly (ViewSpec never installs it), then rerun viewspec doctor --freerange."
-        )
-    return _JSON_FAILURE_DEFAULTS["doctor"].fix
-
-
-def _doctor_agent_asset_fix(directory: str) -> str:
-    # The assets fail the check when they differ from this SDK's contract in either direction, so a
-    # forced re-export is right only when the installed SDK is the newer one.
-    return (
-        f"Re-export the agent assets with viewspec export-agent-assets --out {directory} --force, or upgrade "
-        f"viewspec instead if a newer ViewSpec release exported {directory}; then rerun viewspec doctor --agents."
-    )
-
-
-def _doctor_freerange_errors(report: object) -> list[dict[str, str]]:
-    """The coded {code, message, fix} errors that a failed Freerange readiness report carries."""
-    if not isinstance(report, dict) or report.get("ok") is not False:
-        return []
-    items = report.get("errors")
-    return [
-        {"code": item["code"], "message": item["message"], "fix": item["fix"]}
-        for item in (items if isinstance(items, list) else [])
-        if isinstance(item, dict)
-        and all(isinstance(item.get(key), str) and item[key] for key in ("code", "message", "fix"))
-    ]
-
-
-def _doctor_failing_checks(value: object, prefix: str = "") -> list[str]:
-    """Dotted paths of the `false` leaves that make `_doctor_checks_ok` fail, in sorted key order."""
-    if isinstance(value, bool):
-        return [] if value else [prefix or "checks"]
-    if isinstance(value, dict):
-        return [
-            path
-            for key in sorted(value, key=str)
-            for path in _doctor_failing_checks(value[key], f"{prefix}.{key}" if prefix else str(key))
-        ]
-    if isinstance(value, list):
-        return [
-            path
-            for index, item in enumerate(value)
-            for path in _doctor_failing_checks(item, f"{prefix}[{index}]" if prefix else f"[{index}]")
-        ]
-    return []
-
-
-def _prove_command(args: argparse.Namespace) -> int:
-    result = prove(
-        intent_path=args.intent,
-        out_dir=args.out,
-        design_path=args.design,
-        strict_design=bool(args.strict_design),
-        target=args.target,
-        kind=args.kind,
-        install=bool(args.install),
-        force=bool(args.force),
-        report_out=args.report_out,
-    )
-    if args.json:
-        print(json.dumps(result, indent=2, sort_keys=True))
-    else:
-        print("ok" if result["ok"] else "failed")
-        print(f"proof_level: {result['proof_level']}")
-        for key, value in result.get("paths", {}).items():
-            if value:
-                print(f"{key}: {value}")
-        for error in result["errors"]:
-            print(f"error: {error['code']}: {error['message']}")
-        for line in _check_manifest_summary_lines(result.get("manifest_summary")):
-            print(line)
-        for line in _host_report_summary_lines(result.get("host_report")):
-            print(line)
-    if result["ok"]:
-        return 0
-    if any(error.get("code") == "PROVE_INTERNAL_ERROR" for error in result["errors"]):
-        return 1
-    return 2
-
-
-def _prove_app_command(args: argparse.Namespace) -> int:
-    result = prove_app(
-        app_path=args.app,
-        out_dir=args.out,
-        design_path=args.design,
-        strict_design=bool(args.strict_design),
-        force=bool(args.force),
-        report_out=args.report_out,
-        with_shell=bool(args.with_shell),
-        target=args.target,
-        install=bool(args.install),
-        freerange=bool(getattr(args, "freerange", False)),
-        pretext=bool(getattr(args, "pretext", False)),
-    )
-    if args.json:
-        print(json.dumps(result, indent=2, sort_keys=True))
-    else:
-        print("ok" if result["ok"] else "failed")
-        print(f"proof_level: {result['proof_level']}")
-        print(f"target: {result['target']}")
-        app = result.get("app") or {}
-        if isinstance(app, dict):
-            print(f"app: {app.get('id')} screens={app.get('screen_count')} routes={app.get('route_count')}")
-        for key, value in result.get("paths", {}).items():
-            if value:
-                print(f"{key}: {value}")
-        for error in result["errors"]:
-            print(f"error: {error['code']}: {error['message']}")
-        static_analysis = result.get("static_analysis")
-        if isinstance(static_analysis, dict):
-            coverage = static_analysis.get("coverage") if isinstance(static_analysis.get("coverage"), dict) else {}
-            print(
-                "static_analysis: "
-                f"{static_analysis.get('status')} "
-                f"coverage={coverage.get('fully_analyzed', coverage.get('analyzed', 0))}/{coverage.get('required', 0)}"
-            )
-        text_layout = result.get("text_layout")
-        if isinstance(text_layout, dict):
-            coverage = text_layout.get("coverage") if isinstance(text_layout.get("coverage"), dict) else {}
-            print(
-                "text_layout: "
-                f"{text_layout.get('status')} "
-                f"coverage={coverage.get('measured', 0)}/{coverage.get('required', 0)}"
-            )
-    if result["ok"]:
-        return 0
-    if any(error.get("code") in {"APP_PROOF_INTERNAL_ERROR", "APP_SHELL_INTERNAL_ERROR"} for error in result["errors"]):
-        return 1
-    return 2
-
-
-def _doctor_local_agent_assets(path: Path) -> dict[str, object]:
-    resolved = path.resolve()
-    if not resolved.exists():
-        return {"ok": True, "status": "not_found", "path": str(resolved)}
-    result = check_agent_assets(resolved)
-    return {"status": "present", **result}
-
-
-def _doctor_published_agent_assets(path: Path) -> dict[str, object]:
-    resolved = path.resolve()
-    manifest = resolved / "agent-assets.json"
-    if not manifest.exists():
-        return {"ok": True, "status": "not_found", "path": str(resolved)}
-    result = check_agent_assets(resolved)
-    return {"status": "present", **result}
 
 
 def _check_command(args: argparse.Namespace) -> int:
-    result = check_artifact_dir(Path(args.artifact_dir))
+    path = Path(args.path)
+    result = check(path, compile_check=not args.no_compile_check)
     if args.json:
         print(json.dumps(result, indent=2, sort_keys=True))
-    else:
+    elif path.is_dir():
         print("ok" if result["ok"] else "failed")
         for error in result["errors"]:
             print(f"error: {error}")
@@ -2237,6 +577,19 @@ def _check_command(args: argparse.Namespace) -> int:
             print(f"warning: {warning}")
         for line in _check_manifest_summary_lines(result.get("manifest_summary")):
             print(line)
+    elif result["ok"]:
+        summary = result.get("summary") or {}
+        counts = (
+            f" screens={summary['screen_count']} routes={summary['route_count']}" if "route_count" in summary else ""
+        )
+        print(f"ok: compile_check={result['compile_check']}{counts}")
+    else:
+        print(f"failed: compile_check={result['compile_check']}")
+        for issue in result["issues"]:
+            print(f"{issue['severity']}: {issue['code']} at {issue['path']}: {issue['message']}")
+        if result.get("correction_prompt"):
+            print("correction_prompt:")
+            print(result["correction_prompt"])
     return 0 if result["ok"] else 2
 
 
@@ -2299,79 +652,105 @@ def _cli_summary_value(value: object) -> str:
     return str(value)
 
 
-def _verify_host_command(args: argparse.Namespace) -> int:
-    compile_mode = args.intent is not None or args.out is not None
-    if compile_mode:
-        if args.artifact_dir is not None or args.intent is None or args.out is None:
-            raise ValueError("verify-host compile mode requires --intent and --out, with no positional artifact_dir")
-        result = verify_host_intent_file(
-            args.intent,
-            args.out,
-            design_path=args.design,
-            strict_design=bool(args.strict_design),
-            target=args.target,
-            install=bool(args.install),
-            report_out=args.report_out,
-        )
-    else:
-        if args.artifact_dir is None:
-            raise ValueError("verify-host requires ARTIFACT_DIR or --intent with --out")
-        if args.design or args.strict_design:
-            raise ValueError("--design and --strict-design are only valid with --intent compile mode")
-        result = verify_host_artifact_dir(
-            args.artifact_dir,
-            target=args.target,
-            install=bool(args.install),
-            report_out=args.report_out,
-        )
+def _prove_command(args: argparse.Namespace) -> int:
+    source = args.source
+    is_artifact = source is not None and Path(source).is_dir()
+    is_app = not is_artifact and source is not None and source_kind(source) == "app_bundle"
+    if not is_artifact and args.plan:
+        raise ValueError("--plan requires a compiled artifact directory")
+    plan = None
+    if args.plan:
+        plan = VerificationPlan.from_json(json.loads(Path(args.plan).read_text(encoding="utf-8")))
+    result = prove_source(
+        source,
+        out_dir=args.out,
+        design_path=args.design,
+        strict_design=bool(args.strict_design),
+        target=args.target,
+        kind=args.kind,
+        install=bool(args.install),
+        force=bool(args.force),
+        report_out=args.report_out,
+        with_shell=bool(args.with_shell),
+        freerange=bool(args.freerange),
+        pretext=bool(args.pretext),
+        plan=plan,
+    )
     if args.json:
         print(json.dumps(result, indent=2, sort_keys=True))
-    else:
+    if is_artifact:
+        return _finish_artifact_proof(result, quiet=args.json)
+    if is_app:
+        return _finish_app_proof(result, quiet=args.json)
+    return _finish_intent_proof(result, quiet=args.json)
+
+
+def _finish_intent_proof(result: dict[str, Any], *, quiet: bool) -> int:
+    if not quiet:
         print("ok" if result["ok"] else "failed")
+        print(f"proof_level: {result['proof_level']}")
+        for key, value in result.get("paths", {}).items():
+            if value:
+                print(f"{key}: {value}")
         for error in result["errors"]:
             print(f"error: {error['code']}: {error['message']}")
         for line in _check_manifest_summary_lines(result.get("manifest_summary")):
             print(line)
-        for line in _host_assertion_summary_lines(result.get("assertions"), result.get("assertion_requirements")):
+        for line in _host_report_summary_lines(result.get("host_report")):
             print(line)
-    return 0 if result["ok"] else 2
+    if result["ok"]:
+        return 0
+    if any(error.get("code") == "PROVE_INTERNAL_ERROR" for error in result["errors"]):
+        return 1
+    return 2
 
 
-def _verify_command(args: argparse.Namespace) -> int:
-    plan = VerificationPlan.default()
-    if args.plan:
-        plan = VerificationPlan.from_json(json.loads(Path(args.plan).read_text(encoding="utf-8")))
-    result = verify_local_artifact(
-        args.artifact_dir,
-        plan=plan,
-        evidence_dir=args.evidence_out,
-        report_out=args.report_out,
-        install=bool(args.install),
-    )
-    from viewspec.repair import VerificationRepairPlan
+def _finish_app_proof(result: dict[str, Any], *, quiet: bool) -> int:
+    if not quiet:
+        print("ok" if result["ok"] else "failed")
+        print(f"proof_level: {result['proof_level']}")
+        print(f"target: {result['target']}")
+        app = result.get("app") or {}
+        if isinstance(app, dict):
+            print(f"app: {app.get('id')} screens={app.get('screen_count')} routes={app.get('route_count')}")
+        for key, value in result.get("paths", {}).items():
+            if value:
+                print(f"{key}: {value}")
+        for error in result["errors"]:
+            print(f"error: {error['code']}: {error['message']}")
+        static_analysis = result.get("static_analysis")
+        if isinstance(static_analysis, dict):
+            coverage = static_analysis.get("coverage") if isinstance(static_analysis.get("coverage"), dict) else {}
+            print(
+                "static_analysis: "
+                f"{static_analysis.get('status')} "
+                f"coverage={coverage.get('fully_analyzed', coverage.get('analyzed', 0))}/{coverage.get('required', 0)}"
+            )
+        text_layout = result.get("text_layout")
+        if isinstance(text_layout, dict):
+            coverage = text_layout.get("coverage") if isinstance(text_layout.get("coverage"), dict) else {}
+            print(
+                "text_layout: "
+                f"{text_layout.get('status')} "
+                f"coverage={coverage.get('measured', 0)}/{coverage.get('required', 0)}"
+            )
+    if result["ok"]:
+        return 0
+    if any(error.get("code") in {"APP_PROOF_INTERNAL_ERROR", "APP_SHELL_INTERNAL_ERROR"} for error in result["errors"]):
+        return 1
+    return 2
 
-    repair = VerificationRepairPlan.from_result(result)
-    repair_path = Path(args.repair_out) if args.repair_out else Path(args.report_out).with_name("repair.json")
-    atomic_write(
-        repair_path,
-        json.dumps(repair.to_json(), indent=2, sort_keys=True) + "\n",
-    )
-    payload = {**result.to_json(), "repair_plan": repair.to_json()}
-    if args.json:
-        print(json.dumps(payload, indent=2, sort_keys=True))
-    else:
-        print(result.status)
-        print(f"verification_id: {result.verification_id}")
-        print(f"evidence_files: {len(result.evidence)}")
-        print(f"next: {repair.disposition}")
-        for diagnostic in result.diagnostics:
-            location = f" [{diagnostic.viewport}]" if diagnostic.viewport else ""
-            source = f" {diagnostic.source_ref}" if diagnostic.source_ref else ""
-            print(f"{diagnostic.severity}: {diagnostic.code}{location}{source}: {diagnostic.message}")
-        for directive in repair.directives:
-            source = f" {directive.source_path.to_text()}" if directive.source_path else ""
-            print(f"repair: {directive.repair_id}{source}: {directive.instruction}")
-    return {"conformant": 0, "nonconformant": 1, "indeterminate": 2}[result.status]
+
+def _finish_artifact_proof(result: dict[str, Any], *, quiet: bool) -> int:
+    if not quiet:
+        print(result["status"])
+        print(f"verification_id: {result['verification_id']}")
+        print(f"evidence_files: {len(result['evidence'])}")
+        for diagnostic in result["diagnostics"]:
+            location = f" [{diagnostic['viewport']}]" if diagnostic.get("viewport") else ""
+            origin = f" {diagnostic['source_ref']}" if diagnostic.get("source_ref") else ""
+            print(f"{diagnostic['severity']}: {diagnostic['code']}{location}{origin}: {diagnostic['message']}")
+    return {"conformant": 0, "nonconformant": 1, "indeterminate": 2}[result["status"]]
 
 
 def _host_assertion_summary_lines(assertions: object, requirements: object = None) -> list[str]:
@@ -2410,52 +789,18 @@ def _host_report_summary_lines(host_report: object) -> list[str]:
     return lines
 
 
-def _init_agent_command(args: argparse.Namespace) -> int:
-    result = init_agent_instructions(args.root, args.target, dry_run=args.dry_run)
-    if args.json:
-        if not result["changes"]:
-            summary = "Managed agent instructions are already current."
-        elif args.dry_run:
-            summary = "Planned managed agent instruction changes; nothing was written."
+def _studio_command(args: argparse.Namespace) -> int:
+    def announce(studio: Studio) -> None:
+        if args.json:
+            print(json.dumps({"ok": True, "url": studio.url, "source": str(studio.source), "errors": studio.errors}))
         else:
-            summary = "Updated managed agent instructions."
-        _print_json(
-            tool_response(
-                True,
-                summary,
-                paths={"root": result["root"]},
-                # The same keys the default output prints, so --json is a superset of it.
-                data={"target": result["target"], "root": result["root"], "changes": result["changes"]},
-                metadata=_cli_metadata(dry_run=bool(args.dry_run)),
-            )
-        )
-    else:
-        print(json.dumps(result, indent=2, sort_keys=True))
+            print(f"ViewSpec Studio: {studio.url}")
+            for error in studio.errors:
+                print(f"error: {error}", file=sys.stderr)
+        sys.stdout.flush()
+
+    open_studio(args.source, design=args.design, port=args.port, no_open=args.no_open, on_ready=announce)
     return 0
-
-
-def _export_agent_assets_command(args: argparse.Namespace) -> int:
-    result = export_agent_assets(args.out, force=args.force, dry_run=args.dry_run)
-    if args.json:
-        _print_json(
-            agent_asset_export_response(
-                Path(result["out"]), result, dry_run=bool(args.dry_run), metadata=_cli_metadata()
-            )
-        )
-    else:
-        print(json.dumps(result, indent=2, sort_keys=True))
-    return 0
-
-
-def _check_agent_assets_command(args: argparse.Namespace) -> int:
-    result = check_agent_assets(args.asset_dir)
-    if args.json:
-        print(json.dumps(result, indent=2, sort_keys=True))
-    else:
-        print("ok" if result["ok"] else "failed")
-        for error in result["errors"]:
-            print(f"error: {error}")
-    return 0 if result["ok"] else 2
 
 
 def _mcp_command(args: argparse.Namespace) -> int:
@@ -2537,14 +882,14 @@ def _input_format(path_arg: str, stdin_format: str | None) -> str:
     raise ValueError("Input must be .html, .htm, .json, or '-' with --stdin-format")
 
 
-def _compile_command_args(args: argparse.Namespace, source_name: str | None) -> list[str]:
+def _compile_command_args(args: argparse.Namespace, source_name: str | None, target: str) -> list[str]:
     command = ["viewspec", "compile", source_name or "<stdin>"]
     if args.design:
         command.extend(["--design", Path(args.design).name])
     if args.strict_design:
         command.append("--strict-design")
-    if args.target != "html-tailwind":
-        command.extend(["--target", args.target])
+    if target != "html-tailwind":
+        command.extend(["--target", target])
     command.extend(["--out", "<out>"])
     if args.stdin_format:
         command.extend(["--stdin-format", args.stdin_format])

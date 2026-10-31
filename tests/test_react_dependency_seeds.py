@@ -13,7 +13,7 @@ ROOT = Path(__file__).resolve().parents[1]
 SEEDS = (
     "src/viewspec/host_verify_template",
     "tests/react-tailwind-host",
-    "conformance/agent-ui-v2/react-dependencies",
+    "tests/react-app-dependencies",
 )
 
 
@@ -58,7 +58,7 @@ def test_dependency_security_floors_cannot_regress():
     # PostCSS includes the symlink-aware source-map boundary; Nano ID includes
     # both negative-size and zero-size termination fixes. npm audit remains the
     # independent, current advisory gate rather than this static version floor.
-    # vite 8.3.5 replaced 8.0.16, which is in the range of HIGH advisories up to 8.1.5 (audit P-2).
+    # vite 8.3.5 replaced 8.0.16, which is in the range of HIGH advisories up to 8.1.5.
     floors = {"postcss": (8, 5, 26), "nanoid": (3, 3, 18), "vite": (8, 3, 5)}
     for seed, _, lock in _seeds():
         for name, minimum in floors.items():
@@ -112,7 +112,7 @@ def test_playwright_pins_outside_the_seeds_follow_the_seeds():
     workflow_pins = [env["PLAYWRIGHT_VERSION"] for env in environments if "PLAYWRIGHT_VERSION" in env]
     assert workflow_pins == [version]
 
-    for relative in ("scripts/check_studio_release.py", "docs/release-checklist.md"):
+    for relative in ("docs/release-checklist.md",):
         text = (ROOT / relative).read_text(encoding="utf-8")
         pins = re.findall(r"@playwright/test@([^\s\"'`]+)", text)
         assert pins, f"{relative} no longer pins @playwright/test"

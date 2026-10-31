@@ -4,21 +4,23 @@ import { readFile, stat } from 'node:fs/promises'
 
 const pages = [
   ['demos/index.html', 'https://viewspec.dev/'],
-  ['demos/cross-platform-dashboard/index.html', 'https://viewspec.dev/cross-platform-dashboard/'],
   ['demos/appbundle-state-ir/index.html', 'https://viewspec.dev/appbundle-state-ir/'],
   ['demos/custom-motifs/index.html', 'https://viewspec.dev/custom-motifs/'],
-  ['demos/interactive-compose/index.html', 'https://viewspec.dev/interactive-compose/'],
   ['demos/stateful-collections/index.html', 'https://viewspec.dev/stateful-collections/'],
   ['demos/motif-switcher/index.html', 'https://viewspec.dev/motif-switcher/'],
   ['demos/provenance-inspector/index.html', 'https://viewspec.dev/provenance-inspector/'],
   ['demos/live-builder/index.html', 'https://viewspec.dev/live-builder/'],
   ['demos/invariants/index.html', 'https://viewspec.dev/invariants/'],
-  ['demos/proof-explorer/index.html', 'https://viewspec.dev/proof-explorer/'],
   ['demos/proof-bundle/index.html', 'https://viewspec.dev/proof-bundle/'],
   ['demos/fifteen-lines/index.html', 'https://viewspec.dev/fifteen-lines/'],
   ['demos/style-derivation/index.html', 'https://viewspec.dev/style-derivation/'],
   ['demos/style-range/index.html', 'https://viewspec.dev/style-range/'],
 ]
+
+// Retired paid and hosted surfaces. The character classes keep this guard from matching a
+// repository-wide search for the same terms.
+const RETIRED_SURFACES =
+  /buy\.stripe|api\.viewspec|viewspec-api\.fly|[$]149|149\/mo|proof[-]explorer|openapi\.json|signed\s+receipt|patch[-]preview|converge[-]|validate[-]intent|prove[-]app|compile[-]app|data-config-link/i
 
 function extractJsonLd(html) {
   return [...html.matchAll(/<script type="application\/ld\+json">\s*([\s\S]*?)\s*<\/script>/g)].map((match) =>
@@ -50,7 +52,7 @@ for (const [file, canonical] of pages) {
   assert.match(html, new RegExp(`<link rel="canonical" href="${canonical.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}">`))
   assert.match(html, /<meta name="robots" content="index,follow,max-snippet:-1,max-image-preview:large">/)
   assert.match(html, /href="https:\/\/viewspec\.dev\/llms\.txt"/)
-  assert.match(html, /href="https:\/\/viewspec\.dev\/openapi\.json"/)
+  assert.doesNotMatch(html, RETIRED_SURFACES, `${file} references a retired surface`)
   assert.doesNotMatch(html, /const btn = e\.target\.closest\('\[data-action-id\]'\)/, `${file} has stale global action runtime`)
   assert.doesNotMatch(html, /console\.log\('Action Dispatched:/, `${file} has debug action logging`)
   assert.doesNotMatch(html, /document\.querySelectorAll\('\[data-binding-id\]'\)/, `${file} has document-wide payload collection`)
@@ -66,9 +68,6 @@ for (const [file, canonical] of pages) {
 
 const home = await readFile('demos/index.html', 'utf8')
 const publicFacts = JSON.parse(await readFile('demos/public-facts.json', 'utf8'))
-const refinementGate = JSON.parse(await readFile('conformance/refinement/gate-status-v1.json', 'utf8'))
-const refinementScorecard = JSON.parse(await readFile('conformance/refinement/scorecard-v2.json', 'utf8'))
-const refinementCorrections = JSON.parse(await readFile('conformance/refinement/correction-proof-v1.json', 'utf8'))
 
 function publicFactDrift(message) {
   assert.fail(`PUBLIC_FACTS_DRIFT: ${message}`)
@@ -86,13 +85,8 @@ function assertPublicEqual(actual, expected, label) {
   if (actual !== expected) publicFactDrift(`${label} expected ${expected}, got ${actual}`)
 }
 
-const proPrice = `$${publicFacts.pricing.pro.price_usd_month}`
-const proCalls = publicFacts.pricing.pro.hosted_compile_calls_per_day.toLocaleString('en-US')
-const freeCalls = String(publicFacts.pricing.free.hosted_compile_calls_per_day)
-
 assertPublicEqual(publicFacts.schema_version, 1, 'public facts schema_version')
 assert.match(publicFacts.sdk_version, /^\d+\.\d+\.\d+(?:[a-z]+\d+)?$/, 'public facts sdk_version shape')
-assertPublicEqual(publicFacts.canonical_api_url, 'https://api.viewspec.dev/v1/compile', 'public facts canonical_api_url')
 assertPublicEqual(publicFacts.package_url, 'https://pypi.org/project/viewspec/', 'public facts package_url')
 assertPublicEqual(publicFacts.installation.release_channel, 'beta', 'public facts release channel')
 assert.match(publicFacts.sdk_version, /[a-z]+\d+$/, 'beta channel requires a prerelease SDK version')
@@ -106,7 +100,24 @@ assertPublicEqual(
   'python -m pip install viewspec',
   'public facts stable install command'
 )
+assertPublicEqual(publicFacts.license, 'MIT', 'public facts license')
+assertPublicEqual(publicFacts.distribution.cost, 'free', 'public facts cost')
+assertPublicEqual(publicFacts.distribution.hosted_service, false, 'public facts hosted service')
+assertPublicText(publicFacts.distribution.scope, 'no hosted service', 'public facts distribution scope')
+assertPublicText(await readFile('LICENSE', 'utf8'), 'MIT License', 'repository license')
+for (const retiredKey of ['canonical_api_url', 'pricing', 'core_refinement']) {
+  assert(!Object.hasOwn(publicFacts, retiredKey), `public facts must not publish ${retiredKey}`)
+}
+assert.deepEqual(publicFacts.cli_commands, ['init', 'compile', 'check', 'prove', 'studio', 'mcp'], 'public facts CLI commands')
+assert(!Object.hasOwn(publicFacts.studio, 'creation_command'), 'public facts must not publish a Studio creation command')
+assertPublicText(publicFacts.studio.command, 'viewspec studio', 'public facts Studio command')
+assertPublicText(publicFacts.studio.scope, '127.0.0.1', 'public facts Studio scope')
 assertPublicEqual(publicFacts.proof.first_proof_command, 'viewspec prove --out .viewspec-proof', 'public facts first proof command')
+assertPublicEqual(
+  publicFacts.proof.authored_proof_command,
+  'viewspec prove viewspec.intent.json --target react-tailwind-tsx --install --out .viewspec-proof --json',
+  'public facts authored proof command'
+)
 assertPublicEqual(publicFacts.proof.human_summary_file, '.viewspec-proof/PROOF.md', 'public facts proof summary file')
 assertPublicEqual(publicFacts.proof.machine_report_file, '.viewspec-proof/proof_report.json', 'public facts proof report file')
 assertPublicEqual(publicFacts.proof.support_bundle_file, '.viewspec-proof/support_bundle.json', 'public facts proof support bundle file')
@@ -155,76 +166,8 @@ assertPublicText(publicFacts.proof_integrations.pretext.non_claim, 'not general 
 assertPublicText(publicFacts.proof_integrations.pretext.non_claim, 'canvas-rendering proof', 'Pretext canvas non-claim')
 assertPublicText(publicFacts.proof_integrations.composed.command, '--freerange --pretext --json', 'composed proof command')
 assertPublicText(publicFacts.proof_integrations.composed.non_claim, 'does not broaden', 'composed proof non-claim')
-assertPublicEqual(publicFacts.proof_integrations.e2e.status, 'configured', 'proof integrations hosted E2E status')
-assertPublicText(publicFacts.proof_integrations.e2e.scope, 'does not claim a hosted run has completed', 'hosted E2E evidence boundary')
-assertPublicEqual(publicFacts.core_refinement.status, refinementGate.status, 'core refinement gate status')
-assert.match(
-  publicFacts.core_refinement.sdk_version,
-  /^\d+\.\d+\.\d+(?:[a-z]+\d+)?$/,
-  'core refinement evidence SDK version shape'
-)
-assertPublicEqual(
-  refinementGate.same_revision_evidence.browser_corpus.sdk_version,
-  publicFacts.core_refinement.sdk_version,
-  'core refinement gate SDK version'
-)
-assertPublicEqual(
-  refinementScorecard.verification.sdk_version,
-  publicFacts.core_refinement.sdk_version,
-  'core refinement scorecard SDK version'
-)
-assertPublicEqual(publicFacts.core_refinement.evaluated_on, refinementGate.evaluated_on, 'core refinement evaluation date')
-assertPublicEqual(publicFacts.core_refinement.gate_count, refinementGate.gates.length, 'core refinement gate count')
-assert(
-  refinementGate.gates.every((gate) => gate.status === 'passed'),
-  'every checked core refinement gate must pass'
-)
-assertPublicEqual(
-  publicFacts.core_refinement.browser_corpus.case_count,
-  refinementScorecard.verification.case_count,
-  'core refinement corpus case count'
-)
-assertPublicEqual(
-  publicFacts.core_refinement.browser_corpus.conformant_count,
-  refinementScorecard.verification.conformant_count,
-  'core refinement conformant case count'
-)
-assert.deepEqual(
-  publicFacts.core_refinement.browser_corpus.canonical_viewports,
-  refinementScorecard.verification.canonical_viewports,
-  'core refinement canonical viewports'
-)
-assert.deepEqual(
-  publicFacts.core_refinement.product_quality,
-  {
-    first_compile_pass_count: refinementScorecard.summary.first_compile_pass_count,
-    required_first_compile_pass_count: refinementScorecard.summary.required_first_compile_pass_count,
-    critical_issue_count: refinementScorecard.summary.critical_issue_count,
-  },
-  'core refinement product quality facts'
-)
-assertPublicEqual(
-  publicFacts.core_refinement.semantic_corrections.case_count,
-  refinementCorrections.case_count,
-  'core refinement correction case count'
-)
-assertPublicEqual(
-  publicFacts.core_refinement.semantic_corrections.verified_preview_count,
-  refinementScorecard.correction_proof.verified_preview_count,
-  'core refinement verified correction count'
-)
-assertPublicEqual(
-  publicFacts.core_refinement.semantic_corrections.applied_receipt_count,
-  refinementScorecard.correction_proof.applied_receipt_count,
-  'core refinement applied receipt count'
-)
-assertPublicEqual(refinementCorrections.ok, true, 'core refinement correction proof status')
-assertPublicText(home, `${publicFacts.core_refinement.browser_corpus.conformant_count}/${publicFacts.core_refinement.browser_corpus.case_count} conformant`, 'homepage core corpus result')
-assertPublicText(home, `${publicFacts.core_refinement.product_quality.critical_issue_count} critical issues`, 'homepage core quality result')
-assertPublicText(home, `${publicFacts.core_refinement.semantic_corrections.verified_preview_count}/${publicFacts.core_refinement.semantic_corrections.case_count} verified semantic corrections`, 'homepage correction result')
-assertPublicText(home, publicFacts.core_refinement.gate_status_url, 'homepage core evidence URL')
-assertPublicText(home, publicFacts.core_refinement.scorecard_url, 'homepage scorecard URL')
-assertPublicText(home, publicFacts.core_refinement.semantic_corrections.proof_url, 'homepage correction proof URL')
+assertPublicEqual(publicFacts.proof_integrations.e2e.status, 'configured', 'proof integrations CI status')
+assertPublicText(publicFacts.proof_integrations.e2e.scope, 'does not claim that a CI run has completed', 'CI evidence boundary')
 assertPublicText(home, `"softwareVersion": "${publicFacts.sdk_version}"`, 'homepage SDK version')
 assertPublicEqual(publicFacts.proof.host_assertion_requirements.report_key, 'assertion_requirements', 'public facts host assertion requirements key')
 assert.deepEqual(
@@ -254,8 +197,8 @@ assertPublicEqual(publicFacts.appbundle_state_ir.state_profile, 'interactive_sta
 assertPublicEqual(publicFacts.appbundle_state_ir.reducer_artifact, 'state_reducer.ts', 'public facts State IR reducer artifact')
 assertPublicEqual(publicFacts.appbundle_state_ir.reducer_export, 'reduceViewSpecState', 'public facts State IR reducer export')
 assertPublicEqual(publicFacts.appbundle_state_ir.replay_field, 'state_replay_assertions', 'public facts State IR replay field')
-assertPublicEqual(publicFacts.appbundle_state_ir.proof_command_short, 'viewspec prove-app --with-shell', 'public facts State IR short proof command')
-assertPublicText(JSON.stringify(publicFacts.appbundle_state_ir), 'prove-app --with-shell', 'public facts State IR proof command')
+assertPublicEqual(publicFacts.appbundle_state_ir.proof_command_short, 'viewspec prove viewspec.app.json --with-shell', 'public facts State IR short proof command')
+assertPublicText(JSON.stringify(publicFacts.appbundle_state_ir), 'viewspec prove viewspec.app.json --out .viewspec-app-proof --with-shell', 'public facts State IR proof command')
 assertPublicText(publicFacts.appbundle_state_ir.scope, 'interactive_state_v0', 'public facts State IR scope')
 assertPublicText(publicFacts.appbundle_state_ir.scope, 'visibility_v0', 'public facts visibility scope')
 assertPublicText(publicFacts.appbundle_state_ir.scope, 'evaluateViewSpecVisibility', 'public facts visibility evaluator scope')
@@ -378,21 +321,14 @@ assert.equal(profileSemanticHashes.size, 1, 'compiled profile semantic hashes st
 assert.equal(profileStyleHashes.size, 8, 'compiled profile style hashes differ')
 assert.equal(profileNodeCounts.size, 1, 'compiled profile node counts stay stable')
 
-const agentManifest = JSON.parse(await readFile('demos/agent-assets.json', 'utf8'))
-assertPublicEqual(publicFacts.agent_assets.manifest_url, 'https://viewspec.dev/agent-assets.json', 'public facts agent assets manifest')
-assertPublicEqual(publicFacts.agent_assets.schema_version, agentManifest.schema_version, 'public facts agent asset schema version')
-assertPublicEqual(publicFacts.agent_assets.contract_profile, agentManifest.contract.profile, 'public facts agent asset contract profile')
-assertPublicEqual(publicFacts.agent_assets.intent_schema_id, agentManifest.intent_schema_id, 'public facts agent asset schema id')
-assertPublicEqual(publicFacts.agent_assets.patch_schema_id, agentManifest.patch_schema_id, 'public facts intent patch schema id')
-assertPublicEqual(publicFacts.agent_assets.converge_task_schema_id, agentManifest.converge_task_schema_id, 'public facts converge task schema id')
-assertPublicEqual(publicFacts.agent_assets.export_command, agentManifest.contract.export_command, 'public facts agent asset export command')
-assertPublicEqual(publicFacts.agent_assets.check_command, agentManifest.contract.check_command, 'public facts agent asset check command')
-assertPublicEqual(publicFacts.agent_assets.network_policy, agentManifest.contract.network_policy, 'public facts agent asset network policy')
-assert.deepEqual(
-  publicFacts.agent_assets.payload_files,
-  agentManifest.files.map((file) => file.path),
-  'public facts agent asset payload files'
-)
+const intentContractSchema = JSON.parse(await readFile('demos/agent-intent-bundle.schema.json', 'utf8'))
+const appContractSchema = JSON.parse(await readFile('demos/agent-app-bundle.schema.json', 'utf8'))
+assertPublicEqual(publicFacts.agent_assets.intent_schema_id, intentContractSchema.$id, 'public facts agent intent schema id')
+assertPublicEqual(publicFacts.agent_assets.app_schema_id, appContractSchema.$id, 'public facts agent app schema id')
+assertPublicEqual(publicFacts.agent_assets.network_policy, 'no SDK network calls', 'public facts agent asset network policy')
+for (const payloadFile of publicFacts.agent_assets.payload_files) {
+  await stat(`demos/${payloadFile}`)
+}
 
 const pyproject = await readFile('pyproject.toml', 'utf8')
 const versionModule = await readFile('src/viewspec/_version.py', 'utf8')
@@ -402,33 +338,20 @@ assertPublicText(versionModule, `__version__ = "${publicFacts.sdk_version}"`, 'r
 for (const publicTextPath of ['README.md', 'docs/getting-started.md', 'demos/llms.txt', 'demos/llms-full.txt']) {
   const text = await readFile(publicTextPath, 'utf8')
   assertPublicText(text, publicFacts.installation.current_command, `${publicTextPath} current beta install command`)
-  assertPublicText(text, publicFacts.installation.stable_command, `${publicTextPath} stable-channel distinction`)
   assertPublicText(text, publicFacts.proof.first_proof_command, `${publicTextPath} first proof`)
   assertPublicText(text, 'PROOF.md', `${publicTextPath} proof summary`)
   assertPublicText(text, 'support_bundle.json', `${publicTextPath} proof support bundle`)
-  assertPublicText(text, 'proof-bundle.md', `${publicTextPath} proof guide`)
-  assertPublicText(text, 'style-delta counts', `${publicTextPath} proof style summary`)
-  assertPublicText(text, publicFacts.proof.non_claim.split(',')[0], `${publicTextPath} proof scope`)
-}
-
-for (const refinementTextPath of ['README.md', 'docs/getting-started.md', 'docs/agent-integration.md', 'demos/llms.txt', 'demos/llms-full.txt']) {
-  const text = await readFile(refinementTextPath, 'utf8')
-  assertPublicText(text, '10', `${refinementTextPath} core corpus case count`)
-  assertPublicText(text, 'mobile', `${refinementTextPath} mobile evidence`)
-  assertPublicText(text, 'tablet', `${refinementTextPath} tablet evidence`)
-  assertPublicText(text, 'desktop', `${refinementTextPath} desktop evidence`)
-  assertPublicText(text, 'zero critical issues', `${refinementTextPath} product quality result`)
-  assertPublicText(text, 'verified preview', `${refinementTextPath} semantic correction preview`)
-  assertPublicText(text, 'applied receipt', `${refinementTextPath} semantic correction receipt`)
 }
 
 for (const llmTextPath of ['demos/llms.txt', 'demos/llms-full.txt']) {
   const text = await readFile(llmTextPath, 'utf8')
   assertPublicText(text, publicFacts.sdk_version, `${llmTextPath} SDK version`)
-  assertPublicText(text, publicFacts.core_refinement.gate_status_url, `${llmTextPath} core evidence URL`)
-  assertPublicText(text, publicFacts.core_refinement.scorecard_url, `${llmTextPath} scorecard URL`)
-  assertPublicText(text, publicFacts.core_refinement.semantic_corrections.proof_url, `${llmTextPath} correction proof URL`)
-  assertPublicText(text, 'viewspec prove --intent viewspec.intent.json --target react-tailwind-tsx --install --out .viewspec-proof --json', `${llmTextPath} authored proof path`)
+  assertPublicText(text, publicFacts.installation.stable_command, `${llmTextPath} stable-channel distinction`)
+  assertPublicText(text, 'proof-bundle.md', `${llmTextPath} proof guide`)
+  assertPublicText(text, 'style-delta counts', `${llmTextPath} proof style summary`)
+  assertPublicText(text, publicFacts.proof.non_claim, `${llmTextPath} proof scope`)
+  assertPublicText(text, publicFacts.package_url, `${llmTextPath} package URL`)
+  assertPublicText(text, publicFacts.proof.authored_proof_command, `${llmTextPath} authored proof path`)
   assertPublicText(text, '@chenglou/freerange@0.0.1', `${llmTextPath} Freerange proof pin`)
   assertPublicText(text, publicFacts.proof_integrations.freerange.command, `${llmTextPath} Freerange command`)
   assertPublicText(text, 'user-installed stable Bun 1.x', `${llmTextPath} Freerange Bun prerequisite`)
@@ -436,10 +359,10 @@ for (const llmTextPath of ['demos/llms.txt', 'demos/llms-full.txt']) {
   assertPublicText(text, publicFacts.proof_integrations.pretext.command, `${llmTextPath} Pretext command`)
   assertPublicText(text, '390x844', `${llmTextPath} Pretext mobile viewport`)
   assertPublicText(text, publicFacts.proof_integrations.composed.command, `${llmTextPath} composed proof command`)
-  assertPublicText(text, 'does not claim that a hosted run has completed', `${llmTextPath} hosted E2E boundary`)
+  assertPublicText(text, 'does not claim that a CI run has completed', `${llmTextPath} CI boundary`)
 }
 
-for (const aestheticTextPath of ['README.md', 'docs/getting-started.md', 'docs/agent-integration.md', 'docs/free-sdk-reliability.md', 'demos/llms.txt', 'demos/llms-full.txt']) {
+for (const aestheticTextPath of ['README.md', 'docs/getting-started.md', 'docs/agent-integration.md', 'demos/llms.txt', 'demos/llms-full.txt']) {
   const text = await readFile(aestheticTextPath, 'utf8')
   for (const token of aestheticProfileTokens) {
     assertPublicText(text, token, `${aestheticTextPath} aesthetic profile token`)
@@ -447,33 +370,9 @@ for (const aestheticTextPath of ['README.md', 'docs/getting-started.md', 'docs/a
   if (!text.includes('not CSS') && !text.includes('not arbitrary CSS')) {
     publicFactDrift(`${aestheticTextPath} missing aesthetic profile non-css scope`)
   }
-  assertPublicText(text, 'style-delta counts', `${aestheticTextPath} aesthetic style summary`)
 }
 
-for (const diffIntentTextPath of ['README.md', 'docs/getting-started.md', 'docs/agent-integration.md', 'demos/llms.txt', 'demos/llms-full.txt']) {
-  const text = await readFile(diffIntentTextPath, 'utf8')
-  assertPublicText(text, 'diff-intent', `${diffIntentTextPath} diff-intent review surface`)
-  assertPublicText(text, 'aesthetic profile', `${diffIntentTextPath} diff-intent aesthetic profile surface`)
-  assertPublicText(text, 'intent_semantic_change_lines', `${diffIntentTextPath} semantic summary helper`)
-}
-
-for (const agentAssetTextPath of ['README.md', 'docs/getting-started.md', 'docs/agent-integration.md', 'demos/llms.txt', 'demos/llms-full.txt']) {
-  const text = await readFile(agentAssetTextPath, 'utf8')
-  assertPublicText(text, `schema version \`${publicFacts.agent_assets.schema_version}\``, `${agentAssetTextPath} agent asset schema version`)
-  assertPublicText(text, 'local_v1', `${agentAssetTextPath} agent asset contract profile`)
-  assertPublicText(text, 'viewspec export-agent-assets --out .viewspec', `${agentAssetTextPath} agent asset export command`)
-  assertPublicText(text, 'viewspec check-agent-assets .viewspec --json', `${agentAssetTextPath} agent asset check command`)
-}
-
-{
-  const agentPrompt = await readFile('demos/agent-system-prompt.txt', 'utf8')
-  assertPublicText(agentPrompt, 'diff-intent', 'agent prompt diff-intent review surface')
-  assertPublicText(agentPrompt, 'semantic_changes', 'agent prompt semantic changes review')
-  assertPublicText(agentPrompt, 'semantic_summary', 'agent prompt MCP semantic summary')
-  assertPublicText(agentPrompt, 'intent_semantic_change_lines', 'agent prompt Python semantic summary helper')
-}
-
-for (const proofTextPath of ['README.md', 'docs/getting-started.md', 'docs/agent-integration.md', 'demos/index.html', 'demos/proof-bundle/index.html', 'demos/llms.txt', 'demos/llms-full.txt']) {
+for (const proofTextPath of ['demos/index.html', 'demos/proof-bundle/index.html', 'demos/llms.txt', 'demos/llms-full.txt']) {
   const text = await readFile(proofTextPath, 'utf8')
   assertPublicText(text, 'style-delta counts', `${proofTextPath} proof style summary`)
   if (text.includes('proof_report.json') && !text.includes('PROOF.md')) {
@@ -484,12 +383,7 @@ for (const proofTextPath of ['README.md', 'docs/getting-started.md', 'docs/agent
   }
 }
 
-for (const proofMetadataTextPath of ['README.md', 'docs/agent-integration.md', 'demos/llms-full.txt']) {
-  const text = await readFile(proofMetadataTextPath, 'utf8')
-  assertPublicText(text, 'proof identity', `${proofMetadataTextPath} proof identity metadata`)
-}
-
-for (const hostProofTextPath of ['README.md', 'docs/getting-started.md', 'docs/agent-integration.md', 'docs/free-sdk-reliability.md', 'docs/known-limits-react-tailwind-tsx.md', 'demos/llms.txt', 'demos/llms-full.txt']) {
+for (const hostProofTextPath of ['docs/known-limits-react-tailwind-tsx.md', 'demos/llms.txt', 'demos/llms-full.txt']) {
   const text = await readFile(hostProofTextPath, 'utf8')
   assertPublicText(text, 'grid column/span counts', `${hostProofTextPath} host proof grid span scope`)
   assertPublicText(text, 'profiled aesthetic marker', `${hostProofTextPath} host proof aesthetic marker scope`)
@@ -500,18 +394,7 @@ for (const hostProofTextPath of ['README.md', 'docs/getting-started.md', 'docs/a
   assertPublicText(text, 'aesthetic_layout_assertion_count', `${hostProofTextPath} host assertion layout requirement`)
 }
 
-for (const productTextPath of ['README.md', 'demos/llms.txt', 'demos/llms-full.txt']) {
-  const productText = await readFile(productTextPath, 'utf8')
-  assertPublicText(productText, proPrice, `${productTextPath} pro price`)
-  assertPublicText(productText, proCalls, `${productTextPath} pro hosted calls`)
-}
-for (const productTextPath of ['README.md', 'demos/llms.txt', 'demos/llms-full.txt']) {
-  const productText = await readFile(productTextPath, 'utf8')
-  assertPublicText(productText, freeCalls, `${productTextPath} free hosted calls`)
-}
-assertPublicText(await readFile('README.md', 'utf8'), publicFacts.package_url, 'README package URL')
 assertPublicText(home, './proof-bundle/', 'landing proof bundle guide link')
-assertPublicText(home, './proof-explorer/', 'landing public proof explorer link')
 
 const proofBundlePage = await readFile('demos/proof-bundle/index.html', 'utf8')
 for (const expected of [
@@ -535,52 +418,11 @@ for (const expected of [
 assertPublicText(await readFile('demos/llms.txt', 'utf8'), 'https://viewspec.dev/proof-bundle/', 'llms proof bundle public URL')
 assertPublicText(await readFile('demos/llms-full.txt', 'utf8'), 'https://viewspec.dev/proof-bundle/', 'llms-full proof bundle public URL')
 
-const proofExplorerPage = await readFile('demos/proof-explorer/index.html', 'utf8')
-const proofExplorerDataText = await readFile('demos/proof-explorer/proof-data.json', 'utf8')
-const proofExplorerData = JSON.parse(proofExplorerDataText)
-for (const expected of [
-  'Don&rsquo;t trust the score',
-  'Inspect the evidence',
-  'proof-data.json',
-  'Quality scorecard',
-  'Verified semantic correction',
-  'Successes alone are not a verifier',
-  'fixed-corpus evidence',
-]) {
-  assertPublicText(proofExplorerPage, expected, 'proof explorer page')
-}
-assert.equal(proofExplorerData.kind, 'viewspec_public_proof_explorer')
-assert.equal(proofExplorerData.schema_version, 1)
-assert.equal(proofExplorerData.summary.case_count, 10)
-assert.equal(proofExplorerData.summary.conformant_count, 10)
-assert.equal(proofExplorerData.summary.passed_gate_count, 8)
-assert.equal(proofExplorerData.summary.negative_control_count, 6)
-assert.equal(proofExplorerData.summary.verified_correction_count, 10)
-assert.equal(proofExplorerData.summary.critical_issue_count, 0)
-assert.equal(proofExplorerData.cases.length, 10)
-assert.equal(proofExplorerData.viewports.length, 3)
-assert.doesNotMatch(proofExplorerDataText, /\/Users\/|approval_token|generated turn context/i)
-for (const source of proofExplorerData.sources) {
-  const sourceBytes = await readFile(source.path)
-  assert.equal(createHash('sha256').update(sourceBytes).digest('hex'), source.sha256)
-}
-for (const proofCase of proofExplorerData.cases) {
-  assert.equal(proofCase.status, 'conformant')
-  assert.equal(proofCase.correction.receipt_status, 'applied')
-  for (const screenshot of Object.values(proofCase.evidence.screenshots)) {
-    const imageBytes = await readFile(`demos/proof-explorer/${screenshot.path}`)
-    assert.equal(createHash('sha256').update(imageBytes).digest('hex'), screenshot.sha256)
-    assert.equal(imageBytes.length, screenshot.bytes)
-  }
-}
-assertPublicText(await readFile('demos/llms.txt', 'utf8'), 'https://viewspec.dev/proof-explorer/', 'llms proof explorer public URL')
-assertPublicText(await readFile('demos/llms-full.txt', 'utf8'), 'https://viewspec.dev/proof-explorer/proof-data.json', 'llms-full proof explorer data URL')
-
 const stateIrTerms = [
   'interactive_state_v0',
   'reduceViewSpecState',
   'state_replay_assertions',
-  'prove-app --with-shell',
+  'viewspec prove viewspec.app.json --with-shell',
   'state_reducer.ts',
 ]
 for (const stateIrTextPath of ['demos/index.html', 'demos/appbundle-state-ir/index.html', 'demos/llms.txt', 'demos/llms-full.txt']) {
@@ -744,19 +586,20 @@ if (/\.vs-|data-ir-id/.test(styleRangeShellCss)) {
   assert.fail('STYLE_RANGE_BYPASS: style range shell CSS styles generated artifact internals')
 }
 
-// Three install pills: nav + hero + footer. The footer pill was added in
-// the site bug sweep (b7d5b96); the test was previously asserting on the
-// pre-bug-sweep count of 2.
+// Two install pills: hero + closing call to action.
 const installCommandPattern = publicFacts.installation.current_command.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-assert.equal((home.match(new RegExp(`data-copy-text="${installCommandPattern}"`, 'g')) || []).length, 3)
+assert.equal((home.match(new RegExp(`data-copy-text="${installCommandPattern}"`, 'g')) || []).length, 2)
 assert.match(home, /aria-label="Copy ViewSpec beta install command"/)
 assert.doesNotMatch(home, /data-copy-text="python -m pip install viewspec"/)
 const homeJsonLd = extractJsonLd(home)
 const graph = homeJsonLd.find((entry) => Array.isArray(entry['@graph']))?.['@graph'] || []
 assert(graph.some((entry) => entry['@type'] === 'SoftwareApplication'), 'home JSON-LD needs SoftwareApplication')
-assert(graph.some((entry) => entry['@type'] === 'WebAPI'), 'home JSON-LD needs WebAPI')
+assert(!graph.some((entry) => entry['@type'] === 'WebAPI'), 'home JSON-LD must not describe a hosted API')
 assert(graph.some((entry) => entry['@type'] === 'FAQPage'), 'home JSON-LD needs FAQPage')
 const softwareJsonLd = graph.find((entry) => entry['@type'] === 'SoftwareApplication') || {}
+assert(!Object.hasOwn(softwareJsonLd, 'offers'), 'home JSON-LD must not publish offers')
+assertPublicEqual(softwareJsonLd.isAccessibleForFree, true, 'home JSON-LD free access')
+assertPublicText(softwareJsonLd.license || '', 'MIT', 'home JSON-LD license')
 assertPublicText(softwareJsonLd.keywords || '', 'Freerange numeric kernel proof', 'home JSON-LD Freerange keyword')
 assertPublicText(softwareJsonLd.keywords || '', 'Pretext native DOM text proof', 'home JSON-LD Pretext keyword')
 assertPublicText(JSON.stringify(softwareJsonLd.featureList || []), '@chenglou/freerange@0.0.1', 'home JSON-LD Freerange feature')
@@ -773,10 +616,11 @@ assert.equal(landingCompiledManifest.artifact_hash, sha256(landingCompiledBytes)
 assert(Array.isArray(landingCompiledManifest.diagnostics), 'landing compiled manifest needs diagnostics array')
 assert.equal(landingCompiledManifest.external_refs.length, 0)
 for (const expected of [
-  'Local product studio for you and your agent',
+  'Local UI compiler for you and your agent',
   'Tell your agent what to build. See the real product.',
   'state_replay_assertions',
   'CompositionIR to UI and reducer',
+  'No hosted service, account, or API key.',
 ]) {
   assertPublicText(landingCompiledHtml, expected, 'compiled landing artifact')
 }
@@ -793,10 +637,10 @@ assert.doesNotMatch(sitemap, /https:\/\/viewspec\.dev\/aesthetic-profiles\//)
 
 const llms = await readFile('demos/llms.txt', 'utf8')
 assert.match(llms, /agent-native UI compiler/i)
-assert.match(llms, /viewspec init-intent/)
-assert.match(llms, /viewspec validate-intent/)
+assert.match(llms, /viewspec init --out viewspec\.intent\.json/)
+assert.match(llms, /viewspec check viewspec\.intent\.json --json/)
 assert.match(llms, /agentic engineering/i)
-assert.match(llms, /https:\/\/api\.viewspec\.dev\/v1\/compile/)
+assert.match(llms, /no hosted service/i)
 assertPublicText(llms, 'Homepage compiled aesthetic profiles: https://viewspec.dev/', 'llms homepage aesthetic public URL')
 assertPublicText(
   llms,
@@ -805,7 +649,6 @@ assertPublicText(
 )
 assert.doesNotMatch(llms, /Aesthetic profiles demo/)
 assert.doesNotMatch(llms, /https:\/\/viewspec\.dev\/aesthetic-profiles\//)
-assert.doesNotMatch(llms, /\$699|699\/mo/)
 const llmsFull = await readFile('demos/llms-full.txt', 'utf8')
 assertPublicText(
   llmsFull,
@@ -819,7 +662,7 @@ assertPublicText(
 )
 assert.doesNotMatch(llmsFull, /Aesthetic profiles demo/)
 assert.doesNotMatch(llmsFull, /https:\/\/viewspec\.dev\/aesthetic-profiles\//)
-for (const file of ['demos/llms-full.txt', 'demos/openapi.json', 'demos/cross-platform-dashboard/index.html']) {
+for (const file of ['demos/llms.txt', 'demos/llms-full.txt']) {
   const text = await readFile(file, 'utf8')
   assert.doesNotMatch(text, /agent-native UI IR/i, `${file} should describe IntentBundle/compiler, not IR as source`)
   assert.doesNotMatch(text, /semantic UI IR/i, `${file} should describe the compiler contract, not IR as product source`)
@@ -830,8 +673,8 @@ assert.doesNotMatch(landing, /agent-native UI IR, agent-native UI IR/)
 assert.doesNotMatch(landing, /Your agent writes HTML/)
 assert.doesNotMatch(landing, /agent HTML governance first/)
 assert.doesNotMatch(landing, /agent HTML governance/)
-assert.match(landing, /ViewSpec Studio - Build with your agent, then point at what changes/)
-assert.match(landing, /Tell your agent what to build\. See the real product\. Point at what should change\./)
+assert.match(landing, /<title>ViewSpec - Free, local UI compiler for coding agents<\/title>/)
+assert.match(landing, /Tell your agent what to build\. See the real product\. Prove what compiled\./)
 for (const expected of [
   'data-viewspec-page-artifact="true"',
   'data-viewspec-profile="aesthetic.calm_ops"',
@@ -856,29 +699,17 @@ for (const expected of [
   'landing-compiled/profile-evidence.json',
   'landing-compiled/intent_bundle.json',
   'landing-compiled/provenance_manifest.json',
-  'id="pricing"',
-  'id="pricing-actions"',
-  'id="pricing-grid"',
-  'class="pricing-plan"',
-  'Free local SDK',
-  'Pro hosted compiler',
-  'Enterprise support',
-  '500 hosted compile calls/day',
-  '10,000 hosted compile calls/day',
+  'id="commands"',
+  'id="start"',
+  'id="cta-actions"',
   'Try the one-minute proof',
   './proof-bundle/',
   'id="integration-proofs-title"',
-  'id="studio"',
-  'ViewSpec Studio &middot; local beta',
-  'One room from first brief to final approval.',
-  'data-studio-step="create"',
-  'data-studio-step="compare"',
-  'data-studio-step="inspect"',
-  'data-studio-step="decide"',
-  'Chromium, Firefox, and WebKit',
-  'no hosted review endpoint is deployed',
-  'Static/React visual parity is not claimed.',
-  'Production data is not loaded.',
+  'data-cli-step="init"',
+  'data-cli-step="compile"',
+  'data-cli-step="check"',
+  'data-cli-step="prove"',
+  'data-cli-step="studio"',
   'data-proof-integration="freerange"',
   'data-proof-integration="pretext"',
   '@chenglou/freerange@0.0.1',
@@ -886,21 +717,21 @@ for (const expected of [
   'https://github.com/chenglou/freerange',
   'https://github.com/chenglou/pretext',
   '--freerange --pretext --json',
-  'Dedicated hosted E2E is configured',
-  'does not claim that a hosted run has completed',
+  'A dedicated CI workflow is configured',
+  'does not claim that a CI run has completed',
   'skip-link',
 ]) {
   assertPublicText(landing, expected, 'landing page artifact controls')
 }
-assertPublicText(home, publicFacts.studio.creation_command, 'homepage Studio creation command')
-assertPublicText(home, publicFacts.studio.compare_command, 'homepage Studio comparison command')
-assert.match(landing, /<section id="pricing"[\s\S]*?id="pricing-grid"/, 'landing pricing anchor should expose visible plan comparison')
-assert.match(landing, /<section id="studio"[\s\S]*?data-studio-step="decide"/, 'landing should expose the complete Studio workflow')
+assertPublicText(home, publicFacts.studio.command, 'homepage Studio command')
+assertPublicText(home, publicFacts.studio.non_claim, 'homepage Studio non-claim')
+assertPublicText(home, publicFacts.proof.first_proof_command, 'homepage first proof command')
+assert.match(landing, /<section id="commands"[\s\S]*?data-cli-step="mcp"/, 'landing should expose all six commands')
 assert.doesNotMatch(landing, /private (?:review|sharing) link/i, 'landing must not claim unimplemented hosted sharing')
 assert.doesNotMatch(landing, /<a class="ghost mono" href="#top"[^>]*>read the docs/, 'landing docs CTA must not loop back to the hero')
 assert.match(landing, /href="https:\/\/github\.com\/nxrobins\/viewspec\/blob\/main\/docs\/getting-started\.md"[^>]*>read the docs/, 'landing docs CTA points to getting-started docs')
-assert.match(landing, /<a href="#pricing">Pricing<\/a>/, 'landing primary nav includes Pricing')
-assert.match(landing, /<a href="#studio">Studio<\/a>/, 'landing primary nav leads with Studio')
+assert.match(landing, /<a href="#commands">Commands<\/a>/, 'landing primary nav leads with the commands')
+assert.match(landing, /<a href="#start">Start<\/a>/, 'landing primary nav reaches the call to action')
 assert.doesNotMatch(landing, /@media \(max-width:720px\)\{\s*\.nav-links a:not\(\.cta-mini\)\{\s*display:none;\s*\}\s*\}/, 'mobile nav should keep core links reachable')
 assertPublicText(landing, 'Click, tap, or hover', 'landing provenance copy supports touch and keyboard users')
 assertPublicText(landing, 'data-trace-target', 'landing provenance receipts should be traceable click targets')
@@ -909,7 +740,7 @@ assert.match(landing, /id="viewspec-artifact-slot"[\s\S]*?data-ir-id="region_roo
 assert.doesNotMatch(landing, /data-page-style=/)
 assert.doesNotMatch(landing, /data-viewspec-style=/)
 assert.match(landing, /\.profiles\s*{[\s\S]*?flex-wrap:\s*wrap;/, 'profile switcher wraps')
-for (const motifId of ['dom-motif_compile_flow', 'dom-motif_agent_workflow', 'dom-motif_artifact_identity', 'dom-motif_pricing']) {
+for (const motifId of ['dom-motif_compile_flow', 'dom-motif_agent_workflow', 'dom-motif_artifact_identity', 'dom-motif_open_source']) {
   assert.match(landing, new RegExp(`<[^>]+id="${motifId}"`), `${motifId} should be emitted in the embedded artifact`)
 }
 // proof_contract was never a real motif; keep asserting it is absent.
@@ -926,14 +757,6 @@ assertPublicText(pretextGlobal, '@chenglou/pretext@0.0.6', 'landing Pretext glob
 assertPublicText(pretextGlobal, 'window.ViewSpecPretext', 'landing Pretext global export')
 assert.doesNotMatch(landing, /self-render-frame/)
 assert.doesNotMatch(landing, /<iframe[^>]+landing-compiled\/index\.html/)
-assert.doesNotMatch(landing, /\"price\": \"2500\"/)
-// Pricing CTAs keep direct href fallbacks for crawlers and data-config-link
-// hooks so window.VIEWSPEC_LANDING_CONFIG can override destinations at runtime.
-assert.match(landing, /href=\"https:\/\/buy\.stripe\.com\//)
-assert.match(landing, /href=\"mailto:hello@viewspec\.dev\?subject=ViewSpec%20Enterprise\"/)
-assert.match(landing, /data-config-link=\"pro\"/)
-assert.match(landing, /data-config-link=\"enterprise\"/)
-assert.doesNotMatch(landing, /\$699|699\/mo|7sY00i9v67cJebDd1K1oI00/)
 
 const sharedNav = await readFile('demos/shared/nav.js', 'utf8')
 assert.match(sharedNav, /label: 'Pipeline'/, 'shared demo nav should name the preset explorer honestly')
@@ -950,77 +773,34 @@ assert.match(provenanceInspector, /Click, tap, or hover any rendered element/, '
 assert.match(provenanceInspector, /data-text="Click\/tap"/, 'provenance lock-state pill should avoid hover-only wording')
 assert.doesNotMatch(provenanceInspector, /Hover over any element to inspect its provenance/)
 
-for (const productTextPath of ['README.md', 'demos/llms-full.txt', 'demos/shared/landing-config.js']) {
-  const productText = await readFile(productTextPath, 'utf8')
-  assert.doesNotMatch(
-    productText,
-    /\$699|699\/mo|25,000 hosted compile|10,000 hosted renders|7sY00i9v67cJebDd1K1oI00/,
-    `${productTextPath} has stale Pro pricing`
-  )
+for (const retiredPath of ['demos/llms.txt', 'demos/llms-full.txt', 'demos/public-facts.json', 'demos/sitemap.xml', 'demos/shared/nav.js']) {
+  assert.doesNotMatch(await readFile(retiredPath, 'utf8'), RETIRED_SURFACES, `${retiredPath} references a retired surface`)
 }
-
-const openapi = JSON.parse(await readFile('demos/openapi.json', 'utf8'))
-assert.equal(openapi.openapi, '3.1.0')
-assert.equal(openapi.info.version, '1.0.0')
-assert.equal(openapi.servers[0].url, 'https://api.viewspec.dev')
-assertPublicEqual(openapi['x-viewspec-public-facts'].proPriceUsdMonth, publicFacts.pricing.pro.price_usd_month, 'OpenAPI public facts proPriceUsdMonth')
-assertPublicEqual(openapi['x-viewspec-public-facts'].proHostedCompileCallsPerDay, publicFacts.pricing.pro.hosted_compile_calls_per_day, 'OpenAPI public facts pro calls')
-assert.deepEqual(
-  openapi['x-viewspec-public-facts'].proArtifactTargets,
-  publicFacts.pricing.pro.artifact_targets,
-  'OpenAPI public facts artifact targets'
-)
-assertPublicEqual(openapi['x-viewspec-public-facts'].proSignedUsageReceipts, publicFacts.pricing.pro.signed_usage_receipts, 'OpenAPI public facts signed receipts')
-assert.deepEqual(
-  Object.keys(openapi.paths).sort(),
-  [
-    '/v1/app-bundles/build',
-    '/v1/artifacts',
-    '/v1/checkout/claim',
-    '/v1/compile',
-    '/v1/keys/current',
-    '/v1/keys/rotate',
-    '/v1/plans',
-    '/v1/receipt-key',
-    '/v1/usage',
-    '/v1/verifications',
-    '/v1/verifications/{job_id}',
-  ],
-  'OpenAPI must expose only the public hosted contract'
-)
-assert(openapi.paths['/v1/compile']?.post, 'OpenAPI needs POST /v1/compile')
-assert(openapi.paths['/v1/verifications']?.post, 'OpenAPI needs POST /v1/verifications')
-assert(openapi.paths['/v1/verifications/{job_id}']?.get, 'OpenAPI needs GET /v1/verifications/{job_id}')
-assert.equal(openapi.paths['/v1/compile'].post.requestBody.content['application/json'].schema.$ref, '#/components/schemas/CompileRequestPayload')
-assert(openapi.components.schemas.CompileRequestPayload.properties.design.anyOf.some(item => item.$ref === '#/components/schemas/DesignRequest'))
-assert(!('design' in openapi.components.schemas.IntentBundle.properties), 'OpenAPI IntentBundle schema should not absorb hosted design context')
-assert.deepEqual(openapi.components.securitySchemes.BearerAuth, { type: 'http', scheme: 'bearer' })
-assert.deepEqual(openapi.components.securitySchemes.ApiKeyAuth, { type: 'apiKey', in: 'header', name: 'X-API-Key' })
-assert.equal(openapi['x-viewspec-agent-artifacts'].assetSchemaVersion, 15)
-assert.equal(openapi['x-viewspec-agent-artifacts'].assetManifest, 'https://viewspec.dev/agent-assets.json')
-assert.equal(openapi['x-viewspec-agent-artifacts'].contractProfile, 'local_v1')
-assert.equal(openapi['x-viewspec-agent-artifacts'].exportCommand, 'viewspec export-agent-assets --out .viewspec')
-assert.equal(openapi['x-viewspec-agent-artifacts'].checkCommand, 'viewspec check-agent-assets .viewspec --json')
-assert.equal(openapi['x-viewspec-agent-artifacts'].networkPolicy, 'no SDK network calls')
-assert.equal(openapi['x-viewspec-agent-artifacts'].assetSchemaVersion, publicFacts.agent_assets.schema_version)
-assert.equal(openapi['x-viewspec-agent-artifacts'].contractProfile, publicFacts.agent_assets.contract_profile)
-assert.equal(openapi['x-viewspec-agent-artifacts'].exportCommand, publicFacts.agent_assets.export_command)
-assert.equal(openapi['x-viewspec-agent-artifacts'].checkCommand, publicFacts.agent_assets.check_command)
-assert.equal(openapi['x-viewspec-agent-artifacts'].networkPolicy, publicFacts.agent_assets.network_policy)
-assert.equal(openapi['x-viewspec-agent-artifacts'].systemPrompt, 'https://viewspec.dev/agent-system-prompt.txt')
-assert.equal(openapi['x-viewspec-agent-artifacts'].intentBundleExample, 'https://viewspec.dev/agent-intent-example.dashboard.json')
-assert.equal(openapi['x-viewspec-agent-artifacts'].appBundleSchema, 'https://viewspec.dev/agent-app-bundle.schema.json')
-assert.equal(openapi['x-viewspec-agent-artifacts'].appBundleExample, 'https://viewspec.dev/agent-app-example.internal-tool.json')
-assert.equal(openapi['x-viewspec-agent-artifacts'].intentPatchSchema, 'https://viewspec.dev/intent-patch.schema.json')
-assert.equal(openapi['x-viewspec-agent-artifacts'].intentPatchExample, 'https://viewspec.dev/intent-patch-example.dashboard.json')
-assert.equal(openapi['x-viewspec-agent-artifacts'].convergeTaskSchema, 'https://viewspec.dev/converge-task.schema.json')
-assert.equal(openapi['x-viewspec-agent-artifacts'].convergeTaskExample, 'https://viewspec.dev/converge-task-example.dashboard.json')
+const cliCommands = new Set(publicFacts.cli_commands)
+for (const cliTextPath of ['demos/llms.txt', 'demos/llms-full.txt']) {
+  const cliText = await readFile(cliTextPath, 'utf8')
+  for (const [, command] of cliText.matchAll(/`viewspec ([a-z][a-z-]*)/g)) {
+    assert(cliCommands.has(command), `${cliTextPath} names a removed command: viewspec ${command}`)
+  }
+}
+for (const [label, command] of [
+  ['first proof', publicFacts.proof.first_proof_command],
+  ['authored proof', publicFacts.proof.authored_proof_command],
+  ['host proof', publicFacts.proof.react_tailwind_host_command],
+  ['Freerange', publicFacts.proof_integrations.freerange.command],
+  ['Pretext', publicFacts.proof_integrations.pretext.command],
+  ['composed proof', publicFacts.proof_integrations.composed.command],
+  ['State IR proof', publicFacts.appbundle_state_ir.proof_command],
+  ['Studio', publicFacts.studio.command],
+]) {
+  assert(cliCommands.has(command.split(' ')[1]), `${label} command uses a removed CLI command: ${command}`)
+}
 
 const agentPrompt = await readFile('demos/agent-system-prompt.txt', 'utf8')
 assert.match(agentPrompt, /IntentBundle/)
 assert.match(agentPrompt, /CompositionIR is compiler output only/)
 assert.match(agentPrompt, /Generated JSON is not a finished ViewSpec proof/)
-assert.match(agentPrompt, /viewspec prove --out \.viewspec-proof/)
+assert.match(agentPrompt, /viewspec prove viewspec\.intent\.json --out \.viewspec-proof/)
 assert.match(agentPrompt, /\.viewspec-proof\/PROOF\.md/)
 assert.match(agentPrompt, /proof_report\.json/)
 assert.match(agentPrompt, /support_bundle\.json/)
@@ -1028,40 +808,27 @@ assert.match(agentPrompt, /pixel-perfect visual regression/)
 assert.match(agentPrompt, /AppBundle JSON/)
 assert.match(agentPrompt, /fixture_readonly_v0/)
 assert.match(agentPrompt, /resource_views/)
-assert.match(agentPrompt, /viewspec validate-app viewspec\.app\.json --json/)
-assert.match(agentPrompt, /viewspec compile-app viewspec\.app\.json --out app-dist --target html-tailwind-app --json/)
-assert.match(agentPrompt, /viewspec prove-app --app viewspec\.app\.json --out \.viewspec-app-proof --with-shell --json/)
+assert.match(agentPrompt, /viewspec check viewspec\.app\.json --json/)
+assert.match(agentPrompt, /viewspec compile viewspec\.app\.json --out app-dist --target html-tailwind-app --json/)
+assert.match(agentPrompt, /viewspec prove viewspec\.app\.json --out \.viewspec-app-proof --with-shell --json/)
 assert.match(agentPrompt, /Static Shell V0/)
 assert.doesNotMatch(agentPrompt, /You output ViewSpec IR/)
 
 const agentSchema = JSON.parse(await readFile('demos/agent-intent-bundle.schema.json', 'utf8'))
 assert.deepEqual(agentSchema.$defs.motif.properties.kind.enum, ['table', 'dashboard', 'outline', 'comparison', 'list', 'form', 'detail', 'empty_state', 'loading_state', 'error_state', 'hero'])
 assert.deepEqual(agentSchema.$defs.action.properties.kind.enum, ['select', 'submit', 'navigate', 'search', 'filter', 'sort', 'paginate', 'bulk_action'])
-for (const publicTextPath of ['README.md', 'docs/getting-started.md', 'docs/agent-integration.md', 'demos/llms.txt', 'demos/llms-full.txt']) {
+for (const publicTextPath of ['README.md', 'docs/agent-integration.md', 'demos/llms.txt', 'demos/llms-full.txt']) {
   const text = await readFile(publicTextPath, 'utf8')
   for (const expected of ['loading_state', 'error_state', 'search', 'filter', 'sort', 'paginate', 'bulk_action']) {
     if (!text.includes(expected)) statefulCollectionsDrift(`${publicTextPath} missing ${expected}`)
   }
 }
-assert.equal(agentManifest.schema_version, 15)
-assert.equal(agentManifest.contract.profile, 'local_v1')
-assert.equal(agentManifest.contract.export_command, 'viewspec export-agent-assets --out .viewspec')
-assert.equal(agentManifest.contract.check_command, 'viewspec check-agent-assets .viewspec --json')
-assert.equal(agentManifest.contract.network_policy, 'no SDK network calls')
-assert.equal(agentManifest.contract.files.intent_schema, 'agent-intent-bundle.schema.json')
-assert.equal(agentManifest.contract.files.app_schema, 'agent-app-bundle.schema.json')
-assert.equal(agentManifest.contract.files.patch_schema, 'intent-patch.schema.json')
-assert.equal(agentManifest.contract.files.converge_task_schema, 'converge-task.schema.json')
-assert.deepEqual(agentManifest.files.map((file) => file.path), [
+assert.deepEqual(publicFacts.agent_assets.payload_files, [
   'agent-system-prompt.txt',
   'agent-intent-bundle.schema.json',
   'agent-intent-example.dashboard.json',
   'agent-app-bundle.schema.json',
   'agent-app-example.internal-tool.json',
-  'intent-patch.schema.json',
-  'intent-patch-example.dashboard.json',
-  'converge-task.schema.json',
-  'converge-task-example.dashboard.json'
 ])
 const agentExample = JSON.parse(await readFile('demos/agent-intent-example.dashboard.json', 'utf8'))
 assert.equal(agentExample.view_spec.motifs[0].kind, 'dashboard')
@@ -1074,95 +841,14 @@ assert.equal(appExample.app.kind, 'internal_tool')
 assert.equal(appExample.resource_binding ?? 'unbound_v0', 'unbound_v0')
 assert.equal(appExample.screens.length, 2)
 
-const artifactIndex = JSON.parse(await readFile('demos/cross-platform-dashboard/artifacts/artifact_index.json', 'utf8'))
-assert.equal(artifactIndex.prompt, 'agent_prompt.txt')
-assert.equal(artifactIndex.contract_profile, 'hosted_extended_v1')
-assert.match(artifactIndex.contract_profile_description, /inputs, rules, projections/)
-assert.doesNotMatch(JSON.stringify(artifactIndex), /\.test-tmp/)
-
 async function readUtf8NoBom(path) {
   const text = await readFile(path, 'utf8')
-  assert(!text.startsWith('\uFEFF'), `${path} must not start with a UTF-8 BOM`)
+  assert(!text.startsWith('﻿'), `${path} must not start with a UTF-8 BOM`)
   return text
 }
 
-for (const artifactPath of [
-  'demos/cross-platform-dashboard/artifacts/agent_prompt.txt',
-  'demos/cross-platform-dashboard/artifacts/artifact_index.json',
-  'demos/cross-platform-dashboard/artifacts/ast_bundle.json',
-  'demos/cross-platform-dashboard/artifacts/intent_bundle.json',
-  'demos/cross-platform-dashboard/artifacts/flutter/provenance_manifest.json',
-  'demos/cross-platform-dashboard/artifacts/flutter/viewspec_view.dart',
-  'demos/cross-platform-dashboard/artifacts/html/index.html',
-  'demos/cross-platform-dashboard/artifacts/html/provenance_manifest.json',
-  'demos/cross-platform-dashboard/artifacts/react-tsx/ViewSpecView.tsx',
-  'demos/cross-platform-dashboard/artifacts/react-tsx/provenance_manifest.json',
-  'demos/cross-platform-dashboard/artifacts/swiftui/ViewSpecView.swift',
-  'demos/cross-platform-dashboard/artifacts/swiftui/provenance_manifest.json',
-]) {
-  await readUtf8NoBom(artifactPath)
+for (const payloadFile of publicFacts.agent_assets.payload_files) {
+  await readUtf8NoBom(`demos/${payloadFile}`)
 }
-
-const launchHtml = await readUtf8NoBom('demos/cross-platform-dashboard/artifacts/html/index.html')
-const launchTsx = await readUtf8NoBom('demos/cross-platform-dashboard/artifacts/react-tsx/ViewSpecView.tsx')
-const launchSwift = await readUtf8NoBom('demos/cross-platform-dashboard/artifacts/swiftui/ViewSpecView.swift')
-const launchFlutter = await readUtf8NoBom('demos/cross-platform-dashboard/artifacts/flutter/viewspec_view.dart')
-const launchIntent = await readUtf8NoBom('demos/cross-platform-dashboard/artifacts/intent_bundle.json')
-const launchIntentJson = JSON.parse(launchIntent)
-assert.doesNotMatch(launchHtml, /style="[^"]*\bscale:\s*[^;]+;[^"]*\bscale:/)
-assert.doesNotMatch(launchTsx, /\bscale:\s*"[^"]+",[^}]*\bscale:/)
-assert.doesNotMatch(launchIntent, /"target_ref"\s*:\s*"\/[^"]+"/)
-assert.match(launchIntent, /"target_ref"\s*:\s*"view:launch_operations_dashboard"/)
-assert.match(launchHtml, /data-action-target-ref="view:launch_operations_dashboard"/)
-assert.match(launchHtml, /schemaVersion: 1/)
-assert.match(launchHtml, /source: 'viewspec-html-tailwind'/)
-assert.doesNotMatch(launchHtml, /const payloadBindings = JSON\.parse/)
-assert.match(launchHtml, /payloadValues/)
-assert.match(launchTsx, /targetRef: "view:launch_operations_dashboard"/)
-assert.match(launchTsx, /schemaVersion: 1/)
-assert.match(launchTsx, /source: "viewspec-react-tsx"/)
-assert.match(launchTsx, /payloadValues: collectPayloadValues/)
-assert.doesNotMatch(launchTsx, /payload: collectPayload/)
-assert.match(launchSwift, /schemaVersion: 1/)
-assert.match(launchSwift, /source: "viewspec-swiftui"/)
-assert.match(launchSwift, /payloadValues: collectPayloadValues/)
-assert.doesNotMatch(launchSwift, /payload: collectPayload/)
-assert.match(launchFlutter, /schemaVersion: 1/)
-assert.match(launchFlutter, /source: 'viewspec-flutter'/)
-assert.match(launchFlutter, /payloadValues: _collectPayloadValues/)
-assert.doesNotMatch(launchFlutter, /payload: _collectPayload/)
-for (const field of ['inputs', 'rules', 'projections']) {
-  assert(Object.hasOwn(launchIntentJson.view_spec, field), `hosted extended launch IntentBundle needs view_spec.${field}`)
-}
-
-const headlinerManifest = JSON.parse(await readFile('demos/launch-assets/headliner-manifest.json', 'utf8'))
-assert.equal(headlinerManifest.outputs.mp4, 'demos/launch-assets/headliner-prompt-four-outputs.mp4')
-for (const assetPath of Object.values(headlinerManifest.outputs)) {
-  const info = await stat(assetPath)
-  assert(info.size > 0, `${assetPath} should not be empty`)
-}
-
-const hnDemoManifest = JSON.parse(await readFile('demos/launch-assets/hn-launch-demo-manifest.json', 'utf8'))
-assert.equal(hnDemoManifest.outputs.mp4, 'demos/launch-assets/hn-launch-demo.mp4')
-assert.equal(hnDemoManifest.outputs.gif, 'demos/launch-assets/hn-launch-demo.gif')
-assert.equal(hnDemoManifest.outputs.poster, 'demos/launch-assets/hn-launch-demo-poster.png')
-assert.equal(hnDemoManifest.format, 'silent captions')
-assert(hnDemoManifest.duration_seconds >= 45 && hnDemoManifest.duration_seconds <= 60)
-assert(hnDemoManifest.code_capture_zoom_minimum >= 1.5)
-assert(hnDemoManifest.output_sizes.gif <= hnDemoManifest.gif_target_max_bytes)
-for (const slug of ['proof-artifacts', 'react-tsx', 'swiftui', 'flutter']) {
-  const storyboardEntry = hnDemoManifest.storyboard.find((entry) => entry.slug === slug)
-  assert(storyboardEntry, `HN demo storyboard needs ${slug}`)
-  assert(storyboardEntry.zoom >= 1.5, `${slug} capture should use 150% zoom or larger`)
-}
-for (const assetPath of Object.values(hnDemoManifest.outputs)) {
-  const info = await stat(assetPath)
-  assert(info.size > 0, `${assetPath} should not be empty`)
-}
-
-const landingPlayground = await readFile('demos/shared/landing-playground.js', 'utf8')
-assert.match(landingPlayground, /navigator\.clipboard\.writeText/)
-assert.match(landingPlayground, /document\.execCommand\('copy'\)/)
-assert.match(landingPlayground, /textarea\.focus\(\)/)
 
 console.log(`Validated SEO and agent metadata for ${pages.length} pages.`)

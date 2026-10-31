@@ -180,56 +180,6 @@ class _Installation:
     typescript: Mapping[str, str]
 
 
-def freerange_readiness(
-    app_dir: str | Path | None = None,
-    *,
-    bun_executable: str | Path | None = None,
-) -> dict[str, Any]:
-    """Return a read-only Freerange readiness report.
-
-    The check may execute ``bun --version`` but never installs packages, mutates the
-    application, or invokes a network-capable package runner.
-    """
-
-    engine = _engine_identity()
-    runtime: dict[str, Any] = {"name": "bun", "status": "unavailable"}
-    try:
-        runtime = _runtime_identity(bun_executable)
-        package: dict[str, Any]
-        if app_dir is None:
-            package = {"status": "not_checked"}
-        else:
-            app_path = _resolve_app_dir(app_dir)
-            installation = _validate_installation(app_path)
-            package = {
-                "status": "ready",
-                "package_json": FREERANGE_PACKAGE,
-                "tool_tree_sha256": installation.tool_tree["sha256"],
-                "typescript_version": installation.typescript["version"],
-                "typescript_integrity": installation.typescript["integrity"],
-                "typescript_tree_sha256": installation.typescript_tree["sha256"],
-            }
-        return {
-            "ok": True,
-            "status": "ready",
-            "engine": engine,
-            "runtime": runtime,
-            "package": package,
-            "errors": [],
-        }
-    except FreerangeFailure as error:
-        if runtime.get("status") == "unavailable" and error.code == "APP_FREERANGE_RUNTIME_UNSUPPORTED":
-            runtime = {"name": "bun", "status": "unsupported"}
-        return {
-            "ok": False,
-            "status": "unavailable",
-            "engine": engine,
-            "runtime": runtime,
-            "package": {"status": "unavailable", "error_code": error.code},
-            "errors": [error.to_json()],
-        }
-
-
 def analyze_freerange_numeric_scope(
     app_dir: str | Path,
     scope: Mapping[str, Any],
@@ -1107,7 +1057,7 @@ def _runtime_identity(bun_executable: str | Path | None) -> dict[str, Any]:
         raise FreerangeFailure(
             "APP_FREERANGE_RUNTIME_MISSING",
             "Bun is required for the pinned Freerange analyzer but was not found.",
-            "Install Bun explicitly, then rerun viewspec doctor --freerange.",
+            "Install Bun explicitly, then rerun viewspec prove --freerange.",
         )
     executable = Path(candidate).expanduser().resolve()
     if not executable.is_file() or not os.access(executable, os.X_OK):
@@ -1144,7 +1094,7 @@ def _runtime_identity(bun_executable: str | Path | None) -> dict[str, Any]:
         raise FreerangeFailure(
             "APP_FREERANGE_RUNTIME_UNSUPPORTED",
             f"Bun {version} is unsupported; Freerange requires Bun 1.x or newer.",
-            "Upgrade Bun explicitly and rerun viewspec doctor --freerange.",
+            "Upgrade Bun explicitly and rerun viewspec prove --freerange.",
         )
     return {
         "name": "bun",
@@ -2017,7 +1967,7 @@ def _run_bounded_command(
         raise FreerangeFailure(
             "APP_FREERANGE_EXECUTION_FAILED",
             "Freerange commands require an explicit absolute Bun executable.",
-            "Use the discovered Bun identity returned by viewspec doctor --freerange.",
+            "Install Bun explicitly and rerun viewspec prove --freerange.",
         )
     environment: dict[str, str] = {
         "no_color".upper(): "1",
@@ -2164,5 +2114,4 @@ __all__ = [
     "FREERANGE_VERSION",
     "FreerangeFailure",
     "analyze_freerange_numeric_scope",
-    "freerange_readiness",
 ]

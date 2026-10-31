@@ -6,8 +6,6 @@ from typing import Any
 
 from viewspec.state_ir import StateIR, initial_state_text
 
-STATE_TEXT_OVERLAY_KEYS = frozenset({"state_text_id", "state_text_initial"})
-
 
 def state_text_target_node_id(target_ref: str) -> str:
     kind, _, target_id = target_ref.partition(":")
@@ -63,7 +61,6 @@ def check_screen_state_text_bake(
 
 
 __all__ = [
-    "STATE_TEXT_OVERLAY_KEYS",
     "check_screen_state_text_bake",
     "screen_state_text_overlays",
     "state_text_target_node_id",

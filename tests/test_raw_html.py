@@ -10,9 +10,17 @@ import pytest
 from hypothesis import given
 from hypothesis import strategies as st
 
-from viewspec import ViewSpecBuilder, compile, compile_html, diff_html, lift_html, load_design_system
+from viewspec import ViewSpecBuilder, compile
 from viewspec.cli import main as cli_main
-from viewspec.raw_html import MAX_DOM_DEPTH, MAX_HTML_INPUT_BYTES, HtmlInputError, write_html_compile_result
+from viewspec.design_md import load_design_system
+from viewspec.raw_html import (
+    MAX_DOM_DEPTH,
+    MAX_HTML_INPUT_BYTES,
+    HtmlInputError,
+    compile_html,
+    lift_html,
+    write_html_compile_result,
+)
 
 DESIGN = """---
 name: Acme
@@ -131,22 +139,6 @@ def test_lift_html_reports_roles_groups_and_stable_topology():
     assert ("action", "Open") in roles
     assert len(first.group_candidates) >= 1
     assert first.topology_fingerprint.hex == second.topology_fingerprint.hex
-
-
-def test_diff_html_reports_narrow_semantic_changes():
-    result = diff_html(
-        "<h1>Old</h1><ul><li>A</li></ul><table><tr><td>$1</td></tr></table>",
-        "<h1>New</h1><ul><li>B</li></ul><table><tr><td>$2</td></tr></table>",
-    )
-    payload = result.to_json()
-
-    assert payload["changed_headings"] == {"removed": ["Old"], "added": ["New"]}
-    assert payload["diff_version"] == 1
-    assert payload["basis"] == "lift_v1"
-    assert payload["changed_values"] == {"removed": ["$1"], "added": ["$2"]}
-    assert payload["changed_lists"]["added"] == [["B"]]
-    assert payload["changed_tables"]["removed"] == [["$1"]]
-    assert 0 <= payload["topology_similarity"] <= 1
 
 
 def test_oversized_html_fails_before_parsing():
@@ -542,7 +534,6 @@ def test_local_python_apis_make_no_socket_calls(monkeypatch):
     design = load_design_system(content=DESIGN)
     compile_html("<h1>Report</h1>", design=design)
     lift_html("<h1>Report</h1>")
-    diff_html("<h1>Old</h1>", "<h1>New</h1>")
 
     builder = ViewSpecBuilder("local_no_network")
     table = builder.add_table("items", region="main", group_id="rows")
@@ -550,7 +541,7 @@ def test_local_python_apis_make_no_socket_calls(monkeypatch):
     compile(builder.build_bundle(), design=design)
 
 
-def test_cli_compile_lift_diff_make_no_socket_calls(tmp_path, monkeypatch):
+def test_cli_compile_makes_no_socket_calls(tmp_path, monkeypatch):
     def fail_socket(*args, **kwargs):
         raise AssertionError("network call attempted")
 
@@ -559,9 +550,5 @@ def test_cli_compile_lift_diff_make_no_socket_calls(tmp_path, monkeypatch):
 
     html_path = tmp_path / "input.html"
     html_path.write_text("<h1>Report</h1><p>$1</p>", encoding="utf-8")
-    new_path = tmp_path / "new.html"
-    new_path.write_text("<h1>Report 2</h1><p>$2</p>", encoding="utf-8")
 
     assert cli_main(["compile", str(html_path), "--out", str(tmp_path / "dist")]) == 0
-    assert cli_main(["lift", str(html_path), "--out", str(tmp_path / "lift.json")]) == 0
-    assert cli_main(["diff", str(html_path), str(new_path), "--json"]) == 0

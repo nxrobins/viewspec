@@ -1,73 +1,77 @@
 import assert from 'node:assert/strict'
-import { readFile, writeFile, mkdtemp } from 'node:fs/promises'
-import { tmpdir } from 'node:os'
-import { join, resolve } from 'node:path'
-import { pathToFileURL } from 'node:url'
+import { readdir, readFile, stat } from 'node:fs/promises'
+import { dirname, join, normalize } from 'node:path'
 
-const source = await readFile(resolve('demos/shared/landing-config.js'), 'utf8')
+// The site is static: no page reads runtime configuration, and every internal link it
+// publishes resolves to a file that deploys from demos/.
 
-async function loadConfig(windowConfig = {}) {
-  const tempDir = await mkdtemp(join(tmpdir(), 'viewspec-landing-config-'))
-  const modulePath = join(tempDir, 'landing-config.mjs')
-  await writeFile(
-    modulePath,
-    `globalThis.window = { VIEWSPEC_LANDING_CONFIG: ${JSON.stringify(windowConfig)} };\n${source}`,
-    'utf8'
-  )
-  return import(pathToFileURL(modulePath).href)
+const shared = (await readdir('demos/shared')).sort()
+assert.deepEqual(
+  shared,
+  ['launch-pages.css', 'nav.js', 'pretext-canvas-surfaces.js'],
+  'demos/shared holds only assets that pages load'
+)
+
+const home = await readFile('demos/index.html', 'utf8')
+assert.doesNotMatch(home, /VIEWSPEC_LANDING_CONFIG|PUBLIC_LANDING_API_KEY/, 'homepage reads no runtime config')
+assert.doesNotMatch(home, /data-config-link/, 'homepage links are not rewritten at runtime')
+assert.doesNotMatch(home, /<script type="module"/, 'homepage has no module scripts')
+
+async function pagesUnder(directory) {
+  const entries = await readdir(directory, { withFileTypes: true })
+  const pages = []
+  for (const entry of entries) {
+    if (entry.name === 'vendor' || entry.name === 'landing-compiled') continue
+    const path = join(directory, entry.name)
+    if (entry.isDirectory()) pages.push(...(await pagesUnder(path)))
+    else if (entry.name.endsWith('.html')) pages.push(path)
+  }
+  return pages
 }
 
-const {
-  LANDING_CONFIG,
-  compileRequestHeaders,
-  hasLiveApiConfig,
-  hasPublicApiKey,
-  redactedCompileRequestHeaders,
-} = await loadConfig()
+async function exists(path) {
+  try {
+    await stat(path)
+    return true
+  } catch {
+    return false
+  }
+}
 
-assert.equal(LANDING_CONFIG.apiUrl, 'https://api.viewspec.dev/v1/compile')
-assert(LANDING_CONFIG.apiUrls.includes('https://api.viewspec.dev/v1/compile'))
-assert(LANDING_CONFIG.apiUrls.includes('https://viewspec-api.fly.dev/v1/compile'))
-assert.equal(LANDING_CONFIG.endpointStaggerMs, 50)
-assert.equal(LANDING_CONFIG.endpointFailureTtlMs, 300000)
-assert.equal(LANDING_CONFIG.proStripeUrl, 'https://buy.stripe.com/6oU4gA6PqcM9afq6gq2ZO00')
-assert.equal(LANDING_CONFIG.enterpriseUrl, 'mailto:hello@viewspec.dev?subject=ViewSpec%20Enterprise')
-// `scaleStripeUrl` and `signupUrl` were dropped in the site bug sweep
-// (b7d5b96) because nothing in the HTML referenced them. Re-asserting them
-// here is what kept SDK Reliability red on every commit since that merge;
-// the test now matches the surface that actually exists on LANDING_CONFIG.
-assert.equal(LANDING_CONFIG.scaleStripeUrl, undefined)
-assert.equal(LANDING_CONFIG.signupUrl, undefined)
-assert.equal(new Set(LANDING_CONFIG.apiUrls).size, LANDING_CONFIG.apiUrls.length)
-assert.equal(hasLiveApiConfig(), true)
-assert.equal(hasPublicApiKey(), false)
-assert.deepEqual(compileRequestHeaders(), { 'Content-Type': 'application/json' })
-assert.deepEqual(redactedCompileRequestHeaders(), { 'Content-Type': 'application/json' })
+async function assertLocalTarget(page, target) {
+  const path = target.split(/[?#]/)[0]
+  if (!path) return
+  const resolved = normalize(join(dirname(page), path))
+  const file = path.endsWith('/') ? join(resolved, 'index.html') : resolved
+  assert(await exists(file), `${page} links to a missing file: ${target}`)
+}
 
-const authenticated = await loadConfig({ publicApiKey: 'vsk_public_browser_key' })
-assert.equal(authenticated.hasPublicApiKey(), true)
-assert.deepEqual(authenticated.compileRequestHeaders(), {
-  'Content-Type': 'application/json',
-  Authorization: 'Bearer vsk_public_browser_key',
-})
-assert.deepEqual(authenticated.redactedCompileRequestHeaders(), {
-  'Content-Type': 'application/json',
-  Authorization: 'Bearer ***REDACTED***',
-})
+const pages = await pagesUnder('demos')
+assert(pages.length >= 13, 'expected every public demo page')
+let checkedLinks = 0
+for (const page of pages) {
+  const html = await readFile(page, 'utf8')
+  for (const [, target] of html.matchAll(/(?:href|src)="(\.{1,2}\/[^"]*)"/g)) {
+    await assertLocalTarget(page, target)
+    checkedLinks += 1
+  }
+}
 
-const placeholderKey = await loadConfig({ publicApiKey: 'REPLACE_WITH_PUBLIC_KEY' })
-assert.equal(placeholderKey.hasPublicApiKey(), false)
-assert.equal(Object.hasOwn(placeholderKey.compileRequestHeaders(), 'Authorization'), false)
+for (const [, anchor] of home.matchAll(/href="#([^"]+)"/g)) {
+  assert(home.includes(`id="${anchor}"`), `homepage anchor has no target: #${anchor}`)
+  checkedLinks += 1
+}
 
-const customCommerce = await loadConfig({ enterpriseUrl: 'https://enterprise.test/contact' })
-assert.equal(customCommerce.LANDING_CONFIG.enterpriseUrl, 'https://enterprise.test/contact')
-const customPro = await loadConfig({ proStripeUrl: 'https://checkout.test/pro' })
-assert.equal(customPro.LANDING_CONFIG.proStripeUrl, 'https://checkout.test/pro')
+const nav = await readFile('demos/shared/nav.js', 'utf8')
+for (const [, target] of nav.matchAll(/href: '(\.\.\/[^']*)'/g)) {
+  await assertLocalTarget('demos/shared/nav.js', target)
+  checkedLinks += 1
+}
 
-const custom = await loadConfig({ apiUrl: 'https://example.test/v1/compile', fallbackApiUrls: 'https://fallback.test/v1/compile' })
-assert.deepEqual(custom.LANDING_CONFIG.apiUrls, [
-  'https://example.test/v1/compile',
-  'https://fallback.test/v1/compile',
-])
+const sitemap = await readFile('demos/sitemap.xml', 'utf8')
+for (const [, path] of sitemap.matchAll(/<loc>https:\/\/viewspec\.dev\/([^<]*)<\/loc>/g)) {
+  assert(await exists(join('demos', path, 'index.html')), `sitemap lists a missing page: ${path}`)
+  checkedLinks += 1
+}
 
-console.log(`Validated ${LANDING_CONFIG.apiUrls.length} landing API endpoint candidates.`)
+console.log(`Validated ${checkedLinks} internal links across ${pages.length} static pages.`)

@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from viewspec import profile_style_facts
+from viewspec.aesthetics import profile_style_facts
 from viewspec.cli import main as cli_main
 from viewspec.host_verify import (
     CommandResult,
@@ -15,9 +15,7 @@ from viewspec.host_verify import (
     _browser_failure_message,
     _collect_planned_browser_results,
     _run_process,
-    summarize_host_verification_report,
     verify_host_artifact_dir,
-    verify_host_tool,
 )
 from viewspec.local_tools import file_hash
 from viewspec.sdk.builder import ViewSpecBuilder
@@ -89,45 +87,6 @@ def _fake_span_runtime(host_dir, *, install, started, timings):
     runtime["assertions"]["aesthetic_layout_assertion_count"] = 3
     runtime["assertions"]["grid_span_assertion_count"] = 1
     return runtime
-
-
-def test_summarize_host_verification_report_filters_to_bounded_metadata():
-    summary = summarize_host_verification_report(
-        {
-            "ok": True,
-            "assertions": {
-                "dom_count": 4,
-                "style_assertion_count": 7,
-                "unsafe_bool": True,
-                "unsafe_string": "9",
-            },
-            "assertion_requirements": {
-                "dom_count": 1,
-                "style_assertion_count": 4,
-                "unsafe_bool": False,
-                "unsafe_string": "4",
-            },
-            "errors": [
-                {"code": "HOST_VERIFY_AESTHETIC_LAYOUT_ASSERTION_MISSING", "message": "Missing layout proof."},
-                {"message": "No code"},
-                "not an error object",
-            ],
-        }
-    )
-
-    assert summary == {
-        "ok": True,
-        "assertions": {
-            "dom_count": 4,
-            "style_assertion_count": 7,
-        },
-        "assertion_requirements": {
-            "dom_count": 1,
-            "style_assertion_count": 4,
-        },
-        "error_codes": ["HOST_VERIFY_AESTHETIC_LAYOUT_ASSERTION_MISSING"],
-    }
-    assert summarize_host_verification_report(None) is None
 
 
 def test_verify_host_artifact_mode_writes_stable_report(tmp_path, monkeypatch):
@@ -299,88 +258,6 @@ def test_verify_host_preflight_failure_preserves_manifest_summary(tmp_path):
     assert report["manifest_summary"]["available"] is True
     assert report["manifest_summary"]["aesthetic_profile"] == "aesthetic.data_dense"
     assert report["manifest_summary"]["aesthetic_layout"]["metric_grid"]["columns"] == 3
-
-
-def test_verify_host_compile_mode_uses_public_cli_contract(tmp_path, monkeypatch, capsys):
-    builder = ViewSpecBuilder("host_verify_compile")
-    dashboard = builder.add_dashboard("metrics", region="main", group_id="cards")
-    dashboard.add_card(label="Open", value="18", id="open")
-    bundle_path = tmp_path / "viewspec.intent.json"
-    bundle_path.write_text(json.dumps(builder.build_bundle().to_json()), encoding="utf-8")
-    out_dir = tmp_path / "compiled"
-    monkeypatch.setattr("viewspec.host_verify._run_host_browser_phases", _fake_runtime)
-
-    assert cli_main(["verify-host", "--intent", str(bundle_path), "--out", str(out_dir), "--json"]) == 0
-    payload = json.loads(capsys.readouterr().out)
-
-    assert payload["ok"] is True
-    assert out_dir.joinpath("ViewSpecView.tsx").exists()
-    assert payload["artifact_hash"] == file_hash(out_dir / "ViewSpecView.tsx")
-
-
-def test_verify_host_human_output_prints_manifest_and_assertions(tmp_path, monkeypatch, capsys):
-    style_facts = profile_style_facts("aesthetic.data_dense")
-    out_dir = _write_tailwind_artifact(tmp_path)
-    capsys.readouterr()
-    monkeypatch.setattr("viewspec.host_verify._run_host_browser_phases", _fake_runtime)
-
-    assert cli_main(["verify-host", str(out_dir)]) == 0
-    output = capsys.readouterr().out
-
-    assert output.startswith("ok\n")
-    assert "manifest: kind=intent_bundle_compile emitter=react_tailwind_tsx artifact=ViewSpecView.tsx nodes=" in output
-    assert "aesthetic_profile: aesthetic.data_dense" in output
-    assert (
-        "aesthetic_style: "
-        f"profile=aesthetic.data_dense "
-        f"changed_tokens={style_facts['changed_token_count']} "
-        f"categories={style_facts['category_count']} "
-        f"declarations={style_facts['declaration_count']}"
-    ) in output
-    assert "  content_grid: columns=3 nodes=1 profile=aesthetic.data_dense" in output
-    assert "  metric_grid: columns=3 nodes=1 profile=aesthetic.data_dense" in output
-    assert "host_assertions:\n" in output
-    assert "  action_count: 1" in output
-    assert "  aesthetic_layout_assertion_count: 2" in output
-    assert "  aesthetic_profile_assertion_count: 1" in output
-    assert "  dom_count: 4" in output
-    assert "  grid_column_assertion_count: 2" in output
-    assert "  grid_span_assertion_count: 0" in output
-    assert "  payload_binding_count: 1" in output
-    assert "  style_assertion_count: 7" in output
-    assert "host_assertion_requirements:\n" in output
-    assert "  aesthetic_layout_assertion_count: 2" in output
-    assert "  aesthetic_profile_assertion_count: 1" in output
-    assert "  dom_count: 1" in output
-    assert "  grid_span_assertion_count: 0" in output
-    assert "  style_assertion_count: 4" in output
-
-
-def test_verify_host_human_output_prints_aesthetic_span_layout_summary(tmp_path, monkeypatch, capsys):
-    style_facts = profile_style_facts("aesthetic.premium_saas")
-    out_dir = _write_tailwind_artifact(tmp_path, profile="aesthetic.premium_saas")
-    capsys.readouterr()
-    monkeypatch.setattr("viewspec.host_verify._run_host_browser_phases", _fake_span_runtime)
-
-    assert cli_main(["verify-host", str(out_dir)]) == 0
-    output = capsys.readouterr().out
-
-    assert output.startswith("ok\n")
-    assert "aesthetic_profile: aesthetic.premium_saas" in output
-    assert (
-        "aesthetic_style: "
-        f"profile=aesthetic.premium_saas "
-        f"changed_tokens={style_facts['changed_token_count']} "
-        f"categories={style_facts['category_count']} "
-        f"declarations={style_facts['declaration_count']}"
-    ) in output
-    assert "  content_grid: columns=2 nodes=1 profile=aesthetic.premium_saas" in output
-    assert "  metric_card: layout_emphasis=featured span_columns=2 nodes=1 profile=aesthetic.premium_saas" in output
-    assert "  metric_card: columns=unknown" not in output
-    assert "  metric_grid: columns=2 nodes=1 profile=aesthetic.premium_saas" in output
-    assert "  aesthetic_layout_assertion_count: 3" in output
-    assert "  grid_span_assertion_count: 1" in output
-    assert "host_assertion_requirements:\n" in output
 
 
 def test_verify_host_rejects_profiled_artifact_without_runtime_aesthetic_proof(tmp_path, monkeypatch):
@@ -617,71 +494,3 @@ def test_verify_host_uses_prebuilt_node_modules_without_network(tmp_path, monkey
     assert not any(command[1:] == ["ci", "--ignore-scripts"] for command in commands)
     assert commands.index(["npm", "run", "typecheck"]) < commands.index(["npm", "run", "build"])
     assert runtime["assertions"]["dom_count"] == 1
-
-
-def test_verify_host_mcp_tool_respects_cwd_containment(tmp_path):
-    root = tmp_path / "root"
-    root.mkdir()
-    outside = tmp_path / "outside"
-    outside.mkdir()
-
-    result = verify_host_tool(str(outside), cwd=root)
-
-    assert result["ok"] is False
-    assert result["errors"][0]["code"] == "PATH_OUTSIDE_CWD"
-
-
-def test_verify_host_mcp_tool_metadata_exposes_bounded_proof_summary(tmp_path, monkeypatch):
-    style_facts = profile_style_facts("aesthetic.data_dense")
-    _write_tailwind_artifact(tmp_path)
-    monkeypatch.setattr("viewspec.host_verify._run_host_browser_phases", _fake_runtime)
-
-    result = verify_host_tool("react-tailwind-output", cwd=tmp_path)
-
-    assert result["ok"] is True
-    assert result["metadata"]["manifest_summary"]["available"] is True
-    assert result["metadata"]["manifest_summary"]["aesthetic_profile"] == "aesthetic.data_dense"
-    assert (
-        result["metadata"]["manifest_summary"]["aesthetic_style"]["changed_token_count"]
-        == style_facts["changed_token_count"]
-    )
-    assert result["metadata"]["host_verification"] == {
-        "ok": True,
-        "assertions": {
-            "action_count": 1,
-            "aesthetic_layout_assertion_count": 2,
-            "aesthetic_profile_assertion_count": 1,
-            "dom_count": 4,
-            "grid_column_assertion_count": 2,
-            "grid_span_assertion_count": 0,
-            "payload_binding_count": 1,
-            "style_assertion_count": 7,
-        },
-        "assertion_requirements": {
-            "aesthetic_layout_assertion_count": 2,
-            "aesthetic_profile_assertion_count": 1,
-            "dom_count": 1,
-            "grid_span_assertion_count": 0,
-            "style_assertion_count": 4,
-        },
-        "error_codes": [],
-    }
-    assert result["proof_report"]["manifest_summary"] == result["metadata"]["manifest_summary"]
-
-
-def test_verify_host_mcp_tool_metadata_exposes_failure_codes(tmp_path, monkeypatch):
-    _write_tailwind_artifact(tmp_path)
-
-    def weak_runtime(host_dir, *, install, started, timings):
-        runtime = _fake_runtime(host_dir, install=install, started=started, timings=timings)
-        runtime["assertions"].pop("aesthetic_profile_assertion_count")
-        return runtime
-
-    monkeypatch.setattr("viewspec.host_verify._run_host_browser_phases", weak_runtime)
-
-    result = verify_host_tool("react-tailwind-output", cwd=tmp_path)
-
-    assert result["ok"] is False
-    assert result["metadata"]["manifest_summary"]["aesthetic_profile"] == "aesthetic.data_dense"
-    assert result["metadata"]["host_verification"]["ok"] is False
-    assert result["metadata"]["host_verification"]["error_codes"] == ["HOST_VERIFY_AESTHETIC_PROFILE_ASSERTION_MISSING"]

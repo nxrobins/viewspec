@@ -17,7 +17,7 @@ from urllib.parse import urlparse
 
 from viewspec._version import __version__
 from viewspec.design_md import DesignSystemContext, load_design_system
-from viewspec.emitters._write import write_artifact_set, write_text_atomic
+from viewspec.emitters._write import write_artifact_set
 
 MAX_HTML_INPUT_BYTES = 5_000_000
 # Maximum kept-element nesting depth. The parser is stack-based, but the
@@ -27,7 +27,6 @@ MAX_HTML_INPUT_BYTES = 5_000_000
 MAX_DOM_DEPTH = 256
 MANIFEST_SCHEMA_VERSION = 1
 RAW_HTML_POLICY_VERSION = "viewspec-raw-html-allowlist@1"
-DIFF_VERSION = 1
 DIFF_BASIS = "lift_v1"
 VOID_TAGS = {
     "area",
@@ -142,15 +141,6 @@ SAFE_SCHEMES_BY_ATTR = {
 # The only data: URLs the sanitizer keeps (inline raster images on <img src>). Shared with the
 # `check` URL-scheme gate so the two cannot drift on which data: payloads count as inert.
 DATA_IMAGE_SRC_PREFIXES = ("data:image/png", "data:image/jpeg", "data:image/gif", "data:image/webp", "data:image/avif")
-SANITIZER_POLICY = {
-    "allowed_tags": sorted(ALLOWED_TAGS),
-    "allowed_attrs": {tag: sorted(set(SAFE_GLOBAL_ATTRS) | attrs) for tag, attrs in sorted(SAFE_ATTRS_BY_TAG.items())},
-    "global_attrs": sorted(SAFE_GLOBAL_ATTRS),
-    "url_attrs": sorted(URL_ATTRS),
-    "safe_schemes_by_attr": {key: sorted(value) for key, value in sorted(SAFE_SCHEMES_BY_ATTR.items())},
-    "strip_with_content_tags": sorted(STRIP_WITH_CONTENT_TAGS),
-    "unwrap_tags": sorted(UNWRAP_TAGS),
-}
 NUMERIC_RE = re.compile(r"^[+-]?(?:\$)?\d[\d,]*(?:\.\d+)?(?:%|[KMB])?$", re.IGNORECASE)
 LABEL_RE = re.compile(r"^[A-Z][A-Za-z0-9][A-Za-z0-9 .,&:/()%'_-]{1,58}$")
 CONTROL_WHITESPACE_RE = re.compile(r"[\x00-\x20\x7f]+")
@@ -260,38 +250,6 @@ class HtmlCompileResult:
     manifest: dict[str, Any]
     diagnostics: tuple[dict[str, str], ...]
     lift: HtmlLiftResult
-
-
-@dataclass(frozen=True)
-class HtmlSemanticDiff:
-    left_source_hash: str
-    right_source_hash: str
-    topology_similarity: float
-    changed_headings: dict[str, list[str]]
-    changed_values: dict[str, list[str]]
-    changed_actions: dict[str, list[str]]
-    changed_lists: dict[str, list[Any]]
-    changed_tables: dict[str, list[Any]]
-    role_count_delta: dict[str, int]
-    group_count_delta: int
-    diagnostics: tuple[dict[str, str], ...] = ()
-
-    def to_json(self) -> dict[str, Any]:
-        return {
-            "diff_version": DIFF_VERSION,
-            "basis": DIFF_BASIS,
-            "left_source_hash": self.left_source_hash,
-            "right_source_hash": self.right_source_hash,
-            "topology_similarity": self.topology_similarity,
-            "changed_headings": self.changed_headings,
-            "changed_values": self.changed_values,
-            "changed_actions": self.changed_actions,
-            "changed_lists": self.changed_lists,
-            "changed_tables": self.changed_tables,
-            "role_count_delta": self.role_count_delta,
-            "group_count_delta": self.group_count_delta,
-            "diagnostics": [dict(item) for item in self.diagnostics],
-        }
 
 
 class _SanitizingHTMLParser(HTMLParser):
@@ -478,36 +436,6 @@ def compile_html(
     if design is not None:
         manifest["design"] = design.to_meta()
     return HtmlCompileResult(html=output_html, manifest=manifest, diagnostics=diagnostics, lift=lift)
-
-
-def diff_html(
-    left_html: str, right_html: str, *, left_name: str | None = None, right_name: str | None = None
-) -> HtmlSemanticDiff:
-    left = lift_html(left_html, source_name=left_name)
-    right = lift_html(right_html, source_name=right_name)
-    left_nodes = _nodes_by_id(left.nodes)
-    right_nodes = _nodes_by_id(right.nodes)
-    left_role_counts = _role_counts(left.roles)
-    right_role_counts = _role_counts(right.roles)
-    all_roles = sorted(set(left_role_counts) | set(right_role_counts))
-
-    return HtmlSemanticDiff(
-        left_source_hash=left.source_hash,
-        right_source_hash=right.source_hash,
-        topology_similarity=round(
-            _jaccard(left.topology_fingerprint.path_ngrams, right.topology_fingerprint.path_ngrams), 6
-        ),
-        changed_headings=_changed_texts(_texts_by_role(left.roles, "heading"), _texts_by_role(right.roles, "heading")),
-        changed_values=_changed_texts(_texts_by_role(left.roles, "value"), _texts_by_role(right.roles, "value")),
-        changed_actions=_changed_texts(_texts_by_role(left.roles, "action"), _texts_by_role(right.roles, "action")),
-        changed_lists=_changed_sequences(
-            _sequences_by_tag(left.nodes, "li", left_nodes), _sequences_by_tag(right.nodes, "li", right_nodes)
-        ),
-        changed_tables=_changed_sequences(_table_rows(left.nodes, left_nodes), _table_rows(right.nodes, right_nodes)),
-        role_count_delta={role: right_role_counts.get(role, 0) - left_role_counts.get(role, 0) for role in all_roles},
-        group_count_delta=len(right.group_candidates) - len(left.group_candidates),
-        diagnostics=_dedupe_diagnostics([*left.diagnostics, *right.diagnostics]),
-    )
 
 
 def _check_html_size(html: str) -> None:
@@ -840,71 +768,6 @@ def _first_heading(lift: HtmlLiftResult) -> str | None:
     return None
 
 
-def _nodes_by_id(nodes: tuple[LiftNode, ...]) -> dict[str, LiftNode]:
-    return {node.id: node for node in nodes}
-
-
-def _texts_by_role(roles: tuple[HtmlRole, ...], role: str) -> list[str]:
-    return [item.text for item in roles if item.role == role]
-
-
-def _changed_texts(left: list[str], right: list[str]) -> dict[str, list[str]]:
-    left_set = set(left)
-    right_set = set(right)
-    return {"removed": sorted(left_set - right_set), "added": sorted(right_set - left_set)}
-
-
-def _role_counts(roles: tuple[HtmlRole, ...]) -> dict[str, int]:
-    counts: dict[str, int] = {}
-    for role in roles:
-        counts[role.role] = counts.get(role.role, 0) + 1
-    return counts
-
-
-def _jaccard(left: tuple[str, ...], right: tuple[str, ...]) -> float:
-    left_set = set(left)
-    right_set = set(right)
-    if not left_set and not right_set:
-        return 1.0
-    if not left_set or not right_set:
-        return 0.0
-    return len(left_set & right_set) / len(left_set | right_set)
-
-
-def _sequences_by_tag(nodes: tuple[LiftNode, ...], tag: str, nodes_by_id: dict[str, LiftNode]) -> list[list[str]]:
-    sequences = []
-    for node in nodes:
-        children = [nodes_by_id[child_id] for child_id in node.child_ids if child_id in nodes_by_id]
-        values = [child.text for child in children if child.tag == tag and child.text]
-        if values:
-            sequences.append(values)
-    return sequences
-
-
-def _table_rows(nodes: tuple[LiftNode, ...], nodes_by_id: dict[str, LiftNode]) -> list[list[str]]:
-    rows = []
-    for node in nodes:
-        if node.tag != "tr":
-            continue
-        cells = [
-            nodes_by_id[child_id].text
-            for child_id in node.child_ids
-            if child_id in nodes_by_id and nodes_by_id[child_id].tag in {"td", "th"}
-        ]
-        if cells:
-            rows.append(cells)
-    return rows
-
-
-def _changed_sequences(left: list[list[str]], right: list[list[str]]) -> dict[str, list[Any]]:
-    left_items = {tuple(item) for item in left}
-    right_items = {tuple(item) for item in right}
-    return {
-        "removed": [list(item) for item in sorted(left_items - right_items)],
-        "added": [list(item) for item in sorted(right_items - left_items)],
-    }
-
-
 def write_html_compile_result(
     result: HtmlCompileResult, output_dir: str | Path, *, include_lift: bool = False
 ) -> dict[str, str]:
@@ -930,10 +793,6 @@ def _html_compile_files(result: HtmlCompileResult, paths: dict[str, Path]) -> It
     yield paths["diagnostics"], json.dumps([dict(item) for item in result.diagnostics], indent=2, sort_keys=True)
     if "lift" in paths:
         yield paths["lift"], json.dumps(result.lift.to_json(), indent=2, sort_keys=True)
-
-
-# The atomic writer lives in viewspec.emitters._write; this name stays for callers that imported it here.
-_atomic_write = write_text_atomic
 
 
 def _dedupe_diagnostics(items: list[dict[str, str]] | tuple[dict[str, str], ...]) -> tuple[dict[str, str], ...]:
@@ -985,11 +844,8 @@ __all__ = [
     "HtmlInputError",
     "HtmlLiftResult",
     "HtmlRole",
-    "HtmlSemanticDiff",
     "HtmlTopologyFingerprint",
-    "SANITIZER_POLICY",
     "compile_html",
-    "diff_html",
     "lift_html",
     "write_html_compile_result",
 ]

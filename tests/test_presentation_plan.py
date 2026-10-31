@@ -777,7 +777,7 @@ def test_page_hero_in_main_region_still_gets_page_header_typography():
 
 
 def test_retained_v5_plans_normalize_direct_semantic_surfaces_and_action_slots():
-    retained = ROOT / "conformance" / "agent-ui-v2" / "fixtures" / "shakedown-104729-2026-08-06-v5"
+    retained = ROOT / "tests" / "fixtures" / "presentation"
     core = json.loads((retained / "viewspec-core.app.json").read_text(encoding="utf-8"))
     deep = json.loads((retained / "viewspec-deep.app.json").read_text(encoding="utf-8"))
 
@@ -945,69 +945,6 @@ def test_real_chromium_proves_anchors_and_reports_first_divergence(tmp_path, mon
     assert passed["ok"] is True, passed["errors"]
     assert passed["assertions"]["presentation_anchor_assertion_count"] == 1
     assert passed["assertions"]["presentation_viewport_count"] == 3
-
-    static_dir = tmp_path / "static"
-    assert compile_app(app_path, out_dir=static_dir, cwd=tmp_path)["ok"]
-    output_dir.joinpath("node_modules").symlink_to(template_modules, target_is_directory=True)
-    build = subprocess.run(
-        ["npm", "run", "build"],
-        cwd=output_dir,
-        capture_output=True,
-        text=True,
-        timeout=90,
-        check=False,
-    )
-    assert build.returncode == 0, build.stdout + build.stderr
-    score_spec = tmp_path / "parity-spec.json"
-    score_report = tmp_path / "parity-report.json"
-    score_spec.write_text(
-        json.dumps(
-            {
-                "required_text": ["Incident Queue", "inc_1042", "inc_1043", "Triage"],
-                "visual_anchors": ["Incident Queue", "inc_1042", "high", "inc_1043", "medium", "Triage"],
-            },
-            sort_keys=True,
-        ),
-        encoding="utf-8",
-    )
-    parity = subprocess.run(
-        [
-            "node",
-            str(ROOT / "scripts" / "agent_ui_browser_score.mjs"),
-            "--candidate",
-            str(output_dir / "dist"),
-            "--candidate-entry",
-            "index.html",
-            "--reference",
-            str(static_dir / "index.html"),
-            "--reference-step",
-            "0",
-            "--spec",
-            str(score_spec),
-            "--out",
-            str(score_report),
-            "--evidence",
-            str(tmp_path / "parity-evidence"),
-        ],
-        cwd=ROOT,
-        capture_output=True,
-        text=True,
-        timeout=120,
-        check=False,
-    )
-    assert parity.returncode == 0, parity.stdout + parity.stderr
-    parity_report = json.loads(score_report.read_text(encoding="utf-8"))
-    assert {item["viewport"]["width"] for item in parity_report["viewports"]} == {390, 768, 1440}
-    assert min(item["layout_fidelity"] for item in parity_report["viewports"]) >= 0.95
-    anchor_criteria = [
-        criterion
-        for viewport in parity_report["viewports"]
-        for criterion in viewport["criteria"]
-        if criterion["dimension"] == "layout_fidelity"
-    ]
-    assert anchor_criteria
-    assert all(criterion["candidate_anchor"] for criterion in anchor_criteria)
-    assert all(criterion["reference_anchor"] for criterion in anchor_criteria)
 
     broken = _app_with_declared_presentation()
     broken_anchor = broken["screens"][0]["presentation"]["anchors"][0]

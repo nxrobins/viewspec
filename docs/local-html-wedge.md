@@ -1,19 +1,17 @@
 # Local HTML Wedge
 
-The local HTML wedge is the SDK import/fallback path for existing HTML. For new UI, agents should emit `viewspec.intent.json` and use `viewspec validate-intent` before compiling.
+The local HTML wedge is the SDK import/fallback path for existing HTML. For new UI, agents should emit `viewspec.intent.json` and use `viewspec check` before compiling.
 
 ```bash
 viewspec compile input.html --design DESIGN.md --out dist/
-viewspec lift input.html --out lift.json
-viewspec diff old.html new.html --json
 viewspec check dist/
 ```
 
-It is intentionally not ViewSpec decompilation. The guarantee is sanitize + theme + manifest + semantic diff.
+It is intentionally not ViewSpec decompilation. The guarantee is sanitize + theme + manifest.
 
 ## Offline Contract
 
-- SDK execution for `compile`, `lift`, and `diff` performs no network calls.
+- `viewspec compile` performs no network calls on HTML input.
 - Generated raw-HTML artifacts do not auto-fetch network resources when opened.
 - External anchors remain clickable with `rel="noopener noreferrer"`.
 - Remote image `src` values are replaced with inert external-image links and recorded in `external_refs`.

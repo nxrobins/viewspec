@@ -7,23 +7,13 @@ import pytest
 from hypothesis import HealthCheck, given, settings
 from hypothesis import strategies as st
 
-from viewspec import (
-    ASTBundle,
-    CompilerResult,
-    CompositionIR,
-    IntentBundle,
-    IRNode,
-    Provenance,
-    SemanticNode,
-    ViewSpecBuilder,
-    compile,
-    validate_agent_intent_bundle,
-)
+from viewspec import ASTBundle, IntentBundle, ViewSpecBuilder, compile
+from viewspec.agent import validate_agent_intent_bundle
 from viewspec.compiler import CompilerInputError
 from viewspec.emitters.html_tailwind import HtmlTailwindEmitter
 from viewspec.intent_contract import MAX_SAFE_INTEGER
 from viewspec.schema.viewspec_pb2 import IntentBundle as PbIntentBundle
-from viewspec.types import normalize_json_numbers
+from viewspec.types import CompilerResult, CompositionIR, IRNode, Provenance, SemanticNode, normalize_json_numbers
 
 
 def test_builder_roundtrip_json():
@@ -136,7 +126,7 @@ def test_slots_edges_actions_roundtrip_json_and_proto():
 
 
 # ---------------------------------------------------------------------------
-# T-4: property tests over scalar and nested values (audit finding T-4, guarding C-1 and C-2)
+# Property tests over scalar and nested values
 #
 # Every attribute and slot value crosses google.protobuf.Struct, whose numbers are doubles. These
 # properties pin the contract that a bundle built in memory compiles to the same bytes as the same
@@ -300,7 +290,7 @@ def test_unsafe_integers_are_rejected_at_the_intent_boundary_wherever_they_appea
 
 
 def test_negative_zero_and_integral_floats_are_canonical_in_memory():
-    """-0.0 and 100.0 must serialize like 0 and 100 before any round trip (audit C-1)."""
+    """-0.0 and 100.0 must serialize like 0 and 100 before any round trip."""
     bundle = _value_bundle(-0.0, [100.0, {"nested": 2.0}, [3.0, 1.5]])
     node = bundle.substrate.nodes["record"]
     assert node.attrs["value"] == 0 and isinstance(node.attrs["value"], int)
@@ -316,7 +306,7 @@ def test_negative_zero_and_integral_floats_are_canonical_in_memory():
 
 
 def test_tuples_render_like_lists_in_memory_and_after_json_and_proto_round_trips(tmp_path):
-    """A tuple of integral floats renders like the list JSON and proto turn it into (audit C-1)."""
+    """A tuple of integral floats renders like the list JSON and proto turn it into."""
     bundle = _value_bundle((1.0, 2.0), [(3.0, 4.5), {"pair": (5.0, 6.0)}])
     node = bundle.substrate.nodes["record"]
     assert node.attrs["value"] == [1, 2]

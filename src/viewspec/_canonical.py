@@ -6,16 +6,14 @@ raises ``ValueError`` instead of emitting the non-JSON tokens ``NaN`` or ``Infin
 only in how non-ASCII text is written:
 
 * :func:`canonical_json_ascii` escapes non-ASCII characters as ``\\uXXXX`` (``ensure_ascii=True``).
-  Used by the verification, repair and convergence contracts, the presentation-plan and
-  semantic-digest projections, Pretext coverage digests and every hosted contract (artifacts,
-  receipts, AppBundle builds, hosted verification).
+  Used by the verification contract, the presentation-plan and semantic-digest projections, and
+  Pretext coverage digests.
 * :func:`canonical_json_utf8` writes non-ASCII text as itself (``ensure_ascii=False``). Used by
-  the state-IR contract hash, intent diffs, AppBundle validation, intent patches, converge
-  sessions and the Review V0 contract.
+  the state-IR contract hash and AppBundle validation.
 
 Each consuming module keeps a thin alias of the form it already used, so every existing digest
-stays byte-identical. A few digests keep their own serialization (the agent-eval checkpoints,
-the proof report hashes, and some inline identity digests); CHANGELOG.md lists them under C-5. Both forms are pinned against literals in tests/test_hash_goldens.py, and
+stays byte-identical. A few digests keep their own serialization (the proof report hashes and some inline identity
+digests). Both forms are pinned against literals in tests/test_hash_goldens.py, and
 tests/test_canonical.py pins which module uses which form. Converging the two forms would rotate
 digests and is a deliberate canonical-form change, not a consolidation; it is not done here.
 """

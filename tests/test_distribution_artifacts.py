@@ -10,8 +10,8 @@ from hypothesis import given
 from hypothesis import strategies as st
 
 from scripts.check_distribution import (
+    RELEASE_FILES,
     SCHEMA_RELEASE_FILES,
-    STUDIO_RELEASE_FILES,
     DistributionError,
     _validate_member_name,
     audit_distribution,
@@ -30,7 +30,7 @@ def _write_wheel(path: Path, *, extra: dict[str, bytes] | None = None) -> None:
         f"viewspec-{VERSION}.dist-info/WHEEL": b"Wheel-Version: 1.0\n",
         f"viewspec-{VERSION}.dist-info/RECORD": b"",
     }
-    members.update({f"viewspec/{name}": b"" for name in STUDIO_RELEASE_FILES | SCHEMA_RELEASE_FILES})
+    members.update({f"viewspec/{name}": b"" for name in RELEASE_FILES | SCHEMA_RELEASE_FILES})
     members.update(extra or {})
     with zipfile.ZipFile(path, "w", compression=zipfile.ZIP_DEFLATED) as archive:
         for name, data in members.items():
@@ -48,7 +48,7 @@ def _write_sdist(path: Path, *, extra: dict[str, bytes] | None = None) -> None:
         f"{root}/src/viewspec/_version.py": f'__version__ = "{VERSION}"\n'.encode(),
         f"{root}/src/viewspec/py.typed": b"",
     }
-    members.update({f"{root}/src/viewspec/{name}": b"" for name in STUDIO_RELEASE_FILES | SCHEMA_RELEASE_FILES})
+    members.update({f"{root}/src/viewspec/{name}": b"" for name in RELEASE_FILES | SCHEMA_RELEASE_FILES})
     members.update(extra or {})
     with tarfile.open(path, "w:gz") as archive:
         for name, data in members.items():
@@ -129,13 +129,12 @@ def test_distribution_audit_rejects_sdist_runtime_version_drift(tmp_path: Path) 
     "missing",
     [
         "studio.py",
-        "studio_creation_daemon.py",
-        "review_annotation.py",
+        "api.py",
         "host_verify_template/package-lock.json",
         "schema/viewspec_pb2.pyi",
     ],
 )
-def test_distribution_audit_rejects_missing_studio_runtime(tmp_path: Path, archive: str, missing: str) -> None:
+def test_distribution_audit_rejects_missing_release_files(tmp_path: Path, archive: str, missing: str) -> None:
     dist = _safe_dist(tmp_path)
     if archive == "wheel":
         artifact = dist / f"viewspec-{VERSION}-py3-none-any.whl"

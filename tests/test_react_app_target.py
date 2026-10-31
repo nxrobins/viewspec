@@ -9,11 +9,11 @@ import pytest
 
 from viewspec.app_bundle import (
     compile_app,
-    compile_app_tool,
-    init_app_tool,
+    init_app_file,
     prove_app,
     starter_app_bundle,
     starter_react_app_bundle,
+    validate_app_file,
     validate_app_text,
 )
 from viewspec.app_errors import AppBundleProofFailure
@@ -162,7 +162,7 @@ def test_react_app_starter_is_the_runnable_golden_path(tmp_path, capsys):
     assert app["state_replay_assertions"][0]["expect_visibility"] == {"show_triaged_status": True}
 
     out = tmp_path / "viewspec.app.json"
-    exit_code = cli_main(["init-app", "--template", "react-app", "--out", str(out)])
+    exit_code = cli_main(["init", "app", "--template", "react-app", "--out", str(out)])
 
     assert exit_code == 0
     assert json.loads(out.read_text(encoding="utf-8")) == app
@@ -171,9 +171,9 @@ def test_react_app_starter_is_the_runnable_golden_path(tmp_path, capsys):
 
 def test_react_app_golden_path_is_documented_for_agents_and_humans():
     expected = (
-        "viewspec init-app --template react-app --out viewspec.app.json",
-        "viewspec compile-app viewspec.app.json --target react-tailwind-app --out app-dist",
-        "viewspec prove-app --app viewspec.app.json --target react-tailwind-app --install",
+        "viewspec init app --template react-app --out viewspec.app.json",
+        "viewspec compile viewspec.app.json --target react-tailwind-app --out app-dist",
+        "viewspec prove viewspec.app.json --target react-tailwind-app --install",
         "npm run dev",
     )
     for relative in ("README.md", "docs/getting-started.md", "docs/app-bundle-v0.md", "docs/agent-integration.md"):
@@ -414,7 +414,7 @@ def test_compile_app_cli_accepts_react_app_target(tmp_path, capsys):
 
     exit_code = cli_main(
         [
-            "compile-app",
+            "compile",
             str(app_path),
             "--out",
             str(out_dir),
@@ -431,25 +431,16 @@ def test_compile_app_cli_accepts_react_app_target(tmp_path, capsys):
     assert result["next_actions"] == ["npm ci", "npm run dev"]
 
 
-def test_agent_tools_expose_react_app_starter_and_compile_target(tmp_path):
-    initialized = init_app_tool("viewspec.app.json", template="react-app", cwd=tmp_path)
+def test_react_app_starter_compiles_to_the_react_target(tmp_path):
+    path = init_app_file(tmp_path / "viewspec.app.json", template="react-app")
 
-    assert initialized["ok"] is True
-    assert initialized["metadata"]["template"] == "react-app"
-    assert initialized["validation"]["app_schema_version"] == 4
+    assert validate_app_file(path)["app_schema_version"] == 4
 
-    compiled = compile_app_tool(
-        "viewspec.app.json",
-        "app-dist",
-        target=REACT_APP_TARGET,
-        cwd=tmp_path,
-    )
+    compiled = compile_app(path, out_dir=tmp_path / "app-dist", target=REACT_APP_TARGET, cwd=tmp_path)
 
     assert compiled["ok"] is True
-    assert compiled["metadata"]["target"] == REACT_APP_TARGET
-    assert compiled["metadata"]["route_navigation"] == "browser_history_v1"
-    assert compiled["metadata"]["app_artifact_hash"]
-    assert compiled["metadata"]["manifest_hash"]
+    assert compiled["target"] == REACT_APP_TARGET
+    assert compiled["app_artifact_hash"]
     assert compiled["paths"]["app"].endswith("src/ViewSpecApp.tsx")
 
 
@@ -1087,8 +1078,7 @@ def test_prove_app_cli_accepts_react_target_and_install(tmp_path, monkeypatch, c
 
     exit_code = cli_main(
         [
-            "prove-app",
-            "--app",
+            "prove",
             str(app_path),
             "--out",
             str(proof_dir),
@@ -1123,12 +1113,11 @@ def test_prove_app_cli_forwards_freerange_opt_in(tmp_path, monkeypatch, capsys):
             "static_analysis": _passed_static_analysis(),
         }
 
-    monkeypatch.setattr("viewspec.cli.prove_app", fake_prove_app)
+    monkeypatch.setattr("viewspec.api.prove_app", fake_prove_app)
 
     exit_code = cli_main(
         [
-            "prove-app",
-            "--app",
+            "prove",
             str(app_path),
             "--out",
             str(tmp_path / "proof"),

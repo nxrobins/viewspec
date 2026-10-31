@@ -1,4 +1,4 @@
-"""Golden pins for the compiled conformance corpus (audit findings T-2 and C-6).
+"""Golden pins for the compiled conformance corpus.
 
 tests/test_hash_goldens.py pins the hash algorithm and the canonical JSON form. This module pins
 what the emitters actually produce for the fixed corpus: per case and local target, the emitter

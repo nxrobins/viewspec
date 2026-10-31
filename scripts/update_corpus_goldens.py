@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Regenerate tests/fixtures/corpus_goldens.json (audit findings T-2 and C-6).
+"""Regenerate tests/fixtures/corpus_goldens.json.
 
 The golden file pins, for every case in conformance/verification/corpus.json and for the demo
 AppBundle, per local compile target: the emitter ``artifact_hash``, the manifest's
@@ -34,9 +34,9 @@ from pathlib import Path
 from typing import Any
 
 from viewspec import __version__
+from viewspec.app_bundle import compile_app
 from viewspec.app_react import REACT_APP_TARGET
 from viewspec.app_shell import APP_SHELL_TARGET
-from viewspec.app_tools import compile_app_tool
 from viewspec.conformance import ConformanceCase, load_conformance_corpus
 from viewspec.intent_tools import INTENT_COMPILE_TARGETS, compile_intent_bundle_file_tool
 from viewspec.local_tools_hash import bytes_hash, source_hash
@@ -115,12 +115,11 @@ def compile_app_bundle(bundle_id: str, source: Path, target: str, *, work_dir: P
     staged.parent.mkdir(parents=True, exist_ok=True)
     staged.write_bytes(source.read_bytes())
     out_dir = work_dir / "app" / bundle_id / target
-    result = compile_app_tool(staged, out_dir, target=target, cwd=work_dir)
+    result = compile_app(staged, out_dir=out_dir, target=target, cwd=work_dir)
     if not result.get("ok"):
         raise _compile_failure(f"{bundle_id} ({target})", result)
-    metadata = result["metadata"]
     artifact_path = Path(result["paths"].get("app") or result["paths"]["index"])
-    artifact_hash = metadata.get("app_artifact_hash") or metadata.get("shell_artifact_hash")
+    artifact_hash = result.get("app_artifact_hash") or result.get("shell_artifact_hash")
     if artifact_hash != bytes_hash(artifact_path.read_bytes()):
         raise RuntimeError(f"{bundle_id} ({target}): reported artifact hash does not match {artifact_path.name}")
     return {

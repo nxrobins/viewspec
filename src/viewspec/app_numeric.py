@@ -15,7 +15,6 @@ from typing import Any
 
 NUMERIC_KERNEL_PROFILE = "viewspec_numeric_kernel_v2"
 NUMERIC_KERNEL_PATH = "src/viewspec_numeric.ts"
-NUMERIC_KERNEL_MODULE = "./viewspec_numeric"
 
 
 @dataclass(frozen=True)
@@ -261,7 +260,6 @@ def _render_numeric_function(spec: _NumericFunction, *, typescript: bool, export
 
 
 __all__ = [
-    "NUMERIC_KERNEL_MODULE",
     "NUMERIC_KERNEL_PATH",
     "NUMERIC_KERNEL_PROFILE",
     "generate_numeric_javascript",

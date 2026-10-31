@@ -407,7 +407,7 @@ def test_public_prove_app_real_pretext_browser_e2e(
     report_path = proof_dir / "app_proof_report.json"
     assert Path(report["paths"]["report"]).resolve() == report_path.resolve()
     on_disk = json.loads(report_path.read_text(encoding="utf-8"))
-    # The file records paths relative to the proof directory (C-7); resolved, it is the returned report.
+    # The file records paths relative to the proof directory; resolved, it is the returned report.
     assert on_disk["paths"]["proof_dir"] == "."
     assert absolute_report_paths(on_disk, proof_dir) == report
     retained_paths = {

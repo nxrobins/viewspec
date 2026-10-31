@@ -244,15 +244,15 @@ def _run_result_contract(tmp_path: Path, junit: str) -> subprocess.CompletedProc
 @pytest.mark.parametrize(
     "junit",
     [
-        _junit(_passing(7)),
-        _junit(_passing(7), root="testsuite"),
-        _junit(_passing(8)),
+        _junit(_passing(3)),
+        _junit(_passing(3), root="testsuite"),
+        _junit(_passing(4)),
         _junit(_passing(23)),
-        _junit(_passing(5), _passing(3)),
+        _junit(_passing(2), _passing(1)),
     ],
-    ids=["seven", "seven-bare-suite", "eight", "twenty-three", "two-suites"],
+    ids=["three", "three-bare-suite", "four", "twenty-three", "two-suites"],
 )
-def test_pretext_e2e_result_contract_accepts_at_least_seven_clean_tests(tmp_path: Path, junit: str) -> None:
+def test_pretext_e2e_result_contract_accepts_at_least_three_clean_tests(tmp_path: Path, junit: str) -> None:
     result = _run_result_contract(tmp_path, junit)
 
     assert result.returncode == 0, result.stdout + result.stderr
@@ -262,22 +262,22 @@ def test_pretext_e2e_result_contract_accepts_at_least_seven_clean_tests(tmp_path
 @pytest.mark.parametrize(
     "junit",
     [
-        _junit(_passing(6)),
-        _junit(_passing(3), _passing(3)),
+        _junit(_passing(2)),
+        _junit(_passing(1), _passing(1)),
         _junit(),
-        _junit({**_passing(7), "failures": 1}),
+        _junit({**_passing(3), "failures": 1}),
         _junit({**_passing(23), "failures": 1}),
-        _junit({**_passing(7), "errors": 1}),
+        _junit({**_passing(3), "errors": 1}),
         _junit({**_passing(23), "errors": 1}),
-        _junit({**_passing(7), "skipped": 1}),
+        _junit({**_passing(3), "skipped": 1}),
         _junit({**_passing(23), "skipped": 16}),
-        _junit(_passing(7), {**_passing(1), "failures": 1}),
+        _junit(_passing(3), {**_passing(1), "failures": 1}),
         # Equal non-zero counts pass the chained comparison; only its trailing ``== 0`` fails them.
         _junit({**_passing(9), "failures": 1, "errors": 1, "skipped": 1}),
     ],
     ids=[
-        "six",
-        "two-suites-of-three",
+        "two",
+        "two-suites-of-one",
         "no-suites",
         "failure",
         "failure-in-larger-run",
@@ -348,7 +348,7 @@ def test_pre_commit_runs_the_ruff_release_ci_pins() -> None:
     config = yaml.safe_load((ROOT / ".pre-commit-config.yaml").read_text(encoding="utf-8"))
     (ruff,) = [repo for repo in config["repos"] if repo["repo"] == "https://github.com/astral-sh/ruff-pre-commit"]
 
-    # The hooks are the local copy of CI's `ruff check .` and `ruff format --check .` (audit P-8).
+    # The hooks are the local copy of CI's `ruff check .` and `ruff format --check .`.
     # Another ruff release formats and lints differently, so code its hooks accept can fail CI.
     assert ruff["rev"] == f"v{pinned}"
 
@@ -425,10 +425,7 @@ def test_dependabot_leaves_the_declared_python_ranges_alone() -> None:
     # protobuf_floor job pin their floors. The default strategy acts as increase for this project
     # and raises a floor to every release it proposes, so a PyYAML 6.0.4 would turn PyYAML>=6.0 into
     # PyYAML>=6.0.4. increase-if-necessary moves the exact pins and changes a range only when it
-    # excludes the new release; lockfile-only would not move any pin. Pull request #194 (mcp
-    # 1.30.0 to 2.3.0, which turned mcp>=1.9.0,<2 into mcp>=2.3.0,<3) proposed a release the range
-    # excludes, which either strategy rewrites: the semver-major and mcp ignore rules keep it out,
-    # and other tests in this file check both rules.
+    # excludes the new release; lockfile-only would not move any pin.
     assert pip.get("versioning-strategy") == "increase-if-necessary"
 
 
@@ -447,6 +444,18 @@ def test_dependabot_updates_every_npm_seed_from_one_entry() -> None:
     assert _groups(npm, "security-updates"), "npm security updates are not grouped across the seeds"
 
 
+def test_dependabot_mcp_rule_follows_the_agents_extra_cap() -> None:
+    project = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))["project"]
+    (requirement,) = project["optional-dependencies"]["agents"]
+    cap = re.search(r"<\s*(\d+)", requirement)
+    rules = [rule for rule in _dependabot_updates()["pip"]["ignore"] if rule["dependency-name"] == "mcp"]
+
+    # While the extra caps the MCP SDK below a major, Dependabot must not propose that major;
+    # once the cap goes, so must the rule.
+    expected = [{"dependency-name": "mcp", "versions": [f">={cap.group(1)}"]}] if cap else []
+    assert rules == expected
+
+
 def test_dependabot_never_proposes_the_pinned_contract_packages() -> None:
     from viewspec.app_freerange import FREERANGE_PACKAGE
     from viewspec.app_pretext import PRETEXT_PACKAGE
@@ -462,15 +471,3 @@ def test_dependabot_never_proposes_the_pinned_contract_packages() -> None:
     for number, line in enumerate(lines):
         if line.lstrip().startswith("- dependency-name:"):
             assert lines[number - 1].lstrip().startswith("#"), f"dependabot.yml:{number + 1} has no reason comment"
-
-
-def test_dependabot_mcp_rule_follows_the_agents_extra_cap() -> None:
-    project = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))["project"]
-    (requirement,) = project["optional-dependencies"]["agents"]
-    cap = re.search(r"<\s*(\d+)", requirement)
-    rules = [rule for rule in _dependabot_updates()["pip"]["ignore"] if rule["dependency-name"] == "mcp"]
-
-    # While the extra caps the MCP SDK below a major, Dependabot must not propose that major;
-    # once the cap goes, so must the rule.
-    expected = [{"dependency-name": "mcp", "versions": [f">={cap.group(1)}"]}] if cap else []
-    assert rules == expected

@@ -24,13 +24,8 @@ from viewspec.app_bundle import (
     APP_SHELL_TARGET,
     APP_STATE_MANIFEST,
     APP_STATE_REDUCER,
-    app_semantic_change_lines,
     compile_app,
-    compile_app_tool,
-    diff_app_text,
-    init_app_tool,
     prove_app,
-    prove_app_tool,
     starter_app_bundle,
     validate_app_text,
 )
@@ -41,9 +36,7 @@ from viewspec.app_resource_binding import _resource_binding_assertion_report
 from viewspec.app_shell import _assert_rendered_shell_static_contract
 from viewspec.app_starters import starter_react_app_bundle
 from viewspec.app_state_artifacts import _write_state_artifacts
-from viewspec.cli import _doctor_app_bundle_pipeline, _doctor_checks_ok
 from viewspec.cli import main as cli_main
-from viewspec.intent_tools import starter_intent_bundle
 from viewspec.local_tools import check_artifact_dir, file_hash
 from viewspec.local_tools_io import VIEWSPEC_OUTPUT_SENTINEL, absolute_report_paths
 from viewspec.state_ir import (
@@ -202,11 +195,11 @@ def test_starter_app_bundle_validates_and_cli_writes(tmp_path, capsys):
     ]
 
     out = tmp_path / "viewspec.app.json"
-    assert cli_main(["init-app", "--out", str(out)]) == 0
+    assert cli_main(["init", "app", "--out", str(out)]) == 0
     assert json.loads(out.read_text(encoding="utf-8")) == app
     capsys.readouterr()
 
-    assert cli_main(["validate-app", str(out), "--json"]) == 0
+    assert cli_main(["check", str(out), "--json"]) == 0
     payload = json.loads(capsys.readouterr().out)
     assert payload["ok"] is True
     assert payload["summary"]["id"] == "incident_console"
@@ -249,7 +242,7 @@ def test_bound_starter_app_bundle_validates_and_proves_fixture_readonly(tmp_path
     assert proof["shell"]["binding_scope"] == APP_BUNDLE_BINDING_SCOPE
 
     cli_out = tmp_path / "viewspec.bound.app.json"
-    assert cli_main(["init-app", "--resource-binding", "fixture-readonly-v0", "--out", str(cli_out)]) == 0
+    assert cli_main(["init", "app", "--resource-binding", "fixture-readonly-v0", "--out", str(cli_out)]) == 0
     assert json.loads(cli_out.read_text(encoding="utf-8")) == app
     capsys.readouterr()
 
@@ -667,7 +660,7 @@ def test_prove_app_missing_input_is_user_error_not_internal(tmp_path):
     assert codes == {"APP_PROOF_INPUT_READ_ERROR"}
     assert "APP_PROOF_INTERNAL_ERROR" not in codes
 
-    assert cli_main(["prove-app", "--app", str(missing), "--out", str(tmp_path / "proof_cli")]) == 2
+    assert cli_main(["prove", str(missing), "--out", str(tmp_path / "proof_cli")]) == 2
 
 
 def _rec_state(value):
@@ -832,14 +825,6 @@ def test_missing_node_yields_actionable_node_unavailable_code():
     assert first.get("fix")  # actionable install / escape-hatch hint
 
 
-def test_doctor_reports_node_availability_without_hard_failing():
-    # doctor surfaces Node availability, but node absence must NOT hard-fail doctor -- V1/V2 and
-    # IntentBundle flows are Python-only. Node status is a string so _doctor_checks_ok ignores it.
-    pipeline = _doctor_app_bundle_pipeline()
-    assert pipeline["node_available"] in {"yes", "no"}
-    assert _doctor_checks_ok(pipeline) is True
-
-
 def test_selector_slice_bounds_must_be_non_negative_integers():
     invalid = _stateful_app_bundle()
     invalid["selectors"][0]["ops"] = [{"op": "slice", "start": "x", "end": 1}]
@@ -851,26 +836,6 @@ def test_selector_slice_bounds_must_be_non_negative_integers():
     state_ir, ok_issues = validate_state_ir(valid)
     assert state_ir is not None
     assert "APP_STATE_SELECTOR_SLICE_INVALID" not in {issue.code for issue in ok_issues}
-
-
-def test_app_topology_similarity_is_order_independent():
-    base = starter_app_bundle("internal_tool")
-
-    identical = diff_app_text(_app_text(base), _app_text(base), compile_check=False)
-    assert identical["topology_similarity"] == 1.0
-
-    route_change = deepcopy(base)
-    route_change["routes"][1]["label"] = "Incident Detail X"
-    screen_change = deepcopy(base)
-    screen_change["screens"][1]["title"] = "Detail View X"
-
-    da = diff_app_text(_app_text(base), _app_text(route_change), compile_check=False)
-    db = diff_app_text(_app_text(base), _app_text(screen_change), compile_check=False)
-    assert da["ok"] and db["ok"]
-    assert 0.0 < da["topology_similarity"] < 1.0
-    # Equal-magnitude changes to equal-size sections must score identically,
-    # regardless of section order. The pre-fix cumulative denominator did not.
-    assert da["topology_similarity"] == db["topology_similarity"]
 
 
 def test_validate_app_rejects_v0_constraints():
@@ -1202,116 +1167,6 @@ def test_replay_artifact_failure_surfaces_complete_actionable_context(tmp_path):
         assert detail in caught.value.message
 
 
-def test_diff_app_reports_app_route_resource_screen_and_intent_changes():
-    left = starter_app_bundle()
-    right = deepcopy(left)
-    right["app"]["title"] = "Incident Console Updated"
-    right["routes"].append({"id": "reports", "path": "/reports", "label": "Reports", "screen_id": "reports"})
-    right["resources"][0]["records"].append({"id": "inc_1044", "severity": "low", "status": "closed"})
-    right["screens"].append(
-        {
-            "id": "reports",
-            "title": "Incident Reports",
-            "intent_bundle": starter_intent_bundle("dashboard").to_json(),
-        }
-    )
-    right["screens"][0]["title"] = "Incident Queue Updated"
-    right["screens"][0]["intent_bundle"] = starter_intent_bundle("list").to_json()
-
-    diff = diff_app_text(_app_text(left), _app_text(right), compile_check=False)
-
-    assert diff["ok"] is True
-    assert diff["changes"]["app"]["changed"] == ["app"]
-    assert diff["changes"]["routes"]["added"] == ["reports"]
-    assert diff["changes"]["resources"]["changed"] == ["incidents"]
-    assert diff["changes"]["screens"]["added"] == ["reports"]
-    assert "queue" in diff["screen_intent_diffs"]
-    assert diff["screen_intent_diffs"]["queue"]["semantic_summary"]
-    lines = app_semantic_change_lines(diff["semantic_changes"])
-    assert "app_metadata: title Incident Console -> Incident Console Updated" in lines
-    assert "routes.reports: added" in lines
-    assert "resources.incidents: records_changed" in lines
-    assert any(line.startswith("screen_intents.queue:") for line in lines)
-
-
-def test_diff_app_retains_nested_field_changes_for_studio_approval() -> None:
-    left = starter_app_bundle()
-    right = deepcopy(left)
-    right["screens"][0]["intent_bundle"]["view_spec"]["bindings"][1]["present_as"] = "badge"
-
-    diff = diff_app_text(_app_text(left), _app_text(right), compile_check=False)
-
-    assert diff["screen_intent_diffs"]["queue"]["changed_fields"] == [
-        {
-            "section": "bindings",
-            "id": "inc_1042_value",
-            "field": "present_as",
-            "left": "value",
-            "right": "badge",
-        }
-    ]
-
-
-def test_diff_app_reports_v2_resource_binding_and_resource_view_changes():
-    left = starter_app_bundle("internal_tool", resource_binding="fixture_readonly_v0")
-    right = deepcopy(left)
-    right["screens"][0]["resource_views"][0]["fields"] = ["id", "severity"]
-
-    diff = diff_app_text(_app_text(left), _app_text(right), compile_check=False)
-
-    assert diff["ok"] is True
-    assert diff["changes"]["screens"]["changed"] == ["queue"]
-    lines = app_semantic_change_lines(diff["semantic_changes"])
-    assert "screens.queue: resource_views_changed" in lines
-    assert diff["counts"]["resource_views"] == {"left": 2, "right": 2}
-
-
-def test_diff_app_reports_resource_binding_mode_changes():
-    left = starter_app_bundle()
-    right = starter_app_bundle("internal_tool", resource_binding="fixture_readonly_v0")
-
-    diff = diff_app_text(_app_text(left), _app_text(right), compile_check=False)
-
-    assert diff["ok"] is True
-    lines = app_semantic_change_lines(diff["semantic_changes"])
-    assert "app_metadata: schema_version 1 -> 2" in lines
-    assert "app_metadata: resource_binding null -> fixture_readonly_v0" in lines
-
-
-def test_diff_app_reports_v3_state_mutation_selector_and_replay_changes():
-    left = _stateful_app_bundle()
-    right = deepcopy(left)
-    right["state"][2]["initial"]["value"]["count"] = 2
-    right["mutations"][0]["ops"][2]["amount"] = 2
-    right["selectors"][0]["ops"][2]["end"] = 2
-    right["state_replay_assertions"][0]["expect_state"]["queue_flags"]["count"] = 2.0
-
-    diff = diff_app_text(_app_text(left), _app_text(right), compile_check=False)
-
-    assert diff["ok"] is True
-    assert diff["changes"]["state"]["changed"] == ["queue_flags"]
-    assert diff["changes"]["mutations"]["changed"] == ["triage_incident_state"]
-    assert diff["changes"]["selectors"]["changed"] == ["active_incidents"]
-    assert diff["changes"]["state_replay_assertions"]["changed"] == ["triage_replay"]
-    assert diff["counts"]["state"] == {"left": 4, "right": 4}
-    lines = app_semantic_change_lines(diff["semantic_changes"])
-    assert "state.queue_flags: definition_changed" in lines
-    assert "mutations.triage_incident_state: definition_changed" in lines
-    assert "selectors.active_incidents: definition_changed" in lines
-    assert "state_replay_assertions.triage_replay: definition_changed" in lines
-
-
-def test_diff_app_fails_changed_invalid_embedded_intent_with_stable_code():
-    left = starter_app_bundle()
-    right = deepcopy(left)
-    right["screens"][0]["intent_bundle"] = {"id": "dom", "primitive": "stack", "children": []}
-
-    diff = diff_app_text(_app_text(left), _app_text(right), compile_check=False)
-
-    assert diff["ok"] is False
-    assert diff["errors"][0]["code"] == "APP_DIFF_SCREEN_INTENT_INVALID"
-
-
 def test_prove_app_writes_checked_screen_artifacts_and_redacted_support(tmp_path):
     app_path = tmp_path / "viewspec.app.json"
     app_path.write_text(_app_text(starter_app_bundle()), encoding="utf-8")
@@ -1426,7 +1281,7 @@ def test_compile_app_writes_static_shell_artifact_and_cli_report(tmp_path, capsy
     }
 
     cli_out = tmp_path / "cli-app-dist"
-    assert cli_main(["compile-app", str(app_path), "--out", str(cli_out), "--json"]) == 0
+    assert cli_main(["compile", str(app_path), "--out", str(cli_out), "--json"]) == 0
     payload = json.loads(capsys.readouterr().out)
     assert payload["ok"] is True
     assert payload["target"] == APP_SHELL_TARGET
@@ -1527,13 +1382,6 @@ def test_compile_and_prove_app_v3_emit_deterministic_state_artifacts(tmp_path):
     assert "export function reduceViewSpecState" in reducer
     assert "export function selectViewSpecState" in reducer
 
-    tool_proof = prove_app_tool(app_path=app_path, out_dir=tmp_path / "tool-proof", with_shell=True, cwd=tmp_path)
-    assert tool_proof["ok"] is True
-    assert tool_proof["metadata"]["state_contract_hash"] == compiled["state_contract_hash"]
-    assert tool_proof["metadata"]["state_reducer_conformance"] == "passed"
-    assert tool_proof["metadata"]["proof_identity"]["state_contract_hash"] == compiled["state_contract_hash"]
-    assert tool_proof["metadata"]["proof_identity"]["state_reducer_conformance"] == "passed"
-
 
 def test_compile_app_fails_when_state_reducer_conformance_fails(tmp_path, monkeypatch):
     app_path = tmp_path / "viewspec.stateful.app.json"
@@ -1572,17 +1420,10 @@ def test_force_refuses_unrelated_non_empty_directory_for_app_outputs(tmp_path):
     assert proof["errors"][0]["code"] == "APP_PROOF_OUTPUT_UNRECOGNIZED"
     assert sorted(path.name for path in unrelated.iterdir()) == ["main.py"]
 
-    proof_tool = prove_app_tool(app_path="viewspec.app.json", out_dir="src", cwd=tmp_path, force=True)
-    assert proof_tool["ok"] is False
-    assert proof_tool["errors"][0]["code"] == "APP_PROOF_OUTPUT_UNRECOGNIZED"
-
     compiled = compile_app(app_path, out_dir=unrelated, cwd=tmp_path, force=True)
     assert compiled["ok"] is False
     assert compiled["errors"][0]["code"] == "APP_SHELL_OUTPUT_UNRECOGNIZED"
 
-    compiled_tool = compile_app_tool("viewspec.app.json", "src", cwd=tmp_path, force=True)
-    assert compiled_tool["ok"] is False
-    assert compiled_tool["errors"][0]["code"] == "APP_SHELL_OUTPUT_UNRECOGNIZED"
     assert sorted(path.name for path in unrelated.iterdir()) == ["main.py"]
 
 
@@ -1648,7 +1489,7 @@ def test_prove_app_force_replaces_a_directory_left_by_a_failed_report_write(tmp_
 
 
 def test_compile_app_output_carries_no_ownership_sentinel(tmp_path):
-    # compile-app output is a deployable site: it keeps its own manifest marker and no sentinel.
+    # AppBundle compile output is a deployable site: it keeps its own manifest marker and no sentinel.
     app_path = tmp_path / "viewspec.app.json"
     app_path.write_text(_app_text(starter_app_bundle()), encoding="utf-8")
     shell_dir = tmp_path / "app-dist"
@@ -1676,14 +1517,14 @@ def test_app_proof_double_write_failure_keeps_the_report_and_identity_in_agreeme
     monkeypatch.setattr(app_reports_module, "_write_app_support_bundle", failing_support_bundle)
     monkeypatch.setattr(app_reports_module, "_write_app_summary", failing_summary)
 
-    result = prove_app_tool(app_path="viewspec.app.json", out_dir="app-proof", cwd=tmp_path)
+    result = prove_app(app_path="viewspec.app.json", out_dir="app-proof", cwd=tmp_path)
 
     returned_codes = [error["code"] for error in result["errors"]]
     assert returned_codes == ["APP_PROOF_SUPPORT_BUNDLE_WRITE_FAILED", "APP_PROOF_SUMMARY_WRITE_FAILED"]
     on_disk = json.loads(tmp_path.joinpath("app-proof", "app_proof_report.json").read_text(encoding="utf-8"))
     assert on_disk["ok"] is False
     assert [error["code"] for error in on_disk["errors"]] == returned_codes
-    assert result["metadata"]["proof_identity"]["proof_report_hash"] == app_proof_report_hash(on_disk)
+    assert app_proof_report_hash(result) == app_proof_report_hash(on_disk)
 
 
 def test_app_proof_report_hash_of_a_loaded_report_does_not_depend_on_the_working_directory(tmp_path, monkeypatch):
@@ -1860,31 +1701,3 @@ def test_prove_app_rejects_report_path_outside_proof_root(tmp_path):
     assert report["errors"][0]["code"] == "APP_PROOF_REPORT_PATH_UNSAFE"
     assert not out_dir.exists()
     assert not escaped_report.exists()
-
-
-def test_app_mcp_tools_respect_cwd_and_return_standard_envelopes(tmp_path):
-    outside = tmp_path.parent / f"{tmp_path.name}-outside.app.json"
-    outside.write_text(_app_text(starter_app_bundle()), encoding="utf-8")
-
-    blocked = init_app_tool("../outside.app.json", cwd=tmp_path)
-    assert blocked["ok"] is False
-    assert blocked["errors"][0]["code"] == "PATH_OUTSIDE_CWD"
-
-    init = init_app_tool("viewspec.app.json", cwd=tmp_path)
-    assert init["schema_version"] == 1
-    assert init["ok"] is True
-    assert init["validation"]["ok"] is True
-
-    escaped = prove_app_tool(app_path=outside, out_dir="proof", cwd=tmp_path)
-    assert escaped["ok"] is False
-    assert escaped["errors"][0]["code"] == "PATH_OUTSIDE_CWD"
-
-    proved = prove_app_tool(app_path="viewspec.app.json", out_dir="proof", cwd=tmp_path)
-    assert proved["ok"] is True
-    assert proved["proof_report"]["ok"] is True
-    assert proved["metadata"]["proof_level"] == "app_contract_source_artifacts"
-    assert proved["metadata"]["resource_binding"] == "unbound_v0"
-
-    compiled = compile_app_tool("viewspec.app.json", "app-dist", cwd=tmp_path)
-    assert compiled["ok"] is True
-    assert compiled["compile_report"]["target"] == APP_SHELL_TARGET

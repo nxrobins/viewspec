@@ -1,0 +1,250 @@
+"""The public verbs: compile, check and prove, over either bundle kind."""
+
+from __future__ import annotations
+
+import json
+import os
+import shutil
+import tempfile
+from pathlib import Path
+from typing import Any
+
+from viewspec.app_bundle import (
+    APP_BUNDLE_DEFAULT_OUT,
+    APP_BUNDLE_MAX_BYTES,
+    APP_BUNDLE_TARGET,
+    APP_SHELL_TARGET,
+    AppBundle,
+    compile_app,
+    prove_app,
+    validate_app_file,
+)
+from viewspec.compiler import compile as compile_intent
+from viewspec.design_md import DesignSystemContext
+from viewspec.intent_tools import intent_error_payload, validate_intent_file
+from viewspec.local_tools import check_artifact_dir
+from viewspec.local_verify import verify_local_artifact
+from viewspec.motif_plugins import MotifPlugin, MotifRegistry
+from viewspec.prove import PROVE_DEFAULT_OUT
+from viewspec.prove import prove as prove_intent
+from viewspec.types import ASTBundle, IntentBundle
+from viewspec.verification import VerificationPlan
+
+VERIFY_DEFAULT_OUT = ".viewspec-verification"
+
+
+def source_kind(path: str | Path) -> str:
+    """Return ``"app_bundle"`` or ``"intent_bundle"`` for a JSON source file.
+
+    An unreadable or malformed file falls back to its name, so the validator for that kind can
+    report the actual problem.
+    """
+    is_app_name = Path(path).name.endswith(".app.json")
+    try:
+        with open(path, "rb") as handle:
+            payload = json.loads(handle.read(APP_BUNDLE_MAX_BYTES + 1))
+    except (OSError, ValueError):
+        return "app_bundle" if is_app_name else "intent_bundle"
+    if not isinstance(payload, dict) or {"substrate", "view_spec"} & payload.keys():
+        return "intent_bundle"
+    return "app_bundle" if is_app_name or {"app", "routes", "screens"} & payload.keys() else "intent_bundle"
+
+
+def default_proof_dir(source: str | Path | None) -> str:
+    """Return where ``prove`` writes for ``source`` when no output directory is given."""
+    if source is not None and Path(source).is_dir():
+        return VERIFY_DEFAULT_OUT
+    if source is not None and source_kind(source) == "app_bundle":
+        return APP_BUNDLE_DEFAULT_OUT
+    return PROVE_DEFAULT_OUT
+
+
+def compile(
+    bundle: IntentBundle | AppBundle,
+    design: DesignSystemContext | str | os.PathLike[str] | None = None,
+    *,
+    out_dir: str | Path | None = None,
+    target: str = APP_SHELL_TARGET,
+    strict_design: bool = False,
+    force: bool = False,
+    motif_plugins: tuple[MotifPlugin, ...] = (),
+    motif_registry: MotifRegistry | None = None,
+) -> ASTBundle | dict[str, Any]:
+    """Compile a bundle.
+
+    An ``IntentBundle`` compiles in memory to an ``ASTBundle``, with ``design`` read as documented
+    on :func:`viewspec.compiler.compile`. An ``AppBundle`` is a multi-file build: it writes to
+    ``out_dir``, reads ``design`` as a DESIGN.md path, and returns the build report.
+    """
+    if not isinstance(bundle, AppBundle):
+        return compile_intent(
+            bundle,
+            design,
+            strict_design=strict_design,
+            motif_plugins=motif_plugins,
+            motif_registry=motif_registry,
+        )
+    if out_dir is None:
+        raise ValueError("Compiling an AppBundle writes files; pass out_dir.")
+    if isinstance(design, DesignSystemContext):
+        raise TypeError("AppBundle compilation reads DESIGN.md itself; pass its path as design.")
+    with tempfile.TemporaryDirectory(prefix="viewspec-app-") as scratch:
+        source = Path(scratch) / "viewspec.app.json"
+        source.write_text(json.dumps(bundle.to_json(), sort_keys=True), encoding="utf-8")
+        return compile_app(
+            source,
+            out_dir=Path(out_dir).resolve(),
+            design_path=Path(design).resolve() if design is not None else None,
+            strict_design=strict_design,
+            force=force,
+            target=target,
+        )
+
+
+def check(path: str | Path, *, compile_check: bool = True) -> dict[str, Any]:
+    """Run the fast local checks on a source file or a compiled artifact directory.
+
+    A directory gets the provenance and security checks, screen by screen for a compiled AppBundle;
+    a JSON file gets the contract checks for its bundle kind. ``report["ok"]`` carries the verdict;
+    read failures are reported, not raised.
+    """
+    target = Path(path)
+    if target.is_dir():
+        if (target / "provenance_manifest.json").exists() or not (target / "screens").is_dir():
+            return check_artifact_dir(target)
+        return _check_app_artifact(target)
+    if source_kind(target) == "app_bundle":
+        return _check_app(target, compile_check)
+    return _check_intent(target, compile_check)
+
+
+def prove(
+    source: str | Path | None = None,
+    *,
+    out_dir: str | Path | None = None,
+    design_path: str | Path | None = None,
+    strict_design: bool = False,
+    target: str | None = None,
+    kind: str = "dashboard",
+    install: bool = False,
+    force: bool = False,
+    report_out: str | Path | None = None,
+    with_shell: bool = False,
+    freerange: bool = False,
+    pretext: bool = False,
+    plan: VerificationPlan | None = None,
+) -> dict[str, Any]:
+    """Prove a source or a compiled artifact and return the report.
+
+    With no ``source``, proves a starter of ``kind``. An IntentBundle or AppBundle file compiles
+    and proves that bundle; ``with_shell``, ``freerange`` and ``pretext`` apply to AppBundles. A
+    directory verifies an already compiled React Tailwind artifact across the canonical viewports,
+    following ``plan``.
+    """
+    output = out_dir or default_proof_dir(source)
+    is_app = source is not None and not Path(source).is_dir() and source_kind(source) == "app_bundle"
+    if not is_app and (with_shell or freerange or pretext):
+        raise ValueError("with_shell, freerange and pretext require an AppBundle source")
+    if source is not None and Path(source).is_dir():
+        evidence = Path(output) / "evidence"
+        # The host report marks a directory as ours, so --force never deletes anything else.
+        if force and (evidence / "host-report.json").is_file():
+            shutil.rmtree(evidence)
+        result = verify_local_artifact(
+            source,
+            plan=plan,
+            evidence_dir=evidence,
+            report_out=report_out or Path(output) / "result.json",
+            install=install,
+        )
+        return result.to_json()
+    if source is not None and is_app:
+        return prove_app(
+            app_path=source,
+            out_dir=output,
+            design_path=design_path,
+            strict_design=strict_design,
+            force=force,
+            report_out=report_out,
+            with_shell=with_shell,
+            target=target or APP_BUNDLE_TARGET,
+            install=install,
+            freerange=freerange,
+            pretext=pretext,
+        )
+    return prove_intent(
+        intent_path=source,
+        out_dir=output,
+        design_path=design_path,
+        strict_design=strict_design,
+        target=target or "html-tailwind",
+        kind=kind,
+        install=install,
+        force=force,
+        report_out=report_out,
+    )
+
+
+def _check_app_artifact(root: Path) -> dict[str, Any]:
+    """Check every compiled screen of an AppBundle output; the manifests live one level down."""
+    screens = {path.parent.name: check_artifact_dir(path) for path in sorted(root.glob("screens/*/artifact"))}
+    errors = [f"{screen}: {error}" for screen, report in screens.items() for error in report["errors"]]
+    warnings = [f"{screen}: {warning}" for screen, report in screens.items() for warning in report["warnings"]]
+    if not screens:
+        errors.append("no compiled screens under screens/*/artifact")
+    return {"ok": not errors, "errors": errors, "warnings": warnings, "screens": screens}
+
+
+def _check_intent(path: Path, compile_check: bool) -> dict[str, Any]:
+    try:
+        return validate_intent_file(path, compile_check=compile_check)
+    except FileNotFoundError:
+        return intent_error_payload(
+            "INTENT_FILE_NOT_FOUND",
+            f"Intent file not found: {path}",
+            "Create viewspec.intent.json or pass the correct intent file path.",
+            compile_check=compile_check,
+        )
+    except OSError as exc:
+        return intent_error_payload(
+            "INTENT_FILE_READ_ERROR",
+            f"Could not read intent file {path}: {exc}",
+            "Use a readable local IntentBundle JSON file.",
+            compile_check=compile_check,
+        )
+
+
+def _check_app(path: Path, compile_check: bool) -> dict[str, Any]:
+    try:
+        return validate_app_file(path, compile_check=compile_check)
+    except FileNotFoundError:
+        return _app_read_failure(
+            "APP_FILE_NOT_FOUND",
+            f"AppBundle file not found: {path}",
+            "Create viewspec.app.json or pass the correct AppBundle file path.",
+            compile_check,
+        )
+    except OSError as exc:
+        return _app_read_failure(
+            "APP_FILE_READ_ERROR",
+            f"Could not read AppBundle file {path}: {exc}",
+            "Use a readable local AppBundle JSON file.",
+            compile_check,
+        )
+
+
+def _app_read_failure(code: str, message: str, suggestion: str, compile_check: bool) -> dict[str, Any]:
+    return {
+        "schema_version": 1,
+        "ok": False,
+        "compile_check": "failed" if compile_check else "skipped",
+        "resource_binding": "unknown",
+        "summary": None,
+        "route_assertions": None,
+        "raw_bytes": 0,
+        "limits": {},
+        "issues": [{"severity": "error", "code": code, "path": "$", "message": message, "suggestion": suggestion}],
+    }
+
+
+__all__ = ["VERIFY_DEFAULT_OUT", "check", "compile", "default_proof_dir", "prove", "source_kind"]

@@ -20,7 +20,6 @@ from viewspec.app_freerange import (
     FREERANGE_VERSION,
     FreerangeFailure,
     analyze_freerange_numeric_scope,
-    freerange_readiness,
 )
 from viewspec.app_numeric import generate_numeric_typescript, numeric_function_hashes, numeric_scope_for_app
 
@@ -528,13 +527,9 @@ def test_skipped_module_setup_is_rejected_even_with_full_function_coverage(tmp_p
     )
 
 
-def test_missing_runtime_is_actionable_in_readiness_and_analysis(tmp_path, monkeypatch):
+def test_missing_runtime_is_actionable_in_analysis(tmp_path, monkeypatch):
     app_dir, _bun = _make_app(tmp_path)
     monkeypatch.setattr(app_freerange.shutil, "which", lambda _name: None)
-
-    readiness = freerange_readiness(app_dir)
-    assert readiness["ok"] is False
-    assert readiness["errors"][0]["code"] == "APP_FREERANGE_RUNTIME_MISSING"
 
     _assert_failure(
         "APP_FREERANGE_RUNTIME_MISSING",
@@ -558,10 +553,6 @@ def test_version_and_protocol_drift_fail_closed(tmp_path, monkeypatch):
     assert failure.report["scope"]["status"] == "applicable"
     assert failure.report["coverage"]["required"] == 1
     assert failure.report["source_hashes"]["analyzed_sources"][0]["sha256"] == _sha(app_dir / KERNEL_PATH)
-
-    readiness = freerange_readiness(app_dir, bun_executable=bun)
-    assert readiness["runtime"]["status"] == "ready"
-    assert readiness["package"]["error_code"] == "APP_FREERANGE_VERSION_MISMATCH"
 
     package["devDependencies"][FREERANGE_PACKAGE] = FREERANGE_VERSION
     _write_json(app_dir / "package.json", package)
@@ -858,18 +849,3 @@ def test_scope_hashes_paths_and_required_functions_are_validated_before_runtime(
         "APP_FREERANGE_SCOPE_INVALID",
         lambda: analyze_freerange_numeric_scope(app_dir, scope, bun_executable=bun),
     )
-
-
-def test_readiness_is_read_only_and_records_pinned_runtime_and_package(tmp_path, monkeypatch):
-    app_dir, bun = _make_app(tmp_path)
-    before = {path.relative_to(app_dir).as_posix(): _sha(path) for path in app_dir.rglob("*") if path.is_file()}
-    calls = _install_fake_runner(monkeypatch)
-
-    report = freerange_readiness(app_dir, bun_executable=bun)
-
-    after = {path.relative_to(app_dir).as_posix(): _sha(path) for path in app_dir.rglob("*") if path.is_file()}
-    assert report["ok"] is True
-    assert report["package"]["tool_tree_sha256"]
-    assert report["package"]["typescript_version"] == FREERANGE_TYPESCRIPT_VERSION
-    assert before == after
-    assert len(calls) == 1

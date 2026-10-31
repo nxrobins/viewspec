@@ -15,7 +15,6 @@ from viewspec.app_pretext import (
     PRETEXT_VERSION,
     build_pretext_scope,
 )
-from viewspec.app_tools import prove_app_tool
 from viewspec.local_tools import file_hash
 
 REACT_APP_TARGET = "react-tailwind-app"
@@ -153,74 +152,19 @@ def _host_success(
     }
 
 
-def test_public_prove_app_and_prove_app_tool_forward_pretext_with_false_default(monkeypatch) -> None:
+def test_public_prove_app_forwards_pretext_with_false_default(monkeypatch) -> None:
     prove_calls: list[dict[str, object]] = []
-    tool_calls: list[dict[str, object]] = []
 
     def fake_prove(**kwargs):
         prove_calls.append(kwargs)
         return {"ok": True, "errors": []}
 
-    def fake_tool(**kwargs):
-        tool_calls.append(kwargs)
-        return {"ok": True, "errors": []}
-
     monkeypatch.setattr(app_bundle._app_pipeline, "prove_app", fake_prove)
-    monkeypatch.setattr(app_bundle._app_tools, "prove_app_tool", fake_tool)
 
     assert app_bundle.prove_app(app_path="viewspec.app.json")["ok"] is True
     assert app_bundle.prove_app(app_path="viewspec.app.json", pretext=True)["ok"] is True
-    assert app_bundle.prove_app_tool(app_path="viewspec.app.json")["ok"] is True
-    assert app_bundle.prove_app_tool(app_path="viewspec.app.json", pretext=True)["ok"] is True
 
     assert [call["pretext"] for call in prove_calls] == [False, True]
-    assert [call["pretext"] for call in tool_calls] == [False, True]
-
-
-def test_prove_app_tool_exposes_composed_analysis_aliases_and_proof_identity(tmp_path) -> None:
-    app_path = tmp_path / "viewspec.app.json"
-    _write_json(app_path, {})
-    calls: list[dict[str, object]] = []
-
-    def fake_prove(**kwargs):
-        calls.append(kwargs)
-        return _proof_result(freerange=bool(kwargs["freerange"]), pretext=bool(kwargs["pretext"]))
-
-    default = prove_app_tool(
-        app_path=app_path,
-        out_dir=tmp_path / "default-proof",
-        target=REACT_APP_TARGET,
-        cwd=tmp_path,
-        _prove_app=fake_prove,
-    )
-    composed = prove_app_tool(
-        app_path=app_path,
-        out_dir=tmp_path / "composed-proof",
-        target=REACT_APP_TARGET,
-        freerange=True,
-        pretext=True,
-        cwd=tmp_path,
-        _prove_app=fake_prove,
-    )
-
-    assert [call["pretext"] for call in calls] == [False, True]
-    assert default["metadata"]["pretext_requested"] is False
-    assert default["metadata"]["text_layout"] is None
-    assert default["metadata"]["analyses"] == {}
-
-    metadata = composed["metadata"]
-    assert metadata["freerange_requested"] is True
-    assert metadata["pretext_requested"] is True
-    assert metadata["static_analysis"] == _passed_static_analysis()
-    assert metadata["text_layout"] == _passed_text_layout()
-    assert metadata["analyses"] == {
-        "freerange": _passed_static_analysis(),
-        "pretext": _passed_text_layout(),
-    }
-    assert metadata["proof_identity"]["freerange_audit_transcript_hash"] == "a" * 64
-    assert metadata["proof_identity"]["pretext_scope_digest"] == "c" * 64
-    assert metadata["proof_identity"]["pretext_observation_digest"] == "d" * 64
-    assert metadata["proof_identity"]["pretext_report_hash"] == "e" * 64
 
 
 def test_prove_app_cli_forwards_pretext_default_and_composed_opt_in(monkeypatch, capsys) -> None:
@@ -230,17 +174,16 @@ def test_prove_app_cli_forwards_pretext_default_and_composed_opt_in(monkeypatch,
         calls.append(kwargs)
         return _proof_result(freerange=bool(kwargs["freerange"]), pretext=bool(kwargs["pretext"]))
 
-    monkeypatch.setattr(cli, "prove_app", fake_prove_app)
+    monkeypatch.setattr("viewspec.api.prove_app", fake_prove_app)
 
-    assert cli.main(["prove-app", "--app", "viewspec.app.json", "--json"]) == 0
+    assert cli.main(["prove", "viewspec.app.json", "--json"]) == 0
     default = json.loads(capsys.readouterr().out)
     assert "text_layout" not in default
 
     assert (
         cli.main(
             [
-                "prove-app",
-                "--app",
+                "prove",
                 "viewspec.app.json",
                 "--target",
                 REACT_APP_TARGET,

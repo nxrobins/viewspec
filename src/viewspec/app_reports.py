@@ -11,7 +11,6 @@ from pathlib import Path
 from typing import Any
 
 from viewspec._version import __version__
-from viewspec.app_diff import _validation_summary
 from viewspec.app_errors import AppBundleProofFailure, normalize_proof_errors
 from viewspec.app_prepared import PreparedAppProof, PreparedAppShell
 from viewspec.app_react import REACT_APP_ROUTE_NAVIGATION, REACT_APP_TARGET
@@ -33,6 +32,7 @@ from viewspec.app_validation import (
     _app_summary,
     _resource_binding_fields_from_validation,
     _resource_binding_report_fields,
+    validation_summary,
 )
 from viewspec.local_tools import atomic_write, bytes_hash, file_hash
 from viewspec.local_tools_io import portable_report_paths, report_directory
@@ -196,7 +196,7 @@ def app_proof_report(
             if artifact_report and artifact_report.get("state_reducer_conformance")
             else {}
         ),
-        "validation": _validation_summary(validation),
+        "validation": validation_summary(validation),
         "policy": {
             "network_calls": ("package_install_only" if install_command == "npm ci --ignore-scripts" else "none"),
             "install": bool(install) if is_react else False,
@@ -246,7 +246,7 @@ def app_proof_failure_report(
         "route_assertions": validation.get("route_assertions") if isinstance(validation, dict) else None,
         **binding_fields,
         "screens": [],
-        "validation": _validation_summary(validation) if isinstance(validation, dict) else None,
+        "validation": validation_summary(validation) if isinstance(validation, dict) else None,
         "policy": {"network_calls": "none"},
         "metadata": {"sdk_version": __version__, "strict_design": False, "screen_source": "embedded_intents"},
         "errors": normalize_proof_errors(errors),
@@ -321,7 +321,7 @@ def app_shell_report(
             else {}
         ),
         "screens": _screen_shell_summaries(screen_reports),
-        "validation": _validation_summary(validation),
+        "validation": validation_summary(validation),
         "metadata": {
             "sdk_version": __version__,
             "strict_design": bool(strict_design),
@@ -361,7 +361,7 @@ def app_shell_failure_report(
         "shell_artifact_hash": None,
         "shell_manifest_hash": None,
         "screens": [],
-        "validation": _validation_summary(validation) if isinstance(validation, dict) else None,
+        "validation": validation_summary(validation) if isinstance(validation, dict) else None,
         "metadata": {"sdk_version": __version__, "strict_design": False, "screen_source": "embedded_intents"},
         "errors": normalize_proof_errors(errors),
         "timings_ms": _final_timings(timings),
@@ -457,7 +457,7 @@ def _write_app_report(report_path: Path, report: dict[str, Any]) -> None:
 def _portable_app_report(report: Mapping[str, Any], *, base: str | None = None) -> dict[str, Any]:
     """Return the on-disk form of an app proof report: a copy whose paths are relative to the report's directory.
 
-    The in-memory report keeps absolute paths for the CLI and the MCP tool; the file records every
+    The in-memory report keeps absolute paths for the CLI; the file records every
     ``paths`` mapping (the report's own, each screen's, the shell's and the React app's) relative to
     the directory that holds it, with POSIX separators.  That is the proof directory
     (``paths.proof_dir`` becomes ``"."``) unless ``--report-out`` put the report in a subdirectory
@@ -893,7 +893,7 @@ def _render_app_proof_summary(report: dict[str, Any], *, proof_report_hash: str)
         else (
             "Non-claim: AppBundle proofs do not prove browser runtime navigation, dynamic routing, "
             "runtime data binding, deployable app scaffolding, pixel-perfect visual equivalence, "
-            "accessibility certification, or hosted extended compiler behavior."
+            "or accessibility certification."
         )
     )
     lines = [
@@ -1103,7 +1103,7 @@ def _append_app_proof_error(report: dict[str, Any], exc: Exception, *, fallback_
     else:
         code = fallback_code
         message = str(exc)
-        fix = "Inspect app_proof_report.json and retry viewspec prove-app."
+        fix = "Inspect app_proof_report.json and rerun viewspec prove."
     failed["errors"].append({"code": code, "message": message, "fix": fix})
     return failed
 
@@ -1196,84 +1196,6 @@ def _final_timings(timings: dict[str, int]) -> dict[str, int]:
     return payload
 
 
-def _app_tool_proof_identity(proof: dict[str, Any]) -> dict[str, str | None]:
-    paths = proof.get("paths") if isinstance(proof.get("paths"), dict) else {}
-    screen_hashes: dict[str, dict[str, str | None]] = {}
-    for screen in proof.get("screens", []) if isinstance(proof.get("screens"), list) else []:
-        if not isinstance(screen, dict) or not isinstance(screen.get("id"), str):
-            continue
-        screen_hashes[screen["id"]] = {
-            "artifact_hash": screen.get("artifact_hash") if isinstance(screen.get("artifact_hash"), str) else None,
-            "manifest_hash": screen.get("manifest_hash") if isinstance(screen.get("manifest_hash"), str) else None,
-        }
-    static_analysis = proof.get("static_analysis") if isinstance(proof.get("static_analysis"), dict) else {}
-    text_layout = proof.get("text_layout") if isinstance(proof.get("text_layout"), dict) else {}
-    return {
-        "proof_report_hash": app_proof_report_hash(proof) if _is_present_file(paths.get("report")) else None,
-        "proof_summary_hash": _hash_path_if_present(paths.get("proof_summary")),
-        "support_bundle_hash": _hash_path_if_present(paths.get("support_bundle")),
-        "analysis_evidence_hash": _hash_path_if_present(paths.get("analysis_evidence")),
-        "shell_artifact_hash": proof.get("shell_artifact_hash")
-        if isinstance(proof.get("shell_artifact_hash"), str)
-        else None,
-        "shell_manifest_hash": proof.get("shell_manifest_hash")
-        if isinstance(proof.get("shell_manifest_hash"), str)
-        else None,
-        "app_artifact_hash": proof.get("app_artifact_hash")
-        if isinstance(proof.get("app_artifact_hash"), str)
-        else None,
-        "app_manifest_hash": proof.get("manifest_hash") if isinstance(proof.get("manifest_hash"), str) else None,
-        "state_reducer_hash": proof.get("state_reducer_hash")
-        if isinstance(proof.get("state_reducer_hash"), str)
-        else None,
-        "state_manifest_hash": proof.get("state_manifest_hash")
-        if isinstance(proof.get("state_manifest_hash"), str)
-        else None,
-        "state_contract_hash": proof.get("state_contract_hash")
-        if isinstance(proof.get("state_contract_hash"), str)
-        else None,
-        "state_reducer_conformance": _state_conformance_status(proof.get("state_reducer_conformance")),
-        "freerange_audit_transcript_hash": (
-            static_analysis.get("audit_transcript_hash", static_analysis.get("audit_transcript_sha256"))
-            if isinstance(
-                static_analysis.get("audit_transcript_hash", static_analysis.get("audit_transcript_sha256")),
-                str,
-            )
-            else None
-        ),
-        "pretext_scope_digest": (
-            text_layout.get("scope_digest") if isinstance(text_layout.get("scope_digest"), str) else None
-        ),
-        "pretext_observation_digest": (
-            text_layout.get("observation_digest") if isinstance(text_layout.get("observation_digest"), str) else None
-        ),
-        "pretext_report_hash": (
-            text_layout.get("report_sha256") if isinstance(text_layout.get("report_sha256"), str) else None
-        ),
-        "screen_hashes": screen_hashes,  # type: ignore[dict-item]
-    }
-
-
-def _is_present_file(path: object) -> bool:
-    if not path:
-        return False
-    candidate = Path(str(path))
-    return candidate.exists() and candidate.is_file()
-
-
-def _hash_path_if_present(path: object) -> str | None:
-    if not _is_present_file(path):
-        return None
-    return file_hash(Path(str(path)))
-
-
-# Backward-compatible private aliases; the un-prefixed names are canonical.
-_app_proof_failure_report = app_proof_failure_report
-_app_proof_report = app_proof_report
-_app_shell_failure_report = app_shell_failure_report
-_app_shell_report = app_shell_report
-_write_app_proof = write_app_proof
-
 __all__ = [
     "APP_BUNDLE_DEFAULT_OUT",
     "APP_BUNDLE_DEFAULT_ANALYSIS_EVIDENCE",
@@ -1288,7 +1210,6 @@ __all__ = [
     "app_proof_report_hash",
     "app_shell_failure_report",
     "app_shell_report",
-    "_app_tool_proof_identity",
     "write_app_proof",
     "_write_bounded_json",
 ]

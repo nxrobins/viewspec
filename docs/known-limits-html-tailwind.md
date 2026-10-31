@@ -9,7 +9,7 @@
 
 ## Raw HTML Wedge
 
-- Raw HTML compile is sanitize + theme + manifest + diff. It does not recover full ViewSpec IR.
+- Raw HTML compile is sanitize + theme + manifest. It does not recover full ViewSpec IR.
 - The sanitizer uses an allowlist of readable structural tags and safe attributes. Active surfaces such as scripts, inline handlers, raw HTML forms, iframes, embeds, objects, templates, SVG/math wrappers, CSS URLs, and refresh metadata are removed. Intent `form` motifs are emitted as inert `role="form"` sections with local `viewspec-action` events, never submitting `<form>` elements.
 - Remote images are replaced with inert external-image links and disclosed in `external_refs`; generated raw-HTML artifacts should not auto-fetch network resources when opened.
 - User-clicked external anchors remain clickable and receive `rel="noopener noreferrer"`.

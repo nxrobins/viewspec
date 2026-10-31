@@ -1406,6 +1406,17 @@ def reject_json_constant(value: str) -> None:
 _stable_json = canonical_json_utf8
 
 
+def validation_summary(validation: dict[str, Any]) -> dict[str, Any]:
+    """The compact form of a validation payload that build and proof reports carry."""
+    return {
+        "ok": validation.get("ok"),
+        "app_schema_version": validation.get("app_schema_version"),
+        "compile_check": validation.get("compile_check"),
+        "summary": validation.get("summary"),
+        "issue_count": len(validation.get("issues", [])) if isinstance(validation.get("issues"), list) else 0,
+    }
+
+
 def validate_app_text(text: str, *, compile_check: bool = True) -> dict[str, Any]:
     issues: list[dict[str, str]] = []
     raw_bytes = len(text.encode("utf-8"))
@@ -1443,12 +1454,9 @@ def validate_app_file(path: str | Path, *, compile_check: bool = True) -> dict[s
     return validate_app_text(Path(path).read_text(encoding="utf-8"), compile_check=compile_check)
 
 
-# Backward-compatible private aliases; the un-prefixed names are canonical.
-_reject_json_constant = reject_json_constant
-_route_assertions = route_assertions_for
-
 __all__ = [
     "validate_app_text",
+    "validation_summary",
     "validate_app_file",
     "APP_BUNDLE_ALLOWED_APP_FIELDS",
     "APP_BUNDLE_ALLOWED_KINDS",

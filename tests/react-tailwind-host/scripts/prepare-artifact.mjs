@@ -10,7 +10,7 @@ const fixtureRoot = resolve(scriptDir, "..");
 const repoRoot = resolve(fixtureRoot, "../..");
 const generatedDir = join(fixtureRoot, "src", "generated");
 const tmpDir = join(fixtureRoot, ".tmp");
-const intentPath = join(tmpDir, "tailwind_admin_workspace.intent.json");
+const intentPath = join(repoRoot, "tests", "fixtures", "tailwind_admin_workspace.intent.json");
 const markerPath = join(tmpDir, "host-proof-check.json");
 
 function fail(code, message) {
@@ -74,19 +74,6 @@ try {
 }
 
 const python = pythonCommand();
-const writeIntent = [
-  "import json, sys",
-  "from pathlib import Path",
-  "from viewspec.compiler_benchmarks import benchmark_fixtures",
-  "fixture = next(item for item in benchmark_fixtures() if item.id == 'tailwind_admin_workspace')",
-  "payload = fixture.bundle.to_json()",
-  "view = payload['view_spec']",
-  "view['styles'] = [style for style in view.get('styles', []) if style.get('id') != 'aesthetic_profile' and not str(style.get('token', '')).startswith('aesthetic.')]",
-  "view['styles'].append({'id': 'aesthetic_profile', 'target': f\"view:{view['id']}\", 'token': 'aesthetic.data_dense'})",
-  "Path(sys.argv[1]).write_text(json.dumps(payload, ensure_ascii=True, sort_keys=True), encoding='utf-8')",
-].join("; ");
-
-await run(python, ["-c", writeIntent, intentPath], "HOST_PROOF_CHECK_NOT_RUN");
 await run(python, ["-m", "viewspec.cli", "compile", intentPath, "--target", "react-tailwind-tsx", "--out", generatedDir], "HOST_PROOF_CHECK_NOT_RUN");
 await run(python, ["-m", "viewspec.cli", "check", generatedDir, "--json"], "HOST_PROOF_CHECK_NOT_RUN");
 await assertGeneratedIdentity();

@@ -63,7 +63,7 @@ def _inline_scripts(html: str) -> list[tuple[str, str]]:
 # --- structural shape --------------------------------------------------------------------------------
 
 
-@pytest.mark.skipif(not _NODE_AVAILABLE, reason="prove-app V4 requires Node.js for conformance")
+@pytest.mark.skipif(not _NODE_AVAILABLE, reason="AppBundle V4 proof requires Node.js for conformance")
 def test_v4_shell_structure(tmp_path):
     shell_dir = _prove_shell(tmp_path, _visibility_app_bundle())
     html = (shell_dir / "index.html").read_text(encoding="utf-8")
@@ -91,7 +91,7 @@ def test_v4_shell_structure(tmp_path):
     assert runtime["state_js_bytes"] <= 96 * 1024
 
 
-@pytest.mark.skipif(not _NODE_AVAILABLE, reason="prove-app requires Node.js for V3+ conformance")
+@pytest.mark.skipif(not _NODE_AVAILABLE, reason="AppBundle V3+ proof requires Node.js for conformance")
 def test_v3_shell_carries_no_state_runtime(tmp_path):
     shell_dir = _prove_shell(tmp_path, _stateful_app_bundle(), name="v3")
     html = (shell_dir / "index.html").read_text(encoding="utf-8")
@@ -178,7 +178,7 @@ console.log(JSON.stringify({ initial, after: mod.evaluateViewSpecVisibility(stat
     assert js["after"] == py_after
 
 
-@pytest.mark.skipif(not _NODE_AVAILABLE, reason="prove-app V4 requires Node.js")
+@pytest.mark.skipif(not _NODE_AVAILABLE, reason="AppBundle V4 proof requires Node.js")
 def test_startup_verdicts_match_baked_markers(tmp_path):
     # SC-V4 end-to-end: what the shell would apply at startup equals what compile baked.
     payload = _visibility_app_bundle()
@@ -229,7 +229,7 @@ def test_browser_reducer_wraps_shared_javascript_emitter_only():
         assert name in browser_source[browser_source.rindex("return {") :]
 
 
-@pytest.mark.skipif(not _NODE_AVAILABLE, reason="prove-app V4 requires Node.js")
+@pytest.mark.skipif(not _NODE_AVAILABLE, reason="AppBundle V4 proof requires Node.js")
 def test_state_js_size_cap_fails_closed(tmp_path, monkeypatch):
     import viewspec.app_shell as app_shell
     from viewspec.app_bundle import prove_app
@@ -246,7 +246,7 @@ def test_state_js_size_cap_fails_closed(tmp_path, monkeypatch):
 # --- determinism --------------------------------------------------------------------------------------
 
 
-@pytest.mark.skipif(not _NODE_AVAILABLE, reason="prove-app V4 requires Node.js")
+@pytest.mark.skipif(not _NODE_AVAILABLE, reason="AppBundle V4 proof requires Node.js")
 def test_v4_shell_is_deterministic(tmp_path):
     payload = _visibility_app_bundle()
     first = _prove_shell(tmp_path, copy.deepcopy(payload), name="one")

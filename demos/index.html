@@ -3,23 +3,22 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>ViewSpec Studio - Build with your agent, then point at what changes</title>
-<meta name="description" content="Create, compare, inspect, and approve agent-built interfaces in one local Studio. One semantic source drives checked static and React builds with precise feedback context.">
+<title>ViewSpec - Free, local UI compiler for coding agents</title>
+<meta name="description" content="ViewSpec compiles agent-written IntentBundle and AppBundle JSON into checked static HTML and React, with provenance and proof bundles. Free, MIT licensed, and local, with no hosted service.">
 <meta name="robots" content="index,follow,max-snippet:-1,max-image-preview:large">
 <meta name="application-name" content="ViewSpec">
 <meta name="keywords" content="agent-native app compiler, AppBundle, State IR, IntentBundle, semantic UI compiler, AI coding agents, deterministic HTML, reducers, provenance, proof pipeline, Python SDK">
 <link rel="canonical" href="https://viewspec.dev/">
 <link rel="sitemap" type="application/xml" href="https://viewspec.dev/sitemap.xml">
 <link rel="alternate" type="text/markdown" title="ViewSpec for LLMs" href="https://viewspec.dev/llms.txt">
-<link rel="alternate" type="application/json" title="ViewSpec OpenAPI" href="https://viewspec.dev/openapi.json">
 <meta property="og:site_name" content="ViewSpec">
 <meta property="og:type" content="website">
-<meta property="og:title" content="ViewSpec Studio - Build with your agent, then point at what changes">
-<meta property="og:description" content="Create, compare, inspect, and approve agent-built interfaces in one checked local product loop.">
+<meta property="og:title" content="ViewSpec - Free, local UI compiler for coding agents">
+<meta property="og:description" content="ViewSpec compiles agent-written IntentBundle and AppBundle JSON into checked static HTML and React, with provenance and proof bundles. Free, MIT licensed, and local, with no hosted service.">
 <meta property="og:url" content="https://viewspec.dev/">
 <meta name="twitter:card" content="summary">
-<meta name="twitter:title" content="ViewSpec Studio - Build with your agent, then point at what changes">
-<meta name="twitter:description" content="Create, compare, inspect, and approve agent-built interfaces in one checked local product loop.">
+<meta name="twitter:title" content="ViewSpec - Free, local UI compiler for coding agents">
+<meta name="twitter:description" content="ViewSpec compiles agent-written IntentBundle and AppBundle JSON into checked static HTML and React, with provenance and proof bundles. Free, MIT licensed, and local, with no hosted service.">
 <script type="application/ld+json">
 {
   "@context": "https://schema.org",
@@ -39,7 +38,7 @@
       "@id": "https://viewspec.dev/#website",
       "url": "https://viewspec.dev/",
       "name": "ViewSpec",
-      "description": "Agent-native app compiler, hosted compiler API, and Python SDK for deterministic UI, state, reducers, and proof bundles.",
+      "description": "Free, local, MIT-licensed agent-native app compiler and Python SDK for deterministic UI, state, reducers, and proof bundles.",
       "publisher": {
         "@id": "https://viewspec.dev/#organization"
       },
@@ -51,68 +50,34 @@
       "name": "ViewSpec",
       "applicationCategory": "DeveloperApplication",
       "applicationSubCategory": "Agent-native app compiler",
-      "operatingSystem": "Python 3.11+ and Web API",
+      "operatingSystem": "Python 3.11+",
+      "license": "https://opensource.org/licenses/MIT",
+      "isAccessibleForFree": true,
       "url": "https://viewspec.dev/",
       "downloadUrl": "https://pypi.org/project/viewspec/",
-      "softwareVersion": "0.3.0b12",
+      "softwareVersion": "0.4.0b1",
       "codeRepository": "https://github.com/nxrobins/viewspec",
       "programmingLanguage": [
         "Python",
         "JSON",
         "Protocol Buffers"
       ],
-      "description": "ViewSpec validates agent-authored IntentBundle and AppBundle JSON, proves first artifacts with viewspec prove and prove-app --with-shell, writes PROOF.md, proof_report.json, support_bundle.json, APP_PROOF.md, app_proof_report.json, state_reducer.ts, and state_manifest.json, records compact style-delta counts, offers opt-in bounded Freerange numeric-kernel and Pretext native-DOM line-count/overflow proofs, applies DESIGN.md, writes provenance, and compiles deterministic UI outputs.",
+      "description": "ViewSpec validates agent-authored IntentBundle and AppBundle JSON, proves first artifacts with viewspec prove and viewspec prove viewspec.app.json --with-shell, writes PROOF.md, proof_report.json, support_bundle.json, APP_PROOF.md, app_proof_report.json, state_reducer.ts, and state_manifest.json, records compact style-delta counts, offers opt-in bounded Freerange numeric-kernel and Pretext native-DOM line-count/overflow proofs, applies DESIGN.md, writes provenance, and compiles deterministic UI outputs.",
       "keywords": "agent-native app compiler, AppBundle, interactive_state_v0, reduceViewSpecState, state_replay_assertions, IntentBundle, compiled aesthetic profiles, Freerange numeric kernel proof, Pretext native DOM text proof, semantic UI compiler, agentic engineering, AI coding agents, deterministic HTML, semantic diff, provenance",
       "featureList": [
-        "Local viewspec init-intent and validate-intent for agent-authored IntentBundles",
+        "Local viewspec init and viewspec check for agent-authored IntentBundles",
         "Local AppBundle V3/V4 interactive_state_v0 proof with generated state_reducer.ts",
         "Pure TypeScript reduceViewSpecState reducer generation with state_replay_assertions",
-        "viewspec prove-app --with-shell for shell hash and replay proof",
-        "Ten-case core workflow evidence across mobile, tablet, and desktop",
-        "Receipt-backed semantic correction previews and applies",
+        "viewspec prove viewspec.app.json --with-shell for shell hash and replay proof",
         "Compiled aesthetic profile homepage artifacts with stable semantic ids and distinct style projection hashes",
         "Opt-in @chenglou/freerange@0.0.1 proof for the manifest-described generated numeric kernel",
         "Opt-in @chenglou/pretext@0.0.8 native-DOM line-count and overflow proof at three canonical viewports",
         "Local viewspec compile for deterministic UI artifacts",
         "Auditable provenance_manifest.json with stable hashes",
         "DESIGN.md theming without arbitrary CSS or script",
-        "Hosted compiler API at api.viewspec.dev for IntentBundle workflows"
-      ],
-      "offers": [
-        {
-          "@type": "Offer",
-          "name": "Free",
-          "price": "0",
-          "priceCurrency": "USD",
-          "url": "https://viewspec.dev/#pricing"
-        },
-        {
-          "@type": "Offer",
-          "name": "Pro",
-          "price": "149",
-          "priceCurrency": "USD",
-          "url": "https://viewspec.dev/#pricing"
-        },
-        {
-          "@type": "Offer",
-          "name": "Enterprise",
-          "price": "Custom",
-          "priceCurrency": "USD",
-          "url": "https://viewspec.dev/#pricing"
-        }
+        "viewspec studio live-reloading local preview"
       ],
       "publisher": {
-        "@id": "https://viewspec.dev/#organization"
-      }
-    },
-    {
-      "@type": "WebAPI",
-      "@id": "https://viewspec.dev/#api",
-      "name": "ViewSpec Hosted Compiler API",
-      "url": "https://api.viewspec.dev/v1/compile",
-      "documentation": "https://viewspec.dev/openapi.json",
-      "description": "HTTP API for advanced ViewSpec IntentBundle compilation into CompositionIR, diagnostics, timing metadata, and provenance.",
-      "provider": {
         "@id": "https://viewspec.dev/#organization"
       }
     },
@@ -134,6 +99,14 @@
           "acceptedAnswer": {
             "@type": "Answer",
             "text": "No. The local compiler and generated artifacts are deterministic and do not call a runtime LLM."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "Is ViewSpec free?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Yes. ViewSpec is MIT licensed and runs locally. There is no hosted service, account, API key, or paid tier."
           }
         }
       ]
@@ -161,7 +134,7 @@
       "layoutSignature": "workspace 1 / metrics 1",
       "manifestAestheticProfile": "aesthetic.brutalist",
       "manifestUrl": "./landing-compiled/profiles/brutalist/provenance_manifest.json",
-      "nodeCount": 91,
+      "nodeCount": 72,
       "note": "Raw off-white ground with hard black frames, zero radius, and a loud red.",
       "projection": {
         "accent": "#d81e1e",
@@ -176,7 +149,7 @@
         "uppercase": true,
         "weight": "900"
       },
-      "semanticHash": "fd4789371267338ee565306acece9fb605309c701e2ca45e5b8c8eb4b5a07644",
+      "semanticHash": "d393bcd75e997766fd976ba6b10f5c762825f87a8cc27369ab20a9b44beb8b86",
       "slug": "brutalist",
       "styleProjectionHash": "669d75db93fc54401f7f8ad1db45fc525f116da4f25eef118d7a97e51d126d0c",
       "styleProof": {
@@ -226,7 +199,7 @@
       "layoutSignature": "workspace 2 / metrics 2",
       "manifestAestheticProfile": "aesthetic.calm_ops",
       "manifestUrl": "./landing-compiled/profiles/calm-ops/provenance_manifest.json",
-      "nodeCount": 91,
+      "nodeCount": 72,
       "note": "Quiet operational surfaces with teal accents and low-contrast panels.",
       "projection": {
         "accent": "#0f766e",
@@ -241,7 +214,7 @@
         "uppercase": false,
         "weight": "760"
       },
-      "semanticHash": "fd4789371267338ee565306acece9fb605309c701e2ca45e5b8c8eb4b5a07644",
+      "semanticHash": "d393bcd75e997766fd976ba6b10f5c762825f87a8cc27369ab20a9b44beb8b86",
       "slug": "calm-ops",
       "styleProjectionHash": "ef3fe9ae67de34a1d4ed970d974ba744f380cc35bc5cc926ba55658f71cec6e0",
       "styleProof": {
@@ -291,7 +264,7 @@
       "layoutSignature": "workspace 3 / metrics 3",
       "manifestAestheticProfile": "aesthetic.data_dense",
       "manifestUrl": "./landing-compiled/profiles/data-dense/provenance_manifest.json",
-      "nodeCount": 91,
+      "nodeCount": 72,
       "note": "Compact spacing, smaller type, and tighter controls for repeated scanning.",
       "projection": {
         "accent": "#60a5fa",
@@ -306,7 +279,7 @@
         "uppercase": false,
         "weight": "720"
       },
-      "semanticHash": "fd4789371267338ee565306acece9fb605309c701e2ca45e5b8c8eb4b5a07644",
+      "semanticHash": "d393bcd75e997766fd976ba6b10f5c762825f87a8cc27369ab20a9b44beb8b86",
       "slug": "data-dense",
       "styleProjectionHash": "8ff472a79635e8ec3ca33679e48c32ac8d4654c8f62c154b730ca4b6a5053890",
       "styleProof": {
@@ -356,7 +329,7 @@
       "layoutSignature": "workspace 2 / metrics 1",
       "manifestAestheticProfile": "aesthetic.editorial_product",
       "manifestUrl": "./landing-compiled/profiles/editorial-product/provenance_manifest.json",
-      "nodeCount": 91,
+      "nodeCount": 72,
       "note": "Warmer product-story pacing with broader prose rhythm.",
       "projection": {
         "accent": "#be123c",
@@ -371,7 +344,7 @@
         "uppercase": false,
         "weight": "840"
       },
-      "semanticHash": "fd4789371267338ee565306acece9fb605309c701e2ca45e5b8c8eb4b5a07644",
+      "semanticHash": "d393bcd75e997766fd976ba6b10f5c762825f87a8cc27369ab20a9b44beb8b86",
       "slug": "editorial-product",
       "styleProjectionHash": "e49472c415b1ba335f4a7d2770bd39bd537c109a56ea5416b64b468a62b78b54",
       "styleProof": {
@@ -421,7 +394,7 @@
       "layoutSignature": "workspace 2 / metrics 3 / featured metric span 2 + featured emphasis",
       "manifestAestheticProfile": "aesthetic.executive_review",
       "manifestUrl": "./landing-compiled/profiles/executive-review/provenance_manifest.json",
-      "nodeCount": 91,
+      "nodeCount": 72,
       "note": "Conservative review surfaces with restrained contrast and crisp framing.",
       "projection": {
         "accent": "#0f5f72",
@@ -436,7 +409,7 @@
         "uppercase": true,
         "weight": "800"
       },
-      "semanticHash": "fd4789371267338ee565306acece9fb605309c701e2ca45e5b8c8eb4b5a07644",
+      "semanticHash": "d393bcd75e997766fd976ba6b10f5c762825f87a8cc27369ab20a9b44beb8b86",
       "slug": "executive-review",
       "styleProjectionHash": "74ee37a1470142e3a759f3953db53db76515a31b30c25048a93d2febf0cb451c",
       "styleProof": {
@@ -486,7 +459,7 @@
       "layoutSignature": "workspace 2 / metrics 2",
       "manifestAestheticProfile": "aesthetic.neon_cyber",
       "manifestUrl": "./landing-compiled/profiles/neon-cyber/provenance_manifest.json",
-      "nodeCount": 91,
+      "nodeCount": 72,
       "note": "Near-black terminal with magenta uppercase accents and cyan glow.",
       "projection": {
         "accent": "#ff2d9b",
@@ -501,7 +474,7 @@
         "uppercase": true,
         "weight": "620"
       },
-      "semanticHash": "fd4789371267338ee565306acece9fb605309c701e2ca45e5b8c8eb4b5a07644",
+      "semanticHash": "d393bcd75e997766fd976ba6b10f5c762825f87a8cc27369ab20a9b44beb8b86",
       "slug": "neon-cyber",
       "styleProjectionHash": "bf6e5321f3bffd4d6025b80b5a715f664c38e332619e3605074c7bbd8fe6d16f",
       "styleProof": {
@@ -551,7 +524,7 @@
       "layoutSignature": "workspace 2 / metrics 2 / featured metric span 2 + featured emphasis",
       "manifestAestheticProfile": "aesthetic.premium_saas",
       "manifestUrl": "./landing-compiled/profiles/premium-saas/provenance_manifest.json",
-      "nodeCount": 91,
+      "nodeCount": 72,
       "note": "Polished product rhythm with stronger hierarchy and softer shadows.",
       "projection": {
         "accent": "#4f46e5",
@@ -566,7 +539,7 @@
         "uppercase": false,
         "weight": "860"
       },
-      "semanticHash": "fd4789371267338ee565306acece9fb605309c701e2ca45e5b8c8eb4b5a07644",
+      "semanticHash": "d393bcd75e997766fd976ba6b10f5c762825f87a8cc27369ab20a9b44beb8b86",
       "slug": "premium-saas",
       "styleProjectionHash": "a0fdef8e0916e74bfcc6e5c5225ff10820e2b45894d0c7e590866d1376cba269",
       "styleProof": {
@@ -616,7 +589,7 @@
       "layoutSignature": "workspace 2 / metrics 3 / featured metric span 2 + featured emphasis",
       "manifestAestheticProfile": "aesthetic.warm_organic",
       "manifestUrl": "./landing-compiled/profiles/warm-organic/provenance_manifest.json",
-      "nodeCount": 91,
+      "nodeCount": 72,
       "note": "Warm sand ground, humanist sans, and soft rounded amber surfaces.",
       "projection": {
         "accent": "#985d10",
@@ -631,7 +604,7 @@
         "uppercase": false,
         "weight": "600"
       },
-      "semanticHash": "fd4789371267338ee565306acece9fb605309c701e2ca45e5b8c8eb4b5a07644",
+      "semanticHash": "d393bcd75e997766fd976ba6b10f5c762825f87a8cc27369ab20a9b44beb8b86",
       "slug": "warm-organic",
       "styleProjectionHash": "b60d665165742839bd9bd3cfa9d1c896034d2c49e895446d429a420f2b4dbd64",
       "styleProof": {
@@ -692,8 +665,8 @@
         },
         "agent_workflow_row_2": {
           "attrs": {
-            "label": "validate",
-            "value": "viewspec validate-intent fails closed on drift."
+            "label": "check",
+            "value": "viewspec check fails closed on drift."
           },
           "edges": {},
           "id": "agent_workflow_row_2",
@@ -703,7 +676,7 @@
         "agent_workflow_row_3": {
           "attrs": {
             "label": "prove",
-            "value": "viewspec prove --intent compiles, checks, and renders the exact artifact."
+            "value": "viewspec prove compiles, checks, and renders the exact artifact."
           },
           "edges": {},
           "id": "agent_workflow_row_3",
@@ -753,7 +726,7 @@
         "capabilities_row_3": {
           "attrs": {
             "label": "Proof Pipeline",
-            "value": "state_replay_assertions plus viewspec prove-app --with-shell."
+            "value": "state_replay_assertions plus viewspec prove viewspec.app.json --with-shell."
           },
           "edges": {},
           "id": "capabilities_row_3",
@@ -762,21 +735,11 @@
         },
         "capabilities_row_4": {
           "attrs": {
-            "label": "Semantic Correction",
-            "value": "Source-bound previews and applied receipts keep changes traceable."
+            "label": "Portable Surfaces",
+            "value": "html-tailwind and React, compiled locally."
           },
           "edges": {},
           "id": "capabilities_row_4",
-          "kind": "table_row",
-          "slots": {}
-        },
-        "capabilities_row_5": {
-          "attrs": {
-            "label": "Portable Surfaces",
-            "value": "html-tailwind and React locally; four integrity-checked targets through the paid API."
-          },
-          "edges": {},
-          "id": "capabilities_row_5",
           "kind": "table_row",
           "slots": {}
         },
@@ -812,8 +775,8 @@
         },
         "launch_hero": {
           "attrs": {
-            "description": "Create from a brief and reference, compare checked static and React builds, inspect declared state and fixture data, then point at the result and ask for the next change.",
-            "eyebrow": "Local product studio for you and your agent",
+            "description": "Your agent writes a semantic source. ViewSpec compiles it locally into checked static HTML or React, with provenance and a proof bundle. Free and MIT licensed, with no hosted service.",
+            "eyebrow": "Local UI compiler for you and your agent",
             "title": "Tell your agent what to build. See the real product."
           },
           "edges": {},
@@ -821,33 +784,33 @@
           "kind": "hero",
           "slots": {}
         },
-        "pricing_row_1": {
+        "open_source_row_1": {
           "attrs": {
-            "label": "Free",
-            "value": "Local SDK. Unlimited compiles, proofs, and surfaces."
+            "label": "Cost",
+            "value": "Free. Unlimited compiles, proofs, and surfaces."
           },
           "edges": {},
-          "id": "pricing_row_1",
+          "id": "open_source_row_1",
           "kind": "table_row",
           "slots": {}
         },
-        "pricing_row_2": {
+        "open_source_row_2": {
           "attrs": {
-            "label": "Pro",
-            "value": "149/mo. Hosted compiler API, 10k calls per day."
+            "label": "License",
+            "value": "MIT."
           },
           "edges": {},
-          "id": "pricing_row_2",
+          "id": "open_source_row_2",
           "kind": "table_row",
           "slots": {}
         },
-        "pricing_row_3": {
+        "open_source_row_3": {
           "attrs": {
-            "label": "Enterprise",
-            "value": "Custom volume, organization sharing, and support."
+            "label": "Hosting",
+            "value": "Runs locally. No hosted service, account, or API key."
           },
           "edges": {},
-          "id": "pricing_row_3",
+          "id": "open_source_row_3",
           "kind": "table_row",
           "slots": {}
         },
@@ -898,56 +861,6 @@
           },
           "edges": {},
           "id": "proof_badges_card_5",
-          "kind": "dashboard_card",
-          "slots": {}
-        },
-        "quality_evidence_card_1": {
-          "attrs": {
-            "label": "browser corpus",
-            "value": "10/10 conformant"
-          },
-          "edges": {},
-          "id": "quality_evidence_card_1",
-          "kind": "dashboard_card",
-          "slots": {}
-        },
-        "quality_evidence_card_2": {
-          "attrs": {
-            "label": "viewports",
-            "value": "mobile \u00b7 tablet \u00b7 desktop"
-          },
-          "edges": {},
-          "id": "quality_evidence_card_2",
-          "kind": "dashboard_card",
-          "slots": {}
-        },
-        "quality_evidence_card_3": {
-          "attrs": {
-            "label": "product quality",
-            "value": "10/10 first-compile passes \u00b7 0 critical issues"
-          },
-          "edges": {},
-          "id": "quality_evidence_card_3",
-          "kind": "dashboard_card",
-          "slots": {}
-        },
-        "quality_evidence_card_4": {
-          "attrs": {
-            "label": "semantic corrections",
-            "value": "10/10 verified previews \u00b7 10 applied receipts"
-          },
-          "edges": {},
-          "id": "quality_evidence_card_4",
-          "kind": "dashboard_card",
-          "slots": {}
-        },
-        "quality_evidence_card_5": {
-          "attrs": {
-            "label": "refinement gates",
-            "value": "8/8 passed"
-          },
-          "edges": {},
-          "id": "quality_evidence_card_5",
           "kind": "dashboard_card",
           "slots": {}
         },
@@ -1056,76 +969,6 @@
           "target_region": "main"
         },
         {
-          "address": "node:quality_evidence_card_1#attr:label",
-          "cardinality": "exactly_once",
-          "id": "quality_evidence_card_1_label",
-          "present_as": "label",
-          "target_region": "main"
-        },
-        {
-          "address": "node:quality_evidence_card_1#attr:value",
-          "cardinality": "exactly_once",
-          "id": "quality_evidence_card_1_value",
-          "present_as": "value",
-          "target_region": "main"
-        },
-        {
-          "address": "node:quality_evidence_card_2#attr:label",
-          "cardinality": "exactly_once",
-          "id": "quality_evidence_card_2_label",
-          "present_as": "label",
-          "target_region": "main"
-        },
-        {
-          "address": "node:quality_evidence_card_2#attr:value",
-          "cardinality": "exactly_once",
-          "id": "quality_evidence_card_2_value",
-          "present_as": "value",
-          "target_region": "main"
-        },
-        {
-          "address": "node:quality_evidence_card_3#attr:label",
-          "cardinality": "exactly_once",
-          "id": "quality_evidence_card_3_label",
-          "present_as": "label",
-          "target_region": "main"
-        },
-        {
-          "address": "node:quality_evidence_card_3#attr:value",
-          "cardinality": "exactly_once",
-          "id": "quality_evidence_card_3_value",
-          "present_as": "value",
-          "target_region": "main"
-        },
-        {
-          "address": "node:quality_evidence_card_4#attr:label",
-          "cardinality": "exactly_once",
-          "id": "quality_evidence_card_4_label",
-          "present_as": "label",
-          "target_region": "main"
-        },
-        {
-          "address": "node:quality_evidence_card_4#attr:value",
-          "cardinality": "exactly_once",
-          "id": "quality_evidence_card_4_value",
-          "present_as": "value",
-          "target_region": "main"
-        },
-        {
-          "address": "node:quality_evidence_card_5#attr:label",
-          "cardinality": "exactly_once",
-          "id": "quality_evidence_card_5_label",
-          "present_as": "label",
-          "target_region": "main"
-        },
-        {
-          "address": "node:quality_evidence_card_5#attr:value",
-          "cardinality": "exactly_once",
-          "id": "quality_evidence_card_5_value",
-          "present_as": "value",
-          "target_region": "main"
-        },
-        {
           "address": "node:compile_flow_card_1#attr:label",
           "cardinality": "exactly_once",
           "id": "compile_flow_card_1_label",
@@ -1224,20 +1067,6 @@
           "target_region": "main"
         },
         {
-          "address": "node:capabilities_row_5#attr:label",
-          "cardinality": "exactly_once",
-          "id": "capabilities_row_5_label",
-          "present_as": "label",
-          "target_region": "main"
-        },
-        {
-          "address": "node:capabilities_row_5#attr:value",
-          "cardinality": "exactly_once",
-          "id": "capabilities_row_5_value",
-          "present_as": "value",
-          "target_region": "main"
-        },
-        {
           "address": "node:agent_workflow_row_1#attr:label",
           "cardinality": "exactly_once",
           "id": "agent_workflow_row_1_label",
@@ -1280,44 +1109,44 @@
           "target_region": "main"
         },
         {
-          "address": "node:pricing_row_1#attr:label",
+          "address": "node:open_source_row_1#attr:label",
           "cardinality": "exactly_once",
-          "id": "pricing_row_1_label",
+          "id": "open_source_row_1_label",
           "present_as": "label",
           "target_region": "main"
         },
         {
-          "address": "node:pricing_row_1#attr:value",
+          "address": "node:open_source_row_1#attr:value",
           "cardinality": "exactly_once",
-          "id": "pricing_row_1_value",
+          "id": "open_source_row_1_value",
           "present_as": "value",
           "target_region": "main"
         },
         {
-          "address": "node:pricing_row_2#attr:label",
+          "address": "node:open_source_row_2#attr:label",
           "cardinality": "exactly_once",
-          "id": "pricing_row_2_label",
+          "id": "open_source_row_2_label",
           "present_as": "label",
           "target_region": "main"
         },
         {
-          "address": "node:pricing_row_2#attr:value",
+          "address": "node:open_source_row_2#attr:value",
           "cardinality": "exactly_once",
-          "id": "pricing_row_2_value",
+          "id": "open_source_row_2_value",
           "present_as": "value",
           "target_region": "main"
         },
         {
-          "address": "node:pricing_row_3#attr:label",
+          "address": "node:open_source_row_3#attr:label",
           "cardinality": "exactly_once",
-          "id": "pricing_row_3_label",
+          "id": "open_source_row_3_label",
           "present_as": "label",
           "target_region": "main"
         },
         {
-          "address": "node:pricing_row_3#attr:value",
+          "address": "node:open_source_row_3#attr:value",
           "cardinality": "exactly_once",
-          "id": "pricing_row_3_value",
+          "id": "open_source_row_3_value",
           "present_as": "value",
           "target_region": "main"
         },
@@ -1380,23 +1209,6 @@
           "target_region": "main"
         },
         {
-          "id": "quality_evidence",
-          "kind": "ordered",
-          "members": [
-            "quality_evidence_card_1_label",
-            "quality_evidence_card_1_value",
-            "quality_evidence_card_2_label",
-            "quality_evidence_card_2_value",
-            "quality_evidence_card_3_label",
-            "quality_evidence_card_3_value",
-            "quality_evidence_card_4_label",
-            "quality_evidence_card_4_value",
-            "quality_evidence_card_5_label",
-            "quality_evidence_card_5_value"
-          ],
-          "target_region": "main"
-        },
-        {
           "id": "compile_flow",
           "kind": "ordered",
           "members": [
@@ -1420,9 +1232,7 @@
             "capabilities_row_3_label",
             "capabilities_row_3_value",
             "capabilities_row_4_label",
-            "capabilities_row_4_value",
-            "capabilities_row_5_label",
-            "capabilities_row_5_value"
+            "capabilities_row_4_value"
           ],
           "target_region": "main"
         },
@@ -1440,15 +1250,15 @@
           "target_region": "main"
         },
         {
-          "id": "pricing",
+          "id": "open_source",
           "kind": "ordered",
           "members": [
-            "pricing_row_1_label",
-            "pricing_row_1_value",
-            "pricing_row_2_label",
-            "pricing_row_2_value",
-            "pricing_row_3_label",
-            "pricing_row_3_value"
+            "open_source_row_1_label",
+            "open_source_row_1_value",
+            "open_source_row_2_label",
+            "open_source_row_2_value",
+            "open_source_row_3_label",
+            "open_source_row_3_value"
           ],
           "target_region": "main"
         },
@@ -1494,23 +1304,6 @@
           "region": "main"
         },
         {
-          "id": "quality_evidence",
-          "kind": "dashboard",
-          "members": [
-            "quality_evidence_card_1_label",
-            "quality_evidence_card_1_value",
-            "quality_evidence_card_2_label",
-            "quality_evidence_card_2_value",
-            "quality_evidence_card_3_label",
-            "quality_evidence_card_3_value",
-            "quality_evidence_card_4_label",
-            "quality_evidence_card_4_value",
-            "quality_evidence_card_5_label",
-            "quality_evidence_card_5_value"
-          ],
-          "region": "main"
-        },
-        {
           "id": "compile_flow",
           "kind": "dashboard",
           "members": [
@@ -1534,9 +1327,7 @@
             "capabilities_row_3_label",
             "capabilities_row_3_value",
             "capabilities_row_4_label",
-            "capabilities_row_4_value",
-            "capabilities_row_5_label",
-            "capabilities_row_5_value"
+            "capabilities_row_4_value"
           ],
           "region": "main"
         },
@@ -1554,15 +1345,15 @@
           "region": "main"
         },
         {
-          "id": "pricing",
+          "id": "open_source",
           "kind": "table",
           "members": [
-            "pricing_row_1_label",
-            "pricing_row_1_value",
-            "pricing_row_2_label",
-            "pricing_row_2_value",
-            "pricing_row_3_label",
-            "pricing_row_3_value"
+            "open_source_row_1_label",
+            "open_source_row_1_value",
+            "open_source_row_2_label",
+            "open_source_row_2_value",
+            "open_source_row_3_label",
+            "open_source_row_3_value"
           ],
           "region": "main"
         },
@@ -1609,11 +1400,6 @@
           "token": "surface.subtle"
         },
         {
-          "id": "s_quality_evidence",
-          "target": "quality_evidence",
-          "token": "surface.subtle"
-        },
-        {
           "id": "s_capabilities",
           "target": "capabilities",
           "token": "density.compact"
@@ -1643,7 +1429,7 @@
         "uppercase": true,
         "weight": "900"
       },
-      "semanticHash": "fd4789371267338ee565306acece9fb605309c701e2ca45e5b8c8eb4b5a07644",
+      "semanticHash": "d393bcd75e997766fd976ba6b10f5c762825f87a8cc27369ab20a9b44beb8b86",
       "styleHash": "669d75db93fc54401f7f8ad1db45fc525f116da4f25eef118d7a97e51d126d0c"
     },
     "calm_ops": {
@@ -1661,7 +1447,7 @@
         "uppercase": false,
         "weight": "760"
       },
-      "semanticHash": "fd4789371267338ee565306acece9fb605309c701e2ca45e5b8c8eb4b5a07644",
+      "semanticHash": "d393bcd75e997766fd976ba6b10f5c762825f87a8cc27369ab20a9b44beb8b86",
       "styleHash": "ef3fe9ae67de34a1d4ed970d974ba744f380cc35bc5cc926ba55658f71cec6e0"
     },
     "data_dense": {
@@ -1679,7 +1465,7 @@
         "uppercase": false,
         "weight": "720"
       },
-      "semanticHash": "fd4789371267338ee565306acece9fb605309c701e2ca45e5b8c8eb4b5a07644",
+      "semanticHash": "d393bcd75e997766fd976ba6b10f5c762825f87a8cc27369ab20a9b44beb8b86",
       "styleHash": "8ff472a79635e8ec3ca33679e48c32ac8d4654c8f62c154b730ca4b6a5053890"
     },
     "editorial_product": {
@@ -1697,7 +1483,7 @@
         "uppercase": false,
         "weight": "840"
       },
-      "semanticHash": "fd4789371267338ee565306acece9fb605309c701e2ca45e5b8c8eb4b5a07644",
+      "semanticHash": "d393bcd75e997766fd976ba6b10f5c762825f87a8cc27369ab20a9b44beb8b86",
       "styleHash": "e49472c415b1ba335f4a7d2770bd39bd537c109a56ea5416b64b468a62b78b54"
     },
     "executive_review": {
@@ -1715,7 +1501,7 @@
         "uppercase": true,
         "weight": "800"
       },
-      "semanticHash": "fd4789371267338ee565306acece9fb605309c701e2ca45e5b8c8eb4b5a07644",
+      "semanticHash": "d393bcd75e997766fd976ba6b10f5c762825f87a8cc27369ab20a9b44beb8b86",
       "styleHash": "74ee37a1470142e3a759f3953db53db76515a31b30c25048a93d2febf0cb451c"
     },
     "neon_cyber": {
@@ -1733,7 +1519,7 @@
         "uppercase": true,
         "weight": "620"
       },
-      "semanticHash": "fd4789371267338ee565306acece9fb605309c701e2ca45e5b8c8eb4b5a07644",
+      "semanticHash": "d393bcd75e997766fd976ba6b10f5c762825f87a8cc27369ab20a9b44beb8b86",
       "styleHash": "bf6e5321f3bffd4d6025b80b5a715f664c38e332619e3605074c7bbd8fe6d16f"
     },
     "premium_saas": {
@@ -1751,7 +1537,7 @@
         "uppercase": false,
         "weight": "860"
       },
-      "semanticHash": "fd4789371267338ee565306acece9fb605309c701e2ca45e5b8c8eb4b5a07644",
+      "semanticHash": "d393bcd75e997766fd976ba6b10f5c762825f87a8cc27369ab20a9b44beb8b86",
       "styleHash": "a0fdef8e0916e74bfcc6e5c5225ff10820e2b45894d0c7e590866d1376cba269"
     },
     "warm_organic": {
@@ -1769,11 +1555,11 @@
         "uppercase": false,
         "weight": "600"
       },
-      "semanticHash": "fd4789371267338ee565306acece9fb605309c701e2ca45e5b8c8eb4b5a07644",
+      "semanticHash": "d393bcd75e997766fd976ba6b10f5c762825f87a8cc27369ab20a9b44beb8b86",
       "styleHash": "b60d665165742839bd9bd3cfa9d1c896034d2c49e895446d429a420f2b4dbd64"
     }
   },
-  "semanticHash": "fd4789371267338ee565306acece9fb605309c701e2ca45e5b8c8eb4b5a07644"
+  "semanticHash": "d393bcd75e997766fd976ba6b10f5c762825f87a8cc27369ab20a9b44beb8b86"
 }
 </script>
 <link rel="icon" href="data:,">
@@ -1923,7 +1709,7 @@ header.vs-surface p.vs-text, header.vs-surface p.vs-label { max-width: 68ch; mar
   h1{ font-family:var(--mono); font-weight:var(--hw); letter-spacing:-.025em; line-height:1; margin:20px 0 0;
     font-size:clamp(38px, calc(6.6vw*var(--disp)), 76px); text-wrap:balance; }
   h1 .out{ color:var(--amber); position:relative; }
-  .sub{ font-size:clamp(16.5px,calc(.7vw+14px),20px); color:var(--muted); max-width:60ch; margin:24px 0 0; }
+  .sub{ color:var(--muted); max-width:60ch; margin:24px 0 0; }
   .sub b{ color:var(--text); font-weight:600; }
   .hero-cta{ display:flex; flex-wrap:wrap; align-items:center; gap:14px; margin-top:30px; }
   .cmd{ font-family:var(--mono); font-size:13.5px; color:var(--text); background:var(--panel-solid); border:1px solid var(--line-2);
@@ -1976,67 +1762,26 @@ header.vs-surface p.vs-text, header.vs-surface p.vs-label { max-width: 68ch; mar
   .sec-head{ display:flex; flex-direction:column; gap:14px; margin-bottom:clamp(30px,5vh,50px); }
   .kicker{ font-family:var(--mono); font-size:11.5px; letter-spacing:.2em; text-transform:uppercase; color:var(--faint); }
   .kicker .n{ color:var(--amber); }
-  h2{ font-family:var(--mono); font-weight:var(--hw); font-size:clamp(25px,calc(3vw*var(--disp)+8px),40px); letter-spacing:-.02em; margin:0; text-wrap:balance; line-height:1.06; }
-  .lead{ color:var(--muted); font-size:clamp(15.5px,.5vw+14px,17.5px); max-width:var(--measure); }
+  h2{ font-family:var(--mono); font-weight:var(--hw); font-size:16px; letter-spacing:-.02em; margin:0; text-wrap:balance; line-height:1.06; }
+  .lead{ color:var(--muted); max-width:var(--measure); }
 
-  /* Studio product moment */
-  .studio-window{ overflow:hidden; border:1px solid var(--line-2); border-radius:18px; background:var(--ink-2); box-shadow:0 34px 90px -52px rgba(245,178,63,.45); }
-  .studio-bar{ min-height:50px; padding:11px 15px; display:flex; align-items:center; justify-content:space-between; gap:12px; border-bottom:1px solid var(--line); background:var(--panel-solid); }
-  .studio-brand,.studio-status,.studio-target,.studio-k,.studio-step-num,.studio-command{ font-family:var(--mono); }
-  .studio-brand{ display:flex; align-items:center; gap:9px; font-size:12px; color:var(--text); }
-  .studio-brand .mark{ width:8px; height:8px; }
-  .studio-status{ font-size:10.5px; color:var(--mint); display:flex; align-items:center; gap:7px; }
-  .studio-status::before{ content:""; width:7px; height:7px; border-radius:50%; background:var(--mint); box-shadow:0 0 0 3px rgba(87,220,169,.13); }
-  .studio-grid{ display:grid; grid-template-columns:minmax(150px,.62fr) minmax(0,2.1fr) minmax(180px,.82fr); min-height:430px; }
-  .studio-pane{ min-width:0; padding:16px; border-right:1px solid var(--line); }
-  .studio-pane:last-child{ border-right:0; }
-  .studio-k{ margin-bottom:12px; color:var(--faint); font-size:9.5px; letter-spacing:.14em; text-transform:uppercase; }
-  .studio-brief{ display:grid; gap:10px; }
-  .studio-brief-card,.studio-context-card,.studio-comment{ border:1px solid var(--line); border-radius:10px; background:var(--panel-solid); padding:12px; }
-  .studio-brief-card b,.studio-context-card b{ display:block; margin-bottom:4px; color:var(--text); font-size:12.5px; }
-  .studio-brief-card span,.studio-context-card span{ display:block; color:var(--muted); font-size:11px; line-height:1.5; overflow-wrap:anywhere; }
-  .studio-brief-card.accepted{ border-color:rgba(87,220,169,.3); }
-  .studio-brief-card.accepted span{ color:var(--mint); }
-  .studio-center{ background:linear-gradient(180deg,rgba(26,34,51,.74),rgba(12,17,28,.92)); }
-  .studio-canvas-head{ display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:10px; margin-bottom:12px; }
-  .studio-targets{ display:flex; gap:6px; }
-  .studio-target{ padding:5px 8px; border:1px solid var(--line-2); border-radius:7px; color:var(--muted); font-size:9.5px; background:var(--ink-2); }
-  .studio-target.active{ color:var(--amber-2); border-color:rgba(245,178,63,.42); }
-  .studio-canvases{ display:grid; grid-template-columns:1fr 1fr; gap:10px; }
-  .studio-canvas{ min-width:0; overflow:hidden; border:1px solid var(--line-2); border-radius:11px; background:#f4f1e9; color:#18211d; }
-  .studio-canvas-label{ padding:7px 9px; background:var(--panel-solid); color:var(--muted); font:9.5px var(--mono); letter-spacing:.08em; text-transform:uppercase; }
-  .studio-product{ min-height:235px; padding:14px; background:linear-gradient(145deg,#f7f3e9,#e8eee8); }
-  .studio-product h3{ margin:0 0 3px; font-size:13px; letter-spacing:-.01em; }
-  .studio-product p{ margin:0 0 12px; color:#6c766f; font-size:9.5px; }
-  .studio-jobs{ display:grid; gap:7px; }
-  .studio-job{ padding:9px; display:grid; grid-template-columns:1fr auto; gap:3px 8px; border:1px solid #ccd6ce; border-radius:8px; background:rgba(255,255,255,.8); }
-  .studio-job b{ font-size:10.5px; }
-  .studio-job small{ color:#6c766f; font-size:8.5px; }
-  .studio-job em{ grid-row:1 / span 2; grid-column:2; align-self:center; padding:3px 6px; border-radius:999px; background:#d9eee3; color:#246149; font:normal 8px var(--mono); }
-  .studio-job.selected{ outline:2px solid #d49227; outline-offset:-2px; }
-  .studio-canvas.react .studio-job:last-child em{ background:#fff0c9; color:#7b5000; }
-  .studio-route{ margin-top:10px; color:#748078; font:8.5px var(--mono); }
-  .studio-context{ display:grid; gap:10px; }
-  .studio-context-card code{ color:var(--amber-2); font:10px var(--mono); overflow-wrap:anywhere; }
-  .studio-values{ display:grid; grid-template-columns:auto 1fr; gap:4px 7px; margin-top:8px; font:9.5px var(--mono); }
-  .studio-values dt{ color:var(--faint); }
-  .studio-values dd{ margin:0; color:var(--text); overflow-wrap:anywhere; }
-  .studio-values .changed{ color:var(--amber-2); }
-  .studio-comment{ margin-top:10px; border-color:rgba(245,178,63,.38); }
-  .studio-comment p{ margin:5px 0 10px; color:var(--text); font-size:11px; line-height:1.5; }
-  .studio-comment-foot{ display:flex; justify-content:space-between; gap:8px; color:var(--faint); font:9px var(--mono); }
-  .studio-comment-foot strong{ color:var(--mint); font-weight:500; }
-  .studio-flow{ display:grid; grid-template-columns:repeat(4,1fr); border-top:1px solid var(--line); background:var(--panel-solid); }
-  .studio-step{ position:relative; min-width:0; padding:14px 15px; border-right:1px solid var(--line); }
-  .studio-step:last-child{ border-right:0; }
-  .studio-step-num{ display:block; margin-bottom:4px; color:var(--amber); font-size:9px; }
-  .studio-step b{ display:block; color:var(--text); font-size:12px; }
-  .studio-step span:last-child{ display:block; color:var(--muted); font-size:10.5px; line-height:1.45; }
-  .studio-commands{ display:flex; flex-wrap:wrap; gap:8px; margin-top:16px; }
-  .studio-command{ max-width:100%; padding:8px 11px; border:1px solid var(--line); border-radius:8px; background:var(--panel-solid); color:var(--amber-2); font-size:10.5px; overflow-wrap:anywhere; }
-  .studio-honesty{ margin:13px 0 0; color:var(--faint); font:10.5px/1.55 var(--mono); }
-  @media (max-width:900px){ .studio-grid{ grid-template-columns:1fr 2fr; } .studio-context-pane{ grid-column:1 / -1; border-top:1px solid var(--line); border-right:0; } .studio-context{ grid-template-columns:1fr 1fr; } }
-  @media (max-width:650px){ .studio-grid{ display:block; } .studio-pane{ border-right:0; border-bottom:1px solid var(--line); } .studio-pane:last-child{ border-bottom:0; } .studio-canvases,.studio-context,.studio-flow{ grid-template-columns:1fr; } .studio-step{ border-right:0; border-bottom:1px solid var(--line); } .studio-step:last-child{ border-bottom:0; } }
+  /* CLI workflow */
+  .cli-window{ overflow:hidden; border:1px solid var(--line-2); border-radius:18px; background:var(--ink-2); box-shadow:0 34px 90px -52px rgba(245,178,63,.45); }
+  .cli-bar{ min-height:50px; padding:11px 15px; display:flex; align-items:center; justify-content:space-between; gap:12px; border-bottom:1px solid var(--line); background:var(--panel-solid); }
+  .cli-brand,.cli-status,.cli-step-num,.cli-step b,.cli-command{ font-family:var(--mono); }
+  .cli-brand{ font-size:12px; color:var(--text); }
+  .cli-status{ font-size:10.5px; color:var(--mint); display:flex; align-items:center; gap:7px; }
+  .cli-status::before{ content:""; width:7px; height:7px; border-radius:50%; background:var(--mint); box-shadow:0 0 0 3px rgba(87,220,169,.13); }
+  .cli-flow{ display:grid; grid-template-columns:repeat(6,minmax(0,1fr)); background:var(--panel-solid); }
+  .cli-step{ min-width:0; padding:16px 15px; border-right:1px solid var(--line); }
+  .cli-step:last-child{ border-right:0; }
+  .cli-step-num{ display:block; margin-bottom:6px; color:var(--amber); font-size:9px; }
+  .cli-step b{ display:block; color:var(--text); font-size:12.5px; font-weight:600; }
+  .cli-step span:last-child{ display:block; margin-top:6px; color:var(--muted); font-size:11.5px; line-height:1.5; }
+  .cli-commands{ display:flex; flex-wrap:wrap; gap:8px; margin-top:16px; }
+  .cli-command{ max-width:100%; padding:8px 11px; border:1px solid var(--line); border-radius:8px; background:var(--panel-solid); color:var(--amber-2); font-size:10.5px; overflow-wrap:anywhere; }
+  .cli-note{ margin:13px 0 0; color:var(--faint); font:10.5px/1.55 var(--mono); }
+  @media (max-width:900px){ .cli-flow{ grid-template-columns:1fr; } .cli-step{ border-right:0; border-bottom:1px solid var(--line); } .cli-step:last-child{ border-bottom:0; } }
 
   /* pillars */
   .pillars{ display:grid; grid-template-columns:repeat(3,1fr); gap:16px; }
@@ -2152,10 +1897,6 @@ header.vs-surface p.vs-text, header.vs-surface p.vs-label { max-width: 68ch; mar
   .pbtn{ font-family:var(--mono); font-size:12px; color:var(--ink); background:var(--amber); border:0; border-radius:8px; padding:9px 15px; cursor:pointer; font-weight:600; }
   .pbtn:hover{ background:var(--amber-2); }
   .verdict{ font-family:var(--mono); font-size:12px; color:var(--mint); display:none; align-items:center; gap:7px; }
-  .core-evidence{ margin-top:18px; padding:18px 20px; border:1px solid var(--line); border-radius:16px; background:var(--panel-solid); }
-  .core-evidence h3{ margin:0 0 8px; color:var(--text); font-size:17px; }
-  .core-evidence p{ margin:0; color:var(--muted); font-size:14px; line-height:1.6; }
-  .core-evidence a{ color:var(--amber-2); }
   .integration-proofs{ margin-top:18px; padding-top:24px; border-top:1px solid var(--line); }
   .integration-proofs-head{ max-width:var(--measure); margin-bottom:18px; }
   .integration-proofs-head h3{ margin:8px 0; color:var(--text); font-size:22px; }
@@ -2171,20 +1912,6 @@ header.vs-surface p.vs-text, header.vs-surface p.vs-label { max-width: 68ch; mar
   .bignum small{ font-size:15px; color:var(--muted); font-weight:500; letter-spacing:.02em; margin-left:8px; }
 
   /* cta */
-  .pricing-section{ border-top:1px solid var(--line); }
-  .pricing-grid{ display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:16px; margin-top:26px; }
-  .pricing-plan{ background:linear-gradient(180deg,var(--panel-solid),rgba(20,26,40,.72)); border:1px solid var(--line); border-radius:16px; padding:20px; display:flex; flex-direction:column; min-height:260px; }
-  .pricing-plan.featured{ border-color:rgba(245,178,63,.62); box-shadow:0 24px 64px -42px rgba(245,178,63,.8); }
-  .pricing-plan .plan-kicker{ font-family:var(--mono); font-size:10.5px; letter-spacing:.14em; text-transform:uppercase; color:var(--amber); margin-bottom:10px; }
-  .pricing-plan h3{ margin:0; font-size:19px; line-height:1.2; letter-spacing:-.01em; }
-  .pricing-plan .price{ margin:12px 0 4px; font-family:var(--mono); font-size:28px; color:var(--text); }
-  .pricing-plan .price small{ color:var(--muted); font-size:13px; font-weight:500; }
-  .pricing-plan p{ color:var(--muted); margin:0; font-size:14px; line-height:1.55; }
-  .pricing-list{ display:grid; gap:9px; margin:18px 0 0; padding:0; list-style:none; }
-  .pricing-list li{ color:var(--text); font-size:13.5px; display:flex; gap:8px; }
-  .pricing-list li::before{ content:""; width:7px; height:7px; margin-top:8px; border-radius:50%; background:var(--mint); box-shadow:0 0 0 3px rgba(87,220,169,.12); flex:0 0 auto; }
-  .pricing-note{ margin-top:22px; color:var(--muted); font-size:14px; max-width:68ch; }
-  @media (max-width:860px){ .pricing-grid{ grid-template-columns:1fr; } .pricing-plan{ min-height:0; } }
   .cta{ text-align:center; padding-top:48px; }
   .cta h2{ margin:0 auto; max-width:20ch; }
   .cta .lead{ margin:16px auto 0; }
@@ -2226,7 +1953,7 @@ header.vs-surface p.vs-text, header.vs-surface p.vs-label { max-width: 68ch; mar
 body.inspect #viewspec-artifact-slot [data-ir-id]{ position:relative; outline:1px dashed rgba(245,178,63,.4); outline-offset:2px; }
 body.inspect #viewspec-artifact-slot [data-ir-id]::after{ content:attr(data-ir-id); position:absolute; left:-1px; top:-2px; transform:translateY(-100%); font-family:var(--mono); font-size:9px; line-height:1.5; color:var(--ink); background:var(--amber); padding:1px 5px; border-radius:3px 3px 3px 0; white-space:nowrap; pointer-events:none; z-index:6; }
 .anchor-target{ display:block; height:0; }
-.pricing-actions{ display:flex; flex-wrap:wrap; gap:12px; justify-content:center; margin-top:20px; }
+.cta-actions{ display:flex; flex-wrap:wrap; gap:12px; justify-content:center; margin-top:20px; }
 .pact{ font-family:var(--mono); font-size:12.5px; padding:10px 16px; border-radius:9px; border:1px solid var(--line-2); color:var(--text); background:var(--panel-solid); cursor:pointer; }
 .pact.primary{ background:var(--amber); color:var(--ink); border-color:var(--amber); font-weight:600; }
 .pact:hover{ border-color:var(--amber); }
@@ -2334,10 +2061,11 @@ body.inspect #viewspec-artifact-slot [data-ir-id]::after{ content:attr(data-ir-i
     <div class="nav-in">
       <a class="logo" href="#top"><span class="mark"></span><b class="mono">viewspec</b></a>
       <div class="nav-links">
-        <a href="#studio">Studio</a>
+        <a href="#commands">Commands</a>
         <a href="#proof">Proof</a>
-        <a href="#pricing">Pricing</a>
+        <a href="#start">Start</a>
         <a href="https://github.com/nxrobins/viewspec/blob/main/docs/getting-started.md" target="_blank" rel="noopener">Docs</a>
+        <a href="https://github.com/nxrobins/viewspec" target="_blank" rel="noopener">GitHub</a>
         <button class="inspect-btn" id="inspectBtn" aria-pressed="false" title="Overlay every element with its IR address (press i)"><span class="d"></span>Inspect</button>
       </div>
     </div>
@@ -2346,14 +2074,14 @@ body.inspect #viewspec-artifact-slot [data-ir-id]::after{ content:attr(data-ir-i
   <div class="wrap" id="top">
     <!-- ================= HERO ================= -->
     <header>
-      <span class="eyebrow">Local product studio for you and your agent</span>
-      <h1 data-node="node:hero#slot:title[0]" data-binding="hero_title" data-address="node:hero#slot:title[0]" data-present="text" data-raw="Tell your agent what to build. See the real product. Point at what should change.">Tell your agent what to build.<br>See the real product.<br><span class="out">Point at what should change.</span></h1>
-      <p class="sub" data-node="node:hero#slot:body[0]" data-binding="hero_body" data-address="node:hero#slot:body[0]" data-present="rich_text" data-raw="ViewSpec keeps you and your agent in one checked product loop.">
-        ViewSpec gives you one local room to <b>create, compare, inspect, and approve</b> an agent&#8209;built interface. One semantic source drives checked static and React builds; your feedback returns with exact element, state, and resource context.
+      <span class="eyebrow">Local UI compiler for you and your agent</span>
+      <h1 data-node="node:hero#slot:title[0]" data-binding="hero_title" data-address="node:hero#slot:title[0]" data-present="text" data-raw="Tell your agent what to build. See the real product. Prove what compiled.">Tell your agent what to build.<br>See the real product.<br><span class="out">Prove what compiled.</span></h1>
+      <p class="sub" data-node="node:hero#slot:body[0]" data-binding="hero_body" data-address="node:hero#slot:body[0]" data-present="rich_text" data-raw="ViewSpec is a free, local compiler for agent-written interfaces.">
+        ViewSpec is a free, local, MIT&#8209;licensed compiler. Your agent writes <b>one semantic source</b>; ViewSpec compiles it into checked static HTML or React, with provenance and a proof bundle. No account, no API key, no hosted service.
       </p>
       <div class="hero-cta">
         <span class="cmd mono"><span class="pr">$</span> python -m pip install --pre viewspec <button type="button" class="cp" id="copyCmd" data-copy-text="python -m pip install --pre viewspec" aria-label="Copy ViewSpec beta install command">copy</button></span>
-        <a class="ghost mono" href="#studio">meet ViewSpec Studio &#8595;</a>
+        <a class="ghost mono" href="#commands">see the six commands &#8595;</a>
       </div>
 
       <!-- compile composition -->
@@ -2386,75 +2114,29 @@ body.inspect #viewspec-artifact-slot [data-ir-id]::after{ content:attr(data-ir-i
       </div>
     </header>
 
-    <!-- ================= STUDIO ================= -->
-    <section id="studio" class="reveal-on" aria-labelledby="studio-title">
+    <!-- ================= COMMANDS ================= -->
+    <section id="commands" class="reveal-on" aria-labelledby="commands-title">
       <div class="sec-head">
-        <span class="kicker"><span class="n">/</span> ViewSpec Studio &middot; local beta</span>
-        <h2 id="studio-title">One room from first brief to final approval.</h2>
-        <p class="lead">The interface, its behavior, and your feedback stay connected. You can see what the agent built, compare both delivery targets, inspect declared state and fixture data, and point at the exact result that should change.</p>
+        <span class="kicker"><span class="n">/</span> the cli &middot; free and local</span>
+        <h2 id="commands-title">Six commands. No account.</h2>
+        <p class="lead">Everything runs on your machine. ViewSpec is MIT licensed, with no hosted service, API key, or paid tier. Your agent writes the source; these commands do the rest.</p>
       </div>
-      <div class="studio-window" aria-label="ViewSpec Studio product workflow">
-        <div class="studio-bar">
-          <div class="studio-brand"><span class="mark"></span><b>Field dispatch</b><span style="color:var(--faint)">&middot; revision 7</span></div>
-          <div class="studio-status">checked &middot; local only</div>
+      <div class="cli-window" aria-label="ViewSpec command line workflow">
+        <div class="cli-bar">
+          <b class="cli-brand">viewspec</b>
+          <div class="cli-status">local only</div>
         </div>
-        <div class="studio-grid">
-          <aside class="studio-pane">
-            <div class="studio-k">Creation</div>
-            <div class="studio-brief">
-              <div class="studio-brief-card"><b>product-brief.md</b><span>Dispatch view for urgent field work.</span></div>
-              <div class="studio-brief-card"><b>reference.png</b><span>Exact reference hash bound.</span></div>
-              <div class="studio-brief-card accepted"><b>viewspec.app.json</b><span>Candidate accepted as canonical source.</span></div>
-            </div>
-          </aside>
-          <div class="studio-pane studio-center">
-            <div class="studio-canvas-head">
-              <div class="studio-k" style="margin:0">Same source &middot; synchronized route</div>
-              <div class="studio-targets"><span class="studio-target active">390</span><span class="studio-target">768</span><span class="studio-target">1440</span></div>
-            </div>
-            <div class="studio-canvases">
-              <article class="studio-canvas">
-                <div class="studio-canvas-label">Static &middot; checked</div>
-                <div class="studio-product">
-                  <h3>Field dispatch</h3><p>Open incidents &middot; west region</p>
-                  <div class="studio-jobs">
-                    <div class="studio-job selected"><b>J-205 &middot; Signal fault</b><small>Route crew within 20 minutes</small><em>urgent</em></div>
-                    <div class="studio-job"><b>J-207 &middot; Pump alert</b><small>Resource: crew-12</small><em>queued</em></div>
-                  </div>
-                  <div class="studio-route">/dispatch/incidents</div>
-                </div>
-              </article>
-              <article class="studio-canvas react">
-                <div class="studio-canvas-label">React &middot; checked</div>
-                <div class="studio-product">
-                  <h3>Field dispatch</h3><p>Open incidents &middot; west region</p>
-                  <div class="studio-jobs">
-                    <div class="studio-job selected"><b>J-205 &middot; Signal fault</b><small>Route crew within 20 minutes</small><em>urgent</em></div>
-                    <div class="studio-job"><b>J-207 &middot; Pump alert</b><small>Resource: crew-12</small><em>investigating</em></div>
-                  </div>
-                  <div class="studio-route">/dispatch/incidents</div>
-                </div>
-              </article>
-            </div>
-          </div>
-          <aside class="studio-pane studio-context-pane">
-            <div class="studio-k">State &amp; data</div>
-            <div class="studio-context">
-              <div class="studio-context-card"><b>Replay &middot; triage event</b><span>Exact action and payload mapping.</span><dl class="studio-values"><dt>Static</dt><dd>queued</dd><dt>React</dt><dd class="changed">investigating</dd></dl></div>
-              <div class="studio-context-card"><b>Resource</b><code>incidents &rarr; inc_1043 &rarr; status</code><dl class="studio-values"><dt>Source</dt><dd>queued</dd><dt>Target</dt><dd class="changed">investigating</dd></dl></div>
-            </div>
-            <div class="studio-comment"><span class="studio-k" style="margin:0">Pointed at J-205 status</span><p>Make the escalation state unmistakable on mobile.</p><div class="studio-comment-foot"><span>route + element + replay</span><strong>ready for agent</strong></div></div>
-          </aside>
-        </div>
-        <div class="studio-flow" aria-label="Studio workflow">
-          <div class="studio-step" data-studio-step="create"><span class="studio-step-num">01</span><b>Create</b><span>Bind the brief and reference.</span></div>
-          <div class="studio-step" data-studio-step="compare"><span class="studio-step-num">02</span><b>Compare</b><span>Static and React, side by side.</span></div>
-          <div class="studio-step" data-studio-step="inspect"><span class="studio-step-num">03</span><b>Inspect</b><span>Replay behavior and fixture data.</span></div>
-          <div class="studio-step" data-studio-step="decide"><span class="studio-step-num">04</span><b>Decide</b><span>Comment precisely, then approve.</span></div>
+        <div class="cli-flow" aria-label="ViewSpec commands">
+          <div class="cli-step" data-cli-step="init"><span class="cli-step-num">01</span><b>viewspec init</b><span>Write a starter IntentBundle, AppBundle, or DESIGN.md.</span></div>
+          <div class="cli-step" data-cli-step="compile"><span class="cli-step-num">02</span><b>viewspec compile</b><span>Compile an IntentBundle, AppBundle, or imported raw HTML.</span></div>
+          <div class="cli-step" data-cli-step="check"><span class="cli-step-num">03</span><b>viewspec check</b><span>Run fast static, provenance, and security checks.</span></div>
+          <div class="cli-step" data-cli-step="prove"><span class="cli-step-num">04</span><b>viewspec prove</b><span>Compile and verify a source, and write a proof bundle.</span></div>
+          <div class="cli-step" data-cli-step="studio"><span class="cli-step-num">05</span><b>viewspec studio</b><span>Serve a live-reloading local preview of a source file.</span></div>
+          <div class="cli-step" data-cli-step="mcp"><span class="cli-step-num">06</span><b>viewspec mcp</b><span>Give an agent the other five as MCP tools over stdio.</span></div>
         </div>
       </div>
-      <div class="studio-commands"><code class="studio-command" data-release-command="creation">viewspec studio --brief-file product-brief.md --reference reference.png --kind app --json</code><code class="studio-command" data-release-command="compare">viewspec studio viewspec.app.json --compare --install</code></div>
-      <p class="studio-honesty">What is proven today: local creation, checked static and React builds, synchronized routes and semantic identity, declared-state replay, fixture-resource inspection, source-bound feedback, and approval. The private-review transport contract completes the exact comment-to-approval journey locally in Chromium, Firefox, and WebKit; no hosted review endpoint is deployed. Static/React visual parity is not claimed. Production data is not loaded.</p>
+      <div class="cli-commands"><code class="cli-command" data-release-command="studio">viewspec studio viewspec.app.json</code></div>
+      <p class="cli-note">viewspec studio serves a live-reloading preview of an IntentBundle or AppBundle source on 127.0.0.1. It rebuilds when the source or an optional DESIGN.md changes, and a failed build keeps the last good one on screen with its errors. viewspec studio is a local preview only. It does not generate source, collect comments or approvals, or share builds.</p>
     </section>
 
     <!-- ================= MODEL ================= -->
@@ -2473,7 +2155,7 @@ body.inspect #viewspec-artifact-slot [data-ir-id]::after{ content:attr(data-ir-i
         <div class="pillar">
           <div class="pi"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/></svg></div>
           <h3>Portable</h3>
-          <p>One bundle emits html&#8209;tailwind and React locally; the paid API delivers four targets with hashes, provenance, and diagnostics.</p>
+          <p>One bundle emits html&#8209;tailwind and React locally, with hashes, provenance, and diagnostics.</p>
         </div>
         <div class="pillar">
           <div class="pi"><svg viewBox="0 0 24 24"><path d="M12 3l7 3v5c0 4.5-3 8-7 10-4-2-7-5.5-7-10V6l7-3z"/><path d="M9 12l2 2 4-4"/></svg></div>
@@ -2532,11 +2214,11 @@ body.inspect #viewspec-artifact-slot [data-ir-id]::after{ content:attr(data-ir-i
         <p class="lead">Turn on <b style="color:var(--amber)">Inspect</b> (top&#8209;right, or press <span class="mono" style="color:var(--amber)">i</span>) and every element on the page shows the IR address it came from. Click, tap, or hover a chip below to trace one all the way back to the data.</p>
       </div>
       <div class="under">
-        <div class="play"><div class="pk">compiled artifact &middot; real IR ids &middot; click/tap/hover a node</div><div class="receipts"><a href="./landing-compiled/intent_bundle.json" target="_blank" rel="noopener" data-trace-target="intent_bundle" data-node="node:receipt#attr:intent_bundle" data-binding="receipt_intent_bundle" data-address="artifact:landing-compiled/intent_bundle.json" data-present="artifact_link" data-raw="Canonical agent-authored intent bundle">intent_bundle.json</a><a href="./landing-compiled/provenance_manifest.json" target="_blank" rel="noopener" data-trace-target="provenance_manifest" data-node="node:receipt#attr:provenance_manifest" data-binding="receipt_provenance_manifest" data-address="artifact:landing-compiled/provenance_manifest.json" data-present="artifact_link" data-raw="Compiled DOM to IR provenance manifest">provenance_manifest.json</a><a href="./landing-compiled/profile-evidence.json" target="_blank" rel="noopener" data-trace-target="profile_evidence" data-node="node:receipt#attr:profile_evidence" data-binding="receipt_profile_evidence" data-address="artifact:landing-compiled/profile-evidence.json" data-present="artifact_link" data-raw="Aesthetic profile evidence and invariant flags">profile-evidence.json</a></div><div class="artifact-window"><div class="cpanel-h"><span class="t">compiled artifact &middot; aesthetic.calm_ops &middot; scroll &amp; hover</span><span class="dots"><i></i><i></i><i></i></span></div><section id="viewspec-artifact-slot" class="viewspec-artifact-slot" data-active-profile="aesthetic.calm_ops"><main data-viewspec-page-artifact="true" id="dom-region_root" class="vs-root vs-layout-root vs-role-app-shell" data-ir-id="region_root" data-content-refs="[]" data-intent-refs="[&quot;viewspec:view:viewspec_landing&quot;, &quot;viewspec:region:root&quot;, &quot;viewspec:style:aesthetic_profile&quot;]" data-style-tokens="[&quot;tone.neutral&quot;, &quot;palette.temperature&quot;, &quot;aesthetic.calm_ops&quot;]" style="--vs-radius: 12px; --vs-surface-shadow: 0 1px 2px rgb(15 118 110 / 0.06); --vs-surface-border: 1px solid #cfe2da; --vs-value-weight: 700; color: #1f2937; color: #16241f; font-family: ui-sans-serif, system-ui, sans-serif; background-color: #ffffff; background-color: #e9f3ee;" data-aesthetic-profile="aesthetic.calm_ops"><div id="dom-region_main" class="vs-stack vs-layout-stack vs-role-primary-column" data-ir-id="region_main" data-content-refs="[]" data-intent-refs="[&quot;viewspec:region:main&quot;]" data-style-tokens="[&quot;density.regular&quot;]" style="gap: 0.68rem; padding: 0.58rem 0.74rem; gap: 0.78rem; padding: 0.72rem 0.96rem;"><header id="dom-motif_launch_hero" class="vs-surface vs-layout-surface vs-motif-hero vs-role-page-header" data-ir-id="motif_launch_hero" data-content-refs="[]" data-intent-refs="[&quot;viewspec:motif:launch_hero&quot;, &quot;viewspec:style:s_launch_hero&quot;]" data-style-tokens="[&quot;surface.subtle&quot;, &quot;emphasis.high&quot;]" style="background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 14px; background: #ffffff; border: 1px solid #cfe2da; border-radius: 14px; font-weight: 730; letter-spacing: -0.025em; font-weight: 760; letter-spacing: -0.012em;" aria-label="Hero"><p id="dom-binding_launch_hero_eyebrow" class="vs-label" data-ir-id="binding_launch_hero_eyebrow" data-content-refs="[&quot;node:launch_hero#attr:eyebrow&quot;]" data-intent-refs="[&quot;viewspec:binding:launch_hero_eyebrow&quot;]" data-style-tokens="[&quot;tone.muted&quot;]" style="color: #6b7280; color: #5d7268;" data-binding-id="launch_hero_eyebrow">Local product studio for you and your agent</p><h1 id="dom-binding_launch_hero_title" class="vs-value" data-ir-id="binding_launch_hero_title" data-content-refs="[&quot;node:launch_hero#attr:title&quot;]" data-intent-refs="[&quot;viewspec:binding:launch_hero_title&quot;]" data-style-tokens="[&quot;tone.neutral&quot;, &quot;emphasis.high&quot;]" style="color: #1f2937; color: #16241f; font-family: ui-sans-serif, system-ui, sans-serif; font-weight: 730; letter-spacing: -0.025em; font-weight: 760; letter-spacing: -0.012em;" data-binding-id="launch_hero_title">Tell your agent what to build. See the real product.</h1><p id="dom-binding_launch_hero_description" class="vs-text" data-ir-id="binding_launch_hero_description" data-content-refs="[&quot;node:launch_hero#attr:description&quot;]" data-intent-refs="[&quot;viewspec:binding:launch_hero_description&quot;]" data-style-tokens="[&quot;tone.neutral&quot;]" style="color: #1f2937; color: #16241f; font-family: ui-sans-serif, system-ui, sans-serif;" data-binding-id="launch_hero_description">Create from a brief and reference, compare checked static and React builds, inspect declared state and fixture data, then point at the result and ask for the next change.</p></header><div id="dom-motif_proof_badges" class="vs-grid vs-layout-grid vs-motif-dashboard vs-role-metric-grid" data-ir-id="motif_proof_badges" data-content-refs="[]" data-intent-refs="[&quot;viewspec:motif:proof_badges&quot;, &quot;viewspec:style:s_proof_badges&quot;]" data-style-tokens="[&quot;density.regular&quot;, &quot;surface.subtle&quot;]" style="grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.68rem; padding: 0.58rem 0.74rem; gap: 0.78rem; padding: 0.72rem 0.96rem; background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 14px; background: #ffffff; border: 1px solid #cfe2da; border-radius: 14px;"><div id="dom-motif_proof_badges_proof_badges_card_1" class="vs-surface vs-layout-surface vs-motif-dashboard vs-role-metric-card" data-ir-id="motif_proof_badges_proof_badges_card_1" data-content-refs="[]" data-intent-refs="[&quot;viewspec:motif:proof_badges&quot;]" data-style-tokens="[&quot;surface.subtle&quot;]" style="background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 14px; background: #ffffff; border: 1px solid #cfe2da; border-radius: 14px;"><div id="dom-binding_proof_badges_card_1_label" class="vs-label" data-ir-id="binding_proof_badges_card_1_label" data-content-refs="[&quot;node:proof_badges_card_1#attr:label&quot;]" data-intent-refs="[&quot;viewspec:binding:proof_badges_card_1_label&quot;]" data-style-tokens="[&quot;tone.muted&quot;]" style="color: #6b7280; color: #5d7268;" data-binding-id="proof_badges_card_1_label">replay</div><div id="dom-binding_proof_badges_card_1_value" class="vs-value" data-ir-id="binding_proof_badges_card_1_value" data-content-refs="[&quot;node:proof_badges_card_1#attr:value&quot;]" data-intent-refs="[&quot;viewspec:binding:proof_badges_card_1_value&quot;]" data-style-tokens="[&quot;tone.neutral&quot;, &quot;emphasis.high&quot;]" style="color: #1f2937; color: #16241f; font-family: ui-sans-serif, system-ui, sans-serif; font-weight: 730; letter-spacing: -0.025em; font-weight: 760; letter-spacing: -0.012em;" data-binding-id="proof_badges_card_1_value">state replay passed</div></div><div id="dom-motif_proof_badges_proof_badges_card_2" class="vs-surface vs-layout-surface vs-motif-dashboard vs-role-metric-card" data-ir-id="motif_proof_badges_proof_badges_card_2" data-content-refs="[]" data-intent-refs="[&quot;viewspec:motif:proof_badges&quot;]" data-style-tokens="[&quot;surface.subtle&quot;]" style="background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 14px; background: #ffffff; border: 1px solid #cfe2da; border-radius: 14px;"><div id="dom-binding_proof_badges_card_2_label" class="vs-label" data-ir-id="binding_proof_badges_card_2_label" data-content-refs="[&quot;node:proof_badges_card_2#attr:label&quot;]" data-intent-refs="[&quot;viewspec:binding:proof_badges_card_2_label&quot;]" data-style-tokens="[&quot;tone.muted&quot;]" style="color: #6b7280; color: #5d7268;" data-binding-id="proof_badges_card_2_label">reducer</div><div id="dom-binding_proof_badges_card_2_value" class="vs-value" data-ir-id="binding_proof_badges_card_2_value" data-content-refs="[&quot;node:proof_badges_card_2#attr:value&quot;]" data-intent-refs="[&quot;viewspec:binding:proof_badges_card_2_value&quot;]" data-style-tokens="[&quot;tone.neutral&quot;, &quot;emphasis.high&quot;]" style="color: #1f2937; color: #16241f; font-family: ui-sans-serif, system-ui, sans-serif; font-weight: 730; letter-spacing: -0.025em; font-weight: 760; letter-spacing: -0.012em;" data-binding-id="proof_badges_card_2_value">reducer generated</div></div><div id="dom-motif_proof_badges_proof_badges_card_3" class="vs-surface vs-layout-surface vs-motif-dashboard vs-role-metric-card" data-ir-id="motif_proof_badges_proof_badges_card_3" data-content-refs="[]" data-intent-refs="[&quot;viewspec:motif:proof_badges&quot;]" data-style-tokens="[&quot;surface.subtle&quot;]" style="background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 14px; background: #ffffff; border: 1px solid #cfe2da; border-radius: 14px;"><div id="dom-binding_proof_badges_card_3_label" class="vs-label" data-ir-id="binding_proof_badges_card_3_label" data-content-refs="[&quot;node:proof_badges_card_3#attr:label&quot;]" data-intent-refs="[&quot;viewspec:binding:proof_badges_card_3_label&quot;]" data-style-tokens="[&quot;tone.muted&quot;]" style="color: #6b7280; color: #5d7268;" data-binding-id="proof_badges_card_3_label">manifest</div><div id="dom-binding_proof_badges_card_3_value" class="vs-value" data-ir-id="binding_proof_badges_card_3_value" data-content-refs="[&quot;node:proof_badges_card_3#attr:value&quot;]" data-intent-refs="[&quot;viewspec:binding:proof_badges_card_3_value&quot;]" data-style-tokens="[&quot;tone.neutral&quot;, &quot;emphasis.high&quot;]" style="color: #1f2937; color: #16241f; font-family: ui-sans-serif, system-ui, sans-serif; font-weight: 730; letter-spacing: -0.025em; font-weight: 760; letter-spacing: -0.012em;" data-binding-id="proof_badges_card_3_value">manifest checked</div></div><div id="dom-motif_proof_badges_proof_badges_card_4" class="vs-surface vs-layout-surface vs-motif-dashboard vs-role-metric-card" data-ir-id="motif_proof_badges_proof_badges_card_4" data-content-refs="[]" data-intent-refs="[&quot;viewspec:motif:proof_badges&quot;]" data-style-tokens="[&quot;surface.subtle&quot;]" style="background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 14px; background: #ffffff; border: 1px solid #cfe2da; border-radius: 14px;"><div id="dom-binding_proof_badges_card_4_label" class="vs-label" data-ir-id="binding_proof_badges_card_4_label" data-content-refs="[&quot;node:proof_badges_card_4#attr:label&quot;]" data-intent-refs="[&quot;viewspec:binding:proof_badges_card_4_label&quot;]" data-style-tokens="[&quot;tone.muted&quot;]" style="color: #6b7280; color: #5d7268;" data-binding-id="proof_badges_card_4_label">shell</div><div id="dom-binding_proof_badges_card_4_value" class="vs-value" data-ir-id="binding_proof_badges_card_4_value" data-content-refs="[&quot;node:proof_badges_card_4#attr:value&quot;]" data-intent-refs="[&quot;viewspec:binding:proof_badges_card_4_value&quot;]" data-style-tokens="[&quot;tone.neutral&quot;, &quot;emphasis.high&quot;]" style="color: #1f2937; color: #16241f; font-family: ui-sans-serif, system-ui, sans-serif; font-weight: 730; letter-spacing: -0.025em; font-weight: 760; letter-spacing: -0.012em;" data-binding-id="proof_badges_card_4_value">shell hash matched</div></div><div id="dom-motif_proof_badges_proof_badges_card_5" class="vs-surface vs-layout-surface vs-motif-dashboard vs-role-metric-card" data-ir-id="motif_proof_badges_proof_badges_card_5" data-content-refs="[]" data-intent-refs="[&quot;viewspec:motif:proof_badges&quot;]" data-style-tokens="[&quot;surface.subtle&quot;]" style="background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 14px; background: #ffffff; border: 1px solid #cfe2da; border-radius: 14px;"><div id="dom-binding_proof_badges_card_5_label" class="vs-label" data-ir-id="binding_proof_badges_card_5_label" data-content-refs="[&quot;node:proof_badges_card_5#attr:label&quot;]" data-intent-refs="[&quot;viewspec:binding:proof_badges_card_5_label&quot;]" data-style-tokens="[&quot;tone.muted&quot;]" style="color: #6b7280; color: #5d7268;" data-binding-id="proof_badges_card_5_label">runtime</div><div id="dom-binding_proof_badges_card_5_value" class="vs-value" data-ir-id="binding_proof_badges_card_5_value" data-content-refs="[&quot;node:proof_badges_card_5#attr:value&quot;]" data-intent-refs="[&quot;viewspec:binding:proof_badges_card_5_value&quot;]" data-style-tokens="[&quot;tone.neutral&quot;, &quot;emphasis.high&quot;]" style="color: #1f2937; color: #16241f; font-family: ui-sans-serif, system-ui, sans-serif; font-weight: 730; letter-spacing: -0.025em; font-weight: 760; letter-spacing: -0.012em;" data-binding-id="proof_badges_card_5_value">No runtime LLM</div></div></div><div id="dom-motif_quality_evidence" class="vs-grid vs-layout-grid vs-motif-dashboard vs-role-metric-grid" data-ir-id="motif_quality_evidence" data-content-refs="[]" data-intent-refs="[&quot;viewspec:motif:quality_evidence&quot;, &quot;viewspec:style:s_quality_evidence&quot;]" data-style-tokens="[&quot;density.regular&quot;, &quot;surface.subtle&quot;]" style="grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.68rem; padding: 0.58rem 0.74rem; gap: 0.78rem; padding: 0.72rem 0.96rem; background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 14px; background: #ffffff; border: 1px solid #cfe2da; border-radius: 14px;"><div id="dom-motif_quality_evidence_quality_evidence_card_1" class="vs-surface vs-layout-surface vs-motif-dashboard vs-role-metric-card" data-ir-id="motif_quality_evidence_quality_evidence_card_1" data-content-refs="[]" data-intent-refs="[&quot;viewspec:motif:quality_evidence&quot;]" data-style-tokens="[&quot;surface.subtle&quot;]" style="background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 14px; background: #ffffff; border: 1px solid #cfe2da; border-radius: 14px;"><div id="dom-binding_quality_evidence_card_1_label" class="vs-label" data-ir-id="binding_quality_evidence_card_1_label" data-content-refs="[&quot;node:quality_evidence_card_1#attr:label&quot;]" data-intent-refs="[&quot;viewspec:binding:quality_evidence_card_1_label&quot;]" data-style-tokens="[&quot;tone.muted&quot;]" style="color: #6b7280; color: #5d7268;" data-binding-id="quality_evidence_card_1_label">browser corpus</div><div id="dom-binding_quality_evidence_card_1_value" class="vs-value" data-ir-id="binding_quality_evidence_card_1_value" data-content-refs="[&quot;node:quality_evidence_card_1#attr:value&quot;]" data-intent-refs="[&quot;viewspec:binding:quality_evidence_card_1_value&quot;]" data-style-tokens="[&quot;tone.neutral&quot;, &quot;emphasis.high&quot;]" style="color: #1f2937; color: #16241f; font-family: ui-sans-serif, system-ui, sans-serif; font-weight: 730; letter-spacing: -0.025em; font-weight: 760; letter-spacing: -0.012em;" data-binding-id="quality_evidence_card_1_value">10/10 conformant</div></div><div id="dom-motif_quality_evidence_quality_evidence_card_2" class="vs-surface vs-layout-surface vs-motif-dashboard vs-role-metric-card" data-ir-id="motif_quality_evidence_quality_evidence_card_2" data-content-refs="[]" data-intent-refs="[&quot;viewspec:motif:quality_evidence&quot;]" data-style-tokens="[&quot;surface.subtle&quot;]" style="background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 14px; background: #ffffff; border: 1px solid #cfe2da; border-radius: 14px;"><div id="dom-binding_quality_evidence_card_2_label" class="vs-label" data-ir-id="binding_quality_evidence_card_2_label" data-content-refs="[&quot;node:quality_evidence_card_2#attr:label&quot;]" data-intent-refs="[&quot;viewspec:binding:quality_evidence_card_2_label&quot;]" data-style-tokens="[&quot;tone.muted&quot;]" style="color: #6b7280; color: #5d7268;" data-binding-id="quality_evidence_card_2_label">viewports</div><div id="dom-binding_quality_evidence_card_2_value" class="vs-value" data-ir-id="binding_quality_evidence_card_2_value" data-content-refs="[&quot;node:quality_evidence_card_2#attr:value&quot;]" data-intent-refs="[&quot;viewspec:binding:quality_evidence_card_2_value&quot;]" data-style-tokens="[&quot;tone.neutral&quot;, &quot;emphasis.high&quot;]" style="color: #1f2937; color: #16241f; font-family: ui-sans-serif, system-ui, sans-serif; font-weight: 730; letter-spacing: -0.025em; font-weight: 760; letter-spacing: -0.012em;" data-binding-id="quality_evidence_card_2_value">mobile · tablet · desktop</div></div><div id="dom-motif_quality_evidence_quality_evidence_card_3" class="vs-surface vs-layout-surface vs-motif-dashboard vs-role-metric-card" data-ir-id="motif_quality_evidence_quality_evidence_card_3" data-content-refs="[]" data-intent-refs="[&quot;viewspec:motif:quality_evidence&quot;]" data-style-tokens="[&quot;surface.subtle&quot;]" style="background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 14px; background: #ffffff; border: 1px solid #cfe2da; border-radius: 14px;"><div id="dom-binding_quality_evidence_card_3_label" class="vs-label" data-ir-id="binding_quality_evidence_card_3_label" data-content-refs="[&quot;node:quality_evidence_card_3#attr:label&quot;]" data-intent-refs="[&quot;viewspec:binding:quality_evidence_card_3_label&quot;]" data-style-tokens="[&quot;tone.muted&quot;]" style="color: #6b7280; color: #5d7268;" data-binding-id="quality_evidence_card_3_label">product quality</div><div id="dom-binding_quality_evidence_card_3_value" class="vs-value" data-ir-id="binding_quality_evidence_card_3_value" data-content-refs="[&quot;node:quality_evidence_card_3#attr:value&quot;]" data-intent-refs="[&quot;viewspec:binding:quality_evidence_card_3_value&quot;]" data-style-tokens="[&quot;tone.neutral&quot;, &quot;emphasis.high&quot;]" style="color: #1f2937; color: #16241f; font-family: ui-sans-serif, system-ui, sans-serif; font-weight: 730; letter-spacing: -0.025em; font-weight: 760; letter-spacing: -0.012em;" data-binding-id="quality_evidence_card_3_value">10/10 first-compile passes · 0 critical issues</div></div><div id="dom-motif_quality_evidence_quality_evidence_card_4" class="vs-surface vs-layout-surface vs-motif-dashboard vs-role-metric-card" data-ir-id="motif_quality_evidence_quality_evidence_card_4" data-content-refs="[]" data-intent-refs="[&quot;viewspec:motif:quality_evidence&quot;]" data-style-tokens="[&quot;surface.subtle&quot;]" style="background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 14px; background: #ffffff; border: 1px solid #cfe2da; border-radius: 14px;"><div id="dom-binding_quality_evidence_card_4_label" class="vs-label" data-ir-id="binding_quality_evidence_card_4_label" data-content-refs="[&quot;node:quality_evidence_card_4#attr:label&quot;]" data-intent-refs="[&quot;viewspec:binding:quality_evidence_card_4_label&quot;]" data-style-tokens="[&quot;tone.muted&quot;]" style="color: #6b7280; color: #5d7268;" data-binding-id="quality_evidence_card_4_label">semantic corrections</div><div id="dom-binding_quality_evidence_card_4_value" class="vs-value" data-ir-id="binding_quality_evidence_card_4_value" data-content-refs="[&quot;node:quality_evidence_card_4#attr:value&quot;]" data-intent-refs="[&quot;viewspec:binding:quality_evidence_card_4_value&quot;]" data-style-tokens="[&quot;tone.neutral&quot;, &quot;emphasis.high&quot;]" style="color: #1f2937; color: #16241f; font-family: ui-sans-serif, system-ui, sans-serif; font-weight: 730; letter-spacing: -0.025em; font-weight: 760; letter-spacing: -0.012em;" data-binding-id="quality_evidence_card_4_value">10/10 verified previews · 10 applied receipts</div></div><div id="dom-motif_quality_evidence_quality_evidence_card_5" class="vs-surface vs-layout-surface vs-motif-dashboard vs-role-metric-card" data-ir-id="motif_quality_evidence_quality_evidence_card_5" data-content-refs="[]" data-intent-refs="[&quot;viewspec:motif:quality_evidence&quot;]" data-style-tokens="[&quot;surface.subtle&quot;]" style="background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 14px; background: #ffffff; border: 1px solid #cfe2da; border-radius: 14px;"><div id="dom-binding_quality_evidence_card_5_label" class="vs-label" data-ir-id="binding_quality_evidence_card_5_label" data-content-refs="[&quot;node:quality_evidence_card_5#attr:label&quot;]" data-intent-refs="[&quot;viewspec:binding:quality_evidence_card_5_label&quot;]" data-style-tokens="[&quot;tone.muted&quot;]" style="color: #6b7280; color: #5d7268;" data-binding-id="quality_evidence_card_5_label">refinement gates</div><div id="dom-binding_quality_evidence_card_5_value" class="vs-value" data-ir-id="binding_quality_evidence_card_5_value" data-content-refs="[&quot;node:quality_evidence_card_5#attr:value&quot;]" data-intent-refs="[&quot;viewspec:binding:quality_evidence_card_5_value&quot;]" data-style-tokens="[&quot;tone.neutral&quot;, &quot;emphasis.high&quot;]" style="color: #1f2937; color: #16241f; font-family: ui-sans-serif, system-ui, sans-serif; font-weight: 730; letter-spacing: -0.025em; font-weight: 760; letter-spacing: -0.012em;" data-binding-id="quality_evidence_card_5_value">8/8 passed</div></div></div><div id="dom-motif_compile_flow" class="vs-grid vs-layout-grid vs-motif-dashboard vs-role-metric-grid" data-ir-id="motif_compile_flow" data-content-refs="[]" data-intent-refs="[&quot;viewspec:motif:compile_flow&quot;]" data-style-tokens="[&quot;density.regular&quot;]" style="grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.68rem; padding: 0.58rem 0.74rem; gap: 0.78rem; padding: 0.72rem 0.96rem;"><div id="dom-motif_compile_flow_compile_flow_card_1" class="vs-surface vs-layout-surface vs-motif-dashboard vs-role-metric-card" data-ir-id="motif_compile_flow_compile_flow_card_1" data-content-refs="[]" data-intent-refs="[&quot;viewspec:motif:compile_flow&quot;]" data-style-tokens="[&quot;surface.subtle&quot;]" style="background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 14px; background: #ffffff; border: 1px solid #cfe2da; border-radius: 14px;"><div id="dom-binding_compile_flow_card_1_label" class="vs-label" data-ir-id="binding_compile_flow_card_1_label" data-content-refs="[&quot;node:compile_flow_card_1#attr:label&quot;]" data-intent-refs="[&quot;viewspec:binding:compile_flow_card_1_label&quot;]" data-style-tokens="[&quot;tone.muted&quot;]" style="color: #6b7280; color: #5d7268;" data-binding-id="compile_flow_card_1_label">1 · intent</div><div id="dom-binding_compile_flow_card_1_value" class="vs-value" data-ir-id="binding_compile_flow_card_1_value" data-content-refs="[&quot;node:compile_flow_card_1#attr:value&quot;]" data-intent-refs="[&quot;viewspec:binding:compile_flow_card_1_value&quot;]" data-style-tokens="[&quot;tone.neutral&quot;, &quot;emphasis.high&quot;]" style="color: #1f2937; color: #16241f; font-family: ui-sans-serif, system-ui, sans-serif; font-weight: 730; letter-spacing: -0.025em; font-weight: 760; letter-spacing: -0.012em;" data-binding-id="compile_flow_card_1_value">Agent writes IntentBundle JSON.</div></div><div id="dom-motif_compile_flow_compile_flow_card_2" class="vs-surface vs-layout-surface vs-motif-dashboard vs-role-metric-card" data-ir-id="motif_compile_flow_compile_flow_card_2" data-content-refs="[]" data-intent-refs="[&quot;viewspec:motif:compile_flow&quot;]" data-style-tokens="[&quot;surface.subtle&quot;]" style="background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 14px; background: #ffffff; border: 1px solid #cfe2da; border-radius: 14px;"><div id="dom-binding_compile_flow_card_2_label" class="vs-label" data-ir-id="binding_compile_flow_card_2_label" data-content-refs="[&quot;node:compile_flow_card_2#attr:label&quot;]" data-intent-refs="[&quot;viewspec:binding:compile_flow_card_2_label&quot;]" data-style-tokens="[&quot;tone.muted&quot;]" style="color: #6b7280; color: #5d7268;" data-binding-id="compile_flow_card_2_label">2 · compile</div><div id="dom-binding_compile_flow_card_2_value" class="vs-value" data-ir-id="binding_compile_flow_card_2_value" data-content-refs="[&quot;node:compile_flow_card_2#attr:value&quot;]" data-intent-refs="[&quot;viewspec:binding:compile_flow_card_2_value&quot;]" data-style-tokens="[&quot;tone.neutral&quot;, &quot;emphasis.high&quot;]" style="color: #1f2937; color: #16241f; font-family: ui-sans-serif, system-ui, sans-serif; font-weight: 730; letter-spacing: -0.025em; font-weight: 760; letter-spacing: -0.012em;" data-binding-id="compile_flow_card_2_value">CompositionIR to UI and reducer, no LLM.</div></div><div id="dom-motif_compile_flow_compile_flow_card_3" class="vs-surface vs-layout-surface vs-motif-dashboard vs-role-metric-card" data-ir-id="motif_compile_flow_compile_flow_card_3" data-content-refs="[]" data-intent-refs="[&quot;viewspec:motif:compile_flow&quot;]" data-style-tokens="[&quot;surface.subtle&quot;]" style="background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 14px; background: #ffffff; border: 1px solid #cfe2da; border-radius: 14px;"><div id="dom-binding_compile_flow_card_3_label" class="vs-label" data-ir-id="binding_compile_flow_card_3_label" data-content-refs="[&quot;node:compile_flow_card_3#attr:label&quot;]" data-intent-refs="[&quot;viewspec:binding:compile_flow_card_3_label&quot;]" data-style-tokens="[&quot;tone.muted&quot;]" style="color: #6b7280; color: #5d7268;" data-binding-id="compile_flow_card_3_label">3 · proof</div><div id="dom-binding_compile_flow_card_3_value" class="vs-value" data-ir-id="binding_compile_flow_card_3_value" data-content-refs="[&quot;node:compile_flow_card_3#attr:value&quot;]" data-intent-refs="[&quot;viewspec:binding:compile_flow_card_3_value&quot;]" data-style-tokens="[&quot;tone.neutral&quot;, &quot;emphasis.high&quot;]" style="color: #1f2937; color: #16241f; font-family: ui-sans-serif, system-ui, sans-serif; font-weight: 730; letter-spacing: -0.025em; font-weight: 760; letter-spacing: -0.012em;" data-binding-id="compile_flow_card_3_value">Provenance, replay, and shell hash attached.</div></div></div><table id="dom-motif_capabilities" class="vs-stack vs-layout-stack vs-motif-table" data-ir-id="motif_capabilities" data-content-refs="[]" data-intent-refs="[&quot;viewspec:motif:capabilities&quot;, &quot;viewspec:style:s_capabilities&quot;]" data-style-tokens="[&quot;density.regular&quot;, &quot;density.compact&quot;]" style="gap: 0.68rem; padding: 0.58rem 0.74rem; gap: 0.78rem; padding: 0.72rem 0.96rem; gap: 0.34rem; padding: 0.36rem 0.5rem; gap: 0.32rem; padding: 0.34rem 0.5rem;"><tbody><tr id="dom-motif_capabilities_capabilities_row_1" class="vs-cluster vs-layout-cluster vs-motif-table" data-ir-id="motif_capabilities_capabilities_row_1" data-content-refs="[]" data-intent-refs="[&quot;viewspec:motif:capabilities&quot;]" data-style-tokens="[&quot;density.compact&quot;]" style="gap: 0.34rem; padding: 0.36rem 0.5rem; gap: 0.32rem; padding: 0.34rem 0.5rem;"><th id="dom-binding_capabilities_row_1_label" class="vs-label" data-ir-id="binding_capabilities_row_1_label" data-content-refs="[&quot;node:capabilities_row_1#attr:label&quot;]" data-intent-refs="[&quot;viewspec:binding:capabilities_row_1_label&quot;]" data-style-tokens="[&quot;tone.muted&quot;]" style="color: #6b7280; color: #5d7268;" data-binding-id="capabilities_row_1_label" scope="row">State IR</th><td id="dom-binding_capabilities_row_1_value" class="vs-value" data-ir-id="binding_capabilities_row_1_value" data-content-refs="[&quot;node:capabilities_row_1#attr:value&quot;]" data-intent-refs="[&quot;viewspec:binding:capabilities_row_1_value&quot;]" data-style-tokens="[&quot;tone.neutral&quot;, &quot;emphasis.high&quot;]" style="color: #1f2937; color: #16241f; font-family: ui-sans-serif, system-ui, sans-serif; font-weight: 730; letter-spacing: -0.025em; font-weight: 760; letter-spacing: -0.012em;" data-binding-id="capabilities_row_1_value">interactive_state_v0 writes state_reducer.ts and reduceViewSpecState.</td></tr><tr id="dom-motif_capabilities_capabilities_row_2" class="vs-cluster vs-layout-cluster vs-motif-table" data-ir-id="motif_capabilities_capabilities_row_2" data-content-refs="[]" data-intent-refs="[&quot;viewspec:motif:capabilities&quot;]" data-style-tokens="[&quot;density.compact&quot;]" style="gap: 0.34rem; padding: 0.36rem 0.5rem; gap: 0.32rem; padding: 0.34rem 0.5rem;"><th id="dom-binding_capabilities_row_2_label" class="vs-label" data-ir-id="binding_capabilities_row_2_label" data-content-refs="[&quot;node:capabilities_row_2#attr:label&quot;]" data-intent-refs="[&quot;viewspec:binding:capabilities_row_2_label&quot;]" data-style-tokens="[&quot;tone.muted&quot;]" style="color: #6b7280; color: #5d7268;" data-binding-id="capabilities_row_2_label" scope="row">Aesthetic Profiles</th><td id="dom-binding_capabilities_row_2_value" class="vs-value" data-ir-id="binding_capabilities_row_2_value" data-content-refs="[&quot;node:capabilities_row_2#attr:value&quot;]" data-intent-refs="[&quot;viewspec:binding:capabilities_row_2_value&quot;]" data-style-tokens="[&quot;tone.neutral&quot;, &quot;emphasis.high&quot;]" style="color: #1f2937; color: #16241f; font-family: ui-sans-serif, system-ui, sans-serif; font-weight: 730; letter-spacing: -0.025em; font-weight: 760; letter-spacing: -0.012em;" data-binding-id="capabilities_row_2_value">Eight compiled projections from one semantic graph.</td></tr><tr id="dom-motif_capabilities_capabilities_row_3" class="vs-cluster vs-layout-cluster vs-motif-table" data-ir-id="motif_capabilities_capabilities_row_3" data-content-refs="[]" data-intent-refs="[&quot;viewspec:motif:capabilities&quot;]" data-style-tokens="[&quot;density.compact&quot;]" style="gap: 0.34rem; padding: 0.36rem 0.5rem; gap: 0.32rem; padding: 0.34rem 0.5rem;"><th id="dom-binding_capabilities_row_3_label" class="vs-label" data-ir-id="binding_capabilities_row_3_label" data-content-refs="[&quot;node:capabilities_row_3#attr:label&quot;]" data-intent-refs="[&quot;viewspec:binding:capabilities_row_3_label&quot;]" data-style-tokens="[&quot;tone.muted&quot;]" style="color: #6b7280; color: #5d7268;" data-binding-id="capabilities_row_3_label" scope="row">Proof Pipeline</th><td id="dom-binding_capabilities_row_3_value" class="vs-value" data-ir-id="binding_capabilities_row_3_value" data-content-refs="[&quot;node:capabilities_row_3#attr:value&quot;]" data-intent-refs="[&quot;viewspec:binding:capabilities_row_3_value&quot;]" data-style-tokens="[&quot;tone.neutral&quot;, &quot;emphasis.high&quot;]" style="color: #1f2937; color: #16241f; font-family: ui-sans-serif, system-ui, sans-serif; font-weight: 730; letter-spacing: -0.025em; font-weight: 760; letter-spacing: -0.012em;" data-binding-id="capabilities_row_3_value">state_replay_assertions plus viewspec prove-app --with-shell.</td></tr><tr id="dom-motif_capabilities_capabilities_row_4" class="vs-cluster vs-layout-cluster vs-motif-table" data-ir-id="motif_capabilities_capabilities_row_4" data-content-refs="[]" data-intent-refs="[&quot;viewspec:motif:capabilities&quot;]" data-style-tokens="[&quot;density.compact&quot;]" style="gap: 0.34rem; padding: 0.36rem 0.5rem; gap: 0.32rem; padding: 0.34rem 0.5rem;"><th id="dom-binding_capabilities_row_4_label" class="vs-label" data-ir-id="binding_capabilities_row_4_label" data-content-refs="[&quot;node:capabilities_row_4#attr:label&quot;]" data-intent-refs="[&quot;viewspec:binding:capabilities_row_4_label&quot;]" data-style-tokens="[&quot;tone.muted&quot;]" style="color: #6b7280; color: #5d7268;" data-binding-id="capabilities_row_4_label" scope="row">Semantic Correction</th><td id="dom-binding_capabilities_row_4_value" class="vs-value" data-ir-id="binding_capabilities_row_4_value" data-content-refs="[&quot;node:capabilities_row_4#attr:value&quot;]" data-intent-refs="[&quot;viewspec:binding:capabilities_row_4_value&quot;]" data-style-tokens="[&quot;tone.neutral&quot;, &quot;emphasis.high&quot;]" style="color: #1f2937; color: #16241f; font-family: ui-sans-serif, system-ui, sans-serif; font-weight: 730; letter-spacing: -0.025em; font-weight: 760; letter-spacing: -0.012em;" data-binding-id="capabilities_row_4_value">Source-bound previews and applied receipts keep changes traceable.</td></tr><tr id="dom-motif_capabilities_capabilities_row_5" class="vs-cluster vs-layout-cluster vs-motif-table" data-ir-id="motif_capabilities_capabilities_row_5" data-content-refs="[]" data-intent-refs="[&quot;viewspec:motif:capabilities&quot;]" data-style-tokens="[&quot;density.compact&quot;]" style="gap: 0.34rem; padding: 0.36rem 0.5rem; gap: 0.32rem; padding: 0.34rem 0.5rem;"><th id="dom-binding_capabilities_row_5_label" class="vs-label" data-ir-id="binding_capabilities_row_5_label" data-content-refs="[&quot;node:capabilities_row_5#attr:label&quot;]" data-intent-refs="[&quot;viewspec:binding:capabilities_row_5_label&quot;]" data-style-tokens="[&quot;tone.muted&quot;]" style="color: #6b7280; color: #5d7268;" data-binding-id="capabilities_row_5_label" scope="row">Portable Surfaces</th><td id="dom-binding_capabilities_row_5_value" class="vs-value" data-ir-id="binding_capabilities_row_5_value" data-content-refs="[&quot;node:capabilities_row_5#attr:value&quot;]" data-intent-refs="[&quot;viewspec:binding:capabilities_row_5_value&quot;]" data-style-tokens="[&quot;tone.neutral&quot;, &quot;emphasis.high&quot;]" style="color: #1f2937; color: #16241f; font-family: ui-sans-serif, system-ui, sans-serif; font-weight: 730; letter-spacing: -0.025em; font-weight: 760; letter-spacing: -0.012em;" data-binding-id="capabilities_row_5_value">html-tailwind and React locally; four integrity-checked targets through the paid API.</td></tr></tbody></table><table id="dom-motif_agent_workflow" class="vs-stack vs-layout-stack vs-motif-table" data-ir-id="motif_agent_workflow" data-content-refs="[]" data-intent-refs="[&quot;viewspec:motif:agent_workflow&quot;]" data-style-tokens="[&quot;density.regular&quot;]" style="gap: 0.68rem; padding: 0.58rem 0.74rem; gap: 0.78rem; padding: 0.72rem 0.96rem;"><tbody><tr id="dom-motif_agent_workflow_agent_workflow_row_1" class="vs-cluster vs-layout-cluster vs-motif-table" data-ir-id="motif_agent_workflow_agent_workflow_row_1" data-content-refs="[]" data-intent-refs="[&quot;viewspec:motif:agent_workflow&quot;]" data-style-tokens="[&quot;density.compact&quot;]" style="gap: 0.34rem; padding: 0.36rem 0.5rem; gap: 0.32rem; padding: 0.34rem 0.5rem;"><th id="dom-binding_agent_workflow_row_1_label" class="vs-label" data-ir-id="binding_agent_workflow_row_1_label" data-content-refs="[&quot;node:agent_workflow_row_1#attr:label&quot;]" data-intent-refs="[&quot;viewspec:binding:agent_workflow_row_1_label&quot;]" data-style-tokens="[&quot;tone.muted&quot;]" style="color: #6b7280; color: #5d7268;" data-binding-id="agent_workflow_row_1_label" scope="row">describe</th><td id="dom-binding_agent_workflow_row_1_value" class="vs-value" data-ir-id="binding_agent_workflow_row_1_value" data-content-refs="[&quot;node:agent_workflow_row_1#attr:value&quot;]" data-intent-refs="[&quot;viewspec:binding:agent_workflow_row_1_value&quot;]" data-style-tokens="[&quot;tone.neutral&quot;, &quot;emphasis.high&quot;]" style="color: #1f2937; color: #16241f; font-family: ui-sans-serif, system-ui, sans-serif; font-weight: 730; letter-spacing: -0.025em; font-weight: 760; letter-spacing: -0.012em;" data-binding-id="agent_workflow_row_1_value">Author IntentBundle or AppBundle JSON.</td></tr><tr id="dom-motif_agent_workflow_agent_workflow_row_2" class="vs-cluster vs-layout-cluster vs-motif-table" data-ir-id="motif_agent_workflow_agent_workflow_row_2" data-content-refs="[]" data-intent-refs="[&quot;viewspec:motif:agent_workflow&quot;]" data-style-tokens="[&quot;density.compact&quot;]" style="gap: 0.34rem; padding: 0.36rem 0.5rem; gap: 0.32rem; padding: 0.34rem 0.5rem;"><th id="dom-binding_agent_workflow_row_2_label" class="vs-label" data-ir-id="binding_agent_workflow_row_2_label" data-content-refs="[&quot;node:agent_workflow_row_2#attr:label&quot;]" data-intent-refs="[&quot;viewspec:binding:agent_workflow_row_2_label&quot;]" data-style-tokens="[&quot;tone.muted&quot;]" style="color: #6b7280; color: #5d7268;" data-binding-id="agent_workflow_row_2_label" scope="row">validate</th><td id="dom-binding_agent_workflow_row_2_value" class="vs-value" data-ir-id="binding_agent_workflow_row_2_value" data-content-refs="[&quot;node:agent_workflow_row_2#attr:value&quot;]" data-intent-refs="[&quot;viewspec:binding:agent_workflow_row_2_value&quot;]" data-style-tokens="[&quot;tone.neutral&quot;, &quot;emphasis.high&quot;]" style="color: #1f2937; color: #16241f; font-family: ui-sans-serif, system-ui, sans-serif; font-weight: 730; letter-spacing: -0.025em; font-weight: 760; letter-spacing: -0.012em;" data-binding-id="agent_workflow_row_2_value">viewspec validate-intent fails closed on drift.</td></tr><tr id="dom-motif_agent_workflow_agent_workflow_row_3" class="vs-cluster vs-layout-cluster vs-motif-table" data-ir-id="motif_agent_workflow_agent_workflow_row_3" data-content-refs="[]" data-intent-refs="[&quot;viewspec:motif:agent_workflow&quot;]" data-style-tokens="[&quot;density.compact&quot;]" style="gap: 0.34rem; padding: 0.36rem 0.5rem; gap: 0.32rem; padding: 0.34rem 0.5rem;"><th id="dom-binding_agent_workflow_row_3_label" class="vs-label" data-ir-id="binding_agent_workflow_row_3_label" data-content-refs="[&quot;node:agent_workflow_row_3#attr:label&quot;]" data-intent-refs="[&quot;viewspec:binding:agent_workflow_row_3_label&quot;]" data-style-tokens="[&quot;tone.muted&quot;]" style="color: #6b7280; color: #5d7268;" data-binding-id="agent_workflow_row_3_label" scope="row">prove</th><td id="dom-binding_agent_workflow_row_3_value" class="vs-value" data-ir-id="binding_agent_workflow_row_3_value" data-content-refs="[&quot;node:agent_workflow_row_3#attr:value&quot;]" data-intent-refs="[&quot;viewspec:binding:agent_workflow_row_3_value&quot;]" data-style-tokens="[&quot;tone.neutral&quot;, &quot;emphasis.high&quot;]" style="color: #1f2937; color: #16241f; font-family: ui-sans-serif, system-ui, sans-serif; font-weight: 730; letter-spacing: -0.025em; font-weight: 760; letter-spacing: -0.012em;" data-binding-id="agent_workflow_row_3_value">viewspec prove --intent compiles, checks, and renders the exact artifact.</td></tr></tbody></table><table id="dom-motif_pricing" class="vs-stack vs-layout-stack vs-motif-table" data-ir-id="motif_pricing" data-content-refs="[]" data-intent-refs="[&quot;viewspec:motif:pricing&quot;]" data-style-tokens="[&quot;density.regular&quot;]" style="gap: 0.68rem; padding: 0.58rem 0.74rem; gap: 0.78rem; padding: 0.72rem 0.96rem;"><tbody><tr id="dom-motif_pricing_pricing_row_1" class="vs-cluster vs-layout-cluster vs-motif-table" data-ir-id="motif_pricing_pricing_row_1" data-content-refs="[]" data-intent-refs="[&quot;viewspec:motif:pricing&quot;]" data-style-tokens="[&quot;density.compact&quot;]" style="gap: 0.34rem; padding: 0.36rem 0.5rem; gap: 0.32rem; padding: 0.34rem 0.5rem;"><th id="dom-binding_pricing_row_1_label" class="vs-label" data-ir-id="binding_pricing_row_1_label" data-content-refs="[&quot;node:pricing_row_1#attr:label&quot;]" data-intent-refs="[&quot;viewspec:binding:pricing_row_1_label&quot;]" data-style-tokens="[&quot;tone.muted&quot;]" style="color: #6b7280; color: #5d7268;" data-binding-id="pricing_row_1_label" scope="row">Free</th><td id="dom-binding_pricing_row_1_value" class="vs-value" data-ir-id="binding_pricing_row_1_value" data-content-refs="[&quot;node:pricing_row_1#attr:value&quot;]" data-intent-refs="[&quot;viewspec:binding:pricing_row_1_value&quot;]" data-style-tokens="[&quot;tone.neutral&quot;, &quot;emphasis.high&quot;]" style="color: #1f2937; color: #16241f; font-family: ui-sans-serif, system-ui, sans-serif; font-weight: 730; letter-spacing: -0.025em; font-weight: 760; letter-spacing: -0.012em;" data-binding-id="pricing_row_1_value">Local SDK. Unlimited compiles, proofs, and surfaces.</td></tr><tr id="dom-motif_pricing_pricing_row_2" class="vs-cluster vs-layout-cluster vs-motif-table" data-ir-id="motif_pricing_pricing_row_2" data-content-refs="[]" data-intent-refs="[&quot;viewspec:motif:pricing&quot;]" data-style-tokens="[&quot;density.compact&quot;]" style="gap: 0.34rem; padding: 0.36rem 0.5rem; gap: 0.32rem; padding: 0.34rem 0.5rem;"><th id="dom-binding_pricing_row_2_label" class="vs-label" data-ir-id="binding_pricing_row_2_label" data-content-refs="[&quot;node:pricing_row_2#attr:label&quot;]" data-intent-refs="[&quot;viewspec:binding:pricing_row_2_label&quot;]" data-style-tokens="[&quot;tone.muted&quot;]" style="color: #6b7280; color: #5d7268;" data-binding-id="pricing_row_2_label" scope="row">Pro</th><td id="dom-binding_pricing_row_2_value" class="vs-value" data-ir-id="binding_pricing_row_2_value" data-content-refs="[&quot;node:pricing_row_2#attr:value&quot;]" data-intent-refs="[&quot;viewspec:binding:pricing_row_2_value&quot;]" data-style-tokens="[&quot;tone.neutral&quot;, &quot;emphasis.high&quot;]" style="color: #1f2937; color: #16241f; font-family: ui-sans-serif, system-ui, sans-serif; font-weight: 730; letter-spacing: -0.025em; font-weight: 760; letter-spacing: -0.012em;" data-binding-id="pricing_row_2_value">149/mo. Hosted compiler API, 10k calls per day.</td></tr><tr id="dom-motif_pricing_pricing_row_3" class="vs-cluster vs-layout-cluster vs-motif-table" data-ir-id="motif_pricing_pricing_row_3" data-content-refs="[]" data-intent-refs="[&quot;viewspec:motif:pricing&quot;]" data-style-tokens="[&quot;density.compact&quot;]" style="gap: 0.34rem; padding: 0.36rem 0.5rem; gap: 0.32rem; padding: 0.34rem 0.5rem;"><th id="dom-binding_pricing_row_3_label" class="vs-label" data-ir-id="binding_pricing_row_3_label" data-content-refs="[&quot;node:pricing_row_3#attr:label&quot;]" data-intent-refs="[&quot;viewspec:binding:pricing_row_3_label&quot;]" data-style-tokens="[&quot;tone.muted&quot;]" style="color: #6b7280; color: #5d7268;" data-binding-id="pricing_row_3_label" scope="row">Enterprise</th><td id="dom-binding_pricing_row_3_value" class="vs-value" data-ir-id="binding_pricing_row_3_value" data-content-refs="[&quot;node:pricing_row_3#attr:value&quot;]" data-intent-refs="[&quot;viewspec:binding:pricing_row_3_value&quot;]" data-style-tokens="[&quot;tone.neutral&quot;, &quot;emphasis.high&quot;]" style="color: #1f2937; color: #16241f; font-family: ui-sans-serif, system-ui, sans-serif; font-weight: 730; letter-spacing: -0.025em; font-weight: 760; letter-spacing: -0.012em;" data-binding-id="pricing_row_3_value">Custom volume, organization sharing, and support.</td></tr></tbody></table><div id="dom-motif_artifact_identity" class="vs-grid vs-layout-grid vs-motif-dashboard vs-role-metric-grid" data-ir-id="motif_artifact_identity" data-content-refs="[]" data-intent-refs="[&quot;viewspec:motif:artifact_identity&quot;]" data-style-tokens="[&quot;density.regular&quot;]" style="grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.68rem; padding: 0.58rem 0.74rem; gap: 0.78rem; padding: 0.72rem 0.96rem;"><div id="dom-motif_artifact_identity_artifact_identity_card_1" class="vs-surface vs-layout-surface vs-motif-dashboard vs-role-metric-card" data-ir-id="motif_artifact_identity_artifact_identity_card_1" data-content-refs="[]" data-intent-refs="[&quot;viewspec:motif:artifact_identity&quot;]" data-style-tokens="[&quot;surface.subtle&quot;]" style="background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 14px; background: #ffffff; border: 1px solid #cfe2da; border-radius: 14px;"><div id="dom-binding_artifact_identity_card_1_label" class="vs-label" data-ir-id="binding_artifact_identity_card_1_label" data-content-refs="[&quot;node:artifact_identity_card_1#attr:label&quot;]" data-intent-refs="[&quot;viewspec:binding:artifact_identity_card_1_label&quot;]" data-style-tokens="[&quot;tone.muted&quot;]" style="color: #6b7280; color: #5d7268;" data-binding-id="artifact_identity_card_1_label">provenance</div><div id="dom-binding_artifact_identity_card_1_value" class="vs-value" data-ir-id="binding_artifact_identity_card_1_value" data-content-refs="[&quot;node:artifact_identity_card_1#attr:value&quot;]" data-intent-refs="[&quot;viewspec:binding:artifact_identity_card_1_value&quot;]" data-style-tokens="[&quot;tone.neutral&quot;, &quot;emphasis.high&quot;]" style="color: #1f2937; color: #16241f; font-family: ui-sans-serif, system-ui, sans-serif; font-weight: 730; letter-spacing: -0.025em; font-weight: 760; letter-spacing: -0.012em;" data-binding-id="artifact_identity_card_1_value">Every element traces to its address.</div></div><div id="dom-motif_artifact_identity_artifact_identity_card_2" class="vs-surface vs-layout-surface vs-motif-dashboard vs-role-metric-card" data-ir-id="motif_artifact_identity_artifact_identity_card_2" data-content-refs="[]" data-intent-refs="[&quot;viewspec:motif:artifact_identity&quot;]" data-style-tokens="[&quot;surface.subtle&quot;]" style="background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 14px; background: #ffffff; border: 1px solid #cfe2da; border-radius: 14px;"><div id="dom-binding_artifact_identity_card_2_label" class="vs-label" data-ir-id="binding_artifact_identity_card_2_label" data-content-refs="[&quot;node:artifact_identity_card_2#attr:label&quot;]" data-intent-refs="[&quot;viewspec:binding:artifact_identity_card_2_label&quot;]" data-style-tokens="[&quot;tone.muted&quot;]" style="color: #6b7280; color: #5d7268;" data-binding-id="artifact_identity_card_2_label">determinism</div><div id="dom-binding_artifact_identity_card_2_value" class="vs-value" data-ir-id="binding_artifact_identity_card_2_value" data-content-refs="[&quot;node:artifact_identity_card_2#attr:value&quot;]" data-intent-refs="[&quot;viewspec:binding:artifact_identity_card_2_value&quot;]" data-style-tokens="[&quot;tone.neutral&quot;, &quot;emphasis.high&quot;]" style="color: #1f2937; color: #16241f; font-family: ui-sans-serif, system-ui, sans-serif; font-weight: 730; letter-spacing: -0.025em; font-weight: 760; letter-spacing: -0.012em;" data-binding-id="artifact_identity_card_2_value">Same source, design, and compiler version; same bytes and hash.</div></div></div></div></main></section></div><div class="artifact-window-foot">the entire homepage artifact, embedded live &middot; <a href="./landing-compiled/" target="_blank" rel="noopener">open it full-page &#8599;</a></div></div>
+        <div class="play"><div class="pk">compiled artifact &middot; real IR ids &middot; click/tap/hover a node</div><div class="receipts"><a href="./landing-compiled/intent_bundle.json" target="_blank" rel="noopener" data-trace-target="intent_bundle" data-node="node:receipt#attr:intent_bundle" data-binding="receipt_intent_bundle" data-address="artifact:landing-compiled/intent_bundle.json" data-present="artifact_link" data-raw="Canonical agent-authored intent bundle">intent_bundle.json</a><a href="./landing-compiled/provenance_manifest.json" target="_blank" rel="noopener" data-trace-target="provenance_manifest" data-node="node:receipt#attr:provenance_manifest" data-binding="receipt_provenance_manifest" data-address="artifact:landing-compiled/provenance_manifest.json" data-present="artifact_link" data-raw="Compiled DOM to IR provenance manifest">provenance_manifest.json</a><a href="./landing-compiled/profile-evidence.json" target="_blank" rel="noopener" data-trace-target="profile_evidence" data-node="node:receipt#attr:profile_evidence" data-binding="receipt_profile_evidence" data-address="artifact:landing-compiled/profile-evidence.json" data-present="artifact_link" data-raw="Aesthetic profile evidence and invariant flags">profile-evidence.json</a></div><div class="artifact-window"><div class="cpanel-h"><span class="t">compiled artifact &middot; aesthetic.calm_ops &middot; scroll &amp; hover</span><span class="dots"><i></i><i></i><i></i></span></div><section id="viewspec-artifact-slot" class="viewspec-artifact-slot" data-active-profile="aesthetic.calm_ops"><main data-viewspec-page-artifact="true" id="dom-region_root" class="vs-root vs-layout-root vs-role-app-shell" data-ir-id="region_root" data-content-refs="[]" data-intent-refs="[&quot;viewspec:view:viewspec_landing&quot;, &quot;viewspec:region:root&quot;, &quot;viewspec:style:aesthetic_profile&quot;]" data-style-tokens="[&quot;tone.neutral&quot;, &quot;palette.temperature&quot;, &quot;aesthetic.calm_ops&quot;]" style="--vs-radius: 12px; --vs-surface-shadow: 0 1px 2px rgb(15 118 110 / 0.06); --vs-surface-border: 1px solid #cfe2da; --vs-value-weight: 700; color: #1f2937; color: #16241f; font-family: ui-sans-serif, system-ui, sans-serif; background-color: #ffffff; background-color: #e9f3ee;" data-aesthetic-profile="aesthetic.calm_ops"><div id="dom-region_main" class="vs-stack vs-layout-stack vs-role-primary-column" data-ir-id="region_main" data-content-refs="[]" data-intent-refs="[&quot;viewspec:region:main&quot;]" data-style-tokens="[&quot;density.regular&quot;]" style="gap: 0.68rem; padding: 0.58rem 0.74rem; gap: 0.78rem; padding: 0.72rem 0.96rem;"><header id="dom-motif_launch_hero" class="vs-surface vs-layout-surface vs-motif-hero vs-role-page-header" data-ir-id="motif_launch_hero" data-content-refs="[]" data-intent-refs="[&quot;viewspec:motif:launch_hero&quot;, &quot;viewspec:style:s_launch_hero&quot;]" data-style-tokens="[&quot;surface.subtle&quot;, &quot;emphasis.high&quot;]" style="background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 14px; background: #ffffff; border: 1px solid #cfe2da; border-radius: 14px; font-weight: 730; letter-spacing: -0.025em; font-weight: 760; letter-spacing: -0.012em;" aria-label="Hero"><p id="dom-binding_launch_hero_eyebrow" class="vs-label" data-ir-id="binding_launch_hero_eyebrow" data-content-refs="[&quot;node:launch_hero#attr:eyebrow&quot;]" data-intent-refs="[&quot;viewspec:binding:launch_hero_eyebrow&quot;]" data-style-tokens="[&quot;tone.muted&quot;]" style="color: #6b7280; color: #5d7268;" data-binding-id="launch_hero_eyebrow">Local UI compiler for you and your agent</p><h1 id="dom-binding_launch_hero_title" class="vs-value" data-ir-id="binding_launch_hero_title" data-content-refs="[&quot;node:launch_hero#attr:title&quot;]" data-intent-refs="[&quot;viewspec:binding:launch_hero_title&quot;]" data-style-tokens="[&quot;tone.neutral&quot;, &quot;emphasis.high&quot;]" style="color: #1f2937; color: #16241f; font-family: ui-sans-serif, system-ui, sans-serif; font-weight: 730; letter-spacing: -0.025em; font-weight: 760; letter-spacing: -0.012em;" data-binding-id="launch_hero_title">Tell your agent what to build. See the real product.</h1><p id="dom-binding_launch_hero_description" class="vs-text" data-ir-id="binding_launch_hero_description" data-content-refs="[&quot;node:launch_hero#attr:description&quot;]" data-intent-refs="[&quot;viewspec:binding:launch_hero_description&quot;]" data-style-tokens="[&quot;tone.neutral&quot;]" style="color: #1f2937; color: #16241f; font-family: ui-sans-serif, system-ui, sans-serif;" data-binding-id="launch_hero_description">Your agent writes a semantic source. ViewSpec compiles it locally into checked static HTML or React, with provenance and a proof bundle. Free and MIT licensed, with no hosted service.</p></header><div id="dom-motif_proof_badges" class="vs-grid vs-layout-grid vs-motif-dashboard vs-role-metric-grid" data-ir-id="motif_proof_badges" data-content-refs="[]" data-intent-refs="[&quot;viewspec:motif:proof_badges&quot;, &quot;viewspec:style:s_proof_badges&quot;]" data-style-tokens="[&quot;density.regular&quot;, &quot;surface.subtle&quot;]" style="grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.68rem; padding: 0.58rem 0.74rem; gap: 0.78rem; padding: 0.72rem 0.96rem; background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 14px; background: #ffffff; border: 1px solid #cfe2da; border-radius: 14px;"><div id="dom-motif_proof_badges_proof_badges_card_1" class="vs-surface vs-layout-surface vs-motif-dashboard vs-role-metric-card" data-ir-id="motif_proof_badges_proof_badges_card_1" data-content-refs="[]" data-intent-refs="[&quot;viewspec:motif:proof_badges&quot;]" data-style-tokens="[&quot;surface.subtle&quot;]" style="background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 14px; background: #ffffff; border: 1px solid #cfe2da; border-radius: 14px;"><div id="dom-binding_proof_badges_card_1_label" class="vs-label" data-ir-id="binding_proof_badges_card_1_label" data-content-refs="[&quot;node:proof_badges_card_1#attr:label&quot;]" data-intent-refs="[&quot;viewspec:binding:proof_badges_card_1_label&quot;]" data-style-tokens="[&quot;tone.muted&quot;]" style="color: #6b7280; color: #5d7268;" data-binding-id="proof_badges_card_1_label">replay</div><div id="dom-binding_proof_badges_card_1_value" class="vs-value" data-ir-id="binding_proof_badges_card_1_value" data-content-refs="[&quot;node:proof_badges_card_1#attr:value&quot;]" data-intent-refs="[&quot;viewspec:binding:proof_badges_card_1_value&quot;]" data-style-tokens="[&quot;tone.neutral&quot;, &quot;emphasis.high&quot;]" style="color: #1f2937; color: #16241f; font-family: ui-sans-serif, system-ui, sans-serif; font-weight: 730; letter-spacing: -0.025em; font-weight: 760; letter-spacing: -0.012em;" data-binding-id="proof_badges_card_1_value">state replay passed</div></div><div id="dom-motif_proof_badges_proof_badges_card_2" class="vs-surface vs-layout-surface vs-motif-dashboard vs-role-metric-card" data-ir-id="motif_proof_badges_proof_badges_card_2" data-content-refs="[]" data-intent-refs="[&quot;viewspec:motif:proof_badges&quot;]" data-style-tokens="[&quot;surface.subtle&quot;]" style="background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 14px; background: #ffffff; border: 1px solid #cfe2da; border-radius: 14px;"><div id="dom-binding_proof_badges_card_2_label" class="vs-label" data-ir-id="binding_proof_badges_card_2_label" data-content-refs="[&quot;node:proof_badges_card_2#attr:label&quot;]" data-intent-refs="[&quot;viewspec:binding:proof_badges_card_2_label&quot;]" data-style-tokens="[&quot;tone.muted&quot;]" style="color: #6b7280; color: #5d7268;" data-binding-id="proof_badges_card_2_label">reducer</div><div id="dom-binding_proof_badges_card_2_value" class="vs-value" data-ir-id="binding_proof_badges_card_2_value" data-content-refs="[&quot;node:proof_badges_card_2#attr:value&quot;]" data-intent-refs="[&quot;viewspec:binding:proof_badges_card_2_value&quot;]" data-style-tokens="[&quot;tone.neutral&quot;, &quot;emphasis.high&quot;]" style="color: #1f2937; color: #16241f; font-family: ui-sans-serif, system-ui, sans-serif; font-weight: 730; letter-spacing: -0.025em; font-weight: 760; letter-spacing: -0.012em;" data-binding-id="proof_badges_card_2_value">reducer generated</div></div><div id="dom-motif_proof_badges_proof_badges_card_3" class="vs-surface vs-layout-surface vs-motif-dashboard vs-role-metric-card" data-ir-id="motif_proof_badges_proof_badges_card_3" data-content-refs="[]" data-intent-refs="[&quot;viewspec:motif:proof_badges&quot;]" data-style-tokens="[&quot;surface.subtle&quot;]" style="background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 14px; background: #ffffff; border: 1px solid #cfe2da; border-radius: 14px;"><div id="dom-binding_proof_badges_card_3_label" class="vs-label" data-ir-id="binding_proof_badges_card_3_label" data-content-refs="[&quot;node:proof_badges_card_3#attr:label&quot;]" data-intent-refs="[&quot;viewspec:binding:proof_badges_card_3_label&quot;]" data-style-tokens="[&quot;tone.muted&quot;]" style="color: #6b7280; color: #5d7268;" data-binding-id="proof_badges_card_3_label">manifest</div><div id="dom-binding_proof_badges_card_3_value" class="vs-value" data-ir-id="binding_proof_badges_card_3_value" data-content-refs="[&quot;node:proof_badges_card_3#attr:value&quot;]" data-intent-refs="[&quot;viewspec:binding:proof_badges_card_3_value&quot;]" data-style-tokens="[&quot;tone.neutral&quot;, &quot;emphasis.high&quot;]" style="color: #1f2937; color: #16241f; font-family: ui-sans-serif, system-ui, sans-serif; font-weight: 730; letter-spacing: -0.025em; font-weight: 760; letter-spacing: -0.012em;" data-binding-id="proof_badges_card_3_value">manifest checked</div></div><div id="dom-motif_proof_badges_proof_badges_card_4" class="vs-surface vs-layout-surface vs-motif-dashboard vs-role-metric-card" data-ir-id="motif_proof_badges_proof_badges_card_4" data-content-refs="[]" data-intent-refs="[&quot;viewspec:motif:proof_badges&quot;]" data-style-tokens="[&quot;surface.subtle&quot;]" style="background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 14px; background: #ffffff; border: 1px solid #cfe2da; border-radius: 14px;"><div id="dom-binding_proof_badges_card_4_label" class="vs-label" data-ir-id="binding_proof_badges_card_4_label" data-content-refs="[&quot;node:proof_badges_card_4#attr:label&quot;]" data-intent-refs="[&quot;viewspec:binding:proof_badges_card_4_label&quot;]" data-style-tokens="[&quot;tone.muted&quot;]" style="color: #6b7280; color: #5d7268;" data-binding-id="proof_badges_card_4_label">shell</div><div id="dom-binding_proof_badges_card_4_value" class="vs-value" data-ir-id="binding_proof_badges_card_4_value" data-content-refs="[&quot;node:proof_badges_card_4#attr:value&quot;]" data-intent-refs="[&quot;viewspec:binding:proof_badges_card_4_value&quot;]" data-style-tokens="[&quot;tone.neutral&quot;, &quot;emphasis.high&quot;]" style="color: #1f2937; color: #16241f; font-family: ui-sans-serif, system-ui, sans-serif; font-weight: 730; letter-spacing: -0.025em; font-weight: 760; letter-spacing: -0.012em;" data-binding-id="proof_badges_card_4_value">shell hash matched</div></div><div id="dom-motif_proof_badges_proof_badges_card_5" class="vs-surface vs-layout-surface vs-motif-dashboard vs-role-metric-card" data-ir-id="motif_proof_badges_proof_badges_card_5" data-content-refs="[]" data-intent-refs="[&quot;viewspec:motif:proof_badges&quot;]" data-style-tokens="[&quot;surface.subtle&quot;]" style="background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 14px; background: #ffffff; border: 1px solid #cfe2da; border-radius: 14px;"><div id="dom-binding_proof_badges_card_5_label" class="vs-label" data-ir-id="binding_proof_badges_card_5_label" data-content-refs="[&quot;node:proof_badges_card_5#attr:label&quot;]" data-intent-refs="[&quot;viewspec:binding:proof_badges_card_5_label&quot;]" data-style-tokens="[&quot;tone.muted&quot;]" style="color: #6b7280; color: #5d7268;" data-binding-id="proof_badges_card_5_label">runtime</div><div id="dom-binding_proof_badges_card_5_value" class="vs-value" data-ir-id="binding_proof_badges_card_5_value" data-content-refs="[&quot;node:proof_badges_card_5#attr:value&quot;]" data-intent-refs="[&quot;viewspec:binding:proof_badges_card_5_value&quot;]" data-style-tokens="[&quot;tone.neutral&quot;, &quot;emphasis.high&quot;]" style="color: #1f2937; color: #16241f; font-family: ui-sans-serif, system-ui, sans-serif; font-weight: 730; letter-spacing: -0.025em; font-weight: 760; letter-spacing: -0.012em;" data-binding-id="proof_badges_card_5_value">No runtime LLM</div></div></div><div id="dom-motif_compile_flow" class="vs-grid vs-layout-grid vs-motif-dashboard vs-role-metric-grid" data-ir-id="motif_compile_flow" data-content-refs="[]" data-intent-refs="[&quot;viewspec:motif:compile_flow&quot;]" data-style-tokens="[&quot;density.regular&quot;]" style="grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.68rem; padding: 0.58rem 0.74rem; gap: 0.78rem; padding: 0.72rem 0.96rem;"><div id="dom-motif_compile_flow_compile_flow_card_1" class="vs-surface vs-layout-surface vs-motif-dashboard vs-role-metric-card" data-ir-id="motif_compile_flow_compile_flow_card_1" data-content-refs="[]" data-intent-refs="[&quot;viewspec:motif:compile_flow&quot;]" data-style-tokens="[&quot;surface.subtle&quot;]" style="background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 14px; background: #ffffff; border: 1px solid #cfe2da; border-radius: 14px;"><div id="dom-binding_compile_flow_card_1_label" class="vs-label" data-ir-id="binding_compile_flow_card_1_label" data-content-refs="[&quot;node:compile_flow_card_1#attr:label&quot;]" data-intent-refs="[&quot;viewspec:binding:compile_flow_card_1_label&quot;]" data-style-tokens="[&quot;tone.muted&quot;]" style="color: #6b7280; color: #5d7268;" data-binding-id="compile_flow_card_1_label">1 · intent</div><div id="dom-binding_compile_flow_card_1_value" class="vs-value" data-ir-id="binding_compile_flow_card_1_value" data-content-refs="[&quot;node:compile_flow_card_1#attr:value&quot;]" data-intent-refs="[&quot;viewspec:binding:compile_flow_card_1_value&quot;]" data-style-tokens="[&quot;tone.neutral&quot;, &quot;emphasis.high&quot;]" style="color: #1f2937; color: #16241f; font-family: ui-sans-serif, system-ui, sans-serif; font-weight: 730; letter-spacing: -0.025em; font-weight: 760; letter-spacing: -0.012em;" data-binding-id="compile_flow_card_1_value">Agent writes IntentBundle JSON.</div></div><div id="dom-motif_compile_flow_compile_flow_card_2" class="vs-surface vs-layout-surface vs-motif-dashboard vs-role-metric-card" data-ir-id="motif_compile_flow_compile_flow_card_2" data-content-refs="[]" data-intent-refs="[&quot;viewspec:motif:compile_flow&quot;]" data-style-tokens="[&quot;surface.subtle&quot;]" style="background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 14px; background: #ffffff; border: 1px solid #cfe2da; border-radius: 14px;"><div id="dom-binding_compile_flow_card_2_label" class="vs-label" data-ir-id="binding_compile_flow_card_2_label" data-content-refs="[&quot;node:compile_flow_card_2#attr:label&quot;]" data-intent-refs="[&quot;viewspec:binding:compile_flow_card_2_label&quot;]" data-style-tokens="[&quot;tone.muted&quot;]" style="color: #6b7280; color: #5d7268;" data-binding-id="compile_flow_card_2_label">2 · compile</div><div id="dom-binding_compile_flow_card_2_value" class="vs-value" data-ir-id="binding_compile_flow_card_2_value" data-content-refs="[&quot;node:compile_flow_card_2#attr:value&quot;]" data-intent-refs="[&quot;viewspec:binding:compile_flow_card_2_value&quot;]" data-style-tokens="[&quot;tone.neutral&quot;, &quot;emphasis.high&quot;]" style="color: #1f2937; color: #16241f; font-family: ui-sans-serif, system-ui, sans-serif; font-weight: 730; letter-spacing: -0.025em; font-weight: 760; letter-spacing: -0.012em;" data-binding-id="compile_flow_card_2_value">CompositionIR to UI and reducer, no LLM.</div></div><div id="dom-motif_compile_flow_compile_flow_card_3" class="vs-surface vs-layout-surface vs-motif-dashboard vs-role-metric-card" data-ir-id="motif_compile_flow_compile_flow_card_3" data-content-refs="[]" data-intent-refs="[&quot;viewspec:motif:compile_flow&quot;]" data-style-tokens="[&quot;surface.subtle&quot;]" style="background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 14px; background: #ffffff; border: 1px solid #cfe2da; border-radius: 14px;"><div id="dom-binding_compile_flow_card_3_label" class="vs-label" data-ir-id="binding_compile_flow_card_3_label" data-content-refs="[&quot;node:compile_flow_card_3#attr:label&quot;]" data-intent-refs="[&quot;viewspec:binding:compile_flow_card_3_label&quot;]" data-style-tokens="[&quot;tone.muted&quot;]" style="color: #6b7280; color: #5d7268;" data-binding-id="compile_flow_card_3_label">3 · proof</div><div id="dom-binding_compile_flow_card_3_value" class="vs-value" data-ir-id="binding_compile_flow_card_3_value" data-content-refs="[&quot;node:compile_flow_card_3#attr:value&quot;]" data-intent-refs="[&quot;viewspec:binding:compile_flow_card_3_value&quot;]" data-style-tokens="[&quot;tone.neutral&quot;, &quot;emphasis.high&quot;]" style="color: #1f2937; color: #16241f; font-family: ui-sans-serif, system-ui, sans-serif; font-weight: 730; letter-spacing: -0.025em; font-weight: 760; letter-spacing: -0.012em;" data-binding-id="compile_flow_card_3_value">Provenance, replay, and shell hash attached.</div></div></div><table id="dom-motif_capabilities" class="vs-stack vs-layout-stack vs-motif-table" data-ir-id="motif_capabilities" data-content-refs="[]" data-intent-refs="[&quot;viewspec:motif:capabilities&quot;, &quot;viewspec:style:s_capabilities&quot;]" data-style-tokens="[&quot;density.regular&quot;, &quot;density.compact&quot;]" style="gap: 0.68rem; padding: 0.58rem 0.74rem; gap: 0.78rem; padding: 0.72rem 0.96rem; gap: 0.34rem; padding: 0.36rem 0.5rem; gap: 0.32rem; padding: 0.34rem 0.5rem;"><tbody><tr id="dom-motif_capabilities_capabilities_row_1" class="vs-cluster vs-layout-cluster vs-motif-table" data-ir-id="motif_capabilities_capabilities_row_1" data-content-refs="[]" data-intent-refs="[&quot;viewspec:motif:capabilities&quot;]" data-style-tokens="[&quot;density.compact&quot;]" style="gap: 0.34rem; padding: 0.36rem 0.5rem; gap: 0.32rem; padding: 0.34rem 0.5rem;"><th id="dom-binding_capabilities_row_1_label" class="vs-label" data-ir-id="binding_capabilities_row_1_label" data-content-refs="[&quot;node:capabilities_row_1#attr:label&quot;]" data-intent-refs="[&quot;viewspec:binding:capabilities_row_1_label&quot;]" data-style-tokens="[&quot;tone.muted&quot;]" style="color: #6b7280; color: #5d7268;" data-binding-id="capabilities_row_1_label" scope="row">State IR</th><td id="dom-binding_capabilities_row_1_value" class="vs-value" data-ir-id="binding_capabilities_row_1_value" data-content-refs="[&quot;node:capabilities_row_1#attr:value&quot;]" data-intent-refs="[&quot;viewspec:binding:capabilities_row_1_value&quot;]" data-style-tokens="[&quot;tone.neutral&quot;, &quot;emphasis.high&quot;]" style="color: #1f2937; color: #16241f; font-family: ui-sans-serif, system-ui, sans-serif; font-weight: 730; letter-spacing: -0.025em; font-weight: 760; letter-spacing: -0.012em;" data-binding-id="capabilities_row_1_value">interactive_state_v0 writes state_reducer.ts and reduceViewSpecState.</td></tr><tr id="dom-motif_capabilities_capabilities_row_2" class="vs-cluster vs-layout-cluster vs-motif-table" data-ir-id="motif_capabilities_capabilities_row_2" data-content-refs="[]" data-intent-refs="[&quot;viewspec:motif:capabilities&quot;]" data-style-tokens="[&quot;density.compact&quot;]" style="gap: 0.34rem; padding: 0.36rem 0.5rem; gap: 0.32rem; padding: 0.34rem 0.5rem;"><th id="dom-binding_capabilities_row_2_label" class="vs-label" data-ir-id="binding_capabilities_row_2_label" data-content-refs="[&quot;node:capabilities_row_2#attr:label&quot;]" data-intent-refs="[&quot;viewspec:binding:capabilities_row_2_label&quot;]" data-style-tokens="[&quot;tone.muted&quot;]" style="color: #6b7280; color: #5d7268;" data-binding-id="capabilities_row_2_label" scope="row">Aesthetic Profiles</th><td id="dom-binding_capabilities_row_2_value" class="vs-value" data-ir-id="binding_capabilities_row_2_value" data-content-refs="[&quot;node:capabilities_row_2#attr:value&quot;]" data-intent-refs="[&quot;viewspec:binding:capabilities_row_2_value&quot;]" data-style-tokens="[&quot;tone.neutral&quot;, &quot;emphasis.high&quot;]" style="color: #1f2937; color: #16241f; font-family: ui-sans-serif, system-ui, sans-serif; font-weight: 730; letter-spacing: -0.025em; font-weight: 760; letter-spacing: -0.012em;" data-binding-id="capabilities_row_2_value">Eight compiled projections from one semantic graph.</td></tr><tr id="dom-motif_capabilities_capabilities_row_3" class="vs-cluster vs-layout-cluster vs-motif-table" data-ir-id="motif_capabilities_capabilities_row_3" data-content-refs="[]" data-intent-refs="[&quot;viewspec:motif:capabilities&quot;]" data-style-tokens="[&quot;density.compact&quot;]" style="gap: 0.34rem; padding: 0.36rem 0.5rem; gap: 0.32rem; padding: 0.34rem 0.5rem;"><th id="dom-binding_capabilities_row_3_label" class="vs-label" data-ir-id="binding_capabilities_row_3_label" data-content-refs="[&quot;node:capabilities_row_3#attr:label&quot;]" data-intent-refs="[&quot;viewspec:binding:capabilities_row_3_label&quot;]" data-style-tokens="[&quot;tone.muted&quot;]" style="color: #6b7280; color: #5d7268;" data-binding-id="capabilities_row_3_label" scope="row">Proof Pipeline</th><td id="dom-binding_capabilities_row_3_value" class="vs-value" data-ir-id="binding_capabilities_row_3_value" data-content-refs="[&quot;node:capabilities_row_3#attr:value&quot;]" data-intent-refs="[&quot;viewspec:binding:capabilities_row_3_value&quot;]" data-style-tokens="[&quot;tone.neutral&quot;, &quot;emphasis.high&quot;]" style="color: #1f2937; color: #16241f; font-family: ui-sans-serif, system-ui, sans-serif; font-weight: 730; letter-spacing: -0.025em; font-weight: 760; letter-spacing: -0.012em;" data-binding-id="capabilities_row_3_value">state_replay_assertions plus viewspec prove viewspec.app.json --with-shell.</td></tr><tr id="dom-motif_capabilities_capabilities_row_4" class="vs-cluster vs-layout-cluster vs-motif-table" data-ir-id="motif_capabilities_capabilities_row_4" data-content-refs="[]" data-intent-refs="[&quot;viewspec:motif:capabilities&quot;]" data-style-tokens="[&quot;density.compact&quot;]" style="gap: 0.34rem; padding: 0.36rem 0.5rem; gap: 0.32rem; padding: 0.34rem 0.5rem;"><th id="dom-binding_capabilities_row_4_label" class="vs-label" data-ir-id="binding_capabilities_row_4_label" data-content-refs="[&quot;node:capabilities_row_4#attr:label&quot;]" data-intent-refs="[&quot;viewspec:binding:capabilities_row_4_label&quot;]" data-style-tokens="[&quot;tone.muted&quot;]" style="color: #6b7280; color: #5d7268;" data-binding-id="capabilities_row_4_label" scope="row">Portable Surfaces</th><td id="dom-binding_capabilities_row_4_value" class="vs-value" data-ir-id="binding_capabilities_row_4_value" data-content-refs="[&quot;node:capabilities_row_4#attr:value&quot;]" data-intent-refs="[&quot;viewspec:binding:capabilities_row_4_value&quot;]" data-style-tokens="[&quot;tone.neutral&quot;, &quot;emphasis.high&quot;]" style="color: #1f2937; color: #16241f; font-family: ui-sans-serif, system-ui, sans-serif; font-weight: 730; letter-spacing: -0.025em; font-weight: 760; letter-spacing: -0.012em;" data-binding-id="capabilities_row_4_value">html-tailwind and React, compiled locally.</td></tr></tbody></table><table id="dom-motif_agent_workflow" class="vs-stack vs-layout-stack vs-motif-table" data-ir-id="motif_agent_workflow" data-content-refs="[]" data-intent-refs="[&quot;viewspec:motif:agent_workflow&quot;]" data-style-tokens="[&quot;density.regular&quot;]" style="gap: 0.68rem; padding: 0.58rem 0.74rem; gap: 0.78rem; padding: 0.72rem 0.96rem;"><tbody><tr id="dom-motif_agent_workflow_agent_workflow_row_1" class="vs-cluster vs-layout-cluster vs-motif-table" data-ir-id="motif_agent_workflow_agent_workflow_row_1" data-content-refs="[]" data-intent-refs="[&quot;viewspec:motif:agent_workflow&quot;]" data-style-tokens="[&quot;density.compact&quot;]" style="gap: 0.34rem; padding: 0.36rem 0.5rem; gap: 0.32rem; padding: 0.34rem 0.5rem;"><th id="dom-binding_agent_workflow_row_1_label" class="vs-label" data-ir-id="binding_agent_workflow_row_1_label" data-content-refs="[&quot;node:agent_workflow_row_1#attr:label&quot;]" data-intent-refs="[&quot;viewspec:binding:agent_workflow_row_1_label&quot;]" data-style-tokens="[&quot;tone.muted&quot;]" style="color: #6b7280; color: #5d7268;" data-binding-id="agent_workflow_row_1_label" scope="row">describe</th><td id="dom-binding_agent_workflow_row_1_value" class="vs-value" data-ir-id="binding_agent_workflow_row_1_value" data-content-refs="[&quot;node:agent_workflow_row_1#attr:value&quot;]" data-intent-refs="[&quot;viewspec:binding:agent_workflow_row_1_value&quot;]" data-style-tokens="[&quot;tone.neutral&quot;, &quot;emphasis.high&quot;]" style="color: #1f2937; color: #16241f; font-family: ui-sans-serif, system-ui, sans-serif; font-weight: 730; letter-spacing: -0.025em; font-weight: 760; letter-spacing: -0.012em;" data-binding-id="agent_workflow_row_1_value">Author IntentBundle or AppBundle JSON.</td></tr><tr id="dom-motif_agent_workflow_agent_workflow_row_2" class="vs-cluster vs-layout-cluster vs-motif-table" data-ir-id="motif_agent_workflow_agent_workflow_row_2" data-content-refs="[]" data-intent-refs="[&quot;viewspec:motif:agent_workflow&quot;]" data-style-tokens="[&quot;density.compact&quot;]" style="gap: 0.34rem; padding: 0.36rem 0.5rem; gap: 0.32rem; padding: 0.34rem 0.5rem;"><th id="dom-binding_agent_workflow_row_2_label" class="vs-label" data-ir-id="binding_agent_workflow_row_2_label" data-content-refs="[&quot;node:agent_workflow_row_2#attr:label&quot;]" data-intent-refs="[&quot;viewspec:binding:agent_workflow_row_2_label&quot;]" data-style-tokens="[&quot;tone.muted&quot;]" style="color: #6b7280; color: #5d7268;" data-binding-id="agent_workflow_row_2_label" scope="row">check</th><td id="dom-binding_agent_workflow_row_2_value" class="vs-value" data-ir-id="binding_agent_workflow_row_2_value" data-content-refs="[&quot;node:agent_workflow_row_2#attr:value&quot;]" data-intent-refs="[&quot;viewspec:binding:agent_workflow_row_2_value&quot;]" data-style-tokens="[&quot;tone.neutral&quot;, &quot;emphasis.high&quot;]" style="color: #1f2937; color: #16241f; font-family: ui-sans-serif, system-ui, sans-serif; font-weight: 730; letter-spacing: -0.025em; font-weight: 760; letter-spacing: -0.012em;" data-binding-id="agent_workflow_row_2_value">viewspec check fails closed on drift.</td></tr><tr id="dom-motif_agent_workflow_agent_workflow_row_3" class="vs-cluster vs-layout-cluster vs-motif-table" data-ir-id="motif_agent_workflow_agent_workflow_row_3" data-content-refs="[]" data-intent-refs="[&quot;viewspec:motif:agent_workflow&quot;]" data-style-tokens="[&quot;density.compact&quot;]" style="gap: 0.34rem; padding: 0.36rem 0.5rem; gap: 0.32rem; padding: 0.34rem 0.5rem;"><th id="dom-binding_agent_workflow_row_3_label" class="vs-label" data-ir-id="binding_agent_workflow_row_3_label" data-content-refs="[&quot;node:agent_workflow_row_3#attr:label&quot;]" data-intent-refs="[&quot;viewspec:binding:agent_workflow_row_3_label&quot;]" data-style-tokens="[&quot;tone.muted&quot;]" style="color: #6b7280; color: #5d7268;" data-binding-id="agent_workflow_row_3_label" scope="row">prove</th><td id="dom-binding_agent_workflow_row_3_value" class="vs-value" data-ir-id="binding_agent_workflow_row_3_value" data-content-refs="[&quot;node:agent_workflow_row_3#attr:value&quot;]" data-intent-refs="[&quot;viewspec:binding:agent_workflow_row_3_value&quot;]" data-style-tokens="[&quot;tone.neutral&quot;, &quot;emphasis.high&quot;]" style="color: #1f2937; color: #16241f; font-family: ui-sans-serif, system-ui, sans-serif; font-weight: 730; letter-spacing: -0.025em; font-weight: 760; letter-spacing: -0.012em;" data-binding-id="agent_workflow_row_3_value">viewspec prove compiles, checks, and renders the exact artifact.</td></tr></tbody></table><table id="dom-motif_open_source" class="vs-stack vs-layout-stack vs-motif-table" data-ir-id="motif_open_source" data-content-refs="[]" data-intent-refs="[&quot;viewspec:motif:open_source&quot;]" data-style-tokens="[&quot;density.regular&quot;]" style="gap: 0.68rem; padding: 0.58rem 0.74rem; gap: 0.78rem; padding: 0.72rem 0.96rem;"><tbody><tr id="dom-motif_open_source_open_source_row_1" class="vs-cluster vs-layout-cluster vs-motif-table" data-ir-id="motif_open_source_open_source_row_1" data-content-refs="[]" data-intent-refs="[&quot;viewspec:motif:open_source&quot;]" data-style-tokens="[&quot;density.compact&quot;]" style="gap: 0.34rem; padding: 0.36rem 0.5rem; gap: 0.32rem; padding: 0.34rem 0.5rem;"><th id="dom-binding_open_source_row_1_label" class="vs-label" data-ir-id="binding_open_source_row_1_label" data-content-refs="[&quot;node:open_source_row_1#attr:label&quot;]" data-intent-refs="[&quot;viewspec:binding:open_source_row_1_label&quot;]" data-style-tokens="[&quot;tone.muted&quot;]" style="color: #6b7280; color: #5d7268;" data-binding-id="open_source_row_1_label" scope="row">Cost</th><td id="dom-binding_open_source_row_1_value" class="vs-value" data-ir-id="binding_open_source_row_1_value" data-content-refs="[&quot;node:open_source_row_1#attr:value&quot;]" data-intent-refs="[&quot;viewspec:binding:open_source_row_1_value&quot;]" data-style-tokens="[&quot;tone.neutral&quot;, &quot;emphasis.high&quot;]" style="color: #1f2937; color: #16241f; font-family: ui-sans-serif, system-ui, sans-serif; font-weight: 730; letter-spacing: -0.025em; font-weight: 760; letter-spacing: -0.012em;" data-binding-id="open_source_row_1_value">Free. Unlimited compiles, proofs, and surfaces.</td></tr><tr id="dom-motif_open_source_open_source_row_2" class="vs-cluster vs-layout-cluster vs-motif-table" data-ir-id="motif_open_source_open_source_row_2" data-content-refs="[]" data-intent-refs="[&quot;viewspec:motif:open_source&quot;]" data-style-tokens="[&quot;density.compact&quot;]" style="gap: 0.34rem; padding: 0.36rem 0.5rem; gap: 0.32rem; padding: 0.34rem 0.5rem;"><th id="dom-binding_open_source_row_2_label" class="vs-label" data-ir-id="binding_open_source_row_2_label" data-content-refs="[&quot;node:open_source_row_2#attr:label&quot;]" data-intent-refs="[&quot;viewspec:binding:open_source_row_2_label&quot;]" data-style-tokens="[&quot;tone.muted&quot;]" style="color: #6b7280; color: #5d7268;" data-binding-id="open_source_row_2_label" scope="row">License</th><td id="dom-binding_open_source_row_2_value" class="vs-value" data-ir-id="binding_open_source_row_2_value" data-content-refs="[&quot;node:open_source_row_2#attr:value&quot;]" data-intent-refs="[&quot;viewspec:binding:open_source_row_2_value&quot;]" data-style-tokens="[&quot;tone.neutral&quot;, &quot;emphasis.high&quot;]" style="color: #1f2937; color: #16241f; font-family: ui-sans-serif, system-ui, sans-serif; font-weight: 730; letter-spacing: -0.025em; font-weight: 760; letter-spacing: -0.012em;" data-binding-id="open_source_row_2_value">MIT.</td></tr><tr id="dom-motif_open_source_open_source_row_3" class="vs-cluster vs-layout-cluster vs-motif-table" data-ir-id="motif_open_source_open_source_row_3" data-content-refs="[]" data-intent-refs="[&quot;viewspec:motif:open_source&quot;]" data-style-tokens="[&quot;density.compact&quot;]" style="gap: 0.34rem; padding: 0.36rem 0.5rem; gap: 0.32rem; padding: 0.34rem 0.5rem;"><th id="dom-binding_open_source_row_3_label" class="vs-label" data-ir-id="binding_open_source_row_3_label" data-content-refs="[&quot;node:open_source_row_3#attr:label&quot;]" data-intent-refs="[&quot;viewspec:binding:open_source_row_3_label&quot;]" data-style-tokens="[&quot;tone.muted&quot;]" style="color: #6b7280; color: #5d7268;" data-binding-id="open_source_row_3_label" scope="row">Hosting</th><td id="dom-binding_open_source_row_3_value" class="vs-value" data-ir-id="binding_open_source_row_3_value" data-content-refs="[&quot;node:open_source_row_3#attr:value&quot;]" data-intent-refs="[&quot;viewspec:binding:open_source_row_3_value&quot;]" data-style-tokens="[&quot;tone.neutral&quot;, &quot;emphasis.high&quot;]" style="color: #1f2937; color: #16241f; font-family: ui-sans-serif, system-ui, sans-serif; font-weight: 730; letter-spacing: -0.025em; font-weight: 760; letter-spacing: -0.012em;" data-binding-id="open_source_row_3_value">Runs locally. No hosted service, account, or API key.</td></tr></tbody></table><div id="dom-motif_artifact_identity" class="vs-grid vs-layout-grid vs-motif-dashboard vs-role-metric-grid" data-ir-id="motif_artifact_identity" data-content-refs="[]" data-intent-refs="[&quot;viewspec:motif:artifact_identity&quot;]" data-style-tokens="[&quot;density.regular&quot;]" style="grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.68rem; padding: 0.58rem 0.74rem; gap: 0.78rem; padding: 0.72rem 0.96rem;"><div id="dom-motif_artifact_identity_artifact_identity_card_1" class="vs-surface vs-layout-surface vs-motif-dashboard vs-role-metric-card" data-ir-id="motif_artifact_identity_artifact_identity_card_1" data-content-refs="[]" data-intent-refs="[&quot;viewspec:motif:artifact_identity&quot;]" data-style-tokens="[&quot;surface.subtle&quot;]" style="background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 14px; background: #ffffff; border: 1px solid #cfe2da; border-radius: 14px;"><div id="dom-binding_artifact_identity_card_1_label" class="vs-label" data-ir-id="binding_artifact_identity_card_1_label" data-content-refs="[&quot;node:artifact_identity_card_1#attr:label&quot;]" data-intent-refs="[&quot;viewspec:binding:artifact_identity_card_1_label&quot;]" data-style-tokens="[&quot;tone.muted&quot;]" style="color: #6b7280; color: #5d7268;" data-binding-id="artifact_identity_card_1_label">provenance</div><div id="dom-binding_artifact_identity_card_1_value" class="vs-value" data-ir-id="binding_artifact_identity_card_1_value" data-content-refs="[&quot;node:artifact_identity_card_1#attr:value&quot;]" data-intent-refs="[&quot;viewspec:binding:artifact_identity_card_1_value&quot;]" data-style-tokens="[&quot;tone.neutral&quot;, &quot;emphasis.high&quot;]" style="color: #1f2937; color: #16241f; font-family: ui-sans-serif, system-ui, sans-serif; font-weight: 730; letter-spacing: -0.025em; font-weight: 760; letter-spacing: -0.012em;" data-binding-id="artifact_identity_card_1_value">Every element traces to its address.</div></div><div id="dom-motif_artifact_identity_artifact_identity_card_2" class="vs-surface vs-layout-surface vs-motif-dashboard vs-role-metric-card" data-ir-id="motif_artifact_identity_artifact_identity_card_2" data-content-refs="[]" data-intent-refs="[&quot;viewspec:motif:artifact_identity&quot;]" data-style-tokens="[&quot;surface.subtle&quot;]" style="background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 14px; background: #ffffff; border: 1px solid #cfe2da; border-radius: 14px;"><div id="dom-binding_artifact_identity_card_2_label" class="vs-label" data-ir-id="binding_artifact_identity_card_2_label" data-content-refs="[&quot;node:artifact_identity_card_2#attr:label&quot;]" data-intent-refs="[&quot;viewspec:binding:artifact_identity_card_2_label&quot;]" data-style-tokens="[&quot;tone.muted&quot;]" style="color: #6b7280; color: #5d7268;" data-binding-id="artifact_identity_card_2_label">determinism</div><div id="dom-binding_artifact_identity_card_2_value" class="vs-value" data-ir-id="binding_artifact_identity_card_2_value" data-content-refs="[&quot;node:artifact_identity_card_2#attr:value&quot;]" data-intent-refs="[&quot;viewspec:binding:artifact_identity_card_2_value&quot;]" data-style-tokens="[&quot;tone.neutral&quot;, &quot;emphasis.high&quot;]" style="color: #1f2937; color: #16241f; font-family: ui-sans-serif, system-ui, sans-serif; font-weight: 730; letter-spacing: -0.025em; font-weight: 760; letter-spacing: -0.012em;" data-binding-id="artifact_identity_card_2_value">Same source, design, and compiler version; same bytes and hash.</div></div></div></div></main></section></div><div class="artifact-window-foot">the entire homepage artifact, embedded live &middot; <a href="./landing-compiled/" target="_blank" rel="noopener">open it full-page &#8599;</a></div></div>
         <div class="trace" aria-live="polite">
           <div class="receipts trace-receipts" aria-label="Trace compiled receipts">
             <button type="button" data-trace-target="viewspec:view:viewspec_landing" data-node="viewspec:view:viewspec_landing" data-binding="view root" data-address="viewspec:view:viewspec_landing" data-present="artifact" data-raw="IntentBundle root">Click/tap intent</button>
-            <button type="button" data-trace-target="viewspec:motif:pricing" data-node="viewspec:motif:pricing" data-binding="pricing" data-address="viewspec:motif:pricing" data-present="table" data-raw="Pricing rows">Click/tap pricing</button>
+            <button type="button" data-trace-target="viewspec:motif:capabilities" data-node="viewspec:motif:capabilities" data-binding="capabilities" data-address="viewspec:motif:capabilities" data-present="table" data-raw="Capability rows">Click/tap capabilities</button>
             <button type="button" data-trace-target="viewspec:style:aesthetic_profile" data-node="viewspec:style:aesthetic_profile" data-binding="aesthetic.calm_ops" data-address="viewspec:style:aesthetic_profile" data-present="style projection" data-raw="Calm Ops profile">Click/tap style</button>
           </div>
           <div class="flow">DOM &rarr; binding &rarr; address &rarr; data</div>
@@ -2572,7 +2254,6 @@ body.inspect #viewspec-artifact-slot [data-ir-id]::after{ content:attr(data-ir-i
           </div>
         </div>
       </div>
-      <div class="core-evidence" id="core-evidence" data-public-fact="core-refinement"><h3>Checked core workflow &middot; 10/10 conformant</h3><p>All 10 fixed cases passed product quality on first compile with 0 critical issues, rendered at mobile, tablet, and desktop with accessibility, DOM, log, and screenshot evidence, and completed 10/10 verified semantic corrections with 10 applied receipts. <a href="./proof-explorer/"><strong>Explore the retained evidence</strong></a> &middot; <a href="https://github.com/nxrobins/viewspec/blob/main/conformance/refinement/gate-status-v1.json" target="_blank" rel="noopener">Eight-gate result</a> &middot; <a href="https://github.com/nxrobins/viewspec/blob/main/conformance/refinement/scorecard-v2.json" target="_blank" rel="noopener">Scorecard</a> &middot; <a href="https://github.com/nxrobins/viewspec/blob/main/conformance/refinement/correction-proof-v1.json" target="_blank" rel="noopener">Correction proof</a>. Fixed-corpus evidence is not certification of arbitrary briefs or host apps.</p></div>
       <div class="integration-proofs" aria-labelledby="integration-proofs-title">
         <div class="integration-proofs-head">
           <span class="kicker"><span class="n">/</span> exact-versioned proof integrations</span>
@@ -2584,7 +2265,7 @@ body.inspect #viewspec-artifact-slot [data-ir-id]::after{ content:attr(data-ir-i
             <div class="pcard-h"><span class="ok"></span><span class="tt"><a href="https://github.com/chenglou/freerange" target="_blank" rel="noopener">Freerange</a> numeric proof</span></div>
             <div class="pcard-b">
               <p><code>@chenglou/freerange@0.0.1</code> binds every eligible state-operation occurrence to the emitted state contract, exact generated helpers, 100% function analysis, and runtime call sites.</p>
-              <code class="integration-proof-command">viewspec prove-app --app viewspec.app.json --target react-tailwind-app --install --freerange --json</code>
+              <code class="integration-proof-command">viewspec prove viewspec.app.json --target react-tailwind-app --install --freerange --json</code>
               <p class="integration-proof-meta">Requires a user-installed stable Bun 1.x on PATH. ViewSpec never installs Bun.</p>
               <p>It does not analyze CSS, prove rendered geometry, certify arbitrary math, or certify arbitrary host apps.</p>
             </div>
@@ -2593,103 +2274,44 @@ body.inspect #viewspec-artifact-slot [data-ir-id]::after{ content:attr(data-ir-i
             <div class="pcard-h"><span class="ok"></span><span class="tt"><a href="https://github.com/chenglou/pretext" target="_blank" rel="noopener">Pretext</a> text proof</span></div>
             <div class="pcard-b">
               <p><code>@chenglou/pretext@0.0.8</code> preserves native DOM semantics, independently inventories every eligible text surface per route and viewport, and checks native-DOM versus Pretext line count and overflow with named <code>Arial, sans-serif</code>.</p>
-              <code class="integration-proof-command">viewspec prove-app --app viewspec.app.json --target react-tailwind-app --install --pretext --json</code>
+              <code class="integration-proof-command">viewspec prove viewspec.app.json --target react-tailwind-app --install --pretext --json</code>
               <p class="integration-proof-meta">Runs at 390&times;844, 768&times;1024, and 1440&times;1000 in Chromium. No Bun required.</p>
               <p>It is not general typography proof, canvas-rendering proof, pixel-perfect visual regression, accessibility certification, or arbitrary-host certification.</p>
             </div>
           </article>
         </div>
-        <p class="integration-proof-compose"><b>Compose the proofs:</b> <code>viewspec prove-app --app viewspec.app.json --target react-tailwind-app --install --freerange --pretext --json</code> runs both independently reported analyses and does not broaden either guarantee. Dedicated hosted E2E is configured to cover healthy proofs plus division, bounds, font, wrapping, and overflow mutation rejection on relevant changes, weekly, and by manual dispatch; this does not claim that a hosted run has completed.</p>
+        <p class="integration-proof-compose"><b>Compose the proofs:</b> <code>viewspec prove viewspec.app.json --target react-tailwind-app --install --freerange --pretext --json</code> runs both independently reported analyses and does not broaden either guarantee. A dedicated CI workflow is configured to cover healthy proofs plus division, bounds, font, wrapping, and overflow mutation rejection on relevant changes, weekly, and by manual dispatch; this does not claim that a CI run has completed.</p>
       </div>
     </section>
 
-    <!-- ================= PRICING + CTA ================= -->
-    <section id="pricing" class="pricing-section reveal-on">
-      <div class="sec-head">
-        <span class="kicker"><span class="n">/</span> pricing</span>
-        <h2>Start local. Add the hosted compiler when teams need it.</h2>
-        <p class="lead">The free SDK stays offline and deterministic. Hosted plans add shared compilation capacity, organization controls, and support around the same proof pipeline.</p>
-      </div>
-      <div class="pricing-grid" id="pricing-grid" aria-label="ViewSpec pricing plans">
-        <article class="pricing-plan">
-          <span class="plan-kicker">Free</span>
-          <h3>Free local SDK</h3>
-          <div class="price">$0 <small>/ forever</small></div>
-          <p>Build, compile, and prove ViewSpec artifacts locally without an account.</p>
-          <ul class="pricing-list">
-            <li>Unlimited local compile runs</li>
-            <li>HTML and React emitters</li>
-            <li>Proof bundle and shell checks</li>
-            <li>500 hosted compile calls/day trial</li>
-          </ul>
-        </article>
-        <article class="pricing-plan featured">
-          <span class="plan-kicker">Pro</span>
-          <h3>Pro hosted compiler</h3>
-          <div class="price">$149 <small>/ month</small></div>
-          <p>Hosted compile API for production agent workflows and shared team demos.</p>
-          <ul class="pricing-list">
-            <li>10,000 hosted compile calls/day</li>
-            <li>Level 2 derivation and DESIGN.md context</li>
-            <li>Up to 5 custom motifs per compile</li>
-            <li>HTML, React, SwiftUI, and Flutter artifacts</li>
-            <li>Signed team usage receipts</li>
-            <li>Email support</li>
-          </ul>
-        </article>
-        <article class="pricing-plan">
-          <span class="plan-kicker">Enterprise</span>
-          <h3>Enterprise support</h3>
-          <div class="price">Custom</div>
-          <p>Scale ViewSpec across internal agent products with support and controls.</p>
-          <ul class="pricing-list">
-            <li>Custom compile volume</li>
-            <li>Organization sharing and policy gates</li>
-            <li>Private deployment support</li>
-            <li>Launch and migration help</li>
-          </ul>
-        </article>
-      </div>
-      <p class="pricing-note">Pricing is intentionally simple: the compiler remains useful locally, while hosted capacity adds API volume, richer derivation, custom motifs, portable artifacts, receipts, and support.</p>
+    <!-- ================= START ================= -->
+    <section id="start" class="reveal-on">
       <div class="cta">
         <h2>Compile your first interface in a minute.</h2>
-        <p class="lead">No account, no network, no LLM key. Install the SDK, write intent, prove the output.</p>
-      <div class="cta-row">
-        <span class="cmd mono"><span class="pr">$</span> viewspec prove --intent viewspec.intent.json --target react-tailwind-tsx --install</span>
-        <a class="ghost mono" href="https://github.com/nxrobins/viewspec/blob/main/docs/getting-started.md" target="_blank" rel="noopener" style="color:var(--amber)">read the docs &#8594;</a>
-        <a class="ghost mono" href="./proof-bundle/" style="color:var(--amber)">Try the one-minute proof &#8594;</a>
-      <div class="pricing-actions" id="pricing-actions"><a class="pact primary" href="https://buy.stripe.com/6oU4gA6PqcM9afq6gq2ZO00" data-config-link="pro" target="_blank" rel="noopener">Get Pro</a><a class="pact" href="mailto:hello@viewspec.dev?subject=ViewSpec%20Enterprise" data-config-link="enterprise" target="_blank" rel="noopener">Talk to us</a><button type="button" class="pact" data-copy-text="python -m pip install --pre viewspec" aria-label="Copy ViewSpec beta install command">python -m pip install --pre viewspec</button><button type="button" class="pact" data-copy-text="python -m pip install --pre viewspec" aria-label="Copy ViewSpec beta install command">copy install</button></div></div></div>
+        <p class="lead">No account, no network, no LLM key. Install the SDK, write intent, prove the output. Free and MIT licensed.</p>
+        <div class="cta-row">
+          <span class="cmd mono"><span class="pr">$</span> viewspec prove --out .viewspec-proof</span>
+          <a class="ghost mono" href="https://github.com/nxrobins/viewspec/blob/main/docs/getting-started.md" target="_blank" rel="noopener" style="color:var(--amber)">read the docs &#8594;</a>
+          <a class="ghost mono" href="./proof-bundle/" style="color:var(--amber)">Try the one-minute proof &#8594;</a>
+        </div>
+        <div class="cta-actions" id="cta-actions">
+          <a class="pact primary" href="https://github.com/nxrobins/viewspec" target="_blank" rel="noopener">View on GitHub</a>
+          <button type="button" class="pact" data-copy-text="python -m pip install --pre viewspec" aria-label="Copy ViewSpec beta install command">copy install</button>
+        </div>
+      </div>
     </section>
   </div>
 
   <footer>
     <div class="foot-in">
-      <span>viewspec &middot; agent&#8209;native UI compiler</span>
-      <span class="foot-links"><a href="./proof-explorer/">Proof explorer</a> &middot; <a href="https://github.com/nxrobins/viewspec/blob/main/conformance/refinement/gate-status-v1.json" target="_blank" rel="noopener">Core evidence</a> &middot; <a href="./appbundle-state-ir/">State IR</a> &middot; <a href="./proof-bundle/">Proof bundle</a> &middot; <a href="./custom-motifs/">Motifs</a> &middot; <a href="./openapi.json">OpenAPI</a></span>
+      <span>viewspec &middot; agent&#8209;native UI compiler &middot; MIT</span>
+      <span class="foot-links"><a href="./appbundle-state-ir/">State IR</a> &middot; <a href="./proof-bundle/">Proof bundle</a> &middot; <a href="./custom-motifs/">Motifs</a> &middot; <a href="https://github.com/nxrobins/viewspec" target="_blank" rel="noopener">GitHub</a></span>
       <span id="footState">profile: aesthetic.calm_ops &middot; network: none</span>
     </div>
   </footer>
 </div>
 
 <div class="hud" id="hud"><span class="lbl">inspecting</span><span class="addr" id="hudAddr">&mdash;</span></div>
-<script type="module">
-
-import { LANDING_CONFIG, hasProductionCommerceConfig } from './shared/landing-config.js?v=20260505-launch'
-
-const links = {
-  pro: LANDING_CONFIG.proStripeUrl,
-  enterprise: LANDING_CONFIG.enterpriseUrl,
-}
-
-document.querySelectorAll('[data-config-link]').forEach((link) => {
-  const key = link.getAttribute('data-config-link')
-  link.href = links[key] || '#pricing'
-  if (!hasProductionCommerceConfig()) {
-    link.title = 'Production Stripe/API-key URL must be configured before launch.'
-  }
-})
-
-</script>
 <script>
 window.__VIEWSPEC__ = JSON.parse(document.getElementById("viewspec-real-data").textContent);
 
@@ -2702,7 +2324,7 @@ window.__VIEWSPEC__ = JSON.parse(document.getElementById("viewspec-real-data").t
     {k:"provenance",  ab:"PV", name:"Traceable provenance", desc:"Every node maps back through binding, address, and raw data."},
     {k:"determinism", ab:"DT", name:"Deterministic render", desc:"No LLM at render. Same intent compiles to identical bytes."},
     {k:"no_network",  ab:"NW", name:"Provable no-network",  desc:"The check gate certifies zero cross-origin requests."},
-    {k:"surfaces",    ab:"SF", name:"One intent, N surfaces", desc:"Emits HTML, React, SwiftUI, and Flutter with verified build identity."}
+    {k:"surfaces",    ab:"SF", name:"One intent, N surfaces", desc:"Emits static HTML and React from one semantic source."}
   ];
   var PROFILES={
     calm_ops:{density:"regular",emphasis:"medium",columns:3},
@@ -2715,10 +2337,10 @@ window.__VIEWSPEC__ = JSON.parse(document.getElementById("viewspec-real-data").t
     warm_organic:{density:"airy",emphasis:"medium",columns:3}
   };
   var METRICS=[
-    {ml:"Compiles / day", mv:"12,480", seed:0.2},
-    {ml:"runtime LLM",    mv:"none",   seed:1.1},
-    {ml:"Proof pass rate",mv:"100%",   seed:2.0},
-    {ml:"Surfaces",       mv:"4",      seed:0.7}
+    {ml:"Monthly recurring", mv:"$48,210", seed:0.2},
+    {ml:"Active seats",      mv:"1,284",   seed:1.1},
+    {ml:"Net retention",     mv:"112%",    seed:2.0},
+    {ml:"Churn",             mv:"0.9%",    seed:0.7}
   ];
   var INTENT={
     substrate:{ id:"card", root_id:"card",
