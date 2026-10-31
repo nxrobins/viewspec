@@ -110,6 +110,15 @@ def is_replaceable_output_dir(output_dir: Path) -> bool:
     )
 
 
+def input_inside_output(output_dir: Path, root: Path, *inputs: str | Path | None) -> str | Path | None:
+    """Return the first input that replacing ``output_dir`` would delete; relative inputs start at ``root``."""
+    replaced = output_dir.resolve()
+    for item in inputs:
+        if item is not None and replaced in resolve_local_path(item, cwd=root, allow_outside_cwd=True).parents:
+            return item
+    return None
+
+
 def write_output_sentinel(output_dir: Path) -> None:
     """Mark the freshly created ``output_dir`` as a ViewSpec proof directory.
 

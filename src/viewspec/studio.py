@@ -96,10 +96,11 @@ class Studio:
         self._state = Path(tempfile.mkdtemp(prefix="viewspec-studio-"))
         self._stop = threading.Event()
         self._serving = False
+        self._built_stamp: tuple[tuple[int, int] | None, ...] = ()
         self._watcher = threading.Thread(target=self._watch, daemon=True)
         try:
             self._server = ThreadingHTTPServer(("127.0.0.1", port), _handler_for(self))
-        except OSError as exc:
+        except (OSError, OverflowError) as exc:
             shutil.rmtree(self._state, ignore_errors=True)
             raise StudioError(
                 "STUDIO_PORT_UNAVAILABLE",
@@ -151,6 +152,8 @@ class Studio:
 
     def rebuild(self) -> None:
         """Compile the source; a failed build keeps the last good one on screen with its errors."""
+        # Stamped before compiling, so the watcher sees an edit made during this build.
+        self._built_stamp = self._stamp()
         output = self._state / f"build-{self.generation + 1}"
         errors = _compile_preview(self.source, output, self.design)
         previous = output if errors else self.build_dir
@@ -162,11 +165,8 @@ class Studio:
             shutil.rmtree(previous, ignore_errors=True)
 
     def _watch(self) -> None:
-        stamp = self._stamp()
         while not self._stop.wait(STUDIO_WATCH_SECONDS):
-            current = self._stamp()
-            if current != stamp:
-                stamp = current
+            if self._stamp() != self._built_stamp:
                 self.rebuild()
 
     def _stamp(self) -> tuple[tuple[int, int] | None, ...]:
@@ -218,7 +218,10 @@ def _file_stamp(path: Path) -> tuple[int, int] | None:
 def _resolve_inside(root: Path, request_path: str) -> Path | None:
     """Map a URL path to a regular file inside ``root``; anything else is not found."""
     root = root.resolve()
-    candidate = (root / unquote(urlsplit(request_path).path).lstrip("/")).resolve()
+    path = unquote(urlsplit(request_path).path).lstrip("/")
+    if "\x00" in path:
+        return None
+    candidate = (root / path).resolve()
     if candidate != root and root not in candidate.parents:
         return None
     if candidate.is_dir():

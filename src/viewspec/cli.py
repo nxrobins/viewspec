@@ -12,7 +12,7 @@ from pathlib import Path
 from typing import Any
 
 from viewspec._version import __version__
-from viewspec.api import check, source_kind
+from viewspec.api import INIT_DEFAULT_OUT, check, source_kind
 from viewspec.api import prove as prove_source
 from viewspec.app_bundle import (
     APP_BUNDLE_ALLOWED_KINDS,
@@ -50,7 +50,6 @@ from viewspec.studio import STUDIO_DEFAULT_PORT, Studio, open_studio
 from viewspec.types import IntentBundle
 from viewspec.verification import VerificationPlan
 
-INIT_DEFAULT_OUT = {"intent": "viewspec.intent.json", "app": "viewspec.app.json", "design": "DESIGN.md"}
 COMPILE_TARGETS = (*INTENT_COMPILE_TARGETS, APP_SHELL_TARGET, REACT_APP_TARGET)
 PROVE_TARGETS = (*INTENT_COMPILE_TARGETS, REACT_APP_TARGET)
 
@@ -127,7 +126,7 @@ def _cli_failure(exc: Exception) -> _CliFailure:
     if isinstance(exc, (FileNotFoundError, ValueError, TypeError, json.JSONDecodeError)):
         exit_code, text = 2, f"error: {exc}"
     else:
-        exit_code, text = 1, f"internal error: {exc}"
+        exit_code, text = 1, f"internal error: {_failure_message(exc)}"
     return _CliFailure(
         exit_code,
         text,

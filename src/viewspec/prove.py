@@ -31,6 +31,7 @@ from viewspec.local_tools import (
     resolve_local_path,
 )
 from viewspec.local_tools_io import (
+    input_inside_output,
     is_replaceable_output_dir,
     portable_report_paths,
     report_directory,
@@ -118,7 +119,7 @@ def prove(
                 f"Unsupported starter kind: {kind}",
                 f"Use one of: {', '.join(STARTER_INTENT_KINDS)}.",
             )
-        _prepare_output_dir(output_dir, root=root, force=force, raw_out=out_dir)
+        _prepare_output_dir(output_dir, root=root, force=force, raw_out=out_dir, inputs=(intent_path, design_path))
         prepared = _time_phase(
             timings,
             "prepare",
@@ -284,7 +285,9 @@ def _resolve_output(out_dir: str | Path, root: Path) -> Path:
     return resolve_local_path(out_dir, cwd=root, allow_outside_cwd=True)
 
 
-def _prepare_output_dir(output_dir: Path, *, root: Path, force: bool, raw_out: str | Path) -> None:
+def _prepare_output_dir(
+    output_dir: Path, *, root: Path, force: bool, raw_out: str | Path, inputs: tuple[str | Path | None, ...]
+) -> None:
     _assert_safe_output(output_dir, root=root, raw_out=raw_out)
     if output_dir.exists():
         if not force:
@@ -304,6 +307,13 @@ def _prepare_output_dir(output_dir: Path, *, root: Path, force: bool, raw_out: s
                 "PROVE_OUTPUT_UNRECOGNIZED",
                 f"Refusing to replace a directory that ViewSpec did not write: {output_dir}",
                 "Use --force only on an empty directory or a previous prove output; remove other directories yourself.",
+            )
+        held = input_inside_output(output_dir, root, *inputs)
+        if held is not None:
+            raise ProveFailure(
+                "PROVE_OUTPUT_UNSAFE",
+                f"Refusing to replace a directory that holds the input {held}: {output_dir}",
+                "Choose an output directory that does not contain the source or DESIGN.md.",
             )
         shutil.rmtree(output_dir)
     output_dir.mkdir(parents=True, exist_ok=False)
@@ -561,7 +571,7 @@ def proof_report_hash(report: Mapping[str, Any]) -> str:
     the same for the in-memory report and for the document read back from disk, from any working
     directory.  To recompute it from a file: load ``proof_report.json``, delete ``timings_ms``,
     re-serialize with ``json.dumps(report, indent=2, sort_keys=True) + "\\n"`` and hash the UTF-8
-    bytes.  ``PROOF.md`` and ``support_bundle.json`` record this value as the proof report hash,
+    bytes.  ``PROOF.md`` and ``support_bundle.json`` record this value as the proof report hash.
 
     Removing ``timings_ms`` makes the hash independent of when the report was written only for
     the source-artifact targets.  Two proofs of one input share the hash only when the reports

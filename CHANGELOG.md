@@ -21,8 +21,9 @@ This is a breaking release; `docs/compatibility.md` allows that before 1.0.
   background preview and returns its URL. The server ends promptly on SIGTERM or SIGINT and removes
   the preview's build directory.
 - `viewspec.check()`, and the `viewspec.AppBundle` class with `load()`, `from_json()`, and `to_json()`.
-- `viewspec check` on a compiled AppBundle directory checks every screen. It used to fail, because
-  the provenance manifests live one level down.
+- `viewspec check` on a compiled AppBundle directory checks every screen and compares the files
+  above the screens with the hashes in their manifest. It used to fail, because the provenance
+  manifests live one level down.
 - Golden `artifact_hash`, `semantic_digest` and file hashes for every conformance corpus case and
   local target in `tests/fixtures/corpus_goldens.json`, checked on Linux and Windows in CI; the
   React app manifest writes POSIX paths on every platform.
@@ -154,6 +155,8 @@ This is a breaking release; `docs/compatibility.md` allows that before 1.0.
 
 ### Fixed
 
+- `--force` refuses an output directory that holds the source or DESIGN.md. It used to delete them
+  along with the old output.
 - The landing page's section headings render at their designed 25px to 40px. A missing space around
   `+` in `calc()` made every `h2` inherit the 16px body size. A static check and a browser test now
   cover this. The `.sub` and `.lead` rules failed the same way; they are removed and stay at 16px.

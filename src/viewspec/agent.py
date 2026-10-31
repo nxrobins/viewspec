@@ -727,7 +727,7 @@ def _coerce_payload(payload: str | dict[str, Any]) -> tuple[dict[str, Any] | Non
                     "Return one strict JSON object with substrate and view_spec.",
                 )
             ]
-        except ValueError as exc:
+        except (ValueError, RecursionError) as exc:
             return None, [
                 AgentValidationIssue(
                     "error",

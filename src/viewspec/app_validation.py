@@ -1432,7 +1432,7 @@ def validate_app_text(text: str, *, compile_check: bool = True) -> dict[str, Any
         return _validation_payload(None, issues, compile_check=compile_check, raw_bytes=raw_bytes)
     try:
         payload = json.loads(text, parse_constant=reject_json_constant)
-    except ValueError as exc:
+    except (ValueError, RecursionError) as exc:
         issues.append(
             _issue(
                 "APP_INVALID_JSON",

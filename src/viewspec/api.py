@@ -19,10 +19,13 @@ from viewspec.app_bundle import (
     prove_app,
     validate_app_file,
 )
+from viewspec.app_react import REACT_APP_MANIFEST
+from viewspec.app_reports import APP_BUNDLE_DEFAULT_REPORT
+from viewspec.app_shell import APP_SHELL_INDEX, APP_SHELL_MANIFEST
 from viewspec.compiler import compile as compile_intent
 from viewspec.design_md import DesignSystemContext
 from viewspec.intent_tools import intent_error_payload, validate_intent_file
-from viewspec.local_tools import check_artifact_dir
+from viewspec.local_tools import check_artifact_dir, file_hash, resolve_cwd
 from viewspec.local_verify import verify_local_artifact
 from viewspec.motif_plugins import MotifPlugin, MotifRegistry
 from viewspec.prove import PROVE_DEFAULT_OUT
@@ -30,6 +33,7 @@ from viewspec.prove import prove as prove_intent
 from viewspec.types import ASTBundle, IntentBundle
 from viewspec.verification import VerificationPlan
 
+INIT_DEFAULT_OUT = {"intent": "viewspec.intent.json", "app": "viewspec.app.json", "design": "DESIGN.md"}
 VERIFY_DEFAULT_OUT = ".viewspec-verification"
 
 
@@ -43,7 +47,7 @@ def source_kind(path: str | Path) -> str:
     try:
         with open(path, "rb") as handle:
             payload = json.loads(handle.read(APP_BUNDLE_MAX_BYTES + 1))
-    except (OSError, ValueError):
+    except (OSError, ValueError, RecursionError):
         return "app_bundle" if is_app_name else "intent_bundle"
     if not isinstance(payload, dict) or {"substrate", "view_spec"} & payload.keys():
         return "intent_bundle"
@@ -64,7 +68,7 @@ def compile(
     design: DesignSystemContext | str | os.PathLike[str] | None = None,
     *,
     out_dir: str | Path | None = None,
-    target: str = APP_SHELL_TARGET,
+    target: str | None = None,
     strict_design: bool = False,
     force: bool = False,
     motif_plugins: tuple[MotifPlugin, ...] = (),
@@ -73,10 +77,13 @@ def compile(
     """Compile a bundle.
 
     An ``IntentBundle`` compiles in memory to an ``ASTBundle``, with ``design`` read as documented
-    on :func:`viewspec.compiler.compile`. An ``AppBundle`` is a multi-file build: it writes to
-    ``out_dir``, reads ``design`` as a DESIGN.md path, and returns the build report.
+    on :func:`viewspec.compiler.compile`; ``out_dir``, ``target`` and ``force`` raise ``ValueError``
+    because nothing is written. An ``AppBundle`` is a multi-file build: it writes to ``out_dir``,
+    reads ``design`` as a DESIGN.md path, and returns the build report.
     """
     if not isinstance(bundle, AppBundle):
+        if out_dir is not None or target is not None or force:
+            raise ValueError("An IntentBundle compiles in memory; out_dir, target and force apply to an AppBundle.")
         return compile_intent(
             bundle,
             design,
@@ -97,16 +104,17 @@ def compile(
             design_path=Path(design).resolve() if design is not None else None,
             strict_design=strict_design,
             force=force,
-            target=target,
+            target=target or APP_SHELL_TARGET,
         )
 
 
 def check(path: str | Path, *, compile_check: bool = True) -> dict[str, Any]:
     """Run the fast local checks on a source file or a compiled artifact directory.
 
-    A directory gets the provenance and security checks, screen by screen for a compiled AppBundle;
-    a JSON file gets the contract checks for its bundle kind. ``report["ok"]`` carries the verdict;
-    read failures are reported, not raised.
+    A directory gets the provenance and security checks. A compiled AppBundle gets them screen by
+    screen, and its other files are compared with the hashes in its manifest. A JSON file gets the
+    contract checks for its bundle kind. ``report["ok"]`` carries the verdict; read failures are
+    reported, not raised.
     """
     target = Path(path)
     if target.is_dir():
@@ -133,14 +141,21 @@ def prove(
     freerange: bool = False,
     pretext: bool = False,
     plan: VerificationPlan | None = None,
+    cwd: str | Path | None = None,
 ) -> dict[str, Any]:
     """Prove a source or a compiled artifact and return the report.
 
     With no ``source``, proves a starter of ``kind``. An IntentBundle or AppBundle file compiles
     and proves that bundle; ``with_shell``, ``freerange`` and ``pretext`` apply to AppBundles. A
     directory verifies an already compiled React Tailwind artifact across the canonical viewports,
-    following ``plan``.
+    following ``plan``. ``cwd`` is the workspace: relative paths start there, and ``force`` will not
+    replace it. It defaults to the process working directory.
     """
+    if cwd is not None:
+        root = resolve_cwd(cwd)
+        source = root / source if source is not None else None
+        out_dir = root / (out_dir or default_proof_dir(source))
+        report_out = root / report_out if report_out is not None else None
     output = out_dir or default_proof_dir(source)
     is_app = source is not None and not Path(source).is_dir() and source_kind(source) == "app_bundle"
     if not is_app and (with_shell or freerange or pretext):
@@ -171,6 +186,7 @@ def prove(
             install=install,
             freerange=freerange,
             pretext=pretext,
+            cwd=cwd,
         )
     return prove_intent(
         intent_path=source,
@@ -182,6 +198,7 @@ def prove(
         install=install,
         force=force,
         report_out=report_out,
+        cwd=cwd,
     )
 
 
@@ -190,9 +207,34 @@ def _check_app_artifact(root: Path) -> dict[str, Any]:
     screens = {path.parent.name: check_artifact_dir(path) for path in sorted(root.glob("screens/*/artifact"))}
     errors = [f"{screen}: {error}" for screen, report in screens.items() for error in report["errors"]]
     warnings = [f"{screen}: {warning}" for screen, report in screens.items() for warning in report["warnings"]]
-    if not screens:
+    if screens:
+        errors.extend(_app_file_errors(root))
+    else:
         errors.append("no compiled screens under screens/*/artifact")
     return {"ok": not errors, "errors": errors, "warnings": warnings, "screens": screens}
+
+
+def _app_file_errors(root: Path) -> list[str]:
+    """Compare the files above the screens with the hashes the compile recorded for them."""
+    try:
+        if (root / APP_SHELL_MANIFEST).is_file():
+            shell = json.loads((root / APP_SHELL_MANIFEST).read_text(encoding="utf-8"))
+            recorded = [{"path": APP_SHELL_INDEX, "sha256": shell["shell_artifact_hash"]}]
+        elif (root / REACT_APP_MANIFEST).is_file():
+            react = json.loads((root / REACT_APP_MANIFEST).read_text(encoding="utf-8"))
+            views = [{"path": view["tsx"], "sha256": view["artifact_hash"]} for view in react["screen_artifacts"]]
+            recorded = [*react["files"], *views]
+        elif (root / APP_BUNDLE_DEFAULT_REPORT).is_file():
+            return []  # A proof directory holds only the screens.
+        else:
+            return [f"missing {APP_SHELL_MANIFEST} or {REACT_APP_MANIFEST}"]
+        return [
+            f"{entry['path']}: does not match the hash in its manifest"
+            for entry in recorded
+            if file_hash(root / entry["path"]) != entry["sha256"]
+        ]
+    except (OSError, ValueError, KeyError, TypeError) as exc:
+        return [f"could not verify the compiled files: {exc!r}"]
 
 
 def _check_intent(path: Path, compile_check: bool) -> dict[str, Any]:
@@ -247,4 +289,4 @@ def _app_read_failure(code: str, message: str, suggestion: str, compile_check: b
     }
 
 
-__all__ = ["VERIFY_DEFAULT_OUT", "check", "compile", "default_proof_dir", "prove", "source_kind"]
+__all__ = ["INIT_DEFAULT_OUT", "VERIFY_DEFAULT_OUT", "check", "compile", "default_proof_dir", "prove", "source_kind"]

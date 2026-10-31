@@ -418,6 +418,6 @@ def test_json_names_an_exception_without_text_by_its_type(tmp_path, capsys, monk
     assert payload["summary"] == "RuntimeError"
     assert payload["errors"][0]["message"] == "RuntimeError"
 
-    # Human mode is unchanged.
+    # Human mode names it the same way.
     assert cli_main(["init", "design", "--out", str(tmp_path / "D.md")]) == 1
-    assert capsys.readouterr().err == "internal error: \n"
+    assert capsys.readouterr().err == "internal error: RuntimeError\n"

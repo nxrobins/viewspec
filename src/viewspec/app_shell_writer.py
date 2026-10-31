@@ -51,7 +51,13 @@ def write_static_app_shell(
     build_manifest: Callable[..., dict[str, Any]],
 ) -> dict[str, Any]:
     if clean_output:
-        _prepare_app_shell_output_dir(prepared.output_dir, root=root, force=force, raw_out=raw_out)
+        _prepare_app_shell_output_dir(
+            prepared.output_dir,
+            root=root,
+            force=force,
+            raw_out=raw_out,
+            inputs=(prepared.app_path, prepared.design_path),
+        )
     _assert_under_proof_root(prepared.output_dir, prepared.output_dir)
     binding_fields = _resource_binding_report_fields(payload, resource_binding_report)
     shell_parts = _build_static_app_shell(payload, screen_reports, resource_binding_report=resource_binding_report)

@@ -288,7 +288,7 @@ def compile_intent_bundle_file_tool(
             return tool_error_response(
                 "COMPILE_FAILED",
                 "IntentBundle validation failed.",
-                "Regenerate viewspec.intent.json using correction_prompt, then retry compile_intent_bundle_file.",
+                "Regenerate viewspec.intent.json using correction_prompt, then retry compile.",
                 errors=[
                     {
                         "code": issue["code"],
@@ -380,7 +380,7 @@ def compile_intent_bundle_file_tool(
             return tool_error_response(
                 "CHECK_FAILED",
                 "Compiled IntentBundle artifact failed viewspec check.",
-                "Fix the reported artifact issue and retry compile_intent_bundle_file.",
+                "Fix the reported artifact issue and retry compile.",
                 paths=paths,
                 errors=[
                     check_issue_entry(

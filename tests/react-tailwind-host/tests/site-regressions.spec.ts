@@ -1,3 +1,7 @@
+import { execFileSync, spawn } from "node:child_process";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { expect, test, type Page } from "@playwright/test";
 
 const publicPages = [
@@ -268,4 +272,42 @@ test("provenance inspector locks a verified semantic chain", async ({ page }) =>
   await expect(page.locator("#lock-state-text")).toHaveText("Locked");
   await expect(page.locator("#inspector-body")).toContainText("Provenance verified:");
   expect(failures).toEqual([]);
+});
+
+test("studio reloads on an edit and shows a broken build over the last good page", async ({ page }) => {
+  const port = 4179;
+  const url = `http://127.0.0.1:${port}/`;
+  const workspace = mkdtempSync(join(tmpdir(), "viewspec-live-reload-"));
+  const source = join(workspace, "viewspec.app.json");
+  execFileSync("python", ["-m", "viewspec.cli", "init", "app", "--template", "react-app", "--out", source]);
+  const studio = spawn("python", ["-m", "viewspec.cli", "studio", source, "--no-open", "--port", String(port)], {
+    stdio: "ignore",
+  });
+
+  try {
+    await expect
+      .poll(() => fetch(url).then((response) => response.ok, () => false), { timeout: 20_000 })
+      .toBe(true);
+    // The page reloads only on a change from a generation it has already seen.
+    const firstPoll = page.waitForResponse("**/__viewspec/status");
+    await page.goto(url);
+    await firstPoll;
+    await expect(page).toHaveTitle(/Incident Console/);
+
+    const original = readFileSync(source, "utf8");
+    writeFileSync(source, original.replace("Incident Console", "Edited Console"));
+    await expect(page).toHaveTitle(/Edited Console/, { timeout: 10_000 });
+
+    writeFileSync(source, "{ broken");
+    const banner = page.locator("body > pre");
+    await expect(banner).toContainText("APP_INVALID_JSON", { timeout: 10_000 });
+    await expect(page).toHaveTitle(/Edited Console/);
+
+    writeFileSync(source, original);
+    await expect(page).toHaveTitle(/Incident Console/, { timeout: 10_000 });
+    await expect(banner).toHaveCount(0);
+  } finally {
+    studio.kill();
+    rmSync(workspace, { recursive: true, force: true });
+  }
 });

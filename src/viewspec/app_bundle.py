@@ -136,7 +136,8 @@ class AppBundleError(ValueError):
 class AppBundle:
     """A validated AppBundle: the JSON document a ``viewspec.app.json`` file holds."""
 
-    payload: Mapping[str, Any]
+    # Canonical JSON text, so a bundle is immutable, hashable, and equal to the same document.
+    document: str
 
     @classmethod
     def from_json(cls, payload: Mapping[str, Any] | str) -> AppBundle:
@@ -144,14 +145,14 @@ class AppBundle:
         report = validate_app_text(text)
         if not report["ok"]:
             raise AppBundleError(report["issues"])
-        return cls(json.loads(text))
+        return cls(json.dumps(json.loads(text), sort_keys=True))
 
     @classmethod
     def load(cls, path: str | Path) -> AppBundle:
         return cls.from_json(Path(path).read_text(encoding="utf-8"))
 
     def to_json(self) -> dict[str, Any]:
-        return json.loads(json.dumps(self.payload))
+        return json.loads(self.document)
 
 
 __all__ = [

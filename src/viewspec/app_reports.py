@@ -478,8 +478,7 @@ def app_proof_report_hash(report: Mapping[str, Any]) -> str:
     ``timings_ms`` section removed, serialized as the file is written (``indent=2``, sorted keys,
     one trailing newline, UTF-8).  It is the same for the in-memory report and for the document
     read back from disk, from any working directory.  ``APP_PROOF.md`` and
-    ``app_support_bundle.json`` record it as the proof report hash, and the ``prove_app`` tool
-    exposes it as ``proof_identity.proof_report_hash``.
+    ``app_support_bundle.json`` record it as the proof report hash.
 
     Removing ``timings_ms`` makes the hash independent of when the report was written only for
     the ``html-tailwind`` target.  Two app proofs of one AppBundle share the hash only when the

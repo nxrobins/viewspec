@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import tempfile
 import threading
 import time
 import urllib.error
@@ -12,6 +13,7 @@ from pathlib import Path
 
 import pytest
 
+import viewspec.studio as studio_module
 from viewspec.app_bundle import starter_app_bundle
 from viewspec.cli import main as cli_main
 from viewspec.intent_tools import starter_intent_payload
@@ -130,6 +132,10 @@ def test_nothing_outside_the_build_is_reachable(running, path):
     assert _get(f"{running.url}{path}")[0] == 404
 
 
+def test_a_nul_byte_in_the_path_is_not_found(running):
+    assert _get(f"{running.url}%00")[0] == 404
+
+
 def test_refuses_foreign_host_headers(running):
     assert _get(running.url, host="evil.example")[0] == 403
     assert _get(running.url, host=f"localhost:{running.port}")[0] == 200
@@ -156,6 +162,37 @@ def test_a_taken_port_is_a_coded_error(running):
     with pytest.raises(StudioError) as info:
         Studio(running.source, port=running.port)
     assert info.value.code == "STUDIO_PORT_UNAVAILABLE"
+
+
+@pytest.mark.parametrize("port", [-1, 70000])
+def test_an_out_of_range_port_is_a_coded_error_that_leaves_nothing_behind(tmp_path, monkeypatch, port):
+    source = _write_intent(tmp_path / "viewspec.intent.json")
+    scratch = tmp_path / "scratch"
+    scratch.mkdir()
+    monkeypatch.setattr(tempfile, "tempdir", str(scratch))
+
+    with pytest.raises(StudioError) as info:
+        Studio(source, port=port)
+
+    assert info.value.code == "STUDIO_PORT_UNAVAILABLE"
+    assert list(scratch.iterdir()) == []
+
+
+def test_an_edit_during_the_first_build_is_picked_up(tmp_path, monkeypatch):
+    source = _write_intent(tmp_path / "viewspec.intent.json", "First")
+    compile_preview = studio_module._compile_preview
+    builds: list[list[str]] = []
+
+    def edit_after_the_first_build(*args: object) -> list[str]:
+        builds.append(compile_preview(*args))
+        if len(builds) == 1:
+            _write_intent(source, "Second")
+        return builds[-1]
+
+    monkeypatch.setattr(studio_module, "_compile_preview", edit_after_the_first_build)
+
+    with Studio(source, port=0) as studio:
+        _wait_for(lambda: studio.generation == 2)
 
 
 def test_source_discovery(tmp_path):

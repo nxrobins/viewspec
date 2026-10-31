@@ -125,6 +125,78 @@ def test_check_rejects_a_directory_with_no_compiled_screens(tmp_path):
     assert report["errors"] == ["no compiled screens under screens/*/artifact"]
 
 
+@pytest.mark.parametrize(
+    ("target", "edited"),
+    [
+        ("html-tailwind-app", "index.html"),
+        ("react-tailwind-app", "src/ViewSpecApp.tsx"),
+        ("react-tailwind-app", "src/screens/queue/ViewSpecView.tsx"),
+    ],
+)
+def test_check_catches_tampering_above_the_screens(app_path, tmp_path, target, edited):
+    out = tmp_path / "dist"
+    assert cli_main(["compile", str(app_path), "--out", str(out), "--target", target]) == 0
+
+    (out / edited).write_text("<script>alert(1)</script>", encoding="utf-8")
+
+    report = check(out)
+    assert report["ok"] is False
+    assert report["errors"] == [f"{edited}: does not match the hash in its manifest"]
+
+
+def test_check_fails_an_app_output_that_lost_its_manifest(app_path, tmp_path):
+    out = tmp_path / "dist"
+    assert cli_main(["compile", str(app_path), "--out", str(out)]) == 0
+    (out / "shell_manifest.json").unlink()
+
+    assert check(out)["errors"] == ["missing shell_manifest.json or viewspec_app_manifest.json"]
+
+
+def test_check_passes_an_app_proof_directory(app_path, tmp_path):
+    out = tmp_path / "proof"
+    assert prove(app_path, out_dir=out)["ok"] is True
+
+    assert check(out)["ok"] is True
+
+
+@pytest.mark.parametrize("name", ["deep.json", "deep.app.json"])
+def test_check_reports_json_too_deep_to_parse(tmp_path, name):
+    path = tmp_path / name
+    path.write_text("[" * 200_000, encoding="utf-8")
+
+    assert check(path)["ok"] is False
+
+
+def test_prove_resolves_relative_paths_against_cwd(intent_path, tmp_path, monkeypatch):
+    elsewhere = tmp_path / "elsewhere"
+    elsewhere.mkdir()
+    monkeypatch.chdir(elsewhere)
+
+    assert prove("viewspec.intent.json", cwd=tmp_path)["ok"] is True
+
+    assert (tmp_path / ".viewspec-proof" / "PROOF.md").is_file()
+    assert list(elsewhere.iterdir()) == []
+
+
+@pytest.mark.parametrize("option", [{"out_dir": "dist"}, {"target": "react-tsx"}, {"force": True}])
+def test_compile_refuses_file_options_for_an_intent_bundle(intent_path, option):
+    bundle = IntentBundle.from_json(json.loads(intent_path.read_text(encoding="utf-8")))
+
+    with pytest.raises(ValueError, match="in memory"):
+        compile(bundle, **option)
+
+
+def test_an_app_bundle_is_an_immutable_value(app_path):
+    bundle = AppBundle.load(app_path)
+
+    assert bundle == AppBundle.from_json(bundle.to_json())
+    assert len({bundle, AppBundle.load(app_path)}) == 1
+
+    edited = bundle.to_json()
+    edited["app"]["title"] = "Edited"
+    assert bundle.to_json()["app"]["title"] != "Edited"
+
+
 def test_prove_dispatches_on_the_source(intent_path, app_path, tmp_path, monkeypatch):
     calls: list[str] = []
     monkeypatch.setattr(api_module, "prove_intent", lambda **_: calls.append("intent") or {})

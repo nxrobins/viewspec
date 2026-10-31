@@ -202,7 +202,7 @@ def prove_app(
             )
         payload = materialize_resource_repeats(json.loads(app_text, parse_constant=reject_json_constant))
         _assert_report_under_output(report_path, output_dir)
-        _prepare_app_output_dir(output_dir, root=root, force=force, raw_out=out_dir)
+        _prepare_app_output_dir(output_dir, root=root, force=force, raw_out=out_dir, inputs=(source, design))
         prepared = PreparedAppProof(
             output_dir=output_dir,
             app_path=source,
@@ -429,7 +429,7 @@ def compile_app(
             diagnostics_path=output_dir / APP_SHELL_DIAGNOSTICS,
             index_path=output_dir / APP_SHELL_INDEX,
         )
-        _prepare_app_shell_output_dir(output_dir, root=root, force=force, raw_out=out_dir)
+        _prepare_app_shell_output_dir(output_dir, root=root, force=force, raw_out=out_dir, inputs=(source, design))
         prepared_proof = PreparedAppProof(
             output_dir=output_dir,
             app_path=source,

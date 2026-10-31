@@ -29,7 +29,6 @@ MCP_INSTALL_HINT = 'Install with: python -m pip install "viewspec[agents]"'
 # The module run_mcp_server imports. MCP SDK 2.x removed it, which is why the agents extra
 # caps mcp below 2.
 _MCP_SERVER_MODULE = "mcp.server.fastmcp"
-_INIT_DEFAULT_OUT = {"intent": "viewspec.intent.json", "app": "viewspec.app.json", "design": "DESIGN.md"}
 _SERVER_INSTRUCTIONS = (
     "ViewSpec compiles semantic JSON into checked UI. Edit viewspec.intent.json or viewspec.app.json, never "
     "the generated output. The loop is init, edit the source, check, compile, then prove. Every result "
@@ -110,7 +109,7 @@ class ViewSpecTools:
         (default dashboard) or an app kind for app (default internal_tool). template="react-app"
         writes the runnable AppBundle golden path.
         """
-        path = self._path(out or _INIT_DEFAULT_OUT[what])
+        path = self._path(out or api.INIT_DEFAULT_OUT[what])
         if what == "app":
             written = init_app_file(path, kind=kind or "internal_tool", force=force, template=template)
         elif what == "design":
@@ -208,6 +207,7 @@ class ViewSpecTools:
             with_shell=with_shell,
             freerange=freerange,
             pretext=pretext,
+            cwd=self.root,
         )
 
     @_reported("STUDIO_START_FAILED", "Fix the reported problem and retry.")
@@ -228,11 +228,14 @@ class ViewSpecTools:
         if stop:
             self.close()
             return tool_response(True, "Stopped the preview.", metadata=_metadata())
-        # A bad request must leave the running preview alone, so resolve everything before stopping it.
-        source_path = resolve_studio_source(self._source(source), cwd=self.root)
+        # A bad request must leave the running preview alone, so resolve everything and bind the new
+        # port before stopping it. Only asking for the running preview's own port has to stop it first.
+        source_path = self._path(resolve_studio_source(self._source(source), cwd=self.root), must_exist=True)
         design_path = self._source(design)
-        self.close()
+        if self._preview is not None and port == self._preview.port:
+            self.close()
         preview = Studio(source_path, cwd=self.root, design=design_path, port=port)
+        self.close()
         preview.start()
         self._preview = preview
         return tool_response(

@@ -9,6 +9,7 @@ import json
 import os
 import select
 import signal
+import socket
 import subprocess
 import sys
 import threading
@@ -132,6 +133,69 @@ def test_prove_writes_defaults_into_the_workspace_not_the_process_cwd(tools, tmp
     assert list(elsewhere.iterdir()) == []
 
 
+@pytest.mark.parametrize(
+    ("what", "source", "code"),
+    [
+        ("intent", "viewspec.intent.json", "PROVE_OUTPUT_UNSAFE"),
+        ("app", "viewspec.app.json", "APP_PROOF_OUTPUT_UNSAFE"),
+    ],
+)
+def test_force_cannot_replace_the_workspace_from_another_process_cwd(tmp_path, monkeypatch, what, source, code) -> None:
+    elsewhere = tmp_path / "elsewhere"
+    workspace = tmp_path / "workspace"
+    elsewhere.mkdir()
+    workspace.mkdir()
+    monkeypatch.chdir(elsewhere)
+    server = ViewSpecTools(workspace)
+    server.init(what=what)
+    (workspace / "proof_report.json").write_text("{}", encoding="utf-8")
+    (workspace / "notes.txt").write_text("keep", encoding="utf-8")
+
+    _assert_failed_with(server.prove(source=source, out=".", force=True), code)
+
+    assert (workspace / "notes.txt").is_file()
+    assert (workspace / source).is_file()
+
+
+def test_force_keeps_an_output_directory_that_holds_an_input(tools, tmp_path) -> None:
+    held = tmp_path / "sub"
+    held.mkdir()
+    tools.init(what="app", out="sub/viewspec.app.json")
+    tools.init(what="intent", out="sub/viewspec.intent.json")
+    tools.init(what="design", out="sub/DESIGN.md")
+    tools.init(what="intent")
+    (held / "shell_manifest.json").write_text("{}", encoding="utf-8")
+    before = sorted(path.name for path in held.iterdir())
+
+    _assert_failed_with(tools.compile("sub/viewspec.app.json", "sub", force=True), "APP_SHELL_OUTPUT_PATH_UNSAFE")
+    _assert_failed_with(tools.prove("sub/viewspec.app.json", out="sub", force=True), "APP_PROOF_OUTPUT_UNSAFE")
+    _assert_failed_with(tools.prove("sub/viewspec.intent.json", out="sub", force=True), "PROVE_OUTPUT_UNSAFE")
+    _assert_failed_with(
+        tools.prove("viewspec.intent.json", out="sub", design="sub/DESIGN.md", force=True), "PROVE_OUTPUT_UNSAFE"
+    )
+
+    assert sorted(path.name for path in held.iterdir()) == before
+
+
+def test_compile_failures_name_a_tool_that_exists(tools, tmp_path) -> None:
+    (tmp_path / "viewspec.intent.json").write_text('{"substrate": {}}', encoding="utf-8")
+
+    report = tools.compile("viewspec.intent.json", "dist")
+
+    assert report["ok"] is False
+    assert "compile_intent_bundle_file" not in json.dumps(report)
+
+
+def test_a_plain_server_failure_names_its_cause(monkeypatch, capsys) -> None:
+    def fail(**_: object) -> None:
+        raise ExceptionGroup("unhandled errors in a TaskGroup", [BrokenPipeError("the client went away")])
+
+    monkeypatch.setattr("viewspec.cli.run_mcp_server", fail)
+
+    assert cli_main(["mcp"]) == 1
+    assert "the client went away" in capsys.readouterr().err
+
+
 def test_viewspec_does_not_export_the_server() -> None:
     assert "ViewSpecTools" not in viewspec.__all__
     assert "run_mcp_server" not in viewspec.__all__
@@ -250,6 +314,45 @@ def test_a_bad_studio_request_leaves_the_running_preview_alone(tools) -> None:
     _assert_failed_with(tools.studio(design="missing.md"), "INVALID_PATH")
 
     assert "/__viewspec/status" in _get(url)
+
+
+@pytest.mark.parametrize("port", [-1, 70000])
+def test_an_out_of_range_port_leaves_the_running_preview_alone(tools, port) -> None:
+    tools.init()
+    url = tools.studio()["url"]
+
+    _assert_failed_with(tools.studio(port=port), "STUDIO_PORT_UNAVAILABLE")
+
+    assert "/__viewspec/status" in _get(url)
+
+
+def test_a_taken_port_leaves_the_running_preview_alone(tools) -> None:
+    tools.init()
+    url = tools.studio()["url"]
+
+    with socket.socket() as taken:
+        taken.bind(("127.0.0.1", 0))
+        taken.listen()
+        _assert_failed_with(tools.studio(port=taken.getsockname()[1]), "STUDIO_PORT_UNAVAILABLE")
+
+    assert "/__viewspec/status" in _get(url)
+
+
+def test_studio_can_restart_on_its_own_port(tools) -> None:
+    tools.init()
+    url = tools.studio()["url"]
+    port = int(url.rstrip("/").rsplit(":", 1)[1])
+
+    assert tools.studio(port=port)["url"] == url
+    assert "/__viewspec/status" in _get(url)
+
+
+def test_the_default_studio_source_stays_inside_the_workspace(jailed, outside) -> None:
+    source = jailed.root / "viewspec.intent.json"
+    source.unlink()
+    source.symlink_to(outside / "viewspec.intent.json")
+
+    _assert_failed_with(jailed.studio(), "PATH_OUTSIDE_CWD")
 
 
 def test_studio_stop_ends_the_preview_and_is_safe_to_repeat(tools) -> None:
