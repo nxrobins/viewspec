@@ -4,7 +4,7 @@ import re
 
 from viewspec.raw_html import RAW_HTML_POLICY_VERSION
 
-MCP_RESULT_SCHEMA_VERSION = 1
+TOOL_RESULT_SCHEMA_VERSION = 1
 
 INTENT_BUNDLE_POLICY_VERSION = "viewspec-intent-bundle@1"
 
@@ -26,7 +26,7 @@ ABSOLUTE_PATH_ARG_RE = re.compile(r"^(?:[A-Za-z]:[\\/]|[\\/]{1,2})")
 
 DIAGNOSTIC_SEVERITIES = {"error", "info", "warning"}
 
-MCP_RESERVED_RESULT_KEYS = {
+TOOL_RESERVED_RESULT_KEYS = {
     "diagnostics",
     "errors",
     "external_refs",

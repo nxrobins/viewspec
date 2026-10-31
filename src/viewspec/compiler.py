@@ -3,7 +3,6 @@ ViewSpec Reference Compiler — local compilation for standard motif types.
 
 Handles: table, dashboard, outline, comparison, list, form, detail, empty_state,
 loading_state, error_state, hero.
-For complex or novel layouts, use the hosted compiler at api.viewspec.dev.
 
 This is a deterministic, offline compiler that produces correct CompositionIR
 with full provenance for every motif type the SDK builders generate.
@@ -51,43 +50,7 @@ from viewspec.compiler_refs import (
 from viewspec.compiler_refs import (
     view_ref as _view_ref,
 )
-from viewspec.design_md import DesignSystemContext, load_design_system, merge_style_values
-
-# Names that were importable from `viewspec.compiler` before the hosted client moved
-# out stay importable from here (redundant-alias re-exports): the hosted client's
-# request and response types and the DESIGN.md error that compile() and
-# compile_auto() raise.
-from viewspec.design_md import (
-    DesignSystemError as DesignSystemError,
-)
-
-# The hosted compiler client lives in viewspec.hosted_compile. Its names are
-# re-exported here (redundant-alias form) because `viewspec.compiler` was their
-# import location before the move and viewspec.__init__ still imports them here.
-from viewspec.hosted_compile import (
-    VIEWSPEC_API_URL as VIEWSPEC_API_URL,
-)
-from viewspec.hosted_compile import (
-    CompilerAPIError as CompilerAPIError,
-)
-from viewspec.hosted_compile import (
-    _compile_request_payload as _compile_request_payload,
-)
-from viewspec.hosted_compile import (
-    _compiler_api_error as _compiler_api_error,
-)
-from viewspec.hosted_compile import (
-    _response_header as _response_header,
-)
-from viewspec.hosted_compile import (
-    compile_auto as compile_auto,
-)
-from viewspec.hosted_compile import (
-    compile_remote as compile_remote,
-)
-from viewspec.hosted_compile import (
-    compile_remote_response as compile_remote_response,
-)
+from viewspec.design_md import DesignSystemContext, DesignSystemError, load_design_system, merge_style_values
 from viewspec.motif_compilers import SUPPORTED_MOTIF_KINDS
 from viewspec.motif_plugins import (
     MotifCompileContext,
@@ -105,7 +68,6 @@ from viewspec.types import (
     CompilerDiagnostic,
     CompilerResult,
     CompositionIR,
-    DesignRequest,
     GroupSpec,
     IntentBundle,
     IRNode,
@@ -116,12 +78,6 @@ from viewspec.types import (
     SemanticSubstrate,
     StyleSpec,
     ViewSpec,
-)
-from viewspec.types import (
-    CompileRequestPayload as CompileRequestPayload,
-)
-from viewspec.types import (
-    CompileResponse as CompileResponse,
 )
 from viewspec.types import (
     normalize_json_numbers as _normalize_json_numbers,
@@ -1679,7 +1635,7 @@ def _validate_actions(
 def _resolve_and_apply_styles(
     view_spec: ViewSpec,
     substrate: SemanticSubstrate,
-    design: DesignSystemContext | DesignRequest | str | os.PathLike[str] | None,
+    design: DesignSystemContext | str | os.PathLike[str] | None,
     strict_design: bool,
     region_nodes: dict[str, IRNode],
     binding_nodes: dict[str, IRNode],
@@ -1788,7 +1744,7 @@ def _resolve_and_apply_styles(
 
 def compile(
     bundle: IntentBundle,
-    design: DesignSystemContext | DesignRequest | str | os.PathLike[str] | None = None,
+    design: DesignSystemContext | str | os.PathLike[str] | None = None,
     *,
     strict_design: bool = False,
     motif_plugins: tuple[MotifPlugin, ...] = (),
@@ -1805,9 +1761,7 @@ def compile(
 
     * a ``DesignSystemContext`` from ``load_design_system()``;
     * an ``os.PathLike`` such as ``pathlib.Path("DESIGN.md")``, read as a file path;
-    * a ``str``, parsed as DESIGN.md *content*;
-    * a hosted ``DesignRequest``, whose ``content`` is parsed locally (its ``lint`` flag is
-      read only by the hosted compiler).
+    * a ``str``, parsed as DESIGN.md *content*.
 
     A ``str`` never touches the filesystem: ``compile()`` does not open it, read it or check
     whether a file by that name exists, so a ``str`` from an untrusted source cannot make
@@ -1815,9 +1769,6 @@ def compile(
     spans several lines, so a ``str`` without a line break, such as ``"DESIGN.md"``, fails with
     ``DesignSystemError`` whose note says to pass ``pathlib.Path(...)``; the error and its note are
     the same whether or not a file by that name exists.
-
-    For full compilation (arbitrary data shapes, OOD generalization),
-    use the hosted compiler at api.viewspec.dev.
     """
     substrate, view_spec = _validate_bundle_shape(bundle)
     diagnostics: list[CompilerDiagnostic] = []
@@ -1842,8 +1793,7 @@ def compile(
         if motif.kind not in active_motif_registry:
             raise UnsupportedMotifError(
                 f"Motif kind '{motif.kind}' is not supported by the reference compiler. "
-                f"Supported: {', '.join(sorted(supported_motif_kinds))}. "
-                f"Use the hosted compiler at api.viewspec.dev for full support."
+                f"Supported: {', '.join(sorted(supported_motif_kinds))}."
             )
 
     region_nodes, valid_regions = _build_and_validate_regions(view_spec, diagnostics)
@@ -1953,7 +1903,7 @@ def _is_single_line(text: str) -> bool:
 
 
 def _coerce_design_context(
-    design: DesignSystemContext | DesignRequest | str | os.PathLike[str] | None,
+    design: DesignSystemContext | str | os.PathLike[str] | None,
     *,
     strict_design: bool = False,
 ) -> DesignSystemContext | None:
@@ -1961,10 +1911,6 @@ def _coerce_design_context(
         return None
     if isinstance(design, DesignSystemContext):
         return design
-    if isinstance(design, DesignRequest):
-        # DesignRequest.lint is a hosted-compiler knob; local validation always runs, so it is not
-        # passed on (load_design_system's lint argument is deprecated and has no effect).
-        return load_design_system(content=design.content, strict=strict_design)
     if isinstance(design, os.PathLike):
         return load_design_system(path=Path(design), strict=strict_design)
     if isinstance(design, str):
@@ -1972,14 +1918,13 @@ def _coerce_design_context(
             return load_design_system(content=design, strict=strict_design)
         except DesignSystemError as exc:
             # The same note for every single-line str: the str is never checked against the
-            # filesystem (audit C-9), so neither the error nor the note can reveal which local
-            # paths exist.
+            # filesystem, so neither the error nor the note can reveal which local paths exist.
             if _is_single_line(design):
                 exc.add_note(
                     f"compile(design=...) parses a str as DESIGN.md content, never as a file path. {_DESIGN_PATH_HINT}"
                 )
             raise
-    raise TypeError("design must be a DesignSystemContext, DesignRequest, DESIGN.md string, os.PathLike path, or None")
+    raise TypeError("design must be a DesignSystemContext, DESIGN.md string, os.PathLike path, or None")
 
 
 PRIMITIVE_DEFAULT_TOKENS: dict[str, list[str]] = {

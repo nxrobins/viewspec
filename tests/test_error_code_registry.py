@@ -15,15 +15,13 @@ ROOT = Path(__file__).resolve().parents[1] / "src" / "viewspec"
 TOKEN_RE = re.compile(r"[A-Z][A-Z0-9]*(?:_[A-Z0-9]+)+")
 CODE_SHAPE_RE = re.compile(r"^[A-Z][A-Z0-9]*(?:_[A-Z0-9]+)+$")
 
-# Generated protobuf output and the internal benchmark oracle (which carries its own
-# BENCHMARK_* code registry) are not part of the public tool-surface contract.
-SKIP_FILES = {"viewspec_pb2.py", "compiler_benchmarks.py"}
+# Generated protobuf output is not part of the tool-surface contract, and the registry cannot
+# count as evidence that its own codes are emitted.
+SKIP_FILES = {"viewspec_pb2.py", "error_codes.py"}
 
 # UPPER_SNAKE string literals in src/viewspec that are not emitted codes.
 NON_CODE_LITERAL_TOKENS = {
     "APP_PROOF",  # the APP_PROOF.md summary filename
-    "APP_SCREEN_INTENT",  # startswith() prefix over APP_SCREEN_INTENT_* codes
-    "ARTIFACT_DIR",  # CLI usage/metavar text
     "CHROMIUM_ARIAL_LAYOUT_FIT_TOLERANCE_PX",  # generated Pretext runtime constant
     "CLIPPING_OVERFLOW_VALUES",  # generated Pretext runtime constant
     "EMPTY_SHA256",  # generated Pretext runtime constant
@@ -37,7 +35,6 @@ NON_CODE_LITERAL_TOKENS = {
     "MAX_SURFACES",  # generated Pretext runtime constant
     "MAX_TEXT_BYTES",  # generated Pretext runtime constant
     "MAX_TOTAL_TEXT_BYTES",  # generated Pretext runtime constant
-    "O_NOFOLLOW",  # optional os module flag used to reject symlink lock files
     "OVERFLOW_EPSILON_PX",  # generated Pretext runtime constant
     "PX_RE",  # generated Pretext runtime constant
     "SAFE_ID_RE",  # generated Pretext runtime constant
@@ -51,9 +48,6 @@ NON_CODE_LITERAL_TOKENS = {
     "VIEWSPEC_HOST_VERIFY_EVIDENCE_DIR",  # environment variable name
     "VIEWSPEC_HOST_VERIFY_NODE_MODULES_DIR",  # environment variable name
     "VIEWSPEC_HOST_VERIFY_PLAN_JSON",  # environment variable name
-    "VIEWSPEC_REVIEW_STATE_DIR",  # environment variable name
-    "VIEWSPEC_STUDIO_REVIEW_NODE_MODULES_DIR",  # environment variable name
-    "VIEWSPEC_STUDIO_API_KEY",  # environment variable name
     "VIEWSPEC_STATE_PROFILE",  # export symbol in the generated reducer artifact
 }
 
@@ -116,7 +110,6 @@ def test_exclusion_list_is_not_stale():
 
 def test_registry_shape():
     assert ERROR_CODES, "ERROR_CODES must not be empty"
-    assert len(ERROR_CODES) >= 350, "ERROR_CODES shrank suspiciously; the registry should be the full closed set"
     malformed = {code for code in ERROR_CODES if not CODE_SHAPE_RE.match(code)}
     assert not malformed, f"ERROR_CODES entries must be UPPER_SNAKE identifiers: {sorted(malformed)}"
     overlap = ERROR_CODES & NON_CODE_LITERAL_TOKENS

@@ -4,7 +4,7 @@ from typing import Any
 
 from viewspec.design_md import DesignSystemError
 from viewspec.emitters.react_tailwind_tsx import CompilerConstraintError
-from viewspec.local_tools_constants import MCP_RESERVED_RESULT_KEYS, MCP_RESULT_SCHEMA_VERSION
+from viewspec.local_tools_constants import TOOL_RESERVED_RESULT_KEYS, TOOL_RESULT_SCHEMA_VERSION
 from viewspec.raw_html import HtmlInputError
 
 
@@ -34,7 +34,7 @@ def tool_response(
     data: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     payload: dict[str, Any] = {
-        "schema_version": MCP_RESULT_SCHEMA_VERSION,
+        "schema_version": TOOL_RESULT_SCHEMA_VERSION,
         "ok": ok,
         "summary": summary,
         "diagnostics": [dict(item) for item in diagnostics],
@@ -46,12 +46,12 @@ def tool_response(
     if metadata:
         payload["metadata"] = metadata
     if data:
-        conflicts = sorted(MCP_RESERVED_RESULT_KEYS & set(data))
+        conflicts = sorted(TOOL_RESERVED_RESULT_KEYS & set(data))
         if conflicts:
             raise LocalToolError(
-                "MCP_RESPONSE_SCHEMA_CONFLICT",
-                f"Tool data attempted to overwrite reserved MCP result keys: {conflicts}",
-                "Rename extension data fields so they do not collide with the MCP result envelope.",
+                "TOOL_RESPONSE_SCHEMA_CONFLICT",
+                f"Tool data attempted to overwrite reserved result keys: {conflicts}",
+                "Rename extension data fields so they do not collide with the result envelope.",
             )
         payload.update(data)
     return payload

@@ -1,4 +1,4 @@
-"""How compile(), compile_html() and load_design_system() take a DESIGN.md (audit C-9).
+"""How compile(), compile_html() and load_design_system() take a DESIGN.md.
 
 A ``str`` passed to compile() as ``design`` is DESIGN.md content and never touches the filesystem:
 compile() does not open it, read it or check whether a file by that name exists, so a ``str`` from
@@ -6,8 +6,7 @@ an untrusted source can neither make compile() read a local file nor reveal whic
 exist. File paths are an explicit input as an ``os.PathLike``, to compile() and compile_html()
 alike. A single-line ``str`` can never be valid content: it fails with the same
 ``DesignSystemError`` it always raised, now with a note that says to pass ``pathlib.Path``, and the
-error is the same whether or not a file by that name exists. ``load_design_system(lint=...)``
-never had a local effect, so passing it emits a ``DeprecationWarning``.
+error is the same whether or not a file by that name exists.
 """
 
 from __future__ import annotations
@@ -26,17 +25,10 @@ import pytest
 from hypothesis import example, given, settings
 from hypothesis import strategies as st
 
-from viewspec import (
-    DesignRequest,
-    DesignSystemError,
-    ViewSpecBuilder,
-    compile,
-    compile_html,
-    design_md,
-    load_design_system,
-)
+from viewspec import DesignSystemError, ViewSpecBuilder, compile, design_md
 from viewspec.compiler import _is_single_line
-from viewspec.design_md import DESIGN_MAX_BYTES
+from viewspec.design_md import DESIGN_MAX_BYTES, load_design_system
+from viewspec.raw_html import compile_html
 
 PATH_NOTE = (
     "compile(design=...) parses a str as DESIGN.md content, never as a file path. "
@@ -149,7 +141,7 @@ def test_compile_html_missing_pathlike_design_raises_file_not_found(tmp_path):
 def test_compile_str_naming_an_existing_file_is_still_parsed_as_content(design_file, monkeypatch):
     monkeypatch.chdir(design_file.parent)
 
-    # The exact call from the audit: a relative path in a str. It fails as it always did, because
+    # A relative path in a str. It fails as it always did, because
     # the str is content. Only the exception note points at pathlib.Path; there is no warning,
     # because telling an existing file apart would mean checking the filesystem.
     with warnings.catch_warnings():
@@ -367,40 +359,3 @@ def test_compile_missing_pathlike_design_raises_file_not_found(tmp_path):
 def test_compile_rejects_other_design_types_and_names_the_path_form():
     with pytest.raises(TypeError, match="os.PathLike"):
         compile(_bundle(), design=b"---\n---\n")  # type: ignore[arg-type]
-
-
-@pytest.mark.parametrize("lint", [True, False])
-def test_load_design_system_lint_argument_is_deprecated_and_has_no_effect(lint):
-    expected = load_design_system(content=WARNING_DESIGN)
-
-    with pytest.warns(DeprecationWarning, match=r"lint=\.\.\.\) is deprecated and has no effect") as caught:
-        context = load_design_system(content=WARNING_DESIGN, lint=lint)
-
-    assert caught[0].filename == __file__
-    assert context.to_meta() == expected.to_meta()
-    assert context.style_values == expected.style_values
-    assert [finding.code for finding in context.lint_report.findings] == ["DESIGN_COLOR_FORMAT_WARNING"]
-
-
-def test_load_design_system_lint_false_does_not_skip_fatal_errors():
-    with pytest.warns(DeprecationWarning):
-        with pytest.raises(DesignSystemError):
-            load_design_system(content='---\nname: Broken\ncolors:\n  primary: "{colors.missing}"\n---\n', lint=False)
-
-
-def test_load_design_system_without_lint_does_not_warn(design_file):
-    with warnings.catch_warnings():
-        warnings.simplefilter("error")
-        load_design_system(content=DESIGN)
-        load_design_system(path=design_file)
-        load_design_system(path=str(design_file))
-
-
-@pytest.mark.parametrize("lint", [True, False])
-def test_compile_with_a_design_request_ignores_its_hosted_lint_flag_without_warning(lint):
-    expected = compile(_bundle(), design=DESIGN)
-    with warnings.catch_warnings():
-        warnings.simplefilter("error")
-        ast = compile(_bundle(), design=DesignRequest(content=DESIGN, lint=lint))
-
-    assert ast.style_values == expected.style_values

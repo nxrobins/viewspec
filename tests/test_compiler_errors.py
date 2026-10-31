@@ -1,4 +1,4 @@
-"""Compiler invariant and local-tool contract failures expose their registry code (audit Q-8).
+"""Compiler invariant and local-tool contract failures expose their registry code.
 
 ``str(exc)`` keeps the exact ``CODE: message`` text that existing callers match on, while
 ``exc.code`` and ``exc.message`` make string parsing unnecessary. Each class keeps its historical

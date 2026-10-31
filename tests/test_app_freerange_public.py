@@ -2,8 +2,8 @@ from __future__ import annotations
 
 import json
 
+import viewspec.api as api
 import viewspec.app_bundle as app_bundle
-from viewspec.app_tools import prove_app_tool
 
 
 def test_public_prove_app_forwards_freerange_without_changing_default(monkeypatch) -> None:
@@ -22,7 +22,7 @@ def test_public_prove_app_forwards_freerange_without_changing_default(monkeypatc
     assert calls[1]["freerange"] is True
 
 
-def test_prove_app_tool_forwards_and_surfaces_static_analysis(tmp_path) -> None:
+def test_prove_forwards_freerange_and_surfaces_static_analysis(tmp_path, monkeypatch) -> None:
     app_path = tmp_path / "viewspec.app.json"
     app_path.write_text(json.dumps({}), encoding="utf-8")
     captured: dict[str, object] = {}
@@ -48,16 +48,10 @@ def test_prove_app_tool_forwards_and_surfaces_static_analysis(tmp_path) -> None:
             "errors": [],
         }
 
-    result = prove_app_tool(
-        app_path=app_path,
-        out_dir=tmp_path / "proof",
-        target="react-tailwind-app",
-        freerange=True,
-        cwd=tmp_path,
-        _prove_app=fake_prove,
-    )
+    monkeypatch.setattr(api, "prove_app", fake_prove)
+
+    result = api.prove(app_path, out_dir=tmp_path / "proof", target="react-tailwind-app", freerange=True)
 
     assert result["ok"] is True
     assert captured["freerange"] is True
-    assert result["metadata"]["freerange_requested"] is True
-    assert result["metadata"]["static_analysis"] == static_analysis
+    assert result["static_analysis"] == static_analysis

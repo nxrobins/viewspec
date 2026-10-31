@@ -168,7 +168,7 @@ def prove_app_screens(
                 {
                     "code": "APP_PROOF_SCREEN_CHECK_FAILED",
                     "message": str(item),
-                    "fix": "Fix the embedded screen IntentBundle and retry prove-app.",
+                    "fix": "Fix the embedded screen IntentBundle and rerun viewspec prove.",
                 }
                 for item in check.get("errors", [])
             ]
@@ -262,12 +262,6 @@ def _compile_screen(
         ir_props_overlay=ir_props_overlay,
     )
 
-
-# Backward-compatible private aliases; the un-prefixed names are canonical.
-_prove_app_screens = prove_app_screens
-_screen_ir_overlays_for = screen_ir_overlays_for
-_state_text_overlays_for = state_text_overlays_for
-_visibility_overlays_for = visibility_overlays_for
 
 __all__ = [
     "prove_app_screens",

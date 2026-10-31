@@ -42,24 +42,20 @@ jobs:
           cache: npm
           cache-dependency-path: |
             src/viewspec/host_verify_template/package-lock.json
-            conformance/agent-ui-v2/react-dependencies/package-lock.json
+            tests/react-app-dependencies/package-lock.json
 
       - name: Install package
         run: |
           python -m pip install --upgrade pip
-          python -m pip install -c requirements-ci.txt ".[dev,remote,agents]"
+          python -m pip install -c requirements-ci.txt ".[dev,agents]"
 
       - name: Install shared React dependency seed
-        working-directory: conformance/agent-ui-v2/react-dependencies
+        working-directory: tests/react-app-dependencies
         run: npm ci --ignore-scripts
 
       - name: Install shipped rebuild dependency seed
         working-directory: src/viewspec/host_verify_template
         run: npm ci --ignore-scripts
-
-      - name: Install Chromium for browser scorer regression
-        working-directory: src/viewspec/host_verify_template
-        run: npx --no-install playwright install --with-deps chromium
 
       - name: Ruff
         run: |
@@ -83,8 +79,6 @@ jobs:
           node tests/landing_payload_smoke.mjs
           node tests/landing_config_smoke.mjs
           node tests/landing_compile_smoke.mjs
-          node tests/commercial_contract_smoke.mjs
-          node tests/checkout_claim_smoke.mjs
           node tests/seo_static_smoke.mjs
 
       - name: Reject whitespace damage
@@ -94,8 +88,7 @@ jobs:
     name: Audit shared JavaScript dependencies
     runs-on: ubuntu-latest
     timeout-minutes: 20
-    # Pull requests block on high and critical advisories (audit finding R-3,
-    # approved). The scheduled dependency-audit workflow reports every level.
+    # Pull requests block on high and critical advisories. The scheduled dependency-audit workflow reports every level.
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
@@ -108,7 +101,7 @@ jobs:
         working-directory: tests/react-tailwind-host
         run: npm audit --package-lock-only --audit-level=high
       - name: Audit active evaluation seed
-        working-directory: conformance/agent-ui-v2/react-dependencies
+        working-directory: tests/react-app-dependencies
         run: npm audit --package-lock-only --audit-level=high
       - name: Install exact patched runtime without hooks
         working-directory: src/viewspec/host_verify_template
@@ -147,7 +140,7 @@ jobs:
       - name: Install the package with the dev extras
         run: |
           python -m pip install --upgrade pip
-          python -m pip install -c requirements-ci.txt ".[dev,remote,agents]"
+          python -m pip install -c requirements-ci.txt ".[dev,agents]"
       - name: Compare the pyright error count with the committed baseline
         run: python scripts/check_pyright_baseline.py
 
@@ -194,25 +187,13 @@ jobs:
       - name: Audit release contents and size
         run: python scripts/check_distribution.py dist
 
-      - name: Install the pinned Playwright package without hooks
-        working-directory: src/viewspec/host_verify_template
-        run: npm ci --ignore-scripts
-
-      - name: Install Chromium for the release launch check
-        working-directory: src/viewspec/host_verify_template
-        run: ./node_modules/.bin/playwright install --with-deps chromium
-
-      - name: Verify the homepage install and Studio launch flow from the wheel
-        run: python scripts/check_studio_release.py --dist dist --out studio-release-check.json
-
-      - name: Retain verified release artifacts and launch evidence
+      - name: Retain verified release artifacts
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          name: studio-release-python-${{ matrix.python-version }}
+          name: release-python-${{ matrix.python-version }}
           path: |
             dist/*.whl
             dist/*.tar.gz
-            studio-release-check.json
           if-no-files-found: error
 
   react_tailwind_host:
@@ -232,7 +213,7 @@ jobs:
       - name: Install package
         run: |
           python -m pip install --upgrade pip
-          python -m pip install -c requirements-ci.txt ".[dev,remote]"
+          python -m pip install -c requirements-ci.txt ".[dev]"
 
       - name: Install host proof dependencies
         working-directory: tests/react-tailwind-host
@@ -250,53 +231,13 @@ jobs:
         working-directory: tests/react-tailwind-host
         env:
           # Reuse the seed installed above instead of a cold npm ci under the
-          # verifier's 90 s install budget (audit finding R-10).
+          # verifier's 90 s install budget.
           VIEWSPEC_HOST_VERIFY_NODE_MODULES_DIR: ${{ github.workspace }}/src/viewspec/host_verify_template/node_modules
         run: npm run verify
 
       - name: Public demo browser regressions
         working-directory: tests/react-tailwind-host
         run: npm run test:site
-
-      - name: ViewSpec Studio browser moment
-        working-directory: tests/react-tailwind-host
-        run: npm run test:studio
-
-      - name: Enforce Studio product-journey gate
-        working-directory: tests/react-tailwind-host
-        run: >-
-          python ../../scripts/check_studio_product_evidence.py
-          test-results
-          --out test-results/studio-product-mechanical-report.json
-
-      - name: Retain Studio product-journey evidence
-        if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
-        with:
-          name: studio-product-journey-evidence
-          path: |
-            tests/react-tailwind-host/test-results/**/studio-product-journey-evidence.json
-            tests/react-tailwind-host/test-results/**/studio-state-text-evidence.json
-            tests/react-tailwind-host/test-results/**/studio-keyboard-evidence.json
-            tests/react-tailwind-host/test-results/**/studio-starter-mobile-evidence.json
-            tests/react-tailwind-host/test-results/**/studio-agent-handoff-evidence.json
-            tests/react-tailwind-host/test-results/**/studio-agent-handoff-mobile.png
-            tests/react-tailwind-host/test-results/studio-product-mechanical-report.json
-          if-no-files-found: warn
-          retention-days: 14
-
-      - name: Private Studio review HTTPS journey
-        working-directory: tests/react-tailwind-host
-        run: npm run test:studio-review
-
-      - name: Retain private-review browser evidence
-        if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
-        with:
-          name: studio-private-review-browser-evidence
-          path: tests/react-tailwind-host/test-results/**/studio-private-review-evidence.json
-          if-no-files-found: warn
-          retention-days: 14
 
       - name: Verification conformance corpus
         env:

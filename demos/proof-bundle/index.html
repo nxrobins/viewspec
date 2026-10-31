@@ -8,7 +8,6 @@
   <meta name="robots" content="index,follow,max-snippet:-1,max-image-preview:large">
   <link rel="canonical" href="https://viewspec.dev/proof-bundle/">
   <link rel="alternate" type="text/markdown" title="ViewSpec for LLMs" href="https://viewspec.dev/llms.txt">
-  <link rel="service" type="application/json" title="ViewSpec OpenAPI" href="https://viewspec.dev/openapi.json">
   <script type="application/ld+json">{"@context":"https://schema.org","@type":"WebPage","description":"Read a ViewSpec first proof bundle, understand PROOF.md, proof_report.json, compact style-delta manifest facts, and redacted support_bundle.json.","name":"ViewSpec Demo - Proof Bundle Guide","url":"https://viewspec.dev/proof-bundle/"}</script>
   <link rel="icon" href="data:,">
   <link rel="stylesheet" href="../shared/launch-pages.css">
@@ -94,7 +93,7 @@
       <div>
         <p class="eyebrow">ViewSpec Proof Bundle</p>
         <h1>Read the first proof before trusting the artifact.</h1>
-        <p class="lead">Run <code>viewspec prove --out .viewspec-proof</code> for the starter proof, then open <code>.viewspec-proof/PROOF.md</code>. To prove an authored brief, run <code>viewspec prove --intent viewspec.intent.json --target react-tailwind-tsx --install --out .viewspec-proof --json</code>. Use <code>proof_report.json</code> for automation and <code>support_bundle.json</code> for redacted failure triage.</p>
+        <p class="lead">Run <code>viewspec prove --out .viewspec-proof</code> for the starter proof, then open <code>.viewspec-proof/PROOF.md</code>. To prove an authored brief, run <code>viewspec prove viewspec.intent.json --target react-tailwind-tsx --install --out .viewspec-proof --json</code>. Use <code>proof_report.json</code> for automation and <code>support_bundle.json</code> for redacted failure triage.</p>
         <p>ViewSpec proof bundles are local source artifact and provenance proof by default. For <code>react-tailwind-tsx</code>, they become a bounded React/Vite/Tailwind reference-host proof only when host verification actually passes.</p>
       </div>
       <aside class="proof-panel" aria-label="Example proof summary">
@@ -184,7 +183,7 @@ Checks
 
     <section class="section">
       <h2>What It Does Not Claim</h2>
-      <p>ViewSpec prove is not pixel-perfect visual regression, accessibility certification, arbitrary host-app certification, or hosted compiler publish automation.</p>
+      <p>ViewSpec prove is not pixel-perfect visual regression, accessibility certification, or arbitrary host-app certification.</p>
       <p>For arbitrary React applications, routers, state managers, Tailwind customizations, browser matrices, zoom behavior, and accessibility audits, add host-specific tests outside the proof bundle.</p>
       <p>
         <a class="button" href="https://github.com/nxrobins/viewspec/blob/main/docs/proof-bundle.md">Repo guide</a>

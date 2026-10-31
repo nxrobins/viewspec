@@ -36,19 +36,21 @@ def resolve_local_path(
             "INVALID_PATH", "Path is empty or contains a null byte.", "Pass a normal local filesystem path."
         )
     if raw.lower().startswith("file:") or "://" in raw:
-        raise LocalToolError("INVALID_PATH", f"URLs are not local paths: {raw}", "Pass a local path under the MCP cwd.")
+        raise LocalToolError(
+            "INVALID_PATH", f"URLs are not local paths: {raw}", "Pass a local path under the working directory."
+        )
     candidate = Path(raw)
     if os.name == "nt" and candidate.drive and not candidate.is_absolute():
         raise LocalToolError(
             "INVALID_PATH",
             f"Windows drive-relative paths are not allowed: {raw}",
-            "Pass a normal relative path under the MCP cwd or a fully qualified absolute path.",
+            "Pass a normal relative path under the working directory or a fully qualified absolute path.",
         )
     if os.name == "nt" and candidate.root and not candidate.is_absolute():
         raise LocalToolError(
             "INVALID_PATH",
             f"Windows rooted paths without a drive are not allowed: {raw}",
-            "Pass a normal relative path under the MCP cwd or a fully qualified absolute path.",
+            "Pass a normal relative path under the working directory or a fully qualified absolute path.",
         )
     path = candidate if candidate.is_absolute() else cwd / candidate
     try:
@@ -62,20 +64,20 @@ def resolve_local_path(
     if not allow_outside_cwd and not _is_relative_to(resolved, cwd):
         raise LocalToolError(
             "PATH_OUTSIDE_CWD",
-            f"Path resolves outside MCP cwd: {raw}",
+            f"Path resolves outside the working directory: {raw}",
             "Move the file under the cwd or restart with --allow-outside-cwd.",
         )
     return resolved
 
 
-# Ownership sentinel that prove and prove-app write into their output directory as soon as they
+# Ownership sentinel that viewspec prove writes into their output directory as soon as they
 # create it, before any other file.  A run that stops before its report is written (an interrupt,
 # a failed report write) still leaves a directory that ``force`` recognises as ViewSpec's.
-# compile-app output is a deployable site and does not get one.
+# AppBundle compile output is a deployable site and does not get one.
 VIEWSPEC_OUTPUT_SENTINEL = ".viewspec-output"
 _VIEWSPEC_OUTPUT_SENTINEL_TEXT = '{"kind": "viewspec_proof_output", "schema_version": 1}\n'
 
-# Top-level files that prove, prove-app, compile, and compile-app write into their
+# Top-level files that viewspec prove and compile write into their
 # output directories. ``force`` may replace an existing directory only when it is
 # empty or carries one of these markers, so a stray ``force=True`` cannot wipe an
 # unrelated directory such as ``src/``.
@@ -106,6 +108,15 @@ def is_replaceable_output_dir(output_dir: Path) -> bool:
     return any(
         entry.name in VIEWSPEC_OUTPUT_MARKERS and entry.is_file() and not entry.is_symlink() for entry in entries
     )
+
+
+def input_inside_output(output_dir: Path, root: Path, *inputs: str | Path | None) -> str | Path | None:
+    """Return the first input that replacing ``output_dir`` would delete; relative inputs start at ``root``."""
+    replaced = output_dir.resolve()
+    for item in inputs:
+        if item is not None and replaced in resolve_local_path(item, cwd=root, allow_outside_cwd=True).parents:
+            return item
+    return None
 
 
 def write_output_sentinel(output_dir: Path) -> None:

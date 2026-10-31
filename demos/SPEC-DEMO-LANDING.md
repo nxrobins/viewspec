@@ -76,7 +76,7 @@ Card styling:
 ViewSpec is open source. MIT License.
 GitHub → https://github.com/nxrobins/viewspec
 
-The compiler is a hosted service.
+The compiler runs locally. There is no hosted service.
 The SDK is free. The invariants are mathematical.
 ```
 

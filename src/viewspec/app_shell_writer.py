@@ -7,7 +7,6 @@ from pathlib import Path
 from typing import Any
 
 from viewspec._version import __version__
-from viewspec.app_diff import _validation_summary
 from viewspec.app_paths import _assert_under_proof_root, _prepare_app_shell_output_dir
 from viewspec.app_prepared import PreparedAppShell
 from viewspec.app_reports import _write_bounded_json
@@ -21,7 +20,12 @@ from viewspec.app_shell import (
     _screen_shell_summaries,
 )
 from viewspec.app_state_artifacts import _write_state_artifacts
-from viewspec.app_validation import _app_schema_version, _app_summary, _resource_binding_report_fields
+from viewspec.app_validation import (
+    _app_schema_version,
+    _app_summary,
+    _resource_binding_report_fields,
+    validation_summary,
+)
 from viewspec.local_tools import atomic_write, file_hash
 from viewspec.presentation_plan import (
     PRESENTATION_PLAN_FILE,
@@ -47,7 +51,13 @@ def write_static_app_shell(
     build_manifest: Callable[..., dict[str, Any]],
 ) -> dict[str, Any]:
     if clean_output:
-        _prepare_app_shell_output_dir(prepared.output_dir, root=root, force=force, raw_out=raw_out)
+        _prepare_app_shell_output_dir(
+            prepared.output_dir,
+            root=root,
+            force=force,
+            raw_out=raw_out,
+            inputs=(prepared.app_path, prepared.design_path),
+        )
     _assert_under_proof_root(prepared.output_dir, prepared.output_dir)
     binding_fields = _resource_binding_report_fields(payload, resource_binding_report)
     shell_parts = _build_static_app_shell(payload, screen_reports, resource_binding_report=resource_binding_report)
@@ -140,7 +150,7 @@ def write_static_app_shell(
             else {}
         ),
         "screens": _screen_shell_summaries(screen_reports),
-        "validation": _validation_summary(validation),
+        "validation": validation_summary(validation),
         "metadata": {
             "sdk_version": __version__,
             "strict_design": bool(strict_design),
@@ -150,8 +160,5 @@ def write_static_app_shell(
         "errors": [],
     }
 
-
-# Backward-compatible private alias; write_static_app_shell is the public name.
-_write_static_app_shell = write_static_app_shell
 
 __all__ = ["write_static_app_shell"]

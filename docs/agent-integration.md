@@ -1,65 +1,80 @@
-# ViewSpec Agent Integration V1
+# ViewSpec Agent Integration
 
-This page describes the primary agent-native workflow: agents emit `IntentBundle` JSON for new UI, and ViewSpec compiles renderer output. Use [Local HTML Wedge](local-html-wedge.md) only when importing existing HTML.
-
-Agents generate `IntentBundle` JSON. The ViewSpec compiler generates `CompositionIR`.
+Agents write semantic JSON; ViewSpec compiles it. An agent should emit `viewspec.intent.json` as
+IntentBundle JSON, or `viewspec.app.json` as AppBundle JSON for a multi-screen tool, and never write
+HTML, CSS, React, or CompositionIR as source. Everything runs locally, with no SDK network calls.
 
 ## Canonical Agent Loop
 
-An agent should need only the semantic source and the public command results:
+1. Load the published contract: `agent-system-prompt.txt` plus the JSON Schema for the bundle kind.
+   They are published at `https://viewspec.dev/`, and `scripts/export_agent_contract.py` regenerates
+   them from `viewspec.agent` and `viewspec.app_bundle`.
+2. Generate strict JSON, ideally with schema-constrained structured output, and save it.
+3. Run `viewspec check viewspec.intent.json --json`.
+4. On failure, feed `correction_prompt` back and regenerate the full bundle.
+5. Run `viewspec compile viewspec.intent.json --out dist/`, then `viewspec check dist/ --json`.
+6. Run `viewspec prove viewspec.intent.json --out .viewspec-proof` before claiming the UI is valid.
+   Read `.viewspec-proof/PROOF.md` first; use `proof_report.json` for status and
+   `support_bundle.json` for redacted failure triage.
 
-1. Author or revise `viewspec.intent.json` (and `DESIGN.md` when the repository uses it).
-2. Run `viewspec validate-intent viewspec.intent.json --json` and follow its stable code,
-   semantic path, `correction_prompt`, and next action on failure.
-3. Run `viewspec prove --intent viewspec.intent.json --target react-tailwind-tsx --install
-   --out .viewspec-proof --json` to compile, check, and browser-verify the exact artifact.
-4. For a later revision, take one of the two edit lanes below, inspect `diff-intent`, then rerun
-   the proof with `--force`.
+```bash
+viewspec init --out viewspec.intent.json
+viewspec init design --out DESIGN.md
+viewspec check viewspec.intent.json --json
+viewspec compile viewspec.intent.json --design DESIGN.md --out dist/
+viewspec compile viewspec.intent.json --design DESIGN.md --target react-tsx --out react-output/
+viewspec check dist/ --json
+viewspec prove --out .viewspec-proof
+```
 
-The editable authority is `IntentBundle`, `AppBundle`, or `DESIGN.md`. Renderer files,
-`provenance_manifest.json`, and proof reports are generated evidence. Never repair them directly.
+Treat `dist/index.html` and `react-output/ViewSpecView.tsx` as artifacts. ViewSpec proof is not
+pixel-perfect visual regression, accessibility certification, or arbitrary host-app certification.
+To show a person the result while you iterate, start `viewspec studio --no-open --json` in the
+background: it prints the URL and rebuilds whenever the source changes.
+
+## MCP
+
+`viewspec mcp` serves the same loop over stdio, so an agent can call it without shell escaping. It
+needs the MCP SDK, which is an optional extra:
+
+```bash
+python -m pip install --pre "viewspec[agents]"
+claude mcp add viewspec -- viewspec mcp
+```
+
+Any other MCP client takes the same command:
+
+```json
+{ "mcpServers": { "viewspec": { "command": "viewspec", "args": ["mcp"] } } }
+```
+
+| Tool | Does |
+|---|---|
+| `init` | Writes a starter `viewspec.intent.json`, `viewspec.app.json`, or `DESIGN.md`. |
+| `compile` | Compiles an IntentBundle or AppBundle file. The kind is detected from the file. |
+| `check` | Checks a source file or a compiled directory. A failed source includes `correction_prompt`. |
+| `prove` | Compiles and verifies a source, or browser-verifies a compiled directory. |
+| `studio` | Starts a background preview and returns its URL; `stop=True` ends it. One runs at a time. |
+
+Every result carries `ok`, and a failure is a report with a code and a fix, not a protocol error.
+Paths resolve against the directory the server starts in, and a path that leaves it fails with
+`PATH_OUTSIDE_CWD`; `--cwd` picks another root, and `--allow-outside-cwd` removes the limit.
+`prove` runs `npm ci --ignore-scripts` only with `install=True`: pass it only when the user allows
+it. Raw HTML import stays on the CLI: it is a fallback, and agents should write bundles.
 
 ## Editing Existing Source
 
-Bundle JSON is never edited with a line-based or text-diff tool. `apply_patch`, `sed`, and
-search-and-replace match on surrounding lines and fail against generated JSON formatting; a
-repeated failure means the wrong lane was chosen, not that the attempt was unlucky. There are
-exactly two lanes.
-
-**Lane A — change an existing declared value (the default).** The structured patch surface is
-source-hash bound, precondition checked, compile-proved, and atomically applied with a rollback
-receipt. Start at `patch-targets`, which supplies the exact `base_source_sha256` and one stub per
-legally patchable target:
-
-```bash
-viewspec patch-targets viewspec.app.json --op set_binding_presentation --screen queue --json
-viewspec patch-preview viewspec.app.json change.intentpatch.json --json
-viewspec patch-apply viewspec.app.json change.intentpatch.json --approval <exact-preview-token> --json
-```
-
-Each target carries `op`, `fixed_fields` (including the exact current `old_value`),
-`replacement_field`, and `allowed_values` where the vocabulary is closed. Copy `op` and
-`fixed_fields` verbatim and add only `replacement_field`. Never compute a source hash and never
-invent an operation name. `truncated: true` is not full coverage — narrow with `--op`/`--screen`.
-
-**Lane B — add, remove, or restructure.** IntentPatch V1 changes declared values only; it cannot
-create or delete semantic nodes, regions, bindings, styles, fixture records or fields, routes,
-screens, resources, state entries, mutations, selectors, or visibility rules. `patch-targets`
-returning no matching target is the signal for this lane: rewrite the whole bundle file in one
-write, then revalidate with `validate-intent` or `validate-app`.
-
-The MCP equivalents are `list_intent_patch_targets`, `preview_intent_patch`, and
-`apply_intent_patch`.
-The agent does not need compiler implementation knowledge: public failures must name the problem,
-the semantic source or exact evidence when available, and one bounded next action.
+A bundle is capped at 256 KB, which fits comfortably in a working context. To change one, regenerate
+it or apply a standard JSON Patch, then run `viewspec check` on the file. Never edit generated DOM,
+CSS, or framework output, and never compile an artifact as if it were source.
 
 ## Runnable React App Workflow
 
 When the user asks for a runnable multi-screen React internal tool, start from the bounded AppBundle V4 golden path:
 
 ```bash
-viewspec init-app --template react-app --out viewspec.app.json
-viewspec compile-app viewspec.app.json --target react-tailwind-app --out app-dist
+viewspec init app --template react-app --out viewspec.app.json
+viewspec compile viewspec.app.json --target react-tailwind-app --out app-dist
 cd app-dist
 npm ci
 npm run dev
@@ -70,7 +85,7 @@ Replace the starter content by editing `viewspec.app.json`, validate it, and reg
 Before handoff, run the exact-artifact host proof when dependency installation is allowed:
 
 ```bash
-viewspec prove-app --app viewspec.app.json --target react-tailwind-app --install
+viewspec prove viewspec.app.json --target react-tailwind-app --install
 ```
 
 This proves the generated package's Vite build plus browser-history routing, unknown-route behavior, declared mutations, resource-backed text updates, selector replay, and visibility in Chromium. Keep authentication, persistence, API clients, optimistic updates, and deployment infrastructure in host-authored code.
@@ -79,18 +94,13 @@ For generated apps that use ViewSpec's supported numeric operations, agents may 
 Freerange phase:
 
 ```bash
-viewspec doctor --freerange
-viewspec prove-app --app viewspec.app.json --target react-tailwind-app --install --freerange --json
+viewspec prove viewspec.app.json --target react-tailwind-app --install --freerange --json
 ```
 
 Treat Bun as an explicit operator prerequisite: stable Bun 1.x or newer must already be on `PATH`
-for an applicable scope, and ViewSpec never installs it. `doctor --freerange` is a read-only probe
-that may run `bun --version`; it does not install packages, change the app, or invoke a package
-runner. The generated proof package pins `@chenglou/freerange` exactly to `0.0.1`. Within this
-proof, `--install` grants permission for `npm ci --ignore-scripts` and possible registry access;
-keep it on the public `prove-app` command because that workflow verifies a freshly generated tree.
-Only the lower-level artifact verifier can consume an existing app directory with dependencies
-already installed.
+for an applicable scope, and ViewSpec never installs it. The generated proof package pins
+`@chenglou/freerange` exactly to `0.0.1`. Within this proof, `--install` grants permission for
+`npm ci --ignore-scripts` and possible registry access.
 
 Agents should interpret the composite proof in phase order: strict `tsc --noEmit`, optional
 Freerange findings and coverage audit, Vite build, then Chromium verification. Continue only on
@@ -110,8 +120,8 @@ When the operator wants compiler-owned native text-wrapping evidence, agents may
 request Pretext or compose it with Freerange:
 
 ```bash
-viewspec prove-app --app viewspec.app.json --target react-tailwind-app --install --pretext --json
-viewspec prove-app --app viewspec.app.json --target react-tailwind-app --install --freerange --pretext --json
+viewspec prove viewspec.app.json --target react-tailwind-app --install --pretext --json
+viewspec prove viewspec.app.json --target react-tailwind-app --install --freerange --pretext --json
 ```
 
 Pretext is supported only for `react-tailwind-app`. The generated package pins
@@ -193,13 +203,11 @@ V1 supported region layouts are `stack`, `grid`, and `cluster`. Use semantic reg
 
 V1 supported group kind is `ordered`. Ordering is semantic: groups preserve source order and should not be replaced with visual adjacency.
 
-Local V1 rejects hosted-only fields in both the published schema and runtime validator: root `design`, root `motif_library`, `view_spec.inputs`, `view_spec.projections`, and `view_spec.rules`. If validation returns `HOSTED_ONLY_FIELD`, either send the bundle through the hosted compiler contract or remove those fields before using local `viewspec validate-intent`.
-
-Local V1 also rejects unknown extension fields instead of ignoring them. If validation returns `UNKNOWN_FIELD`, remove the field or move the workflow to the hosted contract that explicitly supports it.
+Local V1 also rejects unknown extension fields instead of ignoring them. If validation returns `UNKNOWN_FIELD`, remove the field.
 
 IntentBundle documents may declare an optional root `schema_version` with integer value `1`. A document without `schema_version` is schema version 1; any other value fails closed with `UNSUPPORTED_SCHEMA_VERSION`. Include the field in new documents so files stay self-describing on disk — any future intent schema revision will require it, so versionless documents remain unambiguously version 1.
 
-Attribute and slot values may be any JSON value. Non-string values render as compact JSON text: integral numbers render as integers (`100`, never `100.0`), lists and objects render without spaces after separators (`["Ann","Bob"]`), and non-ASCII text renders as itself. For integers within +/-2^53 the output is byte-identical whether the bundle was built in memory or read back from a file. Numbers are stored as 64-bit doubles, so `viewspec validate-intent`, `viewspec compile`, and the agent and MCP validate and compile tools reject an integer with magnitude above `9007199254740992` (2^53) with `INTEGER_OUT_OF_SAFE_RANGE` instead of rounding it silently. The Python `compile()` API does not validate, so run `validate_agent_intent_bundle()` on the JSON payload first; a bundle built in Python already holds doubles once it passes through `to_json()` or `to_proto()`, where no check can see the original integer. Write such identifiers as JSON strings.
+Attribute and slot values may be any JSON value. Non-string values render as compact JSON text: integral numbers render as integers (`100`, never `100.0`), lists and objects render without spaces after separators (`["Ann","Bob"]`), and non-ASCII text renders as itself. For integers within +/-2^53 the output is byte-identical whether the bundle was built in memory or read back from a file. Numbers are stored as 64-bit doubles, so `viewspec check` and `viewspec compile` reject an integer with magnitude above `9007199254740992` (2^53) with `INTEGER_OUT_OF_SAFE_RANGE` instead of rounding it silently. The Python `compile()` API does not validate, so run `validate_agent_intent_bundle()` on the JSON payload first; a bundle built in Python already holds doubles once it passes through `to_json()` or `to_proto()`, where no check can see the original integer. Write such identifiers as JSON strings.
 
 Validation issues share one JSON shape across intent and AppBundle paths: `code`, `path` (a `$.`-rooted location), `message`, and `fix`. Tool-level failures (file IO, proof orchestration, asset checks) carry `code`, `message`, and `fix` without `path`.
 
@@ -247,149 +255,29 @@ The CLI exposes the same repair loop:
 
 ```bash
 viewspec prove --out .viewspec-proof
-viewspec init-intent --out viewspec.intent.json
-viewspec init-design --out DESIGN.md
-viewspec validate-intent viewspec.intent.json --json
-viewspec diff-intent old.intent.json new.intent.json --json
+viewspec init --out viewspec.intent.json
+viewspec init design --out DESIGN.md
+viewspec check viewspec.intent.json --json
 viewspec compile viewspec.intent.json --design DESIGN.md --out dist/
 viewspec check dist/
 ```
 
-`validate-intent` exits `0` only when the IntentBundle is valid. It exits `2` for user-correctable invalid intent, missing intent files, malformed JSON, hosted-only fields, and unsupported local V1 structures. Environment or internal failures use exit `1`.
+`viewspec check` exits `0` only when the IntentBundle is valid. It exits `2` for user-correctable invalid intent, missing intent files, malformed JSON, unknown fields, and unsupported local V1 structures. Environment or internal failures use exit `1`.
 
-Python callers can use the same public SDK helpers from the package root:
+Python callers can use the same check:
 
 ```python
-import json
+from viewspec import check
 
-from viewspec import diff_intent_text, intent_semantic_change_lines, starter_intent_bundle, validate_intent_text
-
-bundle = starter_intent_bundle("dashboard")
-validation = validate_intent_text(json.dumps(bundle.to_json()))
-diff = diff_intent_text(old_bundle_json, new_bundle_json)
-semantic_summary = intent_semantic_change_lines(diff["semantic_changes"])
+report = check("viewspec.intent.json")
+assert report["ok"], report["correction_prompt"]
 ```
 
-`init-intent` is a scaffold only. Agents must replace sample labels, values, and structure with the user's actual UI intent before compiling. Run `viewspec init-design --out DESIGN.md` only when the repo does not already have a design file; an existing `DESIGN.md` remains the theming source of truth.
+`viewspec init` is a scaffold only. Agents must replace sample labels, values, and structure with the user's actual UI intent before compiling. Run `viewspec init design --out DESIGN.md` only when the repo does not already have a design file; an existing `DESIGN.md` remains the theming source of truth.
 
 `viewspec compile` performs the same intent validation before writing output files. If compilation returns an intent validation payload, feed its `correction_prompt` back to the agent and regenerate the full IntentBundle instead of patching fragments.
 
-Use `viewspec doctor` in local setup checks. It reports the available intent-first commands, runs starter IntentBundle validation/compile/diff, AppBundle validation/diff, aesthetic-profile diff, and semantic summary smoke checks, verifies `PyYAML`, and states that local validation, compile, lift, diff, check, check-agent-assets, scaffold, app proof, and agent-asset export commands make no SDK network calls. `viewspec doctor --agents` also reports managed instruction templates, local agent prompt/schema/example/manifest asset identity and hashes, local `.viewspec` asset status, published static asset status when `demos/agent-assets.json` is present, the optional MCP dependency, MCP install hint, and cwd path containment policy. `viewspec doctor --freerange` adds only the read-only Bun/Freerange readiness report; it performs no installation. `viewspec doctor --json` returns the same `checks` inside the standard tool envelope and names each failing check as a `DOCTOR_CHECK_FAILED` error whose `fix` repairs that check (a failed `--freerange` probe also adds its own coded errors, such as `APP_FREERANGE_RUNTIME_MISSING`); every other subcommand accepts `--json` as well (see [Machine-readable output](getting-started.md#machine-readable-output)).
-
 `viewspec check` treats the compiled artifact as a proof boundary. For IntentBundle artifacts, DOM `data-ir-id`, `data-binding-id`, and `data-action-id` values must agree with `provenance_manifest.json`; binding/action ids cannot be duplicated; binding nodes must retain source `content_refs`; and binding/action manifest entries must include the matching `viewspec:binding:*` or `viewspec:action:*` intent ref. Human check output prints the bounded manifest summary, including root aesthetic profile, compact style-delta counts, and checked aesthetic layout columns/spans when present; `viewspec check --json` returns the same summary for tools.
-
-## First creation from a user brief
-
-When the user asks for a new interface and neither canonical semantic source exists, preserve their
-exact request in a local brief file and run `viewspec studio --brief-file product-brief.md --json`.
-Pass a local PNG, JPEG, or WebP with `--reference` when the user supplied one. Default to
-`--kind app` for a product and choose `--kind view` only for one bounded screen.
-
-Read the returned task instead of guessing paths. Author the complete candidate at its exact
-`candidate_path` against its `candidate_schema`, replacing all sample content. Do not copy the
-candidate into canonical source or run a second human-facing command. The creation room notices
-stable candidate bytes, checks them through the existing acceptance path, reports one exact fix on
-failure, and continues the same browser tab into checked Studio on success. Keep the Review poll
-attached to the active agent turn after that handoff.
-
-The task and candidate proof are no-network and reference bytes remain local. Acceptance proves
-semantic source and artifact health but deliberately reports reference fidelity as `not_proven`;
-the human judges fidelity in Studio. `studio-create` and `studio-accept` remain diagnostic surfaces
-for isolated task preparation and acceptance.
-
-When the user explicitly asks to compare an AppBundle's static and React products, request or use
-their authorization for the locked local dependency install, then open the single comparison
-revision:
-
-```bash
-viewspec studio viewspec.app.json --compare --install --json
-```
-
-Do not open two unrelated review sessions. The comparison gate requires the exact same source hash,
-successful static and React builds, identical routes, and exact cross-emitter semantic identity.
-Viewport and route changes synchronize both canvases, and feedback from either resolves to the same
-semantic source. Treat `visual_parity: "not_proven"` as a deliberate boundary, not a failed check.
-
-If the comparison reports ready replay or resource inspection, leave the human in the same Studio
-panel. A selected declared checkpoint resets both targets and drives only exact, uniquely mapped
-action triggers; ambiguous triggers stay `not_replayable` even when their reducer proof passes.
-Feedback may contain checked `studio-inspection/replays/...` and server-derived
-`studio-inspection/resources/...` evidence refs. Treat those as exact source-bound context. Keep
-fixture source values distinct from current rendered state, and never describe them as production
-data, persistence, or backend truth.
-
-When the user explicitly asks to share the exact checked AppBundle comparison, run only the local
-preparation step:
-
-```bash
-viewspec studio-share-prepare viewspec.app.json --reference reference.png --json
-```
-
-Omit `--reference` unless the user intends that exact image to leave the machine. Read and present
-the returned `share-disclosure.md` before requesting any future upload authority. The package is
-content-addressed and revalidates its source, optional `DESIGN.md`, full checked artifact inventory,
-comparison identities, disclosure, and deterministic sibling `.vsreview` transport archive.
-Preparation makes no network call, uploads nothing, and
-creates no review link or capability. Do not invent a transport step or imply that private sharing
-is live; the provider-independent trust core and framework-neutral HTTPS contract exist, but no
-authorized HTTPS service is deployed.
-
-`viewspec prove --out .viewspec-proof` is the beginner-facing first proof: it generates or uses an IntentBundle, compiles through the public local path, checks the artifact, and writes human-readable `PROOF.md`, machine-readable `proof_report.json`, and redacted `support_bundle.json`. Use [ViewSpec Proof Bundle](proof-bundle.md) to interpret proof status, hashes, checks, failure codes, and local support triage. Treat it as source artifact and provenance proof. ViewSpec prove is not pixel-perfect visual regression, accessibility certification, arbitrary host-app certification, or hosted compiler publish automation.
-
-Local HTML action buttons dispatch `viewspec-action` events only when actions exist. Event `detail` is a stable V1 payload with `schemaVersion: 1`, `source: "viewspec-html-tailwind"`, `id`, `kind`, `targetRef`, `payloadBindings`, and collected `payloadValues`. Pressing Enter inside a local inert form dispatches only a declared `submit` action whose `targetRef` exactly matches that form motif. The host app owns side effects such as navigation or network submission.
-
-The V1 local contract is bounded so validation and correction stay deterministic: max 256KB JSON, 200 substrate nodes, 32 regions, 400 bindings, 64 groups, 32 motifs, 400 styles, 64 actions, 64 attrs/slots/edges per node, 200 values per slot or edge, and 64 payload bindings per action. `complexity_tier` starts at 1, region child bounds are non-negative, and `max_children` must be null or at least `min_children`. Agents should split larger UI surfaces into smaller IntentBundles.
-
-## IntentPatch V1 and Converge
-
-When an agent is revising existing validated source from Review feedback or a verification repair,
-it should automatically use a Converge Session rather than asking the operator to drive patch
-commands. The session returns a Convergence Authoring Task: use the exported
-`converge-task.schema.json`, choose only its legal operation menu, copy fixed fields and evidence
-exactly, and submit one `IntentPatch` V1.
-
-The human workflow is only to open Studio, inspect the semantic before/after and progress proof,
-and approve or reject. Agents must not expose or discover approval tokens, use `--show-authority`,
-or approve their own proposals.
-
-These commands exist as expert/debug equivalents of the automatic workflow:
-
-```bash
-viewspec converge-start viewspec.intent.json context.json --json
-viewspec converge-submit viewspec.intent.json change.intentpatch.json --json
-viewspec converge-status viewspec.intent.json --json
-```
-
-If an integration uses `--state-dir` for Converge, it must pass that same private path as
-`viewspec studio --convergence-state-dir ...`; the agent wires this automatically so the human
-still sees the pending proposal without handling storage configuration.
-
-Submit validates, semantic-diffs, compiles, and checks the complete candidate without changing
-source. Review keeps approval authority private and applies only the exact preview shown in its
-authenticated current frame; Review events and verifier repairs remain proposal evidence only.
-
-Python callers can use `patch_context_from_review_batch()` and
-`patch_context_from_repair_plan()` to create bounded source-bound authorship context, then
-`start_convergence_session()`, `submit_convergence_patch()`, and `get_convergence_status()` for the
-controller. MCP callers use `build_intent_patch_context`, `start_convergence`,
-`submit_convergence_patch`, and `get_convergence_status`; all retain the cwd path sandbox and
-standard response envelope while withholding write capabilities.
-
-Verifier-driven start reconstructs the canonical proposal context from the supplied baseline and
-requires exact equality; reusing a real repair-plan id with substituted requests is rejected.
-
-IntentPatch cannot add/delete source structure or address arbitrary JSON, DOM, CSS, or generated
-files. Use a full IntentBundle/AppBundle revision for changes outside its nine-operation vocabulary.
-The full contract, constraint matrix, recovery behavior, and explicit anti-goals are in
-[IntentPatch V1](intent-patch-v1.md).
-The durable controller, strict set-wise verifier progress rule, constraints, and operator boundary
-are specified in [Converge Sessions V1](converge-sessions-v1.md).
-
-## Intent Review
-
-Use `viewspec diff-intent old.intent.json new.intent.json --json` to review agent-authored revisions at the contract level. The result is versioned as `diff_version: 1` with `basis: "intent_bundle_v1"`, and reports added, removed, and changed top-level bundle metadata, semantic nodes, regions, bindings, groups, motifs, styles, actions, selected field-level changes, and a `semantic_changes` summary for region layout/parent/role changes, group membership changes, motif membership/kind/region changes, aesthetic profile changes, style target/token changes, binding source/presentation changes, and action target/payload changes. Human output prints concise section and semantic summaries; Python callers can use `intent_semantic_change_lines(diff["semantic_changes"])`; `--json` returns the full machine-readable payload.
-
-This is intentionally not a visual equivalence proof. It tells reviewers what changed in the declared UI intent before they inspect compiled HTML, React, SwiftUI, Flutter, or other emitter artifacts.
 
 ## AppBundle V1/V2/V3/V4
 
@@ -400,48 +288,20 @@ For reference-sensitive screens, declare `screen.presentation` with stable regio
 For bound collections, use `resource_view.repeat.field_presentations` to generate stable record-field bindings instead of duplicating semantic nodes. The repeat owns repeated record-fields in its target motif, so remove any hand-authored prototype record bindings there. Generated DOM carries resource, resource-view, record, and field provenance, and proof uses that canonical identity rather than visible text. For common state scenarios, replay events may name `{ "screen_id", "action_id", "repeat" }`; they normalize to the existing mutation events and failures retain assertion, event, mutation, path, expected, actual, selector, and visibility context.
 
 ```bash
-viewspec init-app --out viewspec.app.json
-viewspec init-app --resource-binding fixture-readonly-v0 --out viewspec.bound.app.json
-viewspec validate-app viewspec.app.json --json
-viewspec diff-app old.app.json new.app.json --json
-viewspec compile-app viewspec.app.json --out app-dist --target html-tailwind-app --json
-viewspec prove-app --app viewspec.app.json --out .viewspec-app-proof --with-shell --json
+viewspec init app --out viewspec.app.json
+viewspec init app --resource-binding fixture-readonly-v0 --out viewspec.bound.app.json
+viewspec check viewspec.app.json --json
+viewspec compile viewspec.app.json --out app-dist --target html-tailwind-app --json
+viewspec prove viewspec.app.json --out .viewspec-app-proof --with-shell --json
 ```
 
 The AppBundle contract is physically bounded: 1 MiB raw JSON, 16 screens, 32 routes, 8 fixture resources, 100 records per resource, 32 scalar fields per record, 2,048 characters per scalar string, 256 KiB per embedded `IntentBundle`, 256 KiB for the resolved presentation plan, and 1 MiB aggregate embedded intent JSON. Presentation allows at most 96 rules and 64 anchors per screen with 1–4 grid tracks/rows. V2 binding adds max 32 resource views per app, 8 per screen, 50 record refs per view, 16 fields per view, 800 record-field assertions, and 128 KiB serialized assertion report. V3 state adds max 32 state entries, 128 mutations, 16 ops per mutation, 64 selectors, 8 selector ops, 32 replay assertions, 32 events per replay assertion, 64 KiB generated reducer, and 64 KiB state manifest. Routes are static canonical paths only; route paths never become proof output paths. AppBundle-owned objects reject unknown fields and no-network surfaces. Embedded screen intents must pass the existing local V1 validator.
 
-`prove-app` writes `.viewspec-app-proof/APP_PROOF.md`, `.viewspec-app-proof/app_proof_report.json`, `.viewspec-app-proof/app_support_bundle.json`, and per-screen `viewspec.intent.json`, `artifact/index.html`, `provenance_manifest.json`, and `diagnostics.json`. React proofs additionally write a hash-linked `app_analysis_evidence.json`: the main report keeps compact analyzer coverage and phase summaries while the evidence file retains complete Freerange/Pretext host reports for local diagnostics. The proof report uses `proof_level: "app_contract_source_artifacts"`, `target: "html-tailwind"`, the validated resource binding mode, and for V2/V3 includes `binding_scope: "declared_resource_views_only"`, assertion counts, per-view status, and a binding digest.
+`viewspec prove` writes `.viewspec-app-proof/APP_PROOF.md`, `.viewspec-app-proof/app_proof_report.json`, `.viewspec-app-proof/app_support_bundle.json`, and per-screen `viewspec.intent.json`, `artifact/index.html`, `provenance_manifest.json`, and `diagnostics.json`. React proofs additionally write a hash-linked `app_analysis_evidence.json`: the main report keeps compact analyzer coverage and phase summaries while the evidence file retains complete Freerange/Pretext host reports for local diagnostics. The proof report uses `proof_level: "app_contract_source_artifacts"`, `target: "html-tailwind"`, the validated resource binding mode, and for V2/V3 includes `binding_scope: "declared_resource_views_only"`, assertion counts, per-view status, and a binding digest.
 
-Static Shell V0 consumes the same validated AppBundle contract and writes a local shell artifact with `target: "html-tailwind-app"` and `route_navigation: "static_shell_v0"`. `compile-app` writes `app-dist/index.html`, `shell_manifest.json`, `diagnostics.json`, `presentation_plan.json`, checked screen artifacts, and for V3 `state_reducer.ts` plus `state_manifest.json`; `prove-app --with-shell` writes the same byte-identical shell under `.viewspec-app-proof/app-shell/` and records `shell_artifact_hash`, `shell_manifest_hash`, presentation-plan hash/diagnostics, no-network policy, route assertions, resource binding assertions when V2/V3 is enabled, per-screen proof data, and V3 `state_contract_hash`, state artifact hashes, replay status, and generated reducer conformance status. Static Shell V0 is bounded to 16 screens, 32 routes, 2 MiB shell HTML, 64 KiB shell JS, 64 KiB serialized route table, 8 MiB aggregate embedded checked screen HTML, 64 KiB generated reducer, and 64 KiB state manifest; it rejects external network/embed/script surfaces and generated framework/backend adapters.
+Static Shell V0 consumes the same validated AppBundle contract and writes a local shell artifact with `target: "html-tailwind-app"` and `route_navigation: "static_shell_v0"`. `viewspec compile` writes `app-dist/index.html`, `shell_manifest.json`, `diagnostics.json`, `presentation_plan.json`, checked screen artifacts, and for V3 `state_reducer.ts` plus `state_manifest.json`; `viewspec prove --with-shell` writes the same byte-identical shell under `.viewspec-app-proof/app-shell/` and records `shell_artifact_hash`, `shell_manifest_hash`, presentation-plan hash/diagnostics, no-network policy, route assertions, resource binding assertions when V2/V3 is enabled, per-screen proof data, and V3 `state_contract_hash`, state artifact hashes, replay status, and generated reducer conformance status. Static Shell V0 is bounded to 16 screens, 32 routes, 2 MiB shell HTML, 64 KiB shell JS, 64 KiB serialized route table, 8 MiB aggregate embedded checked screen HTML, 64 KiB generated reducer, and 64 KiB state manifest; it rejects external network/embed/script surfaces and generated framework/backend adapters.
 
-AppBundle proof does not prove runtime browser navigation, dynamic routes, live DOM rebinding, transformed fixture values, deployable app scaffolding, Zustand/Redux/SwiftData adapters, API clients, backends, persistence, CRDTs, websocket sync, optimistic server reconciliation, accessibility certification, pixel-perfect visual equivalence, arbitrary host-app compatibility, or hosted extended compiler behavior.
-
-## Published Agent Artifacts
-
-These assets use agent asset schema version `15`. The manifest declares the `local_v1` contract profile plus the export/check commands agents should use for local verification.
-
-- Asset manifest: `https://viewspec.dev/agent-assets.json`
-- System prompt: `https://viewspec.dev/agent-system-prompt.txt`
-- JSON schema: `https://viewspec.dev/agent-intent-bundle.schema.json`
-- Valid starter example: `https://viewspec.dev/agent-intent-example.dashboard.json`
-- AppBundle V1/V2/V3/V4 schema: `https://viewspec.dev/agent-app-bundle.schema.json`
-- AppBundle internal-tool example: `https://viewspec.dev/agent-app-example.internal-tool.json`
-- IntentPatch V1 schema: `https://viewspec.dev/intent-patch.schema.json`
-- IntentPatch dashboard example: `https://viewspec.dev/intent-patch-example.dashboard.json`
-- Convergence Authoring Task V1 schema: `https://viewspec.dev/converge-task.schema.json`
-- Convergence Authoring Task dashboard example: `https://viewspec.dev/converge-task-example.dashboard.json`
-- Hosted compiler OpenAPI: `https://viewspec.dev/openapi.json`
-- LLM summary: `https://viewspec.dev/llms.txt`
-- Expanded AI context: `https://viewspec.dev/llms-full.txt`
-
-For local-only setup, export the asset manifest, prompt, schemas, and valid examples from the installed SDK instead of fetching hosted static assets:
-
-```bash
-viewspec export-agent-assets --out .viewspec
-viewspec check-agent-assets .viewspec --json
-```
-
-The export command also writes the IntentPatch and Convergence Authoring Task schemas and examples, refuses to overwrite edited files unless `--force` is passed, and performs no network calls. The check command verifies every exported file against the current SDK contract.
+AppBundle proof does not prove runtime browser navigation, dynamic routes, live DOM rebinding, transformed fixture values, deployable app scaffolding, Zustand/Redux/SwiftData adapters, API clients, backends, persistence, CRDTs, websocket sync, optimistic server reconciliation, accessibility certification, pixel-perfect visual equivalence, or arbitrary host-app compatibility.
 
 ## Minimal IntentBundle Example
 
@@ -502,50 +362,6 @@ When validation fails:
 4. Compile only after `result.valid` is true.
 
 The correction prompt intentionally contains compact structured issues. It should not ask the agent to patch fragments or emit prose.
-
-
-## Hosted Launch Capabilities
-
-The public SDK agent schema remains V1 and reference-focused. The hosted compiler can accept additional launch fields documented in hosted examples: `projections`, `inputs`, `rules`, and optional `motif_library`.
-
-Hosted extended artifacts must identify that boundary instead of pretending to be local V1 bundles. Public demo artifact indexes use `contract_profile: "hosted_extended_v1"` when the IntentBundle includes hosted-only fields or cross-platform emitters. Do not use local `viewspec validate-intent` as proof for those hosted-extended files; validate local V1 bundles locally and validate hosted-extended bundles through the hosted compiler contract.
-
-In hosted and local workflows, agents still generate IntentBundle JSON for new UI. They should not generate CompositionIR, React, SwiftUI, Flutter, or HTML directly unless the user explicitly asks for emitter source. Compiled output directories are generated artifacts, including `dist/index.html` and `react-output/ViewSpecView.tsx`; edit the IntentBundle or DESIGN.md source instead. Raw HTML tools are only for importing existing HTML.
-
-For local V1 React source output, keep the same IntentBundle-first workflow and change only the compile target:
-
-```bash
-viewspec compile viewspec.intent.json --target react-tsx --out react-output/
-```
-
-The MCP `compile_intent_bundle_file` tool accepts the same target as `target: "react-tsx"` and still runs `viewspec check` against the emitted source artifact. The agent edits `viewspec.intent.json`; `ViewSpecView.tsx` is compiled artifact source. React actions surface through an `onAction` callback with the same V1 action fields used by the HTML runtime.
-
-For Tailwind host apps, use `--target react-tailwind-tsx` or MCP `target: "react-tailwind-tsx"`. Tailwind utility classes are closed compiler recipes; agents must still edit only the IntentBundle.
-
-MCP `diff_intent_bundle_files` returns the full `diff` payload and a concise `semantic_summary` list for agent-readable review. Metadata also includes `semantic_change_count`, `semantic_change_sections`, and `topology_similarity` so agents can triage revisions before inspecting generated artifacts. When an aesthetic profile changes, the semantic diff includes compact style impact counts and bounded layout deltas such as metric-card span or emphasis changes.
-
-The public repo includes an executable ten-case browser conformance corpus. For arbitrary generated
-React/Tailwind output, agents should run validate, compile, `viewspec check`, and `viewspec verify`.
-The final command renders canonical viewports, records screenshots, DOM and accessibility evidence,
-and writes a deterministic repair plan beside the canonical result.
-
-On the checked release revision, all 10 corpus cases passed the product-quality scorecard on first
-compile with zero critical issues, rendered conformantly at mobile, tablet, and desktop viewports,
-and completed one bounded semantic correction with a verified preview and applied receipt. The
-[eight-gate result](../conformance/refinement/gate-status-v1.json),
-[scorecard](../conformance/refinement/scorecard-v2.json), and
-[correction proof](../conformance/refinement/correction-proof-v1.json) are fixed-corpus regression
-evidence, not certification of arbitrary briefs or host applications.
-
-`repair.json` distinguishes `done`, `repair`, and `retry`. Repair directives use stable `vfix_*`
-identities, canonical `ir:<node>` or `screen:<screen>/ir:<node>` source paths, exact evidence
-references, and recurrence fingerprints that ignore prose and screenshot churn. Agents should send
-the repaired semantic source through the returned `next_lineage`; they should not patch generated
-TSX directly.
-
-Agents may run `viewspec verify-host react-tailwind-output/ --target react-tailwind-tsx --install --json`, or MCP `verify_host`, when the user wants a bounded per-artifact React/Vite/Tailwind runtime proof. This verifier checks the exact artifact first, carries the checked manifest summary into the host proof report, copies only the checked generated files into ViewSpec's isolated reference host, and asserts computed grid column/span counts plus profiled aesthetic markers/layout when the manifest declares them. It does not claim compatibility with arbitrary host apps. Human CLI output prints the same summary, including compact aesthetic style-delta counts, plus nonzero host assertion counts; MCP metadata exposes the same bounded host verification summary and `--json` returns the full proof report with `assertion_requirements` for expected `dom_count`, `style_assertion_count`, and manifest-derived `aesthetic_layout_assertion_count`, `aesthetic_profile_assertion_count`, and `grid_span_assertion_count`.
-
-Agents may also run `viewspec prove --target react-tailwind-tsx --install --out .viewspec-proof --json`, or MCP `prove`, when the user wants the full first-proof path plus the bounded React Tailwind reference host proof in one report. MCP `prove` metadata exposes checks, proof identity hashes, manifest summary, and bounded host verification facts before agents inspect the nested `proof_report`.
 
 
 ## Optional Reference Grounding

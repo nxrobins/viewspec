@@ -1,27 +1,33 @@
 # ViewSpec
 
-> ViewSpec is an agent-native app compiler and UI compiler: agents emit IntentBundle or AppBundle JSON, and ViewSpec compiles UI, state, reducers, shell artifacts, proof reports, HTML, React, SwiftUI, Flutter, and CompositionIR.
+> ViewSpec is a free, local, MIT-licensed agent-native app compiler and UI compiler: agents emit IntentBundle or AppBundle JSON, and ViewSpec compiles UI, state, reducers, shell artifacts, proof reports, HTML, React, and CompositionIR. There is no hosted service, account, API key, or paid tier.
 
 ViewSpec lets agents describe semantic UI and app intent instead of hand-authoring DOM or state reducers. The local SDK validates `viewspec.intent.json` and `viewspec.app.json`, compiles with `DESIGN.md`, writes provenance and shell manifests, generates bounded `state_reducer.ts` artifacts for `interactive_state_v0`, and checks artifacts without SDK network calls for agentic engineering workflows.
 
-It remains an agent-native UI compiler for IntentBundle screen work; the launch refresh adds the AppBundle proof story for UI plus state.
+It remains an agent-native UI compiler for IntentBundle screen work; AppBundle adds the proof story for UI plus state.
 
-Raw HTML tools remain available only for importing existing HTML: `viewspec compile`, `viewspec lift`, `viewspec diff`, and `viewspec check` can sanitize, theme, manifest, and diff imported HTML.
+Raw HTML remains available only for importing existing HTML: `viewspec compile` auto-detects `.html` input and sanitizes, themes, and manifests it, and `viewspec check` checks the result.
+
+## Commands
+
+The CLI is exactly six commands:
+
+- `viewspec init [intent|app|design] [--kind K] [--template T] [--out P] [--force] [--json]` writes a starter IntentBundle, AppBundle, or DESIGN.md.
+- `viewspec compile INPUT --out DIR [--target T] [--design P] [--json]` compiles an IntentBundle, AppBundle, or imported raw HTML, auto-detected.
+- `viewspec check PATH [--json]` runs fast static, provenance, and security checks on a source file or compiled artifact directory.
+- `viewspec prove [SOURCE] [--out D] [--target T] [--install] [--with-shell] [--freerange] [--pretext] [--json]` compiles and verifies a source, or browser-verifies a compiled artifact, and writes a proof bundle. With no source it proves a starter.
+- `viewspec studio [SOURCE] [--design P] [--port N] [--no-open] [--json]` serves a live-reloading local preview of a source file on 127.0.0.1. It rebuilds when the source or an optional DESIGN.md changes, and a failed build keeps the last good one on screen with its errors. It is a preview only: it does not generate source, collect comments or approvals, or share builds.
+- `viewspec mcp [--cwd DIR] [--allow-outside-cwd] [--json]` serves the other five to a coding agent as MCP tools over stdio, confined to the working directory. It needs `pip install --pre "viewspec[agents]"`.
 
 ## Canonical Links
 
-- Product and playground: https://viewspec.dev/
+- Homepage: https://viewspec.dev/
 - Agent integration docs: https://github.com/nxrobins/viewspec/blob/main/docs/agent-integration.md
 - Local HTML import docs: https://github.com/nxrobins/viewspec/blob/main/docs/local-html-wedge.md
-- Cross-platform launch demo: https://viewspec.dev/cross-platform-dashboard/
 - AppBundle State IR demo: https://viewspec.dev/appbundle-state-ir/
+- Proof bundle guide: https://viewspec.dev/proof-bundle/
 - Homepage compiled aesthetic profiles: https://viewspec.dev/
 - Custom motif demo: https://viewspec.dev/custom-motifs/
-- Interactive compose demo: https://viewspec.dev/interactive-compose/
-- Public Proof Explorer: https://viewspec.dev/proof-explorer/
-- Hosted compiler API: https://api.viewspec.dev/v1/compile
-- OpenAPI description: https://viewspec.dev/openapi.json
-- Agent asset manifest: https://viewspec.dev/agent-assets.json
 - Agent system prompt: https://viewspec.dev/agent-system-prompt.txt
 - Agent IntentBundle schema: https://viewspec.dev/agent-intent-bundle.schema.json
 - Valid starter IntentBundle example: https://viewspec.dev/agent-intent-example.dashboard.json
@@ -33,39 +39,31 @@ Raw HTML tools remain available only for importing existing HTML: `viewspec comp
 
 ## Current Product Facts
 
-- Current public SDK version: `0.3.0b12` (beta).
-- Free beta SDK: `python -m pip install --pre viewspec`. Plain `python -m pip install viewspec` follows the stable channel because pip excludes prereleases by default.
+- Current public SDK version: `0.4.0b1` (beta).
+- Free, MIT-licensed beta SDK: `python -m pip install --pre viewspec`. Plain `python -m pip install viewspec` follows the stable channel because pip excludes prereleases by default.
 - Starter proof: `viewspec prove --out .viewspec-proof` writes `.viewspec-proof/PROOF.md` for humans, `.viewspec-proof/proof_report.json` for tools, and `.viewspec-proof/support_bundle.json` for redacted local support triage; checked manifest summaries include compact style-delta counts when aesthetic profiles are present; `docs/proof-bundle.md` and https://viewspec.dev/proof-bundle/ explain status, hashes, checks, failure codes, and support bundles.
-- Public evidence: https://viewspec.dev/proof-explorer/ exposes the retained fixed-corpus browser screenshots, product-quality scores, source and artifact hashes, eight delivery gates, six negative controls, and verified semantic correction receipts. It is evidence for the checked corpus, not certification of arbitrary briefs or host apps.
-- Canonical authored-intent lifecycle: `viewspec init-intent --out viewspec.intent.json`; edit the semantic source; `viewspec validate-intent viewspec.intent.json --json`; then `viewspec prove --intent viewspec.intent.json --target react-tailwind-tsx --install --out .viewspec-proof --json`. The final command compiles, checks, and renders the exact artifact at canonical mobile, tablet, and desktop viewports.
-- Freerange opt-in for generated `react-tailwind-app` proofs: `viewspec prove-app --app viewspec.app.json --target react-tailwind-app --install --freerange --json` pins https://github.com/chenglou/freerange as `@chenglou/freerange@0.0.1` and reports `static_analysis` plus `analyses.freerange`. It requires a user-installed stable Bun 1.x; ViewSpec never installs Bun. Its v2 contract binds every eligible state-operation occurrence to the emitted state contract, exact helpers, 100% analysis, and runtime call sites; it does not cover CSS, rendered geometry, arbitrary math, or arbitrary host applications.
-- Pretext opt-in for generated `react-tailwind-app` proofs: `viewspec prove-app --app viewspec.app.json --target react-tailwind-app --install --pretext --json` pins https://github.com/chenglou/pretext as `@chenglou/pretext@0.0.8` and reports `text_layout` plus `analyses.pretext`. Its v2 protocol independently inventories every eligible checked-manifest text surface per route and viewport before checking native-DOM versus Pretext line count and overflow using named `Arial, sans-serif` at 390x844, 768x1024, and 1440x1000 in Chromium. It needs no Bun and is not general typography, canvas, visual-regression, accessibility, or arbitrary-host proof.
-- Compose both with `viewspec prove-app --app viewspec.app.json --target react-tailwind-app --install --freerange --pretext --json`. Dedicated hosted E2E covers healthy proofs plus real division, bounds, font, wrapping, and overflow mutation rejection on relevant changes, weekly, and by manual dispatch; this does not claim that a hosted run has completed.
-- Core workflow evidence: 10/10 fixed corpus cases were conformant across mobile, tablet, and desktop with accessibility, DOM, log, and screenshot evidence; all ten passed the product-quality scorecard on first compile with zero critical issues; and 10/10 bounded semantic corrections produced verified previews and applied receipts. Evidence: https://github.com/nxrobins/viewspec/blob/main/conformance/refinement/gate-status-v1.json, https://github.com/nxrobins/viewspec/blob/main/conformance/refinement/scorecard-v2.json, and https://github.com/nxrobins/viewspec/blob/main/conformance/refinement/correction-proof-v1.json. This is fixed-corpus regression evidence, not certification of arbitrary briefs or host applications.
+- Canonical authored-intent lifecycle: `viewspec init --out viewspec.intent.json`; edit the semantic source; `viewspec check viewspec.intent.json --json`; then `viewspec prove viewspec.intent.json --target react-tailwind-tsx --install --out .viewspec-proof --json`. The final command compiles, checks, and renders the exact artifact at canonical mobile, tablet, and desktop viewports.
+- Freerange opt-in for generated `react-tailwind-app` proofs: `viewspec prove viewspec.app.json --target react-tailwind-app --install --freerange --json` pins https://github.com/chenglou/freerange as `@chenglou/freerange@0.0.1` and reports `static_analysis` plus `analyses.freerange`. It requires a user-installed stable Bun 1.x; ViewSpec never installs Bun. Its v2 contract binds every eligible state-operation occurrence to the emitted state contract, exact helpers, 100% analysis, and runtime call sites; it does not cover CSS, rendered geometry, arbitrary math, or arbitrary host applications.
+- Pretext opt-in for generated `react-tailwind-app` proofs: `viewspec prove viewspec.app.json --target react-tailwind-app --install --pretext --json` pins https://github.com/chenglou/pretext as `@chenglou/pretext@0.0.8` and reports `text_layout` plus `analyses.pretext`. Its v2 protocol independently inventories every eligible checked-manifest text surface per route and viewport before checking native-DOM versus Pretext line count and overflow using named `Arial, sans-serif` at 390x844, 768x1024, and 1440x1000 in Chromium. It needs no Bun and is not general typography, canvas, visual-regression, accessibility, or arbitrary-host proof.
+- Compose both with `viewspec prove viewspec.app.json --target react-tailwind-app --install --freerange --pretext --json`. A dedicated CI workflow covers healthy proofs plus real division, bounds, font, wrapping, and overflow mutation rejection on relevant changes, weekly, and by manual dispatch; this does not claim that a CI run has completed.
 - Accessibility proof: `viewspec prove` runs `a11y_contrast` (fail-closed) and `a11y_names` (fail-closed; interactive controls need an author-provided accessible name). Every governed text/background pair meets size/role-scoped WCAG AA (body 4.5:1, large text and UI components 3.0:1), enumerated from the closed style vocabulary plus fixed base pairs so it provably covers every node — including the react-tailwind-tsx emitter, resolved against the browser-grounded Tailwind v4 palette. See `docs/known-limits-a11y.md`.
-- Runtime LLM calls: zero in local validate/compile/lift/diff/check and zero in the live compiler path.
-- Agents should emit `viewspec.intent.json` for new UI, use the canonical authored-intent lifecycle above, and use `viewspec diff-intent` for revisions including aesthetic profile deltas. Lower-level `viewspec compile` and `viewspec check` remain expert/debug surfaces.
-- Intent diff summaries are available in human CLI output, MCP `semantic_summary`, and Python via `intent_semantic_change_lines(diff["semantic_changes"])`.
-- Use `viewspec init-design --out DESIGN.md` when the repo does not already have a design file.
-- `viewspec validate-intent` exits 0 for valid intent, 2 for user-correctable invalid intent, and 1 for environment/internal failure.
+- Runtime LLM calls: zero in local `viewspec compile`, `viewspec check`, `viewspec prove`, and `viewspec studio`, and zero in generated artifacts.
+- Agents should emit `viewspec.intent.json` for new UI and use the canonical authored-intent lifecycle above. Lower-level `viewspec compile` and `viewspec check` remain expert/debug surfaces.
+- Use `viewspec init design --out DESIGN.md` when the repo does not already have a design file.
+- `viewspec check` exits 0 for valid intent, 2 for user-correctable invalid intent, and 1 for environment/internal failure.
 - Validation issues include severity, code, path, message, suggestion, and a bounded repair_checklist; correction prompts require full IntentBundle regeneration.
 - V1 local IntentBundle caps: max 256KB JSON, 200 substrate nodes, 32 regions, 400 bindings, 64 groups, 32 motifs, 400 styles, 64 actions, 64 attrs/slots/edges per node, 200 values per slot or edge, and 64 payload bindings per action.
 - V1 public SDK agent ids and object keys use only letters, digits, underscore, dot, and dash.
-- Native agent setup: `viewspec init-agent --target codex|claude-code|cursor|copilot|all`.
-- Local agent contract asset export: `viewspec export-agent-assets --out .viewspec`.
-- Local agent contract asset verification: `viewspec check-agent-assets .viewspec --json`.
-- Local agent asset manifests use schema version `15`, declare the `local_v1` contract profile, and include the closed IntentPatch V1 and Convergence Authoring Task V1 schemas plus exact-source examples.
-- Converge Sessions automatically turn Review or verifier evidence into source-bound patch proposals; humans inspect semantic before/after and progress proof in Review, then approve or reject without handling hashes, operations, or tokens.
-- AppBundle commands: `viewspec init-app --out viewspec.app.json`, `viewspec init-app --resource-binding fixture-readonly-v0 --out viewspec.bound.app.json`, `viewspec validate-app viewspec.app.json --json`, `viewspec diff-app old.app.json new.app.json --json`, `viewspec compile-app viewspec.app.json --out app-dist --target html-tailwind-app --json`, and `viewspec prove-app --app viewspec.app.json --out .viewspec-app-proof --with-shell --json`.
-- AppBundle State IR demo: https://viewspec.dev/appbundle-state-ir/ shows `interactive_state_v0`, `reduceViewSpecState`, `state_replay_assertions`, `prove-app --with-shell`, and `state_reducer.ts` as the concrete proof surface.
-- AppBundle is local-only app contract proof for multi-screen internal tools: static routes, embedded local V1 screen IntentBundles, V1 `resource_binding: "unbound_v0"` fixture context, optional V2 `fixture_readonly_v0` exact scalar visibility proofs for declared `resource_views`, optional V3 `interactive_state_v0` state/mutations/selectors/replay assertions with a pure reducer artifact, optional V4 `visibility_v0` bounded show/hide rules with baked initial visibility and a replay-proved `evaluateViewSpecVisibility` reducer export, and per-screen html-tailwind compile/check artifacts. Static Shell V0 writes a bounded local `html-tailwind-app` shell with `route_navigation: "static_shell_v0"` and no external network/embed/script surfaces. For V3 it also writes `state_reducer.ts` and `state_manifest.json`, with a generated `reduceViewSpecState` export and checked `state_replay_assertions`. For V4 it also includes the generated reducer and one bounded delegated click listener that dispatches declared mutations and toggles `hidden` on `data-visibility-rule` nodes. It does not prove runtime navigation or browser history semantics, runtime fixture data binding, live data or text rebinding, transformed values, generate a deployable framework app, install a framework state adapter, persist or sync state, or claim hosted extended compiler behavior. State IR is not Redux, Zustand, CRDT, persistence, or backend generation.
-- Optional MCP server: run `python -m pip install --pre "viewspec[agents]"`, then `viewspec mcp`.
-- MCP intent/app tools: `init_intent`, `validate_intent_bundle_file`, `diff_intent_bundle_files`, `compile_intent_bundle_file`, `build_intent_patch_context`, `preview_intent_patch`, `apply_intent_patch`, `agent_correction_prompt_file`, `init_app`, `validate_app_file`, `diff_app_files`, `compile_app`, `prove_app`, `check_artifact`, `verify_host`, `prove`, `check_agent_assets`, `init_design`, and `export_agent_assets`.
-- Raw HTML tools are import/fallback only for existing HTML.
+- AppBundle commands: `viewspec init app --out viewspec.app.json`, `viewspec init app --resource-binding fixture-readonly-v0 --out viewspec.bound.app.json`, `viewspec check viewspec.app.json --json`, `viewspec compile viewspec.app.json --out app-dist --target html-tailwind-app --json`, and `viewspec prove viewspec.app.json --out .viewspec-app-proof --with-shell --json`.
+- Runnable React internal tools: `viewspec init app --template react-app --out viewspec.app.json`, replace the sample intent, then `viewspec compile viewspec.app.json --target react-tailwind-app --out app-dist`.
+- AppBundle State IR demo: https://viewspec.dev/appbundle-state-ir/ shows `interactive_state_v0`, `reduceViewSpecState`, `state_replay_assertions`, `viewspec prove viewspec.app.json --with-shell`, and `state_reducer.ts` as the concrete proof surface.
+- AppBundle is local-only app contract proof for multi-screen internal tools: static routes, embedded local V1 screen IntentBundles, V1 `resource_binding: "unbound_v0"` fixture context, optional V2 `fixture_readonly_v0` exact scalar visibility proofs for declared `resource_views`, optional V3 `interactive_state_v0` state/mutations/selectors/replay assertions with a pure reducer artifact, optional V4 `visibility_v0` bounded show/hide rules with baked initial visibility and a replay-proved `evaluateViewSpecVisibility` reducer export, and per-screen html-tailwind compile/check artifacts. Static Shell V0 writes a bounded local `html-tailwind-app` shell with `route_navigation: "static_shell_v0"` and no external network/embed/script surfaces. For V3 it also writes `state_reducer.ts` and `state_manifest.json`, with a generated `reduceViewSpecState` export and checked `state_replay_assertions`. For V4 it also includes the generated reducer and one bounded delegated click listener that dispatches declared mutations and toggles `hidden` on `data-visibility-rule` nodes. It does not prove runtime navigation or browser history semantics, runtime fixture data binding, live data or text rebinding, or transformed values, generate a deployable framework app, install a framework state adapter, or persist or sync state. State IR is not Redux, Zustand, CRDT, persistence, or backend generation.
+- Raw HTML input is import/fallback only for existing HTML.
 - Generated outputs such as `dist/index.html` and `react-output/ViewSpecView.tsx` are artifacts; edit `viewspec.intent.json` or `DESIGN.md` instead.
-- Agents should output IntentBundle JSON, not CompositionIR, HTML, CSS, React, SwiftUI, or Flutter source for new UI.
+- Local compile targets: `html-tailwind`, `react-tsx`, `react-tailwind-tsx`, `html-tailwind-app`, and `react-tailwind-app`.
+- Agents should output IntentBundle JSON, not CompositionIR, HTML, CSS, or React source for new UI.
 - Agents must not call remote reference libraries by default. If the user explicitly asks for research or repo instructions configure an approved source, references may inform semantic intent only.
-- Motif plugins are deterministic local `MotifPlugin` extensions that lower custom enterprise motif intent into portable `CompositionIR`; they are not dynamic filesystem discovery, remote plugin loading, or an untrusted sandbox.
+- Motif plugins are deterministic local `MotifPlugin` extensions that lower custom motif intent into portable `CompositionIR`; they are not dynamic filesystem discovery, remote plugin loading, or an untrusted sandbox.
 - V1 public SDK motifs: table, dashboard, outline, comparison, list, form, detail, empty_state, loading_state, error_state, hero.
 - V1 public SDK action kinds: select, submit, navigate, search, filter, sort, paginate, bulk_action.
 - Collection actions target table/list motifs and dispatch events only; host apps own filtering, sorting, pagination, and selection state.
@@ -79,17 +77,11 @@ Raw HTML tools remain available only for importing existing HTML: `viewspec comp
 - V1 public SDK complexity_tier starts at 1, region child bounds are non-negative, and max_children is null or at least min_children.
 - V1 public SDK agent style tokens must come from agent-intent-bundle.schema.json, not arbitrary CSS.
 - V1 aesthetic profile tokens are deterministic art-direction handles, not CSS: aesthetic.calm_ops, aesthetic.premium_saas, aesthetic.data_dense, aesthetic.editorial_product, aesthetic.executive_review, aesthetic.brutalist, aesthetic.neon_cyber, and aesthetic.warm_organic. The homepage at https://viewspec.dev/ switches between eight compiled landing artifacts and exposes https://viewspec.dev/landing-compiled/profile-evidence.json with stable semantic ids, distinct style projection hashes, and 0 shell overrides. At most one profile may target view:{view_spec.id}; profiles may derive governed style projection, bounded layout metadata, and compact style-delta counts in checked manifest summaries, and are not pixel-perfect visual proof, accessibility certification, arbitrary host-app compatibility, or design-review approval.
-- The local schema and validate-intent reject hosted-only fields: root design, root motif_library, view_spec.inputs, view_spec.projections, and view_spec.rules.
 - Unknown local V1 extension fields fail with UNKNOWN_FIELD instead of being ignored.
-- Hosted launch emitters: HTML/Tailwind, React TSX, SwiftUI, Flutter.
-- Hosted extended demo artifacts declare `contract_profile: "hosted_extended_v1"` when they include inputs, rules, projections, or mobile emitters beyond the local V1 `validate-intent` contract.
-- Free hosted tier: 500 calls/day.
-- Pro tier: $149/month, 10,000 hosted compile calls/day, mobile emitters, and 5 custom motif instances per compile.
-- Enterprise tier: custom volume, unlimited custom motifs, org sharing, and launch support.
 - Public facts manifest: https://viewspec.dev/public-facts.json
 - Host proof assertion requirements: `assertion_requirements` reports expected `dom_count`, `style_assertion_count`, and manifest-derived `aesthetic_layout_assertion_count`, `aesthetic_profile_assertion_count`, and `grid_span_assertion_count` before observed grid column/span counts, profiled aesthetic marker/layout assertions, and action payload checks are accepted.
-- Proof scope: ViewSpec prove is not pixel-perfect visual regression, accessibility certification, arbitrary host-app certification, or hosted compiler publish automation.
+- Proof scope: ViewSpec prove is not pixel-perfect visual regression, accessibility certification, or arbitrary host-app certification.
 
 ## Short Description
 
-ViewSpec is an agent-native app compiler: agents describe UI and app intent once as IntentBundle or AppBundle JSON, and ViewSpec compiles deterministic UI, state reducers, shell artifacts, and proof reports without asking agents to author DOM or state code.
+ViewSpec is a free, local, agent-native app compiler: agents describe UI and app intent once as IntentBundle or AppBundle JSON, and ViewSpec compiles deterministic UI, state reducers, shell artifacts, and proof reports without asking agents to author DOM or state code.

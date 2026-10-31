@@ -1,61 +1,39 @@
-"""Optional stdio MCP server for native agent integrations."""
+"""`viewspec mcp`: the CLI's five verbs as MCP tools for a coding agent, over stdio."""
 
 from __future__ import annotations
 
+import functools
 import importlib
+import os
+import signal
+from collections.abc import Callable
 from pathlib import Path
+from types import FrameType
 from typing import Any, Literal
 
-from viewspec.app_bundle import (
-    compile_app_tool,
-    diff_app_files_tool,
-    init_app_tool,
-    prove_app_tool,
-    validate_app_file_tool,
-)
-from viewspec.converge_tools import (
-    approve_convergence_preview_tool,
-    convergence_status_tool,
-    reject_convergence_preview_tool,
-    start_convergence_session_tool,
-    submit_convergence_patch_tool,
-)
-from viewspec.host_verify import verify_host_tool
-from viewspec.intent_patch import INTENT_PATCH_TARGET_LIMIT_DEFAULT
-from viewspec.intent_patch_tools import (
-    apply_intent_patch_file_tool,
-    intent_patch_context_tool,
-    list_intent_patch_targets_tool,
-    preview_intent_patch_file_tool,
-)
-from viewspec.intent_tools import (
-    agent_correction_prompt_file_tool,
-    compile_intent_bundle_file_tool,
-    diff_intent_bundle_files_tool,
-    init_intent_tool,
-    validate_intent_bundle_file_tool,
-)
+from viewspec import api
+from viewspec._version import __version__
+from viewspec.app_bundle import APP_SHELL_TARGET, compile_app, init_app_file
+from viewspec.intent_tools import compile_intent_bundle_file_tool, init_intent_file
 from viewspec.local_tools import (
-    check_agent_assets_tool,
-    check_artifact_tool,
-    compile_html_file_tool,
-    diff_html_files_tool,
-    export_agent_assets_tool,
-    init_design_tool,
-    lift_html_file_tool,
+    exception_response,
+    init_design_file,
     resolve_cwd,
     resolve_local_path,
+    tool_error_response,
+    tool_response,
 )
-from viewspec.prove import prove_tool
-from viewspec.review_cli import end_review as end_review_cli
-from viewspec.review_cli import open_review as open_review_cli
-from viewspec.review_cli import poll_review as poll_review_cli
-from viewspec.review_cli import review_status as review_status_cli
+from viewspec.studio import Studio, StudioError, resolve_studio_source
 
 MCP_INSTALL_HINT = 'Install with: python -m pip install "viewspec[agents]"'
 # The module run_mcp_server imports. MCP SDK 2.x removed it, which is why the agents extra
 # caps mcp below 2.
 _MCP_SERVER_MODULE = "mcp.server.fastmcp"
+_SERVER_INSTRUCTIONS = (
+    "ViewSpec compiles semantic JSON into checked UI. Edit viewspec.intent.json or viewspec.app.json, never "
+    "the generated output. The loop is init, edit the source, check, compile, then prove. Every result "
+    "carries ok; on failure, follow its errors, issues, or correction_prompt and retry."
+)
 
 
 class MissingMCPDependency(RuntimeError):
@@ -71,14 +49,209 @@ def mcp_dependency_available() -> bool:
 
     Any exception the import raises counts as "not available", not only ImportError: a
     broken or partly installed SDK can fail at import time with, for example, a TypeError
-    or a pydantic error, and ``viewspec doctor --agents`` must still print its report.
+    or a pydantic error.
     """
-
     try:
         module = importlib.import_module(_MCP_SERVER_MODULE)
     except Exception:
         return False
     return hasattr(module, "FastMCP")
+
+
+def _metadata() -> dict[str, str]:
+    return {"sdk_version": __version__, "network_calls": "none"}
+
+
+def _reported(code: str, fix: str) -> Callable[[Callable[..., dict[str, Any]]], Callable[..., dict[str, Any]]]:
+    """Return a raised failure as a report, so an agent gets a code and a fix, not a traceback."""
+
+    def decorate(tool: Callable[..., dict[str, Any]]) -> Callable[..., dict[str, Any]]:
+        @functools.wraps(tool)
+        def run(*args: Any, **kwargs: Any) -> dict[str, Any]:
+            try:
+                return tool(*args, **kwargs)
+            except StudioError as exc:
+                return tool_error_response(exc.code, exc.message, exc.fix, metadata=_metadata())
+            except Exception as exc:
+                return exception_response(exc, code, fix, metadata=_metadata())
+
+        return run
+
+    return decorate
+
+
+class ViewSpecTools:
+    """The tool bodies. Every path stays inside ``cwd`` unless ``allow_outside_cwd`` is set."""
+
+    def __init__(self, cwd: str | Path | None = None, *, allow_outside_cwd: bool = False) -> None:
+        self.root = resolve_cwd(cwd)
+        self.allow_outside_cwd = allow_outside_cwd
+        self._preview: Studio | None = None
+
+    def _path(self, value: str | Path, *, must_exist: bool = False) -> Path:
+        return resolve_local_path(value, cwd=self.root, allow_outside_cwd=self.allow_outside_cwd, must_exist=must_exist)
+
+    def _source(self, value: str | None) -> Path | None:
+        return self._path(value, must_exist=True) if value is not None else None
+
+    @_reported("IO_ERROR", "Choose a writable path under the working directory, or pass force=True.")
+    def init(
+        self,
+        what: Literal["intent", "app", "design"] = "intent",
+        out: str | None = None,
+        kind: str | None = None,
+        template: Literal["contract", "react-app"] = "contract",
+        force: bool = False,
+    ) -> dict[str, Any]:
+        """Write a starter viewspec.intent.json, viewspec.app.json, or DESIGN.md.
+
+        Replace the sample content with the user's intent. kind picks a starter motif for intent
+        (default dashboard) or an app kind for app (default internal_tool). template="react-app"
+        writes the runnable AppBundle golden path.
+        """
+        path = self._path(out or api.INIT_DEFAULT_OUT[what])
+        if what == "app":
+            written = init_app_file(path, kind=kind or "internal_tool", force=force, template=template)
+        elif what == "design":
+            written = init_design_file(path, force=force)
+        else:
+            written = init_intent_file(path, kind=kind or "dashboard", force=force)
+        return tool_response(
+            True,
+            f"Wrote {written.name}.",
+            paths={what: str(written)},
+            next_actions=[f"Edit {written.name}, then run the check tool on it."],
+            metadata=_metadata(),
+        )
+
+    @_reported("COMPILE_FAILED", "Fix the input, DESIGN.md, or path issue and retry.")
+    def compile(
+        self,
+        source: str,
+        out: str,
+        target: str | None = None,
+        design: str | None = None,
+        strict_design: bool = False,
+        force: bool = False,
+    ) -> dict[str, Any]:
+        """Compile an IntentBundle or AppBundle JSON file into a directory; the kind is detected.
+
+        IntentBundle targets: html-tailwind (default), react-tsx, react-tailwind-tsx. AppBundle
+        targets: html-tailwind-app (default), react-tailwind-app. design is a DESIGN.md path.
+        force replaces an existing AppBundle output directory after safety checks.
+        """
+        input_path = self._path(source, must_exist=True)
+        output = self._path(out)
+        design_path = self._source(design)
+        if api.source_kind(input_path) == "app_bundle":
+            return compile_app(
+                input_path,
+                out_dir=output,
+                design_path=design_path,
+                strict_design=strict_design,
+                force=force,
+                target=target or APP_SHELL_TARGET,
+                cwd=self.root,
+            )
+        return compile_intent_bundle_file_tool(
+            input_path,
+            output,
+            design_path=design_path,
+            strict_design=strict_design,
+            target=target or "html-tailwind",
+            cwd=self.root,
+            allow_outside_cwd=self.allow_outside_cwd,
+        )
+
+    @_reported("CHECK_FAILED", "Fix the reported path and retry.")
+    def check(self, path: str, compile_check: bool = True) -> dict[str, Any]:
+        """Run the fast local checks on a source file or a compiled artifact directory.
+
+        A source file gets contract checks, and a failure includes a correction_prompt to act on.
+        A directory gets provenance, tamper, and active-content checks.
+        """
+        return api.check(self._path(path), compile_check=compile_check)
+
+    @_reported("PROVE_INVALID_REQUEST", "Fix the reported option and retry.")
+    def prove(
+        self,
+        source: str | None = None,
+        out: str | None = None,
+        target: str | None = None,
+        design: str | None = None,
+        strict_design: bool = False,
+        kind: str = "dashboard",
+        install: bool = False,
+        force: bool = False,
+        with_shell: bool = False,
+        freerange: bool = False,
+        pretext: bool = False,
+    ) -> dict[str, Any]:
+        """Compile and verify a source, or browser-verify a compiled artifact directory.
+
+        With no source, proves a starter of kind. Writes a proof bundle and returns its report.
+        Use install=True only when the user explicitly permits npm ci --ignore-scripts; browser
+        proofs need it, with target react-tailwind-tsx or react-tailwind-app. with_shell, freerange
+        (needs Bun), and pretext apply to AppBundles. force replaces an earlier proof directory.
+        """
+        source_path = self._source(source)
+        return api.prove(
+            source_path,
+            out_dir=self._path(out or api.default_proof_dir(source_path)),
+            design_path=self._source(design),
+            strict_design=strict_design,
+            target=target,
+            kind=kind,
+            install=install,
+            force=force,
+            with_shell=with_shell,
+            freerange=freerange,
+            pretext=pretext,
+            cwd=self.root,
+        )
+
+    @_reported("STUDIO_START_FAILED", "Fix the reported problem and retry.")
+    def studio(
+        self,
+        source: str | None = None,
+        design: str | None = None,
+        port: int = 0,
+        stop: bool = False,
+    ) -> dict[str, Any]:
+        """Start a live-reloading preview of a source on 127.0.0.1 and return its URL.
+
+        The preview runs in the background and rebuilds when the source or DESIGN.md changes. One
+        runs at a time: starting another replaces it, and stop=True ends it. With no source, uses
+        the only viewspec.app.json or viewspec.intent.json in the working directory. port=0 picks
+        a free port. A failed first build is reported in build_errors while the preview keeps watching.
+        """
+        if stop:
+            self.close()
+            return tool_response(True, "Stopped the preview.", metadata=_metadata())
+        # A bad request must leave the running preview alone, so resolve everything and bind the new
+        # port before stopping it. Only asking for the running preview's own port has to stop it first.
+        source_path = self._path(resolve_studio_source(self._source(source), cwd=self.root), must_exist=True)
+        design_path = self._source(design)
+        if self._preview is not None and port == self._preview.port:
+            self.close()
+        preview = Studio(source_path, cwd=self.root, design=design_path, port=port)
+        self.close()
+        preview.start()
+        self._preview = preview
+        return tool_response(
+            True,
+            f"Serving a preview at {preview.url}.",
+            paths={"source": str(preview.source)},
+            next_actions=["Open the URL. Edit the source and the page reloads."],
+            metadata=_metadata(),
+            data={"url": preview.url, "build_errors": preview.errors},
+        )
+
+    def close(self) -> None:
+        """Stop the running preview, if any."""
+        preview, self._preview = self._preview, None
+        if preview is not None:
+            preview.close()
 
 
 def run_mcp_server(
@@ -89,575 +262,38 @@ def run_mcp_server(
 ) -> None:
     """Serve the ViewSpec tools over stdio until the client disconnects.
 
-    ``log_level`` is passed to FastMCP, which logs to stderr; ``None`` leaves the level to the SDK,
-    whose default, ``INFO``, logs a line for every request. ``viewspec mcp --json`` passes
-    ``"ERROR"`` so that those lines do not mix with its one-line JSON failure report on stderr.
+    ``log_level`` is passed to FastMCP, which logs to stderr; ``None`` keeps the SDK's default,
+    ``INFO``, which logs a line for every request. ``viewspec mcp --json`` passes ``"ERROR"`` so
+    that those lines do not mix with its one-line JSON failure report on stderr.
     """
     if not mcp_dependency_available():
         raise MissingMCPDependency(MCP_INSTALL_HINT)
+    from mcp.server.fastmcp import FastMCP  # type: ignore[import-not-found]
+
+    tools = ViewSpecTools(cwd, allow_outside_cwd=allow_outside_cwd)
+    app = FastMCP("viewspec", instructions=_SERVER_INSTRUCTIONS, log_level=log_level or "INFO")
+    for tool in (tools.init, tools.compile, tools.check, tools.prove, tools.studio):
+        app.add_tool(tool)
+
+    def stop(signum: int, _frame: FrameType | None) -> None:
+        # The SDK's blocking stdin read outlives KeyboardInterrupt, so a signal could never end the
+        # server. Clean up here and let the default action end the process.
+        tools.close()
+        signal.signal(signum, signal.SIG_DFL)
+        os.kill(os.getpid(), signum)
+
+    signal.signal(signal.SIGTERM, stop)
+    signal.signal(signal.SIGINT, stop)
     try:
-        from mcp.server.fastmcp import FastMCP  # type: ignore[import-not-found]
-    except ImportError as exc:
-        raise MissingMCPDependency(MCP_INSTALL_HINT) from exc
-
-    root = resolve_cwd(cwd)
-    app = FastMCP("viewspec") if log_level is None else FastMCP("viewspec", log_level=log_level)
-
-    @app.tool(
-        description=(
-            "Validate a ViewSpec IntentBundle JSON file. Use for new UI before compiling; "
-            "agents should write intent, not DOM."
-        )
-    )
-    def validate_intent_bundle_file(path: str, compile_check: bool = True) -> dict[str, Any]:
-        return validate_intent_bundle_file_tool(
-            path,
-            compile_check=compile_check,
-            cwd=root,
-            allow_outside_cwd=allow_outside_cwd,
-        )
-
-    @app.tool(
-        description=(
-            "Compile a ViewSpec IntentBundle JSON file into a local compiler artifact. "
-            "Use target='html-tailwind' for checked standalone HTML, target='react-tsx' for checked React source, "
-            "or target='react-tailwind-tsx' for checked React source with closed Tailwind recipes. "
-            "Use for new UI; HTML, CSS, DOM, React, SwiftUI, Flutter, and CompositionIR are compiler outputs."
-        )
-    )
-    def compile_intent_bundle_file(
-        input_path: str,
-        out_dir: str,
-        design_path: str | None = None,
-        strict_design: bool = False,
-        target: str = "html-tailwind",
-    ) -> dict[str, Any]:
-        return compile_intent_bundle_file_tool(
-            input_path,
-            out_dir,
-            design_path=design_path,
-            strict_design=strict_design,
-            target=target,
-            cwd=root,
-            allow_outside_cwd=allow_outside_cwd,
-        )
-
-    @app.tool(description="Generate a deterministic correction prompt for invalid ViewSpec IntentBundle JSON.")
-    def agent_correction_prompt_file(path: str) -> dict[str, Any]:
-        return agent_correction_prompt_file_tool(path, cwd=root, allow_outside_cwd=allow_outside_cwd)
-
-    @app.tool(description="Diff two ViewSpec IntentBundle JSON files using intent_bundle_v1 semantic signals.")
-    def diff_intent_bundle_files(left_path: str, right_path: str, compile_check: bool = True) -> dict[str, Any]:
-        return diff_intent_bundle_files_tool(
-            left_path,
-            right_path,
-            compile_check=compile_check,
-            cwd=root,
-            allow_outside_cwd=allow_outside_cwd,
-        )
-
-    @app.tool(
-        description=(
-            "Write a valid starter ViewSpec IntentBundle JSON file. Use only as a scaffold; "
-            "replace sample content with real user intent before compiling."
-        )
-    )
-    def init_intent(out: str = "viewspec.intent.json", kind: str = "dashboard", force: bool = False) -> dict[str, Any]:
-        return init_intent_tool(out, kind=kind, force=force, cwd=root, allow_outside_cwd=allow_outside_cwd)
-
-    @app.tool(
-        description=(
-            "Write a valid starter AppBundle JSON file for a two-screen internal tool. "
-            "Use template='react-app' for the runnable AppBundle V4 golden path, or use the contract template "
-            "with resource_binding='unbound_v0' or 'fixture_readonly_v0'."
-        )
-    )
-    def init_app(
-        out: str = "viewspec.app.json",
-        kind: str = "internal_tool",
-        resource_binding: str = "unbound_v0",
-        template: str = "contract",
-        force: bool = False,
-    ) -> dict[str, Any]:
-        return init_app_tool(
-            out,
-            kind=kind,
-            resource_binding=resource_binding,
-            template=template,
-            force=force,
-            cwd=root,
-            allow_outside_cwd=allow_outside_cwd,
-        )
-
-    @app.tool(
-        description=(
-            "Validate a local AppBundle JSON file. Checks V1 unbound and V2 fixture-readonly binding contracts, "
-            "static routes, bounded fixture resources, unknown-field rejection, no-network app fields, and embedded local V1 IntentBundles."
-        )
-    )
-    def validate_app_file(path: str, compile_check: bool = True) -> dict[str, Any]:
-        return validate_app_file_tool(
-            path,
-            compile_check=compile_check,
-            cwd=root,
-            allow_outside_cwd=allow_outside_cwd,
-        )
-
-    @app.tool(
-        description=(
-            "Diff two local AppBundle JSON files. Reports app route/screen/resource/resource-view/metadata changes "
-            "and per-screen diff-intent semantic summaries for changed embedded intents."
-        )
-    )
-    def diff_app_files(left_path: str, right_path: str, compile_check: bool = True) -> dict[str, Any]:
-        return diff_app_files_tool(
-            left_path,
-            right_path,
-            compile_check=compile_check,
-            cwd=root,
-            allow_outside_cwd=allow_outside_cwd,
-        )
-
-    @app.tool(
-        description=(
-            "Compile a local AppBundle JSON file into a Static Shell V0 artifact or a runnable Vite React/Tailwind app. "
-            "Use target='react-tailwind-app' for the generated host bridge."
-        )
-    )
-    def compile_app(
-        app_path: str,
-        out_dir: str = "app-dist",
-        design_path: str | None = None,
-        strict_design: bool = False,
-        force: bool = False,
-        target: str = "html-tailwind-app",
-    ) -> dict[str, Any]:
-        return compile_app_tool(
-            app_path,
-            out_dir,
-            design_path=design_path,
-            strict_design=strict_design,
-            force=force,
-            target=target,
-            cwd=root,
-            allow_outside_cwd=allow_outside_cwd,
-        )
-
-    @app.tool(
-        description=(
-            "Use only when importing existing HTML; do not use for new UI. "
-            "Compile local HTML into a sanitized, themed, checked ViewSpec artifact."
-        )
-    )
-    def compile_html_file(
-        input_path: str,
-        out_dir: str,
-        design_path: str | None = None,
-        title: str | None = None,
-        include_lift: bool = False,
-    ) -> dict[str, Any]:
-        return compile_html_file_tool(
-            input_path,
-            out_dir,
-            design_path=design_path,
-            title=title,
-            include_lift=include_lift,
-            cwd=root,
-            allow_outside_cwd=allow_outside_cwd,
-        )
-
-    @app.tool(description="Validate a compiled ViewSpec artifact directory and manifest hashes.")
-    def check_artifact(artifact_dir: str) -> dict[str, Any]:
-        return check_artifact_tool(artifact_dir, cwd=root, allow_outside_cwd=allow_outside_cwd)
-
-    @app.tool(
-        description=(
-            "Verify a checked react-tailwind-tsx artifact in ViewSpec's bounded React/Vite/Tailwind host. "
-            "Use install=True only when the user explicitly permits npm ci --ignore-scripts."
-        )
-    )
-    def verify_host(
-        artifact_dir: str | None = None,
-        intent_path: str | None = None,
-        out_dir: str | None = None,
-        design_path: str | None = None,
-        strict_design: bool = False,
-        target: str = "react-tailwind-tsx",
-        install: bool = False,
-        report_out: str | None = None,
-    ) -> dict[str, Any]:
-        return verify_host_tool(
-            artifact_dir,
-            intent_path=intent_path,
-            out_dir=out_dir,
-            design_path=design_path,
-            strict_design=strict_design,
-            target=target,
-            install=install,
-            report_out=report_out,
-            cwd=root,
-            allow_outside_cwd=allow_outside_cwd,
-        )
-
-    @app.tool(
-        description=(
-            "Run ViewSpec's first proof workflow: generate or use an IntentBundle, compile through the public path, "
-            "check the artifact, write PROOF.md/proof_report.json/support_bundle.json, and optionally run the bounded "
-            "React Tailwind host proof. Metadata includes proof_identity hashes for the written proof artifacts."
-        )
-    )
-    def prove(
-        intent_path: str | None = None,
-        out_dir: str = ".viewspec-proof",
-        design_path: str | None = None,
-        strict_design: bool = False,
-        target: str = "html-tailwind",
-        kind: str = "dashboard",
-        install: bool = False,
-        force: bool = False,
-        report_out: str | None = None,
-    ) -> dict[str, Any]:
-        return prove_tool(
-            intent_path=intent_path,
-            out_dir=out_dir,
-            design_path=design_path,
-            strict_design=strict_design,
-            target=target,
-            kind=kind,
-            install=install,
-            force=force,
-            report_out=report_out,
-            cwd=root,
-            allow_outside_cwd=allow_outside_cwd,
-        )
-
-    @app.tool(
-        description=(
-            "Run the local AppBundle proof workflow. Use target='react-tailwind-app' with install=True to generate the exact Vite app, "
-            "build it, and prove routing, history, mutation, data rebinding, selectors, and visibility in Chromium. "
-            "Set freerange=True only for the opt-in Bun-backed proof of manifest-declared runtime numeric helpers. "
-            "Set pretext=True for pinned Chromium text-layout evidence over compiler-owned native DOM text."
-        )
-    )
-    def prove_app(
-        app_path: str,
-        out_dir: str = ".viewspec-app-proof",
-        design_path: str | None = None,
-        strict_design: bool = False,
-        force: bool = False,
-        report_out: str | None = None,
-        with_shell: bool = False,
-        target: str = "html-tailwind",
-        install: bool = False,
-        freerange: bool = False,
-        pretext: bool = False,
-    ) -> dict[str, Any]:
-        return prove_app_tool(
-            app_path=app_path,
-            out_dir=out_dir,
-            design_path=design_path,
-            strict_design=strict_design,
-            force=force,
-            report_out=report_out,
-            with_shell=with_shell,
-            target=target,
-            install=install,
-            freerange=freerange,
-            pretext=pretext,
-            cwd=root,
-            allow_outside_cwd=allow_outside_cwd,
-        )
-
-    @app.tool(description="Verify exported local ViewSpec agent contract assets against the current SDK.")
-    def check_agent_assets(asset_dir: str = ".viewspec") -> dict[str, Any]:
-        return check_agent_assets_tool(asset_dir, cwd=root, allow_outside_cwd=allow_outside_cwd)
-
-    @app.tool(
-        description=(
-            "Use only when importing existing HTML; do not use for new UI. "
-            "Diff two local HTML files using ViewSpec lift_v1 semantic signals."
-        )
-    )
-    def diff_html_files(left_path: str, right_path: str) -> dict[str, Any]:
-        return diff_html_files_tool(left_path, right_path, cwd=root, allow_outside_cwd=allow_outside_cwd)
-
-    @app.tool(
-        description=(
-            "Use only when importing existing HTML; do not use for new UI. "
-            "Lift a local HTML file into ViewSpec semantic signals without compiling it."
-        )
-    )
-    def lift_html_file(input_path: str, out_path: str | None = None) -> dict[str, Any]:
-        return lift_html_file_tool(input_path, out_path, cwd=root, allow_outside_cwd=allow_outside_cwd)
-
-    @app.tool(description="Write a strict starter DESIGN.md file for local ViewSpec theming.")
-    def init_design(out: str = "DESIGN.md", force: bool = False) -> dict[str, Any]:
-        return init_design_tool(out, force=force, cwd=root, allow_outside_cwd=allow_outside_cwd)
-
-    @app.tool(
-        description=(
-            "Export the local ViewSpec agent system prompt, IntentBundle JSON schema, valid starter IntentBundle example, and asset manifest without network calls. "
-            "The export also includes AppBundle, IntentPatch, "
-            "and Convergence Authoring Task schemas and examples."
-        )
-    )
-    def export_agent_assets(out: str = ".viewspec", force: bool = False, dry_run: bool = False) -> dict[str, Any]:
-        return export_agent_assets_tool(
-            out, force=force, dry_run=dry_run, cwd=root, allow_outside_cwd=allow_outside_cwd
-        )
-
-    @app.tool(
-        description="Open or resume a checked local ViewSpec Review session without launching a browser automatically."
-    )
-    def open_review(
-        source: str,
-        design_path: str | None = None,
-        target: str | None = None,
-        port: int = 4388,
-        state_dir: str = ".viewspec-review",
-        reopen: bool = False,
-        verify: bool = False,
-        install: bool = False,
-    ) -> dict[str, Any]:
-        resolved_source = resolve_local_path(source, cwd=root, allow_outside_cwd=allow_outside_cwd, must_exist=True)
-        resolved_design = (
-            resolve_local_path(design_path, cwd=root, allow_outside_cwd=allow_outside_cwd, must_exist=True)
-            if design_path is not None
-            else None
-        )
-        resolved_state = resolve_local_path(state_dir, cwd=root, allow_outside_cwd=allow_outside_cwd)
-        return open_review_cli(
-            resolved_source,
-            design=resolved_design,
-            target=target,
-            port=port,
-            state_root=resolved_state,
-            reopen=reopen,
-            no_open=True,
-            verify=verify,
-            install=install,
-        )
-
-    @app.tool(description="Long-poll one active Review session with at-least-once batch acknowledgement semantics.")
-    def poll_review(
-        source: str,
-        ack: str | None = None,
-        agent_reply: str | None = None,
-        timeout_ms: int = 55_000,
-        state_dir: str = ".viewspec-review",
-    ) -> dict[str, Any]:
-        resolved_source = resolve_local_path(source, cwd=root, allow_outside_cwd=allow_outside_cwd)
-        resolved_state = resolve_local_path(state_dir, cwd=root, allow_outside_cwd=allow_outside_cwd)
-        return poll_review_cli(
-            resolved_source,
-            ack=ack,
-            agent_reply=agent_reply,
-            timeout_ms=timeout_ms,
-            state_root=resolved_state,
-        )
-
-    @app.tool(description="End an active local ViewSpec Review session with agent attribution.")
-    def end_review(source: str, state_dir: str = ".viewspec-review") -> dict[str, Any]:
-        resolved_source = resolve_local_path(source, cwd=root, allow_outside_cwd=allow_outside_cwd)
-        resolved_state = resolve_local_path(state_dir, cwd=root, allow_outside_cwd=allow_outside_cwd)
-        return end_review_cli(resolved_source, state_root=resolved_state)
-
-    @app.tool(description="Get bounded Review status without capability values, source paths, or feedback bodies.")
-    def get_review_status(source: str | None = None, state_dir: str = ".viewspec-review") -> dict[str, Any]:
-        resolved_source = (
-            resolve_local_path(source, cwd=root, allow_outside_cwd=allow_outside_cwd) if source is not None else None
-        )
-        resolved_state = resolve_local_path(state_dir, cwd=root, allow_outside_cwd=allow_outside_cwd)
-        return review_status_cli(resolved_source, state_root=resolved_state)
-
-    @app.tool(
-        description=(
-            "List every applicable IntentPatch V1 operation stub for one source with its exact base_source_sha256, "
-            "fixed fields, current old value, and allowed replacements. Start every in-place edit of an existing "
-            "IntentBundle or AppBundle here instead of text-patching the JSON file."
-        )
-    )
-    def list_intent_patch_targets(
-        source: str,
-        op: str | None = None,
-        screen_id: str | None = None,
-        limit: int = INTENT_PATCH_TARGET_LIMIT_DEFAULT,
-    ) -> dict[str, Any]:
-        return list_intent_patch_targets_tool(
-            source,
-            op=op,
-            screen_id=screen_id,
-            limit=limit,
-            cwd=root,
-            allow_outside_cwd=allow_outside_cwd,
-        )
-
-    @app.tool(
-        description=(
-            "Validate and compile-check an exact source-bound IntentPatch, return its semantic diff and approval token, "
-            "and optionally write the candidate without mutating the source."
-        )
-    )
-    def preview_intent_patch(
-        source: str,
-        patch: str,
-        candidate_out: str | None = None,
-        verify: bool = False,
-        install: bool = False,
-    ) -> dict[str, Any]:
-        return preview_intent_patch_file_tool(
-            source,
-            patch,
-            candidate_out=candidate_out,
-            verify=verify,
-            install=install,
-            cwd=root,
-            allow_outside_cwd=allow_outside_cwd,
-        )
-
-    @app.tool(
-        description=(
-            "Atomically apply an IntentPatch only when given the exact approval token from the current preview; "
-            "write a durable receipt containing the inverse patch."
-        )
-    )
-    def apply_intent_patch(
-        source: str,
-        patch: str,
-        approval_token: str,
-        verify: bool = False,
-        install: bool = False,
-    ) -> dict[str, Any]:
-        return apply_intent_patch_file_tool(
-            source,
-            patch,
-            approval_token=approval_token,
-            verify=verify,
-            install=install,
-            cwd=root,
-            allow_outside_cwd=allow_outside_cwd,
-        )
-
-    @app.tool(
-        description=(
-            "Convert exactly one validated Review batch or verification repair plan into bounded, source-bound "
-            "IntentPatch proposal context. This tool grants no approval and performs no source mutation."
-        )
-    )
-    def build_intent_patch_context(
-        review_batch: dict[str, Any] | None = None,
-        repair_plan: dict[str, Any] | None = None,
-        source_kind: str | None = None,
-        base_source_sha256: str | None = None,
-    ) -> dict[str, Any]:
-        return intent_patch_context_tool(
-            review_batch=review_batch,
-            repair_plan=repair_plan,
-            source_kind=source_kind,
-            base_source_sha256=base_source_sha256,
-        )
-
-    @app.tool(
-        description=(
-            "Automatically start a durable, bounded Converge Session from exact Review or verifier context. "
-            "This proposal-only tool grants no source-write authority; use it after build_intent_patch_context."
-        )
-    )
-    def start_convergence(
-        source: str,
-        context: dict[str, Any],
-        baseline_result: dict[str, Any] | None = None,
-        state_dir: str | None = None,
-    ) -> dict[str, Any]:
-        return start_convergence_session_tool(
-            source,
-            context,
-            baseline_result=baseline_result,
-            state_dir=state_dir,
-            cwd=root,
-            allow_outside_cwd=allow_outside_cwd,
-        )
-
-    @app.tool(
-        description=(
-            "Submit one IntentPatch using only the active convergence task's legal operations and exact evidence. "
-            "The response withholds every source-write token; ask the human to decide in ViewSpec Review."
-        )
-    )
-    def submit_convergence_patch(
-        source: str,
-        patch: dict[str, Any],
-        state_dir: str | None = None,
-    ) -> dict[str, Any]:
-        return submit_convergence_patch_tool(
-            source,
-            patch,
-            state_dir=state_dir,
-            cwd=root,
-            allow_outside_cwd=allow_outside_cwd,
-        )
-
-    @app.tool(
-        description=(
-            "Get bounded Converge Session status and the next automatic workflow action. "
-            "Approval authority is always withheld from this agent-facing response."
-        )
-    )
-    def get_convergence_status(
-        source: str,
-        state_dir: str | None = None,
-    ) -> dict[str, Any]:
-        return convergence_status_tool(
-            source,
-            state_dir=state_dir,
-            cwd=root,
-            allow_outside_cwd=allow_outside_cwd,
-        )
-
-    @app.tool(
-        description=(
-            "Apply a convergence preview only when a human operator explicitly supplies its outer approval token. "
-            "Never discover, infer, retain, or self-authorize this value; normal human approval happens in Review."
-        )
-    )
-    def approve_convergence(
-        source: str,
-        approval_token: str,
-        state_dir: str | None = None,
-    ) -> dict[str, Any]:
-        return approve_convergence_preview_tool(
-            source,
-            approval_token,
-            state_dir=state_dir,
-            cwd=root,
-            allow_outside_cwd=allow_outside_cwd,
-        )
-
-    @app.tool(
-        description=(
-            "Reject the exact pending convergence preview by id without changing source. "
-            "Use only after the operator explicitly rejects the proposal."
-        )
-    )
-    def reject_convergence(
-        source: str,
-        preview_id: str,
-        state_dir: str | None = None,
-    ) -> dict[str, Any]:
-        return reject_convergence_preview_tool(
-            source,
-            preview_id,
-            state_dir=state_dir,
-            cwd=root,
-            allow_outside_cwd=allow_outside_cwd,
-        )
-
-    app.run()
+        app.run()
+    finally:
+        tools.close()
 
 
 __all__ = [
     "MCP_INSTALL_HINT",
     "MissingMCPDependency",
+    "ViewSpecTools",
     "mcp_dependency_available",
     "run_mcp_server",
 ]

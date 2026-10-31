@@ -10,7 +10,8 @@ from typing import Any
 
 from seo_metadata import demo_head_metadata
 
-from viewspec import AESTHETIC_PROFILE_TOKENS, IntentBundle, ViewSpecBuilder, compile, profile_style_facts
+from viewspec import IntentBundle, ViewSpecBuilder, compile
+from viewspec.aesthetics import AESTHETIC_PROFILE_TOKENS, profile_style_facts
 from viewspec.emitters.html_tailwind import OFFLINE_EMITTER_CSS, _render_node
 from viewspec.types import DEFAULT_STYLE_TOKEN_VALUES, ASTBundle
 

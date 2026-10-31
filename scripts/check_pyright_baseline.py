@@ -1,4 +1,4 @@
-"""Fail when pyright reports more errors than the committed baseline (audit Q-1).
+"""Fail when pyright reports more errors than the committed baseline.
 
 The package ships ``py.typed`` but still carries hundreds of pyright errors, so the
 gate is a ratchet: ``pyright-baseline.json`` records the accepted error count and this

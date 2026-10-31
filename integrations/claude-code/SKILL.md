@@ -1,37 +1,24 @@
 # ViewSpec Agent-Native UI Intent
 
-> **Maintained by hand.** This skill is a curated copy of the managed instructions that
-> `viewspec init-agent --target claude-code` writes into `CLAUDE.md` from
-> `src/viewspec/native_agents.py`; it is not generated from that source. When the managed block
-> changes, update this file in the same change. `tests/test_claude_code_skill_sync.py` checks that
-> every fenced `viewspec ...` command here also appears in the managed instructions, apart from the
-> opt-in proof variants it lists with a reason.
-
 Use this skill when an agent creates a new human-facing UI artifact, report, dashboard, explainer, or product surface.
 
 ## Rules
 
 - Emit `viewspec.intent.json` as ViewSpec IntentBundle JSON for new UI.
-- Use `viewspec init-intent --out viewspec.intent.json` only as a scaffold; replace sample content with the user's actual intent before compiling.
+- Use `viewspec init --out viewspec.intent.json` only as a scaffold; replace sample content with the user's actual intent before compiling.
 - Do not write HTML, CSS, React, SwiftUI, Flutter, or CompositionIR as source. Those are compiler outputs.
-- If the user explicitly needs local React source, compile the IntentBundle with `--target react-tsx` instead of hand-writing React; use `--target react-tailwind-tsx` only when the host app needs compiler-owned Tailwind utility recipes.
+- If the user explicitly needs local React source, compile the IntentBundle with `--target react-tsx` instead of hand-writing React; use `--target react-tailwind-tsx` only when the host app already has Tailwind.
 - If validation fails, regenerate the full IntentBundle using the correction prompt.
-- If `DESIGN.md` is missing, run `viewspec init-design --out DESIGN.md` once before compiling.
+- To revise existing source, regenerate the bundle or apply a standard JSON Patch, then run `viewspec check` on the file.
+- If `DESIGN.md` is missing, run `viewspec init design --out DESIGN.md` once before compiling.
 - If a `DESIGN.md` file exists, compile with it through ViewSpec.
 - Treat compiled output as an artifact, not as the editable source.
-- Use `viewspec prove --out .viewspec-proof` for a first local proof bundle; read `.viewspec-proof/PROOF.md` first, use `.viewspec-proof/proof_report.json` for tool output, and use `.viewspec-proof/support_bundle.json` for redacted failure triage. It proves source artifact integrity and provenance, not pixel-perfect visual equivalence.
-- For a narrow multi-screen internal tool, use AppBundle JSON as `viewspec.app.json` instead of hand-writing an app shell or router. Use `--template react-app` and the `react-tailwind-app` target when the user needs a runnable Vite/React/Tailwind application; keep authentication, persistence, APIs, and deployment host-owned.
-- When the generated React AppBundle uses ViewSpec's supported numeric operations and the operator
-  wants the additional proof, use `doctor --freerange` and `prove-app --freerange`. Require the
-  operator to install stable Bun 1.x or newer explicitly; never claim ViewSpec or `--install`
-  installs Bun. Treat this as generated numeric-kernel analysis, not CSS/Tailwind, rendered-geometry,
-  or arbitrary-host proof.
-- When the operator wants compiler-owned native text-wrapping evidence, use
-  `prove-app --target react-tailwind-app --pretext`. Pretext needs no Bun; treat it as an exact
-  loaded-font Chromium proof for the supported native-DOM profile, not cross-browser/Retina,
-  canvas-rendering, pixel-perfect, accessibility, or arbitrary-host proof.
-- For governed art direction, use at most one view-level aesthetic profile token in `viewspec.intent.json`: `aesthetic.calm_ops`, `aesthetic.premium_saas`, `aesthetic.data_dense`, `aesthetic.editorial_product`, or `aesthetic.executive_review`. Aesthetic profiles are deterministic style and bounded-layout handles, not CSS, pixel-perfect visual proof, accessibility certification, arbitrary host-app compatibility, or design-review approval.
-- Use raw HTML commands only when importing existing HTML.
+- Use `viewspec prove --out .viewspec-proof` for a first local proof bundle; read `.viewspec-proof/PROOF.md` first, use `.viewspec-proof/proof_report.json` for tool output, and `.viewspec-proof/support_bundle.json` for redacted failure triage. It is not pixel-perfect visual regression, accessibility certification, or arbitrary host-app certification.
+- For a narrow multi-screen internal tool, use AppBundle JSON as `viewspec.app.json` instead of hand-writing an app shell or router. Resources are `unbound_v0` or `fixture_readonly_v0`. The default target is Static Shell V0 with bounded browser navigation; use `--template react-app` and the `react-tailwind-app` target for a runnable React app.
+- When the generated React AppBundle uses ViewSpec's supported numeric operations and the operator wants the additional proof, use `viewspec prove viewspec.app.json --target react-tailwind-app --install --freerange`. Require the operator to install stable Bun 1.x or newer explicitly; never claim ViewSpec or `--install` installs Bun. Treat this as generated numeric-kernel analysis, not CSS/Tailwind, rendered-geometry, or arbitrary-host proof.
+- When the operator wants compiler-owned native text-wrapping evidence, use `viewspec prove viewspec.app.json --target react-tailwind-app --install --pretext`. Pretext needs no Bun; treat it as an exact loaded-font Chromium proof for the supported native-DOM profile, not cross-browser/Retina, canvas-rendering, pixel-perfect, accessibility, or arbitrary-host proof.
+- For governed art direction, use at most one view-level aesthetic profile token in `viewspec.intent.json`: `aesthetic.calm_ops`, `aesthetic.premium_saas`, `aesthetic.data_dense`, `aesthetic.editorial_product`, `aesthetic.executive_review`, `aesthetic.brutalist`, `aesthetic.neon_cyber`, or `aesthetic.warm_organic`. These are deterministic art-direction handles, not CSS.
+- Use raw HTML input only when importing existing HTML.
 - Do not upload, share, call hosted APIs, or use remote services unless the user explicitly asks.
 - Never patch or recursively compile generated artifacts such as `dist/index.html` or `react-output/ViewSpecView.tsx`.
 
@@ -40,182 +27,44 @@ Use this skill when an agent creates a new human-facing UI artifact, report, das
 Create a starter IntentBundle scaffold:
 
 ```bash
-viewspec init-intent --out viewspec.intent.json
+viewspec init --out viewspec.intent.json
 ```
 
-Create a starter local design file if the repo does not already have one:
+Validate, compile, and check it:
 
 ```bash
-viewspec init-design --out DESIGN.md
-```
-
-Validate the IntentBundle:
-
-```bash
-viewspec validate-intent viewspec.intent.json --json
-```
-
-Diff two IntentBundle revisions:
-
-```bash
-viewspec diff-intent old.intent.json new.intent.json --json
-```
-
-Create and prove a starter AppBundle internal tool:
-
-```bash
-viewspec init-app --out viewspec.app.json
-viewspec init-app --resource-binding fixture-readonly-v0 --out viewspec.bound.app.json
-viewspec validate-app viewspec.app.json --json
-viewspec diff-app old.app.json new.app.json --json
-viewspec compile-app viewspec.app.json --out app-dist --target html-tailwind-app --json
-viewspec prove-app --app viewspec.app.json --out .viewspec-app-proof --with-shell --json
-```
-
-Create, run, and prove the runnable React golden path:
-
-```bash
-viewspec init-app --template react-app --out viewspec.app.json
-viewspec compile-app viewspec.app.json --target react-tailwind-app --out app-dist
-cd app-dist
-npm ci
-npm run dev
-viewspec prove-app --app viewspec.app.json --target react-tailwind-app --install
-```
-
-Edit `viewspec.app.json` and regenerate with `--force`; do not edit generated React.
-
-Opt in to the pinned numeric-helper proof only when requested:
-
-```bash
-viewspec doctor --freerange
-viewspec prove-app --app viewspec.app.json --target react-tailwind-app --install --freerange --json
-```
-
-The generated package pins `@chenglou/freerange` exactly to `0.0.1`. `doctor --freerange` is
-read-only: it may run `bun --version`, but it never installs packages, changes the app, or invokes a
-network-capable package runner. In app proof, `--install` is the explicit permission for
-`npm ci --ignore-scripts` and possible registry access. Keep it on the public `prove-app` command,
-which verifies a freshly generated tree. Only the lower-level artifact verifier can consume an
-existing app directory with dependencies already installed. It never installs Bun.
-
-Read phases and results literally. Strict `tsc --noEmit` must pass before Freerange, which must
-finish before Vite build and Chromium proof. `static_analysis.status: "passed"` is valid only for an
-applicable scope when all manifest-required functions are present and fully analyzed with matching
-coverage, safe contracts, required guarantees, no unproven assertion verdicts, and no error findings. No supported numeric operations
-produces `static_analysis.status: "not_applicable"` and Bun `not_required`; do not call that a passed
-analysis. On any `APP_FREERANGE_*` failure, fix the named prerequisite or semantic source and
-regenerate. Never edit generated numeric source, package locks, manifests, or reports to bypass the
-fail-closed gate.
-
-Opt in to the pinned Pretext proof independently or compose it with Freerange:
-
-```bash
-viewspec prove-app --app viewspec.app.json --target react-tailwind-app --install --pretext --json
-viewspec prove-app --app viewspec.app.json --target react-tailwind-app --install --freerange --pretext --json
-```
-
-The generated package pins `@chenglou/pretext` exactly to `0.0.8`; ViewSpec validates its resolved
-npm artifact, integrity, installed metadata, and complete package tree. Pretext itself has no Bun
-prerequisite. The `viewspec_pretext_native_dom_v1` profile uses named `Arial, sans-serif`, waits for
-fonts, and checks manifest-derived native DOM text at 390×844, 768×1024, and 1440×1000 in Chromium.
-Preparation is reused across widths; predicted and observed line counts must agree under a fixed
-1px line-fit tolerance without actual overflow. The probe reads and hashes text but never returns raw text, mutates the DOM, applies
-predicted layout, or replaces elements with canvas-rendered text.
-
-With both flags, read phases in this order: exact-artifact/dependency preflight, TypeScript,
-Freerange, Vite build, Chromium observation, Pretext report validation, final integrity. Inspect
-`text_layout` or `analyses.pretext` for status, engine/profile/protocol, environment, viewports,
-coverage, cache, observations, digests, timings, phases, and errors. `APP_PRETEXT_*` is fail-closed;
-repair the named prerequisite or semantic source and regenerate. No eligible surface is
-`not_applicable`, never a passed result.
-
-Compile the IntentBundle locally:
-
-```bash
+viewspec check viewspec.intent.json --json
 viewspec compile viewspec.intent.json --design DESIGN.md --out dist/
-```
-
-Validate a compiled artifact directory:
-
-```bash
 viewspec check dist/
 ```
 
-Run the first proof workflow:
-
-```bash
-viewspec prove --out .viewspec-proof
-```
-
-Compile local React source when explicitly needed:
+Compile local React source when the user explicitly needs it:
 
 ```bash
 viewspec compile viewspec.intent.json --design DESIGN.md --target react-tsx --out react-output/
 viewspec check react-output/
-```
-
-Compile local React Tailwind source only for Tailwind host apps:
-
-```bash
 viewspec compile viewspec.intent.json --design DESIGN.md --target react-tailwind-tsx --out react-tailwind-output/
-viewspec check react-tailwind-output/
+viewspec prove react-tailwind-output/ --install --json
 ```
 
-Run ViewSpec's bounded per-artifact React/Tailwind host proof when explicitly needed:
+Prove the result:
 
 ```bash
-viewspec verify-host react-tailwind-output/ --target react-tailwind-tsx --install --json
-viewspec prove --target react-tailwind-tsx --install --out .viewspec-proof --json
+viewspec prove --out .viewspec-proof
+viewspec prove viewspec.intent.json --target react-tailwind-tsx --install --out .viewspec-proof --json
 ```
 
-Diff two imported HTML versions using local lift signals:
+Show a person the result while iterating. This serves a preview on loopback and rebuilds on every edit:
 
 ```bash
-viewspec diff report-v1.html report-v2.html --json
+viewspec studio viewspec.intent.json --no-open --json
 ```
 
-Check local SDK readiness:
+Build a multi-screen AppBundle:
 
 ```bash
-viewspec doctor --agents
-viewspec doctor --freerange
+viewspec init app --out viewspec.app.json
+viewspec check viewspec.app.json --json
+viewspec compile viewspec.app.json --target html-tailwind-app --out app-dist/
+viewspec prove viewspec.app.json --with-shell --out .viewspec-app-proof --json
 ```
-
-Export local contract assets for schema-aware editors and agents:
-
-```bash
-viewspec export-agent-assets --out .viewspec
-viewspec check-agent-assets .viewspec --json
-```
-
-The exported assets include `.viewspec/agent-app-bundle.schema.json` and `.viewspec/agent-app-example.internal-tool.json` for AppBundle V1/V2/V3/V4 in addition to the IntentBundle schema/example.
-
-AppBundle V1 reports fixture resources as `resource_binding: "unbound_v0"`. V2 adds exact `fixture_readonly_v0` visibility proof, V3 adds generated state reducers/selectors, and V4 adds visibility. Static Shell V0 remains a local proof artifact without runtime navigation. The additive React target reports `target: "react-tailwind-app"` and `route_navigation: "browser_history_v1"`, emits a complete Vite package, and verifies generated hashes, build, routing, history, mutation, live resource rebinding, selectors, and visibility in Chromium.
-
-## Output Contract
-
-Compiled HTML output is written to the selected output directory:
-
-- `index.html`
-- `provenance_manifest.json`
-- `diagnostics.json`
-
-AppBundle proof output includes:
-
-- `.viewspec-app-proof/APP_PROOF.md`
-- `.viewspec-app-proof/app_proof_report.json`
-- `.viewspec-app-proof/app_support_bundle.json`
-- `.viewspec-app-proof/screens/<screen_id>/viewspec.intent.json`
-- `.viewspec-app-proof/screens/<screen_id>/artifact/index.html`
-- `.viewspec-app-proof/screens/<screen_id>/artifact/provenance_manifest.json`
-- `.viewspec-app-proof/screens/<screen_id>/artifact/diagnostics.json`
-- optional `.viewspec-app-proof/app-shell/index.html`, `shell_manifest.json`, and `diagnostics.json` when `--with-shell` is used
-
-Compiled React output is written to the selected output directory:
-
-- `ViewSpecView.tsx`
-- `provenance_manifest.json`
-- `diagnostics.json`
-
-The manifest is the trust boundary. It records SDK version, source hashes, design hash, artifact hash, compiler policy, command arguments, diagnostics, and external references.

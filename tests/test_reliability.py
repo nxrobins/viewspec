@@ -6,14 +6,9 @@ import pytest
 from hypothesis import given
 from hypothesis import strategies as st
 
-from viewspec import (
-    CompilerInputError,
-    IntentBundle,
-    SemanticSubstrate,
-    ViewSpecBuilder,
-    compile,
-)
+from viewspec import CompilerInputError, IntentBundle, ViewSpecBuilder, compile
 from viewspec.compiler_refs import MAX_COMPILE_NESTING_DEPTH
+from viewspec.types import SemanticSubstrate
 
 
 def _walk(node):

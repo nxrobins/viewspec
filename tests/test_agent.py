@@ -6,44 +6,34 @@ from pathlib import Path
 
 import pytest
 
-from viewspec import (
+from viewspec import ViewSpecBuilder
+from viewspec.aesthetics import (
+    AESTHETIC_PROFILE_LAYOUT_PROPS,
+    AESTHETIC_PROFILE_LAYOUT_ROLES,
     AESTHETIC_PROFILE_TOKENS,
-    AGENT_APP_BUNDLE_SCHEMA,
-    AGENT_ASSET_CHECK_COMMAND,
-    AGENT_ASSET_CONTRACT_PROFILE,
-    AGENT_ASSET_EXPORT_COMMAND,
-    AGENT_ASSET_MANIFEST_FILE,
-    AGENT_ASSET_NETWORK_POLICY,
-    AGENT_ASSET_SCHEMA_VERSION,
+    profile_style_facts,
+)
+from viewspec.agent import (
     AGENT_INTENT_BUNDLE_SCHEMA,
     AGENT_SYSTEM_PROMPT,
-    CONVERGENCE_TASK_JSON_SCHEMA,
-    INTENT_PATCH_JSON_SCHEMA,
+    MAX_AGENT_ACTION_PAYLOAD_BINDINGS,
+    MAX_AGENT_CORRECTION_PROMPT_ISSUES,
+    MAX_AGENT_INTENT_BYTES,
+    MAX_AGENT_NODES,
+    MAX_AGENT_RELATION_VALUES,
     SUPPORTED_AGENT_ACTION_KINDS,
     SUPPORTED_AGENT_CARDINALITIES,
     SUPPORTED_AGENT_GROUP_KINDS,
     SUPPORTED_AGENT_MOTIFS,
     SUPPORTED_AGENT_REGION_LAYOUTS,
     SUPPORTED_AGENT_STYLE_TOKENS,
-    ViewSpecBuilder,
     agent_correction_prompt,
     agent_repair_checklist,
-    export_agent_assets,
-    starter_app_bundle,
-    starter_convergence_task_payload,
-    starter_intent_patch_payload,
-    starter_intent_payload,
     validate_agent_intent_bundle,
 )
-from viewspec.aesthetics import AESTHETIC_PROFILE_LAYOUT_PROPS, AESTHETIC_PROFILE_LAYOUT_ROLES, profile_style_facts
-from viewspec.agent import (
-    MAX_AGENT_ACTION_PAYLOAD_BINDINGS,
-    MAX_AGENT_CORRECTION_PROMPT_ISSUES,
-    MAX_AGENT_INTENT_BYTES,
-    MAX_AGENT_NODES,
-    MAX_AGENT_RELATION_VALUES,
-)
+from viewspec.app_bundle import AGENT_APP_BUNDLE_SCHEMA, starter_app_bundle
 from viewspec.cli import main as cli_main
+from viewspec.intent_tools import starter_intent_payload
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -151,7 +141,6 @@ def test_agent_prompt_and_schema_preserve_intent_bundle_contract():
     assert "Use only this v1 binding cardinality: exactly_once." in AGENT_SYSTEM_PROMPT
     assert "Use only these v1 region layouts: stack, grid, cluster." in AGENT_SYSTEM_PROMPT
     assert "Use only this v1 group kind: ordered." in AGENT_SYSTEM_PROMPT
-    assert "Do not include hosted-only fields in the local v1 contract" in AGENT_SYSTEM_PROMPT
     assert "Unknown fields are rejected instead of silently ignored" in AGENT_SYSTEM_PROMPT
     assert "Use style tokens only from this v1 set:" in AGENT_SYSTEM_PROMPT
     assert "Aesthetic profile tokens are deterministic art-direction handles, not CSS." in AGENT_SYSTEM_PROMPT
@@ -164,35 +153,20 @@ def test_agent_prompt_and_schema_preserve_intent_bundle_contract():
     assert "Region parent links must form one acyclic tree" in AGENT_SYSTEM_PROMPT
     assert "Region min_children must be >= 0" in AGENT_SYSTEM_PROMPT
     assert "Generated JSON is not a finished ViewSpec proof" in AGENT_SYSTEM_PROMPT
-    assert "Existing source is edited through exactly two lanes" in AGENT_SYSTEM_PROMPT
-    assert "never by line-based or text-diff editing of the bundle JSON" in AGENT_SYSTEM_PROMPT
-    assert "the structured patch surface is the default" in AGENT_SYSTEM_PROMPT
-    assert "viewspec patch-targets viewspec.intent.json --json" in AGENT_SYSTEM_PROMPT
-    assert "IntentPatch V1 cannot create or delete declared elements" in AGENT_SYSTEM_PROMPT
-    assert "viewspec prove --out .viewspec-proof" in AGENT_SYSTEM_PROMPT
-    assert "viewspec validate-intent viewspec.intent.json --json" in AGENT_SYSTEM_PROMPT
+    assert "regenerate the bundle or apply a standard JSON Patch" in AGENT_SYSTEM_PROMPT
+    assert "viewspec prove viewspec.intent.json --out .viewspec-proof" in AGENT_SYSTEM_PROMPT
+    assert "viewspec check viewspec.intent.json --json" in AGENT_SYSTEM_PROMPT
     assert "viewspec check" in AGENT_SYSTEM_PROMPT
     assert ".viewspec-proof/PROOF.md" in AGENT_SYSTEM_PROMPT
     assert "proof_report.json" in AGENT_SYSTEM_PROMPT
     assert "support_bundle.json" in AGENT_SYSTEM_PROMPT
     assert "pixel-perfect visual regression" in AGENT_SYSTEM_PROMPT
-    assert "viewspec diff-intent old.intent.json new.intent.json --json" in AGENT_SYSTEM_PROMPT
-    assert "Review semantic_changes first" in AGENT_SYSTEM_PROMPT
-    assert "compact aesthetic profile style impact counts and bounded layout deltas" in AGENT_SYSTEM_PROMPT
-    assert "MCP semantic_summary" in AGENT_SYSTEM_PROMPT
-    assert 'intent_semantic_change_lines(diff["semantic_changes"])' in AGENT_SYSTEM_PROMPT
     assert "For a multi-screen internal tool, emit AppBundle JSON as viewspec.app.json" in AGENT_SYSTEM_PROMPT
     assert "fixture_readonly_v0" in AGENT_SYSTEM_PROMPT
     assert "resource_views" in AGENT_SYSTEM_PROMPT
-    assert "viewspec validate-app viewspec.app.json --json" in AGENT_SYSTEM_PROMPT
-    assert "viewspec diff-app old.app.json new.app.json --json" in AGENT_SYSTEM_PROMPT
-    assert (
-        "viewspec compile-app viewspec.app.json --out app-dist --target html-tailwind-app --json" in AGENT_SYSTEM_PROMPT
-    )
-    assert (
-        "viewspec prove-app --app viewspec.app.json --out .viewspec-app-proof --with-shell --json"
-        in AGENT_SYSTEM_PROMPT
-    )
+    assert "viewspec check viewspec.app.json --json" in AGENT_SYSTEM_PROMPT
+    assert "viewspec compile viewspec.app.json --out app-dist --target html-tailwind-app --json" in AGENT_SYSTEM_PROMPT
+    assert "viewspec prove viewspec.app.json --out .viewspec-app-proof --with-shell --json" in AGENT_SYSTEM_PROMPT
     assert "Static Shell V0" in AGENT_SYSTEM_PROMPT
     # V4 wording (deliberate pin move): both targets perform the same bounded
     # scalar state-text projection; live resource rebinding remains React-only.
@@ -204,7 +178,6 @@ def test_agent_prompt_and_schema_preserve_intent_bundle_contract():
     assert "Do not call remote reference libraries by default" in AGENT_SYSTEM_PROMPT
     assert "query an MCP-accessible UI reference library" not in AGENT_SYSTEM_PROMPT
     assert AGENT_INTENT_BUNDLE_SCHEMA["$id"] == "https://viewspec.dev/agent-intent-bundle.schema.json"
-    assert AGENT_INTENT_BUNDLE_SCHEMA["not"] == {"anyOf": [{"required": ["design"]}, {"required": ["motif_library"]}]}
     assert AGENT_INTENT_BUNDLE_SCHEMA["$defs"]["motif"]["properties"]["kind"]["enum"] == list(SUPPORTED_AGENT_MOTIFS)
     assert AGENT_INTENT_BUNDLE_SCHEMA["$defs"]["action"]["properties"]["kind"]["enum"] == list(
         SUPPORTED_AGENT_ACTION_KINDS
@@ -246,13 +219,6 @@ def test_agent_prompt_and_schema_preserve_intent_bundle_contract():
         "view_spec",
     ):
         assert AGENT_INTENT_BUNDLE_SCHEMA["$defs"][definition]["additionalProperties"] is False
-    assert AGENT_INTENT_BUNDLE_SCHEMA["$defs"]["view_spec"]["not"] == {
-        "anyOf": [
-            {"required": ["inputs"]},
-            {"required": ["projections"]},
-            {"required": ["rules"]},
-        ]
-    }
     target_ref_schema = AGENT_INTENT_BUNDLE_SCHEMA["$defs"]["action"]["properties"]["target_ref"]["anyOf"]
     assert {"const": ""} in target_ref_schema
     assert {"type": "null"} in target_ref_schema
@@ -288,11 +254,6 @@ def test_agent_prompt_and_schema_preserve_intent_bundle_contract():
     assert "view_spec.substrate_id must equal substrate.id." in invariants
     assert "Each substrate.nodes object key must equal that node object's id." in invariants
     assert "Semantic node edges must reference declared substrate node ids." in invariants
-    assert any(
-        "Hosted-only fields design, motif_library, view_spec.inputs, view_spec.projections, and view_spec.rules are rejected by the local schema"
-        in item
-        for item in invariants
-    )
     assert "IntentBundle may declare at most one aesthetic.* style token." in invariants
     assert "Aesthetic profile style token must target exactly view:{view_spec.id}." in invariants
     assert any(
@@ -300,7 +261,7 @@ def test_agent_prompt_and_schema_preserve_intent_bundle_contract():
         for item in invariants
     )
     assert "Unknown extension fields are rejected instead of silently ignored." in invariants
-    assert "viewspec validate-intent enforces cross-reference invariants." in invariants[-1]
+    assert "viewspec check enforces cross-reference invariants." in invariants[-1]
 
 
 def test_published_agent_schema_matches_runtime_contract():
@@ -322,7 +283,7 @@ def test_published_agent_example_matches_runtime_starter(tmp_path, capsys):
     assert published == starter_intent_payload("dashboard")
     assert published["schema_version"] == 1
     assert validate_agent_intent_bundle(published).valid
-    assert cli_main(["validate-intent", str(example_path), "--json"]) == 0
+    assert cli_main(["check", str(example_path), "--json"]) == 0
     capsys.readouterr()
 
     html_out = tmp_path / "published-html"
@@ -343,84 +304,6 @@ def test_published_app_schema_and_example_match_runtime_contract():
 
     assert schema == AGENT_APP_BUNDLE_SCHEMA
     assert example == starter_app_bundle("internal_tool")
-
-
-def test_published_patch_schema_and_example_match_runtime_contract():
-    schema = json.loads(ROOT.joinpath("demos/intent-patch.schema.json").read_text(encoding="utf-8"))
-    example = json.loads(ROOT.joinpath("demos/intent-patch-example.dashboard.json").read_text(encoding="utf-8"))
-
-    assert schema == INTENT_PATCH_JSON_SCHEMA
-    assert example == starter_intent_patch_payload()
-
-
-def test_published_convergence_task_schema_and_example_match_runtime_contract():
-    schema = json.loads(ROOT.joinpath("demos/converge-task.schema.json").read_text(encoding="utf-8"))
-    example = json.loads(ROOT.joinpath("demos/converge-task-example.dashboard.json").read_text(encoding="utf-8"))
-
-    assert schema == CONVERGENCE_TASK_JSON_SCHEMA
-    assert example == starter_convergence_task_payload()
-
-
-def test_published_agent_asset_manifest_matches_runtime_export(tmp_path):
-    export_agent_assets(tmp_path)
-    published = json.loads(ROOT.joinpath("demos/agent-assets.json").read_text(encoding="utf-8"))
-    exported = json.loads(tmp_path.joinpath(AGENT_ASSET_MANIFEST_FILE).read_text(encoding="utf-8"))
-
-    assert published == exported
-    assert published["schema_version"] == AGENT_ASSET_SCHEMA_VERSION
-    assert published["contract"] == {
-        "profile": AGENT_ASSET_CONTRACT_PROFILE,
-        "intent_schema_id": AGENT_INTENT_BUNDLE_SCHEMA["$id"],
-        "app_schema_id": AGENT_APP_BUNDLE_SCHEMA["$id"],
-        "patch_schema_id": INTENT_PATCH_JSON_SCHEMA["$id"],
-        "converge_task_schema_id": CONVERGENCE_TASK_JSON_SCHEMA["$id"],
-        "export_command": AGENT_ASSET_EXPORT_COMMAND,
-        "check_command": AGENT_ASSET_CHECK_COMMAND,
-        "network_policy": AGENT_ASSET_NETWORK_POLICY,
-        "files": {
-            "manifest": "agent-assets.json",
-            "system_prompt": "agent-system-prompt.txt",
-            "intent_schema": "agent-intent-bundle.schema.json",
-            "intent_example": "agent-intent-example.dashboard.json",
-            "app_schema": "agent-app-bundle.schema.json",
-            "app_example": "agent-app-example.internal-tool.json",
-            "patch_schema": "intent-patch.schema.json",
-            "patch_example": "intent-patch-example.dashboard.json",
-            "converge_task_schema": "converge-task.schema.json",
-            "converge_task_example": "converge-task-example.dashboard.json",
-        },
-    }
-
-
-def test_published_openapi_agent_artifacts_match_runtime_contract():
-    openapi = json.loads(ROOT.joinpath("demos/openapi.json").read_text(encoding="utf-8"))
-    artifacts = openapi["x-viewspec-agent-artifacts"]
-    schemas = openapi["components"]["schemas"]
-    compile_request_ref = openapi["paths"]["/v1/compile"]["post"]["requestBody"]["content"]["application/json"][
-        "schema"
-    ]["$ref"]
-
-    assert artifacts["assetSchemaVersion"] == AGENT_ASSET_SCHEMA_VERSION
-    assert artifacts["assetManifest"] == "https://viewspec.dev/agent-assets.json"
-    assert artifacts["systemPrompt"] == "https://viewspec.dev/agent-system-prompt.txt"
-    assert artifacts["intentBundleSchema"] == AGENT_INTENT_BUNDLE_SCHEMA["$id"]
-    assert artifacts["intentBundleExample"] == "https://viewspec.dev/agent-intent-example.dashboard.json"
-    assert artifacts["appBundleSchema"] == AGENT_APP_BUNDLE_SCHEMA["$id"]
-    assert artifacts["appBundleExample"] == "https://viewspec.dev/agent-app-example.internal-tool.json"
-    assert artifacts["intentPatchSchema"] == INTENT_PATCH_JSON_SCHEMA["$id"]
-    assert artifacts["intentPatchExample"] == "https://viewspec.dev/intent-patch-example.dashboard.json"
-    assert artifacts["convergeTaskSchema"] == CONVERGENCE_TASK_JSON_SCHEMA["$id"]
-    assert artifacts["convergeTaskExample"] == "https://viewspec.dev/converge-task-example.dashboard.json"
-    assert artifacts["contractProfile"] == AGENT_ASSET_CONTRACT_PROFILE
-    assert artifacts["exportCommand"] == AGENT_ASSET_EXPORT_COMMAND
-    assert artifacts["checkCommand"] == AGENT_ASSET_CHECK_COMMAND
-    assert artifacts["networkPolicy"] == AGENT_ASSET_NETWORK_POLICY
-    assert compile_request_ref == "#/components/schemas/CompileRequestPayload"
-    design_schema = schemas["CompileRequestPayload"]["properties"]["design"]
-    assert {item.get("$ref") for item in design_schema["anyOf"]} >= {"#/components/schemas/DesignRequest"}
-    assert "hosted-only" in schemas["CompileRequestPayload"]["description"]
-    assert "design" not in schemas["IntentBundle"]["properties"]
-    assert "motif_library" not in schemas["IntentBundle"]["properties"]
 
 
 def test_rejects_substrate_nodes_array():
@@ -971,26 +854,16 @@ def test_rejects_composition_ir_input():
     assert "COMPOSITION_IR_INPUT" in codes
 
 
-def test_rejects_hosted_only_fields_without_cascading_payload_binding_noise():
+def test_rejects_fields_outside_the_local_contract():
     payload = _bundle_for_motif("dashboard")
     payload["design"] = {"format": "design.md", "content": "name: Acme\n"}
     payload["motif_library"] = {"cards": {}}
     payload["view_spec"]["inputs"] = [{"id": "phase_filter"}]
     payload["view_spec"]["projections"] = []
     payload["view_spec"]["rules"] = [{"id": "show_mobile_note"}]
-    payload["view_spec"]["actions"].append(
-        {
-            "id": "save",
-            "kind": "submit",
-            "label": "Save",
-            "target_region": "main",
-            "target_ref": None,
-            "payload_bindings": ["phase_filter"],
-        }
-    )
 
     result = validate_agent_intent_bundle(payload)
-    paths = {issue.path for issue in result.issues if issue.code == "HOSTED_ONLY_FIELD"}
+    paths = {issue.path for issue in result.issues if issue.code == "UNKNOWN_FIELD"}
 
     assert not result.valid
     assert paths == {
@@ -1000,7 +873,6 @@ def test_rejects_hosted_only_fields_without_cascading_payload_binding_noise():
         "$.view_spec.projections",
         "$.view_spec.rules",
     }
-    assert not any(issue.code == "UNKNOWN_ACTION_PAYLOAD_BINDING" for issue in result.issues)
 
 
 def test_rejects_unknown_extension_fields_before_proto_parse():
@@ -1144,7 +1016,7 @@ def test_correction_prompt_is_actionable_issue_json():
     assert "NODES_MUST_BE_OBJECT" in prompt
     assert "suggestion" in prompt
     assert report["repair_mode"] == "regenerate_full_intent_bundle"
-    assert report["retry_command"] == "viewspec validate-intent viewspec.intent.json --json"
+    assert report["retry_command"] == "viewspec check viewspec.intent.json --json"
     assert report["issue_codes"] == ["NODES_MUST_BE_OBJECT"]
     assert report["affected_paths"] == ["$.substrate.nodes"]
     assert any("required local V1" in item for item in report["repair_checklist"])
@@ -1185,5 +1057,5 @@ def test_agent_repair_checklist_maps_issue_families():
     assert not result.valid
     assert any("canonical node addresses" in item for item in checklist)
     assert any("semantically complete" in item for item in checklist)
-    assert checklist[-1] == "Regenerate the full IntentBundle, then rerun viewspec validate-intent before compiling."
+    assert checklist[-1] == "Regenerate the full IntentBundle, then rerun viewspec check before compiling."
     assert len(checklist) <= 8

@@ -79,15 +79,17 @@ def build_roster_bundle() -> IntentBundle:
 
 def build_comparison_bundle() -> IntentBundle:
     builder = ViewSpecBuilder("live_comparison")
-    comparison = builder.add_comparison("plans", region="main", group_id="tiers")
-    comparison.add_item(label="Starter", value="$9/mo - 1 seat, 10GB storage, email support", id="plan_starter")
-    comparison.add_item(label="Pro", value="$29/mo - 5 seats, 100GB storage, priority support", id="plan_pro")
+    comparison = builder.add_comparison("laptops", region="main", group_id="configurations")
     comparison.add_item(
-        label="Enterprise",
-        value="Custom - unlimited seats, unlimited storage, dedicated CSM",
-        id="plan_enterprise",
+        label="Compact", value="13-inch - 16GB memory, 512GB storage, 18-hour battery", id="laptop_compact"
     )
-    builder.add_style("style_pro_value", "binding:plan_pro_value", "emphasis.high")
+    comparison.add_item(
+        label="Standard", value="14-inch - 32GB memory, 1TB storage, 20-hour battery", id="laptop_standard"
+    )
+    comparison.add_item(
+        label="Workstation", value="16-inch - 64GB memory, 2TB storage, 22-hour battery", id="laptop_workstation"
+    )
+    builder.add_style("style_standard_value", "binding:laptop_standard_value", "emphasis.high")
     return builder.build_bundle()
 
 
@@ -108,8 +110,8 @@ PRESET_BUILDERS = {
         "builder": build_roster_bundle,
     },
     "comparison": {
-        "label": "Pricing Comparison",
-        "description": "Three pricing tiers compiled through the comparison motif.",
+        "label": "Laptop Comparison",
+        "description": "Three laptop configurations compiled through the comparison motif.",
         "builder": build_comparison_bundle,
     },
 }

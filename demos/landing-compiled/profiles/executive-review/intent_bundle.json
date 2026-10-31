@@ -14,8 +14,8 @@
       },
       "agent_workflow_row_2": {
         "attrs": {
-          "label": "validate",
-          "value": "viewspec validate-intent fails closed on drift."
+          "label": "check",
+          "value": "viewspec check fails closed on drift."
         },
         "edges": {},
         "id": "agent_workflow_row_2",
@@ -25,7 +25,7 @@
       "agent_workflow_row_3": {
         "attrs": {
           "label": "prove",
-          "value": "viewspec prove --intent compiles, checks, and renders the exact artifact."
+          "value": "viewspec prove compiles, checks, and renders the exact artifact."
         },
         "edges": {},
         "id": "agent_workflow_row_3",
@@ -75,7 +75,7 @@
       "capabilities_row_3": {
         "attrs": {
           "label": "Proof Pipeline",
-          "value": "state_replay_assertions plus viewspec prove-app --with-shell."
+          "value": "state_replay_assertions plus viewspec prove viewspec.app.json --with-shell."
         },
         "edges": {},
         "id": "capabilities_row_3",
@@ -84,21 +84,11 @@
       },
       "capabilities_row_4": {
         "attrs": {
-          "label": "Semantic Correction",
-          "value": "Source-bound previews and applied receipts keep changes traceable."
+          "label": "Portable Surfaces",
+          "value": "html-tailwind and React, compiled locally."
         },
         "edges": {},
         "id": "capabilities_row_4",
-        "kind": "table_row",
-        "slots": {}
-      },
-      "capabilities_row_5": {
-        "attrs": {
-          "label": "Portable Surfaces",
-          "value": "html-tailwind and React locally; four integrity-checked targets through the paid API."
-        },
-        "edges": {},
-        "id": "capabilities_row_5",
         "kind": "table_row",
         "slots": {}
       },
@@ -134,8 +124,8 @@
       },
       "launch_hero": {
         "attrs": {
-          "description": "Create from a brief and reference, compare checked static and React builds, inspect declared state and fixture data, then point at the result and ask for the next change.",
-          "eyebrow": "Local product studio for you and your agent",
+          "description": "Your agent writes a semantic source. ViewSpec compiles it locally into checked static HTML or React, with provenance and a proof bundle. Free and MIT licensed, with no hosted service.",
+          "eyebrow": "Local UI compiler for you and your agent",
           "title": "Tell your agent what to build. See the real product."
         },
         "edges": {},
@@ -143,33 +133,33 @@
         "kind": "hero",
         "slots": {}
       },
-      "pricing_row_1": {
+      "open_source_row_1": {
         "attrs": {
-          "label": "Free",
-          "value": "Local SDK. Unlimited compiles, proofs, and surfaces."
+          "label": "Cost",
+          "value": "Free. Unlimited compiles, proofs, and surfaces."
         },
         "edges": {},
-        "id": "pricing_row_1",
+        "id": "open_source_row_1",
         "kind": "table_row",
         "slots": {}
       },
-      "pricing_row_2": {
+      "open_source_row_2": {
         "attrs": {
-          "label": "Pro",
-          "value": "149/mo. Hosted compiler API, 10k calls per day."
+          "label": "License",
+          "value": "MIT."
         },
         "edges": {},
-        "id": "pricing_row_2",
+        "id": "open_source_row_2",
         "kind": "table_row",
         "slots": {}
       },
-      "pricing_row_3": {
+      "open_source_row_3": {
         "attrs": {
-          "label": "Enterprise",
-          "value": "Custom volume, organization sharing, and support."
+          "label": "Hosting",
+          "value": "Runs locally. No hosted service, account, or API key."
         },
         "edges": {},
-        "id": "pricing_row_3",
+        "id": "open_source_row_3",
         "kind": "table_row",
         "slots": {}
       },
@@ -220,56 +210,6 @@
         },
         "edges": {},
         "id": "proof_badges_card_5",
-        "kind": "dashboard_card",
-        "slots": {}
-      },
-      "quality_evidence_card_1": {
-        "attrs": {
-          "label": "browser corpus",
-          "value": "10/10 conformant"
-        },
-        "edges": {},
-        "id": "quality_evidence_card_1",
-        "kind": "dashboard_card",
-        "slots": {}
-      },
-      "quality_evidence_card_2": {
-        "attrs": {
-          "label": "viewports",
-          "value": "mobile \u00b7 tablet \u00b7 desktop"
-        },
-        "edges": {},
-        "id": "quality_evidence_card_2",
-        "kind": "dashboard_card",
-        "slots": {}
-      },
-      "quality_evidence_card_3": {
-        "attrs": {
-          "label": "product quality",
-          "value": "10/10 first-compile passes \u00b7 0 critical issues"
-        },
-        "edges": {},
-        "id": "quality_evidence_card_3",
-        "kind": "dashboard_card",
-        "slots": {}
-      },
-      "quality_evidence_card_4": {
-        "attrs": {
-          "label": "semantic corrections",
-          "value": "10/10 verified previews \u00b7 10 applied receipts"
-        },
-        "edges": {},
-        "id": "quality_evidence_card_4",
-        "kind": "dashboard_card",
-        "slots": {}
-      },
-      "quality_evidence_card_5": {
-        "attrs": {
-          "label": "refinement gates",
-          "value": "8/8 passed"
-        },
-        "edges": {},
-        "id": "quality_evidence_card_5",
         "kind": "dashboard_card",
         "slots": {}
       },
@@ -378,76 +318,6 @@
         "target_region": "main"
       },
       {
-        "address": "node:quality_evidence_card_1#attr:label",
-        "cardinality": "exactly_once",
-        "id": "quality_evidence_card_1_label",
-        "present_as": "label",
-        "target_region": "main"
-      },
-      {
-        "address": "node:quality_evidence_card_1#attr:value",
-        "cardinality": "exactly_once",
-        "id": "quality_evidence_card_1_value",
-        "present_as": "value",
-        "target_region": "main"
-      },
-      {
-        "address": "node:quality_evidence_card_2#attr:label",
-        "cardinality": "exactly_once",
-        "id": "quality_evidence_card_2_label",
-        "present_as": "label",
-        "target_region": "main"
-      },
-      {
-        "address": "node:quality_evidence_card_2#attr:value",
-        "cardinality": "exactly_once",
-        "id": "quality_evidence_card_2_value",
-        "present_as": "value",
-        "target_region": "main"
-      },
-      {
-        "address": "node:quality_evidence_card_3#attr:label",
-        "cardinality": "exactly_once",
-        "id": "quality_evidence_card_3_label",
-        "present_as": "label",
-        "target_region": "main"
-      },
-      {
-        "address": "node:quality_evidence_card_3#attr:value",
-        "cardinality": "exactly_once",
-        "id": "quality_evidence_card_3_value",
-        "present_as": "value",
-        "target_region": "main"
-      },
-      {
-        "address": "node:quality_evidence_card_4#attr:label",
-        "cardinality": "exactly_once",
-        "id": "quality_evidence_card_4_label",
-        "present_as": "label",
-        "target_region": "main"
-      },
-      {
-        "address": "node:quality_evidence_card_4#attr:value",
-        "cardinality": "exactly_once",
-        "id": "quality_evidence_card_4_value",
-        "present_as": "value",
-        "target_region": "main"
-      },
-      {
-        "address": "node:quality_evidence_card_5#attr:label",
-        "cardinality": "exactly_once",
-        "id": "quality_evidence_card_5_label",
-        "present_as": "label",
-        "target_region": "main"
-      },
-      {
-        "address": "node:quality_evidence_card_5#attr:value",
-        "cardinality": "exactly_once",
-        "id": "quality_evidence_card_5_value",
-        "present_as": "value",
-        "target_region": "main"
-      },
-      {
         "address": "node:compile_flow_card_1#attr:label",
         "cardinality": "exactly_once",
         "id": "compile_flow_card_1_label",
@@ -546,20 +416,6 @@
         "target_region": "main"
       },
       {
-        "address": "node:capabilities_row_5#attr:label",
-        "cardinality": "exactly_once",
-        "id": "capabilities_row_5_label",
-        "present_as": "label",
-        "target_region": "main"
-      },
-      {
-        "address": "node:capabilities_row_5#attr:value",
-        "cardinality": "exactly_once",
-        "id": "capabilities_row_5_value",
-        "present_as": "value",
-        "target_region": "main"
-      },
-      {
         "address": "node:agent_workflow_row_1#attr:label",
         "cardinality": "exactly_once",
         "id": "agent_workflow_row_1_label",
@@ -602,44 +458,44 @@
         "target_region": "main"
       },
       {
-        "address": "node:pricing_row_1#attr:label",
+        "address": "node:open_source_row_1#attr:label",
         "cardinality": "exactly_once",
-        "id": "pricing_row_1_label",
+        "id": "open_source_row_1_label",
         "present_as": "label",
         "target_region": "main"
       },
       {
-        "address": "node:pricing_row_1#attr:value",
+        "address": "node:open_source_row_1#attr:value",
         "cardinality": "exactly_once",
-        "id": "pricing_row_1_value",
+        "id": "open_source_row_1_value",
         "present_as": "value",
         "target_region": "main"
       },
       {
-        "address": "node:pricing_row_2#attr:label",
+        "address": "node:open_source_row_2#attr:label",
         "cardinality": "exactly_once",
-        "id": "pricing_row_2_label",
+        "id": "open_source_row_2_label",
         "present_as": "label",
         "target_region": "main"
       },
       {
-        "address": "node:pricing_row_2#attr:value",
+        "address": "node:open_source_row_2#attr:value",
         "cardinality": "exactly_once",
-        "id": "pricing_row_2_value",
+        "id": "open_source_row_2_value",
         "present_as": "value",
         "target_region": "main"
       },
       {
-        "address": "node:pricing_row_3#attr:label",
+        "address": "node:open_source_row_3#attr:label",
         "cardinality": "exactly_once",
-        "id": "pricing_row_3_label",
+        "id": "open_source_row_3_label",
         "present_as": "label",
         "target_region": "main"
       },
       {
-        "address": "node:pricing_row_3#attr:value",
+        "address": "node:open_source_row_3#attr:value",
         "cardinality": "exactly_once",
-        "id": "pricing_row_3_value",
+        "id": "open_source_row_3_value",
         "present_as": "value",
         "target_region": "main"
       },
@@ -702,23 +558,6 @@
         "target_region": "main"
       },
       {
-        "id": "quality_evidence",
-        "kind": "ordered",
-        "members": [
-          "quality_evidence_card_1_label",
-          "quality_evidence_card_1_value",
-          "quality_evidence_card_2_label",
-          "quality_evidence_card_2_value",
-          "quality_evidence_card_3_label",
-          "quality_evidence_card_3_value",
-          "quality_evidence_card_4_label",
-          "quality_evidence_card_4_value",
-          "quality_evidence_card_5_label",
-          "quality_evidence_card_5_value"
-        ],
-        "target_region": "main"
-      },
-      {
         "id": "compile_flow",
         "kind": "ordered",
         "members": [
@@ -742,9 +581,7 @@
           "capabilities_row_3_label",
           "capabilities_row_3_value",
           "capabilities_row_4_label",
-          "capabilities_row_4_value",
-          "capabilities_row_5_label",
-          "capabilities_row_5_value"
+          "capabilities_row_4_value"
         ],
         "target_region": "main"
       },
@@ -762,15 +599,15 @@
         "target_region": "main"
       },
       {
-        "id": "pricing",
+        "id": "open_source",
         "kind": "ordered",
         "members": [
-          "pricing_row_1_label",
-          "pricing_row_1_value",
-          "pricing_row_2_label",
-          "pricing_row_2_value",
-          "pricing_row_3_label",
-          "pricing_row_3_value"
+          "open_source_row_1_label",
+          "open_source_row_1_value",
+          "open_source_row_2_label",
+          "open_source_row_2_value",
+          "open_source_row_3_label",
+          "open_source_row_3_value"
         ],
         "target_region": "main"
       },
@@ -816,23 +653,6 @@
         "region": "main"
       },
       {
-        "id": "quality_evidence",
-        "kind": "dashboard",
-        "members": [
-          "quality_evidence_card_1_label",
-          "quality_evidence_card_1_value",
-          "quality_evidence_card_2_label",
-          "quality_evidence_card_2_value",
-          "quality_evidence_card_3_label",
-          "quality_evidence_card_3_value",
-          "quality_evidence_card_4_label",
-          "quality_evidence_card_4_value",
-          "quality_evidence_card_5_label",
-          "quality_evidence_card_5_value"
-        ],
-        "region": "main"
-      },
-      {
         "id": "compile_flow",
         "kind": "dashboard",
         "members": [
@@ -856,9 +676,7 @@
           "capabilities_row_3_label",
           "capabilities_row_3_value",
           "capabilities_row_4_label",
-          "capabilities_row_4_value",
-          "capabilities_row_5_label",
-          "capabilities_row_5_value"
+          "capabilities_row_4_value"
         ],
         "region": "main"
       },
@@ -876,15 +694,15 @@
         "region": "main"
       },
       {
-        "id": "pricing",
+        "id": "open_source",
         "kind": "table",
         "members": [
-          "pricing_row_1_label",
-          "pricing_row_1_value",
-          "pricing_row_2_label",
-          "pricing_row_2_value",
-          "pricing_row_3_label",
-          "pricing_row_3_value"
+          "open_source_row_1_label",
+          "open_source_row_1_value",
+          "open_source_row_2_label",
+          "open_source_row_2_value",
+          "open_source_row_3_label",
+          "open_source_row_3_value"
         ],
         "region": "main"
       },
@@ -928,11 +746,6 @@
       {
         "id": "s_proof_badges",
         "target": "proof_badges",
-        "token": "surface.subtle"
-      },
-      {
-        "id": "s_quality_evidence",
-        "target": "quality_evidence",
         "token": "surface.subtle"
       },
       {

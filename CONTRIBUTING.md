@@ -10,69 +10,42 @@ error-code registry and the changelog. Security reports go through
 
 Development is supported on Linux and macOS. CI runs the test suite on Linux (Ubuntu), plus a
 Windows job that compiles the conformance corpus and checks it against the pinned goldens; macOS is
-supported but not exercised in CI. Review, Converge Sessions, IntentPatch apply, and host
-verification use POSIX file locks and process groups (`fcntl`, `os.setsid`), so the full test suite
-does not run on Windows.
+supported but not exercised in CI. Browser verification uses POSIX process groups (`os.setsid`), so
+the full test suite does not run on Windows.
 
 ## Development setup
 
-1. **Clone with full history.** `tests/test_bug_prevention_manifest.py` walks the git history to
-   verify the fix commits recorded in `tests/bug_prevention_manifest.json`. In a shallow clone, or
-   a copy without `.git`, that check skips and prints the reason; CI checks out with
-   `fetch-depth: 0`, so it always runs there. Use a plain `git clone`; if you already have a
-   shallow clone, run `git fetch --unshallow`.
-
-2. **Python 3.11 or newer.** Create a virtual environment and install the package editable with the
-   development, hosted-fallback, and MCP extras:
+1. **Python 3.11 or newer.** Create a virtual environment and install the package editable with the
+   development extra:
 
    ```bash
    python -m venv .venv
    . .venv/bin/activate
    python -m pip install --upgrade pip
-   python -m pip install -e ".[dev,remote,agents]"
+   python -m pip install -e ".[dev,agents]"
    ```
 
    `dev` brings `pytest`, `hypothesis`, `ruff` and `pyright` (pinned to the exact versions CI
-   uses), `build`, `httpx`, `jsonschema`, and `grpcio-tools` for schema regeneration; `remote` adds
-   the hosted-compiler client dependencies; `agents` adds the MCP SDK (1.x; `mcp<2`) so the real
-   `viewspec mcp` server starts in the tests instead of its missing-dependency branch.
+   uses), `build`, `jsonschema`, and `grpcio-tools` for schema regeneration. `agents` adds the MCP
+   SDK (1.x; `mcp<2`) so the real `viewspec mcp` server starts in the tests instead of skipping.
 
-3. **Node.js 22 and npm.** Two npm dependency seeds are committed as lockfiles and installed with
+2. **Node.js 22 and npm.** Two npm dependency seeds are committed as lockfiles and installed with
    `npm ci --ignore-scripts`; several tests and the host verifier look for them in place:
 
    ```bash
-   (cd conformance/agent-ui-v2/react-dependencies && npm ci --ignore-scripts)
+   (cd tests/react-app-dependencies && npm ci --ignore-scripts)
    (cd src/viewspec/host_verify_template && npm ci --ignore-scripts)
    ```
 
    Both `node_modules/` directories are gitignored. Without the seeds, the tests that need them skip
    and print the reason.
 
-4. **Playwright Chromium (one test).** The browser scorer regression test
-   (`tests/test_agent_eval_runner.py::test_browser_scorer_records_runtime_screenshot_and_text_geometry_fault`)
-   needs the Chromium that the shipped template's Playwright version expects:
+   CI installs the seeds, so nothing in the default suite skips for this reason there. A local run
+   with these skips is not full coverage; add `-rs` to the pytest command to list every skip and
+   its reason.
 
-   ```bash
-   (cd src/viewspec/host_verify_template && npx --no-install playwright install --with-deps chromium)
-   ```
-
-   Omit `--with-deps` on macOS. Without that browser the test skips with its reason; everything
-   else in the default suite runs without a browser.
-
-   CI installs the seeds and the browser and checks out full history, so nothing in the default
-   suite skips for these reasons there. A local run with these skips is not full coverage; add
-   `-rs` to the pytest command to list every skip and its reason.
-
-5. **Optional runtimes.** Bun 1.x is only needed for the opt-in Freerange proof and its e2e
+3. **Optional runtimes.** Bun 1.x is only needed for the opt-in Freerange proof and its e2e
    scenarios; ViewSpec never installs it. Nothing in the default suite needs network access.
-
-6. **Git LFS for the launch media.** Once the media in `demos/launch-assets/` move to Git LFS
-   (the "Launch Media in Git LFS" section of `docs/release-checklist.md`), install git-lfs and run
-   `git lfs install` once per machine. Clones made after that fetch the media; in an older clone,
-   run `git lfs pull`. Without git-lfs those six files are pointer files of about 130 bytes: the
-   default suite still passes, because the migration tests in
-   `tests/test_migrate_launch_media_to_lfs.py` skip (add `-rs` to see why), but adding or
-   re-encoding launch media needs git-lfs, or the commit puts the raw file back into the history.
 
 ## Running the checks
 
@@ -106,11 +79,10 @@ and launch real Bun and Chromium runtimes. Opt in explicitly:
 
 ```bash
 VIEWSPEC_RUN_PRETEXT_E2E=1 python -m pytest -q --strict-markers -m e2e tests/test_app_pretext_e2e.py
-VIEWSPEC_RUN_AGENT_UI_V2_PRODUCT_E2E=1 python -m pytest -q --strict-markers -m e2e tests/test_agent_eval_runner.py
 ```
 
 Set `VIEWSPEC_PRETEXT_E2E_ARTIFACT_DIR` to a fresh directory to retain the generated apps, proof
-reports, and support bundles. The weekly `pretext-e2e.yml` workflow runs both with every toolchain
+reports, and support bundles. The weekly `pretext-e2e.yml` workflow runs them with every toolchain
 version pinned (npm to its major.minor line).
 
 ### Pinned CI dependencies
@@ -133,7 +105,7 @@ not required to use the constraints file, but reproducing a CI failure usually m
 with it:
 
 ```bash
-PIP_CONSTRAINT=requirements-ci.txt python -m pip install -e ".[dev,remote,agents]"
+PIP_CONSTRAINT=requirements-ci.txt python -m pip install -e ".[dev,agents]"
 ```
 
 ## Dependency updates
@@ -141,7 +113,7 @@ PIP_CONSTRAINT=requirements-ci.txt python -m pip install -e ".[dev,remote,agents
 Dependabot (`.github/dependabot.yml`) checks once a week and opens at most one grouped version-update
 pull request per ecosystem: `pip` (`pyproject.toml` and `requirements-ci.txt`), `npm` (the three
 React dependency seeds `src/viewspec/host_verify_template`, `tests/react-tailwind-host` and
-`conformance/agent-ui-v2/react-dependencies`, all in the same pull request), and GitHub Actions.
+`tests/react-app-dependencies`, all in the same pull request), and GitHub Actions.
 A grouped pull request carries only minor and patch updates. Dependabot never proposes a
 semver-major version update, and never proposes the packages whose exact version is a contract in
 the code, the tests or the workflows; a maintainer makes those updates by hand, as "Major updates"
@@ -166,11 +138,11 @@ generated app, and `tests/fixtures/corpus_goldens.json` pins their hashes, so ev
 changes the goldens. Check out the Dependabot branch, then:
 
 ```bash
-for seed in src/viewspec/host_verify_template tests/react-tailwind-host conformance/agent-ui-v2/react-dependencies; do
+for seed in src/viewspec/host_verify_template tests/react-tailwind-host tests/react-app-dependencies; do
     (cd "$seed" && npm ci --ignore-scripts && npm audit --package-lock-only --audit-level=high)
 done
 python scripts/update_corpus_goldens.py
-python -m pytest -q tests/test_react_dependency_seeds.py tests/test_agent_eval_runner.py tests/test_corpus_goldens.py
+python -m pytest -q tests/test_react_dependency_seeds.py tests/test_corpus_goldens.py
 ```
 
 Commit the regenerated `tests/fixtures/corpus_goldens.json` to the pull request. Nothing else
@@ -196,7 +168,7 @@ change with its own changelog entry. Dependabot does not rerun the `uv pip compi
 either. Install with the constraints, which fails when the new set conflicts:
 
 ```bash
-PIP_CONSTRAINT=requirements-ci.txt python -m pip install -e ".[dev,remote,agents]"
+PIP_CONSTRAINT=requirements-ci.txt python -m pip install -e ".[dev,agents]"
 ```
 
 On a conflict, regenerate the file with the command from its header plus
@@ -254,7 +226,7 @@ on purpose, in a pull request of its own, after reading its release notes:
 
 Bump these by hand, each in its own pull request. Search the whole repository for the old version
 string as well (`git grep -nF <old version>`): error messages, tests and root files such as
-`.pre-commit-config.yaml` can quote it. Leave dated records, such as the audit, as they are.
+`.pre-commit-config.yaml` can quote it.
 
 - **`ruff`**: change the pin in the `dev` extra of `pyproject.toml`, in `requirements-ci.txt`, and
   the `rev` of the ruff hooks in `.pre-commit-config.yaml` (`v<version>`); `tests/test_ci_config.py`
@@ -276,14 +248,13 @@ string as well (`git grep -nF <old version>`): error messages, tests and root fi
   caps `mcp<2` and Dependabot proposes only 1.x releases. Moving to SDK 2 is a code change that
   raises the cap and moves the `mcp` rule in `dependabot.yml` to the new cap (`>=3` for `mcp<3`),
   or removes the rule if the cap goes (`tests/test_ci_config.py` ties the rule to the cap).
-  `tests/test_mcp_tools.py` and `tests/test_distribution_metadata.py` hard-code the `agents`
-  requirement, and the first also expects a 1.x `mcp` pin in `requirements-ci.txt`; update them
-  with the code, regenerate the pins, and add a changelog entry.
+  `tests/test_mcp_server.py` hard-codes the `agents` requirement and expects a 1.x `mcp` pin in
+  `requirements-ci.txt`; update it with the code, regenerate the pins, and add a changelog entry.
 - **`@playwright/test`** (and the `playwright` runtime it pins): run
   `npm install --save-dev --save-exact --ignore-scripts @playwright/test@<version>` in each of the
   three seeds, then set the same version in `PLAYWRIGHT_VERSION` in
-  `.github/workflows/pretext-e2e.yml`, in `scripts/check_studio_release.py` and in
-  `docs/release-checklist.md` (`tests/test_react_dependency_seeds.py` checks all three). The new
+  `.github/workflows/pretext-e2e.yml` and in `docs/release-checklist.md`
+  (`tests/test_react_dependency_seeds.py` checks both). The new
   release usually expects a new Chromium build: reinstall it as in the development setup, refresh
   the goldens, and run the full suite; `pretext-e2e.yml` runs on the pull request. The template
   ships the pin to every generated app, so add a changelog entry.
@@ -293,7 +264,7 @@ string as well (`git grep -nF <old version>`): error messages, tests and root fi
   for Playwright (`typescript@<version>`), refresh the goldens, run the opt-in end-to-end suites,
   and add a changelog entry.
 - **`@chenglou/pretext`** and **`@chenglou/freerange`**: pinned only in
-  `conformance/agent-ui-v2/react-dependencies`, and as exact artifacts in the code:
+  `tests/react-app-dependencies`, and as exact artifacts in the code:
   `PRETEXT_VERSION`, `PRETEXT_NPM_RESOLVED`, `PRETEXT_NPM_INTEGRITY` and `PRETEXT_PACKAGE_TREE` in
   `src/viewspec/app_pretext.py` and the version in `src/viewspec/app_pretext_runtime.py`; the
   `FREERANGE_*` constants in `src/viewspec/app_freerange.py` and the lockfile entry
@@ -309,7 +280,7 @@ seed:
 python - <<'EOF'
 from pathlib import Path
 from viewspec import app_freerange, app_pretext
-seed = Path("conformance/agent-ui-v2/react-dependencies/node_modules")
+seed = Path("tests/react-app-dependencies/node_modules")
 limit = app_freerange.FREERANGE_TOOL_TREE_MAX_BYTES
 print("PRETEXT_PACKAGE_TREE", app_pretext._tree_hash(seed / "@chenglou/pretext"))
 print("FREERANGE_PACKAGE_TREE", app_freerange._tree_hash(seed / "@chenglou/freerange", limit))
@@ -321,8 +292,8 @@ EOF
 
 ### The error-code registry is closed
 
-Every `UPPER_SNAKE` code that validation, compilation, `prove`, `diff`, the shell, host
-verification, MCP, or motif-plugin tooling can emit in an error, warning, or diagnostic is listed
+Every `UPPER_SNAKE` code that validation, compilation, `prove`, the shell, host
+verification, or motif-plugin tooling can emit in an error, warning, or diagnostic is listed
 exactly once in `src/viewspec/error_codes.py`. `tests/test_error_code_registry.py` enforces both
 directions: a code used anywhere in `src/viewspec` must be registered, and a registered code must
 still be emitted. When you add a code, add it to the registry in the same change; when you stop

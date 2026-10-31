@@ -11,7 +11,6 @@ from pathlib import Path
 from typing import Any
 
 from viewspec._version import __version__
-from viewspec.app_diff import _validation_summary
 from viewspec.app_errors import AppBundleProofFailure
 from viewspec.app_numeric import (
     NUMERIC_KERNEL_PATH,
@@ -38,6 +37,7 @@ from viewspec.app_validation import (
     _app_summary,
     _resource_binding_report_fields,
     route_assertions_for,
+    validation_summary,
 )
 from viewspec.emitters.html_tailwind import OFFLINE_EMITTER_CSS
 from viewspec.local_tools import atomic_write, check_artifact_dir, file_hash
@@ -117,7 +117,7 @@ def write_react_app(
         raise AppBundleProofFailure(
             "APP_PRESENTATION_PLAN_WRITE_FAILED",
             f"PresentationPlan exceeds {PRESENTATION_PLAN_MAX_BYTES} bytes.",
-            "Reduce presentation rules or anchors and retry compile-app.",
+            "Reduce presentation rules or anchors and rerun viewspec compile.",
         )
     presentation_path = output_dir / PRESENTATION_PLAN_FILE
     atomic_write(presentation_path, presentation_text)
@@ -137,7 +137,7 @@ def write_react_app(
         raise AppBundleProofFailure(
             "APP_REACT_SOURCE_TOO_LARGE",
             f"Generated ViewSpecApp.tsx exceeds {REACT_APP_MAX_SOURCE_BYTES} bytes.",
-            "Reduce routes, screens, resources, or state declarations and retry compile-app.",
+            "Reduce routes, screens, resources, or state declarations and rerun viewspec compile.",
         )
     atomic_write(app_path, app_source)
 
@@ -225,7 +225,7 @@ def write_react_app(
             }
             for report in screen_reports
         ],
-        "validation": _validation_summary(validation),
+        "validation": validation_summary(validation),
         "metadata": {
             "sdk_version": __version__,
             "strict_design": bool(strict_design),
@@ -267,7 +267,7 @@ def _compile_react_screens(
             raise AppBundleProofFailure(
                 "APP_REACT_SCREEN_COMPILE_FAILED",
                 f"React screen {screen_id} failed: {detail}.",
-                "Fix the embedded screen IntentBundle and retry compile-app.",
+                "Fix the embedded screen IntentBundle and rerun viewspec compile.",
             )
         checked = check_artifact_dir(artifact_dir)
         if not checked.get("ok"):
@@ -1642,9 +1642,6 @@ def _safe_json(value: Any) -> str:
         .replace("&", "\\u0026")
     )
 
-
-# Backward-compatible private alias; write_react_app is the public name.
-_write_react_app = write_react_app
 
 __all__ = [
     "REACT_APP_DIAGNOSTICS",

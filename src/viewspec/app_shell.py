@@ -73,7 +73,7 @@ def _build_static_app_shell(
         raise AppBundleProofFailure(
             "APP_SHELL_ROUTE_ASSERTION_FAILED",
             "Static shell route assertions failed before shell write.",
-            "Fix the AppBundle static route graph and retry compile-app.",
+            "Fix the AppBundle static route graph and rerun viewspec compile.",
         )
     screen_payloads = _collect_shell_screens(screen_reports)
     aggregate_screen_html = sum(len(screen["fragment"].encode("utf-8")) for screen in screen_payloads)

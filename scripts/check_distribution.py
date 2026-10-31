@@ -23,18 +23,11 @@ MAX_ARCHIVE_BYTES = 6 * 1024 * 1024
 MAX_UNPACKED_BYTES = 12 * 1024 * 1024
 MAX_MEMBER_BYTES = 2 * 1024 * 1024
 MAX_MEMBERS = 768
-STUDIO_RELEASE_FILES = {
+RELEASE_FILES = {
     "__main__.py",
     "cli.py",
     "studio.py",
-    "studio_creation.py",
-    "studio_creation_cli.py",
-    "studio_creation_daemon.py",
-    "studio_creation_room.py",
-    "review_cli.py",
-    "review_daemon.py",
-    "review_server.py",
-    "review_annotation.py",
+    "api.py",
     "host_verify_template/package.json",
     "host_verify_template/package-lock.json",
 }
@@ -79,7 +72,7 @@ class DistributionError(RuntimeError):
 
 
 def _project_version() -> str:
-    """Return the single-sourced package version from the file hatch reads (audit R-7)."""
+    """Return the single-sourced package version from the file hatch reads."""
     project = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
     if "version" not in project.get("project", {}).get("dynamic", []):
         raise DistributionError("project version must be dynamic and sourced from src/viewspec/_version.py")
@@ -137,7 +130,7 @@ def _audit_wheel(path: Path, version: str) -> int:
         f"{dist_info}/WHEEL",
         f"{dist_info}/RECORD",
     }
-    required.update(f"viewspec/{name}" for name in STUDIO_RELEASE_FILES | SCHEMA_RELEASE_FILES)
+    required.update(f"viewspec/{name}" for name in RELEASE_FILES | SCHEMA_RELEASE_FILES)
     with zipfile.ZipFile(path) as archive:
         infos = archive.infolist()
         names = [info.filename for info in infos]
@@ -177,7 +170,7 @@ def _audit_sdist(path: Path, version: str) -> int:
         f"{root}/src/viewspec/_version.py",
         f"{root}/src/viewspec/py.typed",
     }
-    required.update(f"{root}/src/viewspec/{name}" for name in STUDIO_RELEASE_FILES | SCHEMA_RELEASE_FILES)
+    required.update(f"{root}/src/viewspec/{name}" for name in RELEASE_FILES | SCHEMA_RELEASE_FILES)
     with tarfile.open(path, "r:gz") as archive:
         members = archive.getmembers()
         names = [member.name.rstrip("/") for member in members]

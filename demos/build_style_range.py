@@ -16,7 +16,7 @@ from typing import Any
 from build_aesthetic_profiles import compile_profiles
 from seo_metadata import demo_head_metadata
 
-from viewspec import AESTHETIC_PROFILE_TOKENS
+from viewspec.aesthetics import AESTHETIC_PROFILE_TOKENS
 from viewspec.emitters.html_tailwind import OFFLINE_EMITTER_CSS
 
 ROOT = Path(__file__).resolve().parents[1]

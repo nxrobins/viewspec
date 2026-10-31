@@ -1,17 +1,18 @@
+import { execFileSync, spawn } from "node:child_process";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { expect, test, type Page } from "@playwright/test";
 
 const publicPages = [
   "/",
-  "/cross-platform-dashboard/",
   "/appbundle-state-ir/",
   "/custom-motifs/",
-  "/interactive-compose/",
   "/stateful-collections/",
   "/motif-switcher/",
   "/provenance-inspector/",
   "/live-builder/",
   "/invariants/",
-  "/proof-explorer/",
   "/proof-bundle/",
   "/fifteen-lines/",
   "/style-derivation/",
@@ -129,31 +130,6 @@ test("copy controls fall back when the Clipboard API rejects", async ({ page }) 
   expect(failures).toEqual([]);
 });
 
-test("checkout key copy falls back without leaking a runtime rejection", async ({ page }) => {
-  await page.addInitScript(() => {
-    Object.defineProperty(navigator, "clipboard", {
-      configurable: true,
-      value: { writeText: () => Promise.reject(new Error("permission denied")) },
-    });
-    document.execCommand = (command: string) => command === "copy";
-  });
-  await page.route("https://api.viewspec.dev/v1/checkout/claim", async (route) => {
-    await route.fulfill({
-      status: 200,
-      contentType: "application/json",
-      body: JSON.stringify({ api_key: "vsk_test_browser_only" }),
-    });
-  });
-  const failures = captureRuntimeFailures(page);
-  await page.goto("/checkout/success/?session_id=cs_test_browser", { waitUntil: "domcontentloaded" });
-  const copyButton = page.locator("#copy-key");
-  await expect(copyButton).toBeVisible();
-  await copyButton.click();
-  await expect(copyButton).toHaveAttribute("data-copy-state", "success");
-  await expect(copyButton).toHaveText("Copied");
-  expect(failures).toEqual([]);
-});
-
 test("proof bundle exposes complete bounded proof content", async ({ page }) => {
   const failures = captureRuntimeFailures(page);
   await page.setViewportSize({ width: 390, height: 844 });
@@ -168,32 +144,6 @@ test("proof bundle exposes complete bounded proof content", async ({ page }) => 
   });
   expect(bounds.left).toBeGreaterThanOrEqual(0);
   expect(bounds.right).toBeLessThanOrEqual(bounds.viewport + 1);
-  expect(failures).toEqual([]);
-});
-
-test("proof explorer keeps evidence selection, identity, and viewport state in sync", async ({ page }) => {
-  const failures = captureRuntimeFailures(page);
-  await page.setViewportSize({ width: 390, height: 844 });
-  await page.goto("/proof-explorer/", { waitUntil: "networkidle" });
-
-  await expect(page.locator("#explorerLayout")).toHaveAttribute("aria-busy", "false");
-  await expect(page.locator("#caseList button")).toHaveCount(10);
-  await expect(page.locator("#gateList .gate-item")).toHaveCount(8);
-  await expect(page.locator("#negativeList .negative-item")).toHaveCount(6);
-  await expect(page.locator("#evidenceImage")).toBeVisible();
-
-  await page.getByRole("button", { name: /Operational console/ }).click();
-  await page.getByRole("button", { name: "Mobile · 390" }).click();
-  await expect(page.locator("#caseTitle")).toHaveText("Operational console");
-  await expect(page.locator("#viewportReadout")).toContainText("Mobile viewport · 390×844");
-  await expect(page.locator("#viewportReadout")).toContainText("full-page evidence 390×931");
-  await expect(page).toHaveURL(/case=dense-operational-console&viewport=mobile/);
-
-  const image = page.locator("#evidenceImage");
-  await expect(image).toHaveAttribute("src", "screenshots/dense-operational-console/mobile.png");
-  expect(await image.evaluate((element: HTMLImageElement) => element.naturalWidth)).toBe(390);
-  expect(await image.evaluate((element: HTMLImageElement) => element.naturalHeight)).toBe(931);
-  await expect(page.locator("#screenshotHash")).toHaveText(/^[a-f0-9]{64}$/);
   expect(failures).toEqual([]);
 });
 
@@ -227,11 +177,28 @@ test("homepage exposes bounded opt-in Freerange and Pretext proof integrations",
   const composition = proof.locator(".integration-proof-compose");
   await expect(composition).toContainText("--freerange --pretext --json");
   await expect(composition).toContainText("does not broaden either guarantee");
-  await expect(composition).toContainText("does not claim that a hosted run has completed");
+  await expect(composition).toContainText("does not claim that a CI run has completed");
   expect(failures).toEqual([]);
 });
 
-test("homepage leads with the complete, bounded Studio product loop", async ({ page }) => {
+test("homepage section headings keep their type scale", async ({ page }) => {
+  // Invalid CSS math fails silently: the heading inherits body size and nothing reports it.
+  for (const viewport of viewports) {
+    await page.setViewportSize(viewport);
+    await page.goto("/", { waitUntil: "domcontentloaded" });
+
+    const sizes = await page
+      .locator("h2")
+      .evaluateAll((headings) => headings.map((heading) => Number.parseFloat(getComputedStyle(heading).fontSize)));
+    expect(sizes.length, `Headings exist at ${viewport.name}`).toBeGreaterThan(0);
+    for (const size of sizes) {
+      expect(size, `Heading scale floor at ${viewport.name}`).toBeGreaterThanOrEqual(25);
+      expect(size, `Heading scale ceiling at ${viewport.name}`).toBeLessThanOrEqual(40);
+    }
+  }
+});
+
+test("homepage leads with the free, local, six-command CLI", async ({ page }) => {
   const failures = captureRuntimeFailures(page);
 
   for (const viewport of viewports) {
@@ -240,27 +207,26 @@ test("homepage leads with the complete, bounded Studio product loop", async ({ p
 
     await expect(page.locator("#top > header > h1")).toHaveAttribute(
       "data-raw",
-      "Tell your agent what to build. See the real product. Point at what should change.",
+      "Tell your agent what to build. See the real product. Prove what compiled.",
     );
-    const studio = page.locator("#studio");
-    await expect(studio).toBeVisible();
-    await expect(studio.getByRole("heading", { name: "One room from first brief to final approval." })).toBeVisible();
-    await expect(studio.locator("[data-studio-step]" )).toHaveCount(4);
-    await expect(studio).toContainText("Static and React, side by side.");
-    await expect(studio).toContainText("Replay behavior and fixture data.");
-    await expect(studio).toContainText("Chromium, Firefox, and WebKit");
-    await expect(studio).toContainText("no hosted review endpoint is deployed");
-    await expect(studio).toContainText("Static/React visual parity is not claimed.");
-    await expect(studio).toContainText("Production data is not loaded.");
-    await expect(studio).toContainText("viewspec studio viewspec.app.json --compare --install");
+    const commands = page.locator("#commands");
+    await expect(commands).toBeVisible();
+    await expect(commands.getByRole("heading", { name: "Six commands. No account." })).toBeVisible();
+    await expect(commands.locator("[data-cli-step]")).toHaveCount(6);
+    for (const command of ["init", "compile", "check", "prove", "studio", "mcp"]) {
+      await expect(commands.locator(`[data-cli-step="${command}"]`)).toContainText(`viewspec ${command}`);
+    }
+    await expect(commands).toContainText("no hosted service, API key, or paid tier");
+    await expect(commands).toContainText("viewspec studio viewspec.app.json");
+    await expect(commands).toContainText("does not generate source, collect comments or approvals, or share builds");
 
-    const bounds = await studio.evaluate((element) => {
+    const bounds = await commands.evaluate((element) => {
       const rect = element.getBoundingClientRect();
       return { left: rect.left, right: rect.right, viewport: document.documentElement.clientWidth };
     });
-    expect(bounds.left, `Studio starts inside ${viewport.name} viewport`).toBeGreaterThanOrEqual(0);
-    expect(bounds.right, `Studio ends inside ${viewport.name} viewport`).toBeLessThanOrEqual(bounds.viewport + 1);
-    expect(failures, `Studio emitted runtime failures at ${viewport.name}`).toEqual([]);
+    expect(bounds.left, `Commands start inside ${viewport.name} viewport`).toBeGreaterThanOrEqual(0);
+    expect(bounds.right, `Commands end inside ${viewport.name} viewport`).toBeLessThanOrEqual(bounds.viewport + 1);
+    expect(failures, `Commands emitted runtime failures at ${viewport.name}`).toEqual([]);
   }
 });
 
@@ -277,21 +243,20 @@ test("provenance hover remains populated across sibling transitions", async ({ p
   expect(failures).toEqual([]);
 });
 
-test("pricing conversion links match the public commercial contract", async ({ page }) => {
+test("homepage call to action links stay local and open source", async ({ page }) => {
   const failures = captureRuntimeFailures(page);
   await page.goto("/", { waitUntil: "domcontentloaded" });
-  const pricing = page.locator("#pricing");
-  await expect(pricing.getByText("$149", { exact: false })).toBeVisible();
-  await expect(pricing.getByText("10,000 hosted compile calls/day", { exact: true })).toBeVisible();
-  await expect(pricing.getByRole("link", { name: "Get Pro" })).toHaveAttribute(
+  const start = page.locator("#start");
+  await expect(start.getByText("Free and MIT licensed.", { exact: false })).toBeVisible();
+  await expect(start.getByRole("link", { name: "View on GitHub" })).toHaveAttribute(
     "href",
-    "https://buy.stripe.com/6oU4gA6PqcM9afq6gq2ZO00",
+    "https://github.com/nxrobins/viewspec",
   );
-  await expect(pricing.getByRole("link", { name: "Talk to us" })).toHaveAttribute(
+  await expect(start.getByRole("link", { name: /read the docs/ })).toHaveAttribute(
     "href",
-    "mailto:hello@viewspec.dev?subject=ViewSpec%20Enterprise",
+    "https://github.com/nxrobins/viewspec/blob/main/docs/getting-started.md",
   );
-  await expect(pricing.getByRole("link", { name: /Try the one-minute proof/ })).toHaveAttribute(
+  await expect(start.getByRole("link", { name: /Try the one-minute proof/ })).toHaveAttribute(
     "href",
     "./proof-bundle/",
   );
@@ -307,4 +272,42 @@ test("provenance inspector locks a verified semantic chain", async ({ page }) =>
   await expect(page.locator("#lock-state-text")).toHaveText("Locked");
   await expect(page.locator("#inspector-body")).toContainText("Provenance verified:");
   expect(failures).toEqual([]);
+});
+
+test("studio reloads on an edit and shows a broken build over the last good page", async ({ page }) => {
+  const port = 4179;
+  const url = `http://127.0.0.1:${port}/`;
+  const workspace = mkdtempSync(join(tmpdir(), "viewspec-live-reload-"));
+  const source = join(workspace, "viewspec.app.json");
+  execFileSync("python", ["-m", "viewspec.cli", "init", "app", "--template", "react-app", "--out", source]);
+  const studio = spawn("python", ["-m", "viewspec.cli", "studio", source, "--no-open", "--port", String(port)], {
+    stdio: "ignore",
+  });
+
+  try {
+    await expect
+      .poll(() => fetch(url).then((response) => response.ok, () => false), { timeout: 20_000 })
+      .toBe(true);
+    // The page reloads only on a change from a generation it has already seen.
+    const firstPoll = page.waitForResponse("**/__viewspec/status");
+    await page.goto(url);
+    await firstPoll;
+    await expect(page).toHaveTitle(/Incident Console/);
+
+    const original = readFileSync(source, "utf8");
+    writeFileSync(source, original.replace("Incident Console", "Edited Console"));
+    await expect(page).toHaveTitle(/Edited Console/, { timeout: 10_000 });
+
+    writeFileSync(source, "{ broken");
+    const banner = page.locator("body > pre");
+    await expect(banner).toContainText("APP_INVALID_JSON", { timeout: 10_000 });
+    await expect(page).toHaveTitle(/Edited Console/);
+
+    writeFileSync(source, original);
+    await expect(page).toHaveTitle(/Incident Console/, { timeout: 10_000 });
+    await expect(banner).toHaveCount(0);
+  } finally {
+    studio.kill();
+    rmSync(workspace, { recursive: true, force: true });
+  }
 });

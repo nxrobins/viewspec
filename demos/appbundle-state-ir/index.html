@@ -8,7 +8,6 @@
   <meta name="robots" content="index,follow,max-snippet:-1,max-image-preview:large">
   <link rel="canonical" href="https://viewspec.dev/appbundle-state-ir/">
   <link rel="alternate" type="text/markdown" title="ViewSpec for LLMs" href="https://viewspec.dev/llms.txt">
-  <link rel="alternate" type="application/json" title="ViewSpec OpenAPI" href="https://viewspec.dev/openapi.json">
   <script type="application/ld+json">{
     "@context": "https://schema.org",
     "@type": "WebPage",
@@ -176,7 +175,7 @@
       <div>
         <p class="eyebrow">AppBundle V3 State IR</p>
         <h1>State, reducer, shell, and proof from one agent-authored app contract.</h1>
-        <p class="lead">Agents write bounded AppBundle JSON. ViewSpec validates <code>interactive_state_v0</code>, emits a pure TypeScript reducer at <code>state_reducer.ts</code>, checks <code>state_replay_assertions</code>, renders the static shell, and proves it with <code>viewspec prove-app --with-shell</code>.</p>
+        <p class="lead">Agents write bounded AppBundle JSON. ViewSpec validates <code>interactive_state_v0</code>, emits a pure TypeScript reducer at <code>state_reducer.ts</code>, checks <code>state_replay_assertions</code>, renders the static shell, and proves it with <code>viewspec prove viewspec.app.json --with-shell</code>.</p>
         <div class="evidence-strip" aria-label="State IR proof badges">
           <div class="evidence-pill" aria-label="state replay passed"><span>State replay</span><strong>passed</strong></div>
           <div class="evidence-pill" aria-label="reducer generated"><span>Reducer</span><strong>generated</strong></div>
@@ -188,11 +187,11 @@
       <aside class="card">
         <h2>Compiler-owned output</h2>
         <p>AppBundle V3 is the current flagship proof path because it binds UI and interaction together without asking an agent to hand-wire state transitions.</p>
-        <pre><code>viewspec compile-app viewspec.app.json \
+        <pre><code>viewspec compile viewspec.app.json \
   --out app-dist \
   --target html-tailwind-app --json
 
-viewspec prove-app --app viewspec.app.json \
+viewspec prove viewspec.app.json \
   --out .viewspec-app-proof \
   --with-shell --json</code></pre>
       </aside>
@@ -297,7 +296,7 @@ export function reduceViewSpecState(
           <li><code>route_navigation</code>: <code>static_shell_v0</code></li>
           <li><code>policy.network_calls</code>: <code>none</code></li>
           <li><code>state_reducer_hash</code> and <code>state_manifest_hash</code>: present for V3.</li>
-          <li><code>shell_artifact_hash</code>: matched between <code>compile-app</code> output and <code>prove-app --with-shell</code> shell proof.</li>
+          <li><code>shell_artifact_hash</code>: matched between <code>viewspec compile</code> output and <code>viewspec prove viewspec.app.json --with-shell</code> shell proof.</li>
           <li><code>state_replay_assertions</code>: all passed for the generated <code>reduceViewSpecState</code> reducer.</li>
         </ul>
       </article>

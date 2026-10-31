@@ -13,13 +13,11 @@ import pytest
 pytest.importorskip("jsonschema")
 from jsonschema import Draft202012Validator
 
-from viewspec import INTENT_BUNDLE_SCHEMA_VERSION, starter_intent_payload
 from viewspec.agent import AGENT_INTENT_BUNDLE_SCHEMA, validate_agent_intent_bundle
-from viewspec.agent_assets import check_agent_assets, export_agent_assets
 from viewspec.app_bundle import starter_app_bundle
 from viewspec.app_validation import validate_app_text
-from viewspec.intent_tools import compile_intent_bundle_file_tool, init_intent_file
-from viewspec.types import IntentBundle
+from viewspec.intent_tools import compile_intent_bundle_file_tool, init_intent_file, starter_intent_payload
+from viewspec.types import INTENT_BUNDLE_SCHEMA_VERSION, IntentBundle
 
 
 def _starter() -> dict:
@@ -136,14 +134,3 @@ def test_embedded_screen_intent_rejects_wrong_schema_version():
     result = validate_app_text(json.dumps(app))
     assert not result["ok"]
     assert "UNSUPPORTED_SCHEMA_VERSION" in json.dumps(result["issues"])
-
-
-def test_exported_intent_example_is_versioned_and_schema_valid(tmp_path: Path):
-    export = export_agent_assets(tmp_path, force=True)
-    assert export["ok"]
-    example = json.loads((tmp_path / "agent-intent-example.dashboard.json").read_text(encoding="utf-8"))
-    assert example["schema_version"] == 1
-    validator = Draft202012Validator(AGENT_INTENT_BUNDLE_SCHEMA)
-    assert not list(validator.iter_errors(example))
-    check = check_agent_assets(tmp_path)
-    assert check["ok"], check["errors"]

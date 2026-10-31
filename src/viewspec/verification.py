@@ -1,4 +1,4 @@
-"""Stable contracts for local and hosted ViewSpec conformance verification."""
+"""Stable contracts for ViewSpec conformance verification."""
 
 from __future__ import annotations
 
@@ -337,7 +337,7 @@ def _derived_status(complete: bool, diagnostics: Iterable[VerificationDiagnostic
 
 @dataclass(frozen=True)
 class VerificationResult:
-    """Canonical local or hosted conformance result."""
+    """Canonical conformance result."""
 
     verification_id: str
     status: str

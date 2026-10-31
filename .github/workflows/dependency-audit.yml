@@ -19,7 +19,7 @@ jobs:
         seed:
           - src/viewspec/host_verify_template
           - tests/react-tailwind-host
-          - conformance/agent-ui-v2/react-dependencies
+          - tests/react-app-dependencies
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
@@ -41,6 +41,6 @@ jobs:
       - name: Install the package with every extra
         run: |
           python -m pip install --upgrade pip
-          python -m pip install ".[dev,remote,agents]" pip-audit
+          python -m pip install ".[dev,agents]" pip-audit
       - name: Run pip-audit
         run: pip-audit --progress-spinner off

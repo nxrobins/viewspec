@@ -239,17 +239,17 @@ def test_result_hash_is_independent_of_executor_output_order(tmp_path, monkeypat
     assert forward.result_sha256 == reverse.result_sha256
 
 
-def test_verify_cli_emits_json_and_uses_status_specific_exit_codes(tmp_path, monkeypatch, capsys):
+def test_prove_on_an_artifact_directory_emits_json_and_uses_status_specific_exit_codes(tmp_path, monkeypatch, capsys):
     artifact_dir = _write_artifact(tmp_path)
     monkeypatch.setattr("viewspec.local_verify._execute_browser_plan", _passing_browser)
     capsys.readouterr()
 
     exit_code = cli_main(
         [
-            "verify",
+            "prove",
             str(artifact_dir),
-            "--evidence-out",
-            str(tmp_path / "evidence"),
+            "--out",
+            str(tmp_path / "verification"),
             "--report-out",
             str(tmp_path / "report.json"),
             "--json",
@@ -260,6 +260,4 @@ def test_verify_cli_emits_json_and_uses_status_specific_exit_codes(tmp_path, mon
     assert exit_code == 0
     assert payload["status"] == "conformant"
     assert payload["verification_id"].startswith("vvr_")
-    assert payload["repair_plan"]["disposition"] == "done"
-    repair_path = tmp_path / "repair.json"
-    assert json.loads(repair_path.read_text(encoding="utf-8")) == payload["repair_plan"]
+    assert json.loads((tmp_path / "report.json").read_text(encoding="utf-8")) == payload

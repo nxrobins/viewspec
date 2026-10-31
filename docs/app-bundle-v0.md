@@ -10,8 +10,8 @@ AppBundle is the bounded app-generation contract for local multi-screen internal
 ## Runnable React App Golden Path
 
 ```bash
-viewspec init-app --template react-app --out viewspec.app.json
-viewspec compile-app viewspec.app.json --target react-tailwind-app --out app-dist
+viewspec init app --template react-app --out viewspec.app.json
+viewspec compile viewspec.app.json --target react-tailwind-app --out app-dist
 cd app-dist
 npm ci
 npm run dev
@@ -20,7 +20,7 @@ npm run dev
 Edit the AppBundle and regenerate with `--force`; do not edit generated React. To compile and prove the exact generated app in one workflow:
 
 ```bash
-viewspec prove-app --app viewspec.app.json --target react-tailwind-app --install
+viewspec prove viewspec.app.json --target react-tailwind-app --install
 ```
 
 The proof checks the same embedded screen provenance and resource assertions as the source path,
@@ -36,8 +36,7 @@ The generated `ViewSpecApp` accepts fixture-compatible resource records plus typ
 `react-tailwind-app` may add a fail-closed proof of its manifest-described generated numeric kernel:
 
 ```bash
-viewspec doctor --freerange
-viewspec prove-app --app viewspec.app.json --target react-tailwind-app --install --freerange --json
+viewspec prove viewspec.app.json --target react-tailwind-app --install --freerange --json
 ```
 
 This option is supported only for `react-tailwind-app`. The generated package and lockfile pin
@@ -46,13 +45,10 @@ the accompanying TypeScript toolchain are verified before analysis. Stable Bun 1
 be installed explicitly on `PATH` for an applicable numeric scope. ViewSpec never installs Bun.
 Because Freerange `0.0.1` exposes human-readable CLI output rather than a versioned JSON API,
 ViewSpec uses a strict version-pinned transcript adapter and rejects protocol drift.
-`doctor --freerange` is read-only: it may execute `bun --version` and reports the expected engine
-identity, while the package itself remains unchecked until app proof. It does not mutate the app,
-install dependencies, or invoke a network-capable package runner.
 
 In the exact-app proof, `--install` is the only permission to run `npm ci --ignore-scripts` and
 therefore the only dependency-preparation phase that may access the registry. Keep it on the
-public `prove-app` command because that workflow verifies a freshly generated artifact. The
+public `viewspec prove` command because that workflow verifies a freshly generated artifact. The
 lower-level artifact verifier can use an existing artifact that already contains `node_modules`;
 `--install` still does not install Bun. After dependency preparation, the proof order is strict
 and fail-closed:
@@ -97,8 +93,8 @@ TypeScript, exact-artifact hashes, and the later bounded browser proof.
 `react-tailwind-app` may also add a fail-closed proof for compiler-owned native text surfaces:
 
 ```bash
-viewspec prove-app --app viewspec.app.json --target react-tailwind-app --install --pretext --json
-viewspec prove-app --app viewspec.app.json --target react-tailwind-app --install --freerange --pretext --json
+viewspec prove viewspec.app.json --target react-tailwind-app --install --pretext --json
+viewspec prove viewspec.app.json --target react-tailwind-app --install --freerange --pretext --json
 ```
 
 The Pretext profile requires exact line-count parity for ordinary UI text. For text already wrapping to at least ten lines, it permits at most one line of Canvas-to-DOM shaping drift while retaining both counts in evidence. Horizontal overflow and clipped overflow fail; visible vertical glyph ink is retained as telemetry without being mistaken for clipping.
@@ -179,13 +175,12 @@ matrix, canvas-rendering proof, pixel-perfect visual equivalence, accessibility 
 arbitrary host-app certification.
 
 ```bash
-viewspec init-app --out viewspec.app.json
-viewspec init-app --resource-binding fixture-readonly-v0 --out viewspec.bound.app.json
-viewspec validate-app viewspec.app.json --json
-viewspec diff-app old.app.json new.app.json --json
-viewspec compile-app viewspec.app.json --out app-dist --target html-tailwind-app --json
-viewspec prove-app --app viewspec.app.json --out .viewspec-app-proof --with-shell --json
-viewspec prove-app --app viewspec.app.json --out .viewspec-app-proof --json
+viewspec init app --out viewspec.app.json
+viewspec init app --resource-binding fixture-readonly-v0 --out viewspec.bound.app.json
+viewspec check viewspec.app.json --json
+viewspec compile viewspec.app.json --out app-dist --target html-tailwind-app --json
+viewspec prove viewspec.app.json --out .viewspec-app-proof --with-shell --json
+viewspec prove viewspec.app.json --out .viewspec-app-proof --json
 ```
 
 ## Contract Shape
@@ -213,7 +208,7 @@ viewspec prove-app --app viewspec.app.json --out .viewspec-app-proof --json
 }
 ```
 
-`intent_bundle` values must be full local V1 IntentBundles. The schema example above is structural only; use `viewspec init-app` for a valid starter with embedded screen intents.
+`intent_bundle` values must be full local V1 IntentBundles. The schema example above is structural only; use `viewspec init app` for a valid starter with embedded screen intents.
 
 AppBundle V2 adds required root `resource_binding: "fixture_readonly_v0"` and per-screen `resource_views`:
 
@@ -330,7 +325,7 @@ AppBundle V0 is physically bounded: max 1 MiB raw JSON, 16 screens, 32 routes, 8
 
 Routes are static and canonical only: paths are unique, at most 96 characters, start with `/`, contain only letters, digits, `_`, `.`, `~`, `-`, and `/`, and must not contain `//`, `/../`, `/./`, `%`, `?`, `#`, or `\`. Proof output paths derive only from validated safe ids, never route paths, labels, titles, resource values, or user copy.
 
-AppBundle V0 is local-only and no-network. AppBundle-owned fields reject URL schemes, environment references, credentials, adapter config, fetch config, package-install flags, hosted compiler behavior, and unknown fields. V1/V2 reject mutation fields; V3 admits only the bounded `interactive_state_v0` profile and no arbitrary code, expressions beyond `from_payload`, network calls, time, randomness, package installs, or host-framework APIs.
+AppBundle V0 is local-only and no-network. AppBundle-owned fields reject URL schemes, environment references, credentials, adapter config, fetch config, package-install flags, and unknown fields. V1/V2 reject mutation fields; V3 admits only the bounded `interactive_state_v0` profile and no arbitrary code, expressions beyond `from_payload`, network calls, time, randomness, package installs, or host-framework APIs.
 
 Embedded screen intents pass the existing local V1 IntentBundle validator with compile check enabled by default. Fixture resources are recorded and bounded for app context but remain `resource_binding: "unbound_v0"` and are not required to match, feed, deduplicate, or prove data consistency with embedded screen intents.
 
@@ -338,15 +333,13 @@ Resource Binding V0 is physically bounded and proof-only: max 32 resource views 
 
 If `resource_binding: "fixture_readonly_v0"` is declared, validation, compile, and proof fail closed with stable `APP_RESOURCE_BINDING_*` or `APP_RESOURCE_REPEAT_*` errors on schema mismatch, empty assertion set, unsupported source, canonical identity or generated DOM collision, incomplete repeat field coverage, limit overflow, report overflow, digest mismatch, or missing `binding_scope: "declared_resource_views_only"`. Commands never downgrade to `unbound_v0`, skip assertions, imply runtime/live/adapter/state/data-flow execution, or return a partial successful proof.
 
-`diff-app` reports app metadata, route, screen, resource, resource-view, V3 state, mutation, selector, replay assertion, and per-screen embedded intent semantic summaries. If a changed embedded screen intent cannot be validated or diffed, `diff-app` fails with `APP_DIFF_SCREEN_INTENT_INVALID`.
+Static Shell V0 is physically bounded: max 16 screens, 32 routes, 2 MiB shell HTML, 64 KiB shell JS, 64 KiB serialized route table, 8 MiB aggregate embedded checked screen HTML, 64 KiB generated reducer, 64 KiB state manifest, 0 external network surfaces, 0 dynamic route features, and 0 third-party executable/embed surfaces. For V4, the shell additionally embeds the generated reducer (as a bounded inline runtime, max 96 KiB combined) plus exactly one delegated click listener that dispatches declared mutations for `(screen, action)` triggers and toggles `hidden` + `data-visibility-state` on `data-visibility-rule` nodes — bounded visibility binding only; data and text rebinding stay out of scope, and a halted mutation sequence marks the screen section with `data-viewspec-state-halted` instead of failing silently. The shell manifest records the runtime under `state_runtime` (hashes, sizes, `listener_count: 1`). Shell generation fails closed before writing a successful report with stable `APP_SHELL_*` or `APP_STATE_*` error codes if any bound is exceeded, any route/screen/state assertion fails, any output path escapes the shell/proof root, any preexisting output exists without `--force`, any screen validation/compile/check/hash fails, or `viewspec compile` and `viewspec prove --with-shell` would produce non-identical shell artifacts.
 
-Static Shell V0 is physically bounded: max 16 screens, 32 routes, 2 MiB shell HTML, 64 KiB shell JS, 64 KiB serialized route table, 8 MiB aggregate embedded checked screen HTML, 64 KiB generated reducer, 64 KiB state manifest, 0 external network surfaces, 0 dynamic route features, and 0 third-party executable/embed surfaces. For V4, the shell additionally embeds the generated reducer (as a bounded inline runtime, max 96 KiB combined) plus exactly one delegated click listener that dispatches declared mutations for `(screen, action)` triggers and toggles `hidden` + `data-visibility-state` on `data-visibility-rule` nodes — bounded visibility binding only; data and text rebinding stay out of scope, and a halted mutation sequence marks the screen section with `data-viewspec-state-halted` instead of failing silently. The shell manifest records the runtime under `state_runtime` (hashes, sizes, `listener_count: 1`). Shell generation fails closed before writing a successful report with stable `APP_SHELL_*` or `APP_STATE_*` error codes if any bound is exceeded, any route/screen/state assertion fails, any output path escapes the shell/proof root, any preexisting output exists without `--force`, any screen validation/compile/check/hash fails, or `compile-app` and `prove-app --with-shell` would produce non-identical shell artifacts.
-
-`compile-app` writes `app-dist/index.html`, `shell_manifest.json`, `diagnostics.json`, `presentation_plan.json`, and checked screen artifacts using `target: "html-tailwind-app"` and `route_navigation: "static_shell_v0"`. For V3 it also writes `state_reducer.ts` and schema-versioned `state_manifest.json`; the state manifest records the normalized state contract, `state_contract_hash`, state event schemas, replay report, reducer exports, reducer hash, and local reducer conformance report. It rejects external network/embed/script surfaces, renders unknown route state as one local 404 panel with zero selected screen containers, and remains a local proof artifact rather than a deployable framework app.
+`viewspec compile` writes `app-dist/index.html`, `shell_manifest.json`, `diagnostics.json`, `presentation_plan.json`, and checked screen artifacts using `target: "html-tailwind-app"` and `route_navigation: "static_shell_v0"`. For V3 it also writes `state_reducer.ts` and schema-versioned `state_manifest.json`; the state manifest records the normalized state contract, `state_contract_hash`, state event schemas, replay report, reducer exports, reducer hash, and local reducer conformance report. It rejects external network/embed/script surfaces, renders unknown route state as one local 404 panel with zero selected screen containers, and remains a local proof artifact rather than a deployable framework app.
 
 ## Proof Output
 
-`prove-app` writes:
+`viewspec prove` writes:
 
 - `.viewspec-app-proof/APP_PROOF.md`
 - `.viewspec-app-proof/app_proof_report.json`
@@ -363,9 +356,9 @@ inspection, avoiding duplicate analyzer payloads overflowing `app_proof_report.j
 
 The proof report keeps report schema metadata separate from app contract metadata: `schema_version` describes the report format, while `app_schema_version` records the validated AppBundle contract version. It uses `proof_level: "app_contract_source_artifacts"`, `target: "html-tailwind"`, `policy.network_calls: "none"`, route assertions, screen hashes, manifest summaries, check status, and the validated resource binding mode. V2 reports include `resource_binding: "fixture_readonly_v0"`, `binding_scope: "declared_resource_views_only"`, concrete assertion counts, per-view status, and a binding digest.
 
-With `--with-shell`, `prove-app` also writes `.viewspec-app-proof/app-shell/index.html`, `.viewspec-app-proof/app-shell/shell_manifest.json`, and `.viewspec-app-proof/app-shell/diagnostics.json`; the proof report uses `target: "html-tailwind-app"`, `route_navigation: "static_shell_v0"`, `shell_artifact_hash`, `shell_manifest_hash`, shell route assertions, and the same per-screen proof data.
+With `--with-shell`, `viewspec prove` also writes `.viewspec-app-proof/app-shell/index.html`, `.viewspec-app-proof/app-shell/shell_manifest.json`, and `.viewspec-app-proof/app-shell/diagnostics.json`; the proof report uses `target: "html-tailwind-app"`, `route_navigation: "static_shell_v0"`, `shell_artifact_hash`, `shell_manifest_hash`, shell route assertions, and the same per-screen proof data.
 
-For V3/V4 shell proofs, `compile-app` and `prove-app --with-shell` also write matching `state_reducer.ts` and `state_manifest.json`, record `state_contract_hash`, `state_reducer_hash`, `state_manifest_hash`, replay status, and reducer conformance status. Replay assertions execute through the normalized mutation definitions in the Python interpreter, and the generated reducer is imported with local Node and compared against the Python replay before returning a successful report. **Node.js (>=18) on `PATH` is a prerequisite for V3/V4 conformance** — without it, `compile-app` and `prove-app` fail with `APP_STATE_REDUCER_NODE_UNAVAILABLE` (install Node, or use a V1/V2 AppBundle, which needs no Node).
+For V3/V4 shell proofs, `viewspec compile` and `viewspec prove --with-shell` also write matching `state_reducer.ts` and `state_manifest.json`, record `state_contract_hash`, `state_reducer_hash`, `state_manifest_hash`, replay status, and reducer conformance status. Replay assertions execute through the normalized mutation definitions in the Python interpreter, and the generated reducer is imported with local Node and compared against the Python replay before returning a successful report. **Node.js (>=18) on `PATH` is a prerequisite for V3/V4 conformance** — without it, `viewspec compile` and `viewspec prove` fail with `APP_STATE_REDUCER_NODE_UNAVAILABLE` (install Node, or use a V1/V2 AppBundle, which needs no Node).
 
 ## Explicit Anti-Goals
 
@@ -375,7 +368,7 @@ For V3/V4 shell proofs, `compile-app` and `prove-app --with-shell` also write ma
 - AppBundle V0 is not required to bind fixture resources into screen rendering, infer screen data dependencies, deduplicate repeated data across screens, or prove data-flow consistency.
 - The `react-tailwind-app` target emits a runnable Vite/React/Tailwind frontend and bounded host adapter; it does not generate Next.js, arbitrary routers, API clients, backends, database schemas, authentication, persistence, or optimistic server mutation handlers.
 - AppBundle V0 is not required to optimize for very large apps, streaming validation, incremental proof, cross-bundle imports, shared screen libraries, or monorepo-scale app composition.
-- AppBundle V0 is not required to certify accessibility, pixel-perfect visual equivalence, cross-browser behavior, production deployment readiness, arbitrary host-app compatibility, or hosted extended compiler behavior.
+- AppBundle V0 is not required to certify accessibility, pixel-perfect visual equivalence, cross-browser behavior, production deployment readiness, or arbitrary host-app compatibility.
 - Static Shell V0 does not support browser back/forward history semantics, live data or text rebinding, or deployable framework generation. Those bounded frontend behaviors belong to `react-tailwind-app`; scroll/focus restoration, transitions, multi-tab synchronization, service workers, persisted state, nested or dynamic routing, redirects, route guards, query strings, locale routing, lazy loading, and bundle splitting remain out of scope for both local targets.
 - Resource Binding V0 is not required to prove formatted, localized, case-normalized, concatenated, abbreviated, rounded, pluralized, date-formatted, currency-formatted, or otherwise transformed fixture values.
 - Resource Binding V0 is not required to infer that display labels, aliases, derived columns, badges, icons, colors, severity ordering, or human-readable summaries correspond to fixture fields.
@@ -383,5 +376,5 @@ For V3/V4 shell proofs, `compile-app` and `prove-app --with-shell` also write ma
 - Static Shell Resource Binding V0 remains proof-only. The React target projects declared scalar resource-view fields from host props or generated state into checked bindings, but does not infer undeclared data flow, persist state, or synchronize with a server.
 - Resource Binding V0 is not required to resolve semantic intent when multiple fixture fields intentionally contain the same scalar value unless the declared record-field assertion boundary is unambiguous.
 - State IR V0 is not required to generate Zustand, Redux, SwiftData, CRDT, websocket, optimistic reconciliation, persistence, auth, backend/API client, package install, or gesture/pointer runtimes.
-- State IR V0 is not required to relax local V1/V2/V3 caps, stream massive dynamic apps, discover plugins, execute untrusted code, or cross the hosted compiler API boundary.
+- State IR V0 is not required to relax local V1/V2/V3 caps, stream massive dynamic apps, discover plugins, execute untrusted code,.
 - Visibility V0 is not required to support boolean condition composition (and/or/not), animation or transitions, focus management on show/hide, `view:` targets, or any data/text rebinding; it is bounded conditional show/hide only, and conditions over states driven to unexpected JSON shapes stay total (never crash) under Python-equals-JavaScript semantics verified by Node conformance.

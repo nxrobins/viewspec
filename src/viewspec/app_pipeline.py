@@ -180,7 +180,7 @@ def prove_app(
             raise AppBundleProofFailure(
                 "APP_PROOF_INPUT_READ_ERROR",
                 str(exc),
-                "Pass a readable local AppBundle JSON path and retry prove-app.",
+                "Pass a readable local AppBundle JSON path and rerun viewspec prove.",
             ) from exc
         validation = _time_phase(timings, "validate_app", lambda: validate_app_text(app_text, compile_check=True))
         if not validation["ok"]:
@@ -191,7 +191,7 @@ def prove_app(
                     {
                         "code": issue["code"],
                         "message": issue["message"],
-                        "fix": issue.get("suggestion") or "Fix the AppBundle and retry prove-app.",
+                        "fix": issue.get("suggestion") or "Fix the AppBundle and rerun viewspec prove.",
                     }
                     for issue in validation["issues"]
                 ],
@@ -202,7 +202,7 @@ def prove_app(
             )
         payload = materialize_resource_repeats(json.loads(app_text, parse_constant=reject_json_constant))
         _assert_report_under_output(report_path, output_dir)
-        _prepare_app_output_dir(output_dir, root=root, force=force, raw_out=out_dir)
+        _prepare_app_output_dir(output_dir, root=root, force=force, raw_out=out_dir, inputs=(source, design))
         prepared = PreparedAppProof(
             output_dir=output_dir,
             app_path=source,
@@ -345,7 +345,7 @@ def prove_app(
                 {
                     "code": "APP_PROOF_INTERNAL_ERROR",
                     "message": str(exc),
-                    "fix": "Fix the local AppBundle proof environment or paths and retry prove-app.",
+                    "fix": "Fix the local AppBundle proof environment or paths and rerun viewspec prove.",
                 }
             ],
             timings=timings,
@@ -412,7 +412,7 @@ def compile_app(
                     {
                         "code": issue["code"],
                         "message": issue["message"],
-                        "fix": issue.get("suggestion") or "Fix the AppBundle and retry compile-app.",
+                        "fix": issue.get("suggestion") or "Fix the AppBundle and rerun viewspec compile.",
                     }
                     for issue in validation["issues"]
                 ],
@@ -429,7 +429,7 @@ def compile_app(
             diagnostics_path=output_dir / APP_SHELL_DIAGNOSTICS,
             index_path=output_dir / APP_SHELL_INDEX,
         )
-        _prepare_app_shell_output_dir(output_dir, root=root, force=force, raw_out=out_dir)
+        _prepare_app_shell_output_dir(output_dir, root=root, force=force, raw_out=out_dir, inputs=(source, design))
         prepared_proof = PreparedAppProof(
             output_dir=output_dir,
             app_path=source,
@@ -551,7 +551,7 @@ def compile_app(
                 {
                     "code": "APP_SHELL_INTERNAL_ERROR",
                     "message": str(exc),
-                    "fix": "Fix the local AppBundle shell environment or paths and retry compile-app.",
+                    "fix": "Fix the local AppBundle shell environment or paths and rerun viewspec compile.",
                 }
             ],
             timings=timings,

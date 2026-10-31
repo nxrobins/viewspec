@@ -115,7 +115,7 @@ AGENT_APP_BUNDLE_SCHEMA: dict[str, Any] = {
         "No live data rebinding, framework state adapter, optimistic server reconciliation, persistence, CRDT, websocket sync, or gesture runtime.",
         "No transformed, localized, formatted, joined, sorted, filtered, paginated, grouped, or aggregated fixture proof.",
         "No whole-app data-flow consistency proof beyond explicitly declared resource_views.",
-        "No accessibility, pixel-perfect, cross-browser, production deployment, arbitrary host-app, or hosted extended compiler certification.",
+        "No accessibility, pixel-perfect, cross-browser, production deployment, or arbitrary host-app certification.",
         "Visibility V0 is bounded conditional show/hide only: no boolean condition composition, animation, or focus management.",
         "State Text V0 is one scalar-to-text projection only: no HTML, expressions, paths, localization, formatting functions, or multiple placeholders.",
     ],
@@ -913,7 +913,7 @@ AGENT_APP_BUNDLE_SCHEMA: dict[str, Any] = {
         },
         "intent_bundle": {
             "type": "object",
-            "description": "Embedded local V1 IntentBundle. validate-app/prove-app enforce the full local V1 validator.",
+            "description": "Embedded local V1 IntentBundle. viewspec check and viewspec prove enforce the full local V1 validator.",
         },
     },
 }

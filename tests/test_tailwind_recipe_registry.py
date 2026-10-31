@@ -1,4 +1,4 @@
-"""The Tailwind React emitter reads its recipes from an explicit, read-only registry (audit Q-4).
+"""The Tailwind React emitter reads its recipes from an explicit, read-only registry.
 
 Before this, every emit reassigned seven attributes on ``recipes.py`` from the package's names, so
 that tests could swap recipes by monkeypatching the package. That shared state made concurrent

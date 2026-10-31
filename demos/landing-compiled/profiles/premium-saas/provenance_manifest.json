@@ -2,12 +2,12 @@
   "version": 1,
   "manifest_schema_version": 1,
   "kind": "intent_bundle_compile",
-  "sdk_version": "0.3.0b12",
+  "sdk_version": "0.4.0b1",
   "source_name": "intent_bundle.json",
-  "raw_source_hash": "ff1449cbfc97ebd5a0e91a8113eea7c2b33a968e2d6053290d87489d89aa0e13",
-  "source_hash": "ff1449cbfc97ebd5a0e91a8113eea7c2b33a968e2d6053290d87489d89aa0e13",
+  "raw_source_hash": "4992dda3a779fcac6a33010c3f51f6aac6364742c79c75fceaab57a591786baf",
+  "source_hash": "4992dda3a779fcac6a33010c3f51f6aac6364742c79c75fceaab57a591786baf",
   "design_hash": null,
-  "artifact_hash": "f1f934c607719d2102270b749852bddf312684c0b97e2d823649ec3deebefd3f",
+  "artifact_hash": "1324e64a4bfcf6b42653f56bab50f391bc3056f6b0b89c93813144527ba8069b",
   "command": "compile",
   "command_args": [
     "python",
@@ -108,7 +108,7 @@
         "tone.muted"
       ],
       "props": {
-        "text": "Local product studio for you and your agent",
+        "text": "Local UI compiler for you and your agent",
         "binding_id": "launch_hero_eyebrow",
         "hero_role": "eyebrow"
       }
@@ -151,7 +151,7 @@
         "tone.neutral"
       ],
       "props": {
-        "text": "Create from a brief and reference, compare checked static and React builds, inspect declared state and fixture data, then point at the result and ask for the next change.",
+        "text": "Your agent writes a semantic source. ViewSpec compiles it locally into checked static HTML or React, with provenance and a proof bundle. Free and MIT licensed, with no hosted service.",
         "binding_id": "launch_hero_description",
         "hero_role": "description"
       }
@@ -501,353 +501,6 @@
       "props": {
         "text": "No runtime LLM",
         "binding_id": "proof_badges_card_5_value"
-      }
-    },
-    "dom-motif_quality_evidence": {
-      "ir_id": "motif_quality_evidence",
-      "primitive": "grid",
-      "classes": [
-        "vs-grid",
-        "vs-layout-grid",
-        "vs-motif-dashboard",
-        "vs-role-metric-grid"
-      ],
-      "content_refs": [],
-      "intent_refs": [
-        "viewspec:motif:quality_evidence",
-        "viewspec:style:s_quality_evidence"
-      ],
-      "style_tokens": [
-        "density.regular",
-        "surface.subtle"
-      ],
-      "props": {
-        "layout_role": "grid",
-        "motif_kind": "dashboard",
-        "columns": 2,
-        "layout_strategy": "dashboard_grid_v0",
-        "product_role": "metric_grid",
-        "aesthetic_layout_profile": "aesthetic.premium_saas"
-      }
-    },
-    "dom-motif_quality_evidence_quality_evidence_card_1": {
-      "ir_id": "motif_quality_evidence_quality_evidence_card_1",
-      "primitive": "surface",
-      "classes": [
-        "vs-surface",
-        "vs-layout-surface",
-        "vs-layout-emphasis-featured",
-        "vs-motif-dashboard",
-        "vs-role-metric-card",
-        "vs-span-2"
-      ],
-      "content_refs": [],
-      "intent_refs": [
-        "viewspec:motif:quality_evidence"
-      ],
-      "style_tokens": [
-        "surface.subtle"
-      ],
-      "props": {
-        "layout_role": "surface",
-        "motif_kind": "dashboard",
-        "product_role": "metric_card",
-        "span_columns": 2,
-        "aesthetic_layout_profile": "aesthetic.premium_saas",
-        "layout_emphasis": "featured"
-      }
-    },
-    "dom-binding_quality_evidence_card_1_label": {
-      "ir_id": "binding_quality_evidence_card_1_label",
-      "primitive": "label",
-      "classes": [
-        "vs-label"
-      ],
-      "content_refs": [
-        "node:quality_evidence_card_1#attr:label"
-      ],
-      "intent_refs": [
-        "viewspec:binding:quality_evidence_card_1_label"
-      ],
-      "style_tokens": [
-        "tone.muted"
-      ],
-      "props": {
-        "text": "browser corpus",
-        "binding_id": "quality_evidence_card_1_label"
-      }
-    },
-    "dom-binding_quality_evidence_card_1_value": {
-      "ir_id": "binding_quality_evidence_card_1_value",
-      "primitive": "value",
-      "classes": [
-        "vs-value"
-      ],
-      "content_refs": [
-        "node:quality_evidence_card_1#attr:value"
-      ],
-      "intent_refs": [
-        "viewspec:binding:quality_evidence_card_1_value"
-      ],
-      "style_tokens": [
-        "tone.neutral",
-        "emphasis.high"
-      ],
-      "props": {
-        "text": "10/10 conformant",
-        "binding_id": "quality_evidence_card_1_value"
-      }
-    },
-    "dom-motif_quality_evidence_quality_evidence_card_2": {
-      "ir_id": "motif_quality_evidence_quality_evidence_card_2",
-      "primitive": "surface",
-      "classes": [
-        "vs-surface",
-        "vs-layout-surface",
-        "vs-motif-dashboard",
-        "vs-role-metric-card"
-      ],
-      "content_refs": [],
-      "intent_refs": [
-        "viewspec:motif:quality_evidence"
-      ],
-      "style_tokens": [
-        "surface.subtle"
-      ],
-      "props": {
-        "layout_role": "surface",
-        "motif_kind": "dashboard",
-        "product_role": "metric_card"
-      }
-    },
-    "dom-binding_quality_evidence_card_2_label": {
-      "ir_id": "binding_quality_evidence_card_2_label",
-      "primitive": "label",
-      "classes": [
-        "vs-label"
-      ],
-      "content_refs": [
-        "node:quality_evidence_card_2#attr:label"
-      ],
-      "intent_refs": [
-        "viewspec:binding:quality_evidence_card_2_label"
-      ],
-      "style_tokens": [
-        "tone.muted"
-      ],
-      "props": {
-        "text": "viewports",
-        "binding_id": "quality_evidence_card_2_label"
-      }
-    },
-    "dom-binding_quality_evidence_card_2_value": {
-      "ir_id": "binding_quality_evidence_card_2_value",
-      "primitive": "value",
-      "classes": [
-        "vs-value"
-      ],
-      "content_refs": [
-        "node:quality_evidence_card_2#attr:value"
-      ],
-      "intent_refs": [
-        "viewspec:binding:quality_evidence_card_2_value"
-      ],
-      "style_tokens": [
-        "tone.neutral",
-        "emphasis.high"
-      ],
-      "props": {
-        "text": "mobile \u00b7 tablet \u00b7 desktop",
-        "binding_id": "quality_evidence_card_2_value"
-      }
-    },
-    "dom-motif_quality_evidence_quality_evidence_card_3": {
-      "ir_id": "motif_quality_evidence_quality_evidence_card_3",
-      "primitive": "surface",
-      "classes": [
-        "vs-surface",
-        "vs-layout-surface",
-        "vs-motif-dashboard",
-        "vs-role-metric-card"
-      ],
-      "content_refs": [],
-      "intent_refs": [
-        "viewspec:motif:quality_evidence"
-      ],
-      "style_tokens": [
-        "surface.subtle"
-      ],
-      "props": {
-        "layout_role": "surface",
-        "motif_kind": "dashboard",
-        "product_role": "metric_card"
-      }
-    },
-    "dom-binding_quality_evidence_card_3_label": {
-      "ir_id": "binding_quality_evidence_card_3_label",
-      "primitive": "label",
-      "classes": [
-        "vs-label"
-      ],
-      "content_refs": [
-        "node:quality_evidence_card_3#attr:label"
-      ],
-      "intent_refs": [
-        "viewspec:binding:quality_evidence_card_3_label"
-      ],
-      "style_tokens": [
-        "tone.muted"
-      ],
-      "props": {
-        "text": "product quality",
-        "binding_id": "quality_evidence_card_3_label"
-      }
-    },
-    "dom-binding_quality_evidence_card_3_value": {
-      "ir_id": "binding_quality_evidence_card_3_value",
-      "primitive": "value",
-      "classes": [
-        "vs-value"
-      ],
-      "content_refs": [
-        "node:quality_evidence_card_3#attr:value"
-      ],
-      "intent_refs": [
-        "viewspec:binding:quality_evidence_card_3_value"
-      ],
-      "style_tokens": [
-        "tone.neutral",
-        "emphasis.high"
-      ],
-      "props": {
-        "text": "10/10 first-compile passes \u00b7 0 critical issues",
-        "binding_id": "quality_evidence_card_3_value"
-      }
-    },
-    "dom-motif_quality_evidence_quality_evidence_card_4": {
-      "ir_id": "motif_quality_evidence_quality_evidence_card_4",
-      "primitive": "surface",
-      "classes": [
-        "vs-surface",
-        "vs-layout-surface",
-        "vs-motif-dashboard",
-        "vs-role-metric-card"
-      ],
-      "content_refs": [],
-      "intent_refs": [
-        "viewspec:motif:quality_evidence"
-      ],
-      "style_tokens": [
-        "surface.subtle"
-      ],
-      "props": {
-        "layout_role": "surface",
-        "motif_kind": "dashboard",
-        "product_role": "metric_card"
-      }
-    },
-    "dom-binding_quality_evidence_card_4_label": {
-      "ir_id": "binding_quality_evidence_card_4_label",
-      "primitive": "label",
-      "classes": [
-        "vs-label"
-      ],
-      "content_refs": [
-        "node:quality_evidence_card_4#attr:label"
-      ],
-      "intent_refs": [
-        "viewspec:binding:quality_evidence_card_4_label"
-      ],
-      "style_tokens": [
-        "tone.muted"
-      ],
-      "props": {
-        "text": "semantic corrections",
-        "binding_id": "quality_evidence_card_4_label"
-      }
-    },
-    "dom-binding_quality_evidence_card_4_value": {
-      "ir_id": "binding_quality_evidence_card_4_value",
-      "primitive": "value",
-      "classes": [
-        "vs-value"
-      ],
-      "content_refs": [
-        "node:quality_evidence_card_4#attr:value"
-      ],
-      "intent_refs": [
-        "viewspec:binding:quality_evidence_card_4_value"
-      ],
-      "style_tokens": [
-        "tone.neutral",
-        "emphasis.high"
-      ],
-      "props": {
-        "text": "10/10 verified previews \u00b7 10 applied receipts",
-        "binding_id": "quality_evidence_card_4_value"
-      }
-    },
-    "dom-motif_quality_evidence_quality_evidence_card_5": {
-      "ir_id": "motif_quality_evidence_quality_evidence_card_5",
-      "primitive": "surface",
-      "classes": [
-        "vs-surface",
-        "vs-layout-surface",
-        "vs-motif-dashboard",
-        "vs-role-metric-card"
-      ],
-      "content_refs": [],
-      "intent_refs": [
-        "viewspec:motif:quality_evidence"
-      ],
-      "style_tokens": [
-        "surface.subtle"
-      ],
-      "props": {
-        "layout_role": "surface",
-        "motif_kind": "dashboard",
-        "product_role": "metric_card"
-      }
-    },
-    "dom-binding_quality_evidence_card_5_label": {
-      "ir_id": "binding_quality_evidence_card_5_label",
-      "primitive": "label",
-      "classes": [
-        "vs-label"
-      ],
-      "content_refs": [
-        "node:quality_evidence_card_5#attr:label"
-      ],
-      "intent_refs": [
-        "viewspec:binding:quality_evidence_card_5_label"
-      ],
-      "style_tokens": [
-        "tone.muted"
-      ],
-      "props": {
-        "text": "refinement gates",
-        "binding_id": "quality_evidence_card_5_label"
-      }
-    },
-    "dom-binding_quality_evidence_card_5_value": {
-      "ir_id": "binding_quality_evidence_card_5_value",
-      "primitive": "value",
-      "classes": [
-        "vs-value"
-      ],
-      "content_refs": [
-        "node:quality_evidence_card_5#attr:value"
-      ],
-      "intent_refs": [
-        "viewspec:binding:quality_evidence_card_5_value"
-      ],
-      "style_tokens": [
-        "tone.neutral",
-        "emphasis.high"
-      ],
-      "props": {
-        "text": "8/8 passed",
-        "binding_id": "quality_evidence_card_5_value"
       }
     },
     "dom-motif_compile_flow": {
@@ -1275,7 +928,7 @@
         "emphasis.high"
       ],
       "props": {
-        "text": "state_replay_assertions plus viewspec prove-app --with-shell.",
+        "text": "state_replay_assertions plus viewspec prove viewspec.app.json --with-shell.",
         "binding_id": "capabilities_row_3_value",
         "table_cell_role": "cell"
       }
@@ -1316,7 +969,7 @@
         "tone.muted"
       ],
       "props": {
-        "text": "Semantic Correction",
+        "text": "Portable Surfaces",
         "binding_id": "capabilities_row_4_label",
         "table_cell_role": "row_header"
       }
@@ -1338,71 +991,8 @@
         "emphasis.high"
       ],
       "props": {
-        "text": "Source-bound previews and applied receipts keep changes traceable.",
+        "text": "html-tailwind and React, compiled locally.",
         "binding_id": "capabilities_row_4_value",
-        "table_cell_role": "cell"
-      }
-    },
-    "dom-motif_capabilities_capabilities_row_5": {
-      "ir_id": "motif_capabilities_capabilities_row_5",
-      "primitive": "cluster",
-      "classes": [
-        "vs-cluster",
-        "vs-layout-cluster",
-        "vs-motif-table"
-      ],
-      "content_refs": [],
-      "intent_refs": [
-        "viewspec:motif:capabilities"
-      ],
-      "style_tokens": [
-        "density.compact"
-      ],
-      "props": {
-        "layout_role": "cluster",
-        "motif_kind": "table"
-      }
-    },
-    "dom-binding_capabilities_row_5_label": {
-      "ir_id": "binding_capabilities_row_5_label",
-      "primitive": "label",
-      "classes": [
-        "vs-label"
-      ],
-      "content_refs": [
-        "node:capabilities_row_5#attr:label"
-      ],
-      "intent_refs": [
-        "viewspec:binding:capabilities_row_5_label"
-      ],
-      "style_tokens": [
-        "tone.muted"
-      ],
-      "props": {
-        "text": "Portable Surfaces",
-        "binding_id": "capabilities_row_5_label",
-        "table_cell_role": "row_header"
-      }
-    },
-    "dom-binding_capabilities_row_5_value": {
-      "ir_id": "binding_capabilities_row_5_value",
-      "primitive": "value",
-      "classes": [
-        "vs-value"
-      ],
-      "content_refs": [
-        "node:capabilities_row_5#attr:value"
-      ],
-      "intent_refs": [
-        "viewspec:binding:capabilities_row_5_value"
-      ],
-      "style_tokens": [
-        "tone.neutral",
-        "emphasis.high"
-      ],
-      "props": {
-        "text": "html-tailwind and React locally; four integrity-checked targets through the paid API.",
-        "binding_id": "capabilities_row_5_value",
         "table_cell_role": "cell"
       }
     },
@@ -1525,7 +1115,7 @@
         "tone.muted"
       ],
       "props": {
-        "text": "validate",
+        "text": "check",
         "binding_id": "agent_workflow_row_2_label",
         "table_cell_role": "row_header"
       }
@@ -1547,7 +1137,7 @@
         "emphasis.high"
       ],
       "props": {
-        "text": "viewspec validate-intent fails closed on drift.",
+        "text": "viewspec check fails closed on drift.",
         "binding_id": "agent_workflow_row_2_value",
         "table_cell_role": "cell"
       }
@@ -1610,13 +1200,13 @@
         "emphasis.high"
       ],
       "props": {
-        "text": "viewspec prove --intent compiles, checks, and renders the exact artifact.",
+        "text": "viewspec prove compiles, checks, and renders the exact artifact.",
         "binding_id": "agent_workflow_row_3_value",
         "table_cell_role": "cell"
       }
     },
-    "dom-motif_pricing": {
-      "ir_id": "motif_pricing",
+    "dom-motif_open_source": {
+      "ir_id": "motif_open_source",
       "primitive": "stack",
       "classes": [
         "vs-stack",
@@ -1625,7 +1215,7 @@
       ],
       "content_refs": [],
       "intent_refs": [
-        "viewspec:motif:pricing"
+        "viewspec:motif:open_source"
       ],
       "style_tokens": [
         "density.regular"
@@ -1635,8 +1225,8 @@
         "motif_kind": "table"
       }
     },
-    "dom-motif_pricing_pricing_row_1": {
-      "ir_id": "motif_pricing_pricing_row_1",
+    "dom-motif_open_source_open_source_row_1": {
+      "ir_id": "motif_open_source_open_source_row_1",
       "primitive": "cluster",
       "classes": [
         "vs-cluster",
@@ -1645,7 +1235,7 @@
       ],
       "content_refs": [],
       "intent_refs": [
-        "viewspec:motif:pricing"
+        "viewspec:motif:open_source"
       ],
       "style_tokens": [
         "density.compact"
@@ -1655,51 +1245,51 @@
         "motif_kind": "table"
       }
     },
-    "dom-binding_pricing_row_1_label": {
-      "ir_id": "binding_pricing_row_1_label",
+    "dom-binding_open_source_row_1_label": {
+      "ir_id": "binding_open_source_row_1_label",
       "primitive": "label",
       "classes": [
         "vs-label"
       ],
       "content_refs": [
-        "node:pricing_row_1#attr:label"
+        "node:open_source_row_1#attr:label"
       ],
       "intent_refs": [
-        "viewspec:binding:pricing_row_1_label"
+        "viewspec:binding:open_source_row_1_label"
       ],
       "style_tokens": [
         "tone.muted"
       ],
       "props": {
-        "text": "Free",
-        "binding_id": "pricing_row_1_label",
+        "text": "Cost",
+        "binding_id": "open_source_row_1_label",
         "table_cell_role": "row_header"
       }
     },
-    "dom-binding_pricing_row_1_value": {
-      "ir_id": "binding_pricing_row_1_value",
+    "dom-binding_open_source_row_1_value": {
+      "ir_id": "binding_open_source_row_1_value",
       "primitive": "value",
       "classes": [
         "vs-value"
       ],
       "content_refs": [
-        "node:pricing_row_1#attr:value"
+        "node:open_source_row_1#attr:value"
       ],
       "intent_refs": [
-        "viewspec:binding:pricing_row_1_value"
+        "viewspec:binding:open_source_row_1_value"
       ],
       "style_tokens": [
         "tone.neutral",
         "emphasis.high"
       ],
       "props": {
-        "text": "Local SDK. Unlimited compiles, proofs, and surfaces.",
-        "binding_id": "pricing_row_1_value",
+        "text": "Free. Unlimited compiles, proofs, and surfaces.",
+        "binding_id": "open_source_row_1_value",
         "table_cell_role": "cell"
       }
     },
-    "dom-motif_pricing_pricing_row_2": {
-      "ir_id": "motif_pricing_pricing_row_2",
+    "dom-motif_open_source_open_source_row_2": {
+      "ir_id": "motif_open_source_open_source_row_2",
       "primitive": "cluster",
       "classes": [
         "vs-cluster",
@@ -1708,7 +1298,7 @@
       ],
       "content_refs": [],
       "intent_refs": [
-        "viewspec:motif:pricing"
+        "viewspec:motif:open_source"
       ],
       "style_tokens": [
         "density.compact"
@@ -1718,51 +1308,51 @@
         "motif_kind": "table"
       }
     },
-    "dom-binding_pricing_row_2_label": {
-      "ir_id": "binding_pricing_row_2_label",
+    "dom-binding_open_source_row_2_label": {
+      "ir_id": "binding_open_source_row_2_label",
       "primitive": "label",
       "classes": [
         "vs-label"
       ],
       "content_refs": [
-        "node:pricing_row_2#attr:label"
+        "node:open_source_row_2#attr:label"
       ],
       "intent_refs": [
-        "viewspec:binding:pricing_row_2_label"
+        "viewspec:binding:open_source_row_2_label"
       ],
       "style_tokens": [
         "tone.muted"
       ],
       "props": {
-        "text": "Pro",
-        "binding_id": "pricing_row_2_label",
+        "text": "License",
+        "binding_id": "open_source_row_2_label",
         "table_cell_role": "row_header"
       }
     },
-    "dom-binding_pricing_row_2_value": {
-      "ir_id": "binding_pricing_row_2_value",
+    "dom-binding_open_source_row_2_value": {
+      "ir_id": "binding_open_source_row_2_value",
       "primitive": "value",
       "classes": [
         "vs-value"
       ],
       "content_refs": [
-        "node:pricing_row_2#attr:value"
+        "node:open_source_row_2#attr:value"
       ],
       "intent_refs": [
-        "viewspec:binding:pricing_row_2_value"
+        "viewspec:binding:open_source_row_2_value"
       ],
       "style_tokens": [
         "tone.neutral",
         "emphasis.high"
       ],
       "props": {
-        "text": "149/mo. Hosted compiler API, 10k calls per day.",
-        "binding_id": "pricing_row_2_value",
+        "text": "MIT.",
+        "binding_id": "open_source_row_2_value",
         "table_cell_role": "cell"
       }
     },
-    "dom-motif_pricing_pricing_row_3": {
-      "ir_id": "motif_pricing_pricing_row_3",
+    "dom-motif_open_source_open_source_row_3": {
+      "ir_id": "motif_open_source_open_source_row_3",
       "primitive": "cluster",
       "classes": [
         "vs-cluster",
@@ -1771,7 +1361,7 @@
       ],
       "content_refs": [],
       "intent_refs": [
-        "viewspec:motif:pricing"
+        "viewspec:motif:open_source"
       ],
       "style_tokens": [
         "density.compact"
@@ -1781,46 +1371,46 @@
         "motif_kind": "table"
       }
     },
-    "dom-binding_pricing_row_3_label": {
-      "ir_id": "binding_pricing_row_3_label",
+    "dom-binding_open_source_row_3_label": {
+      "ir_id": "binding_open_source_row_3_label",
       "primitive": "label",
       "classes": [
         "vs-label"
       ],
       "content_refs": [
-        "node:pricing_row_3#attr:label"
+        "node:open_source_row_3#attr:label"
       ],
       "intent_refs": [
-        "viewspec:binding:pricing_row_3_label"
+        "viewspec:binding:open_source_row_3_label"
       ],
       "style_tokens": [
         "tone.muted"
       ],
       "props": {
-        "text": "Enterprise",
-        "binding_id": "pricing_row_3_label",
+        "text": "Hosting",
+        "binding_id": "open_source_row_3_label",
         "table_cell_role": "row_header"
       }
     },
-    "dom-binding_pricing_row_3_value": {
-      "ir_id": "binding_pricing_row_3_value",
+    "dom-binding_open_source_row_3_value": {
+      "ir_id": "binding_open_source_row_3_value",
       "primitive": "value",
       "classes": [
         "vs-value"
       ],
       "content_refs": [
-        "node:pricing_row_3#attr:value"
+        "node:open_source_row_3#attr:value"
       ],
       "intent_refs": [
-        "viewspec:binding:pricing_row_3_value"
+        "viewspec:binding:open_source_row_3_value"
       ],
       "style_tokens": [
         "tone.neutral",
         "emphasis.high"
       ],
       "props": {
-        "text": "Custom volume, organization sharing, and support.",
-        "binding_id": "pricing_row_3_value",
+        "text": "Runs locally. No hosted service, account, or API key.",
+        "binding_id": "open_source_row_3_value",
         "table_cell_role": "cell"
       }
     },
@@ -2010,22 +1600,6 @@
         "dom-motif_proof_badges_proof_badges_card_5",
         "dom-binding_proof_badges_card_5_label",
         "dom-binding_proof_badges_card_5_value",
-        "dom-motif_quality_evidence",
-        "dom-motif_quality_evidence_quality_evidence_card_1",
-        "dom-binding_quality_evidence_card_1_label",
-        "dom-binding_quality_evidence_card_1_value",
-        "dom-motif_quality_evidence_quality_evidence_card_2",
-        "dom-binding_quality_evidence_card_2_label",
-        "dom-binding_quality_evidence_card_2_value",
-        "dom-motif_quality_evidence_quality_evidence_card_3",
-        "dom-binding_quality_evidence_card_3_label",
-        "dom-binding_quality_evidence_card_3_value",
-        "dom-motif_quality_evidence_quality_evidence_card_4",
-        "dom-binding_quality_evidence_card_4_label",
-        "dom-binding_quality_evidence_card_4_value",
-        "dom-motif_quality_evidence_quality_evidence_card_5",
-        "dom-binding_quality_evidence_card_5_label",
-        "dom-binding_quality_evidence_card_5_value",
         "dom-motif_compile_flow",
         "dom-motif_compile_flow_compile_flow_card_1",
         "dom-binding_compile_flow_card_1_label",
@@ -2049,9 +1623,6 @@
         "dom-motif_capabilities_capabilities_row_4",
         "dom-binding_capabilities_row_4_label",
         "dom-binding_capabilities_row_4_value",
-        "dom-motif_capabilities_capabilities_row_5",
-        "dom-binding_capabilities_row_5_label",
-        "dom-binding_capabilities_row_5_value",
         "dom-motif_agent_workflow",
         "dom-motif_agent_workflow_agent_workflow_row_1",
         "dom-binding_agent_workflow_row_1_label",
@@ -2062,16 +1633,16 @@
         "dom-motif_agent_workflow_agent_workflow_row_3",
         "dom-binding_agent_workflow_row_3_label",
         "dom-binding_agent_workflow_row_3_value",
-        "dom-motif_pricing",
-        "dom-motif_pricing_pricing_row_1",
-        "dom-binding_pricing_row_1_label",
-        "dom-binding_pricing_row_1_value",
-        "dom-motif_pricing_pricing_row_2",
-        "dom-binding_pricing_row_2_label",
-        "dom-binding_pricing_row_2_value",
-        "dom-motif_pricing_pricing_row_3",
-        "dom-binding_pricing_row_3_label",
-        "dom-binding_pricing_row_3_value",
+        "dom-motif_open_source",
+        "dom-motif_open_source_open_source_row_1",
+        "dom-binding_open_source_row_1_label",
+        "dom-binding_open_source_row_1_value",
+        "dom-motif_open_source_open_source_row_2",
+        "dom-binding_open_source_row_2_label",
+        "dom-binding_open_source_row_2_value",
+        "dom-motif_open_source_open_source_row_3",
+        "dom-binding_open_source_row_3_label",
+        "dom-binding_open_source_row_3_value",
         "dom-motif_artifact_identity",
         "dom-motif_artifact_identity_artifact_identity_card_1",
         "dom-binding_artifact_identity_card_1_label",
@@ -2118,7 +1689,7 @@
           "ir_id": "binding_launch_hero_eyebrow",
           "primitive": "label",
           "tag": "p",
-          "visible_text": "Local product studio for you and your agent",
+          "visible_text": "Local UI compiler for you and your agent",
           "binding_id": "launch_hero_eyebrow",
           "action": null,
           "accessibility_label": null
@@ -2138,7 +1709,7 @@
           "ir_id": "binding_launch_hero_description",
           "primitive": "text",
           "tag": "p",
-          "visible_text": "Create from a brief and reference, compare checked static and React builds, inspect declared state and fixture data, then point at the result and ask for the next change.",
+          "visible_text": "Your agent writes a semantic source. ViewSpec compiles it locally into checked static HTML or React, with provenance and a proof bundle. Free and MIT licensed, with no hosted service.",
           "binding_id": "launch_hero_description",
           "action": null,
           "accessibility_label": null
@@ -2300,166 +1871,6 @@
           "tag": "div",
           "visible_text": "No runtime LLM",
           "binding_id": "proof_badges_card_5_value",
-          "action": null,
-          "accessibility_label": null
-        },
-        {
-          "dom_id": "dom-motif_quality_evidence",
-          "ir_id": "motif_quality_evidence",
-          "primitive": "grid",
-          "tag": "div",
-          "visible_text": "",
-          "binding_id": null,
-          "action": null,
-          "accessibility_label": null
-        },
-        {
-          "dom_id": "dom-motif_quality_evidence_quality_evidence_card_1",
-          "ir_id": "motif_quality_evidence_quality_evidence_card_1",
-          "primitive": "surface",
-          "tag": "div",
-          "visible_text": "",
-          "binding_id": null,
-          "action": null,
-          "accessibility_label": null
-        },
-        {
-          "dom_id": "dom-binding_quality_evidence_card_1_label",
-          "ir_id": "binding_quality_evidence_card_1_label",
-          "primitive": "label",
-          "tag": "div",
-          "visible_text": "browser corpus",
-          "binding_id": "quality_evidence_card_1_label",
-          "action": null,
-          "accessibility_label": null
-        },
-        {
-          "dom_id": "dom-binding_quality_evidence_card_1_value",
-          "ir_id": "binding_quality_evidence_card_1_value",
-          "primitive": "value",
-          "tag": "div",
-          "visible_text": "10/10 conformant",
-          "binding_id": "quality_evidence_card_1_value",
-          "action": null,
-          "accessibility_label": null
-        },
-        {
-          "dom_id": "dom-motif_quality_evidence_quality_evidence_card_2",
-          "ir_id": "motif_quality_evidence_quality_evidence_card_2",
-          "primitive": "surface",
-          "tag": "div",
-          "visible_text": "",
-          "binding_id": null,
-          "action": null,
-          "accessibility_label": null
-        },
-        {
-          "dom_id": "dom-binding_quality_evidence_card_2_label",
-          "ir_id": "binding_quality_evidence_card_2_label",
-          "primitive": "label",
-          "tag": "div",
-          "visible_text": "viewports",
-          "binding_id": "quality_evidence_card_2_label",
-          "action": null,
-          "accessibility_label": null
-        },
-        {
-          "dom_id": "dom-binding_quality_evidence_card_2_value",
-          "ir_id": "binding_quality_evidence_card_2_value",
-          "primitive": "value",
-          "tag": "div",
-          "visible_text": "mobile \u00b7 tablet \u00b7 desktop",
-          "binding_id": "quality_evidence_card_2_value",
-          "action": null,
-          "accessibility_label": null
-        },
-        {
-          "dom_id": "dom-motif_quality_evidence_quality_evidence_card_3",
-          "ir_id": "motif_quality_evidence_quality_evidence_card_3",
-          "primitive": "surface",
-          "tag": "div",
-          "visible_text": "",
-          "binding_id": null,
-          "action": null,
-          "accessibility_label": null
-        },
-        {
-          "dom_id": "dom-binding_quality_evidence_card_3_label",
-          "ir_id": "binding_quality_evidence_card_3_label",
-          "primitive": "label",
-          "tag": "div",
-          "visible_text": "product quality",
-          "binding_id": "quality_evidence_card_3_label",
-          "action": null,
-          "accessibility_label": null
-        },
-        {
-          "dom_id": "dom-binding_quality_evidence_card_3_value",
-          "ir_id": "binding_quality_evidence_card_3_value",
-          "primitive": "value",
-          "tag": "div",
-          "visible_text": "10/10 first-compile passes \u00b7 0 critical issues",
-          "binding_id": "quality_evidence_card_3_value",
-          "action": null,
-          "accessibility_label": null
-        },
-        {
-          "dom_id": "dom-motif_quality_evidence_quality_evidence_card_4",
-          "ir_id": "motif_quality_evidence_quality_evidence_card_4",
-          "primitive": "surface",
-          "tag": "div",
-          "visible_text": "",
-          "binding_id": null,
-          "action": null,
-          "accessibility_label": null
-        },
-        {
-          "dom_id": "dom-binding_quality_evidence_card_4_label",
-          "ir_id": "binding_quality_evidence_card_4_label",
-          "primitive": "label",
-          "tag": "div",
-          "visible_text": "semantic corrections",
-          "binding_id": "quality_evidence_card_4_label",
-          "action": null,
-          "accessibility_label": null
-        },
-        {
-          "dom_id": "dom-binding_quality_evidence_card_4_value",
-          "ir_id": "binding_quality_evidence_card_4_value",
-          "primitive": "value",
-          "tag": "div",
-          "visible_text": "10/10 verified previews \u00b7 10 applied receipts",
-          "binding_id": "quality_evidence_card_4_value",
-          "action": null,
-          "accessibility_label": null
-        },
-        {
-          "dom_id": "dom-motif_quality_evidence_quality_evidence_card_5",
-          "ir_id": "motif_quality_evidence_quality_evidence_card_5",
-          "primitive": "surface",
-          "tag": "div",
-          "visible_text": "",
-          "binding_id": null,
-          "action": null,
-          "accessibility_label": null
-        },
-        {
-          "dom_id": "dom-binding_quality_evidence_card_5_label",
-          "ir_id": "binding_quality_evidence_card_5_label",
-          "primitive": "label",
-          "tag": "div",
-          "visible_text": "refinement gates",
-          "binding_id": "quality_evidence_card_5_label",
-          "action": null,
-          "accessibility_label": null
-        },
-        {
-          "dom_id": "dom-binding_quality_evidence_card_5_value",
-          "ir_id": "binding_quality_evidence_card_5_value",
-          "primitive": "value",
-          "tag": "div",
-          "visible_text": "8/8 passed",
-          "binding_id": "quality_evidence_card_5_value",
           "action": null,
           "accessibility_label": null
         },
@@ -2658,7 +2069,7 @@
           "ir_id": "binding_capabilities_row_3_value",
           "primitive": "value",
           "tag": "td",
-          "visible_text": "state_replay_assertions plus viewspec prove-app --with-shell.",
+          "visible_text": "state_replay_assertions plus viewspec prove viewspec.app.json --with-shell.",
           "binding_id": "capabilities_row_3_value",
           "action": null,
           "accessibility_label": null
@@ -2678,7 +2089,7 @@
           "ir_id": "binding_capabilities_row_4_label",
           "primitive": "label",
           "tag": "th",
-          "visible_text": "Semantic Correction",
+          "visible_text": "Portable Surfaces",
           "binding_id": "capabilities_row_4_label",
           "action": null,
           "accessibility_label": null
@@ -2688,38 +2099,8 @@
           "ir_id": "binding_capabilities_row_4_value",
           "primitive": "value",
           "tag": "td",
-          "visible_text": "Source-bound previews and applied receipts keep changes traceable.",
+          "visible_text": "html-tailwind and React, compiled locally.",
           "binding_id": "capabilities_row_4_value",
-          "action": null,
-          "accessibility_label": null
-        },
-        {
-          "dom_id": "dom-motif_capabilities_capabilities_row_5",
-          "ir_id": "motif_capabilities_capabilities_row_5",
-          "primitive": "cluster",
-          "tag": "tr",
-          "visible_text": "",
-          "binding_id": null,
-          "action": null,
-          "accessibility_label": null
-        },
-        {
-          "dom_id": "dom-binding_capabilities_row_5_label",
-          "ir_id": "binding_capabilities_row_5_label",
-          "primitive": "label",
-          "tag": "th",
-          "visible_text": "Portable Surfaces",
-          "binding_id": "capabilities_row_5_label",
-          "action": null,
-          "accessibility_label": null
-        },
-        {
-          "dom_id": "dom-binding_capabilities_row_5_value",
-          "ir_id": "binding_capabilities_row_5_value",
-          "primitive": "value",
-          "tag": "td",
-          "visible_text": "html-tailwind and React locally; four integrity-checked targets through the paid API.",
-          "binding_id": "capabilities_row_5_value",
           "action": null,
           "accessibility_label": null
         },
@@ -2778,7 +2159,7 @@
           "ir_id": "binding_agent_workflow_row_2_label",
           "primitive": "label",
           "tag": "th",
-          "visible_text": "validate",
+          "visible_text": "check",
           "binding_id": "agent_workflow_row_2_label",
           "action": null,
           "accessibility_label": null
@@ -2788,7 +2169,7 @@
           "ir_id": "binding_agent_workflow_row_2_value",
           "primitive": "value",
           "tag": "td",
-          "visible_text": "viewspec validate-intent fails closed on drift.",
+          "visible_text": "viewspec check fails closed on drift.",
           "binding_id": "agent_workflow_row_2_value",
           "action": null,
           "accessibility_label": null
@@ -2818,14 +2199,14 @@
           "ir_id": "binding_agent_workflow_row_3_value",
           "primitive": "value",
           "tag": "td",
-          "visible_text": "viewspec prove --intent compiles, checks, and renders the exact artifact.",
+          "visible_text": "viewspec prove compiles, checks, and renders the exact artifact.",
           "binding_id": "agent_workflow_row_3_value",
           "action": null,
           "accessibility_label": null
         },
         {
-          "dom_id": "dom-motif_pricing",
-          "ir_id": "motif_pricing",
+          "dom_id": "dom-motif_open_source",
+          "ir_id": "motif_open_source",
           "primitive": "stack",
           "tag": "table",
           "visible_text": "",
@@ -2834,8 +2215,8 @@
           "accessibility_label": null
         },
         {
-          "dom_id": "dom-motif_pricing_pricing_row_1",
-          "ir_id": "motif_pricing_pricing_row_1",
+          "dom_id": "dom-motif_open_source_open_source_row_1",
+          "ir_id": "motif_open_source_open_source_row_1",
           "primitive": "cluster",
           "tag": "tr",
           "visible_text": "",
@@ -2844,28 +2225,28 @@
           "accessibility_label": null
         },
         {
-          "dom_id": "dom-binding_pricing_row_1_label",
-          "ir_id": "binding_pricing_row_1_label",
+          "dom_id": "dom-binding_open_source_row_1_label",
+          "ir_id": "binding_open_source_row_1_label",
           "primitive": "label",
           "tag": "th",
-          "visible_text": "Free",
-          "binding_id": "pricing_row_1_label",
+          "visible_text": "Cost",
+          "binding_id": "open_source_row_1_label",
           "action": null,
           "accessibility_label": null
         },
         {
-          "dom_id": "dom-binding_pricing_row_1_value",
-          "ir_id": "binding_pricing_row_1_value",
+          "dom_id": "dom-binding_open_source_row_1_value",
+          "ir_id": "binding_open_source_row_1_value",
           "primitive": "value",
           "tag": "td",
-          "visible_text": "Local SDK. Unlimited compiles, proofs, and surfaces.",
-          "binding_id": "pricing_row_1_value",
+          "visible_text": "Free. Unlimited compiles, proofs, and surfaces.",
+          "binding_id": "open_source_row_1_value",
           "action": null,
           "accessibility_label": null
         },
         {
-          "dom_id": "dom-motif_pricing_pricing_row_2",
-          "ir_id": "motif_pricing_pricing_row_2",
+          "dom_id": "dom-motif_open_source_open_source_row_2",
+          "ir_id": "motif_open_source_open_source_row_2",
           "primitive": "cluster",
           "tag": "tr",
           "visible_text": "",
@@ -2874,28 +2255,28 @@
           "accessibility_label": null
         },
         {
-          "dom_id": "dom-binding_pricing_row_2_label",
-          "ir_id": "binding_pricing_row_2_label",
+          "dom_id": "dom-binding_open_source_row_2_label",
+          "ir_id": "binding_open_source_row_2_label",
           "primitive": "label",
           "tag": "th",
-          "visible_text": "Pro",
-          "binding_id": "pricing_row_2_label",
+          "visible_text": "License",
+          "binding_id": "open_source_row_2_label",
           "action": null,
           "accessibility_label": null
         },
         {
-          "dom_id": "dom-binding_pricing_row_2_value",
-          "ir_id": "binding_pricing_row_2_value",
+          "dom_id": "dom-binding_open_source_row_2_value",
+          "ir_id": "binding_open_source_row_2_value",
           "primitive": "value",
           "tag": "td",
-          "visible_text": "149/mo. Hosted compiler API, 10k calls per day.",
-          "binding_id": "pricing_row_2_value",
+          "visible_text": "MIT.",
+          "binding_id": "open_source_row_2_value",
           "action": null,
           "accessibility_label": null
         },
         {
-          "dom_id": "dom-motif_pricing_pricing_row_3",
-          "ir_id": "motif_pricing_pricing_row_3",
+          "dom_id": "dom-motif_open_source_open_source_row_3",
+          "ir_id": "motif_open_source_open_source_row_3",
           "primitive": "cluster",
           "tag": "tr",
           "visible_text": "",
@@ -2904,22 +2285,22 @@
           "accessibility_label": null
         },
         {
-          "dom_id": "dom-binding_pricing_row_3_label",
-          "ir_id": "binding_pricing_row_3_label",
+          "dom_id": "dom-binding_open_source_row_3_label",
+          "ir_id": "binding_open_source_row_3_label",
           "primitive": "label",
           "tag": "th",
-          "visible_text": "Enterprise",
-          "binding_id": "pricing_row_3_label",
+          "visible_text": "Hosting",
+          "binding_id": "open_source_row_3_label",
           "action": null,
           "accessibility_label": null
         },
         {
-          "dom_id": "dom-binding_pricing_row_3_value",
-          "ir_id": "binding_pricing_row_3_value",
+          "dom_id": "dom-binding_open_source_row_3_value",
+          "ir_id": "binding_open_source_row_3_value",
           "primitive": "value",
           "tag": "td",
-          "visible_text": "Custom volume, organization sharing, and support.",
-          "binding_id": "pricing_row_3_value",
+          "visible_text": "Runs locally. No hosted service, account, or API key.",
+          "binding_id": "open_source_row_3_value",
           "action": null,
           "accessibility_label": null
         },
@@ -3020,22 +2401,6 @@
         "dom-motif_proof_badges_proof_badges_card_5",
         "dom-binding_proof_badges_card_5_label",
         "dom-binding_proof_badges_card_5_value",
-        "dom-motif_quality_evidence",
-        "dom-motif_quality_evidence_quality_evidence_card_1",
-        "dom-binding_quality_evidence_card_1_label",
-        "dom-binding_quality_evidence_card_1_value",
-        "dom-motif_quality_evidence_quality_evidence_card_2",
-        "dom-binding_quality_evidence_card_2_label",
-        "dom-binding_quality_evidence_card_2_value",
-        "dom-motif_quality_evidence_quality_evidence_card_3",
-        "dom-binding_quality_evidence_card_3_label",
-        "dom-binding_quality_evidence_card_3_value",
-        "dom-motif_quality_evidence_quality_evidence_card_4",
-        "dom-binding_quality_evidence_card_4_label",
-        "dom-binding_quality_evidence_card_4_value",
-        "dom-motif_quality_evidence_quality_evidence_card_5",
-        "dom-binding_quality_evidence_card_5_label",
-        "dom-binding_quality_evidence_card_5_value",
         "dom-motif_compile_flow",
         "dom-motif_compile_flow_compile_flow_card_1",
         "dom-binding_compile_flow_card_1_label",
@@ -3059,9 +2424,6 @@
         "dom-motif_capabilities_capabilities_row_4",
         "dom-binding_capabilities_row_4_label",
         "dom-binding_capabilities_row_4_value",
-        "dom-motif_capabilities_capabilities_row_5",
-        "dom-binding_capabilities_row_5_label",
-        "dom-binding_capabilities_row_5_value",
         "dom-motif_agent_workflow",
         "dom-motif_agent_workflow_agent_workflow_row_1",
         "dom-binding_agent_workflow_row_1_label",
@@ -3072,16 +2434,16 @@
         "dom-motif_agent_workflow_agent_workflow_row_3",
         "dom-binding_agent_workflow_row_3_label",
         "dom-binding_agent_workflow_row_3_value",
-        "dom-motif_pricing",
-        "dom-motif_pricing_pricing_row_1",
-        "dom-binding_pricing_row_1_label",
-        "dom-binding_pricing_row_1_value",
-        "dom-motif_pricing_pricing_row_2",
-        "dom-binding_pricing_row_2_label",
-        "dom-binding_pricing_row_2_value",
-        "dom-motif_pricing_pricing_row_3",
-        "dom-binding_pricing_row_3_label",
-        "dom-binding_pricing_row_3_value",
+        "dom-motif_open_source",
+        "dom-motif_open_source_open_source_row_1",
+        "dom-binding_open_source_row_1_label",
+        "dom-binding_open_source_row_1_value",
+        "dom-motif_open_source_open_source_row_2",
+        "dom-binding_open_source_row_2_label",
+        "dom-binding_open_source_row_2_value",
+        "dom-motif_open_source_open_source_row_3",
+        "dom-binding_open_source_row_3_label",
+        "dom-binding_open_source_row_3_value",
         "dom-motif_artifact_identity",
         "dom-motif_artifact_identity_artifact_identity_card_1",
         "dom-binding_artifact_identity_card_1_label",
@@ -3128,7 +2490,7 @@
           "ir_id": "binding_launch_hero_eyebrow",
           "primitive": "label",
           "tag": "p",
-          "visible_text": "Local product studio for you and your agent",
+          "visible_text": "Local UI compiler for you and your agent",
           "binding_id": "launch_hero_eyebrow",
           "action": null,
           "accessibility_label": null
@@ -3148,7 +2510,7 @@
           "ir_id": "binding_launch_hero_description",
           "primitive": "text",
           "tag": "p",
-          "visible_text": "Create from a brief and reference, compare checked static and React builds, inspect declared state and fixture data, then point at the result and ask for the next change.",
+          "visible_text": "Your agent writes a semantic source. ViewSpec compiles it locally into checked static HTML or React, with provenance and a proof bundle. Free and MIT licensed, with no hosted service.",
           "binding_id": "launch_hero_description",
           "action": null,
           "accessibility_label": null
@@ -3310,166 +2672,6 @@
           "tag": "div",
           "visible_text": "No runtime LLM",
           "binding_id": "proof_badges_card_5_value",
-          "action": null,
-          "accessibility_label": null
-        },
-        {
-          "dom_id": "dom-motif_quality_evidence",
-          "ir_id": "motif_quality_evidence",
-          "primitive": "grid",
-          "tag": "div",
-          "visible_text": "",
-          "binding_id": null,
-          "action": null,
-          "accessibility_label": null
-        },
-        {
-          "dom_id": "dom-motif_quality_evidence_quality_evidence_card_1",
-          "ir_id": "motif_quality_evidence_quality_evidence_card_1",
-          "primitive": "surface",
-          "tag": "div",
-          "visible_text": "",
-          "binding_id": null,
-          "action": null,
-          "accessibility_label": null
-        },
-        {
-          "dom_id": "dom-binding_quality_evidence_card_1_label",
-          "ir_id": "binding_quality_evidence_card_1_label",
-          "primitive": "label",
-          "tag": "div",
-          "visible_text": "browser corpus",
-          "binding_id": "quality_evidence_card_1_label",
-          "action": null,
-          "accessibility_label": null
-        },
-        {
-          "dom_id": "dom-binding_quality_evidence_card_1_value",
-          "ir_id": "binding_quality_evidence_card_1_value",
-          "primitive": "value",
-          "tag": "div",
-          "visible_text": "10/10 conformant",
-          "binding_id": "quality_evidence_card_1_value",
-          "action": null,
-          "accessibility_label": null
-        },
-        {
-          "dom_id": "dom-motif_quality_evidence_quality_evidence_card_2",
-          "ir_id": "motif_quality_evidence_quality_evidence_card_2",
-          "primitive": "surface",
-          "tag": "div",
-          "visible_text": "",
-          "binding_id": null,
-          "action": null,
-          "accessibility_label": null
-        },
-        {
-          "dom_id": "dom-binding_quality_evidence_card_2_label",
-          "ir_id": "binding_quality_evidence_card_2_label",
-          "primitive": "label",
-          "tag": "div",
-          "visible_text": "viewports",
-          "binding_id": "quality_evidence_card_2_label",
-          "action": null,
-          "accessibility_label": null
-        },
-        {
-          "dom_id": "dom-binding_quality_evidence_card_2_value",
-          "ir_id": "binding_quality_evidence_card_2_value",
-          "primitive": "value",
-          "tag": "div",
-          "visible_text": "mobile \u00b7 tablet \u00b7 desktop",
-          "binding_id": "quality_evidence_card_2_value",
-          "action": null,
-          "accessibility_label": null
-        },
-        {
-          "dom_id": "dom-motif_quality_evidence_quality_evidence_card_3",
-          "ir_id": "motif_quality_evidence_quality_evidence_card_3",
-          "primitive": "surface",
-          "tag": "div",
-          "visible_text": "",
-          "binding_id": null,
-          "action": null,
-          "accessibility_label": null
-        },
-        {
-          "dom_id": "dom-binding_quality_evidence_card_3_label",
-          "ir_id": "binding_quality_evidence_card_3_label",
-          "primitive": "label",
-          "tag": "div",
-          "visible_text": "product quality",
-          "binding_id": "quality_evidence_card_3_label",
-          "action": null,
-          "accessibility_label": null
-        },
-        {
-          "dom_id": "dom-binding_quality_evidence_card_3_value",
-          "ir_id": "binding_quality_evidence_card_3_value",
-          "primitive": "value",
-          "tag": "div",
-          "visible_text": "10/10 first-compile passes \u00b7 0 critical issues",
-          "binding_id": "quality_evidence_card_3_value",
-          "action": null,
-          "accessibility_label": null
-        },
-        {
-          "dom_id": "dom-motif_quality_evidence_quality_evidence_card_4",
-          "ir_id": "motif_quality_evidence_quality_evidence_card_4",
-          "primitive": "surface",
-          "tag": "div",
-          "visible_text": "",
-          "binding_id": null,
-          "action": null,
-          "accessibility_label": null
-        },
-        {
-          "dom_id": "dom-binding_quality_evidence_card_4_label",
-          "ir_id": "binding_quality_evidence_card_4_label",
-          "primitive": "label",
-          "tag": "div",
-          "visible_text": "semantic corrections",
-          "binding_id": "quality_evidence_card_4_label",
-          "action": null,
-          "accessibility_label": null
-        },
-        {
-          "dom_id": "dom-binding_quality_evidence_card_4_value",
-          "ir_id": "binding_quality_evidence_card_4_value",
-          "primitive": "value",
-          "tag": "div",
-          "visible_text": "10/10 verified previews \u00b7 10 applied receipts",
-          "binding_id": "quality_evidence_card_4_value",
-          "action": null,
-          "accessibility_label": null
-        },
-        {
-          "dom_id": "dom-motif_quality_evidence_quality_evidence_card_5",
-          "ir_id": "motif_quality_evidence_quality_evidence_card_5",
-          "primitive": "surface",
-          "tag": "div",
-          "visible_text": "",
-          "binding_id": null,
-          "action": null,
-          "accessibility_label": null
-        },
-        {
-          "dom_id": "dom-binding_quality_evidence_card_5_label",
-          "ir_id": "binding_quality_evidence_card_5_label",
-          "primitive": "label",
-          "tag": "div",
-          "visible_text": "refinement gates",
-          "binding_id": "quality_evidence_card_5_label",
-          "action": null,
-          "accessibility_label": null
-        },
-        {
-          "dom_id": "dom-binding_quality_evidence_card_5_value",
-          "ir_id": "binding_quality_evidence_card_5_value",
-          "primitive": "value",
-          "tag": "div",
-          "visible_text": "8/8 passed",
-          "binding_id": "quality_evidence_card_5_value",
           "action": null,
           "accessibility_label": null
         },
@@ -3668,7 +2870,7 @@
           "ir_id": "binding_capabilities_row_3_value",
           "primitive": "value",
           "tag": "td",
-          "visible_text": "state_replay_assertions plus viewspec prove-app --with-shell.",
+          "visible_text": "state_replay_assertions plus viewspec prove viewspec.app.json --with-shell.",
           "binding_id": "capabilities_row_3_value",
           "action": null,
           "accessibility_label": null
@@ -3688,7 +2890,7 @@
           "ir_id": "binding_capabilities_row_4_label",
           "primitive": "label",
           "tag": "th",
-          "visible_text": "Semantic Correction",
+          "visible_text": "Portable Surfaces",
           "binding_id": "capabilities_row_4_label",
           "action": null,
           "accessibility_label": null
@@ -3698,38 +2900,8 @@
           "ir_id": "binding_capabilities_row_4_value",
           "primitive": "value",
           "tag": "td",
-          "visible_text": "Source-bound previews and applied receipts keep changes traceable.",
+          "visible_text": "html-tailwind and React, compiled locally.",
           "binding_id": "capabilities_row_4_value",
-          "action": null,
-          "accessibility_label": null
-        },
-        {
-          "dom_id": "dom-motif_capabilities_capabilities_row_5",
-          "ir_id": "motif_capabilities_capabilities_row_5",
-          "primitive": "cluster",
-          "tag": "tr",
-          "visible_text": "",
-          "binding_id": null,
-          "action": null,
-          "accessibility_label": null
-        },
-        {
-          "dom_id": "dom-binding_capabilities_row_5_label",
-          "ir_id": "binding_capabilities_row_5_label",
-          "primitive": "label",
-          "tag": "th",
-          "visible_text": "Portable Surfaces",
-          "binding_id": "capabilities_row_5_label",
-          "action": null,
-          "accessibility_label": null
-        },
-        {
-          "dom_id": "dom-binding_capabilities_row_5_value",
-          "ir_id": "binding_capabilities_row_5_value",
-          "primitive": "value",
-          "tag": "td",
-          "visible_text": "html-tailwind and React locally; four integrity-checked targets through the paid API.",
-          "binding_id": "capabilities_row_5_value",
           "action": null,
           "accessibility_label": null
         },
@@ -3788,7 +2960,7 @@
           "ir_id": "binding_agent_workflow_row_2_label",
           "primitive": "label",
           "tag": "th",
-          "visible_text": "validate",
+          "visible_text": "check",
           "binding_id": "agent_workflow_row_2_label",
           "action": null,
           "accessibility_label": null
@@ -3798,7 +2970,7 @@
           "ir_id": "binding_agent_workflow_row_2_value",
           "primitive": "value",
           "tag": "td",
-          "visible_text": "viewspec validate-intent fails closed on drift.",
+          "visible_text": "viewspec check fails closed on drift.",
           "binding_id": "agent_workflow_row_2_value",
           "action": null,
           "accessibility_label": null
@@ -3828,14 +3000,14 @@
           "ir_id": "binding_agent_workflow_row_3_value",
           "primitive": "value",
           "tag": "td",
-          "visible_text": "viewspec prove --intent compiles, checks, and renders the exact artifact.",
+          "visible_text": "viewspec prove compiles, checks, and renders the exact artifact.",
           "binding_id": "agent_workflow_row_3_value",
           "action": null,
           "accessibility_label": null
         },
         {
-          "dom_id": "dom-motif_pricing",
-          "ir_id": "motif_pricing",
+          "dom_id": "dom-motif_open_source",
+          "ir_id": "motif_open_source",
           "primitive": "stack",
           "tag": "table",
           "visible_text": "",
@@ -3844,8 +3016,8 @@
           "accessibility_label": null
         },
         {
-          "dom_id": "dom-motif_pricing_pricing_row_1",
-          "ir_id": "motif_pricing_pricing_row_1",
+          "dom_id": "dom-motif_open_source_open_source_row_1",
+          "ir_id": "motif_open_source_open_source_row_1",
           "primitive": "cluster",
           "tag": "tr",
           "visible_text": "",
@@ -3854,28 +3026,28 @@
           "accessibility_label": null
         },
         {
-          "dom_id": "dom-binding_pricing_row_1_label",
-          "ir_id": "binding_pricing_row_1_label",
+          "dom_id": "dom-binding_open_source_row_1_label",
+          "ir_id": "binding_open_source_row_1_label",
           "primitive": "label",
           "tag": "th",
-          "visible_text": "Free",
-          "binding_id": "pricing_row_1_label",
+          "visible_text": "Cost",
+          "binding_id": "open_source_row_1_label",
           "action": null,
           "accessibility_label": null
         },
         {
-          "dom_id": "dom-binding_pricing_row_1_value",
-          "ir_id": "binding_pricing_row_1_value",
+          "dom_id": "dom-binding_open_source_row_1_value",
+          "ir_id": "binding_open_source_row_1_value",
           "primitive": "value",
           "tag": "td",
-          "visible_text": "Local SDK. Unlimited compiles, proofs, and surfaces.",
-          "binding_id": "pricing_row_1_value",
+          "visible_text": "Free. Unlimited compiles, proofs, and surfaces.",
+          "binding_id": "open_source_row_1_value",
           "action": null,
           "accessibility_label": null
         },
         {
-          "dom_id": "dom-motif_pricing_pricing_row_2",
-          "ir_id": "motif_pricing_pricing_row_2",
+          "dom_id": "dom-motif_open_source_open_source_row_2",
+          "ir_id": "motif_open_source_open_source_row_2",
           "primitive": "cluster",
           "tag": "tr",
           "visible_text": "",
@@ -3884,28 +3056,28 @@
           "accessibility_label": null
         },
         {
-          "dom_id": "dom-binding_pricing_row_2_label",
-          "ir_id": "binding_pricing_row_2_label",
+          "dom_id": "dom-binding_open_source_row_2_label",
+          "ir_id": "binding_open_source_row_2_label",
           "primitive": "label",
           "tag": "th",
-          "visible_text": "Pro",
-          "binding_id": "pricing_row_2_label",
+          "visible_text": "License",
+          "binding_id": "open_source_row_2_label",
           "action": null,
           "accessibility_label": null
         },
         {
-          "dom_id": "dom-binding_pricing_row_2_value",
-          "ir_id": "binding_pricing_row_2_value",
+          "dom_id": "dom-binding_open_source_row_2_value",
+          "ir_id": "binding_open_source_row_2_value",
           "primitive": "value",
           "tag": "td",
-          "visible_text": "149/mo. Hosted compiler API, 10k calls per day.",
-          "binding_id": "pricing_row_2_value",
+          "visible_text": "MIT.",
+          "binding_id": "open_source_row_2_value",
           "action": null,
           "accessibility_label": null
         },
         {
-          "dom_id": "dom-motif_pricing_pricing_row_3",
-          "ir_id": "motif_pricing_pricing_row_3",
+          "dom_id": "dom-motif_open_source_open_source_row_3",
+          "ir_id": "motif_open_source_open_source_row_3",
           "primitive": "cluster",
           "tag": "tr",
           "visible_text": "",
@@ -3914,22 +3086,22 @@
           "accessibility_label": null
         },
         {
-          "dom_id": "dom-binding_pricing_row_3_label",
-          "ir_id": "binding_pricing_row_3_label",
+          "dom_id": "dom-binding_open_source_row_3_label",
+          "ir_id": "binding_open_source_row_3_label",
           "primitive": "label",
           "tag": "th",
-          "visible_text": "Enterprise",
-          "binding_id": "pricing_row_3_label",
+          "visible_text": "Hosting",
+          "binding_id": "open_source_row_3_label",
           "action": null,
           "accessibility_label": null
         },
         {
-          "dom_id": "dom-binding_pricing_row_3_value",
-          "ir_id": "binding_pricing_row_3_value",
+          "dom_id": "dom-binding_open_source_row_3_value",
+          "ir_id": "binding_open_source_row_3_value",
           "primitive": "value",
           "tag": "td",
-          "visible_text": "Custom volume, organization sharing, and support.",
-          "binding_id": "pricing_row_3_value",
+          "visible_text": "Runs locally. No hosted service, account, or API key.",
+          "binding_id": "open_source_row_3_value",
           "action": null,
           "accessibility_label": null
         },
@@ -4005,6 +3177,6 @@
         }
       ]
     },
-    "digest": "1b7ed1e6f61b59c74a58e4d65beae31e4c263454167b926b1bce5e7110a7468f"
+    "digest": "5f898b3004413a8c5736a31a35224d6f9a56c0ea39eeaae338d872ed2e97c758"
   }
 }

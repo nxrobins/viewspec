@@ -11,7 +11,8 @@ const repoRoot = resolve(fixtureRoot, "../..");
 const fixtureRel = "tests/react-tailwind-host";
 const generatedRel = `${fixtureRel}/src/generated`;
 const markerPath = join(fixtureRoot, ".tmp", "host-proof-check.json");
-const reportPath = join(fixtureRoot, ".tmp", "host-verify-report.json");
+const proofDir = join(fixtureRoot, ".tmp", "host-verify-proof");
+const reportPath = join(proofDir, "evidence", "host-report.json");
 const npm = "npm";
 
 function fail(code, message) {
@@ -76,14 +77,12 @@ function runHostVerify(timeoutMs) {
       [
         "-m",
         "viewspec.cli",
-        "verify-host",
+        "prove",
         join(fixtureRoot, "src", "generated"),
-        "--target",
-        "react-tailwind-tsx",
         "--install",
         "--json",
-        "--report-out",
-        reportPath,
+        "--out",
+        proofDir,
       ],
       {
         cwd: repoRoot,
@@ -95,7 +94,7 @@ function runHostVerify(timeoutMs) {
     let stderr = "";
     const timer = setTimeout(() => {
       child.kill();
-      fail("HOST_PROOF_TIMEOUT", `verify-host exceeded ${timeoutMs}ms`);
+      fail("HOST_PROOF_TIMEOUT", `viewspec prove exceeded ${timeoutMs}ms`);
     }, timeoutMs);
     child.stdout.on("data", (chunk) => (stdout += chunk));
     child.stderr.on("data", (chunk) => (stderr += chunk));
@@ -105,7 +104,7 @@ function runHostVerify(timeoutMs) {
     });
     child.on("exit", (status) => {
       clearTimeout(timer);
-      if (status !== 0) fail("HOST_PROOF_CI_SOFT_GATE", stderr || stdout || `verify-host exited ${status}`);
+      if (status !== 0) fail("HOST_PROOF_CI_SOFT_GATE", stderr || stdout || `viewspec prove exited ${status}`);
       resolveRun(stdout);
     });
   });
@@ -121,7 +120,7 @@ async function staticGuard() {
   const files = await gitFiles();
   const trackedGenerated = files.filter((file) => file.startsWith(`${generatedRel}/`));
   if (trackedGenerated.length) fail("HOST_PROOF_GENERATED_ARTIFACT_TRACKED", trackedGenerated.join(", "));
-  const nonLock = (await physicalSourceFiles()).filter((file) => !isStudioHarnessFile(file));
+  const nonLock = await physicalSourceFiles();
   if (nonLock.length > 14) fail("HOST_PROOF_FIXTURE_TOO_LARGE", `non-lock fixture files: ${nonLock.length}`);
   const total = nonLock.reduce((size, file) => size + statSync(join(fixtureRoot, file)).size, 0);
   if (total > 40 * 1024) fail("HOST_PROOF_FIXTURE_TOO_LARGE", `tracked non-lock fixture source is ${total} bytes`);
@@ -129,10 +128,6 @@ async function staticGuard() {
   assertImportPath();
   assertCiGate();
   assertDocs();
-}
-
-function isStudioHarnessFile(file) {
-  return /^studio-.*\.config\.ts$/.test(file) || /^tests\/studio-.*\.spec\.ts$/.test(file);
 }
 
 async function physicalSourceFiles(dir = fixtureRoot, prefix = "") {
@@ -186,7 +181,7 @@ function assertCiGate() {
 }
 
 function assertDocs() {
-  const docs = ["docs/free-sdk-reliability.md", "docs/known-limits-react-tailwind-tsx.md"];
+  const docs = ["docs/sdk-reliability.md", "docs/known-limits-react-tailwind-tsx.md"];
   const forbidden = /\b(pixel-perfect|visual equivalence|full browser compatibility)\b/i;
   const allowedNegative = /\b(not|does not|rather than|is not|not required)\b/i;
   for (const doc of docs) {
@@ -215,38 +210,38 @@ async function assertCheckedArtifact(runToken) {
 }
 
 await rm(markerPath, { force: true });
-await rm(reportPath, { force: true });
+await rm(proofDir, { recursive: true, force: true });
 await staticGuard();
 const runToken = randomUUID();
 await runPhase("prepare", ["run", "prepare:artifact"], 30_000, { HOST_PROOF_RUN_TOKEN: runToken });
 const marker = await assertCheckedArtifact(runToken);
 await runHostVerify(180_000);
-const report = JSON.parse(await readFile(reportPath, "utf8").catch(() => fail("HOST_PROOF_CI_SOFT_GATE", "missing verify-host report")));
+const report = JSON.parse(await readFile(reportPath, "utf8").catch(() => fail("HOST_PROOF_CI_SOFT_GATE", "missing host report")));
 if (report.ok !== true) fail("HOST_PROOF_CI_SOFT_GATE", JSON.stringify(report.errors ?? []));
-if (report.artifact_hash !== marker.artifactHash) fail("HOST_PROOF_ARTIFACT_HASH_MISMATCH", "verify-host report does not match checked artifact");
+if (report.artifact_hash !== marker.artifactHash) fail("HOST_PROOF_ARTIFACT_HASH_MISMATCH", "host report does not match checked artifact");
 if (
   report.manifest_summary?.available !== true ||
   report.manifest_summary?.emitter !== "react_tailwind_tsx" ||
   report.manifest_summary?.artifact_file !== "ViewSpecView.tsx" ||
   (report.manifest_summary?.node_count ?? 0) < 1
 ) {
-  fail("HOST_PROOF_CI_SOFT_GATE", "verify-host report missing checked manifest summary");
+  fail("HOST_PROOF_CI_SOFT_GATE", "host report missing checked manifest summary");
 }
 if (!report.host_template_lock_hash || report.host_template_lock_hash.length !== 64) {
-  fail("HOST_PROOF_ARTIFACT_HASH_MISMATCH", "verify-host report missing host template lock hash");
+  fail("HOST_PROOF_ARTIFACT_HASH_MISMATCH", "host report missing host template lock hash");
 }
 if ((report.assertions?.dom_count ?? 0) < 1 || (report.assertions?.style_assertion_count ?? 0) < 4) {
-  fail("HOST_PROOF_STYLE_ASSERTION_TOO_WEAK", "verify-host report has weak DOM/style assertions");
+  fail("HOST_PROOF_STYLE_ASSERTION_TOO_WEAK", "host report has weak DOM/style assertions");
 }
 if ((report.assertions?.grid_column_assertion_count ?? 0) < 1) {
-  fail("HOST_PROOF_STYLE_ASSERTION_TOO_WEAK", "verify-host report did not include a grid column assertion");
+  fail("HOST_PROOF_STYLE_ASSERTION_TOO_WEAK", "host report did not include a grid column assertion");
 }
 if (report.manifest_summary?.aesthetic_profile && (report.assertions?.aesthetic_profile_assertion_count ?? 0) < 1) {
-  fail("HOST_PROOF_STYLE_ASSERTION_TOO_WEAK", "verify-host report did not include an aesthetic profile marker assertion");
+  fail("HOST_PROOF_STYLE_ASSERTION_TOO_WEAK", "host report did not include an aesthetic profile marker assertion");
 }
 const aestheticLayoutCount = Object.values(report.manifest_summary?.aesthetic_layout ?? {}).reduce((total, item) => {
   return total + (Number.isInteger(item?.node_count) ? item.node_count : 0);
 }, 0);
 if (aestheticLayoutCount > 0 && (report.assertions?.aesthetic_layout_assertion_count ?? 0) < aestheticLayoutCount) {
-  fail("HOST_PROOF_STYLE_ASSERTION_TOO_WEAK", "verify-host report did not include all aesthetic layout assertions");
+  fail("HOST_PROOF_STYLE_ASSERTION_TOO_WEAK", "host report did not include all aesthetic layout assertions");
 }

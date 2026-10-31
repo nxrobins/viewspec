@@ -6,10 +6,12 @@ import shutil
 from pathlib import Path
 
 from viewspec.app_errors import AppBundleProofFailure
-from viewspec.local_tools_io import is_replaceable_output_dir, write_output_sentinel
+from viewspec.local_tools_io import input_inside_output, is_replaceable_output_dir, write_output_sentinel
 
 
-def _prepare_app_output_dir(output_dir: Path, *, root: Path, force: bool, raw_out: str | Path) -> None:
+def _prepare_app_output_dir(
+    output_dir: Path, *, root: Path, force: bool, raw_out: str | Path, inputs: tuple[Path | None, ...]
+) -> None:
     _assert_safe_app_output(output_dir, root=root, raw_out=raw_out)
     if output_dir.exists():
         if not force:
@@ -28,12 +30,19 @@ def _prepare_app_output_dir(output_dir: Path, *, root: Path, force: bool, raw_ou
             raise AppBundleProofFailure(
                 "APP_PROOF_OUTPUT_UNRECOGNIZED",
                 f"Refusing to replace a directory that ViewSpec did not write: {output_dir}",
-                "Use --force only on an empty directory or a previous prove-app output; remove other directories yourself.",
+                "Use --force only on an empty directory or a previous viewspec prove output; remove other directories yourself.",
+            )
+        held = input_inside_output(output_dir, root, *inputs)
+        if held is not None:
+            raise AppBundleProofFailure(
+                "APP_PROOF_OUTPUT_UNSAFE",
+                f"Refusing to replace a directory that holds the input {held}: {output_dir}",
+                "Choose an output directory that does not contain the AppBundle or DESIGN.md.",
             )
         shutil.rmtree(output_dir)
     output_dir.mkdir(parents=True, exist_ok=False)
     # Mark the directory as ViewSpec's before writing anything else, so an interrupted app proof stays
-    # replaceable with --force.  compile-app output (below) is a deployable site and gets no sentinel.
+    # replaceable with --force.  AppBundle compile output (below) is a deployable site and gets no sentinel.
     write_output_sentinel(output_dir)
 
 
@@ -84,7 +93,9 @@ def _should_write_app_proof_failure(output_dir: Path, code: str) -> bool:
     return output_dir.exists() and code not in no_write_codes
 
 
-def _prepare_app_shell_output_dir(output_dir: Path, *, root: Path, force: bool, raw_out: str | Path) -> None:
+def _prepare_app_shell_output_dir(
+    output_dir: Path, *, root: Path, force: bool, raw_out: str | Path, inputs: tuple[Path | None, ...]
+) -> None:
     _assert_safe_app_shell_output(output_dir, root=root, raw_out=raw_out)
     if output_dir.exists():
         if not force:
@@ -103,7 +114,14 @@ def _prepare_app_shell_output_dir(output_dir: Path, *, root: Path, force: bool, 
             raise AppBundleProofFailure(
                 "APP_SHELL_OUTPUT_UNRECOGNIZED",
                 f"Refusing to replace a directory that ViewSpec did not write: {output_dir}",
-                "Use --force only on an empty directory or a previous compile-app output; remove other directories yourself.",
+                "Use --force only on an empty directory or a previous viewspec compile output; remove other directories yourself.",
+            )
+        held = input_inside_output(output_dir, root, *inputs)
+        if held is not None:
+            raise AppBundleProofFailure(
+                "APP_SHELL_OUTPUT_PATH_UNSAFE",
+                f"Refusing to replace a directory that holds the input {held}: {output_dir}",
+                "Choose an output directory that does not contain the AppBundle or DESIGN.md.",
             )
         shutil.rmtree(output_dir)
     output_dir.mkdir(parents=True, exist_ok=False)

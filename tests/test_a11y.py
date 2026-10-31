@@ -10,7 +10,6 @@ from unittest.mock import patch
 
 import pytest
 
-from viewspec import AESTHETIC_PROFILE_TOKENS
 from viewspec.a11y import (
     BASE_CONTRAST_PAIRS,
     a11y_contrast_report,
@@ -19,7 +18,7 @@ from viewspec.a11y import (
     wcag_contrast_ratio,
     wcag_relative_luminance,
 )
-from viewspec.aesthetics import AESTHETIC_PROFILE_STYLE_VALUES
+from viewspec.aesthetics import AESTHETIC_PROFILE_STYLE_VALUES, AESTHETIC_PROFILE_TOKENS
 from viewspec.emitters.html_tailwind import OFFLINE_EMITTER_CSS
 
 # --- WCAG primitives -------------------------------------------------------------------------------

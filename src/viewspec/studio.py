@@ -1,46 +1,176 @@
-"""Opinionated product entry point for the local ViewSpec creation loop."""
+"""`viewspec studio`: a loopback preview that rebuilds when its source changes."""
 
 from __future__ import annotations
 
-import time
+import contextlib
+import json
+import mimetypes
+import shutil
+import signal
+import tempfile
+import threading
+import webbrowser
+from http import HTTPStatus
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
+from types import TracebackType
+from typing import Any
+from urllib.parse import unquote, urlsplit
 
-from viewspec.review_cli import DEFAULT_REVIEW_PORT, open_review
-from viewspec.review_compile import STUDIO_COMPARE_TARGET, capture_source_snapshot
-from viewspec.review_contract import ReviewContractError
-from viewspec.studio_creation import STUDIO_CREATION_TASK_DEFAULT, prepare_studio_creation
-from viewspec.studio_creation_cli import accepted_creation_handoff_port, open_studio_creation_room
+from viewspec.api import source_kind
+from viewspec.app_bundle import compile_app
+from viewspec.intent_tools import compile_intent_bundle_file_tool
 
-STUDIO_EXPERIENCE_VERSION = 1
+STUDIO_DEFAULT_PORT = 4388
 STUDIO_SOURCE_NAMES = ("viewspec.app.json", "viewspec.intent.json")
+STUDIO_STATUS_PATH = "/__viewspec/status"
+STUDIO_WATCH_SECONDS = 0.25
+
+LIVE_RELOAD_SCRIPT = f"""<script>
+(() => {{
+  let seen = null;
+  const banner = document.createElement("pre");
+  banner.style.cssText = "position:fixed;inset:auto 0 0 0;z-index:2147483647;margin:0;padding:12px 16px;"
+    + "max-height:40vh;overflow:auto;white-space:pre-wrap;background:#7f1d1d;color:#fff;font:13px/1.5 monospace";
+  setInterval(async () => {{
+    const status = await fetch("{STUDIO_STATUS_PATH}").then((response) => response.json()).catch(() => null);
+    if (status === null) return;
+    if (seen !== null && status.generation !== seen) location.reload();
+    seen = status.generation;
+    banner.textContent = status.errors.join("\\n");
+    if (status.errors.length > 0) document.body.append(banner);
+    else banner.remove();
+  }}, 500);
+}})();
+</script>"""
+EMPTY_PAGE = "<!doctype html><title>ViewSpec Studio</title><body></body>"
 
 
-def resolve_studio_source(
-    source: str | Path | None,
-    *,
-    cwd: str | Path | None = None,
-) -> Path:
-    """Resolve one explicit source or the only canonical source in the workspace."""
+class StudioError(ValueError):
+    """Stable-code failure before the preview can start."""
 
+    def __init__(self, code: str, message: str, fix: str) -> None:
+        super().__init__(f"{code}: {message}")
+        self.code = code
+        self.message = message
+        self.fix = fix
+
+
+def resolve_studio_source(source: str | Path | None, *, cwd: str | Path | None = None) -> Path:
+    """Resolve an explicit source, or the only canonical source in the workspace."""
     if source is not None:
         return Path(source)
     root = Path(cwd) if cwd is not None else Path.cwd()
     candidates = [root / name for name in STUDIO_SOURCE_NAMES if (root / name).is_file()]
     if not candidates:
-        raise ReviewContractError(
+        raise StudioError(
             "STUDIO_SOURCE_NOT_FOUND",
             "ViewSpec Studio could not find viewspec.app.json or viewspec.intent.json.",
-            "Give your agent a brief and open one room: viewspec studio --brief-file product-brief.md.",
-            cli_exit=2,
+            "Run viewspec init, or name a source: viewspec studio SOURCE.",
         )
     if len(candidates) > 1:
-        raise ReviewContractError(
+        raise StudioError(
             "STUDIO_SOURCE_AMBIGUOUS",
             "ViewSpec Studio found both viewspec.app.json and viewspec.intent.json.",
-            "Name the interface you want to open: viewspec studio SOURCE.",
-            cli_exit=2,
+            "Name the one to preview: viewspec studio SOURCE.",
         )
     return candidates[0]
+
+
+class Studio:
+    """A preview server bound to one source. Use it as a context manager, then call ``serve``."""
+
+    def __init__(
+        self,
+        source: str | Path | None = None,
+        *,
+        cwd: str | Path | None = None,
+        design: str | Path | None = None,
+        port: int = STUDIO_DEFAULT_PORT,
+    ) -> None:
+        self.source = resolve_studio_source(source, cwd=cwd).resolve()
+        self.design = Path(design).resolve() if design is not None else None
+        self.generation = 0
+        self.errors: list[str] = []
+        self.build_dir: Path | None = None
+        self._state = Path(tempfile.mkdtemp(prefix="viewspec-studio-"))
+        self._stop = threading.Event()
+        self._serving = False
+        self._built_stamp: tuple[tuple[int, int] | None, ...] = ()
+        self._watcher = threading.Thread(target=self._watch, daemon=True)
+        try:
+            self._server = ThreadingHTTPServer(("127.0.0.1", port), _handler_for(self))
+        except (OSError, OverflowError) as exc:
+            shutil.rmtree(self._state, ignore_errors=True)
+            raise StudioError(
+                "STUDIO_PORT_UNAVAILABLE",
+                f"ViewSpec Studio could not listen on 127.0.0.1:{port}: {exc}",
+                "Stop the other server, or pick another port with --port.",
+            ) from exc
+
+    @property
+    def port(self) -> int:
+        return int(self._server.server_address[1])
+
+    @property
+    def url(self) -> str:
+        return f"http://127.0.0.1:{self.port}/"
+
+    def __enter__(self) -> Studio:
+        self.rebuild()
+        self._watcher.start()
+        return self
+
+    def __exit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc: BaseException | None,
+        traceback: TracebackType | None,
+    ) -> None:
+        self.close()
+
+    def serve(self) -> None:
+        self._serving = True
+        self._server.serve_forever()
+
+    def start(self) -> None:
+        """Build, then serve from a background thread until ``close``, for a caller that cannot block."""
+        self.__enter__()
+        self._serving = True
+        threading.Thread(target=self._server.serve_forever, daemon=True).start()
+
+    def close(self) -> None:
+        self._stop.set()
+        # shutdown() waits for serve_forever() to finish, so it hangs if the server never ran.
+        if self._serving:
+            self._server.shutdown()
+        self._server.server_close()
+        # An in-flight rebuild would write into the directory removed below.
+        if self._watcher.is_alive():
+            self._watcher.join()
+        shutil.rmtree(self._state, ignore_errors=True)
+
+    def rebuild(self) -> None:
+        """Compile the source; a failed build keeps the last good one on screen with its errors."""
+        # Stamped before compiling, so the watcher sees an edit made during this build.
+        self._built_stamp = self._stamp()
+        output = self._state / f"build-{self.generation + 1}"
+        errors = _compile_preview(self.source, output, self.design)
+        previous = output if errors else self.build_dir
+        if not errors:
+            self.build_dir = output
+        self.errors = errors
+        self.generation += 1
+        if previous is not None:
+            shutil.rmtree(previous, ignore_errors=True)
+
+    def _watch(self) -> None:
+        while not self._stop.wait(STUDIO_WATCH_SECONDS):
+            if self._stamp() != self._built_stamp:
+                self.rebuild()
+
+    def _stamp(self) -> tuple[tuple[int, int] | None, ...]:
+        return tuple(_file_stamp(path) for path in (self.source, self.design) if path is not None)
 
 
 def open_studio(
@@ -48,252 +178,114 @@ def open_studio(
     *,
     cwd: str | Path | None = None,
     design: str | Path | None = None,
-    target: str | None = None,
-    port: int = DEFAULT_REVIEW_PORT,
-    state_root: str | Path | None = None,
-    convergence_state_root: str | Path | None = None,
-    reopen: bool = False,
+    port: int = STUDIO_DEFAULT_PORT,
     no_open: bool = False,
-    verify: bool = False,
-    install: bool = False,
-    compare: bool = False,
-    share: bool = False,
-    share_reference: str | Path | None = None,
-    brief: str | None = None,
-    brief_file: str | Path | None = None,
-    reference: str | Path | None = None,
-    kind: str = "app",
-    task_out: str | Path = STUDIO_CREATION_TASK_DEFAULT,
-) -> dict[str, object]:
-    """Open the checked Preview → Comment → Approve experience."""
-
-    started = time.perf_counter_ns()
-    creation_requested = brief is not None or brief_file is not None or reference is not None
-    if creation_requested:
-        if source is not None:
-            raise ReviewContractError(
-                "STUDIO_CREATION_OPTIONS_INVALID",
-                "Studio cannot combine an explicit semantic source with a first-creation brief.",
-                "Open the existing source, or omit SOURCE and create from the brief.",
-                cli_exit=2,
-            )
-        if share or share_reference is not None:
-            raise ReviewContractError(
-                "STUDIO_CREATION_OPTIONS_INVALID",
-                "A first-creation room cannot create a private review before its product is checked.",
-                "Open the local creation room first; choose Share only from a checked comparison.",
-                cli_exit=2,
-            )
-        prepared = prepare_studio_creation(
-            brief=brief,
-            brief_file=brief_file,
-            reference=reference,
-            kind=kind,
-            task_out=task_out,
-            cwd=cwd,
-        )
-        creation = prepared.get("creation")
-        paths = prepared.get("paths")
-        if not isinstance(creation, dict) or not isinstance(paths, dict) or not isinstance(paths.get("task"), str):
-            raise ReviewContractError(
-                "STUDIO_CREATION_ROOM_FAILED",
-                "Studio did not receive a complete deterministic creation task.",
-                "Retry the exact local brief.",
-                cli_exit=1,
-            )
-        source_kind = str(creation.get("source_kind"))
-        selected_target = _creation_target(
-            source_kind=source_kind,
-            target=target,
-            verify=verify,
-            install=install,
-            compare=compare,
-        )
-        if creation.get("task_action") == "accepted":
-            resume_port = accepted_creation_handoff_port(
-                paths["task"],
-                cwd=cwd,
-                design=design,
-                target=selected_target,
-                requested_port=port,
-                state_root=state_root,
-                convergence_state_root=convergence_state_root,
-                verify=verify,
-                install=install,
-                expected_source_sha256=str(creation["source_sha256"]),
-            )
-            resumed = open_studio(
-                paths.get("source"),
-                cwd=cwd,
-                design=design,
-                target=target,
-                port=resume_port or port,
-                state_root=state_root,
-                convergence_state_root=convergence_state_root,
-                reopen=reopen,
-                no_open=no_open,
-                verify=verify,
-                install=install,
-                compare=compare,
-            )
-            resumed["prepared_creation"] = creation
-            return resumed
-        payload = open_studio_creation_room(
-            paths["task"],
-            cwd=cwd,
-            design=design,
-            target=selected_target,
-            port=port,
-            state_root=state_root,
-            convergence_state_root=convergence_state_root,
-            no_open=no_open,
-            verify=verify,
-            install=install,
-        )
-        payload["prepared_creation"] = creation
-        return payload
-    resolved = resolve_studio_source(source, cwd=cwd)
-    if share_reference is not None and not share:
-        raise ReviewContractError(
-            "STUDIO_SHARE_REFERENCE_INVALID",
-            "A private-review reference is meaningful only when Share is explicitly enabled.",
-            "Add --share or remove --share-reference.",
-            cli_exit=2,
-        )
-    if share and not compare:
-        raise ReviewContractError(
-            "STUDIO_SHARE_COMPARISON_REQUIRED",
-            "Private Share requires one checked static/React AppBundle comparison.",
-            "Use viewspec studio --compare --install --share.",
-            cli_exit=2,
-        )
-    selected_target = target
-    if compare:
-        if target is not None or verify:
-            raise ReviewContractError(
-                "STUDIO_COMPARISON_INVALID",
-                "Studio comparison owns both targets and cannot combine with --target or --verify.",
-                "Remove --target and --verify; use viewspec studio --compare --install.",
-                cli_exit=2,
-            )
-        if not install:
-            raise ReviewContractError(
-                "STUDIO_COMPARISON_INSTALL_REQUIRED",
-                "Studio comparison requires the exact locked React runtime dependencies.",
-                "Pass --install to authorize the bounded npm ci --ignore-scripts build flow.",
-                cli_exit=2,
-            )
-        snapshot = capture_source_snapshot(resolved, design_path=design)
-        if snapshot.source_kind != "app_bundle":
-            raise ReviewContractError(
-                "STUDIO_COMPARISON_REQUIRES_APP",
-                "Static/React Studio comparison requires one AppBundle product source.",
-                "Create or open viewspec.app.json; one-screen IntentBundle comparison is not yet supported.",
-                cli_exit=2,
-            )
-        selected_target = STUDIO_COMPARE_TARGET
-    payload = open_review(
-        resolved,
-        design=design,
-        target=selected_target,
-        port=port,
-        state_root=state_root,
-        convergence_state_root=convergence_state_root,
-        reopen=reopen,
-        no_open=no_open,
-        verify=verify,
-        install=install,
-        studio_share=share,
-        studio_share_reference=share_reference,
-    )
-    review = payload["review"]
-    if not isinstance(review, dict):
-        raise ReviewContractError(
-            "REVIEW_SERVER_START_FAILED",
-            "ViewSpec Studio did not receive a complete checked revision.",
-            "Restart the local Studio session.",
-            cli_exit=1,
-        )
-    verification_status = str(review.get("verification_status", "not_run"))
-    ready_ms = max(0, round((time.perf_counter_ns() - started) / 1_000_000))
-    studio = {
-        "experience_version": STUDIO_EXPERIENCE_VERSION,
-        "status": "ready",
-        "source_name": resolved.name,
-        "source_kind": review.get("source_kind"),
-        "target": review.get("target"),
-        "revision": review.get("revision"),
-        "primary_loop": ["preview", "comment", "approve"],
-        "primary_action": "comment",
-        "ready_ms": ready_ms,
-        "confidence": {
-            "state": "verified" if verification_status == "conformant" else "checked",
-            "artifact_check": review.get("check_status"),
-            "viewport_verification": verification_status,
-            "network": "private_review_opt_in" if share else "loopback_only",
-        },
-    }
-    if compare:
-        studio["comparison"] = {
-            "status": "ready",
-            "targets": ["html-tailwind-app", "react-tailwind-app"],
-            "synchronized": ["viewport", "route", "semantic_identity"],
-            "visual_parity": "not_proven",
-            "dependency_install": "explicit_opt_in",
-            "inspection": review.get("inspection"),
-        }
-    if share:
-        studio["private_review"] = review.get("share")
-    return {
-        **payload,
-        "summary": "ViewSpec Studio is ready.",
-        "studio": studio,
-        "next_actions": [
-            "Preview the interface in the local Studio canvas.",
-            "Choose Comment, point at the result, and describe one desired change.",
-            *(["Choose Share to inspect the exact disclosure before creating a private link."] if share else []),
-            "Keep this task running so your agent can receive the feedback by semantic identity.",
-        ],
-    }
+    on_ready: Any = None,
+) -> None:
+    """Serve the preview until interrupted. ``on_ready`` receives the running ``Studio``."""
+    signal.signal(signal.SIGTERM, signal.default_int_handler)
+    with Studio(source, cwd=cwd, design=design, port=port) as studio:
+        if on_ready is not None:
+            on_ready(studio)
+        if not no_open:
+            webbrowser.open(studio.url)
+        with contextlib.suppress(KeyboardInterrupt):
+            studio.serve()
 
 
-def _creation_target(
-    *,
-    source_kind: str,
-    target: str | None,
-    verify: bool,
-    install: bool,
-    compare: bool,
-) -> str | None:
-    if not compare:
-        return target
-    if target is not None or verify:
-        raise ReviewContractError(
-            "STUDIO_COMPARISON_INVALID",
-            "Studio comparison owns both targets and cannot combine with --target or --verify.",
-            "Remove --target and --verify; use viewspec studio --compare --install.",
-            cli_exit=2,
-        )
-    if not install:
-        raise ReviewContractError(
-            "STUDIO_COMPARISON_INSTALL_REQUIRED",
-            "Studio comparison requires the exact locked React runtime dependencies.",
-            "Pass --install to authorize the bounded npm ci --ignore-scripts build flow.",
-            cli_exit=2,
-        )
-    if source_kind != "app_bundle":
-        raise ReviewContractError(
-            "STUDIO_COMPARISON_REQUIRES_APP",
-            "Static/React Studio comparison requires one AppBundle product source.",
-            "Use --kind app for a product; one-screen IntentBundle comparison is not yet supported.",
-            cli_exit=2,
-        )
-    return STUDIO_COMPARE_TARGET
+def _compile_preview(source: Path, output: Path, design: Path | None) -> list[str]:
+    """Build one previewable static artifact and return its errors, never raising to the watcher."""
+    try:
+        if source_kind(source) == "app_bundle":
+            report = compile_app(source, out_dir=output, design_path=design)
+        else:
+            report = compile_intent_bundle_file_tool(source, output, design_path=design, allow_outside_cwd=True)
+    except Exception as exc:
+        return [f"{type(exc).__name__}: {exc}"]
+    if report["ok"]:
+        return []
+    return [f"{error['code']}: {error['message']}" for error in report["errors"]] or ["Compilation failed."]
+
+
+def _file_stamp(path: Path) -> tuple[int, int] | None:
+    try:
+        stat = path.stat()
+    except OSError:
+        return None
+    return stat.st_mtime_ns, stat.st_size
+
+
+def _resolve_inside(root: Path, request_path: str) -> Path | None:
+    """Map a URL path to a regular file inside ``root``; anything else is not found."""
+    root = root.resolve()
+    path = unquote(urlsplit(request_path).path).lstrip("/")
+    if "\x00" in path:
+        return None
+    candidate = (root / path).resolve()
+    if candidate != root and root not in candidate.parents:
+        return None
+    if candidate.is_dir():
+        candidate = candidate / "index.html"
+    return candidate if candidate.is_file() else None
+
+
+def _with_live_reload(html: str) -> str:
+    head, marker, tail = html.rpartition("</body>")
+    return f"{head}{LIVE_RELOAD_SCRIPT}{marker}{tail}" if marker else f"{html}{LIVE_RELOAD_SCRIPT}"
+
+
+def _handler_for(studio: Studio) -> type[BaseHTTPRequestHandler]:
+    class StudioHandler(BaseHTTPRequestHandler):
+        server_version = "ViewSpecStudio"
+
+        def do_GET(self) -> None:
+            # The preview is loopback-only; refusing other Host values also stops DNS rebinding.
+            if self.headers.get("Host") not in {f"127.0.0.1:{studio.port}", f"localhost:{studio.port}"}:
+                self._send(HTTPStatus.FORBIDDEN, b"Forbidden.", "text/plain; charset=utf-8")
+                return
+            route = urlsplit(self.path).path
+            if route == STUDIO_STATUS_PATH:
+                status = {"generation": studio.generation, "errors": studio.errors}
+                self._send(HTTPStatus.OK, json.dumps(status).encode("utf-8"), "application/json")
+                return
+            try:
+                self._send_artifact(route, studio.build_dir)
+            except OSError:
+                # A rebuild replaced this build mid-request; the page's next poll reloads it.
+                self._send(HTTPStatus.NOT_FOUND, b"Not found.", "text/plain; charset=utf-8")
+
+        def log_message(self, format: str, *args: Any) -> None:
+            pass
+
+        def _send_artifact(self, route: str, build_dir: Path | None) -> None:
+            if route == "/":
+                html = (build_dir / "index.html").read_text(encoding="utf-8") if build_dir else EMPTY_PAGE
+                self._send(HTTPStatus.OK, _with_live_reload(html).encode("utf-8"), "text/html; charset=utf-8")
+                return
+            target = _resolve_inside(build_dir, self.path) if build_dir else None
+            if target is None:
+                self._send(HTTPStatus.NOT_FOUND, b"Not found.", "text/plain; charset=utf-8")
+                return
+            content_type = mimetypes.guess_type(target.name)[0] or "application/octet-stream"
+            self._send(HTTPStatus.OK, target.read_bytes(), content_type)
+
+        def _send(self, status: HTTPStatus, body: bytes, content_type: str) -> None:
+            self.send_response(status)
+            self.send_header("Content-Type", content_type)
+            self.send_header("Content-Length", str(len(body)))
+            self.send_header("Cache-Control", "no-store")
+            self.send_header("X-Content-Type-Options", "nosniff")
+            self.end_headers()
+            self.wfile.write(body)
+
+    return StudioHandler
 
 
 __all__ = [
-    "STUDIO_EXPERIENCE_VERSION",
+    "STUDIO_DEFAULT_PORT",
     "STUDIO_SOURCE_NAMES",
+    "Studio",
+    "StudioError",
     "open_studio",
     "resolve_studio_source",
 ]

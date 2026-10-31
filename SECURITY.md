@@ -15,9 +15,9 @@ superseded by each newer release and do not receive backported fixes.
 
 What the local SDK does — and deliberately does not do:
 
-- **No network calls.** The local compiler, validators, prove, and agent-asset tooling perform
-  zero network calls; every provenance manifest records `guarantees.sdk_network_calls: "none"`.
-  Only the optional hosted client (`viewspec[remote]`) talks to the hosted compiler endpoint.
+- **No network calls.** The compiler, validators, and prove perform zero network calls; every
+  provenance manifest records `guarantees.sdk_network_calls: "none"`. The only registry access is
+  the `npm ci --ignore-scripts` that `viewspec prove --install` explicitly authorizes.
 - **Static, sanitized artifacts.** Emitters produce static output and `viewspec check` rejects
   active surfaces: unknown or unclosed inline scripts, every `on*` attribute, `javascript:`,
   `vbscript:` and `data:` URLs (raster image `data:` URLs on `<img src>` excepted) after entity,
@@ -39,21 +39,23 @@ What the local SDK does — and deliberately does not do:
   policy (`viewspec-raw-html-allowlist@1`). `viewspec check` verifies that an artifact is
   consistent with its own unsigned `provenance_manifest.json`; it does not establish who produced
   either file, because whoever edits the artifact can re-hash the manifest. `viewspec prove` adds
-  a `proof_identity` (artifact, manifest, and proof report hashes) for that purpose.
+  the artifact, manifest, and proof report hashes in `PROOF.md` for that purpose.
 - **Bounded static shells.** AppBundle Static Shell V0 rejects external network, embed, and
   script surfaces; the full shell HTML is scanned for inline handlers, `http:` URLs, `url(`,
   worker construction, and import maps before a proof can pass.
-- **Path containment.** File tools resolve paths against the working directory and fail closed
-  with `PATH_OUTSIDE_CWD` when a path escapes it. The MCP server (`viewspec mcp`) resolves its
-  working directory first and confines reads and writes to it unless `--allow-outside-cwd` is
-  passed explicitly. Treat that flag as a security boundary: enable it only for workspaces you
-  trust. `--force` on `prove`, `prove-app`, and `compile-app` replaces only an empty directory or
-  one that holds a ViewSpec-written marker such as `proof_report.json`; any other directory is
-  refused rather than deleted.
+- **Local preview only.** `viewspec studio` binds 127.0.0.1, refuses requests for any other `Host`
+  (which also blocks DNS rebinding), and serves only files inside its private build directory.
+- **MCP path containment.** `viewspec mcp` resolves its working directory first and confines every
+  tool's reads and writes to it, failing closed with `PATH_OUTSIDE_CWD`, unless
+  `--allow-outside-cwd` is passed. Treat that flag as a security boundary: enable it only for
+  workspaces you trust. Its `install` argument is the same explicit gate as `viewspec prove --install`.
+- **Output containment.** `--force` on `viewspec prove` and `viewspec compile` replaces only an empty
+  directory or one that holds a ViewSpec-written marker such as `proof_report.json`; any other
+  directory is refused rather than deleted.
 - **Untrusted input is the normal case.** Validators are fail-closed with hard caps on bytes,
   counts, and depth, and reject unknown fields instead of ignoring them. DESIGN.md is capped at
   64 KiB, checked against its on-disk size before it is read, and its YAML front matter rejects
-  anchors and aliases as well as duplicate keys. HTML inputs to `compile`, `lift`, and `diff` are
+  anchors and aliases as well as duplicate keys. HTML inputs to `compile` are
   size-gated (`HTML_INPUT_TOO_LARGE`) before they are read. Compiling a bundle still runs the
   compiler over that input, so apply ordinary OS-level sandboxing when processing bundles from
   sources you do not trust at all.

@@ -16,7 +16,7 @@ MAX_SAFE_INTEGER = 2**53
 
 
 class IntentBundleContractError(ValueError):
-    """Stable wire-contract failure shared by local and hosted compilers."""
+    """Stable IntentBundle wire-contract failure."""
 
     def __init__(self, code: str, message: str, path: str) -> None:
         super().__init__(message)

@@ -1,0 +1,545 @@
+{
+  "substrate": {
+    "id": "benchmark_tailwind_admin_substrate",
+    "nodes": {
+      "admin_intro": {
+        "attrs": {
+          "description": "Inspect queue state, filter open work, and submit reviewer decisions.",
+          "eyebrow": "Operations",
+          "title": "Review requests"
+        },
+        "edges": {},
+        "id": "admin_intro",
+        "kind": "hero",
+        "slots": {}
+      },
+      "benchmark_tailwind_admin": {
+        "attrs": {
+          "title": "Tailwind Admin Workspace"
+        },
+        "edges": {},
+        "id": "benchmark_tailwind_admin",
+        "kind": "app",
+        "slots": {}
+      },
+      "blocked": {
+        "attrs": {
+          "label": "Blocked",
+          "value": "3"
+        },
+        "edges": {},
+        "id": "blocked",
+        "kind": "dashboard_card",
+        "slots": {}
+      },
+      "empty_queue": {
+        "attrs": {
+          "description": "Adjust filters to widen the queue.",
+          "title": "No matching requests"
+        },
+        "edges": {},
+        "id": "empty_queue",
+        "kind": "empty_state",
+        "slots": {}
+      },
+      "escalations": {
+        "attrs": {
+          "description": "Needs review",
+          "label": "Escalations"
+        },
+        "edges": {},
+        "id": "escalations",
+        "kind": "list_item",
+        "slots": {}
+      },
+      "inbox": {
+        "attrs": {
+          "description": "Open requests",
+          "label": "Inbox"
+        },
+        "edges": {},
+        "id": "inbox",
+        "kind": "list_item",
+        "slots": {}
+      },
+      "open": {
+        "attrs": {
+          "label": "Open",
+          "value": "18"
+        },
+        "edges": {},
+        "id": "open",
+        "kind": "dashboard_card",
+        "slots": {}
+      },
+      "owner": {
+        "attrs": {
+          "label": "Owner",
+          "value": "Team"
+        },
+        "edges": {},
+        "id": "owner",
+        "kind": "field",
+        "slots": {}
+      },
+      "priority": {
+        "attrs": {
+          "label": "Priority",
+          "value": "High"
+        },
+        "edges": {},
+        "id": "priority",
+        "kind": "detail_field",
+        "slots": {}
+      },
+      "request_a": {
+        "attrs": {
+          "label": "Request A",
+          "value": "Ready"
+        },
+        "edges": {},
+        "id": "request_a",
+        "kind": "table_row",
+        "slots": {}
+      },
+      "request_b": {
+        "attrs": {
+          "label": "Request B",
+          "value": "Waiting"
+        },
+        "edges": {},
+        "id": "request_b",
+        "kind": "table_row",
+        "slots": {}
+      },
+      "reviewer": {
+        "attrs": {
+          "label": "Reviewer",
+          "value": "Ada"
+        },
+        "edges": {},
+        "id": "reviewer",
+        "kind": "detail_field",
+        "slots": {}
+      },
+      "search": {
+        "attrs": {
+          "label": "Search",
+          "value": ""
+        },
+        "edges": {},
+        "id": "search",
+        "kind": "field",
+        "slots": {}
+      }
+    },
+    "root_id": "benchmark_tailwind_admin"
+  },
+  "view_spec": {
+    "actions": [
+      {
+        "id": "apply_filters",
+        "kind": "submit",
+        "label": "Apply filters",
+        "payload_bindings": [
+          "search_value",
+          "owner_value"
+        ],
+        "target_ref": "motif:queue_filters",
+        "target_region": "main"
+      }
+    ],
+    "bindings": [
+      {
+        "address": "node:admin_intro#attr:eyebrow",
+        "cardinality": "exactly_once",
+        "id": "admin_intro_eyebrow",
+        "present_as": "label",
+        "target_region": "header"
+      },
+      {
+        "address": "node:admin_intro#attr:title",
+        "cardinality": "exactly_once",
+        "id": "admin_intro_title",
+        "present_as": "value",
+        "target_region": "header"
+      },
+      {
+        "address": "node:admin_intro#attr:description",
+        "cardinality": "exactly_once",
+        "id": "admin_intro_description",
+        "present_as": "text",
+        "target_region": "header"
+      },
+      {
+        "address": "node:inbox#attr:label",
+        "cardinality": "exactly_once",
+        "id": "inbox_label",
+        "present_as": "label",
+        "target_region": "side"
+      },
+      {
+        "address": "node:inbox#attr:description",
+        "cardinality": "exactly_once",
+        "id": "inbox_description",
+        "present_as": "text",
+        "target_region": "side"
+      },
+      {
+        "address": "node:escalations#attr:label",
+        "cardinality": "exactly_once",
+        "id": "escalations_label",
+        "present_as": "label",
+        "target_region": "side"
+      },
+      {
+        "address": "node:escalations#attr:description",
+        "cardinality": "exactly_once",
+        "id": "escalations_description",
+        "present_as": "text",
+        "target_region": "side"
+      },
+      {
+        "address": "node:open#attr:label",
+        "cardinality": "exactly_once",
+        "id": "open_label",
+        "present_as": "label",
+        "target_region": "main"
+      },
+      {
+        "address": "node:open#attr:value",
+        "cardinality": "exactly_once",
+        "id": "open_value",
+        "present_as": "value",
+        "target_region": "main"
+      },
+      {
+        "address": "node:blocked#attr:label",
+        "cardinality": "exactly_once",
+        "id": "blocked_label",
+        "present_as": "label",
+        "target_region": "main"
+      },
+      {
+        "address": "node:blocked#attr:value",
+        "cardinality": "exactly_once",
+        "id": "blocked_value",
+        "present_as": "badge",
+        "target_region": "main"
+      },
+      {
+        "address": "node:request_a#attr:label",
+        "cardinality": "exactly_once",
+        "id": "request_a_label",
+        "present_as": "label",
+        "target_region": "main"
+      },
+      {
+        "address": "node:request_a#attr:value",
+        "cardinality": "exactly_once",
+        "id": "request_a_value",
+        "present_as": "value",
+        "target_region": "main"
+      },
+      {
+        "address": "node:request_b#attr:label",
+        "cardinality": "exactly_once",
+        "id": "request_b_label",
+        "present_as": "label",
+        "target_region": "main"
+      },
+      {
+        "address": "node:request_b#attr:value",
+        "cardinality": "exactly_once",
+        "id": "request_b_value",
+        "present_as": "value",
+        "target_region": "main"
+      },
+      {
+        "address": "node:search#attr:label",
+        "cardinality": "exactly_once",
+        "id": "search_label",
+        "present_as": "label",
+        "target_region": "main"
+      },
+      {
+        "address": "node:search#attr:value",
+        "cardinality": "exactly_once",
+        "id": "search_value",
+        "present_as": "input",
+        "target_region": "main"
+      },
+      {
+        "address": "node:owner#attr:label",
+        "cardinality": "exactly_once",
+        "id": "owner_label",
+        "present_as": "label",
+        "target_region": "main"
+      },
+      {
+        "address": "node:owner#attr:value",
+        "cardinality": "exactly_once",
+        "id": "owner_value",
+        "present_as": "input",
+        "target_region": "main"
+      },
+      {
+        "address": "node:reviewer#attr:label",
+        "cardinality": "exactly_once",
+        "id": "reviewer_label",
+        "present_as": "label",
+        "target_region": "side"
+      },
+      {
+        "address": "node:reviewer#attr:value",
+        "cardinality": "exactly_once",
+        "id": "reviewer_value",
+        "present_as": "value",
+        "target_region": "side"
+      },
+      {
+        "address": "node:priority#attr:label",
+        "cardinality": "exactly_once",
+        "id": "priority_label",
+        "present_as": "label",
+        "target_region": "side"
+      },
+      {
+        "address": "node:priority#attr:value",
+        "cardinality": "exactly_once",
+        "id": "priority_value",
+        "present_as": "value",
+        "target_region": "side"
+      },
+      {
+        "address": "node:empty_queue#attr:title",
+        "cardinality": "exactly_once",
+        "id": "empty_queue_title",
+        "present_as": "value",
+        "target_region": "main"
+      },
+      {
+        "address": "node:empty_queue#attr:description",
+        "cardinality": "exactly_once",
+        "id": "empty_queue_description",
+        "present_as": "text",
+        "target_region": "main"
+      }
+    ],
+    "complexity_tier": 1,
+    "groups": [
+      {
+        "id": "admin_intro_message",
+        "kind": "ordered",
+        "members": [
+          "admin_intro_eyebrow",
+          "admin_intro_title",
+          "admin_intro_description"
+        ],
+        "target_region": "header"
+      },
+      {
+        "id": "admin_nav_items",
+        "kind": "ordered",
+        "members": [
+          "inbox_label",
+          "inbox_description",
+          "escalations_label",
+          "escalations_description"
+        ],
+        "target_region": "side"
+      },
+      {
+        "id": "admin_metric_cards",
+        "kind": "ordered",
+        "members": [
+          "open_label",
+          "open_value",
+          "blocked_label",
+          "blocked_value"
+        ],
+        "target_region": "main"
+      },
+      {
+        "id": "request_rows",
+        "kind": "ordered",
+        "members": [
+          "request_a_label",
+          "request_a_value",
+          "request_b_label",
+          "request_b_value"
+        ],
+        "target_region": "main"
+      },
+      {
+        "id": "filter_fields",
+        "kind": "ordered",
+        "members": [
+          "search_label",
+          "search_value",
+          "owner_label",
+          "owner_value"
+        ],
+        "target_region": "main"
+      },
+      {
+        "id": "selected_request_fields",
+        "kind": "ordered",
+        "members": [
+          "reviewer_label",
+          "reviewer_value",
+          "priority_label",
+          "priority_value"
+        ],
+        "target_region": "side"
+      },
+      {
+        "id": "empty_queue_message",
+        "kind": "ordered",
+        "members": [
+          "empty_queue_title",
+          "empty_queue_description"
+        ],
+        "target_region": "main"
+      }
+    ],
+    "id": "benchmark_tailwind_admin",
+    "motifs": [
+      {
+        "id": "admin_intro",
+        "kind": "hero",
+        "members": [
+          "admin_intro_eyebrow",
+          "admin_intro_title",
+          "admin_intro_description"
+        ],
+        "region": "header"
+      },
+      {
+        "id": "admin_nav",
+        "kind": "list",
+        "members": [
+          "inbox_label",
+          "inbox_description",
+          "escalations_label",
+          "escalations_description"
+        ],
+        "region": "side"
+      },
+      {
+        "id": "admin_metrics",
+        "kind": "dashboard",
+        "members": [
+          "open_label",
+          "open_value",
+          "blocked_label",
+          "blocked_value"
+        ],
+        "region": "main"
+      },
+      {
+        "id": "request_queue",
+        "kind": "table",
+        "members": [
+          "request_a_label",
+          "request_a_value",
+          "request_b_label",
+          "request_b_value"
+        ],
+        "region": "main"
+      },
+      {
+        "id": "queue_filters",
+        "kind": "form",
+        "members": [
+          "search_label",
+          "search_value",
+          "owner_label",
+          "owner_value"
+        ],
+        "region": "main"
+      },
+      {
+        "id": "selected_request",
+        "kind": "detail",
+        "members": [
+          "reviewer_label",
+          "reviewer_value",
+          "priority_label",
+          "priority_value"
+        ],
+        "region": "side"
+      },
+      {
+        "id": "empty_queue",
+        "kind": "empty_state",
+        "members": [
+          "empty_queue_title",
+          "empty_queue_description"
+        ],
+        "region": "main"
+      }
+    ],
+    "regions": [
+      {
+        "id": "root",
+        "layout": "stack",
+        "max_children": null,
+        "min_children": 2,
+        "parent_region": "",
+        "role": "root"
+      },
+      {
+        "id": "header",
+        "layout": "stack",
+        "max_children": null,
+        "min_children": 1,
+        "parent_region": "root",
+        "role": "banner"
+      },
+      {
+        "id": "body",
+        "layout": "grid",
+        "max_children": null,
+        "min_children": 2,
+        "parent_region": "root",
+        "role": "workspace"
+      },
+      {
+        "id": "main",
+        "layout": "stack",
+        "max_children": null,
+        "min_children": 3,
+        "parent_region": "body",
+        "role": "primary"
+      },
+      {
+        "id": "side",
+        "layout": "stack",
+        "max_children": null,
+        "min_children": 2,
+        "parent_region": "body",
+        "role": "sidebar"
+      }
+    ],
+    "root_region": "root",
+    "styles": [
+      {
+        "id": "admin_body_density",
+        "target": "region:body",
+        "token": "density.regular"
+      },
+      {
+        "id": "admin_detail_surface",
+        "target": "motif:selected_request",
+        "token": "surface.strong"
+      },
+      {
+        "id": "aesthetic_profile",
+        "target": "view:benchmark_tailwind_admin",
+        "token": "aesthetic.data_dense"
+      }
+    ],
+    "substrate_id": "benchmark_tailwind_admin_substrate"
+  }
+}
