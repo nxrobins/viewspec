@@ -154,9 +154,9 @@ This is a breaking release; `docs/compatibility.md` allows that before 1.0.
 
 ### Fixed
 
-- The landing page's `.sub`, `.lead`, and `h2` rules no longer carry `calc()` and `clamp()` font sizes
-  that browsers rejected for a missing space around `+`. They now state the 16px browsers rendered,
-  so the page looks the same.
+- The landing page's section headings render at their designed 25px to 40px. A missing space around
+  `+` in `calc()` made every `h2` inherit the 16px body size. A static check and a browser test now
+  cover this. The `.sub` and `.lead` rules failed the same way; they are removed and stay at 16px.
 - Non-ASCII text in list and dict bindings renders as UTF-8 instead of `\u` escapes.
 - The declared protobuf requirement matches the generated schema: `protobuf>=6.31.1,<8`. The
   package did not import with protobuf 5.x.

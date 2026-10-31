@@ -177,7 +177,24 @@ test("homepage exposes bounded opt-in Freerange and Pretext proof integrations",
   expect(failures).toEqual([]);
 });
 
-test("homepage leads with the free, local, five-command CLI", async ({ page }) => {
+test("homepage section headings keep their type scale", async ({ page }) => {
+  // Invalid CSS math fails silently: the heading inherits body size and nothing reports it.
+  for (const viewport of viewports) {
+    await page.setViewportSize(viewport);
+    await page.goto("/", { waitUntil: "domcontentloaded" });
+
+    const sizes = await page
+      .locator("h2")
+      .evaluateAll((headings) => headings.map((heading) => Number.parseFloat(getComputedStyle(heading).fontSize)));
+    expect(sizes.length, `Headings exist at ${viewport.name}`).toBeGreaterThan(0);
+    for (const size of sizes) {
+      expect(size, `Heading scale floor at ${viewport.name}`).toBeGreaterThanOrEqual(25);
+      expect(size, `Heading scale ceiling at ${viewport.name}`).toBeLessThanOrEqual(40);
+    }
+  }
+});
+
+test("homepage leads with the free, local, six-command CLI", async ({ page }) => {
   const failures = captureRuntimeFailures(page);
 
   for (const viewport of viewports) {

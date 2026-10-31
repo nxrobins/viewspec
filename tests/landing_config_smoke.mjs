@@ -16,6 +16,10 @@ const home = await readFile('demos/index.html', 'utf8')
 assert.doesNotMatch(home, /VIEWSPEC_LANDING_CONFIG|PUBLIC_LANDING_API_KEY/, 'homepage reads no runtime config')
 assert.doesNotMatch(home, /data-config-link/, 'homepage links are not rewritten at runtime')
 assert.doesNotMatch(home, /<script type="module"/, 'homepage has no module scripts')
+// Without a space around +, a browser silently drops the declaration or inherits the value.
+for (const [style] of home.matchAll(/<style[\s\S]*?<\/style>/g)) {
+  assert.doesNotMatch(style, /(?:calc|clamp)\([^;{}]*[\w%)]\+[\d.(]/, 'homepage CSS math keeps spaces around +')
+}
 
 async function pagesUnder(directory) {
   const entries = await readdir(directory, { withFileTypes: true })
