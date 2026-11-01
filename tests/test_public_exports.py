@@ -6,7 +6,7 @@ import hashlib
 import json
 
 import viewspec
-from viewspec import ViewSpecBuilder, compiler_refs, sdk
+from viewspec import ViewSpecBuilder, compiler_errors, compiler_refs, sdk
 from viewspec import compiler as compiler_module
 from viewspec.emitters import html_tailwind, react_tailwind_tsx
 from viewspec.emitters.react_tailwind_tsx import recipes as tailwind_recipes
@@ -19,19 +19,32 @@ def test_public_surface_is_the_small_documented_one():
             "__version__",
             "ASTBundle",
             "AppBundle",
-            "AppBundleError",
-            "CompilerInputError",
-            "DesignSystemError",
+            "DesignSystemContext",
+            "ERROR_CODES",
             "IntentBundle",
-            "UnsupportedMotifError",
             "ViewSpecBuilder",
+            "ViewSpecError",
             "check",
             "compile",
+            "compile_mcp_app",
+            "load_design_system",
             "prove",
         ]
     )
     for name in viewspec.__all__:
         assert hasattr(viewspec, name)
+
+
+def test_every_error_the_package_names_is_a_viewspec_error():
+    for error in (
+        viewspec.AppBundleError,
+        viewspec.CompilerInputError,
+        viewspec.DesignSystemError,
+        viewspec.UnsupportedMotifError,
+        compiler_errors.CompilerInternalError,
+        compiler_errors.LocalToolContractError,
+    ):
+        assert issubclass(error, viewspec.ViewSpecError)
 
 
 def test_sdk_exports_every_documented_motif_builder():

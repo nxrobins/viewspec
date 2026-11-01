@@ -11,6 +11,10 @@
 
 Known limits are documented per emitter.
 
+## MCP Apps Target
+
+`mcp-app` is the HTML/Tailwind emitter with a pinned host bridge and a size ceiling: actions reach the host instead of a `CustomEvent`, and tool results update bound text in place. See [MCP Apps](mcp-apps.md).
+
 ## App Target
 
 `react-tailwind-app` composes the local React Tailwind TSX emitter with AppBundle V4 routes, resource views, generated reducers, selectors, and visibility. It emits a complete Vite package and an exact-artifact Playwright proof. The app target owns bounded frontend runtime behavior; authentication, persistence, arbitrary API clients, optimistic updates, and deployment infrastructure remain host-owned.

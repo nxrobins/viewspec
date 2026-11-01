@@ -41,6 +41,7 @@ from viewspec.app_validation import (
     validate_app_file,
     validate_app_text,
 )
+from viewspec.compiler_errors import ViewSpecError
 from viewspec.state_ir import (
     check_reducer_conformance,
     generate_typescript_reducer,
@@ -123,7 +124,7 @@ def compile_app(
     )
 
 
-class AppBundleError(ValueError):
+class AppBundleError(ViewSpecError, ValueError):
     """An AppBundle document failed validation; ``issues`` holds the validator's findings."""
 
     def __init__(self, issues: list[dict[str, Any]]) -> None:

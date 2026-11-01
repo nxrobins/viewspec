@@ -19,6 +19,7 @@ are reference material for when a command, contract, or proof points you there.
 - [Custom Motif Authoring](custom-motif-authoring.md): Trusted local motif plugins that lower into
   `CompositionIR`.
 - [Local HTML Wedge](local-html-wedge.md): Importing existing HTML as a fallback path.
+- [MCP Apps](mcp-apps.md): Rendering an MCP tool's result as an interactive `ui://` view from Python.
 - [`manifest-v1.schema.json`](manifest-v1.schema.json): JSON Schema for the
   `provenance_manifest.json` that every compiled artifact carries.
 

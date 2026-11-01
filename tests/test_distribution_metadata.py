@@ -17,7 +17,7 @@ def test_package_metadata_exposes_expected_cli_and_optional_extras():
     assert pyproject["project"]["scripts"]["viewspec"] == "viewspec.cli:main"
     extras = pyproject["project"]["optional-dependencies"]
     assert set(extras) == {"agents", "dev"}
-    assert "mcp>=1.9.0,<2" in extras["agents"]
+    assert "mcp>=1.30,<2" in extras["agents"]
     assert "build>=1.2" in extras["dev"]
     assert "pytest>=8.0" in extras["dev"]
     assert "hypothesis>=6.100,<7" in extras["dev"]

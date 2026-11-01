@@ -24,7 +24,7 @@ from viewspec.aesthetics import (
     profile_style_values,
     validate_aesthetic_profile_registry,
 )
-from viewspec.compiler_errors import CompilerInternalError
+from viewspec.compiler_errors import CompilerInternalError, ViewSpecError
 from viewspec.compiler_refs import (
     MAX_COMPILE_NESTING_DEPTH,
     PRODUCT_SURFACE_PLANNER_V1_ROLES,
@@ -1032,13 +1032,13 @@ def _apply_product_surface_planner_v1(
 # ---------------------------------------------------------------------------
 
 
-class UnsupportedMotifError(Exception):
+class UnsupportedMotifError(ViewSpecError):
     """Raised when the reference compiler encounters a motif type it can't handle."""
 
     pass
 
 
-class CompilerInputError(Exception):
+class CompilerInputError(ViewSpecError):
     """Raised when a bundle cannot produce a root CompositionIR."""
 
     pass

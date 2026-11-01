@@ -7,6 +7,31 @@ All notable changes to ViewSpec are documented in this file. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- `viewspec.compile_mcp_app()` and the `mcp-app` compile target turn an `IntentBundle` into an
+  [MCP Apps](docs/mcp-apps.md) `ui://` resource. `viewspec compile --target mcp-app` takes `--uri`
+  and `--action-tool ACTION=TOOL` and writes `mcp_app.json` beside the artifact, and the MCP
+  `compile` tool takes `uri` and `action_tools`. A pinned bridge handles the host handshake and
+  sizing, sends actions as `tools/call`, `ui/message`, or `ui/update-model-context`, and applies
+  `structuredContent.viewspecBindings` from tool results. `viewspec check` pins the bridge and
+  enforces a 120,000 byte ceiling (`MCP_APP_BRIDGE_MISMATCH`, `MCP_APP_TOO_LARGE`). Other
+  `html-tailwind` output is byte-identical.
+- `viewspec.mcp_apps.register_mcp_app()` publishes the resource on a FastMCP server and returns a
+  decorator for the tools linked to it, including view-only tools through `visibility=["app"]`.
+- `examples/mcp_app_incident_console.py`, and a CI job that runs compiled apps against the
+  `@modelcontextprotocol/ext-apps` SDK host in Chromium.
+- `viewspec.ViewSpecError`, the base of `CompilerInputError`, `UnsupportedMotifError`,
+  `DesignSystemError`, `AppBundleError`, and the stable-code errors.
+
+### Changed
+
+- `viewspec.__all__` is now the 13 names in the README: it gains `compile_mcp_app`,
+  `ViewSpecError`, `DesignSystemContext`, `load_design_system`, and `ERROR_CODES`, and the concrete
+  errors leave it. They stay importable from `viewspec`.
+- The `agents` extra now needs `mcp>=1.30`. `FastMCP.resource()` takes `meta` from 1.26, and before
+  1.30 a settings warning reaches the stderr that `viewspec mcp --json` keeps for its failure report.
+
 ## [0.4.0b1] - 2026-10-31
 
 ViewSpec is now a local, open-source compiler with no hosted service and a much smaller surface.

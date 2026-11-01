@@ -47,7 +47,7 @@ dev = [
     "pyright==1.1.414",
 ]
 agents = [
-    "mcp>=1.9.0,<2",
+    "mcp>=1.30,<2",
 ]
 
 [project.urls]

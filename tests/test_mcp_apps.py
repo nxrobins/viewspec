@@ -1,0 +1,352 @@
+"""The MCP Apps target: the document, its metadata, the check gate, and FastMCP registration."""
+
+from __future__ import annotations
+
+import asyncio
+import hashlib
+import json
+import re
+import runpy
+from pathlib import Path
+from typing import Any
+
+import pytest
+
+from viewspec import ERROR_CODES, ViewSpecBuilder, ViewSpecError, check, compile_mcp_app
+from viewspec import cli as viewspec_cli
+from viewspec.compiler_errors import LocalToolContractError
+from viewspec.emitters.html_tailwind import ACTION_EVENT_SCRIPT, MCP_APP_BRIDGE_SCRIPT, HtmlTailwindEmitter
+from viewspec.intent_tools import compile_intent_bundle_file_tool
+from viewspec.local_tools import MCP_APP_MAX_BYTES
+from viewspec.mcp_apps import MCP_APP_MIME_TYPE, MCPAppArtifact, register_mcp_app
+
+ROOT = Path(__file__).resolve().parents[1]
+URI = "ui://ops/incident-queue"
+# Changing the bridge changes what hosts receive: run tests/test_mcp_app_host_e2e.py against the
+# ext-apps SDK before updating this digest.
+BRIDGE_SHA256 = "d3ab6361d26cfc0139cdc443fbb480972ad5b65b1d1f4495196c795323279c54"
+
+
+def _builder(rows: int = 2) -> ViewSpecBuilder:
+    builder = ViewSpecBuilder("incident_queue", root_attrs={"title": "Incident queue"})
+    table = builder.add_table("incidents", region="main", group_id="rows")
+    for index in range(rows):
+        table.add_row(id=f"inc{index}", label=f"INC-{index}", value=f"Replica lag ({index}s)")
+    query = builder.add_text_input("query", label="Filter", region="main")
+    builder.add_collection_action(
+        "refresh", kind="filter", label="Refresh", collection_id="incidents", payload_bindings=[query]
+    )
+    return builder
+
+
+def _write_intent(path: Path, builder: ViewSpecBuilder | None = None) -> Path:
+    path.write_text(json.dumps((builder or _builder()).build_bundle().to_json()), encoding="utf-8")
+    return path
+
+
+def _compile_dir(tmp_path: Path, *extra: str) -> Path:
+    source = _write_intent(tmp_path / "viewspec.intent.json")
+    out = tmp_path / "dist"
+    assert viewspec_cli.main(["compile", str(source), "--target", "mcp-app", "--out", str(out), *extra]) == 0
+    return out
+
+
+def _codes(report: dict[str, Any]) -> set[str]:
+    return {issue["code"] for issue in report["issues"]}
+
+
+def test_artifact_matches_the_publishing_contract():
+    app = compile_mcp_app(_builder().build_bundle(), uri=URI)
+
+    assert isinstance(app, MCPAppArtifact)
+    assert app.uri == URI
+    assert app.mime_type == MCP_APP_MIME_TYPE == "text/html;profile=mcp-app"
+    assert app.html.startswith("<!DOCTYPE html>")
+    assert app.csp_meta == {"ui": {"csp": {"connectDomains": [], "resourceDomains": []}}}
+    assert app.tool_meta == {"ui": {"resourceUri": URI}, "ui/resourceUri": URI}
+    assert app.size_bytes == len(app.html.encode("utf-8")) < MCP_APP_MAX_BYTES
+
+
+def test_metadata_is_a_fresh_copy_each_time():
+    app = compile_mcp_app(_builder().build_bundle(), uri=URI)
+    app.tool_meta["ui"]["visibility"] = ["app"]
+    assert "visibility" not in app.tool_meta["ui"]
+
+
+def test_document_loads_nothing_from_any_other_domain():
+    html = compile_mcp_app(_builder().build_bundle(), uri=URI).html
+
+    assert not re.search(r"https?://", html)
+    assert "<script src" not in html
+    assert "url(" not in html
+
+
+def test_document_carries_the_pinned_scripts_in_order():
+    html = compile_mcp_app(_builder().build_bundle(), uri=URI).html
+
+    assert html.index(ACTION_EVENT_SCRIPT) < html.index(MCP_APP_BRIDGE_SCRIPT)
+    assert hashlib.sha256(MCP_APP_BRIDGE_SCRIPT.encode("utf-8")).hexdigest() == BRIDGE_SHA256
+
+
+def test_view_without_actions_carries_only_the_bridge():
+    builder = ViewSpecBuilder("kpi", root_attrs={"title": "KPIs"})
+    builder.add_dashboard("cards", region="main", group_id="group").add_card(label="Open", value="12")
+
+    html = compile_mcp_app(builder.build_bundle(), uri=URI).html
+
+    assert MCP_APP_BRIDGE_SCRIPT in html
+    assert ACTION_EVENT_SCRIPT not in html
+
+
+def test_action_tools_reach_the_document_as_inert_data():
+    html = compile_mcp_app(_builder().build_bundle(), uri=URI, action_tools={"refresh": "refresh_incidents"}).html
+
+    assert '<meta name="viewspec-mcp-tools" content="{&quot;refresh&quot;: &quot;refresh_incidents&quot;}">' in html
+
+
+def test_plain_html_tailwind_output_is_untouched(tmp_path: Path):
+    from viewspec import compile as compile_bundle
+
+    paths = HtmlTailwindEmitter().emit(compile_bundle(_builder().build_bundle()), tmp_path)
+    html = Path(paths["html"]).read_text(encoding="utf-8")
+
+    assert "ui/initialize" not in html
+    assert "viewspec-mcp-tools" not in html
+    assert "min-height: 0" not in html
+
+
+def test_profile_replaces_the_bundle_profile_and_leaves_the_bundle_alone():
+    builder = _builder()
+    builder.set_aesthetic_profile("aesthetic.neon_cyber")
+    bundle = builder.build_bundle()
+
+    html = compile_mcp_app(bundle, uri=URI, profile="aesthetic.calm_ops").html
+
+    assert 'data-aesthetic-profile="aesthetic.calm_ops"' in html
+    assert "aesthetic.neon_cyber" not in html
+    assert [style.token for style in bundle.view_spec.styles if style.id == "aesthetic_profile"] == [
+        "aesthetic.neon_cyber"
+    ]
+
+
+def test_unknown_profile_is_refused():
+    with pytest.raises(LocalToolContractError) as caught:
+        compile_mcp_app(_builder().build_bundle(), uri=URI, profile="aesthetic.nope")
+    assert caught.value.code == "MCP_APP_INVALID_PROFILE"
+
+
+@pytest.mark.parametrize("uri", ["https://ops/view", "ui://", "ui:// spaced", "UI://ops/view", "ui://ops/a b", ""])
+def test_bad_uri_is_refused(uri: str):
+    with pytest.raises(LocalToolContractError) as caught:
+        compile_mcp_app(_builder().build_bundle(), uri=uri)
+    assert caught.value.code == "MCP_APP_INVALID_URI"
+
+
+def test_action_tools_must_name_an_action_in_the_view():
+    with pytest.raises(LocalToolContractError) as caught:
+        compile_mcp_app(_builder().build_bundle(), uri=URI, action_tools={"refreshh": "tool"})
+    assert caught.value.code == "MCP_APP_UNKNOWN_ACTION"
+    assert "refresh" in caught.value.message
+
+
+@pytest.mark.parametrize("tool", ["", "has space", 'quote"', "x" * 129])
+def test_action_tools_must_be_valid_tool_names(tool: str):
+    with pytest.raises(LocalToolContractError) as caught:
+        compile_mcp_app(_builder().build_bundle(), uri=URI, action_tools={"refresh": tool})
+    assert caught.value.code == "MCP_APP_INVALID_TOOL"
+
+
+def test_document_over_the_ceiling_is_refused():
+    with pytest.raises(LocalToolContractError) as caught:
+        compile_mcp_app(_builder(rows=120).build_bundle(), uri=URI)
+    assert caught.value.code == "MCP_APP_TOO_LARGE"
+    assert str(MCP_APP_MAX_BYTES) in caught.value.message
+
+
+def test_refusals_are_viewspec_errors_with_registered_codes():
+    with pytest.raises(ViewSpecError) as caught:
+        compile_mcp_app(_builder().build_bundle(), uri="nope")
+    assert caught.value.code in ERROR_CODES
+
+
+def test_cli_writes_a_checked_app_with_its_metadata(tmp_path: Path):
+    out = _compile_dir(tmp_path, "--uri", URI, "--action-tool", "refresh=refresh_incidents")
+
+    assert sorted(path.name for path in out.iterdir()) == [
+        "diagnostics.json",
+        "index.html",
+        "mcp_app.json",
+        "provenance_manifest.json",
+    ]
+    metadata = json.loads((out / "mcp_app.json").read_text(encoding="utf-8"))
+    assert metadata["uri"] == URI
+    assert metadata["mime_type"] == MCP_APP_MIME_TYPE
+    assert metadata["size_bytes"] == (out / "index.html").stat().st_size
+    assert json.loads((out / "provenance_manifest.json").read_text(encoding="utf-8"))["target"] == "mcp-app"
+    assert check(out)["ok"]
+
+
+def test_cli_defaults_the_uri_to_the_view_id(tmp_path: Path):
+    out = _compile_dir(tmp_path)
+    assert json.loads((out / "mcp_app.json").read_text(encoding="utf-8"))["uri"] == "ui://viewspec/incident_queue"
+
+
+@pytest.mark.parametrize(
+    ("args", "message"),
+    [
+        (["--target", "mcp-app", "--action-tool", "no_separator"], "ACTION=TOOL"),
+        (["--uri", URI], "apply to --target mcp-app"),
+        (["--target", "react-tsx", "--action-tool", "refresh=tool"], "apply to --target mcp-app"),
+    ],
+)
+def test_cli_refuses_misused_flags(tmp_path: Path, capsys: pytest.CaptureFixture[str], args: list[str], message: str):
+    source = _write_intent(tmp_path / "viewspec.intent.json")
+
+    assert viewspec_cli.main(["compile", str(source), "--out", str(tmp_path / "dist"), *args]) != 0
+    assert message in capsys.readouterr().err
+
+
+def test_cli_keeps_mcp_app_to_intent_bundles(tmp_path: Path, capsys: pytest.CaptureFixture[str]):
+    source = tmp_path / "viewspec.app.json"
+    assert viewspec_cli.main(["init", "app", "--out", str(source)]) == 0
+    capsys.readouterr()
+
+    assert viewspec_cli.main(["compile", str(source), "--target", "mcp-app", "--out", str(tmp_path / "dist")]) != 0
+    assert "IntentBundle" in capsys.readouterr().err
+
+
+def test_compile_tool_builds_the_target(tmp_path: Path):
+    source = _write_intent(tmp_path / "viewspec.intent.json")
+
+    report = compile_intent_bundle_file_tool(
+        source,
+        tmp_path / "dist",
+        target="mcp-app",
+        uri=URI,
+        action_tools={"refresh": "refresh_incidents"},
+        cwd=tmp_path,
+    )
+
+    assert report["ok"], report
+    assert json.loads(Path(report["paths"]["mcp_app"]).read_text(encoding="utf-8"))["uri"] == URI
+
+
+def test_compile_tool_reports_a_uri_on_another_target(tmp_path: Path):
+    source = _write_intent(tmp_path / "viewspec.intent.json")
+
+    report = compile_intent_bundle_file_tool(source, tmp_path / "dist", uri=URI, cwd=tmp_path)
+
+    assert not report["ok"]
+    assert "apply to target='mcp-app'" in json.dumps(report)
+
+
+def test_check_rejects_a_changed_bridge(tmp_path: Path):
+    out = _compile_dir(tmp_path)
+    html = out / "index.html"
+    html.write_text(
+        html.read_text(encoding="utf-8").replace("ui/initialize", "ui/evil", 1),
+        encoding="utf-8",
+    )
+
+    assert "MCP_APP_BRIDGE_MISMATCH" in _codes(check(out))
+
+
+def test_check_rejects_a_removed_bridge(tmp_path: Path):
+    out = _compile_dir(tmp_path)
+    html = out / "index.html"
+    html.write_text(html.read_text(encoding="utf-8").replace(MCP_APP_BRIDGE_SCRIPT, ""), encoding="utf-8")
+
+    assert "MCP_APP_BRIDGE_MISMATCH" in _codes(check(out))
+
+
+def test_check_rejects_the_bridge_on_a_plain_artifact(tmp_path: Path):
+    source = _write_intent(tmp_path / "viewspec.intent.json")
+    out = tmp_path / "dist"
+    assert viewspec_cli.main(["compile", str(source), "--out", str(out)]) == 0
+    html = out / "index.html"
+    html.write_text(
+        html.read_text(encoding="utf-8").replace("</body>", f"{MCP_APP_BRIDGE_SCRIPT}\n</body>"),
+        encoding="utf-8",
+    )
+
+    report = check(out)
+
+    assert not report["ok"]
+    assert "index.html contains an unknown inline script" in report["errors"]
+
+
+def test_check_rejects_an_unknown_manifest_target(tmp_path: Path):
+    out = _compile_dir(tmp_path)
+    manifest_path = out / "provenance_manifest.json"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest["target"] = "elsewhere"
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+
+    report = check(out)
+
+    assert not report["ok"]
+    assert any("manifest target must be mcp-app" in error for error in report["errors"])
+
+
+def test_check_measures_an_oversized_document(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    out = _compile_dir(tmp_path)
+    monkeypatch.setattr("viewspec.local_tools_validators.MCP_APP_MAX_BYTES", 100)
+
+    assert "MCP_APP_TOO_LARGE" in _codes(check(out))
+
+
+def _in_memory_client(server: Any) -> Any:
+    memory = pytest.importorskip("mcp.shared.memory")
+    return memory.create_connected_server_and_client_session(server._mcp_server)
+
+
+def test_register_mcp_app_publishes_the_resource_and_links_its_tools():
+    fastmcp = pytest.importorskip("mcp.server.fastmcp")
+    app = compile_mcp_app(_builder().build_bundle(), uri=URI, action_tools={"refresh": "refresh_incidents"})
+    server = fastmcp.FastMCP("test")
+    tool = register_mcp_app(server, app)
+
+    @tool()
+    def show_incidents() -> dict[str, Any]:
+        return {"viewspecBindings": {"inc0_value": "fresh"}}
+
+    @tool(visibility=["app"])
+    def refresh_incidents(query_value: str = "") -> dict[str, Any]:
+        return {"viewspecBindings": {"inc0_value": query_value}}
+
+    async def run() -> tuple[Any, Any, Any]:
+        async with _in_memory_client(server) as session:
+            read = await session.read_resource(URI)
+            tools = await session.list_tools()
+            called = await session.call_tool("refresh_incidents", {"query_value": "typed"})
+            return read, tools, called
+
+    read, tools, called = asyncio.run(run())
+
+    content = read.contents[0]
+    assert content.mimeType == MCP_APP_MIME_TYPE
+    assert content.text == app.html
+    assert content.meta == app.csp_meta
+    meta_by_tool = {item.name: item.meta for item in tools.tools}
+    assert meta_by_tool["show_incidents"] == app.tool_meta
+    assert meta_by_tool["refresh_incidents"]["ui"] == {"resourceUri": URI, "visibility": ["app"]}
+    assert called.structuredContent == {"viewspecBindings": {"inc0_value": "typed"}}
+
+
+def test_flagship_example_serves_a_view_and_binds_real_ids():
+    fastmcp = pytest.importorskip("mcp.server.fastmcp")
+    example = runpy.run_path(str(ROOT / "examples" / "mcp_app_incident_console.py"), run_name="example")
+    app, server = example["app"], example["server"]
+    assert isinstance(server, fastmcp.FastMCP)
+
+    async def run() -> dict[str, Any]:
+        async with _in_memory_client(server) as session:
+            result = await session.call_tool("show_incidents", {})
+            return result.structuredContent
+
+    bindings = asyncio.run(run())["viewspecBindings"]
+
+    assert bindings
+    for binding_id in bindings:
+        assert f'data-binding-id="{binding_id}"' in app.html
+    assert 'data-action-id="refresh"' in app.html

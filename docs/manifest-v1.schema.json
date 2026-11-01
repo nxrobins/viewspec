@@ -33,6 +33,7 @@
     "design": { "$ref": "#/$defs/designMetadata" },
     "emitter": { "enum": ["html_tailwind", "react_tailwind_tsx", "react_tsx"] },
     "artifact_file": { "type": "string", "minLength": 1 },
+    "target": { "enum": ["mcp-app"] },
     "tailwind_recipe_inventory": { "$ref": "#/$defs/tailwindRecipeInventory" },
     "artifact_hash": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
     "command": { "enum": ["compile_html", "compile"] },

@@ -133,12 +133,15 @@ class ViewSpecTools:
         design: str | None = None,
         strict_design: bool = False,
         force: bool = False,
+        uri: str | None = None,
+        action_tools: dict[str, str] | None = None,
     ) -> dict[str, Any]:
         """Compile an IntentBundle or AppBundle JSON file into a directory; the kind is detected.
 
-        IntentBundle targets: html-tailwind (default), react-tsx, react-tailwind-tsx. AppBundle
-        targets: html-tailwind-app (default), react-tailwind-app. design is a DESIGN.md path.
-        force replaces an existing AppBundle output directory after safety checks.
+        IntentBundle targets: html-tailwind (default), react-tsx, react-tailwind-tsx, mcp-app.
+        AppBundle targets: html-tailwind-app (default), react-tailwind-app. design is a DESIGN.md
+        path. force replaces an existing AppBundle output directory after safety checks. uri and
+        action_tools apply to mcp-app: the ui:// resource URI, and a map of action id to MCP tool.
         """
         input_path = self._path(source, must_exist=True)
         output = self._path(out)
@@ -161,6 +164,8 @@ class ViewSpecTools:
             target=target or "html-tailwind",
             cwd=self.root,
             allow_outside_cwd=self.allow_outside_cwd,
+            uri=uri,
+            action_tools=action_tools,
         )
 
     @_reported("CHECK_FAILED", "Fix the reported path and retry.")

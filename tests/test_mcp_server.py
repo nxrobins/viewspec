@@ -465,7 +465,7 @@ def test_dependency_check_reports_a_missing_sdk_without_raising(isolated_mcp_mod
 def test_agents_extra_and_ci_pins_stay_on_the_mcp_1_api() -> None:
     pyproject = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
     (requirement,) = [dep for dep in pyproject["project"]["optional-dependencies"]["agents"] if dep.startswith("mcp")]
-    assert requirement.replace(" ", "") == "mcp>=1.9.0,<2"
+    assert requirement.replace(" ", "") == "mcp>=1.30,<2"
     pins = [
         line.split("==", 1)[1].split(";", 1)[0].strip()
         for line in (ROOT / "requirements-ci.txt").read_text(encoding="utf-8").splitlines()
