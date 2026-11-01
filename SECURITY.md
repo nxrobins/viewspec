@@ -51,9 +51,11 @@ What the local SDK does — and deliberately does not do:
   workspaces you trust. Its `install` argument is the same explicit gate as `viewspec prove --install`.
 - **MCP App renders fail closed.** A tool result can replace an MCP App's root. The bridge refuses a
   whole root that holds a tag or attribute the emitter cannot write, because a parsed inline handler
-  would run under the specification's default CSP. Tool data belongs in a bundle, where the compiler
-  escapes it. This does not make an untrusted server safe: it supplies the document, so the host's
-  sandbox and CSP are the boundary there.
+  would run under the specification's default CSP. It also refuses a `style` carrying a CSS reference
+  `check` refuses, or a CSS escape or comment, because a style can load resources wherever the host's
+  CSP allows. Tool data belongs in a bundle, where the compiler escapes it. This does not make an
+  untrusted server safe: it supplies the document, and the style rule is a list of known references,
+  so the host's sandbox and CSP are the boundary there.
 - **Output containment.** `--force` on `viewspec prove` and `viewspec compile` replaces only an empty
   directory or one that holds a ViewSpec-written marker such as `proof_report.json`; any other
   directory is refused rather than deleted.

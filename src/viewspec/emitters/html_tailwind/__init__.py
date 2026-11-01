@@ -248,7 +248,7 @@ document.addEventListener('keydown', (e) => {
 
 # The MCP Apps host bridge. The wire shapes follow the ext-apps SDK types, which hosts validate
 # against: ui/message content is a block array, and the host sends nothing until the handshake ends.
-MCP_APP_BRIDGE_SCRIPT = """
+MCP_APP_BRIDGE_SCRIPT = r"""
 <script>
 (() => {
   if (window.parent === window) return;
@@ -257,6 +257,10 @@ MCP_APP_BRIDGE_SCRIPT = """
   // Everything the emitter can write. A root with anything else did not come from the compiler.
   const rootTags = new Set('button dd div dl dt h1 h2 header hr input li main p section table tbody td th tr ul'.split(' '));
   const rootAttributes = /^(aria-[a-z]+|class|data-[a-z-]+|hidden|id|role|scope|style|type|value)$/;
+  // The CSS that `check` refuses, plus the escapes and comments that could disguise it, which the
+  // emitter never writes either. A style reaching this far is a hand-built root, and a fetch from
+  // one would otherwise stop only at the host's CSP.
+  const rootUnsafeStyle = /\\|\/\*|@import|url\(|image-set\(|image\(|src\(|expression\(|javascript:|vbscript:|https?:|\/\//i;
   let nextId = 1;
 
   const post = (message) => window.parent.postMessage({ jsonrpc: '2.0', ...message }, '*');
@@ -279,7 +283,9 @@ MCP_APP_BRIDGE_SCRIPT = """
     const root = body.firstElementChild;
     const elements = root ? [root, ...root.querySelectorAll('*')] : [];
     const compiled = !head.firstChild && body.childElementCount === 1 && root?.classList.contains('vs-root')
-      && elements.every((el) => rootTags.has(el.localName) && el.getAttributeNames().every((name) => rootAttributes.test(name)));
+      && elements.every((el) => rootTags.has(el.localName)
+        && el.getAttributeNames().every((name) => rootAttributes.test(name))
+        && !rootUnsafeStyle.test(el.getAttribute('style') ?? ''));
     if (!compiled) throw new Error('viewspecRoot is not a compiled ViewSpec root.');
     return root;
   }

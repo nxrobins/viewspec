@@ -17,10 +17,23 @@ const bundled = await build({
 });
 const hostScript = bundled.outputFiles[0].text;
 const renders = JSON.parse(readFileSync(path.join(views, "renders.json"), "utf8"));
+// A real compiled root with one style added. It comes first on <main>, so it beats the compiled one.
+const withStyle = (css) => renders.five.structuredContent.viewspecRoot.replace("<main ", `<main style="${css}" `);
+const tracker = "https://viewspec-test.invalid";
+const fetchingStyles = {
+  "url()": `background:url(${tracker}/url.png)`,
+  "upper case url()": `background:URL(${tracker}/upper.png)`,
+  "CSS escape": `background:\\75rl(${tracker}/escape.png)`,
+  // Nothing literal is left for a scheme or function match: only refusing the backslash stops this.
+  "fully escaped url()": `background:\\75rl(\\68ttps\\3a \\2f\\2f viewspec-test.invalid/fully-escaped.png)`,
+  "entity-encoded url()": `background:&#117;rl(${tracker}/entity.png)`,
+  "image-set()": `background-image:image-set('${tracker}/set.png' 1x)`,
+  "cursor url()": `cursor:url(${tracker}/cursor.png),auto`,
+};
 const results = [];
 const check = (name, ok, detail = "") => results.push({ name, ok: Boolean(ok), detail: ok ? "" : JSON.stringify(detail) });
 
-async function open(browser, file) {
+async function open(browser, file, options = {}) {
   const page = await browser.newPage();
   const problems = [];
   const requests = [];
@@ -31,7 +44,7 @@ async function open(browser, file) {
   page.on("request", (r) => requests.push(r.url()));
   await page.setContent("<!doctype html><html><body style='margin:0'></body></html>");
   await page.addScriptTag({ content: hostScript });
-  await page.evaluate((html) => window.startHost(html), readFileSync(path.join(views, file), "utf8"));
+  await page.evaluate(([html, opts]) => window.startHost(html, opts), [readFileSync(path.join(views, file), "utf8"), options]);
   await page.waitForFunction(() => window.hostLog.initialized >= 1, null, { timeout: 8000 });
   await page.waitForFunction(() => window.hostLog.sizes.length >= 1, null, { timeout: 8000 });
   const frame = page.frames().find((f) => f !== page.mainFrame());
@@ -377,6 +390,15 @@ const browser = await chromium.launch();
     "plain text": "not markup",
     "not a string": 42,
     "null": null,
+    "style comment": withStyle("color:red/**/"),
+    "style on a nested element": renders.five.structuredContent.viewspecRoot.replace(
+      "<tr ",
+      `<tr style="background:url(${tracker}/nested.png)" `,
+    ),
+    "style relative url()": withStyle("background:url(x.png)"),
+    "style upper case relative url()": withStyle("background:URL(x.png)"),
+    "style relative image-set()": withStyle("background-image:image-set('x.png' 1x)"),
+    ...Object.fromEntries(Object.entries(fetchingStyles).map(([name, css]) => [`style ${name}`, withStyle(css)])),
   };
   for (const [name, root] of Object.entries(forged)) {
     const before = (await log()).logs.length;
@@ -406,11 +428,62 @@ const browser = await chromium.launch();
   await rowsBecome(5);
   check("xss: the view still renders after refusing roots", (await rows()) === 5, await rows());
 
+  // A slash alone is not a URL: a real root's style must still swap.
+  await send(renders.one);
+  await rowsBecome(1);
+  const logsBefore = (await log()).logs.length;
+  await send({ content: [], structuredContent: { viewspecRoot: withStyle("background:rgb(15 118 110 / 0.06)") } });
+  await rowsBecome(5);
+  const tint = await frame.locator(".vs-root").evaluate((el) => getComputedStyle(el).backgroundColor);
+  check("style: a safe style with a slash still swaps", tint.includes("0.06"), tint);
+  check("style: a safe style logs nothing", (await log()).logs.length === logsBefore);
+
   const csp = problems.filter((p) => /content security policy|refused/i.test(p));
   check("render: no CSP violations", csp.length === 0, csp);
   check("render: console clean", problems.length === 0, problems);
   const external = requests.filter((u) => !/^(about:|data:)/.test(u));
   check("render: zero network requests", external.length === 0, external);
+  await page.close();
+}
+
+// ---- Forged styles at a host that allows images from anywhere, where only the bridge stops a fetch
+{
+  const { page, frame, log, requests } = await open(browser, "view.html", { laxImages: true });
+  const rows = () => frame.locator("tr").count();
+  const fetched = () => requests.filter((url) => url.startsWith(tracker));
+  const send = (result) => page.evaluate((r) => window.bridge.sendToolResult(r), result);
+  const root = frame.locator(".vs-root");
+
+  // This host really does fetch, and the listener really does see it, or the checks below prove nothing.
+  await root.evaluate((el, url) => void (el.style.backgroundImage = `url(${url})`), `${tracker}/control.png`);
+  await page.waitForTimeout(300);
+  check("lax csp: a style on this host does fetch", fetched().some((url) => url.endsWith("/control.png")), requests);
+  await root.evaluate((el) => el.style.removeProperty("background-image"));
+
+  await send(renders.one);
+  await frame.waitForFunction(() => document.querySelectorAll("tr").length === 1, null, { timeout: 3000 });
+  for (const [name, css] of Object.entries(fetchingStyles)) {
+    const seen = fetched().length;
+    const before = (await log()).logs.length;
+    await send({ content: [], structuredContent: { viewspecRoot: withStyle(css) } });
+    const logged = await page
+      .waitForFunction((n) => window.hostLog.logs.length === n + 1, before, { timeout: 1000 })
+      .then(
+        () => true,
+        () => false,
+      );
+    await root.hover({ position: { x: 5, y: 5 }, timeout: 500 }).catch(() => {});
+    await page.waitForTimeout(250);
+    const outcome = { logged, rows: await rows(), fetched: fetched().slice(seen) };
+    const refused = logged && outcome.rows === 1 && outcome.fetched.length === 0;
+    check(`lax csp: forged style refused and not fetched: ${name}`, refused, outcome);
+    if (!refused) {
+      await send(renders.one);
+      await frame.waitForFunction(() => document.querySelectorAll("tr").length === 1, null, { timeout: 3000 });
+    }
+  }
+  const external = requests.filter((url) => !/^(about:|data:)/.test(url) && !url.endsWith("/control.png"));
+  check("lax csp: no request reached an external host", external.length === 0, external);
   await page.close();
 }
 

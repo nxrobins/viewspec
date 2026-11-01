@@ -185,16 +185,25 @@ is in the example.
 
 A root is markup from outside the document, so the bridge does not rely on the server having used
 `render()`. `DOMParser` keeps a `<script>` inert, but inline handlers still fire once their node
-joins the page, and the specification's default CSP allows them. So the bridge reads the parsed tree
-and refuses the whole root if it holds a tag or attribute that the emitter cannot write, or anything
-beside the single `.vs-root` element. Nothing is cleaned or re-serialized: the view stays as it was,
-the error goes to the host log, and a refused action response marks its button.
+joins the page, and the specification's default CSP allows them. A `style` attribute can load
+resources too, wherever the host's CSP lets it. So the bridge reads the parsed tree and refuses the
+whole root if it holds any of these:
+
+- a tag or attribute that the emitter cannot write
+- a `style` with a CSS reference that `check` refuses, such as `url()` or `image-set()`, or with a
+  CSS escape or comment, which the emitter never writes and which could disguise one
+- anything beside the single `.vs-root` element
+
+Nothing is cleaned or re-serialized: the view stays as it was, the error goes to the host log, and a
+refused action response marks its button.
 
 This keeps tool data on the path that matters, through the compiler, which writes it as escaped
 text. It does not make an untrusted server safe. A server already supplies the whole document, so
-the sandbox and CSP remain the boundary for that, as they are for any MCP App. A forged root that
-passes this check can still show false text or restyle the view, but it runs nothing, and because
-the tool map stays in the document it can only reach tools the document already names.
+the sandbox and CSP remain the boundary for that, as they are for any MCP App. The `style` rule is a
+list of known references, not a CSS parser, so it narrows what a forged root can do without replacing
+that boundary. A forged root that passes can still show false text or restyle the view. It carries
+no script or inline handler, and because the tool map stays in the document it can only reach tools
+the document already names.
 
 ## What is checked
 

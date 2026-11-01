@@ -19,6 +19,7 @@ import pytest
 
 from viewspec import ERROR_CODES, ViewSpecBuilder, ViewSpecError, check, compile_mcp_app
 from viewspec import cli as viewspec_cli
+from viewspec.aesthetics import AESTHETIC_PROFILE_TOKENS
 from viewspec.compiler_errors import LocalToolContractError
 from viewspec.emitters.html_tailwind import (
     ACTION_EVENT_SCRIPT,
@@ -28,6 +29,7 @@ from viewspec.emitters.html_tailwind import (
 )
 from viewspec.intent_tools import compile_intent_bundle_file_tool
 from viewspec.local_tools import MCP_APP_MAX_BYTES
+from viewspec.local_tools_validators import UNSAFE_CSS_REFERENCE_RE
 from viewspec.mcp_apps import MCP_APP_MIME_TYPE, MCPAppArtifact, register_mcp_app
 from viewspec.types import IntentBundle
 
@@ -35,7 +37,7 @@ ROOT = Path(__file__).resolve().parents[1]
 URI = "ui://ops/incident-queue"
 # Changing the bridge changes what hosts receive: run tests/test_mcp_app_host_e2e.py against the
 # ext-apps SDK before updating this digest.
-BRIDGE_SHA256 = "b17dd21308b859954bcfca5f2927a94e1d4260463901333b345debec2de172e6"
+BRIDGE_SHA256 = "9879dbbce95e446eccb72f2b3ecb3d53df71de3db2a20836114e0a78c97bf6d3"
 
 
 def _builder(rows: int = 2, *, actions: bool = True) -> ViewSpecBuilder:
@@ -312,10 +314,12 @@ class _Elements(HTMLParser):
         super().__init__()
         self.tags: set[str] = set()
         self.attributes: set[str] = set()
+        self.styles: set[str] = set()
 
     def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
         self.tags.add(tag)
         self.attributes.update(name for name, _ in attrs)
+        self.styles.update(value or "" for name, value in attrs if name == "style")
 
 
 def _bridge_allow_list() -> tuple[set[str], re.Pattern[str]]:
@@ -323,6 +327,45 @@ def _bridge_allow_list() -> tuple[set[str], re.Pattern[str]]:
     attributes = re.search(r"rootAttributes = /(.+)/;", MCP_APP_BRIDGE_SCRIPT)
     assert tags and attributes
     return set(tags[1].split()), re.compile(attributes[1])
+
+
+def _bridge_unsafe_style() -> re.Pattern[str]:
+    rule = re.search(r"rootUnsafeStyle = /(.+)/i;", MCP_APP_BRIDGE_SCRIPT)
+    assert rule
+    return re.compile(rule[1], re.IGNORECASE)
+
+
+@pytest.mark.parametrize("alternative", UNSAFE_CSS_REFERENCE_RE.pattern.split("|"))
+def test_bridge_style_rule_refuses_everything_check_refuses(alternative: str):
+    literal = re.sub(r"\\(.)", r"\1", alternative)
+    samples = {literal.replace("?", ""), re.sub(r".\?", "", literal)}
+    rule = _bridge_unsafe_style()
+
+    for sample in samples:
+        assert UNSAFE_CSS_REFERENCE_RE.search(sample), f"{sample!r} does not exercise {alternative!r}"
+        assert rule.search(f"background:{sample}x")
+        assert rule.search(f"BACKGROUND:{sample.upper()}X")
+
+
+@pytest.mark.parametrize("disguise", ["background:\\75rl(x)", "color:red/**/", "background:ur/* */l(x)"])
+def test_bridge_style_rule_refuses_what_could_disguise_a_reference(disguise: str):
+    assert _bridge_unsafe_style().search(disguise)
+
+
+@pytest.mark.parametrize(
+    "safe", ["background:rgb(15 118 110 / 0.06)", "background-image:linear-gradient(#fff, #000)", "color:var(--ink)"]
+)
+def test_bridge_style_rule_keeps_ordinary_css(safe: str):
+    assert not _bridge_unsafe_style().search(safe)
+
+
+@pytest.mark.parametrize("profile", AESTHETIC_PROFILE_TOKENS)
+def test_bridge_style_rule_accepts_every_profile(profile: str):
+    elements = _Elements()
+    elements.feed(compile_mcp_app(_builder().build_bundle(), uri=URI, profile=profile).root)
+
+    assert elements.styles
+    assert [style for style in elements.styles if _bridge_unsafe_style().search(style)] == []
 
 
 def test_bridge_allows_everything_the_emitter_source_can_write():
@@ -353,6 +396,7 @@ def test_bridge_allows_the_root_of_every_conformance_fixture(fixture: Path):
 
     assert elements.tags <= allowed_tags
     assert [name for name in elements.attributes if not allowed_attributes.fullmatch(name)] == []
+    assert [style for style in elements.styles if _bridge_unsafe_style().search(style)] == []
 
 
 @pytest.mark.parametrize("rows", [0, 1, 2, 5])

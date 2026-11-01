@@ -4,8 +4,10 @@ import { AppBridge, PostMessageTransport } from "@modelcontextprotocol/ext-apps/
 const CSP =
   "default-src 'none'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; " +
   "img-src 'self' data:; media-src 'self' data:; connect-src 'none';";
+// A laxer host, which leaves only the bridge between a forged root and an image fetch.
+const LAX_IMAGES_CSP = CSP.replace("img-src 'self' data:", "img-src *");
 
-(window as any).startHost = async (html: string) => {
+(window as any).startHost = async (html: string, { laxImages = false } = {}) => {
   const log: any = { initialized: 0, sizes: [], calls: [], messages: [], context: [], logs: [] };
   const iframe = document.createElement("iframe");
   iframe.id = "view";
@@ -49,7 +51,8 @@ const CSP =
     };
   };
   await bridge.connect(new PostMessageTransport(iframe.contentWindow!, iframe.contentWindow!));
-  iframe.srcdoc = html.replace("<head>", `<head><meta http-equiv="Content-Security-Policy" content="${CSP}">`);
+  const csp = laxImages ? LAX_IMAGES_CSP : CSP;
+  iframe.srcdoc = html.replace("<head>", `<head><meta http-equiv="Content-Security-Policy" content="${csp}">`);
   (window as any).bridge = bridge;
   (window as any).hostLog = log;
 };
