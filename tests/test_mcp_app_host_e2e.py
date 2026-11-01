@@ -3,8 +3,9 @@
 tests/mcp-app-host drives the real ``AppBridge`` in Chromium: the handshake, tool results that change
 the row count, every action route, failures, sizing, spoofed messages, injected markup and the
 spec's default CSP. Set ``VIEWSPEC_RUN_MCP_HOST_E2E=1`` after ``npm ci --ignore-scripts`` in that
-directory. Its SDK version is bumped by hand, because that version is what this test proves the
-bridge against.
+directory. It needs the ``agents`` extra, because it sends what ``render()`` really returns, and it
+fails rather than skips without it, so a missing extra cannot pass for a proof. Its SDK version is
+bumped by hand, because that version is what this test proves the bridge against.
 """
 
 from __future__ import annotations
