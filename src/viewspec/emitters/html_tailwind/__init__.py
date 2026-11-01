@@ -254,9 +254,14 @@ MCP_APP_BRIDGE_SCRIPT = """
   if (window.parent === window) return;
   const tools = JSON.parse(document.querySelector('meta[name="viewspec-mcp-tools"]').content);
   const pending = new Map();
+  // Everything the emitter can write. A root with anything else did not come from the compiler.
+  const rootTags = new Set('button dd div dl dt h1 h2 header hr input li main p section table tbody td th tr ul'.split(' '));
+  const rootAttributes = /^(aria-[a-z]+|class|data-[a-z-]+|hidden|id|role|scope|style|type|value)$/;
   let nextId = 1;
 
   const post = (message) => window.parent.postMessage({ jsonrpc: '2.0', ...message }, '*');
+  const reportError = (error) => post({ method: 'notifications/message', params: { level: 'error', data: error.message } });
+  const actionButton = (root, id) => root.querySelector(`[data-action-id="${CSS.escape(id)}"]`);
 
   function request(method, params) {
     const id = nextId++;
@@ -266,9 +271,44 @@ MCP_APP_BRIDGE_SCRIPT = """
     });
   }
 
+  // DOMParser keeps scripts inert, but an inline handler fires once its node joins this page, and
+  // the host's default CSP allows it. So a root is refused whole, never cleaned, and the nodes
+  // adopted are the ones checked here.
+  function parseRoot(html) {
+    const { head, body } = new DOMParser().parseFromString(html, 'text/html');
+    const root = body.firstElementChild;
+    const elements = root ? [root, ...root.querySelectorAll('*')] : [];
+    const compiled = !head.firstChild && body.childElementCount === 1 && root?.classList.contains('vs-root')
+      && elements.every((el) => rootTags.has(el.localName) && el.getAttributeNames().every((name) => rootAttributes.test(name)));
+    if (!compiled) throw new Error('viewspecRoot is not a compiled ViewSpec root.');
+    return root;
+  }
+
+  // The new root is built from the tool's data, so what only this page knows is carried across it:
+  // typed text, the caret, and which buttons are still waiting on a tool.
+  function replaceRoot(html) {
+    const root = parseRoot(html);
+    const current = document.querySelector('.vs-root');
+    const twin = (el) => (el.dataset.actionId
+      ? actionButton(root, el.dataset.actionId)
+      : root.querySelector(`[data-binding-id="${CSS.escape(el.dataset.bindingId)}"]`));
+    current.querySelectorAll('input[data-binding-id], [data-action-id]:disabled').forEach((el) => {
+      const next = twin(el);
+      if (next && el.tagName !== 'INPUT') next.disabled = true;
+      else if (next && el.value !== el.defaultValue) next.value = el.value;
+    });
+    const active = document.activeElement;
+    const focused = current.contains(active) ? twin(active) : null;
+    current.replaceWith(root);
+    focused?.focus({ preventScroll: true });
+    focused?.setSelectionRange?.(active.selectionStart, active.selectionEnd);
+  }
+
   function applyToolResult(result) {
-    const bindings = result?.structuredContent?.viewspecBindings;
-    if (result?.isError || !bindings || typeof bindings !== 'object') return;
+    if (result?.isError) return;
+    const { viewspecRoot, viewspecBindings: bindings } = result?.structuredContent ?? {};
+    if (viewspecRoot !== undefined) replaceRoot(viewspecRoot);
+    if (!bindings || typeof bindings !== 'object') return;
     document.querySelectorAll('[data-binding-id]').forEach((el) => {
       const id = el.dataset.bindingId;
       if (!Object.hasOwn(bindings, id)) return;
@@ -323,7 +363,11 @@ MCP_APP_BRIDGE_SCRIPT = """
       if (message.error) call.reject(new Error(message.error.message));
       else call.resolve(message.result);
     } else if (message.method === 'ui/notifications/tool-result') {
-      applyToolResult(message.params);
+      try {
+        applyToolResult(message.params);
+      } catch (error) {
+        reportError(error);
+      }
     } else if (message.id !== undefined) {
       const known = message.method === 'ping' || message.method === 'ui/resource-teardown';
       post(known ? { id: message.id, result: {} } : { id: message.id, error: { code: -32601, message: 'Method not found' } });
@@ -340,21 +384,29 @@ MCP_APP_BRIDGE_SCRIPT = """
   });
 
   document.addEventListener('viewspec-action', (event) => {
-    const button = document.querySelector(`[data-action-id="${CSS.escape(event.detail.id)}"]`);
+    const { id } = event.detail;
+    const button = actionButton(document, id);
+    const label = button.textContent.trim();
+    const refocus = document.activeElement === button;
     button.disabled = true;
     delete button.dataset.mcpState;
     ready
-      .then(() => sendAction(event.detail, button.textContent.trim()))
+      .then(() => sendAction(event.detail, label))
       .then((result) => {
-        if (result?.isError) throw new Error(`Action ${event.detail.id} failed.`);
+        if (result?.isError) throw new Error(`Action ${id} failed.`);
         applyToolResult(result);
       })
       .catch((error) => {
-        button.dataset.mcpState = 'error';
-        post({ method: 'notifications/message', params: { level: 'error', data: error.message } });
+        const current = actionButton(document, id);
+        if (current) current.dataset.mcpState = 'error';
+        reportError(error);
       })
       .finally(() => {
-        button.disabled = false;
+        // A render may have replaced the button, and disabling it already cost it the focus.
+        const current = actionButton(document, id);
+        if (!current) return;
+        current.disabled = false;
+        if (refocus) current.focus({ preventScroll: true });
       });
   });
 })();
@@ -718,7 +770,8 @@ def emit_compiler_result(
     """Emit a CompilerResult as HTML + Tailwind with provenance manifest.
 
     ``mcp_tools`` selects the MCP Apps document: it maps action ids to MCP tool names, and any
-    mapping, even an empty one, adds the host bridge.
+    mapping, even an empty one, adds the host bridge. That document always carries the action
+    runtime, because a later tool result can bring the view its first action.
     """
     output_path = Path(output_dir)
     _validate_ir_contract(result.root.root, set())
@@ -727,7 +780,7 @@ def emit_compiler_result(
     manifest: dict[str, Any] = {}
     body = _render_node(result.root.root, manifest, style_values)
     body_tail = [body]
-    if _has_action_node(result.root.root):
+    if _has_action_node(result.root.root) or mcp_tools is not None:
         body_tail.append(ACTION_EVENT_SCRIPT)
     emitter_css = OFFLINE_EMITTER_CSS
     if _has_visibility_node(result.root.root):

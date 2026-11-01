@@ -38,8 +38,11 @@ const CSP =
   };
   bridge.oncalltool = async (params) => {
     log.calls.push(params);
+    // A test can hold a call open with window.hold, and choose its response with window.nextCallResult.
+    await (window as any).hold;
     if (params.name === "rpc_error_tool") throw new Error("kaboom");
     if (params.name === "failing_tool") return { isError: true, content: [{ type: "text", text: "nope" }] };
+    if ((window as any).nextCallResult) return (window as any).nextCallResult;
     return {
       content: [{ type: "text", text: "ok" }],
       structuredContent: { viewspecBindings: { inc1_value: `filtered:${params.arguments?.query_value}` } },

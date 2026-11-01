@@ -13,7 +13,7 @@ Known limits are documented per emitter.
 
 ## MCP Apps Target
 
-`mcp-app` is the HTML/Tailwind emitter with a pinned host bridge and a size ceiling: actions reach the host instead of a `CustomEvent`, and tool results update bound text in place. See [MCP Apps](mcp-apps.md).
+`mcp-app` is the HTML/Tailwind emitter with a pinned host bridge and a size ceiling: actions reach the host instead of a `CustomEvent`, and tool results update bound text or replace the compiled root in place. See [MCP Apps](mcp-apps.md).
 
 ## App Target
 

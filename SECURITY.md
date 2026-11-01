@@ -49,6 +49,11 @@ What the local SDK does — and deliberately does not do:
   tool's reads and writes to it, failing closed with `PATH_OUTSIDE_CWD`, unless
   `--allow-outside-cwd` is passed. Treat that flag as a security boundary: enable it only for
   workspaces you trust. Its `install` argument is the same explicit gate as `viewspec prove --install`.
+- **MCP App renders fail closed.** A tool result can replace an MCP App's root. The bridge refuses a
+  whole root that holds a tag or attribute the emitter cannot write, because a parsed inline handler
+  would run under the specification's default CSP. Tool data belongs in a bundle, where the compiler
+  escapes it. This does not make an untrusted server safe: it supplies the document, so the host's
+  sandbox and CSP are the boundary there.
 - **Output containment.** `--force` on `viewspec prove` and `viewspec compile` replaces only an empty
   directory or one that holds a ViewSpec-written marker such as `proof_report.json`; any other
   directory is refused rather than deleted.

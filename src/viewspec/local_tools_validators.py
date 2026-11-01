@@ -221,7 +221,7 @@ def check_artifact_dir(path: str | Path) -> dict[str, Any]:
         if manifest.get("kind") == "raw_html_compile" and scripts:
             errors.append("index.html contains an active raw-HTML surface")
         elif manifest.get("target") == MCP_APP_TARGET:
-            errors.extend(_validate_mcp_app_document(html_path, scripts, manifest))
+            errors.extend(_validate_mcp_app_document(html_path, scripts))
         elif scripts and [script.strip() for script in scripts] != [ACTION_EVENT_SCRIPT]:
             errors.append("index.html contains an unknown inline script")
         elif scripts and not _manifest_has_action_nodes(manifest):
@@ -369,13 +369,10 @@ def _validate_manifest_envelope(manifest: dict[str, Any], errors: list[str]) -> 
         errors.append(f"manifest target must be {MCP_APP_TARGET} on an intent_bundle_compile manifest")
 
 
-def _validate_mcp_app_document(html_path: Path, scripts: list[str], manifest: dict[str, Any]) -> list[str]:
-    """Pin an MCP App's scripts, the action runtime only when it has actions, and its size."""
+def _validate_mcp_app_document(html_path: Path, scripts: list[str]) -> list[str]:
+    """Pin an MCP App's scripts and its size."""
     errors: list[str] = []
-    expected = [ACTION_EVENT_SCRIPT, MCP_APP_BRIDGE_SCRIPT]
-    if not _manifest_has_action_nodes(manifest):
-        expected = [MCP_APP_BRIDGE_SCRIPT]
-    if [script.strip() for script in scripts] != expected:
+    if [script.strip() for script in scripts] != [ACTION_EVENT_SCRIPT, MCP_APP_BRIDGE_SCRIPT]:
         errors.append("MCP_APP_BRIDGE_MISMATCH: index.html does not carry exactly the pinned MCP Apps scripts")
     size = html_path.stat().st_size
     if size > MCP_APP_MAX_BYTES:

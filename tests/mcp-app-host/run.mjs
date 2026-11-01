@@ -16,6 +16,7 @@ const bundled = await build({
   write: false,
 });
 const hostScript = bundled.outputFiles[0].text;
+const renders = JSON.parse(readFileSync(path.join(views, "renders.json"), "utf8"));
 const results = [];
 const check = (name, ok, detail = "") => results.push({ name, ok: Boolean(ok), detail: ok ? "" : JSON.stringify(detail) });
 
@@ -178,16 +179,229 @@ const browser = await chromium.launch();
   await page.close();
 }
 
-// ---- View with no actions (bridge only, no action runtime)
+// ---- A tool result changes how many rows the view shows
+{
+  const { page, frame, log, problems, requests } = await open(browser, "view.html");
+  const text = (id) => frame.locator(`[data-binding-id="${id}"]`).innerText();
+  const height = () => page.evaluate(() => document.getElementById("view").getBoundingClientRect().height);
+  const send = (result) => page.evaluate((r) => window.bridge.sendToolResult(r), result);
+  const answerCallsWith = (result) => page.evaluate((r) => void (window.nextCallResult = r), result);
+  const rows = () => frame.locator("tr").count();
+  const rowsBecome = (n) =>
+    frame.waitForFunction((want) => document.querySelectorAll("tr").length === want, n, { timeout: 3000 });
+  const activeIdentity = () =>
+    frame.evaluate(() => {
+      const el = document.activeElement;
+      return el?.dataset.actionId ?? el?.dataset.bindingId ?? el?.tagName;
+    });
+  const pwned = () => frame.evaluate(() => window.pwned ?? null);
+  const holdCalls = () =>
+    page.evaluate(() => {
+      window.hold = new Promise((release) => {
+        window.release = release;
+      });
+    });
+  const releaseCalls = () =>
+    page.evaluate(() => {
+      window.release();
+      window.hold = undefined;
+    });
+  const query = frame.locator('[data-binding-id="query_value"]');
+  const refresh = frame.locator('[data-action-id="refresh"]');
+
+  check("render: the view opens with 2 rows", (await rows()) === 2, await rows());
+  await page.evaluate(() => window.bridge.sendToolInput({ arguments: {} }));
+
+  // 2 -> 5, from the result of the tool that opened the view, while the user is typing.
+  await query.fill("typed value");
+  await query.evaluate((el) => {
+    el.focus();
+    el.setSelectionRange(2, 5);
+  });
+  await page.waitForTimeout(400);
+  const twoRowHeight = await height();
+  await send(renders.five);
+  await rowsBecome(5);
+  check("render: a tool result grows the table from 2 rows to 5", (await rows()) === 5, await rows());
+  check("render: the new rows carry their data", (await text("inc5_label")) === "INC-406", await text("inc5_label"));
+  check("render: typed text survives the swap", (await query.inputValue()) === "typed value", await query.inputValue());
+  check("render: focus survives the swap", (await activeIdentity()) === "query_value", await activeIdentity());
+  const caret = await query.evaluate((el) => [el.selectionStart, el.selectionEnd]);
+  check("render: the caret survives the swap", caret[0] === 2 && caret[1] === 5, caret);
+  await page.waitForTimeout(400);
+  const fiveRowHeight = await height();
+  check(`size: follows a render up (${twoRowHeight}px -> ${fiveRowHeight}px)`, fiveRowHeight > twoRowHeight, {
+    twoRowHeight,
+    fiveRowHeight,
+  });
+
+  // 5 -> 1, from an action's response, which also proves the wiring outlived the first swap.
+  await answerCallsWith(renders.one);
+  await refresh.focus();
+  await page.keyboard.press("Enter");
+  await rowsBecome(1);
+  let l = await log();
+  check("render: an action response shrinks the table from 5 rows to 1", (await rows()) === 1, await rows());
+  check("render: a swapped button still calls its tool", l.calls.at(-1)?.name === "refresh_incidents", l.calls);
+  check("render: a swapped button still sends its payload", l.calls.at(-1)?.arguments?.query_value === "typed value", l.calls);
+  await frame.locator('[data-action-id="refresh"]:enabled').waitFor({ timeout: 3000 });
+  check("render: the replacement button is enabled", await refresh.isEnabled());
+  check("render: keyboard focus returns to the button", (await activeIdentity()) === "refresh", await activeIdentity());
+  await page.waitForTimeout(400);
+  const oneRowHeight = await height();
+  check(`size: follows a render down (${fiveRowHeight}px -> ${oneRowHeight}px)`, oneRowHeight < fiveRowHeight, {
+    fiveRowHeight,
+    oneRowHeight,
+  });
+
+  // And it keeps working after a second swap, for every route an action can take.
+  await answerCallsWith(renders.five);
+  await refresh.click();
+  await rowsBecome(5);
+  check("render: an action works again after two swaps", (await rows()) === 5, await rows());
+  await answerCallsWith(null);
+  await frame.locator('[data-action-id="approve"]').click();
+  await page.waitForFunction(() => window.hostLog.messages.length === 1, null, { timeout: 3000 });
+  l = await log();
+  check("render: an unmapped action still reaches ui/message", l.messages[0]?.content?.[0]?.text.includes("typed value"), l.messages);
+  await frame.locator('[data-action-id="pick"]').click();
+  await page.waitForFunction(() => window.hostLog.context.length === 1, null, { timeout: 3000 });
+  check("render: select still reaches ui/update-model-context", true);
+  await frame.locator('[data-action-id="boom"]').click();
+  await frame.locator('[data-action-id="boom"][data-mcp-state="error"]').waitFor({ timeout: 3000 });
+  check("render: a failure marks the live button", await frame.locator('[data-action-id="boom"]').isEnabled());
+
+  // A render and bindings in one result: the bindings apply to the new root.
+  await send({
+    content: [],
+    structuredContent: { ...renders.one.structuredContent, viewspecBindings: { inc1_value: "bound after render" } },
+  });
+  await rowsBecome(1);
+  check("render: bindings in the same result reach the new root", (await text("inc1_value")) === "bound after render");
+
+  // A swap that lands while a tool is running must not free its button early.
+  await holdCalls();
+  await answerCallsWith(renders.five);
+  await refresh.click();
+  await frame.locator('[data-action-id="refresh"]:disabled').waitFor({ timeout: 3000 });
+  await send(renders.one);
+  await page.waitForTimeout(150);
+  check("render: a button waiting on a tool stays disabled across a swap", await refresh.isDisabled());
+  await releaseCalls();
+  await rowsBecome(5);
+  await frame.locator('[data-action-id="refresh"]:enabled').waitFor({ timeout: 3000 });
+  check("render: that button is freed when its tool finishes", await refresh.isEnabled());
+
+  // And a failure that lands after a swap marks the button on the page, not the one it replaced.
+  await holdCalls();
+  await frame.locator('[data-action-id="boom"]').click();
+  await send(renders.one);
+  await rowsBecome(1);
+  await releaseCalls();
+  await frame.locator('[data-action-id="boom"][data-mcp-state="error"]').waitFor({ timeout: 3000 });
+  check("render: a failure after a swap marks the live button", await frame.locator('[data-action-id="boom"]').isEnabled());
+
+  // A render can drop the very button that asked for it.
+  await answerCallsWith(renders.no_actions);
+  await refresh.click();
+  await rowsBecome(1);
+  await refresh.waitFor({ state: "detached", timeout: 3000 });
+  check("render: an action can render its own button away", (await frame.locator("[data-action-id]").count()) === 0);
+  await send(renders.five);
+  await rowsBecome(5);
+  check("render: a later render brings the action back", await refresh.isEnabled());
+  await answerCallsWith(null);
+
+  // A result with isError changes nothing, and neither does a forged sender.
+  await send({ ...renders.one, isError: true });
+  await page.waitForTimeout(150);
+  check("render: isError result ignored", (await rows()) === 5, await rows());
+  await page.evaluate((params) => {
+    const sibling = document.createElement("iframe");
+    sibling.setAttribute("sandbox", "allow-scripts");
+    const message = { jsonrpc: "2.0", method: "ui/notifications/tool-result", params };
+    sibling.srcdoc = `<script>parent.frames[0].postMessage(${JSON.stringify(message)},'*')<\/script>`;
+    document.body.appendChild(sibling);
+  }, renders.one);
+  await page.waitForTimeout(300);
+  check("spoof: a render from a non-parent window ignored", (await rows()) === 5, await rows());
+
+  // Tool data that goes through the compiler arrives as text.
+  await send(renders.hostile);
+  await rowsBecome(1);
+  check("xss: hostile data stays text through the compiler", (await text("inc1_value")).includes("onerror"), await text("inc1_value"));
+  check("xss: no element injected through the compiler", (await frame.locator("img").count()) === 0);
+
+  // A root that did not come from the compiler is refused whole. The first four execute under a
+  // plain DOMParser swap at this CSP, and a refused root leaves the single row above in place.
+  const forged = {
+    "img onerror": `<main class="vs-root"><img src=x onerror="window.pwned='img'"></main>`,
+    "details ontoggle": `<main class="vs-root"><details open ontoggle="window.pwned='details'">x</details></main>`,
+    "source onerror": `<main class="vs-root"><video><source src=x onerror="window.pwned='video'"></video></main>`,
+    "style onload": `<main class="vs-root"><style onload="window.pwned='style'"></style></main>`,
+    "handler on the root": `<main class="vs-root" onclick="window.pwned='root'"><button>x</button></main>`,
+    "handler on an allowed tag": `<main class="vs-root"><div onclick="window.pwned='div'">x</div></main>`,
+    "javascript link": `<main class="vs-root"><a href="javascript:window.pwned='a'">x</a></main>`,
+    "script": `<main class="vs-root"><script>window.pwned='script'<\/script></main>`,
+    "svg onload": `<main class="vs-root"><svg onload="window.pwned='svg'"></svg></main>`,
+    "second top-level element": `<main class="vs-root"></main><img src=x onerror="window.pwned='second'">`,
+    "element in head": `<link rel="stylesheet" href="x"><main class="vs-root"></main>`,
+    "root without the class": `<main><div>x</div></main>`,
+    "plain text": "not markup",
+    "not a string": 42,
+    "null": null,
+  };
+  for (const [name, root] of Object.entries(forged)) {
+    const before = (await log()).logs.length;
+    await send({ content: [], structuredContent: { viewspecRoot: root } });
+    const logged = await page
+      .waitForFunction((n) => window.hostLog.logs.length === n + 1, before, { timeout: 1000 })
+      .then(
+        () => true,
+        () => false,
+      );
+    await page.waitForTimeout(100);
+    await frame
+      .locator(".vs-root")
+      .click({ position: { x: 1, y: 1 }, timeout: 500 })
+      .catch(() => {});
+    const outcome = { logged, rows: await rows(), pwned: await pwned() };
+    const refused = logged && outcome.rows === 1 && outcome.pwned === null;
+    check(`xss: forged root refused: ${name}`, refused, outcome);
+    if (!refused) {
+      await frame.evaluate(() => void delete window.pwned);
+      await send(renders.one);
+      await rowsBecome(1);
+    }
+  }
+  await answerCallsWith(renders.five);
+  await refresh.click();
+  await rowsBecome(5);
+  check("xss: the view still renders after refusing roots", (await rows()) === 5, await rows());
+
+  const csp = problems.filter((p) => /content security policy|refused/i.test(p));
+  check("render: no CSP violations", csp.length === 0, csp);
+  check("render: console clean", problems.length === 0, problems);
+  const external = requests.filter((u) => !/^(about:|data:)/.test(u));
+  check("render: zero network requests", external.length === 0, external);
+  await page.close();
+}
+
+// ---- View compiled with no actions
 {
   const { page, frame, log, problems } = await open(browser, "view_noactions.html");
-  const l = await log();
+  let l = await log();
   check("no-actions view: handshake + size", l.initialized === 1 && l.sizes.length >= 1, l);
   await page.evaluate(() =>
     window.bridge.sendToolResult({ content: [], structuredContent: { viewspecBindings: { c1_value: "99" } } }),
   );
   await frame.locator('[data-binding-id="c1_value"]', { hasText: "99" }).waitFor({ timeout: 3000 });
   check("no-actions view: rebind works", true);
+  await page.evaluate((r) => window.bridge.sendToolResult(r), renders.first_action);
+  await frame.locator('[data-action-id="pick"]').click();
+  await page.waitForFunction(() => window.hostLog.context.length === 1, null, { timeout: 3000 });
+  l = await log();
+  check("no-actions view: a render's first action works", Array.isArray(l.context[0]?.content), l.context);
   check("no-actions view: clean console", problems.length === 0, problems);
   await page.close();
 }

@@ -4,26 +4,41 @@
     python examples/mcp_app_incident_console.py
 
 The server speaks MCP over stdio. Add it to a host that supports MCP Apps, then ask for the incident
-queue: `show_incidents` opens the view, and its Refresh button calls `refresh_incidents`.
+queue: `show_incidents` opens the view, and its Refresh button calls `refresh_incidents`. The queue is
+as long as its data, so each result can show a different number of rows.
 """
 
-from typing import Any
-
 from mcp.server.fastmcp import FastMCP
+from mcp.types import CallToolResult
 
 from viewspec import ViewSpecBuilder, compile_mcp_app
 from viewspec.mcp_apps import register_mcp_app
+from viewspec.types import IntentBundle
 
-builder = ViewSpecBuilder("incident_queue", root_attrs={"title": "Incident queue"})
-table = builder.add_table("incidents", region="main", group_id="rows")
-table.add_row(id="inc402", label="INC-402", value="Loading")
-table.add_row(id="inc403", label="INC-403", value="Loading")
-note = builder.add_text_input("note", label="Note", region="main")
-builder.add_collection_action(
-    "refresh", kind="filter", label="Refresh", collection_id="incidents", payload_bindings=[note]
-)
+INCIDENTS = [
+    ("inc402", "INC-402", "Database replica lag (14s)"),
+    ("inc403", "INC-403", "Queue depth rising"),
+    ("inc404", "INC-404", "Disk pressure on worker-7"),
+]
+
+
+def queue(incidents: list[tuple[str, str, str]]) -> IntentBundle:
+    """The whole view for `incidents`, compiled again for every result."""
+    builder = ViewSpecBuilder("incident_queue", root_attrs={"title": "Incident queue"})
+    table = builder.add_table("incidents", region="main", group_id="rows")
+    for incident_id, label, summary in incidents:
+        table.add_row(id=incident_id, label=label, value=summary)
+    if not incidents:
+        builder.add_empty_state("no_incidents", title="No incidents match", region="main")
+    filter_value = builder.add_text_input("filter", label="Filter", region="main")
+    builder.add_collection_action(
+        "refresh", kind="filter", label="Refresh", collection_id="incidents", payload_bindings=[filter_value]
+    )
+    return builder.build_bundle()
+
+
 app = compile_mcp_app(
-    builder.build_bundle(),
+    queue(INCIDENTS),
     uri="ui://ops/incident-queue",
     profile="aesthetic.calm_ops",
     action_tools={"refresh": "refresh_incidents"},
@@ -34,15 +49,16 @@ tool = register_mcp_app(server, app)
 
 
 @tool()
-def show_incidents() -> dict[str, Any]:
+def show_incidents() -> CallToolResult:
     """Open the incident queue."""
-    return {"viewspecBindings": {"inc402_value": "Database replica lag (14s)", "inc403_value": "Queue depth rising"}}
+    return app.render(queue(INCIDENTS), text=f"{len(INCIDENTS)} open incidents.")
 
 
 @tool(visibility=["app"])
-def refresh_incidents(note_value: str = "") -> dict[str, Any]:
-    """Refresh the queue. Only the view can call this tool."""
-    return {"viewspecBindings": {"inc402_value": f"Replica lag cleared ({note_value or 'no note'})"}}
+def refresh_incidents(filter_value: str = "") -> CallToolResult:
+    """Filter the queue. Only the view can call this tool."""
+    matches = [incident for incident in INCIDENTS if filter_value.lower() in incident[2].lower()]
+    return app.render(queue(matches), text=f"{len(matches)} of {len(INCIDENTS)} incidents match.")
 
 
 if __name__ == "__main__":
