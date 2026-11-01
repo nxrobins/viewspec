@@ -138,9 +138,32 @@ proof = prove("viewspec.intent.json", out_dir=".viewspec-proof")
 `out_dir` and returns the build report. `check()` and `prove()` take paths, return a report with
 `ok`, and report failures in that report instead of raising.
 
-The package exports `IntentBundle`, `AppBundle`, `ASTBundle`, `ViewSpecBuilder`, `compile`, `check`,
-`prove`, `CompilerInputError`, `UnsupportedMotifError`, `DesignSystemError`, and `AppBundleError`.
-Anything else is internal and may change. The motif-specific builders live in `viewspec.sdk`.
+The package exports `IntentBundle`, `AppBundle`, `ASTBundle`, `ViewSpecBuilder`,
+`DesignSystemContext`, `load_design_system`, `compile`, `compile_mcp_app`, `check`, `prove`,
+`ViewSpecError`, `ERROR_CODES`, and `__version__`. Anything else is internal and may change.
+`ViewSpecError` is the base of the compiler, design, AppBundle, and MCP App errors. The
+motif-specific builders live in `viewspec.sdk`.
+
+## MCP Apps
+
+Render a Python MCP tool's result as an interactive view inside an MCP host, with no JavaScript
+build. `compile_mcp_app()` turns a bundle into a checked `ui://` resource, and `register_mcp_app()`
+publishes it on FastMCP:
+
+```python
+from viewspec import compile_mcp_app
+from viewspec.mcp_apps import register_mcp_app
+
+app = compile_mcp_app(builder.build_bundle(), uri="ui://ops/invoice")
+tool = register_mcp_app(server, app)
+
+@tool()
+def show_invoice() -> dict:
+    return {"viewspecBindings": {"items_row_1_value": "$4,500"}}
+```
+
+See [MCP Apps](docs/mcp-apps.md) for actions, live updates, and known limits, and
+[`examples/mcp_app_incident_console.py`](examples/mcp_app_incident_console.py) for a runnable server.
 
 ## Agents
 
@@ -204,7 +227,7 @@ in-process Python: load only plugins you would trust as any other dependency.
 - **Semantic substrate:** the data graph. What the data is, with no visual intent.
 - **ViewSpec:** the intent layer. Regions, bindings, motifs, styles, and actions.
 - **CompositionIR:** the compiler's output tree of UI primitives, with full provenance.
-- **Emitters:** `html-tailwind` (the default), `react-tsx`, and `react-tailwind-tsx`.
+- **Emitters:** `html-tailwind` (the default), `mcp-app`, `react-tsx`, and `react-tailwind-tsx`.
 
 ```
 IntentBundle JSON -> ViewSpec compiler -> HTML / React / CompositionIR

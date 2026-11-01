@@ -19,7 +19,11 @@ from __future__ import annotations
 from typing import Any
 
 
-class StableCodeError(Exception):
+class ViewSpecError(Exception):
+    """Base class of the compiler, design, AppBundle, and stable-code errors."""
+
+
+class StableCodeError(ViewSpecError):
     """Base class for exceptions that carry a registry code beside a human-readable message."""
 
     code: str
@@ -55,4 +59,4 @@ class LocalToolContractError(StableCodeError, ValueError):
     """
 
 
-__all__ = ["CompilerInternalError", "LocalToolContractError", "StableCodeError"]
+__all__ = ["CompilerInternalError", "LocalToolContractError", "StableCodeError", "ViewSpecError"]

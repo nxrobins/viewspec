@@ -27,6 +27,7 @@ from viewspec.emitters.react_tailwind_tsx import (
 from viewspec.emitters.react_tsx import ReactTsxEmitter
 from viewspec.local_tools import (
     INTENT_BUNDLE_POLICY_VERSION,
+    MCP_APP_TARGET,
     atomic_write,
     build_intent_semantic_digest,
     check_artifact_dir,
@@ -257,15 +258,19 @@ def compile_intent_bundle_file_tool(
     cwd: str | Path | None = None,
     allow_outside_cwd: bool = False,
     ir_props_overlay: dict[str, dict[str, Any]] | None = None,
+    uri: str | None = None,
+    action_tools: dict[str, str] | None = None,
 ) -> dict[str, Any]:
     root: Path | None = None
     try:
         root = resolve_cwd(cwd)
-        if target not in INTENT_COMPILE_TARGETS:
+        if (uri is not None or action_tools) and target != MCP_APP_TARGET:
+            raise ValueError(f"uri and action_tools apply to target='{MCP_APP_TARGET}', not {target}.")
+        if target not in (*INTENT_COMPILE_TARGETS, MCP_APP_TARGET):
             return tool_error_response(
                 "COMPILE_FAILED",
                 f"Unsupported IntentBundle compile target: {target}",
-                "Use target='html-tailwind', target='react-tsx', or target='react-tailwind-tsx'.",
+                "Use target='html-tailwind', target='react-tsx', target='react-tailwind-tsx', or target='mcp-app'.",
                 metadata={
                     "cwd": str(root),
                     "allow_outside_cwd": allow_outside_cwd,
@@ -350,6 +355,12 @@ def compile_intent_bundle_file_tool(
             paths = ReactTailwindTsxEmitter().emit(ast, output)
             artifact_path = Path(paths["tsx"])
             emitter = "react_tailwind_tsx"
+        elif target == MCP_APP_TARGET:
+            from viewspec.mcp_apps import default_mcp_app_uri, emit_mcp_app
+
+            paths = emit_mcp_app(ast, output, uri=uri or default_mcp_app_uri(bundle), action_tools=action_tools)
+            artifact_path = Path(paths["html"])
+            emitter = "html_tailwind"
         else:
             paths = HtmlTailwindEmitter().emit(ast, output)
             artifact_path = Path(paths["html"])
@@ -364,6 +375,7 @@ def compile_intent_bundle_file_tool(
             ),
             artifact_path=artifact_path,
             emitter=emitter,
+            target=MCP_APP_TARGET if target == MCP_APP_TARGET else None,
         )
         manifest_summary = summarize_intent_manifest(Path(paths["manifest"]))
         metadata = {
@@ -390,6 +402,10 @@ def compile_intent_bundle_file_tool(
                 ],
                 metadata=metadata,
             )
+        if target == MCP_APP_TARGET:
+            from viewspec.mcp_apps import default_mcp_app_uri, write_mcp_app_metadata
+
+            paths["mcp_app"] = str(write_mcp_app_metadata(output, uri or default_mcp_app_uri(bundle)))
         return tool_response(
             True,
             "Compiled and checked IntentBundle artifact.",
@@ -419,6 +435,7 @@ def wrap_intent_bundle_manifest(
     command_args: list[str],
     artifact_path: Path | None = None,
     emitter: str | None = None,
+    target: str | None = None,
 ) -> None:
     from viewspec.local_tools import atomic_write
 
@@ -451,6 +468,8 @@ def wrap_intent_bundle_manifest(
     if emitter is not None:
         wrapped["emitter"] = emitter
         wrapped["artifact_file"] = artifact.name
+    if target is not None:
+        wrapped["target"] = target
     if emitter == "react_tailwind_tsx":
         wrapped["tailwind_recipe_inventory"] = _tailwind_recipe_inventory(existing)
     if design is not None:

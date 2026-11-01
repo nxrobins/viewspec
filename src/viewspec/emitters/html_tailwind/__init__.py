@@ -10,6 +10,7 @@ from __future__ import annotations
 import json
 import logging
 import re
+from collections.abc import Mapping
 from html import escape
 from pathlib import Path
 from typing import Any
@@ -242,6 +243,130 @@ document.addEventListener('keydown', (e) => {
   dispatchViewSpecAction(btn);
 });
 </script>
+""".strip()
+
+
+# The MCP Apps host bridge. The wire shapes follow the ext-apps SDK types, which hosts validate
+# against: ui/message content is a block array, and the host sends nothing until the handshake ends.
+MCP_APP_BRIDGE_SCRIPT = """
+<script>
+(() => {
+  if (window.parent === window) return;
+  const tools = JSON.parse(document.querySelector('meta[name="viewspec-mcp-tools"]').content);
+  const pending = new Map();
+  let nextId = 1;
+
+  const post = (message) => window.parent.postMessage({ jsonrpc: '2.0', ...message }, '*');
+
+  function request(method, params) {
+    const id = nextId++;
+    return new Promise((resolve, reject) => {
+      pending.set(id, { resolve, reject });
+      post({ id, method, params });
+    });
+  }
+
+  function applyToolResult(result) {
+    const bindings = result?.structuredContent?.viewspecBindings;
+    if (result?.isError || !bindings || typeof bindings !== 'object') return;
+    document.querySelectorAll('[data-binding-id]').forEach((el) => {
+      const id = el.dataset.bindingId;
+      if (!Object.hasOwn(bindings, id)) return;
+      const value = String(bindings[id] ?? '');
+      if (el.tagName === 'INPUT') el.value = value;
+      else el.textContent = value;
+    });
+  }
+
+  function reportSize() {
+    let scheduled = false;
+    let lastWidth = 0;
+    let lastHeight = 0;
+    const measure = () => {
+      if (scheduled) return;
+      scheduled = true;
+      requestAnimationFrame(() => {
+        scheduled = false;
+        const html = document.documentElement;
+        const originalHeight = html.style.height;
+        html.style.height = 'max-content';
+        const height = Math.ceil(html.getBoundingClientRect().height);
+        html.style.height = originalHeight;
+        const width = Math.ceil(window.innerWidth);
+        if (width === lastWidth && height === lastHeight) return;
+        lastWidth = width;
+        lastHeight = height;
+        post({ method: 'ui/notifications/size-changed', params: { width, height } });
+      });
+    };
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(document.documentElement);
+    observer.observe(document.body);
+  }
+
+  function sendAction({ id, kind, targetRef, payloadValues }, label) {
+    if (tools[id]) return request('tools/call', { name: tools[id], arguments: payloadValues });
+    const text = `${label}: ${JSON.stringify({ action: id, kind, target: targetRef, payload: payloadValues })}`;
+    const content = [{ type: 'text', text }];
+    if (kind === 'select') return request('ui/update-model-context', { content });
+    return request('ui/message', { role: 'user', content });
+  }
+
+  window.addEventListener('message', (event) => {
+    const message = event.data;
+    if (event.source !== window.parent || message?.jsonrpc !== '2.0') return;
+    if (message.method === undefined) {
+      const call = pending.get(message.id);
+      if (!call) return;
+      pending.delete(message.id);
+      if (message.error) call.reject(new Error(message.error.message));
+      else call.resolve(message.result);
+    } else if (message.method === 'ui/notifications/tool-result') {
+      applyToolResult(message.params);
+    } else if (message.id !== undefined) {
+      const known = message.method === 'ping' || message.method === 'ui/resource-teardown';
+      post(known ? { id: message.id, result: {} } : { id: message.id, error: { code: -32601, message: 'Method not found' } });
+    }
+  });
+
+  const ready = request('ui/initialize', {
+    appInfo: { name: 'viewspec-mcp-app', version: '1' },
+    appCapabilities: {},
+    protocolVersion: '2026-01-26'
+  }).then(() => {
+    post({ method: 'ui/notifications/initialized', params: {} });
+    reportSize();
+  });
+
+  document.addEventListener('viewspec-action', (event) => {
+    const button = document.querySelector(`[data-action-id="${CSS.escape(event.detail.id)}"]`);
+    button.disabled = true;
+    delete button.dataset.mcpState;
+    ready
+      .then(() => sendAction(event.detail, button.textContent.trim()))
+      .then((result) => {
+        if (result?.isError) throw new Error(`Action ${event.detail.id} failed.`);
+        applyToolResult(result);
+      })
+      .catch((error) => {
+        button.dataset.mcpState = 'error';
+        post({ method: 'notifications/message', params: { level: 'error', data: error.message } });
+      })
+      .finally(() => {
+        button.disabled = false;
+      });
+  });
+})();
+</script>
+""".strip()
+
+
+# A host sizes the iframe from the reported content height, so a 100vh floor would stop it shrinking.
+MCP_APP_EMITTER_CSS = """
+body, .vs-root { min-height: 0; }
+.vs-button:disabled { cursor: progress; opacity: 0.6; }
+.vs-button[data-mcp-state="error"] { outline: 2px solid #dc2626; outline-offset: 2px; }
 """.strip()
 
 
@@ -588,8 +713,13 @@ def emit_compiler_result(
     *,
     output_dir: str | Path = "viewspec_output",
     title: str = "ViewSpec Artifact",
+    mcp_tools: Mapping[str, str] | None = None,
 ) -> dict[str, str]:
-    """Emit a CompilerResult as HTML + Tailwind with provenance manifest."""
+    """Emit a CompilerResult as HTML + Tailwind with provenance manifest.
+
+    ``mcp_tools`` selects the MCP Apps document: it maps action ids to MCP tool names, and any
+    mapping, even an empty one, adds the host bridge.
+    """
     output_path = Path(output_dir)
     _validate_ir_contract(result.root.root, set())
     _validate_style_values(style_values)
@@ -602,6 +732,11 @@ def emit_compiler_result(
     emitter_css = OFFLINE_EMITTER_CSS
     if _has_visibility_node(result.root.root):
         emitter_css = f"{OFFLINE_EMITTER_CSS}\n{VISIBILITY_EMITTER_CSS}"
+    head_extra: list[str] = []
+    if mcp_tools is not None:
+        body_tail.append(MCP_APP_BRIDGE_SCRIPT)
+        emitter_css = f"{emitter_css}\n{MCP_APP_EMITTER_CSS}"
+        head_extra.append(f'<meta name="viewspec-mcp-tools" content="{_json_attr(dict(mcp_tools))}">')
     html = "\n".join(
         [
             "<!DOCTYPE html>",
@@ -609,6 +744,7 @@ def emit_compiler_result(
             "<head>",
             '<meta charset="utf-8">',
             '<meta name="viewport" content="width=device-width, initial-scale=1">',
+            *head_extra,
             f"<title>{escape(title)}</title>",
             "<style>",
             emitter_css,
@@ -642,9 +778,14 @@ def emit_compiler_result(
 class HtmlTailwindEmitter(EmitterPlugin):
     """Deterministic HTML + Tailwind emitter plugin."""
 
+    def __init__(self, *, mcp_tools: Mapping[str, str] | None = None) -> None:
+        self.mcp_tools = mcp_tools
+
     def emit(self, ast_bundle: ASTBundle, output_dir: str | Path) -> dict[str, str]:
         style_values = dict(ast_bundle.style_values or DEFAULT_STYLE_TOKEN_VALUES)
-        return emit_compiler_result(ast_bundle.result, style_values, output_dir=output_dir, title=ast_bundle.title)
+        return emit_compiler_result(
+            ast_bundle.result, style_values, output_dir=output_dir, title=ast_bundle.title, mcp_tools=self.mcp_tools
+        )
 
 
 PLUGIN_CLASS = HtmlTailwindEmitter

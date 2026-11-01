@@ -17,7 +17,7 @@ from viewspec.aesthetics import (
     profile_layout_props,
 )
 from viewspec.compiler_errors import LocalToolContractError
-from viewspec.emitters.html_tailwind import ACTION_EVENT_SCRIPT
+from viewspec.emitters.html_tailwind import ACTION_EVENT_SCRIPT, MCP_APP_BRIDGE_SCRIPT
 from viewspec.emitters.react_tailwind_tsx import (
     DEFAULT_TAILWIND_RECIPE_REGISTRY,
     TAILWIND_MAX_ACTIONS,
@@ -47,6 +47,8 @@ from viewspec.local_tools_constants import (
     HASH_RE,
     KNOWN_EMITTERS,
     MAX_SCANNED_TAG_BLOCKS,
+    MCP_APP_MAX_BYTES,
+    MCP_APP_TARGET,
     REACT_TSX_ACTION_REQUIRED_MARKERS,
     REACT_TSX_FORBIDDEN_SURFACES,
     REACT_TSX_REQUIRED_MARKERS,
@@ -218,6 +220,8 @@ def check_artifact_dir(path: str | Path) -> dict[str, Any]:
             errors.append(_SCAN_LIMIT_ERROR)
         if manifest.get("kind") == "raw_html_compile" and scripts:
             errors.append("index.html contains an active raw-HTML surface")
+        elif manifest.get("target") == MCP_APP_TARGET:
+            errors.extend(_validate_mcp_app_document(html_path, scripts, manifest))
         elif scripts and [script.strip() for script in scripts] != [ACTION_EVENT_SCRIPT]:
             errors.append("index.html contains an unknown inline script")
         elif scripts and not _manifest_has_action_nodes(manifest):
@@ -278,6 +282,8 @@ _CHECK_ISSUE_FIXES = {
         "inside <svg>/<math>), non-plain </title>, </style> and </script> closers, and NUL bytes from "
         "index.html, or re-run viewspec compile from the source."
     ),
+    "MCP_APP_BRIDGE_MISMATCH": "Re-run viewspec compile with --target mcp-app from the source.",
+    "MCP_APP_TOO_LARGE": "Show fewer rows or split the view into smaller apps, then recompile.",
     "CHECK_SCAN_LIMIT_EXCEEDED": (
         "Reduce index.html to the compiler-emitted style and script blocks, or re-run viewspec compile from the source."
     ),
@@ -359,6 +365,22 @@ def _validate_manifest_envelope(manifest: dict[str, Any], errors: list[str]) -> 
     guarantees = manifest.get("guarantees")
     if isinstance(guarantees, dict) and guarantees.get("decompilation") != expected["decompilation"]:
         errors.append(f"manifest guarantees.decompilation must be {expected['decompilation']} for {kind}")
+    if "target" in manifest and (manifest["target"] != MCP_APP_TARGET or kind != "intent_bundle_compile"):
+        errors.append(f"manifest target must be {MCP_APP_TARGET} on an intent_bundle_compile manifest")
+
+
+def _validate_mcp_app_document(html_path: Path, scripts: list[str], manifest: dict[str, Any]) -> list[str]:
+    """Pin an MCP App's scripts, the action runtime only when it has actions, and its size."""
+    errors: list[str] = []
+    expected = [ACTION_EVENT_SCRIPT, MCP_APP_BRIDGE_SCRIPT]
+    if not _manifest_has_action_nodes(manifest):
+        expected = [MCP_APP_BRIDGE_SCRIPT]
+    if [script.strip() for script in scripts] != expected:
+        errors.append("MCP_APP_BRIDGE_MISMATCH: index.html does not carry exactly the pinned MCP Apps scripts")
+    size = html_path.stat().st_size
+    if size > MCP_APP_MAX_BYTES:
+        errors.append(f"MCP_APP_TOO_LARGE: index.html is {size} bytes, over the {MCP_APP_MAX_BYTES} byte ceiling")
+    return errors
 
 
 def _validate_manifest_artifact_file(manifest: dict[str, Any], errors: list[str]) -> str:

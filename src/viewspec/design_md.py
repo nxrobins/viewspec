@@ -18,6 +18,8 @@ import yaml
 from yaml.composer import ComposerError
 from yaml.constructor import ConstructorError
 
+from viewspec.compiler_errors import ViewSpecError
+
 MAX_REFERENCE_DEPTH = 32
 # DESIGN.md is size-gated before any byte is read or parsed. Review capture shares
 # this bound; review_compile re-exports it.
@@ -81,7 +83,7 @@ _UniqueKeySafeLoader.add_constructor(
 )
 
 
-class DesignSystemError(ValueError):
+class DesignSystemError(ViewSpecError, ValueError):
     """Raised when DESIGN.md contains blocking validation errors."""
 
     def __init__(self, message: str, report: DesignLintReport | None = None) -> None:

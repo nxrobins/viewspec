@@ -38,19 +38,21 @@ from viewspec.intent_tools import (
     wrap_intent_bundle_manifest,
 )
 from viewspec.local_tools import (
+    MCP_APP_TARGET,
     ensure_no_input_overwrite,
     init_design_file,
     source_hash,
     tool_error_response,
     tool_response,
 )
+from viewspec.mcp_apps import default_mcp_app_uri, emit_mcp_app, write_mcp_app_metadata
 from viewspec.mcp_server import MCP_INSTALL_HINT, MissingMCPDependency, run_mcp_server
 from viewspec.raw_html import HtmlInputError, compile_html, write_html_compile_result
 from viewspec.studio import STUDIO_DEFAULT_PORT, Studio, open_studio
 from viewspec.types import IntentBundle
 from viewspec.verification import VerificationPlan
 
-COMPILE_TARGETS = (*INTENT_COMPILE_TARGETS, APP_SHELL_TARGET, REACT_APP_TARGET)
+COMPILE_TARGETS = (*INTENT_COMPILE_TARGETS, MCP_APP_TARGET, APP_SHELL_TARGET, REACT_APP_TARGET)
 PROVE_TARGETS = (*INTENT_COMPILE_TARGETS, REACT_APP_TARGET)
 
 
@@ -221,6 +223,13 @@ def _build_parser() -> argparse.ArgumentParser:
         "--force",
         action="store_true",
         help="Replace an existing AppBundle output directory after safety checks.",
+    )
+    compile_parser.add_argument("--uri", help="mcp-app: the ui:// resource URI (default: ui://viewspec/<view id>).")
+    compile_parser.add_argument(
+        "--action-tool",
+        action="append",
+        metavar="ACTION=TOOL",
+        help="mcp-app: have this action call this MCP tool. Repeat for each action.",
     )
     compile_parser.add_argument("--stdin-format", choices=("html", "json"), help="Required when input is '-'.")
     compile_parser.add_argument("--title", help="Optional HTML document title for raw HTML input.")
@@ -418,8 +427,10 @@ def _compile_command(args: argparse.Namespace) -> int:
     if input_format == "json" and args.input != "-" and source_kind(args.input) == "app_bundle":
         return _compile_app(args)
     target = args.target or "html-tailwind"
-    if target not in INTENT_COMPILE_TARGETS:
+    if target not in (*INTENT_COMPILE_TARGETS, MCP_APP_TARGET):
         raise ValueError(f"--target {target} requires an AppBundle source")
+    if target != MCP_APP_TARGET and (args.uri or args.action_tool):
+        raise ValueError(f"--uri and --action-tool apply to --target {MCP_APP_TARGET}")
     data, source_name, input_path = _read_input(args.input, stdin_format=args.stdin_format)
     out_dir = Path(args.out)
 
@@ -483,6 +494,11 @@ def _compile_command(args: argparse.Namespace) -> int:
         paths = ReactTailwindTsxEmitter().emit(ast, out_dir)
         artifact_path = Path(paths["tsx"])
         emitter = "react_tailwind_tsx"
+    elif target == MCP_APP_TARGET:
+        uri = args.uri or default_mcp_app_uri(bundle)
+        paths = emit_mcp_app(ast, out_dir, uri=uri, action_tools=_parse_action_tools(args.action_tool))
+        artifact_path = Path(paths["html"])
+        emitter = "html_tailwind"
     else:
         paths = HtmlTailwindEmitter().emit(ast, out_dir)
         artifact_path = Path(paths["html"])
@@ -495,7 +511,10 @@ def _compile_command(args: argparse.Namespace) -> int:
         command_args=_compile_command_args(args, source_name, target),
         artifact_path=artifact_path,
         emitter=emitter,
+        target=MCP_APP_TARGET if target == MCP_APP_TARGET else None,
     )
+    if target == MCP_APP_TARGET:
+        paths["mcp_app"] = str(write_mcp_app_metadata(out_dir, uri))
     if args.json:
         _print_json(
             tool_response(
@@ -879,6 +898,16 @@ def _input_format(path_arg: str, stdin_format: str | None) -> str:
     if suffix == ".json":
         return "json"
     raise ValueError("Input must be .html, .htm, .json, or '-' with --stdin-format")
+
+
+def _parse_action_tools(entries: list[str] | None) -> dict[str, str]:
+    tools: dict[str, str] = {}
+    for entry in entries or []:
+        action, separator, tool = entry.partition("=")
+        if not separator or not action or not tool:
+            raise ValueError(f"--action-tool expects ACTION=TOOL, got {entry!r}")
+        tools[action] = tool
+    return tools
 
 
 def _compile_command_args(args: argparse.Namespace, source_name: str | None, target: str) -> list[str]:

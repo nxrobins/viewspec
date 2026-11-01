@@ -45,6 +45,10 @@ EXTERNAL_REF_POLICIES = {
 
 KNOWN_EMITTERS = {"html_tailwind", "react_tailwind_tsx", "react_tsx"}
 
+MCP_APP_TARGET = "mcp-app"
+# Conservative: the MCP Apps spec sets no limit, but a host has to carry the document inline.
+MCP_APP_MAX_BYTES = 120_000
+
 STATEFUL_COLLECTION_ACTION_KINDS = {"search", "filter", "sort", "paginate", "bulk_action"}
 
 EMITTER_ARTIFACT_FILES = {
