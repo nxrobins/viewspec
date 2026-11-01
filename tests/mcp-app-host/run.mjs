@@ -61,6 +61,8 @@ const browser = await chromium.launch();
   await frame.locator('[data-binding-id="inc1_value"]', { hasText: "from tool result" }).waitFor({ timeout: 3000 });
   check("rebind: ui/notifications/tool-result updates value", (await text("inc1_value")) === "from tool result");
   check("rebind: updates label too", (await text("inc2_label")) === "INC-999");
+  l = await log();
+  check("calls: loading the view and its opening result send no tools/call", l.calls.length === 0, l.calls);
 
   // XSS through a binding value stays inert text.
   const payload = "<img src=x onerror=\"document.title='pwned'\">";
@@ -108,7 +110,9 @@ const browser = await chromium.launch();
   await frame.locator('[data-binding-id="query_value"]').fill("typed value");
   await frame.locator('[data-action-id="refresh"]').click();
   await frame.locator('[data-binding-id="inc1_value"]', { hasText: "filtered:typed value" }).waitFor({ timeout: 3000 });
+  await page.waitForTimeout(150);
   l = await log();
+  check("calls: one click sends exactly one tools/call", l.calls.length === 1, l.calls);
   check("action: mapped -> tools/call with name", l.calls.at(-1)?.name === "refresh_incidents", l.calls);
   check("action: tools/call args keyed by binding", l.calls.at(-1)?.arguments?.query_value === "typed value", l.calls);
   check("action: tools/call response rebinds", (await text("inc1_value")) === "filtered:typed value");
@@ -179,6 +183,23 @@ const browser = await chromium.launch();
   await page.close();
 }
 
+// ---- Reopened: a host can reload a view without running the opening tool, so no result arrives
+{
+  const { page, frame, log, problems } = await open(browser, "view.html");
+  await page.waitForTimeout(300);
+  let l = await log();
+  check("reopen: the view sends no tools/call on its own", l.calls.length === 0, l.calls);
+  check("reopen: the document stands alone", (await frame.locator("tr").count()) === 2);
+  await page.evaluate((r) => void (window.nextCallResult = r), renders.five);
+  await frame.locator('[data-action-id="refresh"]').click();
+  await frame.waitForFunction(() => document.querySelectorAll("tr").length === 5, null, { timeout: 3000 });
+  await page.waitForTimeout(150);
+  l = await log();
+  check("reopen: one click brings the data back", l.calls.length === 1, l.calls);
+  check("reopen: clean console", problems.length === 0, problems);
+  await page.close();
+}
+
 // ---- A tool result changes how many rows the view shows
 {
   const { page, frame, log, problems, requests } = await open(browser, "view.html");
@@ -229,6 +250,7 @@ const browser = await chromium.launch();
   const caret = await query.evaluate((el) => [el.selectionStart, el.selectionEnd]);
   check("render: the caret survives the swap", caret[0] === 2 && caret[1] === 5, caret);
   await page.waitForTimeout(400);
+  check("calls: a render sends no tools/call", (await log()).calls.length === 0, (await log()).calls);
   const fiveRowHeight = await height();
   check(`size: follows a render up (${twoRowHeight}px -> ${fiveRowHeight}px)`, fiveRowHeight > twoRowHeight, {
     twoRowHeight,
@@ -240,7 +262,9 @@ const browser = await chromium.launch();
   await refresh.focus();
   await page.keyboard.press("Enter");
   await rowsBecome(1);
+  await page.waitForTimeout(150);
   let l = await log();
+  check("calls: one key press on a swapped button sends exactly one tools/call", l.calls.length === 1, l.calls);
   check("render: an action response shrinks the table from 5 rows to 1", (await rows()) === 1, await rows());
   check("render: a swapped button still calls its tool", l.calls.at(-1)?.name === "refresh_incidents", l.calls);
   check("render: a swapped button still sends its payload", l.calls.at(-1)?.arguments?.query_value === "typed value", l.calls);
@@ -258,7 +282,10 @@ const browser = await chromium.launch();
   await answerCallsWith(renders.five);
   await refresh.click();
   await rowsBecome(5);
+  await page.waitForTimeout(150);
+  l = await log();
   check("render: an action works again after two swaps", (await rows()) === 5, await rows());
+  check("calls: swaps do not stack listeners, so a click is still one tools/call", l.calls.length === 2, l.calls);
   await answerCallsWith(null);
   await frame.locator('[data-action-id="approve"]').click();
   await page.waitForFunction(() => window.hostLog.messages.length === 1, null, { timeout: 3000 });

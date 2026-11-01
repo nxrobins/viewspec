@@ -107,19 +107,32 @@ return `app.render()`:
 from mcp.types import CallToolResult
 from viewspec.types import IntentBundle
 
-def queue(incidents) -> IntentBundle:
+def queue(incidents, *, empty: str = "No open incidents") -> IntentBundle:
     builder = ViewSpecBuilder("incident_queue", root_attrs={"title": "Incident queue"})
     table = builder.add_table("incidents", region="main", group_id="rows")
     for incident in incidents:
         table.add_row(id=incident.id, label=incident.label, value=incident.summary)
+    if not incidents:
+        builder.add_empty_state("no_incidents", title=empty, region="main")
+    builder.add_action("refresh", "submit", "Refresh")
     return builder.build_bundle()
 
-app = compile_mcp_app(queue([]), uri="ui://ops/incident-queue")
+app = compile_mcp_app(
+    queue([], empty="Refresh to load the queue"),
+    uri="ui://ops/incident-queue",
+    action_tools={"refresh": "refresh_incidents"},
+)
 tool = register_mcp_app(server, app)
 
 @tool()
 def show_incidents() -> CallToolResult:
     """Open the incident queue."""
+    incidents = load_incidents()
+    return app.render(queue(incidents), text=f"{len(incidents)} open incidents.")
+
+@tool(visibility=["app"])
+def refresh_incidents() -> CallToolResult:
+    """Reload the queue. Only the view can call this tool."""
     incidents = load_incidents()
     return app.render(queue(incidents), text=f"{len(incidents)} open incidents.")
 ```
@@ -141,6 +154,32 @@ The view replaces `.vs-root` in place, and keeps what only the page knows:
 - **The tool map stays in the document.** A render can show or hide an action named in
   `action_tools`, but cannot connect a new one: an action the document does not map goes to the chat
   or the model context. So compile the document from a bundle that holds every action you map.
+
+### When a view reopens
+
+The compiled document is what a view shows until a result arrives, and a result may never arrive. A
+host can reload a view without running the opening tool again. After a restart, Claude Desktop has
+been seen to re-read the `ui://` resource and take the next click with no new `show_incidents` call.
+Whether a host replays a stored result into a reloaded view is not established, so don't rely on
+that either. The view sends no `tools/call` by itself when it loads.
+
+So compile a document that is true on its own, as the snippet above does:
+
+- **Say what to do, not what the data is.** Data compiled into the document looks current long after
+  it stopped being, and an empty queue reads as good news. Compile a prompt such as `Refresh to load
+  the queue`.
+- **Give it a way back.** Map an action to a tool that returns `render()`, so one click brings
+  current data. If a host does replay a stored result, the view applies it like any other, and the
+  same click replaces it.
+
+### State belongs outside the process
+
+A host may start more than one process for a configured server and reach either: Claude Desktop
+starts two. `render()` keeps nothing between calls. A resource read returns the document compiled at
+startup, which a render does not change, and each result carries its own root. Compile that document
+from the same input in every process, which is a second reason not to compile live data into it.
+Anything a tool needs across calls belongs in your own store or in its arguments, as the filter text
+is in the example.
 
 ### What a view accepts
 
@@ -179,6 +218,8 @@ validate against it. `tests/test_mcp_app_host_e2e.py` runs compiled apps against
   `viewspecBindings` when the shape has not changed, since it sends only the text that did.
 - **Results apply in the order they arrive.** If two actions run at once, the slower response wins,
   even when it was asked for first.
+- **A reopened view can start from the compiled document.** See
+  [When a view reopens](#when-a-view-reopens).
 - **`check` is the only gate.** `viewspec prove` runs its browser checks on `react_tailwind_tsx`
   artifacts, so it reports `indeterminate` for this target, as it does for `html-tailwind`. There is
   no multi-viewport geometry or Pretext proof of an MCP App yet.

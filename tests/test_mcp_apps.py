@@ -6,8 +6,11 @@ import asyncio
 import hashlib
 import inspect
 import json
+import os
 import re
 import runpy
+import subprocess
+import sys
 from html.parser import HTMLParser
 from pathlib import Path
 from typing import Any
@@ -488,6 +491,54 @@ def test_render_reaches_the_host_through_fastmcp_with_the_root_kept_from_the_mod
 
     assert called.structuredContent["viewspecRoot"].count("<tr ") == 5
     assert [block.text for block in called.content] == ["5 open incidents."]
+
+
+def test_a_render_leaves_the_published_document_alone():
+    fastmcp = pytest.importorskip("mcp.server.fastmcp")
+    app = compile_mcp_app(_builder().build_bundle(), uri=URI)
+    published = app.html
+    server = fastmcp.FastMCP("test")
+    tool = register_mcp_app(server, app)
+
+    @tool()
+    def show_incidents() -> Any:
+        return app.render(_builder(rows=5).build_bundle())
+
+    async def run() -> Any:
+        async with _in_memory_client(server) as session:
+            await session.call_tool("show_incidents", {})
+            return await session.read_resource(URI)
+
+    assert asyncio.run(run()).contents[0].text == published == app.html
+
+
+def test_every_server_process_serves_the_same_view():
+    """A host can start a configured server twice and reach either process."""
+    pytest.importorskip("mcp.types")
+    script = (
+        "import hashlib, runpy\n"
+        "example = runpy.run_path('examples/mcp_app_incident_console.py', run_name='example')\n"
+        "root = example['app'].render(example['queue'](example['INCIDENTS'])).structuredContent['viewspecRoot']\n"
+        "print(hashlib.sha256((example['app'].html + root).encode()).hexdigest())\n"
+    )
+
+    def process(seed: str) -> str:
+        env = {**os.environ, "PYTHONHASHSEED": seed}
+        return subprocess.run(
+            [sys.executable, "-c", script], cwd=ROOT, env=env, capture_output=True, text=True, check=True
+        ).stdout
+
+    assert process("1") == process("2")
+
+
+def test_flagship_example_document_makes_sense_with_no_result():
+    example = runpy.run_path(str(ROOT / "examples" / "mcp_app_incident_console.py"), run_name="example")
+    app = example["app"]
+
+    assert app.root.count("<tr ") == 0
+    assert "Refresh to load the queue" in app.root
+    assert 'data-action-id="refresh"' in app.root
+    assert "refresh_incidents" in app.html
 
 
 def test_flagship_example_returns_a_queue_as_long_as_its_data():
