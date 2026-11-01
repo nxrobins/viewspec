@@ -3,9 +3,11 @@
 An MCP App is a self-contained HTML document that a host renders in a sandboxed iframe. The document
 here is the ``html-tailwind`` output plus a pinned bridge script, so ``check`` still governs it.
 Clicking an action calls the MCP tool named for it in ``action_tools``. An unmapped action becomes a
-chat message, or a model-context update for ``select``. A tool result updates the view in place
-through ``structuredContent.viewspecBindings``, which maps binding ids to new text; the compiled
-shape stays fixed, so a result can change a row's text but cannot add a row.
+chat message, or a model-context update for ``select``. A tool result updates the view in place:
+``structuredContent.viewspecBindings`` maps binding ids to new text, and
+``structuredContent.viewspecRoot`` replaces the compiled root, which is how a result changes the
+number of rows. :meth:`MCPAppArtifact.render` builds the second from a new bundle, so every render
+still goes through the compiler and ``check``.
 """
 
 from __future__ import annotations
@@ -15,9 +17,9 @@ import os
 import re
 import tempfile
 from collections.abc import Callable, Mapping, Sequence
-from dataclasses import dataclass, replace
+from dataclasses import dataclass, field, replace
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from viewspec.aesthetics import AESTHETIC_PROFILE_TOKENS, is_aesthetic_profile_token
 from viewspec.compiler import compile as compile_intent
@@ -27,6 +29,9 @@ from viewspec.emitters.html_tailwind import HtmlTailwindEmitter
 from viewspec.intent_tools import wrap_intent_bundle_manifest
 from viewspec.local_tools import MCP_APP_TARGET, atomic_write, check_artifact_dir, source_hash
 from viewspec.types import ASTBundle, IntentBundle, IRNode, StyleSpec
+
+if TYPE_CHECKING:
+    from mcp.types import CallToolResult
 
 MCP_APP_MIME_TYPE = "text/html;profile=mcp-app"
 MCP_APP_METADATA_FILE = "mcp_app.json"
@@ -42,6 +47,7 @@ class MCPAppArtifact:
     uri: str
     html: str
     mime_type: str = MCP_APP_MIME_TYPE
+    render_options: Mapping[str, Any] = field(default_factory=dict, repr=False, compare=False)
 
     @property
     def csp_meta(self) -> dict[str, Any]:
@@ -56,6 +62,24 @@ class MCPAppArtifact:
     @property
     def size_bytes(self) -> int:
         return len(self.html.encode("utf-8"))
+
+    @property
+    def root(self) -> str:
+        """The compiled ``.vs-root`` element, which a tool result can swap into the open view."""
+        return self.html.partition("<body>\n")[2].partition("\n<script>")[0]
+
+    def render(self, bundle: IntentBundle, *, text: str | None = None) -> CallToolResult:
+        """Compile ``bundle`` into a result for a tool to return, replacing the open view's root.
+
+        The bundle takes this app's profile and design, and is held to the same checks and ceiling.
+        The tool map stays in the document, so a render can only reach tools the app already names.
+        ``text`` is all the model sees: the root stays in ``structuredContent``, which it does not read.
+        """
+        from mcp.types import CallToolResult, TextContent
+
+        root = compile_mcp_app(bundle, uri=self.uri, **self.render_options).root
+        summary = TextContent(type="text", text=text or f"Rendered the {bundle.view_spec.id} view.")
+        return CallToolResult(content=[summary], structuredContent={"viewspecRoot": root})
 
     def metadata(self) -> dict[str, Any]:
         """Everything but the document itself, for writing beside ``index.html``."""
@@ -84,6 +108,7 @@ def compile_mcp_app(
     """
     source = _with_profile(bundle, profile) if profile is not None else bundle
     ast = compile_intent(source, design, strict_design=strict_design)
+    render_options = {"profile": profile, "design": design, "strict_design": strict_design}
     with tempfile.TemporaryDirectory(prefix="viewspec-mcp-app-") as scratch:
         paths = emit_mcp_app(ast, scratch, uri=uri, action_tools=action_tools)
         wrap_intent_bundle_manifest(
@@ -96,7 +121,7 @@ def compile_mcp_app(
             emitter="html_tailwind",
             target=MCP_APP_TARGET,
         )
-        return read_mcp_app(scratch, uri)
+        return replace(read_mcp_app(scratch, uri), render_options=render_options)
 
 
 def emit_mcp_app(

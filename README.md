@@ -162,7 +162,9 @@ def show_invoice() -> dict:
     return {"viewspecBindings": {"items_row_1_value": "$4,500"}}
 ```
 
-See [MCP Apps](docs/mcp-apps.md) for actions, live updates, and known limits, and
+To change how many rows the view shows, return `app.render(new_bundle)` instead, which compiles the
+new bundle and swaps it in. See [MCP Apps](docs/mcp-apps.md) for actions, live updates, and known
+limits, and
 [`examples/mcp_app_incident_console.py`](examples/mcp_app_incident_console.py) for a runnable server.
 
 ## Agents

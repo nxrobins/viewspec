@@ -69,8 +69,8 @@ def refresh_incidents(note_value: str = "") -> dict:
     return {"viewspecBindings": {"inc402_value": "Replica lag cleared"}}
 ```
 
-[`examples/mcp_app_incident_console.py`](../examples/mcp_app_incident_console.py) is this server in
-full, ready to run over stdio.
+[`examples/mcp_app_incident_console.py`](../examples/mcp_app_incident_console.py) is a full server,
+ready to run over stdio, whose queue changes length with each result.
 
 ## Actions
 
@@ -86,21 +86,132 @@ and a red outline, and the error goes to the host log.
 ## Updating the view
 
 The host fetches a resource once and may cache it, so the compiled document is a template. New data
-arrives from a tool: return `viewspecBindings` in `structuredContent`, mapping binding ids to new
-text. FastMCP does this for a tool that returns a `dict`. The view applies it from the result of the
-tool that opened it and from every `tools/call` response.
+arrives from a tool, as new text or as a new root. The view applies either from the result of the
+tool that opened it and from every `tools/call` response. A result with `isError` changes nothing.
+
+### New text
+
+Return `viewspecBindings` in `structuredContent`, mapping binding ids to new text. FastMCP does this
+for a tool that returns a `dict`.
 
 Binding ids come from the builder: `add_row(id="inc402", ...)` gives `inc402_label` and
 `inc402_value`, and `add_text_input("note", ...)` gives `note_value`. Values reach the page as text,
-never as markup. A result with `isError` changes nothing.
+never as markup.
+
+### A new root
+
+To change how many rows a view shows, or anything else about its shape, build a new bundle and
+return `app.render()`:
+
+```python
+from mcp.types import CallToolResult
+from viewspec.types import IntentBundle
+
+def queue(incidents, *, empty: str = "No open incidents") -> IntentBundle:
+    builder = ViewSpecBuilder("incident_queue", root_attrs={"title": "Incident queue"})
+    table = builder.add_table("incidents", region="main", group_id="rows")
+    for incident in incidents:
+        table.add_row(id=incident.id, label=incident.label, value=incident.summary)
+    if not incidents:
+        builder.add_empty_state("no_incidents", title=empty, region="main")
+    builder.add_action("refresh", "submit", "Refresh")
+    return builder.build_bundle()
+
+app = compile_mcp_app(
+    queue([], empty="Refresh to load the queue"),
+    uri="ui://ops/incident-queue",
+    action_tools={"refresh": "refresh_incidents"},
+)
+tool = register_mcp_app(server, app)
+
+@tool()
+def show_incidents() -> CallToolResult:
+    """Open the incident queue."""
+    incidents = load_incidents()
+    return app.render(queue(incidents), text=f"{len(incidents)} open incidents.")
+
+@tool(visibility=["app"])
+def refresh_incidents() -> CallToolResult:
+    """Reload the queue. Only the view can call this tool."""
+    incidents = load_incidents()
+    return app.render(queue(incidents), text=f"{len(incidents)} open incidents.")
+```
+
+`render()` needs the `agents` extra. It compiles the bundle with the app's profile and design, so
+each render passes `check` and the size ceiling before it leaves the server, and a failure raises
+inside the tool. The compiled root goes in `structuredContent.viewspecRoot`, which the specification
+keeps out of model context. `text` becomes the result's `content`, which is what the model and a
+text-only host read, so say what the view shows; left out, it only names the view. Returning the
+root from a plain `dict` would copy it into `content`, because FastMCP serializes a `dict` there
+too. On another MCP SDK, send `app.root` from a `compile_mcp_app()` of the new bundle under that key.
+
+The view replaces `.vs-root` in place, and keeps what only the page knows:
+
+- **Typed text, the caret, and focus** carry across, matched by binding id. To change typed text,
+  return `viewspecBindings` in the same result, since they apply after the swap.
+- **Actions keep working.** A button still waiting on its tool stays disabled, and focus returns to
+  the button that ran an action.
+- **The tool map stays in the document.** A render can show or hide an action named in
+  `action_tools`, but cannot connect a new one: an action the document does not map goes to the chat
+  or the model context. So compile the document from a bundle that holds every action you map.
+
+### When a view reopens
+
+The compiled document is what a view shows until a result arrives, and a result may never arrive. A
+host can reload a view without running the opening tool again. After a restart, Claude Desktop has
+been seen to re-read the `ui://` resource and take the next click with no new `show_incidents` call.
+Whether a host replays a stored result into a reloaded view is not established, so don't rely on
+that either. The view sends no `tools/call` by itself when it loads.
+
+So compile a document that is true on its own, as the snippet above does:
+
+- **Say what to do, not what the data is.** Data compiled into the document looks current long after
+  it stopped being, and an empty queue reads as good news. Compile a prompt such as `Refresh to load
+  the queue`.
+- **Give it a way back.** Map an action to a tool that returns `render()`, so one click brings
+  current data. If a host does replay a stored result, the view applies it like any other, and the
+  same click replaces it.
+
+### State belongs outside the process
+
+A host may start more than one process for a configured server and reach either: Claude Desktop
+starts two. `render()` keeps nothing between calls. A resource read returns the document compiled at
+startup, which a render does not change, and each result carries its own root. Compile that document
+from the same input in every process, which is a second reason not to compile live data into it.
+Anything a tool needs across calls belongs in your own store or in its arguments, as the filter text
+is in the example.
+
+### What a view accepts
+
+A root is markup from outside the document, so the bridge does not rely on the server having used
+`render()`. `DOMParser` keeps a `<script>` inert, but inline handlers still fire once their node
+joins the page, and the specification's default CSP allows them. A `style` attribute can load
+resources too, wherever the host's CSP lets it. So the bridge reads the parsed tree and refuses the
+whole root if it holds any of these:
+
+- a tag or attribute that the emitter cannot write
+- a `style` with a CSS reference that `check` refuses, such as `url()` or `image-set()`, or with a
+  CSS escape or comment, which the emitter never writes and which could disguise one
+- anything beside the single `.vs-root` element
+
+Nothing is cleaned or re-serialized: the view stays as it was, the error goes to the host log, and a
+refused action response marks its button.
+
+This keeps tool data on the path that matters, through the compiler, which writes it as escaped
+text. It does not make an untrusted server safe. A server already supplies the whole document, so
+the sandbox and CSP remain the boundary for that, as they are for any MCP App. The `style` rule is a
+list of known references, not a CSS parser, so it narrows what a forged root can do without replacing
+that boundary. A forged root that passes can still show false text or restyle the view. It carries
+no script or inline handler, and because the tool map stays in the document it can only reach tools
+the document already names.
 
 ## What is checked
 
 `viewspec check` treats an artifact as an MCP App when its manifest says `"target": "mcp-app"`. On
 top of the checks for every HTML artifact, it requires the bridge and action scripts to match the
 pinned copies byte for byte, and the document to fit the ceiling. `MCP_APP_BRIDGE_MISMATCH` and
-`MCP_APP_TOO_LARGE` report a failure. The bridge is also inert when a page has no host, so the
-document still opens directly in a browser.
+`MCP_APP_TOO_LARGE` report a failure. Every `render()` runs the same checks. The bridge is also inert
+when a page has no host, so the document still opens directly in a browser.
 
 The bridge's wire format follows the types in the `@modelcontextprotocol/ext-apps` SDK. Where the
 specification's prose differs, as it does for `ui/message` content, the SDK wins, because hosts
@@ -109,10 +220,15 @@ validate against it. `tests/test_mcp_app_host_e2e.py` runs compiled apps against
 
 ## Known limits
 
-- **The shape is fixed at compile time.** A tool result can change the text of a row, but it cannot
-  add or remove one. Compile for the most rows you will show, or use a view whose shape is stable.
 - **About 90 table rows fit.** A row costs roughly 1.2 KB, and the 120,000 byte ceiling is
-  deliberately conservative. The specification sets no limit of its own.
+  deliberately conservative. It applies to the document a render compiles too, so a larger result
+  raises `MCP_APP_TOO_LARGE` in the tool. The specification sets no limit of its own.
+- **A render sends the whole root.** That is about 100 KB for a 90 row table, on every result. Use
+  `viewspecBindings` when the shape has not changed, since it sends only the text that did.
+- **Results apply in the order they arrive.** If two actions run at once, the slower response wins,
+  even when it was asked for first.
+- **A reopened view can start from the compiled document.** See
+  [When a view reopens](#when-a-view-reopens).
 - **`check` is the only gate.** `viewspec prove` runs its browser checks on `react_tailwind_tsx`
   artifacts, so it reports `indeterminate` for this target, as it does for `html-tailwind`. There is
   no multi-viewport geometry or Pretext proof of an MCP App yet.

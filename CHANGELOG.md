@@ -19,6 +19,12 @@ All notable changes to ViewSpec are documented in this file. The format follows
   `html-tailwind` output is byte-identical.
 - `viewspec.mcp_apps.register_mcp_app()` publishes the resource on a FastMCP server and returns a
   decorator for the tools linked to it, including view-only tools through `visibility=["app"]`.
+- `MCPAppArtifact.render()` lets a tool return a new bundle, so a tool result can change how many
+  rows a view shows. Each render is compiled and checked on the server and arrives as
+  `structuredContent.viewspecRoot`. The bridge swaps it in, keeps typed text, focus, and running
+  actions, and refuses any root holding a tag or attribute the emitter cannot write, or a `style`
+  that `check` would refuse. MCP App documents now always carry the action runtime, because a render
+  can bring a view its first action.
 - `examples/mcp_app_incident_console.py`, and a CI job that runs compiled apps against the
   `@modelcontextprotocol/ext-apps` SDK host in Chromium.
 - `viewspec.ViewSpecError`, the base of `CompilerInputError`, `UnsupportedMotifError`,

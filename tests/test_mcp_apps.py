@@ -4,9 +4,14 @@ from __future__ import annotations
 
 import asyncio
 import hashlib
+import inspect
 import json
+import os
 import re
 import runpy
+import subprocess
+import sys
+from html.parser import HTMLParser
 from pathlib import Path
 from typing import Any
 
@@ -14,28 +19,37 @@ import pytest
 
 from viewspec import ERROR_CODES, ViewSpecBuilder, ViewSpecError, check, compile_mcp_app
 from viewspec import cli as viewspec_cli
+from viewspec.aesthetics import AESTHETIC_PROFILE_TOKENS
 from viewspec.compiler_errors import LocalToolContractError
-from viewspec.emitters.html_tailwind import ACTION_EVENT_SCRIPT, MCP_APP_BRIDGE_SCRIPT, HtmlTailwindEmitter
+from viewspec.emitters.html_tailwind import (
+    ACTION_EVENT_SCRIPT,
+    MCP_APP_BRIDGE_SCRIPT,
+    HtmlTailwindEmitter,
+    _render_node,
+)
 from viewspec.intent_tools import compile_intent_bundle_file_tool
 from viewspec.local_tools import MCP_APP_MAX_BYTES
+from viewspec.local_tools_validators import UNSAFE_CSS_REFERENCE_RE
 from viewspec.mcp_apps import MCP_APP_MIME_TYPE, MCPAppArtifact, register_mcp_app
+from viewspec.types import IntentBundle
 
 ROOT = Path(__file__).resolve().parents[1]
 URI = "ui://ops/incident-queue"
 # Changing the bridge changes what hosts receive: run tests/test_mcp_app_host_e2e.py against the
 # ext-apps SDK before updating this digest.
-BRIDGE_SHA256 = "d3ab6361d26cfc0139cdc443fbb480972ad5b65b1d1f4495196c795323279c54"
+BRIDGE_SHA256 = "9879dbbce95e446eccb72f2b3ecb3d53df71de3db2a20836114e0a78c97bf6d3"
 
 
-def _builder(rows: int = 2) -> ViewSpecBuilder:
+def _builder(rows: int = 2, *, actions: bool = True) -> ViewSpecBuilder:
     builder = ViewSpecBuilder("incident_queue", root_attrs={"title": "Incident queue"})
     table = builder.add_table("incidents", region="main", group_id="rows")
     for index in range(rows):
         table.add_row(id=f"inc{index}", label=f"INC-{index}", value=f"Replica lag ({index}s)")
     query = builder.add_text_input("query", label="Filter", region="main")
-    builder.add_collection_action(
-        "refresh", kind="filter", label="Refresh", collection_id="incidents", payload_bindings=[query]
-    )
+    if actions:
+        builder.add_collection_action(
+            "refresh", kind="filter", label="Refresh", collection_id="incidents", payload_bindings=[query]
+        )
     return builder
 
 
@@ -88,14 +102,14 @@ def test_document_carries_the_pinned_scripts_in_order():
     assert hashlib.sha256(MCP_APP_BRIDGE_SCRIPT.encode("utf-8")).hexdigest() == BRIDGE_SHA256
 
 
-def test_view_without_actions_carries_only_the_bridge():
+def test_view_without_actions_carries_the_action_runtime_for_a_later_render():
     builder = ViewSpecBuilder("kpi", root_attrs={"title": "KPIs"})
     builder.add_dashboard("cards", region="main", group_id="group").add_card(label="Open", value="12")
 
     html = compile_mcp_app(builder.build_bundle(), uri=URI).html
 
     assert MCP_APP_BRIDGE_SCRIPT in html
-    assert ACTION_EVENT_SCRIPT not in html
+    assert ACTION_EVENT_SCRIPT in html
 
 
 def test_action_tools_reach_the_document_as_inert_data():
@@ -295,6 +309,176 @@ def test_check_measures_an_oversized_document(tmp_path: Path, monkeypatch: pytes
     assert "MCP_APP_TOO_LARGE" in _codes(check(out))
 
 
+class _Elements(HTMLParser):
+    def __init__(self) -> None:
+        super().__init__()
+        self.tags: set[str] = set()
+        self.attributes: set[str] = set()
+        self.styles: set[str] = set()
+
+    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        self.tags.add(tag)
+        self.attributes.update(name for name, _ in attrs)
+        self.styles.update(value or "" for name, value in attrs if name == "style")
+
+
+def _bridge_allow_list() -> tuple[set[str], re.Pattern[str]]:
+    tags = re.search(r"rootTags = new Set\('([^']+)'", MCP_APP_BRIDGE_SCRIPT)
+    attributes = re.search(r"rootAttributes = /(.+)/;", MCP_APP_BRIDGE_SCRIPT)
+    assert tags and attributes
+    return set(tags[1].split()), re.compile(attributes[1])
+
+
+def _bridge_unsafe_style() -> re.Pattern[str]:
+    rule = re.search(r"rootUnsafeStyle = /(.+)/i;", MCP_APP_BRIDGE_SCRIPT)
+    assert rule
+    return re.compile(rule[1], re.IGNORECASE)
+
+
+@pytest.mark.parametrize("alternative", UNSAFE_CSS_REFERENCE_RE.pattern.split("|"))
+def test_bridge_style_rule_refuses_everything_check_refuses(alternative: str):
+    literal = re.sub(r"\\(.)", r"\1", alternative)
+    samples = {literal.replace("?", ""), re.sub(r".\?", "", literal)}
+    rule = _bridge_unsafe_style()
+
+    for sample in samples:
+        assert UNSAFE_CSS_REFERENCE_RE.search(sample), f"{sample!r} does not exercise {alternative!r}"
+        assert rule.search(f"background:{sample}x")
+        assert rule.search(f"BACKGROUND:{sample.upper()}X")
+
+
+@pytest.mark.parametrize("disguise", ["background:\\75rl(x)", "color:red/**/", "background:ur/* */l(x)"])
+def test_bridge_style_rule_refuses_what_could_disguise_a_reference(disguise: str):
+    assert _bridge_unsafe_style().search(disguise)
+
+
+@pytest.mark.parametrize(
+    "safe", ["background:rgb(15 118 110 / 0.06)", "background-image:linear-gradient(#fff, #000)", "color:var(--ink)"]
+)
+def test_bridge_style_rule_keeps_ordinary_css(safe: str):
+    assert not _bridge_unsafe_style().search(safe)
+
+
+@pytest.mark.parametrize("profile", AESTHETIC_PROFILE_TOKENS)
+def test_bridge_style_rule_accepts_every_profile(profile: str):
+    elements = _Elements()
+    elements.feed(compile_mcp_app(_builder().build_bundle(), uri=URI, profile=profile).root)
+
+    assert elements.styles
+    assert [style for style in elements.styles if _bridge_unsafe_style().search(style)] == []
+
+
+def test_bridge_allows_everything_the_emitter_source_can_write():
+    source = inspect.getsource(_render_node)
+    allowed_tags, allowed_attributes = _bridge_allow_list()
+
+    tags = {
+        *re.findall(r'\btag = "(\w+)"', source),
+        *re.findall(r'\btag = .* else "(\w+)"', source),
+        *re.findall(r"<(\w+)[ >]", source),
+    }
+    attributes = {*re.findall(r"""['"]([a-z][a-z-]*)=""", source), *re.findall(r'"((?:aria|data)-[a-z-]+)"', source)}
+
+    assert {"main", "tbody", "tr", "hr", "button", "input"} <= tags
+    assert {"id", "class", "role", "data-ir-id", "data-resource-id", "aria-label"} <= attributes
+    assert tags <= allowed_tags
+    assert [name for name in attributes if not allowed_attributes.fullmatch(name)] == []
+
+
+@pytest.mark.parametrize(
+    "fixture", sorted((ROOT / "conformance" / "verification" / "fixtures").glob("*.json")), ids=lambda path: path.stem
+)
+def test_bridge_allows_the_root_of_every_conformance_fixture(fixture: Path):
+    bundle = IntentBundle.from_json(json.loads(fixture.read_text(encoding="utf-8")))
+    elements = _Elements()
+    elements.feed(compile_mcp_app(bundle, uri=URI).root)
+    allowed_tags, allowed_attributes = _bridge_allow_list()
+
+    assert elements.tags <= allowed_tags
+    assert [name for name in elements.attributes if not allowed_attributes.fullmatch(name)] == []
+    assert [style for style in elements.styles if _bridge_unsafe_style().search(style)] == []
+
+
+@pytest.mark.parametrize("rows", [0, 1, 2, 5])
+def test_root_is_the_whole_compiled_view_and_nothing_else(rows: int):
+    app = compile_mcp_app(_builder(rows=rows).build_bundle(), uri=URI)
+
+    assert app.root.startswith('<main id="') and 'class="vs-root' in app.root.partition(">")[0]
+    assert app.root.endswith("</main>")
+    assert app.html.count(app.root) == 1
+    assert "<script" not in app.root
+    assert app.root.count("<tr ") == rows
+
+
+@pytest.mark.parametrize("rows", [0, 1, 5])
+def test_render_changes_the_row_count_through_the_compiler(rows: int):
+    pytest.importorskip("mcp.types")
+    app = compile_mcp_app(_builder().build_bundle(), uri=URI, action_tools={"refresh": "refresh_incidents"})
+
+    result = app.render(_builder(rows=rows).build_bundle())
+
+    assert result.structuredContent == {
+        "viewspecRoot": compile_mcp_app(_builder(rows=rows).build_bundle(), uri=URI).root
+    }
+    assert result.structuredContent["viewspecRoot"].count("<tr ") == rows
+    assert not result.isError
+
+
+def test_render_keeps_the_root_out_of_what_the_model_reads():
+    pytest.importorskip("mcp.types")
+    app = compile_mcp_app(_builder().build_bundle(), uri=URI)
+
+    named = app.render(_builder().build_bundle(), text="2 open incidents.")
+    default = app.render(_builder().build_bundle())
+
+    assert [block.text for block in named.content] == ["2 open incidents."]
+    assert [block.text for block in default.content] == ["Rendered the incident_queue view."]
+
+
+def test_render_keeps_the_apps_profile():
+    pytest.importorskip("mcp.types")
+    app = compile_mcp_app(_builder().build_bundle(), uri=URI, profile="aesthetic.calm_ops")
+
+    root = app.render(_builder(rows=5).build_bundle()).structuredContent["viewspecRoot"]
+
+    assert 'data-aesthetic-profile="aesthetic.calm_ops"' in root
+
+
+def test_render_can_drop_an_action_the_app_maps():
+    pytest.importorskip("mcp.types")
+    app = compile_mcp_app(_builder().build_bundle(), uri=URI, action_tools={"refresh": "refresh_incidents"})
+
+    root = app.render(_builder(actions=False).build_bundle()).structuredContent["viewspecRoot"]
+
+    assert "data-action-id" not in root
+
+
+def test_render_writes_tool_data_as_text():
+    pytest.importorskip("mcp.types")
+    hostile = "<img src=x onerror=\"document.title='pwned'\">"
+    builder = ViewSpecBuilder("incident_queue", root_attrs={"title": "Incident queue"})
+    builder.add_table("incidents", region="main", group_id="rows").add_row(id="inc0", label=hostile, value=hostile)
+    app = compile_mcp_app(_builder().build_bundle(), uri=URI)
+
+    root = app.render(builder.build_bundle()).structuredContent["viewspecRoot"]
+
+    elements = _Elements()
+    elements.feed(root)
+    assert "img" not in elements.tags
+    assert "onerror" not in elements.attributes
+    assert "&lt;img" in root
+
+
+def test_render_is_held_to_the_document_ceiling():
+    pytest.importorskip("mcp.types")
+    app = compile_mcp_app(_builder().build_bundle(), uri=URI)
+
+    with pytest.raises(LocalToolContractError) as caught:
+        app.render(_builder(rows=120).build_bundle())
+
+    assert caught.value.code == "MCP_APP_TOO_LARGE"
+
+
 def _in_memory_client(server: Any) -> Any:
     memory = pytest.importorskip("mcp.shared.memory")
     return memory.create_connected_server_and_client_session(server._mcp_server)
@@ -333,20 +517,92 @@ def test_register_mcp_app_publishes_the_resource_and_links_its_tools():
     assert called.structuredContent == {"viewspecBindings": {"inc0_value": "typed"}}
 
 
-def test_flagship_example_serves_a_view_and_binds_real_ids():
+def test_render_reaches_the_host_through_fastmcp_with_the_root_kept_from_the_model():
+    fastmcp = pytest.importorskip("mcp.server.fastmcp")
+    app = compile_mcp_app(_builder().build_bundle(), uri=URI, action_tools={"refresh": "refresh_incidents"})
+    server = fastmcp.FastMCP("test")
+    tool = register_mcp_app(server, app)
+
+    @tool()
+    def show_incidents() -> Any:
+        return app.render(_builder(rows=5).build_bundle(), text="5 open incidents.")
+
+    async def run() -> Any:
+        async with _in_memory_client(server) as session:
+            return await session.call_tool("show_incidents", {})
+
+    called = asyncio.run(run())
+
+    assert called.structuredContent["viewspecRoot"].count("<tr ") == 5
+    assert [block.text for block in called.content] == ["5 open incidents."]
+
+
+def test_a_render_leaves_the_published_document_alone():
+    fastmcp = pytest.importorskip("mcp.server.fastmcp")
+    app = compile_mcp_app(_builder().build_bundle(), uri=URI)
+    published = app.html
+    server = fastmcp.FastMCP("test")
+    tool = register_mcp_app(server, app)
+
+    @tool()
+    def show_incidents() -> Any:
+        return app.render(_builder(rows=5).build_bundle())
+
+    async def run() -> Any:
+        async with _in_memory_client(server) as session:
+            await session.call_tool("show_incidents", {})
+            return await session.read_resource(URI)
+
+    assert asyncio.run(run()).contents[0].text == published == app.html
+
+
+def test_every_server_process_serves_the_same_view():
+    """A host can start a configured server twice and reach either process."""
+    pytest.importorskip("mcp.types")
+    script = (
+        "import hashlib, runpy\n"
+        "example = runpy.run_path('examples/mcp_app_incident_console.py', run_name='example')\n"
+        "root = example['app'].render(example['queue'](example['INCIDENTS'])).structuredContent['viewspecRoot']\n"
+        "print(hashlib.sha256((example['app'].html + root).encode()).hexdigest())\n"
+    )
+
+    def process(seed: str) -> str:
+        env = {**os.environ, "PYTHONHASHSEED": seed}
+        return subprocess.run(
+            [sys.executable, "-c", script], cwd=ROOT, env=env, capture_output=True, text=True, check=True
+        ).stdout
+
+    assert process("1") == process("2")
+
+
+def test_flagship_example_document_makes_sense_with_no_result():
+    example = runpy.run_path(str(ROOT / "examples" / "mcp_app_incident_console.py"), run_name="example")
+    app = example["app"]
+
+    assert app.root.count("<tr ") == 0
+    assert "Refresh to load the queue" in app.root
+    assert 'data-action-id="refresh"' in app.root
+    assert "refresh_incidents" in app.html
+
+
+def test_flagship_example_returns_a_queue_as_long_as_its_data():
     fastmcp = pytest.importorskip("mcp.server.fastmcp")
     example = runpy.run_path(str(ROOT / "examples" / "mcp_app_incident_console.py"), run_name="example")
-    app, server = example["app"], example["server"]
+    app, server, incidents = example["app"], example["server"], example["INCIDENTS"]
     assert isinstance(server, fastmcp.FastMCP)
 
-    async def run() -> dict[str, Any]:
+    async def run() -> list[Any]:
         async with _in_memory_client(server) as session:
-            result = await session.call_tool("show_incidents", {})
-            return result.structuredContent
+            return [
+                await session.call_tool("show_incidents", {}),
+                await session.call_tool("refresh_incidents", {"filter_value": "replica"}),
+                await session.call_tool("refresh_incidents", {"filter_value": "no such incident"}),
+            ]
 
-    bindings = asyncio.run(run())["viewspecBindings"]
+    opened, filtered, empty = [result.structuredContent["viewspecRoot"] for result in asyncio.run(run())]
 
-    assert bindings
-    for binding_id in bindings:
-        assert f'data-binding-id="{binding_id}"' in app.html
-    assert 'data-action-id="refresh"' in app.html
+    assert opened.count("<tr ") == len(incidents) > filtered.count("<tr ") == 1
+    assert empty.count("<tr ") == 0
+    assert "No incidents match" in empty
+    assert 'data-binding-id="filter_value"' in app.html
+    assert all('data-action-id="refresh"' in root for root in (app.html, opened, filtered, empty))
