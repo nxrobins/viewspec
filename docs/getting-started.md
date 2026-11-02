@@ -66,23 +66,39 @@ one line with the URL once it is serving, which suits an agent starting it in th
 
 ## Browser Proof
 
-`viewspec prove` adds a real browser run when it has a React Tailwind artifact and permission to
-install its pinned dependencies:
+`viewspec prove` adds a real browser run when you give it permission to install its pinned
+dependencies:
 
 ```bash
 viewspec prove viewspec.intent.json --target react-tailwind-tsx --install --out .viewspec-proof --json
 ```
 
-`--install` authorizes a bounded `npm ci --ignore-scripts` in an isolated template. Pass a directory
-to verify an artifact that is already compiled:
+`--install` authorizes a bounded `npm ci --ignore-scripts` in an isolated template. The same flag
+works on `html-tailwind` and `mcp-app`, which need no build: Chromium loads the compiled document as
+it stands, from a loopback port or inside the MCP Apps `AppBridge`. Without a browser flag, these
+targets stay a fast source proof that starts no browser.
+
+```bash
+viewspec prove viewspec.intent.json --target html-tailwind --install --pretext
+```
+
+At 390, 768, and 1440 pixels wide, the proof checks that every manifest node is present, grids and
+spans lay out as declared, aesthetic layouts hold, nothing overflows or overlaps, and every control
+has a name. `--pretext` adds a line-count and overflow comparison through the pinned
+`@chenglou/pretext` package, without changing the document. It measures in Arial, as the React proof
+does, so it checks how text lays out, not your production font. `--freerange` applies only to a
+`react-tailwind-app`, and any other target refuses it with `APP_FREERANGE_TARGET_UNSUPPORTED`.
+
+Pass a directory to verify an artifact that is already compiled:
 
 ```bash
 viewspec prove react-tailwind-output/ --install --out .viewspec-verification
 ```
 
-That writes `result.json` and its evidence under the output directory. The exit code is `0` for
-conformant, `1` for nonconformant, and `2` for indeterminate. `--plan FILE` supplies a custom
-verification plan.
+That writes `result.json` and its evidence under the output directory. A browser proof exits `0`
+for conformant, `1` for nonconformant, and `2` for indeterminate, which means it could not reach a
+verdict, such as when Chromium or the dependencies are missing. `--plan FILE` supplies a custom
+verification plan. `--pretext` measures the canonical viewports, so it cannot be combined with one.
 
 ## Runnable React App Golden Path
 

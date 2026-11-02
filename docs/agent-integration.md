@@ -60,7 +60,10 @@ Every result carries `ok`, and a failure is a report with a code and a fix, not 
 Paths resolve against the directory the server starts in, and a path that leaves it fails with
 `PATH_OUTSIDE_CWD`; `--cwd` picks another root, and `--allow-outside-cwd` removes the limit.
 `prove` runs `npm ci --ignore-scripts` only with `install=True`: pass it only when the user allows
-it. Raw HTML import stays on the CLI: it is a fallback, and agents should write bundles.
+it. On `html-tailwind` and `mcp-app`, `install=True` or `pretext=True` adds a Chromium run, and
+`renders` lists `app.render()` results saved as JSON for an MCP App to swap in. Without those, these
+targets stay a fast source proof. Raw HTML import stays on the CLI: it is a fallback, and agents
+should write bundles.
 
 ## Editing Existing Source
 

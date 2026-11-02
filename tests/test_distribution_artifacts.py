@@ -131,6 +131,7 @@ def test_distribution_audit_rejects_sdist_runtime_version_drift(tmp_path: Path) 
         "studio.py",
         "api.py",
         "host_verify_template/package-lock.json",
+        "html_verify_template/verify.mjs",
         "schema/viewspec_pb2.pyi",
     ],
 )

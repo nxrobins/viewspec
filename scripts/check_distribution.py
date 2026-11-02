@@ -30,6 +30,10 @@ RELEASE_FILES = {
     "api.py",
     "host_verify_template/package.json",
     "host_verify_template/package-lock.json",
+    "html_verify_template/package.json",
+    "html_verify_template/package-lock.json",
+    "html_verify_template/host.ts",
+    "html_verify_template/verify.mjs",
 }
 # The package ships py.typed, so the generated protobuf module must travel with its stub.
 SCHEMA_RELEASE_FILES = {

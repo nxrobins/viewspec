@@ -7,7 +7,7 @@ import platform
 import shutil
 import sys
 import time
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -15,6 +15,7 @@ from typing import Any
 from viewspec._version import __version__
 from viewspec.a11y import a11y_contrast_report, name_report
 from viewspec.host_verify import HOST_VERIFY_TARGET, verify_host_artifact_dir
+from viewspec.html_verify import HTML_VERIFY_TARGETS, load_mcp_render
 from viewspec.intent_tools import (
     INTENT_COMPILE_TARGETS,
     STARTER_INTENT_KINDS,
@@ -22,6 +23,7 @@ from viewspec.intent_tools import (
     init_intent_file,
 )
 from viewspec.local_tools import (
+    MCP_APP_TARGET,
     LocalToolError,
     atomic_write,
     bytes_hash,
@@ -37,6 +39,8 @@ from viewspec.local_tools_io import (
     report_directory,
     write_output_sentinel,
 )
+from viewspec.local_tools_response import ProveFailure
+from viewspec.local_verify import verify_local_artifact
 from viewspec.manifest_summary import manifest_root_aesthetic_profile, summarize_intent_manifest
 
 PROVE_SCHEMA_VERSION = 1
@@ -50,26 +54,24 @@ PROVE_SUPPORT_BUNDLE_MAX_BYTES = 16 * 1024
 # in the same layout produces one bundle; ``proof_report_hash`` says where that holds and where not.
 PROVE_SUPPORT_BUNDLE_SCHEMA_VERSION = 2
 PROVE_ARTIFACT_DIR = "artifact"
-PROVE_TARGETS = INTENT_COMPILE_TARGETS
+PROVE_TARGETS = (*INTENT_COMPILE_TARGETS, MCP_APP_TARGET)
 PROOF_LEVEL_BY_TARGET = {
     "html-tailwind": "source_artifact",
+    "mcp-app": "source_artifact",
     "react-tsx": "source_artifact",
     "react-tailwind-tsx": "react_tailwind_reference_host",
 }
+# The level a proof reaches once the opt-in browser run has been asked for.
+BROWSER_PROOF_LEVEL_BY_TARGET = {
+    "html-tailwind": "html_reference_host",
+    "mcp-app": "mcp_app_reference_host",
+}
+HOST_VERIFY_CHECK_BY_STATUS = {"conformant": "passed", "nonconformant": "failed", "indeterminate": "indeterminate"}
+PROVE_MAX_REPORTED_DIAGNOSTICS = 16
 PROVE_NON_CLAIM = (
     "ViewSpec prove is not pixel-perfect visual regression, accessibility certification, "
     "or arbitrary host-app certification."
 )
-
-
-class ProveFailure(ValueError):
-    """Stable-code first proof failure."""
-
-    def __init__(self, code: str, message: str, fix: str) -> None:
-        super().__init__(f"{code}: {message}")
-        self.code = code
-        self.message = message
-        self.fix = fix
 
 
 @dataclass(frozen=True)
@@ -95,10 +97,17 @@ def prove(
     install: bool = False,
     force: bool = False,
     report_out: str | Path | None = None,
+    pretext: bool = False,
+    renders: Sequence[Any] = (),
     cwd: str | Path | None = None,
 ) -> dict[str, Any]:
-    """Run a bounded first proof for a ViewSpec IntentBundle."""
+    """Run a bounded first proof for a ViewSpec IntentBundle.
+
+    ``html-tailwind`` and ``mcp-app`` stay a fast source proof until ``install``, ``pretext`` or
+    ``renders`` asks for the Chromium run.
+    """
     timings: dict[str, int] = {}
+    browser = target in HTML_VERIFY_TARGETS and bool(install or pretext or renders)
     root = resolve_cwd(cwd)
     output_dir = _resolve_output(out_dir, root)
     report_path = (
@@ -111,7 +120,7 @@ def prove(
             raise ProveFailure(
                 "PROVE_UNSUPPORTED_TARGET",
                 f"Unsupported proof target: {target}",
-                "Use html-tailwind, react-tsx, or react-tailwind-tsx.",
+                "Use html-tailwind, mcp-app, react-tsx, or react-tailwind-tsx.",
             )
         if kind not in STARTER_INTENT_KINDS:
             raise ProveFailure(
@@ -160,8 +169,28 @@ def prove(
         manifest_path = prepared.artifact_dir / "provenance_manifest.json"
         artifact_path = _artifact_path(prepared.artifact_dir, target)
         host_report: dict[str, Any] | None = None
+        verification: dict[str, Any] | None = None
         errors: list[dict[str, str]] = []
         checks = _checks(prepared, target=target, compile_check="passed")
+        if browser:
+            evidence_dir = prepared.output_dir / "evidence"
+            result: dict[str, Any] = _time_phase(
+                timings,
+                "browser_verify",
+                lambda: verify_local_artifact(
+                    prepared.artifact_dir,
+                    evidence_dir=evidence_dir,
+                    install=install,
+                    pretext=pretext,
+                    renders=tuple(load_mcp_render(render) for render in renders),
+                ).to_json(),
+            )
+            browser_report: dict[str, Any] = json.loads((evidence_dir / "host-report.json").read_text(encoding="utf-8"))
+            verification, host_report = result, browser_report
+            checks["host_verify"] = HOST_VERIFY_CHECK_BY_STATUS[result["status"]]
+            if pretext:
+                checks["pretext"] = str(browser_report.get("text_layout", {}).get("status", "not_run"))
+            errors = _verification_errors(result)
         if target == HOST_VERIFY_TARGET:
             host_report = _time_phase(
                 timings,
@@ -213,10 +242,12 @@ def prove(
             manifest_summary=summarize_intent_manifest(manifest_path),
             a11y=a11y if a11y.get("available") else None,
             host_report=host_report,
+            verification=verification,
+            proof_level=BROWSER_PROOF_LEVEL_BY_TARGET.get(target) if browser else None,
             errors=errors,
             metadata={
                 "sdk_version": __version__,
-                "network_calls": "npm_ci_opt_in" if target == HOST_VERIFY_TARGET and install else "none",
+                "network_calls": "npm_ci_opt_in" if install and (browser or target == HOST_VERIFY_TARGET) else "none",
                 "install_used": bool(install),
                 "strict_design": bool(strict_design),
             },
@@ -471,8 +502,27 @@ def _checks(prepared: _PreparedProof, *, target: str, compile_check: str) -> dic
         "compile": compile_check,
         "artifact_check": "passed" if compile_check == "passed" else "failed",
         "host_verify": "not_applicable" if target != HOST_VERIFY_TARGET else "pending",
+        # No IntentBundle target emits the TypeScript numeric reducer kernel Freerange proves.
+        "freerange": "not_applicable",
         "proof_summary": "pending",
     }
+
+
+def _verification_errors(verification: Mapping[str, Any]) -> list[dict[str, str]]:
+    """Report the browser run's diagnostics in the proof's error shape, bounded for ``PROOF.md``."""
+    if verification["status"] == "conformant":
+        return []
+    severity = "error" if verification["status"] == "nonconformant" else "warning"
+    diagnostics = [item for item in verification["diagnostics"] if item["severity"] == severity]
+    errors = [
+        {
+            "code": item["code"],
+            "message": f"[{item['viewport']}] {item['message']}" if item.get("viewport") else item["message"],
+            "fix": item["fix"],
+        }
+        for item in diagnostics[:PROVE_MAX_REPORTED_DIAGNOSTICS]
+    ]
+    return errors or _normalize_errors(None, fallback_code="VERIFY_RESULT_INDETERMINATE")
 
 
 def _report(
@@ -489,6 +539,8 @@ def _report(
     manifest_summary: dict[str, Any] | None = None,
     a11y: dict[str, Any] | None = None,
     host_report: dict[str, Any] | None = None,
+    verification: dict[str, Any] | None = None,
+    proof_level: str | None = None,
     errors: list[dict[str, str]],
     metadata: dict[str, Any],
 ) -> dict[str, Any]:
@@ -517,7 +569,7 @@ def _report(
     return {
         "schema_version": PROVE_SCHEMA_VERSION,
         "ok": ok,
-        "proof_level": PROOF_LEVEL_BY_TARGET.get(target, "unknown"),
+        "proof_level": proof_level or PROOF_LEVEL_BY_TARGET.get(target, "unknown"),
         "target": target,
         "paths": paths,
         "checks": checks,
@@ -526,6 +578,7 @@ def _report(
         "manifest_summary": manifest_summary,
         "a11y": a11y,
         "host_report": host_report,
+        **({"verification": verification} if verification is not None else {}),
         "errors": errors,
         "metadata": metadata,
         "timings_ms": dict(sorted(timings.items())),
@@ -577,13 +630,14 @@ def proof_report_hash(report: Mapping[str, Any]) -> str:
     the source-artifact targets.  Two proofs of one input share the hash only when the reports
     record the same thing:
 
-    * for the source-artifact targets (``html-tailwind``, ``react-tsx``) when each recorded path
-      has the same position relative to the report, for example a generated intent inside the proof
-      directory, or the same repository layout cloned or moved elsewhere.  An input outside the
-      proof directory is recorded as ``../x`` from one depth and ``../../x`` from another, and the
-      hashes differ;
-    * not for ``react-tailwind-tsx``, whose ``host_report`` keeps the host verifier's own
-      wall-clock ``timings_ms``, so every run gets a new hash.
+    * for the source-artifact targets (``html-tailwind``, ``mcp-app``, ``react-tsx``) when each
+      recorded path has the same position relative to the report, for example a generated intent
+      inside the proof directory, or the same repository layout cloned or moved elsewhere.  An input
+      outside the proof directory is recorded as ``../x`` from one depth and ``../../x`` from
+      another, and the hashes differ;
+    * not for ``react-tailwind-tsx``, or for a browser proof of ``html-tailwind`` or ``mcp-app``,
+      whose ``host_report`` keeps the verifier's own wall-clock ``timings_ms``, so every run gets
+      a new hash.
     """
     document = _portable_report(report)
     document.pop("timings_ms", None)
@@ -967,7 +1021,7 @@ def _render_proof_summary(report: dict[str, Any], *, proof_report_hash: str) -> 
         lines.append(f"- {_summary_value(key)}: `{_summary_value(checks[key])}`")
 
     host_report = report.get("host_report")
-    if target == HOST_VERIFY_TARGET:
+    if target == HOST_VERIFY_TARGET or isinstance(host_report, dict):
         lines.extend(["", "## Host Verification", ""])
         if isinstance(host_report, dict):
             lines.append(f"- Status: `{'passed' if host_report.get('ok') else 'failed'}`")
@@ -1068,6 +1122,10 @@ def _proof_claim(report: dict[str, Any]) -> str:
         and report["host_report"].get("ok")
     ):
         return "Bounded React/Vite/Tailwind reference-host proof for this generated artifact."
+    if isinstance(report.get("verification"), dict) and report.get("ok"):
+        if target == MCP_APP_TARGET:
+            return "Bounded Chromium proof of this generated MCP App in the ext-apps AppBridge host."
+        return "Bounded Chromium proof of this generated HTML document across the proof viewports."
     return "Source artifact integrity and provenance proof for this generated artifact."
 
 

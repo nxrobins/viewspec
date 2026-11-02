@@ -7,8 +7,10 @@ import json
 from collections.abc import Iterable
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
+from typing import Any
 
 from viewspec.host_verify import verify_host_artifact_dir
+from viewspec.html_verify import assert_html_proof_request, html_artifact_target, verify_html_artifact_dir
 from viewspec.local_tools import atomic_write, check_artifact_dir
 from viewspec.verification import (
     EvidenceFile,
@@ -59,18 +61,32 @@ def verify_local_artifact(
     report_out: str | Path | None = None,
     install: bool = False,
     lineage: RetryLineage | None = None,
+    pretext: bool = False,
+    renders: tuple[dict[str, Any], ...] = (),
 ) -> VerificationResult:
-    """Verify a checked artifact and return a canonical conformance result."""
+    """Verify a checked artifact and return a canonical conformance result.
+
+    ``pretext`` and ``renders`` apply to the html-tailwind and mcp-app artifacts, which
+    :func:`viewspec.html_verify.verify_html_artifact_dir` proves. A React Tailwind artifact goes
+    through the reference host instead.
+    """
     artifact_path = Path(artifact_dir).resolve()
     checked = check_artifact_dir(artifact_path)
     if not checked.get("ok"):
         messages = "; ".join(str(item) for item in checked.get("errors", []))
         raise ValueError(f"Artifact preflight failed: {messages or 'unknown artifact error'}")
     selected_plan = plan or VerificationPlan.default()
+    target = html_artifact_target(artifact_path)
+    assert_html_proof_request(target, selected_plan, pretext=pretext, renders=renders)
     artifact_sha256 = _artifact_identity(artifact_path)
     evidence_path = Path(evidence_dir).resolve()
     _prepare_evidence_dir(evidence_path, artifact_path)
-    outcome = _execute_browser_plan(artifact_path, selected_plan, evidence_path, install=install)
+    if target is None:
+        outcome = _execute_browser_plan(artifact_path, selected_plan, evidence_path, install=install)
+    else:
+        outcome = _execute_html_browser_plan(
+            artifact_path, selected_plan, evidence_path, install=install, pretext=pretext, renders=renders
+        )
     evidence = _collect_evidence(evidence_path, outcome.evidence)
     result = VerificationResult.create(
         artifact_sha256=artifact_sha256,
@@ -180,6 +196,33 @@ def _execute_browser_plan(
         verification_plan=plan,
         evidence_dir=evidence_dir,
     )
+    return _browser_outcome(report)
+
+
+def _execute_html_browser_plan(
+    artifact_dir: Path,
+    plan: VerificationPlan,
+    evidence_dir: Path,
+    *,
+    install: bool,
+    pretext: bool,
+    renders: tuple[dict[str, Any], ...],
+) -> BrowserPlanOutcome:
+    """Execute the Chromium proof of a compiled html-tailwind or mcp-app document."""
+    report = verify_html_artifact_dir(
+        artifact_dir,
+        plan=plan,
+        evidence_dir=evidence_dir,
+        report_out=evidence_dir / "host-report.json",
+        install=install,
+        pretext=pretext,
+        renders=renders,
+    )
+    return _browser_outcome(report)
+
+
+def _browser_outcome(report: dict[str, Any]) -> BrowserPlanOutcome:
+    """Turn a bounded host report into diagnostics, and decide whether it reached a verdict."""
     errors = report.get("errors", []) if isinstance(report.get("errors"), list) else []
     diagnostics: list[VerificationDiagnostic] = []
     raw_browser_diagnostics = report.get("verification_diagnostics", [])
