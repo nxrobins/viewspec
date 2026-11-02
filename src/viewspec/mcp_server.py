@@ -191,13 +191,16 @@ class ViewSpecTools:
         with_shell: bool = False,
         freerange: bool = False,
         pretext: bool = False,
+        renders: list[str] | None = None,
     ) -> dict[str, Any]:
         """Compile and verify a source, or browser-verify a compiled artifact directory.
 
         With no source, proves a starter of kind. Writes a proof bundle and returns its report.
         Use install=True only when the user explicitly permits npm ci --ignore-scripts; browser
-        proofs need it, with target react-tailwind-tsx or react-tailwind-app. with_shell, freerange
-        (needs Bun), and pretext apply to AppBundles. force replaces an earlier proof directory.
+        proofs need it, on every target but react-tsx. with_shell and freerange (needs Bun) apply to
+        AppBundles. pretext applies to react-tailwind-app, html-tailwind, and mcp-app. renders lists
+        JSON files of app.render() results for an mcp-app view to swap in and prove. force replaces
+        an earlier proof directory.
         """
         source_path = self._source(source)
         return api.prove(
@@ -212,6 +215,7 @@ class ViewSpecTools:
             with_shell=with_shell,
             freerange=freerange,
             pretext=pretext,
+            renders=tuple(self._path(render, must_exist=True) for render in renders or ()),
             cwd=self.root,
         )
 

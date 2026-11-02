@@ -512,9 +512,14 @@ def _assert_workspace_safe(host_dir: Path, artifact_path: Path) -> None:
             )
 
 
-def _copy_template(host_dir: Path) -> None:
-    root = resources.files(HOST_VERIFY_TEMPLATE_PACKAGE)
-    for rel in HOST_VERIFY_TEMPLATE_FILES:
+def _copy_template(
+    host_dir: Path,
+    *,
+    package: str = HOST_VERIFY_TEMPLATE_PACKAGE,
+    files: tuple[str, ...] = HOST_VERIFY_TEMPLATE_FILES,
+) -> None:
+    root = resources.files(package)
+    for rel in files:
         source = root.joinpath(*rel.split("/"))
         if not source.is_file():
             raise HostVerifyFailure("HOST_VERIFY_TEMPLATE_MISSING", f"Packaged host verifier template is missing {rel}")
@@ -578,9 +583,9 @@ def _assert_node_modules(host_dir: Path) -> None:
     _assert_node_modules_dir(host_dir / "node_modules")
 
 
-def _assert_node_modules_dir(node_modules: Path) -> None:
+def _assert_node_modules_dir(node_modules: Path, *, bins: tuple[str, ...] = HOST_VERIFY_NODE_MODULE_BINS) -> None:
     bin_dir = node_modules / ".bin"
-    for name in HOST_VERIFY_NODE_MODULE_BINS:
+    for name in bins:
         candidates = [bin_dir / name, bin_dir / f"{name}.cmd"]
         if not any(path.exists() for path in candidates):
             raise HostVerifyFailure(
@@ -589,11 +594,18 @@ def _assert_node_modules_dir(node_modules: Path) -> None:
             )
 
 
-def _link_prebuilt_node_modules(host_dir: Path, configured: Path) -> None:
+def _link_prebuilt_node_modules(
+    host_dir: Path,
+    configured: Path,
+    *,
+    bins: tuple[str, ...] = HOST_VERIFY_NODE_MODULE_BINS,
+    env_name: str = "VIEWSPEC_HOST_VERIFY_NODE_MODULES_DIR",
+    copy_packages: frozenset[str] = frozenset(),
+) -> None:
     if not configured.is_absolute():
         raise HostVerifyFailure(
             "HOST_VERIFY_NODE_MODULES_MISSING",
-            "VIEWSPEC_HOST_VERIFY_NODE_MODULES_DIR must be an absolute path.",
+            f"{env_name} must be an absolute path.",
         )
     seed = configured.resolve()
     if not seed.is_dir():
@@ -601,14 +613,14 @@ def _link_prebuilt_node_modules(host_dir: Path, configured: Path) -> None:
             "HOST_VERIFY_NODE_MODULES_MISSING",
             "Configured prebuilt node_modules directory does not exist.",
         )
-    _assert_node_modules_dir(seed)
+    _assert_node_modules_dir(seed, bins=bins)
     destination = host_dir / "node_modules"
     if destination.exists() or destination.is_symlink():
         raise HostVerifyFailure(
             "HOST_VERIFY_NODE_MODULES_MISSING",
             "Host node_modules destination must be empty before linking dependencies.",
         )
-    materialize_prebuilt_node_modules(destination, seed)
+    materialize_prebuilt_node_modules(destination, seed, copy_packages=copy_packages)
 
 
 def _run_process(
@@ -725,7 +737,10 @@ def _time_phase(timings: dict[str, int], phase: str, fn: Any) -> Any:
 
 
 def _assert_runtime_report(
-    runtime: dict[str, Any], *, manifest_summary: dict[str, Any] | None = None
+    runtime: dict[str, Any],
+    *,
+    manifest_summary: dict[str, Any] | None = None,
+    requirements: dict[str, int] | None = None,
 ) -> dict[str, int]:
     assertions = runtime.get("assertions")
     if not isinstance(assertions, dict):
@@ -742,12 +757,13 @@ def _assert_runtime_report(
         "aesthetic_profile_assertion_count": int(assertions.get("aesthetic_profile_assertion_count", 0)),
         "payload_binding_count": int(assertions.get("payload_binding_count", 0)),
     }
-    requirements = _host_assertion_requirements(manifest_summary)
+    requirements = requirements or _host_assertion_requirements(manifest_summary)
     if normalized["dom_count"] < requirements["dom_count"]:
         raise HostVerifyFailure("HOST_VERIFY_DOM_NODE_MISSING", "Browser report did not include a DOM assertion.")
     if normalized["style_assertion_count"] < requirements["style_assertion_count"]:
         raise HostVerifyFailure(
-            "HOST_VERIFY_STYLE_ASSERTION_TOO_WEAK", "Browser report did not include four computed style assertions."
+            "HOST_VERIFY_STYLE_ASSERTION_TOO_WEAK",
+            f"Browser report did not include {requirements['style_assertion_count']} computed style assertions.",
         )
     if normalized["aesthetic_profile_assertion_count"] < requirements["aesthetic_profile_assertion_count"]:
         raise HostVerifyFailure(
@@ -844,11 +860,12 @@ def _base_report(
     viewport_count: int = 1,
     manifest_summary: dict[str, Any] | None = None,
     errors: list[dict[str, str]] | None = None,
+    target: str = HOST_VERIFY_TARGET,
 ) -> dict[str, Any]:
     return {
         "schema_version": HOST_VERIFY_SCHEMA_VERSION,
         "ok": ok,
-        "target": HOST_VERIFY_TARGET,
+        "target": target,
         "artifact_dir": str(artifact_dir) if artifact_dir is not None else None,
         "artifact_hash": artifact_hash,
         "manifest_hash": manifest_hash,
@@ -888,6 +905,9 @@ def _error_report(
     fix: str | None = None,
     manifest_summary: dict[str, Any] | None = None,
     errors: list[dict[str, str]] | None = None,
+    target: str = HOST_VERIFY_TARGET,
+    verification_diagnostics: list[dict[str, Any]] | None = None,
+    evidence: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     return _base_report(
         ok=False,
@@ -895,6 +915,9 @@ def _error_report(
         install=install,
         timings=timings or {},
         manifest_summary=manifest_summary,
+        target=target,
+        verification_diagnostics=verification_diagnostics,
+        evidence=evidence,
         errors=errors
         or [
             {
@@ -915,6 +938,7 @@ def _finalize_report(report: dict[str, Any], report_out: str | Path | None) -> d
             artifact_dir=Path(report["artifact_dir"]) if report.get("artifact_dir") else None,
             install=bool(report.get("install_used")),
             timings=report.get("timings_ms") if isinstance(report.get("timings_ms"), dict) else {},
+            target=str(report.get("target") or HOST_VERIFY_TARGET),
         )
         payload = json.dumps(report, indent=2, sort_keys=True)
     if report_out is not None:

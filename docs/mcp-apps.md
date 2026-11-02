@@ -218,6 +218,52 @@ specification's prose differs, as it does for `ui/message` content, the SDK wins
 validate against it. `tests/test_mcp_app_host_e2e.py` runs compiled apps against that SDK's
 `AppBridge` in Chromium, in a sandboxed iframe under the specification's default CSP.
 
+## Proving an app
+
+`check` reads the document. `viewspec prove` runs it, in Chromium, inside the SDK's own `AppBridge`
+and a sandboxed iframe under the specification's default CSP:
+
+```bash
+viewspec prove dist/ --install --pretext --out .viewspec-verification
+```
+
+From an `IntentBundle`, add `--target mcp-app`. Nothing is rebuilt: the proof mounts the document that
+`check` passed. At 390, 768, and 1440 pixels wide it requires that:
+
+- `ui/initialize` finishes, `initialized` arrives once, and the view reports a size
+- every manifest node is present, and grids, spans, and aesthetic layouts hold
+- nothing overflows or overlaps, and every control has a name
+- nothing fails, logs an error, or loads anything at runtime
+- the compiled root survives the path a tool result takes: the bridge accepts it, and every check
+  above still passes on the swapped root
+
+`--pretext` adds the pinned `@chenglou/pretext` line-count and overflow comparison. The package
+reaches the page by evaluation, in a page used for nothing else, so `index.html` and the pinned
+bridge stay byte for byte what `check` passed. As in the React proof, that page measures text in
+Arial, which is the font Pretext can predict.
+
+To prove what your tools really return, save `render()` results as JSON and pass each with `--render`:
+
+```python
+from pathlib import Path
+
+result = app.render(queue(incidents), text="5 open incidents.")
+Path("five.json").write_text(result.model_dump_json(by_alias=True, exclude_none=True))
+```
+
+```bash
+viewspec prove dist/ --install --render five.json --render empty.json
+```
+
+The view swaps in each root in turn, and each one gets the layout, accessibility, and runtime checks.
+A root the bridge refuses makes the proof nonconformant, since that result would never have rendered.
+From Python, pass the results directly: `prove("dist/", install=True, renders=[app.render(bundle)])`.
+
+The result is `conformant` (exit code `0`), `nonconformant` (`1`), or `indeterminate` (`2`), which
+means the proof could not reach a verdict, such as when Chromium or the dependencies are missing.
+`--freerange` fails closed with `APP_FREERANGE_TARGET_UNSUPPORTED`, because this target emits no
+TypeScript numeric reducer kernel.
+
 ## Known limits
 
 - **About 90 table rows fit.** A row costs roughly 1.2 KB, and the 120,000 byte ceiling is
@@ -229,11 +275,13 @@ validate against it. `tests/test_mcp_app_host_e2e.py` runs compiled apps against
   even when it was asked for first.
 - **A reopened view can start from the compiled document.** See
   [When a view reopens](#when-a-view-reopens).
-- **`check` is the only gate.** `viewspec prove` runs its browser checks on `react_tailwind_tsx`
-  artifacts, so it reports `indeterminate` for this target, as it does for `html-tailwind`. There is
-  no multi-viewport geometry or Pretext proof of an MCP App yet.
-- **Tested against the SDK, not against each product.** The host test uses the official SDK host.
-  Try your app in the hosts you target, since each sets its own sizing and policies.
+- **A proof covers what you pass it.** It checks the compiled document and the renders you name, not
+  every result your tools can return. A render has no manifest, so its text is not compared with
+  one, and `--pretext` measures the compiled document only.
+- **A proof does not click.** It checks how a view renders. `tests/test_mcp_app_host_e2e.py` covers
+  each action route against the SDK.
+- **Tested against the SDK, not against each product.** The proof and the host test use the official
+  SDK host. Try your app in the hosts you target, since each sets its own sizing and policies.
 - **Host theming is ignored.** The view keeps its own light theme and profile, and does not read the
   host's theme or CSS variables.
 - **IntentBundle only.** An `AppBundle` has routes and screens, which a single resource cannot hold,

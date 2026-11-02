@@ -91,6 +91,11 @@ def test_pretext_runtime_caches_prepare_without_width_and_lays_out_each_probe() 
         "const predicted = layout(prepared, width + CHROMIUM_ARIAL_LAYOUT_FIT_TOLERANCE_PX, config.lineHeight);"
         in source
     )
+    # Inside the tolerance band either width may be the one Chromium used, and a measured width
+    # that matches must not count as a second layout against the cache invariant.
+    assert ": layout(prepared, width, config.lineHeight).lineCount;" in source
+    assert source.count("layoutCalls += 1;") == 1
+    assert "predicted_line_count: predictedLineCount," in source
     assert "const inputSha256 = await sha256String(cacheKey);" in source
     assert "prepare_calls: prepareCalls" in source
     assert "unique_inputs: preparedCache.size" in source
@@ -126,13 +131,13 @@ def test_pretext_runtime_enforces_bounded_supported_style_profile() -> None:
 def test_pretext_runtime_verdict_is_line_count_and_overflow_based() -> None:
     source = generate_pretext_runtime_typescript()
 
-    assert "predicted.lineCount === lineTops.length" in source
+    assert "predictedLineCount === lineTops.length" in source
     assert "target.scrollWidth > target.clientWidth + OVERFLOW_EPSILON_PX" in source
     assert "target.scrollHeight > target.clientHeight + OVERFLOW_EPSILON_PX" in source
     assert "const CHROMIUM_ARIAL_LAYOUT_FIT_TOLERANCE_PX = 4;" in source
     assert "const longWrapMinLines = 10;" in source
     assert "const longWrapLineTolerance = 1;" in source
-    assert "Math.min(predicted.lineCount, lineTops.length) >= longWrapMinLines" in source
+    assert "Math.min(predictedLineCount, lineTops.length) >= longWrapMinLines" in source
     assert "lineCountDelta <= longWrapLineTolerance" in source
     assert "available_width: Number(width.toFixed(6))" in source
     assert 'reason = "line_count_mismatch";' in source

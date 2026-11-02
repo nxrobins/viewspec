@@ -76,6 +76,16 @@ viewspec prove viewspec.intent.json --target react-tailwind-tsx --install --out 
 installed without it. To verify an artifact that is already compiled, pass its directory:
 `viewspec prove react-tailwind-output/ --install`.
 
+`html-tailwind` and `mcp-app` documents get the same proof with nothing to build, and `--pretext`
+adds a native-DOM text-layout check. An MCP App runs inside the official SDK's `AppBridge`:
+
+```bash
+viewspec prove viewspec.intent.json --target mcp-app --install --pretext
+```
+
+Without `--install` or `--pretext`, `viewspec prove` on these targets stays a fast source proof that
+starts no browser.
+
 ViewSpec proof is not pixel-perfect visual regression, accessibility certification, or arbitrary
 host-app certification.
 

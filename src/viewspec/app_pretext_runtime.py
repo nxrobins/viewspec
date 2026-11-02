@@ -602,15 +602,20 @@ async function probeItem(
   const predicted = layout(prepared, width + CHROMIUM_ARIAL_LAYOUT_FIT_TOLERANCE_PX, config.lineHeight);
   layoutCalls += 1;
   const lineTops = observedLineTops(target);
+  // The tolerance covers a line canvas shaping misses by a hair, so it must not also reject one
+  // that Chromium wraps inside the same band: the measured width gets a say before a mismatch.
+  const predictedLineCount = predicted.lineCount === lineTops.length
+    ? predicted.lineCount
+    : layout(prepared, width, config.lineHeight).lineCount;
   const horizontalOverflow = target.scrollWidth > target.clientWidth + OVERFLOW_EPSILON_PX;
   const verticalOverflow = target.scrollHeight > target.clientHeight + OVERFLOW_EPSILON_PX;
   const horizontalClipped = horizontalOverflow && CLIPPING_OVERFLOW_VALUES.has(style.overflowX);
   const verticalClipped = verticalOverflow && CLIPPING_OVERFLOW_VALUES.has(style.overflowY);
 
   let reason: ProbeReason | null = null;
-  const lineCountDelta = Math.abs(predicted.lineCount - lineTops.length);
-  const lineCountMatches = predicted.lineCount === lineTops.length || (
-    Math.min(predicted.lineCount, lineTops.length) >= longWrapMinLines
+  const lineCountDelta = Math.abs(predictedLineCount - lineTops.length);
+  const lineCountMatches = predictedLineCount === lineTops.length || (
+    Math.min(predictedLineCount, lineTops.length) >= longWrapMinLines
     && lineCountDelta <= longWrapLineTolerance
   );
   if (!lineCountMatches) reason = "line_count_mismatch";
@@ -620,7 +625,7 @@ async function probeItem(
   const metrics = {
     available_width: Number(width.toFixed(6)),
     line_height: Number(config.lineHeight.toFixed(6)),
-    predicted_line_count: predicted.lineCount,
+    predicted_line_count: predictedLineCount,
     observed_line_count: lineTops.length,
     horizontal_overflow: horizontalOverflow,
     vertical_overflow: verticalOverflow,

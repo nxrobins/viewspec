@@ -21,6 +21,13 @@ class LocalToolError(ValueError):
         return {"code": self.code, "message": self.message, "fix": self.fix}
 
 
+class ProveFailure(LocalToolError):
+    """A proof request that cannot be honored. It names its code wherever it is printed."""
+
+    def __str__(self) -> str:
+        return f"{self.code}: {self.message}"
+
+
 def tool_response(
     ok: bool,
     summary: str,

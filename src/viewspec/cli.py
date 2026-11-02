@@ -53,7 +53,8 @@ from viewspec.types import IntentBundle
 from viewspec.verification import VerificationPlan
 
 COMPILE_TARGETS = (*INTENT_COMPILE_TARGETS, MCP_APP_TARGET, APP_SHELL_TARGET, REACT_APP_TARGET)
-PROVE_TARGETS = (*INTENT_COMPILE_TARGETS, REACT_APP_TARGET)
+PROVE_TARGETS = (*INTENT_COMPILE_TARGETS, MCP_APP_TARGET, REACT_APP_TARGET)
+VERIFICATION_EXIT_CODES = {"conformant": 0, "nonconformant": 1, "indeterminate": 2}
 
 
 @dataclass(frozen=True)
@@ -261,7 +262,7 @@ def _build_parser() -> argparse.ArgumentParser:
     prove_parser.add_argument(
         "--target",
         choices=PROVE_TARGETS,
-        help="Proof target. react-tailwind-tsx and react-tailwind-app add a browser proof with --install.",
+        help="Proof target. Every target but react-tsx adds a browser proof with --install.",
     )
     prove_parser.add_argument("--design", help="Optional DESIGN.md file to apply locally.")
     prove_parser.add_argument(
@@ -290,7 +291,14 @@ def _build_parser() -> argparse.ArgumentParser:
     prove_parser.add_argument(
         "--pretext",
         action="store_true",
-        help="AppBundle: opt in to pinned Pretext text-layout evidence for compiler-owned native DOM text.",
+        help="Opt in to pinned Pretext text-layout evidence: react-tailwind-app, html-tailwind, and mcp-app.",
+    )
+    prove_parser.add_argument(
+        "--render",
+        action="append",
+        default=[],
+        metavar="FILE",
+        help="mcp-app: an app.render() result as JSON, to swap into the view and prove. Repeatable.",
     )
     prove_parser.add_argument("--plan", help="Artifact directory: optional verification plan JSON file.")
     prove_parser.add_argument("--json", action="store_true", help="Print machine-readable JSON.")
@@ -693,6 +701,7 @@ def _prove_command(args: argparse.Namespace) -> int:
         freerange=bool(args.freerange),
         pretext=bool(args.pretext),
         plan=plan,
+        renders=tuple(args.render),
     )
     if args.json:
         print(json.dumps(result, indent=2, sort_keys=True))
@@ -718,6 +727,9 @@ def _finish_intent_proof(result: dict[str, Any], *, quiet: bool) -> int:
             print(line)
     if result["ok"]:
         return 0
+    verification = result.get("verification")
+    if isinstance(verification, dict) and verification["status"] != "indeterminate":
+        return VERIFICATION_EXIT_CODES["nonconformant"]
     if any(error.get("code") == "PROVE_INTERNAL_ERROR" for error in result["errors"]):
         return 1
     return 2
@@ -768,7 +780,7 @@ def _finish_artifact_proof(result: dict[str, Any], *, quiet: bool) -> int:
             location = f" [{diagnostic['viewport']}]" if diagnostic.get("viewport") else ""
             origin = f" {diagnostic['source_ref']}" if diagnostic.get("source_ref") else ""
             print(f"{diagnostic['severity']}: {diagnostic['code']}{location}{origin}: {diagnostic['message']}")
-    return {"conformant": 0, "nonconformant": 1, "indeterminate": 2}[result["status"]]
+    return VERIFICATION_EXIT_CODES[result["status"]]
 
 
 def _host_assertion_summary_lines(assertions: object, requirements: object = None) -> list[str]:

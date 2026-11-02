@@ -1,6 +1,8 @@
 # Known Limits: HTML/Tailwind Emitter
 
 - `HtmlTailwindEmitter` is kept as the compatibility name, but output now uses offline CSS instead of the Tailwind CDN.
+- `viewspec prove` runs its Chromium proof on compiled IntentBundle output. A raw HTML artifact has no IR to check against, so `viewspec prove DIR` reports `indeterminate` for it.
+- The Chromium proof checks how a document renders, and does not click. Its `--pretext` pass measures text in Arial, not the compiled font stack.
 - Actions dispatch `viewspec-action` browser events; they do not perform network requests unless the host app listens and submits. Event `detail` is versioned as `schemaVersion: 1` and includes `source`, `id`, `kind`, `targetRef`, `payloadBindings`, and `payloadValues`. Pressing Enter inside an inert ViewSpec form dispatches only a declared `submit` action whose `targetRef` exactly matches that form motif.
 - Table and list motifs emit semantic `<table>`/`<tr>`/`<th>`/`<td>` and `<ul>`/`<li>` markup. Collection actions such as search, filter, sort, paginate, and bulk_action are event surfaces only; generated artifacts do not locally mutate or query collection data. Dashboard, outline, and comparison motifs emit portable primitive containers with provenance attributes rather than full ARIA-specific widgets.
 - Loading and error state motifs emit the current rendered state with checked `role="status"`/`aria-busy="true"` or `role="alert"` semantics; they do not implement async transitions or retry loops.

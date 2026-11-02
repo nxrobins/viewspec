@@ -3,6 +3,10 @@
 ViewSpec `prove` checks a bounded, statically-decidable slice of accessibility and **fails closed**
 on contrast. This documents exactly what is and is not proven, so reviewers can trust the boundary.
 
+A browser proof adds two runtime checks at each viewport, in every target that has one: no duplicate
+DOM ids, and an accessible name on every button, input, and image. They read the rendered DOM, so
+they also cover a swapped MCP App root.
+
 ## Proven, fail-closed
 
 - **Scoped WCAG AA contrast.** Every governed text/background pair — enumerated from the closed

@@ -27,6 +27,19 @@ All notable changes to ViewSpec are documented in this file. The format follows
   can bring a view its first action.
 - `examples/mcp_app_incident_console.py`, and a CI job that runs compiled apps against the
   `@modelcontextprotocol/ext-apps` SDK host in Chromium.
+- `viewspec prove` now proves `html-tailwind` and `mcp-app` in Chromium at the three canonical
+  viewports, on a source with `--install` or `--pretext` and on a compiled directory, where both used
+  to report `indeterminate`. Nothing is built: a packaged harness with its own lockfile serves
+  html-tailwind from a loopback port and mounts an MCP App in the ext-apps `AppBridge`, in a sandboxed
+  iframe under the default CSP. It runs the manifest DOM, grid and span, aesthetic layout, overflow,
+  overlap, and accessibility checks, and an MCP App must also finish `ui/initialize` and take its own
+  compiled root through the tool-result path. `--target mcp-app` joins `viewspec prove`, whose source
+  proofs now exit `1` for a nonconformant browser run.
+- `--pretext` works on `html-tailwind` and `mcp-app`. The pinned `@chenglou/pretext` `0.0.8` reaches
+  the page by evaluation, so the document and its pinned bridge stay byte-identical.
+- `viewspec prove --render FILE`, `prove(renders=...)`, and the MCP `prove` tool's `renders` send
+  `app.render()` results through a live view and prove each swapped root
+  (`PROVE_RENDER_INVALID`). A root the bridge refuses is nonconformant.
 - `viewspec.ViewSpecError`, the base of `CompilerInputError`, `UnsupportedMotifError`,
   `DesignSystemError`, `AppBundleError`, and the stable-code errors.
 
@@ -37,6 +50,17 @@ All notable changes to ViewSpec are documented in this file. The format follows
   errors leave it. They stay importable from `viewspec`.
 - The `agents` extra now needs `mcp>=1.30`. `FastMCP.resource()` takes `meta` from 1.26, and before
   1.30 a settings warning reaches the stderr that `viewspec mcp --json` keeps for its failure report.
+- `--freerange` on an IntentBundle or a compiled directory now fails with
+  `APP_FREERANGE_TARGET_UNSUPPORTED`, in place of a general request error, and IntentBundle proof
+  reports record `checks.freerange: "not_applicable"`. `--pretext` on a target without a probe fails
+  with `APP_PRETEXT_TARGET_UNSUPPORTED`.
+- `--install` on an `html-tailwind` source now runs the browser proof. It used to do nothing.
+
+### Fixed
+
+- The Pretext probe no longer reports `line_count_mismatch` for a line Chromium wraps inside the
+  probe's 4 pixel fit tolerance, which failed healthy text. This also changes the probe that
+  `react-tailwind-app` generates.
 
 ## [0.4.0b1] - 2026-10-31
 
