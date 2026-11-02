@@ -11,6 +11,7 @@ The SDK is the local Python package under `src/viewspec`. Its supported reliabil
 - raw HTML import through `viewspec compile`
 - local `DESIGN.md` parsing
 - React Tailwind TSX browser proof through an isolated Vite, Tailwind, and Playwright host
+- `html-tailwind` and `mcp-app` browser proof through an isolated Chromium harness, with no build
 - proof orchestration through `viewspec prove`
 - strict TypeScript checking and opt-in, manifest-scoped Freerange numeric proof for generated
   `react-tailwind-app` packages
@@ -52,6 +53,8 @@ The React Tailwind host proof is a fail-closed CI gate: it must delete and regen
 The public host verifier preserves the same fail-closed boundary for one artifact at a time: it runs in a fresh temporary host directory, copies only `ViewSpecView.tsx`, `provenance_manifest.json`, and `diagnostics.json`, requires `--install` before running `npm ci --ignore-scripts`, records the checked manifest summary with compact aesthetic style-delta counts plus `assertion_requirements` in the proof report, and returns exact `HOST_VERIFY_*` codes instead of treating missing Node, npm, browser, styles, grid column/span counts, profiled aesthetic marker/layout assertions, DOM, or action payload checks as soft failures. The requirement report always includes base `dom_count` and `style_assertion_count` minimums and manifest-derived `aesthetic_layout_assertion_count`, `aesthetic_profile_assertion_count`, and `grid_span_assertion_count`.
 
 `viewspec prove` preserves the local-first boundary by default: the `html-tailwind` proof performs no package-manager or SDK network calls, writes a bounded proof workspace, compiles through the same public tool path as `viewspec compile`, runs artifact checks, and records `PROOF.md` for humans, `proof_report.json` for tools, and redacted `support_bundle.json` for local support triage. The React Tailwind proof may opt into `npm ci --ignore-scripts` only when `--install` is passed.
+
+The `html-tailwind` and `mcp-app` browser proof is opt-in through `--install`, `--pretext`, or `--render`, and keeps the same fail-closed boundary. It runs from a temporary copy of a packaged harness with its own lockfile, loads the checked document unchanged, and needs no build. A defect in the document is `nonconformant`. Anything that stops the proof reaching a verdict, such as missing dependencies or a missing browser, is `indeterminate`, so a broken environment is never reported as a broken document. Pretext runs against the exact pinned package and the same report validator as the React proof. A surface it cannot measure is `indeterminate`, and a surface that overflows or clips is `nonconformant`.
 
 The Freerange integration is also explicit opt-in. For an applicable numeric scope, stable Bun 1.x
 or newer must be installed separately on `PATH`; ViewSpec never installs Bun. In

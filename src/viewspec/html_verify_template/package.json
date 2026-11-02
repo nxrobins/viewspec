@@ -1,0 +1,13 @@
+{
+  "name": "viewspec-html-host-verify",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@chenglou/pretext": "0.0.8",
+    "@modelcontextprotocol/ext-apps": "2.0.4",
+    "@modelcontextprotocol/sdk": "1.32.2",
+    "esbuild": "0.28.2",
+    "playwright": "1.60.0",
+    "zod": "4.6.7"
+  }
+}

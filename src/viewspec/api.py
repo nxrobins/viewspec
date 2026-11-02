@@ -6,6 +6,7 @@ import json
 import os
 import shutil
 import tempfile
+from collections.abc import Sequence
 from pathlib import Path
 from typing import Any
 
@@ -24,8 +25,10 @@ from viewspec.app_reports import APP_BUNDLE_DEFAULT_REPORT
 from viewspec.app_shell import APP_SHELL_INDEX, APP_SHELL_MANIFEST
 from viewspec.compiler import compile as compile_intent
 from viewspec.design_md import DesignSystemContext
+from viewspec.html_verify import HTML_VERIFY_TARGETS, html_artifact_target, load_mcp_render
 from viewspec.intent_tools import intent_error_payload, validate_intent_file
-from viewspec.local_tools import check_artifact_dir, file_hash, resolve_cwd
+from viewspec.local_tools import MCP_APP_TARGET, check_artifact_dir, file_hash, resolve_cwd
+from viewspec.local_tools_response import ProveFailure
 from viewspec.local_verify import verify_local_artifact
 from viewspec.motif_plugins import MotifPlugin, MotifRegistry
 from viewspec.prove import PROVE_DEFAULT_OUT
@@ -141,15 +144,20 @@ def prove(
     freerange: bool = False,
     pretext: bool = False,
     plan: VerificationPlan | None = None,
+    renders: Sequence[Any] = (),
     cwd: str | Path | None = None,
 ) -> dict[str, Any]:
     """Prove a source or a compiled artifact and return the report.
 
     With no ``source``, proves a starter of ``kind``. An IntentBundle or AppBundle file compiles
-    and proves that bundle; ``with_shell``, ``freerange`` and ``pretext`` apply to AppBundles. A
-    directory verifies an already compiled React Tailwind artifact across the canonical viewports,
-    following ``plan``. ``cwd`` is the workspace: relative paths start there, and ``force`` will not
-    replace it. It defaults to the process working directory.
+    and proves that bundle. ``with_shell`` and ``freerange`` apply to AppBundles. ``pretext`` applies
+    to an AppBundle, and to the html-tailwind and mcp-app targets of an IntentBundle or a compiled
+    directory. A directory verifies an already compiled artifact in Chromium across the canonical
+    viewports, following ``plan``. For html-tailwind and mcp-app, an IntentBundle stays a fast
+    source proof unless ``install``, ``pretext`` or ``renders`` asks for that browser run.
+    ``renders`` holds ``app.render()`` results, or paths to them as JSON, for an MCP App to swap in.
+    ``cwd`` is the workspace: relative paths start there, and ``force`` will not replace it. It
+    defaults to the process working directory.
     """
     if cwd is not None:
         root = resolve_cwd(cwd)
@@ -157,20 +165,46 @@ def prove(
         out_dir = root / (out_dir or default_proof_dir(source))
         report_out = root / report_out if report_out is not None else None
     output = out_dir or default_proof_dir(source)
-    is_app = source is not None and not Path(source).is_dir() and source_kind(source) == "app_bundle"
-    if not is_app and (with_shell or freerange or pretext):
-        raise ValueError("with_shell, freerange and pretext require an AppBundle source")
-    if source is not None and Path(source).is_dir():
+    directory = Path(source) if source is not None and Path(source).is_dir() else None
+    is_app = source is not None and directory is None and source_kind(source) == "app_bundle"
+    if not is_app:
+        if with_shell:
+            raise ValueError("with_shell requires an AppBundle source")
+        if freerange:
+            proved = html_artifact_target(directory) if directory else target or "html-tailwind"
+            raise ProveFailure(
+                "APP_FREERANGE_TARGET_UNSUPPORTED",
+                f"Freerange proofs require an AppBundle source: {proved or 'this artifact'} emits no TypeScript "
+                "numeric reducer kernel.",
+                "Remove --freerange, or prove an AppBundle with --target react-tailwind-app.",
+            )
+    elif renders:
+        raise ValueError("renders require an IntentBundle or a compiled mcp-app source")
+    if not is_app and not directory and pretext and (target or "html-tailwind") not in HTML_VERIFY_TARGETS:
+        raise ProveFailure(
+            "APP_PRETEXT_TARGET_UNSUPPORTED",
+            f"--pretext is not supported on {target}.",
+            "Use html-tailwind, mcp-app, or an AppBundle with --target react-tailwind-app.",
+        )
+    if not is_app and not directory and renders and target != MCP_APP_TARGET:
+        raise ProveFailure(
+            "PROVE_RENDER_INVALID",
+            "--render applies to the mcp-app target.",
+            "Pass --target mcp-app, or remove --render.",
+        )
+    if directory:
         evidence = Path(output) / "evidence"
         # The host report marks a directory as ours, so --force never deletes anything else.
         if force and (evidence / "host-report.json").is_file():
             shutil.rmtree(evidence)
         result = verify_local_artifact(
-            source,
+            directory,
             plan=plan,
             evidence_dir=evidence,
             report_out=report_out or Path(output) / "result.json",
             install=install,
+            pretext=pretext,
+            renders=tuple(load_mcp_render(render) for render in renders),
         )
         return result.to_json()
     if source is not None and is_app:
@@ -198,6 +232,8 @@ def prove(
         install=install,
         force=force,
         report_out=report_out,
+        pretext=pretext,
+        renders=renders,
         cwd=cwd,
     )
 

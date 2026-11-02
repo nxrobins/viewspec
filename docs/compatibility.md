@@ -3,7 +3,7 @@
 What "stable" means for the local ViewSpec SDK: exactly which surfaces are covered, the rules
 every release follows, what is deliberately not promised, and how to verify the contract
 mechanically. This policy binds from `v1.0.0` onward and governs every `1.x` release; pre-1.0
-betas may still change without a deprecation cycle.
+releases may still change without a deprecation cycle.
 
 The local contract is the `local_v1` profile. If a future major version ever changes the contract
 incompatibly, it will declare a new profile (`local_v2`); `local_v1` is never silently redefined.

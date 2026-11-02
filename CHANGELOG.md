@@ -7,6 +7,11 @@ All notable changes to ViewSpec are documented in this file. The format follows
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-11-01
+
+ViewSpec is now a local, open-source compiler with no hosted service and a much smaller surface.
+This is a breaking release; `docs/compatibility.md` allows that before 1.0.
+
 ### Added
 
 - `viewspec.compile_mcp_app()` and the `mcp-app` compile target turn an `IntentBundle` into an
@@ -27,27 +32,24 @@ All notable changes to ViewSpec are documented in this file. The format follows
   can bring a view its first action.
 - `examples/mcp_app_incident_console.py`, and a CI job that runs compiled apps against the
   `@modelcontextprotocol/ext-apps` SDK host in Chromium.
+- `viewspec prove` now proves `html-tailwind` and `mcp-app` in Chromium at the three canonical
+  viewports, on a source with `--install` or `--pretext` and on a compiled directory, where both used
+  to report `indeterminate`. Nothing is built: a packaged harness with its own lockfile serves
+  html-tailwind from a loopback port and mounts an MCP App in the ext-apps `AppBridge`, in a sandboxed
+  iframe under the default CSP. It runs the manifest DOM, grid and span, aesthetic layout, overflow,
+  overlap, and accessibility checks, and an MCP App must also finish `ui/initialize` and take its own
+  compiled root through the tool-result path. `--target mcp-app` joins `viewspec prove`, whose source
+  proofs now exit `1` for a nonconformant browser run.
+- `--pretext` works on `html-tailwind` and `mcp-app`. The pinned `@chenglou/pretext` `0.0.8` reaches
+  the page by evaluation, so the document and its pinned bridge stay byte-identical.
+- `viewspec prove --render FILE`, `prove(renders=...)`, and the MCP `prove` tool's `renders` send
+  `app.render()` results through a live view and prove each swapped root
+  (`PROVE_RENDER_INVALID`). A root the bridge refuses is nonconformant.
 - `viewspec.ViewSpecError`, the base of `CompilerInputError`, `UnsupportedMotifError`,
   `DesignSystemError`, `AppBundleError`, and the stable-code errors.
-
-### Changed
-
-- `viewspec.__all__` is now the 13 names in the README: it gains `compile_mcp_app`,
-  `ViewSpecError`, `DesignSystemContext`, `load_design_system`, and `ERROR_CODES`, and the concrete
-  errors leave it. They stay importable from `viewspec`.
-- The `agents` extra now needs `mcp>=1.30`. `FastMCP.resource()` takes `meta` from 1.26, and before
-  1.30 a settings warning reaches the stderr that `viewspec mcp --json` keeps for its failure report.
-
-## [0.4.0b1] - 2026-10-31
-
-ViewSpec is now a local, open-source compiler with no hosted service and a much smaller surface.
-This is a breaking release; `docs/compatibility.md` allows that before 1.0.
-
-### Added
-
 - `viewspec mcp` is rebuilt as a thin stdio server with exactly five tools, `init`, `compile`,
   `check`, `prove`, and `studio`, over the same code as the CLI. It keeps the `agents` extra
-  (`mcp>=1.9.0,<2`), confines every path to its working directory unless `--allow-outside-cwd` is
+  (`mcp>=1.30,<2`), confines every path to its working directory unless `--allow-outside-cwd` is
   passed, and returns failures as reports with a code and a fix. The `studio` tool runs one
   background preview and returns its URL. The server ends promptly on SIGTERM or SIGINT and removes
   the preview's build directory.
@@ -87,6 +89,13 @@ This is a breaking release; `docs/compatibility.md` allows that before 1.0.
 
 ### Changed
 
+- The `agents` extra now needs `mcp>=1.30`. `FastMCP.resource()` takes `meta` from 1.26, and before
+  1.30 a settings warning reaches the stderr that `viewspec mcp --json` keeps for its failure report.
+- `--freerange` on an IntentBundle or a compiled directory now fails with
+  `APP_FREERANGE_TARGET_UNSUPPORTED`, in place of a general request error, and IntentBundle proof
+  reports record `checks.freerange: "not_applicable"`. `--pretext` on a target without a probe fails
+  with `APP_PRETEXT_TARGET_UNSUPPORTED`.
+- `--install` on an `html-tailwind` source now runs the browser proof. It used to do nothing.
 - The CLI is five commands. `init` replaces `init-intent`, `init-app`, and `init-design`
   (`viewspec init [intent|app|design]`). `compile` now also compiles an AppBundle, replacing
   `compile-app`. `check` now also validates a source file, replacing `validate-intent` and
@@ -94,9 +103,11 @@ This is a breaking release; `docs/compatibility.md` allows that before 1.0.
   replacing `prove --intent`, `prove-app`, `verify`, and `verify-host`.
 - `viewspec studio` is now a small loopback preview that rebuilds and reloads when the source or
   `DESIGN.md` changes. It no longer starts a background daemon: it runs until interrupted.
-- `viewspec.__all__` has 12 names: `IntentBundle`, `AppBundle`, `ASTBundle`, `ViewSpecBuilder`,
-  `compile`, `check`, `prove`, `__version__`, and four exceptions. `compile()` now also accepts an
-  `AppBundle`; `prove()` now takes a source path first.
+- `viewspec.__all__` is now the 13 names in the README: `IntentBundle`, `AppBundle`, `ASTBundle`,
+  `ViewSpecBuilder`, `compile`, `compile_mcp_app`, `check`, `prove`, `load_design_system`,
+  `DesignSystemContext`, `ViewSpecError`, `ERROR_CODES`, and `__version__`. The concrete errors stay
+  importable from `viewspec`. `compile()` now also accepts an `AppBundle`; `prove()` now takes a
+  source path first.
 - The three React dependency seeds pin `vite` 8.3.5, replacing 8.0.16, which carried a HIGH
   advisory, and declare the `source-map-js>=1.2.2` floor as an npm override.
 - Lists and dicts rendered as text use compact JSON separators, `["Ann","Bob"]` and `{"a":1}`
@@ -132,8 +143,8 @@ This is a breaking release; `docs/compatibility.md` allows that before 1.0.
   release 10.9.8. Each Node release bundles one npm version, so a later Node patch bump that moves
   npm within 10.9 no longer needs a separate npm edit. The job still requires a plain
   major.minor.patch npm version, and Python, Node, Bun and Playwright stay pinned exactly.
-- The Pretext E2E result contract now requires at least seven tests with none failed, errored or
-  skipped, instead of exactly seven, so adding an e2e test no longer fails the gate.
+- The Pretext E2E result contract now requires at least three tests with none failed, errored or
+  skipped, instead of an exact count, so adding an e2e test no longer fails the gate.
 - The single-column product surface detector matches its primary role the way the workspace
   detector does. A role now counts as primary when any of its words is `main` or `primary`,
   ignoring case, where every character other than an ASCII letter or digit separates words;
@@ -186,6 +197,9 @@ This is a breaking release; `docs/compatibility.md` allows that before 1.0.
 
 ### Fixed
 
+- The Pretext probe no longer reports `line_count_mismatch` for a line Chromium wraps inside the
+  probe's 4 pixel fit tolerance, which failed healthy text. This also changes the probe that
+  `react-tailwind-app` generates.
 - `--force` refuses an output directory that holds the source or DESIGN.md. It used to delete them
   along with the old output.
 - The landing page's section headings render at their designed 25px to 40px. A missing space around
@@ -664,8 +678,8 @@ Versions `0.3.0b8`, `0.3.0b6`, `0.3.0b4`, `0.3.0b2`, `0.3.0b1`, and `0.2.0` were
 the remote, so they have no compare links below; the `0.3.0b9` and `0.3.0b7` links therefore each
 span two betas.
 
-[Unreleased]: https://github.com/nxrobins/viewspec/compare/v0.4.0b1...HEAD
-[0.4.0b1]: https://github.com/nxrobins/viewspec/compare/v0.3.0b12...v0.4.0b1
+[Unreleased]: https://github.com/nxrobins/viewspec/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/nxrobins/viewspec/compare/v0.3.0b12...v0.4.0
 [0.3.0b12]: https://github.com/nxrobins/viewspec/compare/v0.3.0b11...v0.3.0b12
 [0.3.0b11]: https://github.com/nxrobins/viewspec/compare/v0.3.0b10...v0.3.0b11
 [0.3.0b10]: https://github.com/nxrobins/viewspec/compare/v0.3.0b9...v0.3.0b10

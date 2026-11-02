@@ -109,14 +109,25 @@ def test_compile_reports_an_unknown_target_instead_of_raising(tools) -> None:
     assert report["errors"][0]["code"] in ERROR_CODES
 
 
-@pytest.mark.parametrize("option", ["with_shell", "freerange", "pretext"])
-def test_prove_refuses_app_only_evidence_for_an_intent_source(tools, tmp_path, option) -> None:
+@pytest.mark.parametrize(
+    ("option", "code"), [("with_shell", "PROVE_INVALID_REQUEST"), ("freerange", "APP_FREERANGE_TARGET_UNSUPPORTED")]
+)
+def test_prove_refuses_app_only_evidence_for_an_intent_source(tools, tmp_path, option, code) -> None:
     # Ignoring the flag would hand the agent a proof without the evidence it asked for.
     tools.init()
 
     report = tools.prove("viewspec.intent.json", **{option: True})
 
-    _assert_failed_with(report, "PROVE_INVALID_REQUEST")
+    _assert_failed_with(report, code)
+    assert not (tmp_path / ".viewspec-proof").exists()
+
+
+def test_prove_refuses_pretext_on_a_react_intent_target(tools, tmp_path) -> None:
+    tools.init()
+
+    report = tools.prove("viewspec.intent.json", target="react-tailwind-tsx", pretext=True)
+
+    _assert_failed_with(report, "APP_PRETEXT_TARGET_UNSUPPORTED")
     assert not (tmp_path / ".viewspec-proof").exists()
 
 

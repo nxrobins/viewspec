@@ -3,7 +3,8 @@
   "exclude": [
     "**/node_modules",
     "**/__pycache__",
-    "src/viewspec/host_verify_template"
+    "src/viewspec/host_verify_template",
+    "src/viewspec/html_verify_template"
   ],
   "typeCheckingMode": "basic",
   "pythonVersion": "3.11"

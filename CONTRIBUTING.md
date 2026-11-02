@@ -44,6 +44,16 @@ the full test suite does not run on Windows.
    with these skips is not full coverage; add `-rs` to the pytest command to list every skip and
    its reason.
 
+   The `html-tailwind` and `mcp-app` browser proof has a harness of its own, which only its opt-in
+   tests need:
+
+   ```bash
+   (cd src/viewspec/html_verify_template && npm ci --ignore-scripts && npx playwright install chromium)
+   VIEWSPEC_RUN_HTML_VERIFY_E2E=1 \
+   VIEWSPEC_HTML_VERIFY_NODE_MODULES_DIR="$PWD/src/viewspec/html_verify_template/node_modules" \
+   python -m pytest -q -m e2e tests/test_html_verify_e2e.py
+   ```
+
 3. **Optional runtimes.** Bun 1.x is only needed for the opt-in Freerange proof and its e2e
    scenarios; ViewSpec never installs it. Nothing in the default suite needs network access.
 
@@ -228,6 +238,10 @@ Bump these by hand, each in its own pull request. Search the whole repository fo
 string as well (`git grep -nF <old version>`): error messages, tests and root files such as
 `.pre-commit-config.yaml` can quote it.
 
+- **The `html-tailwind` and `mcp-app` proof harness**: `src/viewspec/html_verify_template` is outside
+  the React seeds, because Dependabot would have to keep it equal to `tests/mcp-app-host`.
+  `tests/test_html_verify.py` checks that the two pin the same SDK, Playwright, and esbuild versions,
+  so bump them together. `.github/workflows/dependency-audit.yml` audits the harness on its schedule.
 - **`ruff`**: change the pin in the `dev` extra of `pyproject.toml`, in `requirements-ci.txt`, and
   the `rev` of the ruff hooks in `.pre-commit-config.yaml` (`v<version>`); `tests/test_ci_config.py`
   keeps the three equal. Reinstall, run `ruff format .` and `ruff check .`, and commit the

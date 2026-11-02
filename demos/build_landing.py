@@ -847,7 +847,7 @@ PAGE_BODY_TEMPLATE = r"""<a class="skip-link" href="#top">Skip to content</a>
         ViewSpec is a free, local, MIT&#8209;licensed compiler. Your agent writes <b>one semantic source</b>; ViewSpec compiles it into checked static HTML or React, with provenance and a proof bundle. No account, no API key, no hosted service.
       </p>
       <div class="hero-cta">
-        <span class="cmd mono"><span class="pr">$</span> {{INSTALL_COMMAND}} <button type="button" class="cp" id="copyCmd" data-copy-text="{{INSTALL_COMMAND}}" aria-label="Copy ViewSpec beta install command">copy</button></span>
+        <span class="cmd mono"><span class="pr">$</span> {{INSTALL_COMMAND}} <button type="button" class="cp" id="copyCmd" data-copy-text="{{INSTALL_COMMAND}}" aria-label="Copy ViewSpec install command">copy</button></span>
         <a class="ghost mono" href="#commands">see the six commands &#8595;</a>
       </div>
 
@@ -1063,7 +1063,7 @@ PAGE_BODY_TEMPLATE = r"""<a class="skip-link" href="#top">Skip to content</a>
         </div>
         <div class="cta-actions" id="cta-actions">
           <a class="pact primary" href="https://github.com/nxrobins/viewspec" target="_blank" rel="noopener">View on GitHub</a>
-          <button type="button" class="pact" data-copy-text="{{INSTALL_COMMAND}}" aria-label="Copy ViewSpec beta install command">copy install</button>
+          <button type="button" class="pact" data-copy-text="{{INSTALL_COMMAND}}" aria-label="Copy ViewSpec install command">copy install</button>
         </div>
       </div>
     </section>

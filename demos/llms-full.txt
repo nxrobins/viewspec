@@ -6,11 +6,9 @@ ViewSpec is an agent-native app compiler, an agent-native UI compiler, a semanti
 
 ViewSpec is free, MIT licensed, and runs locally. There is no hosted service, account, API key, or paid tier.
 
-Current public SDK version: `0.4.0b1`.
+Current public SDK version: `0.4.0`.
 
-This is a beta release. Install the current SDK with `python -m pip install --pre viewspec`;
-plain `python -m pip install viewspec` follows the stable channel because pip excludes
-prereleases by default.
+Install the current SDK with `python -m pip install viewspec`.
 
 The primary idea: your agent writes `viewspec.intent.json` as IntentBundle JSON or `viewspec.app.json` as AppBundle JSON, then ViewSpec validates it, applies `DESIGN.md`, compiles renderer output, writes provenance and shell manifests, generates bounded State IR reducer artifacts when requested, and checks the artifact with no SDK network calls. Describe what the data means, not how the UI should be hand-wired: ViewSpec compiles that semantic intent into CompositionIR, renderable UI primitives, style values, diagnostics, provenance, and emitter artifacts.
 
@@ -56,7 +54,7 @@ The CLI is exactly six commands:
 - `viewspec check PATH [--json]` runs fast static, provenance, and security checks on a source file or compiled artifact directory.
 - `viewspec prove [SOURCE] [--out D] [--target T] [--install] [--with-shell] [--freerange] [--pretext] [--json]` compiles and verifies a source, or browser-verifies a compiled artifact directory, and writes a proof bundle. With no source it proves a starter.
 - `viewspec studio [SOURCE] [--design P] [--port N] [--no-open] [--json]` serves a live-reloading local preview of a source file on 127.0.0.1. It rebuilds when the source or an optional DESIGN.md changes, and a failed build keeps the last good one on screen with its errors. It is a preview only: it does not generate source, collect comments or approvals, or share builds.
-- `viewspec mcp [--cwd DIR] [--allow-outside-cwd] [--json]` serves the other five to a coding agent as MCP tools over stdio, confined to the working directory. It needs `pip install --pre "viewspec[agents]"`.
+- `viewspec mcp [--cwd DIR] [--allow-outside-cwd] [--json]` serves the other five to a coding agent as MCP tools over stdio, confined to the working directory. It needs `pip install "viewspec[agents]"`.
 
 ## Proof
 
