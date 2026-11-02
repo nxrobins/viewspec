@@ -13,12 +13,11 @@ instead of patching output by hand.
 ## Quick Start
 
 ```bash
-python -m pip install --pre viewspec
+python -m pip install viewspec
 viewspec prove --out .viewspec-proof
 ```
 
-The current SDK is a beta, so `--pre` is required; plain `python -m pip install viewspec` follows the
-stable channel. The package is on [PyPI](https://pypi.org/project/viewspec/). Start with `.viewspec-proof/PROOF.md`. The same
+The package is on [PyPI](https://pypi.org/project/viewspec/). Start with `.viewspec-proof/PROOF.md`. The same
 directory holds the machine-readable `proof_report.json`, a redacted `support_bundle.json`, the
 semantic source, the generated artifact, and its provenance manifest.
 
@@ -191,7 +190,7 @@ Give your agent the published contract, then let it generate JSON with structure
 To give an MCP client the tools `init`, `compile`, `check`, `prove`, and `studio`:
 
 ```bash
-python -m pip install --pre "viewspec[agents]"
+python -m pip install "viewspec[agents]"
 claude mcp add viewspec -- viewspec mcp
 ```
 

@@ -38,7 +38,7 @@ background: it prints the URL and rebuilds whenever the source changes.
 needs the MCP SDK, which is an optional extra:
 
 ```bash
-python -m pip install --pre "viewspec[agents]"
+python -m pip install "viewspec[agents]"
 claude mcp add viewspec -- viewspec mcp
 ```
 

@@ -6,10 +6,10 @@ network calls, and there is no account or API key.
 ## Install
 
 ```bash
-python -m pip install --pre viewspec
+python -m pip install viewspec
 ```
 
-Python 3.11 or newer. The current SDK is a beta, so `--pre` is required.
+Python 3.11 or newer.
 
 ## First Proof
 

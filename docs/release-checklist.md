@@ -26,8 +26,9 @@ Use this checklist before publishing a new ViewSpec package or public-site updat
 
 - Know what the merge deploys. **Deploy to GitHub Pages** runs on every push to `main`. Merging the
   release branch publishes the new-version homepage at once, and until the package is on PyPI its
-  `python -m pip install --pre viewspec` command installs the previous version. Keep that window
-  short by uploading as soon as the merged commit's distribution artifacts exist.
+  install command installs the previous version on that channel, which for a stable release can
+  be far behind. Keep that window short by uploading as soon as the merged commit's distribution
+  artifacts exist.
 - Publish to PyPI manually after the release branch is merged and the package artifacts are verified.
 - Upload the exact artifacts retained by the successful SDK Reliability `distribution` job of the
   push-to-`main` run for the merged release commit: the wheel and sdist in one

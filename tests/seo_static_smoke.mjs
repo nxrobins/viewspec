@@ -88,12 +88,12 @@ function assertPublicEqual(actual, expected, label) {
 assertPublicEqual(publicFacts.schema_version, 1, 'public facts schema_version')
 assert.match(publicFacts.sdk_version, /^\d+\.\d+\.\d+(?:[a-z]+\d+)?$/, 'public facts sdk_version shape')
 assertPublicEqual(publicFacts.package_url, 'https://pypi.org/project/viewspec/', 'public facts package_url')
-assertPublicEqual(publicFacts.installation.release_channel, 'beta', 'public facts release channel')
-assert.match(publicFacts.sdk_version, /[a-z]+\d+$/, 'beta channel requires a prerelease SDK version')
+assertPublicEqual(publicFacts.installation.release_channel, 'stable', 'public facts release channel')
+assert.doesNotMatch(publicFacts.sdk_version, /[a-z]/, 'stable channel requires a final SDK version')
 assertPublicEqual(
   publicFacts.installation.current_command,
-  'python -m pip install --pre viewspec',
-  'public facts current beta install command'
+  'python -m pip install viewspec',
+  'public facts current install command'
 )
 assertPublicEqual(
   publicFacts.installation.stable_command,
@@ -337,7 +337,7 @@ assertPublicText(versionModule, `__version__ = "${publicFacts.sdk_version}"`, 'r
 
 for (const publicTextPath of ['README.md', 'docs/getting-started.md', 'demos/llms.txt', 'demos/llms-full.txt']) {
   const text = await readFile(publicTextPath, 'utf8')
-  assertPublicText(text, publicFacts.installation.current_command, `${publicTextPath} current beta install command`)
+  assertPublicText(text, publicFacts.installation.current_command, `${publicTextPath} current install command`)
   assertPublicText(text, publicFacts.proof.first_proof_command, `${publicTextPath} first proof`)
   assertPublicText(text, 'PROOF.md', `${publicTextPath} proof summary`)
   assertPublicText(text, 'support_bundle.json', `${publicTextPath} proof support bundle`)
@@ -589,8 +589,8 @@ if (/\.vs-|data-ir-id/.test(styleRangeShellCss)) {
 // Two install pills: hero + closing call to action.
 const installCommandPattern = publicFacts.installation.current_command.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 assert.equal((home.match(new RegExp(`data-copy-text="${installCommandPattern}"`, 'g')) || []).length, 2)
-assert.match(home, /aria-label="Copy ViewSpec beta install command"/)
-assert.doesNotMatch(home, /data-copy-text="python -m pip install viewspec"/)
+assert.match(home, /aria-label="Copy ViewSpec install command"/)
+assert.doesNotMatch(home, /data-copy-text="python -m pip install --pre viewspec"/)
 const homeJsonLd = extractJsonLd(home)
 const graph = homeJsonLd.find((entry) => Array.isArray(entry['@graph']))?.['@graph'] || []
 assert(graph.some((entry) => entry['@type'] === 'SoftwareApplication'), 'home JSON-LD needs SoftwareApplication')
