@@ -529,6 +529,16 @@ def extract_controls(nodes: Sequence[LiftNode]) -> ControlExtraction:
     )
 
 
+def visible_text(nodes: Sequence[LiftNode]) -> str:
+    """All text the user can see, in document order, with whitespace collapsed.
+
+    Secret values are not in it: the lift never keeps them.
+    """
+
+    page = _Page(nodes)
+    return " ".join(" ".join(node.text for node in nodes if node.text and node.id not in page.hidden).split())
+
+
 def _message_kind(node: LiftNode) -> str | None:
     role = node.attrs.get("role", "").strip().lower().split(" ")[0]
     if role in MESSAGE_ROLES:
@@ -751,4 +761,5 @@ __all__ = [
     "form_tool_names",
     "form_tool_schema",
     "is_sensitive_control",
+    "visible_text",
 ]

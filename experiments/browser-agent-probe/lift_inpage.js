@@ -344,6 +344,52 @@
     return { connected: true, tag: el.tagName.toLowerCase(), frames, candidates: candidates(el) };
   }
 
+  // ---- Waiting for the page to change -----------------------------------------------------------
+  // Every root a change can happen in: the document, its open shadow roots, and the same for each
+  // same-origin iframe.
+  function rootsDeep(doc) {
+    const roots = rootsOf(doc);
+    for (const root of [...roots]) {
+      for (const frame of root.querySelectorAll("iframe")) {
+        try {
+          if (frame.contentDocument) roots.push(...rootsDeep(frame.contentDocument));
+        } catch (error) {
+          // A cross-origin frame cannot be watched.
+        }
+      }
+    }
+    return roots;
+  }
+
+  // Resolve true after the DOM changes, once it has been quiet for 100 ms (or 500 ms after the first
+  // change, for a page that never stops changing), or false after timeoutMs with no change. A change
+  // that only sets a property (typed text) is not a DOM change.
+  function nextChange(timeoutMs) {
+    return new Promise((resolve) => {
+      const observers = [];
+      const timers = {};
+      let done = false;
+      const finish = (changed) => {
+        if (done) return;
+        done = true;
+        observers.forEach((observer) => observer.disconnect());
+        Object.values(timers).forEach(clearTimeout);
+        resolve(changed);
+      };
+      const onChange = () => {
+        if (!timers.cap) timers.cap = setTimeout(() => finish(true), 500);
+        clearTimeout(timers.quiet);
+        timers.quiet = setTimeout(() => finish(true), 100);
+      };
+      for (const root of rootsDeep(document)) {
+        const observer = new MutationObserver(onChange);
+        observer.observe(root, { subtree: true, childList: true, attributes: true, characterData: true });
+        observers.push(observer);
+      }
+      timers.limit = setTimeout(() => finish(false), Math.max(0, timeoutMs));
+    });
+  }
+
   // ---- Checks after an action -------------------------------------------------------------------
   // Each returns true or false and never returns the element's value, so a secret stays in the page.
   function hasValue(el, value) {
@@ -360,5 +406,16 @@
     return el.getAttribute("aria-checked") === "true";
   }
 
-  window.__viewspecLift = { docId, snapshot, describe, refOf, get, nameOf, hasValue, hasSelected, isChecked };
+  window.__viewspecLift = {
+    docId,
+    snapshot,
+    describe,
+    refOf,
+    get,
+    nameOf,
+    nextChange,
+    hasValue,
+    hasSelected,
+    isChecked,
+  };
 })();

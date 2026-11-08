@@ -161,3 +161,97 @@ def test_a_message_shown_again_is_not_new():
 def test_diff_needs_agent_lifts():
     with pytest.raises(ValueError, match="profile='agent'"):
         diff_lifts(lift_html("<p>x</p>"), _lift("<p>x</p>"))
+
+
+# ---- Waiting for a change --------------------------------------------------------------------------
+
+from viewspec.raw_html_actions import AgentActionError  # noqa: E402
+from viewspec.raw_html_diff import ChangeCondition  # noqa: E402
+
+WAIT_BEFORE = '<button>Apply</button><p role="status"></p><p>Loading…</p><input aria-label="Code" value="SAVE10">'
+WAIT_AFTER = (
+    '<button disabled>Checking</button><p role="status">Code SAVE10 applied</p><input aria-label="Code" value="SAVE10">'
+)
+
+
+@pytest.mark.parametrize(
+    ("payload", "met"),
+    [
+        ({"change": "any"}, True),
+        ({"change": "message"}, True),
+        ({"change": "navigation"}, False),  # Lifts cannot show a new document; the caller decides.
+        ({"text": "code save10 APPLIED"}, True),
+        ({"text": "Order placed"}, False),
+        ({"gone": "Loading"}, True),
+        ({"gone": "Checking"}, False),
+        ({"control": "checking"}, True),
+        ({"control": "Checking", "enabled": False}, True),
+        ({"control": "Checking", "enabled": True}, False),
+        ({"control": "Apply"}, False),
+    ],
+)
+def test_change_conditions_are_checked_on_the_lift(payload, met):
+    condition = ChangeCondition.from_json(payload)
+    assert condition.met(_lift(WAIT_BEFORE), _lift(WAIT_AFTER)) is met
+    assert condition.to_json() == payload
+
+
+def test_no_change_meets_only_the_conditions_already_true():
+    same = _lift(WAIT_BEFORE)
+    assert not ChangeCondition.from_json({"change": "any"}).met(same, same)
+    assert not ChangeCondition.from_json({"change": "message"}).met(same, same)
+    assert ChangeCondition.from_json({"text": "Loading"}).met(same, same)
+
+
+def test_text_conditions_search_all_visible_text_across_tags():
+    page = _lift("<p>Email is <b>required</b></p><div hidden>Secret plan</div><p>Loading…</p>")
+
+    assert ChangeCondition.from_json({"text": "email is   REQUIRED"}).met(page, page)
+    assert not ChangeCondition.from_json({"gone": "Loading"}).met(page, page)  # No role, but visible.
+    assert ChangeCondition.from_json({"gone": "Secret plan"}).met(page, page)  # Hidden text is gone.
+
+
+def test_secret_values_are_not_page_text():
+    before = _lift('<input type="password" aria-label="Password" value="hunter2-long">')
+    assert not ChangeCondition.from_json({"text": "hunter2"}).met(before, before)
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [
+        {},
+        {"text": "a", "gone": "b"},
+        {"change": "soon"},
+        {"text": "  "},
+        {"text": 5},
+        {"enabled": True},
+        {"text": "a", "enabled": True},
+        {"control": "a", "enabled": "yes"},
+        {"control": "a", "timeout": 5},
+    ],
+)
+def test_bad_wait_conditions_are_refused(payload):
+    with pytest.raises(AgentActionError) as caught:
+        ChangeCondition.from_json(payload)
+    assert caught.value.code == "AGENT_WAIT_INVALID"
+
+
+def test_conditions_describe_themselves():
+    assert [
+        ChangeCondition.from_json(p).describe()
+        for p in (
+            {"change": "any"},
+            {"change": "message"},
+            {"change": "navigation"},
+            {"text": "Saved"},
+            {"gone": "Loading"},
+            {"control": "Pay", "enabled": True},
+        )
+    ] == [
+        "any change",
+        "a new message",
+        "a new page",
+        "'Saved' on the page",
+        "'Loading' gone from the page",
+        "control 'Pay' enabled",
+    ]

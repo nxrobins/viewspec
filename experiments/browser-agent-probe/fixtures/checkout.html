@@ -39,6 +39,9 @@
     <details>
       <summary>Have a promo code?</summary>
       <label>Promo code <input name="promo"></label>
+      <button type="button" id="apply-promo">Apply</button>
+      <p role="status" id="promo-status"></p>
+      <p role="alert" id="promo-error"></p>
     </details>
 
     <button type="submit">Place order</button>
@@ -77,6 +80,22 @@
   document.querySelector("qty-stepper").shadowRoot.querySelector("input").value = "2";
   document.querySelector("[name=email]").value = "ana@example.com";
   document.querySelector("[name=new_password]").value = "TOPSECRET-pw-4242";
+  // "Apply" checks the code with a (simulated) server: the answer comes 700 ms later.
+  const apply = document.getElementById("apply-promo");
+  apply.addEventListener("click", () => {
+    apply.textContent = "Checking…";
+    apply.disabled = true;
+    document.getElementById("promo-status").textContent = "";
+    document.getElementById("promo-error").textContent = "";
+    setTimeout(() => {
+      const code = document.querySelector("[name=promo]").value.trim().toUpperCase();
+      if (code === "SAVE10") document.getElementById("promo-status").textContent = "Code SAVE10 applied: 10% off";
+      else document.getElementById("promo-error").textContent = "Code not valid";
+      apply.textContent = "Apply";
+      apply.disabled = false;
+    }, 700);
+  });
+
   const frame = document.querySelector("iframe");
   frame.addEventListener("load", () => {
     frame.contentDocument.querySelector("[name=card]").value = "4242424242424242";

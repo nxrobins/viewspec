@@ -19,11 +19,12 @@ everything differs; read the new page instead.
 from __future__ import annotations
 
 from collections import Counter
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
-from viewspec.raw_html_agent import HtmlControl, form_tool_names
+from viewspec.raw_html_actions import AgentActionError
+from viewspec.raw_html_agent import HtmlControl, form_tool_names, visible_text
 
 if TYPE_CHECKING:
     from viewspec.raw_html import HtmlLiftResult
@@ -264,4 +265,103 @@ def _show(value: Any) -> str:
     return repr(_short(str(value)))
 
 
-__all__ = ["ControlChange", "LiftDiff", "diff_lifts"]
+CHANGE_KINDS = ("any", "message", "navigation")
+WAIT_KEYS = ("change", "text", "gone", "control")
+
+
+@dataclass(frozen=True)
+class ChangeCondition:
+    """A change an agent can wait for after it acts, checked on lifts (what the page means).
+
+    ``kind`` is one of:
+
+    - ``any``: anything in ``diff_lifts(before, after)``;
+    - ``message``: a new message (alert, status, live region);
+    - ``navigation``: a new document. Lifts cannot show this; the caller, who knows the document,
+      decides it, and ``met()`` returns False;
+    - ``text``: ``value`` is on the page, ignoring case and runs of whitespace: anywhere in the text
+      the user can see, or in a control's name or a value that is not secret;
+    - ``gone``: ``value`` is no longer anywhere on the page, in the same sense;
+    - ``control``: a control named ``value`` (ignoring case) is on the page. With ``enabled`` set,
+      it must also be enabled (True) or disabled (False).
+    """
+
+    kind: str
+    value: str | None = None
+    enabled: bool | None = None
+
+    @classmethod
+    def from_json(cls, payload: Mapping[str, Any]) -> ChangeCondition:
+        """Read ``{"change": "any"|"message"|"navigation"}``, ``{"text": ...}``, ``{"gone": ...}``, or
+        ``{"control": ..., "enabled": true|false}``. Anything else is ``AGENT_WAIT_INVALID``."""
+
+        unknown = sorted(set(payload) - {*WAIT_KEYS, "enabled"})
+        chosen = [key for key in WAIT_KEYS if key in payload]
+        problem = None
+        if unknown:
+            problem = f"Unknown wait_for key(s): {', '.join(unknown)}."
+        elif len(chosen) != 1:
+            problem = "wait_for takes exactly one of change, text, gone, or control."
+        elif "enabled" in payload and chosen[0] != "control":
+            problem = "enabled goes with control."
+        elif "enabled" in payload and not isinstance(payload["enabled"], bool):
+            problem = "enabled must be true or false."
+        if problem is None:
+            key = chosen[0]
+            value = payload[key]
+            if key == "change":
+                if value not in CHANGE_KINDS:
+                    problem = f"change must be one of {', '.join(CHANGE_KINDS)}."
+                else:
+                    return cls(kind=value)
+            elif not isinstance(value, str) or not value.strip():
+                problem = f"{key} must be non-empty text."
+            else:
+                return cls(kind=key, value=value.strip(), enabled=payload.get("enabled"))
+        raise AgentActionError("AGENT_WAIT_INVALID", problem or "wait_for is not valid.")
+
+    def met(self, before: HtmlLiftResult, after: HtmlLiftResult) -> bool:
+        """True when ``after`` shows the change, compared with ``before`` where that matters."""
+
+        if self.kind == "navigation":
+            return False
+        if self.kind == "any":
+            return not diff_lifts(before, after).empty
+        if self.kind == "message":
+            return bool(diff_lifts(before, after).messages)
+        needle = " ".join((self.value or "").split()).casefold()
+        if self.kind == "control":
+            return any(
+                control.name.casefold() == needle and (self.enabled is None or control.disabled != self.enabled)
+                for control in after.controls
+            )
+        present = needle in _page_text(after)
+        return present if self.kind == "text" else not present
+
+    def describe(self) -> str:
+        if self.kind in CHANGE_KINDS:
+            return {"any": "any change", "message": "a new message", "navigation": "a new page"}[self.kind]
+        if self.kind == "control":
+            state = "" if self.enabled is None else (" enabled" if self.enabled else " disabled")
+            return f"control {self.value!r}{state}"
+        return f"{self.value!r} on the page" if self.kind == "text" else f"{self.value!r} gone from the page"
+
+    def to_json(self) -> dict[str, Any]:
+        if self.kind in CHANGE_KINDS:
+            return {"change": self.kind}
+        payload: dict[str, Any] = {self.kind: self.value}
+        if self.enabled is not None:
+            payload["enabled"] = self.enabled
+        return payload
+
+
+def _page_text(lift: HtmlLiftResult) -> str:
+    """Everything a ``text`` or ``gone`` condition searches, lower case, one string per source."""
+
+    parts = [visible_text(lift.nodes)]
+    parts += [control.name for control in lift.controls if control.name]
+    parts += [control.value for control in lift.controls if control.value and not control.secret]
+    return "\n".join(" ".join(part.split()) for part in parts).casefold()
+
+
+__all__ = ["ChangeCondition", "ControlChange", "LiftDiff", "diff_lifts"]

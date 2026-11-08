@@ -22,6 +22,7 @@ from __future__ import annotations
 import contextlib
 import json
 import subprocess
+import time
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -31,10 +32,11 @@ from page_view import page_view
 from viewspec.raw_html import HtmlLiftResult, lift_html
 from viewspec.raw_html_actions import ActionStep, plan_control_action, plan_form_call
 from viewspec.raw_html_agent import HtmlControl, control_aria_role
-from viewspec.raw_html_diff import diff_lifts
+from viewspec.raw_html_diff import ChangeCondition, diff_lifts
 
 HERE = Path(__file__).resolve().parent
 BRIDGE = HERE / "bridge.js"
+MAX_WAIT_MS = 30000
 
 
 class BridgeError(RuntimeError):
@@ -75,6 +77,41 @@ class StepResult:
             "navigated": self.navigated,
             "url": self.url,
         }
+
+
+@dataclass
+class WaitResult:
+    condition: ChangeCondition
+    met: bool
+    waited_ms: int
+    timeout_ms: int
+    readings: int
+
+    def to_json(self) -> dict[str, Any]:
+        return {
+            "for": self.condition.describe(),
+            "condition": self.condition.to_json(),
+            "met": self.met,
+            "waited_ms": self.waited_ms,
+            "timeout_ms": self.timeout_ms,
+        }
+
+
+def condition_met(condition: ChangeCondition, since: Observation, current: Observation) -> bool:
+    """Whether ``current`` shows the change, compared with ``since``.
+
+    Only the session knows when the document changed: that is ``navigation``. After a navigation,
+    ``any`` is met, and ``message`` is met by any message on the new page.
+    """
+
+    new_document = current.doc_id != since.doc_id
+    if condition.kind == "navigation":
+        return new_document
+    if new_document and condition.kind == "any":
+        return True
+    if new_document and condition.kind == "message":
+        return bool(current.lift.messages)
+    return condition.met(since.lift, current.lift)
 
 
 def changes(before: Observation, after: Observation) -> dict[str, Any]:
@@ -186,6 +223,27 @@ class BrowserSession:
     def reload(self) -> None:
         self._call("reload")
         self.observation = None
+
+    def wait(self, condition: ChangeCondition, since: Observation, *, timeout_ms: int = 5000) -> WaitResult:
+        """Wait until the page shows ``condition`` compared with ``since``, or until ``timeout_ms``.
+
+        The page is read again after each DOM change or navigation, never on a fixed poll. The view is
+        stale afterwards (it has no locators); call ``observe()`` again.
+        """
+
+        limit = max(0, min(int(timeout_ms), MAX_WAIT_MS))
+        start = time.monotonic()
+        readings = 0
+        while True:
+            current = self.observe(locate=False)
+            readings += 1
+            met = condition_met(condition, since, current)
+            elapsed = int((time.monotonic() - start) * 1000)
+            if met or elapsed >= limit:
+                break
+            self._call("wait_change", timeout_ms=limit - elapsed)
+        self.observation = None
+        return WaitResult(condition, met, elapsed, limit, readings)
 
     def blocked_writes(self) -> list[dict[str, Any]]:
         """Requests that ``block_writes`` stopped since the page was opened."""

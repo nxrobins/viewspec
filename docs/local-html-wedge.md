@@ -150,6 +150,32 @@ appeared or went away. Controls are matched by `ref` (the same element), then by
 that pair is unique on both sides, then by node id and kind. A secret field's value never appears in
 a diff. `lines(handle_of)` takes a function from an `after` node id to a view handle. Both lifts
 should come from the same document; after a navigation, read the new page instead.
+
+### Waiting for a change
+
+A page that answers after a delay (a server call, a timer) shows nothing right after the action.
+`viewspec.raw_html_diff.ChangeCondition` says what change to wait for, and checks it on lifts:
+
+```python
+from viewspec.raw_html_diff import ChangeCondition
+
+condition = ChangeCondition.from_json({"text": "Order placed"})
+condition.met(before, after)  # True once the page shows it
+```
+
+| Condition | Met when |
+|---|---|
+| `{"change": "any"}` | `diff_lifts(before, after)` is not empty |
+| `{"change": "message"}` | a new message shows |
+| `{"change": "navigation"}` | a new document loads; lifts cannot show this, so the caller decides it and `met()` returns False |
+| `{"text": "..."}` | the text is on the page, ignoring case and runs of whitespace |
+| `{"gone": "..."}` | the text is no longer on the page |
+| `{"control": "...", "enabled": true}` | a control with that name (ignoring case) is on the page; with `enabled`, it is also enabled (or disabled) |
+
+`text` and `gone` search all the text the user can see
+(`viewspec.raw_html_agent.visible_text(lift.nodes)`), even across tags, plus control names and
+values that are not secret. Any other shape is `AGENT_WAIT_INVALID`. The condition does no waiting
+itself; a browser driver reads the page again as it changes and asks `met()` each time.
 `experiments/browser-agent-probe/` has a Playwright session that runs these steps.
 
 ### Input

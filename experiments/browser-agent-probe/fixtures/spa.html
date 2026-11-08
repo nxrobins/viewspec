@@ -21,10 +21,17 @@
         <button>Refresh</button>
         <input type="text" aria-label="Filter metrics">
       </div>
+      <p role="status" class="export-status"></p>
       <p style="display: none"><button>Debug panel</button></p>
       <p>Updated <span id="clock">${new Date().toISOString()} (refresh ${refreshes})</span></p>
     </main>`;
-    document.querySelector(".btn").addEventListener("click", () => alert("export"));
+    // "Export" prepares a file on a (simulated) server; the link comes 600 ms later.
+    document.querySelector(".btn").addEventListener("click", () => {
+      setTimeout(() => {
+        document.querySelector(".export-status").textContent = "Export ready";
+        document.querySelector(".toolbar").insertAdjacentHTML("beforeend", '<a href="#download">Download CSV</a>');
+      }, 600);
+    });
     document.querySelector(".toolbar button").addEventListener("click", () => {
       refreshes += 1;
       render();

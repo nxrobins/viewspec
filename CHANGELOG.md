@@ -25,6 +25,10 @@ All notable changes to ViewSpec are documented in this file. The format follows
   `viewspec.raw_html_diff.diff_lifts(before, after)` reports what changed between two agent lifts of
   the same page: new messages, changed controls field by field, added and removed controls and
   forms, and page text that appeared or went away. Secret values never appear in a diff.
+- `viewspec.raw_html_diff.ChangeCondition` describes a change to wait for after an action (any
+  change, a new message, a new page, text shown or gone, a control enabled) and checks it on two
+  lifts; a bad condition is `AGENT_WAIT_INVALID`. `viewspec.raw_html_agent.visible_text()` returns all
+  the text a user can see on a lifted page.
 
 ## [0.4.0] - 2026-11-01
 

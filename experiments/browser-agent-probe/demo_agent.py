@@ -9,6 +9,8 @@ It serves the fixtures on 127.0.0.1, then:
    the new elements. A simulated layout change shows the drift guard refusing a wrong target.
 3. viewspec_orders: clicks a ViewSpec action by its data-action-id.
 4. shop: checks what each action changed: a status message, a changed button, a new product.
+5. waiting: pages that answer after a delay. Without a wait the agent sees no change; with
+   ``BrowserSession.wait`` it sees the answer, without polling on a timer.
 
 After each action in checkout and shop, the script also checks the diff between the reading before
 and the reading after (``agent_session.changes``).
@@ -32,6 +34,7 @@ from urllib.parse import parse_qs
 from agent_session import BridgeError, BrowserSession, StepResult, changes
 
 from viewspec.raw_html_actions import AgentActionError, plan_control_action
+from viewspec.raw_html_diff import ChangeCondition
 
 FIXTURES = Path(__file__).resolve().parent / "fixtures"
 PASSWORD = "S3cret-Pass-99"
@@ -148,6 +151,61 @@ def checkout(session: BrowserSession, base: str) -> None:
     blocked = session.observe()
     check(blocked.lift.roles[0].text == "Write blocked", "the agent now sees the blocked-write page")
     check(changes(before_submit, blocked)["new_document"], "the diff says the page is a new document")
+    navigated = session.wait(ChangeCondition.from_json({"change": "navigation"}), before_submit, timeout_ms=3000)
+    check(navigated.met and navigated.readings == 1, "a wait for a new page is met at once, in one reading")
+
+
+def waiting(session: BrowserSession, base: str) -> None:
+    print("\n== waiting: pages that answer after a delay ==")
+    session.open(f"{base}/spa.html")
+    before = session.observe()
+    show(session.act(handle_named(session, "Export"), "click"))
+    check(changes(before, session.observe())["lines"] == ["no change"], "without a wait, Export seems to do nothing")
+
+    session.open(f"{base}/spa.html")
+    before = session.observe()
+    show(session.act(handle_named(session, "Export"), "click"))
+    waited = session.wait(ChangeCondition.from_json({"text": "Download CSV"}), before, timeout_ms=5000)
+    after = session.observe()
+    diff = changes(before, after)["lines"]
+    print(f"  ..  waited {waited.waited_ms} ms in {waited.readings} readings")
+    print("\n".join(f"  ~~  {line}" for line in diff))
+    check(waited.met and waited.waited_ms >= 400, "a wait for 'Download CSV' is met once the page shows it")
+    check(waited.readings <= 4, "the page was read only when it changed, not on a timer")
+    link = handle_named(session, "Download CSV")
+    check(diff == ["message status 'Export ready'", f"added [{link}] link 'Download CSV'"], "and the diff shows it")
+
+    never = session.wait(ChangeCondition.from_json({"text": "Never shown"}), after, timeout_ms=800)
+    print(f"  ..  waited {never.waited_ms} ms in {never.readings} readings")
+    check(not never.met and never.waited_ms >= 800, "a wait that is not met ends at its timeout")
+
+    session.open(f"{base}/checkout.html")
+    session.observe()
+    session.act(handle_named(session, "Have a promo code?"), "click")
+    session.act(handle_named(session, "Promo code"), "fill", "nope")
+    before = session.observe()
+    show(session.act(handle_named(session, "Apply"), "click"))
+    waited = session.wait(ChangeCondition.from_json({"change": "message"}), before, timeout_ms=5000)
+    diff = changes(before, session.observe())["lines"]
+    print("\n".join(f"  ~~  {line}" for line in diff))
+    check(waited.met and diff[0] == "message alert 'Code not valid'", "a wait for a message shows the alert")
+
+    session.act(handle_named(session, "Promo code"), "fill", "save10")
+    before = session.observe()
+    show(session.act(handle_named(session, "Apply"), "click"))
+    checking = session.observe()
+    check(
+        any(
+            line.endswith("name 'Apply' -> 'Checking…'; disabled false -> true")
+            for line in changes(before, checking)["lines"]
+        ),
+        "right after the click, the button says Checking… and is disabled",
+    )
+    waited = session.wait(ChangeCondition.from_json({"control": "Apply", "enabled": True}), before, timeout_ms=5000)
+    diff = changes(before, session.observe())["lines"]
+    print("\n".join(f"  ~~  {line}" for line in diff))
+    check(waited.met, "a wait for the Apply button to be enabled again is met")
+    check("message status 'Code SAVE10 applied: 10% off'" in diff, "and the diff shows the code was applied")
 
 
 def shop(session: BrowserSession, base: str) -> None:
@@ -234,6 +292,7 @@ def main() -> int:
             spa(session, base)
             viewspec_page(session, base)
             shop(session, base)
+            waiting(session, base)
     except AssertionError as error:
         print(f"\nFAILED: {error}")
         return 1

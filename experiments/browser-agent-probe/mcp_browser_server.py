@@ -34,14 +34,15 @@ import signal
 import sys
 import threading
 from types import FrameType
-from typing import Any, Literal
+from typing import Any, Literal, TypedDict
 from urllib.parse import parse_qs, urlsplit
 
-from agent_session import BridgeError, BrowserSession, Observation, StepResult, changes
+from agent_session import BridgeError, BrowserSession, Observation, StepResult, WaitResult, changes
 
 from viewspec.local_tools_response import tool_error_response, tool_response
 from viewspec.raw_html_actions import ActionStep, AgentActionError, plan_control_action, plan_form_call
 from viewspec.raw_html_agent import SENSITIVE_NAME_RE
+from viewspec.raw_html_diff import ChangeCondition
 
 SERVER_NAME = "viewspec-browser"
 HISTORY = 8  # Observations kept, so an agent can act from a recent one.
@@ -52,10 +53,23 @@ INSTRUCTIONS = (
     "form is also a typed tool in form_tools; call(tool=..., arguments={...}) fills it in and submits it. "
     "Requests are checked against the page first: on ok=false, read errors and fix the request. act and "
     "call return the new view and changes, the lines that say what the action changed (messages first); "
-    "use the new handles next. observe(since=id) shows what changed since an earlier reading. Writes may "
-    "be blocked: a submitted form then shows 'Write blocked', and blocked_writes lists what would have "
-    "been sent."
+    "use the new handles next. observe(since=id) shows what changed since an earlier reading. A page "
+    "that updates after a delay (a server answer) shows nothing at first: pass wait_for, for example "
+    '{"change": "message"} or {"text": "Order placed"}, and the tool reads the page again as it '
+    "changes, until that shows or timeout_ms ends; wait.met says which. Writes may be blocked: a submitted "
+    "form then shows 'Write blocked', and blocked_writes lists what would have been sent."
 )
+DEFAULT_TIMEOUT_MS = 5000
+
+
+class WaitFor(TypedDict, total=False):
+    """What to wait for after the action. Give exactly one of change, text, gone, or control."""
+
+    change: Literal["any", "message", "navigation"]
+    text: str
+    gone: str
+    control: str
+    enabled: bool
 
 
 class BrowserTools:
@@ -72,7 +86,13 @@ class BrowserTools:
         self._lock = threading.Lock()
 
     # ---- tools ------------------------------------------------------------------------------------
-    def observe(self, url: str | None = None, since: int | None = None) -> dict[str, Any]:
+    def observe(
+        self,
+        url: str | None = None,
+        since: int | None = None,
+        wait_for: WaitFor | None = None,
+        timeout_ms: int = DEFAULT_TIMEOUT_MS,
+    ) -> dict[str, Any]:
         """Read the current page, or open ``url`` first and read it.
 
         Returns ``view``: the page as text, one line per message, heading, value, table row, or
@@ -81,9 +101,18 @@ class BrowserTools:
         form as a tool for ``call``. ``observation_id`` names this reading; its handles stay valid for
         ``act``. With ``since`` (an earlier ``observation_id``, and no ``url``), ``changes`` lists what
         changed on the page since that reading, for a page that updates by itself.
+
+        ``wait_for`` waits, up to ``timeout_ms``, until the page shows a change, compared with ``since``
+        (or the latest reading, or the page as it first loads): ``{"change": "any"}``, ``{"change":
+        "message"}``, ``{"text": "..."}``, ``{"gone": "Loading"}``, or ``{"control": "...",
+        "enabled": true}``. ``wait.met`` says whether it showed.
         """
 
         with self._lock:
+            try:
+                condition = _condition(wait_for)
+            except AgentActionError as error:
+                return _planning_error(error)
             try:
                 if url is not None:
                     if since is not None:
@@ -95,15 +124,24 @@ class BrowserTools:
                     refused = self._refuse_origin(url)
                     if refused is not None:
                         return refused
-                    self._browser().open(url)
+                    session = self._browser()
+                    session.open(url)
                     self._reported = {"writes": 0, "navigations": 0}
-                    return self._observe_result("Observed the page.")
+                    if condition is None:
+                        return self._observe_result("Observed the page.")
+                    base = session.observe(locate=False)
+                    waited = session.wait(condition, base, timeout_ms=timeout_ms)
+                    return self._waited_result("Observed the page.", waited, since=base)
                 earlier = self._observation(since) if since is not None else None
                 if isinstance(earlier, dict):
                     return earlier
                 if self._session is None:
                     return _error("BROWSER_NO_PAGE", "No page is open.", "Call observe with a url first.")
-                return self._observe_result("Observed the page.", since=earlier)
+                if condition is None:
+                    return self._observe_result("Observed the page.", since=earlier)
+                base = earlier or self._history[self._latest]
+                waited = self._session.wait(condition, base, timeout_ms=timeout_ms)
+                return self._waited_result("Observed the page.", waited, since=base)
             except BridgeError as error:
                 return _error(_bridge_code(error), str(error), "Check the url, or observe again.")
 
@@ -113,18 +151,29 @@ class BrowserTools:
         action: Literal["click", "fill", "check", "uncheck", "select"],
         value: str | list[str] | None = None,
         observation_id: int | None = None,
+        wait_for: WaitFor | None = None,
+        timeout_ms: int = DEFAULT_TIMEOUT_MS,
     ) -> dict[str, Any]:
         """Do one thing to the control with this handle, then read the page again.
 
         ``fill`` takes text in ``value``. ``select`` takes an option value or label (a list for a
         multiple select). ``check`` and ``uncheck`` take no value. The handle comes from the latest
         observation unless ``observation_id`` names an earlier one.
+
+        A page that answers after a delay shows nothing at first. ``wait_for`` waits, up to
+        ``timeout_ms``, for ``{"change": "any" | "message" | "navigation"}``, ``{"text": "..."}``,
+        ``{"gone": "..."}``, or ``{"control": "...", "enabled": true}``. The action is done either way;
+        ``wait.met`` says whether the change showed. Do not repeat the action only because it is false.
         """
 
         with self._lock:
             observation = self._observation(observation_id)
             if isinstance(observation, dict):
                 return observation
+            try:
+                condition = _condition(wait_for)
+            except AgentActionError as error:
+                return _planning_error(error)
             if handle not in observation.handles:
                 return _error(
                     "BROWSER_HANDLE_UNKNOWN",
@@ -135,7 +184,7 @@ class BrowserTools:
                 steps = plan_control_action(observation.handles[handle], action, value)
             except AgentActionError as error:
                 return _planning_error(error)
-            return self._run(steps, observation)
+            return self._run(steps, observation, condition, timeout_ms)
 
     def call(
         self,
@@ -143,12 +192,15 @@ class BrowserTools:
         arguments: dict[str, Any],
         submit: bool = True,
         observation_id: int | None = None,
+        wait_for: WaitFor | None = None,
+        timeout_ms: int = DEFAULT_TIMEOUT_MS,
     ) -> dict[str, Any]:
         """Fill in a form with ``arguments`` and submit it, then read the page again.
 
         ``tool`` is a name from ``form_tools``; ``arguments`` follows its ``input_schema``. Arguments you
         leave out keep the value the page shows. ``submit=false`` only fills the form. Every problem
-        with the arguments is reported at once, before the browser does anything.
+        with the arguments is reported at once, before the browser does anything. ``wait_for`` and
+        ``timeout_ms`` work as for ``act``, for example ``{"text": "Order placed"}``.
         """
 
         with self._lock:
@@ -156,10 +208,11 @@ class BrowserTools:
             if isinstance(observation, dict):
                 return observation
             try:
+                condition = _condition(wait_for)
                 steps = plan_form_call(observation.lift, tool, arguments, submit=submit)
             except AgentActionError as error:
                 return _planning_error(error)
-            return self._run(steps, observation)
+            return self._run(steps, observation, condition, timeout_ms)
 
     def close(self) -> None:
         with self._lock:
@@ -201,7 +254,13 @@ class BrowserTools:
     def _id_of(self, observation: Observation) -> int:
         return next(key for key, value in self._history.items() if value is observation)
 
-    def _run(self, steps: tuple[ActionStep, ...], observation: Observation) -> dict[str, Any]:
+    def _run(
+        self,
+        steps: tuple[ActionStep, ...],
+        observation: Observation,
+        condition: ChangeCondition | None = None,
+        timeout_ms: int = DEFAULT_TIMEOUT_MS,
+    ) -> dict[str, Any]:
         session = self._browser()
         try:
             results = session.run(steps, observation=observation) if steps else []
@@ -218,13 +277,34 @@ class BrowserTools:
                 data=current,
             )
         summary = "Nothing to do: the control is already in that state." if not steps else _summary(results)
-        result = self._observe_result(summary, since=observation)
+        if condition is None:
+            result = self._observe_result(summary, since=observation)
+        else:
+            try:
+                waited = session.wait(condition, observation, timeout_ms=timeout_ms)
+            except BridgeError as error:
+                return _error(_bridge_code(error), str(error), "Observe the page, then decide.")
+            result = self._waited_result(summary, waited, since=observation, acted=bool(steps))
         result["steps"] = [item.to_json() for item in results]
         result["navigated"] = any(item.navigated for item in results)
         return result
 
     def _observe_result(self, summary: str, *, since: Observation | None = None) -> dict[str, Any]:
         return tool_response(True, summary, data=self._observe_data(since=since))
+
+    def _waited_result(
+        self, summary: str, waited: WaitResult, *, since: Observation, acted: bool = False
+    ) -> dict[str, Any]:
+        """A result after a wait: the view, the changes since ``since``, and whether the change showed."""
+
+        if waited.met:
+            note = f" Waited {waited.waited_ms} ms for {waited.condition.describe()}: it showed."
+        else:
+            advice = "The action is done; read the view before you act again." if acted else "Read the view."
+            note = f" Waited {waited.timeout_ms} ms for {waited.condition.describe()}: it did not show. {advice}"
+        result = tool_response(True, summary + note, data=self._observe_data(since=since))
+        result["wait"] = waited.to_json()
+        return result
 
     def _observe_data(self, *, since: Observation | None = None) -> dict[str, Any]:
         """Read the page, keep the reading, and describe it. ``since`` adds what changed from it."""
@@ -289,6 +369,10 @@ def _public_schema(schema: dict[str, Any]) -> dict[str, Any]:
         return value
 
     return {key: strip(schema[key]) for key in ("name", "description", "input_schema")}
+
+
+def _condition(wait_for: WaitFor | dict[str, Any] | None) -> ChangeCondition | None:
+    return None if wait_for is None else ChangeCondition.from_json(dict(wait_for))
 
 
 def _error(code: str, message: str, fix: str) -> dict[str, Any]:

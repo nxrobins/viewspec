@@ -25,12 +25,12 @@ See [docs/local-html-wedge.md](../../docs/local-html-wedge.md#agent-lift-profile
 |---|---|
 | `lift_inpage.js` | In-page library. Gives every element a ref (`e17`) that stays the same while the element is in the page. Snapshots the composed tree (open shadow roots, slots, same-origin iframes) with live form state, and never copies a secret value. Lists the visible controls (the ground truth). Proposes CSS candidates for an element. |
 | `bridge.js` | A Playwright session driven over stdio with JSON lines. Verifies locators, runs steps, and by default **blocks writes**: a form post or any other non-GET request is recorded and answered with a stub page. With an origin allowlist, it also stops navigations to other origins. |
-| `agent_session.py` | `BrowserSession`: `open`, `observe`, `act(handle, op, value)`, `call(tool, arguments)`, `blocked_writes()`, `blocked_navigations()`. `changes(before, after)`: what changed between two observations. |
+| `agent_session.py` | `BrowserSession`: `open`, `observe`, `act(handle, op, value)`, `call(tool, arguments)`, `wait(condition, since, timeout_ms)`, `blocked_writes()`, `blocked_navigations()`. `changes(before, after)`: what changed between two observations. |
 | `page_view.py` | The compact text view, with a numbered handle for each control. |
 | `mcp_browser_server.py` | **The MCP server**: `observe`, `act`, and `call` as MCP tools over stdio. See [MCP tools](#mcp-tools). |
 | `probe.py` | Measures coverage, names, locators, size, and secret leaks on any set of pages. |
-| `demo_agent.py` | A scripted agent that uses `BrowserSession` directly, with 29 checks on the fixtures. |
-| `demo_mcp.py` | An MCP client that starts the server over stdio and uses only the three tools, with 30 checks. |
+| `demo_agent.py` | A scripted agent that uses `BrowserSession` directly, with 39 checks on the fixtures. |
+| `demo_mcp.py` | An MCP client that starts the server over stdio and uses only the three tools, with 37 checks. |
 
 ### Locators
 
@@ -89,20 +89,44 @@ value never appears: a card number fill shows `no change`. If the page loaded a 
 result is `new_document: true` and one line naming the new page, because a diff would list the whole
 page.
 
+### Waiting
+
+Right after an action, a page that answers after a delay (a server call, a timer) has not changed
+yet, so the diff says `no change`. `wait(condition, since, timeout_ms)` waits for a change that the
+agent names, with the package's `ChangeCondition`:
+
+| `wait_for` | Waits until |
+|---|---|
+| `{"change": "any"}` | anything in the diff |
+| `{"change": "message"}` | a new message (alert, status, live region) |
+| `{"change": "navigation"}` | a new document |
+| `{"text": "Order placed"}` | the text is on the page |
+| `{"gone": "Loading"}` | the text is no longer on the page |
+| `{"control": "Apply", "enabled": true}` | the control is on the page, and enabled (or disabled) |
+
+It does not poll on a timer. After each reading that does not meet the condition, the bridge
+watches the DOM with a `MutationObserver` on the document, every open shadow root, and every
+same-origin iframe, and wakes on the first change (once the DOM is quiet for 100 ms, or 500 ms after
+the first change) or on a navigation. Then the page is read again. On the fixtures, a link that
+shows 600 ms after a click is found in about 700 ms with 2 readings. The longest wait is 30 s.
+
 ## MCP tools
 
 `mcp_browser_server.py` serves three tools over stdio:
 
 | Tool | Arguments | Does |
 |---|---|---|
-| `observe` | `url` or `since` (both optional) | Opens `url` if given, then reads the page. Returns `view` (one line per message, heading, value, table row, and control; each control has a handle such as `[7]`), `form_tools` (one typed tool per form), `observation_id`, `url`, and `title`. With `since` (an earlier `observation_id`), it also returns `changes` since that reading, for a page that updates by itself. |
-| `act` | `handle`, `action` (`click`, `fill`, `check`, `uncheck`, `select`), `value`, `observation_id` | Does one thing to one control, then reads the page again. |
-| `call` | `tool`, `arguments`, `submit`, `observation_id` | Fills in a form with typed arguments and submits it, then reads the page again. |
+| `observe` | `url` or `since` (both optional), `wait_for`, `timeout_ms` | Opens `url` if given, then reads the page. Returns `view` (one line per message, heading, value, table row, and control; each control has a handle such as `[7]`), `form_tools` (one typed tool per form), `observation_id`, `url`, and `title`. With `since` (an earlier `observation_id`), it also returns `changes` since that reading, for a page that updates by itself. |
+| `act` | `handle`, `action` (`click`, `fill`, `check`, `uncheck`, `select`), `value`, `observation_id`, `wait_for`, `timeout_ms` | Does one thing to one control, waits for `wait_for` if given, then reads the page again. |
+| `call` | `tool`, `arguments`, `submit`, `observation_id`, `wait_for`, `timeout_ms` | Fills in a form with typed arguments and submits it, waits for `wait_for` if given, then reads the page again. |
 
 Every result uses the `viewspec mcp` result format: `ok`, `summary`, `errors` (each with `code`,
 `message`, and `fix`), and `next_actions`. `act` and `call` also return `steps` (with secret values
 as `[redacted]`), `navigated`, the new view, and `changes` (see [Changes](#changes)), so the agent
-needs no extra `observe`. When writes
+needs no extra `observe`. With `wait_for`, the result also has `wait`: what it waited for, `met`,
+and `waited_ms`. A wait that is not met is not an error: the action is done, `ok` stays true, and the
+summary says the change did not show, so the agent does not repeat an action that may have worked.
+A `wait_for` that is not valid is refused before the browser does anything (`AGENT_WAIT_INVALID`). When writes
 are blocked, `blocked_writes` lists each stopped request with its form fields; secret fields are
 `[redacted]`. `blocked_navigations` lists each navigation the origin allowlist stopped.
 
@@ -167,8 +191,12 @@ observe(url="http://localhost:3000/checkout")
 act(handle=4, action="click")
   steps: [click 'Increase quantity' by ref]
   changes: ["changed [3] text 'Quantity': value '2' -> '3'"]
-call(tool="checkout", arguments={"email": "bo@example.com", "ship": "express", "terms": true})
-  steps: 4  navigated: true  changes: {new_document: true}
+act(handle=3, action="click", wait_for={"text": "Download CSV"})
+  summary: Did 1 step(s): click 'Export'. Waited 706 ms for 'Download CSV' on the page: it showed.
+  changes: ["message status 'Export ready'", "added [7] link 'Download CSV'"]
+call(tool="checkout", arguments={"email": "bo@example.com", "ship": "express", "terms": true},
+     wait_for={"change": "navigation"})
+  steps: 4  navigated: true  wait: {met: true}  changes: {new_document: true}
   blocked_writes: [POST /orders {email, ship, terms, ...}]
 ```
 
@@ -203,7 +231,7 @@ with BrowserSession() as session:  # block_writes=True by default
 |---|---:|---:|---:|---:|---:|---:|---:|---:|---|---:|
 | checkout | 208 | 142 | 14 | 1/14 | 14/14 | 14/14 | 15/15 | 1 | True | 0 |
 | shop | 255 | 152 | 14 | 8/14 | 14/14 | 14/14 | 14/14 | 1 | True | 0 |
-| spa | 135 | 64 | 5 | 3/5 | 5/5 | 5/5 | 6/6 | 0 | True | 0 |
+| spa | 138 | 64 | 5 | 3/5 | 5/5 | 5/5 | 6/6 | 0 | True | 0 |
 | viewspec_orders | 98 | 43 | 3 | 2/3 | 3/3 | 3/3 | 3/3 | 0 | True | 0 |
 
 - **agent cov** matches by element (ref), not by name: 36 of 36 visible controls. **same name**: the
@@ -214,7 +242,7 @@ with BrowserSession() as session:  # block_writes=True by default
 - **leaks**: live secret values (password, card number, CVC) found in the snapshot, lift, view, form
   schemas, or locators: 0. The Playwright ARIA snapshot of `checkout` shows the typed password.
 
-`demo_agent.py` (29 checks, all pass):
+`demo_agent.py` (39 checks, all pass):
 
 - **checkout:** a click inside the web component's shadow DOM changes the quantity from 2 to 3. Fills
   inside the payment iframe are verified, and the next snapshot does not contain the card number. A
@@ -228,14 +256,21 @@ with BrowserSession() as session:  # block_writes=True by default
   quantity 2 to 3, `no change` after the card fill, the promo field added when its `<details>`
   opens, a new document after the submit, the status message and the renamed, disabled button
   after "Add to cart", and the new product after "Load more".
+- **waiting:** without a wait, the delayed Export seems to do nothing. A wait for "Download CSV" is
+  met in about 700 ms with 2 readings, and the diff shows the message and the new link. A wait that
+  is not met ends at its timeout. On the checkout promo code, a wait for a message shows "Code not
+  valid", and a wait for the Apply button to be enabled again shows "Code SAVE10 applied". A wait for
+  a new page after the submit is met at once.
 
-`demo_mcp.py` (30 checks, all pass) runs the same kind of tasks through the MCP server, as a host
+`demo_mcp.py` (37 checks, all pass) runs the same kind of tasks through the MCP server, as a host
 would, with `--allow-origin` set to the local fixture server and without `NODE_PATH`. It also checks
 that the tool schemas carry no internal node ids, that a blocked post shows the password field as
 `[redacted]` and no result contains the password or the card number, that acting from a view of a
 page that has navigated away is refused, that opening another origin is refused, and that a link to
 another origin leaves the agent on the page it was on. It checks `changes` in `act` and `call`
-results, and that `observe(since=...)` combines the changes of two actions.
+results, that `observe(since=...)` combines the changes of two actions, that `act` with `wait_for`
+returns the delayed link, that a bad `wait_for` is refused before anything is done, and that an
+`observe` wait that is not met still returns `ok`.
 
 The fixtures are small and hand-made. Run the probe on real sites before you draw conclusions.
 
@@ -257,9 +292,11 @@ The fixtures are small and hand-made. Run the probe on real sites before you dra
 - A diff matches controls by ref, then by unique name, then by place. A control that the page
   re-rendered and also renamed and moved is reported as removed and added.
 - A message that the page shows again with the same text is not reported as new.
+- A wait wakes on DOM changes and navigations. A change that only sets a property (text typed into a
+  field by script) does not wake it; the next DOM change or the timeout does.
 
 ## Next steps
 
 1. Add the MCP server to an agent host, and try it on real sites.
 2. Let `observe` page through a long view.
-3. Let `act` wait for a change (a message, a new control) when a page updates after a delay.
+3. Let an agent choose an option from a custom ARIA combobox's pop-up list in one step.

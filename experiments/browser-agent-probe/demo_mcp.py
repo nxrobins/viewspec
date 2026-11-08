@@ -109,8 +109,9 @@ async def run(base: str) -> None:
             "new_password": PASSWORD,
             "terms": True,
         }
-        done = await tool(session, "call", tool="checkout", arguments=arguments)
+        done = await tool(session, "call", tool="checkout", arguments=arguments, wait_for={"change": "navigation"})
         check(done["ok"] and done["navigated"], "the form call ran and the submit navigated")
+        check(done["wait"]["met"] and done["wait"]["for"] == "a new page", "and the wait for a new page was met")
         check(len(done["steps"]) == 6, "it ran 6 steps")
         [write] = done["blocked_writes"]
         fields = write["form_fields"]
@@ -157,6 +158,27 @@ async def run(base: str) -> None:
         )
         mixed = await tool(session, "observe", url=f"{base}/shop.html", since=start)
         check(not mixed["ok"] and mixed["errors"][0]["code"] == "BROWSER_INVALID_REQUEST", "url with since is refused")
+
+        print("\n== waiting ==")
+        spa = await tool(session, "observe", url=f"{base}/spa.html")
+        bad = await tool(
+            session, "act", handle=handle(spa, "Export"), action="click", wait_for={"text": "a", "gone": "b"}
+        )
+        check(not bad["ok"] and bad["errors"][0]["code"] == "AGENT_WAIT_INVALID", "a bad wait_for is refused")
+        check("Nothing was done" in bad["summary"], "before the browser does anything")
+        export = await tool(
+            session, "act", handle=handle(spa, "Export"), action="click", wait_for={"text": "Download CSV"}
+        )
+        print("\n".join(f"  ~~  {line}" for line in export["changes"]["lines"]))
+        check(export["wait"]["met"] and export["wait"]["waited_ms"] >= 400, "act waited for the delayed link")
+        check(
+            export["changes"]["lines"]
+            == ["message status 'Export ready'", f"added [{handle(export, 'Download CSV')}] link 'Download CSV'"],
+            "and its changes show the message and the new link",
+        )
+        late = await tool(session, "observe", wait_for={"text": "Never shown"}, timeout_ms=600)
+        check(late["ok"] and not late["wait"]["met"], "a wait that is not met is not an error")
+        check("did not show" in late["summary"], "the summary says the change did not show")
 
         print("\n== viewspec_orders ==")
         orders = await tool(session, "observe", url=f"{base}/viewspec_orders.html")

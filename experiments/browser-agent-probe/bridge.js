@@ -15,6 +15,7 @@
 //                                          run one planned step (see below)
 //   writes    {}                           the writes and navigations that were stopped
 //   document  {}                           the id of the current document (see lift_inpage.js)
+//   wait_change {timeout_ms}               wait until the DOM changes or the page navigates
 //   close     {}
 //
 // With block_writes, every request that is not GET, HEAD, or OPTIONS (a form post, a fetch that
@@ -338,7 +339,27 @@ async function act({ op, ref, locator: spec, value, values }) {
   };
 }
 
+// Wait for the next change: a DOM change anywhere in the composed tree, or a navigation. Returns
+// { reason: "mutation" | "navigation" | "timeout" }. The caller reads the page again and decides
+// whether the change is the one it waits for.
+async function waitChange({ timeout_ms: timeoutMs = 5000 }) {
+  const limit = Math.max(0, Math.min(Number(timeoutMs) || 0, 30000));
+  await ensureLibrary();
+  const navigation = page
+    .waitForEvent("framenavigated", { predicate: (frame) => frame === page.mainFrame(), timeout: limit + 50 })
+    .then(() => "navigation")
+    .catch(() => "timeout");
+  const mutation = page
+    .evaluate((ms) => window.__viewspecLift.nextChange(ms), limit)
+    .then((changed) => (changed ? "mutation" : "timeout"))
+    .catch(() => "navigation"); // The page went away while it was being watched.
+  const reason = await Promise.race([navigation, mutation]);
+  if (reason === "navigation") await settle();
+  return { reason };
+}
+
 const COMMANDS = {
+  wait_change: waitChange,
   open,
   snapshot,
   locate,
