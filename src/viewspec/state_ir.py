@@ -188,7 +188,7 @@ def validate_state_ir(app_payload: dict[str, Any]) -> tuple[StateIR | None, list
             StateValidationIssue(
                 "APP_STATE_PROFILE_REQUIRED",
                 "$.interactive_state",
-                f"AppBundle V3/V4 must declare interactive_state {INTERACTIVE_STATE_PROFILE}.",
+                f"AppBundle V3 to V5 must declare interactive_state {INTERACTIVE_STATE_PROFILE}.",
                 "Set interactive_state to interactive_state_v0.",
             )
         )
@@ -3483,8 +3483,8 @@ console.log(JSON.stringify({
                     {
                         "code": "APP_STATE_REDUCER_NODE_UNAVAILABLE",
                         "path": "$.interactive_state",
-                        "message": f"Node.js runtime {node_command!r} was not found; V3/V4 reducer conformance requires Node.js.",
-                        "fix": "Install Node.js (>=18) on PATH for V3/V4 reducer conformance, or use a V1/V2 AppBundle (no Node required).",
+                        "message": f"Node.js runtime {node_command!r} was not found; V3 to V5 reducer conformance requires Node.js.",
+                        "fix": "Install Node.js (>=18) on PATH for V3 to V5 reducer conformance, or use a V1/V2 AppBundle (no Node required).",
                     }
                 ],
             }

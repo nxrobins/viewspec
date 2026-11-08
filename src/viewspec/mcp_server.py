@@ -35,7 +35,8 @@ MCP_INSTALL_HINT = 'Install with: python -m pip install "viewspec[agents]"'
 # caps mcp below 2.
 _MCP_SERVER_MODULE = "mcp.server.fastmcp"
 _SERVER_INSTRUCTIONS = (
-    "ViewSpec compiles semantic JSON into checked UI. Edit viewspec.intent.json or viewspec.app.json, never "
+    "ViewSpec compiles semantic JSON into checked UI. Edit viewspec.compact.json, viewspec.intent.json, or "
+    "viewspec.app.json, never "
     "the generated output. The loop is init, edit the source, check, compile, then prove. Every result "
     "carries ok; on failure, follow its errors, issues, or correction_prompt and retry. check and compile "
     "apply lossless fixes and report them under fixes; patch applies a JSON Patch to an IntentBundle source "
@@ -291,7 +292,8 @@ class ViewSpecTools:
 
         The preview runs in the background and rebuilds when the source or DESIGN.md changes. One
         runs at a time: starting another replaces it, and stop=True ends it. With no source, uses
-        the only viewspec.app.json or viewspec.intent.json in the working directory. port=0 picks
+        the only viewspec.app.json, viewspec.intent.json, or viewspec.compact.json in the working
+        directory. port=0 picks
         a free port. A failed first build is reported in build_errors while the preview keeps watching.
         """
         if stop:

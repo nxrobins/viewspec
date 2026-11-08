@@ -293,7 +293,7 @@ in-process Python: load only plugins you would trust as any other dependency.
 IntentBundle JSON -> ViewSpec compiler -> HTML / React / CompositionIR
        |-- validate the agent contract
        |-- apply DESIGN.md
-       |-- generate and replay TypeScript reducers (AppBundle V3/V4)
+       |-- generate and replay TypeScript reducers (AppBundle V3 to V5)
        |-- write provenance_manifest.json
        `-- keep DOM and framework code as compiler output
 ```
@@ -313,7 +313,7 @@ Without `--registry` the output is unchanged. See [React Host Component Registry
 
 ## Requirements
 
-Python 3.11 or newer. AppBundle V3/V4 reducer conformance also needs Node.js 18 or newer on `PATH`.
+Python 3.11 or newer. AppBundle V3 to V5 reducer conformance also needs Node.js 18 or newer on `PATH`.
 The Freerange proof needs a stable Bun 1.x on `PATH`; ViewSpec never installs it.
 
 Linux and macOS are supported. Browser verification uses POSIX process groups and is not supported

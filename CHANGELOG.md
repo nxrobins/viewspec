@@ -60,7 +60,7 @@ All notable changes to ViewSpec are documented in this file. The format follows
   reads the model id from the repository variable `VIEWSPEC_EVAL_MODEL` and uploads the report as
   an artifact. The SDK and its tests still make no model calls.
 - The compact authoring form of an `IntentBundle`: `"format": "compact"` plus the Python builder's
-  calls as JSON, at about a fifth of the canonical size. `viewspec check`, `compile`, and `prove`,
+  calls as JSON, at about a sixth of the canonical size. `viewspec check`, `compile`, and `prove`,
   the Python `check()` and `prove()`, the MCP `check`, `compile`, and `patch` tools, and the
   conformance corpus detect a compact file and normalize it into the canonical bundle. A `--patch`
   applies to the compact file as written, so its pointers name the compact document. The lossless
@@ -148,6 +148,8 @@ All notable changes to ViewSpec are documented in this file. The format follows
 
 ### Changed
 
+- `docs/compatibility.md` covers the compact authoring form and `agent-intent-compact.schema.json`,
+  and the AppBundle Node.js messages and README lines say V3 to V5.
 - `integrations/claude-code/SKILL.md` is now a short pointer to `skills/viewspec/SKILL.md`.
 - The README's Agents section, `docs/README.md`, `demos/llms.txt`, and `demos/llms-full.txt` lead
   with the compact form and the repair loop, and list the concept pages, the comparison, and the

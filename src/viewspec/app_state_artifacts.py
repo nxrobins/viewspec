@@ -52,7 +52,7 @@ def _write_state_artifacts(
                     str(message),
                     str(
                         first.get("fix")
-                        or "Install Node.js (>=18) on PATH for V3/V4 reducer conformance, or use a V1/V2 AppBundle."
+                        or "Install Node.js (>=18) on PATH for V3 to V5 reducer conformance, or use a V1/V2 AppBundle."
                     ),
                 )
             raise AppBundleProofFailure(
